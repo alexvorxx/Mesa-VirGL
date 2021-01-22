@@ -1186,18 +1186,85 @@ opt_if_phi_src_unused(nir_builder *b, nir_if *nif)
    return progress;
 }
 
+static void
+rewrite_phi_uses(nir_phi_instr *phi, nir_if *prev_if, nir_if *next_if)
+{
+   nir_def *then_src =
+      nir_phi_get_src_from_block(phi, nir_if_last_then_block(prev_if))->src.ssa;
+   nir_def *else_src =
+      nir_phi_get_src_from_block(phi, nir_if_last_else_block(prev_if))->src.ssa;
+
+   /* Rewrite all uses inside the next IF with either then_src or else_src. */
+   nir_foreach_use_including_if_safe(use, &phi->def) {
+      nir_cf_node *node = &nir_src_get_block(use)->cf_node;
+
+      /* Check if the node is inside the if-stmt. */
+      while (node) {
+         if (node->parent == &next_if->cf_node)
+            break;
+
+         node = node->parent;
+         if (node == prev_if->cf_node.parent)
+            node = NULL;
+      }
+
+      /* The node is outside of the IF. */
+      if (!node)
+         continue;
+
+      /* Get the first block. */
+      while (!nir_cf_node_is_first(node))
+         node = nir_cf_node_prev(node);
+
+      nir_block *block = nir_cf_node_as_block(node);
+      nir_src_rewrite(use, block == nir_if_first_then_block(next_if) ? then_src : else_src);
+   }
+}
+
 static bool
 opt_if_merge(nir_if *nif)
 {
-   bool progress = false;
-
    nir_block *next_blk = nir_cf_node_cf_tree_next(&nif->cf_node);
    if (!next_blk)
       return false;
 
    nir_if *next_if = nir_block_get_following_if(next_blk);
-   if (!next_if)
+   if (!next_if || !nir_srcs_equal(nif->condition, next_if->condition))
       return false;
+
+   /* This optimization isn't made to work in this case and
+    * opt_if_evaluate_condition_use will optimize it later.
+    */
+   if (nir_block_ends_in_jump(nir_if_last_then_block(nif)) ||
+       nir_block_ends_in_jump(nir_if_last_else_block(nif)))
+      return false;
+
+   /* This optimization is not prepared to handle updating phis other than
+    * immediately after the second if-statement.
+    */
+   if (nir_block_ends_in_jump(nir_if_last_then_block(next_if)) ||
+       nir_block_ends_in_jump(nir_if_last_else_block(next_if)))
+      return false;
+
+   /* Ensure that there is nothing but phis between the IFs */
+   if (!exec_list_is_empty(&next_blk->instr_list)) {
+      if (nir_block_last_instr(next_blk)->type != nir_instr_type_phi)
+         return false;
+
+      /* If there are phis, then the next IF must not contain any jump. */
+      nir_foreach_block_in_cf_node(block, &next_if->cf_node) {
+         if (nir_block_ends_in_jump(block))
+            return false;
+      }
+   }
+
+   nir_foreach_phi(phi, next_blk) {
+      /* Rewrite the phi uses in each branch leg of the following IF
+       * with the phi source from the respective branch leg of the
+       * previous IF.
+       */
+      rewrite_phi_uses(phi, nif, next_if);
+   }
 
    /* Here we merge two consecutive ifs that have the same condition e.g:
     *
@@ -1213,62 +1280,40 @@ opt_if_merge(nir_if *nif)
     *   }
     *
     * Note: This only merges if-statements when the block between them is
-    * empty. The reason we don't try to merge ifs that just have phis between
-    * them is because this can result in increased register pressure. For
-    * example when merging if ladders created by indirect indexing.
+    * empty except for phis.
     */
-   if (nif->condition.ssa == next_if->condition.ssa &&
-       exec_list_is_empty(&next_blk->instr_list)) {
+   simple_merge_if(nif, next_if, true, true);
+   simple_merge_if(nif, next_if, false, false);
 
-      /* This optimization isn't made to work in this case and
-       * opt_if_evaluate_condition_use will optimize it later.
-       */
-      if (nir_block_ends_in_jump(nir_if_last_then_block(nif)) ||
-          nir_block_ends_in_jump(nir_if_last_else_block(nif)))
-         return false;
+   nir_block *new_then_block = nir_if_last_then_block(nif);
+   nir_block *new_else_block = nir_if_last_else_block(nif);
 
-      /* This optimization is not prepared to handle updating phis other than
-       * immediately after the second if-statement.
-       */
-      if (nir_block_ends_in_jump(nir_if_last_then_block(next_if)) ||
-          nir_block_ends_in_jump(nir_if_last_else_block(next_if)))
-         return false;
+   nir_block *old_then_block = nir_if_last_then_block(next_if);
+   nir_block *old_else_block = nir_if_last_else_block(next_if);
 
-      simple_merge_if(nif, next_if, true, true);
-      simple_merge_if(nif, next_if, false, false);
+   /* Rewrite the predecessor block for any phis following the second
+    * if-statement.
+    */
+   rewrite_phi_predecessor_blocks(next_if, old_then_block,
+                                  old_else_block,
+                                  new_then_block,
+                                  new_else_block);
 
-      nir_block *new_then_block = nir_if_last_then_block(nif);
-      nir_block *new_else_block = nir_if_last_else_block(nif);
+   /* Move phis after merged if to avoid them being deleted when we remove
+    * the merged if-statement.
+    */
+   nir_block *after_next_if_block =
+      nir_cf_node_as_block(nir_cf_node_next(&next_if->cf_node));
 
-      nir_block *old_then_block = nir_if_last_then_block(next_if);
-      nir_block *old_else_block = nir_if_last_else_block(next_if);
-
-      /* Rewrite the predecessor block for any phis following the second
-       * if-statement.
-       */
-      rewrite_phi_predecessor_blocks(next_if, old_then_block,
-                                     old_else_block,
-                                     new_then_block,
-                                     new_else_block);
-
-      /* Move phis after merged if to avoid them being deleted when we remove
-       * the merged if-statement.
-       */
-      nir_block *after_next_if_block =
-         nir_cf_node_as_block(nir_cf_node_next(&next_if->cf_node));
-
-      nir_foreach_phi_safe(phi, after_next_if_block) {
-         exec_node_remove(&phi->instr.node);
-         exec_list_push_tail(&next_blk->instr_list, &phi->instr.node);
-         phi->instr.block = next_blk;
-      }
-
-      nir_cf_node_remove(&next_if->cf_node);
-
-      progress = true;
+   nir_foreach_phi_safe(phi, after_next_if_block) {
+      exec_node_remove(&phi->instr.node);
+      exec_list_push_tail(&next_blk->instr_list, &phi->instr.node);
+      phi->instr.block = next_blk;
    }
 
-   return progress;
+   nir_cf_node_remove(&next_if->cf_node);
+
+   return true;
 }
 
 static bool
