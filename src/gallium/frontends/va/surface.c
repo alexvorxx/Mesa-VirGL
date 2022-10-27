@@ -646,9 +646,7 @@ vlVaQuerySurfaceAttributes(VADriverContextP ctx, VAConfigID config_id,
       i++;
    }
 
-   if (config->rt_format & VA_RT_FORMAT_YUV420_10 ||
-       (config->rt_format & VA_RT_FORMAT_YUV420 &&
-        config->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE)) {
+   if (config->rt_format & VA_RT_FORMAT_YUV420_10) {
       attribs[i].type = VASurfaceAttribPixelFormat;
       attribs[i].value.type = VAGenericValueTypeInteger;
       attribs[i].flags = VA_SURFACE_ATTRIB_GETTABLE | VA_SURFACE_ATTRIB_SETTABLE;
