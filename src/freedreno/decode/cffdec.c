@@ -2655,11 +2655,11 @@ cp_set_marker(uint32_t *dwords, uint32_t sizedwords, int level)
 
    render_mode = mode;
 
-   if (!strcmp(render_mode, "RM6_BINNING")) {
+   if (!strcmp(render_mode, "RM6_BIN_VISIBILITY")) {
       enable_mask = MODE_BINNING;
-   } else if (!strcmp(render_mode, "RM6_GMEM")) {
+   } else if (!strcmp(render_mode, "RM6_BIN_RENDER_START")) {
       enable_mask = MODE_GMEM;
-   } else if (!strcmp(render_mode, "RM6_BYPASS")) {
+   } else if (!strcmp(render_mode, "RM6_DIRECT_RENDER")) {
       enable_mask = MODE_BYPASS;
    }
 }

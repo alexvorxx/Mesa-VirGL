@@ -399,10 +399,10 @@ cmdstream[0]: 265 dwords
 			RB_BIN_CONTROL2: { BINW = 256 | BINH = 256 }
 0000000001058350:		0000: 4088d301 00001008
 		opcode: CP_SET_MARKER (65) (2 dwords)
-			{ MODE = RM6_YIELD | MARKER = RM6_YIELD }
+			{ MARKER_MODE = SET_RENDER_MODE | MODE = RM6_BIN_RENDER_END }
 0000000001058358:		0000: 70e50001 00000007
 		opcode: CP_SET_MARKER (65) (2 dwords)
-			{ MODE = RM6_GMEM | MARKER = RM6_GMEM }
+			{ MARKER_MODE = SET_RENDER_MODE | MODE = RM6_BIN_RENDER_START }
 0000000001058360:		0000: 70e50001 00000004
 		write GRAS_SC_WINDOW_SCISSOR_TL (80f0)
 			GRAS_SC_WINDOW_SCISSOR_TL: { X = 0 | Y = 0 }
@@ -463,7 +463,7 @@ cmdstream[0]: 265 dwords
 			opcode: CP_EVENT_WRITE (46) (2 dwords)
 				{ EVENT = BLIT }
 			event BLIT
-			mode: RM6_GMEM
+			mode: RM6_BIN_RENDER_START
 			skip_ib2: g=0, l=0
 			draw[1] register values
 !+	06001008			GRAS_BIN_CONTROL: { BINW = 256 | BINH = 256 | RENDER_MODE = RENDERING_PASS | BUFFERS_LOCATION = BUFFERS_IN_GMEM | LRZ_FEEDBACK_ZMODE_MASK = 0x6 }
@@ -1276,7 +1276,7 @@ cmdstream[0]: 265 dwords
 				{ INDIRECT = 0x1162008 }
 				{ INDIRECT_COUNT = 0x116300c }
 				{ STRIDE = 40 }
-			mode: RM6_GMEM
+			mode: RM6_BIN_RENDER_START
 			skip_ib2: g=0, l=0
 			indirect count: 2
 			draw 0:
@@ -1517,7 +1517,7 @@ cmdstream[0]: 265 dwords
 			opcode: CP_SKIP_IB2_ENABLE_GLOBAL (1d) (2 dwords)
 000000000115c010:			0000: 709d0001 00000000
 			opcode: CP_SET_MARKER (65) (2 dwords)
-				{ MODE = RM6_RESOLVE | MARKER = RM6_RESOLVE }
+				{ MARKER_MODE = SET_RENDER_MODE | MODE = RM6_BIN_RESOLVE }
 000000000115c018:			0000: 70e50001 00000006
 			write RB_BLIT_SCISSOR_TL (88d1)
 				RB_BLIT_SCISSOR_TL: { X = 0 | Y = 0 }
@@ -1544,7 +1544,7 @@ cmdstream[0]: 265 dwords
 			opcode: CP_EVENT_WRITE (46) (2 dwords)
 				{ EVENT = BLIT }
 			event BLIT
-			mode: RM6_RESOLVE
+			mode: RM6_BIN_RESOLVE
 			skip_ib2: g=0, l=0
 			draw[3] register values
  +	00000000			RB_BLIT_SCISSOR_TL: { X = 0 | Y = 0 }

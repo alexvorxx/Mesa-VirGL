@@ -3873,8 +3873,8 @@ to upconvert to 32b float internally?
 		<!-- set when this is the last resolve on a650+ -->
 		<bitfield name="LAST" low="8" high="9"/>
 		<!--
-			a618 GLES: color render target number being resolved for RM6_RESOLVE, 0x8 for depth, 0x9 for separate stencil.
-			a618 VK: 0x8 for depth RM6_RESOLVE, 0x9 for separate stencil, 0 otherwise.
+			a618 GLES: color render target number being resolved for CCU_RESOLVE, 0x8 for depth, 0x9 for separate stencil.
+			a618 VK: 0x8 for depth CCU_RESOLVE, 0x9 for separate stencil, 0 otherwise.
 
 			We believe this is related to concurrent resolves
 		 -->

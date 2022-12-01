@@ -943,7 +943,7 @@ emit_binning_pass(struct fd_batch *batch) assert_dt
 
    emit_marker6(ring, 7);
    OUT_PKT7(ring, CP_SET_MARKER, 1);
-   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BINNING));
+   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_VISIBILITY));
    emit_marker6(ring, 7);
 
    OUT_PKT7(ring, CP_SET_VISIBILITY_OVERRIDE, 1);
@@ -1192,7 +1192,7 @@ fd6_emit_tile_prep(struct fd_batch *batch, const struct fd_tile *tile)
 
    emit_marker6(ring, 7);
    OUT_PKT7(ring, CP_SET_MARKER, 1);
-   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_GMEM));
+   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_RENDER_START));
    emit_marker6(ring, 7);
 
    uint32_t x1 = tile->xoff;
@@ -1774,7 +1774,7 @@ fd6_emit_tile_gmem2mem(struct fd_batch *batch, const struct fd_tile *tile)
 
    if (use_hw_binning(batch)) {
       OUT_PKT7(ring, CP_SET_MARKER, 1);
-      OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_ENDVIS));
+      OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_END_OF_DRAWS));
    }
 
    OUT_PKT7(ring, CP_SET_DRAW_STATE, 3);
@@ -1789,7 +1789,7 @@ fd6_emit_tile_gmem2mem(struct fd_batch *batch, const struct fd_tile *tile)
 
    emit_marker6(ring, 7);
    OUT_PKT7(ring, CP_SET_MARKER, 1);
-   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_RESOLVE));
+   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_RESOLVE));
    emit_marker6(ring, 7);
 
    if (batch->tile_store) {
@@ -1931,7 +1931,7 @@ fd6_emit_sysmem_prep(struct fd_batch *batch) assert_dt
 
    emit_marker6(ring, 7);
    OUT_PKT7(ring, CP_SET_MARKER, 1);
-   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BYPASS));
+   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_DIRECT_RENDER));
    emit_marker6(ring, 7);
 
    OUT_PKT7(ring, CP_SKIP_IB2_ENABLE_GLOBAL, 1);

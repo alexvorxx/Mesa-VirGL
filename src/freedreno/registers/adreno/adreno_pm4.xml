@@ -1779,13 +1779,23 @@ opcode: CP_LOAD_STATE4 (30) (4 dwords)
 
 <domain name="CP_SET_MARKER" width="32" varset="chip" prefix="chip" variants="A6XX-">
 	<doc>Tell CP the current operation mode, indicates save and restore procedure</doc>
+	<enum name="set_marker_mode">
+		<value value="0" name="SET_RENDER_MODE"/>
+		<!-- IFPC - inter-frame power collapse -->
+		<value value="1" name="SET_IFPC_MODE"/>
+	</enum>
+	<enum name="a6xx_ifpc_mode">
+		<value value="0" name="IFPC_ENABLE"/>
+		<value value="1" name="IFPC_DISABLE"/>
+	</enum>
 	<enum name="a6xx_marker">
-		<value value="1" name="RM6_BYPASS"/>
-		<value value="2" name="RM6_BINNING"/>
-		<value value="4" name="RM6_GMEM"/>
-		<value value="5" name="RM6_ENDVIS"/>
-		<value value="6" name="RM6_RESOLVE"/>
-		<value value="7" name="RM6_YIELD"/>
+		<value value="1" name="RM6_DIRECT_RENDER"/>
+		<value value="2" name="RM6_BIN_VISIBILITY"/>
+		<value value="3" name="RM6_BIN_DIRECT"/>
+		<value value="4" name="RM6_BIN_RENDER_START"/>
+		<value value="5" name="RM6_BIN_END_OF_DRAWS"/>
+		<value value="6" name="RM6_BIN_RESOLVE"/>
+		<value value="7" name="RM6_BIN_RENDER_END"/>
 		<value value="8" name="RM6_COMPUTE"/>
 		<value value="0xc" name="RM6_BLIT2DSCALE"/>  <!-- no-op (at least on current sqe fw) -->
 
@@ -1795,23 +1805,16 @@ opcode: CP_LOAD_STATE4 (30) (4 dwords)
 		-->
 		<value value="0xd" name="RM6_IB1LIST_START"/>
 		<value value="0xe" name="RM6_IB1LIST_END"/>
-		<!-- IFPC - inter-frame power collapse -->
-		<value value="0x100" name="RM6_IFPC_ENABLE"/>
-		<value value="0x101" name="RM6_IFPC_DISABLE"/>
 	</enum>
 	<reg32 offset="0" name="0">
-		<!--
-			NOTE: blob driver and some versions of freedreno/turnip set
-			b4, which is unused (at least by current sqe fw), but interferes
-			with parsing if we extend the size of the bitfield to include
-			b8 (only sent by kernel mode driver).  Really, the way the
-			parsing works in the firmware, only b0-b3 are considered, but
-			if b8 is set, the low bits are interpreted differently.  To
-			model this, without getting confused by spurious b4, this is
-			described as two overlapping bitfields:
-		 -->
-		<bitfield name="MODE" low="0" high="8" type="a6xx_marker"/>
-		<bitfield name="MARKER" low="0" high="3" type="a6xx_marker"/>
+		<!-- if b8 is set, the low bits are interpreted differently (and b4 ignored) -->
+		<bitfield name="MARKER_MODE" pos="8" type="set_marker_mode" addvariant="yes"/>
+
+		<bitfield name="MODE" low="0" high="3" type="a6xx_marker" varset="set_marker_mode" variants="SET_RENDER_MODE"/>
+		<!-- used by preemption to determine if GMEM needs to be saved or not -->
+		<bitfield name="USES_GMEM" pos="4" type="boolean" varset="set_marker_mode" variants="SET_RENDER_MODE"/>
+
+		<bitfield name="IFPC_MODE" pos="0" type="a6xx_ifpc_mode" varset="set_marker_mode" variants="SET_IFPC_MODE"/>
 	</reg32>
 </domain>
 
@@ -1941,11 +1944,11 @@ opcode: CP_LOAD_STATE4 (30) (4 dwords)
 			a bitmask of which modes pass the test.
 		-->
 
-		<!-- RM6_BINNING -->
+		<!-- RM6_BIN_VISIBILITY -->
 		<bitfield name="BINNING" pos="25" variants="RENDER_MODE" type="boolean"/>
 		<!-- all others -->
 		<bitfield name="GMEM" pos="26" variants="RENDER_MODE" type="boolean"/>
-		<!-- RM6_BYPASS -->
+		<!-- RM6_DIRECT_RENDER -->
 		<bitfield name="SYSMEM" pos="27" variants="RENDER_MODE" type="boolean"/>
 
 		<bitfield name="BV" pos="25" variants="THREAD_MODE" type="boolean"/>
@@ -2032,7 +2035,7 @@ opcode: CP_LOAD_STATE4 (30) (4 dwords)
                         <doc>
 				Executed when switching back after switching
 				away during execution of
-				a CP_SET_MARKER packet with RM6_YIELD as the
+				a CP_SET_MARKER packet with RM6_BIN_RENDER_END as the
 				payload *and* skipsaverestore is set. This is
 				expected to restore static register values not
 				saved when skipsaverestore is set.
