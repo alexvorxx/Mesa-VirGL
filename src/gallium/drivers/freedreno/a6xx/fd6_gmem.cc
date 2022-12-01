@@ -1192,7 +1192,8 @@ fd6_emit_tile_prep(struct fd_batch *batch, const struct fd_tile *tile)
 
    emit_marker6(ring, 7);
    OUT_PKT7(ring, CP_SET_MARKER, 1);
-   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_RENDER_START));
+   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_RENDER_START) |
+                  A6XX_CP_SET_MARKER_0_USES_GMEM);
    emit_marker6(ring, 7);
 
    uint32_t x1 = tile->xoff;
@@ -1774,7 +1775,8 @@ fd6_emit_tile_gmem2mem(struct fd_batch *batch, const struct fd_tile *tile)
 
    if (use_hw_binning(batch)) {
       OUT_PKT7(ring, CP_SET_MARKER, 1);
-      OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_END_OF_DRAWS));
+      OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_END_OF_DRAWS) |
+                     A6XX_CP_SET_MARKER_0_USES_GMEM);
    }
 
    OUT_PKT7(ring, CP_SET_DRAW_STATE, 3);
@@ -1789,7 +1791,8 @@ fd6_emit_tile_gmem2mem(struct fd_batch *batch, const struct fd_tile *tile)
 
    emit_marker6(ring, 7);
    OUT_PKT7(ring, CP_SET_MARKER, 1);
-   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_RESOLVE));
+   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_RESOLVE) |
+                  A6XX_CP_SET_MARKER_0_USES_GMEM);
    emit_marker6(ring, 7);
 
    if (batch->tile_store) {
@@ -1797,6 +1800,9 @@ fd6_emit_tile_gmem2mem(struct fd_batch *batch, const struct fd_tile *tile)
       emit_conditional_ib(batch, tile, batch->tile_store);
       trace_end_tile_stores(&batch->trace, batch->gmem);
    }
+
+   OUT_PKT7(ring, CP_SET_MARKER, 1);
+   OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_RENDER_END));
 }
 
 template <chip CHIP>
