@@ -14,6 +14,7 @@
 #ifndef SVGA3D_SURFACEDEFS_H
 #define SVGA3D_SURFACEDEFS_H
 
+#include "svga_types.h"
 #include "svga3d_reg.h"
 
 #define max_t(type, x, y)  ((x) > (y) ? (x) : (y))

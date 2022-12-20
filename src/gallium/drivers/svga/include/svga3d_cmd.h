@@ -21,6 +21,7 @@
 #include "includeCheck.h"
 #include "svga3d_types.h"
 #include "svga3d_limits.h"
+#include "svga_reg.h"
 
 /*
  * Identifiers for commands in the command FIFO.
@@ -85,7 +86,7 @@ typedef enum {
    SVGA_3D_CMD_SCREEN_DMA                                 = 1082,
    SVGA_3D_CMD_DEAD1                                      = 1083,
    SVGA_3D_CMD_DEAD2                                      = 1084,
-   
+
    SVGA_3D_CMD_DEAD12                                     = 1085,
    SVGA_3D_CMD_DEAD13                                     = 1086,
    SVGA_3D_CMD_DEAD14                                     = 1087,
@@ -286,7 +287,7 @@ typedef enum {
    SVGA_3D_CMD_DX_DISPATCH_INDIRECT                       = 1254,
 
    SVGA_3D_CMD_WRITE_ZERO_SURFACE                         = 1255,
-   SVGA_3D_CMD_HINT_ZERO_SURFACE                          = 1256,
+   SVGA_3D_CMD_UPDATE_ZERO_SURFACE                        = 1256,
    SVGA_3D_CMD_DX_TRANSFER_TO_BUFFER                      = 1257,
    SVGA_3D_CMD_DX_SET_STRUCTURE_COUNT                     = 1258,
 
@@ -539,6 +540,26 @@ struct {
 }
 #include "vmware_pack_end.h"
 SVGA3dCmdIntraSurfaceCopy;               /* SVGA_3D_CMD_INTRA_SURFACE_COPY */
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint32 srcSid;
+   uint32 destSid;
+}
+#include "vmware_pack_end.h"
+SVGA3dCmdWholeSurfaceCopy;               /* SVGA_3D_CMD_WHOLE_SURFACE_COPY */
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   SVGA3dSurfaceImageId  src;
+   SVGA3dSurfaceImageId  dest;
+   SVGA3dBox boxSrc;
+   SVGA3dBox boxDest;
+}
+#include "vmware_pack_end.h"
+SVGA3dCmdSurfaceStretchBltNonMSToMS;     /* SVGA_3D_CMD_SURFACE_STRETCHBLT_NON_MS_TO_MS */
 
 typedef
 #include "vmware_pack_begin.h"
@@ -1276,7 +1297,8 @@ struct SVGA3dCmdLogicOpsTransBlt {
    uint32 color;
    uint32 flags;
    SVGA3dBox srcBox;
-   SVGA3dBox dstBox;
+   SVGA3dSignedBox dstBox;
+   SVGA3dBox clipBox;
 }
 #include "vmware_pack_end.h"
 SVGA3dCmdLogicOpsTransBlt;   /* SVGA_3D_CMD_LOGICOPS_TRANSBLT */
@@ -1295,7 +1317,8 @@ struct SVGA3dCmdLogicOpsStretchBlt {
    uint16 mode;
    uint16 flags;
    SVGA3dBox srcBox;
-   SVGA3dBox dstBox;
+   SVGA3dSignedBox dstBox;
+   SVGA3dBox clipBox;
 }
 #include "vmware_pack_end.h"
 SVGA3dCmdLogicOpsStretchBlt;   /* SVGA_3D_CMD_LOGICOPS_STRETCHBLT */
@@ -1331,7 +1354,8 @@ struct SVGA3dCmdLogicOpsAlphaBlend {
    uint32 alphaVal;
    uint32 flags;
    SVGA3dBox srcBox;
-   SVGA3dBox dstBox;
+   SVGA3dSignedBox dstBox;
+   SVGA3dBox clipBox;
 }
 #include "vmware_pack_end.h"
 SVGA3dCmdLogicOpsAlphaBlend;   /* SVGA_3D_CMD_LOGICOPS_ALPHABLEND */
@@ -1392,8 +1416,10 @@ struct {
    uint32 mobPitch;
    SVGA3dSurface2Flags surface2Flags;
    uint8 multisamplePattern;
-   uint8  pad0[3];
-   uint32 pad1[3];
+   uint8 qualityLevel;
+   uint16 bufferByteStride;
+   float minLOD;
+   uint32 pad0[2];
 }
 #include "vmware_pack_end.h"
 SVGAOTableSurfaceEntry;
@@ -1482,6 +1508,7 @@ struct {
 }
 #include "vmware_pack_end.h"
 SVGAGBVertexStream;
+
 typedef
 #include "vmware_pack_begin.h"
 struct {
@@ -1501,7 +1528,7 @@ struct {
       SVGA3dMaterial material;
    } material;
 
-   float clipPlanes[SVGA3D_NUM_CLIPPLANES][4];
+   float clipPlanes[SVGA3D_MAX_CLIP_PLANES][4];
    float matrices[SVGA3D_TRANSFORM_MAX][16];
 
    SVGA3dBool lightEnabled[SVGA3D_NUM_LIGHTS];
@@ -1552,7 +1579,6 @@ struct {
 }
 #include "vmware_pack_end.h"
 SVGAGBContextData;
-#define SVGA3D_CONTEXT_DATA_SIZE (sizeof(SVGAGBContextData))
 
 /*
  * SVGA3dCmdSetOTableBase --
@@ -1742,9 +1768,29 @@ struct SVGA3dCmdDefineGBSurface_v3 {
 SVGA3dCmdDefineGBSurface_v3;   /* SVGA_3D_CMD_DEFINE_GB_SURFACE_V3 */
 
 /*
+ * Defines a guest-backed surface, adding buffer byte stride.
+ */
+typedef
+#include "vmware_pack_begin.h"
+struct SVGA3dCmdDefineGBSurface_v4 {
+   uint32 sid;
+   SVGA3dSurfaceAllFlags surfaceFlags;
+   SVGA3dSurfaceFormat format;
+   uint32 numMipLevels;
+   uint32 multisampleCount;
+   SVGA3dMSPattern multisamplePattern;
+   SVGA3dMSQualityLevel qualityLevel;
+   SVGA3dTextureFilter autogenFilter;
+   SVGA3dSize size;
+   uint32 arraySize;
+   uint32 bufferByteStride;
+}
+#include "vmware_pack_end.h"
+SVGA3dCmdDefineGBSurface_v4;   /* SVGA_3D_CMD_DEFINE_GB_SURFACE_V4 */
+
+/*
  * Destroy a guest-backed surface.
  */
-
 typedef
 #include "vmware_pack_begin.h"
 struct SVGA3dCmdDestroyGBSurface {
@@ -1867,7 +1913,6 @@ struct SVGA3dCmdReadbackGBImagePartial {
 #include "vmware_pack_end.h"
 SVGA3dCmdReadbackGBImagePartial; /* SVGA_3D_CMD_READBACK_GB_IMAGE_PARTIAL */
 
-
 /*
  * Invalidate an image in a guest-backed surface.
  * (Notify the device that the contents can be lost.)
@@ -1910,7 +1955,6 @@ struct SVGA3dCmdInvalidateGBImagePartial {
 }
 #include "vmware_pack_end.h"
 SVGA3dCmdInvalidateGBImagePartial; /* SVGA_3D_CMD_INVALIDATE_GB_IMAGE_PARTIAL */
-
 
 /*
  * Define a guest-backed context.
@@ -1974,6 +2018,7 @@ SVGA3dCmdReadbackGBContext;   /* SVGA_3D_CMD_READBACK_GB_CONTEXT */
 /*
  * Invalidate a guest-backed context.
  */
+
 typedef
 #include "vmware_pack_begin.h"
 struct SVGA3dCmdInvalidateGBContext {
@@ -2040,7 +2085,6 @@ struct {
 #include "vmware_pack_end.h"
 SVGA3dCmdSetGBShaderConstInline;   /* SVGA_3D_CMD_SET_GB_SHADERCONSTS_INLINE */
 
-
 typedef
 #include "vmware_pack_begin.h"
 struct {
@@ -2061,7 +2105,6 @@ struct {
 #include "vmware_pack_end.h"
 SVGA3dCmdEndGBQuery;                  /* SVGA_3D_CMD_END_GB_QUERY */
 
-
 /*
  * SVGA_3D_CMD_WAIT_FOR_GB_QUERY --
  *
@@ -2080,7 +2123,6 @@ struct {
 }
 #include "vmware_pack_end.h"
 SVGA3dCmdWaitForGBQuery;          /* SVGA_3D_CMD_WAIT_FOR_GB_QUERY */
-
 
 typedef
 #include "vmware_pack_begin.h"
@@ -2101,7 +2143,6 @@ struct {
 #include "vmware_pack_end.h"
 SVGA3dCmdMapMobIntoGart;          /* SVGA_3D_CMD_MAP_MOB_INTO_GART */
 
-
 typedef
 #include "vmware_pack_begin.h"
 struct {
@@ -2110,7 +2151,6 @@ struct {
 }
 #include "vmware_pack_end.h"
 SVGA3dCmdUnmapGartRange;          /* SVGA_3D_CMD_UNMAP_GART_RANGE */
-
 
 /*
  * Screen Targets
@@ -2164,6 +2204,27 @@ SVGA3dCmdUpdateGBScreenTarget;  /* SVGA_3D_CMD_UPDATE_GB_SCREENTARGET */
 
 typedef
 #include "vmware_pack_begin.h"
+struct {
+   uint32 stid;
+   SVGA3dRect rect;
+   SVGA3dFrameUpdateType type;
+}
+#include "vmware_pack_end.h"
+SVGA3dCmdUpdateGBScreenTarget_v2; /* SVGA_3D_CMD_UPDATE_GB_SCREENTARGET_V2 */
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint32 stid;
+   SVGA3dRect rect;
+   SVGA3dFrameUpdateType type;
+   SVGAUnsignedPoint srcPoint;
+}
+#include "vmware_pack_end.h"
+SVGA3dCmdUpdateGBScreenTargetMove; /* SVGA_3D_CMD_UPDATE_GB_SCREENTARGET_MOVE */
+
+typedef
+#include "vmware_pack_begin.h"
 struct SVGA3dCmdGBScreenDMA {
    uint32 screenId;
    uint32 dead;
@@ -2203,5 +2264,21 @@ SVGA3dCmdScreenCopy;  /* SVGA_3D_CMD_SCREEN_COPY */
 #define SVGA_SCREEN_COPY_STATUS_FAILURE 0x00
 #define SVGA_SCREEN_COPY_STATUS_SUCCESS 0x01
 #define SVGA_SCREEN_COPY_STATUS_INVALID 0xFFFFFFFF
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint32 sid;
+}
+#include "vmware_pack_end.h"
+SVGA3dCmdWriteZeroSurface;  /* SVGA_3D_CMD_WRITE_ZERO_SURFACE */
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
+   uint32 sid;
+}
+#include "vmware_pack_end.h"
+SVGA3dCmdUpdateZeroSurface;  /* SVGA_3D_CMD_UPDATE_ZERO_SURFACE */
 
 #endif // _SVGA3D_CMD_H_

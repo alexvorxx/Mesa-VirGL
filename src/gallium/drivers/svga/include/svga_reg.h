@@ -554,6 +554,11 @@ struct {
    int32  y;
 } SVGASignedPoint;
 
+typedef
+struct {
+   uint32  x;
+   uint32  y;
+} SVGAUnsignedPoint;
 
 /*
  * SVGA Device Capabilities

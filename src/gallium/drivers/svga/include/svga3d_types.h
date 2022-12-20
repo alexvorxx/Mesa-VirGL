@@ -58,12 +58,25 @@
 
 #define MIN_UINT64 (CONST64U(0))
 #define MAX_UINT64 (CONST64U(0xffffffffffffffff))
+#include "svga_types.h"
 
 /*
  * Generic Types
  */
 
 #define SVGA3D_INVALID_ID         ((uint32)-1)
+#define SVGA3D_RESERVED_ID        ((uint32)-2)
+
+#define SVGA3D_RESOURCE_TYPE_MIN      1
+#define SVGA3D_RESOURCE_BUFFER        1
+#define SVGA3D_RESOURCE_TEXTURE1D     2
+#define SVGA3D_RESOURCE_TEXTURE2D     3
+#define SVGA3D_RESOURCE_TEXTURE3D     4
+#define SVGA3D_RESOURCE_TEXTURECUBE   5
+#define SVGA3D_RESOURCE_TYPE_DX10_MAX 6
+#define SVGA3D_RESOURCE_BUFFEREX      6
+#define SVGA3D_RESOURCE_TYPE_MAX      7
+typedef uint32 SVGA3dResourceType;
 
 typedef uint8 SVGABool8;   /* 8-bit Bool definition */
 typedef uint32 SVGA3dBool; /* 32-bit Bool definition */
@@ -136,12 +149,41 @@ SVGA3dBox;
 typedef
 #include "vmware_pack_begin.h"
 struct {
+   int32                x;
+   int32                y;
+   int32                z;
+   int32                w;
+   int32                h;
+   int32                d;
+}
+#include "vmware_pack_end.h"
+SVGA3dSignedBox;
+
+typedef
+#include "vmware_pack_begin.h"
+struct {
    uint32               x;
    uint32               y;
    uint32               z;
 }
 #include "vmware_pack_end.h"
 SVGA3dPoint;
+
+typedef
+#include "vmware_pack_begin.h"
+union {
+   struct {
+      float r;
+      float g;
+      float b;
+      float a;
+   };
+
+   float value[4];
+}
+#include "vmware_pack_end.h"
+SVGA3dRGBAFloat;
+
 
 /*
  * Surface formats.
@@ -419,7 +461,6 @@ typedef enum SVGA3dSurfaceFormat {
  */
 #define SVGA3D_SURFACE_TRANSFER_FROM_BUFFER   (CONST64U(1) << 30)
 
-
 #define SVGA3D_SURFACE_RESERVED1              (CONST64U(1) << 31)
 
 
@@ -442,15 +483,6 @@ typedef enum SVGA3dSurfaceFormat {
 
 
 #define SVGA3D_SURFACE_STAGING_COPY           (CONST64U(1) << 40)
-
-
-
-
-
-
-
-
-
 
 #define SVGA3D_SURFACE_FLAG_MAX               (CONST64U(1) << 44)
 
@@ -1641,7 +1673,6 @@ typedef enum {
 
 #define SVGA3D_LOGICOP_INVALID  0
 #define SVGA3D_LOGICOP_COPY     1
-
 #define SVGA3D_LOGICOP_MIN      1
 #define SVGA3D_LOGICOP_NOT      2
 #define SVGA3D_LOGICOP_AND      3
@@ -1649,7 +1680,6 @@ typedef enum {
 #define SVGA3D_LOGICOP_XOR      5
 #define SVGA3D_LOGICOP_NXOR     6
 #define SVGA3D_LOGICOP_ROP3     7
-
 #define SVGA3D_LOGICOP_MAX      8
 
 typedef uint16 SVGA3dLogicOp;
@@ -1766,7 +1796,6 @@ typedef enum SVGAMobFormat {
    SVGA3D_MOBFMT_PT64_2           = 6,
    SVGA3D_MOBFMT_PREDX_MAX        = 7,
    SVGA3D_MOBFMT_EMPTY            = 7,
-
    SVGA3D_MOBFMT_MAX,
 
 
