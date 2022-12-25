@@ -29,6 +29,7 @@
 
 #include "brw_fs.h"
 #include "brw_cfg.h"
+#include "brw_eu.h"
 
 #define fsv_assert(assertion)                                           \
    {                                                                    \
@@ -87,6 +88,92 @@
    }
 
 #ifndef NDEBUG
+static inline bool
+is_ud_imm(const brw_reg &reg)
+{
+   return reg.file == IMM && reg.type == BRW_TYPE_UD;
+}
+
+static void
+validate_memory_logical(const fs_visitor &s, const fs_inst *inst)
+{
+   const intel_device_info *devinfo = s.devinfo;
+
+   fsv_assert(is_ud_imm(inst->src[MEMORY_LOGICAL_OPCODE]));
+   fsv_assert(is_ud_imm(inst->src[MEMORY_LOGICAL_MODE]));
+   fsv_assert(is_ud_imm(inst->src[MEMORY_LOGICAL_BINDING_TYPE]));
+   fsv_assert(is_ud_imm(inst->src[MEMORY_LOGICAL_COORD_COMPONENTS]));
+   fsv_assert(is_ud_imm(inst->src[MEMORY_LOGICAL_ALIGNMENT]));
+   fsv_assert(is_ud_imm(inst->src[MEMORY_LOGICAL_DATA_SIZE]));
+   fsv_assert(is_ud_imm(inst->src[MEMORY_LOGICAL_COMPONENTS]));
+   fsv_assert(is_ud_imm(inst->src[MEMORY_LOGICAL_FLAGS]));
+
+   enum lsc_data_size data_size =
+      (enum lsc_data_size) inst->src[MEMORY_LOGICAL_DATA_SIZE].ud;
+   unsigned data_size_B = lsc_data_size_bytes(data_size);
+
+   if (!devinfo->has_lsc) {
+      fsv_assert(data_size == LSC_DATA_SIZE_D8U32 ||
+                 data_size == LSC_DATA_SIZE_D16U32 ||
+                 data_size == LSC_DATA_SIZE_D32 ||
+                 data_size == LSC_DATA_SIZE_D64);
+   }
+
+   enum lsc_opcode op = (enum lsc_opcode) inst->src[MEMORY_LOGICAL_OPCODE].ud;
+   enum memory_flags flags = (memory_flags)inst->src[MEMORY_LOGICAL_FLAGS].ud;
+   bool transpose = flags & MEMORY_FLAG_TRANSPOSE;
+   bool include_helpers = flags & MEMORY_FLAG_INCLUDE_HELPERS;
+
+   fsv_assert(!transpose || !include_helpers);
+   fsv_assert(!transpose || lsc_opcode_has_transpose(op));
+
+   if (inst->src[MEMORY_LOGICAL_BINDING_TYPE].ud == LSC_ADDR_SURFTYPE_FLAT)
+      fsv_assert(inst->src[MEMORY_LOGICAL_BINDING].file == BAD_FILE);
+
+   if (inst->src[MEMORY_LOGICAL_DATA1].file != BAD_FILE) {
+      fsv_assert(inst->src[MEMORY_LOGICAL_COMPONENTS].ud ==
+                 inst->components_read(MEMORY_LOGICAL_DATA1));
+
+      fsv_assert(inst->src[MEMORY_LOGICAL_DATA0].type ==
+                 inst->src[MEMORY_LOGICAL_DATA1].type);
+   }
+
+   if (inst->src[MEMORY_LOGICAL_DATA0].file != BAD_FILE) {
+      fsv_assert(inst->src[MEMORY_LOGICAL_COMPONENTS].ud ==
+                 inst->components_read(MEMORY_LOGICAL_DATA0));
+
+      fsv_assert(brw_type_size_bytes(inst->src[MEMORY_LOGICAL_DATA0].type) ==
+                 data_size_B);
+   }
+
+   if (inst->dst.file != BAD_FILE)
+      fsv_assert(brw_type_size_bytes(inst->dst.type) == data_size_B);
+
+   switch (inst->opcode) {
+   case SHADER_OPCODE_MEMORY_LOAD_LOGICAL:
+      fsv_assert(op == LSC_OP_LOAD || op == LSC_OP_LOAD_CMASK);
+      fsv_assert(inst->src[MEMORY_LOGICAL_DATA0].file == BAD_FILE);
+      fsv_assert(inst->src[MEMORY_LOGICAL_DATA1].file == BAD_FILE);
+      break;
+   case SHADER_OPCODE_MEMORY_STORE_LOGICAL:
+      fsv_assert(lsc_opcode_is_store(op));
+      fsv_assert(inst->src[MEMORY_LOGICAL_DATA0].file != BAD_FILE);
+      fsv_assert(inst->src[MEMORY_LOGICAL_DATA1].file == BAD_FILE);
+      break;
+   case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
+      fsv_assert(lsc_opcode_is_atomic(op));
+      fsv_assert((inst->src[MEMORY_LOGICAL_DATA0].file == BAD_FILE)
+                  == (lsc_op_num_data_values(op) < 1));
+      fsv_assert((inst->src[MEMORY_LOGICAL_DATA1].file == BAD_FILE)
+                  == (lsc_op_num_data_values(op) < 2));
+      fsv_assert(inst->src[MEMORY_LOGICAL_COMPONENTS].ud == 1);
+      fsv_assert(!include_helpers);
+      break;
+   default:
+      unreachable("invalid opcode");
+   }
+}
+
 void
 brw_fs_validate(const fs_visitor &s)
 {
@@ -102,6 +189,12 @@ brw_fs_validate(const fs_visitor &s)
 
       case BRW_OPCODE_MOV:
          fsv_assert(inst->sources == 1);
+         break;
+
+      case SHADER_OPCODE_MEMORY_LOAD_LOGICAL:
+      case SHADER_OPCODE_MEMORY_STORE_LOGICAL:
+      case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
+         validate_memory_logical(s, inst);
          break;
 
       default:

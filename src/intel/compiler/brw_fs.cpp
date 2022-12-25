@@ -241,6 +241,14 @@ fs_inst::is_control_source(unsigned arg) const
    case SHADER_OPCODE_SEND:
       return arg == 0 || arg == 1;
 
+   case SHADER_OPCODE_MEMORY_LOAD_LOGICAL:
+   case SHADER_OPCODE_MEMORY_STORE_LOGICAL:
+   case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
+      return arg != MEMORY_LOGICAL_BINDING &&
+             arg != MEMORY_LOGICAL_ADDRESS &&
+             arg != MEMORY_LOGICAL_DATA0 &&
+             arg != MEMORY_LOGICAL_DATA1;
+
    default:
       return false;
    }
@@ -694,6 +702,22 @@ fs_inst::components_read(unsigned i) const
          else
             return 1;
       } else
+         return 1;
+
+   case SHADER_OPCODE_MEMORY_LOAD_LOGICAL:
+      if (i == MEMORY_LOGICAL_DATA0 || i == MEMORY_LOGICAL_DATA0)
+         return 0;
+      /* fallthrough */
+   case SHADER_OPCODE_MEMORY_STORE_LOGICAL:
+      if (i == MEMORY_LOGICAL_DATA1)
+         return 0;
+      /* fallthrough */
+   case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
+      if (i == MEMORY_LOGICAL_DATA0 || i == MEMORY_LOGICAL_DATA1)
+         return src[MEMORY_LOGICAL_COMPONENTS].ud;
+      else if (i == MEMORY_LOGICAL_ADDRESS)
+         return src[MEMORY_LOGICAL_COORD_COMPONENTS].ud;
+      else
          return 1;
 
    case SHADER_OPCODE_UNTYPED_SURFACE_READ_LOGICAL:

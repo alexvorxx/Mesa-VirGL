@@ -325,6 +325,12 @@ brw_instruction_name(const struct brw_isa_info *isa, enum opcode op)
       return "read_arch_reg";
    case SHADER_OPCODE_LOAD_SUBGROUP_INVOCATION:
       return "load_subgroup_invocation";
+   case SHADER_OPCODE_MEMORY_LOAD_LOGICAL:
+      return "memory_load_logical";
+   case SHADER_OPCODE_MEMORY_STORE_LOGICAL:
+      return "memory_store_logical";
+   case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
+      return "memory_atomic_logical";
    }
 
    unreachable("not reached");

@@ -59,6 +59,7 @@ can_omit_write(const fs_inst *inst)
    case SHADER_OPCODE_A64_UNTYPED_ATOMIC_LOGICAL:
    case SHADER_OPCODE_UNTYPED_ATOMIC_LOGICAL:
    case SHADER_OPCODE_TYPED_ATOMIC_LOGICAL:
+   case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
       return true;
    default:
       /* We can eliminate the destination write for ordinary instructions,

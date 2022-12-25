@@ -1416,6 +1416,18 @@ setup_lsc_surface_descriptors(const fs_builder &bld, fs_inst *inst,
 }
 
 static void
+lower_lsc_memory_logical_send(const fs_builder &bld, fs_inst *inst)
+{
+   unreachable("Not implemented yet");
+}
+
+static void
+lower_hdc_memory_logical_send(const fs_builder &bld, fs_inst *inst)
+{
+   unreachable("Not implemented yet");
+}
+
+static void
 lower_surface_logical_send(const fs_builder &bld, fs_inst *inst)
 {
    const brw_compiler *compiler = bld.shader->compiler;
@@ -2840,6 +2852,17 @@ brw_fs_lower_logical_sends(fs_visitor &s)
 
       case SHADER_OPCODE_GET_BUFFER_SIZE:
          lower_get_buffer_size(ibld, inst);
+         break;
+
+      case SHADER_OPCODE_MEMORY_LOAD_LOGICAL:
+      case SHADER_OPCODE_MEMORY_STORE_LOGICAL:
+      case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
+         if (devinfo->ver >= 20 ||
+             (devinfo->has_lsc &&
+              inst->src[MEMORY_LOGICAL_MODE].ud != MEMORY_MODE_TYPED))
+            lower_lsc_memory_logical_send(ibld, inst);
+         else
+            lower_hdc_memory_logical_send(ibld, inst);
          break;
 
       case SHADER_OPCODE_UNTYPED_SURFACE_READ_LOGICAL:
