@@ -2823,7 +2823,8 @@ begin_rendering(struct zink_context *ctx, bool check_msaa_expand)
          else
             ctx->dynamic_fb.attachments[i].loadOp = VK_ATTACHMENT_LOAD_OP_LOAD;
          if (use_tc_info) {
-            if (!ctx->dynamic_fb.tc_info.has_resolve && ctx->dynamic_fb.tc_info.cbuf_invalidate & BITFIELD_BIT(i))
+            /* can't skip stores if this is not a winsys resolve */
+            if ((!ctx->dynamic_fb.tc_info.has_resolve || ctx->fb_state.resolve) && ctx->dynamic_fb.tc_info.cbuf_invalidate & BITFIELD_BIT(i))
                ctx->dynamic_fb.attachments[i].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
             else
                ctx->dynamic_fb.attachments[i].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -2987,8 +2988,25 @@ begin_rendering(struct zink_context *ctx, bool check_msaa_expand)
             /* dead swapchain */
             return 0;
 
+      } else {
+         ctx->dynamic_fb.attachments[i].resolveMode = VK_RESOLVE_MODE_NONE;
       }
       ctx->dynamic_fb.attachments[i].imageView = iv;
+   }
+   if (ctx->fb_state.resolve && use_tc_info && ctx->dynamic_fb.tc_info.has_resolve) {
+      struct zink_resource *res = zink_resource(ctx->fb_state.resolve);
+      struct zink_surface *surf = zink_csurface(res->surface);
+      if (zink_is_swapchain(res)) {
+         if (!zink_kopper_acquire(ctx, res, UINT64_MAX))
+            return 0;
+         zink_surface_swapchain_update(ctx, surf);
+      }
+      zink_batch_resource_usage_set(ctx->bs, res, true, false);
+      VkImageLayout layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+      zink_screen(ctx->base.screen)->image_barrier(ctx, res, layout, 0, 0);
+      res->obj->unordered_read = res->obj->unordered_write = false;
+      ctx->dynamic_fb.attachments[0].resolveMode = VK_RESOLVE_MODE_AVERAGE_BIT;
+      ctx->dynamic_fb.attachments[0].resolveImageView = surf->image_view;
    }
    if (has_swapchain) {
       ASSERTED struct zink_resource *res = zink_resource(ctx->fb_state.cbufs[0]->texture);
@@ -3761,6 +3779,8 @@ zink_set_framebuffer_state(struct pipe_context *pctx,
    /* renderpass changes if the number or types of attachments change */
    ctx->rp_changed |= ctx->fb_state.nr_cbufs != state->nr_cbufs;
    ctx->rp_changed |= !!ctx->fb_state.zsbuf != !!state->zsbuf;
+   if (ctx->tc && screen->driver_workarounds.track_renderpasses)
+      ctx->rp_changed |= ctx->fb_state.resolve != state->resolve;
    if (ctx->fb_state.nr_cbufs != state->nr_cbufs) {
       ctx->blend_state_changed |= screen->have_full_ds3;
       if (state->nr_cbufs && screen->have_full_ds3)
@@ -5388,6 +5408,7 @@ zink_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
       VkRenderingAttachmentInfo *att = &ctx->dynamic_fb.attachments[i];
       att->sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
       att->imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+      att->resolveImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
       att->storeOp = VK_ATTACHMENT_STORE_OP_STORE;
    }
    ctx->gfx_pipeline_state.rendering_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO;
