@@ -3850,6 +3850,17 @@ zink_set_framebuffer_state(struct pipe_context *pctx,
    } else {
       ctx->depth_bias_scale_factor = 0;
    }
+
+   if (ctx->fb_state.resolve) {
+      struct zink_resource *res = zink_resource(ctx->fb_state.resolve);
+      if (!res->surface) {
+         struct pipe_surface tmpl = {0};
+         tmpl.format = res->base.b.format;
+         zink_screen_lock_context(screen);
+         res->surface = screen->copy_context->base.create_surface(&screen->copy_context->base, &res->base.b, &tmpl);
+         zink_screen_unlock_context(screen);
+      }
+   }
    if (depth_bias_scale_factor != ctx->depth_bias_scale_factor &&
        ctx->rast_state && ctx->rast_state->base.offset_units_unscaled)
       ctx->rast_state_changed = true;

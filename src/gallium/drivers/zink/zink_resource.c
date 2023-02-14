@@ -244,6 +244,7 @@ zink_resource_destroy(struct pipe_screen *pscreen,
       assert(!_mesa_hash_table_num_entries(&res->surface_cache));
       simple_mtx_destroy(&res->surface_mtx);
       ralloc_free(res->surface_cache.table);
+      pipe_surface_reference(&res->surface, NULL);
    }
    /* no need to do anything for the caches, these objects own the resource lifetimes */
 
