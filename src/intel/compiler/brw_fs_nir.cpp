@@ -81,12 +81,7 @@ static void fs_nir_emit_loop(nir_to_brw_state &ntb, nir_loop *loop);
 static void fs_nir_emit_block(nir_to_brw_state &ntb, nir_block *block);
 static void fs_nir_emit_instr(nir_to_brw_state &ntb, nir_instr *instr);
 
-static void fs_nir_emit_surface_atomic(nir_to_brw_state &ntb,
-                                       const fs_builder &bld,
-                                       nir_intrinsic_instr *instr,
-                                       brw_reg surface,
-                                       bool bindless);
-static void fs_nir_emit_global_atomic(nir_to_brw_state &ntb,
+static void fs_nir_emit_memory_access(nir_to_brw_state &ntb,
                                       const fs_builder &bld,
                                       nir_intrinsic_instr *instr);
 
@@ -4566,94 +4561,6 @@ fs_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
       break;
    }
 
-   case nir_intrinsic_shared_atomic:
-   case nir_intrinsic_shared_atomic_swap:
-      fs_nir_emit_surface_atomic(ntb, bld, instr, brw_imm_ud(GFX7_BTI_SLM),
-                                 false /* bindless */);
-      break;
-
-   case nir_intrinsic_load_shared: {
-      const unsigned bit_size = instr->def.bit_size;
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-      srcs[SURFACE_LOGICAL_SRC_SURFACE] = brw_imm_ud(GFX7_BTI_SLM);
-
-      brw_reg addr = retype(get_nir_src(ntb, instr->src[0]), BRW_TYPE_UD);
-      unsigned base = nir_intrinsic_base(instr);
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
-         base ? bld.ADD(addr, brw_imm_ud(base)) : addr;
-
-      srcs[SURFACE_LOGICAL_SRC_IMM_DIMS] = brw_imm_ud(1);
-      srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(0);
-
-      /* Make dest unsigned because that's what the temporary will be */
-      dest.type = brw_type_with_size(BRW_TYPE_UD, bit_size);
-
-      /* Read the vector */
-      assert(bit_size <= 32);
-      assert(nir_intrinsic_align(instr) > 0);
-      if (bit_size == 32 &&
-          nir_intrinsic_align(instr) >= 4) {
-         assert(instr->def.num_components <= 4);
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(instr->num_components);
-         fs_inst *inst =
-            bld.emit(SHADER_OPCODE_UNTYPED_SURFACE_READ_LOGICAL,
-                     dest, srcs, SURFACE_LOGICAL_NUM_SRCS);
-         inst->size_written = instr->num_components * s.dispatch_width * 4;
-      } else {
-         assert(instr->def.num_components == 1);
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(bit_size);
-
-         brw_reg read_result = bld.vgrf(BRW_TYPE_UD);
-         bld.emit(SHADER_OPCODE_BYTE_SCATTERED_READ_LOGICAL,
-                  read_result, srcs, SURFACE_LOGICAL_NUM_SRCS);
-         bld.MOV(dest, subscript(read_result, dest.type, 0));
-      }
-      break;
-   }
-
-   case nir_intrinsic_store_shared: {
-      const unsigned bit_size = nir_src_bit_size(instr->src[0]);
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-      srcs[SURFACE_LOGICAL_SRC_SURFACE] = brw_imm_ud(GFX7_BTI_SLM);
-
-      brw_reg addr = retype(get_nir_src(ntb, instr->src[1]), BRW_TYPE_UD);
-      unsigned base = nir_intrinsic_base(instr);
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
-         base ? bld.ADD(addr, brw_imm_ud(base)) : addr;
-
-      srcs[SURFACE_LOGICAL_SRC_IMM_DIMS] = brw_imm_ud(1);
-      /* No point in masking with sample mask, here we're handling compute
-       * intrinsics.
-       */
-      srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(0);
-
-      brw_reg data = get_nir_src(ntb, instr->src[0]);
-      data.type = brw_type_with_size(BRW_TYPE_UD, bit_size);
-
-      assert(bit_size <= 32);
-      assert(nir_intrinsic_write_mask(instr) ==
-             (1u << instr->num_components) - 1);
-      assert(nir_intrinsic_align(instr) > 0);
-      if (bit_size == 32 &&
-          nir_intrinsic_align(instr) >= 4) {
-         assert(nir_src_num_components(instr->src[0]) <= 4);
-         srcs[SURFACE_LOGICAL_SRC_DATA] = data;
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(instr->num_components);
-         bld.emit(SHADER_OPCODE_UNTYPED_SURFACE_WRITE_LOGICAL,
-                  brw_reg(), srcs, SURFACE_LOGICAL_NUM_SRCS);
-      } else {
-         assert(nir_src_num_components(instr->src[0]) == 1);
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(bit_size);
-
-         srcs[SURFACE_LOGICAL_SRC_DATA] = bld.vgrf(BRW_TYPE_UD);
-         bld.MOV(srcs[SURFACE_LOGICAL_SRC_DATA], data);
-
-         bld.emit(SHADER_OPCODE_BYTE_SCATTERED_WRITE_LOGICAL,
-                  brw_reg(), srcs, SURFACE_LOGICAL_NUM_SRCS);
-      }
-      break;
-   }
-
    case nir_intrinsic_load_workgroup_size: {
       /* Should have been lowered by brw_nir_lower_cs_intrinsics() or
        * crocus/iris_setup_uniforms() for the variable group size case.
@@ -6121,6 +6028,18 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
       /* Nothing to do with these. */
       break;
 
+   case nir_intrinsic_load_global_constant_uniform_block_intel:
+      ntb.uniform_values[instr->src[0].ssa->index] =
+         try_rebuild_source(ntb, bld, instr->src[0].ssa, true);
+      FALLTHROUGH;
+   case nir_intrinsic_load_ssbo_uniform_block_intel:
+   case nir_intrinsic_load_shared_uniform_block_intel:
+   case nir_intrinsic_load_global_block_intel:
+   case nir_intrinsic_store_global_block_intel:
+   case nir_intrinsic_load_shared_block_intel:
+   case nir_intrinsic_store_shared_block_intel:
+   case nir_intrinsic_load_ssbo_block_intel:
+   case nir_intrinsic_store_ssbo_block_intel:
    case nir_intrinsic_image_load:
    case nir_intrinsic_image_store:
    case nir_intrinsic_image_atomic:
@@ -6128,75 +6047,24 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
    case nir_intrinsic_bindless_image_load:
    case nir_intrinsic_bindless_image_store:
    case nir_intrinsic_bindless_image_atomic:
-   case nir_intrinsic_bindless_image_atomic_swap: {
-      /* Get some metadata from the image intrinsic. */
-      const nir_intrinsic_info *info = &nir_intrinsic_infos[instr->intrinsic];
-
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-
-      switch (instr->intrinsic) {
-      case nir_intrinsic_image_load:
-      case nir_intrinsic_image_store:
-      case nir_intrinsic_image_atomic:
-      case nir_intrinsic_image_atomic_swap:
-         srcs[SURFACE_LOGICAL_SRC_SURFACE] =
-            get_nir_image_intrinsic_image(ntb, bld, instr);
-         break;
-
-      default:
-         /* Bindless */
-         srcs[SURFACE_LOGICAL_SRC_SURFACE_HANDLE] =
-            get_nir_image_intrinsic_image(ntb, bld, instr);
-         break;
-      }
-
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] = get_nir_src(ntb, instr->src[1]);
-      srcs[SURFACE_LOGICAL_SRC_IMM_DIMS] =
-         brw_imm_ud(nir_image_intrinsic_coord_components(instr));
-
-      /* Emit an image load, store or atomic op. */
-      if (instr->intrinsic == nir_intrinsic_image_load ||
-          instr->intrinsic == nir_intrinsic_bindless_image_load) {
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(instr->num_components);
-         srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(0);
-         fs_inst *inst =
-            bld.emit(SHADER_OPCODE_TYPED_SURFACE_READ_LOGICAL,
-                     dest, srcs, SURFACE_LOGICAL_NUM_SRCS);
-         inst->size_written = instr->num_components * s.dispatch_width * 4;
-      } else if (instr->intrinsic == nir_intrinsic_image_store ||
-                 instr->intrinsic == nir_intrinsic_bindless_image_store) {
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(instr->num_components);
-         srcs[SURFACE_LOGICAL_SRC_DATA] = get_nir_src(ntb, instr->src[3]);
-         srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(1);
-         bld.emit(SHADER_OPCODE_TYPED_SURFACE_WRITE_LOGICAL,
-                  brw_reg(), srcs, SURFACE_LOGICAL_NUM_SRCS);
-      } else {
-         unsigned num_srcs = info->num_srcs;
-         enum lsc_opcode op = lsc_op_for_nir_intrinsic(instr);
-         if (op == LSC_OP_ATOMIC_INC || op == LSC_OP_ATOMIC_DEC) {
-            assert(num_srcs == 4);
-            num_srcs = 3;
-         }
-
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(op);
-
-         brw_reg data;
-         if (num_srcs >= 4)
-            data = get_nir_src(ntb, instr->src[3]);
-         if (num_srcs >= 5) {
-            brw_reg tmp = bld.vgrf(data.type, 2);
-            brw_reg sources[2] = { data, get_nir_src(ntb, instr->src[4]) };
-            bld.LOAD_PAYLOAD(tmp, sources, 2, 0);
-            data = tmp;
-         }
-         srcs[SURFACE_LOGICAL_SRC_DATA] = data;
-         srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(1);
-
-         bld.emit(SHADER_OPCODE_TYPED_ATOMIC_LOGICAL,
-                  dest, srcs, SURFACE_LOGICAL_NUM_SRCS);
-      }
+   case nir_intrinsic_bindless_image_atomic_swap:
+   case nir_intrinsic_load_shared:
+   case nir_intrinsic_store_shared:
+   case nir_intrinsic_shared_atomic:
+   case nir_intrinsic_shared_atomic_swap:
+   case nir_intrinsic_load_ssbo:
+   case nir_intrinsic_store_ssbo:
+   case nir_intrinsic_ssbo_atomic:
+   case nir_intrinsic_ssbo_atomic_swap:
+   case nir_intrinsic_load_global:
+   case nir_intrinsic_load_global_constant:
+   case nir_intrinsic_store_global:
+   case nir_intrinsic_global_atomic:
+   case nir_intrinsic_global_atomic_swap:
+   case nir_intrinsic_load_scratch:
+   case nir_intrinsic_store_scratch:
+      fs_nir_emit_memory_access(ntb, bld, instr);
       break;
-   }
 
    case nir_intrinsic_image_size:
    case nir_intrinsic_bindless_image_size: {
@@ -6725,280 +6593,6 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
       break;
    }
 
-   case nir_intrinsic_load_global:
-   case nir_intrinsic_load_global_constant: {
-      assert(instr->def.bit_size <= 32);
-      assert(nir_intrinsic_align(instr) > 0);
-      brw_reg srcs[A64_LOGICAL_NUM_SRCS];
-      srcs[A64_LOGICAL_ADDRESS] = get_nir_src(ntb, instr->src[0]);
-      srcs[A64_LOGICAL_SRC] = brw_reg(); /* No source data */
-      srcs[A64_LOGICAL_ENABLE_HELPERS] =
-         brw_imm_ud(nir_intrinsic_access(instr) & ACCESS_INCLUDE_HELPERS);
-
-      if (instr->def.bit_size == 32 &&
-          nir_intrinsic_align(instr) >= 4) {
-         assert(instr->def.num_components <= 4);
-
-         srcs[A64_LOGICAL_ARG] = brw_imm_ud(instr->num_components);
-
-         fs_inst *inst =
-            bld.emit(SHADER_OPCODE_A64_UNTYPED_READ_LOGICAL, dest,
-                     srcs, A64_LOGICAL_NUM_SRCS);
-         inst->size_written = instr->num_components *
-                              inst->dst.component_size(inst->exec_size);
-      } else {
-         const unsigned bit_size = instr->def.bit_size;
-         assert(instr->def.num_components == 1);
-         brw_reg tmp = bld.vgrf(BRW_TYPE_UD);
-
-         srcs[A64_LOGICAL_ARG] = brw_imm_ud(bit_size);
-
-         bld.emit(SHADER_OPCODE_A64_BYTE_SCATTERED_READ_LOGICAL, tmp,
-                  srcs, A64_LOGICAL_NUM_SRCS);
-         bld.MOV(dest, subscript(tmp, dest.type, 0));
-      }
-      break;
-   }
-
-   case nir_intrinsic_store_global: {
-      assert(nir_src_bit_size(instr->src[0]) <= 32);
-      assert(nir_intrinsic_write_mask(instr) ==
-             (1u << instr->num_components) - 1);
-      assert(nir_intrinsic_align(instr) > 0);
-
-      brw_reg srcs[A64_LOGICAL_NUM_SRCS];
-      srcs[A64_LOGICAL_ADDRESS] = get_nir_src(ntb, instr->src[1]);
-      srcs[A64_LOGICAL_ENABLE_HELPERS] =
-         brw_imm_ud(nir_intrinsic_access(instr) & ACCESS_INCLUDE_HELPERS);
-
-      if (nir_src_bit_size(instr->src[0]) == 32 &&
-          nir_intrinsic_align(instr) >= 4) {
-         assert(nir_src_num_components(instr->src[0]) <= 4);
-
-         srcs[A64_LOGICAL_SRC] = get_nir_src(ntb, instr->src[0]); /* Data */
-         srcs[A64_LOGICAL_ARG] = brw_imm_ud(instr->num_components);
-
-         bld.emit(SHADER_OPCODE_A64_UNTYPED_WRITE_LOGICAL, brw_reg(),
-                  srcs, A64_LOGICAL_NUM_SRCS);
-      } else {
-         assert(nir_src_num_components(instr->src[0]) == 1);
-         const unsigned bit_size = nir_src_bit_size(instr->src[0]);
-         brw_reg_type data_type = brw_type_with_size(BRW_TYPE_UD, bit_size);
-         brw_reg tmp = bld.vgrf(BRW_TYPE_UD);
-         bld.MOV(tmp, retype(get_nir_src(ntb, instr->src[0]), data_type));
-
-         srcs[A64_LOGICAL_SRC] = tmp;
-         srcs[A64_LOGICAL_ARG] = brw_imm_ud(bit_size);
-
-         bld.emit(SHADER_OPCODE_A64_BYTE_SCATTERED_WRITE_LOGICAL, brw_reg(),
-                  srcs, A64_LOGICAL_NUM_SRCS);
-      }
-      break;
-   }
-
-   case nir_intrinsic_global_atomic:
-   case nir_intrinsic_global_atomic_swap:
-      fs_nir_emit_global_atomic(ntb, bld, instr);
-      break;
-
-   case nir_intrinsic_load_global_constant_uniform_block_intel: {
-      const unsigned total_dwords = ALIGN(instr->num_components,
-                                          REG_SIZE * reg_unit(devinfo) / 4);
-      unsigned loaded_dwords = 0;
-
-      const fs_builder ubld1 = bld.exec_all().group(1, 0);
-      const fs_builder ubld8 = bld.exec_all().group(8, 0);
-      const fs_builder ubld16 = bld.exec_all().group(16, 0);
-
-      ntb.uniform_values[instr->src[0].ssa->index] =
-         try_rebuild_source(ntb, bld, instr->src[0].ssa, true);
-      bool no_mask = ntb.uniform_values[instr->src[0].ssa->index].file != BAD_FILE;
-      brw_reg address =
-         ntb.uniform_values[instr->src[0].ssa->index].file != BAD_FILE ?
-         ntb.uniform_values[instr->src[0].ssa->index] :
-         bld.emit_uniformize(get_nir_src(ntb, instr->src[0]));
-
-      const brw_reg packed_consts =
-         ubld1.vgrf(BRW_TYPE_UD, total_dwords);
-
-      while (loaded_dwords < total_dwords) {
-         const unsigned block =
-            choose_oword_block_size_dwords(devinfo,
-                                           total_dwords - loaded_dwords);
-         const unsigned block_bytes = block * 4;
-
-         const fs_builder &ubld = block <= 8 ? ubld8 : ubld16;
-
-         brw_reg srcs[A64_LOGICAL_NUM_SRCS];
-         srcs[A64_LOGICAL_ADDRESS] = address;
-         srcs[A64_LOGICAL_SRC] = brw_reg(); /* No source data */
-         srcs[A64_LOGICAL_ARG] = brw_imm_ud(block);
-         srcs[A64_LOGICAL_ENABLE_HELPERS] = brw_imm_ud(0);
-         fs_inst *inst =
-            ubld.emit(SHADER_OPCODE_A64_UNALIGNED_OWORD_BLOCK_READ_LOGICAL,
-                      retype(byte_offset(packed_consts, loaded_dwords * 4), BRW_TYPE_UD),
-                      srcs, A64_LOGICAL_NUM_SRCS);
-         inst->size_written =
-            align(block_bytes, REG_SIZE * reg_unit(devinfo));
-         inst->has_no_mask_send_params = no_mask;
-
-         address = increment_a64_address(ubld1, address, block_bytes, no_mask);
-         loaded_dwords += block;
-      }
-
-      for (unsigned c = 0; c < instr->num_components; c++)
-         bld.MOV(retype(offset(dest, bld, c), BRW_TYPE_UD),
-                 component(packed_consts, c));
-
-      break;
-   }
-
-   case nir_intrinsic_load_ssbo: {
-      const unsigned bit_size = instr->def.bit_size;
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-      srcs[get_nir_src_bindless(ntb, instr->src[0]) ?
-           SURFACE_LOGICAL_SRC_SURFACE_HANDLE :
-           SURFACE_LOGICAL_SRC_SURFACE] =
-         get_nir_buffer_intrinsic_index(ntb, bld, instr);
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] = get_nir_src(ntb, instr->src[1]);
-      srcs[SURFACE_LOGICAL_SRC_IMM_DIMS] = brw_imm_ud(1);
-      srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(0);
-
-      /* Make dest unsigned because that's what the temporary will be */
-      dest.type = brw_type_with_size(BRW_TYPE_UD, bit_size);
-
-      /* Read the vector */
-      assert(bit_size <= 32);
-      assert(nir_intrinsic_align(instr) > 0);
-      if (bit_size == 32 &&
-          nir_intrinsic_align(instr) >= 4) {
-         assert(instr->def.num_components <= 4);
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(instr->num_components);
-         fs_inst *inst =
-            bld.emit(SHADER_OPCODE_UNTYPED_SURFACE_READ_LOGICAL,
-                     dest, srcs, SURFACE_LOGICAL_NUM_SRCS);
-         inst->size_written = instr->num_components * s.dispatch_width * 4;
-      } else {
-         assert(instr->def.num_components == 1);
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(bit_size);
-
-         brw_reg read_result = bld.vgrf(BRW_TYPE_UD);
-         bld.emit(SHADER_OPCODE_BYTE_SCATTERED_READ_LOGICAL,
-                  read_result, srcs, SURFACE_LOGICAL_NUM_SRCS);
-         bld.MOV(dest, subscript(read_result, dest.type, 0));
-      }
-      break;
-   }
-
-   case nir_intrinsic_store_ssbo: {
-      const unsigned bit_size = nir_src_bit_size(instr->src[0]);
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-      srcs[get_nir_src_bindless(ntb, instr->src[1]) ?
-           SURFACE_LOGICAL_SRC_SURFACE_HANDLE :
-           SURFACE_LOGICAL_SRC_SURFACE] =
-         get_nir_buffer_intrinsic_index(ntb, bld, instr);
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] = get_nir_src(ntb, instr->src[2]);
-      srcs[SURFACE_LOGICAL_SRC_IMM_DIMS] = brw_imm_ud(1);
-      srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(1);
-
-      brw_reg data = get_nir_src(ntb, instr->src[0]);
-      data.type = brw_type_with_size(BRW_TYPE_UD, bit_size);
-
-      assert(bit_size <= 32);
-      assert(nir_intrinsic_write_mask(instr) ==
-             (1u << instr->num_components) - 1);
-      assert(nir_intrinsic_align(instr) > 0);
-      if (bit_size == 32 &&
-          nir_intrinsic_align(instr) >= 4) {
-         assert(nir_src_num_components(instr->src[0]) <= 4);
-         srcs[SURFACE_LOGICAL_SRC_DATA] = data;
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(instr->num_components);
-         bld.emit(SHADER_OPCODE_UNTYPED_SURFACE_WRITE_LOGICAL,
-                  brw_reg(), srcs, SURFACE_LOGICAL_NUM_SRCS);
-      } else {
-         assert(nir_src_num_components(instr->src[0]) == 1);
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(bit_size);
-
-         srcs[SURFACE_LOGICAL_SRC_DATA] = bld.vgrf(BRW_TYPE_UD);
-         bld.MOV(srcs[SURFACE_LOGICAL_SRC_DATA], data);
-
-         bld.emit(SHADER_OPCODE_BYTE_SCATTERED_WRITE_LOGICAL,
-                  brw_reg(), srcs, SURFACE_LOGICAL_NUM_SRCS);
-      }
-      break;
-   }
-
-   case nir_intrinsic_load_ssbo_uniform_block_intel:
-   case nir_intrinsic_load_shared_uniform_block_intel: {
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-
-      const bool is_ssbo =
-         instr->intrinsic == nir_intrinsic_load_ssbo_uniform_block_intel;
-      bool no_mask_handle = false;
-      if (is_ssbo) {
-         srcs[get_nir_src_bindless(ntb, instr->src[0]) ?
-              SURFACE_LOGICAL_SRC_SURFACE_HANDLE :
-              SURFACE_LOGICAL_SRC_SURFACE] =
-            get_nir_buffer_intrinsic_index(ntb, bld, instr, &no_mask_handle);
-      } else {
-         srcs[SURFACE_LOGICAL_SRC_SURFACE] = brw_reg(brw_imm_ud(GFX7_BTI_SLM));
-
-         /* SLM has to use aligned OWord Block Read messages on pre-LSC HW. */
-         assert(devinfo->has_lsc || nir_intrinsic_align(instr) >= 16);
-         no_mask_handle = true;
-      }
-
-      const unsigned total_dwords = ALIGN(instr->num_components,
-                                          REG_SIZE * reg_unit(devinfo) / 4);
-      unsigned loaded_dwords = 0;
-
-      const fs_builder ubld1 = bld.exec_all().group(1, 0);
-      const fs_builder ubld8 = bld.exec_all().group(8, 0);
-      const fs_builder ubld16 = bld.exec_all().group(16, 0);
-
-      const brw_reg packed_consts =
-         ubld1.vgrf(BRW_TYPE_UD, total_dwords);
-
-      const nir_src load_offset = is_ssbo ? instr->src[1] : instr->src[0];
-      if (nir_src_is_const(load_offset)) {
-         const fs_builder &ubld = devinfo->ver >= 20 ? ubld16 : ubld8;
-         brw_reg addr = ubld.MOV(brw_imm_ud(nir_src_as_uint(load_offset)));
-         srcs[SURFACE_LOGICAL_SRC_ADDRESS] = component(addr, 0);
-      } else {
-         srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
-            bld.emit_uniformize(get_nir_src(ntb, load_offset));
-      }
-
-      while (loaded_dwords < total_dwords) {
-         const unsigned block =
-            choose_oword_block_size_dwords(devinfo,
-                                           total_dwords - loaded_dwords);
-         const unsigned block_bytes = block * 4;
-
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(block);
-
-         const fs_builder &ubld = block <= 8 ? ubld8 : ubld16;
-         fs_inst *inst =
-            ubld.emit(SHADER_OPCODE_UNALIGNED_OWORD_BLOCK_READ_LOGICAL,
-                      retype(byte_offset(packed_consts, loaded_dwords * 4), BRW_TYPE_UD),
-                      srcs, SURFACE_LOGICAL_NUM_SRCS);
-         inst->size_written = align(block_bytes, REG_SIZE * reg_unit(devinfo));
-         inst->has_no_mask_send_params = no_mask_handle;
-
-         loaded_dwords += block;
-
-         ubld1.ADD(srcs[SURFACE_LOGICAL_SRC_ADDRESS],
-                   srcs[SURFACE_LOGICAL_SRC_ADDRESS],
-                   brw_imm_ud(block_bytes));
-      }
-
-      for (unsigned c = 0; c < instr->num_components; c++)
-         bld.MOV(retype(offset(dest, bld, c), BRW_TYPE_UD),
-                 component(packed_consts, c));
-
-      break;
-   }
-
    case nir_intrinsic_store_output: {
       assert(nir_src_bit_size(instr->src[0]) == 32);
       brw_reg src = get_nir_src(ntb, instr->src[0]);
@@ -7014,13 +6608,6 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
                            src, num_components);
       break;
    }
-
-   case nir_intrinsic_ssbo_atomic:
-   case nir_intrinsic_ssbo_atomic_swap:
-      fs_nir_emit_surface_atomic(ntb, bld, instr,
-                                 get_nir_buffer_intrinsic_index(ntb, bld, instr),
-                                 get_nir_src_bindless(ntb, instr->src[0]));
-      break;
 
    case nir_intrinsic_get_ssbo_size: {
       assert(nir_src_num_components(instr->src[0]) == 1);
@@ -7075,138 +6662,6 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
       brw_reg buffer_size   = ubld.ADD(size_aligned4, negate(size_padding));
 
       bld.MOV(retype(dest, ret_payload.type), component(buffer_size, 0));
-      break;
-   }
-
-   case nir_intrinsic_load_scratch: {
-      assert(instr->def.num_components == 1);
-      const unsigned bit_size = instr->def.bit_size;
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-
-      if (devinfo->verx10 >= 125) {
-         const fs_builder ubld = bld.exec_all().group(1, 0);
-         brw_reg handle = component(ubld.vgrf(BRW_TYPE_UD), 0);
-         ubld.AND(handle, retype(brw_vec1_grf(0, 5), BRW_TYPE_UD),
-                          brw_imm_ud(INTEL_MASK(31, 10)));
-         if (devinfo->ver >= 20)
-            ubld.SHR(handle, handle, brw_imm_ud(4));
-         srcs[SURFACE_LOGICAL_SRC_SURFACE] = brw_imm_ud(GFX125_NON_BINDLESS);
-         srcs[SURFACE_LOGICAL_SRC_SURFACE_HANDLE] = handle;
-      } else {
-         srcs[SURFACE_LOGICAL_SRC_SURFACE] =
-            brw_imm_ud(GFX8_BTI_STATELESS_NON_COHERENT);
-      }
-
-      srcs[SURFACE_LOGICAL_SRC_IMM_DIMS] = brw_imm_ud(1);
-      srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(bit_size);
-      srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(0);
-
-      /* The offset for a DWORD scattered message is in dwords. */
-      bool addr_in_dwords = devinfo->verx10 < 125 &&
-         bit_size == 32 && nir_intrinsic_align(instr) >= 4;
-
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
-         swizzle_nir_scratch_addr(ntb, bld, instr->src[0], addr_in_dwords);
-
-      /* Make dest unsigned because that's what the temporary will be */
-      dest.type = brw_type_with_size(BRW_TYPE_UD, bit_size);
-
-      /* Read the vector */
-      assert(instr->def.num_components == 1);
-      assert(bit_size <= 32);
-      assert(nir_intrinsic_align(instr) > 0);
-      if (bit_size == 32 &&
-          nir_intrinsic_align(instr) >= 4) {
-         if (devinfo->verx10 >= 125) {
-            assert(bit_size == 32 &&
-                   nir_intrinsic_align(instr) >= 4);
-
-            srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(1);
-
-            bld.emit(SHADER_OPCODE_UNTYPED_SURFACE_READ_LOGICAL,
-                     dest, srcs, SURFACE_LOGICAL_NUM_SRCS);
-         } else {
-            bld.emit(SHADER_OPCODE_DWORD_SCATTERED_READ_LOGICAL,
-                     dest, srcs, SURFACE_LOGICAL_NUM_SRCS);
-         }
-      } else {
-         brw_reg read_result = bld.vgrf(BRW_TYPE_UD);
-         bld.emit(SHADER_OPCODE_BYTE_SCATTERED_READ_LOGICAL,
-                  read_result, srcs, SURFACE_LOGICAL_NUM_SRCS);
-         bld.MOV(dest, read_result);
-      }
-
-      s.shader_stats.fill_count += DIV_ROUND_UP(s.dispatch_width, 16);
-      break;
-   }
-
-   case nir_intrinsic_store_scratch: {
-      assert(nir_src_num_components(instr->src[0]) == 1);
-      const unsigned bit_size = nir_src_bit_size(instr->src[0]);
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-
-      if (devinfo->verx10 >= 125) {
-         const fs_builder ubld = bld.exec_all().group(1, 0);
-         brw_reg handle = component(ubld.vgrf(BRW_TYPE_UD), 0);
-         ubld.AND(handle, retype(brw_vec1_grf(0, 5), BRW_TYPE_UD),
-                          brw_imm_ud(INTEL_MASK(31, 10)));
-         if (devinfo->ver >= 20)
-            ubld.SHR(handle, handle, brw_imm_ud(4));
-         srcs[SURFACE_LOGICAL_SRC_SURFACE] = brw_imm_ud(GFX125_NON_BINDLESS);
-         srcs[SURFACE_LOGICAL_SRC_SURFACE_HANDLE] = handle;
-      } else {
-         srcs[SURFACE_LOGICAL_SRC_SURFACE] =
-            brw_imm_ud(GFX8_BTI_STATELESS_NON_COHERENT);
-      }
-
-      srcs[SURFACE_LOGICAL_SRC_IMM_DIMS] = brw_imm_ud(1);
-      srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(bit_size);
-      /**
-       * While this instruction has side-effects, it should not be predicated
-       * on sample mask, because otherwise fs helper invocations would
-       * load undefined values from scratch memory. And scratch memory
-       * load-stores are produced from operations without side-effects, thus
-       * they should not have different behaviour in the helper invocations.
-       */
-      srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(0);
-
-      /* The offset for a DWORD scattered message is in dwords. */
-      bool addr_in_dwords = devinfo->verx10 < 125 &&
-         bit_size == 32 && nir_intrinsic_align(instr) >= 4;
-
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
-         swizzle_nir_scratch_addr(ntb, bld, instr->src[1], addr_in_dwords);
-
-      brw_reg data = get_nir_src(ntb, instr->src[0]);
-      data.type = brw_type_with_size(BRW_TYPE_UD, bit_size);
-
-      assert(nir_src_num_components(instr->src[0]) == 1);
-      assert(bit_size <= 32);
-      assert(nir_intrinsic_write_mask(instr) == 1);
-      assert(nir_intrinsic_align(instr) > 0);
-      if (bit_size == 32 &&
-          nir_intrinsic_align(instr) >= 4) {
-         if (devinfo->verx10 >= 125) {
-            srcs[SURFACE_LOGICAL_SRC_DATA] = data;
-
-            srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(1);
-
-            bld.emit(SHADER_OPCODE_UNTYPED_SURFACE_WRITE_LOGICAL,
-                     dest, srcs, SURFACE_LOGICAL_NUM_SRCS);
-         } else {
-            srcs[SURFACE_LOGICAL_SRC_DATA] = data;
-
-            bld.emit(SHADER_OPCODE_DWORD_SCATTERED_WRITE_LOGICAL,
-                     brw_reg(), srcs, SURFACE_LOGICAL_NUM_SRCS);
-         }
-      } else {
-         srcs[SURFACE_LOGICAL_SRC_DATA] = bld.vgrf(BRW_TYPE_UD);
-         bld.MOV(srcs[SURFACE_LOGICAL_SRC_DATA], data);
-
-         bld.emit(SHADER_OPCODE_BYTE_SCATTERED_WRITE_LOGICAL,
-                  brw_reg(), srcs, SURFACE_LOGICAL_NUM_SRCS);
-      }
-      s.shader_stats.spill_count += DIV_ROUND_UP(s.dispatch_width, 16);
       break;
    }
 
@@ -7673,174 +7128,6 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
       break;
    }
 
-   case nir_intrinsic_load_global_block_intel: {
-      assert(instr->def.bit_size == 32);
-
-      brw_reg address = bld.emit_uniformize(get_nir_src(ntb, instr->src[0]));
-
-      const fs_builder ubld1 = bld.exec_all().group(1, 0);
-      const fs_builder ubld8 = bld.exec_all().group(8, 0);
-      const fs_builder ubld16 = bld.exec_all().group(16, 0);
-
-      const unsigned total = instr->num_components * s.dispatch_width;
-      unsigned loaded = 0;
-
-      while (loaded < total) {
-         const unsigned block =
-            choose_oword_block_size_dwords(devinfo, total - loaded);
-         const unsigned block_bytes = block * 4;
-
-         const fs_builder &ubld = block == 8 ? ubld8 : ubld16;
-
-         brw_reg srcs[A64_LOGICAL_NUM_SRCS];
-         srcs[A64_LOGICAL_ADDRESS] = address;
-         srcs[A64_LOGICAL_SRC] = brw_reg(); /* No source data */
-         srcs[A64_LOGICAL_ARG] = brw_imm_ud(block);
-         srcs[A64_LOGICAL_ENABLE_HELPERS] = brw_imm_ud(1);
-         ubld.emit(SHADER_OPCODE_A64_UNALIGNED_OWORD_BLOCK_READ_LOGICAL,
-                   retype(byte_offset(dest, loaded * 4), BRW_TYPE_UD),
-                   srcs, A64_LOGICAL_NUM_SRCS)->size_written = block_bytes;
-
-         address = increment_a64_address(ubld1, address, block_bytes, false);
-         loaded += block;
-      }
-
-      assert(loaded == total);
-      break;
-   }
-
-   case nir_intrinsic_store_global_block_intel: {
-      assert(nir_src_bit_size(instr->src[0]) == 32);
-
-      brw_reg address = bld.emit_uniformize(get_nir_src(ntb, instr->src[1]));
-      brw_reg src = get_nir_src(ntb, instr->src[0]);
-
-      const fs_builder ubld1 = bld.exec_all().group(1, 0);
-      const fs_builder ubld8 = bld.exec_all().group(8, 0);
-      const fs_builder ubld16 = bld.exec_all().group(16, 0);
-
-      const unsigned total = instr->num_components * s.dispatch_width;
-      unsigned written = 0;
-
-      while (written < total) {
-         const unsigned block =
-            choose_oword_block_size_dwords(devinfo, total - written);
-
-         brw_reg srcs[A64_LOGICAL_NUM_SRCS];
-         srcs[A64_LOGICAL_ADDRESS] = address;
-         srcs[A64_LOGICAL_SRC] = retype(byte_offset(src, written * 4),
-                                        BRW_TYPE_UD);
-         srcs[A64_LOGICAL_ARG] = brw_imm_ud(block);
-         srcs[A64_LOGICAL_ENABLE_HELPERS] = brw_imm_ud(0);
-
-         const fs_builder &ubld = block == 8 ? ubld8 : ubld16;
-         ubld.emit(SHADER_OPCODE_A64_OWORD_BLOCK_WRITE_LOGICAL, brw_reg(),
-                   srcs, A64_LOGICAL_NUM_SRCS);
-
-         const unsigned block_bytes = block * 4;
-         address = increment_a64_address(ubld1, address, block_bytes, false);
-         written += block;
-      }
-
-      assert(written == total);
-      break;
-   }
-
-   case nir_intrinsic_load_shared_block_intel:
-   case nir_intrinsic_load_ssbo_block_intel: {
-      assert(instr->def.bit_size == 32);
-
-      const bool is_ssbo =
-         instr->intrinsic == nir_intrinsic_load_ssbo_block_intel;
-      brw_reg address = bld.emit_uniformize(get_nir_src(ntb, instr->src[is_ssbo ? 1 : 0]));
-
-      bool no_mask_handle = false;
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-      if (is_ssbo) {
-         srcs[SURFACE_LOGICAL_SRC_SURFACE] =
-            get_nir_buffer_intrinsic_index(ntb, bld, instr, &no_mask_handle);
-      } else {
-         srcs[SURFACE_LOGICAL_SRC_SURFACE] = brw_reg(brw_imm_ud(GFX7_BTI_SLM));
-         no_mask_handle = true;
-      }
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] = address;
-
-      const fs_builder ubld1 = bld.exec_all().group(1, 0);
-      const fs_builder ubld8 = bld.exec_all().group(8, 0);
-      const fs_builder ubld16 = bld.exec_all().group(16, 0);
-
-      const unsigned total = instr->num_components * s.dispatch_width;
-      unsigned loaded = 0;
-
-      while (loaded < total) {
-         const unsigned block =
-            choose_oword_block_size_dwords(devinfo, total - loaded);
-         const unsigned block_bytes = block * 4;
-
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(block);
-
-         const fs_builder &ubld = block == 8 ? ubld8 : ubld16;
-         fs_inst *inst =
-            ubld.emit(SHADER_OPCODE_UNALIGNED_OWORD_BLOCK_READ_LOGICAL,
-                      retype(byte_offset(dest, loaded * 4), BRW_TYPE_UD),
-                      srcs, SURFACE_LOGICAL_NUM_SRCS);
-         inst->size_written = block_bytes;
-         inst->has_no_mask_send_params = no_mask_handle;
-
-         ubld1.ADD(address, address, brw_imm_ud(block_bytes));
-         loaded += block;
-      }
-
-      assert(loaded == total);
-      break;
-   }
-
-   case nir_intrinsic_store_shared_block_intel:
-   case nir_intrinsic_store_ssbo_block_intel: {
-      assert(nir_src_bit_size(instr->src[0]) == 32);
-
-      const bool is_ssbo =
-         instr->intrinsic == nir_intrinsic_store_ssbo_block_intel;
-
-      brw_reg address = bld.emit_uniformize(get_nir_src(ntb, instr->src[is_ssbo ? 2 : 1]));
-      brw_reg src = get_nir_src(ntb, instr->src[0]);
-
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-      srcs[SURFACE_LOGICAL_SRC_SURFACE] = is_ssbo ?
-         get_nir_buffer_intrinsic_index(ntb, bld, instr) :
-         brw_reg(brw_imm_ud(GFX7_BTI_SLM));
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] = address;
-
-      const fs_builder ubld1 = bld.exec_all().group(1, 0);
-      const fs_builder ubld8 = bld.exec_all().group(8, 0);
-      const fs_builder ubld16 = bld.exec_all().group(16, 0);
-
-      const unsigned total = instr->num_components * s.dispatch_width;
-      unsigned written = 0;
-
-      while (written < total) {
-         const unsigned block =
-            choose_oword_block_size_dwords(devinfo, total - written);
-
-         srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(block);
-         srcs[SURFACE_LOGICAL_SRC_DATA] =
-            retype(byte_offset(src, written * 4), BRW_TYPE_UD);
-
-         const fs_builder &ubld = block == 8 ? ubld8 : ubld16;
-         ubld.emit(SHADER_OPCODE_OWORD_BLOCK_WRITE_LOGICAL,
-                   brw_reg(), srcs, SURFACE_LOGICAL_NUM_SRCS);
-
-         const unsigned block_bytes = block * 4;
-         srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
-            ubld1.ADD(srcs[SURFACE_LOGICAL_SRC_ADDRESS],
-                      brw_imm_ud(block_bytes));
-         written += block;
-      }
-
-      assert(written == total);
-      break;
-   }
-
    case nir_intrinsic_load_topology_id_intel: {
       /* These move around basically every hardware generation, so don't
        * do any unbounded checks and fail if the platform hasn't explicitly
@@ -8061,122 +7348,312 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
    }
 }
 
-static brw_reg
-expand_to_32bit(const fs_builder &bld, const brw_reg &src)
+static enum lsc_data_size
+lsc_bits_to_data_size(unsigned bit_size)
 {
-   if (brw_type_size_bytes(src.type) == 2) {
-      brw_reg src32 = bld.vgrf(BRW_TYPE_UD);
-      bld.MOV(src32, retype(src, BRW_TYPE_UW));
-      return src32;
-   } else {
-      return src;
+   switch (bit_size / 8) {
+   case 1:  return LSC_DATA_SIZE_D8U32;
+   case 2:  return LSC_DATA_SIZE_D16U32;
+   case 4:  return LSC_DATA_SIZE_D32;
+   case 8:  return LSC_DATA_SIZE_D64;
+   default:
+      unreachable("Unsupported data size.");
    }
 }
 
 static void
-fs_nir_emit_surface_atomic(nir_to_brw_state &ntb, const fs_builder &bld,
-                           nir_intrinsic_instr *instr,
-                           brw_reg surface,
-                           bool bindless)
-{
-   const intel_device_info *devinfo = ntb.devinfo;
-
-   enum lsc_opcode op = lsc_op_for_nir_intrinsic(instr);
-   int num_data = lsc_op_num_data_values(op);
-
-   bool shared = surface.file == IMM && surface.ud == GFX7_BTI_SLM;
-
-   /* The BTI untyped atomic messages only support 32-bit atomics.  If you
-    * just look at the big table of messages in the Vol 7 of the SKL PRM, they
-    * appear to exist.  However, if you look at Vol 2a, there are no message
-    * descriptors provided for Qword atomic ops except for A64 messages.
-    *
-    * 16-bit float atomics are supported, however.
-    */
-   assert(instr->def.bit_size == 32 ||
-          (instr->def.bit_size == 64 && devinfo->has_lsc) ||
-          (instr->def.bit_size == 16 &&
-           (devinfo->has_lsc || lsc_opcode_is_atomic_float(op))));
-
-   brw_reg dest = get_nir_def(ntb, instr->def);
-
-   brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-   srcs[bindless ?
-        SURFACE_LOGICAL_SRC_SURFACE_HANDLE :
-        SURFACE_LOGICAL_SRC_SURFACE] = surface;
-   srcs[SURFACE_LOGICAL_SRC_IMM_DIMS] = brw_imm_ud(1);
-   srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(op);
-   srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(1);
-
-   if (shared) {
-      /* SLM - Get the offset */
-      if (nir_src_is_const(instr->src[0])) {
-         srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
-            brw_imm_ud(nir_intrinsic_base(instr) +
-                       nir_src_as_uint(instr->src[0]));
-      } else {
-         srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
-            bld.ADD(retype(get_nir_src(ntb, instr->src[0]), BRW_TYPE_UD),
-                    brw_imm_ud(nir_intrinsic_base(instr)));
-      }
-   } else {
-      /* SSBOs */
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] = get_nir_src(ntb, instr->src[1]);
-   }
-
-   brw_reg data;
-   if (num_data >= 1)
-      data = expand_to_32bit(bld, get_nir_src(ntb, instr->src[shared ? 1 : 2]));
-
-   if (num_data >= 2) {
-      brw_reg tmp = bld.vgrf(data.type, 2);
-      brw_reg sources[2] = {
-         data,
-         expand_to_32bit(bld, get_nir_src(ntb, instr->src[shared ? 2 : 3]))
-      };
-      bld.LOAD_PAYLOAD(tmp, sources, 2, 0);
-      data = tmp;
-   }
-   srcs[SURFACE_LOGICAL_SRC_DATA] = data;
-
-   /* Emit the actual atomic operation */
-   bld.emit(SHADER_OPCODE_UNTYPED_ATOMIC_LOGICAL, dest, srcs,
-            SURFACE_LOGICAL_NUM_SRCS);
-}
-
-static void
-fs_nir_emit_global_atomic(nir_to_brw_state &ntb, const fs_builder &bld,
+fs_nir_emit_memory_access(nir_to_brw_state &ntb,
+                          const fs_builder &bld,
                           nir_intrinsic_instr *instr)
 {
+   const intel_device_info *devinfo = ntb.devinfo;
+   fs_visitor &s = ntb.s;
+
+   brw_reg srcs[MEMORY_LOGICAL_NUM_SRCS];
+
+   /* Start with some default values for most cases */
+
    enum lsc_opcode op = lsc_op_for_nir_intrinsic(instr);
-   int num_data = lsc_op_num_data_values(op);
+   const bool is_store = !nir_intrinsic_infos[instr->intrinsic].has_dest;
+   const bool is_atomic = lsc_opcode_is_atomic(op);
+   const bool is_load = !is_store && !is_atomic;
+   const bool include_helpers = nir_intrinsic_has_access(instr) &&
+      (nir_intrinsic_access(instr) & ACCESS_INCLUDE_HELPERS);
+   const unsigned align =
+      nir_intrinsic_has_align(instr) ? nir_intrinsic_align(instr) : 0;
+   bool no_mask_handle = false;
+   int data_src = -1;
 
-   brw_reg dest = get_nir_def(ntb, instr->def);
+   srcs[MEMORY_LOGICAL_OPCODE] = brw_imm_ud(op);
+   /* BINDING_TYPE, BINDING, and ADDRESS are handled in the switch */
+   srcs[MEMORY_LOGICAL_COORD_COMPONENTS] = brw_imm_ud(1);
+   srcs[MEMORY_LOGICAL_ALIGNMENT] = brw_imm_ud(align);
+   /* DATA_SIZE and CHANNELS are handled below the switch */
+   srcs[MEMORY_LOGICAL_FLAGS] =
+      brw_imm_ud(include_helpers ? MEMORY_FLAG_INCLUDE_HELPERS : 0);
+   /* DATA0 and DATA1 are handled below */
 
-   brw_reg addr = get_nir_src(ntb, instr->src[0]);
+   switch (instr->intrinsic) {
+   case nir_intrinsic_bindless_image_load:
+   case nir_intrinsic_bindless_image_store:
+   case nir_intrinsic_bindless_image_atomic:
+   case nir_intrinsic_bindless_image_atomic_swap:
+      srcs[MEMORY_LOGICAL_BINDING_TYPE] = brw_imm_ud(LSC_ADDR_SURFTYPE_BSS);
+      FALLTHROUGH;
+   case nir_intrinsic_image_load:
+   case nir_intrinsic_image_store:
+   case nir_intrinsic_image_atomic:
+   case nir_intrinsic_image_atomic_swap:
+      srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_TYPED);
+      srcs[MEMORY_LOGICAL_BINDING] =
+         get_nir_image_intrinsic_image(ntb, bld, instr);
 
-   brw_reg data;
-   if (num_data >= 1)
-      data = expand_to_32bit(bld, get_nir_src(ntb, instr->src[1]));
+      if (srcs[MEMORY_LOGICAL_BINDING_TYPE].file == BAD_FILE)
+         srcs[MEMORY_LOGICAL_BINDING_TYPE] = brw_imm_ud(LSC_ADDR_SURFTYPE_BTI);
 
-   if (num_data >= 2) {
-      brw_reg tmp = bld.vgrf(data.type, 2);
-      brw_reg sources[2] = {
-         data,
-         expand_to_32bit(bld, get_nir_src(ntb, instr->src[2]))
-      };
-      bld.LOAD_PAYLOAD(tmp, sources, 2, 0);
-      data = tmp;
+      srcs[MEMORY_LOGICAL_ADDRESS] = get_nir_src(ntb, instr->src[1]);
+      srcs[MEMORY_LOGICAL_COORD_COMPONENTS] =
+         brw_imm_ud(nir_image_intrinsic_coord_components(instr));
+
+      data_src = 3;
+      break;
+
+   case nir_intrinsic_load_ssbo:
+   case nir_intrinsic_store_ssbo:
+   case nir_intrinsic_ssbo_atomic:
+   case nir_intrinsic_ssbo_atomic_swap:
+   case nir_intrinsic_load_ssbo_block_intel:
+   case nir_intrinsic_store_ssbo_block_intel:
+   case nir_intrinsic_load_ssbo_uniform_block_intel:
+      srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_UNTYPED);
+      srcs[MEMORY_LOGICAL_BINDING_TYPE] =
+         brw_imm_ud(get_nir_src_bindless(ntb, instr->src[is_store ? 1 : 0]) ?
+                    LSC_ADDR_SURFTYPE_BSS : LSC_ADDR_SURFTYPE_BTI);
+      srcs[MEMORY_LOGICAL_BINDING] =
+         get_nir_buffer_intrinsic_index(ntb, bld, instr, &no_mask_handle);
+      srcs[MEMORY_LOGICAL_ADDRESS] =
+         get_nir_src(ntb, instr->src[is_store ? 2 : 1]);
+
+      data_src = is_atomic ? 2 : 0;
+      break;
+   case nir_intrinsic_load_shared:
+   case nir_intrinsic_store_shared:
+   case nir_intrinsic_shared_atomic:
+   case nir_intrinsic_shared_atomic_swap:
+   case nir_intrinsic_load_shared_block_intel:
+   case nir_intrinsic_store_shared_block_intel:
+   case nir_intrinsic_load_shared_uniform_block_intel: {
+      srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_SHARED_LOCAL);
+      srcs[MEMORY_LOGICAL_BINDING_TYPE] = brw_imm_ud(LSC_ADDR_SURFTYPE_FLAT);
+
+      const nir_src &nir_src = instr->src[is_store ? 1 : 0];
+
+      srcs[MEMORY_LOGICAL_ADDRESS] = nir_src_is_const(nir_src) ?
+         brw_imm_ud(nir_intrinsic_base(instr) + nir_src_as_uint(nir_src)) :
+         bld.ADD(retype(get_nir_src(ntb, nir_src), BRW_TYPE_UD),
+                 brw_imm_ud(nir_intrinsic_base(instr)));
+
+      data_src = is_atomic ? 1 : 0;
+      no_mask_handle = true;
+      break;
+   }
+   case nir_intrinsic_load_scratch:
+   case nir_intrinsic_store_scratch: {
+      srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_SCRATCH);
+
+      const nir_src &addr = instr->src[is_store ? 1 : 0];
+
+      if (devinfo->verx10 >= 125) {
+         srcs[MEMORY_LOGICAL_BINDING_TYPE] = brw_imm_ud(LSC_ADDR_SURFTYPE_SS);
+
+         const fs_builder ubld = bld.exec_all().group(1, 0);
+         brw_reg bind = component(ubld.vgrf(BRW_TYPE_UD), 0);
+         ubld.AND(bind, retype(brw_vec1_grf(0, 5), BRW_TYPE_UD),
+                        brw_imm_ud(INTEL_MASK(31, 10)));
+         if (devinfo->ver >= 20)
+            bind = component(ubld.SHR(bind, brw_imm_ud(4)), 0);
+
+         srcs[MEMORY_LOGICAL_BINDING] = bind;
+         srcs[MEMORY_LOGICAL_ADDRESS] =
+            swizzle_nir_scratch_addr(ntb, bld, addr, false);
+      } else {
+         unsigned bit_size =
+            is_store ? nir_src_bit_size(instr->src[0]) : instr->def.bit_size;
+         bool dword_aligned = align >= 4 && bit_size == 32;
+         srcs[MEMORY_LOGICAL_BINDING_TYPE] =
+            brw_imm_ud(LSC_ADDR_SURFTYPE_FLAT);
+         srcs[MEMORY_LOGICAL_ADDRESS] =
+            swizzle_nir_scratch_addr(ntb, bld, addr, dword_aligned);
+      }
+
+      if (is_store)
+         s.shader_stats.spill_count += DIV_ROUND_UP(s.dispatch_width, 16);
+      else
+         s.shader_stats.fill_count += DIV_ROUND_UP(s.dispatch_width, 16);
+
+      data_src = 0;
+      break;
    }
 
-   brw_reg srcs[A64_LOGICAL_NUM_SRCS];
-   srcs[A64_LOGICAL_ADDRESS] = addr;
-   srcs[A64_LOGICAL_SRC] = data;
-   srcs[A64_LOGICAL_ARG] = brw_imm_ud(op);
-   srcs[A64_LOGICAL_ENABLE_HELPERS] = brw_imm_ud(0);
+   case nir_intrinsic_load_global_constant_uniform_block_intel:
+      no_mask_handle =
+         ntb.uniform_values[instr->src[0].ssa->index].file != BAD_FILE;
+      FALLTHROUGH;
+   case nir_intrinsic_load_global:
+   case nir_intrinsic_load_global_constant:
+   case nir_intrinsic_store_global:
+   case nir_intrinsic_global_atomic:
+   case nir_intrinsic_global_atomic_swap:
+   case nir_intrinsic_load_global_block_intel:
+   case nir_intrinsic_store_global_block_intel:
+      srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_UNTYPED);
+      srcs[MEMORY_LOGICAL_BINDING_TYPE] = brw_imm_ud(LSC_ADDR_SURFTYPE_FLAT);
+      srcs[MEMORY_LOGICAL_ADDRESS] = get_nir_src(ntb, instr->src[is_store ? 1 : 0]);
 
-   bld.emit(SHADER_OPCODE_A64_UNTYPED_ATOMIC_LOGICAL, dest,
-            srcs, A64_LOGICAL_NUM_SRCS);
+      data_src = is_atomic ? 1 : 0;
+      break;
+
+   default:
+      unreachable("unknown memory intrinsic");
+   }
+
+   unsigned components = is_store ? instr->src[data_src].ssa->num_components
+                                  : instr->def.num_components;
+   if (components == 0)
+      components = instr->num_components;
+
+   srcs[MEMORY_LOGICAL_COMPONENTS] = brw_imm_ud(components);
+
+   const unsigned nir_bit_size =
+      is_store ? instr->src[data_src].ssa->bit_size : instr->def.bit_size;
+   enum lsc_data_size data_size = lsc_bits_to_data_size(nir_bit_size);
+   uint32_t data_bit_size = lsc_data_size_bytes(data_size) * 8;
+
+   srcs[MEMORY_LOGICAL_DATA_SIZE] = brw_imm_ud(data_size);
+
+   const brw_reg_type data_type =
+      brw_type_with_size(BRW_TYPE_UD, data_bit_size);
+   const brw_reg_type nir_data_type =
+      brw_type_with_size(BRW_TYPE_UD, nir_bit_size);
+   assert(data_bit_size >= nir_bit_size);
+
+   if (!is_load) {
+      for (unsigned i = 0; i < lsc_op_num_data_values(op); i++) {
+         brw_reg nir_src =
+            retype(get_nir_src(ntb, instr->src[data_src + i]), nir_data_type);
+
+         if (data_bit_size > nir_bit_size) {
+            /* Expand e.g. D16 to D16U32 */
+            srcs[MEMORY_LOGICAL_DATA0 + i] = bld.vgrf(data_type, components);
+            for (unsigned c = 0; c < components; c++) {
+               bld.MOV(offset(srcs[MEMORY_LOGICAL_DATA0 + i], bld, c),
+                       offset(nir_src, bld, c));
+            }
+         } else {
+            srcs[MEMORY_LOGICAL_DATA0 + i] = nir_src;
+         }
+      }
+   }
+
+   brw_reg dest, nir_dest;
+   if (!is_store) {
+      nir_dest = retype(get_nir_def(ntb, instr->def), nir_data_type);
+      dest = data_bit_size > nir_bit_size ? bld.vgrf(data_type, components)
+                                          : nir_dest;
+   }
+
+   enum opcode opcode = is_load ? SHADER_OPCODE_MEMORY_LOAD_LOGICAL :
+                        is_store ? SHADER_OPCODE_MEMORY_STORE_LOGICAL :
+                        SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL;
+
+   const bool convergent_block_load =
+      instr->intrinsic == nir_intrinsic_load_ubo_uniform_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_ssbo_uniform_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_shared_uniform_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_global_constant_uniform_block_intel;
+   const bool block = convergent_block_load ||
+      instr->intrinsic == nir_intrinsic_load_global_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_shared_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_ssbo_block_intel ||
+      instr->intrinsic == nir_intrinsic_store_global_block_intel ||
+      instr->intrinsic == nir_intrinsic_store_shared_block_intel ||
+      instr->intrinsic == nir_intrinsic_store_ssbo_block_intel;
+
+   fs_inst *inst;
+
+   if (!block) {
+      inst = bld.emit(opcode, dest, srcs, MEMORY_LOGICAL_NUM_SRCS);
+      inst->size_written *= components;
+
+      if (dest.file != BAD_FILE && data_bit_size > nir_bit_size) {
+         /* Shrink e.g. D16U32 result back to D16 */
+         for (unsigned i = 0; i < components; i++) {
+            bld.MOV(offset(nir_dest, bld, i),
+                    subscript(offset(dest, bld, i), nir_dest.type, 0));
+         }
+      }
+   } else {
+      assert(nir_bit_size == 32);
+
+      srcs[MEMORY_LOGICAL_FLAGS] =
+         brw_imm_ud(MEMORY_FLAG_TRANSPOSE | srcs[MEMORY_LOGICAL_FLAGS].ud);
+      srcs[MEMORY_LOGICAL_ADDRESS] =
+         instr->intrinsic == nir_intrinsic_load_global_constant_uniform_block_intel &&
+         ntb.uniform_values[instr->src[0].ssa->index].file != BAD_FILE ?
+         ntb.uniform_values[instr->src[0].ssa->index] :
+         bld.emit_uniformize(srcs[MEMORY_LOGICAL_ADDRESS]);
+
+      const fs_builder ubld = bld.exec_all().group(1, 0);
+      unsigned total, done;
+
+      if (convergent_block_load) {
+         total = ALIGN(components, REG_SIZE * reg_unit(devinfo) / 4);
+         dest = ubld.vgrf(BRW_TYPE_UD, total);
+      } else {
+         total = components * bld.dispatch_width();
+         dest = nir_dest;
+      }
+
+      brw_reg src = srcs[MEMORY_LOGICAL_DATA0];
+
+      unsigned block_comps = components;
+
+      for (done = 0; done < total; done += block_comps) {
+         block_comps = choose_oword_block_size_dwords(devinfo, total - done);
+         const unsigned block_bytes = block_comps * (nir_bit_size / 8);
+
+         srcs[MEMORY_LOGICAL_COMPONENTS] = brw_imm_ud(block_comps);
+
+         brw_reg dst_offset = is_store ? brw_reg() :
+            retype(byte_offset(dest, done * 4), BRW_TYPE_UD);
+         if (is_store) {
+            srcs[MEMORY_LOGICAL_DATA0] =
+               retype(byte_offset(src, done * 4), BRW_TYPE_UD);
+         }
+
+         inst = ubld.emit(opcode, dst_offset, srcs, MEMORY_LOGICAL_NUM_SRCS);
+         inst->has_no_mask_send_params = no_mask_handle;
+         if (is_load)
+            inst->size_written = block_bytes;
+
+         if (brw_type_size_bits(srcs[MEMORY_LOGICAL_ADDRESS].type) == 64) {
+            increment_a64_address(ubld, srcs[MEMORY_LOGICAL_ADDRESS],
+                                  block_bytes, no_mask_handle);
+         } else {
+            srcs[MEMORY_LOGICAL_ADDRESS] =
+               ubld.ADD(retype(srcs[MEMORY_LOGICAL_ADDRESS], BRW_TYPE_UD),
+                        brw_imm_ud(block_bytes));
+         }
+      }
+      assert(done == total);
+
+      if (convergent_block_load) {
+         for (unsigned c = 0; c < components; c++) {
+            bld.MOV(retype(offset(nir_dest, bld, c), BRW_TYPE_UD),
+                    component(dest, c));
+         }
+      }
+   }
 }
 
 static void
