@@ -369,6 +369,12 @@ DataFile
 Converter::getFile(nir_intrinsic_op op)
 {
    switch (op) {
+   case nir_intrinsic_load_uniform:
+   case nir_intrinsic_load_ubo:
+      return FILE_MEMORY_CONST;
+   case nir_intrinsic_load_ssbo:
+   case nir_intrinsic_store_ssbo:
+      return FILE_MEMORY_BUFFER;
    case nir_intrinsic_load_global:
    case nir_intrinsic_store_global:
    case nir_intrinsic_load_global_constant:
@@ -379,10 +385,18 @@ Converter::getFile(nir_intrinsic_op op)
    case nir_intrinsic_load_shared:
    case nir_intrinsic_store_shared:
       return FILE_MEMORY_SHARED;
+   case nir_intrinsic_load_input:
+   case nir_intrinsic_load_interpolated_input:
    case nir_intrinsic_load_kernel_input:
+   case nir_intrinsic_load_per_vertex_input:
       return FILE_SHADER_INPUT;
+   case nir_intrinsic_load_output:
+   case nir_intrinsic_load_per_vertex_output:
+   case nir_intrinsic_store_output:
+   case nir_intrinsic_store_per_vertex_output:
+      return FILE_SHADER_OUTPUT;
    default:
-      ERROR("couldn't get DateFile for op %s\n", nir_intrinsic_infos[op].name);
+      ERROR("couldn't get DataFile for op %s\n", nir_intrinsic_infos[op].name);
       assert(false);
    }
    return FILE_NULL;
@@ -1706,7 +1720,7 @@ Converter::visit(nir_intrinsic_instr *insn)
             break;
          }
 
-         storeTo(insn, FILE_SHADER_OUTPUT, OP_EXPORT, dType, src, idx, i + offset, indirect);
+         storeTo(insn, getFile(op), OP_EXPORT, dType, src, idx, i + offset, indirect);
       }
       break;
    }
@@ -1778,7 +1792,7 @@ Converter::visit(nir_intrinsic_instr *insn)
 
       for (uint8_t i = 0u; i < dest_components; ++i) {
          uint32_t address = getSlotAddress(insn, idx, i);
-         Symbol *sym = mkSymbol(input ? FILE_SHADER_INPUT : FILE_SHADER_OUTPUT, 0, dType, address);
+         Symbol *sym = mkSymbol(getFile(op), 0, dType, address);
          if (prog->getType() == Program::TYPE_FRAGMENT) {
             int s = 1;
             if (typeSizeof(dType) == 8) {
@@ -1794,7 +1808,7 @@ Converter::visit(nir_intrinsic_instr *insn)
                interp->setInterpolate(mode);
                interp->setIndirect(0, 0, indirect);
 
-               Symbol *sym1 = mkSymbol(input ? FILE_SHADER_INPUT : FILE_SHADER_OUTPUT, 0, dType, address + 4);
+               Symbol *sym1 = mkSymbol(getFile(op), 0, dType, address + 4);
                interp = mkOp1(nvirOp, TYPE_U32, hi, sym1);
                if (nvirOp == OP_PINTERP)
                   interp->setSrc(s++, fp.position);
@@ -1979,7 +1993,7 @@ Converter::visit(nir_intrinsic_instr *insn)
                               mkImm(baseVertex), indirectVertex);
       for (uint8_t i = 0u; i < dest_components; ++i) {
          uint32_t address = getSlotAddress(insn, idx, i);
-         loadFrom(FILE_SHADER_INPUT, 0, dType, newDefs[i], address, 0,
+         loadFrom(getFile(op), 0, dType, newDefs[i], address, 0,
                   indirectOffset, vtxBase, info_out->in[idx].patch);
       }
       break;
@@ -2002,7 +2016,7 @@ Converter::visit(nir_intrinsic_instr *insn)
 
       for (uint8_t i = 0u; i < dest_components; ++i) {
          uint32_t address = getSlotAddress(insn, idx, i);
-         loadFrom(FILE_SHADER_OUTPUT, 0, dType, newDefs[i], address, 0,
+         loadFrom(getFile(op), 0, dType, newDefs[i], address, 0,
                   indirectOffset, vtxBase, info_out->in[idx].patch);
       }
       break;
@@ -2031,7 +2045,7 @@ Converter::visit(nir_intrinsic_instr *insn)
          indirectOffset = mkOp1v(OP_MOV, TYPE_U32, getSSA(4, FILE_ADDRESS), indirectOffset);
 
       for (uint8_t i = 0u; i < dest_components; ++i) {
-         loadFrom(FILE_MEMORY_CONST, index, dType, newDefs[i], offset, i,
+         loadFrom(getFile(op), index, dType, newDefs[i], offset, i,
                   indirectOffset, indirectIndex);
       }
       break;
@@ -2058,7 +2072,7 @@ Converter::visit(nir_intrinsic_instr *insn)
       for (uint8_t i = 0u; i < nir_intrinsic_src_components(insn, 0); ++i) {
          if (!((1u << i) & nir_intrinsic_write_mask(insn)))
             continue;
-         Symbol *sym = mkSymbol(FILE_MEMORY_BUFFER, buffer, sType,
+         Symbol *sym = mkSymbol(getFile(op), buffer, sType,
                                 offset + i * typeSizeof(sType));
          Instruction *st = mkStore(OP_STORE, sType, sym, indirectOffset, getSrc(&insn->src[0], i));
          st->setIndirect(0, 1, indirectBuffer);
@@ -2078,7 +2092,7 @@ Converter::visit(nir_intrinsic_instr *insn)
       CacheMode cache = convert(nir_intrinsic_access(insn));
 
       for (uint8_t i = 0u; i < dest_components; ++i)
-         loadFrom(FILE_MEMORY_BUFFER, buffer, dType, newDefs[i], offset, i,
+         loadFrom(getFile(op), buffer, dType, newDefs[i], offset, i,
                   indirectOffset, indirectBuffer, false, cache);
 
       info_out->io.globalAccess |= 0x1;
@@ -2342,7 +2356,7 @@ Converter::visit(nir_intrinsic_instr *insn)
       uint32_t offset = getIndirect(&insn->src[0], 0, indirectOffset);
 
       for (auto i = 0u; i < dest_components; ++i)
-         loadFrom(FILE_MEMORY_GLOBAL, 0, dType, newDefs[i], offset, i, indirectOffset);
+         loadFrom(getFile(op), 0, dType, newDefs[i], offset, i, indirectOffset);
 
       info_out->io.globalAccess |= 0x1;
       break;
@@ -2357,13 +2371,13 @@ Converter::visit(nir_intrinsic_instr *insn)
             Value *split[2];
             mkSplit(split, 4, getSrc(&insn->src[0], i));
 
-            Symbol *sym = mkSymbol(FILE_MEMORY_GLOBAL, 0, TYPE_U32, i * typeSizeof(sType));
+            Symbol *sym = mkSymbol(getFile(op), 0, TYPE_U32, i * typeSizeof(sType));
             mkStore(OP_STORE, TYPE_U32, sym, getSrc(&insn->src[1], 0), split[0]);
 
-            sym = mkSymbol(FILE_MEMORY_GLOBAL, 0, TYPE_U32, i * typeSizeof(sType) + 4);
+            sym = mkSymbol(getFile(op), 0, TYPE_U32, i * typeSizeof(sType) + 4);
             mkStore(OP_STORE, TYPE_U32, sym, getSrc(&insn->src[1], 0), split[1]);
          } else {
-            Symbol *sym = mkSymbol(FILE_MEMORY_GLOBAL, 0, sType, i * typeSizeof(sType));
+            Symbol *sym = mkSymbol(getFile(op), 0, sType, i * typeSizeof(sType));
             mkStore(OP_STORE, sType, sym, getSrc(&insn->src[1], 0), getSrc(&insn->src[0], i));
          }
       }
