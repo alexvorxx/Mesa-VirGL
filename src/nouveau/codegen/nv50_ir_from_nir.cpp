@@ -143,6 +143,14 @@ private:
    void storeTo(nir_intrinsic_instr *, DataFile, operation, DataType,
                 Value *src, uint8_t idx, uint8_t c, Value *indirect0 = NULL,
                 Value *indirect1 = NULL);
+   static nir_mem_access_size_align
+   getMemAccessSizeAlign(nir_intrinsic_op intrin,
+                         uint8_t bytes,
+                         uint8_t bit_size,
+                         uint32_t align_mul,
+                         uint32_t align_offset,
+                         bool offset_is_const,
+                         const void *cb_data);
 
    bool isFloatType(nir_alu_type);
    bool isSignedType(nir_alu_type);
@@ -153,7 +161,7 @@ private:
    DataType getDType(nir_intrinsic_instr *);
    DataType getDType(nir_op, uint8_t);
 
-   DataFile getFile(nir_intrinsic_op);
+   DataFile getFile(nir_intrinsic_op) const;
 
    std::vector<DataType> getSTypes(nir_alu_instr *);
    DataType getSType(nir_src &, bool isFloat, bool isSigned);
@@ -366,7 +374,7 @@ Converter::getSType(nir_src &src, bool isFloat, bool isSigned)
 }
 
 DataFile
-Converter::getFile(nir_intrinsic_op op)
+Converter::getFile(nir_intrinsic_op op) const
 {
    switch (op) {
    case nir_intrinsic_load_uniform:
@@ -1293,6 +1301,46 @@ Converter::storeTo(nir_intrinsic_instr *insn, DataFile file, operation op,
       mkStore(op, ty, mkSymbol(file, 0, ty, address), indirect0,
               src)->perPatch = info_out->out[idx].patch;
    }
+}
+
+nir_mem_access_size_align
+Converter::getMemAccessSizeAlign(nir_intrinsic_op intrin,
+                                 uint8_t original_bytes,
+                                 uint8_t original_bit_size,
+                                 uint32_t align_mul,
+                                 uint32_t align_offset,
+                                 bool offset_is_const,
+                                 const void *cb_data)
+{
+   const Converter* converter = (Converter*) cb_data;
+   const Target* target = converter->prog->getTarget();
+
+   const uint32_t align = nir_combined_align(align_mul, align_offset);
+
+   assert(original_bytes != 0);
+   uint32_t bytes = 1 << (util_last_bit(original_bytes) - 1);
+
+   bytes = std::min(bytes, align);
+   bytes = std::min(bytes, 128u / 8u);
+
+   assert(util_is_power_of_two_nonzero(bytes));
+
+   const DataFile file = converter->getFile(intrin);
+   if (bytes == 128u / 8u && !target->isAccessSupported(file, TYPE_B128))
+      bytes = 64u / 8u;
+
+   if (bytes == 64u / 8u && !target->isAccessSupported(file, TYPE_U64))
+      bytes = 32u / 8u;
+
+   uint32_t bit_size = original_bit_size;
+   bit_size = std::max(bit_size, 32u);
+   bit_size = std::min(bit_size, bytes * 8u);
+
+   return {
+      .num_components = (uint8_t) (bytes / (bit_size / 8)),
+      .bit_size = (uint8_t) bit_size,
+      .align = (uint16_t) bytes,
+   };
 }
 
 bool
@@ -3301,6 +3349,15 @@ Converter::run()
 
    NIR_PASS_V(nir, nir_lower_tex, &tex_options);
 
+   nir_lower_mem_access_bit_sizes_options mem_bit_sizes = {};
+   mem_bit_sizes.modes = nir_var_mem_global |
+                         nir_var_mem_constant |
+                         nir_var_mem_ssbo |
+                         nir_var_mem_shared;
+   mem_bit_sizes.callback = Converter::getMemAccessSizeAlign;
+   mem_bit_sizes.cb_data = this;
+   NIR_PASS_V(nir, nir_lower_mem_access_bit_sizes, &mem_bit_sizes);
+
    NIR_PASS_V(nir, nir_lower_load_const_to_scalar);
    NIR_PASS_V(nir, nir_lower_alu_to_scalar, NULL, NULL);
    NIR_PASS_V(nir, nir_lower_phis_to_scalar, false);
@@ -3334,6 +3391,9 @@ Converter::run()
    NIR_PASS_V(nir, nir_lower_vars_to_explicit_types, nir_var_function_temp, function_temp_type_info);
    NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_function_temp, nir_address_format_32bit_offset);
    NIR_PASS_V(nir, nir_remove_dead_variables, nir_var_function_temp, NULL);
+
+   mem_bit_sizes.modes = nir_var_shader_temp | nir_var_function_temp;
+   NIR_PASS_V(nir, nir_lower_mem_access_bit_sizes, &mem_bit_sizes);
 
    NIR_PASS_V(nir, nir_opt_combine_barriers, NULL, NULL);
 
