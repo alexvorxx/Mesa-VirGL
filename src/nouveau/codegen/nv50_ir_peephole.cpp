@@ -137,6 +137,8 @@ MergeSplits::visit(BasicBlock *bb)
       si = i->getSrc(0)->getInsn();
       if (si->op != OP_SPLIT || si != i->getSrc(1)->getInsn())
          continue;
+      if (i->getSrc(0) != si->getDef(0) || i->getSrc(1) != si->getDef(1))
+         continue;
       i->def(0).replace(si->getSrc(0), false);
       delete_Instruction(prog, i);
    }
