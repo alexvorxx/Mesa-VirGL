@@ -677,15 +677,18 @@ static bool
 want_hiz_wt_for_res(const struct intel_device_info *devinfo,
                     const struct iris_resource *res)
 {
-   if (res->surf.samples > 1)
+   /* Gen12 only supports single-sampled while Gen20+ supports
+    * multi-sampled images.
+    */
+   if (devinfo->ver < 20 && res->surf.samples > 1)
       return false;
 
    if (!(res->surf.usage & ISL_SURF_USAGE_TEXTURE_BIT))
       return false;
 
-   /* If this resource is single-sampled and will be used as a texture,
-    * put the HiZ surface in write-through mode so that we can sample
-    * from it.
+   /* If this resource has the maximum number of samples supported by
+    * running platform and will be used as a texture, put the HiZ surface
+    * in write-through mode so that we can sample from it.
     */
    return true;
 }
