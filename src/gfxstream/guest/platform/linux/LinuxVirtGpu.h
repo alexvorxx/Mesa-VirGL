@@ -24,9 +24,9 @@ class LinuxVirtGpuBlob : public std::enable_shared_from_this<LinuxVirtGpuBlob>, 
                      uint64_t size);
     ~LinuxVirtGpuBlob();
 
-    uint32_t getResourceHandle(void) override;
-    uint32_t getBlobHandle(void) override;
-    int wait(void) override;
+    uint32_t getResourceHandle() const override;
+    uint32_t getBlobHandle() const override;
+    int wait() override;
 
     VirtGpuBlobMappingPtr createMapping(void) override;
     int exportBlob(struct VirtGpuExternalHandle& handle) override;
@@ -70,7 +70,7 @@ class LinuxVirtGpuDevice : public VirtGpuDevice {
     VirtGpuBlobPtr createVirglBlob(uint32_t width, uint32_t height, uint32_t virglFormat) override;
 
     virtual VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle);
-    virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob);
+    virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuBlob* blob);
 
    private:
     int64_t mDeviceHandle;

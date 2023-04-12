@@ -33,7 +33,7 @@ LinuxVirtGpuBlob::LinuxVirtGpuBlob(int64_t deviceHandle, uint32_t blobHandle,
       mResourceHandle(resourceHandle),
       mSize(size) {}
 
-LinuxVirtGpuBlob::~LinuxVirtGpuBlob(void) {
+LinuxVirtGpuBlob::~LinuxVirtGpuBlob() {
     struct drm_gem_close gem_close {
         .handle = mBlobHandle, .pad = 0,
     };
@@ -45,11 +45,11 @@ LinuxVirtGpuBlob::~LinuxVirtGpuBlob(void) {
     }
 }
 
-uint32_t LinuxVirtGpuBlob::getBlobHandle(void) { return mBlobHandle; }
+uint32_t LinuxVirtGpuBlob::getBlobHandle() const { return mBlobHandle; }
 
-uint32_t LinuxVirtGpuBlob::getResourceHandle(void) { return mResourceHandle; }
+uint32_t LinuxVirtGpuBlob::getResourceHandle() const { return mResourceHandle; }
 
-VirtGpuBlobMappingPtr LinuxVirtGpuBlob::createMapping(void) {
+VirtGpuBlobMappingPtr LinuxVirtGpuBlob::createMapping() {
     int ret;
     struct drm_virtgpu_map map {
         .handle = mBlobHandle, .pad = 0,

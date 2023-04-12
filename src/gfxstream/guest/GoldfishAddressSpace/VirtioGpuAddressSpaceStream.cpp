@@ -112,7 +112,7 @@ AddressSpaceStream* createVirtioGpuAddressSpaceStream(enum VirtGpuCapset capset,
     exec.command = static_cast<void*>(&contextCreate);
     exec.command_size = sizeof(contextCreate);
 
-    ret = instance->execBuffer(exec, blob);
+    ret = instance->execBuffer(exec, blob.get());
     if (ret)
         return nullptr;
 

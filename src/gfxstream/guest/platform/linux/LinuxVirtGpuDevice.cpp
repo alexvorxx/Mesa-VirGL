@@ -245,7 +245,7 @@ VirtGpuBlobPtr LinuxVirtGpuDevice::importBlob(const struct VirtGpuExternalHandle
                                               static_cast<uint64_t>(info.size));
 }
 
-int LinuxVirtGpuDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob) {
+int LinuxVirtGpuDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuBlob* blob) {
     int ret;
     struct drm_virtgpu_execbuffer exec = {0};
     uint32_t blobHandle;

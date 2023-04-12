@@ -23,12 +23,12 @@ FuchsiaVirtGpuBlob::FuchsiaVirtGpuBlob(int64_t deviceHandle, uint32_t blobHandle
 
 FuchsiaVirtGpuBlob::~FuchsiaVirtGpuBlob(void) {}
 
-uint32_t FuchsiaVirtGpuBlob::getBlobHandle(void) {
+uint32_t FuchsiaVirtGpuBlob::getBlobHandle() const {
     ALOGE("%s: unimplemented", __func__);
     return 0;
 }
 
-uint32_t FuchsiaVirtGpuBlob::getResourceHandle(void) {
+uint32_t FuchsiaVirtGpuBlob::getResourceHandle() const {
     ALOGE("%s: unimplemented", __func__);
     return 0;
 }

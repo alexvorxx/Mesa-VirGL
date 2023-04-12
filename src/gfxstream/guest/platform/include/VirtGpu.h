@@ -134,9 +134,9 @@ class VirtGpuBlob {
   public:
     virtual ~VirtGpuBlob() {}
 
-    virtual uint32_t getResourceHandle(void) = 0;
-    virtual uint32_t getBlobHandle(void) = 0;
-    virtual int wait(void) = 0;
+    virtual uint32_t getResourceHandle() const = 0;
+    virtual uint32_t getBlobHandle() const = 0;
+    virtual int wait() = 0;
 
     virtual VirtGpuBlobMappingPtr createMapping(void) = 0;
     virtual int exportBlob(struct VirtGpuExternalHandle& handle) = 0;
@@ -172,9 +172,9 @@ class VirtGpuDevice {
     virtual VirtGpuBlobPtr createVirglBlob(uint32_t width, uint32_t height, uint32_t virglFormat) = 0;
     virtual VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle) = 0;
 
-    virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob) = 0;
+    virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuBlob* blob) = 0;
 
-  private:
+   private:
     enum VirtGpuCapset mCapset;
 };
 

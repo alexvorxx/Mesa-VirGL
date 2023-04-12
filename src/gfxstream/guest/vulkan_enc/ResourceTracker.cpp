@@ -3068,7 +3068,7 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
         exec.command_size = sizeof(placeholderCmd);
         exec.flags = kRingIdx;
         exec.ring_idx = 1;
-        if (instance->execBuffer(exec, guestBlob)) {
+        if (instance->execBuffer(exec, guestBlob.get())) {
             ALOGE("Failed to allocate coherent memory: failed to execbuffer for wait.");
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }

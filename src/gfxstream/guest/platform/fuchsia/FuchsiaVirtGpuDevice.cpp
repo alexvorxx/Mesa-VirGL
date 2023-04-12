@@ -43,7 +43,8 @@ VirtGpuBlobPtr FuchsiaVirtGpuDevice::importBlob(const struct VirtGpuExternalHand
     return nullptr;
 }
 
-int FuchsiaVirtGpuDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob) {
+int FuchsiaVirtGpuDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer,
+                                     const VirtGpuBlob* blob) {
     ALOGE("%s: unimplemented", __func__);
     return 0;
 }
