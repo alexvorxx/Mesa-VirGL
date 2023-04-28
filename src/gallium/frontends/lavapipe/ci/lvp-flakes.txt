@@ -1,0 +1,12 @@
+# "smooth produced different results (Fail)"
+dEQP-VK.draw.dynamic_rendering.multiple_interpolation.structured.no_sample_decoration.4_samples
+nir-stress=dEQP-VK.draw.dynamic_rendering.multiple_interpolation.structured.no_sample_decoration.4_samples
+
+dEQP-VK.tessellation.invariance.outer_edge_division.quads_fractional_odd_spacing
+dEQP-VK.rasterization.provoking_vertex.transform_feedback.first.line_strip_with_adjacency
+dEQP-VK.rasterization.provoking_vertex.transform_feedback.per_pipeline.triangle_strip_with_adjacency
+dEQP-VK.rasterization.provoking_vertex.transform_feedback.last.triangle_list_with_adjacency
+
+# https://gitlab.freedesktop.org/mesa/mesa/-/issues/8441
+dEQP-VK.memory_model.transitive.coherent.fence_fence.payload_local.image.guard_local.physbuffer.nontransvis
+nir-stress=dEQP-VK.memory_model.transitive.coherent.fence_atomic.payload_local.image.guard_local.physbuffer.nontransvis
