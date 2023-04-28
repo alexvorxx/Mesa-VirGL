@@ -9,19 +9,14 @@ This repository lives at https://gitlab.freedesktop.org/mesa/mesa.
 Other repositories are likely forks, and code found there is not supported.
 
 
-Build & install
+Build
 ---------------
 
-You can find more information in our documentation (`docs/install.rst
-<https://mesa3d.org/install.html>`_), but the recommended way is to use
-Meson (`docs/meson.rst <https://mesa3d.org/meson.html>`_):
+Go to the folder with Mesa code and run the commands:
 
-.. code-block:: sh
-
-  $ mkdir build
-  $ cd build
-  $ meson ..
-  $ sudo ninja install
+  $ meson . build -Dgallium-va=disabled -Dgallium-drivers=virgl -Ddri3=disabled -Dvulkan-drivers= -Dglx=xlib -Dplatforms=x11 -Dbuildtype=release
+ 
+  $ ninja -C build
 
 
 Support
