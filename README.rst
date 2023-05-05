@@ -18,6 +18,9 @@ Go to the folder with Mesa code and run the commands:
  
   $ ninja -C build
 
+Before building earlier versions of Mesa, you need to apply a fix:
+"virgl/vtest: fix memory overwrite problem in virgl_vtest_send_get_caps()" 
+https://github.com/Mesa3D/mesa/commit/060936fe0de668127310a65e607fa4b7b48d6f0a
 
 Support
 -------
