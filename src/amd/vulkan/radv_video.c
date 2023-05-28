@@ -31,6 +31,8 @@
 #include "ac_vcn_dec.h"
 #include "ac_uvd_dec.h"
 
+#include "radv_cs.h"
+
 #define NUM_H264_REFS 17
 #define NUM_H265_REFS 8
 #define FB_BUFFER_OFFSET             0x1000
@@ -367,7 +369,7 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
                                            VkVideoCapabilitiesKHR *pCapabilities)
 {
    RADV_FROM_HANDLE(radv_physical_device, pdevice, physicalDevice);
-   struct video_codec_cap *cap = NULL;
+   const struct video_codec_cap *cap = NULL;
 
    switch (pVideoProfile->videoCodecOperation) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR:
@@ -619,6 +621,7 @@ static void send_cmd(struct radv_cmd_buffer *cmd_buffer, unsigned cmd,
    addr += offset;
 
    if (cmd_buffer->device->physical_device->vid_decode_ip != AMD_IP_VCN_UNIFIED) {
+      radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 6);
       set_reg(cmd_buffer, pdev->vid_dec_reg.data0, addr);
       set_reg(cmd_buffer, pdev->vid_dec_reg.data1, addr >> 32);
       set_reg(cmd_buffer, pdev->vid_dec_reg.cmd, cmd << 1);
@@ -709,6 +712,15 @@ static void rvcn_dec_message_feedback(void *ptr)
    header->num_buffers = 0;
 }
 
+static const uint8_t h264_levels[] = { 10, 11, 12, 13, 20, 21, 22,
+                                       30, 31, 32, 40, 41, 42,
+                                       50, 51, 52, 60, 61, 62 };
+static uint8_t get_h264_level(StdVideoH264LevelIdc level)
+{
+   assert (level <= STD_VIDEO_H264_LEVEL_IDC_6_2);
+   return h264_levels[level];
+}
+
 static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
                                            struct radv_video_session_params *params,
                                            const struct VkVideoDecodeInfoKHR *frame_info,
@@ -747,7 +759,7 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radv_video_session *vid,
    *height_in_samples = (sps->pic_height_in_map_units_minus1 + 1) * 16;
    if (!sps->flags.frame_mbs_only_flag)
       *height_in_samples *= 2;
-   result.level = sps->level_idc;
+   result.level = get_h264_level(sps->level_idc);
 
    result.sps_info_flags = 0;
 
@@ -1211,7 +1223,7 @@ static struct ruvd_h264 get_uvd_h264_msg(struct radv_video_session *vid,
    *height_in_samples = (sps->pic_height_in_map_units_minus1 + 1) * 16;
    if (!sps->flags.frame_mbs_only_flag)
       *height_in_samples *= 2;
-   result.level = sps->level_idc;
+   result.level = get_h264_level(sps->level_idc);
 
    result.sps_info_flags = 0;
 
@@ -1594,6 +1606,7 @@ radv_CmdBeginVideoCodingKHR(VkCommandBuffer commandBuffer,
    cmd_buffer->video.params = params;
 
    if (cmd_buffer->device->physical_device->vid_decode_ip == AMD_IP_VCN_UNIFIED) {
+      radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 256);
       radv_vcn_sq_header(cmd_buffer->cs, &cmd_buffer->video.sq, false);
       rvcn_decode_ib_package_t *ib_header =
          (rvcn_decode_ib_package_t *)&(cmd_buffer->cs->buf[cmd_buffer->cs->cdw]);
@@ -1627,6 +1640,7 @@ radv_vcn_cmd_reset(struct radv_cmd_buffer *cmd_buffer)
    /* pad out the IB to the 16 dword boundary - otherwise the fw seems to be unhappy */
 
    if (cmd_buffer->device->physical_device->vid_decode_ip != AMD_IP_VCN_UNIFIED) {
+      radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 8);
       for (unsigned i = 0; i < 8; i++)
          radeon_emit(cmd_buffer->cs, 0x81ff);
    }
@@ -1647,6 +1661,7 @@ radv_uvd_cmd_reset(struct radv_cmd_buffer *cmd_buffer)
       send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
    send_cmd(cmd_buffer, RDECODE_CMD_MSG_BUFFER, cmd_buffer->upload.upload_bo, out_offset);
    /* pad out the IB to the 16 dword boundary - otherwise the fw seems to be unhappy */
+   radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 8);
    for (unsigned i = 0; i < 8; i++)
       radeon_emit(cmd_buffer->cs, 0x81ff);
 }
@@ -1727,6 +1742,7 @@ radv_uvd_decode_video(struct radv_cmd_buffer *cmd_buffer,
    if (have_it(vid))
       send_cmd(cmd_buffer, RDECODE_CMD_IT_SCALING_TABLE_BUFFER, it_bo, it_offset);
 
+   radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 2);
    set_reg(cmd_buffer, cmd_buffer->device->physical_device->vid_dec_reg.cntl, 1);
 }
 
@@ -1773,7 +1789,7 @@ radv_vcn_decode_video(struct radv_cmd_buffer *cmd_buffer,
                                 &ptr);
    msg_bo = cmd_buffer->upload.upload_bo;
 
-   uint32_t slice_offset;	  
+   uint32_t slice_offset;
    rvcn_dec_message_decode(cmd_buffer, vid, params, ptr, it_ptr, &slice_offset, frame_info);
    rvcn_dec_message_feedback(fb_ptr);
    send_cmd(cmd_buffer, RDECODE_CMD_SESSION_CONTEXT_BUFFER, vid->sessionctx.mem->bo, vid->sessionctx.offset);
@@ -1797,8 +1813,10 @@ radv_vcn_decode_video(struct radv_cmd_buffer *cmd_buffer,
    if (have_it(vid))
       send_cmd(cmd_buffer, RDECODE_CMD_IT_SCALING_TABLE_BUFFER, it_bo, it_offset);
 
-   if (cmd_buffer->device->physical_device->vid_decode_ip != AMD_IP_VCN_UNIFIED)
+   if (cmd_buffer->device->physical_device->vid_decode_ip != AMD_IP_VCN_UNIFIED) {
+      radeon_check_space(cmd_buffer->device->ws, cmd_buffer->cs, 2);
       set_reg(cmd_buffer, cmd_buffer->device->physical_device->vid_dec_reg.cntl, 1);
+   }
 }
 
 void

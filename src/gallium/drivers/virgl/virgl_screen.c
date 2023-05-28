@@ -35,8 +35,6 @@
 #include "vl/vl_decoder.h"
 #include "vl/vl_video_buffer.h"
 
-#include "tgsi/tgsi_exec.h"
-
 #include "virgl_screen.h"
 #include "virgl_resource.h"
 #include "virgl_public.h"
@@ -44,18 +42,18 @@
 #include "virgl_encode.h"
 
 int virgl_debug = 0;
-static const struct debug_named_value virgl_debug_options[] = {
-   { "verbose",   VIRGL_DEBUG_VERBOSE,             NULL },
-   { "tgsi",      VIRGL_DEBUG_TGSI,                NULL },
-   { "use_tgsi",  VIRGL_DEBUG_USE_TGSI,            NULL },
-   { "noemubgra", VIRGL_DEBUG_NO_EMULATE_BGRA,     "Disable tweak to emulate BGRA as RGBA on GLES hosts"},
-   { "nobgraswz", VIRGL_DEBUG_NO_BGRA_DEST_SWIZZLE,"Disable tweak to swizzle emulated BGRA on GLES hosts" },
-   { "sync",      VIRGL_DEBUG_SYNC,                "Sync after every flush" },
-   { "xfer",      VIRGL_DEBUG_XFER,                "Do not optimize for transfers" },
-   { "r8srgb-readback",   VIRGL_DEBUG_L8_SRGB_ENABLE_READBACK, "Enable redaback for L8 sRGB textures" },
-   { "nocoherent", VIRGL_DEBUG_NO_COHERENT,        "Disable coherent memory"},
-   { "video",     VIRGL_DEBUG_VIDEO,               "Video codec"},
-   { "shader_sync", VIRGL_DEBUG_SHADER_SYNC,       "Sync after every shader link"},
+const struct debug_named_value virgl_debug_options[] = {
+   { "verbose",         VIRGL_DEBUG_VERBOSE,                 NULL },
+   { "tgsi",            VIRGL_DEBUG_TGSI,                    NULL },
+   { "use_tgsi",        VIRGL_DEBUG_USE_TGSI,                NULL },
+   { "noemubgra",       VIRGL_DEBUG_NO_EMULATE_BGRA,         "Disable tweak to emulate BGRA as RGBA on GLES hosts" },
+   { "nobgraswz",       VIRGL_DEBUG_NO_BGRA_DEST_SWIZZLE,    "Disable tweak to swizzle emulated BGRA on GLES hosts" },
+   { "sync",            VIRGL_DEBUG_SYNC,                    "Sync after every flush" },
+   { "xfer",            VIRGL_DEBUG_XFER,                    "Do not optimize for transfers" },
+   { "r8srgb-readback", VIRGL_DEBUG_L8_SRGB_ENABLE_READBACK, "Enable redaback for L8 sRGB textures" },
+   { "nocoherent",      VIRGL_DEBUG_NO_COHERENT,             "Disable coherent memory" },
+   { "video",           VIRGL_DEBUG_VIDEO,                   "Video codec" },
+   { "shader_sync",     VIRGL_DEBUG_SHADER_SYNC,             "Sync after every shader link" },
    DEBUG_NAMED_VALUE_END
 };
 DEBUG_GET_ONCE_FLAGS_OPTION(virgl_debug, "VIRGL_DEBUG", virgl_debug_options, 0)
@@ -223,9 +221,10 @@ virgl_get_param(struct pipe_screen *screen, enum pipe_cap param)
    case PIPE_CAP_MAX_TEXEL_BUFFER_ELEMENTS_UINT:
       return vscreen->caps.caps.v1.max_tbo_size;
    case PIPE_CAP_TEXTURE_BORDER_COLOR_QUIRK:
-   case PIPE_CAP_QUERY_PIPELINE_STATISTICS:
    case PIPE_CAP_ENDIANNESS:
       return 0;
+   case PIPE_CAP_QUERY_PIPELINE_STATISTICS:
+      return !!(vscreen->caps.caps.v2.capability_bits_v2 & VIRGL_CAP_V2_PIPELINE_STATISTICS_QUERY);
    case PIPE_CAP_MIXED_FRAMEBUFFER_SIZES:
    case PIPE_CAP_MIXED_COLOR_DEPTH_BITS:
       return 1;
@@ -356,7 +355,12 @@ virgl_get_param(struct pipe_screen *screen, enum pipe_cap param)
        return vscreen->caps.caps.v2.capability_bits_v2 & VIRGL_CAP_V2_STRING_MARKER;
    case PIPE_CAP_SURFACE_SAMPLE_COUNT:
        return vscreen->caps.caps.v2.capability_bits_v2 & VIRGL_CAP_V2_IMPLICIT_MSAA;
+   case PIPE_CAP_DRAW_PARAMETERS:
+      return !!(vscreen->caps.caps.v2.capability_bits_v2 & VIRGL_CAP_V2_DRAW_PARAMETERS);
+   case PIPE_CAP_SHADER_GROUP_VOTE:
+      return !!(vscreen->caps.caps.v2.capability_bits_v2 & VIRGL_CAP_V2_GROUP_VOTE);
    case PIPE_CAP_IMAGE_STORE_FORMATTED:
+   case PIPE_CAP_GL_SPIRV:
       return 1;
    case PIPE_CAP_MAX_CONSTANT_BUFFER_SIZE_UINT:
       if (vscreen->caps.caps.v2.host_feature_check_version >= 13)
@@ -904,10 +908,10 @@ static void virgl_flush_frontbuffer(struct pipe_screen *screen,
    struct virgl_screen *vscreen = virgl_screen(screen);
    struct virgl_winsys *vws = vscreen->vws;
    struct virgl_resource *vres = virgl_resource(res);
-   //struct virgl_context *vctx = virgl_context(ctx);
+   struct virgl_context *vctx = virgl_context(ctx);
 
    if (vws->flush_frontbuffer) {
-      //virgl_flush_eq(vctx, vctx, NULL);
+      virgl_flush_eq(vctx, vctx, NULL);
       vws->flush_frontbuffer(vws, vres->hw_res, level, layer, winsys_drawable_handle,
                              sub_box);
    }

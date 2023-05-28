@@ -575,7 +575,6 @@ spec@!opengl 1.0@gl-1.0-no-op-paths,Fail
 spec@!opengl 1.0@gl-1.0-ortho-pos,Fail
 spec@!opengl 1.0@gl-1.0-rastercolor,Fail
 spec@!opengl 1.0@gl-1.0-scissor-bitmap,Fail
-spec@!opengl 1.0@gl-1.0-spot-light,Fail
 spec@!opengl 1.0@gl-1.0-swapbuffers-behavior,Fail
 spec@!opengl 1.0@gl-1.0-user-clip-all-planes,Fail
 spec@!opengl 1.1@gl-1.1-xor-copypixels,Fail
@@ -663,3 +662,6 @@ spec@ext_texture_compression_s3tc@compressedteximage gl_compressed_srgb_alpha_s3
 spec@ext_texture_compression_s3tc@compressedteximage gl_compressed_srgb_s3tc_dxt1_ext,Fail
 
 spec@!opengl 1.1@line-smooth-stipple,Fail
+
+# bookworm update
+spec@ext_framebuffer_multisample@renderbufferstorage-samples,Fail

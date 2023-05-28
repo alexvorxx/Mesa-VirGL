@@ -220,16 +220,6 @@ v3d_flag_dirty_sampler_state(struct v3d_context *v3d,
 }
 
 void
-v3d_create_texture_shader_state_bo(struct v3d_context *v3d,
-                                   struct v3d_sampler_view *so)
-{
-        if (v3d->screen->devinfo.ver >= 41)
-                v3d41_create_texture_shader_state_bo(v3d, so);
-        else
-                v3d33_create_texture_shader_state_bo(v3d, so);
-}
-
-void
 v3d_get_tile_buffer_size(bool is_msaa,
                          bool double_buffer,
                          uint32_t nr_cbufs,
@@ -282,10 +272,7 @@ v3d_context_destroy(struct pipe_context *pctx)
 
         slab_destroy_child(&v3d->transfer_pool);
 
-        for (int i = 0; i < v3d->framebuffer.nr_cbufs; i++)
-                pipe_surface_reference(&v3d->framebuffer.cbufs[i], NULL);
-
-        pipe_surface_reference(&v3d->framebuffer.zsbuf, NULL);
+        util_unreference_framebuffer_state(&v3d->framebuffer);
 
         if (v3d->sand8_blit_vs)
                 pctx->delete_vs_state(pctx, v3d->sand8_blit_vs);
@@ -349,6 +336,7 @@ v3d_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
 {
         struct v3d_screen *screen = v3d_screen(pscreen);
         struct v3d_context *v3d;
+        struct v3d_device_info *devinfo = &screen->devinfo;
 
         /* Prevent dumping of the shaders built during context setup. */
         uint32_t saved_shaderdb_flag = v3d_mesa_debug & V3D_DEBUG_SHADERDB;
@@ -377,13 +365,8 @@ v3d_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
         pctx->invalidate_resource = v3d_invalidate_resource;
         pctx->get_sample_position = v3d_get_sample_position;
 
-        if (screen->devinfo.ver >= 41) {
-                v3d41_draw_init(pctx);
-                v3d41_state_init(pctx);
-        } else {
-                v3d33_draw_init(pctx);
-                v3d33_state_init(pctx);
-        }
+        v3d_X(devinfo, draw_init)(pctx);
+        v3d_X(devinfo, state_init)(pctx);
         v3d_program_init(pctx);
         v3d_query_init(pctx);
         v3d_resource_context_init(pctx);

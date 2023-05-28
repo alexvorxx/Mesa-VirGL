@@ -29,7 +29,6 @@
 #include "util/hash_table.h"
 #include "util/u_upload_mgr.h"
 #include "tgsi/tgsi_dump.h"
-#include "tgsi/tgsi_parse.h"
 #include "compiler/nir/nir.h"
 #include "compiler/nir/nir_builder.h"
 #include "nir/tgsi_to_nir.h"
@@ -313,7 +312,6 @@ v3d_uncompiled_shader_create(struct pipe_context *pctx,
                          type_size, (nir_lower_io_options)0);
         }
 
-        NIR_PASS(_, s, nir_lower_regs_to_ssa);
         NIR_PASS(_, s, nir_normalize_cubemap_coords);
 
         NIR_PASS(_, s, nir_lower_load_const_to_scalar);
@@ -407,6 +405,14 @@ v3d_get_compiled_shader(struct v3d_context *v3d,
                                         v3d_shader_debug_output,
                                         v3d,
                                         program_id, variant_id, &shader_size);
+
+                /* qpu_insts being NULL can happen if the register allocation
+                 * failed. At this point we can't really trigger an OpenGL API
+                 * error, as the final compilation could happen on the draw
+                 * call. So let's at least assert, so debug builds finish at
+                 * this point.
+                 */
+                assert(qpu_insts);
                 ralloc_steal(shader, shader->prog_data.base);
 
                 if (shader_size) {

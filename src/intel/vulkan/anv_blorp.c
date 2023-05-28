@@ -70,7 +70,8 @@ upload_blorp_shader(struct blorp_batch *batch, uint32_t stage,
                                key, key_size, kernel, kernel_size,
                                prog_data, prog_data_size,
                                NULL, 0, NULL, &bind_map,
-                               &push_desc_info);
+                               &push_desc_info,
+                               0 /* dynamic_push_values */);
 
    if (!bin)
       return false;
@@ -1349,8 +1350,10 @@ exec_mcs_op(struct anv_cmd_buffer *cmd_buffer,
       blorp_mcs_partial_resolve(batch, &surf, format,
                                 base_layer, layer_count);
       break;
-   case ISL_AUX_OP_FULL_RESOLVE:
    case ISL_AUX_OP_AMBIGUATE:
+      blorp_mcs_ambiguate(batch, &surf, base_layer, layer_count);
+      break;
+   case ISL_AUX_OP_FULL_RESOLVE:
    default:
       unreachable("Unsupported MCS operation");
    }
@@ -1518,9 +1521,13 @@ anv_fast_clear_depth_stencil(struct anv_cmd_buffer *cmd_buffer,
        *
        * There may have been a write to this depth buffer. Flush it from the
        * tile cache just in case.
+       *
+       * Set CS stall bit to guarantee that the fast clear starts the execution
+       * after the tile cache flush completed.
        */
       anv_add_pending_pipe_bits(cmd_buffer,
                                 ANV_PIPE_DEPTH_CACHE_FLUSH_BIT |
+                                ANV_PIPE_CS_STALL_BIT |
                                 ANV_PIPE_TILE_CACHE_FLUSH_BIT,
                                 "before clear hiz_ccs_wt");
    }

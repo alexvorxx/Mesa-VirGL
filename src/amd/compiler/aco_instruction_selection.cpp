@@ -2503,14 +2503,9 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
       Temp src[3] = {emit_extract_vector(ctx, in, 0, v1), emit_extract_vector(ctx, in, 1, v1),
                      emit_extract_vector(ctx, in, 2, v1)};
       Temp ma = bld.vop3(aco_opcode::v_cubema_f32, bld.def(v1), src[0], src[1], src[2]);
-      ma = bld.vop1(aco_opcode::v_rcp_f32, bld.def(v1), ma);
       Temp sc = bld.vop3(aco_opcode::v_cubesc_f32, bld.def(v1), src[0], src[1], src[2]);
       Temp tc = bld.vop3(aco_opcode::v_cubetc_f32, bld.def(v1), src[0], src[1], src[2]);
-      sc = bld.vop2(aco_opcode::v_add_f32, bld.def(v1), Operand::c32(0x3f000000u /*0.5*/),
-                    bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), sc, ma));
-      tc = bld.vop2(aco_opcode::v_add_f32, bld.def(v1), Operand::c32(0x3f000000u /*0.5*/),
-                    bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), tc, ma));
-      bld.pseudo(aco_opcode::p_create_vector, Definition(dst), sc, tc);
+      bld.pseudo(aco_opcode::p_create_vector, Definition(dst), sc, tc, ma);
       break;
    }
    case nir_op_cube_face_index_amd: {
@@ -5932,23 +5927,21 @@ image_type_to_components_count(enum glsl_sampler_dim dim, bool array)
 }
 
 static MIMG_instruction*
-emit_mimg(Builder& bld, aco_opcode op, Definition dst, Temp rsrc, Operand samp,
-          std::vector<Temp> coords, unsigned wqm_mask = 0, Operand vdata = Operand(v1))
+emit_mimg(Builder& bld, aco_opcode op, Temp dst, Temp rsrc, Operand samp, std::vector<Temp> coords,
+          bool needs_wqm = false, Operand vdata = Operand(v1))
 {
-   /* Limit NSA instructions to 3 dwords on GFX10 to avoid stability issues.
-    * On GFX11 the first 4 vaddr are single registers and the last contains the remaining
-    * vector.
-    */
-   size_t nsa_size = bld.program->gfx_level == GFX10     ? 5
-                     : bld.program->gfx_level == GFX10_3 ? 13
-                     : bld.program->gfx_level >= GFX11   ? 4
-                                                         : 0;
+   size_t nsa_size = bld.program->dev.max_nsa_vgprs;
    nsa_size = bld.program->gfx_level >= GFX11 || coords.size() <= nsa_size ? nsa_size : 0;
 
+   const bool strict_wqm = coords[0].regClass().is_linear_vgpr();
+   if (strict_wqm)
+      nsa_size = coords.size();
+
    for (unsigned i = 0; i < std::min(coords.size(), nsa_size); i++) {
+      if (!coords[i].id())
+         continue;
+
       coords[i] = as_vgpr(bld, coords[i]);
-      if (wqm_mask & (1u << i))
-         coords[i] = emit_wqm(bld, coords[i], bld.tmp(coords[i].regClass()), true);
    }
 
    if (nsa_size < coords.size()) {
@@ -5970,29 +5963,29 @@ emit_mimg(Builder& bld, aco_opcode op, Definition dst, Temp rsrc, Operand samp,
          coord = as_vgpr(bld, coord);
       }
 
-      if (wqm_mask >> nsa_size) {
-         /* We don't need the bias, sample index, compare value or offset to be
-          * computed in WQM but if the p_create_vector copies the coordinates, then it
-          * needs to be in WQM. */
-         coord = emit_wqm(bld, coord, bld.tmp(coord.regClass()), true);
-      }
-
       coords[nsa_size] = coord;
       coords.resize(nsa_size + 1);
    }
 
+   bool has_dst = dst.id() != 0;
+   assert(!needs_wqm || has_dst);
+   Temp tmp_dst = needs_wqm ? bld.tmp(dst.regClass()) : dst;
+
    aco_ptr<MIMG_instruction> mimg{
-      create_instruction<MIMG_instruction>(op, Format::MIMG, 3 + coords.size(), dst.isTemp())};
-   if (dst.isTemp())
-      mimg->definitions[0] = dst;
+      create_instruction<MIMG_instruction>(op, Format::MIMG, 3 + coords.size(), has_dst)};
+   if (has_dst)
+      mimg->definitions[0] = Definition(tmp_dst);
    mimg->operands[0] = Operand(rsrc);
    mimg->operands[1] = samp;
    mimg->operands[2] = vdata;
    for (unsigned i = 0; i < coords.size(); i++)
       mimg->operands[3 + i] = Operand(coords[i]);
+   mimg->strict_wqm = strict_wqm;
 
    MIMG_instruction* res = mimg.get();
    bld.insert(std::move(mimg));
+   if (needs_wqm)
+      emit_wqm(bld, tmp_dst, dst, true);
    return res;
 }
 
@@ -6026,8 +6019,8 @@ visit_bvh64_intersect_ray_amd(isel_context* ctx, nir_intrinsic_instr* instr)
       args = std::move(scalar_args);
    }
 
-   MIMG_instruction* mimg = emit_mimg(bld, aco_opcode::image_bvh64_intersect_ray, Definition(dst),
-                                      resource, Operand(s4), args);
+   MIMG_instruction* mimg =
+      emit_mimg(bld, aco_opcode::image_bvh64_intersect_ray, dst, resource, Operand(s4), args);
    mimg->dim = ac_image_1d;
    mimg->dmask = 0xf;
    mimg->unrm = true;
@@ -6245,7 +6238,7 @@ visit_image_load(isel_context* ctx, nir_intrinsic_instr* instr)
 
       Operand vdata = is_sparse ? emit_tfe_init(bld, tmp) : Operand(v1);
       MIMG_instruction* load =
-         emit_mimg(bld, opcode, Definition(tmp), resource, Operand(s4), coords, 0, vdata);
+         emit_mimg(bld, opcode, tmp, resource, Operand(s4), coords, false, vdata);
       load->glc = access & (ACCESS_VOLATILE | ACCESS_COHERENT) ? 1 : 0;
       load->dlc =
          load->glc && (ctx->options->gfx_level == GFX10 || ctx->options->gfx_level == GFX10_3);
@@ -6290,7 +6283,7 @@ visit_image_store(isel_context* ctx, nir_intrinsic_instr* instr)
    memory_sync_info sync = get_memory_sync_info(instr, storage_image, 0);
    unsigned access = nir_intrinsic_access(instr);
    bool glc = ctx->options->gfx_level == GFX6 ||
-              ((access & (ACCESS_VOLATILE | ACCESS_COHERENT | ACCESS_NON_READABLE)) &&
+              ((access & (ACCESS_VOLATILE | ACCESS_COHERENT)) &&
                ctx->program->gfx_level < GFX11);
 
    if (dim == GLSL_SAMPLER_DIM_BUF) {
@@ -6373,7 +6366,7 @@ visit_image_store(isel_context* ctx, nir_intrinsic_instr* instr)
    }
 
    MIMG_instruction* store =
-      emit_mimg(bld, opcode, Definition(), resource, Operand(s4), coords, 0, Operand(data));
+      emit_mimg(bld, opcode, Temp(0, v1), resource, Operand(s4), coords, false, Operand(data));
    store->glc = glc;
    store->dlc = false;
    store->dim = ac_get_image_dim(ctx->options->gfx_level, dim, is_array);
@@ -6389,6 +6382,92 @@ visit_image_store(isel_context* ctx, nir_intrinsic_instr* instr)
 }
 
 void
+translate_buffer_image_atomic_op(const nir_atomic_op op,
+                                 aco_opcode *buf_op, aco_opcode *buf_op64,
+                                 aco_opcode *image_op)
+{
+   switch (op) {
+   case nir_atomic_op_iadd:
+      *buf_op = aco_opcode::buffer_atomic_add;
+      *buf_op64 = aco_opcode::buffer_atomic_add_x2;
+      *image_op = aco_opcode::image_atomic_add;
+      break;
+   case nir_atomic_op_umin:
+      *buf_op = aco_opcode::buffer_atomic_umin;
+      *buf_op64 = aco_opcode::buffer_atomic_umin_x2;
+      *image_op = aco_opcode::image_atomic_umin;
+      break;
+   case nir_atomic_op_imin:
+      *buf_op = aco_opcode::buffer_atomic_smin;
+      *buf_op64 = aco_opcode::buffer_atomic_smin_x2;
+      *image_op = aco_opcode::image_atomic_smin;
+      break;
+   case nir_atomic_op_umax:
+      *buf_op = aco_opcode::buffer_atomic_umax;
+      *buf_op64 = aco_opcode::buffer_atomic_umax_x2;
+      *image_op = aco_opcode::image_atomic_umax;
+      break;
+   case nir_atomic_op_imax:
+      *buf_op = aco_opcode::buffer_atomic_smax;
+      *buf_op64 = aco_opcode::buffer_atomic_smax_x2;
+      *image_op = aco_opcode::image_atomic_smax;
+      break;
+   case nir_atomic_op_iand:
+      *buf_op = aco_opcode::buffer_atomic_and;
+      *buf_op64 = aco_opcode::buffer_atomic_and_x2;
+      *image_op = aco_opcode::image_atomic_and;
+      break;
+   case nir_atomic_op_ior:
+      *buf_op = aco_opcode::buffer_atomic_or;
+      *buf_op64 = aco_opcode::buffer_atomic_or_x2;
+      *image_op = aco_opcode::image_atomic_or;
+      break;
+   case nir_atomic_op_ixor:
+      *buf_op = aco_opcode::buffer_atomic_xor;
+      *buf_op64 = aco_opcode::buffer_atomic_xor_x2;
+      *image_op = aco_opcode::image_atomic_xor;
+      break;
+   case nir_atomic_op_xchg:
+      *buf_op = aco_opcode::buffer_atomic_swap;
+      *buf_op64 = aco_opcode::buffer_atomic_swap_x2;
+      *image_op = aco_opcode::image_atomic_swap;
+      break;
+   case nir_atomic_op_cmpxchg:
+      *buf_op = aco_opcode::buffer_atomic_cmpswap;
+      *buf_op64 = aco_opcode::buffer_atomic_cmpswap_x2;
+      *image_op = aco_opcode::image_atomic_cmpswap;
+      break;
+   case nir_atomic_op_inc_wrap:
+      *buf_op = aco_opcode::buffer_atomic_inc;
+      *buf_op64 = aco_opcode::buffer_atomic_inc_x2;
+      *image_op = aco_opcode::image_atomic_inc;
+      break;
+   case nir_atomic_op_dec_wrap:
+      *buf_op = aco_opcode::buffer_atomic_dec;
+      *buf_op64 = aco_opcode::buffer_atomic_dec_x2;
+      *image_op = aco_opcode::image_atomic_dec;
+      break;
+   case nir_atomic_op_fadd:
+      *buf_op = aco_opcode::buffer_atomic_add_f32;
+      *buf_op64 = aco_opcode::num_opcodes;
+      *image_op = aco_opcode::num_opcodes;
+      break;
+   case nir_atomic_op_fmin:
+      *buf_op = aco_opcode::buffer_atomic_fmin;
+      *buf_op64 = aco_opcode::buffer_atomic_fmin_x2;
+      *image_op = aco_opcode::image_atomic_fmin;
+      break;
+   case nir_atomic_op_fmax:
+      *buf_op = aco_opcode::buffer_atomic_fmax;
+      *buf_op64 = aco_opcode::buffer_atomic_fmax_x2;
+      *image_op = aco_opcode::image_atomic_fmax;
+      break;
+   default:
+      unreachable("unsupported atomic operation");
+   }
+}
+
+void
 visit_image_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
 {
    bool return_previous = !nir_ssa_def_is_unused(&instr->dest.ssa);
@@ -6396,96 +6475,19 @@ visit_image_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
    bool is_array = nir_intrinsic_image_array(instr);
    Builder bld(ctx->program, ctx->block);
 
+   const nir_atomic_op op = nir_intrinsic_atomic_op(instr);
+   const bool cmpswap = op == nir_atomic_op_cmpxchg;
+
+   aco_opcode buf_op, buf_op64, image_op;
+   translate_buffer_image_atomic_op(op, &buf_op, &buf_op64, &image_op);
+
    Temp data = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[3].ssa));
-   bool cmpswap = instr->intrinsic == nir_intrinsic_bindless_image_atomic_comp_swap;
    bool is_64bit = data.bytes() == 8;
    assert((data.bytes() == 4 || data.bytes() == 8) && "only 32/64-bit image atomics implemented.");
 
    if (cmpswap)
       data = bld.pseudo(aco_opcode::p_create_vector, bld.def(is_64bit ? v4 : v2),
                         get_ssa_temp(ctx, instr->src[4].ssa), data);
-
-   aco_opcode buf_op, buf_op64, image_op;
-   switch (instr->intrinsic) {
-   case nir_intrinsic_bindless_image_atomic_add:
-      buf_op = aco_opcode::buffer_atomic_add;
-      buf_op64 = aco_opcode::buffer_atomic_add_x2;
-      image_op = aco_opcode::image_atomic_add;
-      break;
-   case nir_intrinsic_bindless_image_atomic_umin:
-      buf_op = aco_opcode::buffer_atomic_umin;
-      buf_op64 = aco_opcode::buffer_atomic_umin_x2;
-      image_op = aco_opcode::image_atomic_umin;
-      break;
-   case nir_intrinsic_bindless_image_atomic_imin:
-      buf_op = aco_opcode::buffer_atomic_smin;
-      buf_op64 = aco_opcode::buffer_atomic_smin_x2;
-      image_op = aco_opcode::image_atomic_smin;
-      break;
-   case nir_intrinsic_bindless_image_atomic_umax:
-      buf_op = aco_opcode::buffer_atomic_umax;
-      buf_op64 = aco_opcode::buffer_atomic_umax_x2;
-      image_op = aco_opcode::image_atomic_umax;
-      break;
-   case nir_intrinsic_bindless_image_atomic_imax:
-      buf_op = aco_opcode::buffer_atomic_smax;
-      buf_op64 = aco_opcode::buffer_atomic_smax_x2;
-      image_op = aco_opcode::image_atomic_smax;
-      break;
-   case nir_intrinsic_bindless_image_atomic_and:
-      buf_op = aco_opcode::buffer_atomic_and;
-      buf_op64 = aco_opcode::buffer_atomic_and_x2;
-      image_op = aco_opcode::image_atomic_and;
-      break;
-   case nir_intrinsic_bindless_image_atomic_or:
-      buf_op = aco_opcode::buffer_atomic_or;
-      buf_op64 = aco_opcode::buffer_atomic_or_x2;
-      image_op = aco_opcode::image_atomic_or;
-      break;
-   case nir_intrinsic_bindless_image_atomic_xor:
-      buf_op = aco_opcode::buffer_atomic_xor;
-      buf_op64 = aco_opcode::buffer_atomic_xor_x2;
-      image_op = aco_opcode::image_atomic_xor;
-      break;
-   case nir_intrinsic_bindless_image_atomic_exchange:
-      buf_op = aco_opcode::buffer_atomic_swap;
-      buf_op64 = aco_opcode::buffer_atomic_swap_x2;
-      image_op = aco_opcode::image_atomic_swap;
-      break;
-   case nir_intrinsic_bindless_image_atomic_comp_swap:
-      buf_op = aco_opcode::buffer_atomic_cmpswap;
-      buf_op64 = aco_opcode::buffer_atomic_cmpswap_x2;
-      image_op = aco_opcode::image_atomic_cmpswap;
-      break;
-   case nir_intrinsic_bindless_image_atomic_inc_wrap:
-      buf_op = aco_opcode::buffer_atomic_inc;
-      buf_op64 = aco_opcode::buffer_atomic_inc_x2;
-      image_op = aco_opcode::image_atomic_inc;
-      break;
-   case nir_intrinsic_bindless_image_atomic_dec_wrap:
-      buf_op = aco_opcode::buffer_atomic_dec;
-      buf_op64 = aco_opcode::buffer_atomic_dec_x2;
-      image_op = aco_opcode::image_atomic_dec;
-      break;
-   case nir_intrinsic_bindless_image_atomic_fadd:
-      buf_op = aco_opcode::buffer_atomic_add_f32;
-      buf_op64 = aco_opcode::num_opcodes;
-      image_op = aco_opcode::num_opcodes;
-      break;
-   case nir_intrinsic_bindless_image_atomic_fmin:
-      buf_op = aco_opcode::buffer_atomic_fmin;
-      buf_op64 = aco_opcode::buffer_atomic_fmin_x2;
-      image_op = aco_opcode::image_atomic_fmin;
-      break;
-   case nir_intrinsic_bindless_image_atomic_fmax:
-      buf_op = aco_opcode::buffer_atomic_fmax;
-      buf_op64 = aco_opcode::buffer_atomic_fmax_x2;
-      image_op = aco_opcode::image_atomic_fmax;
-      break;
-   default:
-      unreachable("visit_image_atomic should only be called with "
-                  "nir_intrinsic_bindless_image_atomic_* instructions.");
-   }
 
    Temp dst = get_ssa_temp(ctx, &instr->dest.ssa);
    memory_sync_info sync = get_memory_sync_info(instr, storage_image, semantic_atomicrmw);
@@ -6520,10 +6522,9 @@ visit_image_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
 
    std::vector<Temp> coords = get_image_coords(ctx, instr);
    Temp resource = bld.as_uniform(get_ssa_temp(ctx, instr->src[0].ssa));
-   Definition def =
-      return_previous ? (cmpswap ? bld.def(data.regClass()) : Definition(dst)) : Definition();
+   Temp tmp = return_previous ? (cmpswap ? bld.tmp(data.regClass()) : dst) : Temp(0, v1);
    MIMG_instruction* mimg =
-      emit_mimg(bld, image_op, def, resource, Operand(s4), coords, 0, Operand(data));
+      emit_mimg(bld, image_op, tmp, resource, Operand(s4), coords, false, Operand(data));
    mimg->glc = return_previous;
    mimg->dlc = false; /* Not needed for atomics */
    mimg->dim = ac_get_image_dim(ctx->options->gfx_level, dim, is_array);
@@ -6535,7 +6536,7 @@ visit_image_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
    mimg->sync = sync;
    ctx->program->needs_exact = true;
    if (return_previous && cmpswap)
-      bld.pseudo(aco_opcode::p_extract_vector, Definition(dst), def.getTemp(), Operand::zero());
+      bld.pseudo(aco_opcode::p_extract_vector, Definition(dst), tmp, Operand::zero());
    return;
 }
 
@@ -6572,7 +6573,7 @@ visit_store_ssbo(isel_context* ctx, nir_intrinsic_instr* instr)
 
    memory_sync_info sync = get_memory_sync_info(instr, storage_buffer, 0);
    bool glc =
-      (nir_intrinsic_access(instr) & (ACCESS_VOLATILE | ACCESS_COHERENT | ACCESS_NON_READABLE)) &&
+      (nir_intrinsic_access(instr) & (ACCESS_VOLATILE | ACCESS_COHERENT)) &&
       ctx->program->gfx_level < GFX11;
 
    unsigned write_count = 0;
@@ -6613,7 +6614,12 @@ visit_atomic_ssbo(isel_context* ctx, nir_intrinsic_instr* instr)
    Builder bld(ctx->program, ctx->block);
    bool return_previous = !nir_ssa_def_is_unused(&instr->dest.ssa);
    Temp data = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[2].ssa));
-   bool cmpswap = instr->intrinsic == nir_intrinsic_ssbo_atomic_comp_swap;
+
+   const nir_atomic_op nir_op = nir_intrinsic_atomic_op(instr);
+   const bool cmpswap = nir_op == nir_atomic_op_cmpxchg;
+
+   aco_opcode op32, op64, image_op;
+   translate_buffer_image_atomic_op(nir_op, &op32, &op64, &image_op);
 
    if (cmpswap)
       data = bld.pseudo(aco_opcode::p_create_vector, bld.def(RegType::vgpr, data.size() * 2),
@@ -6621,67 +6627,8 @@ visit_atomic_ssbo(isel_context* ctx, nir_intrinsic_instr* instr)
 
    Temp offset = get_ssa_temp(ctx, instr->src[1].ssa);
    Temp rsrc = bld.as_uniform(get_ssa_temp(ctx, instr->src[0].ssa));
-
    Temp dst = get_ssa_temp(ctx, &instr->dest.ssa);
 
-   aco_opcode op32, op64;
-   switch (instr->intrinsic) {
-   case nir_intrinsic_ssbo_atomic_add:
-      op32 = aco_opcode::buffer_atomic_add;
-      op64 = aco_opcode::buffer_atomic_add_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_imin:
-      op32 = aco_opcode::buffer_atomic_smin;
-      op64 = aco_opcode::buffer_atomic_smin_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_umin:
-      op32 = aco_opcode::buffer_atomic_umin;
-      op64 = aco_opcode::buffer_atomic_umin_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_imax:
-      op32 = aco_opcode::buffer_atomic_smax;
-      op64 = aco_opcode::buffer_atomic_smax_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_umax:
-      op32 = aco_opcode::buffer_atomic_umax;
-      op64 = aco_opcode::buffer_atomic_umax_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_and:
-      op32 = aco_opcode::buffer_atomic_and;
-      op64 = aco_opcode::buffer_atomic_and_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_or:
-      op32 = aco_opcode::buffer_atomic_or;
-      op64 = aco_opcode::buffer_atomic_or_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_xor:
-      op32 = aco_opcode::buffer_atomic_xor;
-      op64 = aco_opcode::buffer_atomic_xor_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_exchange:
-      op32 = aco_opcode::buffer_atomic_swap;
-      op64 = aco_opcode::buffer_atomic_swap_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_comp_swap:
-      op32 = aco_opcode::buffer_atomic_cmpswap;
-      op64 = aco_opcode::buffer_atomic_cmpswap_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_fadd:
-      op32 = aco_opcode::buffer_atomic_add_f32;
-      op64 = aco_opcode::num_opcodes;
-      break;
-   case nir_intrinsic_ssbo_atomic_fmin:
-      op32 = aco_opcode::buffer_atomic_fmin;
-      op64 = aco_opcode::buffer_atomic_fmin_x2;
-      break;
-   case nir_intrinsic_ssbo_atomic_fmax:
-      op32 = aco_opcode::buffer_atomic_fmax;
-      op64 = aco_opcode::buffer_atomic_fmax_x2;
-      break;
-   default:
-      unreachable(
-         "visit_atomic_ssbo should only be called with nir_intrinsic_ssbo_atomic_* instructions.");
-   }
    aco_opcode op = instr->dest.ssa.bit_size == 32 ? op32 : op64;
    aco_ptr<MUBUF_instruction> mubuf{
       create_instruction<MUBUF_instruction>(op, Format::MUBUF, 4, return_previous ? 1 : 0)};
@@ -6780,7 +6727,7 @@ visit_store_global(isel_context* ctx, nir_intrinsic_instr* instr)
    Temp data = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[0].ssa));
    memory_sync_info sync = get_memory_sync_info(instr, storage_buffer, 0);
    bool glc =
-      (nir_intrinsic_access(instr) & (ACCESS_VOLATILE | ACCESS_COHERENT | ACCESS_NON_READABLE)) &&
+      (nir_intrinsic_access(instr) & (ACCESS_VOLATILE | ACCESS_COHERENT)) &&
       ctx->program->gfx_level < GFX11;
 
    unsigned write_count = 0;
@@ -6870,7 +6817,9 @@ visit_global_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
    Builder bld(ctx->program, ctx->block);
    bool return_previous = !nir_ssa_def_is_unused(&instr->dest.ssa);
    Temp data = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[1].ssa));
-   bool cmpswap = instr->intrinsic == nir_intrinsic_global_atomic_comp_swap_amd;
+
+   const nir_atomic_op nir_op = nir_intrinsic_atomic_op(instr);
+   const bool cmpswap = nir_op == nir_atomic_op_cmpxchg;
 
    if (cmpswap)
       data = bld.pseudo(aco_opcode::p_create_vector, bld.def(RegType::vgpr, data.size() * 2),
@@ -6887,62 +6836,61 @@ visit_global_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
 
    if (ctx->options->gfx_level >= GFX7) {
       bool global = ctx->options->gfx_level >= GFX9;
-      switch (instr->intrinsic) {
-      case nir_intrinsic_global_atomic_add_amd:
+      switch (nir_op) {
+      case nir_atomic_op_iadd:
          op32 = global ? aco_opcode::global_atomic_add : aco_opcode::flat_atomic_add;
          op64 = global ? aco_opcode::global_atomic_add_x2 : aco_opcode::flat_atomic_add_x2;
          break;
-      case nir_intrinsic_global_atomic_imin_amd:
+      case nir_atomic_op_imin:
          op32 = global ? aco_opcode::global_atomic_smin : aco_opcode::flat_atomic_smin;
          op64 = global ? aco_opcode::global_atomic_smin_x2 : aco_opcode::flat_atomic_smin_x2;
          break;
-      case nir_intrinsic_global_atomic_umin_amd:
+      case nir_atomic_op_umin:
          op32 = global ? aco_opcode::global_atomic_umin : aco_opcode::flat_atomic_umin;
          op64 = global ? aco_opcode::global_atomic_umin_x2 : aco_opcode::flat_atomic_umin_x2;
          break;
-      case nir_intrinsic_global_atomic_imax_amd:
+      case nir_atomic_op_imax:
          op32 = global ? aco_opcode::global_atomic_smax : aco_opcode::flat_atomic_smax;
          op64 = global ? aco_opcode::global_atomic_smax_x2 : aco_opcode::flat_atomic_smax_x2;
          break;
-      case nir_intrinsic_global_atomic_umax_amd:
+      case nir_atomic_op_umax:
          op32 = global ? aco_opcode::global_atomic_umax : aco_opcode::flat_atomic_umax;
          op64 = global ? aco_opcode::global_atomic_umax_x2 : aco_opcode::flat_atomic_umax_x2;
          break;
-      case nir_intrinsic_global_atomic_and_amd:
+      case nir_atomic_op_iand:
          op32 = global ? aco_opcode::global_atomic_and : aco_opcode::flat_atomic_and;
          op64 = global ? aco_opcode::global_atomic_and_x2 : aco_opcode::flat_atomic_and_x2;
          break;
-      case nir_intrinsic_global_atomic_or_amd:
+      case nir_atomic_op_ior:
          op32 = global ? aco_opcode::global_atomic_or : aco_opcode::flat_atomic_or;
          op64 = global ? aco_opcode::global_atomic_or_x2 : aco_opcode::flat_atomic_or_x2;
          break;
-      case nir_intrinsic_global_atomic_xor_amd:
+      case nir_atomic_op_ixor:
          op32 = global ? aco_opcode::global_atomic_xor : aco_opcode::flat_atomic_xor;
          op64 = global ? aco_opcode::global_atomic_xor_x2 : aco_opcode::flat_atomic_xor_x2;
          break;
-      case nir_intrinsic_global_atomic_exchange_amd:
+      case nir_atomic_op_xchg:
          op32 = global ? aco_opcode::global_atomic_swap : aco_opcode::flat_atomic_swap;
          op64 = global ? aco_opcode::global_atomic_swap_x2 : aco_opcode::flat_atomic_swap_x2;
          break;
-      case nir_intrinsic_global_atomic_comp_swap_amd:
+      case nir_atomic_op_cmpxchg:
          op32 = global ? aco_opcode::global_atomic_cmpswap : aco_opcode::flat_atomic_cmpswap;
          op64 = global ? aco_opcode::global_atomic_cmpswap_x2 : aco_opcode::flat_atomic_cmpswap_x2;
          break;
-      case nir_intrinsic_global_atomic_fadd_amd:
+      case nir_atomic_op_fadd:
          op32 = global ? aco_opcode::global_atomic_add_f32 : aco_opcode::flat_atomic_add_f32;
          op64 = aco_opcode::num_opcodes;
          break;
-      case nir_intrinsic_global_atomic_fmin_amd:
+      case nir_atomic_op_fmin:
          op32 = global ? aco_opcode::global_atomic_fmin : aco_opcode::flat_atomic_fmin;
          op64 = global ? aco_opcode::global_atomic_fmin_x2 : aco_opcode::flat_atomic_fmin_x2;
          break;
-      case nir_intrinsic_global_atomic_fmax_amd:
+      case nir_atomic_op_fmax:
          op32 = global ? aco_opcode::global_atomic_fmax : aco_opcode::flat_atomic_fmax;
          op64 = global ? aco_opcode::global_atomic_fmax_x2 : aco_opcode::flat_atomic_fmax_x2;
          break;
       default:
-         unreachable("visit_atomic_global should only be called with nir_intrinsic_global_atomic_* "
-                     "instructions.");
+         unreachable("unsupported atomic operation");
       }
 
       aco_opcode op = instr->dest.ssa.bit_size == 32 ? op32 : op64;
@@ -6971,59 +6919,8 @@ visit_global_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
    } else {
       assert(ctx->options->gfx_level == GFX6);
 
-      switch (instr->intrinsic) {
-      case nir_intrinsic_global_atomic_add_amd:
-         op32 = aco_opcode::buffer_atomic_add;
-         op64 = aco_opcode::buffer_atomic_add_x2;
-         break;
-      case nir_intrinsic_global_atomic_imin_amd:
-         op32 = aco_opcode::buffer_atomic_smin;
-         op64 = aco_opcode::buffer_atomic_smin_x2;
-         break;
-      case nir_intrinsic_global_atomic_umin_amd:
-         op32 = aco_opcode::buffer_atomic_umin;
-         op64 = aco_opcode::buffer_atomic_umin_x2;
-         break;
-      case nir_intrinsic_global_atomic_imax_amd:
-         op32 = aco_opcode::buffer_atomic_smax;
-         op64 = aco_opcode::buffer_atomic_smax_x2;
-         break;
-      case nir_intrinsic_global_atomic_umax_amd:
-         op32 = aco_opcode::buffer_atomic_umax;
-         op64 = aco_opcode::buffer_atomic_umax_x2;
-         break;
-      case nir_intrinsic_global_atomic_and_amd:
-         op32 = aco_opcode::buffer_atomic_and;
-         op64 = aco_opcode::buffer_atomic_and_x2;
-         break;
-      case nir_intrinsic_global_atomic_or_amd:
-         op32 = aco_opcode::buffer_atomic_or;
-         op64 = aco_opcode::buffer_atomic_or_x2;
-         break;
-      case nir_intrinsic_global_atomic_xor_amd:
-         op32 = aco_opcode::buffer_atomic_xor;
-         op64 = aco_opcode::buffer_atomic_xor_x2;
-         break;
-      case nir_intrinsic_global_atomic_exchange_amd:
-         op32 = aco_opcode::buffer_atomic_swap;
-         op64 = aco_opcode::buffer_atomic_swap_x2;
-         break;
-      case nir_intrinsic_global_atomic_comp_swap_amd:
-         op32 = aco_opcode::buffer_atomic_cmpswap;
-         op64 = aco_opcode::buffer_atomic_cmpswap_x2;
-         break;
-      case nir_intrinsic_global_atomic_fmin_amd:
-         op32 = aco_opcode::buffer_atomic_fmin;
-         op64 = aco_opcode::buffer_atomic_fmin_x2;
-         break;
-      case nir_intrinsic_global_atomic_fmax_amd:
-         op32 = aco_opcode::buffer_atomic_fmax;
-         op64 = aco_opcode::buffer_atomic_fmax_x2;
-         break;
-      default:
-         unreachable("visit_atomic_global should only be called with nir_intrinsic_global_atomic_* "
-                     "instructions.");
-      }
+      UNUSED aco_opcode image_op;
+      translate_buffer_image_atomic_op(nir_op, &op32, &op64, &image_op);
 
       Temp rsrc = get_gfx6_global_rsrc(bld, addr);
 
@@ -7092,7 +6989,7 @@ visit_load_buffer(isel_context* ctx, nir_intrinsic_instr* intrin)
    Temp idx = idxen ? as_vgpr(ctx, get_ssa_temp(ctx, intrin->src[3].ssa)) : Temp();
 
    bool glc = nir_intrinsic_access(intrin) & ACCESS_COHERENT;
-   bool slc = nir_intrinsic_access(intrin) & ACCESS_STREAM_CACHE_POLICY;
+   bool slc = nir_intrinsic_access(intrin) & ACCESS_NON_TEMPORAL;
 
    unsigned const_offset = nir_intrinsic_base(intrin);
    unsigned elem_size_bytes = intrin->dest.ssa.bit_size / 8u;
@@ -7164,7 +7061,7 @@ visit_store_buffer(isel_context* ctx, nir_intrinsic_instr* intrin)
    Temp idx = idxen ? as_vgpr(ctx, get_ssa_temp(ctx, intrin->src[4].ssa)) : Temp();
 
    bool glc = nir_intrinsic_access(intrin) & ACCESS_COHERENT;
-   bool slc = nir_intrinsic_access(intrin) & ACCESS_STREAM_CACHE_POLICY;
+   bool slc = nir_intrinsic_access(intrin) & ACCESS_NON_TEMPORAL;
 
    unsigned const_offset = nir_intrinsic_base(intrin);
    unsigned write_mask = nir_intrinsic_write_mask(intrin);
@@ -7332,81 +7229,81 @@ visit_shared_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
 
    unsigned num_operands = 3;
    aco_opcode op32, op64, op32_rtn, op64_rtn;
-   switch (instr->intrinsic) {
-   case nir_intrinsic_shared_atomic_add:
+   switch (nir_intrinsic_atomic_op(instr)) {
+   case nir_atomic_op_iadd:
       op32 = aco_opcode::ds_add_u32;
       op64 = aco_opcode::ds_add_u64;
       op32_rtn = aco_opcode::ds_add_rtn_u32;
       op64_rtn = aco_opcode::ds_add_rtn_u64;
       break;
-   case nir_intrinsic_shared_atomic_imin:
+   case nir_atomic_op_imin:
       op32 = aco_opcode::ds_min_i32;
       op64 = aco_opcode::ds_min_i64;
       op32_rtn = aco_opcode::ds_min_rtn_i32;
       op64_rtn = aco_opcode::ds_min_rtn_i64;
       break;
-   case nir_intrinsic_shared_atomic_umin:
+   case nir_atomic_op_umin:
       op32 = aco_opcode::ds_min_u32;
       op64 = aco_opcode::ds_min_u64;
       op32_rtn = aco_opcode::ds_min_rtn_u32;
       op64_rtn = aco_opcode::ds_min_rtn_u64;
       break;
-   case nir_intrinsic_shared_atomic_imax:
+   case nir_atomic_op_imax:
       op32 = aco_opcode::ds_max_i32;
       op64 = aco_opcode::ds_max_i64;
       op32_rtn = aco_opcode::ds_max_rtn_i32;
       op64_rtn = aco_opcode::ds_max_rtn_i64;
       break;
-   case nir_intrinsic_shared_atomic_umax:
+   case nir_atomic_op_umax:
       op32 = aco_opcode::ds_max_u32;
       op64 = aco_opcode::ds_max_u64;
       op32_rtn = aco_opcode::ds_max_rtn_u32;
       op64_rtn = aco_opcode::ds_max_rtn_u64;
       break;
-   case nir_intrinsic_shared_atomic_and:
+   case nir_atomic_op_iand:
       op32 = aco_opcode::ds_and_b32;
       op64 = aco_opcode::ds_and_b64;
       op32_rtn = aco_opcode::ds_and_rtn_b32;
       op64_rtn = aco_opcode::ds_and_rtn_b64;
       break;
-   case nir_intrinsic_shared_atomic_or:
+   case nir_atomic_op_ior:
       op32 = aco_opcode::ds_or_b32;
       op64 = aco_opcode::ds_or_b64;
       op32_rtn = aco_opcode::ds_or_rtn_b32;
       op64_rtn = aco_opcode::ds_or_rtn_b64;
       break;
-   case nir_intrinsic_shared_atomic_xor:
+   case nir_atomic_op_ixor:
       op32 = aco_opcode::ds_xor_b32;
       op64 = aco_opcode::ds_xor_b64;
       op32_rtn = aco_opcode::ds_xor_rtn_b32;
       op64_rtn = aco_opcode::ds_xor_rtn_b64;
       break;
-   case nir_intrinsic_shared_atomic_exchange:
+   case nir_atomic_op_xchg:
       op32 = aco_opcode::ds_write_b32;
       op64 = aco_opcode::ds_write_b64;
       op32_rtn = aco_opcode::ds_wrxchg_rtn_b32;
       op64_rtn = aco_opcode::ds_wrxchg_rtn_b64;
       break;
-   case nir_intrinsic_shared_atomic_comp_swap:
+   case nir_atomic_op_cmpxchg:
       op32 = aco_opcode::ds_cmpst_b32;
       op64 = aco_opcode::ds_cmpst_b64;
       op32_rtn = aco_opcode::ds_cmpst_rtn_b32;
       op64_rtn = aco_opcode::ds_cmpst_rtn_b64;
       num_operands = 4;
       break;
-   case nir_intrinsic_shared_atomic_fadd:
+   case nir_atomic_op_fadd:
       op32 = aco_opcode::ds_add_f32;
       op32_rtn = aco_opcode::ds_add_rtn_f32;
       op64 = aco_opcode::num_opcodes;
       op64_rtn = aco_opcode::num_opcodes;
       break;
-   case nir_intrinsic_shared_atomic_fmin:
+   case nir_atomic_op_fmin:
       op32 = aco_opcode::ds_min_f32;
       op32_rtn = aco_opcode::ds_min_rtn_f32;
       op64 = aco_opcode::ds_min_f64;
       op64_rtn = aco_opcode::ds_min_rtn_f64;
       break;
-   case nir_intrinsic_shared_atomic_fmax:
+   case nir_atomic_op_fmax:
       op32 = aco_opcode::ds_max_f32;
       op32_rtn = aco_opcode::ds_max_rtn_f32;
       op64 = aco_opcode::ds_max_f64;
@@ -8221,39 +8118,15 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
    case nir_intrinsic_load_constant: visit_load_constant(ctx, instr); break;
    case nir_intrinsic_load_shared: visit_load_shared(ctx, instr); break;
    case nir_intrinsic_store_shared: visit_store_shared(ctx, instr); break;
-   case nir_intrinsic_shared_atomic_add:
-   case nir_intrinsic_shared_atomic_imin:
-   case nir_intrinsic_shared_atomic_umin:
-   case nir_intrinsic_shared_atomic_imax:
-   case nir_intrinsic_shared_atomic_umax:
-   case nir_intrinsic_shared_atomic_and:
-   case nir_intrinsic_shared_atomic_or:
-   case nir_intrinsic_shared_atomic_xor:
-   case nir_intrinsic_shared_atomic_exchange:
-   case nir_intrinsic_shared_atomic_comp_swap:
-   case nir_intrinsic_shared_atomic_fadd:
-   case nir_intrinsic_shared_atomic_fmin:
-   case nir_intrinsic_shared_atomic_fmax: visit_shared_atomic(ctx, instr); break;
+   case nir_intrinsic_shared_atomic:
+   case nir_intrinsic_shared_atomic_swap: visit_shared_atomic(ctx, instr); break;
    case nir_intrinsic_load_shared2_amd:
    case nir_intrinsic_store_shared2_amd: visit_access_shared2_amd(ctx, instr); break;
    case nir_intrinsic_bindless_image_load:
    case nir_intrinsic_bindless_image_sparse_load: visit_image_load(ctx, instr); break;
    case nir_intrinsic_bindless_image_store: visit_image_store(ctx, instr); break;
-   case nir_intrinsic_bindless_image_atomic_add:
-   case nir_intrinsic_bindless_image_atomic_umin:
-   case nir_intrinsic_bindless_image_atomic_imin:
-   case nir_intrinsic_bindless_image_atomic_umax:
-   case nir_intrinsic_bindless_image_atomic_imax:
-   case nir_intrinsic_bindless_image_atomic_and:
-   case nir_intrinsic_bindless_image_atomic_or:
-   case nir_intrinsic_bindless_image_atomic_xor:
-   case nir_intrinsic_bindless_image_atomic_exchange:
-   case nir_intrinsic_bindless_image_atomic_comp_swap:
-   case nir_intrinsic_bindless_image_atomic_inc_wrap:
-   case nir_intrinsic_bindless_image_atomic_dec_wrap:
-   case nir_intrinsic_bindless_image_atomic_fadd:
-   case nir_intrinsic_bindless_image_atomic_fmin:
-   case nir_intrinsic_bindless_image_atomic_fmax: visit_image_atomic(ctx, instr); break;
+   case nir_intrinsic_bindless_image_atomic:
+   case nir_intrinsic_bindless_image_atomic_swap: visit_image_atomic(ctx, instr); break;
    case nir_intrinsic_load_ssbo: visit_load_ssbo(ctx, instr); break;
    case nir_intrinsic_store_ssbo: visit_store_ssbo(ctx, instr); break;
    case nir_intrinsic_load_typed_buffer_amd:
@@ -8262,32 +8135,10 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
    case nir_intrinsic_load_smem_amd: visit_load_smem(ctx, instr); break;
    case nir_intrinsic_load_global_amd: visit_load_global(ctx, instr); break;
    case nir_intrinsic_store_global_amd: visit_store_global(ctx, instr); break;
-   case nir_intrinsic_global_atomic_add_amd:
-   case nir_intrinsic_global_atomic_imin_amd:
-   case nir_intrinsic_global_atomic_umin_amd:
-   case nir_intrinsic_global_atomic_imax_amd:
-   case nir_intrinsic_global_atomic_umax_amd:
-   case nir_intrinsic_global_atomic_and_amd:
-   case nir_intrinsic_global_atomic_or_amd:
-   case nir_intrinsic_global_atomic_xor_amd:
-   case nir_intrinsic_global_atomic_exchange_amd:
-   case nir_intrinsic_global_atomic_comp_swap_amd:
-   case nir_intrinsic_global_atomic_fadd_amd:
-   case nir_intrinsic_global_atomic_fmin_amd:
-   case nir_intrinsic_global_atomic_fmax_amd: visit_global_atomic(ctx, instr); break;
-   case nir_intrinsic_ssbo_atomic_add:
-   case nir_intrinsic_ssbo_atomic_imin:
-   case nir_intrinsic_ssbo_atomic_umin:
-   case nir_intrinsic_ssbo_atomic_imax:
-   case nir_intrinsic_ssbo_atomic_umax:
-   case nir_intrinsic_ssbo_atomic_and:
-   case nir_intrinsic_ssbo_atomic_or:
-   case nir_intrinsic_ssbo_atomic_xor:
-   case nir_intrinsic_ssbo_atomic_exchange:
-   case nir_intrinsic_ssbo_atomic_comp_swap:
-   case nir_intrinsic_ssbo_atomic_fadd:
-   case nir_intrinsic_ssbo_atomic_fmin:
-   case nir_intrinsic_ssbo_atomic_fmax: visit_atomic_ssbo(ctx, instr); break;
+   case nir_intrinsic_global_atomic_amd:
+   case nir_intrinsic_global_atomic_swap_amd: visit_global_atomic(ctx, instr); break;
+   case nir_intrinsic_ssbo_atomic:
+   case nir_intrinsic_ssbo_atomic_swap: visit_atomic_ssbo(ctx, instr); break;
    case nir_intrinsic_load_scratch: visit_load_scratch(ctx, instr); break;
    case nir_intrinsic_store_scratch: visit_store_scratch(ctx, instr); break;
    case nir_intrinsic_scoped_barrier: emit_scoped_barrier(ctx, instr); break;
@@ -8998,41 +8849,27 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
 
       break;
    }
-   case nir_intrinsic_emit_vertex_with_counter: {
-      assert(ctx->stage.hw == HWStage::GS);
-      unsigned stream = nir_intrinsic_stream_id(instr);
-      bld.sopp(aco_opcode::s_sendmsg, bld.m0(ctx->gs_wave_id), -1, sendmsg_gs(false, true, stream));
+   case nir_intrinsic_sendmsg_amd: {
+      unsigned imm = nir_intrinsic_base(instr);
+      Temp m0_content = bld.as_uniform(get_ssa_temp(ctx, instr->src[0].ssa));
+      bld.sopp(aco_opcode::s_sendmsg, bld.m0(m0_content), -1, imm);
       break;
    }
-   case nir_intrinsic_end_primitive_with_counter: {
-      if (ctx->stage.hw != HWStage::NGG) {
-         unsigned stream = nir_intrinsic_stream_id(instr);
-         bld.sopp(aco_opcode::s_sendmsg, bld.m0(ctx->gs_wave_id), -1,
-                  sendmsg_gs(true, false, stream));
-      }
+   case nir_intrinsic_load_gs_wave_id_amd: {
+      Temp dst = get_ssa_temp(ctx, &instr->dest.ssa);
+      if (ctx->args->merged_wave_info.used)
+         bld.pseudo(aco_opcode::p_extract, Definition(dst), bld.def(s1, scc),
+                    get_arg(ctx, ctx->args->merged_wave_info), Operand::c32(2u),
+                    Operand::c32(8u), Operand::zero());
+      else if (ctx->args->gs_wave_id.used)
+         bld.copy(Definition(dst), get_arg(ctx, ctx->args->gs_wave_id));
+      else
+         unreachable("Shader doesn't have GS wave ID.");
       break;
    }
    case nir_intrinsic_is_subgroup_invocation_lt_amd: {
       Temp src = bld.as_uniform(get_ssa_temp(ctx, instr->src[0].ssa));
       bld.copy(Definition(get_ssa_temp(ctx, &instr->dest.ssa)), lanecount_to_mask(ctx, src));
-      break;
-   }
-   case nir_intrinsic_alloc_vertices_and_primitives_amd: {
-      assert(ctx->stage.hw == HWStage::NGG);
-      Temp num_vertices = get_ssa_temp(ctx, instr->src[0].ssa);
-      Temp num_primitives = get_ssa_temp(ctx, instr->src[1].ssa);
-
-      /* Put the number of vertices and primitives into m0 for the GS_ALLOC_REQ */
-      Temp tmp =
-         bld.sop2(aco_opcode::s_lshl_b32, bld.def(s1), bld.def(s1, scc),
-                  num_primitives, Operand::c32(12u));
-      tmp = bld.sop2(aco_opcode::s_or_b32, bld.m0(bld.def(s1)), bld.def(s1, scc),
-                     tmp, num_vertices);
-
-      /* Request the SPI to allocate space for the primitives and vertices
-       * that will be exported by the threadgroup.
-       */
-      bld.sopp(aco_opcode::s_sendmsg, bld.m0(tmp), -1, sendmsg_gs_alloc_req);
       break;
    }
    case nir_intrinsic_gds_atomic_add_amd: {
@@ -9215,125 +9052,39 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       ctx->block->kind |= block_kind_export_end;
       break;
    }
+   case nir_intrinsic_strict_wqm_coord_amd: {
+      Temp dst = get_ssa_temp(ctx, &instr->dest.ssa);
+      Temp src = get_ssa_temp(ctx, instr->src[0].ssa);
+      Temp tmp = bld.tmp(RegClass::get(RegType::vgpr, dst.bytes()));
+      unsigned begin_size = nir_intrinsic_base(instr);
+
+      unsigned num_src = 1;
+      auto it = ctx->allocated_vec.find(src.id());
+      if (it != ctx->allocated_vec.end())
+         num_src = src.bytes() / it->second[0].bytes();
+
+      aco_ptr<Pseudo_instruction> vec{create_instruction<Pseudo_instruction>(
+         aco_opcode::p_create_vector, Format::PSEUDO, num_src + !!begin_size, 1)};
+
+      if (begin_size)
+         vec->operands[0] = Operand(RegClass::get(RegType::vgpr, begin_size));
+      for (unsigned i = 0; i < num_src; i++) {
+         Temp comp = it != ctx->allocated_vec.end() ? it->second[i] : src;
+         vec->operands[i + !!begin_size] = Operand(comp);
+      }
+
+      vec->definitions[0] = Definition(tmp);
+      ctx->block->instructions.emplace_back(std::move(vec));
+
+      bld.pseudo(aco_opcode::p_start_linear_vgpr, Definition(dst), tmp);
+      break;
+   }
    default:
       isel_err(&instr->instr, "Unimplemented intrinsic instr");
       abort();
 
       break;
    }
-}
-
-void
-build_cube_select(isel_context* ctx, Temp ma, Temp id, Temp deriv, Temp* out_ma, Temp* out_sc,
-                  Temp* out_tc)
-{
-   Builder bld(ctx->program, ctx->block);
-
-   Temp deriv_x = emit_extract_vector(ctx, deriv, 0, v1);
-   Temp deriv_y = emit_extract_vector(ctx, deriv, 1, v1);
-   Temp deriv_z = emit_extract_vector(ctx, deriv, 2, v1);
-
-   Operand neg_one = Operand::c32(0xbf800000u);
-   Operand one = Operand::c32(0x3f800000u);
-   Operand two = Operand::c32(0x40000000u);
-   Operand four = Operand::c32(0x40800000u);
-
-   Temp is_ma_positive = bld.vopc(aco_opcode::v_cmp_le_f32, bld.def(bld.lm), Operand::zero(), ma);
-   Temp sgn_ma = bld.vop2_e64(aco_opcode::v_cndmask_b32, bld.def(v1), neg_one, one, is_ma_positive);
-   Temp neg_sgn_ma = bld.vop2(aco_opcode::v_sub_f32, bld.def(v1), Operand::zero(), sgn_ma);
-
-   Temp is_ma_z = bld.vopc(aco_opcode::v_cmp_le_f32, bld.def(bld.lm), four, id);
-   Temp is_ma_y = bld.vopc(aco_opcode::v_cmp_le_f32, bld.def(bld.lm), two, id);
-   is_ma_y = bld.sop2(Builder::s_andn2, bld.def(bld.lm), bld.def(s1, scc), is_ma_y, is_ma_z);
-   Temp is_not_ma_x = bld.sop2(Builder::s_or, bld.def(bld.lm), bld.def(s1, scc), is_ma_z, is_ma_y);
-
-   /* select sc */
-   Temp tmp = bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1), deriv_z, deriv_x, is_not_ma_x);
-   Temp sgn = bld.vop2_e64(
-      aco_opcode::v_cndmask_b32, bld.def(v1),
-      bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1), neg_sgn_ma, sgn_ma, is_ma_z), one, is_ma_y);
-   *out_sc = bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), tmp, sgn);
-
-   /* select tc */
-   tmp = bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1), deriv_y, deriv_z, is_ma_y);
-   sgn = bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1), neg_one, sgn_ma, is_ma_y);
-   *out_tc = bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), tmp, sgn);
-
-   /* select ma */
-   tmp = bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1),
-                  bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1), deriv_x, deriv_y, is_ma_y),
-                  deriv_z, is_ma_z);
-   tmp = bld.vop2(aco_opcode::v_and_b32, bld.def(v1), Operand::c32(0x7fffffffu), tmp);
-   *out_ma = bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), two, tmp);
-}
-
-void
-prepare_cube_coords(isel_context* ctx, std::vector<Temp>& coords, Temp* ddx, Temp* ddy,
-                    bool is_deriv, bool is_array)
-{
-   Builder bld(ctx->program, ctx->block);
-   Temp ma, tc, sc, id;
-   aco_opcode madak =
-      ctx->program->gfx_level >= GFX10_3 ? aco_opcode::v_fmaak_f32 : aco_opcode::v_madak_f32;
-   aco_opcode madmk =
-      ctx->program->gfx_level >= GFX10_3 ? aco_opcode::v_fmamk_f32 : aco_opcode::v_madmk_f32;
-
-   /* see comment in ac_prepare_cube_coords() */
-   if (is_array && ctx->options->gfx_level <= GFX8)
-      coords[3] = bld.vop2(aco_opcode::v_max_f32, bld.def(v1), Operand::zero(), coords[3]);
-
-   ma = bld.vop3(aco_opcode::v_cubema_f32, bld.def(v1), coords[0], coords[1], coords[2]);
-
-   aco_ptr<VALU_instruction> vop3a{
-      create_instruction<VALU_instruction>(aco_opcode::v_rcp_f32, asVOP3(Format::VOP1), 1, 1)};
-   vop3a->operands[0] = Operand(ma);
-   vop3a->abs[0] = true;
-   Temp invma = bld.tmp(v1);
-   vop3a->definitions[0] = Definition(invma);
-   ctx->block->instructions.emplace_back(std::move(vop3a));
-
-   sc = bld.vop3(aco_opcode::v_cubesc_f32, bld.def(v1), coords[0], coords[1], coords[2]);
-   if (!is_deriv)
-      sc = bld.vop2(madak, bld.def(v1), sc, invma, Operand::c32(0x3fc00000u /*1.5*/));
-
-   tc = bld.vop3(aco_opcode::v_cubetc_f32, bld.def(v1), coords[0], coords[1], coords[2]);
-   if (!is_deriv)
-      tc = bld.vop2(madak, bld.def(v1), tc, invma, Operand::c32(0x3fc00000u /*1.5*/));
-
-   id = bld.vop3(aco_opcode::v_cubeid_f32, bld.def(v1), coords[0], coords[1], coords[2]);
-
-   if (is_deriv) {
-      sc = bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), sc, invma);
-      tc = bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), tc, invma);
-
-      for (unsigned i = 0; i < 2; i++) {
-         /* see comment in ac_prepare_cube_coords() */
-         Temp deriv_ma;
-         Temp deriv_sc, deriv_tc;
-         build_cube_select(ctx, ma, id, i ? *ddy : *ddx, &deriv_ma, &deriv_sc, &deriv_tc);
-
-         deriv_ma = bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), deriv_ma, invma);
-
-         Temp x = bld.vop2(aco_opcode::v_sub_f32, bld.def(v1),
-                           bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), deriv_sc, invma),
-                           bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), deriv_ma, sc));
-         Temp y = bld.vop2(aco_opcode::v_sub_f32, bld.def(v1),
-                           bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), deriv_tc, invma),
-                           bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), deriv_ma, tc));
-         *(i ? ddy : ddx) = bld.pseudo(aco_opcode::p_create_vector, bld.def(v2), x, y);
-      }
-
-      sc = bld.vop2(aco_opcode::v_add_f32, bld.def(v1), Operand::c32(0x3fc00000u /*1.5*/), sc);
-      tc = bld.vop2(aco_opcode::v_add_f32, bld.def(v1), Operand::c32(0x3fc00000u /*1.5*/), tc);
-   }
-
-   if (is_array) {
-      id = bld.vop2(madmk, bld.def(v1), coords[3], id, Operand::c32(0x41000000u /*8.0*/));
-      coords.erase(coords.begin() + 3);
-   }
-   coords[0] = sc;
-   coords[1] = tc;
-   coords[2] = id;
 }
 
 void
@@ -9359,10 +9110,10 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
    Builder bld(ctx->program, ctx->block);
    bool has_bias = false, has_lod = false, level_zero = false, has_compare = false,
         has_offset = false, has_ddx = false, has_ddy = false, has_derivs = false,
-        has_sample_index = false, has_clamped_lod = false;
+        has_sample_index = false, has_clamped_lod = false, has_wqm_coord = false;
    Temp resource, sampler, bias = Temp(), compare = Temp(), sample_index = Temp(), lod = Temp(),
                            offset = Temp(), ddx = Temp(), ddy = Temp(), clamped_lod = Temp(),
-                           coord = Temp();
+                           coord = Temp(), wqm_coord = Temp();
    std::vector<Temp> coords;
    std::vector<Temp> derivs;
    nir_const_value* const_offset[4] = {NULL, NULL, NULL, NULL};
@@ -9401,6 +9152,12 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
          coord = get_ssa_temp_tex(ctx, instr->src[i].src.ssa, a16);
          break;
       }
+      case nir_tex_src_backend1: {
+         assert(instr->src[i].src.ssa->bit_size == 32);
+         wqm_coord = get_ssa_temp(ctx, instr->src[i].src.ssa);
+         has_wqm_coord = true;
+         break;
+      }
       case nir_tex_src_bias:
          assert(instr->src[i].src.ssa->bit_size == (a16 ? 16 : 32));
          /* Doesn't need get_ssa_temp_tex because we pack it into its own dword anyway. */
@@ -9430,6 +9187,7 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
          }
          break;
       case nir_tex_src_offset:
+      case nir_tex_src_backend2:
          assert(instr->src[i].src.ssa->bit_size == 32);
          offset = get_ssa_temp(ctx, instr->src[i].src.ssa);
          get_const_vec(instr->src[i].src.ssa, const_offset);
@@ -9454,6 +9212,12 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
       case nir_tex_src_sampler_offset:
       default: break;
       }
+   }
+
+   if (has_wqm_coord) {
+      assert(instr->op == nir_texop_tex || instr->op == nir_texop_txb || instr->op == nir_texop_lod);
+      assert(wqm_coord.regClass().is_linear_vgpr());
+      assert(!a16 && !g16);
    }
 
    if (instr->op == nir_texop_tg4 && !has_lod && !instr->is_gather_implicit_lod)
@@ -9526,29 +9290,9 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
          offset = pack;
    }
 
-   unsigned wqm_coord_count = 0;
    std::vector<Temp> unpacked_coord;
-   if (ctx->options->gfx_level == GFX9 && instr->sampler_dim == GLSL_SAMPLER_DIM_1D &&
-       instr->coord_components) {
-      RegClass rc = a16 ? v2b : v1;
-      for (unsigned i = 0; i < coord.bytes() / rc.bytes(); i++)
-         unpacked_coord.emplace_back(emit_extract_vector(ctx, coord, i, rc));
-
-      assert(unpacked_coord.size() > 0 && unpacked_coord.size() < 3);
-
-      Operand coord2d;
-      /* 0.5 for floating point coords, 0 for integer. */
-      if (a16)
-         coord2d = instr->op == nir_texop_txf ? Operand::c16(0) : Operand::c16(0x3800);
-      else
-         coord2d = instr->op == nir_texop_txf ? Operand::c32(0) : Operand::c32(0x3f000000);
-      unpacked_coord.insert(std::next(unpacked_coord.begin()), bld.copy(bld.def(rc), coord2d));
-      wqm_coord_count = a16 ? DIV_ROUND_UP(unpacked_coord.size(), 2) : unpacked_coord.size();
-   } else if (coord != Temp()) {
+   if (coord != Temp())
       unpacked_coord.push_back(coord);
-      wqm_coord_count = DIV_ROUND_UP(coord.bytes(), 4);
-   }
-
    if (has_sample_index)
       unpacked_coord.push_back(sample_index);
    if (has_lod)
@@ -9558,25 +9302,14 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
 
    coords = emit_pack_v1(ctx, unpacked_coord);
 
-   assert(instr->sampler_dim != GLSL_SAMPLER_DIM_CUBE || !a16);
-   if (instr->sampler_dim == GLSL_SAMPLER_DIM_CUBE && instr->coord_components)
-      prepare_cube_coords(ctx, coords, &ddx, &ddy, instr->op == nir_texop_txd,
-                          instr->is_array && instr->op != nir_texop_lod);
-
    /* pack derivatives */
    if (has_ddx || has_ddy) {
-      RegClass rc = g16 ? v2b : v1;
       assert(a16 == g16 || ctx->options->gfx_level >= GFX10);
       std::array<Temp, 2> ddxddy = {ddx, ddy};
       for (Temp tmp : ddxddy) {
          if (tmp == Temp())
             continue;
          std::vector<Temp> unpacked = {tmp};
-         if (instr->sampler_dim == GLSL_SAMPLER_DIM_1D && ctx->options->gfx_level == GFX9) {
-            assert(has_ddx && has_ddy);
-            Temp zero = bld.copy(bld.def(rc), Operand::zero(rc.bytes()));
-            unpacked.push_back(zero);
-         }
          for (Temp derv : emit_pack_v1(ctx, unpacked))
             derivs.push_back(derv);
       }
@@ -9621,8 +9354,8 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
    if (tg4_integer_workarounds) {
       Temp tg4_lod = bld.copy(bld.def(v1), Operand::zero());
       Temp size = bld.tmp(v2);
-      MIMG_instruction* tex = emit_mimg(bld, aco_opcode::image_get_resinfo, Definition(size),
-                                        resource, Operand(s4), std::vector<Temp>{tg4_lod});
+      MIMG_instruction* tex = emit_mimg(bld, aco_opcode::image_get_resinfo, size, resource,
+                                        Operand(s4), std::vector<Temp>{tg4_lod});
       tex->dim = dim;
       tex->dmask = 0x3;
       tex->da = da;
@@ -9755,11 +9488,13 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
 
    /* gather MIMG address components */
    std::vector<Temp> args;
-   unsigned wqm_mask = 0;
-   if (has_offset) {
-      wqm_mask |= u_bit_consecutive(args.size(), 1);
-      args.emplace_back(offset);
+   if (has_wqm_coord) {
+      args.emplace_back(wqm_coord);
+      if (!(ctx->block->kind & block_kind_top_level))
+         ctx->unended_linear_vgprs.push_back(wqm_coord);
    }
+   if (has_offset)
+      args.emplace_back(offset);
    if (has_bias)
       args.emplace_back(emit_pack_v1(ctx, {bias})[0]);
    if (has_compare)
@@ -9767,7 +9502,6 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
    if (has_derivs)
       args.insert(args.end(), derivs.begin(), derivs.end());
 
-   wqm_mask |= u_bit_consecutive(args.size(), wqm_coord_count);
    args.insert(args.end(), coords.begin(), coords.end());
 
    if (instr->op == nir_texop_txf || instr->op == nir_texop_fragment_fetch_amd ||
@@ -9778,7 +9512,7 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
                          : aco_opcode::image_load_mip;
       Operand vdata = instr->is_sparse ? emit_tfe_init(bld, tmp_dst) : Operand(v1);
       MIMG_instruction* tex =
-         emit_mimg(bld, op, Definition(tmp_dst), resource, Operand(s4), args, 0, vdata);
+         emit_mimg(bld, op, tmp_dst, resource, Operand(s4), args, false, vdata);
       if (instr->op == nir_texop_fragment_mask_fetch_amd)
          tex->dim = da ? ac_image_2darray : ac_image_2d;
       else
@@ -9958,8 +9692,8 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
                           instr->sampler_dim != GLSL_SAMPLER_DIM_SUBPASS_MS;
 
    Operand vdata = instr->is_sparse ? emit_tfe_init(bld, tmp_dst) : Operand(v1);
-   MIMG_instruction* tex = emit_mimg(bld, opcode, Definition(tmp_dst), resource, Operand(sampler),
-                                     args, implicit_derivs ? wqm_mask : 0, vdata);
+   MIMG_instruction* tex =
+      emit_mimg(bld, opcode, tmp_dst, resource, Operand(sampler), args, implicit_derivs, vdata);
    tex->dim = dim;
    tex->dmask = dmask & 0xf;
    tex->da = da;
@@ -10335,6 +10069,13 @@ visit_jump(isel_context* ctx, nir_jump_instr* instr)
 void
 visit_block(isel_context* ctx, nir_block* block)
 {
+   if (ctx->block->kind & block_kind_top_level) {
+      Builder bld(ctx->program, ctx->block);
+      for (Temp tmp : ctx->unended_linear_vgprs)
+         bld.pseudo(aco_opcode::p_end_linear_vgpr, tmp);
+      ctx->unended_linear_vgprs.clear();
+   }
+
    ctx->block->instructions.reserve(ctx->block->instructions.size() +
                                     exec_list_length(&block->instr_list) * 2);
    nir_foreach_instr (instr, block) {
@@ -11392,24 +11133,9 @@ select_program(Program* program, unsigned shader_count, struct nir_shader* const
             bld.barrier(aco_opcode::p_barrier,
                         memory_sync_info(storage_shared, semantic_acqrel, scope), scope);
          }
-
-         if (ctx.stage == vertex_geometry_gs || ctx.stage == tess_eval_geometry_gs) {
-            ctx.gs_wave_id = bld.pseudo(aco_opcode::p_extract, bld.def(s1, m0), bld.def(s1, scc),
-                                        get_arg(&ctx, args->merged_wave_info), Operand::c32(2u),
-                                        Operand::c32(8u), Operand::zero());
-         }
-      } else if (ctx.stage == geometry_gs)
-         ctx.gs_wave_id = get_arg(&ctx, args->gs_wave_id);
+      }
 
       visit_cf_list(&ctx, &func->body);
-
-      if (nir->info.stage == MESA_SHADER_GEOMETRY && !ngg_gs) {
-         Builder bld(ctx.program, ctx.block);
-         bld.barrier(aco_opcode::p_barrier,
-                     memory_sync_info(storage_vmem_output, semantic_release, scope_device));
-         bld.sopp(aco_opcode::s_sendmsg, bld.m0(ctx.gs_wave_id), -1,
-                  sendmsg_gs_done(false, false, 0));
-      }
 
       if (ctx.stage == fragment_fs && ctx.program->info.ps.has_epilog) {
          create_fs_jump_to_epilog(&ctx);

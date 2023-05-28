@@ -1,25 +1,7 @@
 /*
  * Copyright 2012 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #include "ac_nir.h"
@@ -257,9 +239,14 @@ static uint32_t *read_chunk(uint32_t *ptr, void **data, unsigned *size)
    return read_data(ptr, *data, *size);
 }
 
+struct si_shader_blob_head {
+   uint32_t size;
+   uint32_t type;
+   uint32_t crc32;
+};
+
 /**
- * Return the shader binary in a buffer. The first 4 bytes contain its size
- * as integer.
+ * Return the shader binary in a buffer.
  */
 static uint32_t *si_get_shader_binary(struct si_shader *shader)
 {
@@ -269,53 +256,59 @@ static uint32_t *si_get_shader_binary(struct si_shader *shader)
 
    /* Refuse to allocate overly large buffers and guard against integer
     * overflow. */
-   if (shader->binary.elf_size > UINT_MAX / 4 || llvm_ir_size > UINT_MAX / 4)
+   if (shader->binary.code_size > UINT_MAX / 4 || llvm_ir_size > UINT_MAX / 4 ||
+       shader->binary.num_symbols > UINT_MAX / 32)
       return NULL;
 
-   unsigned size = 4 + /* total size */
-                   4 + /* CRC32 of the data below */
-                   align(sizeof(shader->config), 4) + align(sizeof(shader->info), 4) + 4 +
-                   align(shader->binary.elf_size, 4) + 4 + align(llvm_ir_size, 4);
+   unsigned size = sizeof(struct si_shader_blob_head) +
+                   align(sizeof(shader->config), 4) +
+                   align(sizeof(shader->info), 4) +
+                   4 + align(shader->binary.code_size, 4) +
+                   4 + shader->binary.num_symbols * 8 +
+                   4 + align(llvm_ir_size, 4);
    uint32_t *buffer = (uint32_t*)CALLOC(1, size);
-   uint32_t *ptr = buffer;
-
    if (!buffer)
       return NULL;
 
-   *ptr++ = size;
-   ptr++; /* CRC32 is calculated at the end. */
+   struct si_shader_blob_head *head = (struct si_shader_blob_head *)buffer;
+   head->type = shader->binary.type;
+   head->size = size;
+
+   uint32_t *data = buffer + sizeof(*head) / 4;
+   uint32_t *ptr = data;
 
    ptr = write_data(ptr, &shader->config, sizeof(shader->config));
    ptr = write_data(ptr, &shader->info, sizeof(shader->info));
-   ptr = write_chunk(ptr, shader->binary.elf_buffer, shader->binary.elf_size);
+   ptr = write_chunk(ptr, shader->binary.code_buffer, shader->binary.code_size);
+   ptr = write_chunk(ptr, shader->binary.symbols, shader->binary.num_symbols * 8);
    ptr = write_chunk(ptr, shader->binary.llvm_ir_string, llvm_ir_size);
    assert((char *)ptr - (char *)buffer == (ptrdiff_t)size);
 
    /* Compute CRC32. */
-   ptr = buffer;
-   ptr++;
-   *ptr = util_hash_crc32(ptr + 1, size - 8);
+   head->crc32 = util_hash_crc32(data, size - sizeof(*head));
 
    return buffer;
 }
 
 static bool si_load_shader_binary(struct si_shader *shader, void *binary)
 {
-   uint32_t *ptr = (uint32_t *)binary;
-   uint32_t size = *ptr++;
-   uint32_t crc32 = *ptr++;
+   struct si_shader_blob_head *head = (struct si_shader_blob_head *)binary;
    unsigned chunk_size;
-   unsigned elf_size;
+   unsigned code_size;
 
-   if (util_hash_crc32(ptr, size - 8) != crc32) {
+   uint32_t *ptr = (uint32_t *)binary + sizeof(*head) / 4;
+   if (util_hash_crc32(ptr, head->size - sizeof(*head)) != head->crc32) {
       fprintf(stderr, "radeonsi: binary shader has invalid CRC32\n");
       return false;
    }
 
+   shader->binary.type = (enum si_shader_binary_type)head->type;
    ptr = read_data(ptr, &shader->config, sizeof(shader->config));
    ptr = read_data(ptr, &shader->info, sizeof(shader->info));
-   ptr = read_chunk(ptr, (void **)&shader->binary.elf_buffer, &elf_size);
-   shader->binary.elf_size = elf_size;
+   ptr = read_chunk(ptr, (void **)&shader->binary.code_buffer, &code_size);
+   shader->binary.code_size = code_size;
+   ptr = read_chunk(ptr, (void **)&shader->binary.symbols, &chunk_size);
+   shader->binary.num_symbols = chunk_size / 8;
    ptr = read_chunk(ptr, (void **)&shader->binary.llvm_ir_string, &chunk_size);
 
    if (!shader->is_gs_copy_shader &&
@@ -326,7 +319,7 @@ static bool si_load_shader_binary(struct si_shader *shader, void *binary)
 
       shader->gs_copy_shader->is_gs_copy_shader = true;
 
-      if (!si_load_shader_binary(shader->gs_copy_shader, (uint8_t*)binary + size)) {
+      if (!si_load_shader_binary(shader->gs_copy_shader, (uint8_t*)binary + head->size)) {
          FREE(shader->gs_copy_shader);
          shader->gs_copy_shader = NULL;
          return false;
@@ -747,7 +740,6 @@ static void si_shader_hs(struct si_screen *sscreen, struct si_shader *shader)
                   S_00B428_SGPRS(si_shader_encode_sgprs(shader)) |
                   S_00B428_DX10_CLAMP(1) |
                   S_00B428_MEM_ORDERED(si_shader_mem_ordered(shader)) |
-                  S_00B428_WGP_MODE(sscreen->info.gfx_level >= GFX10) |
                   S_00B428_FLOAT_MODE(shader->config.float_mode) |
                   S_00B428_LS_VGPR_COMP_CNT(sscreen->info.gfx_level >= GFX9 ?
                                             si_get_vs_vgpr_comp_cnt(sscreen, shader, false) : 0));
@@ -1086,7 +1078,6 @@ static void si_shader_gs(struct si_screen *sscreen, struct si_shader *shader)
                        S_00B228_SGPRS(si_shader_encode_sgprs(shader)) |
                        S_00B228_DX10_CLAMP(1) |
                        S_00B228_MEM_ORDERED(si_shader_mem_ordered(shader)) |
-                       S_00B228_WGP_MODE(sscreen->info.gfx_level >= GFX10) |
                        S_00B228_FLOAT_MODE(shader->config.float_mode) |
                        S_00B228_GS_VGPR_COMP_CNT(gs_vgpr_comp_cnt);
       uint32_t rsrc2 = S_00B22C_USER_SGPR(num_user_sgprs) |
@@ -1381,9 +1372,6 @@ static void gfx10_shader_ngg(struct si_screen *sscreen, struct si_shader *shader
                   S_00B228_FLOAT_MODE(shader->config.float_mode) |
                   S_00B228_DX10_CLAMP(1) |
                   S_00B228_MEM_ORDERED(si_shader_mem_ordered(shader)) |
-                  /* Disable the WGP mode on gfx10.3 because it can hang. (it happened on VanGogh)
-                   * Let's disable it on all chips that disable exactly 1 CU per SA for GS. */
-                  S_00B228_WGP_MODE(sscreen->info.gfx_level == GFX10) |
                   S_00B228_GS_VGPR_COMP_CNT(gs_vgpr_comp_cnt));
    si_pm4_set_reg(pm4, R_00B22C_SPI_SHADER_PGM_RSRC2_GS,
                   S_00B22C_SCRATCH_EN(shader->config.scratch_bytes_per_wave > 0) |
@@ -1810,7 +1798,7 @@ static void si_shader_ps(struct si_screen *sscreen, struct si_shader *shader)
    /* DB_SHADER_CONTROL */
    shader->ps.db_shader_control = S_02880C_Z_EXPORT_ENABLE(info->writes_z) |
                                   S_02880C_STENCIL_TEST_VAL_EXPORT_ENABLE(info->writes_stencil) |
-                                  S_02880C_MASK_EXPORT_ENABLE(info->writes_samplemask) |
+                                  S_02880C_MASK_EXPORT_ENABLE(shader->ps.writes_samplemask) |
                                   S_02880C_KILL_ENABLE(si_shader_uses_discard(shader));
 
    switch (info->base.fs.depth_layout) {
@@ -1894,7 +1882,7 @@ static void si_shader_ps(struct si_screen *sscreen, struct si_shader *shader)
    shader->ps.spi_ps_input_addr = shader->config.spi_ps_input_addr;
    shader->ps.num_interp = si_get_ps_num_interp(shader);
    shader->ps.spi_shader_z_format =
-      ac_get_spi_shader_z_format(info->writes_z, info->writes_stencil, info->writes_samplemask,
+      ac_get_spi_shader_z_format(info->writes_z, info->writes_stencil, shader->ps.writes_samplemask,
                                  shader->key.ps.part.epilog.alpha_to_coverage_via_mrtz);
 
    /* Ensure that some export memory is always allocated, for two reasons:
@@ -1914,7 +1902,7 @@ static void si_shader_ps(struct si_screen *sscreen, struct si_shader *shader)
     *
     * RB+ depth-only rendering requires SPI_SHADER_32_R.
     */
-   bool has_mrtz = info->writes_z || info->writes_stencil || info->writes_samplemask;
+   bool has_mrtz = info->writes_z || info->writes_stencil || shader->ps.writes_samplemask;
 
    if (!shader->ps.spi_shader_col_format) {
       if (shader->key.ps.part.epilog.rbplus_depth_only_opt) {
@@ -2223,6 +2211,13 @@ void si_ps_key_update_framebuffer_blend_rasterizer(struct si_context *sctx)
    key->ps.part.epilog.alpha_to_coverage_via_mrtz =
       sctx->gfx_level >= GFX11 && alpha_to_coverage &&
       (sel->info.writes_z || sel->info.writes_stencil || sel->info.writes_samplemask);
+
+   /* Remove the gl_SampleMask fragment shader output if MSAA is disabled.
+    * This is required for correctness and it's also an optimization.
+    */
+   key->ps.part.epilog.kill_samplemask = sel->info.writes_samplemask &&
+                                         (sctx->framebuffer.nr_samples <= 1 ||
+                                          !rs->multisample_enable);
 
    /* If alpha-to-coverage isn't exported via MRTZ, set that we need to export alpha
     * through MRT0.

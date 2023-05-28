@@ -43,7 +43,6 @@
 #include "util/u_math.h"
 #include "util/u_memory.h"
 #include "util/u_vbuf.h"
-#include "tgsi/tgsi_parse.h"
 
 #include "cso_cache/cso_context.h"
 #include "cso_cache/cso_cache.h"
@@ -438,6 +437,9 @@ cso_unbind_context(struct cso_context *ctx)
 
       if (ctx->has_streamout)
          ctx->base.pipe->set_stream_output_targets(ctx->base.pipe, 0, NULL, NULL);
+
+      struct pipe_framebuffer_state fb = {0};
+      ctx->base.pipe->set_framebuffer_state(ctx->base.pipe, &fb);
    }
 
    util_unreference_framebuffer_state(&ctx->fb);

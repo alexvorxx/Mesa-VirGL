@@ -1,27 +1,8 @@
 /**************************************************************************
  *
  * Copyright 2017 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sub license, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * The above copyright notice and this permission notice (including the
- * next paragraph) shall be included in all copies or substantial portions
- * of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
- * OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT.
- * IN NO EVENT SHALL THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR
- * ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
- * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
- * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  *
  **************************************************************************/
 
@@ -92,7 +73,6 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radeon_decoder *dec,
                                            struct pipe_h264_picture_desc *pic)
 {
    rvcn_dec_message_avc_t result;
-   struct h264_private *private;
    unsigned i, j, k;
 
    memset(&result, 0, sizeof(result));
@@ -187,25 +167,6 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radeon_decoder *dec,
    if (dec->dpb_type != DPB_DYNAMIC_TIER_2) {
       result.decoded_pic_idx = pic->frame_num;
       goto end;
-   }
-
-   private = pic->priv;
-   for (i = 0; i < ARRAY_SIZE(private->past_ref); i++) {
-      for (k = 0; private->past_ref[i] && (k < ARRAY_SIZE(pic->ref)); k++)
-         if (pic->ref[k] && (private->past_ref[i] == pic->ref[k]))
-            break;
-
-      for (j = 0; private->past_ref[i]
-                     && (k == ARRAY_SIZE(pic->ref))
-                     && (j < ARRAY_SIZE(dec->render_pic_list)); j++) {
-         if (dec->render_pic_list[j]
-                  && (dec->render_pic_list[j] == private->past_ref[i])) {
-            dec->render_pic_list[j] = pic->ref[i];
-            vl_video_buffer_set_associated_data(pic->ref[i], &dec->base,
-                   (void *)(uintptr_t)j, &radeon_dec_destroy_associated_data);
-            break;
-         }
-      }
    }
 
    for (i = 0; i < ARRAY_SIZE(dec->render_pic_list); i++) {
@@ -2107,7 +2068,7 @@ static struct pb_buffer *rvcn_dec_message_decode(struct radeon_decoder *dec,
          /* default probability + probability data */
          ctx_size = 2304 * 5;
 
-         if (((struct si_screen *)dec->screen)->info.family >= CHIP_RENOIR) {
+         if (((struct si_screen *)dec->screen)->info.vcn_ip_version >= VCN_2_0_0) {
             /* SRE collocated context data */
             ctx_size += 32 * 2 * 128 * 68;
             /* SMP collocated context data */
@@ -2180,8 +2141,7 @@ static struct pb_buffer *rvcn_dec_message_decode(struct radeon_decoder *dec,
    decode->sw_ctxt_size = RDECODE_SESSION_CONTEXT_SIZE;
    decode->db_pitch = align(dec->base.width, dec->db_alignment);
 
-   if ((((struct si_screen*)dec->screen)->info.family >= CHIP_NAVI21 ||
-	((struct si_screen*)dec->screen)->info.family == CHIP_GFX940) &&
+   if ((((struct si_screen*)dec->screen)->info.vcn_ip_version >= VCN_3_0_0) &&
        (dec->stream_type == RDECODE_CODEC_VP9 || dec->stream_type == RDECODE_CODEC_AV1 ||
         dec->base.profile == PIPE_VIDEO_PROFILE_HEVC_MAIN_10))
       decode->db_aligned_height = align(dec->base.height, 64);
@@ -2733,7 +2693,7 @@ static unsigned calc_dpb_size(struct radeon_decoder *dec)
       max_references = MAX2(max_references, 9);
 
       if (dec->dpb_type == DPB_MAX_RES)
-         dpb_size = (((struct si_screen *)dec->screen)->info.family >= CHIP_RENOIR)
+         dpb_size = (((struct si_screen *)dec->screen)->info.vcn_ip_version >= VCN_2_0_0)
             ? (8192 * 4320 * 3 / 2) * max_references
             : (4096 * 3000 * 3 / 2) * max_references;
       else
@@ -3004,6 +2964,26 @@ static int radeon_dec_get_decoder_fence(struct pipe_video_codec *decoder,
 }
 
 /**
+ * update render list when target buffer got updated, use the existing
+ * index and update the new buffer to associate with it.
+ */
+static void radeon_dec_update_render_list(struct pipe_video_codec *decoder,
+                                          struct pipe_video_buffer *old,
+                                          struct pipe_video_buffer *updated)
+{
+   struct radeon_decoder *dec = (struct radeon_decoder *)decoder;
+   void *index = vl_video_buffer_get_associated_data(old, decoder);
+
+   vl_video_buffer_set_associated_data(updated, decoder, index,
+                                       old->destroy_associated_data);
+   for (int i = 0; i < ARRAY_SIZE(dec->render_pic_list); ++i) {
+      if (dec->render_pic_list[i] == old) {
+         dec->render_pic_list[i] = updated;
+         break;
+      }
+   }
+}
+/**
  * create and HW decoder
  */
 struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
@@ -3071,6 +3051,7 @@ struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
    dec->base.end_frame = radeon_dec_end_frame;
    dec->base.flush = radeon_dec_flush;
    dec->base.get_decoder_fence = radeon_dec_get_decoder_fence;
+   dec->base.update_decoder_target =  radeon_dec_update_render_list;
 
    dec->stream_type = stream_type;
    dec->stream_handle = si_vid_alloc_stream_handle();
@@ -3078,7 +3059,7 @@ struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
    dec->ws = ws;
 
    if (u_reduce_video_profile(templ->profile) != PIPE_VIDEO_FORMAT_JPEG &&
-       (sctx->gfx_level >= GFX11 || sctx->family == CHIP_GFX940)) {
+       (sctx->vcn_ip_ver >= VCN_4_0_0)) {
       dec->vcn_dec_sw_ring = true;
       ring = AMD_IP_VCN_UNIFIED;
    }
@@ -3093,9 +3074,9 @@ struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
 
    if (dec->stream_type == RDECODE_CODEC_JPEG) {
 
-      if (sctx->family == CHIP_MI100 || sctx->family == CHIP_MI200)
+      if (sctx->vcn_ip_ver == VCN_2_5_0 || sctx->vcn_ip_ver == VCN_2_6_0)
          dec->njctx = 2;
-      else if (sctx->family == CHIP_GFX940)
+      else if (sctx->vcn_ip_ver == VCN_4_0_3)
          dec->njctx = 24;
       else
          dec->njctx = 1;
@@ -3122,15 +3103,14 @@ struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
    for (i = 0; i < ARRAY_SIZE(dec->render_pic_list); i++)
       dec->render_pic_list[i] = NULL;
 
-   if ((sctx->family >= CHIP_NAVI21 || sctx->family == CHIP_GFX940) &&
-	 (stream_type == RDECODE_CODEC_H264_PERF)) {
+   if ((sctx->vcn_ip_ver >= VCN_3_0_0) && (stream_type == RDECODE_CODEC_H264_PERF)) {
       for (i = 0; i < ARRAY_SIZE(dec->h264_valid_ref_num); i++)
          dec->h264_valid_ref_num[i] = (unsigned) -1;
       for (i = 0; i < ARRAY_SIZE(dec->h264_valid_poc_num); i++)
          dec->h264_valid_poc_num[i] = (unsigned) -1;
    }
 
-   bs_buf_size = width * height / 32;
+   bs_buf_size = align(width * height / 32, 128);
    for (i = 0; i < NUM_BUFFERS; ++i) {
       unsigned msg_fb_it_probs_size = FB_BUFFER_OFFSET + FB_BUFFER_SIZE;
       if (have_it(dec))
@@ -3169,18 +3149,18 @@ struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
       }
    }
 
-   if ((sctx->family >= CHIP_NAVI21 || sctx->family == CHIP_GFX940) &&
+   if ((sctx->vcn_ip_ver >= VCN_3_0_0) &&
          (stream_type == RDECODE_CODEC_VP9 ||
           stream_type == RDECODE_CODEC_AV1 ||
         ((stream_type == RDECODE_CODEC_H265) && templ->expect_chunked_decode) ||
         ((stream_type == RDECODE_CODEC_H264_PERF) && templ->expect_chunked_decode)))
       dec->dpb_type = DPB_DYNAMIC_TIER_2;
-   else if (sctx->family <= CHIP_NAVI14 && stream_type == RDECODE_CODEC_VP9)
+   else if (sctx->vcn_ip_ver <= VCN_2_6_0 && stream_type == RDECODE_CODEC_VP9)
       dec->dpb_type = DPB_DYNAMIC_TIER_1;
    else
       dec->dpb_type = DPB_MAX_RES;
 
-   dec->db_alignment = (((struct si_screen *)dec->screen)->info.family >= CHIP_RENOIR &&
+   dec->db_alignment = (((struct si_screen *)dec->screen)->info.vcn_ip_version >= VCN_2_0_0 &&
                    dec->base.width > 32 && (dec->stream_type == RDECODE_CODEC_VP9 ||
                    dec->stream_type == RDECODE_CODEC_AV1 ||
                    dec->base.profile == PIPE_VIDEO_PROFILE_HEVC_MAIN_10)) ? 64 : 32;
@@ -3197,50 +3177,47 @@ struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
    dec->addr_gfx_mode = RDECODE_ARRAY_MODE_LINEAR;
    dec->av1_version = RDECODE_AV1_VER_0;
 
-   switch (sctx->family) {
-   case CHIP_RAVEN:
-   case CHIP_RAVEN2:
+   switch (sctx->vcn_ip_ver) {
+   case VCN_1_0_0:
+   case VCN_1_0_1:
       dec->reg.data0 = RDECODE_VCN1_GPCOM_VCPU_DATA0;
       dec->reg.data1 = RDECODE_VCN1_GPCOM_VCPU_DATA1;
       dec->reg.cmd = RDECODE_VCN1_GPCOM_VCPU_CMD;
       dec->reg.cntl = RDECODE_VCN1_ENGINE_CNTL;
       dec->jpg_reg.version = RDECODE_JPEG_REG_VER_V1;
       break;
-   case CHIP_NAVI10:
-   case CHIP_NAVI12:
-   case CHIP_NAVI14:
-   case CHIP_RENOIR:
+   case VCN_2_0_0:
+   case VCN_2_0_2:
+   case VCN_2_0_3:
+   case VCN_2_2_0:
       dec->reg.data0 = RDECODE_VCN2_GPCOM_VCPU_DATA0;
       dec->reg.data1 = RDECODE_VCN2_GPCOM_VCPU_DATA1;
       dec->reg.cmd = RDECODE_VCN2_GPCOM_VCPU_CMD;
       dec->reg.cntl = RDECODE_VCN2_ENGINE_CNTL;
       dec->jpg_reg.version = RDECODE_JPEG_REG_VER_V2;
       break;
-   case CHIP_MI100:
-   case CHIP_MI200:
-   case CHIP_NAVI21:
-   case CHIP_NAVI22:
-   case CHIP_NAVI23:
-   case CHIP_NAVI24:
-   case CHIP_VANGOGH:
-   case CHIP_REMBRANDT:
-   case CHIP_RAPHAEL_MENDOCINO:
+   case VCN_2_5_0:
+   case VCN_2_6_0:
+   case VCN_3_0_0:
+   case VCN_3_0_2:
+   case VCN_3_0_16:
+   case VCN_3_0_33:
+   case VCN_3_1_1:
+   case VCN_3_1_2:
       dec->reg.data0 = RDECODE_VCN2_5_GPCOM_VCPU_DATA0;
       dec->reg.data1 = RDECODE_VCN2_5_GPCOM_VCPU_DATA1;
       dec->reg.cmd = RDECODE_VCN2_5_GPCOM_VCPU_CMD;
       dec->reg.cntl = RDECODE_VCN2_5_ENGINE_CNTL;
       dec->jpg_reg.version = RDECODE_JPEG_REG_VER_V2;
       break;
-   case CHIP_GFX940:
+   case VCN_4_0_3:
       dec->jpg_reg.version = RDECODE_JPEG_REG_VER_V3;
       dec->addr_gfx_mode = RDECODE_ARRAY_MODE_ADDRLIB_SEL_GFX9;
       dec->av1_version = RDECODE_AV1_VER_1;
       break;
-   case CHIP_GFX1100:
-   case CHIP_GFX1101:
-   case CHIP_GFX1102:
-   case CHIP_GFX1103_R1:
-   case CHIP_GFX1103_R2:
+   case VCN_4_0_0:
+   case VCN_4_0_2:
+   case VCN_4_0_4:
       dec->jpg_reg.version = RDECODE_JPEG_REG_VER_V2;
       dec->addr_gfx_mode = RDECODE_ARRAY_MODE_ADDRLIB_SEL_GFX11;
       dec->av1_version = RDECODE_AV1_VER_1;
@@ -3317,7 +3294,7 @@ struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
       list_inithead(&dec->dpb_unref_list);
    }
 
-   dec->tmz_ctx = sctx->family < CHIP_RENOIR;
+   dec->tmz_ctx = sctx->vcn_ip_ver <= VCN_2_2_0 && sctx->vcn_ip_ver != VCN_UNKNOWN;
 
    return &dec->base;
 

@@ -379,7 +379,7 @@ error:
 }
 
 static void
-fill_memory_info(struct radeon_info *info, struct vk_rmv_memory_info *out_info, int32_t index)
+fill_memory_info(const struct radeon_info *info, struct vk_rmv_memory_info *out_info, int32_t index)
 {
    switch (index) {
    case VK_RMV_MEMORY_LOCATION_DEVICE:
@@ -428,9 +428,9 @@ memory_type_from_vram_type(uint32_t vram_type)
 }
 
 void
-radv_rmv_fill_device_info(struct radv_physical_device *device, struct vk_rmv_device_info *info)
+radv_rmv_fill_device_info(const struct radv_physical_device *device, struct vk_rmv_device_info *info)
 {
-   struct radeon_info *rad_info = &device->rad_info;
+   const struct radeon_info *rad_info = &device->rad_info;
 
    for (int32_t i = 0; i < VK_RMV_MEMORY_LOCATION_COUNT; ++i) {
       fill_memory_info(rad_info, &info->memory_infos[i], i);
@@ -585,8 +585,8 @@ radv_rmv_log_image_create(struct radv_device *device, const VkImageCreateInfo *c
    token.image.num_slices = create_info->arrayLayers;
    token.image.tiling = create_info->tiling;
    token.image.alignment_log2 = util_logbase2(image->alignment);
-   token.image.log2_samples = util_logbase2(image->info.samples);
-   token.image.log2_storage_samples = util_logbase2(image->info.storage_samples);
+   token.image.log2_samples = util_logbase2(image->vk.samples);
+   token.image.log2_storage_samples = util_logbase2(image->vk.samples);
    token.image.metadata_alignment_log2 = image->planes[0].surface.meta_alignment_log2;
    token.image.image_alignment_log2 = image->planes[0].surface.alignment_log2;
    token.image.size = image->size;

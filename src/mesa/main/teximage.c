@@ -2424,7 +2424,8 @@ copytexture_error_check( struct gl_context *ctx, GLuint dimensions,
          return GL_TRUE;
       }
 
-      if (ctx->ReadBuffer->Visual.samples > 0) {
+      if (!ctx->st_opts->allow_multisampled_copyteximage &&
+          ctx->ReadBuffer->Visual.samples > 0) {
          _mesa_error(ctx, GL_INVALID_OPERATION,
                      "glCopyTexImage%dD(multisample FBO)", dimensions);
          return GL_TRUE;
@@ -2691,9 +2692,10 @@ copytexsubimage_error_check(struct gl_context *ctx, GLuint dimensions,
          return GL_TRUE;
       }
 
-      if (ctx->ReadBuffer->Visual.samples > 0) {
-         _mesa_error(ctx, GL_INVALID_OPERATION,
-                "%s(multisample FBO)", caller);
+      if (!ctx->st_opts->allow_multisampled_copyteximage &&
+          ctx->ReadBuffer->Visual.samples > 0) {
+         _mesa_error(ctx, GL_INVALID_OPERATION, "%s(multisample FBO)",
+                     caller);
          return GL_TRUE;
       }
    }
@@ -3562,6 +3564,7 @@ egl_image_target_texture(struct gl_context *ctx,
              !(target == GL_TEXTURE_2D || target == GL_TEXTURE_EXTERNAL_OES)) {
             _mesa_error(ctx, GL_INVALID_OPERATION,
                         "%s(texture is imported from dmabuf)", caller);
+            pipe_resource_reference(&stimg.texture, NULL);
             _mesa_unlock_texture(ctx, texObj);
             return;
          }

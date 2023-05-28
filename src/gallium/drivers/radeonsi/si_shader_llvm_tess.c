@@ -1,25 +1,7 @@
 /*
  * Copyright 2020 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #include "si_pipe.h"
@@ -372,7 +354,8 @@ static void si_write_tess_factors(struct si_shader_context *ctx, union si_shader
       ac_build_ifcc(&ctx->ac,
                     LLVMBuildICmp(ctx->ac.builder, LLVMIntEQ, rel_patch_id, ctx->ac.i32_0, ""), 6504);
       ac_build_buffer_store_dword(&ctx->ac, buffer, LLVMConstInt(ctx->ac.i32, 0x80000000, 0),
-                                  NULL, LLVMConstInt(ctx->ac.i32, offset, 0), tf_base, ac_glc);
+                                  NULL, LLVMConstInt(ctx->ac.i32, offset, 0), tf_base,
+                                  ACCESS_COHERENT);
       ac_build_endif(&ctx->ac, 6504);
       offset += 4;
    }
@@ -381,13 +364,13 @@ static void si_write_tess_factors(struct si_shader_context *ctx, union si_shader
    ac_build_buffer_store_dword(&ctx->ac, buffer, vec0, NULL,
                                LLVMBuildAdd(ctx->ac.builder, byteoffset,
                                             LLVMConstInt(ctx->ac.i32, offset, 0), ""),
-                               tf_base, ac_glc);
+                               tf_base, ACCESS_COHERENT);
    offset += 16;
    if (vec1)
       ac_build_buffer_store_dword(&ctx->ac, buffer, vec1, NULL,
                                   LLVMBuildAdd(ctx->ac.builder, byteoffset,
                                                LLVMConstInt(ctx->ac.i32, offset, 0), ""),
-                                  tf_base, ac_glc);
+                                  tf_base, ACCESS_COHERENT);
 
    /* Store the tess factors into the offchip buffer if TES reads them. */
    if (shader->key.ge.part.tcs.epilog.tes_reads_tess_factors) {
@@ -405,7 +388,7 @@ static void si_write_tess_factors(struct si_shader_context *ctx, union si_shader
       outer_vec = ac_build_gather_values(&ctx->ac, outer, outer_comps);
 
       ac_build_buffer_store_dword(&ctx->ac, buf, outer_vec, NULL, tf_outer_offset,
-                                  base, ac_glc);
+                                  base, ACCESS_COHERENT);
       if (inner_comps) {
          param_inner = si_shader_io_get_unique_index_patch(VARYING_SLOT_TESS_LEVEL_INNER);
          tf_inner_offset = get_tcs_tes_buffer_address(ctx, rel_patch_id, NULL,
@@ -413,7 +396,7 @@ static void si_write_tess_factors(struct si_shader_context *ctx, union si_shader
 
          inner_vec = ac_build_gather_values(&ctx->ac, inner, inner_comps);
          ac_build_buffer_store_dword(&ctx->ac, buf, inner_vec, NULL,
-                                     tf_inner_offset, base, ac_glc);
+                                     tf_inner_offset, base, ACCESS_COHERENT);
       }
    }
 

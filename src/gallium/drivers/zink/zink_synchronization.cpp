@@ -258,19 +258,28 @@ unordered_res_exec(const struct zink_context *ctx, const struct zink_resource *r
    if (res->obj->unordered_read && res->obj->unordered_write)
       return true;
    /* if testing write access but have any ordered read access, cannot promote */
-   if (is_write && zink_batch_usage_matches(res->obj->bo->reads, ctx->batch.state) && !res->obj->unordered_read)
+   if (is_write && zink_batch_usage_matches(res->obj->bo->reads.u, ctx->batch.state) && !res->obj->unordered_read)
       return false;
    /* if write access is unordered or nonexistent, always promote */
-   return res->obj->unordered_write || !zink_batch_usage_matches(res->obj->bo->writes, ctx->batch.state);
+   return res->obj->unordered_write || !zink_batch_usage_matches(res->obj->bo->writes.u, ctx->batch.state);
 }
 
 VkCommandBuffer
 zink_get_cmdbuf(struct zink_context *ctx, struct zink_resource *src, struct zink_resource *dst)
 {
    bool unordered_exec = (zink_debug & ZINK_DEBUG_NOREORDER) == 0;
-   if (src)
+   /* TODO: figure out how to link up unordered layout -> ordered layout and delete these two conditionals */
+   if (src && !src->obj->is_buffer) {
+      if (zink_resource_usage_is_unflushed(src) && !src->obj->unordered_read && !src->obj->unordered_write)
+         unordered_exec = false;
+   }
+   if (dst && !dst->obj->is_buffer) {
+      if (zink_resource_usage_is_unflushed(dst) && !dst->obj->unordered_read && !dst->obj->unordered_write)
+         unordered_exec = false;
+   }
+   if (src && unordered_exec)
       unordered_exec &= unordered_res_exec(ctx, src, false);
-   if (dst)
+   if (dst && unordered_exec)
       unordered_exec &= unordered_res_exec(ctx, dst, true);
    if (src)
       src->obj->unordered_read = unordered_exec;
@@ -280,6 +289,7 @@ zink_get_cmdbuf(struct zink_context *ctx, struct zink_resource *src, struct zink
       zink_batch_no_rp(ctx);
    if (unordered_exec) {
       ctx->batch.state->has_barriers = true;
+      ctx->batch.has_work = true;
       return ctx->batch.state->barrier_cmdbuf;
    }
    return ctx->batch.state->cmdbuf;
@@ -324,7 +334,28 @@ zink_resource_image_barrier(struct zink_context *ctx, struct zink_resource *res,
    if (!res->obj->needs_zs_evaluate && !zink_resource_image_needs_barrier(res, new_layout, flags, pipeline))
       return;
    bool is_write = zink_resource_access_is_write(flags);
-   VkCommandBuffer cmdbuf = is_write ? zink_get_cmdbuf(ctx, NULL, res) : zink_get_cmdbuf(ctx, res, NULL);
+   VkCommandBuffer cmdbuf;
+   /* if current batch usage exists with ordered non-transfer access, never promote
+    * this avoids layout dsync
+    * TODO: figure out how to link up unordered layout -> ordered layout and delete
+    */
+   if (zink_resource_usage_matches(res, ctx->batch.state) && !ctx->unordered_blitting &&
+       (!res->obj->unordered_read || !res->obj->unordered_write)) {
+      cmdbuf = ctx->batch.state->cmdbuf;
+      res->obj->unordered_write = false;
+      res->obj->unordered_read = false;
+      /* it's impossible to detect this from the caller
+       * there should be no valid case where this barrier can occur inside a renderpass
+       */
+      zink_batch_no_rp(ctx);
+   } else {
+      cmdbuf = is_write ? zink_get_cmdbuf(ctx, NULL, res) : zink_get_cmdbuf(ctx, res, NULL);
+      /* force subsequent barriers to be ordered to avoid layout desync */
+      if (cmdbuf != ctx->batch.state->barrier_cmdbuf) {
+         res->obj->unordered_write = false;
+         res->obj->unordered_read = false;
+      }
+   }
    assert(new_layout);
    bool marker = zink_cmd_debug_marker_begin(ctx, cmdbuf, "image_barrier(%s->%s)", vk_ImageLayout_to_str(res->layout), vk_ImageLayout_to_str(new_layout));
    enum zink_resource_access rw = is_write ? ZINK_RESOURCE_ACCESS_RW : ZINK_RESOURCE_ACCESS_WRITE;
@@ -489,10 +520,7 @@ pipeline_access_stage(VkAccessFlags flags)
    if (flags & (VK_ACCESS_UNIFORM_READ_BIT |
                 VK_ACCESS_SHADER_READ_BIT |
                 VK_ACCESS_SHADER_WRITE_BIT))
-      return VK_PIPELINE_STAGE_TASK_SHADER_BIT_NV |
-             VK_PIPELINE_STAGE_MESH_SHADER_BIT_NV |
-             VK_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR |
-             VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
+      return VK_PIPELINE_STAGE_VERTEX_SHADER_BIT |
              VK_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT |
              VK_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT |
              VK_PIPELINE_STAGE_GEOMETRY_SHADER_BIT |
@@ -545,16 +573,18 @@ zink_resource_buffer_barrier(struct zink_context *ctx, struct zink_resource *res
       res->obj->unordered_access_stage = VK_PIPELINE_STAGE_NONE;
       res->obj->ordered_access_is_copied = false;
    }
-   /* unordered barriers can be skipped if either:
-    * - there is no current-batch unordered access
-    * - the unordered access is not write access
+   /* unordered barriers can be skipped when:
+    * - there is no current-batch unordered access AND previous batch usage is not write access
+    * - there is current-batch unordered access AND the unordered access is not write access
     */
-   bool can_skip_unordered = !unordered ? false : (!unordered_usage_matches || !zink_resource_access_is_write(res->obj->unordered_access));
+   bool can_skip_unordered = !unordered ? false : !zink_resource_access_is_write(!unordered_usage_matches ? res->obj->access : res->obj->unordered_access);
    /* ordered barriers can be skipped if both:
     * - there is no current access
     * - there is no current-batch unordered access
     */
    bool can_skip_ordered = unordered ? false : (!res->obj->access && !unordered_usage_matches);
+   if (zink_debug & ZINK_DEBUG_NOREORDER)
+      can_skip_unordered = can_skip_ordered = false;
 
    if (!can_skip_unordered && !can_skip_ordered) {
       VkCommandBuffer cmdbuf = is_write ? zink_get_cmdbuf(ctx, NULL, res) : zink_get_cmdbuf(ctx, res, NULL);

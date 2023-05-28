@@ -41,7 +41,6 @@
 #include "util/slab.h"
 #include "util/u_upload_mgr.h"
 #include "util/u_blitter.h"
-#include "tgsi/tgsi_text.h"
 
 #include "virgl_encode.h"
 #include "virgl_context.h"
@@ -981,13 +980,13 @@ static void virgl_draw_vbo(struct pipe_context *ctx,
 
            if (ib.user_buffer) {
                    unsigned start_offset = draws[0].start * ib.index_size;
-                   u_upload_data(vctx->uploader, start_offset,
+                   u_upload_data(vctx->uploader, 0,
                                  draws[0].count * ib.index_size, 4,
                                  (char*)ib.user_buffer + start_offset,
                                  &ib.offset, &ib.buffer);
-                   ib.offset -= start_offset;
                    ib.user_buffer = NULL;
            }
+           virgl_hw_set_index_buffer(vctx, &ib);
    }
 
    if (!vctx->num_draws)
@@ -995,8 +994,6 @@ static void virgl_draw_vbo(struct pipe_context *ctx,
    vctx->num_draws++;
 
    virgl_hw_set_vertex_buffers(vctx);
-   if (info.index_size)
-      virgl_hw_set_index_buffer(vctx, &ib);
 
    virgl_encoder_draw_vbo(vctx, &info, drawid_offset, indirect, &draws[0]);
 
@@ -1785,6 +1782,20 @@ struct pipe_context *virgl_context_create(struct pipe_screen *pscreen,
 
    if (rs->caps.caps.v2.capability_bits & VIRGL_CAP_APP_TWEAK_SUPPORT)
       virgl_send_tweaks(vctx, rs);
+
+   /* On Android, a virgl_screen is generally created first by the HWUI
+    * service, followed by the application's no-op attempt to do the same with
+    * eglInitialize(). To retain the ability for apps to set their own driver
+    * config procedurally right before context creation, we must check the
+    * envvar again.
+    */
+#if DETECT_OS_ANDROID
+   if (!rs->shader_sync) {
+      uint64_t debug_options = debug_get_flags_option("VIRGL_DEBUG",
+                                                      virgl_debug_options, 0);
+      rs->shader_sync |= !!(debug_options & VIRGL_DEBUG_SHADER_SYNC);
+   }
+#endif
 
    return &vctx->base;
 fail:

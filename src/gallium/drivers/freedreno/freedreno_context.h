@@ -258,6 +258,11 @@ enum fd_buffer_mask {
    FD_BUFFER_DEPTH = PIPE_CLEAR_DEPTH,
    FD_BUFFER_STENCIL = PIPE_CLEAR_STENCIL,
    FD_BUFFER_ALL = FD_BUFFER_COLOR | FD_BUFFER_DEPTH | FD_BUFFER_STENCIL,
+
+   /* A special internal buffer bit to signify that the LRZ buffer needs
+    * clearing
+    */
+   FD_BUFFER_LRZ = BIT(15),
 };
 
 #define MAX_HW_SAMPLE_PROVIDERS 7
@@ -559,6 +564,7 @@ struct fd_context {
 
    /* optional, for GMEM bypass: */
    void (*emit_sysmem_prep)(struct fd_batch *batch) dt;
+   void (*emit_sysmem)(struct fd_batch *batch) dt;
    void (*emit_sysmem_fini)(struct fd_batch *batch) dt;
 
    /* draw: */
@@ -571,6 +577,9 @@ struct fd_context {
    bool (*clear)(struct fd_context *ctx, enum fd_buffer_mask buffers,
                  const union pipe_color_union *color, double depth,
                  unsigned stencil) dt;
+
+   /* called to update draw_vbo func after bound shader stages change, etc: */
+   void (*update_draw)(struct fd_context *ctx);
 
    /* compute: */
    void (*launch_grid)(struct fd_context *ctx,

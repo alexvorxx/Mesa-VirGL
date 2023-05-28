@@ -161,8 +161,10 @@ rebind_sampler_views(struct v3d_context *v3d,
 
                         struct v3d_sampler_view *sview =
                                 v3d_sampler_view(psview);
+                        struct v3d_device_info *devinfo =
+                                &v3d->screen->devinfo;
 
-                        v3d_create_texture_shader_state_bo(v3d, sview);
+                        v3d_X(devinfo, create_texture_shader_state_bo)(v3d, sview);
 
                         v3d_flag_dirty_sampler_state(v3d, st);
                 }
@@ -586,7 +588,8 @@ v3d_setup_slices(struct v3d_resource *rsc, uint32_t winsys_stride,
 
                 if (!rsc->tiled) {
                         slice->tiling = V3D_TILING_RASTER;
-                        if (prsc->target == PIPE_TEXTURE_1D)
+                        if (prsc->target == PIPE_TEXTURE_1D ||
+                            prsc->target == PIPE_TEXTURE_1D_ARRAY)
                                 level_width = align(level_width, 64 / rsc->cpp);
                 } else {
                         if ((i != 0 || !uif_top) &&
@@ -707,7 +710,9 @@ v3d_resource_setup(struct pipe_screen *pscreen,
                    const struct pipe_resource *tmpl)
 {
         struct v3d_screen *screen = v3d_screen(pscreen);
+        struct v3d_device_info *devinfo = &screen->devinfo;
         struct v3d_resource *rsc = CALLOC_STRUCT(v3d_resource);
+
         if (!rsc)
                 return NULL;
         struct pipe_resource *prsc = &rsc->base;
@@ -718,21 +723,20 @@ v3d_resource_setup(struct pipe_screen *pscreen,
         prsc->screen = pscreen;
 
         if (prsc->nr_samples <= 1 ||
-            screen->devinfo.ver >= 40 ||
+            devinfo->ver >= 40 ||
             util_format_is_depth_or_stencil(prsc->format)) {
                 rsc->cpp = util_format_get_blocksize(prsc->format);
-                if (screen->devinfo.ver < 40 && prsc->nr_samples > 1)
+                if (devinfo->ver < 40 && prsc->nr_samples > 1)
                         rsc->cpp *= prsc->nr_samples;
         } else {
-                assert(v3d_rt_format_supported(&screen->devinfo, prsc->format));
+                assert(v3d_rt_format_supported(devinfo, prsc->format));
                 uint32_t output_image_format =
-                        v3d_get_rt_format(&screen->devinfo, prsc->format);
+                        v3d_get_rt_format(devinfo, prsc->format);
                 uint32_t internal_type;
                 uint32_t internal_bpp;
-                v3d_get_internal_type_bpp_for_output_format(&screen->devinfo,
-                                                            output_image_format,
-                                                            &internal_type,
-                                                            &internal_bpp);
+                v3d_X(devinfo, get_internal_type_bpp_for_output_format)
+                   (output_image_format, &internal_type, &internal_bpp);
+
                 switch (internal_bpp) {
                 case V3D_INTERNAL_BPP_32:
                         rsc->cpp = 4;
@@ -1045,6 +1049,7 @@ v3d_create_surface(struct pipe_context *pctx,
 {
         struct v3d_context *v3d = v3d_context(pctx);
         struct v3d_screen *screen = v3d->screen;
+        struct v3d_device_info *devinfo = &screen->devinfo;
         struct v3d_surface *surface = CALLOC_STRUCT(v3d_surface);
         struct v3d_resource *rsc = v3d_resource(ptex);
 
@@ -1070,7 +1075,7 @@ v3d_create_surface(struct pipe_context *pctx,
                                            psurf->u.tex.first_layer);
         surface->tiling = slice->tiling;
 
-        surface->format = v3d_get_rt_format(&screen->devinfo, psurf->format);
+        surface->format = v3d_get_rt_format(devinfo, psurf->format);
 
         const struct util_format_description *desc =
                 util_format_description(psurf->format);
@@ -1092,9 +1097,8 @@ v3d_create_surface(struct pipe_context *pctx,
                 }
         } else {
                 uint32_t bpp, type;
-                v3d_get_internal_type_bpp_for_output_format(&screen->devinfo,
-                                                            surface->format,
-                                                            &type, &bpp);
+                v3d_X(devinfo, get_internal_type_bpp_for_output_format)
+                   (surface->format, &type, &bpp);
                 surface->internal_type = type;
                 surface->internal_bpp = bpp;
         }

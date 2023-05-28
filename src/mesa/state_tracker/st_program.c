@@ -598,7 +598,7 @@ st_translate_vertex_program(struct st_context *st,
    if (prog->Parameters->NumParameters)
       prog->affected_states |= ST_NEW_VS_CONSTANTS;
 
-   if (prog->nir)
+   if (prog->arb.Instructions && prog->nir)
       ralloc_free(prog->nir);
 
    if (prog->serialized_nir) {
@@ -607,8 +607,11 @@ st_translate_vertex_program(struct st_context *st,
    }
 
    prog->state.type = PIPE_SHADER_IR_NIR;
-   prog->nir = st_translate_prog_to_nir(st, prog,
-                                          MESA_SHADER_VERTEX);
+   if (prog->arb.Instructions)
+      prog->nir = st_translate_prog_to_nir(st, prog,
+                                           MESA_SHADER_VERTEX);
+   else
+      st_prog_to_nir_postprocess(st, prog->nir, prog);
    prog->info = prog->nir->info;
 
    st_prepare_vertex_program(prog);
@@ -838,41 +841,45 @@ st_get_common_variant(struct st_context *st,
  */
 static bool
 st_translate_fragment_program(struct st_context *st,
-                              struct gl_program *fp)
+                              struct gl_program *prog)
 {
    /* This determines which states will be updated when the assembly
     * shader is bound.
     *
     * fragment.position and glDrawPixels always use constants.
     */
-   fp->affected_states = ST_NEW_FS_STATE |
+   prog->affected_states = ST_NEW_FS_STATE |
                            ST_NEW_SAMPLE_SHADING |
                            ST_NEW_FS_CONSTANTS;
 
-   if (fp->ati_fs) {
+   if (prog->ati_fs) {
       /* Just set them for ATI_fs unconditionally. */
-      fp->affected_states |= ST_NEW_FS_SAMPLER_VIEWS |
-                                 ST_NEW_FS_SAMPLERS;
+      prog->affected_states |= ST_NEW_FS_SAMPLER_VIEWS |
+                               ST_NEW_FS_SAMPLERS;
    } else {
       /* ARB_fp */
-      if (fp->SamplersUsed)
-         fp->affected_states |= ST_NEW_FS_SAMPLER_VIEWS |
-                                    ST_NEW_FS_SAMPLERS;
+      if (prog->SamplersUsed)
+         prog->affected_states |= ST_NEW_FS_SAMPLER_VIEWS |
+                                  ST_NEW_FS_SAMPLERS;
    }
 
    /* Translate to NIR.  ATI_fs translates at variant time. */
-   if (!fp->ati_fs) {
-      nir_shader *nir =
-         st_translate_prog_to_nir(st, fp, MESA_SHADER_FRAGMENT);
+   if (!prog->ati_fs) {
+      if (prog->nir && prog->arb.Instructions)
+         ralloc_free(prog->nir);
 
-      if (fp->nir)
-         ralloc_free(fp->nir);
-      if (fp->serialized_nir) {
-         free(fp->serialized_nir);
-         fp->serialized_nir = NULL;
+      if (prog->serialized_nir) {
+         free(prog->serialized_nir);
+         prog->serialized_nir = NULL;
       }
-      fp->state.type = PIPE_SHADER_IR_NIR;
-      fp->nir = nir;
+
+      prog->state.type = PIPE_SHADER_IR_NIR;
+      if (prog->arb.Instructions)
+         prog->nir = st_translate_prog_to_nir(st, prog,
+                                             MESA_SHADER_FRAGMENT);
+      else
+         st_prog_to_nir_postprocess(st, prog->nir, prog);
+      prog->info = prog->nir->info;
    }
 
    return true;
@@ -1060,6 +1067,18 @@ st_create_fp_variant(struct st_context *st,
       finalize = true;
    }
 
+   /* It is undefined behavior when an ARB assembly uses SHADOW2D target
+    * with a texture in not depth format. In this case NVIDIA automatically
+    * replaces SHADOW sampler with a normal sampler and some games like
+    * Penumbra Overture which abuses this UB (issues/8425) works fine but
+    * breaks with mesa. Replace the shadow sampler with a normal one here
+    */
+   if (!fp->shader_program && ~key->depth_textures & fp->ShadowSamplers) {
+      NIR_PASS_V(state.ir.nir, nir_remove_tex_shadow,
+                 ~key->depth_textures & fp->ShadowSamplers);
+      finalize = true;
+   }
+
    if (finalize || !st->allow_st_finalize_nir_twice) {
       /* Some of the lowering above may have introduced new varyings */
       nir_shader_gather_info(state.ir.nir,
@@ -1101,7 +1120,7 @@ st_get_fp_variant(struct st_context *st,
 
       if (fp->variants != NULL) {
          _mesa_perf_debug(st->ctx, MESA_DEBUG_SEVERITY_MEDIUM,
-                          "Compiling fragment shader variant (%s%s%s%s%s%s%s%s%s%s%s%s)",
+                          "Compiling fragment shader variant (%s%s%s%s%s%s%s%s%s%s%s%s%s%d)",
                           key->bitmap ? "bitmap," : "",
                           key->drawpixels ? "drawpixels," : "",
                           key->scaleAndBias ? "scale_bias," : "",
@@ -1111,10 +1130,11 @@ st_get_fp_variant(struct st_context *st,
                           key->fog ? "fog," : "",
                           key->lower_two_sided_color ? "twoside," : "",
                           key->lower_flatshade ? "flatshade," : "",
-                          key->lower_alpha_func ? "alpha_compare," : "",
+                          key->lower_alpha_func != COMPARE_FUNC_ALWAYS ? "alpha_compare," : "",
                           /* skipped ATI_fs targets */
                           fp->ExternalSamplersUsed ? "external?," : "",
-                          key->gl_clamp[0] || key->gl_clamp[1] || key->gl_clamp[2] ? "GL_CLAMP," : "");
+                          key->gl_clamp[0] || key->gl_clamp[1] || key->gl_clamp[2] ? "GL_CLAMP," : "",
+                          "depth_textures=", key->depth_textures);
       }
 
       fpv = st_create_fp_variant(st, fp, key);
@@ -1304,6 +1324,13 @@ st_precompile_shader_variant(struct st_context *st,
          for (int i = 0; i < ARRAY_SIZE(key.texture_index); i++)
             key.texture_index[i] = TEXTURE_2D_INDEX;
       }
+
+      /* Shadow samplers require texture in depth format, which we lower to
+       * non-shadow if necessary for ARB programs
+       */
+      if (!prog->shader_program)
+         key.depth_textures = prog->ShadowSamplers;
+
       st_get_fp_variant(st, prog, &key);
       break;
    }

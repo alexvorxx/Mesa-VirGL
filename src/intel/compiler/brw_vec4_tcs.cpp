@@ -379,16 +379,16 @@ brw_compile_tcs(const struct brw_compiler *compiler,
                             nir->info.outputs_written,
                             nir->info.patch_outputs_written);
 
-   brw_nir_apply_key(nir, compiler, &key->base, 8, is_scalar);
+   brw_nir_apply_key(nir, compiler, &key->base, 8);
    brw_nir_lower_vue_inputs(nir, &input_vue_map);
    brw_nir_lower_tcs_outputs(nir, &vue_prog_data->vue_map,
                              key->_tes_primitive_mode);
    if (key->quads_workaround)
       brw_nir_apply_tcs_quads_workaround(nir);
-   if (compiler->use_tcs_multi_patch)
-      brw_nir_clamp_per_vertex_loads(nir, key->input_vertices);
+   if (key->input_vertices > 0)
+      brw_nir_lower_patch_vertices_in(nir, key->input_vertices);
 
-   brw_postprocess_nir(nir, compiler, is_scalar, debug_enabled,
+   brw_postprocess_nir(nir, compiler, debug_enabled,
                        key->base.robust_buffer_access);
 
    bool has_primitive_id =

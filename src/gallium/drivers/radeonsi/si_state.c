@@ -1,25 +1,7 @@
 /*
  * Copyright 2012 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #include "si_build_pm4.h"
@@ -584,6 +566,16 @@ static void *si_create_blend_state_mode(struct pipe_context *ctx,
                             S_028760_COLOR_COMB_FCN(si_translate_blend_opt_function(eqRGB)) |
                             S_028760_ALPHA_SRC_OPT(srcA_opt) | S_028760_ALPHA_DST_OPT(dstA_opt) |
                             S_028760_ALPHA_COMB_FCN(si_translate_blend_opt_function(eqA));
+
+      /* Alpha-to-coverage with blending enabled, depth writes enabled, and having no MRTZ export
+       * should disable SX blend optimizations.
+       *
+       * TODO: Add a piglit test for this. It should fail on gfx11 without this.
+       */
+      if (sctx->gfx_level >= GFX11 && state->alpha_to_coverage && i == 0) {
+         sx_mrt_blend_opt[0] = S_028760_COLOR_COMB_FCN(V_028760_OPT_COMB_NONE) |
+                               S_028760_ALPHA_COMB_FCN(V_028760_OPT_COMB_NONE);
+      }
 
       /* Set blend state. */
       blend_cntl |= S_028780_ENABLE(1);
@@ -1158,11 +1150,10 @@ static void si_bind_rs_state(struct pipe_context *ctx, void *state)
       rs = (struct si_state_rasterizer *)sctx->discard_rasterizer_state;
 
    if (old_rs->multisample_enable != rs->multisample_enable) {
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.db_render_state);
       si_mark_atom_dirty(sctx, &sctx->atoms.s.msaa_config);
 
       /* Update the small primitive filter workaround if necessary. */
-      if (sctx->screen->info.has_msaa_sample_loc_bug && sctx->framebuffer.nr_samples > 1)
+      if (sctx->screen->info.has_small_prim_filter_sample_loc_bug && sctx->framebuffer.nr_samples > 1)
          si_mark_atom_dirty(sctx, &sctx->atoms.s.msaa_sample_locs);
 
       /* NGG cull state uses multisample_enable. */
@@ -1515,7 +1506,6 @@ void si_restore_qbo_state(struct si_context *sctx, struct si_qbo_state *st)
 
 static void si_emit_db_render_state(struct si_context *sctx)
 {
-   struct si_state_rasterizer *rs = sctx->queued.named.rasterizer;
    unsigned db_shader_control, db_render_control, db_count_control, vrs_override_cntl = 0;
 
    /* DB_RENDER_CONTROL */
@@ -1583,10 +1573,6 @@ static void si_emit_db_render_state(struct si_context *sctx)
 
    db_shader_control = sctx->ps_db_shader_control;
 
-   /* Disable the gl_SampleMask fragment shader output if MSAA is disabled. */
-   if (!rs->multisample_enable)
-      db_shader_control &= C_02880C_MASK_EXPORT_ENABLE;
-
    if (sctx->screen->info.has_export_conflict_bug &&
        sctx->queued.named.blend->blend_enable_4bit &&
        si_get_num_coverage_samples(sctx) == 1) {
@@ -1652,101 +1638,6 @@ static void si_emit_db_render_state(struct si_context *sctx)
 /*
  * format translation
  */
-uint32_t si_translate_colorformat(enum amd_gfx_level gfx_level,
-                                  enum pipe_format format)
-{
-   const struct util_format_description *desc = util_format_description(format);
-
-#define HAS_SIZE(x, y, z, w)                                                                       \
-   (desc->channel[0].size == (x) && desc->channel[1].size == (y) &&                                \
-    desc->channel[2].size == (z) && desc->channel[3].size == (w))
-
-   if (format == PIPE_FORMAT_R11G11B10_FLOAT) /* isn't plain */
-      return V_028C70_COLOR_10_11_11;
-
-   if (gfx_level >= GFX10_3 &&
-       format == PIPE_FORMAT_R9G9B9E5_FLOAT) /* isn't plain */
-      return V_028C70_COLOR_5_9_9_9;
-
-   if (desc->layout != UTIL_FORMAT_LAYOUT_PLAIN)
-      return V_028C70_COLOR_INVALID;
-
-   /* hw cannot support mixed formats (except depth/stencil, since
-    * stencil is not written to). */
-   if (desc->is_mixed && desc->colorspace != UTIL_FORMAT_COLORSPACE_ZS)
-      return V_028C70_COLOR_INVALID;
-
-   int first_non_void = util_format_get_first_non_void_channel(format);
-
-   /* Reject SCALED formats because we don't implement them for CB. */
-   if (first_non_void >= 0 && first_non_void <= 3 &&
-       (desc->channel[first_non_void].type == UTIL_FORMAT_TYPE_UNSIGNED ||
-        desc->channel[first_non_void].type == UTIL_FORMAT_TYPE_SIGNED) &&
-       !desc->channel[first_non_void].normalized &&
-       !desc->channel[first_non_void].pure_integer)
-      return V_028C70_COLOR_INVALID;
-
-   switch (desc->nr_channels) {
-   case 1:
-      switch (desc->channel[0].size) {
-      case 8:
-         return V_028C70_COLOR_8;
-      case 16:
-         return V_028C70_COLOR_16;
-      case 32:
-         return V_028C70_COLOR_32;
-      }
-      break;
-   case 2:
-      if (desc->channel[0].size == desc->channel[1].size) {
-         switch (desc->channel[0].size) {
-         case 8:
-            return V_028C70_COLOR_8_8;
-         case 16:
-            return V_028C70_COLOR_16_16;
-         case 32:
-            return V_028C70_COLOR_32_32;
-         }
-      } else if (HAS_SIZE(8, 24, 0, 0)) {
-         return V_028C70_COLOR_24_8;
-      } else if (HAS_SIZE(24, 8, 0, 0)) {
-         return V_028C70_COLOR_8_24;
-      }
-      break;
-   case 3:
-      if (HAS_SIZE(5, 6, 5, 0)) {
-         return V_028C70_COLOR_5_6_5;
-      } else if (HAS_SIZE(32, 8, 24, 0)) {
-         return V_028C70_COLOR_X24_8_32_FLOAT;
-      }
-      break;
-   case 4:
-      if (desc->channel[0].size == desc->channel[1].size &&
-          desc->channel[0].size == desc->channel[2].size &&
-          desc->channel[0].size == desc->channel[3].size) {
-         switch (desc->channel[0].size) {
-         case 4:
-            return V_028C70_COLOR_4_4_4_4;
-         case 8:
-            return V_028C70_COLOR_8_8_8_8;
-         case 16:
-            return V_028C70_COLOR_16_16_16_16;
-         case 32:
-            return V_028C70_COLOR_32_32_32_32;
-         }
-      } else if (HAS_SIZE(5, 5, 5, 1)) {
-         return V_028C70_COLOR_1_5_5_5;
-      } else if (HAS_SIZE(1, 5, 5, 5)) {
-         return V_028C70_COLOR_5_5_5_1;
-      } else if (HAS_SIZE(10, 10, 10, 2)) {
-         return V_028C70_COLOR_2_10_10_10;
-      } else if (HAS_SIZE(2, 10, 10, 10)) {
-         return V_028C70_COLOR_10_10_10_2;
-      }
-      break;
-   }
-   return V_028C70_COLOR_INVALID;
-}
 
 static uint32_t si_colorformat_endian_swap(uint32_t colorformat)
 {
@@ -2386,7 +2277,7 @@ static unsigned si_is_vertex_format_supported(struct pipe_screen *screen, enum p
 static bool si_is_colorbuffer_format_supported(enum amd_gfx_level gfx_level,
                                                enum pipe_format format)
 {
-   return si_translate_colorformat(gfx_level, format) != V_028C70_COLOR_INVALID &&
+   return ac_get_cb_format(gfx_level, format) != V_028C70_COLOR_INVALID &&
           si_translate_colorswap(gfx_level, format, false) != ~0U;
 }
 
@@ -2518,35 +2409,13 @@ static void si_initialize_color_surface(struct si_context *sctx, struct si_surfa
    struct si_texture *tex = (struct si_texture *)surf->base.texture;
    unsigned format, swap, ntype, endian;
    const struct util_format_description *desc;
-   int firstchan;
    unsigned blend_clamp = 0, blend_bypass = 0;
 
    desc = util_format_description(surf->base.format);
-   firstchan = util_format_get_first_non_void_channel(surf->base.format);
-   if (firstchan == -1 || desc->channel[firstchan].type == UTIL_FORMAT_TYPE_FLOAT) {
-      ntype = V_028C70_NUMBER_FLOAT;
-   } else {
-      ntype = V_028C70_NUMBER_UNORM;
-      if (desc->colorspace == UTIL_FORMAT_COLORSPACE_SRGB)
-         ntype = V_028C70_NUMBER_SRGB;
-      else if (desc->channel[firstchan].type == UTIL_FORMAT_TYPE_SIGNED) {
-         if (desc->channel[firstchan].pure_integer) {
-            ntype = V_028C70_NUMBER_SINT;
-         } else {
-            assert(desc->channel[firstchan].normalized);
-            ntype = V_028C70_NUMBER_SNORM;
-         }
-      } else if (desc->channel[firstchan].type == UTIL_FORMAT_TYPE_UNSIGNED) {
-         if (desc->channel[firstchan].pure_integer) {
-            ntype = V_028C70_NUMBER_UINT;
-         } else {
-            assert(desc->channel[firstchan].normalized);
-            ntype = V_028C70_NUMBER_UNORM;
-         }
-      }
-   }
 
-   format = si_translate_colorformat(sctx->gfx_level, surf->base.format);
+   ntype = ac_get_cb_number_type(surf->base.format);
+   format = ac_get_cb_format(sctx->gfx_level, surf->base.format);
+
    if (format == V_028C70_COLOR_INVALID) {
       PRINT_ERR("Invalid CB format: %d, disabling CB.\n", surf->base.format);
    }
@@ -3653,7 +3522,7 @@ static void si_emit_msaa_sample_locs(struct si_context *sctx)
    struct radeon_cmdbuf *cs = &sctx->gfx_cs;
    struct si_state_rasterizer *rs = sctx->queued.named.rasterizer;
    unsigned nr_samples = sctx->framebuffer.nr_samples;
-   bool has_msaa_sample_loc_bug = sctx->screen->info.has_msaa_sample_loc_bug;
+   bool has_msaa_sample_loc_bug = sctx->screen->info.has_small_prim_filter_sample_loc_bug;
 
    /* Smoothing (only possible with nr_samples == 1) uses the same
     * sample locations as the MSAA it simulates.
@@ -6133,6 +6002,12 @@ void si_init_cs_preamble_state(struct si_context *sctx, bool uses_reg_shadowing)
       si_pm4_set_reg(pm4, R_028C54_PA_SC_BINNER_CNTL_2, 0);
       si_pm4_set_reg(pm4, R_028620_PA_RATE_CNTL,
                      S_028620_VERTEX_RATE(2) | S_028620_PRIM_RATE(1));
+
+      /* This is changed by draws for indexed draws, but we need to set DISABLE_FOR_AUTO_INDEX
+       * here, which disables primitive restart for all non-indexed draws, so that those draws
+       * won't have to set this state.
+       */
+      si_pm4_set_reg(pm4, R_03092C_GE_MULTI_PRIM_IB_RESET_EN, S_03092C_DISABLE_FOR_AUTO_INDEX(1));
 
       uint64_t rb_mask = BITFIELD64_MASK(sctx->screen->info.max_render_backends);
 

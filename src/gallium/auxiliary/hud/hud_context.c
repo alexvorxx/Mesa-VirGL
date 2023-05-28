@@ -1757,9 +1757,7 @@ hud_set_draw_context(struct hud_context *hud, struct cso_context *cso,
    {
       static const char *vertex_shader_text = {
          "VERT\n"
-         //"DCL IN[0..1]\n"
-         "DCL IN[0]\n"
-         "DCL IN[1]\n"
+         "DCL IN[0..1]\n"
          "DCL OUT[0], POSITION\n"
          "DCL OUT[1], COLOR[0]\n" /* color */
          "DCL OUT[2], GENERIC[0]\n" /* texcoord */
@@ -1802,9 +1800,7 @@ hud_set_draw_context(struct hud_context *hud, struct cso_context *cso,
        * to match the varyings in fs_text */
       static const char *vertex_shader_text = {
          "VERT\n"
-         //"DCL IN[0..1]\n"
-         "DCL IN[0]\n"
-         "DCL IN[1]\n"
+         "DCL IN[0..1]\n"
          "DCL OUT[0], POSITION\n"
          "DCL OUT[1], GENERIC[0]\n" /* texcoord */
          /* [0] = color,

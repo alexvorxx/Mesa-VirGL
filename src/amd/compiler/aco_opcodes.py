@@ -69,8 +69,8 @@ class Format(Enum):
    PSEUDO_BRANCH = 17
    PSEUDO_BARRIER = 18
    PSEUDO_REDUCTION = 19
-   VOP3P = 20
    VINTERP_INREG = 21
+   VOP3P = 1 << 7
    VOP1 = 1 << 8
    VOP2 = 1 << 9
    VOPC = 1 << 10
@@ -305,7 +305,7 @@ opcode("p_barrier", format=Format.PSEUDO_BARRIER)
 opcode("p_spill")
 opcode("p_reload")
 
-# start/end linear vgprs
+# Start/end linear vgprs. p_start_linear_vgpr can take an operand to copy from, into the linear vgpr
 opcode("p_start_linear_vgpr")
 opcode("p_end_linear_vgpr")
 

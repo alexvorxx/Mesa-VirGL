@@ -81,33 +81,10 @@ typedef void *drmDevicePtr;
 #include "ac_llvm_util.h"
 #endif
 
-int
-radv_get_int_debug_option(const char *name, int default_value)
-{
-   const char *str;
-   int result;
-
-   str = getenv(name);
-   if (!str) {
-      result = default_value;
-   } else {
-      char *endptr;
-
-      result = strtol(str, &endptr, 0);
-      if (str == endptr) {
-         /* No digits founs. */
-         result = default_value;
-      }
-   }
-
-   return result;
-}
-
 static bool
 radv_spm_trace_enabled()
 {
-   return radv_thread_trace_enabled() &&
-          debug_get_bool_option("RADV_THREAD_TRACE_CACHE_COUNTERS", false);
+   return radv_sqtt_enabled() && debug_get_bool_option("RADV_THREAD_TRACE_CACHE_COUNTERS", true);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -296,10 +273,6 @@ radv_device_finish_ps_epilogs(struct radv_device *device)
 VkResult
 radv_device_init_vrs_state(struct radv_device *device)
 {
-   /* FIXME: 4k depth buffers should be large enough for now but we might want to adjust this
-    * dynamically at some point.
-    */
-   uint32_t width = 4096, height = 4096;
    VkDeviceMemory mem;
    VkBuffer buffer;
    VkResult result;
@@ -309,7 +282,7 @@ radv_device_init_vrs_state(struct radv_device *device)
       .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
       .imageType = VK_IMAGE_TYPE_2D,
       .format = VK_FORMAT_D16_UNORM,
-      .extent = {width, height, 1},
+      .extent = {MAX_FRAMEBUFFER_WIDTH, MAX_FRAMEBUFFER_HEIGHT, 1},
       .mipLevels = 1,
       .arrayLayers = 1,
       .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -587,7 +560,7 @@ init_dispatch_tables(struct radv_device *device, struct radv_physical_device *ph
       add_entrypoints(&b, &rage2_device_entrypoints, RADV_APP_DISPATCH_TABLE);
    }
 
-   if (radv_thread_trace_enabled())
+   if (radv_sqtt_enabled())
       add_entrypoints(&b, &sqtt_device_entrypoints, RADV_RGP_DISPATCH_TABLE);
 
    if (radv_rra_trace_enabled() && radv_enable_rt(physical_device, false))
@@ -651,6 +624,7 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
    bool primitives_generated_query = false;
    bool use_perf_counters = false;
    bool use_dgc = false;
+   bool smooth_lines = false;
 
    /* Check enabled features */
    if (pCreateInfo->pEnabledFeatures) {
@@ -758,6 +732,12 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
             ps_epilogs = true;
          break;
       }
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_LINE_RASTERIZATION_FEATURES_EXT: {
+         const VkPhysicalDeviceLineRasterizationFeaturesEXT *features = (const void *)ext;
+         if (features->smoothLines)
+            smooth_lines = true;
+         break;
+      }
       default:
          break;
       }
@@ -813,6 +793,7 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
 
    device->primitives_generated_query = primitives_generated_query;
    device->uses_device_generated_commands = use_dgc;
+   device->smooth_lines = smooth_lines;
 
    radv_init_shader_arenas(device);
 
@@ -933,7 +914,7 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
       radv_dump_enabled_options(device, stderr);
    }
 
-   if (radv_thread_trace_enabled()) {
+   if (radv_sqtt_enabled()) {
       if (device->physical_device->rad_info.gfx_level < GFX8 ||
           device->physical_device->rad_info.gfx_level > GFX11) {
          fprintf(stderr, "GPU hardware not supported: refer to "
@@ -942,14 +923,15 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
          abort();
       }
 
-      if (!radv_thread_trace_init(device)) {
+      if (!radv_sqtt_init(device)) {
          result = VK_ERROR_INITIALIZATION_FAILED;
          goto fail;
       }
 
-      fprintf(stderr, "radv: Thread trace support is enabled (initial buffer size: %u MiB, "
-                      "instruction timing: %s, cache counters: %s).\n",
-              device->thread_trace.buffer_size / (1024 * 1024),
+      fprintf(stderr,
+              "radv: Thread trace support is enabled (initial buffer size: %u MiB, "
+              "instruction timing: %s, cache counters: %s).\n",
+              device->sqtt.buffer_size / (1024 * 1024),
               radv_is_instruction_timing_enabled() ? "enabled" : "disabled",
               radv_spm_trace_enabled() ? "enabled" : "disabled");
 
@@ -1053,7 +1035,7 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
    if (!device->mem_cache)
       goto fail_meta;
 
-   device->force_aniso = MIN2(16, radv_get_int_debug_option("RADV_TEX_ANISO", -1));
+   device->force_aniso = MIN2(16, (int)debug_get_num_option("RADV_TEX_ANISO", -1));
    if (device->force_aniso >= 0) {
       fprintf(stderr, "radv: Forcing anisotropy filter to %ix\n",
               1 << util_logbase2(device->force_aniso));
@@ -1093,7 +1075,7 @@ fail_cache:
 fail_meta:
    radv_device_finish_meta(device);
 fail:
-   radv_thread_trace_finish(device);
+   radv_sqtt_finish(device);
 
    radv_spm_finish(device);
 
@@ -1195,7 +1177,7 @@ radv_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
 
    radv_destroy_shader_arenas(device);
 
-   radv_thread_trace_finish(device);
+   radv_sqtt_finish(device);
 
    radv_rra_trace_finish(_device, &device->rra_trace);
 
@@ -1368,7 +1350,7 @@ static unsigned
 get_dcc_max_uncompressed_block_size(const struct radv_device *device,
                                     const struct radv_image_view *iview)
 {
-   if (device->physical_device->rad_info.gfx_level < GFX10 && iview->image->info.samples > 1) {
+   if (device->physical_device->rad_info.gfx_level < GFX10 && iview->image->vk.samples > 1) {
       if (iview->image->planes[0].surface.bpe == 1)
          return V_028C78_MAX_BLOCK_SIZE_64B;
       else if (iview->image->planes[0].surface.bpe == 2)
@@ -1564,8 +1546,8 @@ radv_initialise_color_surface(struct radv_device *device, struct radv_color_buff
    uint32_t slice_start = iview->nbc_view.valid ? 0 : iview->vk.base_array_layer;
    cb->cb_color_view = S_028C6C_SLICE_START(slice_start) | S_028C6C_SLICE_MAX_GFX10(max_slice);
 
-   if (iview->image->info.samples > 1) {
-      unsigned log_samples = util_logbase2(iview->image->info.samples);
+   if (iview->image->vk.samples > 1) {
+      unsigned log_samples = util_logbase2(iview->image->vk.samples);
 
       if (device->physical_device->rad_info.gfx_level >= GFX11)
          cb->cb_color_attrib |= S_028C74_NUM_FRAGMENTS_GFX11(log_samples);
@@ -1583,9 +1565,8 @@ radv_initialise_color_surface(struct radv_device *device, struct radv_color_buff
       cb->cb_color_fmask = cb->cb_color_base;
    }
 
-   ntype = radv_translate_color_numformat(iview->vk.format, desc,
-                                          vk_format_get_first_non_void_channel(iview->vk.format));
-   format = radv_translate_colorformat(iview->vk.format);
+   ntype = ac_get_cb_number_type(desc->format);
+   format = ac_get_cb_format(device->physical_device->rad_info.gfx_level, desc->format);
    assert(format != V_028C70_COLOR_INVALID);
 
    swap = radv_translate_colorswap(iview->vk.format, false);
@@ -1667,12 +1648,12 @@ radv_initialise_color_surface(struct radv_device *device, struct radv_color_buff
    if (device->physical_device->rad_info.gfx_level >= GFX9) {
       unsigned mip0_depth = iview->image->vk.image_type == VK_IMAGE_TYPE_3D
                                ? (iview->extent.depth - 1)
-                               : (iview->image->info.array_size - 1);
+                               : (iview->image->vk.array_layers - 1);
       unsigned width =
          vk_format_get_plane_width(iview->image->vk.format, iview->plane_id, iview->extent.width);
       unsigned height =
          vk_format_get_plane_height(iview->image->vk.format, iview->plane_id, iview->extent.height);
-      unsigned max_mip = iview->image->info.levels - 1;
+      unsigned max_mip = iview->image->vk.mip_levels - 1;
 
       if (device->physical_device->rad_info.gfx_level >= GFX10) {
          unsigned base_level = iview->vk.base_mip_level;
@@ -1699,7 +1680,7 @@ radv_initialise_color_surface(struct radv_device *device, struct radv_color_buff
 }
 
 static unsigned
-radv_calc_decompress_on_z_planes(struct radv_device *device, struct radv_image_view *iview)
+radv_calc_decompress_on_z_planes(const struct radv_device *device, struct radv_image_view *iview)
 {
    unsigned max_zplanes = 0;
 
@@ -1709,14 +1690,14 @@ radv_calc_decompress_on_z_planes(struct radv_device *device, struct radv_image_v
       /* Default value for 32-bit depth surfaces. */
       max_zplanes = 4;
 
-      if (iview->vk.format == VK_FORMAT_D16_UNORM && iview->image->info.samples > 1)
+      if (iview->vk.format == VK_FORMAT_D16_UNORM && iview->image->vk.samples > 1)
          max_zplanes = 2;
 
       /* Workaround for a DB hang when ITERATE_256 is set to 1. Only affects 4X MSAA D/S images. */
       if (device->physical_device->rad_info.has_two_planes_iterate256_bug &&
           radv_image_get_iterate256(device, iview->image) &&
           !radv_image_tile_stencil_disabled(device, iview->image) &&
-          iview->image->info.samples == 4) {
+          iview->image->vk.samples == 4) {
          max_zplanes = 1;
       }
 
@@ -1731,9 +1712,9 @@ radv_calc_decompress_on_z_planes(struct radv_device *device, struct radv_image_v
           */
          max_zplanes = 1;
       } else {
-         if (iview->image->info.samples <= 1)
+         if (iview->image->vk.samples <= 1)
             max_zplanes = 5;
-         else if (iview->image->info.samples <= 4)
+         else if (iview->image->vk.samples <= 4)
             max_zplanes = 3;
          else
             max_zplanes = 2;
@@ -1760,8 +1741,8 @@ radv_initialise_vrs_surface(struct radv_image *image, struct radv_buffer *htile_
                    S_028038_TILE_SURFACE_ENABLE(1);
    ds->db_stencil_info = S_02803C_FORMAT(V_028044_STENCIL_INVALID);
 
-   ds->db_depth_size = S_02801C_X_MAX(image->info.width - 1) |
-                       S_02801C_Y_MAX(image->info.height - 1);
+   ds->db_depth_size = S_02801C_X_MAX(image->vk.extent.width - 1) |
+                       S_02801C_Y_MAX(image->vk.extent.height - 1);
 
    ds->db_htile_data_base = radv_buffer_get_va(htile_buffer->bo) >> 8;
    ds->db_htile_surface = S_028ABC_FULL_CACHE(1) | S_028ABC_PIPE_ALIGNED(1) |
@@ -1769,7 +1750,7 @@ radv_initialise_vrs_surface(struct radv_image *image, struct radv_buffer *htile_
 }
 
 void
-radv_initialise_ds_surface(struct radv_device *device, struct radv_ds_buffer_info *ds,
+radv_initialise_ds_surface(const struct radv_device *device, struct radv_ds_buffer_info *ds,
                            struct radv_image_view *iview)
 {
    unsigned level = iview->vk.base_mip_level;
@@ -1820,7 +1801,7 @@ radv_initialise_ds_surface(struct radv_device *device, struct radv_ds_buffer_inf
    s_offs = z_offs = va;
 
    /* Recommended value for better performance with 4x and 8x. */
-   ds->db_render_override2 = S_028010_DECOMPRESS_Z_ON_FLUSH(iview->image->info.samples >= 4) |
+   ds->db_render_override2 = S_028010_DECOMPRESS_Z_ON_FLUSH(iview->image->vk.samples >= 4) |
                              S_028010_CENTROID_COMPUTATION_MODE(device->physical_device->rad_info.gfx_level >= GFX10_3);
 
    if (device->physical_device->rad_info.gfx_level >= GFX9) {
@@ -1828,9 +1809,9 @@ radv_initialise_ds_surface(struct radv_device *device, struct radv_ds_buffer_inf
       s_offs += surf->u.gfx9.zs.stencil_offset;
 
       ds->db_z_info = S_028038_FORMAT(format) |
-                      S_028038_NUM_SAMPLES(util_logbase2(iview->image->info.samples)) |
+                      S_028038_NUM_SAMPLES(util_logbase2(iview->image->vk.samples)) |
                       S_028038_SW_MODE(surf->u.gfx9.swizzle_mode) |
-                      S_028038_MAXMIP(iview->image->info.levels - 1) |
+                      S_028038_MAXMIP(iview->image->vk.mip_levels - 1) |
                       S_028038_ZRANGE_PRECISION(1) |
                       S_028040_ITERATE_256(device->physical_device->rad_info.gfx_level >= GFX11);
       ds->db_stencil_info = S_02803C_FORMAT(stencil_format) |
@@ -1843,8 +1824,8 @@ radv_initialise_ds_surface(struct radv_device *device, struct radv_ds_buffer_inf
       }
 
       ds->db_depth_view |= S_028008_MIPID(level);
-      ds->db_depth_size = S_02801C_X_MAX(iview->image->info.width - 1) |
-                          S_02801C_Y_MAX(iview->image->info.height - 1);
+      ds->db_depth_size = S_02801C_X_MAX(iview->image->vk.extent.width - 1) |
+                          S_02801C_Y_MAX(iview->image->vk.extent.height - 1);
 
       if (radv_htile_enabled(iview->image, level)) {
          ds->db_z_info |= S_028038_TILE_SURFACE_ENABLE(1);
@@ -1897,11 +1878,11 @@ radv_initialise_ds_surface(struct radv_device *device, struct radv_ds_buffer_inf
       ds->db_z_info = S_028040_FORMAT(format) | S_028040_ZRANGE_PRECISION(1);
       ds->db_stencil_info = S_028044_FORMAT(stencil_format);
 
-      if (iview->image->info.samples > 1)
-         ds->db_z_info |= S_028040_NUM_SAMPLES(util_logbase2(iview->image->info.samples));
+      if (iview->image->vk.samples > 1)
+         ds->db_z_info |= S_028040_NUM_SAMPLES(util_logbase2(iview->image->vk.samples));
 
       if (device->physical_device->rad_info.gfx_level >= GFX7) {
-         struct radeon_info *info = &device->physical_device->rad_info;
+         const struct radeon_info *info = &device->physical_device->rad_info;
          unsigned tiling_index = surf->u.legacy.tiling_index[level];
          unsigned stencil_index = surf->u.legacy.zs.stencil_tiling_index[level];
          unsigned macro_index = surf->u.legacy.macro_tile_index;

@@ -11,7 +11,6 @@
 #include "zink_surface.h"
 #include "zink_inlines.h"
 
-#include "tgsi/tgsi_from_mesa.h"
 #include "util/hash_table.h"
 #include "util/u_cpu_detect.h"
 #include "util/u_debug.h"
@@ -513,8 +512,6 @@ zink_draw(struct pipe_context *pctx,
       zink_set_primitive_emulation_keys(ctx);
    }
 
-   zink_update_fs_key_single_sample(ctx);
-
    if (index_size) {
       const VkIndexType index_type[3] = {
          VK_INDEX_TYPE_UINT8_EXT,
@@ -606,8 +603,7 @@ zink_draw(struct pipe_context *pctx,
                              dsa_state->hw_state.min_depth_bounds,
                              dsa_state->hw_state.max_depth_bounds);
       VKCTX(CmdSetDepthTestEnableEXT)(batch->state->cmdbuf, dsa_state->hw_state.depth_test);
-      if (dsa_state->hw_state.depth_test)
-         VKCTX(CmdSetDepthCompareOpEXT)(batch->state->cmdbuf, dsa_state->hw_state.depth_compare_op);
+      VKCTX(CmdSetDepthCompareOpEXT)(batch->state->cmdbuf, dsa_state->hw_state.depth_compare_op);
       VKCTX(CmdSetDepthWriteEnableEXT)(batch->state->cmdbuf, dsa_state->hw_state.depth_write);
       VKCTX(CmdSetStencilTestEnableEXT)(batch->state->cmdbuf, dsa_state->hw_state.stencil_test);
       if (dsa_state->hw_state.stencil_test) {
@@ -633,6 +629,7 @@ zink_draw(struct pipe_context *pctx,
       } else {
          VKCTX(CmdSetStencilWriteMask)(batch->state->cmdbuf, VK_STENCIL_FACE_FRONT_AND_BACK, dsa_state->hw_state.stencil_front.writeMask);
          VKCTX(CmdSetStencilCompareMask)(batch->state->cmdbuf, VK_STENCIL_FACE_FRONT_AND_BACK, dsa_state->hw_state.stencil_front.compareMask);
+         VKCTX(CmdSetStencilOpEXT)(batch->state->cmdbuf, VK_STENCIL_FACE_FRONT_AND_BACK, VK_STENCIL_OP_KEEP, VK_STENCIL_OP_KEEP, VK_STENCIL_OP_KEEP, VK_COMPARE_OP_ALWAYS);
       }
    }
    ctx->dsa_state_changed = false;
@@ -658,9 +655,8 @@ zink_draw(struct pipe_context *pctx,
          VKCTX(CmdSetLineStippleEnableEXT)(batch->state->cmdbuf, rast_state->hw_state.line_stipple_enable);
    }
    if ((BATCH_CHANGED || ctx->sample_mask_changed) && screen->have_full_ds3) {
-      uint8_t samples = ctx->gfx_pipeline_state.multisample ? ctx->gfx_pipeline_state.rast_samples + 1 : 1;
-      VKCTX(CmdSetRasterizationSamplesEXT)(batch->state->cmdbuf, (VkSampleCountFlagBits)(samples));
-      VKCTX(CmdSetSampleMaskEXT)(batch->state->cmdbuf, (VkSampleCountFlagBits)(samples), &ctx->gfx_pipeline_state.sample_mask);
+      VKCTX(CmdSetRasterizationSamplesEXT)(batch->state->cmdbuf, (VkSampleCountFlagBits)(ctx->gfx_pipeline_state.rast_samples + 1));
+      VKCTX(CmdSetSampleMaskEXT)(batch->state->cmdbuf, (VkSampleCountFlagBits)(ctx->gfx_pipeline_state.rast_samples + 1), &ctx->gfx_pipeline_state.sample_mask);
       ctx->sample_mask_changed = false;
    }
    if ((BATCH_CHANGED || ctx->blend_state_changed) && screen->have_full_ds3) {

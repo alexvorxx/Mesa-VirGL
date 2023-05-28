@@ -1,26 +1,8 @@
 /*
  * Copyright 2010 Jerome Glisse <glisse@freedesktop.org>
  * Copyright 2015-2021 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #include "si_build_pm4.h"
@@ -74,7 +56,7 @@ static
 bool si_translate_format_to_hw(struct si_context *sctx, enum pipe_format format, unsigned *hw_fmt, unsigned *hw_type)
 {
    const struct util_format_description *desc = util_format_description(format);
-   *hw_fmt = si_translate_colorformat(sctx->gfx_level, format);
+   *hw_fmt = ac_get_cb_format(sctx->gfx_level, format);
 
    int firstchan = util_format_get_first_non_void_channel(format);
    if (firstchan == -1 || desc->channel[firstchan].type == UTIL_FORMAT_TYPE_FLOAT) {
@@ -122,7 +104,7 @@ bool si_sdma_v4_v5_copy_texture(struct si_context *sctx, struct si_texture *sdst
    if (ssrc->surface.is_linear && sdst->surface.is_linear) {
       struct radeon_cmdbuf *cs = sctx->sdma_cs;
 
-      unsigned bytes = src_pitch * copy_height * bpp;
+      uint64_t bytes = (uint64_t)src_pitch * copy_height * bpp;
 
       if (!(bytes < (1u << 22)))
          return false;
@@ -151,7 +133,7 @@ bool si_sdma_v4_v5_copy_texture(struct si_context *sctx, struct si_texture *sdst
       unsigned tiled_width = DIV_ROUND_UP(tiled->buffer.b.b.width0, tiled->surface.blk_w);
       unsigned tiled_height = DIV_ROUND_UP(tiled->buffer.b.b.height0, tiled->surface.blk_h);
       unsigned linear_pitch = linear == ssrc ? src_pitch : dst_pitch;
-      unsigned linear_slice_pitch = ((uint64_t)linear->surface.u.gfx9.surf_slice_size) / bpp;
+      uint64_t linear_slice_pitch = linear->surface.u.gfx9.surf_slice_size / bpp;
       uint64_t tiled_address = tiled == ssrc ? src_address : dst_address;
       uint64_t linear_address = linear == ssrc ? src_address : dst_address;
       struct radeon_cmdbuf *cs = sctx->sdma_cs;
@@ -358,11 +340,11 @@ bool cik_sdma_copy_texture(struct si_context *sctx, struct si_texture *sdst, str
        * starts reading from an address preceding linear_address!!!
        */
       start_linear_address =
-         linear->surface.u.legacy.level[0].offset_256B * 256;
+         (uint64_t)linear->surface.u.legacy.level[0].offset_256B * 256;
 
       end_linear_address =
-         linear->surface.u.legacy.level[0].offset_256B * 256 +
-         bpp * ((copy_height - 1) * linear_pitch + copy_width);
+         (uint64_t)linear->surface.u.legacy.level[0].offset_256B * 256 +
+         bpp * ((copy_height - 1) * (uint64_t)linear_pitch + copy_width);
 
       if ((0 + copy_width) % granularity)
          end_linear_address += granularity - (0 + copy_width) % granularity;

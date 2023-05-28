@@ -495,7 +495,7 @@ nir_mov_alu(nir_builder *build, nir_alu_src src, unsigned num_components)
 
    nir_alu_instr *mov = nir_alu_instr_create(build->shader, nir_op_mov);
    nir_ssa_dest_init(&mov->instr, &mov->dest.dest, num_components,
-                     nir_src_bit_size(src.src), NULL);
+                     nir_src_bit_size(src.src));
    mov->exact = build->exact;
    mov->dest.write_mask = (1 << num_components) - 1;
    mov->src[0] = src;
@@ -792,6 +792,12 @@ static inline nir_ssa_def *
 nir_fadd_imm(nir_builder *build, nir_ssa_def *x, double y)
 {
    return nir_fadd(build, x, nir_imm_floatN_t(build, y, x->bit_size));
+}
+
+static inline nir_ssa_def *
+nir_fsub_imm(nir_builder *build, double x, nir_ssa_def *y)
+{
+   return nir_fsub(build, nir_imm_floatN_t(build, x, y->bit_size), y);
 }
 
 static inline nir_ssa_def *
@@ -1220,7 +1226,7 @@ nir_build_deref_var(nir_builder *build, nir_variable *var)
    deref->var = var;
 
    nir_ssa_dest_init(&deref->instr, &deref->dest, 1,
-                     nir_get_ptr_bitsize(build->shader), NULL);
+                     nir_get_ptr_bitsize(build->shader));
 
    nir_builder_instr_insert(build, &deref->instr);
 
@@ -1247,7 +1253,7 @@ nir_build_deref_array(nir_builder *build, nir_deref_instr *parent,
 
    nir_ssa_dest_init(&deref->instr, &deref->dest,
                      parent->dest.ssa.num_components,
-                     parent->dest.ssa.bit_size, NULL);
+                     parent->dest.ssa.bit_size);
 
    nir_builder_instr_insert(build, &deref->instr);
 
@@ -1285,7 +1291,7 @@ nir_build_deref_ptr_as_array(nir_builder *build, nir_deref_instr *parent,
 
    nir_ssa_dest_init(&deref->instr, &deref->dest,
                      parent->dest.ssa.num_components,
-                     parent->dest.ssa.bit_size, NULL);
+                     parent->dest.ssa.bit_size);
 
    nir_builder_instr_insert(build, &deref->instr);
 
@@ -1307,7 +1313,7 @@ nir_build_deref_array_wildcard(nir_builder *build, nir_deref_instr *parent)
 
    nir_ssa_dest_init(&deref->instr, &deref->dest,
                      parent->dest.ssa.num_components,
-                     parent->dest.ssa.bit_size, NULL);
+                     parent->dest.ssa.bit_size);
 
    nir_builder_instr_insert(build, &deref->instr);
 
@@ -1330,7 +1336,7 @@ nir_build_deref_struct(nir_builder *build, nir_deref_instr *parent,
 
    nir_ssa_dest_init(&deref->instr, &deref->dest,
                      parent->dest.ssa.num_components,
-                     parent->dest.ssa.bit_size, NULL);
+                     parent->dest.ssa.bit_size);
 
    nir_builder_instr_insert(build, &deref->instr);
 
@@ -1350,8 +1356,8 @@ nir_build_deref_cast(nir_builder *build, nir_ssa_def *parent,
    deref->parent = nir_src_for_ssa(parent);
    deref->cast.ptr_stride = ptr_stride;
 
-   nir_ssa_dest_init(&deref->instr, &deref->dest,
-                     parent->num_components, parent->bit_size, NULL);
+   nir_ssa_dest_init(&deref->instr, &deref->dest, parent->num_components,
+                     parent->bit_size);
 
    nir_builder_instr_insert(build, &deref->instr);
 
@@ -1374,7 +1380,7 @@ nir_alignment_deref_cast(nir_builder *build, nir_deref_instr *parent,
 
    nir_ssa_dest_init(&deref->instr, &deref->dest,
                      parent->dest.ssa.num_components,
-                     parent->dest.ssa.bit_size, NULL);
+                     parent->dest.ssa.bit_size);
 
    nir_builder_instr_insert(build, &deref->instr);
 
@@ -1589,8 +1595,7 @@ nir_load_global(nir_builder *build, nir_ssa_def *addr, unsigned align,
    load->num_components = num_components;
    load->src[0] = nir_src_for_ssa(addr);
    nir_intrinsic_set_align(load, align, 0);
-   nir_ssa_dest_init(&load->instr, &load->dest,
-                     num_components, bit_size, NULL);
+   nir_ssa_dest_init(&load->instr, &load->dest, num_components, bit_size);
    nir_builder_instr_insert(build, &load->instr);
    return &load->dest.ssa;
 }
@@ -1621,8 +1626,7 @@ nir_load_global_constant(nir_builder *build, nir_ssa_def *addr, unsigned align,
    load->num_components = num_components;
    load->src[0] = nir_src_for_ssa(addr);
    nir_intrinsic_set_align(load, align, 0);
-   nir_ssa_dest_init(&load->instr, &load->dest,
-                     num_components, bit_size, NULL);
+   nir_ssa_dest_init(&load->instr, &load->dest, num_components, bit_size);
    nir_builder_instr_insert(build, &load->instr);
    return &load->dest.ssa;
 }
@@ -1749,7 +1753,7 @@ nir_load_barycentric(nir_builder *build, nir_intrinsic_op op,
 {
    unsigned num_components = op == nir_intrinsic_load_barycentric_model ? 3 : 2;
    nir_intrinsic_instr *bary = nir_intrinsic_instr_create(build->shader, op);
-   nir_ssa_dest_init(&bary->instr, &bary->dest, num_components, 32, NULL);
+   nir_ssa_dest_init(&bary->instr, &bary->dest, num_components, 32);
    nir_intrinsic_set_interp_mode(bary, interp_mode);
    nir_builder_instr_insert(build, &bary->instr);
    return &bary->dest.ssa;

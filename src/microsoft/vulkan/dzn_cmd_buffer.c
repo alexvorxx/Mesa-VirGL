@@ -413,7 +413,6 @@ dzn_cmd_buffer_destroy(struct vk_command_buffer *cbuf)
    dzn_descriptor_heap_pool_finish(&cmdbuf->sampler_pool);
    dzn_descriptor_heap_pool_finish(&cmdbuf->rtvs.pool);
    dzn_descriptor_heap_pool_finish(&cmdbuf->dsvs.pool);
-   util_dynarray_fini(&cmdbuf->events.wait);
    util_dynarray_fini(&cmdbuf->events.signal);
    util_dynarray_fini(&cmdbuf->queries.reset);
    util_dynarray_fini(&cmdbuf->queries.signal);
@@ -475,7 +474,6 @@ dzn_cmd_buffer_reset(struct vk_command_buffer *cbuf, VkCommandBufferResetFlags f
    }
    cmdbuf->cur_upload_buf = NULL;
 
-   util_dynarray_clear(&cmdbuf->events.wait);
    util_dynarray_clear(&cmdbuf->events.signal);
    util_dynarray_clear(&cmdbuf->queries.reset);
    util_dynarray_clear(&cmdbuf->queries.signal);
@@ -609,7 +607,6 @@ dzn_cmd_buffer_create(const VkCommandBufferAllocateInfo *info,
    cmdbuf->state.multiview.view_mask = 1;
    for (uint32_t bucket = 0; bucket < DZN_INTERNAL_BUF_BUCKET_COUNT; ++bucket)
       list_inithead(&cmdbuf->internal_bufs[bucket]);
-   util_dynarray_init(&cmdbuf->events.wait, NULL);
    util_dynarray_init(&cmdbuf->events.signal, NULL);
    util_dynarray_init(&cmdbuf->queries.reset, NULL);
    util_dynarray_init(&cmdbuf->queries.signal, NULL);
@@ -724,18 +721,16 @@ dzn_cmd_buffer_gather_events(struct dzn_cmd_buffer *cmdbuf)
    hash_table_foreach(cmdbuf->events.ht, he) {
       enum dzn_event_state state = (uintptr_t)he->data;
 
-      if (state != DZN_EVENT_STATE_EXTERNAL_WAIT) {
-         struct dzn_cmd_event_signal signal = { (struct dzn_event *)he->key, state  == DZN_EVENT_STATE_SET };
-         struct dzn_cmd_event_signal *entry =
-            util_dynarray_grow(&cmdbuf->events.signal, struct dzn_cmd_event_signal, 1);
+      struct dzn_cmd_event_signal signal = { (struct dzn_event *)he->key, state == DZN_EVENT_STATE_SET };
+      struct dzn_cmd_event_signal *entry =
+         util_dynarray_grow(&cmdbuf->events.signal, struct dzn_cmd_event_signal, 1);
 
-         if (!entry) {
-            vk_command_buffer_set_error(&cmdbuf->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
-            break;
-         }
-
-         *entry = signal;
+      if (!entry) {
+         vk_command_buffer_set_error(&cmdbuf->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
+         break;
       }
+
+      *entry = signal;
    }
 
 out:
@@ -1138,23 +1133,6 @@ dzn_CmdPipelineBarrier2(VkCommandBuffer commandBuffer,
       const VkImageMemoryBarrier2 *ibarrier = &info->pImageMemoryBarriers[i];
       const VkImageSubresourceRange *range = &ibarrier->subresourceRange;
       VK_FROM_HANDLE(dzn_image, image, ibarrier->image);
-
-      if (image->mem->swapchain_res != image->res) {
-         /* We use placed resource's simple model, in which only one resource
-          * pointing to a given heap is active at a given time. To make the
-          * resource active we need to add an aliasing barrier.
-          */
-         D3D12_RESOURCE_BARRIER aliasing_barrier = {
-            .Type = D3D12_RESOURCE_BARRIER_TYPE_ALIASING,
-            .Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE,
-            .Aliasing = {
-               .pResourceBefore = NULL,
-               .pResourceAfter = image->res,
-            },
-         };
-
-         ID3D12GraphicsCommandList1_ResourceBarrier(cmdbuf->cmdlist, 1, &aliasing_barrier);
-      }
 
       VkImageLayout old_layout = ibarrier->oldLayout;
       VkImageLayout new_layout = ibarrier->newLayout;
@@ -1972,15 +1950,20 @@ dzn_cmd_buffer_clear_rects_with_copy(struct dzn_cmd_buffer *cmdbuf,
 }
 
 static VkClearColorValue
-adjust_clear_color(VkFormat format, const VkClearColorValue *col)
+adjust_clear_color(struct dzn_physical_device *pdev,
+                   VkFormat format, const VkClearColorValue *col)
 {
    VkClearColorValue out = *col;
 
    // D3D12 doesn't support bgra4, so we map it to rgba4 and swizzle things
    // manually where it matters, like here, in the clear path.
    if (format == VK_FORMAT_B4G4R4A4_UNORM_PACK16) {
-      DZN_SWAP(float, out.float32[0], out.float32[1]);
-      DZN_SWAP(float, out.float32[2], out.float32[3]);
+      if (pdev->support_a4b4g4r4) {
+         DZN_SWAP(float, out.float32[0], out.float32[2]);
+      } else {
+         DZN_SWAP(float, out.float32[0], out.float32[1]);
+         DZN_SWAP(float, out.float32[2], out.float32[3]);
+      }
    }
 
    return out;
@@ -2128,6 +2111,8 @@ dzn_cmd_buffer_clear_attachment(struct dzn_cmd_buffer *cmdbuf,
 {
    struct dzn_image *image =
       container_of(view->vk.image, struct dzn_image, vk);
+   struct dzn_physical_device *pdev =
+      container_of(cmdbuf->vk.base.device->physical, struct dzn_physical_device, vk);
 
    VkImageSubresourceRange range = {
       .aspectMask = aspects,
@@ -2181,7 +2166,7 @@ dzn_cmd_buffer_clear_attachment(struct dzn_cmd_buffer *cmdbuf,
          }
       }
    } else if (aspects & VK_IMAGE_ASPECT_COLOR_BIT) {
-      VkClearColorValue color = adjust_clear_color(view->vk.format, &value->color);
+      VkClearColorValue color = adjust_clear_color(pdev, view->vk.format, &value->color);
       bool clear_with_cpy = false;
       float vals[4];
 
@@ -2250,13 +2235,15 @@ dzn_cmd_buffer_clear_color(struct dzn_cmd_buffer *cmdbuf,
                            uint32_t range_count,
                            const VkImageSubresourceRange *ranges)
 {
+   struct dzn_physical_device *pdev =
+      container_of(cmdbuf->vk.base.device->physical, struct dzn_physical_device, vk);
    if (!(image->desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) ||
        cmdbuf->type != D3D12_COMMAND_LIST_TYPE_DIRECT) {
       dzn_cmd_buffer_clear_ranges_with_copy(cmdbuf, image, layout, col, range_count, ranges);
       return;
    }
 
-   VkClearColorValue color = adjust_clear_color(image->vk.format, col);
+   VkClearColorValue color = adjust_clear_color(pdev, image->vk.format, col);
    float clear_vals[4];
 
    enum pipe_format pfmt = vk_format_to_pipe_format(image->vk.format);
@@ -2774,7 +2761,8 @@ dzn_cmd_buffer_blit_set_pipeline(struct dzn_cmd_buffer *cmdbuf,
                                  const struct dzn_image *src,
                                  const struct dzn_image *dst,
                                  VkImageAspectFlagBits aspect,
-                                 VkFilter filter, bool resolve)
+                                 VkFilter filter,
+                                 enum dzn_blit_resolve_mode resolve_mode)
 {
    struct dzn_device *device = container_of(cmdbuf->vk.base.device, struct dzn_device, vk);
    struct dzn_physical_device *pdev = container_of(device->vk.physical, struct dzn_physical_device, vk);
@@ -2800,7 +2788,7 @@ dzn_cmd_buffer_blit_set_pipeline(struct dzn_cmd_buffer *cmdbuf,
                                 src->vk.image_type == VK_IMAGE_TYPE_2D && src->vk.samples > 1 ? GLSL_SAMPLER_DIM_MS :
                                 GLSL_SAMPLER_DIM_3D),
       .src_is_array = src->vk.array_layers > 1,
-      .resolve = resolve,
+      .resolve_mode = resolve_mode,
       .linear_filter = filter == VK_FILTER_LINEAR,
       .padding = 0,
    };
@@ -2951,7 +2939,7 @@ dzn_cmd_buffer_blit_region(struct dzn_cmd_buffer *cmdbuf,
 
    dzn_foreach_aspect(aspect, region->srcSubresource.aspectMask) {
       D3D12_BARRIER_LAYOUT restore_dst_layout = D3D12_BARRIER_LAYOUT_COMMON;
-      dzn_cmd_buffer_blit_set_pipeline(cmdbuf, src, dst, aspect, info->filter, false);
+      dzn_cmd_buffer_blit_set_pipeline(cmdbuf, src, dst, aspect, info->filter, dzn_blit_resolve_none);
       dzn_cmd_buffer_blit_issue_barriers(cmdbuf,
                                          src, info->srcImageLayout, &region->srcSubresource,
                                          dst, info->dstImageLayout, &region->dstSubresource,
@@ -3011,9 +2999,22 @@ dzn_cmd_buffer_blit_region(struct dzn_cmd_buffer *cmdbuf,
    }
 }
 
+static enum dzn_blit_resolve_mode
+get_blit_resolve_mode(VkResolveModeFlagBits mode)
+{
+   switch (mode) {
+   case VK_RESOLVE_MODE_AVERAGE_BIT: return dzn_blit_resolve_average;
+   case VK_RESOLVE_MODE_MIN_BIT: return dzn_blit_resolve_min;
+   case VK_RESOLVE_MODE_MAX_BIT: return dzn_blit_resolve_max;
+   case VK_RESOLVE_MODE_SAMPLE_ZERO_BIT: return dzn_blit_resolve_sample_zero;
+   default: unreachable("Unexpected resolve mode");
+   }
+}
+
 static void
 dzn_cmd_buffer_resolve_region(struct dzn_cmd_buffer *cmdbuf,
                               const VkResolveImageInfo2 *info,
+                              VkResolveModeFlags mode,
                               struct dzn_descriptor_heap *heap,
                               uint32_t *heap_slot,
                               uint32_t r)
@@ -3025,7 +3026,7 @@ dzn_cmd_buffer_resolve_region(struct dzn_cmd_buffer *cmdbuf,
 
    dzn_foreach_aspect(aspect, region->srcSubresource.aspectMask) {
       D3D12_BARRIER_LAYOUT restore_dst_layout = D3D12_BARRIER_LAYOUT_COMMON;
-      dzn_cmd_buffer_blit_set_pipeline(cmdbuf, src, dst, aspect, VK_FILTER_NEAREST, true);
+      dzn_cmd_buffer_blit_set_pipeline(cmdbuf, src, dst, aspect, VK_FILTER_NEAREST, get_blit_resolve_mode(mode));
       dzn_cmd_buffer_blit_issue_barriers(cmdbuf,
                                          src, info->srcImageLayout, &region->srcSubresource,
                                          dst, info->dstImageLayout, &region->dstSubresource,
@@ -3215,7 +3216,7 @@ dzn_cmd_buffer_update_heaps(struct dzn_cmd_buffer *cmdbuf, uint32_t bindpoint)
                                                         primary_is_writable, &bdesc);
 
                   if (pipeline->sets[s].dynamic_buffer_heap_offsets[o].alt != ~0) {
-                     assert(!primary_is_writable);
+                     assert(primary_is_writable);
                      desc_heap_offset = pipeline->sets[s].dynamic_buffer_heap_offsets[o].alt;
                      dzn_descriptor_heap_write_buffer_desc(device, dst_heap,
                                                            dst_heap_offset + set_heap_offset + desc_heap_offset,
@@ -4263,7 +4264,7 @@ dzn_CmdResolveImage2(VkCommandBuffer commandBuffer,
    ID3D12GraphicsCommandList1_IASetPrimitiveTopology(cmdbuf->cmdlist, D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
    for (uint32_t r = 0; r < info->regionCount; r++)
-      dzn_cmd_buffer_resolve_region(cmdbuf, info, heap, &heap_slot, r);
+      dzn_cmd_buffer_resolve_region(cmdbuf, info, VK_RESOLVE_MODE_AVERAGE_BIT, heap, &heap_slot, r);
 
    cmdbuf->state.pipeline = NULL;
    cmdbuf->state.dirty |= DZN_CMD_DIRTY_VIEWPORTS | DZN_CMD_DIRTY_SCISSORS;
@@ -4478,9 +4479,79 @@ dzn_get_resolve_mode(VkResolveModeFlags mode)
 }
 
 static void
+dzn_cmd_buffer_resolve_rendering_attachment_via_blit(struct dzn_cmd_buffer *cmdbuf,
+                                                     const struct dzn_rendering_attachment *att,
+                                                     VkImageAspectFlagBits aspect,
+                                                     const VkImageSubresourceRange *src_range,
+                                                     const VkImageSubresourceRange *dst_range)
+{
+   struct dzn_device *device = container_of(cmdbuf->vk.base.device, struct dzn_device, vk);
+   uint32_t desc_count = util_bitcount(aspect) * src_range->levelCount * src_range->layerCount;
+
+   struct dzn_descriptor_heap *heap;
+   uint32_t heap_slot;
+   VkResult result =
+      dzn_descriptor_heap_pool_alloc_slots(&cmdbuf->cbv_srv_uav_pool, device,
+                                           desc_count, &heap, &heap_slot);
+   if (result != VK_SUCCESS) {
+      vk_command_buffer_set_error(&cmdbuf->vk, result);
+      return;
+   }
+
+   if (heap != cmdbuf->state.heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]) {
+      ID3D12DescriptorHeap *const heaps[] = { heap->heap };
+      cmdbuf->state.heaps[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV] = heap;
+      ID3D12GraphicsCommandList1_SetDescriptorHeaps(cmdbuf->cmdlist, ARRAY_SIZE(heaps), heaps);
+   }
+
+   ID3D12GraphicsCommandList1_IASetPrimitiveTopology(cmdbuf->cmdlist, D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
+
+   VkImageResolve2 region = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_RESOLVE_2,
+      .srcSubresource = {
+         .aspectMask = aspect,
+         .baseArrayLayer = src_range->baseArrayLayer,
+         .layerCount = src_range->layerCount,
+      },
+      .dstSubresource = {
+         .aspectMask = aspect,
+         .baseArrayLayer = dst_range->baseArrayLayer,
+         .layerCount = dst_range->layerCount,
+      },
+   };
+   VkResolveImageInfo2 resolve_info = {
+      .sType = VK_STRUCTURE_TYPE_RESOLVE_IMAGE_INFO_2,
+      .srcImage = vk_image_to_handle(att->iview->vk.image),
+      .dstImage = vk_image_to_handle(att->resolve.iview->vk.image),
+      .srcImageLayout = att->layout,
+      .dstImageLayout = att->resolve.layout,
+      .regionCount = 1,
+      .pRegions = &region
+   };
+   for (uint32_t level = 0; level < src_range->levelCount; ++level) {
+      region.srcSubresource.mipLevel = level + src_range->baseMipLevel;
+      region.dstSubresource.mipLevel = level + dst_range->baseMipLevel;
+      region.extent = (VkExtent3D){
+         u_minify(att->iview->vk.image->extent.width, region.srcSubresource.mipLevel),
+         u_minify(att->iview->vk.image->extent.height, region.srcSubresource.mipLevel),
+         u_minify(att->iview->vk.image->extent.depth, region.srcSubresource.mipLevel),
+      };
+      dzn_cmd_buffer_resolve_region(cmdbuf, &resolve_info, att->resolve.mode, heap, &heap_slot, 0);
+   }
+
+   cmdbuf->state.pipeline = NULL;
+   cmdbuf->state.dirty |= DZN_CMD_DIRTY_VIEWPORTS | DZN_CMD_DIRTY_SCISSORS;
+   if (cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_GRAPHICS].pipeline) {
+      cmdbuf->state.bindpoint[VK_PIPELINE_BIND_POINT_GRAPHICS].dirty |=
+         DZN_CMD_BINDPOINT_DIRTY_PIPELINE;
+   }
+}
+
+static void
 dzn_cmd_buffer_resolve_rendering_attachment(struct dzn_cmd_buffer *cmdbuf,
                                             const struct dzn_rendering_attachment *att,
-                                            VkImageAspectFlagBits aspect)
+                                            VkImageAspectFlagBits aspect,
+                                            bool force_blit_resolve)
 {
    struct dzn_image_view *src = att->iview;
    struct dzn_image_view *dst = att->resolve.iview;
@@ -4492,8 +4563,6 @@ dzn_cmd_buffer_resolve_rendering_attachment(struct dzn_cmd_buffer *cmdbuf,
    struct dzn_physical_device *pdev =
       container_of(device->vk.physical, struct dzn_physical_device, vk);
 
-   VkImageLayout src_layout = att->layout;
-   VkImageLayout dst_layout = att->resolve.layout;
    struct dzn_image *src_img = container_of(src->vk.image, struct dzn_image, vk);
    struct dzn_image *dst_img = container_of(dst->vk.image, struct dzn_image, vk);
 
@@ -4520,6 +4589,19 @@ dzn_cmd_buffer_resolve_rendering_attachment(struct dzn_cmd_buffer *cmdbuf,
       dst_range.baseArrayLayer = 0;
       dst_range.layerCount = 1;
    }
+
+   if (force_blit_resolve ||
+       att->resolve.mode == VK_RESOLVE_MODE_SAMPLE_ZERO_BIT ||
+       /* D3D resolve API can't go from (e.g.) D32S8X24 to D32 */
+       src->vk.view_format != dst->vk.view_format ||
+       (att->resolve.mode != VK_RESOLVE_MODE_AVERAGE_BIT &&
+        pdev->options2.ProgrammableSamplePositionsTier == D3D12_PROGRAMMABLE_SAMPLE_POSITIONS_TIER_NOT_SUPPORTED)) {
+      dzn_cmd_buffer_resolve_rendering_attachment_via_blit(cmdbuf, att, aspect, &src_range, &dst_range);
+      return;
+   }
+
+   VkImageLayout src_layout = att->layout;
+   VkImageLayout dst_layout = att->resolve.layout;
 
    D3D12_RESOURCE_STATES src_state = dzn_image_layout_to_state(src_img, src_layout, aspect, cmdbuf->type);
    D3D12_RESOURCE_STATES dst_state = dzn_image_layout_to_state(dst_img, dst_layout, aspect, cmdbuf->type);
@@ -4830,15 +4912,20 @@ dzn_CmdEndRendering(VkCommandBuffer commandBuffer)
       for (uint32_t i = 0; i < cmdbuf->state.render.attachments.color_count; i++) {
          dzn_cmd_buffer_resolve_rendering_attachment(cmdbuf,
                                                      &cmdbuf->state.render.attachments.colors[i],
-                                                     VK_IMAGE_ASPECT_COLOR_BIT);
+                                                     VK_IMAGE_ASPECT_COLOR_BIT, false);
       }
 
+      bool separate_stencil_resolve =
+         cmdbuf->state.render.attachments.depth.resolve.mode !=
+         cmdbuf->state.render.attachments.stencil.resolve.mode;
       dzn_cmd_buffer_resolve_rendering_attachment(cmdbuf,
                                                   &cmdbuf->state.render.attachments.depth,
-                                                  VK_IMAGE_ASPECT_DEPTH_BIT);
+                                                  VK_IMAGE_ASPECT_DEPTH_BIT,
+                                                  separate_stencil_resolve);
       dzn_cmd_buffer_resolve_rendering_attachment(cmdbuf,
                                                   &cmdbuf->state.render.attachments.stencil,
-                                                  VK_IMAGE_ASPECT_STENCIL_BIT);
+                                                  VK_IMAGE_ASPECT_STENCIL_BIT,
+                                                  separate_stencil_resolve);
    }
 
    memset(&cmdbuf->state.render, 0, sizeof(cmdbuf->state.render));
@@ -5272,9 +5359,9 @@ dzn_CmdBindIndexBuffer(VkCommandBuffer commandBuffer,
 }
 
 VKAPI_ATTR void VKAPI_CALL
-dzn_CmdResetEvent(VkCommandBuffer commandBuffer,
-                  VkEvent event,
-                  VkPipelineStageFlags stageMask)
+dzn_CmdResetEvent2(VkCommandBuffer commandBuffer,
+                   VkEvent event,
+                   VkPipelineStageFlags2 stageMask)
 {
    VK_FROM_HANDLE(dzn_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(dzn_event, evt, event);
@@ -5284,9 +5371,9 @@ dzn_CmdResetEvent(VkCommandBuffer commandBuffer,
 }
 
 VKAPI_ATTR void VKAPI_CALL
-dzn_CmdSetEvent(VkCommandBuffer commandBuffer,
-                VkEvent event,
-                VkPipelineStageFlags stageMask)
+dzn_CmdSetEvent2(VkCommandBuffer commandBuffer,
+                 VkEvent event,
+                 const VkDependencyInfo *pDependencyInfo)
 {
    VK_FROM_HANDLE(dzn_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(dzn_event, evt, event);
@@ -5296,17 +5383,10 @@ dzn_CmdSetEvent(VkCommandBuffer commandBuffer,
 }
 
 VKAPI_ATTR void VKAPI_CALL
-dzn_CmdWaitEvents(VkCommandBuffer commandBuffer,
-                  uint32_t eventCount,
-                  const VkEvent *pEvents,
-                  VkPipelineStageFlags srcStageMask,
-                  VkPipelineStageFlags dstStageMask,
-                  uint32_t memoryBarrierCount,
-                  const VkMemoryBarrier *pMemoryBarriers,
-                  uint32_t bufferMemoryBarrierCount,
-                  const VkBufferMemoryBarrier *pBufferMemoryBarriers,
-                  uint32_t imageMemoryBarrierCount,
-                  const VkImageMemoryBarrier *pImageMemoryBarriers)
+dzn_CmdWaitEvents2(VkCommandBuffer commandBuffer,
+                   uint32_t eventCount,
+                   const VkEvent *pEvents,
+                   const VkDependencyInfo *pDependencyInfo)
 {
    VK_FROM_HANDLE(dzn_cmd_buffer, cmdbuf, commandBuffer);
 
@@ -5340,22 +5420,6 @@ dzn_CmdWaitEvents(VkCommandBuffer commandBuffer,
          enum dzn_event_state state = (uintptr_t)he->data;
          assert(state != DZN_EVENT_STATE_RESET);
          flush_pipeline = state == DZN_EVENT_STATE_SET;
-      } else {
-         if (!_mesa_hash_table_insert(cmdbuf->events.ht, event,
-                                      (void *)(uintptr_t)DZN_EVENT_STATE_EXTERNAL_WAIT)) {
-            vk_command_buffer_set_error(&cmdbuf->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
-            return;
-         }
-
-         struct dzn_event **entry =
-            util_dynarray_grow(&cmdbuf->events.wait, struct dzn_event *, 1);
-
-         if (!entry) {
-            vk_command_buffer_set_error(&cmdbuf->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
-            return;
-         }
-
-         *entry = event;
       }
    }
 
@@ -5374,12 +5438,9 @@ dzn_CmdWaitEvents(VkCommandBuffer commandBuffer,
          ID3D12GraphicsCommandList1_ResourceBarrier(cmdbuf->cmdlist, 1, &barrier);
       }
    }
-   cmdbuf->vk.base.device->dispatch_table.CmdPipelineBarrier(
+   cmdbuf->vk.base.device->dispatch_table.CmdPipelineBarrier2(
       vk_command_buffer_to_handle(&cmdbuf->vk),
-      srcStageMask, dstStageMask, 0,
-      memoryBarrierCount, pMemoryBarriers,
-      bufferMemoryBarrierCount, pBufferMemoryBarriers,
-      imageMemoryBarrierCount, pImageMemoryBarriers);
+      pDependencyInfo);
 }
 
 VKAPI_ATTR void VKAPI_CALL

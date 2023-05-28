@@ -33,7 +33,6 @@
 #include "lvp_lower_vulkan_resource.h"
 #include "pipe/p_state.h"
 #include "pipe/p_context.h"
-#include "tgsi/tgsi_from_mesa.h"
 #include "nir/nir_xfb_info.h"
 
 #define SPIR_V_MAGIC_NUMBER 0x07230203
@@ -74,7 +73,7 @@ shader_destroy(struct lvp_device *device, struct lvp_shader *shader)
 void
 lvp_pipeline_destroy(struct lvp_device *device, struct lvp_pipeline *pipeline)
 {
-   for (unsigned i = 0; i < MESA_SHADER_STAGES; i++)
+   lvp_forall_stage(i)
       shader_destroy(device, &pipeline->shaders[i]);
 
    if (pipeline->layout)
@@ -185,33 +184,12 @@ scan_intrinsic(struct lvp_shader *shader, struct lvp_pipeline_layout *layout, ni
    case nir_intrinsic_image_deref_store:
       set_image_access(shader, layout, nir, instr, false, true);
       break;
-   case nir_intrinsic_image_deref_atomic_add:
-   case nir_intrinsic_image_deref_atomic_imin:
-   case nir_intrinsic_image_deref_atomic_umin:
-   case nir_intrinsic_image_deref_atomic_imax:
-   case nir_intrinsic_image_deref_atomic_umax:
-   case nir_intrinsic_image_deref_atomic_and:
-   case nir_intrinsic_image_deref_atomic_or:
-   case nir_intrinsic_image_deref_atomic_xor:
-   case nir_intrinsic_image_deref_atomic_exchange:
-   case nir_intrinsic_image_deref_atomic_comp_swap:
-   case nir_intrinsic_image_deref_atomic_fadd:
+   case nir_intrinsic_image_deref_atomic:
+   case nir_intrinsic_image_deref_atomic_swap:
       set_image_access(shader, layout, nir, instr, true, true);
       break;
-   case nir_intrinsic_deref_atomic_add:
-   case nir_intrinsic_deref_atomic_and:
-   case nir_intrinsic_deref_atomic_comp_swap:
-   case nir_intrinsic_deref_atomic_exchange:
-   case nir_intrinsic_deref_atomic_fadd:
-   case nir_intrinsic_deref_atomic_fcomp_swap:
-   case nir_intrinsic_deref_atomic_fmax:
-   case nir_intrinsic_deref_atomic_fmin:
-   case nir_intrinsic_deref_atomic_imax:
-   case nir_intrinsic_deref_atomic_imin:
-   case nir_intrinsic_deref_atomic_or:
-   case nir_intrinsic_deref_atomic_umax:
-   case nir_intrinsic_deref_atomic_umin:
-   case nir_intrinsic_deref_atomic_xor:
+   case nir_intrinsic_deref_atomic:
+   case nir_intrinsic_deref_atomic_swap:
    case nir_intrinsic_store_deref:
       set_buffer_access(shader, layout, nir, instr);
       break;
@@ -856,7 +834,7 @@ lvp_graphics_pipeline_init(struct lvp_pipeline *pipeline,
             pipeline->disable_multisample = p->disable_multisample;
             pipeline->line_rectangular = p->line_rectangular;
             memcpy(pipeline->shaders, p->shaders, sizeof(struct lvp_shader) * 4);
-            for (unsigned i = 0; i < MESA_SHADER_COMPUTE; i++) {
+            lvp_forall_gfx_stage(i) {
                copy_shader_sanitized(&pipeline->shaders[i], &p->shaders[i]);
             }
          }
@@ -916,7 +894,8 @@ lvp_graphics_pipeline_init(struct lvp_pipeline *pipeline,
                       MESA_VK_DYNAMIC_TS_DOMAIN_ORIGIN)) {
          pipeline->shaders[MESA_SHADER_TESS_EVAL].tess_ccw = create_pipeline_nir(nir_shader_clone(NULL, pipeline->shaders[MESA_SHADER_TESS_EVAL].pipeline_nir->nir));
          pipeline->shaders[MESA_SHADER_TESS_EVAL].tess_ccw->nir->info.tess.ccw = !pipeline->shaders[MESA_SHADER_TESS_EVAL].pipeline_nir->nir->info.tess.ccw;
-      } else if (pipeline->graphics_state.ts->domain_origin == VK_TESSELLATION_DOMAIN_ORIGIN_UPPER_LEFT) {
+      } else if (pipeline->graphics_state.ts &&
+                 pipeline->graphics_state.ts->domain_origin == VK_TESSELLATION_DOMAIN_ORIGIN_UPPER_LEFT) {
          pipeline->shaders[MESA_SHADER_TESS_EVAL].pipeline_nir->nir->info.tess.ccw = !pipeline->shaders[MESA_SHADER_TESS_EVAL].pipeline_nir->nir->info.tess.ccw;
       }
    }
@@ -928,7 +907,9 @@ lvp_graphics_pipeline_init(struct lvp_pipeline *pipeline,
                 lvp_pipeline_nir_ref(&pipeline->shaders[MESA_SHADER_FRAGMENT].pipeline_nir, p->shaders[MESA_SHADER_FRAGMENT].pipeline_nir);
           }
           if (p->stages & VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT) {
-             for (unsigned j = MESA_SHADER_VERTEX; j < MESA_SHADER_FRAGMENT; j++) {
+             lvp_forall_gfx_stage(j) {
+                if (j == MESA_SHADER_FRAGMENT)
+                   continue;
                 if (p->shaders[j].pipeline_nir)
                    lvp_pipeline_nir_ref(&pipeline->shaders[j].pipeline_nir, p->shaders[j].pipeline_nir);
              }

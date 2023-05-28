@@ -117,7 +117,7 @@ genX(cmd_buffer_emit_state_base_address)(struct anv_cmd_buffer *cmd_buffer)
       &cmd_buffer->batch, GENX(3DSTATE_BINDING_TABLE_POOL_ALLOC), btpa) {
       btpa.BindingTablePoolBaseAddress =
          anv_cmd_buffer_surface_base_address(cmd_buffer);
-      btpa.BindingTablePoolBufferSize = BINDING_TABLE_POOL_BLOCK_SIZE / 4096;
+      btpa.BindingTablePoolBufferSize = device->physical->va.binding_table_pool.size / 4096;
       btpa.MOCS = mocs;
    }
 #else /* GFX_VERx10 < 125 */
@@ -177,8 +177,8 @@ genX(cmd_buffer_emit_state_base_address)(struct anv_cmd_buffer *cmd_buffer)
 
       sba.GeneralStateBufferSize       = 0xfffff;
       sba.IndirectObjectBufferSize     = 0xfffff;
-      sba.DynamicStateBufferSize       = DYNAMIC_STATE_POOL_SIZE / 4096;
-      sba.InstructionBufferSize        = INSTRUCTION_STATE_POOL_SIZE / 4096;
+      sba.DynamicStateBufferSize       = device->physical->va.dynamic_state_pool.size / 4096;
+      sba.InstructionBufferSize        = device->physical->va.instruction_state_pool.size / 4096;
       sba.GeneralStateBufferSizeModifyEnable    = true;
       sba.IndirectObjectBufferSizeModifyEnable  = true;
       sba.DynamicStateBufferSizeModifyEnable    = true;
@@ -738,16 +738,6 @@ genX(cmd_buffer_mark_image_written)(struct anv_cmd_buffer *cmd_buffer,
 {
    /* The aspect must be exactly one of the image aspects. */
    assert(util_bitcount(aspect) == 1 && (aspect & image->vk.aspects));
-
-   /* The only compression types with more than just fast-clears are MCS,
-    * CCS_E, and HiZ.  With HiZ we just trust the layout and don't actually
-    * track the current fast-clear and compression state.  This leaves us
-    * with just MCS and CCS_E.
-    */
-   if (aux_usage != ISL_AUX_USAGE_CCS_E &&
-       aux_usage != ISL_AUX_USAGE_MCS)
-      return;
-
    set_image_compressed_bit(cmd_buffer, image, aspect,
                             level, base_layer, layer_count, true);
 }
@@ -1090,14 +1080,15 @@ transition_color_buffer(struct anv_cmd_buffer *cmd_buffer,
        *
        * For MCS, (2) is never an issue because we don't support multisampled
        * storage images.  In theory, issue (1) is a problem with MCS but we've
-       * never seen it in the wild.  For 4x and 16x, all bit patters could, in
-       * theory, be interpreted as something but we don't know that all bit
+       * never seen it in the wild.  For 4x and 16x, all bit patterns could,
+       * in theory, be interpreted as something but we don't know that all bit
        * patterns are actually valid.  For 2x and 8x, you could easily end up
        * with the MCS referring to an invalid plane because not all bits of
        * the MCS value are actually used.  Even though we've never seen issues
        * in the wild, it's best to play it safe and initialize the MCS.  We
-       * can use a fast-clear for MCS because we only ever touch from render
-       * and texture (no image load store).
+       * could use a fast-clear for MCS because we only ever touch from render
+       * and texture (no image load store). However, due to WA 14013111325,
+       * we choose to ambiguate MCS as well.
        */
       if (image->vk.samples == 1) {
          for (uint32_t l = 0; l < level_count; l++) {
@@ -1126,19 +1117,10 @@ transition_color_buffer(struct anv_cmd_buffer *cmd_buffer,
                              aspect, level, base_layer, level_layer_count,
                              ISL_AUX_OP_AMBIGUATE, NULL, false);
 
-            if (image->planes[plane].aux_usage == ISL_AUX_USAGE_CCS_E) {
-               set_image_compressed_bit(cmd_buffer, image, aspect,
-                                        level, base_layer, level_layer_count,
-                                        false);
-            }
+            set_image_compressed_bit(cmd_buffer, image, aspect, level,
+                                     base_layer, level_layer_count, false);
          }
       } else {
-         if (image->vk.samples == 4 || image->vk.samples == 16) {
-            anv_perf_warn(VK_LOG_OBJS(&image->vk.base),
-                          "Doing a potentially unnecessary fast-clear to "
-                          "define an MCS buffer.");
-         }
-
          /* If will_full_fast_clear is set, the caller promises to fast-clear
           * the largest portion of the specified range as it can.
           */
@@ -1150,7 +1132,7 @@ transition_color_buffer(struct anv_cmd_buffer *cmd_buffer,
                           image->planes[plane].primary_surface.isl.format,
                           ISL_SWIZZLE_IDENTITY,
                           aspect, base_layer, layer_count,
-                          ISL_AUX_OP_FAST_CLEAR, NULL, false);
+                          ISL_AUX_OP_AMBIGUATE, NULL, false);
       }
       return;
    }
@@ -2018,6 +2000,7 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
 
             if (shader->push_desc_info.fully_promoted_ubo_descriptors & BITFIELD_BIT(desc_idx)) {
                surface_state = anv_bindless_state_for_binding_table(
+                  cmd_buffer->device,
                   cmd_buffer->device->null_surface_state);
                break;
             }
@@ -2045,11 +2028,12 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
                   desc->image_view->planes[binding->plane].general_sampler_surface_state :
                   desc->image_view->planes[binding->plane].optimal_sampler_surface_state;
                surface_state =
-                  anv_bindless_state_for_binding_table(sstate.state);
+                  anv_bindless_state_for_binding_table(cmd_buffer->device, sstate.state);
                assert(surface_state.alloc_size);
             } else {
                surface_state =
                   anv_bindless_state_for_binding_table(
+                     cmd_buffer->device,
                      cmd_buffer->device->null_surface_state);
             }
             break;
@@ -2059,10 +2043,12 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
             if (desc->image_view) {
                struct anv_surface_state sstate =
                   desc->image_view->planes[binding->plane].storage_surface_state;
-               surface_state = anv_bindless_state_for_binding_table(sstate.state);
+               surface_state = anv_bindless_state_for_binding_table(
+                  cmd_buffer->device, sstate.state);
                assert(surface_state.alloc_size);
             } else {
                surface_state = anv_bindless_state_for_binding_table(
+                  cmd_buffer->device,
                   cmd_buffer->device->null_surface_state);
             }
             break;
@@ -2075,6 +2061,7 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
                assert(surface_state.alloc_size);
             } else {
                surface_state = anv_bindless_state_for_binding_table(
+                  cmd_buffer->device,
                   cmd_buffer->device->null_surface_state);
             }
             break;
@@ -2082,10 +2069,12 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
          case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
             if (desc->buffer_view) {
                surface_state = anv_bindless_state_for_binding_table(
+                  cmd_buffer->device,
                   desc->buffer_view->surface_state);
                assert(surface_state.alloc_size);
             } else {
                surface_state = anv_bindless_state_for_binding_table(
+                  cmd_buffer->device,
                   cmd_buffer->device->null_surface_state);
             }
             break;
@@ -2126,6 +2115,7 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
             } else {
                surface_state =
                   anv_bindless_state_for_binding_table(
+                     cmd_buffer->device,
                      cmd_buffer->device->null_surface_state);
             }
             break;
@@ -2134,10 +2124,12 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
          case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
             if (desc->buffer_view) {
                surface_state = anv_bindless_state_for_binding_table(
+                  cmd_buffer->device,
                   desc->buffer_view->storage_surface_state);
                assert(surface_state.alloc_size);
             } else {
                surface_state = anv_bindless_state_for_binding_table(
+                  cmd_buffer->device,
                   cmd_buffer->device->null_surface_state);
             }
             break;
@@ -3300,6 +3292,18 @@ genX(cmd_buffer_flush_gfx_state)(struct anv_cmd_buffer *cmd_buffer)
 
    cmd_buffer->state.gfx.vb_dirty &= ~vb_emit;
 
+   /* If patch control points value is changed, let's just update the push
+    * constant data. If the current pipeline also use this, we need to reemit
+    * the 3DSTATE_CONSTANT packet.
+    */
+   struct anv_push_constants *push = &cmd_buffer->state.gfx.base.push_constants;
+   if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_TS_PATCH_CONTROL_POINTS) &&
+       push->gfx.tcs_input_vertices != dyn->ts.patch_control_points) {
+      push->gfx.tcs_input_vertices = dyn->ts.patch_control_points;
+      if (pipeline->dynamic_patch_control_points)
+         cmd_buffer->state.push_constants_dirty |= VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+   }
+
    const bool any_dynamic_state_dirty =
       vk_dynamic_graphics_state_any_dirty(dyn);
    uint32_t descriptors_dirty = cmd_buffer->state.descriptors_dirty &
@@ -3334,7 +3338,7 @@ genX(cmd_buffer_flush_gfx_state)(struct anv_cmd_buffer *cmd_buffer)
        * 3dstate_so_buffer_index_0/1/2/3 states to ensure so_buffer_index_*
        * state is not combined with other state changes.
        */
-      if (intel_device_info_is_dg2(cmd_buffer->device->info)) {
+      if (intel_needs_workaround(cmd_buffer->device->info, 16011411144)) {
          anv_add_pending_pipe_bits(cmd_buffer,
                                    ANV_PIPE_CS_STALL_BIT,
                                    "before SO_BUFFER change WA");
@@ -3368,7 +3372,7 @@ genX(cmd_buffer_flush_gfx_state)(struct anv_cmd_buffer *cmd_buffer)
          }
       }
 
-      if (intel_device_info_is_dg2(cmd_buffer->device->info)) {
+      if (intel_needs_workaround(cmd_buffer->device->info, 16011411144)) {
          /* Wa_16011411144: also CS_STALL after touching SO_BUFFER change */
          anv_add_pending_pipe_bits(cmd_buffer,
                                    ANV_PIPE_CS_STALL_BIT,
@@ -3455,7 +3459,7 @@ genX(cmd_buffer_flush_gfx_state)(struct anv_cmd_buffer *cmd_buffer)
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_IA_PRIMITIVE_TOPOLOGY)) {
       uint32_t topology;
       if (anv_pipeline_has_stage(pipeline, MESA_SHADER_TESS_EVAL))
-         topology = _3DPRIM_PATCHLIST(pipeline->patch_control_points);
+         topology = _3DPRIM_PATCHLIST(dyn->ts.patch_control_points);
       else
          topology = genX(vk_to_intel_primitive_type)[dyn->ia.primitive_topology];
 
@@ -3993,6 +3997,26 @@ cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
                                     img_barrier->srcQueueFamilyIndex,
                                     img_barrier->dstQueueFamilyIndex,
                                     false /* will_full_fast_clear */);
+         }
+      }
+
+      /* Mark image as compressed if the destination layout has untracked
+       * writes to the aux surface.
+       */
+      VkImageAspectFlags aspects =
+         vk_image_expand_aspect_mask(&image->vk, range->aspectMask);
+      anv_foreach_image_aspect_bit(aspect_bit, image, aspects) {
+         VkImageAspectFlagBits aspect = 1UL << aspect_bit;
+         if (anv_layout_has_untracked_aux_writes(
+                cmd_buffer->device->info,
+                image, aspect,
+                img_barrier->newLayout)) {
+            for (uint32_t l = 0; l < level_count; l++) {
+               set_image_compressed_bit(cmd_buffer, image, aspect,
+                                        range->baseMipLevel + l,
+                                        base_layer, layer_count,
+                                        true);
+            }
          }
       }
    }
@@ -5647,37 +5671,42 @@ emit_compute_walker(struct anv_cmd_buffer *cmd_buffer,
    const struct brw_cs_dispatch_info dispatch =
       brw_cs_get_dispatch_info(devinfo, prog_data, NULL);
 
-   anv_batch_emit(&cmd_buffer->batch, GENX(COMPUTE_WALKER), cw) {
-      cw.IndirectParameterEnable        = indirect;
-      cw.PredicateEnable                = predicate;
-      cw.SIMDSize                       = dispatch.simd_size / 16;
-      cw.IndirectDataStartAddress       = comp_state->push_data.offset;
-      cw.IndirectDataLength             = comp_state->push_data.alloc_size;
-      cw.LocalXMaximum                  = prog_data->local_size[0] - 1;
-      cw.LocalYMaximum                  = prog_data->local_size[1] - 1;
-      cw.LocalZMaximum                  = prog_data->local_size[2] - 1;
-      cw.ThreadGroupIDXDimension        = groupCountX;
-      cw.ThreadGroupIDYDimension        = groupCountY;
-      cw.ThreadGroupIDZDimension        = groupCountZ;
-      cw.ExecutionMask                  = dispatch.right_mask;
-      cw.PostSync.MOCS                  = anv_mocs(pipeline->base.device, NULL, 0);
+   cmd_buffer->last_compute_walker =
+      anv_batch_emitn(
+         &cmd_buffer->batch,
+         GENX(COMPUTE_WALKER_length),
+         GENX(COMPUTE_WALKER),
+         .IndirectParameterEnable        = indirect,
+         .PredicateEnable                = predicate,
+         .SIMDSize                       = dispatch.simd_size / 16,
+         .IndirectDataStartAddress       = comp_state->push_data.offset,
+         .IndirectDataLength             = comp_state->push_data.alloc_size,
+         .LocalXMaximum                  = prog_data->local_size[0] - 1,
+         .LocalYMaximum                  = prog_data->local_size[1] - 1,
+         .LocalZMaximum                  = prog_data->local_size[2] - 1,
+         .ThreadGroupIDXDimension        = groupCountX,
+         .ThreadGroupIDYDimension        = groupCountY,
+         .ThreadGroupIDZDimension        = groupCountZ,
+         .ExecutionMask                  = dispatch.right_mask,
+         .PostSync                       = {
+            .MOCS                        = anv_mocs(pipeline->base.device, NULL, 0),
+         },
 
-      cw.InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
-         .KernelStartPointer = cs_bin->kernel.offset,
-         .SamplerStatePointer =
-            cmd_buffer->state.samplers[MESA_SHADER_COMPUTE].offset,
-         .BindingTablePointer =
-            cmd_buffer->state.binding_tables[MESA_SHADER_COMPUTE].offset,
-         /* Typically set to 0 to avoid prefetching on every thread dispatch. */
-         .BindingTableEntryCount = devinfo->verx10 == 125 ?
-            0 : 1 + MIN2(pipeline->cs->bind_map.surface_count, 30),
-         .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
-         .SharedLocalMemorySize = encode_slm_size(GFX_VER,
-                                                  prog_data->base.total_shared),
-         .PreferredSLMAllocationSize = preferred_slm_allocation_size(devinfo),
-         .NumberOfBarriers = prog_data->uses_barrier,
-      };
-   }
+         .InterfaceDescriptor            = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
+            .KernelStartPointer                = cs_bin->kernel.offset,
+            .SamplerStatePointer               = cmd_buffer->state.samplers[
+               MESA_SHADER_COMPUTE].offset,
+            .BindingTablePointer               = cmd_buffer->state.binding_tables[
+               MESA_SHADER_COMPUTE].offset,
+            /* Typically set to 0 to avoid prefetching on every thread dispatch. */
+            .BindingTableEntryCount            = devinfo->verx10 == 125 ?
+               0 : 1 + MIN2(pipeline->cs->bind_map.surface_count, 30),
+            .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
+            .SharedLocalMemorySize             = encode_slm_size(
+               GFX_VER, prog_data->base.total_shared),
+            .PreferredSLMAllocationSize        = preferred_slm_allocation_size(devinfo),
+            .NumberOfBarriers                  = prog_data->uses_barrier,
+         });
 }
 
 #else /* #if GFX_VERx10 >= 125 */
@@ -6287,6 +6316,24 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
          global_size[i] = DIV_ROUND_UP((uint64_t)params->launch_size[i], local_size);
       }
    }
+
+#if GFX_VER >= 125
+   /* Wa_14014427904 - We need additional invalidate/flush when
+    * emitting NP state commands with ATS-M in compute mode.
+    */
+   if (intel_device_info_is_atsm(device->info) &&
+      cmd_buffer->queue_family->engine_class == INTEL_ENGINE_CLASS_COMPUTE) {
+      anv_batch_emit(&cmd_buffer->batch, GENX(PIPE_CONTROL), pc) {
+         pc.CommandStreamerStallEnable = true;
+         pc.StateCacheInvalidationEnable = true;
+         pc.ConstantCacheInvalidationEnable = true;
+         pc.UntypedDataPortCacheFlushEnable = true;
+         pc.TextureCacheInvalidationEnable = true;
+         pc.InstructionCacheInvalidateEnable = true;
+         pc.HDCPipelineFlushEnable = true;
+      }
+   }
+#endif
 
    anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_BTD), btd) {
       /* TODO: This is the timeout after which the bucketed thread dispatcher
@@ -8037,7 +8084,8 @@ VkResult genX(CmdSetPerformanceStreamMarkerINTEL)(
 void genX(cmd_emit_timestamp)(struct anv_batch *batch,
                               struct anv_device *device,
                               struct anv_address addr,
-                              enum anv_timestamp_capture_type type) {
+                              enum anv_timestamp_capture_type type,
+                              void *data) {
    switch (type) {
    case ANV_TIMESTAMP_CAPTURE_TOP_OF_PIPE: {
       struct mi_builder b;
@@ -8047,6 +8095,7 @@ void genX(cmd_emit_timestamp)(struct anv_batch *batch,
    }
 
    case ANV_TIMESTAMP_CAPTURE_END_OF_PIPE:
+
       anv_batch_emit(batch, GENX(PIPE_CONTROL), pc) {
          pc.PostSyncOperation   = WriteTimestamp;
          pc.Address             = addr;
@@ -8062,6 +8111,24 @@ void genX(cmd_emit_timestamp)(struct anv_batch *batch,
          anv_debug_dump_pc(pc);
       }
       break;
+
+#if GFX_VERx10 >= 125
+   case ANV_TIMESTAMP_REWRITE_COMPUTE_WALKER: {
+      uint32_t dwords[GENX(COMPUTE_WALKER_length)];
+
+      GENX(COMPUTE_WALKER_pack)(batch, dwords, &(struct GENX(COMPUTE_WALKER)) {
+            .PostSync = (struct GENX(POSTSYNC_DATA)) {
+               .Operation = WriteTimestamp,
+               .DestinationAddress = addr,
+               .MOCS = anv_mocs(device, NULL, 0),
+            },
+         });
+
+      for (uint32_t i = 0; i < ARRAY_SIZE(dwords); i++)
+         ((uint32_t *)data)[i] |= dwords[i];
+      break;
+   }
+#endif
 
    default:
       unreachable("invalid");

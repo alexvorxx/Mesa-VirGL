@@ -1384,11 +1384,13 @@ radv_GetQueryPoolResults(VkDevice _device, VkQueryPool queryPool, uint32_t first
           *	u64 PrimitiveStorageNeeded;
           * }
           */
-         available = 1;
-         for (int j = 0; j < 4; j++) {
-            if (!(p_atomic_read(src64 + j) & 0x8000000000000000UL))
-               available = 0;
-         }
+         do {
+            available = 1;
+            for (int j = 0; j < 4; j++) {
+               if (!(p_atomic_read(src64 + j) & 0x8000000000000000UL))
+                  available = 0;
+            }
+         } while (!available && (flags & VK_QUERY_RESULT_WAIT_BIT));
 
          if (!available && !(flags & VK_QUERY_RESULT_PARTIAL_BIT))
             result = VK_NOT_READY;
@@ -1423,11 +1425,13 @@ radv_GetQueryPoolResults(VkDevice _device, VkQueryPool queryPool, uint32_t first
           *	u64 PrimitiveStorageNeeded;
           * }
           */
-         available = 1;
-         if (!(p_atomic_read(src64 + 0) & 0x8000000000000000UL) ||
-             !(p_atomic_read(src64 + 2) & 0x8000000000000000UL)) {
-            available = 0;
-         }
+         do {
+            available = 1;
+            if (!(p_atomic_read(src64 + 0) & 0x8000000000000000UL) ||
+                !(p_atomic_read(src64 + 2) & 0x8000000000000000UL)) {
+               available = 0;
+            }
+         } while (!available && (flags & VK_QUERY_RESULT_WAIT_BIT));
 
          if (!available && !(flags & VK_QUERY_RESULT_PARTIAL_BIT))
             result = VK_NOT_READY;
@@ -1897,8 +1901,6 @@ emit_begin_query(struct radv_cmd_buffer *cmd_buffer, struct radv_query_pool *poo
             cmd_buffer->state.active_prims_gen_queries++;
          }
 
-         emit_sample_streamout(cmd_buffer, va, index);
-
          if (pool->uses_gds) {
             /* generated prim counter */
             gfx10_copy_gds_query(cmd_buffer, RADV_NGG_QUERY_PRIM_GEN_OFFSET(index), va + 32);
@@ -1911,6 +1913,8 @@ emit_begin_query(struct radv_cmd_buffer *cmd_buffer, struct radv_query_pool *poo
 
             cmd_buffer->state.active_prims_gen_gds_queries++;
          }
+
+         emit_sample_streamout(cmd_buffer, va, index);
       }
       break;
    }
@@ -2033,8 +2037,6 @@ emit_end_query(struct radv_cmd_buffer *cmd_buffer, struct radv_query_pool *pool,
             cmd_buffer->state.active_prims_gen_queries--;
          }
 
-         emit_sample_streamout(cmd_buffer, va + 16, index);
-
          if (pool->uses_gds) {
             /* generated prim counter */
             gfx10_copy_gds_query(cmd_buffer, RADV_NGG_QUERY_PRIM_GEN_OFFSET(index), va + 36);
@@ -2044,6 +2046,8 @@ emit_end_query(struct radv_cmd_buffer *cmd_buffer, struct radv_query_pool *pool,
             if (!cmd_buffer->state.active_prims_gen_gds_queries)
                cmd_buffer->state.dirty |= RADV_CMD_DIRTY_NGG_QUERY;
          }
+
+         emit_sample_streamout(cmd_buffer, va + 16, index);
       }
       break;
    }
@@ -2141,7 +2145,12 @@ radv_CmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 sta
 
    radv_cs_add_buffer(cmd_buffer->device->ws, cs, pool->bo);
 
-   emit_query_flush(cmd_buffer, pool);
+   if (cmd_buffer->device->instance->flush_before_timestamp_write) {
+      /* Make sure previously launched waves have finished */
+      cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_PS_PARTIAL_FLUSH | RADV_CMD_FLAG_CS_PARTIAL_FLUSH;
+   }
+   
+   si_emit_cache_flush(cmd_buffer);
 
    int num_queries = 1;
    if (cmd_buffer->state.render.view_mask)

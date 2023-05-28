@@ -324,6 +324,78 @@ nir_local_variable_create(nir_function_impl *impl,
 }
 
 nir_variable *
+nir_create_variable_with_location(nir_shader *shader, nir_variable_mode mode, int location,
+                                  const struct glsl_type *type)
+{
+   /* Only supporting non-array, or arrayed-io types, because otherwise we don't
+    * know how much to increment num_inputs/outputs
+    */
+   assert(glsl_get_length(type) <= 1);
+
+   const char *name;
+   switch (mode) {
+   case nir_var_shader_in:
+      if (shader->info.stage == MESA_SHADER_VERTEX)
+         name = gl_vert_attrib_name(location);
+      else
+         name = gl_varying_slot_name_for_stage(location, shader->info.stage);
+      break;
+
+   case nir_var_shader_out:
+      if (shader->info.stage == MESA_SHADER_FRAGMENT)
+         name = gl_frag_result_name(location);
+      else
+         name = gl_varying_slot_name_for_stage(location, shader->info.stage);
+      break;
+
+   case nir_var_system_value:
+      name = gl_system_value_name(location);
+      break;
+
+   default:
+      unreachable("Unsupported variable mode");
+   }
+
+   nir_variable *var = nir_variable_create(shader, mode, type, name);
+   var->data.location = location;
+
+   switch (mode) {
+   case nir_var_shader_in:
+      var->data.driver_location = shader->num_inputs++;
+      break;
+
+   case nir_var_shader_out:
+      var->data.driver_location = shader->num_outputs++;
+      break;
+
+   case nir_var_system_value:
+      break;
+
+   default:
+      unreachable("Unsupported variable mode");
+   }
+
+   return var;
+}
+
+nir_variable *
+nir_get_variable_with_location(nir_shader *shader, nir_variable_mode mode, int location,
+                               const struct glsl_type *type)
+{
+   nir_variable *var = nir_find_variable_with_location(shader, mode, location);
+   if (var) {
+      /* If this shader has location_fracs, this builder function is not suitable. */
+      assert(var->data.location_frac == 0);
+
+      /* The variable for the slot should match what we expected. */
+      assert(type == var->type);
+      return var;
+   }
+
+   return nir_create_variable_with_location(shader, mode, location, type);
+}
+
+nir_variable *
 nir_find_variable_with_location(nir_shader *shader,
                                 nir_variable_mode mode,
                                 unsigned location)
@@ -344,6 +416,19 @@ nir_find_variable_with_driver_location(nir_shader *shader,
    assert(util_bitcount(mode) == 1 && mode != nir_var_function_temp);
    nir_foreach_variable_with_modes(var, shader, mode) {
       if (var->data.driver_location == location)
+         return var;
+   }
+   return NULL;
+}
+
+nir_variable *
+nir_find_state_variable(nir_shader *s,
+                        gl_state_index16 tokens[STATE_LENGTH])
+{
+   nir_foreach_variable_with_modes(var, s, nir_var_uniform) {
+      if (var->num_state_slots == 1 &&
+          !memcmp(var->state_slots[0].tokens, tokens,
+                  sizeof(var->state_slots[0].tokens)))
          return var;
    }
    return NULL;
@@ -1496,11 +1581,7 @@ nir_foreach_phi_src_leaving_block(nir_block *block,
       if (block->successors[i] == NULL)
          continue;
 
-      nir_foreach_instr(instr, block->successors[i]) {
-         if (instr->type != nir_instr_type_phi)
-            break;
-
-         nir_phi_instr *phi = nir_instr_as_phi(instr);
+      nir_foreach_phi(phi, block->successors[i]) {
          nir_foreach_phi_src(phi_src, phi) {
             if (phi_src->pred == block) {
                if (!cb(&phi_src->src, state))
@@ -1704,7 +1785,6 @@ nir_instr_rewrite_dest(nir_instr *instr, nir_dest *dest, nir_dest new_dest)
       src_add_all_uses(dest->reg.indirect, instr, NULL);
 }
 
-/* note: does *not* take ownership of 'name' */
 void
 nir_ssa_def_init(nir_instr *instr, nir_ssa_def *def,
                  unsigned num_components,
@@ -1728,11 +1808,9 @@ nir_ssa_def_init(nir_instr *instr, nir_ssa_def *def,
    }
 }
 
-/* note: does *not* take ownership of 'name' */
 void
 nir_ssa_dest_init(nir_instr *instr, nir_dest *dest,
-                 unsigned num_components, unsigned bit_size,
-                 const char *name)
+                 unsigned num_components, unsigned bit_size)
 {
    dest->is_ssa = true;
    nir_ssa_def_init(instr, &dest->ssa, num_components, bit_size);
@@ -2486,6 +2564,8 @@ nir_intrinsic_from_system_value(gl_system_value val)
       return nir_intrinsic_load_ray_instance_custom_index;
    case SYSTEM_VALUE_CULL_MASK:
       return nir_intrinsic_load_cull_mask;
+   case SYSTEM_VALUE_RAY_TRIANGLE_VERTEX_POSITIONS:
+      return nir_intrinsic_load_ray_triangle_vertex_positions;
    case SYSTEM_VALUE_MESH_VIEW_COUNT:
       return nir_intrinsic_load_mesh_view_count;
    case SYSTEM_VALUE_FRAG_SHADING_RATE:
@@ -2639,6 +2719,8 @@ nir_system_value_from_intrinsic(nir_intrinsic_op intrin)
       return SYSTEM_VALUE_RAY_INSTANCE_CUSTOM_INDEX;
    case nir_intrinsic_load_cull_mask:
       return SYSTEM_VALUE_CULL_MASK;
+   case nir_intrinsic_load_ray_triangle_vertex_positions:
+      return SYSTEM_VALUE_RAY_TRIANGLE_VERTEX_POSITIONS;
    case nir_intrinsic_load_frag_shading_rate:
       return SYSTEM_VALUE_FRAG_SHADING_RATE;
    case nir_intrinsic_load_mesh_view_count:
@@ -2714,6 +2796,10 @@ nir_rewrite_image_intrinsic(nir_intrinsic_instr *intrin, nir_ssa_def *src,
    if (nir_intrinsic_has_dest_type(intrin))
       data_type = nir_intrinsic_dest_type(intrin);
 
+   nir_atomic_op atomic_op = 0;
+   if (nir_intrinsic_has_atomic_op(intrin))
+      atomic_op = nir_intrinsic_atomic_op(intrin);
+
    switch (intrin->intrinsic) {
 #define CASE(op) \
    case nir_intrinsic_image_deref_##op: \
@@ -2723,21 +2809,8 @@ nir_rewrite_image_intrinsic(nir_intrinsic_instr *intrin, nir_ssa_def *src,
    CASE(load)
    CASE(sparse_load)
    CASE(store)
-   CASE(atomic_add)
-   CASE(atomic_imin)
-   CASE(atomic_umin)
-   CASE(atomic_imax)
-   CASE(atomic_umax)
-   CASE(atomic_and)
-   CASE(atomic_or)
-   CASE(atomic_xor)
-   CASE(atomic_exchange)
-   CASE(atomic_comp_swap)
-   CASE(atomic_fadd)
-   CASE(atomic_fmin)
-   CASE(atomic_fmax)
-   CASE(atomic_inc_wrap)
-   CASE(atomic_dec_wrap)
+   CASE(atomic)
+   CASE(atomic_swap)
    CASE(size)
    CASE(samples)
    CASE(load_raw_intel)
@@ -2760,6 +2833,9 @@ nir_rewrite_image_intrinsic(nir_intrinsic_instr *intrin, nir_ssa_def *src,
       nir_intrinsic_set_src_type(intrin, data_type);
    if (nir_intrinsic_has_dest_type(intrin))
       nir_intrinsic_set_dest_type(intrin, data_type);
+
+   if (nir_intrinsic_has_atomic_op(intrin))
+      nir_intrinsic_set_atomic_op(intrin, atomic_op);
 
    nir_instr_rewrite_src(&intrin->instr, &intrin->src[0],
                          nir_src_for_ssa(src));

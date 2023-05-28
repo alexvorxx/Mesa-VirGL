@@ -421,8 +421,9 @@ dzn_descriptor_set_layout_create(struct dzn_device *device,
          if (is_dynamic) {
             range->OffsetInDescriptorsFromTableStart =
                set_layout->dynamic_buffers.range_offset +
-               set_layout->dynamic_buffers.count;
+               set_layout->dynamic_buffers.desc_count;
             set_layout->dynamic_buffers.count += range->NumDescriptors;
+            set_layout->dynamic_buffers.desc_count += range->NumDescriptors;
          } else {
             range->OffsetInDescriptorsFromTableStart = set_layout->range_desc_count[type];
             if (!binfos[binding].variable_size)
@@ -440,7 +441,8 @@ dzn_descriptor_set_layout_create(struct dzn_device *device,
          if (is_dynamic) {
             range->OffsetInDescriptorsFromTableStart =
                set_layout->dynamic_buffers.range_offset +
-               set_layout->dynamic_buffers.count;
+               set_layout->dynamic_buffers.desc_count;
+            set_layout->dynamic_buffers.desc_count += range->NumDescriptors;
          } else {
             range->OffsetInDescriptorsFromTableStart = set_layout->range_desc_count[type];
             set_layout->range_desc_count[type] += range->NumDescriptors;
@@ -679,7 +681,7 @@ dzn_pipeline_layout_create(struct dzn_device *device,
       }
 
       if (!device->bindless)
-         layout->desc_count[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV] += set_layout->dynamic_buffers.count;
+         layout->desc_count[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV] += set_layout->dynamic_buffers.desc_count;
 
       dynamic_buffer_base += set_layout->dynamic_buffers.count;
       for (uint32_t o = 0, elem = 0; o < set_layout->dynamic_buffers.count; o++, elem++) {
@@ -1142,13 +1144,6 @@ static bool
 need_custom_buffer_descriptor(struct dzn_device *device, const struct dzn_buffer_desc *info,
                               struct dzn_buffer_desc *out_desc)
 {
-   uint64_t upper_bound = info->range == VK_WHOLE_SIZE ?
-      info->buffer->size :
-      info->offset + info->range;
-   /* Addressing the whole buffer, no custom descriptor needed. */
-   if (upper_bound == info->buffer->size)
-      return false;
-
    *out_desc = *info;
    uint32_t upper_bound_default_descriptor;
    uint32_t size_align, offset_align;
@@ -1158,18 +1153,26 @@ need_custom_buffer_descriptor(struct dzn_device *device, const struct dzn_buffer
       out_desc->type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
       FALLTHROUGH;
    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-      upper_bound_default_descriptor = D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * sizeof(float) * 4;
+      upper_bound_default_descriptor =
+         MIN2(D3D12_REQ_CONSTANT_BUFFER_ELEMENT_COUNT * sizeof(float) * 4, info->buffer->size);
       size_align = offset_align = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
       break;
    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
       out_desc->type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
       FALLTHROUGH;
    default:
-      upper_bound_default_descriptor = UINT32_MAX;
+      upper_bound_default_descriptor = MIN2(UINT32_MAX, info->buffer->size);
       offset_align = D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT;
       size_align = 4;
       break;
    }
+
+   uint64_t upper_bound = info->range == VK_WHOLE_SIZE ?
+      info->buffer->size :
+      info->offset + info->range;
+   /* Addressing the whole buffer, no custom descriptor needed. */
+   if (upper_bound == upper_bound_default_descriptor)
+      return false;
 
    out_desc->range = ALIGN_POT(upper_bound, size_align);
    if (out_desc->range <= upper_bound_default_descriptor) {
@@ -2301,9 +2304,9 @@ dzn_descriptor_set_copy(struct dzn_device *device,
             }
 
             if (dzn_descriptor_type_depends_on_shader_usage(src_type, device->bindless)) {
-               src_heap_offset = dst_set->heap_offsets[type] +
+               src_heap_offset = src_set->heap_offsets[type] +
                   dzn_descriptor_set_ptr_get_heap_offset(src_set->layout, type, &src_ptr, true, device->bindless);
-               dst_heap_offset = src_set->heap_offsets[type] +
+               dst_heap_offset = dst_set->heap_offsets[type] +
                   dzn_descriptor_set_ptr_get_heap_offset(dst_set->layout, type, &dst_ptr, true, device->bindless);
                assert(src_heap_offset != ~0);
                assert(dst_heap_offset != ~0);

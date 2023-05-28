@@ -157,7 +157,7 @@ bo_can_reclaim(struct zink_screen *screen, struct pb_buffer *pbuf)
 {
    struct zink_bo *bo = zink_bo(pbuf);
 
-   return zink_screen_usage_check_completion(screen, bo->reads) && zink_screen_usage_check_completion(screen, bo->writes);
+   return zink_screen_usage_check_completion(screen, bo->reads.u) && zink_screen_usage_check_completion(screen, bo->writes.u);
 }
 
 static bool
@@ -227,8 +227,8 @@ bo_destroy_or_cache(struct zink_screen *screen, struct pb_buffer *pbuf)
    struct zink_bo *bo = zink_bo(pbuf);
 
    assert(bo->mem); /* slab buffers have a separate vtbl */
-   bo->reads = NULL;
-   bo->writes = NULL;
+   bo->reads.u = NULL;
+   bo->writes.u = NULL;
 
    if (bo->u.real.use_reusable_pool)
       pb_cache_add_buffer(bo->cache_entry);
@@ -265,13 +265,20 @@ bo_create_internal(struct zink_screen *screen,
    ai.pNext = pNext;
    ai.flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR;
    ai.deviceMask = 0;
+   if (screen->info.have_KHR_buffer_device_address)
+      pNext = &ai;
+
+   VkMemoryPriorityAllocateInfoEXT prio = {
+      VK_STRUCTURE_TYPE_MEMORY_PRIORITY_ALLOCATE_INFO_EXT,
+      pNext,
+      (flags & ZINK_ALLOC_NO_SUBALLOC) ? 1.0 : 0.5,
+   };
+   if (screen->info.have_EXT_memory_priority)
+      pNext = &prio;
 
    VkMemoryAllocateInfo mai;
    mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-   if (screen->info.have_KHR_buffer_device_address)
-      mai.pNext = &ai;
-   else
-      mai.pNext = pNext;
+   mai.pNext = pNext;
    mai.allocationSize = size;
    mai.memoryTypeIndex = mem_type_idx;
    if (screen->info.mem_props.memoryTypes[mai.memoryTypeIndex].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {

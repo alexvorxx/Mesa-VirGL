@@ -1,28 +1,8 @@
 /*
  * Copyright © 2009 Corbin Simpson
  * Copyright © 2011 Marek Olšák <maraeo@gmail.com>
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining
- * a copy of this software and associated documentation files (the
- * "Software"), to deal in the Software without restriction, including
- * without limitation the rights to use, copy, modify, merge, publish,
- * distribute, sub license, and/or sell copies of the Software, and to
- * permit persons to whom the Software is furnished to do so, subject to
- * the following conditions:
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NON-INFRINGEMENT. IN NO EVENT SHALL THE COPYRIGHT HOLDERS, AUTHORS
- * AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
- * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
- * The above copyright notice and this permission notice (including the
- * next paragraph) shall be included in all copies or substantial portions
- * of the Software.
+ * SPDX-License-Identifier: MIT
  */
 
 #include "radeon_drm_bo.h"
@@ -581,9 +561,77 @@ static bool do_winsys_init(struct radeon_drm_winsys *ws)
    ws->info.num_physical_sgprs_per_simd = 512;
    ws->info.num_physical_wave64_vgprs_per_simd = 256;
    ws->info.has_3d_cube_border_color_mipmap = true;
+   ws->info.has_image_opcodes = true;
    ws->info.spi_cu_en_has_effect = false;
    ws->info.spi_cu_en = 0xffff;
    ws->info.never_stop_sq_perf_counters = false;
+   ws->info.num_rb = util_bitcount64(ws->info.enabled_rb_mask);
+   ws->info.max_gflops = 128 * ws->info.num_cu * ws->info.max_gpu_freq_mhz / 1000;
+   ws->info.num_tcc_blocks = ws->info.max_tcc_blocks;
+   ws->info.tcp_cache_size = 16 * 1024;
+   ws->info.num_simd_per_compute_unit = 4;
+   ws->info.min_sgpr_alloc = 8;
+   ws->info.max_sgpr_alloc = 104;
+   ws->info.sgpr_alloc_granularity = 8;
+   ws->info.min_wave64_vgpr_alloc = 4;
+   ws->info.max_vgpr_alloc = 256;
+   ws->info.wave64_vgpr_alloc_granularity = 4;
+
+   for (unsigned se = 0; se < ws->info.max_se; se++) {
+      for (unsigned sa = 0; sa < ws->info.max_sa_per_se; sa++)
+         ws->info.cu_mask[se][sa] = BITFIELD_MASK(ws->info.max_good_cu_per_sa);
+   }
+
+   /* The maximum number of scratch waves. The number is only a function of the number of CUs.
+    * It should be large enough to hold at least 1 threadgroup. Use the minimum per-SA CU count.
+    */
+   const unsigned max_waves_per_tg = 1024 / 64; /* LLVM only supports 1024 threads per block */
+   ws->info.max_scratch_waves = MAX2(32 * ws->info.min_good_cu_per_sa * ws->info.max_sa_per_se *
+                                     ws->info.num_se, max_waves_per_tg);
+
+   switch (ws->info.family) {
+   case CHIP_TAHITI:
+   case CHIP_PITCAIRN:
+   case CHIP_OLAND:
+   case CHIP_HAWAII:
+   case CHIP_KABINI:
+      ws->info.l2_cache_size = ws->info.num_tcc_blocks * 64 * 1024;
+      break;
+   case CHIP_VERDE:
+   case CHIP_HAINAN:
+   case CHIP_BONAIRE:
+   case CHIP_KAVERI:
+      ws->info.l2_cache_size = ws->info.num_tcc_blocks * 128 * 1024;
+      break;
+   default:;
+   }
+
+   ws->info.ip[AMD_IP_GFX].num_queues = 1;
+
+   switch (ws->info.gfx_level) {
+   case R300:
+   case R400:
+   case R500:
+      ws->info.ip[AMD_IP_GFX].ver_major = 2;
+      break;
+   case R600:
+   case R700:
+      ws->info.ip[AMD_IP_GFX].ver_major = 3;
+      break;
+   case EVERGREEN:
+      ws->info.ip[AMD_IP_GFX].ver_major = 4;
+      break;
+   case CAYMAN:
+      ws->info.ip[AMD_IP_GFX].ver_major = 5;
+      break;
+   case GFX6:
+      ws->info.ip[AMD_IP_GFX].ver_major = 6;
+      break;
+   case GFX7:
+      ws->info.ip[AMD_IP_GFX].ver_major = 7;
+      break;
+   default:;
+   }
 
    ws->check_vm = strstr(debug_get_option("R600_DEBUG", ""), "check_vm") != NULL ||
                                                                             strstr(debug_get_option("AMD_DEBUG", ""), "check_vm") != NULL;

@@ -1,24 +1,7 @@
 /*
  * Copyright 2023 Advanced Micro Devices, Inc.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #include "ac_nir.h"
@@ -365,6 +348,8 @@ emit_ps_color_clamp_and_alpha_test(nir_builder *b, lower_ps_state *s)
 static void
 emit_ps_mrtz_export(nir_builder *b, lower_ps_state *s)
 {
+   uint64_t outputs_written = b->shader->info.outputs_written;
+
    nir_ssa_def *mrtz_alpha = NULL;
    if (s->options->alpha_to_coverage_via_mrtz) {
       mrtz_alpha = s->outputs[FRAG_RESULT_COLOR][3] ?
@@ -376,11 +361,15 @@ emit_ps_mrtz_export(nir_builder *b, lower_ps_state *s)
    nir_ssa_def *stencil = s->outputs[FRAG_RESULT_STENCIL][0];
    nir_ssa_def *sample_mask = s->outputs[FRAG_RESULT_SAMPLE_MASK][0];
 
+   if (s->options->kill_samplemask) {
+      sample_mask = NULL;
+      outputs_written &= ~BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK);
+   }
+
    /* skip mrtz export if no one has written to any of them */
    if (!depth && !stencil && !sample_mask && !mrtz_alpha)
       return;
 
-   uint64_t outputs_written = b->shader->info.outputs_written;
    /* use outputs_written to determine export format as we use it to set
     * R_028710_SPI_SHADER_Z_FORMAT instead of relying on the real store output,
     * because store output may be optimized out.
@@ -557,7 +546,6 @@ emit_ps_color_export(nir_builder *b, lower_ps_state *s, gl_frag_result slot, uns
 
    default: {
       nir_op pack_op = nir_op_pack_32_2x16;
-      bool need_clamp = false;
 
       switch (spi_shader_col_format) {
       case V_028714_SPI_SHADER_FP16_ABGR:
@@ -567,13 +555,39 @@ emit_ps_color_export(nir_builder *b, lower_ps_state *s, gl_frag_result slot, uns
       case V_028714_SPI_SHADER_UINT16_ABGR:
          if (type_size == 32) {
             pack_op = nir_op_pack_uint_2x16;
-            need_clamp = is_int8 || is_int10;
+            if (is_int8 || is_int10) {
+               /* clamp 32bit output for 8/10 bit color component */
+               uint32_t max_rgb = is_int8 ? 255 : 1023;
+
+               for (int i = 0; i < 4; i++) {
+                  if (!data[i])
+                     continue;
+
+                  uint32_t max_value = i == 3 && is_int10 ? 3 : max_rgb;
+                  data[i] = nir_umin(b, data[i], nir_imm_int(b, max_value));
+               }
+            }
          }
          break;
       case V_028714_SPI_SHADER_SINT16_ABGR:
          if (type_size == 32) {
             pack_op = nir_op_pack_sint_2x16;
-            need_clamp = is_int8 || is_int10;
+            if (is_int8 || is_int10) {
+               /* clamp 32bit output for 8/10 bit color component */
+               uint32_t max_rgb = is_int8 ? 127 : 511;
+               uint32_t min_rgb = is_int8 ? -128 : -512;
+
+               for (int i = 0; i < 4; i++) {
+                  if (!data[i])
+                     continue;
+
+                  uint32_t max_value = i == 3 && is_int10 ? 1 : max_rgb;
+                  uint32_t min_value = i == 3 && is_int10 ? -2u : min_rgb;
+
+                  data[i] = nir_imin(b, data[i], nir_imm_int(b, max_value));
+                  data[i] = nir_imax(b, data[i], nir_imm_int(b, min_value));
+               }
+            }
          }
          break;
       case V_028714_SPI_SHADER_UNORM16_ABGR:
@@ -585,14 +599,6 @@ emit_ps_color_export(nir_builder *b, lower_ps_state *s, gl_frag_result slot, uns
       default:
          unreachable("unsupported color export format");
          break;
-      }
-
-      /* clamp 32bit output for 8/10 bit color component */
-      for (int i = 0; i < 4; i++) {
-         if (need_clamp && data[i]) {
-            int max_value = is_int10 ? (i == 3 ? 3 : 1023) : 255;
-            data[i] = nir_umin(b, data[i], nir_imm_int(b, max_value));
-         }
       }
 
       for (int i = 0; i < 2; i++) {

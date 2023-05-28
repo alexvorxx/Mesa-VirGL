@@ -43,14 +43,14 @@ lower_coord_shift_normalized(nir_builder *b, nir_tex_instr *tex)
    if (unlikely(tex->array_is_lowered_cube)) {
       auto corr2 = nir_fadd(b,
                             nir_channels(b, tex->src[coord_index].src.ssa, 3),
-                            nir_fmul(b, nir_imm_float(b, -0.5f), scale));
+                            nir_fmul_imm(b, scale, -0.5f));
       corr = nir_vec3(b,
                       nir_channel(b, corr2, 0),
                       nir_channel(b, corr2, 1),
                       nir_channel(b, tex->src[coord_index].src.ssa, 2));
    } else {
       corr = nir_fadd(b,
-                      nir_fmul(b, nir_imm_float(b, -0.5f), scale),
+                      nir_fmul_imm(b, scale, -0.5f),
                       tex->src[coord_index].src.ssa);
    }
 
@@ -65,15 +65,15 @@ lower_coord_shift_unnormalized(nir_builder *b, nir_tex_instr *tex)
    int coord_index = nir_tex_instr_src_index(tex, nir_tex_src_coord);
    nir_ssa_def *corr = nullptr;
    if (unlikely(tex->array_is_lowered_cube)) {
-      auto corr2 = nir_fadd(b,
-                            nir_channels(b, tex->src[coord_index].src.ssa, 3),
-                            nir_imm_float(b, -0.5f));
+      auto corr2 = nir_fadd_imm(b,
+                                nir_channels(b, tex->src[coord_index].src.ssa, 3),
+                                -0.5f);
       corr = nir_vec3(b,
                       nir_channel(b, corr2, 0),
                       nir_channel(b, corr2, 1),
                       nir_channel(b, tex->src[coord_index].src.ssa, 2));
    } else {
-      corr = nir_fadd(b, tex->src[coord_index].src.ssa, nir_imm_float(b, -0.5f));
+      corr = nir_fadd_imm(b, tex->src[coord_index].src.ssa, -0.5f);
    }
    nir_instr_rewrite_src(&tex->instr, &tex->src[coord_index].src, nir_src_for_ssa(corr));
    return true;
@@ -274,7 +274,7 @@ r600_nir_lower_cube_to_2darray_impl(nir_builder *b, nir_instr *instr, void *_opt
                       nir_imm_float(b, 1.5));
 
    nir_ssa_def *z = nir_channel(b, cubed, 3);
-   if (tex->is_array) {
+   if (tex->is_array && tex->op != nir_texop_lod) {
       auto slice = nir_fround_even(b, nir_channel(b, tex->src[coord_idx].src.ssa, 3));
       z =
          nir_fmad(b, nir_fmax(b, slice, nir_imm_float(b, 0.0)), nir_imm_float(b, 8.0), z);
@@ -282,19 +282,18 @@ r600_nir_lower_cube_to_2darray_impl(nir_builder *b, nir_instr *instr, void *_opt
 
    if (tex->op == nir_texop_txd) {
       int ddx_idx = nir_tex_instr_src_index(tex, nir_tex_src_ddx);
-      auto zero_dot_5 = nir_imm_float(b, 0.5);
       nir_instr_rewrite_src(
          &tex->instr,
          &tex->src[ddx_idx].src,
          nir_src_for_ssa(
-            nir_fmul(b, nir_ssa_for_src(b, tex->src[ddx_idx].src, 3), zero_dot_5)));
+            nir_fmul_imm(b, nir_ssa_for_src(b, tex->src[ddx_idx].src, 3), 0.5)));
 
       int ddy_idx = nir_tex_instr_src_index(tex, nir_tex_src_ddy);
       nir_instr_rewrite_src(
          &tex->instr,
          &tex->src[ddy_idx].src,
          nir_src_for_ssa(
-            nir_fmul(b, nir_ssa_for_src(b, tex->src[ddy_idx].src, 3), zero_dot_5)));
+            nir_fmul_imm(b, nir_ssa_for_src(b, tex->src[ddy_idx].src, 3), 0.5)));
    }
 
    auto new_coord = nir_vec3(b, nir_channel(b, xy, 0), nir_channel(b, xy, 1), z);

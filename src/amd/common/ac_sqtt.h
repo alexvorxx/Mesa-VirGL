@@ -1,26 +1,8 @@
 /*
  * Copyright 2020 Advanced Micro Devices, Inc.
  * Copyright 2020 Valve Corporation
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #ifndef AC_SQTT_H
@@ -36,7 +18,19 @@
 struct radeon_cmdbuf;
 struct radeon_info;
 
-struct ac_thread_trace_data {
+/**
+ * SQ Thread tracing is a tracing mechanism that allows taking a detailed look
+ * at what the shader cores are doing.
+ *
+ * Among the things recorded are:
+ *  - draws/dispatches + state
+ *  - when each wave starts and stops.
+ *  - for one SIMD per SE all instructions executed on that SIMD.
+ *
+ * The hardware stores all these as events in a buffer, no manual barrier
+ * around each command needed. The primary user of this is RGP.
+ */
+struct ac_sqtt {
    struct radeon_cmdbuf *start_cs[2];
    struct radeon_cmdbuf *stop_cs[2];
    /* struct radeon_winsys_bo or struct pb_buffer */
@@ -62,7 +56,7 @@ struct ac_thread_trace_data {
 
 #define SQTT_BUFFER_ALIGN_SHIFT 12
 
-struct ac_thread_trace_info {
+struct ac_sqtt_data_info {
    uint32_t cur_offset;
    uint32_t trace_status;
    union {
@@ -71,8 +65,8 @@ struct ac_thread_trace_info {
    };
 };
 
-struct ac_thread_trace_se {
-   struct ac_thread_trace_info info;
+struct ac_sqtt_data_se {
+   struct ac_sqtt_data_info info;
    void *data_ptr;
    uint32_t shader_engine;
    uint32_t compute_unit;
@@ -80,39 +74,36 @@ struct ac_thread_trace_se {
 
 #define SQTT_MAX_TRACES 6
 
-struct ac_thread_trace {
-   struct ac_thread_trace_data *data;
+struct ac_sqtt_trace {
+   const struct rgp_code_object *rgp_code_object;
+   const struct rgp_loader_events *rgp_loader_events;
+   const struct rgp_pso_correlation *rgp_pso_correlation;
+   const struct rgp_queue_info *rgp_queue_info;
+   const struct rgp_queue_event *rgp_queue_event;
+   const struct rgp_clock_calibration *rgp_clock_calibration;
+
    uint32_t num_traces;
-   struct ac_thread_trace_se traces[SQTT_MAX_TRACES];
+   struct ac_sqtt_data_se traces[SQTT_MAX_TRACES];
 };
 
-uint64_t
-ac_thread_trace_get_info_offset(unsigned se);
+uint64_t ac_sqtt_get_info_offset(unsigned se);
 
-uint64_t
-ac_thread_trace_get_data_offset(const struct radeon_info *rad_info,
-                                const struct ac_thread_trace_data *data, unsigned se);
-uint64_t
-ac_thread_trace_get_info_va(uint64_t va, unsigned se);
+uint64_t ac_sqtt_get_data_offset(const struct radeon_info *rad_info, const struct ac_sqtt *sqtt,
+                                 unsigned se);
+uint64_t ac_sqtt_get_info_va(uint64_t va, unsigned se);
 
-uint64_t
-ac_thread_trace_get_data_va(const struct radeon_info *rad_info,
-                            const struct ac_thread_trace_data *data, uint64_t va, unsigned se);
+uint64_t ac_sqtt_get_data_va(const struct radeon_info *rad_info, const struct ac_sqtt *sqtt,
+                             uint64_t va, unsigned se);
 
-void
-ac_thread_trace_init(struct ac_thread_trace_data *data);
+void ac_sqtt_init(struct ac_sqtt *data);
 
-void
-ac_thread_trace_finish(struct ac_thread_trace_data *data);
+void ac_sqtt_finish(struct ac_sqtt *data);
 
-bool
-ac_is_thread_trace_complete(struct radeon_info *rad_info,
-                            const struct ac_thread_trace_data *data,
-                            const struct ac_thread_trace_info *info);
+bool ac_is_sqtt_complete(const struct radeon_info *rad_info, const struct ac_sqtt *sqtt,
+                         const struct ac_sqtt_data_info *info);
 
-uint32_t
-ac_get_expected_buffer_size(struct radeon_info *rad_info,
-                            const struct ac_thread_trace_info *info);
+uint32_t ac_get_expected_buffer_size(struct radeon_info *rad_info,
+                                     const struct ac_sqtt_data_info *info);
 
 /**
  * Identifiers for RGP SQ thread-tracing markers (Table 1)
@@ -543,21 +534,22 @@ struct rgp_sqtt_marker_pipeline_bind {
 static_assert(sizeof(struct rgp_sqtt_marker_pipeline_bind) == 12,
               "rgp_sqtt_marker_pipeline_bind doesn't match RGP spec");
 
+bool ac_sqtt_add_pso_correlation(struct ac_sqtt *sqtt, uint64_t pipeline_hash);
 
-bool ac_sqtt_add_pso_correlation(struct ac_thread_trace_data *thread_trace_data,
-                                 uint64_t pipeline_hash);
-
-bool ac_sqtt_add_code_object_loader_event(struct ac_thread_trace_data *thread_trace_data,
-                                          uint64_t pipeline_hash,
+bool ac_sqtt_add_code_object_loader_event(struct ac_sqtt *sqtt, uint64_t pipeline_hash,
                                           uint64_t base_address);
 
-bool ac_sqtt_add_clock_calibration(struct ac_thread_trace_data *thread_trace_data,
-                                   uint64_t cpu_timestamp,
+bool ac_sqtt_add_clock_calibration(struct ac_sqtt *sqtt, uint64_t cpu_timestamp,
                                    uint64_t gpu_timestamp);
 
 bool ac_check_profile_state(const struct radeon_info *info);
 
-union rgp_sqtt_marker_cb_id ac_sqtt_get_next_cmdbuf_id(struct ac_thread_trace_data *data,
+union rgp_sqtt_marker_cb_id ac_sqtt_get_next_cmdbuf_id(struct ac_sqtt *sqtt,
                                                        enum amd_ip_type ip_type);
+
+bool ac_sqtt_se_is_disabled(const struct radeon_info *info, unsigned se);
+
+bool ac_sqtt_get_trace(struct ac_sqtt *sqtt, const struct radeon_info *info,
+                       struct ac_sqtt_trace *sqtt_trace);
 
 #endif

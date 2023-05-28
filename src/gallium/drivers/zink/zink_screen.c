@@ -93,6 +93,9 @@ zink_debug_options[] = {
    { "map", ZINK_DEBUG_MAP, "Track amount of mapped VRAM" },
    { "flushsync", ZINK_DEBUG_FLUSHSYNC, "Force synchronous flushes/presents" },
    { "noshobj", ZINK_DEBUG_NOSHOBJ, "Disable EXT_shader_object" },
+   { "optimal_keys", ZINK_DEBUG_OPTIMAL_KEYS, "Debug/use optimal_keys" },
+   { "noopt", ZINK_DEBUG_NOOPT, "Disable async optimized pipeline compiles" },
+   { "nobgc", ZINK_DEBUG_NOBGC, "Disable all async pipeline compiles" },
    DEBUG_NAMED_VALUE_END
 };
 
@@ -548,6 +551,8 @@ zink_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
       return screen->info.have_KHR_external_semaphore_fd || screen->info.have_KHR_external_semaphore_win32;
    case PIPE_CAP_NATIVE_FENCE_FD:
       return screen->instance_info.have_KHR_external_semaphore_capabilities && screen->info.have_KHR_external_semaphore_fd;
+   case PIPE_CAP_RESOURCE_FROM_USER_MEMORY:
+      return screen->info.have_EXT_external_memory_host;
 
    case PIPE_CAP_SURFACE_REINTERPRET_BLOCKS:
       return screen->info.have_vulkan11 || screen->info.have_KHR_maintenance2;
@@ -853,6 +858,10 @@ zink_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
 
    case PIPE_CAP_SAMPLER_REDUCTION_MINMAX_ARB:
       return screen->info.feats12.samplerFilterMinmax || screen->info.have_EXT_sampler_filter_minmax;
+
+   case PIPE_CAP_OPENCL_INTEGER_FUNCTIONS:
+   case PIPE_CAP_INTEGER_MULTIPLY_32X16:
+      return screen->info.have_INTEL_shader_integer_functions2;
 
    case PIPE_CAP_FS_FINE_DERIVATIVE:
       return 1;
@@ -1648,7 +1657,7 @@ zink_flush_frontbuffer(struct pipe_screen *pscreen,
    if (ctx->batch.swapchain || ctx->needs_present) {
       ctx->batch.has_work = true;
       pctx->flush(pctx, NULL, PIPE_FLUSH_END_OF_FRAME);
-      if (ctx->last_fence && screen->threaded) {
+      if (ctx->last_fence && screen->threaded_submit) {
          struct zink_batch_state *bs = zink_batch_state(ctx->last_fence);
          util_queue_fence_wait(&bs->flush_completed);
       }
@@ -2390,9 +2399,6 @@ zink_get_sample_pixel_grid(struct pipe_screen *pscreen, unsigned sample_count,
 static void
 init_driver_workarounds(struct zink_screen *screen)
 {
-   /* EXT_shader_object can't yet be used for feedback loop, so this must be per-app enabled */
-   if (!screen->driconf.zink_shader_object_enable)
-      screen->info.have_EXT_shader_object = false;
    /* enable implicit sync for all non-mesa drivers */
    screen->driver_workarounds.implicit_sync = true;
    switch (screen->info.driver_props.driverID) {
@@ -2412,6 +2418,18 @@ init_driver_workarounds(struct zink_screen *screen)
    if (screen->info.props.limits.maxBoundDescriptorSets < ZINK_DESCRIPTOR_ALL_TYPES ||
        zink_debug & (ZINK_DEBUG_COMPACT | ZINK_DEBUG_NOSHOBJ))
       screen->info.have_EXT_shader_object = false;
+   /* EDS2 is only used with EDS1 */
+   if (!screen->info.have_EXT_extended_dynamic_state)
+      screen->info.have_EXT_extended_dynamic_state2 = false;
+   if (screen->info.driver_props.driverID == VK_DRIVER_ID_AMD_PROPRIETARY)
+      /* this completely breaks xfb somehow */
+      screen->info.have_EXT_extended_dynamic_state2 = false;
+   /* EDS3 is only used with EDS2 */
+   if (!screen->info.have_EXT_extended_dynamic_state2)
+      screen->info.have_EXT_extended_dynamic_state3 = false;
+   /* EXT_vertex_input_dynamic_state is only used with EDS2 and above */
+   if (!screen->info.have_EXT_extended_dynamic_state2)
+      screen->info.have_EXT_vertex_input_dynamic_state = false;
    if (screen->info.line_rast_feats.stippledRectangularLines &&
        screen->info.line_rast_feats.stippledBresenhamLines &&
        screen->info.line_rast_feats.stippledSmoothLines &&
@@ -2434,8 +2452,6 @@ init_driver_workarounds(struct zink_screen *screen)
             screen->info.dynamic_state3_feats.extendedDynamicState3LogicOpEnable &&
             screen->info.dynamic_state2_feats.extendedDynamicState2LogicOp)
       screen->have_full_ds3 = true;
-   if (screen->info.have_EXT_shader_object)
-      screen->have_full_ds3 = true;
    if (screen->info.have_EXT_graphics_pipeline_library)
       screen->info.have_EXT_graphics_pipeline_library = screen->info.have_EXT_extended_dynamic_state &&
                                                         screen->info.have_EXT_extended_dynamic_state2 &&
@@ -2448,9 +2464,6 @@ init_driver_workarounds(struct zink_screen *screen)
                                                          screen->info.gpl_props.graphicsPipelineLibraryFastLinking ||
                                                          screen->is_cpu);
    screen->driver_workarounds.broken_l4a4 = screen->info.driver_props.driverID == VK_DRIVER_ID_NVIDIA_PROPRIETARY;
-   if (screen->info.driver_props.driverID == VK_DRIVER_ID_AMD_PROPRIETARY)
-      /* this completely breaks xfb somehow */
-      screen->info.have_EXT_extended_dynamic_state2 = false;
    if (screen->info.driver_props.driverID == VK_DRIVER_ID_MESA_TURNIP) {
       /* performance */
       screen->info.border_color_feats.customBorderColorWithoutFormat = VK_FALSE;
@@ -2513,7 +2526,6 @@ init_driver_workarounds(struct zink_screen *screen)
    }
    /* these drivers don't use VK_PIPELINE_CREATE_DEPTH_STENCIL_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT, so it can always be set */
    switch (screen->info.driver_props.driverID) {
-   case VK_DRIVER_ID_MESA_RADV:
    case VK_DRIVER_ID_MESA_LLVMPIPE:
    case VK_DRIVER_ID_MESA_VENUS:
    case VK_DRIVER_ID_NVIDIA_PROPRIETARY:
@@ -2597,8 +2609,59 @@ init_driver_workarounds(struct zink_screen *screen)
       screen->driver_workarounds.disable_optimized_compile = true;
       break;
    default:
+      if (zink_debug & ZINK_DEBUG_NOOPT)
+         screen->driver_workarounds.disable_optimized_compile = true;
       break;
    }
+}
+
+static void
+init_optimal_keys(struct zink_screen *screen)
+{
+   screen->optimal_keys = !screen->need_decompose_attrs &&
+                          screen->info.have_EXT_non_seamless_cube_map &&
+                          screen->info.have_EXT_provoking_vertex &&
+                          !screen->driconf.inline_uniforms &&
+                          !screen->driver_workarounds.no_linestipple &&
+                          !screen->driver_workarounds.no_linesmooth &&
+                          !screen->driver_workarounds.no_hw_gl_point &&
+                          !screen->driver_workarounds.lower_robustImageAccess2 &&
+                          !screen->driconf.emulate_point_smooth &&
+                          !screen->driver_workarounds.needs_zs_shader_swizzle;
+   if (!screen->optimal_keys && zink_debug & ZINK_DEBUG_OPTIMAL_KEYS) {
+      fprintf(stderr, "The following criteria are preventing optimal_keys enablement:");
+      if (screen->need_decompose_attrs)
+         fprintf(stderr, "missing vertex attribute formats\n");
+      if (screen->driconf.inline_uniforms)
+         fprintf(stderr, "uniform inlining must be disabled (set ZINK_INLINE_UNIFORMS=0 in your env)\n");
+      CHECK_OR_PRINT(have_EXT_line_rasterization);
+      CHECK_OR_PRINT(line_rast_feats.stippledBresenhamLines);
+      CHECK_OR_PRINT(feats.features.geometryShader);
+      CHECK_OR_PRINT(feats.features.sampleRateShading);
+      CHECK_OR_PRINT(have_EXT_non_seamless_cube_map);
+      CHECK_OR_PRINT(have_EXT_provoking_vertex);
+      if (screen->driver_workarounds.no_linesmooth)
+         fprintf(stderr, "driver does not support smooth lines\n");
+      if (screen->driver_workarounds.no_hw_gl_point)
+         fprintf(stderr, "driver does not support hardware GL_POINT\n");
+      CHECK_OR_PRINT(rb2_feats.robustImageAccess2);
+      CHECK_OR_PRINT(feats.features.robustBufferAccess);
+      CHECK_OR_PRINT(rb_image_feats.robustImageAccess);
+      if (screen->driconf.emulate_point_smooth)
+         fprintf(stderr, "smooth point emulation is enabled\n");
+      if (screen->driver_workarounds.needs_zs_shader_swizzle)
+         fprintf(stderr, "Z/S shader swizzle workaround is enabled\n");
+      mesa_logw("zink: force-enabling optimal_keys despite missing features. Good luck!");
+      screen->optimal_keys = true;
+   }
+   if (!screen->optimal_keys)
+      screen->info.have_EXT_graphics_pipeline_library = false;
+
+   /* EXT_shader_object can't yet be used for feedback loop, so this must be per-app enabled */
+   if (!screen->driconf.zink_shader_object_enable || !screen->optimal_keys)
+      screen->info.have_EXT_shader_object = false;
+   if (screen->info.have_EXT_shader_object)
+      screen->have_full_ds3 = true;
 }
 
 static struct disk_cache *
@@ -2807,7 +2870,7 @@ zink_internal_create_screen(const struct pipe_screen_config *config)
    }
 
    zink_internal_setup_moltenvk(screen);
-   if (!screen->info.have_KHR_timeline_semaphore) {
+   if (!screen->info.have_KHR_timeline_semaphore && !screen->info.feats12.timelineSemaphore) {
       mesa_loge("zink: KHR_timeline_semaphore is required");
       goto fail;
    }
@@ -3099,18 +3162,7 @@ zink_internal_create_screen(const struct pipe_screen_config *config)
 
    simple_mtx_init(&screen->copy_context_lock, mtx_plain);
 
-   screen->optimal_keys = !screen->need_decompose_attrs &&
-                          screen->info.have_EXT_non_seamless_cube_map &&
-                          screen->info.have_EXT_provoking_vertex &&
-                          !screen->driconf.inline_uniforms &&
-                          !screen->driver_workarounds.no_linestipple &&
-                          !screen->driver_workarounds.no_linesmooth &&
-                          !screen->driver_workarounds.no_hw_gl_point &&
-                          !screen->driver_workarounds.lower_robustImageAccess2 &&
-                          !screen->driconf.emulate_point_smooth &&
-                          !screen->driver_workarounds.needs_zs_shader_swizzle;
-   if (!screen->optimal_keys)
-      screen->info.have_EXT_graphics_pipeline_library = false;
+   init_optimal_keys(screen);
 
    screen->screen_id = p_atomic_inc_return(&num_screens);
    zink_tracing = screen->instance_info.have_EXT_debug_utils &&

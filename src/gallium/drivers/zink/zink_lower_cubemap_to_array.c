@@ -94,8 +94,8 @@ evaluate_face_x(nir_builder *b, coord_t *coord)
    nir_ssa_def *positive = nir_fge(b, coord->rx, nir_imm_float(b, 0.0));
    nir_ssa_def *ima = nir_fdiv(b, nir_imm_float(b, -0.5), coord->arx);
 
-   nir_ssa_def *x = nir_fadd(b, nir_fmul(b, nir_fmul(b, sign, ima), coord->rz), nir_imm_float(b, 0.5));
-   nir_ssa_def *y = nir_fadd(b, nir_fmul(b, ima, coord->ry), nir_imm_float(b, 0.5));
+   nir_ssa_def *x = nir_fadd_imm(b, nir_fmul(b, nir_fmul(b, sign, ima), coord->rz), 0.5);
+   nir_ssa_def *y = nir_fadd_imm(b, nir_fmul(b, ima, coord->ry), 0.5);
    nir_ssa_def *face = nir_bcsel(b, positive, nir_imm_float(b, 0.0), nir_imm_float(b, 1.0));
 
    if (coord->array)
@@ -111,8 +111,8 @@ evaluate_face_y(nir_builder *b, coord_t *coord)
    nir_ssa_def *positive = nir_fge(b, coord->ry, nir_imm_float(b, 0.0));
    nir_ssa_def *ima = nir_fdiv(b, nir_imm_float(b, 0.5), coord->ary);
 
-   nir_ssa_def *x = nir_fadd(b, nir_fmul(b, ima, coord->rx), nir_imm_float(b, 0.5));
-   nir_ssa_def *y = nir_fadd(b, nir_fmul(b, nir_fmul(b, sign, ima), coord->rz), nir_imm_float(b, 0.5));
+   nir_ssa_def *x = nir_fadd_imm(b, nir_fmul(b, ima, coord->rx), 0.5);
+   nir_ssa_def *y = nir_fadd_imm(b, nir_fmul(b, nir_fmul(b, sign, ima), coord->rz), 0.5);
    nir_ssa_def *face = nir_bcsel(b, positive, nir_imm_float(b, 2.0), nir_imm_float(b, 3.0));
 
    if (coord->array)
@@ -128,8 +128,8 @@ evaluate_face_z(nir_builder *b, coord_t *coord)
    nir_ssa_def *positive = nir_fge(b, coord->rz, nir_imm_float(b, 0.0));
    nir_ssa_def *ima = nir_fdiv(b, nir_imm_float(b, -0.5), coord->arz);
 
-   nir_ssa_def *x = nir_fadd(b, nir_fmul(b, nir_fmul(b, sign, ima), nir_fneg(b, coord->rx)), nir_imm_float(b, 0.5));
-   nir_ssa_def *y = nir_fadd(b, nir_fmul(b, ima, coord->ry), nir_imm_float(b, 0.5));
+   nir_ssa_def *x = nir_fadd_imm(b, nir_fmul(b, nir_fmul(b, sign, ima), nir_fneg(b, coord->rx)), 0.5);
+   nir_ssa_def *y = nir_fadd_imm(b, nir_fmul(b, ima, coord->ry), 0.5);
    nir_ssa_def *face = nir_bcsel(b, positive, nir_imm_float(b, 4.0), nir_imm_float(b, 5.0));
 
    if (coord->array)
@@ -176,7 +176,8 @@ create_array_tex_from_cube_tex(nir_builder *b, nir_tex_instr *tex, nir_ssa_def *
    }
 
    nir_ssa_dest_init(&array_tex->instr, &array_tex->dest,
-                     nir_tex_instr_dest_size(array_tex), nir_dest_bit_size(tex->dest), NULL);
+                     nir_tex_instr_dest_size(array_tex),
+                     nir_dest_bit_size(tex->dest));
    nir_builder_instr_insert(b, &array_tex->instr);
    return &array_tex->dest.ssa;
 }
@@ -352,7 +353,7 @@ lower_cube_coords(nir_builder *b, nir_ssa_def *coord, bool is_array)
    coords.arz = nir_fabs(b, coords.rz);
    coords.array = NULL;
    if (is_array)
-      coords.array = nir_fmul(b, nir_channel(b, coord, 3), nir_imm_float(b, 6.0f));
+      coords.array = nir_fmul_imm(b, nir_channel(b, coord, 3), 6.0f);
 
    nir_ssa_def *use_face_x = nir_iand(b,
                                       nir_fge(b, coords.arx, coords.ary),
@@ -445,8 +446,9 @@ lower_tex_to_txl(nir_builder *b, nir_tex_instr *tex)
    txl->src[s].src_type = nir_tex_src_lod;
 
    b->cursor = nir_before_instr(&tex->instr);
-   nir_ssa_dest_init(&txl->instr, &txl->dest, nir_dest_num_components(tex->dest),
-                     nir_dest_bit_size(tex->dest), NULL);
+   nir_ssa_dest_init(&txl->instr, &txl->dest,
+                     nir_dest_num_components(tex->dest),
+                     nir_dest_bit_size(tex->dest));
    nir_builder_instr_insert(b, &txl->instr);
    nir_ssa_def_rewrite_uses(&tex->dest.ssa, &txl->dest.ssa);
    return txl;

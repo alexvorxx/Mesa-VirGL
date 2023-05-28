@@ -45,22 +45,8 @@ static nir_intrinsic_op
 ssbo_atomic_for_deref(nir_intrinsic_op deref_op)
 {
    switch (deref_op) {
-#define OP(O) case nir_intrinsic_deref_##O: return nir_intrinsic_ssbo_##O;
-   OP(atomic_exchange)
-   OP(atomic_comp_swap)
-   OP(atomic_add)
-   OP(atomic_imin)
-   OP(atomic_umin)
-   OP(atomic_imax)
-   OP(atomic_umax)
-   OP(atomic_and)
-   OP(atomic_or)
-   OP(atomic_xor)
-   OP(atomic_fadd)
-   OP(atomic_fmin)
-   OP(atomic_fmax)
-   OP(atomic_fcomp_swap)
-#undef OP
+   case nir_intrinsic_deref_atomic: return nir_intrinsic_ssbo_atomic;
+   case nir_intrinsic_deref_atomic_swap: return nir_intrinsic_ssbo_atomic_swap;
    default:
       unreachable("Invalid SSBO atomic");
    }
@@ -71,26 +57,18 @@ global_atomic_for_deref(nir_address_format addr_format,
                         nir_intrinsic_op deref_op)
 {
    switch (deref_op) {
-#define OP(O) case nir_intrinsic_deref_##O:              \
-   if (addr_format != nir_address_format_2x32bit_global) \
-      return nir_intrinsic_global_##O;                   \
-   else                                                  \
-      return nir_intrinsic_global_##O##_2x32;
-   OP(atomic_exchange)
-   OP(atomic_comp_swap)
-   OP(atomic_add)
-   OP(atomic_imin)
-   OP(atomic_umin)
-   OP(atomic_imax)
-   OP(atomic_umax)
-   OP(atomic_and)
-   OP(atomic_or)
-   OP(atomic_xor)
-   OP(atomic_fadd)
-   OP(atomic_fmin)
-   OP(atomic_fmax)
-   OP(atomic_fcomp_swap)
-#undef OP
+   case nir_intrinsic_deref_atomic:
+      if (addr_format != nir_address_format_2x32bit_global)
+         return nir_intrinsic_global_atomic;
+      else
+         return nir_intrinsic_global_atomic_2x32;
+
+   case nir_intrinsic_deref_atomic_swap:
+      if (addr_format != nir_address_format_2x32bit_global)
+         return nir_intrinsic_global_atomic_swap;
+      else
+         return nir_intrinsic_global_atomic_swap_2x32;
+
    default:
       unreachable("Invalid SSBO atomic");
    }
@@ -100,22 +78,8 @@ static nir_intrinsic_op
 shared_atomic_for_deref(nir_intrinsic_op deref_op)
 {
    switch (deref_op) {
-#define OP(O) case nir_intrinsic_deref_##O: return nir_intrinsic_shared_##O;
-   OP(atomic_exchange)
-   OP(atomic_comp_swap)
-   OP(atomic_add)
-   OP(atomic_imin)
-   OP(atomic_umin)
-   OP(atomic_imax)
-   OP(atomic_umax)
-   OP(atomic_and)
-   OP(atomic_or)
-   OP(atomic_xor)
-   OP(atomic_fadd)
-   OP(atomic_fmin)
-   OP(atomic_fmax)
-   OP(atomic_fcomp_swap)
-#undef OP
+   case nir_intrinsic_deref_atomic: return nir_intrinsic_shared_atomic;
+   case nir_intrinsic_deref_atomic_swap: return nir_intrinsic_shared_atomic_swap;
    default:
       unreachable("Invalid shared atomic");
    }
@@ -125,22 +89,10 @@ static nir_intrinsic_op
 task_payload_atomic_for_deref(nir_intrinsic_op deref_op)
 {
    switch (deref_op) {
-#define OP(O) case nir_intrinsic_deref_##O: return nir_intrinsic_task_payload_##O;
-   OP(atomic_exchange)
-   OP(atomic_comp_swap)
-   OP(atomic_add)
-   OP(atomic_imin)
-   OP(atomic_umin)
-   OP(atomic_imax)
-   OP(atomic_umax)
-   OP(atomic_and)
-   OP(atomic_or)
-   OP(atomic_xor)
-   OP(atomic_fadd)
-   OP(atomic_fmin)
-   OP(atomic_fmax)
-   OP(atomic_fcomp_swap)
-#undef OP
+   case nir_intrinsic_deref_atomic:
+      return nir_intrinsic_task_payload_atomic;
+   case nir_intrinsic_deref_atomic_swap:
+      return nir_intrinsic_task_payload_atomic_swap;
    default:
       unreachable("Invalid task payload atomic");
    }
@@ -375,8 +327,7 @@ emit_load(struct lower_io_state *state,
       load->src[0] = nir_src_for_ssa(offset);
    }
 
-   nir_ssa_dest_init(&load->instr, &load->dest,
-                     num_components, bit_size, NULL);
+   nir_ssa_dest_init(&load->instr, &load->dest, num_components, bit_size);
    nir_builder_instr_insert(b, &load->instr);
 
    return &load->dest.ssa;
@@ -597,7 +548,7 @@ lower_interpolate_at(nir_intrinsic_instr *intrin, struct lower_io_state *state,
    nir_intrinsic_instr *bary_setup =
       nir_intrinsic_instr_create(state->builder.shader, bary_op);
 
-   nir_ssa_dest_init(&bary_setup->instr, &bary_setup->dest, 2, 32, NULL);
+   nir_ssa_dest_init(&bary_setup->instr, &bary_setup->dest, 2, 32);
    nir_intrinsic_set_interp_mode(bary_setup, var->data.interpolation);
 
    if (intrin->intrinsic == nir_intrinsic_interp_deref_at_sample ||
@@ -908,6 +859,9 @@ build_addr_iadd_imm(nir_builder *b, nir_ssa_def *addr,
                     nir_variable_mode modes,
                     int64_t offset)
 {
+   if (!offset)
+      return addr;
+
    return build_addr_iadd(b, addr, addr_format, modes,
                              nir_imm_intN_t(b, offset,
                                             addr_get_offset_bit_size(addr, addr_format)));
@@ -1521,8 +1475,7 @@ build_explicit_io_load(nir_builder *b, nir_intrinsic_instr *intrin,
 
    assert(intrin->dest.is_ssa);
    load->num_components = num_components;
-   nir_ssa_dest_init(&load->instr, &load->dest, num_components,
-                     bit_size, NULL);
+   nir_ssa_dest_init(&load->instr, &load->dest, num_components, bit_size);
 
    assert(bit_size % 8 == 0);
 
@@ -1806,6 +1759,7 @@ build_explicit_io_atomic(nir_builder *b, nir_intrinsic_instr *intrin,
    }
 
    nir_intrinsic_instr *atomic = nir_intrinsic_instr_create(b->shader, op);
+   nir_intrinsic_set_atomic_op(atomic, nir_intrinsic_atomic_op(intrin));
 
    unsigned src = 0;
    if (addr_format_is_global(addr_format, mode)) {
@@ -1828,8 +1782,8 @@ build_explicit_io_atomic(nir_builder *b, nir_intrinsic_instr *intrin,
       nir_intrinsic_set_access(atomic, nir_intrinsic_access(intrin));
 
    assert(intrin->dest.ssa.num_components == 1);
-   nir_ssa_dest_init(&atomic->instr, &atomic->dest,
-                     1, intrin->dest.ssa.bit_size, NULL);
+   nir_ssa_dest_init(&atomic->instr, &atomic->dest, 1,
+                     intrin->dest.ssa.bit_size);
 
    assert(atomic->dest.ssa.bit_size % 8 == 0);
 
@@ -2257,20 +2211,8 @@ nir_lower_explicit_io_impl(nir_function_impl *impl, nir_variable_mode modes,
             case nir_intrinsic_store_deref:
             case nir_intrinsic_load_deref_block_intel:
             case nir_intrinsic_store_deref_block_intel:
-            case nir_intrinsic_deref_atomic_add:
-            case nir_intrinsic_deref_atomic_imin:
-            case nir_intrinsic_deref_atomic_umin:
-            case nir_intrinsic_deref_atomic_imax:
-            case nir_intrinsic_deref_atomic_umax:
-            case nir_intrinsic_deref_atomic_and:
-            case nir_intrinsic_deref_atomic_or:
-            case nir_intrinsic_deref_atomic_xor:
-            case nir_intrinsic_deref_atomic_exchange:
-            case nir_intrinsic_deref_atomic_comp_swap:
-            case nir_intrinsic_deref_atomic_fadd:
-            case nir_intrinsic_deref_atomic_fmin:
-            case nir_intrinsic_deref_atomic_fmax:
-            case nir_intrinsic_deref_atomic_fcomp_swap: {
+            case nir_intrinsic_deref_atomic:
+            case nir_intrinsic_deref_atomic_swap: {
                nir_deref_instr *deref = nir_src_as_deref(intrin->src[0]);
                if (nir_deref_mode_is_in_set(deref, modes)) {
                   lower_explicit_io_access(&b, intrin, addr_format);
@@ -2665,48 +2607,12 @@ nir_get_io_offset_src(nir_intrinsic_instr *instr)
    case nir_intrinsic_load_global_constant:
    case nir_intrinsic_load_scratch:
    case nir_intrinsic_load_fs_input_interp_deltas:
-   case nir_intrinsic_shared_atomic_add:
-   case nir_intrinsic_shared_atomic_and:
-   case nir_intrinsic_shared_atomic_comp_swap:
-   case nir_intrinsic_shared_atomic_exchange:
-   case nir_intrinsic_shared_atomic_fadd:
-   case nir_intrinsic_shared_atomic_fcomp_swap:
-   case nir_intrinsic_shared_atomic_fmax:
-   case nir_intrinsic_shared_atomic_fmin:
-   case nir_intrinsic_shared_atomic_imax:
-   case nir_intrinsic_shared_atomic_imin:
-   case nir_intrinsic_shared_atomic_or:
-   case nir_intrinsic_shared_atomic_umax:
-   case nir_intrinsic_shared_atomic_umin:
-   case nir_intrinsic_shared_atomic_xor:
-   case nir_intrinsic_task_payload_atomic_add:
-   case nir_intrinsic_task_payload_atomic_imin:
-   case nir_intrinsic_task_payload_atomic_umin:
-   case nir_intrinsic_task_payload_atomic_imax:
-   case nir_intrinsic_task_payload_atomic_umax:
-   case nir_intrinsic_task_payload_atomic_and:
-   case nir_intrinsic_task_payload_atomic_or:
-   case nir_intrinsic_task_payload_atomic_xor:
-   case nir_intrinsic_task_payload_atomic_exchange:
-   case nir_intrinsic_task_payload_atomic_comp_swap:
-   case nir_intrinsic_task_payload_atomic_fadd:
-   case nir_intrinsic_task_payload_atomic_fmin:
-   case nir_intrinsic_task_payload_atomic_fmax:
-   case nir_intrinsic_task_payload_atomic_fcomp_swap:
-   case nir_intrinsic_global_atomic_add:
-   case nir_intrinsic_global_atomic_and:
-   case nir_intrinsic_global_atomic_comp_swap:
-   case nir_intrinsic_global_atomic_exchange:
-   case nir_intrinsic_global_atomic_fadd:
-   case nir_intrinsic_global_atomic_fcomp_swap:
-   case nir_intrinsic_global_atomic_fmax:
-   case nir_intrinsic_global_atomic_fmin:
-   case nir_intrinsic_global_atomic_imax:
-   case nir_intrinsic_global_atomic_imin:
-   case nir_intrinsic_global_atomic_or:
-   case nir_intrinsic_global_atomic_umax:
-   case nir_intrinsic_global_atomic_umin:
-   case nir_intrinsic_global_atomic_xor:
+   case nir_intrinsic_shared_atomic:
+   case nir_intrinsic_shared_atomic_swap:
+   case nir_intrinsic_task_payload_atomic:
+   case nir_intrinsic_task_payload_atomic_swap:
+   case nir_intrinsic_global_atomic:
+   case nir_intrinsic_global_atomic_swap:
       return &instr->src[0];
    case nir_intrinsic_load_ubo:
    case nir_intrinsic_load_ssbo:
@@ -2721,20 +2627,8 @@ nir_get_io_offset_src(nir_intrinsic_instr *instr)
    case nir_intrinsic_store_global:
    case nir_intrinsic_store_global_2x32:
    case nir_intrinsic_store_scratch:
-   case nir_intrinsic_ssbo_atomic_add:
-   case nir_intrinsic_ssbo_atomic_imin:
-   case nir_intrinsic_ssbo_atomic_umin:
-   case nir_intrinsic_ssbo_atomic_imax:
-   case nir_intrinsic_ssbo_atomic_umax:
-   case nir_intrinsic_ssbo_atomic_and:
-   case nir_intrinsic_ssbo_atomic_or:
-   case nir_intrinsic_ssbo_atomic_xor:
-   case nir_intrinsic_ssbo_atomic_exchange:
-   case nir_intrinsic_ssbo_atomic_comp_swap:
-   case nir_intrinsic_ssbo_atomic_fadd:
-   case nir_intrinsic_ssbo_atomic_fmin:
-   case nir_intrinsic_ssbo_atomic_fmax:
-   case nir_intrinsic_ssbo_atomic_fcomp_swap:
+   case nir_intrinsic_ssbo_atomic:
+   case nir_intrinsic_ssbo_atomic_swap:
       return &instr->src[1];
    case nir_intrinsic_store_ssbo:
    case nir_intrinsic_store_per_vertex_output:
@@ -3151,9 +3045,16 @@ type_size_vec4(const struct glsl_type *type, bool bindless)
 /**
  * This runs all compiler passes needed to lower IO, lower indirect IO access,
  * set transform feedback info in IO intrinsics, and clean up the IR.
+ *
+ * \param renumber_vs_inputs
+ *    Set to true if holes between VS inputs should be removed, which is safe
+ *    to do in any shader linker that can handle that. Set to false if you want
+ *    to keep holes between VS inputs, which is recommended to do in gallium
+ *    drivers so as not to break the mapping of vertex elements to VS inputs
+ *    expected by gallium frontends.
  */
 void
-nir_lower_io_passes(nir_shader *nir)
+nir_lower_io_passes(nir_shader *nir, bool renumber_vs_inputs)
 {
    if (!nir->options->lower_io_variables ||
        nir->info.stage == MESA_SHADER_COMPUTE)
@@ -3195,7 +3096,9 @@ nir_lower_io_passes(nir_shader *nir)
     * This kind of canonicalizes all bases.
     */
    NIR_PASS_V(nir, nir_recompute_io_bases,
-              nir_var_shader_in | nir_var_shader_out);
+              (nir->info.stage != MESA_SHADER_VERTEX ||
+               renumber_vs_inputs ? nir_var_shader_in : 0) |
+              nir_var_shader_out);
 
    /* nir_io_add_const_offset_to_base needs actual constants. */
    NIR_PASS_V(nir, nir_opt_constant_folding);

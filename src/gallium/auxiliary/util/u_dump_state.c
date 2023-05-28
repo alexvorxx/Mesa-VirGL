@@ -356,7 +356,7 @@ util_dump_rasterizer_state(FILE *stream, const struct pipe_rasterizer_state *sta
    util_dump_member(stream, uint, state, sprite_coord_enable);
    util_dump_member(stream, bool, state, sprite_coord_mode);
    util_dump_member(stream, bool, state, point_quad_rasterization);
-   util_dump_member(stream, bool, state, point_tri_clip);
+   util_dump_member(stream, bool, state, point_line_tri_clip);
    util_dump_member(stream, bool, state, point_size_per_vertex);
    util_dump_member(stream, bool, state, multisample);
    util_dump_member(stream, bool, state, line_smooth);
@@ -742,6 +742,7 @@ util_dump_image_view(FILE *stream, const struct pipe_image_view *state)
       util_dump_member(stream, uint, state, u.buf.size);
    }
    else {
+      util_dump_member(stream, bool, state, u.tex.single_layer_view);
       util_dump_member(stream, uint, state, u.tex.first_layer);
       util_dump_member(stream, uint, state, u.tex.last_layer);
       util_dump_member(stream, uint, state, u.tex.level);

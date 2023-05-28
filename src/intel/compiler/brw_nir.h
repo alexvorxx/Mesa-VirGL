@@ -98,6 +98,9 @@ struct brw_nir_compiler_opts {
 
    /* Whether robust image access is enabled */
    bool robust_image_access;
+
+   /* Input vertices for TCS stage (0 means dynamic) */
+   unsigned input_vertices;
 };
 
 void brw_preprocess_nir(const struct brw_compiler *compiler,
@@ -148,7 +151,6 @@ bool brw_nir_lower_mem_access_bit_sizes(nir_shader *shader,
 
 void brw_postprocess_nir(nir_shader *nir,
                          const struct brw_compiler *compiler,
-                         bool is_scalar,
                          bool debug_enabled,
                          bool robust_buffer_access);
 
@@ -166,8 +168,7 @@ void brw_nir_apply_tcs_quads_workaround(nir_shader *nir);
 void brw_nir_apply_key(nir_shader *nir,
                        const struct brw_compiler *compiler,
                        const struct brw_base_prog_key *key,
-                       unsigned max_subgroup_size,
-                       bool is_scalar);
+                       unsigned max_subgroup_size);
 
 unsigned brw_nir_api_subgroup_size(const nir_shader *nir,
                                    unsigned hw_subgroup_size);
@@ -193,15 +194,15 @@ bool brw_nir_opt_peephole_ffma(nir_shader *shader);
 
 bool brw_nir_opt_peephole_imul32x16(nir_shader *shader);
 
-bool brw_nir_clamp_per_vertex_loads(nir_shader *shader,
-                                    unsigned input_vertices);
+bool brw_nir_clamp_per_vertex_loads(nir_shader *shader);
+
+bool brw_nir_lower_patch_vertices_in(nir_shader *shader, unsigned input_vertices);
 
 bool brw_nir_blockify_uniform_loads(nir_shader *shader,
                                     const struct intel_device_info *devinfo);
 
 void brw_nir_optimize(nir_shader *nir,
-                      const struct brw_compiler *compiler,
-                      bool is_scalar);
+                      const struct brw_compiler *compiler);
 
 nir_shader *brw_nir_create_passthrough_tcs(void *mem_ctx,
                                            const struct brw_compiler *compiler,

@@ -1,26 +1,7 @@
 /*
  * Copyright 2013-2017 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
- * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
+ * SPDX-License-Identifier: MIT
  */
 
 #include "si_build_pm4.h"
@@ -489,9 +470,8 @@ static void si_flush_all_queues(struct pipe_context *ctx,
 
       tc_driver_internal_flush_notify(sctx->tc);
 
-      if (unlikely(sctx->thread_trace &&
-                   (flags & PIPE_FLUSH_END_OF_FRAME))) {
-         si_handle_thread_trace(sctx, &sctx->gfx_cs);
+      if (unlikely(sctx->sqtt && (flags & PIPE_FLUSH_END_OF_FRAME))) {
+         si_handle_sqtt(sctx, &sctx->gfx_cs);
       }
    } else {
       /* Instead of flushing, create a deferred fence. Constraints:

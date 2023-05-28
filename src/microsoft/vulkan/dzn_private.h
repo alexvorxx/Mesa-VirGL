@@ -150,9 +150,9 @@ struct dzn_meta_blit_key {
          uint32_t out_type : 4;
          uint32_t sampler_dim : 4;
          uint32_t src_is_array : 1;
-         uint32_t resolve : 1;
+         uint32_t resolve_mode : 3;
          uint32_t linear_filter : 1;
-         uint32_t padding : 11;
+         uint32_t padding : 9;
       };
       const uint64_t u64;
    };
@@ -176,7 +176,7 @@ dzn_meta_blits_get_context(struct dzn_device *device,
                            const struct dzn_meta_blit_key *key);
 
 #define MAX_SYNC_TYPES 3
-#define MAX_QUEUE_FAMILIES 3
+#define MAX_QUEUE_FAMILIES 2
 
 struct dzn_physical_device {
    struct vk_physical_device vk;
@@ -223,6 +223,7 @@ struct dzn_physical_device {
    D3D12_HEAP_FLAGS heap_flags_for_mem_type[VK_MAX_MEMORY_TYPES];
    const struct vk_sync_type *sync_types[MAX_SYNC_TYPES + 1];
    float timestamp_period;
+   bool support_a4b4g4r4;
 };
 
 D3D12_FEATURE_DATA_FORMAT_SUPPORT
@@ -232,7 +233,8 @@ dzn_physical_device_get_format_support(struct dzn_physical_device *pdev,
 
 uint32_t
 dzn_physical_device_get_mem_type_mask_for_resource(const struct dzn_physical_device *pdev,
-                                                   const D3D12_RESOURCE_DESC *desc);
+                                                   const D3D12_RESOURCE_DESC *desc,
+                                                   bool shared);
 
 enum dxil_shader_model
 dzn_get_shader_model(const struct dzn_physical_device *pdev);
@@ -328,10 +330,10 @@ struct dzn_device_memory {
 
    struct list_head link;
 
-   /* Swapchain image resource, NULL if the memory is not backed by
-    * a DXGI swapchain.
+   /* Dedicated image/buffer resource. Can be used for import (e.g. from a swapchain)
+    * or just from a dedicated allocation request.
     */
-   ID3D12Resource *swapchain_res;
+   ID3D12Resource *dedicated_res;
 
    ID3D12Heap *heap;
    VkDeviceSize size;
@@ -341,6 +343,9 @@ struct dzn_device_memory {
 
    VkDeviceSize map_size;
    void *map;
+
+   /* If the resource is exportable, this is the pre-created handle for that */
+   HANDLE export_handle;
 };
 
 enum dzn_cmd_bindpoint_dirty {
@@ -537,7 +542,6 @@ struct dzn_internal_resource {
 };
 
 enum dzn_event_state {
-   DZN_EVENT_STATE_EXTERNAL_WAIT = -1,
    DZN_EVENT_STATE_RESET = 0,
    DZN_EVENT_STATE_SET = 1,
 };
@@ -675,7 +679,6 @@ struct dzn_cmd_buffer {
 
    struct {
       struct hash_table *ht;
-      struct util_dynarray wait;
       struct util_dynarray signal;
    } events;
 
@@ -766,6 +769,7 @@ struct dzn_descriptor_set_layout {
    struct {
       uint32_t bindings[MAX_DYNAMIC_BUFFERS];
       uint32_t count;
+      uint32_t desc_count;
       uint32_t range_offset;
    } dynamic_buffers;
    uint32_t buffer_count;
@@ -1041,7 +1045,6 @@ struct dzn_image {
    D3D12_RESOURCE_DESC desc;
    ID3D12Resource *res;
    struct dzn_device_memory *mem;
-   VkDeviceSize mem_offset;
    uint32_t castable_format_count;
    const DXGI_FORMAT *castable_formats;
 
@@ -1137,6 +1140,7 @@ struct dzn_buffer {
 
    VkBufferCreateFlags create_flags;
    VkBufferUsageFlags usage;
+   bool shared;
 
    D3D12_BARRIER_ACCESS valid_access;
    D3D12_GPU_VIRTUAL_ADDRESS gpuva;
@@ -1237,6 +1241,7 @@ enum dzn_debug_flags {
    DZN_DEBUG_DEBUGGER = 1 << 8,
    DZN_DEBUG_REDIRECTS = 1 << 9,
    DZN_DEBUG_BINDLESS = 1 << 10,
+   DZN_DEBUG_NO_BINDLESS = 1 << 11,
 };
 
 struct dzn_instance {
@@ -1264,6 +1269,7 @@ struct dzn_event {
 struct dzn_sync {
    struct vk_sync vk;
    ID3D12Fence *fence;
+   HANDLE export_handle;
 };
 
 extern const struct vk_sync_type dzn_sync_type;

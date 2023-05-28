@@ -1,25 +1,7 @@
 /*
  * Copyright 2017 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #include "nir_builder.h"
@@ -290,6 +272,7 @@ static void si_lower_nir(struct si_screen *sscreen, struct nir_shader *nir)
 
    const struct nir_lower_tex_options lower_tex_options = {
       .lower_txp = ~0u,
+      .lower_txf_offset = true,
       .lower_txs_cube_array = true,
       .lower_invalid_implicit_lod = true,
       .lower_tg4_offsets = true,
@@ -304,6 +287,8 @@ static void si_lower_nir(struct si_screen *sscreen, struct nir_shader *nir)
    NIR_PASS_V(nir, nir_lower_image, &lower_image_options);
 
    NIR_PASS_V(nir, si_lower_intrinsics);
+
+   NIR_PASS_V(nir, ac_nir_lower_sin_cos);
 
    NIR_PASS_V(nir, nir_lower_subgroups, &si_nir_subgroups_options);
 
@@ -433,7 +418,7 @@ char *si_finalize_nir(struct pipe_screen *screen, void *nirptr)
    struct si_screen *sscreen = (struct si_screen *)screen;
    struct nir_shader *nir = (struct nir_shader *)nirptr;
 
-   nir_lower_io_passes(nir);
+   nir_lower_io_passes(nir, false);
    NIR_PASS_V(nir, nir_remove_dead_variables, nir_var_shader_in | nir_var_shader_out, NULL);
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT)

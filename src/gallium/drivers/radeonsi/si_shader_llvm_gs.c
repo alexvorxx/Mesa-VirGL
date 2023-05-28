@@ -1,25 +1,7 @@
 /*
  * Copyright 2020 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #include "ac_nir.h"
@@ -88,48 +70,10 @@ void si_llvm_es_build_end(struct si_shader_context *ctx)
       si_set_es_return_value_for_gs(ctx);
 }
 
-static LLVMValueRef si_get_gs_wave_id(struct si_shader_context *ctx)
-{
-   if (ctx->screen->info.gfx_level >= GFX9)
-      return si_unpack_param(ctx, ctx->args->ac.merged_wave_info, 16, 8);
-   else
-      return ac_get_arg(&ctx->ac, ctx->args->ac.gs_wave_id);
-}
-
 void si_llvm_gs_build_end(struct si_shader_context *ctx)
 {
-   if (ctx->screen->info.gfx_level >= GFX10)
-      ac_build_waitcnt(&ctx->ac, AC_WAIT_VSTORE);
-
-   ac_build_sendmsg(&ctx->ac, AC_SENDMSG_GS_OP_NOP | AC_SENDMSG_GS_DONE, si_get_gs_wave_id(ctx));
-
    if (ctx->screen->info.gfx_level >= GFX9)
       ac_build_endif(&ctx->ac, ctx->merged_wrap_if_label);
-}
-
-/* Emit one vertex from the geometry shader */
-static void si_llvm_emit_vertex(struct ac_shader_abi *abi, unsigned stream,
-                                LLVMValueRef vertexidx, LLVMValueRef *addrs)
-{
-   struct si_shader_context *ctx = si_shader_context_from_abi(abi);
-
-   assert(!ctx->shader->key.ge.as_ngg);
-
-   /* Signal vertex emission */
-   ac_build_sendmsg(&ctx->ac, AC_SENDMSG_GS_OP_EMIT | AC_SENDMSG_GS | (stream << 8),
-                    si_get_gs_wave_id(ctx));
-}
-
-/* Cut one primitive from the geometry shader */
-static void si_llvm_emit_primitive(struct ac_shader_abi *abi, unsigned stream)
-{
-   struct si_shader_context *ctx = si_shader_context_from_abi(abi);
-
-   assert(!ctx->shader->key.ge.as_ngg);
-
-   /* Signal primitive cut */
-   ac_build_sendmsg(&ctx->ac, AC_SENDMSG_GS_OP_CUT | AC_SENDMSG_GS | (stream << 8),
-                    si_get_gs_wave_id(ctx));
 }
 
 void si_preload_esgs_ring(struct si_shader_context *ctx)
@@ -251,10 +195,4 @@ void si_preload_gs_rings(struct si_shader_context *ctx)
 
       ctx->gsvs_ring[stream] = ring;
    }
-}
-
-void si_llvm_init_gs_callbacks(struct si_shader_context *ctx)
-{
-   ctx->abi.emit_vertex_with_counter = si_llvm_emit_vertex;
-   ctx->abi.emit_primitive = si_llvm_emit_primitive;
 }

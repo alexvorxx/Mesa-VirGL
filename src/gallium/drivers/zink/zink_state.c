@@ -522,10 +522,10 @@ zink_bind_depth_stencil_alpha_state(struct pipe_context *pctx, void *cso)
          state->dirty |= !zink_screen(pctx->screen)->info.have_EXT_extended_dynamic_state;
          ctx->dsa_state_changed = true;
       }
-      if (!zink_screen(ctx->base.screen)->driver_workarounds.track_renderpasses && !ctx->blitting)
+      if (!ctx->track_renderpasses && !ctx->blitting)
          zink_parse_tc_info(ctx);
    }
-   if (!zink_screen(ctx->base.screen)->driver_workarounds.track_renderpasses && !ctx->blitting) {
+   if (!ctx->track_renderpasses && !ctx->blitting) {
       bool zs_write = ctx->dsa_state ? ctx->dsa_state->hw_state.depth_write || ctx->dsa_state->hw_state.stencil_test : false;
       if (prev_zswrite != zs_write) {
          /* flag renderpass for re-check on next draw */
@@ -659,7 +659,6 @@ zink_bind_rasterizer_state(struct pipe_context *pctx, void *cso)
    bool half_pixel_center = ctx->rast_state ? ctx->rast_state->base.half_pixel_center : true;
    float line_width = ctx->rast_state ? ctx->rast_state->base.line_width : 1.0;
    ctx->rast_state = cso;
-   bool multisample = !ctx->rast_state || ctx->rast_state->base.multisample;
 
    if (ctx->rast_state) {
       if (screen->info.have_EXT_provoking_vertex &&
@@ -710,10 +709,6 @@ zink_bind_rasterizer_state(struct pipe_context *pctx, void *cso)
       if (ctx->rast_state->base.force_persample_interp != force_persample_interp) {
          zink_set_fs_base_key(ctx)->force_persample_interp = ctx->rast_state->base.force_persample_interp;
          ctx->gfx_pipeline_state.dirty = true;
-      }
-      if (ctx->gfx_pipeline_state.multisample != multisample) {
-         ctx->gfx_pipeline_state.multisample = multisample;
-         ctx->gfx_pipeline_state.dirty |= !screen->have_full_ds3;
       }
       ctx->gfx_pipeline_state.force_persample_interp = ctx->rast_state->base.force_persample_interp;
 

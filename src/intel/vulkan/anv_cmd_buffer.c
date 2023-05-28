@@ -79,6 +79,8 @@ anv_cmd_state_reset(struct anv_cmd_buffer *cmd_buffer)
 {
    anv_cmd_state_finish(cmd_buffer);
    anv_cmd_state_init(cmd_buffer);
+
+   cmd_buffer->last_compute_walker = NULL;
 }
 
 static VkResult
@@ -135,6 +137,8 @@ anv_create_cmd_buffer(struct vk_command_pool *pool,
    cmd_buffer->generation_jump_addr = ANV_NULL_ADDRESS;
    cmd_buffer->generation_return_addr = ANV_NULL_ADDRESS;
    cmd_buffer->generation_bt_state = ANV_STATE_NULL;
+
+   cmd_buffer->last_compute_walker = NULL;
 
    anv_cmd_state_init(cmd_buffer);
 
@@ -453,9 +457,13 @@ void anv_CmdBindPipeline(
       }
 
       if ((gfx_pipeline->fs_msaa_flags & BRW_WM_MSAA_FLAG_ENABLE_DYNAMIC) &&
-          push->fs.msaa_flags != gfx_pipeline->fs_msaa_flags) {
-         push->fs.msaa_flags = gfx_pipeline->fs_msaa_flags;
+          push->gfx.fs_msaa_flags != gfx_pipeline->fs_msaa_flags) {
+         push->gfx.fs_msaa_flags = gfx_pipeline->fs_msaa_flags;
          cmd_buffer->state.push_constants_dirty |= VK_SHADER_STAGE_FRAGMENT_BIT;
+      }
+      if (gfx_pipeline->dynamic_patch_control_points) {
+         cmd_buffer->state.push_constants_dirty |=
+            VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
       }
       break;
    }
@@ -927,6 +935,7 @@ anv_cmd_buffer_push_descriptor_set(struct anv_cmd_buffer *cmd_buffer,
          anv_descriptor_set_layout_unref(cmd_buffer->device, set->layout);
       anv_descriptor_set_layout_ref(layout);
       set->layout = layout;
+      set->generate_surface_states = 0;
    }
    set->is_push = true;
    set->size = anv_descriptor_set_layout_size(layout, false /* host_only */, 0);

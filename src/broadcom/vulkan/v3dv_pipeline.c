@@ -238,7 +238,8 @@ const nir_shader_compiler_options v3dv_nir_options = {
    .max_unroll_iterations = 16,
    .force_indirect_unrolling = (nir_var_shader_in | nir_var_function_temp),
    .divergence_analysis_options =
-      nir_divergence_multiple_workgroup_per_compute_subgroup
+      nir_divergence_multiple_workgroup_per_compute_subgroup,
+   .use_scoped_barrier = true,
 };
 
 const nir_shader_compiler_options *
@@ -840,16 +841,8 @@ lower_intrinsic(nir_builder *b,
 
    case nir_intrinsic_image_deref_load:
    case nir_intrinsic_image_deref_store:
-   case nir_intrinsic_image_deref_atomic_add:
-   case nir_intrinsic_image_deref_atomic_imin:
-   case nir_intrinsic_image_deref_atomic_umin:
-   case nir_intrinsic_image_deref_atomic_imax:
-   case nir_intrinsic_image_deref_atomic_umax:
-   case nir_intrinsic_image_deref_atomic_and:
-   case nir_intrinsic_image_deref_atomic_or:
-   case nir_intrinsic_image_deref_atomic_xor:
-   case nir_intrinsic_image_deref_atomic_exchange:
-   case nir_intrinsic_image_deref_atomic_comp_swap:
+   case nir_intrinsic_image_deref_atomic:
+   case nir_intrinsic_image_deref_atomic_swap:
    case nir_intrinsic_image_deref_size:
    case nir_intrinsic_image_deref_samples:
       lower_image_deref(b, instr, state);
@@ -1340,8 +1333,10 @@ pipeline_populate_v3d_vs_key(struct v3d_vs_key *key,
       const VkVertexInputAttributeDescription *desc =
          &vi_info->pVertexAttributeDescriptions[i];
       assert(desc->location < MAX_VERTEX_ATTRIBS);
-      if (desc->format == VK_FORMAT_B8G8R8A8_UNORM)
+      if (desc->format == VK_FORMAT_B8G8R8A8_UNORM ||
+          desc->format == VK_FORMAT_A2R10G10B10_UNORM_PACK32) {
          key->va_swap_rb_mask |= 1 << (VERT_ATTRIB_GENERIC0 + desc->location);
+      }
    }
 }
 
@@ -1998,8 +1993,10 @@ pipeline_populate_graphics_key(struct v3dv_pipeline *pipeline,
       const VkVertexInputAttributeDescription *desc =
          &vi_info->pVertexAttributeDescriptions[i];
       assert(desc->location < MAX_VERTEX_ATTRIBS);
-      if (desc->format == VK_FORMAT_B8G8R8A8_UNORM)
+      if (desc->format == VK_FORMAT_B8G8R8A8_UNORM ||
+          desc->format == VK_FORMAT_A2R10G10B10_UNORM_PACK32) {
          key->va_swap_rb_mask |= 1 << (VERT_ATTRIB_GENERIC0 + desc->location);
+      }
    }
 
    assert(pipeline->subpass);

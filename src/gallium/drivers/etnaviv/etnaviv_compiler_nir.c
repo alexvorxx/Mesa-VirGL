@@ -40,7 +40,6 @@
 #include "util/register_allocate.h"
 #include "compiler/nir/nir_builder.h"
 
-#include "tgsi/tgsi_strings.h"
 #include "util/compiler.h"
 #include "util/half_float.h"
 
@@ -720,7 +719,7 @@ insert_vec_mov(nir_alu_instr *vec, unsigned start_idx, nir_shader *shader)
    }
 
    mov->dest.write_mask = (1 << num_components) - 1;
-   nir_ssa_dest_init(&mov->instr, &mov->dest.dest, num_components, 32, NULL);
+   nir_ssa_dest_init(&mov->instr, &mov->dest.dest, num_components, 32);
 
    /* replace vec srcs with inserted mov */
    for (unsigned i = 0, j = 0; i < 4; i++) {
@@ -1124,7 +1123,6 @@ etna_compile_shader(struct etna_shader_variant *v)
    NIR_PASS_V(s, nir_lower_io, nir_var_shader_in | nir_var_uniform, etna_glsl_type_size,
             (nir_lower_io_options)0);
 
-   NIR_PASS_V(s, nir_lower_regs_to_ssa);
    NIR_PASS_V(s, nir_lower_vars_to_ssa);
    NIR_PASS_V(s, nir_lower_indirect_derefs, nir_var_all, UINT32_MAX);
    NIR_PASS_V(s, nir_lower_tex, &(struct nir_lower_tex_options) { .lower_txp = ~0u, .lower_invalid_implicit_lod = true, });

@@ -122,7 +122,7 @@ dzn_nir_indirect_draw_shader(enum dzn_indirect_draw_type type)
                        type == DZN_INDIRECT_INDEXED_DRAW_COUNT_TRIANGLE_FAN_PRIM_RESTART;
    nir_builder b =
       nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,
-                                     dxil_get_nir_compiler_options(),
+                                     dxil_get_base_nir_compiler_options(),
                                      "dzn_meta_indirect_%s()",
                                      type_str[type]);
    b.shader->info.internal = true;
@@ -312,7 +312,7 @@ dzn_nir_triangle_fan_prim_restart_rewrite_index_shader(uint8_t old_index_size)
 
    nir_builder b =
       nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,
-                                     dxil_get_nir_compiler_options(),
+                                     dxil_get_base_nir_compiler_options(),
                                      "dzn_meta_triangle_prim_rewrite_index(old_index_size=%d)",
                                      old_index_size);
    b.shader->info.internal = true;
@@ -475,7 +475,7 @@ dzn_nir_triangle_fan_rewrite_index_shader(uint8_t old_index_size)
 
    nir_builder b =
       nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,
-                                     dxil_get_nir_compiler_options(),
+                                     dxil_get_base_nir_compiler_options(),
                                      "dzn_meta_triangle_rewrite_index(old_index_size=%d)",
                                      old_index_size);
    b.shader->info.internal = true;
@@ -563,7 +563,7 @@ dzn_nir_blit_vs(void)
 {
    nir_builder b =
       nir_builder_init_simple_shader(MESA_SHADER_VERTEX,
-                                     dxil_get_nir_compiler_options(),
+                                     dxil_get_base_nir_compiler_options(),
                                      "dzn_meta_blit_vs()");
    b.shader->info.internal = true;
 
@@ -622,7 +622,7 @@ dzn_nir_blit_fs(const struct dzn_nir_blit_info *info)
 
    nir_builder b =
       nir_builder_init_simple_shader(MESA_SHADER_FRAGMENT,
-                                     dxil_get_nir_compiler_options(),
+                                     dxil_get_base_nir_compiler_options(),
                                      "dzn_meta_blit_fs()");
    b.shader->info.internal = true;
 
@@ -658,15 +658,43 @@ dzn_nir_blit_fs(const struct dzn_nir_blit_info *info)
 
    nir_ssa_def *res = NULL;
 
-   if (info->resolve) {
-      /* When resolving a float type, we need to calculate the average of all
-       * samples. For integer resolve, Vulkan says that one sample should be
-       * chosen without telling which. Let's just pick the first one in that
-       * case.
-       */
+   if (info->resolve_mode != dzn_blit_resolve_none) {
+      enum dzn_blit_resolve_mode resolve_mode = info->resolve_mode;
 
-      unsigned nsamples = info->out_type == GLSL_TYPE_FLOAT ?
-                          info->src_samples : 1;
+      nir_op resolve_op = nir_op_mov;
+      switch (resolve_mode) {
+      case dzn_blit_resolve_average:
+         /* When resolving a float type, we need to calculate the average of all
+          * samples. For integer resolve, Vulkan says that one sample should be
+          * chosen without telling which. Let's just pick the first one in that
+          * case.
+          */
+         if (info->out_type == GLSL_TYPE_FLOAT)
+            resolve_op = nir_op_fadd;
+         else
+            resolve_mode = dzn_blit_resolve_sample_zero;
+         break;
+      case dzn_blit_resolve_min:
+         switch (info->out_type) {
+         case GLSL_TYPE_FLOAT: resolve_op = nir_op_fmin; break;
+         case GLSL_TYPE_INT: resolve_op = nir_op_imin; break;
+         case GLSL_TYPE_UINT: resolve_op = nir_op_umin; break;
+         }
+         break;
+      case dzn_blit_resolve_max:
+         switch (info->out_type) {
+         case GLSL_TYPE_FLOAT: resolve_op = nir_op_fmax; break;
+         case GLSL_TYPE_INT: resolve_op = nir_op_imax; break;
+         case GLSL_TYPE_UINT: resolve_op = nir_op_umax; break;
+         }
+         break;
+      case dzn_blit_resolve_none:
+      case dzn_blit_resolve_sample_zero:
+         break;
+      }
+
+      unsigned nsamples = resolve_mode == dzn_blit_resolve_sample_zero ?
+                          1 : info->src_samples;
       for (unsigned s = 0; s < nsamples; s++) {
          nir_tex_instr *tex = nir_tex_instr_create(b.shader, 4);
 
@@ -689,16 +717,14 @@ dzn_nir_blit_fs(const struct dzn_nir_blit_info *info)
          tex->src[3].src_type = nir_tex_src_texture_deref;
          tex->src[3].src = nir_src_for_ssa(&tex_deref->dest.ssa);
 
-         nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, NULL);
+         nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32);
 
          nir_builder_instr_insert(&b, &tex->instr);
-         res = res ? nir_fadd(&b, res, &tex->dest.ssa) : &tex->dest.ssa;
+         res = res ? nir_build_alu2(&b, resolve_op, res, &tex->dest.ssa) : &tex->dest.ssa;
       }
 
-      if (nsamples > 1) {
-         unsigned type_sz = nir_alu_type_get_type_size(nir_out_type);
-         res = nir_fmul(&b, res, nir_imm_floatN_t(&b, 1.0f / nsamples, type_sz));
-      }
+      if (resolve_mode == dzn_blit_resolve_average)
+         res = nir_fmul_imm(&b, res, 1.0f / nsamples);
    } else {
       nir_tex_instr *tex =
          nir_tex_instr_create(b.shader, ms ? 4 : 3);
@@ -741,7 +767,7 @@ dzn_nir_blit_fs(const struct dzn_nir_blit_info *info)
          tex->src[2].src = nir_src_for_ssa(&sampler_deref->dest.ssa);
       }
 
-      nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, NULL);
+      nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32);
       nir_builder_instr_insert(&b, &tex->instr);
       res = &tex->dest.ssa;
    }
@@ -823,7 +849,7 @@ dzn_nir_polygon_point_mode_gs(const nir_shader *previous_shader, struct dzn_nir_
 
 
    builder = nir_builder_init_simple_shader(MESA_SHADER_GEOMETRY,
-                                            dxil_get_nir_compiler_options(),
+                                            dxil_get_base_nir_compiler_options(),
                                             "implicit_gs");
 
    nir_shader *nir = b->shader;

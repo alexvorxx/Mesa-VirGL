@@ -237,14 +237,19 @@ with_amd_vk = _vulkan_drivers.contains('amd')
 with_freedreno_vk = _vulkan_drivers.contains('freedreno')
 with_panfrost_vk = _vulkan_drivers.contains('panfrost')
 with_swrast_vk = _vulkan_drivers.contains('swrast')
-with_virtio_vk = _vulkan_drivers.contains('virtio-experimental')
+with_virtio_vk = _vulkan_drivers.contains('virtio')
 with_broadcom_vk = _vulkan_drivers.contains('broadcom')
 with_imagination_vk = _vulkan_drivers.contains('imagination-experimental')
 with_imagination_srv = get_option('imagination-srv')
 with_microsoft_vk = _vulkan_drivers.contains('microsoft-experimental')
 with_any_vk = _vulkan_drivers.length() != 0
 
-with_any_broadcom = with_gallium_vc4 or with_gallium_v3d or with_broadcom_vk
+with_any_broadcom = [
+  with_gallium_vc4,
+  with_gallium_v3d,
+  with_broadcom_vk,
+].contains(true)
+
 with_any_intel = [
   with_gallium_crocus,
   with_gallium_i915,
@@ -456,7 +461,7 @@ if with_glx != 'disabled'
     if not with_gallium
       error('xlib based GLX requires at least one gallium driver')
     elif not with_gallium_softpipe
-      #error('xlib based GLX requires softpipe or llvmpipe.')
+      error('xlib based GLX requires softpipe or llvmpipe.')
     elif with_dri
       error('xlib conflicts with any dri driver')
     endif
@@ -1913,10 +1918,6 @@ if with_platform_wayland
     dep_wayland_egl = dependency('wayland-egl-backend', version : '>= 3')
     dep_wayland_egl_headers = dep_wayland_egl.partial_dependency(compile_args : true)
   endif
-  wayland_dmabuf_xml = join_paths(
-    dep_wl_protocols.get_variable(pkgconfig : 'pkgdatadir'), 'unstable',
-    'linux-dmabuf', 'linux-dmabuf-unstable-v1.xml'
-  )
   pre_args += '-DWL_HIDE_DEPRECATED'
 endif
 

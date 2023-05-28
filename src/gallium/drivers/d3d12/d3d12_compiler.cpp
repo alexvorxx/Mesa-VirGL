@@ -36,8 +36,6 @@
 #include "nir/nir_draw_helpers.h"
 #include "nir/tgsi_to_nir.h"
 #include "compiler/nir/nir_builder.h"
-#include "tgsi/tgsi_from_mesa.h"
-#include "tgsi/tgsi_ureg.h"
 
 #include "util/hash_table.h"
 #include "util/u_memory.h"
@@ -46,11 +44,6 @@
 #include "util/u_dl.h"
 
 #include <dxguids/dxguids.h>
-
-extern "C" {
-#include "tgsi/tgsi_parse.h"
-#include "tgsi/tgsi_point_sprite.h"
-}
 
 #ifdef _WIN32
 #include "dxil_validator.h"
@@ -166,9 +159,7 @@ compile_nir(struct d3d12_context *ctx, struct d3d12_shader_selector *sel,
       opts.provoking_vertex = key->fs.provoking_vertex;
    opts.input_clip_size = key->input_clip_size;
    opts.environment = DXIL_ENVIRONMENT_GL;
-   static_assert(D3D_SHADER_MODEL_6_0 == 0x60 && SHADER_MODEL_6_0 == 0x60000, "Validating math below");
-   static_assert(D3D_SHADER_MODEL_6_7 == 0x67 && SHADER_MODEL_6_7 == 0x60007, "Validating math below");
-   opts.shader_model_max = static_cast<dxil_shader_model>(((screen->max_shader_model & 0xf0) << 12) | (screen->max_shader_model & 0xf));
+   opts.shader_model_max = screen->max_shader_model;
 #ifdef _WIN32
    opts.validator_version_max = dxil_get_validator_version(ctx->dxil_validator);
 #endif

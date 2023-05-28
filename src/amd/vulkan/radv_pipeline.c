@@ -98,9 +98,6 @@ radv_pipeline_destroy(struct radv_device *device, struct radv_pipeline *pipeline
    case RADV_PIPELINE_COMPUTE:
       radv_destroy_compute_pipeline(device, radv_pipeline_to_compute(pipeline));
       break;
-   case RADV_PIPELINE_RAY_TRACING_LIB:
-      radv_destroy_ray_tracing_lib_pipeline(device, radv_pipeline_to_ray_tracing_lib(pipeline));
-      break;
    case RADV_PIPELINE_RAY_TRACING:
       radv_destroy_ray_tracing_pipeline(device, radv_pipeline_to_ray_tracing(pipeline));
       break;
@@ -533,6 +530,22 @@ radv_postprocess_nir(struct radv_device *device, const struct radv_pipeline_layo
    if (progress)
       nir_shader_gather_info(stage->nir, nir_shader_get_entrypoint(stage->nir));
 
+   bool fix_derivs_in_divergent_cf =
+      stage->stage == MESA_SHADER_FRAGMENT && !radv_use_llvm_for_stage(device, stage->stage);
+   if (fix_derivs_in_divergent_cf) {
+      NIR_PASS(_, stage->nir, nir_convert_to_lcssa, true, true);
+      nir_divergence_analysis(stage->nir);
+   }
+   NIR_PASS(_, stage->nir, ac_nir_lower_tex,
+            &(ac_nir_lower_tex_options){
+               .gfx_level = gfx_level,
+               .lower_array_layer_round_even = !device->physical_device->rad_info.conformant_trunc_coord,
+               .fix_derivs_in_divergent_cf = fix_derivs_in_divergent_cf,
+               .max_wqm_vgprs = 64, // TODO: improve spiller and RA support for linear VGPRs
+            });
+   if (fix_derivs_in_divergent_cf)
+      NIR_PASS(_, stage->nir, nir_opt_remove_phis); /* cleanup LCSSA phis */
+
    if (stage->nir->info.uses_resource_info_query)
       NIR_PASS(_, stage->nir, ac_nir_lower_resinfo, gfx_level);
 
@@ -611,10 +624,10 @@ radv_postprocess_nir(struct radv_device *device, const struct radv_pipeline_layo
          .enable_mrt_output_nan_fixup = pipeline_key->ps.epilog.enable_mrt_output_nan_fixup,
          .no_color_export = stage->info.ps.has_epilog,
 
-         .bc_optimize_for_persp =
-            stage->info.ps.reads_persp_center && stage->info.ps.reads_persp_centroid,
-         .bc_optimize_for_linear =
-            stage->info.ps.reads_linear_center && stage->info.ps.reads_linear_centroid,
+         .bc_optimize_for_persp = G_0286CC_PERSP_CENTER_ENA(stage->info.ps.spi_ps_input) &&
+                                  G_0286CC_PERSP_CENTROID_ENA(stage->info.ps.spi_ps_input),
+         .bc_optimize_for_linear = G_0286CC_LINEAR_CENTER_ENA(stage->info.ps.spi_ps_input) &&
+                                   G_0286CC_LINEAR_CENTROID_ENA(stage->info.ps.spi_ps_input),
       };
 
       NIR_PASS_V(stage->nir, ac_nir_lower_ps, &options);

@@ -1,26 +1,8 @@
 /*
  * Copyright 2010 Jerome Glisse <glisse@freedesktop.org>
  * Copyright 2018 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #include "si_build_pm4.h"
@@ -170,9 +152,8 @@ void si_flush_gfx_cs(struct si_context *ctx, unsigned flags, struct pipe_fence_h
       si_check_vm_faults(ctx, &ctx->current_saved_cs->gfx, AMD_IP_GFX);
    }
 
-   if (unlikely(ctx->thread_trace &&
-                (flags & PIPE_FLUSH_END_OF_FRAME))) {
-      si_handle_thread_trace(ctx, &ctx->gfx_cs);
+   if (unlikely(ctx->sqtt && (flags & PIPE_FLUSH_END_OF_FRAME))) {
+      si_handle_sqtt(ctx, &ctx->gfx_cs);
    }
 
    if (ctx->current_saved_cs)
@@ -534,7 +515,8 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
     * the first draw call. */
    si_invalidate_draw_constants(ctx);
    ctx->last_index_size = -1;
-   ctx->last_primitive_restart_en = -1;
+   /* Primitive restart is set to false by the gfx preamble on GFX11+. */
+   ctx->last_primitive_restart_en = ctx->gfx_level >= GFX11 ? false : -1;
    ctx->last_restart_index = SI_RESTART_INDEX_UNKNOWN;
    ctx->last_prim = -1;
    ctx->last_multi_vgt_param = -1;
@@ -795,7 +777,7 @@ void gfx10_emit_cache_flush(struct si_context *ctx, struct radeon_cmdbuf *cs)
          radeon_emit(0); /* DATA_HI */
          radeon_emit(0); /* INT_CTXID */
 
-         if (unlikely(ctx->thread_trace_enabled)) {
+         if (unlikely(ctx->sqtt_enabled)) {
             radeon_end();
             si_sqtt_describe_barrier_start(ctx, &ctx->gfx_cs);
             radeon_begin_again(cs);
@@ -815,7 +797,7 @@ void gfx10_emit_cache_flush(struct si_context *ctx, struct radeon_cmdbuf *cs)
          radeon_emit(S_585_PWS_ENA(1));
          radeon_emit(gcr_cntl); /* GCR_CNTL */
 
-         if (unlikely(ctx->thread_trace_enabled)) {
+         if (unlikely(ctx->sqtt_enabled)) {
             radeon_end();
             si_sqtt_describe_barrier_end(ctx, &ctx->gfx_cs, flags);
             radeon_begin_again(cs);
@@ -859,13 +841,13 @@ void gfx10_emit_cache_flush(struct si_context *ctx, struct radeon_cmdbuf *cs)
                            EOP_DATA_SEL_VALUE_32BIT, wait_mem_scratch, va, ctx->wait_mem_number,
                            SI_NOT_QUERY);
 
-         if (unlikely(ctx->thread_trace_enabled)) {
+         if (unlikely(ctx->sqtt_enabled)) {
             si_sqtt_describe_barrier_start(ctx, &ctx->gfx_cs);
          }
 
          si_cp_wait_mem(ctx, cs, va, ctx->wait_mem_number, 0xffffffff, WAIT_REG_MEM_EQUAL);
 
-         if (unlikely(ctx->thread_trace_enabled)) {
+         if (unlikely(ctx->sqtt_enabled)) {
             si_sqtt_describe_barrier_end(ctx, &ctx->gfx_cs, flags);
          }
 
@@ -1071,13 +1053,13 @@ void si_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs)
                         EOP_INT_SEL_SEND_DATA_AFTER_WR_CONFIRM, EOP_DATA_SEL_VALUE_32BIT,
                         wait_mem_scratch, va, sctx->wait_mem_number, SI_NOT_QUERY);
 
-      if (unlikely(sctx->thread_trace_enabled)) {
+      if (unlikely(sctx->sqtt_enabled)) {
          si_sqtt_describe_barrier_start(sctx, &sctx->gfx_cs);
       }
 
       si_cp_wait_mem(sctx, cs, va, sctx->wait_mem_number, 0xffffffff, WAIT_REG_MEM_EQUAL);
 
-      if (unlikely(sctx->thread_trace_enabled)) {
+      if (unlikely(sctx->sqtt_enabled)) {
          si_sqtt_describe_barrier_end(sctx, &sctx->gfx_cs, sctx->flags);
       }
    }

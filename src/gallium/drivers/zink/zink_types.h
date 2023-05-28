@@ -222,6 +222,9 @@ enum zink_debug {
    ZINK_DEBUG_MAP = (1<<11),
    ZINK_DEBUG_FLUSHSYNC = (1<<12),
    ZINK_DEBUG_NOSHOBJ = (1<<13),
+   ZINK_DEBUG_OPTIMAL_KEYS = (1<<14),
+   ZINK_DEBUG_NOOPT = (1<<15),
+   ZINK_DEBUG_NOBGC = (1<<16),
 };
 
 enum zink_pv_emulation_primitive {
@@ -539,9 +542,16 @@ struct zink_batch_descriptor_data {
  */
 struct zink_batch_usage {
    uint32_t usage;
+    /* this is a monotonic int used to disambiguate internal fences from their tc fence references */
+   uint32_t submit_count;
    cnd_t flush;
    mtx_t mtx;
    bool unflushed;
+};
+
+struct zink_bo_usage {
+   uint32_t submit_count;
+   struct zink_batch_usage *u;
 };
 
 struct zink_batch_obj_list {
@@ -592,7 +602,6 @@ struct zink_batch_state {
    struct util_dynarray unref_resources;
    struct util_dynarray bindless_releases[2];
 
-   struct util_dynarray persistent_resources;
    struct util_dynarray zombie_samplers;
    struct util_dynarray dead_framebuffers;
 
@@ -602,9 +611,6 @@ struct zink_batch_state {
    struct zink_batch_descriptor_data dd;
 
    VkDeviceSize resource_size;
-
-    /* this is a monotonic int used to disambiguate internal fences from their tc fence references */
-   unsigned submit_count;
 
    bool is_device_lost;
    bool has_barriers;
@@ -681,8 +687,8 @@ struct zink_bo {
 
    simple_mtx_t lock;
 
-   struct zink_batch_usage *reads;
-   struct zink_batch_usage *writes;
+   struct zink_bo_usage reads;
+   struct zink_bo_usage writes;
 
    struct pb_cache_entry cache_entry[];
 };
@@ -795,7 +801,11 @@ struct zink_shader {
       } non_fs;
 
       struct {
-         uint32_t legacy_shadow_mask; //is_new_style_shadow is false for these
+         /* Bitmask of textures that have shadow sampling result components
+          * other than RED accessed. This is a subset of !is_new_style_shadow
+          * (GLSL <1.30, ARB_fp) shadow sampling usage.
+          */
+         uint32_t legacy_shadow_mask;
          nir_variable *fbfetch; //for fs output
       } fs;
    };
@@ -822,8 +832,7 @@ struct zink_gfx_pipeline_state {
    /* order matches zink_gfx_output_key */
    unsigned force_persample_interp:1;
    uint32_t rast_samples:6;
-   uint32_t multisample: 1;
-   uint32_t min_samples:5;
+   uint32_t min_samples:6;
    uint32_t feedback_loop : 1;
    uint32_t feedback_loop_zs : 1;
    uint32_t rast_attachment_order : 1;
@@ -999,8 +1008,7 @@ struct zink_gfx_output_key {
       struct {
          unsigned force_persample_interp:1;
          uint32_t rast_samples:6;
-         uint32_t multisample: 1;
-         uint32_t min_samples:5;
+         uint32_t min_samples:6;
          uint32_t feedback_loop : 1;
          uint32_t feedback_loop_zs : 1;
          uint32_t rast_attachment_order : 1;
@@ -1181,7 +1189,6 @@ struct zink_resource_object {
    bool copies_valid;
    bool copies_need_reset; //for use with batch state resets
 
-   unsigned persistent_maps; //if nonzero, requires vkFlushMappedMemoryRanges during batch use
    struct util_dynarray copies[16]; //regions being copied to; for barrier omission
 
    VkBuffer storage_buffer;
@@ -1601,6 +1608,7 @@ struct zink_sampler_view {
       struct zink_buffer_view *buffer_view;
    };
    struct zink_surface *cube_array;
+   /* Optional sampler view returning red (depth) in all channels, for shader rewrites. */
    struct zink_surface *zs_view;
    struct zink_zs_swizzle swizzle;
 };

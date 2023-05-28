@@ -500,7 +500,8 @@ pan_allow_forward_pixel_to_kill(struct panfrost_context *ctx,
     * from reading it directly, or from failing to write it
     */
    unsigned rt_mask = ctx->fb_rt_mask;
-   uint64_t rt_written = (fs->info.outputs_written >> FRAG_RESULT_DATA0);
+   uint64_t rt_written = (fs->info.outputs_written >> FRAG_RESULT_DATA0) &
+                         ctx->blend->enabled_mask;
    bool blend_reads_dest = (ctx->blend->load_dest_mask & rt_mask);
    bool alpha_to_coverage = ctx->blend->base.alpha_to_coverage;
 
@@ -669,6 +670,7 @@ panfrost_prepare_fs_state(struct panfrost_context *ctx, mali_ptr *blend_shaders,
       cfg.stencil_mask_misc.alpha_to_coverage = alpha_to_coverage;
       cfg.depth_units = rast->offset_units * 2.0f;
       cfg.depth_factor = rast->offset_scale;
+      cfg.depth_bias_clamp = rast->offset_clamp;
 
       bool back_enab = zsa->base.stencil[1].enabled;
       cfg.stencil_front.reference_value = ctx->stencil_ref.ref_value[0];
@@ -3931,9 +3933,6 @@ panfrost_create_rasterizer_state(struct pipe_context *pctx,
 
    so->base = *cso;
 
-   /* Gauranteed with the core GL call, so don't expose ARB_polygon_offset */
-   assert(cso->offset_clamp == 0.0);
-
 #if PAN_ARCH <= 7
    pan_pack(&so->multisample, MULTISAMPLE_MISC, cfg) {
       cfg.multisample_enable = cso->multisample;
@@ -4280,6 +4279,11 @@ panfrost_create_blend_state(struct pipe_context *pipe,
        * destination in the hot draw path, so precompute this */
       if (so->info[c].load_dest)
          so->load_dest_mask |= BITFIELD_BIT(c);
+
+      /* Bifrost needs to know if any render target loads its
+       * destination in the hot draw path, so precompute this */
+      if (so->info[c].enabled)
+         so->enabled_mask |= BITFIELD_BIT(c);
 
       /* Converting equations to Mali style is expensive, do it at
        * CSO create time instead of draw-time */

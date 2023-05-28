@@ -1,25 +1,7 @@
 /*
  * Copyright 2022 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 #include "nir_builder.h"
@@ -209,11 +191,8 @@ static nir_ssa_def *build_tess_factor_ring_desc(nir_builder *b, struct si_screen
    return nir_vec(b, comp, 4);
 }
 
-static bool lower_abi_instr(nir_builder *b, nir_instr *instr, struct lower_abi_state *s)
+static bool lower_intrinsic(nir_builder *b, nir_instr *instr, struct lower_abi_state *s)
 {
-   if (instr->type != nir_instr_type_intrinsic)
-      return false;
-
    nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
 
    struct si_shader *shader = s->shader;
@@ -457,7 +436,7 @@ static bool lower_abi_instr(nir_builder *b, nir_instr *instr, struct lower_abi_s
          nir_ssa_def *buf = si_nir_load_internal_binding(b, args, SI_PS_CONST_SAMPLE_POSITIONS, 4);
          nir_ssa_def *sample_pos = nir_load_ubo(b, 2, 32, buf, offset, .range = ~0);
 
-         sample_pos = nir_fsub(b, sample_pos, nir_imm_float(b, 0.5));
+         sample_pos = nir_fadd_imm(b, sample_pos, -0.5);
 
          replacement = nir_load_barycentric_at_offset(b, 32, sample_pos, .interp_mode = mode);
       }
@@ -523,6 +502,9 @@ static bool lower_abi_instr(nir_builder *b, nir_instr *instr, struct lower_abi_s
                                                 .component = 2);
       break;
    }
+   case nir_intrinsic_load_poly_line_smooth_enabled:
+      replacement = nir_imm_bool(b, key->ps.mono.poly_line_smoothing);
+      break;
    default:
       return false;
    }
@@ -534,6 +516,51 @@ static bool lower_abi_instr(nir_builder *b, nir_instr *instr, struct lower_abi_s
    nir_instr_free(instr);
 
    return true;
+}
+
+static bool lower_tex(nir_builder *b, nir_instr *instr, struct lower_abi_state *s)
+{
+   nir_tex_instr *tex = nir_instr_as_tex(instr);
+   const struct si_shader_selector *sel = s->shader->selector;
+   enum amd_gfx_level gfx_level = sel->screen->info.gfx_level;
+
+   b->cursor = nir_before_instr(instr);
+
+   /* Section 8.23.1 (Depth Texture Comparison Mode) of the
+    * OpenGL 4.5 spec says:
+    *
+    *    "If the texture’s internal format indicates a fixed-point
+    *     depth texture, then D_t and D_ref are clamped to the
+    *     range [0, 1]; otherwise no clamping is performed."
+    *
+    * TC-compatible HTILE promotes Z16 and Z24 to Z32_FLOAT,
+    * so the depth comparison value isn't clamped for Z16 and
+    * Z24 anymore. Do it manually here for GFX8-9; GFX10 has
+    * an explicitly clamped 32-bit float format.
+    */
+
+   /* LLVM keep non-uniform sampler as index, so can't do this in NIR. */
+   if (tex->is_shadow && gfx_level >= GFX8 && gfx_level <= GFX9 && s->shader->use_aco) {
+      int samp_index = nir_tex_instr_src_index(tex, nir_tex_src_sampler_handle);
+      int comp_index = nir_tex_instr_src_index(tex, nir_tex_src_comparator);
+      assert(samp_index >= 0 && comp_index >= 0);
+
+      nir_ssa_def *sampler = tex->src[samp_index].src.ssa;
+      nir_ssa_def *compare = tex->src[comp_index].src.ssa;
+      /* Must have been lowered to descriptor. */
+      assert(sampler->num_components > 1);
+
+      nir_ssa_def *upgraded = nir_channel(b, sampler, 3);
+      upgraded = nir_i2b(b, nir_ubfe_imm(b, upgraded, 29, 1));
+
+      nir_ssa_def *clamped = nir_fsat(b, compare);
+      compare = nir_bcsel(b, upgraded, clamped, compare);
+
+      nir_instr_rewrite_src_ssa(instr, &tex->src[comp_index].src, compare);
+      return true;
+   }
+
+   return false;
 }
 
 bool si_nir_lower_abi(nir_shader *nir, struct si_shader *shader, struct si_shader_args *args)
@@ -551,7 +578,10 @@ bool si_nir_lower_abi(nir_shader *nir, struct si_shader *shader, struct si_shade
    bool progress = false;
    nir_foreach_block_safe(block, impl) {
       nir_foreach_instr_safe(instr, block) {
-         progress |= lower_abi_instr(&b, instr, &state);
+         if (instr->type == nir_instr_type_intrinsic)
+            progress |= lower_intrinsic(&b, instr, &state);
+         else if (instr->type == nir_instr_type_tex)
+            progress |= lower_tex(&b, instr, &state);
       }
    }
 

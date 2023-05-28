@@ -36,14 +36,14 @@ radv_sdma_v4_v5_copy_image_to_buffer(struct radv_device *device, struct radeon_c
    uint64_t dst_address = buffer->bo->va;
    uint64_t src_address = image->bindings[0].bo->va + image->planes[0].surface.u.gfx9.surf_offset;
    unsigned src_pitch = image->planes[0].surface.u.gfx9.surf_pitch;
-   unsigned copy_width = DIV_ROUND_UP(image->info.width, image->planes[0].surface.blk_w);
-   unsigned copy_height = DIV_ROUND_UP(image->info.height, image->planes[0].surface.blk_h);
+   unsigned copy_width = DIV_ROUND_UP(image->vk.extent.width, image->planes[0].surface.blk_w);
+   unsigned copy_height = DIV_ROUND_UP(image->vk.extent.height, image->planes[0].surface.blk_h);
    bool tmz = false;
 
    /* Linear -> linear sub-window copy. */
    if (image->planes[0].surface.is_linear) {
       ASSERTED unsigned cdw_max = radeon_check_space(device->ws, cs, 7);
-      unsigned bytes = src_pitch * copy_height * bpp;
+      uint64_t bytes = (uint64_t)src_pitch * copy_height * bpp;
 
       if (!(bytes < (1u << 22)))
          return false;
@@ -68,7 +68,7 @@ radv_sdma_v4_v5_copy_image_to_buffer(struct radv_device *device, struct radeon_c
       unsigned tiled_width = copy_width;
       unsigned tiled_height = copy_height;
       unsigned linear_pitch = region->bufferRowLength;
-      unsigned linear_slice_pitch = region->bufferRowLength * copy_height;
+      uint64_t linear_slice_pitch = (uint64_t)region->bufferRowLength * copy_height;
       uint64_t tiled_address = src_address;
       uint64_t linear_address = dst_address;
       bool is_v5 = device->physical_device->rad_info.gfx_level >= GFX10;
@@ -114,7 +114,8 @@ radv_sdma_v4_v5_copy_image_to_buffer(struct radv_device *device, struct radeon_c
          unsigned hw_fmt, hw_type;
 
          desc = vk_format_description(image->vk.format);
-         hw_fmt = radv_translate_colorformat(format);
+         hw_fmt = ac_get_cb_format(device->physical_device->rad_info.gfx_level,
+                                   vk_format_to_pipe_format(format));
          hw_type = radv_translate_buffer_numformat(desc, vk_format_get_first_non_void_channel(format));
 
          /* Add metadata */

@@ -1207,14 +1207,21 @@ copy_image_blit(struct v3dv_cmd_buffer *cmd_buffer,
     * (since the region dimensions are already specified in terms of the source
     * image).
     */
+   uint32_t region_width = region->extent.width * src_scale_w;
+   uint32_t region_height = region->extent.height * src_scale_h;
+   if (src_block_w > 1)
+      region_width = util_next_power_of_two(region_width);
+   if (src_block_h > 1)
+      region_height = util_next_power_of_two(region_height);
+
    const VkOffset3D src_start = {
       region->srcOffset.x * src_scale_w,
       region->srcOffset.y * src_scale_h,
       region->srcOffset.z,
    };
    const VkOffset3D src_end = {
-      src_start.x + region->extent.width * src_scale_w,
-      src_start.y + region->extent.height * src_scale_h,
+      src_start.x + region_width,
+      src_start.y + region_height,
       src_start.z + region->extent.depth,
    };
 
@@ -1224,8 +1231,8 @@ copy_image_blit(struct v3dv_cmd_buffer *cmd_buffer,
       region->dstOffset.z,
    };
    const VkOffset3D dst_end = {
-      dst_start.x + region->extent.width * src_scale_w,
-      dst_start.y + region->extent.height * src_scale_h,
+      dst_start.x + region_width,
+      dst_start.y + region_height,
       dst_start.z + region->extent.depth,
    };
 
@@ -1539,11 +1546,13 @@ copy_buffer_to_image_tfu(struct v3dv_cmd_buffer *cmd_buffer,
    else
       height = region->bufferImageHeight;
 
-   uint8_t plane =
+   const uint8_t plane =
       v3dv_plane_from_aspect(region->imageSubresource.aspectMask);
 
-   if (width != image->planes[plane].width ||
-       height != image->planes[plane].height)
+   const uint32_t mip_level = region->imageSubresource.mipLevel;
+   const struct v3d_resource_slice *slice = &image->planes[plane].slices[mip_level];
+
+   if (width != slice->width || height != slice->height)
       return false;
 
    /* Handle region semantics for compressed images */
@@ -1565,9 +1574,6 @@ copy_buffer_to_image_tfu(struct v3dv_cmd_buffer *cmd_buffer,
    /* We only use single-plane formats with the TFU */
    assert(format->plane_count == 1);
    const struct v3dv_format_plane *format_plane = &format->planes[0];
-
-   const uint32_t mip_level = region->imageSubresource.mipLevel;
-   const struct v3d_resource_slice *slice = &image->planes[plane].slices[mip_level];
 
    uint32_t num_layers;
    if (image->vk.image_type != VK_IMAGE_TYPE_3D)
@@ -2015,7 +2021,7 @@ get_texel_buffer_copy_fs(struct v3dv_device *device, VkFormat format,
    tex->dest_type = nir_type_uint32;
    tex->is_array = false;
    tex->coord_components = 1;
-   nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, "texel buffer result");
+   nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32);
    nir_builder_instr_insert(&b, &tex->instr);
 
    uint32_t swiz[4];
@@ -3369,7 +3375,7 @@ build_nir_tex_op_read(struct nir_builder *b,
    tex->is_array = glsl_sampler_type_is_array(sampler_type);
    tex->coord_components = tex_pos->num_components;
 
-   nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, "tex");
+   nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32);
    nir_builder_instr_insert(b, &tex->instr);
    return &tex->dest.ssa;
 }
@@ -3397,7 +3403,7 @@ build_nir_tex_op_ms_fetch_sample(struct nir_builder *b,
    tex->is_array = false;
    tex->coord_components = tex_pos->num_components;
 
-   nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32, "tex");
+   nir_ssa_dest_init(&tex->instr, &tex->dest, 4, 32);
    nir_builder_instr_insert(b, &tex->instr);
    return &tex->dest.ssa;
 }
@@ -3437,7 +3443,7 @@ build_nir_tex_op_ms_resolve(struct nir_builder *b,
    }
 
    assert(!is_int);
-   return nir_fmul(b, tmp, nir_imm_float(b, 1.0f / src_samples));
+   return nir_fmul_imm(b, tmp, 1.0f / src_samples);
 }
 
 /* Fetches the current sample (gl_SampleID) at the given position */

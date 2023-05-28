@@ -43,6 +43,7 @@
 struct radv_physical_device;
 struct radv_device;
 struct radv_pipeline;
+struct radv_ray_tracing_stage;
 struct radv_ray_tracing_group;
 struct radv_pipeline_key;
 struct radv_shader_args;
@@ -76,6 +77,7 @@ struct radv_pipeline_key {
    uint32_t dynamic_rasterization_samples : 1;
    uint32_t dynamic_color_write_mask : 1;
    uint32_t dynamic_provoking_vtx_mode : 1;
+   uint32_t dynamic_line_rast_mode : 1;
    uint32_t tex_non_uniform : 1;
    uint32_t enable_remove_point_size : 1;
 
@@ -110,6 +112,8 @@ struct radv_pipeline_key {
 
       bool dynamic_ps_epilog;
       bool has_epilog;
+
+      bool line_smooth_enabled;
    } ps;
 
    struct {
@@ -165,6 +169,7 @@ enum radv_ud_index {
    AC_UD_VS_MAX_UD,
    AC_UD_PS_EPILOG_PC,
    AC_UD_PS_NUM_SAMPLES,
+   AC_UD_PS_LINE_RAST_MODE,
    AC_UD_PS_MAX_UD,
    AC_UD_CS_GRID_SIZE = AC_UD_SHADER_START,
    AC_UD_CS_SBT_DESCRIPTORS,
@@ -450,11 +455,15 @@ struct radv_shader_binary_legacy {
    uint32_t ir_size;
    uint32_t disasm_size;
    uint32_t stats_size;
+   uint32_t padding;
 
    /* data has size of stats_size + code_size + ir_size + disasm_size + 2,
     * where the +2 is for 0 of the ir strings. */
    uint8_t data[0];
 };
+static_assert(sizeof(struct radv_shader_binary_legacy) ==
+                 offsetof(struct radv_shader_binary_legacy, data),
+              "Unexpected padding");
 
 struct radv_shader_binary_rtld {
    struct radv_shader_binary base;
@@ -554,6 +563,10 @@ void radv_postprocess_nir(struct radv_device *device,
                           const struct radv_pipeline_layout *pipeline_layout,
                           const struct radv_pipeline_key *pipeline_key, unsigned last_vgt_api_stage,
                           struct radv_pipeline_stage *stage);
+
+nir_shader *radv_parse_rt_stage(struct radv_device *device,
+                                const VkPipelineShaderStageCreateInfo *sinfo,
+                                const struct radv_pipeline_key *key);
 
 struct radv_pipeline_stage;
 
@@ -757,6 +770,7 @@ void radv_get_nir_options(struct radv_physical_device *device);
 
 nir_shader *create_rt_shader(struct radv_device *device,
                              const VkRayTracingPipelineCreateInfoKHR *pCreateInfo,
+                             struct radv_ray_tracing_stage *stages,
                              struct radv_ray_tracing_group *groups,
                              const struct radv_pipeline_key *key);
 

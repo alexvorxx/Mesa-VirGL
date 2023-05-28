@@ -1,25 +1,7 @@
 /*
  * Copyright 2012 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
+ * SPDX-License-Identifier: MIT
  */
 
 /* The compiler middle-end architecture: Explaining (non-)monolithic shaders
@@ -154,8 +136,6 @@ struct si_context;
 #define SI_MAX_VS_OUTPUTS 40
 #define SI_USER_CLIP_PLANE_MASK  0x3F
 
-#define SI_NGG_PRIM_EDGE_FLAG_BITS ((1 << 9) | (1 << 19) | (1 << 29))
-
 #define SI_PS_INPUT_CNTL_0000          (S_028644_OFFSET(0x20) | S_028644_DEFAULT_VAL(0))
 #define SI_PS_INPUT_CNTL_0001          (S_028644_OFFSET(0x20) | S_028644_DEFAULT_VAL(3))
 #define SI_PS_INPUT_CNTL_UNUSED        SI_PS_INPUT_CNTL_0000
@@ -260,7 +240,7 @@ enum
  */
 /* bit gap */
 #define VS_STATE_LS_OUT_VERTEX_SIZE__SHIFT   24
-#define VS_STATE_LS_OUT_VERTEX_SIZE__MASK    0xff /* max 32 * 4 + 1 */
+#define VS_STATE_LS_OUT_VERTEX_SIZE__MASK    0xff /* max 32 * 4 + 1 (to reduce LDS bank conflicts) */
 
 /* These fields are only set in current_gs_state in si_context, and they are accessible
  * in the shader via vs_state_bits in legacy GS, the GS copy shader, and any NGG shader.
@@ -331,6 +311,8 @@ enum si_shader_dump_type {
    SI_DUMP_NIR,            /* final NIR after lowering when shader variants are created */
    SI_DUMP_INIT_LLVM_IR,   /* initial LLVM IR before optimizations */
    SI_DUMP_LLVM_IR,        /* final LLVM IR */
+   SI_DUMP_INIT_ACO_IR,    /* initial ACO IR before optimizations */
+   SI_DUMP_ACO_IR,         /* final ACO IR */
    SI_DUMP_ASM,            /* final asm shaders */
    SI_DUMP_ALWAYS,
 };
@@ -476,6 +458,8 @@ struct si_shader_info {
    bool uses_bindless_images;
    bool uses_indirect_descriptor;
    bool has_divergent_loop;
+   bool uses_sampleid;
+   bool has_non_uniform_tex_access;
 
    bool uses_vmem_sampler_or_bvh;
    bool uses_vmem_load_other; /* all other VMEM loads and atomics with return */
@@ -494,6 +478,10 @@ struct si_shader_info {
     * texunit + 1.
     */
    uint8_t writes_1_if_tex_is_1;
+
+   /* frag coord and sample pos per component read mask. */
+   uint8_t reads_frag_coord_mask;
+   uint8_t reads_sample_pos_mask;
 };
 
 /* A shader selector is a gallium CSO and contains shader variants and
@@ -618,6 +606,7 @@ struct si_ps_epilog_bits {
    unsigned clamp_color : 1;
    unsigned dual_src_blend_swizzle : 1;      /* gfx11+ */
    unsigned rbplus_depth_only_opt:1;
+   unsigned kill_samplemask:1;
 };
 
 union si_shader_part_key {
@@ -799,14 +788,28 @@ struct si_shader_binary_info {
    unsigned max_simd_waves;
 };
 
+enum si_shader_binary_type {
+   SI_SHADER_BINARY_ELF,
+   SI_SHADER_BINARY_RAW,
+};
+
 struct si_shader_binary {
-   const char *elf_buffer;
-   size_t elf_size;
+   enum si_shader_binary_type type;
+
+   /* Depends on binary type, either ELF or raw buffer. */
+   const char *code_buffer;
+   size_t code_size;
 
    char *uploaded_code;
    size_t uploaded_code_size;
 
    char *llvm_ir_string;
+
+   const char *disasm_string;
+   size_t disasm_size;
+
+   const unsigned *symbols;
+   unsigned num_symbols;
 };
 
 struct gfx9_gs_info {
@@ -875,6 +878,9 @@ struct si_shader {
    bool is_gs_copy_shader;
    uint8_t wave_size;
 
+   /* Use ACO for compilation. */
+   bool use_aco;
+
    /* The following data is all that's needed for binary shaders. */
    struct si_shader_binary binary;
    struct ac_shader_config config;
@@ -894,7 +900,7 @@ struct si_shader {
 
    struct gfx9_gs_info gs_info;
 
-   /* For save precompute context registers values. */
+   /* Precomputed register values. */
    union {
       struct {
          unsigned vgt_gsvs_ring_offset_1;
@@ -961,6 +967,7 @@ struct si_shader {
          unsigned cb_shader_mask;
          unsigned db_shader_control;
          unsigned num_interp;
+         bool writes_samplemask;
       } ps;
    };
 

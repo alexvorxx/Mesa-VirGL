@@ -33,7 +33,6 @@
 #include "sb/sb_public.h"
 
 #include "pipe/p_shader_tokens.h"
-#include "tgsi/tgsi_info.h"
 #include "tgsi/tgsi_parse.h"
 #include "tgsi/tgsi_scan.h"
 #include "tgsi/tgsi_dump.h"
@@ -90,30 +89,6 @@ The compiler must issue the source argument to slots z, y, and x
  PS - face_gpr.z = SampleMask
       face_gpr.w = SampleID
 */
-#define R600_SHADER_BUFFER_INFO_SEL (512 + R600_BUFFER_INFO_OFFSET / 16)
-static int r600_shader_from_tgsi(struct r600_context *rctx,
-				 struct r600_pipe_shader *pipeshader,
-				 union r600_shader_key key);
-
-static void r600_add_gpr_array(struct r600_shader *ps, int start_gpr,
-                           int size, unsigned comp_mask) {
-
-	if (!size)
-		return;
-
-	if (ps->num_arrays == ps->max_arrays) {
-		ps->max_arrays += 64;
-		ps->arrays = realloc(ps->arrays, ps->max_arrays *
-		                     sizeof(struct r600_shader_array));
-	}
-
-	int n = ps->num_arrays;
-	++ps->num_arrays;
-
-	ps->arrays[n].comp_mask = comp_mask;
-	ps->arrays[n].gpr_start = start_gpr;
-	ps->arrays[n].gpr_count = size;
-}
 
 static void r600_dump_streamout(struct pipe_stream_output_info *so)
 {
@@ -211,7 +186,6 @@ int r600_pipe_shader_create(struct pipe_context *ctx,
 			sel->nir = tgsi_to_nir(sel->tokens, ctx->screen, true);
 			/* Lower int64 ops because we have some r600 built-in shaders that use it */
 			if (nir_options->lower_int64_options) {
-				NIR_PASS_V(sel->nir, nir_lower_regs_to_ssa);
 				NIR_PASS_V(sel->nir, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
 				NIR_PASS_V(sel->nir, nir_lower_int64);
 			}

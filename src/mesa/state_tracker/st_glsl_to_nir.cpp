@@ -228,15 +228,15 @@ st_nir_assign_uniform_locations(struct gl_context *ctx,
    }
 }
 
-/* - create a gl_PointSizeMESA variable
+/* - create a gl_PointSize variable
  * - find every gl_Position write
- * - store 1.0 to gl_PointSizeMESA after every gl_Position write
+ * - store 1.0 to gl_PointSize after every gl_Position write
  */
 void
 st_nir_add_point_size(nir_shader *nir)
 {
-   nir_variable *psiz = nir_variable_create(nir, nir_var_shader_out, glsl_float_type(), "gl_PointSizeMESA");
-   psiz->data.location = VARYING_SLOT_PSIZ;
+   nir_variable *psiz = nir_create_variable_with_location(nir, nir_var_shader_out,
+                                                          VARYING_SLOT_PSIZ, glsl_float_type());
    psiz->data.how_declared = nir_var_hidden;
 
    nir_builder b;
@@ -1081,7 +1081,7 @@ st_finalize_nir(struct st_context *st, struct gl_program *prog,
     * This depends on st_nir_assign_varying_locations.
     */
    if (nir->options->lower_io_variables) {
-      nir_lower_io_passes(nir);
+      nir_lower_io_passes(nir, false);
       NIR_PASS_V(nir, nir_remove_dead_variables,
                  nir_var_shader_in | nir_var_shader_out, NULL);
    }

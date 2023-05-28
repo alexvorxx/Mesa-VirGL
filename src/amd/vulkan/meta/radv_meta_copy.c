@@ -69,7 +69,7 @@ blit_surf_for_image_level_layer(struct radv_image *image, VkImageLayout layout,
 }
 
 bool
-radv_image_is_renderable(struct radv_device *device, struct radv_image *image)
+radv_image_is_renderable(const struct radv_device *device, const struct radv_image *image)
 {
    if (image->vk.format == VK_FORMAT_R32G32B32_UINT ||
        image->vk.format == VK_FORMAT_R32G32B32_SINT ||
@@ -99,7 +99,7 @@ copy_buffer_to_image(struct radv_cmd_buffer *cmd_buffer, struct radv_buffer *buf
    /* The Vulkan 1.0 spec says "dstImage must have a sample count equal to
     * VK_SAMPLE_COUNT_1_BIT."
     */
-   assert(image->info.samples == 1);
+   assert(image->vk.samples == 1);
 
    cs = cmd_buffer->qf == RADV_QUEUE_COMPUTE ||
         !radv_image_is_renderable(cmd_buffer->device, image);
@@ -240,8 +240,8 @@ copy_image_to_buffer(struct radv_cmd_buffer *cmd_buffer, struct radv_buffer *buf
       /* RADV_QUEUE_TRANSFER should only be used for the prime blit */
       assert(!region->imageOffset.x && !region->imageOffset.y && !region->imageOffset.z);
       assert(image->vk.image_type == VK_IMAGE_TYPE_2D);
-      assert(image->info.width == region->imageExtent.width);
-      assert(image->info.height == region->imageExtent.height);
+      assert(image->vk.extent.width == region->imageExtent.width);
+      assert(image->vk.extent.height == region->imageExtent.height);
       ASSERTED bool res = radv_sdma_copy_image(device, cs, image, buffer, region);
       assert(res);
       radv_cs_add_buffer(device->ws, cs, image->bindings[0].bo);
@@ -367,7 +367,7 @@ copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *src_image,
     *    vkCmdCopyImage can be used to copy image data between multisample
     *    images, but both images must have the same number of samples.
     */
-   assert(src_image->info.samples == dst_image->info.samples);
+   assert(src_image->vk.samples == dst_image->vk.samples);
 
    cs = cmd_buffer->qf == RADV_QUEUE_COMPUTE ||
         !radv_image_is_renderable(cmd_buffer->device, dst_image);
@@ -390,9 +390,9 @@ copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *src_image,
       if (radv_layout_is_htile_compressed(cmd_buffer->device, dst_image, dst_image_layout,
                                           queue_mask) &&
           (region->dstOffset.x || region->dstOffset.y || region->dstOffset.z ||
-           region->extent.width != dst_image->info.width ||
-           region->extent.height != dst_image->info.height ||
-           region->extent.depth != dst_image->info.depth)) {
+           region->extent.width != dst_image->vk.extent.width ||
+           region->extent.height != dst_image->vk.extent.height ||
+           region->extent.depth != dst_image->vk.extent.depth)) {
          u_foreach_bit(i, region->dstSubresource.aspectMask) {
             unsigned aspect_mask = 1u << i;
             radv_expand_depth_stencil(cmd_buffer, dst_image,
@@ -497,19 +497,17 @@ copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *src_image,
          .height = img_extent_el.height,
       };
 
-      if (src_image->vk.image_type == VK_IMAGE_TYPE_3D)
+      unsigned num_slices = region->srcSubresource.layerCount;
+
+      if (src_image->vk.image_type == VK_IMAGE_TYPE_3D) {
          b_src.layer = src_offset_el.z;
+         num_slices = img_extent_el.depth;
+      }
 
       if (dst_image->vk.image_type == VK_IMAGE_TYPE_3D)
          b_dst.layer = dst_offset_el.z;
 
-      /* Loop through each 3D or array slice */
-      unsigned num_slices_3d = img_extent_el.depth;
-      unsigned num_slices_array = region->dstSubresource.layerCount;
-      unsigned slice_3d = 0;
-      unsigned slice_array = 0;
-      while (slice_3d < num_slices_3d && slice_array < num_slices_array) {
-
+      for (unsigned slice = 0; slice < num_slices; slice++) {
          /* Finish creating blit rect */
          rect.dst_x = dst_offset_el.x;
          rect.dst_y = dst_offset_el.y;
@@ -529,10 +527,6 @@ copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *src_image,
 
          b_src.layer++;
          b_dst.layer++;
-         if (dst_image->vk.image_type == VK_IMAGE_TYPE_3D)
-            slice_3d++;
-         else
-            slice_array++;
       }
    }
 

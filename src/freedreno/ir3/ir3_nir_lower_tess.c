@@ -176,8 +176,8 @@ replace_intrinsic(nir_builder *b, nir_intrinsic_instr *intr,
    new_intr->num_components = intr->num_components;
 
    if (nir_intrinsic_infos[op].has_dest)
-      nir_ssa_dest_init(&new_intr->instr, &new_intr->dest, intr->num_components,
-                        intr->dest.ssa.bit_size, NULL);
+      nir_ssa_dest_init(&new_intr->instr, &new_intr->dest,
+                        intr->num_components, intr->dest.ssa.bit_size);
 
    nir_builder_instr_insert(b, &new_intr->instr);
 
@@ -759,7 +759,7 @@ lower_tess_eval_block(nir_block *block, nir_builder *b, struct state *state)
          nir_ssa_def *z;
 
          if (state->topology == IR3_TESS_TRIANGLES)
-            z = nir_fsub(b, nir_fsub(b, nir_imm_float(b, 1.0f), y), x);
+            z = nir_fsub(b, nir_fsub_imm(b, 1.0f, y), x);
          else
             z = nir_imm_float(b, 0.0f);
 

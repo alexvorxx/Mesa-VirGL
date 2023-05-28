@@ -1,26 +1,7 @@
 /*
  * Copyright 2013 Advanced Micro Devices, Inc.
- * All Rights Reserved.
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * on the rights to use, copy, modify, merge, publish, distribute, sub
- * license, and/or sell copies of the Software, and to permit persons to whom
- * the Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
- * THE AUTHOR(S) AND/OR THEIR SUPPLIERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
- * USE OR OTHER DEALINGS IN THE SOFTWARE.
- *
+ * SPDX-License-Identifier: MIT
  */
 
 #include "si_compute.h"
@@ -70,8 +51,8 @@ static const amd_kernel_code_t *si_compute_get_code_object(const struct si_compu
                                                 .shader_type = MESA_SHADER_COMPUTE,
                                                 .wave_size = program->shader.wave_size,
                                                 .num_parts = 1,
-                                                .elf_ptrs = &program->shader.binary.elf_buffer,
-                                                .elf_sizes = &program->shader.binary.elf_size}))
+                                                .elf_ptrs = &program->shader.binary.code_buffer,
+                                                .elf_sizes = &program->shader.binary.code_size}))
       return NULL;
 
    const amd_kernel_code_t *result = NULL;
@@ -201,7 +182,6 @@ static void si_create_compute_state_async(void *job, void *gdata, int thread_ind
                                               sscreen->info.wave64_vgpr_alloc_granularity == 8) ? 8 : 4)) |
                              S_00B848_DX10_CLAMP(1) |
                              S_00B848_MEM_ORDERED(si_shader_mem_ordered(shader)) |
-                             S_00B848_WGP_MODE(sscreen->info.gfx_level >= GFX10) |
                              S_00B848_FLOAT_MODE(shader->config.float_mode);
 
       if (sscreen->info.gfx_level < GFX10) {
@@ -269,13 +249,14 @@ static void *si_create_compute_state(struct pipe_context *ctx, const struct pipe
       const struct pipe_binary_program_header *header;
       header = cso->prog;
 
-      program->shader.binary.elf_size = header->num_bytes;
-      program->shader.binary.elf_buffer = malloc(header->num_bytes);
-      if (!program->shader.binary.elf_buffer) {
+      program->shader.binary.type = SI_SHADER_BINARY_ELF;
+      program->shader.binary.code_size = header->num_bytes;
+      program->shader.binary.code_buffer = malloc(header->num_bytes);
+      if (!program->shader.binary.code_buffer) {
          FREE(program);
          return NULL;
       }
-      memcpy((void *)program->shader.binary.elf_buffer, header->blob, header->num_bytes);
+      memcpy((void *)program->shader.binary.code_buffer, header->blob, header->num_bytes);
 
       /* This is only for clover without NIR. */
       program->shader.wave_size = sscreen->info.gfx_level >= GFX10 ? 32 : 64;
@@ -288,7 +269,7 @@ static void *si_create_compute_state(struct pipe_context *ctx, const struct pipe
 
       if (!ok) {
          fprintf(stderr, "LLVM failed to upload shader\n");
-         free((void *)program->shader.binary.elf_buffer);
+         free((void *)program->shader.binary.code_buffer);
          FREE(program);
          return NULL;
       }
@@ -337,14 +318,13 @@ static void si_bind_compute_state(struct pipe_context *ctx, void *state)
    sctx->compute_shaderbuf_sgprs_dirty = true;
    sctx->compute_image_sgprs_dirty = true;
 
-   if (unlikely((sctx->screen->debug_flags & DBG(SQTT)) && sctx->thread_trace)) {
+   if (unlikely((sctx->screen->debug_flags & DBG(SQTT)) && sctx->sqtt)) {
       uint32_t pipeline_code_hash = _mesa_hash_data_with_seed(
-         program->shader.binary.elf_buffer,
-         program->shader.binary.elf_size,
+         program->shader.binary.code_buffer,
+         program->shader.binary.code_size,
          0);
 
-      struct ac_thread_trace_data *thread_trace_data = sctx->thread_trace;
-      if (!si_sqtt_pipeline_is_registered(thread_trace_data, pipeline_code_hash)) {
+      if (!si_sqtt_pipeline_is_registered(sctx->sqtt, pipeline_code_hash)) {
          /* Short lived fake pipeline: we don't need to reupload the compute shaders,
           * as we do for the gfx ones so just create a temp pipeline to be able to
           * call si_sqtt_register_pipeline, and then drop it.
@@ -769,7 +749,7 @@ static void si_emit_dispatch_packets(struct si_context *sctx, const struct pipe_
    if (sctx->gfx_level >= GFX10 && waves_per_threadgroup == 1)
       threadgroups_per_cu = 2;
 
-   if (unlikely(sctx->thread_trace_enabled)) {
+   if (unlikely(sctx->sqtt_enabled)) {
       si_write_event_with_dims_marker(sctx, &sctx->gfx_cs,
                                       info->indirect ? EventCmdDispatchIndirect : EventCmdDispatch,
                                       info->grid[0], info->grid[1], info->grid[2]);
@@ -839,7 +819,7 @@ static void si_emit_dispatch_packets(struct si_context *sctx, const struct pipe_
       radeon_emit(dispatch_initiator);
    }
 
-   if (unlikely(sctx->thread_trace_enabled && sctx->gfx_level >= GFX9)) {
+   if (unlikely(sctx->sqtt_enabled && sctx->gfx_level >= GFX9)) {
       radeon_emit(PKT3(PKT3_EVENT_WRITE, 0, 0));
       radeon_emit(EVENT_TYPE(V_028A90_THREAD_TRACE_MARKER) | EVENT_INDEX(0));
    }

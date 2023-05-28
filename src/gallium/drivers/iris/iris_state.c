@@ -384,6 +384,20 @@ emit_state(struct iris_batch *batch,
 static void
 flush_before_state_base_change(struct iris_batch *batch)
 {
+   /* Wa_14014427904 - We need additional invalidate/flush when
+    * emitting NP state commands with ATS-M in compute mode.
+    */
+   bool atsm_compute = intel_device_info_is_atsm(batch->screen->devinfo) &&
+                       batch->name == IRIS_BATCH_COMPUTE;
+   uint32_t np_state_wa_bits =
+      PIPE_CONTROL_CS_STALL |
+      PIPE_CONTROL_STATE_CACHE_INVALIDATE |
+      PIPE_CONTROL_CONST_CACHE_INVALIDATE |
+      PIPE_CONTROL_UNTYPED_DATAPORT_CACHE_FLUSH |
+      PIPE_CONTROL_TEXTURE_CACHE_INVALIDATE |
+      PIPE_CONTROL_INSTRUCTION_INVALIDATE |
+      PIPE_CONTROL_FLUSH_HDC;
+
    /* Flush before emitting STATE_BASE_ADDRESS.
     *
     * This isn't documented anywhere in the PRM.  However, it seems to be
@@ -407,6 +421,7 @@ flush_before_state_base_change(struct iris_batch *batch)
     */
    iris_emit_end_of_pipe_sync(batch,
                               "change STATE_BASE_ADDRESS (flushes)",
+                              atsm_compute ? np_state_wa_bits : 0 |
                               PIPE_CONTROL_RENDER_TARGET_FLUSH |
                               PIPE_CONTROL_DEPTH_CACHE_FLUSH |
                               PIPE_CONTROL_DATA_CACHE_FLUSH);
@@ -617,6 +632,31 @@ iris_copy_mem_mem(struct iris_batch *batch,
    }
 
    iris_batch_sync_region_end(batch);
+}
+
+static void
+iris_rewrite_compute_walker_pc(struct iris_batch *batch,
+                               uint32_t *walker,
+                               struct iris_bo *bo,
+                               uint32_t offset)
+{
+#if GFX_VERx10 >= 125
+   struct iris_screen *screen = batch->screen;
+   struct iris_address addr = rw_bo(bo, offset, IRIS_DOMAIN_OTHER_WRITE);
+
+   uint32_t dwords[GENX(COMPUTE_WALKER_length)];
+
+   _iris_pack_command(batch, GENX(COMPUTE_WALKER), dwords, cw) {
+      cw.PostSync.Operation          = WriteTimestamp;
+      cw.PostSync.DestinationAddress = addr;
+      cw.PostSync.MOCS               = iris_mocs(NULL, &screen->isl_dev, 0);
+   }
+
+   for (uint32_t i = 0; i < GENX(COMPUTE_WALKER_length); i++)
+      walker[i] |= dwords[i];
+#else
+   unreachable("Unsupported");
+#endif
 }
 
 static void
@@ -4276,17 +4316,6 @@ iris_create_so_decl_list(const struct pipe_stream_output_info *info,
       sol.Buffer1SurfacePitch = 4 * info->stride[1];
       sol.Buffer2SurfacePitch = 4 * info->stride[2];
       sol.Buffer3SurfacePitch = 4 * info->stride[3];
-
-#if INTEL_NEEDS_WA_14017076903
-      /* Wa_14017076903 : SOL should be programmed to force the
-       * rendering to be enabled.
-       *
-       * This fixes a rare case where SOL must render to get correct
-       * occlusion query results even when no PS and depth buffers are
-       * bound.
-       */
-      sol.ForceRendering = Force_on;
-#endif
    }
 
    iris_pack_command(GENX(3DSTATE_SO_DECL_LIST), so_decl_map, list) {
@@ -6706,6 +6735,41 @@ iris_upload_dirty_render_state(struct iris_context *ice,
             sol.RenderingDisable = cso_rast->rasterizer_discard &&
                                    !ice->state.prims_generated_query_active;
             sol.ReorderMode = cso_rast->flatshade_first ? LEADING : TRAILING;
+
+
+#if INTEL_NEEDS_WA_14017076903
+            /* Wa_14017076903 :
+             *
+             * SKL PRMs, Volume 7: 3D-Media-GPGPU, Stream Output Logic (SOL) Stage:
+             *
+             * SOL_INT::Render_Enable =
+             *   (3DSTATE_STREAMOUT::Force_Rending == Force_On) ||
+             *   (
+             *     (3DSTATE_STREAMOUT::Force_Rending != Force_Off) &&
+             *     !(3DSTATE_GS::Enable && 3DSTATE_GS::Output Vertex Size == 0) &&
+             *     !3DSTATE_STREAMOUT::API_Render_Disable &&
+             *     (
+             *       3DSTATE_DEPTH_STENCIL_STATE::Stencil_TestEnable ||
+             *       3DSTATE_DEPTH_STENCIL_STATE::Depth_TestEnable ||
+             *       3DSTATE_DEPTH_STENCIL_STATE::Depth_WriteEnable ||
+             *       3DSTATE_PS_EXTRA::PS_Valid ||
+             *       3DSTATE_WM::Legacy Depth_Buffer_Clear ||
+             *       3DSTATE_WM::Legacy Depth_Buffer_Resolve_Enable ||
+             *       3DSTATE_WM::Legacy Hierarchical_Depth_Buffer_Resolve_Enable
+             *     )
+             *   )
+             *
+             * If SOL_INT::Render_Enable is false, the SO stage will not forward any
+             * topologies down the pipeline. Which is not what we want for occlusion
+             * queries.
+             *
+             * Here we force rendering to get SOL_INT::Render_Enable when occlusion
+             * queries are active.
+             */
+            const struct iris_rasterizer_state *cso_rast = ice->state.cso_rast;
+            if (!cso_rast->rasterizer_discard && ice->state.occlusion_query_active)
+               sol.ForceRendering = Force_on;
+#endif
          }
 
          assert(ice->state.streamout);
@@ -7613,7 +7677,10 @@ iris_upload_compute_walker(struct iris_context *ice,
 
    iris_measure_snapshot(ice, batch, INTEL_SNAPSHOT_COMPUTE, NULL, NULL, NULL);
 
-   iris_emit_cmd(batch, GENX(COMPUTE_WALKER), cw) {
+   ice->utrace.last_compute_walker =
+      iris_emit_dwords(batch, GENX(COMPUTE_WALKER_length));
+   _iris_pack_command(batch, GENX(COMPUTE_WALKER),
+                      ice->utrace.last_compute_walker, cw) {
       cw.IndirectParameterEnable        = grid->indirect;
       cw.SIMDSize                       = dispatch.simd_size / 16;
       cw.LocalXMaximum                  = grid->block[0] - 1;
@@ -7884,10 +7951,7 @@ iris_destroy_state(struct iris_context *ice)
       pipe_so_target_reference(&ice->state.so_target[i], NULL);
    }
 
-   for (unsigned i = 0; i < ice->state.framebuffer.nr_cbufs; i++) {
-      pipe_surface_reference(&ice->state.framebuffer.cbufs[i], NULL);
-   }
-   pipe_surface_reference(&ice->state.framebuffer.zsbuf, NULL);
+   util_unreference_framebuffer_state(&ice->state.framebuffer);
 
    for (int stage = 0; stage < MESA_SHADER_STAGES; stage++) {
       struct iris_shader_state *shs = &ice->state.shaders[stage];
@@ -8889,6 +8953,7 @@ genX(init_screen_state)(struct iris_screen *screen)
    screen->vtbl.update_binder_address = iris_update_binder_address;
    screen->vtbl.upload_compute_state = iris_upload_compute_state;
    screen->vtbl.emit_raw_pipe_control = iris_emit_raw_pipe_control;
+   screen->vtbl.rewrite_compute_walker_pc = iris_rewrite_compute_walker_pc;
    screen->vtbl.emit_mi_report_perf_count = iris_emit_mi_report_perf_count;
    screen->vtbl.rebind_buffer = iris_rebind_buffer;
    screen->vtbl.load_register_reg32 = iris_load_register_reg32;

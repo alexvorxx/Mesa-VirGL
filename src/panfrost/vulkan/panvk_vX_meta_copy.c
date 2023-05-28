@@ -336,7 +336,7 @@ panvk_meta_copy_img2img_shader(struct panfrost_device *pdev,
    }
 
    nir_ssa_dest_init(&tex->instr, &tex->dest, 4,
-                     nir_alu_type_get_type_size(tex->dest_type), NULL);
+                     nir_alu_type_get_type_size(tex->dest_type));
    nir_builder_instr_insert(&b, &tex->instr);
 
    nir_ssa_def *texel = &tex->dest.ssa;
@@ -920,7 +920,7 @@ panvk_meta_copy_buf2img_shader(struct panfrost_device *pdev,
       /* Blendable formats are unorm and the fixed-function blend unit
        * takes float values.
        */
-      texel = nir_fmul(&b, nir_u2f32(&b, texel), nir_imm_float(&b, 1.0f / 255));
+      texel = nir_fmul_imm(&b, nir_u2f32(&b, texel), 1.0f / 255);
       basetype = GLSL_TYPE_FLOAT;
    } else {
       texel = nir_u2uN(&b, texel, imgcompsz * 8);
@@ -1362,7 +1362,7 @@ panvk_meta_copy_img2buf_shader(struct panfrost_device *pdev,
    tex->src[0].src = nir_src_for_ssa(imgcoords);
    tex->coord_components = texdim + texisarray;
    nir_ssa_dest_init(&tex->instr, &tex->dest, 4,
-                     nir_alu_type_get_type_size(tex->dest_type), NULL);
+                     nir_alu_type_get_type_size(tex->dest_type));
    nir_builder_instr_insert(&b, &tex->instr);
 
    nir_ssa_def *texel = &tex->dest.ssa;

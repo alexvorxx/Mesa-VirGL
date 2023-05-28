@@ -329,7 +329,7 @@ sample_plane(nir_builder *b, nir_tex_instr *tex, int plane,
    plane_tex->sampler_index = tex->sampler_index;
 
    nir_ssa_dest_init(&plane_tex->instr, &plane_tex->dest, 4,
-         nir_dest_bit_size(tex->dest), NULL);
+                     nir_dest_bit_size(tex->dest));
 
    nir_builder_instr_insert(b, &plane_tex->instr);
 
@@ -824,8 +824,9 @@ lower_tex_to_txd(nir_builder *b, nir_tex_instr *tex)
    txd->src[tex->num_srcs + 1].src = nir_src_for_ssa(dfdy);
    txd->src[tex->num_srcs + 1].src_type = nir_tex_src_ddy;
 
-   nir_ssa_dest_init(&txd->instr, &txd->dest, nir_dest_num_components(tex->dest),
-                     nir_dest_bit_size(tex->dest), NULL);
+   nir_ssa_dest_init(&txd->instr, &txd->dest,
+                     nir_dest_num_components(tex->dest),
+                     nir_dest_bit_size(tex->dest));
    nir_builder_instr_insert(b, &txd->instr);
    nir_ssa_def_rewrite_uses(&tex->dest.ssa, &txd->dest.ssa);
    nir_instr_remove(&tex->instr);
@@ -864,8 +865,9 @@ lower_txb_to_txl(nir_builder *b, nir_tex_instr *tex)
    txl->src[tex->num_srcs - 1].src = nir_src_for_ssa(lod);
    txl->src[tex->num_srcs - 1].src_type = nir_tex_src_lod;
 
-   nir_ssa_dest_init(&txl->instr, &txl->dest, nir_dest_num_components(tex->dest),
-                     nir_dest_bit_size(tex->dest), NULL);
+   nir_ssa_dest_init(&txl->instr, &txl->dest,
+                     nir_dest_num_components(tex->dest),
+                     nir_dest_bit_size(tex->dest));
    nir_builder_instr_insert(b, &txl->instr);
    nir_ssa_def_rewrite_uses(&tex->dest.ssa, &txl->dest.ssa);
    nir_instr_remove(&tex->instr);
@@ -1101,27 +1103,6 @@ lower_tex_packing(nir_builder *b, nir_tex_instr *tex,
 }
 
 static bool
-lower_array_layer_round_even(nir_builder *b, nir_tex_instr *tex)
-{
-   int coord_index = nir_tex_instr_src_index(tex, nir_tex_src_coord);
-   if (coord_index < 0 || nir_tex_instr_src_type(tex, coord_index) != nir_type_float)
-      return false;
-
-   assert(tex->src[coord_index].src.is_ssa);
-   nir_ssa_def *coord = tex->src[coord_index].src.ssa;
-
-   b->cursor = nir_before_instr(&tex->instr);
-
-   unsigned layer = tex->coord_components - 1;
-   nir_ssa_def *rounded_layer = nir_fround_even(b, nir_channel(b, coord, layer));
-   nir_ssa_def *new_coord = nir_vector_insert_imm(b, coord, rounded_layer, layer);
-
-   nir_instr_rewrite_src_ssa(&tex->instr, &tex->src[coord_index].src, new_coord);
-
-   return true;
-}
-
-static bool
 sampler_index_lt(nir_tex_instr *tex, unsigned max)
 {
    assert(nir_tex_instr_src_index(tex, nir_tex_src_sampler_deref) == -1);
@@ -1176,7 +1157,7 @@ lower_tg4_offsets(nir_builder *b, nir_tex_instr *tex)
       tex_copy->src[tex_copy->num_srcs - 1] = src;
 
       nir_ssa_dest_init(&tex_copy->instr, &tex_copy->dest,
-                        nir_tex_instr_dest_size(tex), 32, NULL);
+                        nir_tex_instr_dest_size(tex), 32);
 
       nir_builder_instr_insert(b, &tex_copy->instr);
 
@@ -1298,7 +1279,7 @@ nir_lower_ms_txf_to_fragment_fetch(nir_builder *b, nir_tex_instr *tex)
    fmask_fetch->is_array = tex->is_array;
    fmask_fetch->texture_non_uniform = tex->texture_non_uniform;
    fmask_fetch->dest_type = nir_type_uint32;
-   nir_ssa_dest_init(&fmask_fetch->instr, &fmask_fetch->dest, 1, 32, NULL);
+   nir_ssa_dest_init(&fmask_fetch->instr, &fmask_fetch->dest, 1, 32);
 
    fmask_fetch->num_srcs = 0;
    for (unsigned i = 0; i < tex->num_srcs; i++) {
@@ -1331,7 +1312,7 @@ nir_lower_samples_identical_to_fragment_fetch(nir_builder *b, nir_tex_instr *tex
    nir_tex_instr *fmask_fetch = nir_instr_as_tex(nir_instr_clone(b->shader, &tex->instr));
    fmask_fetch->op = nir_texop_fragment_mask_fetch_amd;
    fmask_fetch->dest_type = nir_type_uint32;
-   nir_ssa_dest_init(&fmask_fetch->instr, &fmask_fetch->dest, 1, 32, NULL);
+   nir_ssa_dest_init(&fmask_fetch->instr, &fmask_fetch->dest, 1, 32);
    nir_builder_instr_insert(b, &fmask_fetch->instr);
 
    nir_ssa_def_rewrite_uses(&tex->dest.ssa, nir_ieq_imm(b, &fmask_fetch->dest.ssa, 0));
@@ -1557,11 +1538,6 @@ nir_lower_tex_block(nir_block *block, nir_builder *b,
           tex->op != nir_texop_texture_samples) {
          lower_tex_packing(b, tex, options);
          progress = true;
-      }
-
-      if (options->lower_array_layer_round_even && tex->is_array &&
-          tex->op != nir_texop_lod) {
-         progress |= lower_array_layer_round_even(b, tex);
       }
 
       if (tex->op == nir_texop_txd &&

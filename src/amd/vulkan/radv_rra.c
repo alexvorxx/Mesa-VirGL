@@ -159,7 +159,7 @@ amdgpu_vram_type_to_rra(uint32_t type)
 }
 
 static void
-rra_dump_asic_info(struct radeon_info *rad_info, FILE *output)
+rra_dump_asic_info(const struct radeon_info *rad_info, FILE *output)
 {
    struct rra_asic_info asic_info = {
       /* All frequencies are in Hz */
@@ -899,7 +899,7 @@ exit:
 int
 radv_rra_trace_frame()
 {
-   return radv_get_int_debug_option("RADV_RRA_TRACE", -1);
+   return (int)debug_get_num_option("RADV_RRA_TRACE", -1);
 }
 
 char *
@@ -920,9 +920,9 @@ radv_rra_trace_init(struct radv_device *device)
    device->rra_trace.trace_frame = radv_rra_trace_frame();
    device->rra_trace.elapsed_frames = 0;
    device->rra_trace.trigger_file = radv_rra_trace_trigger_file();
-   device->rra_trace.validate_as = radv_get_int_debug_option("RADV_RRA_TRACE_VALIDATE", 0) != 0;
+   device->rra_trace.validate_as = debug_get_bool_option("RADV_RRA_TRACE_VALIDATE", false);
    device->rra_trace.copy_after_build =
-      radv_get_int_debug_option("RADV_RRA_TRACE_COPY_AFTER_BUILD", 0) != 0;
+      debug_get_bool_option("RADV_RRA_TRACE_COPY_AFTER_BUILD", false);
    device->rra_trace.accel_structs = _mesa_pointer_hash_table_create(NULL);
    device->rra_trace.accel_struct_vas = _mesa_hash_table_u64_create(NULL);
    simple_mtx_init(&device->rra_trace.data_mtx, mtx_plain);
