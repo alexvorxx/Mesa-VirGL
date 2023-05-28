@@ -1,4 +1,9 @@
+
 #!/bin/sh
+
+#!/usr/bin/env bash
+# shellcheck disable=SC2086 # we want word splitting
+
 
 set -ex
 
@@ -6,6 +11,7 @@ if [ -z "$GPU_VERSION" ]; then
    echo 'GPU_VERSION must be set to something like "llvmpipe" or "freedreno-a630" (the name used in your ci/gpu-version-*.txt)'
    exit 1
 fi
+
 
 INSTALL=`pwd`/install
 
@@ -15,6 +21,16 @@ export EGL_PLATFORM=surfaceless
 export VK_ICD_FILENAMES=`pwd`/install/share/vulkan/icd.d/"$VK_DRIVER"_icd.${VK_CPU:-`uname -m`}.json
 
 RESULTS=`pwd`/${PIGLIT_RESULTS_DIR:-results}
+
+INSTALL="$PWD/install"
+
+# Set up the driver environment.
+export LD_LIBRARY_PATH="$INSTALL/lib/"
+export EGL_PLATFORM=surfaceless
+export VK_ICD_FILENAMES="$INSTALL/share/vulkan/icd.d/${VK_DRIVER}_icd.${VK_CPU:-$(uname -m)}.json"
+
+RESULTS=$PWD/${PIGLIT_RESULTS_DIR:-results}
+
 mkdir -p $RESULTS
 
 # Ensure Mesa Shader Cache resides on tmpfs.
@@ -42,8 +58,13 @@ if [ "$GALLIUM_DRIVER" = "virpipe" ]; then
     sleep 1
 fi
 
+
 if [ -n "$PIGLIT_FRACTION" -o -n "$CI_NODE_INDEX" ]; then
    FRACTION=`expr ${PIGLIT_FRACTION:-1} \* ${CI_NODE_TOTAL:-1}`
+
+if [ -n "$PIGLIT_FRACTION" ] || [ -n "$CI_NODE_INDEX" ]; then
+    FRACTION=$((${PIGLIT_FRACTION:-1} * ${CI_NODE_TOTAL:-1}))
+
 PIGLIT_RUNNER_OPTIONS="$PIGLIT_RUNNER_OPTIONS --fraction $FRACTION"
 fi
 

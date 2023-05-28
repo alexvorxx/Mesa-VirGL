@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# shellcheck disable=SC2086 # we want word splitting
+
 if [ -z "$BM_POE_INTERFACE" ]; then
     echo "Must supply the PoE Interface to power up"
     exit 1
@@ -19,3 +21,8 @@ SNMP_OFF="i 4"
 snmpset -v2c -r 3 -t 10 -cmesaci $BM_POE_ADDRESS $SNMP_KEY $SNMP_OFF
 sleep 3s
 snmpset -v2c -r 3 -t 10 -cmesaci $BM_POE_ADDRESS $SNMP_KEY $SNMP_ON
+
+snmpset -v2c -r 3 -t 10 -cmesaci "$BM_POE_ADDRESS" "$SNMP_KEY" $SNMP_OFF
+sleep 3s
+snmpset -v2c -r 3 -t 10 -cmesaci "$BM_POE_ADDRESS" "$SNMP_KEY" $SNMP_ON
+

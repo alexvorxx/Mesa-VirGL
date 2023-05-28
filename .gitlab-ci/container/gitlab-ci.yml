@@ -51,7 +51,11 @@
     - .incorporate-templates-commit
     - .use-wine
   variables:
+
     FDO_DISTRIBUTION_VERSION: bullseye-slim
+
+    FDO_DISTRIBUTION_VERSION: bookworm-slim
+
     FDO_REPO_SUFFIX: $CI_JOB_NAME
     FDO_DISTRIBUTION_EXEC: 'bash .gitlab-ci/container/${CI_JOB_NAME}.sh'
     # no need to pull the whole repo to build the container image
@@ -64,7 +68,11 @@
     # Don't want the .container rules
     - .build-rules
 
+
 # Debian 11 based x86 build image base
+
+# Debian based x86 build image base
+
 debian/x86_build-base:
   extends:
     - .fdo.container-build@debian
@@ -83,7 +91,11 @@ debian/x86_build-base:
   needs:
     - debian/x86_build-base
 
+
 # Debian 11 based x86 main build image
+
+# Debian based x86 main build image
+
 debian/x86_build:
   extends:
     - .use-debian/x86_build-base
@@ -100,7 +112,11 @@ debian/x86_build:
   needs:
     - debian/x86_build
 
+
 # Debian 11 based i386 cross-build image
+
+# Debian based i386 cross-build image
+
 debian/i386_build:
   extends:
     - .use-debian/x86_build-base
@@ -117,8 +133,14 @@ debian/i386_build:
   needs:
     - debian/i386_build
 
+
 # Debian 11 based x86-mingw cross main build image
 debian/x86_build-mingw:
+
+# Debian based x86-mingw cross main build image
+# FIXME: Until gets fixed on Debian 12, disabled.
+.debian/x86_build-mingw:
+
   extends:
     - .use-debian/x86_build-base
   variables:
@@ -132,9 +154,15 @@ debian/x86_build-mingw:
     MESA_IMAGE_PATH: ${DEBIAN_X86_BUILD_MINGW_IMAGE_PATH}
     MESA_IMAGE_TAG: *debian-x86_build_mingw
   needs:
+
     - debian/x86_build-mingw
 
 # Debian 11 based ppc64el cross-build image
+
+    - .debian/x86_build-mingw
+
+# Debian based ppc64el cross-build image
+
 debian/ppc64el_build:
   extends:
     - .use-debian/x86_build-base
@@ -151,7 +179,11 @@ debian/ppc64el_build:
   needs:
     - debian/ppc64el_build
 
+
 # Debian 11 based s390x cross-build image
+
+# Debian based s390x cross-build image
+
 debian/s390x_build:
   extends:
     - .use-debian/x86_build-base
@@ -187,11 +219,19 @@ debian/android_build:
   needs:
     - debian/android_build
 
+
 # Debian 11 based x86 test image base
 debian/x86_test-base:
   extends: debian/x86_build-base
   variables:
     KERNEL_URL: &kernel-rootfs-url "https://gitlab.freedesktop.org/gfx-ci/linux/-/archive/v6.3-for-mesa-ci-43c973a8ff91/linux-v6.3-for-mesa-ci-43c973a8ff91.tar.bz2"
+
+# Debian based x86 test image base
+debian/x86_test-base:
+  extends: debian/x86_build-base
+  variables:
+    KERNEL_URL: &kernel-rootfs-url "https://gitlab.freedesktop.org/gfx-ci/linux/-/archive/v6.3-for-mesa-ci-43c973a8ff91/linux-v6.3-for-mesa-ci-6fc749a2a59a.tar.bz2"
+
     MESA_IMAGE_TAG: &debian-x86_test-base ${DEBIAN_BASE_TAG}
 
 .use-debian/x86_test-base:
@@ -204,7 +244,11 @@ debian/x86_test-base:
   needs:
     - debian/x86_test-base
 
+
 # Debian 11 based x86 test image for GL
+
+# Debian based x86 test image for GL
+
 debian/x86_test-gl:
   extends: .use-debian/x86_test-base
   variables:
@@ -220,7 +264,11 @@ debian/x86_test-gl:
   needs:
     - debian/x86_test-gl
 
+
 # Debian 11 based x86 test image for VK
+
+# Debian based x86 test image for VK
+
 debian/x86_test-vk:
   extends: .use-debian/x86_test-base
   variables:
@@ -236,7 +284,11 @@ debian/x86_test-vk:
   needs:
     - debian/x86_test-vk
 
+
 # Debian 11 based x86 test image for Android
+
+# Debian based x86 test image for Android
+
 debian/x86_test-android:
   extends: .use-debian/x86_test-base
   variables:
@@ -253,7 +305,11 @@ debian/x86_test-android:
   needs:
     - debian/x86_test-android
 
+
 # Debian 11 based ARM build image
+
+# Debian based ARM build image
+
 debian/arm_build:
   extends:
     - .fdo.container-build@debian
@@ -292,13 +348,21 @@ alpine/x86_build:
   needs:
     - alpine/x86_build
 
+
 # Fedora 36 based x86 build image
+
+# Fedora based x86 build image
+
 fedora/x86_build:
   extends:
     - .fdo.container-build@fedora
     - .container
   variables:
+
     FDO_DISTRIBUTION_VERSION: 36
+
+    FDO_DISTRIBUTION_VERSION: 38
+
     MESA_IMAGE_TAG: &fedora-x86_build ${FEDORA_X86_BUILD_TAG}
 
 .use-fedora/x86_build:

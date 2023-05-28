@@ -1,5 +1,8 @@
 #!/bin/bash
 
+#!/usr/bin/env bash
+
+
 set -e
 set -o xtrace
 
@@ -12,5 +15,9 @@ apt-get install -y --no-remove \
       xvfb
 
 # Used to initialize the Wine environment to reduce build time
+
 wine64 whoami.exe
+
+
+wine wineboot.exe --init
 

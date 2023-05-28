@@ -11,6 +11,9 @@ set -o xtrace
 
 export DEBIAN_FRONTEND=noninteractive
 
+export LLVM_VERSION="${LLVM_VERSION:=15}"
+
+
 check_minio()
 {
     MINIO_PATH="${MINIO_HOST}/mesa-lava/$1/${DISTRIBUTION_TAG}/${DEBIAN_ARCH}"
@@ -94,10 +97,17 @@ apt-get install -y --no-remove \
                    ${ARCH_PACKAGES} \
                    automake \
                    bc \
+
                    clang \
                    cmake \
 		   curl \
                    debootstrap \
+
+                   clang-${LLVM_VERSION} \
+                   cmake \
+		   curl \
+                   mmdebstrap \
+
                    git \
                    glslang-tools \
                    libdrm-dev \
@@ -120,6 +130,9 @@ apt-get install -y --no-remove \
                    libxkbcommon-dev \
                    libwayland-dev \
                    ninja-build \
+
+                   openssh-server \
+
                    patch \
                    protobuf-compiler \
                    python-is-python3 \
@@ -147,7 +160,72 @@ if [[ "$DEBIAN_ARCH" = "armhf" ]]; then
 fi
 
 ROOTFS=/lava-files/rootfs-${DEBIAN_ARCH}
+
 mkdir -p $ROOTFS
+
+mkdir -p "$ROOTFS"
+
+# rootfs packages
+PKG_BASE=(
+  tzdata mount
+)
+PKG_CI=(
+  firmware-realtek
+  bash ca-certificates curl
+  initramfs-tools jq netcat-openbsd dropbear openssh-server
+  libasan8
+  git
+  python3-dev python3-pip python3-setuptools python3-wheel
+  weston # Wayland
+  xinit xserver-xorg-core xwayland # X11
+)
+PKG_MESA_DEP=(
+  libdrm2 libsensors5 libexpat1 # common
+  libvulkan1 # vulkan
+  libx11-6 libx11-xcb1 libxcb-dri2-0 libxcb-dri3-0 libxcb-glx0 libxcb-present0 libxcb-randr0 libxcb-shm0 libxcb-sync1 libxcb-xfixes0 libxdamage1 libxext6 libxfixes3 libxkbcommon0 libxrender1 libxshmfence1 libxxf86vm1 # X11
+)
+PKG_DEP=(
+  libpng16-16
+  libwaffle-1-0
+  libpython3.11 python3 python3-lxml python3-mako python3-numpy python3-packaging python3-pil python3-renderdoc python3-requests python3-simplejson python3-yaml # Python
+  sntp
+  strace
+  waffle-utils
+  zstd
+)
+# arch dependent rootfs packages
+[ "$DEBIAN_ARCH" = "arm64" ] && PKG_ARCH=(
+  libgl1 libglu1-mesa
+  libvulkan-dev
+  firmware-linux-nonfree firmware-qcom-media
+  libfontconfig1
+)
+[ "$DEBIAN_ARCH" = "amd64" ] && PKG_ARCH=(
+  firmware-amd-graphics
+  libgl1 libglu1-mesa
+  inetutils-syslogd iptables libcap2
+  libfontconfig1
+  spirv-tools
+  libelf1 libfdt1 "libllvm${LLVM_VERSION}"
+  libva2 libva-drm2
+  libvulkan-dev
+  socat
+  sysvinit-core
+  wine
+)
+[ "$DEBIAN_ARCH" = "armhf" ] && PKG_ARCH=(
+  firmware-misc-nonfree
+)
+
+mmdebstrap \
+    --variant=apt \
+    --arch="${DEBIAN_ARCH}" \
+    --components main,contrib,non-free-firmware \
+    --include "${PKG_BASE[*]} ${PKG_CI[*]} ${PKG_DEP[*]} ${PKG_MESA_DEP[*]} ${PKG_ARCH[*]}" \
+    bookworm \
+    "$ROOTFS/" \
+    "http://deb.debian.org/debian"
+
 
 ############### Setuping
 if [ "$DEBIAN_ARCH" = "amd64" ]; then
@@ -157,10 +235,19 @@ if [ "$DEBIAN_ARCH" = "amd64" ]; then
 fi
 
 ############### Installing
+
 . .gitlab-ci/container/install-wine-apitrace.sh
 mkdir -p "$ROOTFS/apitrace-msvc-win64"
 mv /apitrace-msvc-win64/bin "$ROOTFS/apitrace-msvc-win64"
 rm -rf /apitrace-msvc-win64
+
+if [ "$DEBIAN_ARCH" = "amd64" ]; then
+  . .gitlab-ci/container/install-wine-apitrace.sh
+  mkdir -p "$ROOTFS/apitrace-msvc-win64"
+  mv /apitrace-msvc-win64/bin "$ROOTFS/apitrace-msvc-win64"
+  rm -rf /apitrace-msvc-win64
+fi
+
 
 ############### Building
 STRIP_CMD="${GCC_ARCH}-strip"
@@ -214,10 +301,15 @@ fi
 if [[ ${DEBIAN_ARCH} = "amd64" ]]; then
     . .gitlab-ci/container/build-crosvm.sh
     mv /usr/local/bin/crosvm $ROOTFS/usr/bin/
+
     mv /usr/local/lib/$GCC_ARCH/libvirglrenderer.* $ROOTFS/usr/lib/$GCC_ARCH/
+
+    mv /usr/local/lib/libvirglrenderer.* $ROOTFS/usr/lib/$GCC_ARCH/
+
     mkdir -p $ROOTFS/usr/local/libexec/
     mv /usr/local/libexec/virgl* $ROOTFS/usr/local/libexec/
 fi
+
 
 ############### Build libdrm
 EXTRA_MESON_ARGS+=" -D prefix=/libdrm"
@@ -238,6 +330,7 @@ fi
 ############### Delete rust, since the tests won't be compiling anything.
 rm -rf /root/.cargo
 rm -rf /root/.rustup
+
 
 ############### Create rootfs
 set +e
@@ -286,12 +379,31 @@ rm -rf /libdrm
 
 
 if [ ${DEBIAN_ARCH} = arm64 ]; then
+
+############### Fill rootfs
+cp .gitlab-ci/container/setup-rootfs.sh $ROOTFS/.
+cp .gitlab-ci/container/strip-rootfs.sh $ROOTFS/.
+cp .gitlab-ci/container/debian/llvm-snapshot.gpg.key $ROOTFS/.
+cp .gitlab-ci/container/debian/winehq.gpg.key $ROOTFS/.
+chroot $ROOTFS bash /setup-rootfs.sh
+rm $ROOTFS/{llvm-snapshot,winehq}.gpg.key
+rm "$ROOTFS/setup-rootfs.sh"
+rm "$ROOTFS/strip-rootfs.sh"
+cp /etc/wgetrc $ROOTFS/etc/.
+
+if [ "${DEBIAN_ARCH}" = "arm64" ]; then
+    mkdir -p /lava-files/rootfs-arm64/lib/firmware/qcom/sm8350/  # for firmware imported later
+
     # Make a gzipped copy of the Image for db410c.
     gzip -k /lava-files/Image
     KERNEL_IMAGE_NAME+=" Image.gz"
 fi
 
+
 du -ah $ROOTFS | sort -h | tail -100
+
+du -ah "$ROOTFS" | sort -h | tail -100
+
 pushd $ROOTFS
   tar --zstd -cf /lava-files/lava-rootfs.tar.zst .
 popd

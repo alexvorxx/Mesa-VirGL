@@ -1,10 +1,16 @@
 #!/bin/bash
+
+#!/usr/bin/env bash
+
 # shellcheck disable=SC2086 # we want word splitting
 
 set -e
 set -o xtrace
 
 export DEBIAN_FRONTEND=noninteractive
+
+export LLVM_VERSION="${LLVM_VERSION:=15}"
+
 
 # Ephemeral packages (installed for this script and removed again at the end)
 STABLE_EPHEMERAL=" \
@@ -21,11 +27,19 @@ apt-get update
 apt-get install -y --no-remove \
       $STABLE_EPHEMERAL \
       check \
+
       clang \
       libasan6 \
       libarchive-dev \
       libclang-cpp13-dev \
       libclang-cpp11-dev \
+
+      clang-${LLVM_VERSION} \
+      libasan8 \
+      libarchive-dev \
+      libdrm-dev \
+      libclang-cpp${LLVM_VERSION}-dev \
+
       libgbm-dev \
       libglvnd-dev \
       liblua5.3-dev \
@@ -39,8 +53,12 @@ apt-get install -y --no-remove \
       libxcb-xfixes0-dev \
       libxcb1-dev \
       libxml2-dev \
+
       llvm-13-dev \
       llvm-11-dev \
+
+      llvm-${LLVM_VERSION}-dev \
+
       ocl-icd-opencl-dev \
       python3-pip \
       python3-venv \
@@ -72,6 +90,7 @@ rm -rf $XORGMACROS_VERSION
 
 . .gitlab-ci/container/build-libclc.sh
 
+
 . .gitlab-ci/container/build-libdrm.sh
 
 . .gitlab-ci/container/build-wayland.sh
@@ -84,6 +103,7 @@ make
 popd
 
 git clone https://github.com/microsoft/DirectX-Headers -b v1.610.0 --depth 1
+
 mkdir -p DirectX-Headers/build
 pushd DirectX-Headers/build
 meson .. --backend=ninja --buildtype=release -Dbuild-test=false
@@ -93,6 +113,15 @@ popd
 rm -rf DirectX-Headers
 
 python3 -m pip install -r .gitlab-ci/lava/requirements.txt
+
+pushd DirectX-Headers
+meson setup build --backend=ninja --buildtype=release -Dbuild-test=false
+meson install -C build
+popd
+rm -rf DirectX-Headers
+
+python3 -m pip install --break-system-packages -r .gitlab-ci/lava/requirements.txt
+
 
 # install bindgen
 RUSTFLAGS='-L native=/usr/local/lib' cargo install \

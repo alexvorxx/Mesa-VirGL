@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+# shellcheck disable=SC1091 # The relative paths in this file only become valid at runtime.
+# shellcheck disable=SC2086 # we want word splitting
+
 set -e
 
 VSOCK_STDOUT=$1
@@ -10,6 +13,10 @@ mount -t proc none /proc
 mount -t sysfs none /sys
 mkdir -p /dev/pts
 mount -t devpts devpts /dev/pts
+
+mkdir /dev/shm
+mount -t tmpfs -o noexec,nodev,nosuid tmpfs /dev/shm
+
 mount -t tmpfs tmpfs /tmp
 
 . ${VM_TEMP_DIR}/crosvm-env.sh

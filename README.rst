@@ -9,6 +9,7 @@ This repository lives at https://gitlab.freedesktop.org/mesa/mesa.
 Other repositories are likely forks, and code found there is not supported.
 
 
+
 Build
 ---------------
 
@@ -21,6 +22,22 @@ Go to the folder with Mesa code and run the commands:
 Before building earlier versions of Mesa, you need to apply a fix:
 "virgl/vtest: fix memory overwrite problem in virgl_vtest_send_get_caps()" 
 https://github.com/Mesa3D/mesa/commit/060936fe0de668127310a65e607fa4b7b48d6f0a
+
+Build & install
+---------------
+
+You can find more information in our documentation (`docs/install.rst
+<https://mesa3d.org/install.html>`_), but the recommended way is to use
+Meson (`docs/meson.rst <https://mesa3d.org/meson.html>`_):
+
+.. code-block:: sh
+
+  $ mkdir build
+  $ cd build
+  $ meson ..
+  $ sudo ninja install
+
+
 
 Support
 -------

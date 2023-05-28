@@ -3,5 +3,5 @@
 
 set -e
 
-_COMPILER=g++
+_COMPILER=clang++-15
 . compiler-wrapper.sh

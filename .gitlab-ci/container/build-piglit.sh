@@ -5,6 +5,8 @@ set -ex
 
 REV="355ad6bcb2cb3d9e030b7c6eef2b076b0dfb4d63"
 
+REV="d8c08d123fadb986e9a8a7887b922ff63fcff52e"
+
 git clone https://gitlab.freedesktop.org/mesa/piglit.git --single-branch --no-checkout /piglit
 pushd /piglit
 git checkout "$REV"

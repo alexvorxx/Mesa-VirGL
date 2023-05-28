@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 
+
 set -e
 set -x
+
+# shellcheck disable=SC2086 # we want word splitting
+
+set -ex
+
 
 # If we run in the fork (not from mesa or Marge-bot), reuse mainline kernel and rootfs, if exist.
 BASE_SYSTEM_HOST_PATH="${BASE_SYSTEM_MAINLINE_HOST_PATH}"
@@ -24,10 +30,16 @@ cp artifacts/ci-common/intel-gpu-freq.sh results/job-rootfs-overlay/
 cp "$SCRIPTS_DIR"/setup-test-env.sh results/job-rootfs-overlay/
 
 # Prepare env vars for upload.
+
 KERNEL_IMAGE_BASE_URL="https://${BASE_SYSTEM_HOST_PATH}" \
 	artifacts/ci-common/generate-env.sh > results/job-rootfs-overlay/set-job-env-vars.sh
 section_start variables "Variables passed through:"
 cat results/job-rootfs-overlay/set-job-env-vars.sh
+
+section_start variables "Variables passed through:"
+KERNEL_IMAGE_BASE_URL="https://${BASE_SYSTEM_HOST_PATH}" \
+	artifacts/ci-common/generate-env.sh | tee results/job-rootfs-overlay/set-job-env-vars.sh
+
 section_end variables
 
 tar zcf job-rootfs-overlay.tar.gz -C results/job-rootfs-overlay/ .

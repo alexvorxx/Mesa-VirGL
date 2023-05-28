@@ -23,6 +23,24 @@
 # SOFTWARE.
 
 
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+#
+# Copyright © 2022 Collabora Limited
+# Author: Guilherme Gallo <guilherme.gallo@collabora.com>
+#
+# When changing this file, you need to bump the following
+# .gitlab-ci/image-tags.yml tags:
+# KERNEL_ROOTFS_TAG
+
+SKQP_BRANCH=android-cts-12.1_r5
+
+# hack for skqp see the clang
+pushd /usr/bin/
+ln -s ../lib/llvm-15/bin/clang clang
+ln -s ../lib/llvm-15/bin/clang++ clang++
+popd
+
 create_gn_args() {
     # gn can be configured to cross-compile skia and its tools
     # It is important to set the target_cpu to guarantee the intended target
@@ -41,6 +59,7 @@ download_skia_source() {
     # Skia cloned from https://android.googlesource.com/platform/external/skqp
     # has all needed assets tracked on git-fs
     SKQP_REPO=https://android.googlesource.com/platform/external/skqp
+
     SKQP_BRANCH=android-cts-11.0_r7
 
     git clone --branch "${SKQP_BRANCH}" --depth 1 "${SKQP_REPO}" "${SKIA_DIR}"

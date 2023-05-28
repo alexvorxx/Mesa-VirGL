@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# shellcheck disable=SC1091
+# shellcheck disable=SC2034
+# shellcheck disable=SC2059
+# shellcheck disable=SC2086 # we want word splitting
+
 . "$SCRIPTS_DIR"/setup-test-env.sh
 
 # Boot script for devices attached to a PoE switch, using NFS for the root

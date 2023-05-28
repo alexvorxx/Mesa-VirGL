@@ -4,6 +4,13 @@ set -ex
 
 VER="13.0.0"
 
+#!/usr/bin/env bash
+
+set -ex
+
+VER="${LLVM_VERSION:?llvm not set}.0.0"
+
+
 curl -L --retry 4 -f --retry-all-errors --retry-delay 60 \
     -O "https://github.com/KhronosGroup/SPIRV-LLVM-Translator/archive/refs/tags/v${VER}.tar.gz"
 tar -xvf "v${VER}.tar.gz" && rm "v${VER}.tar.gz"
