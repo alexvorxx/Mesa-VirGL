@@ -434,6 +434,10 @@ static int si_get_shader_param(struct pipe_screen *pscreen, enum pipe_shader_typ
 {
    struct si_screen *sscreen = (struct si_screen *)pscreen;
 
+   if (shader == PIPE_SHADER_MESH ||
+       shader == PIPE_SHADER_TASK)
+      return 0;
+
    switch (param) {
    /* Shader limits. */
    case PIPE_SHADER_CAP_MAX_INSTRUCTIONS:
@@ -754,10 +758,7 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
 	      sscreen->info.ip[AMD_IP_VCN_DEC].num_queues)))
          return false;
       if (QUERYABLE_KERNEL &&
-          codec != PIPE_VIDEO_FORMAT_JPEG &&
-          codec != PIPE_VIDEO_FORMAT_HEVC &&
-          !(sscreen->info.family == CHIP_POLARIS10 ||
-            sscreen->info.family == CHIP_POLARIS11))
+          sscreen->info.vcn_ip_version >= VCN_1_0_0)
          return KERNEL_DEC_CAP(codec, valid);
       if (codec < PIPE_VIDEO_FORMAT_MPEG4_AVC &&
           sscreen->info.vcn_ip_version >= VCN_3_0_33)
@@ -1285,6 +1286,8 @@ void si_init_screen_get_functions(struct si_screen *sscreen)
       .lower_fisnormal = true,
       .lower_rotate = true,
       .lower_to_scalar = true,
+      .lower_to_scalar_filter = sscreen->info.has_packed_math_16bit ?
+                                   si_alu_to_scalar_packed_math_filter : NULL,
       .lower_int64_options = nir_lower_imul_2x32_64 | nir_lower_imul_high64,
       .has_sdot_4x8 = sscreen->info.has_accelerated_dot_product,
       .has_sudot_4x8 = sscreen->info.has_accelerated_dot_product && sscreen->info.gfx_level >= GFX11,
@@ -1322,6 +1325,7 @@ void si_init_screen_get_functions(struct si_screen *sscreen)
          nir_lower_imul64 | nir_lower_imul_high64 | nir_lower_imul_2x32_64 |
          nir_lower_divmod64 | nir_lower_minmax64 | nir_lower_iabs64 |
          nir_lower_iadd_sat64,
+      .use_scoped_barrier = true,
    };
    sscreen->nir_options = nir_options;
 }

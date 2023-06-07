@@ -224,7 +224,7 @@ static void finish_fence(struct rendering_state *state)
 
    state->pctx->screen->fence_finish(state->pctx->screen,
                                      NULL,
-                                     handle, PIPE_TIMEOUT_INFINITE);
+                                     handle, OS_TIMEOUT_INFINITE);
    state->pctx->screen->fence_reference(state->pctx->screen,
                                         &handle, NULL);
 }
@@ -380,6 +380,12 @@ update_inline_shader_state(struct rendering_state *state, enum pipe_shader_type 
    case MESA_SHADER_GEOMETRY:
       state->pctx->bind_gs_state(state->pctx, shader_state);
       break;
+   case MESA_SHADER_TASK:
+      state->pctx->bind_ts_state(state->pctx, shader_state);
+      break;
+   case MESA_SHADER_MESH:
+      state->pctx->bind_ms_state(state->pctx, shader_state);
+      break;
    case MESA_SHADER_FRAGMENT:
       state->pctx->bind_fs_state(state->pctx, shader_state);
       state->noop_fs_bound = false;
@@ -434,6 +440,25 @@ static void emit_compute_state(struct rendering_state *state)
    }
 }
 
+static void
+update_min_samples(struct rendering_state *state)
+{
+   state->min_samples = 1;
+   if (state->sample_shading) {
+      state->min_samples = ceil(state->rast_samples * state->min_sample_shading);
+      if (state->min_samples > 1)
+         state->min_samples = state->rast_samples;
+      if (state->min_samples < 1)
+         state->min_samples = 1;
+   }
+   if (state->force_min_sample)
+      state->min_samples = state->rast_samples;
+   if (state->rast_samples != state->framebuffer.samples) {
+      state->framebuffer.samples = state->rast_samples;
+      state->pctx->set_framebuffer_state(state->pctx, &state->framebuffer);
+   }
+}
+
 static void emit_state(struct rendering_state *state)
 {
    if (!state->shaders[MESA_SHADER_FRAGMENT] && !state->noop_fs_bound) {
@@ -464,7 +489,7 @@ static void emit_state(struct rendering_state *state)
       bool ms = state->rs_state.multisample;
       if (state->disable_multisample &&
           (state->gs_output_lines == GS_OUTPUT_LINES ||
-           (!state->shaders[MESA_SHADER_GEOMETRY] && u_reduced_prim(state->info.mode) == PIPE_PRIM_LINES)))
+           (!state->shaders[MESA_SHADER_GEOMETRY] && u_reduced_prim(state->info.mode) == MESA_PRIM_LINES)))
          state->rs_state.multisample = false;
       assert(offsetof(struct pipe_rasterizer_state, offset_clamp) - offsetof(struct pipe_rasterizer_state, offset_units) == sizeof(float) * 2);
       if (state->depth_bias.enabled) {
@@ -498,6 +523,7 @@ static void emit_state(struct rendering_state *state)
    }
 
    if (state->min_samples_dirty) {
+      update_min_samples(state);
       cso_set_min_samples(state->cso, state->min_samples);
       state->min_samples_dirty = false;
    }
@@ -663,21 +689,7 @@ update_samples(struct rendering_state *state, VkSampleCountFlags samples)
    state->rast_samples = samples;
    state->rs_dirty |= state->rs_state.multisample != (samples > 1);
    state->rs_state.multisample = samples > 1;
-   state->min_samples = 1;
-   if (state->sample_shading) {
-      state->min_samples = ceil(samples * state->min_sample_shading);
-      if (state->min_samples > 1)
-         state->min_samples = samples;
-      if (state->min_samples < 1)
-         state->min_samples = 1;
-   }
-   if (state->force_min_sample)
-      state->min_samples = samples;
    state->min_samples_dirty = true;
-   if (samples != state->framebuffer.samples) {
-      state->framebuffer.samples = samples;
-      state->pctx->set_framebuffer_state(state->pctx, &state->framebuffer);
-   }
 }
 
 static void
@@ -711,7 +723,7 @@ handle_graphics_stages(struct rendering_state *state, VkShaderStageFlagBits shad
          state->inlines_dirty[MESA_SHADER_GEOMETRY] = state->shaders[MESA_SHADER_GEOMETRY]->inlines.can_inline;
          if (!state->shaders[MESA_SHADER_GEOMETRY]->inlines.can_inline)
             state->pctx->bind_gs_state(state->pctx, state->shaders[MESA_SHADER_GEOMETRY]->shader_cso);
-         state->gs_output_lines = state->shaders[MESA_SHADER_GEOMETRY]->pipeline_nir->nir->info.gs.output_primitive == SHADER_PRIM_LINES ? GS_OUTPUT_LINES : GS_OUTPUT_NOT_LINES;
+         state->gs_output_lines = state->shaders[MESA_SHADER_GEOMETRY]->pipeline_nir->nir->info.gs.output_primitive == MESA_PRIM_LINES ? GS_OUTPUT_LINES : GS_OUTPUT_NOT_LINES;
          break;
       case VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT:
          state->inlines_dirty[MESA_SHADER_TESS_CTRL] = state->shaders[MESA_SHADER_TESS_CTRL]->inlines.can_inline;
@@ -734,6 +746,24 @@ handle_graphics_stages(struct rendering_state *state, VkShaderStageFlagBits shad
          if (!dynamic_tess_origin)
             state->tess_ccw = false;
          break;
+      case VK_SHADER_STAGE_TASK_BIT_EXT:
+         state->inlines_dirty[MESA_SHADER_TASK] = state->shaders[MESA_SHADER_TASK]->inlines.can_inline;
+         state->dispatch_info.block[0] = state->shaders[MESA_SHADER_TASK]->pipeline_nir->nir->info.workgroup_size[0];
+         state->dispatch_info.block[1] = state->shaders[MESA_SHADER_TASK]->pipeline_nir->nir->info.workgroup_size[1];
+         state->dispatch_info.block[2] = state->shaders[MESA_SHADER_TASK]->pipeline_nir->nir->info.workgroup_size[2];
+         if (!state->shaders[MESA_SHADER_TASK]->inlines.can_inline)
+            state->pctx->bind_ts_state(state->pctx, state->shaders[MESA_SHADER_TASK]->shader_cso);
+         break;
+      case VK_SHADER_STAGE_MESH_BIT_EXT:
+         state->inlines_dirty[MESA_SHADER_MESH] = state->shaders[MESA_SHADER_MESH]->inlines.can_inline;
+         if (!(shader_stages & VK_SHADER_STAGE_TASK_BIT_EXT)) {
+            state->dispatch_info.block[0] = state->shaders[MESA_SHADER_MESH]->pipeline_nir->nir->info.workgroup_size[0];
+            state->dispatch_info.block[1] = state->shaders[MESA_SHADER_MESH]->pipeline_nir->nir->info.workgroup_size[1];
+            state->dispatch_info.block[2] = state->shaders[MESA_SHADER_MESH]->pipeline_nir->nir->info.workgroup_size[2];
+         }
+         if (!state->shaders[MESA_SHADER_MESH]->inlines.can_inline)
+            state->pctx->bind_ms_state(state->pctx, state->shaders[MESA_SHADER_MESH]->shader_cso);
+         break;
       default:
          assert(0);
          break;
@@ -751,29 +781,37 @@ unbind_graphics_stages(struct rendering_state *state, VkShaderStageFlagBits shad
       memset(&state->access[stage], 0, sizeof(state->access[stage]));
       state->has_pcbuf[stage] = false;
       switch (stage) {
-         case MESA_SHADER_FRAGMENT:
-            if (state->shaders[MESA_SHADER_FRAGMENT])
-               state->pctx->bind_fs_state(state->pctx, NULL);
-            state->noop_fs_bound = false;
-            break;
-         case MESA_SHADER_GEOMETRY:
-            if (state->shaders[MESA_SHADER_GEOMETRY])
-               state->pctx->bind_gs_state(state->pctx, NULL);
-            break;
-         case MESA_SHADER_TESS_CTRL:
-            if (state->shaders[MESA_SHADER_TESS_CTRL])
-               state->pctx->bind_tcs_state(state->pctx, NULL);
-            break;
-         case MESA_SHADER_TESS_EVAL:
-            if (state->shaders[MESA_SHADER_TESS_EVAL])
-               state->pctx->bind_tes_state(state->pctx, NULL);
-            break;
-         case MESA_SHADER_VERTEX:
-            if (state->shaders[MESA_SHADER_VERTEX])
-               state->pctx->bind_vs_state(state->pctx, NULL);
-            break;
-         default:
-            unreachable("what stage is this?!");
+      case MESA_SHADER_FRAGMENT:
+         if (state->shaders[MESA_SHADER_FRAGMENT])
+            state->pctx->bind_fs_state(state->pctx, NULL);
+         state->noop_fs_bound = false;
+         break;
+      case MESA_SHADER_GEOMETRY:
+         if (state->shaders[MESA_SHADER_GEOMETRY])
+            state->pctx->bind_gs_state(state->pctx, NULL);
+         break;
+      case MESA_SHADER_TESS_CTRL:
+         if (state->shaders[MESA_SHADER_TESS_CTRL])
+            state->pctx->bind_tcs_state(state->pctx, NULL);
+         break;
+      case MESA_SHADER_TESS_EVAL:
+         if (state->shaders[MESA_SHADER_TESS_EVAL])
+            state->pctx->bind_tes_state(state->pctx, NULL);
+         break;
+      case MESA_SHADER_VERTEX:
+         if (state->shaders[MESA_SHADER_VERTEX])
+            state->pctx->bind_vs_state(state->pctx, NULL);
+         break;
+      case MESA_SHADER_TASK:
+         if (state->shaders[MESA_SHADER_TASK])
+            state->pctx->bind_ts_state(state->pctx, NULL);
+         break;
+      case MESA_SHADER_MESH:
+         if (state->shaders[MESA_SHADER_MESH])
+            state->pctx->bind_ms_state(state->pctx, NULL);
+         break;
+      default:
+         unreachable("what stage is this?!");
       }
       state->shaders[stage] = NULL;
    }
@@ -799,7 +837,11 @@ static void handle_graphics_pipeline(struct vk_cmd_queue_entry *cmd,
    const struct vk_graphics_pipeline_state *ps = &pipeline->graphics_state;
    lvp_pipeline_shaders_compile(pipeline);
    bool dynamic_tess_origin = BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_TS_DOMAIN_ORIGIN);
-   unbind_graphics_stages(state, (~pipeline->graphics_state.shader_stages) & VK_SHADER_STAGE_ALL_GRAPHICS);
+   unbind_graphics_stages(state,
+                          (~pipeline->graphics_state.shader_stages) &
+                          (VK_SHADER_STAGE_ALL_GRAPHICS |
+                           VK_SHADER_STAGE_TASK_BIT_EXT |
+                           VK_SHADER_STAGE_MESH_BIT_EXT));
    lvp_forall_gfx_stage(sh) {
       if (pipeline->graphics_state.shader_stages & mesa_to_vk_shader_stage(sh))
          state->shaders[sh] = &pipeline->shaders[sh];
@@ -1018,12 +1060,14 @@ static void handle_graphics_pipeline(struct vk_cmd_queue_entry *cmd,
    }
 
    if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_VI_BINDING_STRIDES)) {
-      u_foreach_bit(b, ps->vi->bindings_valid)
-         state->vb[b].stride = ps->vi->bindings[b].stride;
-      state->vb_dirty = true;
+      if (ps->vi) {
+         u_foreach_bit(b, ps->vi->bindings_valid)
+            state->vb[b].stride = ps->vi->bindings[b].stride;
+         state->vb_dirty = true;
+      }
    }
 
-   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_VI)) {
+   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_VI) && ps->vi) {
       u_foreach_bit(a, ps->vi->attributes_valid) {
          uint32_t b = ps->vi->attributes[a].binding;
          state->velem.velems[a].src_offset = ps->vi->attributes[a].offset;
@@ -1050,15 +1094,18 @@ static void handle_graphics_pipeline(struct vk_cmd_queue_entry *cmd,
       state->ve_dirty = true;
    }
 
-   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_IA_PRIMITIVE_TOPOLOGY)) {
+   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_IA_PRIMITIVE_TOPOLOGY) && ps->ia) {
       state->info.mode = vk_conv_topology(ps->ia->primitive_topology);
       state->rs_dirty = true;
    }
-   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_IA_PRIMITIVE_RESTART_ENABLE))
+   if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_IA_PRIMITIVE_RESTART_ENABLE) && ps->ia)
       state->info.primitive_restart = ps->ia->primitive_restart_enable;
 
-   if (ps->ts && !BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_TS_PATCH_CONTROL_POINTS))
+   if (ps->ts && !BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_TS_PATCH_CONTROL_POINTS)) {
+      if (state->patch_vertices != ps->ts->patch_control_points)
+         state->pctx->set_patch_vertices(state->pctx, ps->ts->patch_control_points);
       state->patch_vertices = ps->ts->patch_control_points;
+   }
 
    if (ps->vp) {
       if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_VP_VIEWPORT_COUNT)) {
@@ -1431,6 +1478,12 @@ static void handle_descriptor_sets(struct vk_cmd_queue_entry *cmd,
 
       if (set->layout->shader_stages & VK_SHADER_STAGE_FRAGMENT_BIT)
          handle_set_stage(state, &dyn_info, set, MESA_SHADER_FRAGMENT, MESA_SHADER_FRAGMENT);
+
+      if (set->layout->shader_stages & VK_SHADER_STAGE_TASK_BIT_EXT)
+         handle_set_stage(state, &dyn_info, set, MESA_SHADER_TASK, MESA_SHADER_TASK);
+
+      if (set->layout->shader_stages & VK_SHADER_STAGE_MESH_BIT_EXT)
+         handle_set_stage(state, &dyn_info, set, MESA_SHADER_MESH, MESA_SHADER_MESH);
 
       increment_dyn_info(&dyn_info, layout->vk.set_layouts[bds->first_set + i], true);
    }
@@ -2070,7 +2123,6 @@ static void handle_draw(struct vk_cmd_queue_entry *cmd,
    draw.count = cmd->u.draw.vertex_count;
    draw.index_bias = 0;
 
-   state->pctx->set_patch_vertices(state->pctx, state->patch_vertices);
    state->pctx->draw_vbo(state->pctx, &state->info, 0, NULL, &draw, 1);
 }
 
@@ -2092,8 +2144,6 @@ static void handle_draw_multi(struct vk_cmd_queue_entry *cmd,
       draws[i].count = cmd->u.draw_multi_ext.vertex_info[i].vertexCount;
       draws[i].index_bias = 0;
    }
-
-   state->pctx->set_patch_vertices(state->pctx, state->patch_vertices);
 
    if (cmd->u.draw_multi_indexed_ext.draw_count)
       state->pctx->draw_vbo(state->pctx, &state->info, 0, NULL, draws, cmd->u.draw_multi_ext.draw_count);
@@ -2698,7 +2748,6 @@ static void handle_draw_indexed(struct vk_cmd_queue_entry *cmd,
                                   cmd->u.draw_indexed.first_index);
 
    state->info.index_bias_varies = !cmd->u.draw_indexed.vertex_offset;
-   state->pctx->set_patch_vertices(state->pctx, state->patch_vertices);
    state->pctx->draw_vbo(state->pctx, &state->info, 0, NULL, &draw, 1);
 }
 
@@ -2735,7 +2784,6 @@ static void handle_draw_multi_indexed(struct vk_cmd_queue_entry *cmd,
                                          draws[i].start);
 
    state->info.index_bias_varies = !cmd->u.draw_multi_indexed_ext.vertex_offset;
-   state->pctx->set_patch_vertices(state->pctx, state->patch_vertices);
 
    if (cmd->u.draw_multi_indexed_ext.draw_count)
       state->pctx->draw_vbo(state->pctx, &state->info, 0, NULL, draws, cmd->u.draw_multi_indexed_ext.draw_count);
@@ -2761,7 +2809,6 @@ static void handle_draw_indirect(struct vk_cmd_queue_entry *cmd,
    state->indirect_info.draw_count = cmd->u.draw_indirect.draw_count;
    state->indirect_info.buffer = lvp_buffer_from_handle(cmd->u.draw_indirect.buffer)->bo;
 
-   state->pctx->set_patch_vertices(state->pctx, state->patch_vertices);
    state->pctx->draw_vbo(state->pctx, &state->info, 0, &state->indirect_info, &draw, 1);
 }
 
@@ -2837,12 +2884,16 @@ static void handle_push_constants(struct vk_cmd_queue_entry *cmd,
    state->pcbuf_dirty[MESA_SHADER_TESS_CTRL] |= (stage_flags & VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT) > 0;
    state->pcbuf_dirty[MESA_SHADER_TESS_EVAL] |= (stage_flags & VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT) > 0;
    state->pcbuf_dirty[MESA_SHADER_COMPUTE] |= (stage_flags & VK_SHADER_STAGE_COMPUTE_BIT) > 0;
+   state->pcbuf_dirty[MESA_SHADER_TASK] |= (stage_flags & VK_SHADER_STAGE_TASK_BIT_EXT) > 0;
+   state->pcbuf_dirty[MESA_SHADER_MESH] |= (stage_flags & VK_SHADER_STAGE_MESH_BIT_EXT) > 0;
    state->inlines_dirty[MESA_SHADER_VERTEX] |= (stage_flags & VK_SHADER_STAGE_VERTEX_BIT) > 0;
    state->inlines_dirty[MESA_SHADER_FRAGMENT] |= (stage_flags & VK_SHADER_STAGE_FRAGMENT_BIT) > 0;
    state->inlines_dirty[MESA_SHADER_GEOMETRY] |= (stage_flags & VK_SHADER_STAGE_GEOMETRY_BIT) > 0;
    state->inlines_dirty[MESA_SHADER_TESS_CTRL] |= (stage_flags & VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT) > 0;
    state->inlines_dirty[MESA_SHADER_TESS_EVAL] |= (stage_flags & VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT) > 0;
    state->inlines_dirty[MESA_SHADER_COMPUTE] |= (stage_flags & VK_SHADER_STAGE_COMPUTE_BIT) > 0;
+   state->inlines_dirty[MESA_SHADER_TASK] |= (stage_flags & VK_SHADER_STAGE_TASK_BIT_EXT) > 0;
+   state->inlines_dirty[MESA_SHADER_MESH] |= (stage_flags & VK_SHADER_STAGE_MESH_BIT_EXT) > 0;
 }
 
 static void lvp_execute_cmd_buffer(struct lvp_cmd_buffer *cmd_buffer,
@@ -3262,7 +3313,6 @@ static void handle_draw_indirect_count(struct vk_cmd_queue_entry *cmd,
    state->indirect_info.indirect_draw_count_offset = cmd->u.draw_indirect_count.count_buffer_offset;
    state->indirect_info.indirect_draw_count = lvp_buffer_from_handle(cmd->u.draw_indirect_count.count_buffer)->bo;
 
-   state->pctx->set_patch_vertices(state->pctx, state->patch_vertices);
    state->pctx->draw_vbo(state->pctx, &state->info, 0, &state->indirect_info, &draw, 1);
 }
 
@@ -3466,6 +3516,16 @@ static void handle_push_descriptor_set_generic(struct vk_cmd_push_descriptor_set
                               MESA_SHADER_TESS_EVAL, MESA_SHADER_TESS_EVAL,
                               j, desc->descriptor_type,
                               info);
+         if (layout->shader_stages & VK_SHADER_STAGE_TASK_BIT_EXT)
+            handle_descriptor(state, &dyn_info, binding,
+                              MESA_SHADER_TASK, MESA_SHADER_TASK,
+                              j, desc->descriptor_type,
+                              info);
+         if (layout->shader_stages & VK_SHADER_STAGE_MESH_BIT_EXT)
+            handle_descriptor(state, &dyn_info, binding,
+                              MESA_SHADER_MESH, MESA_SHADER_MESH,
+                              j, desc->descriptor_type,
+                              info);
       }
       info_idx += desc->descriptor_count;
    }
@@ -3652,8 +3712,7 @@ static void handle_draw_indirect_byte_count(struct vk_cmd_queue_entry *cmd,
    state->info.index_size = 0;
 
    draw.count /= cmd->u.draw_indirect_byte_count_ext.vertex_stride;
-   state->pctx->set_patch_vertices(state->pctx, state->patch_vertices);
-   state->pctx->draw_vbo(state->pctx, &state->info, 0, &state->indirect_info, &draw, 1);
+   state->pctx->draw_vbo(state->pctx, &state->info, 0, NULL, &draw, 1);
 }
 
 static void handle_begin_conditional_rendering(struct vk_cmd_queue_entry *cmd,
@@ -3820,6 +3879,8 @@ static void handle_set_logic_op(struct vk_cmd_queue_entry *cmd,
 static void handle_set_patch_control_points(struct vk_cmd_queue_entry *cmd,
                                             struct rendering_state *state)
 {
+   if (state->patch_vertices != cmd->u.set_patch_control_points_ext.patch_control_points)
+      state->pctx->set_patch_vertices(state->pctx, cmd->u.set_patch_control_points_ext.patch_control_points);
    state->patch_vertices = cmd->u.set_patch_control_points_ext.patch_control_points;
 }
 
@@ -4085,6 +4146,42 @@ handle_shaders(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
    }
 }
 
+static void handle_draw_mesh_tasks(struct vk_cmd_queue_entry *cmd,
+                                   struct rendering_state *state)
+{
+   state->dispatch_info.grid[0] = cmd->u.draw_mesh_tasks_ext.group_count_x;
+   state->dispatch_info.grid[1] = cmd->u.draw_mesh_tasks_ext.group_count_y;
+   state->dispatch_info.grid[2] = cmd->u.draw_mesh_tasks_ext.group_count_z;
+   state->dispatch_info.grid_base[0] = 0;
+   state->dispatch_info.grid_base[1] = 0;
+   state->dispatch_info.grid_base[2] = 0;
+   state->dispatch_info.draw_count = 1;
+   state->dispatch_info.indirect = NULL;
+   state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
+}
+
+static void handle_draw_mesh_tasks_indirect(struct vk_cmd_queue_entry *cmd,
+                                            struct rendering_state *state)
+{
+   state->dispatch_info.indirect = lvp_buffer_from_handle(cmd->u.draw_mesh_tasks_indirect_ext.buffer)->bo;
+   state->dispatch_info.indirect_offset = cmd->u.draw_mesh_tasks_indirect_ext.offset;
+   state->dispatch_info.indirect_stride = cmd->u.draw_mesh_tasks_indirect_ext.stride;
+   state->dispatch_info.draw_count = cmd->u.draw_mesh_tasks_indirect_ext.draw_count;
+   state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
+}
+
+static void handle_draw_mesh_tasks_indirect_count(struct vk_cmd_queue_entry *cmd,
+                                                  struct rendering_state *state)
+{
+   state->dispatch_info.indirect = lvp_buffer_from_handle(cmd->u.draw_mesh_tasks_indirect_count_ext.buffer)->bo;
+   state->dispatch_info.indirect_offset = cmd->u.draw_mesh_tasks_indirect_count_ext.offset;
+   state->dispatch_info.indirect_stride = cmd->u.draw_mesh_tasks_indirect_count_ext.stride;
+   state->dispatch_info.draw_count = cmd->u.draw_mesh_tasks_indirect_count_ext.max_draw_count;
+   state->dispatch_info.indirect_draw_count_offset = cmd->u.draw_mesh_tasks_indirect_count_ext.count_buffer_offset;
+   state->dispatch_info.indirect_draw_count = lvp_buffer_from_handle(cmd->u.draw_mesh_tasks_indirect_count_ext.count_buffer)->bo;
+   state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
+}
+
 void lvp_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp)
 {
    struct vk_device_dispatch_table cmd_enqueue_dispatch;
@@ -4205,7 +4302,9 @@ void lvp_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp)
    ENQUEUE_CMD(CmdSetViewportSwizzleNV)
    ENQUEUE_CMD(CmdSetViewportWScalingEnableNV)
    ENQUEUE_CMD(CmdSetAttachmentFeedbackLoopEnableEXT)
-
+   ENQUEUE_CMD(CmdDrawMeshTasksEXT)
+   ENQUEUE_CMD(CmdDrawMeshTasksIndirectEXT)
+   ENQUEUE_CMD(CmdDrawMeshTasksIndirectCountEXT)
 #undef ENQUEUE_CMD
 }
 
@@ -4524,6 +4623,18 @@ static void lvp_execute_cmd_buffer(struct lvp_cmd_buffer *cmd_buffer,
          handle_shaders(cmd, state);
          break;
       case VK_CMD_SET_ATTACHMENT_FEEDBACK_LOOP_ENABLE_EXT:
+         break;
+      case VK_CMD_DRAW_MESH_TASKS_EXT:
+         emit_state(state);
+         handle_draw_mesh_tasks(cmd, state);
+         break;
+      case VK_CMD_DRAW_MESH_TASKS_INDIRECT_EXT:
+         emit_state(state);
+         handle_draw_mesh_tasks_indirect(cmd, state);
+         break;
+      case VK_CMD_DRAW_MESH_TASKS_INDIRECT_COUNT_EXT:
+         emit_state(state);
+         handle_draw_mesh_tasks_indirect_count(cmd, state);
          break;
       default:
          fprintf(stderr, "Unsupported command %s\n", vk_cmd_queue_type_names[cmd->type]);

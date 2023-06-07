@@ -161,13 +161,12 @@ struct intel_perf_query_result;
 
 #define MAX_XFB_BUFFERS  4
 #define MAX_XFB_STREAMS  4
-#define MAX_SETS        32
+#define MAX_SETS         8
 #define MAX_RTS          8
 #define MAX_VIEWPORTS   16
 #define MAX_SCISSORS    16
 #define MAX_PUSH_CONSTANTS_SIZE 128
 #define MAX_DYNAMIC_BUFFERS 16
-#define MAX_IMAGES 64
 #define MAX_PUSH_DESCRIPTORS 32 /* Minimum requirement */
 #define MAX_INLINE_UNIFORM_BLOCK_SIZE 4096
 #define MAX_INLINE_UNIFORM_BLOCK_DESCRIPTORS 32
@@ -181,6 +180,11 @@ struct intel_perf_query_result;
 #define ANV_SSBO_BOUNDS_CHECK_ALIGNMENT 4
 #define MAX_VIEWS_FOR_PRIMITIVE_REPLICATION 16
 #define MAX_SAMPLE_LOCATIONS 16
+
+/* RENDER_SURFACE_STATE is a bit smaller (48b) but since it is aligned to 64
+ * and we can't put anything else there we use 64b.
+ */
+#define ANV_SURFACE_STATE_SIZE (64)
 
 /* From the Skylake PRM Vol. 7 "Binding Table Surface State Model":
  *
@@ -209,6 +213,12 @@ struct intel_perf_query_result;
 #define ANV_PERF_QUERY_OFFSET_REG 0x2670 /* MI_ALU_REG14 */
 
 #define ANV_GRAPHICS_SHADER_STAGE_COUNT (MESA_SHADER_MESH + 1)
+
+/* RENDER_SURFACE_STATE is a bit smaller (48b) but since it is aligned to 64
+ * and we can't put anything else there we use 64b.
+ */
+#define ANV_SURFACE_STATE_SIZE (64)
+#define ANV_SAMPLER_STATE_SIZE (32)
 
 /* For gfx12 we set the streamout buffers using 4 separate commands
  * (3DSTATE_SO_BUFFER_INDEX_*) instead of 3DSTATE_SO_BUFFER. However the layout
@@ -380,6 +390,9 @@ enum anv_bo_alloc_flags {
 
    /** This buffer will be scanout to display */
    ANV_BO_ALLOC_SCANOUT = (1 << 12),
+
+   /** For descriptor pools */
+   ANV_BO_ALLOC_DESCRIPTOR_POOL = (1 << 13),
 };
 
 struct anv_bo {
@@ -894,6 +907,9 @@ struct anv_physical_device {
     /** True if we can create protected contexts. */
     bool                                        has_protected_contexts;
 
+    /**/
+    bool                                        uses_ex_bso;
+
     bool                                        always_flush_cache;
 
     /**
@@ -904,6 +920,26 @@ struct anv_physical_device {
      * cache workaround.
      */
     bool                                        generated_indirect_draws;
+
+    /**
+     * True if the descriptors buffers are holding one of the following :
+     *    - anv_sampled_image_descriptor
+     *    - anv_storage_image_descriptor
+     *    - anv_address_range_descriptor
+     *
+     * Accessing the descriptors in a bindless fashion from the shader
+     * requires an indirection in the shader, first fetch one of the structure
+     * listed above from the descriptor buffer, then emit the send message to
+     * the fixed function (sampler, dataport, etc...) with the handle fetched
+     * above.
+     *
+     * We need to do things this way prior to DG2 because the bindless surface
+     * state space is limited to 64Mb and some application will allocate more
+     * than what HW can support. On DG2+ we get 4Gb of bindless surface state
+     * and so we can reference directly RENDER_SURFACE_STATE/SAMPLER_STATE
+     * structures instead.
+     */
+    bool                                        indirect_descriptors;
 
     struct {
       uint32_t                                  family_count;
@@ -929,6 +965,8 @@ struct anv_physical_device {
        struct anv_va_range                      scratch_surface_state_pool;
        struct anv_va_range                      bindless_surface_state_pool;
        struct anv_va_range                      instruction_state_pool;
+       struct anv_va_range                      descriptor_pool;
+       struct anv_va_range                      push_descriptor_pool;
        struct anv_va_range                      client_visible_heap;
        struct anv_va_range                      high_heap;
     } va;
@@ -968,6 +1006,14 @@ struct anv_physical_device {
     struct intel_measure_device                 measure_device;
 };
 
+static inline uint32_t
+anv_physical_device_bindless_heap_size(const struct anv_physical_device *device)
+{
+   return device->uses_ex_bso ?
+      128 * 1024 * 1024 /* 128 MiB */ :
+      64 * 1024 * 1024 /* 64 MiB */;
+}
+
 static inline bool
 anv_physical_device_has_vram(const struct anv_physical_device *device)
 {
@@ -991,6 +1037,7 @@ struct anv_instance {
     float                                       lower_depth_range_rate;
     unsigned                                    generated_indirect_threshold;
     unsigned                                    query_clear_with_blorp_threshold;
+    unsigned                                    force_vk_vendor;
 
     /* HW workarounds */
     bool                                        no_16bit;
@@ -1088,6 +1135,7 @@ struct anv_device {
     struct util_vma_heap                        vma_lo;
     struct util_vma_heap                        vma_cva;
     struct util_vma_heap                        vma_hi;
+    struct util_vma_heap                        vma_desc;
 
     /** List of all anv_device_memory objects */
     struct list_head                            memory_objects;
@@ -1107,6 +1155,7 @@ struct anv_device {
     struct anv_state_pool                       scratch_surface_state_pool;
     struct anv_state_pool                       internal_surface_state_pool;
     struct anv_state_pool                       bindless_surface_state_pool;
+    struct anv_state_pool                       push_descriptor_pool;
 
     struct anv_state_reserved_pool              custom_border_colors;
 
@@ -1163,6 +1212,8 @@ struct anv_device {
      * For use when a pipeline has no VS input
      */
     uint32_t                                    empty_vs_input[2];
+
+    bool                                        robust_buffer_access;
 
     /** Shadow ray query BO
      *
@@ -1227,6 +1278,17 @@ static inline void
 anv_binding_table_pool_free(struct anv_device *device, struct anv_state state)
 {
    anv_state_pool_free(&device->binding_table_pool, state);
+}
+
+static inline struct anv_state
+anv_null_surface_state_for_binding_table(struct anv_device *device)
+{
+   struct anv_state state = device->null_surface_state;
+   if (device->physical->indirect_descriptors) {
+      state.offset += device->physical->va.bindless_surface_state_pool.addr -
+                      device->physical->va.internal_surface_state_pool.addr;
+   }
+   return state;
 }
 
 static inline struct anv_state
@@ -1604,19 +1666,25 @@ struct anv_address_range_descriptor {
 
 enum anv_descriptor_data {
    /** The descriptor contains a BTI reference to a surface state */
-   ANV_DESCRIPTOR_SURFACE_STATE  = (1 << 0),
+   ANV_DESCRIPTOR_BTI_SURFACE_STATE       = BITFIELD_BIT(0),
    /** The descriptor contains a BTI reference to a sampler state */
-   ANV_DESCRIPTOR_SAMPLER_STATE  = (1 << 1),
+   ANV_DESCRIPTOR_BTI_SAMPLER_STATE       = BITFIELD_BIT(1),
    /** The descriptor contains an actual buffer view */
-   ANV_DESCRIPTOR_BUFFER_VIEW    = (1 << 2),
+   ANV_DESCRIPTOR_BUFFER_VIEW             = BITFIELD_BIT(2),
    /** The descriptor contains inline uniform data */
-   ANV_DESCRIPTOR_INLINE_UNIFORM = (1 << 3),
+   ANV_DESCRIPTOR_INLINE_UNIFORM          = BITFIELD_BIT(3),
    /** anv_address_range_descriptor with a buffer address and range */
-   ANV_DESCRIPTOR_ADDRESS_RANGE  = (1 << 4),
-   /** Bindless surface handle */
-   ANV_DESCRIPTOR_SAMPLED_IMAGE  = (1 << 5),
-   /** Storage image handles */
-   ANV_DESCRIPTOR_STORAGE_IMAGE  = (1 << 6),
+   ANV_DESCRIPTOR_INDIRECT_ADDRESS_RANGE  = BITFIELD_BIT(4),
+   /** Bindless surface handle (through anv_sampled_image_descriptor) */
+   ANV_DESCRIPTOR_INDIRECT_SAMPLED_IMAGE  = BITFIELD_BIT(5),
+   /** Storage image handles (through anv_storage_image_descriptor) */
+   ANV_DESCRIPTOR_INDIRECT_STORAGE_IMAGE  = BITFIELD_BIT(6),
+   /** The descriptor contains a single RENDER_SURFACE_STATE */
+   ANV_DESCRIPTOR_SURFACE                 = BITFIELD_BIT(7),
+   /** The descriptor contains a SAMPLER_STATE */
+   ANV_DESCRIPTOR_SAMPLER                 = BITFIELD_BIT(8),
+   /** A tuple of RENDER_SURFACE_STATE & SAMPLER_STATE */
+   ANV_DESCRIPTOR_SURFACE_SAMPLER         = BITFIELD_BIT(9),
 };
 
 struct anv_descriptor_set_binding_layout {
@@ -1645,17 +1713,28 @@ struct anv_descriptor_set_binding_layout {
     */
    int16_t dynamic_offset_index;
 
+   /* Computed size from data */
+   uint16_t descriptor_data_size;
+
    /* Index into the descriptor set buffer views */
    int32_t buffer_view_index;
 
    /* Offset into the descriptor buffer where this descriptor lives */
    uint32_t descriptor_offset;
 
-   /* Pre computed stride */
+   /* Pre computed stride (with multiplane descriptor, the descriptor includes
+    * all the planes) */
    unsigned descriptor_stride;
 
    /* Immutable samplers (or NULL if no immutable samplers) */
    struct anv_sampler **immutable_samplers;
+};
+
+enum anv_descriptor_set_layout_type {
+   ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_UNKNOWN,
+   ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_INDIRECT,
+   ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_DIRECT,
+   ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_BUFFER,
 };
 
 bool anv_descriptor_supports_bindless(const struct anv_physical_device *pdevice,
@@ -1670,6 +1749,9 @@ struct anv_descriptor_set_layout {
    struct vk_object_base base;
 
    VkDescriptorSetLayoutCreateFlags flags;
+
+   /* Type of descriptor set layout */
+   enum anv_descriptor_set_layout_type type;
 
    /* Descriptor set layouts can be destroyed at almost any time */
    uint32_t ref_cnt;
@@ -1737,6 +1819,7 @@ struct anv_descriptor {
          struct anv_buffer *buffer;
          uint64_t offset;
          uint64_t range;
+         uint64_t bind_range;
       };
 
       struct anv_buffer_view *buffer_view;
@@ -1772,6 +1855,14 @@ struct anv_descriptor_set {
    /* Descriptor set address. */
    struct anv_address desc_addr;
 
+   /* Descriptor offset from the
+    * device->va.internal_surface_state_pool.addr
+    *
+    * It just needs to be added to the binding table offset to be put into the
+    * HW BTI entry.
+    */
+   uint32_t desc_offset;
+
    uint32_t buffer_view_count;
    struct anv_buffer_view *buffer_views;
 
@@ -1788,6 +1879,24 @@ anv_descriptor_set_is_push(struct anv_descriptor_set *set)
    return set->pool == NULL;
 }
 
+struct anv_surface_state_data {
+   uint8_t data[ANV_SURFACE_STATE_SIZE];
+};
+
+struct anv_buffer_state {
+   /** Surface state allocated from the bindless heap
+    *
+    * Only valid if anv_physical_device::indirect_descriptors is true
+    */
+   struct anv_state state;
+
+   /** Surface state after genxml packing
+    *
+    * Only valid if anv_physical_device::indirect_descriptors is false
+    */
+   struct anv_surface_state_data state_data;
+};
+
 struct anv_buffer_view {
    struct vk_object_base base;
 
@@ -1795,8 +1904,8 @@ struct anv_buffer_view {
 
    struct anv_address address;
 
-   struct anv_state surface_state;
-   struct anv_state storage_surface_state;
+   struct anv_buffer_state general;
+   struct anv_buffer_state storage;
 };
 
 struct anv_push_descriptor_set {
@@ -1939,6 +2048,14 @@ struct anv_pipeline_binding {
     */
    uint32_t binding;
 
+   /** Offset in the descriptor buffer
+    *
+    * Relative to anv_descriptor_set::desc_addr. This is useful for
+    * ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_DIRECT, to generate the binding
+    * table entry.
+    */
+   uint32_t set_offset;
+
    /** The descriptor set this surface corresponds to.
     *
     * The special ANV_DESCRIPTOR_SET_* values above indicates that this
@@ -1985,6 +2102,8 @@ struct anv_pipeline_sets_layout {
       struct anv_descriptor_set_layout *layout;
       uint32_t dynamic_offset_start;
    } set[MAX_SETS];
+
+   enum anv_descriptor_set_layout_type type;
 
    uint32_t num_sets;
    uint32_t num_dynamic_buffers;
@@ -2388,15 +2507,18 @@ struct anv_push_constants {
    /** Ray query globals (RT_DISPATCH_GLOBALS) */
    uint64_t ray_query_globals;
 
-#define ANV_DESCRIPTOR_SET_DYNAMIC_INDEX_MASK ((uint64_t)ANV_UBO_ALIGNMENT - 1)
-#define ANV_DESCRIPTOR_SET_ADDRESS_MASK       (~(uint64_t)(ANV_UBO_ALIGNMENT - 1))
+#define ANV_DESCRIPTOR_SET_DYNAMIC_INDEX_MASK ((uint32_t)ANV_UBO_ALIGNMENT - 1)
+#define ANV_DESCRIPTOR_SET_OFFSET_MASK        (~(uint32_t)(ANV_UBO_ALIGNMENT - 1))
 
    /**
+    * Base offsets for descriptor sets from
+    * INDIRECT_DESCRIPTOR_POOL_MIN_ADDRESS
+    *
     * In bits [0:5] : dynamic offset index in dynamic_offsets[] for the set
     *
     * In bits [6:63] : descriptor set address
     */
-   uint64_t desc_sets[MAX_SETS];
+   uint32_t desc_offsets[MAX_SETS];
 
    union {
       struct {
@@ -2425,7 +2547,18 @@ struct anv_push_constants {
 };
 
 struct anv_surface_state {
+   /** Surface state allocated from the bindless heap
+    *
+    * Can be NULL if unused.
+    */
    struct anv_state state;
+
+   /** Surface state after genxml packing
+    *
+    * Same data as in state.
+    */
+   struct anv_surface_state_data state_data;
+
    /** Address of the surface referred to by this state
     *
     * This address is relative to the start of the BO.
@@ -2550,6 +2683,8 @@ struct anv_cmd_pipeline_state {
    struct {
       uint32_t                                  offsets[MAX_DYNAMIC_BUFFERS];
    }                                            dynamic_offsets[MAX_SETS];
+
+   struct anv_pipeline      *pipeline;
 };
 
 /** State tracking for graphics pipeline
@@ -2776,6 +2911,7 @@ struct anv_cmd_buffer {
    struct anv_state_stream                      surface_state_stream;
    struct anv_state_stream                      dynamic_state_stream;
    struct anv_state_stream                      general_state_stream;
+   struct anv_state_stream                      push_descriptor_stream;
 
    VkCommandBufferUsageFlags                    usage_flags;
 
@@ -3140,12 +3276,6 @@ enum anv_pipeline_type {
    ANV_PIPELINE_RAY_TRACING,
 };
 
-#define ALL_GRAPHICS_LIB_FLAGS \
-   (VK_GRAPHICS_PIPELINE_LIBRARY_VERTEX_INPUT_INTERFACE_BIT_EXT | \
-    VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT | \
-    VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT | \
-    VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_OUTPUT_INTERFACE_BIT_EXT)
-
 struct anv_pipeline {
    struct vk_object_base                        base;
 
@@ -3158,6 +3288,8 @@ struct anv_pipeline {
 
    enum anv_pipeline_type                       type;
    VkPipelineCreateFlags                        flags;
+
+   VkShaderStageFlags                           active_stages;
 
    uint32_t                                     ray_queries;
 
@@ -3195,8 +3327,6 @@ struct anv_graphics_base_pipeline {
     * included into a linked pipeline.
     */
    uint32_t                                     feedback_index[ANV_GRAPHICS_SHADER_STAGE_COUNT];
-
-   VkShaderStageFlags                           active_stages;
 
    /* True if at the time the fragment shader was compiled, it didn't have all
     * the information to avoid BRW_WM_MSAA_FLAG_ENABLE_DYNAMIC.
@@ -3363,14 +3493,14 @@ static inline bool
 anv_pipeline_has_stage(const struct anv_graphics_pipeline *pipeline,
                        gl_shader_stage stage)
 {
-   return (pipeline->base.active_stages & mesa_to_vk_shader_stage(stage)) != 0;
+   return (pipeline->base.base.active_stages & mesa_to_vk_shader_stage(stage)) != 0;
 }
 
 static inline bool
 anv_pipeline_base_has_stage(const struct anv_graphics_base_pipeline *pipeline,
                             gl_shader_stage stage)
 {
-   return (pipeline->active_stages & mesa_to_vk_shader_stage(stage)) != 0;
+   return (pipeline->base.active_stages & mesa_to_vk_shader_stage(stage)) != 0;
 }
 
 static inline bool
@@ -4140,18 +4270,18 @@ struct anv_image_view {
        * image layout of SHADER_READ_ONLY_OPTIMAL or
        * DEPTH_STENCIL_READ_ONLY_OPTIMAL.
        */
-      struct anv_surface_state optimal_sampler_surface_state;
+      struct anv_surface_state optimal_sampler;
 
       /**
        * RENDER_SURFACE_STATE when using image as a sampler surface with an
        * image layout of GENERAL.
        */
-      struct anv_surface_state general_sampler_surface_state;
+      struct anv_surface_state general_sampler;
 
       /**
        * RENDER_SURFACE_STATE when using image as a storage image.
        */
-      struct anv_surface_state storage_surface_state;
+      struct anv_surface_state storage;
    } planes[3];
 };
 
@@ -4263,7 +4393,7 @@ anv_get_image_format_features2(const struct intel_device_info *devinfo,
                                const struct isl_drm_modifier_info *isl_mod_info);
 
 void anv_fill_buffer_surface_state(struct anv_device *device,
-                                   struct anv_state state,
+                                   void *surface_state_ptr,
                                    enum isl_format format,
                                    struct isl_swizzle swizzle,
                                    isl_surf_usage_flags_t usage,

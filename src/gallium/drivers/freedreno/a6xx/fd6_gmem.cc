@@ -288,7 +288,7 @@ emit_lrz_clears(struct fd_batch *batch)
          OUT_PKT7(ring, CP_SET_MARKER, 1);
          OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BLIT2DSCALE));
 
-         fd6_event_write(batch, ring, CACHE_FLUSH_TS, true);
+         fd6_emit_flushes(ctx, ring, FD6_FLUSH_CACHE);
 
          if (ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit !=
              ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL) {
@@ -325,8 +325,6 @@ emit_lrz_clears(struct fd_batch *batch)
       fd6_emit_flushes(batch->ctx, ring,
                        FD6_FLUSH_CCU_COLOR |
                        FD6_INVALIDATE_CACHE);
-
-      fd_wfi(batch, ring);
    }
 }
 
@@ -882,8 +880,6 @@ emit_binning_pass(struct fd_batch *batch) assert_dt
    }
    trace_end_binning_ib(&batch->trace, ring);
 
-   fd_reset_wfi(batch);
-
    OUT_PKT7(ring, CP_SET_DRAW_STATE, 3);
    OUT_RING(ring, CP_SET_DRAW_STATE__0_COUNT(0) |
                      CP_SET_DRAW_STATE__0_DISABLE_ALL_GROUPS |
@@ -894,11 +890,18 @@ emit_binning_pass(struct fd_batch *batch) assert_dt
    OUT_PKT7(ring, CP_EVENT_WRITE, 1);
    OUT_RING(ring, UNK_2D);
 
-   fd6_cache_inv(batch, ring);
-   fd6_cache_flush(batch, ring);
-   fd_wfi(batch, ring);
-
-   OUT_PKT7(ring, CP_WAIT_FOR_ME, 0);
+   /* This flush is probably required because the VSC, which produces the
+    * visibility stream, is a client of UCHE, whereas the CP needs to read
+    * the visibility stream (without caching) to do draw skipping. The
+    * WFI+WAIT_FOR_ME combination guarantees that the binning commands
+    * submitted are finished before reading the VSC regs (in
+    * emit_vsc_overflow_test) or the VSC_DATA buffer directly (implicitly
+    * as part of draws).
+    */
+   fd6_emit_flushes(batch->ctx, ring,
+                    FD6_FLUSH_CACHE |
+                    FD6_WAIT_FOR_IDLE |
+                    FD6_WAIT_FOR_ME);
 
    trace_start_vsc_overflow_test(&batch->trace, batch->gmem);
    emit_vsc_overflow_test(batch);
@@ -980,7 +983,7 @@ fd6_emit_tile_init(struct fd_batch *batch) assert_dt
    OUT_PKT7(ring, CP_SKIP_IB2_ENABLE_LOCAL, 1);
    OUT_RING(ring, 0x1);
 
-   fd_wfi(batch, ring);
+   OUT_WFI5(ring);
    fd6_emit_ccu_cntl(ring, screen, true);
 
    emit_zs<CHIP>(ring, pfb->zsbuf, batch->gmem_state);
@@ -1741,8 +1744,7 @@ emit_sysmem_clears(struct fd_batch *batch, struct fd_batch_subpass *subpass)
       }
    }
 
-   fd6_event_write(batch, ring, PC_CCU_FLUSH_COLOR_TS, true);
-   fd_wfi(batch, ring);
+   fd6_emit_flushes(ctx, ring, FD6_FLUSH_CCU_COLOR);
 
    trace_end_clears(&batch->trace, ring);
 }
@@ -1832,7 +1834,7 @@ fd6_emit_sysmem(struct fd_batch *batch)
          emit_sysmem_clears<CHIP>(batch, subpass);
       }
 
-      fd_wfi(batch, ring);
+      OUT_WFI5(ring);
       fd6_emit_ccu_cntl(ring, screen, false);
 
       struct pipe_framebuffer_state *pfb = &batch->framebuffer;
@@ -1862,9 +1864,9 @@ fd6_emit_sysmem_fini(struct fd_batch *batch) assert_dt
 
    fd6_emit_lrz_flush(ring);
 
-   fd6_event_write(batch, ring, PC_CCU_FLUSH_COLOR_TS, true);
-   fd6_event_write(batch, ring, PC_CCU_FLUSH_DEPTH_TS, true);
-   fd_wfi(batch, ring);
+   fd6_emit_flushes(batch->ctx, ring,
+                    FD6_FLUSH_CCU_COLOR |
+                    FD6_FLUSH_CCU_DEPTH);
 }
 
 template <chip CHIP>

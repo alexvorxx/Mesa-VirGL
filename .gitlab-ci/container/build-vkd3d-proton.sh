@@ -6,7 +6,7 @@ VKD3D_PROTON_COMMIT="507cb3195bae32395c69763afec2b1ac078d509a"
 
 # When changing this file, you need to bump the following
 # .gitlab-ci/image-tags.yml tags:
-# DEBIAN_X86_TEST_VK_TAG
+# DEBIAN_X86_64_TEST_VK_TAG
 # KERNEL_ROOTFS_TAG
 set -ex
 

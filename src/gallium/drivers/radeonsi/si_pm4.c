@@ -92,10 +92,12 @@ void si_pm4_set_reg_idx3(struct si_screen *sscreen, struct si_pm4_state *state,
 {
    SI_CHECK_SHADOWED_REGS(reg, 1);
 
-   if (sscreen->info.gfx_level >= GFX10)
+   if (sscreen->info.uses_kernel_cu_mask) {
+      assert(sscreen->info.gfx_level >= GFX10);
       si_pm4_set_reg_custom(state, reg - SI_SH_REG_OFFSET, val, PKT3_SET_SH_REG_INDEX, 3);
-   else
+   } else {
       si_pm4_set_reg_custom(state, reg - SI_SH_REG_OFFSET, val, PKT3_SET_SH_REG, 0);
+   }
 }
 
 void si_pm4_set_reg_va(struct si_pm4_state *state, unsigned reg, uint32_t val)
@@ -152,4 +154,24 @@ void si_pm4_reset_emitted(struct si_context *sctx)
       if (sctx->queued.array[i])
          sctx->dirty_states |= BITFIELD_BIT(i);
    }
+}
+
+struct si_pm4_state *si_pm4_create_sized(unsigned max_dw)
+{
+   struct si_pm4_state *pm4;
+   unsigned size = sizeof(*pm4) + 4 * (max_dw - ARRAY_SIZE(pm4->pm4));
+
+   pm4 = (struct si_pm4_state *)calloc(1, size);
+   if (pm4)
+      pm4->max_dw = max_dw;
+   return pm4;
+}
+
+struct si_pm4_state *si_pm4_clone(struct si_pm4_state *orig)
+{
+   struct si_pm4_state *pm4 = si_pm4_create_sized(orig->max_dw);
+
+   if (pm4)
+      memcpy(pm4, orig, sizeof(*pm4) + 4 * (pm4->max_dw - ARRAY_SIZE(pm4->pm4)));
+   return pm4;
 }

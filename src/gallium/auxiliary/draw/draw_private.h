@@ -99,6 +99,8 @@ struct tgsi_sampler;
 struct tgsi_image;
 struct tgsi_buffer;
 struct lp_cached_code;
+struct draw_vertex_info;
+struct draw_prim_info;
 
 /**
  * Represents the mapped vertex buffer.
@@ -164,7 +166,7 @@ struct draw_context
    struct {
       /* Current active frontend */
       struct draw_pt_front_end *frontend;
-      enum pipe_prim_type prim;
+      enum mesa_prim prim;
       unsigned opt;     /**< bitmask of PT_x flags */
       unsigned eltSize; /* saved eltSize for flushing */
       unsigned viewid; /* saved viewid for flushing */
@@ -175,6 +177,7 @@ struct draw_context
          struct draw_pt_middle_end *fetch_shade_emit;
          struct draw_pt_middle_end *general;
          struct draw_pt_middle_end *llvm;
+         struct draw_pt_middle_end *mesh;
       } middle;
 
       struct {
@@ -356,6 +359,13 @@ struct draw_context
       struct draw_fragment_shader *fragment_shader;
    } fs;
 
+   struct {
+      struct draw_mesh_shader *mesh_shader;
+      uint num_ms_outputs;  /**< convenience, from geometry_shader */
+      uint position_output;
+      uint clipvertex_output;
+   } ms;
+
    /** Stream output (vertex feedback) state */
    struct {
       struct draw_so_target *targets[PIPE_MAX_SO_BUFFERS];
@@ -422,31 +432,10 @@ struct draw_fetch_info {
    unsigned count;
 };
 
-struct draw_vertex_info {
-   struct vertex_header *verts;
-   unsigned vertex_size;
-   unsigned stride;
-   unsigned count;
-};
-
 /* these flags are set if the primitive is a segment of a larger one */
 #define DRAW_SPLIT_BEFORE        0x1
 #define DRAW_SPLIT_AFTER         0x2
 #define DRAW_LINE_LOOP_AS_STRIP  0x4
-
-struct draw_prim_info {
-   boolean linear;
-   unsigned start;
-
-   const ushort *elts;
-   unsigned count;
-
-   enum pipe_prim_type prim;
-   unsigned flags;
-   unsigned *primitive_lengths;
-   unsigned primitive_count;
-};
-
 
 /*******************************************************************************
  * Draw common initialization code

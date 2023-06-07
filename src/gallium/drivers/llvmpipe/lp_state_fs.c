@@ -4173,7 +4173,7 @@ llvmpipe_set_constant_buffer(struct pipe_context *pipe,
    struct llvmpipe_context *llvmpipe = llvmpipe_context(pipe);
    struct pipe_constant_buffer *constants = &llvmpipe->constants[shader][index];
 
-   assert(shader < PIPE_SHADER_TYPES);
+   assert(shader < PIPE_SHADER_MESH_TYPES);
    assert(index < ARRAY_SIZE(llvmpipe->constants[shader]));
 
    /* note: reference counting */
@@ -4218,6 +4218,12 @@ llvmpipe_set_constant_buffer(struct pipe_context *pipe,
       break;
    case PIPE_SHADER_FRAGMENT:
       llvmpipe->dirty |= LP_NEW_FS_CONSTANTS;
+      break;
+   case PIPE_SHADER_TASK:
+      llvmpipe->dirty |= LP_NEW_TASK_CONSTANTS;
+      break;
+   case PIPE_SHADER_MESH:
+      llvmpipe->dirty |= LP_NEW_MESH_CONSTANTS;
       break;
    default:
       unreachable("Illegal shader type");
@@ -4264,6 +4270,12 @@ llvmpipe_set_shader_buffers(struct pipe_context *pipe,
       }
       case PIPE_SHADER_COMPUTE:
          llvmpipe->cs_dirty |= LP_CSNEW_SSBOS;
+         break;
+      case PIPE_SHADER_TASK:
+         llvmpipe->dirty |= LP_NEW_TASK_SSBOS;
+         break;
+      case PIPE_SHADER_MESH:
+         llvmpipe->dirty |= LP_NEW_MESH_SSBOS;
          break;
       case PIPE_SHADER_FRAGMENT:
          llvmpipe->fs_ssbo_write_mask &= ~(((1 << count) - 1) << start_slot);
@@ -4314,6 +4326,12 @@ llvmpipe_set_shader_images(struct pipe_context *pipe,
       break;
    case PIPE_SHADER_FRAGMENT:
       llvmpipe->dirty |= LP_NEW_FS_IMAGES;
+      break;
+   case PIPE_SHADER_TASK:
+      llvmpipe->dirty |= LP_NEW_TASK_IMAGES;
+      break;
+   case PIPE_SHADER_MESH:
+      llvmpipe->dirty |= LP_NEW_MESH_IMAGES;
       break;
    default:
       unreachable("Illegal shader type");

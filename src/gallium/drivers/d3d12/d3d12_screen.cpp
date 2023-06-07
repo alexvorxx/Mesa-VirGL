@@ -333,6 +333,7 @@ d3d12_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
    case PIPE_CAP_FENCE_SIGNAL:
    case PIPE_CAP_TIMELINE_SEMAPHORE_IMPORT:
    case PIPE_CAP_CLIP_HALFZ:
+   case PIPE_CAP_VS_LAYER_VIEWPORT:
       return 1;
 
    case PIPE_CAP_MAX_VERTEX_STREAMS:
@@ -398,6 +399,10 @@ d3d12_get_shader_param(struct pipe_screen *pscreen,
                        enum pipe_shader_cap param)
 {
    struct d3d12_screen *screen = d3d12_screen(pscreen);
+
+   if (shader == PIPE_SHADER_TASK ||
+       shader == PIPE_SHADER_MESH)
+      return 0;
 
    switch (param) {
    case PIPE_SHADER_CAP_MAX_INSTRUCTIONS:

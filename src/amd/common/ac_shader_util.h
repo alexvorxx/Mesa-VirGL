@@ -173,6 +173,8 @@ unsigned ac_get_fs_input_vgpr_cnt(const struct ac_shader_config *config,
                                   signed char *face_vgpr_index, signed char *ancillary_vgpr_index,
                                   signed char *sample_coverage_vgpr_index_ptr);
 
+uint16_t ac_get_ps_iter_mask(unsigned ps_iter_samples);
+
 void ac_choose_spi_color_formats(unsigned format, unsigned swap, unsigned ntype,
                                  bool is_depth, bool use_rbplus,
                                  struct ac_spi_color_formats *formats);
@@ -219,8 +221,10 @@ ac_ngg_get_scratch_lds_size(gl_shader_stage stage,
 
 enum gl_access_qualifier ac_get_mem_access_flags(const nir_intrinsic_instr *instr);
 
-union ac_hw_cache_flags ac_get_hw_cache_flags(enum amd_gfx_level gfx_level,
+union ac_hw_cache_flags ac_get_hw_cache_flags(const struct radeon_info *info,
                                               enum gl_access_qualifier access);
+
+unsigned ac_get_all_edge_flag_bits(void);
 
 #ifdef __cplusplus
 }

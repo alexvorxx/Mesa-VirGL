@@ -31,7 +31,7 @@
         section_end ccache_before
       fi
   after_script:
-    - if test -x /usr/bin/ccache; then ccache --show-stats | grep "cache hit rate"; fi
+    - if test -x /usr/bin/ccache; then ccache --show-stats | grep "Hits:"; fi
     - !reference [default, after_script]
 
 .build-windows:
@@ -49,7 +49,7 @@
 .meson-build:
   extends:
     - .build-linux
-    - .use-debian/x86_build
+    - .use-debian/x86_64_build
   stage: build-x86_64
   variables:
 
@@ -63,7 +63,7 @@
 .meson-build_mingw:
   extends:
     - .build-linux
-    - .use-debian/x86_build_mingw
+    - .use-debian/x86_64_build_mingw
     - .use-wine
   stage: build-x86_64
   script:
@@ -99,7 +99,7 @@ debian-testing:
     LLVM_VERSION: "13"
 
       -D tools=drm-shim
-    MINIO_ARTIFACT_NAME: mesa-amd64
+    MINIO_ARTIFACT_NAME: mesa-x86_64
     LLVM_VERSION: 15
 
   script:
@@ -271,7 +271,7 @@ debian-release:
       -D intel-clc=enabled
       -D imagination-srv=true
     BUILDTYPE: "release"
-    MINIO_ARTIFACT_NAME: "mesa-amd64-${BUILDTYPE}"
+    MINIO_ARTIFACT_NAME: "mesa-x86_64-${BUILDTYPE}"
   script:
     - .gitlab-ci/meson/build.sh
     - 'if [ -n "$MESA_CI_PERFORMANCE_ENABLED" ]; then .gitlab-ci/prepare-artifacts.sh; fi'
@@ -279,7 +279,7 @@ debian-release:
 alpine-build-testing:
   extends:
     - .meson-build
-    - .use-alpine/x86_build
+    - .use-alpine/x86_64_build
   stage: build-x86_64
   variables:
     BUILDTYPE: "release"
@@ -317,7 +317,7 @@ alpine-build-testing:
 fedora-release:
   extends:
     - .meson-build
-    - .use-fedora/x86_build
+    - .use-fedora/x86_64_build
   variables:
     BUILDTYPE: "release"
     C_LINK_ARGS: >
@@ -457,9 +457,9 @@ debian-android:
 .meson-arm:
   extends:
     - .meson-cross
-    - .use-debian/arm_build
+    - .use-debian/arm64_build
   needs:
-    - debian/arm_build
+    - debian/arm64_build
   variables:
     VULKAN_DRIVERS: freedreno,broadcom
     GALLIUM_DRIVERS: "etnaviv,freedreno,kmsro,lima,nouveau,panfrost,swrast,tegra,v3d,vc4,zink"
@@ -467,7 +467,7 @@ debian-android:
   tags:
     - aarch64
 
-debian-armhf:
+debian-arm32:
   extends:
     - .meson-arm
     - .ci-deqp-artifacts
@@ -476,7 +476,7 @@ debian-armhf:
     EXTRA_OPTION: >
       -D llvm=disabled
       -D valgrind=disabled
-    MINIO_ARTIFACT_NAME: mesa-armhf
+    MINIO_ARTIFACT_NAME: mesa-arm32
     # The strip command segfaults, failing to strip the binary and leaving
     # tempfiles in our artifacts.
     ARTIFACTS_DEBUG_SYMBOLS: 1
@@ -722,10 +722,10 @@ debian-vulkan:
       -D intel-clc=disabled
       -D imagination-srv=true
 
-debian-i386:
+debian-x86_32:
   extends:
     - .meson-cross
-    - .use-debian/i386_build
+    - .use-debian/x86_32_build
   variables:
     CROSS: i386
 
@@ -790,6 +790,7 @@ debian-ppc64el:
       -D opencl-spirv=true
       -D microsoft-clc=enabled
       -D static-libclc=all
+      -D opencl-external-clang-headers=disabled
       -D llvm=enabled
       -D gallium-va=enabled
       -D video-codecs=h264dec,h264enc,h265dec,h265enc,vc1dec

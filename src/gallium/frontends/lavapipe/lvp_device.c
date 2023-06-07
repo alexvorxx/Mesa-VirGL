@@ -175,6 +175,7 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
 #if DETECT_OS_LINUX
    .EXT_memory_priority                   = true,
 #endif
+   .EXT_mesh_shader                       = true,
    .EXT_multisampled_render_to_single_sampled = true,
    .EXT_multi_draw                        = true,
    .EXT_non_seamless_cube_map             = true,
@@ -553,6 +554,13 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
 
       /* VK_EXT_pageable_device_local_memory */
       .pageableDeviceLocalMemory = true,
+
+      /* VK_EXT_mesh_shader */
+      .taskShader = true,
+      .meshShader = true,
+      .multiviewMeshShader = false,
+      .primitiveFragmentShadingRateMeshShader = false,
+      .meshShaderQueries = true,
    };
 }
 
@@ -1192,18 +1200,56 @@ VKAPI_ATTR void VKAPI_CALL lvp_GetPhysicalDeviceProperties2(
          props->shaderBinaryVersion = 1;
          break;
       }
-      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT: {
-         VkPhysicalDeviceMemoryBudgetPropertiesEXT *props = (VkPhysicalDeviceMemoryBudgetPropertiesEXT*)ext;
-         os_get_total_physical_memory(&props->heapBudget[0]);
-         os_get_available_system_memory(&props->heapUsage[0]);
-         props->heapUsage[0] = props->heapBudget[0] - props->heapUsage[0];
-         break;
-      }
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_PROPERTIES_EXT: {
          VkPhysicalDeviceRobustness2PropertiesEXT *props =
             (VkPhysicalDeviceRobustness2PropertiesEXT *)ext;
          props->robustStorageBufferAccessSizeAlignment = 1;
          props->robustUniformBufferAccessSizeAlignment = 1;
+         break;
+      }
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MESH_SHADER_PROPERTIES_EXT: {
+         VkPhysicalDeviceMeshShaderPropertiesEXT *props =
+            (VkPhysicalDeviceMeshShaderPropertiesEXT *)ext;
+         props->maxTaskWorkGroupTotalCount = 4194304;
+         props->maxTaskWorkGroupCount[0] = 65536;
+         props->maxTaskWorkGroupCount[1] = 65536;
+         props->maxTaskWorkGroupCount[2] = 65536;
+         props->maxTaskWorkGroupInvocations = 1024;
+         props->maxTaskWorkGroupSize[0] = 1024;
+         props->maxTaskWorkGroupSize[1] = 1024;
+         props->maxTaskWorkGroupSize[2] = 1024;
+         props->maxTaskPayloadSize = 16384;
+         props->maxTaskSharedMemorySize = 32768;
+         props->maxTaskPayloadAndSharedMemorySize = 32768;
+
+         props->maxMeshWorkGroupTotalCount = 4194304;
+         props->maxMeshWorkGroupCount[0] = 65536;
+         props->maxMeshWorkGroupCount[1] = 65536;
+         props->maxMeshWorkGroupCount[2] = 65536;
+         props->maxMeshWorkGroupInvocations = 1024;
+         props->maxMeshWorkGroupSize[0] = 1024;
+         props->maxMeshWorkGroupSize[1] = 1024;
+         props->maxMeshWorkGroupSize[2] = 1024;
+         props->maxMeshOutputMemorySize = 32768; /* 32K min required */
+         props->maxMeshSharedMemorySize = 28672;     /* 28K min required */
+         props->maxMeshPayloadAndSharedMemorySize =
+            props->maxTaskPayloadSize +
+            props->maxMeshSharedMemorySize; /* 28K min required */
+         props->maxMeshPayloadAndOutputMemorySize =
+            props->maxTaskPayloadSize +
+            props->maxMeshOutputMemorySize;    /* 47K min required */
+         props->maxMeshOutputComponents = 128; /* 32x vec4 min required */
+         props->maxMeshOutputVertices = 256;
+         props->maxMeshOutputPrimitives = 256;
+         props->maxMeshOutputLayers = 8;
+         props->meshOutputPerVertexGranularity = 1;
+         props->meshOutputPerPrimitiveGranularity = 1;
+         props->maxPreferredTaskWorkGroupInvocations = 64;
+         props->maxPreferredMeshWorkGroupInvocations = 128;
+         props->prefersLocalInvocationVertexOutput = true;
+         props->prefersLocalInvocationPrimitiveOutput = true;
+         props->prefersCompactVertexOutput = true;
+         props->prefersCompactPrimitiveOutput = false;
          break;
       }
       default:
@@ -1262,6 +1308,14 @@ VKAPI_ATTR void VKAPI_CALL lvp_GetPhysicalDeviceMemoryProperties2(
 {
    lvp_GetPhysicalDeviceMemoryProperties(physicalDevice,
                                          &pMemoryProperties->memoryProperties);
+   VkPhysicalDeviceMemoryBudgetPropertiesEXT *props = vk_find_struct(pMemoryProperties, PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT);
+   if (props) {
+      props->heapBudget[0] = pMemoryProperties->memoryProperties.memoryHeaps[0].size;
+      os_get_available_system_memory(&props->heapUsage[0]);
+      props->heapUsage[0] = props->heapBudget[0] - props->heapUsage[0];
+      memset(&props->heapBudget[1], 0, sizeof(props->heapBudget[0]) * (VK_MAX_MEMORY_HEAPS - 1));
+      memset(&props->heapUsage[1], 0, sizeof(props->heapUsage[0]) * (VK_MAX_MEMORY_HEAPS - 1));
+   }
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL

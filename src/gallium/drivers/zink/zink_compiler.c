@@ -382,7 +382,7 @@ lower_gl_point_gs(nir_shader *shader)
    struct lower_gl_point_state state;
    nir_builder b;
 
-   shader->info.gs.output_primitive = SHADER_PRIM_TRIANGLE_STRIP;
+   shader->info.gs.output_primitive = MESA_PRIM_TRIANGLE_STRIP;
    shader->info.gs.vertices_out *= 4;
 
    // Gets the gl_Position in and out
@@ -618,14 +618,14 @@ lower_pv_mode_gs_instr(nir_builder *b, nir_instr *instr, void *data)
 }
 
 static unsigned int
-lower_pv_mode_vertices_for_prim(enum shader_prim prim)
+lower_pv_mode_vertices_for_prim(enum mesa_prim prim)
 {
    switch (prim) {
-   case SHADER_PRIM_POINTS:
+   case MESA_PRIM_POINTS:
       return 1;
-   case SHADER_PRIM_LINE_STRIP:
+   case MESA_PRIM_LINE_STRIP:
       return 2;
-   case SHADER_PRIM_TRIANGLE_STRIP:
+   case MESA_PRIM_TRIANGLE_STRIP:
       return 3;
    default:
       unreachable("unsupported primitive for gs output");
@@ -701,7 +701,7 @@ viewport_map(nir_builder *b, nir_ssa_def *vert,
              nir_ssa_def *scale)
 {
    nir_ssa_def *w_recip = nir_frcp(b, nir_channel(b, vert, 3));
-   nir_ssa_def *ndc_point = nir_fmul(b, nir_channels(b, vert, 0x3),
+   nir_ssa_def *ndc_point = nir_fmul(b, nir_trim_vector(b, vert, 2),
                                         w_recip);
    return nir_fmul(b, ndc_point, scale);
 }
@@ -1097,13 +1097,20 @@ lower_line_smooth_gs(nir_shader *shader)
    if (!state.pos_out)
       return false;
 
+   unsigned location = 0;
+   nir_foreach_shader_in_variable(var, shader) {
+     if (var->data.driver_location >= location)
+         location = var->data.driver_location + 1;
+   }
+
    state.line_coord_out =
       nir_variable_create(shader, nir_var_shader_out, glsl_vec4_type(),
                           "__line_coord");
    state.line_coord_out->data.interpolation = INTERP_MODE_NOPERSPECTIVE;
-   state.line_coord_out->data.driver_location = shader->num_outputs++;
+   state.line_coord_out->data.driver_location = location;
    state.line_coord_out->data.location = MAX2(util_last_bit64(shader->info.outputs_written), VARYING_SLOT_VAR0);
    shader->info.outputs_written |= BITFIELD64_BIT(state.line_coord_out->data.location);
+   shader->num_outputs++;
 
    // create temp variables
    state.prev_pos = nir_variable_create(shader, nir_var_shader_temp,
@@ -1120,7 +1127,7 @@ lower_line_smooth_gs(nir_shader *shader)
    nir_store_var(&b, state.pos_counter, nir_imm_int(&b, 0), 1);
 
    shader->info.gs.vertices_out = 8 * shader->info.gs.vertices_out;
-   shader->info.gs.output_primitive = SHADER_PRIM_TRIANGLE_STRIP;
+   shader->info.gs.output_primitive = MESA_PRIM_TRIANGLE_STRIP;
 
    return nir_shader_instructions_pass(shader, lower_line_smooth_gs_instr,
                                        nir_metadata_dominance, &state);
@@ -1218,8 +1225,8 @@ zink_create_quads_emulation_gs(const nir_shader_compiler_options *options,
                                                   "filled quad gs");
 
    nir_shader *nir = b.shader;
-   nir->info.gs.input_primitive = SHADER_PRIM_LINES_ADJACENCY;
-   nir->info.gs.output_primitive = SHADER_PRIM_TRIANGLE_STRIP;
+   nir->info.gs.input_primitive = MESA_PRIM_LINES_ADJACENCY;
+   nir->info.gs.output_primitive = MESA_PRIM_TRIANGLE_STRIP;
    nir->info.gs.vertices_in = 4;
    nir->info.gs.vertices_out = 6;
    nir->info.gs.invocations = 1;
@@ -2552,7 +2559,6 @@ assign_producer_var_io(gl_shader_stage stage, nir_variable *var, unsigned *reser
    switch (slot) {
    case -1:
    case VARYING_SLOT_POS:
-   case VARYING_SLOT_PNTC:
    case VARYING_SLOT_PSIZ:
    case VARYING_SLOT_LAYER:
    case VARYING_SLOT_PRIMITIVE_ID:
@@ -2603,7 +2609,6 @@ assign_consumer_var_io(gl_shader_stage stage, nir_variable *var, unsigned *reser
    unsigned slot = var->data.location;
    switch (slot) {
    case VARYING_SLOT_POS:
-   case VARYING_SLOT_PNTC:
    case VARYING_SLOT_PSIZ:
    case VARYING_SLOT_LAYER:
    case VARYING_SLOT_PRIMITIVE_ID:
@@ -3002,7 +3007,8 @@ lower_64bit_vars_function(nir_shader *shader, nir_function *function, nir_variab
                   for (unsigned i = 0; i < 2; i++, num_components -= 4) {
                      nir_deref_instr *strct = nir_build_deref_struct(&b, deref, i);
                      nir_ssa_def *load = nir_load_deref(&b, strct);
-                     comp[i * 2] = nir_pack_64_2x32(&b, nir_channels(&b, load, BITFIELD_MASK(2)));
+                     comp[i * 2] = nir_pack_64_2x32(&b,
+                                                    nir_trim_vector(&b, load, 2));
                      if (num_components > 2)
                         comp[i * 2 + 1] = nir_pack_64_2x32(&b, nir_channels(&b, load, BITFIELD_RANGE(2, 2)));
                   }
@@ -3479,10 +3485,7 @@ invert_point_coord_instr(nir_builder *b, nir_instr *instr, void *data)
    if (instr->type != nir_instr_type_intrinsic)
       return false;
    nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-   if (intr->intrinsic != nir_intrinsic_load_deref)
-      return false;
-   nir_variable *deref_var = nir_intrinsic_get_var(intr, 0);
-   if (deref_var->data.location != VARYING_SLOT_PNTC)
+   if (intr->intrinsic != nir_intrinsic_load_point_coord)
       return false;
    b->cursor = nir_after_instr(instr);
    nir_ssa_def *def = nir_vec2(b, nir_channel(b, &intr->dest.ssa, 0),
@@ -3494,7 +3497,7 @@ invert_point_coord_instr(nir_builder *b, nir_instr *instr, void *data)
 static bool
 invert_point_coord(nir_shader *nir)
 {
-   if (!(nir->info.inputs_read & BITFIELD64_BIT(VARYING_SLOT_PNTC)))
+   if (!BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_POINT_COORD))
       return false;
    return nir_shader_instructions_pass(nir, invert_point_coord_instr, nir_metadata_dominance, NULL);
 }
@@ -3647,7 +3650,7 @@ zink_shader_compile(struct zink_screen *screen, bool can_shobj, struct zink_shad
             NIR_PASS_V(nir, lower_dual_blend);
          }
          if (zink_fs_key_base(key)->coord_replace_bits)
-            NIR_PASS_V(nir, nir_lower_texcoord_replace, zink_fs_key_base(key)->coord_replace_bits, false, false);
+            NIR_PASS_V(nir, nir_lower_texcoord_replace, zink_fs_key_base(key)->coord_replace_bits, true, false);
          if (zink_fs_key_base(key)->point_coord_yinvert)
             NIR_PASS_V(nir, invert_point_coord);
          if (zink_fs_key_base(key)->force_persample_interp || zink_fs_key_base(key)->fbfetch_ms) {

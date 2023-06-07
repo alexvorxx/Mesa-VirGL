@@ -830,7 +830,7 @@ void gfx9_get_gs_info(struct si_shader_selector *es, struct si_shader_selector *
    unsigned gs_num_invocations = MAX2(gs->info.base.gs.invocations, 1);
    unsigned input_prim = gs->info.base.gs.input_primitive;
    bool uses_adjacency =
-      input_prim >= PIPE_PRIM_LINES_ADJACENCY && input_prim <= PIPE_PRIM_TRIANGLE_STRIP_ADJACENCY;
+      input_prim >= MESA_PRIM_LINES_ADJACENCY && input_prim <= MESA_PRIM_TRIANGLE_STRIP_ADJACENCY;
 
    /* All these are in dwords: */
    /* We can't allow using the whole LDS, because GS waves compete with
@@ -1057,7 +1057,7 @@ static void si_shader_gs(struct si_screen *sscreen, struct si_shader *shader)
          gs_vgpr_comp_cnt = 3; /* VGPR3 contains InvocationID. */
       else if (sel->info.uses_primid)
          gs_vgpr_comp_cnt = 2; /* VGPR2 contains PrimitiveID. */
-      else if (input_prim >= PIPE_PRIM_TRIANGLES)
+      else if (input_prim >= MESA_PRIM_TRIANGLES)
          gs_vgpr_comp_cnt = 1; /* VGPR1 contains offsets 2, 3 */
       else
          gs_vgpr_comp_cnt = 0; /* VGPR0 contains offsets 0, 1 */
@@ -1186,9 +1186,6 @@ static void gfx10_emit_shader_ngg_tail(struct si_context *sctx, struct si_shader
                                shader->ngg.spi_shader_pos_format);
    radeon_opt_set_context_reg(sctx, R_028818_PA_CL_VTE_CNTL, SI_TRACKED_PA_CL_VTE_CNTL,
                               shader->ngg.pa_cl_vte_cntl);
-   radeon_opt_set_context_reg(sctx, R_028838_PA_CL_NGG_CNTL, SI_TRACKED_PA_CL_NGG_CNTL,
-                              shader->ngg.pa_cl_ngg_cntl);
-
    radeon_end_update_context_roll(sctx);
 
    /* These don't cause a context roll. */
@@ -1256,16 +1253,16 @@ unsigned si_get_input_prim(const struct si_shader_selector *gs, const union si_s
 
    if (gs->stage == MESA_SHADER_TESS_EVAL) {
       if (gs->info.base.tess.point_mode)
-         return PIPE_PRIM_POINTS;
+         return MESA_PRIM_POINTS;
       if (gs->info.base.tess._primitive_mode == TESS_PRIMITIVE_ISOLINES)
-         return PIPE_PRIM_LINES;
-      return PIPE_PRIM_TRIANGLES;
+         return MESA_PRIM_LINES;
+      return MESA_PRIM_TRIANGLES;
    }
 
    if (key->ge.opt.ngg_culling & SI_NGG_CULL_LINES)
-      return PIPE_PRIM_LINES;
+      return MESA_PRIM_LINES;
 
-   return PIPE_PRIM_TRIANGLES; /* worst case for all callers */
+   return MESA_PRIM_TRIANGLES; /* worst case for all callers */
 }
 
 static unsigned si_get_vs_out_cntl(const struct si_shader_selector *sel,
@@ -1361,7 +1358,7 @@ static void gfx10_shader_ngg(struct si_screen *sscreen, struct si_shader *shader
    else if ((gs_stage == MESA_SHADER_GEOMETRY && gs_info->uses_primid) ||
             (gs_stage == MESA_SHADER_VERTEX && shader->key.ge.mono.u.vs_export_prim_id))
       gs_vgpr_comp_cnt = 2; /* VGPR2 contains PrimitiveID. */
-   else if (input_prim >= PIPE_PRIM_TRIANGLES && !gfx10_is_ngg_passthrough(shader))
+   else if (input_prim >= MESA_PRIM_TRIANGLES && !gfx10_is_ngg_passthrough(shader))
       gs_vgpr_comp_cnt = 1; /* VGPR1 contains offsets 2, 3 */
    else
       gs_vgpr_comp_cnt = 0; /* VGPR0 contains offsets 0, 1 */
@@ -1397,14 +1394,6 @@ static void gfx10_shader_ngg(struct si_screen *sscreen, struct si_shader *shader
       S_028B90_ENABLE(gs_num_invocations > 1) |
       S_028B90_CNT(gs_num_invocations) |
       S_028B90_EN_MAX_VERT_OUT_PER_GS_INSTANCE(shader->ngg.max_vert_out_per_gs_instance);
-
-   /* Output hw-generated edge flags if needed and pass them via the prim
-    * export to prevent drawing lines on internal edges of decomposed
-    * primitives (such as quads) with polygon mode = lines.
-    */
-   shader->ngg.pa_cl_ngg_cntl =
-      S_028838_INDEX_BUF_EDGE_FLAG_ENA(gfx10_edgeflags_have_effect(shader)) |
-      S_028838_VERTEX_REUSE_DEPTH(sscreen->info.gfx_level >= GFX10_3 ? 30 : 0);
    shader->pa_cl_vs_out_cntl = si_get_vs_out_cntl(shader->selector, shader, true);
 
    if (gs_stage == MESA_SHADER_GEOMETRY) {
@@ -1510,10 +1499,17 @@ static void gfx10_shader_ngg(struct si_screen *sscreen, struct si_shader *shader
                                    S_028818_VPORT_Z_SCALE_ENA(1) | S_028818_VPORT_Z_OFFSET_ENA(1);
    }
 
-   shader->ngg.vgt_stages.u.ngg = 1;
-   shader->ngg.vgt_stages.u.streamout = si_shader_uses_streamout(shader);
-   shader->ngg.vgt_stages.u.ngg_passthrough = gfx10_is_ngg_passthrough(shader);
-   shader->ngg.vgt_stages.u.gs_wave32 = shader->wave_size == 32;
+   shader->ngg.vgt_shader_stages_en =
+      S_028B54_ES_EN(es_stage == MESA_SHADER_TESS_EVAL ?
+                        V_028B54_ES_STAGE_DS : V_028B54_ES_STAGE_REAL) |
+      S_028B54_GS_EN(gs_stage == MESA_SHADER_GEOMETRY) |
+      S_028B54_PRIMGEN_EN(1) |
+      S_028B54_PRIMGEN_PASSTHRU_EN(gfx10_is_ngg_passthrough(shader)) |
+      S_028B54_PRIMGEN_PASSTHRU_NO_MSG(gfx10_is_ngg_passthrough(shader) &&
+                                       sscreen->info.family >= CHIP_NAVI23) |
+      S_028B54_NGG_WAVE_ID_EN(si_shader_uses_streamout(shader)) |
+      S_028B54_GS_W32_EN(shader->wave_size == 32) |
+      S_028B54_MAX_PRIMGRP_IN_WAVE(2);
 }
 
 static void si_emit_shader_vs(struct si_context *sctx)
@@ -2125,7 +2121,21 @@ void si_update_ps_inputs_read_or_disabled(struct si_context *sctx)
                     (!ps_colormask && !ps_modifies_zs && !ps->info.base.writes_memory);
    }
 
-   sctx->ps_inputs_read_or_disabled = ps_disabled ? 0 : ps->info.inputs_read;
+   if (ps_disabled) {
+      sctx->ps_inputs_read_or_disabled = 0;
+   } else {
+      uint64_t inputs_read = ps->info.inputs_read;
+
+      if (sctx->shader.ps.key.ps.part.prolog.color_two_side) {
+         if (inputs_read & BITFIELD64_BIT(SI_UNIQUE_SLOT_COL0))
+            inputs_read |= BITFIELD64_BIT(SI_UNIQUE_SLOT_BFC0);
+
+         if (inputs_read & BITFIELD64_BIT(SI_UNIQUE_SLOT_COL1))
+            inputs_read |= BITFIELD64_BIT(SI_UNIQUE_SLOT_BFC1);
+      }
+
+      sctx->ps_inputs_read_or_disabled = inputs_read;
+   }
 }
 
 static void si_get_vs_key_outputs(struct si_context *sctx, struct si_shader_selector *vs,
@@ -2142,7 +2152,7 @@ static void si_get_vs_key_outputs(struct si_context *sctx, struct si_shader_sele
    key->ge.mono.u.vs_export_prim_id = vs->stage != MESA_SHADER_GEOMETRY &&
                                       sctx->shader.ps.cso && sctx->shader.ps.cso->info.uses_primid;
    key->ge.opt.kill_pointsize = vs->info.writes_psize &&
-                                sctx->current_rast_prim != PIPE_PRIM_POINTS &&
+                                sctx->current_rast_prim != MESA_PRIM_POINTS &&
                                 !sctx->queued.named.rasterizer->polygon_mode_is_points;
    key->ge.opt.remove_streamout = vs->info.enabled_streamout_buffer_mask &&
                                   !sctx->streamout.enabled_mask;
@@ -2346,7 +2356,7 @@ static void si_ps_key_update_primtype_shader_rasterizer_framebuffer(struct si_co
       sctx->framebuffer.nr_samples <= 1;
 
    key->ps.mono.point_smoothing = rs->point_smooth &&
-                                  sctx->current_rast_prim == PIPE_PRIM_POINTS;
+                                  sctx->current_rast_prim == MESA_PRIM_POINTS;
 }
 
 void si_ps_key_update_sample_shading(struct si_context *sctx)
@@ -3037,7 +3047,7 @@ static void si_init_shader_selector_async(void *job, void *gdata, int thread_ind
                 semantic != VARYING_SLOT_PSIZ &&
                 semantic != VARYING_SLOT_CLIP_VERTEX &&
                 semantic != VARYING_SLOT_EDGE) {
-               id = si_shader_io_get_unique_index(semantic, true);
+               id = si_shader_io_get_unique_index(semantic);
                sel->info.outputs_written_before_ps &= ~(1ull << id);
             }
          }
@@ -3158,9 +3168,9 @@ static void *si_create_shader_selector(struct pipe_context *ctx,
    switch (sel->stage) {
    case MESA_SHADER_GEOMETRY:
       /* Only possibilities: POINTS, LINE_STRIP, TRIANGLES */
-      sel->rast_prim = (enum pipe_prim_type)sel->info.base.gs.output_primitive;
+      sel->rast_prim = (enum mesa_prim)sel->info.base.gs.output_primitive;
       if (util_rast_prim_is_triangles(sel->rast_prim))
-         sel->rast_prim = PIPE_PRIM_TRIANGLES;
+         sel->rast_prim = MESA_PRIM_TRIANGLES;
 
       /* EN_MAX_VERT_OUT_PER_GS_INSTANCE does not work with tessellation so
        * we can't split workgroups. Disable ngg if any of the following conditions is true:
@@ -3178,13 +3188,13 @@ static void *si_create_shader_selector(struct pipe_context *ctx,
    case MESA_SHADER_TESS_EVAL:
       if (sel->stage == MESA_SHADER_TESS_EVAL) {
          if (sel->info.base.tess.point_mode)
-            sel->rast_prim = PIPE_PRIM_POINTS;
+            sel->rast_prim = MESA_PRIM_POINTS;
          else if (sel->info.base.tess._primitive_mode == TESS_PRIMITIVE_ISOLINES)
-            sel->rast_prim = PIPE_PRIM_LINE_STRIP;
+            sel->rast_prim = MESA_PRIM_LINE_STRIP;
          else
-            sel->rast_prim = PIPE_PRIM_TRIANGLES;
+            sel->rast_prim = MESA_PRIM_TRIANGLES;
       } else {
-         sel->rast_prim = PIPE_PRIM_TRIANGLES;
+         sel->rast_prim = MESA_PRIM_TRIANGLES;
       }
       break;
    default:;
@@ -3213,7 +3223,7 @@ static void *si_create_shader_selector(struct pipe_context *ctx,
             sel->ngg_cull_vert_threshold = 128;
       } else if (sel->stage == MESA_SHADER_TESS_EVAL ||
                  sel->stage == MESA_SHADER_GEOMETRY) {
-         if (sel->rast_prim != PIPE_PRIM_POINTS)
+         if (sel->rast_prim != MESA_PRIM_POINTS)
             sel->ngg_cull_vert_threshold = 0; /* always enabled */
       }
    }
@@ -4140,49 +4150,14 @@ void si_init_tess_factor_ring(struct si_context *sctx)
    si_flush_gfx_cs(sctx, RADEON_FLUSH_ASYNC_START_NEXT_GFX_IB_NOW, NULL);
 }
 
-struct si_pm4_state *si_build_vgt_shader_config(struct si_screen *screen, union si_vgt_stages_key key)
+static void si_emit_vgt_pipeline_state(struct si_context *sctx)
 {
-   struct si_pm4_state *pm4 = CALLOC_STRUCT(si_pm4_state);
-   uint32_t stages = 0;
+   struct radeon_cmdbuf *cs = &sctx->gfx_cs;
 
-   if (key.u.tess) {
-      stages |= S_028B54_LS_EN(V_028B54_LS_STAGE_ON) | S_028B54_HS_EN(1) | S_028B54_DYNAMIC_HS(1);
-
-      if (key.u.gs)
-         stages |= S_028B54_ES_EN(V_028B54_ES_STAGE_DS) | S_028B54_GS_EN(1);
-      else if (key.u.ngg)
-         stages |= S_028B54_ES_EN(V_028B54_ES_STAGE_DS);
-      else
-         stages |= S_028B54_VS_EN(V_028B54_VS_STAGE_DS);
-   } else if (key.u.gs) {
-      stages |= S_028B54_ES_EN(V_028B54_ES_STAGE_REAL) | S_028B54_GS_EN(1);
-   } else if (key.u.ngg) {
-      stages |= S_028B54_ES_EN(V_028B54_ES_STAGE_REAL);
-   }
-
-   if (key.u.ngg) {
-      stages |= S_028B54_PRIMGEN_EN(1) |
-                S_028B54_NGG_WAVE_ID_EN(key.u.streamout) |
-                S_028B54_PRIMGEN_PASSTHRU_EN(key.u.ngg_passthrough) |
-                S_028B54_PRIMGEN_PASSTHRU_NO_MSG(key.u.ngg_passthrough &&
-                                                 screen->info.family >= CHIP_NAVI23);
-   } else if (key.u.gs) {
-      stages |= S_028B54_VS_EN(V_028B54_VS_STAGE_COPY_SHADER);
-   }
-
-   if (screen->info.gfx_level >= GFX9)
-      stages |= S_028B54_MAX_PRIMGRP_IN_WAVE(2);
-
-   if (screen->info.gfx_level >= GFX10) {
-      stages |= S_028B54_HS_W32_EN(key.u.hs_wave32) |
-                S_028B54_GS_W32_EN(key.u.gs_wave32) |
-                S_028B54_VS_W32_EN(screen->info.gfx_level < GFX11 && key.u.vs_wave32);
-      /* Legacy GS only supports Wave64. Read it as an implication. */
-      assert(!(key.u.gs && !key.u.ngg) || !key.u.gs_wave32);
-   }
-
-   si_pm4_set_reg(pm4, R_028B54_VGT_SHADER_STAGES_EN, stages);
-   return pm4;
+   radeon_begin(cs);
+   radeon_opt_set_context_reg(sctx, R_028B54_VGT_SHADER_STAGES_EN, SI_TRACKED_VGT_SHADER_STAGES_EN,
+                              sctx->vgt_shader_stages_en);
+   radeon_end_update_context_roll(sctx);
 }
 
 static void si_emit_scratch_state(struct si_context *sctx)
@@ -4314,6 +4289,7 @@ void si_init_screen_live_shader_cache(struct si_screen *sscreen)
 
 void si_init_shader_functions(struct si_context *sctx)
 {
+   sctx->atoms.s.vgt_pipeline_state.emit = si_emit_vgt_pipeline_state;
    sctx->atoms.s.scratch_state.emit = si_emit_scratch_state;
 
    sctx->b.create_vs_state = si_create_shader;

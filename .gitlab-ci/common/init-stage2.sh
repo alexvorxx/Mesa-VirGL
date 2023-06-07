@@ -84,6 +84,7 @@ fi
 if [ "$HWCI_KVM" = "true" ]; then
     unset KVM_KERNEL_MODULE
 
+
     grep -qs '\bvmx\b' /proc/cpuinfo && KVM_KERNEL_MODULE=kvm_intel || {
         grep -qs '\bsvm\b' /proc/cpuinfo && KVM_KERNEL_MODULE=kvm_amd
     }
@@ -97,6 +98,18 @@ if [ "$HWCI_KVM" = "true" ]; then
 
     ([ -z "${KVM_KERNEL_MODULE}" ] && \
       echo "WARNING: Failed to detect CPU virtualization extensions") || \
+
+
+    {
+      grep -qs '\bvmx\b' /proc/cpuinfo && KVM_KERNEL_MODULE=kvm_intel
+    } || {
+      grep -qs '\bsvm\b' /proc/cpuinfo && KVM_KERNEL_MODULE=kvm_amd
+    }
+
+    {
+      [ -z "${KVM_KERNEL_MODULE}" ] && \
+      echo "WARNING: Failed to detect CPU virtualization extensions"
+    } || \
 
         modprobe ${KVM_KERNEL_MODULE}
 

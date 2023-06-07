@@ -40,6 +40,9 @@ variables:
 
   ANHOLT_FARM: "offline"
 
+
+  ANHOLT_FARM: "online"
+
   VALVE_FARM: "online"
   AUSTRIANCODER_FARM: "online"  # only etnaviv GPUs
 

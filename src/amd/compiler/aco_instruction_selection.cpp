@@ -1185,8 +1185,12 @@ emit_scaled_op(isel_context* ctx, Builder& bld, Definition dst, Temp val, aco_op
                uint32_t undo)
 {
    /* multiply by 16777216 to handle denormals */
-   Temp is_denormal = bld.vopc(aco_opcode::v_cmp_class_f32, bld.def(bld.lm), as_vgpr(ctx, val),
-                               bld.copy(bld.def(v1), Operand::c32((1u << 7) | (1u << 4))));
+   Temp is_denormal = bld.tmp(bld.lm);
+   VALU_instruction& valu =
+      bld.vopc_e64(aco_opcode::v_cmp_class_f32, Definition(is_denormal), val, Operand::c32(1u << 4))
+         ->valu();
+   valu.neg[0] = true;
+   valu.abs[0] = true;
    Temp scaled = bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), Operand::c32(0x4b800000u), val);
    scaled = bld.vop1(op, bld.def(v1), scaled);
    scaled = bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), Operand::c32(undo), scaled);
@@ -1301,11 +1305,10 @@ emit_floor_f64(isel_context* ctx, Builder& bld, Definition dst, Temp val)
     * lowered at NIR level for precision reasons). */
    Temp src0 = as_vgpr(ctx, val);
 
-   Temp mask = bld.copy(bld.def(s1), Operand::c32(3u)); /* isnan */
    Temp min_val = bld.pseudo(aco_opcode::p_create_vector, bld.def(s2), Operand::c32(-1u),
                              Operand::c32(0x3fefffffu));
 
-   Temp isnan = bld.vopc_e64(aco_opcode::v_cmp_class_f64, bld.def(bld.lm), src0, mask);
+   Temp isnan = bld.vopc(aco_opcode::v_cmp_neq_f64, bld.def(bld.lm), src0, src0);
    Temp fract = bld.vop1(aco_opcode::v_fract_f64, bld.def(v2), src0);
    Temp min = bld.vop3(aco_opcode::v_min_f64, bld.def(v2), fract, min_val);
 
@@ -4058,7 +4061,7 @@ emit_load(isel_context* ctx, Builder& bld, const LoadEmitInfo& info,
    unsigned const_offset = info.const_offset;
 
    const unsigned align_mul = info.align_mul ? info.align_mul : component_size;
-   unsigned align_offset = (info.align_offset + const_offset) % align_mul;
+   unsigned align_offset = info.align_offset % align_mul;
 
    unsigned bytes_read = 0;
    while (bytes_read < load_size) {
@@ -4513,6 +4516,93 @@ mubuf_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigne
 }
 
 const EmitLoadParameters mubuf_load_params{mubuf_load_callback, true, true, 4096};
+
+Temp
+mubuf_load_format_callback(Builder& bld, const LoadEmitInfo& info, Temp offset,
+                           unsigned bytes_needed, unsigned align_, unsigned const_offset,
+                           Temp dst_hint)
+{
+   Operand vaddr = offset.type() == RegType::vgpr ? Operand(offset) : Operand(v1);
+   Operand soffset = offset.type() == RegType::sgpr ? Operand(offset) : Operand::c32(0);
+
+   if (info.soffset.id()) {
+      if (soffset.isTemp())
+         vaddr = bld.copy(bld.def(v1), soffset);
+      soffset = Operand(info.soffset);
+   }
+
+   if (soffset.isUndefined())
+      soffset = Operand::zero();
+
+   bool offen = !vaddr.isUndefined();
+   bool idxen = info.idx.id();
+
+   if (offen && idxen)
+      vaddr = bld.pseudo(aco_opcode::p_create_vector, bld.def(v2), info.idx, vaddr);
+   else if (idxen)
+      vaddr = Operand(info.idx);
+
+   aco_opcode op = aco_opcode::num_opcodes;
+   if (info.component_size == 2) {
+      switch (bytes_needed) {
+      case 2:
+         op = aco_opcode::buffer_load_format_d16_x;
+         break;
+      case 4:
+         op = aco_opcode::buffer_load_format_d16_xy;
+         break;
+      case 6:
+         op = aco_opcode::buffer_load_format_d16_xyz;
+         break;
+      case 8:
+         op = aco_opcode::buffer_load_format_d16_xyzw;
+         break;
+      default:
+         unreachable("invalid buffer load format size");
+         break;
+      }
+   } else {
+      assert(info.component_size == 4);
+      switch (bytes_needed) {
+      case 4:
+         op = aco_opcode::buffer_load_format_x;
+         break;
+      case 8:
+         op = aco_opcode::buffer_load_format_xy;
+         break;
+      case 12:
+         op = aco_opcode::buffer_load_format_xyz;
+         break;
+      case 16:
+         op = aco_opcode::buffer_load_format_xyzw;
+         break;
+      default:
+         unreachable("invalid buffer load format size");
+         break;
+      }
+   }
+
+   aco_ptr<MUBUF_instruction> mubuf{create_instruction<MUBUF_instruction>(op, Format::MUBUF, 3, 1)};
+   mubuf->operands[0] = Operand(info.resource);
+   mubuf->operands[1] = vaddr;
+   mubuf->operands[2] = soffset;
+   mubuf->offen = offen;
+   mubuf->idxen = idxen;
+   mubuf->glc = info.glc;
+   mubuf->dlc =
+      info.glc && (bld.program->gfx_level == GFX10 || bld.program->gfx_level == GFX10_3);
+   mubuf->slc = info.slc;
+   mubuf->sync = info.sync;
+   mubuf->offset = const_offset;
+   RegClass rc = RegClass::get(RegType::vgpr, bytes_needed);
+   Temp val = dst_hint.id() && rc == dst_hint.regClass() ? dst_hint : bld.tmp(rc);
+   mubuf->definitions[0] = Definition(val);
+   bld.insert(std::move(mubuf));
+
+   return val;
+}
+
+const EmitLoadParameters mubuf_load_format_params{mubuf_load_format_callback, false, true, 4096};
 
 Temp
 scratch_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned bytes_needed,
@@ -5899,11 +5989,8 @@ emit_pack_v1(isel_context* ctx, const std::vector<Temp>& unpacked)
 }
 
 static bool
-should_declare_array(isel_context* ctx, enum glsl_sampler_dim sampler_dim, bool is_array)
+should_declare_array(ac_image_dim dim)
 {
-   if (sampler_dim == GLSL_SAMPLER_DIM_BUF)
-      return false;
-   ac_image_dim dim = ac_get_sampler_dim(ctx->options->gfx_level, sampler_dim, is_array);
    return dim == ac_image_cube || dim == ac_image_1darray || dim == ac_image_2darray ||
           dim == ac_image_2darraymsaa;
 }
@@ -6106,7 +6193,7 @@ get_image_coords(isel_context* ctx, const nir_intrinsic_instr* instr)
          coords.emplace_back(first_layer);
    }
 
-   if (is_ms) {
+   if (is_ms && instr->intrinsic != nir_intrinsic_bindless_image_fragment_mask_load_amd) {
       assert(instr->src[2].ssa->bit_size == (a16 ? 16 : 32));
       coords.emplace_back(get_ssa_temp_tex(ctx, instr->src[2].ssa, a16));
    }
@@ -6233,8 +6320,14 @@ visit_image_load(isel_context* ctx, nir_intrinsic_instr* instr)
    } else {
       std::vector<Temp> coords = get_image_coords(ctx, instr);
 
-      bool level_zero = nir_src_is_const(instr->src[3]) && nir_src_as_uint(instr->src[3]) == 0;
-      aco_opcode opcode = level_zero ? aco_opcode::image_load : aco_opcode::image_load_mip;
+      aco_opcode opcode;
+      if (instr->intrinsic == nir_intrinsic_bindless_image_fragment_mask_load_amd) {
+         opcode = aco_opcode::image_load;
+      } else {
+         bool level_zero =
+            nir_src_is_const(instr->src[3]) && nir_src_as_uint(instr->src[3]) == 0;
+         opcode = level_zero ? aco_opcode::image_load : aco_opcode::image_load_mip;
+      }
 
       Operand vdata = is_sparse ? emit_tfe_init(bld, tmp) : Operand(v1);
       MIMG_instruction* load =
@@ -6242,14 +6335,22 @@ visit_image_load(isel_context* ctx, nir_intrinsic_instr* instr)
       load->glc = access & (ACCESS_VOLATILE | ACCESS_COHERENT) ? 1 : 0;
       load->dlc =
          load->glc && (ctx->options->gfx_level == GFX10 || ctx->options->gfx_level == GFX10_3);
-      load->dim = ac_get_image_dim(ctx->options->gfx_level, dim, is_array);
       load->a16 = instr->src[1].ssa->bit_size == 16;
       load->d16 = d16;
       load->dmask = dmask;
       load->unrm = true;
-      load->da = should_declare_array(ctx, dim, is_array);
-      load->sync = sync;
       load->tfe = is_sparse;
+
+      if (instr->intrinsic == nir_intrinsic_bindless_image_fragment_mask_load_amd) {
+         load->dim = is_array ? ac_image_2darray : ac_image_2d;
+         load->da = is_array;
+         load->sync = memory_sync_info();
+      } else {
+         ac_image_dim sdim = ac_get_image_dim(ctx->options->gfx_level, dim, is_array);
+         load->dim = sdim;
+         load->da = should_declare_array(sdim);
+         load->sync = sync;
+      }
    }
 
    if (is_sparse && instr->dest.ssa.bit_size == 64) {
@@ -6369,12 +6470,13 @@ visit_image_store(isel_context* ctx, nir_intrinsic_instr* instr)
       emit_mimg(bld, opcode, Temp(0, v1), resource, Operand(s4), coords, false, Operand(data));
    store->glc = glc;
    store->dlc = false;
-   store->dim = ac_get_image_dim(ctx->options->gfx_level, dim, is_array);
    store->a16 = instr->src[1].ssa->bit_size == 16;
    store->d16 = d16;
    store->dmask = dmask;
    store->unrm = true;
-   store->da = should_declare_array(ctx, dim, is_array);
+   ac_image_dim sdim = ac_get_image_dim(ctx->options->gfx_level, dim, is_array);
+   store->dim = sdim;
+   store->da = should_declare_array(sdim);
    store->disable_wqm = true;
    store->sync = sync;
    ctx->program->needs_exact = true;
@@ -6527,11 +6629,12 @@ visit_image_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
       emit_mimg(bld, image_op, tmp, resource, Operand(s4), coords, false, Operand(data));
    mimg->glc = return_previous;
    mimg->dlc = false; /* Not needed for atomics */
-   mimg->dim = ac_get_image_dim(ctx->options->gfx_level, dim, is_array);
    mimg->dmask = (1 << data.size()) - 1;
    mimg->a16 = instr->src[1].ssa->bit_size == 16;
    mimg->unrm = true;
-   mimg->da = should_declare_array(ctx, dim, is_array);
+   ac_image_dim sdim = ac_get_image_dim(ctx->options->gfx_level, dim, is_array);
+   mimg->dim = sdim;
+   mimg->da = should_declare_array(sdim);
    mimg->disable_wqm = true;
    mimg->sync = sync;
    ctx->program->needs_exact = true;
@@ -7028,15 +7131,23 @@ visit_load_buffer(isel_context* ctx, nir_intrinsic_instr* intrin)
 
       emit_load(ctx, bld, info, mtbuf_load_params);
    } else {
-      const unsigned swizzle_element_size =
-         swizzled ? (ctx->program->gfx_level <= GFX8 ? 4 : 16) : 0;
+      assert(intrin->intrinsic == nir_intrinsic_load_buffer_amd);
 
-      info.component_stride = swizzle_element_size;
-      info.swizzle_component_size = swizzle_element_size ? 4 : 0;
-      info.align_mul = MIN2(elem_size_bytes, 4);
-      info.align_offset = 0;
+      if (nir_intrinsic_access(intrin) & ACCESS_USES_FORMAT_AMD) {
+         assert(!swizzled);
 
-      emit_load(ctx, bld, info, mubuf_load_params);
+         emit_load(ctx, bld, info, mubuf_load_format_params);
+      } else {
+         const unsigned swizzle_element_size =
+            swizzled ? (ctx->program->gfx_level <= GFX8 ? 4 : 16) : 0;
+
+         info.component_stride = swizzle_element_size;
+         info.swizzle_component_size = swizzle_element_size ? 4 : 0;
+         info.align_mul = MIN2(elem_size_bytes, 4);
+         info.align_offset = 0;
+
+         emit_load(ctx, bld, info, mubuf_load_params);
+      }
    }
 }
 
@@ -7980,7 +8091,6 @@ get_interp_param(isel_context* ctx, nir_intrinsic_op intrin,
 {
    bool linear = interp == INTERP_MODE_NOPERSPECTIVE;
    if (intrin == nir_intrinsic_load_barycentric_pixel ||
-       intrin == nir_intrinsic_load_barycentric_at_sample ||
        intrin == nir_intrinsic_load_barycentric_at_offset) {
       return get_arg(ctx, linear ? ctx->args->linear_center : ctx->args->persp_center);
    } else if (intrin == nir_intrinsic_load_barycentric_centroid) {
@@ -8123,6 +8233,7 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
    case nir_intrinsic_load_shared2_amd:
    case nir_intrinsic_store_shared2_amd: visit_access_shared2_amd(ctx, instr); break;
    case nir_intrinsic_bindless_image_load:
+   case nir_intrinsic_bindless_image_fragment_mask_load_amd:
    case nir_intrinsic_bindless_image_sparse_load: visit_image_load(ctx, instr); break;
    case nir_intrinsic_bindless_image_store: visit_image_store(ctx, instr); break;
    case nir_intrinsic_bindless_image_atomic:
@@ -8938,14 +9049,22 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
          aco_opcode::p_create_vector, Format::PSEUDO, instr->num_components, 1)};
       unsigned write_mask = nir_intrinsic_write_mask(instr);
 
+      bool use_gds_registers =
+         ctx->options->gfx_level >= GFX11 && ctx->options->is_opengl;
+
       for (unsigned i = 0; i < instr->num_components; i++) {
          if (write_mask & (1 << i)) {
             Temp chan_counter = emit_extract_vector(ctx, counter, i, v1);
 
-            m = bld.m0((Temp)bld.copy(bld.def(s1, m0), Operand::c32(0x100u)));
+            if (use_gds_registers) {
+               ds_instr = bld.ds(aco_opcode::ds_add_gs_reg_rtn, bld.def(v1),
+                                 Operand(), chan_counter, i * 4, 0u, true);
+            } else {
+               m = bld.m0((Temp)bld.copy(bld.def(s1, m0), Operand::c32(0x100u)));
 
-            ds_instr = bld.ds(aco_opcode::ds_add_rtn_u32, bld.def(v1),
-                              gds_base, chan_counter, m, i * 4, 0u, true);
+               ds_instr = bld.ds(aco_opcode::ds_add_rtn_u32, bld.def(v1),
+                                 gds_base, chan_counter, m, i * 4, 0u, true);
+            }
             ds_instr->ds().sync = memory_sync_info(storage_gds, semantic_atomicrmw);
 
             vec->operands[i] = Operand(ds_instr->definitions[0].getTemp());
@@ -8967,9 +9086,31 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       emit_split_vector(ctx, dst, instr->num_components);
       break;
    }
-   case nir_intrinsic_xfb_counter_sub_amd:
-      /* TODO: implement this */
+   case nir_intrinsic_xfb_counter_sub_amd: {
+      bool use_gds_registers =
+         ctx->options->gfx_level >= GFX11 && ctx->options->is_opengl;
+
+      unsigned write_mask = nir_intrinsic_write_mask(instr);
+      Temp counter = get_ssa_temp(ctx, instr->src[0].ssa);
+      Temp gds_base = bld.copy(bld.def(v1), Operand::c32(0u));
+
+      u_foreach_bit(i, write_mask) {
+         Temp chan_counter = emit_extract_vector(ctx, counter, i, v1);
+         Instruction *ds_instr;
+
+         if (use_gds_registers) {
+            ds_instr = bld.ds(aco_opcode::ds_sub_gs_reg_rtn, bld.def(v1),
+                              Operand(), chan_counter, i * 4, 0u, true);
+         } else {
+            Operand m = bld.m0((Temp)bld.copy(bld.def(s1, m0), Operand::c32(0x100u)));
+
+            ds_instr = bld.ds(aco_opcode::ds_sub_rtn_u32, bld.def(v1),
+                              gds_base, chan_counter, m, i * 4, 0u, true);
+         }
+         ds_instr->ds().sync = memory_sync_info(storage_gds, semantic_atomicrmw);
+      }
       break;
+   }
    case nir_intrinsic_memory_barrier_buffer: {
       wait_imm wait;
       wait.lgkm = 0;
@@ -8987,7 +9128,7 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       if (target == V_008DFC_SQ_EXP_POS || target <= V_008DFC_SQ_EXP_NULL)
          ctx->block->kind |= block_kind_export_end;
 
-      if (target <= V_008DFC_SQ_EXP_NULL)
+      if (target < V_008DFC_SQ_EXP_MRTZ)
          ctx->program->has_color_exports = true;
 
       aco_ptr<Export_instruction> exp{
@@ -9077,6 +9218,18 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       ctx->block->instructions.emplace_back(std::move(vec));
 
       bld.pseudo(aco_opcode::p_start_linear_vgpr, Definition(dst), tmp);
+      break;
+   }
+   case nir_intrinsic_load_lds_ngg_scratch_base_amd: {
+      Temp dst = get_ssa_temp(ctx, &instr->dest.ssa);
+      bld.sop1(aco_opcode::p_load_symbol, Definition(dst),
+               Operand::c32(aco_symbol_lds_ngg_scratch_base));
+      break;
+   }
+   case nir_intrinsic_load_lds_ngg_gs_out_vertex_base_amd: {
+      Temp dst = get_ssa_temp(ctx, &instr->dest.ssa);
+      bld.sop1(aco_opcode::p_load_symbol, Definition(dst),
+               Operand::c32(aco_symbol_lds_ngg_gs_out_vertex_base));
       break;
    }
    default:
@@ -9316,7 +9469,12 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
       has_derivs = true;
    }
 
-   bool da = should_declare_array(ctx, instr->sampler_dim, instr->is_array);
+   unsigned dim = 0;
+   bool da = false;
+   if (instr->sampler_dim != GLSL_SAMPLER_DIM_BUF) {
+      dim = ac_get_sampler_dim(ctx->options->gfx_level, instr->sampler_dim, instr->is_array);
+      da = should_declare_array((ac_image_dim)dim);
+   }
 
    /* Build tex instruction */
    unsigned dmask = nir_ssa_def_components_read(&instr->dest.ssa) & 0xf;
@@ -9324,10 +9482,6 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
       dmask = u_bit_consecutive(0, util_last_bit(dmask));
    if (instr->is_sparse)
       dmask = MAX2(dmask, 1) | 0x10;
-   unsigned dim =
-      ctx->options->gfx_level >= GFX10 && instr->sampler_dim != GLSL_SAMPLER_DIM_BUF
-         ? ac_get_sampler_dim(ctx->options->gfx_level, instr->sampler_dim, instr->is_array)
-         : 0;
    bool d16 = instr->dest.ssa.bit_size == 16;
    Temp dst = get_ssa_temp(ctx, &instr->dest.ssa);
    Temp tmp_dst = dst;
@@ -10617,10 +10771,10 @@ export_fs_mrt_color(isel_context* ctx, const struct mrt_color_export* out,
         out->col_format == V_028714_SPI_SHADER_32_AR || out->col_format == V_028714_SPI_SHADER_32_ABGR ||
         out->col_format == V_028714_SPI_SHADER_FP16_ABGR)) {
       u_foreach_bit(i, out->write_mask) {
-         Temp isnan = bld.vopc(aco_opcode::v_cmp_class_f32, bld.def(bld.lm), values[i],
-                               bld.copy(bld.def(v1), Operand::c32(3u)));
-         values[i] = bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1), values[i],
-                              bld.copy(bld.def(v1), Operand::zero()), isnan);
+         Temp is_not_nan =
+            bld.vopc(aco_opcode::v_cmp_eq_f32, bld.def(bld.lm), values[i], values[i]);
+         values[i] = bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1), Operand::zero(), values[i],
+                              is_not_nan);
       }
    }
 

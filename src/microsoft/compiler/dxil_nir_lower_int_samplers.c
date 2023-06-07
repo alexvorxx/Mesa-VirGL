@@ -85,8 +85,8 @@ dx_get_texture_lod(nir_builder *b, nir_tex_instr *tex)
     * check for is_array though, in the worst case we create an additional
     * move the the optimization will remove later again. */
    int coord_index = nir_tex_instr_src_index(tex, nir_tex_src_coord);
-   nir_ssa_def *ssa_src = nir_channels(b, tex->src[coord_index].src.ssa,
-                                       (1 << coord_components) - 1);
+   nir_ssa_def *ssa_src = nir_trim_vector(b, tex->src[coord_index].src.ssa,
+                                          coord_components);
    nir_src src = nir_src_for_ssa(ssa_src);
    nir_src_copy(&tql->src[0].src, &src, &tql->instr);
    tql->src[0].src_type = nir_tex_src_coord;
@@ -146,7 +146,7 @@ static nir_ssa_def *
 mirror(nir_builder *b, nir_ssa_def *coord)
 {
    /* coord if >= 0, otherwise -(1 + coord) */
-   return nir_bcsel(b, nir_fge(b, coord, nir_imm_float(b, 0.0f)), coord,
+   return nir_bcsel(b, nir_fge_imm(b, coord, 0.0f), coord,
                     nir_fneg(b, nir_fadd(b, nir_imm_float(b, 1.0f), coord)));
 }
 
@@ -171,7 +171,7 @@ wrap_mirror_clamp_to_edge(nir_builder *b, wrap_result_t *wrap_params, nir_ssa_de
 static void
 wrap_clamp(nir_builder *b, wrap_result_t *wrap_params, nir_ssa_def *size)
 {
-   nir_ssa_def *is_low = nir_flt(b, wrap_params->coords, nir_imm_float(b, 0.0));
+   nir_ssa_def *is_low = nir_flt_imm(b, wrap_params->coords, 0.0);
    nir_ssa_def *is_high = nir_fge(b, wrap_params->coords, size);
    wrap_params->use_border_color = nir_ior(b, is_low, is_high);
 }

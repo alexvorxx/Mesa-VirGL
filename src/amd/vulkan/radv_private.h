@@ -376,6 +376,8 @@ struct radv_physical_device {
    } vid_dec_reg;
    enum amd_ip_type vid_decode_ip;
    uint32_t vid_addr_gfx_mode;
+   uint32_t stream_handle_base;
+   uint32_t stream_handle_counter;
 };
 
 uint32_t radv_find_memory_index(const struct radv_physical_device *pdevice, VkMemoryPropertyFlags flags);
@@ -1675,6 +1677,7 @@ struct radv_cmd_state {
    uint32_t current_event_type;
    uint32_t num_events;
    uint32_t num_layout_transitions;
+   bool in_barrier;
    bool pending_sqtt_barrier_end;
    enum rgp_flush_bits sqtt_flush_bits;
 
@@ -2327,6 +2330,8 @@ struct radv_ray_tracing_stage {
    struct vk_pipeline_cache_object *shader;
    gl_shader_stage stage;
    uint32_t stack_size;
+
+   uint8_t sha1[SHA1_DIGEST_LENGTH];
 };
 
 struct radv_ray_tracing_pipeline {
@@ -2850,6 +2855,7 @@ struct radv_image_create_info {
 VkResult
 radv_image_create_layout(struct radv_device *device, struct radv_image_create_info create_info,
                          const struct VkImageDrmFormatModifierExplicitCreateInfoEXT *mod_info,
+                         const struct VkVideoProfileListInfoKHR *profile_list,
                          struct radv_image *image);
 
 VkResult radv_image_create(VkDevice _device, const struct radv_image_create_info *info,

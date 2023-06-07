@@ -2002,9 +2002,9 @@ d3d12_flush_cmdlist_and_wait(struct d3d12_context *ctx)
    struct d3d12_batch *batch = d3d12_current_batch(ctx);
 
    d3d12_foreach_submitted_batch(ctx, old_batch)
-      d3d12_reset_batch(ctx, old_batch, PIPE_TIMEOUT_INFINITE);
+      d3d12_reset_batch(ctx, old_batch, OS_TIMEOUT_INFINITE);
    d3d12_flush_cmdlist(ctx);
-   d3d12_reset_batch(ctx, batch, PIPE_TIMEOUT_INFINITE);
+   d3d12_reset_batch(ctx, batch, OS_TIMEOUT_INFINITE);
 }
 
 static void
@@ -2497,11 +2497,11 @@ d3d12_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
                        0, false);
 
    struct primconvert_config cfg = {};
-   cfg.primtypes_mask = 1 << PIPE_PRIM_POINTS |
-                        1 << PIPE_PRIM_LINES |
-                        1 << PIPE_PRIM_LINE_STRIP |
-                        1 << PIPE_PRIM_TRIANGLES |
-                        1 << PIPE_PRIM_TRIANGLE_STRIP;
+   cfg.primtypes_mask = 1 << MESA_PRIM_POINTS |
+                        1 << MESA_PRIM_LINES |
+                        1 << MESA_PRIM_LINE_STRIP |
+                        1 << MESA_PRIM_TRIANGLES |
+                        1 << MESA_PRIM_TRIANGLE_STRIP;
    cfg.restart_primtypes_mask = cfg.primtypes_mask;
    cfg.fixed_prim_restart = true;
    ctx->primconvert = util_primconvert_create_config(&ctx->base, &cfg);

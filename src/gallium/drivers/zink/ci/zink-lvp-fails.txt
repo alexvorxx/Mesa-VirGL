@@ -75,7 +75,6 @@ spec@!opengl 2.1@pbo@test_polygon_stip,Fail
 spec@!opengl 2.1@polygon-stipple-fs,Fail
 spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-tf-separate,Fail
 spec@arb_pipeline_statistics_query@arb_pipeline_statistics_query-frag,Fail
-spec@arb_point_sprite@arb_point_sprite-checkerboard,Fail
 spec@arb_point_sprite@arb_point_sprite-mipmap,Fail
 spec@arb_program_interface_query@arb_program_interface_query-getprogramresourceindex,Fail
 spec@arb_program_interface_query@arb_program_interface_query-getprogramresourceindex@'vs_input2[1][0]' on GL_PROGRAM_INPUT,Fail
@@ -269,11 +268,8 @@ spec@ext_transform_feedback@tessellation polygon wireframe,Crash
 spec@ext_transform_feedback@tessellation quad_strip wireframe,Crash
 spec@nv_copy_image@nv_copy_image-formats --samples=2,Crash
 spec@nv_copy_image@nv_copy_image-formats --samples=4,Crash
-spec@arb_compute_variable_group_size@execution@global-invocation-id,Crash
 spec@!opengl 1.0@gl-1.0-dlist-beginend,Crash
 spec@arb_clip_control@arb_clip_control-depth-precision,Crash
-spec@arb_compute_variable_group_size@execution@basic-local-size,Crash
-spec@arb_compute_variable_group_size@execution@separate-global-id,Crash
 spec@arb_copy_image@arb_copy_image-formats --samples=2,Crash
 spec@ext_framebuffer_object@fbo-nostencil-test,Crash
 spec@nv_texture_barrier@blending-in-shader,Crash

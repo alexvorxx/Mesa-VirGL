@@ -1127,6 +1127,10 @@ static int gfx6_compute_surface(ADDR_HANDLE addrlib, const struct radeon_info *i
    if (!compressed)
       AddrDccIn.bpp = AddrSurfInfoIn.bpp = surf->bpe * 8;
 
+   /* Setting ADDR_FMT_32_32_32 breaks gfx6-8, while INVALID works. */
+   if (AddrSurfInfoIn.format == ADDR_FMT_32_32_32)
+      AddrSurfInfoIn.format = ADDR_FMT_INVALID;
+
    AddrDccIn.numSamples = AddrSurfInfoIn.numSamples = MAX2(1, config->info.samples);
    AddrSurfInfoIn.tileIndex = -1;
 
@@ -1434,7 +1438,9 @@ static int gfx6_compute_surface(ADDR_HANDLE addrlib, const struct radeon_info *i
       surf->flags &= ~RADEON_SURF_TC_COMPATIBLE_HTILE;
    }
 
-   surf->is_linear = surf->u.legacy.level[0].mode == RADEON_SURF_MODE_LINEAR_ALIGNED;
+   surf->is_linear = (only_stencil ? surf->u.legacy.zs.stencil_level[0].mode :
+                                     surf->u.legacy.level[0].mode) == RADEON_SURF_MODE_LINEAR_ALIGNED;
+
    surf->is_displayable = surf->is_linear || surf->micro_tile_mode == RADEON_MICRO_MODE_DISPLAY ||
                           surf->micro_tile_mode == RADEON_MICRO_MODE_RENDER;
 
@@ -2385,7 +2391,8 @@ static int gfx9_compute_surface(struct ac_addrlib *addrlib, const struct radeon_
          return r;
    }
 
-   surf->is_linear = surf->u.gfx9.swizzle_mode == ADDR_SW_LINEAR;
+   surf->is_linear = (only_stencil ? surf->u.gfx9.zs.stencil_swizzle_mode :
+                                     surf->u.gfx9.swizzle_mode) == ADDR_SW_LINEAR;
 
    /* Query whether the surface is displayable. */
    /* This is only useful for surfaces that are allocated without SCANOUT. */
@@ -2992,20 +2999,21 @@ static uint32_t ac_surface_get_pitch_align(const struct radeon_info *info,
 }
 
 bool ac_surface_override_offset_stride(const struct radeon_info *info, struct radeon_surf *surf,
-                                       unsigned num_mipmap_levels, uint64_t offset, unsigned pitch)
+                                       unsigned num_layers, unsigned num_mipmap_levels,
+                                       uint64_t offset, unsigned pitch)
 {
    if ((ac_surface_get_pitch_align(info, surf) - 1) & pitch)
       return false;
 
-   /*
-    * GFX10 and newer don't support custom strides. Furthermore, for
-    * multiple miplevels or compression data we'd really need to rerun
-    * addrlib to update all the fields in the surface. That, however, is a
-    * software limitation and could be relaxed later.
+   /* Require an equal pitch with metadata (DCC), mipmapping, non-linear layout (that could be
+    * relaxed), or when the chip is GFX10, which is the only generation that can't override
+    * the pitch.
     */
    bool require_equal_pitch = surf->surf_size != surf->total_size ||
+                              num_layers != 1 ||
                               num_mipmap_levels != 1 ||
-                              info->gfx_level >= GFX10;
+                              !surf->is_linear ||
+                              info->gfx_level == GFX10;
 
    if (info->gfx_level >= GFX9) {
       if (pitch) {

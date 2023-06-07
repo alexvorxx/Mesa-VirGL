@@ -11,7 +11,7 @@ use mesa_rust_util::string::*;
 use std::convert::TryInto;
 use std::ffi::CStr;
 use std::mem::size_of;
-use std::os::raw::c_char;
+use std::os::raw::c_schar;
 use std::os::raw::c_uchar;
 use std::os::raw::c_void;
 use std::ptr;
@@ -267,7 +267,7 @@ impl PipeScreen {
         unsafe { *self.ldev.ldev }.type_
     }
 
-    pub fn driver_uuid(&self) -> Option<[c_char; UUID_SIZE]> {
+    pub fn driver_uuid(&self) -> Option<[c_schar; UUID_SIZE]> {
         let mut uuid = [0; UUID_SIZE];
         let ptr = uuid.as_mut_ptr();
         unsafe {
@@ -350,7 +350,7 @@ impl PipeScreen {
     pub(super) fn fence_finish(&self, fence: *mut pipe_fence_handle) {
         unsafe {
             let s = &mut *self.screen;
-            s.fence_finish.unwrap()(s, ptr::null_mut(), fence, PIPE_TIMEOUT_INFINITE as u64);
+            s.fence_finish.unwrap()(s, ptr::null_mut(), fence, OS_TIMEOUT_INFINITE as u64);
         }
     }
 }

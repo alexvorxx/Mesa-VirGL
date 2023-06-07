@@ -82,7 +82,7 @@ extern "C" {
 #endif
 
 #define MAX_SETS         8
-#define MAX_PUSH_CONSTANTS_SIZE 128
+#define MAX_PUSH_CONSTANTS_SIZE 256
 #define MAX_PUSH_DESCRIPTORS 32
 #define MAX_DESCRIPTOR_UNIFORM_BLOCK_SIZE 4096
 #define MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS 8
@@ -113,7 +113,7 @@ void __lvp_finishme(const char *file, int line, const char *format, ...)
       return; \
    } while (0)
 
-#define LVP_SHADER_STAGES MESA_SHADER_STAGES
+#define LVP_SHADER_STAGES (MESA_SHADER_MESH + 1)
 #define LVP_STAGE_MASK BITFIELD_MASK(LVP_SHADER_STAGES)
 #define LVP_STAGE_MASK_GFX (BITFIELD_MASK(LVP_SHADER_STAGES) & ~BITFIELD_BIT(MESA_SHADER_COMPUTE))
 
