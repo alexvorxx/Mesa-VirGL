@@ -256,10 +256,16 @@ public:
         void* context, VkResult input_result,
         VkQueue queue);
 
-    void unwrap_VkNativeBufferANDROID(
+    void unwrap_vkCreateImage_pCreateInfo(
         const VkImageCreateInfo* pCreateInfo,
         VkImageCreateInfo* local_pCreateInfo);
+
     void unwrap_vkAcquireImageANDROID_nativeFenceFd(int fd, int* fd_out);
+
+    void unwrap_VkBindImageMemory2_pBindInfos(
+        uint32_t bindInfoCount,
+        const VkBindImageMemoryInfo* inputBindInfos,
+        VkBindImageMemoryInfo* outputBindInfos);
 
 #ifdef VK_USE_PLATFORM_FUCHSIA
     VkResult on_vkGetMemoryZirconHandleFUCHSIA(

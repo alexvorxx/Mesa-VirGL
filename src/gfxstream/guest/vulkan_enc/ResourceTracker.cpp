@@ -5184,28 +5184,34 @@ public:
         void* context, VkResult,
         VkDevice device, uint32_t bindingCount, const VkBindImageMemoryInfo* pBindInfos) {
         VkEncoder* enc = (VkEncoder*)context;
-        // Do not forward calls with invalid handles to host.
-        if (!pBindInfos ||
-            info_VkDeviceMemory.find(pBindInfos->memory) ==
-                info_VkDeviceMemory.end() ||
-            info_VkImage.find(pBindInfos->image) == info_VkImage.end()) {
+
+        if (bindingCount < 1 || !pBindInfos) {
             return VK_ERROR_OUT_OF_DEVICE_MEMORY;
         }
+
+        for (uint32_t i = 0; i < bindingCount; i++) {
+            const VkBindImageMemoryInfo& bimi = pBindInfos[i];
+
+            auto imageIt = info_VkImage.find(bimi.image);
+            if (imageIt == info_VkImage.end()) {
+                return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+            }
+
+            if (bimi.memory != VK_NULL_HANDLE) {
+                auto memoryIt = info_VkDeviceMemory.find(bimi.memory);
+                if (memoryIt == info_VkDeviceMemory.end()) {
+                    return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                }
+            }
+        }
+
         return enc->vkBindImageMemory2(device, bindingCount, pBindInfos, true /* do lock */);
     }
 
     VkResult on_vkBindImageMemory2KHR(
-        void* context, VkResult,
+        void* context, VkResult result,
         VkDevice device, uint32_t bindingCount, const VkBindImageMemoryInfo* pBindInfos) {
-        VkEncoder* enc = (VkEncoder*)context;
-        // Do not forward calls with invalid handles to host.
-        if (!pBindInfos ||
-            info_VkDeviceMemory.find(pBindInfos->memory) ==
-                info_VkDeviceMemory.end() ||
-            info_VkImage.find(pBindInfos->image) == info_VkImage.end()) {
-            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-        }
-        return enc->vkBindImageMemory2KHR(device, bindingCount, pBindInfos, true /* do lock */);
+        return on_vkBindImageMemory2(context, result, device, bindingCount, pBindInfos);
     }
 
     VkResult on_vkCreateBuffer(
@@ -6094,33 +6100,36 @@ public:
 
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
     void unwrap_VkNativeBufferANDROID(
-        const VkImageCreateInfo* pCreateInfo,
-        VkImageCreateInfo* local_pCreateInfo) {
+        const VkNativeBufferANDROID* inputNativeInfo,
+        VkNativeBufferANDROID* outputNativeInfo) {
 
-        if (!pCreateInfo->pNext) return;
-
-        const VkNativeBufferANDROID* nativeInfo =
-            vk_find_struct<VkNativeBufferANDROID>(pCreateInfo);
-        if (!nativeInfo) {
+        if (!inputNativeInfo || !inputNativeInfo->handle) {
             return;
         }
 
-        if (!nativeInfo->handle) return;
-
-        VkNativeBufferANDROID* nativeInfoOut =
-            reinterpret_cast<VkNativeBufferANDROID*>(
-                const_cast<void*>(
-                    local_pCreateInfo->pNext));
-
-        if (!nativeInfoOut->handle) {
+        if (!outputNativeInfo || !outputNativeInfo) {
             ALOGE("FATAL: Local native buffer info not properly allocated!");
             abort();
         }
 
-        *(uint32_t*)(nativeInfoOut->handle) =
-            ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->
-                grallocHelper()->getHostHandle(
-                    (const native_handle_t*)nativeInfo->handle);
+        auto* gralloc = ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->grallocHelper();
+
+        *(uint32_t*)(outputNativeInfo->handle) =
+            gralloc->getHostHandle((const native_handle_t*)inputNativeInfo->handle);
+    }
+
+    void unwrap_vkCreateImage_pCreateInfo(
+        const VkImageCreateInfo* pCreateInfo,
+        VkImageCreateInfo* local_pCreateInfo) {
+
+        const VkNativeBufferANDROID* inputNativeInfo =
+            vk_find_struct<VkNativeBufferANDROID>(pCreateInfo);
+
+        VkNativeBufferANDROID* outputNativeInfo =
+            const_cast<VkNativeBufferANDROID*>(
+                vk_find_struct<VkNativeBufferANDROID>(local_pCreateInfo));
+
+        unwrap_VkNativeBufferANDROID(inputNativeInfo, outputNativeInfo);
     }
 
     void unwrap_vkAcquireImageANDROID_nativeFenceFd(int fd, int*) {
@@ -6140,6 +6149,52 @@ public:
             // """
             // Therefore, assume contract where we need to close fd in this driver
             close(fd);
+        }
+    }
+
+    void unwrap_VkBindImageMemorySwapchainInfoKHR(
+        const VkBindImageMemorySwapchainInfoKHR* inputBimsi,
+        VkBindImageMemorySwapchainInfoKHR* outputBimsi) {
+        if (!inputBimsi || !inputBimsi->swapchain) {
+            return;
+        }
+
+        if (!outputBimsi || !outputBimsi->swapchain) {
+            ALOGE("FATAL: Local VkBindImageMemorySwapchainInfoKHR not properly allocated!");
+            abort();
+        }
+
+        // Android based swapchains are implemented by the Android framework's
+        // libvulkan. The only exist within the guest and should not be sent to
+        // the host.
+        outputBimsi->swapchain = VK_NULL_HANDLE;
+    }
+
+    void unwrap_VkBindImageMemory2_pBindInfos(
+            uint32_t bindInfoCount,
+            const VkBindImageMemoryInfo* inputBindInfos,
+            VkBindImageMemoryInfo* outputBindInfos) {
+        for (uint32_t i = 0; i < bindInfoCount; ++i) {
+            const VkBindImageMemoryInfo* inputBindInfo = &inputBindInfos[i];
+            VkBindImageMemoryInfo* outputBindInfo = &outputBindInfos[i];
+
+            const VkNativeBufferANDROID* inputNativeInfo =
+                vk_find_struct<VkNativeBufferANDROID>(inputBindInfo);
+
+            VkNativeBufferANDROID* outputNativeInfo =
+                const_cast<VkNativeBufferANDROID*>(
+                    vk_find_struct<VkNativeBufferANDROID>(outputBindInfo));
+
+            unwrap_VkNativeBufferANDROID(inputNativeInfo, outputNativeInfo);
+
+            const VkBindImageMemorySwapchainInfoKHR* inputBimsi =
+                vk_find_struct<VkBindImageMemorySwapchainInfoKHR>(inputBindInfo);
+
+            VkBindImageMemorySwapchainInfoKHR* outputBimsi =
+                const_cast<VkBindImageMemorySwapchainInfoKHR*>(
+                    vk_find_struct<VkBindImageMemorySwapchainInfoKHR>(outputBindInfo));
+
+            unwrap_VkBindImageMemorySwapchainInfoKHR(inputBimsi, outputBimsi);
         }
     }
 #endif
@@ -7883,17 +7938,26 @@ VkResult ResourceTracker::on_vkImportSemaphoreFdKHR(
     return mImpl->on_vkImportSemaphoreFdKHR(context, input_result, device, pImportSemaphoreFdInfo);
 }
 
-void ResourceTracker::unwrap_VkNativeBufferANDROID(
+void ResourceTracker::unwrap_vkCreateImage_pCreateInfo(
     const VkImageCreateInfo* pCreateInfo,
     VkImageCreateInfo* local_pCreateInfo) {
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-    mImpl->unwrap_VkNativeBufferANDROID(pCreateInfo, local_pCreateInfo);
+    mImpl->unwrap_vkCreateImage_pCreateInfo(pCreateInfo, local_pCreateInfo);
 #endif
 }
 
 void ResourceTracker::unwrap_vkAcquireImageANDROID_nativeFenceFd(int fd, int* fd_out) {
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
     mImpl->unwrap_vkAcquireImageANDROID_nativeFenceFd(fd, fd_out);
+#endif
+}
+
+void ResourceTracker::unwrap_VkBindImageMemory2_pBindInfos(
+        uint32_t bindInfoCount,
+        const VkBindImageMemoryInfo* inputBindInfos,
+        VkBindImageMemoryInfo* outputBindInfos) {
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
+    mImpl->unwrap_VkBindImageMemory2_pBindInfos(bindInfoCount, inputBindInfos, outputBindInfos);
 #endif
 }
 
