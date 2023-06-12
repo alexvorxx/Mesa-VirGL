@@ -1046,6 +1046,11 @@ struct anv_physical_device {
     /** Whether KMD has the ability to create VM objects */
     bool                                        has_vm_control;
 
+    /** Whether the device is not able map all the device local memory on the
+     * host
+     */
+    bool                                        has_small_bar;
+
     /** True if we have the means to do sparse binding (e.g., a Kernel driver
      * a vm_bind ioctl).
      */

@@ -2124,6 +2124,19 @@ anv_image_get_memory_requirements(struct anv_device *device,
          memory_types |= device->physical->memory.compressed_mem_types;
    }
 
+   if (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) {
+      /* Remove non host visible heaps from the types for host transfers on
+       * non ReBAR devices
+       */
+      if (device->physical->has_small_bar) {
+         for (uint32_t i = 0; i < device->physical->memory.type_count; i++) {
+            if (!(device->physical->memory.types[i].propertyFlags &
+                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+               memory_types &= ~BITFIELD_BIT(i);
+         }
+      }
+   }
+
    vk_foreach_struct(ext, pMemoryRequirements->pNext) {
       switch (ext->sType) {
       case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS: {
