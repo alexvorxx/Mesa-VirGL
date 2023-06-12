@@ -215,6 +215,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_global_priority_query             = device->max_context_priority >=
                                                VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR,
       .EXT_graphics_pipeline_library         = !debug_get_bool_option("ANV_NO_GPL", false),
+      .EXT_host_image_copy                   = !device->emu_astc_ldr,
       .EXT_host_query_reset                  = true,
       .EXT_image_2d_view_of_3d               = true,
       /* Because of Xe2 PAT selected compression and the Vulkan spec
@@ -832,6 +833,9 @@ get_features(const struct anv_physical_device *pdevice,
 
       /* VK_EXT_pipeline_protected_access */
       .pipelineProtectedAccess = true,
+
+      /* VK_EXT_host_image_copy */
+      .hostImageCopy = true,
    };
 
    /* The new DOOM and Wolfenstein games require depthBounds without
@@ -1529,6 +1533,77 @@ get_properties(const struct anv_physical_device *pdevice,
    {
       props->graphicsPipelineLibraryFastLinking = true;
       props->graphicsPipelineLibraryIndependentInterpolationDecoration = true;
+   }
+
+   /* VK_EXT_host_image_copy */
+   {
+      static const VkImageLayout supported_layouts[] = {
+         VK_IMAGE_LAYOUT_GENERAL,
+         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_STENCIL_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_STENCIL_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_DEPTH_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_STENCIL_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_STENCIL_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_READ_ONLY_OPTIMAL,
+         VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL,
+         VK_IMAGE_LAYOUT_FRAGMENT_SHADING_RATE_ATTACHMENT_OPTIMAL_KHR,
+         VK_IMAGE_LAYOUT_ATTACHMENT_FEEDBACK_LOOP_OPTIMAL_EXT,
+         VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR,
+      };
+
+      props->pCopySrcLayouts = (VkImageLayout *) supported_layouts;
+      props->copySrcLayoutCount = ARRAY_SIZE(supported_layouts);
+      props->pCopyDstLayouts = (VkImageLayout *) supported_layouts;
+      props->copyDstLayoutCount = ARRAY_SIZE(supported_layouts);
+
+      /* This UUID essentially tells you if you can share an optimially tiling
+       * image with another driver. Much of the tiling decisions are based on :
+       *
+       *    - device generation (different tilings based on generations)
+       *    - device workarounds
+       *    - driver build (as we implement workarounds or performance tunings,
+       *      the tiling decision changes)
+       *
+       * So we're using a hash of the verx10 field + driver_build_sha1.
+       *
+       * Unfortunately there is a HW issue on SKL GT4 that makes it use some
+       * different tilings sometimes (see isl_gfx7.c).
+       */
+      {
+         struct mesa_sha1 sha1_ctx;
+         uint8_t sha1[20];
+
+         _mesa_sha1_init(&sha1_ctx);
+         _mesa_sha1_update(&sha1_ctx, pdevice->driver_build_sha1,
+                           sizeof(pdevice->driver_build_sha1));
+         _mesa_sha1_update(&sha1_ctx, &pdevice->info.platform,
+                           sizeof(pdevice->info.platform));
+         if (pdevice->info.platform == INTEL_PLATFORM_SKL &&
+             pdevice->info.gt == 4) {
+            _mesa_sha1_update(&sha1_ctx, &pdevice->info.gt,
+                              sizeof(pdevice->info.gt));
+         }
+         _mesa_sha1_final(&sha1_ctx, sha1);
+
+         assert(ARRAY_SIZE(sha1) >= VK_UUID_SIZE);
+         memcpy(props->optimalTilingLayoutUUID, sha1, VK_UUID_SIZE);
+      }
+
+      /* System without ReBAR cannot map all memory types on the host and that
+       * affects the memory types an image can use for host memory copies.
+       *
+       * System with compressed memory types also cannot expose all image
+       * memory types for host image copies.
+       */
+      props->identicalMemoryTypeRequirements = pdevice->has_small_bar ||
+         pdevice->memory.compressed_mem_types != 0;
    }
 
    /* VK_EXT_legacy_vertex_attributes */

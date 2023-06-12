@@ -5358,6 +5358,8 @@ struct anv_image {
       struct anv_address address;
       struct anv_sparse_binding_data sparse_data;
       void *host_map;
+      uint64_t map_delta;
+      uint64_t map_size;
    } bindings[ANV_IMAGE_MEMORY_BINDING_END];
 
    /**
@@ -5460,6 +5462,22 @@ anv_image_format_is_d16_or_s8(const struct anv_image *image)
       image->vk.format == VK_FORMAT_D24_UNORM_S8_UINT ||
       image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
       image->vk.format == VK_FORMAT_S8_UINT;
+}
+
+static inline bool
+anv_image_can_host_memcpy(const struct anv_image *image)
+{
+   const struct isl_surf *surf = &image->planes[0].primary_surface.isl;
+   struct isl_tile_info tile_info;
+   isl_surf_get_tile_info(surf, &tile_info);
+
+   const bool array_pitch_aligned_to_tile =
+      surf->array_pitch_el_rows % tile_info.logical_extent_el.height == 0;
+
+   return image->vk.tiling != VK_IMAGE_TILING_LINEAR &&
+          image->n_planes == 1 &&
+          array_pitch_aligned_to_tile &&
+          image->vk.mip_levels == 1;
 }
 
 /* The ordering of this enum is important */

@@ -247,6 +247,12 @@ anv_image_choose_isl_surf_usage(struct anv_physical_device *device,
        vk_usage & VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR)
       isl_usage |= ISL_SURF_USAGE_VIDEO_DECODE_BIT;
 
+   /* We disable aux surfaces for host read/write images so that we can update
+    * the main surface without caring about the auxiliary surface.
+    */
+   if (vk_usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT)
+      isl_usage |= ISL_SURF_USAGE_DISABLE_AUX_BIT;
+
    if (vk_create_flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT)
       isl_usage |= ISL_SURF_USAGE_CUBE_BIT;
 
@@ -1866,7 +1872,7 @@ anv_image_finish(struct anv_image *image)
          anv_device_unmap_bo(device,
                              image->bindings[b].address.bo,
                              image->bindings[b].host_map,
-                             image->bindings[b].memory_range.size,
+                             image->bindings[b].map_size,
                              false /* replace */);
       }
    }
@@ -2083,20 +2089,30 @@ anv_image_is_pat_compressible(struct anv_device *device, struct anv_image *image
     *    For images created with a color format, the memoryTypeBits member is
     *    identical for all VkImage objects created with the same combination
     *    of values for the tiling member, the
-    *    VK_IMAGE_CREATE_SPARSE_BINDING_BIT bit of the flags member, the
+    *    VK_IMAGE_CREATE_SPARSE_BINDING_BIT bit and
+    *    VK_IMAGE_CREATE_PROTECTED_BIT bit of the flags member, the
     *    VK_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT bit of the flags
-    *    member, handleTypes member of VkExternalMemoryImageCreateInfo, and
-    *    the VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT of the usage member in
-    *    the VkImageCreateInfo structure passed to vkCreateImage.
+    *    member, the VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT bit of the usage
+    *    member if the
+    *    VkPhysicalDeviceHostImageCopyPropertiesEXT::identicalMemoryTypeRequirements
+    *    property is VK_FALSE, handleTypes member of
+    *    VkExternalMemoryImageCreateInfo, and the
+    *    VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT of the usage member in the
+    *    VkImageCreateInfo structure passed to vkCreateImage.
     *
     *    For images created with a depth/stencil format, the memoryTypeBits
     *    member is identical for all VkImage objects created with the same
     *    combination of values for the format member, the tiling member, the
-    *    VK_IMAGE_CREATE_SPARSE_BINDING_BIT bit of the flags member, the
+    *    VK_IMAGE_CREATE_SPARSE_BINDING_BIT bit and
+    *    VK_IMAGE_CREATE_PROTECTED_BIT bit of the flags member, the
     *    VK_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT bit of the flags
-    *    member, handleTypes member of VkExternalMemoryImageCreateInfo, and
-    *    the VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT of the usage member in
-    *    the VkImageCreateInfo structure passed to vkCreateImage.
+    *    member, the VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT bit of the usage
+    *    member if the
+    *    VkPhysicalDeviceHostImageCopyPropertiesEXT::identicalMemoryTypeRequirements
+    *    property is VK_FALSE, handleTypes member of
+    *    VkExternalMemoryImageCreateInfo, and the
+    *    VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT of the usage member in the
+    *    VkImageCreateInfo structure passed to vkCreateImage.
     */
 
    /* There are no compression-enabled modifiers on Xe2, and all legacy
@@ -2503,18 +2519,28 @@ anv_image_bind_address(struct anv_device *device,
    image->bindings[binding].address = address;
 
    /* Map bindings for images with host transfer usage, so that we don't have
-    * to map/unmap things at every host operation.
+    * to map/unmap things at every host operation. We map cached, that means
+    * that the copy operations need to cflush on platforms that have no
+    * host_cache+host_coherent memory types.
     */
    if (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) {
+      uint64_t offset = image->bindings[binding].address.offset +
+                        image->bindings[binding].memory_range.offset;
+      uint64_t map_offset, map_size;
+      anv_sanitize_map_params(device, offset,
+                              image->bindings[binding].memory_range.size,
+                              &map_offset, &map_size);
+
       VkResult result = anv_device_map_bo(device,
                                           image->bindings[binding].address.bo,
-                                          image->bindings[binding].address.offset +
-                                          image->bindings[binding].memory_range.offset,
-                                          image->bindings[binding].memory_range.size,
+                                          map_offset, map_size,
                                           NULL /* placed_addr */,
                                           &image->bindings[binding].host_map);
       if (result != VK_SUCCESS)
          return result;
+
+      image->bindings[binding].map_delta = (offset - map_offset);
+      image->bindings[binding].map_size = map_size;
    }
 
    ANV_RMV(image_bind, device, image, binding);
@@ -2708,7 +2734,8 @@ VkResult anv_BindImageMemory2(
 }
 
 static void
-anv_get_image_subresource_layout(const struct anv_image *image,
+anv_get_image_subresource_layout(struct anv_device *device,
+                                 const struct anv_image *image,
                                  const VkImageSubresource2KHR *subresource,
                                  VkSubresourceLayout2KHR *layout)
 {
@@ -2804,11 +2831,11 @@ anv_get_image_subresource_layout(const struct anv_image *image,
       row_pitch_B = isl_surf->row_pitch_B;
    }
 
+   const uint32_t level = subresource->imageSubresource.mipLevel;
    if (isl_surf) {
       /* ISL tries to give us a single layer but the Vulkan API expect the
        * entire 3D size.
        */
-      const uint32_t level = subresource->imageSubresource.mipLevel;
       const uint32_t layer = subresource->imageSubresource.arrayLayer;
       const uint32_t z = u_minify(isl_surf->logical_level0_px.d, level) - 1;
       uint64_t z0_start_tile_B, z0_end_tile_B;
@@ -2832,6 +2859,37 @@ anv_get_image_subresource_layout(const struct anv_image *image,
       /* Not a surface so those fields don't make sense */
       layout->subresourceLayout.depthPitch = 0;
       layout->subresourceLayout.arrayPitch = 0;
+   }
+
+   VkSubresourceHostMemcpySizeEXT *host_memcpy_size =
+      vk_find_struct(layout->pNext, SUBRESOURCE_HOST_MEMCPY_SIZE_EXT);
+   if (host_memcpy_size) {
+      if (!isl_surf) {
+         host_memcpy_size->size = 0;
+      } else if (anv_image_can_host_memcpy(image)) {
+         host_memcpy_size->size = layout->subresourceLayout.size;
+      } else {
+         /* If we cannot do straight memcpy of the image, compute a linear
+          * size. This will be the format in which we store the data.
+          */
+         struct isl_surf lin_surf;
+         bool ok =
+            isl_surf_init(&device->physical->isl_dev, &lin_surf,
+                          .dim          = isl_surf->dim,
+                          .format       = isl_surf->format,
+                          .width        = u_minify(
+                             isl_surf->logical_level0_px.w, level),
+                          .height       = u_minify(
+                             isl_surf->logical_level0_px.h, level),
+                          .depth        = u_minify(
+                             isl_surf->logical_level0_px.d, level),
+                          .array_len    = 1,
+                          .levels       = 1,
+                          .samples      = isl_surf->samples,
+                          .tiling_flags = ISL_TILING_LINEAR_BIT);
+         assert(ok);
+         host_memcpy_size->size = lin_surf.size_B;
+      }
    }
 
    VkImageCompressionPropertiesEXT *comp_props =
@@ -2864,18 +2922,19 @@ void anv_GetDeviceImageSubresourceLayoutKHR(
       return;
    }
 
-   anv_get_image_subresource_layout(&image, pInfo->pSubresource, pLayout);
+   anv_get_image_subresource_layout(device, &image, pInfo->pSubresource, pLayout);
 }
 
 void anv_GetImageSubresourceLayout2KHR(
-    VkDevice                                    device,
+    VkDevice                                    _device,
     VkImage                                     _image,
     const VkImageSubresource2KHR*               pSubresource,
     VkSubresourceLayout2KHR*                    pLayout)
 {
+   ANV_FROM_HANDLE(anv_device, device, _device);
    ANV_FROM_HANDLE(anv_image, image, _image);
 
-   anv_get_image_subresource_layout(image, pSubresource, pLayout);
+   anv_get_image_subresource_layout(device, image, pSubresource, pLayout);
 }
 
 static VkImageUsageFlags
