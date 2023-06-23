@@ -297,9 +297,9 @@ init_pbo_shader_data(nir_builder *b, struct pbo_shader_data *sd, unsigned coord_
                                                                            nir_ball(b, nir_ieq_imm(b, sd->bits, 8)),
                                                                            nir_ball(b, nir_ieq_imm(b, nir_channels(b, sd->bits, 7), 8))),
                                                                  nir_ball(b, nir_ieq_imm(b, nir_channels(b, sd->bits, 3), 8))),
-                                                       nir_imm_bool(b, 0)),
-                                             nir_imm_bool(b, 0))),
-                           nir_imm_bool(b, 0),
+                                                       nir_imm_false(b)),
+                                             nir_imm_false(b))),
+                           nir_imm_false(b),
                            sd->swap);
      */
 }
@@ -493,8 +493,8 @@ check_for_weird_packing(nir_builder *b, struct pbo_shader_data *sd, unsigned com
                     nir_ige_imm(b, sd->channels, component),
                     nir_ior(b,
                             nir_ine(b, c, sd->bits1),
-                            nir_ine_imm(b, nir_imod(b, c, nir_imm_int(b, 8)), 0)),
-                    nir_imm_bool(b, 0));
+                            nir_ine_imm(b, nir_imod_imm(b, c, 8), 0)),
+                    nir_imm_false(b));
 }
 
 /* convenience function for clamping signed integers */
@@ -1126,13 +1126,14 @@ download_texture_compute(struct st_context *st,
    }
 
    /* Set up destination buffer */
-   unsigned img_stride = src->target == PIPE_TEXTURE_3D ||
+   intptr_t img_stride = src->target == PIPE_TEXTURE_3D ||
                          src->target == PIPE_TEXTURE_2D_ARRAY ||
                          src->target == PIPE_TEXTURE_CUBE_ARRAY ?
                          /* only use image stride for 3d images to avoid pulling in IMAGE_HEIGHT pixelstore */
                          _mesa_image_image_stride(pack, width, height, format, type) :
                          _mesa_image_row_stride(pack, width, format, type) * height;
-   unsigned buffer_size = (depth + (dim == 3 ? pack->SkipImages : 0)) * img_stride;
+   intptr_t buffer_size = (depth + (dim == 3 ? pack->SkipImages : 0)) * img_stride;
+   assert(buffer_size <= UINT32_MAX);
    {
       struct pipe_shader_buffer buffer;
       memset(&buffer, 0, sizeof(buffer));

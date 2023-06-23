@@ -21,10 +21,10 @@
  * IN THE SOFTWARE.
  *
  */
+#include <llvm/Config/llvm-config.h>
+
 #include "helpers.h"
 #include "test_isel-spirv.h"
-
-#include <llvm/Config/llvm-config.h>
 
 using namespace aco;
 
@@ -32,8 +32,7 @@ BEGIN_TEST(isel.interp.simple)
    QoShaderModuleCreateInfo vs = qoShaderModuleCreateInfoGLSL(VERTEX,
       layout(location = 0) in vec4 in_color;
       layout(location = 0) out vec4 out_color;
-      void main() {
-         out_color = in_color;
+      void main() { out_color = in_color;
       }
    );
    QoShaderModuleCreateInfo fs = qoShaderModuleCreateInfoGLSL(FRAGMENT,
@@ -186,7 +185,6 @@ BEGIN_TEST(isel.sparse.clause)
    }
 END_TEST
 
-#if LLVM_VERSION_MAJOR >= 15
 BEGIN_TEST(isel.discard_early_exit.mrtz)
    QoShaderModuleCreateInfo vs = qoShaderModuleCreateInfoGLSL(VERTEX,
       void main() {}
@@ -235,4 +233,22 @@ BEGIN_TEST(isel.discard_early_exit.mrt0)
    pbld.add_vsfs(vs, fs);
    pbld.print_ir(VK_SHADER_STAGE_FRAGMENT_BIT, "Assembly");
 END_TEST
-#endif
+
+BEGIN_TEST(isel.s_bfe_mask_bits)
+   QoShaderModuleCreateInfo cs = qoShaderModuleCreateInfoGLSL(COMPUTE,
+      layout(local_size_x=1) in;
+      layout(binding=0) buffer Buf {
+         int res;
+      };
+      void main() {
+         //>> s1: %bits, s1: (kill)%_:scc = s_and_b32 (kill)%_, 31
+         //! s1: %src1 = s_pack_ll_b32_b16 0, (kill)%bits
+         //! s1: %_, s1: (kill)%_:scc = s_bfe_i32 0xdeadbeef, (kill)%src1
+         res = bitfieldExtract(0xdeadbeef, 0, res & 0x1f);
+      }
+   );
+
+   PipelineBuilder pbld(get_vk_device(GFX10_3));
+   pbld.add_cs(cs);
+   pbld.print_ir(VK_SHADER_STAGE_COMPUTE_BIT, "ACO IR", true);
+END_TEST

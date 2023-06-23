@@ -13,7 +13,6 @@
 #include "ac_shader_args.h"
 #include "ac_shader_util.h"
 #include "amd_family.h"
-#include "pipe/p_state.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,6 +56,9 @@ ac_nir_load_arg(nir_builder *b, const struct ac_shader_args *ac_args, struct ac_
 {
    return ac_nir_load_arg_at_offset(b, ac_args, arg, 0);
 }
+
+void ac_nir_store_arg(nir_builder *b, const struct ac_shader_args *ac_args, struct ac_arg arg,
+                      nir_ssa_def *val);
 
 nir_ssa_def *
 ac_nir_unpack_arg(nir_builder *b, const struct ac_shader_args *ac_args, struct ac_arg arg,
@@ -299,7 +301,7 @@ typedef struct {
    bool clamp_color;
    bool alpha_to_one;
    bool kill_samplemask;
-   enum pipe_compare_func alpha_func;
+   enum compare_func alpha_func;
    unsigned broadcast_last_cbuf;
 
    /* Vulkan only */

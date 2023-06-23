@@ -38,6 +38,7 @@
 
 #include "compiler/shader_enums.h"
 #include "hwdef/rogue_hw_defs.h"
+#include "pvr_border.h"
 #include "pvr_clear.h"
 #include "pvr_common.h"
 #include "pvr_csb.h"
@@ -277,6 +278,8 @@ struct pvr_device {
    struct pvr_bo *robustness_buffer;
 
    struct vk_sync *presignaled_sync;
+
+   struct pvr_border_color_table border_color_table;
 };
 
 struct pvr_device_memory {
@@ -848,7 +851,7 @@ struct pvr_pds_attrib_program {
 struct pvr_pipeline_stage_state {
    uint32_t const_shared_reg_count;
    uint32_t const_shared_reg_offset;
-   uint32_t temps_count;
+   uint32_t pds_temps_count;
 
    uint32_t coefficient_size;
 
@@ -1246,7 +1249,6 @@ VkResult pvr_cmd_buffer_add_transfer_cmd(struct pvr_cmd_buffer *cmd_buffer,
 VkResult pvr_cmd_buffer_alloc_mem(struct pvr_cmd_buffer *cmd_buffer,
                                   struct pvr_winsys_heap *heap,
                                   uint64_t size,
-                                  uint32_t flags,
                                   struct pvr_suballoc_bo **const pvr_bo_out);
 
 void pvr_calculate_vertex_cam_size(const struct pvr_device_info *dev_info,

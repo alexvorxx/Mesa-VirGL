@@ -28,6 +28,7 @@
 #define ACO_SHADER_INFO_H
 
 #include "ac_shader_args.h"
+#include "ac_shader_util.h"
 #include "amd_family.h"
 #include "shader_enums.h"
 
@@ -35,10 +36,10 @@
 extern "C" {
 #endif
 
-#define ACO_MAX_SO_OUTPUTS 64
-#define ACO_MAX_SO_BUFFERS 4
+#define ACO_MAX_SO_OUTPUTS     64
+#define ACO_MAX_SO_BUFFERS     4
 #define ACO_MAX_VERTEX_ATTRIBS 32
-#define ACO_MAX_VBS 32
+#define ACO_MAX_VBS            32
 
 struct aco_vs_input_state {
    uint32_t instance_rate_inputs;
@@ -77,15 +78,13 @@ struct aco_ps_epilog_info {
 };
 
 struct aco_shader_info {
+   enum ac_hw_stage hw_stage;
    uint8_t wave_size;
-   bool is_ngg;
    bool has_ngg_culling;
    bool has_ngg_early_prim_export;
    bool image_2d_view_of_3d;
    unsigned workgroup_size;
    struct {
-      bool as_es;
-      bool as_ls;
       bool tcs_in_out_eq;
       uint64_t tcs_temp_only_input_mask;
       bool has_prolog;
@@ -94,9 +93,6 @@ struct aco_shader_info {
       uint32_t num_lds_blocks;
       unsigned tess_input_vertices;
    } tcs;
-   struct {
-      bool as_es;
-   } tes;
    struct {
       bool has_epilog;
       struct ac_arg epilog_pc;
@@ -133,8 +129,8 @@ struct aco_compiler_options {
    enum amd_gfx_level gfx_level;
    uint32_t address32_hi;
    struct {
-      void (*func)(void *private_data, enum aco_compiler_debug_level level, const char *message);
-      void *private_data;
+      void (*func)(void* private_data, enum aco_compiler_debug_level level, const char* message);
+      void* private_data;
    } debug;
 };
 

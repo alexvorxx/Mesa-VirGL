@@ -479,8 +479,8 @@ public:
    /**
     * Get the instance of an array type
     */
-   static const glsl_type *get_array_instance(const glsl_type *base,
-                                              unsigned elements,
+   static const glsl_type *get_array_instance(const glsl_type *element,
+                                              unsigned array_size,
                                               unsigned explicit_stride = 0);
 
    /**
@@ -1482,11 +1482,5 @@ struct glsl_function_param {
    bool in;
    bool out;
 };
-
-static inline unsigned int
-glsl_align(unsigned int a, unsigned int align)
-{
-   return (a + align - 1) / align * align;
-}
 
 #endif /* GLSL_TYPES_H */

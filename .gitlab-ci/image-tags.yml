@@ -13,7 +13,7 @@ variables:
 
    DEBIAN_X86_64_BUILD_BASE_IMAGE: "debian/x86_64_build-base"
 
-   DEBIAN_BASE_TAG: "2023-05-25-virglrenderer"
+   DEBIAN_BASE_TAG: "2023-06-21-virglrenderer"
 
    DEBIAN_X86_64_BUILD_IMAGE_PATH: "debian/x86_64_build"
    DEBIAN_BUILD_TAG: "2023-05-25-bookworm"
@@ -47,14 +47,14 @@ variables:
    DEBIAN_X86_TEST_GL_TAG: "2023-05-25-bookworm"
    DEBIAN_X86_TEST_VK_TAG: "2023-05-25-vkd3d-proton"
 
-   DEBIAN_X86_64_TEST_ANDROID_TAG: "2023-05-25-bookworm"
-   DEBIAN_X86_64_TEST_GL_TAG: "2023-05-31-vvl"
-   DEBIAN_X86_64_TEST_VK_TAG: "2023-05-25-vkd3d-proton"
+   DEBIAN_X86_64_TEST_ANDROID_TAG: "2023-06-07-deqp"
+   DEBIAN_X86_64_TEST_GL_TAG: "2023-06-07-deqp"
+   DEBIAN_X86_64_TEST_VK_TAG: "2023-06-07-deqp"
 
 
    ALPINE_X86_64_BUILD_TAG: "2023-05-01-3.18-bump-1"
    FEDORA_X86_64_BUILD_TAG: "2023-05-05-ccache-on"
-   KERNEL_ROOTFS_TAG: "2023-06-05-piglit-5036601c"
+   KERNEL_ROOTFS_TAG: "2023-06-21-virglrenderer"
 
 
    WINDOWS_X64_VS_PATH: "windows/x64_vs"

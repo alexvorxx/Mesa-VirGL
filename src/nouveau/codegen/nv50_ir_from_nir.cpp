@@ -643,14 +643,6 @@ int
 Converter::getSubOp(nir_intrinsic_op op)
 {
    switch (op) {
-   case nir_intrinsic_memory_barrier:
-   case nir_intrinsic_memory_barrier_buffer:
-   case nir_intrinsic_memory_barrier_image:
-      return NV50_IR_SUBOP_MEMBAR(M, GL);
-   case nir_intrinsic_group_memory_barrier:
-   case nir_intrinsic_memory_barrier_shared:
-      return NV50_IR_SUBOP_MEMBAR(M, CTA);
-
    case nir_intrinsic_vote_all:
       return NV50_IR_SUBOP_VOTE_ALL;
    case nir_intrinsic_vote_any:
@@ -2264,26 +2256,33 @@ Converter::visit(nir_intrinsic_instr *insn)
 
       break;
    }
-   case nir_intrinsic_control_barrier: {
-      // TODO: add flag to shader_info
-      info_out->numBarriers = 1;
-      Instruction *bar = mkOp2(OP_BAR, TYPE_U32, NULL, mkImm(0), mkImm(0));
-      bar->fixed = 1;
-      bar->subOp = NV50_IR_SUBOP_BAR_SYNC;
+   case nir_intrinsic_scoped_barrier: {
+      mesa_scope exec_scope = nir_intrinsic_execution_scope(insn);
+      mesa_scope mem_scope = nir_intrinsic_memory_scope(insn);
+      nir_variable_mode modes = nir_intrinsic_memory_modes(insn);
+      nir_variable_mode valid_modes =
+         nir_var_mem_global | nir_var_image | nir_var_mem_ssbo | nir_var_mem_shared;
+
+      if (mem_scope != SCOPE_NONE && (modes & valid_modes)) {
+
+         Instruction *bar = mkOp(OP_MEMBAR, TYPE_NONE, NULL);
+         bar->fixed = 1;
+
+         if (mem_scope >= SCOPE_QUEUE_FAMILY)
+            bar->subOp = NV50_IR_SUBOP_MEMBAR(M, GL);
+         else
+            bar->subOp = NV50_IR_SUBOP_MEMBAR(M, CTA);
+      }
+
+      if (exec_scope != SCOPE_NONE &&
+          !(exec_scope == SCOPE_WORKGROUP && nir->info.stage == MESA_SHADER_TESS_CTRL)) {
+         Instruction *bar = mkOp2(OP_BAR, TYPE_U32, NULL, mkImm(0), mkImm(0));
+         bar->fixed = 1;
+         bar->subOp = NV50_IR_SUBOP_BAR_SYNC;
+      }
+
       break;
    }
-   case nir_intrinsic_group_memory_barrier:
-   case nir_intrinsic_memory_barrier:
-   case nir_intrinsic_memory_barrier_buffer:
-   case nir_intrinsic_memory_barrier_image:
-   case nir_intrinsic_memory_barrier_shared: {
-      Instruction *bar = mkOp(OP_MEMBAR, TYPE_NONE, NULL);
-      bar->fixed = 1;
-      bar->subOp = getSubOp(op);
-      break;
-   }
-   case nir_intrinsic_memory_barrier_tcs_patch:
-      break;
    case nir_intrinsic_shader_clock: {
       const DataType dType = getDType(insn);
       LValues &newDefs = convert(&insn->dest);
@@ -3239,6 +3238,8 @@ Converter::run()
       NIR_PASS(progress, nir, nir_lower_64bit_phis);
    } while (progress);
 
+   NIR_PASS_V(nir, nir_opt_combine_barriers, NULL, NULL);
+
    nir_move_options move_options =
       (nir_move_options)(nir_move_const_undef |
                          nir_move_load_ubo |
@@ -3303,7 +3304,7 @@ Program::makeFromNIR(struct nv50_ir_prog_info *info,
 } // namespace nv50_ir
 
 static nir_shader_compiler_options
-nvir_nir_shader_compiler_options(int chipset, uint8_t shader_type, bool prefer_nir)
+nvir_nir_shader_compiler_options(int chipset, uint8_t shader_type)
 {
    nir_shader_compiler_options op = {};
    op.lower_fdiv = (chipset >= NVISA_GV100_CHIPSET);
@@ -3384,7 +3385,7 @@ nvir_nir_shader_compiler_options(int chipset, uint8_t shader_type, bool prefer_n
    op.lower_mul_2x32_64 = true; // TODO
    op.lower_rotate = (chipset < NVISA_GV100_CHIPSET);
    op.has_imul24 = false;
-   op.has_fmulz = (prefer_nir && (chipset > NVISA_G80_CHIPSET));
+   op.has_fmulz = (chipset > NVISA_G80_CHIPSET);
    op.intel_vec4 = false;
    op.lower_uniforms_to_ubo = true;
    op.force_indirect_unrolling = (nir_variable_mode) (
@@ -3396,7 +3397,7 @@ nvir_nir_shader_compiler_options(int chipset, uint8_t shader_type, bool prefer_n
        */
       ((chipset >= NVISA_GV100_CHIPSET && shader_type == PIPE_SHADER_FRAGMENT) ? nir_var_shader_in : 0)
    );
-   op.force_indirect_unrolling_sampler = (chipset < NVISA_GF100_CHIPSET),
+   op.force_indirect_unrolling_sampler = (chipset < NVISA_GF100_CHIPSET);
    op.max_unroll_iterations = 32;
    op.lower_int64_options = (nir_lower_int64_options) (
       ((chipset >= NVISA_GV100_CHIPSET) ? nir_lower_imul64 : 0) |
@@ -3427,93 +3428,52 @@ nvir_nir_shader_compiler_options(int chipset, uint8_t shader_type, bool prefer_n
 }
 
 static const nir_shader_compiler_options g80_nir_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_G80_CHIPSET, PIPE_SHADER_TYPES, true);
+nvir_nir_shader_compiler_options(NVISA_G80_CHIPSET, PIPE_SHADER_TYPES);
 static const nir_shader_compiler_options g80_fs_nir_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_G80_CHIPSET, PIPE_SHADER_FRAGMENT, true);
+nvir_nir_shader_compiler_options(NVISA_G80_CHIPSET, PIPE_SHADER_FRAGMENT);
 static const nir_shader_compiler_options gf100_nir_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GF100_CHIPSET, PIPE_SHADER_TYPES, true);
+nvir_nir_shader_compiler_options(NVISA_GF100_CHIPSET, PIPE_SHADER_TYPES);
 static const nir_shader_compiler_options gf100_fs_nir_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GF100_CHIPSET, PIPE_SHADER_FRAGMENT, true);
+nvir_nir_shader_compiler_options(NVISA_GF100_CHIPSET, PIPE_SHADER_FRAGMENT);
 static const nir_shader_compiler_options gm107_nir_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GM107_CHIPSET, PIPE_SHADER_TYPES, true);
+nvir_nir_shader_compiler_options(NVISA_GM107_CHIPSET, PIPE_SHADER_TYPES);
 static const nir_shader_compiler_options gm107_fs_nir_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GM107_CHIPSET, PIPE_SHADER_FRAGMENT, true);
+nvir_nir_shader_compiler_options(NVISA_GM107_CHIPSET, PIPE_SHADER_FRAGMENT);
 static const nir_shader_compiler_options gv100_nir_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GV100_CHIPSET, PIPE_SHADER_TYPES, true);
+nvir_nir_shader_compiler_options(NVISA_GV100_CHIPSET, PIPE_SHADER_TYPES);
 static const nir_shader_compiler_options gv100_fs_nir_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GV100_CHIPSET, PIPE_SHADER_FRAGMENT, true);
-
-static const nir_shader_compiler_options g80_tgsi_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_G80_CHIPSET, PIPE_SHADER_TYPES, false);
-static const nir_shader_compiler_options g80_fs_tgsi_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_G80_CHIPSET, PIPE_SHADER_FRAGMENT, false);
-static const nir_shader_compiler_options gf100_tgsi_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GF100_CHIPSET, PIPE_SHADER_TYPES, false);
-static const nir_shader_compiler_options gf100_fs_tgsi_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GF100_CHIPSET, PIPE_SHADER_FRAGMENT, false);
-static const nir_shader_compiler_options gm107_tgsi_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GM107_CHIPSET, PIPE_SHADER_TYPES, false);
-static const nir_shader_compiler_options gm107_fs_tgsi_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GM107_CHIPSET, PIPE_SHADER_FRAGMENT, false);
-static const nir_shader_compiler_options gv100_tgsi_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GV100_CHIPSET, PIPE_SHADER_TYPES, false);
-static const nir_shader_compiler_options gv100_fs_tgsi_shader_compiler_options =
-nvir_nir_shader_compiler_options(NVISA_GV100_CHIPSET, PIPE_SHADER_FRAGMENT, false);
+nvir_nir_shader_compiler_options(NVISA_GV100_CHIPSET, PIPE_SHADER_FRAGMENT);
 
 const nir_shader_compiler_options *
-nv50_ir_nir_shader_compiler_options(int chipset,  uint8_t shader_type, bool prefer_nir)
+nv50_ir_nir_shader_compiler_options(int chipset,  uint8_t shader_type)
 {
    if (chipset >= NVISA_GV100_CHIPSET) {
       if (shader_type == PIPE_SHADER_FRAGMENT) {
-         if (prefer_nir)
-            return &gv100_fs_nir_shader_compiler_options;
-         else
-            return &gv100_fs_tgsi_shader_compiler_options;
+         return &gv100_fs_nir_shader_compiler_options;
       } else {
-         if (prefer_nir)
-            return &gv100_nir_shader_compiler_options;
-         else
-            return &gv100_tgsi_shader_compiler_options;
+         return &gv100_nir_shader_compiler_options;
       }
    }
 
    if (chipset >= NVISA_GM107_CHIPSET) {
       if (shader_type == PIPE_SHADER_FRAGMENT) {
-         if (prefer_nir)
-            return &gm107_fs_nir_shader_compiler_options;
-         else
-            return &gm107_fs_tgsi_shader_compiler_options;
+         return &gm107_fs_nir_shader_compiler_options;
       } else {
-         if (prefer_nir)
-            return &gm107_nir_shader_compiler_options;
-         else
-            return &gm107_tgsi_shader_compiler_options;
+         return &gm107_nir_shader_compiler_options;
       }
    }
 
    if (chipset >= NVISA_GF100_CHIPSET) {
       if (shader_type == PIPE_SHADER_FRAGMENT) {
-         if (prefer_nir)
-            return &gf100_fs_nir_shader_compiler_options;
-         else
-            return &gf100_fs_tgsi_shader_compiler_options;
+         return &gf100_fs_nir_shader_compiler_options;
       } else {
-         if (prefer_nir)
-            return &gf100_nir_shader_compiler_options;
-         else
-            return &gf100_tgsi_shader_compiler_options;
+         return &gf100_nir_shader_compiler_options;
       }
    }
 
    if (shader_type == PIPE_SHADER_FRAGMENT) {
-      if (prefer_nir)
-         return &g80_fs_nir_shader_compiler_options;
-      else
-         return &g80_fs_tgsi_shader_compiler_options;
+      return &g80_fs_nir_shader_compiler_options;
    } else {
-      if (prefer_nir)
-         return &g80_nir_shader_compiler_options;
-      else
-         return &g80_tgsi_shader_compiler_options;
+      return &g80_nir_shader_compiler_options;
    }
 }

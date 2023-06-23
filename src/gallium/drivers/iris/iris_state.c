@@ -1078,6 +1078,7 @@ init_aux_map_state(struct iris_batch *batch);
 static void
 iris_disable_rhwo_optimization(struct iris_batch *batch, bool disable)
 {
+   assert(batch->screen->devinfo->verx10 == 120);
 #if GFX_VERx10 == 120
    iris_emit_reg(batch, GENX(COMMON_SLICE_CHICKEN1), c1) {
       c1.RCCRHWOOptimizationDisable = disable;
@@ -1228,8 +1229,8 @@ iris_init_render_context(struct iris_batch *batch)
    }
 #endif
 
-#if GFX_VERx10 == 120
-   /* Wa_1508744258
+#if INTEL_NEEDS_WORKAROUND_1508744258
+   /* The suggested workaround is:
     *
     *    Disable RHWO by setting 0x7010[14] by default except during resolve
     *    pass.
@@ -1244,7 +1245,9 @@ iris_init_render_context(struct iris_batch *batch)
     * field in the 3DSTATE_PS instruction).
     */
    iris_disable_rhwo_optimization(batch, true);
+#endif
 
+#if GFX_VERx10 == 120
    /* Wa_1806527549 says to disable the following HiZ optimization when the
     * depth buffer is D16_UNORM. We've found the WA to help with more depth
     * buffer configurations however, so we always disable it just to be safe.
@@ -1360,7 +1363,7 @@ struct iris_depth_buffer_state {
                     GENX(3DSTATE_CLEAR_PARAMS_length)];
 };
 
-#if GFX_VERx10 == 120
+#if INTEL_NEEDS_WA_1808121037
 enum iris_depth_reg_mode {
    IRIS_DEPTH_REG_MODE_HW_DEFAULT = 0,
    IRIS_DEPTH_REG_MODE_D16_1X_MSAA,
@@ -1389,7 +1392,7 @@ struct iris_genx_state {
    /* Is object level preemption enabled? */
    bool object_preemption;
 
-#if GFX_VERx10 == 120
+#if INTEL_NEEDS_WA_1808121037
    enum iris_depth_reg_mode depth_reg_mode;
 #endif
 
@@ -2736,7 +2739,7 @@ iris_create_sampler_view(struct pipe_context *ctx,
 
    if ((isv->res->aux.usage == ISL_AUX_USAGE_CCS_D ||
         isv->res->aux.usage == ISL_AUX_USAGE_CCS_E ||
-        isv->res->aux.usage == ISL_AUX_USAGE_GFX12_CCS_E) &&
+        isv->res->aux.usage == ISL_AUX_USAGE_FCV_CCS_E) &&
        !isl_format_supports_ccs_e(devinfo, isv->view.format)) {
       aux_usages = 1 << ISL_AUX_USAGE_NONE;
    } else if (isl_aux_usage_has_hiz(isv->res->aux.usage) &&
@@ -2976,7 +2979,7 @@ iris_create_surface(struct pipe_context *ctx,
    unsigned aux_usages = 0;
 
    if ((res->aux.usage == ISL_AUX_USAGE_CCS_E ||
-        res->aux.usage == ISL_AUX_USAGE_GFX12_CCS_E) &&
+        res->aux.usage == ISL_AUX_USAGE_FCV_CCS_E) &&
        !isl_format_supports_ccs_e(devinfo, view->format)) {
       aux_usages = 1 << ISL_AUX_USAGE_NONE;
    } else {
@@ -3071,8 +3074,8 @@ iris_set_shader_images(struct pipe_context *ctx,
          unsigned aux_usages = 1 << ISL_AUX_USAGE_NONE;
 
          /* Gfx12+ supports render compression for images */
-         if (GFX_VER >= 12)
-            aux_usages |= 1 << res->aux.usage;
+         if (GFX_VER >= 12 && isl_aux_usage_has_ccs_e(res->aux.usage))
+            aux_usages |= 1 << ISL_AUX_USAGE_CCS_E;
 
          alloc_surface_states(&iv->surface_state, aux_usages);
          iv->surface_state.bo_address = res->bo->address;
@@ -6069,7 +6072,7 @@ genX(emit_depth_state_workarounds)(struct iris_context *ice,
                                    struct iris_batch *batch,
                                    const struct isl_surf *surf)
 {
-#if GFX_VERx10 == 120
+#if INTEL_NEEDS_WA_1808121037
    const bool is_d16_1x_msaa = surf->format == ISL_FORMAT_R16_UNORM &&
                                surf->samples == 1;
 
@@ -6091,11 +6094,11 @@ genX(emit_depth_state_workarounds)(struct iris_context *ice,
     * settings while we change the registers.
     */
    iris_emit_end_of_pipe_sync(batch,
-                              "Workaround: Stop pipeline for 14010455700",
+                              "Workaround: Stop pipeline for Wa_1808121037",
                               PIPE_CONTROL_DEPTH_STALL |
                               PIPE_CONTROL_DEPTH_CACHE_FLUSH);
 
-   /* Wa_14010455700
+   /* Wa_1808121037
     *
     * To avoid sporadic corruptions “Set 0x7010[9] when Depth Buffer
     * Surface Format is D16_UNORM , surface type is not NULL & 1X_MSAA”.
@@ -6999,7 +7002,8 @@ iris_upload_dirty_render_state(struct iris_context *ice,
       if (zres)
          genX(emit_depth_state_workarounds)(ice, batch, &zres->surf);
 
-      if (GFX_VER >= 11) {
+      if (intel_needs_workaround(batch->screen->devinfo, 1408224581) ||
+          intel_needs_workaround(batch->screen->devinfo, 14014097488)) {
          /* Wa_1408224581
           *
           * Workaround: Gfx12LP Astep only An additional pipe control with
@@ -8542,8 +8546,9 @@ iris_emit_raw_pipe_control(struct iris_batch *batch,
    /* "GPGPU specific workarounds" (both post-sync and flush) ------------ */
 
    if (IS_COMPUTE_PIPELINE(batch)) {
-      if (GFX_VER >= 9 && (flags & PIPE_CONTROL_TEXTURE_CACHE_INVALIDATE)) {
-         /* Project: SKL+ / Argument: Tex Invalidate
+      if ((GFX_VER == 9 || GFX_VER == 11) &&
+          (flags & PIPE_CONTROL_TEXTURE_CACHE_INVALIDATE)) {
+         /* Project: SKL, ICL / Argument: Tex Invalidate
           * "Requires stall bit ([20] of DW) set for all GPGPU Workloads."
           */
          flags |= PIPE_CONTROL_CS_STALL;
@@ -8813,7 +8818,7 @@ iris_lost_genx_state(struct iris_context *ice, struct iris_batch *batch)
 {
    struct iris_genx_state *genx = ice->state.genx;
 
-#if GFX_VERx10 == 120
+#if INTEL_NEEDS_WA_1808121037
    genx->depth_reg_mode = IRIS_DEPTH_REG_MODE_UNKNOWN;
 #endif
 

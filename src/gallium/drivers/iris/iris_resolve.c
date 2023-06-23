@@ -54,7 +54,7 @@ disable_rb_aux_buffer(struct iris_context *ice,
    /* We only need to worry about color compression and fast clears. */
    if (tex_res->aux.usage != ISL_AUX_USAGE_CCS_D &&
        tex_res->aux.usage != ISL_AUX_USAGE_CCS_E &&
-       tex_res->aux.usage != ISL_AUX_USAGE_GFX12_CCS_E)
+       tex_res->aux.usage != ISL_AUX_USAGE_FCV_CCS_E)
       return false;
 
    for (unsigned i = 0; i < cso_fb->nr_cbufs; i++) {
@@ -406,8 +406,18 @@ flush_previous_aux_mode(struct iris_batch *batch,
     * isn't 100% resilient to format changes.  However, to date, we have never
     * observed GPU hangs or even corruption to be associated with switching the
     * format, only the aux usage.  So we let that slide for now.
+    *
+    * We haven't seen issues on gfx12 hardware when switching between
+    * FCV_CCS_E and plain CCS_E. A switch could indicate a transition in
+    * accessing data through a different cache domain. The flushes and
+    * invalidates that come from the cache tracker and memory barrier
+    * functions seem to be enough to handle this. Treat the two as equivalent
+    * to avoid extra cache flushing.
     */
-   void *v_aux_usage = (void *) (uintptr_t) aux_usage;
+   void *v_aux_usage = (void *) (uintptr_t)
+      (aux_usage == ISL_AUX_USAGE_FCV_CCS_E ?
+       ISL_AUX_USAGE_CCS_E : aux_usage);
+
    struct hash_entry *entry =
       _mesa_hash_table_search_pre_hashed(batch->bo_aux_modes, bo->hash, bo);
    if (!entry) {
@@ -508,17 +518,19 @@ iris_resolve_color(struct iris_context *ice,
    iris_emit_end_of_pipe_sync(batch, "color resolve: pre-flush",
                               PIPE_CONTROL_RENDER_TARGET_FLUSH);
 
-   /* Wa_1508744258
-    *
-    *    Disable RHWO by setting 0x7010[14] by default except during resolve
-    *    pass.
-    *
-    * We implement global disabling of the RHWO optimization during
-    * iris_init_render_context. We toggle it around the blorp resolve call.
-    */
-   assert(resolve_op == ISL_AUX_OP_FULL_RESOLVE ||
-          resolve_op == ISL_AUX_OP_PARTIAL_RESOLVE);
-   batch->screen->vtbl.disable_rhwo_optimization(batch, false);
+   if (intel_needs_workaround(batch->screen->devinfo, 1508744258)) {
+      /* The suggested workaround is:
+       *
+       *    Disable RHWO by setting 0x7010[14] by default except during resolve
+       *    pass.
+       *
+       * We implement global disabling of the RHWO optimization during
+       * iris_init_render_context. We toggle it around the blorp resolve call.
+       */
+      assert(resolve_op == ISL_AUX_OP_FULL_RESOLVE ||
+             resolve_op == ISL_AUX_OP_PARTIAL_RESOLVE);
+      batch->screen->vtbl.disable_rhwo_optimization(batch, false);
+   }
 
    iris_batch_sync_region_start(batch);
    struct blorp_batch blorp_batch;
@@ -531,7 +543,9 @@ iris_resolve_color(struct iris_context *ice,
    iris_emit_end_of_pipe_sync(batch, "color resolve: post-flush",
                               PIPE_CONTROL_RENDER_TARGET_FLUSH);
 
-   batch->screen->vtbl.disable_rhwo_optimization(batch, true);
+   if (intel_needs_workaround(batch->screen->devinfo, 1508744258)) {
+      batch->screen->vtbl.disable_rhwo_optimization(batch, true);
+   }
 
    iris_batch_sync_region_end(batch);
 }
@@ -986,7 +1000,7 @@ iris_resource_texture_aux_usage(struct iris_context *ice,
       return res->aux.usage;
 
    case ISL_AUX_USAGE_CCS_E:
-   case ISL_AUX_USAGE_GFX12_CCS_E:
+   case ISL_AUX_USAGE_FCV_CCS_E:
       /* If we don't have any unresolved color, report an aux usage of
        * ISL_AUX_USAGE_NONE.  This way, texturing won't even look at the
        * aux surface and we can save some bandwidth.
@@ -1036,6 +1050,10 @@ iris_image_view_aux_usage(struct iris_context *ice,
    bool uses_atomic_load_store =
       ice->shaders.uncompiled[info->stage]->uses_atomic_load_store;
 
+   /* Prior to GFX12, render compression is not supported for images. */
+   if (devinfo->ver < 12)
+      return ISL_AUX_USAGE_NONE;
+
    /* On GFX12, compressed surfaces supports non-atomic operations. GFX12HP and
     * further, add support for all the operations.
     */
@@ -1049,10 +1067,13 @@ iris_image_view_aux_usage(struct iris_context *ice,
        !iris_has_invalid_primary(res, level, 1, 0, INTEL_REMAINING_LAYERS))
       return ISL_AUX_USAGE_NONE;
 
-   if (res->aux.usage == ISL_AUX_USAGE_GFX12_CCS_E)
-      return res->aux.usage;
+   /* The FCV feature is documented to occur on regular render writes. Images
+    * are written to with the DC data port however.
+    */
+   if (res->aux.usage == ISL_AUX_USAGE_FCV_CCS_E)
+      return ISL_AUX_USAGE_CCS_E;
 
-   return ISL_AUX_USAGE_NONE;
+   return res->aux.usage;
 }
 
 bool
@@ -1181,7 +1202,7 @@ iris_resource_render_aux_usage(struct iris_context *ice,
 
    case ISL_AUX_USAGE_CCS_D:
    case ISL_AUX_USAGE_CCS_E:
-   case ISL_AUX_USAGE_GFX12_CCS_E:
+   case ISL_AUX_USAGE_FCV_CCS_E:
       /* Disable CCS for some cases of texture-view rendering. On gfx12, HW
        * may convert some subregions of shader output to fast-cleared blocks
        * if CCS is enabled and the shader output matches the clear color.

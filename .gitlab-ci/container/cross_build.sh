@@ -27,6 +27,7 @@ apt-get install -y --no-remove \
 
         crossbuild-essential-$arch \
         pkgconf:$arch \
+        libasan8:$arch \
         libdrm-dev:$arch \
 
         libelf-dev:$arch \

@@ -1139,10 +1139,12 @@ etna_compile_shader(struct etna_shader_variant *v)
                                           v->key.tex_swizzle);
 
    NIR_PASS_V(s, nir_lower_alu_to_scalar, etna_alu_to_scalar_filter_cb, specs);
-   nir_lower_idiv_options idiv_options = {
-      .allow_fp16 = true,
-   };
-   NIR_PASS_V(s, nir_lower_idiv, &idiv_options);
+   if (c->specs->halti >= 2) {
+      nir_lower_idiv_options idiv_options = {
+         .allow_fp16 = true,
+      };
+      NIR_PASS_V(s, nir_lower_idiv, &idiv_options);
+   }
    NIR_PASS_V(s, nir_lower_alu);
 
    etna_optimize_loop(s);
@@ -1178,8 +1180,7 @@ etna_compile_shader(struct etna_shader_variant *v)
 
    NIR_PASS_V(s, nir_move_vec_src_uses_to_dest);
    NIR_PASS_V(s, nir_copy_prop);
-   /* only HW supported integer source mod is ineg for iadd instruction (?) */
-   NIR_PASS_V(s, nir_lower_to_source_mods, ~nir_lower_int_source_mods);
+   NIR_PASS_V(s, nir_lower_to_source_mods, nir_lower_all_source_mods);
    /* need copy prop after uses_to_dest, and before src mods: see
     * dEQP-GLES2.functional.shaders.random.all_features.fragment.95
     */
