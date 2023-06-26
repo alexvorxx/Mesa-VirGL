@@ -120,7 +120,7 @@ struct etna_shader_variant {
    uint32_t vs_load_balancing;
 
    /* special outputs (ps only) */
-   int ps_color_out_reg; /* color output register */
+   int ps_color_out_reg[PIPE_MAX_COLOR_BUFS]; /* color output register */
    int ps_depth_out_reg; /* depth output register */
 
    /* unknown input property (XX_INPUT_COUNT, field UNK8) */

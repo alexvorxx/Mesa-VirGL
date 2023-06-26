@@ -100,7 +100,9 @@ etna_dump_shader(const struct etna_shader_variant *shader)
       printf("  vs_pointsize_out_reg=%i\n", shader->vs_pointsize_out_reg);
       printf("  vs_load_balancing=0x%08x\n", shader->vs_load_balancing);
    } else {
-      printf("  ps_color_out_reg=%i\n", shader->ps_color_out_reg);
+      for (int idx = 0; idx < ARRAY_SIZE(shader->ps_color_out_reg); idx++)
+         printf("  ps_color_out_reg[%u]=%i\n", idx, shader->ps_color_out_reg[idx]);
+
       printf("  ps_depth_out_reg=%i\n", shader->ps_depth_out_reg);
    }
    printf("  input_count_unk8=0x%08x\n", shader->input_count_unk8);
@@ -188,7 +190,19 @@ etna_link_shaders(struct etna_context *ctx, struct compiled_shader_state *cs,
    cs->VS_START_PC = 0;
 
    cs->PS_END_PC = fs->code_size / 4;
-   cs->PS_OUTPUT_REG[0] = fs->ps_color_out_reg;
+
+   cs->PS_OUTPUT_REG[0] =
+      VIVS_PS_OUTPUT_REG_0(fs->ps_color_out_reg[0]) |
+      VIVS_PS_OUTPUT_REG_1(fs->ps_color_out_reg[1]) |
+      VIVS_PS_OUTPUT_REG_2(fs->ps_color_out_reg[2]) |
+      VIVS_PS_OUTPUT_REG_3(fs->ps_color_out_reg[3]);
+
+   cs->PS_OUTPUT_REG[1] =
+      VIVS_PS_OUTPUT_REG2_4(fs->ps_color_out_reg[4]) |
+      VIVS_PS_OUTPUT_REG2_5(fs->ps_color_out_reg[5]) |
+      VIVS_PS_OUTPUT_REG2_6(fs->ps_color_out_reg[6]) |
+      VIVS_PS_OUTPUT_REG2_7(fs->ps_color_out_reg[7]);
+
    cs->PS_INPUT_COUNT =
       VIVS_PS_INPUT_COUNT_COUNT(link.num_varyings + 1) | /* Number of inputs plus position */
       VIVS_PS_INPUT_COUNT_UNK8(fs->input_count_unk8);
