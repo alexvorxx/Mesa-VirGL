@@ -3,8 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "compiler/glsl/list.h"
 #include "compiler/nir/nir_builder.h"
 #include "agx_compiler.h"
+#include "nir.h"
+#include "nir_builder_opcodes.h"
+#include "nir_intrinsics.h"
 
 /*
  * sample_mask takes two bitmasks as arguments, TARGET and LIVE. Each bit refers
@@ -12,7 +16,7 @@
  *
  *    foreach sample in TARGET {
  *       if sample in LIVE {
- *          mark sample live
+ *          run depth/stencil test and update
  *       } else {
  *          kill sample
  *       }
@@ -28,23 +32,32 @@
  * sample_mask must follow these rules:
  *
  * 1. All sample_mask instructions affecting a sample must execute before a
- *    local_store_pixel instruction targeting that sample.
+ *    local_store_pixel instruction targeting that sample. This ensures that
+ *    nothing is written for discarded samples (whether discarded in shader or
+ *    due to a failed depth/stencil test).
  *
- * 2. If sample_mask is used anywhere in a shader, the state of every sample
- *    must be set on all execution paths. That is, the union of the TARGET sets
- *    of executed sample_masks must contain all samples.
+ * 2. If sample_mask is used anywhere in a shader, then on every execution path,
+ *    every sample must be killed or else run depth/stencil tests exactly ONCE.
  *
- * 3. If a sample is killed, future sample_mask instructions will have
- *    no effect. The following code sequence correctly implements a conditional
- *    discard (if there are no other sample_mask instructions in the shader):
+ * 3. If a sample is killed, future sample_mask instructions have
+ *    no effect on that sample. The following code sequence correctly implements
+ *    a conditional discard (if there are no other sample_mask instructions in
+ *    the shader):
  *
  *       sample_mask discarded, 0
  *       sample_mask ~0, ~0
  *
+ *    but this sequence is incorrect:
+ *
+ *       sample_mask ~0, ~discarded
+ *       sample_mask ~0, ~0         <-- incorrect: depth/stencil tests run twice
+ *
  * 4. If zs_emit is used anywhere in the shader, sample_mask must not be used.
  * Instead, zs_emit with depth = NaN can be emitted.
  *
- * This pass legalizes sample_mask instructions to satisfy these rules.
+ * This pass lowers discard_agx to sample_mask instructions satisfying these
+ * rules. Other passes should not generate sample_mask instructions, as there
+ * are too many footguns.
  */
 
 #define ALL_SAMPLES (0xFF)
@@ -71,7 +84,7 @@ lower_sample_mask_to_zs(nir_builder *b, nir_instr *instr, UNUSED void *data)
     */
    if (intr->intrinsic == nir_intrinsic_store_zs_agx && !depth_written) {
       /* Load the current depth at this pixel */
-      nir_ssa_def *z = nir_channel(b, nir_load_frag_coord(b), 2);
+      nir_ssa_def *z = nir_load_frag_coord_zw(b, .component = 2);
 
       /* Write it out from this store_zs */
       nir_intrinsic_set_base(intr, nir_intrinsic_base(intr) | BASE_Z);
@@ -84,15 +97,11 @@ lower_sample_mask_to_zs(nir_builder *b, nir_instr *instr, UNUSED void *data)
       return true;
    }
 
-   if (intr->intrinsic != nir_intrinsic_sample_mask_agx)
+   if (intr->intrinsic != nir_intrinsic_discard_agx)
       return false;
 
-   nir_ssa_def *target = intr->src[0].ssa;
-   nir_ssa_def *live = intr->src[1].ssa;
-   nir_ssa_def *discard = nir_iand(b, target, nir_inot(b, live));
-
    /* Write a NaN depth value for discarded samples */
-   nir_store_zs_agx(b, discard, nir_imm_float(b, NAN),
+   nir_store_zs_agx(b, intr->src[0].ssa, nir_imm_float(b, NAN),
                     stencil_written ? nir_imm_intN_t(b, 0, 16)
                                     : nir_ssa_undef(b, 1, 16) /* stencil */,
                     .base = BASE_Z | (stencil_written ? BASE_S : 0));
@@ -101,11 +110,53 @@ lower_sample_mask_to_zs(nir_builder *b, nir_instr *instr, UNUSED void *data)
    return true;
 }
 
+static bool
+lower_discard_to_sample_mask_0(nir_builder *b, nir_instr *instr,
+                               UNUSED void *data)
+{
+   if (instr->type != nir_instr_type_intrinsic)
+      return false;
+
+   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+   if (intr->intrinsic != nir_intrinsic_discard_agx)
+      return false;
+
+   b->cursor = nir_before_instr(instr);
+   nir_sample_mask_agx(b, intr->src[0].ssa, nir_imm_intN_t(b, 0, 16));
+   nir_instr_remove(instr);
+   return true;
+}
+
+static nir_intrinsic_instr *
+last_discard_in_block(nir_block *block)
+{
+   nir_foreach_instr_reverse(instr, block) {
+      if (instr->type != nir_instr_type_intrinsic)
+         continue;
+
+      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+      if (intr->intrinsic == nir_intrinsic_discard_agx)
+         return intr;
+   }
+
+   return NULL;
+}
+
+static bool
+cf_node_contains_discard(nir_cf_node *node)
+{
+   nir_foreach_block_in_cf_node(block, node) {
+      if (last_discard_in_block(block))
+         return true;
+   }
+
+   return false;
+}
+
 bool
 agx_nir_lower_sample_mask(nir_shader *shader, unsigned nr_samples)
 {
-   if (!(shader->info.outputs_written &
-         (BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK))))
+   if (!shader->info.fs.uses_discard)
       return false;
 
    /* sample_mask can't be used with zs_emit, so lower sample_mask to zs_emit */
@@ -124,53 +175,53 @@ agx_nir_lower_sample_mask(nir_shader *shader, unsigned nr_samples)
       return true;
    }
 
-   /* nir_lower_io_to_temporaries ensures that stores are in the last block */
-   nir_function_impl *impl = nir_shader_get_entrypoint(shader);
-   nir_block *block = nir_impl_last_block(impl);
-
-   nir_builder b;
-   nir_builder_init(&b, impl);
-
-   /* Check which samples get a value written in the last block */
-   uint8_t samples_set = 0;
-
-   nir_foreach_instr(instr, block) {
-      if (instr->type != nir_instr_type_intrinsic)
-         continue;
-
-      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-      if (intr->intrinsic != nir_intrinsic_sample_mask_agx)
-         continue;
-
-      if (!nir_src_is_const(intr->src[0]))
-         continue;
-
-      samples_set |= nir_src_as_uint(intr->src[0]);
-   }
-
-   /* If all samples are set, we're good to go */
-   if ((samples_set & BITFIELD_MASK(nr_samples)) == BITFIELD_MASK(nr_samples))
-      return false;
-
-   /* Otherwise, at least one sample is not set in the last block and hence may
-    * not be set at all. Insert an instruction in the last block to ensure it
-    * will be live.
+   /* We want to run depth/stencil tests as early as possible, but we have to
+    * wait until after the last discard. We find the last discard and
+    * execute depth/stencil tests in the first unconditional block after (if in
+    * conditional control flow), or fuse depth/stencil tests into the sample
+    * instruction (if in unconditional control flow).
+    *
+    * To do so, we walk the root control flow list backwards, looking for the
+    * earliest unconditionally executed instruction after all discard.
     */
-   b.cursor = nir_after_block(block);
+   nir_function_impl *impl = nir_shader_get_entrypoint(shader);
+   nir_builder b = nir_builder_create(impl);
+   foreach_list_typed_reverse(nir_cf_node, node, node, &impl->body) {
+      if (node->type == nir_cf_node_block) {
+         /* Unconditionally executed block */
+         nir_block *block = nir_cf_node_as_block(node);
+         nir_intrinsic_instr *intr = last_discard_in_block(block);
 
-   nir_foreach_instr(instr, block) {
-      if (instr->type != nir_instr_type_intrinsic)
-         continue;
+         if (intr) {
+            /* Last discard is executed unconditionally, so fuse tests. */
+            b.cursor = nir_before_instr(&intr->instr);
 
-      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-      if (intr->intrinsic != nir_intrinsic_store_local_pixel_agx)
-         continue;
+            nir_ssa_def *all_samples = nir_imm_intN_t(&b, ALL_SAMPLES, 16);
+            nir_ssa_def *killed = intr->src[0].ssa;
+            nir_ssa_def *live = nir_ixor(&b, killed, all_samples);
 
-      b.cursor = nir_before_instr(instr);
-      break;
+            nir_sample_mask_agx(&b, all_samples, live);
+            nir_instr_remove(&intr->instr);
+            break;
+         } else {
+            /* Set cursor for insertion due to a preceding conditionally
+             * executed discard.
+             */
+            b.cursor = nir_before_block_after_phis(block);
+         }
+      } else if (cf_node_contains_discard(node)) {
+         /* Conditionally executed block contains the last discard. Test
+          * depth/stencil for remaining samples in unconditional code after.
+          */
+         nir_sample_mask_agx(&b, nir_imm_intN_t(&b, ALL_SAMPLES, 16),
+                             nir_imm_intN_t(&b, ALL_SAMPLES, 16));
+         break;
+      }
    }
 
-   nir_sample_mask_agx(&b, nir_imm_intN_t(&b, ALL_SAMPLES, 16),
-                       nir_imm_intN_t(&b, ALL_SAMPLES, 16));
+   nir_shader_instructions_pass(
+      shader, lower_discard_to_sample_mask_0,
+      nir_metadata_block_index | nir_metadata_dominance, NULL);
+
    return true;
 }

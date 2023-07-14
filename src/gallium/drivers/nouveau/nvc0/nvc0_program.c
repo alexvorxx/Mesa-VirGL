@@ -948,7 +948,7 @@ nvc0_program_upload(struct nvc0_context *nvc0, struct nvc0_program *prog)
    nvc0_program_upload_code(nvc0, prog);
 
 #ifndef NDEBUG
-   if (debug_get_bool_option("NV50_PROG_DEBUG", false))
+   if (debug_get_num_option("NV50_PROG_DEBUG", 0))
       nvc0_program_dump(prog);
 #endif
 
@@ -989,7 +989,7 @@ void
 nvc0_program_destroy(struct nvc0_context *nvc0, struct nvc0_program *prog)
 {
    const struct pipe_shader_state pipe = prog->pipe;
-   const ubyte type = prog->type;
+   const uint8_t type = prog->type;
 
    if (prog->mem) {
       if (nvc0)

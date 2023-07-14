@@ -419,9 +419,9 @@ etna_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
       pctx->flush(pctx, NULL, 0);
 
    if (ctx->framebuffer_s.cbufs[0])
-      etna_resource(ctx->framebuffer_s.cbufs[0]->texture)->seqno++;
+      etna_resource_level_mark_changed(etna_surface(ctx->framebuffer_s.cbufs[0])->level);
    if (ctx->framebuffer_s.zsbuf)
-      etna_resource(ctx->framebuffer_s.zsbuf->texture)->seqno++;
+      etna_resource_level_mark_changed(etna_surface(ctx->framebuffer_s.zsbuf)->level);
    if (info->index_size && indexbuf != info->index.resource)
       pipe_resource_reference(&indexbuf, NULL);
 }
@@ -639,7 +639,7 @@ etna_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
    pctx->emit_string_marker = etna_emit_string_marker;
    pctx->set_frontend_noop = etna_set_frontend_noop;
    pctx->clear_buffer = u_default_clear_buffer;
-   pctx->clear_texture = util_clear_texture;
+   pctx->clear_texture = u_default_clear_texture;
 
    /* creation of compile states */
    pctx->create_blend_state = etna_blend_state_create;

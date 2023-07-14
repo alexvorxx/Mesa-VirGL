@@ -20,8 +20,7 @@ agx_nir_lower_alpha_to_coverage(nir_shader *shader, uint8_t nr_samples)
    nir_function_impl *impl = nir_shader_get_entrypoint(shader);
    nir_block *block = nir_impl_last_block(impl);
 
-   nir_builder _b;
-   nir_builder_init(&_b, impl);
+   nir_builder _b = nir_builder_create(impl);
    nir_builder *b = &_b;
 
    /* The store is probably at the end of the block, so search in reverse. */
@@ -70,8 +69,8 @@ agx_nir_lower_alpha_to_coverage(nir_shader *shader, uint8_t nr_samples)
       nir_iadd_imm(b, nir_ishl(b, nir_imm_intN_t(b, 1, 16), bits), -1);
 
    /* Discard samples that aren't covered */
-   nir_sample_mask_agx(b, nir_imm_intN_t(b, ALL_SAMPLES, 16), mask);
-   shader->info.outputs_written |= BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK);
+   nir_discard_agx(b, nir_inot(b, mask));
+   shader->info.fs.uses_discard = true;
 }
 
 /*
@@ -86,8 +85,7 @@ agx_nir_lower_alpha_to_one(nir_shader *shader)
    nir_function_impl *impl = nir_shader_get_entrypoint(shader);
    nir_block *block = nir_impl_last_block(impl);
 
-   nir_builder _b;
-   nir_builder_init(&_b, impl);
+   nir_builder _b = nir_builder_create(impl);
    nir_builder *b = &_b;
 
    nir_foreach_instr(instr, block) {

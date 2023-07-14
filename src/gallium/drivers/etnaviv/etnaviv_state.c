@@ -110,20 +110,23 @@ etna_set_constant_buffer(struct pipe_context *pctx,
 }
 
 static void
-etna_update_render_resource(struct pipe_context *pctx, struct etna_resource *base)
+etna_update_render_surface(struct pipe_context *pctx, struct etna_surface *surf)
 {
+   struct etna_resource *base = etna_resource(surf->prsc);
    struct etna_resource *to = base, *from = base;
+   unsigned level = surf->base.u.tex.level;
 
-   if (base->texture && etna_resource_newer(etna_resource(base->texture), base))
+   if (base->texture &&
+       etna_resource_level_newer(&etna_resource(base->texture)->levels[level],
+                                 surf->level))
       from = etna_resource(base->texture);
 
    if (base->render)
       to = etna_resource(base->render);
 
-   if ((to != from) && etna_resource_older(to, from)) {
-      etna_copy_resource(pctx, &to->base, &from->base, 0, base->base.last_level);
-      to->seqno = from->seqno;
-   }
+   if ((to != from) &&
+       etna_resource_level_older(&to->levels[level], &from->levels[level]))
+      etna_copy_resource(pctx, &to->base, &from->base, level, level);
 }
 
 static void
@@ -151,7 +154,7 @@ etna_set_framebuffer_state(struct pipe_context *pctx,
 
       assert((res->layout & ETNA_LAYOUT_BIT_TILE) ||
              VIV_FEATURE(screen, chipMinorFeatures2, LINEAR_PE));
-      etna_update_render_resource(pctx, etna_resource(cbuf->prsc));
+      etna_update_render_surface(pctx, cbuf);
 
       if (res->layout == ETNA_LAYOUT_LINEAR)
          target_linear = true;
@@ -253,7 +256,7 @@ etna_set_framebuffer_state(struct pipe_context *pctx,
       struct etna_surface *zsbuf = etna_surface(fb->zsbuf);
       struct etna_resource *res = etna_resource(zsbuf->base.texture);
 
-      etna_update_render_resource(pctx, etna_resource(zsbuf->prsc));
+      etna_update_render_surface(pctx, zsbuf);
 
       assert(res->layout &ETNA_LAYOUT_BIT_TILE); /* Cannot render to linear surfaces */
 
@@ -652,7 +655,7 @@ etna_update_ts_config(struct etna_context *ctx)
    if (ctx->framebuffer_s.nr_cbufs > 0) {
       struct etna_surface *c_surf = etna_surface(ctx->framebuffer_s.cbufs[0]);
 
-      if(c_surf->level->ts_size && c_surf->level->ts_valid) {
+      if (etna_resource_level_ts_valid(c_surf->level)) {
          new_ts_config |= VIVS_TS_MEM_CONFIG_COLOR_FAST_CLEAR;
       } else {
          new_ts_config &= ~VIVS_TS_MEM_CONFIG_COLOR_FAST_CLEAR;
@@ -662,7 +665,7 @@ etna_update_ts_config(struct etna_context *ctx)
    if (ctx->framebuffer_s.zsbuf) {
       struct etna_surface *zs_surf = etna_surface(ctx->framebuffer_s.zsbuf);
 
-      if(zs_surf->level->ts_size && zs_surf->level->ts_valid) {
+      if (etna_resource_level_ts_valid(zs_surf->level)) {
          new_ts_config |= VIVS_TS_MEM_CONFIG_DEPTH_FAST_CLEAR;
       } else {
          new_ts_config &= ~VIVS_TS_MEM_CONFIG_DEPTH_FAST_CLEAR;

@@ -1123,6 +1123,21 @@ iris_init_common_context(struct iris_batch *batch)
 #else
 #define IRIS_BT_OFFSET_SHIFT 0
 #endif
+
+#if GFX_VERx10 == 125
+   /* Even though L3 partial write merging is supposed to be enabled
+    * by default on Gfx12.5 according to the hardware spec, i915
+    * appears to accidentally clear the enables during context
+    * initialization, so make sure to enable them here since partial
+    * write merging has a large impact on rendering performance.
+    */
+   iris_emit_reg(batch, GENX(L3SQCREG5), reg) {
+      reg.L3CachePartialWriteMergeTimerInitialValue = 0x7f;
+      reg.CompressiblePartialWriteMergeEnable = true;
+      reg.CoherentPartialWriteMergeEnable = true;
+      reg.CrossTilePartialWriteMergeEnable = true;
+   }
+#endif
 }
 
 static void
@@ -1226,6 +1241,35 @@ iris_init_render_context(struct iris_batch *batch)
          reg.DisableRepackingforCompression = true;
          reg.DisableRepackingforCompressionMask = true;
       }
+   }
+#endif
+
+#if GFX_VER == 12
+   iris_emit_reg(batch, GENX(FF_MODE2), reg) {
+      /* On Alchemist, the FF_MODE2 docs for the GS timer say:
+       *
+       *    "The timer value must be set to 224."
+       *
+       * and Wa_16011163337 indicates this is the case for all Gfx12 parts,
+       * and that this is necessary to avoid hanging the HS/DS units.  It
+       * also clarifies that 224 is literally 0xE0 in the bits, not 7*32=224.
+       *
+       * The HS timer docs also have the same quote for Alchemist.  I am
+       * unaware of a reason it needs to be set to 224 on Tigerlake, but
+       * we do so for consistency if nothing else.
+       *
+       * For the TDS timer value, the docs say:
+       *
+       *    "For best performance, a value of 4 should be programmed."
+       *
+       * i915 also sets it this way on Tigerlake due to workarounds.
+       *
+       * The default VS timer appears to be 0, so we leave it at that.
+       */
+      reg.GSTimerValue  = 224;
+      reg.HSTimerValue  = 224;
+      reg.TDSTimerValue = 4;
+      reg.VSTimerValue  = 0;
    }
 #endif
 
@@ -4206,7 +4250,8 @@ iris_set_stream_output_targets(struct pipe_context *ctx,
          sob.SOBufferEnable = true;
          sob.StreamOffsetWriteEnable = true;
          sob.StreamOutputBufferOffsetAddressEnable = true;
-         sob.MOCS = iris_mocs(res->bo, &screen->isl_dev, 0);
+         sob.MOCS = iris_mocs(res->bo, &screen->isl_dev,
+                              ISL_SURF_USAGE_STREAM_OUT_BIT);
 
          sob.SurfaceSize = MAX2(tgt->base.buffer_size / 4, 1) - 1;
          sob.StreamOutputBufferOffsetAddress =
@@ -5842,15 +5887,13 @@ iris_viewport_zmin_zmax(const struct pipe_viewport_state *vp, bool halfz,
 }
 
 #if GFX_VER >= 12
-void
-genX(invalidate_aux_map_state)(struct iris_batch *batch)
+static void
+invalidate_aux_map_state_per_engine(struct iris_batch *batch)
 {
-   struct iris_screen *screen = batch->screen;
-   void *aux_map_ctx = iris_bufmgr_get_aux_map_context(screen->bufmgr);
-   if (!aux_map_ctx)
-      return;
-   uint32_t aux_map_state_num = intel_aux_map_get_state_num(aux_map_ctx);
-   if (batch->last_aux_map_state != aux_map_state_num) {
+   uint64_t register_addr = 0;
+
+   switch (batch->name) {
+   case IRIS_BATCH_RENDER: {
       /* HSD 1209978178: docs say that before programming the aux table:
        *
        *    "Driver must ensure that the engine is IDLE but ensure it doesn't
@@ -5875,18 +5918,94 @@ genX(invalidate_aux_map_state)(struct iris_batch *batch)
        *     enabled."
        *
        * Therefore setting L3 Fabric Flush here would be redundant.
+       *
+       * From Bspec 43904 (Register_CCSAuxiliaryTableInvalidate):
+       * RCS engine idle sequence:
+       *
+       *    Gfx125+:
+       *       PIPE_CONTROL:- DC Flush + L3 Fabric Flush + CS Stall + Render
+       *                      Target Cache Flush + Depth Cache + CCS flush
+       *
        */
       iris_emit_end_of_pipe_sync(batch, "Invalidate aux map table",
                                  PIPE_CONTROL_CS_STALL |
                                  PIPE_CONTROL_RENDER_TARGET_FLUSH |
-                                 PIPE_CONTROL_STATE_CACHE_INVALIDATE);
+                                 PIPE_CONTROL_STATE_CACHE_INVALIDATE |
+                                 (GFX_VERx10 == 125 ?
+                                  PIPE_CONTROL_CCS_CACHE_FLUSH : 0));
 
+      register_addr = GENX(GFX_CCS_AUX_INV_num);
+      break;
+   }
+   case IRIS_BATCH_COMPUTE: {
+      /*
+       * Notice we don't set the L3 Fabric Flush here, because we have
+       * PIPE_CONTROL_CS_STALL. The PIPE_CONTROL::L3 Fabric Flush
+       * documentation says :
+       *
+       *    "L3 Fabric Flush will ensure all the pending transactions in the
+       *     L3 Fabric are flushed to global observation point. HW does
+       *     implicit L3 Fabric Flush on all stalling flushes (both explicit
+       *     and implicit) and on PIPECONTROL having Post Sync Operation
+       *     enabled."
+       *
+       * Therefore setting L3 Fabric Flush here would be redundant.
+       *
+       * From Bspec 43904 (Register_CCSAuxiliaryTableInvalidate):
+       * Compute engine idle sequence:
+       *
+       *    Gfx125+:
+       *       PIPE_CONTROL:- DC Flush + L3 Fabric Flush + CS Stall + CCS flush
+       */
+      iris_emit_end_of_pipe_sync(batch, "Invalidate aux map table",
+                                 PIPE_CONTROL_DATA_CACHE_FLUSH |
+                                 PIPE_CONTROL_CS_STALL |
+                                 (GFX_VERx10 == 125 ?
+                                  PIPE_CONTROL_CCS_CACHE_FLUSH : 0));
+
+      register_addr = GENX(COMPCS0_CCS_AUX_INV_num);
+      break;
+   }
+   case IRIS_BATCH_BLITTER: {
+#if GFX_VERx10 >= 125
+      /*
+       * Notice we don't set the L3 Fabric Flush here, because we have
+       * PIPE_CONTROL_CS_STALL. The PIPE_CONTROL::L3 Fabric Flush
+       * documentation says :
+       *
+       *    "L3 Fabric Flush will ensure all the pending transactions in the
+       *     L3 Fabric are flushed to global observation point. HW does
+       *     implicit L3 Fabric Flush on all stalling flushes (both explicit
+       *     and implicit) and on PIPECONTROL having Post Sync Operation
+       *     enabled."
+       *
+       * Therefore setting L3 Fabric Flush here would be redundant.
+       *
+       * From Bspec 43904 (Register_CCSAuxiliaryTableInvalidate):
+       * Blitter engine idle sequence:
+       *
+       *    Gfx125+:
+       *       MI_FLUSH_DW (dw0;b16 – flush CCS)
+       */
+      iris_emit_cmd(batch, GENX(MI_FLUSH_DW), fd) {
+         fd.FlushCCS = true;
+      }
+      register_addr = GENX(BCS_CCS_AUX_INV_num);
+#endif
+      break;
+   }
+   default:
+      unreachable("Invalid batch for aux map invalidation");
+      break;
+   }
+
+   if (register_addr != 0) {
       /* If the aux-map state number increased, then we need to rewrite the
        * register. Rewriting the register is used to both set the aux-map
        * translation table address, and also to invalidate any previously
        * cached translations.
        */
-      iris_load_register_imm32(batch, GENX(GFX_CCS_AUX_INV_num), 1);
+      iris_load_register_imm32(batch, register_addr, 1);
 
       /* HSD 22012751911: SW Programming sequence when issuing aux invalidation:
        *
@@ -5898,9 +6017,21 @@ genX(invalidate_aux_map_state)(struct iris_batch *batch)
          sem.WaitMode = PollingMode;
          sem.RegisterPollMode = true;
          sem.SemaphoreDataDword = 0x0;
-         sem.SemaphoreAddress = ro_bo(NULL, GENX(GFX_CCS_AUX_INV_num));
+         sem.SemaphoreAddress = ro_bo(NULL, register_addr);
       }
+   }
+}
 
+void
+genX(invalidate_aux_map_state)(struct iris_batch *batch)
+{
+   struct iris_screen *screen = batch->screen;
+   void *aux_map_ctx = iris_bufmgr_get_aux_map_context(screen->bufmgr);
+   if (!aux_map_ctx)
+      return;
+   uint32_t aux_map_state_num = intel_aux_map_get_state_num(aux_map_ctx);
+   if (batch->last_aux_map_state != aux_map_state_num) {
+      invalidate_aux_map_state_per_engine(batch);
       batch->last_aux_map_state = aux_map_state_num;
    }
 }
@@ -8644,7 +8775,7 @@ iris_emit_raw_pipe_control(struct iris_batch *batch,
 
    if (INTEL_DEBUG(DEBUG_PIPE_CONTROL)) {
       fprintf(stderr,
-              "  PC [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%"PRIx64"]: %s\n",
+              "  PC [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%"PRIx64"]: %s\n",
               (flags & PIPE_CONTROL_FLUSH_ENABLE) ? "PipeCon " : "",
               (flags & PIPE_CONTROL_CS_STALL) ? "CS " : "",
               (flags & PIPE_CONTROL_STALL_AT_SCOREBOARD) ? "Scoreboard " : "",
@@ -8655,6 +8786,7 @@ iris_emit_raw_pipe_control(struct iris_batch *batch,
               (flags & PIPE_CONTROL_DATA_CACHE_FLUSH) ? "DC " : "",
               (flags & PIPE_CONTROL_DEPTH_CACHE_FLUSH) ? "ZFlush " : "",
               (flags & PIPE_CONTROL_TILE_CACHE_FLUSH) ? "Tile " : "",
+              (flags & PIPE_CONTROL_CCS_CACHE_FLUSH) ? "CCS " : "",
               (flags & PIPE_CONTROL_DEPTH_STALL) ? "ZStall " : "",
               (flags & PIPE_CONTROL_STATE_CACHE_INVALIDATE) ? "State " : "",
               (flags & PIPE_CONTROL_TLB_INVALIDATE) ? "TLB " : "",
@@ -8695,9 +8827,12 @@ iris_emit_raw_pipe_control(struct iris_batch *batch,
 #endif
 #if GFX_VERx10 >= 125
       pc.UntypedDataPortCacheFlushEnable =
-         (flags & PIPE_CONTROL_UNTYPED_DATAPORT_CACHE_FLUSH) &&
+         (flags & (PIPE_CONTROL_UNTYPED_DATAPORT_CACHE_FLUSH |
+                   PIPE_CONTROL_FLUSH_HDC |
+                   PIPE_CONTROL_DATA_CACHE_FLUSH)) &&
          IS_COMPUTE_PIPELINE(batch);
       pc.HDCPipelineFlushEnable |= pc.UntypedDataPortCacheFlushEnable;
+      pc.CCSFlushEnable |= flags & PIPE_CONTROL_CCS_CACHE_FLUSH;
 #endif
       pc.LRIPostSyncOperation = NoLRIOperation;
       pc.PipeControlFlushEnable = flags & PIPE_CONTROL_FLUSH_ENABLE;

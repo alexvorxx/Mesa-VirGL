@@ -396,8 +396,7 @@ init_context(isel_context* ctx, nir_shader* shader)
                case nir_op_ldexp:
                case nir_op_frexp_sig:
                case nir_op_frexp_exp:
-               case nir_op_cube_face_index_amd:
-               case nir_op_cube_face_coord_amd:
+               case nir_op_cube_amd:
                case nir_op_sad_u8x4:
                case nir_op_udot_4x8_uadd:
                case nir_op_sdot_4x8_iadd:
@@ -413,12 +412,9 @@ init_context(isel_context* ctx, nir_shader* shader)
                case nir_op_f2u16:
                case nir_op_f2i32:
                case nir_op_f2u32:
-               case nir_op_f2i64:
-               case nir_op_f2u64:
                case nir_op_b2i8:
                case nir_op_b2i16:
                case nir_op_b2i32:
-               case nir_op_b2i64:
                case nir_op_b2b32:
                case nir_op_b2f16:
                case nir_op_b2f32:
@@ -596,12 +592,6 @@ init_context(isel_context* ctx, nir_shader* shader)
                regclasses[tex->dest.ssa.index] = rc;
                break;
             }
-            case nir_instr_type_parallel_copy: {
-               nir_foreach_parallel_copy_entry (entry, nir_instr_as_parallel_copy(instr)) {
-                  regclasses[entry->dest.ssa.index] = regclasses[entry->src.ssa->index];
-               }
-               break;
-            }
             case nir_instr_type_ssa_undef: {
                unsigned num_components = nir_instr_as_ssa_undef(instr)->def.num_components;
                unsigned bit_size = nir_instr_as_ssa_undef(instr)->def.bit_size;
@@ -671,6 +661,7 @@ setup_isel_context(Program* program, unsigned shader_count, struct nir_shader* c
       case MESA_SHADER_TESS_EVAL: sw_stage = sw_stage | SWStage::TES; break;
       case MESA_SHADER_GEOMETRY: sw_stage = sw_stage | SWStage::GS; break;
       case MESA_SHADER_FRAGMENT: sw_stage = sw_stage | SWStage::FS; break;
+      case MESA_SHADER_KERNEL:
       case MESA_SHADER_COMPUTE: sw_stage = sw_stage | SWStage::CS; break;
       case MESA_SHADER_TASK: sw_stage = sw_stage | SWStage::TS; break;
       case MESA_SHADER_MESH: sw_stage = sw_stage | SWStage::MS; break;

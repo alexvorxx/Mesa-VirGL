@@ -1077,6 +1077,7 @@ transition_resource(struct pipe_context *pctx, struct agx_resource *rsrc,
       agx_resource(pctx->screen->resource_create(pctx->screen, templ));
 
    assert(new_res);
+   assert(!(rsrc->base.bind & PIPE_BIND_SHARED) && "cannot swap BOs if shared");
 
    int level;
    BITSET_FOREACH_SET(level, rsrc->data_valid, PIPE_MAX_TEXTURE_LEVELS) {
@@ -1471,7 +1472,6 @@ agx_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
    case PIPE_CAP_FRAMEBUFFER_NO_ATTACHMENT:
    case PIPE_CAP_SHADER_PACK_HALF_FLOAT:
    case PIPE_CAP_FS_FINE_DERIVATIVE:
-   case PIPE_CAP_TEXTURE_BARRIER:
       return 1;
 
    /* We could support ARB_clip_control by toggling the clip control bit for
@@ -1530,8 +1530,9 @@ agx_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
       return 1;
 
    case PIPE_CAP_TEXTURE_MULTISAMPLE:
-   case PIPE_CAP_SURFACE_SAMPLE_COUNT:
       return 1;
+   case PIPE_CAP_SURFACE_SAMPLE_COUNT:
+      /* TODO: MSRTT */
    case PIPE_CAP_SAMPLE_SHADING:
       /* TODO: sample shading */
       return 0;
@@ -1854,8 +1855,11 @@ agx_get_compute_param(struct pipe_screen *pscreen, enum pipe_shader_ir ir_type,
    case PIPE_COMPUTE_CAP_IMAGES_SUPPORTED:
       RET((uint32_t[]){1});
 
-   case PIPE_COMPUTE_CAP_SUBGROUP_SIZE:
+   case PIPE_COMPUTE_CAP_SUBGROUP_SIZES:
       RET((uint32_t[]){32});
+
+   case PIPE_COMPUTE_CAP_MAX_SUBGROUPS:
+      RET((uint32_t[]){0 /* TODO */});
 
    case PIPE_COMPUTE_CAP_MAX_VARIABLE_THREADS_PER_BLOCK:
       RET((uint64_t[]){1024}); // TODO

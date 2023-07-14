@@ -1,6 +1,17 @@
 Rusticl
 =======
 
+Enabling
+--------
+
+In order to use Rusticl on any platform the environment variable
+:envvar:`RUSTICL_ENABLE` has to be used. Rusticl does not advertise devices
+for any driver by default yet as doing so can impact system stability until
+remaining core issues are ironed out.
+
+Building
+--------
+
 To build Rusticl you need to satisfy the following build dependencies:
 
 -  ``rustc``
@@ -20,7 +31,7 @@ The minimum versions to build Rusticl are:
 
 -  Rust: 1.60
 -  Meson: 1.0.0
--  Bindgen: 0.58.0
+-  Bindgen: 0.62.0
 -  LLVM: 11.0.0 (recommended: 15.0.0)
 -  SPIRV-Tools: any version (recommended: v2022.3)
 

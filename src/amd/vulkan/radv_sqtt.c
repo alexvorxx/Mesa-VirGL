@@ -574,11 +574,6 @@ radv_sqtt_init(struct radv_device *device)
 
    /* Default buffer size set to 32MB per SE. */
    device->sqtt.buffer_size = (uint32_t)debug_get_num_option("RADV_THREAD_TRACE_BUFFER_SIZE", 32 * 1024 * 1024);
-   device->sqtt.start_frame = (int)debug_get_num_option("RADV_THREAD_TRACE", -1);
-
-   const char *trigger_file = getenv("RADV_THREAD_TRACE_TRIGGER");
-   if (trigger_file)
-      device->sqtt.trigger_file = strdup(trigger_file);
 
    if (!radv_sqtt_init_bo(device))
       return false;
@@ -598,8 +593,6 @@ radv_sqtt_finish(struct radv_device *device)
 {
    struct ac_sqtt *sqtt = &device->sqtt;
    struct radeon_winsys *ws = device->ws;
-
-   free(device->sqtt.trigger_file);
 
    radv_sqtt_finish_bo(device);
 
@@ -652,7 +645,7 @@ radv_begin_sqtt(struct radv_queue *queue)
    if (!cs)
       return false;
 
-   radeon_check_space(ws, cs, 256);
+   radeon_check_space(ws, cs, 512);
 
    switch (family) {
    case RADV_QUEUE_GENERAL:
@@ -723,7 +716,7 @@ radv_end_sqtt(struct radv_queue *queue)
    if (!cs)
       return false;
 
-   radeon_check_space(ws, cs, 256);
+   radeon_check_space(ws, cs, 512);
 
    switch (family) {
    case RADV_QUEUE_GENERAL:

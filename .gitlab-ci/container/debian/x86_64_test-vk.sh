@@ -75,6 +75,11 @@ apt-get install -y --no-remove --no-install-recommends \
 
       sysvinit-core \
 
+      weston \
+      xwayland \
+      wine \
+      wine64 \
+
       xinit \
       xserver-xorg-video-amdgpu \
       xserver-xorg-video-ati

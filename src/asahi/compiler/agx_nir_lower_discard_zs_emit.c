@@ -6,13 +6,14 @@
 #include "compiler/nir/nir.h"
 #include "compiler/nir/nir_builder.h"
 #include "agx_compiler.h"
+#include "nir_builder_opcodes.h"
 
 #define ALL_SAMPLES 0xFF
 #define BASE_Z      1
 #define BASE_S      2
 
 static bool
-lower_zs_emit(nir_function_impl *impl, nir_block *block)
+lower_zs_emit(nir_block *block)
 {
    nir_intrinsic_instr *zs_emit = NULL;
    bool progress = false;
@@ -30,9 +31,7 @@ lower_zs_emit(nir_function_impl *impl, nir_block *block)
           sem.location != FRAG_RESULT_STENCIL)
          continue;
 
-      nir_builder b;
-      nir_builder_init(&b, impl);
-      b.cursor = nir_before_instr(instr);
+      nir_builder b = nir_builder_at(nir_before_instr(instr));
 
       nir_ssa_def *value = intr->src[0].ssa;
       bool z = (sem.location == FRAG_RESULT_DEPTH);
@@ -86,15 +85,13 @@ lower_discard(nir_builder *b, nir_instr *instr, UNUSED void *data)
 
    nir_ssa_def *all_samples = nir_imm_intN_t(b, ALL_SAMPLES, 16);
    nir_ssa_def *no_samples = nir_imm_intN_t(b, 0, 16);
+   nir_ssa_def *killed_samples = all_samples;
 
    if (intr->intrinsic == nir_intrinsic_discard_if)
-      no_samples = nir_bcsel(b, intr->src[0].ssa, no_samples, all_samples);
+      killed_samples = nir_bcsel(b, intr->src[0].ssa, all_samples, no_samples);
 
-   /* This will get lowered later to zs_emit if needed */
-   nir_sample_mask_agx(b, all_samples, no_samples);
-   b->shader->info.fs.uses_discard = false;
-   b->shader->info.outputs_written |= BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK);
-
+   /* This will get lowered later as needed */
+   nir_discard_agx(b, killed_samples);
    nir_instr_remove(instr);
    return true;
 }
@@ -120,21 +117,18 @@ agx_nir_lower_zs_emit(nir_shader *s)
 
    bool any_progress = false;
 
-   nir_foreach_function(function, s) {
-      if (!function->impl)
-         continue;
-
+   nir_foreach_function_impl(impl, s) {
       bool progress = false;
 
-      nir_foreach_block(block, function->impl) {
-         progress |= lower_zs_emit(function->impl, block);
+      nir_foreach_block(block, impl) {
+         progress |= lower_zs_emit(block);
       }
 
       if (progress) {
          nir_metadata_preserve(
-            function->impl, nir_metadata_block_index | nir_metadata_dominance);
+            impl, nir_metadata_block_index | nir_metadata_dominance);
       } else {
-         nir_metadata_preserve(function->impl, nir_metadata_all);
+         nir_metadata_preserve(impl, nir_metadata_all);
       }
 
       any_progress |= progress;

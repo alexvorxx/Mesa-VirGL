@@ -20,6 +20,7 @@ dpkg --add-architecture $arch
 apt-get update
 
 apt-get install -y --no-remove \
+        $EXTRA_LOCAL_PACKAGES \
         $STABLE_EPHEMERAL \
 
 	curl \

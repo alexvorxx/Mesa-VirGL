@@ -102,8 +102,6 @@ cd shader-db
 make
 popd
 
-git clone https://github.com/microsoft/DirectX-Headers -b v1.610.0 --depth 1
-
 mkdir -p DirectX-Headers/build
 pushd DirectX-Headers/build
 meson .. --backend=ninja --buildtype=release -Dbuild-test=false
@@ -113,6 +111,8 @@ popd
 rm -rf DirectX-Headers
 
 python3 -m pip install -r .gitlab-ci/lava/requirements.txt
+
+git clone https://github.com/microsoft/DirectX-Headers -b v1.711.3-preview --depth 1
 
 pushd DirectX-Headers
 meson setup build --backend=ninja --buildtype=release -Dbuild-test=false
@@ -125,7 +125,7 @@ python3 -m pip install --break-system-packages -r .gitlab-ci/lava/requirements.t
 
 # install bindgen
 RUSTFLAGS='-L native=/usr/local/lib' cargo install \
-  bindgen --version 0.59.2 \
+  bindgen-cli --version 0.62.0 \
   -j ${FDO_CI_CONCURRENT:-4} \
   --root /usr/local
 

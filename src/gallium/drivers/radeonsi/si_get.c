@@ -115,7 +115,6 @@ static int si_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
    case PIPE_CAP_ROBUST_BUFFER_ACCESS_BEHAVIOR:
    case PIPE_CAP_POLYGON_OFFSET_UNITS_UNSCALED:
    case PIPE_CAP_STRING_MARKER:
-   case PIPE_CAP_CLEAR_TEXTURE:
    case PIPE_CAP_CULL_DISTANCE:
    case PIPE_CAP_SHADER_ARRAY_COMPONENTS:
    case PIPE_CAP_SHADER_CAN_READ_OUTPUTS:
@@ -571,6 +570,9 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
 {
    struct si_screen *sscreen = (struct si_screen *)screen;
    enum pipe_video_format codec = u_reduce_video_profile(profile);
+   bool fully_supported_profile = ((profile >= PIPE_VIDEO_PROFILE_MPEG4_AVC_BASELINE) &&
+                                   (profile <= PIPE_VIDEO_PROFILE_MPEG4_AVC_HIGH)) ||
+                                  (profile == PIPE_VIDEO_PROFILE_HEVC_MAIN);
 
    if (entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE) {
       if (!(sscreen->info.ip[AMD_IP_VCE].num_queues ||
@@ -585,8 +587,8 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
       case PIPE_VIDEO_CAP_SUPPORTED:
          return (
              /* in case it is explicitly marked as not supported by the kernel */
-            (QUERYABLE_KERNEL ? KERNEL_ENC_CAP(codec, valid) : 1) &&
-            ((codec == PIPE_VIDEO_FORMAT_MPEG4_AVC &&
+            ((QUERYABLE_KERNEL && fully_supported_profile) ? KERNEL_ENC_CAP(codec, valid) : 1) &&
+            ((codec == PIPE_VIDEO_FORMAT_MPEG4_AVC && profile != PIPE_VIDEO_PROFILE_MPEG4_AVC_HIGH10 &&
              (sscreen->info.vcn_ip_version >= VCN_1_0_0 || si_vce_is_fw_version_supported(sscreen))) ||
             (profile == PIPE_VIDEO_PROFILE_HEVC_MAIN &&
              (sscreen->info.vcn_ip_version >= VCN_1_0_0 || si_radeon_uvd_enc_supported(sscreen))) ||
@@ -760,7 +762,7 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
 	      sscreen->info.ip[AMD_IP_VCN_UNIFIED].num_queues :
 	      sscreen->info.ip[AMD_IP_VCN_DEC].num_queues)))
          return false;
-      if (QUERYABLE_KERNEL &&
+      if (QUERYABLE_KERNEL && fully_supported_profile &&
           sscreen->info.vcn_ip_version >= VCN_1_0_0)
          return KERNEL_DEC_CAP(codec, valid);
       if (codec < PIPE_VIDEO_FORMAT_MPEG4_AVC &&
@@ -778,7 +780,7 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
             RVID_ERR("POLARIS10/11 firmware version need to be updated.\n");
             return false;
          }
-         return true;
+         return (profile != PIPE_VIDEO_PROFILE_MPEG4_AVC_HIGH10);
       case PIPE_VIDEO_FORMAT_VC1:
          return !(sscreen->info.vcn_ip_version >= VCN_3_0_33);
       case PIPE_VIDEO_FORMAT_HEVC:
@@ -1099,10 +1101,30 @@ static int si_get_compute_param(struct pipe_screen *screen, enum pipe_shader_ir 
       return sizeof(uint32_t);
    case PIPE_COMPUTE_CAP_MAX_PRIVATE_SIZE:
       break; /* unused */
-   case PIPE_COMPUTE_CAP_SUBGROUP_SIZE:
+   case PIPE_COMPUTE_CAP_MAX_SUBGROUPS: {
+      if (ret) {
+         uint32_t *max_subgroups = ret;
+         unsigned threads = get_max_threads_per_block(sscreen, ir_type);
+         unsigned subgroup_size;
+
+         if (sscreen->debug_flags & DBG(W64_CS) || sscreen->info.gfx_level < GFX10)
+            subgroup_size = 64;
+         else
+            subgroup_size = 32;
+
+         *max_subgroups = threads / subgroup_size;
+      }
+      return sizeof(uint32_t);
+   }
+   case PIPE_COMPUTE_CAP_SUBGROUP_SIZES:
       if (ret) {
          uint32_t *subgroup_size = ret;
-         *subgroup_size = si_determine_wave_size(sscreen, NULL);
+         if (sscreen->debug_flags & DBG(W32_CS))
+            *subgroup_size = 32;
+         else if (sscreen->debug_flags & DBG(W64_CS))
+            *subgroup_size = 64;
+         else
+            *subgroup_size = sscreen->info.gfx_level < GFX10 ? 64 : 64 | 32;
       }
       return sizeof(uint32_t);
    case PIPE_COMPUTE_CAP_MAX_VARIABLE_THREADS_PER_BLOCK:
@@ -1291,7 +1313,6 @@ void si_init_screen_get_functions(struct si_screen *sscreen)
       .lower_to_scalar = true,
       .lower_to_scalar_filter = sscreen->info.has_packed_math_16bit ?
                                    si_alu_to_scalar_packed_math_filter : NULL,
-      .lower_int64_options = nir_lower_imul_2x32_64 | nir_lower_imul_high64,
       .has_sdot_4x8 = sscreen->info.has_accelerated_dot_product,
       .has_sudot_4x8 = sscreen->info.has_accelerated_dot_product && sscreen->info.gfx_level >= GFX11,
       .has_udot_4x8 = sscreen->info.has_accelerated_dot_product,
@@ -1327,7 +1348,7 @@ void si_init_screen_get_functions(struct si_screen *sscreen)
       .lower_int64_options =
          nir_lower_imul64 | nir_lower_imul_high64 | nir_lower_imul_2x32_64 |
          nir_lower_divmod64 | nir_lower_minmax64 | nir_lower_iabs64 |
-         nir_lower_iadd_sat64,
+         nir_lower_iadd_sat64 | nir_lower_conv64,
    };
    *sscreen->nir_options = nir_options;
 }
