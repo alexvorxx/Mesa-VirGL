@@ -1861,6 +1861,16 @@ anv_image_finish(struct anv_image *image)
       anv_device_release_bo(device, image->bindings[ANV_IMAGE_MEMORY_BINDING_MAIN].address.bo);
    }
 
+   for (uint32_t b = 0; b < ARRAY_SIZE(image->bindings); b++) {
+      if (image->bindings[b].host_map != NULL) {
+         anv_device_unmap_bo(device,
+                             image->bindings[b].address.bo,
+                             image->bindings[b].host_map,
+                             image->bindings[b].memory_range.size,
+                             false /* replace */);
+      }
+   }
+
    struct anv_bo *private_bo = image->bindings[ANV_IMAGE_MEMORY_BINDING_PRIVATE].address.bo;
    if (private_bo) {
       pthread_mutex_lock(&device->mutex);
@@ -2491,6 +2501,21 @@ anv_image_bind_address(struct anv_device *device,
                         struct anv_address address)
 {
    image->bindings[binding].address = address;
+
+   /* Map bindings for images with host transfer usage, so that we don't have
+    * to map/unmap things at every host operation.
+    */
+   if (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) {
+      VkResult result = anv_device_map_bo(device,
+                                          image->bindings[binding].address.bo,
+                                          image->bindings[binding].address.offset +
+                                          image->bindings[binding].memory_range.offset,
+                                          image->bindings[binding].memory_range.size,
+                                          NULL /* placed_addr */,
+                                          &image->bindings[binding].host_map);
+      if (result != VK_SUCCESS)
+         return result;
+   }
 
    ANV_RMV(image_bind, device, image, binding);
 

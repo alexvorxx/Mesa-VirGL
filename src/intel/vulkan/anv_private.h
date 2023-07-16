@@ -5330,11 +5330,14 @@ struct anv_image {
     * Usually, the app will provide the address via the parameters of
     * vkBindImageMemory.  However, special-case bindings may be bound to
     * driver-private memory.
+    *
+    * If needed a host pointer to the image is mapped for host image copies.
     */
    struct anv_image_binding {
       struct anv_image_memory_range memory_range;
       struct anv_address address;
       struct anv_sparse_binding_data sparse_data;
+      void *host_map;
    } bindings[ANV_IMAGE_MEMORY_BINDING_END];
 
    /**
