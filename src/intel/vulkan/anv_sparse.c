@@ -1376,7 +1376,7 @@ anv_sparse_bind_image_memory(struct anv_queue *queue,
    assert(!(bind->flags & VK_SPARSE_MEMORY_BIND_METADATA_BIT));
 
    struct anv_image_binding *img_binding = image->disjoint ?
-      anv_image_aspect_to_binding(image, aspect) :
+      &image->bindings[anv_image_aspect_to_binding(image, aspect)] :
       &image->bindings[ANV_IMAGE_MEMORY_BINDING_MAIN];
    struct anv_sparse_binding_data *sparse_data = &img_binding->sparse_data;
 

@@ -57,7 +57,7 @@ memory_range_end(struct anv_image_memory_range memory_range)
  * Get binding for VkImagePlaneMemoryRequirementsInfo,
  * VkBindImagePlaneMemoryInfo and VkDeviceImageMemoryRequirements.
  */
-struct anv_image_binding *
+enum anv_image_memory_binding
 anv_image_aspect_to_binding(struct anv_image *image,
                             VkImageAspectFlags aspect)
 {
@@ -87,7 +87,7 @@ anv_image_aspect_to_binding(struct anv_image *image,
       plane = anv_image_aspect_to_plane(image, aspect);
    }
 
-   return &image->bindings[ANV_IMAGE_MEMORY_BINDING_PLANE_0 + plane];
+   return ANV_IMAGE_MEMORY_BINDING_PLANE_0 + plane;
 }
 
 /**
@@ -2179,19 +2179,19 @@ anv_image_get_memory_requirements(struct anv_device *device,
     * and only if the image is disjoint (that is, multi-planar format and
     * VK_IMAGE_CREATE_DISJOINT_BIT).
     */
-   const struct anv_image_binding *binding;
+   enum anv_image_memory_binding binding;
    if (image->disjoint) {
       assert(util_bitcount(aspects) == 1);
       assert(aspects & image->vk.aspects);
       binding = anv_image_aspect_to_binding(image, aspects);
    } else {
       assert(aspects == image->vk.aspects);
-      binding = &image->bindings[ANV_IMAGE_MEMORY_BINDING_MAIN];
+      binding = ANV_IMAGE_MEMORY_BINDING_MAIN;
    }
 
    pMemoryRequirements->memoryRequirements = (VkMemoryRequirements) {
-      .size = binding->memory_range.size,
-      .alignment = binding->memory_range.alignment,
+      .size = image->bindings[binding].memory_range.size,
+      .alignment = image->bindings[binding].memory_range.alignment,
       .memoryTypeBits = memory_types,
    };
 }
@@ -2485,12 +2485,26 @@ anv_image_map_aux_tt(struct anv_device *device,
 }
 
 static VkResult
+anv_image_bind_address(struct anv_device *device,
+                        struct anv_image *image,
+                        enum anv_image_memory_binding binding,
+                        struct anv_address address)
+{
+   image->bindings[binding].address = address;
+
+   ANV_RMV(image_bind, device, image, binding);
+
+   return VK_SUCCESS;
+}
+
+static VkResult
 anv_bind_image_memory(struct anv_device *device,
                       const VkBindImageMemoryInfo *bind_info)
 {
    ANV_FROM_HANDLE(anv_device_memory, mem, bind_info->memory);
    ANV_FROM_HANDLE(anv_image, image, bind_info->image);
    bool did_bind = false;
+   VkResult result = VK_SUCCESS;
 
    const VkBindMemoryStatusKHR *bind_status =
       vk_find_struct_const(bind_info->pNext, BIND_MEMORY_STATUS_KHR);
@@ -2520,16 +2534,14 @@ anv_bind_image_memory(struct anv_device *device,
          if (!image->disjoint)
             break;
 
-         struct anv_image_binding *binding =
+         enum anv_image_memory_binding binding =
             anv_image_aspect_to_binding(image, plane_info->planeAspect);
 
-         binding->address = (struct anv_address) {
-            .bo = mem->bo,
-            .offset = bind_info->memoryOffset,
-         };
-
-         ANV_RMV(image_bind, device, image,
-                 binding - image->bindings);
+         anv_image_bind_address(device, image, binding,
+                                (struct anv_address) {
+                                   .bo = mem->bo,
+                                   .offset = bind_info->memoryOffset,
+                                });
 
          did_bind = true;
          break;
@@ -2551,7 +2563,10 @@ anv_bind_image_memory(struct anv_device *device,
          for (int j = 0; j < ARRAY_SIZE(image->bindings); ++j) {
             assert(memory_ranges_equal(image->bindings[j].memory_range,
                                        swapchain_image->bindings[j].memory_range));
-            image->bindings[j].address = swapchain_image->bindings[j].address;
+            if (image->bindings[j].memory_range.size != 0) {
+               anv_image_bind_address(device, image, j,
+                                      swapchain_image->bindings[j].address);
+            }
          }
 
          /* We must bump the private binding's bo's refcount because, unlike the other
@@ -2571,8 +2586,7 @@ anv_bind_image_memory(struct anv_device *device,
       case VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID: {
          const VkNativeBufferANDROID *gralloc_info =
             (const VkNativeBufferANDROID *)s;
-         VkResult result = anv_image_bind_from_gralloc(device, image,
-                                                       gralloc_info);
+         result = anv_image_bind_from_gralloc(device, image, gralloc_info);
          if (result != VK_SUCCESS)
             return result;
 
@@ -2589,16 +2603,12 @@ anv_bind_image_memory(struct anv_device *device,
 
    if (!did_bind) {
       assert(!image->disjoint);
-
-      image->bindings[ANV_IMAGE_MEMORY_BINDING_MAIN].address =
-         (struct anv_address) {
-         .bo = mem->bo,
-         .offset = bind_info->memoryOffset,
-      };
-
-      ANV_RMV(image_bind, device, image,
-              ANV_IMAGE_MEMORY_BINDING_MAIN);
-
+      result = anv_image_bind_address(device, image,
+                                      ANV_IMAGE_MEMORY_BINDING_MAIN,
+                                      (struct anv_address) {
+                                         .bo = mem->bo,
+                                         .offset = bind_info->memoryOffset,
+                                      });
       did_bind = true;
    }
 
@@ -2650,9 +2660,9 @@ anv_bind_image_memory(struct anv_device *device,
    }
 
    if (bind_status)
-      *bind_status->pResult = VK_SUCCESS;
+      *bind_status->pResult = result;
 
-   return VK_SUCCESS;
+   return result;
 }
 
 VkResult anv_BindImageMemory2(
