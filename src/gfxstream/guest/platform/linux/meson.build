@@ -2,9 +2,10 @@
 # SPDX-License-Identifier: MIT
 
 files_lib_platform = files(
-  'VirtGpuDevice.cpp',
-  'VirtGpuBlobMapping.cpp',
-  'VirtGpuBlob.cpp',
+  '../VirtGpu.cpp',
+  'LinuxVirtGpuDevice.cpp',
+  'LinuxVirtGpuBlobMapping.cpp',
+  'LinuxVirtGpuBlob.cpp',
 )
 
 lib_platform = static_library(

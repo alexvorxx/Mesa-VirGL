@@ -114,65 +114,48 @@ class VirtGpuBlob;
 using VirtGpuBlobPtr = std::shared_ptr<VirtGpuBlob>;
 using VirtGpuBlobMappingPtr = std::shared_ptr<VirtGpuBlobMapping>;
 
-class VirtGpuBlob : public std::enable_shared_from_this<VirtGpuBlob> {
+class VirtGpuBlob {
   public:
-    VirtGpuBlob(int64_t deviceHandle, uint32_t blobHandle, uint32_t resourceHandle, uint64_t size);
-    ~VirtGpuBlob();
+    virtual ~VirtGpuBlob() {}
 
-    uint32_t getResourceHandle(void);
-    uint32_t getBlobHandle(void);
-    int wait(void);
+    virtual uint32_t getResourceHandle(void) = 0;
+    virtual uint32_t getBlobHandle(void) = 0;
+    virtual int wait(void) = 0;
 
-    VirtGpuBlobMappingPtr createMapping(void);
-    int exportBlob(struct VirtGpuExternalHandle& handle);
-
-  private:
-    // Not owned.  Really should use a ScopedFD for this, but doesn't matter since we have a
-    // singleton deviceimplemenentation anyways.
-    int64_t mDeviceHandle;
-
-    uint32_t mBlobHandle;
-    uint32_t mResourceHandle;
-    uint64_t mSize;
+    virtual VirtGpuBlobMappingPtr createMapping(void) = 0;
+    virtual int exportBlob(struct VirtGpuExternalHandle& handle) = 0;
 };
 
 class VirtGpuBlobMapping {
   public:
-    VirtGpuBlobMapping(VirtGpuBlobPtr blob, uint8_t* ptr, uint64_t size);
-    ~VirtGpuBlobMapping(void);
+    virtual ~VirtGpuBlobMapping(void) {}
 
-    uint8_t* asRawPtr(void);
-
-  private:
-    VirtGpuBlobPtr mBlob;
-    uint8_t* mPtr;
-    uint64_t mSize;
+    virtual uint8_t* asRawPtr(void) = 0;
 };
 
 class VirtGpuDevice {
   public:
-    static VirtGpuDevice& getInstance(enum VirtGpuCapset capset = kCapsetNone);
-    int64_t getDeviceHandle(void);
+    static VirtGpuDevice* getInstance(enum VirtGpuCapset capset = kCapsetNone);
+    static void setInstanceForTesting(VirtGpuDevice* device);
 
-    struct VirtGpuCaps getCaps(void);
+    virtual ~VirtGpuDevice() {}
 
-    VirtGpuBlobPtr createBlob(const struct VirtGpuCreateBlob& blobCreate);
-    VirtGpuBlobPtr createPipeBlob(uint32_t size);
-    VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle);
+    virtual int64_t getDeviceHandle(void) = 0;
 
-    int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob);
+    virtual struct VirtGpuCaps getCaps(void) = 0;
 
-  private:
-    VirtGpuDevice(enum VirtGpuCapset capset);
-    ~VirtGpuDevice();
-    VirtGpuDevice(VirtGpuDevice const&);
-    void operator=(VirtGpuDevice const&);
+    virtual VirtGpuBlobPtr createBlob(const struct VirtGpuCreateBlob& blobCreate) = 0;
+    virtual VirtGpuBlobPtr createPipeBlob(uint32_t size) = 0;
+    virtual VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle) = 0;
 
-    static VirtGpuDevice mInstance;
-    int64_t mDeviceHandle;
-
-    struct VirtGpuCaps mCaps;
+    virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob) = 0;
 };
+
+namespace platform_internal {
+
+VirtGpuDevice* getPlatformVirtGpuDeviceInstance(enum VirtGpuCapset capset = kCapsetNone);
+
+}  // namespace platform_internal
 
 // HACK: We can use android::base::EnumFlags, but we'll have to do more guest
 // refactorings to figure out our end goal.  We can either depend more on base or
