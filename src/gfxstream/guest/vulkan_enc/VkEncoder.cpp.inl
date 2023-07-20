@@ -60,7 +60,7 @@ struct EncoderAutoLock {
     VkEncoder* mEnc;
 };
 
-VkEncoder::VkEncoder(IOStream* stream, android::base::guest::HealthMonitor<>* healthMonitor)
+VkEncoder::VkEncoder(IOStream* stream, gfxstream::guest::HealthMonitor<>* healthMonitor)
     : mImpl(new VkEncoder::Impl(stream)), mHealthMonitor(healthMonitor) {}
 
 void VkEncoder::flush() { mImpl->flush(); }

@@ -157,7 +157,7 @@ VirtGpuDevice* getPlatformVirtGpuDeviceInstance(enum VirtGpuCapset capset = kCap
 
 }  // namespace platform_internal
 
-// HACK: We can use android::base::EnumFlags, but we'll have to do more guest
+// HACK: We can use gfxstream::guest::EnumFlags, but we'll have to do more guest
 // refactorings to figure out our end goal.  We can either depend more on base or
 // try to transition to something else (b:202552093) [atleast for guests].
 constexpr enum VirtGpuBlobFlags operator |(const enum VirtGpuBlobFlags self,
