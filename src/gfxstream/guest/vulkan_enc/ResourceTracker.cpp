@@ -116,6 +116,11 @@ inline_memfd_create(const char *name, unsigned int flags) {
     TempFile* tmpFile = tempfile_create();
     return open(tempfile_path(tmpFile), O_RDWR);
     // TODO: Windows is not suppose to support VkSemaphoreGetFdInfoKHR
+#elif !defined(__ANDROID__)
+    (void)name;
+    (void)flags;
+    ALOGE("Not yet supported.");
+    abort();
 #else
     return syscall(SYS_memfd_create, name, flags);
 #endif
@@ -304,7 +309,9 @@ public:
         uint64_t coherentMemorySize = 0;
         uint64_t coherentMemoryOffset = 0;
 
+#if defined(__ANDROID__)
         GoldfishAddressSpaceBlockPtr goldfishBlock = nullptr;
+#endif  // defined(__ANDROID__)
         CoherentMemoryPtr coherentMemory = nullptr;
     };
 
@@ -926,11 +933,13 @@ public:
         mFeatureInfo.reset(new EmulatorFeatureInfo);
         *mFeatureInfo = *features;
 
+#if defined(__ANDROID__)
         if (mFeatureInfo->hasDirectMem) {
             mGoldfishAddressSpaceBlockProvider.reset(
                 new GoldfishAddressSpaceBlockProvider(
                     GoldfishAddressSpaceSubdeviceType::NoSubdevice));
         }
+#endif  // defined(__ANDROID__)
 
 #ifdef VK_USE_PLATFORM_FUCHSIA
         if (mFeatureInfo->hasVulkan) {
@@ -2907,6 +2916,8 @@ public:
                                            VkResult& res)
     {
         CoherentMemoryPtr coherentMemory = nullptr;
+
+#if defined(__ANDROID__)
         if (mFeatureInfo->hasDirectMem) {
             uint64_t gpuAddr = 0;
             GoldfishAddressSpaceBlockPtr block = nullptr;
@@ -2933,7 +2944,9 @@ public:
                 coherentMemory =
                     std::make_shared<CoherentMemory>(block, gpuAddr, hostAllocationInfo.allocationSize, device, mem);
             }
-        } else if (mFeatureInfo->hasVirtioGpuNext) {
+        } else
+#endif // defined(__ANDROID__)
+        if (mFeatureInfo->hasVirtioGpuNext) {
             struct VirtGpuCreateBlob createBlob = { 0 };
             uint64_t hvaSizeId[3];
             res = enc->vkGetMemoryHostAddressInfoGOOGLE(device, mem,
@@ -6255,6 +6268,7 @@ public:
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
+#if defined(__ANDROID__)
         auto& memInfo = it->second;
 
         GoldfishAddressSpaceBlockPtr block = std::make_shared<GoldfishAddressSpaceBlock>();
@@ -6264,6 +6278,10 @@ public:
         *pAddress = block->physAddr();
 
         return VK_SUCCESS;
+#else
+        (void)pAddress;
+        return VK_ERROR_MEMORY_MAP_FAILED;
+#endif
     }
 
     VkResult on_vkMapMemoryIntoAddressSpaceGOOGLE(
@@ -7481,7 +7499,9 @@ private:
 
     std::optional<const VkPhysicalDeviceMemoryProperties> mCachedPhysicalDeviceMemoryProps;
     std::unique_ptr<EmulatorFeatureInfo> mFeatureInfo;
+#if defined(__ANDROID__)
     std::unique_ptr<GoldfishAddressSpaceBlockProvider> mGoldfishAddressSpaceBlockProvider;
+#endif  // defined(__ANDROID__)
 
     struct VirtGpuCaps mCaps;
     std::vector<VkExtensionProperties> mHostInstanceExtensions;

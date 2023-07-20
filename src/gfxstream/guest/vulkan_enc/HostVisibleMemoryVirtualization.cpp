@@ -40,6 +40,7 @@ CoherentMemory::CoherentMemory(VirtGpuBlobMappingPtr blobMapping, uint64_t size,
         std::make_unique<gfxstream::guest::SubAllocator>(blobMapping->asRawPtr(), mSize, 4096);
 }
 
+#if defined(__ANDROID__)
 CoherentMemory::CoherentMemory(GoldfishAddressSpaceBlockPtr block, uint64_t gpuAddr, uint64_t size,
                                VkDevice device, VkDeviceMemory memory)
     : mSize(size), mBlock(block), mDevice(device), mMemory(memory) {
@@ -47,6 +48,7 @@ CoherentMemory::CoherentMemory(GoldfishAddressSpaceBlockPtr block, uint64_t gpuA
     mAllocator =
         std::make_unique<gfxstream::guest::SubAllocator>(address, mSize, kLargestPageSize);
 }
+#endif // defined(__ANDROID__)
 
 CoherentMemory::~CoherentMemory() {
     ResourceTracker::getThreadLocalEncoder()->vkFreeMemorySyncGOOGLE(mDevice, mMemory, nullptr,

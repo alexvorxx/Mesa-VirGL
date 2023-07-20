@@ -28,6 +28,12 @@
 
 extern "C" {
 
+#if defined(__ANDROID__)
+#define SET_ANDROID_HWVULKAN_DISPATCH_MAGIC res->dispatch.magic = HWVULKAN_DISPATCH_MAGIC;
+#else
+#define SET_ANDROID_HWVULKAN_DISPATCH_MAGIC
+#endif  // defined(__ANDROID__)
+
 #define GOLDFISH_VK_NEW_DISPATCHABLE_FROM_HOST_IMPL(type) \
     type new_from_host_##type(type underlying) { \
         struct goldfish_##type* res = \
@@ -36,7 +42,7 @@ extern "C" {
             ALOGE("FATAL: Failed to alloc " #type " handle"); \
             abort(); \
         } \
-        res->dispatch.magic = HWVULKAN_DISPATCH_MAGIC; \
+        SET_ANDROID_HWVULKAN_DISPATCH_MAGIC \
         res->underlying = (uint64_t)underlying; \
         res->lastUsedEncoder = nullptr; \
         res->sequenceNumber = 0; \
@@ -93,7 +99,7 @@ extern "C" {
             ALOGE("FATAL: Failed to alloc " #type " handle"); \
             abort(); \
         } \
-        res->dispatch.magic = HWVULKAN_DISPATCH_MAGIC; \
+        SET_ANDROID_HWVULKAN_DISPATCH_MAGIC \
         res->underlying = underlying; \
         res->lastUsedEncoder = nullptr; \
         res->sequenceNumber = 0; \
