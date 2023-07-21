@@ -35,7 +35,7 @@
 #define VIRGL_BIND_CUSTOM (1 << 17)
 #define PIPE_BUFFER 0
 
-LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset) {
+LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
     struct VirtGpuParam params[] = {
         PARAM(VIRTGPU_PARAM_3D_FEATURES),          PARAM(VIRTGPU_PARAM_CAPSET_QUERY_FIX),
         PARAM(VIRTGPU_PARAM_RESOURCE_BLOB),        PARAM(VIRTGPU_PARAM_HOST_VISIBLE),
@@ -50,10 +50,18 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset) {
 
     memset(&mCaps, 0, sizeof(struct VirtGpuCaps));
 
-    mDeviceHandle = static_cast<int64_t>(drmOpenRender(128));
-    if (mDeviceHandle < 0) {
-        ALOGE("Failed to open rendernode: %s", strerror(errno));
-        return;
+    if (fd < 0) {
+        mDeviceHandle = static_cast<int64_t>(drmOpenRender(128));
+        if (mDeviceHandle < 0) {
+            ALOGE("Failed to open rendernode: %s", strerror(errno));
+            return;
+        }
+    } else {
+        mDeviceHandle = dup(fd);
+        if (mDeviceHandle < 0) {
+            ALOGE("Failed to dup rendernode: %s", strerror(errno));
+            return;
+        }
     }
 
     for (uint32_t i = 0; i < kParamMax; i++) {
@@ -212,11 +220,6 @@ int LinuxVirtGpuDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpu
     return 0;
 }
 
-namespace platform_internal {
-
-VirtGpuDevice* getPlatformVirtGpuDeviceInstance(enum VirtGpuCapset capset) {
-    static LinuxVirtGpuDevice sInstance(capset);
-    return &sInstance;
+VirtGpuDevice* createPlatformVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
+    return new LinuxVirtGpuDevice(capset, fd);
 }
-
-}  // namespace platform_internal

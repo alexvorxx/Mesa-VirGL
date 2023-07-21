@@ -24,7 +24,7 @@ static VirtGpuDevice* sDevice = nullptr;
 
 VirtGpuDevice* VirtGpuDevice::getInstance(enum VirtGpuCapset capset) {
     if (!sDevice) {
-        sDevice = platform_internal::getPlatformVirtGpuDeviceInstance(capset);
+        sDevice = createPlatformVirtGpuDevice(capset);
     }
     return sDevice;
 }

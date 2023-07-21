@@ -30,6 +30,9 @@ class LinuxVirtGpuBlob : public std::enable_shared_from_this<LinuxVirtGpuBlob>, 
     VirtGpuBlobMappingPtr createMapping(void) override;
     int exportBlob(struct VirtGpuExternalHandle& handle) override;
 
+    int transferFromHost(uint32_t offset, uint32_t size) override;
+    int transferToHost(uint32_t offset, uint32_t size) override;
+
   private:
     // Not owned.  Really should use a ScopedFD for this, but doesn't matter since we have a
     // singleton deviceimplemenentation anyways.
@@ -55,7 +58,7 @@ class LinuxVirtGpuBlobMapping : public VirtGpuBlobMapping {
 
 class LinuxVirtGpuDevice : public VirtGpuDevice {
   public:
-    LinuxVirtGpuDevice(enum VirtGpuCapset capset);
+    LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd = -1);
     virtual ~LinuxVirtGpuDevice();
 
     virtual int64_t getDeviceHandle(void);

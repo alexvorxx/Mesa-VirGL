@@ -124,6 +124,9 @@ class VirtGpuBlob {
 
     virtual VirtGpuBlobMappingPtr createMapping(void) = 0;
     virtual int exportBlob(struct VirtGpuExternalHandle& handle) = 0;
+
+    virtual int transferFromHost(uint32_t offset, uint32_t size) = 0;
+    virtual int transferToHost(uint32_t offset, uint32_t size) = 0;
 };
 
 class VirtGpuBlobMapping {
@@ -151,11 +154,7 @@ class VirtGpuDevice {
     virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob) = 0;
 };
 
-namespace platform_internal {
-
-VirtGpuDevice* getPlatformVirtGpuDeviceInstance(enum VirtGpuCapset capset = kCapsetNone);
-
-}  // namespace platform_internal
+VirtGpuDevice* createPlatformVirtGpuDevice(enum VirtGpuCapset capset = kCapsetNone, int fd = -1);
 
 // HACK: We can use gfxstream::guest::EnumFlags, but we'll have to do more guest
 // refactorings to figure out our end goal.  We can either depend more on base or
