@@ -4,7 +4,7 @@ static constexpr uint32_t kWatchdogBufferMax = 1'000;
 
 class VkEncoder::Impl {
    public:
-    Impl(IOStream* stream) : m_stream(stream), m_logEncodes(false) {
+    Impl(gfxstream::guest::IOStream* stream) : m_stream(stream), m_logEncodes(false) {
         if (!sResourceTracker) sResourceTracker = ResourceTracker::get();
         m_stream.incStreamRef();
         const char* emuVkLogEncodesPropName = "qemu.vk.log";
@@ -60,7 +60,8 @@ struct EncoderAutoLock {
     VkEncoder* mEnc;
 };
 
-VkEncoder::VkEncoder(IOStream* stream, gfxstream::guest::HealthMonitor<>* healthMonitor)
+VkEncoder::VkEncoder(gfxstream::guest::IOStream* stream,
+                     gfxstream::guest::HealthMonitor<>* healthMonitor)
     : mImpl(new VkEncoder::Impl(stream)), mHealthMonitor(healthMonitor) {}
 
 void VkEncoder::flush() { mImpl->flush(); }

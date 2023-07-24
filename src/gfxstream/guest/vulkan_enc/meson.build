@@ -25,7 +25,7 @@ lib_vulkan_enc = static_library(
    'vulkan_enc',
    files_lib_vulkan_enc,
    cpp_args: cpp_args,
-   include_directories: [inc_android_emu, inc_host, inc_android_compat,
+   include_directories: [inc_android_emu, inc_guest_iostream, inc_android_compat,
                          inc_opengl_codec, inc_render_enc, inc_system,
                          inc_goldfish_address_space, inc_platform,
                          inc_vulkan_headers],

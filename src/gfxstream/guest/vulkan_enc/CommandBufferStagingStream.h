@@ -25,7 +25,7 @@
 namespace gfxstream {
 namespace vk {
 
-class CommandBufferStagingStream : public IOStream {
+class CommandBufferStagingStream : public gfxstream::guest::IOStream {
 public:
  // host will write kSyncDataReadComplete to the sync bytes to indicate memory is no longer being
  // used by host. This is only used with custom allocators. The sync bytes are used to ensure that,

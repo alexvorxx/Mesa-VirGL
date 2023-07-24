@@ -16,7 +16,7 @@
 namespace gfxstream {
 namespace vk {
 
-VulkanStreamGuest::VulkanStreamGuest(IOStream *stream): mStream(stream) {
+VulkanStreamGuest::VulkanStreamGuest(gfxstream::guest::IOStream *stream): mStream(stream) {
     unsetHandleMapping();
     mFeatureBits = ResourceTracker::get()->getStreamFeatures();
 }
