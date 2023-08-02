@@ -43,9 +43,13 @@ enum VirtGpuCapset {
     kCapsetNone = 0,
     kCapsetVirgl = 1,
     kCapsetVirgl2 = 2,
-    kCapsetGfxStream = 3,
+    kCapsetGfxStreamVulkan = 3,
     kCapsetVenus = 4,
     kCapsetCrossDomain = 5,
+    kCapsetDrm = 6,
+    kCapsetGfxStreamMagma = 7,
+    kCapsetGfxStreamGles = 8,
+    kCapsetGfxStreamComposer = 9,
 };
 
 // Try to keep aligned with vulkan-cereal / rutabaga.
