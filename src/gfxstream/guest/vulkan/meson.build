@@ -17,7 +17,7 @@ lib_vulkan_gfxstream = shared_library(
                          inc_opengl_codec, inc_render_enc, inc_vulkan_enc, inc_platform,
                          inc_goldfish_address_space, inc_system, inc_codec_common],
    link_with: [lib_android_compat, lib_emu_android_base, lib_stream,
-               lib_vulkan_enc],
+               lib_vulkan_enc, libvulkan_wsi],
    install: true,
 )
 
