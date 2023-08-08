@@ -14,24 +14,18 @@ DEQP_RUNNER_VERSION=0.20.0
 
 DEQP_RUNNER_GIT_URL="${DEQP_RUNNER_GIT_URL:-https://gitlab.freedesktop.org/mesa/deqp-runner.git}"
 
-if [ -n "${DEQP_RUNNER_GIT_TAG}${DEQP_RUNNER_GIT_REV}" ]; then
-    # Build and install from source
-    DEQP_RUNNER_CARGO_ARGS="--git $DEQP_RUNNER_GIT_URL"
-
-    if [ -n "${DEQP_RUNNER_GIT_TAG}" ]; then
-        DEQP_RUNNER_CARGO_ARGS="--tag ${DEQP_RUNNER_GIT_TAG} ${DEQP_RUNNER_CARGO_ARGS}"
-        DEQP_RUNNER_GIT_CHECKOUT="$DEQP_RUNNER_GIT_TAG"
-    else
-        DEQP_RUNNER_CARGO_ARGS="--rev ${DEQP_RUNNER_GIT_REV} ${DEQP_RUNNER_CARGO_ARGS}"
-        DEQP_RUNNER_GIT_CHECKOUT="$DEQP_RUNNER_GIT_REV"
-    fi
-
-    DEQP_RUNNER_CARGO_ARGS="${DEQP_RUNNER_CARGO_ARGS} ${EXTRA_CARGO_ARGS}"
+if [ -n "$DEQP_RUNNER_GIT_TAG" ]; then
+    DEQP_RUNNER_GIT_CHECKOUT="$DEQP_RUNNER_GIT_TAG"
+elif [ -n "$DEQP_RUNNER_GIT_REV" ]; then
+    DEQP_RUNNER_GIT_CHECKOUT="$DEQP_RUNNER_GIT_REV"
 else
-    # Install from package registry
-    DEQP_RUNNER_CARGO_ARGS="--version ${DEQP_RUNNER_VERSION} ${EXTRA_CARGO_ARGS} -- deqp-runner"
     DEQP_RUNNER_GIT_CHECKOUT="v$DEQP_RUNNER_VERSION"
 fi
+
+mkdir -p /deqp-runner
+pushd /deqp-runner
+git clone --branch "$DEQP_RUNNER_GIT_CHECKOUT" --depth 1 "$DEQP_RUNNER_GIT_URL" deqp-runner-git
+pushd deqp-runner-git
 
 if [[ "$RUST_TARGET" != *-android ]]; then
     # When CC (/usr/lib/ccache/gcc) variable is set, the rust compiler uses
@@ -44,14 +38,9 @@ if [[ "$RUST_TARGET" != *-android ]]; then
     cargo install --locked  \
         -j ${FDO_CI_CONCURRENT:-4} \
         --root /usr/local \
-        ${DEQP_RUNNER_CARGO_ARGS}
+        --path .
     CC=$SAVEDCC
 else
-    mkdir -p /deqp-runner
-    pushd /deqp-runner
-    git clone --branch "$DEQP_RUNNER_GIT_CHECKOUT" --depth 1 "$DEQP_RUNNER_GIT_URL" deqp-runner-git
-    pushd deqp-runner-git
-
     cargo install --locked  \
         -j ${FDO_CI_CONCURRENT:-4} \
         --root /usr/local --version 2.10.0 \
@@ -65,11 +54,11 @@ else
     cargo uninstall --locked  \
         --root /usr/local \
         cargo-ndk
-
-    popd
-    rm -rf deqp-runner-git
-    popd
 fi
+
+popd
+rm -rf deqp-runner-git
+popd
 
 # remove unused test runners to shrink images for the Mesa CI build (not kernel,
 # which chooses its own deqp branch)
