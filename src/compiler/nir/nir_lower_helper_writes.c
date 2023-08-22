@@ -39,9 +39,12 @@ lower(nir_builder *b, nir_instr *instr, void *data)
    case nir_intrinsic_global_atomic_swap:
    case nir_intrinsic_image_atomic:
    case nir_intrinsic_image_atomic_swap:
+   case nir_intrinsic_bindless_image_atomic:
+   case nir_intrinsic_bindless_image_atomic_swap:
       break;
    case nir_intrinsic_store_global:
    case nir_intrinsic_image_store:
+   case nir_intrinsic_bindless_image_store:
       if (!(*lower_plain_stores))
          return false;
       else
@@ -52,9 +55,9 @@ lower(nir_builder *b, nir_instr *instr, void *data)
 
    b->cursor = nir_before_instr(instr);
    bool has_dest = nir_intrinsic_infos[intr->intrinsic].has_dest;
-   nir_ssa_def *undef = NULL;
+   nir_def *undef = NULL;
 
-   nir_ssa_def *helper = nir_load_helper_invocation(b, 1);
+   nir_def *helper = nir_load_helper_invocation(b, 1);
    nir_push_if(b, nir_inot(b, helper));
    nir_instr_remove(instr);
    nir_builder_instr_insert(b, instr);
@@ -76,27 +79,25 @@ lower(nir_builder *b, nir_instr *instr, void *data)
     */
    if (has_dest) {
       nir_push_else(b, NULL);
-      undef = nir_ssa_undef(b, nir_dest_num_components(intr->dest),
-                            nir_dest_bit_size(intr->dest));
+      undef = nir_undef(b, intr->def.num_components,
+                        intr->def.bit_size);
    }
 
    nir_pop_if(b, NULL);
 
    if (has_dest) {
-      assert(intr->dest.is_ssa);
-      nir_ssa_def *phi = nir_if_phi(b, &intr->dest.ssa, undef);
+      nir_def *phi = nir_if_phi(b, &intr->def, undef);
 
-      /* We can't use nir_ssa_def_rewrite_uses_after on phis, so use the global
+      /* We can't use nir_def_rewrite_uses_after on phis, so use the global
        * version and fixup the phi manually
        */
-      nir_ssa_def_rewrite_uses(&intr->dest.ssa, phi);
+      nir_def_rewrite_uses(&intr->def, phi);
 
       nir_instr *phi_instr = phi->parent_instr;
       nir_phi_instr *phi_as_phi = nir_instr_as_phi(phi_instr);
       nir_phi_src *phi_src = nir_phi_get_src_from_block(phi_as_phi,
                                                         instr->block);
-      nir_instr_rewrite_src_ssa(phi->parent_instr, &phi_src->src,
-                                &intr->dest.ssa);
+      nir_src_rewrite(&phi_src->src, &intr->def);
    }
 
    return true;

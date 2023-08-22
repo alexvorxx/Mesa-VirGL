@@ -1,19 +1,14 @@
+# Keep the tags below under 25-30 chars each, as they end up combined into
+# docker image tags, and docker has a length limit of 128 chars total in tags.
+#
+# If you update a tag and you get an error like this:
+#     cannot parse input: "$image:$tag": invalid reference format
+# check the length of $tag; if it's > 128 chars you need to shorten your tag.
+
 variables:
 
    DEBIAN_X86_BUILD_BASE_IMAGE: "debian/x86_build-base"
-
-   DEBIAN_BASE_TAG: "2023-04-16-kernel-6.3"
-
-   DEBIAN_X86_BUILD_IMAGE_PATH: "debian/x86_build"
-   DEBIAN_BUILD_TAG: "2023-04-29-mold"
-
-   DEBIAN_X86_BUILD_MINGW_IMAGE_PATH: "debian/x86_build-mingw"
-   DEBIAN_BUILD_MINGW_TAG: "2023-01-03-ci-libva-2.17"
-
-
-   DEBIAN_X86_64_BUILD_BASE_IMAGE: "debian/x86_64_build-base"
-
-   DEBIAN_BASE_TAG: "2023-07-10-virglrenderer"
+   DEBIAN_BASE_TAG: "2023-08-03-mold"
 
    DEBIAN_X86_64_BUILD_IMAGE_PATH: "debian/x86_64_build"
    DEBIAN_BUILD_TAG: "2023-06-24-agility-711"
@@ -21,40 +16,21 @@ variables:
    DEBIAN_X86_64_BUILD_MINGW_IMAGE_PATH: "debian/x86_64_build-mingw"
    DEBIAN_BUILD_MINGW_TAG: "2023-05-25-bookworm"
 
-
-
-   DEBIAN_X86_TEST_BASE_IMAGE: "debian/x86_test-base"
-
    DEBIAN_X86_64_TEST_BASE_IMAGE: "debian/x86_64_test-base"
-
 
    DEBIAN_X86_64_TEST_IMAGE_GL_PATH: "debian/x86_64_test-gl"
    DEBIAN_X86_64_TEST_IMAGE_VK_PATH: "debian/x86_64_test-vk"
    DEBIAN_X86_64_TEST_ANDROID_IMAGE_PATH: "debian/x86_64_test-android"
 
-
-
-   DEBIAN_X86_TEST_ANDROID_TAG: "2023-04-24-deqp"
-   DEBIAN_X86_TEST_GL_TAG: "2023-04-25-vvl"
-   DEBIAN_X86_TEST_VK_TAG: "2023-04-24-deqp"
-
-   ALPINE_X86_BUILD_TAG: "2023-03-20-3.17-bump"
-   FEDORA_X86_BUILD_TAG: "2023-03-13-procps-ng"
-   KERNEL_ROOTFS_TAG: "2023-04-25-vvl"
-
-   DEBIAN_X86_TEST_ANDROID_TAG: "2023-05-25-bookworm"
-   DEBIAN_X86_TEST_GL_TAG: "2023-05-25-bookworm"
-   DEBIAN_X86_TEST_VK_TAG: "2023-05-25-vkd3d-proton"
-
-   DEBIAN_X86_64_TEST_ANDROID_TAG: "2023-06-07-deqp"
-   DEBIAN_X86_64_TEST_GL_TAG: "2023-07-02-apitrace-lto"
-   DEBIAN_X86_64_TEST_VK_TAG: "2023-07-08-weston-0"
-
+   DEBIAN_X86_64_TEST_ANDROID_TAG: "2023-08-03-deqp-mold"
+   DEBIAN_X86_64_TEST_GL_TAG: "2023-08-07-vvl"
+   DEBIAN_X86_64_TEST_VK_TAG: "2023-08-03-deqp-mold"
 
    ALPINE_X86_64_BUILD_TAG: "2023-05-01-3.18-bump-1"
    ALPINE_X86_64_LAVA_SSH_TAG: "2023-06-26-first-version"
-   FEDORA_X86_64_BUILD_TAG: "2023-05-05-ccache-on"
-   KERNEL_ROOTFS_TAG: "2023-07-10-virglrenderer"
+   FEDORA_X86_64_BUILD_TAG: "2023-07-26-meson-1.2"
+   KERNEL_ROOTFS_TAG: "2023-08-07-vvl"
+   KERNEL_TAG: "v6.3.13-for-mesa-ci-a7f02a9f9591"
 
 
    WINDOWS_X64_VS_PATH: "windows/x64_vs"
@@ -64,12 +40,5 @@ variables:
    WINDOWS_X64_BUILD_TAG: "2023-06-24-agility-711"
 
    WINDOWS_X64_TEST_PATH: "windows/x64_test"
-
-
-   WINDOWS_X64_TEST_TAG: "2023-04-13-agility-610.2"
-
-   WINDOWS_X64_TEST_TAG: "2023-05-26-warp-1.0.7"
-
-
    WINDOWS_X64_TEST_TAG: "2023-05-30-warp-1.0.7.1"
 

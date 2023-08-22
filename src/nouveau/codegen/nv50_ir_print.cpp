@@ -122,7 +122,6 @@ const char *operationStr[OP_LAST + 1] =
    "presin",
    "preex2",
    "sqrt",
-   "pow",
    "bra",
    "call",
    "ret",
@@ -955,8 +954,8 @@ nv50_ir_prog_info_out_print(struct nv50_ir_prog_info_out *info_out)
    if (info_out->numSysVals) {
       INFO("   \"sv\":[\n");
       for (i = 0; i < info_out->numSysVals; i++) {
-            INFO("      {\"id\":\"%d\", \"sn\":\"%d\", \"si\":\"%d\"}\n",
-                 info_out->sv[i].id, info_out->sv[i].sn, info_out->sv[i].si);
+            INFO("      {\"sn\":\"%d\"}\n",
+                 info_out->sv[i].sn);
       }
       INFO("\n   ],\n");
    }

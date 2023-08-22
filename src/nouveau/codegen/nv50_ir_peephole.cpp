@@ -636,14 +636,6 @@ ConstantFolding::expr(Instruction *i,
          return;
       }
       break;
-   case OP_POW:
-      switch (i->dType) {
-      case TYPE_F32: res.data.f32 = pow(a->data.f32, b->data.f32); break;
-      case TYPE_F64: res.data.f64 = pow(a->data.f64, b->data.f64); break;
-      default:
-         return;
-      }
-      break;
    case OP_MAX:
       switch (i->dType) {
       case TYPE_F32: res.data.f32 = MAX2(a->data.f32, b->data.f32); break;
@@ -4092,7 +4084,7 @@ Program::optimizeSSA(int level)
    RUN_PASS(2, LateAlgebraicOpt, run);
    RUN_PASS(1, LoadPropagation, run);
    RUN_PASS(1, IndirectPropagation, run);
-   RUN_PASS(2, MemoryOpt, run);
+   RUN_PASS(4, MemoryOpt, run);
    RUN_PASS(2, LocalCSE, run);
    RUN_PASS(0, DeadCodeElim, buryAll);
 

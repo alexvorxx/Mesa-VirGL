@@ -32,8 +32,7 @@
 
 #include <stdlib.h>
 #include "glsl_symbol_table.h"
-#include "main/config.h"
-#include "main/menums.h"
+#include "mesa/main/menums.h" /* for gl_api */
 
 /* THIS is a macro defined somewhere deep in the Windows MSVC header files.
  * Undefine it here to avoid collision with the lexer's THIS token.

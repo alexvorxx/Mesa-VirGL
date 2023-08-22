@@ -38,7 +38,7 @@ const uint8_t Target::operationSrcNr[] =
    1, 1, 1, 1,             // CEIL, FLOOR, TRUNC, CVT
    3, 3, 3, 2, 3, 3,       // SET_AND,OR,XOR, SET, SELP, SLCT
    1, 1, 1, 1, 1, 1,       // RCP, RSQ, LG2, SIN, COS, EX2
-   1, 1, 1, 1, 1, 2,       // EXP, LOG, PRESIN, PREEX2, SQRT, POW
+   1, 1, 1, 1, 1,          // EXP, LOG, PRESIN, PREEX2, SQRT
    0, 0, 0, 0, 0,          // BRA, CALL, RET, CONT, BREAK,
    0, 0, 0,                // PRERET,CONT,BREAK
    0, 0, 0, 0, 0, 0,       // BRKPT, JOINAT, JOIN, DISCARD, EXIT, MEMBAR
@@ -89,10 +89,10 @@ const OpClass Target::operationClass[] =
    // SET(AND,OR,XOR); SELP, SLCT
    OPCLASS_COMPARE, OPCLASS_COMPARE, OPCLASS_COMPARE, OPCLASS_COMPARE,
    OPCLASS_COMPARE, OPCLASS_COMPARE,
-   // RCP, RSQ, LG2, SIN, COS; EX2, EXP, LOG, PRESIN, PREEX2; SQRT, POW
+   // RCP, RSQ, LG2, SIN, COS; EX2, EXP, LOG, PRESIN, PREEX2; SQRT
    OPCLASS_SFU, OPCLASS_SFU, OPCLASS_SFU, OPCLASS_SFU, OPCLASS_SFU,
    OPCLASS_SFU, OPCLASS_SFU, OPCLASS_SFU, OPCLASS_SFU, OPCLASS_SFU,
-   OPCLASS_SFU, OPCLASS_SFU,
+   OPCLASS_SFU,
    // BRA, CALL, RET; CONT, BREAK, PRE(RET,CONT,BREAK); BRKPT, JOINAT, JOIN
    OPCLASS_FLOW, OPCLASS_FLOW, OPCLASS_FLOW,
    OPCLASS_FLOW, OPCLASS_FLOW, OPCLASS_FLOW, OPCLASS_FLOW, OPCLASS_FLOW,
@@ -154,6 +154,7 @@ Target *Target::create(unsigned int chipset)
    STATIC_ASSERT(ARRAY_SIZE(operationSrcNr) == OP_LAST + 1);
    STATIC_ASSERT(ARRAY_SIZE(operationClass) == OP_LAST + 1);
    switch (chipset & ~0xf) {
+   case 0x190:
    case 0x170:
    case 0x160:
    case 0x140:

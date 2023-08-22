@@ -47,6 +47,8 @@ struct pipe_context;
 #define VL_COMPOSITOR_MIN_DIRTY (0)
 #define VL_COMPOSITOR_MAX_DIRTY (1 << 15)
 
+#define VL_COMPOSITOR_VB_STRIDE (sizeof(struct vertex2f) + sizeof(struct vertex4f) * 2)
+
 /* deinterlace allgorithem */
 enum vl_compositor_deinterlace
 {
@@ -302,7 +304,8 @@ vl_compositor_convert_rgb_to_yuv(struct vl_compositor_state *state,
                                  struct pipe_resource *src_res,
                                  struct pipe_video_buffer *dst,
                                  struct u_rect *src_rect,
-                                 struct u_rect *dst_rect);
+                                 struct u_rect *dst_rect,
+                                 bool full_range);
 
 /*@}*/
 

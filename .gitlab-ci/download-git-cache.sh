@@ -18,15 +18,7 @@ fi
 
 TMP_DIR=$(mktemp -d)
 
-echo "Downloading archived master..."
-
-/usr/bin/wget \
-	      -O "$TMP_DIR/$CI_PROJECT_NAME.tar.gz" \
-              "https://${MINIO_HOST}/git-cache/${FDO_UPSTREAM_REPO}/$CI_PROJECT_NAME.tar.gz"
-
-# check wget error code
-if [[ $? -ne 0 ]]
-
+echo "$(date +"%F %T") Downloading archived master..."
 if ! /usr/bin/wget \
 	      -O "$TMP_DIR/$CI_PROJECT_NAME.tar.gz" \
 
@@ -40,8 +32,10 @@ fi
 set -e
 
 rm -rf "$CI_PROJECT_DIR"
-echo "Extracting tarball into '$CI_PROJECT_DIR'..."
+echo "$(date +"%F %T") Extracting tarball into '$CI_PROJECT_DIR'..."
 mkdir -p "$CI_PROJECT_DIR"
 tar xzf "$TMP_DIR/$CI_PROJECT_NAME.tar.gz" -C "$CI_PROJECT_DIR"
 rm -rf "$TMP_DIR"
 chmod a+w "$CI_PROJECT_DIR"
+
+echo "$(date +"%F %T") Git cache download done"

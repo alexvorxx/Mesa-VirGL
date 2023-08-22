@@ -40,17 +40,17 @@ lower_pos_write(nir_builder *b, nir_instr *instr, UNUSED void *cb_data)
 
    b->cursor = nir_before_instr(&intr->instr);
 
-   nir_ssa_def *pos = nir_ssa_for_src(b, intr->src[1], 4);
-   nir_ssa_def *def = nir_vec4(b,
-                               nir_channel(b, pos, 0),
-                               nir_channel(b, pos, 1),
-                               nir_fmul_imm(b,
-                                            nir_fadd(b,
-                                                     nir_channel(b, pos, 2),
-                                                     nir_channel(b, pos, 3)),
-                                            0.5),
-                               nir_channel(b, pos, 3));
-   nir_instr_rewrite_src(&intr->instr, intr->src + 1, nir_src_for_ssa(def));
+   nir_def *pos = nir_ssa_for_src(b, intr->src[1], 4);
+   nir_def *def = nir_vec4(b,
+                           nir_channel(b, pos, 0),
+                           nir_channel(b, pos, 1),
+                           nir_fmul_imm(b,
+                                        nir_fadd(b,
+                                                 nir_channel(b, pos, 2),
+                                                 nir_channel(b, pos, 3)),
+                                        0.5),
+                           nir_channel(b, pos, 3));
+   nir_src_rewrite(intr->src + 1, def);
    return true;
 }
 
@@ -64,6 +64,6 @@ nir_lower_clip_halfz(nir_shader *shader)
 
    nir_shader_instructions_pass(shader, lower_pos_write,
                                 nir_metadata_block_index |
-                                nir_metadata_dominance,
+                                   nir_metadata_dominance,
                                 NULL);
 }

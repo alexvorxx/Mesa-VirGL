@@ -47,8 +47,8 @@ lower_patch_vertices_in_instr(nir_builder *b, nir_instr *instr, UNUSED void *_da
 
    b->cursor = nir_before_instr(instr);
 
-   nir_ssa_def_rewrite_uses(
-      &load->dest.ssa,
+   nir_def_rewrite_uses(
+      &load->def,
       nir_load_push_constant(
          b, 1, 32,
          nir_imm_int(b, 0),

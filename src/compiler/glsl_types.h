@@ -36,6 +36,10 @@
 #include "util/macros.h"
 #include "util/simple_mtx.h"
 
+#ifdef __cplusplus
+#include "mesa/main/config.h"
+#endif
+
 struct glsl_type;
 
 #ifdef __cplusplus
@@ -283,15 +287,6 @@ enum {
    GLSL_PRECISION_MEDIUM,
    GLSL_PRECISION_LOW
 };
-
-/**
- * Built-in / reserved GL variables names start with "gl_"
- */
-static inline bool
-is_gl_identifier(const char *s)
-{
-   return s && s[0] == 'g' && s[1] == 'l' && s[2] == '_';
-}
 
 #ifdef __cplusplus
 } /* extern "C" */
@@ -937,11 +932,6 @@ public:
     * array types, contains an array.
     */
    bool contains_array() const;
-
-   /**
-    * Get the Mesa texture target index for a sampler type.
-    */
-   gl_texture_index sampler_index() const;
 
    /**
     * Query whether or not type is an image, or for struct, interface and

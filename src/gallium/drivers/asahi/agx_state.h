@@ -34,6 +34,8 @@
 #define agx_msg(...) fprintf(stderr, __VA_ARGS__)
 #endif
 
+#define AGX_NUM_TEXTURE_STATE_REGS 16
+
 struct agx_streamout_target {
    struct pipe_stream_output_target base;
    uint32_t offset;
@@ -95,11 +97,14 @@ enum agx_sysval_table {
 
 /* Root system value table */
 struct PACKED agx_draw_uniforms {
+   /* Pointer to binding table for texture descriptor, or 0 if none. This must
+    * be first so that u0_u1 is always available for lowering binding
+    * tables to bindless access.
+    */
+   uint64_t texture_base;
+
    /* Pointers to the system value tables themselves (for indirection) */
    uint64_t tables[AGX_NUM_SYSVAL_TABLES];
-
-   /* Pointer to binding table for texture descriptor, or 0 if none */
-   uint64_t texture_base;
 
    /* Uniform buffer objects */
    uint64_t ubo_base[PIPE_MAX_CONSTANT_BUFFERS];
@@ -169,10 +174,17 @@ struct agx_compiled_shader {
 struct agx_uncompiled_shader {
    struct pipe_shader_state base;
    enum pipe_shader_type type;
-   const struct nir_shader *nir;
+   struct blob serialized_nir;
    uint8_t nir_sha1[20];
    struct agx_uncompiled_shader_info info;
    struct hash_table *variants;
+   bool has_xfb_info;
+
+   /* If set, we need to pass the address of the texture/image table as uniform
+    * u0_u1 due to binding tables that were lowered to be internally bindless
+    * with that base address.
+    */
+   bool internal_bindless;
 
    /* For compute kernels */
    unsigned static_shared_mem;
@@ -603,6 +615,11 @@ struct agx_resource {
 
    /* Valid buffer range tracking, to optimize buffer appends */
    struct util_range valid_buffer_range;
+
+   /* Cumulative shadowed byte count for this resource, that is, the number of
+    * times multiplied by the resource size.
+    */
+   size_t shadowed_bytes;
 };
 
 static inline struct agx_resource *
@@ -640,6 +657,10 @@ agx_map_texture_gpu(struct agx_resource *rsrc, unsigned z)
 void agx_decompress(struct agx_context *ctx, struct agx_resource *rsrc,
                     const char *reason);
 
+void agx_legalize_compression(struct agx_context *ctx,
+                              struct agx_resource *rsrc,
+                              enum pipe_format format);
+
 struct agx_transfer {
    struct pipe_transfer base;
    void *map;
@@ -658,14 +679,14 @@ agx_transfer(struct pipe_transfer *p)
 uint64_t agx_upload_uniforms(struct agx_batch *batch, uint64_t textures,
                              enum pipe_shader_type stage);
 
-bool agx_nir_lower_sysvals(nir_shader *shader,
+bool agx_nir_lower_sysvals(nir_shader *shader, bool internal_bindless,
                            struct agx_compiled_shader *compiled,
                            unsigned *push_size);
 
+bool agx_nir_lower_bindings(nir_shader *shader, bool *internal_bindless);
+
 bool agx_batch_is_active(struct agx_batch *batch);
 bool agx_batch_is_submitted(struct agx_batch *batch);
-
-uint64_t agx_batch_upload_pbe(struct agx_batch *batch, unsigned rt);
 
 /* Add a BO to a batch. This needs to be amortized O(1) since it's called in
  * hot paths. To achieve this we model BO lists by bit sets */
@@ -690,10 +711,14 @@ agx_batch_add_bo(struct agx_batch *batch, struct agx_bo *bo)
 {
    /* Double the size of the BO list if we run out, this is amortized O(1) */
    if (unlikely(bo->handle > agx_batch_bo_list_bits(batch))) {
+      unsigned word_count =
+         MAX2(batch->bo_list.word_count * 2,
+              util_next_power_of_two(BITSET_WORDS(bo->handle + 1)));
+
       batch->bo_list.set =
          rerzalloc(batch->ctx, batch->bo_list.set, BITSET_WORD,
-                   batch->bo_list.word_count, batch->bo_list.word_count * 2);
-      batch->bo_list.word_count *= 2;
+                   batch->bo_list.word_count, word_count);
+      batch->bo_list.word_count = word_count;
    }
 
    /* The batch holds a single reference to each BO in the batch, released when
@@ -742,6 +767,8 @@ void agx_sync_batch_for_reason(struct agx_context *ctx, struct agx_batch *batch,
 /* Use these instead of batch_add_bo for proper resource tracking */
 void agx_batch_reads(struct agx_batch *batch, struct agx_resource *rsrc);
 void agx_batch_writes(struct agx_batch *batch, struct agx_resource *rsrc);
+void agx_batch_track_image(struct agx_batch *batch,
+                           struct pipe_image_view *image);
 
 bool agx_any_batch_uses_resource(struct agx_context *ctx,
                                  struct agx_resource *rsrc);

@@ -95,7 +95,6 @@ enum operation
    OP_PRESIN,
    OP_PREEX2,
    OP_SQRT,
-   OP_POW,
    OP_BRA,
    OP_CALL,
    OP_RET,
@@ -427,8 +426,6 @@ enum TexTarget
 
 enum ImgFormat
 {
-   FMT_NONE,
-
    FMT_RGBA32F,
    FMT_RGBA16F,
    FMT_RG32F,
@@ -1289,8 +1286,6 @@ public:
    uint32_t binPos;
    uint32_t binSize;
 
-   Value *stackPtr;
-
    uint32_t tlsBase; // base address for l[] space (if no stack pointer is used)
    uint32_t tlsSize;
 
@@ -1342,8 +1337,6 @@ public:
 
    bool makeFromNIR(struct nv50_ir_prog_info *,
                     struct nv50_ir_prog_info_out *);
-   bool makeFromTGSI(struct nv50_ir_prog_info *,
-                     struct nv50_ir_prog_info_out *);
    bool convertToSSA();
    bool optimizeSSA(int level);
    bool optimizePostRA(int level);

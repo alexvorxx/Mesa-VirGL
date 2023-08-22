@@ -34,7 +34,7 @@ lower_single_sampled_instr(nir_builder *b,
 
    nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
 
-   nir_ssa_def *lowered;
+   nir_def *lowered;
    switch (intrin->intrinsic) {
    case nir_intrinsic_load_sample_id:
       b->cursor = nir_before_instr(instr);
@@ -60,7 +60,6 @@ lower_single_sampled_instr(nir_builder *b,
    case nir_intrinsic_interp_deref_at_centroid:
    case nir_intrinsic_interp_deref_at_sample:
       b->cursor = nir_before_instr(instr);
-      assert(intrin->src[0].is_ssa);
       lowered = nir_load_deref(b, nir_src_as_deref(intrin->src[0]));
       break;
 
@@ -69,7 +68,7 @@ lower_single_sampled_instr(nir_builder *b,
    case nir_intrinsic_load_barycentric_at_sample:
       b->cursor = nir_before_instr(instr);
       lowered = nir_load_barycentric(b, nir_intrinsic_load_barycentric_pixel,
-                                        nir_intrinsic_interp_mode(intrin));
+                                     nir_intrinsic_interp_mode(intrin));
 
       if (nir_intrinsic_interp_mode(intrin) == INTERP_MODE_NOPERSPECTIVE) {
          BITSET_SET(b->shader->info.system_values_read,
@@ -84,7 +83,7 @@ lower_single_sampled_instr(nir_builder *b,
       return false;
    }
 
-   nir_ssa_def_rewrite_uses(&intrin->dest.ssa, lowered);
+   nir_def_rewrite_uses(&intrin->def, lowered);
    nir_instr_remove(instr);
    return true;
 }
@@ -123,6 +122,7 @@ nir_lower_single_sampled(nir_shader *shader)
 
    return nir_shader_instructions_pass(shader, lower_single_sampled_instr,
                                        nir_metadata_block_index |
-                                       nir_metadata_dominance,
-                                       NULL) || progress;
+                                          nir_metadata_dominance,
+                                       NULL) ||
+          progress;
 }

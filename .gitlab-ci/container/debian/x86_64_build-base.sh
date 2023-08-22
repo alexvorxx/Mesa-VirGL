@@ -99,7 +99,6 @@ apt-get install -y --no-remove \
 
         libwayland-egl-backend-dev \
         make \
-        meson \
         ninja-build \
         openssh-server \
         pkgconf \
@@ -131,6 +130,8 @@ pip3 install meson==1.0.0
 # Needed for ci-fairy, this revision is able to upload files to S3
 pip3 install --break-system-packages git+http://gitlab.freedesktop.org/freedesktop/ci-templates@ffe4d1b10aab7534489f0c4bbc4c5899df17d3f2
 
+# We need at least 1.2 for Rust's `debug_assertions`
+pip3 install --break-system-packages meson==1.2.0
 
 . .gitlab-ci/container/build-rust.sh
 

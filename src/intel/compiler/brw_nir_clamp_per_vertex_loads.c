@@ -58,11 +58,8 @@ clamp_per_vertex_loads_instr(nir_builder *b, nir_instr *instr, void *cb_data)
 
       b->cursor = nir_before_instr(&path.path[i]->instr);
 
-      nir_instr_rewrite_src_ssa(&path.path[i]->instr,
-                                &path.path[i]->arr.index,
-                                nir_umin(b,
-                                         path.path[i]->arr.index.ssa,
-                                         nir_iadd_imm(b, nir_load_patch_vertices_in(b), -1)));
+      nir_src_rewrite(&path.path[i]->arr.index,
+                      nir_umin(b, path.path[i]->arr.index.ssa, nir_iadd_imm(b, nir_load_patch_vertices_in(b), -1)));
 
       progress = true;
       break;
@@ -102,7 +99,7 @@ lower_patch_vertices_instr(nir_builder *b, nir_instr *instr, void *cb_data)
 
    b->cursor = nir_before_instr(instr);
 
-   nir_ssa_def_rewrite_uses(&intrin->dest.ssa, nir_imm_int(b, *input_vertices));
+   nir_def_rewrite_uses(&intrin->def, nir_imm_int(b, *input_vertices));
 
    return true;
 }

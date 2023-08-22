@@ -442,7 +442,7 @@ formats_ccs_e_compatible(const struct intel_device_info *devinfo,
                          VkImageUsageFlags vk_usage,
                          const VkImageFormatListCreateInfo *fmt_list)
 {
-   if (!isl_format_supports_ccs_e(devinfo, format))
+   if (!anv_format_supports_ccs_e(devinfo, format))
       return false;
 
    /* For images created without MUTABLE_FORMAT_BIT set, we know that they will
@@ -469,6 +469,19 @@ formats_ccs_e_compatible(const struct intel_device_info *devinfo,
    }
 
    return true;
+}
+
+bool
+anv_format_supports_ccs_e(const struct intel_device_info *devinfo,
+                          const enum isl_format format)
+{
+   /* CCS_E for YCRCB_NORMAL and YCRCB_SWAP_UV is not currently supported by
+    * ANV so leave it disabled for now.
+    */
+   if (isl_format_is_yuv(format))
+      return false;
+
+   return isl_format_supports_ccs_e(devinfo, format);
 }
 
 bool
@@ -664,9 +677,6 @@ add_aux_surface_if_supported(struct anv_device *device,
          return VK_SUCCESS;
       }
 
-      if (INTEL_DEBUG(DEBUG_NO_HIZ))
-         return VK_SUCCESS;
-
       ok = isl_surf_get_hiz_surf(&device->isl_dev,
                                  &image->planes[plane].primary_surface.isl,
                                  &image->planes[plane].aux_surface.isl);
@@ -704,10 +714,6 @@ add_aux_surface_if_supported(struct anv_device *device,
       if (image->planes[plane].aux_usage == ISL_AUX_USAGE_HIZ_CCS_WT)
          return add_aux_state_tracking_buffer(device, image, plane);
    } else if (aspect == VK_IMAGE_ASPECT_STENCIL_BIT) {
-
-      if (INTEL_DEBUG(DEBUG_NO_CCS))
-         return VK_SUCCESS;
-
       if (!isl_surf_supports_ccs(&device->isl_dev,
                                  &image->planes[plane].primary_surface.isl,
                                  NULL))
@@ -734,9 +740,6 @@ add_aux_surface_if_supported(struct anv_device *device,
           */
          return VK_SUCCESS;
       }
-
-      if (INTEL_DEBUG(DEBUG_NO_CCS))
-         return VK_SUCCESS;
 
       ok = isl_surf_get_ccs_surf(&device->isl_dev,
                                  &image->planes[plane].primary_surface.isl,
@@ -857,14 +860,6 @@ add_primary_surface(struct anv_device *device,
       assert(plane < ycbcr_info->n_planes);
       width /= ycbcr_info->planes[plane].denominator_scales[0];
       height /= ycbcr_info->planes[plane].denominator_scales[1];
-   } else if (isl_usage & ISL_SURF_USAGE_VIDEO_DECODE_BIT) {
-      /* To get proper width/height for P010 format,
-       * that isn't supported for YCbCr conversion yet
-       */
-      width = util_format_get_plane_width(
-            vk_format_to_pipe_format(image->vk.format), plane, width);
-      height = util_format_get_plane_height(
-            vk_format_to_pipe_format(image->vk.format), plane, height);
    }
 
    ok = isl_surf_init(&device->isl_dev, &anv_surf->isl,
@@ -1099,7 +1094,7 @@ check_drm_format_mod(const struct anv_device *device,
       assert(isl_layout->colorspace == ISL_COLORSPACE_LINEAR ||
              isl_layout->colorspace == ISL_COLORSPACE_SRGB);
 
-      if (isl_mod_info->aux_usage != ISL_AUX_USAGE_NONE) {
+      if (isl_drm_modifier_has_aux(isl_mod_info->modifier)) {
          /* Reject DISJOINT for consistency with the GL driver. */
          assert(!image->disjoint);
 
@@ -1107,7 +1102,10 @@ check_drm_format_mod(const struct anv_device *device,
           * The inverse, however, does not hold; if the modifier has no aux
           * usage, then we may enable a private aux surface.
           */
-         if (plane->aux_usage != isl_mod_info->aux_usage) {
+         if ((isl_mod_info->supports_media_compression &&
+              plane->aux_usage != ISL_AUX_USAGE_MC) ||
+             (isl_mod_info->supports_render_compression &&
+              !isl_aux_usage_has_ccs_e(plane->aux_usage))) {
             return vk_errorf(device, VK_ERROR_UNKNOWN,
                              "image with modifier unexpectedly has wrong aux "
                              "usage");
@@ -1198,10 +1196,10 @@ add_all_surfaces_explicit_layout(
 
    /* We support a restricted set of images with modifiers.
     *
-    * With aux usage,
+    * With aux usage on platforms without flat-CCS,
     * - Format plane count must be 1.
     * - Memory plane count must be 2.
-    * Without aux usage,
+    * Otherwise,
     * - Each format plane must map to a distint memory plane.
     *
     * For the other cases, currently there is no way to properly map memory
@@ -1213,7 +1211,7 @@ add_all_surfaces_explicit_layout(
    else
       assert(!(image->vk.aspects & ~VK_IMAGE_ASPECT_PLANES_BITS_ANV));
 
-   if (mod_has_aux)
+   if (mod_has_aux && !devinfo->has_flat_ccs)
       assert(image->n_planes == 1 && mod_plane_count == 2);
    else
       assert(image->n_planes == mod_plane_count);
@@ -1253,7 +1251,15 @@ add_all_surfaces_explicit_layout(
          return result;
 
       if (mod_has_aux) {
-         const VkSubresourceLayout *aux_layout = &drm_info->pPlaneLayouts[1];
+         assert(!isl_drm_modifier_get_info(
+                  drm_info->drmFormatModifier)->supports_clear_color);
+
+         const VkSubresourceLayout flat_ccs_layout = {
+            .offset = ANV_OFFSET_IMPLICIT,
+         };
+         const VkSubresourceLayout *aux_layout = devinfo->has_flat_ccs ?
+            &flat_ccs_layout : &drm_info->pPlaneLayouts[1];
+
          result = add_aux_surface_if_supported(device, image, plane,
                                                format_plane,
                                                format_list_info,
@@ -1262,6 +1268,8 @@ add_all_surfaces_explicit_layout(
                                                isl_extra_usage_flags);
          if (result != VK_SUCCESS)
             return result;
+
+         assert(isl_aux_usage_has_ccs(image->planes[plane].aux_usage));
       }
    }
 
@@ -1535,6 +1543,13 @@ VkResult anv_CreateImage(
 {
    ANV_FROM_HANDLE(anv_device, device, _device);
 
+   if (INTEL_DEBUG(DEBUG_SPARSE) && (pCreateInfo->flags &
+         (VK_IMAGE_CREATE_SPARSE_BINDING_BIT |
+          VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT |
+          VK_IMAGE_CREATE_SPARSE_ALIASED_BIT)))
+      fprintf(stderr, "=== %s %s:%d flags:0x%08x\n", __func__, __FILE__,
+              __LINE__, pCreateInfo->flags);
+
 #ifndef VK_USE_PLATFORM_ANDROID_KHR
    /* Ignore swapchain creation info on Android. Since we don't have an
     * implementation in Mesa, we're guaranteed to access an Android object
@@ -1749,6 +1764,13 @@ void anv_GetDeviceImageMemoryRequirementsKHR(
    ANV_FROM_HANDLE(anv_device, device, _device);
    struct anv_image image = { 0 };
 
+   if (INTEL_DEBUG(DEBUG_SPARSE) && (pInfo->pCreateInfo->flags &
+         (VK_IMAGE_CREATE_SPARSE_BINDING_BIT |
+          VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT |
+          VK_IMAGE_CREATE_SPARSE_ALIASED_BIT)))
+      fprintf(stderr, "=== %s %s:%d flags:0x%08x\n", __func__, __FILE__,
+              __LINE__, pInfo->pCreateInfo->flags);
+
    ASSERTED VkResult result =
       anv_image_init_from_create_info(device, &image, pInfo->pCreateInfo, true);
    assert(result == VK_SUCCESS);
@@ -1766,6 +1788,8 @@ void anv_GetImageSparseMemoryRequirements(
     uint32_t*                                   pSparseMemoryRequirementCount,
     VkSparseImageMemoryRequirements*            pSparseMemoryRequirements)
 {
+   if (INTEL_DEBUG(DEBUG_SPARSE))
+      fprintf(stderr, "=== [%s:%d] [%s]\n", __FILE__, __LINE__, __func__);
    *pSparseMemoryRequirementCount = 0;
 }
 
@@ -1775,6 +1799,8 @@ void anv_GetImageSparseMemoryRequirements2(
     uint32_t*                                   pSparseMemoryRequirementCount,
     VkSparseImageMemoryRequirements2*           pSparseMemoryRequirements)
 {
+   if (INTEL_DEBUG(DEBUG_SPARSE))
+      fprintf(stderr, "=== [%s:%d] [%s]\n", __FILE__, __LINE__, __func__);
    *pSparseMemoryRequirementCount = 0;
 }
 
@@ -1784,6 +1810,8 @@ void anv_GetDeviceImageSparseMemoryRequirementsKHR(
     uint32_t*                                   pSparseMemoryRequirementCount,
     VkSparseImageMemoryRequirements2*           pSparseMemoryRequirements)
 {
+   if (INTEL_DEBUG(DEBUG_SPARSE))
+      fprintf(stderr, "=== [%s:%d] [%s]\n", __FILE__, __LINE__, __func__);
    *pSparseMemoryRequirementCount = 0;
 }
 
@@ -2542,9 +2570,14 @@ anv_image_fill_surface_state(struct anv_device *device,
                                         view_usage),
                        .x_offset_sa = tile_x_sa,
                        .y_offset_sa = tile_y_sa,
+                       /* Assume robustness with EXT_pipeline_robustness
+                        * because this can be turned on/off per pipeline and
+                        * we have no visibility on this here.
+                        */
                        .robust_image_access =
                           device->vk.enabled_features.robustImageAccess ||
-                          device->vk.enabled_features.robustImageAccess2);
+                          device->vk.enabled_features.robustImageAccess2 ||
+                          device->vk.enabled_extensions.EXT_pipeline_robustness);
 
    /* With the exception of gfx8, the bottom 12 bits of the MCS base address
     * are used to store other information. This should be ok, however, because
@@ -2583,6 +2616,9 @@ anv_can_hiz_clear_ds_view(struct anv_device *device,
                           float depth_clear_value,
                           VkRect2D render_area)
 {
+   if (INTEL_DEBUG(DEBUG_NO_FAST_CLEAR))
+      return false;
+
    /* If we're just clearing stencil, we can always HiZ clear */
    if (!(clear_aspects & VK_IMAGE_ASPECT_DEPTH_BIT))
       return true;
@@ -2643,6 +2679,9 @@ anv_can_fast_clear_color_view(struct anv_device *device,
                               uint32_t num_layers,
                               VkRect2D render_area)
 {
+   if (INTEL_DEBUG(DEBUG_NO_FAST_CLEAR))
+      return false;
+
    if (iview->planes[0].isl.base_array_layer >=
        anv_image_aux_layers(iview->image, VK_IMAGE_ASPECT_COLOR_BIT,
                             iview->planes[0].isl.base_level))
@@ -2894,8 +2933,8 @@ anv_CreateBufferView(VkDevice _device,
    ANV_FROM_HANDLE(anv_buffer, buffer, pCreateInfo->buffer);
    struct anv_buffer_view *view;
 
-   view = vk_object_alloc(&device->vk, pAllocator, sizeof(*view),
-                          VK_OBJECT_TYPE_BUFFER_VIEW);
+   view = vk_buffer_view_create(&device->vk, pCreateInfo,
+                                pAllocator, sizeof(*view));
    if (!view)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
@@ -2904,9 +2943,8 @@ anv_CreateBufferView(VkDevice _device,
                                  0, VK_IMAGE_TILING_LINEAR);
 
    const uint32_t format_bs = isl_format_get_layout(format.isl_format)->bpb / 8;
-   view->range = vk_buffer_range(&buffer->vk, pCreateInfo->offset,
-                                              pCreateInfo->range);
-   view->range = align_down_npot_u32(view->range, format_bs);
+   const uint32_t align_range =
+      align_down_npot_u32(view->vk.range, format_bs);
 
    view->address = anv_address_add(buffer->address, pCreateInfo->offset);
 
@@ -2918,7 +2956,7 @@ anv_CreateBufferView(VkDevice _device,
                                          format.isl_format,
                                          format.swizzle,
                                          ISL_SURF_USAGE_TEXTURE_BIT,
-                                         view->address, view->range, format_bs);
+                                         view->address, align_range, format_bs);
    } else {
       view->general.state = ANV_STATE_NULL;
    }
@@ -2930,7 +2968,7 @@ anv_CreateBufferView(VkDevice _device,
                                          &view->storage,
                                          format.isl_format, format.swizzle,
                                          ISL_SURF_USAGE_STORAGE_BIT,
-                                         view->address, view->range, format_bs);
+                                         view->address, align_range, format_bs);
    } else {
       view->storage.state = ANV_STATE_NULL;
    }
@@ -2960,5 +2998,5 @@ anv_DestroyBufferView(VkDevice _device, VkBufferView bufferView,
                           view->storage.state);
    }
 
-   vk_object_free(&device->vk, pAllocator, view);
+   vk_buffer_view_destroy(&device->vk, pAllocator, &view->vk);
 }

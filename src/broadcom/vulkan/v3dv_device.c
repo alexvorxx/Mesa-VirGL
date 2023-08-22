@@ -1012,7 +1012,7 @@ create_physical_device(struct v3dv_instance *instance,
       &dispatch_table, &wsi_physical_device_entrypoints, false);
 
    result = vk_physical_device_init(&device->vk, &instance->vk, NULL, NULL,
-                                    &dispatch_table);
+                                    NULL, &dispatch_table);
 
    if (result != VK_SUCCESS)
       goto fail;
@@ -1732,7 +1732,7 @@ v3dv_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
          props->defaultRobustnessVertexInputs =
             VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DEVICE_DEFAULT_EXT;
          props->defaultRobustnessImages =
-            VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DEVICE_DEFAULT_EXT;
+            VK_PIPELINE_ROBUSTNESS_IMAGE_BEHAVIOR_DEVICE_DEFAULT_EXT;
          break;
       }
       default:

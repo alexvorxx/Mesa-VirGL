@@ -74,34 +74,6 @@ anv_nir_update_resource_intel_block(nir_shader *shader)
                                        NULL);
 }
 
-static bool
-intrinsic_dont_need_rewrite(nir_intrinsic_instr *instr)
-{
-   switch (instr->intrinsic) {
-   case nir_intrinsic_load_ubo:
-   case nir_intrinsic_load_ssbo:
-   case nir_intrinsic_store_ssbo:
-      return true;
-   case nir_intrinsic_image_load:
-   case nir_intrinsic_image_store:
-   case nir_intrinsic_image_atomic:
-   case nir_intrinsic_image_atomic_swap:
-   case nir_intrinsic_image_size:
-   case nir_intrinsic_image_load_raw_intel:
-   case nir_intrinsic_image_store_raw_intel:
-   case nir_intrinsic_image_samples:
-   case nir_intrinsic_bindless_image_load:
-   case nir_intrinsic_bindless_image_store:
-   case nir_intrinsic_bindless_image_atomic:
-   case nir_intrinsic_bindless_image_atomic_swap:
-   case nir_intrinsic_bindless_image_size:
-      return true;
-
-   default:
-      return false;
-   }
-}
-
 struct lower_resource_state {
    enum anv_descriptor_set_layout_type desc_type;
    const struct anv_physical_device *device;
@@ -137,8 +109,8 @@ lower_resource_intel(nir_builder *b, nir_instr *instr, void *data)
 
    b->cursor = nir_before_instr(instr);
 
-   nir_ssa_def *set_offset = intrin->src[0].ssa;
-   nir_ssa_def *binding_offset = intrin->src[1].ssa;
+   nir_def *set_offset = intrin->src[0].ssa;
+   nir_def *binding_offset = intrin->src[1].ssa;
 
    /* When using indirect descriptor, the surface handles are loaded from the
     * descriptor buffer and do not need any offset.
@@ -176,13 +148,13 @@ lower_resource_intel(nir_builder *b, nir_instr *instr, void *data)
             binding_offset = nir_ishl_imm(b, binding_offset, 6);
       }
 
-      nir_instr_rewrite_src_ssa(instr, &intrin->src[1],
-                                nir_iadd(b, set_offset, binding_offset));
+      nir_src_rewrite(&intrin->src[1],
+                      nir_iadd(b, set_offset, binding_offset));
    }
 
    /* Now unused values : set offset, array index */
-   nir_instr_rewrite_src_ssa(instr, &intrin->src[0], nir_imm_int(b, 0xdeaddeed));
-   nir_instr_rewrite_src_ssa(instr, &intrin->src[2], nir_imm_int(b, 0xdeaddeed));
+   nir_src_rewrite(&intrin->src[0], nir_imm_int(b, 0xdeaddeed));
+   nir_src_rewrite(&intrin->src[2], nir_imm_int(b, 0xdeaddeed));
 
    return true;
 }

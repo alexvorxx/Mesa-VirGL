@@ -313,6 +313,10 @@
 #define DRI_CONF_FORCE_VK_VENDOR(def) \
    DRI_CONF_OPT_I(force_vk_vendor, 0, -1, 2147483647, "Override GPU vendor id")
 
+#define DRI_CONF_FAKE_SPARSE(def) \
+   DRI_CONF_OPT_B(fake_sparse, def, \
+                  "Advertise support for sparse binding of textures regardless of real support")
+
 /**
  * \brief Image quality-related options
  */
@@ -411,7 +415,9 @@
    DRI_CONF_OPT_B(mesa_no_error, def, \
                   "Disable GL driver error checking")
 
-
+#define DRI_CONF_SHADER_SPILLING_RATE(def) \
+   DRI_CONF_OPT_I(shader_spilling_rate, def, 0, 100, \
+                  "Speed up shader compilation by increasing number of spilled registers after ra_allocate failure")
 /**
  * \brief Miscellaneous configuration options
  */

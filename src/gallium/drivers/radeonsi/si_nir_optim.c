@@ -13,9 +13,6 @@
 static bool
 add_src_instr_to_worklist(nir_src *src, void *wl)
 {
-   if (!src->is_ssa)
-      return false;
-
    nir_instr_worklist_push_tail(wl, src->ssa->parent_instr);
    return true;
 }
@@ -78,8 +75,8 @@ check_instr_depends_on_tex(nir_intrinsic_instr *store)
 static bool
 get_output_as_const_value(nir_shader *shader, float values[4])
 {
-   nir_foreach_function(function, shader) {
-      nir_foreach_block_reverse(block, function->impl) {
+   nir_foreach_function_impl(impl, shader) {
+      nir_foreach_block_reverse(block, impl) {
          nir_foreach_instr_reverse_safe(instr, block) {
             switch (instr->type) {
                case nir_instr_type_intrinsic: {
@@ -138,8 +135,8 @@ replace_tex_by_imm(nir_builder *b, nir_instr *instr, void *state)
       return false;
 
    b->cursor = nir_instr_remove(&tex->instr);
-   nir_ssa_def *imm = nir_imm_vec4(b, p->value[0], p->value[1], p->value[2], p->value[3]);
-   nir_ssa_def_rewrite_uses(&tex->dest.ssa, imm);
+   nir_def *imm = nir_imm_vec4(b, p->value[0], p->value[1], p->value[2], p->value[3]);
+   nir_def_rewrite_uses(&tex->def, imm);
    return true;
 }
 

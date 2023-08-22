@@ -516,6 +516,12 @@ Intel driver environment variables
    ``do32``
       generate compute shader SIMD32 programs even if workgroup size
       doesn't exceed the SIMD16 limit
+   ``draw_bkp``
+      Add semaphore wait before/after draw call count.
+      ``INTEL_DEBUG_BKP_BEFORE_DRAW_COUNT`` or
+      ``INTEL_DEBUG_BKP_AFTER_DRAW_COUNT`` can control draw call number.
+      To make test wait forever, we need to set preempt_timeout_ms and
+      i915.enable_hangcheck to zero.
    ``fall``
       emit messages about performance issues (same as ``perf``)
    ``fs``
@@ -571,6 +577,8 @@ Intel driver environment variables
       the SF program)
    ``soft64``
       enable implementation of software 64bit floating point support
+   ``sparse``
+      dump usage of sparse resources
    ``spill_fs``
       force spilling of all registers in the scalar backend (useful to
       debug spilling code)
@@ -704,6 +712,22 @@ Intel driver environment variables
 
    if set to 1, true or yes, then the driver prefers accuracy over
    performance in trig functions.
+
+.. envvar:: INTEL_SHADER_OPTIMIZER_PATH
+
+   if set, determines the directory to be used for overriding shader
+   assembly. The binaries with custom assembly should be placed in
+   this folder and have a name formatted as ``sha1_of_assembly.bin``.
+   The SHA-1 of a shader assembly is printed when assembly is dumped via
+   corresponding :envvar:`INTEL_DEBUG` flag (e.g. ``vs`` for vertex shader).
+   A binary could be generated from a dumped assembly by ``i965_asm``.
+   For :envvar:`INTEL_SHADER_ASM_READ_PATH` to work it is necessary to enable
+   dumping of corresponding shader stages via :envvar:`INTEL_DEBUG`.
+   It is advised to use ``nocompact`` flag of :envvar:`INTEL_DEBUG` when
+   dumping and overriding shader assemblies.
+   The success of assembly override would be signified by "Successfully
+   overrode shader with sha1 <SHA-1>" in stderr replacing the original
+   assembly.
 
 .. envvar:: INTEL_SHADER_ASM_READ_PATH
 

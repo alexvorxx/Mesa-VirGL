@@ -39,7 +39,7 @@ struct state {
    struct table_state tables[AGX_NUM_SYSVAL_TABLES];
 };
 
-static nir_ssa_def *
+static nir_def *
 load_sysval(nir_builder *b, unsigned dim, unsigned bitsize, uint8_t table,
             uint16_t offset)
 {
@@ -48,40 +48,40 @@ load_sysval(nir_builder *b, unsigned dim, unsigned bitsize, uint8_t table,
    return nir_load_preamble(b, dim, bitsize, .base = packed);
 }
 
-static nir_ssa_def *
+static nir_def *
 load_sysval_root(nir_builder *b, unsigned dim, unsigned bitsize, void *ptr)
 {
    return load_sysval(b, dim, bitsize, AGX_SYSVAL_TABLE_ROOT, (uintptr_t)ptr);
 }
 
-static nir_ssa_def *
+static nir_def *
 load_sysval_indirect(nir_builder *b, unsigned dim, unsigned bitsize,
-                     uint8_t table, void *base, nir_ssa_def *offset_el)
+                     uint8_t table, void *base, nir_def *offset_el)
 {
-   nir_ssa_scalar scalar = {offset_el, 0};
+   nir_scalar scalar = {offset_el, 0};
    unsigned stride = (dim * bitsize) / 8;
 
-   if (nir_ssa_scalar_is_const(scalar)) {
+   if (nir_scalar_is_const(scalar)) {
       /* Load the sysval directly */
       return load_sysval(
          b, dim, bitsize, table,
-         (uintptr_t)base + (nir_ssa_scalar_as_uint(scalar) * stride));
+         (uintptr_t)base + (nir_scalar_as_uint(scalar) * stride));
    } else {
       /* Load the base address of the table */
       struct agx_draw_uniforms *u = NULL;
-      nir_ssa_def *table_base = load_sysval_root(b, 1, 64, &u->tables[table]);
+      nir_def *table_base = load_sysval_root(b, 1, 64, &u->tables[table]);
 
       /* Load address of the array in the table */
-      nir_ssa_def *array_base = nir_iadd_imm(b, table_base, (uintptr_t)base);
+      nir_def *array_base = nir_iadd_imm(b, table_base, (uintptr_t)base);
 
       /* Index into the table and load */
-      nir_ssa_def *address = nir_iadd(
+      nir_def *address = nir_iadd(
          b, array_base, nir_u2u64(b, nir_imul_imm(b, offset_el, stride)));
       return nir_load_global_constant(b, address, bitsize / 8, dim, bitsize);
    }
 }
 
-static nir_ssa_def *
+static nir_def *
 lower_intrinsic(nir_builder *b, nir_intrinsic_instr *intr)
 {
    struct agx_draw_uniforms *u = NULL;
@@ -137,16 +137,16 @@ static bool
 lower_sysvals(nir_builder *b, nir_instr *instr, void *data)
 {
    b->cursor = nir_before_instr(instr);
-   nir_dest *dest;
-   nir_ssa_def *replacement = NULL;
+   nir_def *old;
+   nir_def *replacement = NULL;
 
    if (instr->type == nir_instr_type_intrinsic) {
       nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-      dest = &intr->dest;
+      old = &intr->def;
       replacement = lower_intrinsic(b, intr);
    } else if (instr->type == nir_instr_type_tex) {
       nir_tex_instr *tex = nir_instr_as_tex(instr);
-      dest = &tex->dest;
+      old = &tex->def;
 
       if (tex->op != nir_texop_lod_bias_agx)
          return false;
@@ -165,7 +165,7 @@ lower_sysvals(nir_builder *b, nir_instr *instr, void *data)
    }
 
    if (replacement != NULL) {
-      nir_ssa_def_rewrite_uses(&dest->ssa, replacement);
+      nir_def_rewrite_uses(old, replacement);
       return true;
    } else {
       return false;
@@ -183,9 +183,9 @@ record_loads(nir_builder *b, nir_instr *instr, void *data)
    if (intr->intrinsic != nir_intrinsic_load_preamble)
       return false;
 
-   assert(nir_dest_bit_size(intr->dest) >= 16 && "no 8-bit sysvals");
-   unsigned dim = nir_dest_num_components(intr->dest);
-   unsigned element_size = nir_dest_bit_size(intr->dest) / 16;
+   assert(intr->def.bit_size >= 16 && "no 8-bit sysvals");
+   unsigned dim = intr->def.num_components;
+   unsigned element_size = intr->def.bit_size / 16;
    unsigned length = dim * element_size;
 
    struct state *state = data;
@@ -275,6 +275,29 @@ lay_out_table(struct agx_compiled_shader *shader, struct table_state *state,
    return uniform;
 }
 
+/* Reserve u0_u1 for the texture base if needed for internal bindless operation.
+ * When we have too many textures/images for the available texture state
+ * registers, an early lowering pass in the driver spills some textures/images
+ * out of texture state registers and instead accesses them as bindless
+ * internally. That pass assumes u0_u1 points to the texture descriptors
+ * otherwise bound to texture state registers.
+ */
+static void
+reserve_internal_bindless(struct state *state)
+{
+   struct table_state *table = &state->tables[AGX_SYSVAL_TABLE_ROOT];
+   struct agx_draw_uniforms *u = NULL;
+   const unsigned len_words = sizeof(u->texture_base) / sizeof(uint16_t);
+
+   static_assert(offsetof(struct agx_draw_uniforms, texture_base) == 0, "ABI");
+   static_assert(sizeof(u->texture_base) == 8, "64-bit pointer");
+
+   BITSET_SET_RANGE(table->pushed, 0, len_words - 1);
+
+   for (unsigned i = 0; i < len_words; ++i)
+      table->element_size[i] = len_words;
+}
+
 static unsigned
 lay_out_uniforms(struct agx_compiled_shader *shader, struct state *state)
 {
@@ -301,14 +324,14 @@ lay_out_uniforms(struct agx_compiled_shader *shader, struct state *state)
 }
 
 bool
-agx_nir_lower_sysvals(nir_shader *shader, struct agx_compiled_shader *compiled,
-                      unsigned *push_size)
+agx_nir_lower_sysvals(nir_shader *shader, bool internal_bindless,
+                      struct agx_compiled_shader *compiled, unsigned *push_size)
 {
    bool progress = nir_shader_instructions_pass(
       shader, lower_sysvals, nir_metadata_block_index | nir_metadata_dominance,
       NULL);
 
-   if (!progress) {
+   if (!progress && !internal_bindless) {
       *push_size = 0;
       return false;
    }
@@ -317,6 +340,9 @@ agx_nir_lower_sysvals(nir_shader *shader, struct agx_compiled_shader *compiled,
    nir_shader_instructions_pass(
       shader, record_loads, nir_metadata_block_index | nir_metadata_dominance,
       &state);
+
+   if (internal_bindless)
+      reserve_internal_bindless(&state);
 
    *push_size = lay_out_uniforms(compiled, &state);
 

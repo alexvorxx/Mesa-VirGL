@@ -225,11 +225,6 @@ private:
       inline void splitEdges(BasicBlock *b);
    };
 
-   class ArgumentMovesPass : public Pass {
-   private:
-      virtual bool visit(BasicBlock *);
-   };
-
    class BuildIntervalsPass : public Pass {
    private:
       virtual bool visit(BasicBlock *);
@@ -342,15 +337,6 @@ private:
    Function *func;
    MergedDefs &mergedDefs;
 
-   struct SpillSlot
-   {
-      Interval occup;
-      std::list<Value *> residents; // needed to recalculate occup
-      Symbol *sym;
-      int32_t offset;
-      inline uint8_t size() const { return sym->reg.size; }
-   };
-   std::list<SpillSlot> slots;
    int32_t stackSize;
    int32_t stackBase;
 
@@ -512,73 +498,6 @@ RegAlloc::PhiMovesPass::visit(BasicBlock *bb)
          pb->insertBefore(pb->getExit(), mov);
       }
       ++j;
-   }
-
-   return true;
-}
-
-bool
-RegAlloc::ArgumentMovesPass::visit(BasicBlock *bb)
-{
-   // Bind function call inputs/outputs to the same physical register
-   // the callee uses, inserting moves as appropriate for the case a
-   // conflict arises.
-   for (Instruction *i = bb->getEntry(); i; i = i->next) {
-      FlowInstruction *cal = i->asFlow();
-      // TODO: Handle indirect calls.
-      // Right now they should only be generated for builtins.
-      if (!cal || cal->op != OP_CALL || cal->builtin || cal->indirect)
-         continue;
-      RegisterSet clobberSet(prog->getTarget());
-
-      // Bind input values.
-      for (int s = cal->indirect ? 1 : 0; cal->srcExists(s); ++s) {
-         const int t = cal->indirect ? (s - 1) : s;
-         LValue *tmp = new_LValue(func, cal->getSrc(s)->asLValue());
-         tmp->reg.data.id = cal->target.fn->ins[t].rep()->reg.data.id;
-
-         Instruction *mov =
-            new_Instruction(func, OP_MOV, typeOfSize(tmp->reg.size));
-         mov->setDef(0, tmp);
-         mov->setSrc(0, cal->getSrc(s));
-         cal->setSrc(s, tmp);
-
-         bb->insertBefore(cal, mov);
-      }
-
-      // Bind output values.
-      for (int d = 0; cal->defExists(d); ++d) {
-         LValue *tmp = new_LValue(func, cal->getDef(d)->asLValue());
-         tmp->reg.data.id = cal->target.fn->outs[d].rep()->reg.data.id;
-
-         Instruction *mov =
-            new_Instruction(func, OP_MOV, typeOfSize(tmp->reg.size));
-         mov->setSrc(0, tmp);
-         mov->setDef(0, cal->getDef(d));
-         cal->setDef(d, tmp);
-
-         bb->insertAfter(cal, mov);
-         clobberSet.occupy(tmp);
-      }
-
-      // Bind clobbered values.
-      for (std::deque<Value *>::iterator it = cal->target.fn->clobbers.begin();
-           it != cal->target.fn->clobbers.end();
-           ++it) {
-         if (clobberSet.testOccupy(*it)) {
-            Value *tmp = new_LValue(func, (*it)->asLValue());
-            tmp->reg.data.id = (*it)->reg.data.id;
-            cal->setDef(cal->defCount(), tmp);
-         }
-      }
-   }
-
-   // Update the clobber set of the function.
-   if (BasicBlock::get(func->cfgExit) == bb) {
-      func->buildDefSets();
-      for (unsigned int i = 0; i < bb->defSet.getSize(); ++i)
-         if (bb->defSet.test(i))
-            func->clobbers.push_back(func->getLValue(i));
    }
 
    return true;
@@ -1062,6 +981,7 @@ GCRA::coalesce(ArrayList& insns)
    case 0x140:
    case 0x160:
    case 0x170:
+   case 0x190:
       ret = doCoalesce(insns, JOIN_MASK_UNION);
       break;
    default:
@@ -1646,57 +1566,15 @@ GCRA::cleanup(const bool success)
 Symbol *
 SpillCodeInserter::assignSlot(const Interval &livei, const unsigned int size)
 {
-   SpillSlot slot;
-   int32_t offsetBase = stackSize;
-   int32_t offset;
-   std::list<SpillSlot>::iterator pos = slots.end(), it = slots.begin();
+   int32_t address = align(stackSize + func->tlsBase, size);
 
-   if (!func->stackPtr) {
-      // Later, we compute the address as (offsetBase + tlsBase)
-      // tlsBase might not be size-aligned, so we add just enough
-      // to give the final address the correct alignment
-      offsetBase = align(offsetBase + func->tlsBase, size) - func->tlsBase;
-   } else {
-      offsetBase = align(offsetBase, size);
-   }
+   Symbol *sym = new_Symbol(func->getProgram(), FILE_MEMORY_LOCAL);
+   sym->setAddress(NULL, address);
+   sym->reg.size = size;
 
-   slot.sym = NULL;
+   stackSize = address + size - func->tlsBase;
 
-   for (offset = offsetBase; offset < stackSize; offset += size) {
-      const int32_t entryEnd = offset + size;
-      while (it != slots.end() && it->offset < offset)
-         ++it;
-      if (it == slots.end()) // no slots left
-         break;
-      std::list<SpillSlot>::iterator bgn = it;
-
-      while (it != slots.end() && it->offset < entryEnd) {
-         it->occup.print();
-         if (it->occup.overlaps(livei))
-            break;
-         ++it;
-      }
-      if (it == slots.end() || it->offset >= entryEnd) {
-         // fits
-         for (; bgn != slots.end() && bgn->offset < entryEnd; ++bgn) {
-            bgn->occup.insert(livei);
-            if (bgn->size() == size)
-               slot.sym = bgn->sym;
-         }
-         break;
-      }
-   }
-   if (!slot.sym) {
-      stackSize = offset + size;
-      slot.offset = offset;
-      slot.sym = new_Symbol(func->getProgram(), FILE_MEMORY_LOCAL);
-      if (!func->stackPtr)
-         offset += func->tlsBase;
-      slot.sym->setAddress(NULL, offset);
-      slot.sym->reg.size = size;
-      slots.insert(pos, slot)->occup.insert(livei);
-   }
-   return slot.sym;
+   return sym;
 }
 
 Value *
@@ -1884,10 +1762,7 @@ SpillCodeInserter::run(const std::list<ValuePair>& lst)
       }
    }
 
-   // TODO: We're not trying to reuse old slots in a potential next iteration.
-   //  We have to update the slots' livei intervals to be able to do that.
    stackBase = stackSize;
-   slots.clear();
    return true;
 }
 
@@ -1912,7 +1787,6 @@ RegAlloc::execFunc()
    MergedDefs mergedDefs;
    InsertConstraintsPass insertConstr;
    PhiMovesPass insertPhiMoves;
-   ArgumentMovesPass insertArgMoves;
    BuildIntervalsPass buildIntervals;
    SpillCodeInserter insertSpills(func, mergedDefs);
 
@@ -1933,10 +1807,6 @@ RegAlloc::execFunc()
       goto out;
 
    ret = insertPhiMoves.run(func);
-   if (!ret)
-      goto out;
-
-   ret = insertArgMoves.run(func);
    if (!ret)
       goto out;
 
@@ -2566,6 +2436,7 @@ RegAlloc::InsertConstraintsPass::visit(BasicBlock *bb)
          case 0x140:
          case 0x160:
          case 0x170:
+         case 0x190:
             texConstraintGM107(tex);
             break;
          default:

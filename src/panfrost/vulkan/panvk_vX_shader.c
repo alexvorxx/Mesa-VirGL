@@ -45,14 +45,14 @@
 
 #include "vk_util.h"
 
-static nir_ssa_def *
+static nir_def *
 load_sysval_from_ubo(nir_builder *b, nir_intrinsic_instr *intr, unsigned offset)
 {
-   return nir_load_ubo(
-      b, nir_dest_num_components(intr->dest), nir_dest_bit_size(intr->dest),
-      nir_imm_int(b, PANVK_SYSVAL_UBO_INDEX), nir_imm_int(b, offset),
-      .align_mul = nir_dest_bit_size(intr->dest) / 8, .align_offset = 0,
-      .range_base = offset, .range = nir_dest_bit_size(intr->dest) / 8);
+   return nir_load_ubo(b, intr->def.num_components, intr->def.bit_size,
+                       nir_imm_int(b, PANVK_SYSVAL_UBO_INDEX),
+                       nir_imm_int(b, offset),
+                       .align_mul = intr->def.bit_size / 8, .align_offset = 0,
+                       .range_base = offset, .range = intr->def.bit_size / 8);
 }
 
 struct sysval_options {
@@ -70,7 +70,7 @@ panvk_lower_sysvals(nir_builder *b, nir_instr *instr, void *data)
 
    struct sysval_options *opts = data;
    nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-   nir_ssa_def *val = NULL;
+   nir_def *val = NULL;
    b->cursor = nir_before_instr(instr);
 
 #define SYSVAL(name) offsetof(struct panvk_sysvals, name)
@@ -116,7 +116,7 @@ panvk_lower_sysvals(nir_builder *b, nir_instr *instr, void *data)
 #undef SYSVAL
 
    b->cursor = nir_after_instr(instr);
-   nir_ssa_def_rewrite_uses(&intr->dest.ssa, val);
+   nir_def_rewrite_uses(&intr->def, val);
    return true;
 }
 
@@ -189,13 +189,13 @@ panvk_lower_load_push_constant(nir_builder *b, nir_instr *instr, void *data)
       return false;
 
    b->cursor = nir_before_instr(instr);
-   nir_ssa_def *ubo_load = nir_load_ubo(
-      b, nir_dest_num_components(intr->dest), nir_dest_bit_size(intr->dest),
-      nir_imm_int(b, PANVK_PUSH_CONST_UBO_INDEX), intr->src[0].ssa,
-      .align_mul = nir_dest_bit_size(intr->dest) / 8, .align_offset = 0,
-      .range_base = nir_intrinsic_base(intr),
-      .range = nir_intrinsic_range(intr));
-   nir_ssa_def_rewrite_uses(&intr->dest.ssa, ubo_load);
+   nir_def *ubo_load =
+      nir_load_ubo(b, intr->def.num_components, intr->def.bit_size,
+                   nir_imm_int(b, PANVK_PUSH_CONST_UBO_INDEX), intr->src[0].ssa,
+                   .align_mul = intr->def.bit_size / 8, .align_offset = 0,
+                   .range_base = nir_intrinsic_base(intr),
+                   .range = nir_intrinsic_range(intr));
+   nir_def_rewrite_uses(&intr->def, ubo_load);
    nir_instr_remove(instr);
    return true;
 }

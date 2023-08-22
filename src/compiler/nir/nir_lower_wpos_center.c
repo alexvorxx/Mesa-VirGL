@@ -22,9 +22,9 @@
  * IN THE SOFTWARE.
  */
 
+#include "program/prog_instruction.h"
 #include "nir.h"
 #include "nir_builder.h"
-#include "program/prog_instruction.h"
 
 /**
  * This pass adds <0.5, 0.5> to all uses of gl_FragCoord.
@@ -47,13 +47,11 @@
 static void
 update_fragcoord(nir_builder *b, nir_intrinsic_instr *intr)
 {
-   nir_ssa_def *wpos = &intr->dest.ssa;
-
-   assert(intr->dest.is_ssa);
+   nir_def *wpos = &intr->def;
 
    b->cursor = nir_after_instr(&intr->instr);
 
-   nir_ssa_def *spos = nir_load_sample_pos_or_center(b);
+   nir_def *spos = nir_load_sample_pos_or_center(b);
 
    wpos = nir_fadd(b, wpos,
                    nir_vec4(b,
@@ -62,8 +60,8 @@ update_fragcoord(nir_builder *b, nir_intrinsic_instr *intr)
                             nir_imm_float(b, 0.0f),
                             nir_imm_float(b, 0.0f)));
 
-   nir_ssa_def_rewrite_uses_after(&intr->dest.ssa, wpos,
-                                  wpos->parent_instr);
+   nir_def_rewrite_uses_after(&intr->def, wpos,
+                              wpos->parent_instr);
 }
 
 static bool
@@ -88,6 +86,6 @@ nir_lower_wpos_center(nir_shader *shader)
    return nir_shader_instructions_pass(shader,
                                        lower_wpos_center_instr,
                                        nir_metadata_block_index |
-                                       nir_metadata_dominance,
+                                          nir_metadata_dominance,
                                        NULL);
 }

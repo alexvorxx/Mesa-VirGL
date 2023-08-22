@@ -439,7 +439,6 @@ TargetNV50::isOpSupported(operation op, DataType ty) const
       return chipset >= 0xa0;
    case OP_TXG:
       return chipset >= 0xa3 && chipset != 0xaa && chipset != 0xac;
-   case OP_POW:
    case OP_SQRT:
    case OP_DIV:
    case OP_MOD:
@@ -594,6 +593,25 @@ recordLocation(uint16_t *locs, uint8_t *masks,
       masks[0] = var->mask;
 }
 
+static void
+recordLocationSysVal(uint16_t *locs, uint8_t *masks,
+                    const struct nv50_ir_sysval *var)
+{
+   uint16_t addr = var->slot[0] * 4;
+
+   switch (var->sn) {
+   case SYSTEM_VALUE_FRAG_COORD: locs[SV_POSITION] = addr; break;
+   case SYSTEM_VALUE_INSTANCE_ID: locs[SV_INSTANCE_ID] = addr; break;
+   case SYSTEM_VALUE_VERTEX_ID: locs[SV_VERTEX_ID] = addr; break;
+   case SYSTEM_VALUE_PRIMITIVE_ID: locs[SV_PRIMITIVE_ID] = addr; break;
+   default:
+      break;
+   }
+   // TODO is this even hit?
+   if (var->sn == SYSTEM_VALUE_FRAG_COORD && masks)
+      masks[0] = 0;
+}
+
 void
 TargetNV50::parseDriverInfo(const struct nv50_ir_prog_info *info,
                             const struct nv50_ir_prog_info_out *info_out)
@@ -604,7 +622,7 @@ TargetNV50::parseDriverInfo(const struct nv50_ir_prog_info *info,
    for (i = 0; i < info_out->numInputs; ++i)
       recordLocation(sysvalLocation, &wposMask, &info_out->in[i]);
    for (i = 0; i < info_out->numSysVals; ++i)
-      recordLocation(sysvalLocation, NULL, &info_out->sv[i]);
+      recordLocationSysVal(sysvalLocation, NULL, &info_out->sv[i]);
 
    if (sysvalLocation[SV_POSITION] >= 0x200) {
       // not assigned by driver, but we need it internally
