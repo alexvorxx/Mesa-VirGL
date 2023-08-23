@@ -1251,6 +1251,8 @@ public:
             "VK_KHR_incremental_present",
             "VK_KHR_pipeline_executable_properties",
             "VK_EXT_queue_family_foreign",
+            "VK_KHR_descriptor_update_template",
+            "VK_KHR_storage_buffer_storage_class",
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
             "VK_KHR_external_semaphore",
             "VK_KHR_external_semaphore_fd",
@@ -1520,10 +1522,7 @@ public:
     void on_vkGetPhysicalDeviceProperties(
         void*,
         VkPhysicalDevice,
-        VkPhysicalDeviceProperties* pProperties) {
-        if (pProperties) {
-            pProperties->deviceType = VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU;
-        }
+        VkPhysicalDeviceProperties*) {
     }
 
     void on_vkGetPhysicalDeviceFeatures2(
@@ -1544,9 +1543,6 @@ public:
         VkPhysicalDevice,
         VkPhysicalDeviceProperties2* pProperties) {
         if (pProperties) {
-            pProperties->properties.deviceType =
-                VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU;
-
             VkPhysicalDeviceDeviceMemoryReportFeaturesEXT* memoryReportFeaturesEXT =
                 vk_find_struct<VkPhysicalDeviceDeviceMemoryReportFeaturesEXT>(pProperties);
             if (memoryReportFeaturesEXT) {
