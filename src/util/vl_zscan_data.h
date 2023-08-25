@@ -1,6 +1,6 @@
 /**************************************************************************
  *
- * Copyright 2009 Younes Manton.
+ * Copyright 2011 Christian König
  * All Rights Reserved.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
@@ -25,36 +25,22 @@
  *
  **************************************************************************/
 
-#ifndef vl_csc_h
-#define vl_csc_h
+#ifndef vl_zscan_data_h
+#define vl_zscan_data_h
 
-#include "util/compiler.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-typedef float vl_csc_matrix[3][4];
+extern const int vl_zscan_normal_16[];
+extern const int vl_zscan_linear[];
+extern const int vl_zscan_normal[];
+extern const int vl_zscan_alternate[];
+extern const int vl_zscan_h265_up_right_diagonal_16[];
+extern const int vl_zscan_h265_up_right_diagonal[];
 
-struct vl_procamp
-{
-   float brightness;
-   float contrast;
-   float saturation;
-   float hue;
-};
+#ifdef __cplusplus
+}
+#endif
 
-enum VL_CSC_COLOR_STANDARD
-{
-   VL_CSC_COLOR_STANDARD_IDENTITY,
-   VL_CSC_COLOR_STANDARD_BT_601,
-   VL_CSC_COLOR_STANDARD_BT_709,
-   VL_CSC_COLOR_STANDARD_BT_709_FULL,
-   VL_CSC_COLOR_STANDARD_SMPTE_240M,
-   VL_CSC_COLOR_STANDARD_BT_709_REV
-};
-
-extern const struct vl_procamp vl_default_procamp;
-
-void vl_csc_get_matrix(enum VL_CSC_COLOR_STANDARD cs,
-                       struct vl_procamp *procamp,
-                       bool full_range,
-                       vl_csc_matrix *matrix);
-
-#endif /* vl_csc_h */
+#endif

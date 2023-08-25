@@ -313,11 +313,12 @@ agx_emit_load_const(agx_builder *b, nir_load_const_instr *instr)
 }
 
 /*
- * Implement umul_high of 32-bit sources by doing a 32x32->64-bit multiply and
+ * Implement mul_high of 32-bit sources by doing a 32x32->64-bit multiply and
  * extracting only the high word.
  */
 static agx_instr *
-agx_umul_high_to(agx_builder *b, agx_index dst, agx_index P, agx_index Q)
+agx_mul_high_to(agx_builder *b, agx_index dst, agx_index P, agx_index Q,
+                bool is_signed)
 {
    assert(P.size == Q.size && "source sizes must match");
    assert(P.size == dst.size && "dest size must match");
@@ -326,8 +327,13 @@ agx_umul_high_to(agx_builder *b, agx_index dst, agx_index P, agx_index Q)
    static_assert(AGX_SIZE_64 == (AGX_SIZE_32 + 1), "enum wrong");
    static_assert(AGX_SIZE_32 == (AGX_SIZE_16 + 1), "enum wrong");
 
+   if (!is_signed) {
+      P = agx_abs(P);
+      Q = agx_abs(Q);
+   }
+
    agx_index product = agx_temp(b->shader, P.size + 1);
-   agx_imad_to(b, product, agx_abs(P), agx_abs(Q), agx_zero(), 0);
+   agx_imad_to(b, product, P, Q, agx_zero(), 0);
 
    return agx_subdivide_to(b, dst, product, 1);
 }
@@ -1005,8 +1011,8 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
       return agx_emit_collect_to(
          b, dst, 2,
          (agx_index[2]){
-            agx_get_sr(b, 32, AGX_SR_THREAD_POSITION_IN_GRID_X),
-            agx_get_sr(b, 32, AGX_SR_THREAD_POSITION_IN_GRID_Y),
+            agx_get_sr(b, 16, AGX_SR_THREAD_POSITION_IN_GRID_X),
+            agx_get_sr(b, 16, AGX_SR_THREAD_POSITION_IN_GRID_Y),
          });
 
    case nir_intrinsic_load_frag_coord_zw: {
@@ -1043,9 +1049,11 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
                             AGX_ICOND_UEQ);
 
    case nir_intrinsic_load_vertex_id:
+      assert(b->shader->stage == MESA_SHADER_VERTEX);
       return agx_mov_to(b, dst, agx_abs(agx_vertex_id(b)));
 
    case nir_intrinsic_load_instance_id:
+      assert(b->shader->stage == MESA_SHADER_VERTEX);
       return agx_mov_to(b, dst, agx_abs(agx_instance_id(b)));
 
    case nir_intrinsic_load_preamble:
@@ -1125,6 +1133,12 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
    case nir_intrinsic_fence_mem_to_tex_agx: {
       /* Flush out the atomic to main memory */
       agx_memory_barrier(b);
+
+      /* TODO: Which ones do we actually need? */
+      agx_image_barrier_1(b);
+      agx_image_barrier_2(b);
+      agx_image_barrier_3(b);
+      agx_image_barrier_4(b);
 
       /* Flush out the texture cache */
       agx_flush_memory_to_texture(b);
@@ -1215,6 +1229,7 @@ is_conversion_to_8bit(nir_op op)
    case nir_op_u2u8:
    case nir_op_f2i8:
    case nir_op_f2u8:
+   case nir_op_b2i8:
       return true;
    default:
       return false;
@@ -1358,7 +1373,9 @@ agx_emit_alu(agx_builder *b, nir_alu_instr *instr)
    case nir_op_imul_2x32_64:
       return agx_imad_to(b, dst, s0, s1, i0, 0);
    case nir_op_umul_high:
-      return agx_umul_high_to(b, dst, s0, s1);
+      return agx_mul_high_to(b, dst, s0, s1, false);
+   case nir_op_imul_high:
+      return agx_mul_high_to(b, dst, s0, s1, true);
 
    case nir_op_ishl:
       return agx_bfi_to(b, dst, i0, s0, s1, 0);
@@ -1387,10 +1404,11 @@ agx_emit_alu(agx_builder *b, nir_alu_instr *instr)
 
    case nir_op_b2i32:
    case nir_op_b2i16:
+   case nir_op_b2i8:
       return agx_icmpsel_to(b, dst, s0, i0, i0, i1, AGX_ICOND_UEQ);
 
    case nir_op_b2b32:
-      return agx_icmpsel_to(b, dst, s0, i0, i0, agx_mov_imm(b, 32, ~0),
+      return agx_icmpsel_to(b, dst, s0, i0, i0, agx_mov_imm(b, 32, 0xFFFFFFFF),
                             AGX_ICOND_UEQ);
 
    case nir_op_b2f16:
@@ -2117,12 +2135,9 @@ agx_lower_sincos(nir_shader *shader)
 }
 
 static bool
-agx_lower_front_face(struct nir_builder *b, nir_instr *instr, UNUSED void *data)
+agx_lower_front_face(struct nir_builder *b, nir_intrinsic_instr *intr,
+                     UNUSED void *data)
 {
-   if (instr->type != nir_instr_type_intrinsic)
-      return false;
-
-   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
    if (intr->intrinsic != nir_intrinsic_load_front_face)
       return false;
 
@@ -2464,6 +2479,8 @@ lower_bit_size_callback(const nir_instr *instr, UNUSED void *_)
    nir_alu_instr *alu = nir_instr_as_alu(instr);
    if (alu->def.bit_size == 8 && !is_conversion_to_8bit(alu->op))
       return 16;
+   else if (alu->def.bit_size == 1 && alu->src[0].src.ssa->bit_size == 8)
+      return 16 /* comparisons */;
    else
       return 0;
 }
@@ -2669,7 +2686,7 @@ agx_preprocess_nir(nir_shader *nir, bool support_lod_bias, bool allow_mediump,
    NIR_PASS_V(nir, nir_lower_load_const_to_scalar);
    NIR_PASS_V(nir, nir_lower_flrp, 16 | 32 | 64, false);
    NIR_PASS_V(nir, agx_lower_sincos);
-   NIR_PASS_V(nir, nir_shader_instructions_pass, agx_lower_front_face,
+   NIR_PASS_V(nir, nir_shader_intrinsics_pass, agx_lower_front_face,
               nir_metadata_block_index | nir_metadata_dominance, NULL);
    NIR_PASS_V(nir, nir_lower_frag_coord_to_pixel_coord);
 
@@ -2690,7 +2707,6 @@ agx_preprocess_nir(nir_shader *nir, bool support_lod_bias, bool allow_mediump,
 
    NIR_PASS_V(nir, nir_opt_sink, move_all);
    NIR_PASS_V(nir, nir_opt_move, move_all);
-   NIR_PASS_V(nir, agx_nir_lower_ubo);
    NIR_PASS_V(nir, agx_nir_lower_shared_bitsize);
 }
 
@@ -2774,6 +2790,8 @@ agx_compile_shader_nir(nir_shader *nir, struct agx_shader_key *key,
 
    if (agx_should_dump(nir, AGX_DBG_SHADERS))
       nir_print_shader(nir, stdout);
+
+   out->local_size = nir->info.shared_size;
 
    nir_foreach_function_with_impl(func, impl, nir) {
       unsigned offset =

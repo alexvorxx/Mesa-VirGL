@@ -22,6 +22,7 @@
  */
 
 #include "nir/nir.h"
+#include "nir/nir_builder.h"
 
 #include "radv_debug.h"
 #include "radv_private.h"
@@ -251,19 +252,11 @@ radv_rt_fill_group_info(struct radv_device *device, const struct radv_ray_tracin
 }
 
 static void
-radv_rt_fill_stage_info(struct radv_device *device, const VkRayTracingPipelineCreateInfoKHR *pCreateInfo,
-                        struct radv_ray_tracing_stage *stages, struct radv_pipeline_key *key)
+radv_rt_fill_stage_info(const VkRayTracingPipelineCreateInfoKHR *pCreateInfo, struct radv_ray_tracing_stage *stages)
 {
-   RADV_FROM_HANDLE(radv_pipeline_layout, pipeline_layout, pCreateInfo->layout);
    uint32_t idx;
-   for (idx = 0; idx < pCreateInfo->stageCount; idx++) {
+   for (idx = 0; idx < pCreateInfo->stageCount; idx++)
       stages[idx].stage = vk_to_mesa_shader_stage(pCreateInfo->pStages[idx].stage);
-
-      struct radv_shader_stage stage;
-      radv_pipeline_stage_init(&pCreateInfo->pStages[idx], pipeline_layout, &stage);
-
-      radv_hash_shaders(stages[idx].sha1, &stage, 1, NULL, key, radv_get_hash_flags(device, false));
-   }
 
    if (pCreateInfo->pLibraryInfo) {
       for (unsigned i = 0; i < pCreateInfo->pLibraryInfo->libraryCount; ++i) {
@@ -277,6 +270,20 @@ radv_rt_fill_stage_info(struct radv_device *device, const VkRayTracingPipelineCr
             idx++;
          }
       }
+   }
+}
+
+static void
+radv_init_rt_stage_hashes(struct radv_device *device, const VkRayTracingPipelineCreateInfoKHR *pCreateInfo,
+                          struct radv_ray_tracing_stage *stages, const struct radv_pipeline_key *key)
+{
+   RADV_FROM_HANDLE(radv_pipeline_layout, pipeline_layout, pCreateInfo->layout);
+
+   for (uint32_t idx = 0; idx < pCreateInfo->stageCount; idx++) {
+      struct radv_shader_stage stage;
+      radv_pipeline_stage_init(&pCreateInfo->pStages[idx], pipeline_layout, &stage);
+
+      radv_hash_shaders(stages[idx].sha1, &stage, 1, NULL, key, radv_get_hash_flags(device, false));
    }
 }
 
@@ -371,16 +378,23 @@ radv_rt_nir_to_asm(struct radv_device *device, struct vk_pipeline_cache *cache,
     */
    NIR_PASS_V(stage->nir, move_rt_instructions);
 
-   const nir_lower_shader_calls_options opts = {
-      .address_format = nir_address_format_32bit_offset,
-      .stack_alignment = 16,
-      .localized_loads = true,
-      .vectorizer_callback = radv_mem_vectorize_callback,
-      .vectorizer_data = &device->physical_device->rad_info.gfx_level,
-   };
    uint32_t num_resume_shaders = 0;
    nir_shader **resume_shaders = NULL;
-   nir_lower_shader_calls(stage->nir, &opts, &resume_shaders, &num_resume_shaders, stage->nir);
+
+   if (stage->stage != MESA_SHADER_INTERSECTION) {
+      nir_builder b = nir_builder_at(nir_after_cf_list(&nir_shader_get_entrypoint(stage->nir)->body));
+      nir_rt_return_amd(&b);
+
+      const nir_lower_shader_calls_options opts = {
+         .address_format = nir_address_format_32bit_offset,
+         .stack_alignment = 16,
+         .localized_loads = true,
+         .vectorizer_callback = radv_mem_vectorize_callback,
+         .vectorizer_data = &device->physical_device->rad_info.gfx_level,
+      };
+      nir_lower_shader_calls(stage->nir, &opts, &resume_shaders, &num_resume_shaders, stage->nir);
+   }
+
    unsigned num_shaders = num_resume_shaders + 1;
    nir_shader **shaders = ralloc_array(stage->nir, nir_shader *, num_shaders);
    if (!shaders)
@@ -648,6 +662,8 @@ radv_rt_pipeline_create(VkDevice _device, VkPipelineCache _cache, const VkRayTra
    pipeline->stages = stages;
    pipeline->groups = groups;
 
+   radv_rt_fill_stage_info(pCreateInfo, stages);
+
    struct radv_pipeline_key key = radv_generate_rt_pipeline_key(device, pipeline, pCreateInfo);
 
    /* cache robustness state for making merged shaders */
@@ -657,7 +673,7 @@ radv_rt_pipeline_create(VkDevice _device, VkPipelineCache _cache, const VkRayTra
    if (key.stage_info[MESA_SHADER_INTERSECTION].uniform_robustness2)
       pipeline->traversal_uniform_robustness2 = true;
 
-   radv_rt_fill_stage_info(device, pCreateInfo, stages, &key);
+   radv_init_rt_stage_hashes(device, pCreateInfo, stages, &key);
    result = radv_rt_fill_group_info(device, pipeline, pCreateInfo, stages, capture_replay_blocks, pipeline->groups);
    if (result != VK_SUCCESS)
       goto fail;

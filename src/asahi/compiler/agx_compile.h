@@ -101,6 +101,9 @@ struct agx_shader_info {
    /* Number of uniforms */
    unsigned push_count;
 
+   /* Local memory allocation in bytes */
+   unsigned local_size;
+
    /* Does the shader have a preamble? If so, it is at offset preamble_offset.
     * The main shader is at offset main_offset. The preamble is executed first.
     */
@@ -208,11 +211,15 @@ struct agx_shader_key {
    };
 };
 
+bool agx_nir_lower_texture_early(nir_shader *s);
+
 void agx_preprocess_nir(nir_shader *nir, bool support_lod_bias,
                         bool allow_mediump,
                         struct agx_uncompiled_shader_info *out);
 
 bool agx_nir_lower_discard_zs_emit(nir_shader *s);
+
+bool agx_nir_needs_texture_crawl(nir_instr *instr);
 
 void agx_compile_shader_nir(nir_shader *nir, struct agx_shader_key *key,
                             struct util_debug_callback *debug,

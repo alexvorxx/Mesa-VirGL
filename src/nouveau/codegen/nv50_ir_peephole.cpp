@@ -33,7 +33,7 @@ namespace nv50_ir {
 bool
 Instruction::isNop() const
 {
-   if (op == OP_PHI || op == OP_SPLIT || op == OP_MERGE || op == OP_CONSTRAINT)
+   if (op == OP_PHI || op == OP_SPLIT || op == OP_MERGE)
       return true;
    if (terminator || join) // XXX: should terminator imply flow ?
       return false;
@@ -66,8 +66,7 @@ bool Instruction::isDead() const
    if (op == OP_STORE ||
        op == OP_EXPORT ||
        op == OP_ATOM ||
-       op == OP_SUSTB || op == OP_SUSTP || op == OP_SUREDP || op == OP_SUREDB ||
-       op == OP_WRSV)
+       op == OP_SUSTB || op == OP_SUSTP || op == OP_SUREDP || op == OP_SUREDB)
       return false;
 
    for (int d = 0; defExists(d); ++d)

@@ -114,7 +114,7 @@ declare_global_input_sgprs(const struct radv_shader_info *info, const struct use
          add_ud_arg(args, 1, AC_ARG_CONST_PTR_PTR, &args->descriptor_sets[0], AC_UD_INDIRECT_DESCRIPTOR_SETS);
       }
 
-      if (info->loads_push_constants && !user_sgpr_info->inlined_all_push_consts) {
+      if (!info->is_monolithic || (info->loads_push_constants && !user_sgpr_info->inlined_all_push_consts)) {
          /* 1 for push constants and dynamic descriptors */
          add_ud_arg(args, 1, AC_ARG_CONST_PTR, &args->ac.push_constants, AC_UD_PUSH_CONSTANTS);
       }
@@ -360,8 +360,8 @@ radv_tcs_needs_state_sgpr(const struct radv_shader_info *info, const struct radv
 static bool
 radv_tes_needs_state_sgpr(const struct radv_shader_info *info)
 {
-   /* When the number of tessellation patches/TCS vertices out is 0, it's loaded from a SGPR. */
-   return !info->num_tess_patches || !info->tes.tcs_vertices_out;
+   /* Some values are loaded from a SGPR when dynamic states are used or when the shader is unlinked. */
+   return !info->num_tess_patches || !info->tes.tcs_vertices_out || !info->inputs_linked;
 }
 
 static bool
@@ -389,7 +389,6 @@ declare_shader_args(const struct radv_device *device, const struct radv_pipeline
                     struct radv_shader_args *args, struct user_sgpr_info *user_sgpr_info)
 {
    const enum amd_gfx_level gfx_level = device->physical_device->rad_info.gfx_level;
-   bool needs_view_index = info->uses_view_index;
    bool has_shader_query = info->has_prim_query || info->has_xfb_query ||
                            (stage == MESA_SHADER_GEOMETRY && info->gs.has_pipeline_stat_query);
    bool has_ngg_provoking_vtx =
@@ -478,7 +477,7 @@ declare_shader_args(const struct radv_device *device, const struct radv_pipeline
 
       declare_global_input_sgprs(info, user_sgpr_info, args);
 
-      if (needs_view_index) {
+      if (info->uses_view_index) {
          add_ud_arg(args, 1, AC_ARG_INT, &args->ac.view_index, AC_UD_VIEW_INDEX);
       }
 
@@ -520,7 +519,7 @@ declare_shader_args(const struct radv_device *device, const struct radv_pipeline
 
          declare_global_input_sgprs(info, user_sgpr_info, args);
 
-         if (needs_view_index) {
+         if (!info->is_monolithic || info->uses_view_index) {
             add_ud_arg(args, 1, AC_ARG_INT, &args->ac.view_index, AC_UD_VIEW_INDEX);
          }
 
@@ -528,18 +527,45 @@ declare_shader_args(const struct radv_device *device, const struct radv_pipeline
             add_ud_arg(args, 1, AC_ARG_INT, &args->tcs_offchip_layout, AC_UD_TCS_OFFCHIP_LAYOUT);
          }
 
-         if (info->has_epilog) {
+         if (!info->is_monolithic || info->has_epilog) {
             add_ud_arg(args, 1, AC_ARG_INT, &args->tcs_epilog_pc, AC_UD_TCS_EPILOG_PC);
          }
+
+         if (!info->is_monolithic)
+            add_ud_arg(args, 1, AC_ARG_INT, &args->next_stage_pc, AC_UD_NEXT_STAGE_PC);
 
          ac_add_arg(&args->ac, AC_ARG_VGPR, 1, AC_ARG_INT, &args->ac.tcs_patch_id);
          ac_add_arg(&args->ac, AC_ARG_VGPR, 1, AC_ARG_INT, &args->ac.tcs_rel_ids);
 
          declare_vs_input_vgprs(gfx_level, info, args, true);
+
+         if (!info->is_monolithic) {
+            /* SGPRs */
+            ac_add_preserved(&args->ac, &args->ac.ring_offsets);
+            ac_add_preserved(&args->ac, &args->ac.tess_offchip_offset);
+            ac_add_preserved(&args->ac, &args->ac.merged_wave_info);
+            ac_add_preserved(&args->ac, &args->ac.tcs_factor_offset);
+
+            if (gfx_level >= GFX11) {
+               ac_add_preserved(&args->ac, &args->ac.tcs_wave_id);
+            } else {
+               ac_add_preserved(&args->ac, &args->ac.scratch_offset);
+            }
+
+            ac_add_preserved(&args->ac, &args->descriptor_sets[0]);
+            ac_add_preserved(&args->ac, &args->ac.push_constants);
+            ac_add_preserved(&args->ac, &args->ac.view_index);
+            ac_add_preserved(&args->ac, &args->tcs_offchip_layout);
+            ac_add_preserved(&args->ac, &args->tcs_epilog_pc);
+
+            /* VGPRs */
+            ac_add_preserved(&args->ac, &args->ac.tcs_patch_id);
+            ac_add_preserved(&args->ac, &args->ac.tcs_rel_ids);
+         }
       } else {
          declare_global_input_sgprs(info, user_sgpr_info, args);
 
-         if (needs_view_index) {
+         if (info->uses_view_index) {
             add_ud_arg(args, 1, AC_ARG_INT, &args->ac.view_index, AC_UD_VIEW_INDEX);
          }
 
@@ -566,7 +592,7 @@ declare_shader_args(const struct radv_device *device, const struct radv_pipeline
 
       declare_global_input_sgprs(info, user_sgpr_info, args);
 
-      if (needs_view_index)
+      if (info->uses_view_index)
          add_ud_arg(args, 1, AC_ARG_INT, &args->ac.view_index, AC_UD_VIEW_INDEX);
 
       if (radv_tes_needs_state_sgpr(info))
@@ -614,7 +640,7 @@ declare_shader_args(const struct radv_device *device, const struct radv_pipeline
 
          declare_global_input_sgprs(info, user_sgpr_info, args);
 
-         if (needs_view_index) {
+         if (!info->is_monolithic || info->uses_view_index) {
             add_ud_arg(args, 1, AC_ARG_INT, &args->ac.view_index, AC_UD_VIEW_INDEX);
          }
 
@@ -629,12 +655,15 @@ declare_shader_args(const struct radv_device *device, const struct radv_pipeline
             add_ud_arg(args, 1, AC_ARG_INT, &args->ac.force_vrs_rates, AC_UD_FORCE_VRS_RATES);
          }
 
-         if (has_shader_query)
+         if (!info->is_monolithic || has_shader_query)
             add_ud_arg(args, 1, AC_ARG_INT, &args->shader_query_state, AC_UD_SHADER_QUERY_STATE);
 
          if (info->is_ngg) {
             declare_ngg_sgprs(info, args, has_ngg_provoking_vtx);
          }
+
+         if (!info->is_monolithic)
+            add_ud_arg(args, 1, AC_ARG_INT, &args->next_stage_pc, AC_UD_NEXT_STAGE_PC);
 
          ac_add_arg(&args->ac, AC_ARG_VGPR, 1, AC_ARG_INT, &args->ac.gs_vtx_offset[0]);
          ac_add_arg(&args->ac, AC_ARG_VGPR, 1, AC_ARG_INT, &args->ac.gs_vtx_offset[1]);
@@ -649,10 +678,36 @@ declare_shader_args(const struct radv_device *device, const struct radv_pipeline
          } else if (previous_stage == MESA_SHADER_MESH) {
             declare_ms_input_vgprs(args);
          }
+
+         if (!info->is_monolithic) {
+            /* SGPRs */
+            ac_add_preserved(&args->ac, &args->ac.ring_offsets);
+            ac_add_preserved(&args->ac, &args->ac.gs2vs_offset);
+            ac_add_preserved(&args->ac, &args->ac.merged_wave_info);
+            ac_add_preserved(&args->ac, &args->ac.tess_offchip_offset);
+
+            if (gfx_level >= GFX11) {
+               ac_add_preserved(&args->ac, &args->ac.gs_attr_offset);
+            } else {
+               ac_add_preserved(&args->ac, &args->ac.scratch_offset);
+            }
+
+            ac_add_preserved(&args->ac, &args->descriptor_sets[0]);
+            ac_add_preserved(&args->ac, &args->ac.push_constants);
+            ac_add_preserved(&args->ac, &args->ac.view_index);
+            ac_add_preserved(&args->ac, &args->shader_query_state);
+
+            /* VGPRs */
+            ac_add_preserved(&args->ac, &args->ac.gs_vtx_offset[0]);
+            ac_add_preserved(&args->ac, &args->ac.gs_vtx_offset[1]);
+            ac_add_preserved(&args->ac, &args->ac.gs_prim_id);
+            ac_add_preserved(&args->ac, &args->ac.gs_invocation_id);
+            ac_add_preserved(&args->ac, &args->ac.gs_vtx_offset[2]);
+         }
       } else {
          declare_global_input_sgprs(info, user_sgpr_info, args);
 
-         if (needs_view_index) {
+         if (info->uses_view_index) {
             add_ud_arg(args, 1, AC_ARG_INT, &args->ac.view_index, AC_UD_VIEW_INDEX);
          }
 
@@ -730,14 +785,15 @@ radv_declare_shader_args(const struct radv_device *device, const struct radv_pip
 
    uint32_t num_desc_set = util_bitcount(info->desc_set_used_mask);
 
-   if (remaining_sgprs < num_desc_set) {
+   if (!info->is_monolithic || remaining_sgprs < num_desc_set) {
       user_sgpr_info.indirect_all_descriptor_sets = true;
       user_sgpr_info.remaining_sgprs--;
    } else {
       user_sgpr_info.remaining_sgprs -= num_desc_set;
    }
 
-   allocate_inline_push_consts(info, &user_sgpr_info);
+   if (info->is_monolithic)
+      allocate_inline_push_consts(info, &user_sgpr_info);
 
    declare_shader_args(device, key, info, stage, previous_stage, args, &user_sgpr_info);
 }
@@ -746,13 +802,7 @@ void
 radv_declare_ps_epilog_args(const struct radv_device *device, const struct radv_ps_epilog_key *key,
                             struct radv_shader_args *args)
 {
-   const enum amd_gfx_level gfx_level = device->physical_device->rad_info.gfx_level;
-
    radv_init_shader_args(device, MESA_SHADER_FRAGMENT, args);
-
-   ac_add_arg(&args->ac, AC_ARG_SGPR, 2, AC_ARG_CONST_DESC_PTR, &args->ac.ring_offsets);
-   if (gfx_level < GFX11)
-      ac_add_arg(&args->ac, AC_ARG_SGPR, 1, AC_ARG_INT, &args->ac.scratch_offset);
 
    /* Declare VGPR arguments for color exports. */
    for (unsigned i = 0; i < MAX_RTS; i++) {

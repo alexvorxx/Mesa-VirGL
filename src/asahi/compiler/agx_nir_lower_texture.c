@@ -15,7 +15,6 @@
 #include "nir_intrinsics.h"
 #include "nir_intrinsics_indices.h"
 
-#define AGX_TEXTURE_DESC_STRIDE   24
 #define AGX_FORMAT_RGB32_EMULATED 0x36
 #define AGX_LAYOUT_LINEAR         0x0
 
@@ -35,30 +34,11 @@ texture_descriptor_ptr_for_handle(nir_builder *b, nir_def *handle)
 }
 
 static nir_def *
-texture_descriptor_ptr_for_index(nir_builder *b, nir_def *index)
-{
-   return nir_iadd(
-      b, nir_load_texture_base_agx(b),
-      nir_u2u64(b, nir_imul_imm(b, index, AGX_TEXTURE_DESC_STRIDE)));
-}
-
-static nir_def *
 texture_descriptor_ptr(nir_builder *b, nir_tex_instr *tex)
 {
    int handle_idx = nir_tex_instr_src_index(tex, nir_tex_src_texture_handle);
-   if (handle_idx >= 0)
-      return texture_descriptor_ptr_for_handle(b, tex->src[handle_idx].src.ssa);
-
-   /* For non-bindless, compute from the texture index */
-   nir_def *index;
-
-   int offs_idx = nir_tex_instr_src_index(tex, nir_tex_src_texture_offset);
-   if (offs_idx >= 0)
-      index = tex->src[offs_idx].src.ssa;
-   else
-      index = nir_imm_int(b, tex->texture_index);
-
-   return texture_descriptor_ptr_for_index(b, index);
+   assert(handle_idx >= 0 && "must be bindless");
+   return texture_descriptor_ptr_for_handle(b, tex->src[handle_idx].src.ssa);
 }
 
 /* Implement txs for buffer textures. There is no mipmapping to worry about, so
@@ -286,6 +266,25 @@ lower_buffer_texture(nir_builder *b, nir_tex_instr *tex)
 }
 
 /*
+ * Given a 1D texture coordinate, calculate the 2D coordinate vector that
+ * will be used to access the linear 2D texture bound to the 1D texture.
+ */
+static nir_def *
+coords_for_1d_texture(nir_builder *b, nir_def *coord, bool is_array)
+{
+   /* Add a zero Y component to the coordinate */
+   if (is_array) {
+      assert(coord->num_components >= 2);
+      return nir_vec3(b, nir_channel(b, coord, 0),
+                      nir_imm_intN_t(b, 0, coord->bit_size),
+                      nir_channel(b, coord, 1));
+   } else {
+      assert(coord->num_components >= 1);
+      return nir_vec2(b, coord, nir_imm_intN_t(b, 0, coord->bit_size));
+   }
+}
+
+/*
  * NIR indexes into array textures with unclamped floats (integer for txf). AGX
  * requires the index to be a clamped integer. Lower tex_src_coord into
  * tex_src_backend1 for array textures by type-converting and clamping.
@@ -305,6 +304,10 @@ lower_regular_texture(nir_builder *b, nir_instr *instr, UNUSED void *data)
    if (tex->sampler_dim == GLSL_SAMPLER_DIM_BUF)
       return lower_buffer_texture(b, tex);
 
+   /* Don't lower twice */
+   if (nir_tex_instr_src_index(tex, nir_tex_src_backend1) >= 0)
+      return false;
+
    /* Get the coordinates */
    nir_def *coord = nir_steal_tex_src(tex, nir_tex_src_coord);
    nir_def *ms_idx = nir_steal_tex_src(tex, nir_tex_src_ms_index);
@@ -313,16 +316,7 @@ lower_regular_texture(nir_builder *b, nir_instr *instr, UNUSED void *data)
     * always lower to 2D.
     */
    if (tex->sampler_dim == GLSL_SAMPLER_DIM_1D) {
-      /* Add a zero Y component to the coordinate */
-      if (tex->is_array) {
-         assert(coord->num_components == 2);
-         coord = nir_vec3(b, nir_channel(b, coord, 0),
-                          nir_imm_intN_t(b, 0, coord->bit_size),
-                          nir_channel(b, coord, 1));
-      } else {
-         assert(coord->num_components == 1);
-         coord = nir_vec2(b, coord, nir_imm_intN_t(b, 0, coord->bit_size));
-      }
+      coord = coords_for_1d_texture(b, coord, tex->is_array);
 
       /* Add a zero Y component to other sources */
       nir_tex_src_type other_srcs[] = {
@@ -489,12 +483,8 @@ lower_sampler_bias(nir_builder *b, nir_instr *instr, UNUSED void *data)
 }
 
 static bool
-legalize_image_lod(nir_builder *b, nir_instr *instr, UNUSED void *data)
+legalize_image_lod(nir_builder *b, nir_intrinsic_instr *intr, UNUSED void *data)
 {
-   if (instr->type != nir_instr_type_intrinsic)
-      return false;
-
-   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
    nir_src *src;
 
 #define CASE(op, idx)                                                          \
@@ -516,7 +506,7 @@ legalize_image_lod(nir_builder *b, nir_instr *instr, UNUSED void *data)
    if (src->ssa->bit_size == 16)
       return false;
 
-   b->cursor = nir_before_instr(instr);
+   b->cursor = nir_before_instr(&intr->instr);
    nir_src_rewrite(src, nir_i2i16(b, src->ssa));
    return true;
 }
@@ -525,26 +515,15 @@ static nir_def *
 txs_for_image(nir_builder *b, nir_intrinsic_instr *intr,
               unsigned num_components, unsigned bit_size)
 {
-   bool bindless = intr->intrinsic == nir_intrinsic_bindless_image_size;
-
-   nir_tex_instr *tex = nir_tex_instr_create(b->shader, 1 + (int)bindless);
+   nir_tex_instr *tex = nir_tex_instr_create(b->shader, 2);
    tex->op = nir_texop_txs;
    tex->is_array = nir_intrinsic_image_array(intr);
    tex->dest_type = nir_type_uint32;
    tex->sampler_dim = nir_intrinsic_image_dim(intr);
 
-   unsigned s = 0;
-   tex->src[s++] = nir_tex_src_for_ssa(nir_tex_src_lod, intr->src[1].ssa);
-
-   if (bindless) {
-      tex->src[s++] =
-         nir_tex_src_for_ssa(nir_tex_src_texture_handle, intr->src[0].ssa);
-   } else if (nir_src_is_const(intr->src[0])) {
-      tex->texture_index = nir_src_as_uint(intr->src[0]);
-   } else {
-      tex->src[s++] =
-         nir_tex_src_for_ssa(nir_tex_src_texture_offset, intr->src[0].ssa);
-   }
+   tex->src[0] = nir_tex_src_for_ssa(nir_tex_src_lod, intr->src[1].ssa);
+   tex->src[1] =
+      nir_tex_src_for_ssa(nir_tex_src_texture_handle, intr->src[0].ssa);
 
    nir_def_init(&tex->instr, &tex->def, num_components, bit_size);
    nir_builder_instr_insert(b, &tex->instr);
@@ -561,7 +540,7 @@ nir_bitfield_mask(nir_builder *b, nir_def *x)
 static nir_def *
 calculate_twiddled_coordinates(nir_builder *b, nir_def *coord,
                                nir_def *tile_w_px_log2, nir_def *tile_h_px_log2,
-                               nir_def *width_tl, nir_def *layer_stride_el)
+                               nir_def *width_tl, nir_def *layer_stride_px)
 {
    /* SIMD-within-a-register */
    nir_def *coord_px = nir_pack_32_2x16(b, nir_u2u16(b, coord));
@@ -609,9 +588,9 @@ calculate_twiddled_coordinates(nir_builder *b, nir_def *coord,
    nir_def *offs_px = nir_interleave_agx(b, offs_x_px, offs_y_px);
    nir_def *total_px = nir_iadd(b, tile_offset_px, nir_u2u32(b, offs_px));
 
-   if (layer_stride_el) {
+   if (layer_stride_px) {
       nir_def *layer = nir_channel(b, coord, 2);
-      nir_def *layer_offset_px = nir_imul(b, layer, layer_stride_el);
+      nir_def *layer_offset_px = nir_imul(b, layer, layer_stride_px);
       total_px = nir_iadd(b, total_px, layer_offset_px);
    }
 
@@ -623,12 +602,8 @@ image_texel_address(nir_builder *b, nir_intrinsic_instr *intr,
                     bool return_index)
 {
    /* First, calculate the address of the PBE descriptor */
-   nir_def *desc_address;
-   if (intr->intrinsic == nir_intrinsic_bindless_image_texel_address ||
-       intr->intrinsic == nir_intrinsic_bindless_image_store)
-      desc_address = texture_descriptor_ptr_for_handle(b, intr->src[0].ssa);
-   else
-      desc_address = texture_descriptor_ptr_for_index(b, intr->src[0].ssa);
+   nir_def *desc_address =
+      texture_descriptor_ptr_for_handle(b, intr->src[0].ssa);
 
    nir_def *coord = intr->src[1].ssa;
 
@@ -643,12 +618,12 @@ image_texel_address(nir_builder *b, nir_intrinsic_instr *intr,
     */
    nir_def *meta_ptr = nir_iadd_imm(b, desc_address, 16);
    nir_def *meta = nir_load_global_constant(b, meta_ptr, 8, 1, 64);
-   nir_def *layer_stride_el = NULL;
+   nir_def *layer_stride_px = NULL;
 
    if (layered) {
       nir_def *desc = nir_load_global_constant(b, meta, 8, 3, 32);
       meta = nir_pack_64_2x32(b, nir_trim_vector(b, desc, 2));
-      layer_stride_el = nir_channel(b, desc, 2);
+      layer_stride_px = nir_channel(b, desc, 2);
    }
 
    nir_def *meta_hi = nir_unpack_64_2x32_split_y(b, meta);
@@ -676,7 +651,7 @@ image_texel_address(nir_builder *b, nir_intrinsic_instr *intr,
       total_px = nir_channel(b, coord, 0);
    } else {
       total_px = calculate_twiddled_coordinates(
-         b, coord, tile_w_px_log2, tile_h_px_log2, width_tl, layer_stride_el);
+         b, coord, tile_w_px_log2, tile_h_px_log2, width_tl, layer_stride_px);
    }
 
    nir_def *total_sa;
@@ -723,40 +698,60 @@ lower_buffer_image(nir_builder *b, nir_intrinsic_instr *intr)
 }
 
 static bool
-lower_images(nir_builder *b, nir_instr *instr, UNUSED void *data)
+lower_1d_image(nir_builder *b, nir_intrinsic_instr *intr)
 {
-   if (instr->type != nir_instr_type_intrinsic)
+   if (nir_intrinsic_image_dim(intr) != GLSL_SAMPLER_DIM_1D)
       return false;
 
-   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-   b->cursor = nir_before_instr(instr);
+   nir_def *coord = intr->src[1].ssa;
+   bool is_array = nir_intrinsic_image_array(intr);
+   nir_def *coord2d = coords_for_1d_texture(b, coord, is_array);
+
+   nir_src_rewrite(&intr->src[1], nir_pad_vector(b, coord2d, 4));
+   nir_intrinsic_set_image_dim(intr, GLSL_SAMPLER_DIM_2D);
+   return true;
+}
+
+static bool
+lower_images(nir_builder *b, nir_intrinsic_instr *intr, UNUSED void *data)
+{
+   b->cursor = nir_before_instr(&intr->instr);
 
    switch (intr->intrinsic) {
    case nir_intrinsic_image_load:
    case nir_intrinsic_image_store:
    case nir_intrinsic_bindless_image_load:
    case nir_intrinsic_bindless_image_store:
-      return lower_buffer_image(b, intr);
+      return lower_buffer_image(b, intr) || lower_1d_image(b, intr);
 
-   case nir_intrinsic_image_size:
    case nir_intrinsic_bindless_image_size:
       nir_def_rewrite_uses(
          &intr->def,
          txs_for_image(b, intr, intr->def.num_components, intr->def.bit_size));
       return true;
 
-   case nir_intrinsic_image_texel_address:
    case nir_intrinsic_bindless_image_texel_address:
       nir_def_rewrite_uses(&intr->def, image_texel_address(b, intr, false));
       return true;
+
+   case nir_intrinsic_image_size:
+   case nir_intrinsic_image_texel_address:
+      unreachable("should've been lowered");
 
    default:
       return false;
    }
 }
 
+/*
+ * Early texture lowering passes, called by the driver before lowering
+ * descriptor bindings. That means these passes operate on texture derefs. The
+ * purpose is to make descriptor crawls explicit in the NIR, so that the driver
+ * can accurately lower descriptors after this pass but before calling
+ * agx_preprocess_nir (and hence the full agx_nir_lower_texture).
+ */
 bool
-agx_nir_lower_texture(nir_shader *s, bool support_lod_bias)
+agx_nir_lower_texture_early(nir_shader *s)
 {
    bool progress = false;
 
@@ -772,6 +767,16 @@ agx_nir_lower_texture(nir_shader *s, bool support_lod_bias)
       .lower_txd_cube_map = true,
    };
 
+   NIR_PASS(progress, s, nir_lower_tex, &lower_tex_options);
+
+   return progress;
+}
+
+bool
+agx_nir_lower_texture(nir_shader *s, bool support_lod_bias)
+{
+   bool progress = false;
+
    nir_tex_src_type_constraints tex_constraints = {
       [nir_tex_src_lod] = {true, 16},
       [nir_tex_src_bias] = {true, 16},
@@ -779,8 +784,6 @@ agx_nir_lower_texture(nir_shader *s, bool support_lod_bias)
       [nir_tex_src_texture_offset] = {true, 16},
       [nir_tex_src_sampler_offset] = {true, 16},
    };
-
-   NIR_PASS(progress, s, nir_lower_tex, &lower_tex_options);
 
    /* Insert fences before lowering image atomics, since image atomics need
     * different fencing than other image operations.
@@ -797,9 +800,9 @@ agx_nir_lower_texture(nir_shader *s, bool support_lod_bias)
                nir_metadata_block_index | nir_metadata_dominance, NULL);
    }
 
-   NIR_PASS(progress, s, nir_shader_instructions_pass, legalize_image_lod,
+   NIR_PASS(progress, s, nir_shader_intrinsics_pass, legalize_image_lod,
             nir_metadata_block_index | nir_metadata_dominance, NULL);
-   NIR_PASS(progress, s, nir_shader_instructions_pass, lower_images,
+   NIR_PASS(progress, s, nir_shader_intrinsics_pass, lower_images,
             nir_metadata_block_index | nir_metadata_dominance, NULL);
    NIR_PASS(progress, s, nir_legalize_16bit_sampler_srcs, tex_constraints);
 
@@ -816,16 +819,12 @@ agx_nir_lower_texture(nir_shader *s, bool support_lod_bias)
 }
 
 static bool
-lower_multisampled_store(nir_builder *b, nir_instr *instr, UNUSED void *data)
+lower_multisampled_store(nir_builder *b, nir_intrinsic_instr *intr,
+                         UNUSED void *data)
 {
-   if (instr->type != nir_instr_type_intrinsic)
-      return false;
+   b->cursor = nir_before_instr(&intr->instr);
 
-   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-   b->cursor = nir_before_instr(instr);
-
-   if (intr->intrinsic != nir_intrinsic_image_store &&
-       intr->intrinsic != nir_intrinsic_bindless_image_store)
+   if (intr->intrinsic != nir_intrinsic_bindless_image_store)
       return false;
 
    if (nir_intrinsic_image_dim(intr) != GLSL_SAMPLER_DIM_MS)
@@ -835,14 +834,68 @@ lower_multisampled_store(nir_builder *b, nir_instr *instr, UNUSED void *data)
    nir_def *coord2d = coords_for_buffer_texture(b, index_px);
 
    nir_src_rewrite(&intr->src[1], nir_pad_vector(b, coord2d, 4));
+   nir_src_rewrite(&intr->src[2], nir_imm_int(b, 0));
    nir_intrinsic_set_image_dim(intr, GLSL_SAMPLER_DIM_2D);
+   nir_intrinsic_set_image_array(intr, false);
    return true;
 }
 
 bool
 agx_nir_lower_multisampled_image_store(nir_shader *s)
 {
-   return nir_shader_instructions_pass(
+   return nir_shader_intrinsics_pass(
       s, lower_multisampled_store,
       nir_metadata_block_index | nir_metadata_dominance, NULL);
+}
+
+/*
+ * Given a non-bindless instruction, return whether agx_nir_lower_texture will
+ * lower it to something involving a descriptor crawl. This requires the driver
+ * to lower the instruction to bindless before calling agx_nir_lower_texture.
+ * The implementation just enumerates the cases handled in this file.
+ */
+bool
+agx_nir_needs_texture_crawl(nir_instr *instr)
+{
+   if (instr->type == nir_instr_type_intrinsic) {
+      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+
+      switch (intr->intrinsic) {
+      /* Queries, atomics always become a crawl */
+      case nir_intrinsic_image_size:
+      case nir_intrinsic_image_deref_size:
+      case nir_intrinsic_image_atomic:
+      case nir_intrinsic_image_deref_atomic:
+      case nir_intrinsic_image_atomic_swap:
+      case nir_intrinsic_image_deref_atomic_swap:
+         return true;
+
+      /* Multisampled stores need a crawl, others do not */
+      case nir_intrinsic_image_store:
+      case nir_intrinsic_image_deref_store:
+         return nir_intrinsic_image_dim(intr) == GLSL_SAMPLER_DIM_MS;
+
+      /* Loads do not need a crawl, even from buffers */
+      default:
+         return false;
+      }
+   } else if (instr->type == nir_instr_type_tex) {
+      nir_tex_instr *tex = nir_instr_as_tex(instr);
+
+      /* Array textures get clamped to their size via txs */
+      if (tex->is_array)
+         return true;
+
+      switch (tex->op) {
+      /* Queries always become a crawl */
+      case nir_texop_txs:
+         return true;
+
+      /* Buffer textures need their format read */
+      default:
+         return tex->sampler_dim == GLSL_SAMPLER_DIM_BUF;
+      }
+   }
+
+   return false;
 }

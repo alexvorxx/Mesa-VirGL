@@ -49,6 +49,7 @@ radv_aco_convert_shader_info(struct aco_shader_info *aco_info, const struct radv
    ASSIGN_FIELD(has_ngg_early_prim_export);
    ASSIGN_FIELD(workgroup_size);
    ASSIGN_FIELD(has_epilog);
+   ASSIGN_FIELD(is_monolithic);
    ASSIGN_FIELD(vs.tcs_in_out_eq);
    ASSIGN_FIELD(vs.tcs_temp_only_input_mask);
    ASSIGN_FIELD(vs.has_prolog);
@@ -67,6 +68,7 @@ radv_aco_convert_shader_info(struct aco_shader_info *aco_info, const struct radv
    aco_info->hw_stage = radv_select_hw_stage(radv, gfx_level);
    aco_info->tcs.epilog_pc = radv_args->tcs_epilog_pc;
    aco_info->tcs.tcs_offchip_layout = radv_args->tcs_offchip_layout;
+   aco_info->next_stage_pc = radv_args->next_stage_pc;
 }
 
 #define ASSIGN_VS_STATE_FIELD(x)    aco_info->state.x = radv->state->x

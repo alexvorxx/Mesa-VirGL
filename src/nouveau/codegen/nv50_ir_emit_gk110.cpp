@@ -2751,11 +2751,8 @@ CodeEmitterGK110::emitInstruction(Instruction *insn)
       break;
    case OP_PHI:
    case OP_UNION:
-   case OP_CONSTRAINT:
       ERROR("operation should have been eliminated");
       return false;
-   case OP_EXP:
-   case OP_LOG:
    case OP_SQRT:
       ERROR("operation should have been lowered\n");
       return false;

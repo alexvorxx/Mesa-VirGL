@@ -68,17 +68,12 @@ shader_query_bool_setting(nir_builder *b, unsigned mask, lower_abi_state *s)
 }
 
 static bool
-lower_abi_instr(nir_builder *b, nir_instr *instr, void *state)
+lower_abi_instr(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
 {
-   if (instr->type != nir_instr_type_intrinsic)
-      return false;
-
-   nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
-
    lower_abi_state *s = (lower_abi_state *)state;
    gl_shader_stage stage = b->shader->info.stage;
 
-   b->cursor = nir_before_instr(instr);
+   b->cursor = nir_before_instr(&intrin->instr);
 
    nir_def *replacement = NULL;
    bool progress = true;
@@ -296,13 +291,18 @@ lower_abi_instr(nir_builder *b, nir_instr *instr, void *state)
       break;
    }
    case nir_intrinsic_load_hs_out_patch_data_offset_amd: {
-      nir_def *out_vertices_per_patch;
-      unsigned num_tcs_outputs =
-         stage == MESA_SHADER_TESS_CTRL ? s->info->tcs.num_linked_outputs : s->info->tes.num_linked_inputs;
+      nir_def *num_tcs_outputs, *out_vertices_per_patch;
 
       if (stage == MESA_SHADER_TESS_CTRL) {
+         num_tcs_outputs = nir_imm_int(b, s->info->tcs.num_linked_outputs);
          out_vertices_per_patch = nir_imm_int(b, s->info->tcs.tcs_vertices_out);
       } else {
+         if (s->info->inputs_linked) {
+            num_tcs_outputs = nir_imm_int(b, s->info->tes.num_linked_inputs);
+         } else {
+            num_tcs_outputs = GET_SGPR_FIELD_NIR(s->args->tes_state, TES_STATE_NUM_TCS_OUTPUTS);
+         }
+
          if (s->info->tes.tcs_vertices_out) {
             out_vertices_per_patch = nir_imm_int(b, s->info->tes.tcs_vertices_out);
          } else {
@@ -310,7 +310,8 @@ lower_abi_instr(nir_builder *b, nir_instr *instr, void *state)
          }
       }
 
-      nir_def *per_vertex_output_patch_size = nir_imul_imm(b, out_vertices_per_patch, num_tcs_outputs * 16u);
+      nir_def *per_vertex_output_patch_size =
+         nir_imul(b, out_vertices_per_patch, nir_imul_imm(b, num_tcs_outputs, 16u));
 
       if (s->info->num_tess_patches) {
          unsigned num_patches = s->info->num_tess_patches;
@@ -501,8 +502,8 @@ lower_abi_instr(nir_builder *b, nir_instr *instr, void *state)
    if (replacement)
       nir_def_rewrite_uses(&intrin->def, replacement);
 
-   nir_instr_remove(instr);
-   nir_instr_free(instr);
+   nir_instr_remove(&intrin->instr);
+   nir_instr_free(&intrin->instr);
 
    return true;
 }
@@ -554,5 +555,5 @@ radv_nir_lower_abi(nir_shader *shader, enum amd_gfx_level gfx_level, const struc
          state.gsvs_ring[i] = load_gsvs_ring(&b, &state, i);
    }
 
-   nir_shader_instructions_pass(shader, lower_abi_instr, nir_metadata_dominance | nir_metadata_block_index, &state);
+   nir_shader_intrinsics_pass(shader, lower_abi_instr, nir_metadata_dominance | nir_metadata_block_index, &state);
 }

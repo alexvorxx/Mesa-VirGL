@@ -196,10 +196,11 @@ emit_bpermute(isel_context* ctx, Builder& bld, Temp index, Temp data)
     * of multiple binaries, because the VGPR use is not known when choosing
     * which registers to use for the shared VGPRs.
     */
-   const bool avoid_shared_vgprs = ctx->options->gfx_level >= GFX10 &&
-                                   ctx->options->gfx_level < GFX11 &&
-                                   ctx->program->wave_size == 64 &&
-                                   (ctx->program->info.has_epilog || ctx->stage == raytracing_cs);
+   const bool avoid_shared_vgprs =
+      ctx->options->gfx_level >= GFX10 && ctx->options->gfx_level < GFX11 &&
+      ctx->program->wave_size == 64 &&
+      (ctx->program->info.has_epilog || !ctx->program->info.is_monolithic ||
+       ctx->stage == raytracing_cs);
 
    if (ctx->options->gfx_level <= GFX7 || avoid_shared_vgprs) {
       /* GFX6-7: there is no bpermute instruction */
@@ -208,7 +209,7 @@ emit_bpermute(isel_context* ctx, Builder& bld, Temp index, Temp data)
       index_op.setLateKill(true);
       input_data.setLateKill(true);
 
-      return bld.pseudo(aco_opcode::p_bpermute_gfx6, bld.def(v1), bld.def(bld.lm),
+      return bld.pseudo(aco_opcode::p_bpermute_readlane, bld.def(v1), bld.def(bld.lm),
                         bld.def(bld.lm, vcc), index_op, input_data);
    } else if (ctx->options->gfx_level >= GFX10 && ctx->program->wave_size == 64) {
 
@@ -234,10 +235,10 @@ emit_bpermute(isel_context* ctx, Builder& bld, Temp index, Temp data)
           */
          ctx->program->config->num_shared_vgprs = 2 * ctx->program->dev.vgpr_alloc_granule;
 
-         return bld.pseudo(aco_opcode::p_bpermute_gfx10w64, bld.def(v1), bld.def(s2),
+         return bld.pseudo(aco_opcode::p_bpermute_shared_vgpr, bld.def(v1), bld.def(s2),
                            bld.def(s1, scc), index_x4, input_data, same_half);
       } else {
-         return bld.pseudo(aco_opcode::p_bpermute_gfx11w64, bld.def(v1), bld.def(s2),
+         return bld.pseudo(aco_opcode::p_bpermute_permlane, bld.def(v1), bld.def(s2),
                            bld.def(s1, scc), Operand(v1.as_linear()), index_x4, input_data,
                            same_half);
       }
@@ -2932,10 +2933,7 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
       if (ctx->program->gfx_level >= GFX8 && input_size <= 16) {
          bld.vop1(aco_opcode::v_cvt_f16_i16, Definition(dst), src);
       } else {
-         /* Convert to f32 and then down to f16. This is needed to handle
-          * inputs slightly outside the range [INT16_MIN, INT16_MAX],
-          * which are representable via f16 but wouldn't be converted
-          * correctly by v_cvt_f16_i16.
+         /* Large 32bit inputs need to return +-inf/FLOAT_MAX.
           *
           * This is also the fallback-path taken on GFX7 and earlier, which
           * do not support direct f16⟷i16 conversions.
@@ -2983,12 +2981,14 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
          }
       }
 
-      if (ctx->program->gfx_level >= GFX8) {
-         /* float16 has a range of [0, 65519]. Converting from larger
-          * inputs is UB, so we just need to consider the lower 16 bits */
+      if (ctx->program->gfx_level >= GFX8 && input_size <= 16) {
          bld.vop1(aco_opcode::v_cvt_f16_u16, Definition(dst), src);
       } else {
-         /* GFX7 and earlier do not support direct f16⟷u16 conversions */
+         /* Large 32bit inputs need to return inf/FLOAT_MAX.
+          *
+          * This is also the fallback-path taken on GFX7 and earlier, which
+          * do not support direct f16⟷u16 conversions.
+          */
          src = bld.vop1(aco_opcode::v_cvt_f32_u32, bld.def(v1), src);
          bld.vop1(aco_opcode::v_cvt_f16_f32, Definition(dst), src);
       }
@@ -11272,6 +11272,31 @@ merged_wave_info_to_mask(isel_context* ctx, unsigned i)
    return lanecount_to_mask(ctx, count);
 }
 
+static void
+insert_rt_jump_next(isel_context& ctx, const struct ac_shader_args* args)
+{
+   append_logical_end(ctx.block);
+   ctx.block->kind |= block_kind_uniform;
+
+   unsigned src_count = ctx.args->arg_count;
+   Pseudo_instruction* ret =
+      create_instruction<Pseudo_instruction>(aco_opcode::p_return, Format::PSEUDO, src_count, 0);
+   ctx.block->instructions.emplace_back(ret);
+
+   for (unsigned i = 0; i < src_count; i++) {
+      enum ac_arg_regfile file = ctx.args->args[i].file;
+      unsigned size = ctx.args->args[i].size;
+      unsigned reg = ctx.args->args[i].offset + (file == AC_ARG_SGPR ? 0 : 256);
+      RegClass type = RegClass(file == AC_ARG_SGPR ? RegType::sgpr : RegType::vgpr, size);
+      Operand op = ctx.arg_temps[i].id() ? Operand(ctx.arg_temps[i], PhysReg{reg})
+                                         : Operand(PhysReg{reg}, type);
+      ret->operands[i] = op;
+   }
+
+   Builder bld(ctx.program, ctx.block);
+   bld.sop1(aco_opcode::s_setpc_b64, get_arg(&ctx, ctx.args->rt.uniform_shader_addr));
+}
+
 void
 select_program_rt(isel_context& ctx, unsigned shader_count, struct nir_shader* const* shaders,
                   const struct ac_shader_args* args)
@@ -11291,24 +11316,11 @@ select_program_rt(isel_context& ctx, unsigned shader_count, struct nir_shader* c
       split_arguments(&ctx, startpgm);
       visit_cf_list(&ctx, &nir_shader_get_entrypoint(nir)->body);
 
-      /* Fix output registers and jump to next shader */
-      append_logical_end(ctx.block);
-      ctx.block->kind |= block_kind_uniform;
-      Builder bld(ctx.program, ctx.block);
-      unsigned src_count = ctx.args->arg_count;
-      Pseudo_instruction* ret =
-         create_instruction<Pseudo_instruction>(aco_opcode::p_return, Format::PSEUDO, src_count, 0);
-      ctx.block->instructions.emplace_back(ret);
-      for (unsigned j = 0; j < src_count; j++) {
-         enum ac_arg_regfile file = ctx.args->args[j].file;
-         unsigned size = ctx.args->args[j].size;
-         unsigned reg = ctx.args->args[j].offset + (file == AC_ARG_SGPR ? 0 : 256);
-         RegClass type = RegClass(file == AC_ARG_SGPR ? RegType::sgpr : RegType::vgpr, size);
-         Operand op = ctx.arg_temps[j].id() ? Operand(ctx.arg_temps[j], PhysReg{reg})
-                                            : Operand(PhysReg{reg}, type);
-         ret->operands[j] = op;
-      }
-      bld.sop1(aco_opcode::s_setpc_b64, get_arg(&ctx, ctx.args->rt.uniform_shader_addr));
+      /* Fix output registers and jump to next shader. We can skip this when dealing with a raygen
+       * shader without shader calls.
+       */
+      if (shader_count > 1 || shaders[i]->info.stage != MESA_SHADER_RAYGEN)
+         insert_rt_jump_next(ctx, args);
 
       cleanup_context(&ctx);
    }
@@ -11433,6 +11445,36 @@ pops_await_overlapped_waves(isel_context* ctx)
    bld.reset(ctx->block);
 }
 
+static void
+create_merged_jump_to_epilog(isel_context* ctx)
+{
+   Builder bld(ctx->program, ctx->block);
+   std::vector<Operand> regs;
+
+   for (unsigned i = 0; i < ctx->args->arg_count; i++) {
+      if (!ctx->args->args[i].preserved)
+         continue;
+
+      const enum ac_arg_regfile file = ctx->args->args[i].file;
+      const unsigned reg = ctx->args->args[i].offset;
+
+      Operand op(ctx->arg_temps[i]);
+      op.setFixed(PhysReg{file == AC_ARG_SGPR ? reg : reg + 256});
+      regs.emplace_back(op);
+   }
+
+   Temp continue_pc =
+      convert_pointer_to_64_bit(ctx, get_arg(ctx, ctx->program->info.next_stage_pc));
+
+   aco_ptr<Pseudo_instruction> jump{create_instruction<Pseudo_instruction>(
+      aco_opcode::p_jump_to_epilog, Format::PSEUDO, 1 + regs.size(), 0)};
+   jump->operands[0] = Operand(continue_pc);
+   for (unsigned i = 0; i < regs.size(); i++) {
+      jump->operands[i + 1] = regs[i];
+   }
+   ctx->block->instructions.emplace_back(std::move(jump));
+}
+
 void
 select_shader(isel_context& ctx, nir_shader* nir, const bool need_startpgm, const bool need_barrier,
               if_context* ic_merged_wave_info, const bool check_merged_wave_info,
@@ -11507,6 +11549,13 @@ select_shader(isel_context& ctx, nir_shader* nir, const bool need_startpgm, cons
          else
             create_tcs_jump_to_epilog(&ctx);
       }
+   }
+
+   if ((ctx.stage.sw == SWStage::VS &&
+        (ctx.stage.hw == AC_HW_HULL_SHADER || ctx.stage.hw == AC_HW_LEGACY_GEOMETRY_SHADER)) ||
+       (ctx.stage.sw == SWStage::TES && ctx.stage.hw == AC_HW_LEGACY_GEOMETRY_SHADER)) {
+      assert(program->gfx_level >= GFX9);
+      create_merged_jump_to_epilog(&ctx);
    }
 
    cleanup_context(&ctx);
@@ -11639,7 +11688,25 @@ select_program(Program* program, unsigned shader_count, struct nir_shader* const
    if (shader_count >= 2) {
       select_program_merged(ctx, shader_count, shaders);
    } else {
-      select_shader(ctx, shaders[0], true, false, NULL, false, false);
+      bool need_barrier = false, check_merged_wave_info = false, endif_merged_wave_info = false;
+      if_context ic_merged_wave_info;
+
+      /* Handle separate compilation of VS+TCS and {VS,TES}+GS on GFX9+. */
+      if (!ctx.program->info.is_monolithic) {
+         assert(ctx.program->gfx_level >= GFX9);
+         if ((ctx.stage.sw == SWStage::VS && (ctx.stage.hw == AC_HW_HULL_SHADER ||
+                                              ctx.stage.hw == AC_HW_LEGACY_GEOMETRY_SHADER)) ||
+             (ctx.stage.sw == SWStage::TES && ctx.stage.hw == AC_HW_LEGACY_GEOMETRY_SHADER)) {
+            check_merged_wave_info = endif_merged_wave_info = true;
+         } else {
+            assert(ctx.stage == tess_control_hs || ctx.stage == geometry_gs);
+            check_merged_wave_info = endif_merged_wave_info = true;
+            need_barrier = true;
+         }
+      }
+
+      select_shader(ctx, shaders[0], true, need_barrier, &ic_merged_wave_info,
+                    check_merged_wave_info, endif_merged_wave_info);
    }
 
    program->config->float_mode = program->blocks[0].fp_mode.val;

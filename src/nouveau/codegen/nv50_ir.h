@@ -45,7 +45,6 @@ enum operation
    OP_UNION, // unify a new definition and several source values
    OP_SPLIT, // $r0d -> { $r0, $r1 } ($r0d and $r0/$r1 will be coalesced)
    OP_MERGE, // opposite of split, e.g. combine 2 32 bit into a 64 bit value
-   OP_CONSTRAINT, // copy values into consecutive registers
    OP_MOV, // simple copy, no modifiers allowed
    OP_LOAD,
    OP_STORE,
@@ -90,8 +89,6 @@ enum operation
    OP_SIN,
    OP_COS,
    OP_EX2,
-   OP_EXP, // exponential (base M_E)
-   OP_LOG, // natural logarithm
    OP_PRESIN,
    OP_PREEX2,
    OP_SQRT,
@@ -144,7 +141,6 @@ enum operation
    OP_DFDX,
    OP_DFDY,
    OP_RDSV, // read system value
-   OP_WRSV, // write system value
    OP_PIXLD, // get info about raster object or surfaces
    OP_QUADOP,
    OP_QUADON,
@@ -1264,7 +1260,6 @@ public:
    inline LValue *getLValue(int id);
 
    void buildLiveSets();
-   void buildDefSets();
    bool convertToSSA();
 
 public:

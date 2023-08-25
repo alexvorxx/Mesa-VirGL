@@ -3,8 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "asahi/compiler/agx_compile.h"
+#include "compiler/glsl_types.h"
 #include "compiler/nir/nir_builder.h"
 #include "agx_state.h"
+#include "nir_intrinsics_indices.h"
 
 #define AGX_TEXTURE_DESC_STRIDE 24
 
@@ -35,6 +38,7 @@ static bool
 lower(nir_builder *b, nir_instr *instr, void *data)
 {
    bool *internal_bindless = data;
+   bool force_bindless = agx_nir_needs_texture_crawl(instr);
    b->cursor = nir_before_instr(instr);
 
    if (instr->type == nir_instr_type_intrinsic) {
@@ -73,7 +77,7 @@ lower(nir_builder *b, nir_instr *instr, void *data)
       /* If we can determine statically that the image fits in texture state
        * registers, avoid lowering to bindless access.
        */
-      if (nir_scalar_is_const(index_scalar)) {
+      if (nir_scalar_is_const(index_scalar) && !force_bindless) {
          unsigned idx = (nir_scalar_as_uint(index_scalar) * 2) + offset;
 
          if (idx < AGX_NUM_TEXTURE_STATE_REGS) {
@@ -82,8 +86,16 @@ lower(nir_builder *b, nir_instr *instr, void *data)
          }
       }
 
+      nir_atomic_op op = nir_atomic_op_iadd /* irrelevant */;
+      if (nir_intrinsic_has_atomic_op(intr))
+         op = nir_intrinsic_atomic_op(intr);
+
       /* Otherwise, lower to bindless */
       intr->intrinsic = bindless_op;
+
+      if (nir_intrinsic_has_atomic_op(intr))
+         nir_intrinsic_set_atomic_op(intr, op);
+
       *internal_bindless = true;
 
       index = nir_iadd_imm(b, nir_imul_imm(b, index, 2), offset);
@@ -99,7 +111,8 @@ lower(nir_builder *b, nir_instr *instr, void *data)
        * register, use the texture state register.
        */
       if (tex->texture_index < AGX_NUM_TEXTURE_STATE_REGS &&
-          nir_tex_instr_src_index(tex, nir_tex_src_texture_offset) == -1)
+          nir_tex_instr_src_index(tex, nir_tex_src_texture_offset) == -1 &&
+          !force_bindless)
          return false;
 
       /* Otherwise, lower to bindless. Could be optimized. */

@@ -366,7 +366,7 @@ zink_screen_update_pipeline_cache(struct zink_screen *screen, struct zink_progra
 
    if (in_thread)
       cache_put_job(pg, screen, 0);
-   else
+   else if (util_queue_fence_is_signalled(&pg->cache_fence))
       util_queue_add_job(&screen->cache_put_thread, pg, &pg->cache_fence, cache_put_job, NULL, 0);
 }
 
@@ -420,7 +420,7 @@ zink_get_compute_param(struct pipe_screen *pscreen, enum pipe_shader_ir ir_type,
 
    switch (param) {
    case PIPE_COMPUTE_CAP_ADDRESS_BITS:
-      RET((uint32_t []){ 32 });
+      RET((uint32_t []){ 64 });
 
    case PIPE_COMPUTE_CAP_IR_TARGET:
       if (ret)
@@ -454,11 +454,15 @@ zink_get_compute_param(struct pipe_screen *pscreen, enum pipe_shader_ir ir_type,
    case PIPE_COMPUTE_CAP_SUBGROUP_SIZES:
       RET((uint32_t []) { screen->info.props11.subgroupSize });
 
-   case PIPE_COMPUTE_CAP_MAX_SUBGROUPS:
    case PIPE_COMPUTE_CAP_MAX_MEM_ALLOC_SIZE:
+      RET((uint64_t []) { screen->clamp_video_mem });
+
+   case PIPE_COMPUTE_CAP_MAX_GLOBAL_SIZE:
+      RET((uint64_t []) { screen->total_video_mem });
+
+   case PIPE_COMPUTE_CAP_MAX_SUBGROUPS:
    case PIPE_COMPUTE_CAP_MAX_CLOCK_FREQUENCY:
    case PIPE_COMPUTE_CAP_MAX_COMPUTE_UNITS:
-   case PIPE_COMPUTE_CAP_MAX_GLOBAL_SIZE:
    case PIPE_COMPUTE_CAP_MAX_PRIVATE_SIZE:
    case PIPE_COMPUTE_CAP_MAX_INPUT_SIZE:
       // XXX: I think these are for Clover...

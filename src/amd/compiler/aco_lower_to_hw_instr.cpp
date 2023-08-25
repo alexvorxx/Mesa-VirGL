@@ -932,7 +932,20 @@ emit_reduction(lower_context* ctx, aco_opcode op, ReduceOp reduce_op, unsigned c
 }
 
 void
-emit_gfx11_wave64_bpermute(Program* program, aco_ptr<Instruction>& instr, Builder& bld)
+adjust_bpermute_dst(Builder& bld, Definition dst, Operand input_data)
+{
+   /* RA assumes that the result is always in the low part of the register, so we have to shift,
+    * if it's not there already.
+    */
+   if (input_data.physReg().byte()) {
+      unsigned right_shift = input_data.physReg().byte() * 8;
+      bld.vop2(aco_opcode::v_lshrrev_b32, dst, Operand::c32(right_shift),
+               Operand(dst.physReg(), dst.regClass()));
+   }
+}
+
+void
+emit_bpermute_permlane(Program* program, aco_ptr<Instruction>& instr, Builder& bld)
 {
    /* Emulates proper bpermute on GFX11 in wave64 mode.
     *
@@ -982,18 +995,11 @@ emit_gfx11_wave64_bpermute(Program* program, aco_ptr<Instruction>& instr, Builde
    bld.vop2_e64(aco_opcode::v_cndmask_b32, dst, tmp_op, Operand(dst.physReg(), dst.regClass()),
                 same_half);
 
-   /* RA assumes that the result is always in the low part of the register, so we have to shift,
-    * if it's not there already.
-    */
-   if (input_data.physReg().byte()) {
-      unsigned right_shift = input_data.physReg().byte() * 8;
-      bld.vop2(aco_opcode::v_lshrrev_b32, dst, Operand::c32(right_shift),
-               Operand(dst.physReg(), dst.regClass()));
-   }
+   adjust_bpermute_dst(bld, dst, input_data);
 }
 
 void
-emit_gfx10_wave64_bpermute(Program* program, aco_ptr<Instruction>& instr, Builder& bld)
+emit_bpermute_shared_vgpr(Program* program, aco_ptr<Instruction>& instr, Builder& bld)
 {
    /* Emulates proper bpermute on GFX10 in wave64 mode.
     *
@@ -1061,18 +1067,11 @@ emit_gfx10_wave64_bpermute(Program* program, aco_ptr<Instruction>& instr, Builde
    /* Restore saved EXEC */
    bld.sop1(aco_opcode::s_mov_b64, Definition(exec, s2), Operand(tmp_exec.physReg(), s2));
 
-   /* RA assumes that the result is always in the low part of the register, so we have to shift,
-    * if it's not there already.
-    */
-   if (input_data.physReg().byte()) {
-      unsigned right_shift = input_data.physReg().byte() * 8;
-      bld.vop2(aco_opcode::v_lshrrev_b32, dst, Operand::c32(right_shift),
-               Operand(dst.physReg(), v1));
-   }
+   adjust_bpermute_dst(bld, dst, input_data);
 }
 
 void
-emit_gfx6_bpermute(Program* program, aco_ptr<Instruction>& instr, Builder& bld)
+emit_bpermute_readlane(Program* program, aco_ptr<Instruction>& instr, Builder& bld)
 {
    /* Emulates bpermute using readlane instructions */
 
@@ -1093,7 +1092,7 @@ emit_gfx6_bpermute(Program* program, aco_ptr<Instruction>& instr, Builder& bld)
    assert(input.physReg() != dst.physReg());
 
    /* Save original EXEC */
-   bld.sop1(aco_opcode::s_mov_b64, temp_exec, Operand(exec, s2));
+   bld.sop1(Builder::s_mov, temp_exec, Operand(exec, bld.lm));
 
    /* An "unrolled loop" that is executed per each lane.
     * This takes only a few instructions per lane, as opposed to a "real" loop
@@ -1108,8 +1107,10 @@ emit_gfx6_bpermute(Program* program, aco_ptr<Instruction>& instr, Builder& bld)
       /* On the active lane, move the data we read from lane N to the destination VGPR */
       bld.vop1(aco_opcode::v_mov_b32, dst, Operand(vcc, s1));
       /* Restore original EXEC */
-      bld.sop1(aco_opcode::s_mov_b64, Definition(exec, s2), Operand(temp_exec.physReg(), s2));
+      bld.sop1(Builder::s_mov, Definition(exec, bld.lm), Operand(temp_exec.physReg(), bld.lm));
    }
+
+   adjust_bpermute_dst(bld, dst, input);
 }
 
 struct copy_operation {
@@ -2546,16 +2547,16 @@ lower_to_hw_instr(Program* program)
                         Operand(pops_exiting_wave_id, s1), instr->operands[0]);
                break;
             }
-            case aco_opcode::p_bpermute_gfx6: {
-               emit_gfx6_bpermute(program, instr, bld);
+            case aco_opcode::p_bpermute_readlane: {
+               emit_bpermute_readlane(program, instr, bld);
                break;
             }
-            case aco_opcode::p_bpermute_gfx10w64: {
-               emit_gfx10_wave64_bpermute(program, instr, bld);
+            case aco_opcode::p_bpermute_shared_vgpr: {
+               emit_bpermute_shared_vgpr(program, instr, bld);
                break;
             }
-            case aco_opcode::p_bpermute_gfx11w64: {
-               emit_gfx11_wave64_bpermute(program, instr, bld);
+            case aco_opcode::p_bpermute_permlane: {
+               emit_bpermute_permlane(program, instr, bld);
                break;
             }
             case aco_opcode::p_constaddr: {

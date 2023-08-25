@@ -6177,6 +6177,18 @@ brw::register_pressure::register_pressure(const fs_visitor *v)
       for (int ip = live.vgrf_start[reg]; ip <= live.vgrf_end[reg]; ip++)
          regs_live_at_ip[ip] += v->alloc.sizes[reg];
    }
+
+   const unsigned payload_count = v->first_non_payload_grf;
+
+   int *payload_last_use_ip = new int[payload_count];
+   v->calculate_payload_ranges(payload_count, payload_last_use_ip);
+
+   for (unsigned reg = 0; reg < payload_count; reg++) {
+      for (int ip = 0; ip < payload_last_use_ip[reg]; ip++)
+         ++regs_live_at_ip[ip];
+   }
+
+   delete[] payload_last_use_ip;
 }
 
 brw::register_pressure::~register_pressure()
@@ -6724,6 +6736,42 @@ fs_visitor::compute_max_register_pressure()
    return max_pressure;
 }
 
+static fs_inst **
+save_instruction_order(const struct cfg_t *cfg)
+{
+   /* Before we schedule anything, stash off the instruction order as an array
+    * of fs_inst *.  This way, we can reset it between scheduling passes to
+    * prevent dependencies between the different scheduling modes.
+    */
+   int num_insts = cfg->last_block()->end_ip + 1;
+   fs_inst **inst_arr = new fs_inst * [num_insts];
+
+   int ip = 0;
+   foreach_block_and_inst(block, fs_inst, inst, cfg) {
+      assert(ip >= block->start_ip && ip <= block->end_ip);
+      inst_arr[ip++] = inst;
+   }
+   assert(ip == num_insts);
+
+   return inst_arr;
+}
+
+static void
+restore_instruction_order(struct cfg_t *cfg, fs_inst **inst_arr)
+{
+   int num_insts = cfg->last_block()->end_ip + 1;
+
+   int ip = 0;
+   foreach_block (block, cfg) {
+      block->instructions.make_empty();
+
+      assert(ip == block->start_ip);
+      for (; ip <= block->end_ip; ip++)
+         block->instructions.push_tail(inst_arr[ip]);
+   }
+   assert(ip == num_insts);
+}
+
 void
 fs_visitor::allocate_registers(bool allow_spilling)
 {
@@ -6737,18 +6785,22 @@ fs_visitor::allocate_registers(bool allow_spilling)
    };
 
    static const char *scheduler_mode_name[] = {
-      "top-down",
-      "non-lifo",
-      "none",
-      "lifo"
+      [SCHEDULE_PRE] = "top-down",
+      [SCHEDULE_PRE_NON_LIFO] = "non-lifo",
+      [SCHEDULE_PRE_LIFO] = "lifo",
+      [SCHEDULE_POST] = "post",
+      [SCHEDULE_NONE] = "none",
    };
+
+   uint32_t best_register_pressure = UINT32_MAX;
+   enum instruction_scheduler_mode best_sched = SCHEDULE_NONE;
 
    compact_virtual_grfs();
 
    if (needs_register_pressure)
       shader_stats.max_register_pressure = compute_max_register_pressure();
 
-   debug_optimizer(nir, "pre_register_allocate", 99, 99);
+   debug_optimizer(nir, "pre_register_allocate", 90, 90);
 
    bool spill_all = allow_spilling && INTEL_DEBUG(DEBUG_SPILL_FS);
 
@@ -6756,39 +6808,20 @@ fs_visitor::allocate_registers(bool allow_spilling)
     * of fs_inst *.  This way, we can reset it between scheduling passes to
     * prevent dependencies between the different scheduling modes.
     */
-   int num_insts = cfg->last_block()->end_ip + 1;
-   fs_inst **inst_arr = ralloc_array(mem_ctx, fs_inst *, num_insts);
-
-   int ip = 0;
-   foreach_block_and_inst(block, fs_inst, inst, cfg) {
-      assert(ip >= block->start_ip && ip <= block->end_ip);
-      inst_arr[ip++] = inst;
-   }
-   assert(ip == num_insts);
+   fs_inst **orig_order = save_instruction_order(cfg);
+   fs_inst **best_pressure_order = NULL;
 
    /* Try each scheduling heuristic to see if it can successfully register
     * allocate without spilling.  They should be ordered by decreasing
     * performance but increasing likelihood of allocating.
     */
    for (unsigned i = 0; i < ARRAY_SIZE(pre_modes); i++) {
-      if (i > 0) {
-         /* Unless we're the first pass, reset back to the original order */
-         ip = 0;
-         foreach_block (block, cfg) {
-            block->instructions.make_empty();
+      enum instruction_scheduler_mode sched_mode = pre_modes[i];
 
-            assert(ip == block->start_ip);
-            for (; ip <= block->end_ip; ip++)
-               block->instructions.push_tail(inst_arr[ip]);
-         }
-         assert(ip == num_insts);
+      schedule_instructions(sched_mode);
+      this->shader_stats.scheduler_mode = scheduler_mode_name[sched_mode];
 
-         invalidate_analysis(DEPENDENCY_INSTRUCTIONS);
-      }
-
-      if (pre_modes[i] != SCHEDULE_NONE)
-         schedule_instructions(pre_modes[i]);
-      this->shader_stats.scheduler_mode = scheduler_mode_name[i];
+      debug_optimizer(nir, shader_stats.scheduler_mode, 95, i);
 
       if (0) {
          assign_regs_trivial();
@@ -6796,16 +6829,46 @@ fs_visitor::allocate_registers(bool allow_spilling)
          break;
       }
 
-      bool can_spill = allow_spilling &&
-                       (i == ARRAY_SIZE(pre_modes) - 1);
-
       /* We should only spill registers on the last scheduling. */
       assert(!spilled_any_registers);
 
-      allocated = assign_regs(can_spill, spill_all);
+      allocated = assign_regs(false, spill_all);
       if (allocated)
          break;
+
+      /* Save the maximum register pressure */
+      uint32_t this_pressure = compute_max_register_pressure();
+
+      if (0) {
+         fprintf(stderr, "Scheduler mode \"%s\" spilled, max pressure = %u\n",
+                 scheduler_mode_name[sched_mode], this_pressure);
+      }
+
+      if (this_pressure < best_register_pressure) {
+         best_register_pressure = this_pressure;
+         best_sched = sched_mode;
+         delete[] best_pressure_order;
+         best_pressure_order = save_instruction_order(cfg);
+      }
+
+      /* Reset back to the original order before trying the next mode */
+      restore_instruction_order(cfg, orig_order);
+      invalidate_analysis(DEPENDENCY_INSTRUCTIONS);
    }
+
+   if (!allocated) {
+      if (0) {
+         fprintf(stderr, "Spilling - using lowest-pressure mode \"%s\"\n",
+                 scheduler_mode_name[best_sched]);
+      }
+      restore_instruction_order(cfg, best_pressure_order);
+      shader_stats.scheduler_mode = scheduler_mode_name[best_sched];
+
+      allocated = assign_regs(allow_spilling, spill_all);
+   }
+
+   delete[] orig_order;
+   delete[] best_pressure_order;
 
    if (!allocated) {
       fail("Failure to register allocate.  Reduce number of "

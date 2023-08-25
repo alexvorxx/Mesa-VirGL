@@ -1132,11 +1132,44 @@ add_all_surfaces_implicit_layout(
    const struct intel_device_info *devinfo = device->info;
    VkResult result;
 
+   const struct vk_format_ycbcr_info *ycbcr_info =
+      vk_format_get_ycbcr_info(image->vk.format);
+   if (ycbcr_info)
+      assert(ycbcr_info->n_planes == image->n_planes);
+
+   unsigned num_aspects = 0;
+   VkImageAspectFlagBits aspects[3];
    u_foreach_bit(b, image->vk.aspects) {
-      VkImageAspectFlagBits aspect = 1 << b;
+      assert(num_aspects < 3);
+      aspects[num_aspects++] = 1 << b;
+   }
+   assert(num_aspects == image->n_planes);
+
+   /* The Android hardware buffer YV12 format has the planes ordered as Y-Cr-Cb,
+    * while Vulkan expects VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM to be in Y-Cb-Cr.
+    * Adjust the order we add the ISL surfaces accordingly so the implicit
+    * offset gets calculated correctly.
+    */
+   if (image->from_ahb && image->vk.format == VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM) {
+      assert(num_aspects == 3);
+      assert(aspects[1] == VK_IMAGE_ASPECT_PLANE_1_BIT);
+      assert(aspects[2] == VK_IMAGE_ASPECT_PLANE_2_BIT);
+      aspects[1] = VK_IMAGE_ASPECT_PLANE_2_BIT;
+      aspects[2] = VK_IMAGE_ASPECT_PLANE_1_BIT;
+   }
+
+   for (unsigned i = 0; i < num_aspects; i++) {
+      VkImageAspectFlagBits aspect = aspects[i];
       const uint32_t plane = anv_image_aspect_to_plane(image, aspect);
       const  struct anv_format_plane plane_format =
          anv_get_format_plane(devinfo, image->vk.format, plane, image->vk.tiling);
+
+      enum isl_format isl_fmt = plane_format.isl_format;
+      assert(isl_fmt != ISL_FORMAT_UNSUPPORTED);
+
+      uint32_t plane_stride = stride * isl_format_get_layout(isl_fmt)->bpb / 8;
+      if (ycbcr_info)
+         plane_stride /= ycbcr_info->planes[plane].denominator_scales[0];
 
       VkImageUsageFlags vk_usage = vk_image_usage(&image->vk, aspect);
       isl_surf_usage_flags_t isl_usage =
@@ -1144,7 +1177,7 @@ add_all_surfaces_implicit_layout(
                                isl_extra_usage_flags, aspect);
 
       result = add_primary_surface(device, image, plane, plane_format,
-                                   ANV_OFFSET_IMPLICIT, stride,
+                                   ANV_OFFSET_IMPLICIT, plane_stride,
                                    isl_tiling_flags, isl_usage);
       if (result != VK_SUCCESS)
          return result;
@@ -1156,7 +1189,7 @@ add_all_surfaces_implicit_layout(
 
       result = add_aux_surface_if_supported(device, image, plane, plane_format,
                                             format_list_info,
-                                            ANV_OFFSET_IMPLICIT, stride,
+                                            ANV_OFFSET_IMPLICIT, plane_stride,
                                             isl_extra_usage_flags);
       if (result != VK_SUCCESS)
          return result;
@@ -1618,28 +1651,11 @@ resolve_ahw_image(struct anv_device *device,
    enum isl_tiling tiling;
    result = anv_device_get_bo_tiling(device, mem->bo, &tiling);
    assert(result == VK_SUCCESS);
-
-   VkImageTiling vk_tiling =
-      tiling == ISL_TILING_LINEAR ? VK_IMAGE_TILING_LINEAR :
-                                    VK_IMAGE_TILING_OPTIMAL;
    isl_tiling_flags_t isl_tiling_flags = (1u << tiling);
 
    /* Check format. */
    VkFormat vk_format = vk_format_from_android(desc.format, desc.usage);
-   enum isl_format isl_fmt = anv_get_isl_format(device->info,
-                                                vk_format,
-                                                VK_IMAGE_ASPECT_COLOR_BIT,
-                                                vk_tiling);
-   assert(isl_fmt != ISL_FORMAT_UNSUPPORTED);
-
-   /* Handle RGB(X)->RGBA fallback. */
-   switch (desc.format) {
-   case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:
-   case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
-      if (isl_format_is_rgb(isl_fmt))
-         isl_fmt = isl_format_rgb_to_rgba(isl_fmt);
-      break;
-   }
+   assert(vk_format != VK_FORMAT_UNDEFINED);
 
    /* Now we are able to fill anv_image fields properly and create
     * isl_surface for it.
@@ -1647,10 +1663,7 @@ resolve_ahw_image(struct anv_device *device,
    vk_image_set_format(&image->vk, vk_format);
    image->n_planes = anv_get_format_planes(image->vk.format);
 
-   uint32_t stride = desc.stride *
-                     (isl_format_get_layout(isl_fmt)->bpb / 8);
-
-   result = add_all_surfaces_implicit_layout(device, image, NULL, stride,
+   result = add_all_surfaces_implicit_layout(device, image, NULL, desc.stride,
                                              isl_tiling_flags,
                                              ISL_SURF_USAGE_DISABLE_AUX_BIT);
    assert(result == VK_SUCCESS);

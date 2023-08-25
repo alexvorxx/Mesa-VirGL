@@ -43,7 +43,7 @@
 typedef void (*cso_destroy_func)(struct pipe_context*, void*);
 
 static void
-shader_destroy(struct lvp_device *device, struct lvp_shader *shader)
+shader_destroy(struct lvp_device *device, struct lvp_shader *shader, bool locked)
 {
    if (!shader->pipeline_nir)
       return;
@@ -64,27 +64,34 @@ shader_destroy(struct lvp_device *device, struct lvp_shader *shader)
       free(variant);
    }
    ralloc_free(shader->inlines.variants.table);
+
+   if (!locked)
+      simple_mtx_lock(&device->queue.lock);
+
    if (shader->shader_cso)
       destroy[stage](device->queue.ctx, shader->shader_cso);
    if (shader->tess_ccw_cso)
       destroy[stage](device->queue.ctx, shader->tess_ccw_cso);
+
+   if (!locked)
+      simple_mtx_unlock(&device->queue.lock);
 
    lvp_pipeline_nir_ref(&shader->pipeline_nir, NULL);
    lvp_pipeline_nir_ref(&shader->tess_ccw, NULL);
 }
 
 void
-lvp_pipeline_destroy(struct lvp_device *device, struct lvp_pipeline *pipeline)
+lvp_pipeline_destroy(struct lvp_device *device, struct lvp_pipeline *pipeline, bool locked)
 {
    lvp_forall_stage(i)
-      shader_destroy(device, &pipeline->shaders[i]);
+      shader_destroy(device, &pipeline->shaders[i], locked);
 
    if (pipeline->layout)
       vk_pipeline_layout_unref(&device->vk, &pipeline->layout->vk);
 
    for (unsigned i = 0; i < pipeline->num_groups; i++) {
       LVP_FROM_HANDLE(lvp_pipeline, p, pipeline->groups[i]);
-      lvp_pipeline_destroy(device, p);
+      lvp_pipeline_destroy(device, p, locked);
    }
 
    vk_free(&device->vk.alloc, pipeline->state_data);
@@ -108,7 +115,7 @@ VKAPI_ATTR void VKAPI_CALL lvp_DestroyPipeline(
       util_dynarray_append(&device->queue.pipeline_destroys, struct lvp_pipeline*, pipeline);
       simple_mtx_unlock(&device->queue.lock);
    } else {
-      lvp_pipeline_destroy(device, pipeline);
+      lvp_pipeline_destroy(device, pipeline, false);
    }
 }
 
@@ -125,11 +132,8 @@ shared_var_info(const struct glsl_type *type, unsigned *size, unsigned *align)
 }
 
 static bool
-remove_barriers_impl(nir_builder *b, nir_instr *instr, void *data)
+remove_barriers_impl(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
-   if (instr->type != nir_instr_type_intrinsic)
-      return false;
-   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
    if (intr->intrinsic != nir_intrinsic_barrier)
       return false;
    if (data) {
@@ -138,22 +142,21 @@ remove_barriers_impl(nir_builder *b, nir_instr *instr, void *data)
           nir_intrinsic_memory_scope(intr) == SCOPE_QUEUE_FAMILY)
          return false;
    }
-   nir_instr_remove(instr);
+   nir_instr_remove(&intr->instr);
    return true;
 }
 
 static bool
 remove_barriers(nir_shader *nir, bool is_compute)
 {
-   return nir_shader_instructions_pass(nir, remove_barriers_impl, nir_metadata_dominance, (void*)is_compute);
+   return nir_shader_intrinsics_pass(nir, remove_barriers_impl,
+                                     nir_metadata_dominance,
+                                     (void*)is_compute);
 }
 
 static bool
-lower_demote_impl(nir_builder *b, nir_instr *instr, void *data)
+lower_demote_impl(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
-   if (instr->type != nir_instr_type_intrinsic)
-      return false;
-   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
    if (intr->intrinsic == nir_intrinsic_demote || intr->intrinsic == nir_intrinsic_terminate) {
       intr->intrinsic = nir_intrinsic_discard;
       return true;
@@ -168,7 +171,8 @@ lower_demote_impl(nir_builder *b, nir_instr *instr, void *data)
 static bool
 lower_demote(nir_shader *nir)
 {
-   return nir_shader_instructions_pass(nir, lower_demote_impl, nir_metadata_dominance, NULL);
+   return nir_shader_intrinsics_pass(nir, lower_demote_impl,
+                                     nir_metadata_dominance, NULL);
 }
 
 static bool
@@ -995,7 +999,7 @@ lvp_graphics_pipeline_create(
          pci.stageCount = g->stageCount;
          result = lvp_graphics_pipeline_create(_device, _cache, &pci, flags, &pipeline->groups[i], true);
          if (result != VK_SUCCESS) {
-            lvp_pipeline_destroy(device, pipeline);
+            lvp_pipeline_destroy(device, pipeline, false);
             return result;
          }
          pipeline->num_groups++;
@@ -1202,7 +1206,7 @@ VKAPI_ATTR void VKAPI_CALL lvp_DestroyShaderEXT(
 
    if (!shader)
       return;
-   shader_destroy(device, shader);
+   shader_destroy(device, shader, false);
 
    vk_pipeline_layout_unref(&device->vk, &shader->layout->vk);
    blob_finish(&shader->blob);
@@ -1293,7 +1297,7 @@ create_shader_object(struct lvp_device *device, const VkShaderCreateInfoEXT *pCr
    } else if (stage == MESA_SHADER_FRAGMENT && nir->info.fs.uses_fbfetch_output) {
       /* this is (currently) illegal */
       assert(!nir->info.fs.uses_fbfetch_output);
-      shader_destroy(device, shader);
+      shader_destroy(device, shader, false);
 
       vk_object_base_finish(&shader->base);
       vk_free2(&device->vk.alloc, pAllocator, shader);

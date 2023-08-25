@@ -1734,15 +1734,14 @@ store("agx", [1, 1], [ACCESS, BASE, FORMAT, SIGN_EXTEND])
 # Logical complement of load_front_face, mapping to an AGX system value
 system_value("back_face_agx", 1, bit_sizes=[1, 32])
 
-# Loads the texture descriptor base for indexed (non-bindless) textures. On G13,
-# the referenced array has stride 24.
-system_value("texture_base_agx", 1, bit_sizes=[64])
-
-# Load the base address of an indexed UBO/VBO (for lowering UBOs/VBOs)
-intrinsic("load_ubo_base_agx", src_comp=[1], dest_comp=1, bit_sizes=[64],
-          flags=[CAN_ELIMINATE, CAN_REORDER])
+# Load the base address of an indexed VBO (for lowering VBOs)
 intrinsic("load_vbo_base_agx", src_comp=[1], dest_comp=1, bit_sizes=[64],
           flags=[CAN_ELIMINATE, CAN_REORDER])
+
+# Load a driver-internal system value from a given system value set at a given
+# binding within the set. This is used for correctness when lowering things like
+# UBOs with merged shaders.
+load("sysval_agx", [], [DESC_SET, BINDING], [CAN_REORDER, CAN_ELIMINATE])
 
 # Write out a sample mask for a targeted subset of samples, specified in the two
 # masks. Maps to the corresponding AGX instruction, the actual workings are

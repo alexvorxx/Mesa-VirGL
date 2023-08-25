@@ -10,14 +10,16 @@
 #include "nir_intrinsics.h"
 
 static bool
-pass(struct nir_builder *b, nir_instr *instr, void *data)
+pass(struct nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
-   if (instr->type != nir_instr_type_intrinsic)
+   b->cursor = nir_after_instr(&intr->instr);
+
+   /* If the image is write-only, there is no fencing needed */
+   if (nir_intrinsic_has_access(intr) &&
+       (nir_intrinsic_access(intr) & ACCESS_NON_READABLE)) {
       return false;
+   }
 
-   b->cursor = nir_after_instr(instr);
-
-   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
    switch (intr->intrinsic) {
    case nir_intrinsic_image_store:
    case nir_intrinsic_bindless_image_store:
@@ -39,6 +41,6 @@ pass(struct nir_builder *b, nir_instr *instr, void *data)
 bool
 agx_nir_fence_images(nir_shader *s)
 {
-   return nir_shader_instructions_pass(
+   return nir_shader_intrinsics_pass(
       s, pass, nir_metadata_block_index | nir_metadata_dominance, NULL);
 }

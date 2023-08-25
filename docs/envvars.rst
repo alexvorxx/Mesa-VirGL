@@ -183,7 +183,8 @@ Core Mesa environment variables
 
    if set to ``true``, disables the on-disk shader cache. If set to
    ``false``, enables the on-disk shader cache when it is disabled by
-   default.
+   default.  Note that EGL_ANDROID_blob_cache is still enabled even
+   if on-disk shader cache is disabled.
 
 .. envvar:: MESA_SHADER_CACHE_MAX_SIZE
 
@@ -345,7 +346,7 @@ Core Mesa environment variables
 
    A comma-separated list of trace types used for offline analysis. The
    option names are equal to the file extension. Traces are dumped into ``/tmp``.
-   Captures can be triggered by pressing ``F12`` with the application window
+   Captures can be triggered by pressing ``F1`` with the application window
    focused (Currently X11 only) or via :envvar:`MESA_VK_TRACE_FRAME` and
    :envvar:`MESA_VK_TRACE_TRIGGER`.
 
@@ -1008,6 +1009,7 @@ Rusticl environment variables
    - ``allow_invalid_spirv`` disables validation of any input SPIR-V
    - ``clc`` dumps all OpenCL C source being compiled
    - ``program`` dumps compilation logs to stderr
+   - ``sync`` waits on the GPU to complete after every event
 
 .. _clc-env-var:
 

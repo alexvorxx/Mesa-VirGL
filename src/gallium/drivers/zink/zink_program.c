@@ -469,7 +469,7 @@ generate_gfx_program_modules_optimal(struct zink_context *ctx, struct zink_scree
    }
 
    state->modules_changed = true;
-   prog->last_variant_hash = state->shader_keys_optimal.key.val;
+   prog->last_variant_hash = state->optimal_key;
 }
 
 static uint32_t
@@ -693,7 +693,7 @@ update_gfx_program_optimal(struct zink_context *ctx, struct zink_gfx_program *pr
       bool changed = update_gfx_shader_module_optimal(ctx, prog, MESA_SHADER_TESS_CTRL);
       ctx->gfx_pipeline_state.modules_changed |= changed;
    }
-   prog->last_variant_hash = ctx->gfx_pipeline_state.shader_keys_optimal.key.val;
+   prog->last_variant_hash = ctx->gfx_pipeline_state.optimal_key;
 }
 
 static struct zink_gfx_program *
@@ -714,7 +714,7 @@ zink_gfx_program_update_optimal(struct zink_context *ctx)
    struct zink_screen *screen = zink_screen(ctx->base.screen);
    if (ctx->gfx_dirty) {
       struct zink_gfx_program *prog = NULL;
-      ctx->gfx_pipeline_state.optimal_key = ctx->gfx_pipeline_state.shader_keys_optimal.key.val;
+      ctx->gfx_pipeline_state.optimal_key = zink_sanitize_optimal_key(ctx->gfx_stages, ctx->gfx_pipeline_state.shader_keys_optimal.key.val);
       struct hash_table *ht = &ctx->program_cache[zink_program_cache_stages(ctx->shader_stages)];
       const uint32_t hash = ctx->gfx_hash;
       simple_mtx_lock(&ctx->program_lock[zink_program_cache_stages(ctx->shader_stages)]);
@@ -752,7 +752,7 @@ zink_gfx_program_update_optimal(struct zink_context *ctx)
       ctx->gfx_pipeline_state.final_hash ^= ctx->curr_program->last_variant_hash;
    } else if (ctx->dirty_gfx_stages) {
       /* remove old hash */
-      ctx->gfx_pipeline_state.optimal_key = ctx->gfx_pipeline_state.shader_keys_optimal.key.val;
+      ctx->gfx_pipeline_state.optimal_key = zink_sanitize_optimal_key(ctx->gfx_stages, ctx->gfx_pipeline_state.shader_keys_optimal.key.val);
       ctx->gfx_pipeline_state.final_hash ^= ctx->curr_program->last_variant_hash;
       if (ctx->curr_program->is_separable && !(zink_debug & ZINK_DEBUG_NOOPT)) {
          struct zink_gfx_program *prog = ctx->curr_program;
@@ -1364,6 +1364,7 @@ create_compute_program(struct zink_context *ctx, nir_shader *nir)
    struct zink_compute_program *comp = create_program(ctx, true);
    if (!comp)
       return NULL;
+   comp->scratch_size = nir->scratch_size;
    comp->nir = nir;
    comp->num_inlinable_uniforms = nir->info.num_inlinable_uniforms;
 

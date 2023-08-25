@@ -169,7 +169,8 @@ enum radv_ud_index {
    AC_UD_FORCE_VRS_RATES = 10,
    AC_UD_TASK_RING_ENTRY = 11,
    AC_UD_NUM_VERTS_PER_PRIM = 12,
-   AC_UD_SHADER_START = 13,
+   AC_UD_NEXT_STAGE_PC = 13,
+   AC_UD_SHADER_START = 14,
    AC_UD_VS_VERTEX_BUFFERS = AC_UD_SHADER_START,
    AC_UD_VS_BASE_VERTEX_START_INSTANCE,
    AC_UD_VS_PROLOG_INPUTS,
@@ -208,6 +209,8 @@ enum radv_ud_index {
 #define TES_STATE_NUM_PATCHES__MASK       0xff
 #define TES_STATE_TCS_VERTICES_OUT__SHIFT 8
 #define TES_STATE_TCS_VERTICES_OUT__MASK  0xff
+#define TES_STATE_NUM_TCS_OUTPUTS__SHIFT  16
+#define TES_STATE_NUM_TCS_OUTPUTS__MASK   0xff
 
 #define PS_STATE_NUM_SAMPLES__SHIFT    0
 #define PS_STATE_NUM_SAMPLES__MASK     0xf
@@ -249,7 +252,6 @@ struct radv_vs_output_info {
    bool writes_primitive_shading_rate;
    bool writes_primitive_shading_rate_per_primitive;
    bool export_prim_id;
-   bool export_clip_dists;
    unsigned pos_exports;
 };
 
@@ -309,7 +311,8 @@ struct radv_shader_info {
    uint32_t user_data_0;
    bool inputs_linked;
    bool outputs_linked;
-   bool has_epilog; /* Only for TCS or PS */
+   bool has_epilog;    /* Only for TCS or PS */
+   bool is_monolithic; /* False only for merged shaders which are compiled separately */
 
    struct {
       uint8_t input_usage_mask[RADV_VERT_ATTRIB_MAX];

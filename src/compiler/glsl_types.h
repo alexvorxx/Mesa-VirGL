@@ -36,10 +36,6 @@
 #include "util/macros.h"
 #include "util/simple_mtx.h"
 
-#ifdef __cplusplus
-#include "mesa/main/config.h"
-#endif
-
 struct glsl_type;
 
 #ifdef __cplusplus
@@ -57,9 +53,6 @@ glsl_type_singleton_decref();
 
 extern void
 _mesa_glsl_initialize_types(struct _mesa_glsl_parse_state *state);
-
-void
-glsl_print_type(FILE *f, const struct glsl_type *t);
 
 void encode_type_to_blob(struct blob *blob, const struct glsl_type *type);
 
@@ -1066,7 +1059,7 @@ public:
    unsigned atomic_size() const
    {
       if (is_atomic_uint())
-         return ATOMIC_COUNTER_SIZE;
+         return 4; /* ATOMIC_COUNTER_SIZE */
       else if (is_array())
          return length * fields.array->atomic_size();
       else
@@ -1328,6 +1321,10 @@ private:
    friend void glsl_type_singleton_decref(void);
    friend void _mesa_glsl_initialize_types(struct _mesa_glsl_parse_state *);
    /*@}*/
+
+   static const glsl_type *get_explicit_matrix_instance(unsigned int base_type, unsigned int rows, unsigned int columns,
+                                                        unsigned int explicit_stride, bool row_major,
+                                                        unsigned int explicit_alignment);
 };
 
 #undef DECL_TYPE
