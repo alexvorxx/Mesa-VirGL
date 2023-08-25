@@ -2913,14 +2913,19 @@ public:
             GoldfishAddressSpaceBlockPtr block = nullptr;
             res = enc->vkMapMemoryIntoAddressSpaceGOOGLE(device, mem, &gpuAddr, true);
             if (res != VK_SUCCESS) {
+                ALOGE(
+                    "Failed to create coherent memory: vkMapMemoryIntoAddressSpaceGOOGLE "
+                    "returned:%d.",
+                    res);
                 return coherentMemory;
             }
             {
                 AutoLock<RecursiveLock> lock(mLock);
                 auto it = info_VkDeviceMemory.find(mem);
                 if (it == info_VkDeviceMemory.end()) {
-                     res = VK_ERROR_OUT_OF_HOST_MEMORY;
-                     return coherentMemory;
+                    ALOGE("Failed to create coherent memory: failed to find device memory.");
+                    res = VK_ERROR_OUT_OF_HOST_MEMORY;
+                    return coherentMemory;
                 }
                 auto& info = it->second;
                 block = info.goldfishBlock;
@@ -2934,7 +2939,11 @@ public:
             uint64_t hvaSizeId[3];
             res = enc->vkGetMemoryHostAddressInfoGOOGLE(device, mem,
                     &hvaSizeId[0], &hvaSizeId[1], &hvaSizeId[2], true /* do lock */);
-            if(res != VK_SUCCESS) {
+            if (res != VK_SUCCESS) {
+                ALOGE(
+                    "Failed to create coherent memory: vkMapMemoryIntoAddressSpaceGOOGLE "
+                    "returned:%d.",
+                    res);
                 return coherentMemory;
             }
             {
@@ -2947,12 +2956,14 @@ public:
 
                 auto blob = instance.createBlob(createBlob);
                 if (!blob) {
+                    ALOGE("Failed to create coherent memory: failed to create blob.");
                     res = VK_ERROR_OUT_OF_DEVICE_MEMORY;
                     return coherentMemory;
                 }
 
                 VirtGpuBlobMappingPtr mapping = blob->createMapping();
                 if (!mapping) {
+                    ALOGE("Failed to create coherent memory: failed to create blob mapping.");
                     res = VK_ERROR_OUT_OF_DEVICE_MEMORY;
                     return coherentMemory;
                 }
@@ -3044,14 +3055,20 @@ public:
             createBlob.size = hostAllocationInfo.allocationSize;
 
             guestBlob = instance.createBlob(createBlob);
-            if (!guestBlob) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+            if (!guestBlob) {
+                ALOGE("Failed to allocate coherent memory: failed to create blob.");
+                return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+            }
 
             placeholderCmd.hdr.opCode = GFXSTREAM_PLACEHOLDER_COMMAND_VK;
             exec.command = static_cast<void*>(&placeholderCmd);
             exec.command_size = sizeof(placeholderCmd);
             exec.flags = kRingIdx;
             exec.ring_idx = 1;
-            if (instance.execBuffer(exec, guestBlob)) return VK_ERROR_OUT_OF_HOST_MEMORY;
+            if (instance.execBuffer(exec, guestBlob)) {
+                ALOGE("Failed to allocate coherent memory: failed to execbuffer for wait.");
+                return VK_ERROR_OUT_OF_HOST_MEMORY;
+            }
 
             guestBlob->wait();
         } else if (mCaps.gfxstreamCapset.deferredMapping) {
@@ -3062,9 +3079,10 @@ public:
 
         VkDeviceMemory mem = VK_NULL_HANDLE;
         VkResult host_res =
-        enc->vkAllocateMemory(device, &hostAllocationInfo, nullptr,
-                              &mem, true /* do lock */);
-        if(host_res != VK_SUCCESS) {
+            enc->vkAllocateMemory(device, &hostAllocationInfo, nullptr, &mem, true /* do lock */);
+        if (host_res != VK_SUCCESS) {
+            ALOGE("Failed to allocate coherent memory: failed to allocate on the host: %d.",
+                  host_res);
             return host_res;
         }
 
@@ -3076,7 +3094,10 @@ public:
 
         if (guestBlob) {
             auto mapping = guestBlob->createMapping();
-            if (!mapping) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+            if (!mapping) {
+                ALOGE("Failed to allocate coherent memory: failed to create blob mapping.");
+                return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+            }
 
             auto coherentMemory = std::make_shared<CoherentMemory>(
                 mapping, hostAllocationInfo.allocationSize, device, mem);
