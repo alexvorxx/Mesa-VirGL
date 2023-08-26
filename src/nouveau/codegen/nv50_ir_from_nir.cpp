@@ -146,6 +146,9 @@ private:
    void storeTo(nir_intrinsic_instr *, DataFile, operation, DataType,
                 Value *src, uint8_t idx, uint8_t c, Value *indirect0 = NULL,
                 Value *indirect1 = NULL);
+   Instruction *storeVector(nir_intrinsic_instr *insn,
+                            uint8_t buffer, Value *indirectBuffer,
+                            uint32_t offset, Value *indirectOffset);
    static nir_mem_access_size_align
    getMemAccessSizeAlign(nir_intrinsic_op intrin,
                          uint8_t bytes,
@@ -1336,6 +1339,36 @@ Converter::storeTo(nir_intrinsic_instr *insn, DataFile file, operation op,
    }
 }
 
+Instruction *
+Converter::storeVector(nir_intrinsic_instr *insn,
+                       uint8_t buffer, Value *indirectBuffer,
+                       uint32_t offset, Value *indirectOffset)
+{
+   const uint8_t num_components = insn->src[0].ssa->num_components;
+   uint32_t bytes = insn->src[0].ssa->bit_size / 8 * num_components;
+   DataType ty = typeOfSize(bytes, false, false);
+   DataFile file = getFile(insn->intrinsic);
+   assert(nir_intrinsic_write_mask(insn) == nir_component_mask(num_components));
+
+   Value* src;
+   if (num_components == 1) {
+      src = getSrc(&insn->src[0], 0);
+   } else {
+      src = getSSA(bytes);
+
+      Instruction *merge = mkOp(OP_MERGE, ty, src);
+      for (int i = 0; i < num_components; i++) {
+         merge->setSrc(i, getSrc(&insn->src[0], i));
+      }
+   }
+
+   Instruction *st = mkStore(OP_STORE, ty, mkSymbol(file, buffer, ty, offset),
+                             indirectOffset, src);
+   st->setIndirect(0, 1, indirectBuffer);
+
+   return st;
+}
+
 nir_mem_access_size_align
 Converter::getMemAccessSizeAlign(nir_intrinsic_op intrin,
                                  uint8_t original_bytes,
@@ -2142,7 +2175,6 @@ Converter::visit(nir_intrinsic_instr *insn)
       break;
    }
    case nir_intrinsic_store_ssbo: {
-      DataType sType = getSType(insn->src[0], false, false);
       Value *indirectBuffer;
       Value *indirectOffset;
       uint32_t buffer = getIndirect(&insn->src[1], 0, indirectBuffer);
@@ -2150,15 +2182,8 @@ Converter::visit(nir_intrinsic_instr *insn)
 
       CacheMode cache = convert(nir_intrinsic_access(insn));
 
-      for (uint8_t i = 0u; i < nir_intrinsic_src_components(insn, 0); ++i) {
-         if (!((1u << i) & nir_intrinsic_write_mask(insn)))
-            continue;
-         Symbol *sym = mkSymbol(getFile(op), buffer, sType,
-                                offset + i * typeSizeof(sType));
-         Instruction *st = mkStore(OP_STORE, sType, sym, indirectOffset, getSrc(&insn->src[0], i));
-         st->setIndirect(0, 1, indirectBuffer);
-         st->cache = cache;
-      }
+      storeVector(insn, buffer, indirectBuffer, offset, indirectOffset)->cache = cache;
+
       info_out->io.globalAccess |= 0x2;
       break;
    }
@@ -2360,18 +2385,12 @@ Converter::visit(nir_intrinsic_instr *insn)
    }
    case nir_intrinsic_store_scratch:
    case nir_intrinsic_store_shared: {
-      DataType sType = getSType(insn->src[0], false, false);
       Value *indirectOffset;
       uint32_t offset = getIndirect(&insn->src[1], 0, indirectOffset);
       if (indirectOffset)
          indirectOffset = mkOp1v(OP_MOV, TYPE_U32, getSSA(4, FILE_ADDRESS), indirectOffset);
 
-      for (uint8_t i = 0u; i < nir_intrinsic_src_components(insn, 0); ++i) {
-         if (!((1u << i) & nir_intrinsic_write_mask(insn)))
-            continue;
-         Symbol *sym = mkSymbol(getFile(op), 0, sType, offset + i * typeSizeof(sType));
-         mkStore(OP_STORE, sType, sym, indirectOffset, getSrc(&insn->src[0], i));
-      }
+      storeVector(insn, 0, nullptr, offset, indirectOffset);
       break;
    }
    case nir_intrinsic_load_kernel_input: {
@@ -2445,25 +2464,10 @@ Converter::visit(nir_intrinsic_instr *insn)
       break;
    }
    case nir_intrinsic_store_global: {
-      DataType sType = getSType(insn->src[0], false, false);
+      Value *indirectOffset;
+      uint32_t offset = getIndirect(&insn->src[1], 0, indirectOffset);
 
-      for (auto i = 0u; i < nir_intrinsic_src_components(insn, 0); ++i) {
-         if (!((1u << i) & nir_intrinsic_write_mask(insn)))
-            continue;
-         if (typeSizeof(sType) == 8) {
-            Value *split[2];
-            mkSplit(split, 4, getSrc(&insn->src[0], i));
-
-            Symbol *sym = mkSymbol(getFile(op), 0, TYPE_U32, i * typeSizeof(sType));
-            mkStore(OP_STORE, TYPE_U32, sym, getSrc(&insn->src[1], 0), split[0]);
-
-            sym = mkSymbol(getFile(op), 0, TYPE_U32, i * typeSizeof(sType) + 4);
-            mkStore(OP_STORE, TYPE_U32, sym, getSrc(&insn->src[1], 0), split[1]);
-         } else {
-            Symbol *sym = mkSymbol(getFile(op), 0, sType, i * typeSizeof(sType));
-            mkStore(OP_STORE, sType, sym, getSrc(&insn->src[1], 0), getSrc(&insn->src[0], i));
-         }
-      }
+      storeVector(insn, 0, nullptr, offset, indirectOffset);
 
       info_out->io.globalAccess |= 0x2;
       break;
