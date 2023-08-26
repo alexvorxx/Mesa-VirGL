@@ -3221,14 +3221,19 @@ MemoryOpt::runOpt(BasicBlock *bb)
          }
          continue;
       }
+
+      DataFile file = ldst->src(0).getFile();
+      if (file != FILE_MEMORY_CONST &&
+          file != FILE_SHADER_INPUT &&
+          file != FILE_SHADER_OUTPUT)
+         continue;
+
       if (ldst->getPredicate()) // TODO: handle predicated ld/st
          continue;
       if (ldst->perPatch) // TODO: create separate per-patch lists
          continue;
 
       if (isLoad) {
-         DataFile file = ldst->src(0).getFile();
-
          // if ld l[]/g[] look for previous store to eliminate the reload
          if (file == FILE_MEMORY_GLOBAL || file == FILE_MEMORY_LOCAL) {
             // TODO: shared memory ?
