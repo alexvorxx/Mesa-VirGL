@@ -140,6 +140,9 @@ private:
                          uint8_t c, Value *indirect0 = NULL,
                          Value *indirect1 = NULL, bool patch = false,
                          CacheMode cache=CACHE_CA);
+   Instruction *loadVector(nir_intrinsic_instr *insn,
+                           uint8_t buffer, Value *indirectBuffer,
+                           uint32_t offset, Value *indirectOffset);
    void storeTo(nir_intrinsic_instr *, DataFile, operation, DataType,
                 Value *src, uint8_t idx, uint8_t c, Value *indirect0 = NULL,
                 Value *indirect1 = NULL);
@@ -1274,6 +1277,36 @@ Converter::loadFrom(DataFile file, uint8_t i, DataType ty, Value *def,
    }
 }
 
+Instruction *
+Converter::loadVector(nir_intrinsic_instr *insn,
+                      uint8_t buffer, Value *indirectBuffer,
+                      uint32_t offset, Value *indirectOffset)
+{
+   uint32_t load_bytes = insn->def.bit_size / 8 * insn->def.num_components;
+   DataType ty = typeOfSize(load_bytes, false, false);
+   DataFile file = getFile(insn->intrinsic);
+
+   LValues &newDefs = convert(&insn->def);
+   Value* def;
+   if (insn->def.num_components == 1) {
+      def = newDefs[0];
+   } else {
+      def = getSSA(load_bytes);
+   }
+
+   Instruction *ld = mkLoad(ty, def, mkSymbol(file, buffer, ty, offset), indirectOffset);
+   ld->setIndirect(0, 1, indirectBuffer);
+
+   if (insn->def.num_components != 1) {
+      Instruction *split = mkOp1(OP_SPLIT, ty, newDefs[0], def);
+      for (int i = 1; i < insn->def.num_components; i++) {
+         split->setDef(i, newDefs[i]);
+      }
+   }
+
+   return ld;
+}
+
 void
 Converter::storeTo(nir_intrinsic_instr *insn, DataFile file, operation op,
                    DataType ty, Value *src, uint8_t idx, uint8_t c,
@@ -2130,8 +2163,6 @@ Converter::visit(nir_intrinsic_instr *insn)
       break;
    }
    case nir_intrinsic_load_ssbo: {
-      const DataType dType = getDType(insn);
-      LValues &newDefs = convert(&insn->def);
       Value *indirectBuffer;
       Value *indirectOffset;
       uint32_t buffer = getIndirect(&insn->src[0], 0, indirectBuffer);
@@ -2139,9 +2170,7 @@ Converter::visit(nir_intrinsic_instr *insn)
 
       CacheMode cache = convert(nir_intrinsic_access(insn));
 
-      for (uint8_t i = 0u; i < dest_components; ++i)
-         loadFrom(getFile(op), buffer, dType, newDefs[i], offset, i,
-                  indirectOffset, indirectBuffer, false, cache);
+      loadVector(insn, buffer, indirectBuffer, offset, indirectOffset)->cache = cache;
 
       info_out->io.globalAccess |= 0x1;
       break;
@@ -2345,9 +2374,7 @@ Converter::visit(nir_intrinsic_instr *insn)
       }
       break;
    }
-   case nir_intrinsic_load_kernel_input:
-   case nir_intrinsic_load_scratch:
-   case nir_intrinsic_load_shared: {
+   case nir_intrinsic_load_kernel_input: {
       const DataType dType = getDType(insn);
       LValues &newDefs = convert(&insn->def);
       Value *indirectOffset;
@@ -2357,6 +2384,17 @@ Converter::visit(nir_intrinsic_instr *insn)
 
       for (uint8_t i = 0u; i < dest_components; ++i)
          loadFrom(getFile(op), 0, dType, newDefs[i], offset, i, indirectOffset);
+
+      break;
+   }
+   case nir_intrinsic_load_scratch:
+   case nir_intrinsic_load_shared: {
+      Value *indirectOffset;
+      uint32_t offset = getIndirect(&insn->src[0], 0, indirectOffset);
+      if (indirectOffset)
+         indirectOffset = mkOp1v(OP_MOV, TYPE_U32, getSSA(4, FILE_ADDRESS), indirectOffset);
+
+      loadVector(insn, 0, nullptr, offset, indirectOffset);
 
       break;
    }
@@ -2398,13 +2436,10 @@ Converter::visit(nir_intrinsic_instr *insn)
    }
    case nir_intrinsic_load_global:
    case nir_intrinsic_load_global_constant: {
-      const DataType dType = getDType(insn);
-      LValues &newDefs = convert(&insn->def);
       Value *indirectOffset;
       uint32_t offset = getIndirect(&insn->src[0], 0, indirectOffset);
 
-      for (auto i = 0u; i < dest_components; ++i)
-         loadFrom(getFile(op), 0, dType, newDefs[i], offset, i, indirectOffset);
+      loadVector(insn, 0, nullptr, offset, indirectOffset);
 
       info_out->io.globalAccess |= 0x1;
       break;
