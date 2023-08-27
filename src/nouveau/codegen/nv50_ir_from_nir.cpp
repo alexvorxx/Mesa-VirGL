@@ -149,6 +149,14 @@ private:
    Instruction *storeVector(nir_intrinsic_instr *insn,
                             uint8_t buffer, Value *indirectBuffer,
                             uint32_t offset, Value *indirectOffset);
+
+   static bool memVectorizeCb(unsigned align_mul,
+                              unsigned align_offset,
+                              unsigned bit_size,
+                              unsigned num_components,
+                              nir_intrinsic_instr *low,
+                              nir_intrinsic_instr *high,
+                              void *cb_data);
    static nir_mem_access_size_align
    getMemAccessSizeAlign(nir_intrinsic_op intrin,
                          uint8_t bytes,
@@ -1369,6 +1377,37 @@ Converter::storeVector(nir_intrinsic_instr *insn,
    st->setIndirect(0, 1, indirectBuffer);
 
    return st;
+}
+
+bool
+Converter::memVectorizeCb(unsigned align_mul,
+                          unsigned align_offset,
+                          unsigned bit_size,
+                          unsigned num_components,
+                          nir_intrinsic_instr *low,
+                          nir_intrinsic_instr *high,
+                          void *cb_data)
+{
+   /*
+    * Since we legalize these later with nir_lower_mem_access_bit_sizes,
+    * we can optimistically combine anything that might be profitable
+    */
+   const Converter* converter = (Converter*) cb_data;
+   const Target* target = converter->prog->getTarget();
+
+   assert(util_is_power_of_two_nonzero(align_mul));
+   align_mul = std::min(align_mul, 128u / 8u);
+
+   const DataFile file = converter->getFile(low->intrinsic);
+   if (align_mul == 128u / 8u && !target->isAccessSupported(file, TYPE_B128))
+      align_mul = 64u / 8u;
+
+   if (align_mul == 64u / 8u && !target->isAccessSupported(file, TYPE_U64))
+      align_mul = 32u / 8u;
+
+   align_offset = align_offset % align_mul;
+
+   return align_offset + num_components * (bit_size / 8) <= align_mul;
 }
 
 nir_mem_access_size_align
@@ -3429,6 +3468,17 @@ Converter::run()
    NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_function_temp, nir_address_format_32bit_offset);
    NIR_PASS_V(nir, nir_remove_dead_variables, nir_var_function_temp, NULL);
 
+   NIR_PASS_V(nir, nir_opt_constant_folding);  // Improves aliasing information
+
+   nir_load_store_vectorize_options vectorize_opts = {};
+   vectorize_opts.modes = nir_var_mem_global |
+                          nir_var_mem_ssbo |
+                          nir_var_mem_shared |
+                          nir_var_shader_temp;
+   vectorize_opts.callback = Converter::memVectorizeCb;
+   vectorize_opts.cb_data = this;
+   NIR_PASS_V(nir, nir_opt_load_store_vectorize, &vectorize_opts);
+
    nir_lower_mem_access_bit_sizes_options mem_bit_sizes = {};
    mem_bit_sizes.modes = nir_var_mem_global |
                          nir_var_mem_constant |
@@ -3438,6 +3488,9 @@ Converter::run()
    mem_bit_sizes.callback = Converter::getMemAccessSizeAlign;
    mem_bit_sizes.cb_data = this;
    NIR_PASS_V(nir, nir_lower_mem_access_bit_sizes, &mem_bit_sizes);
+
+   NIR_PASS_V(nir, nir_lower_alu_to_scalar, NULL, NULL);
+   NIR_PASS_V(nir, nir_lower_pack);
 
    runOptLoop();
 
