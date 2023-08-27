@@ -49,22 +49,6 @@ type_size(const struct glsl_type *type, bool bindless)
    return glsl_count_attribute_slots(type, false);
 }
 
-static void
-function_temp_type_info(const struct glsl_type *type, unsigned *size, unsigned *align)
-{
-   assert(glsl_type_is_vector_or_scalar(type));
-
-   if (glsl_type_is_scalar(type)) {
-      glsl_get_natural_size_align_bytes(type, size, align);
-   } else {
-      unsigned comp_size = glsl_type_is_boolean(type) ? 4 : glsl_get_bit_size(type) / 8;
-      unsigned length = glsl_get_vector_elements(type);
-
-      *size = comp_size * length;
-      *align = 0x10;
-   }
-}
-
 bool
 nv50_nir_lower_load_user_clip_plane_cb(nir_builder *b, nir_intrinsic_instr *intrin, void *params)
 {
@@ -3462,9 +3446,9 @@ Converter::run()
 
    runOptLoop();
 
-   /* codegen assumes vec4 alignment for memory */
    NIR_PASS_V(nir, nir_remove_dead_variables, nir_var_function_temp, NULL);
-   NIR_PASS_V(nir, nir_lower_vars_to_explicit_types, nir_var_function_temp, function_temp_type_info);
+   NIR_PASS_V(nir, nir_lower_vars_to_explicit_types, nir_var_function_temp,
+              glsl_get_natural_size_align_bytes);
    NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_function_temp, nir_address_format_32bit_offset);
    NIR_PASS_V(nir, nir_remove_dead_variables, nir_var_function_temp, NULL);
 
