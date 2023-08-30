@@ -234,6 +234,10 @@ add_src_instr(nir_src *src, void *state)
          return true;
    }
 
+   /* Abort rematerializing an instruction chain if it is too long. */
+   if (data->buf->size >= data->buf->capacity)
+      return false;
+
    util_dynarray_append(data->buf, nir_instr *, src->ssa->parent_instr);
    return true;
 }
@@ -590,10 +594,15 @@ spill_ssa_defs_and_lower_shader_calls(nir_shader *shader, uint32_t num_calls,
          after.cursor = nir_after_instr(instr);
 
          /* Array used to hold all the values needed to rematerialize a live
-          * value.
+          * value. The capacity is used to determine when we should abort testing
+          * a remat chain. In practice, shaders can have chains with more than
+          * 10k elements while only chains with less than 16 have realistic
+          * chances. There also isn't any performance benefit in rematerializing
+          * extremely long chains.
           */
+         nir_instr *remat_chain_instrs[16];
          struct util_dynarray remat_chain;
-         util_dynarray_init(&remat_chain, mem_ctx);
+         util_dynarray_init_from_stack(&remat_chain, remat_chain_instrs, sizeof(remat_chain_instrs));
 
          unsigned offset = shader->scratch_size;
          for (unsigned w = 0; w < live_words; w++) {
@@ -1378,7 +1387,7 @@ lower_stack_instr_to_scratch(struct nir_builder *b, nir_instr *instr, void *data
          nir_store_global(b, addr,
                           nir_intrinsic_align_mul(stack),
                           data,
-                          BITFIELD_MASK(data->num_components));
+                          nir_component_mask(data->num_components));
       } else {
          assert(state->address_format == nir_address_format_32bit_offset);
          nir_store_scratch(b, data,
