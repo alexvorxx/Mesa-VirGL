@@ -140,6 +140,11 @@ void doEmulatedDescriptorBufferViewWriteFromTemplate(
     const VkBufferView* bufferViews,
     ReifiedDescriptorSet* set);
 
+void doEmulatedDescriptorInlineUniformBlockFromTemplate(VkDescriptorType descType, uint32_t binding,
+                                                        uint32_t dstArrayElement, uint32_t count,
+                                                        const void* pData,
+                                                        ReifiedDescriptorSet* set);
+
 void applyDescriptorSetAllocation(VkDescriptorPool pool, VkDescriptorSetLayout setLayout);
 void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout, VkDescriptorSet set);
 VkResult validateAndApplyVirtualDescriptorSetAllocation(const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pSets);

@@ -368,12 +368,15 @@ public:
         uint32_t imageInfoCount = 0;
         uint32_t bufferInfoCount = 0;
         uint32_t bufferViewCount = 0;
+        uint32_t inlineUniformBlockCount = 0;
         uint32_t* imageInfoIndices;
         uint32_t* bufferInfoIndices;
         uint32_t* bufferViewIndices;
         VkDescriptorImageInfo* imageInfos;
         VkDescriptorBufferInfo* bufferInfos;
         VkBufferView* bufferViews;
+        std::vector<uint8_t> inlineUniformBlockBuffer;
+        std::vector<uint32_t> inlineUniformBlockBytesPerBlocks;  // bytes per uniform block
     };
 
     struct VkFence_Info {
@@ -6282,22 +6285,28 @@ public:
         }
 
         auto& info = it->second;
+        uint32_t inlineUniformBlockBufferSize = 0;
 
         for (uint32_t i = 0; i < pCreateInfo->descriptorUpdateEntryCount; ++i) {
             const auto& entry = pCreateInfo->pDescriptorUpdateEntries[i];
             uint32_t descCount = entry.descriptorCount;
             VkDescriptorType descType = entry.descriptorType;
             ++info.templateEntryCount;
-            for (uint32_t j = 0; j < descCount; ++j) {
-                if (isDescriptorTypeImageInfo(descType)) {
-                    ++info.imageInfoCount;
-                } else if (isDescriptorTypeBufferInfo(descType)) {
-                    ++info.bufferInfoCount;
-                } else if (isDescriptorTypeBufferView(descType)) {
-                    ++info.bufferViewCount;
-                } else {
-                    ALOGE("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
-                    abort();
+            if (isDescriptorTypeInlineUniformBlock(descType)) {
+                inlineUniformBlockBufferSize += descCount;
+                ++info.inlineUniformBlockCount;
+            } else {
+                for (uint32_t j = 0; j < descCount; ++j) {
+                    if (isDescriptorTypeImageInfo(descType)) {
+                        ++info.imageInfoCount;
+                    } else if (isDescriptorTypeBufferInfo(descType)) {
+                        ++info.bufferInfoCount;
+                    } else if (isDescriptorTypeBufferView(descType)) {
+                        ++info.bufferViewCount;
+                    } else {
+                        ALOGE("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
+                        // abort();
+                    }
                 }
             }
         }
@@ -6320,9 +6329,15 @@ public:
             info.bufferViews = new VkBufferView[info.bufferViewCount];
         }
 
+        if (info.inlineUniformBlockCount) {
+            info.inlineUniformBlockBuffer.resize(inlineUniformBlockBufferSize);
+            info.inlineUniformBlockBytesPerBlocks.resize(info.inlineUniformBlockCount);
+        }
+
         uint32_t imageInfoIndex = 0;
         uint32_t bufferInfoIndex = 0;
         uint32_t bufferViewIndex = 0;
+        uint32_t inlineUniformBlockIndex = 0;
 
         for (uint32_t i = 0; i < pCreateInfo->descriptorUpdateEntryCount; ++i) {
             const auto& entry = pCreateInfo->pDescriptorUpdateEntries[i];
@@ -6331,19 +6346,24 @@ public:
 
             info.templateEntries[i] = entry;
 
-            for (uint32_t j = 0; j < descCount; ++j) {
-                if (isDescriptorTypeImageInfo(descType)) {
-                    info.imageInfoIndices[imageInfoIndex] = i;
-                    ++imageInfoIndex;
-                } else if (isDescriptorTypeBufferInfo(descType)) {
-                    info.bufferInfoIndices[bufferInfoIndex] = i;
-                    ++bufferInfoIndex;
-                } else if (isDescriptorTypeBufferView(descType)) {
-                    info.bufferViewIndices[bufferViewIndex] = i;
-                    ++bufferViewIndex;
-                } else {
-                    ALOGE("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
-                    abort();
+            if (isDescriptorTypeInlineUniformBlock(descType)) {
+                info.inlineUniformBlockBytesPerBlocks[inlineUniformBlockIndex] = descCount;
+                ++inlineUniformBlockIndex;
+            } else {
+                for (uint32_t j = 0; j < descCount; ++j) {
+                    if (isDescriptorTypeImageInfo(descType)) {
+                        info.imageInfoIndices[imageInfoIndex] = i;
+                        ++imageInfoIndex;
+                    } else if (isDescriptorTypeBufferInfo(descType)) {
+                        info.bufferInfoIndices[bufferInfoIndex] = i;
+                        ++bufferInfoIndex;
+                    } else if (isDescriptorTypeBufferView(descType)) {
+                        info.bufferViewIndices[bufferViewIndex] = i;
+                        ++bufferViewIndex;
+                    } else {
+                        ALOGE("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
+                        // abort();
+                    }
                 }
             }
         }
@@ -6411,18 +6431,23 @@ public:
         uint32_t imageInfoCount = info.imageInfoCount;
         uint32_t bufferInfoCount = info.bufferInfoCount;
         uint32_t bufferViewCount = info.bufferViewCount;
+        uint32_t inlineUniformBlockCount = info.inlineUniformBlockCount;
         uint32_t* imageInfoIndices = info.imageInfoIndices;
         uint32_t* bufferInfoIndices = info.bufferInfoIndices;
         uint32_t* bufferViewIndices = info.bufferViewIndices;
         VkDescriptorImageInfo* imageInfos = info.imageInfos;
         VkDescriptorBufferInfo* bufferInfos = info.bufferInfos;
         VkBufferView* bufferViews = info.bufferViews;
+        uint8_t* inlineUniformBlockBuffer = info.inlineUniformBlockBuffer.data();
+        uint32_t* inlineUniformBlockBytesPerBlocks = info.inlineUniformBlockBytesPerBlocks.data();
 
         lock.unlock();
 
         size_t currImageInfoOffset = 0;
         size_t currBufferInfoOffset = 0;
         size_t currBufferViewOffset = 0;
+        size_t inlineUniformBlockOffset = 0;
+        size_t inlineUniformBlockIdx = 0;
 
         struct goldfish_VkDescriptorSet* ds = as_goldfish_VkDescriptorSet(descriptorSet);
         ReifiedDescriptorSet* reified = ds->reified;
@@ -6500,21 +6525,32 @@ public:
 
                 for (uint32_t j = 0; j < descCount; ++j) {
                   const VkBufferView* user =
-                        (const VkBufferView*)(userBuffer + offset + j * stride);
+                      (const VkBufferView*)(userBuffer + offset + j * stride);
 
-                    memcpy(((uint8_t*)bufferViews) + currBufferViewOffset,
-                           user, sizeof(VkBufferView));
-                    currBufferViewOffset += sizeof(VkBufferView);
+                  memcpy(((uint8_t*)bufferViews) + currBufferViewOffset, user,
+                         sizeof(VkBufferView));
+                  currBufferViewOffset += sizeof(VkBufferView);
                 }
 
                 if (batched) {
-                  doEmulatedDescriptorBufferViewWriteFromTemplate(
-                        descType,
-                        dstBinding,
-                        dstArrayElement,
-                        descCount,
-                        currBufferViewBegin,
-                        reified);
+                  doEmulatedDescriptorBufferViewWriteFromTemplate(descType, dstBinding,
+                                                                  dstArrayElement, descCount,
+                                                                  currBufferViewBegin, reified);
+                }
+            } else if (isDescriptorTypeInlineUniformBlock(descType)) {
+                uint32_t inlineUniformBlockBytesPerBlock =
+                    inlineUniformBlockBytesPerBlocks[inlineUniformBlockIdx];
+                uint8_t* currInlineUniformBlockBufferBegin =
+                    inlineUniformBlockBuffer + inlineUniformBlockOffset;
+                memcpy(currInlineUniformBlockBufferBegin, userBuffer + offset,
+                       inlineUniformBlockBytesPerBlock);
+                inlineUniformBlockIdx++;
+                inlineUniformBlockOffset += inlineUniformBlockBytesPerBlock;
+
+                if (batched) {
+                  doEmulatedDescriptorInlineUniformBlockFromTemplate(
+                      descType, dstBinding, dstArrayElement, descCount,
+                      currInlineUniformBlockBufferBegin, reified);
                 }
             } else {
                 ALOGE("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
@@ -6524,20 +6560,11 @@ public:
 
         if (batched) return;
 
-        enc->vkUpdateDescriptorSetWithTemplateSizedGOOGLE(
-            device,
-            descriptorSet,
-            descriptorUpdateTemplate,
-            imageInfoCount,
-            bufferInfoCount,
-            bufferViewCount,
-            imageInfoIndices,
-            bufferInfoIndices,
-            bufferViewIndices,
-            imageInfos,
-            bufferInfos,
-            bufferViews,
-            true /* do lock */);
+        enc->vkUpdateDescriptorSetWithTemplateSized2GOOGLE(
+            device, descriptorSet, descriptorUpdateTemplate, imageInfoCount, bufferInfoCount,
+            bufferViewCount, static_cast<uint32_t>(info.inlineUniformBlockBuffer.size()),
+            imageInfoIndices, bufferInfoIndices, bufferViewIndices, imageInfos, bufferInfos,
+            bufferViews, inlineUniformBlockBuffer, true /* do lock */);
     }
 
     VkResult on_vkGetPhysicalDeviceImageFormatProperties2_common(

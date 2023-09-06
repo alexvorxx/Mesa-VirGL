@@ -155,8 +155,29 @@ void doEmulatedDescriptorWrite(const VkWriteDescriptorSet* write, ReifiedDescrip
             entry.type = DescriptorWriteType::BufferView;
             entry.descriptorType = descType;
         }
-    } else if (isDescriptorTypeInlineUniformBlock(descType) ||
-               isDescriptorTypeAccelerationStructure(descType)) {
+    } else if (isDescriptorTypeInlineUniformBlock(descType)) {
+        const VkWriteDescriptorSetInlineUniformBlock* descInlineUniformBlock =
+            static_cast<const VkWriteDescriptorSetInlineUniformBlock*>(write->pNext);
+        while (descInlineUniformBlock &&
+               descInlineUniformBlock->sType !=
+                   VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_INLINE_UNIFORM_BLOCK) {
+            descInlineUniformBlock = static_cast<const VkWriteDescriptorSetInlineUniformBlock*>(
+                descInlineUniformBlock->pNext);
+        }
+        if (!descInlineUniformBlock) {
+            ALOGE("%s: did not find inline uniform block\n", __func__);
+            return;
+        }
+        auto& entry = table[dstBinding][0];
+        entry.inlineUniformBlock = *descInlineUniformBlock;
+        entry.inlineUniformBlockBuffer.assign(
+            static_cast<const uint8_t*>(descInlineUniformBlock->pData),
+            static_cast<const uint8_t*>(descInlineUniformBlock->pData) +
+                descInlineUniformBlock->dataSize);
+        entry.type = DescriptorWriteType::InlineUniformBlock;
+        entry.descriptorType = descType;
+        entry.dstArrayElement = dstArrayElement;
+    } else if (isDescriptorTypeAccelerationStructure(descType)) {
         // TODO
         // Look for pNext inline uniform block or acceleration structure.
         // Append new DescriptorWrite entry that holds the buffer
@@ -266,6 +287,19 @@ void doEmulatedDescriptorBufferViewWriteFromTemplate(
         entry.type = DescriptorWriteType::BufferView;
         entry.descriptorType = descType;
     }
+}
+
+void doEmulatedDescriptorInlineUniformBlockFromTemplate(VkDescriptorType descType, uint32_t binding,
+                                                        uint32_t dstArrayElement, uint32_t count,
+                                                        const void* pData,
+                                                        ReifiedDescriptorSet* set) {
+    DescriptorWriteTable& table = set->allWrites;
+    auto& entry = table[binding][0];
+    entry.dstArrayElement = dstArrayElement;
+    entry.inlineUniformBlockBuffer.assign(static_cast<const uint8_t*>(pData),
+                                          static_cast<const uint8_t*>(pData) + count);
+    entry.type = DescriptorWriteType::InlineUniformBlock;
+    entry.descriptorType = descType;
 }
 
 static bool isBindingFeasibleForAlloc(
