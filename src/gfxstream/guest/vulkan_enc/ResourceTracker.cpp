@@ -192,7 +192,6 @@ public: \
         (void)handles[i]; delete_goldfish_##type_name((type_name)handle_u64s[i]))
 
 DEFINE_RESOURCE_TRACKING_CLASS(CreateMapping, CREATE_MAPPING_IMPL_FOR_TYPE)
-DEFINE_RESOURCE_TRACKING_CLASS(UnwrapMapping, UNWRAP_MAPPING_IMPL_FOR_TYPE)
 DEFINE_RESOURCE_TRACKING_CLASS(DestroyMapping, DESTROY_MAPPING_IMPL_FOR_TYPE)
 
 static uint32_t* sSeqnoPtr = nullptr;
@@ -264,9 +263,7 @@ class ResourceTracker::Impl {
 public:
     Impl() = default;
     CreateMapping createMapping;
-    UnwrapMapping unwrapMapping;
     DestroyMapping destroyMapping;
-    DefaultHandleMapping defaultMapping;
 
 #define HANDLE_DEFINE_TRIVIAL_INFO_STRUCT(type) \
     struct type##_Info { \
@@ -7641,18 +7638,8 @@ private:
 
 ResourceTracker::ResourceTracker() : mImpl(new ResourceTracker::Impl()) { }
 ResourceTracker::~ResourceTracker() { }
-VulkanHandleMapping* ResourceTracker::createMapping() {
-    return &mImpl->createMapping;
-}
-VulkanHandleMapping* ResourceTracker::unwrapMapping() {
-    return &mImpl->unwrapMapping;
-}
-VulkanHandleMapping* ResourceTracker::destroyMapping() {
-    return &mImpl->destroyMapping;
-}
-VulkanHandleMapping* ResourceTracker::defaultMapping() {
-    return &mImpl->defaultMapping;
-}
+VulkanHandleMapping* ResourceTracker::createMapping() { return &mImpl->createMapping; }
+VulkanHandleMapping* ResourceTracker::destroyMapping() { return &mImpl->destroyMapping; }
 static ResourceTracker* sTracker = nullptr;
 // static
 ResourceTracker* ResourceTracker::get() {

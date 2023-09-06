@@ -41,9 +41,7 @@ public:
     static ResourceTracker* get();
 
     VulkanHandleMapping* createMapping();
-    VulkanHandleMapping* unwrapMapping();
     VulkanHandleMapping* destroyMapping();
-    VulkanHandleMapping* defaultMapping();
 
     using HostConnectionGetFunc = HostConnection* (*)();
     using VkEncoderGetFunc = VkEncoder* (*)(HostConnection*);
