@@ -48,8 +48,8 @@ public:
     using CleanupCallback = std::function<void()>;
 
     struct ThreadingCallbacks {
-        HostConnectionGetFunc hostConnectionGetFunc = 0;
-        VkEncoderGetFunc vkEncoderGetFunc = 0;
+        HostConnectionGetFunc hostConnectionGetFunc = nullptr;
+        VkEncoderGetFunc vkEncoderGetFunc = nullptr;
     };
 
     static uint32_t streamFeatureBits;
