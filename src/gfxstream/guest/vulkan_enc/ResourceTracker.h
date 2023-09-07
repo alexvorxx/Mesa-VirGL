@@ -626,7 +626,7 @@ public:
     bool isValidMemoryRange(const VkMappedMemoryRange& range) const;
 
     void setupFeatures(const EmulatorFeatureInfo* features);
-    void setupCaps(void);
+    void setupCaps(uint32_t& noRenderControlEnc);
 
     void setThreadingCallbacks(const ThreadingCallbacks& callbacks);
     bool hostSupportsVulkan() const;

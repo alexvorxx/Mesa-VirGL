@@ -97,7 +97,8 @@ struct vulkanCapset {
     uint32_t colorBufferMemoryIndex;
     uint32_t deferredMapping;
     uint32_t blobAlignment;
-    uint32_t padding[15];
+    uint32_t noRenderControlEnc;
+    uint32_t padding[14];
 };
 
 struct magmaCapset {

@@ -916,14 +916,41 @@ public:
         return offset + size <= info.allocationSize;
     }
 
-    void setupCaps(void) {
-        VirtGpuDevice* instance = VirtGpuDevice::getInstance((enum VirtGpuCapset)3);
+    void setupCaps(uint32_t& noRenderControlEnc) {
+        VirtGpuDevice* instance = VirtGpuDevice::getInstance(kCapsetGfxStreamVulkan);
         mCaps = instance->getCaps();
 
         // Delete once goldfish Linux drivers are gone
         if (mCaps.vulkanCapset.protocolVersion == 0) {
             mCaps.vulkanCapset.colorBufferMemoryIndex = 0xFFFFFFFF;
+        } else {
+            // Don't query the render control encoder for features, since for virtio-gpu the
+            // capabilities provide versioning. Set features to be unconditionally true, since
+            // using virtio-gpu encompasses all prior goldfish features.  mFeatureInfo should be
+            // deprecated in favor of caps.
+
+            mFeatureInfo.reset(new EmulatorFeatureInfo);
+
+            mFeatureInfo->hasVulkanNullOptionalStrings = true;
+            mFeatureInfo->hasVulkanIgnoredHandles = true;
+            mFeatureInfo->hasVulkanShaderFloat16Int8 = true;
+            mFeatureInfo->hasVulkanQueueSubmitWithCommands = true;
+            mFeatureInfo->hasDeferredVulkanCommands = true;
+            mFeatureInfo->hasVulkanAsyncQueueSubmit = true;
+            mFeatureInfo->hasVulkanCreateResourcesWithRequirements = true;
+            mFeatureInfo->hasVirtioGpuNext = true;
+            mFeatureInfo->hasVirtioGpuNativeSync = true;
+            mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate = true;
+            mFeatureInfo->hasVulkanAsyncQsri = true;
+
+            ResourceTracker::streamFeatureBits |= VULKAN_STREAM_FEATURE_NULL_OPTIONAL_STRINGS_BIT;
+            ResourceTracker::streamFeatureBits |= VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT;
+            ResourceTracker::streamFeatureBits |= VULKAN_STREAM_FEATURE_SHADER_FLOAT16_INT8_BIT;
+            ResourceTracker::streamFeatureBits |=
+                VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT;
         }
+
+        noRenderControlEnc = mCaps.vulkanCapset.noRenderControlEnc;
     }
 
     void setupFeatures(const EmulatorFeatureInfo* features) {
@@ -7676,7 +7703,9 @@ void ResourceTracker::setupFeatures(const EmulatorFeatureInfo* features) {
     mImpl->setupFeatures(features);
 }
 
-void ResourceTracker::setupCaps(void) { mImpl->setupCaps(); }
+void ResourceTracker::setupCaps(uint32_t& noRenderControlEnc) {
+    mImpl->setupCaps(noRenderControlEnc);
+}
 
 void ResourceTracker::setThreadingCallbacks(const ResourceTracker::ThreadingCallbacks& callbacks) {
     mImpl->setThreadingCallbacks(callbacks);
