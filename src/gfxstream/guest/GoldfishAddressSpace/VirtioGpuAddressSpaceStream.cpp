@@ -59,8 +59,8 @@ AddressSpaceStream* createVirtioGpuAddressSpaceStream(HealthMonitor<>* healthMon
     blobCreate.blobId = 0;
     blobCreate.blobMem = kBlobMemHost3d;
     blobCreate.flags = kBlobFlagMappable;
-    blobCreate.size = ALIGN(caps.gfxstreamCapset.ringSize + caps.gfxstreamCapset.bufferSize,
-                            caps.gfxstreamCapset.blobAlignment);
+    blobCreate.size = ALIGN(caps.vulkanCapset.ringSize + caps.vulkanCapset.bufferSize,
+                            caps.vulkanCapset.blobAlignment);
     blob = instance->createBlob(blobCreate);
     if (!blob)
         return nullptr;
@@ -89,7 +89,7 @@ AddressSpaceStream* createVirtioGpuAddressSpaceStream(HealthMonitor<>* healthMon
 
     bufferPtr = blobAddr + sizeof(struct asg_ring_storage);
     struct asg_context context =
-        asg_context_create(blobAddr, bufferPtr, caps.gfxstreamCapset.bufferSize);
+        asg_context_create(blobAddr, bufferPtr, caps.vulkanCapset.bufferSize);
 
     context.ring_config->transfer_mode = 1;
     context.ring_config->host_consumed_pos = 0;

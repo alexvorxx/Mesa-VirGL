@@ -80,8 +80,8 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
 
     get_caps.cap_set_id = static_cast<uint32_t>(capset);
     if (capset == kCapsetGfxStreamVulkan) {
-        get_caps.size = sizeof(struct gfxstreamCapset);
-        get_caps.addr = (unsigned long long)&mCaps.gfxstreamCapset;
+        get_caps.size = sizeof(struct vulkanCapset);
+        get_caps.addr = (unsigned long long)&mCaps.vulkanCapset;
     }
 
     ret = drmIoctl(mDeviceHandle, DRM_IOCTL_VIRTGPU_GET_CAPS, &get_caps);
@@ -92,8 +92,8 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
     }
 
     // We always need an ASG blob in some cases, so always define blobAlignment
-    if (!mCaps.gfxstreamCapset.blobAlignment) {
-        mCaps.gfxstreamCapset.blobAlignment = 4096;
+    if (!mCaps.vulkanCapset.blobAlignment) {
+        mCaps.vulkanCapset.blobAlignment = 4096;
     }
 
     ctx_set_params[0].param = VIRTGPU_CONTEXT_PARAM_NUM_RINGS;

@@ -924,8 +924,8 @@ public:
         mCaps = instance->getCaps();
 
         // Delete once goldfish Linux drivers are gone
-        if (mCaps.gfxstreamCapset.protocolVersion == 0) {
-            mCaps.gfxstreamCapset.colorBufferMemoryIndex = 0xFFFFFFFF;
+        if (mCaps.vulkanCapset.protocolVersion == 0) {
+            mCaps.vulkanCapset.colorBufferMemoryIndex = 0xFFFFFFFF;
         }
     }
 
@@ -1722,13 +1722,12 @@ public:
             ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->grallocHelper();
 
         // Delete once goldfish Linux drivers are gone
-        if (mCaps.gfxstreamCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
-            mCaps.gfxstreamCapset.colorBufferMemoryIndex =
-                    getColorBufferMemoryIndex(context, device);
+        if (mCaps.vulkanCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
+            mCaps.vulkanCapset.colorBufferMemoryIndex = getColorBufferMemoryIndex(context, device);
         }
 
         updateMemoryTypeBits(&pProperties->memoryTypeBits,
-                             mCaps.gfxstreamCapset.colorBufferMemoryIndex);
+                             mCaps.vulkanCapset.colorBufferMemoryIndex);
 
         return getAndroidHardwareBufferPropertiesANDROID(
             grallocHelper, buffer, pProperties);
@@ -3057,15 +3056,15 @@ public:
 
         bool dedicated = deviceAddressMemoryAllocation;
 
-        if (mCaps.gfxstreamCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle])
+        if (mCaps.vulkanCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle])
             dedicated = true;
 
         VkMemoryAllocateInfo hostAllocationInfo = vk_make_orphan_copy(*pAllocateInfo);
         vk_struct_chain_iterator structChainIter = vk_make_chain_iterator(&hostAllocationInfo);
 
-        if (mCaps.gfxstreamCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle]) {
+        if (mCaps.vulkanCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle]) {
             hostAllocationInfo.allocationSize =
-                ALIGN(pAllocateInfo->allocationSize, mCaps.gfxstreamCapset.blobAlignment);
+                ALIGN(pAllocateInfo->allocationSize, mCaps.vulkanCapset.blobAlignment);
         } else if (dedicated) {
             // Over-aligning to kLargestSize to some Windows drivers (b:152769369).  Can likely
             // have host report the desired alignment.
@@ -3125,7 +3124,7 @@ public:
             }
 
             guestBlob->wait();
-        } else if (mCaps.gfxstreamCapset.deferredMapping) {
+        } else if (mCaps.vulkanCapset.deferredMapping) {
             createBlobInfo.blobId = ++mBlobId;
             createBlobInfo.blobMem = kBlobMemHost3d;
             vk_append_struct(&structChainIter, &createBlobInfo);
@@ -3141,7 +3140,7 @@ public:
         }
 
         struct VkDeviceMemory_Info info;
-        if (mCaps.gfxstreamCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle]) {
+        if (mCaps.vulkanCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle]) {
             info.allocationSize = pAllocateInfo->allocationSize;
             info.blobId = createBlobInfo.blobId;
         }
@@ -3173,7 +3172,7 @@ public:
             info_VkDeviceMemory[mem] = info;
         }
 
-        if (mCaps.gfxstreamCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle]) {
+        if (mCaps.vulkanCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle]) {
             *pMemory = mem;
             return host_res;
         }
@@ -3210,7 +3209,7 @@ public:
                          ((allocFlagsInfoPtr->flags & VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT) ||
                           (allocFlagsInfoPtr->flags & VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT));
 
-        if (mCaps.gfxstreamCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle])
+        if (mCaps.vulkanCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle])
             dedicated = true;
 
         CoherentMemoryPtr coherentMemory = nullptr;
@@ -4323,15 +4322,14 @@ public:
 
 // Delete `protocolVersion` check goldfish drivers are gone.
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-        if (mCaps.gfxstreamCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
-            mCaps.gfxstreamCapset.colorBufferMemoryIndex =
-                    getColorBufferMemoryIndex(context, device);
+        if (mCaps.vulkanCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
+            mCaps.vulkanCapset.colorBufferMemoryIndex = getColorBufferMemoryIndex(context, device);
         }
         if (extImgCiPtr &&
             (extImgCiPtr->handleTypes &
              VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID)) {
             updateMemoryTypeBits(&memReqs.memoryTypeBits,
-                                 mCaps.gfxstreamCapset.colorBufferMemoryIndex);
+                                 mCaps.vulkanCapset.colorBufferMemoryIndex);
         }
 #endif
 
@@ -5380,17 +5378,15 @@ public:
 
         if (res != VK_SUCCESS) return res;
 
-// Delete `protocolVersion` check goldfish drivers are gone.
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-        if (mCaps.gfxstreamCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
-            mCaps.gfxstreamCapset.colorBufferMemoryIndex =
-                    getColorBufferMemoryIndex(context, device);
+        if (mCaps.vulkanCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
+            mCaps.vulkanCapset.colorBufferMemoryIndex = getColorBufferMemoryIndex(context, device);
         }
         if (extBufCiPtr &&
             (extBufCiPtr->handleTypes &
              VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID)) {
             updateMemoryTypeBits(&memReqs.memoryTypeBits,
-                                 mCaps.gfxstreamCapset.colorBufferMemoryIndex);
+                                 mCaps.vulkanCapset.colorBufferMemoryIndex);
         }
 #endif
 
