@@ -11,6 +11,7 @@
 #include "nvk_physical_device.h"
 #include "nvk_shader.h"
 
+#include "cl906f.h"
 #include "cla0b5.h"
 #include "cla1c0.h"
 #include "clc0c0.h"
@@ -203,14 +204,16 @@ nvk_build_mme_add_cs_invocations(struct mme_builder *b,
    struct mme_value accum_lo = nvk_mme_load_scratch(b, CS_INVOCATIONS_LO);
    struct mme_value64 accum = mme_value64(accum_lo, accum_hi);
 
-   accum = mme_add64(b, accum, count);
+   mme_add64_to(b, accum, accum, count);
 
    STATIC_ASSERT(NVK_MME_SCRATCH_CS_INVOCATIONS_HI + 1 ==
                  NVK_MME_SCRATCH_CS_INVOCATIONS_LO);
 
-   mme_mthd(b, NVC597_SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_CS_INVOCATIONS_HI));
+   mme_mthd(b, NVK_SET_MME_SCRATCH(CS_INVOCATIONS_HI));
    mme_emit(b, accum.hi);
    mme_emit(b, accum.lo);
+
+   mme_free_reg64(b, accum);
 }
 
 void
@@ -267,70 +270,104 @@ nvk_CmdDispatchBase(VkCommandBuffer commandBuffer,
 static void
 mme_store_global(struct mme_builder *b,
                  struct mme_value64 addr,
-                 uint64_t offset,
                  struct mme_value v)
 {
-   if (offset > 0)
-      addr = mme_add64(b, addr, mme_imm64(offset));
-
    mme_mthd(b, NV9097_SET_REPORT_SEMAPHORE_A);
    mme_emit_addr64(b, addr);
    mme_emit(b, v);
    mme_emit(b, mme_imm(0x10000000));
-
-   if (offset > 0) {
-      mme_free_reg(b, addr.lo);
-      mme_free_reg(b, addr.hi);
-   }
 }
 
 static void
-mme_store_global_vec3(struct mme_builder *b,
-                      struct mme_value64 addr,
-                      uint32_t offset,
-                      struct mme_value x,
-                      struct mme_value y,
-                      struct mme_value z)
+mme_store_global_vec3_free_addr(struct mme_builder *b,
+                                struct mme_value64 addr,
+                                uint32_t offset,
+                                struct mme_value x,
+                                struct mme_value y,
+                                struct mme_value z)
 {
-   mme_store_global(b, addr, offset + 0, x);
-   mme_store_global(b, addr, offset + 4, y);
-   mme_store_global(b, addr, offset + 8, z);
+   if (offset > 0)
+      mme_add64_to(b, addr, addr, mme_imm64(offset));
+
+   mme_store_global(b, addr, x);
+   mme_add64_to(b, addr, addr, mme_imm64(4));
+   mme_store_global(b, addr, y);
+   mme_add64_to(b, addr, addr, mme_imm64(4));
+   mme_store_global(b, addr, z);
+   mme_free_reg64(b, addr);
 }
 
 void
 nvk_mme_dispatch_indirect(struct mme_builder *b)
 {
-   if (b->devinfo->cls_eng3d < TURING_A)
-      return;
+   struct mme_value group_count_x, group_count_y, group_count_z;
+   if (b->devinfo->cls_eng3d >= TURING_A) {
+      struct mme_value64 dispatch_addr = mme_load_addr64(b);
+      mme_tu104_read_fifoed(b, dispatch_addr, mme_imm(3));
+      group_count_x = mme_load(b);
+      group_count_y = mme_load(b);
+      group_count_z = mme_load(b);
+      mme_free_reg64(b, dispatch_addr);
+   } else {
+      group_count_x = mme_load(b);
+      group_count_y = mme_load(b);
+      group_count_z = mme_load(b);
+   }
 
-   struct mme_value local_size = mme_load(b);
-   struct mme_value64 dispatch_addr = mme_load_addr64(b);
    struct mme_value64 root_desc_addr = mme_load_addr64(b);
-   struct mme_value64 qmd_addr = mme_load_addr64(b);
-
-   mme_tu104_read_fifoed(b, dispatch_addr, mme_imm(3));
+   uint32_t root_desc_size_offset =
+      offsetof(struct nvk_root_descriptor_table, cs.group_count);
+   mme_store_global_vec3_free_addr(b, root_desc_addr,
+                                   root_desc_size_offset,
+                                   group_count_x,
+                                   group_count_y,
+                                   group_count_z);
 
    struct nak_qmd_dispatch_size_layout qmd_size_layout =
       nak_get_qmd_dispatch_size_layout(b->devinfo);
    assert(qmd_size_layout.y_start == qmd_size_layout.x_start + 32);
-   assert(qmd_size_layout.z_start == qmd_size_layout.x_start + 64);
-   uint32_t qmd_size_offset = qmd_size_layout.x_start / 32;
 
-   uint32_t root_desc_size_offset =
-      offsetof(struct nvk_root_descriptor_table, cs.group_count);
+   struct mme_value64 qmd_addr = mme_load_addr64(b);
+   if (qmd_size_layout.z_start == qmd_size_layout.y_start + 32) {
+      mme_store_global_vec3_free_addr(b, qmd_addr,
+                                      qmd_size_layout.x_start / 8,
+                                      group_count_x,
+                                      group_count_y,
+                                      group_count_z);
+   } else {
+      mme_add64_to(b, qmd_addr, qmd_addr,
+                   mme_imm64(qmd_size_layout.x_start / 8));
+      mme_store_global(b, qmd_addr, group_count_x);
 
-   struct mme_value group_count_x = mme_load(b);
-   struct mme_value group_count_y = mme_load(b);
-   struct mme_value group_count_z = mme_load(b);
+      assert(qmd_size_layout.z_start == qmd_size_layout.y_start + 16);
+      struct mme_value group_count_yz =
+         mme_merge(b, group_count_y, group_count_z, 16, 16, 0);
+      mme_add64_to(b, qmd_addr, qmd_addr, mme_imm64(4));
+      mme_store_global(b, qmd_addr, group_count_yz);
+      mme_free_reg(b, group_count_yz);
 
-   struct mme_value64 cs1 = mme_umul_32x32_64(b, local_size, group_count_x);
-   struct mme_value64 cs2 = mme_umul_32x32_64(b, group_count_y, group_count_z);
-   nvk_build_mme_add_cs_invocations(b, mme_mul64(b, cs1, cs2));
+      mme_free_reg64(b, qmd_addr);
+   };
 
-   mme_store_global_vec3(b, qmd_addr, qmd_size_offset,
-                         group_count_x, group_count_y, group_count_z);
-   mme_store_global_vec3(b, root_desc_addr, root_desc_size_offset,
-                         group_count_x, group_count_y, group_count_z);
+   struct mme_value64 count;
+   if (b->devinfo->cls_eng3d >= TURING_A) {
+      struct mme_value local_size = mme_load(b);
+      struct mme_value64 cs1 = mme_umul_32x32_64(b, group_count_y, group_count_z);
+      struct mme_value64 cs2 = mme_umul_32x32_64(b, group_count_x, local_size);
+      count = mme_mul64(b, cs1, cs2);
+      mme_free_reg64(b, cs1);
+      mme_free_reg64(b, cs2);
+   } else {
+      /* Y and Z are 16b, so this cant't overflow */
+      struct mme_value cs1 =
+         mme_mul_32x32_32_free_srcs(b, group_count_y, group_count_z);
+      struct mme_value64 cs2 =
+         mme_umul_32x32_64_free_srcs(b, group_count_x, cs1);
+      struct mme_value local_size = mme_load(b);
+      count = mme_umul_32x64_64_free_srcs(b, local_size, cs2);
+   }
+   nvk_build_mme_add_cs_invocations(b, count);
+   mme_free_reg64(b, count);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -340,9 +377,6 @@ nvk_CmdDispatchIndirect(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(nvk_buffer, buffer, _buffer);
-
-   /* TODO: Indirect dispatch pre-Turing */
-   assert(nvk_cmd_buffer_compute_cls(cmd) >= TURING_COMPUTE_A);
 
    uint64_t dispatch_addr = nvk_buffer_address(buffer, offset);
 
@@ -356,17 +390,33 @@ nvk_CmdDispatchIndirect(VkCommandBuffer commandBuffer,
    if (unlikely(qmd_addr == 0))
       return;
 
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 14);
+   struct nv_push *p;
+   if (nvk_cmd_buffer_compute_cls(cmd) >= TURING_A) {
+      p = nvk_cmd_buffer_push(cmd, 14);
+      P_IMMD(p, NVC597, SET_MME_DATA_FIFO_CONFIG, FIFO_SIZE_SIZE_4KB);
+      P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DISPATCH_INDIRECT));
+      P_INLINE_DATA(p, dispatch_addr >> 32);
+      P_INLINE_DATA(p, dispatch_addr);
+      P_INLINE_DATA(p, root_desc_addr >> 32);
+      P_INLINE_DATA(p, root_desc_addr);
+      P_INLINE_DATA(p, qmd_addr >> 32);
+      P_INLINE_DATA(p, qmd_addr);
+      P_INLINE_DATA(p, nvk_compute_local_size(cmd));
+   } else {
+      p = nvk_cmd_buffer_push(cmd, 5);
+      /* Stall the command streamer */
+      __push_immd(p, SUBC_NV9097, NV906F_SET_REFERENCE, 0);
 
-   P_IMMD(p, NVC597, SET_MME_DATA_FIFO_CONFIG, FIFO_SIZE_SIZE_4KB);
-   P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DISPATCH_INDIRECT));
-   P_INLINE_DATA(p, nvk_compute_local_size(cmd));
-   P_INLINE_DATA(p, dispatch_addr >> 32);
-   P_INLINE_DATA(p, dispatch_addr);
-   P_INLINE_DATA(p, root_desc_addr >> 32);
-   P_INLINE_DATA(p, root_desc_addr);
-   P_INLINE_DATA(p, qmd_addr >> 32);
-   P_INLINE_DATA(p, qmd_addr);
+      P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DISPATCH_INDIRECT));
+      nv_push_update_count(p, sizeof(VkDispatchIndirectCommand) / 4);
+      nvk_cmd_buffer_push_indirect(cmd, dispatch_addr, sizeof(VkDispatchIndirectCommand));
+      p = nvk_cmd_buffer_push(cmd, 9);
+      P_INLINE_DATA(p, root_desc_addr >> 32);
+      P_INLINE_DATA(p, root_desc_addr);
+      P_INLINE_DATA(p, qmd_addr >> 32);
+      P_INLINE_DATA(p, qmd_addr);
+      P_INLINE_DATA(p, nvk_compute_local_size(cmd));
+   }
 
    P_MTHD(p, NVA0C0, SEND_PCAS_A);
    P_NVA0C0_SEND_PCAS_A(p, qmd_addr >> 8);
