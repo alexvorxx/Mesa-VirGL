@@ -64,8 +64,7 @@ etna_lower_io(nir_shader *shader, struct etna_shader_variant *v)
 
                   assert(deref->deref_type == nir_deref_type_var);
 
-                  if (deref->var->data.location != FRAG_RESULT_COLOR &&
-                      deref->var->data.location != FRAG_RESULT_DATA0)
+                  if (deref->var->data.location != FRAG_RESULT_DATA0)
                       break;
 
                   b.cursor = nir_before_instr(instr);
