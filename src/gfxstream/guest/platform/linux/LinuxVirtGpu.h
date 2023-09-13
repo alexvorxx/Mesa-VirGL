@@ -65,8 +65,10 @@ class LinuxVirtGpuDevice : public VirtGpuDevice {
 
     virtual struct VirtGpuCaps getCaps(void);
 
-    virtual VirtGpuBlobPtr createBlob(const struct VirtGpuCreateBlob& blobCreate);
-    virtual VirtGpuBlobPtr createPipeBlob(uint32_t size);
+    VirtGpuBlobPtr createBlob(const struct VirtGpuCreateBlob& blobCreate) override;
+    VirtGpuBlobPtr createPipeBlob(uint32_t size) override;
+    VirtGpuBlobPtr createPipeTexture2D(uint32_t width, uint32_t height, uint32_t format) override;
+
     virtual VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle);
 
     virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob);

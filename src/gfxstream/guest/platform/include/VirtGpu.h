@@ -143,6 +143,8 @@ class VirtGpuBlobMapping {
 class VirtGpuDevice {
   public:
     static VirtGpuDevice* getInstance(enum VirtGpuCapset capset = kCapsetNone);
+    static void resetInstance();
+
     static void setInstanceForTesting(VirtGpuDevice* device);
 
     VirtGpuDevice(enum VirtGpuCapset capset) : mCapset(capset) {}
@@ -156,6 +158,7 @@ class VirtGpuDevice {
 
     virtual VirtGpuBlobPtr createBlob(const struct VirtGpuCreateBlob& blobCreate) = 0;
     virtual VirtGpuBlobPtr createPipeBlob(uint32_t size) = 0;
+    virtual VirtGpuBlobPtr createPipeTexture2D(uint32_t width, uint32_t height, uint32_t format) = 0;
     virtual VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle) = 0;
 
     virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob) = 0;

@@ -198,6 +198,11 @@ VirtGpuBlobPtr LinuxVirtGpuDevice::createBlob(const struct VirtGpuCreateBlob& bl
                                          blobCreate.size);
 }
 
+VirtGpuBlobPtr LinuxVirtGpuDevice::createPipeTexture2D(uint32_t, uint32_t, uint32_t) {
+    ALOGE("Unimplemented LinuxVirtGpuDevice::createPipeTexture2D().");
+    return nullptr;
+}
+
 VirtGpuBlobPtr LinuxVirtGpuDevice::importBlob(const struct VirtGpuExternalHandle& handle) {
     struct drm_virtgpu_resource_info info = {0};
     uint32_t blobHandle;

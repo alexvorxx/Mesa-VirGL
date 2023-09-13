@@ -39,6 +39,13 @@ VirtGpuDevice* VirtGpuDevice::getInstance(enum VirtGpuCapset capset) {
     return sDevice;
 }
 
+void VirtGpuDevice::resetInstance() {
+    if (sDevice) {
+        delete sDevice;
+        sDevice = nullptr;
+    }
+}
+
 void VirtGpuDevice::setInstanceForTesting(VirtGpuDevice* device) {
     sDevice = device;
 }
