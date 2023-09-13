@@ -252,6 +252,9 @@ public:
         void* context, VkResult input_result,
         VkQueue queue, uint32_t submitCount, const VkSubmitInfo* pSubmits, VkFence fence);
 
+    VkResult on_vkQueueSubmit2(void* context, VkResult input_result, VkQueue queue,
+                               uint32_t submitCount, const VkSubmitInfo2* pSubmits, VkFence fence);
+
     VkResult on_vkQueueWaitIdle(
         void* context, VkResult input_result,
         VkQueue queue);
