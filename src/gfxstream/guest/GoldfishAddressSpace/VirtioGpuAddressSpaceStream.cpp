@@ -16,6 +16,37 @@
 
 #include "util.h"
 
+static bool GetRingParamsFromCapset(enum VirtGpuCapset capset, const VirtGpuCaps& caps,
+                                    uint32_t& ringSize, uint32_t& bufferSize,
+                                    uint32_t& blobAlignment) {
+    switch (capset) {
+        case kCapsetGfxStreamVulkan:
+            ringSize = caps.vulkanCapset.ringSize;
+            bufferSize = caps.vulkanCapset.bufferSize;
+            blobAlignment = caps.vulkanCapset.blobAlignment;
+            break;
+        case kCapsetGfxStreamMagma:
+            ringSize = caps.magmaCapset.ringSize;
+            bufferSize = caps.magmaCapset.bufferSize;
+            blobAlignment = caps.magmaCapset.blobAlignment;
+            break;
+        case kCapsetGfxStreamGles:
+            ringSize = caps.glesCapset.ringSize;
+            bufferSize = caps.glesCapset.bufferSize;
+            blobAlignment = caps.glesCapset.blobAlignment;
+            break;
+        case kCapsetGfxStreamComposer:
+            ringSize = caps.composerCapset.ringSize;
+            bufferSize = caps.composerCapset.bufferSize;
+            blobAlignment = caps.composerCapset.blobAlignment;
+            break;
+        default:
+            return false;
+    }
+
+    return true;
+}
+
 address_space_handle_t virtgpu_address_space_open() {
     return (address_space_handle_t)(-EINVAL);
 }
