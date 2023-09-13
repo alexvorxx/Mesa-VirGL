@@ -107,6 +107,9 @@ struct VirtGpuCreateBlob {
 struct VirtGpuCaps {
     uint64_t params[kParamMax];
     struct vulkanCapset vulkanCapset;
+    struct magmaCapset magmaCapset;
+    struct glesCapset glesCapset;
+    struct composerCapset composerCapset;
 };
 
 class VirtGpuBlobMapping;

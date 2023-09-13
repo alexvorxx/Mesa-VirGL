@@ -79,10 +79,28 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
     }
 
     get_caps.cap_set_id = static_cast<uint32_t>(capset);
-    if (capset == kCapsetGfxStreamVulkan) {
-        get_caps.size = sizeof(struct vulkanCapset);
-        get_caps.addr = (unsigned long long)&mCaps.vulkanCapset;
+    switch (capset) {
+        case kCapsetGfxStreamVulkan:
+            get_caps.size = sizeof(struct vulkanCapset);
+            get_caps.addr = (unsigned long long)&mCaps.vulkanCapset;
+            break;
+        case kCapsetGfxStreamMagma:
+            get_caps.size = sizeof(struct magmaCapset);
+            get_caps.addr = (unsigned long long)&mCaps.magmaCapset;
+            break;
+        case kCapsetGfxStreamGles:
+            get_caps.size = sizeof(struct vulkanCapset);
+            get_caps.addr = (unsigned long long)&mCaps.glesCapset;
+            break;
+        case kCapsetGfxStreamComposer:
+            get_caps.size = sizeof(struct vulkanCapset);
+            get_caps.addr = (unsigned long long)&mCaps.composerCapset;
+            break;
+        default:
+            get_caps.size = 0;
     }
+
+    mCapset = capset;
 
     ret = drmIoctl(mDeviceHandle, DRM_IOCTL_VIRTGPU_GET_CAPS, &get_caps);
     if (ret) {

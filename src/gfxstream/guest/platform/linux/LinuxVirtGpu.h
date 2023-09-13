@@ -72,7 +72,7 @@ class LinuxVirtGpuDevice : public VirtGpuDevice {
     virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob);
 
   private:
-    int64_t mDeviceHandle;
-
-    struct VirtGpuCaps mCaps;
+   int64_t mDeviceHandle;
+   struct VirtGpuCaps mCaps;
+   enum VirtGpuCapset mCapset;
 };
