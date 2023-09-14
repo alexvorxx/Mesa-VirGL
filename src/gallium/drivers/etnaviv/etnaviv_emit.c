@@ -424,7 +424,7 @@ etna_emit_state(struct etna_context *ctx)
       /*00E08*/ EMIT_STATE(RA_EARLY_DEPTH, etna_zsa_state(ctx->zsa)->RA_DEPTH_CONFIG);
    }
    if (unlikely(dirty & (ETNA_DIRTY_SHADER | ETNA_DIRTY_FRAMEBUFFER))) {
-      /*01004*/ EMIT_STATE(PS_OUTPUT_REG, ctx->shader_state.PS_OUTPUT_REG);
+      /*01004*/ EMIT_STATE(PS_OUTPUT_REG, ctx->shader_state.PS_OUTPUT_REG[0]);
       /*01008*/ EMIT_STATE(PS_INPUT_COUNT,
                            ctx->framebuffer.msaa_mode
                               ? ctx->shader_state.PS_INPUT_COUNT_MSAA

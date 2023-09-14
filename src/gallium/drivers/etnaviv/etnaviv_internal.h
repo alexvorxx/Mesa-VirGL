@@ -227,7 +227,7 @@ struct compiled_shader_state {
    uint32_t VS_LOAD_BALANCING;
    uint32_t VS_START_PC;
    uint32_t PS_END_PC;
-   uint32_t PS_OUTPUT_REG;
+   uint32_t PS_OUTPUT_REG[2];
    uint32_t PS_INPUT_COUNT;
    uint32_t PS_INPUT_COUNT_MSAA; /* Adds an input */
    uint32_t PS_TEMP_REGISTER_CONTROL;

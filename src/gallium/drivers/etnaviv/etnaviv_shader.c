@@ -188,7 +188,7 @@ etna_link_shaders(struct etna_context *ctx, struct compiled_shader_state *cs,
    cs->VS_START_PC = 0;
 
    cs->PS_END_PC = fs->code_size / 4;
-   cs->PS_OUTPUT_REG = fs->ps_color_out_reg;
+   cs->PS_OUTPUT_REG[0] = fs->ps_color_out_reg;
    cs->PS_INPUT_COUNT =
       VIVS_PS_INPUT_COUNT_COUNT(link.num_varyings + 1) | /* Number of inputs plus position */
       VIVS_PS_INPUT_COUNT_UNK8(fs->input_count_unk8);
