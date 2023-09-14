@@ -3444,7 +3444,8 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
             ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->grallocHelper();
 
         const uint32_t hostHandle = gralloc->getHostHandle(ahw);
-        if (gralloc->getFormat(ahw) == AHARDWAREBUFFER_FORMAT_BLOB) {
+        if (gralloc->getFormat(ahw) == AHARDWAREBUFFER_FORMAT_BLOB &&
+            !gralloc->treatBlobAsImage()) {
             importBufferInfo.buffer = hostHandle;
             vk_append_struct(&structChainIter, &importBufferInfo);
         } else {
@@ -6495,6 +6496,19 @@ void ResourceTracker::on_vkGetPhysicalDeviceExternalBufferProperties_common(
     const VkPhysicalDeviceExternalBufferInfo* pExternalBufferInfo,
     VkExternalBufferProperties* pExternalBufferProperties) {
     VkEncoder* enc = (VkEncoder*)context;
+
+    // Older versions of Goldfish's Gralloc did not support allocating AHARDWAREBUFFER_FORMAT_BLOB
+    // with GPU usage (b/299520213).
+    if (ResourceTracker::threadingCallbacks.hostConnectionGetFunc()
+            ->grallocHelper()
+            ->treatBlobAsImage() &&
+        pExternalBufferInfo->handleType ==
+            VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID) {
+        pExternalBufferProperties->externalMemoryProperties.externalMemoryFeatures = 0;
+        pExternalBufferProperties->externalMemoryProperties.exportFromImportedHandleTypes = 0;
+        pExternalBufferProperties->externalMemoryProperties.compatibleHandleTypes = 0;
+        return;
+    }
 
     uint32_t supportedHandleType = 0;
 #ifdef VK_USE_PLATFORM_FUCHSIA
