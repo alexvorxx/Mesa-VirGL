@@ -302,8 +302,10 @@ etna_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
       .sprite_coord_yinvert = !!ctx->rasterizer->sprite_coord_mode,
    };
 
-   if (pfb->cbufs[0])
-      key.frag_rb_swap = !!translate_pe_format_rb_swap(pfb->cbufs[0]->format);
+    for (i = 0; i < pfb->nr_cbufs; i++) {
+       if (pfb->cbufs[i])
+         key.frag_rb_swap |= !!translate_pe_format_rb_swap(pfb->cbufs[i]->format) << i;
+    }
 
    if (!etna_get_vs(ctx, &key) || !etna_get_fs(ctx, &key)) {
       BUG("compiled shaders are not okay");
