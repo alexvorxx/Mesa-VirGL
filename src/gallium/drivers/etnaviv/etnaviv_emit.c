@@ -434,6 +434,10 @@ etna_emit_state(struct etna_context *ctx)
                               ? ctx->shader_state.PS_TEMP_REGISTER_CONTROL_MSAA
                               : ctx->shader_state.PS_TEMP_REGISTER_CONTROL);
       /*01010*/ EMIT_STATE(PS_CONTROL, ctx->framebuffer.PS_CONTROL);
+
+      if (screen->specs.num_rts == 8)
+         /*0102C*/ EMIT_STATE(PS_OUTPUT_REG2, ctx->shader_state.PS_OUTPUT_REG[1]);
+
       /*01030*/ EMIT_STATE(PS_CONTROL_EXT, ctx->framebuffer.PS_CONTROL_EXT);
    }
    if (unlikely(dirty & (ETNA_DIRTY_ZSA | ETNA_DIRTY_FRAMEBUFFER))) {
