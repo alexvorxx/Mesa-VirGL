@@ -6,6 +6,7 @@ files_lib_platform = files(
   'LinuxVirtGpuDevice.cpp',
   'LinuxVirtGpuBlobMapping.cpp',
   'LinuxVirtGpuBlob.cpp',
+  'LinuxSync.cpp',
 )
 
 lib_platform = static_library(

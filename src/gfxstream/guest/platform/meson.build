@@ -3,3 +3,4 @@
 
 inc_platform = include_directories('include')
 subdir('linux')
+subdir('stub')
