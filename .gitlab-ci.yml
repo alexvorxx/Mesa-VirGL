@@ -195,7 +195,15 @@ include:
 .rules-anchors:
   # Pre-merge pipeline
   - &is-pre-merge '$CI_PIPELINE_SOURCE == "merge_request_event"'
+  # Push to a branch on a fork
+  - &is-fork-push '$CI_PROJECT_NAMESPACE != "mesa" && $CI_PIPELINE_SOURCE == "push"'
 
+
+# Rules applied to every job in the pipeline
+.common-rules:
+  rules:
+    - if: *is-fork-push
+      when: manual
 
 .never-post-merge-rules:
   rules:
@@ -205,6 +213,7 @@ include:
 
 .container+build-rules:
   rules:
+    - !reference [.common-rules, rules]
     # Run when re-enabling a disabled farm, but not when disabling it
     - !reference [.disable-farm-mr-rules, rules]
     # Never run immediately after merging, as we just ran everything

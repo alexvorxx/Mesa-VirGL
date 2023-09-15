@@ -48,6 +48,7 @@
 # ---------------------------------------------------------------
 .core-rules:
   rules:
+    - !reference [.common-rules, rules]
     - !reference [.no_scheduled_pipelines-rules, rules]
     - changes: &core_file_list
         - .gitlab-ci.yml
@@ -73,6 +74,7 @@
 .core-manual-rules:
   extends: .no-auto-retry
   rules:
+    - !reference [.common-rules, rules]
     # We only want manual jobs to show up when it's not marge's pre-merge CI
     # run, otherwise she'll wait until her timeout.  The exception is
     # performance jobs, see below.
