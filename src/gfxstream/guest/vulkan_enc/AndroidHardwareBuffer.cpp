@@ -67,10 +67,8 @@ void updateMemoryTypeBits(uint32_t* memoryTypeBits, uint32_t colorBufferMemoryIn
 }
 
 VkResult getAndroidHardwareBufferPropertiesANDROID(
-    Gralloc* grallocHelper,
-    const AHardwareBuffer* buffer,
+    gfxstream::Gralloc* grallocHelper, const AHardwareBuffer* buffer,
     VkAndroidHardwareBufferPropertiesANDROID* pProperties) {
-
     VkAndroidHardwareBufferFormatPropertiesANDROID* ahbFormatProps =
         vk_find_struct<VkAndroidHardwareBufferFormatPropertiesANDROID>(pProperties);
 
@@ -227,20 +225,18 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
 }
 
 // Based on Intel ANV implementation.
-VkResult getMemoryAndroidHardwareBufferANDROID(
-    Gralloc* gralloc,
-    struct AHardwareBuffer **pBuffer) {
-
-   /* Some quotes from Vulkan spec:
-    *
-    * "If the device memory was created by importing an Android hardware
-    * buffer, vkGetMemoryAndroidHardwareBufferANDROID must return that same
-    * Android hardware buffer object."
-    *
-    * "VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID must
-    * have been included in VkExportMemoryAllocateInfo::handleTypes when
-    * memory was created."
-    */
+VkResult getMemoryAndroidHardwareBufferANDROID(gfxstream::Gralloc* gralloc,
+                                               struct AHardwareBuffer** pBuffer) {
+    /* Some quotes from Vulkan spec:
+     *
+     * "If the device memory was created by importing an Android hardware
+     * buffer, vkGetMemoryAndroidHardwareBufferANDROID must return that same
+     * Android hardware buffer object."
+     *
+     * "VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID must
+     * have been included in VkExportMemoryAllocateInfo::handleTypes when
+     * memory was created."
+     */
 
     if (!pBuffer) return VK_ERROR_OUT_OF_HOST_MEMORY;
     if (!(*pBuffer)) return VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -249,11 +245,9 @@ VkResult getMemoryAndroidHardwareBufferANDROID(
     return VK_SUCCESS;
 }
 
-VkResult importAndroidHardwareBuffer(
-    Gralloc* grallocHelper,
-    const VkImportAndroidHardwareBufferInfoANDROID* info,
-    struct AHardwareBuffer **importOut) {
-
+VkResult importAndroidHardwareBuffer(gfxstream::Gralloc* grallocHelper,
+                                     const VkImportAndroidHardwareBufferInfoANDROID* info,
+                                     struct AHardwareBuffer** importOut) {
     if (!info || !info->buffer) {
         return VK_ERROR_INVALID_EXTERNAL_HANDLE;
     }
@@ -272,19 +266,13 @@ VkResult importAndroidHardwareBuffer(
     return VK_SUCCESS;
 }
 
-VkResult createAndroidHardwareBuffer(
-    Gralloc* gralloc,
-    bool hasDedicatedImage,
-    bool hasDedicatedBuffer,
-    const VkExtent3D& imageExtent,
-    uint32_t imageLayers,
-    VkFormat imageFormat,
-    VkImageUsageFlags imageUsage,
-    VkImageCreateFlags imageCreateFlags,
-    VkDeviceSize bufferSize,
-    VkDeviceSize allocationInfoAllocSize,
-    struct AHardwareBuffer **out) {
-
+VkResult createAndroidHardwareBuffer(gfxstream::Gralloc* gralloc, bool hasDedicatedImage,
+                                     bool hasDedicatedBuffer, const VkExtent3D& imageExtent,
+                                     uint32_t imageLayers, VkFormat imageFormat,
+                                     VkImageUsageFlags imageUsage,
+                                     VkImageCreateFlags imageCreateFlags, VkDeviceSize bufferSize,
+                                     VkDeviceSize allocationInfoAllocSize,
+                                     struct AHardwareBuffer** out) {
     uint32_t w = 0;
     uint32_t h = 1;
     uint32_t layers = 1;
