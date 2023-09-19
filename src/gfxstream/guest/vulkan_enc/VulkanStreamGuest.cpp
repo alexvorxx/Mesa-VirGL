@@ -16,16 +16,14 @@
 namespace gfxstream {
 namespace vk {
 
-VulkanStreamGuest::VulkanStreamGuest(gfxstream::guest::IOStream *stream): mStream(stream) {
+VulkanStreamGuest::VulkanStreamGuest(gfxstream::guest::IOStream* stream) : mStream(stream) {
     unsetHandleMapping();
     mFeatureBits = ResourceTracker::get()->getStreamFeatures();
 }
 
 VulkanStreamGuest::~VulkanStreamGuest() = default;
 
-bool VulkanStreamGuest::valid() {
-    return true;
-}
+bool VulkanStreamGuest::valid() { return true; }
 
 void VulkanStreamGuest::alloc(void** ptrAddr, size_t bytes) {
     if (!bytes) {
@@ -56,7 +54,7 @@ void VulkanStreamGuest::loadStringArrayInPlace(char*** forOutput) {
 
     alloc((void**)forOutput, count * sizeof(char*));
 
-    char **stringsForOutput = *forOutput;
+    char** stringsForOutput = *forOutput;
 
     for (size_t i = 0; i < count; i++) {
         loadStringInPlace(stringsForOutput + i);
@@ -79,8 +77,9 @@ void VulkanStreamGuest::loadStringInPlaceWithStreamPtr(char** forOutput, uint8_t
     }
 }
 
-void VulkanStreamGuest::loadStringArrayInPlaceWithStreamPtr(char*** forOutput, uint8_t** streamPtr) {
- uint32_t count;
+void VulkanStreamGuest::loadStringArrayInPlaceWithStreamPtr(char*** forOutput,
+                                                            uint8_t** streamPtr) {
+    uint32_t count;
     memcpy(&count, *streamPtr, sizeof(uint32_t));
     *streamPtr += sizeof(uint32_t);
     gfxstream::guest::Stream::fromBe32((uint8_t*)&count);
@@ -91,15 +90,14 @@ void VulkanStreamGuest::loadStringArrayInPlaceWithStreamPtr(char*** forOutput, u
 
     alloc((void**)forOutput, count * sizeof(char*));
 
-    char **stringsForOutput = *forOutput;
+    char** stringsForOutput = *forOutput;
 
     for (size_t i = 0; i < count; i++) {
         loadStringInPlaceWithStreamPtr(stringsForOutput + i, streamPtr);
     }
 }
 
-
-ssize_t VulkanStreamGuest::read(void *buffer, size_t size) {
+ssize_t VulkanStreamGuest::read(void* buffer, size_t size) {
     if (!mStream->readback(buffer, size)) {
         ALOGE("FATAL: Could not read back %zu bytes", size);
         abort();
@@ -107,7 +105,7 @@ ssize_t VulkanStreamGuest::read(void *buffer, size_t size) {
     return size;
 }
 
-ssize_t VulkanStreamGuest::write(const void *buffer, size_t size) {
+ssize_t VulkanStreamGuest::write(const void* buffer, size_t size) {
     uint8_t* streamBuf = (uint8_t*)mStream->alloc(size);
     memcpy(streamBuf, buffer, size);
     return size;
@@ -117,44 +115,30 @@ void VulkanStreamGuest::writeLarge(const void* buffer, size_t size) {
     mStream->writeFullyAsync(buffer, size);
 }
 
-void VulkanStreamGuest::clearPool() {
-    mPool.freeAll();
-}
+void VulkanStreamGuest::clearPool() { mPool.freeAll(); }
 
 void VulkanStreamGuest::setHandleMapping(VulkanHandleMapping* mapping) {
     mCurrentHandleMapping = mapping;
 }
 
-void VulkanStreamGuest::unsetHandleMapping() {
-    mCurrentHandleMapping = &mDefaultHandleMapping;
-}
+void VulkanStreamGuest::unsetHandleMapping() { mCurrentHandleMapping = &mDefaultHandleMapping; }
 
-VulkanHandleMapping* VulkanStreamGuest::handleMapping() const {
-    return mCurrentHandleMapping;
-}
+VulkanHandleMapping* VulkanStreamGuest::handleMapping() const { return mCurrentHandleMapping; }
 
 void VulkanStreamGuest::flush() {
     AEMU_SCOPED_TRACE("VulkanStreamGuest device write");
     mStream->flush();
 }
 
-uint32_t VulkanStreamGuest::getFeatureBits() const {
-    return mFeatureBits;
-}
+uint32_t VulkanStreamGuest::getFeatureBits() const { return mFeatureBits; }
 
-void VulkanStreamGuest::incStreamRef() {
-    mStream->incRef();
-}
+void VulkanStreamGuest::incStreamRef() { mStream->incRef(); }
 
-bool VulkanStreamGuest::decStreamRef() {
-    return mStream->decRef();
-}
+bool VulkanStreamGuest::decStreamRef() { return mStream->decRef(); }
 
-uint8_t* VulkanStreamGuest::reserve(size_t size) {
-    return (uint8_t*)mStream->alloc(size);
-}
+uint8_t* VulkanStreamGuest::reserve(size_t size) { return (uint8_t*)mStream->alloc(size); }
 
-VulkanCountingStream::VulkanCountingStream() : VulkanStreamGuest(nullptr) { }
+VulkanCountingStream::VulkanCountingStream() : VulkanStreamGuest(nullptr) {}
 VulkanCountingStream::~VulkanCountingStream() = default;
 
 ssize_t VulkanCountingStream::read(void*, size_t size) {

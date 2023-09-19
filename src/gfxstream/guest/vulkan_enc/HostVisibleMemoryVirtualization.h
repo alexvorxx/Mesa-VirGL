@@ -47,7 +47,7 @@ class CoherentMemory {
 #if defined(__ANDROID__)
     CoherentMemory(GoldfishAddressSpaceBlockPtr block, uint64_t gpuAddr, uint64_t size,
                    VkDevice device, VkDeviceMemory memory);
-#endif // defined(__ANDROID__)
+#endif  // defined(__ANDROID__)
 
     ~CoherentMemory();
 

@@ -54,8 +54,7 @@ class FuchsiaVirtGpuDevice : public VirtGpuDevice {
     struct VirtGpuCaps getCaps(void) override;
 
     VirtGpuBlobPtr createBlob(const struct VirtGpuCreateBlob& blobCreate) override;
-    VirtGpuBlobPtr createPipeBlob(uint32_t size) override;
-    VirtGpuBlobPtr createPipeTexture2D(uint32_t width, uint32_t height, uint32_t format) override;
+    VirtGpuBlobPtr createVirglBlob(uint32_t width, uint32_t height, uint32_t format) override;
     VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle) override;
 
     int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob) override;

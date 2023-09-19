@@ -18,13 +18,13 @@
 #if VK_HEADER_VERSION < 76
 
 typedef struct VkBaseOutStructure {
-    VkStructureType               sType;
-    struct VkBaseOutStructure*    pNext;
+    VkStructureType sType;
+    struct VkBaseOutStructure* pNext;
 } VkBaseOutStructure;
 
 typedef struct VkBaseInStructure {
-    VkStructureType                    sType;
-    const struct VkBaseInStructure*    pNext;
+    VkStructureType sType;
+    const struct VkBaseInStructure* pNext;
 } VkBaseInStructure;
 
-#endif // VK_HEADER_VERSION < 76
+#endif  // VK_HEADER_VERSION < 76

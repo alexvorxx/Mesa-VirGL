@@ -35,16 +35,10 @@ int LinuxSyncHelper::wait(int syncFd, int timeoutMilliseconds) {
 #endif
 }
 
-int LinuxSyncHelper::dup(int syncFd) {
-    return ::dup(syncFd);
-}
+int LinuxSyncHelper::dup(int syncFd) { return ::dup(syncFd); }
 
-int LinuxSyncHelper::close(int syncFd) {
-    return ::close(syncFd);
-}
+int LinuxSyncHelper::close(int syncFd) { return ::close(syncFd); }
 
-SyncHelper* createPlatformSyncHelper() {
-    return new LinuxSyncHelper();
-}
+SyncHelper* createPlatformSyncHelper() { return new LinuxSyncHelper(); }
 
 }  // namespace gfxstream

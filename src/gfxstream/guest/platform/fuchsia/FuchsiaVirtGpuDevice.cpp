@@ -27,18 +27,13 @@ int64_t FuchsiaVirtGpuDevice::getDeviceHandle(void) {
     return 0;
 }
 
-VirtGpuBlobPtr FuchsiaVirtGpuDevice::createPipeBlob(uint32_t size) {
-    ALOGE("%s: unimplemented", __func__);
-    return nullptr;
-}
-
 VirtGpuBlobPtr FuchsiaVirtGpuDevice::createBlob(const struct VirtGpuCreateBlob& blobCreate) {
     ALOGE("%s: unimplemented", __func__);
     return nullptr;
 }
 
-VirtGpuBlobPtr FuchsiaVirtGpuDevice::createPipeTexture2D(uint32_t width, uint32_t height,
-                                                         uint32_t format) {
+VirtGpuBlobPtr FuchsiaVirtGpuDevice::createVirglBlob(uint32_t width, uint32_t height,
+                                                     uint32_t virglFormat) {
     ALOGE("%s: unimplemented", __func__);
     return nullptr;
 }

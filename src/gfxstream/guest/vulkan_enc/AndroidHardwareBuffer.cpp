@@ -21,11 +21,11 @@
 #endif
 #endif
 
-#include "../OpenglSystemCommon/HostConnection.h"
+#include <assert.h>
 
+#include "../OpenglSystemCommon/HostConnection.h"
 #include "vk_format_info.h"
 #include "vk_util.h"
-#include <assert.h>
 
 namespace gfxstream {
 namespace vk {
@@ -34,36 +34,28 @@ namespace vk {
 /* Construct ahw usage mask from image usage bits, see
  * 'AHardwareBuffer Usage Equivalence' in Vulkan spec.
  */
-uint64_t
-getAndroidHardwareBufferUsageFromVkUsage(const VkImageCreateFlags vk_create,
-                                 const VkImageUsageFlags vk_usage)
-{
-   uint64_t ahw_usage = 0;
+uint64_t getAndroidHardwareBufferUsageFromVkUsage(const VkImageCreateFlags vk_create,
+                                                  const VkImageUsageFlags vk_usage) {
+    uint64_t ahw_usage = 0;
 
-   if (vk_usage & VK_IMAGE_USAGE_SAMPLED_BIT)
-      ahw_usage |= AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
+    if (vk_usage & VK_IMAGE_USAGE_SAMPLED_BIT) ahw_usage |= AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
 
-   if (vk_usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
-      ahw_usage |= AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
+    if (vk_usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+        ahw_usage |= AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
 
-   if (vk_usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
-      ahw_usage |= AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT;
+    if (vk_usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+        ahw_usage |= AHARDWAREBUFFER_USAGE_GPU_COLOR_OUTPUT;
 
-   if (vk_create & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT)
-      ahw_usage |= AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP;
+    if (vk_create & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT)
+        ahw_usage |= AHARDWAREBUFFER_USAGE_GPU_CUBE_MAP;
 
-   if (vk_create & VK_IMAGE_CREATE_PROTECTED_BIT)
-      ahw_usage |= AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT;
+    if (vk_create & VK_IMAGE_CREATE_PROTECTED_BIT)
+        ahw_usage |= AHARDWAREBUFFER_USAGE_PROTECTED_CONTENT;
 
-   /* No usage bits set - set at least one GPU usage. */
-   if (ahw_usage == 0)
-      ahw_usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
+    /* No usage bits set - set at least one GPU usage. */
+    if (ahw_usage == 0) ahw_usage = AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
 
-   return ahw_usage;
-}
-
-void updateMemoryTypeBits(uint32_t* memoryTypeBits, uint32_t colorBufferMemoryIndex) {
-   *memoryTypeBits = 1u << colorBufferMemoryIndex;
+    return ahw_usage;
 }
 
 VkResult getAndroidHardwareBufferPropertiesANDROID(
@@ -74,45 +66,45 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
 
     const auto format = grallocHelper->getFormat(buffer);
     if (ahbFormatProps) {
-        switch(format) {
+        switch (format) {
             case AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM:
-                  ahbFormatProps->format = VK_FORMAT_R8G8B8A8_UNORM;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_R8G8B8A8_UNORM;
+                break;
             case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
-                  ahbFormatProps->format = VK_FORMAT_R8G8B8A8_UNORM;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_R8G8B8A8_UNORM;
+                break;
             case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:
-                  ahbFormatProps->format = VK_FORMAT_R8G8B8_UNORM;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_R8G8B8_UNORM;
+                break;
             case AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM:
-                  ahbFormatProps->format = VK_FORMAT_R5G6B5_UNORM_PACK16;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_R5G6B5_UNORM_PACK16;
+                break;
             case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
-                  ahbFormatProps->format = VK_FORMAT_R16G16B16A16_SFLOAT;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_R16G16B16A16_SFLOAT;
+                break;
             case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
-                  ahbFormatProps->format = VK_FORMAT_A2B10G10R10_UNORM_PACK32;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+                break;
             case AHARDWAREBUFFER_FORMAT_D16_UNORM:
-                  ahbFormatProps->format = VK_FORMAT_D16_UNORM;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_D16_UNORM;
+                break;
             case AHARDWAREBUFFER_FORMAT_D24_UNORM:
-                  ahbFormatProps->format = VK_FORMAT_X8_D24_UNORM_PACK32;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_X8_D24_UNORM_PACK32;
+                break;
             case AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT:
-                  ahbFormatProps->format = VK_FORMAT_D24_UNORM_S8_UINT;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_D24_UNORM_S8_UINT;
+                break;
             case AHARDWAREBUFFER_FORMAT_D32_FLOAT:
-                  ahbFormatProps->format = VK_FORMAT_D32_SFLOAT;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_D32_SFLOAT;
+                break;
             case AHARDWAREBUFFER_FORMAT_D32_FLOAT_S8_UINT:
-                  ahbFormatProps->format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+                break;
             case AHARDWAREBUFFER_FORMAT_S8_UINT:
-                  ahbFormatProps->format = VK_FORMAT_S8_UINT;
-                  break;
+                ahbFormatProps->format = VK_FORMAT_S8_UINT;
+                break;
             default:
-                  ahbFormatProps->format = VK_FORMAT_UNDEFINED;
+                ahbFormatProps->format = VK_FORMAT_UNDEFINED;
         }
         ahbFormatProps->externalFormat = format;
 
@@ -128,10 +120,8 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
         // VK_FORMAT_FEATURE_TRANSFER_DST_BIT
         // VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT
         ahbFormatProps->formatFeatures =
-            VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-            VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT |
-            VK_FORMAT_FEATURE_TRANSFER_SRC_BIT |
-            VK_FORMAT_FEATURE_TRANSFER_DST_BIT |
+            VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT |
+            VK_FORMAT_FEATURE_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT |
             VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
 
         // "Implementations may not always be able to determine the color model,
@@ -166,7 +156,8 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
                 //  * U (CB) comes from the B-channel (after swizzle)
                 //  * V (CR) comes from the R-channel (after swizzle)
                 //
-                // See https://www.khronos.org/registry/vulkan/specs/1.3-extensions/html/vkspec.html#textures-sampler-YCbCr-conversion
+                // See
+                // https://www.khronos.org/registry/vulkan/specs/1.3-extensions/html/vkspec.html#textures-sampler-YCbCr-conversion
                 //
                 // To match the above, the guest needs to swizzle such that:
                 //
@@ -204,10 +195,9 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
 #endif
 #endif
 
-        ahbFormatProps->suggestedYcbcrModel =
-            android_format_is_yuv(format) ?
-                VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601 :
-                VK_SAMPLER_YCBCR_MODEL_CONVERSION_RGB_IDENTITY;
+        ahbFormatProps->suggestedYcbcrModel = android_format_is_yuv(format)
+                                                  ? VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601
+                                                  : VK_SAMPLER_YCBCR_MODEL_CONVERSION_RGB_IDENTITY;
         ahbFormatProps->suggestedYcbcrRange = VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
 
         ahbFormatProps->suggestedXChromaOffset = VK_CHROMA_LOCATION_MIDPOINT;
@@ -281,26 +271,24 @@ VkResult createAndroidHardwareBuffer(gfxstream::Gralloc* gralloc, bool hasDedica
 
     /* If caller passed dedicated information. */
     if (hasDedicatedImage) {
-       w = imageExtent.width;
-       h = imageExtent.height;
-       layers = imageLayers;
-       format = android_format_from_vk(imageFormat);
-       usage = getAndroidHardwareBufferUsageFromVkUsage(imageCreateFlags, imageUsage);
+        w = imageExtent.width;
+        h = imageExtent.height;
+        layers = imageLayers;
+        format = android_format_from_vk(imageFormat);
+        usage = getAndroidHardwareBufferUsageFromVkUsage(imageCreateFlags, imageUsage);
     } else if (hasDedicatedBuffer) {
-       w = bufferSize;
-       format = AHARDWAREBUFFER_FORMAT_BLOB;
-       usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
-               AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
-               AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER;
+        w = bufferSize;
+        format = AHARDWAREBUFFER_FORMAT_BLOB;
+        usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
+                AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER;
     } else {
-       w = allocationInfoAllocSize;
-       format = AHARDWAREBUFFER_FORMAT_BLOB;
-       usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN |
-               AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
-               AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER;
+        w = allocationInfoAllocSize;
+        format = AHARDWAREBUFFER_FORMAT_BLOB;
+        usage = AHARDWAREBUFFER_USAGE_CPU_READ_OFTEN | AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN |
+                AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER;
     }
 
-    struct AHardwareBuffer *ahb = NULL;
+    struct AHardwareBuffer* ahb = NULL;
 
     if (gralloc->allocate(w, h, format, usage, &ahb) != 0) {
         return VK_ERROR_OUT_OF_HOST_MEMORY;

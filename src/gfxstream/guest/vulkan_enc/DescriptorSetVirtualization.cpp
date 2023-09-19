@@ -13,6 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 #include "DescriptorSetVirtualization.h"
+
 #include "Resources.h"
 
 namespace gfxstream {
@@ -27,7 +28,8 @@ void clearReifiedDescriptorSet(ReifiedDescriptorSet* set) {
     set->pendingWriteArrayRanges.clear();
 }
 
-void initDescriptorWriteTable(const std::vector<VkDescriptorSetLayoutBinding>& layoutBindings, DescriptorWriteTable& table) {
+void initDescriptorWriteTable(const std::vector<VkDescriptorSetLayoutBinding>& layoutBindings,
+                              DescriptorWriteTable& table) {
     uint32_t highestBindingNumber = 0;
 
     for (uint32_t i = 0; i < layoutBindings.size(); ++i) {
@@ -39,8 +41,7 @@ void initDescriptorWriteTable(const std::vector<VkDescriptorSetLayoutBinding>& l
     std::vector<uint32_t> countsEachBinding(highestBindingNumber + 1, 0);
 
     for (uint32_t i = 0; i < layoutBindings.size(); ++i) {
-        countsEachBinding[layoutBindings[i].binding] =
-            layoutBindings[i].descriptorCount;
+        countsEachBinding[layoutBindings[i].binding] = layoutBindings[i].descriptorCount;
     }
 
     table.resize(countsEachBinding.size());
@@ -55,8 +56,8 @@ void initDescriptorWriteTable(const std::vector<VkDescriptorSetLayoutBinding>& l
     }
 }
 
-static void initializeReifiedDescriptorSet(VkDescriptorPool pool, VkDescriptorSetLayout setLayout, ReifiedDescriptorSet* set) {
-
+static void initializeReifiedDescriptorSet(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
+                                           ReifiedDescriptorSet* set) {
     set->pendingWriteArrayRanges.clear();
 
     const auto& layoutInfo = *(as_goldfish_VkDescriptorSetLayout(setLayout)->layoutInfo);
@@ -73,8 +74,7 @@ static void initializeReifiedDescriptorSet(VkDescriptorPool pool, VkDescriptorSe
         set->bindingIsImmutableSampler[bindingIndex] =
             binding.descriptorCount > 0 &&
             (binding.descriptorType == VK_DESCRIPTOR_TYPE_SAMPLER ||
-             binding.descriptorType ==
-             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) &&
+             binding.descriptorType == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER) &&
             binding.pImmutableSamplers;
     }
 
@@ -185,7 +185,8 @@ void doEmulatedDescriptorWrite(const VkWriteDescriptorSet* write, ReifiedDescrip
     }
 }
 
-void doEmulatedDescriptorCopy(const VkCopyDescriptorSet* copy, const ReifiedDescriptorSet* src, ReifiedDescriptorSet* dst) {
+void doEmulatedDescriptorCopy(const VkCopyDescriptorSet* copy, const ReifiedDescriptorSet* src,
+                              ReifiedDescriptorSet* dst) {
     const DescriptorWriteTable& srcTable = src->allWrites;
     DescriptorWriteTable& dstTable = dst->allWrites;
 
@@ -214,14 +215,10 @@ void doEmulatedDescriptorCopy(const VkCopyDescriptorSet* copy, const ReifiedDesc
     }
 }
 
-void doEmulatedDescriptorImageInfoWriteFromTemplate(
-    VkDescriptorType descType,
-    uint32_t binding,
-    uint32_t dstArrayElement,
-    uint32_t count,
-    const VkDescriptorImageInfo* imageInfos,
-    ReifiedDescriptorSet* set) {
-
+void doEmulatedDescriptorImageInfoWriteFromTemplate(VkDescriptorType descType, uint32_t binding,
+                                                    uint32_t dstArrayElement, uint32_t count,
+                                                    const VkDescriptorImageInfo* imageInfos,
+                                                    ReifiedDescriptorSet* set) {
     DescriptorWriteTable& table = set->allWrites;
 
     uint32_t currBinding = binding;
@@ -239,14 +236,10 @@ void doEmulatedDescriptorImageInfoWriteFromTemplate(
     }
 }
 
-void doEmulatedDescriptorBufferInfoWriteFromTemplate(
-    VkDescriptorType descType,
-    uint32_t binding,
-    uint32_t dstArrayElement,
-    uint32_t count,
-    const VkDescriptorBufferInfo* bufferInfos,
-    ReifiedDescriptorSet* set) {
-
+void doEmulatedDescriptorBufferInfoWriteFromTemplate(VkDescriptorType descType, uint32_t binding,
+                                                     uint32_t dstArrayElement, uint32_t count,
+                                                     const VkDescriptorBufferInfo* bufferInfos,
+                                                     ReifiedDescriptorSet* set) {
     DescriptorWriteTable& table = set->allWrites;
 
     uint32_t currBinding = binding;
@@ -264,14 +257,10 @@ void doEmulatedDescriptorBufferInfoWriteFromTemplate(
     }
 }
 
-void doEmulatedDescriptorBufferViewWriteFromTemplate(
-    VkDescriptorType descType,
-    uint32_t binding,
-    uint32_t dstArrayElement,
-    uint32_t count,
-    const VkBufferView* bufferViews,
-    ReifiedDescriptorSet* set) {
-
+void doEmulatedDescriptorBufferViewWriteFromTemplate(VkDescriptorType descType, uint32_t binding,
+                                                     uint32_t dstArrayElement, uint32_t count,
+                                                     const VkBufferView* bufferViews,
+                                                     ReifiedDescriptorSet* set) {
     DescriptorWriteTable& table = set->allWrites;
 
     uint32_t currBinding = binding;
@@ -305,22 +294,19 @@ void doEmulatedDescriptorInlineUniformBlockFromTemplate(VkDescriptorType descTyp
 static bool isBindingFeasibleForAlloc(
     const DescriptorPoolAllocationInfo::DescriptorCountInfo& countInfo,
     const VkDescriptorSetLayoutBinding& binding) {
-
     if (binding.descriptorCount && (countInfo.type != binding.descriptorType)) {
         return false;
     }
 
-    uint32_t availDescriptorCount =
-        countInfo.descriptorCount - countInfo.used;
+    uint32_t availDescriptorCount = countInfo.descriptorCount - countInfo.used;
 
     if (availDescriptorCount < binding.descriptorCount) {
-        ALOGV("%s: Ran out of descriptors of type 0x%x. "
-              "Wanted %u from layout but "
-              "we only have %u free (total in pool: %u)\n", __func__,
-              binding.descriptorType,
-              binding.descriptorCount,
-              countInfo.descriptorCount - countInfo.used,
-              countInfo.descriptorCount);
+        ALOGV(
+            "%s: Ran out of descriptors of type 0x%x. "
+            "Wanted %u from layout but "
+            "we only have %u free (total in pool: %u)\n",
+            __func__, binding.descriptorType, binding.descriptorCount,
+            countInfo.descriptorCount - countInfo.used, countInfo.descriptorCount);
         return false;
     }
 
@@ -330,31 +316,27 @@ static bool isBindingFeasibleForAlloc(
 static bool isBindingFeasibleForFree(
     const DescriptorPoolAllocationInfo::DescriptorCountInfo& countInfo,
     const VkDescriptorSetLayoutBinding& binding) {
-
     if (countInfo.type != binding.descriptorType) return false;
     if (countInfo.used < binding.descriptorCount) {
-        ALOGV("%s: Was a descriptor set double freed? "
-              "Ran out of descriptors of type 0x%x. "
-              "Wanted to free %u from layout but "
-              "we only have %u used (total in pool: %u)\n", __func__,
-              binding.descriptorType,
-              binding.descriptorCount,
-              countInfo.used,
-              countInfo.descriptorCount);
+        ALOGV(
+            "%s: Was a descriptor set double freed? "
+            "Ran out of descriptors of type 0x%x. "
+            "Wanted to free %u from layout but "
+            "we only have %u used (total in pool: %u)\n",
+            __func__, binding.descriptorType, binding.descriptorCount, countInfo.used,
+            countInfo.descriptorCount);
         return false;
     }
     return true;
 }
 
-static void allocBindingFeasible(
-    const VkDescriptorSetLayoutBinding& binding,
-    DescriptorPoolAllocationInfo::DescriptorCountInfo& poolState) {
+static void allocBindingFeasible(const VkDescriptorSetLayoutBinding& binding,
+                                 DescriptorPoolAllocationInfo::DescriptorCountInfo& poolState) {
     poolState.used += binding.descriptorCount;
 }
 
-static void freeBindingFeasible(
-    const VkDescriptorSetLayoutBinding& binding,
-    DescriptorPoolAllocationInfo::DescriptorCountInfo& poolState) {
+static void freeBindingFeasible(const VkDescriptorSetLayoutBinding& binding,
+                                DescriptorPoolAllocationInfo::DescriptorCountInfo& poolState) {
     poolState.used -= binding.descriptorCount;
 }
 
@@ -366,11 +348,11 @@ static VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInf
     auto setsAvailable = poolInfo->maxSets - poolInfo->usedSets;
 
     if (setsAvailable < pAllocateInfo->descriptorSetCount) {
-        ALOGV("%s: Error: VkDescriptorSetAllocateInfo wants %u sets "
-              "but we only have %u available. "
-              "Bailing with VK_ERROR_OUT_OF_POOL_MEMORY.\n", __func__,
-              pAllocateInfo->descriptorSetCount,
-              setsAvailable);
+        ALOGV(
+            "%s: Error: VkDescriptorSetAllocateInfo wants %u sets "
+            "but we only have %u available. "
+            "Bailing with VK_ERROR_OUT_OF_POOL_MEMORY.\n",
+            __func__, pAllocateInfo->descriptorSetCount, setsAvailable);
         return VK_ERROR_OUT_OF_POOL_MEMORY;
     }
 
@@ -381,11 +363,13 @@ static VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInf
 
     for (uint32_t i = 0; i < pAllocateInfo->descriptorSetCount; ++i) {
         if (!pAllocateInfo->pSetLayouts[i]) {
-            ALOGV("%s: Error: Tried to allocate a descriptor set with null set layout.\n", __func__);
+            ALOGV("%s: Error: Tried to allocate a descriptor set with null set layout.\n",
+                  __func__);
             return VK_ERROR_INITIALIZATION_FAILED;
         }
 
-        auto setLayoutInfo = as_goldfish_VkDescriptorSetLayout(pAllocateInfo->pSetLayouts[i])->layoutInfo;
+        auto setLayoutInfo =
+            as_goldfish_VkDescriptorSetLayout(pAllocateInfo->pSetLayouts[i])->layoutInfo;
         if (!setLayoutInfo) {
             return VK_ERROR_INITIALIZATION_FAILED;
         }
@@ -423,7 +407,8 @@ void applyDescriptorSetAllocation(VkDescriptorPool pool, VkDescriptorSetLayout s
     }
 }
 
-void removeDescriptorSetAllocation(VkDescriptorPool pool, const std::vector<VkDescriptorSetLayoutBinding>& bindings) {
+void removeDescriptorSetAllocation(VkDescriptorPool pool,
+                                   const std::vector<VkDescriptorSetLayoutBinding>& bindings) {
     auto allocInfo = as_goldfish_VkDescriptorPool(pool)->allocInfo;
 
     if (0 == allocInfo->usedSets) {
@@ -442,7 +427,8 @@ void removeDescriptorSetAllocation(VkDescriptorPool pool, const std::vector<VkDe
     }
 }
 
-void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout, VkDescriptorSet set) {
+void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
+                                  VkDescriptorSet set) {
     DescriptorPoolAllocationInfo* allocInfo = as_goldfish_VkDescriptorPool(pool)->allocInfo;
 
     ReifiedDescriptorSet* newReified = new ReifiedDescriptorSet;
@@ -457,7 +443,8 @@ void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout s
     initializeReifiedDescriptorSet(pool, setLayout, newReified);
 }
 
-VkResult validateAndApplyVirtualDescriptorSetAllocation(const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pSets) {
+VkResult validateAndApplyVirtualDescriptorSetAllocation(
+    const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pSets) {
     VkResult validateRes = validateDescriptorSetAllocation(pAllocateInfo);
 
     if (validateRes != VK_SUCCESS) return validateRes;
@@ -470,15 +457,15 @@ VkResult validateAndApplyVirtualDescriptorSetAllocation(const VkDescriptorSetAll
     DescriptorPoolAllocationInfo* allocInfo = as_goldfish_VkDescriptorPool(pool)->allocInfo;
 
     if (allocInfo->freePoolIds.size() < pAllocateInfo->descriptorSetCount) {
-        ALOGE("%s: FATAL: Somehow out of descriptor pool IDs. Wanted %u IDs but only have %u free IDs remaining. The count for maxSets was %u and used was %u\n", __func__,
-                pAllocateInfo->descriptorSetCount,
-                (uint32_t)allocInfo->freePoolIds.size(),
-                allocInfo->maxSets,
-                allocInfo->usedSets);
+        ALOGE(
+            "%s: FATAL: Somehow out of descriptor pool IDs. Wanted %u IDs but only have %u free "
+            "IDs remaining. The count for maxSets was %u and used was %u\n",
+            __func__, pAllocateInfo->descriptorSetCount, (uint32_t)allocInfo->freePoolIds.size(),
+            allocInfo->maxSets, allocInfo->usedSets);
         abort();
     }
 
-    for (uint32_t i = 0 ; i < pAllocateInfo->descriptorSetCount; ++i) {
+    for (uint32_t i = 0; i < pAllocateInfo->descriptorSetCount; ++i) {
         uint64_t id = allocInfo->freePoolIds.back();
         allocInfo->freePoolIds.pop_back();
 
@@ -498,7 +485,8 @@ bool removeDescriptorSetFromPool(VkDescriptorSet set, bool usePoolIds) {
     DescriptorPoolAllocationInfo* allocInfo = as_goldfish_VkDescriptorPool(pool)->allocInfo;
 
     if (usePoolIds) {
-        // Look for the set's pool Id in the pool. If not found, then this wasn't really allocated, and bail.
+        // Look for the set's pool Id in the pool. If not found, then this wasn't really allocated,
+        // and bail.
         if (allocInfo->allocedPoolIds.find(reified->poolId) == allocInfo->allocedPoolIds.end()) {
             return false;
         }
@@ -522,7 +510,7 @@ std::vector<VkDescriptorSet> clearDescriptorPool(VkDescriptorPool pool, bool use
         toClear.push_back(set);
     }
 
-    for (auto set: toClear) {
+    for (auto set : toClear) {
         removeDescriptorSetFromPool(set, usePoolIds);
     }
 

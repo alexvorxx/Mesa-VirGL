@@ -14,12 +14,12 @@
 // limitations under the License.
 #pragma once
 
-#include "aemu/base/containers/EntityManager.h"
-
 #include <vulkan/vulkan.h>
 
 #include <unordered_set>
 #include <vector>
+
+#include "aemu/base/containers/EntityManager.h"
 
 namespace gfxstream {
 namespace vk {
@@ -37,7 +37,7 @@ struct DescriptorWrite {
     DescriptorWriteType type;
     VkDescriptorType descriptorType;
 
-    uint32_t dstArrayElement; // Only used for inlineUniformBlock and accelerationStructure.
+    uint32_t dstArrayElement;  // Only used for inlineUniformBlock and accelerationStructure.
 
     union {
         VkDescriptorImageInfo imageInfo;
@@ -105,7 +105,8 @@ struct DescriptorSetLayoutInfo {
 
 void clearReifiedDescriptorSet(ReifiedDescriptorSet* set);
 
-void initDescriptorWriteTable(const std::vector<VkDescriptorSetLayoutBinding>& layoutBindings, DescriptorWriteTable& table);
+void initDescriptorWriteTable(const std::vector<VkDescriptorSetLayoutBinding>& layoutBindings,
+                              DescriptorWriteTable& table);
 
 bool isDescriptorTypeImageInfo(VkDescriptorType descType);
 bool isDescriptorTypeBufferInfo(VkDescriptorType descType);
@@ -114,31 +115,23 @@ bool isDescriptorTypeInlineUniformBlock(VkDescriptorType descType);
 bool isDescriptorTypeAccelerationStructure(VkDescriptorType descType);
 
 void doEmulatedDescriptorWrite(const VkWriteDescriptorSet* write, ReifiedDescriptorSet* toWrite);
-void doEmulatedDescriptorCopy(const VkCopyDescriptorSet* copy, const ReifiedDescriptorSet* src, ReifiedDescriptorSet* dst);
+void doEmulatedDescriptorCopy(const VkCopyDescriptorSet* copy, const ReifiedDescriptorSet* src,
+                              ReifiedDescriptorSet* dst);
 
-void doEmulatedDescriptorImageInfoWriteFromTemplate(
-    VkDescriptorType descType,
-    uint32_t binding,
-    uint32_t dstArrayElement,
-    uint32_t count,
-    const VkDescriptorImageInfo* imageInfos,
-    ReifiedDescriptorSet* set);
+void doEmulatedDescriptorImageInfoWriteFromTemplate(VkDescriptorType descType, uint32_t binding,
+                                                    uint32_t dstArrayElement, uint32_t count,
+                                                    const VkDescriptorImageInfo* imageInfos,
+                                                    ReifiedDescriptorSet* set);
 
-void doEmulatedDescriptorBufferInfoWriteFromTemplate(
-    VkDescriptorType descType,
-    uint32_t binding,
-    uint32_t dstArrayElement,
-    uint32_t count,
-    const VkDescriptorBufferInfo* bufferInfos,
-    ReifiedDescriptorSet* set);
+void doEmulatedDescriptorBufferInfoWriteFromTemplate(VkDescriptorType descType, uint32_t binding,
+                                                     uint32_t dstArrayElement, uint32_t count,
+                                                     const VkDescriptorBufferInfo* bufferInfos,
+                                                     ReifiedDescriptorSet* set);
 
-void doEmulatedDescriptorBufferViewWriteFromTemplate(
-    VkDescriptorType descType,
-    uint32_t binding,
-    uint32_t dstArrayElement,
-    uint32_t count,
-    const VkBufferView* bufferViews,
-    ReifiedDescriptorSet* set);
+void doEmulatedDescriptorBufferViewWriteFromTemplate(VkDescriptorType descType, uint32_t binding,
+                                                     uint32_t dstArrayElement, uint32_t count,
+                                                     const VkBufferView* bufferViews,
+                                                     ReifiedDescriptorSet* set);
 
 void doEmulatedDescriptorInlineUniformBlockFromTemplate(VkDescriptorType descType, uint32_t binding,
                                                         uint32_t dstArrayElement, uint32_t count,
@@ -146,8 +139,10 @@ void doEmulatedDescriptorInlineUniformBlockFromTemplate(VkDescriptorType descTyp
                                                         ReifiedDescriptorSet* set);
 
 void applyDescriptorSetAllocation(VkDescriptorPool pool, VkDescriptorSetLayout setLayout);
-void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout, VkDescriptorSet set);
-VkResult validateAndApplyVirtualDescriptorSetAllocation(const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pSets);
+void fillDescriptorSetInfoForPool(VkDescriptorPool pool, VkDescriptorSetLayout setLayout,
+                                  VkDescriptorSet set);
+VkResult validateAndApplyVirtualDescriptorSetAllocation(
+    const VkDescriptorSetAllocateInfo* pAllocateInfo, VkDescriptorSet* pSets);
 
 // Returns false if set wasn't found in its pool.
 bool removeDescriptorSetFromPool(VkDescriptorSet set, bool usePoolIds);

@@ -21,6 +21,18 @@
 
 #include "virtgpu_gfxstream_protocol.h"
 
+// See virgl_hw.h and p_defines.h
+#define VIRGL_FORMAT_R8_UNORM 64
+#define VIRGL_FORMAT_B8G8R8A8_UNORM 1
+#define VIRGL_FORMAT_B5G6R5_UNORM 7
+#define VIRGL_FORMAT_R8G8B8_UNORM 66
+#define VIRGL_FORMAT_R8G8B8A8_UNORM 67
+
+#define VIRGL_BIND_RENDER_TARGET (1 << 1)
+#define VIRGL_BIND_CUSTOM (1 << 17)
+#define PIPE_BUFFER 0
+#define PIPE_TEXTURE_2D 2
+
 enum VirtGpuParamId : uint32_t {
     kParam3D = 0,
     kParamCapsetFix = 1,
@@ -157,8 +169,7 @@ class VirtGpuDevice {
     virtual struct VirtGpuCaps getCaps(void) = 0;
 
     virtual VirtGpuBlobPtr createBlob(const struct VirtGpuCreateBlob& blobCreate) = 0;
-    virtual VirtGpuBlobPtr createPipeBlob(uint32_t size) = 0;
-    virtual VirtGpuBlobPtr createPipeTexture2D(uint32_t width, uint32_t height, uint32_t format) = 0;
+    virtual VirtGpuBlobPtr createVirglBlob(uint32_t width, uint32_t height, uint32_t virglFormat) = 0;
     virtual VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle) = 0;
 
     virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob) = 0;

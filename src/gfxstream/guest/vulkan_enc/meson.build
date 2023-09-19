@@ -1,6 +1,17 @@
 # Copyright 2022 Android Open Source Project
 # SPDX-License-Identifier: MIT
 
+gfxstream_vk_entrypoints = custom_target(
+  'gfxstream_vk_entrypoints',
+  input : [vk_entrypoints_gen, vk_api_xml],
+  output : ['gfxstream_vk_entrypoints.h', 'gfxstream_vk_entrypoints.c'],
+  command : [
+    prog_python, '@INPUT0@', '--xml', '@INPUT1@', '--proto', '--weak',
+    '--out-h', '@OUTPUT0@', '--out-c', '@OUTPUT1@', '--prefix', 'gfxstream_vk',
+    '--beta', with_vulkan_beta.to_string()
+  ],
+)
+
 files_lib_vulkan_enc = files(
   'CommandBufferStagingStream.cpp',
   'DescriptorSetVirtualization.cpp',
@@ -19,16 +30,5 @@ files_lib_vulkan_enc = files(
   'goldfish_vk_marshaling_guest.cpp',
   'goldfish_vk_reserved_marshaling_guest.cpp',
   'goldfish_vk_transform_guest.cpp',
-)
-
-lib_vulkan_enc = static_library(
-   'vulkan_enc',
-   files_lib_vulkan_enc,
-   cpp_args: cpp_args,
-   include_directories: [inc_android_emu, inc_guest_iostream, inc_android_compat,
-                         inc_opengl_codec, inc_render_enc, inc_system,
-                         inc_goldfish_address_space, inc_platform,
-                         inc_vulkan_headers, inc_opengl_headers, inc_codec_common],
-   link_with: [lib_platform],
-   dependencies: dependency('libdrm'),
+  'gfxstream_vk_private.cpp',
 )

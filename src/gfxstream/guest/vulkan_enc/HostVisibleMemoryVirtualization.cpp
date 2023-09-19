@@ -45,10 +45,9 @@ CoherentMemory::CoherentMemory(GoldfishAddressSpaceBlockPtr block, uint64_t gpuA
                                VkDevice device, VkDeviceMemory memory)
     : mSize(size), mBlock(block), mDevice(device), mMemory(memory) {
     void* address = block->mmap(gpuAddr);
-    mAllocator =
-        std::make_unique<gfxstream::guest::SubAllocator>(address, mSize, kLargestPageSize);
+    mAllocator = std::make_unique<gfxstream::guest::SubAllocator>(address, mSize, kLargestPageSize);
 }
-#endif // defined(__ANDROID__)
+#endif  // defined(__ANDROID__)
 
 CoherentMemory::~CoherentMemory() {
     ResourceTracker::getThreadLocalEncoder()->vkFreeMemorySyncGOOGLE(mDevice, mMemory, nullptr,

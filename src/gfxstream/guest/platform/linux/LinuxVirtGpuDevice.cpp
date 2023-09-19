@@ -34,10 +34,14 @@
 #define PARAM(x) \
     (struct VirtGpuParam) { x, #x, 0 }
 
-// See virgl_hw.h and p_defines.h
-#define VIRGL_FORMAT_R8_UNORM 64
-#define VIRGL_BIND_CUSTOM (1 << 17)
-#define PIPE_BUFFER 0
+#if defined(PAGE_SIZE) && defined(VIRTIO_GPU)
+constexpr size_t kPageSize = PAGE_SIZE;
+#else
+#include <unistd.h>
+static const size_t kPageSize = getpagesize();
+#endif
+
+static inline uint32_t align_up(uint32_t n, uint32_t a) { return ((n + a - 1) / a) * a; }
 
 LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) : VirtGpuDevice(capset) {
     struct VirtGpuParam params[] = {
@@ -52,7 +56,7 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) : Virt
     struct drm_virtgpu_get_caps get_caps = {0};
     struct drm_virtgpu_context_init init = {0};
     struct drm_virtgpu_context_set_param ctx_set_params[3] = {{0}};
-    const char *processName = nullptr;
+    const char* processName = nullptr;
 
     memset(&mCaps, 0, sizeof(struct VirtGpuCaps));
 
@@ -142,31 +146,51 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) : Virt
     ret = drmIoctl(mDeviceHandle, DRM_IOCTL_VIRTGPU_CONTEXT_INIT, &init);
     if (ret) {
         ALOGE("DRM_IOCTL_VIRTGPU_CONTEXT_INIT failed with %s, continuing without context...",
-               strerror(errno));
+              strerror(errno));
     }
 }
 
-LinuxVirtGpuDevice::~LinuxVirtGpuDevice() {
-    close(mDeviceHandle);
-}
+LinuxVirtGpuDevice::~LinuxVirtGpuDevice() { close(mDeviceHandle); }
 
 struct VirtGpuCaps LinuxVirtGpuDevice::getCaps(void) { return mCaps; }
 
-int64_t LinuxVirtGpuDevice::getDeviceHandle(void) {
-    return mDeviceHandle;
-}
+int64_t LinuxVirtGpuDevice::getDeviceHandle(void) { return mDeviceHandle; }
 
-VirtGpuBlobPtr LinuxVirtGpuDevice::createPipeBlob(uint32_t size) {
+VirtGpuBlobPtr LinuxVirtGpuDevice::createVirglBlob(uint32_t width, uint32_t height,
+                                                   uint32_t virglFormat) {
+    uint32_t target = 0;
+    uint32_t bind = 0;
+    uint32_t bpp = 0;
+
+    switch (virglFormat) {
+        case VIRGL_FORMAT_R8G8B8A8_UNORM:
+        case VIRGL_FORMAT_B8G8R8A8_UNORM:
+            target = PIPE_TEXTURE_2D;
+            bind = VIRGL_BIND_RENDER_TARGET;
+            bpp = 4;
+            break;
+        case VIRGL_FORMAT_R8_UNORM:
+            target = PIPE_BUFFER;
+            bind = VIRGL_BIND_CUSTOM;
+            bpp = 1;
+            break;
+        default:
+            ALOGE("Unknown virgl format");
+            return nullptr;
+    }
+
     drm_virtgpu_resource_create create = {
-            .target = PIPE_BUFFER,
-            .format = VIRGL_FORMAT_R8_UNORM,
-            .bind = VIRGL_BIND_CUSTOM,
-            .width = size,
-            .height = 1U,
-            .depth = 1U,
-            .array_size = 0U,
-            .size = size,
-            .stride = size,
+        .target = target,
+        .format = virglFormat,
+        .bind = bind,
+        .width = width,
+        .height = height,
+        .depth = 1U,
+        .array_size = 1U,
+        .last_level = 0,
+        .nr_samples = 0,
+        .size = width * height * bpp,
+        .stride = width * bpp,
     };
 
     int ret = drmIoctl(mDeviceHandle, DRM_IOCTL_VIRTGPU_RESOURCE_CREATE, &create);
@@ -176,7 +200,7 @@ VirtGpuBlobPtr LinuxVirtGpuDevice::createPipeBlob(uint32_t size) {
     }
 
     return std::make_shared<LinuxVirtGpuBlob>(mDeviceHandle, create.bo_handle, create.res_handle,
-                                         static_cast<uint64_t>(size));
+                                              static_cast<uint64_t>(create.size));
 }
 
 VirtGpuBlobPtr LinuxVirtGpuDevice::createBlob(const struct VirtGpuCreateBlob& blobCreate) {
@@ -195,12 +219,7 @@ VirtGpuBlobPtr LinuxVirtGpuDevice::createBlob(const struct VirtGpuCreateBlob& bl
     }
 
     return std::make_shared<LinuxVirtGpuBlob>(mDeviceHandle, create.bo_handle, create.res_handle,
-                                         blobCreate.size);
-}
-
-VirtGpuBlobPtr LinuxVirtGpuDevice::createPipeTexture2D(uint32_t, uint32_t, uint32_t) {
-    ALOGE("Unimplemented LinuxVirtGpuDevice::createPipeTexture2D().");
-    return nullptr;
+                                              blobCreate.size);
 }
 
 VirtGpuBlobPtr LinuxVirtGpuDevice::importBlob(const struct VirtGpuExternalHandle& handle) {
@@ -223,7 +242,7 @@ VirtGpuBlobPtr LinuxVirtGpuDevice::importBlob(const struct VirtGpuExternalHandle
     }
 
     return std::make_shared<LinuxVirtGpuBlob>(mDeviceHandle, blobHandle, info.res_handle,
-                                         static_cast<uint64_t>(info.size));
+                                              static_cast<uint64_t>(info.size));
 }
 
 int LinuxVirtGpuDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob) {

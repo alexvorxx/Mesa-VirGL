@@ -19,8 +19,9 @@
 #include "VirtGpu.h"
 
 class LinuxVirtGpuBlob : public std::enable_shared_from_this<LinuxVirtGpuBlob>, public VirtGpuBlob {
-  public:
-    LinuxVirtGpuBlob(int64_t deviceHandle, uint32_t blobHandle, uint32_t resourceHandle, uint64_t size);
+   public:
+    LinuxVirtGpuBlob(int64_t deviceHandle, uint32_t blobHandle, uint32_t resourceHandle,
+                     uint64_t size);
     ~LinuxVirtGpuBlob();
 
     uint32_t getResourceHandle(void) override;
@@ -33,7 +34,7 @@ class LinuxVirtGpuBlob : public std::enable_shared_from_this<LinuxVirtGpuBlob>, 
     int transferFromHost(uint32_t offset, uint32_t size) override;
     int transferToHost(uint32_t offset, uint32_t size) override;
 
-  private:
+   private:
     // Not owned.  Really should use a ScopedFD for this, but doesn't matter since we have a
     // singleton deviceimplemenentation anyways.
     int64_t mDeviceHandle;
@@ -44,20 +45,20 @@ class LinuxVirtGpuBlob : public std::enable_shared_from_this<LinuxVirtGpuBlob>, 
 };
 
 class LinuxVirtGpuBlobMapping : public VirtGpuBlobMapping {
-  public:
+   public:
     LinuxVirtGpuBlobMapping(VirtGpuBlobPtr blob, uint8_t* ptr, uint64_t size);
     ~LinuxVirtGpuBlobMapping(void);
 
     uint8_t* asRawPtr(void) override;
 
-  private:
+   private:
     VirtGpuBlobPtr mBlob;
     uint8_t* mPtr;
     uint64_t mSize;
 };
 
 class LinuxVirtGpuDevice : public VirtGpuDevice {
-  public:
+   public:
     LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd = -1);
     virtual ~LinuxVirtGpuDevice();
 
@@ -66,14 +67,12 @@ class LinuxVirtGpuDevice : public VirtGpuDevice {
     virtual struct VirtGpuCaps getCaps(void);
 
     VirtGpuBlobPtr createBlob(const struct VirtGpuCreateBlob& blobCreate) override;
-    VirtGpuBlobPtr createPipeBlob(uint32_t size) override;
-    VirtGpuBlobPtr createPipeTexture2D(uint32_t width, uint32_t height, uint32_t format) override;
+    VirtGpuBlobPtr createVirglBlob(uint32_t width, uint32_t height, uint32_t virglFormat) override;
 
     virtual VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle);
-
     virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob);
 
-  private:
-   int64_t mDeviceHandle;
-   struct VirtGpuCaps mCaps;
+   private:
+    int64_t mDeviceHandle;
+    struct VirtGpuCaps mCaps;
 };

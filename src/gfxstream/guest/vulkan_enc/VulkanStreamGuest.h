@@ -13,30 +13,26 @@
 // limitations under the License.
 #pragma once
 
-#include "aemu/base/files/Stream.h"
-#include "aemu/base/files/StreamSerializing.h"
+#include <inttypes.h>
+#include <log/log.h>
 
-#include "goldfish_vk_private_defs.h"
-
-#include "VulkanHandleMapping.h"
+#include <memory>
+#include <vector>
 
 #include "gfxstream/guest/IOStream.h"
 #include "ResourceTracker.h"
-
+#include "VulkanHandleMapping.h"
 #include "aemu/base/BumpPool.h"
 #include "aemu/base/Tracing.h"
-
-#include <vector>
-#include <memory>
-
-#include <log/log.h>
-#include <inttypes.h>
+#include "aemu/base/files/Stream.h"
+#include "aemu/base/files/StreamSerializing.h"
+#include "goldfish_vk_private_defs.h"
 
 namespace gfxstream {
 namespace vk {
 
 class VulkanStreamGuest : public gfxstream::guest::Stream {
-public:
+   public:
     VulkanStreamGuest(gfxstream::guest::IOStream* stream);
     ~VulkanStreamGuest();
 
@@ -55,8 +51,8 @@ public:
     void loadStringInPlaceWithStreamPtr(char** forOutput, uint8_t** streamPtr);
     void loadStringArrayInPlaceWithStreamPtr(char*** forOutput, uint8_t** streamPtr);
 
-    ssize_t read(void *buffer, size_t size) override;
-    ssize_t write(const void *buffer, size_t size) override;
+    ssize_t read(void* buffer, size_t size) override;
+    ssize_t write(const void* buffer, size_t size) override;
 
     void writeLarge(const void* buffer, size_t size);
 
@@ -75,7 +71,8 @@ public:
     bool decStreamRef();
 
     uint8_t* reserve(size_t size);
-private:
+
+   private:
     gfxstream::guest::BumpPool mPool;
     std::vector<uint8_t> mWriteBuffer;
     gfxstream::guest::IOStream* mStream = nullptr;
@@ -85,18 +82,19 @@ private:
 };
 
 class VulkanCountingStream : public VulkanStreamGuest {
-public:
+   public:
     VulkanCountingStream();
     ~VulkanCountingStream();
 
-    ssize_t read(void *buffer, size_t size) override;
-    ssize_t write(const void *buffer, size_t size) override;
+    ssize_t read(void* buffer, size_t size) override;
+    ssize_t write(const void* buffer, size_t size) override;
 
     size_t bytesWritten() const { return m_written; }
     size_t bytesRead() const { return m_read; }
 
     void rewind();
-private:
+
+   private:
     size_t m_written = 0;
     size_t m_read = 0;
 };

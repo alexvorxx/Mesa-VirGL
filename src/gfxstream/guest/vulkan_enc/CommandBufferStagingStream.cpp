@@ -1,18 +1,18 @@
 /*
-* Copyright (C) 2021 The Android Open Source Project
-*
-* Licensed under the Apache License, Version 2.0 (the "License");
-* you may not use this file except in compliance with the License.
-* You may obtain a copy of the License at
-*
-* http://www.apache.org/licenses/LICENSE-2.0
-*
-* Unless required by applicable law or agreed to in writing, software
-* distributed under the License is distributed on an "AS IS" BASIS,
-* WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-* See the License for the specific language governing permissions and
-* limitations under the License.
-*/
+ * Copyright (C) 2021 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 #include "CommandBufferStagingStream.h"
 
 #if PLATFORM_SDK_VERSION < 26
@@ -204,37 +204,33 @@ void* CommandBufferStagingStream::allocBuffer(size_t minSize) {
     return (void*)(getDataPtr() + m_writePos);
 }
 
-int CommandBufferStagingStream::commitBuffer(size_t size)
-{
+int CommandBufferStagingStream::commitBuffer(size_t size) {
     m_writePos += size;
     return 0;
 }
 
-const unsigned char *CommandBufferStagingStream::readFully(void*, size_t) {
+const unsigned char* CommandBufferStagingStream::readFully(void*, size_t) {
     // Not supported
     ALOGE("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
     abort();
     return nullptr;
 }
 
-const unsigned char *CommandBufferStagingStream::read(void*, size_t*) {
+const unsigned char* CommandBufferStagingStream::read(void*, size_t*) {
     // Not supported
     ALOGE("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
     abort();
     return nullptr;
 }
 
-int CommandBufferStagingStream::writeFully(const void*, size_t)
-{
+int CommandBufferStagingStream::writeFully(const void*, size_t) {
     // Not supported
     ALOGE("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
     abort();
     return 0;
 }
 
-const unsigned char *CommandBufferStagingStream::commitBufferAndReadFully(
-    size_t, void *, size_t) {
-
+const unsigned char* CommandBufferStagingStream::commitBufferAndReadFully(size_t, void*, size_t) {
     // Not supported
     ALOGE("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
     abort();
