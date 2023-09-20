@@ -3049,6 +3049,7 @@
     <field name="Pipeline" start="27" end="28" type="uint" default="2" />
     <field name="Command Type" start="29" end="31" type="uint" default="3" />
     <field name="Surface ID" start="32" end="35" type="uint" prefix="MFX">
+      <value name="Reference Picture" value="0" />
       <value name="Source Input Picture" value="4" />
       <value name="Reconstructed Scaled Reference Picture" value="5" />
     </field>
