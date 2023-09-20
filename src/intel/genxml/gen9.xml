@@ -3015,8 +3015,8 @@
     <field name="Extended Stream-Out Enable" start="50" end="50" type="bool" />
     <field name="Pic Status/Error Report ID" start="96" end="127" type="uint" />
   </instruction>
-  <instruction name="MFX_QM_STATE" bias="2" length="34" engine="video">
-    <field name="DWord Length" start="0" end="11" type="uint" default="32" />
+  <instruction name="MFX_QM_STATE" bias="2" length="18" engine="video">
+    <field name="DWord Length" start="0" end="11" type="uint" default="16" />
     <field name="SubOpcode B" start="16" end="20" type="uint" default="7" />
     <field name="SubOpcode A" start="21" end="23" type="uint" default="0" />
     <field name="Media Command Opcode" start="24" end="26" type="uint" default="0" />
