@@ -338,7 +338,6 @@ radeonsi-raven-va-full:x86_64:
 
 .polaris10-test-valve:
   variables:
-    RUNNER_FARM_LOCATION: keywords
     FDO_CI_CONCURRENT: 16
     B2C_TIMEOUT_BOOT_RETRIES: 4
     # (2022-01) tsc=unstable was added in response to this message in kmsg,
@@ -346,6 +345,16 @@ radeonsi-raven-va-full:x86_64:
     B2C_KERNEL_CMDLINE_EXTRAS: 'b2c.swap=16g tsc=unstable'
   tags:
     - amdgpu:codename:POLARIS10
+
+.polaris10-test-valve-mupuf:
+  extends: .polaris10-test-valve
+  variables:
+    RUNNER_FARM_LOCATION: mupuf
+
+.polaris10-test-valve-kws:
+  extends: .polaris10-test-valve
+  variables:
+    RUNNER_FARM_LOCATION: keywords
 
 .vega10-test-valve:
   variables:
@@ -443,13 +452,16 @@ radeonsi-raven-va-full:x86_64:
   tags:
     - amdgpu:codename:STONEY
 
-.vkcts-polaris10-valve:
+vkcts-polaris10-valve:
   extends:
     - .vkcts-test-valve
-    - .polaris10-test-valve
+    - .polaris10-test-valve-mupuf
     - .radv-valve-manual-rules
+  timeout: 1h 15m
   variables:
     GPU_VERSION: radv-polaris10-aco
+    B2C_TIMEOUT_BOOT_MINUTES: 70
+    B2C_TIMEOUT_OVERALL_MINUTES: 70
 
 vkcts-vega10-valve:
   extends:
@@ -480,13 +492,6 @@ vkcts-navi10-valve:
     - .radv-valve-manual-rules
   variables:
     GPU_VERSION: radv-navi10-aco
-    # Use Linux 5.17 to work around hitting __vm_enough_memory then hanging on Linux 6.1
-    # See https://gitlab.freedesktop.org/mesa/mesa/-/issues/7888 for details
-    B2C_KERNEL_URL: 'https://gitlab.freedesktop.org/mupuf/valve-infra/-/package_files/144/download'  # 5.17.1
-    # NAVI10 hangs quite often while running vkcts. This is being investigated,
-    # but in the mean time, retry up to 2 times.
-    B2C_SESSION_REBOOT_REGEX: '(GPU hang detected!|\*ERROR\* ring [^\s]+ timeout(?!, but soft recovered)|The CS has been cancelled because the context is lost)'
-    B2C_TIMEOUT_BOOT_RETRIES: 2
 
 vkcts-navi21-valve:
   parallel: 3
@@ -574,10 +579,10 @@ radv-fossils:
   variables:
     VKD3D_PROTON_RESULTS: radv-kabini-vkd3d
 
-.vkd3d-polaris10-valve:
+vkd3d-polaris10-valve:
   extends:
     - .vkd3d-test-valve
-    - .polaris10-test-valve
+    - .polaris10-test-valve-kws
     - .radv-valve-manual-rules
   variables:
     VKD3D_PROTON_RESULTS: radv-polaris10-vkd3d

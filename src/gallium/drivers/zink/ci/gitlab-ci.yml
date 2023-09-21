@@ -44,6 +44,8 @@
   rules:
     - !reference [.collabora-turnip-rules, rules]
     - !reference [.zink-common-rules, rules]
+  variables:
+    ZINK_DEBUG: optimal_keys
 
 .zink-turnip-manual-rules:
   stage: layered-backends
@@ -159,7 +161,6 @@ zink-anv-tgl-traces:
     # dependencies right.
     - .lava-traces-base
   variables:
-    MESA_LOADER_DRIVER_OVERRIDE: zink
     PIGLIT_REPLAY_DESCRIPTION_FILE: "/install/traces-zink.yml"
 
 zink-anv-tgl-traces-restricted:
@@ -221,14 +222,21 @@ zink-tu-a618-traces-performance:
     - .test-radv
     - .b2c-test-gl
   variables:
-    PIGLIT_PROFILES: all
-    PIGLIT_PLATFORM: gbm
-    HWCI_TEST_SCRIPT: ./install/valve/gl_combined_testing.sh
+    DEQP_SUITE: zink-radv
+    HWCI_TEST_SCRIPT: ./install/deqp-runner.sh
     B2C_JOB_SUCCESS_REGEX: 'Execution is over, pipeline status: 0'
     B2C_TIMEOUT_OVERALL_MINUTES: 20
 
     # Disable reporting, since DUTs don't have internet access
     FLAKES_CHANNEL: ""
+
+zink-radv-polaris10-valve:
+  extends:
+    - .radv-zink-test-valve
+    - .polaris10-test-valve-kws
+    - .zink-radv-manual-rules
+  variables:
+    GPU_VERSION: zink-radv-polaris10
 
 zink-radv-navi10-valve:
   extends:
@@ -246,6 +254,8 @@ zink-radv-vangogh-valve:
     - .zink-radv-rules
   variables:
     GPU_VERSION: zink-radv-vangogh
+    B2C_SESSION_REBOOT_REGEX: 'BUG: kernel NULL pointer dereference, address'
+    B2C_TIMEOUT_BOOT_RETRIES: 1
   # Override the list of tags to drop `priority:low`
   tags:
     - amdgpu:codename:VANGOGH

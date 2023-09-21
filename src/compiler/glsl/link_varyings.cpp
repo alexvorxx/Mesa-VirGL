@@ -103,9 +103,9 @@ cross_validate_types_and_qualifiers(const struct gl_constants *consts,
                   "declared as struct `%s'\n",
                   _mesa_shader_stage_to_string(producer_stage),
                   output->name,
-                  output->type->name,
+                  glsl_get_type_name(output->type),
                   _mesa_shader_stage_to_string(consumer_stage),
-                  input->type->name);
+                  glsl_get_type_name(input->type));
          }
       } else if (!output->type->is_array() || !is_gl_identifier(output->name)) {
          /* There is a bit of a special case for gl_TexCoord.  This
@@ -131,9 +131,9 @@ cross_validate_types_and_qualifiers(const struct gl_constants *consts,
                       "but %s shader input declared as type `%s'\n",
                       _mesa_shader_stage_to_string(producer_stage),
                       output->name,
-                      output->type->name,
+                      glsl_get_type_name(output->type),
                       _mesa_shader_stage_to_string(consumer_stage),
-                      input->type->name);
+                      glsl_get_type_name(input->type));
          return;
       }
    }
@@ -523,7 +523,7 @@ validate_explicit_variable_location(const struct gl_constants *consts,
    const glsl_type *type_without_array = type->without_array();
    if (type_without_array->is_interface()) {
       for (unsigned i = 0; i < type_without_array->length; i++) {
-         glsl_struct_field *field = &type_without_array->fields.structure[i];
+         const glsl_struct_field *field = &type_without_array->fields.structure[i];
          unsigned field_location = field->location -
             (field->patch ? VARYING_SLOT_PATCH0 : VARYING_SLOT_VAR0);
          unsigned field_slots = field->type->count_attribute_slots(false);

@@ -926,7 +926,7 @@ gl_nir_add_point_size(nir_shader *nir)
       }
    }
    if (!found) {
-      b.cursor = nir_before_cf_list(&impl->body);
+      b.cursor = nir_before_impl(impl);
       nir_deref_instr *deref = nir_build_deref_var(&b, psiz);
       nir_store_deref(&b, deref, nir_imm_float(&b, 1.0), BITFIELD_BIT(0));
    }
@@ -957,7 +957,7 @@ gl_nir_zero_initialize_clip_distance(nir_shader *nir)
       return false;
 
    nir_function_impl *impl = nir_shader_get_entrypoint(nir);
-   nir_builder b = nir_builder_at(nir_before_block(nir_start_block(impl)));
+   nir_builder b = nir_builder_at(nir_before_impl(impl));
    if (clip_dist0)
       zero_array_members(&b, clip_dist0);
 
@@ -1065,6 +1065,8 @@ preprocess_shader(const struct gl_constants *consts,
       NIR_PASS_V(nir, nir_lower_alu_to_scalar,
                  options->lower_to_scalar_filter, NULL);
    }
+
+   NIR_PASS_V(nir, nir_opt_barrier_modes);
 
    /* before buffers and vars_to_ssa */
    NIR_PASS_V(nir, gl_nir_lower_images, true);

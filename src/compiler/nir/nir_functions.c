@@ -26,6 +26,26 @@
 #include "nir_control_flow.h"
 #include "nir_vla.h"
 
+/*
+ * TODO: write a proper inliner for GPUs.
+ * This heuristic just inlines small functions,
+ * and tail calls get inlined as well.
+ */
+static bool
+nir_function_can_inline(nir_function *function)
+{
+   bool can_inline = true;
+   if (!function->should_inline) {
+      if (function->impl) {
+         if (function->impl->num_blocks > 2)
+            can_inline = false;
+         if (function->impl->ssa_alloc > 45)
+            can_inline = false;
+      }
+   }
+   return can_inline;
+}
+
 static bool
 function_ends_in_jump(nir_function_impl *impl)
 {
@@ -127,48 +147,43 @@ nir_inline_function_impl(struct nir_builder *b,
 
 static bool inline_function_impl(nir_function_impl *impl, struct set *inlined);
 
-static bool
-inline_functions_block(nir_block *block, nir_builder *b,
-                       struct set *inlined)
+static bool inline_functions_pass(nir_builder *b,
+                                  nir_instr *instr,
+                                  void *cb_data)
 {
-   bool progress = false;
-   /* This is tricky.  We're iterating over instructions in a block but, as
-    * we go, the block and its instruction list are being split into
-    * pieces.  However, this *should* be safe since foreach_safe always
-    * stashes the next thing in the iteration.  That next thing will
-    * properly get moved to the next block when it gets split, and we
-    * continue iterating there.
-    */
-   nir_foreach_instr_safe(instr, block) {
-      if (instr->type != nir_instr_type_call)
-         continue;
+   struct set *inlined = cb_data;
+   if (instr->type != nir_instr_type_call)
+      return false;
 
-      progress = true;
+   nir_call_instr *call = nir_instr_as_call(instr);
+   assert(call->callee->impl);
 
-      nir_call_instr *call = nir_instr_as_call(instr);
-      assert(call->callee->impl);
-
-      /* Make sure that the function we're calling is already inlined */
-      inline_function_impl(call->callee->impl, inlined);
-
-      b->cursor = nir_instr_remove(&call->instr);
-
-      /* Rewrite all of the uses of the callee's parameters to use the call
-       * instructions sources.  In order to ensure that the "load" happens
-       * here and not later (for register sources), we make sure to convert it
-       * to an SSA value first.
-       */
-      const unsigned num_params = call->num_params;
-      NIR_VLA(nir_def *, params, num_params);
-      for (unsigned i = 0; i < num_params; i++) {
-         params[i] = nir_ssa_for_src(b, call->params[i],
-                                     call->callee->params[i].num_components);
+   if (b->shader->options->driver_functions &&
+       b->shader->info.stage == MESA_SHADER_KERNEL) {
+      bool last_instr = (instr == nir_block_last_instr(instr->block));
+      if (!nir_function_can_inline(call->callee) && !last_instr) {
+         return false;
       }
-
-      nir_inline_function_impl(b, call->callee->impl, params, NULL);
    }
 
-   return progress;
+   /* Make sure that the function we're calling is already inlined */
+   inline_function_impl(call->callee->impl, inlined);
+
+   b->cursor = nir_instr_remove(&call->instr);
+
+   /* Rewrite all of the uses of the callee's parameters to use the call
+    * instructions sources.  In order to ensure that the "load" happens
+    * here and not later (for register sources), we make sure to convert it
+    * to an SSA value first.
+    */
+   const unsigned num_params = call->num_params;
+   NIR_VLA(nir_def *, params, num_params);
+   for (unsigned i = 0; i < num_params; i++) {
+      params[i] = call->params[i].ssa;
+   }
+
+   nir_inline_function_impl(b, call->callee->impl, params, NULL);
+   return true;
 }
 
 static bool
@@ -177,20 +192,12 @@ inline_function_impl(nir_function_impl *impl, struct set *inlined)
    if (_mesa_set_search(inlined, impl))
       return false; /* Already inlined */
 
-   nir_builder b = nir_builder_create(impl);
-
-   bool progress = false;
-   nir_foreach_block_safe(block, impl) {
-      progress |= inline_functions_block(block, &b, inlined);
-   }
-
+   bool progress;
+   progress = nir_function_instructions_pass(impl, inline_functions_pass,
+                                             nir_metadata_none, inlined);
    if (progress) {
       /* Indices are completely messed up now */
       nir_index_ssa_defs(impl);
-
-      nir_metadata_preserve(impl, nir_metadata_none);
-   } else {
-      nir_metadata_preserve(impl, nir_metadata_all);
    }
 
    _mesa_set_add(inlined, impl);
@@ -277,4 +284,186 @@ nir_inline_functions(nir_shader *shader)
    _mesa_set_destroy(inlined, NULL);
 
    return progress;
+}
+
+struct lower_link_state {
+   struct hash_table *shader_var_remap;
+   const nir_shader *link_shader;
+};
+
+static bool
+lower_calls_vars_instr(struct nir_builder *b,
+                       nir_instr *instr,
+                       void *cb_data)
+{
+   struct lower_link_state *state = cb_data;
+
+   switch (instr->type) {
+   case nir_instr_type_deref: {
+      nir_deref_instr *deref = nir_instr_as_deref(instr);
+      if (deref->deref_type != nir_deref_type_var)
+         return false;
+      if (deref->var->data.mode == nir_var_function_temp)
+         return false;
+
+      assert(state->shader_var_remap);
+      struct hash_entry *entry =
+         _mesa_hash_table_search(state->shader_var_remap, deref->var);
+      if (entry == NULL) {
+         nir_variable *nvar = nir_variable_clone(deref->var, b->shader);
+         nir_shader_add_variable(b->shader, nvar);
+         entry = _mesa_hash_table_insert(state->shader_var_remap,
+                                         deref->var, nvar);
+      }
+      deref->var = entry->data;
+      break;
+   }
+   case nir_instr_type_call: {
+      nir_call_instr *ncall = nir_instr_as_call(instr);
+      if (!ncall->callee->name)
+         return false;
+
+      nir_function *func = nir_shader_get_function_for_name(b->shader, ncall->callee->name);
+      if (func) {
+         ncall->callee = func;
+         break;
+      }
+
+      nir_function *new_func;
+      new_func = nir_shader_get_function_for_name(state->link_shader, ncall->callee->name);
+      if (new_func)
+         ncall->callee = nir_function_clone(b->shader, new_func);
+      break;
+   }
+   default:
+      break;
+   }
+   return true;
+}
+
+static bool
+lower_call_function_impl(struct nir_builder *b,
+                         nir_function *callee,
+                         const nir_function_impl *impl,
+                         struct lower_link_state *state)
+{
+   nir_function_impl *copy = nir_function_impl_clone(b->shader, impl);
+   copy->function = callee;
+   callee->impl = copy;
+
+   return nir_function_instructions_pass(copy,
+                                         lower_calls_vars_instr,
+                                         nir_metadata_none,
+                                         state);
+}
+
+static bool
+function_link_pass(struct nir_builder *b,
+                   nir_instr *instr,
+                   void *cb_data)
+{
+   struct lower_link_state *state = cb_data;
+
+   if (instr->type != nir_instr_type_call)
+      return false;
+
+   nir_call_instr *call = nir_instr_as_call(instr);
+   nir_function *func = NULL;
+
+   if (!call->callee->name)
+      return false;
+
+   if (call->callee->impl)
+      return false;
+
+   func = nir_shader_get_function_for_name(state->link_shader, call->callee->name);
+   if (!func || !func->impl) {
+      return false;
+   }
+   return lower_call_function_impl(b, call->callee,
+                                   func->impl,
+                                   state);
+}
+
+bool
+nir_link_shader_functions(nir_shader *shader,
+                          const nir_shader *link_shader)
+{
+   void *ra_ctx = ralloc_context(NULL);
+   struct hash_table *copy_vars = _mesa_pointer_hash_table_create(ra_ctx);
+   bool progress = false, overall_progress = false;
+
+   struct lower_link_state state = {
+      .shader_var_remap = copy_vars,
+      .link_shader = link_shader,
+   };
+   /* do progress passes inside the pass */
+   do {
+      progress = false;
+      nir_foreach_function_impl(impl, shader) {
+         bool this_progress = nir_function_instructions_pass(impl,
+                                                             function_link_pass,
+                                                             nir_metadata_none,
+                                                             &state);
+         if (this_progress)
+            nir_index_ssa_defs(impl);
+         progress |= this_progress;
+      }
+      overall_progress |= progress;
+   } while (progress);
+
+   ralloc_free(ra_ctx);
+
+   return overall_progress;
+}
+
+static void
+nir_mark_used_functions(struct nir_function *func, struct set *used_funcs);
+
+static bool mark_used_pass_cb(struct nir_builder *b,
+                              nir_instr *instr, void *data)
+{
+   struct set *used_funcs = data;
+   if (instr->type != nir_instr_type_call)
+      return false;
+   nir_call_instr *call = nir_instr_as_call(instr);
+
+   _mesa_set_add(used_funcs, call->callee);
+
+   nir_mark_used_functions(call->callee, used_funcs);
+   return true;
+}
+
+static void
+nir_mark_used_functions(struct nir_function *func, struct set *used_funcs)
+{
+   if (func->impl) {
+      nir_function_instructions_pass(func->impl,
+                                     mark_used_pass_cb,
+                                     nir_metadata_none,
+                                     used_funcs);
+   }
+}
+
+void
+nir_cleanup_functions(nir_shader *nir)
+{
+   if (!nir->options->driver_functions) {
+      nir_remove_non_entrypoints(nir);
+      return;
+   }
+
+   struct set *used_funcs = _mesa_set_create(NULL, _mesa_hash_pointer,
+                                             _mesa_key_pointer_equal);
+   foreach_list_typed_safe(nir_function, func, node, &nir->functions) {
+      if (func->is_entrypoint) {
+         _mesa_set_add(used_funcs, func);
+         nir_mark_used_functions(func, used_funcs);
+      }
+   }
+   foreach_list_typed_safe(nir_function, func, node, &nir->functions) {
+      if (!_mesa_set_search(used_funcs, func))
+         exec_node_remove(&func->node);
+   }
+   _mesa_set_destroy(used_funcs, NULL);
 }

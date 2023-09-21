@@ -1,3 +1,18 @@
+.windows-docker-tags:
+  tags:
+    - windows
+    - docker
+    - "2022"
+    - mesa
+
+.windows-shell-tags:
+  tags:
+    - windows
+    - shell
+    - "2022"
+    - mesa
+
+
 # Unfortunately YAML doesn't let us concatenate arrays, so we have to do the
 # rules duplication manually
 .windows-build-rules:
@@ -55,7 +70,6 @@
 
 test-spirv2dxil-windows:
   extends:
-    - .build-windows
     - .use-windows_test_vs2019
     - .spirv2dxil-test-rules
   stage: layered-backends
@@ -77,7 +91,6 @@ test-spirv2dxil-windows:
 
 test-dozen-deqp:
   extends:
-    - .build-windows
     - .use-windows_test_vs2019
     - .dozen-test-rules
   stage: layered-backends

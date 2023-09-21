@@ -493,6 +493,9 @@ static void emit_state(struct rendering_state *state)
       state->stencil_ref_dirty = false;
    }
 
+   if (state->ve_dirty)
+      update_vertex_elements_buffer_index(state);
+
    if (state->vb_strides_dirty) {
       for (unsigned i = 0; i < state->velem.count; i++)
          state->velem.velems[i].src_stride = state->vb_strides[state->velem.velems[i].vertex_buffer_index];
@@ -505,7 +508,6 @@ static void emit_state(struct rendering_state *state)
    }
 
    if (state->ve_dirty) {
-      update_vertex_elements_buffer_index(state);
       cso_set_vertex_elements(state->cso, &state->velem);
       state->ve_dirty = false;
    }
@@ -973,9 +975,10 @@ static void handle_graphics_pipeline(struct lvp_pipeline *pipeline,
       if (ps->vi) {
          u_foreach_bit(a, ps->vi->attributes_valid) {
             uint32_t b = ps->vi->attributes[a].binding;
-            state->velem.velems[a].src_stride = ps->vi->bindings[b].stride;
+            state->vb_strides[b] = ps->vi->bindings[b].stride;
+            state->vb_strides_dirty = true;
+            state->ve_dirty = true;
          }
-         state->vb_dirty = true;
       }
    }
 

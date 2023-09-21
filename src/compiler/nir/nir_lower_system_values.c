@@ -166,12 +166,11 @@ lower_system_value_instr(nir_builder *b, nir_instr *instr, void *_state)
          switch (deref->var->data.location) {
          case SYSTEM_VALUE_TESS_LEVEL_INNER:
          case SYSTEM_VALUE_TESS_LEVEL_OUTER: {
-            nir_def *index = nir_ssa_for_src(b, arr_deref->arr.index, 1);
             nir_def *sysval = (deref->var->data.location ==
                                SYSTEM_VALUE_TESS_LEVEL_INNER)
                                  ? nir_load_tess_level_inner(b)
                                  : nir_load_tess_level_outer(b);
-            return nir_vector_extract(b, sysval, index);
+            return nir_vector_extract(b, sysval, arr_deref->arr.index.ssa);
          }
 
          case SYSTEM_VALUE_SAMPLE_MASK_IN:
@@ -384,7 +383,7 @@ id_to_index_no_umod_slow(nir_builder *b, nir_def *index,
 static nir_def *
 lower_id_to_index_no_umod(nir_builder *b, nir_def *index,
                           nir_def *size, unsigned bit_size,
-                          const uint16_t *size_imm,
+                          const uint32_t *size_imm,
                           bool shortcut_1d)
 {
    nir_def *size_x, *size_y;
@@ -465,7 +464,7 @@ lower_compute_system_value_filter(const nir_instr *instr, const void *_state)
 }
 
 static nir_def *
-try_lower_id_to_index_1d(nir_builder *b, nir_def *index, const uint16_t *size)
+try_lower_id_to_index_1d(nir_builder *b, nir_def *index, const uint32_t *size)
 {
    /* size_x = 1, size_y = 1, therefore Z = local index */
    if (size[0] == 1 && size[1] == 1)
@@ -512,8 +511,10 @@ lower_compute_system_value_instr(nir_builder *b,
              * this way we don't leave behind extra ALU instrs.
              */
 
-            nir_def *val = try_lower_id_to_index_1d(b, local_index,
-                                                    b->shader->info.workgroup_size);
+            uint32_t wg_size[3] = {b->shader->info.workgroup_size[0],
+                                   b->shader->info.workgroup_size[1],
+                                   b->shader->info.workgroup_size[2]};
+            nir_def *val = try_lower_id_to_index_1d(b, local_index, wg_size);
             if (val)
                return val;
          }
@@ -734,7 +735,7 @@ lower_compute_system_value_instr(nir_builder *b,
       if (!options)
          return NULL;
 
-      const uint16_t *num_wgs_imm = options->num_workgroups;
+      const uint32_t *num_wgs_imm = options->num_workgroups;
 
       /* Exit early when none of the num workgroups components are known at
        * compile time.

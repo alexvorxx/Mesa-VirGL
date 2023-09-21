@@ -194,24 +194,6 @@ init_common_queue_state(struct anv_queue *queue, struct anv_batch *batch)
    }
 #endif
 
-#if GFX_VERx10 == 125
-   /* Wa_14014427904 - We need additional invalidate/flush when
-    * emitting NP state commands with ATS-M in compute mode.
-    */
-   if (intel_device_info_is_atsm(device->info) &&
-       queue->family->engine_class == INTEL_ENGINE_CLASS_COMPUTE) {
-      genX(batch_emit_pipe_control)
-         (batch, device->info,
-          ANV_PIPE_CS_STALL_BIT |
-          ANV_PIPE_STATE_CACHE_INVALIDATE_BIT |
-          ANV_PIPE_CONSTANT_CACHE_INVALIDATE_BIT |
-          ANV_PIPE_UNTYPED_DATAPORT_CACHE_FLUSH_BIT |
-          ANV_PIPE_TEXTURE_CACHE_INVALIDATE_BIT |
-          ANV_PIPE_INSTRUCTION_CACHE_INVALIDATE_BIT |
-          ANV_PIPE_HDC_PIPELINE_FLUSH_BIT);
-      }
-#endif
-
    /* Emit STATE_BASE_ADDRESS on Gfx12+ because we set a default CPS_STATE and
     * those are relative to STATE_BASE_ADDRESS::DynamicStateBaseAddress.
     */
@@ -224,9 +206,9 @@ init_common_queue_state(struct anv_queue *queue, struct anv_batch *batch)
     *  always program PIPE_CONTROL either with CS Stall or PS sync stall. In
     *  both the cases set Render Target Cache Flush Enable".
     */
-   genX(batch_emit_pipe_control)
-      (batch, device->info, ANV_PIPE_CS_STALL_BIT |
-                            ANV_PIPE_RENDER_TARGET_CACHE_FLUSH_BIT);
+   genx_batch_emit_pipe_control(batch, device->info,
+                                ANV_PIPE_CS_STALL_BIT |
+                                ANV_PIPE_RENDER_TARGET_CACHE_FLUSH_BIT);
 #endif
 
    /* GEN:BUG:1607854226:
@@ -340,7 +322,7 @@ init_common_queue_state(struct anv_queue *queue, struct anv_batch *batch)
 }
 
 static VkResult
-init_render_queue_state(struct anv_queue *queue)
+init_render_queue_state(struct anv_queue *queue, bool is_companion_rcs_batch)
 {
    struct anv_device *device = queue->device;
    UNUSED const struct intel_device_info *devinfo = queue->device->info;
@@ -585,21 +567,22 @@ init_render_queue_state(struct anv_queue *queue)
 #endif
 
 #if GFX_VERx10 >= 125
+   anv_batch_emit(&batch, GENX(STATE_COMPUTE_MODE), zero);
    anv_batch_emit(&batch, GENX(3DSTATE_MESH_CONTROL), zero);
    anv_batch_emit(&batch, GENX(3DSTATE_TASK_CONTROL), zero);
-   genX(batch_emit_pipe_control_write)(&batch, device->info, NoWrite,
-                                       ANV_NULL_ADDRESS,
-                                       0,
-                                       ANV_PIPE_FLUSH_BITS | ANV_PIPE_INVALIDATE_BITS);
+   genx_batch_emit_pipe_control_write(&batch, device->info, NoWrite,
+                                      ANV_NULL_ADDRESS,
+                                      0,
+                                      ANV_PIPE_FLUSH_BITS | ANV_PIPE_INVALIDATE_BITS);
    genX(emit_pipeline_select)(&batch, GPGPU);
    anv_batch_emit(&batch, GENX(CFE_STATE), cfe) {
       cfe.MaximumNumberofThreads =
          devinfo->max_cs_threads * devinfo->subslice_total;
    }
-   genX(batch_emit_pipe_control_write)(&batch, device->info, NoWrite,
-                                       ANV_NULL_ADDRESS,
-                                       0,
-                                       ANV_PIPE_FLUSH_BITS | ANV_PIPE_INVALIDATE_BITS);
+   genx_batch_emit_pipe_control_write(&batch, device->info, NoWrite,
+                                      ANV_NULL_ADDRESS,
+                                      0,
+                                      ANV_PIPE_FLUSH_BITS | ANV_PIPE_INVALIDATE_BITS);
    genX(emit_pipeline_select)(&batch, _3D);
 #endif
 
@@ -607,7 +590,7 @@ init_render_queue_state(struct anv_queue *queue)
 
    assert(batch.next <= batch.end);
 
-   return anv_queue_submit_simple_batch(queue, &batch);
+   return anv_queue_submit_simple_batch(queue, &batch, is_companion_rcs_batch);
 }
 
 static VkResult
@@ -640,6 +623,38 @@ init_compute_queue_state(struct anv_queue *queue)
    assert(!queue->device->info->has_aux_map);
 #endif
 
+   /* Wa_14015782607 - Issue pipe control with HDC_flush and
+    * untyped cache flush set to 1 when CCS has NP state update with
+    * STATE_COMPUTE_MODE.
+    */
+   if (intel_needs_workaround(devinfo, 14015782607) &&
+       queue->family->engine_class == INTEL_ENGINE_CLASS_COMPUTE) {
+      genx_batch_emit_pipe_control(&batch, devinfo,
+                                   ANV_PIPE_CS_STALL_BIT |
+                                   ANV_PIPE_UNTYPED_DATAPORT_CACHE_FLUSH_BIT |
+                                   ANV_PIPE_HDC_PIPELINE_FLUSH_BIT);
+   }
+
+#if GFX_VERx10 >= 125
+   /* Wa_14014427904/22013045878 - We need additional invalidate/flush when
+    * emitting NP state commands with ATS-M in compute mode.
+    */
+   if (intel_device_info_is_atsm(devinfo) &&
+       queue->family->engine_class == INTEL_ENGINE_CLASS_COMPUTE) {
+      genx_batch_emit_pipe_control
+         (&batch, devinfo,
+          ANV_PIPE_CS_STALL_BIT |
+          ANV_PIPE_STATE_CACHE_INVALIDATE_BIT |
+          ANV_PIPE_CONSTANT_CACHE_INVALIDATE_BIT |
+          ANV_PIPE_UNTYPED_DATAPORT_CACHE_FLUSH_BIT |
+          ANV_PIPE_TEXTURE_CACHE_INVALIDATE_BIT |
+          ANV_PIPE_INSTRUCTION_CACHE_INVALIDATE_BIT |
+          ANV_PIPE_HDC_PIPELINE_FLUSH_BIT);
+   }
+
+   anv_batch_emit(&batch, GENX(STATE_COMPUTE_MODE), zero);
+#endif
+
    init_common_queue_state(queue, &batch);
 
 #if GFX_VERx10 >= 125
@@ -653,7 +668,8 @@ init_compute_queue_state(struct anv_queue *queue)
 
    assert(batch.next <= batch.end);
 
-   return anv_queue_submit_simple_batch(queue, &batch);
+   return anv_queue_submit_simple_batch(queue, &batch,
+                                        false /* is_companion_rcs_batch */);
 }
 
 void
@@ -678,11 +694,20 @@ genX(init_device_state)(struct anv_device *device)
       struct anv_queue *queue = &device->queues[i];
       switch (queue->family->engine_class) {
       case INTEL_ENGINE_CLASS_RENDER:
-         res = init_render_queue_state(queue);
+         res = init_render_queue_state(queue, false /* is_companion_rcs_batch */);
          break;
-      case INTEL_ENGINE_CLASS_COMPUTE:
+      case INTEL_ENGINE_CLASS_COMPUTE: {
          res = init_compute_queue_state(queue);
+         if (res != VK_SUCCESS)
+            return res;
+
+         /**
+          * Execute RCS init batch by default on the companion RCS command buffer in
+          * order to support MSAA copy/clear operations on compute queue.
+          */
+         res = init_render_queue_state(queue, true /* is_companion_rcs_batch */);
          break;
+      }
       case INTEL_ENGINE_CLASS_VIDEO:
          res = VK_SUCCESS;
          break;
@@ -1140,7 +1165,7 @@ genX(apply_task_urb_workaround)(struct anv_cmd_buffer *cmd_buffer)
    anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_URB_ALLOC_TASK), zero);
 
    /* Issue 'nullprim' to commit the state. */
-   genX(batch_emit_pipe_control_write)
+   genx_batch_emit_pipe_control_write
       (&cmd_buffer->batch, cmd_buffer->device->info,
        WriteImmediateData, cmd_buffer->device->workaround_address, 0, 0);
 #endif

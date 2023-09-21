@@ -1,4 +1,9 @@
+/*
+ * Copyright © 2022 Collabora Ltd. and Red Hat Inc.
+ * SPDX-License-Identifier: MIT
+ */
 #include "nvk_buffer.h"
+#include "nvk_entrypoints.h"
 #include "nvk_cmd_buffer.h"
 #include "nvk_device.h"
 #include "nvk_format.h"
