@@ -4551,6 +4551,10 @@ nir_block *nir_cf_node_cf_tree_last(nir_cf_node *node);
 
 nir_block *nir_cf_node_cf_tree_next(nir_cf_node *node);
 
+/* Gets the block before a CF node in source-code order */
+
+nir_block *nir_cf_node_cf_tree_prev(nir_cf_node *node);
+
 /* Macros for loops that visit blocks in source-code order */
 
 #define nir_foreach_block(block, impl)                           \
@@ -4577,6 +4581,11 @@ nir_block *nir_cf_node_cf_tree_next(nir_cf_node *node);
    for (nir_block *block = nir_cf_node_cf_tree_first(node); \
         block != nir_cf_node_cf_tree_next(node);            \
         block = nir_block_cf_tree_next(block))
+
+#define nir_foreach_block_in_cf_node_reverse(block, node)  \
+   for (nir_block *block = nir_cf_node_cf_tree_last(node); \
+        block != nir_cf_node_cf_tree_prev(node);           \
+        block = nir_block_cf_tree_prev(block))
 
 /* If the following CF node is an if, this function returns that if.
  * Otherwise, it returns NULL.
@@ -5946,6 +5955,8 @@ bool nir_convert_from_ssa(nir_shader *shader,
 
 bool nir_lower_phis_to_regs_block(nir_block *block);
 bool nir_lower_ssa_defs_to_regs_block(nir_block *block);
+
+bool nir_rematerialize_deref_in_use_blocks(nir_deref_instr *instr);
 bool nir_rematerialize_derefs_in_use_blocks_impl(nir_function_impl *impl);
 
 bool nir_lower_samplers(nir_shader *shader);

@@ -90,6 +90,7 @@ zink_debug_options[] = {
    { "spirv", ZINK_DEBUG_SPIRV, "Dump SPIR-V during program compile" },
    { "tgsi", ZINK_DEBUG_TGSI, "Dump TGSI during program compile" },
    { "validation", ZINK_DEBUG_VALIDATION, "Dump Validation layer output" },
+   { "vvl", ZINK_DEBUG_VALIDATION, "Dump Validation layer output" },
    { "sync", ZINK_DEBUG_SYNC, "Force synchronization before draws/dispatches" },
    { "compact", ZINK_DEBUG_COMPACT, "Use only 4 descriptor sets" },
    { "noreorder", ZINK_DEBUG_NOREORDER, "Do not reorder command streams" },
@@ -2924,6 +2925,7 @@ init_optimal_keys(struct zink_screen *screen)
       screen->info.have_EXT_graphics_pipeline_library = false;
 
    if (!screen->optimal_keys ||
+       !screen->info.have_KHR_maintenance5 ||
       /* EXT_shader_object needs either dynamic feedback loop or per-app enablement */
        (!screen->driconf.zink_shader_object_enable && !screen->info.have_EXT_attachment_feedback_loop_dynamic_state))
       screen->info.have_EXT_shader_object = false;
