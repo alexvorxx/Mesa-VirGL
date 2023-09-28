@@ -62,6 +62,29 @@ struct tu_shader
    struct tu_const_state const_state;
    uint32_t view_mask;
    uint8_t active_desc_sets;
+
+   /* This is the range of shared consts used by all shaders. It must be the
+    * same between shaders.
+    */
+   struct tu_push_constant_range shared_consts;
+
+   union {
+      struct {
+         unsigned patch_type;
+         enum a6xx_tess_output tess_output_upper_left, tess_output_lower_left;
+         enum a6xx_tess_spacing tess_spacing;
+      } tes;
+
+      struct {
+         bool per_samp;
+         bool has_fdm;
+
+         struct {
+            uint32_t status;
+            bool force_late_z;
+         } lrz;
+      } fs;
+   };
 };
 
 struct tu_shader_key {
@@ -122,9 +145,10 @@ tu_shader_create(struct tu_device *dev,
                  bool executable_info);
 
 VkResult
-tu_empty_shader_create(struct tu_device *device,
-                       struct tu_shader **shader_out,
-                       gl_shader_stage stage);
+tu_init_empty_shaders(struct tu_device *device);
+
+void
+tu_destroy_empty_shaders(struct tu_device *device);
 
 void
 tu_shader_destroy(struct tu_device *dev,

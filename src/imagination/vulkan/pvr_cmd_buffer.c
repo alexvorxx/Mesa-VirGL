@@ -2612,12 +2612,12 @@ void pvr_CmdBindDescriptorSets(VkCommandBuffer commandBuffer,
 
    if (dynamicOffsetCount > 0) {
       PVR_FROM_HANDLE(pvr_pipeline_layout, pipeline_layout, _layout);
-      uint32_t starting_idx = 0;
+      uint32_t set_offset = 0;
 
       for (uint32_t set = 0; set < firstSet; set++)
-         starting_idx += pipeline_layout->set_layout[set]->dynamic_buffer_count;
+         set_offset += pipeline_layout->set_layout[set]->dynamic_buffer_count;
 
-      assert(starting_idx + dynamicOffsetCount <=
+      assert(set_offset + dynamicOffsetCount <=
              ARRAY_SIZE(descriptor_state->dynamic_offsets));
 
       /* From the Vulkan 1.3.238 spec. :
@@ -2627,8 +2627,8 @@ void pvr_CmdBindDescriptorSets(VkCommandBuffer commandBuffer,
        *    element in each dynamic descriptor type binding in each set."
        *
        */
-      for (uint32_t i = starting_idx; i < dynamicOffsetCount; i++)
-         descriptor_state->dynamic_offsets[i] = pDynamicOffsets[i];
+      for (uint32_t i = 0; i < dynamicOffsetCount; i++)
+         descriptor_state->dynamic_offsets[set_offset + i] = pDynamicOffsets[i];
    }
 }
 
@@ -7071,7 +7071,7 @@ pvr_execute_deferred_cmd_buffer(struct pvr_cmd_buffer *cmd_buffer,
             prim_db_elems + cmd->dbsc2.state.depthbias_index;
 
          uint32_t *const addr =
-            pvr_bo_suballoc_get_map_addr(cmd->dbsc2.ppp_cs_bo) +
+            (uint32_t *)pvr_bo_suballoc_get_map_addr(cmd->dbsc2.ppp_cs_bo) +
             cmd->dbsc2.patch_offset;
 
          assert(pvr_bo_suballoc_get_map_addr(cmd->dbsc2.ppp_cs_bo));

@@ -596,6 +596,7 @@ add_gpus([
         GPUId(chip_id=0x00be06030500, name="Adreno 8c Gen 3"),
         GPUId(chip_id=0x007506030500, name="Adreno 7c+ Gen 3"),
         GPUId(chip_id=0x006006030500, name="Adreno 7c+ Gen 3 Lite"),
+        GPUId(chip_id=0x00ac06030500, name="FD643"), # e.g. QCM6490, Fairphone 5
         # fallback wildcard entry should be last:
         GPUId(chip_id=0xffff06030500, name="Adreno 7c+ Gen 3"),
     ], A6xxGPUInfo(
@@ -656,6 +657,7 @@ add_gpus([
 
 add_gpus([
         GPUId(690),
+        GPUId(chip_id=0xffff06090000, name="FD690"), # Default no-speedbin fallback
     ], A6xxGPUInfo(
         CHIP.A6XX,
         a6xx_gen4,
@@ -684,7 +686,8 @@ add_gpus([
     ))
 
 add_gpus([
-        GPUId(chip_id=0x07030001, name="FD730"),
+        GPUId(chip_id=0x07030001, name="FD730"), # KGSL, no speedbin data
+        GPUId(chip_id=0xffff07030001, name="FD730"), # Default no-speedbin fallback
     ], A6xxGPUInfo(
         CHIP.A7XX,
         a6xx_gen4,

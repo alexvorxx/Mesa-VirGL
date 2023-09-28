@@ -68,8 +68,8 @@ static const struct {
       INTEL_DS_QUEUE_STAGE_CMD_BUFFER,
    },
    {
-      "generate-draws",
-      INTEL_DS_QUEUE_STAGE_GENERATE_DRAWS,
+      "internal-ops",
+      INTEL_DS_QUEUE_STAGE_INTERNAL_OPS,
    },
    {
       "stall",
@@ -107,6 +107,10 @@ struct IntelRenderpassTraits : public perfetto::DefaultDataSourceTraits {
 
 class IntelRenderpassDataSource : public MesaRenderpassDataSource<IntelRenderpassDataSource,
                                                                   IntelRenderpassTraits> {
+public:
+   /* Make sure we're not losing traces due to lack of shared memory space */
+   constexpr static perfetto::BufferExhaustedPolicy kBufferExhaustedPolicy =
+      perfetto::BufferExhaustedPolicy::kDrop;
 };
 
 PERFETTO_DECLARE_DATA_SOURCE_STATIC_MEMBERS(IntelRenderpassDataSource);
@@ -391,12 +395,13 @@ CREATE_DUAL_EVENT_CALLBACK(draw_mesh_indirect, INTEL_DS_QUEUE_STAGE_DRAW_MESH)
 CREATE_DUAL_EVENT_CALLBACK(draw_mesh_indirect_count, INTEL_DS_QUEUE_STAGE_DRAW_MESH)
 CREATE_DUAL_EVENT_CALLBACK(xfb, INTEL_DS_QUEUE_STAGE_CMD_BUFFER)
 CREATE_DUAL_EVENT_CALLBACK(compute, INTEL_DS_QUEUE_STAGE_COMPUTE)
-CREATE_DUAL_EVENT_CALLBACK(generate_draws, INTEL_DS_QUEUE_STAGE_GENERATE_DRAWS)
-CREATE_DUAL_EVENT_CALLBACK(trace_copy, INTEL_DS_QUEUE_STAGE_BLORP)
-CREATE_DUAL_EVENT_CALLBACK(query_clear_blorp, INTEL_DS_QUEUE_STAGE_BLORP)
-CREATE_DUAL_EVENT_CALLBACK(query_clear_cs, INTEL_DS_QUEUE_STAGE_CMD_BUFFER)
-CREATE_DUAL_EVENT_CALLBACK(query_copy_cs, INTEL_DS_QUEUE_STAGE_CMD_BUFFER)
-CREATE_DUAL_EVENT_CALLBACK(query_copy_shader, INTEL_DS_QUEUE_STAGE_BLORP)
+CREATE_DUAL_EVENT_CALLBACK(generate_draws, INTEL_DS_QUEUE_STAGE_INTERNAL_OPS)
+CREATE_DUAL_EVENT_CALLBACK(trace_copy, INTEL_DS_QUEUE_STAGE_INTERNAL_OPS)
+CREATE_DUAL_EVENT_CALLBACK(trace_copy_cb, INTEL_DS_QUEUE_STAGE_INTERNAL_OPS)
+CREATE_DUAL_EVENT_CALLBACK(query_clear_blorp, INTEL_DS_QUEUE_STAGE_INTERNAL_OPS)
+CREATE_DUAL_EVENT_CALLBACK(query_clear_cs, INTEL_DS_QUEUE_STAGE_INTERNAL_OPS)
+CREATE_DUAL_EVENT_CALLBACK(query_copy_cs, INTEL_DS_QUEUE_STAGE_INTERNAL_OPS)
+CREATE_DUAL_EVENT_CALLBACK(query_copy_shader, INTEL_DS_QUEUE_STAGE_INTERNAL_OPS)
 
 void
 intel_ds_begin_cmd_buffer_annotation(struct intel_ds_device *device,
@@ -548,7 +553,6 @@ intel_ds_device_init(struct intel_ds_device *device,
 {
    memset(device, 0, sizeof(*device));
 
-   assert(gpu_id < 128);
    device->gpu_id = gpu_id;
    device->gpu_clock_id = intel_pps_clock_id(gpu_id);
    device->fd = drm_fd;
@@ -556,12 +560,14 @@ intel_ds_device_init(struct intel_ds_device *device,
    device->iid = get_iid();
    device->api = api;
    list_inithead(&device->queues);
+   simple_mtx_init(&device->trace_context_mutex, mtx_plain);
 }
 
 void
 intel_ds_device_fini(struct intel_ds_device *device)
 {
    u_trace_context_fini(&device->trace_context);
+   simple_mtx_destroy(&device->trace_context_mutex);
 }
 
 struct intel_ds_queue *
@@ -605,6 +611,24 @@ void intel_ds_flush_data_init(struct intel_ds_flush_data *data,
 void intel_ds_flush_data_fini(struct intel_ds_flush_data *data)
 {
    u_trace_fini(&data->trace);
+}
+
+void intel_ds_queue_flush_data(struct intel_ds_queue *queue,
+                               struct u_trace *ut,
+                               struct intel_ds_flush_data *data,
+                               bool free_data)
+{
+   simple_mtx_lock(&queue->device->trace_context_mutex);
+   u_trace_flush(ut, data, free_data);
+   simple_mtx_unlock(&queue->device->trace_context_mutex);
+}
+
+void intel_ds_device_process(struct intel_ds_device *device,
+                             bool eof)
+{
+   simple_mtx_lock(&device->trace_context_mutex);
+   u_trace_context_process(&device->trace_context, eof);
+   simple_mtx_unlock(&device->trace_context_mutex);
 }
 
 #ifdef __cplusplus

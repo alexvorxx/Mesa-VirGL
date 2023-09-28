@@ -2402,7 +2402,8 @@ iris_create_sampler_state(struct pipe_context *ctx,
    /* Fill an extra sampler state structure with anisotropic filtering
     * disabled used to implement Wa_14014414195.
     */
-   fill_sampler_state(cso->sampler_state_3d, state, 0);
+   if (intel_needs_workaround(screen->devinfo, 14014414195))
+      fill_sampler_state(cso->sampler_state_3d, state, 0);
 #endif
 
    return cso;
@@ -3322,9 +3323,11 @@ iris_set_sampler_views(struct pipe_context *ctx,
       struct iris_sampler_view *view = (void *) pview;
 
 #if GFX_VERx10 == 125
-      if (is_sampler_view_3d(shs->textures[start + i]) !=
-          is_sampler_view_3d(view))
-         ice->state.stage_dirty |= IRIS_STAGE_DIRTY_SAMPLER_STATES_VS << stage;
+      if (intel_needs_workaround(screen->devinfo, 14014414195)) {
+         if (is_sampler_view_3d(shs->textures[start + i]) !=
+             is_sampler_view_3d(view))
+            ice->state.stage_dirty |= IRIS_STAGE_DIRTY_SAMPLER_STATES_VS << stage;
+      }
 #endif
 
       if (take_ownership) {
@@ -7000,8 +7003,15 @@ iris_upload_dirty_render_state(struct iris_context *ice,
             ice->state.streamout + GENX(3DSTATE_STREAMOUT_length);
          iris_batch_emit(batch, decl_list, 4 * ((decl_list[0] & 0xff) + 2));
 
-#if GFX_VERx10 == 125
-         /* Wa_14015946265: Send PC with CS stall after SO_DECL. */
+#if GFX_VER >= 11
+         /* ICL PRMs, Volume 2a - Command Reference: Instructions,
+          * 3DSTATE_SO_DECL_LIST:
+          *
+          *    "Workaround: This command must be followed by a PIPE_CONTROL
+          *     with CS Stall bit set."
+          *
+          * On DG2+ also known as Wa_1509820217.
+          */
          iris_emit_pipe_control_flush(batch,
                                       "workaround: cs stall after so_decl",
                                       PIPE_CONTROL_CS_STALL);
@@ -7358,6 +7368,17 @@ iris_upload_dirty_render_state(struct iris_context *ice,
    if (dirty & IRIS_DIRTY_LINE_STIPPLE) {
       struct iris_rasterizer_state *cso = ice->state.cso_rast;
       iris_batch_emit(batch, cso->line_stipple, sizeof(cso->line_stipple));
+#if GFX_VER >= 11
+      /* ICL PRMs, Volume 2a - Command Reference: Instructions,
+       * 3DSTATE_LINE_STIPPLE:
+       *
+       *    "Workaround: This command must be followed by a PIPE_CONTROL with
+       *     CS Stall bit set."
+       */
+      iris_emit_pipe_control_flush(batch,
+                                   "workaround: post 3DSTATE_LINE_STIPPLE",
+                                   PIPE_CONTROL_CS_STALL);
+#endif
    }
 
    if (dirty & IRIS_DIRTY_VF_TOPOLOGY) {

@@ -1116,6 +1116,9 @@ struct radv_device {
    /* Whether smooth lines is enabled. */
    bool smooth_lines;
 
+   /* Whether mesh shader queries are enabled. */
+   bool mesh_shader_queries;
+
    bool uses_shadow_regs;
 
    struct hash_table *rt_handles;
@@ -3685,7 +3688,7 @@ radv_has_pops(const struct radv_physical_device *pdevice)
 }
 
 /* radv_perfcounter.c */
-void radv_perfcounter_emit_shaders(struct radeon_cmdbuf *cs, unsigned shaders);
+void radv_perfcounter_emit_shaders(struct radv_device *device, struct radeon_cmdbuf *cs, unsigned shaders);
 void radv_perfcounter_emit_spm_reset(struct radeon_cmdbuf *cs);
 void radv_perfcounter_emit_spm_start(struct radv_device *device, struct radeon_cmdbuf *cs, int family);
 void radv_perfcounter_emit_spm_stop(struct radv_device *device, struct radeon_cmdbuf *cs, int family);

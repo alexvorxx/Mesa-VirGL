@@ -161,6 +161,7 @@ get_device_extensions(const struct tu_physical_device *device,
       .KHR_maintenance2 = true,
       .KHR_maintenance3 = true,
       .KHR_maintenance4 = true,
+      .KHR_maintenance5 = true,
       .KHR_multiview = TU_DEBUG(NOCONFORM) ? true : device->info->a6xx.has_hw_multiview,
       .KHR_performance_query = TU_DEBUG(PERFC),
       .KHR_pipeline_executable_properties = true,
@@ -576,6 +577,9 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->fragmentDensityMap = true;
    features->fragmentDensityMapDynamic = false;
    features->fragmentDensityMapNonSubsampledImages = true;
+
+   /* VK_KHR_maintenance5 */
+   features->maintenance5 = true;
 }
 
 static const struct vk_pipeline_cache_object_ops *const cache_import_ops[] = {
@@ -1373,6 +1377,17 @@ tu_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
          properties->minFragmentDensityTexelSize = (VkExtent2D) { MIN_FDM_TEXEL_SIZE, MIN_FDM_TEXEL_SIZE };
          properties->maxFragmentDensityTexelSize = (VkExtent2D) { MAX_FDM_TEXEL_SIZE, MAX_FDM_TEXEL_SIZE };
          properties->fragmentDensityInvocations = false;
+         break;
+      }
+      case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_PROPERTIES_KHR: {
+         VkPhysicalDeviceMaintenance5PropertiesKHR *properties =
+            (VkPhysicalDeviceMaintenance5PropertiesKHR *)ext;
+         properties->earlyFragmentMultisampleCoverageAfterSampleCounting = true;
+         properties->earlyFragmentSampleMaskTestBeforeSampleCounting = true;
+         properties->depthStencilSwizzleOneSupport = true;
+         properties->polygonModePointSize = true;
+         properties->nonStrictWideLinesUseParallelogram = false;
+         properties->nonStrictSinglePixelWideLinesUseParallelogram = false;
          break;
       }
       default:
@@ -2184,6 +2199,12 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
    device->global_bo_map = global;
    tu_init_clear_blit_shaders(device);
 
+   result = tu_init_empty_shaders(device);
+   if (result != VK_SUCCESS) {
+      vk_startup_errorf(device->instance, result, "empty shaders");
+      goto fail_empty_shaders;
+   }
+
    global->predicate = 0;
    global->vtx_stats_query_not_running = 1;
    global->dbg_one = (uint32_t)-1;
@@ -2327,6 +2348,8 @@ fail_perfcntrs_pass_alloc:
 fail_pipeline_cache:
    tu_destroy_dynamic_rendering(device);
 fail_dynamic_rendering:
+   tu_destroy_empty_shaders(device);
+fail_empty_shaders:
    tu_destroy_clear_blit_shaders(device);
 fail_global_bo_map:
    tu_bo_finish(device, device->global_bo);
@@ -2376,6 +2399,8 @@ tu_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
       tu_bo_finish(device, device->wave_pvtmem_bo.bo);
 
    tu_destroy_clear_blit_shaders(device);
+
+   tu_destroy_empty_shaders(device);
 
    tu_destroy_dynamic_rendering(device);
 
@@ -2768,8 +2793,8 @@ tu_BindBufferMemory2(VkDevice device,
          buffer->bo = mem->bo;
          buffer->iova = mem->bo->iova + pBindInfos[i].memoryOffset;
          if (buffer->vk.usage &
-             (VK_BUFFER_USAGE_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT |
-              VK_BUFFER_USAGE_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT))
+             (VK_BUFFER_USAGE_2_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT |
+              VK_BUFFER_USAGE_2_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT))
             tu_bo_allow_dump(dev, mem->bo);
       } else {
          buffer->bo = NULL;
@@ -2875,7 +2900,11 @@ tu_DestroyEvent(VkDevice _device,
 VKAPI_ATTR VkResult VKAPI_CALL
 tu_GetEventStatus(VkDevice _device, VkEvent _event)
 {
+   TU_FROM_HANDLE(tu_device, device, _device);
    TU_FROM_HANDLE(tu_event, event, _event);
+
+   if (vk_device_is_lost(&device->vk))
+      return VK_ERROR_DEVICE_LOST;
 
    if (*(uint64_t*) event->bo->map == 1)
       return VK_EVENT_SET;

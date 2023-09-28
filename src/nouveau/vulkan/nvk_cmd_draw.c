@@ -377,9 +377,9 @@ nvk_queue_init_context_draw_state(struct nvk_queue *queue)
    P_IMMD(p, NV9097, SET_VIEWPORT_SCALE_OFFSET, ENABLE_TRUE);
 
    P_IMMD(p, NV9097, SET_VIEWPORT_CLIP_CONTROL, {
-      .min_z_zero_max_z_one      = MIN_Z_ZERO_MAX_Z_ONE_TRUE,
+      .min_z_zero_max_z_one      = MIN_Z_ZERO_MAX_Z_ONE_FALSE,
       .pixel_min_z               = PIXEL_MIN_Z_CLAMP,
-      .pixel_max_z               = PIXEL_MAX_Z_CLIP,
+      .pixel_max_z               = PIXEL_MAX_Z_CLAMP,
       .geometry_guardband        = GEOMETRY_GUARDBAND_SCALE_256,
       .line_point_cull_guardband = LINE_POINT_CULL_GUARDBAND_SCALE_256,
       .geometry_clip             = GEOMETRY_CLIP_WZERO_CLIP,
@@ -960,25 +960,36 @@ nvk_flush_vp_state(struct nvk_cmd_buffer *cmd)
       for (uint32_t i = 0; i < dyn->vp.viewport_count; i++) {
          const VkViewport *vp = &dyn->vp.viewports[i];
 
-         P_MTHD(p, NV9097, SET_VIEWPORT_SCALE_X(i));
-         P_NV9097_SET_VIEWPORT_SCALE_X(p, i, fui(0.5f * vp->width));
-         P_NV9097_SET_VIEWPORT_SCALE_Y(p, i, fui(0.5f * vp->height));
-         if (dyn->vp.depth_clip_negative_one_to_one)
-            P_NV9097_SET_VIEWPORT_SCALE_Z(p, i, fui(0.5f * (vp->maxDepth - vp->minDepth)));
-         else
-            P_NV9097_SET_VIEWPORT_SCALE_Z(p, i, fui(vp->maxDepth - vp->minDepth));
+         /* These exactly match the spec values.  Nvidia hardware oddities
+          * are accounted for later.
+          */
+         const float o_x = vp->x + 0.5f * vp->width;
+         const float o_y = vp->y + 0.5f * vp->height;
+         const float o_z = !dyn->vp.depth_clip_negative_one_to_one ?
+                           vp->minDepth :
+                           (vp->maxDepth + vp->minDepth) * 0.5f;
 
-         P_NV9097_SET_VIEWPORT_OFFSET_X(p, i, fui(vp->x + 0.5f * vp->width));
-         P_NV9097_SET_VIEWPORT_OFFSET_Y(p, i, fui(vp->y + 0.5f * vp->height));
-         if (dyn->vp.depth_clip_negative_one_to_one)
-            P_NV9097_SET_VIEWPORT_OFFSET_Z(p, i, fui(0.5f * (vp->minDepth + vp->maxDepth)));
-         else
-            P_NV9097_SET_VIEWPORT_OFFSET_Z(p, i, fui(vp->minDepth));
+         const float p_x = vp->width;
+         const float p_y = vp->height;
+         const float p_z = !dyn->vp.depth_clip_negative_one_to_one ?
+                           vp->maxDepth - vp->minDepth :
+                           (vp->maxDepth - vp->minDepth) * 0.5f;
+
+         P_MTHD(p, NV9097, SET_VIEWPORT_SCALE_X(i));
+         P_NV9097_SET_VIEWPORT_SCALE_X(p, i, fui(0.5f * p_x));
+         P_NV9097_SET_VIEWPORT_SCALE_Y(p, i, fui(0.5f * p_y));
+         P_NV9097_SET_VIEWPORT_SCALE_Z(p, i, fui(p_z));
+
+         P_NV9097_SET_VIEWPORT_OFFSET_X(p, i, fui(o_x));
+         P_NV9097_SET_VIEWPORT_OFFSET_Y(p, i, fui(o_y));
+         P_NV9097_SET_VIEWPORT_OFFSET_Z(p, i, fui(o_z));
 
          float xmin = vp->x;
          float xmax = vp->x + vp->width;
          float ymin = MIN2(vp->y, vp->y + vp->height);
          float ymax = MAX2(vp->y, vp->y + vp->height);
+         float zmin = MIN2(vp->minDepth, vp->maxDepth);
+         float zmax = MAX2(vp->minDepth, vp->maxDepth);
          assert(xmin <= xmax && ymin <= ymax);
 
          const float max_dim = (float)0xffff;
@@ -996,8 +1007,8 @@ nvk_flush_vp_state(struct nvk_cmd_buffer *cmd)
             .y0      = ymin,
             .height  = ymax - ymin,
          });
-         P_NV9097_SET_VIEWPORT_CLIP_MIN_Z(p, i, fui(vp->minDepth));
-         P_NV9097_SET_VIEWPORT_CLIP_MAX_Z(p, i, fui(vp->maxDepth));
+         P_NV9097_SET_VIEWPORT_CLIP_MIN_Z(p, i, fui(zmin));
+         P_NV9097_SET_VIEWPORT_CLIP_MAX_Z(p, i, fui(zmax));
 
          if (nvk_cmd_buffer_3d_cls(cmd) >= MAXWELL_B) {
             P_IMMD(p, NVB197, SET_VIEWPORT_COORDINATE_SWIZZLE(i), {
@@ -1104,13 +1115,49 @@ vk_to_nv9097_provoking_vertex(VkProvokingVertexModeEXT vk_mode)
 static void
 nvk_flush_rs_state(struct nvk_cmd_buffer *cmd)
 {
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 34);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 36);
 
    const struct vk_dynamic_graphics_state *dyn =
       &cmd->vk.dynamic_graphics_state;
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_RASTERIZER_DISCARD_ENABLE))
       P_IMMD(p, NV9097, SET_RASTER_ENABLE, !dyn->rs.rasterizer_discard_enable);
+
+   if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_DEPTH_CLIP_ENABLE) ||
+       BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_DEPTH_CLAMP_ENABLE)) {
+      const bool z_clamp = dyn->rs.depth_clamp_enable;
+      const bool z_clip = vk_rasterization_state_depth_clip_enable(&dyn->rs);
+      P_IMMD(p, NVC397, SET_VIEWPORT_CLIP_CONTROL, {
+         /* TODO: Fix pre-Volta
+          *
+          * This probably involves a few macros, one which stases viewport
+          * min/maxDepth in scratch states and one which goes here and
+          * emits either min/maxDepth or -/+INF as needed.
+          */
+         .min_z_zero_max_z_one = MIN_Z_ZERO_MAX_Z_ONE_FALSE,
+         .z_clip_range = nvk_cmd_buffer_3d_cls(cmd) >= VOLTA_A
+                         ? ((z_clamp || z_clip)
+                            ? Z_CLIP_RANGE_MIN_Z_MAX_Z
+                            :Z_CLIP_RANGE_MINUS_INF_PLUS_INF)
+                         : Z_CLIP_RANGE_USE_FIELD_MIN_Z_ZERO_MAX_Z_ONE,
+
+         .pixel_min_z = z_clip ? PIXEL_MIN_Z_CLIP : PIXEL_MIN_Z_CLAMP,
+         .pixel_max_z = z_clip ? PIXEL_MAX_Z_CLIP : PIXEL_MAX_Z_CLAMP,
+
+         .geometry_guardband = GEOMETRY_GUARDBAND_SCALE_256,
+         .line_point_cull_guardband = LINE_POINT_CULL_GUARDBAND_SCALE_256,
+         .geometry_clip = z_clip ? GEOMETRY_CLIP_FRUSTUM_XYZ_CLIP
+                                 : GEOMETRY_CLIP_FRUSTUM_XY_CLIP,
+
+         /* TODO: I don't know why we need this.  It seems to be required for
+          * proper Z clipping but I don't know why.  Does the screen-space
+          * clip just not do Z?  Can it only do [0, 1] Z?  More investigation
+          * needed.
+          */
+         .geometry_guardband_z = z_clip ? GEOMETRY_GUARDBAND_Z_SCALE_1
+                                        : GEOMETRY_GUARDBAND_Z_SCALE_256,
+      });
+   }
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_POLYGON_MODE)) {
       uint32_t polygon_mode = vk_to_nv9097_polygon_mode(dyn->rs.polygon_mode);
@@ -1203,11 +1250,6 @@ vk_sample_location(const struct vk_sample_locations_state *sl,
    return sl->locations[(x + y * sl->grid_size.width) * sl->per_pixel + s];
 }
 
-struct nvk_sample_location {
-   uint8_t x_u4:4;
-   uint8_t y_u4:4;
-};
-
 static struct nvk_sample_location
 vk_to_nvk_sample_location(VkSampleLocationEXT loc)
 {
@@ -1220,6 +1262,7 @@ vk_to_nvk_sample_location(VkSampleLocationEXT loc)
 static void
 nvk_flush_ms_state(struct nvk_cmd_buffer *cmd)
 {
+   struct nvk_descriptor_state *desc = &cmd->state.gfx.descriptors;
    const struct vk_dynamic_graphics_state *dyn =
       &cmd->vk.dynamic_graphics_state;
 
@@ -1230,6 +1273,11 @@ nvk_flush_ms_state(struct nvk_cmd_buffer *cmd)
          sl = dyn->ms.sample_locations;
       } else {
          sl = vk_standard_sample_locations_state(dyn->ms.rasterization_samples);
+      }
+
+      for (uint32_t i = 0; i < sl->per_pixel; i++) {
+         desc->root.draw.sample_locations[i] =
+            vk_to_nvk_sample_location(sl->locations[i]);
       }
 
       if (nvk_cmd_buffer_3d_cls(cmd) >= MAXWELL_B) {

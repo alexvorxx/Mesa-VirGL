@@ -41,6 +41,7 @@ anv_entrypoints = custom_target(
     '--device-prefix', 'gfx11',
     '--device-prefix', 'gfx12',
     '--device-prefix', 'gfx125',
+    '--device-prefix', 'gfx20',
     '--device-prefix', 'doom64',
     '--device-prefix', 'hitman3',
     '--device-prefix', 'android'
@@ -105,18 +106,19 @@ anv_per_hw_ver_files = files(
   'genX_init_state.c',
   'genX_pipeline.c',
   'genX_query.c',
+  'genX_simple_shader.c',
   'genX_video.c',
 )
 if with_intel_vk_rt
   anv_per_hw_ver_files += files('genX_acceleration_structure.c',)
 endif
 
-foreach _gfx_ver : ['90', '110', '120', '125']
+foreach _gfx_ver : ['90', '110', '120', '125', '200']
   libanv_per_hw_ver_libs += static_library(
     'anv_per_hw_ver@0@'.format(_gfx_ver),
     [anv_per_hw_ver_files, anv_entrypoints[0], anv_internal_spvs, ],
     include_directories : [
-      inc_include, inc_src, inc_compiler, inc_intel,
+      inc_include, inc_src, inc_intel,
     ],
     c_args : anv_flags + ['-DGFX_VERx10=@0@'.format(_gfx_ver)],
     gnu_symbol_visibility : 'hidden',
@@ -180,6 +182,7 @@ libanv_files = files(
   'anv_pipeline_cache.c',
   'anv_private.h',
   'anv_queue.c',
+  'anv_sparse.c',
   'anv_util.c',
   'anv_utrace.c',
   'anv_va.c',
@@ -226,7 +229,7 @@ libanv_common = static_library(
     anv_internal_spvs,
   ],
   include_directories : [
-    inc_include, inc_src, inc_intel, inc_compiler,
+    inc_include, inc_src, inc_intel,
     inc_util,
   ],
   c_args : anv_flags,
@@ -239,7 +242,7 @@ libvulkan_intel = shared_library(
   'vulkan_intel',
   [files('anv_gem.c'), anv_entrypoints[0]],
   include_directories : [
-    inc_include, inc_src, inc_intel, inc_compiler,
+    inc_include, inc_src, inc_intel,
   ],
   link_whole : [libanv_common, libanv_per_hw_ver_libs] + optional_libgrl,
   link_with : [
@@ -276,7 +279,7 @@ if with_tests
     'vulkan_intel_test',
     [files('anv_gem_stubs.c'), anv_entrypoints[0]],
     include_directories : [
-      inc_include, inc_src, inc_intel, inc_compiler,
+      inc_include, inc_src, inc_intel,
     ],
     link_whole : libanv_common,
     link_with : [
@@ -316,7 +319,7 @@ if with_tests
         idep_vulkan_runtime, idep_intel_driver_ds, idep_intel_dev,
       ],
       include_directories : [
-        inc_include, inc_src, inc_intel, inc_compiler,
+        inc_include, inc_src, inc_intel,
       ],
     ),
     suite : ['intel'],

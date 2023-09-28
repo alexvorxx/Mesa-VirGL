@@ -269,6 +269,17 @@ typedef enum {
    nir_resource_intel_non_uniform = 1u << 3,
 } nir_resource_data_intel;
 
+/**
+ * Which components to interpret as signed in cmat_muladd.
+ * See 'Cooperative Matrix Operands' in SPV_KHR_cooperative_matrix.
+ */
+typedef enum {
+   NIR_CMAT_A_SIGNED = 1u << 0,
+   NIR_CMAT_B_SIGNED = 1u << 1,
+   NIR_CMAT_C_SIGNED = 1u << 2,
+   NIR_CMAT_RESULT_SIGNED = 1u << 3,
+} nir_cmat_signed;
+
 typedef union {
    bool b;
    float f32;
@@ -486,6 +497,13 @@ typedef struct nir_variable {
       unsigned invariant : 1;
 
       /**
+       * Was an 'invariant' qualifier explicitly set in the shader?
+       *
+       * This is used to cross validate glsl qualifiers.
+       */
+      unsigned explicit_invariant:1;
+
+      /**
        * Is the variable a ray query?
        */
       unsigned ray_query : 1;
@@ -629,6 +647,15 @@ typedef struct nir_variable {
        * constraints on function parameters.
        */
       unsigned must_be_shader_input : 1;
+
+      /**
+       * Has this variable been used for reading or writing?
+       *
+       * Several GLSL semantic checks require knowledge of whether or not a
+       * variable has been used.  For example, it is an error to redeclare a
+       * variable as invariant after it has been used.
+       */
+      unsigned used:1;
 
       /**
        * How the variable was declared.  See nir_var_declaration_type.
@@ -5317,6 +5344,7 @@ bool nir_scale_fdiv(nir_shader *shader);
 
 bool nir_lower_alu_to_scalar(nir_shader *shader, nir_instr_filter_cb cb, const void *data);
 bool nir_lower_alu_width(nir_shader *shader, nir_vectorize_cb cb, const void *data);
+bool nir_lower_alu_vec8_16_srcs(nir_shader *shader);
 bool nir_lower_bool_to_bitsize(nir_shader *shader);
 bool nir_lower_bool_to_float(nir_shader *shader, bool has_fcsel_ne);
 bool nir_lower_bool_to_int32(nir_shader *shader);

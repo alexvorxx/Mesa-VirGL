@@ -36,6 +36,7 @@
 #include "brw_cfg.h"
 #include "brw_dead_control_flow.h"
 #include "brw_private.h"
+#include "shader_enums.h"
 #include "dev/intel_debug.h"
 #include "dev/intel_wa.h"
 #include "compiler/glsl_types.h"
@@ -591,7 +592,7 @@ fs_visitor::vfail(const char *format, va_list va)
 
    msg = ralloc_vasprintf(mem_ctx, format, va);
    msg = ralloc_asprintf(mem_ctx, "SIMD%d %s compile failed: %s\n",
-         dispatch_width, stage_abbrev, msg);
+         dispatch_width, _mesa_shader_stage_to_abbrev(stage), msg);
 
    this->fail_msg = msg;
 
@@ -842,10 +843,10 @@ fs_inst::components_read(unsigned i) const
       return (i == 0 ? 2 : 1);
 
    case SHADER_OPCODE_URB_WRITE_LOGICAL:
+      assert(src[URB_LOGICAL_SRC_COMPONENTS].file == IMM);
+
       if (i == URB_LOGICAL_SRC_DATA)
-         return mlen - 1 -
-            unsigned(src[URB_LOGICAL_SRC_PER_SLOT_OFFSETS].file != BAD_FILE) -
-            unsigned(src[URB_LOGICAL_SRC_CHANNEL_MASK].file != BAD_FILE);
+         return src[URB_LOGICAL_SRC_COMPONENTS].ud;
       else
          return 1;
 
@@ -1591,16 +1592,16 @@ fs_visitor::emit_gs_thread_end()
 
       fs_reg srcs[URB_LOGICAL_NUM_SRCS];
       srcs[URB_LOGICAL_SRC_HANDLE] = gs_payload().urb_handles;
+      srcs[URB_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(0);
       inst = abld.emit(SHADER_OPCODE_URB_WRITE_LOGICAL, reg_undef,
                        srcs, ARRAY_SIZE(srcs));
-      inst->mlen = 1;
    } else {
       fs_reg srcs[URB_LOGICAL_NUM_SRCS];
       srcs[URB_LOGICAL_SRC_HANDLE] = gs_payload().urb_handles;
       srcs[URB_LOGICAL_SRC_DATA] = this->final_gs_vertex_count;
+      srcs[URB_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(1);
       inst = abld.emit(SHADER_OPCODE_URB_WRITE_LOGICAL, reg_undef,
                        srcs, ARRAY_SIZE(srcs));
-      inst->mlen = 2;
    }
    inst->eot = true;
    inst->offset = 0;
@@ -1676,7 +1677,7 @@ fs_visitor::assign_curb_setup()
                                    LSC_DATA_SIZE_D32,
                                    num_regs * 8 /* num_channels */,
                                    true /* transpose */,
-                                   LSC_CACHE_LOAD_L1STATE_L3MOCS,
+                                   LSC_CACHE(devinfo, LOAD, L1STATE_L3MOCS),
                                    true /* has_dest */);
          send->header_size = 0;
          send->mlen = lsc_msg_desc_src0_len(devinfo, send->desc);
@@ -5390,7 +5391,7 @@ get_lowered_simd_width(const struct brw_compiler *compiler,
 
    case SHADER_OPCODE_URB_READ_LOGICAL:
    case SHADER_OPCODE_URB_WRITE_LOGICAL:
-      return MIN2(8, inst->exec_size);
+      return MIN2(devinfo->ver < 20 ? 8 : 16, inst->exec_size);
 
    case SHADER_OPCODE_QUAD_SWIZZLE: {
       const unsigned swiz = inst->src[1].ud;
@@ -6259,7 +6260,7 @@ fs_visitor::debug_optimizer(const nir_shader *nir,
    char *filename;
    int ret = asprintf(&filename, "%s/%s%d-%s-%02d-%02d-%s",
                       debug_get_option("INTEL_SHADER_OPTIMIZER_PATH", "./"),
-                      stage_abbrev, dispatch_width, nir->info.name,
+                      _mesa_shader_stage_to_abbrev(stage), dispatch_width, nir->info.name,
                       iteration, pass_num, pass_name);
    if (ret == -1)
       return;
@@ -6922,7 +6923,7 @@ fs_visitor::allocate_registers(bool allow_spilling)
                           "%s shader triggered register spilling.  "
                           "Try reducing the number of live scalar "
                           "values to improve performance.\n",
-                          stage_name);
+                          _mesa_shader_stage_to_string(stage));
    }
 
    /* This must come after all optimization and register allocation, since
@@ -7079,9 +7080,9 @@ fs_visitor::emit_tcs_thread_end()
    srcs[URB_LOGICAL_SRC_HANDLE] = tcs_payload().patch_urb_output;
    srcs[URB_LOGICAL_SRC_CHANNEL_MASK] = brw_imm_ud(WRITEMASK_X << 16);
    srcs[URB_LOGICAL_SRC_DATA] = brw_imm_ud(0);
+   srcs[URB_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(1);
    fs_inst *inst = bld.emit(SHADER_OPCODE_URB_WRITE_LOGICAL,
                             reg_undef, srcs, ARRAY_SIZE(srcs));
-   inst->mlen = 3;
    inst->eot = true;
 }
 
@@ -8202,7 +8203,6 @@ brw_compile_cs(const struct brw_compiler *compiler,
    }
 
    brw_simd_selection_state simd_state{
-      .mem_ctx = params->base.mem_ctx,
       .devinfo = compiler->devinfo,
       .prog_data = prog_data,
       .required_width = brw_required_dispatch_width(&nir->info),
@@ -8260,7 +8260,8 @@ brw_compile_cs(const struct brw_compiler *compiler,
    if (selected_simd < 0) {
       params->base.error_str =
          ralloc_asprintf(params->base.mem_ctx,
-                         "Can't compile shader: %s, %s and %s.\n",
+                         "Can't compile shader: "
+                         "SIMD8 '%s', SIMD16 '%s' and SIMD32 '%s'.\n",
                          simd_state.error[0], simd_state.error[1],
                          simd_state.error[2]);
       return NULL;
@@ -8353,7 +8354,6 @@ compile_single_bs(const struct brw_compiler *compiler,
                        key->base.robust_flags);
 
    brw_simd_selection_state simd_state{
-      .mem_ctx = params->base.mem_ctx,
       .devinfo = compiler->devinfo,
       .prog_data = prog_data,
 
@@ -8396,7 +8396,8 @@ compile_single_bs(const struct brw_compiler *compiler,
    if (selected_simd < 0) {
       params->base.error_str =
          ralloc_asprintf(params->base.mem_ctx,
-                         "Can't compile shader: %s and %s.",
+                         "Can't compile shader: "
+                         "SIMD8 '%s' and SIMD16 '%s'.\n",
                          simd_state.error[0], simd_state.error[1]);
       return 0;
    }

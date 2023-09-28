@@ -18,6 +18,7 @@
 #include "tu_device.h"
 #include "tu_descriptor_set.h"
 #include "tu_pipeline.h"
+#include "tu_lrz.h"
 
 nir_shader *
 tu_spirv_to_nir(struct tu_device *dev,
@@ -2083,6 +2084,7 @@ tu_shader_serialize(struct vk_pipeline_cache_object *object,
       container_of(object, struct tu_shader, base);
 
    blob_write_bytes(blob, &shader->const_state, sizeof(shader->const_state));
+   blob_write_bytes(blob, &shader->shared_consts, sizeof(shader->shared_consts));
    blob_write_uint32(blob, shader->view_mask);
    blob_write_uint8(blob, shader->active_desc_sets);
 
@@ -2093,6 +2095,17 @@ tu_shader_serialize(struct vk_pipeline_cache_object *object,
       ir3_store_variant(blob, shader->safe_const_variant);
    } else {
       blob_write_uint8(blob, 0);
+   }
+
+   switch (shader->variant->type) {
+   case MESA_SHADER_TESS_EVAL:
+      blob_write_bytes(blob, &shader->tes, sizeof(shader->tes));
+      break;
+   case MESA_SHADER_FRAGMENT:
+      blob_write_bytes(blob, &shader->fs, sizeof(shader->fs));
+      break;
+   default:
+      break;
    }
 
    return true;
@@ -2113,6 +2126,7 @@ tu_shader_deserialize(struct vk_pipeline_cache *cache,
       return NULL;
 
    blob_copy_bytes(blob, &shader->const_state, sizeof(shader->const_state));
+   blob_copy_bytes(blob, &shader->shared_consts, sizeof(shader->shared_consts));
    shader->view_mask = blob_read_uint32(blob);
    shader->active_desc_sets = blob_read_uint8(blob);
 
@@ -2121,6 +2135,17 @@ tu_shader_deserialize(struct vk_pipeline_cache *cache,
    bool has_safe_const = blob_read_uint8(blob);
    if (has_safe_const)
       shader->safe_const_variant = ir3_retrieve_variant(blob, dev->compiler, NULL);
+
+   switch (shader->variant->type) {
+   case MESA_SHADER_TESS_EVAL:
+      blob_copy_bytes(blob, &shader->tes, sizeof(shader->tes));
+      break;
+   case MESA_SHADER_FRAGMENT:
+      blob_copy_bytes(blob, &shader->fs, sizeof(shader->fs));
+      break;
+   default:
+      break;
+   }
 
    VkResult result = tu_upload_shader(dev, shader);
    if (result != VK_SUCCESS) {
@@ -2253,8 +2278,13 @@ tu_shader_create(struct tu_device *dev,
    ir3_finalize_nir(dev->compiler, nir);
 
    bool shared_consts_enable = tu6_shared_constants_enable(layout, dev->compiler);
-   if (shared_consts_enable)
+   if (shared_consts_enable) {
       assert(!shader->const_state.push_consts.dwords);
+      shader->shared_consts = (struct tu_push_constant_range) {
+         .lo = 0,
+         .dwords = layout->push_constant_size / 4,
+      };
+   }
 
    const struct ir3_shader_options options = {
       .reserved_user_consts = reserved_consts_vec4,
@@ -2279,6 +2309,68 @@ tu_shader_create(struct tu_device *dev,
 
    shader->view_mask = key->multiview_mask;
 
+   switch (shader->variant->type) {
+   case MESA_SHADER_TESS_EVAL: {
+      const struct ir3_shader_variant *tes = shader->variant;
+      if (tes->tess.point_mode) {
+         shader->tes.tess_output_lower_left =
+            shader->tes.tess_output_upper_left = TESS_POINTS;
+      } else if (tes->tess.primitive_mode == TESS_PRIMITIVE_ISOLINES) {
+         shader->tes.tess_output_lower_left =
+            shader->tes.tess_output_upper_left = TESS_LINES;
+      } else if (tes->tess.ccw) {
+         /* Tessellation orientation in HW is specified with a lower-left
+          * origin, we need to swap them if the origin is upper-left.
+          */
+         shader->tes.tess_output_lower_left = TESS_CCW_TRIS;
+         shader->tes.tess_output_upper_left = TESS_CW_TRIS;
+      } else {
+         shader->tes.tess_output_lower_left = TESS_CW_TRIS;
+         shader->tes.tess_output_upper_left = TESS_CCW_TRIS;
+      }
+
+      switch (tes->tess.spacing) {
+      case TESS_SPACING_EQUAL:
+         shader->tes.tess_spacing = TESS_EQUAL;
+         break;
+      case TESS_SPACING_FRACTIONAL_ODD:
+         shader->tes.tess_spacing = TESS_FRACTIONAL_ODD;
+         break;
+      case TESS_SPACING_FRACTIONAL_EVEN:
+         shader->tes.tess_spacing = TESS_FRACTIONAL_EVEN;
+         break;
+      case TESS_SPACING_UNSPECIFIED:
+      default:
+         unreachable("invalid tess spacing");
+      }
+
+      break;
+   }
+   case MESA_SHADER_FRAGMENT: {
+      const struct ir3_shader_variant *fs = shader->variant;
+      shader->fs.per_samp = fs->per_samp || ir3_key->sample_shading;
+      shader->fs.has_fdm = key->fragment_density_map;
+      if (fs->has_kill)
+         shader->fs.lrz.status |= TU_LRZ_FORCE_DISABLE_WRITE;
+      if (fs->no_earlyz || fs->writes_pos)
+         shader->fs.lrz.status = TU_LRZ_FORCE_DISABLE_LRZ;
+      /* FDM isn't compatible with LRZ, because the LRZ image uses the original
+       * resolution and we would need to use the low resolution.
+       *
+       * TODO: Use a patchpoint to only disable LRZ for scaled bins.
+       */
+      if (key->fragment_density_map)
+         shader->fs.lrz.status = TU_LRZ_FORCE_DISABLE_LRZ;
+      if (!fs->fs.early_fragment_tests &&
+          (fs->no_earlyz || fs->writes_pos || fs->writes_stencilref || fs->writes_smask)) {
+         shader->fs.lrz.force_late_z = true;
+      }
+      break;
+   }
+   default:
+      break;
+   }
+
    VkResult result = tu_upload_shader(dev, shader);
    if (result != VK_SUCCESS) {
       vk_free(&dev->vk.alloc, shader);
@@ -2289,7 +2381,7 @@ tu_shader_create(struct tu_device *dev,
    return VK_SUCCESS;
 }
 
-VkResult
+static VkResult
 tu_empty_shader_create(struct tu_device *dev,
                        struct tu_shader **shader_out,
                        gl_shader_stage stage)
@@ -2320,6 +2412,86 @@ tu_empty_shader_create(struct tu_device *dev,
 
    *shader_out = shader;
    return VK_SUCCESS;
+}
+
+static VkResult
+tu_empty_fs_create(struct tu_device *dev, struct tu_shader **shader,
+                   bool fragment_density_map)
+{
+   struct ir3_shader_key key = {};
+   const struct ir3_shader_options options = {};
+   struct ir3_stream_output_info so_info = {};
+   const nir_shader_compiler_options *nir_options =
+      ir3_get_compiler_options(dev->compiler);
+   nir_builder fs_b;
+
+   fs_b = nir_builder_init_simple_shader(MESA_SHADER_FRAGMENT, nir_options,
+                                         "noop_fs");
+
+   *shader = tu_shader_init(dev, NULL, 0);
+   if (!*shader)
+      return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+   (*shader)->fs.has_fdm = fragment_density_map;
+   if (fragment_density_map)
+      (*shader)->fs.lrz.status = TU_LRZ_FORCE_DISABLE_LRZ;
+
+   struct ir3_shader *ir3_shader =
+      ir3_shader_from_nir(dev->compiler, fs_b.shader, &options, &so_info);
+   (*shader)->variant = ir3_shader_create_variant(ir3_shader, &key, false);
+
+   return tu_upload_shader(dev, *shader);
+}
+
+VkResult
+tu_init_empty_shaders(struct tu_device *dev)
+{
+   VkResult result;
+
+   result = tu_empty_shader_create(dev, &dev->empty_tcs, MESA_SHADER_TESS_CTRL);
+   if (result != VK_SUCCESS)
+      goto out;
+
+   result = tu_empty_shader_create(dev, &dev->empty_tes, MESA_SHADER_TESS_EVAL);
+   if (result != VK_SUCCESS)
+      goto out;
+
+   result = tu_empty_shader_create(dev, &dev->empty_gs, MESA_SHADER_GEOMETRY);
+   if (result != VK_SUCCESS)
+      goto out;
+
+   result = tu_empty_fs_create(dev, &dev->empty_fs, false);
+   if (result != VK_SUCCESS)
+      goto out;
+
+   result = tu_empty_fs_create(dev, &dev->empty_fs_fdm, true);
+   if (result != VK_SUCCESS)
+      goto out;
+
+   return VK_SUCCESS;
+
+out:
+   if (dev->empty_tcs)
+      vk_pipeline_cache_object_unref(&dev->vk, &dev->empty_tcs->base);
+   if (dev->empty_tes)
+      vk_pipeline_cache_object_unref(&dev->vk, &dev->empty_tes->base);
+   if (dev->empty_gs)
+      vk_pipeline_cache_object_unref(&dev->vk, &dev->empty_gs->base);
+   if (dev->empty_fs)
+      vk_pipeline_cache_object_unref(&dev->vk, &dev->empty_fs->base);
+   if (dev->empty_fs_fdm)
+      vk_pipeline_cache_object_unref(&dev->vk, &dev->empty_fs_fdm->base);
+   return result;
+}
+
+void
+tu_destroy_empty_shaders(struct tu_device *dev)
+{
+   vk_pipeline_cache_object_unref(&dev->vk, &dev->empty_tcs->base);
+   vk_pipeline_cache_object_unref(&dev->vk, &dev->empty_tes->base);
+   vk_pipeline_cache_object_unref(&dev->vk, &dev->empty_gs->base);
+   vk_pipeline_cache_object_unref(&dev->vk, &dev->empty_fs->base);
+   vk_pipeline_cache_object_unref(&dev->vk, &dev->empty_fs_fdm->base);
 }
 
 void

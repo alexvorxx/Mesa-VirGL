@@ -47,6 +47,7 @@ struct spirv_supported_capabilities {
    bool amd_shader_explicit_vertex_parameter;
    bool amd_trinary_minmax;
    bool atomic_storage;
+   bool cooperative_matrix;
    bool demote_to_helper_invocation;
    bool derivative_group;
    bool descriptor_array_dynamic_indexing;
@@ -522,6 +523,12 @@ typedef struct shader_info {
           * If the shader might run with shared mem on top of `shared_size`.
           */
          bool has_variable_shared_mem:1;
+
+         /**
+          * If the shader has any use of a cooperative matrix. From
+          * SPV_KHR_cooperative_matrix.
+          */
+         bool has_cooperative_matrix:1;
 
          /**
           * pointer size is:

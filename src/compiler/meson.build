@@ -77,11 +77,17 @@ libcompiler = static_library(
   build_by_default : false,
 )
 
+idep_compiler = declare_dependency(
+  sources : [ir_expression_operation_h, builtin_types_h, builtin_types_cpp_h],
+  include_directories : inc_compiler,
+  link_with : libcompiler,
+)
+
 subdir('nir')
 
 subdir('spirv')
 
-if with_clc
+if with_opencl_spirv
   subdir('clc')
 endif
 if with_gallium

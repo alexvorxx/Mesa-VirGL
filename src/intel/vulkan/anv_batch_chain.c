@@ -1287,7 +1287,8 @@ anv_queue_exec_locked(struct anv_queue *queue,
                       uint32_t signal_count,
                       const struct vk_sync_signal *signals,
                       struct anv_query_pool *perf_query_pool,
-                      uint32_t perf_query_pass)
+                      uint32_t perf_query_pass,
+                      struct anv_utrace_submit *utrace_submit)
 {
    struct anv_device *device = queue->device;
    VkResult result = VK_SUCCESS;
@@ -1311,7 +1312,8 @@ anv_queue_exec_locked(struct anv_queue *queue,
          cmd_buffer_count, cmd_buffers,
          needs_companion_sync ? 0 : signal_count, signals,
          perf_query_pool,
-         perf_query_pass);
+         perf_query_pass,
+         utrace_submit);
    if (result != VK_SUCCESS)
       return result;
 
@@ -1328,7 +1330,8 @@ anv_queue_exec_locked(struct anv_queue *queue,
                                                 1, &companion_sync,
                                                 0, NULL,
                                                 signal_count, signals,
-                                                NULL, 0);
+                                                NULL, 0,
+                                                NULL);
    }
 
    return result;
@@ -1341,21 +1344,114 @@ can_chain_query_pools(struct anv_query_pool *p1, struct anv_query_pool *p2)
 }
 
 static VkResult
-anv_queue_submit_locked(struct anv_queue *queue,
-                        struct vk_queue_submit *submit)
+anv_queue_submit_sparse_bind_locked(struct anv_queue *queue,
+                                    struct vk_queue_submit *submit)
 {
+   struct anv_device *device = queue->device;
    VkResult result;
 
-   if (unlikely((submit->buffer_bind_count ||
-                 submit->image_opaque_bind_count ||
-                 submit->image_bind_count))) {
+   /* When fake sparse is enabled, while we do accept creating "sparse"
+    * resources we can't really handle sparse submission. Fake sparse is
+    * supposed to be used by applications that request sparse to be enabled
+    * but don't actually *use* it.
+    */
+   if (!device->physical->has_sparse) {
       if (INTEL_DEBUG(DEBUG_SPARSE))
          fprintf(stderr, "=== application submitting sparse operations: "
                "buffer_bind:%d image_opaque_bind:%d image_bind:%d\n",
                submit->buffer_bind_count, submit->image_opaque_bind_count,
                submit->image_bind_count);
-      fprintf(stderr, "Error: Using sparse operation. Sparse binding not supported.\n");
+      return vk_queue_set_lost(&queue->vk, "Sparse binding not supported");
    }
+
+   device->using_sparse = true;
+
+   assert(submit->command_buffer_count == 0);
+
+   if (INTEL_DEBUG(DEBUG_SPARSE)) {
+      fprintf(stderr, "[sparse submission, buffers:%u opaque_images:%u "
+              "images:%u waits:%u signals:%u]\n",
+              submit->buffer_bind_count,
+              submit->image_opaque_bind_count,
+              submit->image_bind_count,
+              submit->wait_count, submit->signal_count);
+   }
+
+   /* TODO: make both the syncs and signals be passed as part of the vm_bind
+    * ioctl so they can be waited asynchronously. For now this doesn't matter
+    * as we're doing synchronous vm_bind, but later when we make it async this
+    * will make a difference.
+    */
+   result = vk_sync_wait_many(&device->vk, submit->wait_count, submit->waits,
+                              VK_SYNC_WAIT_COMPLETE, INT64_MAX);
+   if (result != VK_SUCCESS)
+      return vk_queue_set_lost(&queue->vk, "vk_sync_wait failed");
+
+   /* Do the binds */
+   for (uint32_t i = 0; i < submit->buffer_bind_count; i++) {
+      VkSparseBufferMemoryBindInfo *bind_info = &submit->buffer_binds[i];
+      ANV_FROM_HANDLE(anv_buffer, buffer, bind_info->buffer);
+
+      assert(anv_buffer_is_sparse(buffer));
+
+      for (uint32_t j = 0; j < bind_info->bindCount; j++) {
+         result = anv_sparse_bind_resource_memory(device,
+                                                  &buffer->sparse_data,
+                                                  &bind_info->pBinds[j]);
+         if (result != VK_SUCCESS)
+            return result;
+      }
+   }
+
+   for (uint32_t i = 0; i < submit->image_opaque_bind_count; i++) {
+      VkSparseImageOpaqueMemoryBindInfo *bind_info =
+         &submit->image_opaque_binds[i];
+      ANV_FROM_HANDLE(anv_image, image, bind_info->image);
+
+      assert(anv_image_is_sparse(image));
+      assert(!image->disjoint);
+      struct anv_sparse_binding_data *sparse_data =
+         &image->bindings[ANV_IMAGE_MEMORY_BINDING_MAIN].sparse_data;
+
+      for (uint32_t j = 0; j < bind_info->bindCount; j++) {
+         result = anv_sparse_bind_resource_memory(device, sparse_data,
+                                                  &bind_info->pBinds[j]);
+         if (result != VK_SUCCESS)
+            return result;
+      }
+   }
+
+   for (uint32_t i = 0; i < submit->image_bind_count; i++) {
+      VkSparseImageMemoryBindInfo *bind_info = &submit->image_binds[i];
+      ANV_FROM_HANDLE(anv_image, image, bind_info->image);
+
+      assert(anv_image_is_sparse(image));
+      assert(image->vk.create_flags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT);
+
+      for (uint32_t j = 0; j < bind_info->bindCount; j++) {
+         result = anv_sparse_bind_image_memory(queue, image,
+                                               &bind_info->pBinds[j]);
+         if (result != VK_SUCCESS)
+            return result;
+      }
+   }
+
+   for (uint32_t i = 0; i < submit->signal_count; i++) {
+      struct vk_sync_signal *s = &submit->signals[i];
+      result = vk_sync_signal(&device->vk, s->sync, s->signal_value);
+      if (result != VK_SUCCESS)
+         return vk_queue_set_lost(&queue->vk, "vk_sync_signal failed");
+   }
+
+   return VK_SUCCESS;
+}
+
+static VkResult
+anv_queue_submit_cmd_buffers_locked(struct anv_queue *queue,
+                                    struct vk_queue_submit *submit,
+                                    struct anv_utrace_submit *utrace_submit)
+{
+   VkResult result;
 
    if (submit->command_buffer_count == 0) {
       result = anv_queue_exec_locked(queue, submit->wait_count, submit->waits,
@@ -1363,7 +1459,8 @@ anv_queue_submit_locked(struct anv_queue *queue,
                                      NULL /* cmd_buffers */,
                                      submit->signal_count, submit->signals,
                                      NULL /* perf_query_pool */,
-                                     0 /* perf_query_pass */);
+                                     0 /* perf_query_pass */,
+                                     utrace_submit);
       if (result != VK_SUCCESS)
          return result;
    } else {
@@ -1401,7 +1498,8 @@ anv_queue_submit_locked(struct anv_queue *queue,
                                      next == end ? submit->signal_count : 0,
                                      next == end ? submit->signals : NULL,
                                      perf_query_pool,
-                                     submit->perf_pass_index);
+                                     submit->perf_pass_index,
+                                     next == end ? utrace_submit : NULL);
             if (result != VK_SUCCESS)
                return result;
             if (next < end) {
@@ -1456,16 +1554,37 @@ anv_queue_submit(struct vk_queue *vk_queue,
       return VK_SUCCESS;
    }
 
+   /* Flush the trace points first before taking the lock as the flushing
+    * might try to take that same lock.
+    */
+   struct anv_utrace_submit *utrace_submit = NULL;
+   result = anv_device_utrace_flush_cmd_buffers(
+      queue,
+      submit->command_buffer_count,
+      (struct anv_cmd_buffer **)submit->command_buffers,
+      &utrace_submit);
+   if (result != VK_SUCCESS)
+      return result;
+
    pthread_mutex_lock(&device->mutex);
 
    uint64_t start_ts = intel_ds_begin_submit(&queue->ds);
-   result = anv_queue_submit_locked(queue, submit);
+
+   if (submit->buffer_bind_count ||
+       submit->image_opaque_bind_count ||
+       submit->image_bind_count) {
+      result = anv_queue_submit_sparse_bind_locked(queue, submit);
+   } else {
+      result = anv_queue_submit_cmd_buffers_locked(queue, submit,
+                                                   utrace_submit);
+   }
+
    /* Take submission ID under lock */
    intel_ds_end_submit(&queue->ds, start_ts);
 
-   u_trace_context_process(&device->ds.trace_context, true);
-
    pthread_mutex_unlock(&device->mutex);
+
+   intel_ds_device_process(&device->ds, true);
 
    return result;
 }
