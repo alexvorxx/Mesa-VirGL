@@ -6754,6 +6754,7 @@ VkResult ResourceTracker::exportSyncFdForQSRILocked(VkImage image, int* fd) {
 
         *fd = exec.handle.osHandle;
     } else {
+        ensureSyncDeviceFd();
         goldfish_sync_queue_work(
             mSyncDeviceFd, get_host_u64_VkImage(image) /* the handle */,
             GOLDFISH_SYNC_VULKAN_QSRI /* thread handle (doubling as type field) */, fd);
