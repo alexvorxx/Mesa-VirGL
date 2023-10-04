@@ -417,6 +417,16 @@ class ResourceTracker {
         const VkPhysicalDeviceImageFormatInfo2* pImageFormatInfo,
         VkImageFormatProperties2* pImageFormatProperties);
 
+    void on_vkGetPhysicalDeviceExternalBufferProperties(
+        void* context, VkPhysicalDevice physicalDevice,
+        const VkPhysicalDeviceExternalBufferInfo* pExternalBufferInfo,
+        VkExternalBufferProperties* pExternalBufferProperties);
+
+    void on_vkGetPhysicalDeviceExternalBufferPropertiesKHR(
+        void* context, VkPhysicalDevice physicalDevice,
+        const VkPhysicalDeviceExternalBufferInfoKHR* pExternalBufferInfo,
+        VkExternalBufferPropertiesKHR* pExternalBufferProperties);
+
     void on_vkGetPhysicalDeviceExternalSemaphoreProperties(
         void* context, VkPhysicalDevice physicalDevice,
         const VkPhysicalDeviceExternalSemaphoreInfo* pExternalSemaphoreInfo,
@@ -559,6 +569,11 @@ class ResourceTracker {
         bool isKhr, void* context, VkResult input_result, VkPhysicalDevice physicalDevice,
         const VkPhysicalDeviceImageFormatInfo2* pImageFormatInfo,
         VkImageFormatProperties2* pImageFormatProperties);
+
+    void on_vkGetPhysicalDeviceExternalBufferProperties_common(
+        bool isKhr, void* context, VkPhysicalDevice physicalDevice,
+        const VkPhysicalDeviceExternalBufferInfo* pExternalBufferInfo,
+        VkExternalBufferProperties* pExternalBufferProperties);
 
     template <typename VkSubmitInfoType>
     VkResult on_vkQueueSubmitTemplate(void* context, VkResult input_result, VkQueue queue,
