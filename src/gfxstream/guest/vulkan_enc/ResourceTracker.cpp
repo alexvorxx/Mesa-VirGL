@@ -1940,6 +1940,9 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_KHR_create_renderpass2",
         "VK_KHR_imageless_framebuffer",
 #endif
+        // Vulkan 1.3
+        "VK_KHR_synchronization2",
+        "VK_EXT_private_data",
     };
 
     VkEncoder* enc = (VkEncoder*)context;
