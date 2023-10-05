@@ -244,6 +244,14 @@ struct vk_queue_submit {
    struct vk_sync_timeline_point **_signal_points;
 };
 
+static inline bool
+vk_queue_submit_has_bind(const struct vk_queue_submit *submit)
+{
+   return submit->buffer_bind_count > 0 ||
+          submit->image_opaque_bind_count > 0 ||
+          submit->image_bind_count > 0;
+}
+
 #ifdef __cplusplus
 }
 #endif
