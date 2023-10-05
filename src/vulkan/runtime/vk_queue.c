@@ -976,7 +976,7 @@ vk_queue_submit(struct vk_queue *queue,
 
       vk_queue_push_submit(queue, submit);
 
-      if (signal_mem_sync) {
+      if (submit->_mem_signal_temp != NULL) {
          /* If we're signaling a memory object, we have to ensure that
           * vkQueueSubmit does not return until the kernel submission has
           * happened.  Otherwise, we may get a race between this process
