@@ -895,11 +895,8 @@ vk_queue_submit(struct vk_queue *queue,
 
    case VK_QUEUE_SUBMIT_MODE_THREADED:
       if (has_binary_permanent_semaphore_wait) {
-         for (uint32_t i = 0; i < info->wait_count; i++) {
-            VK_FROM_HANDLE(vk_semaphore, semaphore,
-                           info->waits[i].semaphore);
-
-            if (semaphore->type != VK_SEMAPHORE_TYPE_BINARY)
+         for (uint32_t i = 0; i < submit->wait_count; i++) {
+            if (submit->waits[i].sync->flags & VK_SYNC_IS_TIMELINE)
                continue;
 
             /* From the Vulkan 1.2.194 spec:
@@ -939,8 +936,6 @@ vk_queue_submit(struct vk_queue *queue,
             if (submit->_wait_temps[i] != NULL)
                continue;
 
-            assert(submit->waits[i].sync == &semaphore->permanent);
-
             /* From the Vulkan 1.2.194 spec:
              *
              *    VUID-vkQueueSubmit-pWaitSemaphores-03238
@@ -963,7 +958,7 @@ vk_queue_submit(struct vk_queue *queue,
                goto fail;
 
             result = vk_sync_create(queue->base.device,
-                                    semaphore->permanent.type,
+                                    submit->waits[i].sync->type,
                                     0 /* flags */,
                                     0 /* initial value */,
                                     &submit->_wait_temps[i]);
@@ -972,7 +967,7 @@ vk_queue_submit(struct vk_queue *queue,
 
             result = vk_sync_move(queue->base.device,
                                   submit->_wait_temps[i],
-                                  &semaphore->permanent);
+                                  submit->waits[i].sync);
             if (unlikely(result != VK_SUCCESS))
                goto fail;
 
