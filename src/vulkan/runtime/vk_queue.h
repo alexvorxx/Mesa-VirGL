@@ -237,6 +237,7 @@ struct vk_queue_submit {
    uint32_t perf_pass_index;
 
    /* Used internally; should be ignored by drivers */
+   bool _has_binary_permanent_semaphore_wait;
    struct vk_sync **_wait_temps;
    struct vk_sync *_mem_signal_temp;
    struct vk_sync_timeline_point **_wait_points;

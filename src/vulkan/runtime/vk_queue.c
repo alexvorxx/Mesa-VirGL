@@ -642,7 +642,6 @@ vk_queue_submit(struct vk_queue *queue,
       vk_find_struct_const(info->pNext, PERFORMANCE_QUERY_SUBMIT_INFO_KHR);
    submit->perf_pass_index = perf_info ? perf_info->counterPassIndex : 0;
 
-   bool has_binary_permanent_semaphore_wait = false;
    for (uint32_t i = 0; i < info->wait_count; i++) {
       VK_FROM_HANDLE(vk_semaphore, semaphore,
                      info->waits[i].semaphore);
@@ -674,7 +673,7 @@ vk_queue_submit(struct vk_queue *queue,
          if (semaphore->type == VK_SEMAPHORE_TYPE_BINARY) {
             if (vk_device_supports_threaded_submit(device))
                assert(semaphore->permanent.type->move);
-            has_binary_permanent_semaphore_wait = true;
+            submit->_has_binary_permanent_semaphore_wait = true;
          }
 
          sync = &semaphore->permanent;
@@ -863,7 +862,7 @@ vk_queue_submit(struct vk_queue *queue,
        * operation.  If we don't signal the vk_sync, then we need to reset it.
        */
       if (vk_device_supports_threaded_submit(device) &&
-          has_binary_permanent_semaphore_wait) {
+          submit->_has_binary_permanent_semaphore_wait) {
          for (uint32_t i = 0; i < submit->wait_count; i++) {
             if ((submit->waits[i].sync->flags & VK_SYNC_IS_TIMELINE) ||
                 submit->_wait_temps[i] != NULL)
@@ -894,7 +893,7 @@ vk_queue_submit(struct vk_queue *queue,
       return vk_device_flush(queue->base.device);
 
    case VK_QUEUE_SUBMIT_MODE_THREADED:
-      if (has_binary_permanent_semaphore_wait) {
+      if (submit->_has_binary_permanent_semaphore_wait) {
          for (uint32_t i = 0; i < submit->wait_count; i++) {
             if (submit->waits[i].sync->flags & VK_SYNC_IS_TIMELINE)
                continue;
