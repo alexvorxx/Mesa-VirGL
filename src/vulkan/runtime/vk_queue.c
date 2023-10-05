@@ -803,10 +803,10 @@ struct vulkan_submit_info {
 };
 
 static VkResult
-vk_queue_submit(struct vk_queue *queue,
-                const struct vulkan_submit_info *info)
+vk_queue_submit_create(struct vk_queue *queue,
+                       const struct vulkan_submit_info *info,
+                       struct vk_queue_submit **submit_out)
 {
-   struct vk_device *device = queue->base.device;
    VkResult result;
    uint32_t sparse_memory_bind_entry_count = 0;
    uint32_t sparse_memory_image_bind_entry_count = 0;
@@ -888,6 +888,22 @@ vk_queue_submit(struct vk_queue *queue,
       vk_queue_submit_add_fence_signal(queue, submit, info->fence);
 
    assert(signal_count == submit->signal_count);
+
+   *submit_out = submit;
+
+   return VK_SUCCESS;
+
+fail:
+   vk_queue_submit_destroy(queue, submit);
+   return result;
+}
+
+static VkResult
+vk_queue_submit(struct vk_queue *queue,
+                struct vk_queue_submit *submit)
+{
+   struct vk_device *device = queue->base.device;
+   VkResult result;
 
    /* If this device supports threaded submit, we can't rely on the client
     * ordering requirements to ensure submits happen in the right order.  Even
@@ -1231,7 +1247,12 @@ vk_common_QueueSubmit2(VkQueue _queue,
          .signals = pSubmits[i].pSignalSemaphoreInfos,
          .fence = i == submitCount - 1 ? fence : NULL
       };
-      VkResult result = vk_queue_submit(queue, &info);
+      struct vk_queue_submit *submit;
+      VkResult result = vk_queue_submit_create(queue, &info, &submit);
+      if (unlikely(result != VK_SUCCESS))
+         return result;
+
+      result = vk_queue_submit(queue, submit);
       if (unlikely(result != VK_SUCCESS))
          return result;
    }
@@ -1333,7 +1354,10 @@ vk_common_QueueBindSparse(VkQueue _queue,
          .image_binds = pBindInfo[i].pImageBinds,
          .fence = i == bindInfoCount - 1 ? fence : NULL
       };
-      VkResult result = vk_queue_submit(queue, &info);
+      struct vk_queue_submit *submit;
+      VkResult result = vk_queue_submit_create(queue, &info, &submit);
+      if (likely(result == VK_SUCCESS))
+         result = vk_queue_submit(queue, submit);
 
       STACK_ARRAY_FINISH(wait_semaphore_infos);
       STACK_ARRAY_FINISH(signal_semaphore_infos);
