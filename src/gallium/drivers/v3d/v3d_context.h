@@ -215,6 +215,9 @@ struct v3d_uncompiled_shader {
         uint16_t tf_specs[16];
         uint16_t tf_specs_psiz[16];
         uint32_t num_tf_specs;
+
+        /* For caching */
+        unsigned char sha1[20];
 };
 
 struct v3d_compiled_shader {
@@ -807,10 +810,12 @@ bool v3d_render_condition_check(struct v3d_context *v3d);
 
 #ifdef ENABLE_SHADER_CACHE
 struct v3d_compiled_shader *v3d_disk_cache_retrieve(struct v3d_context *v3d,
-                                                    const struct v3d_key *key);
+                                                    const struct v3d_key *key,
+                                                    const struct v3d_uncompiled_shader *uncompiled);
 
 void v3d_disk_cache_store(struct v3d_context *v3d,
                           const struct v3d_key *key,
+                          const struct v3d_uncompiled_shader *uncompiled,
                           const struct v3d_compiled_shader *shader,
                           uint64_t *qpu_insts,
                           uint32_t qpu_size);

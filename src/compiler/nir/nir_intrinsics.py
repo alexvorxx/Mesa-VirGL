@@ -224,6 +224,9 @@ index("nir_alu_type", "dest_type")
 # The swizzle mask for quad_swizzle_amd & masked_swizzle_amd
 index("unsigned", "swizzle_mask")
 
+# Allow FI=1 for quad_swizzle_amd & masked_swizzle_amd
+index("bool", "fetch_inactive")
+
 # Offsets for load_shared2_amd/store_shared2_amd
 index("uint8_t", "offset0")
 index("uint8_t", "offset1")
@@ -491,10 +494,10 @@ intrinsic("shuffle_up", src_comp=[0, 1], dest_comp=0, bit_sizes=src0, flags=[CAN
 intrinsic("shuffle_down", src_comp=[0, 1], dest_comp=0, bit_sizes=src0, flags=[CAN_ELIMINATE])
 
 # Quad operations from SPIR-V.
-intrinsic("quad_broadcast", src_comp=[0, 1], dest_comp=0, flags=[CAN_ELIMINATE])
-intrinsic("quad_swap_horizontal", src_comp=[0], dest_comp=0, flags=[CAN_ELIMINATE])
-intrinsic("quad_swap_vertical", src_comp=[0], dest_comp=0, flags=[CAN_ELIMINATE])
-intrinsic("quad_swap_diagonal", src_comp=[0], dest_comp=0, flags=[CAN_ELIMINATE])
+intrinsic("quad_broadcast", src_comp=[0, 1], dest_comp=0, bit_sizes=src0, flags=[CAN_ELIMINATE])
+intrinsic("quad_swap_horizontal", src_comp=[0], dest_comp=0, bit_sizes=src0, flags=[CAN_ELIMINATE])
+intrinsic("quad_swap_vertical", src_comp=[0], dest_comp=0, bit_sizes=src0, flags=[CAN_ELIMINATE])
+intrinsic("quad_swap_diagonal", src_comp=[0], dest_comp=0, bit_sizes=src0, flags=[CAN_ELIMINATE])
 
 # Rotate operation from SPIR-V: SpvOpGroupNonUniformRotateKHR.
 intrinsic("rotate", src_comp=[0, 1], dest_comp=0, bit_sizes=src0,
@@ -509,9 +512,9 @@ intrinsic("exclusive_scan", src_comp=[0], dest_comp=0, bit_sizes=src0,
 
 # AMD shader ballot operations
 intrinsic("quad_swizzle_amd", src_comp=[0], dest_comp=0, bit_sizes=src0,
-          indices=[SWIZZLE_MASK], flags=[CAN_ELIMINATE])
+          indices=[SWIZZLE_MASK, FETCH_INACTIVE], flags=[CAN_ELIMINATE])
 intrinsic("masked_swizzle_amd", src_comp=[0], dest_comp=0, bit_sizes=src0,
-          indices=[SWIZZLE_MASK], flags=[CAN_ELIMINATE])
+          indices=[SWIZZLE_MASK, FETCH_INACTIVE], flags=[CAN_ELIMINATE])
 intrinsic("write_invocation_amd", src_comp=[0, 0, 1], dest_comp=0, bit_sizes=src0,
           flags=[CAN_ELIMINATE])
 # src = [ mask, addition ]
@@ -1329,6 +1332,10 @@ store("uniform_ir3", [], indices=[BASE])
 # vec4's.
 intrinsic("copy_ubo_to_uniform_ir3", [1, 1], indices=[BASE, RANGE])
 
+# IR3-specific intrinsic for stsc. Loads from push consts to constant file
+# Should be used in the shader preamble.
+intrinsic("copy_push_const_to_uniform_ir3", [1], indices=[BASE, RANGE])
+
 # Intrinsics used by the Midgard/Bifrost blend pipeline. These are defined
 # within a blend shader to read/write the raw value from the tile buffer,
 # without applying any format conversion in the process. If the shader needs
@@ -1695,6 +1702,11 @@ intrinsic("load_coefficients_agx",
           indices=[COMPONENT, IO_SEMANTICS, INTERP_MODE],
           flags=[CAN_ELIMINATE, CAN_REORDER])
 
+# In a fragment shader, boolean system value that is true if the last vertex
+# stage writes the layer ID. If false, layer IDs are defined to read back zero.
+# This system value facilitates that. 16-bit 0/~0 bool allows easy masking.
+system_value("layer_id_written_agx", 1, bit_sizes=[16])
+
 # Load/store a pixel in local memory. This operation is formatted, with
 # conversion between the specified format and the implied register format of the
 # source/destination (for store/loads respectively). This mostly matters for
@@ -1739,9 +1751,9 @@ intrinsic("store_zs_agx", [1, 1, 1], indices=[BASE], flags=[])
 # The image dimension is used to distinguish multisampled images from
 # non-multisampled images. It must be 2D or MS.
 #
-# src[] = { image index, logical offset within shared memory }
-intrinsic("block_image_store_agx", [1, 1], bit_sizes=[32, 16],
-          indices=[FORMAT, IMAGE_DIM], flags=[CAN_REORDER])
+# src[] = { image index, logical offset within shared memory, layer }
+intrinsic("block_image_store_agx", [1, 1, 1], bit_sizes=[32, 16, 16],
+          indices=[FORMAT, IMAGE_DIM, IMAGE_ARRAY], flags=[CAN_REORDER])
 
 # Formatted load/store. The format is the pipe_format in memory (see
 # agx_internal_formats.h for the supported list). This accesses:

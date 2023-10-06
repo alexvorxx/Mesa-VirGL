@@ -154,6 +154,7 @@ clang-format:
 
 .deqp-test:
   script:
+    - rm -rf results # Clear out old results if the docker container was cached
     - ./install/deqp-runner.sh
   artifacts:
     exclude:
@@ -313,6 +314,7 @@ clang-format:
 
     B2C_TIMEOUT_OVERALL_MINUTES: 90
     B2C_TIMEOUT_RETRIES: 0
+    B2C_JOB_VOLUME_EXCLUSIONS: "*.shader_cache,install/*,*/install/*,*/vkd3d-proton.cache*,vkd3d-proton.cache*,*.qpa"
 
     # As noted in the top description, we make a distinction between the
     # container used by gitlab-runner to queue the work, and the container

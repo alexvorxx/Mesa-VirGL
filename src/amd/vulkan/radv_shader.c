@@ -1078,7 +1078,7 @@ insert_block(struct radv_device *device, union radv_shader_arena_block *hole, ui
          add_hole(free_list, left_hole);
    }
 
-   if (hole_end > offset_in_hole + size) {
+   if (hole->size > offset_in_hole + size) {
       right_hole = alloc_block_obj(device);
       if (!right_hole) {
          free(left_hole);
@@ -1182,6 +1182,8 @@ radv_alloc_shader_memory(struct radv_device *device, uint32_t size, bool replaya
 
    alloc =
       insert_block(device, list_entry(arena->entries.next, union radv_shader_arena_block, list), 0, size, free_list);
+   alloc->freelist.prev = NULL;
+   alloc->freelist.next = ptr;
 
    ++device->shader_arena_shift;
    list_addtail(&arena->list, &device->shader_arenas);

@@ -82,6 +82,7 @@ static const driOptionDescription anv_dri_options[] = {
       DRI_CONF_ANV_FP64_WORKAROUND_ENABLED(false)
       DRI_CONF_ANV_GENERATED_INDIRECT_THRESHOLD(4)
       DRI_CONF_NO_16BIT(false)
+      DRI_CONF_INTEL_ENABLE_WA_14018912822(false)
       DRI_CONF_ANV_QUERY_CLEAR_WITH_BLORP_THRESHOLD(6)
       DRI_CONF_ANV_QUERY_COPY_WITH_SHADER_THRESHOLD(6)
       DRI_CONF_ANV_FORCE_INDIRECT_DESCRIPTORS(false)
@@ -1144,6 +1145,12 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
       enum intel_engine_class compute_class =
          c_count < 1 ? INTEL_ENGINE_CLASS_RENDER : INTEL_ENGINE_CLASS_COMPUTE;
 
+      int blit_count = 0;
+      if (debug_get_bool_option("INTEL_COPY_CLASS", false)) {
+         blit_count = intel_engines_count(pdevice->engine_info,
+                                          INTEL_ENGINE_CLASS_COPY);
+      }
+
       anv_override_engine_counts(&gc_count, &g_count, &c_count, &v_count);
 
       if (gc_count > 0) {
@@ -1189,6 +1196,13 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
             .queueFlags = VK_QUEUE_VIDEO_DECODE_BIT_KHR,
             .queueCount = pdevice->info.ver == 9 ? MIN2(1, v_count) : v_count,
             .engine_class = INTEL_ENGINE_CLASS_VIDEO,
+         };
+      }
+      if (blit_count > 0) {
+         pdevice->queue.families[family_count++] = (struct anv_queue_family) {
+            .queueFlags = VK_QUEUE_TRANSFER_BIT,
+            .queueCount = blit_count,
+            .engine_class = INTEL_ENGINE_CLASS_COPY,
          };
       }
 
@@ -1557,6 +1571,8 @@ anv_init_dri_options(struct anv_instance *instance)
             driQueryOptionf(&instance->dri_options, "lower_depth_range_rate");
     instance->no_16bit =
             driQueryOptionb(&instance->dri_options, "no_16bit");
+    instance->intel_enable_wa_14018912822 =
+            driQueryOptionb(&instance->dri_options, "intel_enable_wa_14018912822");
     instance->mesh_conv_prim_attrs_to_vert_attrs =
             driQueryOptioni(&instance->dri_options, "anv_mesh_conv_prim_attrs_to_vert_attrs");
     instance->fp64_workaround_enabled =
@@ -3212,7 +3228,14 @@ VkResult anv_CreateDevice(
    if (result != VK_SUCCESS)
       goto fail_queue_cond;
 
-   anv_bo_pool_init(&device->batch_bo_pool, device, "batch");
+   anv_bo_pool_init(&device->batch_bo_pool, device, "batch",
+                    ANV_BO_ALLOC_MAPPED |
+                    ANV_BO_ALLOC_SNOOPED |
+                    ANV_BO_ALLOC_CAPTURE);
+   if (device->vk.enabled_extensions.KHR_acceleration_structure) {
+      anv_bo_pool_init(&device->bvh_bo_pool, device, "bvh build",
+                       0 /* alloc_flags */);
+   }
 
    /* Because scratch is also relative to General State Base Address, we leave
     * the base address 0 and start the pool memory at an offset.  This way we
@@ -3583,6 +3606,7 @@ VkResult anv_CreateDevice(
  fail_general_state_pool:
    anv_state_pool_finish(&device->general_state_pool);
  fail_batch_bo_pool:
+   anv_bo_pool_finish(&device->bvh_bo_pool);
    anv_bo_pool_finish(&device->batch_bo_pool);
    anv_bo_cache_finish(&device->bo_cache);
  fail_queue_cond:
@@ -3688,6 +3712,7 @@ void anv_DestroyDevice(
    anv_state_pool_finish(&device->dynamic_state_pool);
    anv_state_pool_finish(&device->general_state_pool);
 
+   anv_bo_pool_finish(&device->bvh_bo_pool);
    anv_bo_pool_finish(&device->batch_bo_pool);
 
    anv_bo_cache_finish(&device->bo_cache);

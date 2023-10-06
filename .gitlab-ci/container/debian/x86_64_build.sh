@@ -99,12 +99,7 @@ rm -rf $XORGMACROS_VERSION
 
 . .gitlab-ci/container/build-wayland.sh
 
-pushd /usr/local
-git clone https://gitlab.freedesktop.org/mesa/shader-db.git --depth 1
-rm -rf shader-db/.git
-cd shader-db
-make
-popd
+. .gitlab-ci/container/build-shader-db.sh
 
 mkdir -p DirectX-Headers/build
 pushd DirectX-Headers/build

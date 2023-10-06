@@ -393,7 +393,6 @@ static inline uint8_t v3d_slot_get_component(struct v3d_varying_slot slot)
 }
 
 struct v3d_key {
-        void *shader_state;
         struct {
                 uint8_t swizzle[4];
         } tex[V3D_MAX_TEXTURE_SAMPLERS];

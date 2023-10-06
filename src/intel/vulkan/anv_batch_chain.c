@@ -743,7 +743,8 @@ anv_cmd_buffer_alloc_dynamic_state(struct anv_cmd_buffer *cmd_buffer,
  */
 struct anv_cmd_alloc
 anv_cmd_buffer_alloc_space(struct anv_cmd_buffer *cmd_buffer,
-                           size_t size, uint32_t alignment)
+                           size_t size, uint32_t alignment,
+                           bool mapped)
 {
    /* Below 16k, source memory from dynamic state, otherwise allocate a BO. */
    if (size < 16 * 1024) {
@@ -764,12 +765,10 @@ anv_cmd_buffer_alloc_space(struct anv_cmd_buffer *cmd_buffer,
 
    struct anv_bo *bo = NULL;
    VkResult result =
-      anv_device_alloc_bo(cmd_buffer->device,
-                          "cmd-buffer-space",
-                          align(size, 4096),
-                          ANV_BO_ALLOC_MAPPED,
-                          0,
-                          &bo);
+      anv_bo_pool_alloc(mapped ?
+                        &cmd_buffer->device->batch_bo_pool :
+                        &cmd_buffer->device->bvh_bo_pool,
+                        align(size, 4096), &bo);
    if (result != VK_SUCCESS) {
       anv_batch_set_error(&cmd_buffer->batch, VK_ERROR_OUT_OF_DEVICE_MEMORY);
       return ANV_EMPTY_ALLOC;
@@ -779,6 +778,9 @@ anv_cmd_buffer_alloc_space(struct anv_cmd_buffer *cmd_buffer,
       u_vector_add(&cmd_buffer->dynamic_bos);
    if (bo_entry == NULL) {
       anv_batch_set_error(&cmd_buffer->batch, VK_ERROR_OUT_OF_HOST_MEMORY);
+      anv_bo_pool_free(bo->map != NULL ?
+                       &cmd_buffer->device->batch_bo_pool :
+                       &cmd_buffer->device->bvh_bo_pool, bo);
       return ANV_EMPTY_ALLOC;
    }
    *bo_entry = bo;
@@ -833,6 +835,7 @@ anv_cmd_buffer_init_batch_bo_chain(struct anv_cmd_buffer *cmd_buffer)
    cmd_buffer->batch.allocated_batch_size = ANV_MIN_CMD_BUFFER_BATCH_SIZE;
 
    cmd_buffer->batch.extend_cb = anv_cmd_buffer_chain_batch;
+   cmd_buffer->batch.engine_class = cmd_buffer->queue_family->engine_class;
 
    anv_batch_bo_start(batch_bo, &cmd_buffer->batch,
                       GFX8_MI_BATCH_BUFFER_START_length * 4);
@@ -846,6 +849,8 @@ anv_cmd_buffer_init_batch_bo_chain(struct anv_cmd_buffer *cmd_buffer)
    cmd_buffer->generation_batch.user_data = cmd_buffer;
    cmd_buffer->generation_batch.allocated_batch_size = 0;
    cmd_buffer->generation_batch.extend_cb = anv_cmd_buffer_chain_generation_batch;
+   cmd_buffer->generation_batch.engine_class =
+      cmd_buffer->queue_family->engine_class;
 
    int success = u_vector_init_pow2(&cmd_buffer->seen_bbos, 8,
                                     sizeof(struct anv_bo *));

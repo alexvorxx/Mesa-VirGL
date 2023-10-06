@@ -3718,8 +3718,9 @@ zink_flush(struct pipe_context *pctx,
 #ifdef HAVE_RENDERDOC_APP_H
       p_atomic_inc(&screen->renderdoc_frame);
 #endif
-      if (ctx->needs_present && ctx->needs_present->obj->image)
-         zink_screen(ctx->base.screen)->image_barrier(ctx, ctx->needs_present, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
+      if (ctx->needs_present && ctx->needs_present->obj->image &&
+          zink_is_swapchain(ctx->needs_present))
+         screen->image_barrier(ctx, ctx->needs_present, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
       ctx->needs_present = NULL;
    }
 
@@ -3789,6 +3790,10 @@ zink_flush(struct pipe_context *pctx,
       if (fence) {
          mfence->submit_count = submit_count;
          util_dynarray_append(&fence->mfences, struct zink_tc_fence *, mfence);
+      }
+      if (export_sem) {
+         pipe_reference(NULL, &mfence->reference);
+         util_dynarray_append(&ctx->batch.state->fences, struct zink_tc_fence*, mfence);
       }
 
       if (deferred_fence) {
@@ -4774,7 +4779,7 @@ zink_rebind_all_images(struct zink_context *ctx)
     for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
       for (unsigned j = 0; j < ctx->di.num_sampler_views[i]; j++) {
          struct zink_sampler_view *sv = zink_sampler_view(ctx->sampler_views[i][j]);
-         if (!sv)
+         if (!sv || sv->image_view->base.texture->target == PIPE_BUFFER)
             continue;
          struct zink_resource *res = zink_resource(sv->image_view->base.texture);
          if (res->obj != sv->image_view->obj) {
@@ -4788,7 +4793,7 @@ zink_rebind_all_images(struct zink_context *ctx)
       for (unsigned j = 0; j < ctx->di.num_images[i]; j++) {
          struct zink_image_view *image_view = &ctx->image_views[i][j];
          struct zink_resource *res = zink_resource(image_view->base.resource);
-         if (!res)
+         if (!res || res->base.b.target == PIPE_BUFFER)
             continue;
          if (ctx->image_views[i][j].surface->obj != res->obj) {
             zink_surface_reference(zink_screen(ctx->base.screen), &image_view->surface, NULL);
@@ -5133,6 +5138,8 @@ zink_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
    ctx->fb_changed = ctx->rp_changed = true;
    ctx->sample_mask_changed = true;
    ctx->gfx_pipeline_state.gfx_prim_mode = MESA_PRIM_COUNT;
+   ctx->gfx_pipeline_state.shader_rast_prim = MESA_PRIM_COUNT;
+   ctx->gfx_pipeline_state.rast_prim = MESA_PRIM_COUNT;
 
    zink_init_draw_functions(ctx, screen);
    zink_init_grid_functions(ctx);

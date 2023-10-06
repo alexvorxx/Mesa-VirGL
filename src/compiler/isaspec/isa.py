@@ -258,6 +258,7 @@ class BitSet(object):
         self.xml = xml
         self.name = xml.attrib['name']
         self.display_name = xml.attrib['displayname'] if 'displayname' in xml.attrib else self.name
+        self.meta = {}
 
         # Used for generated encoder, to de-duplicate encoding for
         # similar instructions:
@@ -286,6 +287,9 @@ class BitSet(object):
                 self.gen_min = int(gen.attrib['min'])
             if 'max' in gen.attrib:
                 self.gen_max = int(gen.attrib['max'])
+
+        if xml.find('meta') is not None:
+            self.meta = xml.find('meta').attrib
 
         # Collect up the match/dontcare/mask bitmasks for
         # this bitset case:
@@ -381,18 +385,56 @@ class BitSet(object):
             return self.isa.bitsets[self.extends].get_root()
         return self
 
+    def get_meta(self):
+        meta = {}
+
+        if self.extends is not None:
+            meta = self.isa.bitsets[self.extends].get_meta()
+
+        if self.meta:
+            meta.update(self.meta)
+
+        return meta
+
+class BitSetTemplate(object):
+    """Class that encapsulates a template declaration
+    """
+    def __init__(self, isa, xml):
+        self.isa = isa
+        self.name = xml.attrib['name']
+        self.display = xml.text.strip()
+        dbg("found template '{}: {}'".format(self.name, self.display))
+
+class BitSetEnumValue(object):
+    """Class that encapsulates an enum value
+    """
+    def __init__(self, isa, xml):
+        self.isa = isa
+        self.displayname = xml.attrib['display']
+        self.value = xml.attrib['val']
+        self.name = xml.attrib.get('name')
+
+    def __str__(self):
+        return self.displayname
+
+    def get_name(self):
+        return self.name or self.displayname
+
+    def get_value(self):
+        return self.value
+
 class BitSetEnum(object):
     """Class that encapsulates an enum declaration
     """
     def __init__(self, isa, xml):
         self.isa = isa
         self.name = xml.attrib['name']
+
         # Table mapping value to name
-        # TODO currently just mapping to 'display' name, but if we
-        # need more attributes then maybe need BitSetEnumValue?
         self.values = {}
         for value in xml.findall('value'):
-            self.values[value.attrib['val']] = value.attrib['display']
+            v = BitSetEnumValue(self, value)
+            self.values[v.get_value()] = v
 
     def get_c_name(self):
         return 'enum_' + get_c_name(self.name)
@@ -426,6 +468,9 @@ class ISA(object):
 
         # Table of (globally defined) expressions:
         self.expressions = {}
+
+        # Table of templates:
+        self.templates = {}
 
         # Table of enums:
         self.enums = {}
@@ -468,6 +513,11 @@ class ISA(object):
         # Extract expressions:
         self.parse_expressions(root)
 
+        # Extract templates:
+        for template in root.findall('template'):
+            t = BitSetTemplate(self, template)
+            self.templates[t.name] = t
+
         # Extract enums:
         for enum in root.findall('enum'):
             e = BitSetEnum(self, enum)
@@ -484,6 +534,12 @@ class ISA(object):
                 dbg("derived: " + b.name)
             self.bitsets[b.name] = b
             self.leafs.setdefault(b.name, []).append(b)
+
+        # Resolve all templates:
+        for _, bitset in self.bitsets.items():
+            for case in bitset.cases:
+                if case.display:
+                    case.display = self.resolve_templates(case.display)
 
     def validate_isa(self):
         # We only support multiples of 32 bits for now
@@ -593,3 +649,23 @@ class ISA(object):
                 continue
             for bitset in bitsets:
                 yield name, bitset
+
+    def resolve_templates(self, display_string):
+        matches = re.findall(r'\{([^\}]+)\}', display_string)
+        for m in matches:
+            if m in self.templates:
+                display_string = display_string.replace("{" + m + "}", self.templates[m].display)
+
+        return display_string
+
+    def instructions(self):
+        instr = []
+
+        for _, root in self.roots.items():
+            for _, leafs in self.leafs.items():
+                for leaf in leafs:
+                    if leaf.get_root() == root:
+                        if not leaf.get_c_name().startswith('__'):
+                            instr.append(leaf)
+
+        return instr

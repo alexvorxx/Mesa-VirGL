@@ -1663,6 +1663,7 @@ tu_trace_destroy_ts_buffer(struct u_trace_context *utctx, void *timestamps)
    tu_bo_finish(device, bo);
 }
 
+template <chip CHIP>
 static void
 tu_trace_record_ts(struct u_trace *ut, void *cs, void *timestamps,
                    unsigned idx, bool end_of_pipe)
@@ -1671,10 +1672,22 @@ tu_trace_record_ts(struct u_trace *ut, void *cs, void *timestamps,
    struct tu_cs *ts_cs = (struct tu_cs *) cs;
 
    unsigned ts_offset = idx * sizeof(uint64_t);
-   tu_cs_emit_pkt7(ts_cs, CP_EVENT_WRITE, 4);
-   tu_cs_emit(ts_cs, CP_EVENT_WRITE_0_EVENT(RB_DONE_TS) | CP_EVENT_WRITE_0_TIMESTAMP);
-   tu_cs_emit_qw(ts_cs, bo->iova + ts_offset);
-   tu_cs_emit(ts_cs, 0x00000000);
+
+   if (CHIP == A6XX) {
+      tu_cs_emit_pkt7(ts_cs, CP_EVENT_WRITE, 4);
+      tu_cs_emit(ts_cs, CP_EVENT_WRITE_0_EVENT(RB_DONE_TS) |
+                           CP_EVENT_WRITE_0_TIMESTAMP);
+      tu_cs_emit_qw(ts_cs, bo->iova + ts_offset);
+      tu_cs_emit(ts_cs, 0x00000000);
+   } else {
+      tu_cs_emit_pkt7(ts_cs, CP_EVENT_WRITE7, 3);
+      tu_cs_emit(ts_cs, CP_EVENT_WRITE7_0(.event = RB_DONE_TS,
+                                          .write_src = EV_WRITE_ALWAYSON,
+                                          .write_dst = EV_DST_RAM,
+                                          .write_enabled = true)
+                           .value);
+      tu_cs_emit_qw(ts_cs, bo->iova + ts_offset);
+   }
 }
 
 static uint64_t
@@ -1888,6 +1901,13 @@ tu_u_trace_submission_data_finish(
       }
    }
 
+   if (submission_data->kgsl_timestamp_bo.bo) {
+      mtx_lock(&device->kgsl_profiling_mutex);
+      tu_suballoc_bo_free(&device->kgsl_profiling_suballoc,
+                        &submission_data->kgsl_timestamp_bo);
+      mtx_unlock(&device->kgsl_profiling_mutex);
+   }
+
    vk_free(&device->vk.alloc, submission_data->cmd_trace_data);
    vk_free(&device->vk.alloc, submission_data->syncobj);
    vk_free(&device->vk.alloc, submission_data);
@@ -2086,6 +2106,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
    mtx_init(&device->bo_mutex, mtx_plain);
    mtx_init(&device->pipeline_mutex, mtx_plain);
    mtx_init(&device->autotune_mutex, mtx_plain);
+   mtx_init(&device->kgsl_profiling_mutex, mtx_plain);
    u_rwlock_init(&device->dma_bo_lock);
    pthread_mutex_init(&device->submit_mutex, NULL);
 
@@ -2143,7 +2164,8 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
          .disable_cache = true,
          .bindless_fb_read_descriptor = -1,
          .bindless_fb_read_slot = -1,
-         .storage_16bit = physical_device->info->a6xx.storage_16bit
+         .storage_16bit = physical_device->info->a6xx.storage_16bit,
+         .shared_push_consts = !TU_DEBUG(PUSH_CONSTS_PER_STAGE),
       };
       device->compiler =
          ir3_compiler_create(NULL, &physical_device->dev_id, &ir3_options);
@@ -2181,6 +2203,10 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       (enum tu_bo_alloc_flags) (TU_BO_ALLOC_GPU_READ_ONLY | TU_BO_ALLOC_ALLOW_DUMP));
    tu_bo_suballocator_init(&device->autotune_suballoc, device,
                            128 * 1024, TU_BO_ALLOC_NO_FLAGS);
+   if (is_kgsl(physical_device->instance)) {
+      tu_bo_suballocator_init(&device->kgsl_profiling_suballoc, device,
+                              128 * 1024, TU_BO_ALLOC_NO_FLAGS);
+   }
 
    result = tu_bo_init_new(device, &device->global_bo, global_size,
                            TU_BO_ALLOC_ALLOW_DUMP, "global");
@@ -2328,7 +2354,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
    u_trace_context_init(&device->trace_context, device,
                      tu_trace_create_ts_buffer,
                      tu_trace_destroy_ts_buffer,
-                     tu_trace_record_ts,
+                     TU_CALLX(device, tu_trace_record_ts),
                      tu_trace_read_ts,
                      tu_trace_delete_flush_data);
 
@@ -2428,6 +2454,7 @@ tu_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
 
    tu_bo_suballocator_finish(&device->pipeline_suballoc);
    tu_bo_suballocator_finish(&device->autotune_suballoc);
+   tu_bo_suballocator_finish(&device->kgsl_profiling_suballoc);
 
    for (unsigned i = 0; i < TU_MAX_QUEUE_FAMILIES; i++) {
       for (unsigned q = 0; q < device->queue_count[i]; q++)

@@ -45,10 +45,10 @@ struct _mesa_glsl_parse_state;
 struct glsl_symbol_table;
 
 extern void
-glsl_type_singleton_init_or_ref();
+glsl_type_singleton_init_or_ref(void);
 
 extern void
-glsl_type_singleton_decref();
+glsl_type_singleton_decref(void);
 
 extern void
 _mesa_glsl_initialize_types(struct _mesa_glsl_parse_state *state);
@@ -1243,25 +1243,6 @@ struct glsl_type {
    {
       return (bool) interface_row_major;
    }
-
-private:
-   static bool record_key_compare(const void *a, const void *b);
-   static unsigned record_key_hash(const void *key);
-
-   /**
-    * \name Friend functions.
-    *
-    * These functions are friends because they must have C linkage and the
-    * need to call various private methods or access various private static
-    * data.
-    */
-   /*@{*/
-   friend void _mesa_glsl_initialize_types(struct _mesa_glsl_parse_state *);
-   /*@}*/
-
-   static const glsl_type *get_explicit_matrix_instance(unsigned int base_type, unsigned int rows, unsigned int columns,
-                                                        unsigned int explicit_stride, bool row_major,
-                                                        unsigned int explicit_alignment);
 
 #endif /* __cplusplus */
 };

@@ -6426,8 +6426,9 @@ iris_upload_dirty_render_state(struct iris_context *ice,
     * CONST_COLOR, CONST_ALPHA and supply zero by using blend constants.
     */
    bool needs_wa_14018912822 =
+      screen->driconf.intel_enable_wa_14018912822 &&
       intel_needs_workaround(batch->screen->devinfo, 14018912822) &&
-       util_framebuffer_get_num_samples(&ice->state.framebuffer) > 1;
+      util_framebuffer_get_num_samples(&ice->state.framebuffer) > 1;
 
    if (dirty & IRIS_DIRTY_CC_VIEWPORT) {
       const struct iris_rasterizer_state *cso_rast = ice->state.cso_rast;
@@ -6582,7 +6583,7 @@ iris_upload_dirty_render_state(struct iris_context *ice,
                   color_blend_zero = true;
                }
                if (dst_alpha_blend_factor == BLENDFACTOR_ZERO) {
-                  dst_alpha_blend_factor = BLENDFACTOR_CONST_COLOR;
+                  dst_alpha_blend_factor = BLENDFACTOR_CONST_ALPHA;
                   alpha_blend_zero = true;
                }
             }
@@ -7205,7 +7206,7 @@ iris_upload_dirty_render_state(struct iris_context *ice,
          if (ice->state.color_blend_zero)
             dst_blend_factor = BLENDFACTOR_CONST_COLOR;
          if (ice->state.alpha_blend_zero)
-            dst_alpha_blend_factor = BLENDFACTOR_CONST_COLOR;
+            dst_alpha_blend_factor = BLENDFACTOR_CONST_ALPHA;
       }
 
       uint32_t dynamic_pb[GENX(3DSTATE_PS_BLEND_length)];
@@ -8857,6 +8858,14 @@ iris_emit_raw_pipe_control(struct iris_batch *batch,
       assert(flags & PIPE_CONTROL_WRITE_IMMEDIATE);
    }
 
+   /* Emulate a HDC flush with a full Data Cache Flush on older hardware which
+    * doesn't support the new lightweight flush.
+    */
+#if GFX_VER < 12
+      if (flags & PIPE_CONTROL_FLUSH_HDC)
+         flags |= PIPE_CONTROL_DATA_CACHE_FLUSH;
+#endif
+
    /* "Post-Sync Operation" workarounds -------------------------------- */
 
    /* Project: All / Argument: Global Snapshot Count Reset [19]
@@ -9084,7 +9093,7 @@ iris_emit_raw_pipe_control(struct iris_batch *batch,
 #if GFX_VER >= 12
       pc.TileCacheFlushEnable = flags & PIPE_CONTROL_TILE_CACHE_FLUSH;
 #endif
-#if GFX_VER >= 11
+#if GFX_VER > 11
       pc.HDCPipelineFlushEnable = flags & PIPE_CONTROL_FLUSH_HDC;
 #endif
 #if GFX_VERx10 >= 125

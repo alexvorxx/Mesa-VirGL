@@ -1808,6 +1808,9 @@ genX(cmd_buffer_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer)
    else if (bits == 0)
       return;
 
+   if (anv_cmd_buffer_is_blitter_queue(cmd_buffer))
+      return;
+
    const bool trace_flush =
       (bits & (ANV_PIPE_FLUSH_BITS |
                ANV_PIPE_STALL_BITS |
@@ -2954,7 +2957,7 @@ genX(batch_emit_pipe_control_write)(struct anv_batch *batch,
 #if GFX_VER >= 12
       pipe.TileCacheFlushEnable = bits & ANV_PIPE_TILE_CACHE_FLUSH_BIT;
 #endif
-#if GFX_VER >= 11
+#if GFX_VER > 11
       pipe.HDCPipelineFlushEnable = bits & ANV_PIPE_HDC_PIPELINE_FLUSH_BIT;
 #endif
       pipe.DepthCacheFlushEnable = bits & ANV_PIPE_DEPTH_CACHE_FLUSH_BIT;
@@ -3390,7 +3393,8 @@ genX(BeginCommandBuffer)(
 
    trace_intel_begin_cmd_buffer(&cmd_buffer->trace);
 
-   if (anv_cmd_buffer_is_video_queue(cmd_buffer))
+   if (anv_cmd_buffer_is_video_queue(cmd_buffer) ||
+       anv_cmd_buffer_is_blitter_queue(cmd_buffer))
       return VK_SUCCESS;
 
    genX(cmd_buffer_emit_state_base_address)(cmd_buffer);
@@ -3560,7 +3564,8 @@ end_command_buffer(struct anv_cmd_buffer *cmd_buffer)
 
    anv_measure_endcommandbuffer(cmd_buffer);
 
-   if (anv_cmd_buffer_is_video_queue(cmd_buffer)) {
+   if (anv_cmd_buffer_is_video_queue(cmd_buffer) ||
+       anv_cmd_buffer_is_blitter_queue(cmd_buffer)) {
       trace_intel_end_cmd_buffer(&cmd_buffer->trace, cmd_buffer->vk.level);
       anv_cmd_buffer_end_batch_buffer(cmd_buffer);
       return VK_SUCCESS;
@@ -3838,6 +3843,16 @@ stage_is_transfer(const VkPipelineStageFlags2 stage)
 }
 
 static inline bool
+stage_is_video(const VkPipelineStageFlags2 stage)
+{
+   return (stage & (VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT |
+#ifdef VK_ENABLE_BETA_EXTENSIONS
+                    VK_PIPELINE_STAGE_2_VIDEO_ENCODE_BIT_KHR |
+#endif
+                    VK_PIPELINE_STAGE_2_VIDEO_DECODE_BIT_KHR));
+}
+
+static inline bool
 mask_is_shader_write(const VkAccessFlags2 access)
 {
    return (access & (VK_ACCESS_2_SHADER_WRITE_BIT |
@@ -3868,10 +3883,172 @@ mask_is_write(const VkAccessFlags2 access)
 }
 
 static void
+cmd_buffer_barrier_video(struct anv_cmd_buffer *cmd_buffer,
+                        const VkDependencyInfo *dep_info)
+{
+   assert(anv_cmd_buffer_is_video_queue(cmd_buffer));
+
+   bool flush_llc = false;
+   bool flush_ccs = false;
+   for (uint32_t i = 0; i < dep_info->imageMemoryBarrierCount; i++) {
+      const VkImageMemoryBarrier2 *img_barrier =
+         &dep_info->pImageMemoryBarriers[i];
+
+      ANV_FROM_HANDLE(anv_image, image, img_barrier->image);
+      const VkImageSubresourceRange *range = &img_barrier->subresourceRange;
+
+      /* If srcQueueFamilyIndex is not equal to dstQueueFamilyIndex, this
+       * memory barrier defines a queue family ownership transfer.
+       */
+      if (img_barrier->srcQueueFamilyIndex != img_barrier->dstQueueFamilyIndex)
+         flush_llc = true;
+
+      VkImageAspectFlags img_aspects =
+            vk_image_expand_aspect_mask(&image->vk, range->aspectMask);
+      anv_foreach_image_aspect_bit(aspect_bit, image, img_aspects) {
+         const uint32_t plane =
+            anv_image_aspect_to_plane(image, 1UL << aspect_bit);
+         if (isl_aux_usage_has_ccs(image->planes[plane].aux_usage)) {
+            flush_ccs = true;
+         }
+      }
+   }
+
+   for (uint32_t i = 0; i < dep_info->bufferMemoryBarrierCount; i++) {
+      /* Flush the cache if something is written by the video operations and
+       * used by any other stages except video encode/decode stages or if
+       * srcQueueFamilyIndex is not equal to dstQueueFamilyIndex, this memory
+       * barrier defines a queue family ownership transfer.
+       */
+      if ((stage_is_video(dep_info->pBufferMemoryBarriers[i].srcStageMask) &&
+           mask_is_write(dep_info->pBufferMemoryBarriers[i].srcAccessMask) &&
+           !stage_is_video(dep_info->pBufferMemoryBarriers[i].dstStageMask)) ||
+          (dep_info->pBufferMemoryBarriers[i].srcQueueFamilyIndex !=
+           dep_info->pBufferMemoryBarriers[i].dstQueueFamilyIndex)) {
+         flush_llc = true;
+         break;
+      }
+   }
+
+   for (uint32_t i = 0; i < dep_info->memoryBarrierCount; i++) {
+      /* Flush the cache if something is written by the video operations and
+       * used by any other stages except video encode/decode stage.
+       */
+      if (stage_is_video(dep_info->pMemoryBarriers[i].srcStageMask) &&
+          mask_is_write(dep_info->pMemoryBarriers[i].srcAccessMask) &&
+          !stage_is_video(dep_info->pMemoryBarriers[i].dstStageMask)) {
+         flush_llc = true;
+         break;
+      }
+   }
+
+   if (flush_ccs || flush_llc) {
+      anv_batch_emit(&cmd_buffer->batch, GENX(MI_FLUSH_DW), fd) {
+#if GFX_VERx10 >= 125
+         fd.FlushCCS = flush_ccs;
+#endif
+         fd.FlushLLC = flush_llc;
+      }
+   }
+}
+
+static void
+cmd_buffer_barrier_blitter(struct anv_cmd_buffer *cmd_buffer,
+                           const VkDependencyInfo *dep_info)
+{
+#if GFX_VERx10 >= 125
+   assert(anv_cmd_buffer_is_blitter_queue(cmd_buffer));
+
+   /* The blitter requires an MI_FLUSH_DW command when a buffer transitions
+    * from being a destination to a source.
+    */
+   bool flush_llc = false;
+   bool flush_ccs = false;
+   for (uint32_t i = 0; i < dep_info->imageMemoryBarrierCount; i++) {
+      const VkImageMemoryBarrier2 *img_barrier =
+         &dep_info->pImageMemoryBarriers[i];
+
+      ANV_FROM_HANDLE(anv_image, image, img_barrier->image);
+      const VkImageSubresourceRange *range = &img_barrier->subresourceRange;
+
+      /* If srcQueueFamilyIndex is not equal to dstQueueFamilyIndex, this
+       * memory barrier defines a queue family transfer operation.
+       */
+      if (img_barrier->srcQueueFamilyIndex != img_barrier->dstQueueFamilyIndex)
+         flush_llc = true;
+
+      /* Flush cache if transfer command reads the output of the previous
+       * transfer command, ideally we should just wait for the completion but
+       * for now just flush the cache to make the data visible.
+       */
+      if ((img_barrier->oldLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL ||
+            img_barrier->oldLayout == VK_IMAGE_LAYOUT_GENERAL) &&
+          (img_barrier->newLayout == VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL ||
+           img_barrier->newLayout == VK_IMAGE_LAYOUT_GENERAL)) {
+         flush_llc = true;
+      }
+
+      VkImageAspectFlags img_aspects =
+            vk_image_expand_aspect_mask(&image->vk, range->aspectMask);
+      anv_foreach_image_aspect_bit(aspect_bit, image, img_aspects) {
+         const uint32_t plane =
+            anv_image_aspect_to_plane(image, 1UL << aspect_bit);
+         if (isl_aux_usage_has_ccs(image->planes[plane].aux_usage)) {
+            flush_ccs = true;
+         }
+      }
+   }
+
+   for (uint32_t i = 0; i < dep_info->bufferMemoryBarrierCount; i++) {
+      /* Flush the cache if something is written by the transfer command and
+       * used by any other stages except transfer stage or if
+       * srcQueueFamilyIndex is not equal to dstQueueFamilyIndex, this memory
+       * barrier defines a queue family transfer operation.
+       */
+      if ((stage_is_transfer(dep_info->pBufferMemoryBarriers[i].srcStageMask) &&
+           mask_is_write(dep_info->pBufferMemoryBarriers[i].srcAccessMask)) ||
+          (dep_info->pBufferMemoryBarriers[i].srcQueueFamilyIndex !=
+           dep_info->pBufferMemoryBarriers[i].dstQueueFamilyIndex)) {
+         flush_llc = true;
+         break;
+      }
+   }
+
+   for (uint32_t i = 0; i < dep_info->memoryBarrierCount; i++) {
+      /* Flush the cache if something is written by the transfer command and
+       * used by any other stages except transfer stage.
+       */
+      if (stage_is_transfer(dep_info->pMemoryBarriers[i].srcStageMask) &&
+          mask_is_write(dep_info->pMemoryBarriers[i].srcAccessMask)) {
+         flush_llc = true;
+         break;
+      }
+   }
+
+   if (flush_ccs || flush_llc) {
+      anv_batch_emit(&cmd_buffer->batch, GENX(MI_FLUSH_DW), fd) {
+         fd.FlushCCS = flush_ccs;
+         fd.FlushLLC = flush_llc;
+      }
+   }
+#endif
+}
+
+static void
 cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
                    const VkDependencyInfo *dep_info,
                    const char *reason)
 {
+   if (anv_cmd_buffer_is_video_queue(cmd_buffer)) {
+      cmd_buffer_barrier_video(cmd_buffer, dep_info);
+      return;
+   }
+
+   if (anv_cmd_buffer_is_blitter_queue(cmd_buffer)) {
+      cmd_buffer_barrier_blitter(cmd_buffer, dep_info);
+      return;
+   }
+
    struct anv_device *device = cmd_buffer->device;
 
    /* XXX: Right now, we're really dumb and just flush whatever categories
@@ -3882,9 +4059,6 @@ cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
    VkAccessFlags2 dst_flags = 0;
 
    bool apply_sparse_flushes = false;
-
-   if (anv_cmd_buffer_is_video_queue(cmd_buffer))
-      return;
 
    for (uint32_t i = 0; i < dep_info->memoryBarrierCount; i++) {
       src_flags |= dep_info->pMemoryBarriers[i].srcAccessMask;
@@ -6080,6 +6254,8 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
         params->launch_size[2] == 0))
       return;
 
+   trace_intel_begin_rays(&cmd_buffer->trace);
+
    genX(cmd_buffer_config_l3)(cmd_buffer, pipeline->base.l3_config);
    genX(flush_pipeline_select_gpgpu)(cmd_buffer);
 
@@ -6280,6 +6456,11 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
       STATIC_ASSERT(sizeof(trampoline_params) == 32);
       memcpy(cw.InlineData, &trampoline_params, sizeof(trampoline_params));
    }
+
+   trace_intel_end_rays(&cmd_buffer->trace,
+                        params->launch_size[0],
+                        params->launch_size[1],
+                        params->launch_size[2]);
 }
 
 void
@@ -7972,6 +8153,15 @@ void genX(cmd_emit_timestamp)(struct anv_batch *batch,
                               struct anv_address addr,
                               enum anv_timestamp_capture_type type,
                               void *data) {
+   /* Make sure ANV_TIMESTAMP_CAPTURE_AT_CS_STALL and
+    * ANV_TIMESTAMP_REWRITE_COMPUTE_WALKER capture type are not set for
+    * transfer queue.
+    */
+   if (batch->engine_class == INTEL_ENGINE_CLASS_COPY) {
+      assert(type != ANV_TIMESTAMP_CAPTURE_AT_CS_STALL ||
+             type != ANV_TIMESTAMP_REWRITE_COMPUTE_WALKER);
+   }
+
    switch (type) {
    case ANV_TIMESTAMP_CAPTURE_TOP_OF_PIPE: {
       struct mi_builder b;
@@ -7980,10 +8170,18 @@ void genX(cmd_emit_timestamp)(struct anv_batch *batch,
       break;
    }
 
-   case ANV_TIMESTAMP_CAPTURE_END_OF_PIPE:
-      genx_batch_emit_pipe_control_write
-         (batch, device->info, WriteTimestamp, addr, 0, 0);
+   case ANV_TIMESTAMP_CAPTURE_END_OF_PIPE: {
+      if (batch->engine_class == INTEL_ENGINE_CLASS_COPY) {
+         anv_batch_emit(batch, GENX(MI_FLUSH_DW), fd) {
+            fd.PostSyncOperation = WriteTimestamp;
+            fd.Address = addr;
+         }
+      } else {
+         genx_batch_emit_pipe_control_write(batch, device->info,
+                                            WriteTimestamp, addr, 0, 0);
+      }
       break;
+   }
 
    case ANV_TIMESTAMP_CAPTURE_AT_CS_STALL:
       genx_batch_emit_pipe_control_write

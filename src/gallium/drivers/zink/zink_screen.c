@@ -2615,6 +2615,13 @@ check_base_requirements(struct zink_screen *screen)
 {
    if (zink_debug & ZINK_DEBUG_QUIET)
       return;
+   if (screen->info.driver_props.driverID == VK_DRIVER_ID_MESA_V3DV) {
+      /* v3dv doesn't support straddling i/o, but zink doesn't do that so this is effectively supported:
+       * don't spam errors in this case
+       */
+      screen->info.feats12.scalarBlockLayout = true;
+      screen->info.have_EXT_scalar_block_layout = true;
+   }
    if (!screen->info.feats.features.logicOp ||
        !screen->info.feats.features.fillModeNonSolid ||
        !screen->info.feats.features.shaderClipDistance ||
@@ -2638,6 +2645,10 @@ check_base_requirements(struct zink_screen *screen)
       CHECK_OR_PRINT(have_EXT_custom_border_color);
       CHECK_OR_PRINT(have_EXT_line_rasterization);
       fprintf(stderr, "\n");
+   }
+   if (screen->info.driver_props.driverID == VK_DRIVER_ID_MESA_V3DV) {
+      screen->info.feats12.scalarBlockLayout = false;
+      screen->info.have_EXT_scalar_block_layout = false;
    }
 }
 
@@ -2837,14 +2848,6 @@ init_driver_workarounds(struct zink_screen *screen)
       abort();
    }
 
-   if (screen->info.driver_props.driverID == VK_DRIVER_ID_MESA_V3DV) {
-      /* v3dv doesn't support straddling i/o, but zink doesn't do that so this is effectively supported:
-       * don't spam errors in this case
-       */
-      screen->info.feats12.scalarBlockLayout = true;
-      screen->info.have_EXT_scalar_block_layout = true;
-   }
-
    /* these drivers benefit from renderpass optimization */
    switch (screen->info.driver_props.driverID) {
    case VK_DRIVER_ID_MESA_LLVMPIPE:
@@ -2885,6 +2888,18 @@ init_driver_workarounds(struct zink_screen *screen)
          screen->driver_workarounds.disable_optimized_compile = true;
       break;
    }
+
+   switch (screen->info.driver_props.driverID) {
+   case VK_DRIVER_ID_MESA_RADV:
+   case VK_DRIVER_ID_AMD_OPEN_SOURCE:
+   case VK_DRIVER_ID_AMD_PROPRIETARY:
+      /* this has bad perf on AMD */
+      screen->info.have_KHR_push_descriptor = false;
+      break;
+   default:
+      break;
+   }
+
    if (!screen->resizable_bar)
       screen->info.have_EXT_host_image_copy = false;
 }
@@ -3254,11 +3269,6 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
                                  screen->dev);
 
    init_queue(screen);
-   if (screen->info.driver_props.driverID == VK_DRIVER_ID_MESA_RADV ||
-       screen->info.driver_props.driverID == VK_DRIVER_ID_AMD_OPEN_SOURCE ||
-       screen->info.driver_props.driverID == VK_DRIVER_ID_AMD_PROPRIETARY)
-      /* this has bad perf on AMD */
-      screen->info.have_KHR_push_descriptor = false;
 
    zink_verify_device_extensions(screen);
 
