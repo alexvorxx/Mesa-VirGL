@@ -6900,12 +6900,29 @@ VkResult ResourceTracker::on_vkCreateGraphicsPipelines(
             graphicsPipelineCreateInfo.pMultisampleState = nullptr;
         }
 
+        bool forceDepthStencilState = false;
+        bool forceColorBlendState = false;
+
+        const VkPipelineRenderingCreateInfo* pipelineRenderingInfo =
+            vk_find_struct<VkPipelineRenderingCreateInfo>(&graphicsPipelineCreateInfo);
+
+        if (pipelineRenderingInfo) {
+            forceDepthStencilState |= pipelineRenderingInfo->depthAttachmentFormat != VK_FORMAT_UNDEFINED;
+            forceDepthStencilState |= pipelineRenderingInfo->stencilAttachmentFormat != VK_FORMAT_UNDEFINED;
+            forceColorBlendState |= pipelineRenderingInfo->colorAttachmentCount != 0;
+        }
+
         // VUID-VkGraphicsPipelineCreateInfo-renderPass-06043
         // VUID-VkGraphicsPipelineCreateInfo-renderPass-06044
         if (graphicsPipelineCreateInfo.renderPass == VK_NULL_HANDLE ||
             !shouldIncludeFragmentShaderState) {
-            graphicsPipelineCreateInfo.pDepthStencilState = nullptr;
-            graphicsPipelineCreateInfo.pColorBlendState = nullptr;
+            // VUID-VkGraphicsPipelineCreateInfo-renderPass-06053
+            if (!forceDepthStencilState) {
+                graphicsPipelineCreateInfo.pDepthStencilState = nullptr;
+            }
+            if (!forceColorBlendState) {
+                graphicsPipelineCreateInfo.pColorBlendState = nullptr;
+            }
         }
     }
     return enc->vkCreateGraphicsPipelines(device, pipelineCache, localCreateInfos.size(),
