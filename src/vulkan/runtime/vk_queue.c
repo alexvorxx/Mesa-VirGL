@@ -463,6 +463,135 @@ vk_queue_submit_add_image_bind(
    submit->image_binds[submit->image_bind_count++] = info_tmp;
 }
 
+/* Attempts to merge two submits into one.  If the merge succeeds, the merged
+ * submit is return and the two submits passed in are destroyed.
+ */
+static struct vk_queue_submit *
+vk_queue_submits_merge(struct vk_queue *queue,
+                       struct vk_queue_submit *first,
+                       struct vk_queue_submit *second)
+{
+   /* Don't merge if there are signals in between: see 'Signal operation order' */
+   if (first->signal_count > 0 &&
+       (second->command_buffer_count ||
+        second->buffer_bind_count ||
+        second->image_opaque_bind_count ||
+        second->image_bind_count ||
+        second->wait_count))
+      return NULL;
+
+   if (vk_queue_submit_has_bind(first) != vk_queue_submit_has_bind(second))
+      return NULL;
+
+   if (first->_mem_signal_temp)
+      return NULL;
+
+   if (first->perf_pass_index != second->perf_pass_index)
+      return NULL;
+
+   /* noop submits can always do a no-op merge */
+   if (!second->command_buffer_count &&
+       !second->buffer_bind_count &&
+       !second->image_opaque_bind_count &&
+       !second->image_bind_count &&
+       !second->wait_count &&
+       !second->signal_count) {
+      vk_queue_submit_destroy(queue, second);
+      return first;
+   }
+   if (!first->command_buffer_count &&
+       !first->buffer_bind_count &&
+       !first->image_opaque_bind_count &&
+       !first->image_bind_count &&
+       !first->wait_count &&
+       !first->signal_count) {
+      vk_queue_submit_destroy(queue, first);
+      return second;
+   }
+
+   struct vk_queue_submit *merged = vk_queue_submit_alloc(queue,
+      first->wait_count + second->wait_count,
+      first->command_buffer_count + second->command_buffer_count,
+      first->buffer_bind_count + second->buffer_bind_count,
+      first->image_opaque_bind_count + second->image_opaque_bind_count,
+      first->image_bind_count + second->image_bind_count,
+      first->_bind_entry_count + second->_bind_entry_count,
+      first->_image_bind_entry_count + second->_image_bind_entry_count,
+      first->signal_count + second->signal_count);
+   if (merged == NULL)
+      return NULL;
+
+   merged->wait_count = first->wait_count + second->wait_count;
+   typed_memcpy(merged->waits, first->waits, first->wait_count);
+   typed_memcpy(&merged->waits[first->wait_count], second->waits, second->wait_count);
+
+   merged->command_buffer_count = first->command_buffer_count +
+                                  second->command_buffer_count;
+   typed_memcpy(merged->command_buffers,
+                first->command_buffers, first->command_buffer_count);
+   typed_memcpy(&merged->command_buffers[first->command_buffer_count],
+                second->command_buffers, second->command_buffer_count);
+
+   merged->signal_count = first->signal_count + second->signal_count;
+   typed_memcpy(merged->signals, first->signals, first->signal_count);
+   typed_memcpy(&merged->signals[first->signal_count], second->signals, second->signal_count);
+
+   for (uint32_t i = 0; i < first->buffer_bind_count; i++)
+      vk_queue_submit_add_buffer_bind(queue, first, &first->buffer_binds[i]);
+   for (uint32_t i = 0; i < second->buffer_bind_count; i++)
+      vk_queue_submit_add_buffer_bind(queue, second, &first->buffer_binds[i]);
+
+   for (uint32_t i = 0; i < first->image_opaque_bind_count; i++) {
+      vk_queue_submit_add_image_opaque_bind(queue, first,
+                                            &first->image_opaque_binds[i]);
+   }
+   for (uint32_t i = 0; i < second->image_opaque_bind_count; i++) {
+      vk_queue_submit_add_image_opaque_bind(queue, second,
+                                            &first->image_opaque_binds[i]);
+   }
+
+   for (uint32_t i = 0; i < first->image_bind_count; i++)
+      vk_queue_submit_add_image_bind(queue, first, &first->image_binds[i]);
+   for (uint32_t i = 0; i < second->image_bind_count; i++)
+      vk_queue_submit_add_image_bind(queue, second, &first->image_binds[i]);
+
+   merged->perf_pass_index = first->perf_pass_index;
+   assert(second->perf_pass_index == merged->perf_pass_index);
+
+   assert(merged->_bind_entry_count ==
+          first->_bind_entry_count + second->_bind_entry_count);
+   assert(merged->_image_bind_entry_count ==
+          first->_image_bind_entry_count + second->_image_bind_entry_count);
+
+   merged->_has_binary_permanent_semaphore_wait =
+      first->_has_binary_permanent_semaphore_wait;
+
+   typed_memcpy(merged->_wait_temps, first->_wait_temps, first->wait_count);
+   typed_memcpy(&merged->_wait_temps[first->wait_count], second->_wait_temps, second->wait_count);
+
+   assert(first->_mem_signal_temp == NULL);
+   merged->_mem_signal_temp = second->_mem_signal_temp;
+
+   if (queue->base.device->timeline_mode == VK_DEVICE_TIMELINE_MODE_EMULATED) {
+      typed_memcpy(merged->_wait_points,
+                   first->_wait_points, first->wait_count);
+      typed_memcpy(&merged->_wait_points[first->wait_count],
+                   second->_wait_points, second->wait_count);
+
+      typed_memcpy(merged->_signal_points,
+                   first->_signal_points, first->signal_count);
+      typed_memcpy(&merged->_signal_points[first->signal_count],
+                   second->_signal_points, second->signal_count);
+   } else {
+      assert(first->_wait_points == NULL && second->_wait_points == NULL);
+      assert(first->_signal_points == NULL && second->_signal_points == NULL);
+   }
+   vk_queue_submit_free(queue, first);
+   vk_queue_submit_free(queue, second);
+
+   return merged;
+}
+
 static void
 vk_queue_push_submit(struct vk_queue *queue,
                      struct vk_queue_submit *submit)
@@ -1084,6 +1213,35 @@ fail:
    return result;
 }
 
+static VkResult
+vk_queue_merge_submit(struct vk_queue *queue,
+                      struct vk_queue_submit **last_submit,
+                      struct vk_queue_submit *submit)
+{
+   if (*last_submit == NULL) {
+      *last_submit = submit;
+      return VK_SUCCESS;
+   }
+
+   struct vk_queue_submit *merged =
+      vk_queue_submits_merge(queue, *last_submit, submit);
+   if (merged != NULL) {
+      *last_submit = merged;
+      return VK_SUCCESS;
+   }
+
+   VkResult result = vk_queue_submit(queue, *last_submit);
+   *last_submit = NULL;
+
+   if (likely(result == VK_SUCCESS)) {
+      *last_submit = submit;
+   } else {
+      vk_queue_submit_destroy(queue, submit);
+   }
+
+   return result;
+}
+
 VkResult
 vk_queue_wait_before_present(struct vk_queue *queue,
                              const VkPresentInfoKHR *pPresentInfo)
@@ -1224,6 +1382,7 @@ vk_common_QueueSubmit2(VkQueue _queue,
 {
    VK_FROM_HANDLE(vk_queue, queue, _queue);
    VK_FROM_HANDLE(vk_fence, fence, _fence);
+   VkResult result;
 
    if (vk_device_is_lost(queue->base.device))
       return VK_ERROR_DEVICE_LOST;
@@ -1236,6 +1395,7 @@ vk_common_QueueSubmit2(VkQueue _queue,
       }
    }
 
+   struct vk_queue_submit *last_submit = NULL;
    for (uint32_t i = 0; i < submitCount; i++) {
       struct vulkan_submit_info info = {
          .pNext = pSubmits[i].pNext,
@@ -1248,11 +1408,17 @@ vk_common_QueueSubmit2(VkQueue _queue,
          .fence = i == submitCount - 1 ? fence : NULL
       };
       struct vk_queue_submit *submit;
-      VkResult result = vk_queue_submit_create(queue, &info, &submit);
+      result = vk_queue_submit_create(queue, &info, &submit);
       if (unlikely(result != VK_SUCCESS))
          return result;
 
-      result = vk_queue_submit(queue, submit);
+      result = vk_queue_merge_submit(queue, &last_submit, submit);
+      if (unlikely(result != VK_SUCCESS))
+         return result;
+   }
+
+   if (last_submit != NULL) {
+      result = vk_queue_submit(queue, last_submit);
       if (unlikely(result != VK_SUCCESS))
          return result;
    }
@@ -1268,6 +1434,7 @@ vk_common_QueueBindSparse(VkQueue _queue,
 {
    VK_FROM_HANDLE(vk_queue, queue, _queue);
    VK_FROM_HANDLE(vk_fence, fence, _fence);
+   VkResult result;
 
    if (vk_device_is_lost(queue->base.device))
       return VK_ERROR_DEVICE_LOST;
@@ -1280,6 +1447,7 @@ vk_common_QueueBindSparse(VkQueue _queue,
       }
    }
 
+   struct vk_queue_submit *last_submit = NULL;
    for (uint32_t i = 0; i < bindInfoCount; i++) {
       const VkTimelineSemaphoreSubmitInfo *timeline_info =
          vk_find_struct_const(pBindInfo[i].pNext, TIMELINE_SEMAPHORE_SUBMIT_INFO);
@@ -1355,13 +1523,19 @@ vk_common_QueueBindSparse(VkQueue _queue,
          .fence = i == bindInfoCount - 1 ? fence : NULL
       };
       struct vk_queue_submit *submit;
-      VkResult result = vk_queue_submit_create(queue, &info, &submit);
+      result = vk_queue_submit_create(queue, &info, &submit);
       if (likely(result == VK_SUCCESS))
-         result = vk_queue_submit(queue, submit);
+         result = vk_queue_merge_submit(queue, &last_submit, submit);
 
       STACK_ARRAY_FINISH(wait_semaphore_infos);
       STACK_ARRAY_FINISH(signal_semaphore_infos);
 
+      if (unlikely(result != VK_SUCCESS))
+         return result;
+   }
+
+   if (last_submit != NULL) {
+      result = vk_queue_submit(queue, last_submit);
       if (unlikely(result != VK_SUCCESS))
          return result;
    }
