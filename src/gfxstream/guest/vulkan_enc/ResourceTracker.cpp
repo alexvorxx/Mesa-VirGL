@@ -6434,7 +6434,18 @@ void ResourceTracker::on_vkGetPhysicalDeviceExternalSemaphoreProperties(
             VK_EXTERNAL_SEMAPHORE_FEATURE_IMPORTABLE_BIT;
     }
 #else
-    if (pExternalSemaphoreInfo->handleType == VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT) {
+    const VkSemaphoreTypeCreateInfo* semaphoreTypeCi =
+        vk_find_struct<VkSemaphoreTypeCreateInfo>(pExternalSemaphoreInfo);
+    bool isSemaphoreTimeline =
+        semaphoreTypeCi != nullptr && semaphoreTypeCi->semaphoreType == VK_SEMAPHORE_TYPE_TIMELINE;
+    if (isSemaphoreTimeline) {
+        // b/304373623
+        // dEQP-VK.api.external.semaphore.sync_fd#info_timeline
+        pExternalSemaphoreProperties->compatibleHandleTypes = 0;
+        pExternalSemaphoreProperties->exportFromImportedHandleTypes = 0;
+        pExternalSemaphoreProperties->externalSemaphoreFeatures = 0;
+    } else if (pExternalSemaphoreInfo->handleType ==
+               VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT) {
         pExternalSemaphoreProperties->compatibleHandleTypes |=
             VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
         pExternalSemaphoreProperties->exportFromImportedHandleTypes |=
