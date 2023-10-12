@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
+#include <cutils/log.h>
 #include <fcntl.h>
+#include <pthread.h>
+#include <stdlib.h>
 #include <sys/mman.h>
 #include <unistd.h>
 #include <xf86drm.h>
+
 #include <cerrno>
 #include <cstring>
-
-#include <cutils/log.h>
+#include <fstream>
+#include <string>
 
 #include "LinuxVirtGpu.h"
 #include "virtgpu_drm.h"
@@ -40,15 +44,21 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
         PARAM(VIRTGPU_PARAM_3D_FEATURES),          PARAM(VIRTGPU_PARAM_CAPSET_QUERY_FIX),
         PARAM(VIRTGPU_PARAM_RESOURCE_BLOB),        PARAM(VIRTGPU_PARAM_HOST_VISIBLE),
         PARAM(VIRTGPU_PARAM_CROSS_DEVICE),         PARAM(VIRTGPU_PARAM_CONTEXT_INIT),
-        PARAM(VIRTGPU_PARAM_SUPPORTED_CAPSET_IDs), PARAM(VIRTGPU_PARAM_CREATE_GUEST_HANDLE),
+        PARAM(VIRTGPU_PARAM_SUPPORTED_CAPSET_IDs), PARAM(VIRTGPU_PARAM_EXPLICIT_DEBUG_NAME),
+        PARAM(VIRTGPU_PARAM_CREATE_GUEST_HANDLE),
     };
 
     int ret;
     struct drm_virtgpu_get_caps get_caps = {0};
     struct drm_virtgpu_context_init init = {0};
-    struct drm_virtgpu_context_set_param ctx_set_params[2] = {{0}};
+    struct drm_virtgpu_context_set_param ctx_set_params[3] = {{0}};
+    const char *processName = nullptr;
 
     memset(&mCaps, 0, sizeof(struct VirtGpuCaps));
+
+#ifdef __ANDROID__
+    processName = getprogname();
+#endif
 
     if (fd < 0) {
         mDeviceHandle = static_cast<int64_t>(drmOpenRender(128));
@@ -119,8 +129,14 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
     init.num_params = 1;
 
     if (capset != kCapsetNone) {
-        ctx_set_params[1].param = VIRTGPU_CONTEXT_PARAM_CAPSET_ID;
-        ctx_set_params[1].value = static_cast<uint32_t>(capset);
+        ctx_set_params[init.num_params].param = VIRTGPU_CONTEXT_PARAM_CAPSET_ID;
+        ctx_set_params[init.num_params].value = static_cast<uint32_t>(capset);
+        init.num_params++;
+    }
+
+    if (mCaps.params[kParamExplicitDebugName] && processName) {
+        ctx_set_params[init.num_params].param = VIRTGPU_CONTEXT_PARAM_DEBUG_NAME;
+        ctx_set_params[init.num_params].value = reinterpret_cast<uint64_t>(processName);
         init.num_params++;
     }
 

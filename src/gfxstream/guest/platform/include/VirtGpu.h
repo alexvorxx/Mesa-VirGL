@@ -29,8 +29,9 @@ enum VirtGpuParamId : uint32_t {
     kParamCrossDevice = 4,
     kParamContextInit = 5,
     kParamSupportedCapsetIds = 6,
-    kParamCreateGuestHandle = 7,
-    kParamMax = 8,
+    kParamExplicitDebugName = 7,
+    kParamCreateGuestHandle = 8,
+    kParamMax = 9,
 };
 
 enum VirtGpuExecBufferFlags : uint32_t {
