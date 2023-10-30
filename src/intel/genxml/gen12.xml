@@ -1194,6 +1194,10 @@
     <field name="Transform Skip Number of Non-Zero Coeffs Factor1" start="344" end="351" type="uint" />
     <field name="Original Slice Start Ctb X" start="352" end="361" type="uint" />
     <field name="Original Slice Start Ctb Y" start="368" end="377" type="uint" />
+    <field name="Slice Act Cr QP offset" start="384" end="389" type="uint" />
+    <field name="Slice Act Cb QP offset" start="390" end="395" type="uint" />
+    <field name="Slice Act Y QP offset" start="396" end="401" type="uint" />
+    <field name="Use Integer MV flag" start="415" end="415" type="uint" />
   </instruction>
   <instruction name="HCP_SURFACE_STATE" bias="2" length="5" engine="video">
     <field name="DWord Length" start="0" end="11" type="uint" default="3" />
