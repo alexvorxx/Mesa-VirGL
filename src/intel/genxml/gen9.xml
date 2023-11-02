@@ -1914,6 +1914,7 @@
       <value name="Prev Reference Picture" value="2" />
       <value name="Golden Reference Picture" value="3" />
       <value name="AltRef Reference Picture" value="4" />
+      <value name="Reference Picture" value="5" />
     </field>
     <field name="Y Offset for U(Cb)" start="64" end="78" type="uint" />
     <field name="Surface Format" start="92" end="95" type="uint">
