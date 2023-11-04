@@ -433,3 +433,59 @@ anv_BindVideoSessionMemoryKHR(VkDevice _device,
    }
    return VK_SUCCESS;
 }
+
+VKAPI_ATTR VkResult VKAPI_CALL
+anv_GetEncodedVideoSessionParametersKHR(VkDevice device,
+                                        const VkVideoEncodeSessionParametersGetInfoKHR* pVideoSessionParametersInfo,
+                                        VkVideoEncodeSessionParametersFeedbackInfoKHR* pFeedbackInfo,
+                                        size_t *pDataSize,
+                                        void *pData)
+{
+   ANV_FROM_HANDLE(anv_video_session_params, params, pVideoSessionParametersInfo->videoSessionParameters);
+   size_t total_size = 0;
+   size_t size_limit = 0;
+
+   if (pData)
+      size_limit = *pDataSize;
+
+   switch (params->vk.op) {
+   case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR: {
+      const struct VkVideoEncodeH264SessionParametersGetInfoKHR *h264_get_info =
+         vk_find_struct_const(pVideoSessionParametersInfo->pNext, VIDEO_ENCODE_H264_SESSION_PARAMETERS_GET_INFO_KHR);
+      if (h264_get_info->writeStdSPS) {
+         for (unsigned i = 0; i < params->vk.h264_enc.h264_sps_count; i++)
+            if (params->vk.h264_enc.h264_sps[i].base.seq_parameter_set_id == h264_get_info->stdSPSId)
+               vk_video_encode_h264_sps(&params->vk.h264_enc.h264_sps[i].base, size_limit, &total_size, pData);
+      }
+      if (h264_get_info->writeStdPPS) {
+         for (unsigned i = 0; i < params->vk.h264_enc.h264_pps_count; i++)
+            if (params->vk.h264_enc.h264_pps[i].base.pic_parameter_set_id == h264_get_info->stdPPSId) {
+               vk_video_encode_h264_pps(&params->vk.h264_enc.h264_pps[i].base, false, size_limit, &total_size, pData);
+            }
+      }
+      break;
+   }
+   default:
+      break;
+   }
+
+   /* vk_video_encode_h26x functions support to be safe even if size_limit is not enough,
+    * so we could just confirm whether pDataSize is valid afterwards.
+    */
+   if (pData && *pDataSize < total_size) {
+      *pDataSize = 0;
+      return VK_INCOMPLETE;
+   }
+
+   *pDataSize = total_size;
+   return VK_SUCCESS;
+}
+
+VkResult
+anv_GetPhysicalDeviceVideoEncodeQualityLevelPropertiesKHR(VkPhysicalDevice physicalDevice,
+                                                          const VkPhysicalDeviceVideoEncodeQualityLevelInfoKHR* pQualityLevelInfo,
+                                                          VkVideoEncodeQualityLevelPropertiesKHR* pQualityLevelProperties)
+{
+   /* TODO. */
+   return VK_SUCCESS;
+}
