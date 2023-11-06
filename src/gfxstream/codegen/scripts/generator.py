@@ -355,6 +355,9 @@ class OutputGenerator:
         self.featureName = None
         """The current feature name being generated."""
 
+        self.featureType = None
+        """The current feature type being generated."""
+
         self.genOpts = None
         """The GeneratorOptions subclass instance."""
 
@@ -935,6 +938,7 @@ class OutputGenerator:
         - emit - actually write to the header only when True"""
         self.emit = emit
         self.featureName = interface.get('name')
+        self.featureType = interface.get('type')
         # If there is an additional 'protect' attribute in the feature, save it
         self.featureExtraProtect = interface.get('protect')
 
@@ -943,6 +947,7 @@ class OutputGenerator:
 
         Derived classes responsible for emitting feature"""
         self.featureName = None
+        self.featureType = None
         self.featureExtraProtect = None
 
     def genRequirements(self, name, mustBeFound = True):
