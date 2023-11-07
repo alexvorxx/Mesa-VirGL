@@ -40,6 +40,9 @@ from reg import Registry
 from validitygenerator import ValidityOutputGenerator
 from apiconventions import APIConventions
 
+# gfxstream + cereal modules
+from cerealgenerator import CerealGenerator
+
 # Simple timer functions
 startTime = None
 
@@ -947,6 +950,33 @@ def makeGenOpts(args):
             apientry          = '',
             apientryp         = '',
             alignFuncParam    = 36)
+        ]
+
+    # Serializer for spec
+    genOpts['cereal'] = [
+            CerealGenerator,
+            CGeneratorOptions(
+                conventions       = conventions,
+                filename          = "CMakeLists.txt",
+                directory         = directory,
+                apiname           = 'vulkan',
+                profile           = None,
+                versions          = featuresPat,
+                emitversions      = featuresPat,
+                defaultExtensions = defaultExtensions,
+                addExtensions     = None,
+                removeExtensions  = None,
+                emitExtensions    = emitExtensionsPat,
+                prefixText        = prefixStrings + vkPrefixStrings,
+                genFuncPointers   = True,
+                protectFile       = protectFile,
+                protectFeature    = False,
+                protectProto      = '#ifndef',
+                protectProtoStr   = 'VK_NO_PROTOTYPES',
+                apicall           = 'VKAPI_ATTR ',
+                apientry          = 'VKAPI_CALL ',
+                apientryp         = 'VKAPI_PTR *',
+                alignFuncParam    = 48)
         ]
 
 
