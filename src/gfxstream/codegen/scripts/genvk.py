@@ -45,7 +45,7 @@ from cerealgenerator import CerealGenerator
 
 # Simple timer functions
 startTime = None
-
+from typing import Optional
 
 def startTimer(timeit):
     global startTime
@@ -979,6 +979,44 @@ def makeGenOpts(args):
                 alignFuncParam    = 48)
         ]
 
+    gfxstreamPrefixStrings = [
+        '#pragma once',
+        '#ifdef VK_GFXSTREAM_STRUCTURE_TYPE_EXT',
+        '#include "vulkan_gfxstream_structure_type.h"',
+        '#endif',
+    ]
+
+    # gfxstream specific header
+    genOpts['vulkan_gfxstream.h'] = [
+          COutputGenerator,
+          CGeneratorOptions(
+            conventions       = conventions,
+            filename          = 'vulkan_gfxstream.h',
+            directory         = directory,
+            genpath           = None,
+            apiname           = 'vulkan',
+            profile           = None,
+            versions          = featuresPat,
+            emitversions      = None,
+            defaultExtensions = None,
+            addExtensions     = makeREstring(['VK_GOOGLE_gfxstream'], None),
+            removeExtensions  = None,
+            emitExtensions    = makeREstring(['VK_GOOGLE_gfxstream'], None),
+            prefixText        = prefixStrings + vkPrefixStrings + gfxstreamPrefixStrings,
+            genFuncPointers   = True,
+            # Use #pragma once in the prefixText instead, so that we can put the copyright comments
+            # at the beginning of the file.
+            protectFile       = False,
+            protectFeature    = False,
+            protectProto      = '#ifndef',
+            protectProtoStr   = 'VK_NO_PROTOTYPES',
+            apicall           = 'VKAPI_ATTR ',
+            apientry          = 'VKAPI_CALL ',
+            apientryp         = 'VKAPI_PTR *',
+            alignFuncParam    = 48,
+            misracstyle       = misracstyle,
+            misracppstyle     = misracppstyle)
+        ]
 
 def genTarget(args):
     """Create an API generator and corresponding generator options based on
@@ -1071,6 +1109,9 @@ if __name__ == '__main__':
     parser.add_argument('-registry', action='store',
                         default='vk.xml',
                         help='Use specified registry file instead of vk.xml')
+    parser.add_argument('-registryGfxstream', action='store',
+                        default=None,
+                        help='Use specified gfxstream registry file')
     parser.add_argument('-time', action='store_true',
                         help='Enable timing')
     parser.add_argument('-genpath', action='store', default='gen',
@@ -1125,6 +1166,58 @@ if __name__ == '__main__':
     startTimer(args.time)
     tree = etree.parse(args.registry)
     endTimer(args.time, '* Time to make ElementTree =')
+
+    # Merge the gfxstream registry with the official Vulkan registry if the
+    # target is the cereal generator
+    if args.registryGfxstream is not None and args.target == 'cereal':
+        treeGfxstream = etree.parse(args.registryGfxstream)
+        treeRoot = tree.getroot()
+        treeGfxstreamRoot = treeGfxstream.getroot()
+
+        def getEntryName(entry) -> Optional[str]:
+            name = entry.get("name")
+            if name is not None:
+                return name
+            try:
+                return entry.find("proto").find("name")
+            except AttributeError:
+                return None
+
+        for entriesName in ['types', 'commands', 'extensions']:
+            treeEntries = treeRoot.find(entriesName)
+
+            originalEntryDict = {}
+            for entry in treeEntries:
+                name = getEntryName(entry)
+                if name is not None:
+                    originalEntryDict[name] = entry
+
+            for entry in treeGfxstreamRoot.find(entriesName):
+                name = getEntryName(entry)
+                # New entry, just append to entry list
+                if name not in originalEntryDict.keys():
+                    treeEntries.append(entry)
+                    continue
+
+                originalEntry = originalEntryDict[name]
+
+                # Extending an existing entry. This happens for MVK.
+                if entriesName == "extensions":
+                    for key, value in entry.attrib.items():
+                        originalEntry.set(key, value)
+                    require = entry.find("require")
+                    if require is not None:
+                        for child in require:
+                            originalEntry.find("require").append(child)
+                    continue
+
+                # Overwriting an existing entry. This happen for
+                # VkNativeBufferANDROID
+                if entriesName == "types":
+                    originalEntry.clear()
+                    originalEntry.attrib = entry.attrib
+                    for child in entry:
+                        originalEntry.append(child)
 
     # Load the XML tree into the registry object
     startTimer(args.time)
