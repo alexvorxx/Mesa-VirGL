@@ -77,6 +77,8 @@ SUPPORTED_FEATURES = [
     "VK_KHR_descriptor_update_template",
     # see aosp/2736079 + b/268351352
     "VK_EXT_swapchain_maintenance1",
+    "VK_KHR_maintenance5",
+    "VK_EXT_host_image_copy",
     "VK_EXT_image_compression_control",
     "VK_EXT_image_compression_control_swapchain",
     # VK1.3 extensions: see b/298704840
