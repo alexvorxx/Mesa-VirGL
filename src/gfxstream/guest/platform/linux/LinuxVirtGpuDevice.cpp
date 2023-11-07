@@ -39,7 +39,7 @@
 #define VIRGL_BIND_CUSTOM (1 << 17)
 #define PIPE_BUFFER 0
 
-LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
+LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) : VirtGpuDevice(capset) {
     struct VirtGpuParam params[] = {
         PARAM(VIRTGPU_PARAM_3D_FEATURES),          PARAM(VIRTGPU_PARAM_CAPSET_QUERY_FIX),
         PARAM(VIRTGPU_PARAM_RESOURCE_BLOB),        PARAM(VIRTGPU_PARAM_HOST_VISIBLE),
@@ -109,8 +109,6 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
         default:
             get_caps.size = 0;
     }
-
-    mCapset = capset;
 
     ret = drmIoctl(mDeviceHandle, DRM_IOCTL_VIRTGPU_GET_CAPS, &get_caps);
     if (ret) {
