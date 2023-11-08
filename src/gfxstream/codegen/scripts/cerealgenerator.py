@@ -546,7 +546,7 @@ class BumpPool;
                 "device", "generic", "goldfish-opengl",
                 "system", "vulkan_enc")
         self.guest_abs_encoder_destination = \
-            envGetOrDefault("VK_CEREAL_GUEST_ENCODER_DIR",
+            envGetOrDefault("GFXSTREAM_GUEST_ENCODER_DIR",
                             default_guest_abs_encoder_destination)
 
         default_host_abs_decoder_destination = \
@@ -555,9 +555,9 @@ class BumpPool;
                 "android", "android-emugl", "host",
                 "libs", "libOpenglRender", "vulkan")
         self.host_abs_decoder_destination = \
-            envGetOrDefault("VK_CEREAL_HOST_DECODER_DIR",
+            envGetOrDefault("GFXSTREAM_HOST_DECODER_DIR",
                             default_host_abs_decoder_destination)
-        self.host_script_destination = envGetOrDefault("VK_CEREAL_HOST_SCRIPTS_DIR")
+        self.host_script_destination = envGetOrDefault("GFXSTREAM_SCRIPTS_DIR")
         assert(self.host_script_destination is not None)
 
         self.addGuestEncoderModule(
