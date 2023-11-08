@@ -145,10 +145,7 @@ class VirtGpuDevice {
     static VirtGpuDevice* getInstance(enum VirtGpuCapset capset = kCapsetNone);
     static void setInstanceForTesting(VirtGpuDevice* device);
 
-    VirtGpuDevice(enum VirtGpuCapset capset) : mCapset(capset) {}
     virtual ~VirtGpuDevice() {}
-
-    enum VirtGpuCapset capset() { return mCapset; }
 
     virtual int64_t getDeviceHandle(void) = 0;
 
@@ -159,9 +156,6 @@ class VirtGpuDevice {
     virtual VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle) = 0;
 
     virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, VirtGpuBlobPtr blob) = 0;
-
-  private:
-    enum VirtGpuCapset mCapset;
 };
 
 VirtGpuDevice* createPlatformVirtGpuDevice(enum VirtGpuCapset capset = kCapsetNone, int fd = -1);

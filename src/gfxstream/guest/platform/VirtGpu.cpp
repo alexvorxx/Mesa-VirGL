@@ -15,7 +15,6 @@
  */
 
  #include "VirtGpu.h"
- #include <cutils/log.h>
 
 namespace {
 
@@ -24,10 +23,6 @@ static VirtGpuDevice* sDevice = nullptr;
 }  // namespace
 
 VirtGpuDevice* VirtGpuDevice::getInstance(enum VirtGpuCapset capset) {
-    if (sDevice && sDevice->capset() != capset) {
-        ALOGE("Requested VirtGpuDevice capset %u, already created capset %u", capset, sDevice->capset());
-        return nullptr;
-    }
     if (!sDevice) {
         sDevice = createPlatformVirtGpuDevice(capset);
     }

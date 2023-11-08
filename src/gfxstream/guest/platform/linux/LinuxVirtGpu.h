@@ -74,4 +74,5 @@ class LinuxVirtGpuDevice : public VirtGpuDevice {
   private:
    int64_t mDeviceHandle;
    struct VirtGpuCaps mCaps;
+   enum VirtGpuCapset mCapset;
 };
