@@ -1082,14 +1082,15 @@ fd_resource_destroy(struct pipe_screen *pscreen, struct pipe_resource *prsc)
 static uint64_t
 fd_resource_modifier(struct fd_resource *rsc)
 {
-   if (!rsc->layout.tile_mode)
-      return DRM_FORMAT_MOD_LINEAR;
-
    if (rsc->layout.ubwc_layer_size)
       return DRM_FORMAT_MOD_QCOM_COMPRESSED;
 
-   /* TODO invent a modifier for tiled but not UBWC buffers: */
-   return DRM_FORMAT_MOD_INVALID;
+   switch (rsc->layout.tile_mode) {
+   case 3: return DRM_FORMAT_MOD_QCOM_TILED3;
+   case 2: return DRM_FORMAT_MOD_QCOM_TILED2;
+   case 0: return DRM_FORMAT_MOD_LINEAR;
+   default: return DRM_FORMAT_MOD_INVALID;
+   }
 }
 
 static bool
@@ -1281,6 +1282,11 @@ get_best_layout(struct fd_screen *screen,
     * The result can be visual corruption (ie. moreso than normal tearing).
     */
    if (tmpl->bind & PIPE_BIND_USE_FRONT_RENDERING)
+      ubwc_ok = false;
+
+   /* Disallow UBWC when asked not to use data dependent bandwidth compression:
+    */
+   if (tmpl->bind & PIPE_BIND_CONST_BW)
       ubwc_ok = false;
 
    if (ubwc_ok && !can_implicit &&
@@ -1629,10 +1635,6 @@ static const struct u_transfer_vtbl transfer_vtbl = {
    .get_stencil = fd_resource_get_stencil,
 };
 
-static const uint64_t supported_modifiers[] = {
-   DRM_FORMAT_MOD_LINEAR,
-};
-
 static int
 fd_layout_resource_for_modifier(struct fd_resource *rsc, uint64_t modifier)
 {
@@ -1746,10 +1748,6 @@ fd_resource_screen_init(struct pipe_screen *pscreen)
 
    if (!screen->layout_resource_for_modifier)
       screen->layout_resource_for_modifier = fd_layout_resource_for_modifier;
-   if (!screen->supported_modifiers) {
-      screen->supported_modifiers = supported_modifiers;
-      screen->num_supported_modifiers = ARRAY_SIZE(supported_modifiers);
-   }
 
    /* GL_EXT_memory_object */
    pscreen->memobj_create_from_handle = fd_memobj_create_from_handle;

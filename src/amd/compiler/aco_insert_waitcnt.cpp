@@ -875,7 +875,8 @@ gen_alu(Instruction* instr, wait_ctx& ctx)
       for (const Definition& def : instr->definitions)
          insert_wait_entry(ctx, def, event, 0, cycle_info.latency);
    }
-   update_alu(ctx, is_valu, is_trans, clear, cycle_info.issue_cycles);
+   update_alu(ctx, is_valu && instr_info.classes[(int)instr->opcode] != instr_class::wmma, is_trans,
+              clear, cycle_info.issue_cycles);
 }
 
 void
@@ -1082,6 +1083,12 @@ handle_block(Program* program, Block& block, wait_ctx& ctx)
       }
    }
 
+   /* For last block of a program which has succeed shader part, wait all memory ops done
+    * before go to next shader part.
+    */
+   if (block.kind & block_kind_end_with_regs)
+      force_waitcnt(ctx, queued_imm);
+
    if (!queued_imm.empty())
       emit_waitcnt(ctx, new_instructions, queued_imm);
    if (!queued_delay.empty())
@@ -1151,11 +1158,6 @@ insert_wait_states(Program* program)
          continue;
       } else {
          in_ctx[current.index] = ctx;
-      }
-
-      if (current.instructions.empty()) {
-         out_ctx[current.index] = std::move(ctx);
-         continue;
       }
 
       loop_progress = std::max<unsigned>(loop_progress, current.loop_nest_depth);

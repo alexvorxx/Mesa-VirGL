@@ -64,7 +64,7 @@ struct spirv_to_nir_options {
    /* Initial value for shader_info::float_controls_execution_mode,
     * indicates hardware requirements rather than shader author intent
     */
-   uint16_t float_controls_execution_mode;
+   uint32_t float_controls_execution_mode;
 
    /* Initial subgroup size.  This may be overwritten for CL kernels */
    enum gl_subgroup_size subgroup_size;
@@ -145,6 +145,10 @@ nir_shader *spirv_to_nir(const uint32_t *words, size_t word_count,
                          gl_shader_stage stage, const char *entry_point_name,
                          const struct spirv_to_nir_options *options,
                          const nir_shader_compiler_options *nir_options);
+
+bool
+spirv_library_to_nir_builder(FILE *fp, const uint32_t *words, size_t word_count,
+                             const struct spirv_to_nir_options *options);
 
 #ifdef __cplusplus
 }

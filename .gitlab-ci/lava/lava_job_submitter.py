@@ -17,36 +17,32 @@ import time
 from collections import defaultdict
 from dataclasses import dataclass, fields
 from datetime import datetime, timedelta
-from io import StringIO
 from os import environ, getenv, path
 from typing import Any, Optional
 
 import fire
+from lavacli.utils import flow_yaml as lava_yaml
+
 from lava.exceptions import (
     MesaCIException,
     MesaCIParseException,
     MesaCIRetryError,
     MesaCITimeoutError,
 )
-from lava.utils import CONSOLE_LOG
-from lava.utils import DEFAULT_GITLAB_SECTION_TIMEOUTS as GL_SECTION_TIMEOUTS
 from lava.utils import (
+    CONSOLE_LOG,
     GitlabSection,
     LAVAJob,
+    LAVAJobDefinition,
     LogFollower,
     LogSectionType,
     call_proxy,
     fatal_err,
-
-    generate_lava_yaml_payload,
-
-    generate_lava_job_definition,
-
     hide_sensitive_data,
     print_log,
     setup_lava_proxy,
 )
-from lavacli.utils import flow_yaml as lava_yaml
+from lava.utils import DEFAULT_GITLAB_SECTION_TIMEOUTS as GL_SECTION_TIMEOUTS
 
 # Initialize structural logging with a defaultdict, it can be changed for more
 # sophisticated dict-like data abstractions.
@@ -74,11 +70,7 @@ WAIT_FOR_DEVICE_POLLING_TIME_SEC = int(
 # the final details.
 WAIT_FOR_LAVA_POST_PROCESSING_SEC = int(getenv("LAVA_WAIT_LAVA_POST_PROCESSING_SEC", 5))
 WAIT_FOR_LAVA_POST_PROCESSING_RETRIES = int(
-
-    getenv("LAVA_WAIT_LAVA_POST_PROCESSING_RETRIES", 3)
-
     getenv("LAVA_WAIT_LAVA_POST_PROCESSING_RETRIES", 6)
-
 )
 
 # How many seconds to wait between log output LAVA RPC calls.
@@ -88,6 +80,7 @@ LOG_POLLING_TIME_SEC = int(getenv("LAVA_LOG_POLLING_TIME_SEC", 5))
 NUMBER_OF_RETRIES_TIMEOUT_DETECTION = int(
     getenv("LAVA_NUMBER_OF_RETRIES_TIMEOUT_DETECTION", 2)
 )
+
 
 def raise_exception_from_metadata(metadata: dict, job_id: int) -> None:
     """
@@ -146,18 +139,11 @@ def show_final_job_data(job, colour=f"{CONSOLE_LOG['BOLD']}{CONSOLE_LOG['FG_GREE
 
         if not job.is_post_processed():
             waited_for_sec: int = (
-
-                WAIT_FOR_LAVA_POST_PROCESSING_RETRIES * WAIT_FOR_DEVICE_POLLING_TIME_SEC
-            )
-            print_log(
-                f"Waited for {waited_for_sec} seconds"
-
                 WAIT_FOR_LAVA_POST_PROCESSING_RETRIES
                 * WAIT_FOR_LAVA_POST_PROCESSING_SEC
             )
             print_log(
                 f"Waited for {waited_for_sec} seconds "
-
                 "for LAVA to post-process the job, it haven't finished yet. "
                 "Dumping it's info anyway"
             )
@@ -269,11 +255,9 @@ def follow_job_execution(job, log_follower):
     if job.status not in ["pass", "fail"]:
         raise_lava_error(job)
 
-
     # LogFollower does some cleanup after the early exit (trigger by
     # `hwci: pass|fail` regex), let's update the phases after the cleanup.
     structural_log_phases(job, log_follower)
-
 
 
 def structural_log_phases(job, log_follower):
@@ -386,6 +370,7 @@ class LAVAJobSubmitter(PathResolver):
     kernel_image_name: str = None
     kernel_image_type: str = ""
     kernel_url_prefix: str = None
+    kernel_external: str = None
     lava_tags: str = ""  # Comma-separated LAVA tags for the job
     mesa_job_name: str = "mesa_ci_job"
     pipeline_info: str = ""
@@ -395,6 +380,7 @@ class LAVAJobSubmitter(PathResolver):
     job_rootfs_overlay_url: str = None
     structured_log_file: pathlib.Path = None  # Log file path with structured LAVA log
     ssh_client_image: str = None  # x86_64 SSH client image to follow the job's output
+    project_name: str = None  # Project name to be used in the job name
     __structured_log_context = contextlib.nullcontext()  # Structured Logger context
 
     def __post_init__(self) -> None:
@@ -418,13 +404,7 @@ class LAVAJobSubmitter(PathResolver):
             minutes=self.job_timeout_min
         )
 
-
-        job_definition_stream = StringIO()
-        lava_yaml.dump(generate_lava_yaml_payload(self), job_definition_stream)
-        job_definition = job_definition_stream.getvalue()
-
-        job_definition = generate_lava_job_definition(self)
-
+        job_definition = LAVAJobDefinition(self).generate_lava_job_definition()
 
         if self.dump_yaml:
             self.dump_job_definition(job_definition)
@@ -502,6 +482,7 @@ class LAVAJobSubmitter(PathResolver):
         if last_attempt_job.status != "pass":
             raise SystemExit(1)
 
+
 class StructuredLoggerWrapper:
     def __init__(self, submitter: LAVAJobSubmitter) -> None:
         self.__submitter: LAVAJobSubmitter = submitter
@@ -556,3 +537,4 @@ if __name__ == "__main__":
     time.tzset()
 
     fire.Fire(LAVAJobSubmitter)
+

@@ -220,7 +220,7 @@ static const __DRIextension *swrast_loader_extensions[] = {
 };
 
 static bool
-surfaceless_probe_device(_EGLDisplay *disp, bool swrast)
+surfaceless_probe_device(_EGLDisplay *disp, bool swrast, bool zink)
 {
    const unsigned node_type = swrast ? DRM_NODE_PRIMARY : DRM_NODE_RENDER;
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -260,7 +260,7 @@ surfaceless_probe_device(_EGLDisplay *disp, bool swrast)
       }
 
       if (dri2_dpy->driver_name && dri2_load_driver_dri3(disp)) {
-         if (swrast)
+         if (swrast || zink)
             dri2_dpy->loader_extensions = swrast_loader_extensions;
          else
             dri2_dpy->loader_extensions = image_loader_extensions;
@@ -308,22 +308,19 @@ surfaceless_probe_device_sw(_EGLDisplay *disp)
 EGLBoolean
 dri2_initialize_surfaceless(_EGLDisplay *disp)
 {
-   struct dri2_egl_display *dri2_dpy;
    const char *err;
    bool driver_loaded = false;
-
-   dri2_dpy = calloc(1, sizeof *dri2_dpy);
+   struct dri2_egl_display *dri2_dpy = dri2_display_create();
    if (!dri2_dpy)
-      return _eglError(EGL_BAD_ALLOC, "eglInitialize");
+      return EGL_FALSE;
 
-   dri2_dpy->fd_render_gpu = -1;
-   dri2_dpy->fd_display_gpu = -1;
    disp->DriverData = (void *)dri2_dpy;
 
    /* When ForceSoftware is false, we try the HW driver.  When ForceSoftware
     * is true, we try kms_swrast and swrast in order.
     */
-   driver_loaded = surfaceless_probe_device(disp, disp->Options.ForceSoftware);
+   driver_loaded = surfaceless_probe_device(disp, disp->Options.ForceSoftware,
+                                            disp->Options.Zink);
    if (!driver_loaded && disp->Options.ForceSoftware) {
       _eglLog(_EGL_DEBUG, "Falling back to surfaceless swrast without DRM.");
       driver_loaded = surfaceless_probe_device_sw(disp);

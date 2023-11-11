@@ -126,7 +126,7 @@ kopper_init_screen(struct dri_screen *screen)
 
    bool success;
    if (screen->fd != -1)
-      success = pipe_loader_drm_probe_fd(&screen->dev, screen->fd);
+      success = pipe_loader_drm_probe_fd(&screen->dev, screen->fd, false);
    else
       success = pipe_loader_vk_probe_dri(&screen->dev, NULL);
 
@@ -567,8 +567,7 @@ XXX do this once swapinterval is hooked up
    /* pixmaps always have front buffers.
     * Exchange swaps also mandate fake front buffers.
     */
-   if (draw->type != LOADER_DRI3_DRAWABLE_WINDOW ||
-       draw->swap_method == __DRI_ATTRIB_SWAP_EXCHANGE)
+   if (draw->type != LOADER_DRI3_DRAWABLE_WINDOW)
       buffer_mask |= __DRI_IMAGE_BUFFER_FRONT;
 #endif
 

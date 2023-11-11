@@ -9,16 +9,20 @@ use mesa_rust::pipe::context::PipeContext;
 use mesa_rust_util::properties::*;
 use rusticl_opencl_gen::*;
 
-use std::collections::HashSet;
+use std::mem;
 use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::Weak;
 use std::thread;
 use std::thread::JoinHandle;
 
 struct QueueState {
     pending: Vec<Arc<Event>>,
-    last: Option<Arc<Event>>,
+    last: Weak<Event>,
+    // `Sync` on `Sender` was stabilized in 1.72, until then, put it into our Mutex.
+    // see https://github.com/rust-lang/rust/commit/5f56956b3c7edb9801585850d1f41b0aeb1888ff
+    chan_in: mpsc::Sender<Vec<Arc<Event>>>,
 }
 
 pub struct Queue {
@@ -28,8 +32,7 @@ pub struct Queue {
     pub props: cl_command_queue_properties,
     pub props_v2: Option<Properties<cl_queue_properties>>,
     state: Mutex<QueueState>,
-    _thrd: Option<JoinHandle<()>>,
-    chan_in: mpsc::Sender<Vec<Arc<Event>>>,
+    _thrd: JoinHandle<()>,
 }
 
 impl_cl_type_trait!(cl_command_queue, Queue, CL_INVALID_COMMAND_QUEUE);
@@ -60,64 +63,62 @@ impl Queue {
             props_v2: props_v2,
             state: Mutex::new(QueueState {
                 pending: Vec::new(),
-                last: None,
+                last: Weak::new(),
+                chan_in: tx_q,
             }),
-            _thrd: Some(
-                thread::Builder::new()
-                    .name("rusticl queue thread".into())
-                    .spawn(move || loop {
-                        let r = rx_t.recv();
-                        if r.is_err() {
-                            break;
+            _thrd: thread::Builder::new()
+                .name("rusticl queue thread".into())
+                .spawn(move || loop {
+                    let r = rx_t.recv();
+                    if r.is_err() {
+                        break;
+                    }
+
+                    let new_events = r.unwrap();
+                    let mut flushed = Vec::new();
+
+                    for e in new_events {
+                        // If we hit any deps from another queue, flush so we don't risk a dead
+                        // lock.
+                        if e.deps.iter().any(|ev| ev.queue != e.queue) {
+                            flush_events(&mut flushed, &pipe);
                         }
 
-                        let new_events = r.unwrap();
-                        let mut flushed = Vec::new();
+                        // We have to wait on user events or events from other queues.
+                        let err = e
+                            .deps
+                            .iter()
+                            .filter(|ev| ev.is_user() || ev.queue != e.queue)
+                            .map(|e| e.wait())
+                            .find(|s| *s < 0);
 
-                        for e in new_events {
-                            // If we hit any deps from another queue, flush so we don't risk a dead
-                            // lock.
-                            if e.deps.iter().any(|ev| ev.queue != e.queue) {
-                                flush_events(&mut flushed, &pipe);
-                            }
-
-                            // We have to wait on user events or events from other queues.
-                            let err = e
-                                .deps
-                                .iter()
-                                .filter(|ev| ev.is_user() || ev.queue != e.queue)
-                                .map(|e| e.wait())
-                                .find(|s| *s < 0);
-
-                            if let Some(err) = err {
-                                // If a dependency failed, fail this event as well.
-                                e.set_user_status(err);
-                                continue;
-                            }
-
-                            e.call(&pipe);
-
-                            if e.is_user() {
-                                // On each user event we flush our events as application might
-                                // wait on them before signaling user events.
-                                flush_events(&mut flushed, &pipe);
-
-                                // Wait on user events as they are synchronization points in the
-                                // application's control.
-                                e.wait();
-                            } else if Platform::dbg().sync_every_event {
-                                flushed.push(e);
-                                flush_events(&mut flushed, &pipe);
-                            } else {
-                                flushed.push(e);
-                            }
+                        if let Some(err) = err {
+                            // If a dependency failed, fail this event as well.
+                            e.set_user_status(err);
+                            continue;
                         }
 
-                        flush_events(&mut flushed, &pipe);
-                    })
-                    .unwrap(),
-            ),
-            chan_in: tx_q,
+                        e.call(&pipe);
+
+                        if e.is_user() {
+                            // On each user event we flush our events as application might
+                            // wait on them before signaling user events.
+                            flush_events(&mut flushed, &pipe);
+
+                            // Wait on user events as they are synchronization points in the
+                            // application's control.
+                            e.wait();
+                        } else if Platform::dbg().sync_every_event {
+                            flushed.push(e);
+                            flush_events(&mut flushed, &pipe);
+                        } else {
+                            flushed.push(e);
+                        }
+                    }
+
+                    flush_events(&mut flushed, &pipe);
+                })
+                .unwrap(),
         }))
     }
 
@@ -130,31 +131,41 @@ impl Queue {
 
     pub fn flush(&self, wait: bool) -> CLResult<()> {
         let mut state = self.state.lock().unwrap();
+        let events = mem::take(&mut state.pending);
+        let mut queues = Event::deep_unflushed_queues(&events);
 
         // Update last if and only if we get new events, this prevents breaking application code
         // doing things like `clFlush(q); clFinish(q);`
-        if let Some(last) = state.pending.last() {
-            state.last = Some(last.clone());
+        if let Some(last) = events.last() {
+            state.last = Arc::downgrade(last);
+
+            // This should never ever error, but if it does return an error
+            state
+                .chan_in
+                .send(events)
+                .map_err(|_| CL_OUT_OF_HOST_MEMORY)?;
         }
 
-        // This should never ever error, but if it does return an error
-        self.chan_in
-            .send((state.pending).drain(0..).collect())
-            .map_err(|_| CL_OUT_OF_HOST_MEMORY)?;
-        if wait {
-            // Waiting on the last event is good enough here as the queue will process it in order,
-            // also take the value so we can release the event once we are done
-            state.last.take().map(|e| e.wait());
+        let last = wait.then(|| state.last.clone());
+
+        // We have to unlock before actually flushing otherwise we'll run into dead locks when a
+        // queue gets flushed concurrently.
+        drop(state);
+
+        // We need to flush out other queues implicitly and this _has_ to happen after taking the
+        // pending events, otherwise we'll risk dead locks when waiting on events.
+        queues.remove(self);
+        for q in queues {
+            q.flush(false)?;
+        }
+
+        if let Some(last) = last {
+            // Waiting on the last event is good enough here as the queue will process it in order
+            // It's not a problem if the weak ref is invalid as that means the work is already done
+            // and waiting isn't necessary anymore.
+            last.upgrade().map(|e| e.wait());
         }
         Ok(())
-    }
-
-    pub fn dependencies_for_pending_events(&self) -> HashSet<Arc<Queue>> {
-        let state = self.state.lock().unwrap();
-
-        let mut queues = Event::deep_unflushed_queues(&state.pending);
-        queues.remove(self);
-        queues
     }
 
     pub fn is_profiling_enabled(&self) -> bool {

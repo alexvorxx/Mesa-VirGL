@@ -258,7 +258,6 @@ llvmpipe_get_param(struct pipe_screen *screen, enum pipe_cap param)
    case PIPE_CAP_SHADER_ARRAY_COMPONENTS:
    case PIPE_CAP_DOUBLES:
    case PIPE_CAP_INT64:
-   case PIPE_CAP_INT64_DIVMOD:
    case PIPE_CAP_QUERY_SO_OVERFLOW:
    case PIPE_CAP_TGSI_DIV:
       return 1;
@@ -623,6 +622,7 @@ static const struct nir_shader_compiler_options gallivm_nir_options = {
    .lower_mul_2x32_64 = true,
    .lower_ifind_msb = true,
    .lower_int64_options = nir_lower_imul_2x32_64,
+   .lower_doubles_options = nir_lower_dround_even,
    .max_unroll_iterations = 32,
    .use_interpolated_input_intrinsics = true,
    .lower_to_scalar = true,
@@ -832,7 +832,10 @@ llvmpipe_is_format_supported(struct pipe_screen *_screen,
        format != PIPE_FORMAT_ETC1_RGB8)
       return false;
 
-   if (format_desc->layout == UTIL_FORMAT_LAYOUT_SUBSAMPLED && target == PIPE_BUFFER)
+   if ((format_desc->layout == UTIL_FORMAT_LAYOUT_SUBSAMPLED ||
+        format_desc->layout == UTIL_FORMAT_LAYOUT_PLANAR2 ||
+        format_desc->layout == UTIL_FORMAT_LAYOUT_PLANAR3) &&
+       target == PIPE_BUFFER)
       return false;
 
    /*

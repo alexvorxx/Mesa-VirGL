@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
-
 # shellcheck disable=SC1003 # works for us now...
 # shellcheck disable=SC2086 # we want word splitting
-
 
 section_switch meson-configure "meson: configure"
 
@@ -23,15 +21,9 @@ printf > native.file "%s\n" \
 # tweak the cross file or generate a native file to do so.
 if test -n "$LLVM_VERSION"; then
     LLVM_CONFIG="llvm-config-${LLVM_VERSION}"
-
-    echo "llvm-config = '`which $LLVM_CONFIG`'" >> native.file
-    if [ -n "$CROSS" ]; then
-        sed -i -e '/\[binaries\]/a\' -e "llvm-config = '`which $LLVM_CONFIG`'" $CROSS_FILE
-
     echo "llvm-config = '$(which "$LLVM_CONFIG")'" >> native.file
     if [ -n "$CROSS" ]; then
       sed -i -e '/\[binaries\]/a\' -e "llvm-config = '$(which "$LLVM_CONFIG")'" $CROSS_FILE
-
     fi
     $LLVM_CONFIG --version
 fi
@@ -59,9 +51,8 @@ fi
 
 # Only use GNU time if available, not any shell built-in command
 case $CI_JOB_NAME in
-    # strace and wine don't seem to mix well
     # ASAN leak detection is incompatible with strace
-    debian-mingw32-x86_64|*-asan*)
+    *-asan*)
         if test -f /usr/bin/time; then
             MESON_TEST_ARGS+=--wrapper=$PWD/.gitlab-ci/meson/time.sh
         fi
@@ -81,11 +72,7 @@ meson setup _build \
       --wrap-mode=nofallback \
       --force-fallback-for perfetto \
       ${CROSS+--cross "$CROSS_FILE"} \
-
-      -D prefix=`pwd`/install \
-
       -D prefix=$PWD/install \
-
       -D libdir=lib \
       -D buildtype=${BUILDTYPE:?} \
       -D build-tests=true \
@@ -97,6 +84,7 @@ meson setup _build \
       -D libunwind=${UNWIND} \
       ${DRI_LOADERS} \
       ${GALLIUM_ST} \
+      -D gallium-opencl=disabled \
       -D gallium-drivers=${GALLIUM_DRIVERS:-[]} \
       -D vulkan-drivers=${VULKAN_DRIVERS:-[]} \
       -D video-codecs=h264dec,h264enc,h265dec,h265enc,vc1dec \
@@ -115,15 +103,13 @@ fi
 
 
 uncollapsed_section_switch meson-test "meson: test"
-
-LC_ALL=C.UTF-8 meson test --num-processes ${FDO_CI_CONCURRENT:-4} --print-errorlogs ${MESON_TEST_ARGS}
-
 LC_ALL=C.UTF-8 meson test --num-processes "${FDO_CI_CONCURRENT:-4}" --print-errorlogs ${MESON_TEST_ARGS}
-
+section_switch meson-install "meson: install"
 if command -V mold &> /dev/null ; then
     mold --run ninja install
 else
     ninja install
 fi
 cd ..
-section_end meson-test
+section_end meson-install
+

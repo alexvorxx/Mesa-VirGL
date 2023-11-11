@@ -144,6 +144,11 @@ if [ "$PIGLIT_PLATFORM" = "gbm" ]; then
     DEQP_SKIPS="$DEQP_SKIPS $INSTALL/gbm-skips.txt"
 fi
 
+if [ -n "$VK_DRIVER" ] && [ -z "$DEQP_SUITE" ]; then
+    # Bump the number of tests per group to reduce the startup time of VKCTS.
+    DEQP_RUNNER_OPTIONS="$DEQP_RUNNER_OPTIONS --tests-per-group ${DEQP_RUNNER_TESTS_PER_GROUP:-5000}"
+fi
+
 # Set the path to VK validation layer settings (in case it ends up getting loaded)
 export VK_LAYER_SETTINGS_PATH=$INSTALL/$GPU_VERSION-validation-settings.txt
 
@@ -189,6 +194,8 @@ if [ -z "$DEQP_SUITE" ]; then
 fi
 
 uncollapsed_section_switch deqp "deqp: deqp-runner"
+
+cat /deqp/version-log
 
 set +e
 if [ -z "$DEQP_SUITE" ]; then
@@ -259,7 +266,7 @@ if [ -n "$FLAKES_CHANNEL" ]; then
          --job "$CI_JOB_ID" \
          --url "$CI_JOB_URL" \
          --branch "${CI_MERGE_REQUEST_SOURCE_BRANCH_NAME:-$CI_COMMIT_BRANCH}" \
-         --branch-title "${CI_MERGE_REQUEST_TITLE:-$CI_COMMIT_TITLE}"
+         --branch-title "${CI_MERGE_REQUEST_TITLE:-$CI_COMMIT_TITLE}" || true
 fi
 
 # Compress results.csv to save on bandwidth during the upload of artifacts to

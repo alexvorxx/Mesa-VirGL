@@ -131,12 +131,14 @@ modifier_is_supported(const struct intel_device_info *devinfo,
       return false;
    }
 
+   bool no_ccs = INTEL_DEBUG(DEBUG_NO_CCS) || (bind & PIPE_BIND_CONST_BW);
+
    /* Check remaining requirements. */
    switch (modifier) {
    case I915_FORMAT_MOD_4_TILED_MTL_MC_CCS:
    case I915_FORMAT_MOD_4_TILED_DG2_MC_CCS:
    case I915_FORMAT_MOD_Y_TILED_GEN12_MC_CCS:
-      if (INTEL_DEBUG(DEBUG_NO_CCS))
+      if (no_ccs)
          return false;
 
       if (pfmt != PIPE_FORMAT_BGRA8888_UNORM &&
@@ -159,7 +161,7 @@ modifier_is_supported(const struct intel_device_info *devinfo,
    case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC:
    case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
    case I915_FORMAT_MOD_Y_TILED_CCS: {
-      if (INTEL_DEBUG(DEBUG_NO_CCS))
+      if (no_ccs)
          return false;
 
       enum isl_format rt_format =
@@ -644,9 +646,12 @@ map_aux_addresses(struct iris_screen *screen, struct iris_resource *res,
          iris_format_for_usage(screen->devinfo, pfmt, res->surf.usage).fmt;
       const uint64_t format_bits =
          intel_aux_map_format_bits(res->surf.tiling, format, plane);
-      intel_aux_map_add_mapping(aux_map_ctx, res->bo->address + res->offset,
-                                res->aux.bo->address + aux_offset,
-                                res->surf.size_B, format_bits);
+      const bool mapped =
+         intel_aux_map_add_mapping(aux_map_ctx,
+                                   res->bo->address + res->offset,
+                                   res->aux.bo->address + aux_offset,
+                                   res->surf.size_B, format_bits);
+      assert(mapped);
       res->bo->aux_map_address = res->aux.bo->address;
    }
 }
@@ -738,6 +743,8 @@ iris_resource_configure_main(const struct iris_screen *screen,
    isl_surf_usage_flags_t usage = 0;
 
    if (res->mod_info && !isl_drm_modifier_has_aux(modifier))
+      usage |= ISL_SURF_USAGE_DISABLE_AUX_BIT;
+   else if (templ->bind & PIPE_BIND_CONST_BW)
       usage |= ISL_SURF_USAGE_DISABLE_AUX_BIT;
 
    if (templ->usage == PIPE_USAGE_STAGING)
@@ -854,7 +861,10 @@ iris_resource_configure_aux(struct iris_screen *screen,
    if (has_mcs) {
       assert(!res->mod_info);
       assert(!has_hiz);
-      if (has_ccs) {
+      /* We are seeing failures with CCS compression on top of MSAA
+       * compression, so just enable MSAA compression for now on DG2.
+       */
+      if (!intel_device_info_is_dg2(devinfo) && has_ccs) {
          res->aux.usage = ISL_AUX_USAGE_MCS_CCS;
       } else {
          res->aux.usage = ISL_AUX_USAGE_MCS;
@@ -1430,6 +1440,19 @@ mod_plane_is_clear_color(uint64_t modifier, uint32_t plane)
    }
 }
 
+static struct iris_resource *
+get_resource_for_plane(struct pipe_resource *resource,
+                       unsigned plane)
+{
+   unsigned count = 0;
+   for (struct pipe_resource *cur = resource; cur; cur = cur->next) {
+      if (count++ == plane)
+         return (struct iris_resource *)cur;
+   }
+
+   return NULL;
+}
+
 static unsigned
 get_num_planes(const struct pipe_resource *resource)
 {
@@ -1440,14 +1463,33 @@ get_num_planes(const struct pipe_resource *resource)
    return count;
 }
 
+static unsigned
+get_main_plane_for_plane(enum pipe_format format,
+                         const struct isl_drm_modifier_info *mod_info,
+                         unsigned plane)
+{
+   unsigned int n_planes = util_format_get_num_planes(format);
+
+   if (n_planes == 1)
+      return 0;
+
+   if (!mod_info)
+      return plane;
+
+   if (mod_info->supports_media_compression) {
+      return plane % n_planes;
+   } else {
+      assert(!mod_info->supports_render_compression);
+      return plane;
+   }
+}
+
 static struct pipe_resource *
 iris_resource_from_handle(struct pipe_screen *pscreen,
                           const struct pipe_resource *templ,
                           struct winsys_handle *whandle,
                           unsigned usage)
 {
-   assert(templ->target != PIPE_BUFFER);
-
    struct iris_screen *screen = (struct iris_screen *)pscreen;
    struct iris_bufmgr *bufmgr = screen->bufmgr;
    struct iris_resource *res = iris_alloc_resource(pscreen, templ);
@@ -1481,6 +1523,11 @@ iris_resource_from_handle(struct pipe_screen *pscreen,
 
    res->offset = whandle->offset;
    res->external_format = whandle->format;
+
+   if (templ->target == PIPE_BUFFER) {
+      res->surf.tiling = ISL_TILING_LINEAR;
+      return &res->base.b;
+   }
 
    /* Create a surface for each plane specified by the external format. */
    if (whandle->plane < util_format_get_num_planes(whandle->format)) {
@@ -1680,6 +1727,10 @@ iris_reallocate_resource_inplace(struct iris_context *ice,
    }
 
    iris_flush_resource(&ice->ctx, &new_res->base.b);
+   iris_foreach_batch(ice, batch) {
+      if (iris_batch_references(batch, new_res->bo))
+         iris_batch_flush(batch);
+   }
 
    struct iris_bo *old_bo = old_res->bo;
    struct iris_bo *old_aux_bo = old_res->aux.bo;
@@ -1787,10 +1838,15 @@ iris_resource_get_param(struct pipe_screen *pscreen,
                         uint64_t *value)
 {
    struct iris_screen *screen = (struct iris_screen *)pscreen;
-   struct iris_resource *res = (struct iris_resource *)resource;
+   struct iris_resource *base_res = (struct iris_resource *)resource;
+   unsigned main_plane = get_main_plane_for_plane(base_res->external_format,
+                                                  base_res->mod_info, plane);
+   struct iris_resource *res = get_resource_for_plane(resource, main_plane);
+   assert(res);
+
    bool mod_with_aux =
       res->mod_info && isl_drm_modifier_has_aux(res->mod_info->modifier);
-   bool wants_aux = mod_with_aux && plane > 0;
+   bool wants_aux = mod_with_aux && plane != main_plane;
    bool wants_cc = mod_with_aux &&
       mod_plane_is_clear_color(res->mod_info->modifier, plane);
    bool result;
@@ -1831,7 +1887,7 @@ iris_resource_get_param(struct pipe_screen *pscreen,
       return true;
    case PIPE_RESOURCE_PARAM_OFFSET:
       *value = wants_cc ? res->aux.clear_color_offset :
-               wants_aux ? res->aux.offset : 0;
+               wants_aux ? res->aux.offset : res->offset;
       return true;
    case PIPE_RESOURCE_PARAM_MODIFIER:
       *value = res->mod_info ? res->mod_info->modifier :

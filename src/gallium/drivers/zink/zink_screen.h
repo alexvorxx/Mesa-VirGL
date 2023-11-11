@@ -114,6 +114,18 @@ zink_string_vkflags_unroll(char *buf, size_t bufsize, uint64_t flags, zink_vkfla
    return idx;
 }
 
+#define VRAM_ALLOC_LOOP(RET, DOIT, ...) \
+   do { \
+      unsigned _us[] = {0, 1000, 10000, 500000, 1000000}; \
+      for (unsigned _i = 0; _i < ARRAY_SIZE(_us); _i++) { \
+         RET = DOIT; \
+         if (RET == VK_SUCCESS || RET != VK_ERROR_OUT_OF_DEVICE_MEMORY) \
+            break; \
+         os_time_sleep(_us[_i]); \
+      } \
+      __VA_ARGS__ \
+   } while (0)
+
 VkSemaphore
 zink_create_semaphore(struct zink_screen *screen);
 
@@ -162,9 +174,10 @@ zink_screen_debug_marker_end(struct zink_screen *screen, bool emitted);
 #define warn_missing_feature(warned, feat) \
    do { \
       if (!warned) { \
-         mesa_logw("WARNING: Incorrect rendering will happen " \
-                         "because the Vulkan device doesn't support " \
-                         "the '%s' feature\n", feat); \
+         if (!(zink_debug & ZINK_DEBUG_QUIET)) \
+            mesa_logw("WARNING: Incorrect rendering will happen " \
+                           "because the Vulkan device doesn't support " \
+                           "the '%s' feature\n", feat); \
          warned = true; \
       } \
    } while (0)

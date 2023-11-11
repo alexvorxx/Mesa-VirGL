@@ -97,9 +97,10 @@ vlVaBeginPicture(VADriverContextP ctx, VAContextID context_id, VASurfaceID rende
    }
 
    surf = handle_table_get(drv->htab, render_target);
-   mtx_unlock(&drv->mutex);
-   if (!surf || !surf->buffer)
+   if (!surf || !surf->buffer) {
+      mtx_unlock(&drv->mutex);
       return VA_STATUS_ERROR_INVALID_SURFACE;
+   }
 
    context->target_id = render_target;
    vlVaSetSurfaceContext(drv, surf, context);
@@ -116,8 +117,10 @@ vlVaBeginPicture(VADriverContextP ctx, VAContextID context_id, VASurfaceID rende
           context->target->buffer_format != PIPE_FORMAT_R8G8B8X8_UNORM &&
           context->target->buffer_format != PIPE_FORMAT_NV12 &&
           context->target->buffer_format != PIPE_FORMAT_P010 &&
-          context->target->buffer_format != PIPE_FORMAT_P016)
+          context->target->buffer_format != PIPE_FORMAT_P016) {
+         mtx_unlock(&drv->mutex);
          return VA_STATUS_ERROR_UNIMPLEMENTED;
+      }
 
       if (drv->pipe->screen->get_video_param(drv->pipe->screen,
                               PIPE_VIDEO_PROFILE_UNKNOWN,
@@ -126,12 +129,14 @@ vlVaBeginPicture(VADriverContextP ctx, VAContextID context_id, VASurfaceID rende
          context->needs_begin_frame = true;
       }
 
+      mtx_unlock(&drv->mutex);
       return VA_STATUS_SUCCESS;
    }
 
    if (context->decoder->entrypoint != PIPE_VIDEO_ENTRYPOINT_ENCODE)
       context->needs_begin_frame = true;
 
+   mtx_unlock(&drv->mutex);
    return VA_STATUS_SUCCESS;
 }
 
@@ -183,8 +188,8 @@ vlVaHandleVAEncMiscParameterTypeQualityLevel(struct pipe_enc_quality_modes *p, v
          p->pre_encode_mode = PREENCODING_MODE_DEFAULT;
          p->vbaq_mode = VBAQ_AUTO;
       } else {
-         p->preset_mode = in->preset_mode > PRESET_MODE_QUALITY
-            ? PRESET_MODE_QUALITY : in->preset_mode;
+         p->preset_mode = in->preset_mode > PRESET_MODE_HIGH_QUALITY
+            ? PRESET_MODE_HIGH_QUALITY : in->preset_mode;
          p->pre_encode_mode = in->pre_encode_mode;
          p->vbaq_mode = in->vbaq_mode;
       }
@@ -737,6 +742,8 @@ handleVAEncPackedHeaderParameterBufferType(vlVaContext *context, vlVaBuffer *buf
    VAStatus status = VA_STATUS_SUCCESS;
    VAEncPackedHeaderParameterBuffer *param = buf->data;
 
+   context->packed_header_emulation_bytes = param->has_emulation_bytes;
+
    switch (u_reduce_video_profile(context->templat.profile)) {
    case PIPE_VIDEO_FORMAT_MPEG4_AVC:
       if (param->type == VAEncPackedHeaderSequence)
@@ -1141,7 +1148,7 @@ vlVaEndPicture(VADriverContextP ctx, VAContextID context_id)
          context->desc.h264enc.frame_num_cnt++;
 
       /* keep other path the same way */
-      if (!screen->get_video_param(screen, PIPE_VIDEO_PROFILE_UNKNOWN,
+      if (!screen->get_video_param(screen, context->templat.profile,
                                   context->decoder->entrypoint,
                                   PIPE_VIDEO_CAP_ENC_QUALITY_LEVEL)) {
 

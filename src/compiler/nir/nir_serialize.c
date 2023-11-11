@@ -1271,10 +1271,14 @@ read_load_const(read_ctx *ctx, union packed_instr header)
    case load_const_scalar_lo_19bits_sext:
       switch (lc->def.bit_size) {
       case 64:
-         lc->value[0].i64 = ((int64_t)header.load_const.packed_value << 45) >> 45;
+         lc->value[0].u64 = header.load_const.packed_value;
+         if (lc->value[0].u64 >> 18)
+            lc->value[0].u64 |= UINT64_C(0xfffffffffff80000);
          break;
       case 32:
-         lc->value[0].i32 = ((int32_t)header.load_const.packed_value << 13) >> 13;
+         lc->value[0].u32 = header.load_const.packed_value;
+         if (lc->value[0].u32 >> 18)
+            lc->value[0].u32 |= 0xfff80000;
          break;
       case 16:
          lc->value[0].u16 = header.load_const.packed_value;
@@ -1518,7 +1522,7 @@ read_phi(read_ctx *ctx, nir_block *blk, union packed_instr header)
        * we have to set the parent_instr manually.  It doesn't really matter
        * when we do it, so we might as well do it here.
        */
-      src->src.parent_instr = &phi->instr;
+      nir_src_set_parent_instr(&src->src, &phi->instr);
 
       /* Stash it in the list of phi sources.  We'll walk this list and fix up
        * sources at the very end of read_function_impl.

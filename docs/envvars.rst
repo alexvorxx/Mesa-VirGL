@@ -404,6 +404,12 @@ Core Mesa environment variables
 
       ``lspci -nn | grep VGA`` can be used to know the PCIe bus or ids to use.
 
+.. envvar:: DRIRC_CONFIGDIR
+
+   If set, overrides the global search-directories used when searching for
+   drirc config files. The user-local one will still be used. Mostly useful for
+   internal debugging.
+
 NIR passes environment variables
 --------------------------------
 
@@ -1253,6 +1259,8 @@ RADV driver environment variables
       disable directly recording command buffers in GPU-visible memory
    ``nomemorycache``
       disable memory shaders cache
+   ``nomeshshader``
+      disable mesh shader support on GFX10.3+
    ``nongg``
       disable NGG for GFX10 and GFX10.3
    ``nonggc``
@@ -1285,8 +1293,6 @@ RADV driver environment variables
       display info at startup
    ``syncshaders``
       synchronize shaders after all draws/dispatches
-   ``vmfaults``
-      check for VM memory faults via dmesg
    ``zerovram``
       initialize all memory allocated in VRAM as zero
 
@@ -1328,8 +1334,6 @@ RADV driver environment variables
       disable optimizations that get enabled when all VRAM is CPU visible.
    ``pswave32``
       enable wave32 for pixel shaders (GFX10+)
-   ``ngg_streamout``
-      enable NGG streamout
    ``nggc``
       enable NGG culling on GPUs where it's not enabled by default (GFX10.1 only).
    ``sam``
@@ -1338,6 +1342,8 @@ RADV driver environment variables
       enable wave64 for ray tracing shaders (GFX10+)
    ``video_decode``
       enable experimental video decoding support
+   ``gsfastlaunch2``
+      use GS_FAST_LAUNCH=2 for Mesh shaders (GFX11+)
 
 .. envvar:: RADV_TEX_ANISO
 
@@ -1417,9 +1423,7 @@ RadeonSI driver environment variables
    ``nodccmsaa``
       Disable DCC for MSAA
    ``nodpbb``
-      Disable DPBB.
-   ``nodfsm``
-      Disable DFSM.
+      Disable DPBB. Overrules the dpbb enable option.
    ``notiling``
       Disable tiling
    ``nofmask``
@@ -1480,8 +1484,6 @@ RadeonSI driver environment variables
       Check VM faults and dump debug info.
    ``reserve_vmid``
       Force VMID reservation per context.
-   ``nogfx``
-      Disable graphics. Only multimedia compute paths can be used.
    ``nongg``
       Disable NGG and use the legacy pipeline.
    ``nggc``
@@ -1493,9 +1495,7 @@ RadeonSI driver environment variables
    ``nooutoforder``
       Disable out-of-order rasterization
    ``dpbb``
-      Enable DPBB.
-   ``dfsm``
-      Enable DFSM.
+      Enable DPBB. Enable DPBB for gfx9 dGPU. Default enabled for gfx9 APU and >= gfx10.
    ``extra_md``
       add extra information in bo metadatas to help tools (umr)
 

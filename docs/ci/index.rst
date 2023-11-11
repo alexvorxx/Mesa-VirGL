@@ -59,7 +59,8 @@ Farm management
 ---------------
 
 .. note::
-   Never mix farm maintenance with any other change in the same merge request!
+   Never mix disabling/re-enabling a farm with any change that can affect a job
+   that runs in another farm!
 
 When the farm starts failing for any reason (power, network, out-of-space), it needs to be disabled by pushing separate MR with
 
@@ -106,7 +107,7 @@ non-redistributable traces can request permission to Daniel Stone <daniels@colla
 
 gitlab.freedesktop.org accounts that are to be granted access to these traces will be
 added to the OPA policy for the MinIO repository as per
-https://gitlab.freedesktop.org/freedesktop/helm-gitlab-config/-/commit/a3cd632743019f68ac8a829267deb262d9670958 .
+https://gitlab.freedesktop.org/freedesktop/helm-gitlab-infra/-/commit/a3cd632743019f68ac8a829267deb262d9670958 .
 
 So the jobs are created in personal repositories, the name of the user's account needs
 to be added to the rules attribute of the GitLab CI job that accesses the restricted
@@ -147,10 +148,10 @@ If you're having issues with the Intel CI, your best bet is to ask about
 it on ``#dri-devel`` on OFTC and tag `Nico Cortes
 <https://gitlab.freedesktop.org/ngcortes>`__ (``ngcortes`` on IRC).
 
-.. _CI-farm-expectations:
+.. _CI-job-user-expectations:
 
-CI farm expectations
---------------------
+CI job user expectations:
+-------------------------
 
 To make sure that testing of one vendor's drivers doesn't block
 unrelated work by other vendors, we require that a given driver's test
@@ -159,11 +160,23 @@ driver had CI and failed once a week, we would be seeing someone's
 code getting blocked on a spurious failure daily, which is an
 unacceptable cost to the project.
 
+To ensure that, driver maintainers with CI enabled should watch the Flakes panel
+of the `CI flakes dashboard
+<https://ci-stats-grafana.freedesktop.org/d/Ae_TLIwVk/mesa-ci-quality-false-positives?orgId=1>`__,
+particularly the "Flake jobs" pane, to inspect jobs in their driver where the
+automatic retry of a failing job produced a success a second time.
+Additionally, most CI reports test-level flakes to an IRC channel, and flakes
+reported as NEW are not expected and could cause spurious failures in jobs.
+Please track the NEW reports in jobs and add them as appropriate to the
+``-flakes.txt`` file for your driver.
+
 Additionally, the test farm needs to be able to provide a short enough
-turnaround time that we can get our MRs through marge-bot without the
-pipeline backing up.  As a result, we require that the test farm be
-able to handle a whole pipeline's worth of jobs in less than 15 minutes
-(to compare, the build stage is about 10 minutes).
+turnaround time that we can get our MRs through marge-bot without the pipeline
+backing up.  As a result, we require that the test farm be able to handle a
+whole pipeline's worth of jobs in less than 15 minutes (to compare, the build
+stage is about 10 minutes).  Given boot times and intermittent network delays,
+this generally means that the test runtime as reported by deqp-runner should be
+kept to 10 minutes.
 
 If a test farm is short the HW to provide these guarantees, consider dropping
 tests to reduce runtime.  dEQP job logs print the slowest tests at the end of
@@ -178,15 +191,19 @@ artifacts.  Or, you can add the following to your job to only run some fraction
 
 to just run 1/10th of the test list.
 
+For Collabora's LAVA farm, the `device types
+<https://lava.collabora.dev/scheduler/device_types>`__ page can tell you how
+many boards of a specific tag are currently available by adding the "Idle" and
+"Busy" columns.  For bare-metal, a gitlab admin can look at the `runners
+<https://gitlab.freedesktop.org/admin/runners>`__ page.  A pipeline should
+probably not create more jobs for a board type than there are boards, unless you
+clearly have some short-runtime jobs.
+
 If a HW CI farm goes offline (network dies and all CI pipelines end up
 stalled) or its runners are consistently spuriously failing (disk
 full?), and the maintainer is not immediately available to fix the
-issue, please push through an MR disabling that farm's jobs by adding
-'.' to the front of the jobs names until the maintainer can bring
-things back up.  If this happens, the farm maintainer should provide a
-report to mesa-dev@lists.freedesktop.org after the fact explaining
-what happened and what the mitigation plan is for that failure next
-time.
+issue, please push through an MR disabling that farm's jobs according
+to the `Farm Management <#farm-management>`__ instructions.
 
 Personal runners
 ----------------
@@ -198,8 +215,8 @@ faster personal machine as a runner.  You can find the gitlab-runner
 package in Debian, or use GitLab's own builds.
 
 To do so, follow `GitLab's instructions
-<https://docs.gitlab.com/ee/ci/runners/runners_scope.html#create-a-specific-runner>`__ to
-register your personal GitLab runner in your Mesa fork.  Then, tell
+<https://docs.gitlab.com/ee/ci/runners/runners_scope.html#create-a-project-runner-with-a-runner-authentication-token>`__
+to register your personal GitLab runner in your Mesa fork.  Then, tell
 Mesa how many jobs it should serve (``concurrent=``) and how many
 cores those jobs should use (``FDO_CI_CONCURRENT=``) by editing these
 lines in ``/etc/gitlab-runner/config.toml``, for example:

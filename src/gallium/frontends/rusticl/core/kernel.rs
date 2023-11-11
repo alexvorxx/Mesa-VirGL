@@ -267,15 +267,15 @@ pub struct CSOWrapper {
 }
 
 impl CSOWrapper {
-    pub fn new(dev: &'static Device, nir: &NirShader) -> Arc<Self> {
+    pub fn new(dev: &'static Device, nir: &NirShader) -> Self {
         let cso_ptr = dev
             .helper_ctx()
             .create_compute_state(nir, nir.shared_size());
 
-        Arc::new(Self {
+        Self {
             cso_ptr: cso_ptr,
             dev: dev,
-        })
+        }
     }
 
     pub fn get_cso_info(&self) -> pipe_compute_state_object_info {
@@ -290,8 +290,8 @@ impl Drop for CSOWrapper {
 }
 
 pub enum KernelDevStateVariant {
-    Cso(Arc<CSOWrapper>),
-    Nir(Arc<NirShader>),
+    Cso(CSOWrapper),
+    Nir(NirShader),
 }
 
 pub struct Kernel {
@@ -788,7 +788,7 @@ impl Kernel {
         let builds = prog_build
             .builds
             .iter()
-            .map(|(k, v)| (*k, v.kernels.get(&name).unwrap().clone()))
+            .filter_map(|(&dev, b)| b.kernels.get(&name).map(|k| (dev, k.clone())))
             .collect();
 
         // can't use vec!...
@@ -919,10 +919,20 @@ impl Kernel {
                     } else {
                         let format = mem.pipe_format;
                         let (formats, orders) = if arg.kind == KernelArgType::Image {
-                            iviews.push(res.pipe_image_view(format, false, app_img_info.as_ref()));
+                            iviews.push(res.pipe_image_view(
+                                format,
+                                false,
+                                mem.pipe_image_host_access(),
+                                app_img_info.as_ref(),
+                            ));
                             (&mut img_formats, &mut img_orders)
                         } else if arg.kind == KernelArgType::RWImage {
-                            iviews.push(res.pipe_image_view(format, true, app_img_info.as_ref()));
+                            iviews.push(res.pipe_image_view(
+                                format,
+                                true,
+                                mem.pipe_image_host_access(),
+                                app_img_info.as_ref(),
+                            ));
                             (&mut img_formats, &mut img_orders)
                         } else {
                             sviews.push((res.clone(), format, app_img_info));
@@ -1054,9 +1064,13 @@ impl Kernel {
                 );
             }
 
+            let temp_cso;
             let cso = match &nir_kernel_build.nir_or_cso {
-                KernelDevStateVariant::Cso(cso) => cso.clone(),
-                KernelDevStateVariant::Nir(nir) => CSOWrapper::new(q.device, nir),
+                KernelDevStateVariant::Cso(cso) => cso,
+                KernelDevStateVariant::Nir(nir) => {
+                    temp_cso = CSOWrapper::new(q.device, nir);
+                    &temp_cso
+                }
             };
 
             ctx.bind_compute_state(cso.cso_ptr);
@@ -1089,6 +1103,7 @@ impl Kernel {
                         RWFlags::RD,
                         ResourceMapType::Normal,
                     )
+                    .ok_or(CL_OUT_OF_RESOURCES)?
                     .with_ctx(ctx);
                 let mut buf: &[u8] =
                     unsafe { slice::from_raw_parts(tx.ptr().cast(), printf_size as usize) };

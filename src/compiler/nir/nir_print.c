@@ -776,6 +776,9 @@ get_location_str(unsigned location, gl_shader_stage stage,
       break;
    }
 
+   if (mode == nir_var_system_value)
+      return gl_system_value_name(location);
+
    if (location == ~0) {
       return "~0";
    } else {
@@ -802,6 +805,7 @@ print_access(enum gl_access_qualifier access, print_state *state, const char *se
       { ACCESS_NON_WRITEABLE, "readonly" },
       { ACCESS_NON_READABLE, "writeonly" },
       { ACCESS_CAN_REORDER, "reorderable" },
+      { ACCESS_CAN_SPECULATE, "speculatable" },
       { ACCESS_NON_TEMPORAL, "non-temporal" },
       { ACCESS_INCLUDE_HELPERS, "include-helpers" },
    };
@@ -858,6 +862,7 @@ print_var_decl(nir_variable *var, print_state *state)
    if (var->data.mode & (nir_var_shader_in |
                          nir_var_shader_out |
                          nir_var_uniform |
+                         nir_var_system_value |
                          nir_var_mem_ubo |
                          nir_var_mem_ssbo |
                          nir_var_image)) {
@@ -871,7 +876,7 @@ print_var_decl(nir_variable *var, print_state *state)
        */
       unsigned int num_components =
          glsl_get_components(glsl_without_array(var->type));
-      const char *components = NULL;
+      const char *components = "";
       char components_local[18] = { '.' /* the rest is 0-filled */ };
       switch (var->data.mode) {
       case nir_var_shader_in:
@@ -888,10 +893,14 @@ print_var_decl(nir_variable *var, print_state *state)
          break;
       }
 
-      fprintf(fp, " (%s%s, %u, %u)%s", loc,
-              components ? components : "",
-              var->data.driver_location, var->data.binding,
-              var->data.compact ? " compact" : "");
+      if (var->data.mode & nir_var_system_value) {
+         fprintf(fp, " (%s%s)", loc, components);
+      } else {
+         fprintf(fp, " (%s%s, %u, %u)%s", loc,
+               components,
+               var->data.driver_location, var->data.binding,
+               var->data.compact ? " compact" : "");
+      }
    }
 
    if (var->constant_initializer) {
@@ -1378,6 +1387,9 @@ print_intrinsic_instr(nir_intrinsic_instr *instr, print_state *state)
          if (io.high_16bits)
             fprintf(fp, " high_16bits");
 
+         if (io.high_dvec2)
+            fprintf(fp, " high_dvec2");
+
          if (io.no_varying)
             fprintf(fp, " no_varying");
 
@@ -1696,6 +1708,12 @@ print_tex_instr(nir_tex_instr *instr, print_state *state)
       break;
    case nir_texop_lod_bias_agx:
       fprintf(fp, "lod_bias_agx ");
+      break;
+   case nir_texop_hdr_dim_nv:
+      fprintf(fp, "hdr_dim_nv ");
+      break;
+   case nir_texop_tex_type_nv:
+      fprintf(fp, "tex_type_nv ");
       break;
    default:
       unreachable("Invalid texture operation");
@@ -2206,9 +2224,13 @@ print_function(nir_function *function, print_state *state)
 {
    FILE *fp = state->fp;
 
-   fprintf(fp, "decl_function %s (%d params) %s", function->name,
-           function->num_params, function->dont_inline ? "(noinline)" :
-           function->should_inline ? "(inline)" : "");
+   /* clang-format off */
+   fprintf(fp, "decl_function %s (%d params)%s%s", function->name,
+           function->num_params,
+           function->dont_inline ? " (noinline)" :
+           function->should_inline ? " (inline)" : "",
+           function->is_exported ? " (exported)" : "");
+   /* clang-format on */
 
    fprintf(fp, "\n");
 
@@ -2257,6 +2279,8 @@ primitive_name(unsigned primitive)
       PRIM(QUADS);
       PRIM(QUAD_STRIP);
       PRIM(POLYGON);
+      PRIM(LINES_ADJACENCY);
+      PRIM(TRIANGLES_ADJACENCY);
    default:
       return "UNKNOWN";
    }
@@ -2394,6 +2418,7 @@ print_shader_info(const struct shader_info *info, FILE *fp)
    print_nz_unsigned(fp, "num_images", info->num_images);
 
    print_nz_x64(fp, "inputs_read", info->inputs_read);
+   print_nz_x64(fp, "dual_slot_inputs", info->dual_slot_inputs);
    print_nz_x64(fp, "outputs_written", info->outputs_written);
    print_nz_x64(fp, "outputs_read", info->outputs_read);
 
@@ -2425,7 +2450,7 @@ print_shader_info(const struct shader_info *info, FILE *fp)
    print_nz_bitset(fp, "image_buffers", info->image_buffers, ARRAY_SIZE(info->image_buffers));
    print_nz_bitset(fp, "msaa_images", info->msaa_images, ARRAY_SIZE(info->msaa_images));
 
-   print_nz_x16(fp, "float_controls_execution_mode", info->float_controls_execution_mode);
+   print_nz_x32(fp, "float_controls_execution_mode", info->float_controls_execution_mode);
 
    print_nz_unsigned(fp, "shared_size", info->shared_size);
 
@@ -2546,6 +2571,7 @@ print_shader_info(const struct shader_info *info, FILE *fp)
       break;
 
    case MESA_SHADER_COMPUTE:
+   case MESA_SHADER_KERNEL:
       if (info->cs.workgroup_size_hint[0] || info->cs.workgroup_size_hint[1] || info->cs.workgroup_size_hint[2])
          fprintf(fp, "workgroup_size_hint: {%u, %u, %u}\n",
                  info->cs.workgroup_size_hint[0],

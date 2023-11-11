@@ -819,7 +819,8 @@ zink_draw(struct pipe_context *pctx,
    if ((BATCH_CHANGED || ctx->blend_state_changed)) {
       if (ctx->gfx_pipeline_state.blend_state) {
          if (ctx->ds3_states & BITFIELD_BIT(ZINK_DS3_BLEND_A2C))
-            VKCTX(CmdSetAlphaToCoverageEnableEXT)(batch->state->cmdbuf, ctx->gfx_pipeline_state.blend_state->alpha_to_coverage);
+            VKCTX(CmdSetAlphaToCoverageEnableEXT)(batch->state->cmdbuf, ctx->gfx_pipeline_state.blend_state->alpha_to_coverage &&
+                                                                        ctx->gfx_stages[MESA_SHADER_FRAGMENT]->info.outputs_written & BITFIELD_BIT(FRAG_RESULT_DATA0));
          if (ctx->ds3_states & BITFIELD_BIT(ZINK_DS3_BLEND_A21))
             VKCTX(CmdSetAlphaToOneEnableEXT)(batch->state->cmdbuf, ctx->gfx_pipeline_state.blend_state->alpha_to_one);
          if (ctx->fb_state.nr_cbufs) {
@@ -1261,7 +1262,7 @@ zink_launch_grid(struct pipe_context *pctx, const struct pipe_grid_info *info)
                                 0, 1, &mb, 0, NULL, 0, NULL);
    }
 
-   zink_program_update_compute_pipeline_state(ctx, ctx->curr_compute, info->block);
+   zink_program_update_compute_pipeline_state(ctx, ctx->curr_compute, info);
    VkPipeline prev_pipeline = ctx->compute_pipeline_state.pipeline;
 
    if (BATCH_CHANGED) {

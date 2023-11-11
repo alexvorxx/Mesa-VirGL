@@ -320,7 +320,7 @@ bucket_for_size(struct iris_bufmgr *bufmgr, uint64_t size,
 
    const struct intel_device_info *devinfo = &bufmgr->devinfo;
    if (devinfo->has_set_pat_uapi &&
-       iris_pat_index_for_bo_flags(devinfo, flags) != devinfo->pat.writeback)
+       iris_bufmgr_get_pat_entry_for_bo_flags(bufmgr, flags) != &devinfo->pat.writeback)
       return NULL;
 
    if (devinfo->kmd_type == INTEL_KMD_TYPE_XE &&
@@ -1248,7 +1248,9 @@ iris_bo_alloc(struct iris_bufmgr *bufmgr,
    return bo;
 
 err_vm_alloc:
+   simple_mtx_lock(&bufmgr->lock);
    vma_free(bufmgr, bo->address, bo->size);
+   simple_mtx_unlock(&bufmgr->lock);
 err_free:
    simple_mtx_lock(&bufmgr->lock);
    bo_free(bo);
@@ -1324,7 +1326,9 @@ iris_bo_create_userptr(struct iris_bufmgr *bufmgr, const char *name,
    return bo;
 
 err_vma_free:
+   simple_mtx_lock(&bufmgr->lock);
    vma_free(bufmgr, bo->address, bo->size);
+   simple_mtx_unlock(&bufmgr->lock);
 err_close:
    bufmgr->kmd_backend->gem_close(bufmgr, bo);
 err_free:
@@ -2611,4 +2615,22 @@ bool
 iris_bufmgr_use_global_vm_id(struct iris_bufmgr *bufmgr)
 {
    return bufmgr->use_global_vm;
+}
+
+/**
+ * Return the pat entry based on the bo heap and allocation flags.
+ */
+const struct intel_device_info_pat_entry *
+iris_bufmgr_get_pat_entry_for_bo_flags(const struct iris_bufmgr *bufmgr,
+                                       unsigned alloc_flags)
+{
+   const struct intel_device_info *devinfo = &bufmgr->devinfo;
+
+   if (alloc_flags & BO_ALLOC_COHERENT)
+      return &devinfo->pat.coherent;
+
+   if (alloc_flags & (BO_ALLOC_SHARED | BO_ALLOC_SCANOUT))
+      return &devinfo->pat.scanout;
+
+   return &devinfo->pat.writeback;
 }

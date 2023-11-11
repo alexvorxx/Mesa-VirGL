@@ -183,6 +183,7 @@ libanv_files = files(
   'anv_private.h',
   'anv_queue.c',
   'anv_sparse.c',
+  'anv_astc_emu.c',
   'anv_util.c',
   'anv_utrace.c',
   'anv_va.c',
@@ -300,10 +301,12 @@ if with_tests
 
     'tests/state_pool.c',
     'tests/state_pool_free_list_only.c',
+    'tests/state_pool_max_size.c',
     'tests/state_pool_no_free.c',
     'tests/state_pool_padding.c',
     'tests/block_pool_no_free.c',
     'tests/block_pool_grow_first.c',
+    'tests/block_pool_max_size.c',
   )
 
   test(

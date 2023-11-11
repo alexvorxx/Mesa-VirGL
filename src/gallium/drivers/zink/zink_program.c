@@ -1295,14 +1295,18 @@ hash_compute_pipeline_state(const void *key)
 }
 
 void
-zink_program_update_compute_pipeline_state(struct zink_context *ctx, struct zink_compute_program *comp, const uint block[3])
+zink_program_update_compute_pipeline_state(struct zink_context *ctx, struct zink_compute_program *comp, const struct pipe_grid_info *info)
 {
    if (comp->use_local_size) {
       for (int i = 0; i < ARRAY_SIZE(ctx->compute_pipeline_state.local_size); i++) {
-         if (ctx->compute_pipeline_state.local_size[i] != block[i])
+         if (ctx->compute_pipeline_state.local_size[i] != info->block[i])
             ctx->compute_pipeline_state.dirty = true;
-         ctx->compute_pipeline_state.local_size[i] = block[i];
+         ctx->compute_pipeline_state.local_size[i] = info->block[i];
       }
+   }
+   if (ctx->compute_pipeline_state.variable_shared_mem != info->variable_shared_mem) {
+      ctx->compute_pipeline_state.dirty = true;
+      ctx->compute_pipeline_state.variable_shared_mem = info->variable_shared_mem;
    }
 }
 
@@ -1363,6 +1367,7 @@ create_compute_program(struct zink_context *ctx, nir_shader *nir)
    struct zink_compute_program *comp = create_program(ctx, true);
    if (!comp)
       return NULL;
+   simple_mtx_init(&comp->cache_lock, mtx_plain);
    comp->scratch_size = nir->scratch_size;
    comp->nir = nir;
    comp->num_inlinable_uniforms = nir->info.num_inlinable_uniforms;
@@ -1370,6 +1375,7 @@ create_compute_program(struct zink_context *ctx, nir_shader *nir)
    comp->use_local_size = !(nir->info.workgroup_size[0] ||
                             nir->info.workgroup_size[1] ||
                             nir->info.workgroup_size[2]);
+   comp->has_variable_shared_mem = nir->info.cs.has_variable_shared_mem;
    comp->base.can_precompile = !comp->use_local_size &&
                                (screen->info.have_EXT_non_seamless_cube_map || !zink_shader_has_cubes(nir)) &&
                                (screen->info.rb2_feats.robustImageAccess2 || !(ctx->flags & PIPE_CONTEXT_ROBUST_BUFFER_ACCESS));
@@ -1590,6 +1596,7 @@ zink_get_compute_pipeline(struct zink_screen *screen,
                       struct zink_compute_pipeline_state *state)
 {
    struct hash_entry *entry = NULL;
+   struct compute_pipeline_cache_entry *cache_entry;
 
    if (!state->dirty && !state->module_changed)
       return state->pipeline;
@@ -1612,30 +1619,42 @@ zink_get_compute_pipeline(struct zink_screen *screen,
    entry = _mesa_hash_table_search_pre_hashed(&comp->pipelines, state->final_hash, state);
 
    if (!entry) {
+      simple_mtx_lock(&comp->cache_lock);
+      entry = _mesa_hash_table_search_pre_hashed(&comp->pipelines, state->final_hash, state);
+      if (entry) {
+         simple_mtx_unlock(&comp->cache_lock);
+         goto out;
+      }
       VkPipeline pipeline = zink_create_compute_pipeline(screen, comp, state);
 
-      if (pipeline == VK_NULL_HANDLE)
+      if (pipeline == VK_NULL_HANDLE) {
+         simple_mtx_unlock(&comp->cache_lock);
          return VK_NULL_HANDLE;
+      }
 
       zink_screen_update_pipeline_cache(screen, &comp->base, false);
       if (compute_can_shortcut(comp)) {
+         simple_mtx_unlock(&comp->cache_lock);
          /* don't add base pipeline to cache */
          state->pipeline = comp->base_pipeline = pipeline;
          return state->pipeline;
       }
 
       struct compute_pipeline_cache_entry *pc_entry = CALLOC_STRUCT(compute_pipeline_cache_entry);
-      if (!pc_entry)
+      if (!pc_entry) {
+         simple_mtx_unlock(&comp->cache_lock);
          return VK_NULL_HANDLE;
+      }
 
       memcpy(&pc_entry->state, state, sizeof(*state));
       pc_entry->pipeline = pipeline;
 
       entry = _mesa_hash_table_insert_pre_hashed(&comp->pipelines, state->final_hash, pc_entry, pc_entry);
       assert(entry);
+      simple_mtx_unlock(&comp->cache_lock);
    }
-
-   struct compute_pipeline_cache_entry *cache_entry = entry->data;
+out:
+   cache_entry = entry->data;
    state->pipeline = cache_entry->pipeline;
    return state->pipeline;
 }
@@ -1845,11 +1864,17 @@ zink_bind_fs_state(struct pipe_context *pctx,
       zink_set_null_fs(ctx);
       return;
    }
+   bool writes_cbuf0 = ctx->gfx_stages[MESA_SHADER_FRAGMENT] ? (ctx->gfx_stages[MESA_SHADER_FRAGMENT]->info.outputs_written & BITFIELD_BIT(FRAG_RESULT_DATA0)) > 0 : true;
    unsigned shadow_mask = ctx->gfx_stages[MESA_SHADER_FRAGMENT] ? ctx->gfx_stages[MESA_SHADER_FRAGMENT]->fs.legacy_shadow_mask : 0;
    bind_gfx_stage(ctx, MESA_SHADER_FRAGMENT, cso);
    ctx->fbfetch_outputs = 0;
    if (cso) {
       shader_info *info = &ctx->gfx_stages[MESA_SHADER_FRAGMENT]->info;
+      bool new_writes_cbuf0 = (info->outputs_written & BITFIELD_BIT(FRAG_RESULT_DATA0)) > 0;
+      if (ctx->gfx_pipeline_state.blend_state && ctx->gfx_pipeline_state.blend_state->alpha_to_coverage && writes_cbuf0 != new_writes_cbuf0) {
+         ctx->blend_state_changed = true;
+         ctx->ds3_states |= BITFIELD_BIT(ZINK_DS3_BLEND_A2C);
+      }
       if (info->fs.uses_fbfetch_output) {
          if (info->outputs_read & (BITFIELD_BIT(FRAG_RESULT_DEPTH) | BITFIELD_BIT(FRAG_RESULT_STENCIL)))
             ctx->fbfetch_outputs |= BITFIELD_BIT(PIPE_MAX_COLOR_BUFS);
@@ -1952,6 +1977,25 @@ zink_bind_cs_state(struct pipe_context *pctx,
          ctx->compute_dirty = true;
    }
    zink_select_launch_grid(ctx);
+}
+
+static void
+zink_get_compute_state_info(struct pipe_context *pctx, void *cso, struct pipe_compute_state_object_info *info)
+{
+   struct zink_compute_program *comp = cso;
+   struct zink_screen *screen = zink_screen(pctx->screen);
+
+   info->max_threads = screen->info.props.limits.maxComputeWorkGroupInvocations;
+   info->private_memory = comp->scratch_size;
+   if (screen->info.props11.subgroupSize) {
+      info->preferred_simd_size = screen->info.props11.subgroupSize;
+      info->simd_sizes = info->preferred_simd_size;
+   } else {
+      // just guess it
+      info->preferred_simd_size = 64;
+      // only used for actual subgroup support
+      info->simd_sizes = 0;
+   }
 }
 
 static void
@@ -2242,6 +2286,7 @@ zink_program_init(struct zink_context *ctx)
 
    ctx->base.create_compute_state = zink_create_cs_state;
    ctx->base.bind_compute_state = zink_bind_cs_state;
+   ctx->base.get_compute_state_info = zink_get_compute_state_info;
    ctx->base.delete_compute_state = zink_delete_cs_shader_state;
 
    if (zink_screen(ctx->base.screen)->info.have_EXT_vertex_input_dynamic_state)

@@ -2098,9 +2098,9 @@ dri2_interop_export_object(__DRIcontext *_ctx,
 static int
 dri2_interop_flush_objects(__DRIcontext *_ctx,
                            unsigned count, struct mesa_glinterop_export_in *objects,
-                           GLsync *sync)
+                           GLsync *sync, int *fence_fd)
 {
-   return st_interop_flush_objects(dri_context(_ctx)->st, count, objects, sync);
+   return st_interop_flush_objects(dri_context(_ctx)->st, count, objects, sync, fence_fd);
 }
 
 static const __DRI2interopExtension dri2InteropExtension = {
@@ -2381,7 +2381,7 @@ dri2_init_screen(struct dri_screen *screen)
 
    (void) mtx_init(&screen->opencl_func_mutex, mtx_plain);
 
-   if (pipe_loader_drm_probe_fd(&screen->dev, screen->fd))
+   if (pipe_loader_drm_probe_fd(&screen->dev, screen->fd, false))
       pscreen = pipe_loader_create_screen(screen->dev);
 
    if (!pscreen)
@@ -2477,12 +2477,19 @@ fail:
    return NULL;
 }
 
+static int
+dri_query_compatible_render_only_device_fd(int kms_only_fd)
+{
+   return pipe_loader_get_compatible_render_capable_device_fd(kms_only_fd);
+}
+
 static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
    .base = { __DRI_MESA, 1 },
    .version_string = MESA_INTERFACE_VERSION_STRING,
    .createNewScreen = driCreateNewScreen2,
    .createContext = driCreateContextAttribs,
    .initScreen = dri2_init_screen,
+   .queryCompatibleRenderOnlyDeviceFd = dri_query_compatible_render_only_device_fd,
 };
 
 /* This is the table of extensions that the loader will dlsym() for. */

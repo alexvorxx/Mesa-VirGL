@@ -830,6 +830,7 @@ Lower64BitToVec2::filter(const nir_instr *instr) const
       case nir_intrinsic_load_uniform:
       case nir_intrinsic_load_ubo:
       case nir_intrinsic_load_global:
+      case nir_intrinsic_load_global_constant:
       case nir_intrinsic_load_ubo_vec4:
       case nir_intrinsic_load_ssbo:
          return intr->def.bit_size == 64;
@@ -883,6 +884,7 @@ Lower64BitToVec2::lower(nir_instr *instr)
          return load_ssbo_64_to_vec2(intr);
       case nir_intrinsic_load_input:
       case nir_intrinsic_load_global:
+      case nir_intrinsic_load_global_constant:
       case nir_intrinsic_load_ubo:
       case nir_intrinsic_load_ubo_vec4:
          return load_64_to_vec2(intr);
@@ -1024,7 +1026,8 @@ Lower64BitToVec2::load_64_to_vec2(nir_intrinsic_instr *intr)
    intr->num_components *= 2;
    intr->def.bit_size = 32;
    intr->def.num_components *= 2;
-   nir_intrinsic_set_component(intr, nir_intrinsic_component(intr) * 2);
+   if (nir_intrinsic_has_component(intr))
+      nir_intrinsic_set_component(intr, nir_intrinsic_component(intr) * 2);
    return NIR_LOWER_INSTR_PROGRESS;
 }
 

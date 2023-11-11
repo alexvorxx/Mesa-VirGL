@@ -8,102 +8,66 @@ set -o xtrace
 
 export DEBIAN_FRONTEND=noninteractive
 
-
 apt-get install -y libelogind0  # this interfere with systemd deps, install separately
 
-
 # Ephemeral packages (installed for this script and removed again at the end)
-STABLE_EPHEMERAL=" \
-      ccache \
-      cmake \
-      g++ \
-      g++-mingw-w64-i686-posix \
-      g++-mingw-w64-x86-64-posix \
-      glslang-tools \
-      libexpat1-dev \
-      gnupg2 \
+EPHEMERAL=(
+    ccache
+    cmake
+    g++
+    glslang-tools
+    libexpat1-dev
+    gnupg2
+    libdrm-dev
+    libgbm-dev
+    libgles2-mesa-dev
+    liblz4-dev
+    libpciaccess-dev
+    libudev-dev
+    libvulkan-dev
+    libwaffle-dev
+    libx11-xcb-dev
+    libxcb-ewmh-dev
+    libxcb-keysyms1-dev
+    libxkbcommon-dev
+    libxrandr-dev
+    libxrender-dev
+    libzstd-dev
+    meson
+    p7zip
+    patch
+    pkgconf
+    python3-dev
+    python3-distutils
+    python3-pip
+    python3-setuptools
+    python3-wheel
+    software-properties-common
+    wine64-tools
+    xz-utils
+)
 
-      libdrm-dev \
+DEPS=(
+    curl
+    libepoxy0
+    libxcb-shm0
+    pciutils
+    python3-lxml
+    python3-simplejson
+    sysvinit-core
+    weston
+    xwayland
+    wine
+    wine64
+    xinit
+    xserver-xorg-video-amdgpu
+    xserver-xorg-video-ati
+)
 
-      libgbm-dev \
-      libgles2-mesa-dev \
-      liblz4-dev \
-      libpciaccess-dev \
-      libudev-dev \
-      libvulkan-dev \
-      libwaffle-dev \
-      libx11-xcb-dev \
-      libxcb-ewmh-dev \
-      libxcb-keysyms1-dev \
-      libxkbcommon-dev \
-      libxrandr-dev \
-      libxrender-dev \
-      libzstd-dev \
-      meson \
-      mingw-w64-i686-dev \
-      mingw-w64-tools \
-      mingw-w64-x86-64-dev \
-      p7zip \
-      patch \
-
-      pkg-config \
-
-      pkgconf \
-
-      python3-dev \
-      python3-distutils \
-      python3-pip \
-      python3-setuptools \
-      python3-wheel \
-      software-properties-common \
-
-      wine \
-      wine64 \
-
-      wine64-tools \
-      xz-utils \
-      "
+apt-get update
 
 apt-get install -y --no-remove --no-install-recommends \
-      $STABLE_EPHEMERAL \
-      curl \
-      libepoxy0 \
-      libxcb-shm0 \
-      pciutils \
-      python3-lxml \
-      python3-simplejson \
-
-      sysvinit-core \
-
-      weston \
-      xwayland \
-      wine \
-      wine64 \
-
-      xinit \
-      xserver-xorg-video-amdgpu \
-      xserver-xorg-video-ati
-
-
-# Install a more recent version of Wine than exists in Debian.
-apt-key add .gitlab-ci/container/debian/winehq.gpg.key
-apt-add-repository https://dl.winehq.org/wine-builds/debian/
-apt-get update -q
-
-# workaround wine needing 32-bit
-# https://bugs.winehq.org/show_bug.cgi?id=53393
-apt-get install -y --no-remove wine-stable-amd64  # a requirement for wine-stable
-WINE_PKG="wine-stable"
-WINE_PKG_DROP="wine-stable-i386"
-apt-get download "${WINE_PKG}"
-dpkg --ignore-depends="${WINE_PKG_DROP}" -i "${WINE_PKG}"*.deb
-rm "${WINE_PKG}"*.deb
-sed -i "/${WINE_PKG_DROP}/d" /var/lib/dpkg/status
-apt-get install -y --no-remove winehq-stable  # symlinks-only, depends on wine-stable
-
-
-apt-get update -q
-
+      "${DEPS[@]}" "${EPHEMERAL[@]}"
 
 ############### Install DXVK
 
@@ -114,11 +78,7 @@ apt-get update -q
 
 . .gitlab-ci/container/install-wine-apitrace.sh
 # Add the apitrace path to the registry
-
-wine64 \
-
 wine \
-
     reg add "HKEY_LOCAL_MACHINE\System\CurrentControlSet\Control\Session Manager\Environment" \
     /v Path \
     /t REG_EXPAND_SZ \
@@ -161,16 +121,7 @@ PIGLIT_BUILD_TARGETS="piglit_replayer" . .gitlab-ci/container/build-piglit.sh
 
 ############### Uninstall the build software
 
-ccache --show-stats
+apt-get purge -y "${EPHEMERAL[@]}"
 
-apt-get purge -y \
-      $STABLE_EPHEMERAL
-
-apt-get autoremove -y --purge
-
-
-# hack to remove Debian libdrm (until bookworm), deqp sometimes load old libdrm, we could remove here eventually Mesa too; execute on both GL and VK container
-dpkg -r --force-depends "libdrm2" "libdrm-radeon1" "libdrm-nouveau2" "libdrm-intel1" "libdrm-amdgpu1" "libdrm-common"  # "mesa-vulkan-drivers" "mesa-vdpau-drivers" "mesa-va-drivers" "libgl1-mesa-dri" "libglx-mesa0" "vdpau-driver-all" "va-driver-all" "libglx0" "libgl1" "libvdpau-va-gl1" "libglu1-mesa" "libegl-mesa0" "libgl1-mesa-dri" "libglapi-mesa" "libosmesa6"
-
-#dpkg -r --force-depends "mesa-vulkan-drivers" "mesa-vdpau-drivers" "mesa-va-drivers" "libgl1-mesa-dri" "libglx-mesa0" "vdpau-driver-all" "va-driver-all" "libglx0" "libgl1" "libvdpau-va-gl1" "libglu1-mesa" "libegl-mesa0" "libgl1-mesa-dri" "libglapi-mesa" "libosmesa6"
+. .gitlab-ci/container/container_post_build.sh
 

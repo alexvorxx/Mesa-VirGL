@@ -10,9 +10,7 @@ set -e
 set -o xtrace
 
 export DEBIAN_FRONTEND=noninteractive
-
 export LLVM_VERSION="${LLVM_VERSION:=15}"
-
 
 check_minio()
 {
@@ -64,6 +62,19 @@ elif [[ "$DEBIAN_ARCH" = "armhf" ]]; then
     DEVICE_TREES+=" tegra124-jetson-tk1.dtb"
     KERNEL_IMAGE_NAME="zImage"
     . .gitlab-ci/container/create-cross-file.sh armhf
+    CONTAINER_ARCH_PACKAGES=(
+      libegl1-mesa-dev:armhf
+      libelf-dev:armhf
+      libgbm-dev:armhf
+      libgles2-mesa-dev:armhf
+      libpng-dev:armhf
+      libudev-dev:armhf
+      libvulkan-dev:armhf
+      libwaffle-dev:armhf
+      libwayland-dev:armhf
+      libx11-xcb-dev:armhf
+      libxkbcommon-dev:armhf
+    )
 else
     GCC_ARCH="x86_64-linux-gnu"
     KERNEL_ARCH="x86_64"
@@ -71,7 +82,9 @@ else
     DEFCONFIG="arch/x86/configs/x86_64_defconfig"
     DEVICE_TREES=""
     KERNEL_IMAGE_NAME="bzImage"
-    ARCH_PACKAGES="libasound2-dev libcap-dev libfdt-dev libva-dev wayland-protocols p7zip"
+    CONTAINER_ARCH_PACKAGES=(
+      libasound2-dev libcap-dev libfdt-dev libva-dev wayland-protocols p7zip wine
+    )
 fi
 
 # Determine if we're in a cross build.
@@ -91,80 +104,57 @@ if [[ -e /cross_file-$DEBIAN_ARCH.txt ]]; then
     export CROSS_COMPILE="${GCC_ARCH}-"
 fi
 
+# no need to remove these at end, image isn't saved at the end
+CONTAINER_EPHEMERAL=(
+    automake
+    bc
+    "clang-${LLVM_VERSION}"
+    cmake
+    curl
+    mmdebstrap
+    git
+    glslang-tools
+    libdrm-dev
+    libegl1-mesa-dev
+    libxext-dev
+    libfontconfig-dev
+    libgbm-dev
+    libgl-dev
+    libgles2-mesa-dev
+    libglu1-mesa-dev
+    libglx-dev
+    libpng-dev
+    libssl-dev
+    libudev-dev
+    libvulkan-dev
+    libwaffle-dev
+    libwayland-dev
+    libx11-xcb-dev
+    libxcb-dri2-0-dev
+    libxkbcommon-dev
+    libwayland-dev
+    ninja-build
+    openssh-server
+    patch
+    protobuf-compiler
+    python-is-python3
+    python3-distutils
+    python3-mako
+    python3-numpy
+    python3-serial
+    python3-venv
+    unzip
+    zstd
+)
+
 apt-get update
 apt-get install -y --no-remove \
 		   -o Dpkg::Options::='--force-confdef' -o Dpkg::Options::='--force-confold' \
-                   ${EXTRA_LOCAL_PACKAGES} \
-                   ${ARCH_PACKAGES} \
-                   automake \
-                   bc \
-
-                   clang \
-                   cmake \
-		   curl \
-                   debootstrap \
-
-                   clang-${LLVM_VERSION} \
-                   cmake \
-		   curl \
-                   mmdebstrap \
-
-                   git \
-                   glslang-tools \
-                   libdrm-dev \
-                   libegl1-mesa-dev \
-                   libxext-dev \
-                   libfontconfig-dev \
-                   libgbm-dev \
-                   libgl-dev \
-                   libgles2-mesa-dev \
-                   libglu1-mesa-dev \
-                   libglx-dev \
-                   libpng-dev \
-                   libssl-dev \
-                   libudev-dev \
-                   libvulkan-dev \
-                   libwaffle-dev \
-                   libwayland-dev \
-                   libx11-xcb-dev \
-                   libxcb-dri2-0-dev \
-                   libxkbcommon-dev \
-                   libwayland-dev \
-                   ninja-build \
-
-                   openssh-server \
-
-                   patch \
-                   protobuf-compiler \
-                   python-is-python3 \
-                   python3-distutils \
-                   python3-mako \
-                   python3-numpy \
-                   python3-serial \
-                   python3-venv \
-                   unzip \
-                   zstd
-
-
-if [[ "$DEBIAN_ARCH" = "armhf" ]]; then
-    apt-get install -y --no-remove \
-                       libegl1-mesa-dev:armhf \
-                       libelf-dev:armhf \
-                       libgbm-dev:armhf \
-                       libgles2-mesa-dev:armhf \
-                       libpng-dev:armhf \
-                       libudev-dev:armhf \
-                       libvulkan-dev:armhf \
-                       libwaffle-dev:armhf \
-                       libwayland-dev:armhf \
-                       libx11-xcb-dev:armhf \
-                       libxkbcommon-dev:armhf
-fi
+		   "${CONTAINER_EPHEMERAL[@]}" \
+                   "${CONTAINER_ARCH_PACKAGES[@]}" \
+                   ${EXTRA_LOCAL_PACKAGES}
 
 ROOTFS=/lava-files/rootfs-${DEBIAN_ARCH}
-
-mkdir -p $ROOTFS
-
 mkdir -p "$ROOTFS"
 
 # rootfs packages
@@ -239,19 +229,12 @@ if [ "$DEBIAN_ARCH" = "amd64" ]; then
 fi
 
 ############### Installing
-
-. .gitlab-ci/container/install-wine-apitrace.sh
-mkdir -p "$ROOTFS/apitrace-msvc-win64"
-mv /apitrace-msvc-win64/bin "$ROOTFS/apitrace-msvc-win64"
-rm -rf /apitrace-msvc-win64
-
 if [ "$DEBIAN_ARCH" = "amd64" ]; then
   . .gitlab-ci/container/install-wine-apitrace.sh
   mkdir -p "$ROOTFS/apitrace-msvc-win64"
   mv /apitrace-msvc-win64/bin "$ROOTFS/apitrace-msvc-win64"
   rm -rf /apitrace-msvc-win64
 fi
-
 
 ############### Building
 STRIP_CMD="${GCC_ARCH}-strip"
@@ -311,11 +294,7 @@ fi
 if [[ ${DEBIAN_ARCH} = "amd64" ]]; then
     . .gitlab-ci/container/build-crosvm.sh
     mv /usr/local/bin/crosvm $ROOTFS/usr/bin/
-
-    mv /usr/local/lib/$GCC_ARCH/libvirglrenderer.* $ROOTFS/usr/lib/$GCC_ARCH/
-
     mv /usr/local/lib/libvirglrenderer.* $ROOTFS/usr/lib/$GCC_ARCH/
-
     mkdir -p $ROOTFS/usr/local/libexec/
     mv /usr/local/libexec/virgl* $ROOTFS/usr/local/libexec/
 fi
@@ -341,55 +320,6 @@ fi
 rm -rf /root/.cargo
 rm -rf /root/.rustup
 
-
-############### Create rootfs
-set +e
-if ! debootstrap \
-     --variant=minbase \
-     --arch=${DEBIAN_ARCH} \
-     --components main,contrib,non-free \
-     bullseye \
-     $ROOTFS/ \
-     http://deb.debian.org/debian; then
-    cat $ROOTFS/debootstrap/debootstrap.log
-    exit 1
-fi
-set -e
-
-cp .gitlab-ci/container/create-rootfs.sh $ROOTFS/.
-cp .gitlab-ci/container/debian/llvm-snapshot.gpg.key $ROOTFS/.
-cp .gitlab-ci/container/debian/winehq.gpg.key $ROOTFS/.
-chroot $ROOTFS sh /create-rootfs.sh
-rm $ROOTFS/{llvm-snapshot,winehq}.gpg.key
-rm $ROOTFS/create-rootfs.sh
-cp /etc/wgetrc $ROOTFS/etc/.
-
-############### Inject missing firmwares from Debian 11
-if [[ "$DEBIAN_ARCH" == "arm64" ]]; then
-  # This A660 firmware is included from Debian 12 (bookworm) up
-  mkdir -p /lava-files/rootfs-arm64/lib/firmware/qcom/sm8350/  # for firmware imported later
-  curl -L --retry 4 -f --retry-all-errors --retry-delay 60 \
-    "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/a660_gmu.bin?id=8451c2b1d529dc1a49328ac9235d3cf5bb8a8fcb" \
-    -o /lava-files/rootfs-arm64/lib/firmware/qcom/a660_gmu.bin
-  curl -L --retry 4 -f --retry-all-errors --retry-delay 60 \
-    "https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/plain/qcom/a660_sqe.fw?id=8451c2b1d529dc1a49328ac9235d3cf5bb8a8fcb" \
-    -o /lava-files/rootfs-arm64/lib/firmware/qcom/a660_sqe.fw
-fi
-
-
-############### Install the built libdrm
-# Dependencies pulled during the creation of the rootfs may overwrite
-# the built libdrm. Hence, we add it after the rootfs has been already
-# created.
-find /libdrm/ -name lib\*\.so\* \
-  -exec cp -t $ROOTFS/usr/lib/$GCC_ARCH/. {} \;
-mkdir -p $ROOTFS/libdrm/
-cp -Rp /libdrm/share $ROOTFS/libdrm/share
-rm -rf /libdrm
-
-
-if [ ${DEBIAN_ARCH} = arm64 ]; then
-
 ############### Fill rootfs
 cp .gitlab-ci/container/setup-rootfs.sh $ROOTFS/.
 cp .gitlab-ci/container/strip-rootfs.sh $ROOTFS/.
@@ -403,16 +333,13 @@ cp /etc/wgetrc $ROOTFS/etc/.
 
 if [ "${DEBIAN_ARCH}" = "arm64" ]; then
     mkdir -p /lava-files/rootfs-arm64/lib/firmware/qcom/sm8350/  # for firmware imported later
-
     # Make a gzipped copy of the Image for db410c.
     gzip -k /lava-files/Image
     KERNEL_IMAGE_NAME+=" Image.gz"
 fi
 
 ROOTFSTAR="lava-rootfs.tar.zst"
-
 du -ah "$ROOTFS" | sort -h | tail -100
-
 pushd $ROOTFS
   tar --zstd -cf /lava-files/${ROOTFSTAR} .
 popd
@@ -424,3 +351,4 @@ ci-fairy s3cp --token-file "${CI_JOB_JWT_FILE}" /lava-files/"${ROOTFSTAR}" \
 
 touch /lava-files/done
 ci-fairy s3cp --token-file "${CI_JOB_JWT_FILE}" /lava-files/done https://${S3_PATH}/done
+

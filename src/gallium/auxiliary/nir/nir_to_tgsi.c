@@ -766,13 +766,13 @@ ntt_try_store_in_tgsi_output_with_use(struct ntt_compile *c,
       return false;
    }
 
-   if (src->is_if)
+   if (nir_src_is_if(src))
       return false;
 
-   if (src->parent_instr->type != nir_instr_type_intrinsic)
+   if (nir_src_parent_instr(src)->type != nir_instr_type_intrinsic)
       return false;
 
-   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(src->parent_instr);
+   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(nir_src_parent_instr(src));
    if (intr->intrinsic != nir_intrinsic_store_output ||
        !nir_src_is_const(intr->src[1])) {
       return false;
@@ -800,7 +800,7 @@ ntt_try_store_reg_in_tgsi_output(struct ntt_compile *c, struct ureg_dst *dst,
    /* Look for a single use for try_store_in_tgsi_output */
    nir_src *use = NULL;
    nir_foreach_reg_load(src, reg_decl) {
-      nir_intrinsic_instr *load = nir_instr_as_intrinsic(src->parent_instr);
+      nir_intrinsic_instr *load = nir_instr_as_intrinsic(nir_src_parent_instr(src));
       nir_foreach_use_including_if(load_use, &load->def) {
          /* We can only have one use */
          if (use != NULL)
@@ -3896,6 +3896,15 @@ const void *nir_to_tgsi_options(struct nir_shader *s,
    if (s->info.stage == MESA_SHADER_FRAGMENT) {
       NIR_PASS_V(s, nir_lower_indirect_derefs, nir_var_shader_in, UINT32_MAX);
       NIR_PASS_V(s, nir_remove_dead_variables, nir_var_shader_in, NULL);
+   }
+
+   /* Lower tesslevel indirect derefs for tessellation shader.
+    * tesslevels are now a compact array variable and nir expects a constant
+    * array index into the compact array variable.
+    */
+   if (s->info.stage == MESA_SHADER_TESS_CTRL ||
+       s->info.stage == MESA_SHADER_TESS_EVAL) {
+      NIR_PASS_V(s, nir_lower_indirect_derefs, 0 , UINT32_MAX);
    }
 
    NIR_PASS_V(s, nir_lower_io, nir_var_shader_in | nir_var_shader_out,

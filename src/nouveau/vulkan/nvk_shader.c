@@ -28,6 +28,7 @@
 #include "util/mesa-sha1.h"
 
 #include "cla097.h"
+#include "clb097.h"
 #include "clc397.h"
 #include "clc597.h"
 #include "nvk_cl9097.h"
@@ -73,7 +74,7 @@ get_prog_debug(void)
 static uint64_t
 get_prog_optimize(void)
 {
-   return debug_get_num_option("NV50_PROG_OPTIMIZE", 0);
+   return debug_get_num_option("NV50_PROG_OPTIMIZE", 3);
 }
 
 uint64_t
@@ -119,6 +120,7 @@ nvk_physical_device_spirv_options(const struct nvk_physical_device *pdev,
          .tessellation = true,
          .transform_feedback = true,
          .variable_pointers = true,
+         .workgroup_memory_explicit_layout = true,
       },
       .ssbo_addr_format = nvk_buffer_addr_format(rs->storage_buffers),
       .phys_ssbo_addr_format = nir_address_format_64bit_global,
@@ -464,6 +466,15 @@ nvk_shader_stage_to_nir(struct nvk_device *dev,
    return VK_SUCCESS;
 }
 
+static inline bool
+nir_has_image_var(nir_shader *nir)
+{
+   nir_foreach_image_variable(_, nir)
+      return true;
+
+   return false;
+}
+
 void
 nvk_lower_nir(struct nvk_device *dev, nir_shader *nir,
               const struct vk_pipeline_robustness_state *rs,
@@ -553,6 +564,11 @@ nvk_lower_nir(struct nvk_device *dev, nir_shader *nir,
       NIR_PASS(_, nir, nir_opt_non_uniform_access);
       NIR_PASS(_, nir, nir_lower_non_uniform_access, &opts);
    }
+
+   /* TODO: Kepler image lowering requires image params to be loaded from the
+    * descriptor set which we don't currently support.
+    */
+   assert(dev->pdev->info.cls_eng3d >= MAXWELL_A || !nir_has_image_var(nir));
 
    NIR_PASS(_, nir, nvk_nir_lower_descriptors, rs, layout);
    NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_mem_global,
@@ -1305,4 +1321,15 @@ nvk_shader_upload(struct nvk_device *dev, struct nvk_shader *shader)
    free(data);
 
    return result;
+}
+
+void
+nvk_shader_finish(struct nvk_device *dev, struct nvk_shader *shader)
+{
+   if (shader->upload_size > 0) {
+      nvk_heap_free(dev, &dev->shader_heap,
+                    shader->upload_addr,
+                    shader->upload_size);
+   }
+   free(shader->xfb);
 }

@@ -16,7 +16,7 @@
 #include "radeon_vcn_enc.h"
 
 #define RENCODE_FW_INTERFACE_MAJOR_VERSION   1
-#define RENCODE_FW_INTERFACE_MINOR_VERSION   0
+#define RENCODE_FW_INTERFACE_MINOR_VERSION   11
 
 #define RENCODE_IB_PARAM_CDF_DEFAULT_TABLE_BUFFER  0x00000019
 #define RENCODE_IB_PARAM_ENCODE_STATISTICS         0x0000001a
@@ -56,6 +56,27 @@ static void radeon_enc_sq_destroy(struct radeon_encoder *enc)
    rvcn_sq_header(&enc->cs, &enc->sq, true);
    enc->mq_destroy(enc);
    rvcn_sq_tail(&enc->cs, &enc->sq);
+}
+
+static void radeon_enc_op_preset(struct radeon_encoder *enc)
+{
+   uint32_t preset_mode;
+
+   if (enc->enc_pic.quality_modes.preset_mode == RENCODE_PRESET_MODE_SPEED &&
+         (enc->enc_pic.sample_adaptive_offset_enabled_flag &&
+         (u_reduce_video_profile(enc->base.profile) == PIPE_VIDEO_FORMAT_HEVC)))
+      preset_mode = RENCODE_IB_OP_SET_BALANCE_ENCODING_MODE;
+   else if (enc->enc_pic.quality_modes.preset_mode == RENCODE_PRESET_MODE_QUALITY)
+      preset_mode = RENCODE_IB_OP_SET_QUALITY_ENCODING_MODE;
+   else if (enc->enc_pic.quality_modes.preset_mode == RENCODE_PRESET_MODE_HIGH_QUALITY)
+      preset_mode = RENCODE_IB_OP_SET_HIGH_QUALITY_ENCODING_MODE;
+   else if (enc->enc_pic.quality_modes.preset_mode == RENCODE_PRESET_MODE_BALANCE)
+      preset_mode = RENCODE_IB_OP_SET_BALANCE_ENCODING_MODE;
+   else
+      preset_mode = RENCODE_IB_OP_SET_SPEED_ENCODING_MODE;
+
+   RADEON_ENC_BEGIN(preset_mode);
+   RADEON_ENC_END();
 }
 
 static void radeon_enc_session_init(struct radeon_encoder *enc)
@@ -125,6 +146,7 @@ static void radeon_enc_session_init(struct radeon_encoder *enc)
    RADEON_ENC_CS(enc->enc_pic.session_init.pre_encode_chroma_enabled);
    RADEON_ENC_CS(enc->enc_pic.session_init.slice_output_enabled);
    RADEON_ENC_CS(enc->enc_pic.session_init.display_remote);
+   RADEON_ENC_CS(0);
    RADEON_ENC_END();
 }
 
@@ -368,6 +390,8 @@ static void radeon_enc_spec_misc_av1(struct radeon_encoder *enc)
    RADEON_ENC_CS(enc->enc_pic.av1_spec_misc.disable_cdf_update);
    RADEON_ENC_CS(enc->enc_pic.av1_spec_misc.disable_frame_end_update_cdf);
    RADEON_ENC_CS(enc->enc_pic.av1_spec_misc.num_tiles_per_picture);
+   RADEON_ENC_CS(0);
+   RADEON_ENC_CS(0);
    RADEON_ENC_END();
 }
 
@@ -936,10 +960,6 @@ static void radeon_enc_ctx(struct radeon_encoder *enc)
                                            == PIPE_VIDEO_FORMAT_AV1;
    enc->enc_pic.ctx_buf.swizzle_mode = radeon_enc_ref_swizzle_mode(enc);
    enc->enc_pic.ctx_buf.two_pass_search_center_map_offset = 0;
-   if (is_av1)
-      enc->enc_pic.ctx_buf.colloc_buffer_offset = 0;
-   else
-      enc->enc_pic.ctx_buf.colloc_buffer_offset = enc->dpb_size;
 
    RADEON_ENC_BEGIN(enc->cmd.ctx);
    RADEON_ENC_READWRITE(enc->dpb->res->buf, enc->dpb->res->domains, 0);
@@ -1014,6 +1034,7 @@ void radeon_enc_4_0_init(struct radeon_encoder *enc)
    enc->begin = radeon_enc_sq_begin;
    enc->encode = radeon_enc_sq_encode;
    enc->destroy = radeon_enc_sq_destroy;
+   enc->op_preset = radeon_enc_op_preset;
 
    if (u_reduce_video_profile(enc->base.profile) == PIPE_VIDEO_FORMAT_AV1) {
       enc->before_encode = radeon_enc_av1_dpb_management;

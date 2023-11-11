@@ -1,7 +1,4 @@
-#!/bin/bash
-
 #!/usr/bin/env bash
-
 # shellcheck disable=SC2086 # we want word splitting
 
 # When changing this file, you need to bump the following
@@ -12,67 +9,55 @@ set -e
 set -o xtrace
 
 export DEBIAN_FRONTEND=noninteractive
-
 export LLVM_VERSION="${LLVM_VERSION:=15}"
 
-
 # Ephemeral packages (installed for this script and removed again at the end)
-STABLE_EPHEMERAL=" \
-      autoconf \
-      automake \
-      autotools-dev \
-      bzip2 \
-      libtool \
-      libssl-dev \
-      "
+EPHEMERAL=(
+    autoconf
+    automake
+    autotools-dev
+    bzip2
+    libtool
+    libssl-dev
+)
+
+DEPS=(
+    check
+    "clang-${LLVM_VERSION}"
+    libasan8
+    libarchive-dev
+    libdrm-dev
+    "libclang-cpp${LLVM_VERSION}-dev"
+    libgbm-dev
+    libglvnd-dev
+    liblua5.3-dev
+    libxcb-dri2-0-dev
+    libxcb-dri3-dev
+    libxcb-glx0-dev
+    libxcb-present-dev
+    libxcb-randr0-dev
+    libxcb-shm0-dev
+    libxcb-sync-dev
+    libxcb-xfixes0-dev
+    libxcb1-dev
+    libxml2-dev
+    "llvm-${LLVM_VERSION}-dev"
+    ocl-icd-opencl-dev
+    python3-pip
+    python3-venv
+    procps
+    spirv-tools
+    shellcheck
+    strace
+    time
+    yamllint
+    zstd
+)
 
 apt-get update
 
 apt-get install -y --no-remove \
-      $STABLE_EPHEMERAL \
-      check \
-
-      clang \
-      libasan6 \
-      libarchive-dev \
-      libclang-cpp13-dev \
-      libclang-cpp11-dev \
-
-      clang-${LLVM_VERSION} \
-      libasan8 \
-      libarchive-dev \
-      libdrm-dev \
-      libclang-cpp${LLVM_VERSION}-dev \
-
-      libgbm-dev \
-      libglvnd-dev \
-      liblua5.3-dev \
-      libxcb-dri2-0-dev \
-      libxcb-dri3-dev \
-      libxcb-glx0-dev \
-      libxcb-present-dev \
-      libxcb-randr0-dev \
-      libxcb-shm0-dev \
-      libxcb-sync-dev \
-      libxcb-xfixes0-dev \
-      libxcb1-dev \
-      libxml2-dev \
-
-      llvm-13-dev \
-      llvm-11-dev \
-
-      llvm-${LLVM_VERSION}-dev \
-
-      ocl-icd-opencl-dev \
-      python3-pip \
-      python3-venv \
-      procps \
-      spirv-tools \
-      shellcheck \
-      strace \
-      time \
-      yamllint \
-      zstd
+      "${DEPS[@]}" "${EPHEMERAL[@]}"
 
 
 . .gitlab-ci/container/container_pre_build.sh
@@ -94,25 +79,11 @@ rm -rf $XORGMACROS_VERSION
 
 . .gitlab-ci/container/build-libclc.sh
 
-
-. .gitlab-ci/container/build-libdrm.sh
-
 . .gitlab-ci/container/build-wayland.sh
 
 . .gitlab-ci/container/build-shader-db.sh
 
-mkdir -p DirectX-Headers/build
-pushd DirectX-Headers/build
-meson .. --backend=ninja --buildtype=release -Dbuild-test=false
-ninja
-ninja install
-popd
-rm -rf DirectX-Headers
-
-python3 -m pip install -r .gitlab-ci/lava/requirements.txt
-
 git clone https://github.com/microsoft/DirectX-Headers -b v1.711.3-preview --depth 1
-
 pushd DirectX-Headers
 meson setup build --backend=ninja --buildtype=release -Dbuild-test=false
 meson install -C build
@@ -120,7 +91,6 @@ popd
 rm -rf DirectX-Headers
 
 python3 -m pip install --break-system-packages -r .gitlab-ci/lava/requirements.txt
-
 
 # install bindgen
 RUSTFLAGS='-L native=/usr/local/lib' cargo install \
@@ -131,7 +101,7 @@ RUSTFLAGS='-L native=/usr/local/lib' cargo install \
 
 ############### Uninstall the build software
 
-apt-get purge -y \
-      $STABLE_EPHEMERAL
+apt-get purge -y "${EPHEMERAL[@]}"
 
 . .gitlab-ci/container/container_post_build.sh
+

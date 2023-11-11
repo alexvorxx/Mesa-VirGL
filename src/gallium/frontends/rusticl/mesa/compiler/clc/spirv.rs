@@ -2,6 +2,7 @@ use crate::compiler::nir::*;
 use crate::pipe::screen::*;
 use crate::util::disk_cache::*;
 
+use libc_rust_gen::malloc;
 use mesa_rust_gen::*;
 use mesa_rust_util::serialize::*;
 use mesa_rust_util::string::*;
@@ -325,7 +326,7 @@ impl SPIRVBin {
             environment: nir_spirv_execution_environment::NIR_SPIRV_OPENCL,
             clc_shader: clc_shader,
             float_controls_execution_mode: float_controls::FLOAT_CONTROLS_DENORM_FLUSH_TO_ZERO_FP32
-                as u16,
+                as u32,
 
             caps: spirv_supported_capabilities {
                 address: true,

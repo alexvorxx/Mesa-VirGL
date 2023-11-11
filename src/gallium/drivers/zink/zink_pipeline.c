@@ -430,13 +430,15 @@ zink_create_gfx_pipeline(struct zink_screen *screen,
 
    VkPipeline pipeline;
    u_rwlock_wrlock(&prog->base.pipeline_cache_lock);
-   VkResult result = VKSCR(CreateGraphicsPipelines)(screen->dev, prog->base.pipeline_cache,
-                                                    1, &pci, NULL, &pipeline);
-   u_rwlock_wrunlock(&prog->base.pipeline_cache_lock);
-   if (result != VK_SUCCESS) {
-      mesa_loge("ZINK: vkCreateGraphicsPipelines failed (%s)", vk_Result_to_str(result));
-      return VK_NULL_HANDLE;
-   }
+   VkResult result;
+   VRAM_ALLOC_LOOP(result,
+      VKSCR(CreateGraphicsPipelines)(screen->dev, prog->base.pipeline_cache, 1, &pci, NULL, &pipeline),
+      u_rwlock_wrunlock(&prog->base.pipeline_cache_lock);
+      if (result != VK_SUCCESS) {
+         mesa_loge("ZINK: vkCreateGraphicsPipelines failed (%s)", vk_Result_to_str(result));
+         return VK_NULL_HANDLE;
+      }
+   );
 
    return pipeline;
 }
@@ -457,32 +459,57 @@ zink_create_compute_pipeline(struct zink_screen *screen, struct zink_compute_pro
    stage.pName = "main";
 
    VkSpecializationInfo sinfo = {0};
-   VkSpecializationMapEntry me[3];
-   if (comp->use_local_size) {
-      stage.pSpecializationInfo = &sinfo;
-      sinfo.mapEntryCount = 3;
-      sinfo.pMapEntries = &me[0];
-      sinfo.dataSize = sizeof(state->local_size);
-      sinfo.pData = &state->local_size[0];
-      uint32_t ids[] = {ZINK_WORKGROUP_SIZE_X, ZINK_WORKGROUP_SIZE_Y, ZINK_WORKGROUP_SIZE_Z};
-      for (int i = 0; i < 3; i++) {
-         me[i].size = sizeof(uint32_t);
-         me[i].constantID = ids[i];
-         me[i].offset = i * sizeof(uint32_t);
+   VkSpecializationMapEntry me[4];
+   uint32_t data[4];
+   if (state)  {
+      int i = 0;
+
+      if (comp->use_local_size) {
+         sinfo.mapEntryCount += 3;
+         sinfo.dataSize += sizeof(state->local_size);
+
+         uint32_t ids[] = {ZINK_WORKGROUP_SIZE_X, ZINK_WORKGROUP_SIZE_Y, ZINK_WORKGROUP_SIZE_Z};
+         for (int l = 0; l < 3; l++, i++) {
+            data[i] = state->local_size[l];
+            me[i].size = sizeof(uint32_t);
+            me[i].constantID = ids[l];
+            me[i].offset = i * sizeof(uint32_t);
+         }
       }
+
+      if (comp->has_variable_shared_mem) {
+         sinfo.mapEntryCount += 1;
+         sinfo.dataSize += sizeof(uint32_t);
+         data[i] = state->variable_shared_mem;
+         me[i].size = sizeof(uint32_t);
+         me[i].constantID = ZINK_VARIABLE_SHARED_MEM;
+         me[i].offset = i * sizeof(uint32_t);
+         i++;
+      }
+
+      if (sinfo.dataSize) {
+         stage.pSpecializationInfo = &sinfo;
+         sinfo.pData = data;
+         sinfo.pMapEntries = me;
+      }
+
+      assert(i <= ARRAY_SIZE(data));
+      STATIC_ASSERT(ARRAY_SIZE(data) == ARRAY_SIZE(me));
    }
 
    pci.stage = stage;
 
    VkPipeline pipeline;
+   VkResult result;
    u_rwlock_wrlock(&comp->base.pipeline_cache_lock);
-   VkResult result = VKSCR(CreateComputePipelines)(screen->dev, comp->base.pipeline_cache,
-                                                   1, &pci, NULL, &pipeline);
-   u_rwlock_wrunlock(&comp->base.pipeline_cache_lock);
-   if (result != VK_SUCCESS) {
-      mesa_loge("ZINK: vkCreateComputePipelines failed (%s)", vk_Result_to_str(result));
-      return VK_NULL_HANDLE;
-   }
+   VRAM_ALLOC_LOOP(result,
+      VKSCR(CreateComputePipelines)(screen->dev, comp->base.pipeline_cache, 1, &pci, NULL, &pipeline),
+      u_rwlock_wrunlock(&comp->base.pipeline_cache_lock);
+      if (result != VK_SUCCESS) {
+         mesa_loge("ZINK: vkCreateComputePipelines failed (%s)", vk_Result_to_str(result));
+         return VK_NULL_HANDLE;
+      }
+   );
 
    return pipeline;
 }
@@ -595,11 +622,14 @@ zink_create_gfx_pipeline_output(struct zink_screen *screen, struct zink_gfx_pipe
    pci.pDynamicState = &pipelineDynamicStateCreateInfo;
 
    VkPipeline pipeline;
-   if (VKSCR(CreateGraphicsPipelines)(screen->dev, VK_NULL_HANDLE, 1, &pci,
-                                      NULL, &pipeline) != VK_SUCCESS) {
-      mesa_loge("ZINK: vkCreateGraphicsPipelines failed");
-      return VK_NULL_HANDLE;
-   }
+   VkResult result;
+   VRAM_ALLOC_LOOP(result,
+      VKSCR(CreateGraphicsPipelines)(screen->dev, VK_NULL_HANDLE, 1, &pci, NULL, &pipeline),
+      if (result != VK_SUCCESS) {
+         mesa_loge("ZINK: vkCreateGraphicsPipelines failed (%s)", vk_Result_to_str(result));
+         return VK_NULL_HANDLE;
+      }
+   );
 
    return pipeline;
 }
@@ -673,11 +703,14 @@ zink_create_gfx_pipeline_input(struct zink_screen *screen,
    pci.pDynamicState = &pipelineDynamicStateCreateInfo;
 
    VkPipeline pipeline;
-   if (VKSCR(CreateGraphicsPipelines)(screen->dev, VK_NULL_HANDLE, 1, &pci,
-                                      NULL, &pipeline) != VK_SUCCESS) {
-      mesa_loge("ZINK: vkCreateGraphicsPipelines failed");
-      return VK_NULL_HANDLE;
-   }
+   VkResult result;
+   VRAM_ALLOC_LOOP(result,
+      VKSCR(CreateGraphicsPipelines)(screen->dev, VK_NULL_HANDLE, 1, &pci, NULL, &pipeline),
+      if (result != VK_SUCCESS) {
+         mesa_loge("ZINK: vkCreateGraphicsPipelines failed (%s)", vk_Result_to_str(result));
+         return VK_NULL_HANDLE;
+      }
+   );
 
    return pipeline;
 }
@@ -808,10 +841,14 @@ create_gfx_pipeline_library(struct zink_screen *screen, struct zink_shader_objec
       pci.flags |= VK_PIPELINE_CREATE_RETAIN_LINK_TIME_OPTIMIZATION_INFO_BIT_EXT;
 
    VkPipeline pipeline;
-   if (VKSCR(CreateGraphicsPipelines)(screen->dev, pipeline_cache, 1, &pci, NULL, &pipeline) != VK_SUCCESS) {
-      mesa_loge("ZINK: vkCreateGraphicsPipelines failed");
-      return VK_NULL_HANDLE;
-   }
+   VkResult result;
+   VRAM_ALLOC_LOOP(result,
+      VKSCR(CreateGraphicsPipelines)(screen->dev, pipeline_cache, 1, &pci, NULL, &pipeline),
+      if (result != VK_SUCCESS) {
+         mesa_loge("ZINK: vkCreateGraphicsPipelines failed");
+         return VK_NULL_HANDLE;
+      }
+   );
 
    return pipeline;
 }
@@ -863,13 +900,15 @@ zink_create_gfx_pipeline_combined(struct zink_screen *screen, struct zink_gfx_pr
 
    VkPipeline pipeline;
    u_rwlock_wrlock(&prog->base.pipeline_cache_lock);
-   VkResult result = VKSCR(CreateGraphicsPipelines)(screen->dev, prog->base.pipeline_cache, 1, &pci, NULL, &pipeline);
-   if (result != VK_SUCCESS && result != VK_PIPELINE_COMPILE_REQUIRED_EXT) {
-      mesa_loge("ZINK: vkCreateGraphicsPipelines failed");
+   VkResult result;
+   VRAM_ALLOC_LOOP(result,
+      VKSCR(CreateGraphicsPipelines)(screen->dev, prog->base.pipeline_cache, 1, &pci, NULL, &pipeline),
       u_rwlock_wrunlock(&prog->base.pipeline_cache_lock);
-      return VK_NULL_HANDLE;
-   }
-   u_rwlock_wrunlock(&prog->base.pipeline_cache_lock);
+      if (result != VK_SUCCESS && result != VK_PIPELINE_COMPILE_REQUIRED_EXT) {
+         mesa_loge("ZINK: vkCreateGraphicsPipelines failed");
+         return VK_NULL_HANDLE;
+      }
+   );
 
    return pipeline;
 }

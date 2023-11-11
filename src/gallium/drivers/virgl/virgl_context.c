@@ -36,6 +36,7 @@
 #include "util/u_inlines.h"
 #include "util/u_memory.h"
 #include "util/u_prim.h"
+#include "util/u_surface.h"
 #include "util/u_transfer.h"
 #include "util/u_helpers.h"
 #include "util/slab.h"
@@ -916,8 +917,53 @@ static void virgl_clear_render_target(struct pipe_context *ctx,
                                       unsigned width, unsigned height,
                                       bool render_condition_enabled)
 {
+   struct virgl_context *vctx = virgl_context(ctx);
+
+   virgl_encode_clear_surface(vctx, dst, PIPE_CLEAR_COLOR0, color,
+                             dstx, dsty, width, height, render_condition_enabled);
+
+   /* Mark as dirty, since we are updating the host side resource
+    * without going through the corresponding guest side resource, and
+    * hence the two will diverge.
+    */
+   virgl_resource_dirty(virgl_resource(dst->texture), dst->u.tex.level);
+}
+
+static void virgl_clear_depth_stencil(struct pipe_context *ctx,
+                                      struct pipe_surface *dst,
+                                      unsigned clear_flags,
+                                      double depth,
+                                      unsigned stencil,
+                                      unsigned dstx, unsigned dsty,
+                                      unsigned width, unsigned height,
+                                      bool render_condition_enabled)
+{
+   struct virgl_context *vctx = virgl_context(ctx);
+
+   union pipe_color_union color;
+   memcpy(color.ui, &depth, sizeof(double));
+   color.ui[3] = stencil;
+
+   virgl_encode_clear_surface(vctx, dst, clear_flags, &color,
+                             dstx, dsty, width, height, render_condition_enabled);
+
+   /* Mark as dirty, since we are updating the host side resource
+    * without going through the corresponding guest side resource, and
+    * hence the two will diverge.
+    */
+   virgl_resource_dirty(virgl_resource(dst->texture), dst->u.tex.level);
+}
+
+static void virgl_clear_render_target_stub(struct pipe_context *ctx,
+                                           struct pipe_surface *dst,
+                                           const union pipe_color_union *color,
+                                           unsigned dstx, unsigned dsty,
+                                           unsigned width, unsigned height,
+                                           bool render_condition_enabled)
+{
    if (virgl_debug & VIRGL_DEBUG_VERBOSE)
-      debug_printf("VIRGL: clear render target unsupported.\n");
+         debug_printf("VIRGL: clear depth stencil unsupported.\n");
+   return;
 }
 
 static void virgl_clear_texture(struct pipe_context *ctx,
@@ -926,11 +972,15 @@ static void virgl_clear_texture(struct pipe_context *ctx,
                                 const struct pipe_box *box,
                                 const void *data)
 {
-   struct virgl_context *vctx = virgl_context(ctx);
+   struct virgl_screen *rs = virgl_screen(ctx->screen);
    struct virgl_resource *vres = virgl_resource(res);
 
-   virgl_encode_clear_texture(vctx, vres, level, box, data);
-
+   if (rs->caps.caps.v2.capability_bits & VIRGL_CAP_CLEAR_TEXTURE) {
+      struct virgl_context *vctx = virgl_context(ctx);
+      virgl_encode_clear_texture(vctx, vres, level, box, data);
+   } else {
+      u_default_clear_texture(ctx, res, level, box, data);
+   }
    /* Mark as dirty, since we are updating the host side resource
     * without going through the corresponding guest side resource, and
     * hence the two will diverge.
@@ -1694,7 +1744,13 @@ struct pipe_context *virgl_context_create(struct pipe_screen *pscreen,
    vctx->base.launch_grid = virgl_launch_grid;
 
    vctx->base.clear = virgl_clear;
-   vctx->base.clear_render_target = virgl_clear_render_target;
+   if (rs->caps.caps.v2.host_feature_check_version >= 21) {
+      vctx->base.clear_render_target = virgl_clear_render_target;
+      vctx->base.clear_depth_stencil = virgl_clear_depth_stencil;
+   } else {
+      // Stub is required by VL backend
+      vctx->base.clear_render_target = virgl_clear_render_target_stub;
+   }
    vctx->base.clear_texture = virgl_clear_texture;
    vctx->base.draw_vbo = virgl_draw_vbo;
    vctx->base.flush = virgl_flush_from_st;

@@ -675,13 +675,10 @@ union si_shader_part_key {
       struct si_ps_prolog_bits states;
       unsigned wave32 : 1;
       unsigned num_input_sgprs : 6;
-      unsigned num_input_vgprs : 5;
       /* Color interpolation and two-side color selection. */
       unsigned colors_read : 8;       /* color input components read */
       unsigned num_interp_inputs : 5; /* BCOLOR is at this location */
-      unsigned face_vgpr_index : 5;
-      unsigned ancillary_vgpr_index : 5;
-      unsigned sample_coverage_vgpr_index : 5;
+      unsigned num_pos_inputs : 3;
       unsigned wqm : 1;
       char color_attr_index[2];
       signed char color_interp_vgpr_index[2]; /* -1 == constant */
@@ -821,9 +818,7 @@ struct si_shader_binary_info {
    uint8_t num_input_vgprs;
    bool uses_vmem_load_other; /* all other VMEM loads and atomics with return */
    bool uses_vmem_sampler_or_bvh;
-   signed char face_vgpr_index;
-   signed char ancillary_vgpr_index;
-   signed char sample_coverage_vgpr_index;
+   uint8_t num_ps_pos_inputs;
    bool uses_instanceid;
    uint8_t nr_pos_exports;
    uint8_t nr_param_exports;
@@ -891,9 +886,6 @@ struct si_shader {
    bool is_gs_copy_shader;
    uint8_t wave_size;
 
-   /* Use ACO for compilation. */
-   bool use_aco;
-
    /* The following data is all that's needed for binary shaders. */
    struct si_shader_binary binary;
    struct ac_shader_config config;
@@ -939,7 +931,6 @@ struct si_shader {
          uint16_t hw_max_esverts;
          uint16_t max_gsprims;
          uint16_t max_out_verts;
-         uint16_t prim_amp_factor;
          bool max_vert_out_per_gs_instance;
          /* Register values. */
          unsigned ge_max_output_per_subgroup;
@@ -949,7 +940,6 @@ struct si_shader {
          unsigned vgt_gs_instance_cnt;
          unsigned esgs_vertex_stride;
          unsigned spi_vs_out_config;
-         unsigned spi_shader_idx_format;
          unsigned spi_shader_pos_format;
          unsigned pa_cl_vte_cntl;
          unsigned vgt_gs_max_vert_out; /* for API GS */

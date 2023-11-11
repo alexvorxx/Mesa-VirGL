@@ -1001,27 +1001,13 @@ fix_exports(asm_context& ctx, std::vector<uint32_t>& out, Program* program)
                   break;
                }
             } else {
-               if (!program->info.has_epilog) {
-                  exp.done = true;
-                  exp.valid_mask = true;
-               }
+               exp.done = true;
+               exp.valid_mask = true;
                exported = true;
                break;
             }
          } else if ((*it)->definitions.size() && (*it)->definitions[0].physReg() == exec) {
             break;
-         } else if ((*it)->opcode == aco_opcode::s_setpc_b64) {
-            /* Do not abort if the main FS has an epilog because it only
-             * exports MRTZ (if present) and the epilog exports colors.
-             */
-            exported |= program->stage.hw == AC_HW_PIXEL_SHADER && program->info.has_epilog;
-
-            /* Do not abort for VS/TES as NGG if they are non-monolithic shaders
-             * because a jump would be emitted.
-             */
-            exported |= (program->stage.sw == SWStage::VS || program->stage.sw == SWStage::TES) &&
-                        program->stage.hw == AC_HW_NEXT_GEN_GEOMETRY_SHADER &&
-                        program->info.merged_shader_compiled_separately;
          }
          ++it;
       }
@@ -1300,8 +1286,13 @@ emit_program(Program* program, std::vector<uint32_t>& code, std::vector<struct a
 {
    asm_context ctx(program, symbols);
 
+   bool is_separately_compiled_ngg_vs_or_es =
+      (program->stage.sw == SWStage::VS || program->stage.sw == SWStage::TES) &&
+      program->stage.hw == AC_HW_NEXT_GEN_GEOMETRY_SHADER &&
+      program->info.merged_shader_compiled_separately;
+
    /* Prolog has no exports. */
-   if (!program->is_prolog &&
+   if (!program->is_prolog && !program->info.has_epilog && !is_separately_compiled_ngg_vs_or_es &&
        (program->stage.hw == AC_HW_VERTEX_SHADER || program->stage.hw == AC_HW_PIXEL_SHADER ||
         program->stage.hw == AC_HW_NEXT_GEN_GEOMETRY_SHADER))
       fix_exports(ctx, code, program);

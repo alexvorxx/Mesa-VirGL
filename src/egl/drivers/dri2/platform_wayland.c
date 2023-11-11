@@ -1602,6 +1602,9 @@ dri2_wl_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
       dri2_surf->current->wl_buffer =
          create_wl_buffer(dri2_dpy, dri2_surf, image);
 
+      if (dri2_surf->current->wl_buffer == NULL)
+         return _eglError(EGL_BAD_ALLOC, "dri2_swap_buffers");
+
       dri2_surf->current->wl_release = false;
 
       wl_buffer_add_listener(dri2_surf->current->wl_buffer, &wl_buffer_listener,
@@ -2159,14 +2162,10 @@ static EGLBoolean
 dri2_initialize_wayland_drm(_EGLDisplay *disp)
 {
    _EGLDevice *dev;
-   struct dri2_egl_display *dri2_dpy;
-
-   dri2_dpy = calloc(1, sizeof *dri2_dpy);
+   struct dri2_egl_display *dri2_dpy = dri2_display_create();
    if (!dri2_dpy)
-      return _eglError(EGL_BAD_ALLOC, "eglInitialize");
+      return EGL_FALSE;
 
-   dri2_dpy->fd_render_gpu = -1;
-   dri2_dpy->fd_display_gpu = -1;
    disp->DriverData = (void *)dri2_dpy;
 
    if (dri2_wl_formats_init(&dri2_dpy->formats) < 0)
@@ -2655,16 +2654,20 @@ registry_handle_global_swrast(void *data, struct wl_registry *registry,
    if (strcmp(interface, wl_shm_interface.name) == 0) {
       dri2_dpy->wl_shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
       wl_shm_add_listener(dri2_dpy->wl_shm, &shm_listener, dri2_dpy);
-   } else if (strcmp(interface, wl_drm_interface.name) == 0) {
-      dri2_dpy->wl_drm_version = MIN2(version, 2);
-      dri2_dpy->wl_drm_name = name;
-   } else if (strcmp(interface, zwp_linux_dmabuf_v1_interface.name) == 0 &&
-              version >= 3) {
-      dri2_dpy->wl_dmabuf = wl_registry_bind(
-         registry, name, &zwp_linux_dmabuf_v1_interface,
-         MIN2(version, ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK_SINCE_VERSION));
-      zwp_linux_dmabuf_v1_add_listener(dri2_dpy->wl_dmabuf, &dmabuf_listener,
-                                       dri2_dpy);
+   }
+   if (dri2_dpy->fd_render_gpu != -1 || dri2_dpy->fd_display_gpu != -1) {
+      if (strcmp(interface, wl_drm_interface.name) == 0) {
+         dri2_dpy->wl_drm_version = MIN2(version, 2);
+         dri2_dpy->wl_drm_name = name;
+      } else if (strcmp(interface, zwp_linux_dmabuf_v1_interface.name) == 0 &&
+                 version >= 3) {
+         dri2_dpy->wl_dmabuf = wl_registry_bind(
+            registry, name, &zwp_linux_dmabuf_v1_interface,
+            MIN2(version,
+                 ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK_SINCE_VERSION));
+         zwp_linux_dmabuf_v1_add_listener(dri2_dpy->wl_dmabuf, &dmabuf_listener,
+                                          dri2_dpy);
+      }
    }
 }
 
@@ -2728,14 +2731,10 @@ static EGLBoolean
 dri2_initialize_wayland_swrast(_EGLDisplay *disp)
 {
    _EGLDevice *dev;
-   struct dri2_egl_display *dri2_dpy;
-
-   dri2_dpy = calloc(1, sizeof *dri2_dpy);
+   struct dri2_egl_display *dri2_dpy = dri2_display_create();
    if (!dri2_dpy)
-      return _eglError(EGL_BAD_ALLOC, "eglInitialize");
+      return EGL_FALSE;
 
-   dri2_dpy->fd_render_gpu = -1;
-   dri2_dpy->fd_display_gpu = -1;
    disp->DriverData = (void *)dri2_dpy;
 
    if (dri2_wl_formats_init(&dri2_dpy->formats) < 0)
@@ -2827,7 +2826,7 @@ cleanup:
 EGLBoolean
 dri2_initialize_wayland(_EGLDisplay *disp)
 {
-   if (disp->Options.ForceSoftware)
+   if (disp->Options.ForceSoftware || disp->Options.Zink)
       return dri2_initialize_wayland_swrast(disp);
    else
       return dri2_initialize_wayland_drm(disp);

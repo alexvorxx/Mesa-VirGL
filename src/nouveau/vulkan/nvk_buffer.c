@@ -41,6 +41,9 @@ nvk_CreateBuffer(VkDevice device,
    VK_FROM_HANDLE(nvk_device, dev, device);
    struct nvk_buffer *buffer;
 
+   if (pCreateInfo->size > NVK_MAX_BUFFER_SIZE)
+      return vk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+
    buffer = vk_buffer_create(&dev->vk, pCreateInfo, pAllocator,
                              sizeof(*buffer));
    if (!buffer)
@@ -181,14 +184,21 @@ nvk_BindBufferMemory2(VkDevice device,
       buffer->is_local = !(mem->bo->flags & NOUVEAU_WS_BO_GART);
       if (buffer->vma_size_B) {
          VK_FROM_HANDLE(nvk_device, dev, device);
-         nouveau_ws_bo_bind_vma(dev->ws_dev,
-                                mem->bo,
-                                buffer->addr,
-                                buffer->vma_size_B,
-                                pBindInfos[i].memoryOffset,
-                                0 /* pte_kind */);
+         if (mem != NULL) {
+            nouveau_ws_bo_bind_vma(dev->ws_dev,
+                                   mem->bo,
+                                   buffer->addr,
+                                   buffer->vma_size_B,
+                                   pBindInfos[i].memoryOffset,
+                                   0 /* pte_kind */);
+         } else {
+            nouveau_ws_bo_unbind_vma(dev->ws_dev,
+                                     buffer->addr,
+                                     buffer->vma_size_B);
+         }
       } else {
-         buffer->addr = mem->bo->offset + pBindInfos[i].memoryOffset;
+         buffer->addr =
+            mem != NULL ? mem->bo->offset + pBindInfos[i].memoryOffset : 0;
       }
    }
    return VK_SUCCESS;
