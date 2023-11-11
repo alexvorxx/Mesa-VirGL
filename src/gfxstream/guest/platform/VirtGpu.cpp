@@ -15,6 +15,7 @@
  */
 
  #include "VirtGpu.h"
+ #include <cutils/log.h>
 
 namespace {
 
@@ -23,6 +24,15 @@ static VirtGpuDevice* sDevice = nullptr;
 }  // namespace
 
 VirtGpuDevice* VirtGpuDevice::getInstance(enum VirtGpuCapset capset) {
+    // If kCapsetNone is passed, we return a device that was created with any capset.
+    // Otherwise, the created device's capset must match the requested capset.
+    // We could support multiple capsets with a map of devices but that case isn't needed
+    // currently, and with multiple devices it's unclear how to handle kCapsetNone.
+    if (capset != kCapsetNone && sDevice && sDevice->capset() != capset) {
+        ALOGE("Requested VirtGpuDevice capset %u, already created capset %u",
+            capset, sDevice->capset());
+        return nullptr;
+    }
     if (!sDevice) {
         sDevice = createPlatformVirtGpuDevice(capset);
     }
