@@ -733,6 +733,15 @@ attachment_set_ops(struct tu_device *device,
          att->load = true;
       if (stencil_store)
          att->store = true;
+      /* If depth or stencil is passthrough (STORE_OP_NONE), then we need to
+       * preserve the contents when storing by loading even if neither
+       * component needs to be loaded.
+       */
+      if ((store_op == VK_ATTACHMENT_STORE_OP_NONE_EXT ||
+           stencil_store_op == VK_ATTACHMENT_STORE_OP_NONE_EXT) &&
+          att->store) {
+         att->load = true;
+      }
       break;
    case VK_FORMAT_S8_UINT: /* replace load/store with stencil load/store */
       att->clear_mask = stencil_clear ? VK_IMAGE_ASPECT_COLOR_BIT : 0;
