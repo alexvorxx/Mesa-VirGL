@@ -315,6 +315,3 @@ dynamic-dEQP-VK.renderpass2.depth_stencil_resolve.image_2d_32_32.samples_2.d32_s
 # We can't support VK_EXT_sample_locations on pre-A650 GPUs
 # See https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/4665#note_473653
 dEQP-VK.info.device_mandatory_features,Fail
-
-# Can be fixed by https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/26154
-dEQP-VK.dynamic_rendering.primary_cmd_buff.basic.partial_binding_depth_stencil,Fail

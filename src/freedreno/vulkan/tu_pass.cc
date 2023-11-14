@@ -1153,14 +1153,14 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
 
          attachment_set_ops(
             device, att,
-            info->pDepthAttachment ? info->pDepthAttachment->loadOp
-                                   : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            info->pStencilAttachment ? info->pStencilAttachment->loadOp
-                                     : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-            info->pDepthAttachment ? info->pDepthAttachment->storeOp
-                                   : VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            info->pStencilAttachment ? info->pStencilAttachment->storeOp
-                                     : VK_ATTACHMENT_STORE_OP_DONT_CARE);
+            (info->pDepthAttachment && info->pDepthAttachment->imageView) ?
+               info->pDepthAttachment->loadOp : VK_ATTACHMENT_LOAD_OP_NONE_EXT,
+            (info->pStencilAttachment && info->pStencilAttachment->imageView) ?
+               info->pStencilAttachment->loadOp : VK_ATTACHMENT_LOAD_OP_NONE_EXT,
+            (info->pDepthAttachment && info->pDepthAttachment->imageView) ?
+               info->pDepthAttachment->storeOp : VK_ATTACHMENT_STORE_OP_NONE_EXT,
+            (info->pStencilAttachment && info->pStencilAttachment->imageView) ?
+               info->pStencilAttachment->storeOp : VK_ATTACHMENT_STORE_OP_NONE_EXT);
 
          subpass->samples = (VkSampleCountFlagBits) view->image->layout->nr_samples;
 
