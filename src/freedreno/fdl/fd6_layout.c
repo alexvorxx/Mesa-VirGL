@@ -48,10 +48,10 @@ fdl6_get_ubwc_blockwidth(const struct fdl_layout *layout,
       return;
    }
 
-   /* special case for 2bpp + MSAA (not layout->cpp is already
+   /* special case for 1bpp/2bpp + MSAA (note layout->cpp is already
     * pre-multiplied by nr_samples):
     */
-   if ((layout->cpp / layout->nr_samples == 2) && (layout->nr_samples > 1)) {
+   if ((layout->cpp / layout->nr_samples <= 2) && (layout->nr_samples > 1)) {
       if (layout->nr_samples == 2) {
          *blockwidth = 8;
          *blockheight = 4;
