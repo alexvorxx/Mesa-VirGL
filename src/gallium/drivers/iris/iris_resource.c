@@ -1155,14 +1155,9 @@ iris_resource_create_for_image(struct pipe_screen *pscreen,
                 res->surf.size_B / INTEL_AUX_MAP_MAIN_SIZE_SCALEDOWN;
    }
 
-   /* Allocate space for the indirect clear color.
-    *
-    * Also add some padding to make sure the fast clear color state buffer
-    * starts at a 4K alignment. We believe that 256B might be enough, but due
-    * to lack of testing we will leave this as 4K for now.
-    */
+   /* Allocate space for the indirect clear color. */
    if (iris_get_aux_clear_color_state_size(screen, res) > 0) {
-      res->aux.clear_color_offset = align64(bo_size, 4096);
+      res->aux.clear_color_offset = align64(bo_size, 64);
       bo_size = res->aux.clear_color_offset +
                 iris_get_aux_clear_color_state_size(screen, res);
    }
@@ -1442,18 +1437,13 @@ iris_resource_from_handle(struct pipe_screen *pscreen,
                   goto fail;
             }
 
-            /* Add on a clear color BO if needed.
-             *
-             * Also add some padding to make sure the fast clear color state
-             * buffer starts at a 4K alignment to avoid some unknown issues.
-             * See the matching comment in iris_resource_create_for_image().
-             */
+            /* Add on a clear color BO if needed. */
             if (!main_res->mod_info->supports_clear_color &&
                 iris_get_aux_clear_color_state_size(screen, main_res) > 0) {
                main_res->aux.clear_color_bo =
                   iris_bo_alloc(screen->bufmgr, "clear color buffer",
                                 screen->isl_dev.ss.clear_color_state_size,
-                                4096, IRIS_MEMZONE_OTHER, BO_ALLOC_ZEROED);
+                                64, IRIS_MEMZONE_OTHER, BO_ALLOC_ZEROED);
                if (!main_res->aux.clear_color_bo)
                   goto fail;
             }
