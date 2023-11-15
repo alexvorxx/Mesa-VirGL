@@ -668,11 +668,9 @@ add_aux_state_tracking_buffer(struct anv_device *device,
       binding = ANV_IMAGE_MEMORY_BINDING_PRIVATE;
    }
 
-   /* We believe that 256B alignment may be sufficient, but we choose 4K due to
-    * lack of testing.  And MI_LOAD/STORE operations require dword-alignment.
-    */
+   /* The indirect clear color BO requires 64B-alignment on gfx11+. */
    return image_binding_grow(device, image, binding,
-                             state_offset, state_size, 4096,
+                             state_offset, state_size, 64,
                              &image->planes[plane].fast_clear_memory_range);
 }
 
@@ -1122,11 +1120,8 @@ check_memory_bindings(const struct anv_device *device,
             binding = ANV_IMAGE_MEMORY_BINDING_PRIVATE;
          }
 
-         /* We believe that 256B alignment may be sufficient, but we choose 4K
-          * due to lack of testing.  And MI_LOAD/STORE operations require
-          * dword-alignment.
-          */
-         assert(plane->fast_clear_memory_range.alignment == 4096);
+         /* The indirect clear color BO requires 64B-alignment on gfx11+. */
+         assert(plane->fast_clear_memory_range.alignment == 64);
          check_memory_range(accum_ranges,
                             .test_range = &plane->fast_clear_memory_range,
                             .expect_binding = binding);
