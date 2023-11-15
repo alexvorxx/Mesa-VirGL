@@ -64,6 +64,17 @@ using gfxstream::guest::WorkPool;
 
 #define GET_STATUS_SAFE(result, member) ((result).ok() ? ((result)->member) : ZX_OK)
 
+struct SetBufferCollectionImageConstraintsResult {
+    VkResult result;
+    fuchsia_sysmem::wire::BufferCollectionConstraints constraints;
+    std::vector<uint32_t> createInfoIndex;
+};
+
+struct SetBufferCollectionBufferConstraintsResult {
+    VkResult result;
+    fuchsia_sysmem::wire::BufferCollectionConstraints constraints;
+};
+
 #else
 
 typedef uint32_t zx_handle_t;
@@ -294,6 +305,16 @@ class ResourceTracker {
     VkResult on_vkGetBufferCollectionPropertiesFUCHSIA(
         void* context, VkResult input_result, VkDevice device, VkBufferCollectionFUCHSIA collection,
         VkBufferCollectionPropertiesFUCHSIA* pProperties);
+
+    VkResult setBufferCollectionImageConstraintsFUCHSIA(
+        VkEncoder* enc, VkDevice device,
+        fidl::WireSyncClient<fuchsia_sysmem::BufferCollection>* pCollection,
+        const VkImageConstraintsInfoFUCHSIA* pImageConstraintsInfo);
+
+    VkResult setBufferCollectionBufferConstraintsFUCHSIA(
+        fidl::WireSyncClient<fuchsia_sysmem::BufferCollection>* pCollection,
+        const VkBufferConstraintsInfoFUCHSIA* pBufferConstraintsInfo);
+
 #endif
 
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
@@ -604,18 +625,6 @@ class ResourceTracker {
     int getHostInstanceExtensionIndex(const std::string& extName) const;
     int getHostDeviceExtensionIndex(const std::string& extName) const;
 
-#ifdef VK_USE_PLATFORM_FUCHSIA
-    SetBufferCollectionImageConstraintsResult setBufferCollectionImageConstraintsImpl(
-        VkEncoder* enc, VkDevice device,
-        fidl::WireSyncClient<fuchsia_sysmem::BufferCollection>* pCollection,
-        const VkImageConstraintsInfoFUCHSIA* pImageConstraintsInfo);
-
-    VkResult setBufferCollectionBufferConstraintsFUCHSIA(
-        fidl::WireSyncClient<fuchsia_sysmem::BufferCollection>* pCollection,
-        const VkBufferConstraintsInfoFUCHSIA* pBufferConstraintsInfo);
-
-#endif
-
     CoherentMemoryPtr createCoherentMemory(VkDevice device, VkDeviceMemory mem,
                                            const VkMemoryAllocateInfo& hostAllocationInfo,
                                            VkEncoder* enc, VkResult& res);
@@ -671,6 +680,26 @@ class ResourceTracker {
         VkBindImageMemorySwapchainInfoKHR* outputBimsi);
 #endif
 
+    void setMemoryRequirementsForSysmemBackedImage(VkImage image,
+                                               VkMemoryRequirements* pMemoryRequirements);
+
+    void transformImageMemoryRequirementsForGuestLocked(VkImage image, VkMemoryRequirements* reqs);
+
+#if defined(VK_USE_PLATFORM_FUCHSIA)
+    VkResult getBufferCollectionImageCreateInfoIndexLocked(
+        VkBufferCollectionFUCHSIA collection, fuchsia_sysmem::wire::BufferCollectionInfo2& info,
+        uint32_t* outCreateInfoIndex);
+
+    SetBufferCollectionImageConstraintsResult setBufferCollectionImageConstraintsImpl(
+        VkEncoder* enc, VkDevice device,
+        fidl::WireSyncClient<fuchsia_sysmem::BufferCollection>* pCollection,
+        const VkImageConstraintsInfoFUCHSIA* pImageConstraintsInfo);
+
+    VkResult setBufferCollectionConstraintsFUCHSIA(
+        VkEncoder* enc, VkDevice device,
+        fidl::WireSyncClient<fuchsia_sysmem::BufferCollection>* collection,
+        const VkImageCreateInfo* pImageInfo);
+#endif
 
     void unregister_VkDescriptorSet_locked(VkDescriptorSet set);
 
