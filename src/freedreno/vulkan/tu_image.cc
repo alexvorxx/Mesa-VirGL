@@ -393,6 +393,11 @@ ubwc_possible(struct tu_device *device,
        vk_format_is_depth_or_stencil(format))
       return false;
 
+   /* We don't support compressing or decompressing on the CPU */
+   if ((usage | stencil_usage) & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) {
+      return false;
+   }
+
    /* Disable UBWC for D24S8 on A630 in some cases
     *
     * VK_IMAGE_ASPECT_STENCIL_BIT image view requires to be able to sample
@@ -645,6 +650,17 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
    if (pCreateInfo->usage & VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT) {
       image->force_linear_tile = true;
    }
+
+   /* Force linear tiling for HIC usage with swapped formats. Because tiled
+    * images are stored without the swap, we would have to apply the swap when
+    * copying on the CPU, which for some formats is tricky.
+    *
+    * TODO: should we add a fast path for BGRA8 and allow tiling for it?
+    */
+   if ((pCreateInfo->usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) &&
+       fd6_color_swap(vk_format_to_pipe_format(image->vk.format),
+                                               TILE6_LINEAR) != WZYX)
+      image->force_linear_tile = true;
 
    if (image->force_linear_tile ||
        !ubwc_possible(device, image->vk.format, pCreateInfo->imageType,
@@ -922,9 +938,11 @@ tu_BindImageMemory2(VkDevice _device,
             }
          }
          image->bo = mem->bo;
+         image->bo_offset = pBindInfos[i].memoryOffset;
          image->iova = mem->bo->iova + pBindInfos[i].memoryOffset;
 
-         if (image->vk.usage & VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT) {
+         if (image->vk.usage & (VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT |
+                                VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT)) {
             if (!mem->bo->map) {
                result = tu_bo_map(device, mem->bo, NULL);
                if (result != VK_SUCCESS) {
@@ -1051,6 +1069,12 @@ tu_get_image_subresource_layout(struct tu_image *image,
       fdl_layer_stride(layout, pSubresource->imageSubresource.mipLevel);
    pLayout->subresourceLayout.depthPitch = slice->size0;
    pLayout->subresourceLayout.size = slice->size0 * layout->depth0;
+
+   VkSubresourceHostMemcpySizeEXT *memcpy_size =
+      vk_find_struct(pLayout, SUBRESOURCE_HOST_MEMCPY_SIZE_EXT);
+   if (memcpy_size) {
+      memcpy_size->size = slice->size0;
+   }
 
    if (fdl_ubwc_enabled(layout, pSubresource->imageSubresource.mipLevel)) {
       /* UBWC starts at offset 0 */

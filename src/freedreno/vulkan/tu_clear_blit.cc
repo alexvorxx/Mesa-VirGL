@@ -2489,6 +2489,96 @@ tu_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
 }
 TU_GENX(tu_CmdCopyBufferToImage2);
 
+static void
+tu_copy_memory_to_image(struct tu_device *device,
+                        struct tu_image *dst_image,
+                        const VkMemoryToImageCopyEXT *info,
+                        bool copy_memcpy)
+{
+   unsigned plane = tu6_plane_index(dst_image->vk.format,
+                                    info->imageSubresource.aspectMask);
+   const struct fdl_layout *layout = &dst_image->layout[plane];
+
+   VkOffset3D offset = info->imageOffset;
+   VkExtent3D extent = info->imageExtent;
+   uint32_t src_width = info->memoryRowLength ?: extent.width;
+   uint32_t src_height = info->memoryImageHeight ?: extent.height;
+
+   copy_compressed(dst_image->vk.format, &offset, &extent, &src_width, &src_height);
+
+   uint32_t src_pitch = src_width * layout->cpp;
+
+   unsigned start_layer = (dst_image->vk.image_type == VK_IMAGE_TYPE_3D) ?
+      offset.z : info->imageSubresource.baseArrayLayer;
+   uint32_t layers = MAX2(extent.depth,
+                          vk_image_subresource_layer_count(&dst_image->vk,
+                                                           &info->imageSubresource));
+
+   uint32_t image_offset =
+      fdl_surface_offset(layout,
+                         info->imageSubresource.mipLevel,
+                         start_layer);
+
+   uint32_t dst_layer_stride =
+      fdl_layer_stride(layout, info->imageSubresource.mipLevel);
+   uint32_t dst_layer_size =
+      layout->slices[info->imageSubresource.mipLevel].size0;
+   uint32_t src_layer_stride =
+      copy_memcpy ? dst_layer_size :
+      (src_width * src_height * layout->cpp);
+   bool tiled =
+      fdl_tile_mode(layout, info->imageSubresource.mipLevel) != 0;
+
+   const char *src = (const char *) info->pHostPointer;
+   char *dst = (char *) dst_image->map + image_offset;
+   for (unsigned layer = 0; layer < layers; layer++,
+        src += src_layer_stride, dst += dst_layer_stride) {
+      if (copy_memcpy) {
+         memcpy(dst, src, src_layer_stride);
+      } else if (!tiled) {
+         uint32_t dst_pitch = fdl_pitch(layout,
+                                        info->imageSubresource.mipLevel);
+         for (unsigned y = 0; y < extent.height; y++) {
+            memcpy(dst + dst_pitch * (y + offset.y) + offset.x * layout->cpp,
+                   src + src_pitch * y,
+                   extent.width * layout->cpp);
+         }
+      } else {
+         fdl6_memcpy_linear_to_tiled(offset.x, offset.y,
+                                     extent.width, extent.height,
+                                     dst, src, layout,
+                                     info->imageSubresource.mipLevel,
+                                     src_pitch,
+                                     &device->physical_device->ubwc_config);
+      }
+
+      if (dst_image->bo->cached_non_coherent) {
+         tu_bo_sync_cache(device, dst_image->bo,
+                          dst_image->bo_offset + image_offset,
+                          dst_layer_size, TU_MEM_SYNC_CACHE_TO_GPU);
+      }
+   }
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+tu_CopyMemoryToImageEXT(VkDevice _device,
+                        const VkCopyMemoryToImageInfoEXT *info)
+{
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_image, dst_image, info->dstImage);
+
+   for (unsigned i = 0; i < info->regionCount; i++) {
+      tu_copy_memory_to_image(device, dst_image, &info->pRegions[i],
+                              info->flags & VK_HOST_IMAGE_COPY_MEMCPY_EXT);
+   }
+
+   if (dst_image->lrz_height) {
+      TU_CALLX(device, tu_disable_lrz_cpu)(device, dst_image);
+   }
+
+   return VK_SUCCESS;
+}
+
 template <chip CHIP>
 static void
 tu_copy_image_to_buffer(struct tu_cmd_buffer *cmd,
@@ -2582,6 +2672,92 @@ tu_CmdCopyImageToBuffer2(VkCommandBuffer commandBuffer,
    after_buffer_unaligned_buffer_store<CHIP>(cmd, unaligned_store);
 }
 TU_GENX(tu_CmdCopyImageToBuffer2);
+
+static void
+tu_copy_image_to_memory(struct tu_device *device,
+                        struct tu_image *src_image,
+                        const VkImageToMemoryCopyEXT *info,
+                        bool copy_memcpy)
+{
+   unsigned plane = tu6_plane_index(src_image->vk.format,
+                                    info->imageSubresource.aspectMask);
+   const struct fdl_layout *layout = &src_image->layout[plane];
+
+   VkOffset3D offset = info->imageOffset;
+   VkExtent3D extent = info->imageExtent;
+   uint32_t dst_width = info->memoryRowLength ?: extent.width;
+   uint32_t dst_height = info->memoryImageHeight ?: extent.height;
+
+   copy_compressed(src_image->vk.format, &offset, &extent, &dst_width, &dst_height);
+
+   uint32_t dst_pitch = dst_width * layout->cpp;
+
+   unsigned start_layer = (src_image->vk.image_type == VK_IMAGE_TYPE_3D) ?
+      offset.z : info->imageSubresource.baseArrayLayer;
+   uint32_t layers = MAX2(extent.depth,
+                          vk_image_subresource_layer_count(&src_image->vk,
+                                                           &info->imageSubresource));
+
+   uint32_t image_offset =
+      fdl_surface_offset(layout,
+                         info->imageSubresource.mipLevel,
+                         start_layer);
+
+   uint32_t src_layer_stride =
+      fdl_layer_stride(layout, info->imageSubresource.mipLevel);
+   uint32_t src_layer_size =
+      layout->slices[info->imageSubresource.mipLevel].size0;
+   uint32_t dst_layer_stride =
+      copy_memcpy ? src_layer_size : (dst_width * dst_height * layout->cpp);
+   bool tiled =
+      fdl_tile_mode(layout, info->imageSubresource.mipLevel) != 0;
+
+   const char *src = (const char *) src_image->map + image_offset;
+   char *dst = (char *) info->pHostPointer;
+   for (unsigned layer = 0; layer < layers; layer++,
+        src += src_layer_stride, dst += dst_layer_stride) {
+      if (src_image->bo->cached_non_coherent) {
+         tu_bo_sync_cache(device, src_image->bo,
+                          src_image->bo_offset + image_offset,
+                          src_layer_size, TU_MEM_SYNC_CACHE_FROM_GPU);
+      }
+
+      if (copy_memcpy) {
+         memcpy(dst, src, dst_layer_stride);
+      } else if (!tiled) {
+         uint32_t src_pitch = fdl_pitch(layout,
+                                        info->imageSubresource.mipLevel);
+         for (unsigned y = 0; y < extent.height; y++) {
+            memcpy(dst + dst_pitch * y,
+                   src + src_pitch * (y + offset.y) + offset.x * layout->cpp,
+                   extent.width * layout->cpp);
+         }
+      } else {
+         fdl6_memcpy_tiled_to_linear(offset.x, offset.y,
+                                     extent.width, extent.height,
+                                     dst, src, layout,
+                                     info->imageSubresource.mipLevel,
+                                     dst_pitch,
+                                     &device->physical_device->ubwc_config);
+      }
+   }
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+tu_CopyImageToMemoryEXT(VkDevice _device,
+                        const VkCopyImageToMemoryInfoEXT *info)
+{
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_image, image, info->srcImage);
+
+   for (unsigned i = 0; i < info->regionCount; i++) {
+      tu_copy_image_to_memory(device, image, &info->pRegions[i],
+                              info->flags & VK_HOST_IMAGE_COPY_MEMCPY_EXT);
+   }
+
+   return VK_SUCCESS;
+}
+
 
 /* Tiled formats don't support swapping, which means that we can't support
  * formats that require a non-WZYX swap like B8G8R8A8 natively. Also, some
@@ -2843,6 +3019,195 @@ tu_CmdCopyImage2(VkCommandBuffer commandBuffer,
    }
 }
 TU_GENX(tu_CmdCopyImage2);
+
+static void
+tu_copy_image_to_image_cpu(struct tu_device *device,
+                           struct tu_image *src_image,
+                           struct tu_image *dst_image,
+                           const VkImageCopy2 *info,
+                           bool copy_memcpy)
+{
+   unsigned src_plane = tu6_plane_index(src_image->vk.format,
+                                        info->srcSubresource.aspectMask);
+   unsigned dst_plane = tu6_plane_index(dst_image->vk.format,
+                                        info->dstSubresource.aspectMask);
+
+   const struct fdl_layout *src_layout = &src_image->layout[src_plane];
+   const struct fdl_layout *dst_layout = &dst_image->layout[dst_plane];
+
+   VkOffset3D src_offset = info->srcOffset;
+   VkOffset3D dst_offset = info->dstOffset;
+   VkExtent3D extent = info->extent;
+   uint32_t layers_to_copy = MAX2(info->extent.depth,
+                                  vk_image_subresource_layer_count(&src_image->vk,
+                                                                   &info->srcSubresource));
+
+   /* See comment above. */
+   copy_compressed(src_image->vk.format, &src_offset, &extent, NULL, NULL);
+   copy_compressed(dst_image->vk.format, &dst_offset, NULL, NULL, NULL);
+
+   unsigned src_start_layer = (src_image->vk.image_type == VK_IMAGE_TYPE_3D) ?
+      src_offset.z : info->srcSubresource.baseArrayLayer;
+   unsigned dst_start_layer = (dst_image->vk.image_type == VK_IMAGE_TYPE_3D) ?
+      dst_offset.z : info->dstSubresource.baseArrayLayer;
+
+   uint32_t src_layer_stride =
+      fdl_layer_stride(src_layout, info->srcSubresource.mipLevel);
+   uint32_t src_layer_size =
+      src_layout->slices[info->srcSubresource.mipLevel].size0;
+   uint32_t dst_layer_stride =
+      fdl_layer_stride(dst_layout, info->dstSubresource.mipLevel);
+   uint32_t dst_layer_size =
+      dst_layout->slices[info->dstSubresource.mipLevel].size0;
+
+   uint32_t src_image_offset =
+      fdl_surface_offset(src_layout,
+                         info->srcSubresource.mipLevel,
+                         src_start_layer);
+   uint32_t dst_image_offset =
+      fdl_surface_offset(dst_layout,
+                         info->dstSubresource.mipLevel,
+                         dst_start_layer);
+
+   bool src_tiled =
+      fdl_tile_mode(src_layout, info->srcSubresource.mipLevel) != 0;
+   bool dst_tiled =
+      fdl_tile_mode(dst_layout, info->dstSubresource.mipLevel) != 0;
+
+   const char *src = (const char *) src_image->map + src_image_offset;
+   char *dst = (char *) dst_image->map + dst_image_offset;
+   for (unsigned layer = 0; layer < layers_to_copy; layer++,
+        src += src_layer_stride, dst += dst_layer_stride) {
+      if (src_image->bo->cached_non_coherent) {
+         tu_bo_sync_cache(device, src_image->bo,
+                          src_image->bo_offset + src_image_offset,
+                          src_layer_size, TU_MEM_SYNC_CACHE_FROM_GPU);
+      }
+
+      uint32_t src_pitch = fdl_pitch(src_layout,
+                                     info->srcSubresource.mipLevel);
+      uint32_t dst_pitch = fdl_pitch(dst_layout,
+                                     info->dstSubresource.mipLevel);
+
+      if (copy_memcpy) {
+         assert(src_layer_size == dst_layer_size);
+         memcpy(dst, src, src_layer_size);
+      } else if (!src_tiled && !dst_tiled) {
+         for (unsigned y = 0; y < extent.height; y++) {
+            memcpy(dst + dst_pitch * (y + dst_offset.y) + dst_offset.x * dst_layout->cpp,
+                   src + src_pitch * (y + src_offset.y) + src_offset.x * src_layout->cpp,
+                   extent.width * src_layout->cpp);
+         }
+      } else if (!src_tiled) {
+         fdl6_memcpy_linear_to_tiled(dst_offset.x, dst_offset.y,
+                                     extent.width, extent.height,
+                                     dst,
+                                     src + src_pitch * src_offset.y + src_offset.x * src_layout->cpp,
+                                     dst_layout,
+                                     info->dstSubresource.mipLevel,
+                                     src_pitch,
+                                     &device->physical_device->ubwc_config);
+      } else if (!dst_tiled) {
+         fdl6_memcpy_tiled_to_linear(src_offset.x, src_offset.y,
+                                     extent.width, extent.height,
+                                     dst + dst_pitch * dst_offset.y + dst_offset.x * dst_layout->cpp,
+                                     src,
+                                     src_layout,
+                                     info->dstSubresource.mipLevel,
+                                     dst_pitch,
+                                     &device->physical_device->ubwc_config);
+      } else {
+         /* Work tile-by-tile, holding the unswizzled tile in a temporary
+          * buffer.
+          */
+         char temp_tile[256];
+
+         uint32_t block_width, block_height;
+         fdl6_get_ubwc_blockwidth(src_layout, &block_width, &block_height);
+
+         uint32_t temp_pitch = block_width * src_layout->cpp;
+
+         for (unsigned by = src_offset.y / block_height;
+              by * block_height < src_offset.y + extent.height; by++) {
+            uint32_t src_y_start = MAX2(src_offset.y, by * block_height);
+            uint32_t dst_y_start = src_y_start - src_offset.y + dst_offset.y;
+            uint32_t height =
+               MIN2((by + 1) * block_height, src_offset.y + extent.height) -
+               src_y_start;
+            for (unsigned bx = src_offset.x / block_width;
+                 bx * block_width < src_offset.x + extent.width; bx++) {
+               uint32_t src_x_start = MAX2(src_offset.x, bx * block_width);
+               uint32_t dst_x_start = src_x_start - src_offset.x + dst_offset.x;
+               uint32_t width =
+                  MIN2((bx + 1) * block_width, src_offset.x + extent.width) -
+                  src_x_start;
+
+               fdl6_memcpy_tiled_to_linear(src_x_start, src_y_start,
+                                           width, height,
+                                           temp_tile, src, src_layout,
+                                           info->srcSubresource.mipLevel,
+                                           temp_pitch,
+                                           &device->physical_device->ubwc_config);
+               fdl6_memcpy_linear_to_tiled(dst_x_start, dst_y_start,
+                                           width, height,
+                                           dst, temp_tile, dst_layout,
+                                           info->dstSubresource.mipLevel,
+                                           temp_pitch,
+                                           &device->physical_device->ubwc_config);
+            }
+         }
+      }
+
+      if (dst_image->bo->cached_non_coherent) {
+         tu_bo_sync_cache(device, dst_image->bo,
+                          dst_image->bo_offset + dst_image_offset,
+                          dst_layer_size, TU_MEM_SYNC_CACHE_TO_GPU);
+      }
+   }
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+tu_CopyImageToImageEXT(VkDevice _device,
+                       const VkCopyImageToImageInfoEXT *pCopyImageToImageInfo)
+{
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_image, src_image, pCopyImageToImageInfo->srcImage);
+   VK_FROM_HANDLE(tu_image, dst_image, pCopyImageToImageInfo->dstImage);
+   bool copy_memcpy = pCopyImageToImageInfo->flags &
+      VK_HOST_IMAGE_COPY_MEMCPY_EXT;
+
+   for (uint32_t i = 0; i < pCopyImageToImageInfo->regionCount; ++i) {
+      if (src_image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+         VkImageCopy2 info = pCopyImageToImageInfo->pRegions[i];
+         u_foreach_bit(b, info.dstSubresource.aspectMask) {
+            info.srcSubresource.aspectMask = BIT(b);
+            info.dstSubresource.aspectMask = BIT(b);
+            tu_copy_image_to_image_cpu(device, src_image, dst_image, &info,
+                                       copy_memcpy);
+         }
+         continue;
+      }
+
+      tu_copy_image_to_image_cpu(device, src_image, dst_image,
+                                 pCopyImageToImageInfo->pRegions + i,
+                                 copy_memcpy);
+   }
+
+   if (dst_image->lrz_height) {
+      TU_CALLX(device, tu_disable_lrz_cpu)(device, dst_image);
+   }
+
+   return VK_SUCCESS;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+tu_TransitionImageLayoutEXT(VkDevice device,
+                            uint32_t transitionCount,
+                            const VkHostImageLayoutTransitionInfoEXT *transitions)
+{
+   /* We don't do anything with layouts so this should be a no-op */
+   return VK_SUCCESS;
+}
 
 template <chip CHIP>
 static void
