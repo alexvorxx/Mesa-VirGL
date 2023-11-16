@@ -20,6 +20,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <set>
 #include <unordered_map>
 
 #include "CommandBufferStagingStream.h"
@@ -670,6 +671,176 @@ class ResourceTracker {
         VkBindImageMemorySwapchainInfoKHR* outputBimsi);
 #endif
 
+
+    void unregister_VkDescriptorSet_locked(VkDescriptorSet set);
+
+#define HANDLE_DEFINE_TRIVIAL_INFO_STRUCT(type) \
+    struct type##_Info {                        \
+        uint32_t unused;                        \
+    };
+    GOLDFISH_VK_LIST_TRIVIAL_HANDLE_TYPES(HANDLE_DEFINE_TRIVIAL_INFO_STRUCT)
+
+    struct VkInstance_Info {
+        uint32_t highestApiVersion;
+        std::set<std::string> enabledExtensions;
+        // Fodder for vkEnumeratePhysicalDevices.
+        std::vector<VkPhysicalDevice> physicalDevices;
+    };
+
+    struct VkDevice_Info {
+        VkPhysicalDevice physdev;
+        VkPhysicalDeviceProperties props;
+        VkPhysicalDeviceMemoryProperties memProps;
+        uint32_t apiVersion;
+        std::set<std::string> enabledExtensions;
+        std::vector<std::pair<PFN_vkDeviceMemoryReportCallbackEXT, void*>> deviceMemoryReportCallbacks;
+    };
+
+    struct VkDeviceMemory_Info {
+        bool dedicated = false;
+        bool imported = false;
+
+    #ifdef VK_USE_PLATFORM_ANDROID_KHR
+        AHardwareBuffer* ahw = nullptr;
+    #endif
+        zx_handle_t vmoHandle = ZX_HANDLE_INVALID;
+        VkDevice device;
+
+        uint8_t* ptr = nullptr;
+
+        uint64_t blobId = 0;
+        uint64_t allocationSize = 0;
+        uint32_t memoryTypeIndex = 0;
+        uint64_t coherentMemorySize = 0;
+        uint64_t coherentMemoryOffset = 0;
+
+    #if defined(__ANDROID__)
+        GoldfishAddressSpaceBlockPtr goldfishBlock = nullptr;
+    #endif  // defined(__ANDROID__)
+        CoherentMemoryPtr coherentMemory = nullptr;
+    };
+
+    struct VkCommandBuffer_Info {
+        uint32_t placeholder;
+    };
+
+    struct VkQueue_Info {
+        VkDevice device;
+    };
+
+    // custom guest-side structs for images/buffers because of AHardwareBuffer :((
+    struct VkImage_Info {
+        VkDevice device;
+        VkImageCreateInfo createInfo;
+        bool external = false;
+        VkExternalMemoryImageCreateInfo externalCreateInfo;
+        VkDeviceMemory currentBacking = VK_NULL_HANDLE;
+        VkDeviceSize currentBackingOffset = 0;
+        VkDeviceSize currentBackingSize = 0;
+        bool baseRequirementsKnown = false;
+        VkMemoryRequirements baseRequirements;
+    #ifdef VK_USE_PLATFORM_ANDROID_KHR
+        bool hasExternalFormat = false;
+        unsigned androidFormat = 0;
+        std::vector<int> pendingQsriSyncFds;
+    #endif
+    #ifdef VK_USE_PLATFORM_FUCHSIA
+        bool isSysmemBackedMemory = false;
+    #endif
+    };
+
+    struct VkBuffer_Info {
+        VkDevice device;
+        VkBufferCreateInfo createInfo;
+        bool external = false;
+        VkExternalMemoryBufferCreateInfo externalCreateInfo;
+        VkDeviceMemory currentBacking = VK_NULL_HANDLE;
+        VkDeviceSize currentBackingOffset = 0;
+        VkDeviceSize currentBackingSize = 0;
+        bool baseRequirementsKnown = false;
+        VkMemoryRequirements baseRequirements;
+    #ifdef VK_USE_PLATFORM_FUCHSIA
+        bool isSysmemBackedMemory = false;
+    #endif
+    };
+
+    struct VkSemaphore_Info {
+        VkDevice device;
+        zx_handle_t eventHandle = ZX_HANDLE_INVALID;
+        zx_koid_t eventKoid = ZX_KOID_INVALID;
+        std::optional<int> syncFd = {};
+    };
+
+    struct VkDescriptorUpdateTemplate_Info {
+        uint32_t templateEntryCount = 0;
+        VkDescriptorUpdateTemplateEntry* templateEntries;
+
+        uint32_t imageInfoCount = 0;
+        uint32_t bufferInfoCount = 0;
+        uint32_t bufferViewCount = 0;
+        uint32_t inlineUniformBlockCount = 0;
+        uint32_t* imageInfoIndices;
+        uint32_t* bufferInfoIndices;
+        uint32_t* bufferViewIndices;
+        VkDescriptorImageInfo* imageInfos;
+        VkDescriptorBufferInfo* bufferInfos;
+        VkBufferView* bufferViews;
+        std::vector<uint8_t> inlineUniformBlockBuffer;
+        std::vector<uint32_t> inlineUniformBlockBytesPerBlocks;  // bytes per uniform block
+    };
+
+    struct VkFence_Info {
+        VkDevice device;
+        bool external = false;
+        VkExportFenceCreateInfo exportFenceCreateInfo;
+    #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
+        int syncFd = -1;
+    #endif
+    };
+
+    struct VkDescriptorPool_Info {
+        uint32_t unused;
+    };
+
+    struct VkDescriptorSet_Info {
+        uint32_t unused;
+    };
+
+    struct VkDescriptorSetLayout_Info {
+        uint32_t unused;
+    };
+
+    struct VkCommandPool_Info {
+        uint32_t unused;
+    };
+
+    struct VkSampler_Info {
+        uint32_t unused;
+    };
+
+    struct VkBufferCollectionFUCHSIA_Info {
+    #ifdef VK_USE_PLATFORM_FUCHSIA
+        gfxstream::guest::Optional<fuchsia_sysmem::wire::BufferCollectionConstraints> constraints;
+        gfxstream::guest::Optional<VkBufferCollectionPropertiesFUCHSIA> properties;
+
+        // the index of corresponding createInfo for each image format
+        // constraints in |constraints|.
+        std::vector<uint32_t> createInfoIndex;
+    #endif  // VK_USE_PLATFORM_FUCHSIA
+    };
+
+    VkDescriptorImageInfo filterNonexistentSampler(const VkDescriptorImageInfo& inputInfo);
+
+    void emitDeviceMemoryReport(VkDevice_Info info,
+                                VkDeviceMemoryReportEventTypeEXT type,
+                                uint64_t memoryObjectId,
+                                VkDeviceSize size,
+                                VkObjectType objectType,
+                                uint64_t objectHandle,
+                                uint32_t heapIndex = 0);
+
+    CoherentMemoryPtr freeCoherentMemoryLocked(VkDeviceMemory memory, VkDeviceMemory_Info& info);
+
     mutable RecursiveLock mLock;
 
     std::optional<const VkPhysicalDeviceMemoryProperties> mCachedPhysicalDeviceMemoryProps;
@@ -692,6 +863,11 @@ class ResourceTracker {
     fidl::WireSyncClient<fuchsia_hardware_goldfish::ControlDevice> mControlDevice;
     fidl::WireSyncClient<fuchsia_sysmem::Allocator> mSysmemAllocator;
 #endif
+
+#define HANDLE_REGISTER_DECLARATION(type)              \
+    std::unordered_map<type, type##_Info> info_##type;
+
+GOLDFISH_VK_LIST_HANDLE_TYPES(HANDLE_REGISTER_DECLARATION)
 
     WorkPool mWorkPool{4};
     std::unordered_map<VkQueue, std::vector<WorkPool::WaitGroupHandle>>
