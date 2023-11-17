@@ -15,22 +15,26 @@
 */
 #include "AddressSpaceStream.h"
 
-#include "VirtGpu.h"
-#include "aemu/base/Tracing.h"
-#include "util.h"
-#include "virtgpu_gfxstream_protocol.h"
-
-#if PLATFORM_SDK_VERSION < 26
-#include <cutils/log.h>
-#else
-#include <log/log.h>
-#endif
-#include <cutils/properties.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include "VirtGpu.h"
+#include "aemu/base/Tracing.h"
+#include "util.h"
+#include "virtgpu_gfxstream_protocol.h"
+
+#if defined(__ANDROID__)
+#include "android-base/properties.h"
+#endif
+#if PLATFORM_SDK_VERSION < 26
+#include <cutils/log.h>
+#else
+#include <log/log.h>
+#endif
+
 
 static const size_t kReadSize = 512 * 1024;
 static const size_t kWriteOffset = kReadSize;
@@ -596,9 +600,11 @@ void AddressSpaceStream::backoff() {
 #if defined(HOST_BUILD) || defined(__APPLE__) || defined(__MACOSX) || defined(__Fuchsia__) || defined(__linux__)
     static const uint32_t kBackoffItersThreshold = 50000000;
     static const uint32_t kBackoffFactorDoublingIncrement = 50000000;
-#else
-    static const uint32_t kBackoffItersThreshold = property_get_int32("ro.boot.asg.backoffiters", 50000000);
-    static const uint32_t kBackoffFactorDoublingIncrement = property_get_int32("ro.boot.asg.backoffincrement", 50000000);
+#elif defined(__ANDROID__)
+    static const uint32_t kBackoffItersThreshold =
+        android::base::GetUintProperty("ro.boot.asg.backoffiters", 50000000);
+    static const uint32_t kBackoffFactorDoublingIncrement =
+        android::base::GetUintProperty("ro.boot.asg.backoffincrement", 50000000);
 #endif
     ++m_backoffIters;
 
