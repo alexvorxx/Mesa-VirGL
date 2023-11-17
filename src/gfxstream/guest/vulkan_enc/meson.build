@@ -28,7 +28,7 @@ lib_vulkan_enc = static_library(
    include_directories: [inc_android_emu, inc_guest_iostream, inc_android_compat,
                          inc_opengl_codec, inc_render_enc, inc_system,
                          inc_goldfish_address_space, inc_platform,
-                         inc_vulkan_headers],
+                         inc_vulkan_headers, inc_opengl_headers],
    link_with: [lib_platform],
    dependencies: dependency('libdrm'),
 )
