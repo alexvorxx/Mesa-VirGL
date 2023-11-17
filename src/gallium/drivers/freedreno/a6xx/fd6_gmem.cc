@@ -456,9 +456,6 @@ patch_fb_read_sysmem(struct fd_batch *batch)
       struct pipe_resource *prsc = psurf->texture;
       struct fd_resource *rsc = fd_resource(prsc);
 
-      uint32_t block_width, block_height;
-      fdl6_get_ubwc_blockwidth(&rsc->layout, &block_width, &block_height);
-
       struct fdl_view_args args = {
          .chip = CHIP,
 
