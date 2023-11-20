@@ -54,6 +54,9 @@ etna_blend_state_create(struct pipe_context *pctx,
 
    co->base = *so;
 
+   logicop_enable = so->logicop_enable &&
+                    VIV_FEATURE(ctx->screen, ETNA_FEATURE_LOGIC_OP);
+
    /* Enable blending if
     * - blend enabled in blend state
     * - NOT source factor is ONE and destination factor ZERO and eq is ADD for
@@ -90,9 +93,6 @@ etna_blend_state_create(struct pipe_context *pctx,
    } else {
       co->rt[0].PE_ALPHA_CONFIG = 0;
    }
-
-   logicop_enable = so->logicop_enable &&
-                    VIV_FEATURE(ctx->screen, ETNA_FEATURE_LOGIC_OP);
 
    co->PE_LOGIC_OP =
          VIVS_PE_LOGIC_OP_OP(logicop_enable ? so->logicop_func : LOGIC_OP_COPY) |
