@@ -474,7 +474,7 @@ etna_emit_state(struct etna_context *ctx)
       /*01424*/ EMIT_STATE(PE_ALPHA_BLEND_COLOR, ctx->blend_color.PE_ALPHA_BLEND_COLOR);
    }
    if (unlikely(dirty & (ETNA_DIRTY_BLEND))) {
-      uint32_t val = etna_blend_state(ctx->blend)->PE_ALPHA_CONFIG;
+      uint32_t val = etna_blend_state(ctx->blend)->rt[0].PE_ALPHA_CONFIG;
       /*01428*/ EMIT_STATE(PE_ALPHA_CONFIG, val);
    }
    if (unlikely(dirty & (ETNA_DIRTY_BLEND | ETNA_DIRTY_FRAMEBUFFER))) {
@@ -483,7 +483,7 @@ etna_emit_state(struct etna_context *ctx)
        * as a mask to enable the bits from blend PE_COLOR_FORMAT */
       val = ~(VIVS_PE_COLOR_FORMAT_COMPONENTS__MASK |
               VIVS_PE_COLOR_FORMAT_OVERWRITE);
-      val |= etna_blend_state(ctx->blend)->PE_COLOR_FORMAT;
+      val |= etna_blend_state(ctx->blend)->rt[0].PE_COLOR_FORMAT;
       val &= ctx->framebuffer.PE_COLOR_FORMAT;
       /*0142C*/ EMIT_STATE(PE_COLOR_FORMAT, val);
    }

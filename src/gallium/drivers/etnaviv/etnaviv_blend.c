@@ -78,7 +78,7 @@ etna_blend_state_create(struct pipe_context *pctx,
                            rt0->rgb_func == rt0->alpha_func);
 
    if (alpha_enable) {
-      co->PE_ALPHA_CONFIG =
+      co->rt[0].PE_ALPHA_CONFIG =
          VIVS_PE_ALPHA_CONFIG_BLEND_ENABLE_COLOR |
          COND(separate_alpha, VIVS_PE_ALPHA_CONFIG_BLEND_SEPARATE_ALPHA) |
          VIVS_PE_ALPHA_CONFIG_SRC_FUNC_COLOR(translate_blend_factor(rt0->rgb_src_factor)) |
@@ -88,7 +88,7 @@ etna_blend_state_create(struct pipe_context *pctx,
          VIVS_PE_ALPHA_CONFIG_EQ_COLOR(rt0->rgb_func) |
          VIVS_PE_ALPHA_CONFIG_EQ_ALPHA(rt0->alpha_func);
    } else {
-      co->PE_ALPHA_CONFIG = 0;
+      co->rt[0].PE_ALPHA_CONFIG = 0;
    }
 
    logicop_enable = so->logicop_enable &&
@@ -99,7 +99,7 @@ etna_blend_state_create(struct pipe_context *pctx,
          VIVS_PE_LOGIC_OP_DITHER_MODE(3) | /* TODO: related to dithering, sometimes 2 */
          0x000E4000 /* ??? */;
 
-   co->fo_allowed = !alpha_enable && !logicop_enable;
+   co->rt[0].fo_allowed = !alpha_enable && !logicop_enable;
 
    /* independent_blend_enable not needed: only one rt supported */
    /* XXX alpha_to_coverage / alpha_to_one? */
@@ -147,9 +147,9 @@ etna_update_blend(struct etna_context *ctx)
     */
    if (pfb->cbufs[0])
       desc = util_format_description(pfb->cbufs[0]->format);
-   bool full_overwrite = !pfb->cbufs[0] || ((blend->fo_allowed &&
+   bool full_overwrite = !pfb->cbufs[0] || ((blend->rt[0].fo_allowed &&
                          util_format_colormask_full(desc, colormask)));
-   blend->PE_COLOR_FORMAT =
+   blend->rt[0].PE_COLOR_FORMAT =
             VIVS_PE_COLOR_FORMAT_COMPONENTS(colormask) |
             COND(full_overwrite, VIVS_PE_COLOR_FORMAT_OVERWRITE);
 
