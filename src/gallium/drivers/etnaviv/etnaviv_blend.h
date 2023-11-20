@@ -35,6 +35,9 @@ struct etna_context;
 struct etna_rt_blend_state {
    uint32_t PE_ALPHA_CONFIG;
    uint32_t PE_COLOR_FORMAT;
+   uint32_t PE_HALTI5_COLORMASK;
+   bool alpha_enable : 1;
+   bool separate_alpha : 1;
    bool fo_allowed : 1;
 };
 

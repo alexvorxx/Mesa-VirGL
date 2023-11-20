@@ -151,6 +151,27 @@ emit_halti5_only_state(struct etna_context *ctx, int vs_output_count)
       /*01084*/ EMIT_STATE(PS_VARYING_NUM_COMPONENTS(1), ctx->shader_state.GL_VARYING_NUM_COMPONENTS[1]);
       /*03888*/ EMIT_STATE(GL_HALTI5_SH_SPECIALS, ctx->shader_state.GL_HALTI5_SH_SPECIALS);
    }
+   if (unlikely(dirty & (ETNA_DIRTY_BLEND))) {
+      for (int i = 1; i < ctx->framebuffer.num_rt; i++) {
+         const uint8_t rt = i - 1;
+         /*14920*/ EMIT_STATE(PE_HALTI5_RT_COLORMASK(rt), etna_blend_state(ctx->blend)->rt[i].PE_HALTI5_COLORMASK);
+      }
+      for (int i = 1; i < ctx->framebuffer.num_rt; i++) {
+         const uint8_t rt = i - 1;
+         /*14960*/ EMIT_STATE(PE_HALTI5_RT_ALPHA_CONFIG(rt), etna_blend_state(ctx->blend)->rt[i].PE_ALPHA_CONFIG);
+      }
+   }
+   if (unlikely(dirty & (ETNA_DIRTY_BLEND_COLOR))) {
+      for (int i = 1; i < ctx->framebuffer.num_rt; i++) {
+         const uint8_t rt = i - 1;
+         /*14980*/ EMIT_STATE(PE_HALTI5_RT_ALPHA_COLOR_EXT0(rt), ctx->blend_color.rt[i].PE_ALPHA_COLOR_EXT0);
+      }
+      for (int i = 1; i < ctx->framebuffer.num_rt; i++) {
+         const uint8_t rt = i - 1;
+         /*149A0*/ EMIT_STATE(PE_HALTI5_RT_ALPHA_COLOR_EXT1(rt), ctx->blend_color.rt[i].PE_ALPHA_COLOR_EXT1);
+      }
+   }
+
    etna_coalesce_end(stream, &coalesce);
 }
 
