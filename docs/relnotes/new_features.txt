@@ -22,3 +22,4 @@ VK_EXT_host_image_copy on nvk/Turing+
 VK_EXT_depth_clamp_control on anv, hasvk, nvk, radv
 VK_KHR_shader_quad_control on nvk
 GL_EXT_draw_buffers2 on etnaviv/HALTI5+
+GL_ARB_draw_buffers_blend on etnaviv/HALTI5+

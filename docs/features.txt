@@ -113,7 +113,7 @@ GL 3.3, GLSL 3.30 --- all DONE: freedreno, nv50, nvc0, r600, radeonsi, llvmpipe,
 
 GL 4.0, GLSL 4.00 --- all DONE: freedreno/a6xx, nvc0, r600, radeonsi, llvmpipe, virgl, zink, d3d12, iris, crocus/gen7+, asahi
 
-  GL_ARB_draw_buffers_blend                             DONE (freedreno, nv50, softpipe, panfrost, v3d, crocus/gen6+)
+  GL_ARB_draw_buffers_blend                             DONE (freedreno, nv50, softpipe, panfrost, v3d, crocus/gen6+, etnaviv/HALTI5+)
   GL_ARB_draw_indirect                                  DONE (freedreno, softpipe, v3d)
   GL_ARB_gpu_shader5                                    DONE (freedreno/a6xx)
   - 'precise' qualifier                                 DONE (softpipe)

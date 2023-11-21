@@ -262,6 +262,7 @@ etna_screen_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
       return screen->specs.num_rts;
    }
    case PIPE_CAP_INDEP_BLEND_ENABLE:
+   case PIPE_CAP_INDEP_BLEND_FUNC:
       return screen->info->halti >= 5;
 
    /* Queries. */
