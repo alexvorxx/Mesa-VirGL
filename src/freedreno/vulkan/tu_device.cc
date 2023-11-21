@@ -1311,6 +1311,20 @@ tu_physical_device_init(struct tu_physical_device *device,
       device->memory.type_count++;
    }
 
+   /* Provide fallback UBWC config values if the kernel doesn't support
+    * providing them. This should match what the kernel programs.
+    */
+   if (!device->ubwc_config.highest_bank_bit) {
+      device->ubwc_config.highest_bank_bit = info.highest_bank_bit;
+   }
+   if (device->ubwc_config.bank_swizzle_levels == ~0) {
+      device->ubwc_config.bank_swizzle_levels = info.ubwc_swizzle;
+   }
+   if (device->ubwc_config.macrotile_mode == FDL_MACROTILE_INVALID) {
+      device->ubwc_config.macrotile_mode =
+         (enum fdl_macrotile_mode) info.macrotile_mode;
+   }
+
    fd_get_driver_uuid(device->driver_uuid);
    fd_get_device_uuid(device->device_uuid, &device->dev_id);
 

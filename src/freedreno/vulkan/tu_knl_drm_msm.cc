@@ -149,6 +149,39 @@ tu_drm_get_priorities(const struct tu_physical_device *dev)
    return val;
 }
 
+static uint32_t
+tu_drm_get_highest_bank_bit(const struct tu_physical_device *dev)
+{
+   uint64_t value;
+   int ret = tu_drm_get_param(dev->local_fd, MSM_PARAM_HIGHEST_BANK_BIT, &value);
+   if (ret)
+      return 0;
+
+   return value;
+}
+
+static enum fdl_macrotile_mode
+tu_drm_get_macrotile_mode(const struct tu_physical_device *dev)
+{
+   uint64_t value;
+   int ret = tu_drm_get_param(dev->local_fd, MSM_PARAM_MACROTILE_MODE, &value);
+   if (ret)
+      return FDL_MACROTILE_INVALID;
+
+   return (enum fdl_macrotile_mode) value;
+}
+
+static uint32_t
+tu_drm_get_ubwc_swizzle(const struct tu_physical_device *dev)
+{
+   uint64_t value;
+   int ret = tu_drm_get_param(dev->local_fd, MSM_PARAM_UBWC_SWIZZLE, &value);
+   if (ret)
+      return ~0;
+
+   return value;
+}
+
 static bool
 tu_drm_is_memory_type_supported(int fd, uint32_t flags)
 {
@@ -1273,6 +1306,10 @@ tu_knl_drm_msm_load(struct tu_instance *instance,
       tu_drm_is_memory_type_supported(fd, MSM_BO_CACHED_COHERENT);
 
    device->submitqueue_priority_count = tu_drm_get_priorities(device);
+
+   device->ubwc_config.highest_bank_bit = tu_drm_get_highest_bank_bit(device);
+   device->ubwc_config.bank_swizzle_levels = tu_drm_get_ubwc_swizzle(device);
+   device->ubwc_config.macrotile_mode = tu_drm_get_macrotile_mode(device);
 
    device->syncobj_type = vk_drm_syncobj_get_type(fd);
    /* we don't support DRM_CAP_SYNCOBJ_TIMELINE, but drm-shim does */

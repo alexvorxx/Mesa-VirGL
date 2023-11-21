@@ -87,7 +87,7 @@ struct tu_virtio_device {
    struct u_vector zombie_vmas_stage_2;
 };
 
-static int tu_drm_get_param(struct tu_device *dev, uint32_t param, uint64_t *value);
+static int tu_drm_get_param(struct vdrm_device *vdrm, uint32_t param, uint64_t *value);
 
 /**
  * Helper for simple pass-thru ioctls
@@ -149,7 +149,7 @@ query_faults(struct tu_device *dev, uint64_t *value)
    if (vdrm_shmem_has_field(vdev->shmem, global_faults)) {
       global_faults = vdev->shmem->global_faults;
    } else {
-      int ret = tu_drm_get_param(dev, MSM_PARAM_FAULTS, &global_faults);
+      int ret = tu_drm_get_param(vdev->vdrm, MSM_PARAM_FAULTS, &global_faults);
       if (ret)
          return ret;
    }
@@ -256,7 +256,7 @@ virtio_device_finish(struct tu_device *dev)
 }
 
 static int
-tu_drm_get_param(struct tu_device *dev, uint32_t param, uint64_t *value)
+tu_drm_get_param(struct vdrm_device *vdrm, uint32_t param, uint64_t *value)
 {
    /* Technically this requires a pipe, but the kernel only supports one pipe
     * anyway at the time of writing and most of these are clearly pipe
@@ -266,7 +266,7 @@ tu_drm_get_param(struct tu_device *dev, uint32_t param, uint64_t *value)
       .param = param,
    };
 
-   int ret = virtio_simple_ioctl(dev->vdev->vdrm, DRM_IOCTL_MSM_GET_PARAM, &req);
+   int ret = virtio_simple_ioctl(vdrm, DRM_IOCTL_MSM_GET_PARAM, &req);
    if (ret)
       return ret;
 
@@ -275,16 +275,49 @@ tu_drm_get_param(struct tu_device *dev, uint32_t param, uint64_t *value)
    return 0;
 }
 
+static uint32_t
+tu_drm_get_highest_bank_bit(struct vdrm_device *vdrm)
+{
+   uint64_t value;
+   int ret = tu_drm_get_param(vdrm, MSM_PARAM_HIGHEST_BANK_BIT, &value);
+   if (ret)
+      return 0;
+
+   return value;
+}
+
+static enum fdl_macrotile_mode
+tu_drm_get_macrotile_mode(struct vdrm_device *vdrm)
+{
+   uint64_t value;
+   int ret = tu_drm_get_param(vdrm, MSM_PARAM_MACROTILE_MODE, &value);
+   if (ret)
+      return FDL_MACROTILE_INVALID;
+
+   return (enum fdl_macrotile_mode) value;
+}
+
+static uint32_t
+tu_drm_get_ubwc_swizzle(struct vdrm_device *vdrm)
+{
+   uint64_t value;
+   int ret = tu_drm_get_param(vdrm, MSM_PARAM_UBWC_SWIZZLE, &value);
+   if (ret)
+      return ~0;
+
+   return value;
+}
+
 static int
 virtio_device_get_gpu_timestamp(struct tu_device *dev, uint64_t *ts)
 {
-   return tu_drm_get_param(dev, MSM_PARAM_TIMESTAMP, ts);
+   return tu_drm_get_param(dev->vdev->vdrm, MSM_PARAM_TIMESTAMP, ts);
 }
 
 static int
 virtio_device_get_suspend_count(struct tu_device *dev, uint64_t *suspend_count)
 {
-   int ret = tu_drm_get_param(dev, MSM_PARAM_SUSPENDS, suspend_count);
+   int ret = tu_drm_get_param(dev->vdev->vdrm, MSM_PARAM_SUSPENDS, suspend_count);
    return ret;
 }
 
@@ -1335,6 +1368,15 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
     */
    bool has_preemption = virtio_has_preemption(vdrm);
 
+   /* If virglrenderer is too old, we may need another round-trip to get this.
+    */
+   if (caps.u.msm.highest_bank_bit == 0)
+      caps.u.msm.highest_bank_bit = tu_drm_get_highest_bank_bit(vdrm);
+
+   /* TODO add these to the caps struct */
+   uint32_t bank_swizzle_levels = tu_drm_get_ubwc_swizzle(vdrm);
+   enum fdl_macrotile_mode macrotile_mode = tu_drm_get_macrotile_mode(vdrm);
+
    vdrm_device_close(vdrm);
 
    mesa_logd("wire_format_version: %u", caps.wire_format_version);
@@ -1349,6 +1391,7 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
    mesa_logd("gmem_base:           0x%0" PRIx64, caps.u.msm.gmem_base);
    mesa_logd("chip_id:             0x%0" PRIx64, caps.u.msm.chip_id);
    mesa_logd("max_freq:            %u", caps.u.msm.max_freq);
+   mesa_logd("highest_bank_bit:    %u", caps.u.msm.highest_bank_bit);
 
    if (caps.wire_format_version != 2) {
       return vk_startup_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
@@ -1389,8 +1432,12 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
    device->gmem_base      = caps.u.msm.gmem_base;
    device->va_start       = caps.u.msm.va_start;
    device->va_size        = caps.u.msm.va_size;
+   device->ubwc_config.highest_bank_bit = caps.u.msm.highest_bank_bit;
    device->has_set_iova   = true;
    device->has_preemption = has_preemption;
+
+   device->ubwc_config.bank_swizzle_levels = bank_swizzle_levels;
+   device->ubwc_config.macrotile_mode = macrotile_mode;
 
    device->gmem_size = debug_get_num_option("TU_GMEM", device->gmem_size);
 
