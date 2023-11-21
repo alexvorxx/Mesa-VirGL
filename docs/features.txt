@@ -51,7 +51,7 @@ GL 3.0, GLSL 1.30 --- all DONE: freedreno, nv50, nvc0, r600, radeonsi, llvmpipe,
   GL_ARB_half_float_vertex                              DONE (v3d, vc4, lima, etnaviv)
   GL_EXT_texture_integer                                DONE (v3d)
   GL_EXT_texture_array                                  DONE (v3d, etnaviv/HALTI0)
-  GL_EXT_draw_buffers2 (Per-buffer blend and masks)     DONE (v3d)
+  GL_EXT_draw_buffers2 (Per-buffer blend and masks)     DONE (v3d, etnaviv/HALTI5)
   GL_EXT_texture_compression_rgtc                       DONE (all drivers that support GL_EXT_texture_snorm)
   GL_ARB_texture_rg                                     DONE (v3d, lima, etnaviv/HALTI2)
   GL_EXT_transform_feedback (Transform feedback)        DONE (v3d)
