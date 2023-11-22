@@ -711,6 +711,7 @@ etna_update_clipping(struct etna_context *ctx)
 static bool
 etna_update_zsa(struct etna_context *ctx)
 {
+   struct pipe_framebuffer_state *fb = &ctx->framebuffer_s;
    struct compiled_shader_state *shader_state = &ctx->shader_state;
    struct pipe_depth_stencil_alpha_state *zsa_state = ctx->zsa;
    struct etna_zsa_state *zsa = etna_zsa_state(zsa_state);
@@ -725,12 +726,18 @@ etna_update_zsa(struct etna_context *ctx)
     * to late Z always even though early Z write might be possible, as we don't
     * know if any other draws to the same surface require late Z write.
     */
-   if (ctx->framebuffer_s.nr_cbufs > 0) {
-      struct etna_surface *cbuf = etna_surface(ctx->framebuffer_s.cbufs[0]);
+   for (unsigned i = 0; i < fb->nr_cbufs; i++) {
+      if (!fb->cbufs[i])
+         continue;
+
+      struct etna_surface *cbuf = etna_surface(fb->cbufs[i]);
       struct etna_resource *res = etna_resource(cbuf->base.texture);
 
       if (res->layout == ETNA_LAYOUT_LINEAR)
          early_z_allowed = false;
+
+      /* Stop after the first render target. */
+      break;
    }
 
    if (zsa->z_write_enabled || zsa->stencil_enabled) {
@@ -775,11 +782,17 @@ etna_update_zsa(struct etna_context *ctx)
       if (late_z_test || (early_z_test && late_zs))
          new_ra_depth |= VIVS_RA_EARLY_DEPTH_HDEPTH_DISABLE;
 
-      if (ctx->framebuffer_s.nr_cbufs > 0) {
-         struct pipe_resource *res = ctx->framebuffer_s.cbufs[0]->texture;
+      for (unsigned i = 0; i < fb->nr_cbufs; i++) {
+         if (!fb->cbufs[i])
+            continue;
+
+         struct pipe_resource *res = fb->cbufs[i]->texture;
 
          if ((late_z_test || late_zs) && res->nr_samples > 1)
             new_ra_depth |= VIVS_RA_EARLY_DEPTH_LATE_DEPTH_MSAA;
+
+         /* Stop after the first render target. */
+         break;
       }
    }
 
