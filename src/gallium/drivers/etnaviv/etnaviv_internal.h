@@ -123,6 +123,8 @@ struct etna_specs {
    unsigned max_rendertarget_size;
    /* available pixel pipes */
    unsigned pixel_pipes;
+   /* number of render targets */
+   unsigned num_rts;
    /* architecture version of NN cores */
    unsigned nn_core_version;
 };
