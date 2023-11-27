@@ -92,7 +92,7 @@ intel_batch_decode_ctx_finish(struct intel_batch_decode_ctx *ctx)
 
 static void
 ctx_print_group(struct intel_batch_decode_ctx *ctx,
-                struct intel_group *group,
+                const struct intel_group *group,
                 uint64_t address, const void *map)
 {
    intel_print_group(ctx->fp, group, address, map, 0,
