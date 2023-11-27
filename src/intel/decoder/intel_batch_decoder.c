@@ -1482,10 +1482,17 @@ decode_cps_pointers(struct intel_batch_decode_ctx *ctx, const uint32_t *p)
 struct custom_decoder {
    const char *cmd_name;
    void (*decode)(struct intel_batch_decode_ctx *ctx, const uint32_t *p);
-} custom_decoders[] = {
+};
+
+/* Special handling to be able to decode other instructions */
+struct custom_decoder state_handlers[] = {
    { "STATE_BASE_ADDRESS", handle_state_base_address },
    { "3DSTATE_BINDING_TABLE_POOL_ALLOC", handle_binding_table_pool_alloc },
    { "MEDIA_INTERFACE_DESCRIPTOR_LOAD", handle_media_interface_descriptor_load },
+};
+
+/* Special printing of instructions */
+struct custom_decoder custom_decoders[] = {
    { "COMPUTE_WALKER", handle_compute_walker },
    { "MEDIA_CURBE_LOAD", handle_media_curbe_load },
    { "3DSTATE_VERTEX_BUFFERS", handle_3dstate_vertex_buffers },
@@ -1702,6 +1709,13 @@ intel_print_batch(struct intel_batch_decode_ctx *ctx,
             print_instr(ctx, inst, p, offset);
       } else {
          print_instr(ctx, inst, p, offset);
+      }
+
+      for (int i = 0; i < ARRAY_SIZE(state_handlers); i++) {
+         if (strcmp(inst->name, state_handlers[i].cmd_name) == 0) {
+            state_handlers[i].decode(ctx, p);
+            break;
+         }
       }
 
       if (strcmp(inst->name, "MI_BATCH_BUFFER_START") == 0) {
