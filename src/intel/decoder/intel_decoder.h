@@ -296,6 +296,7 @@ struct intel_batch_decode_ctx {
    uint64_t acthd;
 
    struct hash_table *commands;
+   struct hash_table *filters;
    struct hash_table *stats;
 
    void (*disassemble_program)(struct intel_batch_decode_ctx *ctx,
