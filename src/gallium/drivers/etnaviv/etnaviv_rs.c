@@ -325,16 +325,22 @@ etna_rs_gen_clear_surface(struct etna_context *ctx, struct etna_surface *surf,
 }
 
 static void
-etna_blit_clear_color_rs(struct pipe_context *pctx, struct pipe_surface *dst,
+etna_blit_clear_color_rs(struct pipe_context *pctx, unsigned idx,
                       const union pipe_color_union *color)
 {
    struct etna_context *ctx = etna_context(pctx);
+   struct pipe_surface *dst = ctx->framebuffer_s.cbufs[idx];
    struct etna_surface *surf = etna_surface(dst);
    uint64_t new_clear_value = etna_clear_blit_pack_rgba(surf->base.format, color);
 
    if (surf->level->ts_size) { /* TS: use precompiled clear command */
-      ctx->framebuffer.TS_COLOR_CLEAR_VALUE = new_clear_value;
-      ctx->framebuffer.TS_COLOR_CLEAR_VALUE_EXT = new_clear_value >> 32;
+      if (idx == 0) {
+         ctx->framebuffer.TS_COLOR_CLEAR_VALUE = new_clear_value;
+         ctx->framebuffer.TS_COLOR_CLEAR_VALUE_EXT = new_clear_value >> 32;
+      } else {
+         ctx->framebuffer.RT_TS_COLOR_CLEAR_VALUE[idx - 1] = new_clear_value;
+         ctx->framebuffer.RT_TS_COLOR_CLEAR_VALUE_EXT[idx - 1] = new_clear_value >> 32;
+      }
 
       if (VIV_FEATURE(ctx->screen, ETNA_FEATURE_AUTO_DISABLE)) {
          /* Set number of color tiles to be filled */
@@ -457,11 +463,16 @@ etna_clear_rs(struct pipe_context *pctx, unsigned buffers, const struct pipe_sci
    /* Preparation: Flush the TS if needed. This must be done after flushing
     * color and depth, otherwise it can result in crashes */
    bool need_ts_flush = false;
-   if ((buffers & PIPE_CLEAR_COLOR) && ctx->framebuffer_s.nr_cbufs) {
-      struct etna_surface *surf = etna_surface(ctx->framebuffer_s.cbufs[0]);
+   if (buffers & PIPE_CLEAR_COLOR) {
+      for (int idx = 0; idx < ctx->framebuffer_s.nr_cbufs; ++idx) {
+         struct etna_surface *surf = etna_surface(ctx->framebuffer_s.cbufs[idx]);
 
-      if (surf->level->ts_size)
-         need_ts_flush = true;
+         if (!surf)
+            continue;
+
+         if (surf->level->ts_size)
+            need_ts_flush = true;
+      }
    }
    if ((buffers & PIPE_CLEAR_DEPTHSTENCIL) && ctx->framebuffer_s.zsbuf != NULL) {
       struct etna_surface *surf = etna_surface(ctx->framebuffer_s.zsbuf);
@@ -480,8 +491,10 @@ etna_clear_rs(struct pipe_context *pctx, unsigned buffers, const struct pipe_sci
       for (int idx = 0; idx < ctx->framebuffer_s.nr_cbufs; ++idx) {
          struct etna_surface *surf = etna_surface(ctx->framebuffer_s.cbufs[idx]);
 
-         etna_blit_clear_color_rs(pctx, ctx->framebuffer_s.cbufs[idx],
-                               color);
+         if (!surf)
+            continue;
+
+         etna_blit_clear_color_rs(pctx, idx, color);
 
          if (!etna_resource(surf->prsc)->explicit_flush)
             etna_context_add_flush_resource(ctx, surf->prsc);
