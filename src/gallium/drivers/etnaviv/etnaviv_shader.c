@@ -191,17 +191,23 @@ etna_link_shaders(struct etna_context *ctx, struct compiled_shader_state *cs,
 
    cs->PS_END_PC = fs->code_size / 4;
 
+   /* apply output remapping based on current framebuffer state */
+   int ps_color_out_reg[PIPE_MAX_COLOR_BUFS];
+
+   for (unsigned i = 0; i < ARRAY_SIZE(ctx->framebuffer.ps_output_remap); i++)
+      ps_color_out_reg[i] = fs->ps_color_out_reg[ctx->framebuffer.ps_output_remap[i]];
+
    cs->PS_OUTPUT_REG[0] =
-      VIVS_PS_OUTPUT_REG_0(fs->ps_color_out_reg[0]) |
-      VIVS_PS_OUTPUT_REG_1(fs->ps_color_out_reg[1]) |
-      VIVS_PS_OUTPUT_REG_2(fs->ps_color_out_reg[2]) |
-      VIVS_PS_OUTPUT_REG_3(fs->ps_color_out_reg[3]);
+      VIVS_PS_OUTPUT_REG_0(ps_color_out_reg[0]) |
+      VIVS_PS_OUTPUT_REG_1(ps_color_out_reg[1]) |
+      VIVS_PS_OUTPUT_REG_2(ps_color_out_reg[2]) |
+      VIVS_PS_OUTPUT_REG_3(ps_color_out_reg[3]);
 
    cs->PS_OUTPUT_REG[1] =
-      VIVS_PS_OUTPUT_REG2_4(fs->ps_color_out_reg[4]) |
-      VIVS_PS_OUTPUT_REG2_5(fs->ps_color_out_reg[5]) |
-      VIVS_PS_OUTPUT_REG2_6(fs->ps_color_out_reg[6]) |
-      VIVS_PS_OUTPUT_REG2_7(fs->ps_color_out_reg[7]);
+      VIVS_PS_OUTPUT_REG2_4(ps_color_out_reg[4]) |
+      VIVS_PS_OUTPUT_REG2_5(ps_color_out_reg[5]) |
+      VIVS_PS_OUTPUT_REG2_6(ps_color_out_reg[6]) |
+      VIVS_PS_OUTPUT_REG2_7(ps_color_out_reg[7]);
 
    cs->PS_INPUT_COUNT =
       VIVS_PS_INPUT_COUNT_COUNT(link.num_varyings + 1) | /* Number of inputs plus position */
