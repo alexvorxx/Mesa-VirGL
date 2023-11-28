@@ -170,6 +170,8 @@ struct compiled_viewport_state {
 
 /* Compiled pipe_framebuffer_state */
 struct compiled_framebuffer_state {
+   unsigned ps_output_remap[8];
+   uint8_t num_rt;
    uint32_t GL_MULTI_SAMPLE_CONFIG;
    uint32_t PE_COLOR_FORMAT;
    uint32_t PE_DEPTH_CONFIG;
@@ -196,6 +198,15 @@ struct compiled_framebuffer_state {
    uint32_t PE_LOGIC_OP;
    uint32_t PS_CONTROL;
    uint32_t PS_CONTROL_EXT;
+   uint32_t PS_OUTPUT_REG2;
+   struct etna_reloc PE_RT_COLOR_ADDR[7];
+   struct etna_reloc PE_RT_PIPE_COLOR_ADDR[7][ETNA_MAX_PIXELPIPES];
+   uint32_t PE_RT_CONFIG[7];
+   uint32_t RT_TS_MEM_CONFIG[7];
+   uint32_t RT_TS_COLOR_CLEAR_VALUE[7];
+   uint32_t RT_TS_COLOR_CLEAR_VALUE_EXT[7];
+   struct etna_reloc RT_TS_COLOR_STATUS_BASE[7];
+   struct etna_reloc RT_TS_COLOR_SURFACE_BASE[7];
    bool msaa_mode; /* adds input (and possible temp) to PS */
 };
 

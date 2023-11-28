@@ -139,13 +139,20 @@ etna_set_framebuffer_state(struct pipe_context *pctx,
    bool target_16bpp = false;
    bool target_linear = false;
 
+   memset(cs, 0, sizeof(struct compiled_framebuffer_state));
+
    /* Set up TS as well. Warning: this state is used by both the RS and PE */
    uint32_t ts_mem_config = 0;
    uint32_t pe_mem_config = 0;
    uint32_t pe_logic_op = 0;
 
-   if (fb->nr_cbufs > 0) { /* at least one color buffer? */
-      struct etna_surface *cbuf = etna_surface(fb->cbufs[0]);
+   unsigned rt = 0;
+
+   for (unsigned i = 0; i < fb->nr_cbufs; i++) {
+      if (!fb->cbufs[i])
+         continue;
+
+      struct etna_surface *cbuf = etna_surface(fb->cbufs[i]);
       struct etna_resource *res = etna_resource(cbuf->base.texture);
       bool color_supertiled = (res->layout & ETNA_LAYOUT_BIT_SUPER) != 0;
       uint32_t fmt = translate_pe_format(cbuf->base.format);
@@ -157,86 +164,157 @@ etna_set_framebuffer_state(struct pipe_context *pctx,
       if (res->layout == ETNA_LAYOUT_LINEAR)
          target_linear = true;
 
-      if (fmt >= PE_FORMAT_R16F)
-          cs->PE_COLOR_FORMAT = VIVS_PE_COLOR_FORMAT_FORMAT_EXT(fmt) |
-                                VIVS_PE_COLOR_FORMAT_FORMAT_MASK;
-      else
-          cs->PE_COLOR_FORMAT = VIVS_PE_COLOR_FORMAT_FORMAT(fmt);
-
       if (util_format_get_blocksize(cbuf->base.format) <= 2)
          target_16bpp = true;
 
-      cs->PE_COLOR_FORMAT |=
-         VIVS_PE_COLOR_FORMAT_COMPONENTS__MASK |
-         COND(color_supertiled, VIVS_PE_COLOR_FORMAT_SUPER_TILED);
+      if (rt == 0) {
+         if (fmt >= PE_FORMAT_R16F)
+            cs->PE_COLOR_FORMAT = VIVS_PE_COLOR_FORMAT_FORMAT_EXT(fmt) |
+                                  VIVS_PE_COLOR_FORMAT_FORMAT_MASK;
+         else
+            cs->PE_COLOR_FORMAT = VIVS_PE_COLOR_FORMAT_FORMAT(fmt);
 
-      nr_samples_color = cbuf->base.texture->nr_samples;
-      if (nr_samples_color <= 1)
-         cs->PE_COLOR_FORMAT |= VIVS_PE_COLOR_FORMAT_OVERWRITE;
+         cs->PE_COLOR_FORMAT |=
+            VIVS_PE_COLOR_FORMAT_COMPONENTS__MASK |
+            COND(color_supertiled, VIVS_PE_COLOR_FORMAT_SUPER_TILED);
 
-      if (VIV_FEATURE(screen, ETNA_FEATURE_CACHE128B256BPERLINE))
-         cs->PE_COLOR_FORMAT |= COND(color_supertiled, VIVS_PE_COLOR_FORMAT_SUPER_TILED_NEW);
-      /* VIVS_PE_COLOR_FORMAT_COMPONENTS() and
-       * VIVS_PE_COLOR_FORMAT_OVERWRITE comes from blend_state
-       * but only if we set the bits above. */
-      /* merged with depth_stencil_alpha */
-      if ((cbuf->offset & 63) ||
-          (((cbuf->level->stride * 4) & 63) && cbuf->level->height > 4)) {
-         /* XXX Must make temporary surface here.
-          * Need the same mechanism on gc2000 when we want to do mipmap
-          * generation by
-          * rendering to levels > 1 due to multitiled / tiled conversion. */
-         BUG("Alignment error, trying to render to offset %08x with tile "
-             "stride %i",
-             cbuf->offset, cbuf->level->stride * 4);
-      }
+         nr_samples_color = cbuf->base.texture->nr_samples;
+         if (nr_samples_color <= 1)
+            cs->PE_COLOR_FORMAT |= VIVS_PE_COLOR_FORMAT_OVERWRITE;
 
-      if (screen->info->halti >= 0 && screen->info->model != 0x880) {
-         /* Rendertargets on GPUs with more than a single pixel pipe must always
-          * be multi-tiled, or single-buffer mode must be supported */
-         assert(screen->specs.pixel_pipes == 1 ||
-                (res->layout & ETNA_LAYOUT_BIT_MULTI) || screen->specs.single_buffer);
-         for (int i = 0; i < screen->specs.pixel_pipes; i++) {
-            cs->PE_PIPE_COLOR_ADDR[i] = cbuf->reloc[i];
-            cs->PE_PIPE_COLOR_ADDR[i].flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
+         if (VIV_FEATURE(screen, ETNA_FEATURE_CACHE128B256BPERLINE))
+            cs->PE_COLOR_FORMAT |= COND(color_supertiled, VIVS_PE_COLOR_FORMAT_SUPER_TILED_NEW);
+         /* VIVS_PE_COLOR_FORMAT_COMPONENTS() and
+         * VIVS_PE_COLOR_FORMAT_OVERWRITE comes from blend_state
+         * but only if we set the bits above. */
+         /* merged with depth_stencil_alpha */
+         if ((cbuf->offset & 63) ||
+            (((cbuf->level->stride * 4) & 63) && cbuf->level->height > 4)) {
+            /* XXX Must make temporary surface here.
+            * Need the same mechanism on gc2000 when we want to do mipmap
+            * generation by
+            * rendering to levels > 1 due to multitiled / tiled conversion. */
+            BUG("Alignment error, trying to render to offset %08x with tile "
+               "stride %i",
+               cbuf->offset, cbuf->level->stride * 4);
          }
+
+         if (screen->info->halti >= 0 && screen->info->model != 0x880) {
+            /* Rendertargets on GPUs with more than a single pixel pipe must always
+            * be multi-tiled, or single-buffer mode must be supported */
+            assert(screen->specs.pixel_pipes == 1 ||
+                  (res->layout & ETNA_LAYOUT_BIT_MULTI) || screen->specs.single_buffer);
+            for (int i = 0; i < screen->specs.pixel_pipes; i++) {
+               cs->PE_PIPE_COLOR_ADDR[i] = cbuf->reloc[i];
+               cs->PE_PIPE_COLOR_ADDR[i].flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
+            }
+         } else {
+            cs->PE_COLOR_ADDR = cbuf->reloc[0];
+            cs->PE_COLOR_ADDR.flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
+         }
+
+         cs->PE_COLOR_STRIDE = cbuf->level->stride;
+
+         if (cbuf->level->ts_size) {
+            cs->TS_COLOR_CLEAR_VALUE = cbuf->level->clear_value;
+            cs->TS_COLOR_CLEAR_VALUE_EXT = cbuf->level->clear_value >> 32;
+
+            cs->TS_COLOR_STATUS_BASE = cbuf->ts_reloc;
+            cs->TS_COLOR_STATUS_BASE.flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
+
+            cs->TS_COLOR_SURFACE_BASE = cbuf->reloc[0];
+            cs->TS_COLOR_SURFACE_BASE.flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
+
+            pe_mem_config |= VIVS_PE_MEM_CONFIG_COLOR_TS_MODE(cbuf->level->ts_mode);
+
+            if (cbuf->level->ts_compress_fmt >= 0) {
+               /* overwrite bit breaks v1/v2 compression */
+               if (!screen->specs.v4_compression)
+                  cs->PE_COLOR_FORMAT &= ~VIVS_PE_COLOR_FORMAT_OVERWRITE;
+
+               ts_mem_config |=
+                  VIVS_TS_MEM_CONFIG_COLOR_COMPRESSION |
+                  VIVS_TS_MEM_CONFIG_COLOR_COMPRESSION_FORMAT(cbuf->level->ts_compress_fmt);
+            }
+         }
+
+         if (util_format_is_srgb(cbuf->base.format))
+            pe_logic_op |= VIVS_PE_LOGIC_OP_SRGB;
       } else {
-         cs->PE_COLOR_ADDR = cbuf->reloc[0];
-         cs->PE_COLOR_ADDR.flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
-      }
+         cs->PE_RT_PIPE_COLOR_ADDR[rt - 1][0] = cbuf->reloc[0];
+         cs->PE_RT_PIPE_COLOR_ADDR[rt - 1][1] = cbuf->reloc[1];
+         cs->PE_RT_CONFIG[rt - 1] =
+            RT_CONFIG_STRIDE(cbuf->level->stride) |
+            RT_CONFIG_FORMAT(fmt) |
+            COND(color_supertiled, RT_CONFIG_SUPER_TILED);
 
-      cs->PE_COLOR_STRIDE = cbuf->level->stride;
+         if (VIV_FEATURE(screen, ETNA_FEATURE_CACHE128B256BPERLINE))
+            cs->PE_RT_CONFIG[rt - 1] |= COND(color_supertiled, RT_CONFIG_SUPER_TILED_NEW);
 
-      if (cbuf->level->ts_size) {
-         cs->TS_COLOR_CLEAR_VALUE = cbuf->level->clear_value;
-         cs->TS_COLOR_CLEAR_VALUE_EXT = cbuf->level->clear_value >> 32;
+         if (cbuf->level->ts_size) {
+            cs->RT_TS_MEM_CONFIG[rt - 1] =
+               COND(cbuf->level->ts_compress_fmt >= 0, VIVS_TS_RT_CONFIG_COMPRESSION) |
+               COND(cbuf->level->ts_compress_fmt >= 0, VIVS_TS_RT_CONFIG_COMPRESSION_FORMAT(cbuf->level->ts_compress_fmt));
 
-         cs->TS_COLOR_STATUS_BASE = cbuf->ts_reloc;
-         cs->TS_COLOR_STATUS_BASE.flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
+            cs->RT_TS_COLOR_CLEAR_VALUE[rt - 1] = cbuf->level->clear_value;
+            cs->RT_TS_COLOR_CLEAR_VALUE_EXT[rt - 1] = cbuf->level->clear_value >> 32;
 
-         cs->TS_COLOR_SURFACE_BASE = cbuf->reloc[0];
-         cs->TS_COLOR_SURFACE_BASE.flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
+            cs->RT_TS_COLOR_STATUS_BASE[rt - 1] = cbuf->ts_reloc;
+            cs->RT_TS_COLOR_STATUS_BASE[rt - 1].flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
 
-         pe_mem_config |= VIVS_PE_MEM_CONFIG_COLOR_TS_MODE(cbuf->level->ts_mode);
-
-         if (cbuf->level->ts_compress_fmt >= 0) {
-            /* overwrite bit breaks v1/v2 compression */
-            if (!screen->specs.v4_compression)
-               cs->PE_COLOR_FORMAT &= ~VIVS_PE_COLOR_FORMAT_OVERWRITE;
-
-            ts_mem_config |=
-               VIVS_TS_MEM_CONFIG_COLOR_COMPRESSION |
-               VIVS_TS_MEM_CONFIG_COLOR_COMPRESSION_FORMAT(cbuf->level->ts_compress_fmt);
+            cs->RT_TS_COLOR_SURFACE_BASE[rt - 1] = cbuf->reloc[0];
+            cs->RT_TS_COLOR_SURFACE_BASE[rt - 1].flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
+         } else {
+            if (VIV_FEATURE(screen, ETNA_FEATURE_CACHE128B256BPERLINE))
+               cs->PE_RT_CONFIG[rt - 1] |= RT_CONFIG_UNK27;
          }
       }
 
-      if (util_format_is_srgb(cbuf->base.format))
-         pe_logic_op |= VIVS_PE_LOGIC_OP_SRGB;
+      static_assert((VIVS_PS_CONTROL_SATURATE_RT0 << 0) == VIVS_PS_CONTROL_SATURATE_RT0, "VIVS_PS_CONTROL_SATURATE_RT0");
+      static_assert((VIVS_PS_CONTROL_SATURATE_RT0 << 1) == VIVS_PS_CONTROL_SATURATE_RT1, "VIVS_PS_CONTROL_SATURATE_RT1");
+      static_assert((VIVS_PS_CONTROL_SATURATE_RT0 << 2) == VIVS_PS_CONTROL_SATURATE_RT2, "VIVS_PS_CONTROL_SATURATE_RT2");
+      static_assert((VIVS_PS_CONTROL_SATURATE_RT0 << 3) == VIVS_PS_CONTROL_SATURATE_RT3, "VIVS_PS_CONTROL_SATURATE_RT3");
 
-      cs->PS_CONTROL = COND(util_format_is_unorm(cbuf->base.format), VIVS_PS_CONTROL_SATURATE_RT0);
-      cs->PS_CONTROL_EXT =
-         VIVS_PS_CONTROL_EXT_OUTPUT_MODE0(translate_output_mode(cbuf->base.format, screen->info->halti >= 5));
-   } else {
+      static_assert((VIVS_PS_OUTPUT_REG2_SATURATE_RT4 << 0) == VIVS_PS_OUTPUT_REG2_SATURATE_RT4, "VIVS_PS_OUTPUT_REG2_SATURATE_RT4");
+      static_assert((VIVS_PS_OUTPUT_REG2_SATURATE_RT4 << 8) == VIVS_PS_OUTPUT_REG2_SATURATE_RT5, "VIVS_PS_OUTPUT_REG2_SATURATE_RT5");
+      static_assert((VIVS_PS_OUTPUT_REG2_SATURATE_RT4 << 16) == VIVS_PS_OUTPUT_REG2_SATURATE_RT6, "VIVS_PS_OUTPUT_REG2_SATURATE_RT6");
+      static_assert((VIVS_PS_OUTPUT_REG2_SATURATE_RT4 << 24) == VIVS_PS_OUTPUT_REG2_SATURATE_RT7, "VIVS_PS_OUTPUT_REG2_SATURATE_RT7");
+
+      if (rt < 4)
+         cs->PS_CONTROL |= COND(util_format_is_unorm(cbuf->base.format), VIVS_PS_CONTROL_SATURATE_RT0 << rt);
+      else
+         cs->PS_OUTPUT_REG2 |= COND(util_format_is_unorm(cbuf->base.format), VIVS_PS_OUTPUT_REG2_SATURATE_RT4 << (8 * (rt - 4)));
+
+      static_assert((VIVS_PS_CONTROL_EXT_OUTPUT_MODE0__MASK << 4) == VIVS_PS_CONTROL_EXT_OUTPUT_MODE1__MASK, "VIVS_PS_CONTROL_EXT_OUTPUT_MODE1__MASK");
+      static_assert((VIVS_PS_CONTROL_EXT_OUTPUT_MODE0__MASK << 8) == VIVS_PS_CONTROL_EXT_OUTPUT_MODE2__MASK, "VIVS_PS_CONTROL_EXT_OUTPUT_MODE2__MASK");
+      static_assert((VIVS_PS_CONTROL_EXT_OUTPUT_MODE0__MASK << 12) == VIVS_PS_CONTROL_EXT_OUTPUT_MODE3__MASK, "VIVS_PS_CONTROL_EXT_OUTPUT_MODE3__MASK");
+      static_assert((VIVS_PS_CONTROL_EXT_OUTPUT_MODE0__MASK << 16) == VIVS_PS_CONTROL_EXT_OUTPUT_MODE4__MASK, "VIVS_PS_CONTROL_EXT_OUTPUT_MODE4__MASK");
+      static_assert((VIVS_PS_CONTROL_EXT_OUTPUT_MODE0__MASK << 20) == VIVS_PS_CONTROL_EXT_OUTPUT_MODE5__MASK, "VIVS_PS_CONTROL_EXT_OUTPUT_MODE5__MASK");
+      static_assert((VIVS_PS_CONTROL_EXT_OUTPUT_MODE0__MASK << 24) == VIVS_PS_CONTROL_EXT_OUTPUT_MODE6__MASK, "VIVS_PS_CONTROL_EXT_OUTPUT_MODE6__MASK");
+      static_assert((VIVS_PS_CONTROL_EXT_OUTPUT_MODE0__MASK << 28) == VIVS_PS_CONTROL_EXT_OUTPUT_MODE7__MASK, "VIVS_PS_CONTROL_EXT_OUTPUT_MODE7__MASK");
+
+      cs->PS_CONTROL_EXT |=
+         translate_output_mode(cbuf->base.format, screen->info->halti >= 5) << (4 * rt);
+
+      /* When there are null render targets we need to modify the fragment
+       * shader output mapping.
+       */
+      assert(rt < ARRAY_SIZE(cs->ps_output_remap));
+      cs->ps_output_remap[rt] = i;
+
+      rt++;
+   }
+
+   cs->num_rt = rt;
+
+   if (rt)
+      cs->PS_CONTROL |= VIVS_PS_CONTROL_RT_COUNT(rt - 1);
+
+   /*
+    * Disable the main render target if needed. The extra render targets are implicitly
+    * disabled by using VIVS_PS_CONTROL_RT_COUNT(0).
+    */
+   if (fb->nr_cbufs == 0) {
       /* Clearing VIVS_PE_COLOR_FORMAT_COMPONENTS__MASK and
        * VIVS_PE_COLOR_FORMAT_OVERWRITE prevents us from overwriting the
        * color target */
