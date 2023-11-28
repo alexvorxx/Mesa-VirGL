@@ -950,7 +950,7 @@ static const struct etna_state_updater etna_state_updates[] = {
       etna_shader_update_vertex, ETNA_DIRTY_SHADER | ETNA_DIRTY_VERTEX_ELEMENTS,
    },
    {
-      etna_shader_link, ETNA_DIRTY_SHADER,
+      etna_shader_link, ETNA_DIRTY_SHADER | ETNA_DIRTY_FRAMEBUFFER,
    },
    {
       etna_update_blend, ETNA_DIRTY_BLEND | ETNA_DIRTY_FRAMEBUFFER
