@@ -371,7 +371,7 @@ etna_clear_blt(struct pipe_context *pctx, unsigned buffers, const struct pipe_sc
          struct etna_surface *surf = etna_surface(ctx->framebuffer_s.cbufs[idx]);
 
          etna_blit_clear_color_blt(pctx, ctx->framebuffer_s.cbufs[idx],
-                               &color[idx]);
+                               color);
 
          if (!etna_resource(surf->prsc)->explicit_flush)
             etna_context_add_flush_resource(ctx, surf->prsc);
