@@ -723,33 +723,70 @@ etna_set_stream_output_targets(struct pipe_context *pctx,
 static bool
 etna_update_ts_config(struct etna_context *ctx)
 {
-   uint32_t new_ts_config = ctx->framebuffer.TS_MEM_CONFIG;
+   const struct pipe_framebuffer_state *fb = &ctx->framebuffer_s;
+   bool dirty = ctx->dirty & ETNA_DIRTY_FRAMEBUFFER;
+   unsigned rt = 0;
 
-   if (ctx->framebuffer_s.nr_cbufs > 0) {
-      struct etna_surface *c_surf = etna_surface(ctx->framebuffer_s.cbufs[0]);
+   for (unsigned i = 0; i < fb->nr_cbufs; i++) {
+      uint32_t ts_config;
 
+      if (!fb->cbufs[i])
+         continue;
+
+      /* Read the current ts config value for the render target. */
+      if (rt == 0)
+         ts_config = ctx->framebuffer.TS_MEM_CONFIG;
+      else
+         ts_config = ctx->framebuffer.RT_TS_MEM_CONFIG[rt - 1];
+
+      /* Update the ts config for color fast clear. */
+      struct etna_surface *c_surf = etna_surface(fb->cbufs[i]);
       if (etna_resource_level_ts_valid(c_surf->level)) {
-         new_ts_config |= VIVS_TS_MEM_CONFIG_COLOR_FAST_CLEAR;
+         if (rt == 0)
+            ts_config |= VIVS_TS_MEM_CONFIG_COLOR_FAST_CLEAR;
+         else
+            ts_config |= VIVS_TS_RT_CONFIG_ENABLE;
       } else {
-         new_ts_config &= ~VIVS_TS_MEM_CONFIG_COLOR_FAST_CLEAR;
+         if (rt == 0)
+            ts_config &= ~VIVS_TS_MEM_CONFIG_COLOR_FAST_CLEAR;
+         else
+            ts_config &= ~VIVS_TS_RT_CONFIG_ENABLE;
       }
+
+      /* Update dirty state and if needed store the new ts config value. */
+      if (rt == 0)
+         dirty |= ctx->framebuffer.TS_MEM_CONFIG != ts_config;
+      else
+         dirty |= ctx->framebuffer.RT_TS_MEM_CONFIG[rt] != ts_config;
+
+      if (dirty) {
+         if (rt == 0)
+            ctx->framebuffer.TS_MEM_CONFIG = ts_config;
+         else
+            ctx->framebuffer.RT_TS_MEM_CONFIG[rt - 1] = ts_config;
+      }
+
+      rt++;
    }
 
+   /* Update the ts config for depth fast clear. */
    if (ctx->framebuffer_s.zsbuf) {
       struct etna_surface *zs_surf = etna_surface(ctx->framebuffer_s.zsbuf);
+      uint32_t ts_config = ctx->framebuffer.TS_MEM_CONFIG;
 
-      if (etna_resource_level_ts_valid(zs_surf->level)) {
-         new_ts_config |= VIVS_TS_MEM_CONFIG_DEPTH_FAST_CLEAR;
-      } else {
-         new_ts_config &= ~VIVS_TS_MEM_CONFIG_DEPTH_FAST_CLEAR;
-      }
+      if (etna_resource_level_ts_valid(zs_surf->level))
+         ts_config |= VIVS_TS_MEM_CONFIG_DEPTH_FAST_CLEAR;
+      else
+         ts_config &= ~VIVS_TS_MEM_CONFIG_DEPTH_FAST_CLEAR;
+
+      dirty |= ctx->framebuffer.TS_MEM_CONFIG != ts_config;
+
+      if (dirty)
+         ctx->framebuffer.TS_MEM_CONFIG = ts_config;
    }
 
-   if (new_ts_config != ctx->framebuffer.TS_MEM_CONFIG ||
-       (ctx->dirty & ETNA_DIRTY_FRAMEBUFFER)) {
-      ctx->framebuffer.TS_MEM_CONFIG = new_ts_config;
+   if (dirty)
       ctx->dirty |= ETNA_DIRTY_TS;
-   }
 
    ctx->dirty &= ~ETNA_DIRTY_DERIVE_TS;
 
