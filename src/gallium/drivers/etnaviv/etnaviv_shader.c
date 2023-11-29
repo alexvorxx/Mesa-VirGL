@@ -209,6 +209,9 @@ etna_link_shaders(struct etna_context *ctx, struct compiled_shader_state *cs,
       VIVS_PS_OUTPUT_REG2_6(ps_color_out_reg[6]) |
       VIVS_PS_OUTPUT_REG2_7(ps_color_out_reg[7]);
 
+   /* apply saturation information from current framebuffer state */
+   cs->PS_OUTPUT_REG[1] |= ctx->framebuffer.PS_OUTPUT_REG2;
+
    cs->PS_INPUT_COUNT =
       VIVS_PS_INPUT_COUNT_COUNT(link.num_varyings + 1) | /* Number of inputs plus position */
       VIVS_PS_INPUT_COUNT_UNK8(fs->input_count_unk8);
