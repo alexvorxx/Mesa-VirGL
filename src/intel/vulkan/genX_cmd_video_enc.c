@@ -142,6 +142,230 @@ static const uint8_t vdenc_const_sic_forward_transform_coeff_threshold_3_p[27] =
    0x2f, 0x32, 0x37, 0x3c, 0x45, 0x4c, 0x00,
 };
 
+static const int vdenc_mode_const[2][12][52] = {
+    //INTRASLICE
+    {
+        //LUTMODE_INTRA_NONPRED
+        {
+            14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 14,         //QP=[0 ~12]
+            16, 18, 22, 24, 13, 15, 16, 18, 13, 15, 15, 12, 14,         //QP=[13~25]
+            12, 12, 10, 10, 11, 10, 10, 10, 9, 9, 8, 8, 8,              //QP=[26~38]
+            8, 8, 8, 8, 8, 8, 8, 8, 7, 7, 7, 7, 7,                      //QP=[39~51]
+        },
+
+        //LUTMODE_INTRA_16x16, LUTMODE_INTRA
+        {
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[0 ~12]
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[13~25]
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[26~38]
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[39~51]
+        },
+
+        //LUTMODE_INTRA_8x8
+        {
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,  //QP=[0 ~12]
+            0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1,  //QP=[13~25]
+            1, 1, 1, 1, 1, 4, 4, 4, 4, 6, 6, 6, 6,  //QP=[26~38]
+            6, 6, 6, 6, 6, 6, 6, 6, 7, 7, 7, 7, 7,  //QP=[39~51]
+        },
+
+        //LUTMODE_INTRA_4x4
+        {
+            56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56,   //QP=[0 ~12]
+            64, 72, 80, 88, 48, 56, 64, 72, 53, 59, 64, 56, 64,   //QP=[13~25]
+            57, 64, 58, 55, 64, 64, 64, 64, 59, 59, 60, 57, 50,   //QP=[26~38]
+            46, 42, 38, 34, 31, 27, 23, 22, 19, 18, 16, 14, 13,   //QP=[39~51]
+        },
+
+        //LUTMODE_INTER_16x8, LUTMODE_INTER_8x16
+        { 0, },
+
+        //LUTMODE_INTER_8X8Q
+        { 0, },
+
+        //LUTMODE_INTER_8X4Q, LUTMODE_INTER_4X8Q, LUTMODE_INTER_16x8_FIELD
+        { 0, },
+
+        //LUTMODE_INTER_4X4Q, LUTMODE_INTER_8X8_FIELD
+        { 0, },
+
+        //LUTMODE_INTER_16x16, LUTMODE_INTER
+        { 0, },
+
+        //LUTMODE_INTER_BWD
+        { 0, },
+
+        //LUTMODE_REF_ID
+        { 0, },
+
+        //LUTMODE_INTRA_CHROMA
+        { 0, },
+    },
+
+    //PREDSLICE
+    {
+        //LUTMODE_INTRA_NONPRED
+        {
+            6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,     //QP=[0 ~12]
+            7, 8, 9, 10, 5, 6, 7, 8, 6, 7, 7, 7, 7,    //QP=[13~25]
+            6, 7, 7, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7,     //QP=[26~38]
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,     //QP=[39~51]
+        },
+
+        //LUTMODE_INTRA_16x16, LUTMODE_INTRA
+        {
+            21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21, 21,
+            24, 28, 31, 35, 19, 21, 24, 28, 20, 24, 25, 21, 24,
+            24, 24, 24, 21, 24, 24, 26, 24, 24, 24, 24, 24, 24,
+            24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24, 24,
+
+        },
+
+        //LUTMODE_INTRA_8x8
+        {
+            26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,   //QP=[0 ~12]
+            28, 32, 36, 40, 22, 26, 28, 32, 24, 26, 30, 26, 28,   //QP=[13~25]
+            26, 28, 26, 26, 30, 28, 28, 28, 26, 28, 28, 26, 28,   //QP=[26~38]
+            28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28, 28,   //QP=[39~51]
+        },
+
+        //LUTMODE_INTRA_4x4
+        {
+            64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64, 64,   //QP=[0 ~12]
+            72, 80, 88, 104, 56, 64, 72, 80, 58, 68, 76, 64, 68,  //QP=[13~25]
+            64, 68, 68, 64, 70, 70, 70, 70, 68, 68, 68, 68, 68,   //QP=[26~38]
+            68, 68, 68, 68, 68, 68, 68, 68, 68, 68, 68, 68, 68,   //QP=[39~51]
+        },
+
+        //LUTMODE_INTER_16x8, LUTMODE_INTER_8x16
+        {
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,      //QP=[0 ~12]
+            8, 9, 11, 12, 6, 7, 9, 10, 7, 8, 9, 8, 9,   //QP=[13~25]
+            8, 9, 8, 8, 9, 9, 9, 9, 8, 8, 8, 8, 8,      //QP=[26~38]
+            8, 8, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9,      //QP=[39~51]
+        },
+
+        //LUTMODE_INTER_8X8Q
+        {
+            2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,   //QP=[0 ~12]
+            2, 3, 3, 3, 2, 2, 2, 3, 2, 2, 2, 2, 3,   //QP=[13~25]
+            2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,   //QP=[26~38]
+            3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3,   //QP=[39~51]
+        },
+
+        //LUTMODE_INTER_8X4Q, LUTMODE_INTER_4X8Q, LUTMODE_INTER_16X8_FIELD
+        {
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,   //QP=[0 ~12]
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,   //QP=[13~25]
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,   //QP=[26~38]
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,   //QP=[39~51]
+        },
+
+        //LUTMODE_INTER_4X4Q, LUTMODE_INTER_8x8_FIELD
+        {
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,   //QP=[0 ~12]
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,   //QP=[13~25]
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,   //QP=[26~38]
+            7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,   //QP=[39~51]
+        },
+
+        //LUTMODE_INTER_16x16, LUTMODE_INTER
+        {
+            5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,   //QP=[0 ~12]
+            6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,   //QP=[13~25]
+            6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,   //QP=[26~38]
+            6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,   //QP=[39~51]
+        },
+
+        //LUTMODE_INTER_BWD
+        {
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[0 ~12]
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[13~25]
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[26~38]
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[39~51]
+        },
+
+        //LUTMODE_REF_ID
+        {
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,    //QP=[0 ~12]
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,    //QP=[13~25]
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,    //QP=[26~38]
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,    //QP=[39~51]
+        },
+
+        //LUTMODE_INTRA_CHROMA
+        {
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[0 ~12]
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[13~25]
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[26~38]
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,    //QP=[39~51]
+        },
+    },
+};
+
+
+#define VDENC_LUTMODE_INTRA_NONPRED             0x00
+#define VDENC_LUTMODE_INTRA                     0x01
+#define VDENC_LUTMODE_INTRA_16x16               0x01
+#define VDENC_LUTMODE_INTRA_8x8                 0x02
+#define VDENC_LUTMODE_INTRA_4x4                 0x03
+#define VDENC_LUTMODE_INTER_16x8                0x04
+#define VDENC_LUTMODE_INTER_8x16                0x04
+#define VDENC_LUTMODE_INTER_8X8Q                0x05
+#define VDENC_LUTMODE_INTER_8X4Q                0x06
+#define VDENC_LUTMODE_INTER_4X8Q                0x06
+#define VDENC_LUTMODE_INTER_16x8_FIELD          0x06
+#define VDENC_LUTMODE_INTER_4X4Q                0x07
+#define VDENC_LUTMODE_INTER_8x8_FIELD           0x07
+#define VDENC_LUTMODE_INTER                     0x08
+#define VDENC_LUTMODE_INTER_16x16               0x08
+#define VDENC_LUTMODE_INTER_BWD                 0x09
+#define VDENC_LUTMODE_REF_ID                    0x0A
+#define VDENC_LUTMODE_INTRA_CHROMA              0x0B
+
+static unsigned char
+map_44_lut_value(unsigned int v, unsigned char max)
+{
+    unsigned int maxcost;
+    int d;
+    unsigned char ret;
+
+    if (v == 0) {
+        return 0;
+    }
+
+    maxcost = ((max & 15) << (max >> 4));
+
+    if (v >= maxcost) {
+        return max;
+    }
+
+    d = (int)(log((double)v) / log(2.0)) - 3;
+
+    if (d < 0) {
+        d = 0;
+    }
+
+    ret = (unsigned char)((d << 4) + (int)((v + (d == 0 ? 0 : (1 << (d - 1)))) >> d));
+    ret = (ret & 0xf) == 0 ? (ret | 8) : ret;
+
+    return ret;
+}
+
+static void update_costs(uint8_t *mode_cost, uint8_t *mv_cost, uint8_t *hme_mv_cost, int qp, StdVideoH264PictureType pic_type)
+{
+   int frame_type = anv_vdenc_h264_picture_type(pic_type);
+
+   memset(mode_cost, 0, 12 * sizeof(uint8_t));
+   memset(mv_cost, 0, 8 * sizeof(uint8_t));
+   memset(hme_mv_cost, 0, 8 * sizeof(uint8_t));
+
+   mode_cost[VDENC_LUTMODE_INTRA_NONPRED] = map_44_lut_value((uint32_t)(vdenc_mode_const[frame_type][VDENC_LUTMODE_INTRA_NONPRED][qp]), 0x6f);
+   mode_cost[VDENC_LUTMODE_INTRA_16x16] = map_44_lut_value((uint32_t)(vdenc_mode_const[frame_type][VDENC_LUTMODE_INTRA_16x16][qp]), 0x8f);
+   mode_cost[VDENC_LUTMODE_INTRA_8x8] = map_44_lut_value((uint32_t)(vdenc_mode_const[frame_type][VDENC_LUTMODE_INTRA_8x8][qp]), 0x8f);
+   mode_cost[VDENC_LUTMODE_INTRA_4x4] = map_44_lut_value((uint32_t)(vdenc_mode_const[frame_type][VDENC_LUTMODE_INTRA_4x4][qp]), 0x8f);
+}
+
 static void
 anv_h264_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc_info)
 {
@@ -587,12 +811,18 @@ anv_h264_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *en
       avc_img.Log2MaxPicOrderCountLSB = sps->log2_max_pic_order_cnt_lsb_minus4;
    }
 
+   uint8_t     mode_cost[12];
+   uint8_t     mv_cost[8];
+   uint8_t     hme_mv_cost[8];
+
    anv_batch_emit(&cmd->batch, GENX(VDENC_IMG_STATE), vdenc_img) {
       uint32_t slice_qp = 0;
       for (uint32_t slice_id = 0; slice_id < frame_info->naluSliceEntryCount; slice_id++) {
          const VkVideoEncodeH264NaluSliceInfoKHR *nalu = &frame_info->pNaluSliceEntries[slice_id];
          slice_qp = rc_disable ? nalu->constantQp : pps->pic_init_qp_minus26 + 26;
       }
+
+      update_costs(mode_cost, mv_cost, hme_mv_cost, slice_qp, pic_type);
 
       if (pic_type == STD_VIDEO_H264_PICTURE_TYPE_IDR || pic_type == STD_VIDEO_H264_PICTURE_TYPE_I) {
          vdenc_img.IntraSADMeasureAdjustment = 2;
@@ -679,7 +909,21 @@ anv_h264_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *en
       vdenc_img.QpPrimeY = slice_qp;
       vdenc_img.MaxVerticalMVRange = anv_get_max_vmv_range(sps->level_idc);
 
-      /* TODO. Update Mode/MV cost */
+      /* TODO. Update Mode/MV cost conditinally. */
+      if (1) {
+         vdenc_img.Mode0Cost = mode_cost[0];
+         vdenc_img.Mode1Cost = mode_cost[1];
+         vdenc_img.Mode2Cost = mode_cost[2];
+         vdenc_img.Mode3Cost = mode_cost[3];
+         vdenc_img.Mode4Cost = mode_cost[4];
+         vdenc_img.Mode5Cost = mode_cost[5];
+         vdenc_img.Mode6Cost = mode_cost[6];
+         vdenc_img.Mode7Cost = mode_cost[7];
+         vdenc_img.Mode8Cost = mode_cost[8];
+         vdenc_img.Mode9Cost = mode_cost[9];
+         vdenc_img.RefIDCost = mode_cost[10];
+         vdenc_img.ChromaIntraModeCost = mode_cost[11];
+      }
    }
 
    if (pps->flags.pic_scaling_matrix_present_flag) {
