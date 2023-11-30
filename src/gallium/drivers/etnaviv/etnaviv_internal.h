@@ -35,6 +35,8 @@
 
 #include "drm/etnaviv_drmif.h"
 
+#include "pipe/p_state.h"
+
 #define ETNA_NUM_INPUTS (16)
 #define ETNA_NUM_VARYINGS 16
 #define ETNA_NUM_LOD (14)
@@ -137,8 +139,11 @@ struct etna_specs {
 struct compiled_blend_color {
    float color[4];
    uint32_t PE_ALPHA_BLEND_COLOR;
-   uint32_t PE_ALPHA_COLOR_EXT0;
-   uint32_t PE_ALPHA_COLOR_EXT1;
+
+   struct {
+      uint32_t PE_ALPHA_COLOR_EXT0;
+      uint32_t PE_ALPHA_COLOR_EXT1;
+   } rt[PIPE_MAX_COLOR_BUFS];
 };
 
 /* Compiled pipe_stencil_ref */

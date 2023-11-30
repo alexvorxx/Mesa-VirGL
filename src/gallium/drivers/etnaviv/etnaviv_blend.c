@@ -170,22 +170,33 @@ etna_set_blend_color(struct pipe_context *pctx, const struct pipe_blend_color *b
 bool
 etna_update_blend_color(struct etna_context *ctx)
 {
-   struct pipe_framebuffer_state *pfb = &ctx->framebuffer_s;
+   struct pipe_framebuffer_state *fb = &ctx->framebuffer_s;
    struct compiled_blend_color *cs = &ctx->blend_color;
-   bool rb_swap = (pfb->cbufs[0] && translate_pe_format_rb_swap(pfb->cbufs[0]->format));
+   unsigned rt = 0;
 
-   cs->PE_ALPHA_BLEND_COLOR =
-      VIVS_PE_ALPHA_BLEND_COLOR_R(float_to_ubyte(cs->color[rb_swap ? 2 : 0])) |
-      VIVS_PE_ALPHA_BLEND_COLOR_G(float_to_ubyte(cs->color[1])) |
-      VIVS_PE_ALPHA_BLEND_COLOR_B(float_to_ubyte(cs->color[rb_swap ? 0 : 2])) |
-      VIVS_PE_ALPHA_BLEND_COLOR_A(float_to_ubyte(cs->color[3]));
+   for (unsigned i = 0; i < fb->nr_cbufs; i++) {
+      if (!fb->cbufs[i])
+         continue;
 
-   cs->PE_ALPHA_COLOR_EXT0 =
-      VIVS_PE_ALPHA_COLOR_EXT0_B(_mesa_float_to_half(cs->color[rb_swap ? 2 : 0])) |
-      VIVS_PE_ALPHA_COLOR_EXT0_G(_mesa_float_to_half(cs->color[1]));
-   cs->PE_ALPHA_COLOR_EXT1 =
-      VIVS_PE_ALPHA_COLOR_EXT1_R(_mesa_float_to_half(cs->color[rb_swap ? 0 : 2])) |
-      VIVS_PE_ALPHA_COLOR_EXT1_A(_mesa_float_to_half(cs->color[3]));
+      bool rb_swap = translate_pe_format_rb_swap(fb->cbufs[i]->format);
+
+      if (rt == 0) {
+         cs->PE_ALPHA_BLEND_COLOR =
+            VIVS_PE_ALPHA_BLEND_COLOR_R(float_to_ubyte(cs->color[rb_swap ? 2 : 0])) |
+            VIVS_PE_ALPHA_BLEND_COLOR_G(float_to_ubyte(cs->color[1])) |
+            VIVS_PE_ALPHA_BLEND_COLOR_B(float_to_ubyte(cs->color[rb_swap ? 0 : 2])) |
+            VIVS_PE_ALPHA_BLEND_COLOR_A(float_to_ubyte(cs->color[3]));
+      }
+
+      cs->rt[rt].PE_ALPHA_COLOR_EXT0 =
+         VIVS_PE_ALPHA_COLOR_EXT0_B(_mesa_float_to_half(cs->color[rb_swap ? 2 : 0])) |
+         VIVS_PE_ALPHA_COLOR_EXT0_G(_mesa_float_to_half(cs->color[1]));
+      cs->rt[rt].PE_ALPHA_COLOR_EXT1 =
+         VIVS_PE_ALPHA_COLOR_EXT1_R(_mesa_float_to_half(cs->color[rb_swap ? 0 : 2])) |
+         VIVS_PE_ALPHA_COLOR_EXT1_A(_mesa_float_to_half(cs->color[3]));
+
+      rt++;
+   }
 
    return true;
 }
