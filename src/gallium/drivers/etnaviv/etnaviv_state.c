@@ -146,6 +146,7 @@ etna_set_framebuffer_state(struct pipe_context *pctx,
    uint32_t pe_mem_config = 0;
    uint32_t pe_logic_op = 0;
 
+   const bool use_ts = etna_use_ts_for_mrt(screen, fb);
    unsigned rt = 0;
 
    for (unsigned i = 0; i < fb->nr_cbufs; i++) {
@@ -156,6 +157,12 @@ etna_set_framebuffer_state(struct pipe_context *pctx,
       struct etna_resource *res = etna_resource(cbuf->base.texture);
       bool color_supertiled = (res->layout & ETNA_LAYOUT_BIT_SUPER) != 0;
       uint32_t fmt = translate_pe_format(cbuf->base.format);
+
+      /* Resolve TS if needed */
+      if (!use_ts) {
+         etna_copy_resource(pctx, &res->base, &res->base, cbuf->base.u.tex.level, cbuf->base.u.tex.level);
+         etna_resource_level_ts_mark_invalid(&res->levels[cbuf->base.u.tex.level]);
+      }
 
       assert((res->layout & ETNA_LAYOUT_BIT_TILE) ||
              VIV_FEATURE(screen, ETNA_FEATURE_LINEAR_PE));
