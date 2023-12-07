@@ -126,6 +126,12 @@ SUPPORTED_FEATURES = [
     "VK_EXT_graphics_pipeline_library",
 ]
 
+HOST_MODULES = ["goldfish_vk_extension_structs", "goldfish_vk_marshaling",
+                "goldfish_vk_reserved_marshaling", "goldfish_vk_deepcopy",
+                "goldfish_vk_handlemap", "goldfish_vk_dispatch",
+                "goldfish_vk_transform", "VkDecoder", "VkDecoderSnapshot",
+                "VkSubDecoder"]
+
 # By default, the all wrappers are run all on all features.  In certain cases,
 # we wish run wrappers when the module requires it. For example, `VK_GOOGLE_gfxstream`
 # shouldn't generate a function table entry since it's an internal interface.
@@ -143,6 +149,8 @@ SUPPORTED_MODULES = {
     "VK_KHR_external_memory_fd": ["goldfish_vk_dispatch"],
     "VK_ANDROID_external_memory_android_hardware_buffer": ["func_table"],
     "VK_KHR_android_surface": ["func_table"],
+    "VK_EXT_swapchain_maintenance1" : HOST_MODULES,
+    "VK_KHR_swapchain" : HOST_MODULES,
 }
 
 copyrightHeader = """// Copyright (C) 2018 The Android Open Source Project
