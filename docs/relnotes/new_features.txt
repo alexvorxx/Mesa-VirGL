@@ -24,3 +24,4 @@ VK_KHR_shader_quad_control on nvk
 GL_EXT_draw_buffers2 on etnaviv/HALTI5+
 GL_ARB_draw_buffers_blend on etnaviv/HALTI5+
 VK_KHR_fragment_shading_rate on NVK
+GL_ARB_draw_indirect on etnaviv/HALTI5+

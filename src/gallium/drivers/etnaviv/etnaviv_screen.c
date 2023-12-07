@@ -198,6 +198,9 @@ etna_screen_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
    case PIPE_CAP_ALPHA_TEST:
       return !VIV_FEATURE(screen, ETNA_FEATURE_PE_NO_ALPHA_TEST);
 
+   case PIPE_CAP_DRAW_INDIRECT:
+      return VIV_FEATURE(screen, ETNA_FEATURE_HALTI5);
+
    /* Unsupported features. */
    case PIPE_CAP_TEXTURE_BUFFER_OFFSET_ALIGNMENT:
    case PIPE_CAP_TEXRECT:
