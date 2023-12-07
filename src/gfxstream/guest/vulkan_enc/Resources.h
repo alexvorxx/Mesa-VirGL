@@ -15,6 +15,8 @@
 
 #if defined(__ANDROID__) || defined(__Fuchsia__)
 #include <hardware/hwvulkan.h>
+#elif defined(__linux__)
+#include <vulkan/vk_icd.h>
 #endif
 #include <vulkan/vulkan.h>
 
@@ -49,6 +51,8 @@ struct goldfish_vk_object_list {
 
 #if defined(__ANDROID__) || defined(__Fuchsia__)
 #define DECLARE_HWVULKAN_DISPATCH hwvulkan_dispatch_t dispatch;
+#elif defined(__linux__)
+#define DECLARE_HWVULKAN_DISPATCH VK_LOADER_DATA loaderData;
 #else
 #define DECLARE_HWVULKAN_DISPATCH
 #endif

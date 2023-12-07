@@ -30,6 +30,8 @@ extern "C" {
 
 #if defined(__ANDROID__) || defined(__Fuchsia__)
 #define SET_HWVULKAN_DISPATCH_MAGIC res->dispatch.magic = HWVULKAN_DISPATCH_MAGIC;
+#elif defined(__linux__)
+#define SET_HWVULKAN_DISPATCH_MAGIC res->loaderData.loaderMagic = ICD_LOADER_MAGIC;
 #else
 #define SET_HWVULKAN_DISPATCH_MAGIC
 #endif
