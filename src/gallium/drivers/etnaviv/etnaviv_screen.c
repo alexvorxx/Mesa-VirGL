@@ -808,7 +808,12 @@ etna_screen_get_dmabuf_modifier_planes(struct pipe_screen *pscreen,
 static void
 etna_determine_num_rts(struct etna_screen *screen)
 {
-   screen->specs.num_rts = 1;
+   if (screen->info->halti >= 2)
+      screen->specs.num_rts = 8;
+   else if (screen->info->halti >= 0)
+      screen->specs.num_rts = 4;
+   else
+      screen->specs.num_rts = 1;
 }
 
 static void
