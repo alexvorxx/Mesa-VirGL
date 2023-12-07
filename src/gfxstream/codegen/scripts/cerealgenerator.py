@@ -646,6 +646,7 @@ class BumpPool;
         self.addWrapper(cereal.VulkanCounting, "goldfish_vk_counting_guest")
         self.addWrapper(cereal.VulkanTransform, "goldfish_vk_transform_guest")
         self.addWrapper(cereal.VulkanFuncTable, "func_table")
+
         self.addWrapper(cereal.VulkanExtensionStructs, "goldfish_vk_extension_structs")
         self.addWrapper(cereal.VulkanMarshaling, "goldfish_vk_marshaling")
         self.addWrapper(cereal.VulkanReservedMarshaling, "goldfish_vk_reserved_marshaling", variant = "host")
@@ -757,9 +758,11 @@ class BumpPool;
             print(f'Unknown module: {moduleName}. All known modules are: {", ".join(self.modules)}.')
             return
         self.wrappers.append(
-            moduleType(
+            (moduleType(
                 self.modules[moduleName],
-                self.typeInfo, **kwargs))
+                self.typeInfo, **kwargs),
+             moduleName)
+            )
 
     def forEachModule(self, func):
         for moduleName in self.moduleList:
@@ -768,9 +771,9 @@ class BumpPool;
     def forEachWrapper(self, func, supportedWrappers):
         for wrapper in self.wrappers:
             if supportedWrappers is None:
-                func(wrapper)
-            elif type(wrapper) in supportedWrappers:
-                func(wrapper)
+                func(wrapper[0])
+            elif type(wrapper[0]) in supportedWrappers:
+                func(wrapper[0])
 
 ## Overrides####################################################################
 
