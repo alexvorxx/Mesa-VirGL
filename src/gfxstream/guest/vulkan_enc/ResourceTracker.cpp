@@ -35,6 +35,7 @@
 #include <stdlib.h>
 #include <vndk/hardware_buffer.h>
 
+#include <algorithm>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -1863,6 +1864,24 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         filteredExts.push_back(VkExtensionProperties{"VK_EXT_external_memory_dma_buf", 1});
 #endif
     }
+
+    // NOTE: the Vulkan Loader's trampoline functions will remove duplicates. This can lead
+    // to lead errors if this function returns VK_SUCCESS with N elements (including a duplicate)
+    // but the Vulkan Loader's trampoline function returns VK_INCOMPLETE with N-1 elements
+    // (without the duplicate).
+    std::sort(filteredExts.begin(),
+              filteredExts.end(),
+              [](const VkExtensionProperties& a,
+                 const VkExtensionProperties& b) {
+                  return strcmp(a.extensionName, b.extensionName) < 0;
+              });
+    filteredExts.erase(std::unique(filteredExts.begin(),
+                                   filteredExts.end(),
+                                   [](const VkExtensionProperties& a,
+                                      const VkExtensionProperties& b) {
+                                       return strcmp(a.extensionName, b.extensionName) == 0;
+                                   }),
+                       filteredExts.end());
 
     // Spec:
     //
