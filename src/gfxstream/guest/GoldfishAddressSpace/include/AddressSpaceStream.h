@@ -16,11 +16,11 @@
 #ifndef __ADDRESS_SPACE_STREAM_H
 #define __ADDRESS_SPACE_STREAM_H
 
-#include "IOStream.h"
 #include "VirtGpu.h"
 #include "address_space.h"
 #include "address_space_graphics_types.h"
 #include "aemu/base/AndroidHealthMonitor.h"
+#include "gfxstream/guest/IOStream.h"
 
 using gfxstream::guest::HealthMonitor;
 using gfxstream::guest::IOStream;

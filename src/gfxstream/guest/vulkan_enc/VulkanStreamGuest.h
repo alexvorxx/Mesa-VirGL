@@ -20,7 +20,7 @@
 
 #include "VulkanHandleMapping.h"
 
-#include "IOStream.h"
+#include "gfxstream/guest/IOStream.h"
 #include "ResourceTracker.h"
 
 #include "aemu/base/BumpPool.h"

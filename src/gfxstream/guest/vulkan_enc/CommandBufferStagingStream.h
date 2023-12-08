@@ -20,7 +20,7 @@
 
 #include <functional>
 
-#include "IOStream.h"
+#include "gfxstream/guest/IOStream.h"
 
 namespace gfxstream {
 namespace vk {

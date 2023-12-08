@@ -308,11 +308,11 @@ class IOStream;
 """
         encoderImplInclude = f"""
 #include "EncoderDebug.h"
-#include "IOStream.h"
 #include "Resources.h"
 #include "ResourceTracker.h"
 #include "Validation.h"
 #include "%s.h"
+#include "gfxstream/guest/IOStream.h"
 
 #include "{self.guestBaseLibDirPrefix}/AlignedBuf.h"
 #include "{self.guestBaseLibDirPrefix}/BumpPool.h"
