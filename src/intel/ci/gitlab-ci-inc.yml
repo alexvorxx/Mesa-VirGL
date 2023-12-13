@@ -279,6 +279,7 @@
     RUNNER_TAG: mesa-ci-x86-64-lava-dell-latitude-5400-8665U-sarien
 
 # Status: https://lava.collabora.dev/scheduler/device_type/asus-C436FA-Flip-hatch
+# Note: Reported they have too often network problems and fail to boot. Puff device is the alternative.
 .lava-asus-C436FA-Flip-hatch:x86_64:
   variables:
     DEVICE_TYPE: asus-C436FA-Flip-hatch
@@ -287,6 +288,14 @@
     GPU_VERSION: iris-cml
     HWCI_KERNEL_MODULES: i915
     RUNNER_TAG: mesa-ci-x86-64-lava-asus-C436FA-flip-hatch
+
+# Status: https://lava.collabora.dev/scheduler/device_type/acer-chromebox-cxi4-puff
+.lava-acer-chromebox-cxi4-puff:x86_64:
+  variables:
+    DEVICE_TYPE: acer-chromebox-cxi4-puff
+    FDO_CI_CONCURRENT: 9
+    GPU_VERSION: iris-cml
+    RUNNER_TAG: mesa-ci-x86-64-lava-acer-chromebox-cxi4-puff
 
 
 .intel-common-test:
@@ -358,8 +367,9 @@
 .iris-cml-test:
   extends:
     - .iris-test
-    - .iris-manual-rules    # Devices have too often network problems and fail to boot.
-    - .lava-asus-C436FA-Flip-hatch:x86_64
+    - .lava-acer-chromebox-cxi4-puff:x86_64
+#  variables:
+#    LAVA_FORCE_UART: 1
 
 .iris-whl-deqp:
   extends:
