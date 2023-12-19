@@ -124,6 +124,8 @@ SUPPORTED_FEATURES = [
     "VK_GOOGLE_gfxstream",
     # Used in tests without proper support checks
     "VK_EXT_graphics_pipeline_library",
+    # Used by guest ANGLE
+    "VK_EXT_vertex_attribute_divisor",
 ]
 
 HOST_MODULES = ["goldfish_vk_extension_structs", "goldfish_vk_marshaling",
