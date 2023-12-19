@@ -38,6 +38,7 @@ SUPPORTED_FEATURES = [
     "VK_KHR_external_semaphore_capabilities",
     "VK_KHR_external_memory_capabilities",
     "VK_KHR_external_fence_capabilities",
+    "VK_EXT_debug_utils",
     # Device extensions
     "VK_KHR_storage_buffer_storage_class",
     "VK_KHR_vulkan_memory_model",
@@ -66,6 +67,7 @@ SUPPORTED_FEATURES = [
     "VK_KHR_incremental_present",
     "VK_KHR_pipeline_executable_properties",
     "VK_EXT_queue_family_foreign",
+    "VK_EXT_scalar_block_layout",
     "VK_KHR_external_semaphore",
     "VK_KHR_external_semaphore_fd",
     "VK_KHR_external_memory",

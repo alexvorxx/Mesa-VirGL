@@ -1642,6 +1642,7 @@ VkResult ResourceTracker::on_vkEnumerateInstanceExtensionProperties(
         "VK_KHR_external_semaphore_capabilities",
         "VK_KHR_external_memory_capabilities",
         "VK_KHR_external_fence_capabilities",
+        "VK_EXT_debug_utils",
 #endif
     };
 
@@ -1759,6 +1760,7 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_KHR_incremental_present",
         "VK_KHR_pipeline_executable_properties",
         "VK_EXT_queue_family_foreign",
+        "VK_EXT_scalar_block_layout",
         "VK_KHR_descriptor_update_template",
         "VK_KHR_storage_buffer_storage_class",
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
