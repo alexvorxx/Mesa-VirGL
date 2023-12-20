@@ -26,10 +26,12 @@ from .wrapperdefs import STRUCT_TYPE_API_NAME
 
 class VulkanExtensionStructs(VulkanWrapperGenerator):
 
-    def __init__(self, module, typeInfo):
+    def __init__(self, module, typeInfo, variant="host"):
         VulkanWrapperGenerator.__init__(self, module, typeInfo)
 
         self.codegen = CodeGen()
+
+        self.variant = variant
 
         self.structTypeRetType = \
             makeVulkanTypeSimple(False, "uint32_t", 0)
@@ -103,6 +105,15 @@ class VulkanExtensionStructs(VulkanWrapperGenerator):
             cgen.stmt("return 0")
             cgen.endIf()
 
+        def defaultAbortEmit(cgen):
+            # The 'structType' name and return behavior are defined in
+            # emitForEachStructExtension and not accessible here. Consequently,
+            # this is a copy-paste from there and must be updated accordingly.
+            # NOTE: No need for %% if no substitution is made.
+            cgen.stmt("fprintf(stderr, \"Unhandled Vulkan structure type %d, aborting.\\n\", structType)")
+            cgen.stmt("GFXSTREAM_ABORT(::emugl::FatalError(::emugl::ABORT_REASON_OTHER))")
+            cgen.stmt("return (%s)0" % self.extensionStructSizeRetType.typeName)
+
         self.module.appendImpl(
             self.codegen.makeFuncImpl(
                 self.extensionStructSizePrototype,
@@ -111,6 +122,7 @@ class VulkanExtensionStructs(VulkanWrapperGenerator):
                     self.extensionStructSizeRetType,
                     STRUCT_EXTENSION_PARAM,
                     forEachExtensionReturnSize, autoBreak=False,
+                    defaultEmit=(defaultAbortEmit if self.variant == "host" else None),
                     rootTypeVar=self.rootTypeParam)))
 
         self.module.appendImpl(
@@ -121,4 +133,5 @@ class VulkanExtensionStructs(VulkanWrapperGenerator):
                     self.extensionStructSizeRetType,
                     STRUCT_EXTENSION_PARAM,
                     forEachExtensionReturnSizeProtectedByFeature, autoBreak=False,
+                    defaultEmit=(defaultAbortEmit if self.variant == "host" else None),
                     rootTypeVar=self.rootTypeParam)))

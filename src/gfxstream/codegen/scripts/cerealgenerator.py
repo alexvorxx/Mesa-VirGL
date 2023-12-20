@@ -454,6 +454,7 @@ using DlSymFunc = void* (void*, const char*);
         extensionStructsInclude = f"""
 {self.hostCommonExtraVulkanHeaders}
 #include "goldfish_vk_private_defs.h"
+#include "host-common/GfxstreamFatalError.h"
 """
 
         extensionStructsIncludeGuest = """
@@ -651,7 +652,7 @@ class BumpPool;
             extraHeader=createVkExtensionStructureTypePreamble('VK_ANDROID_NATIVE_BUFFER'))
 
         self.addWrapper(cereal.VulkanEncoder, "VkEncoder")
-        self.addWrapper(cereal.VulkanExtensionStructs, "goldfish_vk_extension_structs_guest")
+        self.addWrapper(cereal.VulkanExtensionStructs, "goldfish_vk_extension_structs_guest", variant = "guest")
         self.addWrapper(cereal.VulkanMarshaling, "goldfish_vk_marshaling_guest", variant = "guest")
         self.addWrapper(cereal.VulkanReservedMarshaling, "goldfish_vk_reserved_marshaling_guest", variant = "guest")
         self.addWrapper(cereal.VulkanDeepcopy, "goldfish_vk_deepcopy_guest")
@@ -659,7 +660,7 @@ class BumpPool;
         self.addWrapper(cereal.VulkanTransform, "goldfish_vk_transform_guest")
         self.addWrapper(cereal.VulkanFuncTable, "func_table")
 
-        self.addWrapper(cereal.VulkanExtensionStructs, "goldfish_vk_extension_structs")
+        self.addWrapper(cereal.VulkanExtensionStructs, "goldfish_vk_extension_structs", variant = "host")
         self.addWrapper(cereal.VulkanMarshaling, "goldfish_vk_marshaling")
         self.addWrapper(cereal.VulkanReservedMarshaling, "goldfish_vk_reserved_marshaling", variant = "host")
         self.addWrapper(cereal.VulkanDeepcopy, "goldfish_vk_deepcopy")
