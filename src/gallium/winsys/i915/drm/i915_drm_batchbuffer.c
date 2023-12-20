@@ -84,7 +84,7 @@ i915_drm_batchbuffer_validate_buffers(struct i915_winsys_batchbuffer *batch,
    for (i = 0; i < num_of_buffers; i++)
       bos[i+1] = intel_bo(buffer[i]);
 
-   ret = drm_intel_bufmgr_check_aperture_space(bos, num_of_buffers);
+   ret = drm_intel_bufmgr_check_aperture_space(bos, num_of_buffers + 1);
    if (ret != 0)
       return false;
 
@@ -227,6 +227,22 @@ i915_drm_batchbuffer_destroy(struct i915_winsys_batchbuffer *ibatch)
    FREE(batch);
 }
 
+static void
+i915_drm_batchbuffer_emit_start(struct i915_winsys_batchbuffer *ibatch)
+{
+   struct i915_drm_batchbuffer *batch = i915_drm_batchbuffer(ibatch);
+   ibatch->ptr_start = ibatch->ptr;
+   ibatch->reloc_count_start = drm_intel_gem_bo_get_reloc_count(batch->bo);
+}
+
+static void
+i915_drm_batchbuffer_emit_restart(struct i915_winsys_batchbuffer *ibatch)
+{
+   struct i915_drm_batchbuffer *batch = i915_drm_batchbuffer(ibatch);
+   drm_intel_gem_bo_clear_relocs(batch->bo, ibatch->reloc_count_start);
+   ibatch->ptr = ibatch->ptr_start;
+}
+
 void i915_drm_winsys_init_batchbuffer_functions(struct i915_drm_winsys *idws)
 {
    idws->base.batchbuffer_create = i915_drm_batchbuffer_create;
@@ -234,4 +250,6 @@ void i915_drm_winsys_init_batchbuffer_functions(struct i915_drm_winsys *idws)
    idws->base.batchbuffer_reloc = i915_drm_batchbuffer_reloc;
    idws->base.batchbuffer_flush = i915_drm_batchbuffer_flush;
    idws->base.batchbuffer_destroy = i915_drm_batchbuffer_destroy;
+   idws->base.emit_start = i915_drm_batchbuffer_emit_start;
+   idws->base.emit_restart = i915_drm_batchbuffer_emit_restart;
 }
