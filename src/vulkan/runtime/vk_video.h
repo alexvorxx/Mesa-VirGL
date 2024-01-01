@@ -345,4 +345,12 @@ vk_video_encode_h265_pps(const StdVideoH265PictureParameterSet *pps,
 }
 #endif
 
+void
+vk_video_encode_h264_slice_header(const StdVideoEncodeH264PictureInfo *pic_info,
+                                  const StdVideoH264SequenceParameterSet *sps,
+                                  const StdVideoH264PictureParameterSet *pps,
+                                  const StdVideoEncodeH264SliceHeader *slice_header,
+                                  const int8_t slice_qp_delta,
+                                  size_t *data_size_ptr,
+                                  void *data_ptr);
 #endif

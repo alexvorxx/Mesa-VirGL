@@ -2077,3 +2077,166 @@ vk_video_encode_h265_pps(const StdVideoH265PictureParameterSet *pps,
    *data_size_ptr += vl_bitstream_get_byte_count(&enc);
    vl_bitstream_encoder_free(&enc);
 }
+
+void
+vk_video_encode_h264_slice_header(const StdVideoEncodeH264PictureInfo *pic_info,
+                                  const StdVideoH264SequenceParameterSet *sps,
+                                  const StdVideoH264PictureParameterSet *pps,
+                                  const StdVideoEncodeH264SliceHeader *slice_header,
+                                  const int8_t slice_qp_delta,
+                                  size_t *data_size_ptr,
+                                  void *data_ptr)
+{
+   struct vl_bitstream_encoder enc;
+   uint32_t data_size = *data_size_ptr;
+
+   int is_idr = !!pic_info->flags.IdrPicFlag;
+   int is_ref = !!pic_info->flags.is_reference;
+   uint32_t slice_type = slice_header->slice_type % 5;
+
+   vl_bitstream_encoder_clear(&enc, data_ptr, data_size, VL_BITSTREAM_MAX_BUFFER);
+
+   if (slice_type == STD_VIDEO_H264_SLICE_TYPE_I) {
+      emit_nalu_header(&enc, 3, is_idr ? H264_NAL_IDR : H264_NAL_SLICE);
+   } else if (slice_type == STD_VIDEO_H264_SLICE_TYPE_P) {
+      assert(!is_idr);
+      emit_nalu_header(&enc, 2, H264_NAL_SLICE);
+   } else {
+      assert(slice_type == STD_VIDEO_H264_SLICE_TYPE_B);
+      assert(!is_idr);
+      emit_nalu_header(&enc, is_ref ? 1 : 0, H264_NAL_SLICE);
+   }
+
+   vl_bitstream_put_bits(&enc, 1, slice_header->first_mb_in_slice);
+   vl_bitstream_exp_golomb_ue(&enc, slice_header->slice_type);
+   vl_bitstream_exp_golomb_ue(&enc, pic_info->pic_parameter_set_id);
+
+   if (sps->flags.separate_colour_plane_flag)
+      /* colour plane id */
+      vl_bitstream_put_bits(&enc, 2, 0);
+
+   vl_bitstream_put_bits(&enc, sps->log2_max_frame_num_minus4 + 4, pic_info->frame_num);
+
+   /* frame_mbs_only_flag == 1 */
+   if (!sps->flags.frame_mbs_only_flag) {
+      /* FIXME: */
+      assert(0);
+   }
+
+   if (pic_info->flags.IdrPicFlag)
+      vl_bitstream_exp_golomb_ue(&enc, pic_info->idr_pic_id);
+
+   if (sps->pic_order_cnt_type == STD_VIDEO_H264_POC_TYPE_0) {
+      vl_bitstream_put_bits(&enc, sps->log2_max_pic_order_cnt_lsb_minus4 + 4, pic_info->PicOrderCnt);
+      /* pic_order_present_flag == 0 */
+      if (pps->flags.bottom_field_pic_order_in_frame_present_flag) {
+         assert(0);
+         vl_bitstream_exp_golomb_se(&enc, 0);
+      }
+   } else if (sps->pic_order_cnt_type == STD_VIDEO_H264_POC_TYPE_1) {
+      assert(0);
+
+      if (!sps->flags.delta_pic_order_always_zero_flag) {
+      }
+   } else if (sps->pic_order_cnt_type == STD_VIDEO_H264_POC_TYPE_2) {
+   } else {
+      assert(0);
+   }
+
+   /* redundant_pic_cnt_present_flag == 0 */
+   if (pps->flags.redundant_pic_cnt_present_flag) {
+      vl_bitstream_exp_golomb_ue(&enc, 0);
+   }
+
+   /* slice type */
+   if (slice_type == STD_VIDEO_H264_SLICE_TYPE_P) {
+      vl_bitstream_put_bits(&enc, 1, slice_header->flags.num_ref_idx_active_override_flag);
+
+      if (slice_header->flags.num_ref_idx_active_override_flag) {
+         vl_bitstream_exp_golomb_ue(&enc, pic_info->pRefLists->num_ref_idx_l0_active_minus1);
+      }
+
+      vl_bitstream_put_bits(&enc, 1, pic_info->pRefLists->flags.ref_pic_list_modification_flag_l0);
+
+      if (pic_info->pRefLists->flags.ref_pic_list_modification_flag_l0) {
+         assert(0);
+         /* TODO */
+         for (unsigned i = 0; i < pic_info->pRefLists->refList0ModOpCount; i++) {
+         }
+      }
+   } else if (slice_type == STD_VIDEO_H264_SLICE_TYPE_B) {
+      vl_bitstream_put_bits(&enc, 1, slice_header->flags.direct_spatial_mv_pred_flag);
+      vl_bitstream_put_bits(&enc, 1, slice_header->flags.num_ref_idx_active_override_flag);
+
+      if (slice_header->flags.num_ref_idx_active_override_flag) {
+         vl_bitstream_exp_golomb_ue(&enc, pic_info->pRefLists->num_ref_idx_l0_active_minus1);
+         vl_bitstream_exp_golomb_ue(&enc, pic_info->pRefLists->num_ref_idx_l1_active_minus1);
+      }
+
+      vl_bitstream_put_bits(&enc, 1, pic_info->pRefLists->flags.ref_pic_list_modification_flag_l0);
+      vl_bitstream_put_bits(&enc, 1, pic_info->pRefLists->flags.ref_pic_list_modification_flag_l1);
+
+      if (pic_info->pRefLists->flags.ref_pic_list_modification_flag_l0) {
+         assert(0);
+         for (unsigned i = 0; i < pic_info->pRefLists->refList0ModOpCount; i++) {
+         }
+      }
+      if (pic_info->pRefLists->flags.ref_pic_list_modification_flag_l1) {
+         assert(0);
+         for (unsigned i = 0; i < pic_info->pRefLists->refList1ModOpCount; i++) {
+         }
+      }
+   }
+
+   if ((pps->flags.weighted_pred_flag && (slice_type == STD_VIDEO_H264_SLICE_TYPE_P)) ||
+       ((pps->weighted_bipred_idc == 1) && (slice_type == STD_VIDEO_H264_SLICE_TYPE_B))) {
+      /* FIXME: fill weight/offset table */
+      assert(0);
+   }
+
+   /* dec_ref_pic_marking */
+   /* nal_ref_idc != 0 */
+   if (slice_type != STD_VIDEO_H264_SLICE_TYPE_B || pic_info->flags.is_reference) {
+      unsigned char no_output_of_prior_pics_flag = 0;
+      unsigned char long_term_reference_flag = 0;
+      unsigned char adaptive_ref_pic_marking_mode_flag = 0;
+
+      if (pic_info->flags.IdrPicFlag) {
+         vl_bitstream_put_bits(&enc, 1, no_output_of_prior_pics_flag);
+         vl_bitstream_put_bits(&enc, 1, long_term_reference_flag);
+      } else {
+         vl_bitstream_put_bits(&enc, 1, adaptive_ref_pic_marking_mode_flag);
+      }
+   }
+
+   if (pps->flags.entropy_coding_mode_flag && (slice_type != STD_VIDEO_H264_SLICE_TYPE_I))
+      vl_bitstream_exp_golomb_ue(&enc, slice_header->cabac_init_idc);
+
+   vl_bitstream_exp_golomb_se(&enc, slice_qp_delta);
+
+   if (pps->flags.deblocking_filter_control_present_flag) {
+      vl_bitstream_exp_golomb_ue(&enc, slice_header->disable_deblocking_filter_idc);
+
+      if (slice_header->disable_deblocking_filter_idc != 1) {
+         vl_bitstream_exp_golomb_se(&enc, slice_header->slice_alpha_c0_offset_div2);
+         vl_bitstream_exp_golomb_se(&enc, slice_header->slice_beta_offset_div2);
+      }
+   }
+
+   if (pps->flags.entropy_coding_mode_flag) {
+      int left = vl_bitstream_get_num_bits_for_byte_align(&enc);
+      int val = (1 << left) - 1;
+
+      if (left)
+         vl_bitstream_put_bits(&enc, left, val);
+
+      ASSERTED bool is_aligned = vl_bitstream_is_byte_aligned(&enc);
+      assert(is_aligned);
+   }
+
+   vl_bitstream_flush(&enc);
+   *data_size_ptr += vl_bitstream_get_byte_count(&enc);
+   vl_bitstream_encoder_free(&enc);
+
+   return;
+}
