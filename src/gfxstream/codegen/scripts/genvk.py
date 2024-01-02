@@ -957,7 +957,6 @@ def makeGenOpts(args):
             CerealGenerator,
             CGeneratorOptions(
                 conventions       = conventions,
-                filename          = "CMakeLists.txt",
                 directory         = directory,
                 apiname           = 'vulkan',
                 profile           = None,
