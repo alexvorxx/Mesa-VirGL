@@ -135,9 +135,8 @@ SUPPORTED_FEATURES = [
 
 HOST_MODULES = ["goldfish_vk_extension_structs", "goldfish_vk_marshaling",
                 "goldfish_vk_reserved_marshaling", "goldfish_vk_deepcopy",
-                "goldfish_vk_handlemap", "goldfish_vk_dispatch",
-                "goldfish_vk_transform", "VkDecoder", "VkDecoderSnapshot",
-                "VkSubDecoder"]
+                "goldfish_vk_dispatch", "goldfish_vk_transform", "VkDecoder",
+                "VkDecoderSnapshot", "VkSubDecoder"]
 
 # By default, the all wrappers are run all on all features.  In certain cases,
 # we wish run wrappers when the module requires it. For example, `VK_GOOGLE_gfxstream`
@@ -409,11 +408,6 @@ class IOStream;
 using android::base::Allocator;
 using android::base::BumpPool;
 """
-        handleMapInclude = f"""
-{self.hostCommonExtraVulkanHeaders}
-#include "goldfish_vk_private_defs.h"
-#include "VulkanHandleMapping.h"
-"""
         transformIncludeGuest = """
 #include "goldfish_vk_private_defs.h"
 """
@@ -623,9 +617,6 @@ class BumpPool;
         self.addCppModule("common", "goldfish_vk_deepcopy",
                        extraHeader=poolInclude,
                        extraImpl=commonCerealImplIncludes + deepcopyInclude)
-        self.addCppModule("common", "goldfish_vk_handlemap",
-                       extraHeader=handleMapInclude,
-                       extraImpl=commonCerealImplIncludes)
         self.addCppModule("common", "goldfish_vk_dispatch",
                        extraHeader=dispatchHeaderDefs,
                        extraImpl=dispatchImplIncludes)
@@ -671,7 +662,6 @@ class BumpPool;
         self.addWrapper(cereal.VulkanMarshaling, "goldfish_vk_marshaling")
         self.addWrapper(cereal.VulkanReservedMarshaling, "goldfish_vk_reserved_marshaling", variant = "host")
         self.addWrapper(cereal.VulkanDeepcopy, "goldfish_vk_deepcopy")
-        self.addWrapper(cereal.VulkanHandleMap, "goldfish_vk_handlemap")
         self.addWrapper(cereal.VulkanDispatch, "goldfish_vk_dispatch")
         self.addWrapper(cereal.VulkanTransform, "goldfish_vk_transform", resourceTrackerTypeName="VkDecoderGlobalState")
         self.addWrapper(cereal.VulkanDecoder, "VkDecoder")
