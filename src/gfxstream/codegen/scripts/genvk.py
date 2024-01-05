@@ -1038,7 +1038,7 @@ def genTarget(args):
         createGenerator = genOpts[args.target][0]
         options = genOpts[args.target][1]
 
-        logDiag('* Building', options.filename)
+        logDiag('* Building', args.target)
         logDiag('* options.versions          =', options.versions)
         logDiag('* options.emitversions      =', options.emitversions)
         logDiag('* options.defaultExtensions =', options.defaultExtensions)
@@ -1234,7 +1234,7 @@ if __name__ == '__main__':
     else:
         startTimer(args.time)
         reg.apiGen()
-        endTimer(args.time, '* Time to generate ' + options.filename + ' =')
+        endTimer(args.time, '* Time to generate ' + args.target + ' =')
 
     if not args.quiet:
-        logDiag('* Generated', options.filename)
+        logDiag('* Generated', args.target)
