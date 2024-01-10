@@ -27,6 +27,10 @@ from cereal.wrapperdefs import VULKAN_STREAM_TYPE_GUEST
 # while being agnostic to the stream implementation
 from reg import GroupInfo, TypeInfo, EnumInfo
 
+VK_CEREAL_FLAG_HOST = 1
+VK_CEREAL_FLAG_GUEST = 2
+VK_CEREAL_FLAG_ALL = VK_CEREAL_FLAG_GUEST | VK_CEREAL_FLAG_HOST
+
 SUPPORTED_FEATURES = [
     "VK_VERSION_1_0",
     "VK_VERSION_1_1",
@@ -256,6 +260,19 @@ class CerealGenerator(OutputGenerator):
         self.guestBaseLibDirPrefix = "aemu/base"
         self.baseLibDirPrefix = "aemu/base"
         self.utilsHeaderDirPrefix = "utils"
+
+        # The cereal variant should be an environmental variable of one of
+        # the following:
+        #    - "guest"
+        #    - "host"
+        #    - "both"
+        cerealVariant = envGetOrDefault("CEREAL_VARIANT", "both")
+        if cerealVariant == "guest":
+          self.cerealFlags = VK_CEREAL_FLAG_GUEST
+        elif cerealVariant == "host":
+          self.cerealFlags = VK_CEREAL_FLAG_HOST
+        else:
+          self.cerealFlags = VK_CEREAL_FLAG_ALL
 
         # THe host always needs all possible guest struct definitions, while the guest only needs
         # platform sepcific headers.
@@ -534,104 +551,106 @@ class BumpPool;
         self.host_script_destination = envGetOrDefault("GFXSTREAM_SCRIPTS_DIR")
         assert(self.host_script_destination is not None)
 
-        self.addGuestEncoderModule(
-            "VkEncoder",
-            extraHeader = encoderInclude,
-            extraImpl = encoderImplInclude)
+        if self.cerealFlags & VK_CEREAL_FLAG_GUEST:
+            self.addGuestEncoderModule(
+                "VkEncoder",
+                extraHeader = encoderInclude,
+                extraImpl = encoderImplInclude)
 
-        self.addGuestEncoderModule("goldfish_vk_extension_structs_guest",
-                                   extraHeader=extensionStructsIncludeGuest)
-        self.addGuestEncoderModule("goldfish_vk_marshaling_guest",
-                                   extraHeader=commonCerealIncludesGuest + marshalIncludeGuest,
-                                   extraImpl=commonCerealImplIncludesGuest)
-        self.addGuestEncoderModule("goldfish_vk_reserved_marshaling_guest",
-                                   extraHeader=commonCerealIncludesGuest + reservedmarshalIncludeGuest,
-                                   extraImpl=commonCerealImplIncludesGuest + reservedmarshalImplIncludeGuest)
-        self.addGuestEncoderModule("goldfish_vk_deepcopy_guest",
-                                   extraHeader=commonCerealIncludesGuest + poolIncludeGuest,
-                                   extraImpl=commonCerealImplIncludesGuest + deepcopyInclude)
-        self.addGuestEncoderModule("goldfish_vk_counting_guest",
-                                   extraHeader=countingIncludes,
-                                   extraImpl=commonCerealImplIncludesGuest)
-        self.addGuestEncoderModule("goldfish_vk_transform_guest",
-                                   extraHeader=commonCerealIncludesGuest + transformIncludeGuest,
-                                   extraImpl=commonCerealImplIncludesGuest + transformImplIncludeGuest)
-        self.addGuestEncoderModule(
-            "vulkan_gfxstream_structure_type", headerOnly=True, suppressFeatureGuards=True,
-            moduleName="vulkan_gfxstream_structure_type_guest", useNamespace=False,
-            suppressVulkanHeaders=True,
-            extraHeader=createVkExtensionStructureTypePreamble('VK_GOOGLE_GFXSTREAM'))
+            self.addGuestEncoderModule("goldfish_vk_extension_structs_guest",
+                                       extraHeader=extensionStructsIncludeGuest)
+            self.addGuestEncoderModule("goldfish_vk_marshaling_guest",
+                                       extraHeader=commonCerealIncludesGuest + marshalIncludeGuest,
+                                       extraImpl=commonCerealImplIncludesGuest)
+            self.addGuestEncoderModule("goldfish_vk_reserved_marshaling_guest",
+                                       extraHeader=commonCerealIncludesGuest + reservedmarshalIncludeGuest,
+                                       extraImpl=commonCerealImplIncludesGuest + reservedmarshalImplIncludeGuest)
+            self.addGuestEncoderModule("goldfish_vk_deepcopy_guest",
+                                       extraHeader=commonCerealIncludesGuest + poolIncludeGuest,
+                                       extraImpl=commonCerealImplIncludesGuest + deepcopyInclude)
+            self.addGuestEncoderModule("goldfish_vk_counting_guest",
+                                       extraHeader=countingIncludes,
+                                       extraImpl=commonCerealImplIncludesGuest)
+            self.addGuestEncoderModule("goldfish_vk_transform_guest",
+                                       extraHeader=commonCerealIncludesGuest + transformIncludeGuest,
+                                       extraImpl=commonCerealImplIncludesGuest + transformImplIncludeGuest)
+            self.addGuestEncoderModule(
+                "vulkan_gfxstream_structure_type", headerOnly=True, suppressFeatureGuards=True,
+                moduleName="vulkan_gfxstream_structure_type_guest", useNamespace=False,
+                suppressVulkanHeaders=True,
+                extraHeader=createVkExtensionStructureTypePreamble('VK_GOOGLE_GFXSTREAM'))
 
-        self.addGuestEncoderModule("func_table", extraImpl=functableImplInclude, implOnly = True,
+            self.addGuestEncoderModule("func_table", extraImpl=functableImplInclude, implOnly = True,
                                     useNamespace = False)
 
-        self.addCppModule("common", "goldfish_vk_extension_structs",
-                       extraHeader=extensionStructsInclude)
-        self.addCppModule("common", "goldfish_vk_marshaling",
-                       extraHeader=vulkanStreamIncludeHost,
-                       extraImpl=commonCerealImplIncludes)
-        self.addCppModule("common", "goldfish_vk_reserved_marshaling",
-                       extraHeader=vulkanStreamIncludeHost,
-                       extraImpl=commonCerealImplIncludes)
-        self.addCppModule("common", "goldfish_vk_deepcopy",
-                       extraHeader=poolInclude,
-                       extraImpl=commonCerealImplIncludes + deepcopyInclude)
-        self.addCppModule("common", "goldfish_vk_dispatch",
-                       extraHeader=dispatchHeaderDefs,
-                       extraImpl=dispatchImplIncludes)
-        self.addCppModule("common", "goldfish_vk_transform",
-                       extraHeader=transformInclude,
-                       extraImpl=transformImplInclude)
-        self.addHostModule("VkDecoder",
-                           extraHeader=decoderHeaderIncludes,
-                           extraImpl=decoderImplIncludes,
-                           useNamespace=False)
-        self.addHostModule("VkDecoderSnapshot",
-                           extraHeader=decoderSnapshotHeaderIncludes,
-                           extraImpl=decoderSnapshotImplIncludes,
-                           useNamespace=False)
-        self.addHostModule("VkSubDecoder",
-                           extraHeader="",
-                           extraImpl="",
-                           useNamespace=False,
-                           implOnly=True)
+            self.addWrapper(cereal.VulkanEncoder, "VkEncoder")
+            self.addWrapper(cereal.VulkanExtensionStructs, "goldfish_vk_extension_structs_guest", variant = "guest")
+            self.addWrapper(cereal.VulkanMarshaling, "goldfish_vk_marshaling_guest", variant = "guest")
+            self.addWrapper(cereal.VulkanReservedMarshaling, "goldfish_vk_reserved_marshaling_guest", variant = "guest")
+            self.addWrapper(cereal.VulkanDeepcopy, "goldfish_vk_deepcopy_guest")
+            self.addWrapper(cereal.VulkanCounting, "goldfish_vk_counting_guest")
+            self.addWrapper(cereal.VulkanTransform, "goldfish_vk_transform_guest")
+            self.addWrapper(cereal.VulkanFuncTable, "func_table")
+            self.addWrapper(cereal.VulkanGfxstreamStructureType,
+                            "vulkan_gfxstream_structure_type_guest")
 
-        self.addModule(cereal.PyScript(self.host_tag, "vulkan_printer", customAbsDir=Path(
-            self.host_script_destination) / "print_gfx_logs"), moduleName="ApiLogDecoder")
-        self.addHostModule(
-            "vulkan_gfxstream_structure_type", headerOnly=True, suppressFeatureGuards=True,
-            moduleName="vulkan_gfxstream_structure_type_host", useNamespace=False,
-            suppressVulkanHeaders=True,
-            extraHeader=createVkExtensionStructureTypePreamble('VK_GOOGLE_GFXSTREAM'))
-        self.addHostModule(
-            "vk_android_native_buffer_structure_type", headerOnly=True, suppressFeatureGuards=True,
-            useNamespace=False, suppressVulkanHeaders=True,
-            extraHeader=createVkExtensionStructureTypePreamble('VK_ANDROID_NATIVE_BUFFER'))
+        if self.cerealFlags & VK_CEREAL_FLAG_HOST:
+            self.addCppModule("common", "goldfish_vk_extension_structs",
+                           extraHeader=extensionStructsInclude)
+            self.addCppModule("common", "goldfish_vk_marshaling",
+                           extraHeader=vulkanStreamIncludeHost,
+                           extraImpl=commonCerealImplIncludes)
+            self.addCppModule("common", "goldfish_vk_reserved_marshaling",
+                           extraHeader=vulkanStreamIncludeHost,
+                           extraImpl=commonCerealImplIncludes)
+            self.addCppModule("common", "goldfish_vk_deepcopy",
+                           extraHeader=poolInclude,
+                           extraImpl=commonCerealImplIncludes + deepcopyInclude)
+            self.addCppModule("common", "goldfish_vk_dispatch",
+                           extraHeader=dispatchHeaderDefs,
+                           extraImpl=dispatchImplIncludes)
+            self.addCppModule("common", "goldfish_vk_transform",
+                           extraHeader=transformInclude,
+                           extraImpl=transformImplInclude)
+            self.addHostModule("VkDecoder",
+                               extraHeader=decoderHeaderIncludes,
+                               extraImpl=decoderImplIncludes,
+                               useNamespace=False)
+            self.addHostModule("VkDecoderSnapshot",
+                               extraHeader=decoderSnapshotHeaderIncludes,
+                               extraImpl=decoderSnapshotImplIncludes,
+                               useNamespace=False)
+            self.addHostModule("VkSubDecoder",
+                               extraHeader="",
+                               extraImpl="",
+                               useNamespace=False,
+                               implOnly=True)
 
-        self.addWrapper(cereal.VulkanEncoder, "VkEncoder")
-        self.addWrapper(cereal.VulkanExtensionStructs, "goldfish_vk_extension_structs_guest", variant = "guest")
-        self.addWrapper(cereal.VulkanMarshaling, "goldfish_vk_marshaling_guest", variant = "guest")
-        self.addWrapper(cereal.VulkanReservedMarshaling, "goldfish_vk_reserved_marshaling_guest", variant = "guest")
-        self.addWrapper(cereal.VulkanDeepcopy, "goldfish_vk_deepcopy_guest")
-        self.addWrapper(cereal.VulkanCounting, "goldfish_vk_counting_guest")
-        self.addWrapper(cereal.VulkanTransform, "goldfish_vk_transform_guest")
-        self.addWrapper(cereal.VulkanFuncTable, "func_table")
+            self.addModule(cereal.PyScript(self.host_tag, "vulkan_printer", customAbsDir=Path(
+                self.host_script_destination) / "print_gfx_logs"), moduleName="ApiLogDecoder")
+            self.addHostModule(
+                "vulkan_gfxstream_structure_type", headerOnly=True, suppressFeatureGuards=True,
+                moduleName="vulkan_gfxstream_structure_type_host", useNamespace=False,
+                suppressVulkanHeaders=True,
+                extraHeader=createVkExtensionStructureTypePreamble('VK_GOOGLE_GFXSTREAM'))
+            self.addHostModule(
+                "vk_android_native_buffer_structure_type", headerOnly=True, suppressFeatureGuards=True,
+                useNamespace=False, suppressVulkanHeaders=True,
+                extraHeader=createVkExtensionStructureTypePreamble('VK_ANDROID_NATIVE_BUFFER'))
 
-        self.addWrapper(cereal.VulkanExtensionStructs, "goldfish_vk_extension_structs", variant = "host")
-        self.addWrapper(cereal.VulkanMarshaling, "goldfish_vk_marshaling")
-        self.addWrapper(cereal.VulkanReservedMarshaling, "goldfish_vk_reserved_marshaling", variant = "host")
-        self.addWrapper(cereal.VulkanDeepcopy, "goldfish_vk_deepcopy")
-        self.addWrapper(cereal.VulkanDispatch, "goldfish_vk_dispatch")
-        self.addWrapper(cereal.VulkanTransform, "goldfish_vk_transform", resourceTrackerTypeName="VkDecoderGlobalState")
-        self.addWrapper(cereal.VulkanDecoder, "VkDecoder")
-        self.addWrapper(cereal.VulkanDecoderSnapshot, "VkDecoderSnapshot")
-        self.addWrapper(cereal.VulkanSubDecoder, "VkSubDecoder")
-        self.addWrapper(cereal.ApiLogDecoder, "ApiLogDecoder")
-        self.addWrapper(cereal.VulkanGfxstreamStructureType,
-                        "vulkan_gfxstream_structure_type_guest")
-        self.addWrapper(cereal.VulkanGfxstreamStructureType, "vulkan_gfxstream_structure_type_host")
-        self.addWrapper(cereal.VulkanAndroidNativeBufferStructureType,
-                        "vk_android_native_buffer_structure_type")
+            self.addWrapper(cereal.VulkanExtensionStructs, "goldfish_vk_extension_structs", variant = "host")
+            self.addWrapper(cereal.VulkanMarshaling, "goldfish_vk_marshaling")
+            self.addWrapper(cereal.VulkanReservedMarshaling, "goldfish_vk_reserved_marshaling", variant = "host")
+            self.addWrapper(cereal.VulkanDeepcopy, "goldfish_vk_deepcopy")
+            self.addWrapper(cereal.VulkanDispatch, "goldfish_vk_dispatch")
+            self.addWrapper(cereal.VulkanTransform, "goldfish_vk_transform", resourceTrackerTypeName="VkDecoderGlobalState")
+            self.addWrapper(cereal.VulkanDecoder, "VkDecoder")
+            self.addWrapper(cereal.VulkanDecoderSnapshot, "VkDecoderSnapshot")
+            self.addWrapper(cereal.VulkanSubDecoder, "VkSubDecoder")
+            self.addWrapper(cereal.ApiLogDecoder, "ApiLogDecoder")
+            self.addWrapper(cereal.VulkanGfxstreamStructureType, "vulkan_gfxstream_structure_type_host")
+            self.addWrapper(cereal.VulkanAndroidNativeBufferStructureType,
+                            "vk_android_native_buffer_structure_type")
 
     def addGuestEncoderModule(
             self, basename, extraHeader="", extraImpl="", useNamespace=True, headerOnly=False,
