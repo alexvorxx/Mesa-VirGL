@@ -77,10 +77,10 @@ public:
         }
 
         if (!m_iostreamBuf || len > m_bufsize) {
-            int allocLen = this->idealAllocSize(len);
+            size_t allocLen = this->idealAllocSize(len);
             m_iostreamBuf = (unsigned char *)allocBuffer(allocLen);
             if (!m_iostreamBuf) {
-                ERR("Alloc (%u bytes) failed\n", allocLen);
+                ERR("Alloc (%zu bytes) failed\n", allocLen);
                 return NULL;
             }
             m_bufsize = m_free = allocLen;
