@@ -1775,6 +1775,7 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_KHR_descriptor_update_template",
         "VK_KHR_storage_buffer_storage_class",
         "VK_EXT_depth_clip_enable",
+        "VK_KHR_create_renderpass2",
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
         "VK_KHR_external_semaphore",
         "VK_KHR_external_semaphore_fd",
@@ -1785,7 +1786,6 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_EXT_device_memory_report",
 #endif
 #if defined(__linux__) && !defined(VK_USE_PLATFORM_ANDROID_KHR)
-        "VK_KHR_create_renderpass2",
         "VK_KHR_imageless_framebuffer",
 #endif
         // Vulkan 1.3
