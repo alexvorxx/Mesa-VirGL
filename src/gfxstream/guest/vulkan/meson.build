@@ -10,7 +10,7 @@ files_lib_vulkan_gfxstream = files(
 lib_vulkan_gfxstream = shared_library(
    'vulkan_gfxstream',
    files_lib_vulkan_gfxstream + files_lib_vulkan_enc + gfxstream_vk_entrypoints,
-   cpp_args: cpp_args,
+   cpp_args: gfxstream_guest_args,
    include_directories: [inc_vulkan_headers, inc_opengl_headers, inc_android_emu,
                          inc_android_compat, inc_opengl_system, inc_guest_iostream,
                          inc_opengl_codec, inc_render_enc, inc_vulkan_enc, inc_platform,

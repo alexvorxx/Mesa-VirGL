@@ -13,7 +13,7 @@ files_lib_goldfish_address_space = files(
 lib_goldfish_address_space = static_library(
    'goldfish_address_space',
    files_lib_goldfish_address_space,
-   cpp_args: cpp_args,
+   cpp_args: gfxstream_guest_args,
    include_directories: [inc_android_compat,
                          inc_android_emu,
                          inc_goldfish_address_space,

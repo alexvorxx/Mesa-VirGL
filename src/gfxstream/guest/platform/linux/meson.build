@@ -12,7 +12,7 @@ files_lib_platform = files(
 lib_platform = static_library(
    'platform',
    files_lib_platform,
-   cpp_args: cpp_args,
+   cpp_args: gfxstream_guest_args,
    include_directories: [inc_platform, inc_android_compat],
    dependencies: drm_dep,
 )
