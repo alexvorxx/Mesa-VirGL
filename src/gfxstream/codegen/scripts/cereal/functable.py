@@ -71,7 +71,6 @@ RESOURCE_TRACKER_ENTRIES = [
     "vkAllocateDescriptorSets",
     "vkFreeDescriptorSets",
     "vkCreateDescriptorSetLayout",
-    "vkUpdateDescriptorSets",
     "vkCmdExecuteCommands",
     "vkCmdBindDescriptorSets",
     "vkDestroyDescriptorSetLayout",
@@ -125,6 +124,8 @@ HANDWRITTEN_ENTRY_POINTS = [
     "vkCmdBeginRenderPass2KHR",
     "vkCmdBeginRenderPass",
     "vkAllocateMemory",
+    "vkUpdateDescriptorSets",
+    "vkQueueCommitDescriptorSetUpdatesGOOGLE",
 ]
 
 # TODO: handles with no equivalent gfxstream objects (yet).

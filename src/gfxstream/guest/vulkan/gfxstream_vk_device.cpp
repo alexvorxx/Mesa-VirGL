@@ -838,3 +838,188 @@ VkResult gfxstream_vk_CreateComputePipelines(VkDevice device, VkPipelineCache pi
     *pPipelines = gfxstream_vk_pipeline_to_handle(gfxstream_pPipelines);
     return vkCreateComputePipelines_VkResult_return;
 }
+
+void gfxstream_vk_UpdateDescriptorSets(VkDevice device, uint32_t descriptorWriteCount,
+                                       const VkWriteDescriptorSet* pDescriptorWrites,
+                                       uint32_t descriptorCopyCount,
+                                       const VkCopyDescriptorSet* pDescriptorCopies) {
+    AEMU_SCOPED_TRACE("vkUpdateDescriptorSets");
+    VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
+    {
+        auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
+        std::vector<VkWriteDescriptorSet> internal_pDescriptorWrites(descriptorWriteCount);
+        std::vector<std::vector<VkDescriptorImageInfo>> internal_VkWriteDescriptorSet_pImageInfo;
+        std::vector<std::vector<VkDescriptorBufferInfo>> internal_VkWriteDescriptorSet_pBufferInfo;
+        std::vector<std::vector<VkBufferView>> internal_VkWriteDescriptorSet_pTexelBufferView;
+        for (uint32_t i = 0; i < descriptorWriteCount; ++i) {
+            internal_pDescriptorWrites[i] = pDescriptorWrites[i];
+            /* VkWriteDescriptorSet::pImageInfo */
+            internal_VkWriteDescriptorSet_pImageInfo.push_back(
+                std::vector<VkDescriptorImageInfo>());
+            internal_VkWriteDescriptorSet_pImageInfo[i].reserve(
+                internal_pDescriptorWrites[i].descriptorCount);
+            memset(&internal_VkWriteDescriptorSet_pImageInfo[i][0], 0,
+                   sizeof(VkDescriptorImageInfo) * internal_pDescriptorWrites[i].descriptorCount);
+            for (uint32_t j = 0; j < internal_pDescriptorWrites[i].descriptorCount; ++j) {
+                if (internal_pDescriptorWrites[i].pImageInfo) {
+                    internal_VkWriteDescriptorSet_pImageInfo[i][j] =
+                        internal_pDescriptorWrites[i].pImageInfo[j];
+                    /* VkDescriptorImageInfo::imageView */
+                    if (internal_VkWriteDescriptorSet_pImageInfo[i][j].imageView) {
+                        VK_FROM_HANDLE(gfxstream_vk_image_view, gfxstream_imageView,
+                                       internal_VkWriteDescriptorSet_pImageInfo[i][j].imageView);
+                        internal_VkWriteDescriptorSet_pImageInfo[i][j].imageView =
+                            gfxstream_imageView->internal_object;
+                    }
+                }
+            }
+            internal_pDescriptorWrites[i].pImageInfo =
+                internal_VkWriteDescriptorSet_pImageInfo[i].data();
+            /* VkWriteDescriptorSet::pBufferInfo */
+            internal_VkWriteDescriptorSet_pBufferInfo.push_back(
+                std::vector<VkDescriptorBufferInfo>());
+            internal_VkWriteDescriptorSet_pBufferInfo[i].reserve(
+                internal_pDescriptorWrites[i].descriptorCount);
+            memset(&internal_VkWriteDescriptorSet_pBufferInfo[i][0], 0,
+                   sizeof(VkDescriptorBufferInfo) * internal_pDescriptorWrites[i].descriptorCount);
+            for (uint32_t j = 0; j < internal_pDescriptorWrites[i].descriptorCount; ++j) {
+                if (internal_pDescriptorWrites[i].pBufferInfo) {
+                    internal_VkWriteDescriptorSet_pBufferInfo[i][j] =
+                        internal_pDescriptorWrites[i].pBufferInfo[j];
+                    /* VkDescriptorBufferInfo::buffer */
+                    if (internal_VkWriteDescriptorSet_pBufferInfo[i][j].buffer) {
+                        VK_FROM_HANDLE(gfxstream_vk_buffer, gfxstream_buffer,
+                                       internal_VkWriteDescriptorSet_pBufferInfo[i][j].buffer);
+                        internal_VkWriteDescriptorSet_pBufferInfo[i][j].buffer =
+                            gfxstream_buffer->internal_object;
+                    }
+                }
+            }
+            internal_pDescriptorWrites[i].pBufferInfo =
+                internal_VkWriteDescriptorSet_pBufferInfo[i].data();
+            /* VkWriteDescriptorSet::pTexelBufferView */
+            internal_VkWriteDescriptorSet_pTexelBufferView.push_back(std::vector<VkBufferView>());
+            internal_VkWriteDescriptorSet_pTexelBufferView[i].reserve(
+                internal_pDescriptorWrites[i].descriptorCount);
+            memset(&internal_VkWriteDescriptorSet_pTexelBufferView[i][0], 0,
+                   sizeof(VkBufferView) * internal_pDescriptorWrites[i].descriptorCount);
+            for (uint32_t j = 0; j < internal_pDescriptorWrites[i].descriptorCount; ++j) {
+                if (internal_pDescriptorWrites[i].pTexelBufferView) {
+                    VK_FROM_HANDLE(gfxstream_vk_buffer_view, gfxstream_pTexelBufferView,
+                                   internal_pDescriptorWrites[i].pTexelBufferView[j]);
+                    internal_VkWriteDescriptorSet_pTexelBufferView[i][j] =
+                        gfxstream_pTexelBufferView->internal_object;
+                }
+            }
+            internal_pDescriptorWrites[i].pTexelBufferView =
+                internal_VkWriteDescriptorSet_pTexelBufferView[i].data();
+        }
+        auto resources = gfxstream::vk::ResourceTracker::get();
+        resources->on_vkUpdateDescriptorSets(
+            vkEnc, gfxstream_device->internal_object, descriptorWriteCount,
+            internal_pDescriptorWrites.data(), descriptorCopyCount, pDescriptorCopies);
+    }
+}
+
+void gfxstream_vk_QueueCommitDescriptorSetUpdatesGOOGLE(
+    VkQueue queue, uint32_t descriptorPoolCount, const VkDescriptorPool* pDescriptorPools,
+    uint32_t descriptorSetCount, const VkDescriptorSetLayout* pSetLayouts,
+    const uint64_t* pDescriptorSetPoolIds, const uint32_t* pDescriptorSetWhichPool,
+    const uint32_t* pDescriptorSetPendingAllocation,
+    const uint32_t* pDescriptorWriteStartingIndices, uint32_t pendingDescriptorWriteCount,
+    const VkWriteDescriptorSet* pPendingDescriptorWrites) {
+    AEMU_SCOPED_TRACE("vkQueueCommitDescriptorSetUpdatesGOOGLE");
+    VK_FROM_HANDLE(gfxstream_vk_queue, gfxstream_queue, queue);
+    {
+        auto vkEnc =
+            gfxstream::vk::ResourceTracker::getQueueEncoder(gfxstream_queue->internal_object);
+        std::vector<VkDescriptorPool> internal_pDescriptorPools(descriptorPoolCount);
+        for (uint32_t i = 0; i < descriptorPoolCount; ++i) {
+            VK_FROM_HANDLE(gfxstream_vk_descriptor_pool, gfxstream_pDescriptorPools,
+                           pDescriptorPools[i]);
+            internal_pDescriptorPools[i] = gfxstream_pDescriptorPools->internal_object;
+        }
+        std::vector<VkDescriptorSetLayout> internal_pSetLayouts(descriptorSetCount);
+        for (uint32_t i = 0; i < descriptorSetCount; ++i) {
+            VK_FROM_HANDLE(gfxstream_vk_descriptor_set_layout, gfxstream_pSetLayouts,
+                           pSetLayouts[i]);
+            internal_pSetLayouts[i] = gfxstream_pSetLayouts->internal_object;
+        }
+        std::vector<VkWriteDescriptorSet> internal_pPendingDescriptorWrites(
+            pendingDescriptorWriteCount);
+        std::vector<std::vector<VkDescriptorImageInfo>> internal_VkWriteDescriptorSet_pImageInfo;
+        std::vector<std::vector<VkDescriptorBufferInfo>> internal_VkWriteDescriptorSet_pBufferInfo;
+        std::vector<std::vector<VkBufferView>> internal_VkWriteDescriptorSet_pTexelBufferView;
+        for (uint32_t i = 0; i < pendingDescriptorWriteCount; ++i) {
+            internal_pPendingDescriptorWrites[i] = pPendingDescriptorWrites[i];
+            /* VkWriteDescriptorSet::pImageInfo */
+            internal_VkWriteDescriptorSet_pImageInfo.push_back(
+                std::vector<VkDescriptorImageInfo>());
+            internal_VkWriteDescriptorSet_pImageInfo[i].reserve(
+                internal_pPendingDescriptorWrites[i].descriptorCount);
+            memset(&internal_VkWriteDescriptorSet_pImageInfo[i][0], 0,
+                   sizeof(VkDescriptorImageInfo) *
+                       internal_pPendingDescriptorWrites[i].descriptorCount);
+            for (uint32_t j = 0; j < internal_pPendingDescriptorWrites[i].descriptorCount; ++j) {
+                if (internal_pPendingDescriptorWrites[i].pImageInfo) {
+                    internal_VkWriteDescriptorSet_pImageInfo[i][j] =
+                        internal_pPendingDescriptorWrites[i].pImageInfo[j];
+                    /* VkDescriptorImageInfo::imageView */
+                    if (internal_VkWriteDescriptorSet_pImageInfo[i][j].imageView) {
+                        VK_FROM_HANDLE(gfxstream_vk_image_view, gfxstream_imageView,
+                                       internal_VkWriteDescriptorSet_pImageInfo[i][j].imageView);
+                        internal_VkWriteDescriptorSet_pImageInfo[i][j].imageView =
+                            gfxstream_imageView->internal_object;
+                    }
+                }
+            }
+            internal_pPendingDescriptorWrites[i].pImageInfo =
+                internal_VkWriteDescriptorSet_pImageInfo[i].data();
+            /* VkWriteDescriptorSet::pBufferInfo */
+            internal_VkWriteDescriptorSet_pBufferInfo.push_back(
+                std::vector<VkDescriptorBufferInfo>());
+            internal_VkWriteDescriptorSet_pBufferInfo[i].reserve(
+                internal_pPendingDescriptorWrites[i].descriptorCount);
+            memset(&internal_VkWriteDescriptorSet_pBufferInfo[i][0], 0,
+                   sizeof(VkDescriptorBufferInfo) *
+                       internal_pPendingDescriptorWrites[i].descriptorCount);
+            for (uint32_t j = 0; j < internal_pPendingDescriptorWrites[i].descriptorCount; ++j) {
+                if (internal_pPendingDescriptorWrites[i].pBufferInfo) {
+                    internal_VkWriteDescriptorSet_pBufferInfo[i][j] =
+                        internal_pPendingDescriptorWrites[i].pBufferInfo[j];
+                    /* VkDescriptorBufferInfo::buffer */
+                    if (internal_VkWriteDescriptorSet_pBufferInfo[i][j].buffer) {
+                        VK_FROM_HANDLE(gfxstream_vk_buffer, gfxstream_buffer,
+                                       internal_VkWriteDescriptorSet_pBufferInfo[i][j].buffer);
+                        internal_VkWriteDescriptorSet_pBufferInfo[i][j].buffer =
+                            gfxstream_buffer->internal_object;
+                    }
+                }
+            }
+            internal_pPendingDescriptorWrites[i].pBufferInfo =
+                internal_VkWriteDescriptorSet_pBufferInfo[i].data();
+            /* VkWriteDescriptorSet::pTexelBufferView */
+            internal_VkWriteDescriptorSet_pTexelBufferView.push_back(std::vector<VkBufferView>());
+            internal_VkWriteDescriptorSet_pTexelBufferView[i].reserve(
+                internal_pPendingDescriptorWrites[i].descriptorCount);
+            memset(&internal_VkWriteDescriptorSet_pTexelBufferView[i][0], 0,
+                   sizeof(VkBufferView) * internal_pPendingDescriptorWrites[i].descriptorCount);
+            for (uint32_t j = 0; j < internal_pPendingDescriptorWrites[i].descriptorCount; ++j) {
+                if (internal_pPendingDescriptorWrites[i].pTexelBufferView) {
+                    VK_FROM_HANDLE(gfxstream_vk_buffer_view, gfxstream_pTexelBufferView,
+                                   internal_pPendingDescriptorWrites[i].pTexelBufferView[j]);
+                    internal_VkWriteDescriptorSet_pTexelBufferView[i][j] =
+                        gfxstream_pTexelBufferView->internal_object;
+                }
+            }
+            internal_pPendingDescriptorWrites[i].pTexelBufferView =
+                internal_VkWriteDescriptorSet_pTexelBufferView[i].data();
+        }
+        vkEnc->vkQueueCommitDescriptorSetUpdatesGOOGLE(
+            gfxstream_queue->internal_object, descriptorPoolCount, internal_pDescriptorPools.data(),
+            descriptorSetCount, internal_pSetLayouts.data(), pDescriptorSetPoolIds,
+            pDescriptorSetWhichPool, pDescriptorSetPendingAllocation,
+            pDescriptorWriteStartingIndices, pendingDescriptorWriteCount,
+            internal_pPendingDescriptorWrites.data(), true /* do lock */);
+    }
+}
