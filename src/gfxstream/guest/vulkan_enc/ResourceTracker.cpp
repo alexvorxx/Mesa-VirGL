@@ -1809,15 +1809,6 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         }
     }
 
-    bool hostHasWin32ExternalSemaphore =
-        getHostDeviceExtensionIndex("VK_KHR_external_semaphore_win32") != -1;
-
-    bool hostHasPosixExternalSemaphore =
-        getHostDeviceExtensionIndex("VK_KHR_external_semaphore_fd") != -1;
-
-    bool hostSupportsExternalSemaphore =
-        hostHasWin32ExternalSemaphore || hostHasPosixExternalSemaphore;
-
     std::vector<VkExtensionProperties> filteredExts;
 
     for (size_t i = 0; i < allowedExtensionNames.size(); ++i) {
@@ -1851,7 +1842,13 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
 #endif
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
-    if (hostSupportsExternalSemaphore && !hostHasPosixExternalSemaphore) {
+    bool hostHasPosixExternalSemaphore =
+        getHostDeviceExtensionIndex("VK_KHR_external_semaphore_fd") != -1;
+    if (!hostHasPosixExternalSemaphore) {
+        // Always advertise posix external semaphore capabilities on Android/Linux.
+        // SYNC_FD handles will always work, regardless of host support. Support
+        // for non-sync, opaque FDs, depends on host driver support, but will
+        // be handled accordingly by host.
         filteredExts.push_back(VkExtensionProperties{"VK_KHR_external_semaphore_fd", 1});
     }
 #endif
