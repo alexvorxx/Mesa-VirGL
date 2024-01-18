@@ -135,6 +135,8 @@ SUPPORTED_FEATURES = [
     "VK_EXT_vertex_attribute_divisor",
     # QNX
     "VK_QNX_external_memory_screen_buffer",
+    # b/320855472 Chrome
+    "VK_EXT_fragment_density_map",
 ]
 
 HOST_MODULES = ["goldfish_vk_extension_structs", "goldfish_vk_marshaling",
