@@ -403,7 +403,7 @@ private:
    InstructionChain m_chain_instr;
    std::list<Instr *, Allocator<Instr *>> m_loops;
    int m_control_flow_depth{0};
-   std::list<nir_intrinsic_instr*> m_register_allocations;
+   ValueFactory::nir_intrinsic_instr_alloc m_register_allocations;
 };
 
 } // namespace r600
