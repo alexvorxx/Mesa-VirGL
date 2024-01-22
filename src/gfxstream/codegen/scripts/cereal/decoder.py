@@ -28,7 +28,6 @@ decoder_decl_preamble = """
 
 namespace gfxstream {
 class IOStream;
-class ProcessResources;
 }  // namespace gfxstream
 
 namespace gfxstream {
