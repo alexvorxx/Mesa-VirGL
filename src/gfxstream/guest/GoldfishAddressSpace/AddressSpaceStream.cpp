@@ -29,12 +29,7 @@
 #if defined(__ANDROID__)
 #include "android-base/properties.h"
 #endif
-#if PLATFORM_SDK_VERSION < 26
 #include <cutils/log.h>
-#else
-#include <log/log.h>
-#endif
-
 
 static const size_t kReadSize = 512 * 1024;
 static const size_t kWriteOffset = kReadSize;
