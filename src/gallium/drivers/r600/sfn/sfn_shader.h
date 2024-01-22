@@ -396,7 +396,12 @@ private:
       Instr *last_kill_instr{nullptr};
       Instr *last_lds_access{nullptr};
       Instr *last_group_barrier{nullptr};
-      std::unordered_map<int, Instr * > last_alu_with_indirect_reg;
+      std::unordered_map<int,
+                         Instr *,
+                         std::hash<int>,
+                         std::equal_to<int>,
+                         Allocator<std::pair<const int, Instr *>>>
+         last_alu_with_indirect_reg;
       bool prepare_mem_barrier{false};
    };
 
