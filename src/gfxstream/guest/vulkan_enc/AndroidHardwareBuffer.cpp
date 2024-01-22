@@ -14,11 +14,9 @@
 // limitations under the License.
 #include "AndroidHardwareBuffer.h"
 
-#if !defined(HOST_BUILD)
 #if defined(__ANDROID__) || defined(__linux__)
 #include <drm_fourcc.h>
 #define DRM_FORMAT_YVU420_ANDROID fourcc_code('9', '9', '9', '7')
-#endif
 #endif
 
 #include <assert.h>
@@ -135,7 +133,6 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
         ahbFormatProps->samplerYcbcrConversionComponents.b = VK_COMPONENT_SWIZZLE_IDENTITY;
         ahbFormatProps->samplerYcbcrConversionComponents.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 
-#if !defined(HOST_BUILD)
 #if defined(__ANDROID__) || defined(__linux__)
         if (android_format_is_yuv(format)) {
             uint32_t drmFormat = grallocHelper->getFormatDrmFourcc(buffer);
@@ -193,8 +190,6 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
             }
         }
 #endif
-#endif
-
         ahbFormatProps->suggestedYcbcrModel = android_format_is_yuv(format)
                                                   ? VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601
                                                   : VK_SAMPLER_YCBCR_MODEL_CONVERSION_RGB_IDENTITY;

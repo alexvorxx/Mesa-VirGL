@@ -50,22 +50,12 @@
 #include <sys/mman.h>
 #include <sys/syscall.h>
 
-#ifdef HOST_BUILD
-#include "android/utils/tempfile.h"
-#endif
 
 static inline int inline_memfd_create(const char* name, unsigned int flags) {
-#ifdef HOST_BUILD
-    TempFile* tmpFile = tempfile_create();
-    return open(tempfile_path(tmpFile), O_RDWR);
-    // TODO: Windows is not suppose to support VkSemaphoreGetFdInfoKHR
-#elif !defined(__ANDROID__)
-    (void)name;
-    (void)flags;
-    ALOGE("Not yet supported.");
-    abort();
-#else
+#if defined(__ANDROID__)
     return syscall(SYS_memfd_create, name, flags);
+#else
+    return -1;
 #endif
 }
 

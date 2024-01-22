@@ -592,7 +592,7 @@ int AddressSpaceStream::type1Write(uint32_t bufferOffset, size_t size) {
 }
 
 void AddressSpaceStream::backoff() {
-#if defined(HOST_BUILD) || defined(__APPLE__) || defined(__MACOSX) || defined(__Fuchsia__) || defined(__linux__)
+#if defined(__APPLE__) || defined(__MACOSX) || defined(__Fuchsia__) || defined(__linux__)
     static const uint32_t kBackoffItersThreshold = 50000000;
     static const uint32_t kBackoffFactorDoublingIncrement = 50000000;
 #elif defined(__ANDROID__)

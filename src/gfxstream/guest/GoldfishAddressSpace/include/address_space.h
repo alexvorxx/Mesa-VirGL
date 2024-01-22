@@ -19,8 +19,6 @@
 
 #if defined(__Fuchsia__)
     typedef void* address_space_handle_t;
-#elif defined(HOST_BUILD)
-    typedef uint32_t address_space_handle_t;
 #else
     typedef int address_space_handle_t;
 #endif

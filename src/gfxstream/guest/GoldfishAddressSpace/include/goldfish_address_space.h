@@ -27,16 +27,6 @@
 class GoldfishAddressSpaceBlock;
 class GoldfishAddressSpaceHostMemoryAllocator;
 
-#ifdef HOST_BUILD
-
-namespace android {
-
-class HostAddressSpaceDevice;
-
-} // namespace android
-
-#endif
-
 using GoldfishAddressSpaceSubdeviceType = AddressSpaceSubdeviceType;
 
 class GoldfishAddressSpaceBlockProvider {

@@ -13,9 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#if defined(HOST_BUILD)
-#include "goldfish_address_space_host.impl"
-#elif defined(__Fuchsia__)
+#if defined(__Fuchsia__)
 #include "goldfish_address_space_fuchsia.impl"
 #else
 #include "goldfish_address_space_android.impl"
