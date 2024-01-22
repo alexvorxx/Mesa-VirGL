@@ -712,7 +712,7 @@ SetBufferCollectionBufferConstraintsResult setBufferCollectionBufferConstraintsI
 
 uint64_t getAHardwareBufferId(AHardwareBuffer* ahw) {
     uint64_t id = 0;
-#if defined(PLATFORM_SDK_VERSION) && PLATFORM_SDK_VERSION >= 31
+#if defined(__ANDROID__) && ANDROID_API_LEVEL >= 31
     AHardwareBuffer_getId(ahw, &id);
 #else
     (void)ahw;
