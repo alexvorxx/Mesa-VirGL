@@ -34,13 +34,6 @@
 #define PARAM(x) \
     (struct VirtGpuParam) { x, #x, 0 }
 
-#if defined(PAGE_SIZE) && defined(VIRTIO_GPU)
-constexpr size_t kPageSize = PAGE_SIZE;
-#else
-#include <unistd.h>
-static const size_t kPageSize = getpagesize();
-#endif
-
 static inline uint32_t align_up(uint32_t n, uint32_t a) { return ((n + a - 1) / a) * a; }
 
 LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) : VirtGpuDevice(capset) {
