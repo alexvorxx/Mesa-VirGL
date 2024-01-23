@@ -995,7 +995,7 @@ void decDescriptorSetLayoutRef(void* context, VkDevice device,
 }
 
 void ResourceTracker::ensureSyncDeviceFd() {
-#if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
+#if GFXSTREAM_ENABLE_GUEST_GOLDFISH
     if (mSyncDeviceFd >= 0) return;
     mSyncDeviceFd = goldfish_sync_open();
     if (mSyncDeviceFd >= 0) {
@@ -4509,7 +4509,7 @@ VkResult ResourceTracker::on_vkResetFences(void* context, VkResult, VkDevice dev
         auto& info = it->second;
         if (!info.external) continue;
 
-#if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
+#if GFXSTREAM_ENABLE_GUEST_GOLDFISH
         if (info.syncFd >= 0) {
             ALOGV("%s: resetting fence. make fd -1\n", __func__);
             goldfish_sync_signal(info.syncFd);
@@ -4558,11 +4558,13 @@ VkResult ResourceTracker::on_vkImportFenceFdKHR(void* context, VkResult, VkDevic
     auto& info = it->second;
 
     auto* syncHelper = ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
+#if GFXSTREAM_ENABLE_GUEST_GOLDFISH
     if (info.syncFd >= 0) {
         ALOGV("%s: previous sync fd exists, close it\n", __func__);
         goldfish_sync_signal(info.syncFd);
         syncHelper->close(info.syncFd);
     }
+#endif
 
     if (pImportFenceFdInfo->fd < 0) {
         ALOGV("%s: import -1, set to -1 and exit\n", __func__);
@@ -4644,10 +4646,12 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
 
             *pFd = osHandle;
         } else {
+#if GFXSTREAM_ENABLE_GUEST_GOLDFISH
             goldfish_sync_queue_work(
                 mSyncDeviceFd, get_host_u64_VkFence(pGetFdInfo->fence) /* the handle */,
                 GOLDFISH_SYNC_VULKAN_SEMAPHORE_SYNC /* thread handle (doubling as type field) */,
                 pFd);
+#endif
         }
 
         // relinquish ownership
@@ -5418,6 +5422,7 @@ VkResult ResourceTracker::on_vkCreateSemaphore(void* context, VkResult input_res
 
             info.syncFd.emplace(osHandle);
         } else {
+#if GFXSTREAM_ENABLE_GUEST_GOLDFISH
             ensureSyncDeviceFd();
 
             if (exportSyncFd) {
@@ -5429,6 +5434,7 @@ VkResult ResourceTracker::on_vkCreateSemaphore(void* context, VkResult input_res
                     &syncFd);
                 info.syncFd.emplace(syncFd);
             }
+#endif
         }
     }
 #endif
@@ -5876,7 +5882,7 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
                 zx_object_signal(event, 0, ZX_EVENT_SIGNALED);
             }
 #endif
-#if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
+#if GFXSTREAM_ENABLE_GUEST_GOLDFISH
             for (auto& fd : post_wait_sync_fds) {
                 goldfish_sync_signal(fd);
             }
@@ -6906,10 +6912,12 @@ VkResult ResourceTracker::exportSyncFdForQSRILocked(VkImage image, int* fd) {
 
         *fd = exec.handle.osHandle;
     } else {
+#if GFXSTREAM_ENABLE_GUEST_GOLDFISH
         ensureSyncDeviceFd();
         goldfish_sync_queue_work(
             mSyncDeviceFd, get_host_u64_VkImage(image) /* the handle */,
             GOLDFISH_SYNC_VULKAN_QSRI /* thread handle (doubling as type field) */, fd);
+#endif
     }
 
     ALOGV("%s: got fd: %d\n", __func__, *fd);

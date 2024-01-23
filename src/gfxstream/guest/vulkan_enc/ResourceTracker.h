@@ -85,20 +85,17 @@ typedef uint64_t zx_koid_t;
 
 /// Use installed headers or locally defined Android-specific bits
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-
-/// Goldfish sync only used for AEMU -- should replace in virtio-gpu when possibe
-#include "../egl/goldfish_sync.h"
 #include "AndroidHardwareBuffer.h"
-
-#else
-
-#if defined(__linux__)
-#include "../egl/goldfish_sync.h"
 #endif
 
+#if defined(__linux__)
 #include <android/hardware_buffer.h>
+#endif
 
-#endif  // VK_USE_PLATFORM_ANDROID_KHR
+#if GFXSTREAM_ENABLE_GUEST_GOLDFISH
+/// Goldfish sync only used for AEMU -- should replace in virtio-gpu when possibe
+#include "../egl/goldfish_sync.h"
+#endif
 
 struct EmulatorFeatureInfo;
 
