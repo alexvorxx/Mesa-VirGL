@@ -102,7 +102,7 @@ vl_dri3_screen_create(void *display, int screen) { return NULL; };
 
 #ifdef _WIN32
 struct vl_screen *vl_win32_screen_create(LUID *adapter);
-struct vl_screen *vl_win32_screen_create_from_d3d12_device(IUnknown* d3d12_device);
+struct vl_screen *vl_win32_screen_create_from_d3d12_device(IUnknown* d3d12_device, struct sw_winsys* winsys);
 #else
 /* Always enable the DRM vl winsys */
 struct vl_screen *
