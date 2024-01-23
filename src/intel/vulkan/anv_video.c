@@ -324,7 +324,7 @@ get_h264_video_session_mem_reqs(struct anv_video_session *vid,
                           mem_reqs,
                           pVideoSessionMemoryRequirementsCount);
 
-   for (unsigned i = 0; i < ANV_VIDEO_MEM_REQS_H264; i++) {
+   for (unsigned i = 0; i < ANV_VID_MEM_H264_MAX; i++) {
       uint32_t bind_index = ANV_VID_MEM_H264_INTRA_ROW_STORE + i;
       uint64_t size = get_h264_video_mem_size(vid, i);
 
@@ -348,7 +348,7 @@ get_h265_video_session_mem_reqs(struct anv_video_session *vid,
                           mem_reqs,
                           pVideoSessionMemoryRequirementsCount);
 
-   for (unsigned i = 0; i < ANV_VIDEO_MEM_REQS_H265; i++) {
+   for (unsigned i = 0; i < ANV_VID_MEM_H265_MAX; i++) {
       uint32_t bind_index =
          ANV_VID_MEM_H265_DEBLOCK_FILTER_ROW_STORE_LINE + i;
       uint64_t size = get_h265_video_mem_size(vid, i);

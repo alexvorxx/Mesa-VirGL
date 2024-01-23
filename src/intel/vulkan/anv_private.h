@@ -6057,8 +6057,6 @@ struct anv_vid_mem {
    VkDeviceSize       size;
 };
 
-#define ANV_VIDEO_MEM_REQS_H264 4
-#define ANV_VIDEO_MEM_REQS_H265 9
 #define ANV_MB_WIDTH 16
 #define ANV_MB_HEIGHT 16
 #define ANV_VIDEO_H264_MAX_NUM_REF_FRAME 16
