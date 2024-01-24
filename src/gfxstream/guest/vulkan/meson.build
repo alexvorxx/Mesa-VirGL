@@ -20,7 +20,8 @@ endif
 
 lib_vulkan_gfxstream = shared_library(
    'vulkan_gfxstream',
-   files_lib_vulkan_gfxstream + files_lib_vulkan_enc + gfxstream_vk_entrypoints,
+   files_lib_vulkan_gfxstream + files_lib_vulkan_enc + gfxstream_vk_entrypoints +
+   gfxstream_guest_vk_autogen + vulkan_gfxstream_h,
    cpp_args: gfxstream_guest_args + gfxstream_vk_wsi_args,
    include_directories: [inc_vulkan_headers, inc_guest_iostream,
                          inc_vulkan_enc, inc_platform_virtgpu,
