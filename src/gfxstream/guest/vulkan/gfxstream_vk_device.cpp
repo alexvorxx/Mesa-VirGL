@@ -27,29 +27,30 @@
 #include "vk_instance.h"
 #include "vk_sync_dummy.h"
 
-static HostConnection* getConnection(void) {
-    auto hostCon = HostConnection::get();
-    return hostCon;
-}
+#define VK_HOST_CONNECTION(ret)                                                    \
+    HostConnection* hostCon = HostConnection::getOrCreate(kCapsetGfxStreamVulkan); \
+    gfxstream::vk::VkEncoder* vkEnc = hostCon->vkEncoder();                        \
+    if (!vkEnc) {                                                                  \
+        ALOGE("vulkan: Failed to get Vulkan encoder\n");                           \
+        return ret;                                                                \
+    }
 
-static gfxstream::vk::VkEncoder* getVkEncoder(HostConnection* con) { return con->vkEncoder(); }
+namespace {
 
-gfxstream::vk::ResourceTracker::ThreadingCallbacks threadingCallbacks = {
-    .hostConnectionGetFunc = getConnection,
-    .vkEncoderGetFunc = getVkEncoder,
-};
+static bool process_initialized = false;
+static uint32_t no_render_control_enc = 0;
+static bool instance_extension_table_initialized = false;
+static struct vk_instance_extension_table gfxstream_vk_instance_extensions_supported = {0};
 
-VkResult SetupInstance(void) {
-    uint32_t noRenderControlEnc = 0;
+static VkResult SetupInstanceForThread() {
     HostConnection* hostCon = HostConnection::getOrCreate(kCapsetGfxStreamVulkan);
     if (!hostCon) {
         ALOGE("vulkan: Failed to get host connection\n");
         return VK_ERROR_DEVICE_LOST;
     }
 
-    gfxstream::vk::ResourceTracker::get()->setupCaps(noRenderControlEnc);
     // Legacy goldfish path: could be deleted once goldfish not used guest-side.
-    if (!noRenderControlEnc) {
+    if (!no_render_control_enc) {
         // Implicitly sets up sequence number
         ExtendedRCEncoderContext* rcEnc = hostCon->rcEncoder();
         if (!rcEnc) {
@@ -57,11 +58,11 @@ VkResult SetupInstance(void) {
             return VK_ERROR_DEVICE_LOST;
         }
 
+        // This is technically per-process, but it should not differ
+        // per-rcEncoder on a process.
         gfxstream::vk::ResourceTracker::get()->setupFeatures(rcEnc->featureInfo_const());
     }
 
-    gfxstream::vk::ResourceTracker::get()->setThreadingCallbacks(threadingCallbacks);
-    gfxstream::vk::ResourceTracker::get()->setSeqnoPtr(getSeqnoPtrForProcess());
     gfxstream::vk::VkEncoder* vkEnc = hostCon->vkEncoder();
     if (!vkEnc) {
         ALOGE("vulkan: Failed to get Vulkan encoder\n");
@@ -71,16 +72,43 @@ VkResult SetupInstance(void) {
     return VK_SUCCESS;
 }
 
-#define VK_HOST_CONNECTION(ret)                                                    \
-    HostConnection* hostCon = HostConnection::getOrCreate(kCapsetGfxStreamVulkan); \
-    gfxstream::vk::VkEncoder* vkEnc = hostCon->vkEncoder();                        \
-    if (!vkEnc) {                                                                  \
-        ALOGE("vulkan: Failed to get Vulkan encoder\n");                           \
-        return ret;                                                                \
+static HostConnection* getConnection() {
+    if (!process_initialized) {
+        // The process must be initialized prior to this call.
+        ALOGE("Call to get a host connection before process initialization!");
+        return nullptr;
     }
+    if (!HostConnection::isInit()) {
+        ALOGW("Call to getConnection when HostConnection is not initialized - treating as normal.");
+        if (SetupInstanceForThread() != VK_SUCCESS) {
+            ALOGE("Failed to initialize HostConnection! Aborting!");
+            return nullptr;
+        }
+    }
+    // This ::get call should already be initialized with the proper caps
+    // thanks to SetupInstanceForThread, but this should be made explicit.
+    auto hostCon = HostConnection::get();
+    return hostCon;
+}
 
-static bool instance_extension_table_initialized = false;
-static struct vk_instance_extension_table gfxstream_vk_instance_extensions_supported = {0};
+static gfxstream::vk::VkEncoder* getVkEncoder(HostConnection* con) { return con->vkEncoder(); }
+
+static VkResult SetupInstanceForProcess() {
+    process_initialized = true;
+    gfxstream::vk::ResourceTracker::get()->setupCaps(no_render_control_enc);
+
+    // To get the SeqnoPtr, we need the Process info, and for that we need the
+    // rcEncoder to be initialized for this thread.
+    auto thread_return = SetupInstanceForThread();
+
+    gfxstream::vk::ResourceTracker::get()->setSeqnoPtr(getSeqnoPtrForProcess());
+    gfxstream::vk::ResourceTracker::get()->setThreadingCallbacks({
+        .hostConnectionGetFunc = getConnection,
+        .vkEncoderGetFunc = getVkEncoder,
+    });
+
+    return thread_return;
+}
 
 // Provided by Mesa components only; never encoded/decoded through gfxstream
 static const char* const kMesaOnlyInstanceExtension[] = {
@@ -255,7 +283,7 @@ static struct vk_instance_extension_table* get_instance_extensions() {
     struct vk_instance_extension_table* const retTablePtr =
         &gfxstream_vk_instance_extensions_supported;
     if (!instance_extension_table_initialized) {
-        VkResult result = SetupInstance();
+        VkResult result = SetupInstanceForProcess();
         if (VK_SUCCESS == result) {
             VK_HOST_CONNECTION(retTablePtr)
             auto resources = gfxstream::vk::ResourceTracker::get();
@@ -292,6 +320,8 @@ static struct vk_instance_extension_table* get_instance_extensions() {
     return retTablePtr;
 }
 
+}  // namespace
+
 VkResult gfxstream_vk_CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
                                      const VkAllocationCallbacks* pAllocator,
                                      VkInstance* pInstance) {
@@ -310,7 +340,7 @@ VkResult gfxstream_vk_CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
     /* Encoder call */
     {
         ALOGE("calling setup instance internally");
-        result = SetupInstance();
+        result = SetupInstanceForProcess();
         if (VK_SUCCESS != result) {
             return vk_error(NULL, result);
         }
@@ -755,7 +785,7 @@ VkResult gfxstream_vk_GetMemoryFdKHR(VkDevice device, const VkMemoryGetFdInfoKHR
 VkResult gfxstream_vk_EnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
                                                        VkLayerProperties* pProperties) {
     AEMU_SCOPED_TRACE("vkEnumerateInstanceLayerProperties");
-    auto result = SetupInstance();
+    auto result = SetupInstanceForProcess();
     if (VK_SUCCESS != result) {
         return vk_error(NULL, result);
     }
@@ -772,7 +802,7 @@ VkResult gfxstream_vk_EnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
 
 VkResult gfxstream_vk_EnumerateInstanceVersion(uint32_t* pApiVersion) {
     AEMU_SCOPED_TRACE("vkEnumerateInstanceVersion");
-    auto result = SetupInstance();
+    auto result = SetupInstanceForProcess();
     if (VK_SUCCESS != result) {
         return vk_error(NULL, result);
     }
