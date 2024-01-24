@@ -311,7 +311,7 @@ VkResult gfxstream_vk_CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
     VkResult result = VK_SUCCESS;
     /* Encoder call */
     {
-        ALOGE("calling setup instance internally");
+        ALOGV("calling setup instance internally");
         result = SetupInstanceForProcess();
         if (VK_SUCCESS != result) {
             return vk_error(NULL, result);

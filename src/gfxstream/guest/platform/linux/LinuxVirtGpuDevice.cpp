@@ -78,7 +78,7 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) : Virt
 
         ret = drmIoctl(mDeviceHandle, DRM_IOCTL_VIRTGPU_GETPARAM, &get_param);
         if (ret) {
-            ALOGE("virtgpu backend not enabling %s", params[i].name);
+            ALOGV("virtgpu backend not enabling %s", params[i].name);
             continue;
         }
 
