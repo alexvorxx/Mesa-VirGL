@@ -25,7 +25,7 @@ gfxstream_guest_vk_autogen = custom_target(
     ],
     env: {'GFXSTREAM_NO_CLANG_FMT': '1', 'CEREAL_VARIANT' : 'guest',
           'GFXSTREAM_GUEST_ENCODER_DIR': guest_enc_path},
-    input: [genvk, vk_xml_gfxstream, vk_gfxstream_xml],
+    input: [genvk, vk_api_xml, vk_gfxstream_xml],
     command: [prog_python, '@INPUT0@', '-registry', '@INPUT1@', '-registryGfxstream', '@INPUT2@',
               'cereal', '-o', output_host_path],
 )
