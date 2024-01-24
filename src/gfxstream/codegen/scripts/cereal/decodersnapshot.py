@@ -112,6 +112,7 @@ apiSequences = {
 
 apiModifies = {
     "vkMapMemoryIntoAddressSpaceGOOGLE" : ["memory"],
+    "vkGetBlobGOOGLE" : ["memory"],
 }
 
 def is_modify_operation(api, param):
@@ -121,9 +122,6 @@ def is_modify_operation(api, param):
     return False
 
 def emit_impl(typeInfo, api, cgen):
-
-    cgen.line("// TODO: Implement")
-
     for p in api.parameters:
         if not (p.isHandleType):
             continue
