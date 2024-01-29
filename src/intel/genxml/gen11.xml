@@ -2909,8 +2909,8 @@
     <field name="Bindless Sampler State Base Address" start="620" end="671" type="address" />
     <field name="Bindless Sampler State Buffer Size" start="684" end="703" type="uint" />
   </instruction>
-  <instruction name="VDENC_DS_REF_SURFACE_STATE" bias="2" length="6" engine="video">
-    <field name="DWord Length" start="0" end="11" type="uint" default="4" />
+  <instruction name="VDENC_DS_REF_SURFACE_STATE" bias="2" length="10" engine="video">
+    <field name="DWord Length" start="0" end="11" type="uint" default="8" />
     <field name="SubOpcode B" start="16" end="20" type="uint" default="3" />
     <field name="SubOpcode A" start="21" end="22" type="uint" default="0" />
     <field name="Media Command Opcode" start="23" end="26" type="uint" default="1" />
