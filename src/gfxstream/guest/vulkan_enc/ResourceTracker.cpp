@@ -489,7 +489,7 @@ static VkFormat sysmemPixelFormatTypeToVk(fuchsia_sysmem::wire::PixelFormatType 
     }
 }
 
-// TODO(fxbug.dev/90856): This is currently only used for allocating
+// TODO(fxbug.dev/42172354): This is currently only used for allocating
 // memory for dedicated external images. It should be migrated to use
 // SetBufferCollectionImageConstraintsFUCHSIA.
 VkResult ResourceTracker::setBufferCollectionConstraintsFUCHSIA(
@@ -2299,7 +2299,7 @@ VkResult ResourceTracker::on_vkGetMemoryZirconHandlePropertiesFUCHSIA(
         // Importing read-only host memory into the Vulkan driver should not
         // work, but it is not an error to try to do so. Returning a
         // VkMemoryZirconHandlePropertiesFUCHSIA with no available
-        // memoryType bits should be enough for clients. See fxbug.dev/24225
+        // memoryType bits should be enough for clients. See fxbug.dev/42098398
         // for other issues this this flow.
         ALOGW("GetBufferHandleInfo failed: %d", result.value().error_value());
         pProperties->memoryTypeBits = 0;
@@ -2531,7 +2531,7 @@ SetBufferCollectionImageConstraintsResult ResourceTracker::setBufferCollectionIm
                 ALOGW(
                     "%s: Non-zero flags (%08x) in image format "
                     "constraints; this is currently not supported, see "
-                    "fxbug.dev/68833.",
+                    "fxbug.dev/42147900.",
                     __func__, formatConstraints->flags);
             }
         }
@@ -3560,7 +3560,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
             fidl::WireSyncClient<fuchsia_sysmem::BufferCollection> collection(
                 std::move(collection_ends->client));
             if (hasDedicatedImage) {
-                // TODO(fxbug.dev/90856): Use setBufferCollectionImageConstraintsFUCHSIA.
+                // TODO(fxbug.dev/42172354): Use setBufferCollectionImageConstraintsFUCHSIA.
                 VkResult res = setBufferCollectionConstraintsFUCHSIA(enc, device, &collection,
                                                                      pImageCreateInfo);
                 if (res == VK_ERROR_FORMAT_NOT_SUPPORTED) {
@@ -5781,7 +5781,7 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
                     post_wait_events.push_back({semInfo.eventHandle, semInfo.eventKoid});
 #ifndef FUCHSIA_NO_TRACE
                     if (semInfo.eventKoid != ZX_KOID_INVALID) {
-                        // TODO(fxbug.dev/66098): Remove the "semaphore"
+                        // TODO(fxbug.dev/42144867): Remove the "semaphore"
                         // FLOW_END events once it is removed from clients
                         // (for example, gfx Engine).
                         TRACE_FLOW_END("gfx", "semaphore", semInfo.eventKoid);
