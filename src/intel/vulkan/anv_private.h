@@ -6094,6 +6094,7 @@ struct anv_video_session {
 
 struct anv_video_session_params {
    struct vk_video_session_parameters vk;
+   VkVideoEncodeRateControlModeFlagBitsKHR rc_mode;
 };
 
 void

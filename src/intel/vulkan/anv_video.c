@@ -202,6 +202,60 @@ anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
    default:
       break;
    }
+
+   struct VkVideoEncodeCapabilitiesKHR *enc_caps = (struct VkVideoEncodeCapabilitiesKHR *)
+      vk_find_struct(pCapabilities->pNext, VIDEO_ENCODE_CAPABILITIES_KHR);
+
+   if (enc_caps) {
+      enc_caps->flags = 0;
+      enc_caps->rateControlModes = VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DEFAULT_KHR;
+      enc_caps->maxRateControlLayers = 1;
+      enc_caps->maxQualityLevels = 1;
+      enc_caps->encodeInputPictureGranularity.width = 32;
+      enc_caps->encodeInputPictureGranularity.height = 32;
+      enc_caps->supportedEncodeFeedbackFlags =
+         VK_VIDEO_ENCODE_FEEDBACK_BITSTREAM_BUFFER_OFFSET_BIT_KHR |
+         VK_VIDEO_ENCODE_FEEDBACK_BITSTREAM_BYTES_WRITTEN_BIT_KHR;
+   }
+
+   switch (pVideoProfile->videoCodecOperation) {
+   case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR: {
+      struct VkVideoEncodeH264CapabilitiesKHR *ext = (struct VkVideoEncodeH264CapabilitiesKHR *)
+         vk_find_struct(pCapabilities->pNext, VIDEO_ENCODE_H264_CAPABILITIES_KHR);
+
+      if (ext) {
+         ext->flags = VK_VIDEO_ENCODE_H264_CAPABILITY_HRD_COMPLIANCE_BIT_KHR;
+         ext->maxLevelIdc = STD_VIDEO_H264_LEVEL_IDC_5_1;
+         ext->maxSliceCount = 1;
+         ext->maxPPictureL0ReferenceCount = 8;
+         ext->maxBPictureL0ReferenceCount = 8;
+         ext->maxL1ReferenceCount = 0;
+         ext->maxTemporalLayerCount = 0;
+         ext->expectDyadicTemporalLayerPattern = false;
+         ext->prefersGopRemainingFrames = 0;
+         ext->requiresGopRemainingFrames = 0;
+         ext->minQp = 10;
+         ext->maxQp = 51;
+      }
+
+      pCapabilities->minBitstreamBufferOffsetAlignment = 32;
+      pCapabilities->minBitstreamBufferSizeAlignment = 4096;
+
+      pCapabilities->maxDpbSlots = ANV_VIDEO_H264_MAX_NUM_REF_FRAME;
+      pCapabilities->maxActiveReferencePictures = ANV_VIDEO_H264_MAX_NUM_REF_FRAME;
+      pCapabilities->pictureAccessGranularity.width = ANV_MB_WIDTH;
+      pCapabilities->pictureAccessGranularity.height = ANV_MB_HEIGHT;
+      pCapabilities->minCodedExtent.width = ANV_MB_WIDTH;
+      pCapabilities->minCodedExtent.height = ANV_MB_HEIGHT;
+
+      strcpy(pCapabilities->stdHeaderVersion.extensionName, VK_STD_VULKAN_VIDEO_CODEC_H264_ENCODE_EXTENSION_NAME);
+      pCapabilities->stdHeaderVersion.specVersion = VK_STD_VULKAN_VIDEO_CODEC_H264_ENCODE_SPEC_VERSION;
+      break;
+   }
+   default:
+      break;
+   }
+
    return VK_SUCCESS;
 }
 
@@ -388,6 +442,12 @@ anv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
                                       pVideoSessionMemoryRequirementsCount,
                                       memory_types);
       break;
+   case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR:
+      get_h264_video_session_mem_reqs(vid,
+                                      mem_reqs,
+                                      pVideoSessionMemoryRequirementsCount,
+                                      memory_types);
+      break;
    default:
       unreachable("unknown codec");
    }
@@ -424,6 +484,11 @@ anv_BindVideoSessionMemoryKHR(VkDevice _device,
    switch (vid->vk.op) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR:
    case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR:
+      for (unsigned i = 0; i < bind_mem_count; i++) {
+         copy_bind(&vid->vid_mem[bind_mem[i].memoryBindIndex], &bind_mem[i]);
+      }
+      break;
+   case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR:
       for (unsigned i = 0; i < bind_mem_count; i++) {
          copy_bind(&vid->vid_mem[bind_mem[i].memoryBindIndex], &bind_mem[i]);
       }
