@@ -2240,3 +2240,269 @@ vk_video_encode_h264_slice_header(const StdVideoEncodeH264PictureInfo *pic_info,
 
    return;
 }
+
+void
+vk_video_encode_h265_slice_header(const StdVideoEncodeH265PictureInfo *pic_info,
+                                  const StdVideoH265VideoParameterSet *vps,
+                                  const StdVideoH265SequenceParameterSet *sps,
+                                  const StdVideoH265PictureParameterSet *pps,
+                                  const StdVideoEncodeH265SliceSegmentHeader *slice_header,
+                                  const int8_t slice_qp_delta,
+                                  size_t *data_size_ptr,
+                                  void *data_ptr)
+{
+   struct vl_bitstream_encoder enc;
+   uint32_t data_size = *data_size_ptr;
+
+   vl_bitstream_encoder_clear(&enc, data_ptr, data_size, VL_BITSTREAM_MAX_BUFFER);
+   emit_nalu_h265_header(&enc, vk_video_get_h265_nal_unit(pic_info));
+
+   vl_bitstream_put_bits(&enc, 1, slice_header->flags.first_slice_segment_in_pic_flag);
+   if (pic_info->flags.IrapPicFlag) {
+      vl_bitstream_put_bits(&enc, 1, pic_info->flags.no_output_of_prior_pics_flag);
+   }
+
+   vl_bitstream_exp_golomb_ue(&enc, pic_info->pps_pic_parameter_set_id);
+
+   if (!slice_header->flags.first_slice_segment_in_pic_flag) {
+      unsigned size, num;
+      unsigned bits_slice_segment_address = 0;
+
+      if (pps->flags.dependent_slice_segments_enabled_flag)
+         vl_bitstream_put_bits(&enc, 1, slice_header->flags.dependent_slice_segment_flag);
+
+      size = 1 << (sps->log2_min_luma_coding_block_size_minus3 + 3 +
+                   sps->log2_diff_max_min_luma_coding_block_size);
+
+      num = ((sps->pic_width_in_luma_samples + size - 1) / size) *
+            ((sps->pic_height_in_luma_samples + size - 1) / size);
+
+      while (num > (1 << bits_slice_segment_address))
+         bits_slice_segment_address++;
+
+      vl_bitstream_put_bits(&enc, bits_slice_segment_address, slice_header->slice_segment_address);
+   }
+
+   if (slice_header->flags.dependent_slice_segment_flag)
+      goto finish;
+
+   for (unsigned i = 0; i < pps->num_extra_slice_header_bits; ++i)
+      /* slice_reserved_flag */
+      vl_bitstream_put_bits(&enc, 1, 0);
+
+   vl_bitstream_exp_golomb_ue(&enc, slice_header->slice_type);
+
+   if (pps->flags.output_flag_present_flag)
+      vl_bitstream_put_bits(&enc, 1, pic_info->flags.pic_output_flag);
+
+   if (sps->flags.separate_colour_plane_flag)
+      /* colour_plane_id */
+      vl_bitstream_put_bits(&enc, 2, 0);
+
+   if (pic_info->pic_type != STD_VIDEO_H265_PICTURE_TYPE_IDR) {
+      /* slice_pic_order_cnt_lsb */
+      uint32_t slice_pic_order_cnt_lsb =
+         pic_info->PicOrderCntVal & ((1 << (sps->log2_max_pic_order_cnt_lsb_minus4 + 4)) - 1);
+
+      vl_bitstream_put_bits(&enc, sps->log2_max_pic_order_cnt_lsb_minus4 + 4, slice_pic_order_cnt_lsb);
+      vl_bitstream_put_bits(&enc, 1, pic_info->flags.short_term_ref_pic_set_sps_flag);
+
+      if (!pic_info->flags.short_term_ref_pic_set_sps_flag) {
+         const StdVideoH265ShortTermRefPicSet* st_rps = pic_info->pShortTermRefPicSet;
+         unsigned num_st_rps = sps->num_short_term_ref_pic_sets;
+         bool rps_predict = false;
+
+         if (num_st_rps) {
+            rps_predict = st_rps->flags.inter_ref_pic_set_prediction_flag;
+            vl_bitstream_put_bits(&enc, 1, st_rps->flags.inter_ref_pic_set_prediction_flag);
+         }
+
+         if (rps_predict) {
+            vl_bitstream_exp_golomb_ue(&enc, st_rps->delta_idx_minus1);
+            vl_bitstream_put_bits(&enc, 1, st_rps->flags.delta_rps_sign);
+            vl_bitstream_exp_golomb_ue(&enc, st_rps->abs_delta_rps_minus1);
+
+            for (unsigned i = 0; i <= st_rps->num_negative_pics + st_rps->num_positive_pics; i++) {
+               vl_bitstream_put_bits(&enc, 1, st_rps->used_by_curr_pic_flag);
+               if (!st_rps->used_by_curr_pic_flag) {
+                  vl_bitstream_put_bits(&enc, 1, st_rps->use_delta_flag);
+               }
+            }
+         } else {
+            vl_bitstream_exp_golomb_ue(&enc, st_rps->num_negative_pics);
+            vl_bitstream_exp_golomb_ue(&enc, st_rps->num_positive_pics);
+
+            for (unsigned i = 0; i < st_rps->num_negative_pics; i++) {
+               vl_bitstream_exp_golomb_ue(&enc, st_rps->delta_poc_s0_minus1[i]);
+               vl_bitstream_put_bits(&enc, 1, st_rps->used_by_curr_pic_s0_flag);
+            }
+            for (unsigned i = 0; i < st_rps->num_positive_pics; i++) {
+               vl_bitstream_exp_golomb_ue(&enc, st_rps->delta_poc_s1_minus1[i]);
+               vl_bitstream_put_bits(&enc, 1, st_rps->used_by_curr_pic_s1_flag);
+            }
+         }
+      } else {
+         unsigned num_st_rps = sps->num_short_term_ref_pic_sets;
+
+         int numbits = util_logbase2_ceil(num_st_rps);
+         vl_bitstream_put_bits(&enc, numbits, pic_info->short_term_ref_pic_set_idx);
+      }
+
+      if (sps->flags.long_term_ref_pics_present_flag) {
+         const StdVideoEncodeH265LongTermRefPics* lt_pics = pic_info->pLongTermRefPics;
+         unsigned num_lt_sps = 0;
+         unsigned num_lt_pics = lt_pics->num_long_term_pics;
+
+         if (sps->num_long_term_ref_pics_sps > 0) {
+            num_lt_sps = lt_pics->num_long_term_sps;
+            vl_bitstream_exp_golomb_ue(&enc, num_lt_sps);
+         }
+
+         vl_bitstream_exp_golomb_ue(&enc, num_lt_pics);
+
+         unsigned num_refs = num_lt_sps + num_lt_pics;
+
+         for (unsigned i = 0; i < num_refs; i++) {
+            if (i < num_lt_sps) {
+               if (sps->num_long_term_ref_pics_sps > 1) {
+                  vl_bitstream_put_bits(&enc, util_logbase2_ceil(sps->num_long_term_ref_pics_sps),
+                        lt_pics->lt_idx_sps[i]);
+               }
+            } else {
+               vl_bitstream_put_bits(&enc, sps->log2_max_pic_order_cnt_lsb_minus4 + 4,
+                     lt_pics->poc_lsb_lt[i]),
+               vl_bitstream_put_bits(&enc, 1, lt_pics->used_by_curr_pic_lt_flag);
+            }
+
+            vl_bitstream_put_bits(&enc, 1, lt_pics->delta_poc_msb_present_flag[i]);
+            if (lt_pics->delta_poc_msb_present_flag[i]) {
+               vl_bitstream_exp_golomb_ue(&enc, lt_pics->delta_poc_msb_cycle_lt[i]);
+            }
+         }
+      }
+
+      if (sps->flags.sps_temporal_mvp_enabled_flag)
+         vl_bitstream_put_bits(&enc, 1, pic_info->flags.slice_temporal_mvp_enabled_flag);
+   }
+
+   if (sps->flags.sample_adaptive_offset_enabled_flag) {
+      vl_bitstream_put_bits(&enc, 1, slice_header->flags.slice_sao_luma_flag);
+      if (sps->chroma_format_idc)
+         vl_bitstream_put_bits(&enc, 1, slice_header->flags.slice_sao_chroma_flag);
+   }
+
+   if (slice_header->slice_type != STD_VIDEO_H265_SLICE_TYPE_I) {
+      unsigned num_ref_idx_l0_active = pps->num_ref_idx_l0_default_active_minus1 + 1;
+      unsigned num_ref_idx_l1_active = pps->num_ref_idx_l1_default_active_minus1 + 1;
+
+      vl_bitstream_put_bits(&enc, 1, slice_header->flags.num_ref_idx_active_override_flag);
+      if (slice_header->flags.num_ref_idx_active_override_flag) {
+         vl_bitstream_exp_golomb_ue(&enc, pic_info->pRefLists->num_ref_idx_l0_active_minus1);
+         num_ref_idx_l0_active = pic_info->pRefLists->num_ref_idx_l0_active_minus1 + 1;
+
+         if (slice_header->slice_type == STD_VIDEO_H265_SLICE_TYPE_B) {
+            vl_bitstream_exp_golomb_ue(&enc, pic_info->pRefLists->num_ref_idx_l1_active_minus1);
+            num_ref_idx_l1_active = pic_info->pRefLists->num_ref_idx_l1_active_minus1 + 1;
+         }
+      }
+
+      if (pps->flags.lists_modification_present_flag) {
+         vl_bitstream_put_bits(&enc, 1, pic_info->pRefLists->flags.ref_pic_list_modification_flag_l0);
+         if (pic_info->pRefLists->flags.ref_pic_list_modification_flag_l0) {
+
+            for (int i = 0; i < num_ref_idx_l0_active; i++) {
+               vl_bitstream_put_bits(&enc, util_logbase2_ceil(num_ref_idx_l0_active + num_ref_idx_l1_active),
+                     pic_info->pRefLists->list_entry_l0[i]);
+            }
+         }
+
+         if (slice_header->slice_type == STD_VIDEO_H265_SLICE_TYPE_B) {
+            vl_bitstream_put_bits(&enc, 1, pic_info->pRefLists->flags.ref_pic_list_modification_flag_l1);
+
+            if (pic_info->pRefLists->flags.ref_pic_list_modification_flag_l1) {
+               for (int i = 0; i < num_ref_idx_l1_active; i++) {
+                  vl_bitstream_put_bits(&enc, util_logbase2_ceil(num_ref_idx_l0_active + num_ref_idx_l1_active),
+                        pic_info->pRefLists->list_entry_l1[i]);
+               }
+            }
+         }
+      }
+
+      if (slice_header->slice_type == STD_VIDEO_H265_SLICE_TYPE_B)
+         vl_bitstream_put_bits(&enc, 1, slice_header->flags.mvd_l1_zero_flag);
+
+      if (pps->flags.cabac_init_present_flag)
+         /* cabac_init_flag */
+         vl_bitstream_put_bits(&enc, 1, slice_header->flags.cabac_init_flag);
+
+      if (pic_info->flags.slice_temporal_mvp_enabled_flag) {
+         unsigned collocated_list = 0;
+         if (slice_header->slice_type == STD_VIDEO_H265_SLICE_TYPE_B) {
+            collocated_list = 1;
+            vl_bitstream_put_bits(&enc, 1, collocated_list);
+         }
+
+         if (collocated_list == 0) {
+            if (num_ref_idx_l0_active > 1)
+               vl_bitstream_exp_golomb_ue(&enc, slice_header->collocated_ref_idx);
+         }  else if (collocated_list == 1) {
+            if (num_ref_idx_l1_active > 1)
+               vl_bitstream_exp_golomb_ue(&enc, slice_header->collocated_ref_idx);
+         }
+      }
+
+      if ((pps->flags.weighted_pred_flag && slice_header->slice_type == STD_VIDEO_H265_SLICE_TYPE_P) ||
+            (pps->flags.weighted_bipred_flag && slice_header->slice_type == STD_VIDEO_H265_SLICE_TYPE_B)) {
+         /* FIXME : h265_pred_weight_table */
+         assert(0);
+      }
+
+      vl_bitstream_exp_golomb_ue(&enc, 5 - slice_header->MaxNumMergeCand);
+   }
+
+   vl_bitstream_exp_golomb_se(&enc, slice_qp_delta);
+
+   if (pps->flags.pps_slice_chroma_qp_offsets_present_flag) {
+      vl_bitstream_exp_golomb_se(&enc, slice_header->slice_cb_qp_offset);
+      vl_bitstream_exp_golomb_se(&enc, slice_header->slice_cr_qp_offset);
+   }
+
+   if (pps->flags.chroma_qp_offset_list_enabled_flag)
+      vl_bitstream_put_bits(&enc, 1, slice_header->flags.cu_chroma_qp_offset_enabled_flag);
+
+   if (pps->flags.deblocking_filter_control_present_flag) {
+      if (pps->flags.deblocking_filter_override_enabled_flag) {
+         vl_bitstream_put_bits(&enc, 1, slice_header->flags.deblocking_filter_override_flag);
+
+         if (slice_header->flags.deblocking_filter_override_flag) {
+            vl_bitstream_put_bits(&enc, 1, slice_header->flags.slice_deblocking_filter_disabled_flag);
+
+            if (!slice_header->flags.slice_deblocking_filter_disabled_flag) {
+               vl_bitstream_exp_golomb_se(&enc, slice_header->slice_beta_offset_div2);
+               vl_bitstream_exp_golomb_se(&enc, slice_header->slice_tc_offset_div2);
+            }
+         }
+      }
+   }
+
+   if (pps->flags.pps_loop_filter_across_slices_enabled_flag &&
+         (slice_header->flags.slice_sao_luma_flag || slice_header->flags.slice_sao_chroma_flag ||
+          !slice_header->flags.slice_deblocking_filter_disabled_flag))
+      vl_bitstream_put_bits(&enc, 1, slice_header->flags.slice_loop_filter_across_slices_enabled_flag);
+
+   if (pps->flags.tiles_enabled_flag || pps->flags.entropy_coding_sync_enabled_flag) {
+      assert(0);
+   }
+
+   if (pps->flags.pps_extension_present_flag) {
+      assert(0);
+   }
+
+finish:
+   vl_bitstream_rbsp_trailing(&enc);
+   vl_bitstream_flush(&enc);
+   *data_size_ptr += vl_bitstream_get_byte_count(&enc);
+   vl_bitstream_encoder_free(&enc);
+
+   return;
+}
