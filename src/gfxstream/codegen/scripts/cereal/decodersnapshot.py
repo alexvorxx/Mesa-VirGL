@@ -113,6 +113,7 @@ apiSequences = {
 apiModifies = {
     "vkMapMemoryIntoAddressSpaceGOOGLE" : ["memory"],
     "vkGetBlobGOOGLE" : ["memory"],
+    "vkBindImageMemory": ["image"],
 }
 
 def is_modify_operation(api, param):
