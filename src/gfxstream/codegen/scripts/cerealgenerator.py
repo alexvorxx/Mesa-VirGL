@@ -166,6 +166,15 @@ SUPPORTED_MODULES = {
     "VK_KHR_swapchain" : HOST_MODULES,
 }
 
+REQUIRED_TYPES = {
+    "int",
+    "uint16_t",
+    "int64_t",
+    "double",
+    "VkPresentScalingFlagsEXT",
+    "VkPresentGravityFlagsEXT",
+}
+
 copyrightHeader = """// Copyright (C) 2018 The Android Open Source Project
 // Copyright (C) 2018 Google Inc.
 //
@@ -812,23 +821,9 @@ class BumpPool;
     def genType(self, typeinfo: TypeInfo, name, alias):
         OutputGenerator.genType(self, typeinfo, name, alias)
 
-        if self.featureSupported == False and name == "int":
-            self.typeInfo.onGenType(typeinfo, name, alias)
-            return
-
-        if self.featureSupported == False and name == "int64_t":
-            self.typeInfo.onGenType(typeinfo, name, alias)
-            return
-
-        if self.featureSupported == False and name == "double":
-            self.typeInfo.onGenType(typeinfo, name, alias)
-            return
-
-        if self.featureSupported == False and name == "VkPresentScalingFlagsEXT":
-            self.typeInfo.onGenType(typeinfo, name, alias)
-            return
-
-        if self.featureSupported == False and name == "VkPresentGravityFlagsEXT":
+        # Maybe this check can be removed if we refactor other things inside
+        # the cereal subdirectory.
+        if self.featureSupported == False and name in REQUIRED_TYPES:
             self.typeInfo.onGenType(typeinfo, name, alias)
             return
 
