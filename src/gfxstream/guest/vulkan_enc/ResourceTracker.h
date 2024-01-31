@@ -429,6 +429,11 @@ class ResourceTracker {
                                               VkDescriptorUpdateTemplate descriptorUpdateTemplate,
                                               const void* pData);
 
+    void on_vkUpdateDescriptorSetWithTemplateKHR(void* context, VkDevice device,
+                                              VkDescriptorSet descriptorSet,
+                                              VkDescriptorUpdateTemplate descriptorUpdateTemplate,
+                                              const void* pData);
+
     VkResult on_vkGetPhysicalDeviceImageFormatProperties2(
         void* context, VkResult input_result, VkPhysicalDevice physicalDevice,
         const VkPhysicalDeviceImageFormatInfo2* pImageFormatInfo,

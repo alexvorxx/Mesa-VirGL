@@ -49,6 +49,7 @@ RESOURCE_TRACKER_ENTRIES = [
     "vkCreateSamplerYcbcrConversionKHR",
     "vkDestroySamplerYcbcrConversionKHR",
     "vkUpdateDescriptorSetWithTemplate",
+    "vkUpdateDescriptorSetWithTemplateKHR",
     "vkGetPhysicalDeviceImageFormatProperties2",
     "vkGetPhysicalDeviceImageFormatProperties2KHR",
     "vkBeginCommandBuffer",
