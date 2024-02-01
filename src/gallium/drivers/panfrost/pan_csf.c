@@ -26,6 +26,7 @@
 #include "drm-uapi/panthor_drm.h"
 
 #include "genxml/cs_builder.h"
+#include "panfrost/lib/genxml/cs_builder.h"
 
 #include "pan_blitter.h"
 #include "pan_cmdstream.h"
@@ -963,30 +964,37 @@ GENX(csf_launch_draw_indirect)(struct panfrost_batch *batch,
 {
    struct cs_builder *b = batch->csf.cs.builder;
 
-   assert(indirect->draw_count == 1);
-
    uint32_t flags_override = csf_emit_draw_state(batch, info, drawid_offset);
 
    struct cs_index address = cs_reg64(b, 64);
+   struct cs_index counter = cs_reg32(b, 66);
    cs_move64_to(
       b, address,
       pan_resource(indirect->buffer)->image.data.base + indirect->offset);
-   if (info->index_size) {
-      /* loads vertex count, instance count, index offset, vertex offset */
-      cs_load_to(b, cs_reg_tuple(b, 33, 4), address, BITFIELD_MASK(4), 0);
-      cs_move32_to(b, cs_reg32(b, 39), info->index.resource->width0);
-   } else {
-      /* vertex count, instance count */
-      cs_load_to(b, cs_reg_tuple(b, 33, 2), address, BITFIELD_MASK(2), 0);
-      cs_move32_to(b, cs_reg32(b, 35), 0);
-      cs_load_to(b, cs_reg_tuple(b, 36, 1), address, BITFIELD_MASK(1),
-                 2 * sizeof(uint32_t)); // vertex offset
-      cs_move32_to(b, cs_reg32(b, 39), 0);
-   }
-   cs_wait_slot(b, 0, false);
+   cs_move32_to(b, counter, indirect->draw_count);
 
-   cs_run_idvs(b, flags_override, false, true, cs_shader_res_sel(0, 0, 1, 0),
-               cs_shader_res_sel(2, 2, 2, 0), cs_undef());
+   cs_while(b, MALI_CS_CONDITION_GREATER, counter) {
+      if (info->index_size) {
+         /* loads vertex count, instance count, index offset, vertex offset */
+         cs_load_to(b, cs_reg_tuple(b, 33, 4), address, BITFIELD_MASK(4), 0);
+         cs_move32_to(b, cs_reg32(b, 39), info->index.resource->width0);
+      } else {
+         /* vertex count, instance count */
+         cs_load_to(b, cs_reg_tuple(b, 33, 2), address, BITFIELD_MASK(2), 0);
+         cs_move32_to(b, cs_reg32(b, 35), 0);
+         cs_load_to(b, cs_reg_tuple(b, 36, 1), address, BITFIELD_MASK(1),
+                    2 * sizeof(uint32_t)); // instance offset
+         cs_move32_to(b, cs_reg32(b, 37), 0);
+         cs_move32_to(b, cs_reg32(b, 39), 0);
+      }
+
+      cs_wait_slot(b, 0, false);
+      cs_run_idvs(b, flags_override, false, true, cs_shader_res_sel(0, 0, 1, 0),
+                  cs_shader_res_sel(2, 2, 2, 0), cs_undef());
+
+      cs_add64(b, address, address, indirect->stride);
+      cs_add32(b, counter, counter, (unsigned int)-1);
+   }
 }
 
 #define POSITION_FIFO_SIZE (64 * 1024)
