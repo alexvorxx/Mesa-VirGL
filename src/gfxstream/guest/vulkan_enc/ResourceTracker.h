@@ -88,7 +88,7 @@ typedef uint64_t zx_koid_t;
 #include "AndroidHardwareBuffer.h"
 #endif
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__Fuchsia__)
 #include <android/hardware_buffer.h>
 #endif
 
