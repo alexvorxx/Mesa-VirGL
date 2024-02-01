@@ -12,6 +12,12 @@ set -ex
 
 DEQP_RUNNER_VERSION=0.20.0
 
+commits_to_backport=(
+)
+
+patch_files=(
+)
+
 DEQP_RUNNER_GIT_URL="${DEQP_RUNNER_GIT_URL:-https://gitlab.freedesktop.org/mesa/deqp-runner.git}"
 
 if [ -n "$DEQP_RUNNER_GIT_TAG" ]; then
@@ -22,10 +28,25 @@ else
     DEQP_RUNNER_GIT_CHECKOUT="v$DEQP_RUNNER_VERSION"
 fi
 
+BASE_PWD=$PWD
+
 mkdir -p /deqp-runner
 pushd /deqp-runner
 git clone --branch "$DEQP_RUNNER_GIT_CHECKOUT" --depth 1 "$DEQP_RUNNER_GIT_URL" deqp-runner-git
 pushd deqp-runner-git
+
+for commit in "${commits_to_backport[@]}"
+do
+  PATCH_URL="https://gitlab.freedesktop.org/mesa/deqp-runner/-/commit/$commit.patch"
+  echo "Backport deqp-runner commit $commit from $PATCH_URL"
+  curl -L --retry 4 -f --retry-all-errors --retry-delay 60 $PATCH_URL | git am
+done
+
+for patch in "${patch_files[@]}"
+do
+  echo "Apply patch to deqp-runner from $patch"
+  git am "$BASE_PWD/.gitlab-ci/container/patches/$patch"
+done
 
 if [[ "$RUST_TARGET" != *-android ]]; then
     # When CC (/usr/lib/ccache/gcc) variable is set, the rust compiler uses
