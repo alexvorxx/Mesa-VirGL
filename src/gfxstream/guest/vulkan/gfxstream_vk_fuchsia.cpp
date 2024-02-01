@@ -4,19 +4,120 @@
  */
 
 #include <fidl/fuchsia.logger/cpp/wire.h>
-#include <lib/syslog/global.h>
+#include <lib/syslog/structured_backend/cpp/fuchsia_syslog.h>
 #include <lib/zx/channel.h>
 #include <lib/zx/socket.h>
 #include <lib/zxio/zxio.h>
 #include <unistd.h>
+#include <zircon/system/public/zircon/process.h>
 
+#include <cstdarg>
+
+#include "ResourceTracker.h"
 #include "TraceProviderFuchsia.h"
 #include "services/service_connector.h"
+
+namespace {
+
+zx::socket g_log_socket = zx::socket(ZX_HANDLE_INVALID);
+
+typedef VkResult(VKAPI_PTR* PFN_vkOpenInNamespaceAddr)(const char* pName, uint32_t handle);
+
+PFN_vkOpenInNamespaceAddr g_vulkan_connector;
+
+zx_koid_t GetKoid(zx_handle_t handle) {
+    zx_info_handle_basic_t info;
+    zx_status_t status =
+        zx_object_get_info(handle, ZX_INFO_HANDLE_BASIC, &info, sizeof(info), nullptr, nullptr);
+    return status == ZX_OK ? info.koid : ZX_KOID_INVALID;
+}
+
+static zx_koid_t pid = GetKoid(zx_process_self());
+
+static thread_local zx_koid_t tid = GetKoid(zx_thread_self());
+
+cpp17::optional<cpp17::string_view> CStringToStringView(const char* cstr) {
+    if (!cstr) {
+        return cpp17::nullopt;
+    }
+    return cstr;
+}
+
+const char* StripDots(const char* path) {
+    while (strncmp(path, "../", 3) == 0) {
+        path += 3;
+    }
+    return path;
+}
+
+const char* StripPath(const char* path) {
+    auto p = strrchr(path, '/');
+    if (p) {
+        return p + 1;
+    } else {
+        return path;
+    }
+}
+
+const char* StripFile(const char* file, FuchsiaLogSeverity severity) {
+    return severity > FUCHSIA_LOG_INFO ? StripDots(file) : StripPath(file);
+}
+
+extern "C" void gfxstream_fuchsia_log(int8_t severity, const char* tag, const char* file, int line,
+                                      const char* format, va_list va) {
+    if (!g_log_socket.is_valid()) {
+        abort();
+    }
+    fuchsia_syslog::LogBuffer buffer;
+    constexpr size_t kFormatStringLength = 1024;
+    char fmt_string[kFormatStringLength];
+    fmt_string[kFormatStringLength - 1] = 0;
+    int n = kFormatStringLength;
+    // Format
+    // Number of bytes written not including null terminator
+    int count = vsnprintf(fmt_string, n, format, va) + 1;
+    if (count < 0) {
+        // No message to write.
+        return;
+    }
+
+    if (count >= n) {
+        // truncated
+        constexpr char kEllipsis[] = "...";
+        constexpr size_t kEllipsisSize = sizeof(kEllipsis);
+        snprintf(fmt_string + kFormatStringLength - 1 - kEllipsisSize, kEllipsisSize, kEllipsis);
+    }
+
+    if (file) {
+        file = StripFile(file, severity);
+    }
+    buffer.BeginRecord(severity, CStringToStringView(file), line, fmt_string, g_log_socket.borrow(),
+                       0, pid, tid);
+    if (tag) {
+        buffer.WriteKeyValue("tag", tag);
+    }
+    buffer.FlushRecord();
+}
+
+zx_handle_t LocalConnectToServiceFunction(const char* pName) {
+    zx::channel remote_endpoint, local_endpoint;
+    zx_status_t status;
+    if ((status = zx::channel::create(0, &remote_endpoint, &local_endpoint)) != ZX_OK) {
+        ALOGE("zx::channel::create failed: %d", status);
+        return ZX_HANDLE_INVALID;
+    }
+    if ((status = g_vulkan_connector(pName, remote_endpoint.release())) != ZX_OK) {
+        ALOGE("vulkan_connector failed: %d", status);
+        return ZX_HANDLE_INVALID;
+    }
+    return local_endpoint.release();
+}
+
+}  // namespace
 
 class VulkanDevice {
    public:
     VulkanDevice() : mHostSupportsGoldfish(IsAccessible(QEMU_PIPE_PATH)) {
-        InitLogger();
         InitTraceProvider();
         gfxstream::vk::ResourceTracker::get();
     }
@@ -42,10 +143,6 @@ class VulkanDevice {
         return g_instance;
     }
 
-    PFN_vkVoidFunction GetInstanceProcAddr(VkInstance instance, const char* name) {
-        return ::GetInstanceProcAddr(instance, name);
-    }
-
    private:
     void InitTraceProvider();
 
@@ -63,7 +160,7 @@ void VulkanDevice::InitLogger() {
         zx_status_t status = zx::socket::create(ZX_SOCKET_DATAGRAM, &local_socket, &remote_socket);
         if (status != ZX_OK) return std::nullopt;
 
-        auto result = fidl::WireCall(channel)->Connect(std::move(remote_socket));
+        auto result = fidl::WireCall(channel)->ConnectStructured(std::move(remote_socket));
 
         if (!result.ok()) return std::nullopt;
 
@@ -71,14 +168,7 @@ void VulkanDevice::InitLogger() {
     })();
     if (!log_socket) return;
 
-    fx_logger_config_t config = {
-        .min_severity = FX_LOG_INFO,
-        .log_sink_socket = log_socket->release(),
-        .tags = nullptr,
-        .num_tags = 0,
-    };
-
-    fx_log_reconfigure(&config);
+    g_log_socket = std::move(*log_socket);
 }
 
 void VulkanDevice::InitTraceProvider() {
@@ -87,30 +177,12 @@ void VulkanDevice::InitTraceProvider() {
     }
 }
 
-typedef VkResult(VKAPI_PTR* PFN_vkOpenInNamespaceAddr)(const char* pName, uint32_t handle);
-
-namespace {
-
-PFN_vkOpenInNamespaceAddr g_vulkan_connector;
-
-zx_handle_t LocalConnectToServiceFunction(const char* pName) {
-    zx::channel remote_endpoint, local_endpoint;
-    zx_status_t status;
-    if ((status = zx::channel::create(0, &remote_endpoint, &local_endpoint)) != ZX_OK) {
-        ALOGE("zx::channel::create failed: %d", status);
-        return ZX_HANDLE_INVALID;
-    }
-    if ((status = g_vulkan_connector(pName, remote_endpoint.release())) != ZX_OK) {
-        ALOGE("vulkan_connector failed: %d", status);
-        return ZX_HANDLE_INVALID;
-    }
-    return local_endpoint.release();
-}
-
-}  // namespace
-
 extern "C" __attribute__((visibility("default"))) void vk_icdInitializeOpenInNamespaceCallback(
     PFN_vkOpenInNamespaceAddr callback) {
     g_vulkan_connector = callback;
     SetConnectToServiceFunction(&LocalConnectToServiceFunction);
+
+    VulkanDevice::InitLogger();
+
+    ALOGV("Gfxstream on Fuchsia initialized");
 }
