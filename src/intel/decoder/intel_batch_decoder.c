@@ -1134,7 +1134,7 @@ static void
 decode_3dstate_blend_state_pointers(struct intel_batch_decode_ctx *ctx,
                                     const uint32_t *p)
 {
-   decode_dynamic_state_pointers(ctx, "BLEND_STATE", p, 1);
+   decode_dynamic_state_pointers(ctx, "BLEND_STATE", p, 8);
 }
 
 static void
