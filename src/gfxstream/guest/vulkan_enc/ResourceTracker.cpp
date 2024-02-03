@@ -3155,6 +3155,8 @@ VkResult ResourceTracker::getCoherentMemory(const VkMemoryAllocateInfo* pAllocat
     {
         AutoLock<RecursiveLock> lock(mLock);
         for (const auto& [memory, info] : info_VkDeviceMemory) {
+            if (info.device != device) continue;
+
             if (info.memoryTypeIndex != pAllocateInfo->memoryTypeIndex) continue;
 
             if (info.dedicated || dedicated) continue;
