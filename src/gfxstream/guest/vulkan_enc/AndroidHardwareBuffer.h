@@ -16,7 +16,7 @@
 
 #include <vulkan/vulkan.h>
 
-#include "../OpenglSystemCommon/Gralloc.h"
+#include "gfxstream/guest/Gralloc.h"
 #include "HostVisibleMemoryVirtualization.h"
 
 // Structure similar to

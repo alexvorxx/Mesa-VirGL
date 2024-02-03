@@ -702,8 +702,9 @@ SetBufferCollectionBufferConstraintsResult setBufferCollectionBufferConstraintsI
 
 uint64_t getAHardwareBufferId(AHardwareBuffer* ahw) {
     uint64_t id = 0;
-#if defined(__ANDROID__) && ANDROID_API_LEVEL >= 31
-    AHardwareBuffer_getId(ahw, &id);
+#if defined(ANDROID)
+    auto* gralloc = ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->grallocHelper();
+    gralloc->getId(ahw, &id);
 #else
     (void)ahw;
 #endif
@@ -5938,13 +5939,7 @@ void ResourceTracker::unwrap_VkNativeBufferANDROID(const VkNativeBufferANDROID* 
 
     auto* gralloc = ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->grallocHelper();
     const native_handle_t* nativeHandle = (const native_handle_t*)inputNativeInfo->handle;
-
-#if defined(END2END_TESTS)
-    // This is valid since the testing backend creates the handle and we know the layout.
-    *(uint32_t*)(outputNativeInfo->handle) = (uint32_t)nativeHandle->data[0];
-#else
     *(uint32_t*)(outputNativeInfo->handle) = gralloc->getHostHandle(nativeHandle);
-#endif
 }
 
 void ResourceTracker::unwrap_VkBindImageMemorySwapchainInfoKHR(
@@ -6499,6 +6494,7 @@ void ResourceTracker::on_vkGetPhysicalDeviceExternalBufferProperties_common(
     VkExternalBufferProperties* pExternalBufferProperties) {
     VkEncoder* enc = (VkEncoder*)context;
 
+#if defined(ANDROID)
     // Older versions of Goldfish's Gralloc did not support allocating AHARDWAREBUFFER_FORMAT_BLOB
     // with GPU usage (b/299520213).
     if (ResourceTracker::threadingCallbacks.hostConnectionGetFunc()
@@ -6511,6 +6507,7 @@ void ResourceTracker::on_vkGetPhysicalDeviceExternalBufferProperties_common(
         pExternalBufferProperties->externalMemoryProperties.compatibleHandleTypes = 0;
         return;
     }
+#endif
 
     uint32_t supportedHandleType = 0;
 #ifdef VK_USE_PLATFORM_FUCHSIA

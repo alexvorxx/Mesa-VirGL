@@ -35,6 +35,10 @@ enum {
     HAL_PIXEL_FORMAT_YV12 = 842094169,
 };
 #endif
+
+#if !defined(__INTRODUCED_IN)
+#define __INTRODUCED_IN(__api_level) /* nothing */
+#endif
 #include <vndk/hardware_buffer.h>
 #include <vulkan/vulkan.h>
 

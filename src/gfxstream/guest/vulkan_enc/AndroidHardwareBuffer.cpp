@@ -20,8 +20,9 @@
 #endif
 
 #include <assert.h>
+#include <log/log.h>
 
-#include "../OpenglSystemCommon/HostConnection.h"
+#include "gfxstream/guest/Gralloc.h"
 #include "vk_format_info.h"
 #include "vk_util.h"
 
