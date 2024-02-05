@@ -2,5 +2,9 @@
 # SPDX-License-Identifier: MIT
 
 inc_platform = include_directories('include')
-subdir('linux')
-subdir('stub')
+if with_guest_test
+  subdir('rutabaga')
+else
+  subdir('linux')
+  subdir('stub')
+endif
