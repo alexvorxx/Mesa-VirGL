@@ -310,6 +310,9 @@ custom_decodes = {
     "vkEndCommandBufferAsyncGOOGLE": emit_global_state_wrapped_decoding_with_context,
     "vkResetCommandBufferAsyncGOOGLE": emit_global_state_wrapped_decoding,
     "vkCommandBufferHostSyncGOOGLE": emit_global_state_wrapped_decoding,
+    "vkCmdBeginRenderPass" : emit_global_state_wrapped_decoding,
+    "vkCmdBeginRenderPass2" : emit_global_state_wrapped_decoding,
+    "vkCmdBeginRenderPass2KHR" : emit_global_state_wrapped_decoding,
 }
 
 
