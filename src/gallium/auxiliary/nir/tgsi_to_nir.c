@@ -2558,8 +2558,8 @@ ttn_finalize_nir(struct ttn_compile *c, struct pipe_screen *screen)
       free(msg);
    } else {
       ttn_optimize_nir(nir);
-      nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
    }
+   nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
 
    nir->info.num_images = c->num_images;
    nir->info.num_textures = c->num_samplers;
