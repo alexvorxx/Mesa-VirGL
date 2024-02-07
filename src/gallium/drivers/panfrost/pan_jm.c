@@ -354,7 +354,7 @@ GENX(jm_launch_grid)(struct panfrost_batch *batch,
 #endif
 
    unsigned indirect_dep = 0;
-#if PAN_GPU_INDIRECTS
+#if PAN_GPU_SUPPORTS_DISPATCH_INDIRECT
    if (info->indirect) {
       struct panfrost_device *dev = pan_device(batch->ctx->base.screen);
       struct pan_indirect_dispatch_info indirect = {
