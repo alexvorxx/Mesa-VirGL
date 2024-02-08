@@ -449,54 +449,64 @@ tu6_emit_mrt(struct tu_cmd_buffer *cmd,
 
    enum a6xx_format mrt0_format = FMT6_NONE;
 
+   uint32_t written = 0;
    for (uint32_t i = 0; i < subpass->color_count; ++i) {
       uint32_t a = subpass->color_attachments[i].attachment;
-      if (a == VK_ATTACHMENT_UNUSED) {
-         /* From the VkPipelineRenderingCreateInfo definition:
-          *
-          *    Valid formats indicate that an attachment can be used - but it
-          *    is still valid to set the attachment to NULL when beginning
-          *    rendering.
-          *
-          * This means that with dynamic rendering, pipelines may write to
-          * some attachments that are UNUSED here. Setting the format to 0
-          * here should prevent them from writing to anything. This also seems
-          * to also be required for alpha-to-coverage which can use the alpha
-          * value for an otherwise-unused attachment.
-          */
-         tu_cs_emit_regs(cs,
-            RB_MRT_BUF_INFO(CHIP, i),
-            A6XX_RB_MRT_PITCH(i),
-            A6XX_RB_MRT_ARRAY_PITCH(i),
-            A6XX_RB_MRT_BASE(i),
-            A6XX_RB_MRT_BASE_GMEM(i),
-         );
-
-         tu_cs_emit_regs(cs,
-                         A6XX_SP_FS_MRT_REG(i, .dword = 0));
+      unsigned remapped = cmd->vk.dynamic_graphics_state.cal.color_map[i];
+      if (a == VK_ATTACHMENT_UNUSED ||
+          remapped == MESA_VK_ATTACHMENT_UNUSED)
          continue;
-      }
 
       const struct tu_image_view *iview = cmd->state.attachments[a];
 
       tu_cs_emit_regs(cs,
-         RB_MRT_BUF_INFO(CHIP, i, .dword = iview->view.RB_MRT_BUF_INFO),
-         A6XX_RB_MRT_PITCH(i, iview->view.pitch),
-         A6XX_RB_MRT_ARRAY_PITCH(i, iview->view.layer_size),
-         A6XX_RB_MRT_BASE(i, .qword = tu_layer_address(&iview->view, 0)),
-         A6XX_RB_MRT_BASE_GMEM(i,
+         RB_MRT_BUF_INFO(CHIP, remapped, .dword = iview->view.RB_MRT_BUF_INFO),
+         A6XX_RB_MRT_PITCH(remapped, iview->view.pitch),
+         A6XX_RB_MRT_ARRAY_PITCH(remapped, iview->view.layer_size),
+         A6XX_RB_MRT_BASE(remapped, .qword = tu_layer_address(&iview->view, 0)),
+         A6XX_RB_MRT_BASE_GMEM(remapped,
             tu_attachment_gmem_offset(cmd, &cmd->state.pass->attachments[a], 0)
          ),
       );
 
       tu_cs_emit_regs(cs,
-                      A6XX_SP_FS_MRT_REG(i, .dword = iview->view.SP_FS_MRT_REG));
+                      A6XX_SP_FS_MRT_REG(remapped, .dword = iview->view.SP_FS_MRT_REG));
 
-      tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_FLAG_BUFFER_ADDR(i), 3);
+      tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_FLAG_BUFFER_ADDR(remapped), 3);
       tu_cs_image_flag_ref(cs, &iview->view, 0);
 
-      if (i == 0)
+      if (remapped == 0)
          mrt0_format = (enum a6xx_format) (iview->view.SP_FS_MRT_REG & 0xff);
+
+      written |= 1u << remapped;
+   }
+
+   u_foreach_bit (i, ~written) {
+      if (i >= subpass->color_count)
+         break;
+
+      /* From the VkPipelineRenderingCreateInfo definition:
+       *
+       *    Valid formats indicate that an attachment can be used - but it
+       *    is still valid to set the attachment to NULL when beginning
+       *    rendering.
+       *
+       * This means that with dynamic rendering, pipelines may write to
+       * some attachments that are UNUSED here. Setting the format to 0
+       * here should prevent them from writing to anything. This also seems
+       * to also be required for alpha-to-coverage which can use the alpha
+       * value for an otherwise-unused attachment.
+       */
+       tu_cs_emit_regs(cs,
+         RB_MRT_BUF_INFO(CHIP, i),
+         A6XX_RB_MRT_PITCH(i),
+         A6XX_RB_MRT_ARRAY_PITCH(i),
+         A6XX_RB_MRT_BASE(i),
+         A6XX_RB_MRT_BASE_GMEM(i),
+       );
+
+       tu_cs_emit_regs(cs,
+                       A6XX_SP_FS_MRT_REG(i, .dword = 0));
    }
 
    tu_cs_emit_regs(cs, A6XX_GRAS_LRZ_MRT_BUF_INFO_0(.color_format = mrt0_format));
@@ -599,12 +609,14 @@ tu6_emit_render_cntl<A6XX>(struct tu_cmd_buffer *cmd,
       uint32_t mrts_ubwc_enable = 0;
       for (uint32_t i = 0; i < subpass->color_count; ++i) {
          uint32_t a = subpass->color_attachments[i].attachment;
-         if (a == VK_ATTACHMENT_UNUSED)
+         unsigned remapped = cmd->vk.dynamic_graphics_state.cal.color_map[i];
+         if (a == VK_ATTACHMENT_UNUSED ||
+             remapped == MESA_VK_ATTACHMENT_UNUSED)
             continue;
 
          const struct tu_image_view *iview = cmd->state.attachments[a];
          if (iview->view.ubwc_enabled)
-            mrts_ubwc_enable |= 1 << i;
+            mrts_ubwc_enable |= 1 << remapped;
       }
 
       cntl |= A6XX_RB_RENDER_CNTL_FLAG_MRTS(mrts_ubwc_enable);
@@ -4709,6 +4721,12 @@ tu_CmdBeginRendering(VkCommandBuffer commandBuffer,
       cmd->state.attachments[a] = view;
    }
 
+   const VkRenderingAttachmentLocationInfoKHR ral_info = {
+      .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_LOCATION_INFO_KHR,
+      .colorAttachmentCount = pRenderingInfo->colorAttachmentCount,
+   };
+   vk_cmd_set_rendering_attachment_locations(&cmd->vk, &ral_info);
+
    if (cmd->dynamic_pass.has_fdm)
       cmd->patchpoints_ctx = ralloc_context(NULL);
 
@@ -4784,6 +4802,35 @@ tu_CmdBeginRendering(VkCommandBuffer commandBuffer,
       cmd->state.suspend_resume = SR_IN_PRE_CHAIN;
 }
 TU_GENX(tu_CmdBeginRendering);
+
+template <chip CHIP>
+VKAPI_ATTR void VKAPI_CALL
+tu_CmdSetRenderingAttachmentLocationsKHR(
+   VkCommandBuffer commandBuffer,
+   const VkRenderingAttachmentLocationInfoKHR *pLocationInfo)
+{
+   VK_FROM_HANDLE(tu_cmd_buffer, cmd, commandBuffer);
+
+   vk_common_CmdSetRenderingAttachmentLocationsKHR(commandBuffer, pLocationInfo);
+
+   tu6_emit_mrt<CHIP>(cmd, cmd->state.subpass, &cmd->draw_cs);
+   tu6_emit_render_cntl<CHIP>(cmd, cmd->state.subpass, &cmd->draw_cs, false);
+
+   /* Because this is just a remapping and not a different "reference", there
+    * doesn't need to be a barrier between accesses to the same attachment
+    * with a different index. This is different from "classic" renderpasses.
+    * Before a7xx the CCU includes the render target ID in the cache location
+    * calculation, so we need to manually flush/invalidate color CCU here
+    * since the same render target/attachment may be in a different location.
+    */
+   if (cmd->device->physical_device->info->chip == 6) {
+      struct tu_cache_state *cache = &cmd->state.renderpass_cache;
+      tu_flush_for_access(cache, TU_ACCESS_CCU_COLOR_INCOHERENT_WRITE,
+                          TU_ACCESS_CCU_COLOR_INCOHERENT_WRITE);
+      cache->flush_bits |= TU_CMD_FLAG_WAIT_FOR_IDLE;
+   }
+}
+TU_GENX(tu_CmdSetRenderingAttachmentLocationsKHR);
 
 template <chip CHIP>
 VKAPI_ATTR void VKAPI_CALL
