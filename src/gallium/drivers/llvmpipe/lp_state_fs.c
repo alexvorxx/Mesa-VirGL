@@ -1067,6 +1067,19 @@ generate_fs_loop(struct gallivm_state *gallivm,
    /* Build the actual shader */
    lp_build_nir_soa(gallivm, nir, &params, outputs);
 
+   /*
+    * Must not count ps invocations if there's a null shader.
+    * (It would be ok to count with null shader if there's d/s tests,
+    * but only if there's d/s buffers too, which is different
+    * to implicit rasterization disable which must not depend
+    * on the d/s buffers.)
+    * Could disable if there's no stats query, but maybe not worth it.
+    */
+   if (shader->info.base.num_instructions > 1) {
+      LLVMValueRef invocs = lp_jit_thread_data_ps_invocations(gallivm, thread_data_type, thread_data_ptr);
+      lp_build_occlusion_count(gallivm, type, lp_build_mask_value(&mask), invocs);
+   }
+
    /* Alpha test */
    if (key->alpha.enabled) {
       int color0 = find_output_by_frag_result(nir, FRAG_RESULT_DATA0);
@@ -3263,27 +3276,6 @@ generate_fragment(struct llvmpipe_context *lp,
    builder = gallivm->builder;
    assert(builder);
    LLVMPositionBuilderAtEnd(builder, block);
-
-   /*
-    * Must not count ps invocations if there's a null shader.
-    * (It would be ok to count with null shader if there's d/s tests,
-    * but only if there's d/s buffers too, which is different
-    * to implicit rasterization disable which must not depend
-    * on the d/s buffers.)
-    * Could use popcount on mask, but pixel accuracy is not required.
-    * Could disable if there's no stats query, but maybe not worth it.
-    */
-   if (shader->info.base.num_instructions > 1) {
-      LLVMValueRef invocs, val;
-      LLVMTypeRef invocs_type = LLVMInt64TypeInContext(gallivm->context);
-      invocs = lp_jit_thread_data_ps_invocations(gallivm, variant->jit_thread_data_type, thread_data_ptr);
-      val = LLVMBuildLoad2(builder, invocs_type, invocs, "");
-      val = LLVMBuildAdd(builder, val,
-                         LLVMConstInt(LLVMInt64TypeInContext(gallivm->context),
-                                      1, 0),
-                         "invoc_count");
-      LLVMBuildStore(builder, val, invocs);
-   }
 
    /* code generated texture sampling */
    struct lp_build_sampler_soa *sampler =
