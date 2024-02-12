@@ -1696,6 +1696,25 @@ d3d12_screen_get_video_param_encode(struct pipe_screen *pscreen,
          return 1;
       case PIPE_VIDEO_CAP_NPOT_TEXTURES:
          return 1;
+      case PIPE_VIDEO_CAP_MAX_TEMPORAL_LAYERS:
+      {
+            switch (u_reduce_video_profile(profile)) {
+#if VIDEO_CODEC_H264ENC
+               case PIPE_VIDEO_FORMAT_MPEG4_AVC:
+                  return D3D12_VIDEO_ENC_H264_MAX_TEMPORAL_LAYERS;
+#endif
+#if VIDEO_CODEC_H265ENC
+               case PIPE_VIDEO_FORMAT_HEVC:
+                  return D3D12_VIDEO_ENC_HEVC_MAX_TEMPORAL_LAYERS;
+#endif
+#if VIDEO_CODEC_AV1ENC
+               case PIPE_VIDEO_FORMAT_AV1:
+                  return D3D12_VIDEO_ENC_AV1_MAX_TEMPORAL_LAYERS;
+#endif
+               default:
+                  unreachable("Unsupported pipe_video_format");
+            }
+      } break;
       case PIPE_VIDEO_CAP_ENC_SUPPORTS_FEEDBACK_METADATA:
          return (PIPE_VIDEO_FEEDBACK_METADATA_TYPE_BITSTREAM_SIZE |
                  PIPE_VIDEO_FEEDBACK_METADATA_TYPE_ENCODE_RESULT |

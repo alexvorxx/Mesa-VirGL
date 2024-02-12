@@ -232,7 +232,8 @@ struct D3D12EncodeConfiguration
       D3D12_VIDEO_ENCODER_AV1_LEVEL_TIER_CONSTRAINTS  m_AV1LevelSetting;
    } m_encoderLevelDesc = {};
 
-   struct D3D12EncodeRateControlState m_encoderRateControlDesc = {};
+   struct D3D12EncodeRateControlState m_encoderRateControlDesc[D3D12_VIDEO_ENC_MAX_RATE_CONTROL_TEMPORAL_LAYERS] = {};
+   UINT m_activeRateControlIndex = 0;
 
    union
    {

@@ -169,4 +169,16 @@ DEFINE_ENUM_FLAG_OPERATORS(codec_unit_location_flags);
 DEFINE_ENUM_FLAG_OPERATORS(pipe_video_feedback_encode_result_flags);
 DEFINE_ENUM_FLAG_OPERATORS(pipe_video_feedback_metadata_type);
 
+#define D3D12_VIDEO_ENC_H264_MAX_TEMPORAL_LAYERS 1
+#define D3D12_VIDEO_ENC_HEVC_MAX_TEMPORAL_LAYERS 1
+#define D3D12_VIDEO_ENC_AV1_MAX_TEMPORAL_LAYERS 1
+#define D3D12_VIDEO_ENC_MAX_RATE_CONTROL_TEMPORAL_LAYERS 4
+
+static_assert(D3D12_VIDEO_ENC_MAX_RATE_CONTROL_TEMPORAL_LAYERS >= D3D12_VIDEO_ENC_H264_MAX_TEMPORAL_LAYERS, "Increase size of D3D12_VIDEO_ENC_MAX_RATE_CONTROL_TEMPORAL_LAYERS");
+static_assert(D3D12_VIDEO_ENC_MAX_RATE_CONTROL_TEMPORAL_LAYERS >= D3D12_VIDEO_ENC_HEVC_MAX_TEMPORAL_LAYERS, "Increase size of D3D12_VIDEO_ENC_MAX_RATE_CONTROL_TEMPORAL_LAYERS");
+static_assert(D3D12_VIDEO_ENC_MAX_RATE_CONTROL_TEMPORAL_LAYERS >= D3D12_VIDEO_ENC_AV1_MAX_TEMPORAL_LAYERS, "Increase size of D3D12_VIDEO_ENC_MAX_RATE_CONTROL_TEMPORAL_LAYERS");
+
+static_assert(ARRAY_SIZE(pipe_h264_enc_picture_desc::rate_ctrl) >= D3D12_VIDEO_ENC_H264_MAX_TEMPORAL_LAYERS, "Increase size of pipe_h264_enc_picture_desc::rate_ctrl[] array");
+static_assert(ARRAY_SIZE(pipe_h265_enc_picture_desc::rc) >= D3D12_VIDEO_ENC_HEVC_MAX_TEMPORAL_LAYERS, "Increase size of pipe_h265_enc_picture_desc::rc[] array");
+static_assert(ARRAY_SIZE(pipe_av1_enc_picture_desc::rc) >= D3D12_VIDEO_ENC_AV1_MAX_TEMPORAL_LAYERS, "Increase size of pipe_h265_enc_picture_desc::rc[] array");
 #endif
