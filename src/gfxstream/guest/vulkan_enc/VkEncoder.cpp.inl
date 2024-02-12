@@ -81,11 +81,12 @@ bool VkEncoder::decRef() {
 }
 
 std::string VkEncoder::getPacketContents(const uint8_t* ptr, size_t len) {
-  std::string result;
-  std::unique_ptr<char[]> buf(new char[3]);
-  for (size_t i = 0; i < len; i++) {
-    std::snprintf(buf.get(), 3, "%02X", ptr[i]);
-    result += " " + std::string(buf.get(), buf.get() + 2);
-  }
-  return result;
+    std::string result;
+    result.reserve(3 * len);
+    char buf[4];
+    for (size_t i = 0; i < len; i++) {
+        std::snprintf(buf, 4, " %02X", ptr[i]);
+        result.append(buf, 3);
+    }
+    return result;
 }
