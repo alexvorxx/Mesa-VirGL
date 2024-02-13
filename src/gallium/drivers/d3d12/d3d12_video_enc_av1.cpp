@@ -1218,7 +1218,8 @@ d3d12_video_encoder_update_current_frame_pic_params_info_av1(struct d3d12_video_
    struct pipe_av1_enc_picture_desc *pAV1Pic = (struct pipe_av1_enc_picture_desc *) picture;
 
    // Output param bUsedAsReference
-   bUsedAsReference = (pAV1Pic->refresh_frame_flags != 0);
+   pD3D12Enc->m_currentEncodeConfig.m_bUsedAsReference = (pAV1Pic->refresh_frame_flags != 0);
+   bUsedAsReference = pD3D12Enc->m_currentEncodeConfig.m_bUsedAsReference;
 
    // D3D12_VIDEO_ENCODER_AV1_PICTURE_CONTROL_FLAGS Flags;
    picParams.pAV1PicData->Flags = D3D12_VIDEO_ENCODER_AV1_PICTURE_CONTROL_FLAG_NONE;

@@ -137,6 +137,7 @@ enum d3d12_video_encoder_config_dirty_flags
    d3d12_video_encoder_config_dirty_flag_picture_header         = 0x2000,
    d3d12_video_encoder_config_dirty_flag_aud_header             = 0x4000,
    d3d12_video_encoder_config_dirty_flag_sei_header             = 0x8000,
+   d3d12_video_encoder_config_dirty_flag_svcprefix_slice_header = 0x10000,
 };
 DEFINE_ENUM_FLAG_OPERATORS(d3d12_video_encoder_config_dirty_flags);
 
@@ -287,6 +288,8 @@ struct D3D12EncodeConfiguration
    struct pipe_h265_enc_seq_param m_encoderCodecSpecificSequenceStateDescH265;
    struct pipe_h265_enc_vid_param m_encoderCodecSpecificVideoStateDescH265;
    struct pipe_h265_enc_pic_param m_encoderCodecSpecificPictureStateDescH265;
+
+   bool m_bUsedAsReference; // Set if frame will be used as reference frame
 };
 
 struct EncodedBitstreamResolvedMetadata
@@ -408,6 +411,7 @@ struct d3d12_video_encoder
    std::shared_ptr<d3d12_video_dpb_storage_manager_interface>        m_upDPBStorageManager;
    std::unique_ptr<d3d12_video_bitstream_builder_interface>          m_upBitstreamBuilder;
 
+   pipe_resource* m_nalPrefixTmpBuffer = NULL;
    std::vector<uint8_t> m_BitstreamHeadersBuffer;
    std::vector<uint8_t> m_StagingHeadersBuffer;
    std::vector<EncodedBitstreamResolvedMetadata> m_spEncodedFrameMetadata;

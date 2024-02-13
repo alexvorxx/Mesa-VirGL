@@ -354,7 +354,8 @@ d3d12_video_encoder_update_current_frame_pic_params_info_hevc(struct d3d12_video
       static_cast<d3d12_video_bitstream_builder_hevc *>(pD3D12Enc->m_upBitstreamBuilder.get());
    assert(pHEVCBitstreamBuilder != nullptr);
 
-   bUsedAsReference = !hevcPic->not_referenced;
+   pD3D12Enc->m_currentEncodeConfig.m_bUsedAsReference = !hevcPic->not_referenced;
+   bUsedAsReference = pD3D12Enc->m_currentEncodeConfig.m_bUsedAsReference;
 
    if (pD3D12Enc->m_currentEncodeCapabilities.m_encoderCodecSpecificConfigCaps.m_HEVCCodecCaps.SupportFlags &
        D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_SUPPORT_HEVC_FLAG_NUM_REF_IDX_ACTIVE_OVERRIDE_FLAG_SLICE_SUPPORT)
@@ -492,6 +493,13 @@ d3d12_video_encoder_update_current_frame_pic_params_info_hevc(struct d3d12_video
       picParams.pHEVCPicData->pRateControlQPMap = pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[hevcPic->pic.temporal_id].m_pRateControlQPMap8Bit.data();
       picParams.pHEVCPicData->QPMapValuesCount = pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[hevcPic->pic.temporal_id].m_pRateControlQPMap8Bit.size();
    }
+
+   // Save state snapshot from record time to resolve headers at get_feedback time
+   uint64_t current_metadata_slot = (pD3D12Enc->m_fenceValue % D3D12_VIDEO_ENC_METADATA_BUFFERS_COUNT);
+   pD3D12Enc->m_spEncodedFrameMetadata[current_metadata_slot].m_associatedEncodeCapabilities =
+      pD3D12Enc->m_currentEncodeCapabilities;
+   pD3D12Enc->m_spEncodedFrameMetadata[current_metadata_slot].m_associatedEncodeConfig =
+      pD3D12Enc->m_currentEncodeConfig;
 }
 
 ///

@@ -72,6 +72,10 @@ class d3d12_video_bitstream_builder_h264 : public d3d12_video_bitstream_builder_
                            std::vector<uint8_t>::iterator        placingPositionStart,
                            size_t &                              writtenBytes);
 
+   void write_slice_svc_prefix(const H264_SLICE_PREFIX_SVC &         nal_svc_prefix,
+                               std::vector<uint8_t> &                headerBitstream,
+                               std::vector<uint8_t>::iterator        placingPositionStart,
+                               size_t &                              writtenBytes);
 
    void print_pps(const H264_PPS &pps);
    void print_sps(const H264_SPS &sps);

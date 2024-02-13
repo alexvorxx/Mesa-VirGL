@@ -268,7 +268,8 @@ uint32_t
 d3d12_video_nalu_writer_h264::wrap_rbsp_into_nalu(d3d12_video_encoder_bitstream *pNALU,
                                                   d3d12_video_encoder_bitstream *pRBSP,
                                                   uint32_t                       iNaluIdc,
-                                                  uint32_t                       iNaluType)
+                                                  uint32_t                       iNaluType,
+                                                  const H264_SLICE_PREFIX_SVC*   pSvcExtendedHeader)
 {
    bool isAligned = pRBSP->is_byte_aligned();   // causes side-effects in object state, don't put inside assert()
    assert(isAligned);
@@ -285,6 +286,24 @@ d3d12_video_nalu_writer_h264::wrap_rbsp_into_nalu(d3d12_video_encoder_bitstream 
    pNALU->put_bits(1, 0);
    pNALU->put_bits(2, iNaluIdc);
    pNALU->put_bits(5, iNaluType);
+
+   if (iNaluType == NAL_TYPE_PREFIX)
+   {
+      assert(pSvcExtendedHeader);
+      pNALU->put_bits(1, 1); // svc_extension_flag u(1)
+      // nal_unit_header_svc_extension( )
+      pNALU->put_bits(1, pSvcExtendedHeader->idr_flag);
+      pNALU->put_bits(6, pSvcExtendedHeader->priority_id);
+      pNALU->put_bits(1, pSvcExtendedHeader->no_inter_layer_pred_flag);
+      pNALU->put_bits(3, pSvcExtendedHeader->dependency_id);
+      pNALU->put_bits(4, pSvcExtendedHeader->quality_id);
+      pNALU->put_bits(3, pSvcExtendedHeader->temporal_id);
+      pNALU->put_bits(1, pSvcExtendedHeader->use_ref_base_pic_flag);
+      pNALU->put_bits(1, pSvcExtendedHeader->discardable_flag);
+      pNALU->put_bits(1, pSvcExtendedHeader->output_flag);
+      pNALU->put_bits(2, 3 /* reserved_three_2bits */);
+   }
+
    pNALU->flush();
 
    // NAL body
@@ -631,6 +650,60 @@ d3d12_video_nalu_writer_h264::write_sei_nalu(H264_SEI_MESSAGE               sei_
 
       debug_printf(
          "wrap_rbsp_into_nalu(&nalu, &rbsp, NAL_REFIDC_NONREF, NAL_TYPE_ACCESS_UNIT_DELIMITER) didn't write any bytes.\n");
+      assert(false);
+   }
+
+   // Deep copy nalu into headerBitstream, nalu gets out of scope here and its destructor frees the nalu object buffer
+   // memory.
+   uint8_t *naluBytes    = nalu.get_bitstream_buffer();
+   size_t   naluByteSize = nalu.get_byte_count();
+
+   auto startDstIndex = std::distance(headerBitstream.begin(), placingPositionStart);
+   if (headerBitstream.size() < (startDstIndex + naluByteSize)) {
+      headerBitstream.resize(startDstIndex + naluByteSize);
+   }
+
+   std::copy_n(&naluBytes[0], naluByteSize, &headerBitstream.data()[startDstIndex]);
+
+   writtenBytes = naluByteSize;
+}
+
+void
+d3d12_video_nalu_writer_h264::write_slice_svc_prefix(const H264_SLICE_PREFIX_SVC &         nal_svc_prefix,
+                                                     std::vector<uint8_t> &                headerBitstream,
+                                                     std::vector<uint8_t>::iterator        placingPositionStart,
+                                                     size_t &                              writtenBytes)
+{
+   d3d12_video_encoder_bitstream rbsp, nalu;
+   if (!rbsp.create_bitstream(2 * MAX_COMPRESSED_PPS)) {
+      debug_printf("rbsp.create_bitstream(2 * MAX_COMPRESSED_PPS) failed.\n");
+      assert(false);
+   }
+
+   if (!nalu.create_bitstream(2 * MAX_COMPRESSED_PPS)) {
+      debug_printf("nalu.create_bitstream(2 * MAX_COMPRESSED_PPS) failed.\n");
+      assert(false);
+   }
+
+   rbsp.set_start_code_prevention(true);
+
+   // prefix_nal_unit_svc ( )
+   if (nal_svc_prefix.nal_ref_idc == NAL_REFIDC_REF)
+   {
+      rbsp.put_bits(1, nal_svc_prefix.store_ref_base_pic_flag);
+      rbsp.put_bits(1, 0 /* additional_prefix_nal_unit_extension_flag */);
+   }
+   else
+   {
+      // No more_rbsp_data( ) so we don't need to code anything else
+   }
+
+   rbsp_trailing(&rbsp);
+   rbsp.flush();
+   if (wrap_rbsp_into_nalu(&nalu, &rbsp, nal_svc_prefix.nal_ref_idc, NAL_TYPE_PREFIX, &nal_svc_prefix) <= 0u) {
+
+      debug_printf(
+         "wrap_rbsp_into_nalu(&nalu, &rbsp, NAL_REFIDC_REF, NAL_TYPE_ACCESS_UNIT_DELIMITER) didn't write any bytes.\n");
       assert(false);
    }
 

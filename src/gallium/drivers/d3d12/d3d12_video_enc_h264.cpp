@@ -356,7 +356,8 @@ d3d12_video_encoder_update_current_frame_pic_params_info_h264(struct d3d12_video
       static_cast<d3d12_video_bitstream_builder_h264 *>(pD3D12Enc->m_upBitstreamBuilder.get());
    assert(pH264BitstreamBuilder != nullptr);
 
-   bUsedAsReference = !h264Pic->not_referenced;
+   pD3D12Enc->m_currentEncodeConfig.m_bUsedAsReference = !h264Pic->not_referenced;
+   bUsedAsReference = pD3D12Enc->m_currentEncodeConfig.m_bUsedAsReference;
 
    if (pD3D12Enc->m_currentEncodeCapabilities.m_encoderCodecSpecificConfigCaps.m_H264CodecCaps.SupportFlags &
        D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_SUPPORT_H264_FLAG_NUM_REF_IDX_ACTIVE_OVERRIDE_FLAG_SLICE_SUPPORT)
@@ -391,6 +392,13 @@ d3d12_video_encoder_update_current_frame_pic_params_info_h264(struct d3d12_video
       picParams.pH264PicData->pRateControlQPMap = pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_pRateControlQPMap8Bit.data();
       picParams.pH264PicData->QPMapValuesCount = pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_pRateControlQPMap8Bit.size();
    }
+
+   // Save state snapshot from record time to resolve headers at get_feedback time
+   uint64_t current_metadata_slot = (pD3D12Enc->m_fenceValue % D3D12_VIDEO_ENC_METADATA_BUFFERS_COUNT);
+   pD3D12Enc->m_spEncodedFrameMetadata[current_metadata_slot].m_associatedEncodeCapabilities =
+      pD3D12Enc->m_currentEncodeCapabilities;
+   pD3D12Enc->m_spEncodedFrameMetadata[current_metadata_slot].m_associatedEncodeConfig =
+      pD3D12Enc->m_currentEncodeConfig;
 }
 
 ///
@@ -933,6 +941,8 @@ d3d12_video_encoder_update_current_encoder_config_state_h264(struct d3d12_video_
          pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_aud_header;
       else if (header->type == NAL_TYPE_SEI)
          pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_sei_header;
+      else if (header->type == NAL_TYPE_PREFIX)
+         pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_svcprefix_slice_header;
    }
 
    // Set input format
@@ -1261,4 +1271,37 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
    assert(std::accumulate(pWrittenCodecUnitsSizes.begin(), pWrittenCodecUnitsSizes.end(), 0u) ==
       static_cast<uint64_t>(pD3D12Enc->m_BitstreamHeadersBuffer.size()));
    return pD3D12Enc->m_BitstreamHeadersBuffer.size();
+}
+
+uint32_t
+d3d12_video_encoder_build_slice_svc_prefix_nalu_h264(struct d3d12_video_encoder *   pD3D12Enc,
+                                                     EncodedBitstreamResolvedMetadata& associatedMetadata,
+                                                     std::vector<uint8_t> &         headerBitstream,
+                                                     std::vector<uint8_t>::iterator placingPositionStart,
+                                                     size_t &                       writtenSVCPrefixNalBytes)
+{
+   d3d12_video_bitstream_builder_h264 *pH264BitstreamBuilder =
+      static_cast<d3d12_video_bitstream_builder_h264 *>(pD3D12Enc->m_upBitstreamBuilder.get());
+   assert(pH264BitstreamBuilder);
+
+   H264_SLICE_PREFIX_SVC nal_svc_prefix = {};
+   memset(&nal_svc_prefix, 0, sizeof(nal_svc_prefix));
+   nal_svc_prefix.idr_flag = (associatedMetadata.m_associatedEncodeConfig.m_encoderPicParamsDesc.m_H264PicData.FrameType == D3D12_VIDEO_ENCODER_FRAME_TYPE_H264_IDR_FRAME) ? 1 : 0;
+   nal_svc_prefix.no_inter_layer_pred_flag = 1;
+   nal_svc_prefix.output_flag = 1;
+   nal_svc_prefix.discardable_flag = 1;
+   nal_svc_prefix.temporal_id = associatedMetadata.m_associatedEncodeConfig.m_encoderPicParamsDesc.m_H264PicData.TemporalLayerIndex;
+   nal_svc_prefix.priority_id = nal_svc_prefix.temporal_id;
+   nal_svc_prefix.nal_ref_idc = associatedMetadata.m_associatedEncodeConfig.m_bUsedAsReference ? NAL_REFIDC_REF : NAL_REFIDC_NONREF;
+   pH264BitstreamBuilder->write_slice_svc_prefix(nal_svc_prefix,
+                                                 headerBitstream,
+                                                 placingPositionStart,
+                                                 writtenSVCPrefixNalBytes);
+
+   // Shrink buffer to fit the headers
+   if (headerBitstream.size() > (writtenSVCPrefixNalBytes)) {
+      headerBitstream.resize(writtenSVCPrefixNalBytes);
+   }
+
+   return headerBitstream.size();
 }

@@ -209,6 +209,15 @@ d3d12_video_bitstream_builder_h264::write_sei_messages(const std::vector<H264_SE
    }
 }
 
+void
+d3d12_video_bitstream_builder_h264::write_slice_svc_prefix(const H264_SLICE_PREFIX_SVC &         nal_svc_prefix,
+                                                           std::vector<uint8_t> &                headerBitstream,
+                                                           std::vector<uint8_t>::iterator        placingPositionStart,
+                                                           size_t &                              writtenBytes)
+{
+   m_h264Encoder.write_slice_svc_prefix(nal_svc_prefix, headerBitstream, placingPositionStart, writtenBytes);
+}
+
 H264_PPS
 d3d12_video_bitstream_builder_h264::build_pps(const enum pipe_video_profile &                            profile,
                                               const D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264 &       codecConfig,

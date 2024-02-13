@@ -64,4 +64,11 @@ d3d12_video_encoder_compare_slice_config_h264_hevc(
    D3D12_VIDEO_ENCODER_FRAME_SUBREGION_LAYOUT_MODE                   otherMode,
    D3D12_VIDEO_ENCODER_PICTURE_CONTROL_SUBREGIONS_LAYOUT_DATA_SLICES otherConfig);
 
+uint32_t
+d3d12_video_encoder_build_slice_svc_prefix_nalu_h264(struct d3d12_video_encoder *   pD3D12Enc,
+                                                     EncodedBitstreamResolvedMetadata& associatedMetadata,
+                                                     std::vector<uint8_t> &         headerBitstream,
+                                                     std::vector<uint8_t>::iterator placingPositionStart,
+                                                     size_t &                       writtenSVCPrefixNalBytes);
+
 #endif
