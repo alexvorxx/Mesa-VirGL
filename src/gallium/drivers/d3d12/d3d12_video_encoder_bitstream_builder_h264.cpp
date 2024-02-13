@@ -191,6 +191,24 @@ d3d12_video_bitstream_builder_h264::write_aud(std::vector<uint8_t> &         hea
    m_h264Encoder.write_access_unit_delimiter_nalu(headerBitstream, placingPositionStart, writtenBytes);
 }
 
+void
+d3d12_video_bitstream_builder_h264::write_sei_messages(const std::vector<H264_SEI_MESSAGE>&  sei_messages,
+                                                       std::vector<uint8_t> &                headerBitstream,
+                                                       std::vector<uint8_t>::iterator        placingPositionStart,
+                                                       size_t &                              writtenBytes)
+{
+   uint64_t byte_offset_placing_start = std::distance(headerBitstream.begin(), placingPositionStart);
+   writtenBytes = 0;
+
+   for (auto& message : sei_messages)
+   {
+      size_t WrittenBytesCurrentSei = 0;
+      m_h264Encoder.write_sei_nalu(message, headerBitstream, headerBitstream.begin() + byte_offset_placing_start, WrittenBytesCurrentSei);
+      byte_offset_placing_start += WrittenBytesCurrentSei;
+      writtenBytes += WrittenBytesCurrentSei;
+   }
+}
+
 H264_PPS
 d3d12_video_bitstream_builder_h264::build_pps(const enum pipe_video_profile &                            profile,
                                               const D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264 &       codecConfig,

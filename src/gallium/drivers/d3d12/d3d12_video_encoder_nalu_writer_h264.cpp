@@ -522,3 +522,129 @@ d3d12_video_nalu_writer_h264::write_access_unit_delimiter_nalu(std::vector<uint8
 
    writtenBytes = naluByteSize;
 }
+
+void
+d3d12_video_nalu_writer_h264::write_sei_nalu(H264_SEI_MESSAGE               sei_message,
+                                             std::vector<uint8_t> &         headerBitstream,
+                                             std::vector<uint8_t>::iterator placingPositionStart,
+                                             size_t &                       writtenBytes)
+{
+   // Fill byte buffer with sei_message() payload
+   d3d12_video_encoder_bitstream sei_payload_bitstream;
+   if (!sei_payload_bitstream.create_bitstream(2 * sizeof(H264_SEI_MESSAGE))) {
+      debug_printf("sei_payload_bitstream.create_bitstream(2 * sizeof(H264_SEI_MESSAGE) failed.\n");
+      assert(false);
+   }
+
+   switch (sei_message.payload_type)
+   {
+      case H264_SEI_SCALABILITY_INFO:
+      {
+         sei_payload_bitstream.put_bits(1, 0); // temporal_id_nesting_flag
+         sei_payload_bitstream.put_bits(1, 0); // priority_layer_info_present_flag
+         sei_payload_bitstream.put_bits(1, 0); // priority_id_setting_flag
+         sei_payload_bitstream.exp_Golomb_ue(sei_message.scalability_info.num_layers_minus1);
+         for (uint32_t i = 0; i <= sei_message.scalability_info.num_layers_minus1; i++)
+         {
+            sei_payload_bitstream.exp_Golomb_ue(i); // layer_id[i]
+            sei_payload_bitstream.put_bits(6, 0); // priority_id[i]
+            sei_payload_bitstream.put_bits(1, 0); // discardable_flag[i]
+            sei_payload_bitstream.put_bits(3, 0); // dependency_id[i]
+            sei_payload_bitstream.put_bits(4, 0); // quality_id[i]
+            sei_payload_bitstream.put_bits(3, sei_message.scalability_info.temporal_id[i]); // temporal_id[i]
+            sei_payload_bitstream.put_bits(1, 0); // sub_pic_layer_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // sub_region_layer_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // iroi_division_info_present_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // profile_level_info_present_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // bitrate_info_present_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // frm_rate_info_present_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // frm_size_info_present_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // layer_dependency_info_present_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // parameter_sets_info_present_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // bitstream_restriction_info_present_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // exact_inter_layer_pred_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // layer_conversion_flag[i]
+            sei_payload_bitstream.put_bits(1, 0); // layer_output_flag[i]
+            sei_payload_bitstream.exp_Golomb_ue(0); // layer_dependency_info_src_layer_id_delta [i]
+            sei_payload_bitstream.exp_Golomb_ue(0); // parameter_sets_info_src_layer_id_delta [i]
+         }
+      } break;
+   default:
+      debug_printf("[d3d12_video_nalu_writer_h264::write_sei_nalu] Unsupported sei_message.payload_type.\n");
+      assert(false);
+      return;
+      break;
+   }
+
+   // Add trailing bits after sei_message() bits in sei_payload_bitstream and flush
+   if(!sei_payload_bitstream.is_byte_aligned())
+      rbsp_trailing(&sei_payload_bitstream);
+   sei_payload_bitstream.flush();
+
+   // Set payload_size from bitstream data written
+   uint32_t payload_size = sei_payload_bitstream.get_byte_count();
+
+   //
+   // Wrap sei_payload_bitstream in RBSP and NALU
+   //
+
+   d3d12_video_encoder_bitstream rbsp, nalu;
+   if (!rbsp.create_bitstream(2 * sizeof(H264_SEI_MESSAGE))) {
+      debug_printf("rbsp.create_bitstream(2 * sizeof(H264_SEI_MESSAGE)) failed.\n");
+      assert(false);
+   }
+
+   if (!nalu.create_bitstream(2 * sizeof(H264_SEI_MESSAGE))) {
+      debug_printf("nalu.create_bitstream(2 * sizeof(H264_SEI_MESSAGE)) failed.\n");
+      assert(false);
+   }
+
+   rbsp.set_start_code_prevention(true);
+
+   //
+   // Write payload_type to bitstream
+   //
+   uint32_t payload_type = static_cast<uint32_t>(sei_message.payload_type);
+   while(payload_type >= 255)
+   {
+      rbsp.put_bits(8, 255 /* payload_type */);
+      payload_type -= 255;
+   }
+   rbsp.put_bits(8, payload_type);
+
+   //
+   // Write payload_size to bitstream
+   //
+   while(payload_size >= 255)
+   {
+      rbsp.put_bits(8, 255 /* payload_size */);
+      payload_size -= 255;
+   }
+   rbsp.put_bits(8, payload_size);
+
+   rbsp.flush();
+   rbsp.append_byte_stream(&sei_payload_bitstream);
+
+   rbsp_trailing(&rbsp);
+   rbsp.flush();
+   if (wrap_rbsp_into_nalu(&nalu, &rbsp, NAL_REFIDC_NONREF, NAL_TYPE_SEI) <= 0u) {
+
+      debug_printf(
+         "wrap_rbsp_into_nalu(&nalu, &rbsp, NAL_REFIDC_NONREF, NAL_TYPE_ACCESS_UNIT_DELIMITER) didn't write any bytes.\n");
+      assert(false);
+   }
+
+   // Deep copy nalu into headerBitstream, nalu gets out of scope here and its destructor frees the nalu object buffer
+   // memory.
+   uint8_t *naluBytes    = nalu.get_bitstream_buffer();
+   size_t   naluByteSize = nalu.get_byte_count();
+
+   auto startDstIndex = std::distance(headerBitstream.begin(), placingPositionStart);
+   if (headerBitstream.size() < (startDstIndex + naluByteSize)) {
+      headerBitstream.resize(startDstIndex + naluByteSize);
+   }
+
+   std::copy_n(&naluBytes[0], naluByteSize, &headerBitstream.data()[startDstIndex]);
+
+   writtenBytes = naluByteSize;
+}

@@ -55,6 +55,26 @@ enum H264_NALU_TYPE
    /* 24...31 UNSPECIFIED */
 };
 
+enum H264_SEI_TYPE
+{
+   H264_SEI_SCALABILITY_INFO = 24,
+};
+
+typedef struct
+{
+   uint32_t num_layers_minus1;                                                  // ue(v)
+   uint32_t temporal_id[/* as per codec spec num_layers_minus1 range */ 2048];  // u(3)
+} H264_SEI_SCALABILITYINFO;
+
+typedef struct H264_SEI_MESSAGE
+{
+   H264_SEI_TYPE payload_type;
+   union
+   {
+      H264_SEI_SCALABILITYINFO scalability_info;
+   };
+} H264_SEI_MESSAGE;
+
 typedef struct H264_HRD_PARAMS
 {
    uint32_t cpb_cnt_minus1;
@@ -190,6 +210,10 @@ class d3d12_video_nalu_writer_h264
    void write_access_unit_delimiter_nalu(std::vector<uint8_t> &         headerBitstream,
                                          std::vector<uint8_t>::iterator placingPositionStart,
                                          size_t &                       writtenBytes);
+   void write_sei_nalu(H264_SEI_MESSAGE               sei_message,
+                       std::vector<uint8_t> &         headerBitstream,
+                       std::vector<uint8_t>::iterator placingPositionStart,
+                       size_t &                       writtenBytes);
 
  private:
    // Writes from structure into bitstream with RBSP trailing but WITHOUT NAL unit wrap (eg. nal_idc_type, etc)

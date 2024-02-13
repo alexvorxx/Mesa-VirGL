@@ -67,6 +67,12 @@ class d3d12_video_bitstream_builder_h264 : public d3d12_video_bitstream_builder_
                   std::vector<uint8_t>::iterator placingPositionStart,
                   size_t &                       writtenBytes);
 
+   void write_sei_messages(const std::vector<H264_SEI_MESSAGE>&  sei_messages,
+                           std::vector<uint8_t> &                headerBitstream,
+                           std::vector<uint8_t>::iterator        placingPositionStart,
+                           size_t &                              writtenBytes);
+
+
    void print_pps(const H264_PPS &pps);
    void print_sps(const H264_SPS &sps);
 

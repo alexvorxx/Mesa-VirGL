@@ -931,6 +931,8 @@ d3d12_video_encoder_update_current_encoder_config_state_h264(struct d3d12_video_
          pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_picture_header;
       else if (header->type == PIPE_H264_NAL_AUD)
          pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_aud_header;
+      else if (header->type == NAL_TYPE_SEI)
+         pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_sei_header;
    }
 
    // Set input format
@@ -1188,6 +1190,29 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
 
    uint32_t active_seq_parameter_set_id = pH264BitstreamBuilder->get_active_sps().seq_parameter_set_id;
 
+   size_t writtenSEIBytesCount = 0;
+   bool forceWriteSEI = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_sei_header);
+   // We only support H264_SEI_SCALABILITY_INFO, so check num_temporal_layers > 1
+   if (forceWriteSEI &&
+      (pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificSequenceStateDescH264.num_temporal_layers > 1))
+   {
+      std::vector<H264_SEI_MESSAGE> sei_messages;
+      H264_SEI_MESSAGE scalability_info_sei = { };
+      memset(&scalability_info_sei, 0, sizeof(scalability_info_sei));
+      scalability_info_sei.payload_type = H264_SEI_SCALABILITY_INFO;
+      scalability_info_sei.scalability_info.num_layers_minus1 = pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificSequenceStateDescH264.num_temporal_layers - 1;
+      // Only support Identity temporal_id for now
+      for (uint32_t i = 0; i <= scalability_info_sei.scalability_info.num_layers_minus1; i++)
+         scalability_info_sei.scalability_info.temporal_id[i] = i;
+
+      sei_messages.push_back(scalability_info_sei);
+      pH264BitstreamBuilder->write_sei_messages(sei_messages,
+                                                pD3D12Enc->m_BitstreamHeadersBuffer,
+                                                pD3D12Enc->m_BitstreamHeadersBuffer.begin() + writtenAUDBytesCount,
+                                                writtenSEIBytesCount);
+      pWrittenCodecUnitsSizes.push_back(writtenSEIBytesCount);
+   }
+
    size_t writtenSPSBytesCount = 0;
    if (writeNewSPS) {
       H264_SPS sps = pH264BitstreamBuilder->build_sps(pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificSequenceStateDescH264,
@@ -1200,7 +1225,7 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
                                                       pD3D12Enc->m_currentEncodeConfig.m_currentResolution,
                                                       pD3D12Enc->m_currentEncodeConfig.m_FrameCroppingCodecConfig,
                                                       pD3D12Enc->m_BitstreamHeadersBuffer,
-                                                      pD3D12Enc->m_BitstreamHeadersBuffer.begin() + writtenAUDBytesCount,
+                                                      pD3D12Enc->m_BitstreamHeadersBuffer.begin() + writtenAUDBytesCount + writtenSEIBytesCount,
                                                       writtenSPSBytesCount);
       pH264BitstreamBuilder->set_active_sps(sps);
       pWrittenCodecUnitsSizes.push_back(writtenSPSBytesCount);
@@ -1220,8 +1245,8 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
    bool forceWritePPS = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_picture_header);
    if (forceWritePPS || d3d12_video_encoder_needs_new_pps_h264(pD3D12Enc, writeNewSPS, tentative_pps, active_pps)) {
       pH264BitstreamBuilder->set_active_pps(tentative_pps);
-      pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenAUDBytesCount + writtenSPSBytesCount + writtenPPSBytesCount);
-      memcpy(&pD3D12Enc->m_BitstreamHeadersBuffer.data()[writtenAUDBytesCount + writtenSPSBytesCount], pD3D12Enc->m_StagingHeadersBuffer.data(), writtenPPSBytesCount);
+      pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenAUDBytesCount + writtenSEIBytesCount + writtenSPSBytesCount + writtenPPSBytesCount);
+      memcpy(&pD3D12Enc->m_BitstreamHeadersBuffer.data()[writtenAUDBytesCount + writtenSEIBytesCount + writtenSPSBytesCount], pD3D12Enc->m_StagingHeadersBuffer.data(), writtenPPSBytesCount);
       pWrittenCodecUnitsSizes.push_back(writtenPPSBytesCount);
    } else {
       writtenPPSBytesCount = 0;
@@ -1229,8 +1254,8 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
    }
 
    // Shrink buffer to fit the headers
-   if (pD3D12Enc->m_BitstreamHeadersBuffer.size() > (writtenAUDBytesCount + writtenSPSBytesCount + writtenPPSBytesCount)) {
-      pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenAUDBytesCount + writtenSPSBytesCount + writtenPPSBytesCount);
+   if (pD3D12Enc->m_BitstreamHeadersBuffer.size() > (writtenAUDBytesCount + writtenSEIBytesCount + writtenSPSBytesCount + writtenPPSBytesCount)) {
+      pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenAUDBytesCount + writtenSEIBytesCount + writtenSPSBytesCount + writtenPPSBytesCount);
    }
 
    assert(std::accumulate(pWrittenCodecUnitsSizes.begin(), pWrittenCodecUnitsSizes.end(), 0u) ==
