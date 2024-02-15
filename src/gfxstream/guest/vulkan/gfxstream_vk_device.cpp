@@ -38,7 +38,7 @@
 namespace {
 
 static bool instance_extension_table_initialized = false;
-static struct vk_instance_extension_table gfxstream_vk_instance_extensions_supported = {0};
+static struct vk_instance_extension_table gfxstream_vk_instance_extensions_supported = {};
 
 // Provided by Mesa components only; never encoded/decoded through gfxstream
 static const char* const kMesaOnlyInstanceExtension[] = {
@@ -172,15 +172,17 @@ static void get_device_extensions(VkPhysicalDevice physDevInternal,
 static VkResult gfxstream_vk_physical_device_init(
     struct gfxstream_vk_physical_device* physical_device, struct gfxstream_vk_instance* instance,
     VkPhysicalDevice internal_object) {
-    struct vk_device_extension_table supported_extensions = {0};
+    struct vk_device_extension_table supported_extensions = {};
     get_device_extensions(internal_object, &supported_extensions);
 
     struct vk_physical_device_dispatch_table dispatch_table;
     memset(&dispatch_table, 0, sizeof(struct vk_physical_device_dispatch_table));
     vk_physical_device_dispatch_table_from_entrypoints(
         &dispatch_table, &gfxstream_vk_physical_device_entrypoints, false);
+#if !defined(__Fuchsia__)
     vk_physical_device_dispatch_table_from_entrypoints(&dispatch_table,
                                                        &wsi_physical_device_entrypoints, false);
+#endif
 
     // Initialize the mesa object
     VkResult result = vk_physical_device_init(&physical_device->vk, &instance->vk,
@@ -340,7 +342,9 @@ VkResult gfxstream_vk_CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
     memset(&dispatch_table, 0, sizeof(struct vk_instance_dispatch_table));
     vk_instance_dispatch_table_from_entrypoints(&dispatch_table, &gfxstream_vk_instance_entrypoints,
                                                 false);
+#if !defined(__Fuchsia__)
     vk_instance_dispatch_table_from_entrypoints(&dispatch_table, &wsi_instance_entrypoints, false);
+#endif
 
     result = vk_instance_init(&instance->vk, get_instance_extensions(), &dispatch_table,
                               pCreateInfo, pAllocator);
@@ -466,7 +470,9 @@ VkResult gfxstream_vk_CreateDevice(VkPhysicalDevice physicalDevice,
         memset(&dispatch_table, 0, sizeof(struct vk_device_dispatch_table));
         vk_device_dispatch_table_from_entrypoints(&dispatch_table, &gfxstream_vk_device_entrypoints,
                                                   false);
+#if !defined(__Fuchsia__)
         vk_device_dispatch_table_from_entrypoints(&dispatch_table, &wsi_device_entrypoints, false);
+#endif
 
         result = vk_device_init(&gfxstream_device->vk, &gfxstream_physicalDevice->vk,
                                 &dispatch_table, pCreateInfo, pMesaAllocator);
