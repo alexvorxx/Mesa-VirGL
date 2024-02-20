@@ -99,6 +99,7 @@ d3d12_video_bitstream_builder_h264::build_sps(const struct pipe_h264_enc_seq_par
       frame_cropping_flag               = 1;
    }
 
+   uint32_t gaps_in_frame_num_value_allowed_flag = (seqData.num_temporal_layers > 1) ? 1 : 0;
    H264_SPS spsStructure = { static_cast<uint32_t>(profile_idc),
                              seqData.enc_constraint_set_flags,
                              level_idc,
@@ -109,7 +110,7 @@ d3d12_video_bitstream_builder_h264::build_sps(const struct pipe_h264_enc_seq_par
                              gopConfig.pic_order_cnt_type,
                              gopConfig.log2_max_pic_order_cnt_lsb_minus4,
                              seqData.max_num_ref_frames,
-                             0,   // gaps_in_frame_num_value_allowed_flag
+                             gaps_in_frame_num_value_allowed_flag,
                              pic_width_in_mbs_minus1,
                              pic_height_in_map_units_minus1,
                              1u, // direct_8x8_inference_flag as per DX12 spec
