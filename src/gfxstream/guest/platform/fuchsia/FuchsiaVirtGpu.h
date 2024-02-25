@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <lib/magma/magma.h>
+
 #include "VirtGpu.h"
 
 class FuchsiaVirtGpuBlob : public std::enable_shared_from_this<FuchsiaVirtGpuBlob>,
@@ -46,7 +48,7 @@ class FuchsiaVirtGpuBlobMapping : public VirtGpuBlobMapping {
 
 class FuchsiaVirtGpuDevice : public VirtGpuDevice {
    public:
-    FuchsiaVirtGpuDevice(enum VirtGpuCapset capset);
+    FuchsiaVirtGpuDevice(enum VirtGpuCapset capset, magma_device_t device);
     ~FuchsiaVirtGpuDevice();
 
     int64_t getDeviceHandle(void) override;
@@ -58,4 +60,7 @@ class FuchsiaVirtGpuDevice : public VirtGpuDevice {
     VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle) override;
 
     int execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuBlob* blob) override;
+
+   private:
+    magma_device_t device_;
 };
