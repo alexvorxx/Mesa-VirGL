@@ -15,6 +15,7 @@
  */
 
 #include <cutils/log.h>
+#include <stdlib.h>
 
 #include "FuchsiaVirtGpu.h"
 
