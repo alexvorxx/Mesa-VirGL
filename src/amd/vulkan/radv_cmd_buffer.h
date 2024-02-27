@@ -209,6 +209,7 @@ struct radv_descriptor_state {
    uint32_t dynamic_buffers[4 * MAX_DYNAMIC_BUFFERS];
    uint64_t descriptor_buffers[MAX_SETS];
    bool need_indirect_descriptor_sets;
+   uint64_t indirect_descriptor_sets_va;
 };
 
 struct radv_push_constant_state {
