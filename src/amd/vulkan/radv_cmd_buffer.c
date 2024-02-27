@@ -980,8 +980,8 @@ radv_descriptor_get_va(const struct radv_descriptor_state *descriptors_state, un
 }
 
 static void
-radv_emit_descriptor_pointers(const struct radv_device *device, struct radeon_cmdbuf *cs,
-                              const struct radv_shader *shader, const struct radv_descriptor_state *descriptors_state)
+radv_emit_descriptors_per_stage(const struct radv_device *device, struct radeon_cmdbuf *cs,
+                                const struct radv_shader *shader, const struct radv_descriptor_state *descriptors_state)
 {
    const struct radv_userdata_locations *locs = &shader->info.user_sgprs_locs;
    const uint32_t sh_base = shader->info.user_data_0;
@@ -5977,19 +5977,19 @@ radv_flush_descriptors(struct radv_cmd_buffer *cmd_buffer, VkShaderStageFlags st
                                               ? cmd_buffer->state.shaders[MESA_SHADER_COMPUTE]
                                               : cmd_buffer->state.rt_prolog;
 
-      radv_emit_descriptor_pointers(device, cs, compute_shader, descriptors_state);
+      radv_emit_descriptors_per_stage(device, cs, compute_shader, descriptors_state);
    } else {
       radv_foreach_stage(stage, stages & ~VK_SHADER_STAGE_TASK_BIT_EXT)
       {
          if (!cmd_buffer->state.shaders[stage])
             continue;
 
-         radv_emit_descriptor_pointers(device, cs, cmd_buffer->state.shaders[stage], descriptors_state);
+         radv_emit_descriptors_per_stage(device, cs, cmd_buffer->state.shaders[stage], descriptors_state);
       }
 
       if (stages & VK_SHADER_STAGE_TASK_BIT_EXT) {
-         radv_emit_descriptor_pointers(device, cmd_buffer->gang.cs, cmd_buffer->state.shaders[MESA_SHADER_TASK],
-                                       descriptors_state);
+         radv_emit_descriptors_per_stage(device, cmd_buffer->gang.cs, cmd_buffer->state.shaders[MESA_SHADER_TASK],
+                                         descriptors_state);
       }
    }
 
