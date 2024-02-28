@@ -64,4 +64,5 @@ class FuchsiaVirtGpuDevice : public VirtGpuDevice {
 
    private:
     magma_device_t device_;
+    struct VirtGpuCaps mCaps;
 };

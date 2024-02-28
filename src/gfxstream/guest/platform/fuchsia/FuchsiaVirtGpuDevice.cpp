@@ -15,9 +15,10 @@
  */
 
 #include <cutils/log.h>
+#include <lib/zx/vmo.h>
+#include <msd-virtio-gpu/magma-virtio-gpu-defs.h>
 #include <os_dirent.h>
 #include <services/service_connector.h>
-#include <unistd.h>
 
 #include <climits>
 #include <cstdio>
@@ -26,7 +27,43 @@
 #include "FuchsiaVirtGpu.h"
 
 FuchsiaVirtGpuDevice::FuchsiaVirtGpuDevice(enum VirtGpuCapset capset, magma_device_t device)
-    : VirtGpuDevice(capset), device_(device) {}
+    : VirtGpuDevice(capset), device_(device) {
+    memset(&mCaps, 0, sizeof(struct VirtGpuCaps));
+
+    // Hard-coded values that may be assumed on Fuchsia.
+    mCaps.params[kParam3D] = 1;
+    mCaps.params[kParamCapsetFix] = 1;
+    mCaps.params[kParamResourceBlob] = 1;
+    mCaps.params[kParamHostVisible] = 1;
+    mCaps.params[kParamCrossDevice] = 0;
+    mCaps.params[kParamContextInit] = 1;
+    mCaps.params[kParamSupportedCapsetIds] = 0;
+    mCaps.params[kParamExplicitDebugName] = 0;
+    mCaps.params[kParamCreateGuestHandle] = 0;
+
+    if (capset == kCapsetGfxStreamVulkan) {
+        uint64_t query_id = kMagmaVirtioGpuQueryCapset;
+        query_id |= static_cast<uint64_t>(kCapsetGfxStreamVulkan) << 32;
+        constexpr uint16_t kVersion = 0;
+        query_id |= static_cast<uint64_t>(kVersion) << 16;
+
+        magma_handle_t buffer;
+        magma_status_t status = magma_device_query(device_, query_id, &buffer, nullptr);
+        if (status == MAGMA_STATUS_OK) {
+            zx::vmo capset_info(buffer);
+            zx_status_t status =
+                capset_info.read(&mCaps.vulkanCapset, /*offset=*/0, sizeof(struct vulkanCapset));
+            ALOGD("Got capset result, read status %d", status);
+        } else {
+            ALOGE("Query(%lu) failed: status %d, expected buffer result", query_id, status);
+        }
+
+        // We always need an ASG blob in some cases, so always define blobAlignment
+        if (!mCaps.vulkanCapset.blobAlignment) {
+            mCaps.vulkanCapset.blobAlignment = 4096;
+        }
+    }
+}
 
 FuchsiaVirtGpuDevice::~FuchsiaVirtGpuDevice() { magma_device_release(device_); }
 
