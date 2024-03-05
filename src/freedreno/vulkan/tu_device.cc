@@ -1143,8 +1143,7 @@ tu_get_properties(struct tu_physical_device *pdevice,
       COND(pdevice->info->a7xx.storage_8bit, 1));
    props->robustStorageBufferDescriptorSize =
       props->storageBufferDescriptorSize;
-   props->inputAttachmentDescriptorSize = TU_DEBUG(DYNAMIC) ?
-      A6XX_TEX_CONST_DWORDS * 4 : 0;
+   props->inputAttachmentDescriptorSize = A6XX_TEX_CONST_DWORDS * 4;
    props->maxSamplerDescriptorBufferRange = ~0ull;
    props->maxResourceDescriptorBufferRange = ~0ull;
    props->samplerDescriptorBufferAddressSpaceSize = ~0ull;
