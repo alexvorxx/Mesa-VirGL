@@ -2162,6 +2162,7 @@ vtn_create_variable(struct vtn_builder *b, struct vtn_value *val,
    var->type = type;
    var->mode = mode;
    var->base_location = -1;
+   var->input_attachment_index = NIR_VARIABLE_NO_INDEX;
 
    val->pointer = vtn_zalloc(b, struct vtn_pointer);
    val->pointer->mode = var->mode;

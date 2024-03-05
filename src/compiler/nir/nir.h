@@ -760,8 +760,11 @@ typedef struct nir_variable {
        */
       unsigned descriptor_set : 5;
 
+#define NIR_VARIABLE_NO_INDEX ~0
+
       /**
-       * output index for dual source blending.
+       * Output index for dual source blending or input attachment index. If
+       * it is not declared it is NIR_VARIABLE_NO_INDEX.
        */
       unsigned index;
 
