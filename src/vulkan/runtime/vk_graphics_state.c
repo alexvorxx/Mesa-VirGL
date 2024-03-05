@@ -1045,6 +1045,24 @@ vk_color_blend_state_init(struct vk_color_blend_state *cb,
    }
 }
 
+/* From the description of VkRenderingInputAttachmentIndexInfoKHR:
+ *
+ *    If pDepthInputAttachmentIndex or pStencilInputAttachmentIndex are set to
+ *    NULL, they map to input attachments without a InputAttachmentIndex
+ *    decoration. If they point to a value of VK_ATTACHMENT_UNUSED, it
+ *    indicates that the corresponding attachment will not be used as an input
+ *    attachment in this pipeline.
+ */
+static uint8_t
+map_ds_input_attachment_index(const uint32_t *ds_attachment_index_ptr)
+{
+   if (!ds_attachment_index_ptr)
+      return MESA_VK_ATTACHMENT_NO_INDEX;
+   uint32_t ds_attachment_index = *ds_attachment_index_ptr;
+   return ds_attachment_index == VK_ATTACHMENT_UNUSED ?
+      MESA_VK_ATTACHMENT_UNUSED : ds_attachment_index;
+}
+
 static void
 vk_input_attachment_location_state_init(struct vk_input_attachment_location_state *ial,
                                         const BITSET_WORD *dynamic,
@@ -1068,10 +1086,11 @@ vk_input_attachment_location_state_init(struct vk_input_attachment_location_stat
          ial->color_map[a] = ial_info->pColorAttachmentInputIndices[a];
       }
    }
-   ial->depth_att = ial_info->pDepthInputAttachmentIndex != NULL ?
-      *ial_info->pDepthInputAttachmentIndex : MESA_VK_ATTACHMENT_UNUSED;
-   ial->stencil_att = ial_info->pStencilInputAttachmentIndex != NULL ?
-      *ial_info->pStencilInputAttachmentIndex : MESA_VK_ATTACHMENT_UNUSED;
+
+   ial->depth_att =
+      map_ds_input_attachment_index(ial_info->pDepthInputAttachmentIndex);
+   ial->stencil_att =
+      map_ds_input_attachment_index(ial_info->pStencilInputAttachmentIndex);
 }
 
 static void
@@ -3165,13 +3184,9 @@ vk_common_CmdSetRenderingInputAttachmentIndicesKHR(
    }
 
    uint8_t depth_att =
-      (pLocationInfo->pDepthInputAttachmentIndex == NULL ||
-       *pLocationInfo->pDepthInputAttachmentIndex == VK_ATTACHMENT_UNUSED) ?
-      MESA_VK_ATTACHMENT_UNUSED : *pLocationInfo->pDepthInputAttachmentIndex;
+      map_ds_input_attachment_index(pLocationInfo->pDepthInputAttachmentIndex);
    uint8_t stencil_att =
-      (pLocationInfo->pStencilInputAttachmentIndex == NULL  ||
-       *pLocationInfo->pStencilInputAttachmentIndex == VK_ATTACHMENT_UNUSED) ?
-      MESA_VK_ATTACHMENT_UNUSED : *pLocationInfo->pStencilInputAttachmentIndex;
+      map_ds_input_attachment_index(pLocationInfo->pStencilInputAttachmentIndex);
    SET_DYN_VALUE(dyn, INPUT_ATTACHMENT_MAP, ial.depth_att, depth_att);
    SET_DYN_VALUE(dyn, INPUT_ATTACHMENT_MAP, ial.stencil_att, stencil_att);
 }

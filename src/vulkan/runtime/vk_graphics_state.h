@@ -115,6 +115,11 @@ enum mesa_vk_dynamic_graphics_state {
 
 #define MESA_VK_ATTACHMENT_UNUSED (0xff)
 
+/* This means that input attachments without an index map to this attachment.
+ * It is only used for depth and stencil attachments.
+ */
+#define MESA_VK_ATTACHMENT_NO_INDEX (0xfe)
+
 /** Populate a bitset with dynamic states
  *
  * This function maps a VkPipelineDynamicStateCreateInfo to a bitset indexed
