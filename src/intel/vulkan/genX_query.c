@@ -226,6 +226,11 @@ VkResult genX(CreateQueryPool)(
                               perf_query_info->pCounterIndices,
                               perf_query_info->counterIndexCount,
                               pool->pass_query);
+   } else if (pool->vk.query_type == VK_QUERY_TYPE_VIDEO_ENCODE_FEEDBACK_KHR) {
+      const VkVideoProfileInfoKHR* pVideoProfile = vk_find_struct_const(pCreateInfo->pNext, VIDEO_PROFILE_INFO_KHR);
+      assert (pVideoProfile);
+
+      pool->codec = pVideoProfile->videoCodecOperation;
    }
 
    uint64_t size = pool->vk.query_count * (uint64_t)pool->stride;
@@ -1465,15 +1470,27 @@ void genX(CmdEndQueryIndexedEXT)(
 
 #if GFX_VER < 11
 #define MFC_BITSTREAM_BYTECOUNT_FRAME_REG       0x128A0
+#define HCP_BITSTREAM_BYTECOUNT_FRAME_REG       0x1E9A0
 #elif GFX_VER >= 11
 #define MFC_BITSTREAM_BYTECOUNT_FRAME_REG       0x1C08A0
+#define HCP_BITSTREAM_BYTECOUNT_FRAME_REG       0x1C28A0
 #endif
 
-   case VK_QUERY_TYPE_VIDEO_ENCODE_FEEDBACK_KHR:
-      mi_store(&b, mi_mem64(anv_address_add(query_addr, 8)), mi_reg32(MFC_BITSTREAM_BYTECOUNT_FRAME_REG));
+   case VK_QUERY_TYPE_VIDEO_ENCODE_FEEDBACK_KHR: {
+      uint32_t reg_addr;
+
+      if (pool->codec & VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR) {
+         reg_addr = MFC_BITSTREAM_BYTECOUNT_FRAME_REG;
+      } else if (pool->codec & VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR) {
+         reg_addr = HCP_BITSTREAM_BYTECOUNT_FRAME_REG;
+      } else {
+         unreachable("Invalid codec operation");
+      }
+
+      mi_store(&b, mi_mem64(anv_address_add(query_addr, 8)), mi_reg32(reg_addr));
       emit_query_mi_availability(&b, query_addr, true);
       break;
-
+   }
    default:
       unreachable("");
    }
