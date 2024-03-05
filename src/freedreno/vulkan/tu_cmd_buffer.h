@@ -571,6 +571,7 @@ struct tu_cmd_buffer
 
    struct tu_render_pass_attachment dynamic_rp_attachments[2 * (MAX_RTS + 1) + 1];
    struct tu_subpass_attachment dynamic_color_attachments[MAX_RTS];
+   struct tu_subpass_attachment dynamic_input_attachments[MAX_RTS + 1];
    struct tu_subpass_attachment dynamic_resolve_attachments[MAX_RTS + 1];
    const struct tu_image_view *dynamic_attachments[2 * (MAX_RTS + 1) + 1];
    VkClearValue dynamic_clear_values[2 * (MAX_RTS + 1)];

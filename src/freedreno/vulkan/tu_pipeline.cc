@@ -1722,6 +1722,47 @@ tu_pipeline_builder_compile_shaders(struct tu_pipeline_builder *builder,
                                   builder->device);
    }
 
+   if ((builder->state &
+        VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT) &&
+       builder->graphics_state.ial &&
+       builder->create_info->renderPass == VK_NULL_HANDLE) {
+      const struct vk_input_attachment_location_state *ial =
+         builder->graphics_state.ial;
+
+      keys[MESA_SHADER_FRAGMENT].dynamic_renderpass = true;
+
+      uint32_t attachments_referenced = 0;
+
+      if (ial->color_attachment_count == MESA_VK_COLOR_ATTACHMENT_COUNT_UNKNOWN) {
+         attachments_referenced |=
+            BITFIELD_MASK(MAX_RTS) << TU_DYN_INPUT_ATT_OFFSET;
+      } else {
+         for (unsigned i = 0; i < ial->color_attachment_count; i++) {
+            if (ial->color_map[i] != MESA_VK_ATTACHMENT_UNUSED) {
+               attachments_referenced |=
+                  (1u << (ial->color_map[i] + TU_DYN_INPUT_ATT_OFFSET));
+               }
+         }
+      }
+
+      if (ial->depth_att != MESA_VK_ATTACHMENT_UNUSED) {
+         if (ial->depth_att == MESA_VK_ATTACHMENT_NO_INDEX)
+            attachments_referenced |= 1;
+         else
+            attachments_referenced |= 1u << (ial->depth_att + 1);
+      }
+
+      if (ial->stencil_att != MESA_VK_ATTACHMENT_UNUSED) {
+         if (ial->stencil_att == MESA_VK_ATTACHMENT_NO_INDEX)
+            attachments_referenced |= 1;
+         else
+            attachments_referenced |= 1u << (ial->stencil_att + 1);
+      }
+
+      keys[MESA_SHADER_FRAGMENT].read_only_input_attachments =
+         ~attachments_referenced;
+   }
+
    if (builder->create_flags &
        VK_PIPELINE_CREATE_2_LINK_TIME_OPTIMIZATION_BIT_EXT) {
       for (unsigned i = 0; i < builder->num_libraries; i++) {
