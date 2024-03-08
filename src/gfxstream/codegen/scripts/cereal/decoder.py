@@ -22,6 +22,10 @@ DELAYED_DECODER_DELETES = [
     "vkDestroyPipelineLayout",
 ]
 
+DELAYED_DECODER_DELETE_DICT_ENTRIES = [
+    "vkDestroyShaderModule",
+]
+
 global_state_prefix = "m_state->on_"
 
 decoder_decl_preamble = """
@@ -282,7 +286,10 @@ def emit_decode_parameters(typeInfo: VulkanTypeInfo, api: VulkanAPI, cgen, globa
         lenAccess = cgen.generalLengthAccess(p)
 
         if p.dispatchHandle:
-            emit_dispatch_unmarshal(typeInfo, p, cgen, globalWrapped)
+            if api.name in DELAYED_DECODER_DELETE_DICT_ENTRIES:
+                emit_dispatch_unmarshal(typeInfo, p, cgen, False)
+            else:
+                emit_dispatch_unmarshal(typeInfo, p, cgen, globalWrapped)
         else:
             destroy = p.nonDispatchableHandleDestroy or p.dispatchableHandleDestroy
             noUnbox = api.name in ["vkQueueFlushCommandsGOOGLE", "vkQueueFlushCommandsFromAuxMemoryGOOGLE"] and p.paramName == "commandBuffer"
@@ -427,6 +434,8 @@ def emit_destroyed_handle_cleanup(api, cgen):
                 if None == lenAccess or "1" == lenAccess:
                     if api.name in DELAYED_DECODER_DELETES:
                         cgen.stmt("delayed_delete_%s(boxed_%s_preserve, unboxed_device, delayed_remove_callback)" % (p.typeName, p.paramName))
+                    elif api.name in DELAYED_DECODER_DELETE_DICT_ENTRIES:
+                        cgen.stmt("delayed_delete_%s(boxed_%s_preserve, unboxed_device, nullptr)" % (p.typeName, p.paramName))
                     else:
                         cgen.stmt("delete_%s(boxed_%s_preserve)" % (p.typeName, p.paramName))
                 else:
