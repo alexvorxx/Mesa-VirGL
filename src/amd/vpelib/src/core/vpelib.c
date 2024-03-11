@@ -392,14 +392,6 @@ enum vpe_status vpe_check_support(
     if (!vpe_priv->stream_ctx)
         status = VPE_STATUS_NO_MEMORY;
 
-    // VPElib needs to cache whether or not the 3DLUT has been updated
-    //  This is to deal with case when 3DLUT has been updated but VPE rejects the job.
-    //  Need a sticky bit to tell vpe to program the 3dlut on next jobs submission even
-    //  if 3dlut has not changed
-    for (i = 0; i < param->num_streams; i++) {
-        vpe_cache_tone_map_params(&vpe_priv->stream_ctx[i], &param->streams[i]);
-    }
-
     if (status == VPE_STATUS_OK) {  
         // output checking - check per asic support
         status = vpe_check_output_support(vpe, param);

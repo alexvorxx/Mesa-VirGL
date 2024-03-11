@@ -556,7 +556,6 @@ struct vpe_tonemap_params {
     uint16_t                   lut_dim;
     uint16_t                  *lut_data;
 
-    bool update_3dlut;
     bool enable_3dlut;
 };
 
