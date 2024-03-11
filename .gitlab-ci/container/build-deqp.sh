@@ -122,7 +122,7 @@ done
 {
   echo "dEQP base version $DEQP_VERSION"
   echo "The following local patches are applied on top:"
-  git log --reverse --oneline $DEQP_VERSION.. --format=%s | sed 's/^/- /'
+  git log --reverse --oneline $DEQP_VERSION.. --format='- %s'
 } > /deqp/version-$deqp_api
 
 # --insecure is due to SSL cert failures hitting sourceforge for zlib and
