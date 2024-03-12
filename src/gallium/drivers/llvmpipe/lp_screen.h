@@ -85,6 +85,9 @@ struct llvmpipe_screen
    uint64_t mem_file_size;
    struct util_vma_heap mem_heap;
 #endif
+
+   struct llvmpipe_memory_allocation *dummy_dmabuf;
+   int dummy_sync_fd;
 };
 
 

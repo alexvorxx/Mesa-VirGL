@@ -134,6 +134,8 @@ llvmpipe_get_param(struct pipe_screen *screen, enum pipe_cap param)
          return DRM_PRIME_CAP_IMPORT | DRM_PRIME_CAP_EXPORT;
       else
          return DRM_PRIME_CAP_IMPORT;
+   case PIPE_CAP_NATIVE_FENCE_FD:
+      return lscreen->dummy_sync_fd != -1;
 #endif
    case PIPE_CAP_NPOT_TEXTURES:
    case PIPE_CAP_MIXED_FRAMEBUFFER_SIZES:
@@ -1175,6 +1177,7 @@ llvmpipe_create_screen(struct sw_winsys *winsys)
 
 #ifdef HAVE_LINUX_UDMABUF_H
    screen->udmabuf_fd = open("/dev/udmabuf", O_RDWR);
+   llvmpipe_init_screen_fence_funcs(&screen->base);
 #endif
 
    uint64_t alignment;
