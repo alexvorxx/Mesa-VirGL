@@ -496,7 +496,7 @@ using DlSymFunc = void* (void*, const char*);
 
         decoderHeaderIncludes = f"""
 #include "VkDecoderContext.h"
-#include "host/ProcessResources.h"
+#include "ProcessResources.h"
 
 #include <memory>
 
@@ -519,7 +519,7 @@ class BumpPool;
 #include "{self.baseLibDirPrefix}/Tracing.h"
 #include "{self.baseLibDirPrefix}/Metrics.h"
 #include "render-utils/IOStream.h"
-#include "host/FrameBuffer.h"
+#include "FrameBuffer.h"
 #include "host-common/feature_control.h"
 #include "host-common/GfxstreamFatalError.h"
 #include "host-common/logging.h"
