@@ -27,9 +27,9 @@ lib_vulkan_gfxstream = shared_library(
 )
 
 gfxstream_icd = custom_target(
-  'gfxstream_icd',
+  'gfxstream_vk_icd',
   input : [vk_icd_gen, vk_api_xml],
-  output : 'gfxstream_icd.@0@.json'.format(host_machine.cpu()),
+  output : 'gfxstream_vk_icd.@0@.json'.format(host_machine.cpu()),
   command : [
     prog_python, '@INPUT0@',
     '--api-version', '1.1', '--xml', '@INPUT1@',
@@ -41,3 +41,19 @@ gfxstream_icd = custom_target(
   install_dir : with_vulkan_icd_dir,
   install : true,
 )
+
+_dev_icdname = 'gfxstream_vk_devenv_icd.@0@.json'.format(host_machine.cpu())
+_dev_icd = custom_target(
+  'gfxstream_vk_devenv_icd',
+  input : [vk_icd_gen, vk_api_xml],
+  output : _dev_icdname,
+  command : [
+    prog_python, '@INPUT0@',
+    '--api-version', '1.3', '--xml', '@INPUT1@',
+    '--lib-path', meson.current_build_dir() / 'libvulkan_gfxstream.so',
+    '--out', '@OUTPUT@',
+  ],
+  build_by_default : true,
+)
+
+devenv.append('VK_ICD_FILENAMES', _dev_icd.full_path())
