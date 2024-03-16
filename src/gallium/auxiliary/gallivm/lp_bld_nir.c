@@ -2810,20 +2810,37 @@ visit_block(struct lp_build_nir_context *bld_base, nir_block *block)
    }
 }
 
+static bool
+lp_should_flatten_cf_list(struct exec_list *cf_list)
+{
+   if (exec_list_is_empty(cf_list))
+      return true;
+   if (!exec_list_is_singular(cf_list))
+      return false;
+
+   struct exec_node *head = exec_list_get_head(cf_list);
+   nir_block *block = nir_cf_node_as_block(exec_node_data(nir_cf_node, head, node));
+   return exec_list_length(&block->instr_list) < 8;
+}
 
 static void
 visit_if(struct lp_build_nir_context *bld_base, nir_if *if_stmt)
 {
    LLVMValueRef cond = get_src(bld_base, if_stmt->condition);
 
-   bld_base->if_cond(bld_base, cond);
+   bool flatten_then = lp_should_flatten_cf_list(&if_stmt->then_list);
+
+   bld_base->if_cond(bld_base, cond, flatten_then);
    visit_cf_list(bld_base, &if_stmt->then_list);
 
    if (!exec_list_is_empty(&if_stmt->else_list)) {
-      bld_base->else_stmt(bld_base);
+      bool flatten_else = lp_should_flatten_cf_list(&if_stmt->else_list);
+      bld_base->else_stmt(bld_base, flatten_then, flatten_else);
       visit_cf_list(bld_base, &if_stmt->else_list);
+      bld_base->endif_stmt(bld_base, flatten_else);
+   } else {
+      bld_base->endif_stmt(bld_base, flatten_then);
    }
-   bld_base->endif_stmt(bld_base);
 }
 
 

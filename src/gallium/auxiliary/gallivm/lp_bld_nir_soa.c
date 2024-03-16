@@ -2026,21 +2026,62 @@ static void endloop(struct lp_build_nir_context *bld_base)
    lp_exec_endloop(bld_base->base.gallivm, &bld->exec_mask, bld->mask);
 }
 
-static void if_cond(struct lp_build_nir_context *bld_base, LLVMValueRef cond)
+static void lp_build_skip_branch(struct lp_build_nir_context *bld_base, bool flatten)
 {
-   LLVMBuilderRef builder = bld_base->base.gallivm->builder;
+   if (flatten)
+      return;
+
+   struct gallivm_state *gallivm = bld_base->base.gallivm;
+   LLVMBuilderRef builder = gallivm->builder;
+
+   LLVMValueRef exec_mask = mask_vec(bld_base);
+
+   LLVMValueRef bitmask = LLVMBuildICmp(builder, LLVMIntNE, exec_mask, bld_base->uint_bld.zero, "");
+   bitmask = LLVMBuildBitCast(builder, bitmask, LLVMIntTypeInContext(gallivm->context, bld_base->uint_bld.type.length), "");
+   bitmask = LLVMBuildZExt(builder, bitmask, bld_base->int_bld.elem_type, "");
+
+   LLVMValueRef any_active = LLVMBuildICmp(builder, LLVMIntNE, bitmask, lp_build_const_int32(gallivm, 0), "any_active");
+
+   assert(bld_base->if_stack_size < LP_MAX_TGSI_NESTING);
+   lp_build_if(&bld_base->if_stack[bld_base->if_stack_size], gallivm, any_active);
+   bld_base->if_stack_size++;
+}
+
+static void lp_build_skip_branch_end(struct lp_build_nir_context *bld_base, bool flatten)
+{
+   if (flatten)
+      return;
+
+   assert(bld_base->if_stack_size);
+   bld_base->if_stack_size--;
+   lp_build_endif(&bld_base->if_stack[bld_base->if_stack_size]);
+}
+
+static void if_cond(struct lp_build_nir_context *bld_base, LLVMValueRef cond, bool flatten)
+{
+   struct gallivm_state *gallivm = bld_base->base.gallivm;
+
+   LLVMBuilderRef builder = gallivm->builder;
    struct lp_build_nir_soa_context *bld = (struct lp_build_nir_soa_context *)bld_base;
    lp_exec_mask_cond_push(&bld->exec_mask, LLVMBuildBitCast(builder, cond, bld_base->base.int_vec_type, ""));
+
+   lp_build_skip_branch(bld_base, flatten);
 }
 
-static void else_stmt(struct lp_build_nir_context *bld_base)
+static void else_stmt(struct lp_build_nir_context *bld_base, bool flatten_then, bool flatten_else)
 {
+   lp_build_skip_branch_end(bld_base, flatten_then);
+
    struct lp_build_nir_soa_context *bld = (struct lp_build_nir_soa_context *)bld_base;
    lp_exec_mask_cond_invert(&bld->exec_mask);
+
+   lp_build_skip_branch(bld_base, flatten_else);
 }
 
-static void endif_stmt(struct lp_build_nir_context *bld_base)
+static void endif_stmt(struct lp_build_nir_context *bld_base, bool flatten)
 {
+   lp_build_skip_branch_end(bld_base, flatten);
+
    struct lp_build_nir_soa_context *bld = (struct lp_build_nir_soa_context *)bld_base;
    lp_exec_mask_cond_pop(&bld->exec_mask);
 }
