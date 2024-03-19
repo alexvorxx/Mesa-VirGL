@@ -176,6 +176,13 @@ void MinigbmGralloc::acquire(AHardwareBuffer* ahb) { AHardwareBuffer_acquire(ahb
 
 void MinigbmGralloc::release(AHardwareBuffer* ahb) { AHardwareBuffer_release(ahb); }
 
+int MinigbmGralloc::lock(AHardwareBuffer* ahb, uint8_t** ptr) {
+    return AHardwareBuffer_lock(ahb, AHARDWAREBUFFER_USAGE_CPU_READ_RARELY, -1, nullptr,
+                                reinterpret_cast<void**>(ptr));
+}
+
+int MinigbmGralloc::unlock(AHardwareBuffer* ahb) { return AHardwareBuffer_unlock(ahb, nullptr); }
+
 uint32_t MinigbmGralloc::getHostHandle(const native_handle_t* handle) {
     struct drm_virtgpu_resource_info info;
     if (!getVirtioGpuResourceInfo(m_fd, handle, &info)) {

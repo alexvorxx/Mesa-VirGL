@@ -109,14 +109,14 @@ int LinuxVirtGpuBlob::wait() {
     return 0;
 }
 
-int LinuxVirtGpuBlob::transferToHost(uint32_t offset, uint32_t size) {
+int LinuxVirtGpuBlob::transferToHost(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
     int ret;
     struct drm_virtgpu_3d_transfer_to_host xfer = {0};
 
-    xfer.box.x = offset;
-    xfer.box.y = 0;
-    xfer.box.w = size;
-    xfer.box.h = 1;
+    xfer.box.x = x;
+    xfer.box.y = y;
+    xfer.box.w = w;
+    xfer.box.h = h;
     xfer.box.d = 1;
     xfer.bo_handle = mBlobHandle;
 
@@ -129,14 +129,14 @@ int LinuxVirtGpuBlob::transferToHost(uint32_t offset, uint32_t size) {
     return 0;
 }
 
-int LinuxVirtGpuBlob::transferFromHost(uint32_t offset, uint32_t size) {
+int LinuxVirtGpuBlob::transferFromHost(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
     int ret;
     struct drm_virtgpu_3d_transfer_from_host xfer = {0};
 
-    xfer.box.x = offset;
-    xfer.box.y = 0;
-    xfer.box.w = size;
-    xfer.box.h = 1;
+    xfer.box.x = x;
+    xfer.box.y = y;
+    xfer.box.w = w;
+    xfer.box.h = h;
     xfer.box.d = 1;
     xfer.bo_handle = mBlobHandle;
 

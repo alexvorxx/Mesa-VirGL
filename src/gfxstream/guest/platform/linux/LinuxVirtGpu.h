@@ -31,8 +31,8 @@ class LinuxVirtGpuBlob : public std::enable_shared_from_this<LinuxVirtGpuBlob>, 
     VirtGpuBlobMappingPtr createMapping(void) override;
     int exportBlob(struct VirtGpuExternalHandle& handle) override;
 
-    int transferFromHost(uint32_t offset, uint32_t size) override;
-    int transferToHost(uint32_t offset, uint32_t size) override;
+    int transferFromHost(uint32_t x, uint32_t y, uint32_t w, uint32_t h) override;
+    int transferToHost(uint32_t x, uint32_t y, uint32_t w, uint32_t h) override;
 
    private:
     // Not owned.  Really should use a ScopedFD for this, but doesn't matter since we have a

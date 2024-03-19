@@ -41,7 +41,7 @@ std::optional<uint32_t> GlFormatToDrmFormat(uint32_t glFormat) {
 std::optional<uint32_t> DrmToVirglFormat(uint32_t drmFormat) {
     switch (drmFormat) {
         case DRM_FORMAT_ABGR8888:
-            return VIRGL_FORMAT_B8G8R8A8_UNORM;
+            return VIRGL_FORMAT_R8G8B8A8_UNORM;
         case DRM_FORMAT_BGR888:
             return VIRGL_FORMAT_R8G8B8_UNORM;
         case DRM_FORMAT_BGR565:
@@ -89,6 +89,33 @@ void EmulatedAHardwareBuffer::release() {
     if (mRefCount == 0) {
         delete this;
     }
+}
+
+int EmulatedAHardwareBuffer::lock(uint8_t** ptr) {
+    if (!mMapped) {
+        mMapped = mResource->createMapping();
+        if (!mMapped) {
+            ALOGE("Failed to lock EmulatedAHardwareBuffer: failed to create mapping.");
+            return -1;
+        }
+
+        mResource->transferFromHost(0, 0, mWidth, mHeight);
+        mResource->wait();
+    }
+
+    *ptr = (*mMapped)->asRawPtr();
+    return 0;
+}
+
+int EmulatedAHardwareBuffer::unlock() {
+    if (!mMapped) {
+        ALOGE("Failed to unlock EmulatedAHardwareBuffer: never locked?");
+        return -1;
+    }
+    mResource->transferToHost(0, 0, mWidth, mHeight);
+    mResource->wait();
+    mMapped.reset();
+    return 0;
 }
 
 EmulatedGralloc::EmulatedGralloc() {}
@@ -150,6 +177,16 @@ void EmulatedGralloc::acquire(AHardwareBuffer* ahb) {
 void EmulatedGralloc::release(AHardwareBuffer* ahb) {
     auto* rahb = reinterpret_cast<EmulatedAHardwareBuffer*>(ahb);
     rahb->release();
+}
+
+int EmulatedGralloc::lock(AHardwareBuffer* ahb, uint8_t** ptr) {
+    auto* rahb = reinterpret_cast<EmulatedAHardwareBuffer*>(ahb);
+    return rahb->lock(ptr);
+}
+
+int EmulatedGralloc::unlock(AHardwareBuffer* ahb) {
+    auto* rahb = reinterpret_cast<EmulatedAHardwareBuffer*>(ahb);
+    return rahb->unlock();
 }
 
 uint32_t EmulatedGralloc::getHostHandle(const native_handle_t* handle) {

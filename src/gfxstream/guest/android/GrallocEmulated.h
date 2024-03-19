@@ -14,10 +14,11 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
-#include "gfxstream/guest/Gralloc.h"
 #include "VirtGpu.h"
+#include "gfxstream/guest/Gralloc.h"
 
 namespace gfxstream {
 
@@ -48,11 +49,15 @@ class EmulatedAHardwareBuffer {
     void acquire();
     void release();
 
+    int lock(uint8_t** ptr);
+    int unlock();
+
    private:
     uint32_t mRefCount;
     uint32_t mWidth;
     uint32_t mHeight;
     VirtGpuBlobPtr mResource;
+    std::optional<VirtGpuBlobMappingPtr> mMapped;
 };
 
 class EmulatedGralloc : public Gralloc {
@@ -68,6 +73,9 @@ class EmulatedGralloc : public Gralloc {
 
     void acquire(AHardwareBuffer* ahb) override;
     void release(AHardwareBuffer* ahb) override;
+
+    int lock(AHardwareBuffer* ahb, uint8_t** ptr) override;
+    int unlock(AHardwareBuffer* ahb) override;
 
     uint32_t getHostHandle(const native_handle_t* handle) override;
     uint32_t getHostHandle(const AHardwareBuffer* handle) override;
