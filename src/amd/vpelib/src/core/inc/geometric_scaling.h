@@ -27,6 +27,10 @@
 #include <string.h>
 #include "vpelib.h"
 #include "vpe_priv.h"
+#include "vpe_types.h"
 #include "common.h"
 
+
+// In order to support geometric down scaling, we will skip gamut and gamma conversion in this
+// function.
 void geometric_scaling_feature_skip(struct vpe_priv *vpe_priv, const struct vpe_build_param *param);

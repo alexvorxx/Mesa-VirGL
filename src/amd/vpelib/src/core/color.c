@@ -920,6 +920,13 @@ void vpe_color_get_color_space_and_tf(
             *cs = colorRange == VPE_COLOR_RANGE_FULL ? COLOR_SPACE_2020_RGB_FULLRANGE
                                                      : COLOR_SPACE_2020_RGB_LIMITEDRANGE;
             break;
+        /* VPE doesn't support JFIF format of RGB output, but geometric down scaling will change cs
+         * parameters to JFIF. Therefore, we need to add JFIF format in RGB output to avoid output
+         * color check fail.
+         */
+        case VPE_PRIMARIES_JFIF:
+            *cs = colorRange == VPE_COLOR_RANGE_FULL ? COLOR_SPACE_JFIF : COLOR_SPACE_UNKNOWN;
+            break;
         default:
             break;
         }

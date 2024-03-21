@@ -615,6 +615,7 @@ enum vpe_status vpe_build_commands(
              */
             bufs->cmd_buf.size = vpe_priv->bufs_required.cmd_buf_size;
             bufs->emb_buf.size = vpe_priv->bufs_required.emb_buf_size;
+
             return VPE_STATUS_OK;
         } else if ((bufs->cmd_buf.size < vpe_priv->bufs_required.cmd_buf_size) ||
                    (bufs->emb_buf.size < vpe_priv->bufs_required.emb_buf_size)) {
