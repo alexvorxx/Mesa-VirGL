@@ -377,8 +377,9 @@ anv_block_pool_init(struct anv_block_pool *pool,
    pool->bo_alloc_flags =
       ANV_BO_ALLOC_FIXED_ADDRESS |
       ANV_BO_ALLOC_MAPPED |
-      ANV_BO_ALLOC_SNOOPED |
-      ANV_BO_ALLOC_CAPTURE;
+      ANV_BO_ALLOC_HOST_CACHED_COHERENT |
+      ANV_BO_ALLOC_CAPTURE |
+      ANV_BO_ALLOC_INTERNAL;
 
    result = anv_block_pool_expand_range(pool, initial_size);
    if (result != VK_SUCCESS)
@@ -994,6 +995,7 @@ anv_state_stream_init(struct anv_state_stream *stream,
     */
    stream->next = block_size;
 
+   stream->total_size = 0;
    util_dynarray_init(&stream->all_blocks, NULL);
 
    VG(VALGRIND_CREATE_MEMPOOL(stream, 0, false));
@@ -1036,6 +1038,7 @@ anv_state_stream_alloc(struct anv_state_stream *stream,
       /* Reset back to the start */
       stream->next = offset = 0;
       assert(offset + size <= stream->block.alloc_size);
+      stream->total_size += block_size;
    }
    const bool new_block = stream->next == 0;
 
@@ -1262,7 +1265,8 @@ anv_scratch_pool_alloc(struct anv_device *device, struct anv_scratch_pool *pool,
     * so nothing will ever touch the top page.
     */
    const enum anv_bo_alloc_flags alloc_flags =
-      devinfo->verx10 < 125 ? ANV_BO_ALLOC_32BIT_ADDRESS : 0;
+      ANV_BO_ALLOC_INTERNAL |
+      (devinfo->verx10 < 125 ? ANV_BO_ALLOC_32BIT_ADDRESS : 0);
    VkResult result = anv_device_alloc_bo(device, "scratch", size,
                                          alloc_flags,
                                          0 /* explicit_address */,
@@ -1351,7 +1355,7 @@ static void
 anv_bo_unmap_close(struct anv_device *device, struct anv_bo *bo)
 {
    if (bo->map && !bo->from_host_ptr)
-      anv_device_unmap_bo(device, bo, bo->map, bo->size);
+      anv_device_unmap_bo(device, bo, bo->map, bo->size, false /* replace */);
 
    assert(bo->gem_handle != 0);
    device->kmd_backend->gem_close(device, bo);
@@ -1371,7 +1375,7 @@ static void
 anv_bo_finish(struct anv_device *device, struct anv_bo *bo)
 {
    /* Not releasing vma in case unbind fails */
-   if (device->kmd_backend->vm_unbind_bo(device, bo) == 0)
+   if (device->kmd_backend->vm_unbind_bo(device, bo) == VK_SUCCESS)
       anv_bo_vma_free(device, bo);
 
    anv_bo_unmap_close(device, bo);
@@ -1395,7 +1399,7 @@ anv_bo_vma_alloc_or_close(struct anv_device *device,
    /* If we're using the AUX map, make sure we follow the required
     * alignment.
     */
-   if (device->info->has_aux_map && (alloc_flags & ANV_BO_ALLOC_DEDICATED))
+   if (alloc_flags & ANV_BO_ALLOC_AUX_TT_ALIGNED)
       align = MAX2(intel_aux_map_get_alignment(device->aux_map_ctx), align);
 
    /* Opportunistically align addresses to 2Mb when above 1Mb. We do this
@@ -1431,7 +1435,8 @@ anv_bo_get_mmap_mode(struct anv_device *device, struct anv_bo *bo)
       return anv_device_get_pat_entry(device, alloc_flags)->mmap;
 
    if (anv_physical_device_has_vram(device->physical)) {
-      if (alloc_flags & ANV_BO_ALLOC_NO_LOCAL_MEM)
+      if ((alloc_flags & ANV_BO_ALLOC_NO_LOCAL_MEM) ||
+          (alloc_flags & ANV_BO_ALLOC_IMPORTED))
          return INTEL_DEVICE_INFO_MMAP_MODE_WB;
 
       return INTEL_DEVICE_INFO_MMAP_MODE_WC;
@@ -1439,11 +1444,11 @@ anv_bo_get_mmap_mode(struct anv_device *device, struct anv_bo *bo)
 
    /* gfx9 atom */
    if (!device->info->has_llc) {
-      /* ANV_BO_ALLOC_SNOOPED means that user wants a cached and coherent memory
-       * but to achieve it without LLC in older platforms
-       * DRM_IOCTL_I915_GEM_SET_CACHING needs to be supported and set.
+      /* user wants a cached and coherent memory but to achieve it without
+       * LLC in older platforms DRM_IOCTL_I915_GEM_SET_CACHING needs to be
+       * supported and set.
        */
-      if (alloc_flags & ANV_BO_ALLOC_SNOOPED)
+      if (alloc_flags & ANV_BO_ALLOC_HOST_CACHED)
          return INTEL_DEVICE_INFO_MMAP_MODE_WB;
 
       return INTEL_DEVICE_INFO_MMAP_MODE_WC;
@@ -1463,11 +1468,35 @@ anv_device_alloc_bo(struct anv_device *device,
                     uint64_t explicit_address,
                     struct anv_bo **bo_out)
 {
+   /* bo that needs CPU access needs to be HOST_CACHED, HOST_COHERENT or both */
+   assert((alloc_flags & ANV_BO_ALLOC_MAPPED) == 0 ||
+          (alloc_flags & (ANV_BO_ALLOC_HOST_CACHED | ANV_BO_ALLOC_HOST_COHERENT)));
+
+   /* KMD requires a valid PAT index, so setting HOST_COHERENT/WC to bos that
+    * don't need CPU access
+    */
+   if ((alloc_flags & ANV_BO_ALLOC_MAPPED) == 0)
+      alloc_flags |= ANV_BO_ALLOC_HOST_COHERENT;
+
+   /* In platforms with LLC we can promote all bos to cached+coherent for free */
+   const enum anv_bo_alloc_flags not_allowed_promotion = ANV_BO_ALLOC_SCANOUT |
+                                                         ANV_BO_ALLOC_EXTERNAL |
+                                                         ANV_BO_ALLOC_PROTECTED;
+   if (device->info->has_llc && ((alloc_flags & not_allowed_promotion) == 0))
+      alloc_flags |= ANV_BO_ALLOC_HOST_COHERENT;
+
    const uint32_t bo_flags =
          device->kmd_backend->bo_alloc_flags_to_bo_flags(device, alloc_flags);
 
    /* The kernel is going to give us whole pages anyway. */
    size = align64(size, 4096);
+
+   const uint64_t ccs_offset = size;
+   if (alloc_flags & ANV_BO_ALLOC_AUX_CCS) {
+      assert(device->info->has_aux_map);
+      size += DIV_ROUND_UP(size, intel_aux_get_main_to_aux_ratio(device->aux_map_ctx));
+      size = align64(size, 4096);
+   }
 
    const struct intel_memory_class_instance *regions[2];
    uint32_t nregions = 0;
@@ -1510,15 +1539,15 @@ anv_device_alloc_bo(struct anv_device *device,
       .refcount = 1,
       .offset = -1,
       .size = size,
+      .ccs_offset = ccs_offset,
       .actual_size = actual_size,
       .flags = bo_flags,
       .alloc_flags = alloc_flags,
-      .vram_only = nregions == 1 &&
-                   regions[0] == device->physical->vram_non_mappable.region,
    };
 
    if (alloc_flags & ANV_BO_ALLOC_MAPPED) {
-      VkResult result = anv_device_map_bo(device, &new_bo, 0, size, &new_bo.map);
+      VkResult result = anv_device_map_bo(device, &new_bo, 0, size,
+                                          NULL, &new_bo.map);
       if (unlikely(result != VK_SUCCESS)) {
          device->kmd_backend->gem_close(device, &new_bo);
          return result;
@@ -1531,10 +1560,11 @@ anv_device_alloc_bo(struct anv_device *device,
    if (result != VK_SUCCESS)
       return result;
 
-   if (device->kmd_backend->vm_bind_bo(device, &new_bo)) {
+   result = device->kmd_backend->vm_bind_bo(device, &new_bo);
+   if (result != VK_SUCCESS) {
       anv_bo_vma_free(device, &new_bo);
       anv_bo_unmap_close(device, &new_bo);
-      return vk_errorf(device, VK_ERROR_UNKNOWN, "vm bind failed");
+      return result;
    }
 
    assert(new_bo.gem_handle);
@@ -1547,6 +1577,8 @@ anv_device_alloc_bo(struct anv_device *device,
 
    *bo_out = bo;
 
+   ANV_RMV(bo_allocate, device, bo);
+
    return VK_SUCCESS;
 }
 
@@ -1555,16 +1587,20 @@ anv_device_map_bo(struct anv_device *device,
                   struct anv_bo *bo,
                   uint64_t offset,
                   size_t size,
+                  void *placed_addr,
                   void **map_out)
 {
    assert(!bo->from_host_ptr);
    assert(size > 0);
 
-   void *map = anv_gem_mmap(device, bo, offset, size);
+   void *map = device->kmd_backend->gem_mmap(device, bo, offset, size, placed_addr);
    if (unlikely(map == MAP_FAILED))
       return vk_errorf(device, VK_ERROR_MEMORY_MAP_FAILED, "mmap failed: %m");
 
+   assert(placed_addr == NULL || map == placed_addr);
+
    assert(map != NULL);
+   VG(VALGRIND_MALLOCLIKE_BLOCK(map, size, 0, 1));
 
    if (map_out)
       *map_out = map;
@@ -1572,14 +1608,26 @@ anv_device_map_bo(struct anv_device *device,
    return VK_SUCCESS;
 }
 
-void
+VkResult
 anv_device_unmap_bo(struct anv_device *device,
                     struct anv_bo *bo,
-                    void *map, size_t map_size)
+                    void *map, size_t map_size,
+                    bool replace)
 {
    assert(!bo->from_host_ptr);
 
-   anv_gem_munmap(device, map, map_size);
+   if (replace) {
+      map = mmap(map, map_size, PROT_NONE,
+                 MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+      if (map == MAP_FAILED) {
+         return vk_errorf(device, VK_ERROR_MEMORY_MAP_FAILED,
+                          "Failed to map over original mapping");
+      }
+   } else {
+      VG(VALGRIND_FREELIKE_BLOCK(map, 0));
+      munmap(map, map_size);
+   }
+   return VK_SUCCESS;
 }
 
 VkResult
@@ -1590,8 +1638,10 @@ anv_device_import_bo_from_host_ptr(struct anv_device *device,
                                    struct anv_bo **bo_out)
 {
    assert(!(alloc_flags & (ANV_BO_ALLOC_MAPPED |
-                           ANV_BO_ALLOC_SNOOPED |
-                           ANV_BO_ALLOC_DEDICATED |
+                           ANV_BO_ALLOC_HOST_CACHED |
+                           ANV_BO_ALLOC_HOST_COHERENT |
+                           ANV_BO_ALLOC_AUX_CCS |
+                           ANV_BO_ALLOC_PROTECTED |
                            ANV_BO_ALLOC_FIXED_ADDRESS)));
    assert(alloc_flags & ANV_BO_ALLOC_EXTERNAL);
 
@@ -1646,8 +1696,7 @@ anv_device_import_bo_from_host_ptr(struct anv_device *device,
 
       __sync_fetch_and_add(&bo->refcount, 1);
    } else {
-      /* Makes sure that userptr gets WB mmap caching and right VM PAT index */
-      alloc_flags |= (ANV_BO_ALLOC_SNOOPED | ANV_BO_ALLOC_NO_LOCAL_MEM);
+      alloc_flags |= ANV_BO_ALLOC_IMPORTED;
       struct anv_bo new_bo = {
          .name = "host-ptr",
          .gem_handle = gem_handle,
@@ -1669,14 +1718,16 @@ anv_device_import_bo_from_host_ptr(struct anv_device *device,
          return result;
       }
 
-      if (device->kmd_backend->vm_bind_bo(device, &new_bo)) {
-         VkResult res = vk_errorf(device, VK_ERROR_UNKNOWN, "vm bind failed: %m");
+      result = device->kmd_backend->vm_bind_bo(device, &new_bo);
+      if (result != VK_SUCCESS) {
          anv_bo_vma_free(device, &new_bo);
          pthread_mutex_unlock(&cache->mutex);
-         return res;
+         return result;
       }
 
       *bo = new_bo;
+
+      ANV_RMV(bo_allocate, device, bo);
    }
 
    pthread_mutex_unlock(&cache->mutex);
@@ -1693,7 +1744,8 @@ anv_device_import_bo(struct anv_device *device,
                      struct anv_bo **bo_out)
 {
    assert(!(alloc_flags & (ANV_BO_ALLOC_MAPPED |
-                           ANV_BO_ALLOC_SNOOPED |
+                           ANV_BO_ALLOC_HOST_CACHED |
+                           ANV_BO_ALLOC_HOST_COHERENT |
                            ANV_BO_ALLOC_FIXED_ADDRESS)));
    assert(alloc_flags & ANV_BO_ALLOC_EXTERNAL);
 
@@ -1736,8 +1788,7 @@ anv_device_import_bo(struct anv_device *device,
 
       __sync_fetch_and_add(&bo->refcount, 1);
    } else {
-      /* so imported bos get WB and correct PAT index */
-      alloc_flags |= (ANV_BO_ALLOC_SNOOPED | ANV_BO_ALLOC_NO_LOCAL_MEM);
+      alloc_flags |= ANV_BO_ALLOC_IMPORTED;
       struct anv_bo new_bo = {
          .name = "imported",
          .gem_handle = gem_handle,
@@ -1763,13 +1814,16 @@ anv_device_import_bo(struct anv_device *device,
          return result;
       }
 
-      if (device->kmd_backend->vm_bind_bo(device, &new_bo)) {
+      result = device->kmd_backend->vm_bind_bo(device, &new_bo);
+      if (result != VK_SUCCESS) {
          anv_bo_vma_free(device, &new_bo);
          pthread_mutex_unlock(&cache->mutex);
-         return vk_errorf(device, VK_ERROR_UNKNOWN, "vm bind failed");
+         return result;
       }
 
       *bo = new_bo;
+
+      ANV_RMV(bo_allocate, device, bo);
    }
 
    bo->flags = bo_flags;
@@ -1868,6 +1922,8 @@ anv_device_release_bo(struct anv_device *device,
    if (atomic_dec_not_one(&bo->refcount))
       return;
 
+   ANV_RMV(bo_destroy, device, bo);
+
    pthread_mutex_lock(&cache->mutex);
 
    /* We are probably the last reference since our attempt to decrement above
@@ -1881,12 +1937,6 @@ anv_device_release_bo(struct anv_device *device,
       return;
    }
    assert(bo->refcount == 0);
-
-   /* Unmap the entire BO. In the case that some addresses lacked an aux-map
-    * entry, the unmapping function will add table entries for them.
-    */
-   if (anv_bo_allows_aux_map(device, bo))
-      intel_aux_map_unmap_range(device->aux_map_ctx, bo->offset, bo->size);
 
    /* Memset the BO just in case.  The refcount being zero should be enough to
     * prevent someone from assuming the data is valid but it's safer to just

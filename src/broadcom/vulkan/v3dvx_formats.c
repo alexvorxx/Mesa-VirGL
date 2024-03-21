@@ -26,9 +26,9 @@
 #include "broadcom/cle/v3dx_pack.h"
 
 #include "util/format/u_format.h"
-#include "vulkan/util/vk_util.h"
 #include "vk_enum_to_str.h"
 #include "vk_enum_defines.h"
+#include "vk_util.h"
 
 #define SWIZ(x,y,z,w) {   \
    PIPE_SWIZZLE_##x,      \
@@ -238,8 +238,8 @@ static const struct v3dv_format format_table[] = {
  * ARGB4: YZWX (reverse + swap R/B)
  */
 static const struct v3dv_format format_table_4444[] = {
-   FORMAT(A4B4G4R4_UNORM_PACK16_EXT, ABGR4444, RGBA4, SWIZ_WZYX, 16, true), /* Reverse */
-   FORMAT(A4R4G4B4_UNORM_PACK16_EXT, ABGR4444, RGBA4, SWIZ_YZWX, 16, true), /* Reverse + RB swap */
+   FORMAT(A4B4G4R4_UNORM_PACK16, ABGR4444, RGBA4, SWIZ_WZYX, 16, true), /* Reverse */
+   FORMAT(A4R4G4B4_UNORM_PACK16, ABGR4444, RGBA4, SWIZ_YZWX, 16, true), /* Reverse + RB swap */
 };
 
 static const struct v3dv_format format_table_ycbcr[] = {

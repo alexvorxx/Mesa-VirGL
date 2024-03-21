@@ -24,7 +24,7 @@
  */
 
 #include <xf86drm.h>
-#include <nouveau_drm.h>
+#include "drm-uapi/nouveau_drm.h"
 #include "util/format/u_format.h"
 #include "util/format/u_format_s3tc.h"
 #include "util/u_screen.h"
@@ -477,7 +477,6 @@ static const nir_shader_compiler_options nv30_base_compiler_options = {
    .lower_flrp64 = true,
    .lower_fmod = true,
    .lower_fpow = true, /* In hardware as of nv40 FS */
-   .lower_rotate = true,
    .lower_uniforms_to_ubo = true,
    .lower_vector_cmp = true,
    .force_indirect_unrolling = nir_var_all,
@@ -720,7 +719,7 @@ nv30_screen_create(struct nouveau_device *dev)
       nouveau_heap_init(&screen->vp_data_heap, 6, 468 - 6);
    }
 
-   ret = nouveau_bo_wrap(screen->base.device, fifo->notify, &screen->notify);
+   ret = nouveau_bo_wrap(screen->base.device, fifo->base.notify, &screen->notify);
    if (ret == 0)
       ret = BO_MAP(&screen->base, screen->notify, 0, screen->base.client);
    if (ret)

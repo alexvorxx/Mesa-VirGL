@@ -53,26 +53,29 @@ static bool
 upload_blorp_shader(struct blorp_batch *batch, uint32_t stage,
                     const void *key, uint32_t key_size,
                     const void *kernel, uint32_t kernel_size,
-                    const struct brw_stage_prog_data *prog_data,
+                    const void *prog_data,
                     uint32_t prog_data_size,
                     uint32_t *kernel_out, void *prog_data_out)
 {
    struct blorp_context *blorp = batch->blorp;
    struct anv_device *device = blorp->driver_ctx;
 
-   struct anv_pipeline_bind_map bind_map = {
-      .surface_count = 0,
-      .sampler_count = 0,
+   struct anv_pipeline_bind_map empty_bind_map = {};
+   struct anv_push_descriptor_info empty_push_desc_info = {};
+   struct anv_shader_upload_params upload_params = {
+      .stage               = stage,
+      .key_data            = key,
+      .key_size            = key_size,
+      .kernel_data         = kernel,
+      .kernel_size         = kernel_size,
+      .prog_data           = prog_data,
+      .prog_data_size      = prog_data_size,
+      .bind_map            = &empty_bind_map,
+      .push_desc_info      = &empty_push_desc_info,
    };
-   struct anv_push_descriptor_info push_desc_info = {};
 
    struct anv_shader_bin *bin =
-      anv_device_upload_kernel(device, device->internal_cache, stage,
-                               key, key_size, kernel, kernel_size,
-                               prog_data, prog_data_size,
-                               NULL, 0, NULL, &bind_map,
-                               &push_desc_info,
-                               0 /* dynamic_push_values */);
+      anv_device_upload_kernel(device, device->internal_cache, &upload_params);
 
    if (!bin)
       return false;
@@ -93,10 +96,12 @@ anv_device_init_blorp(struct anv_device *device)
 {
    const struct blorp_config config = {
       .use_mesh_shading = device->vk.enabled_extensions.EXT_mesh_shader,
+      .use_unrestricted_depth_range =
+         device->vk.enabled_extensions.EXT_depth_range_unrestricted,
    };
 
-   blorp_init(&device->blorp, device, &device->isl_dev, &config);
-   device->blorp.compiler = device->physical->compiler;
+   blorp_init_brw(&device->blorp, device, &device->isl_dev,
+                  device->physical->compiler, &config);
    device->blorp.lookup_shader = lookup_blorp_shader;
    device->blorp.upload_shader = upload_blorp_shader;
    device->blorp.enable_tbimr = device->physical->instance->enable_tbimr;
@@ -125,6 +130,10 @@ anv_blorp_batch_init(struct anv_cmd_buffer *cmd_buffer,
       unreachable("unknown queue family");
    }
 
+   /* Can't have both flags at the same time. */
+   assert((flags & BLORP_BATCH_USE_BLITTER) == 0 ||
+          (flags & BLORP_BATCH_USE_COMPUTE) == 0);
+
    blorp_batch_init(&cmd_buffer->device->blorp, batch, cmd_buffer, flags);
 }
 
@@ -134,8 +143,34 @@ anv_blorp_batch_finish(struct blorp_batch *batch)
    blorp_batch_finish(batch);
 }
 
+static isl_surf_usage_flags_t
+get_usage_flag_for_cmd_buffer(const struct anv_cmd_buffer *cmd_buffer,
+                              bool is_dest)
+{
+   isl_surf_usage_flags_t usage;
+
+   switch (cmd_buffer->queue_family->engine_class) {
+   case INTEL_ENGINE_CLASS_RENDER:
+      usage = is_dest ? ISL_SURF_USAGE_RENDER_TARGET_BIT :
+                        ISL_SURF_USAGE_TEXTURE_BIT;
+      break;
+   case INTEL_ENGINE_CLASS_COMPUTE:
+      usage = is_dest ? ISL_SURF_USAGE_STORAGE_BIT :
+                        ISL_SURF_USAGE_TEXTURE_BIT;
+      break;
+   case INTEL_ENGINE_CLASS_COPY:
+      usage = is_dest ? ISL_SURF_USAGE_BLITTER_DST_BIT :
+                        ISL_SURF_USAGE_BLITTER_SRC_BIT;
+      break;
+   default:
+      unreachable("Unhandled engine class");
+   }
+
+   return usage;
+}
+
 static void
-get_blorp_surf_for_anv_address(struct anv_device *device,
+get_blorp_surf_for_anv_address(struct anv_cmd_buffer *cmd_buffer,
                                struct anv_address address,
                                uint32_t width, uint32_t height,
                                uint32_t row_pitch, enum isl_format format,
@@ -144,19 +179,19 @@ get_blorp_surf_for_anv_address(struct anv_device *device,
                                struct isl_surf *isl_surf)
 {
    bool ok UNUSED;
+   isl_surf_usage_flags_t usage =
+      get_usage_flag_for_cmd_buffer(cmd_buffer, is_dest);
 
    *blorp_surf = (struct blorp_surf) {
       .surf = isl_surf,
       .addr = {
          .buffer = address.bo,
          .offset = address.offset,
-         .mocs = anv_mocs(device, address.bo,
-                          is_dest ? ISL_SURF_USAGE_RENDER_TARGET_BIT
-                                  : ISL_SURF_USAGE_TEXTURE_BIT),
+         .mocs = anv_mocs(cmd_buffer->device, address.bo, usage),
       },
    };
 
-   ok = isl_surf_init(&device->isl_dev, isl_surf,
+   ok = isl_surf_init(&cmd_buffer->device->isl_dev, isl_surf,
                      .dim = ISL_SURF_DIM_2D,
                      .format = format,
                      .width = width,
@@ -166,14 +201,13 @@ get_blorp_surf_for_anv_address(struct anv_device *device,
                      .array_len = 1,
                      .samples = 1,
                      .row_pitch_B = row_pitch,
-                     .usage = is_dest ? ISL_SURF_USAGE_RENDER_TARGET_BIT
-                                      : ISL_SURF_USAGE_TEXTURE_BIT,
+                     .usage = usage,
                      .tiling_flags = ISL_TILING_LINEAR_BIT);
    assert(ok);
 }
 
 static void
-get_blorp_surf_for_anv_buffer(struct anv_device *device,
+get_blorp_surf_for_anv_buffer(struct anv_cmd_buffer *cmd_buffer,
                               struct anv_buffer *buffer, uint64_t offset,
                               uint32_t width, uint32_t height,
                               uint32_t row_pitch, enum isl_format format,
@@ -181,7 +215,7 @@ get_blorp_surf_for_anv_buffer(struct anv_device *device,
                               struct blorp_surf *blorp_surf,
                               struct isl_surf *isl_surf)
 {
-   get_blorp_surf_for_anv_address(device,
+   get_blorp_surf_for_anv_address(cmd_buffer,
                                   anv_address_add(buffer->address, offset),
                                   width, height, row_pitch, format,
                                   is_dest, blorp_surf, isl_surf);
@@ -220,10 +254,9 @@ get_blorp_surf_for_anv_image(const struct anv_cmd_buffer *cmd_buffer,
                                           cmd_buffer->queue_family->queueFlags);
    }
 
-   isl_surf_usage_flags_t mocs_usage =
-      (usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) ?
-      ISL_SURF_USAGE_RENDER_TARGET_BIT : ISL_SURF_USAGE_TEXTURE_BIT;
-
+   isl_surf_usage_flags_t isl_usage =
+      get_usage_flag_for_cmd_buffer(cmd_buffer,
+                                    usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT);
    const struct anv_surface *surface = &image->planes[plane].primary_surface;
    const struct anv_address address =
       anv_image_address(image, &surface->memory_range);
@@ -233,7 +266,7 @@ get_blorp_surf_for_anv_image(const struct anv_cmd_buffer *cmd_buffer,
       .addr = {
          .buffer = address.bo,
          .offset = address.offset,
-         .mocs = anv_mocs(device, address.bo, mocs_usage),
+         .mocs = anv_mocs(device, address.bo, isl_usage),
       },
    };
 
@@ -249,7 +282,7 @@ get_blorp_surf_for_anv_image(const struct anv_cmd_buffer *cmd_buffer,
          blorp_surf->aux_addr = (struct blorp_address) {
             .buffer = aux_address.bo,
             .offset = aux_address.offset,
-            .mocs = anv_mocs(device, aux_address.bo, 0),
+            .mocs = anv_mocs(device, aux_address.bo, isl_usage),
          };
       }
 
@@ -344,6 +377,9 @@ copy_image(struct anv_cmd_buffer *cmd_buffer,
          }
       }
    } else {
+      /* This case handles the ycbcr images, aspect mask are compatible but
+       * don't need to be the same.
+       */
       struct blorp_surf src_surf, dst_surf;
       get_blorp_surf_for_anv_image(cmd_buffer, src_image, src_mask,
                                    VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -372,21 +408,24 @@ record_main_rcs_cmd_buffer_done(struct anv_cmd_buffer *cmd_buffer)
 {
    const struct intel_device_info *info = cmd_buffer->device->info;
 
-   if (cmd_buffer->companion_rcs_cmd_buffer == NULL) {
-      anv_create_companion_rcs_command_buffer(cmd_buffer);
-      /* Re-emit the aux table register in every command buffer.  This way we're
-       * ensured that we have the table even if this command buffer doesn't
-       * initialize any images.
-       */
-      if (cmd_buffer->device->info->has_aux_map) {
-         assert(cmd_buffer->companion_rcs_cmd_buffer != NULL);
-         anv_add_pending_pipe_bits(cmd_buffer->companion_rcs_cmd_buffer,
-                                   ANV_PIPE_AUX_TABLE_INVALIDATE_BIT,
-                                   "new cmd buffer with aux-tt");
-      }
+   const VkResult result = anv_cmd_buffer_ensure_rcs_companion(cmd_buffer);
+   if (result != VK_SUCCESS) {
+      anv_batch_set_error(&cmd_buffer->batch, result);
+      return ANV_STATE_NULL;
    }
 
    assert(cmd_buffer->companion_rcs_cmd_buffer != NULL);
+
+   /* Re-emit the aux table register in every command buffer.  This way we're
+    * ensured that we have the table even if this command buffer doesn't
+    * initialize any images.
+    */
+   if (cmd_buffer->device->info->has_aux_map) {
+      anv_add_pending_pipe_bits(cmd_buffer->companion_rcs_cmd_buffer,
+                                 ANV_PIPE_AUX_TABLE_INVALIDATE_BIT,
+                                 "new cmd buffer with aux-tt");
+   }
+
    return anv_genX(info, cmd_buffer_begin_companion_rcs_syncpoint)(cmd_buffer);
 }
 
@@ -397,6 +436,55 @@ end_main_rcs_cmd_buffer_done(struct anv_cmd_buffer *cmd_buffer,
    const struct intel_device_info *info = cmd_buffer->device->info;
    anv_genX(info, cmd_buffer_end_companion_rcs_syncpoint)(cmd_buffer,
                                                           syncpoint);
+}
+
+static bool
+anv_blorp_blitter_execute_on_companion(struct anv_cmd_buffer *cmd_buffer,
+                                       struct anv_image *image,
+                                       const VkCopyBufferToImageInfo2* pCopyBufferToImageInfo,
+                                       const VkCopyImageToBufferInfo2* pCopyImageToBufferInfo)
+{
+   if (!anv_cmd_buffer_is_blitter_queue(cmd_buffer))
+      return false;
+
+   assert((pCopyBufferToImageInfo && !pCopyImageToBufferInfo) ||
+          (pCopyImageToBufferInfo && !pCopyBufferToImageInfo));
+
+   bool blorp_execute_on_companion = false;
+   VkImageAspectFlags aspect_mask = VK_IMAGE_ASPECT_NONE;
+   const uint32_t region_count = pCopyBufferToImageInfo ?
+                                 pCopyBufferToImageInfo->regionCount :
+                                 pCopyImageToBufferInfo->regionCount;
+
+   for (unsigned r = 0; r < region_count &&
+                            !blorp_execute_on_companion; r++) {
+      if (pCopyBufferToImageInfo) {
+         aspect_mask =
+            pCopyBufferToImageInfo->pRegions[r].imageSubresource.aspectMask;
+      } else {
+         aspect_mask =
+            pCopyImageToBufferInfo->pRegions[r].imageSubresource.aspectMask;
+      }
+
+      enum isl_format linear_format =
+         anv_get_isl_format(cmd_buffer->device->info, image->vk.format,
+                            aspect_mask, VK_IMAGE_TILING_LINEAR);
+      const struct isl_format_layout *linear_fmtl =
+         isl_format_get_layout(linear_format);
+
+      switch (linear_fmtl->bpb) {
+      case 96:
+         /* We can only support linear mode for 96bpp on blitter engine. */
+         blorp_execute_on_companion |=
+            image->vk.tiling != VK_IMAGE_TILING_LINEAR;
+         break;
+      default:
+         blorp_execute_on_companion |= linear_fmtl->bpb % 3 == 0;
+         break;
+      }
+   }
+
+   return blorp_execute_on_companion;
 }
 
 static bool
@@ -565,7 +653,7 @@ copy_buffer_to_image(struct anv_cmd_buffer *cmd_buffer,
       isl_format_for_size(linear_fmtl->bpb / 8);
 
    struct isl_surf buffer_isl_surf;
-   get_blorp_surf_for_anv_buffer(cmd_buffer->device,
+   get_blorp_surf_for_anv_buffer(cmd_buffer,
                                  anv_buffer, region->bufferOffset,
                                  buffer_extent.width, buffer_extent.height,
                                  buffer_layout.row_stride_B, buffer_format,
@@ -608,7 +696,18 @@ void anv_CmdCopyBufferToImage2(
    struct anv_cmd_buffer *main_cmd_buffer = cmd_buffer;
    UNUSED struct anv_state rcs_done = ANV_STATE_NULL;
 
-   if (anv_blorp_execute_on_companion(cmd_buffer, dst_image)) {
+   bool blorp_execute_on_companion =
+      anv_blorp_execute_on_companion(cmd_buffer, dst_image);
+
+   /* Check if any one of the aspects is incompatible with the blitter engine,
+    * if true, use the companion RCS command buffer for blit operation since 3
+    * component formats are not supported natively except 96bpb on the blitter.
+    */
+   blorp_execute_on_companion |=
+      anv_blorp_blitter_execute_on_companion(cmd_buffer, dst_image,
+                                             pCopyBufferToImageInfo, NULL);
+
+   if (blorp_execute_on_companion) {
       rcs_done = record_main_rcs_cmd_buffer_done(cmd_buffer);
       cmd_buffer = cmd_buffer->companion_rcs_cmd_buffer;
    }
@@ -671,6 +770,25 @@ void anv_CmdCopyImageToBuffer2(
    ANV_FROM_HANDLE(anv_image, src_image, pCopyImageToBufferInfo->srcImage);
    ANV_FROM_HANDLE(anv_buffer, dst_buffer, pCopyImageToBufferInfo->dstBuffer);
 
+   UNUSED struct anv_cmd_buffer *main_cmd_buffer = cmd_buffer;
+   UNUSED struct anv_state rcs_done = ANV_STATE_NULL;
+
+   bool blorp_execute_on_companion =
+      anv_blorp_execute_on_companion(cmd_buffer, src_image);
+
+   /* Check if any one of the aspects is incompatible with the blitter engine,
+    * if true, use the companion RCS command buffer for blit operation since 3
+    * component formats are not supported natively except 96bpb on the blitter.
+    */
+   blorp_execute_on_companion |=
+      anv_blorp_blitter_execute_on_companion(cmd_buffer, src_image, NULL,
+                                             pCopyImageToBufferInfo);
+
+   if (blorp_execute_on_companion) {
+      rcs_done = record_main_rcs_cmd_buffer_done(cmd_buffer);
+      cmd_buffer = cmd_buffer->companion_rcs_cmd_buffer;
+   }
+
    struct blorp_batch batch;
    anv_blorp_batch_init(cmd_buffer, &batch, 0);
 
@@ -683,6 +801,9 @@ void anv_CmdCopyImageToBuffer2(
    anv_add_buffer_write_pending_bits(cmd_buffer, "after copy image to buffer");
 
    anv_blorp_batch_finish(&batch);
+
+   if (rcs_done.alloc_size)
+      end_main_rcs_cmd_buffer_done(main_cmd_buffer, rcs_done);
 }
 
 static bool
@@ -892,13 +1013,13 @@ copy_buffer(struct anv_device *device,
       .buffer = src_buffer->address.bo,
       .offset = src_buffer->address.offset + region->srcOffset,
       .mocs = anv_mocs(device, src_buffer->address.bo,
-                       ISL_SURF_USAGE_TEXTURE_BIT),
+                       blorp_batch_isl_copy_usage(batch, false /* is_dest */)),
    };
    struct blorp_address dst = {
       .buffer = dst_buffer->address.bo,
       .offset = dst_buffer->address.offset + region->dstOffset,
       .mocs = anv_mocs(device, dst_buffer->address.bo,
-                       ISL_SURF_USAGE_RENDER_TARGET_BIT),
+                       blorp_batch_isl_copy_usage(batch, true /* is_dest */)),
    };
 
    blorp_buffer_copy(batch, src, dst, region->size);
@@ -913,7 +1034,10 @@ void anv_CmdCopyBuffer2(
    ANV_FROM_HANDLE(anv_buffer, dst_buffer, pCopyBufferInfo->dstBuffer);
 
    struct blorp_batch batch;
-   anv_blorp_batch_init(cmd_buffer, &batch, 0);
+   anv_blorp_batch_init(cmd_buffer, &batch,
+                        cmd_buffer->state.current_pipeline ==
+                        cmd_buffer->device->physical->gpgpu_pipeline_value ?
+                        BLORP_BATCH_USE_COMPUTE : 0);
 
    for (unsigned r = 0; r < pCopyBufferInfo->regionCount; r++) {
       copy_buffer(cmd_buffer->device, &batch, src_buffer, dst_buffer,
@@ -937,7 +1061,10 @@ void anv_CmdUpdateBuffer(
    ANV_FROM_HANDLE(anv_buffer, dst_buffer, dstBuffer);
 
    struct blorp_batch batch;
-   anv_blorp_batch_init(cmd_buffer, &batch, 0);
+   anv_blorp_batch_init(cmd_buffer, &batch,
+                        cmd_buffer->state.current_pipeline ==
+                        cmd_buffer->device->physical->gpgpu_pipeline_value ?
+                        BLORP_BATCH_USE_COMPUTE : 0);
 
    /* We can't quite grab a full block because the state stream needs a
     * little data at the top to build its linked list.
@@ -958,21 +1085,25 @@ void anv_CmdUpdateBuffer(
       const uint32_t copy_size = MIN2(dataSize, max_update_size);
 
       struct anv_state tmp_data =
-         anv_cmd_buffer_alloc_dynamic_state(cmd_buffer, copy_size, 64);
+         anv_cmd_buffer_alloc_temporary_state(cmd_buffer, copy_size, 64);
+      struct anv_address tmp_addr =
+         anv_cmd_buffer_temporary_state_address(cmd_buffer, tmp_data);
 
       memcpy(tmp_data.map, pData, copy_size);
 
       struct blorp_address src = {
-         .buffer = cmd_buffer->device->dynamic_state_pool.block_pool.bo,
-         .offset = tmp_data.offset,
-         .mocs = isl_mocs(&cmd_buffer->device->isl_dev,
-                          ISL_SURF_USAGE_TEXTURE_BIT, false)
+         .buffer = tmp_addr.bo,
+         .offset = tmp_addr.offset,
+         .mocs = anv_mocs(cmd_buffer->device, NULL,
+                          get_usage_flag_for_cmd_buffer(cmd_buffer,
+                                                        false /* is_dest */)),
       };
       struct blorp_address dst = {
          .buffer = dst_buffer->address.bo,
          .offset = dst_buffer->address.offset + dstOffset,
          .mocs = anv_mocs(cmd_buffer->device, dst_buffer->address.bo,
-                          ISL_SURF_USAGE_RENDER_TARGET_BIT),
+                          get_usage_flag_for_cmd_buffer(cmd_buffer,
+                                                        true /* is_dest */)),
       };
 
       blorp_buffer_copy(&batch, src, dst, copy_size);
@@ -997,7 +1128,10 @@ anv_cmd_buffer_fill_area(struct anv_cmd_buffer *cmd_buffer,
    struct isl_surf isl_surf;
 
    struct blorp_batch batch;
-   anv_blorp_batch_init(cmd_buffer, &batch, 0);
+   anv_blorp_batch_init(cmd_buffer, &batch,
+                        cmd_buffer->state.current_pipeline ==
+                        cmd_buffer->device->physical->gpgpu_pipeline_value ?
+                        BLORP_BATCH_USE_COMPUTE : 0);
 
    /* First, we compute the biggest format that can be used with the
     * given offsets and size.
@@ -1014,12 +1148,13 @@ anv_cmd_buffer_fill_area(struct anv_cmd_buffer *cmd_buffer,
 
    const uint64_t max_fill_size = MAX_SURFACE_DIM * MAX_SURFACE_DIM * bs;
    while (size >= max_fill_size) {
-      get_blorp_surf_for_anv_address(cmd_buffer->device,
+      get_blorp_surf_for_anv_address(cmd_buffer,
                                      (struct anv_address) {
                                         .bo = address.bo, .offset = offset,
                                      },
                                      MAX_SURFACE_DIM, MAX_SURFACE_DIM,
-                                     MAX_SURFACE_DIM * bs, isl_format, true,
+                                     MAX_SURFACE_DIM * bs, isl_format,
+                                     true /* is_dest */,
                                      &surf, &isl_surf);
 
       blorp_clear(&batch, &surf, isl_format, ISL_SWIZZLE_IDENTITY,
@@ -1033,12 +1168,13 @@ anv_cmd_buffer_fill_area(struct anv_cmd_buffer *cmd_buffer,
    assert(height < MAX_SURFACE_DIM);
    if (height != 0) {
       const uint64_t rect_fill_size = height * MAX_SURFACE_DIM * bs;
-      get_blorp_surf_for_anv_address(cmd_buffer->device,
+      get_blorp_surf_for_anv_address(cmd_buffer,
                                      (struct anv_address) {
                                         .bo = address.bo, .offset = offset,
                                      },
                                      MAX_SURFACE_DIM, height,
-                                     MAX_SURFACE_DIM * bs, isl_format, true,
+                                     MAX_SURFACE_DIM * bs, isl_format,
+                                     true /* is_dest */,
                                      &surf, &isl_surf);
 
       blorp_clear(&batch, &surf, isl_format, ISL_SWIZZLE_IDENTITY,
@@ -1050,12 +1186,13 @@ anv_cmd_buffer_fill_area(struct anv_cmd_buffer *cmd_buffer,
 
    if (size != 0) {
       const uint32_t width = size / bs;
-      get_blorp_surf_for_anv_address(cmd_buffer->device,
+      get_blorp_surf_for_anv_address(cmd_buffer,
                                      (struct anv_address) {
                                         .bo = address.bo, .offset = offset,
                                      },
                                      width, 1,
-                                     width * bs, isl_format, true,
+                                     width * bs, isl_format,
+                                     true /* is_dest */,
                                      &surf, &isl_surf);
 
       blorp_clear(&batch, &surf, isl_format, ISL_SWIZZLE_IDENTITY,
@@ -1252,7 +1389,7 @@ anv_cmd_buffer_alloc_blorp_binding_table(struct anv_cmd_buffer *cmd_buffer,
       /* Re-emit state base addresses so we get the new surface state base
        * address before we start emitting binding tables etc.
        */
-      anv_cmd_buffer_emit_state_base_address(cmd_buffer);
+      anv_cmd_buffer_emit_bt_pool_base_address(cmd_buffer);
 
       *bt_state = anv_cmd_buffer_alloc_binding_table(cmd_buffer, num_entries,
                                                      state_offset);
@@ -1789,11 +1926,18 @@ anv_fast_clear_depth_stencil(struct anv_cmd_buffer *cmd_buffer,
        *
        * Set CS stall bit to guarantee that the fast clear starts the execution
        * after the tile cache flush completed.
+       *
+       * There is no Bspec requirement to flush the data cache but the
+       * experiment shows that flusing the data cache helps to resolve the
+       * corruption.
        */
+      unsigned wa_flush = cmd_buffer->device->info->verx10 >= 125 ?
+                          ANV_PIPE_DATA_CACHE_FLUSH_BIT : 0;
       anv_add_pending_pipe_bits(cmd_buffer,
                                 ANV_PIPE_DEPTH_CACHE_FLUSH_BIT |
                                 ANV_PIPE_CS_STALL_BIT |
-                                ANV_PIPE_TILE_CACHE_FLUSH_BIT,
+                                ANV_PIPE_TILE_CACHE_FLUSH_BIT |
+                                wa_flush,
                                 "before clear hiz_ccs_wt");
    }
 
@@ -2009,12 +2153,14 @@ void anv_CmdClearAttachments(
    anv_blorp_batch_finish(&batch);
 }
 
-void
+static void
 anv_image_msaa_resolve(struct anv_cmd_buffer *cmd_buffer,
                        const struct anv_image *src_image,
+                       enum isl_format src_format_override,
                        enum isl_aux_usage src_aux_usage,
                        uint32_t src_level, uint32_t src_base_layer,
                        const struct anv_image *dst_image,
+                       enum isl_format dst_format_override,
                        enum isl_aux_usage dst_aux_usage,
                        uint32_t dst_level, uint32_t dst_base_layer,
                        VkImageAspectFlagBits aspect,
@@ -2067,15 +2213,105 @@ anv_image_msaa_resolve(struct anv_cmd_buffer *cmd_buffer,
    for (uint32_t l = 0; l < layer_count; l++) {
       blorp_blit(&batch,
                  &src_surf, src_level, src_base_layer + l,
-                 ISL_FORMAT_UNSUPPORTED, ISL_SWIZZLE_IDENTITY,
+                 src_format_override, ISL_SWIZZLE_IDENTITY,
                  &dst_surf, dst_level, dst_base_layer + l,
-                 ISL_FORMAT_UNSUPPORTED, ISL_SWIZZLE_IDENTITY,
+                 dst_format_override, ISL_SWIZZLE_IDENTITY,
                  src_x, src_y, src_x + width, src_y + height,
                  dst_x, dst_y, dst_x + width, dst_y + height,
                  filter, false, false);
    }
 
    anv_blorp_batch_finish(&batch);
+}
+
+static enum blorp_filter
+vk_to_blorp_resolve_mode(VkResolveModeFlagBits vk_mode)
+{
+   switch (vk_mode) {
+   case VK_RESOLVE_MODE_SAMPLE_ZERO_BIT:
+      return BLORP_FILTER_SAMPLE_0;
+   case VK_RESOLVE_MODE_AVERAGE_BIT:
+      return BLORP_FILTER_AVERAGE;
+   case VK_RESOLVE_MODE_MIN_BIT:
+      return BLORP_FILTER_MIN_SAMPLE;
+   case VK_RESOLVE_MODE_MAX_BIT:
+      return BLORP_FILTER_MAX_SAMPLE;
+   default:
+      return BLORP_FILTER_NONE;
+   }
+}
+
+void
+anv_attachment_msaa_resolve(struct anv_cmd_buffer *cmd_buffer,
+                            const struct anv_attachment *att,
+                            VkImageLayout layout,
+                            VkImageAspectFlagBits aspect)
+{
+   struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
+   const struct anv_image_view *src_iview = att->iview;
+   const struct anv_image_view *dst_iview = att->resolve_iview;
+
+   enum isl_aux_usage src_aux_usage =
+      anv_layout_to_aux_usage(cmd_buffer->device->info,
+                              src_iview->image, aspect,
+                              VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                              layout,
+                              cmd_buffer->queue_family->queueFlags);
+
+   enum isl_aux_usage dst_aux_usage =
+      anv_layout_to_aux_usage(cmd_buffer->device->info,
+                              dst_iview->image, aspect,
+                              VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                              att->resolve_layout,
+                              cmd_buffer->queue_family->queueFlags);
+
+   enum blorp_filter filter = vk_to_blorp_resolve_mode(att->resolve_mode);
+
+   /* Depth/stencil should not use their view format for resolve because they
+    * go in pairs.
+    */
+   enum isl_format src_format = ISL_FORMAT_UNSUPPORTED;
+   enum isl_format dst_format = ISL_FORMAT_UNSUPPORTED;
+   if (!(aspect & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))) {
+      src_format = src_iview->planes[0].isl.format;
+      dst_format = dst_iview->planes[0].isl.format;
+   }
+
+   const VkRect2D render_area = gfx->render_area;
+   if (gfx->view_mask == 0) {
+      anv_image_msaa_resolve(cmd_buffer,
+                             src_iview->image, src_format, src_aux_usage,
+                             src_iview->planes[0].isl.base_level,
+                             src_iview->planes[0].isl.base_array_layer,
+                             dst_iview->image, dst_format, dst_aux_usage,
+                             dst_iview->planes[0].isl.base_level,
+                             dst_iview->planes[0].isl.base_array_layer,
+                             aspect,
+                             render_area.offset.x, render_area.offset.y,
+                             render_area.offset.x, render_area.offset.y,
+                             render_area.extent.width,
+                             render_area.extent.height,
+                             gfx->layer_count, filter);
+   } else {
+      uint32_t res_view_mask = gfx->view_mask;
+      while (res_view_mask) {
+         int i = u_bit_scan(&res_view_mask);
+
+         anv_image_msaa_resolve(cmd_buffer,
+                                src_iview->image, src_format, src_aux_usage,
+                                src_iview->planes[0].isl.base_level,
+                                src_iview->planes[0].isl.base_array_layer + i,
+                                dst_iview->image, dst_format, dst_aux_usage,
+                                dst_iview->planes[0].isl.base_level,
+                                dst_iview->planes[0].isl.base_array_layer + i,
+                                aspect,
+                                render_area.offset.x, render_area.offset.y,
+                                render_area.offset.x, render_area.offset.y,
+                                render_area.extent.width,
+                                render_area.extent.height,
+                                1, filter);
+      }
+   }
 }
 
 static void
@@ -2109,10 +2345,10 @@ resolve_image(struct anv_cmd_buffer *cmd_buffer,
                                  cmd_buffer->queue_family->queueFlags);
 
       anv_image_msaa_resolve(cmd_buffer,
-                             src_image, src_aux_usage,
+                             src_image, ISL_FORMAT_UNSUPPORTED, src_aux_usage,
                              region->srcSubresource.mipLevel,
                              region->srcSubresource.baseArrayLayer,
-                             dst_image, dst_aux_usage,
+                             dst_image, ISL_FORMAT_UNSUPPORTED, dst_aux_usage,
                              region->dstSubresource.mipLevel,
                              region->dstSubresource.baseArrayLayer,
                              (1 << aspect_bit),

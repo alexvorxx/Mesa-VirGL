@@ -616,7 +616,6 @@ static const struct nir_shader_compiler_options gallivm_nir_options = {
    .lower_extract_word = true,
    .lower_insert_byte = true,
    .lower_insert_word = true,
-   .lower_rotate = true,
    .lower_uadd_carry = true,
    .lower_usub_borrow = true,
    .lower_mul_2x32_64 = true,
@@ -853,6 +852,7 @@ llvmpipe_flush_frontbuffer(struct pipe_screen *_screen,
                            struct pipe_resource *resource,
                            unsigned level, unsigned layer,
                            void *context_private,
+                           unsigned nboxes,
                            struct pipe_box *sub_box)
 {
    struct llvmpipe_screen *screen = llvmpipe_screen(_screen);
@@ -866,7 +866,7 @@ llvmpipe_flush_frontbuffer(struct pipe_screen *_screen,
          llvmpipe_flush_resource(_pipe, resource, 0, true, true,
                                  false, "frontbuffer");
       winsys->displaytarget_display(winsys, texture->dt,
-                                    context_private, sub_box);
+                                    context_private, nboxes, sub_box);
    }
 }
 

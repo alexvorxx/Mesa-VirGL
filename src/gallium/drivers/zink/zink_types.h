@@ -55,7 +55,7 @@
 #include "util/u_transfer.h"
 #include "util/u_vertex_state_cache.h"
 
-#include "vulkan/util/vk_util.h"
+#include "vk_util.h"
 
 #include "zink_device_info.h"
 #include "zink_instance.h"
@@ -449,6 +449,7 @@ struct zink_descriptor_data {
          struct pipe_transfer *bindless_db_xfer;
          uint32_t bindless_db_offsets[4];
          unsigned max_db_size;
+         unsigned size_enlarge_scale;
       } db;
    };
 
@@ -647,10 +648,11 @@ struct zink_batch_state {
    struct util_dynarray bindless_releases[2];
 
    struct util_dynarray zombie_samplers;
-   struct util_dynarray dead_framebuffers;
 
    struct set active_queries; /* zink_query objects which were active at some point in this batch */
    struct util_dynarray dead_querypools;
+
+   struct util_dynarray freed_sparse_backing_bos;
 
    struct zink_batch_descriptor_data dd;
 
@@ -816,12 +818,13 @@ struct zink_shader {
    unsigned num_texel_buffers;
    uint32_t ubos_used; // bitfield of which ubo indices are used
    uint32_t ssbos_used; // bitfield of which ssbo indices are used
-   uint32_t flat_flags;
+   uint64_t flat_flags;
    bool bindless;
    bool can_inline;
    bool has_uniforms;
    bool has_edgeflags;
    bool needs_inlining;
+   bool uses_sample;
    struct spirv_shader *spirv;
 
    struct {
@@ -1359,6 +1362,9 @@ struct zink_resource {
       };
    };
 
+   VkRect2D damage;
+   bool use_damage;
+
    bool copies_warned;
    bool swapchain;
    bool dmabuf;
@@ -1415,6 +1421,10 @@ struct zink_screen {
    simple_mtx_t copy_context_lock;
    struct zink_context *copy_context;
 
+   struct zink_batch_state *free_batch_states; //unused batch states
+   struct zink_batch_state *last_free_batch_state; //for appending
+   simple_mtx_t free_batch_states_lock;
+
    simple_mtx_t semaphores_lock;
    struct util_dynarray semaphores;
    struct util_dynarray fd_semaphores;
@@ -1429,6 +1439,7 @@ struct zink_screen {
    bool device_lost;
    int drm_fd;
 
+   struct slab_mempool present_mempool;
    struct slab_parent_pool transfer_pool;
    struct disk_cache *disk_cache;
    struct util_queue cache_put_thread;
@@ -1488,7 +1499,6 @@ struct zink_screen {
    bool need_decompose_attrs;
    bool need_2D_zs;
    bool need_2D_sparse;
-   bool faked_e5sparse; //drivers may not expose R9G9B9E5 but cts requires it
    bool can_hic_shader_read;
 
    uint32_t gfx_queue;
@@ -1514,7 +1524,7 @@ struct zink_screen {
    bool renderdoc_capture_all;
 #endif
 
-   struct vk_dispatch_table vk;
+   struct vk_uncompacted_dispatch_table vk;
 
    void (*buffer_barrier)(struct zink_context *ctx, struct zink_resource *res, VkAccessFlags flags, VkPipelineStageFlags pipeline);
    void (*image_barrier)(struct zink_context *ctx, struct zink_resource *res, VkImageLayout new_layout, VkAccessFlags flags, VkPipelineStageFlags pipeline);
@@ -1525,7 +1535,6 @@ struct zink_screen {
 
    struct {
       bool dual_color_blend_by_location;
-      bool glsl_correct_derivatives_after_discard;
       bool inline_uniforms;
       bool emulate_point_smooth;
       bool zink_shader_object_enable;
@@ -1679,6 +1688,7 @@ struct zink_sampler_view {
    union {
       struct zink_surface *image_view;
       struct zink_buffer_view *buffer_view;
+      unsigned tbo_size;
    };
    struct zink_surface *cube_array;
    /* Optional sampler view returning red (depth) in all channels, for shader rewrites. */
@@ -1749,12 +1759,6 @@ struct zink_rendering_info {
 };
 
 
-typedef void (*pipe_draw_vbo_func)(struct pipe_context *pipe,
-                                   const struct pipe_draw_info *info,
-                                   unsigned drawid_offset,
-                                   const struct pipe_draw_indirect_info *indirect,
-                                   const struct pipe_draw_start_count_bias *draws,
-                                   unsigned num_draws);
 typedef void (*pipe_draw_vertex_state_func)(struct pipe_context *ctx,
                                             struct pipe_vertex_state *vstate,
                                             uint32_t partial_velem_mask,
@@ -1792,7 +1796,7 @@ struct zink_context {
 
    unsigned flags;
 
-   pipe_draw_vbo_func draw_vbo[2]; //batch changed
+   pipe_draw_func draw_vbo[2]; //batch changed
    pipe_draw_vertex_state_func draw_state[2]; //batch changed
    pipe_launch_grid_func launch_grid[2]; //batch changed
 
@@ -1931,6 +1935,9 @@ struct zink_context {
       bool inverted;
       bool active; //this is the internal vk state
    } render_condition;
+   struct {
+      uint64_t render_passes;
+   } hud;
 
    struct {
       bool valid;
@@ -2015,6 +2022,7 @@ struct zink_context {
          uint16_t any_bindless_dirty;
       };
       bool bindless_refs_dirty;
+      bool null_fbfetch_init;
    } di;
    void (*invalidate_descriptor_state)(struct zink_context *ctx, gl_shader_stage shader, enum zink_descriptor_type type, unsigned, unsigned);
    struct set *need_barriers[2]; //gfx, compute
@@ -2037,6 +2045,7 @@ struct zink_context {
    bool unordered_blitting : 1;
    bool vertex_state_changed : 1;
    bool blend_state_changed : 1;
+   bool blend_color_changed : 1;
    bool sample_mask_changed : 1;
    bool rast_state_changed : 1;
    bool line_width_changed : 1;

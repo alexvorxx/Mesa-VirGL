@@ -47,6 +47,7 @@ struct radv_shader_args {
 
    /* NGG */
    struct ac_arg ngg_provoking_vtx;
+   struct ac_arg ngg_lds_layout;
 
    /* NGG GS */
    struct ac_arg ngg_culling_settings;
@@ -54,14 +55,16 @@ struct radv_shader_args {
    struct ac_arg ngg_viewport_translate[2];
 
    /* Fragment shaders */
-   struct ac_arg ps_epilog_pc;
    struct ac_arg ps_state;
 
    struct ac_arg prolog_inputs;
    struct ac_arg vs_inputs[MAX_VERTEX_ATTRIBS];
 
    /* PS epilogs */
-   struct ac_arg ps_epilog_inputs[MAX_RTS];
+   struct ac_arg colors[MAX_RTS];
+   struct ac_arg depth;
+   struct ac_arg stencil;
+   struct ac_arg sample_mask;
 
    /* TCS */
    /* # [0:5] = the number of patch control points
@@ -69,7 +72,6 @@ struct radv_shader_args {
     * # [12:19] = the LS-HS vertex stride in DWORDS
     */
    struct ac_arg tcs_offchip_layout;
-   struct ac_arg tcs_epilog_pc;
 
    /* TCS epilogs */
    struct ac_arg patch_base;
@@ -83,11 +85,17 @@ struct radv_shader_args {
     */
    struct ac_arg tes_state;
 
+   /* GS */
+   struct ac_arg vgt_esgs_ring_itemsize;
+
    /* NGG VS streamout */
    struct ac_arg num_verts_per_prim;
 
    /* For non-monolithic VS or TES on GFX9+. */
    struct ac_arg next_stage_pc;
+
+   /* PS/TCS epilogs PC. */
+   struct ac_arg epilog_pc;
 
    struct radv_userdata_locations user_sgprs_locs;
    unsigned num_user_sgprs;
@@ -103,10 +111,10 @@ radv_shader_args_from_ac(struct ac_shader_args *args)
    return container_of(args, struct radv_shader_args, ac);
 }
 
-struct radv_pipeline_key;
+struct radv_graphics_state_key;
 struct radv_shader_info;
 
-void radv_declare_shader_args(const struct radv_device *device, const struct radv_pipeline_key *key,
+void radv_declare_shader_args(const struct radv_device *device, const struct radv_graphics_state_key *gfx_state,
                               const struct radv_shader_info *info, gl_shader_stage stage,
                               gl_shader_stage previous_stage, struct radv_shader_args *args);
 

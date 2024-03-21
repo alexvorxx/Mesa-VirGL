@@ -148,7 +148,7 @@ etna_optimize_loop(nir_shader *s)
       NIR_PASS_V(s, nir_lower_vars_to_ssa);
       progress |= OPT(s, nir_opt_copy_prop_vars);
       progress |= OPT(s, nir_opt_shrink_stores, true);
-      progress |= OPT(s, nir_opt_shrink_vectors);
+      progress |= OPT(s, nir_opt_shrink_vectors, false);
       progress |= OPT(s, nir_copy_prop);
       progress |= OPT(s, nir_opt_dce);
       progress |= OPT(s, nir_opt_cse);
@@ -157,9 +157,9 @@ etna_optimize_loop(nir_shader *s)
       progress |= OPT(s, nir_opt_algebraic);
       progress |= OPT(s, nir_opt_constant_folding);
       progress |= OPT(s, nir_opt_dead_cf);
-      if (OPT(s, nir_opt_trivial_continues)) {
+      if (OPT(s, nir_opt_loop)) {
          progress = true;
-         /* If nir_opt_trivial_continues makes progress, then we need to clean
+         /* If nir_opt_loop makes progress, then we need to clean
           * things up if we want any hope of nir_opt_if or nir_opt_loop_unroll
           * to make progress.
           */
@@ -1247,8 +1247,7 @@ etna_compile_shader(struct etna_shader_variant *v)
       if (inst->opcode == INST_OPCODE_BRANCH)
          inst->imm = block_ptr[inst->imm];
 
-      inst->no_oneconst_limit = specs->has_no_oneconst_limit;
-      etna_assemble(&code[i * 4], inst);
+      etna_assemble(&code[i * 4], inst, specs->has_no_oneconst_limit);
    }
 
    v->code_size = c->inst_ptr * 4;

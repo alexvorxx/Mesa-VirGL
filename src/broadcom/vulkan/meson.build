@@ -54,7 +54,7 @@ libv3dv_files = files(
   'v3dv_queue.c',
   'v3dv_uniforms.c',
   'v3dv_wsi.c',
-) + [v3d_xml_pack, vk_common_entrypoints[0], wsi_entrypoints[0]]
+) + [v3d_xml_pack]
 
 files_per_version = files(
   'v3dvx_cmd_buffer.c',
@@ -73,8 +73,8 @@ v3d_versions = ['42', '71']
 
 v3dv_flags = []
 
-dep_v3dv3 = dependency('v3dv3', required : false)
-if dep_v3dv3.found()
+dep_v3d_hw = dependency('v3d_hw', required : false)
+if dep_v3d_hw.found()
   v3dv_flags += '-DUSE_V3D_SIMULATOR'
 endif
 
@@ -82,7 +82,7 @@ v3dv_deps = [
   dep_dl,
   dep_libdrm,
   dep_valgrind,
-  dep_v3dv3,
+  dep_v3d_hw,
   idep_nir,
   idep_nir_headers,
   idep_vulkan_util,
@@ -111,7 +111,7 @@ foreach ver : v3d_versions
     'v3dv-v' + ver,
     [files_per_version, v3d_xml_pack, v3dv_entrypoints[0]],
     include_directories : [
-      inc_src, inc_include, inc_gallium, inc_gallium_aux, inc_broadcom,
+      inc_src, inc_include, inc_broadcom,
       inc_util,
     ],
     c_args : [v3dv_flags, '-DV3D_VERSION=' + ver],
@@ -124,7 +124,7 @@ libvulkan_broadcom = shared_library(
   'vulkan_broadcom',
   [libv3dv_files, v3dv_entrypoints, sha1_h],
   include_directories : [
-    inc_include, inc_src, inc_mapi, inc_mesa, inc_gallium, inc_gallium_aux, inc_broadcom, inc_util,
+    inc_include, inc_src, inc_broadcom, inc_util,
   ],
   link_with : [
     libbroadcom_cle,

@@ -24,12 +24,14 @@ struct vn_physical_device_properties {
    VkPhysicalDeviceVulkan13Properties vulkan_1_3;
 
    /* KHR */
+   VkPhysicalDeviceFragmentShadingRatePropertiesKHR fragment_shading_rate;
    VkPhysicalDevicePushDescriptorPropertiesKHR push_descriptor;
 
    /* EXT */
    VkPhysicalDeviceConservativeRasterizationPropertiesEXT
       conservative_rasterization;
    VkPhysicalDeviceCustomBorderColorPropertiesEXT custom_border_color;
+   VkPhysicalDeviceExtendedDynamicState3PropertiesEXT extended_dynamic_state_3;
    VkPhysicalDeviceGraphicsPipelineLibraryPropertiesEXT
       graphics_pipeline_library;
    VkPhysicalDeviceLineRasterizationPropertiesEXT line_rasterization;
@@ -45,6 +47,35 @@ struct vn_physical_device_properties {
 struct vn_format_properties_entry {
    atomic_bool valid;
    VkFormatProperties properties;
+   atomic_bool props3_valid;
+   VkFormatProperties3 properties3;
+};
+
+struct vn_image_format_properties {
+   struct VkImageFormatProperties2 format;
+   VkResult cached_result;
+
+   VkExternalImageFormatProperties ext_image;
+   VkImageCompressionPropertiesEXT compression;
+   VkSamplerYcbcrConversionImageFormatProperties ycbcr_conversion;
+};
+
+struct vn_image_format_cache_entry {
+   struct vn_image_format_properties properties;
+   uint8_t key[SHA1_DIGEST_LENGTH];
+   struct list_head head;
+};
+
+struct vn_image_format_properties_cache {
+   struct hash_table *ht;
+   struct list_head lru;
+   simple_mtx_t mutex;
+
+   struct {
+      uint32_t cache_hit_count;
+      uint32_t cache_miss_count;
+      uint32_t cache_skip_count;
+   } debug;
 };
 
 struct vn_physical_device {
@@ -99,6 +130,8 @@ struct vn_physical_device {
 
    simple_mtx_t format_update_mutex;
    struct util_sparse_array format_properties;
+
+   struct vn_image_format_properties_cache image_format_cache;
 };
 VK_DEFINE_HANDLE_CASTS(vn_physical_device,
                        base.base.base,

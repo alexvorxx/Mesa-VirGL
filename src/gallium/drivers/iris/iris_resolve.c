@@ -508,8 +508,8 @@ iris_resolve_color(struct iris_context *ice,
    //DBG("%s to mt %p level %u layer %u\n", __func__, mt, level, layer);
 
    struct blorp_surf surf;
-   iris_blorp_surf_for_resource(&batch->screen->isl_dev, &surf,
-                                &res->base.b, res->aux.usage, level, true);
+   iris_blorp_surf_for_resource(batch, &surf, &res->base.b,
+                                res->aux.usage, level, true);
 
    iris_batch_maybe_flush(batch, 1500);
 
@@ -576,8 +576,8 @@ iris_mcs_exec(struct iris_context *ice,
    iris_batch_maybe_flush(batch, 1500);
 
    struct blorp_surf surf;
-   iris_blorp_surf_for_resource(&batch->screen->isl_dev, &surf,
-                                &res->base.b, res->aux.usage, 0, true);
+   iris_blorp_surf_for_resource(batch, &surf, &res->base.b,
+                                res->aux.usage, 0, true);
 
    /* MCS partial resolve will read from the MCS surface. */
    assert(res->aux.bo == res->bo);
@@ -596,10 +596,10 @@ iris_mcs_exec(struct iris_context *ice,
        * the full resolve.
        */
       struct blorp_surf src_surf, dst_surf;
-      iris_blorp_surf_for_resource(&batch->screen->isl_dev, &src_surf,
-                                   &res->base.b, res->aux.usage, 0, false);
-      iris_blorp_surf_for_resource(&batch->screen->isl_dev, &dst_surf,
-                                   &res->base.b, ISL_AUX_USAGE_NONE, 0, true);
+      iris_blorp_surf_for_resource(batch, &src_surf, &res->base.b,
+                                   res->aux.usage, 0, false);
+      iris_blorp_surf_for_resource(batch, &dst_surf, &res->base.b,
+                                   ISL_AUX_USAGE_NONE, 0, true);
 
       blorp_copy(&blorp_batch, &src_surf, 0, 0, &dst_surf, 0, 0,
                  0, 0, 0, 0, surf.surf->logical_level0_px.width,
@@ -700,6 +700,13 @@ iris_hiz_exec(struct iris_context *ice,
    //DBG("%s %s to mt %p level %d layers %d-%d\n",
        //__func__, name, mt, level, start_layer, start_layer + num_layers - 1);
 
+   /* A data cache flush is not suggested by HW docs, but we found it to fix
+    * a number of failures.
+    */
+   unsigned wa_flush = devinfo->verx10 >= 125 &&
+                       res->aux.usage == ISL_AUX_USAGE_HIZ_CCS ?
+                       PIPE_CONTROL_DATA_CACHE_FLUSH : 0;
+
    /* The following stalls and flushes are only documented to be required
     * for HiZ clear operations.  However, they also seem to be required for
     * resolve operations.
@@ -716,14 +723,15 @@ iris_hiz_exec(struct iris_context *ice,
    iris_emit_pipe_control_flush(batch,
                                 "hiz op: pre-flush",
                                 PIPE_CONTROL_DEPTH_CACHE_FLUSH |
+                                wa_flush |
                                 PIPE_CONTROL_DEPTH_STALL |
                                 PIPE_CONTROL_CS_STALL);
 
    iris_batch_sync_region_start(batch);
 
    struct blorp_surf surf;
-   iris_blorp_surf_for_resource(&batch->screen->isl_dev, &surf,
-                                &res->base.b, res->aux.usage, level, true);
+   iris_blorp_surf_for_resource(batch, &surf, &res->base.b,
+                                res->aux.usage, level, true);
 
    struct blorp_batch blorp_batch;
    enum blorp_batch_flags flags = 0;
@@ -1261,14 +1269,32 @@ iris_resource_prepare_render(struct iris_context *ice,
                              uint32_t start_layer, uint32_t layer_count,
                              enum isl_aux_usage aux_usage)
 {
-   /* If the resource's clear color is incompatible with render_format,
-    * replace it with one that is. This process keeps the aux buffer
-    * compatible with render_format and the resource's format.
+   /* Replace the resource's clear color with zero if:
+    *
+    * - The resource's clear color is incompatible with render_format. This
+    *   avoids corrupting current fast clear blocks and ensures any fast clear
+    *   blocks generated as a result of the render will be recoverable.
+    *
+    * - The clear color struct is uninitialized and potentially inconsistent
+    *   with itself. For non-32-bpc formats, the struct consists of different
+    *   fields for rendering and sampling. If rendering can generate
+    *   fast-cleared blocks, we want these to agree so that we can avoid
+    *   partially resolving prior to sampling. Images with modifiers can be
+    *   ignored. Either we will have already initialized their structs to
+    *   zero, or they will have already been consistent at the time of import
+    *   (as defined by drm_fourcc.h)
+    *
+    * The only aux usage which requires this process is FCV_CCS_E. Other aux
+    * usages share a subset of these restrictions and benefit from only some
+    * of the steps involved with changing the clear color. For now, just keep
+    * things simple and assume we have the worst case usage of FCV_CCS_E.
     */
    if (!iris_render_formats_color_compatible(render_format,
                                              res->surf.format,
                                              res->aux.clear_color,
-                                             res->aux.clear_color_unknown)) {
+                                             res->aux.clear_color_unknown) ||
+       (res->aux.clear_color_unknown && !res->mod_info &&
+        isl_format_get_layout(render_format)->channels.r.bits != 32)) {
 
       /* Remove references to the clear color with resolves. */
       iris_resource_prepare_access(ice, res, 0, INTEL_REMAINING_LEVELS, 0,

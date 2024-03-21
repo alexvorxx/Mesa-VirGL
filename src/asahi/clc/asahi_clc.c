@@ -17,7 +17,6 @@
 #include "nir_builder.h"
 #include "nir_serialize.h"
 
-#include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
 #include <inttypes.h>
@@ -92,6 +91,30 @@ lower_builtins(nir_builder *b, nir_instr *instr, void *data)
       nir_store_deref(b, nir_src_as_deref(call->params[0]),
                       nir_stack_unmap_agx(b, call->params[1].ssa), 1);
       return true;
+   } else if (strcmp(func->name, "nir_load_core_id_agx") == 0) {
+      b->cursor = nir_instr_remove(&call->instr);
+      nir_store_deref(b, nir_src_as_deref(call->params[0]),
+                      nir_load_core_id_agx(b), 1);
+      return true;
+   } else if (strcmp(func->name, "nir_load_helper_op_id_agx") == 0) {
+      b->cursor = nir_instr_remove(&call->instr);
+      nir_store_deref(b, nir_src_as_deref(call->params[0]),
+                      nir_load_helper_op_id_agx(b, 1, 32), 1);
+      return true;
+   } else if (strcmp(func->name, "nir_load_helper_arg_lo_agx") == 0) {
+      b->cursor = nir_instr_remove(&call->instr);
+      nir_store_deref(b, nir_src_as_deref(call->params[0]),
+                      nir_load_helper_arg_lo_agx(b, 1, 32), 1);
+      return true;
+   } else if (strcmp(func->name, "nir_load_helper_arg_hi_agx") == 0) {
+      b->cursor = nir_instr_remove(&call->instr);
+      nir_store_deref(b, nir_src_as_deref(call->params[0]),
+                      nir_load_helper_arg_hi_agx(b, 1, 32), 1);
+      return true;
+   } else if (strcmp(func->name, "nir_fence_helper_exit_agx") == 0) {
+      b->cursor = nir_instr_remove(&call->instr);
+      nir_fence_helper_exit_agx(b);
+      return true;
    }
 
    return false;
@@ -124,7 +147,7 @@ optimize(nir_shader *nir)
       NIR_PASS(progress, nir, nir_opt_undef);
       NIR_PASS(progress, nir, nir_lower_undef_to_zero);
 
-      NIR_PASS(progress, nir, nir_opt_shrink_vectors);
+      NIR_PASS(progress, nir, nir_opt_shrink_vectors, true);
       NIR_PASS(progress, nir, nir_opt_loop_unroll);
 
       NIR_PASS(progress, nir, nir_split_var_copies);
@@ -145,54 +168,54 @@ compile(void *memctx, const uint32_t *spirv, size_t spirv_size)
    nir_validate_ssa_dominance(nir, "after spirv_to_nir");
    ralloc_steal(memctx, nir);
 
-   NIR_PASS_V(nir, nir_lower_system_values);
+   NIR_PASS(_, nir, nir_lower_system_values);
    nir_shader_instructions_pass(nir, lower_builtins, nir_metadata_none, NULL);
 
    /* We have to lower away local constant initializers right before we
     * inline functions.  That way they get properly initialized at the top
     * of the function and not at the top of its caller.
     */
-   NIR_PASS_V(nir, nir_lower_variable_initializers, nir_var_function_temp);
-   NIR_PASS_V(nir, nir_lower_returns);
-   NIR_PASS_V(nir, nir_inline_functions);
-   NIR_PASS_V(nir, nir_remove_non_exported);
-   NIR_PASS_V(nir, nir_copy_prop);
-   NIR_PASS_V(nir, nir_opt_deref);
+   NIR_PASS(_, nir, nir_lower_variable_initializers, nir_var_function_temp);
+   NIR_PASS(_, nir, nir_lower_returns);
+   NIR_PASS(_, nir, nir_inline_functions);
+   nir_remove_non_exported(nir);
+   NIR_PASS(_, nir, nir_copy_prop);
+   NIR_PASS(_, nir, nir_opt_deref);
 
    /* We can go ahead and lower the rest of the constant initializers.  We do
     * this here so that nir_remove_dead_variables and split_per_member_structs
     * below see the corresponding stores.
     */
-   NIR_PASS_V(nir, nir_lower_variable_initializers, ~0);
+   NIR_PASS(_, nir, nir_lower_variable_initializers, ~0);
 
    /* LLVM loves take advantage of the fact that vec3s in OpenCL are 16B
     * aligned and so it can just read/write them as vec4s.  This results in a
     * LOT of vec4->vec3 casts on loads and stores.  One solution to this
     * problem is to get rid of all vec3 variables.
     */
-   NIR_PASS_V(nir, nir_lower_vec3_to_vec4,
-              nir_var_shader_temp | nir_var_function_temp | nir_var_mem_shared |
-                 nir_var_mem_global | nir_var_mem_constant);
+   NIR_PASS(_, nir, nir_lower_vec3_to_vec4,
+            nir_var_shader_temp | nir_var_function_temp | nir_var_mem_shared |
+               nir_var_mem_global | nir_var_mem_constant);
 
    /* We assign explicit types early so that the optimizer can take advantage
     * of that information and hopefully get rid of some of our memcpys.
     */
-   NIR_PASS_V(nir, nir_lower_vars_to_explicit_types,
-              nir_var_uniform | nir_var_shader_temp | nir_var_function_temp |
-                 nir_var_mem_shared | nir_var_mem_global,
-              glsl_get_cl_type_size_align);
+   NIR_PASS(_, nir, nir_lower_vars_to_explicit_types,
+            nir_var_uniform | nir_var_shader_temp | nir_var_function_temp |
+               nir_var_mem_shared | nir_var_mem_global,
+            glsl_get_cl_type_size_align);
 
    optimize(nir);
 
-   NIR_PASS_V(nir, nir_remove_dead_variables, nir_var_all, NULL);
+   NIR_PASS(_, nir, nir_remove_dead_variables, nir_var_all, NULL);
 
    /* Lower again, this time after dead-variables to get more compact variable
     * layouts.
     */
-   NIR_PASS_V(nir, nir_lower_vars_to_explicit_types,
-              nir_var_shader_temp | nir_var_function_temp | nir_var_mem_shared |
-                 nir_var_mem_global | nir_var_mem_constant,
-              glsl_get_cl_type_size_align);
+   NIR_PASS(_, nir, nir_lower_vars_to_explicit_types,
+            nir_var_shader_temp | nir_var_function_temp | nir_var_mem_shared |
+               nir_var_mem_global | nir_var_mem_constant,
+            glsl_get_cl_type_size_align);
    if (nir->constant_data_size > 0) {
       assert(nir->constant_data == NULL);
       nir->constant_data = rzalloc_size(nir, nir->constant_data_size);
@@ -201,20 +224,21 @@ compile(void *memctx, const uint32_t *spirv, size_t spirv_size)
                                           nir_var_mem_constant);
    }
 
-   NIR_PASS_V(nir, nir_lower_memcpy);
+   NIR_PASS(_, nir, nir_lower_memcpy);
 
-   NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_mem_constant,
-              nir_address_format_64bit_global);
+   NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_mem_constant,
+            nir_address_format_64bit_global);
 
-   NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_uniform,
-              nir_address_format_32bit_offset_as_64bit);
+   NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_uniform,
+            nir_address_format_32bit_offset_as_64bit);
 
    /* Note: we cannot lower explicit I/O here, because we need derefs in tact
     * for function calls into the library to work.
     */
 
-   NIR_PASS_V(nir, nir_lower_convert_alu_types, NULL);
-   NIR_PASS_V(nir, nir_opt_if, nir_opt_if_aggressive_last_continue);
+   NIR_PASS(_, nir, nir_lower_convert_alu_types, NULL);
+   NIR_PASS(_, nir, nir_opt_if, 0);
+   NIR_PASS(_, nir, nir_opt_idiv_const, 16);
 
    optimize(nir);
 
@@ -236,7 +260,6 @@ print_u32_data(FILE *fp, const char *prefix, const char *arr_name,
                const uint32_t *data, size_t len)
 {
    assert(len % 4 == 0);
-   fprintf(fp, "#include <stdint.h>\n");
    fprintf(fp, "static const uint32_t %s_%s[] = {", prefix, arr_name);
    for (unsigned i = 0; i < (len / 4); i++) {
       if (i % 4 == 0)
@@ -465,11 +488,49 @@ main(int argc, char **argv)
    fprintf(fp, " *\n");
    fprintf(fp, " * Autogenerated file, do not edit\n");
    fprintf(fp, " */\n");
-   spirv_library_to_nir_builder(fp, final_spirv.data, final_spirv.size / 4,
-                                &spirv_options);
+   fprintf(fp, " #include <stdint.h>\n");
 
    /* Compile SPIR-V to NIR */
    nir_shader *nir = compile(NULL, final_spirv.data, final_spirv.size);
+
+   {
+      struct util_dynarray binary;
+      util_dynarray_init(&binary, NULL);
+
+      nir_builder b = nir_builder_init_simple_shader(
+         MESA_SHADER_COMPUTE, &agx_nir_options, "Helper shader");
+
+      nir_function *func =
+         nir_shader_get_function_for_name(nir, "libagx_helper");
+
+      nir_call(&b, nir_function_clone(b.shader, func));
+
+      UNUSED struct agx_uncompiled_shader_info info;
+      UNUSED struct agx_shader_info compiled_info;
+      struct agx_shader_key key = {
+         .libagx = nir,
+         .is_helper = true,
+      };
+
+      agx_preprocess_nir(b.shader, nir, false, &info);
+      agx_compile_shader_nir(b.shader, &key, NULL, &binary, &compiled_info);
+
+      /* Pad out */
+      uint8_t zero = 0;
+      while (binary.size % 4) {
+         util_dynarray_append(&binary, uint8_t, zero);
+      }
+
+      print_u32_data(fp, "libagx_g13", "helper", binary.data, binary.size);
+      util_dynarray_fini(&binary);
+      ralloc_free(b.shader);
+
+      /* Remove the NIR function, it's compiled, we don't need it at runtime */
+      exec_node_remove(&func->node);
+   }
+
+   spirv_library_to_nir_builder(fp, final_spirv.data, final_spirv.size / 4,
+                                &spirv_options);
 
    /* Serialize NIR for embedding */
    struct blob blob;

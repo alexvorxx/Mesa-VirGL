@@ -32,10 +32,15 @@ radv_entrypoints_gen_command += [
   '--device-prefix', 'sqtt',
   '--device-prefix', 'rra',
   '--device-prefix', 'rmv',
+  '--device-prefix', 'ctx_roll',
 
   # Application layer entrypoints
   '--device-prefix', 'metro_exodus',
   '--device-prefix', 'rage2',
+  '--device-prefix', 'quantic_dream',
+
+  # Command buffer annotation layer entrypoints
+  '--device-prefix', 'annotate',
 ]
 
 radv_entrypoints = custom_target(
@@ -48,8 +53,10 @@ radv_entrypoints = custom_target(
 
 libradv_files = files(
   'bvh/bvh.h',
+  'layers/radv_ctx_roll_layer.c',
   'layers/radv_metro_exodus.c',
   'layers/radv_rage2.c',
+  'layers/radv_quantic_dream.c',
   'layers/radv_rmv_layer.c',
   'layers/radv_rra_layer.c',
   'layers/radv_sqtt_layer.c',
@@ -88,6 +95,8 @@ libradv_files = files(
   'nir/radv_nir_lower_view_index.c',
   'nir/radv_nir_lower_viewport_to_zero.c',
   'nir/radv_nir_lower_vs_inputs.c',
+  'nir/radv_nir_rt_common.c',
+  'nir/radv_nir_rt_shader.c',
   'winsys/null/radv_null_bo.c',
   'winsys/null/radv_null_bo.h',
   'winsys/null/radv_null_cs.c',
@@ -97,6 +106,7 @@ libradv_files = files(
   'radv_acceleration_structure.c',
   'radv_android.c',
   'radv_buffer.c',
+  'radv_buffer_view.c',
   'radv_cmd_buffer.c',
   'radv_cp_reg_shadowing.c',
   'radv_cs.h',
@@ -110,6 +120,7 @@ libradv_files = files(
   'radv_event.c',
   'radv_formats.c',
   'radv_image.c',
+  'radv_image_view.c',
   'radv_instance.c',
   'radv_perfcounter.c',
   'radv_physical_device.c',
@@ -118,20 +129,21 @@ libradv_files = files(
   'radv_pipeline_compute.c',
   'radv_pipeline_graphics.c',
   'radv_pipeline_rt.c',
+  'radv_printf.c',
   'radv_private.h',
   'radv_queue.c',
   'radv_radeon_winsys.h',
   'radv_rmv.c',
   'radv_rra.c',
-  'radv_rt_common.c',
-  'radv_rt_shader.c',
   'radv_sampler.c',
   'radv_sdma.c',
+  'radv_sdma.h',
   'radv_shader.c',
   'radv_shader.h',
   'radv_shader_args.c',
   'radv_shader_args.h',
   'radv_shader_info.c',
+  'radv_shader_object.c',
   'radv_spm.c',
   'radv_sqtt.c',
   'radv_query.c',
@@ -168,6 +180,8 @@ libradv_files += radix_sort_files
 
 subdir('bvh')
 
+subdir('layers')
+
 radv_deps = []
 radv_flags = cc.get_supported_arguments(['-Wimplicit-fallthrough', '-Wshadow'])
 
@@ -194,7 +208,7 @@ endif
 
 libvulkan_radeon = shared_library(
   'vulkan_radeon',
-  [libradv_files, radv_entrypoints, sha1_h, radix_sort_spv, bvh_spv],
+  [libradv_files, radv_entrypoints, sha1_h, radix_sort_spv, bvh_spv, radv_annotate_layer],
   vs_module_defs : vulkan_api_def,
   include_directories : [
     inc_include, inc_src, inc_amd, inc_amd_common, inc_amd_common_llvm, inc_util,
@@ -207,7 +221,6 @@ libvulkan_radeon = shared_library(
     dep_valgrind, radv_deps, idep_aco,
     idep_mesautil, idep_nir, idep_vulkan_util, idep_vulkan_wsi,
     idep_vulkan_runtime, idep_amdgfxregs_h, idep_xmlconfig,
-    idep_vulkan_common_entrypoints_h, idep_vulkan_wsi_entrypoints_h
   ],
   c_args : [no_override_init_args, radv_flags, c_msvc_compat_args],
   cpp_args : [radv_flags, cpp_msvc_compat_args],
@@ -237,7 +250,7 @@ endif
 icd_lib_path = join_paths(get_option('prefix'), get_option('libdir'))
 icd_file_name = 'libvulkan_radeon.so'
 if with_platform_windows
-  icd_lib_path = join_paths(get_option('prefix'), get_option('bindir'))
+  icd_lib_path = import('fs').relative_to(get_option('bindir'), with_vulkan_icd_dir)
   icd_file_name = 'vulkan_radeon.dll'
 endif
 
@@ -290,7 +303,7 @@ if with_tests
       cpp_args : [cpp_msvc_compat_args],
       gnu_symbol_visibility : 'hidden',
       include_directories : [
-        inc_include, 
+        inc_include,
         inc_src,
         inc_mapi,
         inc_mesa,

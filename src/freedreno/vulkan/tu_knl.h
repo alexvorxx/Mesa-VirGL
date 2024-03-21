@@ -21,6 +21,7 @@ enum tu_bo_alloc_flags
    TU_BO_ALLOC_ALLOW_DUMP = 1 << 0,
    TU_BO_ALLOC_GPU_READ_ONLY = 1 << 1,
    TU_BO_ALLOC_REPLAYABLE = 1 << 2,
+   TU_BO_ALLOC_INTERNAL_RESOURCE = 1 << 3,
 };
 
 /* Define tu_timeline_sync type based on drm syncobj for a point type
@@ -74,6 +75,10 @@ struct tu_knl {
    VkResult (*bo_map)(struct tu_device *dev, struct tu_bo *bo);
    void (*bo_allow_dump)(struct tu_device *dev, struct tu_bo *bo);
    void (*bo_finish)(struct tu_device *dev, struct tu_bo *bo);
+   void (*bo_set_metadata)(struct tu_device *dev, struct tu_bo *bo,
+                           void *metadata, uint32_t metadata_size);
+   int (*bo_get_metadata)(struct tu_device *dev, struct tu_bo *bo,
+                          void *metadata, uint32_t metadata_size);
    VkResult (*device_wait_u_trace)(struct tu_device *dev,
                                    struct tu_u_trace_syncobj *syncobj);
    VkResult (*queue_submit)(struct tu_queue *queue,
@@ -138,6 +143,11 @@ VkResult
 tu_bo_map(struct tu_device *dev, struct tu_bo *bo);
 
 void tu_bo_allow_dump(struct tu_device *dev, struct tu_bo *bo);
+
+void tu_bo_set_metadata(struct tu_device *dev, struct tu_bo *bo,
+                        void *metadata, uint32_t metadata_size);
+int tu_bo_get_metadata(struct tu_device *dev, struct tu_bo *bo,
+                       void *metadata, uint32_t metadata_size);
 
 static inline struct tu_bo *
 tu_bo_get_ref(struct tu_bo *bo)

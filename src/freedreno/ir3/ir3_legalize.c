@@ -77,6 +77,15 @@ apply_ss(struct ir3_instruction *instr,
    state->needs_ss_for_const = false;
 }
 
+static inline void
+apply_sy(struct ir3_instruction *instr,
+         struct ir3_legalize_state *state,
+         bool mergedregs)
+{
+   instr->flags |= IR3_INSTR_SY;
+   regmask_init(&state->needs_sy, mergedregs);
+}
+
 /* We want to evaluate each block from the position of any other
  * predecessor block, in order that the flags set are the union of
  * all possible program paths.
@@ -176,9 +185,7 @@ legalize_block(struct ir3_legalize_ctx *ctx, struct ir3_block *block)
 
       if ((last_n && is_barrier(last_n)) || n->opc == OPC_SHPE) {
          apply_ss(n, state, mergedregs);
-
-         n->flags |= IR3_INSTR_SY;
-         regmask_init(&state->needs_sy, mergedregs);
+         apply_sy(n, state, mergedregs);
          last_input_needs_ss = false;
       }
 
@@ -211,12 +218,13 @@ legalize_block(struct ir3_legalize_ctx *ctx, struct ir3_block *block)
             }
 
             if (regmask_get(&state->needs_sy, reg)) {
-               n->flags |= IR3_INSTR_SY;
-               regmask_init(&state->needs_sy, mergedregs);
+               apply_sy(n, state, mergedregs);
             }
-         } else if ((reg->flags & IR3_REG_CONST) && state->needs_ss_for_const) {
-            apply_ss(n, state, mergedregs);
-            last_input_needs_ss = false;
+         } else if ((reg->flags & IR3_REG_CONST)) {
+            if (state->needs_ss_for_const) {
+               apply_ss(n, state, mergedregs);
+               last_input_needs_ss = false;
+            }
          }
       }
 
@@ -523,56 +531,11 @@ remove_unused_block(struct ir3_block *old_target)
 {
    list_delinit(&old_target->node);
 
-   /* If there are any physical predecessors due to fallthroughs, then they may
-    * fall through to any of the physical successors of this block. But we can
-    * only fit two, so just pick the "earliest" one, i.e. the fallthrough if
-    * possible.
-    *
-    * TODO: we really ought to have unlimited numbers of physical successors,
-    * both because of this and because we currently don't model some scenarios
-    * with nested break/continue correctly.
-    */
-   struct ir3_block *new_target;
-   if (old_target->physical_successors[1] &&
-       old_target->physical_successors[1]->start_ip <
-       old_target->physical_successors[0]->start_ip) {
-      new_target = old_target->physical_successors[1];
-   } else {
-      new_target = old_target->physical_successors[0];
-   }
-
-   for (unsigned i = 0; i < old_target->physical_predecessors_count; i++) {
-      struct ir3_block *pred = old_target->physical_predecessors[i];
-      if (pred->physical_successors[0] == old_target) {
-         if (!new_target) {
-            /* If we remove a physical successor, make sure the only physical
-             * successor is the first one.
-             */
-            pred->physical_successors[0] = pred->physical_successors[1];
-            pred->physical_successors[1] = NULL;
-         } else {
-            pred->physical_successors[0] = new_target;
-         }
-      } else {
-         assert(pred->physical_successors[1] == old_target);
-         pred->physical_successors[1] = new_target;
-      }
-      if (new_target)
-         ir3_block_add_physical_predecessor(new_target, pred);
-   }
-
    /* cleanup dangling predecessors: */
    for (unsigned i = 0; i < ARRAY_SIZE(old_target->successors); i++) {
       if (old_target->successors[i]) {
          struct ir3_block *succ = old_target->successors[i];
          ir3_block_remove_predecessor(succ, old_target);
-      }
-   }
-
-   for (unsigned i = 0; i < ARRAY_SIZE(old_target->physical_successors); i++) {
-      if (old_target->physical_successors[i]) {
-         struct ir3_block *succ = old_target->physical_successors[i];
-         ir3_block_remove_physical_predecessor(succ, old_target);
       }
    }
 }
@@ -591,21 +554,16 @@ retarget_jump(struct ir3_instruction *instr, struct ir3_block *new_target)
       cur_block->successors[1] = new_target;
    }
 
-   /* also update physical_successors: */
-   if (cur_block->physical_successors[0] == old_target) {
-      cur_block->physical_successors[0] = new_target;
-   } else {
-      assert(cur_block->physical_successors[1] == old_target);
-      cur_block->physical_successors[1] = new_target;
-   }
-
    /* update new target's predecessors: */
    ir3_block_add_predecessor(new_target, cur_block);
-   ir3_block_add_physical_predecessor(new_target, cur_block);
 
    /* and remove old_target's predecessor: */
    ir3_block_remove_predecessor(old_target, cur_block);
-   ir3_block_remove_physical_predecessor(old_target, cur_block);
+
+   /* If we reconverged at the old target, we'll reconverge at the new target
+    * too:
+    */
+   new_target->reconvergence_point |= old_target->reconvergence_point;
 
    instr->cat0.target = new_target;
 
@@ -618,6 +576,21 @@ retarget_jump(struct ir3_instruction *instr, struct ir3_block *new_target)
 }
 
 static bool
+is_invertible_branch(struct ir3_instruction *instr)
+{
+   switch (instr->opc) {
+   case OPC_BR:
+   case OPC_BRAA:
+   case OPC_BRAO:
+   case OPC_BANY:
+   case OPC_BALL:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static bool
 opt_jump(struct ir3 *ir)
 {
    bool progress = false;
@@ -627,6 +600,12 @@ opt_jump(struct ir3 *ir)
       block->index = index++;
 
    foreach_block (block, &ir->block_list) {
+      /* This pass destroys the physical CFG so don't keep it around to avoid
+       * validation errors.
+       */
+      block->physical_successors_count = 0;
+      block->physical_predecessors_count = 0;
+
       foreach_instr (instr, &block->instr_list) {
          if (!is_flow(instr) || !instr->cat0.target)
             continue;
@@ -661,13 +640,14 @@ opt_jump(struct ir3 *ir)
 
       if (jumps[0]->opc == OPC_JUMP)
          jumps[1] = NULL;
-      else if (jumps[0]->opc != OPC_B || !jumps[1] || jumps[1]->opc != OPC_B)
+      else if (!is_invertible_branch(jumps[0]) || !jumps[1] ||
+               !is_invertible_branch(jumps[1])) {
          continue;
+      }
 
       for (unsigned i = 0; i < 2; i++) {
          if (!jumps[i])
             continue;
-
          struct ir3_block *tblock = jumps[i]->cat0.target;
          if (&tblock->node == block->node.next) {
             list_delinit(&jumps[i]->node);
@@ -707,126 +687,98 @@ mark_jp(struct ir3_block *block)
    target->flags |= IR3_INSTR_JP;
 }
 
-/* Mark points where control flow converges or diverges.
+/* Mark points where control flow reconverges.
  *
- * Divergence points could actually be re-convergence points where
- * "parked" threads are recoverged with threads that took the opposite
- * path last time around.  Possibly it is easier to think of (jp) as
- * "the execution mask might have changed".
+ * Re-convergence points are where "parked" threads are reconverged with threads
+ * that took the opposite path last time around. We already calculated them, we
+ * just need to mark them with (jp).
  */
 static void
 mark_xvergence_points(struct ir3 *ir)
 {
    foreach_block (block, &ir->block_list) {
-      /* We need to insert (jp) if an entry in the "branch stack" is created for
-       * our block. This happens if there is a predecessor to our block that may
-       * fallthrough to an earlier block in the physical CFG, either because it
-       * ends in a non-uniform conditional branch or because there's a
-       * fallthrough for an block in-between that also starts with (jp) and was
-       * pushed on the branch stack already.
-       */
-      for (unsigned i = 0; i < block->predecessors_count; i++) {
-         struct ir3_block *pred = block->predecessors[i];
-
-         for (unsigned j = 0; j < ARRAY_SIZE(pred->physical_successors); j++) {
-            if (pred->physical_successors[j] != NULL &&
-                pred->physical_successors[j]->start_ip < block->start_ip)
-               mark_jp(block);
-
-            /* If the predecessor just falls through to this block, we still
-             * need to check if it "falls through" by jumping to the block. This
-             * can happen if opt_jump fails and the block ends in two branches,
-             * or if there's an empty if-statement (which currently can happen
-             * with binning shaders after dead-code elimination) and the block
-             * before ends with a conditional branch directly to this block.
-             */
-            if (pred->physical_successors[j] == block) {
-               foreach_instr_rev (instr, &pred->instr_list) {
-                  if (!is_flow(instr))
-                     break;
-                  if (instr->cat0.target == block) {
-                     mark_jp(block);
-                     break;
-                  }
-               }
-            }
-         }
-      }
+      if (block->reconvergence_point)
+         mark_jp(block);
    }
+}
+
+static void
+invert_branch(struct ir3_instruction *branch)
+{
+   switch (branch->opc) {
+   case OPC_BR:
+      break;
+   case OPC_BALL:
+      branch->opc = OPC_BANY;
+      break;
+   case OPC_BANY:
+      branch->opc = OPC_BALL;
+      break;
+   case OPC_BRAA:
+      branch->opc = OPC_BRAO;
+      break;
+   case OPC_BRAO:
+      branch->opc = OPC_BRAA;
+      break;
+   default:
+      unreachable("can't get here");
+   }
+
+   branch->cat0.inv1 = !branch->cat0.inv1;
+   branch->cat0.inv2 = !branch->cat0.inv2;
+   branch->cat0.target = branch->block->successors[1];
 }
 
 /* Insert the branch/jump instructions for flow control between blocks.
  * Initially this is done naively, without considering if the successor
  * block immediately follows the current block (ie. so no jump required),
  * but that is cleaned up in opt_jump().
- *
- * TODO what ensures that the last write to p0.x in a block is the
- * branch condition?  Have we been getting lucky all this time?
  */
 static void
 block_sched(struct ir3 *ir)
 {
    foreach_block (block, &ir->block_list) {
+      struct ir3_instruction *terminator = ir3_block_get_terminator(block);
+
       if (block->successors[1]) {
          /* if/else, conditional branches to "then" or "else": */
          struct ir3_instruction *br1, *br2;
 
-         if (block->brtype == IR3_BRANCH_GETONE ||
-             block->brtype == IR3_BRANCH_SHPS) {
+         assert(terminator);
+         unsigned opc = terminator->opc;
+
+         if (opc == OPC_GETONE || opc == OPC_SHPS || opc == OPC_GETLAST) {
             /* getone/shps can't be inverted, and it wouldn't even make sense
              * to follow it with an inverted branch, so follow it by an
              * unconditional branch.
              */
-            assert(!block->condition);
-            if (block->brtype == IR3_BRANCH_GETONE)
-               br1 = ir3_GETONE(block);
-            else
-               br1 = ir3_SHPS(block);
+            assert(terminator->srcs_count == 0);
+            br1 = terminator;
             br1->cat0.target = block->successors[1];
 
             br2 = ir3_JUMP(block);
             br2->cat0.target = block->successors[0];
          } else {
-            assert(block->condition);
-
             /* create "else" branch first (since "then" block should
              * frequently/always end up being a fall-thru):
              */
-            br1 = ir3_instr_create(block, OPC_B, 0, 1);
-            ir3_src_create(br1, regid(REG_P0, 0), 0)->def =
-               block->condition->dsts[0];
-            br1->cat0.inv1 = true;
-            br1->cat0.target = block->successors[1];
-
-            /* "then" branch: */
-            br2 = ir3_instr_create(block, OPC_B, 0, 1);
-            ir3_src_create(br2, regid(REG_P0, 0), 0)->def =
-               block->condition->dsts[0];
+            br1 = terminator;
+            br2 = ir3_instr_clone(br1);
+            invert_branch(br1);
             br2->cat0.target = block->successors[0];
-
-            switch (block->brtype) {
-            case IR3_BRANCH_COND:
-               br1->cat0.brtype = br2->cat0.brtype = BRANCH_PLAIN;
-               break;
-            case IR3_BRANCH_ALL:
-               br1->cat0.brtype = BRANCH_ANY;
-               br2->cat0.brtype = BRANCH_ALL;
-               break;
-            case IR3_BRANCH_ANY:
-               br1->cat0.brtype = BRANCH_ALL;
-               br2->cat0.brtype = BRANCH_ANY;
-               break;
-            case IR3_BRANCH_GETONE:
-            case IR3_BRANCH_SHPS:
-               unreachable("can't get here");
-            }
          }
-      } else if (block->successors[0]) {
-         /* otherwise unconditional jump to next block: */
-         struct ir3_instruction *jmp;
 
-         jmp = ir3_JUMP(block);
-         jmp->cat0.target = block->successors[0];
+         /* Creating br2 caused it to be moved before the terminator b1, move it
+          * back.
+          */
+         ir3_instr_move_after(br2, br1);
+      } else if (block->successors[0]) {
+         /* otherwise unconditional jump to next block which should already have
+          * been inserted.
+          */
+         assert(terminator);
+         assert(terminator->opc == OPC_JUMP);
+         terminator->cat0.target = block->successors[0];
       }
    }
 }
@@ -851,6 +803,8 @@ block_sched(struct ir3 *ir)
 static void
 kill_sched(struct ir3 *ir, struct ir3_shader_variant *so)
 {
+   ir3_count_instructions(ir);
+
    /* True if we know that this block will always eventually lead to the end
     * block:
     */
@@ -872,7 +826,7 @@ kill_sched(struct ir3 *ir, struct ir3_shader_variant *so)
          if (instr->opc != OPC_KILL)
             continue;
 
-         struct ir3_instruction *br = ir3_instr_create(block, OPC_B, 0, 1);
+         struct ir3_instruction *br = ir3_instr_create(block, OPC_BR, 0, 1);
          ir3_src_create(br, instr->srcs[0]->num, instr->srcs[0]->flags)->wrmask =
             1;
          br->cat0.target =
@@ -948,6 +902,33 @@ nop_sched(struct ir3 *ir, struct ir3_shader_variant *so)
    }
 }
 
+static void
+dbg_sync_sched(struct ir3 *ir, struct ir3_shader_variant *so)
+{
+   foreach_block (block, &ir->block_list) {
+      foreach_instr_safe (instr, &block->instr_list) {
+         if (opc_cat(instr->opc) == 4 || opc_cat(instr->opc) == 5 ||
+             opc_cat(instr->opc) == 6) {
+            struct ir3_instruction *nop = ir3_NOP(block);
+            nop->flags |= IR3_INSTR_SS | IR3_INSTR_SY;
+            ir3_instr_move_after(nop, instr);
+         }
+      }
+   }
+}
+
+static void
+dbg_nop_sched(struct ir3 *ir, struct ir3_shader_variant *so)
+{
+   foreach_block (block, &ir->block_list) {
+      foreach_instr_safe (instr, &block->instr_list) {
+         struct ir3_instruction *nop = ir3_NOP(block);
+         nop->repeat = 5;
+         ir3_instr_move_before(nop, instr);
+      }
+   }
+}
+
 struct ir3_helper_block_data {
    /* Whether helper invocations may be used on any path starting at the
     * beginning of the block.
@@ -995,10 +976,13 @@ helper_sched(struct ir3_legalize_ctx *ctx, struct ir3 *ir,
          }
       }
 
-      if (block->brtype == IR3_BRANCH_ALL ||
-          block->brtype == IR3_BRANCH_ANY ||
-          block->brtype == IR3_BRANCH_GETONE) {
-         bd->uses_helpers_end = true;
+      struct ir3_instruction *terminator = ir3_block_get_terminator(block);
+      if (terminator) {
+         if (terminator->opc == OPC_BALL || terminator->opc == OPC_BANY ||
+             terminator->opc == OPC_GETONE) {
+            bd->uses_helpers_beginning = true;
+            bd->uses_helpers_end = true;
+         }
       }
 
       block->data = bd;
@@ -1212,6 +1196,14 @@ ir3_legalize(struct ir3 *ir, struct ir3_shader_variant *so, int *max_bary)
 
    *max_bary = ctx->max_bary;
 
+   foreach_block (block, &ir->block_list) {
+      struct ir3_instruction *terminator = ir3_block_get_terminator(block);
+      if (terminator && terminator->opc == OPC_GETONE) {
+         apply_push_consts_load_macro(ctx, block->successors[0]);
+         break;
+      }
+   }
+
    block_sched(ir);
    if (so->type == MESA_SHADER_FRAGMENT)
       kill_sched(ir, so);
@@ -1220,14 +1212,15 @@ ir3_legalize(struct ir3 *ir, struct ir3_shader_variant *so, int *max_bary)
       progress |= apply_fine_deriv_macro(ctx, block);
    }
 
-   foreach_block (block, &ir->block_list) {
-      if (block->brtype == IR3_BRANCH_GETONE) {
-         apply_push_consts_load_macro(ctx, block->successors[0]);
-         break;
-      }
+   nop_sched(ir, so);
+
+   if (ir3_shader_debug & IR3_DBG_FULLSYNC) {
+      dbg_sync_sched(ir, so);
    }
 
-   nop_sched(ir, so);
+   if (ir3_shader_debug & IR3_DBG_FULLNOP) {
+      dbg_nop_sched(ir, so);
+   }
 
    while (opt_jump(ir))
       ;

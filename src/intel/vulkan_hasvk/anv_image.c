@@ -1031,11 +1031,6 @@ add_all_surfaces_implicit_layout(
             return result;
       }
 
-      /* Disable aux if image supports export without modifiers. */
-      if (image->vk.external_handle_types != 0 &&
-          image->vk.tiling != VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT)
-         continue;
-
       result = add_aux_surface_if_supported(device, image, plane, plane_format,
                                             format_list_info,
                                             ANV_OFFSET_IMPLICIT, stride,
@@ -1214,7 +1209,7 @@ alloc_private_binding(struct anv_device *device,
 
 VkResult
 anv_image_init(struct anv_device *device, struct anv_image *image,
-               const struct anv_image_create_info *create_info)
+               struct anv_image_create_info *create_info)
 {
    const VkImageCreateInfo *pCreateInfo = create_info->vk_info;
    const struct VkImageDrmFormatModifierExplicitCreateInfoEXT *mod_explicit_info = NULL;
@@ -1258,7 +1253,7 @@ anv_image_init(struct anv_device *device, struct anv_image *image,
    if (image->vk.external_handle_types &
        VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID) {
       image->from_ahb = true;
-#ifdef ANDROID
+#if DETECT_OS_ANDROID
       image->vk.ahb_format = anv_ahb_format_for_vk_format(image->vk.format);
 #endif
       return VK_SUCCESS;
@@ -1275,6 +1270,11 @@ anv_image_init(struct anv_device *device, struct anv_image *image,
     */
    image->disjoint = image->n_planes > 1 &&
                      (pCreateInfo->flags & VK_IMAGE_CREATE_DISJOINT_BIT);
+
+   /* Disable aux if image supports export without modifiers. */
+   if (image->vk.external_handle_types != 0 &&
+       image->vk.tiling != VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT)
+      create_info->isl_extra_usage_flags |= ISL_SURF_USAGE_DISABLE_AUX_BIT;
 
    const isl_tiling_flags_t isl_tiling_flags =
       choose_isl_tiling_flags(device->info, create_info, isl_mod_info,
@@ -1447,7 +1447,7 @@ resolve_ahw_image(struct anv_device *device,
                   struct anv_image *image,
                   struct anv_device_memory *mem)
 {
-#if defined(ANDROID) && ANDROID_API_LEVEL >= 26
+#if DETECT_OS_ANDROID && ANDROID_API_LEVEL >= 26
    assert(mem->ahw);
    AHardwareBuffer_Desc desc;
    AHardwareBuffer_describe(mem->ahw, &desc);
@@ -1595,7 +1595,7 @@ void anv_GetImageMemoryRequirements2(
                                      pMemoryRequirements);
 }
 
-void anv_GetDeviceImageMemoryRequirementsKHR(
+void anv_GetDeviceImageMemoryRequirements(
     VkDevice                                    _device,
     const VkDeviceImageMemoryRequirements*   pInfo,
     VkMemoryRequirements2*                      pMemoryRequirements)
@@ -1632,7 +1632,7 @@ void anv_GetImageSparseMemoryRequirements2(
    *pSparseMemoryRequirementCount = 0;
 }
 
-void anv_GetDeviceImageSparseMemoryRequirementsKHR(
+void anv_GetDeviceImageSparseMemoryRequirements(
     VkDevice                                    device,
     const VkDeviceImageMemoryRequirements* pInfo,
     uint32_t*                                   pSparseMemoryRequirementCount,
@@ -2182,7 +2182,7 @@ anv_image_fill_surface_state(struct anv_device *device,
                              const union isl_color_value *clear_color,
                              enum anv_image_view_state_flags flags,
                              struct anv_surface_state *state_inout,
-                             struct brw_image_param *image_param_out)
+                             struct isl_image_param *image_param_out)
 {
    const uint32_t plane = anv_image_aspect_to_plane(image, aspect);
 

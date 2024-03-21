@@ -120,7 +120,7 @@ struct vk_properties {
 #endif
 
 #endif
-""", output_encoding="utf-8")
+""")
 
 TEMPLATE_C = Template(COPYRIGHT + """
 /* This file generated from ${filename}, don"t edit directly. */
@@ -141,7 +141,7 @@ vk_common_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
    ${copy_property("pProperties->properties." + prop.name, "pdevice->properties." + prop.actual_name, prop.decl)}
 % endfor
 
-   vk_foreach_struct(ext, pProperties) {
+   vk_foreach_struct(ext, pProperties->pNext) {
       switch (ext->sType) {
 % for property_struct in property_structs:
 % if property_struct.name not in SPECIALIZED_PROPERTY_STRUCTS:
@@ -190,7 +190,7 @@ vk_common_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
       }
    }
 }
-""", output_encoding="utf-8")
+""")
 
 def get_pdev_properties(doc, struct_name):
     _type = doc.find(".types/type[@name=\"VkPhysicalDevice%s\"]" % struct_name)
@@ -223,7 +223,7 @@ def get_property_structs(doc, api, beta):
 
         # Skip extensions with a define for now
         guard = required[full_name].guard
-        if guard is not None and (guard != "VK_ENABLE_BETA_EXTENSIONS" or not beta):
+        if guard is not None and (guard != "VK_ENABLE_BETA_EXTENSIONS" or beta != "true"):
             continue
 
         # find Vulkan structure type
@@ -316,9 +316,9 @@ def main():
     }
 
     try:
-        with open(args.out_c, "wb") as f:
+        with open(args.out_c, "w", encoding='utf-8') as f:
             f.write(TEMPLATE_C.render(**environment))
-        with open(args.out_h, "wb") as f:
+        with open(args.out_h, "w", encoding='utf-8') as f:
             f.write(TEMPLATE_H.render(**environment))
     except Exception:
         # In the event there"s an error, this uses some helpers from mako

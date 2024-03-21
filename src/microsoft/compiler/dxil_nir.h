@@ -40,6 +40,7 @@ bool dxil_nir_lower_constant_to_temp(nir_shader *shader);
 bool dxil_nir_flatten_var_arrays(nir_shader *shader, nir_variable_mode modes);
 bool dxil_nir_lower_var_bit_size(nir_shader *shader, nir_variable_mode modes,
                                  unsigned min_bit_size, unsigned max_bit_size);
+bool dxil_nir_remove_oob_array_accesses(nir_shader *shader);
 struct dxil_nir_lower_loads_stores_options {
    bool use_16bit_ssbo;
 };
@@ -86,6 +87,7 @@ bool dxil_nir_move_consts(nir_shader *s);
 struct dxil_module;
 bool dxil_nir_analyze_io_dependencies(struct dxil_module *mod, nir_shader *s);
 bool dxil_nir_guess_image_formats(nir_shader *s);
+bool dxil_nir_lower_coherent_loads_and_stores(nir_shader *s);
 
 #ifdef __cplusplus
 }

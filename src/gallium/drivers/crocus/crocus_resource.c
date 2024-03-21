@@ -216,6 +216,10 @@ crocus_resource_configure_main(const struct crocus_screen *screen,
          tiling_flags = ISL_TILING_W_BIT;
    }
 
+   /* Disable aux for external memory objects. */
+   if (!res->mod_info && res->external_format != PIPE_FORMAT_NONE)
+      usage |= ISL_SURF_USAGE_DISABLE_AUX_BIT;
+
    const enum isl_format format =
       crocus_format_for_usage(&screen->devinfo, templ->format, usage).fmt;
 
@@ -502,7 +506,7 @@ crocus_resource_configure_aux(struct crocus_screen *screen,
       return false;
 
    /* Increase the aux offset if the main and aux surfaces will share a BO. */
-   res->aux.offset = ALIGN(res->surf.size_B, res->aux.surf.alignment_B);
+   res->aux.offset = (uint32_t)align64(res->surf.size_B, res->aux.surf.alignment_B);
    uint64_t size = res->aux.surf.size_B;
 
    /* Allocate space in the buffer for storing the clear color. On modern
@@ -515,7 +519,7 @@ crocus_resource_configure_aux(struct crocus_screen *screen,
     * starts at a 4K alignment. We believe that 256B might be enough, but due
     * to lack of testing we will leave this as 4K for now.
     */
-   size = ALIGN(size, 4096);
+   size = align64(size, 4096);
    *aux_size_B = size;
 
    if (isl_aux_usage_has_hiz(res->aux.usage)) {

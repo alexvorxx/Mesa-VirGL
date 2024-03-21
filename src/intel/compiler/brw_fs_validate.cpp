@@ -90,6 +90,8 @@
 void
 fs_visitor::validate()
 {
+   cfg->validate(_mesa_shader_stage_to_abbrev(stage));
+
    foreach_block_and_inst (block, fs_inst, inst, cfg) {
       switch (inst->opcode) {
       case SHADER_OPCODE_SEND:
@@ -189,8 +191,8 @@ fs_visitor::validate()
        */
       if (intel_needs_workaround(devinfo, 14014617373) &&
           inst->dst.is_accumulator() &&
-          inst->dst.offset == 0) {
-         fsv_assert_eq(inst->dst.stride, 1);
+          phys_subnr(devinfo, inst->dst.as_brw_reg()) == 0) {
+         fsv_assert_eq(inst->dst.hstride, 1);
       }
    }
 }

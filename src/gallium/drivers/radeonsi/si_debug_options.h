@@ -20,6 +20,9 @@ OPT_INT(max_vram_map_size, 8196, "Maximum size of a buffer in VRAM to map direct
 OPT_BOOL(force_use_fma32, false, "Force use fma32 instruction for GPU family newer than gfx9")
 OPT_BOOL(dcc_msaa, false, "Enable DCC for MSAA")
 OPT_BOOL(zerovram, false, "Zero all VRAM allocations")
+OPT_BOOL(clear_lds, false, "Clear LDS at the end of shaders. Might decrease performance.")
+OPT_BOOL(cache_rb_gl2, false, "Enable GL2 caching for CB and DB.")
+OPT_BOOL(optimize_io, true, "Run nir_opt_varyings in the GLSL linker.")
 
 #undef OPT_BOOL
 #undef OPT_INT

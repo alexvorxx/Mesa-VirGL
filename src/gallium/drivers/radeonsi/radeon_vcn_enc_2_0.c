@@ -24,7 +24,6 @@
 #define RENCODE_IB_PARAM_LAYER_SELECT              0x00000005
 #define RENCODE_IB_PARAM_RATE_CONTROL_SESSION_INIT 0x00000006
 #define RENCODE_IB_PARAM_RATE_CONTROL_LAYER_INIT   0x00000007
-#define RENCODE_IB_PARAM_RATE_CONTROL_PER_PICTURE  0x00000008
 #define RENCODE_IB_PARAM_QUALITY_PARAMS            0x00000009
 #define RENCODE_IB_PARAM_DIRECT_OUTPUT_NALU        0x0000000a
 #define RENCODE_IB_PARAM_SLICE_HEADER              0x0000000b
@@ -34,6 +33,7 @@
 #define RENCODE_IB_PARAM_INTRA_REFRESH             0x00000010
 #define RENCODE_IB_PARAM_ENCODE_CONTEXT_BUFFER     0x00000011
 #define RENCODE_IB_PARAM_VIDEO_BITSTREAM_BUFFER    0x00000012
+#define RENCODE_IB_PARAM_QP_MAP                    0x00000014
 #define RENCODE_IB_PARAM_FEEDBACK_BUFFER           0x00000015
 #define RENCODE_IB_PARAM_ENCODE_STATISTICS         0x00000019
 
@@ -399,7 +399,8 @@ static void radeon_enc_nalu_pps_hevc(struct radeon_encoder *enc)
    radeon_enc_code_se(enc, 0x0);
    radeon_enc_code_fixed_bits(enc, enc->enc_pic.hevc_spec_misc.constrained_intra_pred_flag, 1);
    radeon_enc_code_fixed_bits(enc, 0x0, 1);
-   if (enc->enc_pic.rc_session_init.rate_control_method == RENCODE_RATE_CONTROL_METHOD_NONE)
+   if (enc->enc_pic.rc_session_init.rate_control_method == RENCODE_RATE_CONTROL_METHOD_NONE &&
+       enc->enc_pic.enc_qp_map.qp_map_type == RENCODE_QP_MAP_TYPE_NONE)
       radeon_enc_code_fixed_bits(enc, 0x0, 1);
    else {
       radeon_enc_code_fixed_bits(enc, 0x1, 1);
@@ -503,10 +504,27 @@ static void radeon_enc_ctx(struct radeon_encoder *enc)
 }
 static void encode(struct radeon_encoder *enc)
 {
+   unsigned i;
+
    enc->before_encode(enc);
    enc->session_info(enc);
    enc->total_task_size = 0;
    enc->task_info(enc, enc->need_feedback);
+
+   if (enc->need_rate_control || enc->need_rc_per_pic) {
+      i = 0;
+      do {
+         enc->enc_pic.layer_sel.temporal_layer_index = i;
+         if (enc->need_rate_control) {
+            enc->layer_select(enc);
+            enc->rc_layer_init(enc);
+         }
+         if (enc->need_rc_per_pic) {
+            enc->layer_select(enc);
+            enc->rc_per_pic(enc);
+         }
+      } while (++i < enc->enc_pic.num_temporal_layers);
+   }
 
    enc->encode_headers(enc);
    enc->ctx(enc);
@@ -514,6 +532,7 @@ static void encode(struct radeon_encoder *enc)
    enc->feedback(enc);
    enc->encode_statistics(enc);
    enc->intra_refresh(enc);
+   enc->qp_map(enc);
    enc->input_format(enc);
    enc->output_format(enc);
 
@@ -546,7 +565,6 @@ void radeon_enc_2_0_init(struct radeon_encoder *enc)
    enc->cmd.layer_select = RENCODE_IB_PARAM_LAYER_SELECT;
    enc->cmd.rc_session_init = RENCODE_IB_PARAM_RATE_CONTROL_SESSION_INIT;
    enc->cmd.rc_layer_init = RENCODE_IB_PARAM_RATE_CONTROL_LAYER_INIT;
-   enc->cmd.rc_per_pic = RENCODE_IB_PARAM_RATE_CONTROL_PER_PICTURE;
    enc->cmd.quality_params = RENCODE_IB_PARAM_QUALITY_PARAMS;
    enc->cmd.nalu = RENCODE_IB_PARAM_DIRECT_OUTPUT_NALU;
    enc->cmd.slice_header = RENCODE_IB_PARAM_SLICE_HEADER;
@@ -565,6 +583,7 @@ void radeon_enc_2_0_init(struct radeon_encoder *enc)
    enc->cmd.enc_params_h264 = RENCODE_H264_IB_PARAM_ENCODE_PARAMS;
    enc->cmd.deblocking_filter_h264 = RENCODE_H264_IB_PARAM_DEBLOCKING_FILTER;
    enc->cmd.enc_statistics = RENCODE_IB_PARAM_ENCODE_STATISTICS;
+   enc->cmd.enc_qp_map = RENCODE_IB_PARAM_QP_MAP;
 
    enc->enc_pic.session_info.interface_version =
       ((RENCODE_FW_INTERFACE_MAJOR_VERSION << RENCODE_IF_MAJOR_VERSION_SHIFT) |

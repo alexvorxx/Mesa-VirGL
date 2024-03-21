@@ -45,6 +45,8 @@ files_mesa_util = files(
   'compiler.h',
   'compress.c',
   'compress.h',
+  'thread_sched.c',
+  'thread_sched.h',
   'crc32.c',
   'crc32.h',
   'dag.c',
@@ -337,6 +339,17 @@ files_xxd = files('xxd.py')
 glsl2spirv = files('glsl2spirv.py')
 
 devenv.set('DRIRC_CONFIGDIR', meson.current_source_dir())
+
+_libparson = static_library(
+  'parson',
+  ['parson.c', 'parson.h'],
+  gnu_symbol_visibility : 'hidden',
+  build_by_default : false,
+)
+
+idep_parson = declare_dependency(
+  link_with :  _libparson,
+)
 
 if with_tests
   # DRI_CONF macros use designated initializers (required for union

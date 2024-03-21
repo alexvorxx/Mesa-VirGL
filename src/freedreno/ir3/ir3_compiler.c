@@ -47,6 +47,8 @@ static const struct debug_named_value shader_debug_options[] = {
    {"nocache",    IR3_DBG_NOCACHE,    "Disable shader cache"},
    {"spillall",   IR3_DBG_SPILLALL,   "Spill as much as possible to test the spiller"},
    {"nopreamble", IR3_DBG_NOPREAMBLE, "Disable the preamble pass"},
+   {"fullsync",   IR3_DBG_FULLSYNC,   "Add (sy) + (ss) after each cat5/cat6"},
+   {"fullnop",    IR3_DBG_FULLNOP,    "Add nops before each instruction"},
 #ifdef DEBUG
    /* DEBUG-only options: */
    {"schedmsgs",  IR3_DBG_SCHEDMSGS,  "Enable scheduler debug messages"},
@@ -109,7 +111,6 @@ static const nir_shader_compiler_options ir3_base_options = {
    .lower_unpack_unorm_2x16 = true,
    .lower_pack_split = true,
    .use_interpolated_input_intrinsics = true,
-   .lower_rotate = true,
    .lower_to_scalar = true,
    .has_imul24 = true,
    .has_fsub = true,
@@ -127,13 +128,14 @@ static const nir_shader_compiler_options ir3_base_options = {
 
 struct ir3_compiler *
 ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
+                    const struct fd_dev_info *dev_info,
                     const struct ir3_compiler_options *options)
 {
    struct ir3_compiler *compiler = rzalloc(NULL, struct ir3_compiler);
 
    ir3_shader_debug = debug_get_option_ir3_shader_debug();
    ir3_shader_override_path =
-      !__check_suid() ? debug_get_option_ir3_shader_override_path() : NULL;
+      __normal_user() ? debug_get_option_ir3_shader_override_path() : NULL;
 
    if (ir3_shader_override_path) {
       ir3_shader_debug |= IR3_DBG_NOCACHE;
@@ -146,7 +148,6 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
    compiler->options = *options;
 
    /* TODO see if older GPU's were different here */
-   const struct fd_dev_info *dev_info = fd_dev_info(compiler->dev_id);
    compiler->branchstack_size = 64;
    compiler->wave_granularity = dev_info->wave_granularity;
    compiler->max_waves = 16;
@@ -154,6 +155,10 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
    compiler->max_variable_workgroup_size = 1024;
 
    compiler->local_mem_size = dev_info->cs_shared_mem_size;
+
+   compiler->num_predicates = 1;
+   compiler->bitops_can_write_predicates = false;
+   compiler->has_branch_and_or = false;
 
    if (compiler->gen >= 6) {
       compiler->samgq_workaround = true;
@@ -209,6 +214,11 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
 
       compiler->has_fs_tex_prefetch = dev_info->a6xx.has_fs_tex_prefetch;
       compiler->stsc_duplication_quirk = dev_info->a7xx.stsc_duplication_quirk;
+      compiler->load_shader_consts_via_preamble = dev_info->a7xx.load_shader_consts_via_preamble;
+      compiler->load_inline_uniforms_via_preamble_ldgk = dev_info->a7xx.load_inline_uniforms_via_preamble_ldgk;
+      compiler->num_predicates = 4;
+      compiler->bitops_can_write_predicates = true;
+      compiler->has_branch_and_or = true;
    } else {
       compiler->max_const_pipeline = 512;
       compiler->max_const_geom = 512;
@@ -290,6 +300,8 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
       compiler->nir_options.has_sudot_4x8 = true,
       compiler->nir_options.has_udot_4x8 = dev_info->a6xx.has_dp2acc;
       compiler->nir_options.has_sudot_4x8 = dev_info->a6xx.has_dp2acc;
+      compiler->nir_options.has_udot_4x8_sat = dev_info->a6xx.has_dp2acc;
+      compiler->nir_options.has_sudot_4x8_sat = dev_info->a6xx.has_dp2acc;
    } else if (compiler->gen >= 3 && compiler->gen <= 5) {
       compiler->nir_options.vertex_id_zero_based = true;
    } else if (compiler->gen <= 2) {

@@ -10,6 +10,7 @@
 struct nv_device_info;
 
 enum nvk_mme {
+   NVK_MME_BIND_CBUF_DESC,
    NVK_MME_CLEAR,
    NVK_MME_DRAW,
    NVK_MME_DRAW_INDEXED,
@@ -24,6 +25,7 @@ enum nvk_mme {
    NVK_MME_XFB_COUNTER_LOAD,
    NVK_MME_XFB_DRAW_INDIRECT,
    NVK_MME_SET_PRIV_REG,
+   NVK_MME_SET_WRITE_MASK,
    NVK_MME_COUNT,
 };
 
@@ -108,6 +110,7 @@ uint32_t *nvk_build_mme(const struct nv_device_info *devinfo,
 
 void nvk_test_build_all_mmes(const struct nv_device_info *devinfo);
 
+void nvk_mme_bind_cbuf_desc(struct mme_builder *b);
 void nvk_mme_clear(struct mme_builder *b);
 void nvk_mme_draw(struct mme_builder *b);
 void nvk_mme_draw_indexed(struct mme_builder *b);
@@ -122,5 +125,6 @@ void nvk_mme_copy_queries(struct mme_builder *b);
 void nvk_mme_xfb_counter_load(struct mme_builder *b);
 void nvk_mme_xfb_draw_indirect(struct mme_builder *b);
 void nvk_mme_set_priv_reg(struct mme_builder *b);
+void nvk_mme_set_write_mask(struct mme_builder *b);
 
 #endif /* NVK_MME_H */

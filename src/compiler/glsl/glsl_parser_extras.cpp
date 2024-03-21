@@ -741,6 +741,7 @@ static const _mesa_glsl_extension _mesa_glsl_supported_extensions[] = {
    /* All other extensions go here, sorted alphabetically.
     */
    EXT(AMD_conservative_depth),
+   EXT(AMD_gpu_shader_half_float),
    EXT(AMD_gpu_shader_int64),
    EXT(AMD_shader_stencil_export),
    EXT(AMD_shader_trinary_minmax),
@@ -837,7 +838,7 @@ static const char *find_extension_alias(_mesa_glsl_parse_state *state, const cha
             break;
          }
       }
-      
+
       free(exts);
    }
    return ext_alias;
@@ -854,7 +855,7 @@ static const _mesa_glsl_extension *find_extension(_mesa_glsl_parse_state *state,
       ext_alias = find_extension_alias(state, name);
       name = ext_alias ? ext_alias : name;
    }
-   
+
    for (unsigned i = 0; i < ARRAY_SIZE(_mesa_glsl_supported_extensions); ++i) {
       if (strcmp(name, _mesa_glsl_supported_extensions[i].name) == 0) {
          free((void *)ext_alias);
@@ -979,7 +980,8 @@ _mesa_glsl_can_implicitly_convert(const glsl_type *from, const glsl_type *desire
       return false;
 
    /* int and uint can be converted to float. */
-   if (desired->is_float() && from->is_integer_32())
+   if (glsl_type_is_float(desired) && (glsl_type_is_integer_32(from) ||
+       glsl_type_is_float_16(from)))
       return true;
 
    /* With GLSL 4.0, ARB_gpu_shader5, or MESA_shader_integer_functions, int
@@ -993,14 +995,14 @@ _mesa_glsl_can_implicitly_convert(const glsl_type *from, const glsl_type *desire
       return true;
 
    /* No implicit conversions from double. */
-   if ((!state || state->has_double()) && from->is_double())
+   if ((!state || state->has_double()) && glsl_type_is_double(from))
       return false;
 
    /* Conversions from different types to double. */
-   if ((!state || state->has_double()) && desired->is_double()) {
-      if (from->is_float())
+   if ((!state || state->has_double()) && glsl_type_is_double(desired)) {
+      if (glsl_type_is_float_16_32(from))
          return true;
-      if (from->is_integer_32())
+      if (glsl_type_is_integer_32(from))
          return true;
    }
 
@@ -1061,7 +1063,7 @@ _mesa_ast_set_aggregate_type(const glsl_type *type,
    ai->constructor_type = type;
 
    /* If the aggregate is an array, recursively set its elements' types. */
-   if (type->is_array()) {
+   if (glsl_type_is_array(type)) {
       /* Each array element has the type type->fields.array.
        *
        * E.g., if <type> if struct S[2] we want to set each element's type to
@@ -1078,7 +1080,7 @@ _mesa_ast_set_aggregate_type(const glsl_type *type,
       }
 
    /* If the aggregate is a struct, recursively set its fields' types. */
-   } else if (type->is_struct()) {
+   } else if (glsl_type_is_struct(type)) {
       exec_node *expr_node = ai->expressions.get_head_raw();
 
       /* Iterate through the struct's fields. */
@@ -1092,7 +1094,7 @@ _mesa_ast_set_aggregate_type(const glsl_type *type,
          }
       }
    /* If the aggregate is a matrix, set its columns' types. */
-   } else if (type->is_matrix()) {
+   } else if (glsl_type_is_matrix(type)) {
       for (exec_node *expr_node = ai->expressions.get_head_raw();
            !expr_node->is_tail_sentinel();
            expr_node = expr_node->next) {
@@ -1100,7 +1102,7 @@ _mesa_ast_set_aggregate_type(const glsl_type *type,
                                                link);
 
          if (expr->oper == ast_aggregate)
-            _mesa_ast_set_aggregate_type(type->column_type(), expr);
+            _mesa_ast_set_aggregate_type(glsl_get_column_type(type), expr);
       }
    }
 }
@@ -1970,13 +1972,15 @@ set_shader_inout_layout(struct gl_shader *shader,
       }
 
       if (state->gs_input_prim_type_specified) {
-         shader->info.Geom.InputType = (enum mesa_prim)state->in_qualifier->prim_type;
+         shader->info.Geom.InputType =
+            gl_to_mesa_prim(state->in_qualifier->prim_type);
       } else {
          shader->info.Geom.InputType = MESA_PRIM_UNKNOWN;
       }
 
       if (state->out_qualifier->flags.q.prim_type) {
-         shader->info.Geom.OutputType = (enum mesa_prim)state->out_qualifier->prim_type;
+         shader->info.Geom.OutputType =
+            gl_to_mesa_prim(state->out_qualifier->prim_type);
       } else {
          shader->info.Geom.OutputType = MESA_PRIM_UNKNOWN;
       }
@@ -2189,6 +2193,7 @@ do_late_parsing_checks(struct _mesa_glsl_parse_state *state)
 
 static void
 opt_shader_and_create_symbol_table(const struct gl_constants *consts,
+                                   const struct gl_extensions *exts,
                                    struct glsl_symbol_table *source_symbols,
                                    struct gl_shader *shader)
 {
@@ -2224,6 +2229,17 @@ opt_shader_and_create_symbol_table(const struct gl_constants *consts,
    }
 
    optimize_dead_builtin_variables(shader->ir, other);
+
+   lower_vector_derefs(shader);
+
+   lower_packing_builtins(shader->ir, exts->ARB_shading_language_packing,
+                          exts->ARB_gpu_shader5,
+                          consts->GLSLHasHalfFloatPacking);
+   do_mat_op_to_vec(shader->ir);
+
+   lower_instructions(shader->ir, exts->ARB_gpu_shader5);
+
+   do_vec_index_to_cond_assign(shader->ir);
 
    validate_ir_tree(shader->ir);
 
@@ -2395,7 +2411,8 @@ _mesa_glsl_compile_shader(struct gl_context *ctx, struct gl_shader *shader,
       lower_builtins(shader->ir);
       assign_subroutine_indexes(state);
       lower_subroutine(shader->ir, state);
-      opt_shader_and_create_symbol_table(&ctx->Const, state->symbols, shader);
+      opt_shader_and_create_symbol_table(&ctx->Const, &ctx->Extensions,
+                                         state->symbols, shader);
    }
 
    if (!force_recompile) {
@@ -2470,10 +2487,6 @@ do_common_optimization(exec_list *ir, bool linked,
       }                                                                 \
    } while (false)
 
-   if (linked) {
-      OPT(do_function_inlining, ir);
-      OPT(do_dead_functions, ir);
-   }
    OPT(propagate_invariance, ir);
    OPT(do_if_simplification, ir);
    OPT(opt_flatten_nested_if_blocks, ir);

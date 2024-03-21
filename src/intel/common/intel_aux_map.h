@@ -85,6 +85,14 @@ uint64_t
 intel_aux_get_main_to_aux_ratio(struct intel_aux_map_context *ctx);
 
 /**
+ * Takes a relative offset in the main surface and returns a relative offset
+ * in the aux surface that maps to the main offset.
+ */
+uint64_t
+intel_aux_main_to_aux_offset(struct intel_aux_map_context *ctx,
+                             uint64_t main_offset);
+
+/**
  * Fill an array of exec_object2 with aux-map buffer handles
  *
  * The intel_aux_map_get_num_buffers call should be made, then the driver can
@@ -110,12 +118,23 @@ intel_aux_map_get_entry(struct intel_aux_map_context *ctx,
                         uint64_t *aux_entry_address);
 
 /* Fails if a mapping is attempted that would conflict with an existing one.
+ * This increase the refcount of the mapped region if already mapped, sets it
+ * to 1 otherwise.
  */
 bool
 intel_aux_map_add_mapping(struct intel_aux_map_context *ctx, uint64_t main_address,
                           uint64_t aux_address, uint64_t main_size_B,
                           uint64_t format_bits);
 
+/* Decrease the refcount of a mapped region. When the refcount reaches 0, the
+ * region is unmapped.
+ */
+void
+intel_aux_map_del_mapping(struct intel_aux_map_context *ctx, uint64_t main_address,
+                          uint64_t size);
+
+/* Unmaps a region, refcount is reset to 0.
+ */
 void
 intel_aux_map_unmap_range(struct intel_aux_map_context *ctx, uint64_t main_address,
                           uint64_t size);

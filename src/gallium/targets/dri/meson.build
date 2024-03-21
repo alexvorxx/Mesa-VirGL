@@ -28,9 +28,11 @@ gallium_dri_ld_args = []
 gallium_dri_link_depends = []
 gallium_dri_drivers = []
 
+dri_sym = configure_file(input : 'dri.sym.in', output : 'dri.sym', configuration : sym_config)
+
 if with_ld_version_script
-  gallium_dri_ld_args += ['-Wl,--version-script', join_paths(meson.current_source_dir(), 'dri.sym')]
-  gallium_dri_link_depends += files('dri.sym')
+  gallium_dri_ld_args += ['-Wl,--version-script', join_paths(meson.current_build_dir(), 'dri.sym')]
+  gallium_dri_link_depends += dri_sym
 endif
 if with_ld_dynamic_list
   gallium_dri_ld_args += ['-Wl,--dynamic-list', join_paths(meson.current_source_dir(), '../dri.dyn')]
@@ -93,11 +95,15 @@ foreach d : [[with_gallium_kmsro, [
                'rcar-du_dri.so',
                'repaper_dri.so',
                'rockchip_dri.so',
+               'rzg2l-du_dri.so',
+               'ssd130x_dri.so',
                'st7586_dri.so',
                'st7735r_dri.so',
+               'sti_dri.so',
                'stm_dri.so',
                'sun4i-drm_dri.so',
                'udl_dri.so',
+               'zynqmp-dpsub_dri.so',
              ]],
              [with_gallium_radeonsi, 'radeonsi_dri.so'],
              [with_gallium_nouveau, 'nouveau_dri.so'],
@@ -106,7 +112,7 @@ foreach d : [[with_gallium_kmsro, [
              [with_gallium_softpipe and with_gallium_drisw_kms, 'kms_swrast_dri.so'],
              [with_gallium_v3d, 'v3d_dri.so'],
              [with_gallium_vc4, 'vc4_dri.so'],
-             [with_gallium_panfrost, 'panfrost_dri.so'],
+             [with_gallium_panfrost, ['panfrost_dri.so', 'panthor_dri.so']],
              [with_gallium_etnaviv, 'etnaviv_dri.so'],
              [with_gallium_tegra, 'tegra_dri.so'],
              [with_gallium_crocus, 'crocus_dri.so'],

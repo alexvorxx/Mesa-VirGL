@@ -114,6 +114,7 @@ struct ntv_context {
          subgroup_size_var;
 
    SpvId discard_func;
+   SpvId float_array_type[2];
 };
 
 static SpvId
@@ -1166,6 +1167,8 @@ get_bare_image_type(struct ntv_context *ctx, struct nir_variable *var, bool is_s
    bool arrayed = glsl_sampler_type_is_array(type);
    if (dimension == SpvDimCube && arrayed)
       spirv_builder_emit_cap(&ctx->builder, SpvCapabilityImageCubeArray);
+   if (arrayed && !is_sampler && is_ms)
+      spirv_builder_emit_cap(&ctx->builder, SpvCapabilityImageMSArray);
 
    SpvId result_type = get_glsl_basetype(ctx, glsl_get_sampler_result_type(type));
    return spirv_builder_type_image(&ctx->builder, result_type,
@@ -2737,6 +2740,8 @@ emit_interpolate(struct ntv_context *ctx, nir_intrinsic_instr *intr)
    case nir_intrinsic_interp_deref_at_sample:
       op = GLSLstd450InterpolateAtSample;
       src1 = get_src(ctx, &intr->src[1], &atype);
+      if (atype != nir_type_int)
+         src1 = emit_bitcast(ctx, get_ivec_type(ctx, 32, 1), src1);
       break;
    case nir_intrinsic_interp_deref_at_offset:
       op = GLSLstd450InterpolateAtOffset;
@@ -2780,6 +2785,16 @@ emit_deref_atomic_intrinsic(struct ntv_context *ctx, nir_intrinsic_instr *intr)
    nir_alu_type atype;
    nir_alu_type ret_type = nir_atomic_op_type(nir_intrinsic_atomic_op(intr)) == nir_type_float ? nir_type_float : nir_type_uint;
    SpvId ptr = get_src(ctx, &intr->src[0], &atype);
+   if (atype != ret_type && ret_type == nir_type_float) {
+      unsigned bit_size = nir_src_bit_size(intr->src[0]);
+      SpvId *float_array_type = &ctx->float_array_type[bit_size == 32 ? 0 : 1];
+      if (!*float_array_type) {
+         *float_array_type = spirv_builder_type_pointer(&ctx->builder, SpvStorageClassStorageBuffer,
+                                                        spirv_builder_type_float(&ctx->builder, bit_size));
+      }
+      ptr = emit_unop(ctx, SpvOpBitcast, *float_array_type, ptr);
+   }
+
    SpvId param = get_src(ctx, &intr->src[1], &atype);
    if (atype != ret_type)
       param = cast_src_to_type(ctx, param, intr->src[1], ret_type);
@@ -3055,15 +3070,15 @@ emit_image_intrinsic(struct ntv_context *ctx, nir_intrinsic_instr *intr)
    type_to_dim(glsl_get_sampler_dim(type), &is_ms);
    SpvId sample = is_ms ? get_src(ctx, &intr->src[2], &atype) : emit_uint_const(ctx, 32, 0);
    SpvId coord = get_image_coords(ctx, type, &intr->src[1]);
-   enum glsl_base_type glsl_type = glsl_get_sampler_result_type(type);
-   SpvId base_type = get_glsl_basetype(ctx, glsl_type);
+   enum glsl_base_type glsl_result_type = glsl_get_sampler_result_type(type);
+   SpvId base_type = get_glsl_basetype(ctx, glsl_result_type);
    SpvId texel = spirv_builder_emit_image_texel_pointer(&ctx->builder, base_type, img_var, coord, sample);
    SpvId param2 = 0;
 
    /* The type of Value must be the same as Result Type.
     * The type of the value pointed to by Pointer must be the same as Result Type.
     */
-   nir_alu_type ntype = nir_get_nir_type_for_glsl_base_type(glsl_type);
+   nir_alu_type ntype = nir_get_nir_type_for_glsl_base_type(glsl_result_type);
    if (ptype != ntype) {
       SpvId cast_type = get_def_type(ctx, &intr->def, ntype);
       param = emit_bitcast(ctx, cast_type, param);
@@ -3136,11 +3151,7 @@ emit_is_sparse_texels_resident(struct ntv_context *ctx, nir_intrinsic_instr *int
 
    SpvId type = get_def_type(ctx, &intr->def, nir_type_uint);
 
-   /* this will always be stored with the ssa index of the parent instr */
-   nir_def *ssa = intr->src[0].ssa;
-   assert(ssa->parent_instr->type == nir_instr_type_alu);
-   nir_alu_instr *alu = nir_instr_as_alu(ssa->parent_instr);
-   unsigned index = alu->src[0].src.ssa->index;
+   unsigned index = intr->src[0].ssa->index;
    assert(index < ctx->num_defs);
    assert(ctx->resident_defs[index] != 0);
    SpvId resident = ctx->resident_defs[index];
@@ -3208,6 +3219,11 @@ emit_barrier(struct ntv_context *ctx, nir_intrinsic_instr *intr)
       if (modes & (nir_var_shader_out | nir_var_mem_task_payload))
          semantics |= SpvMemorySemanticsOutputMemoryMask;
 
+      if (!modes)
+         semantics = SpvMemorySemanticsWorkgroupMemoryMask |
+                     SpvMemorySemanticsUniformMemoryMask |
+                     SpvMemorySemanticsImageMemoryMask |
+                     SpvMemorySemanticsCrossWorkgroupMemoryMask;
       semantics |= SpvMemorySemanticsAcquireReleaseMask;
    }
 
@@ -3471,7 +3487,7 @@ emit_intrinsic(struct ntv_context *ctx, nir_intrinsic_instr *intr)
       emit_vote(ctx, intr);
       break;
 
-   case nir_intrinsic_is_sparse_texels_resident:
+   case nir_intrinsic_is_sparse_resident_zink:
       emit_is_sparse_texels_resident(ctx, intr);
       break;
 
@@ -3583,9 +3599,9 @@ emit_tex(struct ntv_context *ctx, nir_tex_instr *tex)
             unsigned num_components = nir_src_num_components(tex->src[i].src);
 
             SpvId components[NIR_MAX_VEC_COMPONENTS];
-            for (int i = 0; i < num_components; ++i) {
-               int64_t tmp = nir_const_value_as_int(cv[i], bit_size);
-               components[i] = emit_int_const(ctx, bit_size, tmp);
+            for (int j = 0; j < num_components; ++j) {
+               int64_t tmp = nir_const_value_as_int(cv[j], bit_size);
+               components[j] = emit_int_const(ctx, bit_size, tmp);
             }
 
             if (num_components > 1) {
@@ -3965,8 +3981,11 @@ emit_deref_array(struct ntv_context *ctx, nir_deref_instr *deref)
    }
 
    SpvStorageClass storage_class = get_storage_class(var);
-   SpvId base, type;
+   SpvId type;
    nir_alu_type atype = nir_type_uint;
+
+   SpvId base = get_src(ctx, &deref->parent, &atype);
+
    switch (var->data.mode) {
 
    case nir_var_mem_ubo:
@@ -4007,6 +4026,26 @@ emit_deref_array(struct ntv_context *ctx, nir_deref_instr *deref)
    SpvId index = get_src(ctx, &deref->arr.index, &itype);
    if (itype == nir_type_float)
       index = emit_bitcast(ctx, get_uvec_type(ctx, 32, 1), index);
+
+   if (var->data.mode == nir_var_uniform || var->data.mode == nir_var_image) {
+      nir_deref_instr *aoa_deref = nir_src_as_deref(deref->parent);
+      uint32_t inner_stride = glsl_array_size(aoa_deref->type);
+
+      while (aoa_deref->deref_type != nir_deref_type_var) {
+         assert(aoa_deref->deref_type == nir_deref_type_array);
+
+         SpvId aoa_index = get_src(ctx, &aoa_deref->arr.index, &itype);
+         if (itype == nir_type_float)
+            aoa_index = emit_bitcast(ctx, get_uvec_type(ctx, 32, 1), aoa_index);
+
+         aoa_deref = nir_src_as_deref(aoa_deref->parent);
+
+         uint32_t stride = glsl_get_aoa_size(aoa_deref->type) / inner_stride;
+         aoa_index = emit_binop(ctx, SpvOpIMul, get_uvec_type(ctx, 32, 1), aoa_index,
+                                emit_uint_const(ctx, 32, stride));
+         index = emit_binop(ctx, SpvOpIAdd, get_uvec_type(ctx, 32, 1), index, aoa_index);
+      }
+   }
 
    SpvId ptr_type = spirv_builder_type_pointer(&ctx->builder,
                                                storage_class,
@@ -4421,6 +4460,14 @@ nir_to_spirv(struct nir_shader *s, const struct zink_shader_info *sinfo, uint32_
          spirv_builder_emit_cap(&ctx.builder, SpvCapabilityMultiViewport);
    }
 
+   if (s->info.stage > MESA_SHADER_VERTEX &&
+       s->info.inputs_read & BITFIELD64_BIT(VARYING_SLOT_VIEWPORT)) {
+      if (s->info.stage < MESA_SHADER_GEOMETRY)
+         spirv_builder_emit_cap(&ctx.builder, SpvCapabilityShaderViewportIndex);
+      else
+         spirv_builder_emit_cap(&ctx.builder, SpvCapabilityMultiViewport);
+   }
+
    ctx.stage = s->info.stage;
    ctx.sinfo = sinfo;
    ctx.GLSL_std_450 = spirv_builder_import(&ctx.builder, "GLSL.std.450");
@@ -4774,7 +4821,7 @@ nir_to_spirv(struct nir_shader *s, const struct zink_shader_info *sinfo, uint32_
       /* this could be huge, so only alloc if needed since it's extremely unlikely to
        * ever be used by anything except cts
        */
-      ctx.resident_defs = ralloc_array_size(ctx.mem_ctx,
+      ctx.resident_defs = rzalloc_array_size(ctx.mem_ctx,
                                             sizeof(SpvId), entry->ssa_alloc);
       if (!ctx.resident_defs)
          goto fail;

@@ -56,6 +56,7 @@ typedef uint32_t xcb_window_t;
 #include <vulkan/vk_icd.h>
 
 #include "lvp_entrypoints.h"
+#include "vk_acceleration_structure.h"
 #include "vk_buffer.h"
 #include "vk_buffer_view.h"
 #include "vk_device.h"
@@ -488,6 +489,21 @@ lvp_pipeline_type_from_bind_point(VkPipelineBindPoint bind_point)
    }
 }
 
+static inline uint32_t
+lvp_pipeline_types_from_shader_stages(VkShaderStageFlags stageFlags)
+{
+   uint32_t types = 0;
+#ifdef VK_ENABLE_BETA_EXTENSIONS
+   if (stageFlags & MESA_VK_SHADER_STAGE_WORKGRAPH_HACK_BIT_FIXME)
+      types |= BITFIELD_BIT(LVP_PIPELINE_EXEC_GRAPH);
+#endif
+   if (stageFlags & VK_SHADER_STAGE_COMPUTE_BIT)
+      types |= BITFIELD_BIT(LVP_PIPELINE_COMPUTE);
+   if (stageFlags & (VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_MESH_BIT_EXT | VK_SHADER_STAGE_TASK_BIT_EXT))
+      types |= BITFIELD_BIT(LVP_PIPELINE_GRAPHICS);
+   return types;
+}
+
 struct lvp_pipeline {
    struct vk_object_base base;
    struct lvp_device *                          device;
@@ -566,12 +582,16 @@ struct lvp_buffer_view {
    struct lp_texture_handle *image_handle;
 };
 
+#define LVP_QUERY_ACCELERATION_STRUCTURE_COMPACTED_SIZE (PIPE_QUERY_TYPES)
+#define LVP_QUERY_ACCELERATION_STRUCTURE_SERIALIZATION_SIZE (PIPE_QUERY_TYPES + 1)
+
 struct lvp_query_pool {
    struct vk_object_base base;
    VkQueryType type;
    uint32_t count;
    VkQueryPipelineStatisticFlags pipeline_stats;
    enum pipe_query_type base_type;
+   void *data; /* Used by queries that are not implemented by pipe_query */
    struct pipe_query *queries[0];
 };
 
@@ -715,6 +735,8 @@ void
 lvp_inline_uniforms(nir_shader *nir, const struct lvp_shader *shader, const uint32_t *uniform_values, uint32_t ubo);
 void *
 lvp_shader_compile(struct lvp_device *device, struct lvp_shader *shader, nir_shader *nir, bool locked);
+bool
+lvp_nir_lower_ray_queries(struct nir_shader *shader);
 enum vk_cmd_type
 lvp_nv_dgc_token_to_cmd_type(const VkIndirectCommandsLayoutTokenNV *token);
 #ifdef __cplusplus

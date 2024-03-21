@@ -23,12 +23,21 @@ project(
   ['c', 'cpp'],
   version : files('VERSION'),
   license : 'MIT',
-  meson_version : '>= 0.60',
-  default_options : ['buildtype=debugoptimized', 'b_ndebug=if-release', 'c_std=c11', 'cpp_std=c++17', 'rust_std=2021']
+  meson_version : '>= 1.1.0',
+  default_options : [
+    'buildtype=debugoptimized',
+    'b_ndebug=if-release',
+    'c_std=c11',
+    'cpp_std=c++17',
+    'rust_std=2021',
+    'build.rust_std=2021',
+  ],
 )
 
 cc = meson.get_compiler('c')
 cpp = meson.get_compiler('cpp')
+
+sizeof_pointer = cc.sizeof('void*').to_string()
 
 null_dep = dependency('', required : false)
 
@@ -121,7 +130,7 @@ with_any_opengl = with_opengl or with_gles1 or with_gles2
 # Only build shared_glapi if at least one OpenGL API is enabled
 with_shared_glapi = with_shared_glapi and with_any_opengl
 
-system_has_kms_drm = ['openbsd', 'netbsd', 'freebsd', 'gnu/kfreebsd', 'dragonfly', 'linux', 'sunos', 'android'].contains(host_machine.system())
+system_has_kms_drm = ['openbsd', 'netbsd', 'freebsd', 'gnu/kfreebsd', 'dragonfly', 'linux', 'sunos', 'android', 'managarm'].contains(host_machine.system())
 
 gallium_drivers = get_option('gallium-drivers')
 if gallium_drivers.contains('auto')
@@ -130,26 +139,29 @@ if gallium_drivers.contains('auto')
     if ['x86', 'x86_64'].contains(host_machine.cpu_family())
       gallium_drivers = [
         'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'svga', 'swrast',
-        'iris', 'crocus', 'i915'
+        'iris', 'crocus', 'i915', 'zink'
       ]
     elif ['arm', 'aarch64'].contains(host_machine.cpu_family())
       gallium_drivers = [
         'v3d', 'vc4', 'freedreno', 'etnaviv', 'nouveau', 'svga',
-        'tegra', 'virgl', 'lima', 'panfrost', 'swrast', 'iris'
+        'tegra', 'virgl', 'lima', 'panfrost', 'swrast', 'iris',
+        'zink'
       ]
     elif ['mips', 'mips64', 'riscv32', 'riscv64'].contains(host_machine.cpu_family())
       gallium_drivers = [
-        'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'swrast'
+        'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'swrast', 'zink'
       ]
     elif ['loongarch64'].contains(host_machine.cpu_family())
       gallium_drivers = [
-        'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'etnaviv', 'swrast'
+        'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'etnaviv', 'swrast', 'zink'
       ]
     else
       error('Unknown architecture @0@. Please pass -Dgallium-drivers to set driver options. Patches gladly accepted to fix this.'.format(
             host_machine.cpu_family()))
     endif
-  elif ['darwin', 'windows', 'cygwin', 'haiku'].contains(host_machine.system())
+  elif ['windows'].contains(host_machine.system())
+    gallium_drivers = ['swrast', 'zink', 'd3d12']
+  elif ['darwin', 'cygwin', 'haiku'].contains(host_machine.system())
     gallium_drivers = ['swrast']
   else
     error('Unknown OS @0@. Please pass -Dgallium-drivers to set driver options. Patches gladly accepted to fix this.'.format(
@@ -204,7 +216,7 @@ _vulkan_drivers = get_option('vulkan-drivers')
 if _vulkan_drivers.contains('auto')
   if system_has_kms_drm
     if host_machine.cpu_family().startswith('x86')
-      _vulkan_drivers = ['amd', 'intel', 'intel_hasvk', 'swrast']
+      _vulkan_drivers = ['amd', 'intel', 'intel_hasvk', 'nouveau', 'swrast']
     elif ['arm', 'aarch64'].contains(host_machine.cpu_family())
       _vulkan_drivers = ['swrast', 'intel']
     elif ['mips', 'mips64', 'riscv32', 'riscv64'].contains(host_machine.cpu_family())
@@ -227,7 +239,7 @@ elif _vulkan_drivers.contains('all')
    _vulkan_drivers = ['amd', 'intel', 'intel_hasvk', 'swrast',
                       'freedreno', 'panfrost', 'virtio', 'broadcom',
                       'imagination-experimental', 'microsoft-experimental',
-                      'nouveau-experimental']
+                      'nouveau']
 endif
 
 with_intel_vk = _vulkan_drivers.contains('intel')
@@ -241,8 +253,12 @@ with_broadcom_vk = _vulkan_drivers.contains('broadcom')
 with_imagination_vk = _vulkan_drivers.contains('imagination-experimental')
 with_imagination_srv = get_option('imagination-srv')
 with_microsoft_vk = _vulkan_drivers.contains('microsoft-experimental')
-with_nouveau_vk = _vulkan_drivers.contains('nouveau-experimental')
+with_nouveau_vk = _vulkan_drivers.contains('nouveau')
 with_any_vk = _vulkan_drivers.length() != 0
+
+if with_any_vk and host_machine.system() == 'windows' and meson.version().version_compare('< 1.3')
+  error('Vulkan drivers on Windows require meson 1.3 or newer')
+endif
 
 freedreno_kmds = get_option('freedreno-kmds')
 if freedreno_kmds.length() != 0 and freedreno_kmds != [ 'msm' ] and with_freedreno_vk
@@ -274,13 +290,18 @@ with_any_broadcom = [
   with_broadcom_vk,
 ].contains(true)
 
-if ['x86_64'].contains(host_machine.cpu_family())
-  with_intel_clc = get_option('intel-clc') == 'enabled'
-  with_intel_vk_rt = with_intel_vk and get_option('intel-clc') != 'disabled'
+if get_option('intel-clc') != 'system'
+  # Require intel-clc with Anv & Iris (for internal shaders)
+  with_intel_clc = get_option('intel-clc') == 'enabled' or \
+                   with_intel_vk or with_gallium_iris
 else
   with_intel_clc = false
-  with_intel_vk_rt = false
 endif
+
+with_intel_vk_rt = get_option('intel-rt') \
+  .disable_auto_if(not with_intel_vk) \
+  .disable_if(host_machine.cpu_family() != 'x86_64', error_message : 'Intel Ray Tracing is only supported on x86_64') \
+  .allowed()
 
 with_any_intel = [
   with_gallium_crocus,
@@ -292,6 +313,11 @@ with_any_intel = [
   with_intel_vk,
 ].contains(true)
 with_any_nouveau = with_gallium_nouveau or with_nouveau_vk
+
+# needed in the loader
+if with_nouveau_vk
+  pre_args += '-DHAVE_NVK'
+endif
 
 if with_swrast_vk and not with_gallium_softpipe
   error('swrast vulkan requires gallium swrast')
@@ -331,7 +357,22 @@ if with_vulkan_beta
 endif
 
 _codecs = get_option('video-codecs')
-foreach c : ['vc1dec', 'h264dec', 'h264enc', 'h265dec', 'h265enc']
+patent_codecs = ['vc1dec', 'h264dec', 'h264enc', 'h265dec', 'h265enc']
+free_codecs = ['av1dec', 'av1enc', 'vp9dec']
+all_codecs = patent_codecs + free_codecs
+
+if _codecs.contains('all')
+  _codecs = all_codecs
+elif _codecs.contains('all_free')
+  selected_codecs = _codecs
+  _codecs = free_codecs
+  foreach c : patent_codecs
+    if selected_codecs.contains(c)
+      _codecs += c
+    endif
+  endforeach
+endif
+foreach c : all_codecs
    pre_args += '-DVIDEO_CODEC_@0@=@1@'.format(c.to_upper(), _codecs.contains(c).to_int())
 endforeach
 
@@ -404,11 +445,10 @@ with_gbm = get_option('gbm') \
   .allowed()
 
 with_xlib_lease = get_option('xlib-lease') \
-  .require(with_platform_x11 and system_has_kms_drm, error_message : 'xlib-lease requires X11 and KMS/DRM support') \
+  .require(with_platform_x11 and (system_has_kms_drm or with_dri_platform == 'apple'), error_message : 'xlib-lease requires X11 and KMS/DRM support') \
   .allowed()
 
 with_egl = get_option('egl') \
-  .require(host_machine.system() != 'darwin', error_message : 'EGL not supported on MacOS') \
   .require(with_platform_windows or with_platform_haiku or with_dri or with_platform_android, error_message : 'EGL requires DRI, Haiku, Windows or Android') \
   .require(with_shared_glapi, error_message : 'EGL requires shared-glapi') \
   .require(with_glx != 'xlib', error_message :'EGL requires DRI, but GLX is being built with xlib support') \
@@ -518,7 +558,7 @@ if with_vulkan_icd_dir == ''
 endif
 
 # GNU/Hurd includes egl_dri2, without drm.
-with_dri2 = (with_dri or with_any_vk) and (with_dri_platform == 'drm' or
+with_dri2 = (with_dri or with_any_vk) and (with_dri_platform == 'drm' or with_dri_platform == 'apple' or
   host_machine.system() == 'gnu')
 with_dri3 = get_option('dri3').disable_auto_if(not (system_has_kms_drm and with_dri2)).allowed()
 
@@ -540,7 +580,7 @@ if with_gallium_d3d12 or with_microsoft_clc or with_microsoft_vk
   dep_dxheaders = dependency('directx-headers', required : false)
   if not dep_dxheaders.found()
     dep_dxheaders = dependency('DirectX-Headers',
-      version : '>= 1.610.0',
+      version : '>= 1.611.0',
       fallback : ['DirectX-Headers', 'dep_dxheaders'],
       required : with_gallium_d3d12 or with_microsoft_vk
     )
@@ -565,9 +605,9 @@ _vdpau_drivers = [
 vdpau = get_option('gallium-vdpau') \
   .require(system_has_kms_drm, error_message : 'VDPAU state tracker can only be build on unix-like OSes.') \
   .require(with_platform_x11, error_message : 'VDPAU state tracker requires X11 support.') \
-  .require(_vdpau_drivers.contains(true), error_message : 'VDPAU state tracker requires at least one of the following gallium drivers: r600, radeonsi, nouveau, d3d12 (with option gallium-d3d12-video, virgl).') 
+  .require(_vdpau_drivers.contains(true), error_message : 'VDPAU state tracker requires at least one of the following gallium drivers: r600, radeonsi, nouveau, d3d12 (with option gallium-d3d12-video, virgl).')
 
-dep_vdpau = dependency('vdpau', version : '>= 1.1', required : vdpau)
+dep_vdpau = dependency('vdpau', version : '>= 1.5', required : vdpau)
 if dep_vdpau.found()
   dep_vdpau = dep_vdpau.partial_dependency(compile_args : true)
   pre_args += '-DHAVE_ST_VDPAU'
@@ -777,7 +817,6 @@ if _opencl != 'disabled'
     error('The Clover OpenCL state tracker requires rtti')
   endif
 
-  with_clc = true
   with_gallium_opencl = true
   with_opencl_icd = _opencl == 'icd'
 else
@@ -791,17 +830,18 @@ if with_gallium_rusticl
     error('rusticl requires at least one gallium driver.')
   endif
 
-  if meson.version().version_compare('< 1.2')
-    error('rusticl requires meson 1.2.0 or newer')
+  if meson.version().version_compare('< 1.3.1')
+    error('rusticl requires meson 1.3.1 or newer')
   endif
 
   add_languages('rust', required: true)
+  rustc = meson.get_compiler('rust')
 
   with_clc = true
 endif
 
 dep_clc = null_dep
-if with_clc
+if with_gallium_opencl or with_clc
   dep_clc = dependency('libclc')
 endif
 
@@ -820,6 +860,12 @@ if with_platform_x11
       pre_args += '-DGLX_USE_DRM'
     elif with_dri_platform == 'apple'
       pre_args += '-DGLX_USE_APPLEGL'
+      # Check to see if more than just the default 'swrast' is required
+      if (not with_gallium_softpipe) or 1 < gallium_drivers.length()
+        # Switch the MacOS code from "forwarding to the OpenGL.framework" mode
+        # and into actual Gallium Driver mode
+        pre_args += '-DGLX_USE_APPLE'
+      endif
     elif with_dri_platform == 'windows'
       pre_args += '-DGLX_USE_WINDOWSGL'
     endif
@@ -865,10 +911,10 @@ if with_platform_android
       dep_android_mapper4 = dependency('android.hardware.graphics.mapper', version : '>= 4.0', required : false)
     endif
   endif
-  pre_args += [
-    '-DANDROID',
-    '-DANDROID_API_LEVEL=' + get_option('platform-sdk-version').to_string()
-  ]
+  pre_args += '-DANDROID_API_LEVEL=' + get_option('platform-sdk-version').to_string()
+  if get_option('android-strict')
+    pre_args += '-DANDROID_STRICT'
+  endif
 endif
 
 # On Android, seccomp kills the process on kernels without
@@ -885,9 +931,12 @@ prog_python = import('python').find_installation('python3')
 has_mako = run_command(
   prog_python, '-c',
   '''
-from distutils.version import StrictVersion
+try:
+  from packaging.version import Version
+except:
+  from distutils.version import StrictVersion as Version
 import mako
-assert StrictVersion(mako.__version__) >= StrictVersion("0.8.0")
+assert Version(mako.__version__) >= Version("0.8.0")
   ''', check: false)
 if has_mako.returncode() != 0
   error('Python (3.x) mako module >= 0.8.0 required to build mesa.')
@@ -909,7 +958,7 @@ endif
 
 with_shader_cache = get_option('shader-cache') \
   .require(host_machine.system() != 'windows', error_message : 'Shader Cache does not currently work on Windows') \
-  .allowed() 
+  .allowed()
 
 if with_shader_cache
   pre_args += '-DENABLE_SHADER_CACHE'
@@ -955,7 +1004,7 @@ if cc.has_function('fmemopen')
 endif
 
 # TODO: this is very incomplete
-if ['linux', 'cygwin', 'gnu', 'freebsd', 'gnu/kfreebsd', 'haiku', 'android'].contains(host_machine.system())
+if ['linux', 'cygwin', 'gnu', 'freebsd', 'gnu/kfreebsd', 'haiku', 'android', 'managarm'].contains(host_machine.system())
   pre_args += '-D_GNU_SOURCE'
 elif host_machine.system() == 'sunos'
   pre_args += '-D__EXTENSIONS__'
@@ -1041,6 +1090,7 @@ else
     '-fno-trapping-math',
     '-Qunused-arguments',
     '-fno-common',
+    '-Wno-unknown-pragmas',
     # Clang
     '-Wno-microsoft-enum-value',
     '-Wno-unused-function',
@@ -1060,6 +1110,7 @@ else
     # to the memory before the constructor as "dead stores".
     # For now we disable this optimization.
     '-flifetime-dse=1',
+    '-Wno-unknown-pragmas',
     # Clang
     '-Wno-microsoft-enum-value',
   ]
@@ -1333,6 +1384,7 @@ functions_to_detect = {
   'getrandom': '',
   'qsort_s': '',
   'posix_fallocate': '',
+  'secure_getenv': '',
 }
 
 foreach f, prefix: functions_to_detect
@@ -1424,8 +1476,8 @@ if cc.links('''
       locale_t loc = newlocale(LC_CTYPE_MASK, "C", NULL);
       const char *s = "1.0";
       char *end;
-      double d = strtod_l(s, end, loc);
-      float f = strtof_l(s, end, loc);
+      double d = strtod_l(s, &end, loc);
+      float f = strtof_l(s, &end, loc);
       freelocale(loc);
       return 0;
     }''',
@@ -1478,11 +1530,6 @@ if with_any_intel and ['x86', 'x86_64'].contains(host_machine.cpu_family())
   pre_args += '-DSUPPORT_INTEL_INTEGRATED_GPUS'
 endif
 
-if get_option('intel-xe-kmd').enabled()
-  pre_args += '-DINTEL_XE_KMD_SUPPORTED'
-endif
-
-
 if with_gallium_i915 and host_machine.cpu_family().startswith('x86') == false
   error('Intel "i915" Gallium driver requires x86 or x86_64 CPU family')
 endif
@@ -1494,8 +1541,9 @@ else
   dep_clock = cc.find_library('rt')
 endif
 
+# IMPORTANT: We can't upgrade Zlib beyond 1.2.5 because it would break Viewperf.
 dep_zlib = dependency('zlib', version : '>= 1.2.3',
-                      fallback : ['zlib', 'zlib_dep'],
+                      allow_fallback: true,
                       required : get_option('zlib'))
 if dep_zlib.found()
   pre_args += '-DHAVE_ZLIB'
@@ -1538,7 +1586,7 @@ with_expat = get_option('expat') \
 if host_machine.system() == 'darwin'
   dep_expat = meson.get_compiler('c').find_library('expat', required : with_expat)
 else
-  dep_expat = dependency('expat', fallback : ['expat', 'expat_dep'],
+  dep_expat = dependency('expat', allow_fallback: true,
                          required : with_expat)
 endif
 
@@ -1554,7 +1602,7 @@ use_xmlconfig = get_option('xmlconfig') \
   .require(dep_expat.found(),
            error_message : 'requires expat') \
   .allowed()
-  
+
 # Predefined macros for windows
 if host_machine.system() == 'windows'
   pre_args += '-DWIN32_LEAN_AND_MEAN' # http://msdn2.microsoft.com/en-us/library/6dwk3a1z.aspx
@@ -1591,12 +1639,10 @@ endif
 # bar are both on use 2.4.3 for both of them
 dep_libdrm_amdgpu = null_dep
 dep_libdrm_radeon = null_dep
-dep_libdrm_nouveau = null_dep
 dep_libdrm_intel = null_dep
 
-_drm_amdgpu_ver = '2.4.110'
+_drm_amdgpu_ver = '2.4.119'
 _drm_radeon_ver = '2.4.71'
-_drm_nouveau_ver = '2.4.102'
 _drm_intel_ver = '2.4.75'
 _drm_ver = '2.4.109'
 
@@ -1604,7 +1650,6 @@ _libdrm_checks = [
   ['intel', with_gallium_i915],
   ['amdgpu', (with_amd_vk and not with_platform_windows) or with_gallium_radeonsi],
   ['radeon', (with_gallium_radeonsi or with_gallium_r300 or with_gallium_r600)],
-  ['nouveau', with_any_nouveau],
 ]
 
 # Loop over the enables versions and get the highest libdrm requirement for all
@@ -1686,14 +1731,10 @@ if draw_with_llvm
   llvm_optional_modules += ['lto']
 endif
 
-if with_amd_vk or with_gallium_radeonsi
+if with_amd_vk or with_gallium_radeonsi or with_clc
   _llvm_version = '>= 15.0.0'
-elif with_intel_clc
-  _llvm_version = '>= 13.0.0'
 elif with_gallium_opencl
   _llvm_version = '>= 11.0.0'
-elif with_clc
-  _llvm_version = '>= 10.0.0'
 else
   _llvm_version = '>= 5.0.0'
 endif
@@ -1723,13 +1764,10 @@ if _llvm.allowed()
   with_llvm = dep_llvm.found()
 endif
 if with_llvm
-  pre_args += '-DLLVM_AVAILABLE'
   pre_args += '-DMESA_LLVM_VERSION_STRING="@0@"'.format(dep_llvm.version())
   pre_args += '-DLLVM_IS_SHARED=@0@'.format(_shared_llvm.to_int())
 
-  if draw_with_llvm
-    pre_args += '-DDRAW_LLVM_AVAILABLE'
-  elif with_swrast_vk
+  if with_swrast_vk and not draw_with_llvm
     error('Lavapipe requires LLVM draw support.')
   endif
 
@@ -1771,6 +1809,8 @@ elif with_clc
 else
   draw_with_llvm = false
 endif
+pre_args += '-DLLVM_AVAILABLE=' + (with_llvm ? '1' : '0')
+pre_args += '-DDRAW_LLVM_AVAILABLE=' + (with_llvm and draw_with_llvm ? '1' : '0')
 
 with_opencl_spirv = (_opencl != 'disabled' and get_option('opencl-spirv')) or with_clc
 if with_opencl_spirv
@@ -1786,8 +1826,8 @@ if with_opencl_spirv
   # does not have the required API and those are only available starting from
   # 8.0.1.3.
   _llvmspirvlib_min_version = '>= 8.0.1.3'
-  if with_intel_clc
-    _llvmspirvlib_min_version = '>= 13.0.0.0'
+  if with_clc
+    _llvmspirvlib_min_version = '>= 15.0.0.0'
   endif
 
   _llvmspirvlib_version = [
@@ -1843,6 +1883,8 @@ if not with_platform_windows and not dep_elf.found()
 endif
 if dep_elf.found()
   pre_args += '-DUSE_LIBELF'
+elif with_gallium_radeonsi
+  error('Gallium driver radeonsi requires libelf')
 endif
 
 dep_glvnd = null_dep
@@ -1960,6 +2002,18 @@ if with_platform_wayland
     dep_wayland_egl_headers = dep_wayland_egl.partial_dependency(compile_args : true)
   endif
   pre_args += '-DWL_HIDE_DEPRECATED'
+  if cc.has_function(
+      'wl_display_dispatch_queue_timeout',
+      prefix : '#include <wayland-client.h>',
+      dependencies: dep_wayland_client)
+    pre_args += ['-DHAVE_WL_DISPATCH_QUEUE_TIMEOUT']
+  endif
+  if cc.has_function(
+      'wl_display_create_queue_with_name',
+      prefix : '#include <wayland-client.h>',
+      dependencies: dep_wayland_client)
+    pre_args += ['-DHAVE_WL_CREATE_QUEUE_WITH_NAME']
+  endif
 endif
 
 dep_x11 = null_dep
@@ -2006,6 +2060,9 @@ if with_platform_x11
     dep_xfixes = dependency('xfixes', version : '>= 2.0')
     dep_xcb_glx = dependency('xcb-glx', version : '>= 1.8.1')
     dep_xcb_shm = dependency('xcb-shm')
+  elif with_gallium_rusticl
+    # needed for GL sharing extension
+    dep_x11 = dependency('x11')
   endif
   if (with_any_vk or with_glx == 'dri' or with_egl or
        (with_gallium_vdpau or with_gallium_va or
@@ -2017,6 +2074,7 @@ if with_platform_x11
       pre_args += '-DXCB_KEYSYMS_AVAILABLE'
     endif
     dep_x11_xcb = dependency('x11-xcb')
+    dep_xcb_dri2 = dependency('xcb-dri2', version : '>= 1.8')
     if with_dri_platform == 'drm' and not dep_libdrm.found()
       error('libdrm required for gallium video statetrackers when using x11')
     endif
@@ -2099,6 +2157,13 @@ with_any_datasource = with_datasources.length() != 0
 if with_perfetto
   dep_perfetto = dependency('perfetto', fallback: ['perfetto', 'dep_perfetto'])
   pre_args += '-DHAVE_PERFETTO'
+endif
+
+with_teflon = get_option('teflon')
+if with_teflon and with_tests
+  dep_xtensor = dependency('xtensor')
+  dep_flatbuffers = dependency('flatbuffers')
+  prog_flatc = find_program('flatc')
 endif
 
 with_gpuvis = get_option('gpuvis')
@@ -2319,3 +2384,6 @@ if with_perfetto and with_any_datasource
   perfetto_summary += {'Data source': with_datasources}
 endif
 summary(perfetto_summary, section: 'Perfetto', bool_yn: true, list_sep: ' ')
+
+teflon_summary = {'Enabled': with_teflon}
+summary(teflon_summary, section: 'Teflon (TensorFlow Lite delegate)', bool_yn: true, list_sep: ' ')

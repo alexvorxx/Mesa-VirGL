@@ -28,7 +28,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <sys/types.h>
+
 #include "c11/threads.h"
+#include "common/intel_bind_timeline.h"
 #include "util/macros.h"
 #include "util/u_atomic.h"
 #include "util/u_dynarray.h"
@@ -156,13 +158,53 @@ enum iris_mmap_mode {
 };
 
 enum iris_heap {
-   IRIS_HEAP_SYSTEM_MEMORY,
+   /**
+    * System memory which is CPU-cached at (at least 1-way) coherent.
+    *
+    * This will use WB (write-back) CPU mappings.
+    *
+    * LLC systems and discrete cards (which enable snooping) will mostly use
+    * this heap.  Non-LLC systems will only use it when explicit coherency is
+    * required, as snooping is expensive there.
+    */
+   IRIS_HEAP_SYSTEM_MEMORY_CACHED_COHERENT,
+
+   /**
+    * System memory which is not CPU cached.
+    *
+    * This will use WC (write-combining) CPU mappings, which has uncached
+    * performance for reads.  This can be used for scanout on integrated
+    * GPUs (which is never coherent with CPU caches).  It will be used for
+    * most buffers on non-LLC platforms, where cache coherency is expensive.
+    */
+   IRIS_HEAP_SYSTEM_MEMORY_UNCACHED,
+
+   /** Device-local memory (VRAM).  Cannot be placed in system memory! */
    IRIS_HEAP_DEVICE_LOCAL,
+
+   /**
+    * Device-local memory (VRAM) + guarantee that is CPU visible.
+    *
+    * To be used in cases that cannot be placed in system memory!
+    * This will only be used when running in small PCIe bar systems.
+    */
+   IRIS_HEAP_DEVICE_LOCAL_CPU_VISIBLE_SMALL_BAR,
+
+   /** Device-local memory that may be evicted to system memory if needed. */
    IRIS_HEAP_DEVICE_LOCAL_PREFERRED,
+
    IRIS_HEAP_MAX,
 };
 
 extern const char *iris_heap_to_string[];
+
+static inline bool
+iris_heap_is_device_local(enum iris_heap heap)
+{
+   return heap == IRIS_HEAP_DEVICE_LOCAL ||
+          heap == IRIS_HEAP_DEVICE_LOCAL_PREFERRED ||
+          heap == IRIS_HEAP_DEVICE_LOCAL_CPU_VISIBLE_SMALL_BAR;
+}
 
 #define IRIS_BATCH_COUNT 3
 
@@ -249,10 +291,11 @@ struct iris_bo {
     */
    bool idle;
 
+   /** Was this buffer zeroed at allocation time? */
+   bool zeroed;
+
    union {
       struct {
-         uint64_t kflags;
-
          time_t free_time;
 
          /** Mapped address for the buffer, saved across map/unmap cycles */
@@ -291,6 +334,12 @@ struct iris_bo {
 
          /** Boolean of whether this buffer is protected (HW encryption) */
          bool protected;
+
+         /** Boolean of whether this buffer needs to be captured in error dump.
+          * Xe KMD requires this to be set before vm bind while i915 needs
+          * this set before batch_submit().
+          */
+         bool capture;
       } real;
       struct {
          struct pb_slab_entry entry;
@@ -308,6 +357,8 @@ struct iris_bo {
 #define BO_ALLOC_LMEM        (1<<5)
 #define BO_ALLOC_PROTECTED   (1<<6)
 #define BO_ALLOC_SHARED      (1<<7)
+#define BO_ALLOC_CAPTURE     (1<<8)
+#define BO_ALLOC_CPU_VISIBLE (1<<9)
 
 /**
  * Allocate a buffer object.
@@ -455,7 +506,7 @@ iris_bo_likely_local(const struct iris_bo *bo)
       return false;
 
    bo = iris_get_backing_bo((struct iris_bo *) bo);
-   return bo->real.heap != IRIS_HEAP_SYSTEM_MEMORY;
+   return iris_heap_is_device_local(bo->real.heap);
 }
 
 static inline enum iris_mmap_mode
@@ -539,19 +590,12 @@ iris_bo_bump_seqno(struct iris_bo *bo, uint64_t seqno,
       prev_seqno = tmp;
 }
 
-const struct intel_device_info_pat_entry *
-iris_bufmgr_get_pat_entry_for_bo_flags(const struct iris_bufmgr *bufmgr,
-                                       unsigned alloc_flags);
-
 /**
- * Return the pat index based on the bo allocation flags.
+ * Return the PAT entry based for the given heap.
  */
-static inline uint32_t
-iris_bufmgr_get_pat_index_for_bo_flags(const struct iris_bufmgr *bufmgr,
-                                       unsigned alloc_flags)
-{
-   return iris_bufmgr_get_pat_entry_for_bo_flags(bufmgr, alloc_flags)->index;
-}
+const struct intel_device_info_pat_entry *
+iris_heap_to_pat_entry(const struct intel_device_info *devinfo,
+                       enum iris_heap heap);
 
 enum iris_memory_zone iris_memzone_for_address(uint64_t address);
 
@@ -593,6 +637,8 @@ const struct iris_kmd_backend *
 iris_bufmgr_get_kernel_driver_backend(struct iris_bufmgr *bufmgr);
 uint32_t iris_bufmgr_get_global_vm_id(struct iris_bufmgr *bufmgr);
 bool iris_bufmgr_use_global_vm_id(struct iris_bufmgr *bufmgr);
+struct intel_bind_timeline *iris_bufmgr_get_bind_timeline(struct iris_bufmgr *bufmgr);
+bool iris_bufmgr_compute_engine_supported(struct iris_bufmgr *bufmgr);
 
 enum iris_madvice {
    IRIS_MADVICE_WILL_NEED = 0,

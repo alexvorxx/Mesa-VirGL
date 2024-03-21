@@ -52,7 +52,6 @@ extern "C" {
 #endif
 
 struct intel_device_info;
-struct brw_image_param;
 
 #ifndef ISL_GFX_VER
 /**
@@ -588,6 +587,8 @@ enum isl_tiling {
    ISL_TILING_4,
    /** 64K tiling.*/
    ISL_TILING_64,
+   /** Xe2 64K tiling.*/
+   ISL_TILING_64_XE2,
    /** Tiling format for HiZ surfaces */
    ISL_TILING_HIZ,
    /** Tiling format for CCS surfaces */
@@ -611,6 +612,7 @@ typedef uint32_t isl_tiling_flags_t;
 #define ISL_TILING_ICL_Ys_BIT             (1u << ISL_TILING_ICL_Ys)
 #define ISL_TILING_4_BIT                  (1u << ISL_TILING_4)
 #define ISL_TILING_64_BIT                 (1u << ISL_TILING_64)
+#define ISL_TILING_64_XE2_BIT             (1u << ISL_TILING_64_XE2)
 #define ISL_TILING_HIZ_BIT                (1u << ISL_TILING_HIZ)
 #define ISL_TILING_CCS_BIT                (1u << ISL_TILING_CCS)
 #define ISL_TILING_GFX12_CCS_BIT          (1u << ISL_TILING_GFX12_CCS)
@@ -629,6 +631,11 @@ typedef uint32_t isl_tiling_flags_t;
                                            ISL_TILING_SKL_Ys_BIT | \
                                            ISL_TILING_ICL_Yf_BIT | \
                                            ISL_TILING_ICL_Ys_BIT)
+
+/** Any Tiling 64 */
+#define ISL_TILING_STD_64_MASK            (ISL_TILING_64_BIT | \
+                                           ISL_TILING_64_XE2_BIT)
+
 /** @} */
 
 /**
@@ -1142,6 +1149,9 @@ typedef uint64_t isl_surf_usage_flags_t;
 #define ISL_SURF_USAGE_STREAM_OUT_BIT          (1u << 18)
 #define ISL_SURF_USAGE_2D_3D_COMPATIBLE_BIT    (1u << 19)
 #define ISL_SURF_USAGE_SPARSE_BIT              (1u << 20)
+#define ISL_SURF_USAGE_NO_AUX_TT_ALIGNMENT_BIT (1u << 21)
+#define ISL_SURF_USAGE_BLITTER_DST_BIT         (1u << 22)
+#define ISL_SURF_USAGE_BLITTER_SRC_BIT         (1u << 23)
 /** @} */
 
 /**
@@ -1918,6 +1928,48 @@ struct isl_cpb_emit_info {
    uint32_t mocs;
 };
 
+/*
+ * Image metadata structure as laid out in the shader parameter
+ * buffer.  Entries have to be 16B-aligned for the vec4 back-end to be
+ * able to use them.  That's okay because the padding and any unused
+ * entries [most of them except when we're doing untyped surface
+ * access] will be removed by the uniform packing pass.
+ */
+#define ISL_IMAGE_PARAM_OFFSET_OFFSET           0
+#define ISL_IMAGE_PARAM_SIZE_OFFSET             4
+#define ISL_IMAGE_PARAM_STRIDE_OFFSET           8
+#define ISL_IMAGE_PARAM_TILING_OFFSET           12
+#define ISL_IMAGE_PARAM_SWIZZLING_OFFSET        16
+#define ISL_IMAGE_PARAM_SIZE                    20
+
+struct isl_image_param {
+   /** Offset applied to the X and Y surface coordinates. */
+   uint32_t offset[2];
+
+   /** Surface X, Y and Z dimensions. */
+   uint32_t size[3];
+
+   /** X-stride in bytes, Y-stride in pixels, horizontal slice stride in
+    * pixels, vertical slice stride in pixels.
+    */
+   uint32_t stride[4];
+
+   /** Log2 of the tiling modulus in the X, Y and Z dimension. */
+   uint32_t tiling[3];
+
+   /**
+    * Right shift to apply for bit 6 address swizzling.  Two different
+    * swizzles can be specified and will be applied one after the other.  The
+    * resulting address will be:
+    *
+    *  addr' = addr ^ ((1 << 6) & ((addr >> swizzling[0]) ^
+    *                              (addr >> swizzling[1])))
+    *
+    * Use \c 0xff if any of the swizzles is not required.
+    */
+   uint32_t swizzling[2];
+};
+
 extern const struct isl_format_layout isl_format_layouts[];
 extern const char isl_format_names[];
 extern const uint16_t isl_format_name_offsets[];
@@ -1927,7 +1979,7 @@ isl_device_init(struct isl_device *dev,
                 const struct intel_device_info *info);
 
 isl_sample_count_mask_t ATTRIBUTE_CONST
-isl_device_get_sample_counts(struct isl_device *dev);
+isl_device_get_sample_counts(const struct isl_device *dev);
 
 /**
  * :returns: The isl_format_layout for the given isl_format
@@ -2148,6 +2200,8 @@ enum isl_format isl_format_rgb_to_rgba(enum isl_format rgb) ATTRIBUTE_CONST;
 enum isl_format isl_format_rgb_to_rgbx(enum isl_format rgb) ATTRIBUTE_CONST;
 enum isl_format isl_format_rgbx_to_rgba(enum isl_format rgb) ATTRIBUTE_CONST;
 
+bool isl_format_support_sampler_route_to_lsc(enum isl_format fmt);
+
 union isl_color_value
 isl_color_value_swizzle(union isl_color_value src,
                         struct isl_swizzle swizzle,
@@ -2205,11 +2259,27 @@ isl_tiling_is_std_y(enum isl_tiling tiling)
    return (1u << tiling) & ISL_TILING_STD_Y_MASK;
 }
 
+static inline bool
+isl_tiling_is_64(enum isl_tiling tiling)
+{
+   return (1u << tiling) & ISL_TILING_STD_64_MASK;
+}
+
 uint32_t
 isl_tiling_to_i915_tiling(enum isl_tiling tiling);
 
 enum isl_tiling
 isl_tiling_from_i915_tiling(uint32_t tiling);
+
+
+/**
+ * Return an isl_aux_state to describe an auxiliary surface that is either
+ * uninitialized or zeroed.
+ */
+enum isl_aux_state
+isl_aux_get_initial_state(const struct intel_device_info *devinfo,
+                          enum isl_aux_usage usage,
+                          bool zeroed);
 
 /**
  * Return an isl_aux_op needed to enable an access to occur in an
@@ -2342,6 +2412,30 @@ isl_drm_modifier_has_aux(uint64_t modifier)
 
    return isl_drm_modifier_get_info(modifier)->supports_render_compression ||
           isl_drm_modifier_get_info(modifier)->supports_media_compression;
+}
+
+static inline bool
+isl_drm_modifier_plane_is_clear_color(uint64_t modifier, uint32_t plane)
+{
+   if (modifier == DRM_FORMAT_MOD_INVALID)
+      return false;
+
+   ASSERTED const struct isl_drm_modifier_info *mod_info =
+      isl_drm_modifier_get_info(modifier);
+   assert(mod_info);
+
+   switch (modifier) {
+   case I915_FORMAT_MOD_4_TILED_MTL_RC_CCS_CC:
+   case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS_CC:
+      assert(mod_info->supports_clear_color);
+      return plane == 2;
+   case I915_FORMAT_MOD_4_TILED_DG2_RC_CCS_CC:
+      assert(mod_info->supports_clear_color);
+      return plane == 1;
+   default:
+      assert(!mod_info->supports_clear_color);
+      return false;
+   }
 }
 
 /** Returns the default isl_aux_state for the given modifier.
@@ -2643,13 +2737,13 @@ isl_surf_get_ccs_surf(const struct isl_device *dev,
 
 void
 isl_surf_fill_image_param(const struct isl_device *dev,
-                          struct brw_image_param *param,
+                          struct isl_image_param *param,
                           const struct isl_surf *surf,
                           const struct isl_view *view);
 
 void
 isl_buffer_fill_image_param(const struct isl_device *dev,
-                            struct brw_image_param *param,
+                            struct isl_image_param *param,
                             enum isl_format format,
                             uint64_t size);
 
@@ -3106,6 +3200,12 @@ isl_aux_op_to_name(enum isl_aux_op op);
 
 const char *
 isl_tiling_to_name(enum isl_tiling tiling);
+
+const char *
+isl_aux_usage_to_name(enum isl_aux_usage usage);
+
+const char *
+isl_aux_state_to_name(enum isl_aux_state state);
 
 #ifdef __cplusplus
 }

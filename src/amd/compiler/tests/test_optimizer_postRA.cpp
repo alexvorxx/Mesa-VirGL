@@ -84,9 +84,9 @@ BEGIN_TEST(optimizer_postRA.vcmp)
 
       //! s2: %b:vcc = v_cmp_eq_u32 0, %a:v[0]
       //! s2: %c:s[0-1], s1: %d:scc = s_and_b64 %b:vcc, %x:exec
-      //! s1: %f:s[107] = s_mov_b32 0
+      //! s1: %f:vcc_hi = s_mov_b32 0
       //! s2: %e:s[2-3] = p_cbranch_z %d:scc
-      //! p_unit_test 1, %e:s[2-3], %f:vcc
+      //! p_unit_test 1, %e:s[2-3], %f:vcc_hi
       auto vcmp = bld.vopc(aco_opcode::v_cmp_eq_u32, bld.def(bld.lm, vcc), Operand::zero(),
                            Operand(v_in, reg_v0));
       auto sand = bld.sop2(Builder::s_and, bld.def(bld.lm, reg_s0), bld.def(s1, scc), bld.vcc(vcmp),
@@ -94,7 +94,7 @@ BEGIN_TEST(optimizer_postRA.vcmp)
       auto ovrwr = bld.sop1(aco_opcode::s_mov_b32, bld.def(s1, vcc_hi), Operand::zero());
       auto br =
          bld.branch(aco_opcode::p_cbranch_z, bld.def(s2, reg_s2), bld.scc(sand.def(1).getTemp()));
-      writeout(1, Operand(br, reg_s2), Operand(ovrwr, vcc));
+      writeout(1, Operand(br, reg_s2), Operand(ovrwr, vcc_hi));
    }
 
    //; del b, c, d, e, f
@@ -571,6 +571,12 @@ BEGIN_TEST(optimizer_postRA.dpp_across_cf)
          //! buffer_store_dword %c:v[2], 0, %d:v[3], 0 offen
          bld.mubuf(aco_opcode::buffer_store_dword, c, Operand::zero(), d, Operand::zero(), 0, true);
 
+         //! v1: %res10:v[12] = v_add_f32 %a:v[0], %b:v[1] row_mirror bound_ctrl:1 fi
+         //! p_unit_test 10, %res10:v[12]
+         Temp result =
+            bld.vop2(aco_opcode::v_add_f32, bld.def(v1, reg_v12), Operand(dpp_tmp, reg_v12), b);
+         writeout(10, Operand(result, reg_v12));
+
          //! p_logical_end
          //! s2: %0:vcc = p_branch BB3
 
@@ -604,12 +610,6 @@ BEGIN_TEST(optimizer_postRA.dpp_across_cf)
    //! BB6
    //! /* logical preds: BB1, BB4, / linear preds: BB4, BB5, / kind: uniform, top-level, merge, */
    //! s2: %0:exec = p_parallelcopy %saved_exec:s[84-85]
-
-   //! v1: %res10:v[12] = v_add_f32 %a:v[0], %b:v[1] row_mirror bound_ctrl:1 fi
-   //! p_unit_test 10, %res10:v[12]
-   Temp result =
-      bld.vop2(aco_opcode::v_add_f32, bld.def(v1, reg_v12), Operand(dpp_tmp, reg_v12), b);
-   writeout(10, Operand(result, reg_v12));
 
    finish_optimizer_postRA_test();
 END_TEST
@@ -696,6 +696,87 @@ BEGIN_TEST(optimizer_postRA.dpp_across_cf_overwritten)
       bld.vop2(aco_opcode::v_add_f32, bld.def(v1, reg_v12), Operand(dpp_tmp, reg_v12), b);
    //! p_unit_test 10, %result:v[12]
    writeout(10, Operand(result, reg_v12));
+
+   finish_optimizer_postRA_test();
+END_TEST
+
+BEGIN_TEST(optimizer_postRA.dpp_across_cf_linear_clobber)
+   //>> v1: %a:v[0], v1: %b:v[1], s2: %c:s[0-1] = p_startpgm
+   if (!setup_cs("v1 v1 s2", GFX10_3))
+      return;
+
+   aco_ptr<Instruction>& startpgm = bld.instructions->at(0);
+   startpgm->definitions[0].setFixed(PhysReg(256));
+   startpgm->definitions[1].setFixed(PhysReg(257));
+   startpgm->definitions[2].setFixed(PhysReg(0));
+
+   Operand a(inputs[0], PhysReg(256)); /* source for DPP */
+   Operand b(inputs[1], PhysReg(257)); /* source for fadd */
+   Operand c(inputs[2], PhysReg(0));   /* condition */
+   PhysReg reg_v12(268);               /* temporary register */
+
+   //! v1: %dpp_tmp:v[12] = v_mov_b32 %a:v[0] row_mirror bound_ctrl:1 fi
+   Temp dpp_tmp = bld.vop1_dpp(aco_opcode::v_mov_b32, bld.def(v1, reg_v12), a, dpp_row_mirror);
+
+   //! s2: %saved_exec:s[84-85],  s1: %0:scc,  s2: %0:exec = s_and_saveexec_b64 %c:s[0-1], %0:exec
+   //! s2: %0:vcc = p_cbranch_nz BB1, BB2
+
+   emit_divergent_if_else(
+      program.get(), bld, c,
+      [&]() -> void
+      {
+         /* --- logical then --- */
+         //! BB1
+         //! /* logical preds: BB0, / linear preds: BB0, / kind: */
+         //! p_logical_start
+
+         //! v1: %clobber:v[0] = p_parallelcopy 0
+         Temp clobber =
+            bld.pseudo(aco_opcode::p_parallelcopy, bld.def(v1, a.physReg()), Operand::c32(0));
+
+         //! p_unit_test 0, %clobber:v[0]
+         writeout(0, Operand(clobber, a.physReg()));
+
+         //! p_logical_end
+         //! s2: %0:vcc = p_branch BB3
+
+         /* --- linear then --- */
+         //! BB2
+         //! /* logical preds: / linear preds: BB0, / kind: */
+         //! s2: %0:vcc = p_branch BB3
+
+         /* --- invert --- */
+         //! BB3
+         //! /* logical preds: / linear preds: BB1, BB2, / kind: invert, */
+         //! s2: %0:exec,  s1: %0:scc = s_andn2_b64 %saved_exec:s[84-85], %0:exec
+         //! s2: %0:vcc = p_cbranch_nz BB4, BB5
+      },
+      [&]() -> void
+      {
+         /* --- logical else --- */
+         //! BB4
+         //! /* logical preds: BB0, / linear preds: BB3, / kind: */
+         //! p_logical_start
+
+         //! v1: %result:v[12] = v_add_f32 %dpp_mov_tmp:v[12], %b:v[1]
+         Temp result =
+            bld.vop2(aco_opcode::v_add_f32, bld.def(v1, reg_v12), Operand(dpp_tmp, reg_v12), b);
+         //! p_unit_test 1, %result:v[12]
+         writeout(1, Operand(result, reg_v12));
+
+         //! p_logical_end
+         //! s2: %0:vcc = p_branch BB6
+
+         /* --- linear else --- */
+         //! BB5
+         //! /* logical preds: / linear preds: BB3, / kind: */
+         //! s2: %0:vcc = p_branch BB6
+      });
+
+   /* --- merge block --- */
+   //! BB6
+   //! /* logical preds: BB1, BB4, / linear preds: BB4, BB5, / kind: uniform, top-level, merge, */
+   //! s2: %0:exec = p_parallelcopy %saved_exec:s[84-85]
 
    finish_optimizer_postRA_test();
 END_TEST

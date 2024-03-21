@@ -52,7 +52,7 @@ stub_gem_create(struct anv_device *device,
 
 static void *
 stub_gem_mmap(struct anv_device *device, struct anv_bo *bo, uint64_t offset,
-              uint64_t size)
+              uint64_t size, void *placed_addr)
 {
    return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, bo->gem_handle,
                offset);
@@ -61,6 +61,13 @@ stub_gem_mmap(struct anv_device *device, struct anv_bo *bo, uint64_t offset,
 static VkResult
 stub_execute_simple_batch(struct anv_queue *queue, struct anv_bo *batch_bo,
                           uint32_t batch_bo_size, bool is_companion_rcs_batch)
+{
+   return VK_ERROR_UNKNOWN;
+}
+
+static VkResult
+stub_execute_trtt_batch(struct anv_sparse_submission *submit,
+                        struct anv_trtt_batch_bo *trtt_bbo)
 {
    return VK_ERROR_UNKNOWN;
 }
@@ -91,27 +98,6 @@ stub_bo_alloc_flags_to_bo_flags(struct anv_device *device,
                                 enum anv_bo_alloc_flags alloc_flags)
 {
    return 0;
-}
-
-void *
-anv_gem_mmap(struct anv_device *device, struct anv_bo *bo, uint64_t offset,
-             uint64_t size)
-{
-   void *map = device->kmd_backend->gem_mmap(device, bo, offset, size);
-
-   if (map != MAP_FAILED)
-      VG(VALGRIND_MALLOCLIKE_BLOCK(map, size, 0, 1));
-
-   return map;
-}
-
-/* This is just a wrapper around munmap, but it also notifies valgrind that
- * this map is no longer valid.  Pair this with gem_mmap().
- */
-void
-anv_gem_munmap(struct anv_device *device, void *p, uint64_t size)
-{
-   munmap(p, size);
 }
 
 static uint32_t
@@ -166,17 +152,16 @@ anv_gem_import_bo_alloc_flags_to_bo_flags(struct anv_device *device,
    return VK_SUCCESS;
 }
 
-static int
-stub_vm_bind(struct anv_device *device, int num_binds,
-             struct anv_vm_bind *binds)
+static VkResult
+stub_vm_bind(struct anv_device *device, struct anv_sparse_submission *submit)
 {
-   return 0;
+   return VK_SUCCESS;
 }
 
-static int
+static VkResult
 stub_vm_bind_bo(struct anv_device *device, struct anv_bo *bo)
 {
-   return 0;
+   return VK_SUCCESS;
 }
 
 const struct anv_kmd_backend *anv_stub_kmd_backend_get(void)
@@ -190,6 +175,7 @@ const struct anv_kmd_backend *anv_stub_kmd_backend_get(void)
       .vm_bind_bo = stub_vm_bind_bo,
       .vm_unbind_bo = stub_vm_bind_bo,
       .execute_simple_batch = stub_execute_simple_batch,
+      .execute_trtt_batch = stub_execute_trtt_batch,
       .queue_exec_locked = stub_queue_exec_locked,
       .queue_exec_trace = stub_queue_exec_trace,
       .bo_alloc_flags_to_bo_flags = stub_bo_alloc_flags_to_bo_flags,

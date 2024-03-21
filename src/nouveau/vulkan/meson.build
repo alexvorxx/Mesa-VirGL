@@ -15,7 +15,7 @@ nvk_files = files(
   'nvk_cmd_meta.c',
   'nvk_cmd_pool.c',
   'nvk_cmd_pool.h',
-  'nvk_compute_pipeline.c',
+  'nvk_codegen.c',
   'nvk_descriptor_set.h',
   'nvk_descriptor_set.c',
   'nvk_descriptor_set_layout.c',
@@ -30,7 +30,6 @@ nvk_files = files(
   'nvk_event.h',
   'nvk_format.c',
   'nvk_format.h',
-  'nvk_graphics_pipeline.c',
   'nvk_heap.c',
   'nvk_heap.h',
   'nvk_image.c',
@@ -44,8 +43,6 @@ nvk_files = files(
   'nvk_nir_lower_descriptors.c',
   'nvk_physical_device.c',
   'nvk_physical_device.h',
-  'nvk_pipeline.c',
-  'nvk_pipeline.h',
   'nvk_private.h',
   'nvk_query_pool.c',
   'nvk_query_pool.h',
@@ -56,6 +53,8 @@ nvk_files = files(
   'nvk_sampler.h',
   'nvk_shader.c',
   'nvk_shader.h',
+  'nvk_upload_queue.c',
+  'nvk_upload_queue.h',
   'nvk_wsi.c',
   'nvk_wsi.h'
 )
@@ -74,6 +73,7 @@ nvk_entrypoints = custom_target(
 
 nvk_deps = [
   dep_libdrm,
+  idep_nak,
   idep_nil,
   idep_nir,
   idep_nouveau_mme,
@@ -114,7 +114,7 @@ libvulkan_nouveau = shared_library(
 icd_lib_path = join_paths(get_option('prefix'), get_option('libdir'))
 icd_file_name = 'libvulkan_nouveau.so'
 if with_platform_windows
-  icd_lib_path = join_paths(get_option('prefix'), get_option('bindir'))
+  icd_lib_path = import('fs').relative_to(get_option('bindir'), with_vulkan_icd_dir)
   icd_file_name = 'vulkan_nouveau.dll'
 endif
 

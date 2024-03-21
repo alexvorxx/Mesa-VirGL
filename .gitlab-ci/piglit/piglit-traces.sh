@@ -13,6 +13,12 @@ S3_ARGS="--token-file ${CI_JOB_JWT_FILE}"
 RESULTS=$(realpath -s "$PWD"/results)
 mkdir -p "$RESULTS"
 
+export PIGLIT_REPLAY_DESCRIPTION_FILE="$INSTALL/$PIGLIT_TRACES_FILE"
+
+# FIXME: guess why /usr/local/bin is not included in all runners PATH.
+# Needed because yq and ci-fairy are installed there.
+PATH="/usr/local/bin:$PATH"
+
 if [ "$PIGLIT_REPLAY_SUBCOMMAND" = "profile" ]; then
     yq -iY 'del(.traces[][] | select(.label[]? == "no-perf"))' \
       "$PIGLIT_REPLAY_DESCRIPTION_FILE"
@@ -187,8 +193,6 @@ if ! eval $RUN_CMD;
 then
     printf "%s\n" "Found $(cat /tmp/version.txt), expected $MESA_VERSION"
 fi
-
-ARTIFACTS_BASE_URL="https://${CI_PROJECT_ROOT_NAMESPACE}.${CI_PAGES_DOMAIN}/-/${CI_PROJECT_NAME}/-/jobs/${CI_JOB_ID}/artifacts"
 
 ./piglit summary aggregate "$RESULTS" -o junit.xml
 

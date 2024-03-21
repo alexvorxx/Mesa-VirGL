@@ -582,12 +582,14 @@ ir3_screen_init(struct pipe_screen *pscreen)
          ir3_shader_descriptor_set(PIPE_SHADER_FRAGMENT),
       .bindless_fb_read_slot = IR3_BINDLESS_IMAGE_OFFSET +
                                IR3_BINDLESS_IMAGE_COUNT - 1 - screen->max_rts,
+      .dual_color_blend_by_location = screen->driconf.dual_color_blend_by_location,
    };
 
    if (screen->gen >= 6) {
       options.lower_base_vertex = true;
    }
-   screen->compiler = ir3_compiler_create(screen->dev, screen->dev_id, &options);
+   screen->compiler =
+      ir3_compiler_create(screen->dev, screen->dev_id, screen->info, &options);
 
    /* TODO do we want to limit things to # of fast cores, or just limit
     * based on total # of both big and little cores.  The little cores

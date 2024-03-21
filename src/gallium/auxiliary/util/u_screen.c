@@ -332,6 +332,7 @@ u_pipe_screen_get_param_defaults(struct pipe_screen *pscreen,
    case PIPE_CAP_FBFETCH_ZS:
    case PIPE_CAP_BLEND_EQUATION_ADVANCED:
    case PIPE_CAP_LEGACY_MATH_RULES:
+   case PIPE_CAP_FP16:
    case PIPE_CAP_DOUBLES:
    case PIPE_CAP_INT64:
    case PIPE_CAP_TGSI_TEX_TXF_LZ:
@@ -440,7 +441,7 @@ u_pipe_screen_get_param_defaults(struct pipe_screen *pscreen,
       return 0;
 
    case PIPE_CAP_DMABUF:
-#if defined(HAVE_LIBDRM) && (DETECT_OS_LINUX || DETECT_OS_BSD)
+#if defined(HAVE_LIBDRM) && (DETECT_OS_LINUX || DETECT_OS_BSD || DETECT_OS_MANAGARM)
       fd = pscreen->get_screen_fd(pscreen);
       if (fd != -1 && (drmGetCap(fd, DRM_CAP_PRIME, &cap) == 0))
          return cap;
@@ -449,6 +450,9 @@ u_pipe_screen_get_param_defaults(struct pipe_screen *pscreen,
 #else
       return 0;
 #endif
+
+   case PIPE_CAP_CL_GL_SHARING:
+      return 0;
 
    case PIPE_CAP_TEXTURE_SHADOW_MAP: /* Enables ARB_shadow */
       return 1;
@@ -549,6 +553,10 @@ u_pipe_screen_get_param_defaults(struct pipe_screen *pscreen,
    case PIPE_CAP_ASTC_VOID_EXTENTS_NEED_DENORM_FLUSH:
    case PIPE_CAP_HAS_CONST_BW:
       return 0;
+
+   case PIPE_CAP_PERFORMANCE_MONITOR:
+      return pscreen->get_driver_query_info && pscreen->get_driver_query_group_info &&
+             pscreen->get_driver_query_group_info(pscreen, 0, NULL) != 0;
 
    default:
       unreachable("bad PIPE_CAP_*");

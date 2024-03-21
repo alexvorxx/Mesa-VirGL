@@ -118,21 +118,21 @@ vl_video_buffer_is_format_supported(struct pipe_screen *screen,
    vl_get_video_buffer_formats(screen, format, resource_formats);
 
    for (i = 0; i < VL_NUM_COMPONENTS; ++i) {
-      enum pipe_format format = resource_formats[i];
+      enum pipe_format fmt = resource_formats[i];
 
-      if (format == PIPE_FORMAT_NONE)
+      if (fmt == PIPE_FORMAT_NONE)
          continue;
 
       /* we at least need to sample from it */
-      if (!screen->is_format_supported(screen, format, PIPE_TEXTURE_2D, 0, 0, PIPE_BIND_SAMPLER_VIEW))
-         return false;
+      if (!screen->is_format_supported(screen, fmt, PIPE_TEXTURE_2D, 0, 0, PIPE_BIND_SAMPLER_VIEW))
+         continue;
 
-      format = vl_video_buffer_surface_format(format);
-      if (!screen->is_format_supported(screen, format, PIPE_TEXTURE_2D, 0, 0, PIPE_BIND_RENDER_TARGET))
-         return false;
+      fmt = vl_video_buffer_surface_format(fmt);
+      if (screen->is_format_supported(screen, fmt, PIPE_TEXTURE_2D, 0, 0, PIPE_BIND_RENDER_TARGET))
+         return true;
    }
 
-   return true;
+   return false;
 }
 
 unsigned
@@ -296,13 +296,19 @@ vl_video_buffer_sampler_view_components(struct pipe_video_buffer *buffer)
          nr_components = 3;
 
       for (j = 0; j < nr_components && component < VL_NUM_COMPONENTS; ++j, ++component) {
+         unsigned pipe_swizzle;
+
          if (buf->sampler_view_components[component])
             continue;
 
          memset(&sv_templ, 0, sizeof(sv_templ));
          u_sampler_view_default_template(&sv_templ, res, sampler_format[plane_order[i]]);
-         sv_templ.swizzle_r = sv_templ.swizzle_g = sv_templ.swizzle_b = PIPE_SWIZZLE_X + j;
+         pipe_swizzle = (buf->base.buffer_format == PIPE_FORMAT_YUYV || buf->base.buffer_format == PIPE_FORMAT_UYVY) ?
+                        (PIPE_SWIZZLE_X + j + 1) % 3 :
+                        (PIPE_SWIZZLE_X + j);
+         sv_templ.swizzle_r = sv_templ.swizzle_g = sv_templ.swizzle_b = pipe_swizzle;
          sv_templ.swizzle_a = PIPE_SWIZZLE_1;
+
          buf->sampler_view_components[component] = pipe->create_sampler_view(pipe, res, &sv_templ);
          if (!buf->sampler_view_components[component])
             goto error;

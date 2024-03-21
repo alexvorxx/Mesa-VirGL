@@ -98,8 +98,8 @@ clear_in_rp(struct pipe_context *pctx,
          return;
       cr.rect.offset.x = scissor_state->minx;
       cr.rect.offset.y = scissor_state->miny;
-      cr.rect.extent.width = MIN2(fb->width, scissor_state->maxx - scissor_state->minx);
-      cr.rect.extent.height = MIN2(fb->height, scissor_state->maxy - scissor_state->miny);
+      cr.rect.extent.width = MIN2(fb->width - cr.rect.offset.x, scissor_state->maxx - scissor_state->minx);
+      cr.rect.extent.height = MIN2(fb->height - cr.rect.offset.y, scissor_state->maxy - scissor_state->miny);
    } else {
       cr.rect.extent.width = fb->width;
       cr.rect.extent.height = fb->height;
@@ -234,7 +234,7 @@ zink_clear(struct pipe_context *pctx,
                    */
                   add_new_clear(fb_clear);
                   struct zink_framebuffer_clear_data *clear = fb_clear->clears.data;
-                  memcpy(clear + 1, clear, num_clears);
+                  memmove(clear + 1, clear, num_clears);
                   memcpy(&clear->color, &color, sizeof(color));
                } else {
                   /* no void clear needed */
@@ -644,6 +644,8 @@ zink_clear_depth_stencil(struct pipe_context *pctx, struct pipe_surface *dst,
                          bool render_condition_enabled)
 {
    struct zink_context *ctx = zink_context(pctx);
+   /* check for stencil fallback */
+   bool blitting = ctx->blitting;
    zink_flush_dgc_if_enabled(ctx);
    bool render_condition_active = ctx->render_condition_active;
    if (!render_condition_enabled && render_condition_active) {
@@ -656,14 +658,16 @@ zink_clear_depth_stencil(struct pipe_context *pctx, struct pipe_surface *dst,
        dsty + height > ctx->fb_state.height)
       cur_attachment = false;
    if (!cur_attachment) {
-      util_blitter_save_framebuffer(ctx->blitter, &ctx->fb_state);
-      set_clear_fb(pctx, NULL, dst);
-      zink_blit_barriers(ctx, NULL, zink_resource(dst->texture), false);
-      ctx->blitting = true;
+      if (!blitting) {
+         util_blitter_save_framebuffer(ctx->blitter, &ctx->fb_state);
+         set_clear_fb(pctx, NULL, dst);
+         zink_blit_barriers(ctx, NULL, zink_resource(dst->texture), false);
+         ctx->blitting = true;
+      }
    }
    struct pipe_scissor_state scissor = {dstx, dsty, dstx + width, dsty + height};
    pctx->clear(pctx, clear_flags, &scissor, NULL, depth, stencil);
-   if (!cur_attachment) {
+   if (!cur_attachment && !blitting) {
       util_blitter_restore_fb_state(ctx->blitter);
       ctx->blitting = false;
    }
@@ -878,8 +882,13 @@ zink_fb_clear_rewrite(struct zink_context *ctx, unsigned idx, enum pipe_format b
     */
    const struct util_format_description *bdesc = util_format_description(before);
    const struct util_format_description *adesc = util_format_description(after);
-   bool bsigned = bdesc->channel[util_format_get_first_non_void_channel(before)].type == UTIL_FORMAT_TYPE_SIGNED;
-   bool asigned = adesc->channel[util_format_get_first_non_void_channel(after)].type == UTIL_FORMAT_TYPE_SIGNED;
+   int bfirst_non_void_chan = util_format_get_first_non_void_channel(before);
+   int afirst_non_void_chan = util_format_get_first_non_void_channel(after);
+   bool bsigned = false, asigned = false;
+   if (bfirst_non_void_chan > 0)
+      bsigned = bdesc->channel[bfirst_non_void_chan].type == UTIL_FORMAT_TYPE_SIGNED;
+   if (afirst_non_void_chan > 0)
+      asigned = adesc->channel[afirst_non_void_chan].type == UTIL_FORMAT_TYPE_SIGNED;
    if (util_format_is_srgb(before) == util_format_is_srgb(after) &&
        bsigned == asigned)
       return;

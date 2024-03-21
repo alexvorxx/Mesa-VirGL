@@ -63,6 +63,7 @@
 #include "vk_buffer.h"
 #include "vk_command_buffer.h"
 #include "vk_device.h"
+#include "vk_enum_to_str.h"
 #include "vk_graphics_state.h"
 #include "vk_image.h"
 #include "vk_instance.h"
@@ -70,7 +71,6 @@
 #include "vk_physical_device.h"
 #include "vk_queue.h"
 #include "vk_sync.h"
-#include "vulkan/util/vk_enum_to_str.h"
 #include "wsi_common.h"
 
 #ifdef HAVE_VALGRIND
@@ -105,6 +105,8 @@ struct pvr_physical_device {
    struct pvr_device_runtime_info dev_runtime_info;
 
    VkPhysicalDeviceMemoryProperties memory;
+
+   uint64_t heap_used;
 
    struct wsi_device wsi_device;
 
@@ -1330,7 +1332,7 @@ pvr_stage_mask(VkPipelineStageFlags2 stage_mask)
 }
 
 static inline enum pvr_pipeline_stage_bits
-pvr_stage_mask_src(VkPipelineStageFlags2KHR stage_mask)
+pvr_stage_mask_src(VkPipelineStageFlags2 stage_mask)
 {
    /* If the source is bottom of pipe, all stages will need to be waited for. */
    if (stage_mask & VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT)
@@ -1340,7 +1342,7 @@ pvr_stage_mask_src(VkPipelineStageFlags2KHR stage_mask)
 }
 
 static inline enum pvr_pipeline_stage_bits
-pvr_stage_mask_dst(VkPipelineStageFlags2KHR stage_mask)
+pvr_stage_mask_dst(VkPipelineStageFlags2 stage_mask)
 {
    /* If the destination is top of pipe, all stages should be blocked by prior
     * commands.

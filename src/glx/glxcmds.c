@@ -33,7 +33,7 @@
 #include <xcb/glx.h>
 #include "GL/mesa_glinterop.h"
 
-#if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
+#if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
 
 /**
  * Get the __DRIdrawable for the drawable associated with a GLXContext
@@ -315,7 +315,7 @@ CreateContext(Display *dpy, int generic_id, struct glx_config *config,
    }
 
    gc = NULL;
-#ifdef GLX_USE_APPLEGL
+#if defined(GLX_USE_APPLEGL) && !defined(GLX_USE_APPLE)
    gc = applegl_create_context(psc, config, shareList, renderType);
 #else
    if (allowDirect && psc->vtable->create_context)
@@ -652,7 +652,7 @@ glXIsDirect(Display * dpy, GLXContext gc_user)
 _GLX_PUBLIC void
 glXSwapBuffers(Display * dpy, GLXDrawable drawable)
 {
-#ifdef GLX_USE_APPLEGL
+#if defined(GLX_USE_APPLEGL) && !defined(GLX_USE_APPLE)
    struct glx_context * gc = __glXGetCurrentContext();
    if(gc != &dummyContext && apple_glx_is_current_drawable(dpy, gc->driContext, drawable)) {
       apple_glx_swap_buffers(gc->driContext);
@@ -667,7 +667,7 @@ glXSwapBuffers(Display * dpy, GLXDrawable drawable)
 
    gc = __glXGetCurrentContext();
 
-#if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
+#if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
    {
       __GLXDRIdrawable *pdraw = GetGLXDRIDrawable(dpy, drawable);
 
@@ -2458,7 +2458,7 @@ PUBLIC int
 MesaGLInteropGLXFlushObjects(Display *dpy, GLXContext context,
                              unsigned count,
                              struct mesa_glinterop_export_in *resources,
-                             GLsync *sync, int *fence_fd)
+                             struct mesa_glinterop_flush_out *out)
 {
    struct glx_context *gc = (struct glx_context*)context;
    int ret;
@@ -2475,7 +2475,7 @@ MesaGLInteropGLXFlushObjects(Display *dpy, GLXContext context,
       return MESA_GLINTEROP_UNSUPPORTED;
    }
 
-   ret = gc->vtable->interop_flush_objects(gc, count, resources, sync, fence_fd);
+   ret = gc->vtable->interop_flush_objects(gc, count, resources, out);
    __glXUnlock();
    return ret;
 }

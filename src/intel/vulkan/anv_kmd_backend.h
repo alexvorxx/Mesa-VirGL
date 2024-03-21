@@ -38,10 +38,16 @@ struct anv_device;
 struct anv_queue;
 struct anv_query_pool;
 struct anv_utrace_submit;
+struct anv_sparse_submission;
+struct anv_trtt_batch_bo;
 
 enum anv_vm_bind_op {
+   /* bind vma specified in anv_vm_bind */
    ANV_VM_BIND,
+   /* unbind vma specified in anv_vm_bind */
    ANV_VM_UNBIND,
+   /* unbind all vmas of anv_vm_bind::bo, address and size fields must be set to 0 */
+   ANV_VM_UNBIND_ALL,
 };
 
 struct anv_vm_bind {
@@ -66,17 +72,31 @@ struct anv_kmd_backend {
    void (*gem_close)(struct anv_device *device, struct anv_bo *bo);
    /* Returns MAP_FAILED on error */
    void *(*gem_mmap)(struct anv_device *device, struct anv_bo *bo,
-                     uint64_t offset, uint64_t size);
-   /* Bind things however you want. */
-   int (*vm_bind)(struct anv_device *device, int num_binds,
-                  struct anv_vm_bind *binds);
-   /* Fully bind or unbind a BO. */
-   int (*vm_bind_bo)(struct anv_device *device, struct anv_bo *bo);
-   int (*vm_unbind_bo)(struct anv_device *device, struct anv_bo *bo);
+                     uint64_t offset, uint64_t size, void *placed_addr);
+
+   /*
+    * Bind things however you want.
+    * This is intended for sparse resources, so it does not use the
+    * bind_timeline interface: synchronization is up to the callers.
+    */
+   VkResult (*vm_bind)(struct anv_device *device,
+                       struct anv_sparse_submission *submit);
+
+   /*
+    * Fully bind or unbind a BO.
+    * This is intended for general buffer creation/destruction, so it creates
+    * a new point in the bind_timeline, which will be waited for the next time
+    * a batch is submitted.
+    */
+   VkResult (*vm_bind_bo)(struct anv_device *device, struct anv_bo *bo);
+   VkResult (*vm_unbind_bo)(struct anv_device *device, struct anv_bo *bo);
+
    VkResult (*execute_simple_batch)(struct anv_queue *queue,
                                     struct anv_bo *batch_bo,
                                     uint32_t batch_bo_size,
                                     bool is_companion_rcs_batch);
+   VkResult (*execute_trtt_batch)(struct anv_sparse_submission *submit,
+                                  struct anv_trtt_batch_bo *trtt_bbo);
    VkResult (*queue_exec_locked)(struct anv_queue *queue,
                                  uint32_t wait_count,
                                  const struct vk_sync_wait *waits,

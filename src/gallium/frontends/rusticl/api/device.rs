@@ -29,7 +29,7 @@ type ClDevIdpAccelProps = cl_device_integer_dot_product_acceleration_properties_
 #[cl_info_entrypoint(cl_get_device_info)]
 impl CLInfo<cl_device_info> for cl_device_id {
     fn query(&self, q: cl_device_info, _: &[u8]) -> CLResult<Vec<MaybeUninit<u8>>> {
-        let dev = self.get_ref()?;
+        let dev = Device::ref_from_raw(*self)?;
 
         // curses you CL_DEVICE_INTEGER_DOT_PRODUCT_ACCELERATION_PROPERTIES_4x8BIT_PACKED_KHR
         #[allow(non_upper_case_globals)]
@@ -127,13 +127,16 @@ impl CLInfo<cl_device_info> for cl_device_id {
                     let sdot = dev.sdot_4x8_supported() && pack;
                     let udot = dev.udot_4x8_supported() && pack;
                     let sudot = dev.sudot_4x8_supported() && pack;
+                    let sdot_sat = dev.sdot_4x8_sat_supported() && pack;
+                    let udot_sat = dev.udot_4x8_sat_supported() && pack;
+                    let sudot_sat = dev.sudot_4x8_sat_supported() && pack;
                     IdpAccelProps::new(
                         sdot.into(),
                         udot.into(),
                         sudot.into(),
-                        sdot.into(),
-                        udot.into(),
-                        sudot.into(),
+                        sdot_sat.into(),
+                        udot_sat.into(),
+                        sudot_sat.into(),
                     )
                 })
             }
@@ -143,9 +146,9 @@ impl CLInfo<cl_device_info> for cl_device_id {
                         dev.sdot_4x8_supported().into(),
                         dev.udot_4x8_supported().into(),
                         dev.sudot_4x8_supported().into(),
-                        dev.sdot_4x8_supported().into(),
-                        dev.udot_4x8_supported().into(),
-                        dev.sudot_4x8_supported().into(),
+                        dev.sdot_4x8_sat_supported().into(),
+                        dev.udot_4x8_sat_supported().into(),
+                        dev.sudot_4x8_sat_supported().into(),
                     )
                 })
             }
@@ -402,7 +405,7 @@ fn get_host_timer(device_id: cl_device_id, host_timestamp: *mut cl_ulong) -> CLR
         return Err(CL_INVALID_VALUE);
     }
 
-    let device = device_id.get_ref()?;
+    let device = Device::ref_from_raw(device_id)?;
 
     if !device.has_timestamp {
         // CL_INVALID_OPERATION if the platform associated with device does not support device and host timer synchronization

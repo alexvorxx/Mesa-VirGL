@@ -371,7 +371,10 @@ anv_GetVideoSessionMemoryRequirementsKHR(VkDevice _device,
    ANV_FROM_HANDLE(anv_device, device, _device);
    ANV_FROM_HANDLE(anv_video_session, vid, videoSession);
 
-   uint32_t memory_types = (1ull << device->physical->memory.type_count) - 1;
+   uint32_t memory_types =
+      (vid->vk.flags & VK_VIDEO_SESSION_CREATE_PROTECTED_CONTENT_BIT_KHR) ?
+      device->physical->memory.protected_mem_types :
+      device->physical->memory.default_buffer_mem_types;
    switch (vid->vk.op) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR:
       get_h264_video_session_mem_reqs(vid,

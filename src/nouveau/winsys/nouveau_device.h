@@ -34,6 +34,12 @@ enum nvk_debug {
    /* Dump VM bind/unbinds
     */
    NVK_DEBUG_VM = 1ull << 3,
+
+   /* Disable most cbufs
+    *
+    * Root descriptors still end up in a cbuf
+    */
+   NVK_DEBUG_NO_CBUF = 1ull << 5,
 };
 
 struct nouveau_ws_device {
@@ -51,11 +57,14 @@ struct nouveau_ws_device {
 
    bool has_vm_bind;
    struct util_vma_heap vma_heap;
+   struct util_vma_heap bda_heap;
    simple_mtx_t vma_mutex;
 };
 
 struct nouveau_ws_device *nouveau_ws_device_new(struct _drmDevice *drm_device);
 void nouveau_ws_device_destroy(struct nouveau_ws_device *);
+
+uint64_t nouveau_ws_device_vram_used(struct nouveau_ws_device *);
 
 #ifdef __cplusplus
 }

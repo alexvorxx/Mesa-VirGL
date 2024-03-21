@@ -158,17 +158,17 @@ static void set_vertex_inputs_outputs(struct r300_vertex_program_compiler * c)
         }
     }
 
-    /* Texture coordinates. */
-    for (i = 0; i < ATTR_TEXCOORD_COUNT; i++) {
-        if (outputs->texcoord[i] != ATTR_UNUSED) {
-            c->code->outputs[outputs->texcoord[i]] = reg++;
-        }
-    }
-
     /* Generics. */
     for (i = 0; i < ATTR_GENERIC_COUNT; i++) {
         if (outputs->generic[i] != ATTR_UNUSED) {
             c->code->outputs[outputs->generic[i]] = reg++;
+        }
+    }
+
+    /* Texture coordinates. */
+    for (i = 0; i < ATTR_TEXCOORD_COUNT; i++) {
+        if (outputs->texcoord[i] != ATTR_UNUSED) {
+            c->code->outputs[outputs->texcoord[i]] = reg++;
         }
     }
 
@@ -198,6 +198,12 @@ void r300_translate_vertex_shader(struct r300_context *r300,
     struct r300_vertex_shader_code *vs = shader->shader;
 
     r300_init_vs_outputs(r300, shader);
+
+    /* Nothing to do if the shader does not write gl_Position. */
+    if (vs->outputs.pos == ATTR_UNUSED) {
+        vs->dummy = true;
+        return;
+    }
 
     /* Setup the compiler */
     memset(&compiler, 0, sizeof(compiler));

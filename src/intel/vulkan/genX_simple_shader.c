@@ -30,7 +30,7 @@
 
 #include "genxml/gen_macros.h"
 #include "genxml/genX_pack.h"
-#include "common/intel_genX_state.h"
+#include "common/intel_genX_state_brw.h"
 
 static void
 genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
@@ -52,7 +52,7 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
     *
     * Find more about how to set up a 3D pipeline with a fragment shader but
     * without a vertex shader in blorp_emit_vertex_elements() in
-    * blorp_genX_exec.h.
+    * blorp_genX_exec_brw.h.
     */
    GENX(VERTEX_ELEMENT_STATE_pack)(
       batch, dw + 1, &(struct GENX(VERTEX_ELEMENT_STATE)) {
@@ -103,7 +103,9 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
     * allocate space for the VS.  Even though one isn't run, we need VUEs to
     * store the data that VF is going to pass to SOL.
     */
-   const unsigned entry_size[4] = { DIV_ROUND_UP(32, 64), 1, 1, 1 };
+   struct intel_urb_config urb_cfg_out = {
+      .size = { DIV_ROUND_UP(32, 64), 1, 1, 1 },
+   };
 
    genX(emit_l3_config)(batch, device, state->l3_config);
 
@@ -112,7 +114,7 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
    enum intel_urb_deref_block_size deref_block_size;
    genX(emit_urb_setup)(device, batch, state->l3_config,
                         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                        entry_size, &deref_block_size);
+                        state->urb_cfg, &urb_cfg_out, &deref_block_size);
 
    anv_batch_emit(batch, GENX(3DSTATE_PS_BLEND), ps_blend) {
       ps_blend.HasWriteableRT = true;
@@ -184,29 +186,37 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
       ps.VectorMaskEnable       = prog_data->uses_vmask;
 
       ps.BindingTableEntryCount = GFX_VER == 9 ? 1 : 0;
+#if GFX_VER < 20
       ps.PushConstantEnable     = prog_data->base.nr_params > 0 ||
                                   prog_data->base.ubo_ranges[0].length;
+#endif
 
       ps.DispatchGRFStartRegisterForConstantSetupData0 =
          brw_wm_prog_data_dispatch_grf_start_reg(prog_data, ps, 0);
       ps.DispatchGRFStartRegisterForConstantSetupData1 =
          brw_wm_prog_data_dispatch_grf_start_reg(prog_data, ps, 1);
+#if GFX_VER < 20
       ps.DispatchGRFStartRegisterForConstantSetupData2 =
          brw_wm_prog_data_dispatch_grf_start_reg(prog_data, ps, 2);
+#endif
 
       ps.KernelStartPointer0 = state->kernel->kernel.offset +
          brw_wm_prog_data_prog_offset(prog_data, ps, 0);
       ps.KernelStartPointer1 = state->kernel->kernel.offset +
          brw_wm_prog_data_prog_offset(prog_data, ps, 1);
+#if GFX_VER < 20
       ps.KernelStartPointer2 = state->kernel->kernel.offset +
          brw_wm_prog_data_prog_offset(prog_data, ps, 2);
+#endif
 
       ps.MaximumNumberofThreadsPerPSD = device->info->max_threads_per_psd - 1;
    }
 
    anv_batch_emit(batch, GENX(3DSTATE_PS_EXTRA), psx) {
       psx.PixelShaderValid = true;
+#if GFX_VER < 20
       psx.AttributeEnable = prog_data->num_varying_inputs > 0;
+#endif
       psx.PixelShaderIsPerSample = prog_data->persample_dispatch;
       psx.PixelShaderComputedDepthMode = prog_data->computed_depth_mode;
       psx.PixelShaderComputesStencil = prog_data->computed_stencil;
@@ -281,7 +291,7 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
       /* Re-emit state base addresses so we get the new surface state base
        * address before we start emitting binding tables etc.
        */
-      genX(cmd_buffer_emit_state_base_address)(state->cmd_buffer);
+      genX(cmd_buffer_emit_bt_pool_base_address)(state->cmd_buffer);
 
       state->bt_state =
          anv_cmd_buffer_alloc_binding_table(state->cmd_buffer, 1, &bt_offset);
@@ -313,6 +323,7 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
    BITSET_SET(hw_state->dirty, ANV_GFX_STATE_PRIMITIVE_REPLICATION);
 #endif
    BITSET_SET(hw_state->dirty, ANV_GFX_STATE_STREAMOUT);
+   BITSET_SET(hw_state->dirty, ANV_GFX_STATE_VIEWPORT_CC);
    BITSET_SET(hw_state->dirty, ANV_GFX_STATE_CLIP);
    BITSET_SET(hw_state->dirty, ANV_GFX_STATE_RASTER);
    BITSET_SET(hw_state->dirty, ANV_GFX_STATE_SAMPLE_MASK);
@@ -334,6 +345,10 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
       BITSET_SET(hw_state->dirty, ANV_GFX_STATE_MESH_CONTROL);
       BITSET_SET(hw_state->dirty, ANV_GFX_STATE_TASK_CONTROL);
    }
+
+   /* Update urb config after simple shader. */
+   memcpy(&state->cmd_buffer->state.gfx.urb_cfg, &urb_cfg_out,
+          sizeof(struct intel_urb_config));
 
    state->cmd_buffer->state.gfx.vb_dirty = BITFIELD_BIT(0);
    state->cmd_buffer->state.gfx.dirty |= ~(ANV_CMD_DIRTY_INDEX_BUFFER |
@@ -530,12 +545,13 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
       const struct intel_device_info *devinfo = device->info;
       const struct brw_cs_prog_data *prog_data =
          (const struct brw_cs_prog_data *) state->kernel->prog_data;
-      const struct brw_cs_dispatch_info dispatch =
+      const struct intel_cs_dispatch_info dispatch =
          brw_cs_get_dispatch_info(devinfo, prog_data, NULL);
 
 #if GFX_VERx10 >= 125
       anv_batch_emit(batch, GENX(COMPUTE_WALKER), cw) {
          cw.SIMDSize                       = dispatch.simd_size / 16;
+         cw.MessageSIMD                    = dispatch.simd_size / 16,
          cw.IndirectDataStartAddress       = push_state.offset;
          cw.IndirectDataLength             = push_state.alloc_size;
          cw.LocalXMaximum                  = prog_data->local_size[0] - 1;
@@ -547,6 +563,14 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
          cw.ThreadGroupIDZDimension        = 1;
          cw.ExecutionMask                  = dispatch.right_mask;
          cw.PostSync.MOCS                  = anv_mocs(device, NULL, 0);
+
+#if GFX_VERx10 >= 125
+         cw.GenerateLocalID                = prog_data->generate_local_id != 0;
+         cw.EmitLocal                      = prog_data->generate_local_id;
+         cw.WalkOrder                      = prog_data->walk_order;
+         cw.TileLayout = prog_data->walk_order == INTEL_WALK_ORDER_YXZ ?
+                         TileY32bpe : Linear;
+#endif
 
          cw.InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
             .KernelStartPointer                = state->kernel->kernel.offset +

@@ -4,8 +4,7 @@
  * SPDX-License-Identifier: MIT
  */
 
-#ifndef __AGX_COMPILER_H
-#define __AGX_COMPILER_H
+#pragma once
 
 #include "compiler/nir/nir.h"
 #include "util/half_float.h"
@@ -25,6 +24,9 @@ extern "C" {
 
 /* u0-u255 inclusive, as pairs of 16-bits */
 #define AGX_NUM_UNIFORMS (512)
+
+/* Semi-arbitrary limit for spill slot allocation */
+#define AGX_NUM_MODELED_REGS (2048)
 
 enum agx_index_type {
    AGX_INDEX_NULL = 0,
@@ -54,13 +56,13 @@ agx_size_align_16(enum agx_size size)
 
 /* Keep synced with hash_index */
 typedef struct {
-   /* Sufficient for as many SSA values as we need. Immediates and uniforms fit
-    * in 16-bits */
-   unsigned value : 22;
+   /* Sufficient for as many SSA values, immediates, and uniforms as we need. */
+   uint32_t value;
 
    /* Indicates that this source kills the referenced value (because it is the
     * last use in a block and the source is not live after the block). Set by
-    * liveness analysis. */
+    * liveness analysis.
+    */
    bool kill : 1;
 
    /* Cache hints */
@@ -71,18 +73,42 @@ typedef struct {
    bool abs : 1;
    bool neg : 1;
 
+   /* Register class */
+   bool memory : 1;
+
+   unsigned channels_m1     : 3;
    enum agx_size size       : 2;
    enum agx_index_type type : 3;
+   unsigned padding         : 18;
 } agx_index;
+
+static inline unsigned
+agx_channels(agx_index idx)
+{
+   return idx.channels_m1 + 1;
+}
+
+static inline unsigned
+agx_index_size_16(agx_index idx)
+{
+   return agx_size_align_16(idx.size) * agx_channels(idx);
+}
+
+static inline agx_index
+agx_get_vec_index(unsigned value, enum agx_size size, unsigned channels)
+{
+   return (agx_index){
+      .value = value,
+      .channels_m1 = channels - 1,
+      .size = size,
+      .type = AGX_INDEX_NORMAL,
+   };
+}
 
 static inline agx_index
 agx_get_index(unsigned value, enum agx_size size)
 {
-   return (agx_index){
-      .value = value,
-      .size = size,
-      .type = AGX_INDEX_NORMAL,
-   };
+   return agx_get_vec_index(value, size, 1);
 }
 
 static inline agx_index
@@ -113,6 +139,29 @@ agx_register(uint32_t imm, enum agx_size size)
    return (agx_index){
       .value = imm,
       .size = size,
+      .type = AGX_INDEX_REGISTER,
+   };
+}
+
+static inline agx_index
+agx_memory_register(uint32_t imm, enum agx_size size)
+{
+   return (agx_index){
+      .value = imm,
+      .memory = true,
+      .size = size,
+      .type = AGX_INDEX_REGISTER,
+   };
+}
+
+static inline agx_index
+agx_register_like(uint32_t imm, agx_index like)
+{
+   return (agx_index){
+      .value = imm,
+      .memory = like.memory,
+      .channels_m1 = like.channels_m1,
+      .size = like.size,
       .type = AGX_INDEX_REGISTER,
    };
 }
@@ -311,6 +360,7 @@ typedef struct {
    enum agx_dim dim       : 4;
    bool offset            : 1;
    bool shadow            : 1;
+   bool query_lod         : 1;
    enum agx_gather gather : 3;
 
    /* TODO: Handle iter ops more efficient */
@@ -330,7 +380,7 @@ typedef struct {
    bool saturate : 1;
    unsigned mask : 4;
 
-   unsigned padding : 9;
+   unsigned padding : 8;
 } agx_instr;
 
 static inline void
@@ -363,10 +413,7 @@ typedef struct agx_block {
    /* For visited blocks during register assignment and live-out registers, the
     * mapping of SSA names to registers at the end of the block.
     */
-   uint8_t *ssa_to_reg_out;
-
-   /* Register allocation */
-   BITSET_DECLARE(regs_out, AGX_NUM_REGS);
+   uint16_t *ssa_to_reg_out;
 
    /* Is this block a loop header? If not, all of its predecessors precede it in
     * source order.
@@ -384,6 +431,7 @@ typedef struct {
    nir_shader *nir;
    gl_shader_stage stage;
    bool is_preamble;
+   unsigned scratch_size;
 
    struct list_head blocks; /* list of agx_block */
    struct agx_shader_info *out;
@@ -394,6 +442,9 @@ typedef struct {
 
    /* For creating temporaries */
    unsigned alloc;
+
+   /* Does the shader statically use scratch memory? */
+   bool any_scratch;
 
    /* I don't really understand how writeout ops work yet */
    bool did_writeout;
@@ -428,6 +479,15 @@ typedef struct {
     */
    agx_index vertex_id, instance_id;
 
+   /* Beginning of our stack allocation used for spilling, below that is
+    * NIR-level scratch.
+    */
+   unsigned spill_base;
+
+   /* Beginning of stack allocation used for parallel copy lowering */
+   bool has_spill_pcopy_reserved;
+   unsigned spill_pcopy_base;
+
    /* Stats for shader-db */
    unsigned loop_count;
    unsigned spills;
@@ -439,6 +499,12 @@ static inline void
 agx_remove_instruction(agx_instr *ins)
 {
    list_del(&ins->link);
+}
+
+static inline agx_index
+agx_vec_temp(agx_context *ctx, enum agx_size size, unsigned channels)
+{
+   return agx_get_vec_index(ctx->alloc++, size, channels);
 }
 
 static inline agx_index
@@ -467,7 +533,8 @@ agx_size_for_bits(unsigned bits)
 static inline agx_index
 agx_def_index(nir_def *ssa)
 {
-   return agx_get_index(ssa->index, agx_size_for_bits(ssa->bit_size));
+   return agx_get_vec_index(ssa->index, agx_size_for_bits(ssa->bit_size),
+                            ssa->num_components);
 }
 
 static inline agx_index
@@ -479,7 +546,8 @@ agx_src_index(nir_src *src)
 static inline agx_index
 agx_vec_for_def(agx_context *ctx, nir_def *def)
 {
-   return agx_temp(ctx, agx_size_for_bits(def->bit_size));
+   return agx_vec_temp(ctx, agx_size_for_bits(def->bit_size),
+                       def->num_components);
 }
 
 static inline agx_index
@@ -805,11 +873,13 @@ agx_builder_insert(agx_cursor *cursor, agx_instr *I)
 
 /* Routines defined for AIR */
 
+void agx_print_index(agx_index index, bool is_float, FILE *fp);
 void agx_print_instr(const agx_instr *I, FILE *fp);
 void agx_print_block(const agx_block *block, FILE *fp);
 void agx_print_shader(const agx_context *ctx, FILE *fp);
 void agx_optimizer(agx_context *ctx);
 void agx_lower_pseudo(agx_context *ctx);
+void agx_lower_spill(agx_context *ctx);
 void agx_lower_uniform_sources(agx_context *ctx);
 void agx_opt_cse(agx_context *ctx);
 void agx_dce(agx_context *ctx, bool partial);
@@ -832,13 +902,15 @@ agx_validate(UNUSED agx_context *ctx, UNUSED const char *after_str)
 }
 #endif
 
-unsigned agx_read_registers(const agx_instr *I, unsigned s);
-unsigned agx_write_registers(const agx_instr *I, unsigned d);
+enum agx_size agx_split_width(const agx_instr *I);
 bool agx_allows_16bit_immediate(agx_instr *I);
 
 struct agx_copy {
    /* Base register destination of the copy */
    unsigned dest;
+
+   /* Destination is memory */
+   bool dest_mem;
 
    /* Source of the copy */
    agx_index src;
@@ -853,8 +925,6 @@ void agx_emit_parallel_copies(agx_builder *b, struct agx_copy *copies,
 void agx_compute_liveness(agx_context *ctx);
 void agx_liveness_ins_update(BITSET_WORD *live, agx_instr *I);
 
-bool agx_nir_lower_sample_mask(nir_shader *s, unsigned nr_samples);
-bool agx_nir_lower_texture(nir_shader *s);
 bool agx_nir_opt_preamble(nir_shader *s, unsigned *preamble_size);
 bool agx_nir_lower_load_mask(nir_shader *shader);
 bool agx_nir_lower_address(nir_shader *shader);
@@ -866,6 +936,4 @@ extern int agx_compiler_debug;
 
 #ifdef __cplusplus
 } /* extern C */
-#endif
-
 #endif

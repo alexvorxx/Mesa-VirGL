@@ -8,6 +8,7 @@
 #include "nvk_entrypoints.h"
 #include "nvk_instance.h"
 #include "nvk_physical_device.h"
+#include "nvk_shader.h"
 
 #include "vk_pipeline_cache.h"
 #include "vulkan/wsi/wsi_common.h"
@@ -57,6 +58,7 @@ nvk_slm_area_ensure(struct nvk_device *dev,
                     struct nvk_slm_area *area,
                     uint32_t bytes_per_thread)
 {
+   struct nvk_physical_device *pdev = nvk_device_physical(dev);
    assert(bytes_per_thread < (1 << 24));
 
    /* TODO: Volta+doesn't use CRC */
@@ -67,15 +69,15 @@ nvk_slm_area_ensure(struct nvk_device *dev,
    /* The hardware seems to require this alignment for
     * NV9097_SET_SHADER_LOCAL_MEMORY_E_DEFAULT_SIZE_PER_WARP
     */
-   bytes_per_warp = ALIGN(bytes_per_warp, 0x200);
+   bytes_per_warp = align64(bytes_per_warp, 0x200);
 
-   uint64_t bytes_per_mp = bytes_per_warp * dev->pdev->info.max_warps_per_mp;
-   uint64_t bytes_per_tpc = bytes_per_mp * dev->pdev->info.mp_per_tpc;
+   uint64_t bytes_per_mp = bytes_per_warp * pdev->info.max_warps_per_mp;
+   uint64_t bytes_per_tpc = bytes_per_mp * pdev->info.mp_per_tpc;
 
    /* The hardware seems to require this alignment for
     * NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A_SIZE_LOWER.
     */
-   bytes_per_tpc = ALIGN(bytes_per_tpc, 0x8000);
+   bytes_per_tpc = align64(bytes_per_tpc, 0x8000);
 
    /* nvk_slm_area::bytes_per_mp only ever increases so we can check this
     * outside the lock and exit early in the common case.  We only need to
@@ -87,12 +89,12 @@ nvk_slm_area_ensure(struct nvk_device *dev,
    if (likely(bytes_per_tpc <= area->bytes_per_tpc))
       return VK_SUCCESS;
 
-   uint64_t size = bytes_per_tpc * dev->pdev->info.tpc_count;
+   uint64_t size = bytes_per_tpc * pdev->info.tpc_count;
 
    /* The hardware seems to require this alignment for
     * NV9097_SET_SHADER_LOCAL_MEMORY_D_SIZE_LOWER.
     */
-   size = ALIGN(size, 0x20000);
+   size = align64(size, 0x20000);
 
    struct nouveau_ws_bo *bo =
       nouveau_ws_bo_new(dev->ws_dev, size, 0,
@@ -146,6 +148,8 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
    if (result != VK_SUCCESS)
       goto fail_alloc;
 
+   dev->vk.shader_ops = &nvk_device_shader_ops;
+
    drmDevicePtr drm_device = NULL;
    int ret = drmGetDeviceFromDevId(pdev->render_dev, 0, &drm_device);
    if (ret != 0) {
@@ -164,22 +168,16 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
 
    vk_device_set_drm_fd(&dev->vk, dev->ws_dev->fd);
    dev->vk.command_buffer_ops = &nvk_cmd_buffer_ops;
-   dev->pdev = pdev;
 
-   ret = nouveau_ws_context_create(dev->ws_dev, &dev->ws_ctx);
-   if (ret) {
-      if (ret == -ENOSPC)
-         result = vk_error(dev, VK_ERROR_TOO_MANY_OBJECTS);
-      else
-         result = vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
+   result = nvk_upload_queue_init(dev, &dev->upload);
+   if (result != VK_SUCCESS)
       goto fail_ws_dev;
-   }
 
    result = nvk_descriptor_table_init(dev, &dev->images,
                                       8 * 4 /* tic entry size */,
                                       1024, 1024 * 1024);
    if (result != VK_SUCCESS)
-      goto fail_ws_ctx;
+      goto fail_upload;
 
    /* Reserve the descriptor at offset 0 to be the null descriptor */
    uint32_t null_image[8] = { 0, };
@@ -196,14 +194,20 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
    if (result != VK_SUCCESS)
       goto fail_images;
 
-   /* The I-cache pre-fetches and we don't really know by how much.  Over-
-    * allocate shader BOs by 4K to ensure we don't run past.
+   /* If we have a full BAR, go ahead and do shader uploads on the CPU.
+    * Otherwise, we fall back to doing shader uploads via the upload queue.
+    *
+    * Also, the I-cache pre-fetches and we don't really know by how much.
+    * Over-allocating shader BOs by 4K ensures we don't run past.
     */
+   enum nouveau_ws_bo_map_flags shader_map_flags = 0;
+   if (pdev->info.bar_size_B >= pdev->info.vram_size_B)
+      shader_map_flags = NOUVEAU_WS_BO_WR;
    result = nvk_heap_init(dev, &dev->shader_heap,
                           NOUVEAU_WS_BO_LOCAL | NOUVEAU_WS_BO_NO_SHARE,
-                          NOUVEAU_WS_BO_WR,
+                          shader_map_flags,
                           4096 /* overalloc */,
-                          dev->pdev->info.cls_eng3d < VOLTA_A);
+                          pdev->info.cls_eng3d < VOLTA_A);
    if (result != VK_SUCCESS)
       goto fail_samplers;
 
@@ -227,8 +231,8 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
    memset(zero_map, 0, 0x1000);
    nouveau_ws_bo_unmap(dev->zero_page, zero_map);
 
-   if (dev->pdev->info.cls_eng3d >= FERMI_A &&
-       dev->pdev->info.cls_eng3d < MAXWELL_A) {
+   if (pdev->info.cls_eng3d >= FERMI_A &&
+       pdev->info.cls_eng3d < MAXWELL_A) {
       /* max size is 256k */
       dev->vab_memory = nouveau_ws_bo_new(dev->ws_dev, 1 << 17, 1 << 20,
                                           NOUVEAU_WS_BO_LOCAL |
@@ -277,8 +281,8 @@ fail_samplers:
    nvk_descriptor_table_finish(dev, &dev->samplers);
 fail_images:
    nvk_descriptor_table_finish(dev, &dev->images);
-fail_ws_ctx:
-   nouveau_ws_context_destroy(dev->ws_ctx);
+fail_upload:
+   nvk_upload_queue_finish(dev, &dev->upload);
 fail_ws_dev:
    nouveau_ws_device_destroy(dev->ws_dev);
 fail_init:
@@ -304,12 +308,16 @@ nvk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
       nouveau_ws_bo_destroy(dev->vab_memory);
    nouveau_ws_bo_destroy(dev->zero_page);
    vk_device_finish(&dev->vk);
+
+   /* Idle the upload queue before we tear down heaps */
+   nvk_upload_queue_sync(dev, &dev->upload);
+
    nvk_slm_area_finish(&dev->slm);
    nvk_heap_finish(dev, &dev->event_heap);
    nvk_heap_finish(dev, &dev->shader_heap);
    nvk_descriptor_table_finish(dev, &dev->samplers);
    nvk_descriptor_table_finish(dev, &dev->images);
-   nouveau_ws_context_destroy(dev->ws_ctx);
+   nvk_upload_queue_finish(dev, &dev->upload);
    nouveau_ws_device_destroy(dev->ws_dev);
    vk_free(&dev->vk.alloc, dev);
 }

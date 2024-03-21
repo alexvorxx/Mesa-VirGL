@@ -426,6 +426,7 @@ The integer capabilities:
 * ``PIPE_CAP_LEGACY_MATH_RULES``: Whether NIR shaders support the
   ``shader_info.use_legacy_math_rules`` flag (see documentation there), and
   TGSI shaders support the corresponding ``TGSI_PROPERTY_LEGACY_MATH_RULES``.
+* ``PIPE_CAP_FP16``: Whether 16-bit float operations are supported.
 * ``PIPE_CAP_DOUBLES``: Whether double precision floating-point operations
   are supported.
 * ``PIPE_CAP_INT64``: Whether 64-bit integer operations are supported.
@@ -563,6 +564,8 @@ The integer capabilities:
     1. ``DRM_PRIME_CAP_IMPORT``: resource_from_handle is supported
     2. ``DRM_PRIME_CAP_EXPORT``: resource_get_handle is supported
 
+* ``PIPE_CAP_CL_GL_SHARING``: True if driver supports everything required by a frontend implementing the CL extension, and
+  also supports importing/exporting all of pipe_texture_target via dma buffers.
 * ``PIPE_CAP_PREFER_COMPUTE_FOR_MULTIMEDIA``: Whether VDPAU, VAAPI, and
   OpenMAX should use a compute-based blit instead of pipe_context::blit and compute pipeline for compositing images.
 * ``PIPE_CAP_FRAGMENT_SHADER_INTERLOCK``: True if fragment shader interlock
@@ -643,10 +646,12 @@ The integer capabilities:
 * ``PIPE_CAP_HARDWARE_GL_SELECT``: Enable hardware accelerated GL_SELECT for this driver.
 * ``PIPE_CAP_DEVICE_PROTECTED_CONTEXT``: Whether the device supports protected / encrypted context which can manipulate protected / encrypted content (some devices might need protected contexts to access protected content, whereas ``PIPE_CAP_DEVICE_PROTECTED_SURFACE`` does not require any particular context to do so).
 * ``PIPE_CAP_ALLOW_GLTHREAD_BUFFER_SUBDATA_OPT``: Whether to allow glthread to convert glBufferSubData to glCopyBufferSubData. This may improve or worsen performance depending on your driver.
-* ``PIPE_CAP_VALIDATE_ALL_DIRTY_STATES`` : Whether state validation must also validate the state changes for resources types used in the previous shader but not in the current shader.
-* ``PIPE_CAP_HAS_CONST_BW``: Whether the driver only supports non-data-dependent layouts (ie. not bandwidth compressed formats like AFBC, UBWC, etc), or supports ``PIPE_BIND_CONST_BW`` to disable data-dependent layouts on requested resources.
 * ``PIPE_CAP_NULL_TEXTURES`` : Whether the driver supports sampling from NULL textures.
 * ``PIPE_CAP_ASTC_VOID_EXTENTS_NEED_DENORM_FLUSH`` : True if the driver/hardware needs denormalized values in ASTC void extent blocks flushed to zero.
+* ``PIPE_CAP_VALIDATE_ALL_DIRTY_STATES`` : Whether state validation must also validate the state changes for resources types used in the previous shader but not in the current shader.
+* ``PIPE_CAP_HAS_CONST_BW``: Whether the driver only supports non-data-dependent layouts (ie. not bandwidth compressed formats like AFBC, UBWC, etc), or supports ``PIPE_BIND_CONST_BW`` to disable data-dependent layouts on requested resources.
+* ``PIPE_CAP_PERFORMANCE_MONITOR``: Whether GL_AMD_performance_monitor should be exposed.
+
 
 .. _pipe_capf:
 

@@ -151,7 +151,7 @@ static bool match_layout_qualifier(const char *s1, const char *s2,
 %token <identifier> IDENTIFIER TYPE_IDENTIFIER NEW_IDENTIFIER
 %type <identifier> any_identifier
 %type <interface_block> instance_name_opt
-%token <real> FLOATCONSTANT
+%token <real> FLOATCONSTANT FLOAT16CONSTANT
 %token <dreal> DOUBLECONSTANT
 %token <n> INTCONSTANT UINTCONSTANT BOOLCONSTANT
 %token <n64> INT64CONSTANT UINT64CONSTANT
@@ -461,6 +461,13 @@ primary_expression:
       $$ = new(ctx) ast_expression(ast_uint64_constant, NULL, NULL, NULL);
       $$->set_location(@1);
       $$->primary_expression.uint64_constant = $1;
+   }
+   | FLOAT16CONSTANT
+   {
+      linear_ctx *ctx = state->linalloc;
+      $$ = new(ctx) ast_expression(ast_float16_constant, NULL, NULL, NULL);
+      $$->set_location(@1);
+      $$->primary_expression.float16_constant = $1;
    }
    | FLOATCONSTANT
    {
@@ -896,7 +903,7 @@ function_header:
 
       if ($1->qualifier.is_subroutine_decl()) {
          /* add type for IDENTIFIER search */
-         state->symbols->add_type($2, glsl_type::get_subroutine_instance($2));
+         state->symbols->add_type($2, glsl_subroutine_type($2));
       } else
          state->symbols->add_function(new(state) ir_function($2));
       state->symbols->push_scope();
@@ -2342,12 +2349,12 @@ type_specifier_nonarray:
    ;
 
 basic_type_specifier_nonarray:
-   VOID_TOK                 { $$ = glsl_type::void_type; }
+   VOID_TOK                 { $$ = &glsl_type_builtin_void; }
    | BASIC_TYPE_TOK         { $$ = $1; }
    | UNSIGNED BASIC_TYPE_TOK
    {
-      if ($2 == glsl_type::int_type) {
-         $$ = glsl_type::uint_type;
+      if ($2 == &glsl_type_builtin_int) {
+         $$ = &glsl_type_builtin_uint;
       } else {
          _mesa_glsl_error(&@1, state,
                           "\"unsigned\" is only allowed before \"int\"");
@@ -2379,7 +2386,7 @@ struct_specifier:
       linear_ctx *ctx = state->linalloc;
       $$ = new(ctx) ast_struct_specifier($2, $4);
       $$->set_location_range(@2, @5);
-      state->symbols->add_type($2, glsl_type::void_type);
+      state->symbols->add_type($2, &glsl_type_builtin_void);
    }
    | STRUCT '{' struct_declaration_list '}'
    {

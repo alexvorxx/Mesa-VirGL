@@ -259,7 +259,7 @@ next_uses_per_block(spill_ctx& ctx, unsigned block_idx, uint32_t& worklist)
       }
       uint32_t distance = pair.second.second;
       uint32_t dom = pair.second.first;
-      std::vector<unsigned>& preds = temp.is_linear() ? block->linear_preds : block->logical_preds;
+      Block::edge_vec& preds = temp.is_linear() ? block->linear_preds : block->logical_preds;
       for (unsigned pred_idx : preds) {
          if (ctx.program->blocks[pred_idx].loop_nest_depth > block->loop_nest_depth)
             distance += 0xFFFF;
@@ -664,8 +664,7 @@ init_live_in_vars(spill_ctx& ctx, Block* block, unsigned block_idx)
 
    /* keep variables spilled on all incoming paths */
    for (const std::pair<const Temp, std::pair<uint32_t, uint32_t>>& pair : next_use_distances) {
-      std::vector<unsigned>& preds =
-         pair.first.is_linear() ? block->linear_preds : block->logical_preds;
+      Block::edge_vec& preds = pair.first.is_linear() ? block->linear_preds : block->logical_preds;
       /* If it can be rematerialized, keep the variable spilled if all predecessors do not reload
        * it. Otherwise, if any predecessor reloads it, ensure it's reloaded on all other
        * predecessors. The idea is that it's better in practice to rematerialize redundantly than to
@@ -708,7 +707,7 @@ init_live_in_vars(spill_ctx& ctx, Block* block, unsigned block_idx)
       if (!phi->definitions[0].isTemp())
          continue;
 
-      std::vector<unsigned>& preds =
+      Block::edge_vec& preds =
          phi->opcode == aco_opcode::p_phi ? block->logical_preds : block->linear_preds;
       bool is_all_spilled = true;
       for (unsigned i = 0; i < phi->operands.size(); i++) {
@@ -877,7 +876,7 @@ add_coupling_code(spill_ctx& ctx, Block* block, unsigned block_idx)
          continue;
       }
 
-      std::vector<unsigned>& preds =
+      Block::edge_vec& preds =
          phi->opcode == aco_opcode::p_phi ? block->logical_preds : block->linear_preds;
       uint32_t def_spill_id = ctx.spills_entry[block_idx][phi->definitions[0].getTemp()];
 
@@ -945,8 +944,7 @@ add_coupling_code(spill_ctx& ctx, Block* block, unsigned block_idx)
    /* iterate all (other) spilled variables for which to spill at the predecessor */
    // TODO: would be better to have them sorted: first vgprs and first with longest distance
    for (std::pair<Temp, uint32_t> pair : ctx.spills_entry[block_idx]) {
-      std::vector<unsigned> preds =
-         pair.first.is_linear() ? block->linear_preds : block->logical_preds;
+      Block::edge_vec& preds = pair.first.is_linear() ? block->linear_preds : block->logical_preds;
 
       for (unsigned pred_idx : preds) {
          /* variable is already spilled at predecessor */
@@ -1000,7 +998,7 @@ add_coupling_code(spill_ctx& ctx, Block* block, unsigned block_idx)
       assert(!phi->definitions[0].isTemp() ||
              !ctx.spills_entry[block_idx].count(phi->definitions[0].getTemp()));
 
-      std::vector<unsigned>& preds =
+      Block::edge_vec& preds =
          phi->opcode == aco_opcode::p_phi ? block->logical_preds : block->linear_preds;
       for (unsigned i = 0; i < phi->operands.size(); i++) {
          if (!phi->operands[i].isTemp())
@@ -1060,8 +1058,7 @@ add_coupling_code(spill_ctx& ctx, Block* block, unsigned block_idx)
       /* skip spilled variables */
       if (ctx.spills_entry[block_idx].count(pair.first))
          continue;
-      std::vector<unsigned> preds =
-         pair.first.is_linear() ? block->linear_preds : block->logical_preds;
+      Block::edge_vec& preds = pair.first.is_linear() ? block->linear_preds : block->logical_preds;
 
       /* variable is dead at predecessor, it must be from a phi */
       bool is_dead = false;
@@ -1742,8 +1739,10 @@ end_unused_spill_vgprs(spill_ctx& ctx, Block& block, std::vector<Temp>& vgpr_spi
 
    aco_ptr<Instruction> destr{create_instruction<Pseudo_instruction>(
       aco_opcode::p_end_linear_vgpr, Format::PSEUDO, temps.size(), 0)};
-   for (unsigned i = 0; i < temps.size(); i++)
+   for (unsigned i = 0; i < temps.size(); i++) {
       destr->operands[i] = Operand(temps[i]);
+      destr->operands[i].setLateKill(true);
+   }
 
    std::vector<aco_ptr<Instruction>>::iterator it = block.instructions.begin();
    while (is_phi(*it))
@@ -1856,6 +1855,7 @@ assign_spill_slots(spill_ctx& ctx, unsigned spills_to_vgpr)
                Pseudo_instruction* spill =
                   create_instruction<Pseudo_instruction>(aco_opcode::p_spill, Format::PSEUDO, 3, 0);
                spill->operands[0] = Operand(vgpr_spill_temps[spill_slot / ctx.wave_size]);
+               spill->operands[0].setLateKill(true);
                spill->operands[1] = Operand::c32(spill_slot % ctx.wave_size);
                spill->operands[2] = (*it)->operands[0];
                instructions.emplace_back(aco_ptr<Instruction>(spill));
@@ -1896,6 +1896,7 @@ assign_spill_slots(spill_ctx& ctx, unsigned spills_to_vgpr)
                Pseudo_instruction* reload = create_instruction<Pseudo_instruction>(
                   aco_opcode::p_reload, Format::PSEUDO, 2, 1);
                reload->operands[0] = Operand(vgpr_spill_temps[spill_slot / ctx.wave_size]);
+               reload->operands[0].setLateKill(true);
                reload->operands[1] = Operand::c32(spill_slot % ctx.wave_size);
                reload->definitions[0] = (*it)->definitions[0];
                instructions.emplace_back(aco_ptr<Instruction>(reload));
@@ -1938,7 +1939,7 @@ spill(Program* program, live& live_vars)
    /* calculate extra VGPRs required for spilling SGPRs */
    if (demand.sgpr > sgpr_limit) {
       unsigned sgpr_spills = demand.sgpr - sgpr_limit;
-      extra_vgprs = DIV_ROUND_UP(sgpr_spills, program->wave_size) + 1;
+      extra_vgprs = DIV_ROUND_UP(sgpr_spills * 2, program->wave_size) + 1;
    }
    /* add extra SGPRs required for spilling VGPRs */
    if (demand.vgpr + extra_vgprs > vgpr_limit) {
@@ -1949,7 +1950,7 @@ spill(Program* program, live& live_vars)
       if (demand.sgpr + extra_sgprs > sgpr_limit) {
          /* re-calculate in case something has changed */
          unsigned sgpr_spills = demand.sgpr + extra_sgprs - sgpr_limit;
-         extra_vgprs = DIV_ROUND_UP(sgpr_spills, program->wave_size) + 1;
+         extra_vgprs = DIV_ROUND_UP(sgpr_spills * 2, program->wave_size) + 1;
       }
    }
    /* the spiller has to target the following register demand */

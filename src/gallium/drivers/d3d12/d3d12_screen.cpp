@@ -68,6 +68,7 @@ d3d12_debug_options[] = {
    { "res",          D3D12_DEBUG_RESOURCE,      "Debug resources" },
    { "debuglayer",   D3D12_DEBUG_DEBUG_LAYER,   "Enable debug layer" },
    { "gpuvalidator", D3D12_DEBUG_GPU_VALIDATOR, "Enable GPU validator" },
+   { "singleton",    D3D12_DEBUG_SINGLETON,     "Disallow use of device factory" },
    DEBUG_NAMED_VALUE_END
 };
 
@@ -117,7 +118,7 @@ d3d12_get_video_mem(struct pipe_screen *pscreen)
 }
 
 static int
-d3d12_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
+d3d12_get_param_default(struct pipe_screen *pscreen, enum pipe_cap param)
 {
    struct d3d12_screen *screen = d3d12_screen(pscreen);
 
@@ -193,9 +194,9 @@ d3d12_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
       return 1;
 
    case PIPE_CAP_GLSL_FEATURE_LEVEL:
-      return 430;
+      return 460;
    case PIPE_CAP_GLSL_FEATURE_LEVEL_COMPATIBILITY:
-      return 430;
+      return 460;
    case PIPE_CAP_ESSL_FEATURE_LEVEL:
       return 310;
 
@@ -333,7 +334,23 @@ d3d12_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
    case PIPE_CAP_CLIP_HALFZ:
    case PIPE_CAP_VS_LAYER_VIEWPORT:
    case PIPE_CAP_COPY_BETWEEN_COMPRESSED_AND_PLAIN_FORMATS:
+   case PIPE_CAP_SHADER_ARRAY_COMPONENTS:
+   case PIPE_CAP_TEXTURE_MIRROR_CLAMP_TO_EDGE:
+   case PIPE_CAP_QUERY_TIME_ELAPSED:
+   case PIPE_CAP_FS_FINE_DERIVATIVE:
+   case PIPE_CAP_CULL_DISTANCE:
+   case PIPE_CAP_TEXTURE_QUERY_SAMPLES:
+   case PIPE_CAP_TEXTURE_BARRIER:
+   case PIPE_CAP_GL_SPIRV:
+   case PIPE_CAP_POLYGON_OFFSET_CLAMP:
+   case PIPE_CAP_SHADER_GROUP_VOTE:
+   case PIPE_CAP_SHADER_BALLOT:
+   case PIPE_CAP_QUERY_PIPELINE_STATISTICS:
+   case PIPE_CAP_QUERY_SO_OVERFLOW:
       return 1;
+
+   case PIPE_CAP_QUERY_BUFFER_OBJECT:
+      return (screen->opts3.WriteBufferImmediateSupportFlags & D3D12_COMMAND_LIST_SUPPORT_FLAG_DIRECT) != 0;
 
    case PIPE_CAP_MAX_VERTEX_STREAMS:
       return D3D12_SO_BUFFER_SLOT_COUNT;
@@ -353,6 +370,32 @@ d3d12_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
    default:
       return u_pipe_screen_get_param_defaults(pscreen, param);
    }
+}
+
+static int
+d3d12_get_generic_param(struct pipe_screen *pscreen, enum pipe_cap param)
+{
+   struct d3d12_screen *screen = d3d12_screen(pscreen);
+   switch (param) {
+      case PIPE_CAP_ACCELERATED:
+         return screen->vendor_id != HW_VENDOR_MICROSOFT;
+      case PIPE_CAP_VIDEO_MEMORY:
+         return d3d12_get_video_mem(pscreen);
+      case PIPE_CAP_UMA:
+         return screen->architecture.UMA;
+      default:
+         return 0;
+   }
+}
+
+static int
+d3d12_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
+{
+   struct d3d12_screen *screen = d3d12_screen(pscreen);
+   if (screen->max_feature_level < D3D_FEATURE_LEVEL_11_0)
+      return d3d12_get_generic_param(pscreen, param);
+
+   return d3d12_get_param_default(pscreen, param);
 }
 
 static float
@@ -617,7 +660,8 @@ d3d12_is_format_supported(struct pipe_screen *pscreen,
    }
 
    if (bind & PIPE_BIND_DISPLAY_TARGET) {
-      if (!screen->winsys->is_displaytarget_format_supported(screen->winsys, bind, format))
+      enum pipe_format dt_format = format == PIPE_FORMAT_R16G16B16A16_FLOAT ? PIPE_FORMAT_R8G8B8A8_UNORM : format;
+      if (!screen->winsys->is_displaytarget_format_supported(screen->winsys, bind, dt_format))
          return false;
    }
 
@@ -697,18 +741,22 @@ d3d12_is_format_supported(struct pipe_screen *pscreen,
 void
 d3d12_deinit_screen(struct d3d12_screen *screen)
 {
-   if (screen->rtv_pool) {
-      d3d12_descriptor_pool_free(screen->rtv_pool);
-      screen->rtv_pool = nullptr;
+#ifdef HAVE_GALLIUM_D3D12_GRAPHICS
+   if (screen->max_feature_level >= D3D_FEATURE_LEVEL_11_0) {
+      if (screen->rtv_pool) {
+         d3d12_descriptor_pool_free(screen->rtv_pool);
+         screen->rtv_pool = nullptr;
+      }
+      if (screen->dsv_pool) {
+         d3d12_descriptor_pool_free(screen->dsv_pool);
+         screen->dsv_pool = nullptr;
+      }
+      if (screen->view_pool) {
+         d3d12_descriptor_pool_free(screen->view_pool);
+         screen->view_pool = nullptr;
+      }
    }
-   if (screen->dsv_pool) {
-      d3d12_descriptor_pool_free(screen->dsv_pool);
-      screen->dsv_pool = nullptr;
-   }
-   if (screen->view_pool) {
-      d3d12_descriptor_pool_free(screen->view_pool);
-      screen->view_pool = nullptr;
-   }
+#endif // HAVE_GALLIUM_D3D12_GRAPHICS
    if (screen->readback_slab_bufmgr) {
       screen->readback_slab_bufmgr->destroy(screen->readback_slab_bufmgr);
       screen->readback_slab_bufmgr = nullptr;
@@ -758,8 +806,12 @@ d3d12_destroy_screen(struct d3d12_screen *screen)
    slab_destroy_parent(&screen->transfer_pool);
    mtx_destroy(&screen->submit_mutex);
    mtx_destroy(&screen->descriptor_pool_mutex);
+
+#ifdef HAVE_GALLIUM_D3D12_GRAPHICS
    d3d12_varying_cache_destroy(screen);
    mtx_destroy(&screen->varying_info_mutex);
+#endif // HAVE_GALLIUM_D3D12_GRAPHICS
+
    if (screen->d3d12_mod)
       util_dl_close(screen->d3d12_mod);
    glsl_type_singleton_decref();
@@ -772,6 +824,7 @@ d3d12_flush_frontbuffer(struct pipe_screen * pscreen,
                         struct pipe_resource *pres,
                         unsigned level, unsigned layer,
                         void *winsys_drawable_handle,
+                        unsigned nboxes,
                         struct pipe_box *sub_box)
 {
    struct d3d12_screen *screen = d3d12_screen(pscreen);
@@ -780,6 +833,29 @@ d3d12_flush_frontbuffer(struct pipe_screen * pscreen,
 
    if (!winsys || !pctx)
      return;
+
+   assert(res->dt || res->dt_proxy);
+   if (res->dt_proxy) {
+     struct pipe_blit_info blit;
+
+     memset(&blit, 0, sizeof(blit));
+     blit.dst.resource = res->dt_proxy;
+     blit.dst.box.width = blit.dst.resource->width0;
+     blit.dst.box.height = blit.dst.resource->height0;
+     blit.dst.box.depth = 1;
+     blit.dst.format = blit.dst.resource->format;
+     blit.src.resource = pres;
+     blit.src.box.width = blit.src.resource->width0;
+     blit.src.box.height = blit.src.resource->height0;
+     blit.src.box.depth = 1;
+     blit.src.format = blit.src.resource->format;
+     blit.mask = PIPE_MASK_RGBA;
+     blit.filter = PIPE_TEX_FILTER_NEAREST;
+
+     pctx->blit(pctx, &blit);
+     pres = res->dt_proxy;
+     res = d3d12_resource(pres);
+   }
 
    assert(res->dt);
    void *map = winsys->displaytarget_map(winsys, res->dt, 0);
@@ -810,7 +886,7 @@ d3d12_flush_frontbuffer(struct pipe_screen * pscreen,
    }
 #endif
 
-   winsys->displaytarget_display(winsys, res->dt, winsys_drawable_handle, sub_box);
+   winsys->displaytarget_display(winsys, res->dt, winsys_drawable_handle, nboxes, sub_box);
 }
 
 #ifndef _GAMING_XBOX
@@ -940,8 +1016,10 @@ create_device(util_dl_library *d3d12_mod, IUnknown *adapter, ID3D12DeviceFactory
    if (factory) {
       factory->SetFlags(D3D12_DEVICE_FACTORY_FLAG_ALLOW_RETURNING_EXISTING_DEVICE |
          D3D12_DEVICE_FACTORY_FLAG_ALLOW_RETURNING_INCOMPATIBLE_EXISTING_DEVICE);
-      if (FAILED(factory->CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev))))
-         debug_printf("D3D12: D3D12CreateDevice failed\n");
+      /* Fallback to D3D_FEATURE_LEVEL_11_0 for D3D12 versions without generic support */
+      if (FAILED(factory->CreateDevice(adapter, D3D_FEATURE_LEVEL_1_0_GENERIC, IID_PPV_ARGS(&dev))))
+         if (FAILED(factory->CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev))))
+            debug_printf("D3D12: D3D12CreateDevice failed\n");
    } else {
       typedef HRESULT(WINAPI *PFN_D3D12CREATEDEVICE)(IUnknown*, D3D_FEATURE_LEVEL, REFIID, void**);
       PFN_D3D12CREATEDEVICE D3D12CreateDevice = (PFN_D3D12CREATEDEVICE)util_dl_get_proc_address(d3d12_mod, "D3D12CreateDevice");
@@ -949,8 +1027,10 @@ create_device(util_dl_library *d3d12_mod, IUnknown *adapter, ID3D12DeviceFactory
          debug_printf("D3D12: failed to load D3D12CreateDevice from D3D12.DLL\n");
          return NULL;
       }
-      if (FAILED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev))))
-         debug_printf("D3D12: D3D12CreateDevice failed\n");
+      /* Fallback to D3D_FEATURE_LEVEL_11_0 for D3D12 versions without generic support */
+      if (FAILED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_1_0_GENERIC, IID_PPV_ARGS(&dev))))
+         if (FAILED(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&dev))))
+            debug_printf("D3D12: D3D12CreateDevice failed\n");
    }
 
    return dev;
@@ -1200,10 +1280,9 @@ d3d12_get_node_mask(struct pipe_screen *pscreen)
 static void
 d3d12_create_fence_win32(struct pipe_screen *pscreen, struct pipe_fence_handle **pfence, void *handle, const void *name, enum pipe_fd_type type)
 {
-   d3d12_fence_reference((struct d3d12_fence **)pfence,
-                         type == PIPE_FD_TYPE_TIMELINE_SEMAPHORE ?
-                           d3d12_open_fence(d3d12_screen(pscreen), handle, name) :
-                           nullptr);
+   d3d12_fence_reference((struct d3d12_fence **)pfence, nullptr);
+   if(type == PIPE_FD_TYPE_TIMELINE_SEMAPHORE)
+      *pfence = (struct pipe_fence_handle*) d3d12_open_fence(d3d12_screen(pscreen), handle, name);
 }
 
 static void
@@ -1253,6 +1332,26 @@ d3d12_screen_get_fd(struct pipe_screen *pscreen)
       return -1;
 }
 
+#ifdef _WIN32
+static void* d3d12_fence_get_win32_handle(struct pipe_screen *pscreen,
+                                          struct pipe_fence_handle *fence_handle,
+                                          uint64_t *fence_value)
+{
+   struct d3d12_screen *screen = d3d12_screen(pscreen);
+   struct d3d12_fence* fence = (struct d3d12_fence*) fence_handle;
+   HANDLE shared_handle = nullptr;
+   screen->dev->CreateSharedHandle(fence->cmdqueue_fence,
+                                   NULL,
+                                   GENERIC_ALL,
+                                   NULL,
+                                   &shared_handle);
+   if(shared_handle)
+      *fence_value = fence->value;
+
+   return (void*) shared_handle;
+}
+#endif
+
 bool
 d3d12_init_screen_base(struct d3d12_screen *screen, struct sw_winsys *winsys, LUID *adapter_luid)
 {
@@ -1272,8 +1371,11 @@ d3d12_init_screen_base(struct d3d12_screen *screen, struct sw_winsys *winsys, LU
    for (unsigned i = 0; i < 16; ++i)
       screen->context_id_list[i] = 15 - i;
 
+#ifdef HAVE_GALLIUM_D3D12_GRAPHICS
    d3d12_varying_cache_init(screen);
    mtx_init(&screen->varying_info_mutex, mtx_plain);
+   screen->base.get_compiler_options = d3d12_get_compiler_options;
+#endif // HAVE_GALLIUM_D3D12_GRAPHICS
 
    slab_create_parent(&screen->transfer_pool, sizeof(struct d3d12_transfer), 16);
 
@@ -1285,7 +1387,7 @@ d3d12_init_screen_base(struct d3d12_screen *screen, struct sw_winsys *winsys, LU
    screen->base.get_shader_param = d3d12_get_shader_param;
    screen->base.get_compute_param = d3d12_get_compute_param;
    screen->base.is_format_supported = d3d12_is_format_supported;
-   screen->base.get_compiler_options = d3d12_get_compiler_options;
+
    screen->base.context_create = d3d12_context_create;
    screen->base.flush_frontbuffer = d3d12_flush_frontbuffer;
    screen->base.get_device_luid = d3d12_get_adapter_luid;
@@ -1296,6 +1398,9 @@ d3d12_init_screen_base(struct d3d12_screen *screen, struct sw_winsys *winsys, LU
    screen->base.set_fence_timeline_value = d3d12_set_fence_timeline_value;
    screen->base.interop_query_device_info = d3d12_interop_query_device_info;
    screen->base.interop_export_object = d3d12_interop_export_object;
+#ifdef _WIN32
+   screen->base.fence_get_win32_handle = d3d12_fence_get_win32_handle;
+#endif
 
    screen->d3d12_mod = util_dl_open(
       UTIL_DL_PREFIX
@@ -1344,6 +1449,7 @@ try_find_d3d12core_next_to_self(char *path, size_t path_arr_size)
       return nullptr;
    }
 
+   *(last_slash + 1) = '\0';
    return path;
 }
 #endif
@@ -1352,6 +1458,9 @@ try_find_d3d12core_next_to_self(char *path, size_t path_arr_size)
 static ID3D12DeviceFactory *
 try_create_device_factory(util_dl_library *d3d12_mod)
 {
+   if (d3d12_debug & D3D12_DEBUG_SINGLETON)
+      return nullptr;
+
    /* A device factory allows us to isolate things like debug layer enablement from other callers,
     * and can potentially even refer to a different D3D12 redist implementation from others.
     */
@@ -1407,30 +1516,32 @@ d3d12_init_screen(struct d3d12_screen *screen, IUnknown *adapter)
 {
    assert(screen->base.destroy != nullptr);
 
+   // Device can be imported with d3d12_create_dxcore_screen_from_d3d12_device
+   if (!screen->dev) {
 #ifndef _GAMING_XBOX
-   ID3D12DeviceFactory *factory = try_create_device_factory(screen->d3d12_mod);
+      ID3D12DeviceFactory *factory = try_create_device_factory(screen->d3d12_mod);
 
 #ifndef DEBUG
-   if (d3d12_debug & D3D12_DEBUG_DEBUG_LAYER)
+      if (d3d12_debug & D3D12_DEBUG_DEBUG_LAYER)
 #endif
-      enable_d3d12_debug_layer(screen->d3d12_mod, factory);
+         enable_d3d12_debug_layer(screen->d3d12_mod, factory);
 
-   if (d3d12_debug & D3D12_DEBUG_GPU_VALIDATOR)
-      enable_gpu_validation(screen->d3d12_mod, factory);
+      if (d3d12_debug & D3D12_DEBUG_GPU_VALIDATOR)
+         enable_gpu_validation(screen->d3d12_mod, factory);
 
-   screen->dev = create_device(screen->d3d12_mod, adapter, factory);
+      screen->dev = create_device(screen->d3d12_mod, adapter, factory);
 
-   if (factory)
-      factory->Release();
+      if (factory)
+         factory->Release();
 #else
-   screen->dev = create_device(screen->d3d12_mod, adapter);
+      screen->dev = create_device(screen->d3d12_mod, adapter);
 #endif
 
-   if (!screen->dev) {
-      debug_printf("D3D12: failed to create device\n");
-      return false;
+      if (!screen->dev) {
+         debug_printf("D3D12: failed to create device\n");
+         return false;
+      }
    }
-
    screen->adapter_luid = GetAdapterLuid(screen->dev);
 
 #ifndef _GAMING_XBOX
@@ -1502,6 +1613,8 @@ d3d12_init_screen(struct d3d12_screen *screen, IUnknown *adapter)
 
    D3D12_FEATURE_DATA_FEATURE_LEVELS feature_levels;
    static const D3D_FEATURE_LEVEL levels[] = {
+      D3D_FEATURE_LEVEL_1_0_GENERIC,
+      D3D_FEATURE_LEVEL_1_0_CORE,
       D3D_FEATURE_LEVEL_11_0,
       D3D_FEATURE_LEVEL_11_1,
       D3D_FEATURE_LEVEL_12_0,
@@ -1515,25 +1628,37 @@ d3d12_init_screen(struct d3d12_screen *screen, IUnknown *adapter)
       debug_printf("D3D12: failed to get device feature levels\n");
       return false;
    }
-   screen->max_feature_level = feature_levels.MaxSupportedFeatureLevel;
 
-   static const D3D_SHADER_MODEL valid_shader_models[] = {
-      D3D_SHADER_MODEL_6_7, D3D_SHADER_MODEL_6_6, D3D_SHADER_MODEL_6_5, D3D_SHADER_MODEL_6_4,
-      D3D_SHADER_MODEL_6_3, D3D_SHADER_MODEL_6_2, D3D_SHADER_MODEL_6_1, D3D_SHADER_MODEL_6_0,
-   };
-   for (UINT i = 0; i < ARRAY_SIZE(valid_shader_models); ++i) {
-      D3D12_FEATURE_DATA_SHADER_MODEL shader_model = { valid_shader_models[i] };
-      if (SUCCEEDED(screen->dev->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shader_model, sizeof(shader_model)))) {
-         static_assert(D3D_SHADER_MODEL_6_0 == 0x60 && SHADER_MODEL_6_0 == 0x60000, "Validating math below");
-         static_assert(D3D_SHADER_MODEL_6_7 == 0x67 && SHADER_MODEL_6_7 == 0x60007, "Validating math below");
-         screen->max_shader_model = static_cast<dxil_shader_model>(((shader_model.HighestShaderModel & 0xf0) << 12) |
-                                                                   (shader_model.HighestShaderModel & 0xf));
-         break;
+#ifdef HAVE_GALLIUM_D3D12_GRAPHICS
+   screen->max_feature_level = feature_levels.MaxSupportedFeatureLevel;
+#else
+   screen->max_feature_level = D3D_FEATURE_LEVEL_1_0_GENERIC;
+#endif // HAVE_GALLIUM_D3D12_GRAPHICS
+
+   screen->queue_type = (screen->max_feature_level >= D3D_FEATURE_LEVEL_11_0) ? D3D12_COMMAND_LIST_TYPE_DIRECT : D3D12_COMMAND_LIST_TYPE_COMPUTE;
+
+#ifdef HAVE_GALLIUM_D3D12_GRAPHICS
+   if (screen->max_feature_level >= D3D_FEATURE_LEVEL_11_0) {
+      static const D3D_SHADER_MODEL valid_shader_models[] = {
+         D3D_SHADER_MODEL_6_8,
+         D3D_SHADER_MODEL_6_7, D3D_SHADER_MODEL_6_6, D3D_SHADER_MODEL_6_5, D3D_SHADER_MODEL_6_4,
+         D3D_SHADER_MODEL_6_3, D3D_SHADER_MODEL_6_2, D3D_SHADER_MODEL_6_1, D3D_SHADER_MODEL_6_0,
+      };
+      for (UINT i = 0; i < ARRAY_SIZE(valid_shader_models); ++i) {
+         D3D12_FEATURE_DATA_SHADER_MODEL shader_model = { valid_shader_models[i] };
+         if (SUCCEEDED(screen->dev->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shader_model, sizeof(shader_model)))) {
+            static_assert(D3D_SHADER_MODEL_6_0 == 0x60 && SHADER_MODEL_6_0 == 0x60000, "Validating math below");
+            static_assert(D3D_SHADER_MODEL_6_8 == 0x68 && SHADER_MODEL_6_8 == 0x60008, "Validating math below");
+            screen->max_shader_model = static_cast<dxil_shader_model>(((shader_model.HighestShaderModel & 0xf0) << 12) |
+                                                                     (shader_model.HighestShaderModel & 0xf));
+            break;
+         }
       }
    }
+#endif // HAVE_GALLIUM_D3D12_GRAPHICS
 
    D3D12_COMMAND_QUEUE_DESC queue_desc;
-   queue_desc.Type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+   queue_desc.Type = screen->queue_type;
    queue_desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
    queue_desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
    queue_desc.NodeMask = 0;
@@ -1553,7 +1678,7 @@ d3d12_init_screen(struct d3d12_screen *screen, IUnknown *adapter)
          return false;
    }
 
-   if (FAILED(screen->dev->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&screen->fence))))
+   if (FAILED(screen->dev->CreateFence(0, D3D12_FENCE_FLAG_SHARED, IID_PPV_ARGS(&screen->fence))))
       return false;
 
    if (!d3d12_init_residency(screen))
@@ -1562,7 +1687,7 @@ d3d12_init_screen(struct d3d12_screen *screen, IUnknown *adapter)
    UINT64 timestamp_freq;
    if (FAILED(screen->cmdqueue->GetTimestampFrequency(&timestamp_freq)))
        timestamp_freq = 10000000;
-   screen->timestamp_multiplier = 1000000000.0 / timestamp_freq;
+   screen->timestamp_multiplier = 1000000000.0f / timestamp_freq;
 
    d3d12_screen_fence_init(&screen->base);
    d3d12_screen_resource_init(&screen->base);
@@ -1605,43 +1730,46 @@ d3d12_init_screen(struct d3d12_screen *screen, IUnknown *adapter)
    if (!screen->readback_slab_bufmgr)
       return false;
 
-   screen->rtv_pool = d3d12_descriptor_pool_new(screen,
-                                                D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
-                                                64);
-   screen->dsv_pool = d3d12_descriptor_pool_new(screen,
-                                                D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
-                                                64);
-   screen->view_pool = d3d12_descriptor_pool_new(screen,
-                                                 D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-                                                 1024);
-   if (!screen->rtv_pool || !screen->dsv_pool || !screen->view_pool)
-      return false;
+#ifdef HAVE_GALLIUM_D3D12_GRAPHICS
+   if (screen->max_feature_level >= D3D_FEATURE_LEVEL_11_0) {
+      screen->rtv_pool = d3d12_descriptor_pool_new(screen,
+                                                   D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
+                                                   64);
+      screen->dsv_pool = d3d12_descriptor_pool_new(screen,
+                                                   D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
+                                                   64);
+      screen->view_pool = d3d12_descriptor_pool_new(screen,
+                                                   D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
+                                                   1024);
+      if (!screen->rtv_pool || !screen->dsv_pool || !screen->view_pool)
+         return false;
 
-   d3d12_init_null_srvs(screen);
-   d3d12_init_null_uavs(screen);
-   d3d12_init_null_rtv(screen);
+      d3d12_init_null_srvs(screen);
+      d3d12_init_null_uavs(screen);
+      d3d12_init_null_rtv(screen);
 
-   screen->have_load_at_vertex = can_attribute_at_vertex(screen);
-   screen->support_shader_images = can_shader_image_load_all_formats(screen);
+      screen->have_load_at_vertex = can_attribute_at_vertex(screen);
+      screen->support_shader_images = can_shader_image_load_all_formats(screen);
+      static constexpr uint64_t known_good_warp_version = 10ull << 48 | 22000ull << 16;
+      bool warp_with_broken_int64 =
+         (screen->vendor_id == HW_VENDOR_MICROSOFT && screen->driver_version < known_good_warp_version);
+      unsigned supported_int_sizes = 32 | (screen->opts1.Int64ShaderOps && !warp_with_broken_int64 ? 64 : 0);
+      unsigned supported_float_sizes = 32 | (screen->opts.DoublePrecisionFloatShaderOps ? 64 : 0);
+      dxil_get_nir_compiler_options(&screen->nir_options,
+                                    screen->max_shader_model,
+                                    supported_int_sizes,
+                                    supported_float_sizes);
+   }
+#endif // HAVE_GALLIUM_D3D12_GRAPHICS
 
 #ifndef _GAMING_XBOX
-   ID3D12Device8 *dev8;
-   if (SUCCEEDED(screen->dev->QueryInterface(&dev8))) {
-      dev8->Release();
-      screen->support_create_not_resident = true;
-   }
-   screen->dev->QueryInterface(&screen->dev10);
+      ID3D12Device8 *dev8;
+      if (SUCCEEDED(screen->dev->QueryInterface(&dev8))) {
+         dev8->Release();
+         screen->support_create_not_resident = true;
+      }
+      screen->dev->QueryInterface(&screen->dev10);
 #endif
-
-   static constexpr uint64_t known_good_warp_version = 10ull << 48 | 22000ull << 16;
-   bool warp_with_broken_int64 =
-      (screen->vendor_id == HW_VENDOR_MICROSOFT && screen->driver_version < known_good_warp_version);
-   unsigned supported_int_sizes = 32 | (screen->opts1.Int64ShaderOps && !warp_with_broken_int64 ? 64 : 0);
-   unsigned supported_float_sizes = 32 | (screen->opts.DoublePrecisionFloatShaderOps ? 64 : 0);
-   dxil_get_nir_compiler_options(&screen->nir_options,
-                                 screen->max_shader_model,
-                                 supported_int_sizes,
-                                 supported_float_sizes);
 
    const char *mesa_version = "Mesa " PACKAGE_VERSION MESA_GIT_SHA1;
    struct mesa_sha1 sha1_ctx;

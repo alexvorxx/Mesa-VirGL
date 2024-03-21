@@ -128,13 +128,6 @@ zink_reset_batch_state(struct zink_context *ctx, struct zink_batch_state *bs)
       VKSCR(DestroyIndirectCommandsLayoutNV)(screen->dev, *iclayout, NULL);
    util_dynarray_clear(&bs->dgc.layouts);
 
-   /* framebuffers are appended to the batch state in which they are destroyed
-    * to ensure deferred deletion without destroying in-use objects
-    */
-   util_dynarray_foreach(&bs->dead_framebuffers, struct zink_framebuffer*, fb) {
-      zink_framebuffer_reference(screen, fb, NULL);
-   }
-   util_dynarray_clear(&bs->dead_framebuffers);
    /* samplers are appended to the batch state in which they are destroyed
     * to ensure deferred deletion without destroying in-use objects
     */
@@ -144,6 +137,11 @@ zink_reset_batch_state(struct zink_context *ctx, struct zink_batch_state *bs)
    util_dynarray_clear(&bs->zombie_samplers);
 
    zink_batch_descriptor_reset(screen, bs);
+
+   util_dynarray_foreach(&bs->freed_sparse_backing_bos, struct zink_bo, bo) {
+      zink_bo_unref(screen, bo);
+   }
+   util_dynarray_clear(&bs->freed_sparse_backing_bos);
 
    /* programs are refcounted and batch-tracked */
    set_foreach_remove(&bs->programs, entry) {
@@ -180,8 +178,8 @@ zink_reset_batch_state(struct zink_context *ctx, struct zink_batch_state *bs)
       zink_fence_reference(screen, mfence, NULL);
    util_dynarray_clear(&bs->fences);
 
-   bs->unordered_write_access = 0;
-   bs->unordered_write_stages = 0;
+   bs->unordered_write_access = VK_ACCESS_NONE;
+   bs->unordered_write_stages = VK_PIPELINE_STAGE_NONE;
 
    /* only increment batch generation if previously in-use to avoid false detection of batch completion */
    if (bs->fence.submitted)
@@ -301,12 +299,12 @@ zink_batch_state_destroy(struct zink_screen *screen, struct zink_batch_state *bs
    free(bs->real_objs.objs);
    free(bs->slab_objs.objs);
    free(bs->sparse_objs.objs);
+   util_dynarray_fini(&bs->freed_sparse_backing_bos);
    util_dynarray_fini(&bs->dead_querypools);
    util_dynarray_fini(&bs->dgc.pipelines);
    util_dynarray_fini(&bs->dgc.layouts);
    util_dynarray_fini(&bs->swapchain_obj);
    util_dynarray_fini(&bs->zombie_samplers);
-   util_dynarray_fini(&bs->dead_framebuffers);
    util_dynarray_fini(&bs->unref_resources);
    util_dynarray_fini(&bs->bindless_releases[0]);
    util_dynarray_fini(&bs->bindless_releases[1]);
@@ -398,7 +396,7 @@ create_batch_state(struct zink_context *ctx)
    util_dynarray_init(&bs->wait_semaphore_stages, NULL);
    util_dynarray_init(&bs->fd_wait_semaphore_stages, NULL);
    util_dynarray_init(&bs->zombie_samplers, NULL);
-   util_dynarray_init(&bs->dead_framebuffers, NULL);
+   util_dynarray_init(&bs->freed_sparse_backing_bos, NULL);
    util_dynarray_init(&bs->unref_resources, NULL);
    util_dynarray_init(&bs->acquires, NULL);
    util_dynarray_init(&bs->acquire_flags, NULL);
@@ -448,10 +446,25 @@ get_batch_state(struct zink_context *ctx, struct zink_batch *batch)
       if (bs == ctx->last_free_batch_state)
          ctx->last_free_batch_state = NULL;
    }
-   if (!bs && ctx->batch_states) {
-      /* states are stored sequentially, so if the first one doesn't work, none of them will */
-      if (zink_screen_check_last_finished(screen, ctx->batch_states->fence.batch_id) ||
-          find_unused_state(ctx->batch_states)) {
+   /* try from the ones that are given back to the screen next */
+   if (!bs) {
+      simple_mtx_lock(&screen->free_batch_states_lock);
+      if (screen->free_batch_states) {
+         bs = screen->free_batch_states;
+         bs->ctx = ctx;
+         screen->free_batch_states = bs->next;
+         if (bs == screen->last_free_batch_state)
+            screen->last_free_batch_state = NULL;
+      }
+      simple_mtx_unlock(&screen->free_batch_states_lock);
+   }
+   /* states are stored sequentially, so if the first one doesn't work, none of them will */
+   if (!bs && ctx->batch_states && ctx->batch_states->next) {
+      /* only a submitted state can be reused */
+      if (p_atomic_read(&ctx->batch_states->fence.submitted) &&
+          /* a submitted state must have completed before it can be reused */
+          (zink_screen_check_last_finished(screen, ctx->batch_states->fence.batch_id) ||
+           p_atomic_read(&ctx->batch_states->fence.completed))) {
          bs = ctx->batch_states;
          pop_batch_state(ctx);
       }
@@ -704,9 +717,10 @@ submit_queue(void *data, void *gdata, int thread_index)
          mb.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
          mb.pNext = NULL;
          mb.srcAccessMask = bs->unordered_write_access;
-         mb.dstAccessMask = 0;
+         mb.dstAccessMask = VK_ACCESS_NONE;
          VKSCR(CmdPipelineBarrier)(bs->reordered_cmdbuf,
-                                   bs->unordered_write_stages, 0,
+                                   bs->unordered_write_stages,
+                                   screen->info.have_KHR_synchronization2 ? VK_PIPELINE_STAGE_NONE : VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                                    0, 1, &mb, 0, NULL, 0, NULL);
       }
       VRAM_ALLOC_LOOP(result,
@@ -886,11 +900,11 @@ static int
 batch_find_resource(struct zink_batch_state *bs, struct zink_resource_object *obj, struct zink_batch_obj_list *list)
 {
    unsigned hash = obj->bo->unique_id & (BUFFER_HASHLIST_SIZE-1);
-   int i = bs->buffer_indices_hashlist[hash];
+   int buffer_index = bs->buffer_indices_hashlist[hash];
 
    /* not found or found */
-   if (i < 0 || (i < list->num_buffers && list->objs[i] == obj))
-      return i;
+   if (buffer_index < 0 || (buffer_index < list->num_buffers && list->objs[buffer_index] == obj))
+      return buffer_index;
 
    /* Hash collision, look for the BO in the list of list->objs linearly. */
    for (int i = list->num_buffers - 1; i >= 0; i--) {
@@ -1022,7 +1036,15 @@ zink_batch_reference_resource_move(struct zink_batch *batch, struct zink_resourc
    if (!(res->base.b.flags & PIPE_RESOURCE_FLAG_SPARSE)) {
       bs->resource_size += res->obj->size;
    } else {
-      // TODO: check backing pages
+      /* Sparse backing pages are not directly referenced by the batch as
+       * there can be a lot of them.
+       * Instead, they are kept referenced in one of two ways:
+       * - While they are committed, they are directly referenced from the
+       *   resource's state.
+       * - Upon de-commit, they are added to the freed_sparse_backing_bos
+       *   list, which will defer destroying the resource until the batch
+       *   performing unbind finishes.
+       */
    }
    check_oom_flush(batch->state->ctx, batch);
    batch->has_work = true;

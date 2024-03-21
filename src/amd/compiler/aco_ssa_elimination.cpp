@@ -68,7 +68,7 @@ collect_phi_info(ssa_elimination_ctx& ctx)
 
             assert(phi->definitions[0].size() == phi->operands[i].size());
 
-            std::vector<unsigned>& preds =
+            Block::edge_vec& preds =
                phi->opcode == aco_opcode::p_phi ? block.logical_preds : block.linear_preds;
             uint32_t pred_idx = preds[i];
             auto& info_vec = phi->opcode == aco_opcode::p_phi ? ctx.logical_phi_info[pred_idx]
@@ -133,6 +133,7 @@ insert_parallelcopies(ssa_elimination_ctx& ctx)
       }
       pc->tmp_in_scc = block.scc_live_out;
       pc->scratch_sgpr = scratch_sgpr;
+      pc->needs_scratch_reg = true;
       block.instructions.insert(it, std::move(pc));
    }
 }
@@ -397,6 +398,10 @@ try_optimize_branching_sequence(ssa_elimination_ctx& ctx, Block& block, const in
                                    regs_intersect(Definition(exec, ctx.program->lane_mask), def);
                          }))
             break;
+
+         if (instr->isPseudo() && instr->pseudo().needs_scratch_reg &&
+             regs_intersect(exec_copy_def, Definition(instr->pseudo().scratch_sgpr, s1)))
+            break;
       }
    }
 
@@ -436,6 +441,9 @@ try_optimize_branching_sequence(ssa_elimination_ctx& ctx, Block& block, const in
          for (const Definition& def : instr->definitions)
             if (regs_intersect(exec_copy_def, def))
                return;
+         if (instr->isPseudo() && instr->pseudo().needs_scratch_reg &&
+             regs_intersect(exec_copy_def, Definition(instr->pseudo().scratch_sgpr, s1)))
+            return;
       }
 
       /* Check if the instruction may implicitly read VCC, eg. v_cndmask or add with carry.

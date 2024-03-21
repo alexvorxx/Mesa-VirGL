@@ -52,7 +52,6 @@ if [ -z "$DEQP_SUITE" ]; then
     DEQP_WIDTH=${DEQP_WIDTH:-256}
     DEQP_HEIGHT=${DEQP_HEIGHT:-256}
     DEQP_CONFIG=${DEQP_CONFIG:-rgba8888d24s8ms0}
-    DEQP_VARIANT=${DEQP_VARIANT:-master}
 
     DEQP_OPTIONS="$DEQP_OPTIONS --deqp-surface-width=$DEQP_WIDTH --deqp-surface-height=$DEQP_HEIGHT"
     DEQP_OPTIONS="$DEQP_OPTIONS --deqp-surface-type=${DEQP_SURFACE_TYPE:-pbuffer}"
@@ -70,7 +69,7 @@ if [ -z "$DEQP_SUITE" ]; then
 
     # Generate test case list file.
     if [ "$DEQP_VER" = "vk" ]; then
-       MUSTPASS=/deqp/mustpass/vk-$DEQP_VARIANT.txt
+       MUSTPASS=/deqp/mustpass/vk-master.txt
        DEQP=/deqp/external/vulkancts/modules/vulkan/deqp-vk
 
        HANG_DETECTION_CMD="/parallel-deqp-runner/build/bin/hang-detection"
@@ -80,14 +79,13 @@ if [ -z "$DEQP_SUITE" ]; then
     elif [ "$DEQP_VER" = "gles2-khr" -o "$DEQP_VER" = "gles3-khr" -o "$DEQP_VER" = "gles31-khr" -o "$DEQP_VER" = "gles32-khr" ]; then
 
     elif [ "$DEQP_VER" = "gles2" ] || [ "$DEQP_VER" = "gles3" ] || [ "$DEQP_VER" = "gles31" ] || [ "$DEQP_VER" = "egl" ]; then
-       MUSTPASS=/deqp/mustpass/$DEQP_VER-$DEQP_VARIANT.txt
+       MUSTPASS=/deqp/mustpass/$DEQP_VER-main.txt
        DEQP=/deqp/modules/$DEQP_VER/deqp-$DEQP_VER
     elif [ "$DEQP_VER" = "gles2-khr" ] || [ "$DEQP_VER" = "gles3-khr" ] || [ "$DEQP_VER" = "gles31-khr" ] || [ "$DEQP_VER" = "gles32-khr" ]; then
-
-       MUSTPASS=/deqp/mustpass/$DEQP_VER-$DEQP_VARIANT.txt
+       MUSTPASS=/deqp/mustpass/$DEQP_VER-main.txt
        DEQP=/deqp/external/openglcts/modules/glcts
     else
-       MUSTPASS=/deqp/mustpass/$DEQP_VER-$DEQP_VARIANT.txt
+       MUSTPASS=/deqp/mustpass/$DEQP_VER-main.txt
        DEQP=/deqp/external/openglcts/modules/glcts
     fi
 
@@ -150,6 +148,9 @@ if [ -n "$VK_DRIVER" ] && [ -z "$DEQP_SUITE" ]; then
 fi
 
 # Set the path to VK validation layer settings (in case it ends up getting loaded)
+# Note: If you change the format of this filename, look through the rest of the
+# tree for other places that need to be kept in sync (e.g.
+# src/gallium/drivers/zink/ci/gitlab-ci-inc.yml)
 export VK_LAYER_SETTINGS_PATH=$INSTALL/$GPU_VERSION-validation-settings.txt
 
 report_load() {
@@ -195,7 +196,13 @@ fi
 
 uncollapsed_section_switch deqp "deqp: deqp-runner"
 
-cat /deqp/version-log
+# Print the detailed version with the list of backports and local patches
+for api in vk gl; do
+  deqp_version_log=/deqp/version-$api
+  if [ -r "$deqp_version_log" ]; then
+    cat "$deqp_version_log"
+  fi
+done
 
 set +e
 if [ -z "$DEQP_SUITE" ]; then
@@ -212,6 +219,10 @@ if [ -z "$DEQP_SUITE" ]; then
         -- \
         $DEQP_OPTIONS
 else
+    # If you change the format of the suite toml filenames or the
+    # $GPU_VERSION-{fails,flakes,skips}.txt filenames, look through the rest
+    # of the tree for other places that need to be kept in sync (e.g.
+    # src/**/ci/gitlab-ci*.yml)
     deqp-runner \
         suite \
         --suite $INSTALL/deqp-$DEQP_SUITE.toml \
@@ -252,7 +263,7 @@ deqp-runner junit \
    --results $RESULTS/failures.csv \
    --output $RESULTS/junit.xml \
    --limit 50 \
-   --template "See https://$CI_PROJECT_ROOT_NAMESPACE.pages.freedesktop.org/-/$CI_PROJECT_NAME/-/jobs/$CI_JOB_ID/artifacts/results/{{testcase}}.xml"
+   --template "See $ARTIFACTS_BASE_URL/results/{{testcase}}.xml"
 
 # Report the flakes to the IRC channel for monitoring (if configured):
 if [ -n "$FLAKES_CHANNEL" ]; then

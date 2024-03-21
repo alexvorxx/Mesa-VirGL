@@ -16,6 +16,7 @@ use mesa_rust::pipe::resource::*;
 use mesa_rust::pipe::screen::*;
 
 use std::collections::HashMap;
+use std::ffi::CStr;
 use std::ffi::CString;
 use std::mem;
 use std::os::raw::c_void;
@@ -25,6 +26,7 @@ use std::sync::Arc;
 type CLGLMappings = Option<HashMap<Arc<PipeResource>, Arc<PipeResource>>>;
 
 pub struct XPlatManager {
+    #[cfg(glx)]
     glx_get_proc_addr: PFNGLXGETPROCADDRESSPROC,
     egl_get_proc_addr: PFNEGLGETPROCADDRESSPROC,
 }
@@ -38,6 +40,7 @@ impl Default for XPlatManager {
 impl XPlatManager {
     pub fn new() -> Self {
         Self {
+            #[cfg(glx)]
             glx_get_proc_addr: Self::get_proc_address_func("glXGetProcAddress"),
             egl_get_proc_addr: Self::get_proc_address_func("eglGetProcAddress"),
         }
@@ -51,14 +54,28 @@ impl XPlatManager {
         }
     }
 
+    #[cfg(glx)]
+    unsafe fn get_func_glx(&self, cname: &CStr) -> CLResult<__GLXextFuncPtr> {
+        unsafe {
+            Ok(self
+                .glx_get_proc_addr
+                .ok_or(CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR)?(
+                cname.as_ptr().cast(),
+            ))
+        }
+    }
+
+    // in theory it should return CLResult<__GLXextFuncPtr> but luckily it's identical
+    #[cfg(not(glx))]
+    unsafe fn get_func_glx(&self, _: &CStr) -> CLResult<__eglMustCastToProperFunctionPointerType> {
+        Err(CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR)
+    }
+
     fn get_func<T>(&self, name: &str) -> CLResult<T> {
         let cname = CString::new(name).unwrap();
         unsafe {
             let raw_func = if name.starts_with("glX") {
-                self.glx_get_proc_addr
-                    .ok_or(CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR)?(
-                    cname.as_ptr().cast()
-                )
+                self.get_func_glx(&cname)?
             } else if name.starts_with("egl") {
                 self.egl_get_proc_addr
                     .ok_or(CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR)?(
@@ -120,6 +137,13 @@ pub struct GLCtxManager {
     gl_ctx: GLCtx,
 }
 
+// SAFETY: We do have a few pointers inside [GLCtxManager], but nothing really relevant here:
+//  * pointers of the GLX/EGL context and _XDisplay/EGLDisplay, but we don't do much with them
+//    except calling into our mesa internal GL sharing extension, which properly locks data.
+//  * pointer to the _XDisplay/EGLDisplay
+unsafe impl Send for GLCtxManager {}
+unsafe impl Sync for GLCtxManager {}
+
 impl GLCtxManager {
     pub fn new(
         gl_context: *mut c_void,
@@ -127,7 +151,7 @@ impl GLCtxManager {
         egl_display: EGLDisplay,
     ) -> CLResult<Option<Self>> {
         let mut info = mesa_glinterop_device_info {
-            version: 3,
+            version: 4,
             ..Default::default()
         };
         let xplat_manager = XPlatManager::new();
@@ -160,7 +184,7 @@ impl GLCtxManager {
                 interop_dev_info: info,
                 xplat_manager: xplat_manager,
             }))
-        } else if !glx_display.is_null() {
+        } else if !glx_display.is_null() && cfg!(glx) {
             let glx_query_device_info_func = xplat_manager
                 .MesaGLInteropGLXQueryDeviceInfo()?
                 .ok_or(CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR)?;
@@ -193,7 +217,7 @@ impl GLCtxManager {
     ) -> CLResult<GLExportManager> {
         let xplat_manager = &self.xplat_manager;
         let mut export_in = mesa_glinterop_export_in {
-            version: 1,
+            version: 2,
             target: target,
             obj: texture,
             miplevel: miplevel as u32,
@@ -203,6 +227,14 @@ impl GLCtxManager {
 
         let mut export_out = mesa_glinterop_export_out {
             version: 2,
+            ..Default::default()
+        };
+
+        let mut fd = -1;
+
+        let mut flush_out = mesa_glinterop_flush_out {
+            version: 1,
+            fence_fd: &mut fd,
             ..Default::default()
         };
 
@@ -217,14 +249,12 @@ impl GLCtxManager {
                         .MesaGLInteropEGLFlushObjects()?
                         .ok_or(CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR)?;
 
-                    let mut fd = -1;
                     let err_flush = egl_flush_objects_func(
                         disp.cast(),
                         ctx.cast(),
                         1,
                         &mut export_in,
-                        ptr::null_mut(),
-                        &mut fd,
+                        &mut flush_out,
                     );
                     // TODO: use fence_server_sync in ctx inside the queue thread
                     let fence_fd = FenceFd { fd };
@@ -253,14 +283,12 @@ impl GLCtxManager {
                         .MesaGLInteropGLXFlushObjects()?
                         .ok_or(CL_INVALID_GL_SHAREGROUP_REFERENCE_KHR)?;
 
-                    let mut fd = -1;
                     let err_flush = glx_flush_objects_func(
                         disp.cast(),
                         ctx.cast(),
                         1,
                         &mut export_in,
-                        ptr::null_mut(),
-                        &mut fd,
+                        &mut flush_out,
                     );
                     // TODO: use fence_server_sync in ctx inside the queue thread
                     let fence_fd = FenceFd { fd };
@@ -289,7 +317,7 @@ impl GLCtxManager {
 
         // CL_INVALID_GL_OBJECT if bufobj is not a GL buffer object or is a GL buffer
         // object but does not have an existing data store or the size of the buffer is 0.
-        if target == GL_ARRAY_BUFFER && export_out.buf_size == 0 {
+        if [GL_ARRAY_BUFFER, GL_TEXTURE_BUFFER].contains(&target) && export_out.buf_size == 0 {
             return Err(CL_INVALID_GL_OBJECT);
         }
 
@@ -305,6 +333,7 @@ pub struct GLMemProps {
     pub height: u16,
     pub depth: u16,
     pub width: u32,
+    pub offset: u32,
     pub array_size: u16,
     pub pixel_size: u8,
     pub stride: u32,
@@ -328,7 +357,7 @@ pub struct GLExportManager {
 impl GLExportManager {
     pub fn get_gl_mem_props(&self) -> CLResult<GLMemProps> {
         let pixel_size = if self.is_gl_buffer() {
-            0
+            1
         } else {
             format_from_gl(self.export_out.internal_format)
                 .ok_or(CL_OUT_OF_HOST_MEMORY)?
@@ -340,6 +369,7 @@ impl GLExportManager {
         let mut depth = self.export_out.depth as u16;
         let mut width = self.export_out.width;
         let mut array_size = 1;
+        let mut offset = 0;
 
         // some fixups
         match self.export_in.target {
@@ -352,9 +382,10 @@ impl GLExportManager {
                 array_size = depth;
                 depth = 1;
             }
-            GL_ARRAY_BUFFER => {
+            GL_ARRAY_BUFFER | GL_TEXTURE_BUFFER => {
                 array_size = 1;
                 width = self.export_out.buf_size as u32;
+                offset = self.export_out.buf_offset as u32;
                 height = 1;
                 depth = 1;
             }
@@ -368,6 +399,7 @@ impl GLExportManager {
             height: height,
             depth: depth,
             width: width,
+            offset: offset,
             array_size: array_size,
             pixel_size: pixel_size,
             stride: self.export_out.stride,
@@ -424,18 +456,17 @@ pub fn create_shadow_slice(
     Ok(slice)
 }
 
-pub fn copy_cube_to_slice(
-    q: &Arc<Queue>,
-    ctx: &PipeContext,
-    mem_objects: &[Arc<Mem>],
-) -> CLResult<()> {
+pub fn copy_cube_to_slice(q: &Arc<Queue>, ctx: &PipeContext, mem_objects: &[Mem]) -> CLResult<()> {
     for mem in mem_objects {
-        let gl_obj = mem.gl_obj.as_ref().unwrap();
+        let Mem::Image(image) = mem else {
+            continue;
+        };
+        let gl_obj = image.gl_obj.as_ref().unwrap();
         if !is_cube_map_face(gl_obj.gl_object_target) {
             continue;
         }
-        let width = mem.image_desc.image_width;
-        let height = mem.image_desc.image_height;
+        let width = image.image_desc.image_width;
+        let height = image.image_desc.image_height;
 
         // Fill in values for doing the copy
         let idx = get_array_slice_idx(gl_obj.gl_object_target);
@@ -444,7 +475,7 @@ pub fn copy_cube_to_slice(
         let region = CLVec::<usize>::new([width, height, 1]);
         let src_bx = create_pipe_box(src_origin, region, CL_MEM_OBJECT_IMAGE2D_ARRAY)?;
 
-        let cl_res = mem.get_res_of_dev(q.device)?;
+        let cl_res = image.get_res_of_dev(q.device)?;
         let gl_res = gl_obj.shadow_map.as_ref().unwrap().get(cl_res).unwrap();
 
         ctx.resource_copy_region(gl_res.as_ref(), cl_res.as_ref(), &dst_offset, &src_bx);
@@ -453,18 +484,17 @@ pub fn copy_cube_to_slice(
     Ok(())
 }
 
-pub fn copy_slice_to_cube(
-    q: &Arc<Queue>,
-    ctx: &PipeContext,
-    mem_objects: &[Arc<Mem>],
-) -> CLResult<()> {
+pub fn copy_slice_to_cube(q: &Arc<Queue>, ctx: &PipeContext, mem_objects: &[Mem]) -> CLResult<()> {
     for mem in mem_objects {
-        let gl_obj = mem.gl_obj.as_ref().unwrap();
+        let Mem::Image(image) = mem else {
+            continue;
+        };
+        let gl_obj = image.gl_obj.as_ref().unwrap();
         if !is_cube_map_face(gl_obj.gl_object_target) {
             continue;
         }
-        let width = mem.image_desc.image_width;
-        let height = mem.image_desc.image_height;
+        let width = image.image_desc.image_width;
+        let height = image.image_desc.image_height;
 
         // Fill in values for doing the copy
         let idx = get_array_slice_idx(gl_obj.gl_object_target) as u32;
@@ -473,7 +503,7 @@ pub fn copy_slice_to_cube(
         let region = CLVec::<usize>::new([width, height, 1]);
         let src_bx = create_pipe_box(src_origin, region, CL_MEM_OBJECT_IMAGE2D_ARRAY)?;
 
-        let cl_res = mem.get_res_of_dev(q.device)?;
+        let cl_res = image.get_res_of_dev(q.device)?;
         let gl_res = gl_obj.shadow_map.as_ref().unwrap().get(cl_res).unwrap();
 
         ctx.resource_copy_region(cl_res.as_ref(), gl_res.as_ref(), &dst_offset, &src_bx);
@@ -510,6 +540,7 @@ pub fn target_from_gl(target: u32) -> CLResult<(u32, u32)> {
     // internal format does not map to a supported OpenCL image format.
     Ok(match target {
         GL_ARRAY_BUFFER => (CL_MEM_OBJECT_BUFFER, CL_GL_OBJECT_BUFFER),
+        GL_TEXTURE_BUFFER => (CL_MEM_OBJECT_IMAGE1D_BUFFER, CL_GL_OBJECT_TEXTURE_BUFFER),
         GL_RENDERBUFFER => (CL_MEM_OBJECT_IMAGE2D, CL_GL_OBJECT_RENDERBUFFER),
         GL_TEXTURE_1D => (CL_MEM_OBJECT_IMAGE1D, CL_GL_OBJECT_TEXTURE1D),
         GL_TEXTURE_1D_ARRAY => (CL_MEM_OBJECT_IMAGE1D_ARRAY, CL_GL_OBJECT_TEXTURE1D_ARRAY),

@@ -7,13 +7,12 @@ use mesa_rust_gen::*;
 use rusticl_opencl_gen::*;
 
 use std::env;
-use std::sync::Arc;
 use std::sync::Once;
 
 #[repr(C)]
 pub struct Platform {
     dispatch: &'static cl_icd_dispatch,
-    pub devs: Vec<Arc<Device>>,
+    pub devs: Vec<Device>,
 }
 
 pub struct PlatformDebug {
@@ -21,6 +20,7 @@ pub struct PlatformDebug {
     pub clc: bool,
     pub program: bool,
     pub sync_every_event: bool,
+    pub validate_spirv: bool,
 }
 
 pub struct PlatformFeatures {
@@ -53,6 +53,7 @@ gen_cl_exts!([
     (1, 0, 0, "cl_khr_icd"),
     (1, 0, 0, "cl_khr_il_program"),
     (1, 0, 0, "cl_khr_spirv_no_integer_wrap_decoration"),
+    (1, 0, 0, "cl_khr_suggested_local_work_size"),
 ]);
 
 static mut PLATFORM: Platform = Platform {
@@ -64,6 +65,7 @@ static mut PLATFORM_DBG: PlatformDebug = PlatformDebug {
     clc: false,
     program: false,
     sync_every_event: false,
+    validate_spirv: false,
 };
 static mut PLATFORM_FEATURES: PlatformFeatures = PlatformFeatures {
     fp16: false,
@@ -79,6 +81,8 @@ fn load_env() {
                 "clc" => debug.clc = true,
                 "program" => debug.program = true,
                 "sync" => debug.sync_every_event = true,
+                "validate" => debug.validate_spirv = true,
+                "" => (),
                 _ => eprintln!("Unknown RUSTICL_DEBUG flag found: {}", flag),
             }
         }
@@ -90,6 +94,7 @@ fn load_env() {
             match flag {
                 "fp16" => features.fp16 = true,
                 "fp64" => features.fp64 = true,
+                "" => (),
                 _ => eprintln!("Unknown RUSTICL_FEATURES flag found: {}", flag),
             }
         }

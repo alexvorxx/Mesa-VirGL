@@ -96,8 +96,13 @@ struct fd_screen {
       /* Enable EGL throttling (default true).
        */
       bool enable_throttling;
+
+      /* If "dual_color_blend_by_location" workaround is enabled
+       */
+      bool dual_color_blend_by_location;
    } driconf;
 
+   struct fd_dev_info dev_info;
    const struct fd_dev_info *info;
    uint32_t ccu_offset_gmem;
    uint32_t ccu_offset_bypass;

@@ -263,7 +263,7 @@ process_live_temps_per_block(Program* program, live& lives, Block* block, unsign
    } else {
       for (unsigned t : live) {
          RegClass rc = program->temp_rc[t];
-         std::vector<unsigned>& preds = rc.is_linear() ? block->linear_preds : block->logical_preds;
+         Block::edge_vec& preds = rc.is_linear() ? block->linear_preds : block->logical_preds;
 
 #ifndef NDEBUG
          if (preds.empty())
@@ -285,7 +285,7 @@ process_live_temps_per_block(Program* program, live& lives, Block* block, unsign
       Instruction* insn = block->instructions[phi_idx].get();
       assert(is_phi(insn));
       /* directly insert into the predecessors live-out set */
-      std::vector<unsigned>& preds =
+      Block::edge_vec& preds =
          insn->opcode == aco_opcode::p_phi ? block->logical_preds : block->linear_preds;
       for (unsigned i = 0; i < preds.size(); ++i) {
          Operand& operand = insn->operands[i];
@@ -464,8 +464,7 @@ update_vgpr_sgpr_demand(Program* program, const RegisterDemand new_demand)
          get_vgpr_alloc(program, new_demand.vgpr) + program->config->num_shared_vgprs / 2;
       program->num_waves =
          std::min<uint16_t>(program->num_waves, program->dev.physical_vgprs / vgpr_demand);
-      uint16_t max_waves = program->dev.max_wave64_per_simd * (64 / program->wave_size);
-      program->num_waves = std::min(program->num_waves, max_waves);
+      program->num_waves = std::min(program->num_waves, program->dev.max_waves_per_simd);
 
       /* Adjust for LDS and workgroup multiples and calculate max_reg_demand */
       program->num_waves = max_suitable_waves(program, program->num_waves);

@@ -32,6 +32,8 @@
 #else
 
 #include <errno.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <sys/types.h>
 
 #define DRM_NODE_PRIMARY 0
@@ -43,6 +45,14 @@
 #define DRM_BUS_USB       1
 #define DRM_BUS_PLATFORM  2
 #define DRM_BUS_HOST1X    3
+
+typedef unsigned int drm_magic_t;
+
+static int
+drmGetMagic(int fd, drm_magic_t * magic)
+{
+  return -EINVAL;
+}
 
 typedef struct _drmPciDeviceInfo {
     uint16_t vendor_id;
@@ -90,6 +100,7 @@ typedef struct _drmDevice {
     /* ... */
 } drmDevice, *drmDevicePtr;
 
+#define DRM_DEVICE_GET_PCI_REVISION (1 << 0)
 static inline int
 drmGetDevice2(int fd, uint32_t flags, drmDevicePtr *device)
 {

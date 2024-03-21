@@ -36,6 +36,7 @@
 #include "broadcom/compiler/v3d_compiler.h"
 #include "broadcom/common/v3d_macros.h"
 #include "broadcom/common/v3d_util.h"
+#include "broadcom/common/v3d_csd.h"
 #include "broadcom/cle/v3dx_pack.h"
 
 void
@@ -173,7 +174,7 @@ v3d_predraw_check_stage_inputs(struct pipe_context *pctx,
                         v3d_update_shadow_texture(pctx, &view->base);
 
                 v3d_flush_jobs_writing_resource(v3d, view->texture,
-                                                V3D_FLUSH_DEFAULT,
+                                                V3D_FLUSH_NOT_CURRENT_JOB,
                                                 s == PIPE_SHADER_COMPUTE);
         }
 
@@ -831,13 +832,15 @@ v3d_update_job_ez(struct v3d_context *v3d, struct v3d_job *job)
                 return;
         }
 
-        /* If this is the first time we update EZ state for this job we first
-         * check if there is anything that requires disabling it completely
-         * for the entire job (based on state that is not related to the
-         * current draw call and pipeline state).
+        /* When we update the EZ state we first check if there is anything
+         * that requires disabling it completely for the entire job (based on
+         * state that is not related to the current draw call and pipeline
+         * state).
          */
-        if (!job->decided_global_ez_enable) {
+        if (!job->decided_global_ez_enable ||
+            job->global_ez_zsa_decision_state != v3d->zsa) {
                 job->decided_global_ez_enable = true;
+                job->global_ez_zsa_decision_state = v3d->zsa;
 
                 if (!job->zsbuf) {
                         job->first_ez_state = V3D_EZ_DISABLED;
@@ -846,19 +849,29 @@ v3d_update_job_ez(struct v3d_context *v3d, struct v3d_job *job)
                 }
 
                 /* GFXH-1918: the early-Z buffer may load incorrect depth
-                 * values if the frame has odd width or height. Disable early-Z
-                 * in this case.
+                 * values if the frame has odd width or height, or if the
+                 * buffer is 16-bit and multisampled. Disable early-Z in these
+                 * cases.
                  */
                 bool needs_depth_load = v3d->zsa && job->zsbuf &&
                         v3d->zsa->base.depth_enabled &&
                         (PIPE_CLEAR_DEPTH & ~job->clear);
-                if (needs_depth_load &&
-                     ((job->draw_width % 2 != 0) || (job->draw_height % 2 != 0))) {
-                        perf_debug("Loading depth buffer for framebuffer with odd width "
-                                   "or height disables early-Z tests\n");
-                        job->first_ez_state = V3D_EZ_DISABLED;
-                        job->ez_state = V3D_EZ_DISABLED;
-                        return;
+                if (needs_depth_load) {
+                        if (job->zsbuf->texture->format == PIPE_FORMAT_Z16_UNORM &&
+                            job->zsbuf->texture->nr_samples > 0) {
+                                perf_debug("Loading 16-bit multisampled depth buffer "
+                                           "disables early-Z tests\n");
+                                job->first_ez_state = V3D_EZ_DISABLED;
+                                job->ez_state = V3D_EZ_DISABLED;
+                                return;
+                        }
+                        if ((job->draw_width % 2 != 0) || (job->draw_height % 2 != 0)) {
+                                perf_debug("Loading depth buffer for framebuffer with "
+                                           "odd width or height disables early-Z tests\n");
+                                job->first_ez_state = V3D_EZ_DISABLED;
+                                job->ez_state = V3D_EZ_DISABLED;
+                                return;
+                        }
                 }
         }
 
@@ -1025,12 +1038,16 @@ v3d_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
                 u_foreach_bit(i, v3d->ssbo[s].enabled_mask) {
                         v3d_job_add_write_resource(job,
                                                    v3d->ssbo[s].sb[i].buffer);
+                        struct v3d_resource *rsc= v3d_resource(v3d->ssbo[s].sb[i].buffer);
+                        rsc->graphics_written = true;
                         job->tmu_dirty_rcl = true;
                 }
 
                 u_foreach_bit(i, v3d->shaderimg[s].enabled_mask) {
                         v3d_job_add_write_resource(job,
                                                    v3d->shaderimg[s].si[i].base.resource);
+                        struct v3d_resource *rsc= v3d_resource(v3d->shaderimg[s].si[i].base.resource);
+                        rsc->graphics_written = true;
                         job->tmu_dirty_rcl = true;
                 }
         }
@@ -1267,22 +1284,6 @@ v3d_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
                 v3d_flush(pctx);
 }
 
-#define V3D_CSD_CFG012_WG_COUNT_SHIFT 16
-#define V3D_CSD_CFG012_WG_OFFSET_SHIFT 0
-/* Allow this dispatch to start while the last one is still running. */
-#define V3D_CSD_CFG3_OVERLAP_WITH_PREV (1 << 26)
-/* Maximum supergroup ID.  6 bits. */
-#define V3D_CSD_CFG3_MAX_SG_ID_SHIFT 20
-/* Batches per supergroup minus 1.  8 bits. */
-#define V3D_CSD_CFG3_BATCHES_PER_SG_M1_SHIFT 12
-/* Workgroups per supergroup, 0 means 16 */
-#define V3D_CSD_CFG3_WGS_PER_SG_SHIFT 8
-#define V3D_CSD_CFG3_WG_SIZE_SHIFT 0
-
-#define V3D_CSD_CFG5_PROPAGATE_NANS (1 << 2)
-#define V3D_CSD_CFG5_SINGLE_SEG (1 << 1)
-#define V3D_CSD_CFG5_THREADING (1 << 0)
-
 static void
 v3d_launch_grid(struct pipe_context *pctx, const struct pipe_grid_info *info)
 {
@@ -1405,7 +1406,7 @@ v3d_launch_grid(struct pipe_context *pctx, const struct pipe_grid_info *info)
                 v3d->compute_shared_memory =
                         v3d_bo_alloc(v3d->screen,
                                      v3d->prog.compute->prog_data.compute->shared_size *
-                                     wgs_per_sg,
+                                     num_wgs,
                                      "shared_vars");
         }
 

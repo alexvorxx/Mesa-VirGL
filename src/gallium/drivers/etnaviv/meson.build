@@ -57,6 +57,12 @@ files_etnaviv = files(
   'etnaviv_format.c',
   'etnaviv_format.h',
   'etnaviv_internal.h',
+  'etnaviv_ml.c',
+  'etnaviv_ml.h',
+  'etnaviv_ml_nn.c',
+  'etnaviv_ml_nn.h',
+  'etnaviv_ml_tp.c',
+  'etnaviv_ml_tp.h',
   'etnaviv_nir_lower_source_mods.c',
   'etnaviv_nir_lower_texture.c',
   'etnaviv_nir_lower_ubo_to_uniform.c',
@@ -111,8 +117,8 @@ libetnaviv = static_library(
   include_directories : [
     inc_include, inc_src, inc_gallium, inc_gallium_aux, inc_etnaviv,
   ],
-  link_with: libetnaviv_drm,
-  dependencies : [dep_libdrm, idep_nir_headers, idep_mesautil],
+  link_with: [libetnaviv_drm],
+  dependencies : [dep_libdrm, idep_nir_headers, idep_mesautil, idep_libetnaviv_decode],
 )
 
 etnaviv_compiler = executable(

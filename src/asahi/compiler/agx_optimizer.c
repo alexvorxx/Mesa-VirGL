@@ -3,8 +3,10 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "agx_builder.h"
 #include "agx_compiler.h"
 #include "agx_minifloat.h"
+#include "agx_opcodes.h"
 
 /* AGX peephole optimizer responsible for instruction combining. It operates in
  * a forward direction and a backward direction, in each case traversing in
@@ -129,18 +131,15 @@ image_write_source_can_be_immediate(agx_instr *I, unsigned s)
 }
 
 static void
-agx_optimizer_inline_imm(agx_instr **defs, agx_instr *I, unsigned srcs,
-                         bool is_float)
+agx_optimizer_inline_imm(agx_instr **defs, agx_instr *I, bool is_float)
 {
-   for (unsigned s = 0; s < srcs; ++s) {
+   agx_foreach_ssa_src(I, s) {
       agx_index src = I->src[s];
-      if (src.type != AGX_INDEX_NORMAL)
-         continue;
       if (src.neg)
          continue;
 
       agx_instr *def = defs[src.value];
-      if (def->op != AGX_OPCODE_MOV_IMM)
+      if (!def || def->op != AGX_OPCODE_MOV_IMM)
          continue;
 
       uint8_t value = def->imm;
@@ -149,7 +148,7 @@ agx_optimizer_inline_imm(agx_instr **defs, agx_instr *I, unsigned srcs,
       bool float_src = is_float;
 
       /* fcmpsel takes first 2 as floats specially */
-      if (s < 2 && I->op == AGX_OPCODE_FCMPSEL)
+      if (s < 2 && (I->op == AGX_OPCODE_FCMPSEL || I->op == AGX_OPCODE_FCMP))
          float_src = true;
       if (I->op == AGX_OPCODE_ST_TILE && s == 0)
          continue;
@@ -160,8 +159,11 @@ agx_optimizer_inline_imm(agx_instr **defs, agx_instr *I, unsigned srcs,
            I->op == AGX_OPCODE_LOCAL_ATOMIC) &&
           s != 2)
          continue;
-      if ((I->op == AGX_OPCODE_LOCAL_LOAD || I->op == AGX_OPCODE_DEVICE_LOAD) &&
+      if ((I->op == AGX_OPCODE_LOCAL_LOAD || I->op == AGX_OPCODE_DEVICE_LOAD ||
+           I->op == AGX_OPCODE_STACK_STORE) &&
           s != 1)
+         continue;
+      if (I->op == AGX_OPCODE_SPLIT)
          continue;
 
       if (I->op == AGX_OPCODE_IMAGE_WRITE &&
@@ -183,6 +185,27 @@ agx_optimizer_inline_imm(agx_instr **defs, agx_instr *I, unsigned srcs,
          I->src[s] = agx_abs(agx_immediate(value_u16));
       }
    }
+}
+
+/*
+ * Fuse not into and/or/xor. Specifically, acts on not and fuses:
+ *
+ *    not(and(x, y) -> nand(x, y)
+ *    not(or(x, y) -> nor(x, y)
+ *    not(xor(x, y) -> xnor(x, y)
+ */
+static bool
+agx_optimizer_not(agx_instr *I, agx_instr *use)
+{
+   /* Check for bit op and use of not op */
+   if (I->op != AGX_OPCODE_BITOP || use->op != AGX_OPCODE_NOT)
+      return false;
+
+   /* Remap operation to the appropriate one */
+   I->truth_table ^= 0xF;
+   I->dest[0] = use->dest[0];
+
+   return true;
 }
 
 static bool
@@ -210,7 +233,7 @@ agx_optimizer_fmov_rev(agx_instr *I, agx_instr *use)
 }
 
 static void
-agx_optimizer_copyprop(agx_instr **defs, agx_instr *I)
+agx_optimizer_copyprop(agx_context *ctx, agx_instr **defs, agx_instr *I)
 {
    agx_foreach_ssa_src(I, s) {
       agx_index src = I->src[s];
@@ -227,6 +250,28 @@ agx_optimizer_copyprop(agx_instr **defs, agx_instr *I)
        */
       if (def->src[0].size != src.size)
          continue;
+
+      /* Optimize split(64-bit uniform) so we can get better copyprop of the
+       * 32-bit uniform parts. This helps reduce moves with 64-bit uniforms.
+       */
+      if (I->op == AGX_OPCODE_SPLIT && def->src[0].type == AGX_INDEX_UNIFORM &&
+          src.size == AGX_SIZE_64 && I->dest[0].size == AGX_SIZE_32) {
+
+         assert(I->nr_dests == 2 && "decomposing a 64-bit scalar");
+         agx_builder b = agx_init_builder(ctx, agx_before_instr(I));
+
+         agx_index lo = def->src[0];
+         lo.size = AGX_SIZE_32;
+
+         agx_index hi = lo;
+         hi.value += 2 /* half of 64-bits = 32-bits = 2 x 16-bits */;
+
+         defs[I->dest[0].value] = agx_mov_to(&b, I->dest[0], lo);
+         defs[I->dest[1].value] = agx_mov_to(&b, I->dest[1], hi);
+
+         agx_remove_instruction(I);
+         continue;
+      }
 
       /* Immediate inlining happens elsewhere */
       if (def->src[0].type == AGX_INDEX_IMMEDIATE)
@@ -322,12 +367,69 @@ agx_optimizer_cmpsel(agx_instr **defs, agx_instr *I)
    }
 }
 
+/*
+ * Fuse conditions into ballots:
+ *
+ *    ballot(cmp(x, y)) -> ballot_cmp(x, y)
+ */
+static void
+agx_optimizer_ballot(agx_context *ctx, agx_instr **defs, agx_instr *I)
+{
+   agx_instr *def = defs[I->src[0].value];
+   if (!def || (def->op != AGX_OPCODE_ICMP && def->op != AGX_OPCODE_FCMP))
+      return;
+
+   bool quad = I->op == AGX_OPCODE_QUAD_BALLOT;
+   assert(quad || I->op == AGX_OPCODE_BALLOT);
+
+   /* Replace with a fused instruction since the # of sources changes */
+   agx_builder b = agx_init_builder(ctx, agx_before_instr(I));
+
+   agx_instr *fused = agx_icmp_ballot_to(
+      &b, I->dest[0], def->src[0], def->src[1], def->icond, def->invert_cond);
+
+   if (def->op == AGX_OPCODE_ICMP) {
+      fused->op = quad ? AGX_OPCODE_ICMP_QUAD_BALLOT : AGX_OPCODE_ICMP_BALLOT;
+   } else {
+      fused->op = quad ? AGX_OPCODE_FCMP_QUAD_BALLOT : AGX_OPCODE_FCMP_BALLOT;
+   }
+
+   agx_remove_instruction(I);
+}
+
+/*
+ * Fuse not srcs into bitop.
+ */
+static void
+agx_optimizer_bitop(agx_instr **defs, agx_instr *I)
+{
+   agx_foreach_ssa_src(I, s) {
+      agx_index src = I->src[s];
+      agx_instr *def = defs[src.value];
+
+      /* Check for not src */
+      if (def->op != AGX_OPCODE_NOT)
+         continue;
+
+      /* Select new operation */
+      if (s == 0) {
+         I->truth_table =
+            ((I->truth_table & 0x5) << 1) | ((I->truth_table & 0xa) >> 1);
+      } else if (s == 1) {
+         I->truth_table = ((I->truth_table & 0x3) << 2) | (I->truth_table >> 2);
+      }
+
+      /* Fuse */
+      I->src[s] = def->src[0];
+   }
+}
+
 static void
 agx_optimizer_forward(agx_context *ctx)
 {
    agx_instr **defs = calloc(ctx->alloc, sizeof(*defs));
 
-   agx_foreach_instr_global(ctx, I) {
+   agx_foreach_instr_global_safe(ctx, I) {
       struct agx_opcode_info info = agx_opcodes_info[I->op];
 
       agx_foreach_ssa_dest(I, d) {
@@ -335,10 +437,11 @@ agx_optimizer_forward(agx_context *ctx)
       }
 
       /* Optimize moves */
-      agx_optimizer_copyprop(defs, I);
+      agx_optimizer_copyprop(ctx, defs, I);
 
       /* Propagate fmov down */
-      if (info.is_float || I->op == AGX_OPCODE_FCMPSEL)
+      if (info.is_float || I->op == AGX_OPCODE_FCMPSEL ||
+          I->op == AGX_OPCODE_FCMP)
          agx_optimizer_fmov(defs, I);
 
       /* Inline immediates if we can. TODO: systematic */
@@ -347,12 +450,16 @@ agx_optimizer_forward(agx_context *ctx)
           I->op != AGX_OPCODE_IMAGE_LOAD && I->op != AGX_OPCODE_TEXTURE_LOAD &&
           I->op != AGX_OPCODE_UNIFORM_STORE &&
           I->op != AGX_OPCODE_BLOCK_IMAGE_STORE)
-         agx_optimizer_inline_imm(defs, I, info.nr_srcs, info.is_float);
+         agx_optimizer_inline_imm(defs, I, info.is_float);
 
       if (I->op == AGX_OPCODE_IF_ICMP)
          agx_optimizer_if_cmp(defs, I);
       else if (I->op == AGX_OPCODE_ICMPSEL)
          agx_optimizer_cmpsel(defs, I);
+      else if (I->op == AGX_OPCODE_BALLOT || I->op == AGX_OPCODE_QUAD_BALLOT)
+         agx_optimizer_ballot(ctx, defs, I);
+      else if (I->op == AGX_OPCODE_BITOP)
+         agx_optimizer_bitop(defs, I);
    }
 
    free(defs);
@@ -388,6 +495,11 @@ agx_optimizer_backward(agx_context *ctx)
 
       if (!use || BITSET_TEST(multiple, I->dest[0].value))
          continue;
+
+      if (agx_optimizer_not(I, use)) {
+         agx_remove_instruction(use);
+         continue;
+      }
 
       /* Destination has a single use, try to propagate */
       if (info.is_float && agx_optimizer_fmov_rev(I, use)) {

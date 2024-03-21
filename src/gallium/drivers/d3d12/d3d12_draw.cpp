@@ -443,7 +443,8 @@ fill_compute_state_vars(struct d3d12_context *ctx,
          cmd_sig_key->params_root_const_offset = size;
          size += 4;
          break;
-      case D3D12_STATE_VAR_TRANSFORM_GENERIC0: {
+      case D3D12_STATE_VAR_TRANSFORM_GENERIC0:
+      case D3D12_STATE_VAR_TRANSFORM_GENERIC1: {
          unsigned idx = shader->state_vars[j].var - D3D12_STATE_VAR_TRANSFORM_GENERIC0;
          ptr[0] = ctx->transform_state_vars[idx * 4];
          ptr[1] = ctx->transform_state_vars[idx * 4 + 1];
@@ -857,7 +858,7 @@ update_draw_auto(struct d3d12_context *ctx,
    d3d12_stream_output_target *target = (d3d12_stream_output_target *)so_arg;
 
    ctx->transform_state_vars[0] = ctx->gfx_pipeline_state.ves->strides[0];
-   ctx->transform_state_vars[1] = ctx->vbs[0].buffer_offset - so_arg->buffer_offset;
+   ctx->transform_state_vars[1] = 0;
    
    pipe_shader_buffer new_cs_ssbo;
    new_cs_ssbo.buffer = target->fill_buffer;
@@ -1308,7 +1309,8 @@ update_dispatch_indirect_with_sysvals(struct d3d12_context *ctx,
    output_buf_templ.usage = PIPE_USAGE_DEFAULT;
    *indirect_out = ctx->base.screen->resource_create(ctx->base.screen, &output_buf_templ);
 
-   struct pipe_box src_box = { (int)*indirect_offset_inout, 0, 0, sizeof(uint32_t) * 3, 1, 1 };
+   struct pipe_box src_box;
+   u_box_3d((int)*indirect_offset_inout, 0, 0, sizeof(uint32_t) * 3, 1, 1, &src_box);
    ctx->base.resource_copy_region(&ctx->base, *indirect_out, 0, 0, 0, 0, indirect_in, 0, &src_box);
    ctx->base.resource_copy_region(&ctx->base, *indirect_out, 0, src_box.width, 0, 0, indirect_in, 0, &src_box);
 

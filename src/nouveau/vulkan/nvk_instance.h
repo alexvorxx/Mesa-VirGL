@@ -7,10 +7,14 @@
 
 #include "nvk_private.h"
 
-#include "vulkan/runtime/vk_instance.h"
+#include "vk_instance.h"
+#include "util/xmlconfig.h"
 
 struct nvk_instance {
    struct vk_instance vk;
+
+   struct driOptionCache dri_options;
+   struct driOptionCache available_dri_options;
 
    uint8_t driver_build_sha[20];
 };

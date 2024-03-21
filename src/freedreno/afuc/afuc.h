@@ -103,6 +103,13 @@ typedef enum {
    OPC_STORE,
    OPC_LOAD,
 
+   /* A6xx added new opcodes that let you read/write the state of the
+    * SQE processor itself, like the call stack. This is mostly used by
+    * preemption but is also used to set the preempt routine entrypoint.
+    */
+   OPC_SREAD,
+   OPC_SWRITE,
+
    OPC_BRNEI,         /* relative branch (if $src != immed) */
    OPC_BREQI,         /* relative branch (if $src == immed) */
    OPC_BRNEB,         /* relative branch (if bit not set) */
@@ -119,6 +126,7 @@ typedef enum {
    OPC_BRNE,
    OPC_JUMP,
    OPC_RAW_LITERAL,
+   OPC_JUMPTBL,
 } afuc_opc;
 
 /**
@@ -160,6 +168,7 @@ struct afuc_instr {
    uint8_t shift;
    uint8_t bit;
    uint8_t xmov;
+   uint8_t sds;
    uint32_t literal;
    int offset;
    const char *label;
@@ -169,9 +178,22 @@ struct afuc_instr {
    bool has_bit : 1;
    bool is_literal : 1;
    bool rep : 1;
+   bool preincrement : 1;
+   bool peek : 1;
 };
 
+/* Literal offsets are sometimes encoded as NOP instructions, which on a6xx+
+ * must have a high 8 bits of 0x01.
+ */
+static inline uint32_t
+afuc_nop_literal(uint32_t x, unsigned gpuver)
+{
+   assert((x >> 24) == 0);
+   return gpuver < 6 ? x : x | (1 << 24);
+}
+
 void print_control_reg(uint32_t id);
+void print_sqe_reg(uint32_t id);
 void print_pipe_reg(uint32_t id);
 
 #endif /* _AFUC_H_ */

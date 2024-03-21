@@ -59,6 +59,23 @@ i915_gem_create(struct anv_device *device,
       if (intel_ioctl(device->fd, DRM_IOCTL_I915_GEM_CREATE, &gem_create))
          return 0;
 
+      if ((alloc_flags & ANV_BO_ALLOC_HOST_CACHED_COHERENT) == ANV_BO_ALLOC_HOST_CACHED_COHERENT) {
+         /* We don't want to change these defaults if it's going to be shared
+          * with another process.
+          */
+         assert(!(alloc_flags & ANV_BO_ALLOC_EXTERNAL));
+
+         /* Regular objects are created I915_CACHING_CACHED on LLC platforms and
+          * I915_CACHING_NONE on non-LLC platforms.  For many internal state
+          * objects, we'd rather take the snooping overhead than risk forgetting
+          * a CLFLUSH somewhere.  Userptr objects are always created as
+          * I915_CACHING_CACHED, which on non-LLC means snooped so there's no
+          * need to do this there.
+          */
+         if (device->info->has_caching_uapi && !device->info->has_llc)
+            i915_gem_set_caching(device, gem_create.handle, I915_CACHING_CACHED);
+      }
+
       *actual_size = gem_create.size;
       return gem_create.handle;
    }
@@ -78,15 +95,17 @@ i915_gem_create(struct anv_device *device,
          flags |= I915_GEM_CREATE_EXT_FLAG_NEEDS_CPU_ACCESS;
 
    struct drm_i915_gem_create_ext_memory_regions ext_regions = {
-      .base = { .name = I915_GEM_CREATE_EXT_MEMORY_REGIONS },
       .num_regions = num_regions,
       .regions = (uintptr_t)i915_regions,
    };
    struct drm_i915_gem_create_ext gem_create = {
       .size = size,
-      .extensions = (uintptr_t) &ext_regions,
       .flags = flags,
    };
+
+   intel_i915_gem_add_ext(&gem_create.extensions,
+                          I915_GEM_CREATE_EXT_MEMORY_REGIONS,
+                          &ext_regions.base);
 
    struct drm_i915_gem_create_ext_set_pat set_pat_param = { 0 };
    if (device->info->has_set_pat_uapi) {
@@ -97,12 +116,19 @@ i915_gem_create(struct anv_device *device,
                              &set_pat_param.base);
    }
 
+   struct drm_i915_gem_create_ext_protected_content protected_param = { 0 };
+   if (alloc_flags & ANV_BO_ALLOC_PROTECTED) {
+      intel_i915_gem_add_ext(&gem_create.extensions,
+                             I915_GEM_CREATE_EXT_PROTECTED_CONTENT,
+                             &protected_param.base);
+   }
+
    if (intel_ioctl(device->fd, DRM_IOCTL_I915_GEM_CREATE_EXT, &gem_create))
       return 0;
 
    *actual_size = gem_create.size;
 
-   if (alloc_flags & ANV_BO_ALLOC_SNOOPED) {
+   if ((alloc_flags & ANV_BO_ALLOC_HOST_CACHED_COHERENT) == ANV_BO_ALLOC_HOST_CACHED_COHERENT) {
       /* We don't want to change these defaults if it's going to be shared
        * with another process.
        */
@@ -134,7 +160,8 @@ i915_gem_close(struct anv_device *device, struct anv_bo *bo)
 
 static void *
 i915_gem_mmap_offset(struct anv_device *device, struct anv_bo *bo,
-                     uint64_t size, uint32_t flags)
+                     uint64_t size, uint32_t flags,
+                     void *placed_addr)
 {
    struct drm_i915_gem_mmap_offset gem_mmap = {
       .handle = bo->gem_handle,
@@ -143,7 +170,8 @@ i915_gem_mmap_offset(struct anv_device *device, struct anv_bo *bo,
    if (intel_ioctl(device->fd, DRM_IOCTL_I915_GEM_MMAP_OFFSET, &gem_mmap))
       return MAP_FAILED;
 
-   return mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED,
+   return mmap(placed_addr, size, PROT_READ | PROT_WRITE,
+               (placed_addr != NULL ? MAP_FIXED : 0) | MAP_SHARED,
                device->fd, gem_mmap.offset);
 }
 
@@ -188,26 +216,26 @@ mmap_calc_flags(struct anv_device *device, struct anv_bo *bo)
 
 static void *
 i915_gem_mmap(struct anv_device *device, struct anv_bo *bo, uint64_t offset,
-              uint64_t size)
+              uint64_t size, void *placed_addr)
 {
    const uint32_t flags = mmap_calc_flags(device, bo);
 
    if (likely(device->physical->info.has_mmap_offset))
-      return i915_gem_mmap_offset(device, bo, size, flags);
+      return i915_gem_mmap_offset(device, bo, size, flags, placed_addr);
+   assert(placed_addr == NULL);
    return i915_gem_mmap_legacy(device, bo, offset, size, flags);
 }
 
-static int
-i915_vm_bind(struct anv_device *device, int num_binds,
-             struct anv_vm_bind *binds)
+static VkResult
+i915_vm_bind(struct anv_device *device, struct anv_sparse_submission *submit)
 {
-   return 0;
+   return VK_SUCCESS;
 }
 
-static int
+static VkResult
 i915_vm_bind_bo(struct anv_device *device, struct anv_bo *bo)
 {
-   return 0;
+   return VK_SUCCESS;
 }
 
 static uint32_t
@@ -268,6 +296,7 @@ anv_i915_kmd_backend_get(void)
       .vm_bind_bo = i915_vm_bind_bo,
       .vm_unbind_bo = i915_vm_bind_bo,
       .execute_simple_batch = i915_execute_simple_batch,
+      .execute_trtt_batch = i915_execute_trtt_batch,
       .queue_exec_locked = i915_queue_exec_locked,
       .queue_exec_trace = i915_queue_exec_trace,
       .bo_alloc_flags_to_bo_flags = i915_bo_alloc_flags_to_bo_flags,

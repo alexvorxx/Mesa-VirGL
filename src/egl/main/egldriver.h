@@ -73,6 +73,7 @@ struct wl_display;
 struct mesa_glinterop_device_info;
 struct mesa_glinterop_export_in;
 struct mesa_glinterop_export_out;
+struct mesa_glinterop_flush_out;
 typedef struct __GLsync *GLsync;
 
 /**
@@ -162,10 +163,6 @@ struct _egl_driver {
                                       struct wl_resource *buffer,
                                       EGLint attribute, EGLint *value);
 
-   /* for EGL_WL_create_wayland_buffer_from_image */
-   struct wl_buffer *(*CreateWaylandBufferFromImageWL)(_EGLDisplay *disp,
-                                                       _EGLImage *img);
-
    /* for EGL_EXT_swap_buffers_with_damage */
    EGLBoolean (*SwapBuffersWithDamageEXT)(_EGLDisplay *disp,
                                           _EGLSurface *surface,
@@ -208,7 +205,7 @@ struct _egl_driver {
    int (*GLInteropFlushObjects)(_EGLDisplay *disp, _EGLContext *ctx,
                                 unsigned count,
                                 struct mesa_glinterop_export_in *in,
-                                GLsync *sync, int *fence_fd);
+                                struct mesa_glinterop_flush_out *out);
 
    /* for EGL_EXT_image_dma_buf_import_modifiers */
    EGLBoolean (*QueryDmaBufFormatsEXT)(_EGLDisplay *disp, EGLint max_formats,

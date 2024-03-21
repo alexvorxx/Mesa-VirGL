@@ -105,6 +105,99 @@ validate_ir(Program* program)
    for (Block& block : program->blocks) {
       for (aco_ptr<Instruction>& instr : block.instructions) {
 
+         unsigned pck_defs = instr_info.definitions[(int)instr->opcode];
+         unsigned pck_ops = instr_info.operands[(int)instr->opcode];
+
+         if (pck_defs != 0) {
+            /* Before GFX10 v_cmpx also writes VCC. */
+            if (instr->isVOPC() && program->gfx_level < GFX10 && pck_defs == exec_hi)
+               pck_defs = vcc | (exec_hi << 8);
+
+            for (unsigned i = 0; i < 4; i++) {
+               uint32_t def = (pck_defs >> (i * 8)) & 0xff;
+               if (def == 0) {
+                  check(i == instr->definitions.size(), "Too many definitions", instr.get());
+                  break;
+               } else {
+                  check(i < instr->definitions.size(), "Too few definitions", instr.get());
+                  if (i >= instr->definitions.size())
+                     break;
+               }
+
+               if (def == m0) {
+                  check(instr->definitions[i].isFixed() && instr->definitions[i].physReg() == m0,
+                        "Definition needs m0", instr.get());
+               } else if (def == scc) {
+                  check(instr->definitions[i].isFixed() && instr->definitions[i].physReg() == scc,
+                        "Definition needs scc", instr.get());
+               } else if (def == exec_hi) {
+                  RegClass rc = instr->isSALU() ? s2 : program->lane_mask;
+                  check(instr->definitions[i].isFixed() &&
+                           instr->definitions[i].physReg() == exec &&
+                           instr->definitions[i].regClass() == rc,
+                        "Definition needs exec", instr.get());
+               } else if (def == exec_lo) {
+                  check(instr->definitions[i].isFixed() &&
+                           instr->definitions[i].physReg() == exec_lo &&
+                           instr->definitions[i].regClass() == s1,
+                        "Definition needs exec_lo", instr.get());
+               } else if (def == vcc) {
+                  check(instr->definitions[i].regClass() == program->lane_mask,
+                        "Definition has to be lane mask", instr.get());
+                  check(!instr->definitions[i].isFixed() ||
+                           instr->definitions[i].physReg() == vcc || instr->isVOP3() ||
+                           instr->isSDWA(),
+                        "Definition has to be vcc", instr.get());
+               } else {
+                  check(instr->definitions[i].size() == def, "Definition has wrong size",
+                        instr.get());
+               }
+            }
+         }
+
+         if (pck_ops != 0) {
+            for (unsigned i = 0; i < 4; i++) {
+               uint32_t op = (pck_ops >> (i * 8)) & 0xff;
+               if (op == 0) {
+                  check(i == instr->operands.size(), "Too many operands", instr.get());
+                  break;
+               } else {
+                  check(i < instr->operands.size(), "Too few operands", instr.get());
+                  if (i >= instr->operands.size())
+                     break;
+               }
+
+               if (op == m0) {
+                  check(instr->operands[i].isFixed() && instr->operands[i].physReg() == m0,
+                        "Operand needs m0", instr.get());
+               } else if (op == scc) {
+                  check(instr->operands[i].isFixed() && instr->operands[i].physReg() == scc,
+                        "Operand needs scc", instr.get());
+               } else if (op == exec_hi) {
+                  RegClass rc = instr->isSALU() ? s2 : program->lane_mask;
+                  check(instr->operands[i].isFixed() && instr->operands[i].physReg() == exec &&
+                           instr->operands[i].hasRegClass() && instr->operands[i].regClass() == rc,
+                        "Operand needs exec", instr.get());
+               } else if (op == exec_lo) {
+                  check(instr->operands[i].isFixed() && instr->operands[i].physReg() == exec_lo &&
+                           instr->operands[i].hasRegClass() && instr->operands[i].regClass() == s1,
+                        "Operand needs exec_lo", instr.get());
+               } else if (op == vcc) {
+                  check(instr->operands[i].hasRegClass() &&
+                           instr->operands[i].regClass() == program->lane_mask,
+                        "Operand has to be lane mask", instr.get());
+                  check(!instr->operands[i].isFixed() || instr->operands[i].physReg() == vcc ||
+                           instr->isVOP3(),
+                        "Operand has to be vcc", instr.get());
+               } else {
+                  check(instr->operands[i].size() == op ||
+                           (instr->operands[i].isFixed() && instr->operands[i].physReg() >= 128 &&
+                            instr->operands[i].physReg() < 256),
+                        "Operand has wrong size", instr.get());
+               }
+            }
+         }
+
          /* check base format */
          Format base_format = instr->format;
          base_format = (Format)((uint32_t)base_format & ~(uint32_t)Format::SDWA);
@@ -229,7 +322,10 @@ validate_ir(Program* program)
          }
 
          /* check opsel */
-         if (instr->isVOP3() || instr->isVOP1() || instr->isVOP2() || instr->isVOPC()) {
+         if (instr->opcode == aco_opcode::v_permlane16_b32 ||
+             instr->opcode == aco_opcode::v_permlanex16_b32) {
+            check(instr->valu().opsel <= 0x3, "Unexpected opsel for permlane", instr.get());
+         } else if (instr->isVOP3() || instr->isVOP1() || instr->isVOP2() || instr->isVOPC()) {
             VALU_instruction& valu = instr->valu();
             check(valu.opsel == 0 || program->gfx_level >= GFX9, "Opsel is only supported on GFX9+",
                   instr.get());
@@ -270,6 +366,7 @@ validate_ir(Program* program)
                bool flat = instr->isFlatLike();
                bool can_be_undef = is_phi(instr) || instr->isEXP() || instr->isReduction() ||
                                    instr->opcode == aco_opcode::p_create_vector ||
+                                   instr->opcode == aco_opcode::p_start_linear_vgpr ||
                                    instr->opcode == aco_opcode::p_jump_to_epilog ||
                                    instr->opcode == aco_opcode::p_dual_src_export_gfx11 ||
                                    instr->opcode == aco_opcode::p_end_with_regs ||
@@ -284,6 +381,24 @@ validate_ir(Program* program)
                check(instr->operands[i].isFixed() || instr->operands[i].isTemp() ||
                         instr->operands[i].isConstant(),
                      "Uninitialized Operand", instr.get());
+            }
+         }
+
+         for (Operand& op : instr->operands) {
+            if (op.isFixed() || !op.hasRegClass() || !op.regClass().is_linear_vgpr() ||
+                op.isUndefined())
+               continue;
+
+            /* Check that linear vgprs are late kill: this is to ensure linear VGPR operands and
+             * normal VGPR definitions don't try to use the same register, which is problematic
+             * because of assignment restrictions. */
+            check(op.isLateKill(), "Linear VGPR operands must be late kill", instr.get());
+
+            /* Only kill linear VGPRs in top-level blocks. Otherwise, we might have to move linear
+             * VGPRs to make space for normal ones and that isn't possible inside control flow. */
+            if (op.isKill()) {
+               check(block.kind & block_kind_top_level,
+                     "Linear VGPR operands must only be killed at top-level blocks", instr.get());
             }
          }
 
@@ -358,7 +473,8 @@ validate_ir(Program* program)
                      continue;
                   }
                   if (instr->opcode == aco_opcode::v_permlane16_b32 ||
-                      instr->opcode == aco_opcode::v_permlanex16_b32) {
+                      instr->opcode == aco_opcode::v_permlanex16_b32 ||
+                      instr->opcode == aco_opcode::v_permlane64_b32) {
                      check(i != 0 || op.isOfType(RegType::vgpr),
                            "Operand 0 of v_permlane must be VGPR", instr.get());
                      check(i == 0 || op.isOfType(RegType::sgpr) || op.isConstant(),
@@ -430,20 +546,26 @@ validate_ir(Program* program)
 
          switch (instr->format) {
          case Format::PSEUDO: {
-            if (instr->opcode == aco_opcode::p_create_vector) {
+            if (instr->opcode == aco_opcode::p_create_vector ||
+                instr->opcode == aco_opcode::p_start_linear_vgpr) {
                unsigned size = 0;
                for (const Operand& op : instr->operands) {
                   check(op.bytes() < 4 || size % 4 == 0, "Operand is not aligned", instr.get());
                   size += op.bytes();
                }
-               check(size == instr->definitions[0].bytes(),
-                     "Definition size does not match operand sizes", instr.get());
+               if (!instr->operands.empty() || instr->opcode == aco_opcode::p_create_vector) {
+                  check(size == instr->definitions[0].bytes(),
+                        "Definition size does not match operand sizes", instr.get());
+               }
                if (instr->definitions[0].regClass().type() == RegType::sgpr) {
                   for (const Operand& op : instr->operands) {
                      check(op.isConstant() || op.regClass().type() == RegType::sgpr,
                            "Wrong Operand type for scalar vector", instr.get());
                   }
                }
+               if (instr->opcode == aco_opcode::p_start_linear_vgpr)
+                  check(instr->definitions[0].regClass().is_linear_vgpr(),
+                        "Definition must be linear VGPR", instr.get());
             } else if (instr->opcode == aco_opcode::p_extract_vector) {
                check(!instr->operands[0].isConstant() && instr->operands[1].isConstant(),
                      "Wrong Operand types", instr.get());
@@ -583,15 +705,6 @@ validate_ir(Program* program)
                      instr->operands[i].isOfType(RegType::vgpr) || instr->operands[i].isUndefined(),
                      "Operands of p_dual_src_export_gfx11 must be VGPRs or undef", instr.get());
                }
-            } else if (instr->opcode == aco_opcode::p_start_linear_vgpr) {
-               check(instr->definitions.size() == 1, "Must have one definition", instr.get());
-               check(instr->operands.size() <= 1, "Must have one or zero operands", instr.get());
-               if (!instr->definitions.empty())
-                  check(instr->definitions[0].regClass().is_linear_vgpr(),
-                        "Definition must be linear VGPR", instr.get());
-               if (!instr->definitions.empty() && !instr->operands.empty())
-                  check(instr->definitions[0].bytes() == instr->operands[0].bytes(),
-                        "Operand size must match definition", instr.get());
             }
             break;
          }

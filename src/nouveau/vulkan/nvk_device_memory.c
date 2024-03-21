@@ -12,12 +12,13 @@
 #include "nvk_physical_device.h"
 
 #include "nv_push.h"
+#include "util/u_atomic.h"
 
 #include <inttypes.h>
 #include <sys/mman.h>
 
 #include "nvtypes.h"
-#include "nvk_cl902d.h"
+#include "nvk_cl90b5.h"
 
 /* Supports opaque fd only */
 const VkExternalMemoryProperties nvk_opaque_fd_mem_props = {
@@ -53,46 +54,36 @@ zero_vram(struct nvk_device *dev, struct nouveau_ws_bo *bo)
 
    uint64_t addr = bo->offset;
 
-   /* can't go higher for whatever reason */
-   uint32_t pitch = 1 << 19;
+   assert((bo->size % 4096) == 0);
+   assert((bo->size / 4096) < (1 << 15));
 
-   P_IMMD(p, NV902D, SET_OPERATION, V_SRCCOPY);
+   P_MTHD(p, NV90B5, OFFSET_OUT_UPPER);
+   P_NV90B5_OFFSET_OUT_UPPER(p, addr >> 32);
+   P_NV90B5_OFFSET_OUT_LOWER(p, addr & 0xffffffff);
+   P_NV90B5_PITCH_IN(p, 4096);
+   P_NV90B5_PITCH_OUT(p, 4096);
+   P_NV90B5_LINE_LENGTH_IN(p, (4096 / 16));
+   P_NV90B5_LINE_COUNT(p, bo->size / 4096);
 
-   P_MTHD(p, NV902D, SET_DST_FORMAT);
-   P_NV902D_SET_DST_FORMAT(p, V_A8B8G8R8);
-   P_NV902D_SET_DST_MEMORY_LAYOUT(p, V_PITCH);
+   P_IMMD(p, NV90B5, SET_REMAP_CONST_A, 0);
+   P_IMMD(p, NV90B5, SET_REMAP_COMPONENTS, {
+      .dst_x = DST_X_CONST_A,
+      .dst_y = DST_Y_CONST_A,
+      .dst_z = DST_Z_CONST_A,
+      .dst_w = DST_W_CONST_A,
+      .component_size = COMPONENT_SIZE_FOUR,
+      .num_src_components = NUM_SRC_COMPONENTS_FOUR,
+      .num_dst_components = NUM_DST_COMPONENTS_FOUR,
+   });
 
-   P_MTHD(p, NV902D, SET_DST_PITCH);
-   P_NV902D_SET_DST_PITCH(p, pitch);
-
-   P_MTHD(p, NV902D, SET_DST_OFFSET_UPPER);
-   P_NV902D_SET_DST_OFFSET_UPPER(p, addr >> 32);
-   P_NV902D_SET_DST_OFFSET_LOWER(p, addr & 0xffffffff);
-
-   P_MTHD(p, NV902D, SET_RENDER_SOLID_PRIM_COLOR_FORMAT);
-   P_NV902D_SET_RENDER_SOLID_PRIM_COLOR_FORMAT(p, V_A8B8G8R8);
-   P_NV902D_SET_RENDER_SOLID_PRIM_COLOR(p, 0);
-
-   uint32_t height = bo->size / pitch;
-   uint32_t extra = bo->size % pitch;
-
-   if (height > 0) {
-      P_IMMD(p, NV902D, RENDER_SOLID_PRIM_MODE, V_RECTS);
-
-      P_MTHD(p, NV902D, RENDER_SOLID_PRIM_POINT_SET_X(0));
-      P_NV902D_RENDER_SOLID_PRIM_POINT_SET_X(p, 0, 0);
-      P_NV902D_RENDER_SOLID_PRIM_POINT_Y(p, 0, 0);
-      P_NV902D_RENDER_SOLID_PRIM_POINT_SET_X(p, 1, pitch / 4);
-      P_NV902D_RENDER_SOLID_PRIM_POINT_Y(p, 1, height);
-   }
-
-   P_IMMD(p, NV902D, RENDER_SOLID_PRIM_MODE, V_RECTS);
-
-   P_MTHD(p, NV902D, RENDER_SOLID_PRIM_POINT_SET_X(0));
-   P_NV902D_RENDER_SOLID_PRIM_POINT_SET_X(p, 0, 0);
-   P_NV902D_RENDER_SOLID_PRIM_POINT_Y(p, 0, height);
-   P_NV902D_RENDER_SOLID_PRIM_POINT_SET_X(p, 1, extra / 4);
-   P_NV902D_RENDER_SOLID_PRIM_POINT_Y(p, 1, height);
+   P_IMMD(p, NV90B5, LAUNCH_DMA, {
+      .data_transfer_type = DATA_TRANSFER_TYPE_NON_PIPELINED,
+      .multi_line_enable = MULTI_LINE_ENABLE_TRUE,
+      .flush_enable = FLUSH_ENABLE_TRUE,
+      .src_memory_layout = SRC_MEMORY_LAYOUT_PITCH,
+      .dst_memory_layout = DST_MEMORY_LAYOUT_PITCH,
+      .remap_enable = REMAP_ENABLE_TRUE,
+   });
 
    return nvk_queue_submit_simple(&dev->queue, nv_push_dw_count(&push),
                                   push_data, 1, &bo);
@@ -128,7 +119,7 @@ nvk_GetMemoryFdPropertiesKHR(VkDevice device,
    struct nouveau_ws_bo *bo;
 
    switch (handleType) {
-   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR:
+   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT:
    case VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT:
       bo = nouveau_ws_bo_from_dma_buf(dev->ws_dev, fd);
       if (bo == NULL)
@@ -216,7 +207,7 @@ nvk_AllocateMemory(VkDevice device,
 
    if (dev->ws_dev->debug_flags & NVK_DEBUG_ZERO_MEMORY) {
       if (type->propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
-         void *map = nouveau_ws_bo_map(mem->bo, NOUVEAU_WS_BO_RDWR);
+         void *map = nouveau_ws_bo_map(mem->bo, NOUVEAU_WS_BO_RDWR, NULL);
          if (map == NULL) {
             result = vk_errorf(dev, VK_ERROR_OUT_OF_HOST_MEMORY,
                                "Memory map failed");
@@ -244,6 +235,9 @@ nvk_AllocateMemory(VkDevice device,
       close(fd_info->fd);
    }
 
+   struct nvk_memory_heap *heap = &pdev->mem_heaps[type->heapIndex];
+   p_atomic_add(&heap->used, mem->bo->size);
+
    *pMem = nvk_device_memory_to_handle(mem);
 
    return VK_SUCCESS;
@@ -262,12 +256,17 @@ nvk_FreeMemory(VkDevice device,
 {
    VK_FROM_HANDLE(nvk_device, dev, device);
    VK_FROM_HANDLE(nvk_device_memory, mem, _mem);
+   struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    if (!mem)
       return;
 
    if (mem->map)
       nouveau_ws_bo_unmap(mem->bo, mem->map);
+
+   const VkMemoryType *type = &pdev->mem_types[mem->vk.memory_type_index];
+   struct nvk_memory_heap *heap = &pdev->mem_heaps[type->heapIndex];
+   p_atomic_add(&heap->used, -((int64_t)mem->bo->size));
 
    nouveau_ws_bo_destroy(mem->bo);
 
@@ -291,6 +290,13 @@ nvk_MapMemory2KHR(VkDevice device,
    const VkDeviceSize size =
       vk_device_memory_range(&mem->vk, pMemoryMapInfo->offset,
                                        pMemoryMapInfo->size);
+
+   void *fixed_addr = NULL;
+   if (pMemoryMapInfo->flags & VK_MEMORY_MAP_PLACED_BIT_EXT) {
+      const VkMemoryMapPlacedInfoEXT *placed_info =
+         vk_find_struct_const(pMemoryMapInfo->pNext, MEMORY_MAP_PLACED_INFO_EXT);
+      fixed_addr = placed_info->pPlacedAddress;
+   }
 
    /* From the Vulkan spec version 1.0.32 docs for MapMemory:
     *
@@ -317,7 +323,7 @@ nvk_MapMemory2KHR(VkDevice device,
                        "Memory object already mapped.");
    }
 
-   mem->map = nouveau_ws_bo_map(mem->bo, NOUVEAU_WS_BO_RDWR);
+   mem->map = nouveau_ws_bo_map(mem->bo, NOUVEAU_WS_BO_RDWR, fixed_addr);
    if (mem->map == NULL) {
       return vk_errorf(dev, VK_ERROR_MEMORY_MAP_FAILED,
                        "Memory object couldn't be mapped.");
@@ -332,12 +338,22 @@ VKAPI_ATTR VkResult VKAPI_CALL
 nvk_UnmapMemory2KHR(VkDevice device,
                     const VkMemoryUnmapInfoKHR *pMemoryUnmapInfo)
 {
+   VK_FROM_HANDLE(nvk_device, dev, device);
    VK_FROM_HANDLE(nvk_device_memory, mem, pMemoryUnmapInfo->memory);
 
    if (mem == NULL)
       return VK_SUCCESS;
 
-   nouveau_ws_bo_unmap(mem->bo, mem->map);
+   if (pMemoryUnmapInfo->flags & VK_MEMORY_UNMAP_RESERVE_BIT_EXT) {
+      int err = nouveau_ws_bo_overmap(mem->bo, mem->map);
+      if (err) {
+         return vk_errorf(dev, VK_ERROR_MEMORY_MAP_FAILED,
+                          "Failed to map over original mapping");
+      }
+   } else {
+      nouveau_ws_bo_unmap(mem->bo, mem->map);
+   }
+
    mem->map = NULL;
 
    return VK_SUCCESS;
@@ -378,7 +394,7 @@ nvk_GetMemoryFdKHR(VkDevice device,
    VK_FROM_HANDLE(nvk_device_memory, memory, pGetFdInfo->memory);
 
    switch (pGetFdInfo->handleType) {
-   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR:
+   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT:
    case VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT:
       if (nouveau_ws_bo_dma_buf(memory->bo, pFD))
          return vk_error(dev, VK_ERROR_TOO_MANY_OBJECTS);

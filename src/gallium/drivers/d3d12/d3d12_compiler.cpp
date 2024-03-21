@@ -131,6 +131,40 @@ compile_nir(struct d3d12_context *ctx, struct d3d12_shader_selector *sel,
    shader->has_default_ubo0 = num_uniforms_before_lower_to_ubo > 0 &&
                               nir->info.num_ubos > num_ubos_before_lower_to_ubo;
 
+   NIR_PASS_V(nir, dxil_nir_lower_subgroup_id);
+   NIR_PASS_V(nir, dxil_nir_lower_num_subgroups);
+
+   nir_lower_subgroups_options subgroup_options = {};
+   subgroup_options.ballot_bit_size = 32;
+   subgroup_options.ballot_components = 4;
+   subgroup_options.lower_subgroup_masks = true;
+   subgroup_options.lower_to_scalar = true;
+   subgroup_options.lower_relative_shuffle = true;
+   subgroup_options.lower_inverse_ballot = true;
+   if (nir->info.stage != MESA_SHADER_FRAGMENT && nir->info.stage != MESA_SHADER_COMPUTE)
+      subgroup_options.lower_quad = true;
+   NIR_PASS_V(nir, nir_lower_subgroups, &subgroup_options);
+   NIR_PASS_V(nir, nir_lower_bit_size, [](const nir_instr *instr, void *) -> unsigned {
+         if (instr->type != nir_instr_type_intrinsic)
+            return 0;
+         nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+         switch (intr->intrinsic) {
+            case nir_intrinsic_quad_swap_horizontal:
+            case nir_intrinsic_quad_swap_vertical:
+            case nir_intrinsic_quad_swap_diagonal:
+            case nir_intrinsic_reduce:
+            case nir_intrinsic_inclusive_scan:
+            case nir_intrinsic_exclusive_scan:
+               return intr->def.bit_size == 1 ? 32 : 0;
+            default:
+               return 0;
+         }
+      }, NULL);
+
+   // Ensure subgroup scans on bools are gone
+   NIR_PASS_V(nir, nir_opt_dce);
+   NIR_PASS_V(nir, dxil_nir_lower_unsupported_subgroup_scan);
+
    if (key->last_vertex_processing_stage) {
       if (key->invert_depth)
          NIR_PASS_V(nir, d3d12_nir_invert_depth, key->invert_depth, key->halfz);
@@ -397,7 +431,7 @@ needs_point_sprite_lowering(struct d3d12_context *ctx, const struct pipe_draw_in
 
    if (gs != NULL && !gs->is_variant) {
       /* There is an user GS; Check if it outputs points with PSIZE */
-      return (gs->initial->info.gs.output_primitive == GL_POINTS &&
+      return (gs->initial->info.gs.output_primitive == MESA_PRIM_POINTS &&
               (gs->initial->info.outputs_written & VARYING_BIT_PSIZ ||
                  ctx->gfx_pipeline_state.rast->base.point_size > 1.0) &&
               (gs->initial->info.gs.active_stream_mask == 1 ||
@@ -437,11 +471,6 @@ get_provoking_vertex(struct d3d12_selection_context *sel_ctx, bool *alternate, c
    struct d3d12_shader_selector *vs = sel_ctx->ctx->gfx_stages[PIPE_SHADER_VERTEX];
    struct d3d12_shader_selector *gs = sel_ctx->ctx->gfx_stages[PIPE_SHADER_GEOMETRY];
    struct d3d12_shader_selector *last_vertex_stage = gs && !gs->is_variant ? gs : vs;
-
-   /* Make sure GL prims match Gallium prims */
-   STATIC_ASSERT(GL_POINTS == MESA_PRIM_POINTS);
-   STATIC_ASSERT(GL_LINES == MESA_PRIM_LINES);
-   STATIC_ASSERT(GL_LINE_STRIP == MESA_PRIM_LINE_STRIP);
 
    enum mesa_prim mode;
    switch (last_vertex_stage->stage) {
@@ -1552,14 +1581,21 @@ d3d12_create_shader(struct d3d12_context *ctx,
    d3d12_shader_selector *next = get_next_shader(ctx, sel->stage);
 
    NIR_PASS_V(nir, dxil_nir_split_clip_cull_distance);
-   NIR_PASS_V(nir, d3d12_split_multistream_varyings);
+   NIR_PASS_V(nir, d3d12_split_needed_varyings);
 
-   if (nir->info.stage != MESA_SHADER_VERTEX)
+   if (nir->info.stage != MESA_SHADER_VERTEX) {
       nir->info.inputs_read =
-            dxil_reassign_driver_locations(nir, nir_var_shader_in,
-                                            prev ? prev->current->nir->info.outputs_written : 0);
-   else
+      dxil_reassign_driver_locations(nir, nir_var_shader_in,
+                                     prev ? prev->current->nir->info.outputs_written : 0);
+   } else {
       nir->info.inputs_read = dxil_sort_by_driver_location(nir, nir_var_shader_in);
+
+      uint32_t driver_loc = 0;
+      nir_foreach_variable_with_modes(var, nir, nir_var_shader_in) {
+         var->data.driver_location = driver_loc;
+         driver_loc += glsl_count_attribute_slots(var->type, false);
+      }
+   }
 
    if (nir->info.stage != MESA_SHADER_FRAGMENT) {
       nir->info.outputs_written =

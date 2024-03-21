@@ -57,6 +57,7 @@ ForEachMacros:
 
   - hash_table_foreach
   - hash_table_foreach_remove
+  - hash_table_u64_foreach
 
   - rb_tree_foreach
   - rb_tree_foreach_rev
@@ -121,7 +122,9 @@ ForEachMacros:
   - nir_foreach_reg_decl
   - nir_foreach_reg_decl_safe
   - nir_foreach_reg_load
+  - nir_foreach_reg_load_safe
   - nir_foreach_reg_store
+  - nir_foreach_reg_store_safe
 
   - nir_foreach_if_use
   - nir_foreach_if_use_safe
@@ -185,6 +188,7 @@ ForEachMacros:
   - foreach_submitted
   - AGX_BATCH_FOREACH_BO_HANDLE
   - agx_pack
+  - agx_push
   - agx_usc_pack
   - agx_ppp_push
   - agx_foreach_block
@@ -222,8 +226,10 @@ ForEachMacros:
   - foreach_sched_node
   - foreach_src
   - foreach_src_n
+  - foreach_src_if
   - foreach_dst
   - foreach_dst_n
+  - foreach_dst_if
   - ra_foreach_dst
   - ra_foreach_src
   - ra_foreach_src_rev
@@ -292,6 +298,7 @@ ForEachMacros:
   - bi_foreach_src
   - bi_foreach_ssa_src
   - bi_foreach_successor
+  - cs_emit
   - mir_foreach_block
   - mir_foreach_block_from
   - mir_foreach_bundle_in_block

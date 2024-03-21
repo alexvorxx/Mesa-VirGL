@@ -25,6 +25,7 @@
 #include "d3d12_resource.h"
 #include "d3d12_video_dec.h"
 #include "d3d12_residency.h"
+#include "d3d12_context.h"
 
 #include "util/format/u_format.h"
 #include "util/u_inlines.h"
@@ -33,6 +34,8 @@
 #include "vl/vl_video_buffer.h"
 #include "util/u_sampler.h"
 #include "frontend/winsys_handle.h"
+#include "d3d12_format.h"
+#include "d3d12_screen.h"
 
 static struct pipe_video_buffer *
 d3d12_video_buffer_create_impl(struct pipe_context *pipe,
@@ -58,7 +61,13 @@ d3d12_video_buffer_create_impl(struct pipe_context *pipe,
    pD3D12VideoBuffer->base.height        = tmpl->height;
    pD3D12VideoBuffer->base.interlaced    = tmpl->interlaced;
    pD3D12VideoBuffer->base.associated_data = nullptr;
-   pD3D12VideoBuffer->base.bind = PIPE_BIND_SAMPLER_VIEW | PIPE_BIND_RENDER_TARGET | PIPE_BIND_DISPLAY_TARGET | PIPE_BIND_CUSTOM;
+
+   pD3D12VideoBuffer->base.bind =  PIPE_BIND_CUSTOM;
+#ifdef HAVE_GALLIUM_D3D12_GRAPHICS
+   struct d3d12_screen *dscreen = (struct d3d12_screen*) pipe->screen;
+   if (dscreen->max_feature_level >= D3D_FEATURE_LEVEL_11_0)
+      pD3D12VideoBuffer->base.bind |= (PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW);
+#endif // HAVE_GALLIUM_D3D12_GRAPHICS
 
    // Fill vtable
    pD3D12VideoBuffer->base.destroy                     = d3d12_video_buffer_destroy;
@@ -119,17 +128,45 @@ failed:
    return nullptr;
 }
 
-
 /**
  * creates a video buffer from a handle
  */
 struct pipe_video_buffer *
-d3d12_video_buffer_from_handle( struct pipe_context *pipe,
-                              const struct pipe_video_buffer *tmpl,
-                              struct winsys_handle *handle,
-                              unsigned usage)
+d3d12_video_buffer_from_handle(struct pipe_context *pipe,
+                               const struct pipe_video_buffer *tmpl,
+                               struct winsys_handle *handle,
+                               unsigned usage)
 {
-   return d3d12_video_buffer_create_impl(pipe, tmpl, handle, usage);
+   struct pipe_video_buffer updated_template = {};
+   if ((handle->format == PIPE_FORMAT_NONE) || (tmpl == nullptr) || (tmpl->buffer_format == PIPE_FORMAT_NONE) ||
+       (tmpl->width == 0) || (tmpl->height == 0)) {
+      ID3D12Resource *d3d12_res = nullptr;
+      if (handle->type == WINSYS_HANDLE_TYPE_D3D12_RES) {
+         d3d12_res = (ID3D12Resource *) handle->com_obj;
+      } else if (handle->type == WINSYS_HANDLE_TYPE_FD) {
+#ifdef _WIN32
+         HANDLE d3d_handle = handle->handle;
+#else
+         HANDLE d3d_handle = (HANDLE) (intptr_t) handle->handle;
+#endif
+         if (FAILED(d3d12_screen(pipe->screen)->dev->OpenSharedHandle(d3d_handle, IID_PPV_ARGS(&d3d12_res)))) {
+            return NULL;
+         }
+      }
+      D3D12_RESOURCE_DESC res_desc = GetDesc(d3d12_res);
+      updated_template.width = res_desc.Width;
+      updated_template.height = res_desc.Height;
+      updated_template.buffer_format = d3d12_get_pipe_format(res_desc.Format);
+      handle->format = updated_template.buffer_format;
+
+      // if passed an external com_ptr (e.g WINSYS_HANDLE_TYPE_D3D12_RES) do not release it
+      if (handle->type == WINSYS_HANDLE_TYPE_FD)
+         d3d12_res->Release();
+   } else {
+      updated_template = *tmpl;
+   }
+
+   return d3d12_video_buffer_create_impl(pipe, &updated_template, handle, usage);
 }
 
 /**
@@ -200,6 +237,9 @@ d3d12_video_buffer_get_surfaces(struct pipe_video_buffer *buffer)
    struct d3d12_video_buffer *pD3D12VideoBuffer = (struct d3d12_video_buffer *) buffer;
    struct pipe_context *      pipe              = pD3D12VideoBuffer->base.context;
    struct pipe_surface        surface_template  = {};
+
+   if (!pipe->create_surface)
+      return nullptr;
 
    // Some video frameworks iterate over [0..VL_MAX_SURFACES) and ignore the nullptr entries
    // So we have to null initialize the other surfaces not used from [num_planes..VL_MAX_SURFACES)

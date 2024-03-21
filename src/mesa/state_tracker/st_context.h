@@ -53,7 +53,7 @@ struct st_context;
 struct st_program;
 struct u_upload_mgr;
 
-#define ST_L3_PINNING_DISABLED 0xffffffff
+#define ST_THREAD_SCHEDULER_DISABLED 0xffffffff
 
 struct st_bitmap_cache
 {
@@ -120,6 +120,7 @@ struct st_zombie_shader_node
    struct list_head node;
 };
 
+typedef void (*st_update_func_t)(struct st_context *st);
 
 struct st_context
 {
@@ -127,6 +128,9 @@ struct st_context
    struct pipe_screen *screen;
    struct pipe_context *pipe;
    struct cso_context *cso_context;
+
+   /* The list of state update functions. */
+   st_update_func_t update_functions[ST_NUM_ATOMS];
 
    struct pipe_frontend_screen *frontend_screen; /* e.g. dri_screen */
    void *frontend_context; /* e.g. dri_context */
@@ -159,7 +163,6 @@ struct st_context
    bool force_specialized_compute_transfer;
    bool force_persample_in_shader;
    bool has_shareable_shaders;
-   bool has_half_float_packing;
    bool has_multi_draw_indirect;
    bool has_indirect_partial_stride;
    bool has_occlusion_query;
@@ -358,8 +361,6 @@ struct st_context
 
    void *winsys_drawable_handle;
 
-   /* The number of vertex buffers from the last call of validate_arrays. */
-   unsigned last_num_vbuffers;
    bool uses_user_vertex_buffers;
 
    unsigned last_used_atomic_bindings[PIPE_SHADER_TYPES];
@@ -516,10 +517,6 @@ st_api_destroy_drawable(struct pipe_frontend_drawable *drawable);
 
 void
 st_screen_destroy(struct pipe_frontend_screen *fscreen);
-
-typedef void (*st_update_func_t)(struct st_context *st);
-
-extern st_update_func_t st_update_functions[ST_NUM_ATOMS];
 
 #ifdef __cplusplus
 }

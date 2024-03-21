@@ -788,6 +788,7 @@ typedef enum
    SYSTEM_VALUE_SAMPLE_POS,
    SYSTEM_VALUE_SAMPLE_POS_OR_CENTER,
    SYSTEM_VALUE_SAMPLE_MASK_IN,
+   SYSTEM_VALUE_LAYER_ID,
    SYSTEM_VALUE_HELPER_INVOCATION,
    SYSTEM_VALUE_COLOR0,
    SYSTEM_VALUE_COLOR1,
@@ -866,7 +867,6 @@ typedef enum
    /*@{*/
    SYSTEM_VALUE_RAY_LAUNCH_ID,
    SYSTEM_VALUE_RAY_LAUNCH_SIZE,
-   SYSTEM_VALUE_RAY_LAUNCH_SIZE_ADDR_AMD,
    SYSTEM_VALUE_RAY_WORLD_ORIGIN,
    SYSTEM_VALUE_RAY_WORLD_DIRECTION,
    SYSTEM_VALUE_RAY_OBJECT_ORIGIN,
@@ -926,6 +926,12 @@ typedef enum
    SYSTEM_VALUE_SHADER_INDEX,
    SYSTEM_VALUE_COALESCED_INPUT_COUNT,
 
+   /* SPV_NV_shader_sm_builtins */
+   SYSTEM_VALUE_WARPS_PER_SM_NV,
+   SYSTEM_VALUE_SM_COUNT_NV,
+   SYSTEM_VALUE_WARP_ID_NV,
+   SYSTEM_VALUE_SM_ID_NV,
+
    SYSTEM_VALUE_MAX             /**< Number of values */
 } gl_system_value;
 
@@ -945,7 +951,6 @@ enum glsl_interp_mode
    INTERP_MODE_FLAT,
    INTERP_MODE_NOPERSPECTIVE,
    INTERP_MODE_EXPLICIT,
-   INTERP_MODE_COLOR, /**< glShadeModel determines the interp mode */
    INTERP_MODE_COUNT /**< Number of interpolation qualifiers */
 };
 
@@ -1283,6 +1288,52 @@ u_decomposed_prims_for_vertices(enum mesa_prim primitive, int vertices)
    default:
       debug_printf("Invalid decomposition primitive!\n");
       return (vertices >= 3) ? 1 : 0;
+   }
+}
+
+/**
+ * Decompose a primitive that is a loop, a strip, or a fan.  Return the
+ * original primitive if it is already decomposed.
+ */
+static inline enum mesa_prim
+u_decomposed_prim(enum mesa_prim prim)
+{
+   switch (prim) {
+   case MESA_PRIM_LINE_LOOP:
+   case MESA_PRIM_LINE_STRIP:
+      return MESA_PRIM_LINES;
+   case MESA_PRIM_TRIANGLE_STRIP:
+   case MESA_PRIM_TRIANGLE_FAN:
+      return MESA_PRIM_TRIANGLES;
+   case MESA_PRIM_QUAD_STRIP:
+      return MESA_PRIM_QUADS;
+   case MESA_PRIM_LINE_STRIP_ADJACENCY:
+      return MESA_PRIM_LINES_ADJACENCY;
+   case MESA_PRIM_TRIANGLE_STRIP_ADJACENCY:
+      return MESA_PRIM_TRIANGLES_ADJACENCY;
+   default:
+      return prim;
+   }
+}
+
+/**
+ * Reduce a primitive to one of MESA_PRIM_POINTS, MESA_PRIM_LINES, and
+ * MESA_PRIM_TRIANGLES.
+ */
+static inline enum mesa_prim
+u_reduced_prim(enum mesa_prim prim)
+{
+   switch (prim) {
+   case MESA_PRIM_POINTS:
+      return MESA_PRIM_POINTS;
+   case MESA_PRIM_LINES:
+   case MESA_PRIM_LINE_LOOP:
+   case MESA_PRIM_LINE_STRIP:
+   case MESA_PRIM_LINES_ADJACENCY:
+   case MESA_PRIM_LINE_STRIP_ADJACENCY:
+      return MESA_PRIM_LINES;
+   default:
+      return MESA_PRIM_TRIANGLES;
    }
 }
 

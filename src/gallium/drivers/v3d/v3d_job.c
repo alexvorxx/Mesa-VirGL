@@ -27,6 +27,7 @@
  */
 
 #include <xf86drm.h>
+#include <libsync.h>
 #include "v3d_context.h"
 /* The OQ/semaphore packets are the same across V3D versions. */
 #define V3D_VERSION 42
@@ -191,20 +192,23 @@ v3d_flush_jobs_writing_resource(struct v3d_context *v3d,
 {
         struct hash_entry *entry = _mesa_hash_table_search(v3d->write_jobs,
                                                            prsc);
+        if (!entry)
+                return;
+
         struct v3d_resource *rsc = v3d_resource(prsc);
 
         /* We need to sync if graphics pipeline reads a resource written
-         * by the compute pipeline. The same would be needed for the case of
-         * graphics-compute dependency but nowadays all compute jobs
-         * are serialized with the previous submitted job.
+         * by the compute pipeline. The same is needed for the case of
+         * graphics-compute dependency but flushing the job.
          */
         if (!is_compute_pipeline && rsc->bo != NULL && rsc->compute_written) {
-           v3d->sync_on_last_compute_job = true;
-           rsc->compute_written = false;
+                v3d->sync_on_last_compute_job = true;
+                rsc->compute_written = false;
         }
-
-        if (!entry)
-                return;
+        if (is_compute_pipeline && rsc->bo != NULL && rsc->graphics_written) {
+                flush_cond = V3D_FLUSH_ALWAYS;
+                rsc->graphics_written = false;
+        }
 
         struct v3d_job *job = entry->data;
 
@@ -514,11 +518,23 @@ v3d_job_submit(struct v3d_context *v3d, struct v3d_job *job)
         if (cl_offset(&job->bcl) > 0)
                 v3d_X(devinfo, bcl_epilogue)(v3d, job);
 
-        /* While the RCL will implicitly depend on the last RCL to have
-         * finished, we also need to block on any previous TFU job we may have
-         * dispatched.
-         */
-        job->submit.in_sync_rcl = v3d->out_sync;
+        if (v3d->in_fence_fd >= 0) {
+                /* PIPE_CAP_NATIVE_FENCE */
+                if (drmSyncobjImportSyncFile(v3d->fd, v3d->in_syncobj,
+                                             v3d->in_fence_fd)) {
+                   fprintf(stderr, "Failed to import native fence.\n");
+                } else {
+                   job->submit.in_sync_bcl = v3d->in_syncobj;
+                }
+                close(v3d->in_fence_fd);
+                v3d->in_fence_fd = -1;
+        } else {
+                /* While the RCL will implicitly depend on the last RCL to have
+                 * finished, we also need to block on any previous TFU job we
+                 * may have dispatched.
+                 */
+                job->submit.in_sync_rcl = v3d->out_sync;
+        }
 
         /* Update the sync object for the last rendering by our context. */
         job->submit.out_sync = v3d->out_sync;
@@ -597,24 +613,12 @@ done:
         v3d_job_free(v3d, job);
 }
 
-static bool
-v3d_job_compare(const void *a, const void *b)
-{
-        return memcmp(a, b, sizeof(struct v3d_job_key)) == 0;
-}
-
-static uint32_t
-v3d_job_hash(const void *key)
-{
-        return _mesa_hash_data(key, sizeof(struct v3d_job_key));
-}
+DERIVE_HASH_TABLE(v3d_job_key);
 
 void
 v3d_job_init(struct v3d_context *v3d)
 {
-        v3d->jobs = _mesa_hash_table_create(v3d,
-                                            v3d_job_hash,
-                                            v3d_job_compare);
+        v3d->jobs = v3d_job_key_table_create(v3d);
         v3d->write_jobs = _mesa_hash_table_create(v3d,
                                                   _mesa_hash_pointer,
                                                   _mesa_key_pointer_equal);

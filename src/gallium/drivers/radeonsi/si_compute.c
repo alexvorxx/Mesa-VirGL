@@ -790,9 +790,15 @@ static void si_emit_dispatch_packets(struct si_context *sctx, const struct pipe_
       threadgroups_per_cu = 2;
 
    if (unlikely(sctx->sqtt_enabled)) {
-      si_write_event_with_dims_marker(sctx, &sctx->gfx_cs,
-                                      info->indirect ? EventCmdDispatchIndirect : EventCmdDispatch,
-                                      info->grid[0], info->grid[1], info->grid[2]);
+      if (info->indirect) {
+         si_sqtt_write_event_marker(sctx, &sctx->gfx_cs,
+                                    EventCmdDispatchIndirect,
+                                    UINT_MAX, UINT_MAX, UINT_MAX);
+      } else {
+         si_write_event_with_dims_marker(sctx, &sctx->gfx_cs,
+                                         EventCmdDispatch,
+                                         info->grid[0], info->grid[1], info->grid[2]);
+      }
    }
 
    radeon_begin(cs);
@@ -891,7 +897,7 @@ static void si_emit_dispatch_packets(struct si_context *sctx, const struct pipe_
    radeon_end();
 }
 
-static bool si_check_needs_implicit_sync(struct si_context *sctx)
+static bool si_check_needs_implicit_sync(struct si_context *sctx, uint32_t usage)
 {
    /* If the compute shader is going to read from a texture/image written by a
     * previous draw, we must wait for its completion before continuing.
@@ -914,8 +920,7 @@ static bool si_check_needs_implicit_sync(struct si_context *sctx)
       struct si_sampler_view *sview = (struct si_sampler_view *)samplers->views[i];
 
       struct si_resource *res = si_resource(sview->base.texture);
-      if (sctx->ws->cs_is_buffer_referenced(&sctx->gfx_cs, res->buf,
-                                            RADEON_USAGE_NEEDS_IMPLICIT_SYNC))
+      if (sctx->ws->cs_is_buffer_referenced(&sctx->gfx_cs, res->buf, usage))
          return true;
    }
 
@@ -927,8 +932,7 @@ static bool si_check_needs_implicit_sync(struct si_context *sctx)
       struct pipe_image_view *sview = &images->views[i];
 
       struct si_resource *res = si_resource(sview->resource);
-      if (sctx->ws->cs_is_buffer_referenced(&sctx->gfx_cs, res->buf,
-                                            RADEON_USAGE_NEEDS_IMPLICIT_SYNC))
+      if (sctx->ws->cs_is_buffer_referenced(&sctx->gfx_cs, res->buf, usage))
          return true;
    }
    return false;
@@ -959,7 +963,8 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
          si_update_fb_dirtiness_after_rendering(sctx);
          sctx->last_num_draw_calls = sctx->num_draw_calls;
 
-         if (sctx->force_cb_shader_coherent || si_check_needs_implicit_sync(sctx))
+         if (sctx->force_shader_coherency.with_cb ||
+             si_check_needs_implicit_sync(sctx, RADEON_USAGE_CB_NEEDS_IMPLICIT_SYNC))
             si_make_CB_shader_coherent(sctx, 0,
                                        sctx->framebuffer.CB_has_shader_readable_metadata,
                                        sctx->framebuffer.all_DCC_pipe_aligned);
@@ -999,8 +1004,10 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
       si_compute_resources_add_all_to_bo_list(sctx);
 
    /* Skipping setting redundant registers on compute queues breaks compute. */
-   if (!sctx->has_graphics)
-      sctx->tracked_regs.other_reg_saved_mask = 0;
+   if (!sctx->has_graphics) {
+      BITSET_CLEAR_RANGE(sctx->tracked_regs.reg_saved_mask,
+                         SI_FIRST_TRACKED_OTHER_REG, SI_NUM_ALL_TRACKED_REGS - 1);
+   }
 
    /* First emit registers. */
    bool prefetch;

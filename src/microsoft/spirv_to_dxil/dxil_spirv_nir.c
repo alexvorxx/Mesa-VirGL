@@ -57,10 +57,13 @@ spirv_to_nir_options = {
       .image_write_without_format = true,
       .int64 = true,
       .float64 = true,
+      .tessellation = true,
+      .physical_storage_buffer_address = true,
    },
    .ubo_addr_format = nir_address_format_32bit_index_offset,
    .ssbo_addr_format = nir_address_format_32bit_index_offset,
    .shared_addr_format = nir_address_format_logical,
+   .phys_ssbo_addr_format = nir_address_format_32bit_index_offset_pack64,
 
    .min_ubo_alignment = 256, /* D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT */
    .min_ssbo_alignment = 16, /* D3D12_RAW_UAV_SRV_BYTE_ALIGNMENT */
@@ -662,7 +665,7 @@ dxil_spirv_nir_kill_unused_outputs(nir_shader *shader,
                                     (void *)&kill_var_mask))
       progress = true;
 
-   if (shader->info.stage == MESA_SHADER_TESS_EVAL) {
+   if (shader->info.stage == MESA_SHADER_TESS_CTRL) {
       kill_var_mask =
          (shader->info.patch_outputs_written |
           shader->info.patch_outputs_read) &
@@ -913,6 +916,23 @@ dxil_spirv_nir_link(nir_shader *nir, nir_shader *prev_stage_nir,
       prev_stage_nir->info.outputs_written =
          dxil_reassign_driver_locations(prev_stage_nir, nir_var_shader_out,
                                         nir->info.inputs_read);
+
+      if (nir->info.stage == MESA_SHADER_TESS_EVAL) {
+         assert(prev_stage_nir->info.stage == MESA_SHADER_TESS_CTRL);
+         nir->info.tess.tcs_vertices_out = prev_stage_nir->info.tess.tcs_vertices_out;
+         prev_stage_nir->info.tess = nir->info.tess;
+
+         for (uint32_t i = 0; i < 2; ++i) {
+            unsigned loc = i == 0 ? VARYING_SLOT_TESS_LEVEL_OUTER : VARYING_SLOT_TESS_LEVEL_INNER;
+            nir_variable *var = nir_find_variable_with_location(nir, nir_var_shader_in, loc);
+            if (!var) {
+               var = nir_variable_create(nir, nir_var_shader_in, glsl_array_type(glsl_float_type(), i == 0 ? 4 : 2, 0), i == 0 ? "outer" : "inner");
+               var->data.location = loc;
+               var->data.patch = true;
+               var->data.compact = true;
+            }
+         }
+      }
    }
 
    glsl_type_singleton_decref();
@@ -935,6 +955,55 @@ lower_bit_size_callback(const nir_instr *instr, void *data)
    default:
       return 0;
    }
+}
+
+static bool
+merge_ubos_and_ssbos(nir_shader *nir)
+{
+   bool progress = false;
+   nir_foreach_variable_with_modes_safe(var, nir, nir_var_mem_ubo | nir_var_mem_ssbo) {
+      nir_variable *other_var = NULL;
+      nir_foreach_variable_with_modes(var2, nir, var->data.mode) {
+         if (var->data.descriptor_set == var2->data.descriptor_set &&
+             var->data.binding == var2->data.binding) {
+            other_var = var2;
+            break;
+         }
+      }
+
+      if (!other_var)
+         continue;
+
+      progress = true;
+      /* Merge types */
+      if (var->type != other_var->type) {
+         /* Pick the larger array size */
+         uint32_t desc_array_size = 1;
+         if (glsl_type_is_array(var->type))
+            desc_array_size = glsl_get_aoa_size(var->type);
+         if (glsl_type_is_array(other_var->type))
+            desc_array_size = MAX2(desc_array_size, glsl_get_aoa_size(other_var->type));
+
+         const glsl_type *struct_type = glsl_without_array(var->type);
+         if (var->data.mode == nir_var_mem_ubo) {
+            /* Pick the larger struct type; doesn't matter for ssbos */
+            uint32_t size = glsl_get_explicit_size(struct_type, false);
+            const glsl_type *other_type = glsl_without_array(other_var->type);
+            if (glsl_get_explicit_size(other_type, false) > size)
+               struct_type = other_type;
+         }
+
+         var->type = glsl_array_type(struct_type, desc_array_size, 0);
+         
+         /* An ssbo is non-writeable if all aliased vars are non-writeable */
+         if (var->data.mode == nir_var_mem_ssbo)
+            var->data.access &= ~(other_var->data.access & ACCESS_NON_WRITEABLE);
+
+         exec_node_remove(&other_var->node);
+      }
+   }
+   nir_shader_preserve_all_metadata(nir);
+   return progress;
 }
 
 void
@@ -1030,6 +1099,9 @@ dxil_spirv_nir_passes(nir_shader *nir,
 
    NIR_PASS_V(nir, nir_opt_deref);
 
+   NIR_PASS_V(nir, nir_lower_memory_model);
+   NIR_PASS_V(nir, dxil_nir_lower_coherent_loads_and_stores);
+
    if (conf->inferred_read_only_images_as_srvs) {
       const nir_opt_access_options opt_access_options = {
          .is_vulkan = true,
@@ -1053,8 +1125,11 @@ dxil_spirv_nir_passes(nir_shader *nir,
               conf->push_constant_cbv.base_shader_register,
               &push_constant_size);
 
+   NIR_PASS_V(nir, dxil_spirv_nir_lower_buffer_device_address);
    NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_mem_ubo | nir_var_mem_ssbo,
               nir_address_format_32bit_index_offset);
+   NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_mem_global,
+              nir_address_format_32bit_index_offset_pack64);
 
    if (nir->info.shared_memory_explicit_layout) {
       NIR_PASS_V(nir, nir_lower_vars_to_explicit_types, nir_var_mem_shared,
@@ -1080,7 +1155,8 @@ dxil_spirv_nir_passes(nir_shader *nir,
 
    if (conf->yz_flip.mode != DXIL_SPIRV_YZ_FLIP_NONE) {
       assert(nir->info.stage == MESA_SHADER_VERTEX ||
-             nir->info.stage == MESA_SHADER_GEOMETRY);
+             nir->info.stage == MESA_SHADER_GEOMETRY ||
+             nir->info.stage == MESA_SHADER_TESS_EVAL);
       NIR_PASS_V(nir,
                  dxil_spirv_nir_lower_yz_flip,
                  conf, requires_runtime_data);
@@ -1114,13 +1190,15 @@ dxil_spirv_nir_passes(nir_shader *nir,
          NIR_PASS(progress, nir, nir_opt_undef);
          NIR_PASS(progress, nir, nir_opt_constant_folding);
          NIR_PASS(progress, nir, nir_opt_cse);
-         if (nir_opt_trivial_continues(nir)) {
+         if (nir_opt_loop(nir)) {
             progress = true;
             NIR_PASS(progress, nir, nir_copy_prop);
             NIR_PASS(progress, nir, nir_opt_dce);
          }
          NIR_PASS(progress, nir, nir_lower_vars_to_ssa);
          NIR_PASS(progress, nir, nir_opt_algebraic);
+         NIR_PASS(progress, nir, nir_opt_dead_cf);
+         NIR_PASS(progress, nir, nir_opt_remove_phis);
       } while (progress);
    }
 
@@ -1153,6 +1231,7 @@ dxil_spirv_nir_passes(nir_shader *nir,
    NIR_PASS_V(nir, nir_remove_dead_variables,
               nir_var_uniform | nir_var_shader_in | nir_var_shader_out,
               NULL);
+   NIR_PASS_V(nir, merge_ubos_and_ssbos);
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       dxil_sort_ps_outputs(nir);

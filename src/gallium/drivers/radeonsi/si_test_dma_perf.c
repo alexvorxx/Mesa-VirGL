@@ -26,7 +26,8 @@ void si_test_dma_perf(struct si_screen *sscreen)
    struct si_context *sctx = (struct si_context *)ctx;
    const uint32_t clear_value = 0x12345678;
    static const unsigned cs_dwords_per_thread_list[] = {64, 32, 16, 8, 4, 2, 1};
-   static const unsigned cs_waves_per_sh_list[] = {0, 4, 8, 16};
+   /* The list of per-SA wave limits to test. */
+   static const unsigned cs_waves_per_sh_list[] = {0, 8};
 
 #define NUM_SHADERS ARRAY_SIZE(cs_dwords_per_thread_list)
 #define NUM_METHODS (3 + 3 * NUM_SHADERS * ARRAY_SIZE(cs_waves_per_sh_list))
@@ -119,7 +120,7 @@ void si_test_dma_perf(struct si_screen *sscreen)
 
          void *compute_shader = NULL;
          if (test_cs) {
-            compute_shader = si_create_dma_compute_shader(ctx, cs_dwords_per_thread,
+            compute_shader = si_create_dma_compute_shader(sctx, cs_dwords_per_thread,
                                               cache_policy == L2_STREAM, is_copy);
          }
 

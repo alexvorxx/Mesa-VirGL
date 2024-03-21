@@ -4,14 +4,12 @@ use crate::core::context::*;
 use crate::core::queue::*;
 use crate::impl_cl_type_trait;
 
-use mesa_rust::pipe::context::*;
 use mesa_rust::pipe::query::*;
 use mesa_rust_gen::*;
 use mesa_rust_util::static_assert;
 use rusticl_opencl_gen::*;
 
 use std::collections::HashSet;
-use std::slice;
 use std::sync::Arc;
 use std::sync::Condvar;
 use std::sync::Mutex;
@@ -24,7 +22,7 @@ static_assert!(CL_RUNNING == 1);
 static_assert!(CL_SUBMITTED == 2);
 static_assert!(CL_QUEUED == 3);
 
-pub type EventSig = Box<dyn FnOnce(&Arc<Queue>, &PipeContext) -> CLResult<()>>;
+pub type EventSig = Box<dyn FnOnce(&Arc<Queue>, &QueueContext) -> CLResult<()> + Send + Sync>;
 
 pub enum EventTimes {
     Queued = CL_PROFILING_COMMAND_QUEUED as isize,
@@ -56,10 +54,6 @@ pub struct Event {
 
 impl_cl_type_trait!(cl_event, Event, CL_INVALID_EVENT);
 
-// TODO shouldn't be needed, but... uff C pointers are annoying
-unsafe impl Send for Event {}
-unsafe impl Sync for Event {}
-
 impl Event {
     pub fn new(
         queue: &Arc<Queue>,
@@ -68,7 +62,7 @@ impl Event {
         work: EventSig,
     ) -> Arc<Event> {
         Arc::new(Self {
-            base: CLObjectBase::new(),
+            base: CLObjectBase::new(RusticlTypes::Event),
             context: queue.context.clone(),
             queue: Some(queue.clone()),
             cmd_type: cmd_type,
@@ -84,7 +78,7 @@ impl Event {
 
     pub fn new_user(context: Arc<Context>) -> Arc<Event> {
         Arc::new(Self {
-            base: CLObjectBase::new(),
+            base: CLObjectBase::new(RusticlTypes::Event),
             context: context,
             queue: None,
             cmd_type: CL_COMMAND_USER,
@@ -95,11 +89,6 @@ impl Event {
             }),
             cv: Condvar::new(),
         })
-    }
-
-    pub fn from_cl_arr(events: *const cl_event, num_events: u32) -> CLResult<Vec<Arc<Event>>> {
-        let s = unsafe { slice::from_raw_parts(events, num_events as usize) };
-        s.iter().map(|e| e.get_arc()).collect()
     }
 
     fn state(&self) -> MutexGuard<EventMutState> {
@@ -118,8 +107,11 @@ impl Event {
             self.cv.notify_all();
         }
 
-        if [CL_COMPLETE, CL_RUNNING, CL_SUBMITTED].contains(&(new as u32)) {
-            if let Some(cbs) = lock.cbs.get_mut(new as usize) {
+        // on error we need to call the CL_COMPLETE callbacks
+        let cb_idx = if new < 0 { CL_COMPLETE } else { new as u32 };
+
+        if [CL_COMPLETE, CL_RUNNING, CL_SUBMITTED].contains(&cb_idx) {
+            if let Some(cbs) = lock.cbs.get_mut(cb_idx as usize) {
                 cbs.drain(..).for_each(|cb| cb.call(self, new));
             }
         }
@@ -194,7 +186,7 @@ impl Event {
     // We always assume that work here simply submits stuff to the hardware even if it's just doing
     // sw emulation or nothing at all.
     // If anything requets waiting, we will update the status through fencing later.
-    pub fn call(&self, ctx: &PipeContext) {
+    pub fn call(&self, ctx: &QueueContext) {
         let mut lock = self.state();
         let status = lock.status;
         let queue = self.queue.as_ref().unwrap();

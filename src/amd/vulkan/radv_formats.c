@@ -29,14 +29,14 @@
 #include "vk_format.h"
 
 #include "vk_android.h"
+#include "vk_enum_defines.h"
+#include "vk_format.h"
 #include "vk_util.h"
 
 #include "util/format_r11g11b10f.h"
 #include "util/format_rgb9e5.h"
 #include "util/format_srgb.h"
 #include "util/half_float.h"
-#include "vulkan/util/vk_enum_defines.h"
-#include "vulkan/util/vk_format.h"
 #include "ac_drm_fourcc.h"
 
 uint32_t
@@ -588,23 +588,54 @@ radv_is_zs_format_supported(VkFormat format)
 }
 
 static bool
-radv_is_filter_minmax_format_supported(VkFormat format)
+radv_is_filter_minmax_format_supported(const struct radv_physical_device *pdevice, VkFormat format)
 {
-   /* From the Vulkan spec 1.1.71:
-    *
-    * "The following formats must support the
-    *  VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_MINMAX_BIT feature with
-    *  VK_IMAGE_TILING_OPTIMAL, if they support
-    *  VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT."
-    */
-   /* TODO: enable more formats. */
+   enum amd_gfx_level gfx_level = pdevice->rad_info.gfx_level;
+
    switch (format) {
+   case VK_FORMAT_R4G4_UNORM_PACK8:
+   case VK_FORMAT_R4G4B4A4_UNORM_PACK16:
+   case VK_FORMAT_A4R4G4B4_UNORM_PACK16_EXT:
+   case VK_FORMAT_B4G4R4A4_UNORM_PACK16:
+   case VK_FORMAT_A4B4G4R4_UNORM_PACK16_EXT:
+   case VK_FORMAT_R5G6B5_UNORM_PACK16:
+   case VK_FORMAT_B5G6R5_UNORM_PACK16:
+   case VK_FORMAT_R5G5B5A1_UNORM_PACK16:
+   case VK_FORMAT_B5G5R5A1_UNORM_PACK16:
+   case VK_FORMAT_A1R5G5B5_UNORM_PACK16:
+   case VK_FORMAT_A1B5G5R5_UNORM_PACK16_KHR:
    case VK_FORMAT_R8_UNORM:
+   case VK_FORMAT_A8_UNORM_KHR:
    case VK_FORMAT_R8_SNORM:
+   case VK_FORMAT_R8_SRGB:
+   case VK_FORMAT_R8G8_UNORM:
+   case VK_FORMAT_R8G8_SNORM:
+   case VK_FORMAT_R8G8_SRGB:
+   case VK_FORMAT_R8G8B8A8_UNORM:
+   case VK_FORMAT_R8G8B8A8_SNORM:
+   case VK_FORMAT_R8G8B8A8_SRGB:
+   case VK_FORMAT_B8G8R8A8_UNORM:
+   case VK_FORMAT_B8G8R8A8_SNORM:
+   case VK_FORMAT_B8G8R8A8_SRGB:
+   case VK_FORMAT_A8B8G8R8_UNORM_PACK32:
+   case VK_FORMAT_A8B8G8R8_SNORM_PACK32:
+   case VK_FORMAT_A8B8G8R8_SRGB_PACK32:
+   case VK_FORMAT_A2R10G10B10_UNORM_PACK32:
+   case VK_FORMAT_A2B10G10R10_UNORM_PACK32:
    case VK_FORMAT_R16_UNORM:
    case VK_FORMAT_R16_SNORM:
    case VK_FORMAT_R16_SFLOAT:
+   case VK_FORMAT_R16G16_UNORM:
+   case VK_FORMAT_R16G16_SNORM:
+   case VK_FORMAT_R16G16_SFLOAT:
+   case VK_FORMAT_R16G16B16A16_UNORM:
+   case VK_FORMAT_R16G16B16A16_SNORM:
+   case VK_FORMAT_R16G16B16A16_SFLOAT:
    case VK_FORMAT_R32_SFLOAT:
+   case VK_FORMAT_R32G32_SFLOAT:
+   case VK_FORMAT_R32G32B32_SFLOAT:
+   case VK_FORMAT_R32G32B32A32_SFLOAT:
+   case VK_FORMAT_B10G11R11_UFLOAT_PACK32:
    case VK_FORMAT_D16_UNORM:
    case VK_FORMAT_X8_D24_UNORM_PACK32:
    case VK_FORMAT_D32_SFLOAT:
@@ -612,6 +643,36 @@ radv_is_filter_minmax_format_supported(VkFormat format)
    case VK_FORMAT_D24_UNORM_S8_UINT:
    case VK_FORMAT_D32_SFLOAT_S8_UINT:
       return true;
+   case VK_FORMAT_R8_UINT:
+   case VK_FORMAT_R8_SINT:
+   case VK_FORMAT_R8G8_UINT:
+   case VK_FORMAT_R8G8_SINT:
+   case VK_FORMAT_R8G8B8A8_UINT:
+   case VK_FORMAT_R8G8B8A8_SINT:
+   case VK_FORMAT_B8G8R8A8_UINT:
+   case VK_FORMAT_B8G8R8A8_SINT:
+   case VK_FORMAT_A8B8G8R8_UINT_PACK32:
+   case VK_FORMAT_A8B8G8R8_SINT_PACK32:
+   case VK_FORMAT_A2R10G10B10_UINT_PACK32:
+   case VK_FORMAT_A2B10G10R10_UINT_PACK32:
+   case VK_FORMAT_R16_UINT:
+   case VK_FORMAT_R16_SINT:
+   case VK_FORMAT_R16G16_UINT:
+   case VK_FORMAT_R16G16_SINT:
+   case VK_FORMAT_R16G16B16A16_UINT:
+   case VK_FORMAT_R16G16B16A16_SINT:
+   case VK_FORMAT_R32_UINT:
+   case VK_FORMAT_R32_SINT:
+   case VK_FORMAT_R32G32_UINT:
+   case VK_FORMAT_R32G32_SINT:
+   case VK_FORMAT_R32G32B32_UINT:
+   case VK_FORMAT_R32G32B32_SINT:
+   case VK_FORMAT_R32G32B32A32_UINT:
+   case VK_FORMAT_R32G32B32A32_SINT:
+   case VK_FORMAT_S8_UINT:
+      return gfx_level >= GFX9;
+   case VK_FORMAT_E5B9G9R9_UFLOAT_PACK32:
+      return gfx_level >= GFX7;
    default:
       return false;
    }
@@ -659,6 +720,13 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
          tiled = VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_LINEAR_BIT |
                  VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT |
                  VK_FORMAT_FEATURE_2_BLIT_SRC_BIT;
+
+         VkFormat emulation_format = vk_texcompress_etc2_emulation_format(format);
+         if (emulation_format == VK_FORMAT_UNDEFINED)
+            emulation_format = vk_texcompress_astc_emulation_format(format);
+
+         if (radv_is_filter_minmax_format_supported(physical_device, emulation_format))
+            tiled |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_MINMAX_BIT;
       }
       out_properties->linearTilingFeatures = linear;
       out_properties->optimalTilingFeatures = tiled;
@@ -719,7 +787,7 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
          tiled |= VK_FORMAT_FEATURE_2_BLIT_SRC_BIT | VK_FORMAT_FEATURE_2_BLIT_DST_BIT;
          tiled |= VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
 
-         if (radv_is_filter_minmax_format_supported(format))
+         if (radv_is_filter_minmax_format_supported(physical_device, format))
             tiled |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_MINMAX_BIT;
 
          if (vk_format_has_depth(format)) {
@@ -740,18 +808,21 @@ radv_physical_device_get_format_properties(struct radv_physical_device *physical
          linear |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_2_BLIT_SRC_BIT;
          tiled |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT | VK_FORMAT_FEATURE_2_BLIT_SRC_BIT;
 
-         if (radv_is_filter_minmax_format_supported(format))
+         if (radv_is_filter_minmax_format_supported(physical_device, format)) {
             tiled |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_MINMAX_BIT;
+            linear |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_MINMAX_BIT;
+         }
 
          if (linear_sampling) {
             linear |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
             tiled |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
          }
 
-         /* Don't support blitting for R32G32B32 formats. */
+         /* Don't support blitting/minmax for R32G32B32 formats. */
          if (format == VK_FORMAT_R32G32B32_SFLOAT || format == VK_FORMAT_R32G32B32_UINT ||
              format == VK_FORMAT_R32G32B32_SINT) {
             linear &= ~VK_FORMAT_FEATURE_2_BLIT_SRC_BIT;
+            linear &= ~VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_MINMAX_BIT;
          }
       }
       if (radv_is_colorbuffer_format_supported(physical_device, format, &blendable) && desc->channel[0].size != 64) {
@@ -1091,6 +1162,10 @@ radv_get_modifier_flags(struct radv_physical_device *dev, VkFormat format, uint6
    features &= ~VK_FORMAT_FEATURE_2_DISJOINT_BIT;
 
    if (ac_modifier_has_dcc(modifier)) {
+      /* We don't enable DCC for multi-planar formats */
+      if (vk_format_get_plane_count(format) > 1)
+         return 0;
+
       /* Only disable support for STORAGE_IMAGE on modifiers that
        * do not support DCC image stores.
        */
@@ -1136,16 +1211,11 @@ radv_list_drm_format_modifiers(struct radv_physical_device *dev, VkFormat format
 
    for (unsigned i = 0; i < mod_count; ++i) {
       VkFormatFeatureFlags2 features = radv_get_modifier_flags(dev, format, mods[i], format_props);
-      unsigned planes = vk_format_get_plane_count(format);
-      if (planes == 1) {
-         if (ac_modifier_has_dcc_retile(mods[i]))
-            planes = 3;
-         else if (ac_modifier_has_dcc(mods[i]))
-            planes = 2;
-      }
-
       if (!features)
          continue;
+
+      unsigned planes =
+         vk_format_get_plane_count(format) + ac_modifier_has_dcc(mods[i]) + ac_modifier_has_dcc_retile(mods[i]);
 
       vk_outarray_append_typed(VkDrmFormatModifierPropertiesEXT, &out, out_props)
       {
@@ -1192,16 +1262,11 @@ radv_list_drm_format_modifiers_2(struct radv_physical_device *dev, VkFormat form
 
    for (unsigned i = 0; i < mod_count; ++i) {
       VkFormatFeatureFlags2 features = radv_get_modifier_flags(dev, format, mods[i], format_props);
-      unsigned planes = vk_format_get_plane_count(format);
-      if (planes == 1) {
-         if (ac_modifier_has_dcc_retile(mods[i]))
-            planes = 3;
-         else if (ac_modifier_has_dcc(mods[i]))
-            planes = 2;
-      }
-
       if (!features)
          continue;
+
+      unsigned planes =
+         vk_format_get_plane_count(format) + ac_modifier_has_dcc(mods[i]) + ac_modifier_has_dcc_retile(mods[i]);
 
       vk_outarray_append_typed(VkDrmFormatModifierProperties2EXT, &out, out_props)
       {
@@ -1699,7 +1764,7 @@ radv_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
    }
 
    if (ycbcr_props) {
-      ycbcr_props->combinedImageSamplerDescriptorCount = vk_format_get_plane_count(format);
+      ycbcr_props->combinedImageSamplerDescriptorCount = 1;
    }
 
    if (texture_lod_props) {
@@ -1965,6 +2030,10 @@ radv_dcc_formats_compatible(enum amd_gfx_level gfx_level, VkFormat format1, VkFo
    unsigned size1, size2;
    int i;
 
+   /* All formats are compatible on GFX11. */
+   if (gfx_level >= GFX11)
+      return true;
+
    if (format1 == format2)
       return true;
 
@@ -1987,16 +2056,8 @@ radv_dcc_formats_compatible(enum amd_gfx_level gfx_level, VkFormat format1, VkFo
        (type1 == dcc_channel_float) != (type2 == dcc_channel_float) || size1 != size2)
       return false;
 
-   if (type1 != type2) {
-      /* FIXME: All formats should be compatible on GFX11 but for some reasons DCC with signedness
-       * reinterpretation doesn't work as expected, like R8_UINT<->R8_SINT. Note that disabling
-       * fast-clears doesn't help.
-       */
-      if (gfx_level >= GFX11)
-         return false;
-
+   if (type1 != type2)
       *sign_reinterpret = true;
-   }
 
    return true;
 }

@@ -40,8 +40,9 @@
 #define sizeof_field(type, field) sizeof(((type *)0)->field)
 
 enum binding_property {
-   BINDING_PROPERTY_NORMAL   = BITFIELD_BIT(0),
-   BINDING_PROPERTY_PUSHABLE = BITFIELD_BIT(1),
+   BINDING_PROPERTY_NORMAL            = BITFIELD_BIT(0),
+   BINDING_PROPERTY_PUSHABLE          = BITFIELD_BIT(1),
+   BINDING_PROPERTY_EMBEDDED_SAMPLER  = BITFIELD_BIT(2),
 };
 
 struct apply_pipeline_layout_state {
@@ -71,6 +72,9 @@ struct apply_pipeline_layout_state {
 
          /* Sampler table offset */
          uint8_t sampler_offset;
+
+         /* Embedded sampler index */
+         uint16_t embedded_sampler_index;
 
          /* Properties of the binding */
          enum binding_property properties;
@@ -123,8 +127,10 @@ static void
 add_binding(struct apply_pipeline_layout_state *state,
             uint32_t set, uint32_t binding)
 {
+   const struct anv_descriptor_set_layout *set_layout =
+      state->layout->set[set].layout;
    const struct anv_descriptor_set_binding_layout *bind_layout =
-      &state->layout->set[set].layout->binding[binding];
+      &set_layout->binding[binding];
 
    assert(set < state->layout->num_sets);
    assert(binding < state->layout->set[set].layout->binding_count);
@@ -136,14 +142,21 @@ add_binding(struct apply_pipeline_layout_state *state,
     * this binding.  This lets us be lazy and call this function constantly
     * without worrying about unnecessarily enabling the buffer.
     */
-   if (bind_layout->descriptor_stride)
+   if (bind_layout->descriptor_surface_stride)
       state->set[set].desc_buffer_used = true;
 
    if (bind_layout->dynamic_offset_index >= 0)
       state->has_dynamic_buffers = true;
 
    state->set[set].binding[binding].properties |= BINDING_PROPERTY_NORMAL;
+
+   if (set_layout->flags & VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT)
+      state->set[set].binding[binding].properties |= BINDING_PROPERTY_EMBEDDED_SAMPLER;
 }
+
+const VkDescriptorSetLayoutCreateFlags non_pushable_set_flags =
+   VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT |
+   VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT;
 
 const VkDescriptorBindingFlags non_pushable_binding_flags =
    VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
@@ -156,8 +169,19 @@ add_binding_type(struct apply_pipeline_layout_state *state,
 {
    add_binding(state, set, binding);
 
-   if ((state->layout->set[set].layout->binding[binding].flags &
-        non_pushable_binding_flags) == 0 &&
+   const struct anv_descriptor_set_layout *set_layout =
+      state->layout->set[set].layout;
+   const struct anv_descriptor_set_binding_layout *bind_layout =
+      &set_layout->binding[binding];
+
+   /* We can't push descriptor buffers but we can for push descriptors */
+   const bool is_set_pushable =
+      (set_layout->flags & non_pushable_set_flags) == 0 ||
+      set_layout->flags & VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR;
+   const bool is_binding_pushable =
+      (bind_layout->flags & non_pushable_binding_flags) == 0;
+
+   if (is_set_pushable && is_binding_pushable &&
        (state->layout->set[set].layout->binding[binding].type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER ||
         state->layout->set[set].layout->binding[binding].type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC ||
         state->layout->set[set].layout->binding[binding].type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK ||
@@ -263,6 +287,9 @@ descriptor_has_bti(nir_intrinsic_instr *intrin,
    const struct anv_descriptor_set_binding_layout *bind_layout =
       &state->layout->set[set].layout->binding[binding];
 
+   if (state->set[set].binding[binding].properties & BINDING_PROPERTY_EMBEDDED_SAMPLER)
+      return false;
+
    uint32_t surface_index;
    if (bind_layout->data & ANV_DESCRIPTOR_INLINE_UNIFORM)
       surface_index = state->set[set].desc_offset;
@@ -355,9 +382,9 @@ build_load_descriptor_mem(nir_builder *b,
  * buffer size and just load a vec4.
  */
 static nir_def *
-build_load_render_surface_state_address(nir_builder *b,
-                                        nir_def *desc_addr,
-                                        struct apply_pipeline_layout_state *state)
+build_optimized_load_render_surface_state_address(nir_builder *b,
+                                                  nir_def *desc_addr,
+                                                  struct apply_pipeline_layout_state *state)
 
 {
    const struct intel_device_info *devinfo = &state->pdevice->info;
@@ -371,6 +398,108 @@ build_load_render_surface_state_address(nir_builder *b,
    nir_def *length = nir_channel(b, surface_addr, 3);
 
    return nir_vec4(b, addr_ldw, addr_udw, length, nir_imm_int(b, 0));
+}
+
+/* When using direct descriptor, we do not have a structure to read in memory
+ * like anv_address_range_descriptor where all the fields match perfectly the
+ * vec4 address format we need to generate for A64 messages. Instead we need
+ * to build the vec4 from parsing the RENDER_SURFACE_STATE structure. Easy
+ * enough for the surface address, lot less fun for the size.
+ */
+static nir_def *
+build_non_optimized_load_render_surface_state_address(nir_builder *b,
+                                                      nir_def *desc_addr,
+                                                      struct apply_pipeline_layout_state *state)
+
+{
+   const struct intel_device_info *devinfo = &state->pdevice->info;
+
+   assert(((RENDER_SURFACE_STATE_SurfaceBaseAddress_start(devinfo) +
+            RENDER_SURFACE_STATE_SurfaceBaseAddress_bits(devinfo) - 1) -
+           RENDER_SURFACE_STATE_Width_start(devinfo)) / 8 <= 32);
+
+   nir_def *surface_addr =
+      build_load_descriptor_mem(b, desc_addr,
+                                RENDER_SURFACE_STATE_SurfaceBaseAddress_start(devinfo) / 8,
+                                DIV_ROUND_UP(RENDER_SURFACE_STATE_SurfaceBaseAddress_bits(devinfo), 32),
+                                32, state);
+   nir_def *addr_ldw = nir_channel(b, surface_addr, 0);
+   nir_def *addr_udw = nir_channel(b, surface_addr, 1);
+
+   /* Take all the RENDER_SURFACE_STATE fields from the beginning of the
+    * structure up to the Depth field.
+    */
+   const uint32_t type_sizes_dwords =
+      DIV_ROUND_UP(RENDER_SURFACE_STATE_Depth_start(devinfo) +
+                   RENDER_SURFACE_STATE_Depth_bits(devinfo), 32);
+   nir_def *type_sizes =
+      build_load_descriptor_mem(b, desc_addr, 0, type_sizes_dwords, 32, state);
+
+   const unsigned width_start = RENDER_SURFACE_STATE_Width_start(devinfo);
+   /* SKL PRMs, Volume 2d: Command Reference: Structures, RENDER_SURFACE_STATE
+    *
+    *    Width:  "bits [6:0]   of the number of entries in the buffer - 1"
+    *    Height: "bits [20:7]  of the number of entries in the buffer - 1"
+    *    Depth:  "bits [31:21] of the number of entries in the buffer - 1"
+    */
+   const unsigned width_bits = 7;
+   nir_def *width =
+      nir_iand_imm(b,
+                   nir_ishr_imm(b,
+                                nir_channel(b, type_sizes, width_start / 32),
+                                width_start % 32),
+                   (1u << width_bits) - 1);
+
+   const unsigned height_start = RENDER_SURFACE_STATE_Height_start(devinfo);
+   const unsigned height_bits = RENDER_SURFACE_STATE_Height_bits(devinfo);
+   nir_def *height =
+      nir_iand_imm(b,
+                   nir_ishr_imm(b,
+                                nir_channel(b, type_sizes, height_start / 32),
+                                height_start % 32),
+                   (1u << height_bits) - 1);
+
+   const unsigned depth_start = RENDER_SURFACE_STATE_Depth_start(devinfo);
+   const unsigned depth_bits = RENDER_SURFACE_STATE_Depth_bits(devinfo);
+   nir_def *depth =
+      nir_iand_imm(b,
+                   nir_ishr_imm(b,
+                                nir_channel(b, type_sizes, depth_start / 32),
+                                depth_start % 32),
+                   (1u << depth_bits) - 1);
+
+   nir_def *length = width;
+   length = nir_ior(b, length, nir_ishl_imm(b, height, width_bits));
+   length = nir_ior(b, length, nir_ishl_imm(b, depth, width_bits + height_bits));
+   length = nir_iadd_imm(b, length, 1);
+
+   /* Check the surface type, if it's SURFTYPE_NULL, set the length of the
+    * buffer to 0.
+    */
+   const unsigned type_start = RENDER_SURFACE_STATE_SurfaceType_start(devinfo);
+   const unsigned type_dw = type_start / 32;
+   nir_def *type =
+      nir_iand_imm(b,
+                   nir_ishr_imm(b,
+                                nir_channel(b, type_sizes, type_dw),
+                                type_start % 32),
+                   (1u << RENDER_SURFACE_STATE_SurfaceType_bits(devinfo)) - 1);
+
+   length = nir_bcsel(b,
+                      nir_ieq_imm(b, type, 7 /* SURFTYPE_NULL */),
+                      nir_imm_int(b, 0), length);
+
+   return nir_vec4(b, addr_ldw, addr_udw, length, nir_imm_int(b, 0));
+}
+
+static inline nir_def *
+build_load_render_surface_state_address(nir_builder *b,
+                                        nir_def *desc_addr,
+                                        struct apply_pipeline_layout_state *state)
+{
+   if (state->pdevice->isl_dev.buffer_length_in_aux_addr)
+      return build_optimized_load_render_surface_state_address(b, desc_addr, state);
+   return build_non_optimized_load_render_surface_state_address(b, desc_addr, state);
 }
 
 /* Load the depth of a 3D storage image.
@@ -454,7 +583,8 @@ build_res_index(nir_builder *b,
    case nir_address_format_64bit_global_32bit_offset:
       /* Descriptor set buffer accesses will go through A64 messages, so the
        * index to get the descriptor set buffer address is located in the
-       * anv_push_constants::desc_offsets and it's indexed by the set number.
+       * anv_push_constants::desc_surface_offsets and it's indexed by the set
+       * number.
        */
       set_idx = set;
       break;
@@ -491,8 +621,16 @@ build_res_index(nir_builder *b,
       }
 
    const uint32_t desc_bti = state->set[set].binding[binding].surface_offset;
-   assert(bind_layout->descriptor_stride % 8 == 0);
-   const uint32_t desc_stride = bind_layout->descriptor_stride / 8;
+   /* We don't care about the stride field for inline uniforms (see
+    * build_desc_addr_for_res_index), but for anything else we should be
+    * aligned to 8 bytes because we store a multiple of 8 in the packed info
+    * to be able to encode a stride up to 2040 (8 * 255).
+    */
+   assert(bind_layout->type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK ||
+          bind_layout->descriptor_surface_stride % 8 == 0);
+   const uint32_t desc_stride =
+      bind_layout->type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK ? 0 :
+      bind_layout->descriptor_surface_stride / 8;
 
       nir_def *packed =
          nir_ior_imm(b,
@@ -503,7 +641,7 @@ build_res_index(nir_builder *b,
 
 
    return nir_vec4(b, packed,
-                      nir_imm_int(b, bind_layout->descriptor_offset),
+                      nir_imm_int(b, bind_layout->descriptor_surface_offset),
                       nir_imm_int(b, array_size - 1),
                       array_index);
 }
@@ -646,8 +784,8 @@ build_desc_addr_for_binding(nir_builder *b,
          nir_iadd_imm(b,
                       nir_imul_imm(b,
                                    array_index,
-                                   bind_layout->descriptor_stride),
-                      bind_layout->descriptor_offset);
+                                   bind_layout->descriptor_surface_stride),
+                      bind_layout->descriptor_surface_offset);
 
       return nir_vec4(b, nir_unpack_64_2x32_split_x(b, set_addr),
                          nir_unpack_64_2x32_split_y(b, set_addr),
@@ -661,12 +799,36 @@ build_desc_addr_for_binding(nir_builder *b,
                       nir_iadd_imm(b,
                                    nir_imul_imm(b,
                                                 array_index,
-                                                bind_layout->descriptor_stride),
-                                   bind_layout->descriptor_offset));
+                                                bind_layout->descriptor_surface_stride),
+                                   bind_layout->descriptor_surface_offset));
 
    default:
       unreachable("Unhandled address format");
    }
+}
+
+static unsigned
+binding_descriptor_offset(const struct apply_pipeline_layout_state *state,
+                          const struct anv_descriptor_set_binding_layout *bind_layout,
+                          bool sampler)
+{
+   if (sampler &&
+       state->layout->type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_DIRECT)
+      return bind_layout->descriptor_sampler_offset;
+
+   return bind_layout->descriptor_surface_offset;
+}
+
+static unsigned
+binding_descriptor_stride(const struct apply_pipeline_layout_state *state,
+                          const struct anv_descriptor_set_binding_layout *bind_layout,
+                          bool sampler)
+{
+   if (sampler &&
+       state->layout->type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_DIRECT)
+      return bind_layout->descriptor_sampler_stride;
+
+   return bind_layout->descriptor_surface_stride;
 }
 
 static nir_def *
@@ -679,6 +841,10 @@ build_surface_index_for_binding(nir_builder *b,
 {
    const struct anv_descriptor_set_binding_layout *bind_layout =
       &state->layout->set[set].layout->binding[binding];
+   const unsigned descriptor_offset =
+      binding_descriptor_offset(state, bind_layout, false /* sampler */);
+   const unsigned descriptor_stride =
+      binding_descriptor_stride(state, bind_layout, false /* sampler */);
    const bool is_bindless =
       is_binding_bindless(set, binding, false /* sampler */, state);
 
@@ -695,23 +861,25 @@ build_surface_index_for_binding(nir_builder *b,
       } else {
          set_offset =
             nir_load_push_constant(b, 1, 32, nir_imm_int(b, 0),
-                                   .base = offsetof(struct anv_push_constants, desc_offsets[set]),
-                                   .range = sizeof_field(struct anv_push_constants, desc_offsets[set]));
+                                   .base = offsetof(struct anv_push_constants,
+                                                    desc_surface_offsets[set]),
+                                   .range = sizeof_field(struct anv_push_constants,
+                                                         desc_surface_offsets[set]));
 
          /* With bindless indexes are offsets in the descriptor buffer */
          surface_index =
             nir_iadd_imm(b,
-                         nir_imul_imm(b, array_index, bind_layout->descriptor_stride),
-                         bind_layout->descriptor_offset);
+                         nir_imul_imm(b, array_index, descriptor_stride),
+                         descriptor_offset);
          if (plane != 0) {
             assert(plane < bind_layout->max_plane_count);
             surface_index = nir_iadd_imm(b, surface_index,
-                                         plane * (bind_layout->descriptor_stride /
+                                         plane * (descriptor_stride /
                                                   bind_layout->max_plane_count));
          }
 
-         assert(bind_layout->descriptor_offset % 64 == 0);
-         assert(bind_layout->descriptor_stride % 64 == 0);
+         assert(descriptor_offset % 64 == 0);
+         assert(descriptor_stride % 64 == 0);
       }
    } else {
       /* Unused */
@@ -734,6 +902,7 @@ build_surface_index_for_binding(nir_builder *b,
                              set_offset,
                              surface_index,
                              array_index,
+                             nir_imm_int(b, 0) /* bindless_base_offset */,
                              .desc_set = set,
                              .binding = binding,
                              .resource_block_intel = state->set[set].binding[binding].push_block,
@@ -752,14 +921,24 @@ build_sampler_handle_for_binding(nir_builder *b,
                                  bool non_uniform,
                                  const struct apply_pipeline_layout_state *state)
 {
+   const struct anv_descriptor_set_binding_layout *bind_layout =
+      &state->layout->set[set].layout->binding[binding];
+   const unsigned descriptor_offset =
+      binding_descriptor_offset(state, bind_layout, true /* sampler */);
+   const unsigned descriptor_stride =
+      binding_descriptor_stride(state, bind_layout, true /* sampler */);
+   const bool is_embedded =
+      state->set[set].binding[binding].properties & BINDING_PROPERTY_EMBEDDED_SAMPLER;
    const bool is_bindless =
       is_binding_bindless(set, binding, true /* sampler */, state);
-   nir_def *set_offset, *sampler_index;
+   nir_def *set_offset, *sampler_index, *sampler_base_offset = nir_imm_int(b, 0);
 
-   if (is_bindless) {
-      const struct anv_descriptor_set_binding_layout *bind_layout =
-         &state->layout->set[set].layout->binding[binding];
-
+   if (is_embedded) {
+      set_offset = nir_imm_int(b, 0xdeaddead);
+      sampler_index = nir_load_reloc_const_intel(
+         b, BRW_SHADER_RELOC_EMBEDDED_SAMPLER_HANDLE +
+         state->set[set].binding[binding].embedded_sampler_index);
+   } else if (is_bindless) {
       if (state->layout->type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_INDIRECT) {
          set_offset = nir_imm_int(b, 0xdeaddead);
 
@@ -776,10 +955,12 @@ build_sampler_handle_for_binding(nir_builder *b,
       } else {
          set_offset =
             nir_load_push_constant(b, 1, 32, nir_imm_int(b, 0),
-                                   .base = offsetof(struct anv_push_constants, desc_offsets[set]),
-                                   .range = sizeof_field(struct anv_push_constants, desc_offsets[set]));
+                                   .base = offsetof(struct anv_push_constants,
+                                                    desc_sampler_offsets[set]),
+                                   .range = sizeof_field(struct anv_push_constants,
+                                                         desc_sampler_offsets[set]));
 
-         uint32_t base_offset = bind_layout->descriptor_offset;
+         uint32_t base_offset = descriptor_offset;
 
          /* The SAMPLER_STATE can only be located at a 64 byte in the combined
           * image/sampler case. Combined image/sampler is not supported to be
@@ -790,13 +971,13 @@ build_sampler_handle_for_binding(nir_builder *b,
 
          if (plane != 0) {
             assert(plane < bind_layout->max_plane_count);
-            base_offset += plane * (bind_layout->descriptor_stride /
+            base_offset += plane * (descriptor_stride /
                                     bind_layout->max_plane_count);
          }
 
          sampler_index =
             nir_iadd_imm(b,
-                         nir_imul_imm(b, array_index, bind_layout->descriptor_stride),
+                         nir_imul_imm(b, array_index, descriptor_stride),
                          base_offset);
       }
    } else {
@@ -808,13 +989,22 @@ build_sampler_handle_for_binding(nir_builder *b,
                       state->set[set].binding[binding].sampler_offset + plane);
    }
 
-   return nir_resource_intel(b, set_offset, sampler_index, array_index,
+   nir_resource_data_intel sampler_resource = nir_resource_intel_sampler;
+   if (is_bindless)
+      sampler_resource |= nir_resource_intel_bindless;
+   if (is_embedded)
+      sampler_resource |= nir_resource_intel_sampler_embedded;
+   if (non_uniform)
+      sampler_resource |= nir_resource_intel_non_uniform;
+
+   return nir_resource_intel(b,
+                             set_offset,
+                             sampler_index,
+                             array_index,
+                             sampler_base_offset,
                              .desc_set = set,
                              .binding = binding,
-                             .resource_access_intel =
-                                (is_bindless ? nir_resource_intel_bindless : 0) |
-                                (non_uniform ? nir_resource_intel_non_uniform : 0) |
-                                nir_resource_intel_sampler);
+                             .resource_access_intel = sampler_resource);
 }
 
 static nir_def *
@@ -993,7 +1183,7 @@ build_buffer_addr_for_binding(nir_builder *b,
          &state->layout->set[set].layout->binding[binding];
       return nir_vec2(b,
                       nir_imm_int(b, state->set[set].desc_offset),
-                      nir_imm_int(b, bind_layout->descriptor_offset));
+                      nir_imm_int(b, bind_layout->descriptor_surface_offset));
    }
 
    struct res_index_defs res = unpack_res_index(b, res_index);
@@ -1745,8 +1935,16 @@ anv_validate_pipeline_layout(const struct anv_pipeline_sets_layout *layout,
 #endif
 
 static bool
-binding_is_promotable_to_push(const struct anv_descriptor_set_binding_layout *bind_layout)
+binding_is_promotable_to_push(const struct anv_descriptor_set_layout *set_layout,
+                              const struct anv_descriptor_set_binding_layout *bind_layout)
 {
+   if (set_layout->flags & VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR)
+      return true;
+
+   if (set_layout->flags & (VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT |
+                            VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT))
+      return false;
+
    return (bind_layout->flags & non_pushable_binding_flags) == 0;
 }
 
@@ -1773,9 +1971,9 @@ add_bti_entry(struct anv_pipeline_bind_map *map,
          .set = set,
          .binding = binding,
          .index = bind_layout->descriptor_index + element,
-         .set_offset = bind_layout->descriptor_offset +
-                       element * bind_layout->descriptor_stride +
-                       plane * bind_layout->descriptor_data_size,
+         .set_offset = bind_layout->descriptor_surface_offset +
+                       element * bind_layout->descriptor_surface_stride +
+                       plane * bind_layout->descriptor_data_surface_size,
          .plane = plane,
    };
    assert(map->surface_count <= MAX_BINDING_TABLE_SIZE);
@@ -1794,8 +1992,8 @@ add_dynamic_bti_entry(struct anv_pipeline_bind_map *map,
          .set = set,
          .binding = binding,
          .index = bind_layout->descriptor_index + element,
-         .set_offset = bind_layout->descriptor_offset +
-                       element * bind_layout->descriptor_stride,
+         .set_offset = bind_layout->descriptor_surface_offset +
+                       element * bind_layout->descriptor_surface_stride,
          .dynamic_offset_index = bind_layout->dynamic_offset_index + element,
    };
    assert(map->surface_count <= MAX_BINDING_TABLE_SIZE);
@@ -1835,6 +2033,66 @@ add_push_entry(struct anv_pipeline_push_map *push_map,
          .index = bind_layout->descriptor_index + element,
          .dynamic_offset_index = bind_layout->dynamic_offset_index + element,
    };
+}
+
+static void
+add_embedded_sampler_entry(struct apply_pipeline_layout_state *state,
+                           struct anv_pipeline_bind_map *map,
+                           uint32_t set, uint32_t binding)
+{
+   state->set[set].binding[binding].embedded_sampler_index =
+      map->embedded_sampler_count;
+   struct anv_pipeline_embedded_sampler_binding *sampler =
+      &map->embedded_sampler_to_binding[map->embedded_sampler_count++];
+   const struct anv_descriptor_set_layout *set_layout =
+      state->layout->set[set].layout;
+   const struct anv_descriptor_set_binding_layout *bind_layout =
+      &set_layout->binding[binding];
+
+   *sampler = (struct anv_pipeline_embedded_sampler_binding) {
+      .set = set,
+      .binding = binding,
+   };
+
+   assert(sizeof(sampler->sampler_state) ==
+          sizeof(bind_layout->immutable_samplers[0]->state_no_bc[0]));
+   memcpy(sampler->sampler_state,
+          bind_layout->immutable_samplers[0]->state_no_bc[0],
+          sizeof(sampler->sampler_state));
+
+   assert(sizeof(sampler->border_color) ==
+          sizeof(bind_layout->immutable_samplers[0]->vk.border_color_value.uint32));
+   memcpy(sampler->border_color,
+          bind_layout->immutable_samplers[0]->vk.border_color_value.uint32,
+          sizeof(sampler->border_color));
+}
+
+static bool
+binding_should_use_surface_binding_table(const struct apply_pipeline_layout_state *state,
+                                         const struct anv_descriptor_set_binding_layout *binding)
+{
+   if ((binding->data & ANV_DESCRIPTOR_BTI_SURFACE_STATE) == 0)
+      return false;
+
+   if (state->pdevice->always_use_bindless &&
+       (binding->data & ANV_DESCRIPTOR_SURFACE))
+      return false;
+
+   return true;
+}
+
+static bool
+binding_should_use_sampler_binding_table(const struct apply_pipeline_layout_state *state,
+                                         const struct anv_descriptor_set_binding_layout *binding)
+{
+   if ((binding->data & ANV_DESCRIPTOR_BTI_SAMPLER_STATE) == 0)
+      return false;
+
+   if (state->pdevice->always_use_bindless &&
+       (binding->data & ANV_DESCRIPTOR_SAMPLER))
+      return false;
+
+   return true;
 }
 
 void
@@ -1897,7 +2155,9 @@ anv_nir_apply_pipeline_layout(nir_shader *shader,
       } else if (state.set[s].desc_buffer_used) {
          map->surface_to_descriptor[map->surface_count] =
             (struct anv_pipeline_binding) {
-               .set = ANV_DESCRIPTOR_SET_DESCRIPTORS,
+               .set = (layout->type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_BUFFER) ?
+                      ANV_DESCRIPTOR_SET_DESCRIPTORS_BUFFER :
+                      ANV_DESCRIPTOR_SET_DESCRIPTORS,
                .binding = UINT32_MAX,
                .index = s,
             };
@@ -1915,8 +2175,8 @@ anv_nir_apply_pipeline_layout(nir_shader *shader,
           sizeof(push_map->block_to_descriptor[0]) * map->surface_count);
    push_map->block_count = map->surface_count;
 
-   /* Count used bindings and add push blocks for promotion to push
-    * constants
+   /* Count used bindings, assign embedded sampler indices & add push blocks
+    * for promotion to push constants
     */
    unsigned used_binding_count = 0;
    for (uint32_t set = 0; set < layout->num_sets; set++) {
@@ -1932,15 +2192,18 @@ anv_nir_apply_pipeline_layout(nir_shader *shader,
 
          const struct anv_descriptor_set_binding_layout *bind_layout =
             &set_layout->binding[b];
-         if (!binding_is_promotable_to_push(bind_layout))
-            continue;
 
-         if (bind_layout->type != VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK) {
-            state.set[set].binding[b].push_block = push_map->block_count;
-            for (unsigned i = 0; i < bind_layout->array_size; i++)
-               add_push_entry(push_map, set, b, i, layout, bind_layout);
-         } else {
-            state.set[set].binding[b].push_block = state.set[set].desc_offset;
+         if (state.set[set].binding[b].properties & BINDING_PROPERTY_EMBEDDED_SAMPLER)
+            add_embedded_sampler_entry(&state, map, set, b);
+
+         if (binding_is_promotable_to_push(set_layout, bind_layout)) {
+            if (bind_layout->type != VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK) {
+               state.set[set].binding[b].push_block = push_map->block_count;
+               for (unsigned i = 0; i < bind_layout->array_size; i++)
+                  add_push_entry(push_map, set, b, i, layout, bind_layout);
+            } else {
+               state.set[set].binding[b].push_block = state.set[set].desc_offset;
+            }
          }
       }
    }
@@ -1972,8 +2235,7 @@ anv_nir_apply_pipeline_layout(nir_shader *shader,
          /* If the descriptor type doesn't support bindless then put it at the
           * beginning so we guarantee it gets a slot.
           */
-         if (!anv_descriptor_supports_bindless(pdevice, binding, true) ||
-             !anv_descriptor_supports_bindless(pdevice, binding, false))
+         if (!anv_descriptor_supports_bindless(pdevice, set_layout, binding))
             score |= 1 << 15;
 
          infos[used_binding_count++] = (struct binding_info) {
@@ -1993,8 +2255,10 @@ anv_nir_apply_pipeline_layout(nir_shader *shader,
    for (unsigned i = 0; i < used_binding_count; i++) {
       unsigned set = infos[i].set, b = infos[i].binding;
       assert(layout->set[set].layout);
+      const struct anv_descriptor_set_layout *set_layout =
+         layout->set[set].layout;
       const struct anv_descriptor_set_binding_layout *binding =
-            &layout->set[set].layout->binding[b];
+            &set_layout->binding[b];
 
       const uint32_t array_size = binding->array_size;
 
@@ -2008,14 +2272,14 @@ anv_nir_apply_pipeline_layout(nir_shader *shader,
       state.set[set].binding[b].surface_offset = BINDLESS_OFFSET;
       state.set[set].binding[b].sampler_offset = BINDLESS_OFFSET;
 
-      if (binding->data & ANV_DESCRIPTOR_BTI_SURFACE_STATE) {
+      if (binding_should_use_surface_binding_table(&state, binding)) {
          if (map->surface_count + array_size * array_multiplier > MAX_BINDING_TABLE_SIZE ||
-             anv_descriptor_requires_bindless(pdevice, binding, false) ||
+             anv_descriptor_requires_bindless(pdevice, set_layout, binding) ||
              brw_shader_stage_requires_bindless_resources(shader->info.stage)) {
             /* If this descriptor doesn't fit in the binding table or if it
              * requires bindless for some reason, flag it as bindless.
              */
-            assert(anv_descriptor_supports_bindless(pdevice, binding, false));
+            assert(anv_descriptor_supports_bindless(pdevice, set_layout, binding));
          } else {
             state.set[set].binding[b].surface_offset = map->surface_count;
             if (binding->dynamic_offset_index < 0) {
@@ -2039,9 +2303,9 @@ anv_nir_apply_pipeline_layout(nir_shader *shader,
          assert(map->surface_count <= MAX_BINDING_TABLE_SIZE);
       }
 
-      if (binding->data & ANV_DESCRIPTOR_BTI_SAMPLER_STATE) {
+      if (binding_should_use_sampler_binding_table(&state, binding)) {
          if (map->sampler_count + array_size * array_multiplier > MAX_SAMPLER_TABLE_SIZE ||
-             anv_descriptor_requires_bindless(pdevice, binding, true) ||
+             anv_descriptor_requires_bindless(pdevice, set_layout, binding) ||
              brw_shader_stage_requires_bindless_resources(shader->info.stage)) {
             /* If this descriptor doesn't fit in the binding table or if it
              * requires bindless for some reason, flag it as bindless.
@@ -2050,7 +2314,7 @@ anv_nir_apply_pipeline_layout(nir_shader *shader,
              * using indirect sends thanks to bindless samplers being packed
              * less tightly than the sampler table.
              */
-            assert(anv_descriptor_supports_bindless(pdevice, binding, true));
+            assert(anv_descriptor_supports_bindless(pdevice, set_layout, binding));
          } else {
             state.set[set].binding[b].sampler_offset = map->sampler_count;
             uint8_t max_planes = bti_multiplier(&state, set, b);
@@ -2070,7 +2334,7 @@ anv_nir_apply_pipeline_layout(nir_shader *shader,
       fprintf(stderr, "set=%u binding=%u surface_offset=0x%08x require_bindless=%u type=%s\n",
               set, b,
               state.set[set].binding[b].surface_offset,
-              anv_descriptor_requires_bindless(pdevice, binding, false),
+              anv_descriptor_requires_bindless(pdevice, set_layout, binding),
               vk_DescriptorType_to_str(binding->type));
 #endif
    }

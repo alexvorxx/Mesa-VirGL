@@ -29,7 +29,7 @@
 #include "perf/intel_perf.h"
 #include "util/perf/cpu_trace.h"
 
-#include "vulkan/runtime/vk_common_entrypoints.h"
+#include "vk_common_entrypoints.h"
 
 /** Timestamp structure format */
 union anv_utrace_timestamp {
@@ -138,15 +138,13 @@ anv_device_utrace_emit_cs_copy_ts_buffer(struct u_trace_context *utctx,
    struct anv_memcpy_params *params = push_data_state.map;
 
    *params = (struct anv_memcpy_params) {
-      .copy = {
-         .num_dwords = count * sizeof(union anv_utrace_timestamp) / 4,
-      },
-      .src_addr = anv_address_physical(from_addr),
-      .dst_addr = anv_address_physical(to_addr),
+      .num_dwords = count * sizeof(union anv_utrace_timestamp) / 4,
+      .src_addr   = anv_address_physical(from_addr),
+      .dst_addr   = anv_address_physical(to_addr),
    };
 
    anv_genX(device->info, emit_simple_shader_dispatch)(
-      &submit->simple_state, DIV_ROUND_UP(params->copy.num_dwords, 4),
+      &submit->simple_state, DIV_ROUND_UP(params->num_dwords, 4),
       push_data_state);
 }
 
@@ -281,6 +279,14 @@ anv_device_utrace_flush_cmd_buffers(struct anv_queue *queue,
 
          anv_genX(device->info, emit_so_memcpy_end)(&submit->memcpy_state);
       } else {
+         struct anv_shader_bin *copy_kernel;
+         VkResult ret =
+            anv_device_get_internal_shader(device,
+                                           ANV_INTERNAL_KERNEL_MEMCPY_COMPUTE,
+                                           &copy_kernel);
+         if (ret != VK_SUCCESS)
+            goto error_batch;
+
          trace_intel_begin_trace_copy_cb(&submit->ds.trace, &submit->batch);
 
          submit->simple_state = (struct anv_simple_shader) {
@@ -288,8 +294,7 @@ anv_device_utrace_flush_cmd_buffers(struct anv_queue *queue,
             .dynamic_state_stream = &submit->dynamic_state_stream,
             .general_state_stream = &submit->general_state_stream,
             .batch                = &submit->batch,
-            .kernel               = device->internal_kernels[
-               ANV_INTERNAL_KERNEL_MEMCPY_COMPUTE],
+            .kernel               = copy_kernel,
             .l3_config            = device->internal_kernels_l3_config,
          };
          anv_genX(device->info, emit_simple_shader_init)(&submit->simple_state);
@@ -366,7 +371,8 @@ anv_utrace_create_ts_buffer(struct u_trace_context *utctx, uint32_t size_b)
 
    memset(bo->map, 0, bo->size);
 #ifdef SUPPORT_INTEL_INTEGRATED_GPUS
-   if (device->physical->memory.need_flush)
+   if (device->physical->memory.need_flush &&
+       anv_bo_needs_host_cache_flush(bo->alloc_flags))
       intel_flush_range(bo->map, bo->size);
 #endif
 
@@ -403,17 +409,29 @@ anv_utrace_record_ts(struct u_trace *ut, void *cs,
 
    /* Is this a end of compute trace point? */
    const bool is_end_compute =
-      (cs == NULL && cmd_buffer->last_compute_walker != NULL && end_of_pipe);
+      cs == NULL &&
+      (cmd_buffer->last_compute_walker != NULL ||
+       cmd_buffer->last_indirect_dispatch != NULL) &&
+      end_of_pipe;
 
    enum anv_timestamp_capture_type capture_type = end_of_pipe ?
-      is_end_compute ? ANV_TIMESTAMP_REWRITE_COMPUTE_WALKER :
-      ANV_TIMESTAMP_CAPTURE_END_OF_PIPE : ANV_TIMESTAMP_CAPTURE_TOP_OF_PIPE;
+      (is_end_compute ?
+       (cmd_buffer->last_indirect_dispatch != NULL ?
+        ANV_TIMESTAMP_REWRITE_INDIRECT_DISPATCH : ANV_TIMESTAMP_REWRITE_COMPUTE_WALKER) :
+       ANV_TIMESTAMP_CAPTURE_END_OF_PIPE) : ANV_TIMESTAMP_CAPTURE_TOP_OF_PIPE;
+
+   void *addr = capture_type ==  ANV_TIMESTAMP_REWRITE_INDIRECT_DISPATCH ?
+                cmd_buffer->last_indirect_dispatch :
+                capture_type ==  ANV_TIMESTAMP_REWRITE_COMPUTE_WALKER ?
+                cmd_buffer->last_compute_walker : NULL;
+
    device->physical->cmd_emit_timestamp(batch, device, ts_address,
                                         capture_type,
-                                        is_end_compute ?
-                                        cmd_buffer->last_compute_walker : NULL);
-   if (is_end_compute)
-         cmd_buffer->last_compute_walker = NULL;
+                                        addr);
+   if (is_end_compute) {
+      cmd_buffer->last_compute_walker = NULL;
+      cmd_buffer->last_indirect_dispatch = NULL;
+   }
 }
 
 static uint64_t
@@ -467,7 +485,7 @@ void
 anv_device_utrace_init(struct anv_device *device)
 {
    anv_bo_pool_init(&device->utrace_bo_pool, device, "utrace",
-                    ANV_BO_ALLOC_MAPPED | ANV_BO_ALLOC_SNOOPED);
+                    ANV_BO_ALLOC_MAPPED | ANV_BO_ALLOC_HOST_CACHED_COHERENT);
    intel_ds_device_init(&device->ds, device->info, device->fd,
                         device->physical->local_minor,
                         INTEL_DS_API_VULKAN);

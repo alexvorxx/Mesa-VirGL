@@ -211,7 +211,7 @@ finish_ra_test(ra_test_policy policy, bool lower)
 
    program->workgroup_size = program->wave_size;
    aco::live live_vars = aco::live_var_analysis(program.get());
-   aco::register_allocation(program.get(), live_vars.live_out, policy);
+   aco::register_allocation(program.get(), live_vars, policy);
 
    if (aco::validate_ra(program.get())) {
       fail_test("Validation after register allocation failed");
@@ -239,6 +239,14 @@ finish_to_hw_instr_test()
 {
    finish_program(program.get());
    aco::lower_to_hw_instr(program.get());
+   aco_print_program(program.get(), output);
+}
+
+void
+finish_schedule_vopd_test()
+{
+   finish_program(program.get());
+   aco::schedule_vopd(program.get());
    aco_print_program(program.get(), output);
 }
 

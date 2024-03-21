@@ -40,7 +40,7 @@
 #include "ir3_assembler.h"
 #include "ir3_shader.h"
 
-#include "isa/isa.h"
+#include "freedreno/isa/ir3-isa.h"
 
 /* clang-format off */
 /* Note: @anholt's 4xx disasm was done on an a418 Nexus 5x */
@@ -393,6 +393,9 @@ static const struct test {
    /* Custom stp based on above to catch a disasm bug. */
    INSTR_6XX(c1465b00_0180022a, "stp.u32 p[r11.y+256], r5.y, 1"),
 
+   INSTR_6XX(c0160010_00b001a1, "ldg.k.u32 c[16], g[r48.x+208], 1"),
+   INSTR_6XX(c0160188_00b01261, "ldg.k.u32 c[a1.x+136], g[r48.x+2352], 1"),
+
    /* Atomic: */
 #if 0
    /* TODO our encoding differs in b53 for these two */
@@ -497,7 +500,7 @@ main(int argc, char **argv)
          .chip_id = test->chip_id,
       };
 
-      const struct fd_dev_info *dev_info = fd_dev_info(&dev_id);
+      const struct fd_dev_info *dev_info = fd_dev_info_raw(&dev_id);
 
       rewind(fdisasm);
       memset(disasm_output, 0, output_size);
@@ -510,12 +513,12 @@ main(int argc, char **argv)
          strtoll(&test->instr[9], NULL, 16),
          strtoll(&test->instr[0], NULL, 16),
       };
-      isa_disasm(code, 8, fdisasm,
-                 &(struct isa_decode_options){
-                    .gpu_id = dev_info->chip * 100,
-                    .show_errors = true,
-                    .no_match_cb = print_raw,
-                 });
+      ir3_isa_disasm(code, 8, fdisasm,
+                     &(struct isa_decode_options){
+                        .gpu_id = dev_info->chip * 100,
+                        .show_errors = true,
+                        .no_match_cb = print_raw,
+                     });
       fflush(fdisasm);
 
       trim(disasm_output);
@@ -535,8 +538,10 @@ main(int argc, char **argv)
       if (!compilers[dev_info->chip]) {
          dev_ids[dev_info->chip].gpu_id = test->gpu_id;
          dev_ids[dev_info->chip].chip_id = test->chip_id;
-         compilers[dev_info->chip] = ir3_compiler_create(
-            NULL, &dev_ids[dev_info->chip], &(struct ir3_compiler_options){});
+         compilers[dev_info->chip] =
+            ir3_compiler_create(NULL, &dev_ids[dev_info->chip],
+                                fd_dev_info_raw(&dev_ids[dev_info->chip]),
+                                &(struct ir3_compiler_options){});
       }
 
       FILE *fasm =

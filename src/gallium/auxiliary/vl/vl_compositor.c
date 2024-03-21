@@ -148,13 +148,13 @@ init_pipe_state(struct vl_compositor *c)
    sampler.compare_mode = PIPE_TEX_COMPARE_NONE;
    sampler.compare_func = PIPE_FUNC_ALWAYS;
 
-   c->sampler_linear = c->pipe->create_sampler_state(c->pipe, &sampler);
-
-   sampler.min_img_filter = PIPE_TEX_FILTER_NEAREST;
-   sampler.mag_img_filter = PIPE_TEX_FILTER_NEAREST;
-   c->sampler_nearest = c->pipe->create_sampler_state(c->pipe, &sampler);
-
    if (c->pipe_gfx_supported) {
+           c->sampler_linear = c->pipe->create_sampler_state(c->pipe, &sampler);
+
+           sampler.min_img_filter = PIPE_TEX_FILTER_NEAREST;
+           sampler.mag_img_filter = PIPE_TEX_FILTER_NEAREST;
+           c->sampler_nearest = c->pipe->create_sampler_state(c->pipe, &sampler);
+
            memset(&blend, 0, sizeof blend);
            blend.independent_blend_enable = 0;
            blend.rt[0].blend_enable = 0;
@@ -228,8 +228,10 @@ static void cleanup_pipe_state(struct vl_compositor *c)
            c->pipe->delete_blend_state(c->pipe, c->blend_add);
            c->pipe->delete_rasterizer_state(c->pipe, c->rast);
    }
-   c->pipe->delete_sampler_state(c->pipe, c->sampler_linear);
-   c->pipe->delete_sampler_state(c->pipe, c->sampler_nearest);
+   if (c->sampler_linear)
+      c->pipe->delete_sampler_state(c->pipe, c->sampler_linear);
+   if (c->sampler_nearest)
+      c->pipe->delete_sampler_state(c->pipe, c->sampler_nearest);
 }
 
 static bool
@@ -691,6 +693,8 @@ vl_compositor_yuv_deint_full(struct vl_compositor_state *s,
    vl_compositor_render(s, c, dst_surfaces[0], NULL, false);
 
    if (dst_rect) {
+      dst_rect->x0 /= 2;
+      dst_rect->y0 /= 2;
       dst_rect->x1 /= 2;
       dst_rect->y1 /= 2;
    }
@@ -727,6 +731,8 @@ vl_compositor_convert_rgb_to_yuv(struct vl_compositor_state *s,
    vl_compositor_render(s, c, dst_surfaces[0], NULL, false);
 
    if (dst_rect) {
+      dst_rect->x0 /= 2;
+      dst_rect->y0 /= 2;
       dst_rect->x1 /= 2;
       dst_rect->y1 /= 2;
    }
@@ -814,7 +820,7 @@ vl_compositor_init_state(struct vl_compositor_state *s, struct pipe_context *pip
       pipe->screen,
       PIPE_BIND_CONSTANT_BUFFER,
       PIPE_USAGE_DEFAULT,
-      sizeof(csc_matrix) + 12*sizeof(float) + 10*sizeof(int)
+      sizeof(csc_matrix) + 16*sizeof(float) + 2*sizeof(int)
    );
 
    if (!s->shader_params)

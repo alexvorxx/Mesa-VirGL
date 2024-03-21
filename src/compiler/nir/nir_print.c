@@ -752,9 +752,6 @@ get_location_str(unsigned location, gl_shader_stage stage,
       break;
    case MESA_SHADER_TESS_CTRL:
    case MESA_SHADER_TESS_EVAL:
-      if (location >= VARYING_SLOT_MAX)
-         break;
-      FALLTHROUGH;
    case MESA_SHADER_TASK:
    case MESA_SHADER_MESH:
    case MESA_SHADER_GEOMETRY:
@@ -1137,20 +1134,25 @@ print_intrinsic_instr(nir_intrinsic_instr *instr, print_state *state)
       print_no_dest_padding(state);
    }
 
-   fprintf(fp, "@%s (", info->name);
+   fprintf(fp, "@%s", info->name);
 
    for (unsigned i = 0; i < num_srcs; i++) {
-      if (i != 0)
+      if (i == 0)
+         fprintf(fp, " (");
+      else
          fprintf(fp, ", ");
 
       print_src(&instr->src[i], state, nir_intrinsic_instr_src_type(instr, i));
    }
 
-   fprintf(fp, ") (");
+   if (num_srcs)
+      fprintf(fp, ")");
 
    for (unsigned i = 0; i < info->num_indices; i++) {
       unsigned idx = info->indices[i];
-      if (i != 0)
+      if (i == 0)
+         fprintf(fp, " (");
+      else
          fprintf(fp, ", ");
       switch (idx) {
       case NIR_INTRINSIC_WRITE_MASK: {
@@ -1387,6 +1389,9 @@ print_intrinsic_instr(nir_intrinsic_instr *instr, print_state *state)
          if (io.high_16bits)
             fprintf(fp, " high_16bits");
 
+         if (io.invariant)
+            fprintf(fp, " invariant");
+
          if (io.high_dvec2)
             fprintf(fp, " high_dvec2");
 
@@ -1520,6 +1525,9 @@ print_intrinsic_instr(nir_intrinsic_instr *instr, print_state *state)
             case nir_resource_intel_non_uniform:
                fprintf(fp, "non-uniform");
                break;
+            case nir_resource_intel_sampler_embedded:
+               fprintf(fp, "sampler-embedded");
+               break;
             default:
                fprintf(fp, "unknown");
                break;
@@ -1600,7 +1608,8 @@ print_intrinsic_instr(nir_intrinsic_instr *instr, print_state *state)
       }
       }
    }
-   fprintf(fp, ")");
+   if (info->num_indices)
+      fprintf(fp, ")");
 
    if (!state->shader)
       return;
@@ -2064,7 +2073,8 @@ print_block(nir_block *block, print_state *state, unsigned tabs)
       state->padding_for_no_dest = 0;
 
    print_indentation(tabs, fp);
-   fprintf(fp, "block b%u:", block->index);
+   fprintf(fp, "%s block b%u:",
+           block->divergent ? "div" : "con", block->index);
 
    const bool empty_block = exec_list_is_empty(&block->instr_list);
    if (empty_block) {
@@ -2399,12 +2409,11 @@ print_shader_info(const struct shader_info *info, FILE *fp)
    fprintf(fp, "internal: %s\n", info->internal ? "true" : "false");
 
    if (gl_shader_stage_uses_workgroup(info->stage)) {
-      fprintf(fp, "workgroup-size: %u, %u, %u%s\n",
+      fprintf(fp, "workgroup_size: %u, %u, %u%s\n",
               info->workgroup_size[0],
               info->workgroup_size[1],
               info->workgroup_size[2],
               info->workgroup_size_variable ? " (variable)" : "");
-      fprintf(fp, "shared-size: %u\n", info->shared_size);
    }
 
    fprintf(fp, "stage: %d\n"
@@ -2535,8 +2544,8 @@ print_shader_info(const struct shader_info *info, FILE *fp)
       print_nz_bool(fp, "uses_fbfetch_output", info->fs.uses_fbfetch_output);
       print_nz_bool(fp, "color_is_dual_source", info->fs.color_is_dual_source);
 
+      print_nz_bool(fp, "require_full_quads", info->fs.require_full_quads);
       print_nz_bool(fp, "needs_quad_helper_invocations", info->fs.needs_quad_helper_invocations);
-      print_nz_bool(fp, "needs_all_helper_invocations", info->fs.needs_all_helper_invocations);
       print_nz_bool(fp, "uses_sample_qualifier", info->fs.uses_sample_qualifier);
       print_nz_bool(fp, "uses_sample_shading", info->fs.uses_sample_shading);
       print_nz_bool(fp, "early_fragment_tests", info->fs.early_fragment_tests);

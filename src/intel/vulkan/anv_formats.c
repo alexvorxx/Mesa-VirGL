@@ -1026,7 +1026,7 @@ void anv_GetPhysicalDeviceFormatProperties2(
 
 static bool
 anv_format_supports_usage(
-   VkFormatFeatureFlags2KHR format_feature_flags,
+   VkFormatFeatureFlags2 format_feature_flags,
    VkImageUsageFlags usage_flags)
 {
    if (usage_flags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) {
@@ -1161,7 +1161,7 @@ anv_formats_gather_format_features(
    bool allow_texel_compatible)
 {
    const struct intel_device_info *devinfo = &physical_device->info;
-   VkFormatFeatureFlags2KHR all_formats_feature_flags = 0;
+   VkFormatFeatureFlags2 all_formats_feature_flags = 0;
 
    /* We need to check that each of the usage bits are allowed for at least
     * one of the potential formats.
@@ -1183,7 +1183,7 @@ anv_formats_gather_format_features(
             if (anv_formats_are_compatible(format, possible_anv_format,
                                            devinfo, tiling,
                                            allow_texel_compatible)) {
-               VkFormatFeatureFlags2KHR view_format_features =
+               VkFormatFeatureFlags2 view_format_features =
                   anv_get_image_format_features2(physical_device,
                                                  possible_anv_format->vk_format,
                                                  possible_anv_format, tiling,
@@ -1202,7 +1202,7 @@ anv_formats_gather_format_features(
 
          const struct anv_format *anv_view_format =
             anv_get_format(vk_view_format);
-         VkFormatFeatureFlags2KHR view_format_features =
+         VkFormatFeatureFlags2 view_format_features =
             anv_get_image_format_features2(physical_device,
                                            vk_view_format, anv_view_format,
                                            tiling, isl_mod_info);
@@ -1464,6 +1464,10 @@ anv_get_image_format_properties(
       }
    }
 
+   if ((info->usage & VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR) &&
+       !devinfo->has_coarse_pixel_primitive_and_cb)
+      goto unsupported;
+
    /* From the bspec section entitled "Surface Layout and Tiling",
     * Gfx9 has a 256 GB limitation and Gfx11+ has a 16 TB limitation.
     */
@@ -1591,6 +1595,7 @@ VkResult anv_GetPhysicalDeviceImageFormatProperties2(
    VkExternalImageFormatProperties *external_props = NULL;
    VkSamplerYcbcrConversionImageFormatProperties *ycbcr_props = NULL;
    UNUSED VkAndroidHardwareBufferUsageANDROID *android_usage = NULL;
+   VkTextureLODGatherFormatPropertiesAMD *texture_lod_gather_props = NULL;
    VkResult result;
    bool from_wsi = false;
 
@@ -1630,6 +1635,9 @@ VkResult anv_GetPhysicalDeviceImageFormatProperties2(
          break;
       case VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_USAGE_ANDROID:
          android_usage = (void *) s;
+         break;
+      case VK_STRUCTURE_TYPE_TEXTURE_LOD_GATHER_FORMAT_PROPERTIES_AMD:
+         texture_lod_gather_props = (void *) s;
          break;
       default:
          anv_debug_ignored_stype(s->sType);
@@ -1790,6 +1798,11 @@ VkResult anv_GetPhysicalDeviceImageFormatProperties2(
       }
    }
 
+   if (texture_lod_gather_props) {
+      texture_lod_gather_props->supportsTextureGatherLODBiasAMD =
+         physical_device->info.ver >= 20;
+   }
+
    return VK_SUCCESS;
 
  fail:
@@ -1819,7 +1832,7 @@ void anv_GetPhysicalDeviceSparseImageFormatProperties2(
    VK_OUTARRAY_MAKE_TYPED(VkSparseImageFormatProperties2, props,
                           pProperties, pPropertyCount);
 
-   if (!physical_device->has_sparse) {
+   if (physical_device->sparse_type == ANV_SPARSE_TYPE_NOT_SUPPORTED) {
       if (INTEL_DEBUG(DEBUG_SPARSE))
          fprintf(stderr, "=== [%s:%d] [%s]\n", __FILE__, __LINE__, __func__);
       return;
@@ -1827,6 +1840,22 @@ void anv_GetPhysicalDeviceSparseImageFormatProperties2(
 
    vk_foreach_struct_const(ext, pFormatInfo->pNext)
       anv_debug_ignored_stype(ext->sType);
+
+   /* Check if the image is supported at all (regardless of being Sparse). */
+   const VkPhysicalDeviceImageFormatInfo2 img_info = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
+      .pNext = NULL,
+      .format = pFormatInfo->format,
+      .type = pFormatInfo->type,
+      .tiling = pFormatInfo->tiling,
+      .usage = pFormatInfo->usage,
+      .flags = VK_IMAGE_CREATE_SPARSE_BINDING_BIT |
+               VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT,
+   };
+   VkImageFormatProperties img_props;
+   if (anv_get_image_format_properties(physical_device, &img_info,
+                                       &img_props, NULL, false) != VK_SUCCESS)
+      return;
 
    if (anv_sparse_image_check_support(physical_device,
                                       VK_IMAGE_CREATE_SPARSE_BINDING_BIT |
@@ -1857,7 +1886,8 @@ void anv_GetPhysicalDeviceSparseImageFormatProperties2(
          VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT;
 
       isl_surf_usage_flags_t isl_usage =
-         anv_image_choose_isl_surf_usage(vk_create_flags, pFormatInfo->usage,
+         anv_image_choose_isl_surf_usage(physical_device,
+                                         vk_create_flags, pFormatInfo->usage,
                                          0, aspect);
 
       const enum isl_surf_dim isl_surf_dim =

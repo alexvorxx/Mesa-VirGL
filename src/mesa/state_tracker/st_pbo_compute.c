@@ -28,6 +28,7 @@
 #include "main/image.h"
 #include "main/pbo.h"
 
+#include "nir/pipe_nir.h"
 #include "state_tracker/st_nir.h"
 #include "state_tracker/st_format.h"
 #include "state_tracker/st_pbo.h"
@@ -843,7 +844,7 @@ add_spec_data(struct pbo_async_data *async, struct pbo_data *pd)
    struct pbo_spec_async_data *spec;
    struct set_entry *entry = _mesa_set_search_or_add(&async->specialized, pd, &found);
    if (!found) {
-      spec = calloc(1, sizeof(struct pbo_async_data));
+      spec = calloc(1, sizeof(struct pbo_spec_async_data));
       util_queue_fence_init(&spec->fence);
       memcpy(spec->data, pd, sizeof(struct pbo_data));
       entry->key = spec;
@@ -941,12 +942,8 @@ download_texture_compute(struct st_context *st,
          if (!async->cs) {
             /* cs job not yet started */
             assert(async->nir && !async->cs);
-            struct pipe_compute_state state = {0};
-            state.ir_type = PIPE_SHADER_IR_NIR;
-            state.static_shared_mem = async->nir->info.shared_size;
-            state.prog = async->nir;
+            async->cs = pipe_shader_from_nir(pipe, async->nir);
             async->nir = NULL;
-            async->cs = pipe->create_compute_state(pipe, &state);
          }
          /* cs *may* be done */
          if (screen->is_parallel_shader_compilation_finished &&
@@ -956,12 +953,8 @@ download_texture_compute(struct st_context *st,
          if (spec->uses > SPEC_USES_THRESHOLD && util_queue_fence_is_signalled(&spec->fence)) {
             if (spec->created) {
                if (!spec->cs) {
-                  struct pipe_compute_state state = {0};
-                  state.ir_type = PIPE_SHADER_IR_NIR;
-                  state.static_shared_mem = spec->nir->info.shared_size;
-                  state.prog = spec->nir;
+                  spec->cs = pipe_shader_from_nir(pipe, spec->nir);
                   spec->nir = NULL;
-                  spec->cs = pipe->create_compute_state(pipe, &state);
                }
                if (screen->is_parallel_shader_compilation_finished &&
                    screen->is_parallel_shader_compilation_finished(screen, spec->cs, MESA_SHADER_COMPUTE)) {

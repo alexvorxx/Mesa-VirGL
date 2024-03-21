@@ -36,18 +36,21 @@ thread_local aco::monotonic_buffer_resource* instruction_buffer = nullptr;
 
 uint64_t debug_flags = 0;
 
-static const struct debug_control aco_debug_options[] = {{"validateir", DEBUG_VALIDATE_IR},
-                                                         {"validatera", DEBUG_VALIDATE_RA},
-                                                         {"novalidateir", DEBUG_NO_VALIDATE_IR},
-                                                         {"perfwarn", DEBUG_PERFWARN},
-                                                         {"force-waitcnt", DEBUG_FORCE_WAITCNT},
-                                                         {"force-waitdeps", DEBUG_FORCE_WAITDEPS},
-                                                         {"novn", DEBUG_NO_VN},
-                                                         {"noopt", DEBUG_NO_OPT},
-                                                         {"nosched", DEBUG_NO_SCHED},
-                                                         {"perfinfo", DEBUG_PERF_INFO},
-                                                         {"liveinfo", DEBUG_LIVE_INFO},
-                                                         {NULL, 0}};
+static const struct debug_control aco_debug_options[] = {
+   {"validateir", DEBUG_VALIDATE_IR},
+   {"validatera", DEBUG_VALIDATE_RA},
+   {"novalidateir", DEBUG_NO_VALIDATE_IR},
+   {"perfwarn", DEBUG_PERFWARN},
+   {"force-waitcnt", DEBUG_FORCE_WAITCNT},
+   {"force-waitdeps", DEBUG_FORCE_WAITDEPS},
+   {"novn", DEBUG_NO_VN},
+   {"noopt", DEBUG_NO_OPT},
+   {"nosched", DEBUG_NO_SCHED | DEBUG_NO_SCHED_ILP | DEBUG_NO_SCHED_VOPD},
+   {"nosched-ilp", DEBUG_NO_SCHED_ILP},
+   {"nosched-vopd", DEBUG_NO_SCHED_VOPD},
+   {"perfinfo", DEBUG_PERF_INFO},
+   {"liveinfo", DEBUG_LIVE_INFO},
+   {NULL, 0}};
 
 static once_flag init_once_flag = ONCE_FLAG_INIT;
 
@@ -114,7 +117,7 @@ init_program(Program* program, Stage stage, const struct aco_shader_info* info,
    program->dev.vgpr_alloc_granule = 4;
 
    if (gfx_level >= GFX10) {
-      program->dev.physical_sgprs = 5120; /* doesn't matter as long as it's at least 128 * 40 */
+      program->dev.physical_sgprs = 128 * 20; /* enough for max waves */
       program->dev.sgpr_alloc_granule = 128;
       program->dev.sgpr_limit =
          108; /* includes VCC, which can be treated as s[106-107] on GFX10+ */
@@ -143,13 +146,13 @@ init_program(Program* program, Stage stage, const struct aco_shader_info* info,
 
    program->dev.scratch_alloc_granule = gfx_level >= GFX11 ? 256 : 1024;
 
-   program->dev.max_wave64_per_simd = 10;
+   program->dev.max_waves_per_simd = 10;
    if (program->gfx_level >= GFX10_3)
-      program->dev.max_wave64_per_simd = 16;
+      program->dev.max_waves_per_simd = 16;
    else if (program->gfx_level == GFX10)
-      program->dev.max_wave64_per_simd = 20;
+      program->dev.max_waves_per_simd = 20;
    else if (program->family >= CHIP_POLARIS10 && program->family <= CHIP_VEGAM)
-      program->dev.max_wave64_per_simd = 8;
+      program->dev.max_waves_per_simd = 8;
 
    program->dev.simd_per_cu = program->gfx_level >= GFX10 ? 2 : 4;
 
@@ -411,6 +414,9 @@ can_use_DPP(amd_gfx_level gfx_level, const aco_ptr<Instruction>& instr, bool dpp
              instr->opcode == aco_opcode::v_dot2_f32_f16 ||
              instr->opcode == aco_opcode::v_dot2_f32_bf16;
    }
+
+   if (instr->opcode == aco_opcode::v_pk_fmac_f16)
+      return gfx_level < GFX11;
 
    /* there are more cases but those all take 64-bit inputs */
    return instr->opcode != aco_opcode::v_madmk_f32 && instr->opcode != aco_opcode::v_madak_f32 &&
@@ -1308,8 +1314,11 @@ should_form_clause(const Instruction* a, const Instruction* b)
    if (a->format != b->format)
       return false;
 
+   if (a->operands.empty() || b->operands.empty())
+      return false;
+
    /* Assume loads which don't use descriptors might load from similar addresses. */
-   if (a->isFlatLike())
+   if (a->isFlatLike() || a->accessesLDS())
       return true;
    if (a->isSMEM() && a->operands[0].bytes() == 8 && b->operands[0].bytes() == 8)
       return true;
@@ -1353,8 +1362,7 @@ dealloc_vgprs(Program* program)
       return false;
 
    /* skip if deallocating VGPRs won't increase occupancy */
-   uint16_t max_waves = program->dev.max_wave64_per_simd * (64 / program->wave_size);
-   max_waves = max_suitable_waves(program, max_waves);
+   uint16_t max_waves = max_suitable_waves(program, program->dev.max_waves_per_simd);
    if (program->max_reg_demand.vgpr <= get_addr_vgpr_from_waves(program, max_waves))
       return false;
 

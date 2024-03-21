@@ -7,9 +7,6 @@ Debugging
 Here are a few environment variable debug environment variables
 specific to ANV:
 
-:envvar:`ANV_ENABLE_GENERATED_INDIRECT_DRAWS`
-   If defined to ``0`` or ``false``, this will disable the generated
-   indirect draw optimization in ANV. This will only affect Gfx11+.
 :envvar:`ANV_ENABLE_PIPELINE_CACHE`
    If defined to ``0`` or ``false``, this will disable pipeline
    caching, forcing ANV to reparse and recompile any VkShaderModule
@@ -391,3 +388,13 @@ executed :
     "main-command-buffer":f1 -> "ring-buffer":f1 [color="#0000ff"];
     "main-command-buffer":f1 -> "ring-buffer":f2 [color="#0000ff"];
   }
+
+Runtime dependencies
+--------------------
+
+Starting with Intel 12th generation/Alder Lake-P and Intel Arc Alchemist, the Intel 3D driver stack requires GuC firmware for proper operation. You have two options to install the firmware:
+
+- Distro package: Install the pre-packaged firmware included in your Linux distribution's repositories.
+- Manual download: You can download the firmware from the official repository: https://git.kernel.org/pub/scm/linux/kernel/git/firmware/linux-firmware.git/tree/i915. Place the downloaded files in the /lib/firmware/i915 directory.
+
+Important: For optimal performance, we recommend updating the GuC firmware to version 70.6.3 or later.

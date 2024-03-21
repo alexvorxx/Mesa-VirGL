@@ -116,12 +116,19 @@ genX(emit_slice_hashing_state)(struct anv_device *device,
       p.SubsliceHashingTableEnableMask = true;
    }
 #elif GFX_VERx10 == 125
-   uint32_t ppipe_mask = 0;
+   /* Calculate the set of present pixel pipes, and another set of
+    * present pixel pipes with 2 dual subslices enabled, the latter
+    * will appear on the hashing table with twice the frequency of
+    * pixel pipes with a single dual subslice present.
+    */
+   uint32_t ppipe_mask1 = 0, ppipe_mask2 = 0;
    for (unsigned p = 0; p < ARRAY_SIZE(device->info->ppipe_subslices); p++) {
-      if (device->info->ppipe_subslices[p])
-         ppipe_mask |= (1u << p);
+      if (device->info->ppipe_subslices[p] > 0)
+         ppipe_mask1 |= (1u << p);
+      if (device->info->ppipe_subslices[p] > 1)
+         ppipe_mask2 |= (1u << p);
    }
-   assert(ppipe_mask);
+   assert(ppipe_mask1);
 
    if (!device->slice_hash.alloc_size) {
       unsigned size = GENX(SLICE_HASH_TABLE_length) * 4;
@@ -139,7 +146,8 @@ genX(emit_slice_hashing_state)(struct anv_device *device,
        * need to be initialized to the same value.
        */
       for (unsigned i = 0; i < 7; i++)
-         intel_compute_pixel_hash_table_nway(16, 16, ppipe_mask, table.Entry[i][0]);
+         intel_compute_pixel_hash_table_nway(16, 16, ppipe_mask1, ppipe_mask2,
+                                             table.Entry[i][0]);
 
       GENX(SLICE_HASH_TABLE_pack)(NULL, device->slice_hash.map, &table);
    }
@@ -149,21 +157,22 @@ genX(emit_slice_hashing_state)(struct anv_device *device,
       ptr.SliceHashTableStatePointer = device->slice_hash.offset;
    }
 
+   /* TODO: Figure out FCV support for other platforms
+    * Testing indicates that FCV is broken on MTL, but works fine on DG2.
+    * Let's disable FCV on MTL for now till we figure out what's wrong.
+    *
+    * Alternatively, it can be toggled off via drirc option 'anv_disable_fcv'.
+    *
+    * Ref: https://gitlab.freedesktop.org/mesa/mesa/-/issues/9987
+    */
    anv_batch_emit(batch, GENX(3DSTATE_3D_MODE), mode) {
       mode.SliceHashingTableEnable = true;
       mode.SliceHashingTableEnableMask = true;
-      mode.CrossSliceHashingMode = (util_bitcount(ppipe_mask) > 1 ?
+      mode.CrossSliceHashingMode = (util_bitcount(ppipe_mask1) > 1 ?
 				    hashing32x32 : NormalMode);
       mode.CrossSliceHashingModeMask = -1;
-      /* TODO: Figure out FCV support for other platforms
-       * Testing indicates that FCV is broken on MTL, but works fine on DG2.
-       * Let's disable FCV on MTL for now till we figure out what's wrong.
-       *
-       * Ref: https://gitlab.freedesktop.org/mesa/mesa/-/issues/9987
-       */
-      mode.FastClearOptimizationEnable = intel_device_info_is_dg2(device->info);
-      mode.FastClearOptimizationEnableMask =
-         intel_device_info_is_dg2(device->info);
+      mode.FastClearOptimizationEnable = !device->physical->disable_fcv;
+      mode.FastClearOptimizationEnableMask = !device->physical->disable_fcv;
    }
 #endif
 }
@@ -241,7 +250,8 @@ init_common_queue_state(struct anv_queue *queue, struct anv_batch *batch)
          (struct anv_address) { .offset =
          device->physical->va.dynamic_state_pool.addr,
       };
-      sba.DynamicStateBufferSize = device->physical->va.dynamic_state_pool.size / 4096;
+      sba.DynamicStateBufferSize = (device->physical->va.dynamic_state_pool.size +
+                                    device->physical->va.sampler_state_pool.size) / 4096;
       sba.DynamicStateMOCS = mocs;
       sba.DynamicStateBaseAddressModifyEnable = true;
       sba.DynamicStateBufferSizeModifyEnable = true;
@@ -261,6 +271,13 @@ init_common_queue_state(struct anv_queue *queue, struct anv_batch *batch)
       sba.InstructionBaseAddressModifyEnable = true;
       sba.InstructionBuffersizeModifyEnable = true;
 
+#if GFX_VER >= 11
+      sba.BindlessSamplerStateBaseAddress = ANV_NULL_ADDRESS;
+      sba.BindlessSamplerStateBufferSize = 0;
+      sba.BindlessSamplerStateMOCS = mocs;
+      sba.BindlessSamplerStateBaseAddressModifyEnable = true;
+#endif
+
       if (device->physical->indirect_descriptors) {
          sba.BindlessSurfaceStateBaseAddress =
             (struct anv_address) { .offset =
@@ -270,29 +287,18 @@ init_common_queue_state(struct anv_queue *queue, struct anv_batch *batch)
             anv_physical_device_bindless_heap_size(device->physical) / ANV_SURFACE_STATE_SIZE - 1;
          sba.BindlessSurfaceStateMOCS = mocs;
          sba.BindlessSurfaceStateBaseAddressModifyEnable = true;
-
-         sba.BindlessSamplerStateBaseAddress = (struct anv_address) { NULL, 0 };
-         sba.BindlessSamplerStateMOCS = mocs;
-         sba.BindlessSamplerStateBaseAddressModifyEnable = true;
-         sba.BindlessSamplerStateBufferSize = 0;
       } else {
          /* Bindless Surface State & Bindless Sampler State are aligned to the
           * same heap
           */
-         sba.BindlessSurfaceStateBaseAddress =
-            sba.BindlessSamplerStateBaseAddress =
-            (struct anv_address) { .offset = device->physical->va.binding_table_pool.addr, };
+         sba.BindlessSurfaceStateBaseAddress = (struct anv_address) {
+            .offset = device->physical->va.internal_surface_state_pool.addr,
+         };
          sba.BindlessSurfaceStateSize =
-            (device->physical->va.binding_table_pool.size +
-             device->physical->va.internal_surface_state_pool.size +
-             device->physical->va.direct_descriptor_pool.size) - 1;
-         sba.BindlessSamplerStateBufferSize =
-            (device->physical->va.binding_table_pool.size +
-             device->physical->va.internal_surface_state_pool.size +
-             device->physical->va.direct_descriptor_pool.size) / 4096 - 1;
-         sba.BindlessSurfaceStateMOCS = sba.BindlessSamplerStateMOCS = mocs;
-         sba.BindlessSurfaceStateBaseAddressModifyEnable =
-            sba.BindlessSamplerStateBaseAddressModifyEnable = true;
+            (device->physical->va.internal_surface_state_pool.size +
+             device->physical->va.bindless_surface_state_pool.size) - 1;
+         sba.BindlessSurfaceStateMOCS = mocs;
+         sba.BindlessSurfaceStateBaseAddressModifyEnable = true;
       }
 
 #if GFX_VERx10 >= 125
@@ -346,7 +352,7 @@ init_render_queue_state(struct anv_queue *queue, bool is_companion_rcs_batch)
    };
    GENX(VERTEX_ELEMENT_STATE_pack)(NULL, device->empty_vs_input, &empty_ve);
 
-   genX(emit_pipeline_select)(&batch, _3D);
+   genX(emit_pipeline_select)(&batch, _3D, device);
 
 #if GFX_VER == 9
    anv_batch_write_reg(&batch, GENX(CACHE_MODE_1), cm1) {
@@ -585,25 +591,42 @@ init_render_queue_state(struct anv_queue *queue, bool is_companion_rcs_batch)
    anv_batch_emit(&batch, GENX(STATE_COMPUTE_MODE), zero);
    anv_batch_emit(&batch, GENX(3DSTATE_MESH_CONTROL), zero);
    anv_batch_emit(&batch, GENX(3DSTATE_TASK_CONTROL), zero);
+
+   /* We no longer required to explicitly flush or invalidate caches since the
+    * PIPELINE_SELECT is getting deprecated on Xe2+.
+    */
+#if GFX_VER < 20
    genx_batch_emit_pipe_control_write(&batch, device->info, _3D, NoWrite,
                                       ANV_NULL_ADDRESS,
                                       0,
                                       ANV_PIPE_FLUSH_BITS | ANV_PIPE_INVALIDATE_BITS);
-   genX(emit_pipeline_select)(&batch, GPGPU);
+#endif
+
+   genX(emit_pipeline_select)(&batch, GPGPU, device);
    anv_batch_emit(&batch, GENX(CFE_STATE), cfe) {
       cfe.MaximumNumberofThreads =
          devinfo->max_cs_threads * devinfo->subslice_total;
    }
+
+   /* We no longer required to explicitly flush or invalidate caches since the
+    * PIPELINE_SELECT is getting deprecated on Xe2+.
+    */
+#if GFX_VER < 20
    genx_batch_emit_pipe_control_write(&batch, device->info, _3D, NoWrite,
                                       ANV_NULL_ADDRESS,
                                       0,
                                       ANV_PIPE_FLUSH_BITS | ANV_PIPE_INVALIDATE_BITS);
-   genX(emit_pipeline_select)(&batch, _3D);
+#endif
+
+   genX(emit_pipeline_select)(&batch, _3D, device);
 #endif
 
    anv_batch_emit(&batch, GENX(MI_BATCH_BUFFER_END), bbe);
 
    assert(batch.next <= batch.end);
+
+   if (!device->trtt.queue)
+      device->trtt.queue = queue;
 
    return anv_queue_submit_simple_batch(queue, &batch, is_companion_rcs_batch);
 }
@@ -619,7 +642,7 @@ init_compute_queue_state(struct anv_queue *queue)
       .end = (void *) cmds + sizeof(cmds),
    };
 
-   genX(emit_pipeline_select)(&batch, GPGPU);
+   genX(emit_pipeline_select)(&batch, GPGPU, queue->device);
 
 #if GFX_VER == 12
    if (queue->device->info->has_aux_map) {
@@ -691,6 +714,52 @@ init_compute_queue_state(struct anv_queue *queue)
                                         false /* is_companion_rcs_batch */);
 }
 
+static VkResult
+init_copy_video_queue_state(struct anv_queue *queue)
+{
+#if GFX_VER >= 12
+   UNUSED const struct intel_device_info *devinfo = queue->device->info;
+   uint32_t cmds[64];
+   UNUSED struct anv_batch batch = {
+      .start = cmds,
+      .next = cmds,
+      .end = (void *) cmds + sizeof(cmds),
+   };
+
+   if (queue->device->info->has_aux_map) {
+      uint64_t reg = GENX(VD0_AUX_TABLE_BASE_ADDR_num);
+
+      if (queue->family->engine_class == INTEL_ENGINE_CLASS_COPY) {
+#if GFX_VERx10 >= 125
+         reg = GENX(BCS_AUX_TABLE_BASE_ADDR_num);
+#endif
+      }
+
+      uint64_t aux_base_addr =
+         intel_aux_map_get_base(queue->device->aux_map_ctx);
+      assert(aux_base_addr % (32 * 1024) == 0);
+      anv_batch_emit(&batch, GENX(MI_LOAD_REGISTER_IMM), lri) {
+         lri.RegisterOffset = reg;
+         lri.DataDWord = aux_base_addr & 0xffffffff;
+      }
+      anv_batch_emit(&batch, GENX(MI_LOAD_REGISTER_IMM), lri) {
+         lri.RegisterOffset = reg + 4;
+         lri.DataDWord = aux_base_addr >> 32;
+      }
+
+      anv_batch_emit(&batch, GENX(MI_BATCH_BUFFER_END), bbe);
+      assert(batch.next <= batch.end);
+
+      return anv_queue_submit_simple_batch(queue, &batch,
+                                           false /* is_companion_rcs_batch */);
+   }
+#else
+   assert(!queue->device->info->has_aux_map);
+#endif
+
+   return VK_SUCCESS;
+}
+
 void
 genX(init_physical_device_state)(ASSERTED struct anv_physical_device *pdevice)
 {
@@ -701,6 +770,8 @@ genX(init_physical_device_state)(ASSERTED struct anv_physical_device *pdevice)
 #endif
 
    pdevice->cmd_emit_timestamp = genX(cmd_emit_timestamp);
+
+   pdevice->gpgpu_pipeline_value = GPGPU;
 }
 
 VkResult
@@ -728,9 +799,13 @@ genX(init_device_state)(struct anv_device *device)
          break;
       }
       case INTEL_ENGINE_CLASS_VIDEO:
-         res = VK_SUCCESS;
+         res = init_copy_video_queue_state(queue);
          break;
       case INTEL_ENGINE_CLASS_COPY:
+         res = init_copy_video_queue_state(queue);
+         if (res != VK_SUCCESS)
+            return res;
+
          /**
           * Execute RCS init batch by default on the companion RCS command buffer in
           * order to support MSAA copy/clear operations on copy queue.
@@ -743,6 +818,17 @@ genX(init_device_state)(struct anv_device *device)
       }
       if (res != VK_SUCCESS)
          return res;
+   }
+
+   if (device->vk.enabled_extensions.EXT_descriptor_buffer &&
+       device->slice_hash.alloc_size) {
+      device->slice_hash_db =
+         anv_state_pool_alloc(&device->dynamic_state_db_pool,
+                              device->slice_hash.alloc_size, 64);
+
+      memcpy(device->slice_hash_db.map,
+             device->slice_hash.map,
+             device->slice_hash.alloc_size);
    }
 
    return res;
@@ -827,6 +913,7 @@ genX(emit_l3_config)(struct anv_batch *batch,
                      const struct anv_device *device,
                      const struct intel_l3_config *cfg)
 {
+#if GFX_VER < 20
    UNUSED const struct intel_device_info *devinfo = device->info;
 
 #if GFX_VER >= 12
@@ -869,6 +956,7 @@ genX(emit_l3_config)(struct anv_batch *batch,
          l3cr.AllAllocation = cfg->n[INTEL_L3P_ALL];
       }
    }
+#endif /* GFX_VER < 20 */
 }
 
 void
@@ -1025,16 +1113,23 @@ VkResult genX(CreateSampler)(
    sampler->n_planes = ycbcr_info ? ycbcr_info->n_planes : 1;
 
    uint32_t border_color_stride = 64;
-   uint32_t border_color_offset;
+   uint32_t border_color_offset, border_color_db_offset = 0;
+   void *border_color_ptr;
    if (sampler->vk.border_color <= VK_BORDER_COLOR_INT_OPAQUE_WHITE) {
       border_color_offset = device->border_colors.offset +
                             pCreateInfo->borderColor *
                             border_color_stride;
+      border_color_db_offset = device->border_colors_db.offset +
+                               pCreateInfo->borderColor *
+                               border_color_stride;
+      border_color_ptr = device->border_colors.map +
+                         pCreateInfo->borderColor * border_color_stride;
    } else {
       assert(vk_border_color_is_custom(sampler->vk.border_color));
       sampler->custom_border_color =
          anv_state_reserved_pool_alloc(&device->custom_border_colors);
       border_color_offset = sampler->custom_border_color.offset;
+      border_color_ptr = sampler->custom_border_color.map;
 
       union isl_color_value color = { .u32 = {
          sampler->vk.border_color_value.uint32[0],
@@ -1055,20 +1150,21 @@ VkResult genX(CreateSampler)(
          color = isl_color_value_swizzle(color, fmt_plane->swizzle, true);
       }
 
-      memcpy(sampler->custom_border_color.map, color.u32, sizeof(color));
-   }
+      memcpy(border_color_ptr, color.u32, sizeof(color));
 
-   /* If we have bindless, allocate enough samplers.  We allocate 32 bytes
-    * for each sampler instead of 16 bytes because we want all bindless
-    * samplers to be 32-byte aligned so we don't have to use indirect
-    * sampler messages on them.
-    */
-   sampler->bindless_state =
-      anv_state_pool_alloc(&device->dynamic_state_pool,
-                           sampler->n_planes * 32, 32);
+      if (device->vk.enabled_extensions.EXT_descriptor_buffer) {
+         sampler->custom_border_color_db =
+            anv_state_reserved_pool_alloc(&device->custom_border_colors_db);
+         border_color_db_offset = sampler->custom_border_color_db.offset;
+         memcpy(sampler->custom_border_color_db.map, color.u32, sizeof(color));
+      }
+   }
 
    const bool seamless_cube =
       !(pCreateInfo->flags & VK_SAMPLER_CREATE_NON_SEAMLESS_CUBE_MAP_BIT_EXT);
+
+   struct mesa_sha1 ctx;
+   _mesa_sha1_init(&ctx);
 
    for (unsigned p = 0; p < sampler->n_planes; p++) {
       const bool plane_has_chroma =
@@ -1079,8 +1175,12 @@ VkResult genX(CreateSampler)(
       const VkFilter mag_filter =
          plane_has_chroma ? sampler->vk.ycbcr_conversion->state.chroma_filter :
                             pCreateInfo->magFilter;
-      const bool enable_min_filter_addr_rounding = min_filter != VK_FILTER_NEAREST;
-      const bool enable_mag_filter_addr_rounding = mag_filter != VK_FILTER_NEAREST;
+      const bool force_addr_rounding =
+            device->physical->instance->force_filter_addr_rounding;
+      const bool enable_min_filter_addr_rounding =
+            force_addr_rounding || min_filter != VK_FILTER_NEAREST;
+      const bool enable_mag_filter_addr_rounding =
+            force_addr_rounding || mag_filter != VK_FILTER_NEAREST;
       /* From Broadwell PRM, SAMPLER_STATE:
        *   "Mip Mode Filter must be set to MIPFILTER_NONE for Planar YUV surfaces."
        */
@@ -1122,8 +1222,6 @@ VkResult genX(CreateSampler)(
                                         pCreateInfo->compareOp : VK_COMPARE_OP_NEVER],
          .CubeSurfaceControlMode = seamless_cube ? OVERRIDE : PROGRAMMED,
 
-         .BorderColorPointer = border_color_offset,
-
          .LODClampMagnificationMode = MIPNONE,
 
          .MaximumAnisotropy = vk_to_intel_max_anisotropy(pCreateInfo->maxAnisotropy),
@@ -1145,17 +1243,84 @@ VkResult genX(CreateSampler)(
             sampler->vk.reduction_mode != VK_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE,
       };
 
+      /* Pack a version of the SAMPLER_STATE without the border color. We'll
+       * use it to store into the shader cache and also for hashing.
+       */
+      GENX(SAMPLER_STATE_pack)(NULL, sampler->state_no_bc[p], &sampler_state);
+      _mesa_sha1_update(&ctx, sampler->state_no_bc[p], sizeof(sampler->state_no_bc[p]));
+
+      /* Put border color after the hashing, we don't want the allocation
+       * order of border colors to influence the hash. We just need th
+       * parameters to be hashed.
+       */
+      sampler_state.BorderColorPointer = border_color_offset;
       GENX(SAMPLER_STATE_pack)(NULL, sampler->state[p], &sampler_state);
 
-      if (sampler->bindless_state.map) {
-         memcpy(sampler->bindless_state.map + p * 32,
-                sampler->state[p], GENX(SAMPLER_STATE_length) * 4);
+      if (device->vk.enabled_extensions.EXT_descriptor_buffer) {
+         sampler_state.BorderColorPointer = border_color_db_offset;
+         GENX(SAMPLER_STATE_pack)(NULL, sampler->db_state[p], &sampler_state);
       }
    }
+
+   /* If we have bindless, allocate enough samplers.  We allocate 32 bytes
+    * for each sampler instead of 16 bytes because we want all bindless
+    * samplers to be 32-byte aligned so we don't have to use indirect
+    * sampler messages on them.
+    */
+   sampler->bindless_state =
+      anv_state_pool_alloc(&device->dynamic_state_pool,
+                           sampler->n_planes * 32, 32);
+   if (sampler->bindless_state.map) {
+      memcpy(sampler->bindless_state.map, sampler->state,
+             sampler->n_planes * GENX(SAMPLER_STATE_length) * 4);
+   }
+   if (device->vk.enabled_extensions.EXT_descriptor_buffer) {
+      sampler->bindless_state_db =
+         anv_state_pool_alloc(&device->dynamic_state_db_pool,
+                              sampler->n_planes * 32, 32);
+      if (sampler->bindless_state_db.map) {
+         memcpy(sampler->bindless_state_db.map, sampler->db_state,
+                sampler->n_planes * GENX(SAMPLER_STATE_length) * 4);
+      }
+   }
+
+   /* Hash the border color */
+   _mesa_sha1_update(&ctx, border_color_ptr,
+                     sizeof(union isl_color_value));
+
+   _mesa_sha1_final(&ctx, sampler->sha1);
 
    *pSampler = anv_sampler_to_handle(sampler);
 
    return VK_SUCCESS;
+}
+
+void
+genX(emit_embedded_sampler)(struct anv_device *device,
+                            struct anv_embedded_sampler *sampler,
+                            struct anv_pipeline_embedded_sampler_binding *binding)
+{
+   sampler->border_color_state =
+      anv_state_pool_alloc(&device->dynamic_state_db_pool,
+                           sizeof(struct gfx8_border_color), 64);
+   memcpy(sampler->border_color_state.map,
+          binding->border_color,
+          sizeof(binding->border_color));
+
+   sampler->sampler_state =
+      anv_state_pool_alloc(&device->dynamic_state_db_pool,
+                           ANV_SAMPLER_STATE_SIZE, 32);
+
+   struct GENX(SAMPLER_STATE) sampler_state = {
+      .BorderColorPointer = sampler->border_color_state.offset,
+   };
+   uint32_t dwords[GENX(SAMPLER_STATE_length)];
+   GENX(SAMPLER_STATE_pack)(NULL, dwords, &sampler_state);
+
+   for (uint32_t i = 0; i < GENX(SAMPLER_STATE_length); i++) {
+      ((uint32_t *)sampler->sampler_state.map)[i] =
+         dwords[i] | binding->sampler_state[i];
+   }
 }
 
 /* Wa_14015814527
@@ -1166,6 +1331,9 @@ VkResult genX(CreateSampler)(
 void
 genX(apply_task_urb_workaround)(struct anv_cmd_buffer *cmd_buffer)
 {
+   if (!anv_cmd_buffer_is_render_queue(cmd_buffer))
+      return;
+
 #if GFX_VERx10 >= 125
    const struct intel_device_info *devinfo = &cmd_buffer->device->physical->info;
 
@@ -1200,4 +1368,63 @@ genX(apply_task_urb_workaround)(struct anv_cmd_buffer *cmd_buffer)
        cmd_buffer->state.current_pipeline,
        WriteImmediateData, cmd_buffer->device->workaround_address, 0, 0);
 #endif
+}
+
+VkResult
+genX(init_trtt_context_state)(struct anv_queue *queue)
+{
+#if GFX_VER >= 12
+   struct anv_device *device = queue->device;
+   struct anv_trtt *trtt = &device->trtt;
+
+   uint32_t cmds[128];
+   struct anv_batch batch = {
+      .start = cmds,
+      .next = cmds,
+      .end = (void *)cmds + sizeof(cmds),
+   };
+
+   anv_batch_write_reg(&batch, GENX(GFX_TRTT_INVAL), trtt_inval) {
+      trtt_inval.InvalidTileDetectionValue = ANV_TRTT_L1_INVALID_TILE_VAL;
+   }
+   anv_batch_write_reg(&batch, GENX(GFX_TRTT_NULL), trtt_null) {
+      trtt_null.NullTileDetectionValue = ANV_TRTT_L1_NULL_TILE_VAL;
+   }
+#if GFX_VER >= 20
+   anv_batch_write_reg(&batch, GENX(GFX_TRTT_VA_RANGE), trtt_va_range) {
+      trtt_va_range.TRVABase = device->physical->va.trtt.addr >> 44;
+   }
+#else
+   anv_batch_write_reg(&batch, GENX(GFX_TRTT_VA_RANGE), trtt_va_range) {
+      trtt_va_range.TRVAMaskValue = 0xF;
+      trtt_va_range.TRVADataValue = 0xF;
+   }
+#endif
+
+   uint64_t l3_addr = trtt->l3_addr;
+   assert((l3_addr & 0xFFF) == 0);
+   anv_batch_write_reg(&batch, GENX(GFX_TRTT_L3_BASE_LOW), trtt_base_low) {
+      trtt_base_low.TRVAL3PointerLowerAddress =
+         (l3_addr & 0xFFFFF000) >> 12;
+   }
+   anv_batch_write_reg(&batch, GENX(GFX_TRTT_L3_BASE_HIGH),
+         trtt_base_high) {
+      trtt_base_high.TRVAL3PointerUpperAddress =
+         (l3_addr >> 32) & 0xFFFF;
+   }
+   /* Enabling TR-TT needs to be done after setting up the other registers.
+   */
+   anv_batch_write_reg(&batch, GENX(GFX_TRTT_CR), trtt_cr) {
+      trtt_cr.TRTTEnable = true;
+   }
+
+   anv_batch_emit(&batch, GENX(MI_BATCH_BUFFER_END), bbe);
+   assert(batch.next <= batch.end);
+
+   VkResult res = anv_queue_submit_simple_batch(queue, &batch, false);
+   if (res != VK_SUCCESS)
+      return res;
+
+#endif
+   return VK_SUCCESS;
 }

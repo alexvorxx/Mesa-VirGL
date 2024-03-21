@@ -10,12 +10,16 @@
 #include "vulkan/wsi/wsi_common.h"
 
 #include "util/build_id.h"
+#include "util/driconf.h"
 #include "util/mesa-sha1.h"
 
 VKAPI_ATTR VkResult VKAPI_CALL
 nvk_EnumerateInstanceVersion(uint32_t *pApiVersion)
 {
-   *pApiVersion = VK_MAKE_VERSION(1, 0, VK_HEADER_VERSION);
+   uint32_t version_override = vk_get_version_override();
+   *pApiVersion = version_override ? version_override :
+                  VK_MAKE_VERSION(1, 3, VK_HEADER_VERSION);
+
    return VK_SUCCESS;
 }
 
@@ -24,6 +28,8 @@ static const struct vk_instance_extension_table instance_extensions = {
    .KHR_get_surface_capabilities2 = true,
    .KHR_surface = true,
    .KHR_surface_protected_capabilities = true,
+   .EXT_surface_maintenance1 = true,
+   .EXT_swapchain_colorspace = true,
 #endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
    .KHR_wayland_surface = true,
@@ -36,6 +42,16 @@ static const struct vk_instance_extension_table instance_extensions = {
 #endif
 #ifdef VK_USE_PLATFORM_XLIB_XRANDR_EXT
    .EXT_acquire_xlib_display = true,
+#endif
+#ifdef VK_USE_PLATFORM_DISPLAY_KHR
+   .KHR_display = true,
+   .KHR_get_display_properties2 = true,
+   .EXT_direct_mode_display = true,
+   .EXT_display_surface_counter = true,
+   .EXT_acquire_drm_display = true,
+#endif
+#ifndef VK_USE_PLATFORM_WIN32_KHR
+   .EXT_headless_surface = true,
 #endif
    .KHR_device_group_creation = true,
    .KHR_external_fence_capabilities = true,
@@ -56,6 +72,31 @@ nvk_EnumerateInstanceExtensionProperties(const char *pLayerName,
 
    return vk_enumerate_instance_extension_properties(
       &instance_extensions, pPropertyCount, pProperties);
+}
+
+static const driOptionDescription nvk_dri_options[] = {
+   DRI_CONF_SECTION_PERFORMANCE
+      DRI_CONF_ADAPTIVE_SYNC(true)
+      DRI_CONF_VK_X11_OVERRIDE_MIN_IMAGE_COUNT(0)
+      DRI_CONF_VK_X11_STRICT_IMAGE_COUNT(false)
+      DRI_CONF_VK_X11_ENSURE_MIN_IMAGE_COUNT(false)
+      DRI_CONF_VK_KHR_PRESENT_WAIT(false)
+      DRI_CONF_VK_XWAYLAND_WAIT_READY(false)
+   DRI_CONF_SECTION_END
+
+   DRI_CONF_SECTION_DEBUG
+      DRI_CONF_VK_WSI_FORCE_SWAPCHAIN_TO_CURRENT_EXTENT(false)
+      DRI_CONF_VK_X11_IGNORE_SUBOPTIMAL(false)
+   DRI_CONF_SECTION_END
+};
+
+static void
+nvk_init_dri_options(struct nvk_instance *instance)
+{
+   driParseOptionInfo(&instance->available_dri_options, nvk_dri_options, ARRAY_SIZE(nvk_dri_options));
+   driParseConfigFiles(&instance->dri_options, &instance->available_dri_options, 0, "nvk", NULL, NULL,
+                       instance->vk.app_info.app_name, instance->vk.app_info.app_version,
+                       instance->vk.app_info.engine_name, instance->vk.app_info.engine_version);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -86,6 +127,8 @@ nvk_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                              &dispatch_table, pCreateInfo, pAllocator);
    if (result != VK_SUCCESS)
       goto fail_alloc;
+
+   nvk_init_dri_options(instance);
 
    instance->vk.physical_devices.try_create_for_drm =
       nvk_create_drm_physical_device;
@@ -128,6 +171,9 @@ nvk_DestroyInstance(VkInstance _instance,
 
    if (!instance)
       return;
+
+   driDestroyOptionCache(&instance->dri_options);
+   driDestroyOptionInfo(&instance->available_dri_options);
 
    vk_instance_finish(&instance->vk);
    vk_free(&instance->vk.alloc, instance);

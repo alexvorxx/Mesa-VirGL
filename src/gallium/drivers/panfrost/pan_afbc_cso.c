@@ -22,6 +22,7 @@
  */
 
 #include "pan_afbc_cso.h"
+#include "nir/pipe_nir.h"
 #include "nir_builder.h"
 #include "pan_context.h"
 #include "pan_resource.h"
@@ -290,8 +291,7 @@ panfrost_afbc_get_shaders(struct panfrost_context *ctx,
       nir_shader *nir =                                                        \
          panfrost_afbc_create_##name##_shader(screen, __VA_ARGS__);            \
       nir->info.num_ubos = 1;                                                  \
-      struct pipe_compute_state cso = {PIPE_SHADER_IR_NIR, nir};               \
-      shader->name##_cso = pctx->create_compute_state(pctx, &cso);             \
+      shader->name##_cso = pipe_shader_from_nir(pctx, nir);                    \
    }
 
    COMPILE_SHADER(size, key.bpp, key.align);
@@ -306,23 +306,12 @@ panfrost_afbc_get_shaders(struct panfrost_context *ctx,
    return shader;
 }
 
-static uint32_t
-panfrost_afbc_shader_key_hash(const void *key)
-{
-   return _mesa_hash_data(key, sizeof(struct pan_afbc_shader_key));
-}
-
-static bool
-panfrost_afbc_shader_key_equal(const void *a, const void *b)
-{
-   return !memcmp(a, b, sizeof(struct pan_afbc_shader_key));
-}
+DERIVE_HASH_TABLE(pan_afbc_shader_key);
 
 void
 panfrost_afbc_context_init(struct panfrost_context *ctx)
 {
-   ctx->afbc_shaders.shaders = _mesa_hash_table_create(
-      NULL, panfrost_afbc_shader_key_hash, panfrost_afbc_shader_key_equal);
+   ctx->afbc_shaders.shaders = pan_afbc_shader_key_table_create(NULL);
    pthread_mutex_init(&ctx->afbc_shaders.lock, NULL);
 }
 
