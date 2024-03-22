@@ -334,6 +334,9 @@ panfrost_get_param(struct pipe_screen *screen, enum pipe_cap param)
    case PIPE_CAP_DRAW_INDIRECT:
       return 1;
 
+   case PIPE_CAP_MULTI_DRAW_INDIRECT:
+      return dev->arch >= 10;
+
    case PIPE_CAP_START_INSTANCE:
    case PIPE_CAP_DRAW_PARAMETERS:
       return pan_is_bifrost(dev);
