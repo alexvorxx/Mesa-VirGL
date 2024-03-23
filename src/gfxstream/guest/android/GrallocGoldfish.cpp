@@ -79,6 +79,18 @@ int GoldfishGralloc::getFormat(const AHardwareBuffer* ahb) {
     return getFormat(handle);
 }
 
+uint32_t GoldfishGralloc::getWidth(const AHardwareBuffer* ahb) {
+    AHardwareBuffer_Desc desc = {};
+    AHardwareBuffer_describe(ahb, &desc);
+    return desc.width;
+}
+
+uint32_t GoldfishGralloc::getHeight(const AHardwareBuffer* ahb) {
+    AHardwareBuffer_Desc desc = {};
+    AHardwareBuffer_describe(ahb, &desc);
+    return desc.height;
+}
+
 size_t GoldfishGralloc::getAllocatedSize(const native_handle_t* handle) {
     return static_cast<size_t>(cb_handle_t::from(handle)->allocatedSize());
 }

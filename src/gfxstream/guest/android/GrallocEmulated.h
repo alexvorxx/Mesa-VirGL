@@ -87,6 +87,9 @@ class EmulatedGralloc : public Gralloc {
 
     uint32_t getFormatDrmFourcc(const AHardwareBuffer* handle) override;
 
+    uint32_t getWidth(const AHardwareBuffer* ahb) override;
+    uint32_t getHeight(const AHardwareBuffer* ahb) override;
+
     size_t getAllocatedSize(const native_handle_t*) override;
     size_t getAllocatedSize(const AHardwareBuffer*) override;
 

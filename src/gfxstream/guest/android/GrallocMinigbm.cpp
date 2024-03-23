@@ -221,6 +221,18 @@ uint32_t MinigbmGralloc::getFormatDrmFourcc(const AHardwareBuffer* ahb) {
     return getFormatDrmFourcc(handle);
 }
 
+uint32_t MinigbmGralloc::getWidth(const AHardwareBuffer* ahb) {
+    AHardwareBuffer_Desc desc = {};
+    AHardwareBuffer_describe(ahb, &desc);
+    return desc.width;
+}
+
+uint32_t MinigbmGralloc::getHeight(const AHardwareBuffer* ahb) {
+    AHardwareBuffer_Desc desc = {};
+    AHardwareBuffer_describe(ahb, &desc);
+    return desc.height;
+}
+
 size_t MinigbmGralloc::getAllocatedSize(const native_handle_t* handle) {
     struct drm_virtgpu_resource_info info;
     if (!getVirtioGpuResourceInfo(m_fd, handle, &info)) {

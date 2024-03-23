@@ -39,6 +39,9 @@ class GoldfishGralloc : public Gralloc {
     int getFormat(const native_handle_t* handle) override;
     int getFormat(const AHardwareBuffer* handle) override;
 
+    uint32_t getWidth(const AHardwareBuffer* ahb) override;
+    uint32_t getHeight(const AHardwareBuffer* ahb) override;
+
     size_t getAllocatedSize(const native_handle_t* handle) override;
     size_t getAllocatedSize(const AHardwareBuffer* handle) override;
 

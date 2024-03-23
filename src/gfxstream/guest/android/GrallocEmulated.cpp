@@ -218,6 +218,16 @@ uint32_t EmulatedGralloc::getFormatDrmFourcc(const AHardwareBuffer* handle) {
     return ahb->getDrmFormat();
 }
 
+uint32_t EmulatedGralloc::getWidth(const AHardwareBuffer* handle) {
+    const auto* ahb = reinterpret_cast<const EmulatedAHardwareBuffer*>(handle);
+    return ahb->getWidth();
+}
+
+uint32_t EmulatedGralloc::getHeight(const AHardwareBuffer* handle) {
+    const auto* ahb = reinterpret_cast<const EmulatedAHardwareBuffer*>(handle);
+    return ahb->getHeight();
+}
+
 size_t EmulatedGralloc::getAllocatedSize(const native_handle_t*) {
     ALOGE("Unimplemented.");
     return 0;
