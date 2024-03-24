@@ -2409,8 +2409,10 @@ tu_shader_create(struct tu_device *dev,
               nir_address_format_64bit_global);
 
    if (nir->info.stage == MESA_SHADER_COMPUTE) {
-      NIR_PASS_V(nir, nir_lower_vars_to_explicit_types,
-                 nir_var_mem_shared, shared_type_info);
+      if (!nir->info.shared_memory_explicit_layout) {
+         NIR_PASS_V(nir, nir_lower_vars_to_explicit_types,
+                    nir_var_mem_shared, shared_type_info);
+      }
       NIR_PASS_V(nir, nir_lower_explicit_io,
                  nir_var_mem_shared,
                  nir_address_format_32bit_offset);

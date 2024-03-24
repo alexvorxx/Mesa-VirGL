@@ -551,7 +551,7 @@ Khronos extensions that are not part of any Vulkan version:
   VK_KHR_swapchain_mutable_format                       DONE (anv, hasvk, lvp, nvk, radv, tu, v3dv, vn)
   VK_KHR_vertex_attribute_divisor                       DONE (anv, nvk, radv, tu, v3dv)
   VK_KHR_wayland_surface                                DONE (anv, dzn, lvp, nvk, panvk, radv, tu, v3dv, vn)
-  VK_KHR_workgroup_memory_explicit_layout               DONE (anv, nvk, hasvk, radv, v3dv)
+  VK_KHR_workgroup_memory_explicit_layout               DONE (anv, nvk, hasvk, radv, tu, v3dv)
   VK_KHR_win32_keyed_mutex                              not started
   VK_KHR_win32_surface                                  DONE (dzn, lvp)
   VK_KHR_xcb_surface                                    DONE (anv, dzn, hasvk, lvp, nvk, radv, tu, v3dv, vn)

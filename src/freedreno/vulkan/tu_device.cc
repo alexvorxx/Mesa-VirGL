@@ -222,6 +222,7 @@ get_device_extensions(const struct tu_physical_device *device,
       .KHR_variable_pointers = true,
       .KHR_vertex_attribute_divisor = true,
       .KHR_vulkan_memory_model = true,
+      .KHR_workgroup_memory_explicit_layout = true,
       .KHR_zero_initialize_workgroup_memory = true,
 
       .EXT_4444_formats = true,
@@ -492,6 +493,12 @@ tu_get_features(struct tu_physical_device *pdevice,
    /* VK_KHR_vertex_attribute_divisor */
    features->vertexAttributeInstanceRateDivisor = true;
    features->vertexAttributeInstanceRateZeroDivisor = true;
+
+   /* VK_KHR_workgroup_memory_explicit_layout */
+   features->workgroupMemoryExplicitLayout = true;
+   features->workgroupMemoryExplicitLayoutScalarBlockLayout = true;
+   features->workgroupMemoryExplicitLayout8BitAccess = true;
+   features->workgroupMemoryExplicitLayout16BitAccess = true;
 
    /* VK_EXT_4444_formats */
    features->formatA4R4G4B4 = true;
