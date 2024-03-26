@@ -125,6 +125,10 @@ def extract_deps_vkCreateGraphicsPipelines(param, access, lenExpr, api, cgen):
 def extract_deps_vkCreateFramebuffer(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
               (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkRenderPass(pCreateInfo->renderPass)"))
+    cgen.beginFor("uint32_t i = 0", "i < pCreateInfo->attachmentCount" , "++i")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkImageView(pCreateInfo->pAttachments[i])"))
+    cgen.endFor()
 
 def extract_deps_vkBindImageMemory(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
@@ -153,6 +157,10 @@ apiModifies = {
     "vkMapMemoryIntoAddressSpaceGOOGLE" : ["memory"],
     "vkGetBlobGOOGLE" : ["memory"],
 }
+
+delayedDestroys = [
+    "vkDestroyShaderModule",
+]
 
 def is_initialize_operation(api, param):
     if api.name in apiInitializes:
@@ -221,7 +229,8 @@ def emit_impl(typeInfo, api, cgen):
             cgen.line("// %s destroy" % p.paramName)
             if lenAccessGuard is not None:
                 cgen.beginIf(lenAccessGuard)
-            cgen.stmt("mReconstruction.removeHandles((const uint64_t*)%s, %s)" % (access, lenExpr));
+            shouldRecursiveDestroy = "false" if api.name in delayedDestroys else "true"
+            cgen.stmt("mReconstruction.removeHandles((const uint64_t*)%s, %s, %s)" % (access, lenExpr, shouldRecursiveDestroy));
             if lenAccessGuard is not None:
                 cgen.endIf()
 
