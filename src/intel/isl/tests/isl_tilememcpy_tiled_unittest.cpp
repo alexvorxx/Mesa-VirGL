@@ -33,7 +33,7 @@
 
 enum TILE_CONV {LIN_TO_TILE, TILE_TO_LIN};
 
-typedef uint8_t *(*swizzle_func_t)(const uint8_t *base_addr, uint32_t x_B, uint32_t y_px);
+typedef uint8_t *(*swizzle_func_t)(const uint8_t *base_addr, uint32_t pitch, uint32_t x_B, uint32_t y_px);
 
 #define TILE_COORDINATES  std::make_tuple(0, 128, 0, 32), \
                           std::make_tuple(19, 20, 25, 32), \
@@ -54,8 +54,11 @@ uint32_t swizzle_bitops(uint32_t num, uint8_t field, uint8_t curr_ind, uint8_t s
    return bits << swizzle_ind;
 }
 
-uint8_t *linear_to_Ytile_swizzle(const uint8_t *base_addr, uint32_t x_B, uint32_t y_px)
+uint8_t *linear_to_Ytile_swizzle(const uint8_t *base_addr, uint32_t pitch, uint32_t x_B, uint32_t y_px)
 {
+   const uint32_t cu = 7, cv = 5;
+   const uint32_t tile_id = (y_px >> cv) * (pitch >> cu) + (x_B >> cu);
+
    /* The table below represents the mapping from coordinate (x_B, y_px) to
     * byte offset in a 128x32px 1Bpp image:
     *
@@ -64,15 +67,19 @@ uint8_t *linear_to_Ytile_swizzle(const uint8_t *base_addr, uint32_t x_B, uint32_
     */
    uint32_t tiled_off;
 
-   tiled_off = swizzle_bitops(x_B, 4, 0, 0) |
+   tiled_off = tile_id * 4096 |
+               swizzle_bitops(x_B, 4, 0, 0) |
                swizzle_bitops(y_px, 5, 0, 4) |
                swizzle_bitops(x_B, 3, 4, 9);
 
    return (uint8_t *)(base_addr + tiled_off);
 }
 
-uint8_t *linear_to_tile4_swizzle(const uint8_t * base_addr, uint32_t x_B, uint32_t y_px)
+uint8_t *linear_to_tile4_swizzle(const uint8_t * base_addr, uint32_t pitch, uint32_t x_B, uint32_t y_px)
 {
+   const uint32_t cu = 7, cv = 5;
+   const uint32_t tile_id = (y_px >> cv) * (pitch >> cu) + (x_B >> cu);
+
    /* The table below represents the mapping from coordinate (x_B, y_px) to
     * byte offset in a 128x32px 1Bpp image:
     *
@@ -81,7 +88,8 @@ uint8_t *linear_to_tile4_swizzle(const uint8_t * base_addr, uint32_t x_B, uint32
     */
    uint32_t tiled_off;
 
-   tiled_off = swizzle_bitops(x_B, 4, 0, 0) |
+   tiled_off = tile_id * 4096 |
+               swizzle_bitops(x_B, 4, 0, 0) |
                swizzle_bitops(y_px, 2, 0, 4) |
                swizzle_bitops(x_B, 2, 4, 6) |
                swizzle_bitops(y_px, 1, 2, 8) |
@@ -182,10 +190,12 @@ void tileTFixture::bounded_byte_fill(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t
 
    for(auto y = y1; y < y2; y++)
       for (auto x = x1; x < x2; x++)
-         if (conv == LIN_TO_TILE)
+         if (conv == LIN_TO_TILE) {
             *(itr + LIN_OFF(y, tile_width, x)) = LIN_OFF(y, tile_width, x)/16;
-         else
-            *(ops.linear_to_tile_swizzle(buf_src, x, y)) = LIN_OFF(y, tile_width, x)/16;
+         } else {
+            *(ops.linear_to_tile_swizzle(buf_src, tile_width, x, y)) =
+               LIN_OFF(y, tile_width, x)/16;
+         }
 }
 
 void tileTFixture::hex_oword_print(const uint8_t *buf, uint32_t size)
@@ -251,11 +261,11 @@ void tileTFixture::compare_conv_result(uint8_t x1, uint8_t x2,
          } else {
             if (conv == LIN_TO_TILE) {
                EXPECT_EQ(*(buf_src + LIN_OFF(y, tile_width, x)),
-                         *(ops.linear_to_tile_swizzle(buf_dst, x, y)))
+                         *(ops.linear_to_tile_swizzle(buf_dst, tile_width, x, y)))
                   << "Not matching for x:" << x << " and y:" << y << std::endl;
             } else {
                EXPECT_EQ(*(buf_dst + LIN_OFF(y, tile_width, x)),
-                         *(ops.linear_to_tile_swizzle(buf_src, x, y)))
+                         *(ops.linear_to_tile_swizzle(buf_src, tile_width, x, y)))
                   << "Not matching for x:" << x << " and y:" << y << std::endl;
             }
          }
