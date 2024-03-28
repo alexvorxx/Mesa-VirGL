@@ -243,20 +243,20 @@ void tileTFixture::compare_conv_result(uint8_t x1, uint8_t x2,
          if (x < x1 || x > x2 || y < y1 || y > y2) {
             if (conv == LIN_TO_TILE) {
                EXPECT_EQ(*(buf_src + LIN_OFF(y, tile_width, x)), 0xcc)
-                  << "Not matching for x:" << x << "and y:" << y << std::endl;
+                  << "Not matching for x:" << x << " and y:" << y << std::endl;
             } else {
                EXPECT_EQ(*(buf_dst + LIN_OFF(y, tile_width, x)), 0xcc)
-                  << "Not matching for x:" << x << "and y:" << y << std::endl;
+                  << "Not matching for x:" << x << " and y:" << y << std::endl;
             }
          } else {
             if (conv == LIN_TO_TILE) {
                EXPECT_EQ(*(buf_src + LIN_OFF(y, tile_width, x)),
                          *(ops.linear_to_tile_swizzle(buf_dst, x, y)))
-                  << "Not matching for x:" << x << "and y:" << y << std::endl;
+                  << "Not matching for x:" << x << " and y:" << y << std::endl;
             } else {
                EXPECT_EQ(*(buf_dst + LIN_OFF(y, tile_width, x)),
                          *(ops.linear_to_tile_swizzle(buf_src, x, y)))
-                  << "Not matching for x:" << x << "and y:" << y << std::endl;
+                  << "Not matching for x:" << x << " and y:" << y << std::endl;
             }
          }
       }
