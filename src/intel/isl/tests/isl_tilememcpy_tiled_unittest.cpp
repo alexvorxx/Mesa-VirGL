@@ -54,7 +54,7 @@ uint32_t swizzle_bitops(uint32_t num, uint8_t field, uint8_t curr_ind, uint8_t s
    return bits << swizzle_ind;
 }
 
-uint8_t *linear_to_Ytile_swizzle(const uint8_t *base_addr, uint32_t pitch, uint32_t x_B, uint32_t y_px)
+uint8_t *linear_to_tileY_swizzle(const uint8_t *base_addr, uint32_t pitch, uint32_t x_B, uint32_t y_px)
 {
    const uint32_t cu = 7, cv = 5;
    const uint32_t tile_id = (y_px >> cv) * (pitch >> cu) + (x_B >> cu);
@@ -100,7 +100,7 @@ uint8_t *linear_to_tile4_swizzle(const uint8_t * base_addr, uint32_t pitch, uint
 }
 
 struct tile_swizzle_ops swizzle_opers[] = {
-   {ISL_TILING_Y0, linear_to_Ytile_swizzle},
+   {ISL_TILING_Y0, linear_to_tileY_swizzle},
    {ISL_TILING_4, linear_to_tile4_swizzle},
 };
 
@@ -318,5 +318,5 @@ TEST_P(tile4Fixture, tiletolin)
 }
 
 
-INSTANTIATE_TEST_SUITE_P(Ytile, tileYFixture, testing::Values(TILE_COORDINATES));
+INSTANTIATE_TEST_SUITE_P(tileY, tileYFixture, testing::Values(TILE_COORDINATES));
 INSTANTIATE_TEST_SUITE_P(tile4, tile4Fixture, testing::Values(TILE_COORDINATES));
