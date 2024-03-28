@@ -123,11 +123,11 @@ public:
    void TearDown();
    uint32_t swizzle_bitops(uint32_t num, uint8_t field,
                            uint8_t curr_ind, uint8_t swizzle_ind);
-   void bounded_byte_fill(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2);
+   void bounded_byte_fill(uint32_t x1, uint32_t x2, uint32_t y1, uint32_t y2);
    void hex_oword_print(const uint8_t *buf, uint32_t size);
-   void convert_texture(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2);
-   void compare_conv_result(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2);
-   void run_test(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2);
+   void convert_texture(uint32_t x1, uint32_t x2, uint32_t y1, uint32_t y2);
+   void compare_conv_result(uint32_t x1, uint32_t x2, uint32_t y1, uint32_t y2);
+   void run_test(uint32_t x1, uint32_t x2, uint32_t y1, uint32_t y2);
 };
 
 class tileYFixture : public tileTFixture,
@@ -184,7 +184,7 @@ void tileTFixture::TearDown()
    buf_dst = nullptr;
 }
 
-void tileTFixture::bounded_byte_fill(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2)
+void tileTFixture::bounded_byte_fill(uint32_t x1, uint32_t x2, uint32_t y1, uint32_t y2)
 {
    uint8_t *itr = (uint8_t *) buf_src;
 
@@ -215,7 +215,7 @@ void tileTFixture::hex_oword_print(const uint8_t *buf, uint32_t size)
    }
 }
 
-void tileTFixture::convert_texture(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y2)
+void tileTFixture::convert_texture(uint32_t x1, uint32_t x2, uint32_t y1, uint32_t y2)
 {
    if (print_results) {
       printf("/************** Printing src ***************/\n");
@@ -241,8 +241,8 @@ void tileTFixture::convert_texture(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y
    }
 }
 
-void tileTFixture::compare_conv_result(uint8_t x1, uint8_t x2,
-                                       uint8_t y1, uint8_t y2)
+void tileTFixture::compare_conv_result(uint32_t x1, uint32_t x2,
+                                       uint32_t y1, uint32_t y2)
 {
    uint32_t x_max = tile_width;
    uint32_t y_max = (uint32_t) align(y2, tile_info.logical_extent_el.h);
@@ -273,8 +273,8 @@ void tileTFixture::compare_conv_result(uint8_t x1, uint8_t x2,
    }
 }
 
-void tileTFixture::run_test(uint8_t x1, uint8_t x2,
-                            uint8_t y1, uint8_t y2)
+void tileTFixture::run_test(uint32_t x1, uint32_t x2,
+                            uint32_t y1, uint32_t y2)
 {
     bounded_byte_fill(x1, x2, y1, y2);
     convert_texture(x1, x2, y1, y2);
