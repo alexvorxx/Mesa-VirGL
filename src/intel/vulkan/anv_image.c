@@ -2660,7 +2660,9 @@ anv_get_image_subresource_layout(const struct anv_image *image,
                                  const VkImageSubresource2KHR *subresource,
                                  VkSubresourceLayout2KHR *layout)
 {
+   const struct isl_surf *isl_surf = NULL;
    const struct anv_image_memory_range *mem_range;
+   uint64_t row_pitch_B;
 
    assert(__builtin_popcount(subresource->imageSubresource.aspectMask) == 1);
 
@@ -2701,7 +2703,6 @@ anv_get_image_subresource_layout(const struct anv_image *image,
          unreachable("bad VkImageAspectFlags");
       }
 
-      uint32_t row_pitch_B;
       if (isl_drm_modifier_plane_is_clear_color(image->vk.drm_format_mod,
                                                 mem_plane)) {
          assert(image->n_planes == 1);
@@ -2729,6 +2730,8 @@ anv_get_image_subresource_layout(const struct anv_image *image,
          mem_range = &image->planes[mem_plane].primary_surface.memory_range;
          row_pitch_B =
             image->planes[mem_plane].primary_surface.isl.row_pitch_B;
+
+         isl_surf = &image->planes[mem_plane].primary_surface.isl;
       }
 
       /* If the memory binding differs between the primary plane and the
@@ -2737,51 +2740,46 @@ anv_get_image_subresource_layout(const struct anv_image *image,
       assert(mem_range->binding ==
              image->planes[0].primary_surface.memory_range.binding);
 
-      layout->subresourceLayout.offset = mem_range->offset;
-      layout->subresourceLayout.size = mem_range->size;
-      layout->subresourceLayout.rowPitch = row_pitch_B;
-      /* The spec for VkSubresourceLayout says,
-       *
-       *    The value of arrayPitch is undefined for images that were not
-       *    created as arrays. depthPitch is defined only for 3D images.
-       *
-       * We are working with a non-arrayed 2D image. So, we leave the
-       * remaining pitches undefined.
-       */
+      /* We are working with a non-arrayed 2D image. */
       assert(image->vk.image_type == VK_IMAGE_TYPE_2D);
       assert(image->vk.array_layers == 1);
    } else {
       const uint32_t plane =
          anv_image_aspect_to_plane(image,
                                    subresource->imageSubresource.aspectMask);
-      const struct isl_surf *isl_surf =
-         &image->planes[plane].primary_surface.isl;
+      isl_surf = &image->planes[plane].primary_surface.isl;
       mem_range = &image->planes[plane].primary_surface.memory_range;
+      row_pitch_B = isl_surf->row_pitch_B;
+   }
 
-      layout->subresourceLayout.offset = mem_range->offset;
-      layout->subresourceLayout.rowPitch = isl_surf->row_pitch_B;
+   if (isl_surf) {
+      /* ISL tries to give us a single layer but the Vulkan API expect the
+       * entire 3D size.
+       */
+      const uint32_t level = subresource->imageSubresource.mipLevel;
+      const uint32_t layer = subresource->imageSubresource.arrayLayer;
+      const uint32_t z = u_minify(isl_surf->logical_level0_px.d, level) - 1;
+      uint64_t z0_start_tile_B, z0_end_tile_B;
+      uint64_t zX_start_tile_B, zX_end_tile_B;
+      isl_surf_get_image_range_B_tile(isl_surf, level, layer, 0,
+                                      &z0_start_tile_B, &z0_end_tile_B);
+      isl_surf_get_image_range_B_tile(isl_surf, level, layer, z,
+                                      &zX_start_tile_B, &zX_end_tile_B);
+
+      layout->subresourceLayout.offset = mem_range->offset + z0_start_tile_B;
+      layout->subresourceLayout.size = zX_end_tile_B - z0_start_tile_B;
+      layout->subresourceLayout.rowPitch = row_pitch_B;
       layout->subresourceLayout.depthPitch =
          isl_surf_get_array_pitch(isl_surf);
       layout->subresourceLayout.arrayPitch =
          isl_surf_get_array_pitch(isl_surf);
-
-      const uint32_t level = subresource->imageSubresource.mipLevel;
-      const uint32_t layer = subresource->imageSubresource.arrayLayer;
-      if (level > 0 || layer > 0) {
-         assert(isl_surf->tiling == ISL_TILING_LINEAR);
-
-         uint64_t offset_B;
-         isl_surf_get_image_offset_B_tile_sa(isl_surf, level, layer,
-                                             0 /* logical_z_offset_px */,
-                                             &offset_B, NULL, NULL);
-         layout->subresourceLayout.offset += offset_B;
-         layout->subresourceLayout.size =
-            layout->subresourceLayout.rowPitch *
-            u_minify(image->vk.extent.height, level) *
-            image->vk.extent.depth;
-      } else {
-         layout->subresourceLayout.size = mem_range->size;
-      }
+   } else {
+      layout->subresourceLayout.offset = mem_range->offset;
+      layout->subresourceLayout.size = mem_range->size;
+      layout->subresourceLayout.rowPitch = row_pitch_B;
+      /* Not a surface so those fields don't make sense */
+      layout->subresourceLayout.depthPitch = 0;
+      layout->subresourceLayout.arrayPitch = 0;
    }
 
    VkImageCompressionPropertiesEXT *comp_props =
