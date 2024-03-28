@@ -244,7 +244,7 @@ void tileTFixture::convert_texture(uint8_t x1, uint8_t x2, uint8_t y1, uint8_t y
 void tileTFixture::compare_conv_result(uint8_t x1, uint8_t x2,
                                        uint8_t y1, uint8_t y2)
 {
-   uint32_t x_max = (uint32_t) align(x2, tile_info.logical_extent_el.w);
+   uint32_t x_max = tile_width;
    uint32_t y_max = (uint32_t) align(y2, tile_info.logical_extent_el.h);
 
    for(uint32_t y = 0; y < y_max; y++) {
