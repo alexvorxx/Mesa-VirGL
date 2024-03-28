@@ -2943,6 +2943,9 @@ isl_surf_get_hiz_surf(const struct isl_device *dev,
    if (INTEL_DEBUG(DEBUG_NO_HIZ))
       return false;
 
+   if (surf->usage & ISL_SURF_USAGE_DISABLE_AUX_BIT)
+      return false;
+
    /* HiZ support does not exist prior to Gfx5 */
    if (ISL_GFX_VER(dev) < 5)
       return false;
