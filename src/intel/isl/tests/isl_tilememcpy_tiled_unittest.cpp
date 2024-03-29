@@ -191,10 +191,10 @@ void tileTFixture::bounded_byte_fill(uint32_t x1, uint32_t x2, uint32_t y1, uint
    for(auto y = y1; y < y2; y++)
       for (auto x = x1; x < x2; x++)
          if (conv == LIN_TO_TILE) {
-            *(itr + LIN_OFF(y, tile_width, x)) = LIN_OFF(y, tile_width, x)/16;
+            *(itr + LIN_OFF(y, tile_width, x)) = LIN_OFF(y, tile_width, x)%16;
          } else {
             *(ops.linear_to_tile_swizzle(buf_src, tile_width, x, y)) =
-               LIN_OFF(y, tile_width, x)/16;
+               LIN_OFF(y, tile_width, x)%16;
          }
 }
 
