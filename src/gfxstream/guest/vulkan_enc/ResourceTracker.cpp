@@ -1342,7 +1342,7 @@ void ResourceTracker::setDeviceMemoryInfo(VkDevice device, VkDeviceMemory memory
                                           VkDeviceSize allocationSize, uint8_t* ptr,
                                           uint32_t memoryTypeIndex, AHardwareBuffer* ahw,
                                           bool imported, zx_handle_t vmoHandle,
-                                          VirtGpuBlobPtr blobPtr) {
+                                          VirtGpuResourcePtr blobPtr) {
     AutoLock<RecursiveLock> lock(mLock);
     auto& info = info_VkDeviceMemory[memory];
 
@@ -2953,7 +2953,7 @@ CoherentMemoryPtr ResourceTracker::createCoherentMemory(
                     return coherentMemory;
                 }
 
-                VirtGpuBlobMappingPtr mapping = blob->createMapping();
+                VirtGpuResourceMappingPtr mapping = blob->createMapping();
                 if (!mapping) {
                     ALOGE("Failed to create coherent memory: failed to create blob mapping.");
                     res = VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -2979,7 +2979,7 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
     VkMemoryAllocateFlagsInfo allocFlagsInfo;
     VkMemoryOpaqueCaptureAddressAllocateInfo opaqueCaptureAddressAllocInfo;
     VkCreateBlobGOOGLE createBlobInfo;
-    VirtGpuBlobPtr guestBlob = nullptr;
+    VirtGpuResourcePtr guestBlob = nullptr;
 
     memset(&createBlobInfo, 0, sizeof(struct VkCreateBlobGOOGLE));
     createBlobInfo.sType = VK_STRUCTURE_TYPE_CREATE_BLOB_GOOGLE;
@@ -3741,7 +3741,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
     }
 #endif
 
-    VirtGpuBlobPtr colorBufferBlob = nullptr;
+    VirtGpuResourcePtr colorBufferBlob = nullptr;
 #if defined(__linux__) && !defined(VK_USE_PLATFORM_ANDROID_KHR)
     if (exportDmabuf) {
         VirtGpuDevice* instance = VirtGpuDevice::getInstance();
@@ -3776,8 +3776,8 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                       imageCreateInfo.format);
                 return VK_ERROR_FORMAT_NOT_SUPPORTED;
             }
-            colorBufferBlob = instance->createVirglBlob(imageCreateInfo.extent.width,
-                                                        imageCreateInfo.extent.height, virglFormat);
+            colorBufferBlob = instance->createResource(imageCreateInfo.extent.width,
+                                                       imageCreateInfo.extent.height, virglFormat);
             if (!colorBufferBlob) {
                 ALOGE("%s: Failed to create colorBuffer resource for Image memory\n", __func__);
                 return VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -3798,8 +3798,8 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 const auto& bufferInfo = it->second;
                 bufferCreateInfo = bufferInfo.createInfo;
             }
-            colorBufferBlob = instance->createVirglBlob(bufferCreateInfo.size / 4, 1,
-                                                        VIRGL_FORMAT_R8G8B8A8_UNORM);
+            colorBufferBlob =
+                instance->createResource(bufferCreateInfo.size / 4, 1, VIRGL_FORMAT_R8G8B8A8_UNORM);
             if (!colorBufferBlob) {
                 ALOGE("%s: Failed to create colorBuffer resource for Buffer memory\n", __func__);
                 return VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -3952,7 +3952,7 @@ VkResult ResourceTracker::on_vkMapMemory(void* context, VkResult host_result, Vk
 
     if (info.blobId && !info.coherentMemory && !mCaps.params[kParamCreateGuestHandle]) {
         VkEncoder* enc = (VkEncoder*)context;
-        VirtGpuBlobMappingPtr mapping;
+        VirtGpuResourceMappingPtr mapping;
         VirtGpuDevice* instance = VirtGpuDevice::getInstance();
 
         uint64_t offset;

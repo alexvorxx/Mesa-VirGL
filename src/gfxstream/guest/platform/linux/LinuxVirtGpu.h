@@ -18,17 +18,18 @@
 
 #include "VirtGpu.h"
 
-class LinuxVirtGpuBlob : public std::enable_shared_from_this<LinuxVirtGpuBlob>, public VirtGpuBlob {
+class LinuxVirtGpuResource : public std::enable_shared_from_this<LinuxVirtGpuResource>,
+                             public VirtGpuResource {
    public:
-    LinuxVirtGpuBlob(int64_t deviceHandle, uint32_t blobHandle, uint32_t resourceHandle,
-                     uint64_t size);
-    ~LinuxVirtGpuBlob();
+    LinuxVirtGpuResource(int64_t deviceHandle, uint32_t blobHandle, uint32_t resourceHandle,
+                         uint64_t size);
+    ~LinuxVirtGpuResource();
 
     uint32_t getResourceHandle() const override;
     uint32_t getBlobHandle() const override;
     int wait() override;
 
-    VirtGpuBlobMappingPtr createMapping(void) override;
+    VirtGpuResourceMappingPtr createMapping(void) override;
     int exportBlob(struct VirtGpuExternalHandle& handle) override;
 
     int transferFromHost(uint32_t x, uint32_t y, uint32_t w, uint32_t h) override;
@@ -44,15 +45,15 @@ class LinuxVirtGpuBlob : public std::enable_shared_from_this<LinuxVirtGpuBlob>, 
     uint64_t mSize;
 };
 
-class LinuxVirtGpuBlobMapping : public VirtGpuBlobMapping {
+class LinuxVirtGpuResourceMapping : public VirtGpuResourceMapping {
    public:
-    LinuxVirtGpuBlobMapping(VirtGpuBlobPtr blob, uint8_t* ptr, uint64_t size);
-    ~LinuxVirtGpuBlobMapping(void);
+    LinuxVirtGpuResourceMapping(VirtGpuResourcePtr blob, uint8_t* ptr, uint64_t size);
+    ~LinuxVirtGpuResourceMapping(void);
 
     uint8_t* asRawPtr(void) override;
 
    private:
-    VirtGpuBlobPtr mBlob;
+    VirtGpuResourcePtr mBlob;
     uint8_t* mPtr;
     uint64_t mSize;
 };
@@ -66,11 +67,12 @@ class LinuxVirtGpuDevice : public VirtGpuDevice {
 
     virtual struct VirtGpuCaps getCaps(void);
 
-    VirtGpuBlobPtr createBlob(const struct VirtGpuCreateBlob& blobCreate) override;
-    VirtGpuBlobPtr createVirglBlob(uint32_t width, uint32_t height, uint32_t virglFormat) override;
+    VirtGpuResourcePtr createBlob(const struct VirtGpuCreateBlob& blobCreate) override;
+    VirtGpuResourcePtr createResource(uint32_t width, uint32_t height,
+                                      uint32_t virglFormat) override;
 
-    virtual VirtGpuBlobPtr importBlob(const struct VirtGpuExternalHandle& handle);
-    virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuBlob* blob);
+    virtual VirtGpuResourcePtr importBlob(const struct VirtGpuExternalHandle& handle);
+    virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuResource* blob);
 
    private:
     int64_t mDeviceHandle;

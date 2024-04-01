@@ -46,9 +46,7 @@ public:
     virtual int writeFullyAsync(const void *buf, size_t len);
     virtual const unsigned char *commitBufferAndReadFully(size_t size, void *buf, size_t len);
 
-    void setMapping(VirtGpuBlobMappingPtr mapping) {
-        m_mapping = mapping;
-    }
+    void setMapping(VirtGpuResourceMappingPtr mapping) { m_mapping = mapping; }
 
     void setResourceId(uint32_t id) {
         m_resourceId = id;
@@ -68,7 +66,7 @@ private:
     void backoff();
     void resetBackoff();
 
-    VirtGpuBlobMappingPtr m_mapping = nullptr;
+    VirtGpuResourceMappingPtr m_mapping = nullptr;
     struct address_space_ops m_ops;
 
     unsigned char* m_tmpBuf;

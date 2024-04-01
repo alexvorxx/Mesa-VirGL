@@ -26,7 +26,7 @@ using EGLClientBuffer = void*;
 
 class EmulatedAHardwareBuffer {
    public:
-    EmulatedAHardwareBuffer(uint32_t width, uint32_t height, VirtGpuBlobPtr resource);
+    EmulatedAHardwareBuffer(uint32_t width, uint32_t height, VirtGpuResourcePtr resource);
 
     ~EmulatedAHardwareBuffer();
 
@@ -56,8 +56,8 @@ class EmulatedAHardwareBuffer {
     uint32_t mRefCount;
     uint32_t mWidth;
     uint32_t mHeight;
-    VirtGpuBlobPtr mResource;
-    std::optional<VirtGpuBlobMappingPtr> mMapped;
+    VirtGpuResourcePtr mResource;
+    std::optional<VirtGpuResourceMappingPtr> mMapped;
 };
 
 class EmulatedGralloc : public Gralloc {

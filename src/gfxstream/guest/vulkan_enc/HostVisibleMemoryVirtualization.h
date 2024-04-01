@@ -41,7 +41,7 @@ using SubAllocatorPtr = std::unique_ptr<gfxstream::guest::SubAllocator>;
 
 class CoherentMemory {
    public:
-    CoherentMemory(VirtGpuBlobMappingPtr blobMapping, uint64_t size, VkDevice device,
+    CoherentMemory(VirtGpuResourceMappingPtr blobMapping, uint64_t size, VkDevice device,
                    VkDeviceMemory memory);
 
 #if defined(__ANDROID__)
@@ -61,7 +61,7 @@ class CoherentMemory {
     void operator=(CoherentMemory const&);
 
     uint64_t mSize;
-    VirtGpuBlobMappingPtr mBlobMapping = nullptr;
+    VirtGpuResourceMappingPtr mBlobMapping = nullptr;
     GoldfishAddressSpaceBlockPtr mBlock = nullptr;
     VkDevice mDevice;
     VkDeviceMemory mMemory;

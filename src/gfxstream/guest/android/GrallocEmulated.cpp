@@ -85,7 +85,7 @@ std::optional<uint32_t> DrmToVirglFormat(uint32_t drmFormat) {
 }  // namespace
 
 EmulatedAHardwareBuffer::EmulatedAHardwareBuffer(uint32_t width, uint32_t height,
-                                                 VirtGpuBlobPtr resource)
+                                                 VirtGpuResourcePtr resource)
     : mRefCount(1), mWidth(width), mHeight(height), mResource(resource) {}
 
 EmulatedAHardwareBuffer::~EmulatedAHardwareBuffer() {}
@@ -196,7 +196,7 @@ AHardwareBuffer* EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint
         return nullptr;
     }
 
-    auto resource = device->createVirglBlob(width, height, *virglFormat);
+    auto resource = device->createResource(width, height, *virglFormat);
     if (!resource) {
         ALOGE("Failed to allocate: failed to create virtio resource.");
         return nullptr;

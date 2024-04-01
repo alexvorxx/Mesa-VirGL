@@ -32,24 +32,24 @@ FuchsiaVirtGpuDevice::~FuchsiaVirtGpuDevice() { magma_device_release(device_); }
 
 int64_t FuchsiaVirtGpuDevice::getDeviceHandle(void) { return device_; }
 
-VirtGpuBlobPtr FuchsiaVirtGpuDevice::createBlob(const struct VirtGpuCreateBlob& blobCreate) {
+VirtGpuResourcePtr FuchsiaVirtGpuDevice::createBlob(const struct VirtGpuCreateBlob& blobCreate) {
     ALOGE("%s: unimplemented", __func__);
     return nullptr;
 }
 
-VirtGpuBlobPtr FuchsiaVirtGpuDevice::createVirglBlob(uint32_t width, uint32_t height,
-                                                     uint32_t virglFormat) {
+VirtGpuResourcePtr FuchsiaVirtGpuDevice::createResource(uint32_t width, uint32_t height,
+                                                        uint32_t virglFormat) {
     ALOGE("%s: unimplemented", __func__);
     return nullptr;
 }
 
-VirtGpuBlobPtr FuchsiaVirtGpuDevice::importBlob(const struct VirtGpuExternalHandle& handle) {
+VirtGpuResourcePtr FuchsiaVirtGpuDevice::importBlob(const struct VirtGpuExternalHandle& handle) {
     ALOGE("%s: unimplemented", __func__);
     return nullptr;
 }
 
 int FuchsiaVirtGpuDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer,
-                                     const VirtGpuBlob* blob) {
+                                     const VirtGpuResource* blob) {
     ALOGE("%s: unimplemented", __func__);
     return 0;
 }

@@ -18,9 +18,10 @@
 
 #include "LinuxVirtGpu.h"
 
-LinuxVirtGpuBlobMapping::LinuxVirtGpuBlobMapping(VirtGpuBlobPtr blob, uint8_t* ptr, uint64_t size)
+LinuxVirtGpuResourceMapping::LinuxVirtGpuResourceMapping(VirtGpuResourcePtr blob, uint8_t* ptr,
+                                                         uint64_t size)
     : mBlob(blob), mPtr(ptr), mSize(size) {}
 
-LinuxVirtGpuBlobMapping::~LinuxVirtGpuBlobMapping(void) { munmap(mPtr, mSize); }
+LinuxVirtGpuResourceMapping::~LinuxVirtGpuResourceMapping(void) { munmap(mPtr, mSize); }
 
-uint8_t* LinuxVirtGpuBlobMapping::asRawPtr(void) { return mPtr; }
+uint8_t* LinuxVirtGpuResourceMapping::asRawPtr(void) { return mPtr; }

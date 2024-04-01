@@ -619,7 +619,7 @@ class ResourceTracker {
 
     void setDeviceMemoryInfo(VkDevice device, VkDeviceMemory memory, VkDeviceSize allocationSize,
                              uint8_t* ptr, uint32_t memoryTypeIndex, AHardwareBuffer* ahw,
-                             bool imported, zx_handle_t vmoHandle, VirtGpuBlobPtr blobPtr);
+                             bool imported, zx_handle_t vmoHandle, VirtGpuResourcePtr blobPtr);
 
     void setImageInfo(VkImage image, VkDevice device, const VkImageCreateInfo* pCreateInfo);
 
@@ -748,7 +748,7 @@ class ResourceTracker {
         GoldfishAddressSpaceBlockPtr goldfishBlock = nullptr;
 #endif  // defined(__ANDROID__)
         CoherentMemoryPtr coherentMemory = nullptr;
-        VirtGpuBlobPtr blobPtr = nullptr;
+        VirtGpuResourcePtr blobPtr = nullptr;
     };
 
     struct VkCommandBuffer_Info {
