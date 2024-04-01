@@ -38,6 +38,38 @@ std::optional<uint32_t> GlFormatToDrmFormat(uint32_t glFormat) {
     return std::nullopt;
 }
 
+std::optional<uint32_t> AhbToDrmFormat(uint32_t ahbFormat) {
+    switch (ahbFormat) {
+        case GFXSTREAM_AHB_FORMAT_R8G8B8A8_UNORM:
+            return DRM_FORMAT_ABGR8888;
+        case GFXSTREAM_AHB_FORMAT_R8G8B8X8_UNORM:
+            return DRM_FORMAT_XBGR8888;
+        case GFXSTREAM_AHB_FORMAT_R8G8B8_UNORM:
+            return DRM_FORMAT_BGR888;
+        /*
+        * Confusingly, AHARDWAREBUFFER_FORMAT_RGB_565 is defined as:
+        *
+        * "16-bit packed format that has 5-bit R, 6-bit G, and 5-bit B components, in that
+        *  order, from the  most-sigfinicant bits to the least-significant bits."
+        *
+        * so the order of the components is intentionally not flipped between the pixel
+        * format and the DRM format.
+        */
+        case GFXSTREAM_AHB_FORMAT_R5G6B5_UNORM:
+            return DRM_FORMAT_RGB565;
+        case GFXSTREAM_AHB_FORMAT_BLOB:
+        case GFXSTREAM_AHB_FORMAT_R8_UNORM:
+            return DRM_FORMAT_R8;
+        case GFXSTREAM_AHB_FORMAT_YV12:
+            return DRM_FORMAT_YVU420;
+        case GFXSTREAM_AHB_FORMAT_R16G16B16A16_FLOAT:
+            return DRM_FORMAT_ABGR16161616F;
+        case GFXSTREAM_AHB_FORMAT_R10G10B10A2_UNORM:
+            return DRM_FORMAT_ABGR2101010;
+    }
+    return std::nullopt;
+}
+
 std::optional<uint32_t> DrmToVirglFormat(uint32_t drmFormat) {
     switch (drmFormat) {
         case DRM_FORMAT_ABGR8888:
@@ -135,10 +167,17 @@ uint32_t EmulatedGralloc::createColorBuffer(void*, int width, int height, uint32
     return rahb->getResourceId();
 }
 
-int EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint32_t format, uint64_t usage,
+int EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint32_t ahbFormat, uint64_t usage,
                               AHardwareBuffer** outputAhb) {
     (void)usage;
-    *outputAhb = allocate(width, height, format);
+
+    auto drmFormat = AhbToDrmFormat(ahbFormat);
+    if (!drmFormat) {
+        ALOGE("Unhandled AHB format:%u", ahbFormat);
+        return -1;
+    }
+
+    *outputAhb = allocate(width, height, *drmFormat);
     return 0;
 }
 

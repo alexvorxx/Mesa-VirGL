@@ -16,8 +16,6 @@
 
 #include <log/log.h>
 
-#include "drm_fourcc.h"
-
 namespace gfxstream {
 
 EmulatedANativeWindow::EmulatedANativeWindow(
@@ -182,14 +180,14 @@ EGLNativeWindowType EmulatedANativeWindowHelper::createNativeWindowForTesting(Gr
     std::vector<std::unique_ptr<EmulatedAHardwareBuffer>> buffers;
     for (int i = 0; i < 3; i++) {
         AHardwareBuffer* ahb = nullptr;
-        if (gralloc->allocate(width, height, DRM_FORMAT_ABGR8888, -1, &ahb) != 0) {
+        if (gralloc->allocate(width, height, GFXSTREAM_AHB_FORMAT_R8G8B8A8_UNORM, -1, &ahb) != 0) {
             ALOGE("Failed to allocate gralloc buffer.");
             return nullptr;
         }
         buffers.emplace_back(reinterpret_cast<EmulatedAHardwareBuffer*>(ahb));
     }
     return reinterpret_cast<EGLNativeWindowType>(
-        new EmulatedANativeWindow(width, height, DRM_FORMAT_ABGR8888, std::move(buffers)));
+        new EmulatedANativeWindow(width, height, GFXSTREAM_AHB_FORMAT_R8G8B8A8_UNORM, std::move(buffers)));
 }
 
 ANativeWindowHelper* createPlatformANativeWindowHelper() {
