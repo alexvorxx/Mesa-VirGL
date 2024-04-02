@@ -38,7 +38,8 @@ VirtGpuResourcePtr FuchsiaVirtGpuDevice::createBlob(const struct VirtGpuCreateBl
 }
 
 VirtGpuResourcePtr FuchsiaVirtGpuDevice::createResource(uint32_t width, uint32_t height,
-                                                        uint32_t virglFormat) {
+                                                        uint32_t virglFormat, uint32_t target,
+                                                        uint32_t bind, uint32_t bpp) {
     ALOGE("%s: unimplemented", __func__);
     return nullptr;
 }

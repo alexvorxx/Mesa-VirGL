@@ -178,8 +178,8 @@ class VirtGpuDevice {
     virtual struct VirtGpuCaps getCaps(void) = 0;
 
     virtual VirtGpuResourcePtr createBlob(const struct VirtGpuCreateBlob& blobCreate) = 0;
-    virtual VirtGpuResourcePtr createResource(uint32_t width, uint32_t height,
-                                              uint32_t virglFormat) = 0;
+    virtual VirtGpuResourcePtr createResource(uint32_t width, uint32_t height, uint32_t virglFormat,
+                                              uint32_t target, uint32_t bind, uint32_t bpp) = 0;
     virtual VirtGpuResourcePtr importBlob(const struct VirtGpuExternalHandle& handle) = 0;
 
     virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuResource* blob) = 0;

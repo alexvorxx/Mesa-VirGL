@@ -26,6 +26,8 @@ namespace {
 static constexpr int numFds = 0;
 static constexpr int numInts = 1;
 
+#define DRM_FORMAT_R8_BLOB fourcc_code('9', '9', '9', '9')
+
 std::optional<uint32_t> GlFormatToDrmFormat(uint32_t glFormat) {
     switch (glFormat) {
         case kGlRGB:
@@ -58,6 +60,7 @@ std::optional<uint32_t> AhbToDrmFormat(uint32_t ahbFormat) {
         case GFXSTREAM_AHB_FORMAT_R5G6B5_UNORM:
             return DRM_FORMAT_RGB565;
         case GFXSTREAM_AHB_FORMAT_BLOB:
+            return DRM_FORMAT_R8_BLOB;
         case GFXSTREAM_AHB_FORMAT_R8_UNORM:
             return DRM_FORMAT_R8;
         case GFXSTREAM_AHB_FORMAT_YV12:
@@ -70,6 +73,46 @@ std::optional<uint32_t> AhbToDrmFormat(uint32_t ahbFormat) {
     return std::nullopt;
 }
 
+std::optional<uint32_t> DrmToAhbFormat(uint32_t drmFormat) {
+    switch (drmFormat) {
+        case DRM_FORMAT_ABGR8888:
+            return GFXSTREAM_AHB_FORMAT_R8G8B8A8_UNORM;
+        case DRM_FORMAT_XBGR8888:
+            return GFXSTREAM_AHB_FORMAT_R8G8B8X8_UNORM;
+        case DRM_FORMAT_BGR888:
+            return GFXSTREAM_AHB_FORMAT_R8G8B8_UNORM;
+        case DRM_FORMAT_RGB565:
+            return GFXSTREAM_AHB_FORMAT_R5G6B5_UNORM;
+        case DRM_FORMAT_R8_BLOB:
+            return GFXSTREAM_AHB_FORMAT_BLOB;
+        case DRM_FORMAT_R8:
+            return GFXSTREAM_AHB_FORMAT_R8_UNORM;
+        case DRM_FORMAT_YVU420:
+            return GFXSTREAM_AHB_FORMAT_YV12;
+        case DRM_FORMAT_ABGR16161616F:
+            return GFXSTREAM_AHB_FORMAT_R16G16B16A16_FLOAT;
+        case DRM_FORMAT_ABGR2101010:
+            return GFXSTREAM_AHB_FORMAT_R10G10B10A2_UNORM;
+    }
+    return std::nullopt;
+}
+
+std::optional<uint32_t> DrmToBpp(uint32_t drmFormat) {
+    switch (drmFormat) {
+        case DRM_FORMAT_ABGR8888:
+        case DRM_FORMAT_XBGR8888:
+            return 4;
+        case DRM_FORMAT_BGR888:
+            return 3;
+        case DRM_FORMAT_RGB565:
+            return 2;
+        case DRM_FORMAT_R8_BLOB:
+        case DRM_FORMAT_R8:
+            return 1;
+    }
+    return std::nullopt;
+}
+
 std::optional<uint32_t> DrmToVirglFormat(uint32_t drmFormat) {
     switch (drmFormat) {
         case DRM_FORMAT_ABGR8888:
@@ -78,6 +121,9 @@ std::optional<uint32_t> DrmToVirglFormat(uint32_t drmFormat) {
             return VIRGL_FORMAT_R8G8B8_UNORM;
         case DRM_FORMAT_BGR565:
             return VIRGL_FORMAT_B5G6R5_UNORM;
+        case DRM_FORMAT_R8:
+        case DRM_FORMAT_R8_BLOB:
+            return VIRGL_FORMAT_R8_UNORM;
     }
     return std::nullopt;
 }
@@ -85,8 +131,8 @@ std::optional<uint32_t> DrmToVirglFormat(uint32_t drmFormat) {
 }  // namespace
 
 EmulatedAHardwareBuffer::EmulatedAHardwareBuffer(uint32_t width, uint32_t height,
-                                                 VirtGpuResourcePtr resource)
-    : mRefCount(1), mWidth(width), mHeight(height), mResource(resource) {}
+                                                 uint32_t drmFormat, VirtGpuResourcePtr resource)
+    : mRefCount(1), mWidth(width), mHeight(height), mDrmFormat(drmFormat), mResource(resource) {}
 
 EmulatedAHardwareBuffer::~EmulatedAHardwareBuffer() {}
 
@@ -97,10 +143,15 @@ uint32_t EmulatedAHardwareBuffer::getWidth() const { return mWidth; }
 uint32_t EmulatedAHardwareBuffer::getHeight() const { return mHeight; }
 
 int EmulatedAHardwareBuffer::getAndroidFormat() const {
-    return /*AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM=*/1;
+    auto ahbFormat = DrmToAhbFormat(mDrmFormat);
+    if (!ahbFormat) {
+        ALOGE("Unhandled DRM format:%u", mDrmFormat);
+        return -1;
+    }
+    return *ahbFormat;
 }
 
-uint32_t EmulatedAHardwareBuffer::getDrmFormat() const { return DRM_FORMAT_ABGR8888; }
+uint32_t EmulatedAHardwareBuffer::getDrmFormat() const { return mDrmFormat; }
 
 AHardwareBuffer* EmulatedAHardwareBuffer::asAHardwareBuffer() {
     return reinterpret_cast<AHardwareBuffer*>(this);
@@ -178,11 +229,15 @@ int EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint32_t ahbForma
     }
 
     *outputAhb = allocate(width, height, *drmFormat);
+    if (*outputAhb == nullptr) {
+        return -1;
+    }
+
     return 0;
 }
 
-AHardwareBuffer* EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint32_t format) {
-    ALOGE("Allocating AHB w:%u, h:%u, format %u", width, height, format);
+AHardwareBuffer* EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint32_t drmFormat) {
+    ALOGE("Allocating AHB w:%u, h:%u, format %u", width, height, drmFormat);
 
     auto device = VirtGpuDevice::getInstance();
     if (!device) {
@@ -190,13 +245,23 @@ AHardwareBuffer* EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint
         return nullptr;
     }
 
-    auto virglFormat = DrmToVirglFormat(format);
+    auto virglFormat = DrmToVirglFormat(drmFormat);
     if (!virglFormat) {
-        ALOGE("Unhandled DRM format:%u", format);
+        ALOGE("Failed to allocate: Unhandled DRM format:%u to Virgl format conversion.", drmFormat);
         return nullptr;
     }
 
-    auto resource = device->createResource(width, height, *virglFormat);
+    auto bpp = DrmToBpp(drmFormat);
+    if (!virglFormat) {
+        ALOGE("Failed to allocate: Unhandled DRM format:%u to bpp conversion.", drmFormat);
+        return nullptr;
+    }
+
+    const uint32_t bind =
+        (drmFormat == DRM_FORMAT_R8_BLOB) ? VIRGL_BIND_LINEAR : VIRGL_BIND_RENDER_TARGET;
+
+    auto resource =
+        device->createResource(width, height, *virglFormat, PIPE_TEXTURE_2D, bind, *bpp);
     if (!resource) {
         ALOGE("Failed to allocate: failed to create virtio resource.");
         return nullptr;
@@ -205,7 +270,7 @@ AHardwareBuffer* EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint
     resource->wait();
 
     return reinterpret_cast<AHardwareBuffer*>(
-        new EmulatedAHardwareBuffer(width, height, std::move(resource)));
+        new EmulatedAHardwareBuffer(width, height, drmFormat, std::move(resource)));
 }
 
 void EmulatedGralloc::acquire(AHardwareBuffer* ahb) {
