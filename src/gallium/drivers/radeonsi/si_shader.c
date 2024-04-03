@@ -1870,9 +1870,6 @@ static bool si_lower_io_to_mem(struct si_shader *shader, nir_shader *nir,
                  sel->screen->info.gfx_level,
                  ~0ULL, ~0U, /* no TES inputs filter */
                  shader->wave_size,
-                 /* ALL TCS inputs are passed by register. */
-                 key->ge.opt.same_patch_vertices &&
-                 !(sel->info.base.inputs_read & ~sel->info.tcs_vgpr_only_inputs),
                  sel->info.tessfactors_are_def_in_all_invocs);
       return true;
    } else if (nir->info.stage == MESA_SHADER_TESS_EVAL) {

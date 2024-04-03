@@ -143,11 +143,6 @@ typedef struct {
     */
    bool tcs_pass_tessfactors_by_reg;
 
-   /* Whether all TCS inputs are accessed using gl_InvocationID and passed via VGPRs.
-    * In that case, no LDS is allocated for TCS inputs.
-    */
-   bool tcs_no_inputs_in_lds;
-
    /* Save TCS tess factor for tess factor writer. */
    nir_variable *tcs_tess_level_outer;
    nir_variable *tcs_tess_level_inner;
@@ -422,17 +417,11 @@ hs_output_lds_offset(nir_builder *b,
    nir_def *rel_patch_id = nir_load_tess_rel_patch_id_amd(b);
    nir_def *patch_offset = nir_imul_imm(b, rel_patch_id, output_patch_stride);
 
-   nir_def *output_patch_offset;
-   if (st->tcs_no_inputs_in_lds)
-      output_patch_offset = patch_offset;
-   else {
-      nir_def *tcs_in_vtxcnt = nir_load_patch_vertices_in(b);
-      nir_def *tcs_num_patches = nir_load_tcs_num_patches_amd(b);
-      nir_def *input_patch_size =
-         nir_imul(b, tcs_in_vtxcnt, nir_load_lshs_vertex_stride_amd(b));
-      nir_def *output_patch0_offset = nir_imul(b, input_patch_size, tcs_num_patches);
-      output_patch_offset = nir_iadd_nuw(b, patch_offset, output_patch0_offset);
-   }
+   nir_def *tcs_in_vtxcnt = nir_load_patch_vertices_in(b);
+   nir_def *tcs_num_patches = nir_load_tcs_num_patches_amd(b);
+   nir_def *input_patch_size = nir_imul(b, tcs_in_vtxcnt, nir_load_lshs_vertex_stride_amd(b));
+   nir_def *output_patch0_offset = nir_imul(b, input_patch_size, tcs_num_patches);
+   nir_def *output_patch_offset = nir_iadd_nuw(b, patch_offset, output_patch0_offset);
 
    if (per_vertex) {
       nir_def *vertex_index = nir_get_io_arrayed_index_src(intrin)->ssa;
@@ -1023,7 +1012,6 @@ ac_nir_lower_hs_outputs_to_mem(nir_shader *shader,
                                uint64_t tes_inputs_read,
                                uint32_t tes_patch_inputs_read,
                                unsigned wave_size,
-                               bool no_inputs_in_lds,
                                bool pass_tessfactors_by_reg)
 {
    assert(shader->info.stage == MESA_SHADER_TESS_CTRL);
@@ -1034,7 +1022,6 @@ ac_nir_lower_hs_outputs_to_mem(nir_shader *shader,
       .tes_patch_inputs_read = tes_patch_inputs_read,
       .tcs_out_patch_fits_subgroup = wave_size % shader->info.tess.tcs_vertices_out == 0,
       .tcs_pass_tessfactors_by_reg = pass_tessfactors_by_reg,
-      .tcs_no_inputs_in_lds = no_inputs_in_lds,
       .map_io = map,
    };
 

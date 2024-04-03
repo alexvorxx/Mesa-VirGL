@@ -93,7 +93,6 @@ ac_nir_lower_hs_outputs_to_mem(nir_shader *shader,
                                uint64_t tes_inputs_read,
                                uint32_t tes_patch_inputs_read,
                                unsigned wave_size,
-                               bool no_inputs_in_lds,
                                bool pass_tessfactors_by_reg);
 
 void
