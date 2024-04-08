@@ -160,8 +160,12 @@ static struct vpe_caps caps = {
                 .yuy2                                        = 0},
             .max_upscale_factor          = 64000,
 
-            // 6:1 downscaling ratio: 1000/6 = 166.666
-            .max_downscale_factor = 167,
+            /*
+             * 4:1 downscaling ratio : 1000 / 4 = 250
+             * vpelib does not support more than 4:1 to preserve quality
+             * due to the limitation of using maximum number of 8 taps
+            */
+            .max_downscale_factor = 250,
 
             .pitch_alignment    = 256,
             .addr_alignment     = 256,
