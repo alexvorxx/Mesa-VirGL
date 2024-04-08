@@ -69,6 +69,7 @@ typedef uint32_t xcb_window_t;
 #include "vk_buffer.h"
 #include "vk_buffer_view.h"
 #include "vk_device.h"
+#include "vk_device_generated_commands.h"
 #include "vk_instance.h"
 #include "vk_image.h"
 #include "vk_log.h"
@@ -638,6 +639,29 @@ struct lvp_indirect_command_layout_nv {
    VkIndirectCommandsLayoutTokenNV tokens[0];
 };
 
+struct lvp_indirect_execution_set {
+   struct vk_object_base base;
+   bool is_shaders;
+#if VK_USE_64_BIT_PTR_DEFINES
+   void *array[0];
+#else
+   uint64_t array[0];
+#endif
+};
+
+enum lvp_indirect_layout_type {
+   LVP_INDIRECT_COMMAND_LAYOUT_DRAW,
+   LVP_INDIRECT_COMMAND_LAYOUT_DRAW_COUNT,
+   LVP_INDIRECT_COMMAND_LAYOUT_DISPATCH,
+   LVP_INDIRECT_COMMAND_LAYOUT_RAYS,
+};
+
+struct lvp_indirect_command_layout_ext {
+   struct vk_indirect_command_layout vk;
+   enum lvp_indirect_layout_type type;
+   VkIndirectCommandsLayoutTokenEXT tokens[0];
+};
+
 extern const struct vk_command_buffer_ops lvp_cmd_buffer_ops;
 
 static inline const struct lvp_descriptor_set_layout *
@@ -695,6 +719,10 @@ VK_DEFINE_NONDISP_HANDLE_CASTS(lvp_sampler, vk.base, VkSampler,
                                VK_OBJECT_TYPE_SAMPLER)
 VK_DEFINE_NONDISP_HANDLE_CASTS(lvp_indirect_command_layout_nv, base, VkIndirectCommandsLayoutNV,
                                VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_NV)
+VK_DEFINE_NONDISP_HANDLE_CASTS(lvp_indirect_command_layout_ext, vk.base, VkIndirectCommandsLayoutEXT,
+                               VK_OBJECT_TYPE_INDIRECT_COMMANDS_LAYOUT_EXT)
+VK_DEFINE_NONDISP_HANDLE_CASTS(lvp_indirect_execution_set, base, VkIndirectExecutionSetEXT,
+                               VK_OBJECT_TYPE_INDIRECT_EXECUTION_SET_EXT)
 
 void lvp_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp);
 
@@ -795,6 +823,10 @@ lvp_create_ahb_memory(struct lvp_device *device, struct lvp_device_memory *mem,
                       const VkMemoryAllocateInfo *pAllocateInfo);
 #endif
 
+enum vk_cmd_type
+lvp_ext_dgc_token_to_cmd_type(const struct lvp_indirect_command_layout_ext *elayout, const VkIndirectCommandsLayoutTokenEXT *token);
+size_t
+lvp_ext_dgc_token_size(const struct lvp_indirect_command_layout_ext *elayout, const VkIndirectCommandsLayoutTokenEXT *token);
 #ifdef __cplusplus
 }
 #endif

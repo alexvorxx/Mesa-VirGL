@@ -197,6 +197,7 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .EXT_dynamic_rendering_unused_attachments = true,
    .EXT_descriptor_buffer                 = true,
    .EXT_descriptor_indexing               = true,
+   .EXT_device_generated_commands         = true,
    .EXT_extended_dynamic_state            = true,
    .EXT_extended_dynamic_state2           = true,
    .EXT_extended_dynamic_state3           = true,
@@ -643,6 +644,10 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
       /* VK_NV_device_generated_commands */
       .deviceGeneratedCommandsNV = true,
 
+      /* VK_EXT_device_generated_commands */
+      .deviceGeneratedCommands = true,
+      .dynamicGeneratedPipelineLayout = true,
+
       /* VK_EXT_primitive_topology_list_restart */
       .primitiveTopologyListRestart = true,
       .primitiveTopologyPatchListRestart = true,
@@ -1066,6 +1071,17 @@ lvp_get_properties(const struct lvp_physical_device *device, struct vk_propertie
       .minSequencesCountBufferOffsetAlignment = 4,
       .minSequencesIndexBufferOffsetAlignment = 4,
       .minIndirectCommandsBufferOffsetAlignment = 4,
+
+      /* VK_EXT_device_generated_commands */
+      .maxIndirectPipelineCount = 1<<12,
+      .maxIndirectShaderObjectCount = 1<<12,
+      .maxIndirectCommandsIndirectStride = 2048,
+      .supportedIndirectCommandsInputModes = VK_INDIRECT_COMMANDS_INPUT_MODE_VULKAN_INDEX_BUFFER_EXT | VK_INDIRECT_COMMANDS_INPUT_MODE_DXGI_INDEX_BUFFER_EXT,
+      .supportedIndirectCommandsShaderStages = VK_SHADER_STAGE_ALL,
+      .supportedIndirectCommandsShaderStagesPipelineBinding = VK_SHADER_STAGE_ALL,
+      .supportedIndirectCommandsShaderStagesShaderBinding = VK_SHADER_STAGE_ALL,
+      .deviceGeneratedCommandsTransformFeedback = true,
+      .deviceGeneratedCommandsMultiDrawIndirectCount = true,
 
       /* VK_EXT_external_memory_host */
       .minImportedHostPointerAlignment = 4096,

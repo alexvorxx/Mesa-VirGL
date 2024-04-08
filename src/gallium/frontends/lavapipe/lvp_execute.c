@@ -50,6 +50,7 @@
 #include "vk_cmd_enqueue_entrypoints.h"
 #include "vk_descriptor_update_template.h"
 #include "vk_util.h"
+#include "vk_enum_to_str.h"
 
 #define VK_PROTOTYPES
 #include <vulkan/vulkan.h>
@@ -4155,6 +4156,267 @@ handle_execute_generated_commands(struct vk_cmd_queue_entry *cmd, struct renderi
    state->pctx->buffer_unmap(state->pctx, pmap);
 }
 
+static size_t
+process_sequence_ext(struct rendering_state *state,
+                     struct lvp_indirect_execution_set *iset, struct lvp_indirect_command_layout_ext *elayout,
+                     struct list_head *list, uint8_t *pbuf, size_t max_size,
+                     uint8_t *stream, uint32_t seq, uint32_t maxDrawCount,
+                     bool print_cmds)
+{
+   size_t size = 0;
+   assert(elayout->vk.token_count);
+   for (uint32_t t = 0; t < elayout->vk.token_count; t++){
+      const VkIndirectCommandsLayoutTokenEXT *token = &elayout->tokens[t];
+      uint32_t offset = elayout->vk.stride * seq + token->offset;
+      void *input = stream + offset;
+
+      struct vk_cmd_queue_entry *cmd = (struct vk_cmd_queue_entry*)(pbuf + size);
+      cmd->type = lvp_ext_dgc_token_to_cmd_type(elayout, token);
+      size_t cmd_size = vk_cmd_queue_type_sizes[cmd->type];
+      uint8_t *cmdptr = (void*)(pbuf + size + cmd_size);
+
+      if (max_size < size + lvp_ext_dgc_token_size(elayout, token))
+         abort();
+
+      if (print_cmds)
+         fprintf(stderr, "DGC %s\n", vk_IndirectCommandsTokenTypeEXT_to_str(token->type));
+      switch (token->type) {
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_EXECUTION_SET_EXT: {
+         uint32_t *data = input;
+         const VkIndirectCommandsExecutionSetTokenEXT *info = token->data.pExecutionSet;
+         if (info->type == VK_INDIRECT_EXECUTION_SET_INFO_TYPE_PIPELINES_EXT) {
+            cmd->u.bind_pipeline.pipeline_bind_point = lvp_pipeline_types_from_shader_stages(info->shaderStages);
+            cmd->u.bind_pipeline.pipeline = iset->array[*data];
+            /* validate */
+            lvp_pipeline_from_handle(cmd->u.bind_pipeline.pipeline);
+
+            assert(cmd->u.bind_pipeline.pipeline && "cannot bind null pipeline!");
+         } else {
+            unsigned count = util_bitcount(info->shaderStages);
+            cmd->u.bind_shaders_ext.stage_count = count;
+            cmd->u.bind_shaders_ext.stages = (void*)cmdptr;
+            int i = 0;
+            u_foreach_bit(stage, info->shaderStages) {
+               cmd->u.bind_shaders_ext.stages[i] = BITFIELD_BIT(stage);
+               assert(cmd->u.bind_shaders_ext.stages[i] && "cannot bind null shader stage!");
+               i++;
+            }
+            cmd->u.bind_shaders_ext.shaders = (void*)(cmdptr + sizeof(int64_t) * count);
+            for (unsigned i = 0; i < count; i++) {
+               cmd->u.bind_shaders_ext.shaders[i] = iset->array[data[i]];
+               if (cmd->u.bind_shaders_ext.shaders[i])
+                  lvp_shader_from_handle(cmd->u.bind_shaders_ext.shaders[i]);
+            }
+         }
+         break;
+      }
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_PUSH_CONSTANT_EXT:
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_SEQUENCE_INDEX_EXT: {
+         uint32_t *data = input;
+         const VkIndirectCommandsPushConstantTokenEXT *info = token->data.pPushConstant;
+         cmd->u.push_constants2_khr.push_constants_info = (void*)cmdptr;
+         VkPushConstantsInfoKHR *pci = cmd->u.push_constants2_khr.push_constants_info;
+         pci->layout = elayout->vk.layout;
+         pci->stageFlags = VK_SHADER_STAGE_ALL;
+         pci->offset = info->updateRange.offset;
+         pci->size = info->updateRange.size;
+         pci->pValues = (void*)((uint8_t*)cmdptr + sizeof(VkPushConstantsInfoKHR));
+         if (token->type == VK_INDIRECT_COMMANDS_TOKEN_TYPE_PUSH_CONSTANT_EXT)
+            memcpy((void*)pci->pValues, data, info->updateRange.size);
+         else
+            memcpy((void*)pci->pValues, &seq, info->updateRange.size);
+
+         break;
+      }
+/* these are the DXGI format values to avoid needing the full header */
+#define DXGI_FORMAT_R32_UINT 42
+#define DXGI_FORMAT_R16_UINT 57
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_INDEX_BUFFER_EXT: {
+         const VkIndirectCommandsIndexBufferTokenEXT *info = token->data.pIndexBuffer;
+         VkBindIndexBufferIndirectCommandEXT *data = input;
+         cmd->u.bind_index_buffer2_khr.offset = 0;
+         if (data->bufferAddress)
+            cmd->u.bind_index_buffer2_khr.buffer = get_buffer(state, (void*)(uintptr_t)data->bufferAddress, (size_t*)&cmd->u.bind_index_buffer.offset);
+         else
+            cmd->u.bind_index_buffer2_khr.buffer = VK_NULL_HANDLE;
+         if (info->mode == VK_INDIRECT_COMMANDS_INPUT_MODE_VULKAN_INDEX_BUFFER_EXT) {
+            cmd->u.bind_index_buffer2_khr.index_type = data->indexType;
+         } else {
+            switch ((int)data->indexType) {
+            case DXGI_FORMAT_R32_UINT:
+               cmd->u.bind_index_buffer2_khr.index_type = VK_INDEX_TYPE_UINT32;
+               break;
+            case DXGI_FORMAT_R16_UINT:
+               cmd->u.bind_index_buffer2_khr.index_type = VK_INDEX_TYPE_UINT16;
+               break;
+            default:
+               unreachable("unknown DXGI index type!");
+            }
+         }
+         cmd->u.bind_index_buffer2_khr.size = data->size;
+         break;
+      }
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_VERTEX_BUFFER_EXT: {
+         VkBindVertexBufferIndirectCommandEXT *data = input;
+         cmd_size += sizeof(*cmd->u.bind_vertex_buffers2.buffers) + sizeof(*cmd->u.bind_vertex_buffers2.offsets);
+         cmd_size += sizeof(*cmd->u.bind_vertex_buffers2.sizes) + sizeof(*cmd->u.bind_vertex_buffers2.strides);
+         if (max_size < size + cmd_size)
+            abort();
+
+         cmd->u.bind_vertex_buffers2.first_binding = token->data.pVertexBuffer->vertexBindingUnit;
+         cmd->u.bind_vertex_buffers2.binding_count = 1;
+
+         cmd->u.bind_vertex_buffers2.buffers = (void*)cmdptr;
+         uint32_t alloc_offset = sizeof(*cmd->u.bind_vertex_buffers2.buffers);
+
+         cmd->u.bind_vertex_buffers2.offsets = (void*)(cmdptr + alloc_offset);
+         alloc_offset += sizeof(*cmd->u.bind_vertex_buffers2.offsets);
+
+         cmd->u.bind_vertex_buffers2.sizes = (void*)(cmdptr + alloc_offset);
+         alloc_offset += sizeof(*cmd->u.bind_vertex_buffers2.sizes);
+
+         cmd->u.bind_vertex_buffers2.offsets[0] = 0;
+         cmd->u.bind_vertex_buffers2.buffers[0] = data->bufferAddress ? get_buffer(state, (void*)(uintptr_t)data->bufferAddress, (size_t*)&cmd->u.bind_vertex_buffers2.offsets[0]) : VK_NULL_HANDLE;
+         cmd->u.bind_vertex_buffers2.sizes[0] = data->size;
+
+         cmd->u.bind_vertex_buffers2.strides = (void*)(cmdptr + alloc_offset);
+         cmd->u.bind_vertex_buffers2.strides[0] = data->stride;
+         break;
+      }
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_DISPATCH_EXT: {
+         VkDispatchIndirectCommand *data = input;
+         memcpy(&cmd->u.dispatch, data, sizeof(VkDispatchIndirectCommand));
+         break;
+      }
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_INDEXED_EXT: {
+         VkDrawIndexedIndirectCommand *data = input;
+         memcpy(&cmd->u.draw_indexed, data, sizeof(VkDrawIndexedIndirectCommand));
+         break;
+      }
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_EXT: {
+         VkDrawIndirectCommand *data = input;
+         memcpy(&cmd->u.draw, data, sizeof(VkDrawIndirectCommand));
+         break;
+      }
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_INDEXED_COUNT_EXT: {
+         VkDrawIndirectCountIndirectCommandEXT *data = input;
+
+         cmd->u.draw_indexed_indirect.buffer = get_buffer(state, (void*)(uintptr_t)data->bufferAddress, (size_t*)&cmd->u.draw_indexed_indirect.offset);
+         cmd->u.draw_indexed_indirect.draw_count = MIN2(data->commandCount, maxDrawCount);
+         cmd->u.draw_indexed_indirect.stride = data->stride;
+         break;
+      }
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_COUNT_EXT: {
+         VkDrawIndirectCountIndirectCommandEXT *data = input;
+
+         cmd->u.draw_indirect.buffer = get_buffer(state, (void*)(uintptr_t)data->bufferAddress, (size_t*)&cmd->u.draw_indirect.offset);
+         cmd->u.draw_indirect.draw_count = MIN2(data->commandCount, maxDrawCount);
+         cmd->u.draw_indirect.stride = data->stride;
+         break;
+      }
+      // only available if VK_EXT_mesh_shader is supported
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_MESH_TASKS_EXT: {
+         VkDrawMeshTasksIndirectCommandEXT *data = input;
+         memcpy(&cmd->u.draw_mesh_tasks_ext, data, sizeof(VkDrawIndirectCountIndirectCommandEXT));
+         break;
+      }
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_MESH_TASKS_COUNT_EXT: {
+         VkDrawIndirectCountIndirectCommandEXT *data = input;
+
+         cmd->u.draw_mesh_tasks_indirect_ext.buffer = get_buffer(state, (void*)(uintptr_t)data->bufferAddress, (size_t*)&cmd->u.draw_mesh_tasks_indirect_ext.offset);
+         cmd->u.draw_mesh_tasks_indirect_ext.draw_count = MIN2(data->commandCount, maxDrawCount);
+         cmd->u.draw_mesh_tasks_indirect_ext.stride = data->stride;
+         break;
+      }
+      case VK_INDIRECT_COMMANDS_TOKEN_TYPE_TRACE_RAYS2_EXT: {
+         VkTraceRaysIndirectCommand2KHR *data = input;
+         VkStridedDeviceAddressRegionKHR *sbts = (void*)cmdptr;
+
+         cmd->u.trace_rays_khr.raygen_shader_binding_table = &sbts[0];
+         cmd->u.trace_rays_khr.raygen_shader_binding_table->deviceAddress = data->raygenShaderRecordAddress;
+         cmd->u.trace_rays_khr.raygen_shader_binding_table->stride = data->raygenShaderRecordSize;
+         cmd->u.trace_rays_khr.raygen_shader_binding_table->size = data->raygenShaderRecordSize;
+
+         cmd->u.trace_rays_khr.miss_shader_binding_table = &sbts[1];
+         cmd->u.trace_rays_khr.miss_shader_binding_table->deviceAddress = data->missShaderBindingTableAddress;
+         cmd->u.trace_rays_khr.miss_shader_binding_table->stride = data->missShaderBindingTableStride;
+         cmd->u.trace_rays_khr.miss_shader_binding_table->size = data->missShaderBindingTableSize;
+
+         cmd->u.trace_rays_khr.hit_shader_binding_table = &sbts[2];
+         cmd->u.trace_rays_khr.hit_shader_binding_table->deviceAddress = data->hitShaderBindingTableAddress;
+         cmd->u.trace_rays_khr.hit_shader_binding_table->stride = data->hitShaderBindingTableStride;
+         cmd->u.trace_rays_khr.hit_shader_binding_table->size = data->hitShaderBindingTableSize;
+
+         cmd->u.trace_rays_khr.callable_shader_binding_table = &sbts[3];
+         cmd->u.trace_rays_khr.callable_shader_binding_table->deviceAddress = data->callableShaderBindingTableAddress;
+         cmd->u.trace_rays_khr.callable_shader_binding_table->stride = data->callableShaderBindingTableStride;
+         cmd->u.trace_rays_khr.callable_shader_binding_table->size = data->callableShaderBindingTableSize;
+
+         cmd->u.trace_rays_khr.width = data->width;
+         cmd->u.trace_rays_khr.height = data->height;
+         cmd->u.trace_rays_khr.depth = data->depth;
+
+         break;
+      }
+      default:
+         unreachable("unknown token type");
+         break;
+      }
+      size += lvp_ext_dgc_token_size(elayout, token);
+      list_addtail(&cmd->cmd_link, list);
+   }
+   return size;
+}
+
+static void
+handle_preprocess_generated_commands_ext(struct vk_cmd_queue_entry *cmd, struct rendering_state *state, bool print_cmds)
+{
+   VkGeneratedCommandsInfoEXT *pre = cmd->u.preprocess_generated_commands_ext.generated_commands_info;
+   VK_FROM_HANDLE(lvp_indirect_command_layout_ext, elayout, pre->indirectCommandsLayout);
+   VK_FROM_HANDLE(lvp_indirect_execution_set, iset, pre->indirectExecutionSet);
+
+   unsigned seq_count = pre->maxSequenceCount;
+   if (pre->sequenceCountAddress) {
+      uint32_t *count = (void*)(uintptr_t)pre->sequenceCountAddress;
+      seq_count = MIN2(seq_count, *count);
+   }
+
+   struct list_head *list = (void*)(uintptr_t)pre->preprocessAddress;
+   size_t size = sizeof(struct list_head);
+   size_t max_size = pre->preprocessSize;
+   if (size > max_size)
+      abort();
+   list_inithead(list);
+
+   size_t offset = size;
+   uint8_t *p = (void*)(uintptr_t)pre->preprocessAddress;
+   for (unsigned i = 0; i < seq_count; i++) {
+      offset += process_sequence_ext(state, iset, elayout, list, p + offset, max_size, (void*)(uintptr_t)pre->indirectAddress, i, pre->maxDrawCount, print_cmds);
+      assert(offset);
+   }
+
+   /* vk_cmd_queue will copy the binary and break the list, so null the tail pointer */
+   list->prev->next = NULL;
+}
+
+static void
+handle_execute_generated_commands_ext(struct vk_cmd_queue_entry *cmd, struct rendering_state *state, bool print_cmds)
+{
+   VkGeneratedCommandsInfoEXT *gen = cmd->u.execute_generated_commands_ext.generated_commands_info;
+   struct vk_cmd_execute_generated_commands_ext *exec = &cmd->u.execute_generated_commands_ext;
+   if (!exec->is_preprocessed) {
+      struct vk_cmd_queue_entry pre;
+      pre.u.preprocess_generated_commands_ext.generated_commands_info = exec->generated_commands_info;
+      handle_preprocess_generated_commands_ext(&pre, state, print_cmds);
+   }
+   uint8_t *p = (void*)(uintptr_t)gen->preprocessAddress;
+   struct list_head *list = (void*)p;
+
+   struct vk_cmd_queue_entry *exec_cmd = list_first_entry(list, struct vk_cmd_queue_entry, cmd_link);
+   if (exec_cmd)
+      lvp_execute_cmd_buffer(list, state, print_cmds);
+}
+
 static void
 handle_descriptor_buffers(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
 {
@@ -4788,6 +5050,8 @@ void lvp_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp)
    ENQUEUE_CMD(CmdBindPipelineShaderGroupNV)
    ENQUEUE_CMD(CmdPreprocessGeneratedCommandsNV)
    ENQUEUE_CMD(CmdExecuteGeneratedCommandsNV)
+   ENQUEUE_CMD(CmdPreprocessGeneratedCommandsEXT)
+   ENQUEUE_CMD(CmdExecuteGeneratedCommandsEXT)
 
 #ifdef VK_ENABLE_BETA_EXTENSIONS
    ENQUEUE_CMD(CmdInitializeGraphScratchMemoryAMDX)
@@ -4823,7 +5087,7 @@ static void lvp_execute_cmd_buffer(struct list_head *cmds,
    LIST_FOR_EACH_ENTRY(cmd, cmds, cmd_link) {
       if (print_cmds)
          fprintf(stderr, "%s\n", vk_cmd_queue_type_names[cmd->type]);
-      switch (cmd->type) {
+      switch ((unsigned)cmd->type) {
       case VK_CMD_BIND_PIPELINE:
          handle_pipeline(cmd, state);
          break;
@@ -5150,6 +5414,12 @@ static void lvp_execute_cmd_buffer(struct list_head *cmds,
          break;
       case VK_CMD_EXECUTE_GENERATED_COMMANDS_NV:
          handle_execute_generated_commands(cmd, state, print_cmds);
+         break;
+      case VK_CMD_PREPROCESS_GENERATED_COMMANDS_EXT:
+         handle_preprocess_generated_commands_ext(cmd, state, print_cmds);
+         break;
+      case VK_CMD_EXECUTE_GENERATED_COMMANDS_EXT:
+         handle_execute_generated_commands_ext(cmd, state, print_cmds);
          break;
       case VK_CMD_BIND_DESCRIPTOR_BUFFERS_EXT:
          handle_descriptor_buffers(cmd, state);
