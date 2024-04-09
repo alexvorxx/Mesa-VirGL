@@ -9,6 +9,7 @@ from .wrapperdefs import API_PREFIX_UNMARSHAL
 from .wrapperdefs import VULKAN_STREAM_TYPE
 
 from copy import copy
+from dataclasses import dataclass
 
 decoder_snapshot_decl_preamble = """
 
@@ -106,12 +107,25 @@ SNAPSHOT_HANDLE_DEPENDENCIES = [
 
 handleDependenciesDict = dict(SNAPSHOT_HANDLE_DEPENDENCIES)
 
+def extract_deps_vkAllocateMemory(param, access, lenExpr, api, cgen):
+    cgen.stmt("const VkMemoryDedicatedAllocateInfo* dedicatedAllocateInfo = vk_find_struct<VkMemoryDedicatedAllocateInfo>(pAllocateInfo)");
+    cgen.beginIf("dedicatedAllocateInfo");
+    cgen.beginIf("dedicatedAllocateInfo->image")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkImage(dedicatedAllocateInfo->image)"))
+    cgen.endIf()
+    cgen.beginIf("dedicatedAllocateInfo->buffer")
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkBuffer(dedicatedAllocateInfo->buffer)"))
+    cgen.endIf()
+    cgen.endIf()
+
 def extract_deps_vkAllocateCommandBuffers(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
               (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkCommandPool(pAllocateInfo->commandPool)"))
 
 def extract_deps_vkCreateImageView(param, access, lenExpr, api, cgen):
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s, VkReconstruction::CREATED, VkReconstruction::BOUND_MEMORY)" % \
               (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkImage(pCreateInfo->image)"))
 
 def extract_deps_vkCreateGraphicsPipelines(param, access, lenExpr, api, cgen):
@@ -131,11 +145,14 @@ def extract_deps_vkCreateFramebuffer(param, access, lenExpr, api, cgen):
     cgen.endFor()
 
 def extract_deps_vkBindImageMemory(param, access, lenExpr, api, cgen):
-    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s)" % \
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s, VkReconstruction::BOUND_MEMORY)" % \
               (access, lenExpr, "(uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory)"))
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)((%s)[0]), VkReconstruction::BOUND_MEMORY)" % \
+              (access, lenExpr, access))
 
 specialCaseDependencyExtractors = {
     "vkAllocateCommandBuffers" : extract_deps_vkAllocateCommandBuffers,
+    "vkAllocateMemory" : extract_deps_vkAllocateMemory,
     "vkCreateImageView" : extract_deps_vkCreateImageView,
     "vkCreateGraphicsPipelines" : extract_deps_vkCreateGraphicsPipelines,
     "vkCreateFramebuffer" : extract_deps_vkCreateFramebuffer,
@@ -146,11 +163,14 @@ apiSequences = {
     "vkAllocateMemory" : ["vkAllocateMemory", "vkMapMemoryIntoAddressSpaceGOOGLE"]
 }
 
-# vkBindImageMemory needs to execute before vkCreateImageView
-# Thus we inject it into VkImage creation sequence.
+@dataclass(frozen=True)
+class VkObjectState:
+    vk_object : str
+    state : str = "VkReconstruction::CREATED"
+
 # TODO: add vkBindImageMemory2 into this list
-apiInitializes = {
-    "vkBindImageMemory": ["image"],
+apiChangeState = {
+    "vkBindImageMemory": VkObjectState("image", "VkReconstruction::BOUND_MEMORY"),
 }
 
 apiModifies = {
@@ -162,11 +182,21 @@ delayedDestroys = [
     "vkDestroyShaderModule",
 ]
 
-def is_initialize_operation(api, param):
-    if api.name in apiInitializes:
-        if param.paramName in apiInitializes[api.name]:
+def is_state_change_operation(api, param):
+    if param.isCreatedBy(api):
+        return True
+    if api.name in apiChangeState:
+        if param.paramName == apiChangeState[api.name].vk_object:
             return True
     return False
+
+def get_target_state(api, param):
+    if param.isCreatedBy(api):
+        return "VkReconstruction::CREATED"
+    if api.name in apiChangeState:
+        if param.paramName == apiChangeState[api.name].vk_object:
+            return apiChangeState[api.name].state
+    return None
 
 def is_modify_operation(api, param):
     if api.name in apiModifies:
@@ -192,7 +222,7 @@ def emit_impl(typeInfo, api, cgen):
         else:
             access = "(&%s)" % p.paramName
 
-        if p.isCreatedBy(api) or is_initialize_operation(api, p):
+        if is_state_change_operation(api, p):
             if p.isCreatedBy(api):
                 boxed_access = access
             else:
@@ -218,7 +248,7 @@ def emit_impl(typeInfo, api, cgen):
             cgen.stmt("mReconstruction.setApiTrace(apiInfo, OP_%s, snapshotTraceBegin, snapshotTraceBytes)" % api.name)
             if lenAccessGuard is not None:
                 cgen.beginIf(lenAccessGuard)
-            cgen.stmt("mReconstruction.forEachHandleAddApi((const uint64_t*)%s, %s, apiHandle)" % (boxed_access, lenExpr))
+            cgen.stmt(f"mReconstruction.forEachHandleAddApi((const uint64_t*){boxed_access}, {lenExpr}, apiHandle, {get_target_state(api, p)})")
             if p.isCreatedBy(api):
                 cgen.stmt("mReconstruction.setCreatedHandlesForApi(apiHandle, (const uint64_t*)%s, %s)" % (boxed_access, lenExpr))
             if lenAccessGuard is not None:
