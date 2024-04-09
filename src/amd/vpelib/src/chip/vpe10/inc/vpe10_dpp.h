@@ -857,7 +857,7 @@ struct vpe10_dpp {
 void vpe10_construct_dpp(struct vpe_priv *vpe_priv, struct dpp *dpp);
 
 bool vpe10_dpp_get_optimal_number_of_taps(
-    struct dpp *dpp, struct scaler_data *scl_data, const struct vpe_scaling_taps *in_taps);
+    struct vpe_rect *src_rect, struct vpe_rect *dst_rect, struct vpe_scaling_taps *taps);
 
 void vpe10_dscl_calc_lb_num_partitions(const struct scaler_data *scl_data,
     enum lb_memory_config lb_config, uint32_t *num_part_y, uint32_t *num_part_c);

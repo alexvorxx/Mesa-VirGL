@@ -23,6 +23,7 @@
  */
 
 #include <string.h>
+#include <math.h>
 #include "common.h"
 #include "vpe_priv.h"
 #include "vpe10_dpp.h"
@@ -65,78 +66,70 @@ void vpe10_construct_dpp(struct vpe_priv *vpe_priv, struct dpp *dpp)
 }
 
 bool vpe10_dpp_get_optimal_number_of_taps(
-    struct dpp *dpp, struct scaler_data *scl_data, const struct vpe_scaling_taps *in_taps)
+    struct vpe_rect *src_rect, struct vpe_rect *dst_rect, struct vpe_scaling_taps *taps)
 {
-    struct vpe_priv *vpe_priv   = dpp->vpe_priv;
-    uint32_t         h_taps_min = 0, v_taps_min = 0;
-    /*
-     * Set default taps if none are provided
-     * From programming guide: taps = min{ ceil(2*H_RATIO,1), 8} for downscaling
-     * taps = 4 for upscaling
-     */
-    if (in_taps->h_taps > 8 || in_taps->v_taps > 8 || in_taps->h_taps_c > 8 ||
-        in_taps->v_taps_c > 8)
+    double   h_ratio = 1.0, v_ratio = 1.0;
+    uint32_t h_taps = 1, v_taps = 1;
+    if (taps->h_taps > 8 || taps->v_taps > 8 || taps->h_taps_c > 8 || taps->v_taps_c > 8)
         return false;
 
-    if (vpe_fixpt_ceil(scl_data->ratios.horz) > 1)
-        h_taps_min = (uint32_t)max(4, min(2 * vpe_fixpt_ceil(scl_data->ratios.horz), 8));
-    else
-        h_taps_min = (uint32_t)4;
+    /*
+     * if calculated taps are greater than 8, it means the downscaling ratio is greater than 4:1,
+     * and since the given taps are used by default, if the given taps are less than the
+     * calculated ones, the image quality will not be good, so vpelib would reject this case.
+     */
 
-    if (in_taps->h_taps == 0) {
-        scl_data->taps.h_taps = h_taps_min;
+    // Horizontal taps
+
+    h_ratio = (double)src_rect->width / (double)dst_rect->width;
+
+    if (src_rect->width == dst_rect->width) {
+        h_taps = 1;
+    } else if (h_ratio > 1) {
+        h_taps = (uint32_t)max(4, ceil(h_ratio * 2.0));
     } else {
-        if (in_taps->h_taps < h_taps_min)
-            return false;
-
-        scl_data->taps.h_taps = in_taps->h_taps;
+        h_taps = 4;
     }
 
-    if (vpe_fixpt_ceil(scl_data->ratios.vert) > 1)
-        v_taps_min =
-            (uint32_t)max(4, min(vpe_fixpt_ceil(vpe_fixpt_mul_int(scl_data->ratios.vert, 2)), 8));
-    else
-        v_taps_min = (uint32_t)4;
-
-    if (in_taps->v_taps == 0) {
-        scl_data->taps.v_taps = v_taps_min;
-    } else {
-        if (in_taps->v_taps < v_taps_min)
-            return false;
-
-        scl_data->taps.v_taps = in_taps->v_taps;
+    if (h_taps != 1) {
+        h_taps += h_taps % 2;
     }
 
-    if (in_taps->h_taps_c == 0) {
-        // default to 2 as mmd only uses bilinear for chroma
-        scl_data->taps.h_taps_c = (uint32_t)2;
-    } else
-        scl_data->taps.h_taps_c = in_taps->h_taps_c;
+    if (taps->h_taps == 0 && h_taps <= 8) {
+        taps->h_taps = h_taps;
+    } else if (taps->h_taps < h_taps || h_taps > 8) {
+        return false;
+    }
 
-    if (in_taps->v_taps_c == 0) {
-        // default to 2 as mmd only uses bilinear for chroma
-        scl_data->taps.v_taps_c = (uint32_t)2;
-    } else
-        scl_data->taps.v_taps_c = in_taps->v_taps_c;
+    // Vertical taps
+    v_ratio = (double)src_rect->height / (double)dst_rect->height;
 
-    /* taps can be either 1 or an even number */
-    if (scl_data->taps.h_taps % 2 && scl_data->taps.h_taps != 1)
-        scl_data->taps.h_taps++;
+    if (src_rect->height == dst_rect->height) {
+        v_taps = 1;
+    } else if (v_ratio > 1) {
+        v_taps = (uint32_t)max(4, ceil(v_ratio * 2.0));
+    } else {
+        v_taps = 4;
+    }
 
-    if (scl_data->taps.v_taps % 2 && scl_data->taps.v_taps != 1)
-        scl_data->taps.v_taps++;
+    if (v_taps != 1) {
+        v_taps += v_taps % 2;
+    }
 
-    if (scl_data->taps.h_taps_c % 2 && scl_data->taps.h_taps_c != 1)
-        scl_data->taps.h_taps_c++;
+    if (taps->v_taps == 0 && v_taps <= 8) {
+        taps->v_taps = v_taps;
+    } else if (taps->v_taps < v_taps || v_taps > 8) {
+        return false;
+    }
 
-    if (scl_data->taps.v_taps_c % 2 && scl_data->taps.v_taps_c != 1)
-        scl_data->taps.v_taps_c++;
+    // Chroma taps
+    if (taps->h_taps_c == 0) {
+        taps->h_taps_c = 2;
+    }
 
-    // bypass scaler if all ratios are 1
-    if (IDENTITY_RATIO(scl_data->ratios.horz))
-        scl_data->taps.h_taps = 1;
-    if (IDENTITY_RATIO(scl_data->ratios.vert))
-        scl_data->taps.v_taps = 1;
+    if (taps->v_taps_c == 0) {
+        taps->v_taps_c = 2;
+    }
 
     return true;
 }

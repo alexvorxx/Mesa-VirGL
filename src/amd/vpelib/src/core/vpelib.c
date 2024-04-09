@@ -728,3 +728,15 @@ enum vpe_status vpe_build_commands(
 
     return status;
 }
+
+void vpe_get_optimal_num_of_taps(struct vpe *vpe, struct vpe_scaling_info *scaling_info)
+{
+    struct vpe_priv *vpe_priv;
+    struct dpp      *dpp;
+
+    vpe_priv = container_of(vpe, struct vpe_priv, pub);
+    dpp      = vpe_priv->resource.dpp[0];
+
+    dpp->funcs->get_optimal_number_of_taps(
+        &scaling_info->src_rect, &scaling_info->dst_rect, &scaling_info->taps);
+}

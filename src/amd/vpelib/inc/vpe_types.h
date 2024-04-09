@@ -526,8 +526,8 @@ struct vpe_scaling_filter_coeffs {
     unsigned int            nb_phases;
     uint16_t horiz_polyphase_coeffs[MAX_NB_POLYPHASE_COEFFS]; /*max nb of taps is 4, max nb of
                                                                  phases 33 = (32+1)*/
-    uint16_t vert_polyphase_coeffs[MAX_NB_POLYPHASE_COEFFS]; /*max nb of taps is 4, max nb of phases
-                                                                33 = (32+1)*/
+    uint16_t vert_polyphase_coeffs[MAX_NB_POLYPHASE_COEFFS];  /*max nb of taps is 4, max nb of
+                                                                 phases 33 = (32+1)*/
 };
 
 struct vpe_hdr_metadata {

@@ -176,18 +176,19 @@ static struct vpe_caps caps = {
 static bool vpe10_init_scaler_data(struct vpe_priv *vpe_priv, struct stream_ctx *stream_ctx,
     struct scaler_data *scl_data, struct vpe_rect *src_rect, struct vpe_rect *dst_rect)
 {
-    struct dpp *dpp = vpe_priv->resource.dpp[0];
+    struct dpp *dpp;
+    dpp = vpe_priv->resource.dpp[0];
+
     calculate_scaling_ratios(scl_data, src_rect, dst_rect, stream_ctx->stream.surface_info.format);
 
-    if (vpe_priv->init.debug.skip_optimal_tap_check) {
-        scl_data->taps.v_taps   = stream_ctx->stream.scaling_info.taps.v_taps;
-        scl_data->taps.h_taps   = stream_ctx->stream.scaling_info.taps.h_taps;
-        scl_data->taps.v_taps_c = stream_ctx->stream.scaling_info.taps.v_taps_c;
-        scl_data->taps.h_taps_c = stream_ctx->stream.scaling_info.taps.h_taps_c;
-    } else {
-        if (!dpp->funcs->get_optimal_number_of_taps(
-                dpp, scl_data, &stream_ctx->stream.scaling_info.taps))
+    scl_data->taps.v_taps   = stream_ctx->stream.scaling_info.taps.v_taps;
+    scl_data->taps.h_taps   = stream_ctx->stream.scaling_info.taps.h_taps;
+    scl_data->taps.v_taps_c = stream_ctx->stream.scaling_info.taps.v_taps_c;
+    scl_data->taps.h_taps_c = stream_ctx->stream.scaling_info.taps.h_taps_c;
+    if (!vpe_priv->init.debug.skip_optimal_tap_check) {
+        if (!dpp->funcs->get_optimal_number_of_taps(src_rect, dst_rect, &scl_data->taps)) {
             return false;
+        }
     }
 
     if ((stream_ctx->stream.use_external_scaling_coeffs ==

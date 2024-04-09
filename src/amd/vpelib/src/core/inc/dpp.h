@@ -72,7 +72,7 @@ enum input_csc_select {
 struct dpp_funcs {
 
     bool (*get_optimal_number_of_taps)(
-        struct dpp *dpp, struct scaler_data *scl_data, const struct vpe_scaling_taps *taps);
+        struct vpe_rect *src_rect, struct vpe_rect *dst_rect, struct vpe_scaling_taps *taps);
 
     void (*dscl_calc_lb_num_partitions)(const struct scaler_data *scl_data,
         enum lb_memory_config lb_config, uint32_t *num_part_y, uint32_t *num_part_c);

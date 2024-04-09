@@ -101,6 +101,14 @@ enum vpe_status vpe_build_noops(struct vpe *vpe, uint32_t num_dwords, uint32_t *
 enum vpe_status vpe_build_commands(
     struct vpe *vpe, const struct vpe_build_param *param, struct vpe_build_bufs *bufs);
 
+/**
+ * get the optimal number of taps based on the scaling ratio.
+ * @param[in]  vpe      vpe instance created by vpe_create()
+ * @param[in,out]  scaling_info  [in] source and destination rectangles [out] calculated taps.
+ */
+
+void vpe_get_optimal_num_of_taps(struct vpe *vpe, struct vpe_scaling_info *scaling_info);
+
 #ifdef __cplusplus
 }
 #endif
