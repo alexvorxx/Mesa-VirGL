@@ -283,9 +283,12 @@ init_context(isel_context* ctx, nir_shader* shader)
 
    ac_nir_opt_shared_append(shader);
 
-   nir_divergence_analysis(shader);
+   uint32_t options =
+      shader->options->divergence_analysis_options | nir_divergence_ignore_undef_if_phi_srcs;
+   nir_divergence_analysis_impl(impl, (nir_divergence_options)options);
+   shader->info.divergence_analysis_run = true;
    if (nir_opt_uniform_atomics(shader, false) && nir_lower_int64(shader))
-      nir_divergence_analysis(shader);
+      nir_divergence_analysis_impl(impl, (nir_divergence_options)options);
 
    apply_nuw_to_offsets(ctx, impl);
 
