@@ -340,7 +340,6 @@ fedora-release:
       -D glvnd=enabled
       -D platforms=x11,wayland
     EXTRA_OPTION: >
-      -D b_lto=true
       -D osmesa=true
       -D selinux=true
       -D tools=drm-shim,etnaviv,freedreno,glsl,intel,nir,nouveau,lima,panfrost,imagination
