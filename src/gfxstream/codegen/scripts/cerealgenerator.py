@@ -334,6 +334,26 @@ class IOStream;
 #include "VkEncoder.h"
 #include "../OpenglSystemCommon/HostConnection.h"
 #include "ResourceTracker.h"
+
+#include "goldfish_vk_private_defs.h"
+
+#include <log/log.h>
+#include <cstring>
+
+// Stuff we are not going to use but if included,
+// will cause compile errors. These are Android Vulkan
+// required extensions, but the approach will be to
+// implement them completely on the guest side.
+#undef VK_KHR_android_surface
+#if defined(LINUX_GUEST_BUILD) || defined(__Fuchsia__)
+#undef VK_ANDROID_native_buffer
+#endif
+"""
+
+        mesaFunctableImplInclude = """
+#include "VkEncoder.h"
+#include "../OpenglSystemCommon/HostConnection.h"
+#include "ResourceTracker.h"
 #include "gfxstream_vk_entrypoints.h"
 #include "gfxstream_vk_private.h"
 
@@ -351,6 +371,7 @@ class IOStream;
 #undef VK_ANDROID_native_buffer
 #endif
 """
+
         marshalIncludeGuest = """
 #include "goldfish_vk_marshaling_guest.h"
 #include "goldfish_vk_private_defs.h"
@@ -593,8 +614,9 @@ class BumpPool;
                 suppressVulkanHeaders=True,
                 extraHeader=createVkExtensionStructureTypePreamble('VK_GOOGLE_GFXSTREAM'))
 
-            self.addGuestEncoderModule("func_table", extraImpl=functableImplInclude, implOnly = True,
-                                    useNamespace = False)
+            self.addGuestEncoderModule("func_table", extraImpl=functableImplInclude)
+            self.addGuestEncoderModule("mesa_func_table", extraImpl=mesaFunctableImplInclude, implOnly = True,
+                                       useNamespace = False)
 
             self.addWrapper(cereal.VulkanEncoder, "VkEncoder")
             self.addWrapper(cereal.VulkanExtensionStructs, "goldfish_vk_extension_structs_guest", variant = "guest")
@@ -604,6 +626,7 @@ class BumpPool;
             self.addWrapper(cereal.VulkanCounting, "goldfish_vk_counting_guest")
             self.addWrapper(cereal.VulkanTransform, "goldfish_vk_transform_guest")
             self.addWrapper(cereal.VulkanFuncTable, "func_table")
+            self.addWrapper(cereal.VulkanMesaFuncTable, "mesa_func_table")
             self.addWrapper(cereal.VulkanGfxstreamStructureType,
                             "vulkan_gfxstream_structure_type_guest")
 
