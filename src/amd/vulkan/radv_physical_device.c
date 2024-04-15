@@ -527,6 +527,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_map_memory2 = true,
       .KHR_multiview = true,
       .KHR_performance_query = radv_perf_query_supported(pdev),
+      .KHR_pipeline_binary = true,
       .KHR_pipeline_executable_properties = true,
       .KHR_pipeline_library = !pdev->use_llvm,
       /* Hide these behind dri configs for now since we cannot implement it reliably on
@@ -1236,6 +1237,9 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
 
       /* VK_KHR_video_maintenance1 */
       .videoMaintenance1 = true,
+
+      /* VK_KHR_pipeline_binary */
+      .pipelineBinaries = true,
    };
 }
 
@@ -1950,6 +1954,13 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
    p->maxDescriptorSetUpdateAfterBindTotalUniformBuffersDynamic = MAX_DYNAMIC_UNIFORM_BUFFERS;
    p->maxDescriptorSetUpdateAfterBindTotalStorageBuffersDynamic = MAX_DYNAMIC_STORAGE_BUFFERS;
    p->maxDescriptorSetUpdateAfterBindTotalBuffersDynamic = MAX_DYNAMIC_BUFFERS;
+
+   /* VK_KHR_pipeline_binary */
+   p->pipelineBinaryInternalCache = true;
+   p->pipelineBinaryInternalCacheControl = true;
+   p->pipelineBinaryPrefersInternalCache = false;
+   p->pipelineBinaryPrecompiledInternalCache = false;
+   p->pipelineBinaryCompressedData = false;
 }
 
 static VkResult
