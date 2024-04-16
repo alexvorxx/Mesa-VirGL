@@ -71,13 +71,15 @@ radv_nir_lower_io(struct radv_device *device, nir_shader *nir)
 
    NIR_PASS(_, nir, nir_io_add_const_offset_to_base, nir_var_shader_in | nir_var_shader_out);
 
-   if (pdev->use_ngg_streamout && nir->xfb_info) {
-      NIR_PASS_V(nir, nir_io_add_intrinsic_xfb_info);
+   if (nir->xfb_info) {
+      NIR_PASS(_, nir, nir_io_add_intrinsic_xfb_info);
 
-      /* The total number of shader outputs is required for computing the pervertex LDS size for
-       * VS/TES when lowering NGG streamout.
-       */
-      nir_assign_io_var_locations(nir, nir_var_shader_out, &nir->num_outputs, nir->info.stage);
+      if (pdev->use_ngg_streamout) {
+         /* The total number of shader outputs is required for computing the pervertex LDS size for
+          * VS/TES when lowering NGG streamout.
+          */
+         nir_assign_io_var_locations(nir, nir_var_shader_out, &nir->num_outputs, nir->info.stage);
+      }
    }
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
