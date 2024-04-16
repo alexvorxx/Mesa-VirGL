@@ -1749,6 +1749,19 @@ isl_choose_miptail_start_level(const struct isl_device *dev,
 
    uint32_t max_miptail_levels = tile_info->max_miptail_levels;
 
+   if (max_miptail_levels > 11 &&
+       _isl_surf_info_supports_ccs(dev, info->format, info->usage)) {
+      /* SKL PRMs, Volume 5: Memory Views, Tiling and Mip Tails for 2D
+       * Surfaces:
+       *
+       *    "Lossless compression must not be used on surfaces which have MIP
+       *     Tail which contains MIPs for Slots greater than 11."
+       *
+       * Reduce the slot consumption to keep compression enabled.
+       */
+      max_miptail_levels = 11;
+   }
+
    /* Start with the minimum number of levels that will fit in the tile */
    uint32_t min_miptail_start =
       info->levels > max_miptail_levels ? info->levels - max_miptail_levels : 0;
@@ -3092,20 +3105,6 @@ isl_surf_supports_ccs(const struct isl_device *dev,
     */
    if (ISL_GFX_VER(dev) >= 9 && surf->tiling == ISL_TILING_X)
       return false;
-
-   /* SKL PRMs, Volume 5: Memory Views, Tiling and Mip Tails for 2D Surfaces:
-    *
-    *    "Lossless compression must not be used on surfaces which have MIP
-    *     Tail which contains MIPs for Slots greater than 11."
-    */
-   if (surf->miptail_start_level < surf->levels) {
-      const uint32_t miptail_levels = surf->levels - surf->miptail_start_level;
-      if (miptail_levels + isl_get_miptail_base_row(surf->tiling) > 11) {
-         assert(isl_tiling_is_64(surf->tiling) ||
-                isl_tiling_is_std_y(surf->tiling));
-         return false;
-      }
-   }
 
    /* From the workarounds section in the SKL PRM:
     *
