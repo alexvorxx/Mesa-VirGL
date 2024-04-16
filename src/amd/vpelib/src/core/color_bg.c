@@ -158,7 +158,8 @@ static void set_gamut_remap_matrix(double* res, enum color_space src_cs, enum co
     case COLOR_SPACE_MSREF_SCRGB:
     case COLOR_SPACE_YCBCR709_LIMITED:
     case COLOR_SPACE_YCBCR709:
-    case COLOR_SPACE_JFIF:
+    case COLOR_SPACE_YCBCR_JFIF:
+    case COLOR_SPACE_RGB_JFIF:
         memcpy(rgb_to_xyz, bt_709_rgb_xyz_matrix, 9 * sizeof(double));
         break;
     case COLOR_SPACE_YCBCR601:
@@ -183,7 +184,8 @@ static void set_gamut_remap_matrix(double* res, enum color_space src_cs, enum co
     case COLOR_SPACE_MSREF_SCRGB:
     case COLOR_SPACE_YCBCR709_LIMITED:
     case COLOR_SPACE_YCBCR709:
-    case COLOR_SPACE_JFIF:
+    case COLOR_SPACE_YCBCR_JFIF:
+    case COLOR_SPACE_RGB_JFIF:
         memcpy(xyz_to_rgb, bt_709_xyz_rgb_matrix, 9 * sizeof(double));
         break;
     case COLOR_SPACE_YCBCR601:
@@ -405,7 +407,8 @@ static bool is_limited_cs(enum color_space cs)
     case COLOR_SPACE_MSREF_SCRGB:
     case COLOR_SPACE_YCBCR601:
     case COLOR_SPACE_YCBCR709:
-    case COLOR_SPACE_JFIF:
+    case COLOR_SPACE_YCBCR_JFIF:
+    case COLOR_SPACE_RGB_JFIF:
     case COLOR_SPACE_2020_YCBCR:
         is_limited = false;
         break;
@@ -513,6 +516,7 @@ static void inverse_output_csc(enum color_space output_cs, struct vpe_color* bg_
         // output is RGB cs, follow output's range
         // but need yuv to rgb csc
     case COLOR_SPACE_SRGB_LIMITED:
+    case COLOR_SPACE_RGB601_LIMITED:
         bgcolor_cs = COLOR_SPACE_YCBCR709_LIMITED;
         break;
     case COLOR_SPACE_2020_RGB_LIMITEDRANGE:
@@ -520,6 +524,7 @@ static void inverse_output_csc(enum color_space output_cs, struct vpe_color* bg_
         break;
     case COLOR_SPACE_SRGB:
     case COLOR_SPACE_MSREF_SCRGB:
+    case COLOR_SPACE_RGB601:
         bgcolor_cs = COLOR_SPACE_YCBCR709;
         break;
     case COLOR_SPACE_2020_RGB_FULLRANGE:

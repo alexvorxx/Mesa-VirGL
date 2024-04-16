@@ -203,31 +203,6 @@ void vpe_destroy(struct vpe **vpe)
     *vpe = NULL;
 }
 
-/*
- * Geometric scaling feature has two requirement when enabled:
- * 1. only support single input stream, no blending support.
- * 2. the target rect must equal to destination rect.
- */
-
-static enum vpe_status validate_geometric_scaling_support(const struct vpe_build_param *param)
-{
-    if (param->streams[0].flags.geometric_scaling)
-    {
-        /* only support 1 stream */
-        if (param->num_streams > 1)
-        {
-            return VPE_STATUS_GEOMETRICSCALING_ERROR;
-        }
-
-        /* dest rect must equal to target rect */
-        if (param->target_rect.height != param->streams[0].scaling_info.dst_rect.height ||
-                param->target_rect.width != param->streams[0].scaling_info.dst_rect.width ||
-                param->target_rect.x != param->streams[0].scaling_info.dst_rect.x ||
-                param->target_rect.y != param->streams[0].scaling_info.dst_rect.y)
-            return VPE_STATUS_GEOMETRICSCALING_ERROR;
-    }
-    return VPE_STATUS_OK;
-}
 
 /*****************************************************************************************
  * handle_zero_input
@@ -496,7 +471,7 @@ enum vpe_status vpe_check_support(
     }
 
     if (status == VPE_STATUS_OK) {
-        status = validate_geometric_scaling_support(param);
+        status = vpe_validate_geometric_scaling_support(param);
     }
 
     if (vpe_priv->init.debug.assert_when_not_support)
@@ -605,7 +580,7 @@ enum vpe_status vpe_build_commands(
 
     if (status == VPE_STATUS_OK) {
         if (param->streams->flags.geometric_scaling) {
-            geometric_scaling_feature_skip(vpe_priv, param);
+            vpe_geometric_scaling_feature_skip(vpe_priv, param);
         }
 
         if (bufs->cmd_buf.size == 0 || bufs->emb_buf.size == 0) {

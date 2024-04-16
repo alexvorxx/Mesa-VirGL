@@ -133,12 +133,15 @@ static enum predefined_gamut_type color_space_to_predefined_gamut_types(
     enum color_space color_space)
 {
     switch (color_space) {
-    case COLOR_SPACE_JFIF:
+    case COLOR_SPACE_YCBCR_JFIF:
+    case COLOR_SPACE_RGB_JFIF:
     case COLOR_SPACE_YCBCR709:
     case COLOR_SPACE_YCBCR709_LIMITED:
         return gamut_type_bt709;
     case COLOR_SPACE_YCBCR601:
     case COLOR_SPACE_YCBCR601_LIMITED:
+    case COLOR_SPACE_RGB601:
+    case COLOR_SPACE_RGB601_LIMITED:
         return gamut_type_bt601;
     case COLOR_SPACE_SRGB:
     case COLOR_SPACE_SRGB_LIMITED:
