@@ -1018,14 +1018,6 @@ struct brw_cs_prog_data {
       struct brw_push_const_block cross_thread;
       struct brw_push_const_block per_thread;
    } push;
-
-   struct {
-      /** @{
-       * surface indices the CS-specific surfaces
-       */
-      uint32_t work_groups_start;
-      /** @} */
-   } binding_table;
 };
 
 static inline uint32_t
