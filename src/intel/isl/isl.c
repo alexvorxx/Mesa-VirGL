@@ -1743,6 +1743,27 @@ isl_choose_miptail_start_level(const struct isl_device *dev,
       return 15;
    }
 
+   if (info->dim == ISL_SURF_DIM_3D &&
+       isl_tiling_is_std_y(tile_info->tiling) &&
+       _isl_surf_info_supports_ccs(dev, info->format, info->usage)) {
+      /* From the workarounds section in the SKL PRM:
+       *
+       *    "RCC cacheline is composed of X-adjacent 64B fragments instead of
+       *     memory adjacent. This causes a single 128B cacheline to straddle
+       *     multiple LODs inside the TYF MIPtail for 3D surfaces (beyond a
+       *     certain slot number), leading to corruption when CCS is enabled
+       *     for these LODs and RT is later bound as texture. WA: If
+       *     RENDER_SURFACE_STATE.Surface Type = 3D and
+       *     RENDER_SURFACE_STATE.Auxiliary Surface Mode != AUX_NONE and
+       *     RENDER_SURFACE_STATE.Tiled ResourceMode is TYF or TYS, Set the
+       *     value of RENDER_SURFACE_STATE.Mip Tail Start LOD to a mip that
+       *     larger than those present in the surface (i.e. 15)"
+       *
+       * Referred to as Wa_1207137018 on ICL+. Disable miptails as suggested.
+       */
+      return 15;
+   }
+
    assert(isl_tiling_is_64(tile_info->tiling) ||
           isl_tiling_is_std_y(tile_info->tiling));
    assert(info->samples == 1);
@@ -3105,30 +3126,6 @@ isl_surf_supports_ccs(const struct isl_device *dev,
     */
    if (ISL_GFX_VER(dev) >= 9 && surf->tiling == ISL_TILING_X)
       return false;
-
-   /* From the workarounds section in the SKL PRM:
-    *
-    *    "RCC cacheline is composed of X-adjacent 64B fragments instead of
-    *     memory adjacent. This causes a single 128B cacheline to straddle
-    *     multiple LODs inside the TYF MIPtail for 3D surfaces (beyond a
-    *     certain slot number), leading to corruption when CCS is enabled
-    *     for these LODs and RT is later bound as texture. WA: If
-    *     RENDER_SURFACE_STATE.Surface Type = 3D and
-    *     RENDER_SURFACE_STATE.Auxiliary Surface Mode != AUX_NONE and
-    *     RENDER_SURFACE_STATE.Tiled ResourceMode is TYF or TYS, Set the
-    *     value of RENDER_SURFACE_STATE.Mip Tail Start LOD to a mip that
-    *     larger than those present in the surface (i.e. 15)"
-    *
-    * We simply disallow CCS on 3D surfaces with miptails.
-    *
-    * Referred to as Wa_1207137018 on ICL+
-    */
-   if (ISL_GFX_VERX10(dev) <= 120 &&
-       surf->dim == ISL_SURF_DIM_3D &&
-       surf->miptail_start_level < surf->levels) {
-      assert(isl_tiling_is_std_y(surf->tiling));
-      return false;
-   }
 
    /* TODO: add CCS support for Ys/Yf */
    if (isl_tiling_is_std_y(surf->tiling))
