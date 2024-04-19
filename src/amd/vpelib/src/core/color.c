@@ -645,6 +645,11 @@ enum vpe_status vpe_color_update_color_space_and_tf(
             new_matrix_scaling_factor = vpe_fixpt_one;
             stream_ctx = &vpe_priv->stream_ctx[stream_idx];
             stream_ctx->geometric_scaling = geometric_scaling;
+            // GDS needs to preserve 'is_yuv_input' flag to be used in updating the whitepoint
+            if (!geometric_update && !geometric_scaling) { // Non GDS cases
+                stream_ctx->is_yuv_input =
+                    stream_ctx->stream.surface_info.cs.encoding == VPE_PIXEL_ENCODING_YCbCr;
+            }
             bool is_3dlut_enable =
                 stream_ctx->stream.tm_params.UID != 0 || stream_ctx->stream.tm_params.enable_3dlut;
             bool require_update = stream_ctx->UID_3DLUT != param->streams[stream_idx].tm_params.UID;
@@ -999,7 +1004,7 @@ enum vpe_status vpe_color_update_whitepoint(
     for (unsigned int stream_index = 0; stream_index < vpe_priv->num_streams; stream_index++) {
 
         input_isHDR = vpe_is_HDR(stream->tf);
-        isYCbCr     = (vpe_cs->encoding == VPE_PIXEL_ENCODING_YCbCr);
+        isYCbCr     = stream->is_yuv_input;
         isG24       = (vpe_cs->tf == VPE_TF_G24);
 
         if (!input_isHDR && output_isHDR) {

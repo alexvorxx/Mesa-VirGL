@@ -80,12 +80,20 @@ enum vpe_status vpe_validate_geometric_scaling_support(const struct vpe_build_pa
 void vpe_update_geometric_scaling(struct vpe_priv *vpe_priv, const struct vpe_build_param *param,
     bool *geometric_update, bool *geometric_scaling)
 {
+    bool cached_gds = vpe_priv->stream_ctx[0].geometric_scaling;
+    bool is_gds     = (bool)vpe_priv->stream_ctx[0].stream.flags.geometric_scaling;
     if (param->num_streams == 1) {
-        if ((bool)vpe_priv->stream_ctx[0].stream.flags.geometric_scaling !=
-            vpe_priv->stream_ctx[0].geometric_scaling) {
+        if (cached_gds != is_gds) {
             *geometric_update = true;
+            // Vpe needs to apply the cooresponding whitepoint on the last pass
+            // based on the input format of the first pass
+            if (is_gds) { // First pass
+                vpe_priv->stream_ctx[0].is_yuv_input =
+                    vpe_priv->stream_ctx[0].stream.surface_info.cs.encoding ==
+                    VPE_PIXEL_ENCODING_YCbCr;
+            }
         }
 
-        *geometric_scaling = (bool)vpe_priv->stream_ctx[0].stream.flags.geometric_scaling;
+        *geometric_scaling = is_gds;
     }
 }
