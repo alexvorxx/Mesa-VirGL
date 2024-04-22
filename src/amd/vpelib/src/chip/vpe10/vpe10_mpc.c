@@ -75,7 +75,7 @@ void vpe10_mpc_program_mpcc_mux(struct mpc *mpc, enum mpc_mpccid mpcc_idx,
 
     REG_SET(VPMPCC_TOP_SEL, 0, VPMPCC_TOP_SEL, topsel);
     REG_SET(VPMPCC_BOT_SEL, 0, VPMPCC_BOT_SEL, botsel);
-    REG_SET(VPMPC_OUT0_MUX, 0, VPMPC_OUT_MUX, outmux);
+    REG_SET(VPMPC_OUT_MUX, 0, VPMPC_OUT_MUX, outmux);
     REG_SET(VPMPCC_VPOPP_ID, 0, VPMPCC_VPOPP_ID, oppid);
 
     /* program mux and MPCC_MODE */
@@ -209,7 +209,7 @@ void vpe10_mpc_set_output_csc(
     struct color_matrices_reg ocsc_regs;
 
     REG_SET(VPMPC_OUT_CSC_COEF_FORMAT, 0, VPMPC_OCSC0_COEF_FORMAT, 0);
-    REG_SET(VPMPC_OUT0_CSC_MODE, 0, VPMPC_OCSC_MODE, ocsc_mode);
+    REG_SET(VPMPC_OUT_CSC_MODE, 0, VPMPC_OCSC_MODE, ocsc_mode);
 
     if (ocsc_mode == MPC_OUTPUT_CSC_DISABLE)
         return;
@@ -223,8 +223,8 @@ void vpe10_mpc_set_output_csc(
     ocsc_regs.masks.csc_c12  = REG_FIELD_MASK(VPMPC_OCSC_C12_A);
 
     if (ocsc_mode == MPC_OUTPUT_CSC_COEF_A) {
-        ocsc_regs.csc_c11_c12 = REG_OFFSET(VPMPC_OUT0_CSC_C11_C12_A);
-        ocsc_regs.csc_c33_c34 = REG_OFFSET(VPMPC_OUT0_CSC_C33_C34_A);
+        ocsc_regs.csc_c11_c12 = REG_OFFSET(VPMPC_OUT_CSC_C11_C12_A);
+        ocsc_regs.csc_c33_c34 = REG_OFFSET(VPMPC_OUT_CSC_C33_C34_A);
     } else {
         VPE_ASSERT(0);
         return;
@@ -242,7 +242,7 @@ void vpe10_mpc_set_ocsc_default(struct mpc *mpc, enum vpe_surface_pixel_format p
     const uint16_t           *regval = NULL;
 
     REG_SET(VPMPC_OUT_CSC_COEF_FORMAT, 0, VPMPC_OCSC0_COEF_FORMAT, 0);
-    REG_SET(VPMPC_OUT0_CSC_MODE, 0, VPMPC_OCSC_MODE, ocsc_mode);
+    REG_SET(VPMPC_OUT_CSC_MODE, 0, VPMPC_OCSC_MODE, ocsc_mode);
 
     if (ocsc_mode == MPC_OUTPUT_CSC_DISABLE)
         return;
@@ -257,8 +257,8 @@ void vpe10_mpc_set_ocsc_default(struct mpc *mpc, enum vpe_surface_pixel_format p
     ocsc_regs.masks.csc_c12  = REG_FIELD_MASK(VPMPC_OCSC_C12_A);
 
     if (ocsc_mode == MPC_OUTPUT_CSC_COEF_A) {
-        ocsc_regs.csc_c11_c12 = REG_OFFSET(VPMPC_OUT0_CSC_C11_C12_A);
-        ocsc_regs.csc_c33_c34 = REG_OFFSET(VPMPC_OUT0_CSC_C33_C34_A);
+        ocsc_regs.csc_c11_c12 = REG_OFFSET(VPMPC_OUT_CSC_C11_C12_A);
+        ocsc_regs.csc_c33_c34 = REG_OFFSET(VPMPC_OUT_CSC_C33_C34_A);
     } else {
         VPE_ASSERT(0);
         return;
@@ -1209,20 +1209,20 @@ void vpe10_mpc_set_denorm(struct mpc *mpc, int opp_id, enum color_depth output_d
 
     /*program min and max clamp values for the pixel components*/
     if (denorm_clamp) {
-        REG_SET_3(VPMPC_OUT0_DENORM_CONTROL, 0, VPMPC_OUT_DENORM_MODE, denorm_mode,
+        REG_SET_3(VPMPC_OUT_DENORM_CONTROL, 0, VPMPC_OUT_DENORM_MODE, denorm_mode,
             VPMPC_OUT_DENORM_CLAMP_MAX_R_CR, denorm_clamp->clamp_max_r_cr,
             VPMPC_OUT_DENORM_CLAMP_MIN_R_CR, denorm_clamp->clamp_min_r_cr);
-        REG_SET_2(VPMPC_OUT0_DENORM_CLAMP_G_Y, 0, VPMPC_OUT_DENORM_CLAMP_MAX_G_Y,
+        REG_SET_2(VPMPC_OUT_DENORM_CLAMP_G_Y, 0, VPMPC_OUT_DENORM_CLAMP_MAX_G_Y,
             denorm_clamp->clamp_max_g_y, VPMPC_OUT_DENORM_CLAMP_MIN_G_Y,
             denorm_clamp->clamp_min_g_y);
-        REG_SET_2(VPMPC_OUT0_DENORM_CLAMP_B_CB, 0, VPMPC_OUT_DENORM_CLAMP_MAX_B_CB,
+        REG_SET_2(VPMPC_OUT_DENORM_CLAMP_B_CB, 0, VPMPC_OUT_DENORM_CLAMP_MAX_B_CB,
             denorm_clamp->clamp_max_b_cb, VPMPC_OUT_DENORM_CLAMP_MIN_B_CB,
             denorm_clamp->clamp_min_b_cb);
     } else {
-        REG_SET(VPMPC_OUT0_DENORM_CONTROL, REG_DEFAULT(VPMPC_OUT0_DENORM_CONTROL),
+        REG_SET(VPMPC_OUT_DENORM_CONTROL, REG_DEFAULT(VPMPC_OUT_DENORM_CONTROL),
             VPMPC_OUT_DENORM_MODE, denorm_mode);
-        REG_SET_DEFAULT(VPMPC_OUT0_DENORM_CLAMP_G_Y);
-        REG_SET_DEFAULT(VPMPC_OUT0_DENORM_CLAMP_B_CB);
+        REG_SET_DEFAULT(VPMPC_OUT_DENORM_CLAMP_G_Y);
+        REG_SET_DEFAULT(VPMPC_OUT_DENORM_CLAMP_B_CB);
     }
 }
 
@@ -1230,7 +1230,7 @@ void vpe10_mpc_set_out_float_en(struct mpc *mpc, bool float_enable)
 {
     PROGRAM_ENTRY();
 
-    REG_SET(VPMPC_OUT0_FLOAT_CONTROL, 0, VPMPC_OUT_FLOAT_EN, float_enable);
+    REG_SET(VPMPC_OUT_FLOAT_CONTROL, 0, VPMPC_OUT_FLOAT_EN, float_enable);
 }
 
 void vpe10_mpc_program_mpc_out(struct mpc *mpc, enum vpe_surface_pixel_format format)
