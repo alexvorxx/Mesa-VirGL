@@ -146,7 +146,13 @@ def extract_deps_vkCreateFramebuffer(param, access, lenExpr, api, cgen):
 
 def extract_deps_vkBindImageMemory(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s, VkReconstruction::BOUND_MEMORY)" % \
-              (access, lenExpr, "(uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory)"))
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory)"))
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)((%s)[0]), VkReconstruction::BOUND_MEMORY)" % \
+              (access, lenExpr, access))
+
+def extract_deps_vkBindBufferMemory(param, access, lenExpr, api, cgen):
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)%s, VkReconstruction::BOUND_MEMORY)" % \
+              (access, lenExpr, "unboxed_to_boxed_non_dispatchable_VkDeviceMemory(memory)"))
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)%s, %s, (uint64_t)(uintptr_t)((%s)[0]), VkReconstruction::BOUND_MEMORY)" % \
               (access, lenExpr, access))
 
@@ -157,6 +163,7 @@ specialCaseDependencyExtractors = {
     "vkCreateGraphicsPipelines" : extract_deps_vkCreateGraphicsPipelines,
     "vkCreateFramebuffer" : extract_deps_vkCreateFramebuffer,
     "vkBindImageMemory": extract_deps_vkBindImageMemory,
+    "vkBindBufferMemory": extract_deps_vkBindBufferMemory,
 }
 
 apiSequences = {
@@ -168,9 +175,10 @@ class VkObjectState:
     vk_object : str
     state : str = "VkReconstruction::CREATED"
 
-# TODO: add vkBindImageMemory2 into this list
+# TODO: add vkBindImageMemory2 and vkBindBufferMemory2 into this list
 apiChangeState = {
     "vkBindImageMemory": VkObjectState("image", "VkReconstruction::BOUND_MEMORY"),
+    "vkBindBufferMemory": VkObjectState("buffer", "VkReconstruction::BOUND_MEMORY"),
 }
 
 apiModifies = {
