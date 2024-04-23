@@ -4,7 +4,6 @@ from .encoder import *
 from .extensionstructs import *
 from .frontend import *
 from .functable import *
-from .mesa_functable import *
 from .marshaling import *
 from .reservedmarshaling import *
 from .counting import *
