@@ -2892,6 +2892,24 @@ static uint32_t getVirglFormat(VkFormat vkFormat) {
     return virglFormat;
 }
 
+static bool getVirtGpuFormatParams(const VkFormat vkFormat, uint32_t* virglFormat, uint32_t* target,
+                                   uint32_t* bind, uint32_t* bpp) {
+    *virglFormat = getVirglFormat(vkFormat);
+    switch (*virglFormat) {
+        case VIRGL_FORMAT_R8G8B8A8_UNORM:
+        case VIRGL_FORMAT_B8G8R8A8_UNORM:
+            *target = PIPE_TEXTURE_2D;
+            *bind = VIRGL_BIND_RENDER_TARGET;
+            *bpp = 4;
+            break;
+        default:
+            /* Format not recognized */
+            return false;
+    }
+
+    return true;
+}
+
 CoherentMemoryPtr ResourceTracker::createCoherentMemory(
     VkDevice device, VkDeviceMemory mem, const VkMemoryAllocateInfo& hostAllocationInfo,
     VkEncoder* enc, VkResult& res) {
@@ -3770,14 +3788,20 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 
                 imageCreateInfo = imageInfo.createInfo;
             }
-            uint32_t virglFormat = gfxstream::vk::getVirglFormat(imageCreateInfo.format);
-            if (virglFormat < 0) {
-                ALOGE("%s: Unsupported VK format for colorBuffer, vkFormat: 0x%x", __func__,
+
+            uint32_t virglFormat = 0;
+            uint32_t target = 0;
+            uint32_t bind = 0;
+            uint32_t bpp = 0;
+            if (!gfxstream::vk::getVirtGpuFormatParams(imageCreateInfo.format, &virglFormat,
+                                                       &target, &bind, &bpp)) {
+                ALOGE("%s: Unsupported VK format for VirtGpu resource, vkFormat: 0x%x", __func__,
                       imageCreateInfo.format);
                 return VK_ERROR_FORMAT_NOT_SUPPORTED;
             }
             colorBufferBlob = instance->createResource(imageCreateInfo.extent.width,
-                                                       imageCreateInfo.extent.height, virglFormat);
+                                                       imageCreateInfo.extent.height, virglFormat,
+                                                       target, bind, bpp);
             if (!colorBufferBlob) {
                 ALOGE("%s: Failed to create colorBuffer resource for Image memory\n", __func__);
                 return VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -3798,8 +3822,20 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 const auto& bufferInfo = it->second;
                 bufferCreateInfo = bufferInfo.createInfo;
             }
-            colorBufferBlob =
-                instance->createResource(bufferCreateInfo.size / 4, 1, VIRGL_FORMAT_R8G8B8A8_UNORM);
+            const VkFormat vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
+            uint32_t virglFormat = 0;
+            uint32_t target = 0;
+            uint32_t bind = 0;
+            uint32_t bpp = 0;
+            if (!gfxstream::vk::getVirtGpuFormatParams(vkFormat, &virglFormat, &target, &bind,
+                                                       &bpp)) {
+                ALOGE("%s: Unexpected error getting VirtGpu format params for vkFormat: 0x%x",
+                      __func__, vkFormat);
+                return VK_ERROR_FORMAT_NOT_SUPPORTED;
+            }
+
+            colorBufferBlob = instance->createResource(bufferCreateInfo.size / bpp, 1, virglFormat,
+                                                       target, bind, bpp);
             if (!colorBufferBlob) {
                 ALOGE("%s: Failed to create colorBuffer resource for Buffer memory\n", __func__);
                 return VK_ERROR_OUT_OF_DEVICE_MEMORY;
