@@ -337,7 +337,8 @@ droid_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
                           &dri2_surf->base.Height);
 
       dri2_surf->gralloc_usage =
-         strcmp(dri2_dpy->driver_name, "kms_swrast") == 0
+         ((strcmp(dri2_dpy->driver_name, "kms_swrast") == 0) ||
+          (strcmp(dri2_dpy->driver_name, "swrast") == 0))
             ? GRALLOC_USAGE_SW_READ_OFTEN | GRALLOC_USAGE_SW_WRITE_OFTEN
             : GRALLOC_USAGE_HW_RENDER;
 
@@ -616,6 +617,7 @@ droid_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surface)
 static EGLBoolean
 droid_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
 {
+   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
    const bool has_mutable_rb = _eglSurfaceHasMutableRenderBuffer(draw);
 
@@ -645,16 +647,22 @@ droid_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
    dri2_flush_drawable_for_swapbuffers_flags(disp, draw,
                                              __DRI2_NOTHROTTLE_SWAPBUFFER);
 
-   /* dri2_surf->buffer can be null even when no error has occurred. For
-    * example, if the user has called no GL rendering commands since the
-    * previous eglSwapBuffers, then the driver may have not triggered
-    * a callback to ANativeWindow_dequeueBuffer, in which case
-    * dri2_surf->buffer remains null.
-    */
-   if (dri2_surf->buffer)
-      droid_window_enqueue_buffer(disp, dri2_surf);
+   if (dri2_dpy->pure_swrast) {
+      driSwapBuffers(dri2_surf->dri_drawable);
+      if (dri2_surf->buffer)
+         droid_window_enqueue_buffer(disp, dri2_surf);
+   } else {
+      /* dri2_surf->buffer can be null even when no error has occurred. For
+       * example, if the user has called no GL rendering commands since the
+       * previous eglSwapBuffers, then the driver may have not triggered
+       * a callback to ANativeWindow_dequeueBuffer, in which case
+       * dri2_surf->buffer remains null.
+       */
+      if (dri2_surf->buffer)
+         droid_window_enqueue_buffer(disp, dri2_surf);
 
-   dri_invalidate_drawable(dri2_surf->dri_drawable);
+      dri_invalidate_drawable(dri2_surf->dri_drawable);
+   }
 
    /* Update the shared buffer mode */
    if (has_mutable_rb &&
@@ -944,6 +952,51 @@ droid_display_shared_buffer(__DRIdrawable *driDrawable, int fence_fd,
    handle_in_fence_fd(dri2_surf, dri2_surf->dri_image_back);
 }
 
+static void
+droid_swrast_get_drawable_info(__DRIdrawable *drawable,
+	        int *x, int *y, int *width, int *height,
+	        void *loaderPrivate)
+{
+   struct dri2_egl_surface *dri2_surf = loaderPrivate;
+
+   update_buffers(dri2_surf);
+
+   *x = 0;
+   *y = 0;
+   *width = dri2_surf->base.Width;
+   *height = dri2_surf->base.Height;
+}
+
+static void
+droid_swrast_put_image2(__DRIdrawable *draw, int op, int x, int y, int w,
+                          int h, int stride, char *data, void *loaderPrivate)
+{
+   return;
+}
+
+static void
+droid_swrast_put_image(__DRIdrawable *draw, int op, int x, int y, int w,
+                         int h, char *data, void *loaderPrivate)
+{
+   return;
+}
+
+static void
+droid_swrast_get_image(__DRIdrawable *read, int x, int y, int w, int h,
+                         char *data, void *loaderPrivate)
+{
+   return;
+}
+
+static const __DRIswrastLoaderExtension swrast_loader_extension = {
+   .base = {__DRI_SWRAST_LOADER, 2},
+
+   .getDrawableInfo = droid_swrast_get_drawable_info,
+   .putImage = droid_swrast_put_image,
+   .getImage = droid_swrast_get_image,
+   .putImage2 = droid_swrast_put_image2,
+};
+
 static const __DRImutableRenderBufferLoaderExtension
    droid_mutable_render_buffer_extension = {
       .base = {__DRI_MUTABLE_RENDER_BUFFER_LOADER, 1},
@@ -955,6 +1008,15 @@ static const __DRIextension *droid_image_loader_extensions[] = {
    &image_lookup_extension.base,
    &use_invalidate.base,
    &droid_mutable_render_buffer_extension.base,
+   NULL,
+};
+
+static const __DRIextension *droid_swrast_image_loader_extensions[] = {
+   &droid_image_loader_extension.base,
+   &image_lookup_extension.base,
+   &use_invalidate.base,
+   &droid_mutable_render_buffer_extension.base,
+   &swrast_loader_extension.base,
    NULL,
 };
 
@@ -1137,8 +1199,30 @@ dri2_initialize_android(_EGLDisplay *disp)
       goto cleanup;
    }
 
+   bool force_pure_swrast = debug_get_bool_option("MESA_ANDROID_NO_KMS_SWRAST", false);
+
    disp->DriverData = (void *)dri2_dpy;
-   device_opened = droid_open_device(disp, disp->Options.ForceSoftware);
+   if (!force_pure_swrast)
+      device_opened = droid_open_device(disp, disp->Options.ForceSoftware);
+
+   if ((!device_opened && disp->Options.ForceSoftware) ||
+       force_pure_swrast) {
+      dri2_dpy->driver_name = strdup("swrast");
+      dri2_dpy->loader_extensions = droid_swrast_image_loader_extensions;
+      dri2_dpy->fd_render_gpu = -1;
+      dri2_dpy->pure_swrast = true;
+      if(!dri2_load_driver(disp)) {
+         err = "DRI2: Failed to load swrast";
+         goto cleanup;
+      }
+
+      if (!dri2_create_screen(disp)) {
+         err = "DRI2: Failed to create swrast screen";
+         goto cleanup;
+      }
+
+      device_opened = EGL_TRUE;
+   }
 
    if (!device_opened) {
       err = "DRI2: failed to open device";
@@ -1147,7 +1231,7 @@ dri2_initialize_android(_EGLDisplay *disp)
 
    dri2_dpy->fd_display_gpu = dri2_dpy->fd_render_gpu;
 
-   if (!dri2_setup_device(disp, false)) {
+   if (!dri2_dpy->pure_swrast && !dri2_setup_device(disp, false)) {
       err = "DRI2: failed to setup EGLDevice";
       goto cleanup;
    }

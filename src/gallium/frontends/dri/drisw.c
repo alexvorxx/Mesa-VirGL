@@ -43,6 +43,8 @@
 #include "dri_helpers.h"
 #include "dri_query_renderer.h"
 
+#include "util/libsync.h"
+
 #ifdef HAVE_LIBDRM
 #include <xf86drm.h>
 #endif
@@ -365,6 +367,33 @@ drisw_flush_frontbuffer(struct dri_context *ctx,
    return true;
 }
 
+extern bool
+dri_image_drawable_get_buffers(struct dri_drawable *drawable,
+                               struct __DRIimageList *images,
+                               const enum st_attachment_type *statts,
+                               unsigned statts_count);
+
+static void
+handle_in_fence(struct dri_context *ctx, __DRIimage *img)
+{
+   struct pipe_context *pipe = ctx->st->pipe;
+   struct pipe_fence_handle *fence;
+   int fd = img->in_fence_fd;
+
+   if (fd == -1)
+      return;
+
+   validate_fence_fd(fd);
+
+   img->in_fence_fd = -1;
+
+   pipe->create_fence_fd(pipe, &fence, fd, PIPE_FD_TYPE_NATIVE_SYNC);
+   pipe->fence_server_sync(pipe, fence);
+   pipe->screen->fence_reference(pipe->screen, &fence, NULL);
+
+   close(fd);
+}
+
 /**
  * Allocate framebuffer attachments.
  *
@@ -384,11 +413,21 @@ drisw_allocate_textures(struct dri_context *stctx,
    unsigned width, height;
    bool resized;
    unsigned i;
+   const __DRIimageLoaderExtension *image = screen->image.loader;
+   struct __DRIimageList images;
+   bool imported_buffers = true;
 
    /* Wait for glthread to finish because we can't use pipe_context from
     * multiple threads.
     */
    _mesa_glthread_finish(stctx->st->ctx);
+
+   /* First try to get the buffers from the loader */
+   if (image) {
+      if (!dri_image_drawable_get_buffers(drawable, &images,
+                                          statts, count))
+         imported_buffers = false;
+   }
 
    width  = drawable->w;
    height = drawable->h;
@@ -413,48 +452,92 @@ drisw_allocate_textures(struct dri_context *stctx,
    templ.array_size = 1;
    templ.last_level = 0;
 
-   for (i = 0; i < count; i++) {
-      enum pipe_format format;
-      unsigned bind;
+   if (imported_buffers && image) {
+      if (images.image_mask & __DRI_IMAGE_BUFFER_FRONT) {
+         struct pipe_resource **buf =
+            &drawable->textures[ST_ATTACHMENT_FRONT_LEFT];
+         struct pipe_resource *texture = images.front->texture;
 
-      /* the texture already exists or not requested */
-      if (drawable->textures[statts[i]])
-         continue;
+         drawable->w = texture->width0;
+         drawable->h = texture->height0;
 
-      dri_drawable_get_format(drawable, statts[i], &format, &bind);
+         pipe_resource_reference(buf, texture);
+         handle_in_fence(stctx, images.front);
+      }
 
-      /* if we don't do any present, no need for display targets */
-      if (statts[i] != ST_ATTACHMENT_DEPTH_STENCIL && !screen->swrast_no_present)
-         bind |= PIPE_BIND_DISPLAY_TARGET;
+      if (images.image_mask & __DRI_IMAGE_BUFFER_BACK) {
+         struct pipe_resource **buf =
+            &drawable->textures[ST_ATTACHMENT_BACK_LEFT];
+         struct pipe_resource *texture = images.back->texture;
 
-      if (format == PIPE_FORMAT_NONE)
-         continue;
+         drawable->w = texture->width0;
+         drawable->h = texture->height0;
 
-      templ.format = format;
-      templ.bind = bind;
-      templ.nr_samples = 0;
-      templ.nr_storage_samples = 0;
+         pipe_resource_reference(buf, texture);
+         handle_in_fence(stctx, images.back);
+      }
 
-      if (statts[i] == ST_ATTACHMENT_FRONT_LEFT &&
-                 screen->base.screen->resource_create_front &&
-                 loader->base.version >= 3) {
-         drawable->textures[statts[i]] =
-            screen->base.screen->resource_create_front(screen->base.screen, &templ, (const void *)drawable);
-      } else
-         drawable->textures[statts[i]] =
-            screen->base.screen->resource_create(screen->base.screen, &templ);
+      if (images.image_mask & __DRI_IMAGE_BUFFER_SHARED) {
+         struct pipe_resource **buf =
+            &drawable->textures[ST_ATTACHMENT_BACK_LEFT];
+         struct pipe_resource *texture = images.back->texture;
 
-      if (drawable->stvis.samples > 1) {
-         templ.bind = templ.bind &
-            ~(PIPE_BIND_SCANOUT | PIPE_BIND_SHARED | PIPE_BIND_DISPLAY_TARGET);
-         templ.nr_samples = drawable->stvis.samples;
-         templ.nr_storage_samples = drawable->stvis.samples;
-         drawable->msaa_textures[statts[i]] =
-            screen->base.screen->resource_create(screen->base.screen, &templ);
+         drawable->w = texture->width0;
+         drawable->h = texture->height0;
 
-         dri_pipe_blit(stctx->st->pipe,
-                       drawable->msaa_textures[statts[i]],
-                       drawable->textures[statts[i]]);
+         pipe_resource_reference(buf, texture);
+         handle_in_fence(stctx, images.back);
+      }
+
+      /* Note: if there is both a back and a front buffer,
+       * then they have the same size.
+       */
+      templ.width0 = drawable->w;
+      templ.height0 = drawable->h;
+   } else {
+      for (i = 0; i < count; i++) {
+         enum pipe_format format;
+         unsigned bind;
+
+         /* the texture already exists or not requested */
+         if (drawable->textures[statts[i]])
+            continue;
+
+         dri_drawable_get_format(drawable, statts[i], &format, &bind);
+
+         /* if we don't do any present, no need for display targets */
+         if (statts[i] != ST_ATTACHMENT_DEPTH_STENCIL && !screen->swrast_no_present)
+            bind |= PIPE_BIND_DISPLAY_TARGET;
+
+         if (format == PIPE_FORMAT_NONE)
+            continue;
+
+         templ.format = format;
+         templ.bind = bind;
+         templ.nr_samples = 0;
+         templ.nr_storage_samples = 0;
+
+         if (statts[i] == ST_ATTACHMENT_FRONT_LEFT &&
+                    screen->base.screen->resource_create_front &&
+                    loader->base.version >= 3) {
+            drawable->textures[statts[i]] =
+               screen->base.screen->resource_create_front(screen->base.screen, &templ, (const void *)drawable);
+         } else
+            drawable->textures[statts[i]] =
+               screen->base.screen->resource_create(screen->base.screen, &templ);
+
+         if (drawable->stvis.samples > 1) {
+            templ.bind = templ.bind &
+               ~(PIPE_BIND_SCANOUT | PIPE_BIND_SHARED | PIPE_BIND_DISPLAY_TARGET);
+            templ.nr_samples = drawable->stvis.samples;
+            templ.nr_storage_samples = drawable->stvis.samples;
+            drawable->msaa_textures[statts[i]] =
+               screen->base.screen->resource_create(screen->base.screen, &templ);
+
+            dri_pipe_blit(stctx->st->pipe,
+                          drawable->msaa_textures[statts[i]],
+                          drawable->textures[statts[i]]);
+         }
       }
    }
 
@@ -614,9 +697,14 @@ drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    }
    else
       screen->extensions = drisw_screen_extensions;
+
 #ifdef HAVE_LIBDRM
-   if (pscreen->resource_create_with_modifiers && (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT))
+   int dmabuf_cap = pscreen->get_param(pscreen, PIPE_CAP_DMABUF);
+   if (pscreen->resource_create_with_modifiers && (dmabuf_cap & DRM_PRIME_CAP_EXPORT))
       screen->extensions[0] = &driVkImageExtension.base;
+   else if (pscreen->resource_create_with_modifiers && dmabuf_cap) {
+      driSWImageExtension.createImageFromDmaBufs = driVkImageExtension.createImageFromDmaBufs;
+   }
 #endif
 
    screen->create_drawable = drisw_create_drawable;

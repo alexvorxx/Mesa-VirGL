@@ -308,6 +308,7 @@ struct dri2_egl_display {
    /* gralloc vendor usage bit for front rendering */
    uint32_t front_rendering_usage;
    bool has_native_fence_fd;
+   bool pure_swrast;
 #endif
 };
 
