@@ -165,6 +165,7 @@ HANDLES_MESA_VK = {
 # Types that have a corresponding method for transforming
 # an input list to its internal counterpart
 TYPES_TRANSFORM_LIST_METHOD = {
+    "VkFence",
     "VkSemaphore",
     "VkSemaphoreSubmitInfo",
 }
@@ -488,17 +489,23 @@ class VulkanFuncTable(VulkanWrapperGenerator):
                         cgen.endIf()
 
         def genInternalArray(param, countParamName, outArrayName, inArrayName, loopVar):
-            cgen.beginFor("uint32_t %s = 0" % loopVar, "%s < %s" % (loopVar, countParamName), "++%s" % loopVar)
-            if param.isOptional:
-                cgen.beginIf(inArrayName)
-            if isCompoundType(param.typeName):
-                genInternalCompoundType(param, ("%s[%s]" % (outArrayName, loopVar)), "%s[%s]" % (inArrayName, loopVar), loopVar)
+            if param.typeName in TYPES_TRANSFORM_LIST_METHOD:
+                # Use the corresponding transformList call
+                cgen.funcCall(outArrayName, transformListFuncName(param.typeName), [inArrayName, countParamName])
+                cgen.stmt("%s = %s.data()" % (inArrayName, outArrayName))
+                cgen.stmt("%s = %s.size()" % (countParamName, outArrayName))
             else:
-                gfxstreamObject = genVkFromHandle(param, "%s[%s]" % (inArrayName, loopVar))
-                cgen.stmt("%s[%s] = %s->%s" % (outArrayName, loopVar, gfxstreamObject, INTERNAL_OBJECT_NAME))
-            if param.isOptional:
-                cgen.endIf()
-            cgen.endFor()
+                cgen.beginFor("uint32_t %s = 0" % loopVar, "%s < %s" % (loopVar, countParamName), "++%s" % loopVar)
+                if param.isOptional:
+                    cgen.beginIf(inArrayName)
+                if isCompoundType(param.typeName):
+                    genInternalCompoundType(param, ("%s[%s]" % (outArrayName, loopVar)), "%s[%s]" % (inArrayName, loopVar), loopVar)
+                else:
+                    gfxstreamObject = genVkFromHandle(param, "%s[%s]" % (inArrayName, loopVar))
+                    cgen.stmt("%s[%s] = %s->%s" % (outArrayName, loopVar, gfxstreamObject, INTERNAL_OBJECT_NAME))
+                if param.isOptional:
+                    cgen.endIf()
+                cgen.endFor()
             return "%s.data()" % outArrayName
 
         # Translate params into params needed for gfxstream-internal

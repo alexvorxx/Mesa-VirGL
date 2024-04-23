@@ -240,6 +240,8 @@ void gfxstream_vk_wsi_finish(struct gfxstream_vk_physical_device* physical_devic
 std::vector<VkSemaphore> transformVkSemaphoreList(const VkSemaphore* pSemaphores,
                                                   uint32_t semaphoreCount);
 
+std::vector<VkFence> transformVkFenceList(const VkFence* pFences, uint32_t fenceCount);
+
 std::vector<VkSemaphoreSubmitInfo> transformVkSemaphoreSubmitInfoList(
     const VkSemaphoreSubmitInfo* pSemaphoreSubmitInfos, uint32_t semaphoreSubmitInfoCount);
 
