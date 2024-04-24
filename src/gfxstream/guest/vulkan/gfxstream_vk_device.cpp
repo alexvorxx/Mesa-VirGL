@@ -427,19 +427,12 @@ VkResult gfxstream_vk_CreateDevice(VkPhysicalDevice physicalDevice,
      * https://android-review.googlesource.com/c/platform/hardware/google/gfxstream/+/2839438
      *
      * and associated bugs. Mesa VK runtime also checks this, so we have to filter out before
-     * reaches it. vk_find_struct<VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT>(..) doesn't
-     * work for some reason.
+     * reaches it.
      */
-    VkBaseInStructure* extensionCreateInfo = (VkBaseInStructure*)(pCreateInfo->pNext);
-    while (extensionCreateInfo) {
-        if (extensionCreateInfo->sType ==
-            VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT) {
-            auto swapchainMaintenance1Features =
-                reinterpret_cast<VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT*>(
-                    extensionCreateInfo);
-            swapchainMaintenance1Features->swapchainMaintenance1 = VK_FALSE;
-        }
-        extensionCreateInfo = (VkBaseInStructure*)(extensionCreateInfo->pNext);
+    VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT* swapchainMaintenance1Features =
+        (VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT*)vk_find_struct<VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT>(pCreateInfo);
+    if (swapchainMaintenance1Features) {
+        swapchainMaintenance1Features->swapchainMaintenance1 = VK_FALSE;
     }
 
     const VkAllocationCallbacks* pMesaAllocator =
