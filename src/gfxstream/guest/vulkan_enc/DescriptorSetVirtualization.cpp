@@ -123,37 +123,52 @@ void doEmulatedDescriptorWrite(const VkWriteDescriptorSet* write, ReifiedDescrip
     uint32_t arrOffset = dstArrayElement;
 
     if (isDescriptorTypeImageInfo(descType)) {
-        for (uint32_t i = 0; i < descriptorCount; ++i, ++arrOffset) {
+        uint32_t i = 0;
+        while (i < descriptorCount) {
+            assert(dstBinding < table.size());
             if (arrOffset >= table[dstBinding].size()) {
                 ++dstBinding;
                 arrOffset = 0;
+                continue;
             }
             auto& entry = table[dstBinding][arrOffset];
             entry.imageInfo = write->pImageInfo[i];
             entry.type = DescriptorWriteType::ImageInfo;
             entry.descriptorType = descType;
+            ++i;
+            ++arrOffset;
         }
     } else if (isDescriptorTypeBufferInfo(descType)) {
-        for (uint32_t i = 0; i < descriptorCount; ++i, ++arrOffset) {
+        uint32_t i = 0;
+        while (i < descriptorCount) {
+            assert(dstBinding < table.size());
             if (arrOffset >= table[dstBinding].size()) {
                 ++dstBinding;
                 arrOffset = 0;
+                continue;
             }
             auto& entry = table[dstBinding][arrOffset];
             entry.bufferInfo = write->pBufferInfo[i];
             entry.type = DescriptorWriteType::BufferInfo;
             entry.descriptorType = descType;
+            ++i;
+            ++arrOffset;
         }
     } else if (isDescriptorTypeBufferView(descType)) {
-        for (uint32_t i = 0; i < descriptorCount; ++i, ++arrOffset) {
+        uint32_t i = 0;
+        while (i < descriptorCount) {
+            assert(dstBinding < table.size());
             if (arrOffset >= table[dstBinding].size()) {
                 ++dstBinding;
                 arrOffset = 0;
+                continue;
             }
             auto& entry = table[dstBinding][arrOffset];
             entry.bufferView = write->pTexelBufferView[i];
             entry.type = DescriptorWriteType::BufferView;
             entry.descriptorType = descType;
+            ++i;
+            ++arrOffset;
         }
     } else if (isDescriptorTypeInlineUniformBlock(descType)) {
         const VkWriteDescriptorSetInlineUniformBlock* descInlineUniformBlock =
@@ -196,22 +211,32 @@ void doEmulatedDescriptorCopy(const VkCopyDescriptorSet* copy, const ReifiedDesc
     std::vector<DescriptorWrite> toCopy;
     uint32_t currBinding = copy->srcBinding;
     uint32_t arrOffset = copy->srcArrayElement;
-    for (uint32_t i = 0; i < copy->descriptorCount; ++i, ++arrOffset) {
+    uint32_t i = 0;
+    while (i < copy->descriptorCount) {
+        assert(currBinding < srcTable.size());
         if (arrOffset >= srcTable[currBinding].size()) {
             ++currBinding;
             arrOffset = 0;
+            continue;
         }
         toCopy.push_back(srcTable[currBinding][arrOffset]);
+        ++i;
+        ++arrOffset;
     }
 
     currBinding = copy->dstBinding;
     arrOffset = copy->dstArrayElement;
-    for (uint32_t i = 0; i < copy->descriptorCount; ++i, ++arrOffset) {
+    i = 0;
+    while (i < copy->descriptorCount) {
+        assert(currBinding < dstTable.size());
         if (arrOffset >= dstTable[currBinding].size()) {
             ++currBinding;
             arrOffset = 0;
+            continue;
         }
         dstTable[currBinding][arrOffset] = toCopy[i];
+        ++i;
+        ++arrOffset;
     }
 }
 
@@ -223,16 +248,20 @@ void doEmulatedDescriptorImageInfoWriteFromTemplate(VkDescriptorType descType, u
 
     uint32_t currBinding = binding;
     uint32_t arrOffset = dstArrayElement;
-
-    for (uint32_t i = 0; i < count; ++i, ++arrOffset) {
+    uint32_t i = 0;
+    while (i < count) {
+        assert(currBinding < table.size());
         if (arrOffset >= table[currBinding].size()) {
             ++currBinding;
             arrOffset = 0;
+            continue;
         }
         auto& entry = table[currBinding][arrOffset];
         entry.imageInfo = imageInfos[i];
         entry.type = DescriptorWriteType::ImageInfo;
         entry.descriptorType = descType;
+        ++i;
+        ++arrOffset;
     }
 }
 
@@ -244,16 +273,20 @@ void doEmulatedDescriptorBufferInfoWriteFromTemplate(VkDescriptorType descType, 
 
     uint32_t currBinding = binding;
     uint32_t arrOffset = dstArrayElement;
-
-    for (uint32_t i = 0; i < count; ++i, ++arrOffset) {
+    uint32_t i = 0;
+    while (i < count) {
+        assert(currBinding < table.size());
         if (arrOffset >= table[currBinding].size()) {
             ++currBinding;
             arrOffset = 0;
+            continue;
         }
-        auto& entry = table[currBinding][dstArrayElement + i];
+        auto& entry = table[currBinding][arrOffset];
         entry.bufferInfo = bufferInfos[i];
         entry.type = DescriptorWriteType::BufferInfo;
         entry.descriptorType = descType;
+        ++i;
+        ++arrOffset;
     }
 }
 
@@ -265,16 +298,20 @@ void doEmulatedDescriptorBufferViewWriteFromTemplate(VkDescriptorType descType, 
 
     uint32_t currBinding = binding;
     uint32_t arrOffset = dstArrayElement;
-
-    for (uint32_t i = 0; i < count; ++i, ++arrOffset) {
+    uint32_t i = 0;
+    while (i < count) {
+        assert(currBinding < table.size());
         if (arrOffset >= table[currBinding].size()) {
             ++currBinding;
             arrOffset = 0;
+            continue;
         }
-        auto& entry = table[currBinding][dstArrayElement + i];
+        auto& entry = table[currBinding][arrOffset];
         entry.bufferView = bufferViews[i];
         entry.type = DescriptorWriteType::BufferView;
         entry.descriptorType = descType;
+        ++i;
+        ++arrOffset;
     }
 }
 
