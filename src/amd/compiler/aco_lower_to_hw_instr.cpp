@@ -2990,6 +2990,14 @@ lower_to_hw_instr(Program* program)
             ctx.instructions.emplace_back(std::move(instr));
 
             emit_set_mode(bld, block->fp_mode, set_round, false);
+         } else if (instr->opcode == aco_opcode::p_v_cvt_pk_u8_f32) {
+            Definition def = instr->definitions[0];
+            VALU_instruction& valu =
+               bld.vop3(aco_opcode::v_cvt_pk_u8_f32, def, instr->operands[0],
+                        Operand::c32(def.physReg().byte()), Operand(def.physReg(), v1))
+                  ->valu();
+            valu.abs = instr->valu().abs;
+            valu.neg = instr->valu().neg;
          } else if (instr->isMIMG() && instr->mimg().strict_wqm) {
             lower_image_sample(&ctx, instr);
             ctx.instructions.emplace_back(std::move(instr));

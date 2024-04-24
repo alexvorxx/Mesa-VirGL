@@ -1253,6 +1253,7 @@ validate_subdword_definition(amd_gfx_level gfx_level, const aco_ptr<Instruction>
    case aco_opcode::global_load_short_d16_hi:
    case aco_opcode::ds_read_u8_d16_hi:
    case aco_opcode::ds_read_u16_d16_hi: return byte == 2;
+   case aco_opcode::p_v_cvt_pk_u8_f32: return true;
    default: break;
    }
 
@@ -1269,6 +1270,9 @@ get_subdword_bytes_written(Program* program, const aco_ptr<Instruction>& instr, 
       return gfx_level >= GFX8 ? def.bytes() : def.size() * 4u;
    if (instr->isVALU() || instr->isVINTRP()) {
       assert(def.bytes() <= 2);
+      if (instr->opcode == aco_opcode::p_v_cvt_pk_u8_f32)
+         return 1;
+
       if (instr->isSDWA())
          return instr->sdwa().dst_sel.size();
 

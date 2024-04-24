@@ -1283,6 +1283,7 @@ VOP3 = {
    ("v_sad_u16",               False, False, dst(1), src(1, 1, 1), op(0x15c, gfx8=0x1db, gfx10=0x15c, gfx11=0x224)),
    ("v_sad_u32",               False, False, dst(1), src(1, 1, 1), op(0x15d, gfx8=0x1dc, gfx10=0x15d, gfx11=0x225)),
    ("v_cvt_pk_u8_f32",         True, False, dst(1), src(1, 1, 1), op(0x15e, gfx8=0x1dd, gfx10=0x15e, gfx11=0x226)),
+   ("p_v_cvt_pk_u8_f32",       True, False, dst(1), src(1), op(-1)),
    ("v_div_fixup_f32",         True, True, dst(1), src(1, 1, 1), op(0x15f, gfx8=0x1de, gfx10=0x15f, gfx11=0x227)),
    ("v_div_fixup_f64",         True, True, dst(2), src(2, 2, 2), op(0x160, gfx8=0x1df, gfx10=0x160, gfx11=0x228)),
    ("v_lshl_b64",              False, False, dst(2), src(2, 1), op(0x161, gfx8=-1), InstrClass.Valu64),

@@ -3264,7 +3264,11 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
             }
          }
       } else if (instr->src[0].src.ssa->bit_size == 32) {
-         emit_vop1_instruction(ctx, instr, aco_opcode::v_cvt_u32_f32, dst);
+         if (dst.regClass() == v1b && ctx->program->gfx_level >= GFX11)
+            bld.vop3(aco_opcode::p_v_cvt_pk_u8_f32, Definition(dst),
+                     get_alu_src(ctx, instr->src[0]));
+         else
+            emit_vop1_instruction(ctx, instr, aco_opcode::v_cvt_u32_f32, dst);
       } else {
          emit_vop1_instruction(ctx, instr, aco_opcode::v_cvt_u32_f64, dst);
       }
