@@ -457,6 +457,25 @@ VkResult gfxstream_vk_CreateDevice(VkPhysicalDevice physicalDevice,
         mutableCreateInfo->enabledExtensionCount = static_cast<uint32_t>(filteredExts.size());
         mutableCreateInfo->ppEnabledExtensionNames = filteredExts.data();
 
+        /* pNext = VkPhysicalDeviceGroupProperties */
+        std::vector<VkPhysicalDevice> initialPhysicalDeviceList;
+        VkPhysicalDeviceGroupProperties* mutablePhysicalDeviceGroupProperties =
+            (VkPhysicalDeviceGroupProperties*)vk_find_struct<VkPhysicalDeviceGroupProperties>(
+                pCreateInfo);
+        if (mutablePhysicalDeviceGroupProperties) {
+            // Temporarily modify the VkPhysicalDeviceGroupProperties structure to use translated
+            // VkPhysicalDevice references for the encoder call
+            for (int physDev = 0;
+                 physDev < mutablePhysicalDeviceGroupProperties->physicalDeviceCount; physDev++) {
+                initialPhysicalDeviceList.push_back(
+                    mutablePhysicalDeviceGroupProperties->physicalDevices[physDev]);
+                VK_FROM_HANDLE(gfxstream_vk_physical_device, gfxstream_physicalDevice,
+                               mutablePhysicalDeviceGroupProperties->physicalDevices[physDev]);
+                mutablePhysicalDeviceGroupProperties->physicalDevices[physDev] =
+                    gfxstream_physicalDevice->internal_object;
+            }
+        }
+
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
         result = vkEnc->vkCreateDevice(gfxstream_physicalDevice->internal_object, pCreateInfo,
                                        pAllocator, &gfxstream_device->internal_object,
@@ -464,6 +483,17 @@ VkResult gfxstream_vk_CreateDevice(VkPhysicalDevice physicalDevice,
         // Revert the createInfo the user-set data
         mutableCreateInfo->enabledExtensionCount = initialEnabledExtensionCount;
         mutableCreateInfo->ppEnabledExtensionNames = initialPpEnabledExtensionNames;
+        if (mutablePhysicalDeviceGroupProperties) {
+            // Revert the physicalDevice list in VkPhysicalDeviceGroupProperties to the user-set
+            // data
+            for (int physDev = 0;
+                 physDev < mutablePhysicalDeviceGroupProperties->physicalDeviceCount; physDev++) {
+                initialPhysicalDeviceList.push_back(
+                    mutablePhysicalDeviceGroupProperties->physicalDevices[physDev]);
+                mutablePhysicalDeviceGroupProperties->physicalDevices[physDev] =
+                    initialPhysicalDeviceList[physDev];
+            }
+        }
     }
     if (VK_SUCCESS == result) {
         struct vk_device_dispatch_table dispatch_table;
