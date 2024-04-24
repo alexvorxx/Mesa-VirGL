@@ -391,7 +391,7 @@ enum vpe_status vpe_check_support(
         for (i = 0; i < param->num_streams; i++) {
             status = vpe_check_tone_map_support(vpe, &param->streams[i], param);
             if (status != VPE_STATUS_OK) {
-                vpe_log("fail input support check. status %d\n", (int)status);
+                vpe_log("fail tone map support check. status %d\n", (int)status);
                 break;
             }
         }
