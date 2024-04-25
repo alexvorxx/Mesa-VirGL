@@ -58,11 +58,9 @@ radv_shader_destroy(struct vk_device *_device, struct vk_pipeline_cache_object *
    free(shader);
 }
 
-static struct vk_pipeline_cache_object *
-radv_shader_deserialize(struct vk_pipeline_cache *cache, const void *key_data, size_t key_size,
-                        struct blob_reader *blob)
+struct radv_shader *
+radv_shader_deserialize(struct radv_device *device, const void *key_data, size_t key_size, struct blob_reader *blob)
 {
-   struct radv_device *device = container_of(cache->base.device, struct radv_device, vk);
    const struct radv_shader_binary *binary = blob_read_bytes(blob, sizeof(struct radv_shader_binary));
 
    struct radv_shader *shader;
@@ -74,13 +72,24 @@ radv_shader_deserialize(struct vk_pipeline_cache *cache, const void *key_data, s
    memcpy(shader->hash, key_data, key_size);
    blob_skip_bytes(blob, binary->total_size - sizeof(struct radv_shader_binary));
 
-   return &shader->base;
+   return shader;
 }
 
-static bool
-radv_shader_serialize(struct vk_pipeline_cache_object *object, struct blob *blob)
+static struct vk_pipeline_cache_object *
+radv_shader_cache_deserialize(struct vk_pipeline_cache *cache, const void *key_data, size_t key_size,
+                              struct blob_reader *blob)
 {
-   struct radv_shader *shader = container_of(object, struct radv_shader, base);
+   struct radv_device *device = container_of(cache->base.device, struct radv_device, vk);
+   struct radv_shader *shader;
+
+   shader = radv_shader_deserialize(device, key_data, key_size, blob);
+
+   return shader ? &shader->base : NULL;
+}
+
+void
+radv_shader_serialize(struct radv_shader *shader, struct blob *blob)
+{
    size_t stats_size = shader->statistics ? aco_num_statistics * sizeof(uint32_t) : 0;
    size_t code_size = shader->code_size;
    uint32_t total_size = sizeof(struct radv_shader_binary_legacy) + code_size + stats_size;
@@ -103,7 +112,14 @@ radv_shader_serialize(struct vk_pipeline_cache_object *object, struct blob *blob
    blob_write_bytes(blob, &binary, sizeof(struct radv_shader_binary_legacy));
    blob_write_bytes(blob, shader->statistics, stats_size);
    blob_write_bytes(blob, shader->code, code_size);
+}
 
+static bool
+radv_shader_cache_serialize(struct vk_pipeline_cache_object *object, struct blob *blob)
+{
+   struct radv_shader *shader = container_of(object, struct radv_shader, base);
+
+   radv_shader_serialize(shader, blob);
    return true;
 }
 
@@ -131,8 +147,8 @@ radv_shader_create(struct radv_device *device, struct vk_pipeline_cache *cache, 
 }
 
 const struct vk_pipeline_cache_object_ops radv_shader_ops = {
-   .serialize = radv_shader_serialize,
-   .deserialize = radv_shader_deserialize,
+   .serialize = radv_shader_cache_serialize,
+   .deserialize = radv_shader_cache_deserialize,
    .destroy = radv_shader_destroy,
 };
 

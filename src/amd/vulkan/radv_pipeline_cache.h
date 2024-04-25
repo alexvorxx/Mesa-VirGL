@@ -70,4 +70,9 @@ struct vk_pipeline_cache_object *radv_pipeline_cache_nir_to_handle(struct radv_d
                                                                    struct nir_shader *nir, const unsigned char *sha1,
                                                                    bool cached);
 
+void radv_shader_serialize(struct radv_shader *shader, struct blob *blob);
+
+struct radv_shader *radv_shader_deserialize(struct radv_device *device, const void *key_data, size_t key_size,
+                                            struct blob_reader *blob);
+
 #endif /* RADV_PIPELINE_CACHE_H */
