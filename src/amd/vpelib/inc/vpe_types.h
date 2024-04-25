@@ -514,12 +514,11 @@ struct vpe_blend_info {
 };
 
 struct vpe_scaling_info {
+    struct vpe_rect               src_rect;
+    struct vpe_rect               dst_rect;
+    struct vpe_scaling_taps       taps;
 
-    struct vpe_rect         src_rect;
-    struct vpe_rect         dst_rect;
-    struct vpe_scaling_taps taps;
 };
-
 struct vpe_scaling_filter_coeffs {
 
     struct vpe_scaling_taps taps;
@@ -546,6 +545,11 @@ struct vpe_hdr_metadata {
     uint32_t avg_content;
 };
 
+struct vpe_reserved_param {
+    void    *param;
+    uint32_t size;
+};
+
 struct vpe_tonemap_params {
     uint64_t                   UID;          /* Unique ID for tonemap params */
     enum vpe_transfer_function shaper_tf;
@@ -554,8 +558,11 @@ struct vpe_tonemap_params {
     enum vpe_color_primaries   lut_out_gamut;
     uint16_t                   input_pq_norm_factor;
     uint16_t                   lut_dim;
-    uint16_t                  *lut_data;
-
+    union {
+        uint16_t               *lut_data;  //CPU accessible
+        void                   *dma_lut_data;  //GPU accessible only for fast load
+    };
+    bool is_dma_lut;
     bool enable_3dlut;
 };
 
@@ -574,6 +581,7 @@ struct vpe_stream {
     bool                             enable_luma_key;
     float                            lower_luma_bound;
     float                            upper_luma_bound;
+    struct vpe_reserved_param        reserved_param;
 
     struct {
         uint32_t hdr_metadata : 1;
@@ -587,16 +595,17 @@ struct vpe_stream {
 
 struct vpe_build_param {
     /** source */
-    uint32_t           num_streams;
-    struct vpe_stream *streams;
+    uint32_t                  num_streams;
+    struct vpe_stream        *streams;
 
     /** destination */
-    struct vpe_surface_info dst_surface;
-    struct vpe_rect target_rect; /**< rectangle in target surface to be blt'd. Ranges out of rect
+    struct vpe_surface_info   dst_surface;
+    struct vpe_rect           target_rect; /**< rectangle in target surface to be blt'd. Ranges out of rect
                                     won't be touched */
-    struct vpe_color        bg_color;
-    enum vpe_alpha_mode     alpha_mode;
-    struct vpe_hdr_metadata hdr_metadata;
+    struct vpe_color          bg_color;
+    enum vpe_alpha_mode       alpha_mode;
+    struct vpe_hdr_metadata   hdr_metadata;
+    struct vpe_reserved_param dst_reserved_param;
 
     // data flags
     struct {
