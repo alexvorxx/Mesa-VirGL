@@ -2750,20 +2750,7 @@ radv_should_compute_pipeline_hash(const struct radv_device *device, const enum r
           ((instance->vk.trace_mode & RADV_TRACE_MODE_RGP) && pipeline_type == RADV_PIPELINE_GRAPHICS);
 }
 
-struct radv_graphics_pipeline_state {
-   struct vk_graphics_pipeline_state vk;
-   void *vk_data;
-
-   bool compilation_required;
-
-   struct radv_shader_stage *stages;
-
-   struct radv_graphics_pipeline_key key;
-
-   struct radv_pipeline_layout layout;
-};
-
-static void
+void
 radv_graphics_pipeline_state_finish(struct radv_device *device, struct radv_graphics_pipeline_state *gfx_state)
 {
    radv_pipeline_layout_finish(device, &gfx_state->layout);
@@ -2776,7 +2763,7 @@ radv_graphics_pipeline_state_finish(struct radv_device *device, struct radv_grap
    }
 }
 
-static VkResult
+VkResult
 radv_generate_graphics_pipeline_state(struct radv_device *device, const VkGraphicsPipelineCreateInfo *pCreateInfo,
                                       struct radv_graphics_pipeline_state *gfx_state)
 {
@@ -2860,7 +2847,7 @@ fail:
    return result;
 }
 
-static void
+void
 radv_graphics_pipeline_hash(const struct radv_device *device, const struct radv_graphics_pipeline_state *gfx_state,
                             unsigned char *hash)
 {

@@ -638,4 +638,26 @@ void radv_destroy_graphics_pipeline(struct radv_device *device, struct radv_grap
 
 void radv_destroy_graphics_lib_pipeline(struct radv_device *device, struct radv_graphics_lib_pipeline *pipeline);
 
+struct radv_graphics_pipeline_state {
+   struct vk_graphics_pipeline_state vk;
+   void *vk_data;
+
+   bool compilation_required;
+
+   struct radv_shader_stage *stages;
+
+   struct radv_graphics_pipeline_key key;
+
+   struct radv_pipeline_layout layout;
+};
+
+void radv_graphics_pipeline_hash(const struct radv_device *device, const struct radv_graphics_pipeline_state *gfx_state,
+                                 unsigned char *hash);
+
+VkResult radv_generate_graphics_pipeline_state(struct radv_device *device,
+                                               const VkGraphicsPipelineCreateInfo *pCreateInfo,
+                                               struct radv_graphics_pipeline_state *gfx_state);
+
+void radv_graphics_pipeline_state_finish(struct radv_device *device, struct radv_graphics_pipeline_state *gfx_state);
+
 #endif /* RADV_PIPELINE_GRAPHICS_H */

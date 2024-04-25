@@ -18,16 +18,6 @@
 #include "radv_rmv.h"
 #include "radv_shader.h"
 
-struct radv_ray_tracing_state_key {
-   uint32_t stage_count;
-   struct radv_ray_tracing_stage *stages;
-
-   uint32_t group_count;
-   struct radv_ray_tracing_group *groups;
-
-   struct radv_shader_stage_key stage_keys[MESA_VULKAN_SHADER_STAGES];
-};
-
 struct rt_handle_hash_entry {
    uint32_t key;
    char hash[20];
@@ -833,7 +823,7 @@ compile_rt_prolog(struct radv_device *device, struct radv_ray_tracing_pipeline *
    pipeline->prolog->max_waves = radv_get_max_waves(device, config, &pipeline->prolog->info);
 }
 
-static void
+void
 radv_ray_tracing_pipeline_hash(const struct radv_device *device, const VkRayTracingPipelineCreateInfoKHR *pCreateInfo,
                                const struct radv_ray_tracing_state_key *rt_state, unsigned char *hash)
 {
@@ -933,14 +923,14 @@ done:
    return result;
 }
 
-static void
+void
 radv_ray_tracing_state_key_finish(struct radv_ray_tracing_state_key *rt_state)
 {
    free(rt_state->stages);
    free(rt_state->groups);
 }
 
-static VkResult
+VkResult
 radv_generate_ray_tracing_state_key(struct radv_device *device, const VkRayTracingPipelineCreateInfoKHR *pCreateInfo,
                                     struct radv_ray_tracing_state_key *rt_state)
 {

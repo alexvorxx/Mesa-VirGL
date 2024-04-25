@@ -154,7 +154,7 @@ radv_compile_cs(struct radv_device *device, struct vk_pipeline_cache *cache, str
    return cs_shader;
 }
 
-static void
+void
 radv_compute_pipeline_hash(const struct radv_device *device, const VkComputePipelineCreateInfo *pCreateInfo,
                            unsigned char *hash)
 {

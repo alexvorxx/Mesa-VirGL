@@ -99,6 +99,26 @@ struct radv_ray_tracing_stage {
    uint8_t sha1[SHA1_DIGEST_LENGTH];
 };
 
+struct radv_ray_tracing_state_key {
+   uint32_t stage_count;
+   struct radv_ray_tracing_stage *stages;
+
+   uint32_t group_count;
+   struct radv_ray_tracing_group *groups;
+
+   struct radv_shader_stage_key stage_keys[MESA_VULKAN_SHADER_STAGES];
+};
+
 void radv_destroy_ray_tracing_pipeline(struct radv_device *device, struct radv_ray_tracing_pipeline *pipeline);
+
+void radv_ray_tracing_pipeline_hash(const struct radv_device *device,
+                                    const VkRayTracingPipelineCreateInfoKHR *pCreateInfo,
+                                    const struct radv_ray_tracing_state_key *rt_state, unsigned char *hash);
+
+VkResult radv_generate_ray_tracing_state_key(struct radv_device *device,
+                                             const VkRayTracingPipelineCreateInfoKHR *pCreateInfo,
+                                             struct radv_ray_tracing_state_key *rt_state);
+
+void radv_ray_tracing_state_key_finish(struct radv_ray_tracing_state_key *rt_state);
 
 #endif /* RADV_PIPELINE_RT */

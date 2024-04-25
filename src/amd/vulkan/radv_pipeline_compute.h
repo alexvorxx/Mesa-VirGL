@@ -62,4 +62,7 @@ VkResult radv_compute_pipeline_create(VkDevice _device, VkPipelineCache _cache,
 
 void radv_destroy_compute_pipeline(struct radv_device *device, struct radv_compute_pipeline *pipeline);
 
+void radv_compute_pipeline_hash(const struct radv_device *device, const VkComputePipelineCreateInfo *pCreateInfo,
+                                unsigned char *hash);
+
 #endif /* RADV_PIPELINE_COMPUTE_H */
