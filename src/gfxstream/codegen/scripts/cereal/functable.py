@@ -111,7 +111,6 @@ HANDWRITTEN_ENTRY_POINTS = [
     "vkEnumeratePhysicalDeviceGroups",
     "vkCreateDevice",
     "vkDestroyDevice",
-    "vkCreateComputePipelines",
     # Manual alloc/free + vk_*_init/free() call w/ special params
     "vkGetDeviceQueue",
     "vkGetDeviceQueue2",
@@ -124,44 +123,23 @@ HANDWRITTEN_ENTRY_POINTS = [
     "vkResetCommandPool",
     # Special cases to handle struct translations in the pNext chain
     # TODO: Make a codegen module (use deepcopy as reference) to make this more robust
-    "vkCmdBeginRenderPass2KHR",
-    "vkCmdBeginRenderPass",
     "vkAllocateMemory",
     "vkUpdateDescriptorSets",
-    "vkQueueCommitDescriptorSetUpdatesGOOGLE",
 ]
 
-# TODO: handles with no equivalent gfxstream objects (yet).
-#  Might need some special handling.
-HANDLES_DONT_TRANSLATE = {
-    "VkSurfaceKHR",
-    ## The following objects have no need for mesa counterparts
-    # Allows removal of handwritten create/destroy (for array).
-    "VkDescriptorSet",
-    # Bug in translation
-    "VkSampler",
-    "VkSamplerYcbcrConversion",
-}
-
-# Handles whose gfxstream object have non-base-object vk_ structs
-# Optionally includes array of pairs of extraParams: {index, extraParam}
-# -1 means drop parameter of paramName specified by extraParam
-HANDLES_MESA_VK = {
-    # Handwritten handlers (added here for completeness)
-    "VkInstance" : None,
-    "VkPhysicalDevice" : None,
-    "VkDevice" : None,
-    "VkQueue" : None,
-    "VkCommandPool" : None,
-    "VkCommandBuffer" : None,
-    # Auto-generated creation/destroy
-    "VkDeviceMemory" : None,
-    "VkQueryPool" : None,
-    "VkBuffer" : [[-1, "pMemoryRequirements"]],
-    "VkBufferView" : None,
-    "VkImage" : [[-1, "pMemoryRequirements"]],
-    "VkImageView": [[1, "false /* driver_internal */"]],
-    "VkSampler" : None,
+# Handles that need to be translated to/from their corresponding gfxstream object types
+HANDLES_TRANSLATE = {
+    "VkInstance",
+    "VkPhysicalDevice",
+    "VkDevice",
+    "VkQueue",
+    "VkCommandPool",
+    "VkCommandBuffer",
+    "VkFence",
+    "VkSemaphore",
+    # TODO: What part of WSI needs Mesa object backings for VkImage/VkBuffer?
+    "VkBuffer",
+    "VkImage",
 }
 
 # Types that have a corresponding method for transforming
@@ -214,9 +192,6 @@ def typeNameToObjectType(typeName):
 
 def transformListFuncName(typeName):
     return "transform%sList" % (typeName)
-
-def hasMesaVkObject(typeName):
-    return typeName in HANDLES_MESA_VK
 
 def isAllocatorParam(param):
     ALLOCATOR_TYPE_NAME = "VkAllocationCallbacks"
@@ -278,7 +253,7 @@ class VulkanFuncTable(VulkanWrapperGenerator):
             return typeInfo.isCompoundType(typeName)
 
         def handleTranslationRequired(typeName):
-            return typeName in HANDLE_TYPES and typeName not in HANDLES_DONT_TRANSLATE
+            return typeName in HANDLE_TYPES and typeName in HANDLES_TRANSLATE
 
         def translationRequired(typeName):
             if isCompoundType(typeName):
@@ -301,28 +276,17 @@ class VulkanFuncTable(VulkanWrapperGenerator):
             for p in api.parameters:
                 if isAllocatorParam(p):
                     allocatorParam = p.paramName
-            if not hasMesaVkObject(destroyParam.typeName):
-                deviceParam = api.parameters[0]
-                if "VkDevice" != deviceParam.typeName:
-                    print("ERROR: Unhandled non-VkDevice parameters[0]: %s (for API: %s)" %(deviceParam.typeName, api.name))
-                    raise
-                # call vk_object_free() directly
-                mesaObjectDestroy = "(void *)%s" % objectName
-                cgen.funcCall(
-                    None,
-                    "vk_object_free",
-                    ["&%s->vk" % paramNameToObjectName(deviceParam.paramName), allocatorParam, mesaObjectDestroy]
-                )
-            else:
-                baseName = typeNameToBaseName(destroyParam.typeName)
-                # objectName for destroy always at the back
-                mesaObjectPrimary = "&%s->vk" % paramNameToObjectName(api.parameters[0].paramName)
-                mesaObjectDestroy = "&%s->vk" % objectName
-                cgen.funcCall(
-                    None,
-                    "vk_%s_destroy" % (baseName),
-                    [mesaObjectPrimary, allocatorParam, mesaObjectDestroy]
-                )
+            deviceParam = api.parameters[0]
+            if "VkDevice" != deviceParam.typeName:
+                print("ERROR: Unhandled non-VkDevice parameters[0]: %s (for API: %s)" %(deviceParam.typeName, api.name))
+                raise
+            # call vk_object_free() directly
+            mesaObjectDestroy = "(void *)%s" % objectName
+            cgen.funcCall(
+                None,
+                "vk_object_free",
+                ["&%s->vk" % paramNameToObjectName(deviceParam.paramName), allocatorParam, mesaObjectDestroy]
+            )
 
         def genMesaObjectAlloc(allocCallLhs):
             deviceParam = api.parameters[0]
@@ -342,37 +306,6 @@ class VulkanFuncTable(VulkanWrapperGenerator):
                 ["&%s->vk" % paramNameToObjectName(deviceParam.paramName), allocatorParam, ("sizeof(%s)" % objectType), typeNameToVkObjectType(createParam.typeName)]
             )
 
-        def genMesaObjectCreate(createCallLhs):
-            def dropParam(params, drop):
-                for p in params:
-                    if p == drop:
-                        params.remove(p)
-                return params
-            createParam = getCreateParam(api)
-            objectType = "struct %s" % typeNameToObjectType(createParam.typeName)
-            modParams = copy.deepcopy(api.parameters)
-            # Mod params for the vk_%s_create() call i.e. vk_buffer_create()
-            for p in modParams:
-                if p.paramName == createParam.paramName:
-                    modParams.remove(p)
-                elif handleTranslationRequired(p.typeName):
-                    # Cast handle to the mesa type
-                    p.paramName = ("(%s*)%s" % (typeNameToMesaType(p.typeName), paramNameToObjectName(p.paramName)))
-            mesaCreateParams = [p.paramName for p in modParams] + ["sizeof(%s)" % objectType]
-            # Some special handling
-            extraParams = HANDLES_MESA_VK[createParam.typeName]
-            if extraParams:
-                for pair in extraParams:
-                    if -1 == pair[0]:
-                        mesaCreateParams = dropParam(mesaCreateParams, pair[1])
-                    else:
-                        mesaCreateParams.insert(pair[0], pair[1])
-            cgen.funcCall(
-                createCallLhs,
-                "(%s *)vk_%s_create" % (objectType, typeNameToBaseName(createParam.typeName)),
-                mesaCreateParams
-            )
-
         # Alloc/create gfxstream_vk_* object
         def genCreateGfxstreamObjects():
             createParam = getCreateParam(api)
@@ -382,10 +315,7 @@ class VulkanFuncTable(VulkanWrapperGenerator):
                 return False
             objectType = "struct %s" % typeNameToObjectType(createParam.typeName)
             callLhs = "%s *%s" % (objectType, paramNameToObjectName(createParam.paramName))
-            if hasMesaVkObject(createParam.typeName):
-                genMesaObjectCreate(callLhs)
-            else:
-                genMesaObjectAlloc(callLhs)
+            genMesaObjectAlloc(callLhs)
 
             retVar = api.getRetVarExpr()
             if retVar:
