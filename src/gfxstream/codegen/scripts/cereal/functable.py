@@ -137,9 +137,8 @@ HANDLES_TRANSLATE = {
     "VkCommandBuffer",
     "VkFence",
     "VkSemaphore",
-    # TODO: What part of WSI needs Mesa object backings for VkImage/VkBuffer?
+    # TODO: Still need this translation to avoid descriptorSets crash
     "VkBuffer",
-    "VkImage",
 }
 
 # Types that have a corresponding method for transforming

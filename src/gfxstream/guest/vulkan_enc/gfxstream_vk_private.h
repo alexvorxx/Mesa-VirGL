@@ -101,11 +101,6 @@ struct gfxstream_vk_command_buffer {
     VkCommandBuffer internal_object;
 };
 
-struct gfxstream_vk_image {
-    struct vk_image vk;
-    VkImage internal_object;
-};
-
 struct gfxstream_vk_fence {
     struct vk_fence vk;
     VkFence internal_object;
@@ -127,7 +122,6 @@ VK_DEFINE_HANDLE_CASTS(gfxstream_vk_queue, vk.base, VkQueue, VK_OBJECT_TYPE_QUEU
 VK_DEFINE_NONDISP_HANDLE_CASTS(gfxstream_vk_command_pool, vk.base, VkCommandPool,
                                VK_OBJECT_TYPE_COMMAND_POOL)
 VK_DEFINE_NONDISP_HANDLE_CASTS(gfxstream_vk_buffer, vk.base, VkBuffer, VK_OBJECT_TYPE_BUFFER)
-VK_DEFINE_NONDISP_HANDLE_CASTS(gfxstream_vk_image, vk.base, VkImage, VK_OBJECT_TYPE_IMAGE)
 VK_DEFINE_NONDISP_HANDLE_CASTS(gfxstream_vk_fence, vk.base, VkFence, VK_OBJECT_TYPE_FENCE)
 VK_DEFINE_NONDISP_HANDLE_CASTS(gfxstream_vk_semaphore, vk.base, VkSemaphore,
                                VK_OBJECT_TYPE_SEMAPHORE)

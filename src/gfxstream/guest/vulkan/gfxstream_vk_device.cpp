@@ -654,10 +654,6 @@ VkResult gfxstream_vk_AllocateMemory(VkDevice device, const VkMemoryAllocateInfo
             VK_FROM_HANDLE(gfxstream_vk_buffer, gfxstream_buffer, dedicatedAllocInfoPtr->buffer);
             dedicatedAllocInfoPtr->buffer = gfxstream_buffer->internal_object;
         }
-        if (dedicatedAllocInfoPtr->image) {
-            VK_FROM_HANDLE(gfxstream_vk_image, gfxstream_image, dedicatedAllocInfoPtr->image);
-            dedicatedAllocInfoPtr->image = gfxstream_image->internal_object;
-        }
     }
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
