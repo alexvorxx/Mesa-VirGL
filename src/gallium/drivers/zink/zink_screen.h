@@ -151,6 +151,18 @@ zink_screen_export_dmabuf_semaphore(struct zink_screen *screen, struct zink_reso
 bool
 zink_screen_import_dmabuf_semaphore(struct zink_screen *screen, struct zink_resource *res, VkSemaphore sem);
 
+static inline const struct zink_modifier_props *
+zink_get_modifier_props(struct zink_screen *screen, enum pipe_format pformat)
+{
+   return &screen->modifier_props[pformat];
+}
+
+static inline const struct zink_format_props *
+zink_get_format_props(struct zink_screen *screen, enum pipe_format pformat)
+{
+   return &screen->format_props[pformat];
+}
+
 VkFormat
 zink_get_format(struct zink_screen *screen, enum pipe_format format);
 

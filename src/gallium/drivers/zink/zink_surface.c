@@ -155,8 +155,8 @@ static void
 apply_view_usage_for_format(struct zink_screen *screen, struct zink_resource *res, struct zink_surface *surface, enum pipe_format format, VkImageViewCreateInfo *ivci)
 {
    VkFormatFeatureFlags feats = res->linear ?
-                                screen->format_props[format].linearTilingFeatures :
-                                screen->format_props[format].optimalTilingFeatures;
+                                zink_get_format_props(screen, format)->linearTilingFeatures :
+                                zink_get_format_props(screen, format)->optimalTilingFeatures;
    VkImageUsageFlags attachment = (VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
    surface->usage_info.usage = res->obj->vkusage & ~attachment;
    if (res->obj->modifier_aspect) {

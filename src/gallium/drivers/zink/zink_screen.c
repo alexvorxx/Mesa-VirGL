@@ -1495,42 +1495,42 @@ zink_is_format_supported(struct pipe_screen *pscreen,
          return false;
    }
 
-   struct zink_format_props props = screen->format_props[format];
+   const struct zink_format_props *props = zink_get_format_props(screen, format);
 
    if (target == PIPE_BUFFER) {
       if (bind & PIPE_BIND_VERTEX_BUFFER) {
-         if (!(props.bufferFeatures & VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT)) {
+         if (!(props->bufferFeatures & VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT)) {
             enum pipe_format new_format = zink_decompose_vertex_format(format);
             if (!new_format)
                return false;
-            if (!(screen->format_props[new_format].bufferFeatures & VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT))
+            if (!(zink_get_format_props(screen, new_format)->bufferFeatures & VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT))
                return false;
          }
       }
 
       if (bind & PIPE_BIND_SAMPLER_VIEW &&
-         !(props.bufferFeatures & VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT))
+         !(props->bufferFeatures & VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT))
             return false;
 
       if (bind & PIPE_BIND_SHADER_IMAGE &&
-          !(props.bufferFeatures & VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT))
+          !(props->bufferFeatures & VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT))
          return false;
    } else {
       /* all other targets are texture-targets */
       if (bind & PIPE_BIND_RENDER_TARGET &&
-          !(props.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT))
+          !(props->optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT))
          return false;
 
       if (bind & PIPE_BIND_BLENDABLE &&
-         !(props.optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT))
+         !(props->optimalTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT))
         return false;
 
       if (bind & PIPE_BIND_SAMPLER_VIEW &&
-         !(props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT))
+         !(props->optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT))
             return false;
 
       if (bind & PIPE_BIND_SAMPLER_REDUCTION_MINMAX &&
-          !(props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT))
+          !(props->optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT))
          return false;
 
       if ((bind & PIPE_BIND_SAMPLER_VIEW) || (bind & PIPE_BIND_RENDER_TARGET)) {
@@ -1542,11 +1542,11 @@ zink_is_format_supported(struct pipe_screen *pscreen,
       }
 
       if (bind & PIPE_BIND_DEPTH_STENCIL &&
-          !(props.optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT))
+          !(props->optimalTilingFeatures & VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT))
          return false;
 
       if (bind & PIPE_BIND_SHADER_IMAGE &&
-          !(props.optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT))
+          !(props->optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT))
          return false;
    }
 
@@ -2641,12 +2641,13 @@ static void
 zink_query_dmabuf_modifiers(struct pipe_screen *pscreen, enum pipe_format format, int max, uint64_t *modifiers, unsigned int *external_only, int *count)
 {
    struct zink_screen *screen = zink_screen(pscreen);
-   *count = screen->modifier_props[format].drmFormatModifierCount;
+   const struct zink_modifier_props *props = zink_get_modifier_props(screen, format);
+   *count = props->drmFormatModifierCount;
    for (int i = 0; i < MIN2(max, *count); i++) {
       if (external_only)
          external_only[i] = 0;
 
-      modifiers[i] = screen->modifier_props[format].pDrmFormatModifierProperties[i].drmFormatModifier;
+      modifiers[i] = props->pDrmFormatModifierProperties[i].drmFormatModifier;
    }
 }
 
@@ -2654,8 +2655,9 @@ static bool
 zink_is_dmabuf_modifier_supported(struct pipe_screen *pscreen, uint64_t modifier, enum pipe_format format, bool *external_only)
 {
    struct zink_screen *screen = zink_screen(pscreen);
-   for (unsigned i = 0; i < screen->modifier_props[format].drmFormatModifierCount; i++)
-      if (screen->modifier_props[format].pDrmFormatModifierProperties[i].drmFormatModifier == modifier)
+   const struct zink_modifier_props *props = zink_get_modifier_props(screen, format);
+   for (unsigned i = 0; i < props->drmFormatModifierCount; i++)
+      if (props->pDrmFormatModifierProperties[i].drmFormatModifier == modifier)
          return true;
    return false;
 }
@@ -2664,9 +2666,10 @@ static unsigned
 zink_get_dmabuf_modifier_planes(struct pipe_screen *pscreen, uint64_t modifier, enum pipe_format format)
 {
    struct zink_screen *screen = zink_screen(pscreen);
-   for (unsigned i = 0; i < screen->modifier_props[format].drmFormatModifierCount; i++)
-      if (screen->modifier_props[format].pDrmFormatModifierProperties[i].drmFormatModifier == modifier)
-         return screen->modifier_props[format].pDrmFormatModifierProperties[i].drmFormatModifierPlaneCount;
+   const struct zink_modifier_props *props = zink_get_modifier_props(screen, format);
+   for (unsigned i = 0; i < props->drmFormatModifierCount; i++)
+      if (props->pDrmFormatModifierProperties[i].drmFormatModifier == modifier)
+         return props->pDrmFormatModifierProperties[i].drmFormatModifierPlaneCount;
    return util_format_get_num_planes(format);
 }
 
@@ -2732,7 +2735,7 @@ zink_get_sparse_texture_virtual_page_size(struct pipe_screen *pscreen,
    VkImageUsageFlags use_flags = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
                                  VK_IMAGE_USAGE_STORAGE_BIT;
    use_flags |= is_zs ? VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT : VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-   VkImageUsageFlags flags = screen->format_props[pformat].optimalTilingFeatures & use_flags;
+   VkImageUsageFlags flags = zink_get_format_props(screen, pformat)->optimalTilingFeatures & use_flags;
    VkSparseImageFormatProperties props[4]; //planar?
    unsigned prop_count = ARRAY_SIZE(props);
    VKSCR(GetPhysicalDeviceSparseImageFormatProperties)(screen->pdev, format, type,

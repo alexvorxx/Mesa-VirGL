@@ -549,7 +549,7 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
    *mod = DRM_FORMAT_MOD_INVALID;
    if (modifiers_count) {
       bool have_linear = false;
-      const struct zink_modifier_props *prop = &screen->modifier_props[templ->format];
+      const struct zink_modifier_props *prop = zink_get_modifier_props(screen, templ->format);
       assert(tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT);
       bool found = false;
       uint64_t good_mod = 0;
@@ -595,8 +595,8 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
          }
       }
    } else {
-      struct zink_format_props props = screen->format_props[templ->format];
-      VkFormatFeatureFlags2 feats = tiling == VK_IMAGE_TILING_LINEAR ? props.linearTilingFeatures : props.optimalTilingFeatures;
+      const struct zink_format_props *props = zink_get_format_props(screen, templ->format);
+      VkFormatFeatureFlags2 feats = tiling == VK_IMAGE_TILING_LINEAR ? props->linearTilingFeatures : props->optimalTilingFeatures;
       if (feats & VK_FORMAT_FEATURE_2_DISJOINT_BIT && util_format_get_num_planes(templ->format))
          ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
       if (ici->flags & VK_IMAGE_CREATE_EXTENDED_USAGE_BIT)
@@ -837,10 +837,10 @@ get_format_feature_flags(VkImageCreateInfo ici, struct zink_screen *screen, cons
    VkFormatFeatureFlags feats = 0;
    switch (ici.tiling) {
    case VK_IMAGE_TILING_LINEAR:
-      feats = screen->format_props[templ->format].linearTilingFeatures;
+      feats = zink_get_format_props(screen, templ->format)->linearTilingFeatures;
       break;
    case VK_IMAGE_TILING_OPTIMAL:
-      feats = screen->format_props[templ->format].optimalTilingFeatures;
+      feats = zink_get_format_props(screen, templ->format)->optimalTilingFeatures;
       break;
    case VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT:
       feats = VK_FORMAT_FEATURE_FLAG_BITS_MAX_ENUM;
