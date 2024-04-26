@@ -1370,7 +1370,7 @@ struct zink_transfer {
 
 
 /** screen types */
-struct zink_modifier_prop {
+struct zink_modifier_props {
     uint32_t                             drmFormatModifierCount;
     VkDrmFormatModifierPropertiesEXT*    pDrmFormatModifierProperties;
 };
@@ -1523,7 +1523,7 @@ struct zink_screen {
    } driconf;
 
    struct zink_format_props format_props[PIPE_FORMAT_COUNT];
-   struct zink_modifier_prop modifier_props[PIPE_FORMAT_COUNT];
+   struct zink_modifier_props modifier_props[PIPE_FORMAT_COUNT];
 
    VkExtent2D maxSampleLocationGridSize[5];
    VkPipelineLayout gfx_push_constant_layout;

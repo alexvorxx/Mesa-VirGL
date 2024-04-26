@@ -463,7 +463,7 @@ get_image_usage_for_feats(struct zink_screen *screen, VkFormatFeatureFlags2 feat
 }
 
 static VkFormatFeatureFlags
-find_modifier_feats(const struct zink_modifier_prop *prop, uint64_t modifier, uint64_t *mod)
+find_modifier_feats(const struct zink_modifier_props *prop, uint64_t modifier, uint64_t *mod)
 {
    for (unsigned j = 0; j < prop->drmFormatModifierCount; j++) {
       if (prop->pDrmFormatModifierProperties[j].drmFormatModifier == modifier) {
@@ -549,7 +549,7 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
    *mod = DRM_FORMAT_MOD_INVALID;
    if (modifiers_count) {
       bool have_linear = false;
-      const struct zink_modifier_prop *prop = &screen->modifier_props[templ->format];
+      const struct zink_modifier_props *prop = &screen->modifier_props[templ->format];
       assert(tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT);
       bool found = false;
       uint64_t good_mod = 0;
