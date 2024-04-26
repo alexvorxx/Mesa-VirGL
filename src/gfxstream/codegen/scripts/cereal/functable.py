@@ -44,6 +44,8 @@ RESOURCE_TRACKER_ENTRIES = [
     # } end Warning: These need to be defined in vk.xml (currently no-op)
     "vkGetAndroidHardwareBufferPropertiesANDROID",
     "vkGetMemoryAndroidHardwareBufferANDROID",
+    "vkGetMemoryFdKHR",
+    "vkGetMemoryFdPropertiesKHR",
     "vkCreateSamplerYcbcrConversion",
     "vkDestroySamplerYcbcrConversion",
     "vkCreateSamplerYcbcrConversionKHR",

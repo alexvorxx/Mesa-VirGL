@@ -5596,6 +5596,42 @@ VkResult ResourceTracker::on_vkImportSemaphoreFdKHR(
 #endif
 }
 
+VkResult ResourceTracker::on_vkGetMemoryFdPropertiesKHR(
+    void* context, VkResult, VkDevice device, VkExternalMemoryHandleTypeFlagBits handleType, int fd,
+    VkMemoryFdPropertiesKHR* pMemoryFdProperties) {
+#if defined(__linux__) && !defined(VK_USE_PLATFORM_ANDROID_KHR)
+    if (!(handleType & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
+        ALOGE("%s: VK_KHR_external_memory_fd behavior not defined for handleType: 0x%x\n", __func__,
+              handleType);
+        return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+    }
+    // Sanity-check device
+    AutoLock<RecursiveLock> lock(mLock);
+    auto deviceIt = info_VkDevice.find(device);
+    if (deviceIt == info_VkDevice.end()) {
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+    // TODO: Verify FD valid ?
+    (void)fd;
+
+    if (mCaps.vulkanCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
+        mCaps.vulkanCapset.colorBufferMemoryIndex = getColorBufferMemoryIndex(context, device);
+    }
+
+    updateMemoryTypeBits(&pMemoryFdProperties->memoryTypeBits,
+                         mCaps.vulkanCapset.colorBufferMemoryIndex);
+
+    return VK_SUCCESS;
+#else
+    (void)context;
+    (void)device;
+    (void)handleType;
+    (void)fd;
+    (void)pMemoryFdProperties;
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
+#endif
+}
+
 VkResult ResourceTracker::on_vkGetMemoryFdKHR(void* context, VkResult, VkDevice device,
                                               const VkMemoryGetFdInfoKHR* pGetFdInfo, int* pFd) {
 #if defined(__linux__) && !defined(VK_USE_PLATFORM_ANDROID_KHR)

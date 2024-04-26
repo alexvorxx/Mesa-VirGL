@@ -122,11 +122,12 @@ SUPPORTED_FEATURES = [
     "VK_MVK_moltenvk",
     "VK_KHR_external_semaphore_win32",
     "VK_KHR_external_memory_win32",
-    "VK_KHR_external_memory_fd",
     # Android
     "VK_ANDROID_native_buffer",
     "VK_ANDROID_external_memory_android_hardware_buffer",
     "VK_KHR_android_surface",
+    # Linux
+    "VK_KHR_external_memory_fd",
     # Custom
     "VK_GOOGLE_gfxstream",
     # Used in tests without proper support checks
@@ -159,7 +160,8 @@ SUPPORTED_MODULES = {
     "VK_MVK_moltenvk": ["goldfish_vk_dispatch"],
     "VK_KHR_external_semaphore_win32" : ["goldfish_vk_dispatch"],
     "VK_KHR_external_memory_win32" : ["goldfish_vk_dispatch"],
-    "VK_KHR_external_memory_fd": ["goldfish_vk_dispatch"],
+    # Host dispatch for Linux hosts + and entrypoint for guests
+    "VK_KHR_external_memory_fd": ["goldfish_vk_dispatch", "func_table"],
     "VK_QNX_external_memory_screen_buffer": ["goldfish_vk_dispatch"],
     "VK_ANDROID_external_memory_android_hardware_buffer": ["func_table"],
     "VK_KHR_android_surface": ["func_table"],

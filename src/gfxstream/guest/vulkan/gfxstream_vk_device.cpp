@@ -760,29 +760,6 @@ void gfxstream_vk_CmdBeginRenderPass2KHR(VkCommandBuffer commandBuffer,
     }
 }
 
-VkResult gfxstream_vk_GetMemoryFdKHR(VkDevice device, const VkMemoryGetFdInfoKHR* pGetFdInfo,
-                                     int* pFd) {
-    AEMU_SCOPED_TRACE("vkGetMemoryFdKHR");
-    VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
-    VkResult vkGetMemoryFdKHR_VkResult_return = (VkResult)0;
-
-    {
-        auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        std::vector<VkMemoryGetFdInfoKHR> internal_pGetFdInfo(1);
-        for (uint32_t i = 0; i < 1; ++i) {
-            internal_pGetFdInfo[i] = pGetFdInfo[i];
-            /* VkMemoryGetFdInfoKHR::memory */
-            VK_FROM_HANDLE(gfxstream_vk_device_memory, gfxstream_memory,
-                           internal_pGetFdInfo[i].memory);
-            internal_pGetFdInfo[i].memory = gfxstream_memory->internal_object;
-        }
-        auto resources = gfxstream::vk::ResourceTracker::get();
-        vkGetMemoryFdKHR_VkResult_return = resources->on_vkGetMemoryFdKHR(
-            vkEnc, VK_SUCCESS, gfxstream_device->internal_object, internal_pGetFdInfo.data(), pFd);
-    }
-    return vkGetMemoryFdKHR_VkResult_return;
-}
-
 VkResult gfxstream_vk_EnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
                                                        VkLayerProperties* pProperties) {
     AEMU_SCOPED_TRACE("vkEnumerateInstanceLayerProperties");

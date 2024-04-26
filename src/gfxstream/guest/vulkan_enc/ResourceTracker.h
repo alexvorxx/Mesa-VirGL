@@ -272,6 +272,9 @@ class ResourceTracker {
 
     VkResult on_vkGetMemoryFdKHR(void* context, VkResult input_result, VkDevice device,
                                  const VkMemoryGetFdInfoKHR* pGetFdInfo, int* pFd);
+    VkResult on_vkGetMemoryFdPropertiesKHR(void* context, VkResult input_result, VkDevice device,
+                                           VkExternalMemoryHandleTypeFlagBits handleType, int fd,
+                                           VkMemoryFdPropertiesKHR* pMemoryFdProperties);
 
 #ifdef VK_USE_PLATFORM_FUCHSIA
     VkResult on_vkGetMemoryZirconHandleFUCHSIA(void* context, VkResult input_result,
