@@ -36,6 +36,7 @@ struct output_ctx;
 
 enum mpc_mpccid {
     MPC_MPCCID_0 = 0,
+    MPC_MPCCID_1 = 1,
     MPC_MPCCID_COUNT,
 };
 

@@ -61,7 +61,7 @@
         reg##reg_name##_##DEFAULT, false}
 
 #define SRIDFVL1(reg_name)                                                                          \
-    .reg_name = {BASE(reg##reg_name##_BASE_IDX) + reg##reg_name, reg##reg_name##_##DEFAULT,        \
+    .reg_name = {BASE(reg##reg_name##_BASE_IDX) + reg##reg_name, reg##reg_name##_##DEFAULT,         \
         reg##reg_name##_##DEFAULT, false}
 
 #define SRIDFVL2(reg_name, block, id)                                                                  \
@@ -69,7 +69,7 @@
         reg##block##id##_##reg_name##_##DEFAULT, reg##block##id##_##reg_name##_##DEFAULT, false}
 
 #define SRIDFVL3(reg_name, block, id)                                                                  \
-    .block##_##reg_name = {BASE(reg##block##_##reg_name##_BASE_IDX) + reg##block##_##reg_name, \
+    .block##_##reg_name = {BASE(reg##block##_##reg_name##_BASE_IDX) + reg##block##_##reg_name,         \
         reg##block##_##reg_name##_##DEFAULT, reg##block##_##reg_name##_##DEFAULT, false}
 
 /***************** CDC registers ****************/

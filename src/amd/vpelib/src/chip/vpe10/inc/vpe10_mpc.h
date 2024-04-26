@@ -136,12 +136,11 @@ extern "C" {
         SRIDFVL(VPMPCC_MCM_1DLUT_RAMA_REGION_28_29, VPMPCC_MCM, id),                               \
         SRIDFVL(VPMPCC_MCM_1DLUT_RAMA_REGION_30_31, VPMPCC_MCM, id),                               \
         SRIDFVL(VPMPCC_MCM_1DLUT_RAMA_REGION_32_33, VPMPCC_MCM, id),                               \
-        SRIDFVL(VPMPCC_MCM_MEM_PWR_CTRL, VPMPCC_MCM, id)
-       
+        SRIDFVL(VPMPCC_MCM_MEM_PWR_CTRL, VPMPCC_MCM, id)     
 
 #define MPC_REG_LIST_VPE10(id)                                                                     \
     MPC_REG_LIST_VPE10_COMMON(id),                                                                 \
-     SRIDFVL(VPMPCC_MCM_SHAPER_CONTROL, VPMPCC_MCM, id),                                           \
+        SRIDFVL(VPMPCC_MCM_SHAPER_CONTROL, VPMPCC_MCM, id),                                        \
         SRIDFVL(VPMPCC_MCM_SHAPER_OFFSET_R, VPMPCC_MCM, id),                                       \
         SRIDFVL(VPMPCC_MCM_SHAPER_OFFSET_G, VPMPCC_MCM, id),                                       \
         SRIDFVL(VPMPCC_MCM_SHAPER_OFFSET_B, VPMPCC_MCM, id),                                       \
@@ -908,7 +907,6 @@ extern "C" {
     reg_id_val VPMPCC_MCM_1DLUT_RAMA_REGION_28_29;                                                 \
     reg_id_val VPMPCC_MCM_1DLUT_RAMA_REGION_30_31;                                                 \
     reg_id_val VPMPCC_MCM_1DLUT_RAMA_REGION_32_33;                                                 \
-    reg_id_val VPMPCC_MCM_MEM_PWR_CTRL;
 
 #define MPC_REG_VARIABLE_LIST_VPE10                                                                \
     MPC_REG_VARIABLE_LIST_VPE10_COMMON                                                             \
@@ -952,7 +950,8 @@ extern "C" {
     reg_id_val VPMPCC_MCM_3DLUT_OUT_NORM_FACTOR;                                                   \
     reg_id_val VPMPCC_MCM_3DLUT_OUT_OFFSET_R;                                                      \
     reg_id_val VPMPCC_MCM_3DLUT_OUT_OFFSET_G;                                                      \
-    reg_id_val VPMPCC_MCM_3DLUT_OUT_OFFSET_B;
+    reg_id_val VPMPCC_MCM_3DLUT_OUT_OFFSET_B;                                                      \
+    reg_id_val VPMPCC_MCM_MEM_PWR_CTRL;
 
 
 #define MPC_FIELD_VARIABLE_LIST_VPE10_COMMON(type)                                                 \
@@ -1253,17 +1252,9 @@ extern "C" {
     type VPMPCC_MCM_1DLUT_RAMA_EXP_REGION32_NUM_SEGMENTS;                                          \
     type VPMPCC_MCM_1DLUT_RAMA_EXP_REGION33_LUT_OFFSET;                                            \
     type VPMPCC_MCM_1DLUT_RAMA_EXP_REGION33_NUM_SEGMENTS;                                          \
-    type VPMPCC_MCM_SHAPER_MEM_PWR_FORCE;                                                          \
-    type VPMPCC_MCM_SHAPER_MEM_PWR_DIS;                                                            \
-    type VPMPCC_MCM_SHAPER_MEM_LOW_PWR_MODE;                                                       \
-    type VPMPCC_MCM_3DLUT_MEM_PWR_FORCE;                                                           \
-    type VPMPCC_MCM_3DLUT_MEM_PWR_DIS;                                                             \
-    type VPMPCC_MCM_3DLUT_MEM_LOW_PWR_MODE;                                                        \
     type VPMPCC_MCM_1DLUT_MEM_PWR_FORCE;                                                           \
     type VPMPCC_MCM_1DLUT_MEM_PWR_DIS;                                                             \
     type VPMPCC_MCM_1DLUT_MEM_LOW_PWR_MODE;                                                        \
-    type VPMPCC_MCM_SHAPER_MEM_PWR_STATE;                                                          \
-    type VPMPCC_MCM_3DLUT_MEM_PWR_STATE;                                                           \
     type VPMPCC_MCM_1DLUT_MEM_PWR_STATE;
 
 #define MPC_FIELD_VARIABLE_LIST_VPE10(type)                                                        \
@@ -1379,7 +1370,16 @@ extern "C" {
     type VPMPCC_MCM_3DLUT_OUT_OFFSET_G;                                                            \
     type VPMPCC_MCM_3DLUT_OUT_SCALE_G;                                                             \
     type VPMPCC_MCM_3DLUT_OUT_OFFSET_B;                                                            \
-    type VPMPCC_MCM_3DLUT_OUT_SCALE_B;
+    type VPMPCC_MCM_3DLUT_OUT_SCALE_B;                                                             \
+    type VPMPCC_MCM_SHAPER_MEM_PWR_STATE;                                                          \
+    type VPMPCC_MCM_3DLUT_MEM_PWR_STATE;                                                           \
+    type VPMPCC_MCM_SHAPER_MEM_PWR_FORCE;                                                          \
+    type VPMPCC_MCM_SHAPER_MEM_PWR_DIS;                                                            \
+    type VPMPCC_MCM_SHAPER_MEM_LOW_PWR_MODE;                                                       \
+    type VPMPCC_MCM_3DLUT_MEM_PWR_FORCE;                                                           \
+    type VPMPCC_MCM_3DLUT_MEM_PWR_DIS;                                                             \
+    type VPMPCC_MCM_3DLUT_MEM_LOW_PWR_MODE;
+
 
 struct vpe10_mpc_registers {
     MPC_REG_VARIABLE_LIST_VPE10

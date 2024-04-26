@@ -427,3 +427,17 @@ unsigned int vpe_to_fixed_point(
     d_i = d_i & mask;
     return d_i;
 }
+
+struct fixed31_32 vpe_fixpt_from_float(float f_val)
+{
+    struct fixed31_32 res = vpe_fixpt_zero;
+    long long int_val     = (long long) f_val;
+    float fractional      = f_val - int_val;
+    long long frac_part   =
+        (long long)(fractional * (1LL << FIXED31_32_BITS_PER_FRACTIONAL_PART));
+
+    res.value =
+        (int_val << FIXED31_32_BITS_PER_FRACTIONAL_PART) | (frac_part & FRACTIONAL_PART_MASK);
+
+    return res;
+}
