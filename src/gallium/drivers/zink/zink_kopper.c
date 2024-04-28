@@ -87,8 +87,12 @@ kopper_CreateSurface(struct zink_screen *screen, struct kopper_displaytarget *cd
    switch (type) {
 #ifdef VK_USE_PLATFORM_XCB_KHR
    case VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR: {
+#ifdef GLX_USE_APPLE
+      error = VK_INCOMPLETE;
+#else
       VkXcbSurfaceCreateInfoKHR *xcb = (VkXcbSurfaceCreateInfoKHR *)&cdt->info.bos;
       error = VKSCR(CreateXcbSurfaceKHR)(screen->instance, xcb, NULL, &surface);
+#endif
       break;
    }
 #endif
@@ -568,6 +572,12 @@ kopper_acquire(struct zink_screen *screen, struct zink_resource *res, uint64_t t
       if (ret != VK_SUCCESS && ret != VK_SUBOPTIMAL_KHR) {
          if (ret == VK_ERROR_OUT_OF_DATE_KHR) {
             res->obj->new_dt = true;
+            continue;
+         }
+         if (ret == VK_NOT_READY || ret == VK_TIMEOUT) {
+            if (timeout > 1000000)
+               unreachable("kopper_acquire: updated timeout after failure has become unreasonable large");
+            timeout += 4000;
             continue;
          }
          VKSCR(DestroySemaphore)(screen->dev, acquire, NULL);

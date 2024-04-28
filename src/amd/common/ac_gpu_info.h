@@ -26,6 +26,7 @@ struct amd_ip_info {
    uint8_t ver_minor;
    uint8_t ver_rev;
    uint8_t num_queues;
+   uint8_t num_instances;
    uint32_t ib_alignment;
    uint32_t ib_pad_dw_mask;
 };
@@ -184,6 +185,9 @@ struct radeon_info {
    uint32_t uvd_fw_version;
    uint32_t vce_fw_version;
    uint32_t vce_harvest_config;
+   uint32_t vcn_dec_version;
+   uint32_t vcn_enc_major_version;
+   uint32_t vcn_enc_minor_version;
    struct video_caps_info {
       struct video_codec_cap {
          uint32_t valid;

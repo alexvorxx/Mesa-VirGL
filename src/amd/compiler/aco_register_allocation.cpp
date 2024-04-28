@@ -1,25 +1,7 @@
 /*
  * Copyright © 2018 Valve Corporation
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- *
+ * SPDX-License-Identifier: MIT
  */
 
 #include "aco_ir.h"
@@ -47,7 +29,8 @@ void add_subdword_operand(ra_ctx& ctx, aco_ptr<Instruction>& instr, unsigned idx
                           RegClass rc);
 std::pair<unsigned, unsigned>
 get_subdword_definition_info(Program* program, const aco_ptr<Instruction>& instr, RegClass rc);
-void add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg reg);
+void add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg reg,
+                             bool allow_16bit_write);
 
 struct assignment {
    PhysReg reg;
@@ -99,10 +82,8 @@ struct ra_ctx {
        : program(program_), assignments(program->peekAllocationId()),
          renames(program->blocks.size()), policy(policy_)
    {
-      pseudo_dummy.reset(
-         create_instruction<Pseudo_instruction>(aco_opcode::p_parallelcopy, Format::PSEUDO, 0, 0));
-      phi_dummy.reset(
-         create_instruction<Pseudo_instruction>(aco_opcode::p_linear_phi, Format::PSEUDO, 0, 0));
+      pseudo_dummy.reset(create_instruction(aco_opcode::p_parallelcopy, Format::PSEUDO, 0, 0));
+      phi_dummy.reset(create_instruction(aco_opcode::p_linear_phi, Format::PSEUDO, 0, 0));
       sgpr_limit = get_addr_sgpr_from_waves(program, program->min_waves);
       vgpr_limit = get_addr_vgpr_from_waves(program, program->min_waves);
 
@@ -636,7 +617,7 @@ get_subdword_definition_info(Program* program, const aco_ptr<Instruction>& instr
          return std::make_pair(4, rc.size() * 4u);
    }
 
-   if (instr->isVALU() || instr->isVINTRP()) {
+   if (instr->isVALU()) {
       assert(rc.bytes() <= 2);
 
       if (can_use_SDWA(gfx_level, instr, false))
@@ -655,6 +636,7 @@ get_subdword_definition_info(Program* program, const aco_ptr<Instruction>& instr
    }
 
    switch (instr->opcode) {
+   case aco_opcode::v_interp_p2_f16: return std::make_pair(2u, 2u);
    /* D16 loads with _hi version */
    case aco_opcode::ds_read_u8_d16:
    case aco_opcode::ds_read_i8_d16:
@@ -699,7 +681,8 @@ get_subdword_definition_info(Program* program, const aco_ptr<Instruction>& instr
 }
 
 void
-add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg reg)
+add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg reg,
+                        bool allow_16bit_write)
 {
    if (instr->isPseudo())
       return;
@@ -708,7 +691,7 @@ add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg r
       amd_gfx_level gfx_level = program->gfx_level;
       assert(instr->definitions[0].bytes() <= 2);
 
-      if (reg.byte() == 0 && instr_is_16bit(gfx_level, instr->opcode))
+      if (reg.byte() == 0 && allow_16bit_write && instr_is_16bit(gfx_level, instr->opcode))
          return;
 
       /* use SDWA */
@@ -716,6 +699,8 @@ add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg r
          convert_to_SDWA(gfx_level, instr);
          return;
       }
+
+      assert(allow_16bit_write);
 
       if (instr->opcode == aco_opcode::v_fma_mixlo_f16) {
          instr->opcode = aco_opcode::v_fma_mixhi_f16;
@@ -731,6 +716,8 @@ add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg r
 
    if (reg.byte() == 0)
       return;
+   else if (instr->opcode == aco_opcode::v_interp_p2_f16)
+      instr->opcode = aco_opcode::v_interp_p2_hi_f16;
    else if (instr->opcode == aco_opcode::buffer_load_ubyte_d16)
       instr->opcode = aco_opcode::buffer_load_ubyte_d16_hi;
    else if (instr->opcode == aco_opcode::buffer_load_sbyte_d16)
@@ -859,7 +846,7 @@ update_renames(ra_ctx& ctx, RegisterFile& reg_file,
       assert(ctx.assignments.size() == ctx.program->peekAllocationId());
 
       /* check if we moved an operand */
-      bool first = true;
+      bool first[2] = {true, true};
       bool fill = true;
       for (unsigned i = 0; i < instr->operands.size(); i++) {
          Operand& op = instr->operands[i];
@@ -867,25 +854,31 @@ update_renames(ra_ctx& ctx, RegisterFile& reg_file,
             continue;
          if (op.tempId() == copy.first.tempId()) {
             /* only rename precolored operands if the copy-location matches */
-            if ((flags & rename_precolored_ops) && op.isFixed() &&
-                op.physReg() != copy.second.physReg())
+            bool omit_renaming = (flags & rename_precolored_ops) && op.isFixed() &&
+                                 op.physReg() != copy.second.physReg();
+
+            /* Omit renaming in some cases for p_create_vector in order to avoid
+             * unnecessary shuffle code. */
+            if (!(flags & rename_not_killed_ops) && !op.isKillBeforeDef()) {
+               omit_renaming = true;
+               for (std::pair<Operand, Definition>& pc : parallelcopies) {
+                  PhysReg def_reg = pc.second.physReg();
+                  omit_renaming &= def_reg > copy.first.physReg()
+                                      ? (copy.first.physReg() + copy.first.size() <= def_reg.reg())
+                                      : (def_reg + pc.second.size() <= copy.first.physReg().reg());
+               }
+            }
+
+            /* Fix the kill flags */
+            if (first[omit_renaming])
+               op.setFirstKill(omit_renaming || op.isKill());
+            else
+               op.setKill(omit_renaming || op.isKill());
+            first[omit_renaming] = false;
+
+            if (omit_renaming)
                continue;
 
-            bool omit_renaming = !(flags & rename_not_killed_ops) && !op.isKillBeforeDef();
-            for (std::pair<Operand, Definition>& pc : parallelcopies) {
-               PhysReg def_reg = pc.second.physReg();
-               omit_renaming &= def_reg > copy.first.physReg()
-                                   ? (copy.first.physReg() + copy.first.size() <= def_reg.reg())
-                                   : (def_reg + pc.second.size() <= copy.first.physReg().reg());
-            }
-            if (omit_renaming) {
-               if (first)
-                  op.setFirstKill(true);
-               else
-                  op.setKill(true);
-               first = false;
-               continue;
-            }
             op.setTemp(copy.second.getTemp());
             op.setFixed(copy.second.physReg());
 
@@ -2237,8 +2230,7 @@ get_reg_phi(ra_ctx& ctx, IDSet& live_in, RegisterFile& register_file,
          pc.first.getTemp().is_linear() ? aco_opcode::p_linear_phi : aco_opcode::p_phi;
       Block::edge_vec& preds =
          pc.first.getTemp().is_linear() ? block.linear_preds : block.logical_preds;
-      aco_ptr<Instruction> new_phi{
-         create_instruction<Pseudo_instruction>(opcode, Format::PSEUDO, preds.size(), 1)};
+      aco_ptr<Instruction> new_phi{create_instruction(opcode, Format::PSEUDO, preds.size(), 1)};
       new_phi->definitions[0] = pc.second;
       for (unsigned i = 0; i < preds.size(); i++)
          new_phi->operands[i] = Operand(pc.first);
@@ -2382,8 +2374,7 @@ handle_live_in(ra_ctx& ctx, Temp val, Block* block)
 
       /* the variable has been renamed differently in the predecessors: we need to insert a phi */
       aco_opcode opcode = val.is_linear() ? aco_opcode::p_linear_phi : aco_opcode::p_phi;
-      aco_ptr<Instruction> phi{
-         create_instruction<Pseudo_instruction>(opcode, Format::PSEUDO, preds.size(), 1)};
+      aco_ptr<Instruction> phi{create_instruction(opcode, Format::PSEUDO, preds.size(), 1)};
       new_val = ctx.program->allocateTmp(val.regClass());
       phi->definitions[0] = Definition(new_val);
       ctx.assignments.emplace_back();
@@ -2848,10 +2839,8 @@ optimize_encoding_sopk(Program* program, ra_ctx& ctx, RegisterFile& register_fil
          return;
    }
 
-   static_assert(sizeof(SOPK_instruction) <= sizeof(SOP2_instruction),
-                 "Invalid direct instruction cast.");
    instr->format = Format::SOPK;
-   SOPK_instruction* instr_sopk = &instr->sopk();
+   SALU_instruction* instr_sopk = &instr->salu();
 
    instr_sopk->imm = instr_sopk->operands[literal_idx].constantValue() & 0xffff;
    if (literal_idx == 0)
@@ -2887,9 +2876,9 @@ emit_parallel_copy_internal(ra_ctx& ctx, std::vector<std::pair<Operand, Definiti
    if (parallelcopy.empty())
       return;
 
-   aco_ptr<Pseudo_instruction> pc;
-   pc.reset(create_instruction<Pseudo_instruction>(aco_opcode::p_parallelcopy, Format::PSEUDO,
-                                                   parallelcopy.size(), parallelcopy.size()));
+   aco_ptr<Instruction> pc;
+   pc.reset(create_instruction(aco_opcode::p_parallelcopy, Format::PSEUDO, parallelcopy.size(),
+                               parallelcopy.size()));
    bool linear_vgpr = false;
    bool sgpr_operands_alias_defs = false;
    uint64_t sgpr_operands[4] = {0, 0, 0, 0};
@@ -2937,8 +2926,8 @@ emit_parallel_copy_internal(ra_ctx& ctx, std::vector<std::pair<Operand, Definiti
 
       handle_pseudo(ctx, tmp_file, pc.get());
    } else {
-      pc->needs_scratch_reg = sgpr_operands_alias_defs || linear_vgpr;
-      pc->tmp_in_scc = false;
+      pc->pseudo().needs_scratch_reg = sgpr_operands_alias_defs || linear_vgpr;
+      pc->pseudo().tmp_in_scc = false;
    }
 
    instructions.emplace_back(std::move(pc));
@@ -3236,7 +3225,8 @@ register_allocation(Program* program, live& live_vars, ra_test_policy policy)
                   PhysReg reg = get_reg(ctx, register_file, tmp, parallelcopy, instr);
                   definition->setFixed(reg);
                   if (reg.byte() || register_file.test(reg, 4)) {
-                     add_subdword_definition(program, instr, reg);
+                     bool allow_16bit_write = reg.byte() % 2 == 0 && !register_file.test(reg, 2);
+                     add_subdword_definition(program, instr, reg, allow_16bit_write);
                      definition = &instr->definitions[i]; /* add_subdword_definition can invalidate
                                                              the reference */
                   }
@@ -3319,11 +3309,9 @@ register_allocation(Program* program, live& live_vars, ra_test_policy policy)
 
                aco_ptr<Instruction> mov;
                if (can_sgpr)
-                  mov.reset(create_instruction<SOP1_instruction>(aco_opcode::s_mov_b32,
-                                                                 Format::SOP1, 1, 1));
+                  mov.reset(create_instruction(aco_opcode::s_mov_b32, Format::SOP1, 1, 1));
                else
-                  mov.reset(create_instruction<VALU_instruction>(aco_opcode::v_mov_b32,
-                                                                 Format::VOP1, 1, 1));
+                  mov.reset(create_instruction(aco_opcode::v_mov_b32, Format::VOP1, 1, 1));
                mov->operands[0] = instr->operands[0];
                mov->definitions[0] = Definition(tmp);
                mov->definitions[0].setFixed(reg);
@@ -3345,9 +3333,12 @@ register_allocation(Program* program, live& live_vars, ra_test_policy policy)
 
       if ((block.kind & block_kind_top_level) && block.linear_succs.empty()) {
          /* Reset this for block_kind_resume. */
-         ASSERTED PhysRegInterval linear_vgpr_bounds = get_reg_bounds(ctx, RegType::vgpr, true);
-         assert(register_file.count_zero(linear_vgpr_bounds) == linear_vgpr_bounds.size);
          ctx.num_linear_vgprs = 0;
+
+         ASSERTED PhysRegInterval vgpr_bounds = get_reg_bounds(ctx, RegType::vgpr, false);
+         ASSERTED PhysRegInterval sgpr_bounds = get_reg_bounds(ctx, RegType::sgpr, false);
+         assert(register_file.count_zero(vgpr_bounds) == ctx.vgpr_bounds);
+         assert(register_file.count_zero(sgpr_bounds) == ctx.sgpr_bounds);
       } else if (should_compact_linear_vgprs(ctx, live_vars, register_file)) {
          aco_ptr<Instruction> br = std::move(instructions.back());
          instructions.pop_back();

@@ -348,8 +348,9 @@ dzn_physical_device_init_uuids(struct dzn_physical_device *pdev)
    _mesa_sha1_init(&sha1_ctx);
    _mesa_sha1_update(&sha1_ctx,  mesa_version, strlen(mesa_version));
    disk_cache_get_function_identifier(dzn_physical_device_init_uuids, &sha1_ctx);
-   _mesa_sha1_update(&sha1_ctx,  &pdev->options, sizeof(pdev->options));
-   _mesa_sha1_update(&sha1_ctx,  &pdev->options2, sizeof(pdev->options2));
+   _mesa_sha1_update(&sha1_ctx, &pdev->options,
+      offsetof(struct dzn_physical_device, options21) + sizeof(pdev->options21) -
+                     offsetof(struct dzn_physical_device, options));
    _mesa_sha1_final(&sha1_ctx, sha1);
    memcpy(pdev->pipeline_cache_uuid, sha1, VK_UUID_SIZE);
 
@@ -435,6 +436,9 @@ dzn_physical_device_cache_caps(struct dzn_physical_device *pdev)
       pdev->options19.MaxSamplerDescriptorHeapSize = D3D12_MAX_SHADER_VISIBLE_SAMPLER_HEAP_SIZE;
       pdev->options19.MaxSamplerDescriptorHeapSizeWithStaticSamplers = pdev->options19.MaxSamplerDescriptorHeapSize;
       pdev->options19.MaxViewDescriptorHeapSize = D3D12_MAX_SHADER_VISIBLE_DESCRIPTOR_HEAP_SIZE_TIER_1;
+   }
+   if (FAILED(ID3D12Device1_CheckFeatureSupport(pdev->dev, D3D12_FEATURE_D3D12_OPTIONS21, &pdev->options21, sizeof(pdev->options21)))) {
+      pdev->options21.ExecuteIndirectTier = D3D12_EXECUTE_INDIRECT_TIER_1_0;
    }
    {
       D3D12_FEATURE_DATA_FORMAT_SUPPORT a4b4g4r4_support = {
@@ -3810,6 +3814,7 @@ dzn_GetMemoryFdPropertiesKHR(VkDevice _device,
    if (heap_desc.Properties.Type != D3D12_HEAP_TYPE_CUSTOM)
       heap_desc.Properties = dzn_ID3D12Device4_GetCustomHeapProperties(device->dev, 0, heap_desc.Properties.Type);
 
+   pProperties->memoryTypeBits = 0;
    for (uint32_t i = 0; i < pdev->memory.memoryTypeCount; ++i) {
       const VkMemoryType *mem_type = &pdev->memory.memoryTypes[i];
       D3D12_HEAP_PROPERTIES required_props = deduce_heap_properties_from_memory(pdev, mem_type);
@@ -3852,6 +3857,7 @@ dzn_GetMemoryHostPointerPropertiesEXT(VkDevice _device,
 
    struct dzn_physical_device *pdev = container_of(device->vk.physical, struct dzn_physical_device, vk);
    D3D12_HEAP_DESC heap_desc = dzn_ID3D12Heap_GetDesc(heap);
+   pMemoryHostPointerProperties->memoryTypeBits = 0;
    for (uint32_t i = 0; i < pdev->memory.memoryTypeCount; ++i) {
       const VkMemoryType *mem_type = &pdev->memory.memoryTypes[i];
       D3D12_HEAP_PROPERTIES required_props = deduce_heap_properties_from_memory(pdev, mem_type);

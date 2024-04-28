@@ -39,7 +39,7 @@ MESA_VERSION=$(sed 's/\./\\./g' "$INSTALL/VERSION")
 
 
 # Set the Vulkan driver to use.
-export VK_ICD_FILENAMES="$INSTALL/share/vulkan/icd.d/${VK_DRIVER}_icd.x86_64.json"
+export VK_DRIVER_FILES="$INSTALL/share/vulkan/icd.d/${VK_DRIVER}_icd.x86_64.json"
 
 # Set environment for Wine.
 export WINEDEBUG="-all"

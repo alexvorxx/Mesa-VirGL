@@ -191,6 +191,8 @@ struct pipe_picture_desc
    enum pipe_format input_format;
    bool input_full_range;
    enum pipe_format output_format;
+   /* Flush flags for pipe_video_codec::end_frame */
+   unsigned flush_flags;
    /* A fence used on PIPE_VIDEO_ENTRYPOINT_DECODE/PROCESSING to signal job completion */
    struct pipe_fence_handle **fence;
 };
@@ -2011,6 +2013,21 @@ union pipe_enc_cap_roi {
       uint32_t roi_rc_qp_delta_support         : 1;
       uint32_t reserved                        : 22;
 
+   } bits;
+   uint32_t value;
+};
+
+union pipe_enc_cap_surface_alignment {
+   struct {
+      /**
+       * log2_width_alignment
+       */
+      uint32_t log2_width_alignment                 : 4;
+      /**
+       * log2_height_alignment
+       */
+      uint32_t log2_height_alignment                : 4;
+      uint32_t reserved                             : 24;
    } bits;
    uint32_t value;
 };

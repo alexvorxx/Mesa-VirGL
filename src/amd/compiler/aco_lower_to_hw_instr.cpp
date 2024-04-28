@@ -1,25 +1,7 @@
 /*
  * Copyright © 2018 Valve Corporation
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- *
+ * SPDX-License-Identifier: MIT
  */
 
 #include "aco_builder.h"
@@ -601,13 +583,13 @@ emit_reduction(lower_context* ctx, aco_opcode op, ReduceOp reduce_op, unsigned c
 
    if (src.regClass() == v1b) {
       if (ctx->program->gfx_level >= GFX8 && ctx->program->gfx_level < GFX11) {
-         aco_ptr<SDWA_instruction> sdwa{create_instruction<SDWA_instruction>(
-            aco_opcode::v_mov_b32, asSDWA(Format::VOP1), 1, 1)};
+         aco_ptr<Instruction> sdwa{
+            create_instruction(aco_opcode::v_mov_b32, asSDWA(Format::VOP1), 1, 1)};
          sdwa->operands[0] = Operand(PhysReg{tmp}, v1);
          sdwa->definitions[0] = Definition(PhysReg{tmp}, v1);
          bool sext = reduce_op == imin8 || reduce_op == imax8;
-         sdwa->sel[0] = SubdwordSel(1, 0, sext);
-         sdwa->dst_sel = SubdwordSel::dword;
+         sdwa->sdwa().sel[0] = SubdwordSel(1, 0, sext);
+         sdwa->sdwa().dst_sel = SubdwordSel::dword;
          bld.insert(std::move(sdwa));
       } else {
          aco_opcode opcode;
@@ -624,13 +606,13 @@ emit_reduction(lower_context* ctx, aco_opcode op, ReduceOp reduce_op, unsigned c
       bool is_add_cmp = reduce_op == iadd16 || reduce_op == imax16 || reduce_op == imin16 ||
                         reduce_op == umin16 || reduce_op == umax16;
       if (ctx->program->gfx_level >= GFX10 && ctx->program->gfx_level < GFX11 && is_add_cmp) {
-         aco_ptr<SDWA_instruction> sdwa{create_instruction<SDWA_instruction>(
-            aco_opcode::v_mov_b32, asSDWA(Format::VOP1), 1, 1)};
+         aco_ptr<Instruction> sdwa{
+            create_instruction(aco_opcode::v_mov_b32, asSDWA(Format::VOP1), 1, 1)};
          sdwa->operands[0] = Operand(PhysReg{tmp}, v1);
          sdwa->definitions[0] = Definition(PhysReg{tmp}, v1);
          bool sext = reduce_op == imin16 || reduce_op == imax16 || reduce_op == iadd16;
-         sdwa->sel[0] = SubdwordSel(2, 0, sext);
-         sdwa->dst_sel = SubdwordSel::dword;
+         sdwa->sdwa().sel[0] = SubdwordSel(2, 0, sext);
+         sdwa->sdwa().dst_sel = SubdwordSel::dword;
          bld.insert(std::move(sdwa));
       } else if (ctx->program->gfx_level <= GFX7 ||
                  (ctx->program->gfx_level >= GFX11 && is_add_cmp)) {
@@ -1403,7 +1385,7 @@ do_copy(lower_context* ctx, Builder& bld, const copy_operation& copy, bool* pres
                if (def.physReg().byte() == 1) {
                   bld.vop2(aco_opcode::v_mul_u32_u24, dst, Operand::c32((1 << bits) + 1u), op);
                } else if (def.physReg().byte() == 2) {
-                  bld.vop2(aco_opcode::v_cvt_pk_u16_u32, dst, Operand(lo_reg, v2b), op);
+                  bld.vop3(aco_opcode::v_cvt_pk_u16_u32, dst, Operand(lo_reg, v2b), op);
                } else if (def.physReg().byte() == 3) {
                   bld.sop1(aco_opcode::s_mov_b32, Definition(scratch_sgpr, s1),
                            Operand::c32((1 << bits) + 1u));
@@ -2154,9 +2136,9 @@ emit_set_mode(Builder& bld, float_mode new_mode, bool set_round, bool set_denorm
 {
    if (bld.program->gfx_level >= GFX10) {
       if (set_round)
-         bld.sopp(aco_opcode::s_round_mode, -1, new_mode.round);
+         bld.sopp(aco_opcode::s_round_mode, new_mode.round);
       if (set_denorm)
-         bld.sopp(aco_opcode::s_denorm_mode, -1, new_mode.denorm);
+         bld.sopp(aco_opcode::s_denorm_mode, new_mode.denorm);
    } else if (set_round || set_denorm) {
       /* "((size - 1) << 11) | register" (MODE is encoded as register 1) */
       bld.sopk(aco_opcode::s_setreg_imm32_b32, Operand::literal32(new_mode.val), (7 << 11) | 1);
@@ -2164,13 +2146,17 @@ emit_set_mode(Builder& bld, float_mode new_mode, bool set_round, bool set_denorm
 }
 
 void
-emit_set_mode_from_block(Builder& bld, Program& program, Block* block, bool always_set)
+emit_set_mode_from_block(Builder& bld, Program& program, Block* block)
 {
-   float_mode config_mode;
-   config_mode.val = program.config->float_mode;
+   float_mode initial;
+   initial.val = program.config->float_mode;
 
-   bool set_round = always_set && block->fp_mode.round != config_mode.round;
-   bool set_denorm = always_set && block->fp_mode.denorm != config_mode.denorm;
+   bool inital_unknown =
+      (program.info.merged_shader_compiled_separately && program.stage.sw == SWStage::GS) ||
+      (program.info.merged_shader_compiled_separately && program.stage.sw == SWStage::TCS);
+   bool is_start = block->index == 0;
+   bool set_round = is_start && (inital_unknown || block->fp_mode.round != initial.round);
+   bool set_denorm = is_start && (inital_unknown || block->fp_mode.denorm != initial.denorm);
    if (block->kind & block_kind_top_level) {
       for (unsigned pred : block->linear_preds) {
          if (program.blocks[pred].fp_mode.round != block->fp_mode.round)
@@ -2259,8 +2245,8 @@ lower_image_sample(lower_context* ctx, aco_ptr<Instruction>& instr)
    instr->mimg().strict_wqm = false;
 
    if ((3 + num_vaddr) > instr->operands.size()) {
-      MIMG_instruction* new_instr = create_instruction<MIMG_instruction>(
-         instr->opcode, Format::MIMG, 3 + num_vaddr, instr->definitions.size());
+      Instruction* new_instr =
+         create_instruction(instr->opcode, Format::MIMG, 3 + num_vaddr, instr->definitions.size());
       std::copy(instr->definitions.cbegin(), instr->definitions.cend(),
                 new_instr->definitions.begin());
       new_instr->operands[0] = instr->operands[0];
@@ -2299,7 +2285,7 @@ lower_to_hw_instr(Program* program)
       ctx.instructions.reserve(block->instructions.size());
       Builder bld(program, &ctx.instructions);
 
-      emit_set_mode_from_block(bld, *program, block, (block_idx == 0));
+      emit_set_mode_from_block(bld, *program, block);
 
       for (size_t instr_idx = 0; instr_idx < block->instructions.size(); instr_idx++) {
          aco_ptr<Instruction>& instr = block->instructions[instr_idx];
@@ -2313,7 +2299,7 @@ lower_to_hw_instr(Program* program)
               instr_idx == pops_done_msg_bounds.instr_after_end_idx()) ||
              (instr->opcode == aco_opcode::s_endpgm &&
               pops_done_msg_bounds.early_exit_needs_done_msg(block_idx, instr_idx))) {
-            bld.sopp(aco_opcode::s_sendmsg, -1, sendmsg_ordered_ps_done);
+            bld.sopp(aco_opcode::s_sendmsg, sendmsg_ordered_ps_done);
          }
 
          aco_ptr<Instruction> mov;
@@ -2457,11 +2443,10 @@ lower_to_hw_instr(Program* program)
                      pops_exit_wait_imm.vm = 0;
                      if (program->has_smem_buffer_or_global_loads)
                         pops_exit_wait_imm.lgkm = 0;
-                     bld.sopp(aco_opcode::s_waitcnt, -1,
-                              pops_exit_wait_imm.pack(program->gfx_level));
+                     bld.sopp(aco_opcode::s_waitcnt, pops_exit_wait_imm.pack(program->gfx_level));
                   }
                   if (discard_sends_pops_done)
-                     bld.sopp(aco_opcode::s_sendmsg, -1, sendmsg_ordered_ps_done);
+                     bld.sopp(aco_opcode::s_sendmsg, sendmsg_ordered_ps_done);
                   unsigned target = V_008DFC_SQ_EXP_NULL;
                   if (program->gfx_level >= GFX11)
                      target =
@@ -2470,7 +2455,7 @@ lower_to_hw_instr(Program* program)
                      bld.exp(aco_opcode::exp, Operand(v1), Operand(v1), Operand(v1), Operand(v1), 0,
                              target, false, true, true);
                   if (should_dealloc_vgprs)
-                     bld.sopp(aco_opcode::s_sendmsg, -1, sendmsg_dealloc_vgprs);
+                     bld.sopp(aco_opcode::s_sendmsg, sendmsg_dealloc_vgprs);
                   bld.sopp(aco_opcode::s_endpgm);
 
                   bld.reset(&ctx.instructions);
@@ -2698,9 +2683,22 @@ lower_to_hw_instr(Program* program)
                   }
                } else {
                   assert(dst.regClass() == v2b);
-                  bld.vop2_sdwa(aco_opcode::v_lshlrev_b32, dst, Operand::c32(offset), op)
-                     ->sdwa()
-                     .sel[1] = SubdwordSel::ubyte;
+                  if (!offset) {
+                     bld.vop1_sdwa(aco_opcode::v_mov_b32, dst, op)->sdwa().sel[0] =
+                        SubdwordSel::ubyte;
+                  } else if (program->gfx_level >= GFX9) {
+                     bld.vop2_sdwa(aco_opcode::v_lshlrev_b32, dst, Operand::c32(offset), op)
+                        ->sdwa()
+                        .sel[1] = SubdwordSel::ubyte;
+                  } else {
+                     assert(offset == 8);
+                     Definition dst_hi = Definition(dst.physReg().advance(1), v1b);
+                     bld.vop1_sdwa(aco_opcode::v_mov_b32, dst_hi, op)->sdwa().sel[0] =
+                        SubdwordSel::ubyte;
+                     uint32_t c = ~(BITFIELD_MASK(offset) << (dst.physReg().byte() * 8));
+                     bld.vop2(aco_opcode::v_and_b32, dst, Operand::c32(c),
+                              Operand(PhysReg(op.physReg().reg()), v1));
+                  }
                }
                break;
             }
@@ -2728,7 +2726,7 @@ lower_to_hw_instr(Program* program)
             }
             case aco_opcode::p_jump_to_epilog: {
                if (pops_done_msg_bounds.early_exit_needs_done_msg(block_idx, instr_idx)) {
-                  bld.sopp(aco_opcode::s_sendmsg, -1, sendmsg_ordered_ps_done);
+                  bld.sopp(aco_opcode::s_sendmsg, sendmsg_ordered_ps_done);
                }
                bld.sop1(aco_opcode::s_setpc_b64, instr->operands[0]);
                break;
@@ -2745,12 +2743,15 @@ lower_to_hw_instr(Program* program)
                unsigned attribute = instr->operands[1].constantValue();
                unsigned component = instr->operands[2].constantValue();
                uint16_t dpp_ctrl = 0;
+               bool high_16bits = false;
                Operand coord1, coord2;
-               if (instr->operands.size() == 6) {
-                  assert(instr->operands[3].regClass() == v1);
+               if (instr->operands.size() == 7) {
+                  assert(instr->operands[3].isConstant());
+                  high_16bits = instr->operands[3].constantValue();
                   assert(instr->operands[4].regClass() == v1);
-                  coord1 = instr->operands[3];
-                  coord2 = instr->operands[4];
+                  assert(instr->operands[5].regClass() == v1);
+                  coord1 = instr->operands[4];
+                  coord2 = instr->operands[5];
                } else {
                   assert(instr->operands[3].isConstant());
                   dpp_ctrl = instr->operands[3].constantValue();
@@ -2765,9 +2766,9 @@ lower_to_hw_instr(Program* program)
                   bld.vop1_dpp(aco_opcode::v_mov_b32, Definition(dst), p, dpp_ctrl);
                } else if (dst.regClass() == v2b) {
                   bld.vinterp_inreg(aco_opcode::v_interp_p10_f16_f32_inreg, Definition(dst), p,
-                                    coord1, p);
+                                    coord1, p, high_16bits ? 0x5 : 0);
                   bld.vinterp_inreg(aco_opcode::v_interp_p2_f16_f32_inreg, Definition(dst), p,
-                                    coord2, dst_op);
+                                    coord2, dst_op, high_16bits ? 0x1 : 0);
                } else {
                   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, Definition(dst), p, coord1,
                                     p);
@@ -2889,18 +2890,21 @@ lower_to_hw_instr(Program* program)
 
                for (aco_ptr<Instruction>& inst : program->blocks[i].instructions) {
                   if (inst->isSOPP()) {
-                     /* Discard early exits and loop breaks and continues should work fine with an
-                      * empty exec mask.
-                      */
-                     bool is_break_continue =
-                        program->blocks[i].kind & (block_kind_break | block_kind_continue);
-                     bool discard_early_exit =
-                        inst->sopp().block != -1 &&
-                        (program->blocks[inst->sopp().block].kind & block_kind_discard_early_exit);
-                     if ((inst->opcode != aco_opcode::s_cbranch_scc0 &&
-                          inst->opcode != aco_opcode::s_cbranch_scc1) ||
-                         (!discard_early_exit && !is_break_continue))
+                     if (instr_info.classes[(int)inst->opcode] == instr_class::branch) {
+                        /* Discard early exits and loop breaks and continues should work fine with
+                         * an empty exec mask.
+                         */
+                        bool is_break_continue =
+                           program->blocks[i].kind & (block_kind_break | block_kind_continue);
+                        bool discard_early_exit =
+                           program->blocks[inst->salu().imm].kind & block_kind_discard_early_exit;
+                        if ((inst->opcode != aco_opcode::s_cbranch_scc0 &&
+                             inst->opcode != aco_opcode::s_cbranch_scc1) ||
+                            (!discard_early_exit && !is_break_continue))
+                           can_remove = false;
+                     } else {
                         can_remove = false;
+                     }
                   } else if (inst->isSALU()) {
                      num_scalar++;
                   } else if (inst->isVALU() || inst->isVINTRP()) {
@@ -3032,7 +3036,7 @@ lower_to_hw_instr(Program* program)
        */
       if (block_idx == pops_done_msg_bounds.end_block_idx() &&
           pops_done_msg_bounds.instr_after_end_idx() >= block->instructions.size()) {
-         bld.sopp(aco_opcode::s_sendmsg, -1, sendmsg_ordered_ps_done);
+         bld.sopp(aco_opcode::s_sendmsg, sendmsg_ordered_ps_done);
       }
 
       block->instructions = std::move(ctx.instructions);

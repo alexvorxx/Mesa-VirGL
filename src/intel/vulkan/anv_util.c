@@ -89,7 +89,7 @@ anv_dump_pipe_bits(enum anv_pipe_bits bits, FILE *f)
        bits & ANV_PIPE_END_OF_PIPE_SYNC_BIT)
       fputs("+cs_stall ", f);
    if (bits & ANV_PIPE_UNTYPED_DATAPORT_CACHE_FLUSH_BIT)
-      fputs("+utdp_flush", f);
+      fputs("+utdp_flush ", f);
    if (bits & ANV_PIPE_CCS_CACHE_FLUSH_BIT)
       fputs("+ccs_flush ", f);
 }
@@ -123,9 +123,10 @@ anv_gfx_state_bit_to_str(enum anv_gfx_state_bits state)
       NAME(TASK_CONTROL);
       NAME(TASK_SHADER);
       NAME(TASK_REDISTRIB);
-      NAME(BLEND_STATE_POINTERS);
+      NAME(BLEND_STATE_PTR);
       NAME(CLIP);
       NAME(CC_STATE);
+      NAME(CC_STATE_PTR);
       NAME(CPS);
       NAME(DEPTH_BOUNDS);
       NAME(INDEX_BUFFER);
@@ -143,6 +144,7 @@ anv_gfx_state_bit_to_str(enum anv_gfx_state_bits state)
       NAME(VF_TOPOLOGY);
       NAME(VFG);
       NAME(VIEWPORT_CC);
+      NAME(VIEWPORT_CC_PTR);
       NAME(VIEWPORT_SF_CLIP);
       NAME(WM);
       NAME(WM_DEPTH_STENCIL);

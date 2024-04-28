@@ -1,25 +1,7 @@
 /*
  * Copyright © 2020 Valve Corporation
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- *
+ * SPDX-License-Identifier: MIT
  */
 #include <llvm/Config/llvm-config.h>
 
@@ -79,7 +61,7 @@ BEGIN_TEST(assembler.long_jump.unconditional_forwards)
    //! s_nop 0                                                     ; bf800000
    //!(then repeated 32767 times)
    for (unsigned i = 0; i < INT16_MAX + 1; i++)
-      bld.sopp(aco_opcode::s_nop, -1, 0);
+      bld.sopp(aco_opcode::s_nop, 0);
 
    //! BB2:
    //! s_endpgm                                                    ; bf810000
@@ -110,7 +92,7 @@ BEGIN_TEST(assembler.long_jump.conditional_forwards)
    //! s_nop 0 ; bf800000
    //!(then repeated 32767 times)
    for (unsigned i = 0; i < INT16_MAX + 1; i++)
-      bld.sopp(aco_opcode::s_nop, -1, 0);
+      bld.sopp(aco_opcode::s_nop, 0);
 
    //! BB2:
    //! s_endpgm                                                    ; bf810000
@@ -131,7 +113,7 @@ BEGIN_TEST(assembler.long_jump.unconditional_backwards)
    //! s_nop 0                                                     ; bf800000
    //!(then repeated 32767 times)
    for (unsigned i = 0; i < INT16_MAX + 1; i++)
-      bld.sopp(aco_opcode::s_nop, -1, 0);
+      bld.sopp(aco_opcode::s_nop, 0);
 
    //! s_getpc_b64 s[0:1]                                          ; be801f00
    //! s_addc_u32 s0, s0, 0xfffdfffc                               ; 8200ff00 fffdfffc
@@ -158,7 +140,7 @@ BEGIN_TEST(assembler.long_jump.conditional_backwards)
    //! s_nop 0                                                     ; bf800000
    //!(then repeated 32767 times)
    for (unsigned i = 0; i < INT16_MAX + 1; i++)
-      bld.sopp(aco_opcode::s_nop, -1, 0);
+      bld.sopp(aco_opcode::s_nop, 0);
 
    //! s_cbranch_execz BB1                                         ; bf880006
    //! s_getpc_b64 s[0:1]                                          ; be801f00
@@ -213,7 +195,7 @@ BEGIN_TEST(assembler.long_jump.constaddr)
    bld.reset(program->create_and_insert_block());
 
    for (unsigned i = 0; i < INT16_MAX + 1; i++)
-      bld.sopp(aco_opcode::s_nop, -1, 0);
+      bld.sopp(aco_opcode::s_nop, 0);
 
    bld.reset(program->create_and_insert_block());
 
@@ -249,7 +231,7 @@ BEGIN_TEST(assembler.long_jump.discard_early_exit)
    //!(then repeated 32766 times)
    //! s_endpgm                                                    ; bf810000
    for (unsigned i = 0; i < INT16_MAX; i++)
-      bld.sopp(aco_opcode::s_nop, -1, 1);
+      bld.sopp(aco_opcode::s_nop, 1);
 
    //! BB2:
    //! s_endpgm                                                    ; bf810000
@@ -269,8 +251,7 @@ BEGIN_TEST(assembler.v_add3)
 
       //~gfx9>> v_add3_u32 v0, 0, 0, 0 ; d1ff0000 02010080
       //~gfx10>> v_add3_u32 v0, 0, 0, 0 ; d76d0000 02010080
-      aco_ptr<VALU_instruction> add3{
-         create_instruction<VALU_instruction>(aco_opcode::v_add3_u32, Format::VOP3, 3, 1)};
+      aco_ptr<Instruction> add3{create_instruction(aco_opcode::v_add3_u32, Format::VOP3, 3, 1)};
       add3->operands[0] = Operand::zero();
       add3->operands[1] = Operand::zero();
       add3->operands[2] = Operand::zero();
@@ -288,13 +269,12 @@ BEGIN_TEST(assembler.v_add3_clamp)
 
       //~gfx9>> integer addition + clamp ; d1ff8000 02010080
       //~gfx10>> integer addition + clamp ; d76d8000 02010080
-      aco_ptr<VALU_instruction> add3{
-         create_instruction<VALU_instruction>(aco_opcode::v_add3_u32, Format::VOP3, 3, 1)};
+      aco_ptr<Instruction> add3{create_instruction(aco_opcode::v_add3_u32, Format::VOP3, 3, 1)};
       add3->operands[0] = Operand::zero();
       add3->operands[1] = Operand::zero();
       add3->operands[2] = Operand::zero();
       add3->definitions[0] = Definition(PhysReg(0), v1);
-      add3->clamp = 1;
+      add3->valu().clamp = 1;
       bld.insert(std::move(add3));
 
       finish_assembler_test();
@@ -741,6 +721,9 @@ BEGIN_TEST(assembler.gfx11.flat)
    //! scratch_load_b32 v42, v10, s32                              ; dc510000 2aa0000a
    bld.scratch(aco_opcode::scratch_load_dword, dst_v1, op_v1, op_s1);
 
+   //! scratch_load_b32 v42, off, off                              ; dc510000 2a7c0080
+   bld.scratch(aco_opcode::scratch_load_dword, dst_v1, Operand(v1), Operand(s1));
+
    //! global_load_b32 v42, v[20:21], off offset:-42               ; dc521fd6 2a7c0014
    bld.global(aco_opcode::global_load_dword, dst_v1, op_v2, Operand(s1), -42);
 
@@ -813,43 +796,43 @@ BEGIN_TEST(assembler.gfx11.vinterp)
    bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2);
 
    //! v_interp_p10_f32 v42, v10, v20, v30 wait_exp:6              ; cd00062a 047a290a
-   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2, 6);
+   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2, 0, 6);
 
    //; if llvm_ver >= 18:
    //;    insert_pattern('v_interp_p2_f32 v42, v10, v20, v30 wait_exp:0               ; cd01002a 047a290a')
    //; else:
    //;    insert_pattern('v_interp_p2_f32 v42, v10, v20, v30                          ; cd01002a 047a290a')
-   bld.vinterp_inreg(aco_opcode::v_interp_p2_f32_inreg, dst, op0, op1, op2, 0);
+   bld.vinterp_inreg(aco_opcode::v_interp_p2_f32_inreg, dst, op0, op1, op2, 0, 0);
 
    //! v_interp_p10_f32 v42, -v10, v20, v30 wait_exp:6             ; cd00062a 247a290a
-   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2, 6)
+   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2, 0, 6)
       ->vinterp_inreg()
       .neg[0] = true;
 
    //! v_interp_p10_f32 v42, v10, -v20, v30 wait_exp:6             ; cd00062a 447a290a
-   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2, 6)
+   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2, 0, 6)
       ->vinterp_inreg()
       .neg[1] = true;
 
    //! v_interp_p10_f32 v42, v10, v20, -v30 wait_exp:6             ; cd00062a 847a290a
-   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2, 6)
+   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2, 0, 6)
       ->vinterp_inreg()
       .neg[2] = true;
 
    //! v_interp_p10_f16_f32 v42, v10, v20, v30 op_sel:[1,0,0,0] wait_exp:6 ; cd020e2a 047a290a
-   bld.vinterp_inreg(aco_opcode::v_interp_p10_f16_f32_inreg, dst, op0, op1, op2, 6, 0x1);
+   bld.vinterp_inreg(aco_opcode::v_interp_p10_f16_f32_inreg, dst, op0, op1, op2, 0x1, 6);
 
    //! v_interp_p2_f16_f32 v42, v10, v20, v30 op_sel:[0,1,0,0] wait_exp:6 ; cd03162a 047a290a
-   bld.vinterp_inreg(aco_opcode::v_interp_p2_f16_f32_inreg, dst, op0, op1, op2, 6, 0x2);
+   bld.vinterp_inreg(aco_opcode::v_interp_p2_f16_f32_inreg, dst, op0, op1, op2, 0x2, 6);
 
    //! v_interp_p10_rtz_f16_f32 v42, v10, v20, v30 op_sel:[0,0,1,0] wait_exp:6 ; cd04262a 047a290a
-   bld.vinterp_inreg(aco_opcode::v_interp_p10_rtz_f16_f32_inreg, dst, op0, op1, op2, 6, 0x4);
+   bld.vinterp_inreg(aco_opcode::v_interp_p10_rtz_f16_f32_inreg, dst, op0, op1, op2, 0x4, 6);
 
    //! v_interp_p2_rtz_f16_f32 v42, v10, v20, v30 op_sel:[0,0,0,1] wait_exp:6 ; cd05462a 047a290a
-   bld.vinterp_inreg(aco_opcode::v_interp_p2_rtz_f16_f32_inreg, dst, op0, op1, op2, 6, 0x8);
+   bld.vinterp_inreg(aco_opcode::v_interp_p2_rtz_f16_f32_inreg, dst, op0, op1, op2, 0x8, 6);
 
    //! v_interp_p10_f32 v42, v10, v20, v30 clamp wait_exp:6        ; cd00862a 047a290a
-   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2, 6)
+   bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, dst, op0, op1, op2, 0, 6)
       ->vinterp_inreg()
       .clamp = true;
 
@@ -1113,4 +1096,47 @@ BEGIN_TEST(assembler.vopd)
             op_vcc, aco_opcode::v_dual_cndmask_b32);
 
    finish_assembler_test();
+END_TEST
+
+BEGIN_TEST(assembler.vintrp_high_16bits)
+   for (unsigned i = GFX8; i <= GFX10; i++) {
+      if (!setup_cs(NULL, (amd_gfx_level)i))
+         continue;
+
+      Definition dst_v0 = bld.def(v1);
+      dst_v0.setFixed(PhysReg(256));
+
+      Definition dst_v1 = bld.def(v1);
+      dst_v1.setFixed(PhysReg(256 + 1));
+
+      Operand op_v0(bld.tmp(v1));
+      op_v0.setFixed(PhysReg(256 + 0));
+
+      Operand op_v1(bld.tmp(v1));
+      op_v1.setFixed(PhysReg(256 + 1));
+
+      Operand op_v2(bld.tmp(v1));
+      op_v2.setFixed(PhysReg(256 + 2));
+
+      Operand op_m0(bld.tmp(s1));
+      op_m0.setFixed(m0);
+
+      aco_opcode interp_p2_op = aco_opcode::v_interp_p2_f16;
+
+      if (bld.program->gfx_level == GFX8)
+         interp_p2_op = aco_opcode::v_interp_p2_legacy_f16;
+
+      //! BB0:
+      //~gfx8! v_interp_p1ll_f16 v0, v1, attr4.y high                      ; d2740000 00020344
+      //~gfx9! v_interp_p1ll_f16 v0, v1, attr4.y high                      ; d2740000 00020344
+      //~gfx10! v_interp_p1ll_f16 v0, v1, attr4.y high                      ; d7420000 00020344
+      bld.vintrp(aco_opcode::v_interp_p1ll_f16, dst_v0, op_v1, op_m0, 4, 1, true);
+
+      //~gfx8! v_interp_p2_f16 v1, v2, attr4.y, v0 high                    ; d2760001 04020544
+      //~gfx9! v_interp_p2_f16 v1, v2, attr4.y, v0 high                    ; d2770001 04020544
+      //~gfx10! v_interp_p2_f16 v1, v2, attr4.y, v0 high                    ; d75a0001 04020544
+      bld.vintrp(interp_p2_op, dst_v1, op_v2, op_m0, op_v0, 4, 1, true);
+
+      finish_assembler_test();
+   }
 END_TEST

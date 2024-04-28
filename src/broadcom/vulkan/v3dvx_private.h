@@ -130,6 +130,9 @@ v3dX(cmd_buffer_emit_indexed_indirect)(struct v3dv_cmd_buffer *cmd_buffer,
 void
 v3dX(cmd_buffer_suspend)(struct v3dv_cmd_buffer *cmd_buffer);
 
+struct v3dv_job *
+v3dX(cmd_buffer_prepare_suspend_job_for_submit)(struct v3dv_job *job);
+
 void
 v3dX(get_hw_clear_color)(const VkClearColorValue *color,
                          uint32_t internal_type,
@@ -152,7 +155,7 @@ v3dX(framebuffer_compute_internal_bpp_msaa)(const struct v3dv_framebuffer *frame
                                             uint8_t *total_color_bpp,
                                             bool *msaa);
 
-#ifdef DEBUG
+#if MESA_DEBUG
 void
 v3dX(device_check_prepacked_sizes)(void);
 #endif
@@ -315,7 +318,8 @@ v3dX(pipeline_pack_state)(struct v3dv_pipeline *pipeline,
                           const VkPipelineRasterizationStateCreateInfo *rs_info,
                           const VkPipelineRasterizationProvokingVertexStateCreateInfoEXT *pv_info,
                           const VkPipelineRasterizationLineStateCreateInfoEXT *ls_info,
-                          const VkPipelineMultisampleStateCreateInfo *ms_info);
+                          const VkPipelineMultisampleStateCreateInfo *ms_info,
+                          const struct vk_graphics_pipeline_state *state);
 void
 v3dX(pipeline_pack_compile_state)(struct v3dv_pipeline *pipeline,
                                   const VkPipelineVertexInputStateCreateInfo *vi_info,
@@ -364,3 +368,6 @@ void
 v3dX(viewport_compute_xform)(const VkViewport *viewport,
                              float scale[3],
                              float translate[3]);
+
+uint32_t
+v3dX(translate_stencil_op)(VkStencilOp op);

@@ -1288,9 +1288,6 @@ static midgard_instruction
 emit_image_op(compiler_context *ctx, nir_intrinsic_instr *instr)
 {
    enum glsl_sampler_dim dim = nir_intrinsic_image_dim(instr);
-   unsigned nr_attr = ctx->stage == MESA_SHADER_VERTEX
-                         ? util_bitcount64(ctx->nir->info.inputs_read)
-                         : 0;
    unsigned nr_dim = glsl_get_sampler_dim_coordinate_components(dim);
    bool is_array = nir_intrinsic_image_array(instr);
    bool is_store = instr->intrinsic == nir_intrinsic_image_store;
@@ -1305,9 +1302,7 @@ emit_image_op(compiler_context *ctx, nir_intrinsic_instr *instr)
 
    /* For image opcodes, address is used as an index into the attribute
     * descriptor */
-   unsigned address = nr_attr;
-   if (is_direct)
-      address += nir_src_as_uint(*index);
+   unsigned address = is_direct ? nir_src_as_uint(*index) : 0;
 
    midgard_instruction ins;
    if (is_store) { /* emit st_image_* */
@@ -1387,7 +1382,6 @@ compute_builtin_arg(nir_intrinsic_op op)
    case nir_intrinsic_load_local_invocation_id:
       return REGISTER_LDST_LOCAL_THREAD_ID;
    case nir_intrinsic_load_global_invocation_id:
-   case nir_intrinsic_load_global_invocation_id_zero_base:
       return REGISTER_LDST_GLOBAL_THREAD_ID;
    default:
       unreachable("Invalid compute paramater loaded");
@@ -1875,7 +1869,6 @@ emit_intrinsic(compiler_context *ctx, nir_intrinsic_instr *instr)
    case nir_intrinsic_load_workgroup_id:
    case nir_intrinsic_load_local_invocation_id:
    case nir_intrinsic_load_global_invocation_id:
-   case nir_intrinsic_load_global_invocation_id_zero_base:
       emit_compute_builtin(ctx, instr);
       break;
 

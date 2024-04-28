@@ -65,13 +65,16 @@ class Enum:
 
 class Member:
     """Stores details needed to declare and serialize the member of a struct."""
-    def __init__(self, member_type, name, array=None, compiler_field=False, comment=None):
+    def __init__(self, member_type, name, array=None,
+                 compiler_field=False, ray_tracing_field=False,
+                 comment=None):
         self.member_type = member_type
         self.name = name
         self.array = array
         # indicates whether this field is used by the compiler, and whether it
         # should be included in the shader compiler cache hash function.
         self.compiler_field = compiler_field
+        self.ray_tracing_field = ray_tracing_field
         self.comment=comment
 
 class Struct:
@@ -84,6 +87,7 @@ class Struct:
 
 INT_TYPES = set(["uint8_t",
                  "uint16_t",
+                 "uint32_t",
                  "uint64_t",
                  "unsigned",
                  "int"])
@@ -238,11 +242,20 @@ Struct("intel_device_info",
 
         Member("int", "verx10", compiler_field=True),
 
+        Member("uint32_t", "gfx_ip_ver", compiler_field=True,
+               comment=dedent("""\
+               This is the run-time hardware GFX IP version that may be more specific
+               than ver/verx10. ver/verx10 may be more useful for comparing a class
+               of devices whereas gfx_ip_ver may be more useful for precisely
+               checking for a graphics ip type. GFX_IP_VER(major, minor) should be
+               used to compare IP versions.""")),
+
         Member("int", "revision",
                comment=dedent("""\
-               This revision is from ioctl (I915_PARAM_REVISION) unlike
+               This revision is queried from KMD unlike
                pci_revision_id from drm device. Its value is not always
-               same as the pci_revision_id.""")),
+               same as the pci_revision_id.
+               For LNL+ this is the stepping of GT IP/GMD RevId.""")),
 
         Member("int", "gt"),
         Member("uint16_t", "pci_domain", comment="PCI info"),
@@ -362,6 +375,7 @@ Struct("intel_device_info",
         Member("uint8_t", "subslice_masks",
                array="INTEL_DEVICE_MAX_SLICES * DIV_ROUND_UP(INTEL_DEVICE_MAX_SUBSLICES, 8)",
                compiler_field=True,
+               ray_tracing_field=True,
                comment=dedent("""\
                An array of bit mask of the subslices available, use subslice_slice_stride
                to access this array.""")),

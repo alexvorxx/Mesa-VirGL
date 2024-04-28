@@ -24,14 +24,8 @@
 /** @file brw_fs_combine_constants.cpp
  *
  * This file contains the opt_combine_constants() pass that runs after the
- * regular optimization loop. It passes over the instruction list and
- * selectively promotes immediate values to registers by emitting a mov(1)
- * instruction.
- *
- * This is useful on Gen 7 particularly, because a few instructions can be
- * coissued (i.e., issued in the same cycle as another thread on the same EU
- * issues an instruction) under some circumstances, one of which is that they
- * cannot use immediate values.
+ * regular optimization loop. It passes over the instruction list and promotes
+ * immediate values to registers by emitting a mov(1) instruction.
  */
 
 #include "brw_fs.h"
@@ -773,7 +767,6 @@ struct fs_inst_box {
    fs_inst *inst;
    unsigned ip;
    bblock_t *block;
-   bool must_promote;
 };
 
 /** A box for putting fs_regs in a linked list. */
@@ -838,15 +831,6 @@ struct imm {
    uint8_t subreg_offset;
    uint16_t nr;
 
-   /** The number of coissuable instructions using this immediate. */
-   uint16_t uses_by_coissue;
-
-   /**
-    * Whether this constant is used by an instruction that can't handle an
-    * immediate source (and already has to be promoted to a GRF).
-    */
-   bool must_promote;
-
    /** Is the value used only in a single basic block? */
    bool used_in_single_block;
 
@@ -885,7 +869,7 @@ new_value(struct table *table, void *mem_ctx)
  */
 static unsigned
 box_instruction(struct table *table, void *mem_ctx, fs_inst *inst,
-                unsigned ip, bblock_t *block, bool must_promote)
+                unsigned ip, bblock_t *block)
 {
    /* It is common for box_instruction to be called consecutively for each
     * source of an instruction.  As a result, the most common case for finding
@@ -913,7 +897,6 @@ box_instruction(struct table *table, void *mem_ctx, fs_inst *inst,
    ib->inst = inst;
    ib->block = block;
    ib->ip = ip;
-   ib->must_promote = must_promote;
 
    return idx;
 }
@@ -1021,7 +1004,7 @@ supports_src_as_imm(const struct intel_device_info *devinfo, const fs_inst *inst
        * sizes on Gfx12. On Gfx12.5, floating point sources must all be HF or
        * all be F.
        */
-      return devinfo->verx10 < 125 || inst->src[0].type != BRW_REGISTER_TYPE_F;
+      return devinfo->verx10 < 125 || inst->src[0].type != BRW_TYPE_F;
 
    default:
       return false;
@@ -1049,15 +1032,15 @@ can_promote_src_as_imm(const struct intel_device_info *devinfo, fs_inst *inst,
     *        since HF/F mixed mode has been removed from the hardware.
     */
    switch (inst->src[src_idx].type) {
-   case BRW_REGISTER_TYPE_F: {
+   case BRW_TYPE_F: {
       uint16_t hf;
       if (representable_as_hf(inst->src[src_idx].f, &hf)) {
-         inst->src[src_idx] = retype(brw_imm_uw(hf), BRW_REGISTER_TYPE_HF);
+         inst->src[src_idx] = retype(brw_imm_uw(hf), BRW_TYPE_HF);
          can_promote = true;
       }
       break;
    }
-   case BRW_REGISTER_TYPE_D: {
+   case BRW_TYPE_D: {
       int16_t w;
       if (representable_as_w(inst->src[src_idx].d, &w)) {
          inst->src[src_idx] = brw_imm_w(w);
@@ -1065,7 +1048,7 @@ can_promote_src_as_imm(const struct intel_device_info *devinfo, fs_inst *inst,
       }
       break;
    }
-   case BRW_REGISTER_TYPE_UD: {
+   case BRW_TYPE_UD: {
       uint16_t uw;
       if (representable_as_uw(inst->src[src_idx].ud, &uw)) {
          inst->src[src_idx] = brw_imm_uw(uw);
@@ -1073,9 +1056,9 @@ can_promote_src_as_imm(const struct intel_device_info *devinfo, fs_inst *inst,
       }
       break;
    }
-   case BRW_REGISTER_TYPE_W:
-   case BRW_REGISTER_TYPE_UW:
-   case BRW_REGISTER_TYPE_HF:
+   case BRW_TYPE_W:
+   case BRW_TYPE_UW:
+   case BRW_TYPE_HF:
       can_promote = true;
       break;
    default:
@@ -1088,7 +1071,6 @@ can_promote_src_as_imm(const struct intel_device_info *devinfo, fs_inst *inst,
 static void
 add_candidate_immediate(struct table *table, fs_inst *inst, unsigned ip,
                         unsigned i,
-                        bool must_promote,
                         bool allow_one_constant,
                         bblock_t *block,
                         const struct intel_device_info *devinfo,
@@ -1096,11 +1078,10 @@ add_candidate_immediate(struct table *table, fs_inst *inst, unsigned ip,
 {
    struct value *v = new_value(table, const_ctx);
 
-   unsigned box_idx = box_instruction(table, const_ctx, inst, ip, block,
-                                      must_promote);
+   unsigned box_idx = box_instruction(table, const_ctx, inst, ip, block);
 
    v->value.u64 = inst->src[i].d64;
-   v->bit_size = 8 * type_sz(inst->src[i].type);
+   v->bit_size = brw_type_size_bits(inst->src[i].type);
    v->instr_index = box_idx;
    v->src = i;
    v->allow_one_constant = allow_one_constant;
@@ -1112,30 +1093,29 @@ add_candidate_immediate(struct table *table, fs_inst *inst, unsigned ip,
    v->no_negations = !inst->can_do_source_mods(devinfo) ||
                      ((inst->opcode == BRW_OPCODE_SHR ||
                        inst->opcode == BRW_OPCODE_ASR) &&
-                      brw_reg_type_is_unsigned_integer(inst->src[i].type));
+                      brw_type_is_uint(inst->src[i].type));
 
    switch (inst->src[i].type) {
-   case BRW_REGISTER_TYPE_DF:
-   case BRW_REGISTER_TYPE_NF:
-   case BRW_REGISTER_TYPE_F:
-   case BRW_REGISTER_TYPE_HF:
+   case BRW_TYPE_DF:
+   case BRW_TYPE_F:
+   case BRW_TYPE_HF:
       v->type = float_only;
       break;
 
-   case BRW_REGISTER_TYPE_UQ:
-   case BRW_REGISTER_TYPE_Q:
-   case BRW_REGISTER_TYPE_UD:
-   case BRW_REGISTER_TYPE_D:
-   case BRW_REGISTER_TYPE_UW:
-   case BRW_REGISTER_TYPE_W:
+   case BRW_TYPE_UQ:
+   case BRW_TYPE_Q:
+   case BRW_TYPE_UD:
+   case BRW_TYPE_D:
+   case BRW_TYPE_UW:
+   case BRW_TYPE_W:
       v->type = integer_only;
       break;
 
-   case BRW_REGISTER_TYPE_VF:
-   case BRW_REGISTER_TYPE_UV:
-   case BRW_REGISTER_TYPE_V:
-   case BRW_REGISTER_TYPE_UB:
-   case BRW_REGISTER_TYPE_B:
+   case BRW_TYPE_VF:
+   case BRW_TYPE_UV:
+   case BRW_TYPE_V:
+   case BRW_TYPE_UB:
+   case BRW_TYPE_B:
    default:
       unreachable("not reached");
    }
@@ -1305,9 +1285,8 @@ brw_fs_opt_combine_constants(fs_visitor &s)
    const brw::idom_tree &idom = s.idom_analysis.require();
    unsigned ip = -1;
 
-   /* Make a pass through all instructions and count the number of times each
-    * constant is used by coissueable instructions or instructions that cannot
-    * take immediate arguments.
+   /* Make a pass through all instructions and mark each constant is used in
+    * instruction sources that cannot legally be immediate values.
     */
    foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
       ip++;
@@ -1317,7 +1296,7 @@ brw_fs_opt_combine_constants(fs_visitor &s)
       case SHADER_OPCODE_INT_REMAINDER:
       case SHADER_OPCODE_POW:
          if (inst->src[0].file == IMM) {
-            add_candidate_immediate(&table, inst, ip, 0, true, false, block,
+            add_candidate_immediate(&table, inst, ip, 0, false, block,
                                     devinfo, const_ctx);
          }
          break;
@@ -1331,7 +1310,7 @@ brw_fs_opt_combine_constants(fs_visitor &s)
             if (can_promote_src_as_imm(devinfo, inst, i))
                continue;
 
-            add_candidate_immediate(&table, inst, ip, i, true, false, block,
+            add_candidate_immediate(&table, inst, ip, i, false, block,
                                     devinfo, const_ctx);
          }
 
@@ -1345,7 +1324,7 @@ brw_fs_opt_combine_constants(fs_visitor &s)
             if (inst->src[i].file != IMM)
                continue;
 
-            add_candidate_immediate(&table, inst, ip, i, true, false, block,
+            add_candidate_immediate(&table, inst, ip, i, false, block,
                                     devinfo, const_ctx);
          }
 
@@ -1363,12 +1342,12 @@ brw_fs_opt_combine_constants(fs_visitor &s)
                 inst->conditional_mod == BRW_CONDITIONAL_L) {
                assert(inst->src[1].file == IMM);
 
-               add_candidate_immediate(&table, inst, ip, 0, true, true, block,
+               add_candidate_immediate(&table, inst, ip, 0, true, block,
                                        devinfo, const_ctx);
-               add_candidate_immediate(&table, inst, ip, 1, true, true, block,
+               add_candidate_immediate(&table, inst, ip, 1, true, block,
                                        devinfo, const_ctx);
             } else {
-               add_candidate_immediate(&table, inst, ip, 0, true, false, block,
+               add_candidate_immediate(&table, inst, ip, 0, false, block,
                                        devinfo, const_ctx);
             }
          }
@@ -1382,7 +1361,7 @@ brw_fs_opt_combine_constants(fs_visitor &s)
       case BRW_OPCODE_SHL:
       case BRW_OPCODE_SHR:
          if (inst->src[0].file == IMM) {
-            add_candidate_immediate(&table, inst, ip, 0, true, false, block,
+            add_candidate_immediate(&table, inst, ip, 0, false, block,
                                     devinfo, const_ctx);
          }
          break;
@@ -1411,8 +1390,6 @@ brw_fs_opt_combine_constants(fs_visitor &s)
       imm->d64 = result->values_to_emit[i].value.u64;
       imm->size = result->values_to_emit[i].bit_size / 8;
 
-      imm->uses_by_coissue = 0;
-      imm->must_promote = false;
       imm->is_half_float = false;
 
       imm->first_use_ip = UINT16_MAX;
@@ -1433,11 +1410,6 @@ brw_fs_opt_combine_constants(fs_visitor &s)
          imm->uses->push_tail(link(const_ctx, ib->inst, src,
                                    result->user_map[j].negate,
                                    result->user_map[j].type));
-
-         if (ib->must_promote)
-            imm->must_promote = true;
-         else
-            imm->uses_by_coissue++;
 
          if (imm->block == NULL) {
             /* Block should only be NULL on the first pass.  On the first
@@ -1483,15 +1455,11 @@ brw_fs_opt_combine_constants(fs_visitor &s)
             imm->block = intersection;
          }
 
-         if (ib->inst->src[src].type == BRW_REGISTER_TYPE_HF)
+         if (ib->inst->src[src].type == BRW_TYPE_HF)
             imm->is_half_float = true;
       }
 
-      /* Remove constants from the table that don't have enough uses to make
-       * them profitable to store in a register.
-       */
-      if (imm->must_promote || imm->uses_by_coissue >= 4)
-         table.len++;
+      table.len++;
    }
 
    delete result;
@@ -1602,7 +1570,7 @@ brw_fs_opt_combine_constants(fs_visitor &s)
       struct brw_reg imm_reg = build_imm_reg_for_copy(imm);
 
       /* Ensure we have enough space in the register to copy the immediate */
-      assert(reg.offset + type_sz(imm_reg.type) * width <= REG_SIZE);
+      assert(reg.offset + brw_type_size_bytes(imm_reg.type) * width <= REG_SIZE);
 
       ibld.MOV(retype(reg, imm_reg.type), imm_reg);
    }
@@ -1617,19 +1585,19 @@ brw_fs_opt_combine_constants(fs_visitor &s)
             if (link->type == either_type) {
                /* Do not change the register type. */
             } else if (link->type == integer_only) {
-               reg->type = brw_int_type(type_sz(reg->type), true);
+               reg->type = brw_int_type(brw_type_size_bytes(reg->type), true);
             } else {
                assert(link->type == float_only);
 
-               switch (type_sz(reg->type)) {
+               switch (brw_type_size_bytes(reg->type)) {
                case 2:
-                  reg->type = BRW_REGISTER_TYPE_HF;
+                  reg->type = BRW_TYPE_HF;
                   break;
                case 4:
-                  reg->type = BRW_REGISTER_TYPE_F;
+                  reg->type = BRW_TYPE_F;
                   break;
                case 8:
-                  reg->type = BRW_REGISTER_TYPE_DF;
+                  reg->type = BRW_TYPE_DF;
                   break;
                default:
                   unreachable("Bad type size");
@@ -1638,43 +1606,43 @@ brw_fs_opt_combine_constants(fs_visitor &s)
          } else if ((link->inst->opcode == BRW_OPCODE_SHL ||
                      link->inst->opcode == BRW_OPCODE_ASR) &&
                     link->negate) {
-            reg->type = brw_int_type(type_sz(reg->type), true);
+            reg->type = brw_int_type(brw_type_size_bytes(reg->type), true);
          }
 
-#ifdef DEBUG
+#if MESA_DEBUG
          switch (reg->type) {
-         case BRW_REGISTER_TYPE_DF:
+         case BRW_TYPE_DF:
             assert((isnan(reg->df) && isnan(table.imm[i].df)) ||
                    (fabs(reg->df) == fabs(table.imm[i].df)));
             break;
-         case BRW_REGISTER_TYPE_F:
+         case BRW_TYPE_F:
             assert((isnan(reg->f) && isnan(table.imm[i].f)) ||
                    (fabsf(reg->f) == fabsf(table.imm[i].f)));
             break;
-         case BRW_REGISTER_TYPE_HF:
+         case BRW_TYPE_HF:
             assert((isnan(_mesa_half_to_float(reg->d & 0xffffu)) &&
                     isnan(_mesa_half_to_float(table.imm[i].w))) ||
                    (fabsf(_mesa_half_to_float(reg->d & 0xffffu)) ==
                     fabsf(_mesa_half_to_float(table.imm[i].w))));
             break;
-         case BRW_REGISTER_TYPE_Q:
+         case BRW_TYPE_Q:
             assert(abs(reg->d64) == abs(table.imm[i].d64));
             break;
-         case BRW_REGISTER_TYPE_UQ:
+         case BRW_TYPE_UQ:
             assert(!link->negate);
             assert(reg->d64 == table.imm[i].d64);
             break;
-         case BRW_REGISTER_TYPE_D:
+         case BRW_TYPE_D:
             assert(abs(reg->d) == abs(table.imm[i].d));
             break;
-         case BRW_REGISTER_TYPE_UD:
+         case BRW_TYPE_UD:
             assert(!link->negate);
             assert(reg->d == table.imm[i].d);
             break;
-         case BRW_REGISTER_TYPE_W:
+         case BRW_TYPE_W:
             assert(abs((int16_t) (reg->d & 0xffff)) == table.imm[i].w);
             break;
-         case BRW_REGISTER_TYPE_UW:
+         case BRW_TYPE_UW:
             assert(!link->negate);
             assert((reg->ud & 0xffffu) == (uint16_t) table.imm[i].w);
             break;
@@ -1746,13 +1714,11 @@ brw_fs_opt_combine_constants(fs_visitor &s)
 
          fprintf(stderr,
                  "0x%016" PRIx64 " - block %3d, reg %3d sub %2d, "
-                 "Uses: (%2d, %2d), IP: %4d to %4d, length %4d\n",
+                 "IP: %4d to %4d, length %4d\n",
                  (uint64_t)(imm->d & BITFIELD64_MASK(imm->size * 8)),
                  imm->block->num,
                  imm->nr,
                  imm->subreg_offset,
-                 imm->must_promote,
-                 imm->uses_by_coissue,
                  imm->first_use_ip,
                  imm->last_use_ip,
                  imm->last_use_ip - imm->first_use_ip);

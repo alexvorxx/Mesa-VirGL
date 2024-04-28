@@ -143,7 +143,7 @@ export PYTHONPATH=$(python3 -c "import sys;print(\":\".join(sys.path))")
 if [ -n "$MESA_LOADER_DRIVER_OVERRIDE" ]; then
   rm /install/lib/dri/!($MESA_LOADER_DRIVER_OVERRIDE)_dri.so
 fi
-ls -1 /install/lib/dri/*_dri.so
+ls -1 /install/lib/dri/*_dri.so || true
 
 if [ "$HWCI_FREQ_MAX" = "true" ]; then
   # Ensure initialization of the DRM device (needed by MSM)
@@ -212,11 +212,7 @@ fi
 if [ -n "$HWCI_START_XORG" ]; then
   echo "touch /xorg-started; sleep 100000" > /xorg-script
   env \
-
-    VK_ICD_FILENAMES=/install/share/vulkan/icd.d/${VK_DRIVER}_icd.`uname -m`.json \
-
-    VK_ICD_FILENAMES="/install/share/vulkan/icd.d/${VK_DRIVER}_icd.$(uname -m).json" \
-
+    VK_DRIVER_FILES="/install/share/vulkan/icd.d/${VK_DRIVER}_icd.$(uname -m).json" \
     xinit /bin/sh /xorg-script -- /usr/bin/Xorg -noreset -s 0 -dpms -logfile /Xorg.0.log &
   BACKGROUND_PIDS="$! $BACKGROUND_PIDS"
 
@@ -247,7 +243,7 @@ if [ -n "$HWCI_START_WESTON" ]; then
   mkdir -p /tmp/.X11-unix
 
   env \
-    VK_ICD_FILENAMES="/install/share/vulkan/icd.d/${VK_DRIVER}_icd.$(uname -m).json" \
+    VK_DRIVER_FILES="/install/share/vulkan/icd.d/${VK_DRIVER}_icd.$(uname -m).json" \
     weston -Bheadless-backend.so --use-gl -Swayland-0 --xwayland --idle-time=0 &
   BACKGROUND_PIDS="$! $BACKGROUND_PIDS"
 
@@ -272,7 +268,7 @@ cleanup
 # upload artifacts
 if [ -n "$S3_RESULTS_UPLOAD" ]; then
   tar --zstd -cf results.tar.zst results/;
-  ci-fairy s3cp --token-file "${CI_JOB_JWT_FILE}" results.tar.zst https://"$S3_RESULTS_UPLOAD"/results.tar.zst;
+  ci-fairy s3cp --token-file "${S3_JWT_FILE}" results.tar.zst https://"$S3_RESULTS_UPLOAD"/results.tar.zst;
 fi
 
 # We still need to echo the hwci: mesa message, as some scripts rely on it, such

@@ -49,8 +49,8 @@ static const struct debug_named_value shader_debug_options[] = {
    {"nopreamble", IR3_DBG_NOPREAMBLE, "Disable the preamble pass"},
    {"fullsync",   IR3_DBG_FULLSYNC,   "Add (sy) + (ss) after each cat5/cat6"},
    {"fullnop",    IR3_DBG_FULLNOP,    "Add nops before each instruction"},
-#ifdef DEBUG
-   /* DEBUG-only options: */
+#if MESA_DEBUG
+   /* MESA_DEBUG-only options: */
    {"schedmsgs",  IR3_DBG_SCHEDMSGS,  "Enable scheduler debug messages"},
    {"ramsgs",     IR3_DBG_RAMSGS,     "Enable register-allocation debug messages"},
 #endif
@@ -74,6 +74,7 @@ ir3_compiler_destroy(struct ir3_compiler *compiler)
 }
 
 static const nir_shader_compiler_options ir3_base_options = {
+   .compact_arrays = true,
    .lower_fpow = true,
    .lower_scmp = true,
    .lower_flrp16 = true,
@@ -124,6 +125,8 @@ static const nir_shader_compiler_options ir3_base_options = {
 
    .lower_int64_options = (nir_lower_int64_options)~0,
    .lower_doubles_options = (nir_lower_doubles_options)~0,
+
+   .divergence_analysis_options = nir_divergence_uniform_load_tears,
 };
 
 struct ir3_compiler *
@@ -219,6 +222,8 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
       compiler->num_predicates = 4;
       compiler->bitops_can_write_predicates = true;
       compiler->has_branch_and_or = true;
+      compiler->has_predication = true;
+      compiler->has_scalar_alu = dev_info->a6xx.has_scalar_alu;
    } else {
       compiler->max_const_pipeline = 512;
       compiler->max_const_geom = 512;
@@ -229,6 +234,8 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
        * earlier gen's.
        */
       compiler->max_const_safe = 256;
+
+      compiler->has_scalar_alu = false;
    }
 
    /* This is just a guess for a4xx. */

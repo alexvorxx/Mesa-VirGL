@@ -28,7 +28,12 @@
 #include "pan_props.h"
 #include "pan_shader.h"
 
-#include "panvk_private.h"
+#include "panvk_buffer.h"
+#include "panvk_cmd_buffer.h"
+#include "panvk_device.h"
+#include "panvk_entrypoints.h"
+#include "panvk_image.h"
+#include "panvk_physical_device.h"
 
 static mali_ptr
 panvk_meta_copy_img_emit_texture(struct pan_pool *desc_pool,
@@ -83,6 +88,7 @@ panvk_meta_copy_emit_varying(struct pan_pool *pool, mali_ptr coordinates,
 
       cfg.buffer_index = 0;
       cfg.format = GENX(panfrost_format_from_pipe_format)(f)->hw;
+      cfg.offset_enable = false;
    }
 
    *varyings = varying.gpu;
@@ -668,7 +674,7 @@ panvk_meta_copy_img2img(struct panvk_cmd_buffer *cmdbuf,
       mali_ptr src_coords = pan_pool_upload_aligned(
          &cmdbuf->desc_pool.base, src_rect, sizeof(src_rect), 64);
 
-      struct panvk_batch *batch = panvk_cmd_open_batch(cmdbuf);
+      struct panvk_batch *batch = panvk_per_arch(cmd_open_batch)(cmdbuf);
 
       dstview.first_layer = dstview.last_layer = l + first_dst_layer;
       batch->blit.src = src->bo;
@@ -680,7 +686,7 @@ panvk_meta_copy_img2img(struct panvk_cmd_buffer *cmdbuf,
       mali_ptr tsd, tiler;
 
       tsd = batch->tls.gpu;
-      tiler = batch->tiler.descs.gpu;
+      tiler = batch->tiler.ctx_desc.gpu;
 
       struct panfrost_ptr job;
 
@@ -1108,7 +1114,7 @@ panvk_meta_copy_buf2img(struct panvk_cmd_buffer *cmdbuf,
       mali_ptr src_coords = pan_pool_upload_aligned(
          &cmdbuf->desc_pool.base, src_rect, sizeof(src_rect), 64);
 
-      struct panvk_batch *batch = panvk_cmd_open_batch(cmdbuf);
+      struct panvk_batch *batch = panvk_per_arch(cmd_open_batch)(cmdbuf);
 
       view.first_layer = view.last_layer = l + first_layer;
       batch->blit.src = buf->bo;
@@ -1120,7 +1126,7 @@ panvk_meta_copy_buf2img(struct panvk_cmd_buffer *cmdbuf,
       mali_ptr tsd, tiler;
 
       tsd = batch->tls.gpu;
-      tiler = batch->tiler.descs.gpu;
+      tiler = batch->tiler.ctx_desc.gpu;
 
       struct panfrost_ptr job;
 
@@ -1336,7 +1342,7 @@ panvk_meta_copy_img2buf_shader(struct panvk_device *dev,
                      nir_imul(&b, nir_channel(&b, coord, 1), buflinestride));
    offset = nir_iadd(&b, offset,
                      nir_imul(&b, nir_channel(&b, coord, 2), bufsurfstride));
-   bufptr = nir_iadd(&b, bufptr, nir_u2u64(&b, offset));
+   bufptr = nir_iadd(&b, bufptr, nir_i2i64(&b, offset));
 
    unsigned imgcompsz =
       imgtexelsz <= 4 ? 1 : MIN2(1 << (ffs(imgtexelsz) - 1), 4);
@@ -1464,6 +1470,7 @@ panvk_meta_copy_img2buf(struct panvk_cmd_buffer *cmdbuf,
                         const VkBufferImageCopy2 *region)
 {
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
+   unsigned blksz = util_format_get_blocksize(img->pimage.layout.format);
    struct panvk_meta_copy_format_info key = {
       .imgfmt = panvk_meta_copy_img2buf_format(img->pimage.layout.format),
       .mask = panvk_meta_copy_img_mask(img->pimage.layout.format,
@@ -1477,7 +1484,8 @@ panvk_meta_copy_img2buf(struct panvk_cmd_buffer *cmdbuf,
    mali_ptr rsd = dev->meta.copy.img2buf[texdimidx][fmtidx].rsd;
 
    struct panvk_meta_copy_img2buf_info info = {
-      .buf.ptr = panvk_buffer_gpu_ptr(buf, region->bufferOffset),
+      .buf.ptr = panvk_buffer_gpu_ptr(buf, region->bufferOffset) -
+                 (region->imageOffset.x & 15) * blksz,
       .buf.stride.line =
          (region->bufferRowLength ?: region->imageExtent.width) * buftexelsz,
       .img.offset.x = MAX2(region->imageOffset.x & ~15, 0),
@@ -1525,7 +1533,7 @@ panvk_meta_copy_img2buf(struct panvk_cmd_buffer *cmdbuf,
 
    panvk_per_arch(cmd_close_batch)(cmdbuf);
 
-   struct panvk_batch *batch = panvk_cmd_open_batch(cmdbuf);
+   struct panvk_batch *batch = panvk_per_arch(cmd_open_batch)(cmdbuf);
 
    struct pan_tls_info tlsinfo = {0};
 
@@ -1710,7 +1718,7 @@ panvk_meta_copy_buf2buf(struct panvk_cmd_buffer *cmdbuf,
 
    panvk_per_arch(cmd_close_batch)(cmdbuf);
 
-   struct panvk_batch *batch = panvk_cmd_open_batch(cmdbuf);
+   struct panvk_batch *batch = panvk_per_arch(cmd_open_batch)(cmdbuf);
 
    panvk_per_arch(cmd_alloc_tls_desc)(cmdbuf, false);
 
@@ -1859,7 +1867,7 @@ panvk_meta_fill_buf(struct panvk_cmd_buffer *cmdbuf,
 
    panvk_per_arch(cmd_close_batch)(cmdbuf);
 
-   struct panvk_batch *batch = panvk_cmd_open_batch(cmdbuf);
+   struct panvk_batch *batch = panvk_per_arch(cmd_open_batch)(cmdbuf);
 
    panvk_per_arch(cmd_alloc_tls_desc)(cmdbuf, false);
 
@@ -1908,7 +1916,7 @@ panvk_meta_update_buf(struct panvk_cmd_buffer *cmdbuf,
 
    panvk_per_arch(cmd_close_batch)(cmdbuf);
 
-   struct panvk_batch *batch = panvk_cmd_open_batch(cmdbuf);
+   struct panvk_batch *batch = panvk_per_arch(cmd_open_batch)(cmdbuf);
 
    panvk_per_arch(cmd_alloc_tls_desc)(cmdbuf, false);
 

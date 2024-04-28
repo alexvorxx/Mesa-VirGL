@@ -520,6 +520,7 @@ vk_video_session_parameters_init(struct vk_device *device,
          return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
       }
 
+      params->h264_enc.profile_idc = vid->h264.profile_idc;
       init_add_h264_enc_session_parameters(params, h264_create->pParametersAddInfo, templ);
       break;
    }
@@ -736,7 +737,7 @@ vk_video_derive_h264_scaling_list(const StdVideoH264SequenceParameterSet *sps,
       {
          if (sps->pScalingLists->scaling_list_present_mask & (1 << i))
             memcpy(temp.ScalingList4x4[i],
-                   pps->pScalingLists->ScalingList4x4[i],
+                   sps->pScalingLists->ScalingList4x4[i],
                    STD_VIDEO_H264_SCALING_LIST_4X4_NUM_ELEMENTS);
          else /* fall-back rule A */
          {
@@ -759,7 +760,7 @@ vk_video_derive_h264_scaling_list(const StdVideoH264SequenceParameterSet *sps,
       {
          int i = j + STD_VIDEO_H264_SCALING_LIST_4X4_NUM_LISTS;
          if (sps->pScalingLists->scaling_list_present_mask & (1 << i))
-            memcpy(temp.ScalingList8x8[j], pps->pScalingLists->ScalingList8x8[j],
+            memcpy(temp.ScalingList8x8[j], sps->pScalingLists->ScalingList8x8[j],
                    STD_VIDEO_H264_SCALING_LIST_8X8_NUM_ELEMENTS);
          else /* fall-back rule A */
          {
@@ -1475,9 +1476,9 @@ enum HEVCNALUnitType {
 };
 
 unsigned
-vk_video_get_h265_nal_unit(StdVideoH265PictureType pic_type, bool irap_pic_flag)
+vk_video_get_h265_nal_unit(const StdVideoEncodeH265PictureInfo *pic_info)
 {
-   switch (pic_type) {
+   switch (pic_info->pic_type) {
    case STD_VIDEO_H265_PICTURE_TYPE_IDR:
       return HEVC_NAL_IDR_W_RADL;
    case STD_VIDEO_H265_PICTURE_TYPE_I:
@@ -1485,10 +1486,16 @@ vk_video_get_h265_nal_unit(StdVideoH265PictureType pic_type, bool irap_pic_flag)
    case STD_VIDEO_H265_PICTURE_TYPE_P:
       return HEVC_NAL_TRAIL_R;
    case STD_VIDEO_H265_PICTURE_TYPE_B:
-      if (irap_pic_flag)
-         return HEVC_NAL_RASL_R;
+      if (pic_info->flags.IrapPicFlag)
+         if (pic_info->flags.is_reference)
+            return HEVC_NAL_RASL_R;
+         else
+            return HEVC_NAL_RASL_N;
       else
-         return HEVC_NAL_TRAIL_R;
+          if (pic_info->flags.is_reference)
+            return HEVC_NAL_TRAIL_R;
+         else
+            return HEVC_NAL_TRAIL_N;
       break;
    default:
       assert(0);

@@ -42,16 +42,6 @@
 #include "tu_tracepoints.h"
 #include "tu_wsi.h"
 
-#if defined(VK_USE_PLATFORM_WAYLAND_KHR) || \
-     defined(VK_USE_PLATFORM_XCB_KHR) || \
-     defined(VK_USE_PLATFORM_XLIB_KHR) || \
-     defined(VK_USE_PLATFORM_DISPLAY_KHR)
-#define TU_HAS_SURFACE 1
-#else
-#define TU_HAS_SURFACE 0
-#endif
-
-
 static int
 tu_device_get_cache_uuid(struct tu_physical_device *device, void *uuid)
 {
@@ -100,8 +90,11 @@ static const struct vk_instance_extension_table tu_instance_extensions_supported
    .KHR_get_display_properties2         = true,
 #endif
    .KHR_get_physical_device_properties2 = true,
-   .KHR_get_surface_capabilities2       = TU_HAS_SURFACE,
-   .KHR_surface                         = TU_HAS_SURFACE,
+#ifdef TU_USE_WSI_PLATFORM
+   .KHR_get_surface_capabilities2       = true,
+   .KHR_surface                         = true,
+   .KHR_surface_protected_capabilities  = true,
+#endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
    .KHR_wayland_surface                 = true,
 #endif
@@ -126,7 +119,10 @@ static const struct vk_instance_extension_table tu_instance_extensions_supported
 #ifndef VK_USE_PLATFORM_WIN32_KHR
    .EXT_headless_surface                = true,
 #endif
-   .EXT_swapchain_colorspace            = TU_HAS_SURFACE,
+#ifdef TU_USE_WSI_PLATFORM
+   .EXT_surface_maintenance1            = true,
+   .EXT_swapchain_colorspace            = true,
+#endif
 } };
 
 static bool
@@ -163,7 +159,9 @@ get_device_extensions(const struct tu_physical_device *device,
       .KHR_global_priority = true,
       .KHR_image_format_list = true,
       .KHR_imageless_framebuffer = true,
-      .KHR_incremental_present = TU_HAS_SURFACE,
+#ifdef TU_USE_WSI_PLATFORM
+      .KHR_incremental_present = true,
+#endif
       .KHR_index_type_uint8 = true,
       .KHR_line_rasterization = true,
       .KHR_load_store_op_none = true,
@@ -177,23 +175,17 @@ get_device_extensions(const struct tu_physical_device *device,
       .KHR_performance_query = TU_DEBUG(PERFC),
       .KHR_pipeline_executable_properties = true,
       .KHR_pipeline_library = true,
-
+#ifdef TU_USE_WSI_PLATFORM
       /* Hide these behind dri configs for now since we cannot implement it reliably on
        * all surfaces yet. There is no surface capability query for present wait/id,
        * but the feature is useful enough to hide behind an opt-in mechanism for now.
        * If the instance only enables surface extensions that unconditionally support present wait,
        * we can also expose the extension that way. */
-      .KHR_present_id =
-         TU_HAS_SURFACE && (driQueryOptionb(&device->instance->dri_options,
-                                            "vk_khr_present_wait") ||
-                            wsi_common_vk_instance_supports_present_wait(
-                               &device->instance->vk)),
-      .KHR_present_wait =
-         TU_HAS_SURFACE && (driQueryOptionb(&device->instance->dri_options,
-                                            "vk_khr_present_wait") ||
-                            wsi_common_vk_instance_supports_present_wait(
-                               &device->instance->vk)),
-
+      .KHR_present_id = (driQueryOptionb(&device->instance->dri_options, "vk_khr_present_wait") ||
+                         wsi_common_vk_instance_supports_present_wait(&device->instance->vk)),
+      .KHR_present_wait = (driQueryOptionb(&device->instance->dri_options, "vk_khr_present_wait") ||
+                           wsi_common_vk_instance_supports_present_wait(&device->instance->vk)),
+#endif
       .KHR_push_descriptor = true,
       .KHR_relaxed_block_layout = true,
       .KHR_sampler_mirror_clamp_to_edge = true,
@@ -209,8 +201,10 @@ get_device_extensions(const struct tu_physical_device *device,
       .KHR_shader_terminate_invocation = true,
       .KHR_spirv_1_4 = true,
       .KHR_storage_buffer_storage_class = true,
-      .KHR_swapchain = TU_HAS_SURFACE,
-      .KHR_swapchain_mutable_format = TU_HAS_SURFACE,
+   #ifdef TU_USE_WSI_PLATFORM
+      .KHR_swapchain = true,
+      .KHR_swapchain_mutable_format = true,
+   #endif
       .KHR_synchronization2 = true,
       .KHR_timeline_semaphore = true,
       .KHR_uniform_buffer_standard_layout = true,
@@ -274,6 +268,9 @@ get_device_extensions(const struct tu_physical_device *device,
       .EXT_shader_stencil_export = true,
       .EXT_shader_viewport_index_layer = TU_DEBUG(NOCONFORM) ? true : device->info->a6xx.has_hw_multiview,
       .EXT_subgroup_size_control = true,
+#ifdef TU_USE_WSI_PLATFORM
+      .EXT_swapchain_maintenance1 = true,
+#endif
       .EXT_texel_buffer_alignment = true,
       .EXT_tooling_info = true,
       .EXT_transform_feedback = true,
@@ -286,6 +283,9 @@ get_device_extensions(const struct tu_physical_device *device,
       .ANDROID_native_buffer = true,
 #endif
       .ARM_rasterization_order_attachment_access = true,
+      .GOOGLE_decorate_string = true,
+      .GOOGLE_hlsl_functionality1 = true,
+      .GOOGLE_user_type = true,
       .IMG_filter_cubic = device->info->a6xx.has_tex_filter_cubic,
       .VALVE_mutable_descriptor_type = true,
    } };
@@ -587,6 +587,11 @@ tu_get_features(struct tu_physical_device *pdevice,
 
    /* VK_EXT_shader_module_identifier */
    features->shaderModuleIdentifier = true;
+
+#ifdef TU_USE_WSI_PLATFORM
+   /* VK_EXT_swapchain_maintenance1 */
+   features->swapchainMaintenance1 = true;
+#endif
 
    /* VK_EXT_texel_buffer_alignment */
    features->texelBufferAlignment = true;
@@ -1207,7 +1212,7 @@ tu_physical_device_init(struct tu_physical_device *device,
 
    device->vk.supported_sync_types = device->sync_types;
 
-#if TU_HAS_SURFACE
+#ifdef TU_USE_WSI_PLATFORM
    result = tu_wsi_init(device);
    if (result != VK_SUCCESS) {
       vk_startup_errorf(instance, result, "WSI init failure");
@@ -1235,7 +1240,7 @@ fail_free_name:
 static void
 tu_physical_device_finish(struct tu_physical_device *device)
 {
-#if TU_HAS_SURFACE
+#ifdef TU_USE_WSI_PLATFORM
    tu_wsi_finish(device);
 #endif
 
@@ -1361,7 +1366,7 @@ VKAPI_ATTR void VKAPI_CALL
 tu_DestroyInstance(VkInstance _instance,
                    const VkAllocationCallbacks *pAllocator)
 {
-   TU_FROM_HANDLE(tu_instance, instance, _instance);
+   VK_FROM_HANDLE(tu_instance, instance, _instance);
 
    if (!instance)
       return;
@@ -1448,7 +1453,7 @@ tu_GetPhysicalDeviceQueueFamilyProperties2(
    uint32_t *pQueueFamilyPropertyCount,
    VkQueueFamilyProperties2 *pQueueFamilyProperties)
 {
-   TU_FROM_HANDLE(tu_physical_device, pdevice, physicalDevice);
+   VK_FROM_HANDLE(tu_physical_device, pdevice, physicalDevice);
 
    VK_OUTARRAY_MAKE_TYPED(VkQueueFamilyProperties2, out,
                           pQueueFamilyProperties, pQueueFamilyPropertyCount);
@@ -1520,7 +1525,7 @@ VKAPI_ATTR void VKAPI_CALL
 tu_GetPhysicalDeviceMemoryProperties2(VkPhysicalDevice pdev,
                                       VkPhysicalDeviceMemoryProperties2 *props2)
 {
-   TU_FROM_HANDLE(tu_physical_device, physical_device, pdev);
+   VK_FROM_HANDLE(tu_physical_device, physical_device, pdev);
 
    VkPhysicalDeviceMemoryProperties *props = &props2->memoryProperties;
    props->memoryHeapCount = 1;
@@ -2095,7 +2100,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
                 const VkAllocationCallbacks *pAllocator,
                 VkDevice *pDevice)
 {
-   TU_FROM_HANDLE(tu_physical_device, physical_device, physicalDevice);
+   VK_FROM_HANDLE(tu_physical_device, physical_device, physicalDevice);
    VkResult result;
    struct tu_device *device;
    bool custom_border_colors = false;
@@ -2542,7 +2547,7 @@ fail_queues:
 VKAPI_ATTR void VKAPI_CALL
 tu_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device, device, _device);
 
    if (!device)
       return;
@@ -2700,7 +2705,7 @@ tu_EnumerateInstanceExtensionProperties(const char *pLayerName,
 VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
 tu_GetInstanceProcAddr(VkInstance _instance, const char *pName)
 {
-   TU_FROM_HANDLE(tu_instance, instance, _instance);
+   VK_FROM_HANDLE(tu_instance, instance, _instance);
    return vk_instance_get_proc_addr(instance != NULL ? &instance->vk : NULL,
                                     &tu_instance_entrypoints,
                                     pName);
@@ -2722,7 +2727,7 @@ tu_AllocateMemory(VkDevice _device,
                   const VkAllocationCallbacks *pAllocator,
                   VkDeviceMemory *pMem)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device, device, _device);
    struct tu_device_memory *mem;
    VkResult result;
 
@@ -2846,8 +2851,8 @@ tu_FreeMemory(VkDevice _device,
               VkDeviceMemory _mem,
               const VkAllocationCallbacks *pAllocator)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
-   TU_FROM_HANDLE(tu_device_memory, mem, _mem);
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device_memory, mem, _mem);
 
    if (mem == NULL)
       return;
@@ -2862,8 +2867,8 @@ tu_FreeMemory(VkDevice _device,
 VKAPI_ATTR VkResult VKAPI_CALL
 tu_MapMemory2KHR(VkDevice _device, const VkMemoryMapInfoKHR *pMemoryMapInfo, void **ppData)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
-   TU_FROM_HANDLE(tu_device_memory, mem, pMemoryMapInfo->memory);
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device_memory, mem, pMemoryMapInfo->memory);
    VkResult result;
 
    if (mem == NULL) {
@@ -2919,8 +2924,8 @@ tu_GetBufferMemoryRequirements2(
    const VkBufferMemoryRequirementsInfo2 *pInfo,
    VkMemoryRequirements2 *pMemoryRequirements)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
-   TU_FROM_HANDLE(tu_buffer, buffer, pInfo->buffer);
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_buffer, buffer, pInfo->buffer);
 
    tu_get_buffer_memory_requirements(device, buffer->vk.size, pMemoryRequirements);
 }
@@ -2931,7 +2936,7 @@ tu_GetDeviceBufferMemoryRequirements(
    const VkDeviceBufferMemoryRequirements *pInfo,
    VkMemoryRequirements2 *pMemoryRequirements)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device, device, _device);
    tu_get_buffer_memory_requirements(device, pInfo->pCreateInfo->size, pMemoryRequirements);
 }
 
@@ -2948,11 +2953,11 @@ tu_BindBufferMemory2(VkDevice device,
                      uint32_t bindInfoCount,
                      const VkBindBufferMemoryInfo *pBindInfos)
 {
-   TU_FROM_HANDLE(tu_device, dev, device);
+   VK_FROM_HANDLE(tu_device, dev, device);
 
    for (uint32_t i = 0; i < bindInfoCount; ++i) {
-      TU_FROM_HANDLE(tu_device_memory, mem, pBindInfos[i].memory);
-      TU_FROM_HANDLE(tu_buffer, buffer, pBindInfos[i].buffer);
+      VK_FROM_HANDLE(tu_device_memory, mem, pBindInfos[i].memory);
+      VK_FROM_HANDLE(tu_buffer, buffer, pBindInfos[i].buffer);
 
       if (mem) {
          buffer->bo = mem->bo;
@@ -2961,50 +2966,15 @@ tu_BindBufferMemory2(VkDevice device,
              (VK_BUFFER_USAGE_2_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT |
               VK_BUFFER_USAGE_2_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT))
             tu_bo_allow_dump(dev, mem->bo);
+#ifdef HAVE_PERFETTO
+         tu_perfetto_log_bind_buffer(dev, buffer);
+#endif
       } else {
          buffer->bo = NULL;
       }
 
       TU_RMV(buffer_bind, dev, buffer);
    }
-   return VK_SUCCESS;
-}
-
-VKAPI_ATTR VkResult VKAPI_CALL
-tu_BindImageMemory2(VkDevice _device,
-                    uint32_t bindInfoCount,
-                    const VkBindImageMemoryInfo *pBindInfos)
-{
-   TU_FROM_HANDLE(tu_device, device, _device);
-
-   for (uint32_t i = 0; i < bindInfoCount; ++i) {
-      TU_FROM_HANDLE(tu_image, image, pBindInfos[i].image);
-      TU_FROM_HANDLE(tu_device_memory, mem, pBindInfos[i].memory);
-
-      if (mem) {
-         image->bo = mem->bo;
-         image->iova = mem->bo->iova + pBindInfos[i].memoryOffset;
-
-         if (image->vk.usage & VK_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT) {
-            if (!mem->bo->map) {
-               VkResult result = tu_bo_map(device, mem->bo);
-               if (result != VK_SUCCESS)
-                  return result;
-            }
-
-            image->map = (char *)mem->bo->map + pBindInfos[i].memoryOffset;
-         } else {
-            image->map = NULL;
-         }
-      } else {
-         image->bo = NULL;
-         image->map = NULL;
-         image->iova = 0;
-      }
-
-      TU_RMV(image_bind, device, image);
-   }
-
    return VK_SUCCESS;
 }
 
@@ -3023,7 +2993,7 @@ tu_CreateEvent(VkDevice _device,
                const VkAllocationCallbacks *pAllocator,
                VkEvent *pEvent)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device, device, _device);
 
    struct tu_event *event = (struct tu_event *)
          vk_object_alloc(&device->vk, pAllocator, sizeof(*event),
@@ -3058,8 +3028,8 @@ tu_DestroyEvent(VkDevice _device,
                 VkEvent _event,
                 const VkAllocationCallbacks *pAllocator)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
-   TU_FROM_HANDLE(tu_event, event, _event);
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_event, event, _event);
 
    if (!event)
       return;
@@ -3073,8 +3043,8 @@ tu_DestroyEvent(VkDevice _device,
 VKAPI_ATTR VkResult VKAPI_CALL
 tu_GetEventStatus(VkDevice _device, VkEvent _event)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
-   TU_FROM_HANDLE(tu_event, event, _event);
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_event, event, _event);
 
    if (vk_device_is_lost(&device->vk))
       return VK_ERROR_DEVICE_LOST;
@@ -3087,7 +3057,7 @@ tu_GetEventStatus(VkDevice _device, VkEvent _event)
 VKAPI_ATTR VkResult VKAPI_CALL
 tu_SetEvent(VkDevice _device, VkEvent _event)
 {
-   TU_FROM_HANDLE(tu_event, event, _event);
+   VK_FROM_HANDLE(tu_event, event, _event);
    *(uint64_t*) event->bo->map = 1;
 
    return VK_SUCCESS;
@@ -3096,7 +3066,7 @@ tu_SetEvent(VkDevice _device, VkEvent _event)
 VKAPI_ATTR VkResult VKAPI_CALL
 tu_ResetEvent(VkDevice _device, VkEvent _event)
 {
-   TU_FROM_HANDLE(tu_event, event, _event);
+   VK_FROM_HANDLE(tu_event, event, _event);
    *(uint64_t*) event->bo->map = 0;
 
    return VK_SUCCESS;
@@ -3108,7 +3078,7 @@ tu_CreateBuffer(VkDevice _device,
                 const VkAllocationCallbacks *pAllocator,
                 VkBuffer *pBuffer)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device, device, _device);
    struct tu_buffer *buffer;
 
    buffer = (struct tu_buffer *) vk_buffer_create(
@@ -3117,6 +3087,10 @@ tu_CreateBuffer(VkDevice _device,
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    TU_RMV(buffer_create, device, buffer);
+
+#ifdef HAVE_PERFETTO
+   tu_perfetto_log_create_buffer(device, buffer);
+#endif
 
    *pBuffer = tu_buffer_to_handle(buffer);
 
@@ -3128,13 +3102,17 @@ tu_DestroyBuffer(VkDevice _device,
                  VkBuffer _buffer,
                  const VkAllocationCallbacks *pAllocator)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
-   TU_FROM_HANDLE(tu_buffer, buffer, _buffer);
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_buffer, buffer, _buffer);
 
    if (!buffer)
       return;
 
    TU_RMV(buffer_destroy, device, buffer);
+
+#ifdef HAVE_PERFETTO
+   tu_perfetto_log_destroy_buffer(device, buffer);
+#endif
 
    vk_buffer_destroy(&device->vk, pAllocator, &buffer->vk);
 }
@@ -3145,13 +3123,13 @@ tu_CreateFramebuffer(VkDevice _device,
                      const VkAllocationCallbacks *pAllocator,
                      VkFramebuffer *pFramebuffer)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device, device, _device);
 
    if (TU_DEBUG(DYNAMIC))
       return vk_common_CreateFramebuffer(_device, pCreateInfo, pAllocator,
                                          pFramebuffer);
 
-   TU_FROM_HANDLE(tu_render_pass, pass, pCreateInfo->renderPass);
+   VK_FROM_HANDLE(tu_render_pass, pass, pCreateInfo->renderPass);
    struct tu_framebuffer *framebuffer;
 
    assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO);
@@ -3207,14 +3185,14 @@ tu_DestroyFramebuffer(VkDevice _device,
                       VkFramebuffer _fb,
                       const VkAllocationCallbacks *pAllocator)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device, device, _device);
 
    if (TU_DEBUG(DYNAMIC)) {
       vk_common_DestroyFramebuffer(_device, _fb, pAllocator);
       return;
    }
 
-   TU_FROM_HANDLE(tu_framebuffer, fb, _fb);
+   VK_FROM_HANDLE(tu_framebuffer, fb, _fb);
 
    if (!fb)
       return;
@@ -3315,7 +3293,7 @@ tu_CreateSampler(VkDevice _device,
                  const VkAllocationCallbacks *pAllocator,
                  VkSampler *pSampler)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device, device, _device);
    struct tu_sampler *sampler;
 
    assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO);
@@ -3336,8 +3314,8 @@ tu_DestroySampler(VkDevice _device,
                   VkSampler _sampler,
                   const VkAllocationCallbacks *pAllocator)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
-   TU_FROM_HANDLE(tu_sampler, sampler, _sampler);
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_sampler, sampler, _sampler);
    uint32_t border_color;
 
    if (!sampler)
@@ -3361,8 +3339,8 @@ tu_GetMemoryFdKHR(VkDevice _device,
                   const VkMemoryGetFdInfoKHR *pGetFdInfo,
                   int *pFd)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
-   TU_FROM_HANDLE(tu_device_memory, memory, pGetFdInfo->memory);
+   VK_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device_memory, memory, pGetFdInfo->memory);
 
    assert(pGetFdInfo->sType == VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR);
 
@@ -3406,7 +3384,7 @@ tu_GetMemoryFdPropertiesKHR(VkDevice _device,
                             int fd,
                             VkMemoryFdPropertiesKHR *pMemoryFdProperties)
 {
-   TU_FROM_HANDLE(tu_device, device, _device);
+   VK_FROM_HANDLE(tu_device, device, _device);
    assert(handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
    pMemoryFdProperties->memoryTypeBits =
       (1 << device->physical_device->memory.type_count) - 1;
@@ -3419,7 +3397,7 @@ tu_GetPhysicalDeviceMultisamplePropertiesEXT(
    VkSampleCountFlagBits                       samples,
    VkMultisamplePropertiesEXT*                 pMultisampleProperties)
 {
-   TU_FROM_HANDLE(tu_physical_device, pdevice, physicalDevice);
+   VK_FROM_HANDLE(tu_physical_device, pdevice, physicalDevice);
 
    if (samples <= VK_SAMPLE_COUNT_4_BIT && pdevice->vk.supported_extensions.EXT_sample_locations)
       pMultisampleProperties->maxSampleLocationGridSize = (VkExtent2D){ 1, 1 };
@@ -3431,7 +3409,7 @@ VkDeviceAddress
 tu_GetBufferDeviceAddress(VkDevice _device,
                           const VkBufferDeviceAddressInfo* pInfo)
 {
-   TU_FROM_HANDLE(tu_buffer, buffer, pInfo->buffer);
+   VK_FROM_HANDLE(tu_buffer, buffer, pInfo->buffer);
 
    return buffer->iova;
 }
@@ -3448,7 +3426,7 @@ uint64_t tu_GetDeviceMemoryOpaqueCaptureAddress(
     VkDevice                                    device,
     const VkDeviceMemoryOpaqueCaptureAddressInfo* pInfo)
 {
-   TU_FROM_HANDLE(tu_device_memory, mem, pInfo->memory);
+   VK_FROM_HANDLE(tu_device_memory, mem, pInfo->memory);
    return mem->bo->iova;
 }
 

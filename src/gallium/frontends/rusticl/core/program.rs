@@ -20,6 +20,7 @@ use std::collections::HashSet;
 use std::ffi::CString;
 use std::mem::size_of;
 use std::ptr;
+use std::ptr::addr_of;
 use std::slice;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -55,7 +56,7 @@ fn get_disk_cache() -> &'static Option<DiskCache> {
         DISK_CACHE_ONCE.call_once(|| {
             DISK_CACHE = DiskCache::new("rusticl", &func_ptrs, 0);
         });
-        &DISK_CACHE
+        &*addr_of!(DISK_CACHE)
     }
 }
 
@@ -98,7 +99,7 @@ unsafe impl Sync for NirKernelBuild {}
 
 pub struct ProgramBuild {
     pub builds: HashMap<&'static Device, ProgramDevBuild>,
-    pub kernel_info: HashMap<String, KernelInfo>,
+    pub kernel_info: HashMap<String, Arc<KernelInfo>>,
     spec_constants: HashMap<u32, nir_const_value>,
     kernels: Vec<String>,
 }
@@ -203,7 +204,8 @@ impl ProgramBuild {
                 kernel_info.attributes_string = String::new();
             }
 
-            self.kernel_info.insert(kernel_name.clone(), kernel_info);
+            self.kernel_info
+                .insert(kernel_name.clone(), Arc::new(kernel_info));
         }
     }
 
@@ -244,6 +246,10 @@ impl ProgramBuild {
         } else {
             None
         }
+    }
+
+    pub fn kernels(&self) -> &[String] {
+        &self.kernels
     }
 
     pub fn to_nir(&self, kernel: &str, d: &Device) -> NirShader {
@@ -325,9 +331,11 @@ fn prepare_options(options: &str, dev: &Device) -> Vec<CString> {
     res.push(&options[old..]);
 
     res.iter()
-        .map(|&a| match a {
-            "-cl-denorms-are-zero" => "-fdenormal-fp-math=positive-zero",
-            _ => a,
+        .filter_map(|&a| match a {
+            "-cl-denorms-are-zero" => Some("-fdenormal-fp-math=positive-zero"),
+            // We can ignore it as long as we don't support ifp
+            "-cl-no-subgroup-ifp" => None,
+            _ => Some(a),
         })
         .map(CString::new)
         .map(Result::unwrap)
@@ -546,19 +554,10 @@ impl Program {
         ptrs.to_vec()
     }
 
-    pub fn kernel_signatures(&self, kernel_name: &str) -> HashSet<Vec<spirv::SPIRVKernelArg>> {
-        let build = self.build_info();
-        let devs = build.devs_with_build();
-
-        if devs.is_empty() {
-            return HashSet::new();
-        }
-
-        devs.iter().map(|d| build.args(d, kernel_name)).collect()
-    }
-
-    pub fn kernels(&self) -> Vec<String> {
-        self.build_info().kernels.clone()
+    // TODO: at the moment we do not support compiling programs with different signatures across
+    // devices. If we do in the future, this needs to be properly implemented.
+    pub fn has_unique_kernel_signatures(&self, _kernel_name: &str) -> bool {
+        true
     }
 
     pub fn active_kernels(&self) -> bool {

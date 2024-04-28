@@ -1,25 +1,7 @@
 /*
  * Copyright © 2018 Google
  *
- * Permission is hereby granted, free of charge, to any person obtaining a
- * copy of this software and associated documentation files (the "Software"),
- * to deal in the Software without restriction, including without limitation
- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
- * and/or sell copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice (including the next
- * paragraph) shall be included in all copies or substantial portions of the
- * Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
- * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
- * IN THE SOFTWARE.
- *
+ * SPDX-License-Identifier: MIT
  */
 
 #include "aco_interface.h"
@@ -401,16 +383,6 @@ aco_compile_ps_epilog(const struct aco_compiler_options* options,
 }
 
 void
-aco_compile_tcs_epilog(const struct aco_compiler_options* options,
-                       const struct aco_shader_info* info, const struct aco_tcs_epilog_info* pinfo,
-                       const struct ac_shader_args* args, aco_shader_part_callback* build_epilog,
-                       void** binary)
-{
-   aco_compile_shader_part(options, info, args, select_tcs_epilog, (void*)pinfo, build_epilog,
-                           binary);
-}
-
-void
 aco_compile_ps_prolog(const struct aco_compiler_options* options,
                       const struct aco_shader_info* info, const struct aco_ps_prolog_info* pinfo,
                       const struct ac_shader_args* args, aco_shader_part_callback* build_prolog,
@@ -433,8 +405,21 @@ aco_get_codegen_flags()
 bool
 aco_is_gpu_supported(const struct radeon_info* info)
 {
-   /* Does not support compute only cards yet. */
-   return info->gfx_level >= GFX6 && info->has_graphics;
+   switch (info->gfx_level) {
+   case GFX6:
+   case GFX7:
+   case GFX8:
+      return true;
+   case GFX9:
+      return info->has_graphics; /* no CDNA support */
+   case GFX10:
+   case GFX10_3:
+   case GFX11:
+   case GFX11_5:
+      return true;
+   default:
+      return false;
+   }
 }
 
 bool
@@ -486,3 +471,18 @@ aco_nir_op_supports_packed_math_16bit(const nir_alu_instr* alu)
 }
 
 const aco_compiler_statistic_info* aco_statistic_infos = statistic_infos.data();
+
+void
+aco_print_asm(const struct radeon_info *info, unsigned wave_size,
+              uint32_t *binary, unsigned num_dw)
+{
+   std::vector<uint32_t> binarray(binary, binary + num_dw);
+   aco::Program prog;
+
+   prog.gfx_level = info->gfx_level;
+   prog.family = info->family;
+   prog.wave_size = wave_size;
+   prog.blocks.push_back(aco::Block());
+
+   aco::print_asm(&prog, binarray, num_dw, stderr);
+}

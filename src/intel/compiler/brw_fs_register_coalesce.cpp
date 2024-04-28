@@ -57,7 +57,7 @@ is_nop_mov(const fs_inst *inst)
          }
          dst.offset += (i < inst->header_size ? REG_SIZE :
                         inst->exec_size * dst.stride *
-                        type_sz(inst->src[i].type));
+                        brw_type_size_bytes(inst->src[i].type));
       }
       return true;
    } else if (inst->opcode == BRW_OPCODE_MOV) {
@@ -266,7 +266,7 @@ brw_fs_opt_register_coalesce(fs_visitor &s)
 
       if (inst->opcode == SHADER_OPCODE_LOAD_PAYLOAD) {
          for (int i = 0; i < src_size; i++) {
-            dst_reg_offset[i] = i;
+            dst_reg_offset[i] = inst->dst.offset / REG_SIZE + i;
          }
          mov[0] = inst;
          channels_remaining -= regs_written(inst);
