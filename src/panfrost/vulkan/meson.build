@@ -67,6 +67,7 @@ common_per_arch_files = [
   panvk_entrypoints[0],
   'panvk_vX_blend.c',
   'panvk_vX_buffer_view.c',
+  'panvk_vX_cmd_meta.c',
   'panvk_vX_descriptor_set.c',
   'panvk_vX_descriptor_set_layout.c',
   'panvk_vX_device.c',
