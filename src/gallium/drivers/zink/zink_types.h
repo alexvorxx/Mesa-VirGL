@@ -1524,6 +1524,7 @@ struct zink_screen {
 
    struct zink_format_props format_props[PIPE_FORMAT_COUNT];
    struct zink_modifier_props modifier_props[PIPE_FORMAT_COUNT];
+   bool format_props_init[PIPE_FORMAT_COUNT];
 
    VkExtent2D maxSampleLocationGridSize[5];
    VkPipelineLayout gfx_push_constant_layout;

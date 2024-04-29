@@ -2171,6 +2171,101 @@ zink_internal_setup_moltenvk(struct zink_screen *screen)
    return true;
 }
 
+void
+zink_init_format_props(struct zink_screen *screen, enum pipe_format pformat)
+{
+   VkFormat format;
+retry:
+   format = zink_get_format(screen, pformat);
+   if (!format)
+      return;
+   if (VKSCR(GetPhysicalDeviceFormatProperties2)) {
+      VkFormatProperties2 props = {0};
+      props.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
+
+      VkDrmFormatModifierPropertiesListEXT mod_props;
+      VkDrmFormatModifierPropertiesEXT mods[128];
+      if (screen->info.have_EXT_image_drm_format_modifier) {
+         mod_props.sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT;
+         mod_props.pNext = NULL;
+         mod_props.drmFormatModifierCount = ARRAY_SIZE(mods);
+         mod_props.pDrmFormatModifierProperties = mods;
+         props.pNext = &mod_props;
+      }
+      VkImageCompressionPropertiesEXT comp;
+      if (screen->info.have_EXT_image_compression_control) {
+         comp.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_PROPERTIES_EXT;
+         comp.pNext = props.pNext;
+         comp.imageCompressionFlags = 0;
+         comp.imageCompressionFixedRateFlags = 0;
+         props.pNext = &comp;
+      }
+      VkFormatProperties3 props3 = {0};
+      if (screen->info.have_KHR_format_feature_flags2 || screen->info.have_vulkan13) {
+         props3.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_3;
+         props3.pNext = props.pNext;
+         props.pNext = &props3;
+      }
+
+      VKSCR(GetPhysicalDeviceFormatProperties2)(screen->pdev, format, &props);
+
+      if (screen->info.have_KHR_format_feature_flags2 || screen->info.have_vulkan13) {
+         screen->format_props[pformat].linearTilingFeatures = props3.linearTilingFeatures;
+         screen->format_props[pformat].optimalTilingFeatures = props3.optimalTilingFeatures;
+         screen->format_props[pformat].bufferFeatures = props3.bufferFeatures;
+
+         if (props3.linearTilingFeatures & VK_FORMAT_FEATURE_2_LINEAR_COLOR_ATTACHMENT_BIT_NV)
+            screen->format_props[pformat].linearTilingFeatures |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+      } else {
+         // MoltenVk is 1.2 API
+         screen->format_props[pformat].linearTilingFeatures = props.formatProperties.linearTilingFeatures;
+         screen->format_props[pformat].optimalTilingFeatures = props.formatProperties.optimalTilingFeatures;
+         screen->format_props[pformat].bufferFeatures = props.formatProperties.bufferFeatures;
+      }
+
+      if (screen->info.have_EXT_image_compression_control) {
+         switch (comp.imageCompressionFlags) {
+         case VK_IMAGE_COMPRESSION_DISABLED_EXT:
+            screen->format_props[pformat].compressionRates = 0;
+            break;
+         default:
+            screen->format_props[pformat].compressionRates = comp.imageCompressionFixedRateFlags;
+            break;
+         }
+      }
+
+      if (screen->info.have_EXT_image_drm_format_modifier && mod_props.drmFormatModifierCount) {
+         screen->modifier_props[pformat].drmFormatModifierCount = mod_props.drmFormatModifierCount;
+         screen->modifier_props[pformat].pDrmFormatModifierProperties = ralloc_array(screen, VkDrmFormatModifierPropertiesEXT, mod_props.drmFormatModifierCount);
+         if (mod_props.pDrmFormatModifierProperties) {
+            for (unsigned j = 0; j < mod_props.drmFormatModifierCount; j++)
+               screen->modifier_props[pformat].pDrmFormatModifierProperties[j] = mod_props.pDrmFormatModifierProperties[j];
+         }
+      }
+   } else {
+      VkFormatProperties props = {0};
+      VKSCR(GetPhysicalDeviceFormatProperties)(screen->pdev, format, &props);
+      screen->format_props[pformat].linearTilingFeatures = props.linearTilingFeatures;
+      screen->format_props[pformat].optimalTilingFeatures = props.optimalTilingFeatures;
+      screen->format_props[pformat].bufferFeatures = props.bufferFeatures;
+   }
+   if (pformat == PIPE_FORMAT_A8_UNORM && !screen->driver_workarounds.missing_a8_unorm) {
+      if (!screen->format_props[pformat].linearTilingFeatures &&
+            !screen->format_props[pformat].optimalTilingFeatures &&
+            !screen->format_props[pformat].bufferFeatures) {
+         screen->driver_workarounds.missing_a8_unorm = true;
+         goto retry;
+      }
+   }
+   if (zink_format_is_emulated_alpha(pformat)) {
+      VkFormatFeatureFlags blocked = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
+      screen->format_props[pformat].linearTilingFeatures &= ~blocked;
+      screen->format_props[pformat].optimalTilingFeatures &= ~blocked;
+      screen->format_props[pformat].bufferFeatures = 0;
+   }
+   screen->format_props_init[pformat] = true;
+}
+
 static void
 check_vertex_formats(struct zink_screen *screen)
 {
@@ -2259,97 +2354,7 @@ check_vertex_formats(struct zink_screen *screen)
 static void
 populate_format_props(struct zink_screen *screen)
 {
-   for (unsigned i = 0; i < PIPE_FORMAT_COUNT; i++) {
-      VkFormat format;
-retry:
-      format = zink_get_format(screen, i);
-      if (!format)
-         continue;
-      if (VKSCR(GetPhysicalDeviceFormatProperties2)) {
-         VkFormatProperties2 props = {0};
-         props.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2;
-
-         VkDrmFormatModifierPropertiesListEXT mod_props;
-         VkDrmFormatModifierPropertiesEXT mods[128];
-         if (screen->info.have_EXT_image_drm_format_modifier) {
-            mod_props.sType = VK_STRUCTURE_TYPE_DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT;
-            mod_props.pNext = NULL;
-            mod_props.drmFormatModifierCount = ARRAY_SIZE(mods);
-            mod_props.pDrmFormatModifierProperties = mods;
-            props.pNext = &mod_props;
-         }
-         VkImageCompressionPropertiesEXT comp;
-         if (screen->info.have_EXT_image_compression_control) {
-            comp.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_PROPERTIES_EXT;
-            comp.pNext = props.pNext;
-            comp.imageCompressionFlags = 0;
-            comp.imageCompressionFixedRateFlags = 0;
-            props.pNext = &comp;
-         }
-         VkFormatProperties3 props3 = {0};
-         if (screen->info.have_KHR_format_feature_flags2 || screen->info.have_vulkan13) {
-           props3.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_3;
-           props3.pNext = props.pNext;
-           props.pNext = &props3;
-         }
-
-         VKSCR(GetPhysicalDeviceFormatProperties2)(screen->pdev, format, &props);
-
-         if (screen->info.have_KHR_format_feature_flags2 || screen->info.have_vulkan13) {
-            screen->format_props[i].linearTilingFeatures = props3.linearTilingFeatures;
-            screen->format_props[i].optimalTilingFeatures = props3.optimalTilingFeatures;
-            screen->format_props[i].bufferFeatures = props3.bufferFeatures;
-
-            if (props3.linearTilingFeatures & VK_FORMAT_FEATURE_2_LINEAR_COLOR_ATTACHMENT_BIT_NV)
-               screen->format_props[i].linearTilingFeatures |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
-         } else {
-           // MoltenVk is 1.2 API
-           screen->format_props[i].linearTilingFeatures = props.formatProperties.linearTilingFeatures;
-           screen->format_props[i].optimalTilingFeatures = props.formatProperties.optimalTilingFeatures;
-           screen->format_props[i].bufferFeatures = props.formatProperties.bufferFeatures;
-         }
-
-         if (screen->info.have_EXT_image_compression_control) {
-            switch (comp.imageCompressionFlags) {
-            case VK_IMAGE_COMPRESSION_DISABLED_EXT:
-               screen->format_props[i].compressionRates = 0;
-               break;
-            default:
-               screen->format_props[i].compressionRates = comp.imageCompressionFixedRateFlags;
-               break;
-            }
-         }
-
-         if (screen->info.have_EXT_image_drm_format_modifier && mod_props.drmFormatModifierCount) {
-            screen->modifier_props[i].drmFormatModifierCount = mod_props.drmFormatModifierCount;
-            screen->modifier_props[i].pDrmFormatModifierProperties = ralloc_array(screen, VkDrmFormatModifierPropertiesEXT, mod_props.drmFormatModifierCount);
-            if (mod_props.pDrmFormatModifierProperties) {
-               for (unsigned j = 0; j < mod_props.drmFormatModifierCount; j++)
-                  screen->modifier_props[i].pDrmFormatModifierProperties[j] = mod_props.pDrmFormatModifierProperties[j];
-            }
-         }
-      } else {
-         VkFormatProperties props = {0};
-         VKSCR(GetPhysicalDeviceFormatProperties)(screen->pdev, format, &props);
-         screen->format_props[i].linearTilingFeatures = props.linearTilingFeatures;
-         screen->format_props[i].optimalTilingFeatures = props.optimalTilingFeatures;
-         screen->format_props[i].bufferFeatures = props.bufferFeatures;
-      }
-      if (i == PIPE_FORMAT_A8_UNORM && !screen->driver_workarounds.missing_a8_unorm) {
-         if (!screen->format_props[i].linearTilingFeatures &&
-             !screen->format_props[i].optimalTilingFeatures &&
-             !screen->format_props[i].bufferFeatures) {
-            screen->driver_workarounds.missing_a8_unorm = true;
-            goto retry;
-         }
-      }
-      if (zink_format_is_emulated_alpha(i)) {
-         VkFormatFeatureFlags blocked = VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT | VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
-         screen->format_props[i].linearTilingFeatures &= ~blocked;
-         screen->format_props[i].optimalTilingFeatures &= ~blocked;
-         screen->format_props[i].bufferFeatures = 0;
-      }
-   }
+   zink_init_format_props(screen, PIPE_FORMAT_A8_UNORM);
    check_vertex_formats(screen);
    VkImageFormatProperties image_props;
    VkResult ret = VKSCR(GetPhysicalDeviceImageFormatProperties)(screen->pdev, VK_FORMAT_D32_SFLOAT,
