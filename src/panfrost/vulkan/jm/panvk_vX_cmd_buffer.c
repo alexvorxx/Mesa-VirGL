@@ -154,7 +154,7 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
             cmdbuf->state.gfx.render.fb.info.bifrost.pre_post.dcds.gpu = 0;
 
             ASSERTED unsigned num_preload_jobs = GENX(pan_preload_fb)(
-               &dev->meta.blitter.cache, &cmdbuf->desc_pool.base,
+               &dev->blitter.cache, &cmdbuf->desc_pool.base,
                &cmdbuf->state.gfx.render.fb.info, i, batch->tls.gpu, NULL);
 
             /* Bifrost GPUs use pre frame DCDs to preload the FB content. We

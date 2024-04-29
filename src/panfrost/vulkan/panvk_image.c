@@ -197,6 +197,61 @@ panvk_image_select_mod(struct panvk_image *image,
    panvk_image_select_mod_from_list(image, NULL, 0);
 }
 
+static void
+panvk_image_pre_mod_select_meta_adjustments(struct panvk_image *image)
+{
+   const VkImageAspectFlags aspects = vk_format_aspects(image->vk.format);
+
+   /* We do image blit/resolve with vk_meta, so when an image is flagged as
+    * being a potential transfer source, we also need to add the sampled usage.
+    */
+   if (image->vk.usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) {
+      image->vk.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+      if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT)
+         image->vk.stencil_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+   }
+
+   if (image->vk.usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) {
+      /* Similarly, image that can be a transfer destination can be attached
+       * as a color or depth-stencil attachment by vk_meta. */
+      if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT)
+         image->vk.usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+      if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT)
+         image->vk.stencil_usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+      if (aspects & VK_IMAGE_ASPECT_COLOR_BIT) {
+         image->vk.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+         image->vk.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+      }
+
+      /* vk_meta creates 2D array views of 3D images. */
+      if (image->vk.image_type == VK_IMAGE_TYPE_3D)
+         image->vk.create_flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
+   }
+
+   /* Needed for resolve operations. */
+   if (image->vk.usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+      image->vk.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+
+   if (image->vk.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+      if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT)
+         image->vk.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+
+      if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT)
+         image->vk.stencil_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+   }
+
+   if ((image->vk.usage &
+        (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT)) &&
+       util_format_is_compressed(image->pimage.layout.format)) {
+      /* We need to be able to create RGBA views of compressed formats for
+       * vk_meta copies. */
+      image->vk.create_flags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT |
+                                VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT;
+   }
+}
+
 static uint64_t
 panvk_image_get_total_size(const struct panvk_image *image)
 {
@@ -241,6 +296,13 @@ panvk_CreateImage(VkDevice device, const VkImageCreateInfo *pCreateInfo,
       .nr_slices = image->vk.mip_levels,
    };
 
+   /* Add any create/usage flags that might be needed for meta operations.
+    * This is run before the modifier selection because some
+    * usage/create_flags influence the modifier selection logic. */
+   panvk_image_pre_mod_select_meta_adjustments(image);
+
+   /* Now that we've patched the create/usage flags, we can proceed with the
+    * modifier selection. */
    panvk_image_select_mod(image, pCreateInfo);
 
    *pImage = panvk_image_to_handle(image);

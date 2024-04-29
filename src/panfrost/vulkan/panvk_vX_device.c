@@ -12,6 +12,7 @@
 #include "vk_cmd_enqueue_entrypoints.h"
 #include "vk_common_entrypoints.h"
 
+#include "panvk_buffer.h"
 #include "panvk_cmd_buffer.h"
 #include "panvk_device.h"
 #include "panvk_entrypoints.h"
@@ -84,6 +85,103 @@ panvk_device_cleanup_mempools(struct panvk_device *dev)
 {
    panvk_pool_cleanup(&dev->mempools.rw);
    panvk_pool_cleanup(&dev->mempools.exec);
+}
+
+static VkResult
+panvk_meta_cmd_bind_map_buffer(struct vk_command_buffer *cmd,
+                               struct vk_meta_device *meta, VkBuffer buf,
+                               void **map_out)
+{
+   VK_FROM_HANDLE(panvk_buffer, buffer, buf);
+   struct panvk_cmd_buffer *cmdbuf =
+      container_of(cmd, struct panvk_cmd_buffer, vk);
+   struct panfrost_ptr mem =
+      pan_pool_alloc_aligned(&cmdbuf->desc_pool.base, buffer->vk.size, 64);
+
+   buffer->dev_addr = mem.gpu;
+   *map_out = mem.cpu;
+   return VK_SUCCESS;
+}
+
+static VkResult
+panvk_meta_init(struct panvk_device *device)
+{
+   const struct vk_physical_device *pdev = device->vk.physical;
+
+   VkResult result = vk_meta_device_init(&device->vk, &device->meta);
+   if (result != VK_SUCCESS)
+      return result;
+
+   device->meta.use_stencil_export = true;
+   device->meta.max_bind_map_buffer_size_B = 64 * 1024;
+   device->meta.cmd_bind_map_buffer = panvk_meta_cmd_bind_map_buffer;
+
+   /* Assume a maximum of 1024 bytes per worgroup and choose the workgroup size
+    * accordingly. */
+   for (uint32_t i = 0;
+        i < ARRAY_SIZE(device->meta.buffer_access.optimal_wg_size); i++) {
+      device->meta.buffer_access.optimal_wg_size[i] =
+         MIN2(1024 >> i, pdev->properties.maxComputeWorkGroupSize[0]);
+   }
+
+#if PAN_ARCH <= 7
+   panvk_per_arch(meta_desc_copy_init)(device);
+#endif
+
+   return VK_SUCCESS;
+}
+
+static void
+panvk_meta_cleanup(struct panvk_device *device)
+{
+#if PAN_ARCH <= 7
+   panvk_per_arch(meta_desc_copy_cleanup)(device);
+#endif
+
+   vk_meta_device_finish(&device->vk, &device->meta);
+}
+
+static void
+panvk_preload_blitter_init(struct panvk_device *device)
+{
+   const struct panvk_physical_device *physical_device =
+      to_panvk_physical_device(device->vk.physical);
+
+   struct panvk_pool_properties bin_pool_props = {
+      .create_flags = PAN_KMOD_BO_FLAG_EXECUTABLE,
+      .slab_size = 16 * 1024,
+      .label = "panvk_meta blitter binary pool",
+      .owns_bos = true,
+      .needs_locking = false,
+      .prealloc = false,
+   };
+   panvk_pool_init(&device->blitter.bin_pool, device, NULL, &bin_pool_props);
+
+   struct panvk_pool_properties desc_pool_props = {
+      .create_flags = 0,
+      .slab_size = 16 * 1024,
+      .label = "panvk_meta blitter descriptor pool",
+      .owns_bos = true,
+      .needs_locking = false,
+      .prealloc = false,
+   };
+   panvk_pool_init(&device->blitter.desc_pool, device, NULL, &desc_pool_props);
+
+   pan_blend_shader_cache_init(&device->blitter.blend_shader_cache,
+                               physical_device->kmod.props.gpu_prod_id);
+   GENX(pan_blitter_cache_init)
+   (&device->blitter.cache, physical_device->kmod.props.gpu_prod_id,
+    &device->blitter.blend_shader_cache, &device->blitter.bin_pool.base,
+    &device->blitter.desc_pool.base);
+}
+
+static void
+panvk_preload_blitter_cleanup(struct panvk_device *device)
+{
+   GENX(pan_blitter_cache_cleanup)(&device->blitter.cache);
+   pan_blend_shader_cache_cleanup(&device->blitter.blend_shader_cache);
+   panvk_pool_cleanup(&device->blitter.desc_pool);
+   panvk_pool_cleanup(&device->blitter.bin_pool);
 }
 
 /* Always reserve the lower 32MB. */
@@ -206,7 +304,11 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
    if (result != VK_SUCCESS)
       goto err_free_priv_bos;
 
-   panvk_per_arch(meta_init)(device);
+   panvk_preload_blitter_init(device);
+
+   result = panvk_meta_init(device);
+   if (result != VK_SUCCESS)
+      goto err_cleanup_blitter;
 
    for (unsigned i = 0; i < pCreateInfo->queueCreateInfoCount; i++) {
       const VkDeviceQueueCreateInfo *queue_create =
@@ -245,7 +347,10 @@ err_finish_queues:
          vk_object_free(&device->vk, NULL, device->queues[i]);
    }
 
-   panvk_per_arch(meta_cleanup)(device);
+   panvk_meta_cleanup(device);
+
+err_cleanup_blitter:
+   panvk_preload_blitter_cleanup(device);
    panvk_per_arch(blend_shader_cache_cleanup)(device);
 
 err_free_priv_bos:
@@ -279,7 +384,8 @@ panvk_per_arch(destroy_device)(struct panvk_device *device,
          vk_object_free(&device->vk, NULL, device->queues[i]);
    }
 
-   panvk_per_arch(meta_cleanup)(device);
+   panvk_meta_cleanup(device);
+   panvk_preload_blitter_cleanup(device);
    panvk_per_arch(blend_shader_cache_cleanup)(device);
    panvk_priv_bo_unref(device->tiler_heap);
    panvk_priv_bo_unref(device->sample_positions);

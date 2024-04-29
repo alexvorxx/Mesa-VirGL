@@ -235,7 +235,7 @@ single_desc_copy(nir_builder *b, nir_def *desc_copy_idx)
    nir_pop_if(b, NULL);
 }
 
-static mali_ptr
+static struct panvk_priv_mem
 panvk_meta_desc_copy_shader(struct panvk_device *dev,
                             struct pan_shader_info *shader_info)
 {
@@ -270,8 +270,8 @@ panvk_meta_desc_copy_shader(struct panvk_device *dev,
    shader_info->push.count =
       DIV_ROUND_UP(sizeof(struct pan_nir_desc_copy_info), 4);
 
-   mali_ptr shader = pan_pool_upload_aligned(&dev->meta.bin_pool.base,
-                                             binary.data, binary.size, 128);
+   struct panvk_priv_mem shader = panvk_pool_upload_aligned(
+      &dev->mempools.exec, binary.data, binary.size, 128);
 
    util_dynarray_fini(&binary);
    return shader;
@@ -282,15 +282,24 @@ panvk_per_arch(meta_desc_copy_init)(struct panvk_device *dev)
 {
    struct pan_shader_info shader_info;
 
-   mali_ptr shader = panvk_meta_desc_copy_shader(dev, &shader_info);
-   struct panfrost_ptr rsd =
-      pan_pool_alloc_desc(&dev->meta.desc_pool.base, RENDERER_STATE);
+   dev->desc_copy.shader = panvk_meta_desc_copy_shader(dev, &shader_info);
 
-   pan_pack(rsd.cpu, RENDERER_STATE, cfg) {
+   mali_ptr shader = panvk_priv_mem_dev_addr(dev->desc_copy.shader);
+   struct panvk_priv_mem rsd =
+      panvk_pool_alloc_desc(&dev->mempools.rw, RENDERER_STATE);
+
+   pan_pack(panvk_priv_mem_host_addr(rsd), RENDERER_STATE, cfg) {
       pan_shader_prepare_rsd(&shader_info, shader, &cfg);
    }
 
-   dev->meta.desc_copy.rsd = rsd.gpu;
+   dev->desc_copy.rsd = rsd;
+}
+
+void
+panvk_per_arch(meta_desc_copy_cleanup)(struct panvk_device *dev)
+{
+   panvk_pool_free_mem(&dev->mempools.rw, dev->desc_copy.rsd);
+   panvk_pool_free_mem(&dev->mempools.exec, dev->desc_copy.shader);
 }
 
 struct panfrost_ptr
@@ -368,7 +377,7 @@ panvk_per_arch(meta_get_copy_desc_job)(
    GENX(pan_emit_tls)(&tlsinfo, tls.cpu);
 
    pan_section_pack(job.cpu, COMPUTE_JOB, DRAW, cfg) {
-      cfg.state = dev->meta.desc_copy.rsd;
+      cfg.state = panvk_priv_mem_dev_addr(dev->desc_copy.rsd);
       cfg.push_uniforms = push_uniforms;
       cfg.thread_storage = tls.gpu;
    }
