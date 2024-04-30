@@ -683,3 +683,56 @@ void vpe_resource_build_bit_depth_reduction_params(
         break;
     }
 }
+
+void vpe_frontend_config_callback(
+    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size)
+{
+    struct config_frontend_cb_ctx *cb_ctx = (struct config_frontend_cb_ctx*)ctx;
+    struct vpe_priv *vpe_priv             = cb_ctx->vpe_priv;
+    struct stream_ctx *stream_ctx         = &vpe_priv->stream_ctx[cb_ctx->stream_idx];
+    enum vpe_cmd_type  cmd_type;
+
+    if (cb_ctx->stream_sharing) {
+        VPE_ASSERT(stream_ctx->num_configs <
+                (int)(sizeof(stream_ctx->configs) / sizeof(struct config_record)));
+
+        stream_ctx->configs[stream_ctx->num_configs].config_base_addr = cfg_base_gpu;
+        stream_ctx->configs[stream_ctx->num_configs].config_size = size;
+        stream_ctx->num_configs++;
+    } else if (cb_ctx->stream_op_sharing) {
+        cmd_type = cb_ctx->cmd_type;
+
+        VPE_ASSERT(
+            stream_ctx->num_stream_op_configs[cmd_type] <
+                   (int)(sizeof(stream_ctx->stream_op_configs[cmd_type]) / sizeof(struct config_record)));
+
+        stream_ctx->stream_op_configs[cmd_type][stream_ctx->num_stream_op_configs[cmd_type]]
+            .config_base_addr = cfg_base_gpu;
+        stream_ctx->stream_op_configs[cmd_type][stream_ctx->num_stream_op_configs[cmd_type]]
+            .config_size = size;
+        stream_ctx->num_stream_op_configs[cmd_type]++;
+    }
+
+    vpe_desc_writer_add_config_desc(
+        &vpe_priv->vpe_desc_writer, cfg_base_gpu, false, vpe_priv->config_writer.buf->tmz);
+}
+
+void vpe_backend_config_callback(
+    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size)
+{
+    struct config_backend_cb_ctx *cb_ctx = (struct config_backend_cb_ctx*)ctx;
+    struct vpe_priv *vpe_priv            = cb_ctx->vpe_priv;
+    struct output_ctx *output_ctx        = &vpe_priv->output_ctx;
+
+    if (cb_ctx->share) {
+        VPE_ASSERT(
+            output_ctx->num_configs < (sizeof(output_ctx->configs) / sizeof(struct config_record)));
+
+        output_ctx->configs[output_ctx->num_configs].config_base_addr = cfg_base_gpu;
+        output_ctx->configs[output_ctx->num_configs].config_size      = size;
+        output_ctx->num_configs++;
+    }
+
+    vpe_desc_writer_add_config_desc(
+        &vpe_priv->vpe_desc_writer, cfg_base_gpu, false, vpe_priv->config_writer.buf->tmz);
+}

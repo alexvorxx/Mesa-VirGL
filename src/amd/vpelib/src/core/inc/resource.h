@@ -152,6 +152,13 @@ void vpe_handle_output_h_mirror(struct vpe_priv *vpe_priv);
 void vpe_resource_build_bit_depth_reduction_params(
     struct opp *opp, struct bit_depth_reduction_params *fmt_bit_depth);
 
+/** resource function call backs*/
+void vpe_frontend_config_callback(
+    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size);
+
+void vpe_backend_config_callback(
+    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size);
+
 #ifdef __cplusplus
 }
 #endif
