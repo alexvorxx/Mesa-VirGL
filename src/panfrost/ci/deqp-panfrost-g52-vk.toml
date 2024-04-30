@@ -14,6 +14,7 @@ include = [
     "dEQP-VK.api.copy_and_blit.core.*",
     "dEQP-VK.api.device_init.*",
     "dEQP-VK.api.fill_and_update_buffer.suballocation.*",
+    "dEQP-VK.api.image_clearing.*",
     "dEQP-VK.api.maintenance3_check.*",
     "dEQP-VK.api.null_handle.*",
     "dEQP-VK.api.object_management.*",
