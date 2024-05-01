@@ -1659,7 +1659,7 @@ get_image_ssbo_samp_tex_src(struct ir3_context *ctx, nir_src *src, bool image)
       texture = create_immed_typed(ctx->block, tex_idx, TYPE_U16);
       sampler = create_immed_typed(ctx->block, tex_idx, TYPE_U16);
 
-      info.samp_tex = ir3_collect(b, sampler, texture);
+      info.samp_tex = ir3_collect(b, texture, sampler);
    }
 
    return info;
@@ -1866,8 +1866,7 @@ get_bindless_samp_src(struct ir3_context *ctx, nir_src *tex,
          info.flags |= IR3_INSTR_A1EN;
       }
 
-      /* Note: the indirect source is now a vec2 instead of hvec2, and
-       * for some reason the texture and sampler are swapped.
+      /* Note: the indirect source is now a vec2 instead of hvec2
        */
       struct ir3_instruction *texture, *sampler;
 
@@ -3446,7 +3445,7 @@ get_tex_samp_tex_src(struct ir3_context *ctx, nir_tex_instr *tex)
          info.samp_idx = tex->texture_index;
       }
 
-      info.samp_tex = ir3_collect(b, sampler, texture);
+      info.samp_tex = ir3_collect(b, texture, sampler);
    }
 
    return info;
