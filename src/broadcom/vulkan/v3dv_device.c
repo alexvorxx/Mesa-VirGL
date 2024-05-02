@@ -71,7 +71,7 @@
 #include "wayland-drm-client-protocol.h"
 #endif
 
-#define V3DV_API_VERSION VK_MAKE_VERSION(1, 2, VK_HEADER_VERSION)
+#define V3DV_API_VERSION VK_MAKE_VERSION(1, 3, VK_HEADER_VERSION)
 
 #ifdef ANDROID_STRICT
 #if ANDROID_API_LEVEL <= 32

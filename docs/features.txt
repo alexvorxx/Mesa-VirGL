@@ -473,7 +473,7 @@ Vulkan 1.2 -- all DONE: anv, nvk, tu, vn
   VK_EXT_separate_stencil_usage                         DONE (anv, dzn, hasvk, lvp, nvk, radv, tu, v3dv, vn)
   VK_EXT_shader_viewport_index_layer                    DONE (anv, hasvk, lvp, nvk, radv, tu, vn)
 
-Vulkan 1.3 -- all DONE: anv, lvp, nvk, radv, tu, vn
+Vulkan 1.3 -- all DONE: anv, lvp, nvk, radv, tu, vn, v3dv
 
   VK_KHR_copy_commands2                                 DONE (anv, hasvk, lvp, nvk, panvk, pvr, radv, tu, v3dv, vn)
   VK_KHR_dynamic_rendering                              DONE (anv, dzn, hasvk, lvp, nvk, radv, tu, v3dv, vn)
