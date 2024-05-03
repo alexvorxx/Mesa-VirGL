@@ -104,7 +104,15 @@ struct vpe_cmd_info {
 
 struct config_record {
     uint64_t config_base_addr;
-    uint64_t  config_size;
+    uint64_t config_size;
+};
+
+#define VPE_3DLUT_CACHE_SIZE 81920
+
+struct vpe_3dlut_cache {
+    uint64_t uid;
+    uint8_t  cache_buf[VPE_3DLUT_CACHE_SIZE];
+    uint64_t buffer_size;
 };
 
 /** represents a stream input, i.e. common to all segments */
@@ -128,7 +136,7 @@ struct stream_ctx {
     enum color_transfer_func tf;
     enum color_space         cs;
     bool                     enable_3dlut;
-    uint64_t                 UID_3DLUT;                 // UID for current 3D LUT params
+    uint64_t                 uid_3dlut;                 // UID for current 3D LUT params
     bool                     geometric_scaling;
     bool                     is_yuv_input;
 
@@ -148,6 +156,7 @@ struct stream_ctx {
     struct colorspace_transform *gamut_remap;
     struct transfer_func        *in_shaper_func; // for shaper lut
     struct vpe_3dlut            *lut3d_func;     // for 3dlut
+    struct vpe_3dlut_cache      *lut3d_cache;    // for 3dlut cache
     struct transfer_func        *blend_tf;       // for 1dlut
     white_point_gain             white_point_gain;
 

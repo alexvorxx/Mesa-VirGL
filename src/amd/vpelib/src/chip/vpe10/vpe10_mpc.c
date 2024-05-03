@@ -1258,11 +1258,55 @@ void vpe10_mpc_set_mpc_shaper_3dlut(
     mpc->funcs->program_shaper(mpc, shaper_lut);
 
     if (lut3d_func) {
-        if (lut3d_func->state.bits.initialized)
-            mpc->funcs->program_3dlut(mpc, &lut3d_func->lut_3d);
-        else
+        if (lut3d_func->state.bits.initialized) {
+            // check if 3D Lut cache enabled
+            PROGRAM_ENTRY();
+            struct stream_ctx *stream_ctx = &vpe_priv->stream_ctx[vpe_priv->fe_cb_ctx.stream_idx];
+
+            if (mpc->vpe_priv->init.debug.disable_3dlut_cache || !stream_ctx->uid_3dlut ||
+                    !stream_ctx->lut3d_cache) {
+                mpc->funcs->program_3dlut(mpc, &lut3d_func->lut_3d);
+            } else { // 3D Lut cache enabled
+
+                config_writer_force_new_with_type(config_writer, CONFIG_TYPE_DIRECT);
+
+                // check cache status, if cache exist, use cache
+                if (stream_ctx->lut3d_cache->uid == stream_ctx->uid_3dlut &&
+                        config_writer->buf->size >= stream_ctx->lut3d_cache->buffer_size) {
+                    memcpy((void *)(uintptr_t)config_writer->base_cpu_va,
+                            stream_ctx->lut3d_cache->cache_buf,
+                            stream_ctx->lut3d_cache->buffer_size);
+                    config_writer->buf->cpu_va = config_writer->base_cpu_va +
+                            stream_ctx->lut3d_cache->buffer_size;
+                    config_writer->buf->gpu_va = config_writer->base_gpu_va +
+                            stream_ctx->lut3d_cache->buffer_size;
+                    config_writer->buf->size   -=
+                            (stream_ctx->lut3d_cache->buffer_size - sizeof(uint32_t));
+                } else { // if cache not exist generate command and save to cache
+                    uint64_t start, end;
+
+                    uint16_t config_num = stream_ctx->num_configs;
+
+                    start = config_writer->base_cpu_va;
+                    mpc->funcs->program_3dlut(mpc, &lut3d_func->lut_3d);
+                    end = config_writer->buf->cpu_va;
+                    if (config_num == stream_ctx->num_configs) { // check if cross config
+                        if ((end - start) <= VPE_3DLUT_CACHE_SIZE) {
+                            stream_ctx->lut3d_cache->buffer_size = end - start;
+                            memcpy(stream_ctx->lut3d_cache->cache_buf, (void *)(uintptr_t)start,
+                                    stream_ctx->lut3d_cache->buffer_size);
+                            stream_ctx->lut3d_cache->uid = stream_ctx->uid_3dlut;
+                        }
+                    } else { // current cache does not support cross config
+                        stream_ctx->lut3d_cache->uid = 0;
+                    }
+                }
+            }
+        } else {
             mpc->funcs->program_3dlut(mpc, NULL);
+        }
     }
+
     return;
 }
 

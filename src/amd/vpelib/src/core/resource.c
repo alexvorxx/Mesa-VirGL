@@ -59,25 +59,26 @@ static const struct vpe_debug_options debug_defaults = {
                     .mpc  = false,
                 },
         },
-    .expansion_mode                          = 1,
-    .clamping_setting                        = 1,
+    .expansion_mode   = 1,
+    .clamping_setting = 1,
     .clamping_params =
-    	{
-            .r_clamp_component_lower         = 0x1000,
-            .g_clamp_component_lower         = 0x1000,
-            .b_clamp_component_lower         = 0x1000,
-            .r_clamp_component_upper         = 0xEB00,
-            .g_clamp_component_upper         = 0xEB00,
-            .b_clamp_component_upper         = 0xEB00,
-            .clamping_range                  = 4,
-	},
-    .bypass_per_pixel_alpha                  = 0,
-    .opp_pipe_crc_ctrl                       = 0,
-    .dpp_crc_ctrl                            = 0,
-    .mpc_crc_ctrl                            = 0,
-    .visual_confirm_params                   = {{{0}}},
-    .skip_optimal_tap_check                  = 0,
-    .bypass_blndgam                          = 0
+        {
+            .r_clamp_component_lower = 0x1000,
+            .g_clamp_component_lower = 0x1000,
+            .b_clamp_component_lower = 0x1000,
+            .r_clamp_component_upper = 0xEB00,
+            .g_clamp_component_upper = 0xEB00,
+            .b_clamp_component_upper = 0xEB00,
+            .clamping_range          = 4,
+        },
+    .bypass_per_pixel_alpha = 0,
+    .opp_pipe_crc_ctrl      = 0,
+    .dpp_crc_ctrl           = 0,
+    .mpc_crc_ctrl           = 0,
+    .visual_confirm_params  = {{{0}}},
+    .skip_optimal_tap_check = 0,
+    .disable_3dlut_cache    = 0,
+    .bypass_blndgam         = 0
 };
 
 enum vpe_ip_level vpe_resource_parse_ip_version(
@@ -183,7 +184,7 @@ struct stream_ctx *vpe_alloc_stream_ctx(struct vpe_priv *vpe_priv, uint32_t num_
         ctx->tf_scaling_factor = vpe_fixpt_one;
         ctx->stream.flags.geometric_scaling = 0;
         ctx->stream.tm_params.UID = 0;
-        ctx->UID_3DLUT = 0;
+        ctx->uid_3dlut = 0;
     }
 
     return ctx_base;
@@ -232,6 +233,11 @@ void vpe_free_stream_ctx(struct vpe_priv *vpe_priv)
         if (ctx->lut3d_func) {
             vpe_free(ctx->lut3d_func);
             ctx->lut3d_func = NULL;
+        }
+
+        if (ctx->lut3d_cache) {
+            vpe_free(ctx->lut3d_cache);
+            ctx->lut3d_cache = NULL;
         }
 
         if (ctx->segment_ctx) {
