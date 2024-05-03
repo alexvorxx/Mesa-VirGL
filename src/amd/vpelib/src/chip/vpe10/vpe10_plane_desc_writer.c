@@ -23,12 +23,19 @@
  */
 
 #include "vpe_assert.h"
-#include "vpe_command.h"
-#include "plane_desc_writer.h"
+#include "vpe10_command.h"
+#include "vpe10_plane_desc_writer.h"
 #include "reg_helper.h"
 
-void plane_desc_writer_init(struct plane_desc_writer *writer, struct vpe_buf *buf, int32_t nps0,
-    int32_t npd0, int32_t nps1, int32_t npd1, int32_t subop)
+void vpe10_construct_plane_desc_writer(struct plane_desc_writer *writer)
+{
+    writer->init            = vpe10_plane_desc_writer_init;
+    writer->add_source      = vpe10_plane_desc_writer_add_source;
+    writer->add_destination = vpe10_plane_desc_writer_add_destination;
+}
+
+void vpe10_plane_desc_writer_init(
+    struct plane_desc_writer *writer, struct vpe_buf *buf, struct plane_desc_header *header)
 {
     uint32_t *cmd_space;
     uint64_t  size      = 4;
@@ -46,7 +53,8 @@ void plane_desc_writer_init(struct plane_desc_writer *writer, struct vpe_buf *bu
     }
 
     cmd_space    = (uint32_t *)(uintptr_t)writer->buf->cpu_va;
-    *cmd_space++ = VPE_PLANE_CFG_CMD_HEADER(subop, nps0, npd0, nps1, npd1);
+    *cmd_space++ = VPE_PLANE_CFG_CMD_HEADER(
+        header->subop, header->nps0, header->npd0, header->nps1, header->npd1);
 
     writer->buf->cpu_va += size;
     writer->buf->gpu_va += size;
@@ -54,7 +62,7 @@ void plane_desc_writer_init(struct plane_desc_writer *writer, struct vpe_buf *bu
 }
 
 /** fill the value to the embedded buffer. */
-void plane_desc_writer_add_source(
+void vpe10_plane_desc_writer_add_source(
     struct plane_desc_writer *writer, struct plane_desc_src *src, bool is_plane0)
 {
     uint32_t *cmd_space, *cmd_start;
@@ -98,7 +106,7 @@ void plane_desc_writer_add_source(
 }
 
 /** fill the value to the embedded buffer. */
-void plane_desc_writer_add_destination(
+void vpe10_plane_desc_writer_add_destination(
     struct plane_desc_writer *writer, struct plane_desc_dst *dst, bool is_plane0)
 {
     uint32_t *cmd_space, *cmd_start;

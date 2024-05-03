@@ -195,6 +195,7 @@ struct vpe_dcc_surface_param {
     enum vpe_surface_pixel_format format;
     enum vpe_swizzle_mode_values  swizzle_mode;
     enum vpe_scan_direction       scan;
+    enum vpe_mirror               mirror;
 };
 
 struct vpe_dcc_setting {

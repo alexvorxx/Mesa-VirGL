@@ -1,4 +1,4 @@
-/* Copyright 2023 Advanced Micro Devices, Inc.
+/* Copyright 2024 Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -21,19 +21,37 @@
  * Authors: AMD
  *
  */
+
 #pragma once
 
-#include "cmd_builder.h"
-#include "vpe11_command.h"
+#include "vpe_types.h"
+#include "plane_desc_writer.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void vpe11_construct_cmd_builder(struct vpe_priv *vpe_priv, struct cmd_builder *cmd_builder);
+/** initialize the plane descriptor writer.
+ * Calls right before building any plane descriptor
+ *
+ * /param   writer               writer instance
+ * /param   buf                  points to the current buf,
+ * /param   plane_desc_header    header
+ */
 
-enum vpe_status vpe11_build_collaborate_sync_cmd(
-    struct vpe_priv *vpe_priv, struct vpe_build_bufs *cur_bufs);
+void vpe10_plane_desc_writer_init(
+    struct plane_desc_writer *writer, struct vpe_buf *buf, struct plane_desc_header *header);
+
+/** fill the value to the embedded buffer. */
+void vpe10_plane_desc_writer_add_source(
+    struct plane_desc_writer *writer, struct plane_desc_src *source, bool is_plane0);
+
+/** fill the value to the embedded buffer. */
+void vpe10_plane_desc_writer_add_destination(
+    struct plane_desc_writer *writer, struct plane_desc_dst *destination, bool is_plane0);
+
+void vpe10_construct_plane_desc_writer(struct plane_desc_writer *writer);
+
 #ifdef __cplusplus
 }
 #endif

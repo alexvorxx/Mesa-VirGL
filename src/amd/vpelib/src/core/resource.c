@@ -86,19 +86,17 @@ enum vpe_ip_level vpe_resource_parse_ip_version(
 {
     enum vpe_ip_level ip_level = VPE_IP_LEVEL_UNKNOWN;
     switch (VPE_VERSION(major, minor, rev_id)) {
-#if VPE_BUILD_1_X
-#if VPE_BUILD_1_0
+#ifdef VPE_BUILD_1_0
     case VPE_VERSION(6, 1, 0):
     case VPE_VERSION(6, 1, 3):
         ip_level = VPE_IP_LEVEL_1_0;
         break;
 #endif
-#if VPE_BUILD_1_1
+#ifdef VPE_BUILD_1_1
     case VPE_VERSION(6, 1, 1):
     case VPE_VERSION(6, 1, 2):
         ip_level = VPE_IP_LEVEL_1_1;
         break;
-#endif
 #endif
     default:
         ip_level = VPE_IP_LEVEL_UNKNOWN;

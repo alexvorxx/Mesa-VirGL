@@ -23,7 +23,6 @@
  */
 
 #include "vpe_assert.h"
-#include "vpe_command.h"
 #include "config_writer.h"
 #include "reg_helper.h"
 #include "common.h"

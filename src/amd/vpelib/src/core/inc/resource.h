@@ -41,6 +41,7 @@ struct vpe_cmd_info;
 struct segment_ctx;
 
 #define MAX_PIPE 2
+#define MAX_OUTPUT_PIPE 2
 
 enum vpe_cmd_ops;
 

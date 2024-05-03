@@ -97,9 +97,10 @@ enum vpe_mirror {
 };
 
 enum vpe_scan_direction {
-    VPE_SCAN_DIRECTION_UNKNOWN    = 0,
-    VPE_SCAN_DIRECTION_HORIZONTAL = 1, /* 0, 180 rotation */
-    VPE_SCAN_DIRECTION_VERTICAL   = 2, /* 90, 270 rotation */
+    VPE_SCAN_PATTERN_0_DEGREE            = 0,
+    VPE_SCAN_PATTERN_90_DEGREE           = 1,
+    VPE_SCAN_PATTERN_180_DEGREE          = 2,
+    VPE_SCAN_PATTERN_270_DEGREE          = 3,
 };
 
 struct vpe_size {

@@ -26,7 +26,7 @@
 #include "common.h"
 #include "reg_helper.h"
 #include "vpe_desc_writer.h"
-#include "vpe_command.h"
+#include "vpe10_command.h"
 
 void vpe_desc_writer_init(struct vpe_desc_writer *writer, struct vpe_buf *buf, int cd)
 {

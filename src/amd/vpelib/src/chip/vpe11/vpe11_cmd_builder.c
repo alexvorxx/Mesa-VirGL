@@ -24,18 +24,16 @@
 #include "vpe_assert.h"
 #include "common.h"
 #include "vpe_priv.h"
-#include "vpe_command.h"
+#include "vpe11_command.h"
 #include "vpe10_cmd_builder.h"
 #include "vpe11_cmd_builder.h"
-#include "plane_desc_writer.h"
 #include "reg_helper.h"
 
 void vpe11_construct_cmd_builder(struct vpe_priv *vpe_priv, struct cmd_builder *builder)
 {
-    builder->build_noops            = vpe10_build_noops;
-    builder->build_vpe_cmd          = vpe10_build_vpe_cmd;
-    builder->build_plane_descriptor = vpe10_build_plane_descriptor;
-    // build collaborate sync cmd
+    builder->build_noops                = vpe10_build_noops;
+    builder->build_vpe_cmd              = vpe10_build_vpe_cmd;
+    builder->build_plane_descriptor     = vpe10_build_plane_descriptor;
     builder->build_collaborate_sync_cmd = vpe11_build_collaborate_sync_cmd;
 }
 

@@ -85,6 +85,11 @@ struct vpe_cmd_input {
     struct scaler_data scaler_data;
 };
 
+struct vpe_cmd_output {
+    struct vpe_rect dst_viewport;
+    struct vpe_rect dst_viewport_c;
+};
+
 struct vpe_cmd_info {
     enum vpe_cmd_ops ops;
     uint8_t          cd; // count down value
@@ -94,8 +99,8 @@ struct vpe_cmd_info {
     struct vpe_cmd_input inputs[MAX_PIPE];
 
     // output
-    struct vpe_rect dst_viewport;
-    struct vpe_rect dst_viewport_c;
+    uint16_t              num_outputs;
+    struct vpe_cmd_output outputs[MAX_OUTPUT_PIPE];
 
     bool tm_enabled;
     bool insert_start_csync;

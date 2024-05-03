@@ -1,4 +1,4 @@
-/* Copyright 2023 Advanced Micro Devices, Inc.
+/* Copyright 2022 Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -22,18 +22,28 @@
  *
  */
 #pragma once
-
-#include "cmd_builder.h"
-#include "vpe11_command.h"
+#include "vpe10_command.h"
 
 #ifdef __cplusplus
-extern "C" {
+    extern "C" {
 #endif
 
-void vpe11_construct_cmd_builder(struct vpe_priv *vpe_priv, struct cmd_builder *cmd_builder);
+#undef VPE_DESC_CD__SHIFT
+#undef VPE_DESC_CD_MASK
+#undef VPE_DESC_CMD_HEADER
 
-enum vpe_status vpe11_build_collaborate_sync_cmd(
-    struct vpe_priv *vpe_priv, struct vpe_build_bufs *cur_bufs);
+#define VPE_DESC_CD__SHIFT 16
+#define VPE_DESC_CD_MASK   0x001F0000
+
+#define VPE_DESC_CMD_HEADER(cd)                                                                    \
+    (VPE_CMD_HEADER(VPE_CMD_OPCODE_VPE_DESC, 0) | (((cd) << VPE_DESC_CD__SHIFT) & VPE_DESC_CD_MASK))
+
+        // Collaborate sync Command Header
+#define VPE_COLLABORATE_SYNC_HEADER_MASK                 0x000000FF
+#define VPE_COLLABORATE_SYNC_DATA_MASK(collaborate_data) ((collaborate_data) & 0xFFFFFFFF)
+#define VPE_COLLABORATE_SYNC_CMD_HEADER                                                            \
+    (VPE_CMD_HEADER(VPE_CMD_OPCODE_COLLABORATE_SYNC, 0) & VPE_COLLABORATE_SYNC_HEADER_MASK)   
+
 #ifdef __cplusplus
 }
 #endif

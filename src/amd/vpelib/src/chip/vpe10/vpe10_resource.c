@@ -31,9 +31,10 @@
 #include "vpe10_dpp.h"
 #include "vpe10_mpc.h"
 #include "vpe10_opp.h"
-#include "vpe_command.h"
+#include "vpe10_command.h"
 #include "vpe10_cm_common.h"
 #include "vpe10_background.h"
+#include "vpe10_plane_desc_writer.h"
 #include "vpe10/inc/asic/bringup_vpe_6_1_0_offset.h"
 #include "vpe10/inc/asic/bringup_vpe_6_1_0_sh_mask.h"
 #include "vpe10/inc/asic/bringup_vpe_6_1_0_default.h"
@@ -358,6 +359,7 @@ enum vpe_status vpe10_construct_resource(struct vpe_priv *vpe_priv, struct resou
     if (!res->opp[0])
         goto err;
 
+    vpe10_construct_plane_desc_writer(&vpe_priv->plane_desc_writer);
     vpe10_construct_cmd_builder(vpe_priv, &res->cmd_builder);
     vpe_priv->num_pipe = 1;
 
@@ -885,8 +887,9 @@ enum vpe_status vpe10_populate_cmd_info(struct vpe_priv *vpe_priv)
             cmd_info->cd                   = (uint8_t)(stream_ctx->num_segments - segment_idx - 1);
             memcpy(&(cmd_info->inputs[0].scaler_data),
                 &(stream_ctx->segment_ctx[segment_idx].scaler_data), sizeof(struct scaler_data));
-            cmd_info->dst_viewport = stream_ctx->segment_ctx[segment_idx].scaler_data.dst_viewport;
-            cmd_info->dst_viewport_c =
+            cmd_info->num_outputs = 1;
+            cmd_info->outputs[0].dst_viewport = stream_ctx->segment_ctx[segment_idx].scaler_data.dst_viewport;
+            cmd_info->outputs[0].dst_viewport_c =
                 stream_ctx->segment_ctx[segment_idx].scaler_data.dst_viewport_c;
             cmd_info->num_inputs = 1;
             cmd_info->ops        = VPE_CMD_OPS_COMPOSITING;

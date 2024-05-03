@@ -390,12 +390,12 @@ enum vpe_status vpe_check_output_support(struct vpe *vpe, const struct vpe_build
 
     // output dcc
     if (surface_info->dcc.enable) {
+
         params.surface_size.width  = surface_info->plane_size.surface_size.width;
         params.surface_size.height = surface_info->plane_size.surface_size.height;
         params.format              = surface_info->format;
         params.swizzle_mode        = surface_info->swizzle;
-        params.scan                = VPE_SCAN_DIRECTION_HORIZONTAL;
-
+        params.scan                = VPE_SCAN_PATTERN_0_DEGREE;
         support = vpe->cap_funcs->get_dcc_compression_output_cap(vpe, &params, &cap);
         if (!support) {
             vpe_log("output dcc not supported\n");
@@ -497,14 +497,6 @@ enum vpe_status vpe_check_input_support(struct vpe *vpe, const struct vpe_stream
         params.surface_size.height = surface_info->plane_size.surface_size.height;
         params.format              = surface_info->format;
         params.swizzle_mode        = surface_info->swizzle;
-
-        if (stream->rotation == VPE_ROTATION_ANGLE_0 || stream->rotation == VPE_ROTATION_ANGLE_180)
-            params.scan = VPE_SCAN_DIRECTION_HORIZONTAL;
-        else if (stream->rotation == VPE_ROTATION_ANGLE_90 ||
-                 stream->rotation == VPE_ROTATION_ANGLE_270)
-            params.scan = VPE_SCAN_DIRECTION_VERTICAL;
-        else
-            params.scan = VPE_SCAN_DIRECTION_UNKNOWN;
 
         support = vpe->cap_funcs->get_dcc_compression_input_cap(vpe, &params, &cap);
         //only support non dual plane formats

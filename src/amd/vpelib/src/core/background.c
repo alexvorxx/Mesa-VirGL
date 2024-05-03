@@ -110,14 +110,14 @@ void vpe_create_bg_segments(
         VPE_ASSERT(gaps_cnt - gap_index - 1 <= (uint16_t)0xF);
 
         // background takes stream_idx 0 as its input
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].inputs[0].stream_idx = 0;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].dst_viewport   = scaler_data->dst_viewport;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].dst_viewport_c = scaler_data->dst_viewport_c;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].num_inputs     = 1;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].ops            = ops;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].cd = (uint8_t)(gaps_cnt - gap_index - 1);
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].tm_enabled =
-            false; // currently only support frontend tm
+        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].inputs[0].stream_idx      = 0;
+        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].num_outputs               = 1;
+        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].outputs[0].dst_viewport   = scaler_data->dst_viewport;
+        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].outputs[0].dst_viewport_c = scaler_data->dst_viewport_c;
+        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].num_inputs                = 1;
+        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].ops                       = ops;
+        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].cd                        = (uint8_t)(gaps_cnt - gap_index - 1);
+        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].tm_enabled                = false; // currently only support frontend tm
 
         vpe_priv->num_vpe_cmds++;
     }

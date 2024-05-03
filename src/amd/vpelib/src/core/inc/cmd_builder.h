@@ -25,6 +25,7 @@
 #pragma once
 
 #include "vpe_types.h"
+#include "plane_desc_writer.h"
 
 #ifdef __cplusplus
 extern "C" {
