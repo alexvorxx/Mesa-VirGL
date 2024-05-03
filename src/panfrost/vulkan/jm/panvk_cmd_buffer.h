@@ -80,6 +80,12 @@ struct panvk_attrib_buf {
    unsigned size;
 };
 
+struct panvk_resolve_attachment {
+   VkResolveModeFlagBits mode;
+   struct panvk_image_view *src_iview;
+   struct panvk_image_view *dst_iview;
+};
+
 struct panvk_cmd_graphics_state {
    struct panvk_descriptor_state desc_state;
 
@@ -133,9 +139,14 @@ struct panvk_cmd_graphics_state {
       struct {
          VkFormat fmts[MAX_RTS];
          uint8_t samples[MAX_RTS];
+         struct panvk_resolve_attachment resolve[MAX_RTS];
       } color_attachments;
 
       struct pan_image_view zs_pview;
+
+      struct {
+         struct panvk_resolve_attachment resolve;
+      } z_attachment, s_attachment;
 
       struct {
          struct pan_fb_info info;
