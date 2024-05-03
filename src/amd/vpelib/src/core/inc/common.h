@@ -67,11 +67,13 @@ bool vpe_is_fp16(enum vpe_surface_pixel_format format);
 // yuv 4:2:0 check
 bool vpe_is_yuv420_8(enum vpe_surface_pixel_format format);
 bool vpe_is_yuv420_10(enum vpe_surface_pixel_format format);
+bool vpe_is_yuv420_16(enum vpe_surface_pixel_format format);
 bool vpe_is_yuv420(enum vpe_surface_pixel_format format);
 
 // yuv 4:4:4 check
 bool vpe_is_yuv444_8(enum vpe_surface_pixel_format format);
 bool vpe_is_yuv444_10(enum vpe_surface_pixel_format format);
+bool vpe_is_yuv444(enum vpe_surface_pixel_format format);
 
 enum color_depth vpe_get_color_depth(enum vpe_surface_pixel_format format);
 

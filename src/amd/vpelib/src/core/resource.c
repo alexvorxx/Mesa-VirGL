@@ -476,7 +476,8 @@ static enum vpe_status calculate_inits_and_viewports(struct segment_ctx *segment
     struct vpe_rect          src_rect     = stream_ctx->stream.scaling_info.src_rect;
     struct vpe_rect         *dst_rect     = &stream_ctx->stream.scaling_info.dst_rect;
     struct scaler_data      *data         = &segment_ctx->scaler_data;
-    uint32_t                 vpc_div      = vpe_is_yuv420(data->format) ? 2 : 1;
+    uint32_t                 vpc_h_div    = vpe_is_yuv420(data->format) ? 2 : 1;
+    uint32_t                 vpc_v_div    = vpe_is_yuv420(data->format) ? 2 : 1;
     bool                     orthogonal_rotation, flip_vert_scan_dir, flip_horz_scan_dir;
     struct fixed31_32        init_adj_h = vpe_fixpt_zero;
     struct fixed31_32        init_adj_v = vpe_fixpt_zero;
@@ -520,20 +521,20 @@ static enum vpe_status calculate_inits_and_viewports(struct segment_ctx *segment
         data->taps.h_taps, data->ratios.horz, vpe_fixpt_zero, &data->inits.h, &data->viewport.x,
         &data->viewport.width);
     calculate_init_and_vp(flip_horz_scan_dir, data->recout.x, data->recout.width,
-        src_rect.width / vpc_div, data->taps.h_taps_c, data->ratios.horz_c, init_adj_h,
+        src_rect.width / vpc_h_div, data->taps.h_taps_c, data->ratios.horz_c, init_adj_h,
         &data->inits.h_c, &data->viewport_c.x, &data->viewport_c.width);
     calculate_init_and_vp(flip_vert_scan_dir, data->recout.y, data->recout.height, src_rect.height,
         data->taps.v_taps, data->ratios.vert, vpe_fixpt_zero, &data->inits.v, &data->viewport.y,
         &data->viewport.height);
     calculate_init_and_vp(flip_vert_scan_dir, data->recout.y, data->recout.height,
-        src_rect.height / vpc_div, data->taps.v_taps_c, data->ratios.vert_c, init_adj_v,
+        src_rect.height / vpc_v_div, data->taps.v_taps_c, data->ratios.vert_c, init_adj_v,
         &data->inits.v_c, &data->viewport_c.y, &data->viewport_c.height);
 
     // convert to absolute address
     data->viewport.x += src_rect.x;
     data->viewport.y += src_rect.y;
-    data->viewport_c.x += src_rect.x / (int32_t)vpc_div;
-    data->viewport_c.y += src_rect.y / (int32_t)vpc_div;
+    data->viewport_c.x += src_rect.x / (int32_t)vpc_h_div;
+    data->viewport_c.y += src_rect.y / (int32_t)vpc_v_div;
 
     return VPE_STATUS_OK;
 }

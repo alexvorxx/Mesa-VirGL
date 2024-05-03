@@ -138,16 +138,29 @@ bool vpe_is_yuv420_10(enum vpe_surface_pixel_format format)
         return false;
     }
 }
+bool vpe_is_yuv420_16(enum vpe_surface_pixel_format format)
+{
+    switch (format) {
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_420_16bpc_YCrCb:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_420_16bpc_YCbCr:
+        return true;
+    default:
+        return false;
+    }
+}
 
 bool vpe_is_yuv420(enum vpe_surface_pixel_format format)
 {
-    return (vpe_is_yuv420_8(format) || vpe_is_yuv420_10(format));
+    return (vpe_is_yuv420_8(format) || vpe_is_yuv420_10(format) || vpe_is_yuv420_16(format));
 }
 
 bool vpe_is_yuv444_8(enum vpe_surface_pixel_format format)
 {
     switch (format) {
     case VPE_SURFACE_PIXEL_FORMAT_VIDEO_AYCrCb8888:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_YCrCbA8888:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_ACrYCb8888:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_CrYCbA8888:
     case VPE_SURFACE_PIXEL_FORMAT_VIDEO_AYCbCr8888:
         return true;
     default:
@@ -165,6 +178,12 @@ bool vpe_is_yuv444_10(enum vpe_surface_pixel_format format)
         return false;
     }
 }
+
+bool vpe_is_yuv444(enum vpe_surface_pixel_format format)
+{
+    return (vpe_is_yuv444_8(format) || vpe_is_yuv444_10(format));
+}
+
 
 static uint8_t vpe_get_element_size_in_bytes(enum vpe_surface_pixel_format format, int plane_idx)
 {
@@ -215,6 +234,9 @@ enum color_depth vpe_get_color_depth(enum vpe_surface_pixel_format format)
     case VPE_SURFACE_PIXEL_FORMAT_VIDEO_420_YCbCr:
     case VPE_SURFACE_PIXEL_FORMAT_VIDEO_420_YCrCb:
     case VPE_SURFACE_PIXEL_FORMAT_VIDEO_AYCrCb8888:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_YCrCbA8888:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_ACrYCb8888:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_CrYCbA8888:
     case VPE_SURFACE_PIXEL_FORMAT_VIDEO_AYCbCr8888:
         c_depth = COLOR_DEPTH_888;
         break;
@@ -233,6 +255,7 @@ enum color_depth vpe_get_color_depth(enum vpe_surface_pixel_format format)
     case VPE_SURFACE_PIXEL_FORMAT_GRPH_ABGR16161616F:
     case VPE_SURFACE_PIXEL_FORMAT_GRPH_RGBA16161616F:
     case VPE_SURFACE_PIXEL_FORMAT_GRPH_BGRA16161616F:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_420_16bpc_YCrCb:
         c_depth = COLOR_DEPTH_161616;
         break;
     default:
@@ -265,6 +288,9 @@ bool vpe_has_per_pixel_alpha(enum vpe_surface_pixel_format format)
     case VPE_SURFACE_PIXEL_FORMAT_VIDEO_ACrYCb2101010:
     case VPE_SURFACE_PIXEL_FORMAT_VIDEO_CrYCbA1010102:
     case VPE_SURFACE_PIXEL_FORMAT_VIDEO_AYCrCb8888:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_YCrCbA8888:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_ACrYCb8888:
+    case VPE_SURFACE_PIXEL_FORMAT_VIDEO_CrYCbA8888:
     case VPE_SURFACE_PIXEL_FORMAT_VIDEO_AYCbCr8888:
         alpha = true;
         break;

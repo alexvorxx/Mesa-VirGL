@@ -35,8 +35,10 @@ void vpe_create_bg_segments(
     struct stream_ctx  *stream_ctx = &(vpe_priv->stream_ctx[0]);
     int32_t             vp_x       = stream_ctx->stream.scaling_info.src_rect.x;
     int32_t             vp_y       = stream_ctx->stream.scaling_info.src_rect.y;
-    uint16_t            src_div    = vpe_is_yuv420(stream_ctx->stream.surface_info.format) ? 2 : 1;
-    uint16_t            dst_div    = vpe_is_yuv420(vpe_priv->output_ctx.surface.format) ? 2 : 1;
+    uint16_t            src_h_div  = vpe_is_yuv420(stream_ctx->stream.surface_info.format) ? 2 : 1;
+    uint16_t            src_v_div  = vpe_is_yuv420(stream_ctx->stream.surface_info.format) ? 2 : 1;
+    uint16_t            dst_h_div  = vpe_is_yuv420(vpe_priv->output_ctx.surface.format) ? 2 : 1;
+    uint16_t            dst_v_div  = vpe_is_yuv420(vpe_priv->output_ctx.surface.format) ? 2 : 1;
 
     for (gap_index = 0; gap_index < gaps_cnt; gap_index++) {
 
@@ -60,7 +62,8 @@ void vpe_create_bg_segments(
         if (vpe_is_yuv420(scaler_data->format)) {
             scaler_data->ratios.horz_c = vpe_fixpt_from_fraction(1, 2);
             scaler_data->ratios.vert_c = vpe_fixpt_from_fraction(1, 2);
-        } else {
+        }
+        else {
             scaler_data->ratios.horz_c = vpe_fixpt_one;
             scaler_data->ratios.vert_c = vpe_fixpt_one;
         }
@@ -76,18 +79,18 @@ void vpe_create_bg_segments(
         scaler_data->viewport.width  = VPE_MIN_VIEWPORT_SIZE;
         scaler_data->viewport.height = VPE_MIN_VIEWPORT_SIZE;
 
-        scaler_data->viewport_c.x      = scaler_data->viewport.x / src_div;
-        scaler_data->viewport_c.y      = scaler_data->viewport.y / src_div;
-        scaler_data->viewport_c.width  = scaler_data->viewport.width / src_div;
-        scaler_data->viewport_c.height = scaler_data->viewport.height / src_div;
+        scaler_data->viewport_c.x      = scaler_data->viewport.x / src_h_div;
+        scaler_data->viewport_c.y      = scaler_data->viewport.y / src_v_div;
+        scaler_data->viewport_c.width  = scaler_data->viewport.width / src_h_div;
+        scaler_data->viewport_c.height = scaler_data->viewport.height / src_v_div;
 
         /* destination viewport */
         scaler_data->dst_viewport = gaps[gap_index];
 
-        scaler_data->dst_viewport_c.x      = scaler_data->dst_viewport.x / dst_div;
-        scaler_data->dst_viewport_c.y      = scaler_data->dst_viewport.y / dst_div;
-        scaler_data->dst_viewport_c.width  = scaler_data->dst_viewport.width / dst_div;
-        scaler_data->dst_viewport_c.height = scaler_data->dst_viewport.height / dst_div;
+        scaler_data->dst_viewport_c.x      = scaler_data->dst_viewport.x / dst_h_div;
+        scaler_data->dst_viewport_c.y      = scaler_data->dst_viewport.y / dst_v_div;
+        scaler_data->dst_viewport_c.width  = scaler_data->dst_viewport.width / dst_h_div;
+        scaler_data->dst_viewport_c.height = scaler_data->dst_viewport.height / dst_v_div;
 
         /* taps and inits */
         scaler_data->taps.h_taps = scaler_data->taps.v_taps = 4;
