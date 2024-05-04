@@ -65,7 +65,6 @@ vpe_files = files(
   'src/core/config_writer.c',
   'src/core/color_gamut.c',
   'src/core/vpelib.c',
-  'src/core/vpe_desc_writer.c',
   'src/core/3dlut_builder.c',
   'src/core/geometric_scaling.c',
   'src/core/color_test_values.c',
@@ -86,7 +85,7 @@ vpe_files = files(
   'src/utils/fixpt31_32.c',
   'src/chip/vpe10/inc/vpe10_command.h',
   'src/chip/vpe10/inc/vpe10_plane_desc_writer.h',
-  'src/chip/vpe10/vpe10_plane_desc_writer.c',
+  'src/chip/vpe10/inc/vpe10_vpe_desc_writer.h',
   'src/chip/vpe10/inc/vpe10_background.h',
   'src/chip/vpe10/inc/vpe10_cm_common.h',
   'src/chip/vpe10/inc/vpe10_vpec.h',
@@ -100,6 +99,8 @@ vpe_files = files(
   'src/chip/vpe10/inc/vpe10_resource.h',
   'src/chip/vpe10/inc/vpe10_cdc.h',
   'src/chip/vpe10/inc/vpe10_dpp.h',
+  'src/chip/vpe10/vpe10_plane_desc_writer.c',
+  'src/chip/vpe10/vpe10_vpe_desc_writer.c',
   'src/chip/vpe10/vpe10_cm_common.c',
   'src/chip/vpe10/vpe10_dpp.c',
   'src/chip/vpe10/vpe10_resource.c',
@@ -113,8 +114,10 @@ vpe_files = files(
   'src/chip/vpe10/vpe10_vpec.c',
   'src/chip/vpe11/inc/vpe11_cmd_builder.h',
   'src/chip/vpe11/inc/vpe11_resource.h',
+  'src/chip/vpe11/inc/vpe11_vpe_desc_writer.h',
   'src/chip/vpe11/vpe11_cmd_builder.c',
   'src/chip/vpe11/vpe11_resource.c',
+  'src/chip/vpe11/vpe11_vpe_desc_writer.c',
 )
 
 inc_amd_vpe = include_directories(

@@ -36,6 +36,7 @@
 #include "vpe10_cm_common.h"
 #include "vpe10_background.h"
 #include "vpe10_plane_desc_writer.h"
+#include "vpe11_vpe_desc_writer.h"
 #include "vpe10/inc/asic/bringup_vpe_6_1_0_offset.h"
 #include "vpe10/inc/asic/bringup_vpe_6_1_0_sh_mask.h"
 #include "vpe10/inc/asic/bringup_vpe_6_1_0_default.h"
@@ -166,8 +167,10 @@ enum vpe_status vpe11_construct_resource(struct vpe_priv *vpe_priv, struct resou
     if (!res->opp[0])
         goto err;
 
-    vpe10_construct_plane_desc_writer(&vpe_priv->plane_desc_writer);
     vpe11_construct_cmd_builder(vpe_priv, &res->cmd_builder);
+    vpe10_construct_plane_desc_writer(&vpe_priv->plane_desc_writer);
+    vpe11_construct_vpe_desc_writer(&vpe_priv->vpe_desc_writer);
+
     vpe_priv->num_pipe = 1;
 
     res->internal_hdr_normalization = 1;

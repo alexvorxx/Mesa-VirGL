@@ -27,6 +27,7 @@
 #include "vpe_priv.h"
 #include "vpe10_command.h"
 #include "vpe10_cmd_builder.h"
+#include "vpe10_vpe_desc_writer.h"
 #include "reg_helper.h"
 
 /***** Internal helpers *****/
@@ -59,20 +60,21 @@ enum vpe_status vpe10_build_noops(struct vpe_priv *vpe_priv, uint32_t **ppbuf, u
 enum vpe_status vpe10_build_vpe_cmd(
     struct vpe_priv *vpe_priv, struct vpe_build_bufs *cur_bufs, uint32_t cmd_idx)
 {
-    struct cmd_builder  *builder  = &vpe_priv->resource.cmd_builder;
+    struct cmd_builder     *builder         = &vpe_priv->resource.cmd_builder;
+    struct vpe_desc_writer *vpe_desc_writer = &vpe_priv->vpe_desc_writer;
     struct vpe_buf      *emb_buf  = &cur_bufs->emb_buf;
     struct vpe_cmd_info *cmd_info = &vpe_priv->vpe_cmd_info[cmd_idx];
     struct output_ctx   *output_ctx;
     struct pipe_ctx     *pipe_ctx = NULL;
     uint32_t             i, j;
 
-    vpe_desc_writer_init(&vpe_priv->vpe_desc_writer, &cur_bufs->cmd_buf, cmd_info->cd);
+    vpe_desc_writer->init(vpe_desc_writer, &cur_bufs->cmd_buf, cmd_info->cd);
 
     // plane descriptor
     builder->build_plane_descriptor(vpe_priv, emb_buf, cmd_idx);
 
-    vpe_desc_writer_add_plane_desc(
-        &vpe_priv->vpe_desc_writer, vpe_priv->plane_desc_writer.base_gpu_va, emb_buf->tmz);
+    vpe_desc_writer->add_plane_desc(
+        vpe_desc_writer, vpe_priv->plane_desc_writer.base_gpu_va, (uint8_t)emb_buf->tmz);
 
     // reclaim any pipe if the owner no longer presents
     vpe_pipe_reclaim(vpe_priv, cmd_info);
@@ -116,15 +118,15 @@ enum vpe_status vpe10_build_vpe_cmd(
             // stream sharing
             VPE_ASSERT(stream_ctx->num_configs);
             for (j = 0; j < stream_ctx->num_configs; j++) {
-                vpe_desc_writer_add_config_desc(&vpe_priv->vpe_desc_writer,
-                    stream_ctx->configs[j].config_base_addr, reuse, emb_buf->tmz);
+                vpe_desc_writer->add_config_desc(vpe_desc_writer,
+                    stream_ctx->configs[j].config_base_addr, reuse, (uint8_t)emb_buf->tmz);
             }
 
             // stream-op sharing
             for (j = 0; j < stream_ctx->num_stream_op_configs[cmd_type]; j++) {
-                vpe_desc_writer_add_config_desc(&vpe_priv->vpe_desc_writer,
+                vpe_desc_writer->add_config_desc(vpe_desc_writer,
                     stream_ctx->stream_op_configs[cmd_type][j].config_base_addr, reuse,
-                    emb_buf->tmz);
+                    (uint8_t)emb_buf->tmz);
             }
 
             // command specific
@@ -147,18 +149,18 @@ enum vpe_status vpe10_build_vpe_cmd(
         bool reuse = !vpe_priv->init.debug.disable_reuse_bit;
         // re-use output register configs
         for (j = 0; j < output_ctx->num_configs; j++) {
-            vpe_desc_writer_add_config_desc(&vpe_priv->vpe_desc_writer,
-                output_ctx->configs[j].config_base_addr, reuse, emb_buf->tmz);
+            vpe_desc_writer->add_config_desc(vpe_desc_writer,
+                output_ctx->configs[j].config_base_addr, reuse, (uint8_t)emb_buf->tmz);
         }
 
         vpe_priv->resource.program_backend(vpe_priv, pipe_ctx->pipe_idx, cmd_idx, true);
     }
 
     /* If writer crashed due to buffer overflow */
-    if (vpe_priv->vpe_desc_writer.status != VPE_STATUS_OK) {
-        return vpe_priv->vpe_desc_writer.status;
+    if (vpe_desc_writer->status != VPE_STATUS_OK) {
+        return vpe_desc_writer->status;
     }
-    vpe_desc_writer_complete(&vpe_priv->vpe_desc_writer);
+    vpe_desc_writer->complete(vpe_desc_writer);
 
     return VPE_STATUS_OK;
 }

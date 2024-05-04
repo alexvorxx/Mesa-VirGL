@@ -37,7 +37,7 @@ struct plane_desc_header {
 };
 
 struct plane_desc_src {
-    bool                         tmz;
+    uint8_t                      tmz;
     enum vpe_swizzle_mode_values swizzle;
     enum vpe_rotation_angle      rotation;
     uint32_t                     base_addr_lo;
@@ -51,7 +51,7 @@ struct plane_desc_src {
 };
 
 struct plane_desc_dst {
-    bool                         tmz;
+    uint8_t                      tmz;
     enum vpe_swizzle_mode_values swizzle;
     enum vpe_mirror              mirror;
     uint32_t                     base_addr_lo;
@@ -72,8 +72,8 @@ struct plane_desc_writer {
      * i.e. config header
      * it is always constructed in emb_buf
      */
-    uint64_t base_gpu_va;
-    uint64_t base_cpu_va;
+    uint64_t        base_gpu_va;
+    uint64_t        base_cpu_va;
 
     int32_t         num_src;
     int32_t         num_dst;

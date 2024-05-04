@@ -640,7 +640,7 @@ struct vpe_bufs_req {
 struct vpe_buf {
     uint64_t gpu_va; /**< GPU start address of the buffer */
     uint64_t cpu_va;
-    uint64_t  size;
+    uint64_t size;
     bool     tmz; /**< allocated from tmz */
 };
 

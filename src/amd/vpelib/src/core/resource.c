@@ -718,8 +718,8 @@ void vpe_frontend_config_callback(
         stream_ctx->num_stream_op_configs[cmd_type]++;
     }
 
-    vpe_desc_writer_add_config_desc(
-        &vpe_priv->vpe_desc_writer, cfg_base_gpu, false, vpe_priv->config_writer.buf->tmz);
+    vpe_priv->vpe_desc_writer.add_config_desc(
+        &vpe_priv->vpe_desc_writer, cfg_base_gpu, false, (uint8_t)vpe_priv->config_writer.buf->tmz);
 }
 
 void vpe_backend_config_callback(
@@ -738,6 +738,6 @@ void vpe_backend_config_callback(
         output_ctx->num_configs++;
     }
 
-    vpe_desc_writer_add_config_desc(
-        &vpe_priv->vpe_desc_writer, cfg_base_gpu, false, vpe_priv->config_writer.buf->tmz);
+    vpe_priv->vpe_desc_writer.add_config_desc(
+        &vpe_priv->vpe_desc_writer, cfg_base_gpu, false, (uint8_t)vpe_priv->config_writer.buf->tmz);
 }

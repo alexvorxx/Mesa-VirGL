@@ -1,4 +1,4 @@
-/* Copyright 2022 Advanced Micro Devices, Inc.
+/* Copyright 2024 Advanced Micro Devices, Inc.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -25,10 +25,19 @@
 #include "vpe_assert.h"
 #include "common.h"
 #include "reg_helper.h"
-#include "vpe_desc_writer.h"
+#include "vpe10_vpe_desc_writer.h"
 #include "vpe10_command.h"
 
-void vpe_desc_writer_init(struct vpe_desc_writer *writer, struct vpe_buf *buf, int cd)
+void vpe10_construct_vpe_desc_writer(struct vpe_desc_writer *writer)
+{
+    writer->init            = vpe10_vpe_desc_writer_init;
+    writer->add_plane_desc  = vpe10_vpe_desc_writer_add_plane_desc;
+    writer->add_config_desc = vpe10_vpe_desc_writer_add_config_desc;
+    writer->complete        = vpe10_vpe_desc_writer_complete;
+}
+
+enum vpe_status vpe10_vpe_desc_writer_init(
+    struct vpe_desc_writer *writer, struct vpe_buf *buf, int cd)
 {
     uint32_t *cmd_space;
     uint64_t  size = sizeof(uint32_t);
@@ -42,19 +51,23 @@ void vpe_desc_writer_init(struct vpe_desc_writer *writer, struct vpe_buf *buf, i
 
     if (buf->size < size) {
         writer->status = VPE_STATUS_BUFFER_OVERFLOW;
-        return;
+        return writer->status;
     }
-    cmd_space    = (uint32_t *)(uintptr_t)writer->buf->cpu_va;
-    *cmd_space++ = VPE_DESC_CMD_HEADER(cd);
 
-    writer->buf->cpu_va += size;
-    writer->buf->gpu_va += size;
-    writer->buf->size -= size;
+    if (writer->status == VPE_STATUS_OK) {
+        cmd_space    = (uint32_t *)(uintptr_t)writer->buf->cpu_va;
+        *cmd_space++ = VPE_DESC_CMD_HEADER(cd);
+
+        writer->buf->cpu_va += size;
+        writer->buf->gpu_va += size;
+        writer->buf->size -= size;
+    }
+
+    return writer->status;
 }
 
-/** fill the value to the command buffer. */
-void vpe_desc_writer_add_plane_desc(
-    struct vpe_desc_writer *writer, uint64_t plane_desc_addr, bool tmz)
+void vpe10_vpe_desc_writer_add_plane_desc(
+    struct vpe_desc_writer *writer, uint64_t plane_desc_addr, uint8_t tmz)
 {
     uint32_t *cmd_space;
     uint64_t  size = 3 * sizeof(uint32_t);
@@ -73,7 +86,7 @@ void vpe_desc_writer_add_plane_desc(
     VPE_ASSERT(!(plane_desc_addr & 0x3));
     VPE_ASSERT(!writer->plane_desc_added);
 
-    *cmd_space++ = (ADDR_LO(plane_desc_addr) | (unsigned)tmz);
+    *cmd_space++ = (ADDR_LO(plane_desc_addr) | (unsigned)(tmz & 1));
     *cmd_space++ = ADDR_HI(plane_desc_addr);
 
     // skip the DW3 as well, which is finalized during complete
@@ -84,9 +97,8 @@ void vpe_desc_writer_add_plane_desc(
     writer->plane_desc_added = true;
 }
 
-/** fill the value to the command buffer. */
-void vpe_desc_writer_add_config_desc(
-    struct vpe_desc_writer *writer, uint64_t config_desc_addr, bool reuse, bool tmz)
+void vpe10_vpe_desc_writer_add_config_desc(
+    struct vpe_desc_writer *writer, uint64_t config_desc_addr, bool reuse, uint8_t tmz)
 {
     uint32_t *cmd_space;
     uint64_t  size = 2 * sizeof(uint32_t);
@@ -104,7 +116,7 @@ void vpe_desc_writer_add_config_desc(
 
     VPE_ASSERT(!(config_desc_addr & 0x3));
 
-    *cmd_space++ = (ADDR_LO(config_desc_addr) | ((unsigned)reuse << 1) | (unsigned)tmz);
+    *cmd_space++ = (ADDR_LO(config_desc_addr) | ((unsigned)reuse << 1) | (unsigned)(tmz & 1));
     *cmd_space++ = ADDR_HI(config_desc_addr);
 
     writer->buf->cpu_va += size;
@@ -113,9 +125,10 @@ void vpe_desc_writer_add_config_desc(
     writer->num_config_desc++;
 }
 
-void vpe_desc_writer_complete(struct vpe_desc_writer *writer)
+void vpe10_vpe_desc_writer_complete(struct vpe_desc_writer *writer)
 {
     uint32_t *cmd_space;
+
     if (writer->status != VPE_STATUS_OK)
         return;
 
