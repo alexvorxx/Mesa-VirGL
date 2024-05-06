@@ -6815,7 +6815,7 @@ VkResult ResourceTracker::on_vkResetCommandBuffer(void* context, VkResult input_
     resetCommandBufferStagingInfo(commandBuffer, true /* also reset primaries */,
                                   true /* also clear pending descriptor sets */);
 
-    VkEncoder* enc = (VkEncoder*)context;
+    VkEncoder* enc = ResourceTracker::getCommandBufferEncoder(commandBuffer);
     (void)input_result;
 
     if (!supportsDeferredCommands()) {
