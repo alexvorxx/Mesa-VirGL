@@ -6812,17 +6812,19 @@ VkResult ResourceTracker::on_vkEndCommandBuffer(void* context, VkResult input_re
 VkResult ResourceTracker::on_vkResetCommandBuffer(void* context, VkResult input_result,
                                                   VkCommandBuffer commandBuffer,
                                                   VkCommandBufferResetFlags flags) {
-    resetCommandBufferStagingInfo(commandBuffer, true /* also reset primaries */,
-                                  true /* also clear pending descriptor sets */);
-
-    VkEncoder* enc = ResourceTracker::getCommandBufferEncoder(commandBuffer);
+    VkEncoder* enc = (VkEncoder*)context;
     (void)input_result;
 
     if (!supportsDeferredCommands()) {
-        return enc->vkResetCommandBuffer(commandBuffer, flags, true /* do lock */);
+        VkResult res = enc->vkResetCommandBuffer(commandBuffer, flags, true /* do lock */);
+        resetCommandBufferStagingInfo(commandBuffer, true /* also reset primaries */,
+                                    true /* also clear pending descriptor sets */);
+        return res;
     }
 
     enc->vkResetCommandBufferAsyncGOOGLE(commandBuffer, flags, true /* do lock */);
+    resetCommandBufferStagingInfo(commandBuffer, true /* also reset primaries */,
+                                  true /* also clear pending descriptor sets */);
     return VK_SUCCESS;
 }
 
