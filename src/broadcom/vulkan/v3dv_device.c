@@ -1123,9 +1123,11 @@ get_device_properties(const struct v3dv_physical_device *device,
          VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_4_BIT,
 
       /* Vulkan 1.3 properties */
-      .maxInlineUniformBlockSize = 4096,
+      .maxInlineUniformBlockSize = MAX_INLINE_UNIFORM_BLOCK_SIZE,
       .maxPerStageDescriptorInlineUniformBlocks = MAX_INLINE_UNIFORM_BUFFERS,
       .maxDescriptorSetInlineUniformBlocks = MAX_INLINE_UNIFORM_BUFFERS,
+      .maxInlineUniformTotalSize =
+          MAX_INLINE_UNIFORM_BUFFERS * MAX_INLINE_UNIFORM_BLOCK_SIZE,
       .maxPerStageDescriptorUpdateAfterBindInlineUniformBlocks =
          MAX_INLINE_UNIFORM_BUFFERS,
       .maxDescriptorSetUpdateAfterBindInlineUniformBlocks =
