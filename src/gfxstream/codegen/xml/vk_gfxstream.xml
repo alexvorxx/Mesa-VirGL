@@ -316,7 +316,7 @@ specific entries.
                 <command name="vkQueueSubmitAsync2GOOGLE"/>
             </require>
         </extension>
-        <extension name="VK_MVK_moltenvk">
+        <extension name="VK_MVK_moltenvk" supported="vulkan">
             <require>
                 <command name="vkGetMTLDeviceMVK"/>
                 <command name="vkSetMTLTextureMVK"/>
