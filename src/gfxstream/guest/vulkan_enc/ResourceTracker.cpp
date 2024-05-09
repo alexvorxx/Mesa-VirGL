@@ -3816,9 +3816,10 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                           __func__, imageCreateInfo.format);
                 return VK_ERROR_FORMAT_NOT_SUPPORTED;
             }
+            const uint32_t stride = imageCreateInfo.extent.width * bpp;
             colorBufferBlob = instance->createResource(imageCreateInfo.extent.width,
-                                                       imageCreateInfo.extent.height, virglFormat,
-                                                       target, bind, bpp);
+                                                       imageCreateInfo.extent.height, stride,
+                                                       virglFormat, target, bind);
             if (!colorBufferBlob) {
                 mesa_loge("%s: Failed to create colorBuffer resource for Image memory\n", __func__);
                 return VK_ERROR_OUT_OF_DEVICE_MEMORY;

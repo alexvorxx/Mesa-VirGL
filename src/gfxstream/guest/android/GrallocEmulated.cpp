@@ -266,9 +266,10 @@ AHardwareBuffer* EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint
 
     const uint32_t bind =
         (drmFormat == DRM_FORMAT_R8_BLOB) ? VIRGL_BIND_LINEAR : VIRGL_BIND_RENDER_TARGET;
+    const uint32_t stride = width * (*bpp);
 
     auto resource =
-        device->createResource(width, height, *virglFormat, PIPE_TEXTURE_2D, bind, *bpp);
+        device->createResource(width, height, stride, *virglFormat, PIPE_TEXTURE_2D, bind);
     if (!resource) {
         ALOGE("Failed to allocate: failed to create virtio resource.");
         return nullptr;
