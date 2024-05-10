@@ -209,6 +209,9 @@ class ResourceTracker {
     void on_vkGetImageMemoryRequirements2KHR(void* context, VkDevice device,
                                              const VkImageMemoryRequirementsInfo2* pInfo,
                                              VkMemoryRequirements2* pMemoryRequirements);
+    void on_vkGetImageSubresourceLayout(void* context, VkDevice device, VkImage image,
+                                        const VkImageSubresource* pSubresource,
+                                        VkSubresourceLayout* pLayout);
 
     VkResult on_vkBindImageMemory(void* context, VkResult input_result, VkDevice device,
                                   VkImage image, VkDeviceMemory memory, VkDeviceSize memoryOffset);
@@ -783,6 +786,7 @@ class ResourceTracker {
 #endif
 #ifdef LINUX_GUEST_BUILD
         bool isDmaBufImage = false;
+        VkImage linearPeerImage = VK_NULL_HANDLE;
 #endif
     };
 

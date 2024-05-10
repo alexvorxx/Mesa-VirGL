@@ -3782,9 +3782,8 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                     .arrayLayer = 0,
                 };
                 VkSubresourceLayout subResourceLayout;
-                enc->vkGetImageSubresourceLayout(device, dedicatedAllocInfoPtr->image,
-                                                 &imageSubresource, &subResourceLayout,
-                                                 true /* do lock */);
+                on_vkGetImageSubresourceLayout(context, device, dedicatedAllocInfoPtr->image,
+                                               &imageSubresource, &subResourceLayout);
                 if (!subResourceLayout.rowPitch) {
                     mesa_loge("%s: Failed to query stride for VirtGpu resource creation.");
                     return VK_ERROR_INITIALIZATION_FAILED;
@@ -4313,6 +4312,34 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
     info.isDmaBufImage = isDmaBufImage;
     if (info.isDmaBufImage) {
         updateMemoryTypeBits(&memReqs.memoryTypeBits, mCaps.vulkanCapset.colorBufferMemoryIndex);
+        if (localCreateInfo.tiling == VK_IMAGE_TILING_OPTIMAL) {
+            // Linux WSI calls vkGetImageSubresourceLayout() to query the stride for swapchain
+            // support. Similarly, stride is also queried from vkGetImageSubresourceLayout() to
+            // determine the stride for colorBuffer resource creation (guest-side dmabuf resource).
+            // To satisfy valid usage of this API, must call on the linearPeerImage for the VkImage
+            // in question. As long as these two use cases match, the rowPitch won't actually be
+            // used by WSI.
+            VkImageCreateInfo linearPeerImageCreateInfo = {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+                .pNext = nullptr,
+                .flags = {},
+                .imageType = VK_IMAGE_TYPE_2D,
+                .format = localCreateInfo.format,
+                .extent = localCreateInfo.extent,
+                .mipLevels = 1,
+                .arrayLayers = 1,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .tiling = VK_IMAGE_TILING_LINEAR,
+                .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+                .queueFamilyIndexCount = 0,
+                .pQueueFamilyIndices = nullptr,
+                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            };
+            res = enc->vkCreateImage(device, &linearPeerImageCreateInfo, pAllocator,
+                                     &info.linearPeerImage, true /* do lock */);
+            if (res != VK_SUCCESS) return res;
+        }
     }
 #endif
 
@@ -5095,6 +5122,15 @@ void ResourceTracker::on_vkDestroyImage(void* context, VkDevice device, VkImage 
     }
 #endif
     VkEncoder* enc = (VkEncoder*)context;
+#if defined(LINUX_GUEST_BUILD)
+    auto imageInfoIt = info_VkImage.find(image);
+    if (imageInfoIt != info_VkImage.end()) {
+        auto& imageInfo = imageInfoIt->second;
+        if (imageInfo.linearPeerImage) {
+            enc->vkDestroyImage(device, imageInfo.linearPeerImage, pAllocator, true /* do lock */);
+        }
+    }
+#endif
     enc->vkDestroyImage(device, image, pAllocator, true /* do lock */);
 }
 
@@ -5140,6 +5176,23 @@ void ResourceTracker::on_vkGetImageMemoryRequirements2KHR(
     VkEncoder* enc = (VkEncoder*)context;
     enc->vkGetImageMemoryRequirements2KHR(device, pInfo, pMemoryRequirements, true /* do lock */);
     transformImageMemoryRequirements2ForGuest(pInfo->image, pMemoryRequirements);
+}
+
+void ResourceTracker::on_vkGetImageSubresourceLayout(void* context, VkDevice device, VkImage image,
+                                                     const VkImageSubresource* pSubresource,
+                                                     VkSubresourceLayout* pLayout) {
+    VkEncoder* enc = (VkEncoder*)context;
+    VkImage targetImage = image;
+#if defined(LINUX_GUEST_BUILD)
+    auto it = info_VkImage.find(image);
+    if (it == info_VkImage.end()) return;
+    const auto& info = it->second;
+    if (info.linearPeerImage) {
+        targetImage = info.linearPeerImage;
+    }
+#endif
+    enc->vkGetImageSubresourceLayout(device, targetImage, pSubresource, pLayout,
+                                     true /* do lock */);
 }
 
 VkResult ResourceTracker::on_vkBindImageMemory(void* context, VkResult, VkDevice device,

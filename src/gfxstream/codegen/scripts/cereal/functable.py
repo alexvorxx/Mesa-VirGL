@@ -18,6 +18,7 @@ RESOURCE_TRACKER_ENTRIES = [
     "vkGetImageMemoryRequirements",
     "vkGetImageMemoryRequirements2",
     "vkGetImageMemoryRequirements2KHR",
+    "vkGetImageSubresourceLayout",
     "vkBindImageMemory",
     "vkBindImageMemory2",
     "vkBindImageMemory2KHR",
