@@ -546,6 +546,39 @@ build_load_storage_3d_image_depth(nir_builder *b,
       return nir_umin(b, resinfo_depth, depth);
    }
 }
+
+static nir_def *
+build_load_desc_set_dynamic_index(nir_builder *b, unsigned set_idx)
+{
+   return nir_iand_imm(
+      b,
+      anv_load_driver_uniform(b, 1, desc_surface_offsets[set_idx]),
+      ANV_DESCRIPTOR_SET_DYNAMIC_INDEX_MASK);
+}
+
+static nir_def *
+build_load_desc_address(nir_builder *b, nir_def *set_idx, unsigned set_idx_imm,
+                        const struct apply_pipeline_layout_state *state)
+{
+   nir_def *desc_offset = set_idx != NULL ?
+      anv_load_driver_uniform_indexed(b, 1, desc_surface_offsets, set_idx) :
+      anv_load_driver_uniform(b, 1, desc_surface_offsets[set_idx_imm]);
+   desc_offset = nir_iand_imm(b, desc_offset, ANV_DESCRIPTOR_SET_OFFSET_MASK);
+   if (state->layout->type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_BUFFER &&
+       !state->pdevice->uses_ex_bso) {
+      nir_def *bindless_base_offset =
+         anv_load_driver_uniform(b, 1, surfaces_base_offset);
+      desc_offset = nir_iadd(b, bindless_base_offset, desc_offset);
+   }
+   return nir_pack_64_2x32_split(
+      b, desc_offset,
+      nir_load_reloc_const_intel(
+         b,
+         state->layout->type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_BUFFER ?
+         BRW_SHADER_RELOC_DESCRIPTORS_BUFFER_ADDR_HIGH :
+         BRW_SHADER_RELOC_DESCRIPTORS_ADDR_HIGH));
+}
+
 /** Build a Vulkan resource index
  *
  * A "resource index" is the term used by our SPIR-V parser and the relevant
@@ -605,7 +638,7 @@ build_res_index(nir_builder *b,
       if (bind_layout->dynamic_offset_index >= 0) {
          if (state->has_independent_sets) {
             nir_def *dynamic_offset_start =
-               nir_load_desc_set_dynamic_index_intel(b, nir_imm_int(b, set));
+               build_load_desc_set_dynamic_index(b, set);
             dynamic_offset_index =
                nir_iadd_imm(b, dynamic_offset_start,
                             bind_layout->dynamic_offset_index);
@@ -740,7 +773,7 @@ build_desc_addr_for_res_index(nir_builder *b,
       switch (state->desc_addr_format) {
       case nir_address_format_64bit_global_32bit_offset: {
          nir_def *base_addr =
-            nir_load_desc_set_address_intel(b, res.set_idx);
+            build_load_desc_address(b, res.set_idx, 0, state);
          return nir_vec4(b, nir_unpack_64_2x32_split_x(b, base_addr),
                             nir_unpack_64_2x32_split_y(b, base_addr),
                             nir_imm_int(b, UINT32_MAX),
@@ -777,7 +810,7 @@ build_desc_addr_for_binding(nir_builder *b,
    switch (state->desc_addr_format) {
    case nir_address_format_64bit_global_32bit_offset:
    case nir_address_format_64bit_bounded_global: {
-      nir_def *set_addr = nir_load_desc_set_address_intel(b, nir_imm_int(b, set));
+      nir_def *set_addr = build_load_desc_address(b, NULL, set, state);
       nir_def *desc_offset =
          nir_iadd_imm(b,
                       nir_imul_imm(b,

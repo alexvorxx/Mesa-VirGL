@@ -65,25 +65,6 @@ anv_nir_compute_push_layout(nir_shader *nir,
                break;
             }
 
-            case nir_intrinsic_load_desc_set_address_intel:
-            case nir_intrinsic_load_desc_set_dynamic_index_intel: {
-               unsigned base = offsetof(struct anv_push_constants,
-                                        desc_surface_offsets);
-               push_start = MIN2(push_start, base);
-               push_end = MAX2(push_end, base +
-                               anv_drv_const_size(desc_surface_offsets));
-
-               if (desc_type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_BUFFER &&
-                   !pdevice->uses_ex_bso) {
-                  base = offsetof(struct anv_push_constants,
-                                  surfaces_base_offset);
-                  push_start = MIN2(push_start, base);
-                  push_end = MAX2(push_end, base +
-                                  anv_drv_const_size(surfaces_base_offset));
-               }
-               break;
-            }
-
             default:
                break;
             }
@@ -153,9 +134,6 @@ anv_nir_compute_push_layout(nir_shader *nir,
 
    if (has_push_intrinsic) {
       nir_foreach_function_impl(impl, nir) {
-         nir_builder build = nir_builder_create(impl);
-         nir_builder *b = &build;
-
          nir_foreach_block(block, impl) {
             nir_foreach_instr_safe(instr, block) {
                if (instr->type != nir_instr_type_intrinsic)
@@ -176,50 +154,6 @@ anv_nir_compute_push_layout(nir_shader *nir,
                   nir_intrinsic_set_base(intrin,
                                          nir_intrinsic_base(intrin) -
                                          base_offset);
-                  break;
-               }
-
-               case nir_intrinsic_load_desc_set_address_intel: {
-                  assert(brw_shader_stage_requires_bindless_resources(nir->info.stage));
-                  b->cursor = nir_before_instr(&intrin->instr);
-                  nir_def *desc_offset = nir_load_uniform(b, 1, 32,
-                     nir_imul_imm(b, intrin->src[0].ssa, sizeof(uint32_t)),
-                     .base = anv_drv_const_offset(desc_surface_offsets),
-                     .range = anv_drv_const_size(desc_surface_offsets),
-                     .dest_type = nir_type_uint32);
-                  desc_offset = nir_iand_imm(b, desc_offset, ANV_DESCRIPTOR_SET_OFFSET_MASK);
-                  if (desc_type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_BUFFER &&
-                      !pdevice->uses_ex_bso) {
-                     nir_def *bindless_base_offset = nir_load_uniform(
-                        b, 1, 32,
-                        nir_imm_int(b, 0),
-                        .base = anv_drv_const_offset(surfaces_base_offset),
-                        .range = anv_drv_const_size(surfaces_base_offset),
-                        .dest_type = nir_type_uint32);
-                     desc_offset = nir_iadd(b, bindless_base_offset, desc_offset);
-                  }
-                  nir_def *desc_addr =
-                     nir_pack_64_2x32_split(
-                        b, desc_offset,
-                        nir_load_reloc_const_intel(
-                           b,
-                           desc_type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_BUFFER ?
-                           BRW_SHADER_RELOC_DESCRIPTORS_BUFFER_ADDR_HIGH :
-                           BRW_SHADER_RELOC_DESCRIPTORS_ADDR_HIGH));
-                  nir_def_rewrite_uses(&intrin->def, desc_addr);
-                  break;
-               }
-
-               case nir_intrinsic_load_desc_set_dynamic_index_intel: {
-                  b->cursor = nir_before_instr(&intrin->instr);
-                  nir_def *pc_load = nir_load_uniform(b, 1, 32,
-                     nir_imul_imm(b, intrin->src[0].ssa, sizeof(uint32_t)),
-                     .base = anv_drv_const_offset(desc_surface_offsets),
-                     .range = anv_drv_const_size(desc_surface_offsets),
-                     .dest_type = nir_type_uint32);
-                  pc_load = nir_iand_imm(
-                     b, pc_load, ANV_DESCRIPTOR_SET_DYNAMIC_INDEX_MASK);
-                  nir_def_rewrite_uses(&intrin->def, pc_load);
                   break;
                }
 
