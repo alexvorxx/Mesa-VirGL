@@ -443,7 +443,7 @@ def emit_post(typeInfo, api, cgen):
                 cgen.stmt("stream->flush()");
 
 def emit_pool_free(cgen):
-    cgen.stmt("++encodeCount;")
+    cgen.stmt("++encodeCount")
     cgen.beginIf("0 == encodeCount % POOL_CLEAR_INTERVAL")
     cgen.stmt("pool->freeAll()")
     cgen.stmt("%s->clearPool()" % STREAM)
