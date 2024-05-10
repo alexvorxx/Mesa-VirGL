@@ -79,6 +79,8 @@ asahi_fill_cdm_command(struct hk_device *dev, struct hk_cs *cs,
       .sampler_count = dev->samplers.table.alloc,
       .sampler_max = dev->samplers.table.alloc + 1,
 
+      .usc_base = dev->dev.shader_base,
+
       .encoder_id = agx_get_global_id(&dev->dev),
       .cmd_id = agx_get_global_id(&dev->dev),
       .unk_mask = 0xffffffff,
@@ -118,6 +120,9 @@ asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
    c->cmd_3d_id = cmd_3d_id;
    c->cmd_ta_id = cmd_ta_id;
    c->ppp_ctrl = 0x202;
+
+   c->fragment_usc_base = dev->dev.shader_base;
+   c->vertex_usc_base = c->fragment_usc_base;
 
    c->fb_width = cs->cr.width;
    c->fb_height = cs->cr.height;

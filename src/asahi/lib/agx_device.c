@@ -551,7 +551,19 @@ agx_open_device(void *memctx, struct agx_device *dev)
    }
 
    dev->guard_size = dev->params.vm_page_size;
-   dev->shader_base = dev->params.vm_shader_start;
+   if (dev->params.vm_usc_start) {
+      dev->shader_base = dev->params.vm_usc_start;
+   } else {
+      // Put the USC heap at the bottom of the user address space, 4GiB aligned
+      dev->shader_base = ALIGN_POT(dev->params.vm_user_start, 0x100000000ull);
+   }
+
+   uint64_t shader_size = 0x100000000ull;
+   // Put the user heap after the USC heap
+   uint64_t user_start = dev->shader_base + shader_size;
+
+   assert(dev->shader_base >= dev->params.vm_user_start);
+   assert(user_start < dev->params.vm_user_end);
 
    util_sparse_array_init(&dev->bo_map, sizeof(struct agx_bo), 512);
    pthread_mutex_init(&dev->bo_map_lock, NULL);
@@ -562,7 +574,16 @@ agx_open_device(void *memctx, struct agx_device *dev)
    for (unsigned i = 0; i < ARRAY_SIZE(dev->bo_cache.buckets); ++i)
       list_inithead(&dev->bo_cache.buckets[i]);
 
-   struct drm_asahi_vm_create vm_create = {};
+   // Put the kernel heap at the top of the address space.
+   // Give it 32GB of address space, should be more than enough for any
+   // reasonable use case.
+   uint64_t kernel_size = MAX2(dev->params.vm_kernel_min_size, 32ull << 30);
+   struct drm_asahi_vm_create vm_create = {
+      .kernel_start = dev->params.vm_user_end - kernel_size,
+      .kernel_end = dev->params.vm_user_end,
+   };
+
+   uint64_t user_size = vm_create.kernel_start - user_start;
 
    int ret = asahi_simple_ioctl(dev, DRM_IOCTL_ASAHI_VM_CREATE, &vm_create);
    if (ret) {
@@ -572,11 +593,8 @@ agx_open_device(void *memctx, struct agx_device *dev)
    }
 
    simple_mtx_init(&dev->vma_lock, mtx_plain);
-   util_vma_heap_init(&dev->main_heap, dev->params.vm_user_start,
-                      dev->params.vm_user_end - dev->params.vm_user_start + 1);
-   util_vma_heap_init(
-      &dev->usc_heap, dev->params.vm_shader_start,
-      dev->params.vm_shader_end - dev->params.vm_shader_start + 1);
+   util_vma_heap_init(&dev->main_heap, user_start, user_size);
+   util_vma_heap_init(&dev->usc_heap, dev->shader_base, shader_size);
 
    dev->vm_id = vm_create.vm_id;
 

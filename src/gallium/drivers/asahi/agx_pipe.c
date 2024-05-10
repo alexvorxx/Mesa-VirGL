@@ -1276,6 +1276,9 @@ agx_cmdbuf(struct agx_device *dev, struct drm_asahi_cmd_render *c,
    c->cmd_3d_id = cmd_3d_id;
    c->cmd_ta_id = cmd_ta_id;
 
+   c->fragment_usc_base = dev->shader_base;
+   c->vertex_usc_base = dev->shader_base;
+
    /* bit 0 specifies OpenGL clip behaviour. Since ARB_clip_control is
     * advertised, we don't set it and lower in the vertex shader.
     */
@@ -1620,6 +1623,7 @@ agx_flush_compute(struct agx_context *ctx, struct agx_batch *batch,
       .encoder_ptr = batch->cdm.bo->ptr.gpu,
       .encoder_end = batch->cdm.bo->ptr.gpu +
                      (batch->cdm.current - (uint8_t *)batch->cdm.bo->ptr.cpu),
+      .usc_base = dev->shader_base,
       .helper_arg = 0,
       .helper_cfg = 0,
       .helper_program = 0,
