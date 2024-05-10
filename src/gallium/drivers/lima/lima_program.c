@@ -30,7 +30,6 @@
 #include "compiler/nir/nir.h"
 #include "compiler/nir/nir_serialize.h"
 #include "nir/tgsi_to_nir.h"
-#include "nir_legacy.h"
 
 #include "pipe/p_state.h"
 
@@ -279,7 +278,7 @@ lima_program_optimize_fs_nir(struct nir_shader *s,
    NIR_PASS_V(s, lima_nir_duplicate_load_inputs);
    NIR_PASS_V(s, lima_nir_duplicate_load_consts);
 
-   NIR_PASS_V(s, nir_legacy_trivialize, true);
+   NIR_PASS_V(s, nir_trivialize_registers);
 
    nir_sweep(s);
 }
