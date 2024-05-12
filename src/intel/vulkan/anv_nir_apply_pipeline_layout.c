@@ -37,8 +37,6 @@
 #define MAX_SAMPLER_TABLE_SIZE 128
 #define BINDLESS_OFFSET        255
 
-#define sizeof_field(type, field) sizeof(((type *)0)->field)
-
 enum binding_property {
    BINDING_PROPERTY_NORMAL            = BITFIELD_BIT(0),
    BINDING_PROPERTY_PUSHABLE          = BITFIELD_BIT(1),
@@ -871,12 +869,7 @@ build_surface_index_for_binding(nir_builder *b,
          surface_index =
             build_load_descriptor_mem(b, desc_addr, 0, 1, 32, state);
       } else {
-         set_offset =
-            nir_load_push_constant(b, 1, 32, nir_imm_int(b, 0),
-                                   .base = offsetof(struct anv_push_constants,
-                                                    desc_surface_offsets[set]),
-                                   .range = sizeof_field(struct anv_push_constants,
-                                                         desc_surface_offsets[set]));
+         set_offset = anv_load_driver_uniform(b, 1, desc_surface_offsets[set]);
 
          /* With bindless indexes are offsets in the descriptor buffer */
          surface_index =
@@ -966,12 +959,7 @@ build_sampler_handle_for_binding(nir_builder *b,
 
          sampler_index = nir_channel(b, desc_data, 1);
       } else {
-         set_offset =
-            nir_load_push_constant(b, 1, 32, nir_imm_int(b, 0),
-                                   .base = offsetof(struct anv_push_constants,
-                                                    desc_sampler_offsets[set]),
-                                   .range = sizeof_field(struct anv_push_constants,
-                                                         desc_sampler_offsets[set]));
+         set_offset = anv_load_driver_uniform(b, 1, desc_sampler_offsets[set]);
 
          uint32_t base_offset = descriptor_offset;
 
@@ -1029,9 +1017,7 @@ build_buffer_dynamic_offset_for_res_index(nir_builder *b,
    nir_def *dyn_offset_idx = nir_iadd(b, dyn_offset_base, array_index);
 
    nir_def *dyn_load =
-      nir_load_push_constant(b, 1, 32, nir_imul_imm(b, dyn_offset_idx, 4),
-                             .base = offsetof(struct anv_push_constants, dynamic_offsets),
-                             .range = sizeof_field(struct anv_push_constants, dynamic_offsets));
+      anv_load_driver_uniform_indexed(b, 1, dynamic_offsets, dyn_offset_idx);
 
    return nir_bcsel(b, nir_ieq_imm(b, dyn_offset_base, 0xff),
                        nir_imm_int(b, 0), dyn_load);
@@ -1077,9 +1063,7 @@ build_indirect_buffer_addr_for_res_index(nir_builder *b,
          nir_iadd(b, res.dyn_offset_base, res.array_index);
 
       nir_def *dyn_load =
-         nir_load_push_constant(b, 1, 32, nir_imul_imm(b, dyn_offset_idx, 4),
-                                .base = offsetof(struct anv_push_constants, dynamic_offsets),
-                                .range = MAX_DYNAMIC_BUFFERS * 4);
+         anv_load_driver_uniform_indexed(b, 1, dynamic_offsets, dyn_offset_idx);
 
       nir_def *dynamic_offset =
          nir_bcsel(b, nir_ieq_imm(b, res.dyn_offset_base, 0xff),
@@ -1730,9 +1714,7 @@ lower_base_workgroup_id(nir_builder *b, nir_intrinsic_instr *intrin,
    b->cursor = nir_instr_remove(&intrin->instr);
 
    nir_def *base_workgroup_id =
-      nir_load_push_constant(b, 3, 32, nir_imm_int(b, 0),
-                             .base = offsetof(struct anv_push_constants, cs.base_work_group_id),
-                             .range = sizeof_field(struct anv_push_constants, cs.base_work_group_id));
+      anv_load_driver_uniform(b, 3, cs.base_work_group_id[0]);
    nir_def_rewrite_uses(&intrin->def, base_workgroup_id);
 
    return true;
@@ -1845,10 +1827,7 @@ lower_ray_query_globals(nir_builder *b, nir_intrinsic_instr *intrin,
 {
    b->cursor = nir_instr_remove(&intrin->instr);
 
-   nir_def *rq_globals =
-      nir_load_push_constant(b, 1, 64, nir_imm_int(b, 0),
-                             .base = offsetof(struct anv_push_constants, ray_query_globals),
-                             .range = sizeof_field(struct anv_push_constants, ray_query_globals));
+   nir_def *rq_globals = anv_load_driver_uniform(b, 1, ray_query_globals);
    nir_def_rewrite_uses(&intrin->def, rq_globals);
 
    return true;
