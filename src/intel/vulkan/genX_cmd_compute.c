@@ -179,18 +179,18 @@ genX(cmd_buffer_flush_compute_state)(struct anv_cmd_buffer *cmd_buffer)
 
    if (cmd_buffer->state.push_constants_dirty & VK_SHADER_STAGE_COMPUTE_BIT) {
 
-      if (comp_state->push_data.alloc_size == 0 ||
+      if (comp_state->base.push_constants_state.alloc_size == 0 ||
           comp_state->base.push_constants_data_dirty) {
-         comp_state->push_data =
+         comp_state->base.push_constants_state =
             anv_cmd_buffer_cs_push_constants(cmd_buffer);
          comp_state->base.push_constants_data_dirty = false;
       }
 
 #if GFX_VERx10 < 125
-      if (comp_state->push_data.alloc_size) {
+      if (comp_state->base.push_constants_state.alloc_size) {
          anv_batch_emit(&cmd_buffer->batch, GENX(MEDIA_CURBE_LOAD), curbe) {
-            curbe.CURBETotalDataLength    = comp_state->push_data.alloc_size;
-            curbe.CURBEDataStartAddress   = comp_state->push_data.offset;
+            curbe.CURBETotalDataLength    = comp_state->base.push_constants_state.alloc_size;
+            curbe.CURBEDataStartAddress   = comp_state->base.push_constants_state.offset;
          }
       }
 #endif
@@ -310,8 +310,8 @@ emit_indirect_compute_walker(struct anv_cmd_buffer *cmd_buffer,
    struct GENX(COMPUTE_WALKER_BODY) body =  {
       .SIMDSize                 = dispatch_size,
       .MessageSIMD              = dispatch_size,
-      .IndirectDataStartAddress = comp_state->push_data.offset,
-      .IndirectDataLength       = comp_state->push_data.alloc_size,
+      .IndirectDataStartAddress = comp_state->base.push_constants_state.offset,
+      .IndirectDataLength       = comp_state->base.push_constants_state.alloc_size,
       .GenerateLocalID          = prog_data->generate_local_id != 0,
       .EmitLocal                = prog_data->generate_local_id,
       .WalkOrder                = prog_data->walk_order,
@@ -364,8 +364,8 @@ emit_compute_walker(struct anv_cmd_buffer *cmd_buffer,
          .PredicateEnable                = predicate,
          .SIMDSize                       = dispatch.simd_size / 16,
          .MessageSIMD                    = dispatch.simd_size / 16,
-         .IndirectDataStartAddress       = comp_state->push_data.offset,
-         .IndirectDataLength             = comp_state->push_data.alloc_size,
+         .IndirectDataStartAddress       = comp_state->base.push_constants_state.offset,
+         .IndirectDataLength             = comp_state->base.push_constants_state.alloc_size,
 #if GFX_VERx10 == 125
          .SystolicModeEnable             = prog_data->uses_systolic,
 #endif
