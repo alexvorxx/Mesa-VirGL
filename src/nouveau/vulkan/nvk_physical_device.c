@@ -203,6 +203,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .EXT_image_view_min_lod = true,
       .EXT_index_type_uint8 = true,
       .EXT_inline_uniform_block = true,
+      .EXT_legacy_vertex_attributes = true,
       .EXT_line_rasterization = true,
       .EXT_load_store_op_none = true,
       .EXT_map_memory_placed = true,
@@ -556,6 +557,9 @@ nvk_get_device_features(const struct nv_device_info *info,
 
       /* VK_EXT_image_view_min_lod */
       .minLod = true,
+
+      /* VK_EXT_legacy_vertex_attributes */
+      .legacyVertexAttributes = true,
 
       /* VK_EXT_map_memory_placed */
       .memoryMapPlaced = true,
@@ -955,6 +959,9 @@ nvk_get_device_properties(const struct nvk_instance *instance,
       .blockTexelViewCompatibleMultipleLayers = true,
       .maxCombinedImageSamplerDescriptorCount = 3,
       .fragmentShadingRateClampCombinerInputs = false, /* TODO */
+
+      /* VK_EXT_legacy_vertex_attributes */
+      .nativeUnalignedPerformance = true,
 
       /* VK_EXT_map_memory_placed */
       .minPlacedMemoryMapAlignment = os_page_size,
