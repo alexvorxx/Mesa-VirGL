@@ -39,6 +39,7 @@ struct gl_context;
 struct gl_extensions;
 struct gl_linked_shader;
 struct gl_shader_program;
+struct gl_shader;
 struct gl_program;
 struct gl_transform_feedback_info;
 struct xfb_decl;
@@ -132,6 +133,10 @@ void gl_nir_validate_interstage_uniform_blocks(struct gl_shader_program *prog,
 
 bool gl_nir_link_uniform_blocks(const struct gl_constants *consts,
                                 struct gl_shader_program *prog);
+
+void gl_nir_validate_intrastage_interface_blocks(struct gl_shader_program *prog,
+                                                 const struct gl_shader **shader_list,
+                                                 unsigned num_shaders);
 
 bool
 gl_nir_can_add_pointsize_to_program(const struct gl_constants *consts,

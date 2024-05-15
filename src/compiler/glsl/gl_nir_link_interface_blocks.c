@@ -293,6 +293,78 @@ get_interface(const struct gl_linked_shader *shader, char *name,
    return NULL;
 }
 
+void
+gl_nir_validate_intrastage_interface_blocks(struct gl_shader_program *prog,
+                                            const struct gl_shader **shader_list,
+                                            unsigned num_shaders)
+{
+   void *mem_ctx = ralloc_context(NULL);
+
+   struct hash_table *in_interfaces =
+      _mesa_hash_table_create(mem_ctx, _mesa_hash_string,
+                              _mesa_key_string_equal);
+   struct hash_table *out_interfaces =
+      _mesa_hash_table_create(mem_ctx, _mesa_hash_string,
+                              _mesa_key_string_equal);
+   struct hash_table *uniform_interfaces =
+      _mesa_hash_table_create(mem_ctx, _mesa_hash_string,
+                              _mesa_key_string_equal);
+   struct hash_table *buffer_interfaces =
+      _mesa_hash_table_create(mem_ctx, _mesa_hash_string,
+                              _mesa_key_string_equal);
+
+   for (unsigned int i = 0; i < num_shaders; i++) {
+      if (shader_list[i] == NULL)
+         continue;
+
+      nir_foreach_variable_in_shader(var, shader_list[i]->nir) {
+         if (!var->interface_type)
+            continue;
+
+         struct hash_table *definitions;
+         switch (var->data.mode) {
+         case nir_var_shader_in:
+            definitions = in_interfaces;
+            break;
+         case nir_var_shader_out:
+            definitions = out_interfaces;
+            break;
+         case nir_var_mem_ubo:
+            definitions = uniform_interfaces;
+            break;
+         case nir_var_mem_ssbo:
+            definitions = buffer_interfaces;
+            break;
+         default:
+            /* Only in, out, and uniform interfaces are legal, so we should
+             * never get here.
+             */
+            assert(!"illegal interface type");
+            continue;
+         }
+
+         struct ifc_var *ifc_var = ifc_lookup(definitions, var);
+         if (ifc_var == NULL) {
+            /* This is the first time we've seen the interface, so save
+             * it into the appropriate data structure.
+             */
+            ifc_store(mem_ctx, definitions, var,
+                      shader_list[i]->nir->info.stage);
+         } else {
+            nir_variable *prev_def = ifc_var->var;
+            if (!intrastage_match(prev_def, var, prog, ifc_var->stage,
+                                  true /* match_precision */)) {
+               linker_error(prog, "definitions of interface block `%s' do not"
+                            " match\n", glsl_get_type_name(var->interface_type));
+               return;
+            }
+         }
+      }
+   }
+
+   ralloc_free(mem_ctx);
+}
+
 static bool
 is_builtin_gl_in_block(nir_variable *var, int consumer_stage)
 {
