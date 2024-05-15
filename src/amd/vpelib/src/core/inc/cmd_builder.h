@@ -45,7 +45,7 @@ struct cmd_builder {
 
 #ifdef VPE_BUILD_1_1
     enum vpe_status (*build_collaborate_sync_cmd)(
-        struct vpe_priv *vpe_priv, struct vpe_build_bufs *cur_bufs, bool is_end);
+        struct vpe_priv *vpe_priv, struct vpe_build_bufs *cur_bufs);
 #endif
 };
 

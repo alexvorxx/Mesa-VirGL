@@ -32,7 +32,7 @@ extern "C" {
 void vpe11_construct_cmd_builder(struct vpe_priv *vpe_priv, struct cmd_builder *cmd_builder);
 
 enum vpe_status vpe11_build_collaborate_sync_cmd(
-    struct vpe_priv *vpe_priv, struct vpe_build_bufs *cur_bufs, bool is_end);
+    struct vpe_priv *vpe_priv, struct vpe_build_bufs *cur_bufs);
 #ifdef __cplusplus
 }
 #endif

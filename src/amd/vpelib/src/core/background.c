@@ -119,14 +119,6 @@ void vpe_create_bg_segments(
         vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].tm_enabled =
             false; // currently only support frontend tm
 
-        if (vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].cd == (gaps_cnt - 1)) {
-            vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].is_begin = true;
-        }
-
-        if (vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].cd == 0) {
-            vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].is_end = true;
-        }
-
         vpe_priv->num_vpe_cmds++;
     }
 }

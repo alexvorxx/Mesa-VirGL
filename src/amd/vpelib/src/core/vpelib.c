@@ -555,9 +555,6 @@ enum vpe_status vpe_build_commands(
     int64_t               emb_buf_size;
     uint64_t              cmd_buf_gpu_a, cmd_buf_cpu_a;
     uint64_t              emb_buf_gpu_a, emb_buf_cpu_a;
-#ifdef VPE_BUILD_1_1
-    bool is_collaborate_sync_end = false;
-#endif
 
     if (!vpe || !param || !bufs)
         return VPE_STATUS_ERROR;
@@ -655,20 +652,15 @@ enum vpe_status vpe_build_commands(
         vpe_bg_color_convert(vpe_priv->output_ctx.cs, vpe_priv->output_ctx.output_tf,
             &vpe_priv->output_ctx.bg_color, vpe_priv->stream_ctx[0].enable_3dlut);
 
-        for (cmd_idx = 0; cmd_idx < vpe_priv->num_vpe_cmds; cmd_idx++) {
 #ifdef VPE_BUILD_1_1
-            if ((vpe_priv->collaboration_mode == true) &&
-                (vpe_priv->vpe_cmd_info[cmd_idx].is_begin == true)) {
-                status = builder->build_collaborate_sync_cmd(
-                    vpe_priv, &curr_bufs, is_collaborate_sync_end);
-                if (status != VPE_STATUS_OK) {
-                    vpe_log("failed in building collaborate sync cmd %d\n", (int)status);
-                } else {
-                    is_collaborate_sync_end = true;
-                }
+        if (vpe_priv->collaboration_mode == true) {
+            status = builder->build_collaborate_sync_cmd(vpe_priv, &curr_bufs);
+            if (status != VPE_STATUS_OK) {
+                vpe_log("failed in building collaborate sync cmd %d\n", (int)status);
             }
+        }
 #endif
-
+        for (cmd_idx = 0; cmd_idx < vpe_priv->num_vpe_cmds; cmd_idx++) {
             status = builder->build_vpe_cmd(vpe_priv, &curr_bufs, cmd_idx);
             if (status != VPE_STATUS_OK) {
                 vpe_log("failed in building vpe cmd %d\n", (int)status);
@@ -676,17 +668,30 @@ enum vpe_status vpe_build_commands(
 
 #ifdef VPE_BUILD_1_1
             if ((vpe_priv->collaboration_mode == true) &&
-                (vpe_priv->vpe_cmd_info[cmd_idx].is_end == true)) {
-                status = builder->build_collaborate_sync_cmd(
-                    vpe_priv, &curr_bufs, is_collaborate_sync_end);
+                (vpe_priv->vpe_cmd_info[cmd_idx].insert_end_csync == true)) {
+                status = builder->build_collaborate_sync_cmd(vpe_priv, &curr_bufs);
                 if (status != VPE_STATUS_OK) {
                     vpe_log("failed in building collaborate sync cmd %d\n", (int)status);
-                } else {
-                    is_collaborate_sync_end = false;
+                }
+
+                // Add next collaborate sync start command when this vpe_cmd isn't the final one.
+                if (cmd_idx < (uint32_t)(vpe_priv->num_vpe_cmds - 1)) {
+                    status = builder->build_collaborate_sync_cmd(vpe_priv, &curr_bufs);
+                    if (status != VPE_STATUS_OK) {
+                        vpe_log("failed in building collaborate sync cmd %d\n", (int)status);
+                    }
                 }
             }
 #endif
         }
+#ifdef VPE_BUILD_1_1
+        if (vpe_priv->collaboration_mode == true) {
+            status = builder->build_collaborate_sync_cmd(vpe_priv, &curr_bufs);
+            if (status != VPE_STATUS_OK) {
+                vpe_log("failed in building collaborate sync cmd %d\n", (int)status);
+            }
+        }
+#endif
     }
 
     if (status == VPE_STATUS_OK) {

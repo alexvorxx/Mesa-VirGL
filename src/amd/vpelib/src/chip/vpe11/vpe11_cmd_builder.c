@@ -40,7 +40,7 @@ void vpe11_construct_cmd_builder(struct vpe_priv *vpe_priv, struct cmd_builder *
 }
 
 enum vpe_status vpe11_build_collaborate_sync_cmd(
-    struct vpe_priv *vpe_priv, struct vpe_build_bufs *cur_bufs, bool is_end)
+    struct vpe_priv *vpe_priv, struct vpe_build_bufs *cur_bufs)
 {
     struct vpe_buf *buf = &cur_bufs->cmd_buf;
     uint32_t       *cmd_space;
@@ -56,9 +56,7 @@ enum vpe_status vpe11_build_collaborate_sync_cmd(
         *cmd_space++ = VPE_COLLABORATE_SYNC_CMD_HEADER;
         *cmd_space++ = VPE_COLLABORATE_SYNC_DATA_MASK(collarborate_sync_data);
 
-        if (is_end == true) {
-            vpe_priv->collaborate_sync_index++;
-        }
+        vpe_priv->collaborate_sync_index++;
         buf->cpu_va += size;
         buf->gpu_va += size;
         buf->size -= size;

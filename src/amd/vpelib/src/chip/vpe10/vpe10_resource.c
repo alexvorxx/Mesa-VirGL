@@ -878,13 +878,21 @@ enum vpe_status vpe10_populate_cmd_info(struct vpe_priv *vpe_priv)
             cmd_info->ops        = VPE_CMD_OPS_COMPOSITING;
             cmd_info->tm_enabled = tm_enabled;
             vpe_priv->num_vpe_cmds++;
-            if (cmd_info->cd == (stream_ctx->num_segments - 1)) {
-                cmd_info->is_begin = true;
-            }
+            cmd_info->insert_start_csync = false;
+            cmd_info->insert_end_csync   = false;
 
-            if (cmd_info->cd == 0) {
-                cmd_info->is_end = true;
+            // The following codes are only valid if blending is supported
+            /*
+            if (cmd_info->ops == VPE_CMD_OPS_BLENDING) {
+                if (cmd_info->cd == (stream_ctx->num_segments - 1)) {
+                    cmd_info->insert_start_csync = true;
+                }
+
+                if (cmd_info->cd == 0) {
+                    cmd_info->insert_end_csync = true;
+                }
             }
+            */
         }
     }
 

@@ -98,8 +98,8 @@ struct vpe_cmd_info {
     struct vpe_rect dst_viewport_c;
 
     bool tm_enabled;
-    bool is_begin;
-    bool is_end;
+    bool insert_start_csync;
+    bool insert_end_csync;
 };
 
 struct config_record {
