@@ -314,6 +314,12 @@ ac_nir_store_debug_log_amd(nir_builder *b, nir_def *uvec4);
 bool
 ac_nir_opt_pack_half(nir_shader *shader, enum amd_gfx_level gfx_level);
 
+unsigned
+ac_nir_varying_expression_max_cost(nir_shader *producer, nir_shader *consumer);
+
+unsigned
+ac_nir_varying_estimate_instr_cost(nir_instr *instr);
+
 #ifdef __cplusplus
 }
 #endif
