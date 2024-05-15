@@ -37,6 +37,8 @@
 #include "mpc.h"
 #include "opp.h"
 #include "geometric_scaling.h"
+#include <stdlib.h>
+#include <time.h>
 
 static void override_debug_option(
     struct vpe_debug_options *debug, const struct vpe_debug_options *user_debug)
@@ -130,11 +132,11 @@ static void override_debug_option(
 static void verify_collaboration_mode(struct vpe_priv *vpe_priv)
 {
     if (vpe_priv->pub.level == VPE_IP_LEVEL_1_1) {
-        if (vpe_priv->collaboration_mode == true) {
-            vpe_priv->collaborate_sync_index = 1;
-        } else {
-            // after the f_model support collaborate sync command
-            // return VPE_STATUS_ERROR
+        if (vpe_priv->collaboration_mode == true && vpe_priv->collaborate_sync_index == 0) {
+            srand((unsigned int)time(NULL)); // Initialization, should only be called once.
+            uint32_t randnum                 = (uint32_t)rand();
+            randnum                          = randnum & 0x0000f000;
+            vpe_priv->collaborate_sync_index = (int32_t)randnum;
         }
     } else if (vpe_priv->pub.level == VPE_IP_LEVEL_1_0) {
         vpe_priv->collaboration_mode = false;
@@ -177,6 +179,11 @@ struct vpe *vpe_create(const struct vpe_init_data *params)
 
     vpe_priv->ops_support      = false;
     vpe_priv->scale_yuv_matrix = true;
+
+#ifdef VPE_BUILD_1_1
+    vpe_priv->collaborate_sync_index = 0;
+#endif
+
     return &vpe_priv->pub;
 }
 
