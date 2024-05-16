@@ -100,6 +100,8 @@ extern "C" {
 #define MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS 8
 #define MAX_DGC_STREAMS 16
 #define MAX_DGC_TOKENS 16
+/* Currently lavapipe does not support more than 1 image plane */
+#define LVP_MAX_PLANE_COUNT 1
 
 #ifdef _WIN32
 #define lvp_printflike(a, b)
@@ -775,6 +777,7 @@ bool
 lvp_nir_lower_sparse_residency(struct nir_shader *shader);
 enum vk_cmd_type
 lvp_nv_dgc_token_to_cmd_type(const VkIndirectCommandsLayoutTokenNV *token);
+
 #ifdef __cplusplus
 }
 #endif

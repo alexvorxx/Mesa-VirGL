@@ -50,6 +50,10 @@
 #include <sys/resource.h>
 #endif
 
+#if DETECT_OS_ANDROID
+#include "vk_android.h"
+#endif
+
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR) || \
     defined(VK_USE_PLATFORM_WIN32_KHR) || \
     defined(VK_USE_PLATFORM_XCB_KHR) || \
@@ -249,6 +253,9 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .EXT_line_rasterization                = true,
    .EXT_robustness2                       = true,
    .AMDX_shader_enqueue                   = true,
+#if DETECT_OS_ANDROID
+   .ANDROID_native_buffer                 = true,
+#endif
    .GOOGLE_decorate_string                = true,
    .GOOGLE_hlsl_functionality1            = true,
    .NV_device_generated_commands          = true,
@@ -1271,12 +1278,14 @@ lvp_physical_device_init(struct lvp_physical_device *device,
    lvp_get_features(device, &device->vk.supported_features);
    lvp_get_properties(device, &device->vk.properties);
 
+#ifdef LVP_USE_WSI_PLATFORM
    result = lvp_init_wsi(device);
    if (result != VK_SUCCESS) {
       vk_physical_device_finish(&device->vk);
       vk_error(instance, result);
       goto fail;
    }
+#endif
 
    return VK_SUCCESS;
  fail:
@@ -1286,7 +1295,9 @@ lvp_physical_device_init(struct lvp_physical_device *device,
 static void VKAPI_CALL
 lvp_physical_device_finish(struct lvp_physical_device *device)
 {
+#ifdef LVP_USE_WSI_PLATFORM
    lvp_finish_wsi(device);
+#endif
    device->pscreen->destroy(device->pscreen);
    vk_physical_device_finish(&device->vk);
 }
@@ -1342,6 +1353,10 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateInstance(
 
    //   VG(VALGRIND_CREATE_MEMPOOL(instance, 0, false));
 
+#if DETECT_OS_ANDROID
+   vk_android_init_ugralloc();
+#endif
+
    *pInstance = lvp_instance_to_handle(instance);
 
    return VK_SUCCESS;
@@ -1355,6 +1370,10 @@ VKAPI_ATTR void VKAPI_CALL lvp_DestroyInstance(
 
    if (!instance)
       return;
+
+#if DETECT_OS_ANDROID
+   vk_android_destroy_ugralloc();
+#endif
 
    pipe_loader_release(&instance->devs, instance->num_devices);
 
@@ -2231,6 +2250,11 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_BindImageMemory2(VkDevice _device,
       VkBindMemoryStatusKHR *status = (void*)vk_find_struct_const(&pBindInfos[i], BIND_MEMORY_STATUS_KHR);
       bool did_bind = false;
 
+      if (!mem) {
+         continue;
+      }
+
+#ifdef LVP_USE_WSI_PLATFORM
       vk_foreach_struct_const(s, bind_info->pNext) {
          switch (s->sType) {
          case VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR: {
@@ -2256,6 +2280,7 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_BindImageMemory2(VkDevice _device,
             break;
          }
       }
+#endif
 
       if (!did_bind) {
          uint64_t offset_B = 0;

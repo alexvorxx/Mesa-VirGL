@@ -467,7 +467,7 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_GetPhysicalDeviceImageFormatProperties2(
       }
    }
 
-   if (external_info && external_info->handleType != 0) {
+   if (external_info && external_info->handleType != 0 && external_props) {
       VkExternalMemoryFeatureFlagBits flags = 0;
       VkExternalMemoryHandleTypeFlags export_flags = 0;
       VkExternalMemoryHandleTypeFlags compat_flags = 0;
