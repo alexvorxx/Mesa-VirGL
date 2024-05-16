@@ -38,6 +38,7 @@ struct gl_constants;
 struct gl_context;
 struct gl_extensions;
 struct gl_linked_shader;
+struct gl_shader;
 struct gl_shader_program;
 struct gl_shader;
 struct gl_program;
@@ -67,6 +68,12 @@ bool gl_nir_link_spirv(const struct gl_constants *consts,
 
 bool gl_nir_link_glsl(struct gl_context *ctx,
                       struct gl_shader_program *prog);
+
+bool gl_nir_link_function_calls(struct gl_shader_program *prog,
+                                struct gl_shader *main,
+                                struct gl_linked_shader *linked_sh,
+                                struct gl_shader **shader_list,
+                                unsigned num_shaders);
 
 bool gl_nir_link_uniforms(const struct gl_constants *consts,
                           struct gl_shader_program *prog,

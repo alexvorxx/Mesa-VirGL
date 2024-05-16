@@ -120,6 +120,7 @@ files_libglsl = files(
   'gl_nir_lower_samplers_as_deref.c',
   'gl_nir_lower_xfb_varying.c',
   'gl_nir_link_atomics.c',
+  'gl_nir_link_functions.c',
   'gl_nir_link_interface_blocks.c',
   'gl_nir_link_uniform_blocks.c',
   'gl_nir_link_uniform_initializers.c',
