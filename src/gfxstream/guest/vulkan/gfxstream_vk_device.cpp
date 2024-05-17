@@ -31,7 +31,7 @@
     HostConnection* hostCon = HostConnection::getOrCreate(kCapsetGfxStreamVulkan); \
     gfxstream::vk::VkEncoder* vkEnc = hostCon->vkEncoder();                        \
     if (!vkEnc) {                                                                  \
-        ALOGE("vulkan: Failed to get Vulkan encoder\n");                           \
+        mesa_loge("vulkan: Failed to get Vulkan encoder\n");                       \
         return ret;                                                                \
     }
 
@@ -64,7 +64,7 @@ static VkResult SetupInstanceForProcess(void) {
     uint32_t noRenderControlEnc = 0;
     HostConnection* hostCon = getConnection();
     if (!hostCon) {
-        ALOGE("vulkan: Failed to get host connection\n");
+        mesa_loge("vulkan: Failed to get host connection\n");
         return VK_ERROR_DEVICE_LOST;
     }
 
@@ -74,7 +74,7 @@ static VkResult SetupInstanceForProcess(void) {
         // Implicitly sets up sequence number
         ExtendedRCEncoderContext* rcEnc = hostCon->rcEncoder();
         if (!rcEnc) {
-            ALOGE("vulkan: Failed to get renderControl encoder context\n");
+            mesa_loge("vulkan: Failed to get renderControl encoder context\n");
             return VK_ERROR_DEVICE_LOST;
         }
 
@@ -88,7 +88,7 @@ static VkResult SetupInstanceForProcess(void) {
     gfxstream::vk::ResourceTracker::get()->setSeqnoPtr(getSeqnoPtrForProcess());
     gfxstream::vk::VkEncoder* vkEnc = getVkEncoder(hostCon);
     if (!vkEnc) {
-        ALOGE("vulkan: Failed to get Vulkan encoder\n");
+        mesa_loge("vulkan: Failed to get Vulkan encoder\n");
         return VK_ERROR_DEVICE_LOST;
     }
 

@@ -26,11 +26,11 @@
 #endif
 
 #include <assert.h>
-#include <log/log.h>
 
 #include "gfxstream/guest/Gralloc.h"
 #include "vk_format_info.h"
 #include "vk_util.h"
+#include "util/log.h"
 
 namespace gfxstream {
 namespace vk {
@@ -212,7 +212,7 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
                         break;
 
                     default:
-                        ALOGE("%s: Unhandled YUV drm format:%" PRIu32, __FUNCTION__, drmFormat);
+                        mesa_loge("Unhandled YUV drm format:%u", drmFormat);
                         break;
                 }
             }

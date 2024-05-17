@@ -33,7 +33,6 @@
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #include "vk_format_info.h"
 #endif
-#include <log/log.h>
 #include <stdlib.h>
 #include <vndk/hardware_buffer.h>
 
@@ -498,7 +497,7 @@ VkResult ResourceTracker::setBufferCollectionConstraintsFUCHSIA(
     fidl::WireSyncClient<fuchsia_sysmem::BufferCollection>* collection,
     const VkImageCreateInfo* pImageInfo) {
     if (pImageInfo == nullptr) {
-        ALOGE("setBufferCollectionConstraints: pImageInfo cannot be null.");
+        mesa_loge("setBufferCollectionConstraints: pImageInfo cannot be null.");
         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     }
 
@@ -568,7 +567,7 @@ VkResult addImageBufferCollectionConstraintsFUCHSIA(
         physicalDevice, createInfo->format, createInfo->imageType, tiling, createInfo->usage,
         createInfo->flags, &imageFormatProperties, true /* do lock */);
     if (result != VK_SUCCESS) {
-        ALOGD(
+        mesa_logd(
             "%s: Image format (%u) type (%u) tiling (%u) "
             "usage (%u) flags (%u) not supported by physical "
             "device",
@@ -589,7 +588,7 @@ VkResult addImageBufferCollectionConstraintsFUCHSIA(
                                      : formatProperties.optimalTilingFeatures;
         auto requiredFeatures = formatConstraints->requiredFormatFeatures;
         if ((~supportedFeatures) & requiredFeatures) {
-            ALOGD(
+            mesa_logd(
                 "%s: Host device support features for %s tiling: %08x, "
                 "required features: %08x, feature bits %08x missing",
                 __func__, tiling == VK_IMAGE_TILING_LINEAR ? "LINEAR" : "OPTIMAL",
@@ -605,7 +604,7 @@ VkResult addImageBufferCollectionConstraintsFUCHSIA(
             formatConstraints->sysmemPixelFormat);
         if (createInfo->format != VK_FORMAT_UNDEFINED &&
             !vkFormatMatchesSysmemFormat(createInfo->format, pixelFormat)) {
-            ALOGD("%s: VkFormat %u doesn't match sysmem pixelFormat %lu", __func__,
+            mesa_logd("%s: VkFormat %u doesn't match sysmem pixelFormat %lu", __func__,
                   static_cast<uint32_t>(createInfo->format), formatConstraints->sysmemPixelFormat);
             return VK_ERROR_FORMAT_NOT_SUPPORTED;
         }
@@ -613,7 +612,7 @@ VkResult addImageBufferCollectionConstraintsFUCHSIA(
     } else {
         auto pixel_format = vkFormatTypeToSysmem(createInfo->format);
         if (pixel_format == fuchsia_sysmem::wire::PixelFormatType::kInvalid) {
-            ALOGD("%s: Unsupported VkFormat %u", __func__,
+            mesa_logd("%s: Unsupported VkFormat %u", __func__,
                   static_cast<uint32_t>(createInfo->format));
             return VK_ERROR_FORMAT_NOT_SUPPORTED;
         }
@@ -635,7 +634,7 @@ VkResult addImageBufferCollectionConstraintsFUCHSIA(
         createInfoDup.pNext = nullptr;
         enc->vkGetLinearImageLayout2GOOGLE(device, &createInfoDup, &offset, &rowPitchAlignment,
                                            true /* do lock */);
-        ALOGD(
+        mesa_logd(
             "vkGetLinearImageLayout2GOOGLE: format %d offset %lu "
             "rowPitchAlignment = %lu",
             (int)createInfo->format, offset, rowPitchAlignment);
@@ -674,7 +673,7 @@ SetBufferCollectionBufferConstraintsResult setBufferCollectionBufferConstraintsI
     const VkBufferConstraintsInfoFUCHSIA* pBufferConstraintsInfo) {
     const auto& collection = *pCollection;
     if (pBufferConstraintsInfo == nullptr) {
-        ALOGE(
+        mesa_loge(
             "setBufferCollectionBufferConstraints: "
             "pBufferConstraintsInfo cannot be null.");
         return {VK_ERROR_OUT_OF_DEVICE_MEMORY};
@@ -693,7 +692,7 @@ SetBufferCollectionBufferConstraintsResult setBufferCollectionBufferConstraintsI
 
     auto result = collection->SetConstraints(true, constraints);
     if (!result.ok()) {
-        ALOGE("setBufferCollectionConstraints: SetConstraints failed: %d", result.status());
+        mesa_loge("setBufferCollectionConstraints: SetConstraints failed: %d", result.status());
         return {VK_ERROR_OUT_OF_DEVICE_MEMORY};
     }
 
@@ -886,7 +885,7 @@ void commitDescriptorSetUpdates(void* context, VkQueue queue,
                     case DescriptorWriteType::InlineUniformBlock:
                     case DescriptorWriteType::AccelerationStructure:
                         // TODO
-                        ALOGE(
+                        mesa_loge(
                             "Encountered pending inline uniform block or acceleration structure "
                             "desc write, abort (NYI)\n");
                         abort();
@@ -1001,9 +1000,9 @@ void ResourceTracker::ensureSyncDeviceFd() {
     if (mSyncDeviceFd >= 0) return;
     mSyncDeviceFd = goldfish_sync_open();
     if (mSyncDeviceFd >= 0) {
-        ALOGD("%s: created sync device for current Vulkan process: %d\n", __func__, mSyncDeviceFd);
+        mesa_logd("%s: created sync device for current Vulkan process: %d\n", __func__, mSyncDeviceFd);
     } else {
-        ALOGD("%s: failed to create sync device for current Vulkan process\n", __func__);
+        mesa_logd("%s: failed to create sync device for current Vulkan process\n", __func__);
     }
 #endif
 }
@@ -1457,7 +1456,7 @@ void ResourceTracker::setupFeatures(const EmulatorFeatureInfo* features) {
         fidl::ClientEnd<fuchsia_hardware_goldfish::ControlDevice> channel{zx::channel(
             GetConnectToServiceFunction()("/loader-gpu-devices/class/goldfish-control/000"))};
         if (!channel) {
-            ALOGE("failed to open control device");
+            mesa_loge("failed to open control device");
             abort();
         }
         mControlDevice =
@@ -1466,7 +1465,7 @@ void ResourceTracker::setupFeatures(const EmulatorFeatureInfo* features) {
         fidl::ClientEnd<fuchsia_sysmem::Allocator> sysmem_channel{
             zx::channel(GetConnectToServiceFunction()("/svc/fuchsia.sysmem.Allocator"))};
         if (!sysmem_channel) {
-            ALOGE("failed to open sysmem connection");
+            mesa_loge("failed to open sysmem connection");
         }
         mSysmemAllocator =
             fidl::WireSyncClient<fuchsia_sysmem::Allocator>(std::move(sysmem_channel));
@@ -1985,7 +1984,7 @@ VkResult ResourceTracker::on_vkEnumeratePhysicalDevices(void* context, VkResult,
         lock.lock();
 
         if (countRes != VK_SUCCESS) {
-            ALOGE(
+            mesa_loge(
                 "%s: failed: could not count host physical devices. "
                 "Error %d\n",
                 __func__, countRes);
@@ -2000,7 +1999,7 @@ VkResult ResourceTracker::on_vkEnumeratePhysicalDevices(void* context, VkResult,
         lock.lock();
 
         if (enumRes != VK_SUCCESS) {
-            ALOGE(
+            mesa_loge(
                 "%s: failed: could not retrieve host physical devices. "
                 "Error %d\n",
                 __func__, enumRes);
@@ -2255,7 +2254,7 @@ VkResult ResourceTracker::on_vkGetMemoryZirconHandleFUCHSIA(
     auto& info = memoryIt->second;
 
     if (info.vmoHandle == ZX_HANDLE_INVALID) {
-        ALOGE("%s: memory cannot be exported", __func__);
+        mesa_loge("%s: memory cannot be exported", __func__);
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
@@ -2294,7 +2293,7 @@ VkResult ResourceTracker::on_vkGetMemoryZirconHandlePropertiesFUCHSIA(
     zx::vmo vmo_dup;
     status = zx::unowned_vmo(handle)->duplicate(ZX_RIGHT_SAME_RIGHTS, &vmo_dup);
     if (status != ZX_OK) {
-        ALOGE("zx_handle_duplicate() error: %d", status);
+        mesa_loge("zx_handle_duplicate() error: %d", status);
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
@@ -2302,7 +2301,7 @@ VkResult ResourceTracker::on_vkGetMemoryZirconHandlePropertiesFUCHSIA(
 
     auto result = mControlDevice->GetBufferHandleInfo(std::move(vmo_dup));
     if (!result.ok()) {
-        ALOGE("mControlDevice->GetBufferHandleInfo fatal error: epitaph: %d", result.status());
+        mesa_loge("mControlDevice->GetBufferHandleInfo fatal error: epitaph: %d", result.status());
         return VK_ERROR_INITIALIZATION_FAILED;
     }
     if (result.value().is_ok()) {
@@ -2318,7 +2317,7 @@ VkResult ResourceTracker::on_vkGetMemoryZirconHandlePropertiesFUCHSIA(
         // VkMemoryZirconHandlePropertiesFUCHSIA with no available
         // memoryType bits should be enough for clients. See fxbug.dev/42098398
         // for other issues this this flow.
-        ALOGW("GetBufferHandleInfo failed: %d", result.value().error_value());
+        mesa_logw("GetBufferHandleInfo failed: %d", result.value().error_value());
         pProperties->memoryTypeBits = 0;
         return VK_SUCCESS;
     }
@@ -2344,7 +2343,7 @@ zx_koid_t getEventKoid(zx_handle_t eventHandle) {
     zx_status_t status = zx_object_get_info(eventHandle, ZX_INFO_HANDLE_BASIC, &info, sizeof(info),
                                             nullptr, nullptr);
     if (status != ZX_OK) {
-        ALOGE("Cannot get object info of handle %u: %d", eventHandle, status);
+        mesa_loge("Cannot get object info of handle %u: %d", eventHandle, status);
         return ZX_KOID_INVALID;
     }
     return info.koid;
@@ -2428,13 +2427,13 @@ VkResult ResourceTracker::on_vkCreateBufferCollectionFUCHSIA(
     } else {
         auto endpoints = fidl::CreateEndpoints<::fuchsia_sysmem::BufferCollectionToken>();
         if (!endpoints.is_ok()) {
-            ALOGE("zx_channel_create failed: %d", endpoints.status_value());
+            mesa_loge("zx_channel_create failed: %d", endpoints.status_value());
             return VK_ERROR_INITIALIZATION_FAILED;
         }
 
         auto result = mSysmemAllocator->AllocateSharedCollection(std::move(endpoints->server));
         if (!result.ok()) {
-            ALOGE("AllocateSharedCollection failed: %d", result.status());
+            mesa_loge("AllocateSharedCollection failed: %d", result.status());
             return VK_ERROR_INITIALIZATION_FAILED;
         }
         token_client = std::move(endpoints->client);
@@ -2442,7 +2441,7 @@ VkResult ResourceTracker::on_vkCreateBufferCollectionFUCHSIA(
 
     auto endpoints = fidl::CreateEndpoints<::fuchsia_sysmem::BufferCollection>();
     if (!endpoints.is_ok()) {
-        ALOGE("zx_channel_create failed: %d", endpoints.status_value());
+        mesa_loge("zx_channel_create failed: %d", endpoints.status_value());
         return VK_ERROR_INITIALIZATION_FAILED;
     }
     auto [collection_client, collection_server] = std::move(endpoints.value());
@@ -2450,7 +2449,7 @@ VkResult ResourceTracker::on_vkCreateBufferCollectionFUCHSIA(
     auto result = mSysmemAllocator->BindSharedCollection(std::move(token_client),
                                                          std::move(collection_server));
     if (!result.ok()) {
-        ALOGE("BindSharedCollection failed: %d", result.status());
+        mesa_loge("BindSharedCollection failed: %d", result.status());
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
@@ -2482,12 +2481,12 @@ SetBufferCollectionImageConstraintsResult ResourceTracker::setBufferCollectionIm
     const auto& collection = *pCollection;
     if (!pImageConstraintsInfo ||
         pImageConstraintsInfo->sType != VK_STRUCTURE_TYPE_IMAGE_CONSTRAINTS_INFO_FUCHSIA) {
-        ALOGE("%s: invalid pImageConstraintsInfo", __func__);
+        mesa_loge("%s: invalid pImageConstraintsInfo", __func__);
         return {VK_ERROR_INITIALIZATION_FAILED};
     }
 
     if (pImageConstraintsInfo->formatConstraintsCount == 0) {
-        ALOGE("%s: formatConstraintsCount must be greater than 0", __func__);
+        mesa_loge("%s: formatConstraintsCount must be greater than 0", __func__);
         abort();
     }
 
@@ -2545,7 +2544,7 @@ SetBufferCollectionImageConstraintsResult ResourceTracker::setBufferCollectionIm
             constraints.usage.vulkan |= getBufferCollectionConstraintsVulkanImageUsage(createInfo);
 
             if (formatConstraints && formatConstraints->flags) {
-                ALOGW(
+                mesa_logw(
                     "%s: Non-zero flags (%08x) in image format "
                     "constraints; this is currently not supported, see "
                     "fxbug.dev/42147900.",
@@ -2586,7 +2585,7 @@ SetBufferCollectionImageConstraintsResult ResourceTracker::setBufferCollectionIm
     }
 
     if (constraints.image_format_constraints_count == 0) {
-        ALOGE("%s: none of the specified formats is supported by device", __func__);
+        mesa_loge("%s: none of the specified formats is supported by device", __func__);
         return {VK_ERROR_FORMAT_NOT_SUPPORTED};
     }
 
@@ -2596,7 +2595,7 @@ SetBufferCollectionImageConstraintsResult ResourceTracker::setBufferCollectionIm
 
     auto result = collection->SetConstraints(true, constraints);
     if (!result.ok()) {
-        ALOGE("setBufferCollectionConstraints: SetConstraints failed: %d", result.status());
+        mesa_loge("setBufferCollectionConstraints: SetConstraints failed: %d", result.status());
         return {VK_ERROR_INITIALIZATION_FAILED};
     }
 
@@ -2676,7 +2675,7 @@ VkResult ResourceTracker::getBufferCollectionImageCreateInfoIndexLocked(
     VkBufferCollectionFUCHSIA collection, fuchsia_sysmem::wire::BufferCollectionInfo2& info,
     uint32_t* outCreateInfoIndex) {
     if (!info_VkBufferCollectionFUCHSIA[collection].constraints.hasValue()) {
-        ALOGE("%s: constraints not set", __func__);
+        mesa_loge("%s: constraints not set", __func__);
         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     }
 
@@ -2731,7 +2730,7 @@ VkResult ResourceTracker::getBufferCollectionImageCreateInfoIndexLocked(
         return VK_SUCCESS;
     }
 
-    ALOGE("%s: cannot find a valid image format in constraints", __func__);
+    mesa_loge("%s: cannot find a valid image format in constraints", __func__);
     return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 }
 
@@ -2744,8 +2743,8 @@ VkResult ResourceTracker::on_vkGetBufferCollectionPropertiesFUCHSIA(
 
     auto result = sysmem_collection->WaitForBuffersAllocated();
     if (!result.ok() || result->status != ZX_OK) {
-        ALOGE("Failed wait for allocation: %d %d", result.status(),
-              GET_STATUS_SAFE(result, status));
+        mesa_loge("Failed wait for allocation: %d %d", result.status(),
+                  GET_STATUS_SAFE(result, status));
         return VK_ERROR_INITIALIZATION_FAILED;
     }
     fuchsia_sysmem::wire::BufferCollectionInfo2 info = std::move(result->buffer_collection_info);
@@ -2755,8 +2754,8 @@ VkResult ResourceTracker::on_vkGetBufferCollectionPropertiesFUCHSIA(
     bool is_device_local =
         info.settings.buffer_settings.heap == fuchsia_sysmem::wire::HeapType::kGoldfishDeviceLocal;
     if (!is_host_visible && !is_device_local) {
-        ALOGE("buffer collection uses a non-goldfish heap (type 0x%lu)",
-              static_cast<uint64_t>(info.settings.buffer_settings.heap));
+        mesa_loge("buffer collection uses a non-goldfish heap (type 0x%lu)",
+                  static_cast<uint64_t>(info.settings.buffer_settings.heap));
         return VK_ERROR_INITIALIZATION_FAILED;
     }
 
@@ -2806,7 +2805,7 @@ VkResult ResourceTracker::on_vkGetBufferCollectionPropertiesFUCHSIA(
 
     // The fields below only apply to buffer collections with image formats.
     if (!info.settings.has_image_format_constraints) {
-        ALOGD("%s: buffer collection doesn't have image format constraints", __func__);
+        mesa_logd("%s: buffer collection doesn't have image format constraints", __func__);
         return storeProperties();
     }
 
@@ -2819,7 +2818,7 @@ VkResult ResourceTracker::on_vkGetBufferCollectionPropertiesFUCHSIA(
     // colorSpace
     // ====================================================================
     if (info.settings.image_format_constraints.color_spaces_count == 0) {
-        ALOGE(
+        mesa_loge(
             "%s: color space missing from allocated buffer collection "
             "constraints",
             __func__);
@@ -2937,7 +2936,7 @@ CoherentMemoryPtr ResourceTracker::createCoherentMemory(
         GoldfishAddressSpaceBlockPtr block = nullptr;
         res = enc->vkMapMemoryIntoAddressSpaceGOOGLE(device, mem, &gpuAddr, true);
         if (res != VK_SUCCESS) {
-            ALOGE(
+            mesa_loge(
                 "Failed to create coherent memory: vkMapMemoryIntoAddressSpaceGOOGLE "
                 "returned:%d.",
                 res);
@@ -2947,7 +2946,7 @@ CoherentMemoryPtr ResourceTracker::createCoherentMemory(
             AutoLock<RecursiveLock> lock(mLock);
             auto it = info_VkDeviceMemory.find(mem);
             if (it == info_VkDeviceMemory.end()) {
-                ALOGE("Failed to create coherent memory: failed to find device memory.");
+                mesa_loge("Failed to create coherent memory: failed to find device memory.");
                 res = VK_ERROR_OUT_OF_HOST_MEMORY;
                 return coherentMemory;
             }
@@ -2966,7 +2965,7 @@ CoherentMemoryPtr ResourceTracker::createCoherentMemory(
             res = enc->vkGetMemoryHostAddressInfoGOOGLE(device, mem, &hvaSizeId[0], &hvaSizeId[1],
                                                         &hvaSizeId[2], true /* do lock */);
             if (res != VK_SUCCESS) {
-                ALOGE(
+                mesa_loge(
                     "Failed to create coherent memory: vkMapMemoryIntoAddressSpaceGOOGLE "
                     "returned:%d.",
                     res);
@@ -2982,14 +2981,14 @@ CoherentMemoryPtr ResourceTracker::createCoherentMemory(
 
                 auto blob = instance->createBlob(createBlob);
                 if (!blob) {
-                    ALOGE("Failed to create coherent memory: failed to create blob.");
+                    mesa_loge("Failed to create coherent memory: failed to create blob.");
                     res = VK_ERROR_OUT_OF_DEVICE_MEMORY;
                     return coherentMemory;
                 }
 
                 VirtGpuResourceMappingPtr mapping = blob->createMapping();
                 if (!mapping) {
-                    ALOGE("Failed to create coherent memory: failed to create blob mapping.");
+                    mesa_loge("Failed to create coherent memory: failed to create blob mapping.");
                     res = VK_ERROR_OUT_OF_DEVICE_MEMORY;
                     return coherentMemory;
                 }
@@ -2998,7 +2997,7 @@ CoherentMemoryPtr ResourceTracker::createCoherentMemory(
                     std::make_shared<CoherentMemory>(mapping, createBlob.size, device, mem);
             }
         } else {
-            ALOGE("FATAL: Unsupported virtual memory feature");
+            mesa_loge("FATAL: Unsupported virtual memory feature");
             abort();
         }
     return coherentMemory;
@@ -3051,13 +3050,13 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
     // Support device address capture/replay allocations
     if (deviceAddressMemoryAllocation) {
         if (allocFlagsInfoPtr) {
-            ALOGV("%s: has alloc flags\n", __func__);
+            mesa_logi("%s: has alloc flags\n", __func__);
             allocFlagsInfo = *allocFlagsInfoPtr;
             vk_append_struct(&structChainIter, &allocFlagsInfo);
         }
 
         if (opaqueCaptureAddressAllocInfoPtr) {
-            ALOGV("%s: has opaque capture address\n", __func__);
+            mesa_logi("%s: has opaque capture address\n", __func__);
             opaqueCaptureAddressAllocInfo = *opaqueCaptureAddressAllocInfoPtr;
             vk_append_struct(&structChainIter, &opaqueCaptureAddressAllocInfo);
         }
@@ -3081,7 +3080,7 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
 
         guestBlob = instance->createBlob(createBlob);
         if (!guestBlob) {
-            ALOGE("Failed to allocate coherent memory: failed to create blob.");
+            mesa_loge("Failed to allocate coherent memory: failed to create blob.");
             return VK_ERROR_OUT_OF_DEVICE_MEMORY;
         }
 
@@ -3091,7 +3090,7 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
         exec.flags = kRingIdx;
         exec.ring_idx = 1;
         if (instance->execBuffer(exec, guestBlob.get())) {
-            ALOGE("Failed to allocate coherent memory: failed to execbuffer for wait.");
+            mesa_loge("Failed to allocate coherent memory: failed to execbuffer for wait.");
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
@@ -3106,7 +3105,8 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
     VkResult host_res =
         enc->vkAllocateMemory(device, &hostAllocationInfo, nullptr, &mem, true /* do lock */);
     if (host_res != VK_SUCCESS) {
-        ALOGE("Failed to allocate coherent memory: failed to allocate on the host: %d.", host_res);
+        mesa_loge("Failed to allocate coherent memory: failed to allocate on the host: %d.",
+                  host_res);
         return host_res;
     }
 
@@ -3119,7 +3119,7 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
     if (guestBlob) {
         auto mapping = guestBlob->createMapping();
         if (!mapping) {
-            ALOGE("Failed to allocate coherent memory: failed to create blob mapping.");
+            mesa_loge("Failed to allocate coherent memory: failed to create blob mapping.");
             return VK_ERROR_OUT_OF_DEVICE_MEMORY;
         }
 
@@ -3272,13 +3272,13 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         vk_find_struct<VkMemoryOpaqueCaptureAddressAllocateInfo>(pAllocateInfo);
 
     if (allocFlagsInfoPtr) {
-        ALOGV("%s: has alloc flags\n", __func__);
+        mesa_logi("%s: has alloc flags\n", __func__);
         allocFlagsInfo = *allocFlagsInfoPtr;
         vk_append_struct(&structChainIter, &allocFlagsInfo);
     }
 
     if (opaqueCaptureAddressAllocInfoPtr) {
-        ALOGV("%s: has opaque capture address\n", __func__);
+        mesa_logi("%s: has opaque capture address\n", __func__);
         opaqueCaptureAddressAllocInfo = *opaqueCaptureAddressAllocInfoPtr;
         vk_append_struct(&structChainIter, &opaqueCaptureAddressAllocInfo);
     }
@@ -3487,14 +3487,14 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 importBufferCollectionInfoPtr->collection);
         auto result = collection->WaitForBuffersAllocated();
         if (!result.ok() || result->status != ZX_OK) {
-            ALOGE("WaitForBuffersAllocated failed: %d %d", result.status(),
-                  GET_STATUS_SAFE(result, status));
+            mesa_loge("WaitForBuffersAllocated failed: %d %d", result.status(),
+                      GET_STATUS_SAFE(result, status));
             _RETURN_FAILURE_WITH_DEVICE_MEMORY_REPORT(VK_ERROR_INITIALIZATION_FAILED);
         }
         fuchsia_sysmem::wire::BufferCollectionInfo2& info = result->buffer_collection_info;
         uint32_t index = importBufferCollectionInfoPtr->index;
         if (info.buffer_count < index) {
-            ALOGE("Invalid buffer index: %d %d", index);
+            mesa_loge("Invalid buffer index: %d %d", index);
             _RETURN_FAILURE_WITH_DEVICE_MEMORY_REPORT(VK_ERROR_INITIALIZATION_FAILED);
         }
         vmo_handle = info.buffers[index].vmo.release();
@@ -3511,7 +3511,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->buffer != VK_NULL_HANDLE);
 
         if (hasDedicatedImage && hasDedicatedBuffer) {
-            ALOGE(
+            mesa_loge(
                 "Invalid VkMemoryDedicatedAllocationInfo: At least one "
                 "of image and buffer must be VK_NULL_HANDLE.");
             return VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -3566,7 +3566,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         if (hasDedicatedImage || hasDedicatedBuffer) {
             auto token_ends = fidl::CreateEndpoints<::fuchsia_sysmem::BufferCollectionToken>();
             if (!token_ends.is_ok()) {
-                ALOGE("zx_channel_create failed: %d", token_ends.status_value());
+                mesa_loge("zx_channel_create failed: %d", token_ends.status_value());
                 abort();
             }
 
@@ -3574,14 +3574,14 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 auto result =
                     mSysmemAllocator->AllocateSharedCollection(std::move(token_ends->server));
                 if (!result.ok()) {
-                    ALOGE("AllocateSharedCollection failed: %d", result.status());
+                    mesa_loge("AllocateSharedCollection failed: %d", result.status());
                     abort();
                 }
             }
 
             auto collection_ends = fidl::CreateEndpoints<::fuchsia_sysmem::BufferCollection>();
             if (!collection_ends.is_ok()) {
-                ALOGE("zx_channel_create failed: %d", collection_ends.status_value());
+                mesa_loge("zx_channel_create failed: %d", collection_ends.status_value());
                 abort();
             }
 
@@ -3589,7 +3589,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 auto result = mSysmemAllocator->BindSharedCollection(
                     std::move(token_ends->client), std::move(collection_ends->server));
                 if (!result.ok()) {
-                    ALOGE("BindSharedCollection failed: %d", result.status());
+                    mesa_loge("BindSharedCollection failed: %d", result.status());
                     abort();
                 }
             }
@@ -3601,12 +3601,12 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 VkResult res = setBufferCollectionConstraintsFUCHSIA(enc, device, &collection,
                                                                      pImageCreateInfo);
                 if (res == VK_ERROR_FORMAT_NOT_SUPPORTED) {
-                    ALOGE("setBufferCollectionConstraints failed: format %u is not supported",
-                          pImageCreateInfo->format);
+                    mesa_loge("setBufferCollectionConstraints failed: format %u is not supported",
+                              pImageCreateInfo->format);
                     return VK_ERROR_OUT_OF_DEVICE_MEMORY;
                 }
                 if (res != VK_SUCCESS) {
-                    ALOGE("setBufferCollectionConstraints failed: %d", res);
+                    mesa_loge("setBufferCollectionConstraints failed: %d", res);
                     abort();
                 }
             }
@@ -3615,7 +3615,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 VkResult res = setBufferCollectionBufferConstraintsFUCHSIA(&collection,
                                                                            pBufferConstraintsInfo);
                 if (res != VK_SUCCESS) {
-                    ALOGE("setBufferCollectionBufferConstraints failed: %d", res);
+                    mesa_loge("setBufferCollectionBufferConstraints failed: %d", res);
                     abort();
                 }
             }
@@ -3626,7 +3626,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                     fuchsia_sysmem::wire::BufferCollectionInfo2& info =
                         result->buffer_collection_info;
                     if (!info.buffer_count) {
-                        ALOGE(
+                        mesa_loge(
                             "WaitForBuffersAllocated returned "
                             "invalid count: %d",
                             info.buffer_count);
@@ -3634,8 +3634,8 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                     }
                     vmo_handle = info.buffers[0].vmo.release();
                 } else {
-                    ALOGE("WaitForBuffersAllocated failed: %d %d", result.status(),
-                          GET_STATUS_SAFE(result, status));
+                    mesa_loge("WaitForBuffersAllocated failed: %d %d", result.status(),
+                              GET_STATUS_SAFE(result, status));
                     abort();
                 }
             }
@@ -3646,7 +3646,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
             zx_status_t status = zx_handle_duplicate(vmo_handle, ZX_RIGHT_SAME_RIGHTS,
                                                      vmo_copy.reset_and_get_address());
             if (status != ZX_OK) {
-                ALOGE("Failed to duplicate VMO: %d", status);
+                mesa_loge("Failed to duplicate VMO: %d", status);
                 abort();
             }
 
@@ -3696,7 +3696,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                             format = fuchsia_hardware_goldfish::wire::ColorBufferFormatType::kRg;
                             break;
                         default:
-                            ALOGE("Unsupported format: %d", pImageCreateInfo->format);
+                            mesa_loge("Unsupported format: %d", pImageCreateInfo->format);
                             abort();
                     }
 
@@ -3712,12 +3712,12 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                                                                      std::move(createParams));
                     if (!result.ok() || result->res != ZX_OK) {
                         if (result.ok() && result->res == ZX_ERR_ALREADY_EXISTS) {
-                            ALOGD(
+                            mesa_logd(
                                 "CreateColorBuffer: color buffer already "
                                 "exists\n");
                         } else {
-                            ALOGE("CreateColorBuffer failed: %d:%d", result.status(),
-                                  GET_STATUS_SAFE(result, res));
+                            mesa_loge("CreateColorBuffer failed: %d:%d", result.status(),
+                                      GET_STATUS_SAFE(result, res));
                             abort();
                         }
                     }
@@ -3734,13 +3734,13 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 auto result =
                     mControlDevice->CreateBuffer2(std::move(vmo_copy), std::move(createParams));
                 if (!result.ok() || result->is_error()) {
-                    ALOGE("CreateBuffer2 failed: %d:%d", result.status(),
-                          GET_STATUS_SAFE(result, error_value()));
+                    mesa_loge("CreateBuffer2 failed: %d:%d", result.status(),
+                              GET_STATUS_SAFE(result, error_value()));
                     abort();
                 }
             }
         } else {
-            ALOGW(
+            mesa_logw(
                 "Dedicated image / buffer not available. Cannot create "
                 "BufferCollection to export VMOs.");
             return VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -3752,14 +3752,15 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         zx_status_t status =
             zx_handle_duplicate(vmo_handle, ZX_RIGHT_SAME_RIGHTS, vmo_copy.reset_and_get_address());
         if (status != ZX_OK) {
-            ALOGE("Failed to duplicate VMO: %d", status);
+            mesa_loge("Failed to duplicate VMO: %d", status);
             abort();
         }
         zx_status_t status2 = ZX_OK;
 
         auto result = mControlDevice->GetBufferHandle(std::move(vmo_copy));
         if (!result.ok() || result->res != ZX_OK) {
-            ALOGE("GetBufferHandle failed: %d:%d", result.status(), GET_STATUS_SAFE(result, res));
+            mesa_loge("GetBufferHandle failed: %d:%d", result.status(),
+                      GET_STATUS_SAFE(result, res));
         } else {
             fuchsia_hardware_goldfish::wire::BufferHandleType handle_type = result->type;
             uint32_t buffer_handle = result->id;
@@ -3788,8 +3789,8 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         bool hasDedicatedBuffer =
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->buffer != VK_NULL_HANDLE);
         if (!hasDedicatedImage && !hasDedicatedBuffer) {
-            ALOGE(
-                "%s: dma-buf exportable memory requires dedicated Image or Buffer information.\n");
+            mesa_loge(
+                "dma-buf exportable memory requires dedicated Image or Buffer information.\n");
             return VK_ERROR_OUT_OF_DEVICE_MEMORY;
         }
 
@@ -3811,19 +3812,20 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
             uint32_t bpp = 0;
             if (!gfxstream::vk::getVirtGpuFormatParams(imageCreateInfo.format, &virglFormat,
                                                        &target, &bind, &bpp)) {
-                ALOGE("%s: Unsupported VK format for VirtGpu resource, vkFormat: 0x%x", __func__,
-                      imageCreateInfo.format);
+                mesa_loge("%s: Unsupported VK format for VirtGpu resource, vkFormat: 0x%x",
+                          __func__, imageCreateInfo.format);
                 return VK_ERROR_FORMAT_NOT_SUPPORTED;
             }
             colorBufferBlob = instance->createResource(imageCreateInfo.extent.width,
                                                        imageCreateInfo.extent.height, virglFormat,
                                                        target, bind, bpp);
             if (!colorBufferBlob) {
-                ALOGE("%s: Failed to create colorBuffer resource for Image memory\n", __func__);
+                mesa_loge("%s: Failed to create colorBuffer resource for Image memory\n", __func__);
                 return VK_ERROR_OUT_OF_DEVICE_MEMORY;
             }
             if (0 != colorBufferBlob->wait()) {
-                ALOGE("%s: Failed to wait for colorBuffer resource for Image memory\n", __func__);
+                mesa_loge("%s: Failed to wait for colorBuffer resource for Image memory\n",
+                          __func__);
                 return VK_ERROR_OUT_OF_DEVICE_MEMORY;
             }
         }
@@ -3845,19 +3847,21 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
             uint32_t bpp = 0;
             if (!gfxstream::vk::getVirtGpuFormatParams(vkFormat, &virglFormat, &target, &bind,
                                                        &bpp)) {
-                ALOGE("%s: Unexpected error getting VirtGpu format params for vkFormat: 0x%x",
-                      __func__, vkFormat);
+                mesa_loge("%s: Unexpected error getting VirtGpu format params for vkFormat: 0x%x",
+                          __func__, vkFormat);
                 return VK_ERROR_FORMAT_NOT_SUPPORTED;
             }
 
             colorBufferBlob = instance->createResource(bufferCreateInfo.size / bpp, 1, virglFormat,
                                                        target, bind, bpp);
             if (!colorBufferBlob) {
-                ALOGE("%s: Failed to create colorBuffer resource for Buffer memory\n", __func__);
+                mesa_loge("%s: Failed to create colorBuffer resource for Buffer memory\n",
+                          __func__);
                 return VK_ERROR_OUT_OF_DEVICE_MEMORY;
             }
             if (0 != colorBufferBlob->wait()) {
-                ALOGE("%s: Failed to wait for colorBuffer resource for Buffer memory\n", __func__);
+                mesa_loge("%s: Failed to wait for colorBuffer resource for Buffer memory\n",
+                          __func__);
                 return VK_ERROR_OUT_OF_DEVICE_MEMORY;
             }
         }
@@ -3871,7 +3875,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         auto instance = VirtGpuDevice::getInstance();
         colorBufferBlob = instance->importBlob(importHandle);
         if (!colorBufferBlob) {
-            ALOGE("%s: Failed to import colorBuffer resource\n", __func__);
+            mesa_loge("%s: Failed to import colorBuffer resource\n", __func__);
             return VK_ERROR_OUT_OF_DEVICE_MEMORY;
         }
     }
@@ -3906,8 +3910,8 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         zx_status_t status = zx_object_get_info(vmo_handle, ZX_INFO_HANDLE_BASIC, &handle_info,
                                                 sizeof(handle_info), nullptr, nullptr);
         if (status != ZX_OK) {
-            ALOGE("%s: cannot get vmo object info: vmo = %u status: %d.", __func__, vmo_handle,
-                  status);
+            mesa_loge("%s: cannot get vmo object info: vmo = %u status: %d.", __func__, vmo_handle,
+                      status);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
@@ -3919,7 +3923,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         status = zx_vmar_map(zx_vmar_root_self(), vm_permission, 0, vmo_handle, 0,
                              finalAllocInfo.allocationSize, &addr);
         if (status != ZX_OK) {
-            ALOGE("%s: cannot map vmar: status %d.", __func__, status);
+            mesa_loge("%s: cannot map vmar: status %d.", __func__, status);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
@@ -3962,7 +3966,7 @@ void ResourceTracker::on_vkFreeMemory(void* context, VkDevice device, VkDeviceMe
         zx_status_t status = zx_vmar_unmap(
             zx_vmar_root_self(), reinterpret_cast<zx_paddr_t>(info.ptr), info.allocationSize);
         if (status != ZX_OK) {
-            ALOGE("%s: Cannot unmap ptr: status %d", status);
+            mesa_loge("%s: Cannot unmap ptr: status %d", status);
         }
         info.ptr = nullptr;
     }
@@ -3988,7 +3992,7 @@ VkResult ResourceTracker::on_vkMapMemory(void* context, VkResult host_result, Vk
                                          VkDeviceMemory memory, VkDeviceSize offset,
                                          VkDeviceSize size, VkMemoryMapFlags, void** ppData) {
     if (host_result != VK_SUCCESS) {
-        ALOGE("%s: Host failed to map", __func__);
+        mesa_loge("%s: Host failed to map", __func__);
         return host_result;
     }
 
@@ -3996,7 +4000,7 @@ VkResult ResourceTracker::on_vkMapMemory(void* context, VkResult host_result, Vk
 
     auto deviceMemoryInfoIt = info_VkDeviceMemory.find(memory);
     if (deviceMemoryInfoIt == info_VkDeviceMemory.end()) {
-        ALOGE("%s: Failed to find VkDeviceMemory.", __func__);
+        mesa_loge("%s: Failed to find VkDeviceMemory.", __func__);
         return VK_ERROR_MEMORY_MAP_FAILED;
     }
     auto& deviceMemoryInfo = deviceMemoryInfoIt->second;
@@ -4008,7 +4012,7 @@ VkResult ResourceTracker::on_vkMapMemory(void* context, VkResult host_result, Vk
         VkEncoder* enc = (VkEncoder*)context;
         VkResult vkResult = enc->vkGetBlobGOOGLE(device, memory, /*doLock*/ false);
         if (vkResult != VK_SUCCESS) {
-            ALOGE("%s: Failed to vkGetBlobGOOGLE().", __func__);
+            mesa_loge("%s: Failed to vkGetBlobGOOGLE().", __func__);
             return vkResult;
         }
         lock.lock();
@@ -4040,13 +4044,13 @@ VkResult ResourceTracker::on_vkMapMemory(void* context, VkResult host_result, Vk
     }
 
     if (!deviceMemoryInfo.ptr) {
-        ALOGE("%s: VkDeviceMemory has nullptr.", __func__);
+        mesa_loge("%s: VkDeviceMemory has nullptr.", __func__);
         return VK_ERROR_MEMORY_MAP_FAILED;
     }
 
     if (size != VK_WHOLE_SIZE && (deviceMemoryInfo.ptr + offset + size >
                                   deviceMemoryInfo.ptr + deviceMemoryInfo.allocationSize)) {
-        ALOGE(
+        mesa_loge(
             "%s: size is too big. alloc size 0x%llx while we wanted offset 0x%llx size 0x%llx "
             "total 0x%llx",
             __func__, (unsigned long long)deviceMemoryInfo.allocationSize,
@@ -4200,22 +4204,22 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
                 vmo = std::move(info.buffers[index].vmo);
             }
         } else {
-            ALOGE("WaitForBuffersAllocated failed: %d %d", result.status(),
-                  GET_STATUS_SAFE(result, status));
+            mesa_loge("WaitForBuffersAllocated failed: %d %d", result.status(),
+                      GET_STATUS_SAFE(result, status));
         }
 
         if (vmo.is_valid()) {
             zx::vmo vmo_dup;
             if (zx_status_t status = vmo.duplicate(ZX_RIGHT_SAME_RIGHTS, &vmo_dup);
                 status != ZX_OK) {
-                ALOGE("%s: zx_vmo_duplicate failed: %d", __func__, status);
+                mesa_loge("%s: zx_vmo_duplicate failed: %d", __func__, status);
                 abort();
             }
 
             auto buffer_handle_result = mControlDevice->GetBufferHandle(std::move(vmo_dup));
             if (!buffer_handle_result.ok()) {
-                ALOGE("%s: GetBufferHandle FIDL error: %d", __func__,
-                      buffer_handle_result.status());
+                mesa_loge("%s: GetBufferHandle FIDL error: %d", __func__,
+                          buffer_handle_result.status());
                 abort();
             }
             if (buffer_handle_result.value().res == ZX_OK) {
@@ -4223,8 +4227,8 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
                 // If it is a ColorBuffer, no-op; Otherwise return error.
                 if (buffer_handle_result.value().type !=
                     fuchsia_hardware_goldfish::wire::BufferHandleType::kColorBuffer) {
-                    ALOGE("%s: BufferHandle %u is not a ColorBuffer", __func__,
-                          buffer_handle_result.value().id);
+                    mesa_loge("%s: BufferHandle %u is not a ColorBuffer", __func__,
+                              buffer_handle_result.value().id);
                     return VK_ERROR_OUT_OF_HOST_MEMORY;
                 }
             } else if (buffer_handle_result.value().res == ZX_ERR_NOT_FOUND) {
@@ -4250,16 +4254,16 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
                 auto result =
                     mControlDevice->CreateColorBuffer2(std::move(vmo), std::move(createParams));
                 if (result.ok() && result->res == ZX_ERR_ALREADY_EXISTS) {
-                    ALOGD("CreateColorBuffer: color buffer already exists\n");
+                    mesa_logd("CreateColorBuffer: color buffer already exists\n");
                 } else if (!result.ok() || result->res != ZX_OK) {
-                    ALOGE("CreateColorBuffer failed: %d:%d", result.status(),
-                          GET_STATUS_SAFE(result, res));
+                    mesa_loge("CreateColorBuffer failed: %d:%d", result.status(),
+                              GET_STATUS_SAFE(result, res));
                 }
             }
 
             if (info.settings.buffer_settings.heap ==
                 fuchsia_sysmem::wire::HeapType::kGoldfishHostVisible) {
-                ALOGD(
+                mesa_logd(
                     "%s: Image uses host visible memory heap; set tiling "
                     "to linear to match host ImageCreateInfo",
                     __func__);
@@ -4368,7 +4372,7 @@ VkResult ResourceTracker::on_vkCreateSamplerYcbcrConversion(
                                                        pYcbcrConversion, true /* do lock */);
 
     if (*pYcbcrConversion == VK_YCBCR_CONVERSION_DO_NOTHING) {
-        ALOGE(
+        mesa_loge(
             "FATAL: vkCreateSamplerYcbcrConversion returned a reserved value "
             "(VK_YCBCR_CONVERSION_DO_NOTHING)");
         abort();
@@ -4414,7 +4418,7 @@ VkResult ResourceTracker::on_vkCreateSamplerYcbcrConversionKHR(
                                                           pYcbcrConversion, true /* do lock */);
 
     if (*pYcbcrConversion == VK_YCBCR_CONVERSION_DO_NOTHING) {
-        ALOGE(
+        mesa_loge(
             "FATAL: vkCreateSamplerYcbcrConversionKHR returned a reserved value "
             "(VK_YCBCR_CONVERSION_DO_NOTHING)");
         abort();
@@ -4521,11 +4525,11 @@ VkResult ResourceTracker::on_vkCreateFence(void* context, VkResult input_result,
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
     if (exportSyncFd) {
         if (!mFeatureInfo->hasVirtioGpuNativeSync) {
-            ALOGV("%s: ensure sync device\n", __func__);
+            mesa_logi("%s: ensure sync device\n", __func__);
             ensureSyncDeviceFd();
         }
 
-        ALOGV("%s: getting fence info\n", __func__);
+        mesa_logi("%s: getting fence info\n", __func__);
         AutoLock<RecursiveLock> lock(mLock);
         auto it = info_VkFence.find(*pFence);
 
@@ -4535,7 +4539,7 @@ VkResult ResourceTracker::on_vkCreateFence(void* context, VkResult input_result,
 
         info.external = true;
         info.exportFenceCreateInfo = *exportFenceInfoPtr;
-        ALOGV("%s: info set (fence still -1). fence: %p\n", __func__, (void*)(*pFence));
+        mesa_logi("%s: info set (fence still -1). fence: %p\n", __func__, (void*)(*pFence));
         // syncFd is still -1 because we expect user to explicitly
         // export it via vkGetFenceFdKHR
     }
@@ -4571,7 +4575,7 @@ VkResult ResourceTracker::on_vkResetFences(void* context, VkResult, VkDevice dev
 
 #if GFXSTREAM_ENABLE_GUEST_GOLDFISH
         if (info.syncFd >= 0) {
-            ALOGV("%s: resetting fence. make fd -1\n", __func__);
+            mesa_logi("%s: resetting fence. make fd -1\n", __func__);
             goldfish_sync_signal(info.syncFd);
             auto* syncHelper =
                 ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
@@ -4604,14 +4608,14 @@ VkResult ResourceTracker::on_vkImportFenceFdKHR(void* context, VkResult, VkDevic
     bool syncFdImport = pImportFenceFdInfo->handleType & VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT;
 
     if (!syncFdImport) {
-        ALOGV("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd import\n", __func__);
+        mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd import\n", __func__);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     AutoLock<RecursiveLock> lock(mLock);
     auto it = info_VkFence.find(pImportFenceFdInfo->fence);
     if (it == info_VkFence.end()) {
-        ALOGV("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence info\n", __func__);
+        mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence info\n", __func__);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
@@ -4620,17 +4624,17 @@ VkResult ResourceTracker::on_vkImportFenceFdKHR(void* context, VkResult, VkDevic
     auto* syncHelper = ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
 #if GFXSTREAM_ENABLE_GUEST_GOLDFISH
     if (info.syncFd >= 0) {
-        ALOGV("%s: previous sync fd exists, close it\n", __func__);
+        mesa_logi("%s: previous sync fd exists, close it\n", __func__);
         goldfish_sync_signal(info.syncFd);
         syncHelper->close(info.syncFd);
     }
 #endif
 
     if (pImportFenceFdInfo->fd < 0) {
-        ALOGV("%s: import -1, set to -1 and exit\n", __func__);
+        mesa_logi("%s: import -1, set to -1 and exit\n", __func__);
         info.syncFd = -1;
     } else {
-        ALOGV("%s: import actual fd, dup and close()\n", __func__);
+        mesa_logi("%s: import actual fd, dup and close()\n", __func__);
         info.syncFd = syncHelper->dup(pImportFenceFdInfo->fd);
         syncHelper->close(pImportFenceFdInfo->fd);
     }
@@ -4652,7 +4656,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
     bool hasFence = pGetFdInfo->fence != VK_NULL_HANDLE;
 
     if (!hasFence) {
-        ALOGV("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence\n", __func__);
+        mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence\n", __func__);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
@@ -4660,7 +4664,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
     bool syncFdExport = pGetFdInfo->handleType & VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT;
 
     if (!syncFdExport) {
-        ALOGV("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd fence\n", __func__);
+        mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd fence\n", __func__);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
@@ -4668,7 +4672,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
         enc->vkGetFenceStatus(device, pGetFdInfo->fence, true /* do lock */);
 
     if (VK_ERROR_DEVICE_LOST == currentFenceStatus) {  // Other error
-        ALOGV("%s: VK_ERROR_DEVICE_LOST: Other error\n", __func__);
+        mesa_logi("%s: VK_ERROR_DEVICE_LOST: Other error\n", __func__);
         *pFd = -1;
         return VK_ERROR_DEVICE_LOST;
     }
@@ -4682,7 +4686,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
 
         auto it = info_VkFence.find(pGetFdInfo->fence);
         if (it == info_VkFence.end()) {
-            ALOGV("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence info\n", __func__);
+            mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence info\n", __func__);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
@@ -4692,7 +4696,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
                                                VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT);
 
         if (!syncFdCreated) {
-            ALOGV("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd created\n", __func__);
+            mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd created\n", __func__);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
@@ -4716,7 +4720,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
 
         // relinquish ownership
         info.syncFd = -1;
-        ALOGV("%s: got fd: %d\n", __func__, *pFd);
+        mesa_logi("%s: got fd: %d\n", __func__, *pFd);
         return VK_SUCCESS;
     }
     return VK_ERROR_DEVICE_LOST;
@@ -4760,15 +4764,15 @@ VkResult ResourceTracker::on_vkWaitForFences(void* context, VkResult, VkDevice d
         // schedule a wait group with waitAny/waitAll
         std::vector<WorkPool::Task> tasks;
 
-        ALOGV("%s: scheduling ext waits\n", __func__);
+        mesa_logi("%s: scheduling ext waits\n", __func__);
 
         for (auto fd : fencesExternalWaitFds) {
-            ALOGV("%s: wait on %d\n", __func__, fd);
+            mesa_logi("%s: wait on %d\n", __func__, fd);
             tasks.push_back([fd] {
                 auto* syncHelper =
                     ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
                 syncHelper->wait(fd, 3000);
-                ALOGV("done waiting on fd %d\n", fd);
+                mesa_logi("done waiting on fd %d\n", fd);
             });
         }
 
@@ -4777,7 +4781,7 @@ VkResult ResourceTracker::on_vkWaitForFences(void* context, VkResult, VkDevice d
                 [this, fencesNonExternal /* copy of vector */, device, waitAll, timeout] {
                     auto hostConn = ResourceTracker::threadingCallbacks.hostConnectionGetFunc();
                     auto vkEncoder = ResourceTracker::threadingCallbacks.vkEncoderGetFunc(hostConn);
-                    ALOGV("%s: vkWaitForFences to host\n", __func__);
+                    mesa_logi("%s: vkWaitForFences to host\n", __func__);
                     vkEncoder->vkWaitForFences(device, fencesNonExternal.size(),
                                                fencesNonExternal.data(), waitAll, timeout,
                                                true /* do lock */);
@@ -4795,10 +4799,10 @@ VkResult ResourceTracker::on_vkWaitForFences(void* context, VkResult, VkDevice d
         }
 
         if (waitRes) {
-            ALOGV("%s: VK_SUCCESS\n", __func__);
+            mesa_logi("%s: VK_SUCCESS\n", __func__);
             return VK_SUCCESS;
         } else {
-            ALOGV("%s: VK_TIMEOUT\n", __func__);
+            mesa_logi("%s: VK_TIMEOUT\n", __func__);
             return VK_TIMEOUT;
         }
     }
@@ -4943,7 +4947,7 @@ VkResult ResourceTracker::on_vkFreeDescriptorSets(void* context, VkResult, VkDev
 
             for (uint32_t i = 0; i < descriptorSetCount; ++i) {
                 if (allocedSets.end() == allocedSets.find(pDescriptorSets[i])) {
-                    ALOGV(
+                    mesa_logi(
                         "%s: Warning: descriptor set %p not found in pool. Was this "
                         "double-freed?\n",
                         __func__, (void*)pDescriptorSets[i]);
@@ -5102,8 +5106,8 @@ void ResourceTracker::on_vkDestroyImage(void* context, VkDevice device, VkImage 
             for (int syncFd : imageInfo.pendingQsriSyncFds) {
                 int syncWaitRet = syncHelper->wait(syncFd, 3000);
                 if (syncWaitRet < 0) {
-                    ALOGE("%s: Failed to wait for pending QSRI sync: sterror: %s errno: %d",
-                          __func__, strerror(errno), errno);
+                    mesa_loge("%s: Failed to wait for pending QSRI sync: sterror: %s errno: %d",
+                              __func__, strerror(errno), errno);
                 }
                 syncHelper->close(syncFd);
             }
@@ -5263,8 +5267,8 @@ VkResult ResourceTracker::on_vkCreateBuffer(void* context, VkResult, VkDevice de
                 vmo = gfxstream::guest::makeOptional(std::move(info.buffers[index].vmo));
             }
         } else {
-            ALOGE("WaitForBuffersAllocated failed: %d %d", result.status(),
-                  GET_STATUS_SAFE(result, status));
+            mesa_loge("WaitForBuffersAllocated failed: %d %d", result.status(),
+                      GET_STATUS_SAFE(result, status));
         }
 
         if (vmo && vmo->is_valid()) {
@@ -5276,8 +5280,8 @@ VkResult ResourceTracker::on_vkCreateBuffer(void* context, VkResult, VkDevice de
             auto result = mControlDevice->CreateBuffer2(std::move(*vmo), createParams);
             if (!result.ok() ||
                 (result->is_error() != ZX_OK && result->error_value() != ZX_ERR_ALREADY_EXISTS)) {
-                ALOGE("CreateBuffer2 failed: %d:%d", result.status(),
-                      GET_STATUS_SAFE(result, error_value()));
+                mesa_loge("CreateBuffer2 failed: %d:%d", result.status(),
+                          GET_STATUS_SAFE(result, error_value()));
             }
             isSysmemBackedMemory = true;
         }
@@ -5579,7 +5583,7 @@ VkResult ResourceTracker::on_vkImportSemaphoreFdKHR(
         int fd = pImportSemaphoreFdInfo->fd;
         int err = lseek(fd, 0, SEEK_SET);
         if (err == -1) {
-            ALOGE("lseek fail on import semaphore");
+            mesa_loge("lseek fail on import semaphore");
         }
         int hostFd = 0;
         read(fd, &hostFd, sizeof(hostFd));
@@ -5603,8 +5607,8 @@ VkResult ResourceTracker::on_vkGetMemoryFdPropertiesKHR(
     VkMemoryFdPropertiesKHR* pMemoryFdProperties) {
 #if defined(__linux__) && !defined(VK_USE_PLATFORM_ANDROID_KHR)
     if (!(handleType & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
-        ALOGE("%s: VK_KHR_external_memory_fd behavior not defined for handleType: 0x%x\n", __func__,
-              handleType);
+        mesa_loge("%s: VK_KHR_external_memory_fd behavior not defined for handleType: 0x%x\n",
+                  __func__, handleType);
         return VK_ERROR_INVALID_EXTERNAL_HANDLE;
     }
     // Sanity-check device
@@ -5642,8 +5646,8 @@ VkResult ResourceTracker::on_vkGetMemoryFdKHR(void* context, VkResult, VkDevice 
 
     if (!(pGetFdInfo->handleType & (VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT |
                                     VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT))) {
-        ALOGE("%s: Export operation not defined for handleType: 0x%x\n", __func__,
-              pGetFdInfo->handleType);
+        mesa_loge("%s: Export operation not defined for handleType: 0x%x\n", __func__,
+                  pGetFdInfo->handleType);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
     // Sanity-check device
@@ -5660,14 +5664,14 @@ VkResult ResourceTracker::on_vkGetMemoryFdKHR(void* context, VkResult, VkDevice 
     auto& info = deviceMemIt->second;
 
     if (!info.blobPtr) {
-        ALOGE("%s: VkDeviceMemory does not have a resource available for export.\n", __func__);
+        mesa_loge("%s: VkDeviceMemory does not have a resource available for export.\n", __func__);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     VirtGpuExternalHandle handle{};
     int ret = info.blobPtr->exportBlob(handle);
     if (ret != 0 || handle.osHandle < 0) {
-        ALOGE("%s: Failed to export host resource to FD.\n", __func__);
+        mesa_loge("%s: Failed to export host resource to FD.\n", __func__);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
     *pFd = handle.osHandle;
@@ -5984,7 +5988,7 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
             }
 
             if (externalFenceFdToSignal >= 0) {
-                ALOGV("%s: external fence real signal: %d\n", __func__, externalFenceFdToSignal);
+                mesa_logi("%s: external fence real signal: %d\n", __func__, externalFenceFdToSignal);
                 goldfish_sync_signal(externalFenceFdToSignal);
             }
 #endif
@@ -6005,12 +6009,12 @@ VkResult ResourceTracker::on_vkQueueWaitIdle(void* context, VkResult, VkQueue qu
     lock.unlock();
 
     if (toWait.empty()) {
-        ALOGV("%s: No queue-specific work pool items\n", __func__);
+        mesa_logi("%s: No queue-specific work pool items\n", __func__);
         return enc->vkQueueWaitIdle(queue, true /* do lock */);
     }
 
     for (auto handle : toWait) {
-        ALOGV("%s: waiting on work group item: %llu\n", __func__, (unsigned long long)handle);
+        mesa_logi("%s: waiting on work group item: %llu\n", __func__, (unsigned long long)handle);
         mWorkPool.waitAll(handle);
     }
 
@@ -6026,7 +6030,7 @@ void ResourceTracker::unwrap_VkNativeBufferANDROID(const VkNativeBufferANDROID* 
     }
 
     if (!outputNativeInfo || !outputNativeInfo) {
-        ALOGE("FATAL: Local native buffer info not properly allocated!");
+        mesa_loge("FATAL: Local native buffer info not properly allocated!");
         abort();
     }
 
@@ -6201,7 +6205,7 @@ VkResult ResourceTracker::initDescriptorUpdateTemplateBuffers(
                 } else if (isDescriptorTypeBufferView(descType)) {
                     ++info.bufferViewCount;
                 } else {
-                    ALOGE("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
+                    mesa_loge("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
                     // abort();
                 }
             }
@@ -6258,7 +6262,7 @@ VkResult ResourceTracker::initDescriptorUpdateTemplateBuffers(
                     info.bufferViewIndices[bufferViewIndex] = i;
                     ++bufferViewIndex;
                 } else {
-                    ALOGE("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
+                    mesa_loge("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
                     // abort();
                 }
             }
@@ -6433,7 +6437,7 @@ void ResourceTracker::on_vkUpdateDescriptorSetWithTemplate(
                     currInlineUniformBlockBufferBegin, reified);
             }
         } else {
-            ALOGE("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
+            mesa_loge("%s: FATAL: Unknown descriptor type %d\n", __func__, descType);
             abort();
         }
     }
@@ -6718,7 +6722,7 @@ CommandBufferStagingStream::Alloc ResourceTracker::getAlloc() {
             VkDeviceMemory vkDeviceMem = VK_NULL_HANDLE;
             VkResult result = getCoherentMemory(&info, enc, device, &vkDeviceMem);
             if (result != VK_SUCCESS) {
-                ALOGE("Failed to get coherent memory %u", result);
+                mesa_loge("Failed to get coherent memory %u", result);
                 return {.deviceMemory = VK_NULL_HANDLE, .ptr = nullptr};
             }
 
@@ -6730,7 +6734,7 @@ CommandBufferStagingStream::Alloc ResourceTracker::getAlloc() {
                 AutoLock<RecursiveLock> lock(mLock);
                 const auto it = info_VkDeviceMemory.find(vkDeviceMem);
                 if (it == info_VkDeviceMemory.end()) {
-                    ALOGE("Coherent memory allocated %u not found", result);
+                    mesa_loge("Coherent memory allocated %u not found", result);
                     return {.deviceMemory = VK_NULL_HANDLE, .ptr = nullptr};
                 };
 
@@ -6752,7 +6756,7 @@ CommandBufferStagingStream::Free ResourceTracker::getFree() {
             AutoLock<RecursiveLock> lock(mLock);
             auto it = info_VkDeviceMemory.find(deviceMemory);
             if (it == info_VkDeviceMemory.end()) {
-                ALOGE("Device memory to free not found");
+                mesa_loge("Device memory to free not found");
                 return;
             }
             auto coherentMemory = freeCoherentMemoryLocked(deviceMemory, it->second);
@@ -6975,7 +6979,7 @@ VkResult ResourceTracker::on_vkAllocateCommandBuffers(
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 VkResult ResourceTracker::exportSyncFdForQSRILocked(VkImage image, int* fd) {
-    ALOGV("%s: call for image %p hos timage handle 0x%llx\n", __func__, (void*)image,
+    mesa_logi("%s: call for image %p hos timage handle 0x%llx\n", __func__, (void*)image,
           (unsigned long long)get_host_u64_VkImage(image));
 
     if (mFeatureInfo->hasVirtioGpuNativeSync) {
@@ -7004,7 +7008,7 @@ VkResult ResourceTracker::exportSyncFdForQSRILocked(VkImage image, int* fd) {
 #endif
     }
 
-    ALOGV("%s: got fd: %d\n", __func__, *fd);
+    mesa_logi("%s: got fd: %d\n", __func__, *fd);
     auto imageInfoIt = info_VkImage.find(image);
     if (imageInfoIt != info_VkImage.end()) {
         auto& imageInfo = imageInfoIt->second;
@@ -7023,8 +7027,8 @@ VkResult ResourceTracker::exportSyncFdForQSRILocked(VkImage image, int* fd) {
                 syncHelper->close(syncFd);
             } else {
                 if (errno != ETIME) {
-                    ALOGE("%s: Failed to wait for pending QSRI sync: sterror: %s errno: %d",
-                          __func__, strerror(errno), errno);
+                    mesa_loge("%s: Failed to wait for pending QSRI sync: sterror: %s errno: %d",
+                              __func__, strerror(errno), errno);
                 }
                 break;
             }
@@ -7032,8 +7036,8 @@ VkResult ResourceTracker::exportSyncFdForQSRILocked(VkImage image, int* fd) {
 
         int syncFdDup = syncHelper->dup(*fd);
         if (syncFdDup < 0) {
-            ALOGE("%s: Failed to dup() QSRI sync fd : sterror: %s errno: %d", __func__,
-                  strerror(errno), errno);
+            mesa_loge("%s: Failed to dup() QSRI sync fd : sterror: %s errno: %d", __func__,
+                      strerror(errno), errno);
         } else {
             imageInfo.pendingQsriSyncFds.push_back(syncFdDup);
         }
@@ -7314,7 +7318,7 @@ const VkPhysicalDeviceMemoryProperties& ResourceTracker::getPhysicalDeviceMemory
 
             auto deviceInfoIt = info_VkDevice.find(device);
             if (deviceInfoIt == info_VkDevice.end()) {
-                ALOGE("Failed to pass device or physical device.");
+                mesa_loge("Failed to pass device or physical device.");
                 abort();
             }
             const auto& deviceInfo = deviceInfoIt->second;

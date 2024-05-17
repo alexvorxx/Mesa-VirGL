@@ -13,6 +13,8 @@
 // limitations under the License.
 #include "VulkanStreamGuest.h"
 
+#include "util/log.h"
+
 namespace gfxstream {
 namespace vk {
 
@@ -99,7 +101,7 @@ void VulkanStreamGuest::loadStringArrayInPlaceWithStreamPtr(char*** forOutput,
 
 ssize_t VulkanStreamGuest::read(void* buffer, size_t size) {
     if (!mStream->readback(buffer, size)) {
-        ALOGE("FATAL: Could not read back %zu bytes", size);
+        mesa_loge("FATAL: Could not read back %zu bytes", size);
         abort();
     }
     return size;

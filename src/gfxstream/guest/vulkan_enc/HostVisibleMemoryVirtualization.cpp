@@ -14,8 +14,6 @@
 // limitations under the License.
 #include "HostVisibleMemoryVirtualization.h"
 
-#include <log/log.h>
-
 #include <set>
 
 #include "../OpenglSystemCommon/EmulatorFeatureInfo.h"

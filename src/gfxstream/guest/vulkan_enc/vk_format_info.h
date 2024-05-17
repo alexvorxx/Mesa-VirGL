@@ -43,6 +43,7 @@ enum {
 #endif
 #include <vndk/hardware_buffer.h>
 #include <vulkan/vulkan.h>
+#include "util/log.h"
 
 namespace gfxstream {
 namespace vk {
@@ -135,7 +136,7 @@ static inline bool android_format_is_yuv(unsigned android_format) {
         case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
             return true;
         default:
-            ALOGE("%s: unhandled format: %d", __FUNCTION__, android_format);
+            mesa_loge("%s: unhandled format: %d", __FUNCTION__, android_format);
             return false;
     }
 }

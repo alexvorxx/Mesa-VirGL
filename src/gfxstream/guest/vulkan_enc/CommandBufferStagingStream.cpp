@@ -15,8 +15,6 @@
  */
 #include "CommandBufferStagingStream.h"
 
-#include <cutils/log.h>
-#include <cutils/properties.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,6 +23,8 @@
 
 #include <atomic>
 #include <vector>
+
+#include "util/log.h"
 
 static const size_t kReadSize = 512 * 1024;
 static const size_t kWriteOffset = kReadSize;
@@ -67,7 +67,7 @@ CommandBufferStagingStream::CommandBufferStagingStream(const Alloc& allocFn, con
 
         Memory memory;
         if (!allocFn) {
-            ALOGE("Custom allocation (%zu bytes) failed\n", size);
+            mesa_loge("Custom allocation (%zu bytes) failed\n", size);
             return memory;
         }
 
@@ -75,7 +75,7 @@ CommandBufferStagingStream::CommandBufferStagingStream(const Alloc& allocFn, con
         const size_t totalSize = size + kSyncDataSize;
         memory = allocFn(totalSize);
         if (!memory.ptr) {
-            ALOGE("Custom allocation (%zu bytes) failed\n", size);
+            mesa_loge("Custom allocation (%zu bytes) failed\n", size);
             return memory;
         }
 
@@ -87,7 +87,7 @@ CommandBufferStagingStream::CommandBufferStagingStream(const Alloc& allocFn, con
 
     m_free = [&freeFn](const Memory& mem) {
         if (!freeFn) {
-            ALOGE("Custom free for memory(%p) failed\n", mem.ptr);
+            mesa_loge("Custom free for memory(%p) failed\n", mem.ptr);
             return;
         }
         freeFn(mem);
@@ -107,8 +107,8 @@ CommandBufferStagingStream::CommandBufferStagingStream(const Alloc& allocFn, con
             hostWaits++;
             usleep(10);
             if (hostWaits > 1000) {
-                ALOGD("%s: warning, stalled on host decoding on this command buffer stream\n",
-                      __func__);
+                mesa_logd("%s: warning, stalled on host decoding on this command buffer stream\n",
+                          __func__);
             }
         }
 
@@ -130,7 +130,7 @@ CommandBufferStagingStream::CommandBufferStagingStream(const Alloc& allocFn, con
         Memory newMemory = m_alloc(size);
         unsigned char* newBuf = static_cast<unsigned char*>(newMemory.ptr);
         if (!newBuf) {
-            ALOGE("Custom allocation (%zu bytes) failed\n", size);
+            mesa_loge("Custom allocation (%zu bytes) failed\n", size);
             return newMemory;
         }
         // copy previous data
@@ -192,9 +192,10 @@ void* CommandBufferStagingStream::allocBuffer(size_t minSize) {
     // being read by the host
     if (m_usingCustomAlloc) {
         uint32_t* syncDWordPtr = reinterpret_cast<uint32_t*>(m_mem.ptr);
-        LOG_ALWAYS_FATAL_IF(
-            __atomic_load_n(syncDWordPtr, __ATOMIC_ACQUIRE) != kSyncDataReadComplete,
-            "FATAL: allocBuffer() called but previous read not complete");
+        if (__atomic_load_n(syncDWordPtr, __ATOMIC_ACQUIRE) != kSyncDataReadComplete) {
+            mesa_loge("FATAL: allocBuffer() called but previous read not complete");
+            abort();
+        }
     }
 
     return (void*)(getDataPtr() + m_writePos);
@@ -207,28 +208,28 @@ int CommandBufferStagingStream::commitBuffer(size_t size) {
 
 const unsigned char* CommandBufferStagingStream::readFully(void*, size_t) {
     // Not supported
-    ALOGE("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
+    mesa_loge("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
     abort();
     return nullptr;
 }
 
 const unsigned char* CommandBufferStagingStream::read(void*, size_t*) {
     // Not supported
-    ALOGE("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
+    mesa_loge("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
     abort();
     return nullptr;
 }
 
 int CommandBufferStagingStream::writeFully(const void*, size_t) {
     // Not supported
-    ALOGE("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
+    mesa_loge("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
     abort();
     return 0;
 }
 
 const unsigned char* CommandBufferStagingStream::commitBufferAndReadFully(size_t, void*, size_t) {
     // Not supported
-    ALOGE("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
+    mesa_loge("CommandBufferStagingStream::%s: Fatal: not supported\n", __func__);
     abort();
     return nullptr;
 }

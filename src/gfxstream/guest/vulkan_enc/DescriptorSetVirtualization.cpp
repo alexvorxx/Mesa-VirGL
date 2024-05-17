@@ -15,6 +15,7 @@
 #include "DescriptorSetVirtualization.h"
 
 #include "Resources.h"
+#include "util/log.h"
 
 namespace gfxstream {
 namespace vk {
@@ -180,7 +181,7 @@ void doEmulatedDescriptorWrite(const VkWriteDescriptorSet* write, ReifiedDescrip
                 descInlineUniformBlock->pNext);
         }
         if (!descInlineUniformBlock) {
-            ALOGE("%s: did not find inline uniform block\n", __func__);
+            mesa_loge("%s: did not find inline uniform block\n", __func__);
             return;
         }
         auto& entry = table[dstBinding][0];
@@ -494,7 +495,7 @@ VkResult validateAndApplyVirtualDescriptorSetAllocation(
     DescriptorPoolAllocationInfo* allocInfo = as_goldfish_VkDescriptorPool(pool)->allocInfo;
 
     if (allocInfo->freePoolIds.size() < pAllocateInfo->descriptorSetCount) {
-        ALOGE(
+        mesa_loge(
             "%s: FATAL: Somehow out of descriptor pool IDs. Wanted %u IDs but only have %u free "
             "IDs remaining. The count for maxSets was %u and used was %u\n",
             __func__, pAllocateInfo->descriptorSetCount, (uint32_t)allocInfo->freePoolIds.size(),
