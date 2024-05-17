@@ -2447,6 +2447,8 @@ _mesa_glsl_compile_shader(struct gl_context *ctx, struct gl_shader *shader,
    }
 
    ralloc_free(shader->ir);
+   ralloc_free(shader->nir);
+   shader->nir = NULL;
    shader->ir = new(shader) exec_list;
    if (!state->error && !state->translation_unit.is_empty())
       _mesa_ast_to_hir(shader->ir, state);
