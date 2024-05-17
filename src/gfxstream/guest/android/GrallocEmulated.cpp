@@ -59,6 +59,8 @@ std::optional<uint32_t> AhbToDrmFormat(uint32_t ahbFormat) {
         */
         case GFXSTREAM_AHB_FORMAT_R5G6B5_UNORM:
             return DRM_FORMAT_RGB565;
+        case GFXSTREAM_AHB_FORMAT_B8G8R8A8_UNORM:
+            return DRM_FORMAT_ARGB8888;
         case GFXSTREAM_AHB_FORMAT_BLOB:
             return DRM_FORMAT_R8_BLOB;
         case GFXSTREAM_AHB_FORMAT_R8_UNORM:
@@ -79,6 +81,8 @@ std::optional<uint32_t> DrmToAhbFormat(uint32_t drmFormat) {
             return GFXSTREAM_AHB_FORMAT_R8G8B8A8_UNORM;
         case DRM_FORMAT_XBGR8888:
             return GFXSTREAM_AHB_FORMAT_R8G8B8X8_UNORM;
+        case DRM_FORMAT_ARGB8888:
+            return GFXSTREAM_AHB_FORMAT_B8G8R8A8_UNORM;
         case DRM_FORMAT_BGR888:
             return GFXSTREAM_AHB_FORMAT_R8G8B8_UNORM;
         case DRM_FORMAT_RGB565:
@@ -100,6 +104,7 @@ std::optional<uint32_t> DrmToAhbFormat(uint32_t drmFormat) {
 std::optional<uint32_t> DrmToBpp(uint32_t drmFormat) {
     switch (drmFormat) {
         case DRM_FORMAT_ABGR8888:
+        case DRM_FORMAT_ARGB8888:
         case DRM_FORMAT_XBGR8888:
             return 4;
         case DRM_FORMAT_BGR888:
@@ -117,6 +122,8 @@ std::optional<uint32_t> DrmToVirglFormat(uint32_t drmFormat) {
     switch (drmFormat) {
         case DRM_FORMAT_ABGR8888:
             return VIRGL_FORMAT_R8G8B8A8_UNORM;
+        case DRM_FORMAT_ARGB8888:
+            return VIRGL_FORMAT_B8G8R8A8_UNORM;
         case DRM_FORMAT_BGR888:
             return VIRGL_FORMAT_R8G8B8_UNORM;
         case DRM_FORMAT_BGR565:
