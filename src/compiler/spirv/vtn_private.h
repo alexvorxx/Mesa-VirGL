@@ -699,6 +699,8 @@ struct vtn_builder {
    struct vtn_function *func;
    struct list_head functions;
 
+   struct hash_table *strings;
+
    /* Current function parameter index */
    unsigned func_param_idx;
 
