@@ -979,6 +979,8 @@ update_instr_divergence(nir_instr *instr, struct divergence_state *state)
       return visit_def(&nir_instr_as_undef(instr)->def, state);
    case nir_instr_type_deref:
       return visit_deref(state->shader, nir_instr_as_deref(instr), state);
+   case nir_instr_type_debug_info:
+      return false;
    case nir_instr_type_jump:
    case nir_instr_type_phi:
    case nir_instr_type_call:

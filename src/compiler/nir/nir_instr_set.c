@@ -62,6 +62,8 @@ instr_can_rewrite(const nir_instr *instr)
          return nir_intrinsic_can_reorder(intr);
       }
    }
+   case nir_instr_type_debug_info:
+      return nir_instr_as_debug_info(instr)->type == nir_debug_info_string;
    case nir_instr_type_call:
    case nir_instr_type_jump:
    case nir_instr_type_undef:
@@ -265,6 +267,13 @@ hash_tex(uint32_t hash, const nir_tex_instr *instr)
    return hash;
 }
 
+static uint32_t
+hash_debug_info(uint32_t hash, const nir_debug_info_instr *instr)
+{
+   assert(instr->type == nir_debug_info_string);
+   return XXH32(instr->string, instr->string_length, hash);
+}
+
 /* Computes a hash of an instruction for use in a hash table. Note that this
  * will only work for instructions where instr_can_rewrite() returns true, and
  * it should return identical hashes for two instructions that are the same
@@ -295,6 +304,9 @@ hash_instr(const void *data)
       break;
    case nir_instr_type_tex:
       hash = hash_tex(hash, nir_instr_as_tex(instr));
+      break;
+   case nir_instr_type_debug_info:
+      hash = hash_debug_info(hash, nir_instr_as_debug_info(instr));
       break;
    default:
       unreachable("Invalid instruction type");
@@ -707,6 +719,16 @@ nir_instrs_equal(const nir_instr *instr1, const nir_instr *instr2)
 
       return true;
    }
+   case nir_instr_type_debug_info: {
+      nir_debug_info_instr *di1 = nir_instr_as_debug_info(instr1);
+      nir_debug_info_instr *di2 = nir_instr_as_debug_info(instr2);
+
+      assert(di1->type == nir_debug_info_string);
+      assert(di2->type == nir_debug_info_string);
+
+      return di1->string_length == di2->string_length &&
+             !memcmp(di1->string, di2->string, di1->string_length);
+   }
    case nir_instr_type_call:
    case nir_instr_type_jump:
    case nir_instr_type_undef:
@@ -734,6 +756,8 @@ nir_instr_get_def_def(nir_instr *instr)
       return &nir_instr_as_intrinsic(instr)->def;
    case nir_instr_type_tex:
       return &nir_instr_as_tex(instr)->def;
+   case nir_instr_type_debug_info:
+      return &nir_instr_as_debug_info(instr)->def;
    default:
       unreachable("We never ask for any of these");
    }

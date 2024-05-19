@@ -2262,6 +2262,9 @@ nir_discard_if(nir_builder *build, nir_def *src)
       nir_terminate_if(build, src);
 }
 
+nir_def *
+nir_build_string(nir_builder *build, const char *value);
+
 /*
  * Call a given nir_function * with a variadic number of nir_def * arguments.
  *

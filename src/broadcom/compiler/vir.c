@@ -1315,6 +1315,9 @@ v3d_instr_delay_cb(nir_instr *instr, void *data)
 
    case nir_instr_type_tex:
       return 5;
+
+   case nir_instr_type_debug_info:
+      return 0;
    }
 
    return 0;
