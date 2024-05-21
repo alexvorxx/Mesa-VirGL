@@ -184,6 +184,12 @@ apiChangeState = {
 apiModifies = {
     "vkMapMemoryIntoAddressSpaceGOOGLE" : ["memory"],
     "vkGetBlobGOOGLE" : ["memory"],
+    "vkBeginCommandBuffer" : ["commandBuffer"],
+    "vkEndCommandBuffer" : ["commandBuffer"],
+}
+
+apiClearModifiers = {
+    "vkResetCommandBuffer" : ["commandBuffer"],
 }
 
 delayedDestroys = [
@@ -210,7 +216,15 @@ def is_modify_operation(api, param):
     if api.name in apiModifies:
         if param.paramName in apiModifies[api.name]:
             return True
+    if api.name.startswith('vkCmd') and param.paramName == 'commandBuffer':
+        return True
     return False
+
+def is_clear_modifier_operation(api, param):
+    if api.name in apiClearModifiers:
+        if param.paramName in apiClearModifiers[api.name]:
+            return True
+
 
 def emit_impl(typeInfo, api, cgen):
     for p in api.parameters:
@@ -272,7 +286,7 @@ def emit_impl(typeInfo, api, cgen):
             if lenAccessGuard is not None:
                 cgen.endIf()
 
-        if is_modify_operation(api, p):
+        if is_modify_operation(api, p) or is_clear_modifier_operation(api, p):
             cgen.stmt("android::base::AutoLock lock(mLock)")
             cgen.line("// %s modify" % p.paramName)
             cgen.stmt("auto apiHandle = mReconstruction.createApiInfo()")
@@ -285,7 +299,10 @@ def emit_impl(typeInfo, api, cgen):
                 cgen.stmt("%s boxed = unboxed_to_boxed_non_dispatchable_%s(%s[i])" % (p.typeName, p.typeName, access))
             else:
                 cgen.stmt("%s boxed = unboxed_to_boxed_%s(%s[i])" % (p.typeName, p.typeName, access))
-            cgen.stmt("mReconstruction.forEachHandleAddModifyApi((const uint64_t*)(&boxed), 1, apiHandle)")
+            if is_modify_operation(api, p):
+                cgen.stmt("mReconstruction.forEachHandleAddModifyApi((const uint64_t*)(&boxed), 1, apiHandle)")
+            else: # is clear modifier operation
+                cgen.stmt("mReconstruction.forEachHandleClearModifyApi((const uint64_t*)(&boxed), 1)")
             cgen.endFor()
             if lenAccessGuard is not None:
                 cgen.endIf()
