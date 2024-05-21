@@ -27,6 +27,8 @@
 #define VK_FORMAT_INFO_H
 
 #include <stdbool.h>
+#include <drm_fourcc.h>
+#define DRM_FORMAT_YVU420_ANDROID fourcc_code('9', '9', '9', '7')
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #include <system/graphics.h>
 #else
@@ -53,41 +55,32 @@ namespace vk {
 
 #define OMX_COLOR_FormatYUV420Planar 0x13
 
-// TODO: update users of this function to query the DRM fourcc
-// code using the standard Gralloc4 metadata type and instead
-// translate the DRM fourcc code to a Vulkan format as Android
-// formats such as AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420 could be
-// either VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM or
-// VK_FORMAT_G8_B8R8_2PLANE_420_UNORM.
-static inline VkFormat vk_format_from_android(unsigned android_format) {
-    switch (android_format) {
-        case AHARDWAREBUFFER_FORMAT_R8_UNORM:
+static inline VkFormat vk_format_from_fourcc(unsigned fourcc_format) {
+    switch (fourcc_format) {
+        case DRM_FORMAT_R8:
             return VK_FORMAT_R8_UNORM;
-        case AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM:
+        case DRM_FORMAT_ABGR8888:
             return VK_FORMAT_R8G8B8A8_UNORM;
-        case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
+        case DRM_FORMAT_XBGR8888:
             return VK_FORMAT_R8G8B8A8_UNORM;
-        case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:
+        case DRM_FORMAT_BGR888:
             return VK_FORMAT_R8G8B8_UNORM;
-        case AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM:
+        case DRM_FORMAT_RGB565:
             return VK_FORMAT_R5G6B5_UNORM_PACK16;
-        case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
+        case DRM_FORMAT_ABGR16161616F:
             return VK_FORMAT_R16G16B16A16_SFLOAT;
-        case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
+        case DRM_FORMAT_ABGR2101010:
             return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
-        case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
-        case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
-            return VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
-#if __ANDROID_API__ >= 30
-        case AHARDWAREBUFFER_FORMAT_YCbCr_P010:
+        case DRM_FORMAT_P010:
             return VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16;
-#endif
-#ifdef VK_USE_PLATFORM_ANDROID_KHR
-        case HAL_PIXEL_FORMAT_YV12:
-        case OMX_COLOR_FormatYUV420Planar:
+        case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
+        case DRM_FORMAT_NV12:
+        case DRM_FORMAT_NV21:
+            return VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+        case DRM_FORMAT_YUV420:
+        case DRM_FORMAT_YVU420_ANDROID:
+        case DRM_FORMAT_YVU420:
             return VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM;
-        case AHARDWAREBUFFER_FORMAT_BLOB:
-#endif
         default:
             return VK_FORMAT_UNDEFINED;
     }

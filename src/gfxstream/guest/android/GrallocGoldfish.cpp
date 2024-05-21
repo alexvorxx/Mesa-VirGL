@@ -79,6 +79,15 @@ int GoldfishGralloc::getFormat(const AHardwareBuffer* ahb) {
     return getFormat(handle);
 }
 
+uint32_t GoldfishGralloc::getFormatDrmFourcc(const native_handle_t* handle) {
+    return cb_handle_t::from(handle)->drmformat;
+}
+
+uint32_t GoldfishGralloc::getFormatDrmFourcc(const AHardwareBuffer* ahb) {
+    const native_handle_t* handle = AHardwareBuffer_getNativeHandle(ahb);
+    return getFormatDrmFourcc(handle);
+}
+
 uint32_t GoldfishGralloc::getWidth(const AHardwareBuffer* ahb) {
     AHardwareBuffer_Desc desc = {};
     AHardwareBuffer_describe(ahb, &desc);

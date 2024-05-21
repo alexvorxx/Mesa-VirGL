@@ -17,6 +17,12 @@
 #if defined(__ANDROID__) || defined(__linux__)
 #include <drm_fourcc.h>
 #define DRM_FORMAT_YVU420_ANDROID fourcc_code('9', '9', '9', '7')
+#define DRM_FORMAT_D16_UNORM fourcc_code('9', '9', '9', '6')
+#define DRM_FORMAT_D24_UNORM fourcc_code('9', '9', '9', '5')
+#define DRM_FORMAT_D24_UNORM_S8_UINT fourcc_code('9', '9', '9', '4')
+#define DRM_FORMAT_D32_FLOAT fourcc_code('9', '9', '9', '3')
+#define DRM_FORMAT_D32_FLOAT_S8_UINT fourcc_code('9', '9', '9', '2')
+#define DRM_FORMAT_S8_UINT fourcc_code('9', '9', '9', '1')
 #endif
 
 #include <assert.h>
@@ -68,47 +74,60 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
         switch (format) {
             case AHARDWAREBUFFER_FORMAT_R8_UNORM:
                 ahbFormatProps->format = VK_FORMAT_R8_UNORM;
+                ahbFormatProps->externalFormat = DRM_FORMAT_R8;
                 break;
             case AHARDWAREBUFFER_FORMAT_R8G8B8A8_UNORM:
                 ahbFormatProps->format = VK_FORMAT_R8G8B8A8_UNORM;
+                ahbFormatProps->externalFormat = DRM_FORMAT_ABGR8888;
                 break;
             case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
                 ahbFormatProps->format = VK_FORMAT_R8G8B8A8_UNORM;
+                ahbFormatProps->externalFormat = DRM_FORMAT_XBGR8888;
                 break;
             case AHARDWAREBUFFER_FORMAT_R8G8B8_UNORM:
                 ahbFormatProps->format = VK_FORMAT_R8G8B8_UNORM;
+                ahbFormatProps->externalFormat = DRM_FORMAT_BGR888;
                 break;
             case AHARDWAREBUFFER_FORMAT_R5G6B5_UNORM:
                 ahbFormatProps->format = VK_FORMAT_R5G6B5_UNORM_PACK16;
+                ahbFormatProps->externalFormat = DRM_FORMAT_RGB565;
                 break;
             case AHARDWAREBUFFER_FORMAT_R16G16B16A16_FLOAT:
                 ahbFormatProps->format = VK_FORMAT_R16G16B16A16_SFLOAT;
+                ahbFormatProps->externalFormat = DRM_FORMAT_ABGR16161616F;
                 break;
             case AHARDWAREBUFFER_FORMAT_R10G10B10A2_UNORM:
                 ahbFormatProps->format = VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+                ahbFormatProps->externalFormat = DRM_FORMAT_ABGR2101010;
                 break;
             case AHARDWAREBUFFER_FORMAT_D16_UNORM:
                 ahbFormatProps->format = VK_FORMAT_D16_UNORM;
+                ahbFormatProps->externalFormat = DRM_FORMAT_D16_UNORM;
                 break;
             case AHARDWAREBUFFER_FORMAT_D24_UNORM:
                 ahbFormatProps->format = VK_FORMAT_X8_D24_UNORM_PACK32;
+                ahbFormatProps->externalFormat = DRM_FORMAT_D24_UNORM;
                 break;
             case AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT:
                 ahbFormatProps->format = VK_FORMAT_D24_UNORM_S8_UINT;
+                ahbFormatProps->externalFormat = DRM_FORMAT_D24_UNORM_S8_UINT;
                 break;
             case AHARDWAREBUFFER_FORMAT_D32_FLOAT:
                 ahbFormatProps->format = VK_FORMAT_D32_SFLOAT;
+                ahbFormatProps->externalFormat = DRM_FORMAT_D32_FLOAT;
                 break;
             case AHARDWAREBUFFER_FORMAT_D32_FLOAT_S8_UINT:
                 ahbFormatProps->format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+                ahbFormatProps->externalFormat = DRM_FORMAT_D32_FLOAT_S8_UINT;
                 break;
             case AHARDWAREBUFFER_FORMAT_S8_UINT:
                 ahbFormatProps->format = VK_FORMAT_S8_UINT;
+                ahbFormatProps->externalFormat = DRM_FORMAT_S8_UINT;
                 break;
             default:
                 ahbFormatProps->format = VK_FORMAT_UNDEFINED;
+                ahbFormatProps->externalFormat = DRM_FORMAT_INVALID;
         }
-        ahbFormatProps->externalFormat = format;
 
         // The formatFeatures member must include
         // VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT and at least one of
@@ -140,6 +159,7 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
 #if defined(__ANDROID__) || defined(__linux__)
         if (android_format_is_yuv(format)) {
             uint32_t drmFormat = grallocHelper->getFormatDrmFourcc(buffer);
+            ahbFormatProps->externalFormat = static_cast<uint64_t>(drmFormat);
             if (drmFormat) {
                 // The host renderer is not aware of the plane ordering for YUV formats used
                 // in the guest and simply knows that the format "layout" is one of:
@@ -169,16 +189,20 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
                     case DRM_FORMAT_NV12:
                         // NV12 is a Y-plane followed by a interleaved UV-plane and is
                         // VK_FORMAT_G8_B8R8_2PLANE_420_UNORM on the host.
+                        break;
                     case DRM_FORMAT_P010:
                         // P010 is a Y-plane followed by a interleaved UV-plane and is
                         // VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 on the host.
                         break;
-
+                    case DRM_FORMAT_YUV420:
+                        // YUV420 is a Y-plane, then a U-plane, and then a V-plane and is
+                        // VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM on the host.
+                        break;
                     case DRM_FORMAT_NV21:
                         // NV21 is a Y-plane followed by a interleaved VU-plane and is
                         // VK_FORMAT_G8_B8R8_2PLANE_420_UNORM on the host.
                     case DRM_FORMAT_YVU420:
-                        // YV12 is a Y-plane, then a V-plane, and then a U-plane and is
+                        // YVU420 is a Y-plane, then a V-plane, and then a U-plane and is
                         // VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM on the host.
                     case DRM_FORMAT_YVU420_ANDROID:
                         // DRM_FORMAT_YVU420_ANDROID is the same as DRM_FORMAT_YVU420 with

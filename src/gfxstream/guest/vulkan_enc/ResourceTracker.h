@@ -775,7 +775,7 @@ class ResourceTracker {
         VkMemoryRequirements baseRequirements;
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
         bool hasExternalFormat = false;
-        unsigned androidFormat = 0;
+        unsigned externalFourccFormat = 0;
         std::vector<int> pendingQsriSyncFds;
 #endif
 #ifdef VK_USE_PLATFORM_FUCHSIA
