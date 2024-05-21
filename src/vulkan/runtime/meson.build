@@ -22,6 +22,7 @@ vulkan_lite_runtime_files = files(
   'vk_descriptors.c',
   'vk_descriptor_update_template.c',
   'vk_device.c',
+  'vk_device_generated_commands.c',
   'vk_device_memory.c',
   'vk_fence.c',
   'vk_framebuffer.c',
