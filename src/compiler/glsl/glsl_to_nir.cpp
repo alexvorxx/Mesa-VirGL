@@ -55,7 +55,8 @@ namespace {
 class nir_visitor : public ir_visitor
 {
 public:
-   nir_visitor(const struct gl_constants *consts, nir_shader *shader);
+   nir_visitor(const struct gl_constants *consts, nir_shader *shader,
+               const uint8_t *src_blake3);
    nir_visitor(const nir_visitor &) = delete;
    ~nir_visitor();
    nir_visitor & operator=(const nir_visitor &) = delete;
@@ -100,6 +101,7 @@ private:
 
    nir_shader *shader;
    nir_function_impl *impl;
+   nir_function_impl *global_impl;
    nir_builder b;
    nir_def *result; /* result of the expression tree last visited */
 
@@ -153,13 +155,14 @@ private:
 nir_shader *
 glsl_to_nir(const struct gl_constants *consts,
             struct exec_list **ir, shader_info *si, gl_shader_stage stage,
-            const nir_shader_compiler_options *options)
+            const nir_shader_compiler_options *options,
+            const uint8_t *src_blake3)
 {
    MESA_TRACE_FUNC();
 
    nir_shader *shader = nir_shader_create(NULL, stage, options, si);
 
-   nir_visitor v1(consts, shader);
+   nir_visitor v1(consts, shader, src_blake3);
    nir_function_visitor v2(&v1);
    v2.run(*ir);
    visit_exec_list(*ir, &v1);
@@ -177,7 +180,8 @@ glsl_to_nir(const struct gl_constants *consts,
    return shader;
 }
 
-nir_visitor::nir_visitor(const struct gl_constants *consts, nir_shader *shader)
+nir_visitor::nir_visitor(const struct gl_constants *consts, nir_shader *shader,
+                         const uint8_t *src_blake3)
 {
    this->consts = consts;
    this->supports_std430 = consts->UseSTD430AsDefaultPacking;
@@ -190,7 +194,26 @@ nir_visitor::nir_visitor(const struct gl_constants *consts, nir_shader *shader)
    this->impl = NULL;
    this->deref = NULL;
    this->sig = NULL;
+   this->global_impl = NULL;
    memset(&this->b, 0, sizeof(this->b));
+
+   if (src_blake3) {
+      char blake_as_str[BLAKE3_OUT_LEN * 2 + 1];;
+      _mesa_blake3_format(blake_as_str, src_blake3);
+
+      /* Create unique function name of function to temporarily hold global
+       * instructions.
+       */
+      char gloabl_func_name[45];
+      snprintf(gloabl_func_name, 45, "%s_%s", "gl_mesa_tmp", blake_as_str);
+
+      nir_function *func = nir_function_create(shader, gloabl_func_name);
+      func->is_tmp_globals_wrapper = true;
+      this->global_impl = nir_function_impl_create(func);
+
+      this->impl = this->global_impl;
+      b = nir_builder_at(nir_after_impl(this->impl));
+   }
 }
 
 nir_visitor::~nir_visitor()
@@ -690,9 +713,11 @@ nir_visitor::visit(ir_function_signature *ir)
 
       visit_exec_list(&ir->body, this);
 
+      this->impl = global_impl;
+      if (this->impl)
+         b = nir_builder_at(nir_after_impl(this->impl));
+
       this->is_global = true;
-   } else {
-      func->impl = NULL;
    }
 }
 
@@ -2783,7 +2808,7 @@ glsl_float64_funcs_to_nir(struct gl_context *ctx,
 
    nir_shader *nir = nir_shader_create(NULL, MESA_SHADER_VERTEX, options, NULL);
 
-   nir_visitor v1(&ctx->Const, nir);
+   nir_visitor v1(&ctx->Const, nir, NULL);
    nir_function_visitor v2(&v1);
    v2.run(sh->ir);
    visit_exec_list(sh->ir, &v1);

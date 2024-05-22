@@ -3646,6 +3646,11 @@ typedef struct nir_function {
     */
    bool is_subroutine;
 
+   /* Temporary function created to wrap global instructions before they can
+    * be inlined into the main function.
+    */
+   bool is_tmp_globals_wrapper;
+
    /**
     * Is this function associated to a subroutine type
     * e.g. subroutine (type1, type2) function_name { function_body };

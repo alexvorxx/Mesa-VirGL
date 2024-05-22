@@ -106,7 +106,7 @@ load_glsl(unsigned num_files, char *const *files, gl_shader_stage stage)
    nir_shader *nir = glsl_to_nir(&local_ctx.Const,
                                  &prog->_LinkedShaders[stage]->ir,
                                  &prog->_LinkedShaders[stage]->Program->info,
-                                 stage, nir_options);
+                                 stage, nir_options, NULL);
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       nir->info.fs.pixel_center_integer =

@@ -544,7 +544,8 @@ st_link_glsl_to_nir(struct gl_context *ctx,
          }
 
          prog->nir = glsl_to_nir(&st->ctx->Const, &shader->ir,
-                                 &shader->Program->info, shader->Stage, options);
+                                 &shader->Program->info, shader->Stage,
+                                 options, NULL);
 
          prog->nir->info.name =
             ralloc_asprintf(shader, "GLSL%d", shader_program->Name);

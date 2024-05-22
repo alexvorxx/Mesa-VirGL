@@ -214,11 +214,13 @@ namespace
 
       struct gl_linked_shader *sh = whole_program->_LinkedShaders[MESA_SHADER_VERTEX];
       sh->Program->nir = glsl_to_nir(&ctx->Const, &sh->ir, &sh->Program->info,
-                                     MESA_SHADER_VERTEX, &compiler_options);
+                                     MESA_SHADER_VERTEX, &compiler_options,
+                                     NULL);
 
       sh = whole_program->_LinkedShaders[MESA_SHADER_FRAGMENT];
       sh->Program->nir = glsl_to_nir(&ctx->Const, &sh->ir, &sh->Program->info,
-                                     MESA_SHADER_FRAGMENT, &compiler_options);
+                                     MESA_SHADER_FRAGMENT, &compiler_options,
+                                     NULL);
       nir = sh->Program->nir;
 
       gl_nir_link_glsl(ctx, whole_program);

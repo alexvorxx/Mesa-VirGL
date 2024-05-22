@@ -1963,6 +1963,8 @@ write_function(write_ctx *ctx, const nir_function *fxn)
       flags |= 0x20;
    if (fxn->is_subroutine)
       flags |= 0x40;
+   if (fxn->is_tmp_globals_wrapper)
+      flags |= 0x80;
    blob_write_uint32(ctx->blob, flags);
    if (fxn->name)
       blob_write_string(ctx->blob, fxn->name);
@@ -2023,6 +2025,7 @@ read_function(read_ctx *ctx)
    fxn->should_inline = flags & 0x10;
    fxn->dont_inline = flags & 0x20;
    fxn->is_subroutine = flags & 0x40;
+   fxn->is_tmp_globals_wrapper = flags & 0x80;
 }
 
 static void

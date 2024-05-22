@@ -503,6 +503,7 @@ nir_function_create(nir_shader *shader, const char *name)
    func->dont_inline = false;
    func->should_inline = false;
    func->is_subroutine = false;
+   func->is_tmp_globals_wrapper = false;
    func->subroutine_index = 0;
    func->num_subroutine_types = 0;
    func->subroutine_types = NULL;
