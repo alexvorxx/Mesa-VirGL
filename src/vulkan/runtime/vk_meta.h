@@ -28,6 +28,8 @@
 
 #include "util/simple_mtx.h"
 
+#include "compiler/nir/nir.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -47,6 +49,55 @@ struct vk_meta_rect {
 #define VK_PRIMITIVE_TOPOLOGY_META_RECT_LIST_MESA (VkPrimitiveTopology)11
 #define VK_IMAGE_VIEW_CREATE_INTERNAL_MESA (VkImageViewCreateFlagBits)0x40000000
 
+struct vk_meta_copy_image_properties {
+   union {
+      struct {
+         /* Format to use for the image view of a color aspect.
+          * Format must not be compressed and be in the RGB/sRGB colorspace.
+          */
+         VkFormat view_format;
+      } color;
+
+      struct {
+         struct {
+            /* Format to use for the image view of a depth aspect.
+             * Format must not be compressed and be in the RGB/sRGB colorspace.
+             */
+            VkFormat view_format;
+
+            /* Describe the depth/stencil componant layout. Bits in the mask
+             * must be consecutive and match the original depth bit size.
+             */
+            uint8_t component_mask;
+         } depth;
+
+         struct {
+            /* Format to use for the image view of a stencil aspect.
+             * Format must not be compressed and be in the RGB/sRGB colorspace.
+             */
+            VkFormat view_format;
+
+            /* Describe the depth/stencil componant layout. Bits in the mask
+             * must be consecutive and match the original depth bit size.
+             */
+            uint8_t component_mask;
+         } stencil;
+      };
+   };
+
+   /* Size of the image tile. Used to select the optimal workgroup size. */
+   VkExtent3D tile_size;
+};
+
+enum vk_meta_buffer_chunk_size_id {
+   VK_META_BUFFER_1_BYTE_CHUNK = 0,
+   VK_META_BUFFER_2_BYTE_CHUNK,
+   VK_META_BUFFER_4_BYTE_CHUNK,
+   VK_META_BUFFER_8_BYTE_CHUNK,
+   VK_META_BUFFER_16_BYTE_CHUNK,
+   VK_META_BUFFER_CHUNK_SIZE_COUNT,
+};
+
 struct vk_meta_device {
    struct hash_table *cache;
    simple_mtx_t cache_mtx;
@@ -55,6 +106,16 @@ struct vk_meta_device {
    bool use_layered_rendering;
    bool use_gs_for_layer;
    bool use_stencil_export;
+
+   struct {
+      /* Optimal workgroup size for each possible chunk size. This should be
+       * chosen to keep things cache-friendly (something big enough to maximize
+       * cache hits on executing threads, but small enough to not trash the
+       * cache) while keeping GPU utilization high enough to not make copies
+       * fast enough.
+       */
+      uint32_t optimal_wg_size[VK_META_BUFFER_CHUNK_SIZE_COUNT];
+   } buffer_access;
 
    VkResult (*cmd_bind_map_buffer)(struct vk_command_buffer *cmd,
                                    struct vk_meta_device *meta,
@@ -72,6 +133,19 @@ struct vk_meta_device {
                            uint32_t layer_count);
 };
 
+static inline uint32_t
+vk_meta_buffer_access_wg_size(const struct vk_meta_device *meta,
+                              uint32_t chunk_size)
+{
+   assert(util_is_power_of_two_nonzero(chunk_size));
+   unsigned idx = ffs(chunk_size) - 1;
+
+   assert(idx < ARRAY_SIZE(meta->buffer_access.optimal_wg_size));
+   assert(meta->buffer_access.optimal_wg_size[idx] != 0);
+
+   return meta->buffer_access.optimal_wg_size[idx];
+}
+
 VkResult vk_meta_device_init(struct vk_device *device,
                              struct vk_meta_device *meta);
 void vk_meta_device_finish(struct vk_device *device,
@@ -83,6 +157,11 @@ enum vk_meta_object_key_type {
    VK_META_OBJECT_KEY_CLEAR_PIPELINE,
    VK_META_OBJECT_KEY_BLIT_PIPELINE,
    VK_META_OBJECT_KEY_BLIT_SAMPLER,
+   VK_META_OBJECT_KEY_COPY_BUFFER_PIPELINE,
+   VK_META_OBJECT_KEY_COPY_IMAGE_TO_BUFFER_PIPELINE,
+   VK_META_OBJECT_KEY_COPY_BUFFER_TO_IMAGE_PIPELINE,
+   VK_META_OBJECT_KEY_COPY_IMAGE_PIPELINE,
+   VK_META_OBJECT_KEY_FILL_BUFFER_PIPELINE,
 };
 
 uint64_t vk_meta_lookup_object(struct vk_meta_device *meta,
@@ -192,6 +271,9 @@ VkResult vk_meta_create_buffer_view(struct vk_command_buffer *cmd,
                                     struct vk_meta_device *meta,
                                     const VkBufferViewCreateInfo *info,
                                     VkBufferView *buffer_view_out);
+
+#define VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA 0x80000000
+
 VkResult vk_meta_create_image_view(struct vk_command_buffer *cmd,
                                    struct vk_meta_device *meta,
                                    const VkImageViewCreateInfo *info,
@@ -272,6 +354,41 @@ void vk_meta_resolve_image2(struct vk_command_buffer *cmd,
 void vk_meta_resolve_rendering(struct vk_command_buffer *cmd,
                                struct vk_meta_device *meta,
                                const VkRenderingInfo *pRenderingInfo);
+
+VkDeviceAddress vk_meta_buffer_address(struct vk_device *device,
+                                       VkBuffer buffer, uint64_t offset,
+                                       uint64_t range);
+
+void vk_meta_copy_buffer(struct vk_command_buffer *cmd,
+                         struct vk_meta_device *meta,
+                         const VkCopyBufferInfo2 *info);
+
+void vk_meta_copy_image_to_buffer(
+   struct vk_command_buffer *cmd, struct vk_meta_device *meta,
+   const VkCopyImageToBufferInfo2 *info,
+   const struct vk_meta_copy_image_properties *img_props);
+
+void vk_meta_copy_buffer_to_image(
+   struct vk_command_buffer *cmd, struct vk_meta_device *meta,
+   const VkCopyBufferToImageInfo2 *info,
+   const struct vk_meta_copy_image_properties *img_props,
+   VkPipelineBindPoint bind_point);
+
+void vk_meta_copy_image(struct vk_command_buffer *cmd,
+                        struct vk_meta_device *meta,
+                        const VkCopyImageInfo2 *info,
+                        const struct vk_meta_copy_image_properties *src_props,
+                        const struct vk_meta_copy_image_properties *dst_props,
+                        VkPipelineBindPoint bind_point);
+
+void vk_meta_update_buffer(struct vk_command_buffer *cmd,
+                           struct vk_meta_device *meta, VkBuffer buffer,
+                           VkDeviceSize offset, VkDeviceSize size,
+                           const void *data);
+
+void vk_meta_fill_buffer(struct vk_command_buffer *cmd,
+                         struct vk_meta_device *meta, VkBuffer buffer,
+                         VkDeviceSize offset, VkDeviceSize size, uint32_t data);
 
 #ifdef __cplusplus
 }

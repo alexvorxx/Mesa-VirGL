@@ -26,6 +26,8 @@
 #include "vk_image.h"
 #include "vk_meta.h"
 
+#include "glsl_types.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -80,6 +82,67 @@ vk_image_render_view_type(const struct vk_image *image, uint32_t layer_count)
                                 VK_IMAGE_VIEW_TYPE_2D_ARRAY;
    default:
       unreachable("Invalid image type");
+   }
+}
+
+static inline VkImageViewType
+vk_image_storage_view_type(const struct vk_image *image)
+{
+   switch (image->image_type) {
+   case VK_IMAGE_TYPE_1D:
+      return image->array_layers == 1 ? VK_IMAGE_VIEW_TYPE_1D
+                                      : VK_IMAGE_VIEW_TYPE_1D_ARRAY;
+   case VK_IMAGE_TYPE_2D:
+      return image->array_layers == 1 ? VK_IMAGE_VIEW_TYPE_2D
+                                      : VK_IMAGE_VIEW_TYPE_2D_ARRAY;
+   case VK_IMAGE_TYPE_3D:
+      return VK_IMAGE_VIEW_TYPE_3D;
+   default:
+      unreachable("Invalid image type");
+   }
+}
+
+static inline enum glsl_sampler_dim
+vk_image_view_type_to_sampler_dim(VkImageViewType view_type)
+{
+   switch (view_type) {
+   case VK_IMAGE_VIEW_TYPE_1D:
+   case VK_IMAGE_VIEW_TYPE_1D_ARRAY:
+      return GLSL_SAMPLER_DIM_1D;
+
+   case VK_IMAGE_VIEW_TYPE_2D:
+   case VK_IMAGE_VIEW_TYPE_2D_ARRAY:
+      return GLSL_SAMPLER_DIM_2D;
+
+   case VK_IMAGE_VIEW_TYPE_CUBE:
+   case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:
+      return GLSL_SAMPLER_DIM_CUBE;
+
+   case VK_IMAGE_VIEW_TYPE_3D:
+      return GLSL_SAMPLER_DIM_3D;
+
+   default:
+      unreachable();
+   }
+}
+
+static inline bool
+vk_image_view_type_is_array(VkImageViewType view_type)
+{
+   switch (view_type) {
+   case VK_IMAGE_VIEW_TYPE_1D_ARRAY:
+   case VK_IMAGE_VIEW_TYPE_2D_ARRAY:
+   case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:
+      return true;
+
+   case VK_IMAGE_VIEW_TYPE_1D:
+   case VK_IMAGE_VIEW_TYPE_2D:
+   case VK_IMAGE_VIEW_TYPE_3D:
+   case VK_IMAGE_VIEW_TYPE_CUBE:
+      return false;
+
+   default:
+      unreachable();
    }
 }
 
