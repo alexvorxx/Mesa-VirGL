@@ -69,6 +69,8 @@ struct resource {
     enum vpe_status (*calculate_segments)(
         struct vpe_priv *vpe_priv, const struct vpe_build_param *params);
 
+    enum vpe_status(*check_bg_color_support)(struct vpe_priv* vpe_priv, struct vpe_color* bg_color);
+
     enum vpe_status (*set_num_segments)(struct vpe_priv *vpe_priv, struct stream_ctx *stream_ctx,
         struct scaler_data *scl_data, struct vpe_rect *src_rect, struct vpe_rect *dst_rect,
         uint32_t *max_seg_width);

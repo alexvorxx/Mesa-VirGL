@@ -46,7 +46,8 @@ enum vpe_status {
 
     // errors for not supported operations
     VPE_STATUS_NOT_SUPPORTED,
-    VPE_STATUS_DCC_NOT_SUPPORTED,
+    VPE_STATUS_INPUT_DCC_NOT_SUPPORTED,
+    VPE_STATUS_OUTPUT_DCC_NOT_SUPPORTED,
     VPE_STATUS_SWIZZLE_NOT_SUPPORTED,
     VPE_STATUS_NUM_STREAM_NOT_SUPPORTED,
     VPE_STATUS_PIXEL_FORMAT_NOT_SUPPORTED,
@@ -182,6 +183,7 @@ struct vpe_caps {
 
     struct vpe_color_caps color_caps;
     struct vpe_plane_caps plane_caps;
+
 };
 
 /***********************************
@@ -222,6 +224,7 @@ struct vpe_surface_dcc_cap {
 
     bool capable;
     bool const_color_support;
+
 };
 
 /** Conditional Capability functions */
@@ -235,8 +238,8 @@ struct vpe_cap_funcs {
      * @param[in/out]  output        dcc capable result and related settings
      * @return true if supported
      */
-    bool (*get_dcc_compression_cap)(const struct vpe *vpe,
-        const struct vpe_dcc_surface_param *input, struct vpe_surface_dcc_cap *output);
+    bool (*get_dcc_compression_output_cap)(const struct vpe *vpe, const struct vpe_dcc_surface_param *params, struct vpe_surface_dcc_cap *cap);
+    bool (*get_dcc_compression_input_cap)(const struct vpe *vpe, const struct vpe_dcc_surface_param *params, struct vpe_surface_dcc_cap  *cap);
 };
 
 /****************************************

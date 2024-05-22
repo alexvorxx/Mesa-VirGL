@@ -42,6 +42,7 @@
 #include "custom_float.h"
 #include "background.h"
 #include "vpe_visual_confirm.h"
+#include "color_bg.h"
 
 #define LUT_NUM_ENTRIES   (17 * 17 * 17)
 #define LUT_ENTRY_SIZE    (2)
@@ -250,16 +251,23 @@ enum vpe_status vpe10_set_num_segments(struct vpe_priv *vpe_priv, struct stream_
     return VPE_STATUS_OK;
 }
 
-bool vpe10_get_dcc_compression_cap(const struct vpe *vpe, const struct vpe_dcc_surface_param *input,
-    struct vpe_surface_dcc_cap *output)
+bool vpe10_get_dcc_compression_output_cap(const struct vpe *vpe, const struct vpe_dcc_surface_param *params, struct vpe_surface_dcc_cap *cap)
 {
-    struct vpe_priv *vpe_priv = container_of(vpe, struct vpe_priv, pub);
-    struct vpec     *vpec     = &vpe_priv->resource.vpec;
-
-    return vpec->funcs->get_dcc_compression_cap(vpec, input, output);
+    cap->capable = false;
+    return cap->capable;
 }
 
-static struct vpe_cap_funcs cap_funcs = {.get_dcc_compression_cap = vpe10_get_dcc_compression_cap};
+bool vpe10_get_dcc_compression_input_cap(const struct vpe *vpe, const struct vpe_dcc_surface_param *params, struct vpe_surface_dcc_cap *cap)
+{
+    cap->capable = false;
+    return cap->capable;
+}
+
+static struct vpe_cap_funcs cap_funcs =
+{
+    .get_dcc_compression_output_cap = vpe10_get_dcc_compression_output_cap,
+    .get_dcc_compression_input_cap  = vpe10_get_dcc_compression_input_cap
+};
 
 struct cdc *vpe10_cdc_create(struct vpe_priv *vpe_priv, int inst)
 {
@@ -368,6 +376,7 @@ enum vpe_status vpe10_construct_resource(struct vpe_priv *vpe_priv, struct resou
     res->program_frontend                  = vpe10_program_frontend;
     res->program_backend                   = vpe10_program_backend;
     res->get_bufs_req                      = vpe10_get_bufs_req;
+    res->check_bg_color_support            = vpe10_check_bg_color_support;
 
     return VPE_STATUS_OK;
 err:
@@ -436,6 +445,11 @@ bool vpe10_check_h_mirror_support(bool *input_mirror, bool *output_mirror)
     *input_mirror  = false;
     *output_mirror = true;
     return true;
+}
+
+enum vpe_status vpe10_check_bg_color_support(struct vpe_priv* vpe_priv, struct vpe_color* bg_color)
+{
+    return vpe_is_valid_bg_color(vpe_priv, bg_color);
 }
 
 void vpe10_calculate_dst_viewport_and_active(

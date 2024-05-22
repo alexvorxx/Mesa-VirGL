@@ -464,7 +464,7 @@ enum vpe_status vpe_check_support(
         // if the bg_color support is false, there is a flag to verify if the bg_color falls in the
         // output gamut
         if (!vpe_priv->pub.caps->bg_color_check_support) {
-            status = vpe_is_valid_bg_color(vpe_priv, &output_ctx->bg_color);
+            status = vpe_priv->resource.check_bg_color_support(vpe_priv, &output_ctx->bg_color);
             if (status != VPE_STATUS_OK) {
                 vpe_log(
                     "failed in checking the background color versus the output color space %d\n",
