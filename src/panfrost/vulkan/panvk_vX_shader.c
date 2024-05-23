@@ -376,6 +376,9 @@ panvk_lower_nir(struct panvk_device *dev, nir_shader *nir,
    NIR_PASS_V(nir, panvk_per_arch(nir_lower_descriptors), dev, set_layout_count,
               set_layouts, shader);
 
+   NIR_PASS_V(nir, nir_split_var_copies);
+   NIR_PASS_V(nir, nir_lower_var_copies);
+
    NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_mem_ubo,
               panvk_buffer_ubo_addr_format(rs->uniform_buffers));
    NIR_PASS_V(nir, nir_lower_explicit_io, nir_var_mem_ssbo,
