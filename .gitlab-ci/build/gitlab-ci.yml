@@ -286,6 +286,7 @@ alpine-build-testing:
     C_ARGS: >
       -Wno-error=cpp
       -Wno-error=array-bounds
+      -Wno-error=stringop-overflow
       -Wno-error=stringop-overread
     DRI_LOADERS: >
       -D glx=disabled
