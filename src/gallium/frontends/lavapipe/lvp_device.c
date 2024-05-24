@@ -1270,6 +1270,8 @@ lvp_physical_device_init(struct lvp_physical_device *device,
       device->vk.supported_extensions.KHR_external_semaphore_fd = true;
       device->vk.supported_extensions.KHR_external_fence_fd = true;
    }
+   if (supported_dmabuf_bits & DRM_PRIME_CAP_IMPORT)
+      device->vk.supported_extensions.ANDROID_external_memory_android_hardware_buffer = true;
 #endif
 
    /* SNORM blending on llvmpipe fails CTS - disable by default */
@@ -1860,6 +1862,9 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_AllocateMemory(
    struct lvp_device_memory *mem;
    ASSERTED const VkExportMemoryAllocateInfo *export_info = NULL;
    ASSERTED const VkImportMemoryFdInfoKHR *import_info = NULL;
+#if DETECT_OS_ANDROID
+   ASSERTED const VkImportAndroidHardwareBufferInfoANDROID *ahb_import_info = NULL;
+#endif
    const VkImportMemoryHostPointerInfoEXT *host_ptr_info = NULL;
    VkResult error = VK_ERROR_OUT_OF_DEVICE_MEMORY;
    assert(pAllocateInfo->sType == VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
@@ -1890,6 +1895,12 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_AllocateMemory(
          priority = get_mem_priority(prio->priority);
          break;
       }
+#if DETECT_OS_ANDROID
+      case VK_STRUCTURE_TYPE_IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID: {
+         ahb_import_info = (VkImportAndroidHardwareBufferInfoANDROID*)ext;
+         break;
+      }
+#endif
       default:
          break;
       }
@@ -1912,6 +1923,11 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_AllocateMemory(
    mem->memory_type = LVP_DEVICE_MEMORY_TYPE_DEFAULT;
    mem->backed_fd = -1;
    mem->size = pAllocateInfo->allocationSize;
+
+#if DETECT_OS_ANDROID
+   mem->android_hardware_buffer = NULL;
+#endif
+
    if (host_ptr_info) {
       mem->mem_alloc = (struct llvmpipe_memory_allocation) {
          .cpu_addr = host_ptr_info->pHostPointer,
@@ -1920,6 +1936,18 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_AllocateMemory(
       mem->map = host_ptr_info->pHostPointer;
       mem->memory_type = LVP_DEVICE_MEMORY_TYPE_USER_PTR;
    }
+#if DETECT_OS_ANDROID
+   else if(ahb_import_info) {
+      error = lvp_import_ahb_memory(device, mem, ahb_import_info);
+      if (error != VK_SUCCESS)
+         goto fail;
+   } else if(export_info &&
+             (export_info->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID)) {
+      error = lvp_create_ahb_memory(device, mem, pAllocateInfo);
+      if (error != VK_SUCCESS)
+         goto fail;
+   }
+#endif
 #ifdef PIPE_MEMORY_FD
    else if(import_info && import_info->handleType) {
       bool dmabuf = import_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;

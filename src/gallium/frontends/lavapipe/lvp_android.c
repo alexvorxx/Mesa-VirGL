@@ -30,6 +30,8 @@
 
 #include <hardware/hardware.h>
 #include <hardware/hwvulkan.h>
+#include <vulkan/vk_android_native_buffer.h>
+#include <vulkan/vk_icd.h>
 
 #include "util/libsync.h"
 #include "util/os_file.h"
@@ -37,6 +39,7 @@
 
 #include "vk_fence.h"
 #include "vk_semaphore.h"
+#include "vk_android.h"
 
 static int
 lvp_hal_open(const struct hw_module_t *mod,
@@ -174,4 +177,46 @@ lvp_QueueSignalReleaseImageANDROID(VkQueue _queue,
    *pNativeFenceFd = -1;
 
    return VK_SUCCESS;
+}
+
+VkResult
+lvp_import_ahb_memory(struct lvp_device *device, struct lvp_device_memory *mem,
+                      const VkImportAndroidHardwareBufferInfoANDROID *info)
+{
+   const native_handle_t *handle = AHardwareBuffer_getNativeHandle(info->buffer);
+   int dma_buf = (handle && handle->numFds) ? handle->data[0] : -1;
+   if (dma_buf < 0)
+      return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+
+   uint64_t size;
+   int result = device->pscreen->import_memory_fd(device->pscreen, dma_buf, (struct pipe_memory_allocation**)&mem->pmem, &size, true);
+   if (!result)
+      return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+
+   AHardwareBuffer_acquire(info->buffer);
+   mem->android_hardware_buffer = info->buffer;
+   mem->size = size;
+   mem->memory_type = LVP_DEVICE_MEMORY_TYPE_DMA_BUF;
+
+   return VK_SUCCESS;
+}
+
+VkResult
+lvp_create_ahb_memory(struct lvp_device *device, struct lvp_device_memory *mem,
+                      const VkMemoryAllocateInfo *pAllocateInfo)
+{
+   mem->android_hardware_buffer = vk_alloc_ahardware_buffer(pAllocateInfo);
+   if (mem->android_hardware_buffer == NULL)
+      return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+   const struct VkImportAndroidHardwareBufferInfoANDROID import_info = {
+      .buffer = mem->android_hardware_buffer,
+   };
+
+   VkResult result = lvp_import_ahb_memory(device, mem, &import_info);
+
+   /* Release a reference to avoid leak for AHB allocation. */
+   AHardwareBuffer_release(mem->android_hardware_buffer);
+
+   return result;
 }
