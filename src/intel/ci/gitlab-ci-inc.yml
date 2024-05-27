@@ -416,6 +416,13 @@
     GPU_VERSION: intel-cml
 
 ## Intel (anv + iris)
+.intel-adl-test:
+  extends:
+    - .anv-test
+    - .intel-test
+  variables:
+    GPU_VERSION: intel-adl
+
 .intel-tgl-test:
   extends:
     - .anv-test
