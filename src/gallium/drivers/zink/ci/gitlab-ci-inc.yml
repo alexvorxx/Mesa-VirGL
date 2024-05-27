@@ -166,7 +166,17 @@
     CROSVM_VK_DRIVER: "lvp"
     CROSVM_GPU_ARGS: "vulkan=true,gles=false,backend=virglrenderer,egl=true,surfaceless=true,fixed-blob-mapping=false"
 
-.zink-anv-test:
+.zink-anv-adl-test:
+  extends:
+    - .lava-acer-cbv514-1h-34uz-brya:x86_64
+    - .anv-test
+    - .zink-anv-rules
+    - .zink-test
+  variables:
+    VK_DRIVER: intel
+    GPU_VERSION: zink-anv-adl
+
+.zink-anv-tgl-test:
   extends:
     - .lava-acer-cp514-2h-1160g7-volteer:x86_64
     - .anv-test
