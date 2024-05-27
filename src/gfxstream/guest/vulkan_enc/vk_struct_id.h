@@ -20,6 +20,10 @@
 #include "vk_android_native_buffer_gfxstream.h"
 #include "vulkan_gfxstream.h"
 
+#if defined(LINUX_GUEST_BUILD)
+#include "vulkan/wsi/wsi_common.h"
+#endif
+
 // anonymous
 namespace {
 
@@ -125,6 +129,9 @@ REGISTER_VK_STRUCT_ID(VkDeviceCreateInfo, VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO);
 REGISTER_VK_STRUCT_ID(VkPhysicalDeviceGroupProperties,
                       VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GROUP_PROPERTIES);
 REGISTER_VK_STRUCT_ID(VkPhysicalDeviceSwapchainMaintenance1FeaturesEXT, VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_SWAPCHAIN_MAINTENANCE_1_FEATURES_EXT);
+#if defined(LINUX_GUEST_BUILD)
+REGISTER_VK_STRUCT_ID(wsi_image_create_info, VK_STRUCTURE_TYPE_WSI_IMAGE_CREATE_INFO_MESA);
+#endif
 
 #undef REGISTER_VK_STRUCT_ID
 

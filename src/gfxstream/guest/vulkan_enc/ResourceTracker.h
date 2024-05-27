@@ -781,7 +781,9 @@ class ResourceTracker {
 #ifdef VK_USE_PLATFORM_FUCHSIA
         bool isSysmemBackedMemory = false;
 #endif
-        bool isWsiImage = false;
+#ifdef LINUX_GUEST_BUILD
+        bool isDmaBufImage = false;
+#endif
     };
 
     struct VkBuffer_Info {

@@ -728,14 +728,6 @@ void ResourceTracker::transformImageMemoryRequirementsForGuestLocked(VkImage ima
         auto height = info.createInfo.extent.height;
         reqs->size = width * height * 4;
     }
-#elif defined(__linux__) && !defined(VK_USE_PLATFORM_ANDROID_KHR)
-    auto it = info_VkImage.find(image);
-    if (it == info_VkImage.end()) return;
-    auto& info = it->second;
-    if (info.isWsiImage) {
-        static const uint32_t kColorBufferBpp = 4;
-        reqs->size = kColorBufferBpp * info.createInfo.extent.width * info.createInfo.extent.height;
-    }
 #else
     // Bypass "unused parameter" checks.
     (void)image;
@@ -2907,24 +2899,6 @@ static uint32_t getVirglFormat(VkFormat vkFormat) {
     return virglFormat;
 }
 
-static bool getVirtGpuFormatParams(const VkFormat vkFormat, uint32_t* virglFormat, uint32_t* target,
-                                   uint32_t* bind, uint32_t* bpp) {
-    *virglFormat = getVirglFormat(vkFormat);
-    switch (*virglFormat) {
-        case VIRGL_FORMAT_R8G8B8A8_UNORM:
-        case VIRGL_FORMAT_B8G8R8A8_UNORM:
-            *target = PIPE_TEXTURE_2D;
-            *bind = VIRGL_BIND_RENDER_TARGET;
-            *bpp = 4;
-            break;
-        default:
-            /* Format not recognized */
-            return false;
-    }
-
-    return true;
-}
-
 CoherentMemoryPtr ResourceTracker::createCoherentMemory(
     VkDevice device, VkDeviceMemory mem, const VkMemoryAllocateInfo& hostAllocationInfo,
     VkEncoder* enc, VkResult& res) {
@@ -3777,25 +3751,17 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 #endif
 
     VirtGpuResourcePtr colorBufferBlob = nullptr;
-#if defined(__linux__) && !defined(VK_USE_PLATFORM_ANDROID_KHR)
+#if defined(LINUX_GUEST_BUILD)
     if (exportDmabuf) {
         VirtGpuDevice* instance = VirtGpuDevice::getInstance();
-        // // TODO: any special action for VK_STRUCTURE_TYPE_WSI_MEMORY_ALLOCATE_INFO_MESA? Can mark
-        // special state if needed.
-        // // const wsi_memory_allocate_info* wsiAllocateInfoPtr =
-        // vk_find_struct<wsi_memory_allocate_info>(pAllocateInfo);
         bool hasDedicatedImage =
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->image != VK_NULL_HANDLE);
         bool hasDedicatedBuffer =
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->buffer != VK_NULL_HANDLE);
-        if (!hasDedicatedImage && !hasDedicatedBuffer) {
-            mesa_loge(
-                "dma-buf exportable memory requires dedicated Image or Buffer information.\n");
-            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-        }
 
         if (hasDedicatedImage) {
             VkImageCreateInfo imageCreateInfo;
+            bool isDmaBufImage = false;
             {
                 AutoLock<RecursiveLock> lock(mLock);
 
@@ -3804,67 +3770,62 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 const auto& imageInfo = it->second;
 
                 imageCreateInfo = imageInfo.createInfo;
+                isDmaBufImage = imageInfo.isDmaBufImage;
             }
 
-            uint32_t virglFormat = 0;
-            uint32_t target = 0;
-            uint32_t bind = 0;
-            uint32_t bpp = 0;
-            if (!gfxstream::vk::getVirtGpuFormatParams(imageCreateInfo.format, &virglFormat,
-                                                       &target, &bind, &bpp)) {
-                mesa_loge("%s: Unsupported VK format for VirtGpu resource, vkFormat: 0x%x",
-                          __func__, imageCreateInfo.format);
-                return VK_ERROR_FORMAT_NOT_SUPPORTED;
-            }
-            const uint32_t stride = imageCreateInfo.extent.width * bpp;
-            colorBufferBlob = instance->createResource(imageCreateInfo.extent.width,
-                                                       imageCreateInfo.extent.height, stride,
-                                                       virglFormat, target, bind);
-            if (!colorBufferBlob) {
-                mesa_loge("%s: Failed to create colorBuffer resource for Image memory\n", __func__);
-                return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-            }
-            if (0 != colorBufferBlob->wait()) {
-                mesa_loge("%s: Failed to wait for colorBuffer resource for Image memory\n",
-                          __func__);
-                return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-            }
-        }
+            // TODO (b/326956485): Support DRM format modifiers for dmabuf memory
+            // For now, can only externalize memory for linear images
+            if (isDmaBufImage) {
+                const VkImageSubresource imageSubresource = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .mipLevel = 0,
+                    .arrayLayer = 0,
+                };
+                VkSubresourceLayout subResourceLayout;
+                enc->vkGetImageSubresourceLayout(device, dedicatedAllocInfoPtr->image,
+                                                 &imageSubresource, &subResourceLayout,
+                                                 true /* do lock */);
+                if (!subResourceLayout.rowPitch) {
+                    mesa_loge("%s: Failed to query stride for VirtGpu resource creation.");
+                    return VK_ERROR_INITIALIZATION_FAILED;
+                }
 
-        if (hasDedicatedBuffer) {
-            VkBufferCreateInfo bufferCreateInfo;
-            {
-                AutoLock<RecursiveLock> lock(mLock);
-
-                auto it = info_VkBuffer.find(dedicatedAllocInfoPtr->buffer);
-                if (it == info_VkBuffer.end()) return VK_ERROR_INITIALIZATION_FAILED;
-                const auto& bufferInfo = it->second;
-                bufferCreateInfo = bufferInfo.createInfo;
+                uint32_t virglFormat = gfxstream::vk::getVirglFormat(imageCreateInfo.format);
+                if (!virglFormat) {
+                    mesa_loge("Unsupported VK format for VirtGpu resource, vkFormat: 0x%x",
+                              imageCreateInfo.format);
+                    return VK_ERROR_FORMAT_NOT_SUPPORTED;
+                }
+                const uint32_t target = PIPE_TEXTURE_2D;
+                uint32_t bind = VIRGL_BIND_RENDER_TARGET;
+                if (VK_IMAGE_TILING_LINEAR == imageCreateInfo.tiling) {
+                    bind |= VIRGL_BIND_LINEAR;
+                }
+                colorBufferBlob = instance->createResource(
+                    imageCreateInfo.extent.width, imageCreateInfo.extent.height,
+                    subResourceLayout.rowPitch, virglFormat, target, bind);
+                if (!colorBufferBlob) {
+                    mesa_loge("Failed to create colorBuffer resource for Image memory");
+                    return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                }
+                if (!colorBufferBlob->wait()) {
+                    mesa_loge("Failed to wait for colorBuffer resource for Image memory");
+                    return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                }
+            } else {
+                mesa_logw(
+                    "The VkMemoryDedicatedAllocateInfo::image associated with VkDeviceMemory "
+                    "allocation cannot be used to create exportable resource "
+                    "(VkExportMemoryAllocateInfo).\n");
             }
-            const VkFormat vkFormat = VK_FORMAT_R8G8B8A8_UNORM;
-            uint32_t virglFormat = 0;
-            uint32_t target = 0;
-            uint32_t bind = 0;
-            uint32_t bpp = 0;
-            if (!gfxstream::vk::getVirtGpuFormatParams(vkFormat, &virglFormat, &target, &bind,
-                                                       &bpp)) {
-                mesa_loge("%s: Unexpected error getting VirtGpu format params for vkFormat: 0x%x",
-                          __func__, vkFormat);
-                return VK_ERROR_FORMAT_NOT_SUPPORTED;
-            }
-
-            colorBufferBlob = instance->createResource(bufferCreateInfo.size / bpp, 1, virglFormat,
-                                                       target, bind, bpp);
-            if (!colorBufferBlob) {
-                mesa_loge("%s: Failed to create colorBuffer resource for Buffer memory\n",
-                          __func__);
-                return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-            }
-            if (0 != colorBufferBlob->wait()) {
-                mesa_loge("%s: Failed to wait for colorBuffer resource for Buffer memory\n",
-                          __func__);
-                return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-            }
+        } else if (hasDedicatedBuffer) {
+            mesa_logw(
+                "VkDeviceMemory allocated with VkMemoryDedicatedAllocateInfo::buffer cannot be "
+                "exported (VkExportMemoryAllocateInfo)");
+        } else {
+            mesa_logw(
+                "VkDeviceMemory is not exportable (VkExportMemoryAllocateInfo). Requires "
+                "VkMemoryDedicatedAllocateInfo::image to create external resource.");
         }
     }
 
@@ -4136,20 +4097,31 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
         vk_append_struct(&structChainIter, &localExtImgCi);
     }
 
-    bool isWsiImage = false;
-
-#if defined(__linux__) && !defined(VK_USE_PLATFORM_ANDROID_KHR)
+#if defined(LINUX_GUEST_BUILD)
+    bool isDmaBufImage = false;
     if (extImgCiPtr &&
         (extImgCiPtr->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
-        // Assumes that handleType with DMA_BUF_BIT indicates creation of a
-        // image for WSI use; no other external dma_buf usage is supported
-        isWsiImage = true;
-        // Must be linear. Otherwise querying stride and other properties
-        // can be implementation-dependent.
-        localCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
-        if (gfxstream::vk::getVirglFormat(localCreateInfo.format) < 0) {
-            localCreateInfo.format = VK_FORMAT_R8G8B8A8_UNORM;
+        const wsi_image_create_info* wsiImageCi =
+            vk_find_struct<wsi_image_create_info>(pCreateInfo);
+        if (wsiImageCi) {
+            if (!wsiImageCi->scanout) {
+                mesa_logd(
+                    "gfxstream only supports native DRM image scanout path for Linux WSI "
+                    "(wsi_image_create_info::scanout)");
+                return VK_ERROR_INITIALIZATION_FAILED;
+            }
+            // Linux WSI creates swapchain images with VK_IMAGE_CREATE_ALIAS_BIT. Vulkan spec
+            // states: "If the pNext chain includes a VkExternalMemoryImageCreateInfo or
+            // VkExternalMemoryImageCreateInfoNV structure whose handleTypes member is not 0, it is
+            // as if VK_IMAGE_CREATE_ALIAS_BIT is set." To avoid flag mismatches on host driver,
+            // remove the VK_IMAGE_CREATE_ALIAS_BIT here.
+            localCreateInfo.flags &= ~VK_IMAGE_CREATE_ALIAS_BIT;
+            // TODO (b/326956485): DRM format modifiers to support client/compositor awareness
+            // For now, override WSI images to use linear tiling, as compositor will default to
+            // DRM_FORMAT_MOD_LINEAR.
+            localCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
         }
+        isDmaBufImage = true;
     }
 #endif
 
@@ -4324,16 +4296,22 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
     }
 #endif
 
-    info.isWsiImage = isWsiImage;
-
 // Delete `protocolVersion` check goldfish drivers are gone.
-#if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
     if (mCaps.vulkanCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
         mCaps.vulkanCapset.colorBufferMemoryIndex = getColorBufferMemoryIndex(context, device);
     }
-    if (isWsiImage ||
-        (extImgCiPtr && (extImgCiPtr->handleTypes &
+    if ((extImgCiPtr && (extImgCiPtr->handleTypes &
                          VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID))) {
+        updateMemoryTypeBits(&memReqs.memoryTypeBits, mCaps.vulkanCapset.colorBufferMemoryIndex);
+    }
+#endif
+#if defined(LINUX_GUEST_BUILD)
+    if (mCaps.vulkanCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
+        mCaps.vulkanCapset.colorBufferMemoryIndex = getColorBufferMemoryIndex(context, device);
+    }
+    info.isDmaBufImage = isDmaBufImage;
+    if (info.isDmaBufImage) {
         updateMemoryTypeBits(&memReqs.memoryTypeBits, mCaps.vulkanCapset.colorBufferMemoryIndex);
     }
 #endif
