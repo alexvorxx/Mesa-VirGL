@@ -102,6 +102,25 @@ anv-jsl-angle-full:
     JOB_TIMEOUT: 60
   parallel: 2
 
+anv-adl-angle:
+  extends:
+    - .lava-acer-cbv514-1h-34uz-brya:x86_64
+    - .anv-test
+    - .anv-angle-test
+  variables:
+    DEQP_SUITE: anv-adl-angle
+    GPU_VERSION: angle-anv-adl
+  timeout: 30m
+
+anv-adl-angle-full:
+  extends:
+    - anv-adl-angle
+    - .intel-manual-rules
+  variables:
+    DEQP_SUITE: anv-adl-angle-full
+    JOB_TIMEOUT: 60
+  timeout: 30m
+
 anv-tgl-angle:
   extends:
     - .lava-acer-cp514-2h-1130g7-volteer:x86_64
