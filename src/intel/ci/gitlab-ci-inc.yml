@@ -192,6 +192,15 @@
     HWCI_KERNEL_MODULES: i915
     RUNNER_TAG: mesa-ci-x86-64-lava-acer-cb317-1h-c3z6-dedede
 
+# Status: https://lava.collabora.dev/scheduler/device_type/acer-cbv514-1h-34uz-brya
+.lava-acer-cbv514-1h-34uz-brya:x86_64:
+  variables:
+    DEVICE_TYPE: acer-cbv514-1h-34uz-brya
+    FDO_CI_CONCURRENT: 9
+    GPU_VERSION: iris-adl
+    HWCI_KERNEL_MODULES: i915
+    RUNNER_TAG: mesa-ci-x86-64-lava-acer-cbv514-1h-34uz-brya
+
 # Status: https://lava.collabora.dev/scheduler/device_type/asus-C523NA-A20057-coral
 .lava-asus-C523NA-A20057-coral:x86_64:
   variables:
