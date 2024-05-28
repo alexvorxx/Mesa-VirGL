@@ -1579,6 +1579,15 @@ panvk_cmd_begin_rendering_init_state(struct panvk_cmd_buffer *cmdbuf,
 
          cmdbuf->state.gfx.render.fb
             .bos[cmdbuf->state.gfx.render.fb.bo_count++] = img->bo;
+
+         if (drm_is_afbc(img->pimage.layout.modifier)) {
+            assert(fbinfo->zs.view.zs == &iview->pview || !fbinfo->zs.view.zs);
+            fbinfo->zs.view.zs = &iview->pview;
+         } else {
+            fbinfo->zs.view.s =
+               &iview->pview != fbinfo->zs.view.zs ? &iview->pview : NULL;
+         }
+
          fbinfo->zs.view.s =
             &iview->pview != fbinfo->zs.view.zs ? &iview->pview : NULL;
          fbinfo->nr_samples = MAX2(
