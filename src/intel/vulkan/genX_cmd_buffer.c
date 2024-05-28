@@ -29,11 +29,8 @@
 #include "vk_render_pass.h"
 #include "vk_util.h"
 
-#include "common/intel_aux_map.h"
 #include "genxml/gen_macros.h"
 #include "genxml/genX_pack.h"
-#include "genxml/genX_rt_pack.h"
-#include "common/intel_genX_state_brw.h"
 
 #include "ds/intel_tracepoints.h"
 
