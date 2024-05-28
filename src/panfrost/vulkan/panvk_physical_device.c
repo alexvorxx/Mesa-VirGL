@@ -919,26 +919,47 @@ panvk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    panvk_arch_dispatch(arch, destroy_device, device, pAllocator);
 }
 
+static bool
+format_is_supported(struct panvk_physical_device *physical_device,
+                    const struct panfrost_format fmt)
+{
+   /* If the format ID is zero, it's not supported. */
+   if (!fmt.hw)
+      return false;
+
+   /* Compressed formats (ID < 32) are optional. We need to check against
+    * the supported formats reported by the GPU. */
+   unsigned idx = MALI_EXTRACT_INDEX(fmt.hw);
+   if (MALI_EXTRACT_TYPE(idx) == MALI_FORMAT_COMPRESSED) {
+      uint32_t supported_compr_fmts =
+         panfrost_query_compressed_formats(&physical_device->kmod.props);
+
+      assert(idx < 32);
+
+      if (!(BITFIELD_BIT(idx) & supported_compr_fmts))
+         return false;
+   }
+
+   return true;
+}
+
 static void
 get_format_properties(struct panvk_physical_device *physical_device,
                       VkFormat format, VkFormatProperties *out_properties)
 {
    VkFormatFeatureFlags tex = 0, buffer = 0;
    enum pipe_format pfmt = vk_format_to_pipe_format(format);
+
+   if (pfmt == PIPE_FORMAT_NONE)
+      goto end;
+
    const struct panfrost_format fmt = physical_device->formats.all[pfmt];
 
-   if (!pfmt || !fmt.hw)
+   if (!format_is_supported(physical_device, fmt))
       goto end;
 
    /* 3byte formats are not supported by the buffer <-> image copy helpers. */
    if (util_format_get_blocksize(pfmt) == 3)
-      goto end;
-
-   /* We don't support compressed formats yet: this is causing trouble when
-    * doing a vkCmdCopyImage() between a compressed and a non-compressed format
-    * on a tiled/AFBC resource.
-    */
-   if (util_format_is_compressed(pfmt))
       goto end;
 
    buffer |=
