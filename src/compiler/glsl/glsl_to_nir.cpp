@@ -597,6 +597,16 @@ nir_visitor::visit(ir_variable *ir)
    var->data.explicit_xfb_buffer = ir->data.explicit_xfb_buffer;
    var->data.explicit_xfb_stride = ir->data.explicit_xfb_stride;
 
+   if (ir->is_interface_instance()) {
+      int *max_ifc_array_access = ir->get_max_ifc_array_access();
+      if (max_ifc_array_access) {
+         var->max_ifc_array_access =
+            rzalloc_array(var, int, ir->get_interface_type()->length);
+         memcpy(var->max_ifc_array_access, max_ifc_array_access,
+                ir->get_interface_type()->length * sizeof(unsigned));
+      }
+   }
+
    var->num_state_slots = ir->get_num_state_slots();
    if (var->num_state_slots > 0) {
       var->state_slots = rzalloc_array(var, nir_state_slot,

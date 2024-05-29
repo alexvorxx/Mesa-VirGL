@@ -163,6 +163,13 @@ nir_variable_clone(const nir_variable *var, nir_shader *shader)
    }
    nvar->interface_type = var->interface_type;
 
+   if (var->max_ifc_array_access) {
+      nvar->max_ifc_array_access =
+         rzalloc_array(nvar, int, var->interface_type->length);
+      memcpy(nvar->max_ifc_array_access, var->max_ifc_array_access,
+             var->interface_type->length * sizeof(unsigned));
+   }
+
    nvar->num_members = var->num_members;
    if (var->num_members) {
       nvar->members = ralloc_array(nvar, struct nir_variable_data,
