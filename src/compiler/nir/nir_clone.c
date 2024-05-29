@@ -675,18 +675,27 @@ clone_function_impl(clone_state *state, const nir_function_impl *fi)
 }
 
 nir_function_impl *
-nir_function_impl_clone(nir_shader *shader, const nir_function_impl *fi)
+nir_function_impl_clone_remap_globals(nir_shader *shader,
+                                      const nir_function_impl *fi,
+                                      struct hash_table *remap_table)
 {
    clone_state state;
-   init_clone_state(&state, NULL, false, false);
+   init_clone_state(&state, remap_table, !!remap_table, false);
 
    state.ns = shader;
 
    nir_function_impl *nfi = clone_function_impl(&state, fi);
 
-   free_clone_state(&state);
+   if (!remap_table)
+      free_clone_state(&state);
 
    return nfi;
+}
+
+nir_function_impl *
+nir_function_impl_clone(nir_shader *shader, const nir_function_impl *fi)
+{
+   return nir_function_impl_clone_remap_globals(shader, fi, NULL);
 }
 
 nir_function *

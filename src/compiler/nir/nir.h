@@ -5203,6 +5203,10 @@ nir_shader *nir_shader_clone(void *mem_ctx, const nir_shader *s);
 nir_function *nir_function_clone(nir_shader *ns, const nir_function *fxn);
 nir_function_impl *nir_function_impl_clone(nir_shader *shader,
                                            const nir_function_impl *fi);
+nir_function_impl *
+nir_function_impl_clone_remap_globals(nir_shader *shader,
+                                      const nir_function_impl *fi,
+                                      struct hash_table *remap_table);
 nir_constant *nir_constant_clone(const nir_constant *c, nir_variable *var);
 nir_variable *nir_variable_clone(const nir_variable *c, nir_shader *shader);
 
