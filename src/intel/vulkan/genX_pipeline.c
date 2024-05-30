@@ -2200,12 +2200,11 @@ genX(compute_pipeline_emit)(struct anv_compute_pipeline *pipeline)
       vfe.URBEntryAllocationSize = 2;
       vfe.CURBEAllocationSize    = vfe_curbe_allocation;
 
-      if (cs_bin->prog_data->total_scratch) {
+      if (cs_prog_data->base.total_scratch) {
          /* Broadwell's Per Thread Scratch Space is in the range [0, 11]
           * where 0 = 1k, 1 = 2k, 2 = 4k, ..., 11 = 2M.
           */
-         vfe.PerThreadScratchSpace =
-            ffs(cs_bin->prog_data->total_scratch) - 11;
+         vfe.PerThreadScratchSpace = ffs(cs_prog_data->base.total_scratch) - 11;
          vfe.ScratchSpaceBasePointer =
             get_scratch_address(&pipeline->base, MESA_SHADER_COMPUTE, cs_bin);
       }
