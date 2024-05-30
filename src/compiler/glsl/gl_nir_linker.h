@@ -91,6 +91,8 @@ bool gl_nir_validate_intrastage_arrays(struct gl_shader_program *prog,
                                        nir_shader *existing_shader,
                                        bool match_precision);
 
+void gl_nir_linker_size_arrays(nir_shader *shader);
+
 struct nir_xfb_info *
 gl_to_nir_xfb_info(struct gl_transform_feedback_info *info, void *mem_ctx);
 
