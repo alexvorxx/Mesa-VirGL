@@ -1090,10 +1090,6 @@ get_image_format_properties(struct panvk_physical_device *physical_device,
    if (format_feature_flags == 0)
       goto unsupported;
 
-   if (info->type != VK_IMAGE_TYPE_2D &&
-       util_format_is_depth_or_stencil(format))
-      goto unsupported;
-
    switch (info->type) {
    default:
       unreachable("bad vkimage type");
