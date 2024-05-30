@@ -59,6 +59,7 @@ with_glx_direct = get_option('glx-direct')
 with_osmesa = get_option('osmesa')
 with_vulkan_overlay_layer = get_option('vulkan-layers').contains('overlay')
 with_vulkan_device_select_layer = get_option('vulkan-layers').contains('device-select')
+with_vulkan_screenshot_layer = get_option('vulkan-layers').contains('screenshot')
 with_tools = get_option('tools')
 if with_tools.contains('all')
   with_tools = [
