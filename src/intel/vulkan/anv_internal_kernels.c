@@ -87,6 +87,14 @@ compile_shader(struct anv_device *device,
 
    link_libanv(nir, libanv);
 
+   if (INTEL_DEBUG(DEBUG_SHADER_PRINT)) {
+      nir_lower_printf_options printf_opts = {
+         .ptr_bit_size               = 64,
+         .use_printf_base_identifier = true,
+      };
+      NIR_PASS_V(nir, nir_lower_printf, &printf_opts);
+   }
+
    NIR_PASS_V(nir, nir_lower_vars_to_ssa);
    NIR_PASS_V(nir, nir_opt_cse);
    NIR_PASS_V(nir, nir_opt_gcm, true);
@@ -181,26 +189,28 @@ compile_shader(struct anv_device *device,
       };
       program = brw_compile_fs(compiler, &params);
 
-      unsigned stat_idx = 0;
-      if (prog_data.wm.dispatch_8) {
-         assert(stats[stat_idx].spills == 0);
-         assert(stats[stat_idx].fills == 0);
-         assert(stats[stat_idx].sends == sends_count_expectation);
-         stat_idx++;
-      }
-      if (prog_data.wm.dispatch_16) {
-         assert(stats[stat_idx].spills == 0);
-         assert(stats[stat_idx].fills == 0);
-         assert(stats[stat_idx].sends == sends_count_expectation);
-         stat_idx++;
-      }
-      if (prog_data.wm.dispatch_32) {
-         assert(stats[stat_idx].spills == 0);
-         assert(stats[stat_idx].fills == 0);
-         assert(stats[stat_idx].sends ==
-                sends_count_expectation *
-                (device->info->ver < 20 ? 2 : 1));
-         stat_idx++;
+      if (!INTEL_DEBUG(DEBUG_SHADER_PRINT)) {
+         unsigned stat_idx = 0;
+         if (prog_data.wm.dispatch_8) {
+            assert(stats[stat_idx].spills == 0);
+            assert(stats[stat_idx].fills == 0);
+            assert(stats[stat_idx].sends == sends_count_expectation);
+            stat_idx++;
+         }
+         if (prog_data.wm.dispatch_16) {
+            assert(stats[stat_idx].spills == 0);
+            assert(stats[stat_idx].fills == 0);
+            assert(stats[stat_idx].sends == sends_count_expectation);
+            stat_idx++;
+         }
+         if (prog_data.wm.dispatch_32) {
+            assert(stats[stat_idx].spills == 0);
+            assert(stats[stat_idx].fills == 0);
+            assert(stats[stat_idx].sends ==
+                   sends_count_expectation *
+                   (device->info->ver < 20 ? 2 : 1));
+            stat_idx++;
+         }
       }
    } else {
       struct brw_compile_stats stats;
@@ -217,9 +227,11 @@ compile_shader(struct anv_device *device,
       };
       program = brw_compile_cs(compiler, &params);
 
-      assert(stats.spills == 0);
-      assert(stats.fills == 0);
-      assert(stats.sends == sends_count_expectation);
+      if (!INTEL_DEBUG(DEBUG_SHADER_PRINT)) {
+         assert(stats.spills == 0);
+         assert(stats.fills == 0);
+         assert(stats.sends == sends_count_expectation);
+      }
    }
 
    assert(prog_data.base.total_scratch == 0);
