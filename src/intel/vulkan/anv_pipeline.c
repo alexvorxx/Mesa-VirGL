@@ -1700,9 +1700,6 @@ anv_pipeline_add_executable(struct anv_pipeline *pipeline,
                        stage->bind_map.push_ranges[i].start * 32);
                break;
 
-            case ANV_DESCRIPTOR_SET_NUM_WORK_GROUPS:
-               unreachable("gl_NumWorkgroups is never pushed");
-
             case ANV_DESCRIPTOR_SET_COLOR_ATTACHMENTS:
                unreachable("Color attachments can't be pushed");
 
@@ -2684,13 +2681,6 @@ anv_pipeline_compile_cs(struct anv_compute_pipeline *pipeline,
 
       anv_stage_allocate_bind_map_tables(&pipeline->base, &stage, mem_ctx);
 
-      /* Set up a binding for the gl_NumWorkGroups */
-      stage.bind_map.surface_count = 1;
-      stage.bind_map.surface_to_descriptor[0] = (struct anv_pipeline_binding) {
-         .set = ANV_DESCRIPTOR_SET_NUM_WORK_GROUPS,
-         .binding = UINT32_MAX,
-      };
-
       VkResult result = anv_pipeline_stage_get_nir(&pipeline->base, cache,
                                                    mem_ctx, &stage);
       if (result != VK_SUCCESS) {
@@ -2735,12 +2725,6 @@ anv_pipeline_compile_cs(struct anv_compute_pipeline *pipeline,
 
       anv_nir_validate_push_layout(device->physical, &stage.prog_data.base,
                                    &stage.bind_map);
-
-      if (!stage.prog_data.cs.uses_num_work_groups) {
-         assert(stage.bind_map.surface_to_descriptor[0].set ==
-                ANV_DESCRIPTOR_SET_NUM_WORK_GROUPS);
-         stage.bind_map.surface_to_descriptor[0].set = ANV_DESCRIPTOR_SET_NULL;
-      }
 
       struct anv_shader_upload_params upload_params = {
          .stage               = MESA_SHADER_COMPUTE,

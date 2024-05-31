@@ -2102,29 +2102,6 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
          bt_map[s] = surface_state.offset + state_offset;
          break;
 
-      case ANV_DESCRIPTOR_SET_NUM_WORK_GROUPS: {
-         /* This is always the first binding for compute shaders */
-         assert(shader->stage == MESA_SHADER_COMPUTE && s == 0);
-
-         struct anv_state surface_state =
-            anv_cmd_buffer_alloc_surface_states(cmd_buffer, 1);
-         if (surface_state.map == NULL)
-            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-
-         const enum isl_format format =
-            anv_isl_format_for_descriptor_type(cmd_buffer->device,
-                                               VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
-         anv_fill_buffer_surface_state(cmd_buffer->device, surface_state.map,
-                                       format, ISL_SWIZZLE_IDENTITY,
-                                       ISL_SURF_USAGE_CONSTANT_BUFFER_BIT,
-                                       cmd_buffer->state.compute.num_workgroups,
-                                       12, 1);
-
-         assert(surface_state.map);
-         bt_map[s] = surface_state.offset + state_offset;
-         break;
-      }
-
       case ANV_DESCRIPTOR_SET_DESCRIPTORS: {
          struct anv_descriptor_set *set =
             pipe_state->descriptors[binding->index];
@@ -4761,6 +4738,20 @@ genX(flush_pipeline_select)(struct anv_cmd_buffer *cmd_buffer,
          scec1.GLKBarrierModeMask = 1;
       }
    }
+#endif
+
+#if GFX_VER == 9
+   /* Undocumented workaround, we need to reemit MEDIA_CURBE_LOAD on Gfx9 when
+    * switching from 3D->GPGPU, otherwise the shader gets corrupted push
+    * constants. Note that this doesn't trigger a push constant reallocation,
+    * we just reprogram the same pointer.
+    *
+    * The issue reproduces pretty much 100% on
+    * dEQP-VK.memory_model.transitive.* tests. Reducing the number of
+    * iteration in the test from 50 to < 10 makes the tests flaky.
+    */
+   if (pipeline == GPGPU)
+      cmd_buffer->state.push_constants_dirty |= VK_SHADER_STAGE_COMPUTE_BIT;
 #endif
 #endif /* else of if GFX_VER >= 20 */
    cmd_buffer->state.current_pipeline = pipeline;

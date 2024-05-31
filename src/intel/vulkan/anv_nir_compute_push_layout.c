@@ -62,6 +62,16 @@ anv_nir_compute_push_layout(nir_shader *nir,
                unsigned range = nir_intrinsic_range(intrin);
                push_start = MIN2(push_start, base);
                push_end = MAX2(push_end, base + range);
+               /* We need to retain this information to update the push
+                * constant on vkCmdDispatch*().
+                */
+               if (nir->info.stage == MESA_SHADER_COMPUTE &&
+                   base >= anv_drv_const_offset(cs.num_work_groups[0]) &&
+                   base < (anv_drv_const_offset(cs.num_work_groups[2]) + 4)) {
+                  struct brw_cs_prog_data *cs_prog_data =
+                     container_of(prog_data, struct brw_cs_prog_data, base);
+                  cs_prog_data->uses_num_work_groups = true;
+               }
                break;
             }
 

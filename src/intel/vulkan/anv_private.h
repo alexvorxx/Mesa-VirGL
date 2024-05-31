@@ -222,6 +222,8 @@ struct intel_perf_query_result;
 
 #define ANV_GRAPHICS_SHADER_STAGE_COUNT (MESA_SHADER_MESH + 1)
 
+#define ANV_INLINE_PARAM_NUM_WORKGROUPS_OFFSET (8)
+
 /* RENDER_SURFACE_STATE is a bit smaller (48b) but since it is aligned to 64
  * and we can't put anything else there we use 64b.
  */
@@ -3076,11 +3078,10 @@ anv_descriptor_set_write_template(struct anv_device *device,
                                   const struct vk_descriptor_update_template *template,
                                   const void *data);
 
-#define ANV_DESCRIPTOR_SET_DESCRIPTORS_BUFFER (UINT8_MAX - 5)
-#define ANV_DESCRIPTOR_SET_NULL               (UINT8_MAX - 4)
-#define ANV_DESCRIPTOR_SET_PUSH_CONSTANTS     (UINT8_MAX - 3)
-#define ANV_DESCRIPTOR_SET_DESCRIPTORS        (UINT8_MAX - 2)
-#define ANV_DESCRIPTOR_SET_NUM_WORK_GROUPS    (UINT8_MAX - 1)
+#define ANV_DESCRIPTOR_SET_DESCRIPTORS_BUFFER (UINT8_MAX - 4)
+#define ANV_DESCRIPTOR_SET_NULL               (UINT8_MAX - 3)
+#define ANV_DESCRIPTOR_SET_PUSH_CONSTANTS     (UINT8_MAX - 2)
+#define ANV_DESCRIPTOR_SET_DESCRIPTORS        (UINT8_MAX - 1)
 #define ANV_DESCRIPTOR_SET_COLOR_ATTACHMENTS   UINT8_MAX
 
 struct anv_pipeline_binding {
@@ -3598,6 +3599,9 @@ struct anv_push_constants {
           */
          uint32_t base_work_group_id[3];
 
+         /** gl_NumWorkgroups */
+         uint32_t num_work_groups[3];
+
          /** Subgroup ID
           *
           * This is never set by software but is implicitly filled out when
@@ -3907,8 +3911,6 @@ struct anv_cmd_compute_state {
    struct anv_cmd_pipeline_state base;
 
    bool pipeline_dirty;
-
-   struct anv_address num_workgroups;
 
    uint32_t scratch_size;
 };

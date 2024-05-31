@@ -1896,6 +1896,45 @@ lower_ray_query_globals(nir_builder *b, nir_intrinsic_instr *intrin,
 }
 
 static bool
+lower_num_workgroups(nir_builder *b, nir_intrinsic_instr *intrin,
+                     struct apply_pipeline_layout_state *state)
+{
+   /* For those stages, HW will generate values through payload registers. */
+   if (gl_shader_stage_is_mesh(b->shader->info.stage))
+      return false;
+
+   b->cursor = nir_instr_remove(&intrin->instr);
+   nir_def *num_workgroups;
+   /* On Gfx12.5+ we use the inline register to push the values, on prior
+    * generation we use push constants.
+    */
+   if (state->pdevice->info.verx10 >= 125) {
+      num_workgroups =
+         nir_load_inline_data_intel(
+            b, 3, 32,
+            .base = ANV_INLINE_PARAM_NUM_WORKGROUPS_OFFSET);
+   } else {
+      num_workgroups =
+         anv_load_driver_uniform(b, 3, cs.num_work_groups[0]);
+   }
+
+   nir_def *num_workgroups_indirect;
+   nir_push_if(b, nir_ieq_imm(b, nir_channel(b, num_workgroups, 0), UINT32_MAX));
+   {
+      nir_def *addr = nir_pack_64_2x32_split(b,
+                                             nir_channel(b, num_workgroups, 1),
+                                             nir_channel(b, num_workgroups, 2));
+      num_workgroups_indirect = nir_load_global_constant(b, addr, 4, 3, 32);
+   }
+   nir_pop_if(b, NULL);
+
+   num_workgroups = nir_if_phi(b, num_workgroups_indirect, num_workgroups);
+   nir_def_rewrite_uses(&intrin->def, num_workgroups);
+
+   return true;
+}
+
+static bool
 apply_pipeline_layout(nir_builder *b, nir_instr *instr, void *_state)
 {
    struct apply_pipeline_layout_state *state = _state;
@@ -1930,6 +1969,8 @@ apply_pipeline_layout(nir_builder *b, nir_instr *instr, void *_state)
          return lower_base_workgroup_id(b, intrin, state);
       case nir_intrinsic_load_ray_query_global_intel:
          return lower_ray_query_globals(b, intrin, state);
+      case nir_intrinsic_load_num_workgroups:
+         return lower_num_workgroups(b, intrin, state);
       default:
          return false;
       }
@@ -2434,7 +2475,7 @@ anv_nir_apply_pipeline_layout(nir_shader *shader,
    nir_opt_dce(shader);
 
    nir_shader_instructions_pass(shader, apply_pipeline_layout,
-                                nir_metadata_control_flow,
+                                nir_metadata_none,
                                 &state);
 
    ralloc_free(mem_ctx);
