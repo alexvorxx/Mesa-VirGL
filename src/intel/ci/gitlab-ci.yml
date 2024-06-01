@@ -284,6 +284,21 @@ iris-kbl-traces-performance:
   variables:
     GPU_VERSION: intel-kbl
 
+intel-adl-cl:
+  extends:
+    - .lava-acer-cbv514-1h-34uz-brya:x86_64
+    - .intel-adl-test
+    - .intel-manual-rules
+  rules:
+    - !reference [.intel-adl-test, rules]
+    - !reference [.intel-manual-rules, rules]
+    - !reference [.rusticl-rules, rules]
+  variables:
+    DEQP_SUITE: intel-adl-cl
+    VK_DRIVER: intel
+    HWCI_START_WESTON: 1
+  timeout: 20m
+
 intel-adl-skqp:
   extends:
     - .lava-acer-cbv514-1h-34uz-brya:x86_64
