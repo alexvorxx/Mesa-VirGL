@@ -1747,6 +1747,9 @@ valid_texture_type_enum(const struct gl_context *ctx, GLenum type)
    case GL_UNSIGNED_INT_10F_11F_11F_REV:
       return _mesa_has_packed_float(ctx);
 
+   case GL_UNSIGNED_INT_5_9_9_9_REV:
+      return _mesa_has_texture_shared_exponent(ctx);
+
    case GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
       return _mesa_has_float_depth_buffer(ctx);
 
@@ -1971,8 +1974,6 @@ _mesa_error_check_format_and_type(const struct gl_context *ctx,
                return _mesa_has_EXT_texture_type_2_10_10_10_REV(ctx)
                   ? GL_NO_ERROR : GL_INVALID_ENUM;
             case GL_UNSIGNED_INT_5_9_9_9_REV:
-               return _mesa_has_texture_shared_exponent(ctx)
-                  ? GL_NO_ERROR : GL_INVALID_ENUM;
             case GL_UNSIGNED_INT_10F_11F_11F_REV:
                return GL_NO_ERROR;
             default:
@@ -3212,7 +3213,7 @@ _mesa_gles_error_check_format_and_type(struct gl_context *ctx,
          break;
 
       case GL_UNSIGNED_INT_5_9_9_9_REV:
-         if (ctx->Version <= 20 || internalFormat != GL_RGB9_E5)
+         if (internalFormat != GL_RGB9_E5)
             return GL_INVALID_OPERATION;
          break;
 
