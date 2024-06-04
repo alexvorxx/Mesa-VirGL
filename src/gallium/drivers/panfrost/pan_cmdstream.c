@@ -47,6 +47,7 @@
 #include "pan_cmdstream.h"
 #include "pan_context.h"
 #include "pan_csf.h"
+#include "pan_format.h"
 #include "pan_indirect_dispatch.h"
 #include "pan_jm.h"
 #include "pan_job.h"
@@ -387,6 +388,17 @@ panfrost_emit_blend(struct panfrost_batch *batch, void *rts,
                panfrost_dithered_format_from_pipe_format)(format, dithered);
             cfg.fixed_function.rt = i;
 
+#if PAN_ARCH >= 7
+            if (cfg.mode == MALI_BLEND_MODE_FIXED_FUNCTION &&
+                (cfg.fixed_function.conversion.memory_format & 0xff) ==
+                   MALI_RGB_COMPONENT_ORDER_RGB1) {
+               /* fixed function does not like RGB1 as the component order */
+               /* force this field to be the default 0 (RGBA) */
+               cfg.fixed_function.conversion.memory_format &= ~0xff;
+               cfg.fixed_function.conversion.memory_format |=
+                  MALI_RGB_COMPONENT_ORDER_RGBA;
+            }
+#endif
 #if PAN_ARCH <= 7
             if (!info.opaque) {
                cfg.fixed_function.alpha_zero_nop = info.alpha_zero_nop;
