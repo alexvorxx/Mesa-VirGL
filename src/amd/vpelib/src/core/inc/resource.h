@@ -99,6 +99,8 @@ struct resource {
 
     void (*get_bufs_req)(struct vpe_priv *vpe_priv, struct vpe_bufs_req *req);
 
+    enum vpe_status (*check_mirror_rotation_support)(const struct vpe_stream *stream);
+
     // Indicates the nominal range hdr input content should be in during processing.
     int internal_hdr_normalization;
 

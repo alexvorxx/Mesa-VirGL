@@ -442,6 +442,7 @@ enum vpe_status vpe_check_input_support(struct vpe *vpe, const struct vpe_stream
     bool                           support;
     const PHYSICAL_ADDRESS_LOC    *addrloc;
     bool                           use_adj = vpe_use_csc_adjust(&stream->color_adj);
+    enum vpe_status                status  = VPE_STATUS_OK;
 
     vpec = &vpe_priv->resource.vpec;
     dpp  = vpe_priv->resource.dpp[0];
@@ -539,10 +540,15 @@ enum vpe_status vpe_check_input_support(struct vpe *vpe, const struct vpe_stream
         return VPE_STATUS_ADJUSTMENT_NOT_SUPPORTED;
     }
 
-    // rotation
-    if ((stream->rotation != VPE_ROTATION_ANGLE_0) && !vpe->caps->rotation_support) {
-        vpe_log("rotation not supported\n");
-        return VPE_STATUS_ROTATION_NOT_SUPPORTED;
+    // rotation and mirror
+    status = vpe_priv->resource.check_mirror_rotation_support(stream);
+    if (status != VPE_STATUS_OK) {
+        vpe_log("Rotation %d and mirroring is not supported. horizontal "
+                "mirror: %d  vertical mirror: %d  error code: %d \n",
+            (int)stream->rotation, (int)stream->horizontal_mirror, (int)stream->vertical_mirror,
+            (int)status);
+
+        return status;
     }
 
     // keying
@@ -565,17 +571,6 @@ enum vpe_status vpe_check_input_support(struct vpe *vpe, const struct vpe_stream
             vpe_log("Invalid Keying configuration. Color Keying Enabled with YUV Input\n");
             return VPE_STATUS_INVALID_KEYER_CONFIG;
         }
-    }
-
-    // mirroring
-    if (stream->horizontal_mirror && !vpe->caps->h_mirror_support) {
-        vpe_log("output horizontal mirroring not supported h:%d\n", (int)stream->horizontal_mirror);
-        return VPE_STATUS_MIRROR_NOT_SUPPORTED;
-    }
-
-    if (stream->vertical_mirror && !vpe->caps->v_mirror_support) {
-        vpe_log("output vertical mirroring not supported v:%d\n", (int)stream->vertical_mirror);
-        return VPE_STATUS_MIRROR_NOT_SUPPORTED;
     }
 
     return VPE_STATUS_OK;
@@ -606,3 +601,4 @@ enum vpe_status vpe_check_tone_map_support(
 
     return status;
 }
+

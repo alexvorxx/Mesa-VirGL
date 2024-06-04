@@ -388,6 +388,7 @@ enum vpe_status vpe10_construct_resource(struct vpe_priv *vpe_priv, struct resou
     res->program_backend                   = vpe10_program_backend;
     res->get_bufs_req                      = vpe10_get_bufs_req;
     res->check_bg_color_support            = vpe10_check_bg_color_support;
+    res->check_mirror_rotation_support     = vpe10_check_mirror_rotation_support;
 
     return VPE_STATUS_OK;
 err:
@@ -1098,4 +1099,17 @@ void vpe10_get_bufs_req(struct vpe_priv *vpe_priv, struct vpe_bufs_req *req)
 
         req->emb_buf_size += emb_req;
     }
+}
+
+enum vpe_status vpe10_check_mirror_rotation_support(const struct vpe_stream *stream)
+{
+    VPE_ASSERT(stream != NULL);
+
+    if (stream->rotation != VPE_ROTATION_ANGLE_0)
+        return VPE_STATUS_ROTATION_NOT_SUPPORTED;
+
+    if (stream->vertical_mirror)
+        return VPE_STATUS_MIRROR_NOT_SUPPORTED;
+
+    return VPE_STATUS_OK;
 }
