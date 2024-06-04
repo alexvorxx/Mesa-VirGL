@@ -190,7 +190,8 @@ void vpe10_cdc_program_crossbar_config(struct cdc *cdc, enum vpe_surface_pixel_f
 void vpe10_cdc_program_global_sync(
     struct cdc *cdc, uint32_t vupdate_offset, uint32_t vupdate_width, uint32_t vready_offset);
 
-void vpe10_cdc_program_p2b_config(struct cdc *cdc, enum vpe_surface_pixel_format format);
+void vpe10_cdc_program_p2b_config(struct cdc *cdc, enum vpe_surface_pixel_format format,
+    enum vpe_swizzle_mode_values swizzle, const struct vpe_rect *viewport);
 
 /***** segment register programming *****/
 void vpe10_cdc_program_viewport(

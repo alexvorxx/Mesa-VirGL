@@ -55,6 +55,18 @@ static inline void config_writer_new(struct config_writer *writer)
     if (writer->status != VPE_STATUS_OK)
         return;
 
+    uint16_t alignment           = writer->gpu_addr_alignment;
+    uint64_t aligned_gpu_address = (writer->buf->gpu_va + alignment) & ~alignment;
+    uint64_t alignment_offset    = aligned_gpu_address - writer->buf->gpu_va;
+    writer->buf->gpu_va          = aligned_gpu_address;
+    writer->buf->cpu_va          = writer->buf->cpu_va + alignment_offset;
+    if (writer->buf->size < alignment_offset) {
+        writer->status = VPE_STATUS_BUFFER_OVERFLOW;
+        return;
+    }
+
+    writer->buf->size -= alignment_offset;
+
     /* Buffer does not have enough space to write */
     if (writer->buf->size < sizeof(uint32_t)) {
         writer->status = VPE_STATUS_BUFFER_OVERFLOW;

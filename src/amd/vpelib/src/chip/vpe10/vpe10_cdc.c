@@ -220,7 +220,8 @@ void vpe10_cdc_program_global_sync(
         BE0_VUPDATE_WIDTH, vupdate_width, BE0_VREADY_OFFSET, vready_offset);
 }
 
-void vpe10_cdc_program_p2b_config(struct cdc *cdc, enum vpe_surface_pixel_format format)
+void vpe10_cdc_program_p2b_config(struct cdc *cdc, enum vpe_surface_pixel_format format,
+    enum vpe_swizzle_mode_values swizzle, const struct vpe_rect *viewport)
 {
     uint32_t bar_sel0       = (uint32_t)MUX_SEL_CB_B;
     uint32_t bar_sel1       = (uint32_t)MUX_SEL_Y_G;

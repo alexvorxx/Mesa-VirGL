@@ -80,8 +80,8 @@ struct mpcc_blnd_cfg {
     struct vpe_color           bg_color;             /* background color */
     enum mpcc_alpha_blend_mode alpha_mode;           /* alpha blend mode */
     bool                       pre_multiplied_alpha; /* alpha pre-multiplied mode flag */
-    uint8_t                    global_gain;
-    uint8_t                    global_alpha;
+    uint16_t                   global_gain;
+    uint16_t                   global_alpha;
     bool                       overlap_only;
 
     /* MPCC top/bottom gain settings */

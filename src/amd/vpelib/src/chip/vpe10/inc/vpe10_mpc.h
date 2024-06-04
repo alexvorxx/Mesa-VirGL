@@ -795,19 +795,19 @@ extern "C" {
     reg_id_val VPMPC_BYPASS_BG_GB;                                                                 \
     reg_id_val VPMPC_HOST_READ_CONTROL;                                                            \
     reg_id_val VPMPC_PENDING_STATUS_MISC;                                                          \
-    reg_id_val VPMPC_OUT_MUX;                                                                     \
-    reg_id_val VPMPC_OUT_FLOAT_CONTROL;                                                           \
-    reg_id_val VPMPC_OUT_DENORM_CONTROL;                                                          \
-    reg_id_val VPMPC_OUT_DENORM_CLAMP_G_Y;                                                        \
-    reg_id_val VPMPC_OUT_DENORM_CLAMP_B_CB;                                                       \
+    reg_id_val VPMPC_OUT_MUX;                                                                      \
+    reg_id_val VPMPC_OUT_FLOAT_CONTROL;                                                            \
+    reg_id_val VPMPC_OUT_DENORM_CONTROL;                                                           \
+    reg_id_val VPMPC_OUT_DENORM_CLAMP_G_Y;                                                         \
+    reg_id_val VPMPC_OUT_DENORM_CLAMP_B_CB;                                                        \
     reg_id_val VPMPC_OUT_CSC_COEF_FORMAT;                                                          \
-    reg_id_val VPMPC_OUT_CSC_MODE;                                                                \
-    reg_id_val VPMPC_OUT_CSC_C11_C12_A;                                                           \
-    reg_id_val VPMPC_OUT_CSC_C13_C14_A;                                                           \
-    reg_id_val VPMPC_OUT_CSC_C21_C22_A;                                                           \
-    reg_id_val VPMPC_OUT_CSC_C23_C24_A;                                                           \
-    reg_id_val VPMPC_OUT_CSC_C31_C32_A;                                                           \
-    reg_id_val VPMPC_OUT_CSC_C33_C34_A;                                                           \
+    reg_id_val VPMPC_OUT_CSC_MODE;                                                                 \
+    reg_id_val VPMPC_OUT_CSC_C11_C12_A;                                                            \
+    reg_id_val VPMPC_OUT_CSC_C13_C14_A;                                                            \
+    reg_id_val VPMPC_OUT_CSC_C21_C22_A;                                                            \
+    reg_id_val VPMPC_OUT_CSC_C23_C24_A;                                                            \
+    reg_id_val VPMPC_OUT_CSC_C31_C32_A;                                                            \
+    reg_id_val VPMPC_OUT_CSC_C33_C34_A;                                                            \
     reg_id_val VPMPCC_TOP_SEL;                                                                     \
     reg_id_val VPMPCC_BOT_SEL;                                                                     \
     reg_id_val VPMPCC_VPOPP_ID;                                                                    \
@@ -907,6 +907,7 @@ extern "C" {
     reg_id_val VPMPCC_MCM_1DLUT_RAMA_REGION_28_29;                                                 \
     reg_id_val VPMPCC_MCM_1DLUT_RAMA_REGION_30_31;                                                 \
     reg_id_val VPMPCC_MCM_1DLUT_RAMA_REGION_32_33;                                                 \
+    reg_id_val VPMPCC_MCM_MEM_PWR_CTRL;
 
 #define MPC_REG_VARIABLE_LIST_VPE10                                                                \
     MPC_REG_VARIABLE_LIST_VPE10_COMMON                                                             \
@@ -951,7 +952,6 @@ extern "C" {
     reg_id_val VPMPCC_MCM_3DLUT_OUT_OFFSET_R;                                                      \
     reg_id_val VPMPCC_MCM_3DLUT_OUT_OFFSET_G;                                                      \
     reg_id_val VPMPCC_MCM_3DLUT_OUT_OFFSET_B;                                                      \
-    reg_id_val VPMPCC_MCM_MEM_PWR_CTRL;
 
 
 #define MPC_FIELD_VARIABLE_LIST_VPE10_COMMON(type)                                                 \

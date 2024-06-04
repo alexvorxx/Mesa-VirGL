@@ -36,6 +36,7 @@
 #include "vpe10_background.h"
 #include "vpe10_vpe_desc_writer.h"
 #include "vpe10_plane_desc_writer.h"
+#include "vpe10_config_writer.h"
 #include "vpe10/inc/asic/bringup_vpe_6_1_0_offset.h"
 #include "vpe10/inc/asic/bringup_vpe_6_1_0_sh_mask.h"
 #include "vpe10/inc/asic/bringup_vpe_6_1_0_default.h"
@@ -366,6 +367,7 @@ enum vpe_status vpe10_construct_resource(struct vpe_priv *vpe_priv, struct resou
     vpe10_construct_cmd_builder(vpe_priv, &res->cmd_builder);
     vpe10_construct_vpe_desc_writer(&vpe_priv->vpe_desc_writer);
     vpe10_construct_plane_desc_writer(&vpe_priv->plane_desc_writer);
+    vpe10_config_writer_init(&vpe_priv->config_writer);
 
     vpe_priv->num_pipe = 1;
 
@@ -821,7 +823,8 @@ int32_t vpe10_program_backend(
         /* start back-end programming that can be shared among segments */
         vpe_priv->be_cb_ctx.share = true;
 
-        cdc->funcs->program_p2b_config(cdc, surface_info->format);
+        cdc->funcs->program_p2b_config(
+            cdc, surface_info->format, surface_info->swizzle, &output_ctx->target_rect);
         cdc->funcs->program_global_sync(cdc, VPE10_CDC_VUPDATE_OFFSET_DEFAULT,
             VPE10_CDC_VUPDATE_WIDTH_DEFAULT, VPE10_CDC_VREADY_OFFSET_DEFAULT);
 

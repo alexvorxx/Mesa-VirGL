@@ -81,6 +81,7 @@ struct config_writer {
      */
     uint64_t base_gpu_va;
     uint64_t base_cpu_va;
+    uint16_t gpu_addr_alignment;
 
     enum config_type type;
     bool             completed;
