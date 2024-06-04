@@ -2017,10 +2017,18 @@ nir_visitor::visit(ir_expression *ir)
       return;
    }
 
+   case ir_unop_implicitly_sized_array_length:
    case ir_unop_ssbo_unsized_array_length: {
-      nir_intrinsic_instr *intrin =
-         nir_intrinsic_instr_create(b.shader,
-                                    nir_intrinsic_deref_buffer_array_length);
+      nir_intrinsic_instr *intrin;
+      if (ir->operation == ir_unop_ssbo_unsized_array_length) {
+         intrin =
+            nir_intrinsic_instr_create(b.shader,
+                                       nir_intrinsic_deref_buffer_array_length);
+      } else {
+         intrin =
+            nir_intrinsic_instr_create(b.shader,
+                                       nir_intrinsic_deref_implicit_array_length);
+      }
 
       ir_dereference *deref = ir->operands[0]->as_dereference();
       intrin->src[0] = nir_src_for_ssa(&evaluate_deref(deref)->def);
