@@ -332,7 +332,7 @@ validate_geometry_shader_emissions(const struct gl_constants *consts,
        * stream.
        */
       if (sh->Program->nir->info.gs.active_stream_mask & ~(1 << 0) &&
-          sh->Program->info.gs.output_primitive != MESA_PRIM_POINTS) {
+          sh->Program->nir->info.gs.output_primitive != MESA_PRIM_POINTS) {
          linker_error(prog, "EmitStreamVertex(n) and EndStreamPrimitive(n) "
                       "with n>0 requires point output\n");
       }
@@ -1319,9 +1319,10 @@ preprocess_shader(const struct gl_constants *consts,
    assert(options);
 
    nir_shader *nir = prog->nir;
+   nir_shader_gather_info(prog->nir, nir_shader_get_entrypoint(prog->nir));
 
    if (prog->info.stage == MESA_SHADER_FRAGMENT && consts->HasFBFetch) {
-      nir_shader_gather_info(prog->nir, nir_shader_get_entrypoint(prog->nir));
+
       NIR_PASS(_, prog->nir, gl_nir_lower_blend_equation_advanced,
                  exts->KHR_blend_equation_advanced_coherent);
       nir_lower_global_vars_to_local(prog->nir);
@@ -3678,12 +3679,151 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
 
    MESA_TRACE_FUNC();
 
+   void *mem_ctx = ralloc_context(NULL); /* temporary linker context */
+
+   /* Separate the shaders into groups based on their type.
+    */
+   struct gl_shader **shader_list[MESA_SHADER_STAGES];
+   unsigned num_shaders[MESA_SHADER_STAGES];
+
+   for (int i = 0; i < MESA_SHADER_STAGES; i++) {
+      shader_list[i] = (struct gl_shader **)
+         calloc(prog->NumShaders, sizeof(struct gl_shader *));
+      num_shaders[i] = 0;
+   }
+
+   unsigned min_version = UINT_MAX;
+   unsigned max_version = 0;
+   for (unsigned i = 0; i < prog->NumShaders; i++) {
+      min_version = MIN2(min_version, prog->Shaders[i]->Version);
+      max_version = MAX2(max_version, prog->Shaders[i]->Version);
+
+      if (!consts->AllowGLSLRelaxedES &&
+          prog->Shaders[i]->IsES != prog->Shaders[0]->IsES) {
+         linker_error(prog, "all shaders must use same shading "
+                      "language version\n");
+         goto done;
+      }
+
+      gl_shader_stage shader_type = prog->Shaders[i]->Stage;
+      shader_list[shader_type][num_shaders[shader_type]] = prog->Shaders[i];
+      num_shaders[shader_type]++;
+   }
+
+   /* In desktop GLSL, different shader versions may be linked together.  In
+    * GLSL ES, all shader versions must be the same.
+    */
+   if (!consts->AllowGLSLRelaxedES && prog->Shaders[0]->IsES &&
+       min_version != max_version) {
+      linker_error(prog, "all shaders must use same shading "
+                   "language version\n");
+      goto done;
+   }
+
+   prog->GLSL_Version = max_version;
+   prog->IsES = prog->Shaders[0]->IsES;
+
+   /* Some shaders have to be linked with some other shaders present.
+    */
+   if (!prog->SeparateShader) {
+      if (num_shaders[MESA_SHADER_GEOMETRY] > 0 &&
+          num_shaders[MESA_SHADER_VERTEX] == 0) {
+         linker_error(prog, "Geometry shader must be linked with "
+                      "vertex shader\n");
+         goto done;
+      }
+      if (num_shaders[MESA_SHADER_TESS_EVAL] > 0 &&
+          num_shaders[MESA_SHADER_VERTEX] == 0) {
+         linker_error(prog, "Tessellation evaluation shader must be linked "
+                      "with vertex shader\n");
+         goto done;
+      }
+      if (num_shaders[MESA_SHADER_TESS_CTRL] > 0 &&
+          num_shaders[MESA_SHADER_VERTEX] == 0) {
+         linker_error(prog, "Tessellation control shader must be linked with "
+                      "vertex shader\n");
+         goto done;
+      }
+
+      /* Section 7.3 of the OpenGL ES 3.2 specification says:
+       *
+       *    "Linking can fail for [...] any of the following reasons:
+       *
+       *     * program contains an object to form a tessellation control
+       *       shader [...] and [...] the program is not separable and
+       *       contains no object to form a tessellation evaluation shader"
+       *
+       * The OpenGL spec is contradictory. It allows linking without a tess
+       * eval shader, but that can only be used with transform feedback and
+       * rasterization disabled. However, transform feedback isn't allowed
+       * with GL_PATCHES, so it can't be used.
+       *
+       * More investigation showed that the idea of transform feedback after
+       * a tess control shader was dropped, because some hw vendors couldn't
+       * support tessellation without a tess eval shader, but the linker
+       * section wasn't updated to reflect that.
+       *
+       * All specifications (ARB_tessellation_shader, GL 4.0-4.5) have this
+       * spec bug.
+       *
+       * Do what's reasonable and always require a tess eval shader if a tess
+       * control shader is present.
+       */
+      if (num_shaders[MESA_SHADER_TESS_CTRL] > 0 &&
+          num_shaders[MESA_SHADER_TESS_EVAL] == 0) {
+         linker_error(prog, "Tessellation control shader must be linked with "
+                      "tessellation evaluation shader\n");
+         goto done;
+      }
+
+      if (prog->IsES) {
+         if (num_shaders[MESA_SHADER_TESS_EVAL] > 0 &&
+             num_shaders[MESA_SHADER_TESS_CTRL] == 0) {
+            linker_error(prog, "GLSL ES requires non-separable programs "
+                         "containing a tessellation evaluation shader to also "
+                         "be linked with a tessellation control shader\n");
+            goto done;
+         }
+      }
+   }
+
+   /* Compute shaders have additional restrictions. */
+   if (num_shaders[MESA_SHADER_COMPUTE] > 0 &&
+       num_shaders[MESA_SHADER_COMPUTE] != prog->NumShaders) {
+      linker_error(prog, "Compute shaders may not be linked with any other "
+                   "type of shader\n");
+   }
+
+   /* Link all shaders for a particular stage and validate the result.
+    */
+   for (int stage = 0; stage < MESA_SHADER_STAGES; stage++) {
+      if (num_shaders[stage] > 0) {
+         struct gl_linked_shader *const sh =
+            link_intrastage_shaders(mem_ctx, ctx, prog, shader_list[stage],
+                                    num_shaders[stage]);
+
+         if (!prog->data->LinkStatus) {
+            if (sh)
+               _mesa_delete_linked_shader(ctx, sh);
+            goto done;
+         }
+
+         prog->_LinkedShaders[stage] = sh;
+         prog->data->linked_stages |= 1 << stage;
+      }
+   }
+
    /* Link all shaders for a particular stage and validate the result.
     */
    for (int stage = 0; stage < MESA_SHADER_STAGES; stage++) {
       struct gl_linked_shader *sh = prog->_LinkedShaders[stage];
       if (sh) {
          nir_shader *shader = sh->Program->nir;
+
+         /* Parameters will be filled during NIR linking. */
+         sh->Program->Parameters = _mesa_new_parameter_list();
+         sh->Program->shader_program = prog;
+         shader->info.separate_shader = prog->SeparateShader;
 
          switch (stage) {
          case MESA_SHADER_VERTEX:
@@ -3708,7 +3848,7 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
             prog->_LinkedShaders[stage] = NULL;
             prog->data->linked_stages ^= 1 << stage;
 
-            return false;
+            goto done;
          }
       }
    }
@@ -3719,14 +3859,14 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
     */
    cross_validate_uniforms(consts, prog);
    if (!prog->data->LinkStatus)
-      return false;
+      goto done;
 
    check_explicit_uniform_locations(exts, prog);
 
    link_assign_subroutine_types(prog);
    verify_subroutine_associated_funcs(prog);
    if (!prog->data->LinkStatus)
-      return false;
+      goto done;
 
    for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
       if (prog->_LinkedShaders[i] == NULL)
@@ -3735,7 +3875,7 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
       gl_nir_detect_recursion_linked(prog,
                                      prog->_LinkedShaders[i]->Program->nir);
       if (!prog->data->LinkStatus)
-         return false;
+         goto done;
 
       gl_nir_inline_functions(prog->_LinkedShaders[i]->Program->nir);
    }
@@ -3759,7 +3899,7 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
       gl_nir_validate_interstage_inout_blocks(prog, prog->_LinkedShaders[prev],
                                               prog->_LinkedShaders[i]);
       if (!prog->data->LinkStatus)
-         return false;
+         goto done;
 
       prev = i;
    }
@@ -3767,13 +3907,13 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
    /* Cross-validate uniform blocks between shader stages */
    gl_nir_validate_interstage_uniform_blocks(prog, prog->_LinkedShaders);
    if (!prog->data->LinkStatus)
-      return false;
+      goto done;
 
    if (prog->IsES && prog->GLSL_Version == 100)
       if (!validate_invariant_builtins(consts, prog,
             prog->_LinkedShaders[MESA_SHADER_VERTEX],
             prog->_LinkedShaders[MESA_SHADER_FRAGMENT]))
-         return false;
+         goto done;
 
    /* Check and validate stream emissions in geometry shaders */
    validate_geometry_shader_emissions(consts, prog);
@@ -3822,7 +3962,7 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
                                               prog->_LinkedShaders[prev],
                                               prog->_LinkedShaders[i]);
       if (!prog->data->LinkStatus)
-         return false;
+         goto done;
 
       prev = i;
    }
@@ -3840,11 +3980,11 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
       disable_varying_optimizations_for_sso(prog);
 
    struct gl_linked_shader *linked_shader[MESA_SHADER_STAGES];
-   unsigned num_shaders = 0;
+   unsigned num_linked_shaders = 0;
 
    for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
       if (prog->_LinkedShaders[i]) {
-         linked_shader[num_shaders++] = prog->_LinkedShaders[i];
+         linked_shader[num_linked_shaders++] = prog->_LinkedShaders[i];
 
          /* Section 13.46 (Vertex Attribute Aliasing) of the OpenGL ES 3.2
           * specification says:
@@ -3866,13 +4006,13 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
    }
 
    if (!gl_assign_attribute_or_color_locations(consts, prog))
-      return false;
+      goto done;
 
-   if (!prelink_lowering(consts, exts, prog, linked_shader, num_shaders))
-      return false;
+   if (!prelink_lowering(consts, exts, prog, linked_shader, num_linked_shaders))
+      goto done;
 
    if (!gl_nir_link_varyings(consts, exts, api, prog))
-      return false;
+      goto done;
 
    /* Validation for special cases where we allow sampler array indexing
     * with loop induction variable. This check emits a warning or error
@@ -3881,11 +4021,11 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
    if ((!prog->IsES && prog->GLSL_Version < 130) ||
        (prog->IsES && prog->GLSL_Version < 300)) {
       if (!validate_sampler_array_indexing(consts, prog))
-         return false;
+         goto done;
    }
 
    if (prog->data->LinkStatus == LINKING_FAILURE)
-      return false;
+      goto done;
 
    if (!linked_shader[0]->Program->nir->info.io_lowered) {
       /* Linking the stages in the opposite order (from fragment to vertex)
@@ -3893,7 +4033,7 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
        * are eliminated if they are (transitively) not used in a later
        * stage.
        */
-      for (int i = num_shaders - 2; i >= 0; i--) {
+      for (int i = num_linked_shaders - 2; i >= 0; i--) {
          gl_nir_link_opts(linked_shader[i]->Program->nir,
                           linked_shader[i + 1]->Program->nir);
       }
@@ -3903,7 +4043,7 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
     * For example varying arrays that get packed may have dead elements that
     * can be now be eliminated now that array access has been lowered.
     */
-   if (num_shaders == 1)
+   if (num_linked_shaders == 1)
       gl_nir_opts(linked_shader[0]->Program->nir);
 
    for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
@@ -3943,10 +4083,10 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
    }
 
    if (!gl_nir_link_uniform_blocks(consts, prog))
-      return false;
+      goto done;
 
    if (!gl_nir_link_uniforms(consts, prog, true))
-      return false;
+      goto done;
 
    link_util_calculate_subroutine_compat(prog);
    link_util_check_uniform_resources(consts, prog);
@@ -3989,6 +4129,13 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
          linker_error(prog, "program lacks a fragment shader\n");
       }
    }
+
+done:
+   for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
+      free(shader_list[i]);
+   }
+
+   ralloc_free(mem_ctx);
 
    if (prog->data->LinkStatus == LINKING_FAILURE)
       return false;

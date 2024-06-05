@@ -71,7 +71,8 @@ extern "C" {
 static void
 compile_shaders(struct gl_context *ctx, struct gl_shader_program *prog) {
    for (unsigned i = 0; i < prog->NumShaders; i++) {
-      _mesa_glsl_compile_shader(ctx, prog->Shaders[i], false, false, true);
+      _mesa_glsl_compile_shader(ctx, prog->Shaders[i], NULL,
+                                false, false, true);
    }
 }
 

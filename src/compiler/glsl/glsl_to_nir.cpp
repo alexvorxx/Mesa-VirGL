@@ -2839,7 +2839,8 @@ glsl_float64_funcs_to_nir(struct gl_context *ctx,
    struct gl_shader *sh = _mesa_new_shader(-1, MESA_SHADER_VERTEX);
    sh->Source = float64_source;
    sh->CompileStatus = COMPILE_FAILURE;
-   _mesa_glsl_compile_shader(ctx, sh, false, false, true);
+   _mesa_glsl_compile_shader(ctx, sh, NULL, false, false, true);
+   nir_shader *nir = nir_shader_clone(NULL, sh->nir);
 
    if (!sh->CompileStatus) {
       if (sh->InfoLog) {
@@ -2849,13 +2850,6 @@ glsl_float64_funcs_to_nir(struct gl_context *ctx,
       }
       return NULL;
    }
-
-   nir_shader *nir = nir_shader_create(NULL, MESA_SHADER_VERTEX, options, NULL);
-
-   nir_visitor v1(&ctx->Const, nir, NULL);
-   nir_function_visitor v2(&v1);
-   v2.run(sh->ir);
-   visit_exec_list(sh->ir, &v1);
 
    /* _mesa_delete_shader will try to free sh->Source but it's static const */
    sh->Source = NULL;

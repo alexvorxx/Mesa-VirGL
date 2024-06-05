@@ -247,7 +247,7 @@ libglsl_standalone = static_library(
   gnu_symbol_visibility : 'hidden',
   include_directories : [inc_include, inc_src, inc_mapi, inc_mesa, inc_gallium, inc_gallium_aux],
   link_with : [libglsl, libglsl_util, libglcpp_standalone],
-  dependencies : [idep_mesautil, idep_getopt, idep_compiler],
+  dependencies : [idep_mesautil, idep_getopt, idep_compiler, idep_nir],
   build_by_default : false,
 )
 
