@@ -1729,11 +1729,24 @@ static bool
 valid_texture_format_enum(const struct gl_context *ctx, GLenum format)
 {
    switch (format) {
+   case GL_RGBA:
+   case GL_RGB:
+   case GL_RED:
+      /* These are always supported */
+      return true;
+
    case GL_STENCIL_INDEX:
       return _mesa_is_desktop_gl(ctx) || _mesa_is_gles31(ctx);
 
+   case GL_COLOR_INDEX:
+      return _mesa_is_desktop_gl_compat(ctx);
+
    case GL_RG:
       return _mesa_has_rg_textures(ctx);
+
+   case GL_GREEN:
+   case GL_BLUE:
+      return _mesa_is_desktop_gl(ctx);
 
    case GL_DEPTH_COMPONENT:
       return _mesa_is_desktop_gl(ctx) ||
@@ -1743,6 +1756,11 @@ valid_texture_format_enum(const struct gl_context *ctx, GLenum format)
       return _mesa_has_EXT_packed_depth_stencil(ctx) ||
              (_mesa_has_OES_packed_depth_stencil(ctx) &&
               _mesa_has_OES_depth_texture(ctx));
+
+   case GL_LUMINANCE_ALPHA:
+   case GL_LUMINANCE:
+   case GL_ALPHA:
+      return _mesa_is_desktop_gl_compat(ctx) || _mesa_is_gles(ctx);
 
    case GL_YCBCR_MESA:
       return _mesa_has_MESA_ycbcr_texture(ctx);
@@ -1756,6 +1774,36 @@ static bool
 valid_texture_type_enum(const struct gl_context *ctx, GLenum type)
 {
    switch (type) {
+   case GL_UNSIGNED_BYTE:
+   case GL_BYTE:
+   case GL_UNSIGNED_SHORT:
+   case GL_SHORT:
+   case GL_UNSIGNED_INT:
+   case GL_INT:
+   case GL_UNSIGNED_SHORT_5_6_5:
+   case GL_UNSIGNED_SHORT_4_4_4_4:
+   case GL_UNSIGNED_SHORT_5_5_5_1:
+      /* These are always supported */
+      return true;
+
+   case GL_FLOAT:
+      return _mesa_is_desktop_gl(ctx) || _mesa_has_OES_texture_float(ctx);
+
+   case GL_BITMAP:
+      return _mesa_is_desktop_gl_compat(ctx);
+
+   case GL_UNSIGNED_BYTE_3_3_2:
+   case GL_UNSIGNED_BYTE_2_3_3_REV:
+   case GL_UNSIGNED_SHORT_5_6_5_REV:
+   case GL_UNSIGNED_INT_8_8_8_8:
+   case GL_UNSIGNED_INT_8_8_8_8_REV:
+      return _mesa_is_desktop_gl(ctx);
+
+   case GL_UNSIGNED_SHORT_4_4_4_4_REV:
+   case GL_UNSIGNED_SHORT_1_5_5_5_REV:
+      assert(_mesa_is_desktop_gl(ctx) || _mesa_has_EXT_read_format_bgra(ctx));
+      return true;
+
    case GL_UNSIGNED_INT_10_10_10_2:
       /* not supported in GLESv3, unlike GL_UNSIGNED_INT_2_10_10_10_REV */
       return _mesa_is_desktop_gl(ctx);
