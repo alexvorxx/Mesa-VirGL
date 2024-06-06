@@ -1768,6 +1768,9 @@ valid_texture_format_enum(const struct gl_context *ctx, GLenum format)
    case GL_ALPHA:
       return _mesa_is_desktop_gl_compat(ctx) || _mesa_is_gles(ctx);
 
+   case GL_ABGR_EXT:
+      return _mesa_has_EXT_abgr(ctx);
+
    case GL_YCBCR_MESA:
       return _mesa_has_MESA_ycbcr_texture(ctx);
 
