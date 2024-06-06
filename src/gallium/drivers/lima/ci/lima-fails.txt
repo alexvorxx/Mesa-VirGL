@@ -613,3 +613,8 @@ spec@glsl-1.10@execution@glsl-1.10-built-in-uniform-state,Fail
 
 x11-dEQP-EGL.functional.wide_color.pbuffer_888_colorspace_srgb,Fail
 x11-dEQP-EGL.functional.wide_color.window_888_colorspace_srgb,Fail
+
+# See https://gitlab.freedesktop.org/mesa/piglit/-/merge_requests/947
+spec@ext_texture_compression_s3tc@s3tc-errors_gles2,Fail
+spec@ext_texture_compression_s3tc@s3tc-teximage_gles2,Fail
+spec@ext_texture_compression_s3tc@s3tc-texsubimage_gles2,Fail
