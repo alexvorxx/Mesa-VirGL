@@ -184,7 +184,6 @@ bool vpe_is_yuv444(enum vpe_surface_pixel_format format)
     return (vpe_is_yuv444_8(format) || vpe_is_yuv444_10(format));
 }
 
-
 static uint8_t vpe_get_element_size_in_bytes(enum vpe_surface_pixel_format format, int plane_idx)
 {
     switch (format) {

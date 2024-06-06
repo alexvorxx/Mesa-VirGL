@@ -164,22 +164,25 @@ static struct vpe_caps caps = {
                     .p010            = 1, /**< planar 4:2:0 10-bit */
                     .p016            = 0, /**< planar 4:2:0 16-bit */
                     .ayuv            = 0, /**< packed 4:4:4 */
-                    .yuy2            = 0  /**< packed 4:2:2 */
+                    .yuy2 = 0
                 },
-            .output_pixel_format_support = {.argb_packed_32b = 1,
-                .nv12                                        = 0,
-                .fp16                                        = 1,
-                .p010                                        = 0,
-                .p016                                        = 0,
-                .ayuv                                        = 0,
-                .yuy2                                        = 0},
-            .max_upscale_factor          = 64000,
+            .output_pixel_format_support =
+                {
+                    .argb_packed_32b = 1,
+                    .nv12            = 0,
+                    .fp16            = 1,
+                    .p010            = 0, /**< planar 4:2:0 10-bit */
+                    .p016            = 0, /**< planar 4:2:0 16-bit */
+                    .ayuv            = 0, /**< packed 4:4:4 */
+                    .yuy2 = 0
+                },
+            .max_upscale_factor = 64000,
 
             /*
              * 4:1 downscaling ratio : 1000 / 4 = 250
              * vpelib does not support more than 4:1 to preserve quality
              * due to the limitation of using maximum number of 8 taps
-            */
+             */
             .max_downscale_factor = 250,
 
             .pitch_alignment    = 256,
