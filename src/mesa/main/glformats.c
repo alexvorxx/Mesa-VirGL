@@ -1729,8 +1729,20 @@ static bool
 valid_texture_format_enum(const struct gl_context *ctx, GLenum format)
 {
    switch (format) {
+   case GL_STENCIL_INDEX:
+      return _mesa_is_desktop_gl(ctx) || _mesa_is_gles31(ctx);
+
    case GL_RG:
       return _mesa_has_rg_textures(ctx);
+
+   case GL_DEPTH_COMPONENT:
+      return _mesa_is_desktop_gl(ctx) ||
+             _mesa_has_OES_depth_texture(ctx);
+
+   case GL_DEPTH_STENCIL:
+      return _mesa_has_EXT_packed_depth_stencil(ctx) ||
+             (_mesa_has_OES_packed_depth_stencil(ctx) &&
+              _mesa_has_OES_depth_texture(ctx));
 
    case GL_YCBCR_MESA:
       return _mesa_has_MESA_ycbcr_texture(ctx);
@@ -1756,6 +1768,11 @@ valid_texture_type_enum(const struct gl_context *ctx, GLenum type)
 
    case GL_UNSIGNED_INT_5_9_9_9_REV:
       return _mesa_has_texture_shared_exponent(ctx);
+
+   case GL_UNSIGNED_INT_24_8:
+      assert(_mesa_has_EXT_packed_depth_stencil(ctx) ||
+             _mesa_has_OES_packed_depth_stencil(ctx));
+      return true;
 
    case GL_FLOAT_32_UNSIGNED_INT_24_8_REV:
       return _mesa_has_float_depth_buffer(ctx);
