@@ -1754,6 +1754,28 @@ valid_texture_format_enum(const struct gl_context *ctx, GLenum format)
              _mesa_has_EXT_texture_format_BGRA8888(ctx));
       return true;
 
+   case GL_RED_INTEGER:
+   case GL_GREEN_INTEGER:
+   case GL_BLUE_INTEGER:
+   case GL_RGB_INTEGER:
+   case GL_RGBA_INTEGER:
+      return _mesa_has_integer_textures(ctx);
+
+   case GL_RG_INTEGER:
+      return (_mesa_has_EXT_texture_integer(ctx) &&
+              _mesa_has_ARB_texture_rg(ctx)) ||
+             _mesa_is_gles3(ctx);
+
+   case GL_BGR_INTEGER:
+   case GL_BGRA_INTEGER:
+   case GL_ALPHA_INTEGER:
+      return _mesa_has_EXT_texture_integer(ctx);
+
+   case GL_LUMINANCE_INTEGER_EXT:
+   case GL_LUMINANCE_ALPHA_INTEGER_EXT:
+      return _mesa_is_desktop_gl_compat(ctx) &&
+             _mesa_has_EXT_texture_integer(ctx);
+
    case GL_DEPTH_COMPONENT:
       return _mesa_is_desktop_gl(ctx) ||
              _mesa_has_OES_depth_texture(ctx);
