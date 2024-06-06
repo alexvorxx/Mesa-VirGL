@@ -1820,6 +1820,15 @@ valid_texture_type_enum(const struct gl_context *ctx, GLenum type)
    case GL_FLOAT:
       return _mesa_is_desktop_gl(ctx) || _mesa_has_OES_texture_float(ctx);
 
+   case GL_HALF_FLOAT:
+      return _mesa_has_ARB_half_float_pixel(ctx) || _mesa_is_gles3(ctx);
+
+   case GL_HALF_FLOAT_OES:
+      /* This is a different enum than the above, that only applies to this
+       * extension
+       */
+      return _mesa_has_OES_texture_half_float(ctx);
+
    case GL_BITMAP:
       return _mesa_is_desktop_gl_compat(ctx);
 
