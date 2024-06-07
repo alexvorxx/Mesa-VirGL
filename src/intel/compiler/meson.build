@@ -94,6 +94,7 @@ libintel_compiler_brw_files = files(
   'brw_nir_lower_rt_intrinsics.c',
   'brw_nir_lower_shader_calls.c',
   'brw_nir_lower_storage_image.c',
+  'brw_nir_opt_fsat.c',
   'brw_nir_rt.h',
   'brw_nir_rt.c',
   'brw_nir_rt_builder.h',

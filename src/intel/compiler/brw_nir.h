@@ -193,6 +193,8 @@ bool brw_nir_limit_trig_input_range_workaround(nir_shader *nir);
 
 bool brw_nir_lower_fsign(nir_shader *nir);
 
+bool brw_nir_opt_fsat(nir_shader *);
+
 void brw_nir_apply_key(nir_shader *nir,
                        const struct brw_compiler *compiler,
                        const struct brw_base_prog_key *key,
