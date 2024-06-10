@@ -48,7 +48,9 @@ namespace elk {
     */
    struct register_pressure {
       register_pressure(const elk_fs_visitor *v);
+      register_pressure(const register_pressure &) = delete;
       ~register_pressure();
+      register_pressure & operator=(const register_pressure &) = delete;
 
       analysis_dependency_class
       dependency_class() const
@@ -186,8 +188,11 @@ public:
               const nir_shader *shader,
               bool needs_register_pressure,
               bool debug_enabled);
+   elk_fs_visitor(const elk_fs_visitor &) = delete;
    void init();
    ~elk_fs_visitor();
+
+   elk_fs_visitor & operator=(const elk_fs_visitor &) = delete;
 
    elk_fs_reg vgrf(const glsl_type *const type);
    void import_uniforms(elk_fs_visitor *v);

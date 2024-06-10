@@ -342,6 +342,9 @@ public:
       spill_node_count = 0;
    }
 
+   elk_fs_reg_alloc(const elk_fs_reg_alloc &) = delete;
+   elk_fs_reg_alloc & operator=(const elk_fs_reg_alloc &) = delete;
+
    ~elk_fs_reg_alloc()
    {
       ralloc_free(mem_ctx);
