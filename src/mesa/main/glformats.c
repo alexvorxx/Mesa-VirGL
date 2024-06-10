@@ -1744,6 +1744,10 @@ static bool
 valid_texture_type_enum(const struct gl_context *ctx, GLenum type)
 {
    switch (type) {
+   case GL_UNSIGNED_INT_10_10_10_2:
+      /* not supported in GLESv3, unlike GL_UNSIGNED_INT_2_10_10_10_REV */
+      return _mesa_is_desktop_gl(ctx);
+
    case GL_UNSIGNED_INT_2_10_10_10_REV:
       return _mesa_has_texture_type_2_10_10_10_REV(ctx);
 
