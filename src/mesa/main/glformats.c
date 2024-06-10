@@ -1845,8 +1845,8 @@ _mesa_error_check_format_and_type(const struct gl_context *ctx,
          break; /* OK */
       }
       if (type == GL_UNSIGNED_INT_2_10_10_10_REV && format == GL_RGB &&
-          _mesa_is_gles2(ctx)) {
-         break; /* OK by GL_EXT_texture_type_2_10_10_10_REV */
+          _mesa_has_EXT_texture_type_2_10_10_10_REV(ctx)) {
+         break; /* OK  */
       }
       return GL_INVALID_OPERATION;
 
