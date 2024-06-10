@@ -196,8 +196,15 @@ delayedDestroys = [
     "vkDestroyShaderModule",
 ]
 
+# The following types are created and cached by other commands.
+# Thus we should not snapshot their "create" commands.
+skipCreatorSnapshotTypes = [
+    "VkQueue", # created by vkCreateDevice
+    "VkDescriptorSet", # created by vkCreateDescriptorPool
+]
+
 def is_state_change_operation(api, param):
-    if param.isCreatedBy(api):
+    if param.isCreatedBy(api) and param.typeName not in skipCreatorSnapshotTypes:
         return True
     if api.name in apiChangeState:
         if param.paramName == apiChangeState[api.name].vk_object:
