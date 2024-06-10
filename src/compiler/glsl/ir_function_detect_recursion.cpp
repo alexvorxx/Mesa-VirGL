@@ -167,6 +167,9 @@ public:
       ralloc_free(this->mem_ctx);
    }
 
+   has_recursion_visitor(const has_recursion_visitor &) = delete;
+   has_recursion_visitor & operator=(const has_recursion_visitor &) = delete;
+
    function *get_function(ir_function_signature *sig)
    {
       function *f;

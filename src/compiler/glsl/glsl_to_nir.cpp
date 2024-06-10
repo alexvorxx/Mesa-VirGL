@@ -56,7 +56,9 @@ class nir_visitor : public ir_visitor
 {
 public:
    nir_visitor(const struct gl_constants *consts, nir_shader *shader);
+   nir_visitor(const nir_visitor &) = delete;
    ~nir_visitor();
+   nir_visitor & operator=(const nir_visitor &) = delete;
 
    virtual void visit(ir_variable *);
    virtual void visit(ir_function *);

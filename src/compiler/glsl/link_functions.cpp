@@ -59,6 +59,9 @@ public:
       _mesa_set_destroy(this->locals, NULL);
    }
 
+   call_link_visitor(const call_link_visitor &) = delete;
+   call_link_visitor & operator=(const call_link_visitor &) = delete;
+
    virtual ir_visitor_status visit(ir_variable *ir)
    {
       _mesa_set_add(locals, ir);

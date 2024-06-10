@@ -687,6 +687,9 @@ public:
       ralloc_free(this->mem_ctx);
    }
 
+   array_sizing_visitor(const array_sizing_visitor &) = delete;
+   array_sizing_visitor & operator=(const array_sizing_visitor &) = delete;
+
    virtual ir_visitor_status visit(ir_variable *var)
    {
       const glsl_type *type_without_array;

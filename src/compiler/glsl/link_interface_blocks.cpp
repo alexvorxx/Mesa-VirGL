@@ -192,6 +192,9 @@ public:
       _mesa_hash_table_destroy(ht, NULL);
    }
 
+   interface_block_definitions(const interface_block_definitions &) = delete;
+   interface_block_definitions & operator=(const interface_block_definitions &) = delete;
+
    /**
     * Lookup the interface definition. Return NULL if none is found.
     */

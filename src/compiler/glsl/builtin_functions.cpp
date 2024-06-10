@@ -1133,7 +1133,9 @@ namespace {
 class builtin_builder {
 public:
    builtin_builder();
+   builtin_builder(const builtin_builder &) = delete;
    ~builtin_builder();
+   builtin_builder & operator=(const builtin_builder &) = delete;
 
    void initialize();
    void release();
