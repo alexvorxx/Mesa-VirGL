@@ -72,6 +72,11 @@ enum vpe_cmd_type {
     VPE_CMD_TYPE_COUNT
 };
 
+enum vpe_stream_type {
+    VPE_STREAM_TYPE_INPUT,
+    VPE_STREAM_TYPE_BG_GEN,
+};
+
 /** this represents a segement context.
  * each segment has its own version of data */
 struct segment_ctx {
@@ -124,8 +129,9 @@ struct vpe_3dlut_cache {
 struct stream_ctx {
     struct vpe_priv *vpe_priv;
 
-    int32_t           stream_idx;
-    struct vpe_stream stream; /**< stores all the input data */
+    enum vpe_stream_type stream_type;
+    int32_t              stream_idx;
+    struct vpe_stream    stream; /**< stores all the input data */
 
     uint16_t            num_segments;
     struct segment_ctx *segment_ctx;
@@ -255,8 +261,10 @@ struct vpe_priv {
     struct config_backend_cb_ctx  be_cb_ctx;
 
     // input ctx
-    uint32_t           num_streams;
-    struct stream_ctx *stream_ctx;
+    uint32_t           num_virtual_streams; // streams created by VPE
+    uint32_t           num_input_streams;   // streams inputed from build params
+    uint32_t           num_streams;         // input streams + virtual streams
+    struct stream_ctx *stream_ctx;          // input streams allocated first, then virtual streams
 
     // output ctx
     struct output_ctx output_ctx;

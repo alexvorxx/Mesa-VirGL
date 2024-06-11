@@ -229,7 +229,7 @@ static enum vpe_status vpe_allocate_cm_memory(struct vpe_priv *vpe_priv, const s
     struct output_ctx  *output_ctx;
     enum vpe_status     status = VPE_STATUS_OK;
 
-    for (uint32_t stream_idx = 0; stream_idx < param->num_streams; stream_idx++) {
+    for (uint32_t stream_idx = 0; stream_idx < vpe_priv->num_streams; stream_idx++) {
         stream_ctx = &vpe_priv->stream_ctx[stream_idx];
 
         if (!stream_ctx->input_cs) {
@@ -640,7 +640,7 @@ enum vpe_status vpe_color_update_color_space_and_tf(
         vpe_update_geometric_scaling(vpe_priv, param, &geometric_update, &geometric_scaling);
         color_check_output_cm_update(vpe_priv, &vpe_priv->output_ctx.surface.cs, geometric_update);
 
-        for (stream_idx = 0; stream_idx < param->num_streams; stream_idx++) {
+        for (stream_idx = 0; stream_idx < vpe_priv->num_streams; stream_idx++) {
 
             new_matrix_scaling_factor = vpe_fixpt_one;
             stream_ctx = &vpe_priv->stream_ctx[stream_idx];
@@ -757,7 +757,7 @@ enum vpe_status vpe_color_update_movable_cm(
     struct stream_ctx *stream_ctx;
     struct output_ctx *output_ctx = &vpe_priv->output_ctx;
 
-    for (stream_idx = 0; stream_idx < param->num_streams; stream_idx++) {
+    for (stream_idx = 0; stream_idx < vpe_priv->num_streams; stream_idx++) {
         stream_ctx = &vpe_priv->stream_ctx[stream_idx];
 
         bool enable_3dlut = stream_ctx->stream.tm_params.UID != 0 || stream_ctx->stream.tm_params.enable_3dlut;

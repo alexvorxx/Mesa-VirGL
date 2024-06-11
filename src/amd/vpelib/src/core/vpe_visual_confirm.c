@@ -48,7 +48,7 @@ static uint16_t vpe_get_visual_confirm_total_seg_count(
     struct stream_ctx *stream_ctx;
 
     if (vpe_priv->init.debug.visual_confirm_params.input_format) {
-        for (stream_idx = 0; stream_idx < params->num_streams; stream_idx++) {
+        for (stream_idx = 0; stream_idx < vpe_priv->num_streams; stream_idx++) {
             stream_ctx = &vpe_priv->stream_ctx[stream_idx];
             total_visual_confirm_segs += get_visual_confirm_segs_count(
                 max_seg_width, stream_ctx->stream.scaling_info.dst_rect.width);

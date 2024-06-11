@@ -537,7 +537,7 @@ enum vpe_status vpe10_calculate_segments(
     struct dpp         *dpp                  = vpe_priv->resource.dpp[0];
     const uint32_t      max_lb_size          = dpp->funcs->get_line_buffer_size();
 
-    for (stream_idx = 0; stream_idx < params->num_streams; stream_idx++) {
+    for (stream_idx = 0; stream_idx < vpe_priv->num_streams; stream_idx++) {
         stream_ctx = &vpe_priv->stream_ctx[stream_idx];
         src_rect   = &stream_ctx->stream.scaling_info.src_rect;
         dst_rect   = &stream_ctx->stream.scaling_info.dst_rect;

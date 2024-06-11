@@ -246,6 +246,7 @@ void vpe_free_stream_ctx(struct vpe_priv *vpe_priv)
     vpe_free(vpe_priv->stream_ctx);
     vpe_priv->stream_ctx  = NULL;
     vpe_priv->num_streams = 0;
+    vpe_priv->num_virtual_streams = 0;
 }
 
 void vpe_free_output_ctx(struct vpe_priv *vpe_priv)
