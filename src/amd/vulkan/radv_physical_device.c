@@ -484,6 +484,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_16bit_storage = true,
       .KHR_acceleration_structure = radv_enable_rt(pdev, false),
       .KHR_calibrated_timestamps = radv_calibrated_timestamps_enabled(pdev),
+      .KHR_compute_shader_derivatives = true,
       .KHR_cooperative_matrix = pdev->info.gfx_level >= GFX11 && !pdev->use_llvm,
       .KHR_bind_memory2 = true,
       .KHR_buffer_device_address = true,
@@ -885,7 +886,7 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
       /* VK_EXT_depth_clip_enable */
       .depthClipEnable = true,
 
-      /* VK_NV_compute_shader_derivatives */
+      /* VK_KHR_compute_shader_derivatives */
       .computeDerivativeGroupQuads = false,
       .computeDerivativeGroupLinear = true,
 
@@ -1961,6 +1962,9 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
    p->pipelineBinaryPrefersInternalCache = false;
    p->pipelineBinaryPrecompiledInternalCache = false;
    p->pipelineBinaryCompressedData = false;
+
+   /* VK_KHR_compute_shader_derivatives */
+   p->meshAndTaskShaderDerivatives = radv_taskmesh_enabled(pdev);
 }
 
 static VkResult

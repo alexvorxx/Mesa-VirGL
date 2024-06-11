@@ -12,3 +12,4 @@ VK_KHR_pipeline_binary on RADV
 VK_KHR_compute_shader_derivatives on anv
 VK_NV_compute_shader_derivatives on nvk
 VK_KHR_compute_shader_derivatives on nvk
+VK_KHR_compute_shader_derivatives on radv
