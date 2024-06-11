@@ -3,7 +3,7 @@
 
 inc_platform = include_directories('include')
 if with_guest_test
-  subdir('rutabaga')
+  subdir('kumquat')
 else
   subdir('linux')
   subdir('stub')
