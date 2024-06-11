@@ -34,7 +34,6 @@ class ApiLogDecoder(VulkanWrapperGenerator):
         "vkCmdDrawIndexed",
         "vkCmdEndRenderPass",
         "vkCmdPipelineBarrier",
-        "vkCmdPipelineBarrier2",
         "vkCmdSetScissor",
         "vkCmdSetViewport",
         "vkCollectDescriptorPoolIdsGOOGLE",
