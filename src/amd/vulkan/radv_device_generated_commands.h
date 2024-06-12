@@ -48,6 +48,8 @@ struct radv_indirect_command_layout {
    uint32_t ibo_type_32;
    uint32_t ibo_type_8;
 
+   VkPipeline pipeline;
+
    VkIndirectCommandsLayoutTokenNV tokens[0];
 };
 

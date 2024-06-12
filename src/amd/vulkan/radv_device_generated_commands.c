@@ -1974,7 +1974,7 @@ dgc_pad_cmdbuf(struct dgc_cmdbuf *cs, nir_def *cmd_buf_end)
 }
 
 static nir_shader *
-build_dgc_prepare_shader(struct radv_device *dev)
+build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_layout *layout)
 {
    const struct radv_physical_device *pdev = radv_device_physical(dev);
    nir_builder b = radv_meta_init_shader(dev, MESA_SHADER_COMPUTE, "meta_dgc_prepare");
@@ -2180,9 +2180,9 @@ build_dgc_prepare_shader(struct radv_device *dev)
 }
 
 static VkResult
-create_pipeline(struct radv_device *device, VkPipeline *pipeline)
+create_pipeline_layout(struct radv_device *device)
 {
-   VkResult result;
+   VkResult result = VK_SUCCESS;
 
    if (!device->meta_state.dgc_prepare.ds_layout) {
       const VkDescriptorSetLayoutBinding binding = {
@@ -2205,43 +2205,14 @@ create_pipeline(struct radv_device *device, VkPipeline *pipeline)
 
       result = radv_meta_create_pipeline_layout(device, &device->meta_state.dgc_prepare.ds_layout, 1, &pc_range,
                                                 &device->meta_state.dgc_prepare.p_layout);
-      if (result != VK_SUCCESS)
-         return result;
    }
 
-   nir_shader *cs = build_dgc_prepare_shader(device);
-
-   result = radv_meta_create_compute_pipeline(device, cs, device->meta_state.dgc_prepare.p_layout, pipeline);
-
-   ralloc_free(cs);
-   return result;
-}
-
-static VkResult
-get_pipeline(struct radv_device *device, VkPipeline *pipeline_out)
-{
-   struct radv_meta_state *state = &device->meta_state;
-   VkResult result = VK_SUCCESS;
-
-   mtx_lock(&state->mtx);
-   if (!state->dgc_prepare.pipeline) {
-      result = create_pipeline(device, &state->dgc_prepare.pipeline);
-      if (result != VK_SUCCESS)
-         goto fail;
-   }
-
-   *pipeline_out = state->dgc_prepare.pipeline;
-
-fail:
-   mtx_unlock(&state->mtx);
    return result;
 }
 
 void
 radv_device_finish_dgc_prepare_state(struct radv_device *device)
 {
-   radv_DestroyPipeline(radv_device_to_handle(device), device->meta_state.dgc_prepare.pipeline,
-                        &device->meta_state.alloc);
    radv_DestroyPipelineLayout(radv_device_to_handle(device), device->meta_state.dgc_prepare.p_layout,
                               &device->meta_state.alloc);
    device->vk.dispatch_table.DestroyDescriptorSetLayout(
@@ -2254,7 +2225,38 @@ radv_device_init_dgc_prepare_state(struct radv_device *device, bool on_demand)
    if (on_demand)
       return VK_SUCCESS;
 
-   return create_pipeline(device, &device->meta_state.dgc_prepare.pipeline);
+   return create_pipeline_layout(device);
+}
+
+static VkResult
+radv_create_dgc_pipeline(struct radv_device *device, struct radv_indirect_command_layout *layout)
+{
+   struct radv_meta_state *state = &device->meta_state;
+   VkResult result;
+
+   mtx_lock(&state->mtx);
+   result = create_pipeline_layout(device);
+   mtx_unlock(&state->mtx);
+
+   if (result != VK_SUCCESS)
+      return result;
+
+   nir_shader *cs = build_dgc_prepare_shader(device, layout);
+
+   result = radv_meta_create_compute_pipeline(device, cs, device->meta_state.dgc_prepare.p_layout, &layout->pipeline);
+   ralloc_free(cs);
+
+   return result;
+}
+
+static void
+radv_destroy_indirect_commands_layout(struct radv_device *device, const VkAllocationCallbacks *pAllocator,
+                                      struct radv_indirect_command_layout *layout)
+{
+   radv_DestroyPipeline(radv_device_to_handle(device), layout->pipeline, &device->meta_state.alloc);
+
+   vk_object_base_finish(&layout->base);
+   vk_free2(&device->vk.alloc, pAllocator, layout);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -2264,6 +2266,7 @@ radv_CreateIndirectCommandsLayoutNV(VkDevice _device, const VkIndirectCommandsLa
 {
    VK_FROM_HANDLE(radv_device, device, _device);
    struct radv_indirect_command_layout *layout;
+   VkResult result;
 
    size_t size = sizeof(*layout) + pCreateInfo->tokenCount * sizeof(VkIndirectCommandsLayoutTokenNV);
 
@@ -2338,6 +2341,12 @@ radv_CreateIndirectCommandsLayoutNV(VkDevice _device, const VkIndirectCommandsLa
    if (!layout->indexed)
       layout->binds_index_buffer = false;
 
+   result = radv_create_dgc_pipeline(device, layout);
+   if (result != VK_SUCCESS) {
+      radv_destroy_indirect_commands_layout(device, pAllocator, layout);
+      return result;
+   }
+
    *pIndirectCommandsLayout = radv_indirect_command_layout_to_handle(layout);
    return VK_SUCCESS;
 }
@@ -2352,8 +2361,7 @@ radv_DestroyIndirectCommandsLayoutNV(VkDevice _device, VkIndirectCommandsLayoutN
    if (!layout)
       return;
 
-   vk_object_base_finish(&layout->base);
-   vk_free2(&device->vk.alloc, pAllocator, layout);
+   radv_destroy_indirect_commands_layout(device, pAllocator, layout);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -2622,9 +2630,7 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
    struct radv_meta_saved_state saved_state;
    unsigned upload_offset, upload_size;
    struct radv_buffer token_buffer;
-   VkPipeline dgc_pipeline;
    void *upload_data;
-   VkResult result;
 
    uint64_t upload_addr =
       radv_buffer_get_va(prep_buffer->bo) + prep_buffer->offset + pGeneratedCommandsInfo->preprocessOffset;
@@ -2728,16 +2734,10 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
 
    radv_buffer_init(&token_buffer, device, cmd_buffer->upload.upload_bo, upload_size, upload_offset);
 
-   result = get_pipeline(device, &dgc_pipeline);
-   if (result != VK_SUCCESS) {
-      vk_command_buffer_set_error(&cmd_buffer->vk, result);
-      return;
-   }
-
    radv_meta_save(&saved_state, cmd_buffer,
                   RADV_META_SAVE_COMPUTE_PIPELINE | RADV_META_SAVE_DESCRIPTORS | RADV_META_SAVE_CONSTANTS);
 
-   radv_CmdBindPipeline(radv_cmd_buffer_to_handle(cmd_buffer), VK_PIPELINE_BIND_POINT_COMPUTE, dgc_pipeline);
+   radv_CmdBindPipeline(radv_cmd_buffer_to_handle(cmd_buffer), VK_PIPELINE_BIND_POINT_COMPUTE, layout->pipeline);
 
    vk_common_CmdPushConstants(radv_cmd_buffer_to_handle(cmd_buffer), device->meta_state.dgc_prepare.p_layout,
                               VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(params), &params);
