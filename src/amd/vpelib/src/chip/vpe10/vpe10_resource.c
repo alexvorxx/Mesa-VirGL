@@ -707,7 +707,9 @@ static void build_clamping_params(
 int32_t vpe10_program_frontend(struct vpe_priv *vpe_priv, uint32_t pipe_idx, uint32_t cmd_idx,
     uint32_t cmd_input_idx, bool seg_only)
 {
-    struct vpe_cmd_info       *cmd_info     = &vpe_priv->vpe_cmd_info[cmd_idx];
+    struct vpe_cmd_info *cmd_info = vpe_vector_get(vpe_priv->vpe_cmd_vector, cmd_idx);
+    VPE_ASSERT(cmd_info);
+
     struct vpe_cmd_input      *cmd_input    = &cmd_info->inputs[cmd_input_idx];
     struct stream_ctx         *stream_ctx   = &vpe_priv->stream_ctx[cmd_input->stream_idx];
     struct vpe_surface_info   *surface_info = &stream_ctx->stream.surface_info;
@@ -878,7 +880,7 @@ enum vpe_status vpe10_populate_cmd_info(struct vpe_priv *vpe_priv)
     uint16_t             stream_idx;
     uint16_t             segment_idx;
     struct stream_ctx   *stream_ctx;
-    struct vpe_cmd_info *cmd_info;
+    struct vpe_cmd_info  cmd_info = {0};
     bool                 tm_enabled;
 
     for (stream_idx = 0; stream_idx < vpe_priv->num_streams; stream_idx++) {
@@ -887,25 +889,26 @@ enum vpe_status vpe10_populate_cmd_info(struct vpe_priv *vpe_priv)
         tm_enabled = stream_ctx->stream.tm_params.UID != 0 || stream_ctx->stream.tm_params.enable_3dlut;
 
         for (segment_idx = 0; segment_idx < stream_ctx->num_segments; segment_idx++) {
-            if (vpe_priv->num_vpe_cmds >= MAX_VPE_CMD) {
+            if (vpe_priv->vpe_cmd_vector->num_elements >= MAX_VPE_CMD) {
                 return VPE_STATUS_CMD_OVERFLOW_ERROR;
             }
 
-            cmd_info                       = &vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds];
-            cmd_info->inputs[0].stream_idx = stream_idx;
-            cmd_info->cd                   = (uint8_t)(stream_ctx->num_segments - segment_idx - 1);
-            memcpy(&(cmd_info->inputs[0].scaler_data),
-                &(stream_ctx->segment_ctx[segment_idx].scaler_data), sizeof(struct scaler_data));
-            cmd_info->num_outputs = 1;
-            cmd_info->outputs[0].dst_viewport = stream_ctx->segment_ctx[segment_idx].scaler_data.dst_viewport;
-            cmd_info->outputs[0].dst_viewport_c =
+            cmd_info.inputs[0].stream_idx  = stream_idx;
+            cmd_info.cd                    = (uint8_t)(stream_ctx->num_segments - segment_idx - 1);
+            cmd_info.inputs[0].scaler_data = stream_ctx->segment_ctx[segment_idx].scaler_data;
+            cmd_info.num_outputs           = 1;
+
+            cmd_info.outputs[0].dst_viewport =
+                stream_ctx->segment_ctx[segment_idx].scaler_data.dst_viewport;
+            cmd_info.outputs[0].dst_viewport_c =
                 stream_ctx->segment_ctx[segment_idx].scaler_data.dst_viewport_c;
-            cmd_info->num_inputs = 1;
-            cmd_info->ops        = VPE_CMD_OPS_COMPOSITING;
-            cmd_info->tm_enabled = tm_enabled;
-            vpe_priv->num_vpe_cmds++;
-            cmd_info->insert_start_csync = false;
-            cmd_info->insert_end_csync   = false;
+
+            cmd_info.num_inputs         = 1;
+            cmd_info.ops                = VPE_CMD_OPS_COMPOSITING;
+            cmd_info.tm_enabled         = tm_enabled;
+            cmd_info.insert_start_csync = false;
+            cmd_info.insert_end_csync   = false;
+            vpe_vector_push(vpe_priv, vpe_priv->vpe_cmd_vector, &cmd_info);
 
             // The following codes are only valid if blending is supported
             /*
@@ -1055,8 +1058,9 @@ void vpe10_get_bufs_req(struct vpe_priv *vpe_priv, struct vpe_bufs_req *req)
     req->cmd_buf_size = 0;
     req->emb_buf_size = 0;
 
-    for (i = 0; i < vpe_priv->num_vpe_cmds; i++) {
-        cmd_info = &vpe_priv->vpe_cmd_info[i];
+    for (i = 0; i < vpe_priv->vpe_cmd_vector->num_elements; i++) {
+        cmd_info = vpe_vector_get(vpe_priv->vpe_cmd_vector, i);
+        VPE_ASSERT(cmd_info);
 
         // each cmd consumes one VPE descriptor
         req->cmd_buf_size += VPE10_GENERAL_VPE_DESC_SIZE;

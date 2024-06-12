@@ -172,6 +172,12 @@ struct vpe *vpe_create(const struct vpe_init_data *params)
         return NULL;
     }
 
+    vpe_priv->vpe_cmd_vector =
+        vpe_vector_create(vpe_priv, sizeof(struct vpe_cmd_info), MIN_VPE_CMD);
+    if (!vpe_priv->vpe_cmd_vector) {
+        vpe_free(vpe_priv);
+        return NULL;
+    }
     override_debug_option(&vpe_priv->init.debug, &params->debug);
 
     vpe_color_setup_x_points_distribution();
@@ -201,6 +207,9 @@ void vpe_destroy(struct vpe **vpe)
     vpe_free_output_ctx(vpe_priv);
 
     vpe_free_stream_ctx(vpe_priv);
+
+    if (vpe_priv->vpe_cmd_vector)
+        vpe_vector_free(vpe_priv, vpe_priv->vpe_cmd_vector);
 
     if (vpe_priv->dummy_input_param)
         vpe_free(vpe_priv->dummy_input_param);
@@ -495,7 +504,7 @@ enum vpe_status vpe_check_support(
         output_ctx->flags.hdr_metadata = param->flags.hdr_metadata;
         output_ctx->hdr_metadata       = param->hdr_metadata;
 
-        vpe_priv->num_vpe_cmds      = 0;
+        vpe_vector_clear(vpe_priv->vpe_cmd_vector);
         output_ctx->clamping_params = vpe_priv->init.debug.clamping_params;
     }
 
@@ -622,6 +631,7 @@ enum vpe_status vpe_build_commands(
     int64_t               emb_buf_size;
     uint64_t              cmd_buf_gpu_a, cmd_buf_cpu_a;
     uint64_t              emb_buf_gpu_a, emb_buf_cpu_a;
+    struct vpe_cmd_info  *cmd_info;
 
     if (!vpe || !param || !bufs)
         return VPE_STATUS_ERROR;
@@ -719,22 +729,25 @@ enum vpe_status vpe_build_commands(
             }
         }
 #endif
-        for (cmd_idx = 0; cmd_idx < vpe_priv->num_vpe_cmds; cmd_idx++) {
+        for (cmd_idx = 0; cmd_idx < vpe_priv->vpe_cmd_vector->num_elements; cmd_idx++) {
             status = builder->build_vpe_cmd(vpe_priv, &curr_bufs, cmd_idx);
             if (status != VPE_STATUS_OK) {
                 vpe_log("failed in building vpe cmd %d\n", (int)status);
             }
 
 #ifdef VPE_BUILD_1_1
-            if ((vpe_priv->collaboration_mode == true) &&
-                (vpe_priv->vpe_cmd_info[cmd_idx].insert_end_csync == true)) {
+            cmd_info = vpe_vector_get(vpe_priv->vpe_cmd_vector, cmd_idx);
+            if (cmd_info == NULL)
+                return VPE_STATUS_ERROR;
+
+            if ((vpe_priv->collaboration_mode == true) && (cmd_info->insert_end_csync == true)) {
                 status = builder->build_collaborate_sync_cmd(vpe_priv, &curr_bufs);
                 if (status != VPE_STATUS_OK) {
                     vpe_log("failed in building collaborate sync cmd %d\n", (int)status);
                 }
 
                 // Add next collaborate sync start command when this vpe_cmd isn't the final one.
-                if (cmd_idx < (uint32_t)(vpe_priv->num_vpe_cmds - 1)) {
+                if (cmd_idx < (uint32_t)(vpe_priv->vpe_cmd_vector->num_elements - 1)) {
                     status = builder->build_collaborate_sync_cmd(vpe_priv, &curr_bufs);
                     if (status != VPE_STATUS_OK) {
                         vpe_log("failed in building collaborate sync cmd %d\n", (int)status);

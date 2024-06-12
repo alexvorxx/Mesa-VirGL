@@ -31,7 +31,8 @@ void vpe_create_bg_segments(
     struct vpe_priv *vpe_priv, struct vpe_rect *gaps, uint16_t gaps_cnt, enum vpe_cmd_ops ops)
 {
     uint16_t            gap_index;
-    struct scaler_data *scaler_data;
+    struct vpe_cmd_info cmd_info    = {0};
+    struct scaler_data *scaler_data = &(cmd_info.inputs[0].scaler_data);
     struct stream_ctx  *stream_ctx = &(vpe_priv->stream_ctx[0]);
     int32_t             vp_x       = stream_ctx->stream.scaling_info.src_rect.x;
     int32_t             vp_y       = stream_ctx->stream.scaling_info.src_rect.y;
@@ -41,8 +42,6 @@ void vpe_create_bg_segments(
     uint16_t            dst_v_div  = vpe_is_yuv420(vpe_priv->output_ctx.surface.format) ? 2 : 1;
 
     for (gap_index = 0; gap_index < gaps_cnt; gap_index++) {
-
-        scaler_data = &(vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].inputs[0].scaler_data);
 
         /* format */
         scaler_data->format             = stream_ctx->stream.surface_info.format;
@@ -110,16 +109,16 @@ void vpe_create_bg_segments(
         VPE_ASSERT(gaps_cnt - gap_index - 1 <= (uint16_t)0xF);
 
         // background takes stream_idx 0 as its input
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].inputs[0].stream_idx      = 0;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].num_outputs               = 1;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].outputs[0].dst_viewport   = scaler_data->dst_viewport;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].outputs[0].dst_viewport_c = scaler_data->dst_viewport_c;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].num_inputs                = 1;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].ops                       = ops;
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].cd                        = (uint8_t)(gaps_cnt - gap_index - 1);
-        vpe_priv->vpe_cmd_info[vpe_priv->num_vpe_cmds].tm_enabled                = false; // currently only support frontend tm
+        cmd_info.inputs[0].stream_idx      = 0;
+        cmd_info.num_outputs               = 1;
+        cmd_info.outputs[0].dst_viewport   = scaler_data->dst_viewport;
+        cmd_info.outputs[0].dst_viewport_c = scaler_data->dst_viewport_c;
 
-        vpe_priv->num_vpe_cmds++;
+        cmd_info.num_inputs = 1;
+        cmd_info.ops        = ops;
+        cmd_info.cd         = (uint8_t)(gaps_cnt - gap_index - 1);
+        cmd_info.tm_enabled = false; // currently only support frontend tm
+        vpe_vector_push(vpe_priv, vpe_priv->vpe_cmd_vector, &cmd_info);
     }
 }
 

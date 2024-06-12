@@ -239,9 +239,7 @@ struct vpe_priv {
     struct calculate_buffer cal_buffer;
     struct vpe_bufs_req     bufs_required; /**< cached required buffer size for the checked ops */
 
-    // number of total vpe cmds
-    uint16_t            num_vpe_cmds;
-    struct vpe_cmd_info vpe_cmd_info[MAX_VPE_CMD];
+    struct vpe_vector  *vpe_cmd_vector;
     bool                ops_support;
 
     // writers

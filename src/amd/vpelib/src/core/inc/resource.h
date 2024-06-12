@@ -31,6 +31,7 @@
 #include "dpp.h"
 #include "mpc.h"
 #include "opp.h"
+#include "vector.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +43,7 @@ struct segment_ctx;
 
 #define MAX_PIPE 2
 #define MAX_OUTPUT_PIPE 2
+#define MIN_VPE_CMD     1024
 
 enum vpe_cmd_ops;
 

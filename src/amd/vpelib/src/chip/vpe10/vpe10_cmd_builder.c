@@ -62,11 +62,12 @@ enum vpe_status vpe10_build_vpe_cmd(
 {
     struct cmd_builder     *builder         = &vpe_priv->resource.cmd_builder;
     struct vpe_desc_writer *vpe_desc_writer = &vpe_priv->vpe_desc_writer;
-    struct vpe_buf      *emb_buf  = &cur_bufs->emb_buf;
-    struct vpe_cmd_info *cmd_info = &vpe_priv->vpe_cmd_info[cmd_idx];
+    struct vpe_buf         *emb_buf         = &cur_bufs->emb_buf;
     struct output_ctx   *output_ctx;
     struct pipe_ctx     *pipe_ctx = NULL;
     uint32_t             i, j;
+    struct vpe_cmd_info    *cmd_info = vpe_vector_get(vpe_priv->vpe_cmd_vector, cmd_idx);
+    VPE_ASSERT(cmd_info);
 
     vpe_desc_writer->init(vpe_desc_writer, &cur_bufs->cmd_buf, cmd_info->cd);
 
@@ -171,15 +172,14 @@ enum vpe_status vpe10_build_plane_descriptor(
     struct stream_ctx       *stream_ctx;
     struct vpe_surface_info *surface_info;
     int32_t                  stream_idx;
-    struct vpe_cmd_info     *cmd_info;
     PHYSICAL_ADDRESS_LOC    *addrloc;
     struct plane_desc_src    src;
     struct plane_desc_dst    dst;
     struct plane_desc_header  header            = {0};
     struct cmd_builder       *builder           = &vpe_priv->resource.cmd_builder;
     struct plane_desc_writer *plane_desc_writer = &vpe_priv->plane_desc_writer;
-
-    cmd_info = &vpe_priv->vpe_cmd_info[cmd_idx];
+    struct vpe_cmd_info      *cmd_info          = vpe_vector_get(vpe_priv->vpe_cmd_vector, cmd_idx);
+    VPE_ASSERT(cmd_info);
 
     VPE_ASSERT(cmd_info->num_inputs == 1);
 
