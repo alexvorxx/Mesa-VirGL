@@ -13052,8 +13052,10 @@ write_event(struct radv_cmd_buffer *cmd_buffer, struct radv_event *event, VkPipe
    struct radeon_cmdbuf *cs = cmd_buffer->cs;
    uint64_t va = radv_buffer_get_va(event->bo);
 
-   if (cmd_buffer->qf == RADV_QUEUE_VIDEO_DEC || cmd_buffer->qf == RADV_QUEUE_VIDEO_ENC)
+   if (cmd_buffer->qf == RADV_QUEUE_VIDEO_DEC || cmd_buffer->qf == RADV_QUEUE_VIDEO_ENC) {
+      radv_vcn_write_event(cmd_buffer, event, value);
       return;
+   }
 
    radv_emit_cache_flush(cmd_buffer);
 

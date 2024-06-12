@@ -61,7 +61,7 @@ radv_vid_buffer_upload_alloc(struct radv_cmd_buffer *cmd_buffer, unsigned size, 
 
 /* vcn unified queue (sq) ib header */
 void
-radv_vcn_sq_header(struct radeon_cmdbuf *cs, struct rvcn_sq_var *sq, bool enc)
+radv_vcn_sq_header(struct radeon_cmdbuf *cs, struct rvcn_sq_var *sq, unsigned type)
 {
    /* vcn ib signature */
    radeon_emit(cs, RADEON_VCN_SIGNATURE_SIZE);
@@ -74,7 +74,7 @@ radv_vcn_sq_header(struct radeon_cmdbuf *cs, struct rvcn_sq_var *sq, bool enc)
    /* vcn ib engine info */
    radeon_emit(cs, RADEON_VCN_ENGINE_INFO_SIZE);
    radeon_emit(cs, RADEON_VCN_ENGINE_INFO);
-   radeon_emit(cs, enc ? RADEON_VCN_ENGINE_TYPE_ENCODE : RADEON_VCN_ENGINE_TYPE_DECODE);
+   radeon_emit(cs, type);
    radeon_emit(cs, 0);
 }
 
@@ -99,13 +99,44 @@ radv_vcn_sq_tail(struct radeon_cmdbuf *cs, struct rvcn_sq_var *sq)
    *sq->ib_checksum = checksum;
 }
 
+void
+radv_vcn_write_event(struct radv_cmd_buffer *cmd_buffer, struct radv_event *event, unsigned value)
+{
+   struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   struct radv_physical_device *pdev = radv_device_physical(device);
+   struct rvcn_sq_var sq;
+   struct radeon_cmdbuf *cs = cmd_buffer->cs;
+
+   if (pdev->vid_decode_ip != AMD_IP_VCN_UNIFIED)
+      return;
+
+   radv_cs_add_buffer(device->ws, cs, event->bo);
+   uint64_t va = radv_buffer_get_va(event->bo);
+
+   radeon_check_space(device->ws, cs, 256);
+   radv_vcn_sq_header(cs, &sq, RADEON_VCN_ENGINE_TYPE_COMMON);
+   struct rvcn_cmn_engine_ib_package *ib_header = (struct rvcn_cmn_engine_ib_package *)&(cs->buf[cs->cdw]);
+   ib_header->package_size = sizeof(struct rvcn_cmn_engine_ib_package) + sizeof(struct rvcn_cmn_engine_op_writememory);
+   cs->cdw++;
+   ib_header->package_type = RADEON_VCN_IB_COMMON_OP_WRITEMEMORY;
+   cs->cdw++;
+
+   struct rvcn_cmn_engine_op_writememory *write_memory = (struct rvcn_cmn_engine_op_writememory *)&(cs->buf[cs->cdw]);
+   write_memory->dest_addr_lo = va & 0xffffffff;
+   write_memory->dest_addr_hi = va >> 32;
+   write_memory->data = value;
+
+   cs->cdw += sizeof(*write_memory) / 4;
+   radv_vcn_sq_tail(cs, &sq);
+}
+
 static void
 radv_vcn_sq_start(struct radv_cmd_buffer *cmd_buffer)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
 
    radeon_check_space(device->ws, cmd_buffer->cs, 256);
-   radv_vcn_sq_header(cmd_buffer->cs, &cmd_buffer->video.sq, false);
+   radv_vcn_sq_header(cmd_buffer->cs, &cmd_buffer->video.sq, RADEON_VCN_ENGINE_TYPE_DECODE);
    rvcn_decode_ib_package_t *ib_header = (rvcn_decode_ib_package_t *)&(cmd_buffer->cs->buf[cmd_buffer->cs->cdw]);
    ib_header->package_size = sizeof(struct rvcn_decode_buffer_s) + sizeof(struct rvcn_decode_ib_package_s);
    cmd_buffer->cs->cdw++;
