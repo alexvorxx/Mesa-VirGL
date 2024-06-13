@@ -1759,6 +1759,7 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_KHR_storage_buffer_storage_class",
         "VK_EXT_depth_clip_enable",
         "VK_KHR_create_renderpass2",
+        "VK_EXT_vertex_attribute_divisor",
         "VK_EXT_host_query_reset",
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
         "VK_KHR_external_semaphore",
