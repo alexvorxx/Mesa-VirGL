@@ -3993,6 +3993,11 @@ struct anv_cmd_state {
     */
    enum anv_depth_reg_mode                      depth_reg_mode;
 
+   /* The last auxiliary surface operation (or equivalent operation) provided
+    * to genX(cmd_buffer_update_color_aux_op).
+    */
+   enum isl_aux_op                              color_aux_op;
+
    /**
     * Whether RHWO optimization is enabled (Wa_1508744258).
     */

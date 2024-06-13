@@ -1522,7 +1522,6 @@ exec_ccs_op(struct anv_cmd_buffer *cmd_buffer,
           anv_image_aux_layers(image, aspect, level));
 
    const uint32_t plane = anv_image_aspect_to_plane(image, aspect);
-   const struct intel_device_info *devinfo = cmd_buffer->device->info;
 
    struct blorp_surf surf;
    get_blorp_surf_for_anv_image(cmd_buffer, image, aspect,
@@ -1540,107 +1539,8 @@ exec_ccs_op(struct anv_cmd_buffer *cmd_buffer,
    if (clear_value)
       surf.clear_color = *clear_value;
 
-   char flush_reason[64];
-   int ret =
-      snprintf(flush_reason, sizeof(flush_reason),
-               "ccs op start: %s", isl_aux_op_to_name(ccs_op));
-   assert(ret < sizeof(flush_reason));
-
-   /* From the Sky Lake PRM Vol. 7, "Render Target Fast Clear":
-    *
-    *    "After Render target fast clear, pipe-control with color cache
-    *    write-flush must be issued before sending any DRAW commands on
-    *    that render target."
-    *
-    * This comment is a bit cryptic and doesn't really tell you what's going
-    * or what's really needed.  It appears that fast clear ops are not
-    * properly synchronized with other drawing.  This means that we cannot
-    * have a fast clear operation in the pipe at the same time as other
-    * regular drawing operations.  We need to use a PIPE_CONTROL to ensure
-    * that the contents of the previous draw hit the render target before we
-    * resolve and then use a second PIPE_CONTROL after the resolve to ensure
-    * that it is completed before any additional drawing occurs.
-    *
-    * Bspec 57340 (r59562):
-    *
-    *   Synchronization:
-    *      Due to interaction of scaled clearing rectangle with pixel
-    *      scoreboard, we require one of the following commands to be issued.
-    *      (Rows of PIPE_CONTROL command in the table)
-    *
-    * Requiring tile cache flush bit has been dropped since Xe2.
-    */
-   anv_add_pending_pipe_bits(cmd_buffer,
-                             ANV_PIPE_RENDER_TARGET_CACHE_FLUSH_BIT |
-                             (devinfo->verx10 < 200 ?
-                                ANV_PIPE_TILE_CACHE_FLUSH_BIT : 0) |
-                             (devinfo->verx10 == 120 ?
-                                ANV_PIPE_DEPTH_STALL_BIT : 0) |
-                             (devinfo->verx10 == 125 ?
-                                ANV_PIPE_HDC_PIPELINE_FLUSH_BIT |
-                                ANV_PIPE_DATA_CACHE_FLUSH_BIT : 0) |
-                             ANV_PIPE_PSS_STALL_SYNC_BIT |
-                             ANV_PIPE_END_OF_PIPE_SYNC_BIT,
-                             flush_reason);
-
    switch (ccs_op) {
    case ISL_AUX_OP_FAST_CLEAR:
-      /* From the ICL PRMs, Volume 9: Render Engine, State Caching :
-       *
-       *    "Any values referenced by pointers within the RENDER_SURFACE_STATE
-       *     or SAMPLER_STATE (e.g. Clear Color Pointer, Border Color or
-       *     Indirect State Pointer) are considered to be part of that state
-       *     and any changes to these referenced values requires an
-       *     invalidation of the L1 state cache to ensure the new values are
-       *     being used as part of the state. In the case of surface data
-       *     pointed to by the Surface Base Address in RENDER SURFACE STATE,
-       *     the Texture Cache must be invalidated if the surface data
-       *     changes."
-       *
-       * and From the Render Target Fast Clear section,
-       *
-       *   "HwManaged FastClear allows SW to store FastClearValue in separate
-       *   graphics allocation, instead of keeping them in
-       *   RENDER_SURFACE_STATE. This behavior can be enabled by setting
-       *   ClearValueAddressEnable in RENDER_SURFACE_STATE.
-       *
-       *    Proper sequence of commands is as follows:
-       *
-       *       1. Storing clear color to allocation
-       *       2. Ensuring that step 1. is finished and visible for TextureCache
-       *       3. Performing FastClear
-       *
-       *    Step 2. is required on products with ClearColorConversion feature.
-       *    This feature is enabled by setting ClearColorConversionEnable.
-       *    This causes HW to read stored color from ClearColorAllocation and
-       *    write back with the native format or RenderTarget - and clear
-       *    color needs to be present and visible. Reading is done from
-       *    TextureCache, writing is done to RenderCache."
-       *
-       * We're going to change the clear color. Invalidate the texture cache
-       * now to ensure the clear color conversion feature works properly.
-       * Although the docs seem to require invalidating the texture cache
-       * after updating the clear color allocation, we can do this beforehand
-       * so long as we ensure:
-       *
-       *    1. Step 1 is complete before the texture cache is accessed in step 3
-       *    2. We don't access the texture cache between invalidation and step 3
-       *
-       * The second requirement is satisfied because we'll be performing step
-       * 1 and 3 right after invalidating. The first is satisfied because
-       * BLORP updates the clear color before performing the fast clear and it
-       * performs the synchronizations suggested by the Render Target Fast
-       * Clear section (not quoted here) to ensure its completion.
-       *
-       * While we're here, also invalidate the state cache as suggested.
-       */
-      if (devinfo->ver >= 11) {
-         anv_add_pending_pipe_bits(cmd_buffer,
-                                   ANV_PIPE_STATE_CACHE_INVALIDATE_BIT |
-                                   ANV_PIPE_TEXTURE_CACHE_INVALIDATE_BIT,
-                                   "before blorp clear color update");
-      }
-
       blorp_fast_clear(batch, &surf, format, swizzle,
                        level, base_layer, layer_count,
                        0, 0, level_width, level_height);
@@ -1670,15 +1570,6 @@ exec_ccs_op(struct anv_cmd_buffer *cmd_buffer,
    default:
       unreachable("Unsupported CCS operation");
    }
-
-   anv_add_pending_pipe_bits(cmd_buffer,
-                             ANV_PIPE_RENDER_TARGET_CACHE_FLUSH_BIT |
-                             (devinfo->verx10 == 120 ?
-                                ANV_PIPE_TILE_CACHE_FLUSH_BIT |
-                                ANV_PIPE_DEPTH_STALL_BIT : 0) |
-                             ANV_PIPE_PSS_STALL_SYNC_BIT |
-                             ANV_PIPE_END_OF_PIPE_SYNC_BIT,
-                             "ccs op finish");
 }
 
 static void
@@ -1697,7 +1588,6 @@ exec_mcs_op(struct anv_cmd_buffer *cmd_buffer,
    /* Multisampling with multi-planar formats is not supported */
    assert(image->n_planes == 1);
 
-   const struct intel_device_info *devinfo = cmd_buffer->device->info;
    struct blorp_surf surf;
    get_blorp_surf_for_anv_image(cmd_buffer, image, aspect,
                                 0, ANV_IMAGE_LAYOUT_EXPLICIT_AUX,
@@ -1710,101 +1600,8 @@ exec_mcs_op(struct anv_cmd_buffer *cmd_buffer,
    if (clear_value)
       surf.clear_color = *clear_value;
 
-   /* From the Sky Lake PRM Vol. 7, "Render Target Fast Clear":
-    *
-    *    "After Render target fast clear, pipe-control with color cache
-    *    write-flush must be issued before sending any DRAW commands on
-    *    that render target."
-    *
-    * This comment is a bit cryptic and doesn't really tell you what's going
-    * or what's really needed.  It appears that fast clear ops are not
-    * properly synchronized with other drawing.  This means that we cannot
-    * have a fast clear operation in the pipe at the same time as other
-    * regular drawing operations.  We need to use a PIPE_CONTROL to ensure
-    * that the contents of the previous draw hit the render target before we
-    * resolve and then use a second PIPE_CONTROL after the resolve to ensure
-    * that it is completed before any additional drawing occurs.
-    *
-    * Bspec 57340 (r59562):
-    *
-    *   Synchronization:
-    *      Due to interaction of scaled clearing rectangle with pixel
-    *      scoreboard, we require one of the following commands to be issued.
-    *      (Rows of PIPE_CONTROL command in the table)
-    *
-    * Requiring tile cache flush bit has been dropped since Xe2.
-    */
-   anv_add_pending_pipe_bits(cmd_buffer,
-                             ANV_PIPE_RENDER_TARGET_CACHE_FLUSH_BIT |
-                             (devinfo->verx10 < 200 ?
-                                ANV_PIPE_TILE_CACHE_FLUSH_BIT : 0) |
-                             (devinfo->verx10 == 120 ?
-                                ANV_PIPE_DEPTH_STALL_BIT : 0) |
-                             (devinfo->verx10 == 125 ?
-                                ANV_PIPE_HDC_PIPELINE_FLUSH_BIT |
-                                ANV_PIPE_DATA_CACHE_FLUSH_BIT : 0) |
-                             ANV_PIPE_PSS_STALL_SYNC_BIT |
-                             ANV_PIPE_END_OF_PIPE_SYNC_BIT,
-                             "before fast clear mcs");
-
    switch (mcs_op) {
    case ISL_AUX_OP_FAST_CLEAR:
-      /* From the ICL PRMs, Volume 9: Render Engine, State Caching :
-       *
-       *    "Any values referenced by pointers within the RENDER_SURFACE_STATE
-       *     or SAMPLER_STATE (e.g. Clear Color Pointer, Border Color or
-       *     Indirect State Pointer) are considered to be part of that state
-       *     and any changes to these referenced values requires an
-       *     invalidation of the L1 state cache to ensure the new values are
-       *     being used as part of the state. In the case of surface data
-       *     pointed to by the Surface Base Address in RENDER SURFACE STATE,
-       *     the Texture Cache must be invalidated if the surface data
-       *     changes."
-       *
-       * and From the Render Target Fast Clear section,
-       *
-       *   "HwManaged FastClear allows SW to store FastClearValue in separate
-       *   graphics allocation, instead of keeping them in
-       *   RENDER_SURFACE_STATE. This behavior can be enabled by setting
-       *   ClearValueAddressEnable in RENDER_SURFACE_STATE.
-       *
-       *    Proper sequence of commands is as follows:
-       *
-       *       1. Storing clear color to allocation
-       *       2. Ensuring that step 1. is finished and visible for TextureCache
-       *       3. Performing FastClear
-       *
-       *    Step 2. is required on products with ClearColorConversion feature.
-       *    This feature is enabled by setting ClearColorConversionEnable.
-       *    This causes HW to read stored color from ClearColorAllocation and
-       *    write back with the native format or RenderTarget - and clear
-       *    color needs to be present and visible. Reading is done from
-       *    TextureCache, writing is done to RenderCache."
-       *
-       * We're going to change the clear color. Invalidate the texture cache
-       * now to ensure the clear color conversion feature works properly.
-       * Although the docs seem to require invalidating the texture cache
-       * after updating the clear color allocation, we can do this beforehand
-       * so long as we ensure:
-       *
-       *    1. Step 1 is complete before the texture cache is accessed in step 3
-       *    2. We don't access the texture cache between invalidation and step 3
-       *
-       * The second requirement is satisfied because we'll be performing step
-       * 1 and 3 right after invalidating. The first is satisfied because
-       * BLORP updates the clear color before performing the fast clear and it
-       * performs the synchronizations suggested by the Render Target Fast
-       * Clear section (not quoted here) to ensure its completion.
-       *
-       * While we're here, also invalidate the state cache as suggested.
-       */
-      if (devinfo->ver >= 11) {
-         anv_add_pending_pipe_bits(cmd_buffer,
-                                   ANV_PIPE_STATE_CACHE_INVALIDATE_BIT |
-                                   ANV_PIPE_TEXTURE_CACHE_INVALIDATE_BIT,
-                                   "before blorp clear color update");
-      }
-
       blorp_fast_clear(batch, &surf, format, swizzle,
                        0, base_layer, layer_count,
                        0, 0, image->vk.extent.width, image->vk.extent.height);
@@ -1820,15 +1617,6 @@ exec_mcs_op(struct anv_cmd_buffer *cmd_buffer,
    default:
       unreachable("Unsupported MCS operation");
    }
-
-   anv_add_pending_pipe_bits(cmd_buffer,
-                             ANV_PIPE_RENDER_TARGET_CACHE_FLUSH_BIT |
-                             (devinfo->verx10 == 120 ?
-                                ANV_PIPE_TILE_CACHE_FLUSH_BIT |
-                                ANV_PIPE_DEPTH_STALL_BIT : 0) |
-                             ANV_PIPE_PSS_STALL_SYNC_BIT |
-                             ANV_PIPE_END_OF_PIPE_SYNC_BIT,
-                             "after fast clear mcs");
 }
 
 static void

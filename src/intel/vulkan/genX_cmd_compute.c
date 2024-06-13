@@ -97,6 +97,8 @@ genX(cmd_buffer_flush_compute_state)(struct anv_cmd_buffer *cmd_buffer)
 
    genX(cmd_buffer_config_l3)(cmd_buffer, pipeline->base.l3_config);
 
+   genX(cmd_buffer_update_color_aux_op(cmd_buffer, ISL_AUX_OP_NONE));
+
    genX(flush_descriptor_buffers)(cmd_buffer, &comp_state->base);
 
    genX(flush_pipeline_select_gpgpu)(cmd_buffer);
@@ -600,6 +602,8 @@ genX(cmd_buffer_dispatch_kernel)(struct anv_cmd_buffer *cmd_buffer,
 
    genX(cmd_buffer_config_l3)(cmd_buffer, kernel->l3_config);
 
+   genX(cmd_buffer_update_color_aux_op(cmd_buffer, ISL_AUX_OP_NONE));
+
    genX(flush_pipeline_select_gpgpu)(cmd_buffer);
 
    /* Apply any pending pipeline flushes we may have.  We want to apply them
@@ -888,6 +892,8 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
    trace_intel_begin_rays(&cmd_buffer->trace);
 
    genX(cmd_buffer_config_l3)(cmd_buffer, pipeline->base.l3_config);
+
+   genX(cmd_buffer_update_color_aux_op(cmd_buffer, ISL_AUX_OP_NONE));
 
    genX(flush_descriptor_buffers)(cmd_buffer, &rt->base);
 
