@@ -105,6 +105,16 @@ static inline unsigned android_format_from_vk(VkFormat vk_format) {
             return HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL;
         case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM:
             return HAL_PIXEL_FORMAT_YV12;
+        case VK_FORMAT_D16_UNORM:
+            return AHARDWAREBUFFER_FORMAT_D16_UNORM;
+        case VK_FORMAT_X8_D24_UNORM_PACK32:
+            return AHARDWAREBUFFER_FORMAT_D24_UNORM;
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+            return AHARDWAREBUFFER_FORMAT_D24_UNORM_S8_UINT;
+        case VK_FORMAT_D32_SFLOAT:
+            return AHARDWAREBUFFER_FORMAT_D32_FLOAT;
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+            return AHARDWAREBUFFER_FORMAT_D32_FLOAT_S8_UINT;
         default:
             return AHARDWAREBUFFER_FORMAT_BLOB;
     }
