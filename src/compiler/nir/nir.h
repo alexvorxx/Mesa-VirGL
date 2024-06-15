@@ -5068,6 +5068,12 @@ nir_component_mask_t nir_src_components_read(const nir_src *src);
 nir_component_mask_t nir_def_components_read(const nir_def *def);
 bool nir_def_all_uses_are_fsat(const nir_def *def);
 
+static inline int
+nir_def_last_component_read(nir_def *def)
+{
+    return (int)util_last_bit(nir_def_components_read(def)) - 1;
+}
+
 static inline bool
 nir_def_is_unused(nir_def *ssa)
 {

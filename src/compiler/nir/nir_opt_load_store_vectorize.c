@@ -151,6 +151,7 @@ struct entry {
 
    nir_instr *instr;
    nir_intrinsic_instr *intrin;
+   unsigned num_components;
    const struct intrinsic_info *info;
    enum gl_access_qualifier access;
    bool is_store;
@@ -553,6 +554,7 @@ create_entry(void *mem_ctx,
    entry->instr = &intrin->instr;
    entry->info = info;
    entry->is_store = entry->info->value_src >= 0;
+   entry->num_components = intrin->num_components;
 
    if (entry->info->deref_src >= 0) {
       entry->deref = nir_src_as_deref(intrin->src[entry->info->deref_src]);
@@ -646,8 +648,8 @@ new_bitsize_acceptable(struct vectorize_ctx *ctx, unsigned new_bit_size,
       return false;
 
    if (low->is_store) {
-      unsigned low_size = low->intrin->num_components * get_bit_size(low);
-      unsigned high_size = high->intrin->num_components * get_bit_size(high);
+      unsigned low_size = low->num_components * get_bit_size(low);
+      unsigned high_size = high->num_components * get_bit_size(high);
 
       if (low_size % new_bit_size != 0)
          return false;
@@ -737,6 +739,7 @@ vectorize_loads(nir_builder *b, struct vectorize_ctx *ctx,
 
    /* update the intrinsic */
    first->intrin->num_components = new_num_components;
+   first->num_components = nir_def_last_component_read(data) + 1;
 
    const struct intrinsic_info *info = first->info;
 
@@ -795,7 +798,7 @@ vectorize_stores(nir_builder *b, struct vectorize_ctx *ctx,
                  unsigned new_bit_size, unsigned new_num_components,
                  unsigned high_start)
 {
-   ASSERTED unsigned low_size = low->intrin->num_components * get_bit_size(low);
+   ASSERTED unsigned low_size = low->num_components * get_bit_size(low);
    assert(low_size % new_bit_size == 0);
 
    b->cursor = nir_before_instr(second->instr);
@@ -842,6 +845,7 @@ vectorize_stores(nir_builder *b, struct vectorize_ctx *ctx,
    if (nir_intrinsic_has_write_mask(second->intrin))
       nir_intrinsic_set_write_mask(second->intrin, write_mask);
    second->intrin->num_components = data->num_components;
+   second->num_components = data->num_components;
 
    const struct intrinsic_info *info = second->info;
    assert(info->value_src >= 0);
@@ -961,11 +965,11 @@ may_alias(nir_shader *shader, struct entry *a, struct entry *b)
    /* TODO: we can look closer at the entry keys */
    int64_t diff = compare_entries(a, b);
    if (diff != INT64_MAX) {
-      /* with atomics, intrin->num_components can be 0 */
+      /* with atomics, nir_intrinsic_instr::num_components can be 0 */
       if (diff < 0)
-         return llabs(diff) < MAX2(b->intrin->num_components, 1u) * (get_bit_size(b) / 8u);
+         return llabs(diff) < MAX2(b->num_components, 1u) * (get_bit_size(b) / 8u);
       else
-         return diff < MAX2(a->intrin->num_components, 1u) * (get_bit_size(a) / 8u);
+         return diff < MAX2(a->num_components, 1u) * (get_bit_size(a) / 8u);
    }
 
    /* TODO: we can use deref information */
@@ -1131,8 +1135,8 @@ try_vectorize(nir_function_impl *impl, struct vectorize_ctx *ctx,
    /* gather information */
    unsigned low_bit_size = get_bit_size(low);
    unsigned high_bit_size = get_bit_size(high);
-   unsigned low_size = low->intrin->num_components * low_bit_size;
-   unsigned high_size = high->intrin->num_components * high_bit_size;
+   unsigned low_size = low->num_components * low_bit_size;
+   unsigned high_size = high->num_components * high_bit_size;
    unsigned new_size = MAX2(diff * 8u + high_size, low_size);
 
    /* find a good bit size for the new load/store */
@@ -1179,8 +1183,8 @@ try_vectorize_shared2(struct vectorize_ctx *ctx,
 
    unsigned low_bit_size = get_bit_size(low);
    unsigned high_bit_size = get_bit_size(high);
-   unsigned low_size = low->intrin->num_components * low_bit_size / 8;
-   unsigned high_size = high->intrin->num_components * high_bit_size / 8;
+   unsigned low_size = low->num_components * low_bit_size / 8;
+   unsigned high_size = high->num_components * high_bit_size / 8;
    if ((low_size != 4 && low_size != 8) || (high_size != 4 && high_size != 8))
       return false;
    if (low_size != high_size)
@@ -1201,9 +1205,9 @@ try_vectorize_shared2(struct vectorize_ctx *ctx,
       return false;
 
    if (first->is_store) {
-      if (get_write_mask(low->intrin) != BITFIELD_MASK(low->intrin->num_components))
+      if (get_write_mask(low->intrin) != BITFIELD_MASK(low->num_components))
          return false;
-      if (get_write_mask(high->intrin) != BITFIELD_MASK(high->intrin->num_components))
+      if (get_write_mask(high->intrin) != BITFIELD_MASK(high->num_components))
          return false;
    }
 
@@ -1269,7 +1273,7 @@ vectorize_sorted_entries(struct vectorize_ctx *ctx, nir_function_impl *impl,
          struct entry *second = low->index < high->index ? high : low;
 
          uint64_t diff = high->offset_signed - low->offset_signed;
-         bool separate = diff > get_bit_size(low) / 8u * low->intrin->num_components;
+         bool separate = diff > get_bit_size(low) / 8u * low->num_components;
          if (separate) {
             if (!ctx->options->has_shared2_amd ||
                 get_variable_mode(first) != nir_var_mem_shared)
