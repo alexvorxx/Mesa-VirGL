@@ -113,7 +113,7 @@ ir3_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
                              unsigned hole_size, nir_intrinsic_instr *low,
                              nir_intrinsic_instr *high, void *data)
 {
-   if (hole_size)
+   if (hole_size || !nir_num_components_valid(num_components))
       return false;
 
    struct ir3_compiler *compiler = data;

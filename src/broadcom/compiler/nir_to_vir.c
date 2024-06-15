@@ -2089,7 +2089,7 @@ mem_vectorize_callback(unsigned align_mul, unsigned align_offset,
                        nir_intrinsic_instr *high,
                        void *data)
 {
-        if (hole_size)
+        if (hole_size || !nir_num_components_valid(num_components))
                 return false;
 
         /* TMU general access only supports 32-bit vectors */

@@ -340,7 +340,7 @@ bool nir_load_store_vectorize_test::mem_vectorize_callback(
    nir_intrinsic_instr *low, nir_intrinsic_instr *high,
    void *data)
 {
-   if (hole_size)
+   if (hole_size || !nir_num_components_valid(num_components))
       return false;
 
    /* Calculate a simple alignment, like how nir_intrinsic_align() does. */
