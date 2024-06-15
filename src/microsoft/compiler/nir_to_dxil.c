@@ -6229,10 +6229,11 @@ vectorize_filter(
    unsigned align_offset,
    unsigned bit_size,
    unsigned num_components,
+   unsigned hole_size,
    nir_intrinsic_instr *low, nir_intrinsic_instr *high,
    void *data)
 {
-   return util_is_power_of_two_nonzero(num_components);
+   return !hole_size && util_is_power_of_two_nonzero(num_components);
 }
 
 struct lower_mem_bit_sizes_data {

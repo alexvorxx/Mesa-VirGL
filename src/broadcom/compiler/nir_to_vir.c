@@ -2084,10 +2084,14 @@ static bool
 mem_vectorize_callback(unsigned align_mul, unsigned align_offset,
                        unsigned bit_size,
                        unsigned num_components,
+                       unsigned hole_size,
                        nir_intrinsic_instr *low,
                        nir_intrinsic_instr *high,
                        void *data)
 {
+        if (hole_size)
+                return false;
+
         /* TMU general access only supports 32-bit vectors */
         if (bit_size > 32)
                 return false;

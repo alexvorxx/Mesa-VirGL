@@ -1920,6 +1920,7 @@ should_vectorize(unsigned align_mul,
                  unsigned align_offset,
                  unsigned bit_size,
                  unsigned num_components,
+                 unsigned hole_size,
                  nir_intrinsic_instr *low, nir_intrinsic_instr *high,
                  void *data)
 {
@@ -1933,7 +1934,7 @@ should_vectorize(unsigned align_mul,
    struct stack_op_vectorizer_state *state = data;
 
    return state->driver_callback(align_mul, align_offset,
-                                 bit_size, num_components,
+                                 bit_size, num_components, hole_size,
                                  low, high, state->driver_data);
 }
 

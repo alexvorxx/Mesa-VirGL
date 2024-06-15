@@ -5896,6 +5896,9 @@ typedef bool (*nir_should_vectorize_mem_func)(unsigned align_mul,
                                               unsigned align_offset,
                                               unsigned bit_size,
                                               unsigned num_components,
+                                              /* The hole between low and
+                                               * high if they are not adjacent. */
+                                              unsigned hole_size,
                                               nir_intrinsic_instr *low,
                                               nir_intrinsic_instr *high,
                                               void *data);

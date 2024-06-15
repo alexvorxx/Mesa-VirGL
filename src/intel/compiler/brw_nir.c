@@ -1411,6 +1411,7 @@ bool
 brw_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
                              unsigned bit_size,
                              unsigned num_components,
+                             unsigned hole_size,
                              nir_intrinsic_instr *low,
                              nir_intrinsic_instr *high,
                              void *data)
@@ -1419,7 +1420,7 @@ brw_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
     * those back into 32-bit ones anyway and UBO loads aren't split in NIR so
     * we don't want to make a mess for the back-end.
     */
-   if (bit_size > 32)
+   if (bit_size > 32 || hole_size)
       return false;
 
    if (low->intrinsic == nir_intrinsic_load_ubo_uniform_block_intel ||

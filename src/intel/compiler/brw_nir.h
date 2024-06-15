@@ -233,6 +233,7 @@ enum brw_reg_type brw_type_for_nir_type(const struct intel_device_info *devinfo,
 bool brw_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
                                   unsigned bit_size,
                                   unsigned num_components,
+                                  unsigned hole_size,
                                   nir_intrinsic_instr *low,
                                   nir_intrinsic_instr *high,
                                   void *data);
