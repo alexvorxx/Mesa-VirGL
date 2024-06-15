@@ -554,7 +554,9 @@ create_entry(void *mem_ctx,
    entry->instr = &intrin->instr;
    entry->info = info;
    entry->is_store = entry->info->value_src >= 0;
-   entry->num_components = intrin->num_components;
+   entry->num_components =
+      entry->is_store ? intrin->num_components :
+                        nir_def_last_component_read(&intrin->def) + 1;
 
    if (entry->info->deref_src >= 0) {
       entry->deref = nir_src_as_deref(intrin->src[entry->info->deref_src]);
@@ -627,8 +629,18 @@ new_bitsize_acceptable(struct vectorize_ctx *ctx, unsigned new_bit_size,
       return false;
 
    unsigned new_num_components = size / new_bit_size;
-   if (!nir_num_components_valid(new_num_components))
-      return false;
+
+   if (low->is_store) {
+      if (!nir_num_components_valid(new_num_components))
+         return false;
+   } else {
+      /* Invalid component counts must be rejected by the callback, otherwise
+       * the load will overfetch by aligning the number to the next valid
+       * component count.
+       */
+      if (new_num_components > NIR_MAX_VEC_COMPONENTS)
+         return false;
+   }
 
    unsigned high_offset = high->offset_signed - low->offset_signed;
 
@@ -705,22 +717,42 @@ vectorize_loads(nir_builder *b, struct vectorize_ctx *ctx,
                 unsigned new_bit_size, unsigned new_num_components,
                 unsigned high_start)
 {
-   unsigned low_bit_size = get_bit_size(low);
-   unsigned high_bit_size = get_bit_size(high);
+   unsigned old_low_bit_size = get_bit_size(low);
+   unsigned old_high_bit_size = get_bit_size(high);
+   unsigned old_low_num_components = low->intrin->num_components;
+   unsigned old_high_num_components = high->intrin->num_components;
    bool low_bool = low->intrin->def.bit_size == 1;
    bool high_bool = high->intrin->def.bit_size == 1;
    nir_def *data = &first->intrin->def;
 
    b->cursor = nir_after_instr(first->instr);
 
+   /* Align num_components to a supported vector size, effectively
+    * overfetching. Drivers can reject this in the callback by returning
+    * false for invalid num_components.
+    */
+   new_num_components = nir_round_up_components(new_num_components);
+   new_num_components = MAX2(new_num_components, 1);
+
    /* update the load's destination size and extract data for each of the original loads */
    data->num_components = new_num_components;
    data->bit_size = new_bit_size;
 
+   /* Since this pass is shrinking merged loads if they have unused components
+    * due to using nir_def_last_component_read, nir_extract_bits might not have
+    * enough data to extract. Pad the extraction with these undefs to compensate.
+    * It will be eliminated by DCE.
+    */
+   nir_def *low_undef = nir_undef(b, old_low_num_components, old_low_bit_size);
+   nir_def *high_undef = nir_undef(b, old_high_num_components, old_high_bit_size);
+
    nir_def *low_def = nir_extract_bits(
-      b, &data, 1, 0, low->intrin->num_components, low_bit_size);
+      b, (nir_def*[]){data, low_undef}, 2, 0, old_low_num_components,
+      old_low_bit_size);
+
    nir_def *high_def = nir_extract_bits(
-      b, &data, 1, high_start, high->intrin->num_components, high_bit_size);
+      b, (nir_def*[]){data, high_undef}, 2, high_start,
+      old_high_num_components, old_high_bit_size);
 
    /* convert booleans */
    low_def = low_bool ? nir_i2b(b, low_def) : nir_mov(b, low_def);
@@ -771,13 +803,28 @@ vectorize_loads(nir_builder *b, struct vectorize_ctx *ctx,
 
    /* update align */
    if (nir_intrinsic_has_range_base(first->intrin)) {
-      uint32_t low_base = nir_intrinsic_range_base(low->intrin);
-      uint32_t high_base = nir_intrinsic_range_base(high->intrin);
-      uint32_t low_end = low_base + nir_intrinsic_range(low->intrin);
-      uint32_t high_end = high_base + nir_intrinsic_range(high->intrin);
+      uint32_t old_low_range_base = nir_intrinsic_range_base(low->intrin);
+      uint32_t old_high_range_base = nir_intrinsic_range_base(high->intrin);
+      uint32_t old_low_range_end = old_low_range_base + nir_intrinsic_range(low->intrin);
+      uint32_t old_high_range_end = old_high_range_base + nir_intrinsic_range(high->intrin);
 
-      nir_intrinsic_set_range_base(first->intrin, low_base);
-      nir_intrinsic_set_range(first->intrin, MAX2(low_end, high_end) - low_base);
+      uint32_t old_low_size = old_low_num_components * old_low_bit_size / 8;
+      uint32_t old_high_size = old_high_num_components * old_high_bit_size / 8;
+      uint32_t old_combined_size_up_to_high = high_start / 8u + old_high_size;
+      uint32_t old_combined_size = MAX2(old_low_size, old_combined_size_up_to_high);
+      uint32_t old_combined_range = MAX2(old_low_range_end, old_high_range_end) -
+                                    old_low_range_base;
+      uint32_t new_size = new_num_components * new_bit_size / 8;
+
+      /* If we are trimming (e.g. merging vec1 + vec7as8 removes 1 component)
+       * or overfetching, we need to adjust the range accordingly.
+       */
+      int size_change = new_size - old_combined_size;
+      uint32_t range = old_combined_range + size_change;
+      assert(range);
+
+      nir_intrinsic_set_range_base(first->intrin, old_low_range_base);
+      nir_intrinsic_set_range(first->intrin, range);
    } else if (nir_intrinsic_has_base(first->intrin) && info->base_src == -1 && info->deref_src == -1) {
       nir_intrinsic_set_base(first->intrin, nir_intrinsic_base(low->intrin));
    }
