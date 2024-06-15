@@ -42,6 +42,7 @@ SUPPORTED_FEATURES = [
     "VK_KHR_external_memory_capabilities",
     "VK_KHR_external_fence_capabilities",
     "VK_EXT_debug_utils",
+    "VK_EXT_debug_report",
     "VK_EXT_validation_features",
     # Device extensions
     "VK_KHR_storage_buffer_storage_class",
@@ -151,6 +152,7 @@ HOST_MODULES = ["goldfish_vk_extension_structs", "goldfish_vk_marshaling",
 # shouldn't generate a function table entry since it's an internal interface.
 SUPPORTED_MODULES = {
     "VK_EXT_debug_utils": HOST_MODULES,
+    "VK_EXT_debug_report": HOST_MODULES,
     "VK_EXT_validation_features": HOST_MODULES,
     "VK_KHR_surface": ["goldfish_vk_dispatch"],
     "VK_KHR_xcb_surface": ["goldfish_vk_dispatch"],
