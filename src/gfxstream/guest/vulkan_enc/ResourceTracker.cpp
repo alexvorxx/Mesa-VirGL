@@ -3786,7 +3786,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 on_vkGetImageSubresourceLayout(context, device, dedicatedAllocInfoPtr->image,
                                                &imageSubresource, &subResourceLayout);
                 if (!subResourceLayout.rowPitch) {
-                    mesa_loge("%s: Failed to query stride for VirtGpu resource creation.");
+                    mesa_loge("Failed to query stride for VirtGpu resource creation.");
                     return VK_ERROR_INITIALIZATION_FAILED;
                 }
 
