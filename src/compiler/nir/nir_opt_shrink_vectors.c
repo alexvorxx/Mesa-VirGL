@@ -47,17 +47,6 @@
 #include "nir.h"
 #include "nir_builder.h"
 
-/*
- * Round up a vector size to a vector size that's valid in NIR. At present, NIR
- * supports only vec2-5, vec8, and vec16. Attempting to generate other sizes
- * will fail validation.
- */
-static unsigned
-round_up_components(unsigned n)
-{
-   return (n > 5) ? util_next_power_of_two(n) : n;
-}
-
 static void
 reswizzle_alu_uses(nir_def *def, uint8_t *reswizzle)
 {
@@ -117,7 +106,7 @@ shrink_dest_to_read_mask(nir_def *def, bool shrink_start)
    int first_bit = shrink_start ? (ffs(mask) - 1) : 0;
 
    const unsigned comps = last_bit - first_bit;
-   const unsigned rounded = round_up_components(comps);
+   const unsigned rounded = nir_round_up_components(comps);
    assert(rounded <= def->num_components);
 
    if ((def->num_components > rounded) || first_bit > 0) {
@@ -313,7 +302,7 @@ opt_shrink_vectors_alu(nir_builder *b, nir_alu_instr *instr)
    if (progress)
       reswizzle_alu_uses(def, reswizzle);
 
-   unsigned rounded = round_up_components(num_components);
+   unsigned rounded = nir_round_up_components(num_components);
    assert(rounded <= def->num_components);
    if (rounded < def->num_components)
       progress = true;
@@ -430,7 +419,7 @@ opt_shrink_vectors_load_const(nir_load_const_instr *instr)
    if (progress)
       reswizzle_alu_uses(def, reswizzle);
 
-   unsigned rounded = round_up_components(num_components);
+   unsigned rounded = nir_round_up_components(num_components);
    assert(rounded <= def->num_components);
    if (rounded < def->num_components)
       progress = true;

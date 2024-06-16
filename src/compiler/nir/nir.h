@@ -44,6 +44,7 @@
 #include "util/macros.h"
 #include "util/ralloc.h"
 #include "util/set.h"
+#include "util/u_math.h"
 #include "util/u_printf.h"
 #define XXH_INLINE_ALL
 #include <stdio.h>
@@ -122,6 +123,17 @@ nir_num_components_valid(unsigned num_components)
            num_components <= 5) ||
           num_components == 8 ||
           num_components == 16;
+}
+
+/*
+ * Round up a vector size to a vector size that's valid in NIR. At present, NIR
+ * supports only vec2-5, vec8, and vec16. Attempting to generate other sizes
+ * will fail validation.
+ */
+static inline unsigned
+nir_round_up_components(unsigned n)
+{
+   return (n > 5) ? util_next_power_of_two(n) : n;
 }
 
 static inline nir_component_mask_t
