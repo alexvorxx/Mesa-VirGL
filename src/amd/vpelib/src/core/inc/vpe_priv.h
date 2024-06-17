@@ -56,6 +56,8 @@ extern "C" {
 #define MAX_LINE_SIZE 1024 // without 16 pixels for the seams
 #define MAX_LINE_CNT  4
 
+#define MAX_NUM_SAVED_CONFIG 16
+
 enum vpe_cmd_ops {
     VPE_CMD_OPS_BLENDING,
     VPE_CMD_OPS_BG,
@@ -117,14 +119,6 @@ struct config_record {
     uint64_t config_size;
 };
 
-#define VPE_3DLUT_CACHE_SIZE 81920
-
-struct vpe_3dlut_cache {
-    uint64_t uid;
-    uint8_t  cache_buf[VPE_3DLUT_CACHE_SIZE];
-    uint64_t buffer_size;
-};
-
 /** represents a stream input, i.e. common to all segments */
 struct stream_ctx {
     struct vpe_priv *vpe_priv;
@@ -139,8 +133,8 @@ struct stream_ctx {
     uint16_t num_configs;                               // shared among same stream
     uint16_t num_stream_op_configs[VPE_CMD_TYPE_COUNT]; // shared among same cmd type within the
                                                         // same stream
-    struct config_record configs[16];
-    struct config_record stream_op_configs[VPE_CMD_TYPE_COUNT][16];
+    struct config_record configs[MAX_NUM_SAVED_CONFIG];
+    struct config_record stream_op_configs[VPE_CMD_TYPE_COUNT][MAX_NUM_SAVED_CONFIG];
 
     // cached color properties
     bool                     per_pixel_alpha;
@@ -167,14 +161,11 @@ struct stream_ctx {
     struct colorspace_transform *gamut_remap;
     struct transfer_func        *in_shaper_func; // for shaper lut
     struct vpe_3dlut            *lut3d_func;     // for 3dlut
-    struct vpe_3dlut_cache      *lut3d_cache;    // for 3dlut cache
     struct transfer_func        *blend_tf;       // for 1dlut
     white_point_gain             white_point_gain;
-
-    bool                    flip_horizonal_output;
-    struct vpe_color_adjust color_adjustments; // stores the current color adjustments params
-    struct fixed31_32
-        tf_scaling_factor; // a scaling factor that acts as a gain on the transfer function
+    bool                         flip_horizonal_output;
+    struct vpe_color_adjust      color_adjustments; // stores the current color adjustments params
+    struct fixed31_32            tf_scaling_factor; // a gain applied on a transfer function
 };
 
 struct output_ctx {
@@ -190,7 +181,7 @@ struct output_ctx {
     enum color_space         cs;
 
     uint32_t             num_configs;
-    struct config_record configs[8];
+    struct config_record configs[MAX_NUM_SAVED_CONFIG];
 
     union {
         struct {

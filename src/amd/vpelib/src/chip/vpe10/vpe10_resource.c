@@ -1036,7 +1036,7 @@ void vpe10_create_stream_ops_config(struct vpe_priv *vpe_priv, uint32_t pipe_idx
     config_writer_complete(&vpe_priv->config_writer);
 }
 
-#define VPE10_GENERAL_VPE_DESC_SIZE                64    // 4 * (4 + (2 * num_configs))
+#define VPE10_GENERAL_VPE_DESC_SIZE                144   // 4 * (4 + (2 * MAX_NUM_SAVED_CONFIG))
 #define VPE10_GENERAL_EMB_USAGE_FRAME_SHARED       6000  // currently max 4804 is recorded
 #define VPE10_GENERAL_EMB_USAGE_3DLUT_FRAME_SHARED 40960 // currently max 35192 is recorded
 #define VPE10_GENERAL_EMB_USAGE_BG_SHARED          2400 // currently max 1772 + 92 + 72 = 1936 is recorded

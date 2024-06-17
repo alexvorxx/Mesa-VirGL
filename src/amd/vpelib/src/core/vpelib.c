@@ -124,8 +124,8 @@ static void override_debug_option(
     if (user_debug->flags.bypass_blndgam)
         debug->bypass_blndgam = user_debug->bypass_blndgam;
 
-    if (user_debug->flags.disable_3dlut_cache)
-        debug->disable_3dlut_cache = user_debug->disable_3dlut_cache;
+    if (user_debug->flags.disable_lut_caching)
+        debug->disable_lut_caching = user_debug->disable_lut_caching;
 }
 
 #ifdef VPE_BUILD_1_1

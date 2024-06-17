@@ -1241,9 +1241,15 @@ void vpe10_mpc_program_mpc_out(struct mpc *mpc, enum vpe_surface_pixel_format fo
 }
 
 void vpe10_mpc_set_mpc_shaper_3dlut(
-    struct mpc *mpc, const struct transfer_func *func_shaper, const struct vpe_3dlut *lut3d_func)
+    struct mpc *mpc, struct transfer_func *func_shaper, struct vpe_3dlut *lut3d_func)
 {
-    const struct pwl_params *shaper_lut = NULL;
+    const struct pwl_params         *shaper_lut = NULL;
+    const struct tetrahedral_params *lut3d_params;
+
+    PROGRAM_ENTRY();
+    struct stream_ctx *stream_ctx = &vpe_priv->stream_ctx[vpe_priv->fe_cb_ctx.stream_idx];
+    bool               bypass;
+
     // get the shaper lut params
     if (func_shaper) {
         if (func_shaper->type == TF_TYPE_DISTRIBUTED_POINTS) {
@@ -1255,57 +1261,14 @@ void vpe10_mpc_set_mpc_shaper_3dlut(
         }
     }
 
-    mpc->funcs->program_shaper(mpc, shaper_lut);
+    bypass = (!shaper_lut || (func_shaper && func_shaper->type == TF_TYPE_BYPASS));
+    CONFIG_CACHE(func_shaper, stream_ctx, vpe_priv->init.debug.disable_lut_caching, bypass,
+        mpc->funcs->program_shaper(mpc, shaper_lut));
 
-    if (lut3d_func) {
-        if (lut3d_func->state.bits.initialized) {
-            // check if 3D Lut cache enabled
-            PROGRAM_ENTRY();
-            struct stream_ctx *stream_ctx = &vpe_priv->stream_ctx[vpe_priv->fe_cb_ctx.stream_idx];
-
-            if (mpc->vpe_priv->init.debug.disable_3dlut_cache || !stream_ctx->uid_3dlut ||
-                    !stream_ctx->lut3d_cache) {
-                mpc->funcs->program_3dlut(mpc, &lut3d_func->lut_3d);
-            } else { // 3D Lut cache enabled
-
-                config_writer_force_new_with_type(config_writer, CONFIG_TYPE_DIRECT);
-
-                // check cache status, if cache exist, use cache
-                if (stream_ctx->lut3d_cache->uid == stream_ctx->uid_3dlut &&
-                        config_writer->buf->size >= stream_ctx->lut3d_cache->buffer_size) {
-                    memcpy((void *)(uintptr_t)config_writer->base_cpu_va,
-                            stream_ctx->lut3d_cache->cache_buf,
-                            stream_ctx->lut3d_cache->buffer_size);
-                    config_writer->buf->cpu_va = config_writer->base_cpu_va +
-                            stream_ctx->lut3d_cache->buffer_size;
-                    config_writer->buf->gpu_va = config_writer->base_gpu_va +
-                            stream_ctx->lut3d_cache->buffer_size;
-                    config_writer->buf->size   -=
-                            (stream_ctx->lut3d_cache->buffer_size - sizeof(uint32_t));
-                } else { // if cache not exist generate command and save to cache
-                    uint64_t start, end;
-
-                    uint16_t config_num = stream_ctx->num_configs;
-
-                    start = config_writer->base_cpu_va;
-                    mpc->funcs->program_3dlut(mpc, &lut3d_func->lut_3d);
-                    end = config_writer->buf->cpu_va;
-                    if (config_num == stream_ctx->num_configs) { // check if cross config
-                        if ((end - start) <= VPE_3DLUT_CACHE_SIZE) {
-                            stream_ctx->lut3d_cache->buffer_size = end - start;
-                            memcpy(stream_ctx->lut3d_cache->cache_buf, (void *)(uintptr_t)start,
-                                    stream_ctx->lut3d_cache->buffer_size);
-                            stream_ctx->lut3d_cache->uid = stream_ctx->uid_3dlut;
-                        }
-                    } else { // current cache does not support cross config
-                        stream_ctx->lut3d_cache->uid = 0;
-                    }
-                }
-            }
-        } else {
-            mpc->funcs->program_3dlut(mpc, NULL);
-        }
-    }
+    bypass       = (!lut3d_func || !lut3d_func->state.bits.initialized);
+    lut3d_params = (bypass) ? (NULL) : (&lut3d_func->lut_3d);
+    CONFIG_CACHE(lut3d_func, stream_ctx, vpe_priv->init.debug.disable_lut_caching, bypass,
+        mpc->funcs->program_3dlut(mpc, lut3d_params));
 
     return;
 }
@@ -1314,9 +1277,11 @@ void vpe10_mpc_set_output_transfer_func(struct mpc *mpc, struct output_ctx *outp
 {
     /* program OGAM only for the top pipe*/
     struct pwl_params *params = NULL;
-    bool               ret    = false;
+    bool               bypass;
 
-    if (ret == false && output_ctx->output_tf) {
+    PROGRAM_ENTRY();
+
+    if (output_ctx->output_tf) {
         // No support HWPWL as it is legacy
         if (output_ctx->output_tf->type == TF_TYPE_DISTRIBUTED_POINTS) {
             vpe10_cm_helper_translate_curve_to_hw_format( // this is cm3.0 version instead 1.0
@@ -1328,13 +1293,23 @@ void vpe10_mpc_set_output_transfer_func(struct mpc *mpc, struct output_ctx *outp
         if (output_ctx->output_tf->type == TF_TYPE_PREDEFINED)
             VPE_ASSERT(0);
     }
-    mpc->funcs->set_output_gamma(mpc, params);
+
+    bypass = (!output_ctx->output_tf || (output_ctx->output_tf->type == TF_TYPE_BYPASS) ||
+              vpe_priv->init.debug.cm_in_bypass || vpe_priv->init.debug.bypass_ogam);
+
+    CONFIG_CACHE(output_ctx->output_tf, output_ctx, vpe_priv->init.debug.disable_lut_caching,
+        bypass, mpc->funcs->set_output_gamma(mpc, params));
 }
 
-void vpe10_mpc_set_blend_lut(struct mpc *mpc, const struct transfer_func *blend_tf)
+void vpe10_mpc_set_blend_lut(struct mpc *mpc, struct transfer_func *blend_tf)
 {
     struct pwl_params *blend_lut = NULL;
     enum cm_type gamma_type = CM_DEGAM;
+
+    PROGRAM_ENTRY();
+
+    struct stream_ctx *stream_ctx = &vpe_priv->stream_ctx[vpe_priv->fe_cb_ctx.stream_idx];
+    bool               bypass;
 
     if (blend_tf && blend_tf->type == TF_TYPE_DISTRIBUTED_POINTS) {
 
@@ -1349,11 +1324,15 @@ void vpe10_mpc_set_blend_lut(struct mpc *mpc, const struct transfer_func *blend_
         blend_lut = &mpc->blender_params;
     }
 
-    mpc->funcs->program_1dlut(mpc, blend_lut, gamma_type);
+    bypass =
+        ((!blend_tf) || (blend_tf->type == TF_TYPE_BYPASS) || vpe_priv->init.debug.bypass_blndgam);
+
+    CONFIG_CACHE(blend_tf, stream_ctx, vpe_priv->init.debug.disable_lut_caching, bypass,
+        mpc->funcs->program_1dlut(mpc, blend_lut, gamma_type));
 }
 
-bool vpe10_mpc_program_movable_cm(struct mpc *mpc, const struct transfer_func *func_shaper,
-    const struct vpe_3dlut *lut3d_func, const struct transfer_func *blend_tf, bool afterblend)
+bool vpe10_mpc_program_movable_cm(struct mpc *mpc, struct transfer_func *func_shaper,
+    struct vpe_3dlut *lut3d_func, struct transfer_func *blend_tf, bool afterblend)
 {
     struct pwl_params *params = NULL;
     bool               ret    = false;

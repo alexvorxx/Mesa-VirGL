@@ -232,7 +232,8 @@ bool vpe10_cm_helper_translate_curve_to_hw_format(
     int32_t  i;
     uint32_t j, k, seg_distr[MAX_REGIONS_NUMBER], increment, start_index, hw_points;
 
-    if (output_tf == NULL || lut_params == NULL || output_tf->type == TF_TYPE_BYPASS)
+    if (output_tf == NULL || lut_params == NULL || output_tf->type == TF_TYPE_BYPASS ||
+        !output_tf->dirty)
         return false;
 
     corner_points = lut_params->corner_points;
@@ -417,7 +418,8 @@ bool vpe10_cm_helper_translate_curve_to_degamma_hw_format(
     int32_t  i;
     uint32_t k, seg_distr[MAX_REGIONS_NUMBER_DEGAMMA], num_segments, hw_points;
 
-    if (output_tf == NULL || lut_params == NULL || output_tf->type == TF_TYPE_BYPASS)
+    if (output_tf == NULL || lut_params == NULL || output_tf->type == TF_TYPE_BYPASS ||
+        !output_tf->dirty)
         return false;
 
     corner_points = lut_params->corner_points;

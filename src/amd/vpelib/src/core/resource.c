@@ -36,20 +36,20 @@
 #endif
 
 static const struct vpe_debug_options debug_defaults = {
-    .flags                                   = {0},
-    .cm_in_bypass                            = 0,
-    .vpcnvc_bypass                           = 0,
-    .mpc_bypass                              = 0,
-    .identity_3dlut                          = 0,
-    .sce_3dlut                               = 0,
-    .disable_reuse_bit                       = 0,
-    .bg_bit_depth                            = 0,
-    .bypass_gamcor                           = 0,
-    .bypass_ogam                             = 0,
-    .bypass_dpp_gamut_remap                  = 0,
-    .bypass_post_csc                         = 0,
-    .bg_color_fill_only                      = 0,
-    .assert_when_not_support                 = 0,
+    .flags                   = {0},
+    .cm_in_bypass            = 0,
+    .vpcnvc_bypass           = 0,
+    .mpc_bypass              = 0,
+    .identity_3dlut          = 0,
+    .sce_3dlut               = 0,
+    .disable_reuse_bit       = 0,
+    .bg_bit_depth            = 0,
+    .bypass_gamcor           = 0,
+    .bypass_ogam             = 0,
+    .bypass_dpp_gamut_remap  = 0,
+    .bypass_post_csc         = 0,
+    .bg_color_fill_only      = 0,
+    .assert_when_not_support = 0,
     .enable_mem_low_power =
         {
             .bits =
@@ -77,8 +77,8 @@ static const struct vpe_debug_options debug_defaults = {
     .mpc_crc_ctrl           = 0,
     .visual_confirm_params  = {{{0}}},
     .skip_optimal_tap_check = 0,
-    .disable_3dlut_cache    = 0,
-    .bypass_blndgam         = 0
+    .disable_lut_caching    = 0,
+    .bypass_blndgam         = 0,
 };
 
 enum vpe_ip_level vpe_resource_parse_ip_version(
@@ -199,6 +199,7 @@ void vpe_free_stream_ctx(struct vpe_priv *vpe_priv)
     for (i = 0; i < vpe_priv->num_streams; i++) {
         ctx = &vpe_priv->stream_ctx[i];
         if (ctx->input_tf) {
+            CONFIG_CACHE_FREE(ctx->input_tf->config_cache);
             vpe_free(ctx->input_tf);
             ctx->input_tf = NULL;
         }
@@ -219,23 +220,21 @@ void vpe_free_stream_ctx(struct vpe_priv *vpe_priv)
         }
 
         if (ctx->in_shaper_func) {
+            CONFIG_CACHE_FREE(ctx->in_shaper_func->config_cache);
             vpe_free(ctx->in_shaper_func);
             ctx->in_shaper_func = NULL;
         }
 
         if (ctx->blend_tf) {
+            CONFIG_CACHE_FREE(ctx->blend_tf->config_cache);
             vpe_free(ctx->blend_tf);
             ctx->blend_tf = NULL;
         }
 
         if (ctx->lut3d_func) {
+            CONFIG_CACHE_FREE(ctx->lut3d_func->config_cache);
             vpe_free(ctx->lut3d_func);
             ctx->lut3d_func = NULL;
-        }
-
-        if (ctx->lut3d_cache) {
-            vpe_free(ctx->lut3d_cache);
-            ctx->lut3d_cache = NULL;
         }
 
         if (ctx->segment_ctx) {

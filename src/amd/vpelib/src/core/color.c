@@ -49,9 +49,8 @@ static bool color_update_regamma_tf(struct vpe_priv *vpe_priv,
     struct transfer_func *output_tf);
 
 static bool color_update_degamma_tf(struct vpe_priv *vpe_priv,
-    enum color_transfer_func color_input_tf, struct fixed31_32 x_scale,
-    struct fixed31_32 y_scale, struct fixed31_32 y_bias, bool can_bypass,
-    struct transfer_func *input_tf);
+    enum color_transfer_func color_input_tf, struct fixed31_32 x_scale, struct fixed31_32 y_scale,
+    struct fixed31_32 y_bias, bool can_bypass, struct transfer_func *input_tf);
 
 static bool color_update_input_cs(struct vpe_priv *vpe_priv, enum color_space in_cs,
     const struct vpe_color_adjust *adjustments, struct vpe_csc_matrix *input_cs,
@@ -153,10 +152,11 @@ static void color_check_input_cm_update(struct vpe_priv *vpe_priv, struct stream
 static bool color_update_regamma_tf(struct vpe_priv *vpe_priv,
     enum color_transfer_func output_transfer_function, struct fixed31_32 x_scale,
     struct fixed31_32 y_scale, struct fixed31_32 y_bias, bool can_bypass,
-    struct transfer_func* output_tf)
+    struct transfer_func *output_tf)
 {
     struct pwl_params *params = NULL;
     bool               ret    = true;
+    bool               update = false;
 
     if (can_bypass || output_transfer_function == TRANSFER_FUNC_HLG) {
         output_tf->type = TF_TYPE_BYPASS;
@@ -164,9 +164,9 @@ static bool color_update_regamma_tf(struct vpe_priv *vpe_priv,
     }
 
     output_tf->sdr_ref_white_level = 80;
-    output_tf->cm_gamma_type = CM_REGAM;
-    output_tf->type = TF_TYPE_DISTRIBUTED_POINTS;
-    output_tf->start_base = y_bias;
+    output_tf->cm_gamma_type       = CM_REGAM;
+    output_tf->type                = TF_TYPE_DISTRIBUTED_POINTS;
+    output_tf->start_base          = y_bias;
 
     switch (output_transfer_function) {
     case TRANSFER_FUNC_SRGB:
@@ -181,19 +181,41 @@ static bool color_update_regamma_tf(struct vpe_priv *vpe_priv,
         break;
     }
 
-    ret = vpe_color_calculate_regamma_params(
-        vpe_priv, x_scale, y_scale, &vpe_priv->cal_buffer, output_tf);
+    if (vpe_priv->init.debug.disable_lut_caching ||
+        (output_tf->cache_info.cm_gamma_type != output_tf->cm_gamma_type) ||
+        (output_tf->cache_info.tf != output_tf->tf) ||
+        (output_tf->cache_info.x_scale.value != x_scale.value) ||
+        (output_tf->cache_info.y_scale.value != y_scale.value) ||
+        (output_tf->cache_info.y_bias.value != y_bias.value)) {
+        // if gamma points have been previously generated,
+        // skip the re-gen no matter it was config cached or not
+        update = true;
+    }
 
+    if (update) {
+        ret = vpe_color_calculate_regamma_params(
+            vpe_priv, x_scale, y_scale, &vpe_priv->cal_buffer, output_tf);
+        if (ret) {
+            // reset the cache status and mark as dirty to let hw layer to re-cache
+            output_tf->dirty                    = true;
+            output_tf->config_cache.cached      = false;
+            output_tf->cache_info.cm_gamma_type = output_tf->cm_gamma_type;
+            output_tf->cache_info.tf            = output_tf->tf;
+            output_tf->cache_info.x_scale       = x_scale;
+            output_tf->cache_info.y_scale       = y_scale;
+            output_tf->cache_info.y_bias        = y_bias;
+        }
+    }
     return ret;
 }
 
 static bool color_update_degamma_tf(struct vpe_priv *vpe_priv,
-    enum color_transfer_func color_input_tf, struct fixed31_32 x_scale,
-    struct fixed31_32 y_scale, struct fixed31_32 y_bias, bool can_bypass,
-    struct transfer_func *input_tf)
+    enum color_transfer_func color_input_tf, struct fixed31_32 x_scale, struct fixed31_32 y_scale,
+    struct fixed31_32 y_bias, bool can_bypass, struct transfer_func *input_tf)
 {
     bool               ret    = true;
     struct pwl_params *params = NULL;
+    bool               update = false;
 
     if (can_bypass || color_input_tf == TRANSFER_FUNC_HLG) {
         input_tf->type = TF_TYPE_BYPASS;
@@ -201,8 +223,8 @@ static bool color_update_degamma_tf(struct vpe_priv *vpe_priv,
     }
 
     input_tf->cm_gamma_type = CM_DEGAM;
-    input_tf->type = TF_TYPE_DISTRIBUTED_POINTS;
-    input_tf->start_base = y_bias;
+    input_tf->type          = TF_TYPE_DISTRIBUTED_POINTS;
+    input_tf->start_base    = y_bias;
 
     switch (color_input_tf) {
     case TRANSFER_FUNC_SRGB:
@@ -218,13 +240,36 @@ static bool color_update_degamma_tf(struct vpe_priv *vpe_priv,
         break;
     }
 
-    ret = vpe_color_calculate_degamma_params(vpe_priv, x_scale, y_scale, input_tf);
+    if (vpe_priv->init.debug.disable_lut_caching ||
+        (input_tf->cache_info.cm_gamma_type != input_tf->cm_gamma_type) ||
+        (input_tf->cache_info.tf != input_tf->tf) ||
+        (input_tf->cache_info.x_scale.value != x_scale.value) ||
+        (input_tf->cache_info.y_scale.value != y_scale.value) ||
+        (input_tf->cache_info.y_bias.value != y_bias.value)) {
+        // if gamma points have been previously generated,
+        // skip the re-gen no matter it was config cached or not
+        update = true;
+    }
 
+    if (update) {
+        ret = vpe_color_calculate_degamma_params(vpe_priv, x_scale, y_scale, input_tf);
+        if (ret) {
+            // reset the cache status and mark as dirty to let hw layer to re-cache
+            input_tf->dirty                    = true;
+            input_tf->config_cache.cached      = false;
+            input_tf->cache_info.cm_gamma_type = input_tf->cm_gamma_type;
+            input_tf->cache_info.tf            = color_input_tf;
+            input_tf->cache_info.x_scale       = x_scale;
+            input_tf->cache_info.y_scale       = y_scale;
+            input_tf->cache_info.y_bias        = y_bias;
+        }
+    }
     return ret;
 }
 
-static enum vpe_status vpe_allocate_cm_memory(struct vpe_priv *vpe_priv, const struct vpe_build_param *param) {
-
+static enum vpe_status vpe_allocate_cm_memory(
+    struct vpe_priv *vpe_priv, const struct vpe_build_param *param)
+{
     struct stream_ctx  *stream_ctx;
     struct output_ctx  *output_ctx;
     enum vpe_status     status = VPE_STATUS_OK;
@@ -242,8 +287,7 @@ static enum vpe_status vpe_allocate_cm_memory(struct vpe_priv *vpe_priv, const s
         }
 
         if (!stream_ctx->input_tf) {
-            stream_ctx->input_tf =
-                (struct transfer_func *)vpe_zalloc(sizeof(struct transfer_func));
+            stream_ctx->input_tf = (struct transfer_func *)vpe_zalloc(sizeof(struct transfer_func));
             if (!stream_ctx->input_tf) {
                 vpe_log("err: out of memory for input tf!");
                 return VPE_STATUS_NO_MEMORY;
@@ -277,8 +321,7 @@ static enum vpe_status vpe_allocate_cm_memory(struct vpe_priv *vpe_priv, const s
 
     output_ctx = &vpe_priv->output_ctx;
     if (!output_ctx->output_tf) {
-        output_ctx->output_tf =
-            (struct transfer_func *)vpe_zalloc(sizeof(struct transfer_func));
+        output_ctx->output_tf = (struct transfer_func *)vpe_zalloc(sizeof(struct transfer_func));
         if (!output_ctx->output_tf) {
             vpe_log("err: out of memory for output tf!");
             return VPE_STATUS_NO_MEMORY;
@@ -379,8 +422,7 @@ static enum vpe_status vpe_update_blnd_gamma(struct vpe_priv *vpe_priv,
     const struct vpe_build_param *param, const struct vpe_stream *stream,
     struct transfer_func *blnd_tf)
 {
-
-    struct output_ctx               *output_ctx;
+    struct output_ctx       *output_ctx;
     struct vpe_color_space   tm_out_cs;
     struct fixed31_32        x_scale       = vpe_fixpt_one;
     struct fixed31_32        y_scale       = vpe_fixpt_one;
@@ -622,6 +664,28 @@ enum vpe_status vpe_color_build_tm_cs(const struct vpe_tonemap_params *tm_params
     return VPE_STATUS_OK;
 }
 
+enum vpe_status vpe_color_update_3dlut(
+    struct vpe_priv *vpe_priv, struct stream_ctx *stream_ctx, bool enable_3dlut)
+{
+    if (!enable_3dlut) {
+        stream_ctx->lut3d_func->state.bits.initialized = 0;
+    } else {
+        if (vpe_priv->init.debug.disable_lut_caching ||
+            (stream_ctx->lut3d_func->cache_info.uid_3dlut != stream_ctx->stream.tm_params.UID)) {
+            vpe_convert_to_tetrahedral(
+                vpe_priv, stream_ctx->stream.tm_params.lut_data, stream_ctx->lut3d_func);
+            stream_ctx->lut3d_func->dirty                = true;
+            stream_ctx->lut3d_func->config_cache.cached  = false;
+            stream_ctx->lut3d_func->cache_info.uid_3dlut = stream_ctx->stream.tm_params.UID;
+        }
+        stream_ctx->lut3d_func->state.bits.initialized = 1;
+    }
+
+    stream_ctx->uid_3dlut = stream_ctx->stream.tm_params.UID;
+
+    return VPE_STATUS_OK;
+}
+
 enum vpe_status vpe_color_update_color_space_and_tf(
     struct vpe_priv *vpe_priv, const struct vpe_build_param *param)
 {
@@ -730,22 +794,44 @@ enum vpe_status vpe_color_tm_update_hdr_mult(uint16_t shaper_in_exp_max, uint32_
     return VPE_STATUS_OK;
 }
 
-enum vpe_status vpe_color_update_shaper(
-    uint16_t shaper_in_exp_max, struct transfer_func *shaper_func, bool enable_3dlut)
-
+enum vpe_status vpe_color_update_shaper(const struct vpe_priv *vpe_priv, uint16_t shaper_in_exp_max,
+    struct transfer_func *shaper_func, bool enable_3dlut)
 {
+    enum color_transfer_func tf     = TRANSFER_FUNC_LINEAR;
+    bool                     update = false;
+    enum vpe_status          ret    = VPE_STATUS_OK;
+
+    VPE_ASSERT(shaper_func != NULL);
+
     if (!enable_3dlut) {
         shaper_func->type = TF_TYPE_BYPASS;
         return VPE_STATUS_OK;
     }
-    struct vpe_shaper_setup_in shaper_in;
 
-    shaper_in.shaper_in_max      = 1 << 16;
-    shaper_in.use_const_hdr_mult = false; // can't be true. Fix is required.
+    // right now shaper is always programmed with linear, once cached, it is always reused.
+    if (vpe_priv->init.debug.disable_lut_caching ||
+        (shaper_func && shaper_func->cache_info.tf != tf)) {
+        // if the caching has the required data cached, skip the update
+        update = true;
+    }
 
     shaper_func->type = TF_TYPE_HWPWL;
-    shaper_func->tf   = TRANSFER_FUNC_LINEAR;
-    return vpe_build_shaper(&shaper_in, &shaper_func->pwl);
+    shaper_func->tf   = tf;
+
+    if (update) {
+        struct vpe_shaper_setup_in shaper_in;
+
+        shaper_in.shaper_in_max      = 1 << 16;
+        shaper_in.use_const_hdr_mult = false; // can't be true. Fix is required.
+
+        ret = vpe_build_shaper(&shaper_in, &shaper_func->pwl);
+        if (ret == VPE_STATUS_OK) {
+            shaper_func->dirty               = true;
+            shaper_func->config_cache.cached = false;
+            shaper_func->cache_info.tf       = tf;
+        }
+    }
+    return ret;
 }
 
 enum vpe_status vpe_color_update_movable_cm(
@@ -796,19 +882,6 @@ enum vpe_status vpe_color_update_movable_cm(
                 }
             }
 
-            if (enable_3dlut) {
-                if (!stream_ctx->lut3d_cache) { // setup cache if needed
-                    stream_ctx->lut3d_cache = vpe_zalloc(sizeof(struct vpe_3dlut_cache));
-                    if (!stream_ctx->lut3d_cache) {
-                        vpe_log("err: out of memory for 3d lut cache!");
-                        ret = VPE_STATUS_NO_MEMORY;
-                        goto exit;
-                    }
-                    stream_ctx->lut3d_cache->uid = 0;
-                }
-                // 3D Lut updated, invalid cache
-            }
-
             if (!output_ctx->gamut_remap) {
                 output_ctx->gamut_remap = vpe_zalloc(sizeof(struct colorspace_transform));
                 if (!output_ctx->gamut_remap) {
@@ -818,14 +891,13 @@ enum vpe_status vpe_color_update_movable_cm(
                 }
             }
 
-            //Blendgam is updated by output vpe_update_output_gamma_sequence
-
             get_shaper_norm_factor(&stream_ctx->stream.tm_params, stream_ctx, &shaper_norm_factor);
 
             vpe_color_tm_update_hdr_mult(SHAPER_EXP_MAX_IN, shaper_norm_factor,
                 &stream_ctx->lut3d_func->hdr_multiplier, enable_3dlut);
 
-            vpe_color_update_shaper(SHAPER_EXP_MAX_IN, stream_ctx->in_shaper_func, enable_3dlut);
+            vpe_color_update_shaper(
+                vpe_priv, SHAPER_EXP_MAX_IN, stream_ctx->in_shaper_func, enable_3dlut);
 
             vpe_color_build_tm_cs(&stream_ctx->stream.tm_params, vpe_priv->output_ctx.surface, &tm_out_cs);
 
@@ -834,12 +906,7 @@ enum vpe_status vpe_color_update_movable_cm(
             vpe_color_update_gamut(vpe_priv, out_lut_cs, vpe_priv->output_ctx.cs,
                 output_ctx->gamut_remap, !enable_3dlut);
 
-            if ((enable_3dlut && !stream_ctx->stream.tm_params.UID) ||
-                    stream_ctx->lut3d_cache->uid != stream_ctx->stream.tm_params.UID)
-                vpe_convert_to_tetrahedral(vpe_priv, stream_ctx->stream.tm_params.lut_data,
-                    stream_ctx->lut3d_func, enable_3dlut);
-
-            stream_ctx->uid_3dlut = stream_ctx->stream.tm_params.UID;
+            vpe_color_update_3dlut(vpe_priv, stream_ctx, enable_3dlut);
         }
     }
 exit:

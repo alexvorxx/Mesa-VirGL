@@ -74,15 +74,9 @@ static void convert_3dlut_to_tetrahedral_params(
     params->use_tetrahedral_9 = !is_17x17x17;
 }
 
-bool vpe_convert_to_tetrahedral(struct vpe_priv *vpe_priv, uint16_t rgb_lib[17 * 17 * 17 * 3],
-    struct vpe_3dlut *params, bool enable_3dlut)
+bool vpe_convert_to_tetrahedral(
+    struct vpe_priv *vpe_priv, uint16_t rgb_lib[17 * 17 * 17 * 3], struct vpe_3dlut *params)
 {
-
-    if (!enable_3dlut) {
-        params->state.bits.initialized = 0;
-        return true;
-    }
-
     bool            ret      = false;
     struct vpe_rgb *rgb_area = NULL;
     int             ind      = 0;
@@ -108,7 +102,6 @@ bool vpe_convert_to_tetrahedral(struct vpe_priv *vpe_priv, uint16_t rgb_lib[17 *
         }
     }
     convert_3dlut_to_tetrahedral_params(rgb_area, true, true, &params->lut_3d);
-    params->state.bits.initialized = 1;
 
     vpe_free(rgb_area);
     ret = true;

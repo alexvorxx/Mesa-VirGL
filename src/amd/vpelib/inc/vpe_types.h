@@ -239,8 +239,11 @@ struct vpe_cap_funcs {
      * @param[in/out]  output        dcc capable result and related settings
      * @return true if supported
      */
-    bool (*get_dcc_compression_output_cap)(const struct vpe *vpe, const struct vpe_dcc_surface_param *params, struct vpe_surface_dcc_cap *cap);
-    bool (*get_dcc_compression_input_cap)(const struct vpe *vpe, const struct vpe_dcc_surface_param *params, struct vpe_surface_dcc_cap  *cap);
+    bool (*get_dcc_compression_output_cap)(const struct vpe *vpe,
+        const struct vpe_dcc_surface_param *params, struct vpe_surface_dcc_cap *cap);
+
+    bool (*get_dcc_compression_input_cap)(const struct vpe *vpe,
+        const struct vpe_dcc_surface_param *params, struct vpe_surface_dcc_cap *cap);
 };
 
 /****************************************
@@ -351,7 +354,7 @@ struct vpe_debug_options {
         uint32_t bg_bit_depth            : 1;
         uint32_t visual_confirm          : 1;
         uint32_t skip_optimal_tap_check  : 1;
-        uint32_t disable_3dlut_cache     : 1;
+        uint32_t disable_lut_caching     : 1;
     } flags;
 
     // valid only if the corresponding flag is set
@@ -374,7 +377,8 @@ struct vpe_debug_options {
     uint32_t opp_pipe_crc_ctrl       : 1;
     uint32_t mpc_crc_ctrl            : 1;
     uint32_t skip_optimal_tap_check  : 1;
-    uint32_t disable_3dlut_cache     : 1;
+    uint32_t disable_lut_caching     : 1; /*< disable config caching for all luts */
+
     uint32_t bg_bit_depth;
 
     struct vpe_mem_low_power_enable_options enable_mem_low_power;
