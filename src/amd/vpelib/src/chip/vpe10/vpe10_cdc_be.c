@@ -69,7 +69,8 @@ void vpe10_cdc_program_global_sync(
 }
 
 void vpe10_cdc_program_p2b_config(struct cdc_be *cdc_be, enum vpe_surface_pixel_format format,
-    enum vpe_swizzle_mode_values swizzle, const struct vpe_rect *viewport)
+    enum vpe_swizzle_mode_values swizzle, const struct vpe_rect *viewport,
+    const struct vpe_rect *viewport_c)
 {
     uint32_t bar_sel0       = (uint32_t)MUX_SEL_CB_B;
     uint32_t bar_sel1       = (uint32_t)MUX_SEL_Y_G;

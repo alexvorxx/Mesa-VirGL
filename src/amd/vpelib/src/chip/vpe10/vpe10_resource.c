@@ -869,7 +869,7 @@ int32_t vpe10_program_backend(
         vpe_priv->be_cb_ctx.share = true;
 
         cdc_be->funcs->program_p2b_config(
-            cdc_be, surface_info->format, surface_info->swizzle, &output_ctx->target_rect);
+            cdc_be, surface_info->format, surface_info->swizzle, &output_ctx->target_rect, NULL);
         cdc_be->funcs->program_global_sync(cdc_be, VPE10_CDC_VUPDATE_OFFSET_DEFAULT,
             VPE10_CDC_VUPDATE_WIDTH_DEFAULT, VPE10_CDC_VREADY_OFFSET_DEFAULT);
 

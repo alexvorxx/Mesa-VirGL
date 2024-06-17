@@ -190,7 +190,7 @@ bool vpe_is_yuv(enum vpe_surface_pixel_format format)
             vpe_is_yuv444(format));
 }
 
-static uint8_t vpe_get_element_size_in_bytes(enum vpe_surface_pixel_format format, int plane_idx)
+uint8_t vpe_get_element_size_in_bytes(enum vpe_surface_pixel_format format, int plane_idx)
 {
     switch (format) {
         // nv12/21

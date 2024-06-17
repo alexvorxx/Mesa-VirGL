@@ -150,6 +150,7 @@ static enum predefined_gamut_type color_space_to_predefined_gamut_types(
     case COLOR_SPACE_2020_RGB_FULLRANGE:
     case COLOR_SPACE_2020_RGB_LIMITEDRANGE:
     case COLOR_SPACE_2020_YCBCR:
+    case COLOR_SPACE_2020_YCBCR_LIMITED:
         return gamut_type_bt2020;
     default:
         VPE_ASSERT(0);

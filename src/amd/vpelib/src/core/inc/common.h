@@ -88,6 +88,8 @@ enum vpe_status vpe_check_input_support(struct vpe *vpe, const struct vpe_stream
 enum vpe_status vpe_check_tone_map_support(
     struct vpe *vpe, const struct vpe_stream *stream, const struct vpe_build_param *param);
 
+uint8_t vpe_get_element_size_in_bytes(enum vpe_surface_pixel_format format, int plane_idx);
+
 #ifdef __cplusplus
 }
 #endif

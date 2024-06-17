@@ -49,7 +49,8 @@ struct cdc_fe_funcs {
         uint32_t vupdate_width, uint32_t vready_offset);
 
     void (*program_p2b_config)(struct cdc_fe *cdc_fe, enum vpe_surface_pixel_format format,
-        enum vpe_swizzle_mode_values swizzle, const struct vpe_rect *viewport);
+        enum vpe_swizzle_mode_values swizzle, const struct vpe_rect *viewport,
+        const struct vpe_rect *viewport_c);
 
     /** segment specific */
     void (*program_viewport)(
@@ -63,7 +64,8 @@ struct cdc_be_funcs {
         uint32_t vupdate_width, uint32_t vready_offset);
 
     void (*program_p2b_config)(struct cdc_be *cdc_be, enum vpe_surface_pixel_format format,
-        enum vpe_swizzle_mode_values swizzle, const struct vpe_rect *viewport);
+        enum vpe_swizzle_mode_values swizzle, const struct vpe_rect *viewport,
+        const struct vpe_rect *viewport_c);
 };
 
 struct cdc_fe {
