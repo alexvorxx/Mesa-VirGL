@@ -1049,7 +1049,8 @@ emit_varying_attrs(struct panvk_pool *desc_pool,
 
 void
 panvk_per_arch(link_shaders)(struct panvk_pool *desc_pool,
-                             struct panvk_shader *vs, struct panvk_shader *fs,
+                             const struct panvk_shader *vs,
+                             const struct panvk_shader *fs,
                              struct panvk_shader_link *link)
 {
    BITSET_DECLARE(active_attrs, VARYING_SLOT_MAX) = {0};

@@ -156,8 +156,8 @@ panvk_shader_get_dev_addr(const struct panvk_shader *shader)
 }
 
 void panvk_per_arch(link_shaders)(struct panvk_pool *desc_pool,
-                                  struct panvk_shader *vs,
-                                  struct panvk_shader *fs,
+                                  const struct panvk_shader *vs,
+                                  const struct panvk_shader *fs,
                                   struct panvk_shader_link *link);
 
 static inline void

@@ -96,7 +96,7 @@ struct panvk_cmd_graphics_state {
    bool linked;
 
    struct {
-      struct panvk_shader *shader;
+      const struct panvk_shader *shader;
       mali_ptr rsd;
 #if PAN_ARCH <= 7
       struct panvk_shader_desc_state desc;
@@ -104,7 +104,7 @@ struct panvk_cmd_graphics_state {
    } fs;
 
    struct {
-      struct panvk_shader *shader;
+      const struct panvk_shader *shader;
       mali_ptr attribs;
       mali_ptr attrib_bufs;
 #if PAN_ARCH <= 7
