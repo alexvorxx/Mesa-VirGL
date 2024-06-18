@@ -1748,6 +1748,12 @@ valid_texture_format_enum(const struct gl_context *ctx, GLenum format)
    case GL_BLUE:
       return _mesa_is_desktop_gl(ctx);
 
+   case GL_BGR:
+   case GL_BGRA:
+      assert(_mesa_is_desktop_gl(ctx) ||
+             _mesa_has_EXT_texture_format_BGRA8888(ctx));
+      return true;
+
    case GL_DEPTH_COMPONENT:
       return _mesa_is_desktop_gl(ctx) ||
              _mesa_has_OES_depth_texture(ctx);
