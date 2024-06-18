@@ -315,7 +315,6 @@ gmem-dEQP-VK.binding_model.descriptor_buffer.basic.limits,Fail
 
 # New CTS failures in 1.3.7.0
 dEQP-VK.dynamic_rendering.primary_cmd_buff.basic.partial_binding_depth_stencil,Fail
-dEQP-VK.binding_model.descriptorset_random.sets4.constant.ubolimitlow.sbolimitlow.sampledimglow.outimgtexlow.iublimitlow.uab.comp.noia.0,Fail
 
 # test bug: https://gitlab.khronos.org/Tracker/vk-gl-cts/-/issues/5192
 gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_1.32bit.point_list.indirect,Fail
@@ -358,6 +357,14 @@ gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_s
 nobin-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_3.pgq_64bit_xfb_32bit.triangle_strip_with_adjacency.indirect,Fail
 gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_1.pgq_64bit_xfb_32bit.line_strip.draw,Fail
 gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_1.32bit.line_strip_with_adjacency.indirect,Fail
+gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_3.64bit.point_list.draw,Fail
+gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_3.32bit.line_strip.draw,Fail
+gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_1.32bit.triangle_strip.draw,Fail
+nobin-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_3.pgq_64bit_xfb_32bit.line_list.draw,Fail
+nobin-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_3.64bit.point_list.draw,Fail
+gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_1.pgq_64bit_xfb_32bit.triangle_fan.draw,Fail
+gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_3.pgq_64bit_xfb_32bit.point_list.draw,Fail
+nobin-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_3.pgq_64bit_xfb_32bit.point_list.draw,Fail
 
 # New CTS failures in 1.3.8.0
 dEQP-VK.binding_model.descriptor_buffer.basic.limits,Fail

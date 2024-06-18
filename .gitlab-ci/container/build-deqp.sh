@@ -16,7 +16,7 @@ set -ex -o pipefail
 # - the GL release produces `glcts`, and
 # - the GLES release produces `deqp-gles*` and `deqp-egl`
 
-DEQP_VK_VERSION=1.3.8.2
+DEQP_VK_VERSION=1.3.9.0
 DEQP_GL_VERSION=4.6.4.1
 DEQP_GLES_VERSION=3.2.10.1
 
@@ -28,14 +28,6 @@ DEQP_GLES_VERSION=3.2.10.1
 
 # shellcheck disable=SC2034
 vk_cts_commits_to_backport=(
-    # Fix more ASAN errors due to missing virtual destructors
-    dd40bcfef1b4035ea55480b6fd4d884447120768
-
-    # Remove "unused shader stages" tests
-    7dac86c6bbd15dec91d7d9a98cd6dd57c11092a7
-
-    # Emit point size from "many indirect draws" test
-    771e56d1c4d03e073ddb7f1200ad6d57e0a0c979
 )
 
 # shellcheck disable=SC2034

@@ -326,6 +326,7 @@ gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_s
 gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_1.pgq_64bit_xfb_32bit.triangle_strip_with_adjacency.draw,Fail
 gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_1.pgq_32bit_xfb_64bit.triangle_strip_with_adjacency.draw,Fail
 gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_1.32bit.line_list_with_adjacency.indirect,Fail
+gmem-dEQP-VK.transform_feedback.primitives_generated_query.concurrent.pipeline_statistics_1.32bit.line_list.draw,Fail
 
 stale-regs-dEQP-VK.transform_feedback.primitives_generated_query.copy.host_reset.pgq_32bit_xfb_64bit.geom.xfb.rast.line_list_with_adjacency.pgq_0_xfb_0.single_draw.xfbq_first.none,Fail
 stale-regs-dEQP-VK.transform_feedback.primitives_generated_query.copy.host_reset.pgq_64bit_xfb_32bit.geom.xfb.rast.line_list.pgq_default_xfb_default.two_draws.pqg_first.before,Fail

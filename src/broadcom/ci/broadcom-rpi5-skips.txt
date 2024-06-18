@@ -56,6 +56,7 @@ dEQP-VK.ssbo.phys.layout.3_level_array.std430.row_major_mat4_comp_access_store_c
 dEQP-VK.ssbo.phys.layout.3_level_array.std430.row_major_mat4_store_cols
 dEQP-VK.ssbo.phys.layout.3_level_array.std430.row_major_mat4x3_comp_access
 dEQP-VK.ssbo.phys.layout.3_level_array.std430.row_major_mat4x3_store_cols
+dEQP-VK.ssbo.phys.layout.3_level_unsized_array.scalar.column_major_mat4x3_comp_access
 dEQP-VK.ssbo.phys.layout.3_level_unsized_array.scalar.row_major_mat3x4
 dEQP-VK.ssbo.phys.layout.3_level_unsized_array.scalar.row_major_mat3x4_comp_access
 dEQP-VK.ssbo.phys.layout.3_level_unsized_array.scalar.row_major_mat3x4_comp_access_store_cols
