@@ -91,8 +91,11 @@ surfaceless_image_get_buffers(__DRIdrawable *driDrawable, unsigned int format,
 
    if (buffer_mask & __DRI_IMAGE_BUFFER_FRONT) {
 
-      if (!dri2_surf->front)
+      if (!dri2_surf->front) {
          dri2_surf->front = surfaceless_alloc_image(dri2_dpy, dri2_surf);
+         if (!dri2_surf->front)
+            return 0;
+      }
 
       buffers->image_mask |= __DRI_IMAGE_BUFFER_FRONT;
       buffers->front = dri2_surf->front;
