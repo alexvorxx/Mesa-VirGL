@@ -87,6 +87,9 @@ struct cs_builder {
    /* CS builder configuration */
    struct cs_builder_conf conf;
 
+   /* True if an allocation failed, making the whole CS invalid. */
+   bool invalid;
+
    /* Initial (root) CS chunk. */
    struct cs_chunk root_chunk;
 
@@ -124,7 +127,7 @@ cs_builder_init(struct cs_builder *b, const struct cs_builder_conf *conf,
 static bool
 cs_is_valid(struct cs_builder *b)
 {
-   return b->cur_chunk.buffer.cpu != NULL;
+   return !b->invalid;
 }
 
 /*
@@ -275,8 +278,18 @@ cs_alloc_ins(struct cs_builder *b)
    /* If an allocation failure happened before, we just discard all following
     * instructions.
     */
-   if (unlikely(!b->cur_chunk.buffer.cpu))
+   if (unlikely(!cs_is_valid(b)))
       return &b->discard_instr_slot;
+
+   /* Lazy root chunk allocation. */
+   if (unlikely(!b->root_chunk.buffer.cpu)) {
+      b->root_chunk.buffer = b->conf.alloc_buffer(b->conf.cookie);
+      b->cur_chunk.buffer = b->root_chunk.buffer;
+      if (!b->cur_chunk.buffer.cpu) {
+         b->invalid = true;
+         return &b->discard_instr_slot;
+      }
+   }
 
    /* If the current chunk runs out of space, allocate a new one and jump to it.
     * We actually do this a few instructions before running out, because the
