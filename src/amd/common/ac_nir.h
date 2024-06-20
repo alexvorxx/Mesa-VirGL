@@ -103,7 +103,8 @@ void
 ac_nir_lower_es_outputs_to_mem(nir_shader *shader,
                                ac_nir_map_io_driver_location map,
                                enum amd_gfx_level gfx_level,
-                               unsigned esgs_itemsize);
+                               unsigned esgs_itemsize,
+                               uint64_t gs_inputs_read);
 
 void
 ac_nir_lower_gs_inputs_to_mem(nir_shader *shader,

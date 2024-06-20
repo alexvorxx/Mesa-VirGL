@@ -35,6 +35,11 @@ typedef struct {
 
    /* Enable fix for triangle strip adjacency in geometry shader. */
    bool gs_triangle_strip_adjacency_fix;
+
+   /* Bit mask of inputs read by the GS,
+    * this is used for linking ES outputs to GS inputs.
+    */
+   uint64_t gs_inputs_read;
 } lower_esgs_io_state;
 
 static nir_def *
@@ -314,12 +319,14 @@ void
 ac_nir_lower_es_outputs_to_mem(nir_shader *shader,
                                ac_nir_map_io_driver_location map,
                                enum amd_gfx_level gfx_level,
-                               unsigned esgs_itemsize)
+                               unsigned esgs_itemsize,
+                               uint64_t gs_inputs_read)
 {
    lower_esgs_io_state state = {
       .gfx_level = gfx_level,
       .esgs_itemsize = esgs_itemsize,
       .map_io = map,
+      .gs_inputs_read = gs_inputs_read,
    };
 
    nir_shader_intrinsics_pass(shader, lower_es_output_store,
@@ -337,6 +344,7 @@ ac_nir_lower_gs_inputs_to_mem(nir_shader *shader,
       .gfx_level = gfx_level,
       .map_io = map,
       .gs_triangle_strip_adjacency_fix = triangle_strip_adjacency_fix,
+      .gs_inputs_read = shader->info.inputs_read,
    };
 
    nir_shader_lower_instructions(shader,
