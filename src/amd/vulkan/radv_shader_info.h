@@ -109,6 +109,7 @@ struct radv_shader_info {
    bool has_epilog;                        /* Only for TCS or PS */
    bool merged_shader_compiled_separately; /* GFX9+ */
    bool force_indirect_desc_sets;
+   uint64_t gs_inputs_read; /* Mask of GS inputs read (only used by linked ES) */
 
    struct {
       uint8_t output_usage_mask[VARYING_SLOT_VAR31 + 1];
@@ -127,6 +128,7 @@ struct radv_shader_info {
       bool dynamic_inputs;
       bool dynamic_num_verts_per_prim;
       uint32_t num_outputs; /* For NGG streamout only */
+      uint64_t hs_inputs_read; /* Mask of HS inputs read (only used by linked LS) */
    } vs;
    struct {
       uint8_t output_usage_mask[VARYING_SLOT_VAR31 + 1];
