@@ -642,21 +642,6 @@ ac_nir_calc_io_offset_mapped(nir_builder *b,
    return nir_iadd_imm_nuw(b, nir_iadd_nuw(b, base_op, offset_op), const_op);
 }
 
-nir_def *
-ac_nir_calc_io_offset(nir_builder *b,
-                      nir_intrinsic_instr *intrin,
-                      nir_def *base_stride,
-                      unsigned component_stride,
-                      ac_nir_map_io_driver_location map_io)
-{
-   unsigned base = nir_intrinsic_base(intrin);
-   unsigned semantic = nir_intrinsic_io_semantics(intrin).location;
-   unsigned mapped_driver_location = map_io ? map_io(semantic) : base;
-
-   return ac_nir_calc_io_offset_mapped(b, intrin, base_stride, component_stride,
-                                       mapped_driver_location);
-}
-
 bool
 ac_nir_lower_indirect_derefs(nir_shader *shader,
                              enum amd_gfx_level gfx_level)
