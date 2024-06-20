@@ -77,6 +77,7 @@ void
 ac_nir_lower_ls_outputs_to_mem(nir_shader *ls,
                                ac_nir_map_io_driver_location map,
                                bool tcs_in_out_eq,
+                               uint64_t tcs_inputs_read,
                                uint64_t tcs_temp_only_inputs);
 
 void

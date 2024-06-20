@@ -1841,7 +1841,7 @@ static bool si_lower_io_to_mem(struct si_shader *shader, nir_shader *nir,
    if (nir->info.stage == MESA_SHADER_VERTEX) {
       if (key->ge.as_ls) {
          NIR_PASS_V(nir, ac_nir_lower_ls_outputs_to_mem, si_map_io_driver_location,
-                    key->ge.opt.same_patch_vertices, tcs_vgpr_only_inputs);
+                    key->ge.opt.same_patch_vertices, ~0ULL, tcs_vgpr_only_inputs);
          return true;
       } else if (key->ge.as_es) {
          NIR_PASS_V(nir, ac_nir_lower_es_outputs_to_mem, si_map_io_driver_location,

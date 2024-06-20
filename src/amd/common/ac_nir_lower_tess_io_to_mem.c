@@ -124,6 +124,11 @@ typedef struct {
     */
    uint64_t tcs_temp_only_inputs;
 
+   /* Bit mask of inputs read by the TCS,
+    * this is used for linking VS outputs to TCS inputs.
+    */
+   uint64_t tcs_inputs_read;
+
    /* Bit mask of TCS outputs read by TES. */
    uint64_t tes_inputs_read;
    uint32_t tes_patch_inputs_read;
@@ -969,12 +974,14 @@ void
 ac_nir_lower_ls_outputs_to_mem(nir_shader *shader,
                                ac_nir_map_io_driver_location map,
                                bool tcs_in_out_eq,
+                               uint64_t tcs_inputs_read,
                                uint64_t tcs_temp_only_inputs)
 {
    assert(shader->info.stage == MESA_SHADER_VERTEX);
 
    lower_tess_io_state state = {
       .tcs_in_out_eq = tcs_in_out_eq,
+      .tcs_inputs_read = tcs_inputs_read,
       .tcs_temp_only_inputs = tcs_in_out_eq ? tcs_temp_only_inputs : 0,
       .map_io = map,
    };
@@ -992,6 +999,7 @@ ac_nir_lower_hs_inputs_to_mem(nir_shader *shader,
    assert(shader->info.stage == MESA_SHADER_TESS_CTRL);
 
    lower_tess_io_state state = {
+      .tcs_inputs_read = shader->info.inputs_read,
       .tcs_in_out_eq = tcs_in_out_eq,
       .map_io = map,
    };
