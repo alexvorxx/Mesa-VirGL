@@ -1776,6 +1776,7 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         // Vulkan 1.3
         "VK_KHR_synchronization2",
         "VK_EXT_private_data",
+        "VK_EXT_color_write_enable",
     };
 
     VkEncoder* enc = (VkEncoder*)context;
