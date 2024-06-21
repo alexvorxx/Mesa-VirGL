@@ -184,6 +184,8 @@ VirtGpuResourcePtr LinuxVirtGpuDevice::createBlob(const struct VirtGpuCreateBlob
     create.blob_mem = blobCreate.blobMem;
     create.blob_flags = blobCreate.flags;
     create.blob_id = blobCreate.blobId;
+    create.cmd = (uint64_t)(uintptr_t)blobCreate.blobCmd;
+    create.cmd_size = blobCreate.blobCmdSize;
 
     ret = drmIoctl(mDeviceHandle, DRM_IOCTL_VIRTGPU_RESOURCE_CREATE_BLOB, &create);
     if (ret < 0) {

@@ -117,6 +117,9 @@ struct VirtGpuCreateBlob {
     enum VirtGpuResourceFlags flags;
     enum VirtGpuResourceMem blobMem;
     uint64_t blobId;
+
+    uint8_t* blobCmd;
+    uint32_t blobCmdSize;
 };
 
 struct VirtGpuCaps {
