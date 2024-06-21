@@ -1985,7 +1985,14 @@ resolve_ahw_image(struct anv_device *device,
 
    /* Check tiling. */
    enum isl_tiling tiling;
-   result = anv_device_get_bo_tiling(device, mem->bo, &tiling);
+   const native_handle_t *handle =
+      AHardwareBuffer_getNativeHandle(mem->vk.ahardware_buffer);
+   struct u_gralloc_buffer_handle gr_handle = {
+      .handle = handle,
+      .hal_format = desc.format,
+      .pixel_stride = desc.stride,
+   };
+   result = anv_android_get_tiling(device, &gr_handle, &tiling);
    assert(result == VK_SUCCESS);
    isl_tiling_flags_t isl_tiling_flags = (1u << tiling);
 

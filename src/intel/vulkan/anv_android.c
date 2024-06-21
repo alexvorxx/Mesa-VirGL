@@ -318,6 +318,30 @@ anv_import_ahw_memory(VkDevice device_h,
 }
 
 VkResult
+anv_android_get_tiling(struct anv_device *device,
+                       struct u_gralloc_buffer_handle *gr_handle,
+                       enum isl_tiling *tiling_out)
+{
+   assert(device->u_gralloc);
+
+   struct u_gralloc_buffer_basic_info buf_info;
+   if (u_gralloc_get_buffer_basic_info(device->u_gralloc, gr_handle, &buf_info))
+      return vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
+                       "failed to get tiling from gralloc buffer info");
+
+   const struct isl_drm_modifier_info *mod_info =
+      isl_drm_modifier_get_info(buf_info.modifier);
+   if (!mod_info) {
+      return vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
+                       "invalid drm modifier from VkNativeBufferANDROID "
+                       "gralloc buffer info 0x%"PRIx64"", buf_info.modifier);
+   }
+
+   *tiling_out = mod_info->tiling;
+   return VK_SUCCESS;
+}
+
+VkResult
 anv_image_init_from_gralloc(struct anv_device *device,
                             struct anv_image *image,
                             const VkImageCreateInfo *base_info,
@@ -353,21 +377,14 @@ anv_image_init_from_gralloc(struct anv_device *device,
 
    enum isl_tiling tiling;
    if (device->u_gralloc) {
-      struct u_gralloc_buffer_basic_info buf_info;
       struct u_gralloc_buffer_handle gr_handle = {
          .handle = gralloc_info->handle,
          .hal_format = gralloc_info->format,
          .pixel_stride = gralloc_info->stride,
       };
-      u_gralloc_get_buffer_basic_info(device->u_gralloc, &gr_handle, &buf_info);
-      const struct isl_drm_modifier_info *mod_info =
-         isl_drm_modifier_get_info(buf_info.modifier);
-      if (mod_info) {
-         tiling = mod_info->tiling;
-      } else {
-         return vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
-                          "unknown modifier of BO from VkNativeBufferANDROID");
-      }
+      result = anv_android_get_tiling(device, &gr_handle, &tiling);
+      if (result != VK_SUCCESS)
+         return result;
    } else {
       /* Fallback to get_tiling API. */
       result = anv_device_get_bo_tiling(device, bo, &tiling);
