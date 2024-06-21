@@ -287,7 +287,7 @@ lower_ls_output_store(nir_builder *b,
    nir_def *base_off_var = nir_imul(b, vertex_idx, nir_load_lshs_vertex_stride_amd(b));
 
    unsigned mapped = ac_nir_map_io_location(io_sem.location, st->tcs_inputs_read, st->map_io);
-   nir_def *io_off = ac_nir_calc_io_offset_mapped(b, intrin, nir_imm_int(b, 16u), 4u, mapped);
+   nir_def *io_off = ac_nir_calc_io_off(b, intrin, nir_imm_int(b, 16u), 4u, mapped);
    unsigned write_mask = nir_intrinsic_write_mask(intrin);
 
    nir_def *off = nir_iadd_nuw(b, base_off_var, io_off);
@@ -349,7 +349,7 @@ hs_per_vertex_input_lds_offset(nir_builder *b,
 
    const nir_io_semantics io_sem = nir_intrinsic_io_semantics(instr);
    const unsigned mapped = ac_nir_map_io_location(io_sem.location, st->tcs_inputs_read, st->map_io);
-   nir_def *io_offset = ac_nir_calc_io_offset_mapped(b, instr, nir_imm_int(b, 16u), 4u, mapped);
+   nir_def *io_offset = ac_nir_calc_io_off(b, instr, nir_imm_int(b, 16u), 4u, mapped);
 
    return nir_iadd_nuw(b, nir_iadd_nuw(b, tcs_in_current_patch_offset, vertex_index_off), io_offset);
 }
@@ -402,7 +402,7 @@ hs_output_lds_offset(nir_builder *b,
    if (intrin) {
       const nir_io_semantics io_sem = nir_intrinsic_io_semantics(intrin);
       const unsigned mapped = hs_output_lds_map_io_location(b->shader, per_vertex, io_sem.location, st);
-      off = ac_nir_calc_io_offset_mapped(b, intrin, nir_imm_int(b, 16u), 4, mapped);
+      off = ac_nir_calc_io_off(b, intrin, nir_imm_int(b, 16u), 4, mapped);
    } else {
       off = nir_imm_int(b, 0);
    }
@@ -483,7 +483,7 @@ hs_per_vertex_output_vmem_offset(nir_builder *b,
    nir_def *tcs_num_patches = nir_load_tcs_num_patches_amd(b);
    nir_def *attr_stride = nir_imul(b, tcs_num_patches, nir_imul_imm(b, out_vertices_per_patch, 16u));
    nir_def *io_offset =
-      ac_nir_calc_io_offset_mapped(b, intrin, attr_stride, 4u,
+      ac_nir_calc_io_off(b, intrin, attr_stride, 4u,
                                    hs_output_vram_map_io_location(b->shader, true, io_sem.location, st));
 
    nir_def *rel_patch_id = nir_load_tess_rel_patch_id_amd(b);
@@ -506,7 +506,7 @@ hs_per_patch_output_vmem_offset(nir_builder *b,
 
    nir_def * off =
       intrin
-      ? ac_nir_calc_io_offset_mapped(b, intrin, nir_imul_imm(b, tcs_num_patches, 16u), 4u,
+      ? ac_nir_calc_io_off(b, intrin, nir_imul_imm(b, tcs_num_patches, 16u), 4u,
                                      hs_output_vram_map_io_location(b->shader, false, nir_intrinsic_io_semantics(intrin).location, st))
       : nir_imm_int(b, 0);
 

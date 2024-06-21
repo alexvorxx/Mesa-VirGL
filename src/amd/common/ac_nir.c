@@ -620,7 +620,7 @@ ac_nir_map_io_location(unsigned location,
  * including a stride to the base and component offsets.
  */
 nir_def *
-ac_nir_calc_io_offset_mapped(nir_builder *b,
+ac_nir_calc_io_off(nir_builder *b,
                              nir_intrinsic_instr *intrin,
                              nir_def *base_stride,
                              unsigned component_stride,

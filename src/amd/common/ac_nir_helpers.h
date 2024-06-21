@@ -112,7 +112,7 @@ ac_nir_export_parameters(nir_builder *b,
                          nir_def *(*outputs_16bit_hi)[4]);
 
 nir_def *
-ac_nir_calc_io_offset_mapped(nir_builder *b,
+ac_nir_calc_io_off(nir_builder *b,
                              nir_intrinsic_instr *intrin,
                              nir_def *base_stride,
                              unsigned component_stride,
