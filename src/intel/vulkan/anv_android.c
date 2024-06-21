@@ -339,19 +339,13 @@ anv_image_init_from_gralloc(struct anv_device *device,
     */
    int dma_buf = gralloc_info->handle->data[0];
 
-   /* We need to set the WRITE flag on window system buffers so that GEM will
-    * know we're writing to them and synchronize uses on other rings (for
-    * example, if the display server uses the blitter ring).
-    *
-    * If this function fails and if the imported bo was resident in the cache,
+   /* If this function fails and if the imported bo was resident in the cache,
     * we should avoid updating the bo's flags. Therefore, we defer updating
     * the flags until success is certain.
     *
     */
    result = anv_device_import_bo(device, dma_buf,
-                                 ANV_BO_ALLOC_EXTERNAL |
-                                 ANV_BO_ALLOC_IMPLICIT_SYNC |
-                                 ANV_BO_ALLOC_IMPLICIT_WRITE,
+                                 ANV_BO_ALLOC_EXTERNAL,
                                  0 /* client_address */,
                                  &bo);
    if (result != VK_SUCCESS) {
@@ -441,20 +435,14 @@ anv_image_bind_from_gralloc(struct anv_device *device,
     */
    int dma_buf = gralloc_info->handle->data[0];
 
-   /* We need to set the WRITE flag on window system buffers so that GEM will
-    * know we're writing to them and synchronize uses on other rings (for
-    * example, if the display server uses the blitter ring).
-    *
-    * If this function fails and if the imported bo was resident in the cache,
+   /* If this function fails and if the imported bo was resident in the cache,
     * we should avoid updating the bo's flags. Therefore, we defer updating
     * the flags until success is certain.
     *
     */
    struct anv_bo *bo = NULL;
    VkResult result = anv_device_import_bo(device, dma_buf,
-                                          ANV_BO_ALLOC_EXTERNAL |
-                                          ANV_BO_ALLOC_IMPLICIT_SYNC |
-                                          ANV_BO_ALLOC_IMPLICIT_WRITE,
+                                          ANV_BO_ALLOC_EXTERNAL,
                                           0 /* client_address */,
                                           &bo);
    if (result != VK_SUCCESS) {
