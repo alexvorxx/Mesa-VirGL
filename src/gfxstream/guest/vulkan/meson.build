@@ -7,10 +7,19 @@ files_lib_vulkan_gfxstream = files(
   'gfxstream_vk_wsi.cpp'
 )
 
+gfxstream_vk_wsi_args = []
+if with_platform_x11
+   gfxstream_vk_wsi_args += '-DGFXSTREAM_VK_X11'
+endif
+
+if with_platform_wayland
+   gfxstream_vk_wsi_args += '-DGFXSTREAM_VK_WAYLAND'
+endif
+
 lib_vulkan_gfxstream = shared_library(
    'vulkan_gfxstream',
    files_lib_vulkan_gfxstream + files_lib_vulkan_enc + gfxstream_vk_entrypoints,
-   cpp_args: gfxstream_guest_args,
+   cpp_args: gfxstream_guest_args + gfxstream_vk_wsi_args,
    include_directories: [inc_vulkan_headers, inc_opengl_headers, inc_android_emu,
                          inc_android_compat, inc_opengl_system, inc_guest_iostream,
                          inc_opengl_codec, inc_render_enc, inc_vulkan_enc, inc_platform,
