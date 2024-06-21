@@ -594,6 +594,26 @@ ac_nir_export_parameters(nir_builder *b,
    }
 }
 
+unsigned
+ac_nir_map_io_location(unsigned location,
+                       uint64_t mask,
+                       ac_nir_map_io_driver_location map_io)
+{
+   /* Unlinked shaders:
+    * We are unaware of the inputs of the next stage while lowering outputs.
+    * The driver needs to pass a callback to map varyings to a fixed location.
+    */
+   if (map_io)
+      return map_io(location);
+
+   /* Linked shaders:
+    * Take advantage of knowledge of the inputs of the next stage when lowering outputs.
+    * Map varyings to a prefix sum of the IO mask to save space in LDS or VRAM.
+    */
+   assert(mask & BITFIELD64_BIT(location));
+   return util_bitcount64(mask & BITFIELD64_MASK(location));
+}
+
 /**
  * This function takes an I/O intrinsic like load/store_input,
  * and emits a sequence that calculates the full offset of that instruction,

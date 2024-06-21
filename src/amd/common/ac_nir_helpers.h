@@ -125,6 +125,11 @@ ac_nir_calc_io_offset_mapped(nir_builder *b,
                              unsigned component_stride,
                              unsigned mapped_location);
 
+unsigned
+ac_nir_map_io_location(unsigned location,
+                       uint64_t mask,
+                       ac_nir_map_io_driver_location map_io);
+
 nir_def *
 ac_nir_cull_primitive(nir_builder *b,
                       nir_def *initially_accepted,
