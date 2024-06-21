@@ -329,6 +329,8 @@ struct radv_dgc_params {
    uint32_t vbo_bind_mask;
 
    uint16_t vbo_reg;
+   uint8_t dynamic_vs_input;
+
    uint16_t const_copy_size;
 
    uint16_t push_constant_stages;
@@ -1491,7 +1493,15 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo
          nir_iand_imm(b, nir_pack_64_2x32(b, nir_trim_vector(b, nir_load_var(b, vbo_data), 2)), (1ull << 48) - 1ull);
       nir_push_if(b, nir_ior(b, nir_ieq_imm(b, num_records, 0), nir_ieq_imm(b, buf_va, 0)));
       {
-         nir_def *new_vbo_data[4] = {nir_imm_int(b, 0), nir_imm_int(b, 0), nir_imm_int(b, 0), nir_imm_int(b, 0)};
+         nir_def *has_dynamic_vs_input = nir_ieq_imm(b, load_param8(b, dynamic_vs_input), 1);
+         nir_def *new_vbo_data[4];
+
+         new_vbo_data[0] = nir_imm_int(b, 0);
+         new_vbo_data[1] = nir_bcsel(b, has_dynamic_vs_input, nir_imm_int(b, S_008F04_STRIDE(16)), nir_imm_int(b, 0));
+         new_vbo_data[2] = nir_imm_int(b, 0);
+         new_vbo_data[3] =
+            nir_bcsel(b, has_dynamic_vs_input, nir_channel(b, nir_load_var(b, vbo_data), 3), nir_imm_int(b, 0));
+
          nir_store_var(b, vbo_data, nir_vec(b, new_vbo_data, 4), 0xf);
       }
       nir_pop_if(b, NULL);
@@ -2377,8 +2387,11 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
    params->ibo_type_32 = layout->ibo_type_32;
    params->ibo_type_8 = layout->ibo_type_8;
    params->draw_mesh_tasks = layout->draw_mesh_tasks;
+   params->dynamic_vs_input = layout->bind_vbo_mask && vs->info.vs.dynamic_inputs;
 
    if (layout->bind_vbo_mask) {
+      const struct radv_vs_input_state *vs_state =
+         vs->info.vs.dynamic_inputs ? &cmd_buffer->state.dynamic_vs_input : NULL;
       uint32_t mask = vs->info.vs.vb_desc_usage_mask;
       unsigned vb_desc_alloc_size = util_bitcount(mask) * 16;
 
@@ -2389,8 +2402,11 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
       unsigned idx = 0;
       while (mask) {
          unsigned i = u_bit_scan(&mask);
-         unsigned binding = vs->info.vs.use_per_attribute_vb_descs ? graphics_pipeline->attrib_bindings[i] : i;
-         uint32_t attrib_end = graphics_pipeline->attrib_ends[i];
+         const unsigned binding =
+            vs_state ? cmd_buffer->state.dynamic_vs_input.bindings[i]
+                     : (vs->info.vs.use_per_attribute_vb_descs ? graphics_pipeline->attrib_bindings[i] : i);
+         const uint32_t attrib_end =
+            vs_state ? vs_state->offsets[i] + vs_state->format_sizes[i] : graphics_pipeline->attrib_ends[i];
 
          params->vbo_bind_mask |= ((layout->bind_vbo_mask >> binding) & 1u) << idx;
          vbo_info[2 * idx] = ((vs->info.vs.use_per_attribute_vb_descs ? 1u : 0u) << 31) | layout->vbo_offsets[binding];
