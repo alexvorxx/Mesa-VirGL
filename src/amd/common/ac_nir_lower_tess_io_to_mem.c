@@ -378,28 +378,6 @@ hs_output_lds_map_io_location(nir_shader *shader,
    }
 }
 
-static unsigned
-hs_output_lds_map_intrin_location(nir_shader *shader,
-                                  nir_intrinsic_instr *intrin,
-                                  lower_tess_io_state *st)
-{
-   const nir_io_semantics io_sem = nir_intrinsic_io_semantics(intrin);
-   const unsigned loc = io_sem.location;
-
-   switch (intrin->intrinsic) {
-   case nir_intrinsic_store_output:
-   case nir_intrinsic_load_output:
-      return hs_output_lds_map_io_location(shader, false, loc, st);
-
-   case nir_intrinsic_store_per_vertex_output:
-   case nir_intrinsic_load_per_vertex_output:
-      return hs_output_lds_map_io_location(shader, true, loc, st);
-
-   default:
-      unreachable("invalid TCS IO intrinsic");
-   }
-}
-
 static nir_def *
 hs_output_lds_offset(nir_builder *b,
                      lower_tess_io_state *st,
@@ -419,10 +397,15 @@ hs_output_lds_offset(nir_builder *b,
    unsigned pervertex_output_patch_size = b->shader->info.tess.tcs_vertices_out * output_vertex_size;
    unsigned output_patch_stride = pervertex_output_patch_size + tcs_num_reserved_patch_outputs * 16u;
 
-   nir_def *off = intrin
-                    ? ac_nir_calc_io_offset_mapped(b, intrin, nir_imm_int(b, 16u), 4u,
-                                                   hs_output_lds_map_intrin_location(b->shader, intrin, st))
-                    : nir_imm_int(b, 0);
+   nir_def *off = NULL;
+
+   if (intrin) {
+      const nir_io_semantics io_sem = nir_intrinsic_io_semantics(intrin);
+      const unsigned mapped = hs_output_lds_map_io_location(b->shader, per_vertex, io_sem.location, st);
+      off = ac_nir_calc_io_offset_mapped(b, intrin, nir_imm_int(b, 16u), 4, mapped);
+   } else {
+      off = nir_imm_int(b, 0);
+   }
 
    nir_def *rel_patch_id = nir_load_tess_rel_patch_id_amd(b);
    nir_def *patch_offset = nir_imul_imm(b, rel_patch_id, output_patch_stride);
