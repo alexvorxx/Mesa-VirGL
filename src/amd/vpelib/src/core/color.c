@@ -716,15 +716,15 @@ enum vpe_status vpe_color_update_color_space_and_tf(
             }
             bool is_3dlut_enable =
                 stream_ctx->stream.tm_params.UID != 0 || stream_ctx->stream.tm_params.enable_3dlut;
-            bool require_update = stream_ctx->uid_3dlut != param->streams[stream_idx].tm_params.UID;
+            bool require_update = stream_ctx->uid_3dlut != stream_ctx->stream.tm_params.UID;
 
             color_check_input_cm_update(vpe_priv, stream_ctx,
-                &param->streams[stream_idx].surface_info.cs, &param->streams[stream_idx].color_adj,
+                &stream_ctx->stream.surface_info.cs, &stream_ctx->stream.color_adj,
                 is_3dlut_enable, geometric_update);
 
             build_scale_and_bias(stream_ctx->bias_scale,
-                &param->streams[stream_idx].surface_info.cs,
-                param->streams[stream_idx].surface_info.format);
+                &stream_ctx->stream.surface_info.cs,
+                stream_ctx->stream.surface_info.format);
 
             if (stream_ctx->dirty_bits.color_space) {
                 if (!color_update_input_cs(vpe_priv, stream_ctx->cs,

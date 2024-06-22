@@ -254,26 +254,26 @@ static enum vpe_status populate_bg_stream(struct vpe_priv *vpe_priv, const struc
     surface_info                      = &stream->surface_info;
     scaling_info                      = &stream->scaling_info;
     polyphaseCoeffs                   = &stream->polyphase_scaling_coeffs;
-    surface_info->address.type        = VPE_PLN_ADDR_TYPE_GRAPHICS;
+    surface_info->address.type        = param->dst_surface.address.type;
     surface_info->address.tmz_surface = param->dst_surface.address.tmz_surface;
     surface_info->address.grph.addr.quad_part =
         param->dst_surface.address.grph.addr.quad_part;
 
-    surface_info->swizzle                   = VPE_SW_LINEAR; // treat it as linear for simple
+    surface_info->swizzle                   = param->dst_surface.swizzle; // treat it as linear for simple
     surface_info->plane_size.surface_size.x = 0;
     surface_info->plane_size.surface_size.y = 0;
-    surface_info->plane_size.surface_size.width = VPE_MIN_VIEWPORT_SIZE; // min width in pixels
-    surface_info->plane_size.surface_size.height =
-        VPE_MIN_VIEWPORT_SIZE;                                           // min height in pixels
-    surface_info->plane_size.surface_pitch          = 256 / 4;           // pitch in pixels
-    surface_info->plane_size.surface_aligned_height = VPE_MIN_VIEWPORT_SIZE;
+    // min width & height in pixels
+    surface_info->plane_size.surface_size.width     = VPE_MIN_VIEWPORT_SIZE;
+    surface_info->plane_size.surface_size.height    = VPE_MIN_VIEWPORT_SIZE;
+    surface_info->plane_size.surface_pitch          = param->dst_surface.plane_size.surface_pitch;
+    surface_info->plane_size.surface_aligned_height = param->dst_surface.plane_size.surface_aligned_height;
     surface_info->dcc.enable                        = false;
-    surface_info->format                            = VPE_SURFACE_PIXEL_FORMAT_GRPH_RGBA8888;
-    surface_info->cs.encoding                       = VPE_PIXEL_ENCODING_RGB;
-    surface_info->cs.range                          = VPE_COLOR_RANGE_FULL;
-    surface_info->cs.tf                             = VPE_TF_G22;
-    surface_info->cs.cositing                       = VPE_CHROMA_COSITING_NONE;
-    surface_info->cs.primaries                      = VPE_PRIMARIES_BT709;
+    surface_info->format                            = param->dst_surface.format;
+    surface_info->cs.encoding                       = param->dst_surface.cs.encoding;
+    surface_info->cs.range                          = param->dst_surface.cs.range;
+    surface_info->cs.tf                             = param->dst_surface.cs.tf;
+    surface_info->cs.cositing                       = param->dst_surface.cs.cositing;
+    surface_info->cs.primaries                      = param->dst_surface.cs.primaries;
     scaling_info->src_rect.x                        = 0;
     scaling_info->src_rect.y                        = 0;
     scaling_info->src_rect.width                    = VPE_MIN_VIEWPORT_SIZE;
@@ -440,11 +440,15 @@ enum vpe_status vpe_check_support(
     }
 
     if (param->num_streams == 0 || vpe_priv->init.debug.bg_color_fill_only) {
-        vpe_free_stream_ctx(vpe_priv);
-        vpe_priv->stream_ctx = vpe_alloc_stream_ctx(vpe_priv, 1);
-        vpe_priv->num_streams = required_virtual_streams;
-        vpe_priv->num_virtual_streams = required_virtual_streams;
-        vpe_priv->num_input_streams = 0;
+        if (!((vpe_priv->num_streams == 1) &&
+            (vpe_priv->num_virtual_streams == 1) &&
+            (vpe_priv->num_input_streams == 0))) {
+            vpe_free_stream_ctx(vpe_priv);
+            vpe_priv->stream_ctx = vpe_alloc_stream_ctx(vpe_priv, 1);
+            vpe_priv->num_streams = required_virtual_streams;
+            vpe_priv->num_virtual_streams = required_virtual_streams;
+            vpe_priv->num_input_streams = 0;
+        }
 
         if (!vpe_priv->stream_ctx)
             status = VPE_STATUS_NO_MEMORY;
@@ -636,9 +640,7 @@ enum vpe_status vpe_build_commands(
     }
 
     if (status == VPE_STATUS_OK) {
-        if (param->streams->flags.geometric_scaling) {
-            vpe_geometric_scaling_feature_skip(vpe_priv, param);
-        }
+        vpe_geometric_scaling_feature_skip(vpe_priv, param);
 
         if (bufs->cmd_buf.size == 0 || bufs->emb_buf.size == 0) {
             /* Here we directly return without setting ops_support to false
@@ -670,7 +672,7 @@ enum vpe_status vpe_build_commands(
     curr_bufs = *bufs;
 
     // copy the param, reset saved configs
-    for (i = 0; i < param->num_streams; i++) {
+    for (i = 0; i < vpe_priv->num_streams; i++) {
         vpe_priv->stream_ctx[i].num_configs = 0;
         for (j = 0; j < VPE_CMD_TYPE_COUNT; j++)
             vpe_priv->stream_ctx[i].num_stream_op_configs[j] = 0;
