@@ -1513,36 +1513,21 @@ blorp_update_clear_color(UNUSED struct blorp_batch *batch,
                          const struct blorp_surface_info *info)
 {
    assert(info->clear_color_addr.buffer != NULL);
+
+   uint32_t pixel[4];
+   isl_color_value_pack(&info->clear_color, info->surf.format, pixel);
+
 #if GFX_VER == 11
-   /* 2 QWORDS */
-   const unsigned inlinedata_dw = 2 * 2;
-   const unsigned num_dwords = GENX(MI_ATOMIC_length) + inlinedata_dw;
-
-   struct blorp_address clear_addr = info->clear_color_addr;
-   uint32_t *dw = blorp_emitn(batch, GENX(MI_ATOMIC), num_dwords,
-                              .DataSize = MI_ATOMIC_QWORD,
-                              .ATOMICOPCODE = MI_ATOMIC_OP_MOVE8B,
-                              .InlineData = true,
-                              .MemoryAddress = clear_addr);
-   /* dw starts at dword 1, but we need to fill dwords 3 and 5 */
+   uint32_t *dw = blorp_emitn(batch, GENX(MI_STORE_DATA_IMM), 3 + 6,
+                              .StoreQword = true,
+                              .Address = info->clear_color_addr);
+   /* dw starts at dword 1 */
    dw[2] = info->clear_color.u32[0];
-   dw[3] = 0;
-   dw[4] = info->clear_color.u32[1];
-   dw[5] = 0;
-
-   clear_addr.offset += 8;
-   dw = blorp_emitn(batch, GENX(MI_ATOMIC), num_dwords,
-                    .DataSize = MI_ATOMIC_QWORD,
-                    .ATOMICOPCODE = MI_ATOMIC_OP_MOVE8B,
-                    .CSSTALL = true,
-                    .ReturnDataControl = true,
-                    .InlineData = true,
-                    .MemoryAddress = clear_addr);
-   /* dw starts at dword 1, but we need to fill dwords 3 and 5 */
-   dw[2] = info->clear_color.u32[2];
-   dw[3] = 0;
-   dw[4] = info->clear_color.u32[3];
-   dw[5] = 0;
+   dw[3] = info->clear_color.u32[1];
+   dw[4] = info->clear_color.u32[2];
+   dw[5] = info->clear_color.u32[3];
+   dw[6] = pixel[0];
+   dw[7] = pixel[1];
 
 #else
 

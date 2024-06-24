@@ -895,26 +895,6 @@ isl_genX(surf_fill_state_s)(const struct isl_device *dev, void *state,
 #endif
       }
 
-#if GFX_VER == 11
-      /*
-       * From BXML > GT > Shared Functions > vol5c Shared Functions >
-       * [Structure] RENDER_SURFACE_STATE [BDW+] > ClearColorConversionEnable:
-       *
-       *   Project: Gfx11
-       *
-       *   "Enables Pixel backend hw to convert clear values into native format
-       *    and write back to clear address, so that display and sampler can use
-       *    the converted value for resolving fast cleared RTs."
-       *
-       * Summary:
-       *   Clear color conversion must be enabled if the clear color is stored
-       *   indirectly and fast color clears are enabled.
-       */
-      if (info->use_clear_address) {
-         s.ClearColorConversionEnable = true;
-      }
-#endif
-
 #if GFX_VER >= 20
       /* According to Bspec 57023 >> RENDER_SURFACE_STATE, the clear value
        * address and explicit clear value are removed since Xe2.
