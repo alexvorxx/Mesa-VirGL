@@ -3088,57 +3088,25 @@ genX(cmd_buffer_update_color_aux_op)(struct anv_cmd_buffer *cmd_buffer,
             ANV_PIPE_END_OF_PIPE_SYNC_BIT);
    }
 
-   if (next_aux_op == ISL_AUX_OP_FAST_CLEAR &&
+   if (last_aux_op != ISL_AUX_OP_FAST_CLEAR &&
+       next_aux_op == ISL_AUX_OP_FAST_CLEAR &&
        cmd_buffer->device->isl_dev.ss.clear_color_state_size > 0) {
-      /* From the ICL PRM Vol. 9, "Render Target Fast Clear":
-       *
-       *    HwManaged FastClear allows SW to store FastClearValue in separate
-       *    graphics allocation, instead of keeping them in
-       *    RENDER_SURFACE_STATE. This behavior can be enabled by setting
-       *    ClearValueAddressEnable in RENDER_SURFACE_STATE.
-       *
-       *    Proper sequence of commands is as follows:
-       *
-       *       1. Storing clear color to allocation
-       *       2. Ensuring that step 1. is finished and visible for
-       *          TextureCache
-       *       3. Performing FastClear
-       *
-       *    Step 2. is required on products with ClearColorConversion feature.
-       *    This feature is enabled by setting ClearColorConversionEnable.
-       *    This causes HW to read stored color from ClearColorAllocation and
-       *    write back with the native format or RenderTarget - and clear
-       *    color needs to be present and visible. Reading is done from
-       *    TextureCache, writing is done to RenderCache.
-       *
-       * Invalidate the texture cache so that the clear color conversion
-       * feature works properly.
-       */
-      anv_add_pending_pipe_bits(cmd_buffer,
-                                ANV_PIPE_TEXTURE_CACHE_INVALIDATE_BIT,
-                                "Invalidate for clear color conversion");
-
       /* From the ICL PRM Vol. 9, "State Caching":
        *
        *    Any values referenced by pointers within the RENDER_SURFACE_STATE
-       *    or SAMPLER_STATE (e.g. Clear Color Pointer, Border Color or
-       *    Indirect State Pointer) are considered to be part of that state
-       *    and any changes to these referenced values requires an
-       *    invalidation of the L1 state cache to ensure the new values are
-       *    being used as part of the state. In the case of surface data
-       *    pointed to by the Surface Base Address in RENDER SURFACE STATE,
-       *    the Texture Cache must be invalidated if the surface data changes.
+       *    [...] (e.g. Clear Color Pointer, [...]) are considered to be part
+       *    of that state and any changes to these referenced values requires
+       *    an invalidation of the L1 state cache to ensure the new values are
+       *    being used as part of the state. [...]
        *
        * We could alternatively perform this invalidation when we stop
        * fast-clearing. A benefit to doing it now, when transitioning to a
        * fast clear, is that we save a pipe control by combining the state
-       * cache invalidation with the texture cache invalidation.
+       * cache invalidation with the texture cache invalidation done on gfx12.
        */
-      if (last_aux_op != ISL_AUX_OP_FAST_CLEAR) {
-         anv_add_pending_pipe_bits(cmd_buffer,
-                                   ANV_PIPE_STATE_CACHE_INVALIDATE_BIT,
-                                   "Invalidate for new clear color");
-      }
+      anv_add_pending_pipe_bits(cmd_buffer,
+                                ANV_PIPE_STATE_CACHE_INVALIDATE_BIT,
+                                "Invalidate for new clear color");
    }
 
    /* Update the auxiliary surface operation, but with one exception. */
