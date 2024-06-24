@@ -1172,6 +1172,18 @@ blorp_emit_surface_state(struct blorp_batch *batch,
    const bool use_clear_address =
       GFX_VER >= 10 && (surface->clear_color_addr.buffer != NULL);
 
+   /* On gfx12 (and optionally on gfx11), hardware will read and write to the
+    * clear color address, converting the raw clear color channels to a pixel
+    * during a fast-clear. To avoid the restrictions associated with the
+    * hardware feature, we instead write a software-converted pixel ourselves.
+    * If we're performing a fast-clear, provide a substitute address to avoid
+    * a collision with hardware. Outside of gfx11 and gfx12, indirect clear
+    * color BOs are not used during fast-clears.
+    */
+   const struct blorp_address op_clear_addr =
+      aux_op == ISL_AUX_OP_FAST_CLEAR ? blorp_get_workaround_address(batch) :
+                                        surface->clear_color_addr;
+
    isl_surf_fill_state(batch->blorp->isl_dev, state,
                        .surf = &surf, .view = &surface->view,
                        .aux_surf = &surface->aux_surf, .aux_usage = aux_usage,
@@ -1180,8 +1192,7 @@ blorp_emit_surface_state(struct blorp_batch *batch,
                        .aux_address = !use_aux_address ? 0 :
                           blorp_get_surface_address(batch, surface->aux_addr),
                        .clear_address = !use_clear_address ? 0 :
-                          blorp_get_surface_address(batch,
-                                                    surface->clear_color_addr),
+                          blorp_get_surface_address(batch, op_clear_addr),
                        .mocs = surface->addr.mocs,
                        .clear_color = surface->clear_color,
                        .use_clear_address = use_clear_address);
@@ -1206,7 +1217,7 @@ blorp_emit_surface_state(struct blorp_batch *batch,
       uint32_t *clear_addr = state + isl_dev->ss.clear_color_state_offset;
       blorp_surface_reloc(batch, state_offset +
                           isl_dev->ss.clear_color_state_offset,
-                          surface->clear_color_addr, *clear_addr);
+                          op_clear_addr, *clear_addr);
 #else
       /* Fast clears just whack the AUX surface and don't actually use the
        * clear color for anything.  We can avoid the MI memcpy on that case.
@@ -1517,7 +1528,20 @@ blorp_update_clear_color(UNUSED struct blorp_batch *batch,
    uint32_t pixel[4];
    isl_color_value_pack(&info->clear_color, info->surf.format, pixel);
 
-#if GFX_VER == 11
+#if GFX_VER == 12
+   uint32_t *dw = blorp_emitn(batch, GENX(MI_STORE_DATA_IMM), 3 + 6,
+                              .ForceWriteCompletionCheck = true,
+                              .StoreQword = true,
+                              .Address = info->clear_color_addr);
+   /* dw starts at dword 1 */
+   dw[2] = info->clear_color.u32[0];
+   dw[3] = info->clear_color.u32[1];
+   dw[4] = info->clear_color.u32[2];
+   dw[5] = info->clear_color.u32[3];
+   dw[6] = pixel[0];
+   dw[7] = pixel[1];
+
+#elif GFX_VER == 11
    uint32_t *dw = blorp_emitn(batch, GENX(MI_STORE_DATA_IMM), 3 + 6,
                               .StoreQword = true,
                               .Address = info->clear_color_addr);
@@ -1536,10 +1560,6 @@ blorp_update_clear_color(UNUSED struct blorp_batch *batch,
          sdi.Address = info->clear_color_addr;
          sdi.Address.offset += i * 4;
          sdi.ImmediateData = info->clear_color.u32[i];
-#if GFX_VER >= 12
-         if (i == 3)
-            sdi.ForceWriteCompletionCheck = true;
-#endif
       }
    }
 #endif
