@@ -519,7 +519,7 @@ foz_prepare(struct foz_db *foz_db, char *cache_path)
       free(filename);
       free(idx_filename);
 
-      if (!check_files_opened_successfully(foz_db->file[0], foz_db->db_idx))
+      if (foz_db->file[0] == NULL || foz_db->db_idx == NULL)
          goto fail;
 
       if (!load_foz_dbs(foz_db, foz_db->db_idx, 0, false))
