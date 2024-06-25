@@ -529,7 +529,7 @@ void genX(CmdDispatchIndirect)(
                         INTEL_SNAPSHOT_COMPUTE,
                         "compute indirect",
                         0);
-   trace_intel_begin_compute(&cmd_buffer->trace);
+   trace_intel_begin_compute_indirect(&cmd_buffer->trace);
 
    if (prog_data->uses_num_work_groups) {
       cmd_buffer->state.compute.num_workgroups = addr;
@@ -545,7 +545,8 @@ void genX(CmdDispatchIndirect)(
 
    emit_cs_walker(cmd_buffer, pipeline, prog_data, addr, 0, 0, 0);
 
-   trace_intel_end_compute(&cmd_buffer->trace, 0, 0, 0);
+   trace_intel_end_compute_indirect(&cmd_buffer->trace,
+                                    anv_address_utrace(addr));
 }
 
 struct anv_address

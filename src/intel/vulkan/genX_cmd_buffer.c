@@ -5865,6 +5865,17 @@ void genX(cmd_emit_timestamp)(struct anv_batch *batch,
    }
 }
 
+void genX(cmd_capture_data)(struct anv_batch *batch,
+                            struct anv_device *device,
+                            struct anv_address dst_addr,
+                            struct anv_address src_addr,
+                            uint32_t size_B) {
+   struct mi_builder b;
+   mi_builder_init(&b, device->info, batch);
+   mi_builder_set_mocs(&b, isl_mocs(&device->isl_dev, 0, false));
+   mi_memcpy(&b, dst_addr, src_addr, size_B);
+}
+
 void genX(batch_emit_secondary_call)(struct anv_batch *batch,
                                      struct anv_device *device,
                                      struct anv_address secondary_addr,

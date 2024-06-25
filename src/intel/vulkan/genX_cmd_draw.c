@@ -2021,7 +2021,8 @@ void genX(CmdDrawIndirectCount)(
                                 false /* indexed */);
    }
 
-   trace_intel_end_draw_indirect_count(&cmd_buffer->trace, maxDrawCount);
+   trace_intel_end_draw_indirect_count(&cmd_buffer->trace,
+                                       anv_address_utrace(count_address));
 }
 
 void genX(CmdDrawIndexedIndirectCount)(
@@ -2069,7 +2070,8 @@ void genX(CmdDrawIndexedIndirectCount)(
                                 true /* indexed */);
    }
 
-   trace_intel_end_draw_indexed_indirect_count(&cmd_buffer->trace, maxDrawCount);
+   trace_intel_end_draw_indexed_indirect_count(&cmd_buffer->trace,
+                                               anv_address_utrace(count_address));
 
 }
 
@@ -2345,10 +2347,11 @@ genX(CmdDrawMeshTasksIndirectCountEXT)(
    const uint32_t mocs = anv_mocs_for_address(cmd_buffer->device, &count_buffer->address);
    mi_builder_set_mocs(&b, mocs);
 
+   struct anv_address count_addr =
+      anv_address_add(count_buffer->address, countBufferOffset);
    struct mi_value max =
          prepare_for_draw_count_predicate(
-            cmd_buffer, &b,
-            anv_address_add(count_buffer->address, countBufferOffset));
+            cmd_buffer, &b, count_addr);
 
    for (uint32_t i = 0; i < maxDrawCount; i++) {
       struct anv_address draw = anv_address_add(buffer->address, offset);
@@ -2362,7 +2365,8 @@ genX(CmdDrawMeshTasksIndirectCountEXT)(
       offset += stride;
    }
 
-   trace_intel_end_draw_mesh_indirect_count(&cmd_buffer->trace, maxDrawCount);
+   trace_intel_end_draw_mesh_indirect_count(&cmd_buffer->trace,
+                                            anv_address_utrace(count_addr));
 }
 
 #endif /* GFX_VERx10 >= 125 */

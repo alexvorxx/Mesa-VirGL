@@ -844,6 +844,7 @@ genX(init_physical_device_state)(ASSERTED struct anv_physical_device *pdevice)
 #endif
 
    pdevice->cmd_emit_timestamp = genX(cmd_emit_timestamp);
+   pdevice->cmd_capture_data = genX(cmd_capture_data);
 
    pdevice->gpgpu_pipeline_value = GPGPU;
 

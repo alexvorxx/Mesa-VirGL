@@ -102,9 +102,6 @@ anv_device_utrace_emit_gfx_copy_buffer(struct u_trace_context *utctx,
                                        void *ts_to, uint64_t to_offset_B,
                                        uint64_t size_B)
 {
-   assert(from_offset_B % sizeof(union anv_utrace_timestamp) == 0);
-   assert(to_offset_B % sizeof(union anv_utrace_timestamp) == 0);
-
    struct anv_device *device =
       container_of(utctx, struct anv_device, ds.trace_context);
    struct anv_memcpy_state *memcpy_state = cmdstream;
@@ -124,9 +121,6 @@ anv_device_utrace_emit_cs_copy_buffer(struct u_trace_context *utctx,
                                       void *ts_to, uint64_t to_offset_B,
                                       uint64_t size_B)
 {
-   assert(from_offset_B % sizeof(union anv_utrace_timestamp) == 0);
-   assert(to_offset_B % sizeof(union anv_utrace_timestamp) == 0);
-
    struct anv_device *device =
       container_of(utctx, struct anv_device, ds.trace_context);
    struct anv_simple_shader *simple_state = cmdstream;
@@ -436,6 +430,42 @@ anv_utrace_read_ts(struct u_trace_context *utctx,
    return intel_device_info_timebase_scale(device->info, ts->timestamp);
 }
 
+static void
+anv_utrace_capture_data(struct u_trace *ut,
+                        void *cs,
+                        void *dst_buffer,
+                        uint64_t dst_offset_B,
+                        void *src_buffer,
+                        uint64_t src_offset_B,
+                        uint32_t size_B)
+{
+   struct anv_device *device =
+      container_of(ut->utctx, struct anv_device, ds.trace_context);
+   struct anv_cmd_buffer *cmd_buffer =
+      container_of(ut, struct anv_cmd_buffer, trace);
+   /* cmd_buffer is only valid if cs == NULL */
+   struct anv_batch *batch = cs != NULL ? cs : &cmd_buffer->batch;
+   struct anv_address dst_addr = {
+      .bo = dst_buffer,
+      .offset = dst_offset_B,
+   };
+   struct anv_address src_addr = {
+      .bo = src_buffer,
+      .offset = src_offset_B,
+   };
+
+   device->physical->cmd_capture_data(batch, device, dst_addr, src_addr, size_B);
+}
+
+static const void *
+anv_utrace_get_data(struct u_trace_context *utctx,
+                     void *buffer, uint64_t offset_B, uint32_t size_B)
+{
+   struct anv_bo *bo = buffer;
+
+   return bo->map + offset_B;
+}
+
 void
 anv_device_utrace_init(struct anv_device *device)
 {
@@ -449,13 +479,13 @@ anv_device_utrace_init(struct anv_device *device)
    u_trace_context_init(&device->ds.trace_context,
                         &device->ds,
                         device->utrace_timestamp_size,
-                        0,
+                        12,
                         anv_utrace_create_buffer,
                         anv_utrace_destroy_buffer,
                         anv_utrace_record_ts,
                         anv_utrace_read_ts,
-                        NULL,
-                        NULL,
+                        anv_utrace_capture_data,
+                        anv_utrace_get_data,
                         anv_utrace_delete_submit);
 
    for (uint32_t q = 0; q < device->queue_count; q++) {

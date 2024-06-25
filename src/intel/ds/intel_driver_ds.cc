@@ -316,7 +316,7 @@ end_event(struct intel_ds_queue *queue, uint64_t ts_ns,
       event->set_duration(ts_ns - start_ns);
       event->set_submission_id(submission_id);
 
-      if (payload && payload_as_extra) {
+      if ((payload || indirect_data) && payload_as_extra) {
          payload_as_extra(event, payload, indirect_data);
       }
    });
@@ -427,6 +427,7 @@ CREATE_DUAL_EVENT_CALLBACK(draw_mesh_indirect, INTEL_DS_QUEUE_STAGE_DRAW_MESH)
 CREATE_DUAL_EVENT_CALLBACK(draw_mesh_indirect_count, INTEL_DS_QUEUE_STAGE_DRAW_MESH)
 CREATE_DUAL_EVENT_CALLBACK(xfb, INTEL_DS_QUEUE_STAGE_CMD_BUFFER)
 CREATE_DUAL_EVENT_CALLBACK(compute, INTEL_DS_QUEUE_STAGE_COMPUTE)
+CREATE_DUAL_EVENT_CALLBACK(compute_indirect, INTEL_DS_QUEUE_STAGE_COMPUTE)
 CREATE_DUAL_EVENT_CALLBACK(generate_draws, INTEL_DS_QUEUE_STAGE_INTERNAL_OPS)
 CREATE_DUAL_EVENT_CALLBACK(generate_commands, INTEL_DS_QUEUE_STAGE_INTERNAL_OPS)
 CREATE_DUAL_EVENT_CALLBACK(trace_copy, INTEL_DS_QUEUE_STAGE_INTERNAL_OPS)

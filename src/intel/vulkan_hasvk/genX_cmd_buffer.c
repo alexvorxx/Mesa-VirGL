@@ -4193,7 +4193,8 @@ void genX(CmdDrawIndirectCount)(
 
    mi_value_unref(&b, max);
 
-   trace_intel_end_draw_indirect_count(&cmd_buffer->trace, maxDrawCount);
+   trace_intel_end_draw_indirect_count(&cmd_buffer->trace,
+                                       anv_address_utrace(count_address));
 }
 
 void genX(CmdDrawIndexedIndirectCount)(
@@ -4263,8 +4264,8 @@ void genX(CmdDrawIndexedIndirectCount)(
 
    mi_value_unref(&b, max);
 
-   trace_intel_end_draw_indexed_indirect_count(&cmd_buffer->trace, maxDrawCount);
-
+   trace_intel_end_draw_indexed_indirect_count(&cmd_buffer->trace,
+                                               anv_address_utrace(count_address));
 }
 
 void genX(CmdBeginTransformFeedbackEXT)(
@@ -6030,4 +6031,15 @@ void genX(cmd_emit_timestamp)(struct anv_batch *batch,
    default:
       unreachable("invalid");
    }
+}
+
+void genX(cmd_capture_data)(struct anv_batch *batch,
+                            struct anv_device *device,
+                            struct anv_address dst_addr,
+                            struct anv_address src_addr,
+                            uint32_t size_B)
+{
+   struct mi_builder b;
+   mi_builder_init(&b, device->info, batch);
+   mi_memcpy(&b, dst_addr, src_addr, size_B);
 }

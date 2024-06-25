@@ -242,6 +242,12 @@ void genX(cmd_emit_timestamp)(struct anv_batch *batch,
                               enum anv_timestamp_capture_type type,
                               void *data);
 
+void genX(cmd_capture_data)(struct anv_batch *batch,
+                            struct anv_device *device,
+                            struct anv_address dst_addr,
+                            struct anv_address src_addr,
+                            uint32_t size_B);
+
 void
 genX(batch_emit_post_3dprimitive_was)(struct anv_batch *batch,
                                       const struct anv_device *device,
