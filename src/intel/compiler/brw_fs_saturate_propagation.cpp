@@ -45,6 +45,49 @@ using namespace brw;
  */
 
 static bool
+propagate_sat(fs_inst *inst, fs_inst *scan_inst)
+{
+   if (scan_inst->dst.type != inst->dst.type) {
+      scan_inst->dst.type = inst->dst.type;
+      for (int i = 0; i < scan_inst->sources; i++) {
+         scan_inst->src[i].type = inst->dst.type;
+      }
+   }
+
+   if (inst->src[0].negate) {
+      if (scan_inst->opcode == BRW_OPCODE_MUL) {
+         scan_inst->src[0].negate = !scan_inst->src[0].negate;
+         inst->src[0].negate = false;
+      } else if (scan_inst->opcode == BRW_OPCODE_MAD) {
+         for (int i = 0; i < 2; i++) {
+            if (scan_inst->src[i].file == IMM) {
+               brw_reg_negate_immediate(&scan_inst->src[i]);
+            } else {
+               scan_inst->src[i].negate = !scan_inst->src[i].negate;
+            }
+         }
+         inst->src[0].negate = false;
+      } else if (scan_inst->opcode == BRW_OPCODE_ADD) {
+         if (scan_inst->src[1].file == IMM) {
+            if (!brw_reg_negate_immediate(&scan_inst->src[1])) {
+               return false;
+            }
+         } else {
+            scan_inst->src[1].negate = !scan_inst->src[1].negate;
+         }
+         scan_inst->src[0].negate = !scan_inst->src[0].negate;
+         inst->src[0].negate = false;
+      } else {
+         return false;
+      }
+   }
+
+   scan_inst->saturate = true;
+   inst->saturate = false;
+   return true;
+}
+
+static bool
 opt_saturate_propagation_local(fs_visitor &s, bblock_t *block)
 {
    bool progress = false;
@@ -82,44 +125,8 @@ opt_saturate_propagation_local(fs_visitor &s, bblock_t *block)
                inst->saturate = false;
                progress = true;
             } else if (src_end_ip == ip || inst->dst.equals(inst->src[0])) {
-               if (scan_inst->can_do_saturate()) {
-                  if (scan_inst->dst.type != inst->dst.type) {
-                     scan_inst->dst.type = inst->dst.type;
-                     for (int i = 0; i < scan_inst->sources; i++) {
-                        scan_inst->src[i].type = inst->dst.type;
-                     }
-                  }
-
-                  if (inst->src[0].negate) {
-                     if (scan_inst->opcode == BRW_OPCODE_MUL) {
-                        scan_inst->src[0].negate = !scan_inst->src[0].negate;
-                        inst->src[0].negate = false;
-                     } else if (scan_inst->opcode == BRW_OPCODE_MAD) {
-                        for (int i = 0; i < 2; i++) {
-                           if (scan_inst->src[i].file == IMM) {
-                              brw_reg_negate_immediate(&scan_inst->src[i]);
-                           } else {
-                              scan_inst->src[i].negate = !scan_inst->src[i].negate;
-                           }
-                        }
-                        inst->src[0].negate = false;
-                     } else if (scan_inst->opcode == BRW_OPCODE_ADD) {
-                        if (scan_inst->src[1].file == IMM) {
-                           if (!brw_reg_negate_immediate(&scan_inst->src[1])) {
-                              break;
-                           }
-                        } else {
-                           scan_inst->src[1].negate = !scan_inst->src[1].negate;
-                        }
-                        scan_inst->src[0].negate = !scan_inst->src[0].negate;
-                        inst->src[0].negate = false;
-                     } else {
-                        break;
-                     }
-                  }
-
-                  scan_inst->saturate = true;
-                  inst->saturate = false;
+               if (scan_inst->can_do_saturate() &&
+                   propagate_sat(inst, scan_inst)) {
                   progress = true;
                }
             }
