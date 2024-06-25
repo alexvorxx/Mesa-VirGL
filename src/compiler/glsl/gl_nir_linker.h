@@ -81,7 +81,7 @@ const char * gl_nir_mode_string(const nir_variable *var);
 bool gl_nir_validate_intrastage_arrays(struct gl_shader_program *prog,
                                        nir_variable *var,
                                        nir_variable *existing,
-                                       unsigned existing_stage,
+                                       nir_shader *existing_shader,
                                        bool match_precision);
 
 struct nir_xfb_info *

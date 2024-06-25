@@ -115,7 +115,7 @@ static bool
 intrastage_match(nir_variable *a,
                  nir_variable *b,
                  struct gl_shader_program *prog,
-                 unsigned a_stage,
+                 nir_shader *a_shader,
                  bool match_precision)
 {
    /* From section 4.7 "Precision and Precision Qualifiers" in GLSL 4.50:
@@ -165,7 +165,8 @@ intrastage_match(nir_variable *a,
     */
    if (!type_match && (glsl_type_is_array(b->type) || glsl_type_is_array(a->type)) &&
        (is_interface_instance(b) || is_interface_instance(a)) &&
-       !gl_nir_validate_intrastage_arrays(prog, b, a, a_stage, match_precision))
+       !gl_nir_validate_intrastage_arrays(prog, b, a, a_shader,
+                                          match_precision))
       return false;
 
    return true;
@@ -225,7 +226,7 @@ interstage_match(struct gl_shader_program *prog, nir_variable *producer,
 }
 
 struct ifc_var {
-   unsigned stage;
+   nir_shader *shader;
    nir_variable *var;
 };
 
@@ -256,11 +257,11 @@ ifc_lookup(struct hash_table *ht, nir_variable *var)
  */
 static void
 ifc_store(void *mem_ctx, struct hash_table *ht, nir_variable *var,
-          unsigned stage)
+          nir_shader *shader)
 {
    struct ifc_var *ifc_var = ralloc(mem_ctx, struct ifc_var);
    ifc_var->var = var;
-   ifc_var->stage = stage;
+   ifc_var->shader = shader;
 
    if (var->data.explicit_location &&
        var->data.location >= VARYING_SLOT_VAR0) {
@@ -349,10 +350,10 @@ gl_nir_validate_intrastage_interface_blocks(struct gl_shader_program *prog,
              * it into the appropriate data structure.
              */
             ifc_store(mem_ctx, definitions, var,
-                      shader_list[i]->nir->info.stage);
+                      shader_list[i]->nir);
          } else {
             nir_variable *prev_def = ifc_var->var;
-            if (!intrastage_match(prev_def, var, prog, ifc_var->stage,
+            if (!intrastage_match(prev_def, var, prog, ifc_var->shader,
                                   true /* match_precision */)) {
                linker_error(prog, "definitions of interface block `%s' do not"
                             " match\n", glsl_get_type_name(var->interface_type));
@@ -466,7 +467,7 @@ gl_nir_validate_interstage_inout_blocks(struct gl_shader_program *prog,
          return;
       }
 
-      ifc_store(mem_ctx, ht, var, producer->Program->nir->info.stage);
+      ifc_store(mem_ctx, ht, var, producer->Program->nir);
    }
 
    /* Verify that the consumer's input interfaces match. */
@@ -543,14 +544,14 @@ gl_nir_validate_interstage_uniform_blocks(struct gl_shader_program *prog,
 
          struct ifc_var *ifc_var = ifc_lookup(ht, var);
          if (ifc_var == NULL) {
-            ifc_store(mem_ctx, ht, var, i);
+            ifc_store(mem_ctx, ht, var, stage->Program->nir);
          } else {
             /* Interstage uniform matching rules are the same as intrastage
              * uniform matchin rules (for uniforms, it is as though all
              * shaders are in the same shader stage).
              */
             nir_variable *old_def = ifc_var->var;
-            if (!intrastage_match(old_def, var, prog, ifc_var->stage, false)) {
+            if (!intrastage_match(old_def, var, prog, ifc_var->shader, false)) {
                linker_error(prog, "definitions of uniform block `%s' do not "
                             "match\n", glsl_get_type_name(var->interface_type));
                ralloc_free(mem_ctx);

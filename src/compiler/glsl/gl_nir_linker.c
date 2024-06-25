@@ -1623,7 +1623,7 @@ gl_nir_link_spirv(const struct gl_constants *consts,
 bool
 gl_nir_validate_intrastage_arrays(struct gl_shader_program *prog,
                                   nir_variable *var, nir_variable *existing,
-                                  unsigned existing_stage,
+                                  nir_shader *existing_shader,
                                   bool match_precision)
 {
    /* Consider the types to be "the same" if both types are arrays
@@ -1655,9 +1655,7 @@ gl_nir_validate_intrastage_arrays(struct gl_shader_program *prog,
                            existing->data.max_array_access);
             }
             existing->type = var->type;
-
-            nir_shader *s = prog->_LinkedShaders[existing_stage]->Program->nir;
-            nir_fixup_deref_types(s);
+            nir_fixup_deref_types(existing_shader);
             return true;
          } else if (glsl_array_size(existing->type) != 0) {
             if((int)glsl_array_size(existing->type) <= var->data.max_array_access &&
@@ -1695,7 +1693,7 @@ nir_constant_compare(const nir_constant *c1, const nir_constant *c2)
 }
 
 struct ifc_var {
-   unsigned stage;
+   nir_shader *shader;
    nir_variable *var;
 };
 
@@ -1747,7 +1745,7 @@ cross_validate_globals(void *mem_ctx, const struct gl_constants *consts,
          /* Check if types match. */
          if (var->type != existing->type) {
             if (!gl_nir_validate_intrastage_arrays(prog, var, existing,
-                                                   existing_ifc->stage, true)) {
+                                                   existing_ifc->shader, true)) {
                /* If it is an unsized array in a Shader Storage Block,
                 * two different shaders can access to different elements.
                 * Because of that, they might be converted to different
@@ -1985,7 +1983,7 @@ cross_validate_globals(void *mem_ctx, const struct gl_constants *consts,
       } else {
          struct ifc_var *ifc_var = ralloc(mem_ctx, struct ifc_var);
          ifc_var->var = var;
-         ifc_var->stage = shader->info.stage;
+         ifc_var->shader = shader;
          _mesa_hash_table_insert(variables, var->name, ifc_var);
       }
    }
