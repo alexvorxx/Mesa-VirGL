@@ -104,6 +104,37 @@ opt_saturate_propagation_local(fs_visitor &s, bblock_t *block)
           inst->src[0].abs)
          continue;
 
+      const brw::def_analysis &defs = s.def_analysis.require();
+      fs_inst *def = defs.get(inst->src[0]);
+
+      if (def != NULL) {
+         if (def->exec_size != inst->exec_size)
+            continue;
+
+         if (def->dst.type != inst->dst.type && !def->can_change_types())
+            continue;
+
+         if (def->flags_written(s.devinfo) != 0)
+            continue;
+
+         if (def->saturate) {
+            inst->saturate = false;
+            progress = true;
+            continue;
+         } else if (defs.get_use_count(def->dst) == 1 &&
+                    def->can_do_saturate() &&
+                    propagate_sat(inst, def)) {
+            progress = true;
+            continue;
+         }
+
+         /* If the def is in a different block the liveness based pass will
+          * not be able to make progress, so skip it.
+          */
+         if (block != defs.get_block(inst->src[0]))
+            continue;
+      }
+
       const fs_live_variables &live = s.live_analysis.require();
       int src_var = live.var_from_reg(inst->src[0]);
       int src_end_ip = live.end[src_var];
