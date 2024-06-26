@@ -41,6 +41,7 @@
 #define GFXSTREAM_CREATE_EXPORT_SYNC_VK         0xa000
 #define GFXSTREAM_CREATE_IMPORT_SYNC_VK         0xa001
 #define GFXSTREAM_CREATE_QSRI_EXPORT_VK         0xa002
+#define GFXSTREAM_RESOURCE_CREATE_3D            0xa003
 
 // clang-format off
 // A placeholder command to ensure virtio-gpu completes
@@ -87,6 +88,22 @@ struct gfxstreamPlaceholderCommandVk {
     uint32_t padding;
 };
 
+struct gfxstreamResourceCreate3d {
+    struct gfxstreamHeader hdr;
+    uint32_t target;
+    uint32_t format;
+    uint32_t bind;
+    uint32_t width;
+    uint32_t height;
+    uint32_t depth;
+    uint32_t arraySize;
+    uint32_t lastLevel;
+    uint32_t nrSamples;
+    uint32_t flags;
+    uint32_t pad;
+    uint64_t blobId;
+};
+
 struct vulkanCapset {
     uint32_t protocolVersion;
 
@@ -98,7 +115,8 @@ struct vulkanCapset {
     uint32_t deferredMapping;
     uint32_t blobAlignment;
     uint32_t noRenderControlEnc;
-    uint32_t padding[14];
+    uint32_t alwaysBlob;
+    uint32_t padding[13];
 };
 
 struct magmaCapset {
