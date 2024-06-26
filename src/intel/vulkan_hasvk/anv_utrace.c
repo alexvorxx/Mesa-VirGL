@@ -282,10 +282,13 @@ anv_device_utrace_init(struct anv_device *device)
    u_trace_context_init(&device->ds.trace_context,
                         &device->ds,
                         sizeof(uint64_t),
+                        0,
                         anv_utrace_create_buffer,
                         anv_utrace_destroy_buffer,
                         anv_utrace_record_ts,
                         anv_utrace_read_ts,
+                        NULL,
+                        NULL,
                         anv_utrace_delete_flush_data);
 
    for (uint32_t q = 0; q < device->queue_count; q++) {

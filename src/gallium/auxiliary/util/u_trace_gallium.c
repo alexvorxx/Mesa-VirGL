@@ -62,16 +62,22 @@ void
 u_trace_pipe_context_init(struct u_trace_context *utctx,
                           struct pipe_context *pctx,
                           uint32_t timestamp_size_B,
+                          uint32_t max_indirect_size_B,
                           u_trace_record_ts record_timestamp,
                           u_trace_read_ts read_timestamp,
+                          u_trace_capture_data capture_data,
+                          u_trace_get_data get_data,
                           u_trace_delete_flush_data delete_flush_data)
 {
    u_trace_context_init(utctx, pctx,
                         timestamp_size_B,
+                        max_indirect_size_B,
                         u_trace_pipe_create_buffer,
                         u_trace_pipe_delete_buffer,
                         record_timestamp,
                         read_timestamp,
+                        capture_data,
+                        get_data,
                         delete_flush_data);
 }
 

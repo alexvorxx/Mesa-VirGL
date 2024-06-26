@@ -229,7 +229,7 @@ send_descriptors(IntelRenderpassDataSource::TraceContext &ctx,
    sync_timestamp(ctx, device);
 }
 
-typedef void (*trace_payload_as_extra_func)(perfetto::protos::pbzero::GpuRenderStageEvent *, const void*);
+typedef void (*trace_payload_as_extra_func)(perfetto::protos::pbzero::GpuRenderStageEvent *, const void*, const void *);
 
 static void
 begin_event(struct intel_ds_queue *queue, uint64_t ts_ns,
@@ -258,7 +258,8 @@ end_event(struct intel_ds_queue *queue, uint64_t ts_ns,
           uint32_t submission_id,
           uint16_t tracepoint_idx,
           const char *app_event,
-          const void* payload = nullptr,
+          const void *payload = nullptr,
+          const void *indirect_data = nullptr,
           trace_payload_as_extra_func payload_as_extra = nullptr)
 {
    struct intel_ds_device *device = queue->device;
@@ -279,7 +280,6 @@ end_event(struct intel_ds_queue *queue, uint64_t ts_ns,
 
    if (!start_ns)
       return;
-
 
    IntelRenderpassDataSource::Trace([=](IntelRenderpassDataSource::TraceContext tctx) {
       if (auto state = tctx.GetIncrementalState(); state->was_cleared) {
@@ -317,7 +317,7 @@ end_event(struct intel_ds_queue *queue, uint64_t ts_ns,
       event->set_submission_id(submission_id);
 
       if (payload && payload_as_extra) {
-         payload_as_extra(event, payload);
+         payload_as_extra(event, payload, indirect_data);
       }
    });
 
@@ -384,7 +384,8 @@ extern "C" {
                                uint64_t ts_ns,                          \
                                uint16_t tp_idx,                         \
                                const void *flush_data,                  \
-                               const struct trace_intel_begin_##event_name *payload) \
+                               const struct trace_intel_begin_##event_name *payload, \
+                               const void *indirect_data)               \
    {                                                                    \
       const struct intel_ds_flush_data *flush =                         \
          (const struct intel_ds_flush_data *) flush_data;               \
@@ -396,12 +397,13 @@ extern "C" {
                              uint64_t ts_ns,                            \
                              uint16_t tp_idx,                           \
                              const void *flush_data,                    \
-                             const struct trace_intel_end_##event_name *payload) \
+                             const struct trace_intel_end_##event_name *payload, \
+                             const void *indirect_data)                 \
    {                                                                    \
       const struct intel_ds_flush_data *flush =                         \
          (const struct intel_ds_flush_data *) flush_data;               \
       end_event(flush->queue, ts_ns, stage, flush->submission_id,       \
-                tp_idx, NULL, payload,                                  \
+                tp_idx, NULL, payload, indirect_data,                   \
                 (trace_payload_as_extra_func)                           \
                 &trace_payload_as_extra_intel_end_##event_name);        \
    }                                                                    \
@@ -442,7 +444,8 @@ intel_ds_begin_cmd_buffer_annotation(struct intel_ds_device *device,
                                      uint64_t ts_ns,
                                      uint16_t tp_idx,
                                      const void *flush_data,
-                                     const struct trace_intel_begin_cmd_buffer_annotation *payload)
+                                     const struct trace_intel_begin_cmd_buffer_annotation *payload,
+                                     const void *indirect_data)
 {
    const struct intel_ds_flush_data *flush =
       (const struct intel_ds_flush_data *) flush_data;
@@ -454,12 +457,13 @@ intel_ds_end_cmd_buffer_annotation(struct intel_ds_device *device,
                                    uint64_t ts_ns,
                                    uint16_t tp_idx,
                                    const void *flush_data,
-                                   const struct trace_intel_end_cmd_buffer_annotation *payload)
+                                   const struct trace_intel_end_cmd_buffer_annotation *payload,
+                                   const void *indirect_data)
 {
    const struct intel_ds_flush_data *flush =
       (const struct intel_ds_flush_data *) flush_data;
    end_event(flush->queue, ts_ns, INTEL_DS_QUEUE_STAGE_CMD_BUFFER,
-             flush->submission_id, tp_idx, payload->str, NULL, NULL);
+             flush->submission_id, tp_idx, payload->str, NULL, NULL, NULL);
 }
 
 void
@@ -467,7 +471,8 @@ intel_ds_begin_queue_annotation(struct intel_ds_device *device,
                                 uint64_t ts_ns,
                                 uint16_t tp_idx,
                                 const void *flush_data,
-                                const struct trace_intel_begin_queue_annotation *payload)
+                                const struct trace_intel_begin_queue_annotation *payload,
+                                const void *indirect_data)
 {
    const struct intel_ds_flush_data *flush =
       (const struct intel_ds_flush_data *) flush_data;
@@ -479,12 +484,13 @@ intel_ds_end_queue_annotation(struct intel_ds_device *device,
                               uint64_t ts_ns,
                               uint16_t tp_idx,
                               const void *flush_data,
-                              const struct trace_intel_end_queue_annotation *payload)
+                              const struct trace_intel_end_queue_annotation *payload,
+                              const void *indirect_data)
 {
    const struct intel_ds_flush_data *flush =
       (const struct intel_ds_flush_data *) flush_data;
    end_event(flush->queue, ts_ns, INTEL_DS_QUEUE_STAGE_QUEUE,
-             flush->submission_id, tp_idx, payload->str, NULL, NULL);
+             flush->submission_id, tp_idx, payload->str, NULL, NULL, NULL);
 }
 
 void
@@ -492,7 +498,8 @@ intel_ds_begin_stall(struct intel_ds_device *device,
                      uint64_t ts_ns,
                      uint16_t tp_idx,
                      const void *flush_data,
-                     const struct trace_intel_begin_stall *payload)
+                     const struct trace_intel_begin_stall *payload,
+                     const void *indirect_data)
 {
    const struct intel_ds_flush_data *flush =
       (const struct intel_ds_flush_data *) flush_data;
@@ -504,12 +511,13 @@ intel_ds_end_stall(struct intel_ds_device *device,
                    uint64_t ts_ns,
                    uint16_t tp_idx,
                    const void *flush_data,
-                   const struct trace_intel_end_stall *payload)
+                   const struct trace_intel_end_stall *payload,
+                   const void *indirect_data)
 {
    const struct intel_ds_flush_data *flush =
       (const struct intel_ds_flush_data *) flush_data;
    end_event(flush->queue, ts_ns, INTEL_DS_QUEUE_STAGE_STALL,
-             flush->submission_id, tp_idx, NULL, payload,
+             flush->submission_id, tp_idx, NULL, payload, indirect_data,
              (trace_payload_as_extra_func)custom_trace_payload_as_extra_end_stall);
 }
 

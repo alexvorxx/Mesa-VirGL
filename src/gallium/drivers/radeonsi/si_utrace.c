@@ -61,8 +61,9 @@ void si_utrace_init(struct si_context *sctx)
 
    si_ds_device_init(&sctx->ds, &sctx->screen->info, gpu_id, AMD_DS_API_OPENGL);
    u_trace_pipe_context_init(&sctx->ds.trace_context, &sctx->b,
-                             sizeof(uint64_t), si_utrace_record_ts,
-                             si_utrace_read_ts, si_utrace_delete_flush_data);
+                             sizeof(uint64_t), 0, si_utrace_record_ts,
+                             si_utrace_read_ts, NULL, NULL,
+                             si_utrace_delete_flush_data);
 
    si_ds_device_init_queue(&sctx->ds, &sctx->ds_queue, "%s", "render");
 }

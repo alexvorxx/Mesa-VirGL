@@ -59,6 +59,8 @@ class Tracepoint(object):
         def needs_storage(a):
             if a.c_format is None:
                 return False
+            if a.is_indirect:
+                return False
             return True
 
         self.name = name
@@ -81,6 +83,14 @@ class Tracepoint(object):
                 self.has_variable_arg = True
                 break
         self.tp_print_custom = tp_print
+
+        # Compute the offset of each indirect argument
+        self.indirect_args = [x for x in args if x.is_indirect]
+        indirect_sizes = []
+        for indirect in self.indirect_args:
+            indirect.indirect_offset = ' + '.join(indirect_sizes) if len(indirect_sizes) > 0 else 0
+            indirect_sizes.append(f"sizeof({indirect.type}")
+
         self.tp_perfetto = tp_perfetto
         self.tp_markers = tp_markers
         self.tp_flags = tp_flags
@@ -105,7 +115,7 @@ class Tracepoint(object):
 class TracepointArgStruct():
     """Represents struct that is being passed as an argument
     """
-    def __init__(self, type, var, c_format=None, fields=[]):
+    def __init__(self, type, var, c_format=None, fields=[], is_indirect=False):
         """Parameters:
 
         - type: argument's C type.
@@ -117,17 +127,25 @@ class TracepointArgStruct():
         self.type = type
         self.var = var
         self.name = var
+        self.is_indirect = is_indirect
+        self.indirect_offset = 0
         self.is_struct = True
         self.c_format = c_format
         self.fields = fields
         self.to_prim_type = None
 
-        self.func_param = f"{self.type} {self.var}"
+        if self.is_indirect:
+            self.func_param = f"struct u_trace_address {self.var}"
+        else:
+            self.func_param = f"{self.type} {self.var}"
 
     def value_expr(self, entry_name):
         ret = None
         if self.is_struct:
-            ret = ", ".join([f"{entry_name}->{self.name}.{f}" for f in self.fields])
+            if self.is_indirect:
+                ret = ", ".join([f"__{self.name}->{f}" for f in self.fields])
+            else:
+                ret = ", ".join([f"{entry_name}->{self.name}.{f}" for f in self.fields])
         else:
             ret = f"{entry_name}->{self.name}"
         return ret
@@ -136,7 +154,7 @@ class TracepointArg(object):
     """Class that represents either an argument being passed or a field in a struct
     """
     def __init__(self, type, var, c_format=None, name=None, to_prim_type=None,
-                 length_arg=None, copy_func=None):
+                 length_arg=None, copy_func=None, is_indirect=False):
         """Parameters:
 
         - type: argument's C type.
@@ -162,8 +180,12 @@ class TracepointArg(object):
         self.copy_func = copy_func
 
         self.is_struct = False
+        self.is_indirect = is_indirect
+        self.indirect_offset = 0
 
-        if self.type == "str":
+        if self.is_indirect:
+            pass
+        elif self.type == "str":
             if self.length_arg and self.length_arg.isdigit():
                 self.struct_member = f"char {self.name}[{length_arg} + 1]"
             else:
@@ -171,13 +193,18 @@ class TracepointArg(object):
         else:
             self.struct_member = f"{self.type} {self.name}"
 
-        if self.type == "str":
+        if self.is_indirect:
+            self.func_param = f"struct u_trace_address {self.var}"
+        elif self.type == "str":
             self.func_param = f"const char *{self.var}"
         else:
             self.func_param = f"{self.type} {self.var}"
 
     def value_expr(self, entry_name):
-        ret = f"{entry_name}->{self.name}"
+        if self.is_indirect:
+            ret = f"*__{self.name}"
+        else:
+            ret = f"{entry_name}->{self.name}"
         if not self.is_struct and self.to_prim_type:
             ret = self.to_prim_type.format(ret)
         return ret
@@ -298,7 +325,8 @@ void ${trace.tp_perfetto}(
    uint64_t ts_ns,
    uint16_t tp_idx,
    const void *flush_data,
-   const struct trace_${trace_name} *payload);
+   const struct trace_${trace_name} *payload,
+   const void *indirect_data);
 #endif
 %    endif
 void __trace_${trace_name}(
@@ -416,11 +444,14 @@ ${trace_toggle_name}_config_variable(void)
  * ${trace_name}
  */
  % if trace.can_generate_print():
-static void __print_${trace_name}(FILE *out, const void *arg) {
+static void __print_${trace_name}(FILE *out, const void *arg, const void *indirect) {
   % if len(trace.tp_struct) > 0:
    const struct trace_${trace_name} *__entry =
       (const struct trace_${trace_name} *)arg;
   % endif
+  % for arg in trace.indirect_args:
+   const ${arg.type} *__${arg.name} = (const ${arg.type} *) ((char *)indirect + ${arg.indirect_offset});
+  % endfor
   % if trace.tp_print_custom is not None:
    fprintf(out, "${trace.tp_print_custom[0]}\\n"
    % for arg in trace.tp_print_custom[1:]:
@@ -439,11 +470,14 @@ static void __print_${trace_name}(FILE *out, const void *arg) {
    );
 }
 
-static void __print_json_${trace_name}(FILE *out, const void *arg) {
+static void __print_json_${trace_name}(FILE *out, const void *arg, const void *indirect) {
   % if len(trace.tp_struct) > 0:
    const struct trace_${trace_name} *__entry =
       (const struct trace_${trace_name} *)arg;
   % endif
+  % for arg in trace.indirect_args:
+   const ${arg.type} *__${arg.var} = (const ${arg.type} *) ((char *)indirect + ${arg.indirect_offset});
+  % endfor
   % if trace.tp_print_custom is not None:
    fprintf(out, "\\"unstructured\\": \\"${trace.tp_print_custom[0]}\\""
    % for arg in trace.tp_print_custom[1:]:
@@ -475,26 +509,35 @@ __attribute__((format(printf, 3, 4))) void ${trace.tp_markers}(struct u_trace_co
 static void __emit_label_${trace_name}(struct u_trace_context *utctx, void *cs, struct trace_${trace_name} *entry) {
    ${trace.tp_markers}(utctx, cs, "${trace_name}("
    % for idx,arg in enumerate(trace.tp_print):
+   % if not arg.is_indirect:
       "${"," if idx != 0 else ""}${arg.name}=${arg.c_format}"
+   % endif
    % endfor
       ")"
    % for arg in trace.tp_print:
+   % if not arg.is_indirect:
       ,${arg.value_expr('entry')}
+   % endif
    % endfor
    );
 }
 
  % endif
 static const struct u_tracepoint __tp_${trace_name} = {
-    ALIGN_POT(sizeof(struct trace_${trace_name}), 8),   /* keep size 64b aligned */
     "${trace_name}",
+    ALIGN_POT(sizeof(struct trace_${trace_name}), 8),   /* keep size 64b aligned */
+    0
+ % for arg in trace.indirect_args:
+    + sizeof(${arg.type})
+ % endfor
+    ,
     ${0 if len(trace.tp_flags) == 0 else " | ".join(trace.tp_flags)},
     ${index},
     __print_${trace_name},
     __print_json_${trace_name},
  % if trace.tp_perfetto is not None:
 #ifdef HAVE_PERFETTO
-    (void (*)(void *pctx, uint64_t, uint16_t, const void *, const void *))${trace.tp_perfetto},
+    (void (*)(void *pctx, uint64_t, uint16_t, const void *, const void *, const void *))${trace.tp_perfetto},
 #endif
  % endif
 };
@@ -509,9 +552,20 @@ void __trace_${trace_name}(
  % endfor
 ) {
    struct trace_${trace_name} entry;
+ % if len(trace.indirect_args) > 0:
+   struct u_trace_address indirects[] = {
+  % for arg in trace.indirect_args:
+      ${arg.var},
+  % endfor
+   };
+   uint8_t indirect_sizes[] = {
+  % for arg in trace.indirect_args:
+      sizeof(${arg.type}),
+  % endfor
+   };
+ % endif
    UNUSED struct trace_${trace_name} *__entry =
       enabled_traces & U_TRACE_TYPE_REQUIRE_QUEUING ?
- % if trace.has_variable_arg:
       (struct trace_${trace_name} *)u_trace_appendv(ut, ${"cs," if trace.need_cs_param else "NULL,"} &__tp_${trace_name},
                                                     0
   % for arg in trace.tp_struct:
@@ -519,10 +573,13 @@ void __trace_${trace_name}(
                                                     + ${arg.length_arg}
    % endif
   % endfor
+                                                    ,
+  % if len(trace.indirect_args) > 0:
+                                                    ARRAY_SIZE(indirects), indirects, indirect_sizes
+  % else:
+                                                    0, NULL, NULL
+  % endif
                                                     ) :
- % else:
-      (struct trace_${trace_name} *)u_trace_append(ut, ${"cs," if trace.need_cs_param else "NULL,"} &__tp_${trace_name}) :
- % endif
       &entry;
  % for arg in trace.tp_struct:
   % if arg.copy_func is None:
@@ -625,7 +682,8 @@ UNUSED static const char *${basename}_names[] = {
 % for trace_name, trace in TRACEPOINTS.items():
 static void UNUSED
 trace_payload_as_extra_${trace_name}(perfetto::protos::pbzero::GpuRenderStageEvent *event,
-                                     const struct trace_${trace_name} *payload)
+                                     const struct trace_${trace_name} *payload,
+                                     const void *indirect_data)
 {
  % if trace.tp_perfetto is not None and len(trace.tp_print) > 0:
    char buf[128];
@@ -635,6 +693,9 @@ trace_payload_as_extra_${trace_name}(perfetto::protos::pbzero::GpuRenderStageEve
       auto data = event->add_extra_data();
       data->set_name("${arg.name}");
 
+   % if arg.is_indirect:
+      const ${arg.type}* __${arg.var} = (const ${arg.type}*)((uint8_t *)indirect_data + ${arg.indirect_offset});
+   % endif
       sprintf(buf, "${arg.c_format}", ${arg.value_expr("payload")});
 
       data->set_value(buf);

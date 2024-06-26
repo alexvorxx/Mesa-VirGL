@@ -718,8 +718,11 @@ fd_context_init(struct fd_context *ctx, struct pipe_screen *pscreen,
    fd_gpu_tracepoint_config_variable();
    u_trace_pipe_context_init(&ctx->trace_context, pctx,
                              sizeof(uint64_t),
+                             0,
                              fd_trace_record_ts,
                              fd_trace_read_ts,
+                             NULL,
+                             NULL,
                              fd_trace_delete_flush_data);
 
    fd_autotune_init(&ctx->autotune, screen->dev);

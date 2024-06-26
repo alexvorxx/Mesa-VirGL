@@ -188,10 +188,13 @@ void iris_utrace_init(struct iris_context *ice)
 
    u_trace_context_init(&ice->ds.trace_context, &ice->ctx,
                         sizeof(union iris_utrace_timestamp),
+                        0,
                         iris_utrace_create_buffer,
                         iris_utrace_delete_buffer,
                         iris_utrace_record_ts,
                         iris_utrace_read_ts,
+                        NULL,
+                        NULL,
                         iris_utrace_delete_flush_data);
 
    for (int i = 0; i < IRIS_BATCH_COUNT; i++) {

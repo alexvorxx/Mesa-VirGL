@@ -2521,10 +2521,13 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
    device->submit_count = 0;
    u_trace_context_init(&device->trace_context, device,
                      sizeof(uint64_t),
+                     0,
                      tu_trace_create_buffer,
                      tu_trace_destroy_buffer,
                      TU_CALLX(device, tu_trace_record_ts),
                      tu_trace_read_ts,
+                     NULL,
+                     NULL,
                      tu_trace_delete_flush_data);
 
    tu_breadcrumbs_init(device);

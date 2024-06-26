@@ -474,7 +474,8 @@ tu_perfetto_submit(struct tu_device *dev,
 #define CREATE_EVENT_CALLBACK(event_name, stage_id)                                 \
    void tu_perfetto_start_##event_name(                                             \
       struct tu_device *dev, uint64_t ts_ns, uint16_t tp_idx,                       \
-      const void *flush_data, const struct trace_start_##event_name *payload)       \
+      const void *flush_data, const struct trace_start_##event_name *payload,       \
+      const void *indirect_data)                                                    \
    {                                                                                \
       stage_start(                                                                  \
          dev, ts_ns, stage_id, NULL, payload, sizeof(*payload),                     \
@@ -483,7 +484,8 @@ tu_perfetto_submit(struct tu_device *dev,
                                                                                     \
    void tu_perfetto_end_##event_name(                                               \
       struct tu_device *dev, uint64_t ts_ns, uint16_t tp_idx,                       \
-      const void *flush_data, const struct trace_end_##event_name *payload)         \
+      const void *flush_data, const struct trace_end_##event_name *payload,         \
+      const void *indirect_data)                                                    \
    {                                                                                \
       stage_end(                                                                    \
          dev, ts_ns, stage_id, flush_data, payload,                                 \
@@ -510,7 +512,8 @@ tu_perfetto_start_cmd_buffer_annotation(
    uint64_t ts_ns,
    uint16_t tp_idx,
    const void *flush_data,
-   const struct trace_start_cmd_buffer_annotation *payload)
+   const struct trace_start_cmd_buffer_annotation *payload,
+   const void *indirect_data)
 {
    /* No extra func necessary, the only arg is in the end payload.*/
    stage_start(dev, ts_ns, CMD_BUFFER_ANNOTATION_STAGE_ID, payload->str, payload,
@@ -523,7 +526,8 @@ tu_perfetto_end_cmd_buffer_annotation(
    uint64_t ts_ns,
    uint16_t tp_idx,
    const void *flush_data,
-   const struct trace_end_cmd_buffer_annotation *payload)
+   const struct trace_end_cmd_buffer_annotation *payload,
+   const void *indirect_data)
 {
    /* Pass the payload string as the app_event, which will appear right on the
     * event block, rather than as metadata inside.
@@ -538,7 +542,8 @@ tu_perfetto_start_cmd_buffer_annotation_rp(
    uint64_t ts_ns,
    uint16_t tp_idx,
    const void *flush_data,
-   const struct trace_start_cmd_buffer_annotation_rp *payload)
+   const struct trace_start_cmd_buffer_annotation_rp *payload,
+   const void *indirect_data)
 {
    /* No extra func necessary, the only arg is in the end payload.*/
    stage_start(dev, ts_ns, CMD_BUFFER_ANNOTATION_RENDER_PASS_STAGE_ID,
@@ -551,7 +556,8 @@ tu_perfetto_end_cmd_buffer_annotation_rp(
    uint64_t ts_ns,
    uint16_t tp_idx,
    const void *flush_data,
-   const struct trace_end_cmd_buffer_annotation_rp *payload)
+   const struct trace_end_cmd_buffer_annotation_rp *payload,
+   const void *indirect_data)
 {
    /* Pass the payload string as the app_event, which will appear right on the
     * event block, rather than as metadata inside.
