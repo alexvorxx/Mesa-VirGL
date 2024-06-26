@@ -3236,6 +3236,9 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 
     VkEncoder* enc = (VkEncoder*)context;
 
+    bool hasDedicatedImage = false;
+    bool hasDedicatedBuffer = false;
+
     VkMemoryAllocateInfo finalAllocInfo = vk_make_orphan_copy(*pAllocateInfo);
     vk_struct_chain_iterator structChainIter = vk_make_chain_iterator(&finalAllocInfo);
 
@@ -3382,9 +3385,9 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
     if (exportAhb) {
-        bool hasDedicatedImage =
+        hasDedicatedImage =
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->image != VK_NULL_HANDLE);
-        bool hasDedicatedBuffer =
+        hasDedicatedBuffer =
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->buffer != VK_NULL_HANDLE);
         VkExtent3D imageExtent = {0, 0, 0};
         uint32_t imageLayers = 0;
@@ -3482,9 +3485,9 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
     }
 
     if (exportVmo) {
-        bool hasDedicatedImage =
+        hasDedicatedImage =
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->image != VK_NULL_HANDLE);
-        bool hasDedicatedBuffer =
+        hasDedicatedBuffer =
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->buffer != VK_NULL_HANDLE);
 
         if (hasDedicatedImage && hasDedicatedBuffer) {
@@ -3757,9 +3760,9 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 #if defined(LINUX_GUEST_BUILD)
     if (exportDmabuf) {
         VirtGpuDevice* instance = VirtGpuDevice::getInstance();
-        bool hasDedicatedImage =
+        hasDedicatedImage =
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->image != VK_NULL_HANDLE);
-        bool hasDedicatedBuffer =
+        hasDedicatedBuffer =
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->buffer != VK_NULL_HANDLE);
 
         if (hasDedicatedImage) {
