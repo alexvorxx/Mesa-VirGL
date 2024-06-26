@@ -496,6 +496,10 @@
    DRI_CONF_OPT_B(no_fp16, def, \
                   "Disable 16-bit float support")
 
+#define DRI_CONF_VK_ZERO_VRAM(def) \
+   DRI_CONF_OPT_B(vk_zero_vram, def, \
+                  "Initialize to zero all VRAM allocations")
+
 /**
  * \brief Initialization configuration options
  */
