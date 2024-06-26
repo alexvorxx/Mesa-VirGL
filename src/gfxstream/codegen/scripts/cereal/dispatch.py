@@ -46,14 +46,7 @@ getProcAddrFuncs = [
 # address using vkGetInstProcAddr() or vkGetDeviceProcAddr(). These function
 # pointers should only be initialized when setting up the dispatch from system
 # loader.
-getProcAddrOnlyFuncs = [
-    "vkGetMTLDeviceMVK",
-    "vkSetMTLTextureMVK",
-    "vkGetMTLTextureMVK",
-    "vkGetMTLBufferMVK",
-    "vkUseIOSurfaceMVK",
-    "vkGetIOSurfaceMVK",
-]
+getProcAddrOnlyFuncs = []
 
 getInstanceProcAddrNoInstanceFuncs = [
     "vkCreateInstance",
