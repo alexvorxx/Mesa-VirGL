@@ -3756,7 +3756,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
     }
 #endif
 
-    VirtGpuResourcePtr colorBufferBlob = nullptr;
+    VirtGpuResourcePtr bufferBlob = nullptr;
 #if defined(LINUX_GUEST_BUILD)
     if (exportDmabuf) {
         VirtGpuDevice* instance = VirtGpuDevice::getInstance();
@@ -3806,16 +3806,57 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 if (VK_IMAGE_TILING_LINEAR == imageCreateInfo.tiling) {
                     bind |= VIRGL_BIND_LINEAR;
                 }
-                colorBufferBlob = instance->createResource(
-                    imageCreateInfo.extent.width, imageCreateInfo.extent.height,
-                    subResourceLayout.rowPitch, virglFormat, target, bind);
-                if (!colorBufferBlob) {
-                    mesa_loge("Failed to create colorBuffer resource for Image memory");
-                    return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-                }
-                if (!colorBufferBlob->wait()) {
-                    mesa_loge("Failed to wait for colorBuffer resource for Image memory");
-                    return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+                if (mCaps.vulkanCapset.alwaysBlob) {
+                    struct gfxstreamResourceCreate3d create3d = {};
+                    struct VirtGpuExecBuffer exec = {};
+                    struct gfxstreamPlaceholderCommandVk placeholderCmd = {};
+                    struct VirtGpuCreateBlob createBlob = {};
+
+                    create3d.hdr.opCode = GFXSTREAM_RESOURCE_CREATE_3D;
+                    create3d.bind = bind;
+                    create3d.target = target;
+                    create3d.format = virglFormat;
+                    create3d.width = imageCreateInfo.extent.width;
+                    create3d.height = imageCreateInfo.extent.height;
+                    create3d.blobId = ++mBlobId;
+
+                    createBlob.blobCmd = reinterpret_cast<uint8_t*>(&create3d);
+                    createBlob.blobCmdSize = sizeof(create3d);
+                    createBlob.blobMem = kBlobMemHost3d;
+                    createBlob.flags = kBlobFlagShareable | kBlobFlagCrossDevice;
+                    createBlob.blobId = create3d.blobId;
+                    createBlob.size = finalAllocInfo.allocationSize;
+
+                    bufferBlob = instance->createBlob(createBlob);
+                    if (!bufferBlob) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+                    placeholderCmd.hdr.opCode = GFXSTREAM_PLACEHOLDER_COMMAND_VK;
+                    exec.command = static_cast<void*>(&placeholderCmd);
+                    exec.command_size = sizeof(placeholderCmd);
+                    exec.flags = kRingIdx;
+                    exec.ring_idx = 1;
+                    if (instance->execBuffer(exec, bufferBlob.get())) {
+                        mesa_loge("Failed to execbuffer placeholder command.");
+                        return VK_ERROR_OUT_OF_HOST_MEMORY;
+                    }
+
+                    if (bufferBlob->wait()) {
+                        mesa_loge("Failed to wait for blob.");
+                        return VK_ERROR_OUT_OF_HOST_MEMORY;
+                    }
+                } else {
+                    bufferBlob = instance->createResource(
+                        imageCreateInfo.extent.width, imageCreateInfo.extent.height,
+                        subResourceLayout.rowPitch, virglFormat, target, bind);
+                    if (!bufferBlob) {
+                        mesa_loge("Failed to create colorBuffer resource for Image memory");
+                        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                    }
+                    if (!bufferBlob->wait()) {
+                        mesa_loge("Failed to wait for colorBuffer resource for Image memory");
+                        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                    }
                 }
             } else {
                 mesa_logw(
@@ -3824,9 +3865,59 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                     "(VkExportMemoryAllocateInfo).\n");
             }
         } else if (hasDedicatedBuffer) {
-            mesa_logw(
-                "VkDeviceMemory allocated with VkMemoryDedicatedAllocateInfo::buffer cannot be "
-                "exported (VkExportMemoryAllocateInfo)");
+            uint32_t virglFormat = VIRGL_FORMAT_R8_UNORM;
+            const uint32_t target = PIPE_BUFFER;
+            uint32_t bind = VIRGL_BIND_LINEAR;
+            uint32_t width = finalAllocInfo.allocationSize;
+            uint32_t height = 1;
+
+            if (mCaps.vulkanCapset.alwaysBlob) {
+                struct gfxstreamResourceCreate3d create3d = {};
+                struct VirtGpuExecBuffer exec = {};
+                struct gfxstreamPlaceholderCommandVk placeholderCmd = {};
+                struct VirtGpuCreateBlob createBlob = {};
+
+                create3d.hdr.opCode = GFXSTREAM_RESOURCE_CREATE_3D;
+                create3d.bind = bind;
+                create3d.target = target;
+                create3d.format = virglFormat;
+                create3d.width = width;
+                create3d.height = height;
+                create3d.blobId = ++mBlobId;
+
+                createBlob.blobCmd = reinterpret_cast<uint8_t*>(&create3d);
+                createBlob.blobCmdSize = sizeof(create3d);
+                createBlob.blobMem = kBlobMemHost3d;
+                createBlob.flags = kBlobFlagShareable | kBlobFlagCrossDevice;
+                createBlob.blobId = create3d.blobId;
+                createBlob.size = width;
+
+                bufferBlob = instance->createBlob(createBlob);
+                if (!bufferBlob) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+                placeholderCmd.hdr.opCode = GFXSTREAM_PLACEHOLDER_COMMAND_VK;
+                exec.command = static_cast<void*>(&placeholderCmd);
+                exec.command_size = sizeof(placeholderCmd);
+                exec.flags = kRingIdx;
+                exec.ring_idx = 1;
+                if (instance->execBuffer(exec, bufferBlob.get())) {
+                    mesa_loge("Failed to allocate coherent memory: failed to execbuffer for wait.");
+                    return VK_ERROR_OUT_OF_HOST_MEMORY;
+                }
+
+                bufferBlob->wait();
+            } else {
+                bufferBlob =
+                    instance->createResource(width, height, width, virglFormat, target, bind);
+                if (!bufferBlob) {
+                    mesa_loge("Failed to create colorBuffer resource for Image memory");
+                    return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                }
+                if (!bufferBlob->wait()) {
+                    mesa_loge("Failed to wait for colorBuffer resource for Image memory");
+                    return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                }
+            }
         } else {
             mesa_logw(
                 "VkDeviceMemory is not exportable (VkExportMemoryAllocateInfo). Requires "
@@ -3840,20 +3931,25 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         importHandle.type = kMemHandleDmabuf;
 
         auto instance = VirtGpuDevice::getInstance();
-        colorBufferBlob = instance->importBlob(importHandle);
-        if (!colorBufferBlob) {
+        bufferBlob = instance->importBlob(importHandle);
+        if (!bufferBlob) {
             mesa_loge("%s: Failed to import colorBuffer resource\n", __func__);
             return VK_ERROR_OUT_OF_DEVICE_MEMORY;
         }
     }
 
-    if (colorBufferBlob) {
-        importCbInfo.colorBuffer = colorBufferBlob->getResourceHandle();
-        vk_append_struct(&structChainIter, &importCbInfo);
+    if (bufferBlob) {
+        if (hasDedicatedBuffer) {
+            importBufferInfo.buffer = bufferBlob->getResourceHandle();
+            vk_append_struct(&structChainIter, &importBufferInfo);
+        } else {
+            importCbInfo.colorBuffer = bufferBlob->getResourceHandle();
+            vk_append_struct(&structChainIter, &importCbInfo);
+        }
     }
 #endif
 
-    if (ahw || colorBufferBlob || !requestedMemoryIsHostVisible) {
+    if (ahw || bufferBlob || !requestedMemoryIsHostVisible) {
         input_result =
             enc->vkAllocateMemory(device, &finalAllocInfo, pAllocator, pMemory, true /* do lock */);
 
@@ -3861,7 +3957,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 
         VkDeviceSize allocationSize = finalAllocInfo.allocationSize;
         setDeviceMemoryInfo(device, *pMemory, 0, nullptr, finalAllocInfo.memoryTypeIndex, ahw,
-                            isImport, vmo_handle, colorBufferBlob);
+                            isImport, vmo_handle, bufferBlob);
 
         _RETURN_SCUCCESS_WITH_DEVICE_MEMORY_REPORT;
     }
