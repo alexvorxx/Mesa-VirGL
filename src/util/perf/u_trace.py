@@ -22,6 +22,7 @@
 #
 
 from mako.template import Template
+from mako import exceptions
 from collections import namedtuple
 from enum import IntEnum
 import os
@@ -529,26 +530,32 @@ def utrace_generate(cpath, hpath, ctx_param, trace_toggle_name=None,
     if cpath is not None:
         hdr = os.path.basename(cpath).rsplit('.', 1)[0] + '.h'
         with open(cpath, 'w', encoding='utf-8') as f:
-            f.write(Template(src_template).render(
-                hdr=hdr,
-                ctx_param=ctx_param,
-                trace_toggle_name=trace_toggle_name,
-                trace_toggle_defaults=trace_toggle_defaults,
-                HEADERS=[h for h in HEADERS if h.scope & HeaderScope.SOURCE],
-                TRACEPOINTS=TRACEPOINTS,
-                TRACEPOINTS_TOGGLES=TRACEPOINTS_TOGGLES))
+            try:
+                f.write(Template(src_template).render(
+                    hdr=hdr,
+                    ctx_param=ctx_param,
+                    trace_toggle_name=trace_toggle_name,
+                    trace_toggle_defaults=trace_toggle_defaults,
+                    HEADERS=[h for h in HEADERS if h.scope & HeaderScope.SOURCE],
+                    TRACEPOINTS=TRACEPOINTS,
+                    TRACEPOINTS_TOGGLES=TRACEPOINTS_TOGGLES))
+            except:
+                print(exceptions.text_error_template().render())
 
     if hpath is not None:
         hdr = os.path.basename(hpath)
         with open(hpath, 'w', encoding='utf-8') as f:
-            f.write(Template(hdr_template).render(
-                hdrname=hdr.rstrip('.h').upper(),
-                ctx_param=ctx_param,
-                trace_toggle_name=trace_toggle_name,
-                HEADERS=[h for h in HEADERS if h.scope & HeaderScope.HEADER],
-                FORWARD_DECLS=FORWARD_DECLS,
-                TRACEPOINTS=TRACEPOINTS,
-                TRACEPOINTS_TOGGLES=TRACEPOINTS_TOGGLES))
+            try:
+                f.write(Template(hdr_template).render(
+                    hdrname=hdr.rstrip('.h').upper(),
+                    ctx_param=ctx_param,
+                    trace_toggle_name=trace_toggle_name,
+                    HEADERS=[h for h in HEADERS if h.scope & HeaderScope.HEADER],
+                    FORWARD_DECLS=FORWARD_DECLS,
+                    TRACEPOINTS=TRACEPOINTS,
+                    TRACEPOINTS_TOGGLES=TRACEPOINTS_TOGGLES))
+            except:
+                print(exceptions.text_error_template().render())
 
 
 perfetto_utils_hdr_template = """\
@@ -625,8 +632,11 @@ def utrace_generate_perfetto_utils(hpath,basename="tracepoint"):
     if hpath is not None:
         hdr = os.path.basename(hpath)
         with open(hpath, 'w', encoding='utf-8') as f:
-            f.write(Template(perfetto_utils_hdr_template).render(
-                basename=basename,
-                hdrname=hdr.rstrip('.h').upper(),
-                HEADERS=[h for h in HEADERS if h.scope & HeaderScope.PERFETTO],
-                TRACEPOINTS=TRACEPOINTS))
+            try:
+                f.write(Template(perfetto_utils_hdr_template).render(
+                    basename=basename,
+                    hdrname=hdr.rstrip('.h').upper(),
+                    HEADERS=[h for h in HEADERS if h.scope & HeaderScope.PERFETTO],
+                    TRACEPOINTS=TRACEPOINTS))
+            except:
+                print(exceptions.text_error_template().render())
