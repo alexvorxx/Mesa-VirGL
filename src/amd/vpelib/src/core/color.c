@@ -181,29 +181,33 @@ static bool color_update_regamma_tf(struct vpe_priv *vpe_priv,
         break;
     }
 
-    if (vpe_priv->init.debug.disable_lut_caching ||
-        (output_tf->cache_info.cm_gamma_type != output_tf->cm_gamma_type) ||
-        (output_tf->cache_info.tf != output_tf->tf) ||
-        (output_tf->cache_info.x_scale.value != x_scale.value) ||
-        (output_tf->cache_info.y_scale.value != y_scale.value) ||
-        (output_tf->cache_info.y_bias.value != y_bias.value)) {
-        // if gamma points have been previously generated,
-        // skip the re-gen no matter it was config cached or not
-        update = true;
+    for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
+        if (vpe_priv->init.debug.disable_lut_caching ||
+            (output_tf->cache_info[i].cm_gamma_type != output_tf->cm_gamma_type) ||
+            (output_tf->cache_info[i].tf != output_tf->tf) ||
+            (output_tf->cache_info[i].x_scale.value != x_scale.value) ||
+            (output_tf->cache_info[i].y_scale.value != y_scale.value) ||
+            (output_tf->cache_info[i].y_bias.value != y_bias.value)) {
+            // if gamma points have been previously generated,
+            // skip the re-gen no matter it was config cached or not
+            update = true;
+        }
     }
 
     if (update) {
         ret = vpe_color_calculate_regamma_params(
             vpe_priv, x_scale, y_scale, &vpe_priv->cal_buffer, output_tf);
         if (ret) {
-            // reset the cache status and mark as dirty to let hw layer to re-cache
-            output_tf->dirty                    = true;
-            output_tf->config_cache.cached      = false;
-            output_tf->cache_info.cm_gamma_type = output_tf->cm_gamma_type;
-            output_tf->cache_info.tf            = output_tf->tf;
-            output_tf->cache_info.x_scale       = x_scale;
-            output_tf->cache_info.y_scale       = y_scale;
-            output_tf->cache_info.y_bias        = y_bias;
+            for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
+                // reset the cache status and mark as dirty to let hw layer to re-cache
+                output_tf->dirty[i]                    = true;
+                output_tf->config_cache[i].cached      = false;
+                output_tf->cache_info[i].cm_gamma_type = output_tf->cm_gamma_type;
+                output_tf->cache_info[i].tf            = output_tf->tf;
+                output_tf->cache_info[i].x_scale       = x_scale;
+                output_tf->cache_info[i].y_scale       = y_scale;
+                output_tf->cache_info[i].y_bias        = y_bias;
+            }
         }
     }
     return ret;
@@ -240,28 +244,32 @@ static bool color_update_degamma_tf(struct vpe_priv *vpe_priv,
         break;
     }
 
-    if (vpe_priv->init.debug.disable_lut_caching ||
-        (input_tf->cache_info.cm_gamma_type != input_tf->cm_gamma_type) ||
-        (input_tf->cache_info.tf != input_tf->tf) ||
-        (input_tf->cache_info.x_scale.value != x_scale.value) ||
-        (input_tf->cache_info.y_scale.value != y_scale.value) ||
-        (input_tf->cache_info.y_bias.value != y_bias.value)) {
-        // if gamma points have been previously generated,
-        // skip the re-gen no matter it was config cached or not
-        update = true;
+    for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
+        if (vpe_priv->init.debug.disable_lut_caching ||
+            (input_tf->cache_info[i].cm_gamma_type != input_tf->cm_gamma_type) ||
+            (input_tf->cache_info[i].tf != input_tf->tf) ||
+            (input_tf->cache_info[i].x_scale.value != x_scale.value) ||
+            (input_tf->cache_info[i].y_scale.value != y_scale.value) ||
+            (input_tf->cache_info[i].y_bias.value != y_bias.value)) {
+            // if gamma points have been previously generated,
+            // skip the re-gen no matter it was config cached or not
+            update = true;
+        }
     }
 
     if (update) {
         ret = vpe_color_calculate_degamma_params(vpe_priv, x_scale, y_scale, input_tf);
         if (ret) {
-            // reset the cache status and mark as dirty to let hw layer to re-cache
-            input_tf->dirty                    = true;
-            input_tf->config_cache.cached      = false;
-            input_tf->cache_info.cm_gamma_type = input_tf->cm_gamma_type;
-            input_tf->cache_info.tf            = color_input_tf;
-            input_tf->cache_info.x_scale       = x_scale;
-            input_tf->cache_info.y_scale       = y_scale;
-            input_tf->cache_info.y_bias        = y_bias;
+            for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
+                // reset the cache status and mark as dirty to let hw layer to re-cache
+                input_tf->dirty[i]                    = true;
+                input_tf->config_cache[i].cached      = false;
+                input_tf->cache_info[i].cm_gamma_type = input_tf->cm_gamma_type;
+                input_tf->cache_info[i].tf            = color_input_tf;
+                input_tf->cache_info[i].x_scale       = x_scale;
+                input_tf->cache_info[i].y_scale       = y_scale;
+                input_tf->cache_info[i].y_bias        = y_bias;
+            }
         }
     }
     return ret;
@@ -673,13 +681,22 @@ enum vpe_status vpe_color_update_3dlut(
     if (!enable_3dlut) {
         stream_ctx->lut3d_func->state.bits.initialized = 0;
     } else {
-        if (vpe_priv->init.debug.disable_lut_caching ||
-            (stream_ctx->lut3d_func->cache_info.uid_3dlut != stream_ctx->stream.tm_params.UID)) {
+        bool update = false;
+
+        for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++)
+            if (vpe_priv->init.debug.disable_lut_caching ||
+                (stream_ctx->lut3d_func->cache_info[i].uid_3dlut !=
+                    stream_ctx->stream.tm_params.UID))
+                update = true;
+
+        if (update) {
             vpe_convert_to_tetrahedral(
                 vpe_priv, stream_ctx->stream.tm_params.lut_data, stream_ctx->lut3d_func);
-            stream_ctx->lut3d_func->dirty                = true;
-            stream_ctx->lut3d_func->config_cache.cached  = false;
-            stream_ctx->lut3d_func->cache_info.uid_3dlut = stream_ctx->stream.tm_params.UID;
+            for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
+                stream_ctx->lut3d_func->dirty[i]                = true;
+                stream_ctx->lut3d_func->config_cache[i].cached  = false;
+                stream_ctx->lut3d_func->cache_info[i].uid_3dlut = stream_ctx->stream.tm_params.UID;
+            }
         }
         stream_ctx->lut3d_func->state.bits.initialized = 1;
     }
@@ -812,10 +829,12 @@ enum vpe_status vpe_color_update_shaper(const struct vpe_priv *vpe_priv, uint16_
     }
 
     // right now shaper is always programmed with linear, once cached, it is always reused.
-    if (vpe_priv->init.debug.disable_lut_caching ||
-        (shaper_func && shaper_func->cache_info.tf != tf)) {
-        // if the caching has the required data cached, skip the update
-        update = true;
+    for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
+        if (vpe_priv->init.debug.disable_lut_caching ||
+            (shaper_func && shaper_func->cache_info[i].tf != tf)) {
+            // if the caching has the required data cached, skip the update
+            update = true;
+        }
     }
 
     shaper_func->type = TF_TYPE_HWPWL;
@@ -829,9 +848,11 @@ enum vpe_status vpe_color_update_shaper(const struct vpe_priv *vpe_priv, uint16_
 
         ret = vpe_build_shaper(&shaper_in, &shaper_func->pwl);
         if (ret == VPE_STATUS_OK) {
-            shaper_func->dirty               = true;
-            shaper_func->config_cache.cached = false;
-            shaper_func->cache_info.tf       = tf;
+            for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
+                shaper_func->dirty[i]               = true;
+                shaper_func->config_cache[i].cached = false;
+                shaper_func->cache_info[i].tf       = tf;
+            }
         }
     }
     return ret;

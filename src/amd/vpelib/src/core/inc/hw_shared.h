@@ -26,6 +26,11 @@
 
 #include "fixed31_32.h"
 
+#define MAX_3DLUT 1
+
+#define MAX_PIPE        2
+#define MAX_OUTPUT_PIPE 1
+
 #ifdef __cplusplus
 extern "C" {
 #endif

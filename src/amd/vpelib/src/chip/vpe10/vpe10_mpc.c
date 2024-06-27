@@ -1263,12 +1263,12 @@ void vpe10_mpc_set_mpc_shaper_3dlut(
 
     bypass = (!shaper_lut || (func_shaper && func_shaper->type == TF_TYPE_BYPASS));
     CONFIG_CACHE(func_shaper, stream_ctx, vpe_priv->init.debug.disable_lut_caching, bypass,
-        mpc->funcs->program_shaper(mpc, shaper_lut));
+        mpc->funcs->program_shaper(mpc, shaper_lut), mpc->inst);
 
     bypass       = (!lut3d_func || !lut3d_func->state.bits.initialized);
     lut3d_params = (bypass) ? (NULL) : (&lut3d_func->lut_3d);
     CONFIG_CACHE(lut3d_func, stream_ctx, vpe_priv->init.debug.disable_lut_caching, bypass,
-        mpc->funcs->program_3dlut(mpc, lut3d_params));
+        mpc->funcs->program_3dlut(mpc, lut3d_params), mpc->inst);
 
     return;
 }
@@ -1298,7 +1298,7 @@ void vpe10_mpc_set_output_transfer_func(struct mpc *mpc, struct output_ctx *outp
               vpe_priv->init.debug.cm_in_bypass || vpe_priv->init.debug.bypass_ogam);
 
     CONFIG_CACHE(output_ctx->output_tf, output_ctx, vpe_priv->init.debug.disable_lut_caching,
-        bypass, mpc->funcs->set_output_gamma(mpc, params));
+        bypass, mpc->funcs->set_output_gamma(mpc, params), mpc->inst);
 }
 
 void vpe10_mpc_set_blend_lut(struct mpc *mpc, struct transfer_func *blend_tf)
@@ -1328,7 +1328,7 @@ void vpe10_mpc_set_blend_lut(struct mpc *mpc, struct transfer_func *blend_tf)
         ((!blend_tf) || (blend_tf->type == TF_TYPE_BYPASS) || vpe_priv->init.debug.bypass_blndgam);
 
     CONFIG_CACHE(blend_tf, stream_ctx, vpe_priv->init.debug.disable_lut_caching, bypass,
-        mpc->funcs->program_1dlut(mpc, blend_lut, gamma_type));
+        mpc->funcs->program_1dlut(mpc, blend_lut, gamma_type), mpc->inst);
 }
 
 bool vpe10_mpc_program_movable_cm(struct mpc *mpc, struct transfer_func *func_shaper,

@@ -61,6 +61,7 @@ struct cdc_funcs {
 struct cdc {
     struct vpe_priv  *vpe_priv;
     struct cdc_funcs *funcs;
+    unsigned int      inst;
 };
 
 #ifdef __cplusplus

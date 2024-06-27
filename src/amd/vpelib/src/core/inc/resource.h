@@ -32,6 +32,7 @@
 #include "mpc.h"
 #include "opp.h"
 #include "vector.h"
+#include "hw_shared.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,8 +42,6 @@ struct vpe_priv;
 struct vpe_cmd_info;
 struct segment_ctx;
 
-#define MAX_PIPE 2
-#define MAX_OUTPUT_PIPE 2
 #define MIN_VPE_CMD     1024
 
 enum vpe_cmd_ops;

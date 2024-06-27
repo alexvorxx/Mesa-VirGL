@@ -73,7 +73,6 @@ struct config_cache {
     bool     cached;
 };
 
-
 /* A macro that helps cache the config packet, it won't cache if it is in bypass mode
  * as bypass mode is not heavy lifting programming.
  *
@@ -82,26 +81,28 @@ struct config_cache {
  * /param   disable_cache       a flag that controls a caching is needed
  * /param   is_bypass           if it is in bypass, it doesn't cache the bypass config
  * /param   program_func_call   the program call that generate config packet content
+ * /param   inst                index to address the config_cache array
  */
-#define CONFIG_CACHE(obj_cache, obj_cfg_array, disable_cache, is_bypass, program_func_call)        \
+#define CONFIG_CACHE(obj_cache, obj_cfg_array, disable_cache, is_bypass, program_func_call, inst)  \
     {                                                                                              \
         bool use_cache = false;                                                                    \
                                                                                                    \
         /* make sure it opens a new config packet */                                               \
         config_writer_force_new_with_type(config_writer, CONFIG_TYPE_DIRECT);                      \
                                                                                                    \
-        if ((obj_cache) && !disable_cache && (obj_cache)->config_cache.p_buffer &&                 \
-            (obj_cache)->config_cache.cached && !((obj_cache)->dirty) && !is_bypass) {             \
+        if ((obj_cache) && !disable_cache && (obj_cache)->config_cache[inst].p_buffer &&           \
+            (obj_cache)->config_cache[inst].cached && !((obj_cache)->dirty[inst]) && !is_bypass) { \
             /* reuse the cache */                                                                  \
-            if (config_writer->buf->size >= (obj_cache)->config_cache.size) {                      \
+            if (config_writer->buf->size >= (obj_cache)->config_cache[inst].size) {                \
                 memcpy((void *)(uintptr_t)config_writer->base_cpu_va,                              \
-                    (obj_cache)->config_cache.p_buffer,                                            \
-                    (size_t)(obj_cache)->config_cache.size);                                       \
+                    (obj_cache)->config_cache[inst].p_buffer,                                      \
+                    (size_t)(obj_cache)->config_cache[inst].size);                                 \
                 config_writer->buf->cpu_va =                                                       \
-                    config_writer->base_cpu_va + (obj_cache)->config_cache.size;                   \
+                    config_writer->base_cpu_va + (obj_cache)->config_cache[inst].size;             \
                 config_writer->buf->gpu_va =                                                       \
-                    config_writer->base_gpu_va + (obj_cache)->config_cache.size;                   \
-                config_writer->buf->size -= ((obj_cache)->config_cache.size - sizeof(uint32_t));   \
+                    config_writer->base_gpu_va + (obj_cache)->config_cache[inst].size;             \
+                config_writer->buf->size -=                                                        \
+                    ((obj_cache)->config_cache[inst].size - sizeof(uint32_t));                     \
                 use_cache = true;                                                                  \
             }                                                                                      \
         }                                                                                          \
@@ -117,21 +118,21 @@ struct config_cache {
             if (!disable_cache && !is_bypass) {                                                    \
                 /* only cache when it is not crossing config packets */                            \
                 if (config_num == (obj_cfg_array)->num_configs) {                                  \
-                    if ((obj_cache)->dirty) {                                                      \
+                    if ((obj_cache)->dirty[inst]) {                                                \
                         uint64_t size = end - start;                                               \
                                                                                                    \
-                        if ((obj_cache)->config_cache.size < size) {                               \
-                            if ((obj_cache)->config_cache.p_buffer)                                \
-                                vpe_free((obj_cache)->config_cache.p_buffer);                      \
+                        if ((obj_cache)->config_cache[inst].size < size) {                         \
+                            if ((obj_cache)->config_cache[inst].p_buffer)                          \
+                                vpe_free((obj_cache)->config_cache[inst].p_buffer);                \
                                                                                                    \
-                            (obj_cache)->config_cache.p_buffer = vpe_zalloc((size_t)size);         \
-                            if ((obj_cache)->config_cache.p_buffer) {                              \
-                                memcpy((obj_cache)->config_cache.p_buffer,                         \
+                            (obj_cache)->config_cache[inst].p_buffer = vpe_zalloc((size_t)size);   \
+                            if ((obj_cache)->config_cache[inst].p_buffer) {                        \
+                                memcpy((obj_cache)->config_cache[inst].p_buffer,                   \
                                     (void *)(uintptr_t)start, (size_t)size);                       \
-                                (obj_cache)->config_cache.size   = size;                           \
-                                (obj_cache)->config_cache.cached = true;                           \
+                                (obj_cache)->config_cache[inst].size   = size;                     \
+                                (obj_cache)->config_cache[inst].cached = true;                     \
                             } else {                                                               \
-                                (obj_cache)->config_cache.size = 0;                                \
+                                (obj_cache)->config_cache[inst].size = 0;                          \
                             }                                                                      \
                         }                                                                          \
                     }                                                                              \
@@ -139,7 +140,7 @@ struct config_cache {
             }                                                                                      \
         }                                                                                          \
         if ((obj_cache))                                                                           \
-            (obj_cache)->dirty = false;                                                            \
+            (obj_cache)->dirty[inst] = false;                                                      \
     }
 
 /* the following macro requires a local variable vpr_priv to be present */

@@ -99,6 +99,7 @@ struct dpp_funcs {
 struct dpp {
     struct vpe_priv  *vpe_priv;
     struct dpp_funcs *funcs;
+    unsigned int      inst;
 
     struct pwl_params degamma_params;
 };

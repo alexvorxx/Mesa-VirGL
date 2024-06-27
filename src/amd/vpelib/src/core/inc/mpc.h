@@ -171,6 +171,7 @@ struct mpc_funcs {
 struct mpc {
     struct vpe_priv  *vpe_priv;
     struct mpc_funcs *funcs;
+    unsigned int      inst;
     struct pwl_params regamma_params;
     struct pwl_params blender_params;
     struct pwl_params shaper_params;

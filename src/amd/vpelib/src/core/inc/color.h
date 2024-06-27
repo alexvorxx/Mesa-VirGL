@@ -147,6 +147,14 @@ struct transfer_func_distributed_points {
     uint16_t x_point_at_y1_blue;
 };
 
+struct cache_info {
+    enum color_transfer_func tf;
+    enum cm_type             cm_gamma_type;
+    struct fixed31_32        x_scale;
+    struct fixed31_32        y_scale;
+    struct fixed31_32        y_bias;
+};
+
 struct transfer_func {
     enum transfer_func_type  type;
     enum color_transfer_func tf;
@@ -161,16 +169,10 @@ struct transfer_func {
     };
 
     // the followings are for optimization: skip if no change
-    bool                dirty;        /*< indicate this object is updated or not */
-    struct config_cache config_cache; /*< used by the hw hook layer to do the caching */
+    bool                dirty[MAX_PIPE];        /*< indicate this object is updated or not */
+    struct config_cache config_cache[MAX_PIPE]; /*< used by the hw hook layer to do the caching */
 
-    struct {
-        enum color_transfer_func tf;
-        enum cm_type             cm_gamma_type;
-        struct fixed31_32        x_scale;
-        struct fixed31_32        y_scale;
-        struct fixed31_32        y_bias;
-    } cache_info;
+    struct cache_info cache_info[MAX_PIPE];
 };
 
 enum color_white_point_type {
@@ -237,12 +239,12 @@ struct vpe_3dlut {
     union vpe_3dlut_state     state;
 
     // the followings are for optimization: skip if no change
-    bool                dirty;        /*< indicate this object is updated or not */
-    struct config_cache config_cache; /*< used by the hw hook layer to do the caching */
+    bool                dirty[MAX_3DLUT];        /*< indicate this object is updated or not */
+    struct config_cache config_cache[MAX_3DLUT]; /*< used by the hw hook layer to do the caching */
 
     struct {
         uint64_t uid_3dlut; /*< UID for current 3D LUT params */
-    } cache_info;
+    } cache_info[MAX_3DLUT];
 };
 
 enum vpe_status vpe_color_update_color_space_and_tf(
