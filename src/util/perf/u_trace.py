@@ -56,21 +56,31 @@ class Tracepoint(object):
         assert isinstance(args, list)
         assert name not in TRACEPOINTS
 
+        def needs_storage(a):
+            if a.c_format is None:
+                return False
+            return True
 
         self.name = name
         self.args = args
-        if tp_struct is None:
-           tp_struct = args
-        else:
-           tp_struct += [x for x in args if isinstance(x, TracepointArg)]
+        # For storage data, include all the specified tp_struct by the caller
+        # as well as arguments needing storage
+        self.tp_struct = []
+        if tp_struct is not None:
+           self.tp_struct += tp_struct
+        self.tp_struct += [x for x in args if needs_storage(x)]
+        # For printing, include all the arguments & tp_struct elements that
+        # have a format printer
+        self.tp_print = [x for x in args if x.c_format is not None]
+        if tp_struct is not None:
+            self.tp_print += [x for x in tp_struct if x.c_format is not None]
 
-        self.tp_struct = tp_struct
         self.has_variable_arg = False
         for arg in self.tp_struct:
             if arg.length_arg != None and not arg.length_arg.isdigit():
                 self.has_variable_arg = True
                 break
-        self.tp_print = tp_print
+        self.tp_print_custom = tp_print
         self.tp_perfetto = tp_perfetto
         self.tp_markers = tp_markers
         self.tp_flags = tp_flags
@@ -95,7 +105,7 @@ class Tracepoint(object):
 class TracepointArgStruct():
     """Represents struct that is being passed as an argument
     """
-    def __init__(self, type, var):
+    def __init__(self, type, var, c_format=None, fields=[]):
         """Parameters:
 
         - type: argument's C type.
@@ -106,13 +116,27 @@ class TracepointArgStruct():
 
         self.type = type
         self.var = var
+        self.name = var
+        self.is_struct = True
+        self.c_format = c_format
+        self.fields = fields
+        self.to_prim_type = None
 
         self.func_param = f"{self.type} {self.var}"
+
+    def value_expr(self, entry_name):
+        ret = None
+        if self.is_struct:
+            ret = ", ".join([f"{entry_name}->{self.name}.{f}" for f in self.fields])
+        else:
+            ret = f"{entry_name}->{self.name}"
+        return ret
 
 class TracepointArg(object):
     """Class that represents either an argument being passed or a field in a struct
     """
-    def __init__(self, type, var, c_format, name=None, to_prim_type=None, length_arg=None, copy_func=None):
+    def __init__(self, type, var, c_format=None, name=None, to_prim_type=None,
+                 length_arg=None, copy_func=None):
         """Parameters:
 
         - type: argument's C type.
@@ -126,7 +150,6 @@ class TracepointArg(object):
         """
         assert isinstance(type, str)
         assert isinstance(var, str)
-        assert isinstance(c_format, str)
 
         self.type = type
         self.var = var
@@ -138,10 +161,13 @@ class TracepointArg(object):
         self.length_arg = length_arg
         self.copy_func = copy_func
 
+        self.is_struct = False
+
         if self.type == "str":
-            self.struct_member = f"char {self.name}[{length_arg} + 1]"
-        elif self.length_arg:
-            self.struct_member = f"{self.type} {self.name}[0]"
+            if self.length_arg and self.length_arg.isdigit():
+                self.struct_member = f"char {self.name}[{length_arg} + 1]"
+            else:
+                self.struct_member = f"char {self.name}[0]"
         else:
             self.struct_member = f"{self.type} {self.name}"
 
@@ -149,6 +175,12 @@ class TracepointArg(object):
             self.func_param = f"const char *{self.var}"
         else:
             self.func_param = f"{self.type} {self.var}"
+
+    def value_expr(self, entry_name):
+        ret = f"{entry_name}->{self.name}"
+        if not self.is_struct and self.to_prim_type:
+            ret = self.to_prim_type.format(ret)
+        return ret
 
 
 HEADERS = []
@@ -247,7 +279,7 @@ struct trace_${trace_name} {
 %    for arg in trace.tp_struct:
    ${arg.struct_member};
 %    endfor
-%    if len(trace.args) == 0:
+%    if len(trace.tp_struct) == 0:
 #ifdef __cplusplus
    /* avoid warnings about empty struct size mis-match in C vs C++..
     * the size mis-match is harmless because (a) nothing will deref
@@ -385,52 +417,48 @@ ${trace_toggle_name}_config_variable(void)
  */
  % if trace.can_generate_print():
 static void __print_${trace_name}(FILE *out, const void *arg) {
+  % if len(trace.tp_struct) > 0:
    const struct trace_${trace_name} *__entry =
       (const struct trace_${trace_name} *)arg;
-  % if trace.tp_print is not None:
-   fprintf(out, "${trace.tp_print[0]}\\n"
-   % for arg in trace.tp_print[1:]:
+  % endif
+  % if trace.tp_print_custom is not None:
+   fprintf(out, "${trace.tp_print_custom[0]}\\n"
+   % for arg in trace.tp_print_custom[1:]:
            , ${arg}
    % endfor
   % else:
    fprintf(out, ""
-   % for arg in trace.tp_struct:
+   % for arg in trace.tp_print:
       "${arg.name}=${arg.c_format}, "
    % endfor
          "\\n"
-   % for arg in trace.tp_struct:
-    % if arg.to_prim_type:
-   ,${arg.to_prim_type.format('__entry->' + arg.name)}
-    % else:
-   ,__entry->${arg.name}
-    % endif
+   % for arg in trace.tp_print:
+   ,${arg.value_expr("__entry")}
    % endfor
   % endif
    );
 }
 
 static void __print_json_${trace_name}(FILE *out, const void *arg) {
+  % if len(trace.tp_struct) > 0:
    const struct trace_${trace_name} *__entry =
       (const struct trace_${trace_name} *)arg;
-  % if trace.tp_print is not None:
-   fprintf(out, "\\"unstructured\\": \\"${trace.tp_print[0]}\\""
-   % for arg in trace.tp_print[1:]:
+  % endif
+  % if trace.tp_print_custom is not None:
+   fprintf(out, "\\"unstructured\\": \\"${trace.tp_print_custom[0]}\\""
+   % for arg in trace.tp_print_custom[1:]:
            , ${arg}
    % endfor
   % else:
    fprintf(out, ""
-   % for arg in trace.tp_struct:
+   % for arg in trace.tp_print:
       "\\"${arg.name}\\": \\"${arg.c_format}\\""
-      % if arg != trace.tp_struct[-1]:
+    % if arg != trace.tp_print[-1]:
          ", "
-      % endif
-   % endfor
-   % for arg in trace.tp_struct:
-    % if arg.to_prim_type:
-   ,${arg.to_prim_type.format('__entry->' + arg.name)}
-    % else:
-   ,__entry->${arg.name}
     % endif
+   % endfor
+   % for arg in trace.tp_print:
+   ,${arg.value_expr("__entry")}
    % endfor
   % endif
    );
@@ -446,16 +474,12 @@ __attribute__((format(printf, 3, 4))) void ${trace.tp_markers}(struct u_trace_co
 
 static void __emit_label_${trace_name}(struct u_trace_context *utctx, void *cs, struct trace_${trace_name} *entry) {
    ${trace.tp_markers}(utctx, cs, "${trace_name}("
-   % for idx,arg in enumerate(trace.tp_struct):
+   % for idx,arg in enumerate(trace.tp_print):
       "${"," if idx != 0 else ""}${arg.name}=${arg.c_format}"
    % endfor
       ")"
-   % for arg in trace.tp_struct:
-    % if arg.to_prim_type:
-      ,${arg.to_prim_type.format('entry->' + arg.name)}
-    % else:
-      ,entry->${arg.name}
-    % endif
+   % for arg in trace.tp_print:
+      ,${arg.value_expr('entry')}
    % endfor
    );
 }
@@ -603,19 +627,15 @@ static void UNUSED
 trace_payload_as_extra_${trace_name}(perfetto::protos::pbzero::GpuRenderStageEvent *event,
                                      const struct trace_${trace_name} *payload)
 {
- % if all([trace.tp_perfetto, trace.tp_struct]) and len(trace.tp_struct) > 0:
+ % if trace.tp_perfetto is not None and len(trace.tp_print) > 0:
    char buf[128];
 
-  % for arg in trace.tp_struct:
+  % for arg in trace.tp_print:
    {
       auto data = event->add_extra_data();
       data->set_name("${arg.name}");
 
-   % if arg.to_prim_type:
-      sprintf(buf, "${arg.c_format}", ${arg.to_prim_type.format('payload->' + arg.name)});
-   % else:
-      sprintf(buf, "${arg.c_format}", payload->${arg.name});
-   % endif
+      sprintf(buf, "${arg.c_format}", ${arg.value_expr("payload")});
 
       data->set_value(buf);
    }
