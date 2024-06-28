@@ -4736,27 +4736,23 @@ cmd_buffer_emit_depth_stencil(struct anv_cmd_buffer *cmd_buffer)
    if (info.depth_surf)
       genX(cmd_buffer_emit_gfx12_depth_wa)(cmd_buffer, info.depth_surf);
 
-   if (GFX_VER >= 11) {
-      cmd_buffer->state.pending_pipe_bits |= ANV_PIPE_POST_SYNC_BIT;
-      genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
-
-      if (intel_needs_workaround(cmd_buffer->device->info, 1408224581) ||
-          intel_needs_workaround(cmd_buffer->device->info, 14014097488)) {
-         /* Wa_1408224581
-          *
-          * Workaround: Gfx12LP Astep only An additional pipe control with
-          * post-sync = store dword operation would be required.( w/a is to
-          * have an additional pipe control after the stencil state whenever
-          * the surface state bits of this state is changing).
-          *
-          * This also seems sufficient to handle Wa_14014097488.
-          */
-         genx_batch_emit_pipe_control_write
-            (&cmd_buffer->batch, cmd_buffer->device->info,
-             cmd_buffer->state.current_pipeline, WriteImmediateData,
-             cmd_buffer->device->workaround_address, 0, 0);
-      }
+   if (intel_needs_workaround(cmd_buffer->device->info, 1408224581) ||
+       intel_needs_workaround(cmd_buffer->device->info, 14014097488)) {
+      /* Wa_1408224581
+       *
+       * Workaround: Gfx12LP Astep only An additional pipe control with
+       * post-sync = store dword operation would be required.( w/a is to have
+       * an additional pipe control after the stencil state whenever the
+       * surface state bits of this state is changing).
+       *
+       * This also seems sufficient to handle Wa_14014097488.
+       */
+      genx_batch_emit_pipe_control_write(&cmd_buffer->batch, device->info,
+                                         cmd_buffer->state.current_pipeline,
+                                         WriteImmediateData,
+                                         device->workaround_address, 0, 0);
    }
+
    cmd_buffer->state.hiz_enabled = isl_aux_usage_has_hiz(info.hiz_usage);
 }
 
