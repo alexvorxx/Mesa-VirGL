@@ -187,6 +187,38 @@ apiChangeState = {
     "vkBindBufferMemory": VkObjectState("buffer", "VkReconstruction::BOUND_MEMORY"),
 }
 
+def api_special_implementation_vkBindImageMemory2(api, cgen):
+    childType = "VkImage"
+    parentType = "VkDeviceMemory"
+    childObj = "boxed_%s" % childType
+    parentObj = "boxed_%s" % parentType
+    cgen.stmt("android::base::AutoLock lock(mLock)")
+    cgen.beginFor("uint32_t i = 0", "i < bindInfoCount", "++i")
+    cgen.stmt("%s boxed_%s = unboxed_to_boxed_non_dispatchable_%s(pBindInfos[i].image)"
+              % (childType, childType, childType))
+    cgen.stmt("%s boxed_%s = unboxed_to_boxed_non_dispatchable_%s(pBindInfos[i].memory)"
+              % (parentType, parentType, parentType))
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)&%s, %s, (uint64_t)(uintptr_t)%s, VkReconstruction::BOUND_MEMORY)" % \
+              (childObj, "1", parentObj))
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)&%s, %s, (uint64_t)(uintptr_t)%s, VkReconstruction::BOUND_MEMORY)" % \
+              (childObj, "1", childObj))
+    cgen.endFor()
+
+    cgen.stmt("auto apiHandle = mReconstruction.createApiInfo()")
+    cgen.stmt("auto apiInfo = mReconstruction.getApiInfo(apiHandle)")
+    cgen.stmt("mReconstruction.setApiTrace(apiInfo, OP_%s, snapshotTraceBegin, snapshotTraceBytes)" % api.name)
+    cgen.line("// Note: the implementation does not work with bindInfoCount > 1");
+    cgen.beginFor("uint32_t i = 0", "i < bindInfoCount", "++i")
+    cgen.stmt("%s boxed_%s = unboxed_to_boxed_non_dispatchable_%s(pBindInfos[i].image)"
+              % (childType, childType, childType))
+    cgen.stmt(f"mReconstruction.forEachHandleAddApi((const uint64_t*)&{childObj}, {1}, apiHandle, VkReconstruction::BOUND_MEMORY)")
+    cgen.endFor()
+
+apiSpecialImplementation = {
+    "vkBindImageMemory2": api_special_implementation_vkBindImageMemory2,
+    "vkBindImageMemory2KHR": api_special_implementation_vkBindImageMemory2,
+}
+
 apiModifies = {
     "vkMapMemoryIntoAddressSpaceGOOGLE" : ["memory"],
     "vkGetBlobGOOGLE" : ["memory"],
@@ -240,6 +272,8 @@ def is_clear_modifier_operation(api, param):
 
 
 def emit_impl(typeInfo, api, cgen):
+    if api.name in apiSpecialImplementation:
+        apiSpecialImplementation[api.name](api, cgen)
     for p in api.parameters:
         if not (p.isHandleType):
             continue
