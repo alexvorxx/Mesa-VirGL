@@ -152,7 +152,7 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
 
    if (!device->kmod.dev) {
       result = vk_errorf(instance, panvk_errno_to_vk_error(), "cannot create device");
-      goto err_free_dev;
+      goto err_finish_dev;
    }
 
    if (instance->debug_flags &
@@ -257,6 +257,9 @@ err_free_priv_bos:
 err_destroy_kdev:
    pan_kmod_dev_destroy(device->kmod.dev);
 
+err_finish_dev:
+   vk_device_finish(&device->vk);
+
 err_free_dev:
    vk_free(&device->vk.alloc, device);
    return result;
@@ -287,6 +290,7 @@ panvk_per_arch(destroy_device)(struct panvk_device *device,
       pandecode_destroy_context(device->debug.decode_ctx);
 
    pan_kmod_dev_destroy(device->kmod.dev);
+   vk_device_finish(&device->vk);
    vk_free(&device->vk.alloc, device);
 }
 
