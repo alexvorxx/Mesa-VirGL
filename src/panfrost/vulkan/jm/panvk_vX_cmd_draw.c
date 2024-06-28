@@ -357,14 +357,13 @@ panvk_draw_prepare_fs_rsd(struct panvk_cmd_buffer *cmdbuf,
    bool writes_z = writes_depth(cmdbuf);
    bool writes_s = writes_stencil(cmdbuf);
    bool needs_fs = fs_required(cmdbuf);
-   bool blend_shader_loads_blend_const = false;
-   bool blend_reads_dest = false;
 
    struct panfrost_ptr ptr = pan_pool_alloc_desc_aggregate(
       &cmdbuf->desc_pool.base, PAN_DESC(RENDERER_STATE),
       PAN_DESC_ARRAY(bd_count, BLEND));
    struct mali_renderer_state_packed *rsd = ptr.cpu;
    struct mali_blend_packed *bds = ptr.cpu + pan_size(RENDERER_STATE);
+   struct panvk_blend_info binfo = {0};
 
    mali_ptr fs_code = panvk_shader_get_dev_addr(fs);
 
@@ -372,7 +371,7 @@ panvk_draw_prepare_fs_rsd(struct panvk_cmd_buffer *cmdbuf,
       panvk_per_arch(blend_emit_descs)(
          dev, cb, cmdbuf->state.gfx.render.color_attachments.fmts,
          cmdbuf->state.gfx.render.color_attachments.samples, fs_info, fs_code,
-         bds, &blend_reads_dest, &blend_shader_loads_blend_const);
+         bds, &binfo);
    } else {
       for (unsigned i = 0; i < bd_count; i++) {
          pan_pack(&bds[i], BLEND, cfg) {
@@ -388,7 +387,7 @@ panvk_draw_prepare_fs_rsd(struct panvk_cmd_buffer *cmdbuf,
       if (needs_fs) {
          pan_shader_prepare_rsd(fs_info, fs_code, &cfg);
 
-         if (blend_shader_loads_blend_const) {
+         if (binfo.shader_loads_blend_const) {
             /* Preload the blend constant if the blend shader depends on it. */
             cfg.preload.uniform_count = MAX2(
                cfg.preload.uniform_count,
@@ -400,7 +399,7 @@ panvk_draw_prepare_fs_rsd(struct panvk_cmd_buffer *cmdbuf,
                            MESA_VK_RP_ATTACHMENT_ANY_COLOR_BITS;
          cfg.properties.allow_forward_pixel_to_kill =
             fs_info->fs.can_fpk && !(rt_mask & ~rt_written) &&
-            !alpha_to_coverage && !blend_reads_dest;
+            !alpha_to_coverage && !binfo.any_dest_read;
 
          bool writes_zs = writes_z || writes_s;
          bool zs_always_passes = ds_test_always_passes(cmdbuf);

@@ -78,6 +78,7 @@ foreach arch : [6, 7, 9, 10]
     # Just add the v9/v10 entrypoints for now.
     per_arch_files = [
       panvk_entrypoints[0],
+      'panvk_vX_blend.c',
       'panvk_vX_descriptor_set.c',
       'panvk_vX_descriptor_set_layout.c',
       'panvk_vX_nir_lower_descriptors.c',

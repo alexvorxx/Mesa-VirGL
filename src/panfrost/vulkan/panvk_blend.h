@@ -35,12 +35,17 @@ VkResult panvk_per_arch(blend_shader_cache_init)(struct panvk_device *dev);
 
 void panvk_per_arch(blend_shader_cache_cleanup)(struct panvk_device *dev);
 
+struct panvk_blend_info {
+   bool any_dest_read;
+   bool needs_shader;
+   bool shader_loads_blend_const;
+};
+
 VkResult panvk_per_arch(blend_emit_descs)(
    struct panvk_device *dev, const struct vk_color_blend_state *cb,
    const VkFormat *color_attachment_formats, uint8_t *color_attachment_samples,
    const struct pan_shader_info *fs_info, mali_ptr fs_code,
-   struct mali_blend_packed *bds, bool *any_dest_read,
-   bool *any_blend_const_load);
+   struct mali_blend_packed *bds, struct panvk_blend_info *blend_info);
 
 #endif
 

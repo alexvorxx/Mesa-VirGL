@@ -204,8 +204,6 @@ emit_blend_desc(const struct pan_shader_info *fs_info, mali_ptr fs_code,
       cfg.constant = constant;
 
       if (blend_shader) {
-         uint32_t ret_offset = fs_info->bifrost.blend[rt_idx].return_offset;
-
          /* Blend and fragment shaders must be in the same 4G region. */
          assert((blend_shader >> 32) == (fs_code >> 32));
          /* Blend shader must be 16-byte aligned. */
@@ -216,6 +214,9 @@ emit_blend_desc(const struct pan_shader_info *fs_info, mali_ptr fs_code,
          cfg.internal.mode = MALI_BLEND_MODE_SHADER;
          cfg.internal.shader.pc = (uint32_t)blend_shader;
 
+#if PAN_ARCH <= 7
+         uint32_t ret_offset = fs_info->bifrost.blend[rt_idx].return_offset;
+
          /* If ret_offset is zero, we assume the BLEND is a terminal
           * instruction and set return_value to zero, to let the
           * blend shader jump to address zero, which terminates the
@@ -223,6 +224,7 @@ emit_blend_desc(const struct pan_shader_info *fs_info, mali_ptr fs_code,
           */
          cfg.internal.shader.return_value =
             ret_offset ? fs_code + ret_offset : 0;
+#endif
       } else {
          bool opaque = pan_blend_is_opaque(rt->equation);
 
@@ -252,6 +254,7 @@ emit_blend_desc(const struct pan_shader_info *fs_info, mali_ptr fs_code,
 
          cfg.internal.fixed_function.rt = rt_idx;
 
+#if PAN_ARCH <= 7
          if (fs_info->fs.untyped_color_outputs) {
             nir_alu_type type = fs_info->bifrost.blend[rt_idx].type;
 
@@ -268,6 +271,7 @@ emit_blend_desc(const struct pan_shader_info *fs_info, mali_ptr fs_code,
             cfg.internal.fixed_function.alpha_one_store =
                pan_blend_alpha_one_store(rt->equation);
          }
+#endif
       }
    }
 }
@@ -352,8 +356,7 @@ panvk_per_arch(blend_emit_descs)(
    struct panvk_device *dev, const struct vk_color_blend_state *cb,
    const VkFormat *color_attachment_formats, uint8_t *color_attachment_samples,
    const struct pan_shader_info *fs_info, mali_ptr fs_code,
-   struct mali_blend_packed *bds, bool *any_dest_read,
-   bool *any_blend_const_load)
+   struct mali_blend_packed *bds, struct panvk_blend_info *blend_info)
 {
    struct pan_blend_state bs = {
       .logicop_enable = cb->logic_op_enable,
@@ -371,7 +374,7 @@ panvk_per_arch(blend_emit_descs)(
    /* All bits set to one encodes unused fixed-function blend constant. */
    unsigned ff_blend_constant = ~0;
 
-   *any_dest_read = false;
+   memset(blend_info, 0, sizeof(*blend_info));
    for (uint8_t i = 0; i < cb->attachment_count; i++) {
       struct pan_blend_rt_state *rt = &bs.rts[i];
 
@@ -426,7 +429,7 @@ panvk_per_arch(blend_emit_descs)(
             util_blend_dst_alpha_to_one(rt->equation.alpha_dst_factor);
       }
 
-      *any_dest_read |= pan_blend_reads_dest(rt->equation);
+      blend_info->any_dest_read |= pan_blend_reads_dest(rt->equation);
 
       if (blend_needs_shader(&bs, i, &ff_blend_constant)) {
          nir_alu_type src0_type = fs_info->bifrost.blend[i].type;
@@ -437,7 +440,9 @@ panvk_per_arch(blend_emit_descs)(
          if (result != VK_SUCCESS)
             return result;
 
-         *any_blend_const_load |= pan_blend_constant_mask(rt->equation) != 0;
+         blend_info->shader_loads_blend_const |=
+            pan_blend_constant_mask(rt->equation) != 0;
+         blend_info->needs_shader = true;
       }
    }
 
