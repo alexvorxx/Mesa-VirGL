@@ -186,6 +186,60 @@ static struct u_trace_printer txt_printer = {
 };
 
 static void
+print_csv_start(struct u_trace_context *utctx)
+{
+   fprintf(utctx->out, "frame,batch,time_ns,event,\n");
+}
+
+static void
+print_csv_end(struct u_trace_context *utctx)
+{
+   fprintf(utctx->out, "\n");
+}
+
+static void
+print_csv_start_of_frame(struct u_trace_context *utctx)
+{
+}
+
+static void
+print_csv_end_of_frame(struct u_trace_context *utctx)
+{
+}
+
+static void
+print_csv_start_of_batch(struct u_trace_context *utctx)
+{
+}
+
+static void
+print_csv_end_of_batch(struct u_trace_context *utctx)
+{
+}
+
+static void
+print_csv_event(struct u_trace_context *utctx,
+                struct u_trace_chunk *chunk,
+                const struct u_trace_event *evt,
+                uint64_t ns,
+                int32_t delta,
+                const void *indirect)
+{
+   fprintf(utctx->out, "%u,%u,%"PRIu64",%s,\n",
+           utctx->frame_nr, utctx->batch_nr, ns, evt->tp->name);
+}
+
+static struct u_trace_printer csv_printer = {
+   .start = print_csv_start,
+   .end = print_csv_end,
+   .start_of_frame = &print_csv_start_of_frame,
+   .end_of_frame = &print_csv_end_of_frame,
+   .start_of_batch = &print_csv_start_of_batch,
+   .end_of_batch = &print_csv_end_of_batch,
+   .event = &print_csv_event,
+};
+
+static void
 print_json_start(struct u_trace_context *utctx)
 {
    fprintf(utctx->out, "[\n");
@@ -380,6 +434,7 @@ get_chunk(struct u_trace *ut, size_t payload_size)
 
 static const struct debug_named_value config_control[] = {
    { "print", U_TRACE_TYPE_PRINT, "Enable print" },
+   { "print_csv", U_TRACE_TYPE_PRINT_CSV, "Enable print in CSV" },
    { "print_json", U_TRACE_TYPE_PRINT_JSON, "Enable print in JSON" },
 #ifdef HAVE_PERFETTO
    { "perfetto", U_TRACE_TYPE_PERFETTO_ENV, "Enable perfetto" },
@@ -492,6 +547,8 @@ u_trace_context_init(struct u_trace_context *utctx,
 
       if (utctx->enabled_traces & U_TRACE_TYPE_JSON) {
          utctx->out_printer = &json_printer;
+      } else if (utctx->enabled_traces & U_TRACE_TYPE_CSV) {
+         utctx->out_printer = &csv_printer;
       } else {
          utctx->out_printer = &txt_printer;
       }
