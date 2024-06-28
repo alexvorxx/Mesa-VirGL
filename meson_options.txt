@@ -747,3 +747,13 @@ option(
                 'the default driconf file is hardcoded into Mesa. ' +
                 'Requires expat.'
 )
+
+option(
+  'legacy-x11',
+  type : 'array',
+  value : ['none'],
+  description : 'Build legacy X11 support features.',
+  choices : [
+    'none', 'dri2'
+  ],
+)

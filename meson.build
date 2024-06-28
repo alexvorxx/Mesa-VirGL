@@ -559,6 +559,8 @@ endif
 with_dri2 = (with_dri or with_any_vk) and (with_dri_platform == 'drm' or with_dri_platform == 'apple')
 with_dri3 = get_option('dri3').disable_auto_if(not (system_has_kms_drm and with_dri2)).allowed()
 
+with_x11_dri2 = with_dri2 and get_option('legacy-x11').contains('dri2')
+
 if with_any_vk and (with_platform_x11 and not with_dri3)
   error('Vulkan drivers require dri3 for X11 support')
 endif
@@ -2127,13 +2129,13 @@ if with_platform_x11
       pre_args += '-DXCB_KEYSYMS_AVAILABLE'
     endif
     dep_x11_xcb = dependency('x11-xcb')
-    dep_xcb_dri2 = dependency('xcb-dri2', version : '>= 1.8')
+    dep_xcb_dri2 = dependency('xcb-dri2', version : '>= 1.8', required : with_x11_dri2)
     if with_dri_platform == 'drm' and not dep_libdrm.found()
       error('libdrm required for gallium video statetrackers when using x11')
     endif
   endif
   if with_any_vk or with_egl or (with_glx == 'dri' and with_dri_platform == 'drm')
-    dep_xcb_dri2 = dependency('xcb-dri2', version : '>= 1.8')
+    dep_xcb_dri2 = dependency('xcb-dri2', version : '>= 1.8', required : with_x11_dri2)
 
     if with_dri3
       dep_xcb_dri3 = dependency('xcb-dri3')
@@ -2182,6 +2184,9 @@ if with_dri
 endif
 if with_dri2
   pre_args += '-DHAVE_DRI2'
+endif
+if with_x11_dri2
+  pre_args += '-DHAVE_X11_DRI2'
 endif
 if with_dri3
   pre_args += '-DHAVE_DRI3'
