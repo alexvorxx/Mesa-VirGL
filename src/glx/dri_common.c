@@ -806,4 +806,33 @@ out:
    return e ? e->config : NULL;
 }
 
+static void
+driSetBackgroundContext(void *loaderPrivate)
+{
+   __glXSetCurrentContext(loaderPrivate);
+}
+
+static GLboolean
+driIsThreadSafe(void *loaderPrivate)
+{
+   struct glx_context *pcp = (struct glx_context *) loaderPrivate;
+   /* Check Xlib is running in thread safe mode
+    *
+    * 'lock_fns' is the XLockDisplay function pointer of the X11 display 'dpy'.
+    * It will be NULL if XInitThreads wasn't called.
+    */
+   return pcp->psc->dpy->lock_fns != NULL;
+}
+
+const __DRIbackgroundCallableExtension driBackgroundCallable = {
+   .base = { __DRI_BACKGROUND_CALLABLE, 2 },
+
+   .setBackgroundContext    = driSetBackgroundContext,
+   .isThreadSafe            = driIsThreadSafe,
+};
+
+const __DRIuseInvalidateExtension dri2UseInvalidate = {
+   .base = { __DRI_USE_INVALIDATE, 1 }
+};
+
 #endif /* GLX_DIRECT_RENDERING */

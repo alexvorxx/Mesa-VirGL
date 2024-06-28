@@ -785,8 +785,10 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, Bool zink, 
       if (priv->dri3Display)
          psc = priv->dri3Display->createScreen(i, priv, driver_name_is_inferred);
 #endif /* HAVE_DRI3 */
+#if defined(HAVE_X11_DRI2)
       if (psc == NULL && priv->dri2Display)
 	      psc = priv->dri2Display->createScreen(i, priv, driver_name_is_inferred);
+#endif
 #endif /* GLX_USE_DRM */
 
 #ifdef GLX_USE_WINDOWSGL
@@ -917,8 +919,10 @@ __glXInitialize(Display * dpy)
             try_zink = !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
       }
 #endif /* HAVE_DRI3 */
+#if defined(HAVE_X11_DRI2)
       if (!debug_get_bool_option("LIBGL_DRI2_DISABLE", false))
          dpyPriv->dri2Display = dri2CreateDisplay(dpy);
+#endif
 #if defined(HAVE_ZINK)
       if (!dpyPriv->dri3Display && !dpyPriv->dri2Display)
          try_zink = !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false) &&

@@ -541,7 +541,7 @@ const __DRIuseInvalidateExtension dri3UseInvalidate = {
    .base = { __DRI_USE_INVALIDATE, 1 }
 };
 
-static const __DRIbackgroundCallableExtension driBackgroundCallable = {
+static const __DRIbackgroundCallableExtension dri3BackgroundCallable = {
    .base = { __DRI_BACKGROUND_CALLABLE, 2 },
 
    .setBackgroundContext = dri_set_background_context,
@@ -551,7 +551,7 @@ static const __DRIbackgroundCallableExtension driBackgroundCallable = {
 static const __DRIextension *loader_extensions[] = {
    &imageLoaderExtension.base,
    &dri3UseInvalidate.base,
-   &driBackgroundCallable.base,
+   &dri3BackgroundCallable.base,
    NULL
 };
 

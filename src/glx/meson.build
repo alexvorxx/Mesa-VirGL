@@ -61,7 +61,7 @@ extra_deps_libgl = []
 extra_ld_args_libgl = []
 
 # dri2
-if (with_dri_platform == 'drm' and dep_libdrm.found()) or with_dri_platform == 'apple'
+if with_x11_dri2
   files_libglx += files(
     'dri2.c',
     'dri2_glx.c',
