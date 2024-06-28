@@ -14,6 +14,7 @@
 
 #include "genxml/gen_macros.h"
 
+#include "panvk_cmd_pool.h"
 #include "panvk_descriptor_set.h"
 #include "panvk_macros.h"
 #include "panvk_shader.h"
@@ -28,21 +29,18 @@ struct panvk_shader_desc_state {
    mali_ptr dyn_ssbos;
 };
 
+struct panvk_push_set {
+   struct panvk_cmd_pool_obj base;
+   struct panvk_descriptor_set set;
+   struct panvk_opaque_desc descs[MAX_PUSH_DESCS];
+};
+
 struct panvk_descriptor_state {
    const struct panvk_descriptor_set *sets[MAX_SETS];
    struct panvk_descriptor_set *push_sets[MAX_SETS];
 
    uint32_t dyn_buf_offsets[MAX_SETS][MAX_DYNAMIC_BUFFERS];
 };
-
-void panvk_per_arch(cmd_desc_state_reset)(
-   struct panvk_descriptor_state *gfx_desc_state,
-   struct panvk_descriptor_state *compute_desc_state);
-
-void panvk_per_arch(cmd_desc_state_cleanup)(
-   struct vk_command_buffer *cmdbuf,
-   struct panvk_descriptor_state *gfx_desc_state,
-   struct panvk_descriptor_state *compute_desc_state);
 
 void panvk_per_arch(cmd_desc_state_bind_sets)(
    struct panvk_descriptor_state *desc_state,

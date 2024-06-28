@@ -40,6 +40,7 @@ panvk_CreateCommandPool(VkDevice _device,
    panvk_bo_pool_init(&pool->desc_bo_pool);
    panvk_bo_pool_init(&pool->varying_bo_pool);
    panvk_bo_pool_init(&pool->tls_bo_pool);
+   list_inithead(&pool->push_sets);
    *pCmdPool = panvk_cmd_pool_to_handle(pool);
    return VK_SUCCESS;
 }
@@ -59,6 +60,12 @@ panvk_DestroyCommandPool(VkDevice _device, VkCommandPool commandPool,
    panvk_bo_pool_cleanup(&pool->desc_bo_pool);
    panvk_bo_pool_cleanup(&pool->varying_bo_pool);
    panvk_bo_pool_cleanup(&pool->tls_bo_pool);
+
+   list_for_each_entry_safe(struct panvk_cmd_pool_obj, obj, &pool->push_sets,
+                            node) {
+      list_del(&obj->node);
+      vk_free(&pool->vk.alloc, obj);
+   }
 
    vk_free2(&device->vk.alloc, pAllocator, pool);
 }

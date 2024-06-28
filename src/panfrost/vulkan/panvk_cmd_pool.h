@@ -15,9 +15,14 @@ struct panvk_cmd_pool {
    struct panvk_bo_pool desc_bo_pool;
    struct panvk_bo_pool varying_bo_pool;
    struct panvk_bo_pool tls_bo_pool;
+   struct list_head push_sets;
 };
 
 VK_DEFINE_NONDISP_HANDLE_CASTS(panvk_cmd_pool, vk.base, VkCommandPool,
                                VK_OBJECT_TYPE_COMMAND_POOL)
+
+struct panvk_cmd_pool_obj {
+   struct list_head node;
+};
 
 #endif

@@ -179,6 +179,7 @@ struct panvk_cmd_buffer {
    struct panvk_pool varying_pool;
    struct panvk_pool tls_pool;
    struct list_head batches;
+   struct list_head push_sets;
    struct panvk_batch *cur_batch;
 
    struct {
@@ -190,6 +191,24 @@ struct panvk_cmd_buffer {
 
 VK_DEFINE_HANDLE_CASTS(panvk_cmd_buffer, vk.base, VkCommandBuffer,
                        VK_OBJECT_TYPE_COMMAND_BUFFER)
+
+#define panvk_cmd_buffer_obj_list_init(cmdbuf, list_name)                      \
+   list_inithead(&(cmdbuf)->list_name)
+
+#define panvk_cmd_buffer_obj_list_cleanup(cmdbuf, list_name)                   \
+   do {                                                                        \
+      struct panvk_cmd_pool *__pool =                                          \
+         container_of(cmdbuf->vk.pool, struct panvk_cmd_pool, vk);             \
+      list_splicetail(&(cmdbuf)->list_name, &__pool->list_name);               \
+   } while (0)
+
+#define panvk_cmd_buffer_obj_list_reset(cmdbuf, list_name)                     \
+   do {                                                                        \
+      struct panvk_cmd_pool *__pool =                                          \
+         container_of(cmdbuf->vk.pool, struct panvk_cmd_pool, vk);             \
+      list_splicetail(&(cmdbuf)->list_name, &__pool->list_name);               \
+      list_inithead(&(cmdbuf)->list_name);                                     \
+   } while (0)
 
 static inline struct panvk_descriptor_state *
 panvk_cmd_get_desc_state(struct panvk_cmd_buffer *cmdbuf,

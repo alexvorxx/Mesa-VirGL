@@ -12,6 +12,7 @@
 #include "genxml/gen_macros.h"
 
 #include "panvk_buffer.h"
+#include "panvk_cmd_buffer.h"
 #include "panvk_cmd_desc_state.h"
 #include "panvk_entrypoints.h"
 
@@ -22,29 +23,6 @@
 #include "vk_alloc.h"
 #include "vk_command_buffer.h"
 #include "vk_command_pool.h"
-
-void
-panvk_per_arch(cmd_desc_state_reset)(
-   struct panvk_descriptor_state *gfx_desc_state,
-   struct panvk_descriptor_state *compute_desc_state)
-{
-   memset(&gfx_desc_state->sets, 0, sizeof(gfx_desc_state->sets));
-   memset(&compute_desc_state->sets, 0, sizeof(compute_desc_state->sets));
-}
-
-void
-panvk_per_arch(cmd_desc_state_cleanup)(
-   struct vk_command_buffer *cmdbuf,
-   struct panvk_descriptor_state *gfx_desc_state,
-   struct panvk_descriptor_state *compute_desc_state)
-{
-   for (unsigned i = 0; i < MAX_SETS; i++) {
-      if (gfx_desc_state->push_sets[i])
-         vk_free(&cmdbuf->pool->alloc, gfx_desc_state->push_sets[i]);
-      if (compute_desc_state->push_sets[i])
-         vk_free(&cmdbuf->pool->alloc, compute_desc_state->push_sets[i]);
-   }
-}
 
 void
 panvk_per_arch(cmd_desc_state_bind_sets)(
@@ -85,25 +63,40 @@ panvk_per_arch(cmd_desc_state_bind_sets)(
 }
 
 struct panvk_descriptor_set *
-panvk_per_arch(cmd_push_descriptors)(struct vk_command_buffer *cmdbuf,
+panvk_per_arch(cmd_push_descriptors)(struct vk_command_buffer *vk_cmdbuf,
                                      struct panvk_descriptor_state *desc_state,
                                      uint32_t set_idx)
 {
+   struct panvk_cmd_buffer *cmdbuf =
+      container_of(vk_cmdbuf, struct panvk_cmd_buffer, vk);
+   struct panvk_cmd_pool *pool =
+      container_of(cmdbuf->vk.pool, struct panvk_cmd_pool, vk);
+   struct panvk_push_set *push_set;
+
    assert(set_idx < MAX_SETS);
 
-   if (unlikely(desc_state->push_sets[set_idx] == NULL)) {
-      VK_MULTIALLOC(ma);
-      VK_MULTIALLOC_DECL(&ma, struct panvk_descriptor_set, set, 1);
-      VK_MULTIALLOC_DECL(&ma, struct panvk_opaque_desc, descs, MAX_PUSH_DESCS);
+   if (likely(desc_state->push_sets[set_idx])) {
+      push_set = container_of(desc_state->push_sets[set_idx],
+                              struct panvk_push_set, set);
+   } else if (!list_is_empty(&pool->push_sets)) {
+      push_set =
+         list_first_entry(&pool->push_sets, struct panvk_push_set, base.node);
+      list_del(&push_set->base.node);
+      list_addtail(&push_set->base.node, &cmdbuf->push_sets);
+   } else {
+      push_set = vk_zalloc(&pool->vk.alloc, sizeof(*push_set), 8,
+                           VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+      list_addtail(&push_set->base.node, &cmdbuf->push_sets);
+   }
 
-      if (unlikely(!vk_multialloc_zalloc(&ma, &cmdbuf->pool->alloc,
-                                         VK_SYSTEM_ALLOCATION_SCOPE_OBJECT))) {
-         vk_command_buffer_set_error(cmdbuf, VK_ERROR_OUT_OF_HOST_MEMORY);
-         return NULL;
-      }
+   if (unlikely(!push_set)) {
+      vk_command_buffer_set_error(&cmdbuf->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return NULL;
+   }
 
-      desc_state->push_sets[set_idx] = set;
-      set->descs.host = descs;
+   if (desc_state->push_sets[set_idx] == NULL) {
+      desc_state->push_sets[set_idx] = &push_set->set;
+      push_set->set.descs.host = push_set->descs;
    }
 
    struct panvk_descriptor_set *set = desc_state->push_sets[set_idx];
