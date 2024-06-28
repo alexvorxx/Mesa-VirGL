@@ -19,14 +19,24 @@
 #include "panvk_macros.h"
 #include "panvk_shader.h"
 
+#include "vk_alloc.h"
 #include "vk_command_buffer.h"
+#include "vk_command_pool.h"
 
 #include "pan_pool.h"
 
 struct panvk_shader_desc_state {
+#if PAN_ARCH <= 7
    mali_ptr tables[PANVK_BIFROST_DESC_TABLE_COUNT];
    mali_ptr img_attrib_table;
    mali_ptr dyn_ssbos;
+#else
+   struct {
+      mali_ptr dev_addr;
+      uint32_t size;
+   } driver_set;
+   mali_ptr res_table;
+#endif
 };
 
 struct panvk_push_set {
@@ -50,6 +60,7 @@ struct panvk_descriptor_set *panvk_per_arch(cmd_push_descriptors)(
    struct vk_command_buffer *cmdbuf, struct panvk_descriptor_state *desc_state,
    uint32_t set);
 
+#if PAN_ARCH <= 7
 void panvk_per_arch(cmd_prepare_dyn_ssbos)(
    struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader *shader,
@@ -59,6 +70,16 @@ void panvk_per_arch(cmd_prepare_shader_desc_tables)(
    struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader *shader,
    struct panvk_shader_desc_state *shader_desc_state);
+#else
+void panvk_per_arch(cmd_fill_dyn_bufs)(
+   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+   const struct panvk_shader *shader, struct mali_buffer_packed *buffers);
+
+void panvk_per_arch(cmd_prepare_shader_res_table)(
+   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+   const struct panvk_shader *shader,
+   struct panvk_shader_desc_state *shader_desc_state);
+#endif
 
 void panvk_per_arch(cmd_prepare_push_descs)(
    struct pan_pool *desc_pool, struct panvk_descriptor_state *desc_state,

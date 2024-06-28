@@ -106,6 +106,7 @@ panvk_per_arch(cmd_push_descriptors)(struct vk_command_buffer *vk_cmdbuf,
    return set;
 }
 
+#if PAN_ARCH <= 7
 void
 panvk_per_arch(cmd_prepare_dyn_ssbos)(
    struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
@@ -222,6 +223,75 @@ panvk_per_arch(cmd_prepare_shader_desc_tables)(
       shader_desc_state->tables[PANVK_BIFROST_DESC_TABLE_SAMPLER] = sampler.gpu;
    }
 }
+#else
+void
+panvk_per_arch(cmd_fill_dyn_bufs)(
+   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+   const struct panvk_shader *shader, struct mali_buffer_packed *buffers)
+{
+   if (!shader)
+      return;
+
+   for (uint32_t i = 0; i < shader->desc_info.dyn_bufs.count; i++) {
+      uint32_t src_handle = shader->desc_info.dyn_bufs.map[i];
+      uint32_t set_idx = COPY_DESC_HANDLE_EXTRACT_TABLE(src_handle);
+      uint32_t dyn_buf_idx = COPY_DESC_HANDLE_EXTRACT_INDEX(src_handle);
+      const struct panvk_descriptor_set *set = desc_state->sets[set_idx];
+      const uint32_t dyn_buf_offset =
+         desc_state->dyn_buf_offsets[set_idx][dyn_buf_idx];
+
+      assert(set_idx < MAX_SETS);
+      assert(set);
+
+      pan_pack(&buffers[i], BUFFER, cfg) {
+         cfg.size = set->dyn_bufs[dyn_buf_idx].size;
+         cfg.address = set->dyn_bufs[dyn_buf_idx].dev_addr + dyn_buf_offset;
+      }
+   }
+}
+
+void
+panvk_per_arch(cmd_prepare_shader_res_table)(
+   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+   const struct panvk_shader *shader,
+   struct panvk_shader_desc_state *shader_desc_state)
+{
+   if (!shader || shader_desc_state->res_table)
+      return;
+
+   uint32_t first_unused_set = util_last_bit(shader->desc_info.used_set_mask);
+   uint32_t res_count = 1 + first_unused_set;
+   struct panfrost_ptr ptr =
+      pan_pool_alloc_desc_array(desc_pool, res_count, RESOURCE);
+   struct mali_resource_packed *res_table = ptr.cpu;
+
+   /* First entry is the driver set table, where we store the vertex attributes,
+    * the dummy sampler, the dynamic buffers and the vertex buffers. */
+   pan_pack(&res_table[0], RESOURCE, cfg) {
+      cfg.address = shader_desc_state->driver_set.dev_addr;
+      cfg.size = shader_desc_state->driver_set.size;
+      cfg.contains_descriptors = cfg.size > 0;
+   }
+
+   for (uint32_t i = 0; i < first_unused_set; i++) {
+      const struct panvk_descriptor_set *set = desc_state->sets[i];
+
+      pan_pack(&res_table[i + 1], RESOURCE, cfg) {
+         if (shader->desc_info.used_set_mask & BITFIELD_BIT(i)) {
+            cfg.address = set->descs.dev;
+            cfg.contains_descriptors = true;
+            cfg.size = set->desc_count * PANVK_DESCRIPTOR_SIZE;
+         } else {
+            cfg.address = 0;
+            cfg.contains_descriptors = false;
+            cfg.size = 0;
+         }
+      }
+   }
+
+   shader_desc_state->res_table = ptr.gpu | res_count;
+}
+#endif
 
 void
 panvk_per_arch(cmd_prepare_push_descs)(struct pan_pool *desc_pool,
