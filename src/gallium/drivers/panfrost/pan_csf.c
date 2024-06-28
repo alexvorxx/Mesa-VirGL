@@ -405,9 +405,8 @@ GENX(csf_submit_batch)(struct panfrost_batch *batch)
    /* Close the batch before submitting. */
    csf_emit_batch_end(batch);
 
-   uint32_t cs_instr_count = batch->csf.cs.builder->root_chunk.size;
-   uint64_t cs_start = batch->csf.cs.builder->root_chunk.buffer.gpu;
-   uint32_t cs_size = cs_instr_count * 8;
+   uint64_t cs_start = cs_root_chunk_gpu_addr(batch->csf.cs.builder);
+   uint32_t cs_size = cs_root_chunk_size(batch->csf.cs.builder);
    struct panfrost_context *ctx = batch->ctx;
    struct panfrost_device *dev = pan_device(ctx->base.screen);
    uint32_t vm_sync_handle = panthor_kmod_vm_sync_handle(dev->kmod.vm);
@@ -1051,9 +1050,8 @@ GENX(csf_init_context)(struct panfrost_context *ctx)
    assert(cs_is_valid(&b));
    cs_finish(&b);
 
-   uint32_t cs_instr_count = b.root_chunk.size;
-   uint64_t cs_start = b.root_chunk.buffer.gpu;
-   uint32_t cs_size = cs_instr_count * 8;
+   uint64_t cs_start = cs_root_chunk_gpu_addr(&b);
+   uint32_t cs_size = cs_root_chunk_size(&b);
 
    csf_prepare_qsubmit(ctx, &qsubmit, 0, cs_start, cs_size, &sync, 1);
    csf_prepare_gsubmit(ctx, &gsubmit, &qsubmit, 1);

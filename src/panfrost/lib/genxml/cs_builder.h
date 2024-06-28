@@ -130,6 +130,28 @@ cs_is_valid(struct cs_builder *b)
    return !b->invalid;
 }
 
+static bool
+cs_is_empty(struct cs_builder *b)
+{
+   return b->cur_chunk.pos == 0 &&
+          b->root_chunk.buffer.gpu == b->cur_chunk.buffer.gpu;
+}
+
+static uint64_t
+cs_root_chunk_gpu_addr(struct cs_builder *b)
+{
+   return b->root_chunk.buffer.gpu;
+}
+
+static uint32_t
+cs_root_chunk_size(struct cs_builder *b)
+{
+   /* Make sure cs_finish() was called. */
+   assert(!memcmp(&b->cur_chunk, &(struct cs_chunk){0}, sizeof(b->cur_chunk)));
+
+   return b->root_chunk.size * sizeof(uint64_t);
+}
+
 /*
  * Wrap the current queue. External users shouldn't call this function
  * directly, they should call cs_finish() when they are done building
