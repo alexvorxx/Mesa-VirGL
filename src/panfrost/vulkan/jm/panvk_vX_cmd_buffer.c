@@ -48,19 +48,6 @@
 #include "vk_descriptor_update_template.h"
 #include "vk_format.h"
 
-static uint32_t
-panvk_debug_adjust_bo_flags(const struct panvk_device *device,
-                            uint32_t bo_flags)
-{
-   struct panvk_instance *instance =
-      to_panvk_instance(device->vk.physical->instance);
-
-   if (instance->debug_flags & PANVK_DEBUG_DUMP)
-      bo_flags &= ~PAN_KMOD_BO_FLAG_NO_MMAP;
-
-   return bo_flags;
-}
-
 static void
 panvk_cmd_prepare_fragment_job(struct panvk_cmd_buffer *cmdbuf, mali_ptr fbd)
 {
@@ -401,7 +388,7 @@ panvk_create_cmdbuf(struct vk_command_pool *vk_pool, VkCommandBufferLevel level,
 
    struct panvk_pool_properties tls_pool_props = {
       .create_flags =
-         panvk_debug_adjust_bo_flags(device, PAN_KMOD_BO_FLAG_NO_MMAP),
+         panvk_device_adjust_bo_flags(device, PAN_KMOD_BO_FLAG_NO_MMAP),
       .slab_size = 64 * 1024,
       .label = "TLS pool",
       .prealloc = false,
@@ -413,7 +400,7 @@ panvk_create_cmdbuf(struct vk_command_pool *vk_pool, VkCommandBufferLevel level,
 
    struct panvk_pool_properties var_pool_props = {
       .create_flags =
-         panvk_debug_adjust_bo_flags(device, PAN_KMOD_BO_FLAG_NO_MMAP),
+         panvk_device_adjust_bo_flags(device, PAN_KMOD_BO_FLAG_NO_MMAP),
       .slab_size = 64 * 1024,
       .label = "TLS pool",
       .prealloc = false,

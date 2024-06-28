@@ -86,6 +86,19 @@ to_panvk_device(struct vk_device *dev)
    return container_of(dev, struct panvk_device, vk);
 }
 
+static inline uint32_t
+panvk_device_adjust_bo_flags(const struct panvk_device *device,
+                             uint32_t bo_flags)
+{
+   struct panvk_instance *instance =
+      to_panvk_instance(device->vk.physical->instance);
+
+   if (instance->debug_flags & PANVK_DEBUG_DUMP)
+      bo_flags &= ~PAN_KMOD_BO_FLAG_NO_MMAP;
+
+   return bo_flags;
+}
+
 #if PAN_ARCH
 VkResult
 panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
