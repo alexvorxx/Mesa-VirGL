@@ -342,7 +342,7 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
 err_finish_queues:
    for (unsigned i = 0; i < PANVK_MAX_QUEUE_FAMILIES; i++) {
       for (unsigned q = 0; q < device->queue_count[i]; q++)
-         panvk_queue_finish(&device->queues[i][q]);
+         panvk_per_arch(queue_finish)(&device->queues[i][q]);
       if (device->queue_count[i])
          vk_object_free(&device->vk, NULL, device->queues[i]);
    }
@@ -379,7 +379,7 @@ panvk_per_arch(destroy_device)(struct panvk_device *device,
 
    for (unsigned i = 0; i < PANVK_MAX_QUEUE_FAMILIES; i++) {
       for (unsigned q = 0; q < device->queue_count[i]; q++)
-         panvk_queue_finish(&device->queues[i][q]);
+         panvk_per_arch(queue_finish)(&device->queues[i][q]);
       if (device->queue_count[i])
          vk_object_free(&device->vk, NULL, device->queues[i]);
    }
