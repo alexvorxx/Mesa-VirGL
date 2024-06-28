@@ -19,7 +19,7 @@
 #include "genxml/gen_macros.h"
 
 #define PANVK_DESCRIPTOR_SIZE       32
-#define MAX_SETS                    4
+#define MAX_SETS                    (PAN_ARCH <= 7 ? 4 : 15)
 #define MAX_DYNAMIC_UNIFORM_BUFFERS 16
 #define MAX_DYNAMIC_STORAGE_BUFFERS 8
 #define MAX_PUSH_DESCS              32

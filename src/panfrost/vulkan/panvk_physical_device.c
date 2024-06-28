@@ -249,7 +249,7 @@ get_device_properties(const struct panvk_instance *instance,
    uint64_t os_page_size = 4096;
    os_get_page_size(&os_page_size);
 
-   ASSERTED unsigned arch = pan_arch(device->kmod.props.gpu_prod_id);
+   unsigned arch = pan_arch(device->kmod.props.gpu_prod_id);
 
    /* Ensure that the max threads count per workgroup is valid for Bifrost */
    assert(arch > 8 || device->kmod.props.max_threads_per_wg <= 1024);
@@ -298,14 +298,18 @@ get_device_properties(const struct panvk_instance *instance,
       .bufferImageGranularity = 64,
       /* Sparse binding not supported yet. */
       .sparseAddressSpaceSize = 0,
-      /* Software limit. Pick the minimum required by Vulkan, because Bifrost
-       * GPUs don't have unified descriptor tables, which forces us to
-       * agregatte all descriptors from all sets and dispatch them to per-type
-       * descriptor tables emitted at draw/dispatch time.
-       * The more sets we support the more copies we are likely to have to do
-       * at draw time.
+      /* On Bifrost, this is a software limit. We pick the minimum required by
+       * Vulkan, because Bifrost GPUs don't have unified descriptor tables,
+       * which forces us to agregatte all descriptors from all sets and dispatch
+       * them to per-type descriptor tables emitted at draw/dispatch time. The
+       * more sets we support the more copies we are likely to have to do at
+       * draw time.
+       *
+       * Valhall has native support for descriptor sets, and allows a maximum
+       * of 16 sets, but we reserve one for our internal use, so we have 15
+       * left.
        */
-      .maxBoundDescriptorSets = 4,
+      .maxBoundDescriptorSets = arch <= 7 ? 4 : 15,
       /* MALI_RENDERER_STATE::sampler_count is 16-bit. */
       .maxDescriptorSetSamplers = UINT16_MAX,
       /* MALI_RENDERER_STATE::uniform_buffer_count is 8-bit. We reserve 32 slots
