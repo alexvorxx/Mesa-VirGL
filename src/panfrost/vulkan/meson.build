@@ -22,7 +22,6 @@ libpanvk_files = files(
   'panvk_buffer.c',
   'panvk_cmd_pool.c',
   'panvk_device_memory.c',
-  'panvk_event.c',
   'panvk_image.c',
   'panvk_instance.c',
   'panvk_mempool.c',
@@ -55,6 +54,7 @@ jm_files = [
   'jm/panvk_vX_cmd_dispatch.c',
   'jm/panvk_vX_cmd_draw.c',
   'jm/panvk_vX_cmd_event.c',
+  'jm/panvk_vX_event.c',
   'jm/panvk_vX_queue.c',
 ]
 

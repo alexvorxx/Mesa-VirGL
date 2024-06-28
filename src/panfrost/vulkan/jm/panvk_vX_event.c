@@ -3,15 +3,17 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "panvk_event.h"
 #include "panvk_device.h"
 #include "panvk_entrypoints.h"
+#include "panvk_event.h"
 
 #include "vk_log.h"
 
 VKAPI_ATTR VkResult VKAPI_CALL
-panvk_CreateEvent(VkDevice _device, const VkEventCreateInfo *pCreateInfo,
-                  const VkAllocationCallbacks *pAllocator, VkEvent *pEvent)
+panvk_per_arch(CreateEvent)(VkDevice _device,
+                            const VkEventCreateInfo *pCreateInfo,
+                            const VkAllocationCallbacks *pAllocator,
+                            VkEvent *pEvent)
 {
    VK_FROM_HANDLE(panvk_device, device, _device);
    struct panvk_event *event = vk_object_zalloc(
@@ -34,8 +36,8 @@ panvk_CreateEvent(VkDevice _device, const VkEventCreateInfo *pCreateInfo,
 }
 
 VKAPI_ATTR void VKAPI_CALL
-panvk_DestroyEvent(VkDevice _device, VkEvent _event,
-                   const VkAllocationCallbacks *pAllocator)
+panvk_per_arch(DestroyEvent)(VkDevice _device, VkEvent _event,
+                             const VkAllocationCallbacks *pAllocator)
 {
    VK_FROM_HANDLE(panvk_device, device, _device);
    VK_FROM_HANDLE(panvk_event, event, _event);
@@ -50,7 +52,7 @@ panvk_DestroyEvent(VkDevice _device, VkEvent _event,
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-panvk_GetEventStatus(VkDevice _device, VkEvent _event)
+panvk_per_arch(GetEventStatus)(VkDevice _device, VkEvent _event)
 {
    VK_FROM_HANDLE(panvk_device, device, _device);
    VK_FROM_HANDLE(panvk_event, event, _event);
@@ -78,7 +80,7 @@ panvk_GetEventStatus(VkDevice _device, VkEvent _event)
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-panvk_SetEvent(VkDevice _device, VkEvent _event)
+panvk_per_arch(SetEvent)(VkDevice _device, VkEvent _event)
 {
    VK_FROM_HANDLE(panvk_device, device, _device);
    VK_FROM_HANDLE(panvk_event, event, _event);
@@ -100,7 +102,7 @@ panvk_SetEvent(VkDevice _device, VkEvent _event)
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
-panvk_ResetEvent(VkDevice _device, VkEvent _event)
+panvk_per_arch(ResetEvent)(VkDevice _device, VkEvent _event)
 {
    VK_FROM_HANDLE(panvk_device, device, _device);
    VK_FROM_HANDLE(panvk_event, event, _event);
