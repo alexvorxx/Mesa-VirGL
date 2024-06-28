@@ -33,7 +33,9 @@
 
 #ifdef HAVE_X11_PLATFORM
 #include <X11/Xlib-xcb.h>
+#ifdef HAVE_X11_DRI2
 #include <xcb/dri2.h>
+#endif
 #include <xcb/randr.h>
 #include <xcb/xcb.h>
 #include <xcb/xfixes.h>

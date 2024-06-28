@@ -477,6 +477,7 @@ dri2_x11_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
    if (!dri2_create_drawable(dri2_dpy, config, dri2_surf, dri2_surf))
       goto cleanup_pixmap;
 
+#ifdef HAVE_X11_DRI2
    if (dri2_dpy->dri2) {
       xcb_void_cookie_t cookie;
       int conn_error;
@@ -498,7 +499,9 @@ dri2_x11_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
          free(error);
          goto cleanup_dri_drawable;
       }
-   } else {
+   } else
+#endif
+   {
       if (type == EGL_PBUFFER_BIT) {
          dri2_surf->depth = conf->BufferSize;
       }
@@ -571,7 +574,9 @@ dri2_x11_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
    dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
 
    if (dri2_dpy->dri2) {
+#ifdef HAVE_X11_DRI2
       xcb_dri2_destroy_drawable(dri2_dpy->conn, dri2_surf->drawable);
+#endif
    } else {
       assert(dri2_dpy->swrast);
       swrastDestroyDrawable(dri2_dpy, dri2_surf);
@@ -621,6 +626,7 @@ dri2_query_surface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
    return _eglQuerySurface(disp, surf, attribute, value);
 }
 
+#ifdef HAVE_X11_DRI2
 /**
  * Process list of buffer received from the server
  *
@@ -911,6 +917,7 @@ dri2_x11_authenticate(_EGLDisplay *disp, uint32_t id)
 
    return dri2_x11_do_authenticate(dri2_dpy, id);
 }
+#endif
 
 static void
 dri2_x11_add_configs_for_visuals(struct dri2_egl_display *dri2_dpy,
@@ -1012,6 +1019,7 @@ dri2_x11_add_configs_for_visuals(struct dri2_egl_display *dri2_dpy,
    }
 }
 
+#ifdef HAVE_X11_DRI2
 static EGLBoolean
 dri2_copy_region(_EGLDisplay *disp, _EGLSurface *draw,
                  xcb_xfixes_region_t region)
@@ -1090,6 +1098,7 @@ dri2_x11_swap_buffers_msc(_EGLDisplay *disp, _EGLSurface *draw, int64_t msc,
 
    return swap_count;
 }
+#endif
 
 static EGLBoolean
 dri2_x11_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
@@ -1112,13 +1121,16 @@ dri2_x11_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
       return EGL_TRUE;
    }
 
+#ifdef HAVE_X11_DRI2
    if (dri2_x11_swap_buffers_msc(disp, draw, 0, 0, 0) == -1) {
       /* Swap failed with a window drawable. */
       return _eglError(EGL_BAD_NATIVE_WINDOW, __func__);
    }
+#endif
    return EGL_TRUE;
 }
 
+#ifdef HAVE_X11_DRI2
 static EGLBoolean
 dri2_x11_swap_buffers_region(_EGLDisplay *disp, _EGLSurface *draw,
                              EGLint numRects, const EGLint *rects)
@@ -1159,6 +1171,10 @@ dri2_x11_post_sub_buffer(_EGLDisplay *disp, _EGLSurface *draw, EGLint x,
 
    return dri2_x11_swap_buffers_region(disp, draw, 1, rect);
 }
+#else
+#define dri2_x11_swap_buffers_region NULL
+#define dri2_x11_post_sub_buffer NULL
+#endif
 
 static EGLBoolean
 dri2_x11_kopper_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
@@ -1206,8 +1222,10 @@ dri2_x11_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
       return EGL_TRUE;
    }
 
+#ifdef HAVE_X11_DRI2
    if (dri2_dpy->swap_available)
       xcb_dri2_swap_interval(dri2_dpy->conn, dri2_surf->drawable, interval);
+#endif
 
    return EGL_TRUE;
 }
@@ -1266,6 +1284,7 @@ dri2_fourcc_for_depth(struct dri2_egl_display *dri2_dpy, uint32_t depth)
    }
 }
 
+#ifdef HAVE_X11_DRI2
 static _EGLImage *
 dri2_create_image_khr_pixmap(_EGLDisplay *disp, _EGLContext *ctx,
                              EGLClientBuffer buffer, const EGLint *attr_list)
@@ -1376,6 +1395,7 @@ dri2_x11_get_sync_values(_EGLDisplay *display, _EGLSurface *surface,
 
    return EGL_TRUE;
 }
+#endif
 
 static int
 box_intersection_area(int16_t a_x, int16_t a_y, int16_t a_width,
@@ -1561,6 +1581,7 @@ static const struct dri2_egl_display_vtbl dri2_x11_kopper_display_vtbl = {
    .get_dri_drawable = dri2_surface_get_dri_drawable,
 };
 
+#ifdef HAVE_X11_DRI2
 static const struct dri2_egl_display_vtbl dri2_x11_display_vtbl = {
    .authenticate = dri2_x11_authenticate,
    .create_window_surface = dri2_x11_create_window_surface,
@@ -1578,6 +1599,7 @@ static const struct dri2_egl_display_vtbl dri2_x11_display_vtbl = {
    .get_msc_rate = dri2_x11_get_msc_rate,
    .get_dri_drawable = dri2_surface_get_dri_drawable,
 };
+#endif
 
 static const __DRIswrastLoaderExtension swrast_loader_extension = {
    .base = {__DRI_SWRAST_LOADER, 1},
@@ -1929,6 +1951,7 @@ cleanup:
 }
 #endif
 
+#ifdef HAVE_X11_DRI2
 static const __DRIdri2LoaderExtension dri2_loader_extension_old = {
    .base = {__DRI_DRI2_LOADER, 2},
 
@@ -2023,6 +2046,7 @@ cleanup:
    dri2_display_destroy(disp);
    return EGL_FALSE;
 }
+#endif
 
 EGLBoolean
 dri2_initialize_x11(_EGLDisplay *disp)
@@ -2040,10 +2064,12 @@ dri2_initialize_x11(_EGLDisplay *disp)
    }
 #endif
 
+#ifdef HAVE_X11_DRI2
    if (!debug_get_bool_option("LIBGL_DRI2_DISABLE", false) &&
        status != DRI2_EGL_DRIVER_PREFER_ZINK)
       if (dri2_initialize_x11_dri2(disp))
          return EGL_TRUE;
+#endif
 
    return EGL_FALSE;
 }
