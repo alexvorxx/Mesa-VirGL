@@ -857,6 +857,22 @@ interpret_ceu_instr(struct pandecode_context *ctx, struct queue_ctx *qctx)
       break;
    }
 
+   case MALI_CS_OPCODE_LOAD_MULTIPLE: {
+      pan_unpack(bytes, CS_LOAD_MULTIPLE, I);
+      mali_ptr addr =
+         ((uint64_t)qctx->regs[I.address + 1] << 32) | qctx->regs[I.address];
+      addr += I.offset;
+
+      uint32_t *src =
+         pandecode_fetch_gpu_mem(ctx, addr, util_last_bit(I.mask) * 4);
+
+      for (uint32_t i = 0; i < 16; i++) {
+         if (I.mask & BITFIELD_BIT(i))
+            qctx->regs[I.base_register + i] = src[i];
+      }
+      break;
+   }
+
    case MALI_CS_OPCODE_ADD_IMMEDIATE32: {
       pan_unpack(bytes, CS_ADD_IMMEDIATE32, I);
 
