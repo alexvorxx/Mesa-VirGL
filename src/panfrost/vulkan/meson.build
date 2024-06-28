@@ -81,6 +81,7 @@ foreach arch : [6, 7, 9, 10]
       'panvk_vX_descriptor_set.c',
       'panvk_vX_descriptor_set_layout.c',
       'panvk_vX_nir_lower_descriptors.c',
+      'panvk_vX_shader.c',
     ]
   else
     per_arch_files = common_per_arch_files

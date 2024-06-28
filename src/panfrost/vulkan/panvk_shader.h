@@ -149,7 +149,19 @@ struct panvk_shader {
    uint32_t bin_size;
 
    struct panvk_priv_mem code_mem;
+
+#if PAN_ARCH <= 7
    struct panvk_priv_mem rsd;
+#else
+   union {
+      struct panvk_priv_mem spd;
+      struct {
+         struct panvk_priv_mem pos_points;
+         struct panvk_priv_mem pos_triangles;
+         struct panvk_priv_mem var;
+      } spds;
+   };
+#endif
 
    const char *nir_str;
    const char *asm_str;
