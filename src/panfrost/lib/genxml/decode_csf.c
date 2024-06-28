@@ -328,13 +328,13 @@ pandecode_run_idvs(struct pandecode_context *ctx, FILE *fp,
       (ctx, cs_get_u64(qctx, 20), "Fragment shader", qctx->gpu_id);
    }
 
-   DUMP_ADDR(ctx, LOCAL_STORAGE, cs_get_u64(qctx, 24),
+   DUMP_ADDR(ctx, LOCAL_STORAGE, cs_get_u64(qctx, reg_position_tsd),
              "Position Local Storage @%" PRIx64 ":\n",
              cs_get_u64(qctx, reg_position_tsd));
-   DUMP_ADDR(ctx, LOCAL_STORAGE, cs_get_u64(qctx, 24),
+   DUMP_ADDR(ctx, LOCAL_STORAGE, cs_get_u64(qctx, reg_vary_tsd),
              "Varying Local Storage @%" PRIx64 ":\n",
              cs_get_u64(qctx, reg_vary_tsd));
-   DUMP_ADDR(ctx, LOCAL_STORAGE, cs_get_u64(qctx, 30),
+   DUMP_ADDR(ctx, LOCAL_STORAGE, cs_get_u64(qctx, reg_frag_tsd),
              "Fragment Local Storage @%" PRIx64 ":\n",
              cs_get_u64(qctx, reg_frag_tsd));
 
