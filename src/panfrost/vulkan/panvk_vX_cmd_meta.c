@@ -111,12 +111,15 @@ panvk_per_arch(cmd_meta_gfx_end)(
 
    cmdbuf->state.gfx.fs.shader = save_ctx->fs.shader;
    cmdbuf->state.gfx.fs.desc = save_ctx->fs.desc;
-   cmdbuf->state.gfx.fs.rsd = 0;
    cmdbuf->state.gfx.vs.shader = save_ctx->vs.shader;
    cmdbuf->state.gfx.vs.desc = save_ctx->vs.desc;
+   cmdbuf->state.gfx.vb.bufs[0] = save_ctx->vb0;
+
+#if PAN_ARCH <= 7
    cmdbuf->state.gfx.vs.attribs = 0;
    cmdbuf->state.gfx.vs.attrib_bufs = 0;
-   cmdbuf->state.gfx.vb.bufs[0] = save_ctx->vb0;
+   cmdbuf->state.gfx.fs.rsd = 0;
+#endif
 
    cmdbuf->vk.dynamic_graphics_state = save_ctx->dyn_state.all;
    cmdbuf->state.gfx.dynamic.vi = save_ctx->dyn_state.vi;
