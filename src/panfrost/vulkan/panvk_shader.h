@@ -93,6 +93,7 @@ struct panvk_compute_sysvals {
 #endif
 };
 
+#if PAN_ARCH <= 7
 enum panvk_bifrost_desc_table_type {
    PANVK_BIFROST_DESC_TABLE_INVALID = -1,
 
@@ -109,6 +110,7 @@ enum panvk_bifrost_desc_table_type {
 
    PANVK_BIFROST_DESC_TABLE_COUNT,
 };
+#endif
 
 #define COPY_DESC_HANDLE(table, idx)           ((table << 28) | (idx))
 #define COPY_DESC_HANDLE_EXTRACT_INDEX(handle) ((handle) & BITFIELD_MASK(28))
@@ -122,6 +124,7 @@ struct panvk_shader {
    struct {
       uint32_t used_set_mask;
 
+#if PAN_ARCH <= 7
       struct {
          uint32_t map[MAX_DYNAMIC_UNIFORM_BUFFERS];
          uint32_t count;
@@ -134,6 +137,12 @@ struct panvk_shader {
          struct panvk_priv_mem map;
          uint32_t count[PANVK_BIFROST_DESC_TABLE_COUNT];
       } others;
+#else
+      struct {
+         uint32_t map[MAX_DYNAMIC_BUFFERS];
+         uint32_t count;
+      } dyn_bufs;
+#endif
    } desc_info;
 
    const void *bin_ptr;

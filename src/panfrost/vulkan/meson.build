@@ -42,7 +42,6 @@ bifrost_inc_dir = ['bifrost']
 bifrost_files = [
   'bifrost/panvk_vX_cmd_desc_state.c',
   'bifrost/panvk_vX_meta_desc_copy.c',
-  'bifrost/panvk_vX_nir_lower_descriptors.c',
 ]
 
 valhall_archs = [9, 10]
@@ -68,6 +67,7 @@ common_per_arch_files = [
   'panvk_vX_descriptor_set_layout.c',
   'panvk_vX_device.c',
   'panvk_vX_image_view.c',
+  'panvk_vX_nir_lower_descriptors.c',
   'panvk_vX_sampler.c',
   'panvk_vX_shader.c',
 ]
@@ -80,6 +80,7 @@ foreach arch : [6, 7, 9, 10]
       panvk_entrypoints[0],
       'panvk_vX_descriptor_set.c',
       'panvk_vX_descriptor_set_layout.c',
+      'panvk_vX_nir_lower_descriptors.c',
     ]
   else
     per_arch_files = common_per_arch_files

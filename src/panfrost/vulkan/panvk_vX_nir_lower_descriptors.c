@@ -36,6 +36,10 @@
 #include "nir.h"
 #include "nir_builder.h"
 
+#if PAN_ARCH >= 9
+#define VALHALL_RESOURCE_TABLE_IDX 62
+#endif
+
 struct panvk_shader_desc_map {
    /* The index of the map serves as the table offset, the value of the
     * entry is a COPY_DESC_HANDLE() encoding the source set, and the
@@ -48,9 +52,15 @@ struct panvk_shader_desc_map {
 
 struct panvk_shader_desc_info {
    uint32_t used_set_mask;
+#if PAN_ARCH <= 7
    struct panvk_shader_desc_map dyn_ubos;
    struct panvk_shader_desc_map dyn_ssbos;
    struct panvk_shader_desc_map others[PANVK_BIFROST_DESC_TABLE_COUNT];
+#else
+   uint32_t dummy_sampler_handle;
+   uint32_t dyn_bufs_start;
+   struct panvk_shader_desc_map dyn_bufs;
+#endif
 };
 
 struct lower_desc_ctx {
@@ -125,6 +135,7 @@ key_to_desc_id(const void *key)
    };
 }
 
+#if PAN_ARCH <= 7
 static enum panvk_bifrost_desc_table_type
 desc_type_to_table_type(VkDescriptorType type, unsigned subdesc_idx)
 {
@@ -147,6 +158,7 @@ desc_type_to_table_type(VkDescriptorType type, unsigned subdesc_idx)
       return PANVK_BIFROST_DESC_TABLE_INVALID;
    }
 }
+#endif
 
 static uint32_t
 get_subdesc_idx(const struct panvk_descriptor_set_binding_layout *bind_layout,
@@ -169,9 +181,23 @@ shader_desc_idx(uint32_t set, uint32_t binding, VkDescriptorType subdesc_type,
       get_set_layout(set, ctx);
    const struct panvk_descriptor_set_binding_layout *bind_layout =
       &set_layout->bindings[binding];
+   uint32_t subdesc_idx = get_subdesc_idx(bind_layout, subdesc_type);
+
+   /* On Valhall, all non-dynamic descriptors are accessed directly through
+    * their set. The vertex attribute table always comes first, so we always
+    * offset user sets by one if we're dealing with a vertex shader. */
+   if (PAN_ARCH >= 9 &&
+       bind_layout->type != VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC &&
+       bind_layout->type != VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC)
+      return pan_res_handle(set + 1, bind_layout->desc_idx + subdesc_idx);
+
+   /* On Bifrost, the SSBO descriptors are read directly from the set. */
+   if (PAN_ARCH <= 7 && bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+      return bind_layout->desc_idx;
+
    struct desc_id src = {
       .set = set,
-      .subdesc = get_subdesc_idx(bind_layout, subdesc_type),
+      .subdesc = subdesc_idx,
       .binding = binding,
    };
    struct hash_entry *he =
@@ -182,6 +208,7 @@ shader_desc_idx(uint32_t set, uint32_t binding, VkDescriptorType subdesc_type,
    const struct panvk_shader_desc_map *map;
    uint32_t *entry = he->data;
 
+#if PAN_ARCH <= 7
    if (bind_layout->type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC) {
       map = &ctx->desc_info.dyn_ubos;
    } else if (bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC) {
@@ -192,18 +219,73 @@ shader_desc_idx(uint32_t set, uint32_t binding, VkDescriptorType subdesc_type,
       assert(table < PANVK_BIFROST_DESC_TABLE_COUNT);
       map = &ctx->desc_info.others[table];
    }
+#else
+   map = &ctx->desc_info.dyn_bufs;
+#endif
 
    assert(entry >= map->map && entry < map->map + map->count);
 
    uint32_t idx = entry - map->map;
 
+#if PAN_ARCH <= 7
    /* Adjust the destination index for all dynamic UBOs, which are laid out
     * just after the regular UBOs in the UBO table. */
    if (bind_layout->type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
       idx += ctx->desc_info.others[PANVK_BIFROST_DESC_TABLE_UBO].count;
+#else
+   /* Dynamic buffers are pushed directly in the resource tables, after all
+    * sets. */
+   idx = pan_res_handle(0, ctx->desc_info.dyn_bufs_start + idx);
+#endif
 
    return idx;
 }
+
+static nir_address_format
+addr_format_for_type(VkDescriptorType type, const struct lower_desc_ctx *ctx)
+{
+   switch (type) {
+   case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+   case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
+      return ctx->ubo_addr_format;
+
+   case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+   case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
+      return ctx->ssbo_addr_format;
+
+   default:
+      unreachable("Unsupported descriptor type");
+      return ~0;
+   }
+}
+
+#if PAN_ARCH <= 7
+static uint32_t
+shader_ssbo_table(nir_builder *b, unsigned set, unsigned binding,
+                  const struct lower_desc_ctx *ctx)
+{
+   const struct panvk_descriptor_set_layout *set_layout =
+      get_set_layout(set, ctx);
+   const struct panvk_descriptor_set_binding_layout *bind_layout =
+      &set_layout->bindings[binding];
+
+   assert(bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER ||
+          bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC);
+   bool is_dyn = bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC;
+
+   if (b->shader->info.stage == MESA_SHADER_COMPUTE)
+      return !is_dyn ? offsetof(struct panvk_compute_sysvals, desc.sets[set])
+                     : offsetof(struct panvk_compute_sysvals, desc.dyn_ssbos);
+   else if (b->shader->info.stage == MESA_SHADER_VERTEX)
+      return !is_dyn
+                ? offsetof(struct panvk_graphics_sysvals, desc.sets[set])
+                : offsetof(struct panvk_graphics_sysvals, desc.vs_dyn_ssbos);
+   else
+      return !is_dyn
+                ? offsetof(struct panvk_graphics_sysvals, desc.sets[set])
+                : offsetof(struct panvk_graphics_sysvals, desc.fs_dyn_ssbos);
+}
+#endif
 
 /** Build a Vulkan resource index
  *
@@ -235,50 +317,32 @@ build_res_index(nir_builder *b, uint32_t set, uint32_t binding,
    const struct panvk_descriptor_set_binding_layout *bind_layout =
       &set_layout->bindings[binding];
    uint32_t array_size = bind_layout->desc_count;
+   nir_address_format addr_fmt = addr_format_for_type(bind_layout->type, ctx);
+   uint32_t desc_idx = shader_desc_idx(set, binding, bind_layout->type, ctx);
 
-   switch (bind_layout->type) {
-   case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-   case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC: {
-      assert(addr_format == nir_address_format_32bit_index_offset);
+   switch (addr_fmt) {
+#if PAN_ARCH <= 7
+   case nir_address_format_32bit_index_offset: {
+      const uint32_t packed_desc_idx_array_size =
+         (array_size - 1) << 16 | desc_idx;
 
-      const uint32_t packed =
-         (array_size - 1) << 16 |
-         shader_desc_idx(set, binding, bind_layout->type, ctx);
-
-      return nir_vec2(b, nir_imm_int(b, packed), array_index);
+      return nir_vec2(b, nir_imm_int(b, packed_desc_idx_array_size),
+                      array_index);
    }
 
-   case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-   case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC: {
-      assert(addr_format == nir_address_format_64bit_bounded_global ||
-             addr_format == nir_address_format_64bit_global_32bit_offset);
-
-      unsigned base_addr_sysval_offs;
-      uint32_t desc_idx =
-         bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC
-            ? shader_desc_idx(set, binding, bind_layout->type, ctx)
-            : bind_layout->desc_idx;
-
-      if (b->shader->info.stage == MESA_SHADER_COMPUTE)
-         base_addr_sysval_offs =
-            bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
-               ? offsetof(struct panvk_compute_sysvals, desc.sets[set])
-               : offsetof(struct panvk_compute_sysvals, desc.dyn_ssbos);
-      else if (b->shader->info.stage == MESA_SHADER_VERTEX)
-         base_addr_sysval_offs =
-            bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
-               ? offsetof(struct panvk_graphics_sysvals, desc.sets[set])
-               : offsetof(struct panvk_graphics_sysvals, desc.vs_dyn_ssbos);
-      else
-         base_addr_sysval_offs =
-            bind_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER
-               ? offsetof(struct panvk_graphics_sysvals, desc.sets[set])
-               : offsetof(struct panvk_graphics_sysvals, desc.fs_dyn_ssbos);
+   case nir_address_format_64bit_bounded_global:
+   case nir_address_format_64bit_global_32bit_offset: {
+      unsigned base_addr_sysval_offs = shader_ssbo_table(b, set, binding, ctx);
 
       return nir_vec4(b, nir_imm_int(b, base_addr_sysval_offs),
                       nir_imm_int(b, desc_idx), array_index,
                       nir_imm_int(b, array_size - 1));
    }
+#else
+   case nir_address_format_vec2_index_32bit_offset:
+      return nir_vec3(b, nir_imm_int(b, desc_idx), array_index,
+                      nir_imm_int(b, array_size - 1));
+#endif
 
    default:
       unreachable("Unsupported descriptor type");
@@ -298,6 +362,7 @@ build_res_reindex(nir_builder *b, nir_def *orig, nir_def *delta,
                   nir_address_format addr_format)
 {
    switch (addr_format) {
+#if PAN_ARCH <= 7
    case nir_address_format_32bit_index_offset:
       return nir_vec2(b, nir_channel(b, orig, 0),
                       nir_iadd(b, nir_channel(b, orig, 1), delta));
@@ -307,6 +372,12 @@ build_res_reindex(nir_builder *b, nir_def *orig, nir_def *delta,
       return nir_vec4(b, nir_channel(b, orig, 0), nir_channel(b, orig, 1),
                       nir_iadd(b, nir_channel(b, orig, 2), delta),
                       nir_imm_int(b, 3));
+#else
+   case nir_address_format_vec2_index_32bit_offset:
+      return nir_vec3(b, nir_channel(b, orig, 0),
+                      nir_iadd(b, nir_channel(b, orig, 1), delta),
+                      nir_channel(b, orig, 2));
+#endif
 
    default:
       unreachable("Unhandled address format");
@@ -326,6 +397,7 @@ build_buffer_addr_for_res_index(nir_builder *b, nir_def *res_index,
                                 const struct lower_desc_ctx *ctx)
 {
    switch (addr_format) {
+#if PAN_ARCH <= 7
    case nir_address_format_32bit_index_offset: {
       nir_def *packed = nir_channel(b, res_index, 0);
       nir_def *array_index = nir_channel(b, res_index, 1);
@@ -365,6 +437,18 @@ build_buffer_addr_for_res_index(nir_builder *b, nir_def *res_index,
       return nir_vec4(b, nir_channel(b, desc, 0), nir_channel(b, desc, 1),
                       nir_channel(b, desc, 2), nir_imm_int(b, 0));
    }
+#else
+   case nir_address_format_vec2_index_32bit_offset: {
+      nir_def *first_desc_index = nir_channel(b, res_index, 0);
+      nir_def *array_index = nir_channel(b, res_index, 1);
+      nir_def *array_max = nir_channel(b, res_index, 2);
+
+      if (ctx->add_bounds_checks)
+         array_index = nir_umin(b, array_index, array_max);
+
+      return nir_vec3(b, first_desc_index, array_index, nir_imm_int(b, 0));
+   }
+#endif
 
    default:
       unreachable("Unhandled address format");
@@ -462,13 +546,6 @@ load_resource_deref_desc(nir_builder *b, nir_deref_instr *deref,
       index_ssa = nir_imm_int(b, index_imm);
 
    unsigned desc_stride = panvk_get_desc_stride(bind_layout->type);
-   unsigned set_base_addr_sysval_offs =
-      b->shader->info.stage == MESA_SHADER_COMPUTE
-         ? offsetof(struct panvk_compute_sysvals, desc.sets[set])
-         : offsetof(struct panvk_graphics_sysvals, desc.sets[set]);
-   nir_def *set_base_addr = nir_load_push_constant(
-      b, 1, 64, nir_imm_int(b, 0), .base = 256 + set_base_addr_sysval_offs,
-      .range = 8);
    nir_def *set_offset =
       nir_imul_imm(b,
                    nir_iadd_imm(b, nir_imul_imm(b, index_ssa, desc_stride),
@@ -477,11 +554,27 @@ load_resource_deref_desc(nir_builder *b, nir_deref_instr *deref,
 
    set_offset = nir_iadd_imm(b, set_offset, desc_offset);
 
+#if PAN_ARCH <= 7
+   unsigned set_base_addr_sysval_offs =
+      b->shader->info.stage == MESA_SHADER_COMPUTE
+         ? offsetof(struct panvk_compute_sysvals, desc.sets[set])
+         : offsetof(struct panvk_graphics_sysvals, desc.sets[set]);
+   nir_def *set_base_addr = nir_load_push_constant(
+      b, 1, 64, nir_imm_int(b, 0), .base = 256 + set_base_addr_sysval_offs,
+      .range = 8);
+
    unsigned desc_align = 1 << (ffs(PANVK_DESCRIPTOR_SIZE + desc_offset) - 1);
 
    return nir_load_global(b,
                           nir_iadd(b, set_base_addr, nir_u2u64(b, set_offset)),
                           desc_align, num_components, bit_size);
+#else
+   return nir_load_ubo(
+      b, num_components, bit_size,
+      nir_imm_int(b, pan_res_handle(VALHALL_RESOURCE_TABLE_IDX, set)),
+      set_offset, .range = ~0u, .align_mul = PANVK_DESCRIPTOR_SIZE,
+      .align_offset = desc_offset);
+#endif
 }
 
 static nir_def *
@@ -521,6 +614,9 @@ static nir_def *
 load_img_size(nir_builder *b, nir_deref_instr *deref, enum glsl_sampler_dim dim,
               bool is_array, const struct lower_desc_ctx *ctx)
 {
+   if (PAN_ARCH >= 9)
+      return load_tex_size(b, deref, dim, is_array, ctx);
+
    if (dim == GLSL_SAMPLER_DIM_BUF) {
       nir_def *tex_w = load_resource_deref_desc(
          b, deref, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, 18, 1, 16, ctx);
@@ -575,6 +671,9 @@ static nir_def *
 load_img_samples(nir_builder *b, nir_deref_instr *deref,
                  enum glsl_sampler_dim dim, const struct lower_desc_ctx *ctx)
 {
+   if (PAN_ARCH >= 9)
+      return load_tex_samples(b, deref, dim, ctx);
+
    assert(dim != GLSL_SAMPLER_DIM_BUF);
 
    /* Sample count is stored in the image depth field.
@@ -641,6 +740,10 @@ lower_tex(nir_builder *b, nir_tex_instr *tex, const struct lower_desc_ctx *ctx)
          nir_tex_instr_add_src(tex, nir_tex_src_sampler_offset, index_ssa);
       }
       progress = true;
+   } else {
+#if PAN_ARCH >= 9
+      tex->sampler_index = ctx->desc_info.dummy_sampler_handle;
+#endif
    }
 
    int tex_src_idx = nir_tex_instr_src_index(tex, nir_tex_src_texture_deref);
@@ -773,9 +876,17 @@ record_binding(struct lower_desc_ctx *ctx, unsigned set, unsigned binding,
    assert(desc_stride == 1 || desc_stride == 2);
    ctx->desc_info.used_set_mask |= BITFIELD_BIT(set);
 
+   /* On valhall, we only record dynamic bindings, others are accessed directly
+    * from the set. */
+   if (PAN_ARCH >= 9 &&
+       binding_layout->type != VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC &&
+       binding_layout->type != VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC)
+      return;
+
    /* SSBOs are accessed directly from the sets, no need to record accesses
     * to such resources. */
-   if (binding_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+   if (PAN_ARCH <= 7 &&
+       binding_layout->type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
       return;
 
    assert(subdesc_idx < desc_stride);
@@ -805,6 +916,7 @@ record_binding(struct lower_desc_ctx *ctx, unsigned set, unsigned binding,
 
    uint32_t desc_count_diff = new_desc_count - old_desc_count;
 
+#if PAN_ARCH <= 7
    if (binding_layout->type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC) {
       ctx->desc_info.dyn_ubos.count += desc_count_diff;
    } else if (binding_layout->type ==
@@ -817,6 +929,9 @@ record_binding(struct lower_desc_ctx *ctx, unsigned set, unsigned binding,
       assert(table < PANVK_BIFROST_DESC_TABLE_COUNT);
       ctx->desc_info.others[table].count += desc_count_diff;
    }
+#else
+   ctx->desc_info.dyn_bufs.count += desc_count_diff;
+#endif
 
    he->data = (void *)(uintptr_t)new_desc_count;
 }
@@ -841,6 +956,7 @@ fill_copy_descs_for_binding(struct lower_desc_ctx *ctx, unsigned set,
          binding_layout->desc_idx + (i * desc_stride) + subdesc_idx;
       struct panvk_shader_desc_map *map;
 
+#if PAN_ARCH <= 7
       if (binding_layout->type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC) {
          map = &ctx->desc_info.dyn_ubos;
       } else if (binding_layout->type ==
@@ -853,6 +969,9 @@ fill_copy_descs_for_binding(struct lower_desc_ctx *ctx, unsigned set,
          assert(dst_table < PANVK_BIFROST_DESC_TABLE_COUNT);
          map = &ctx->desc_info.others[dst_table];
       }
+#else
+      map = &ctx->desc_info.dyn_bufs;
+#endif
 
       if (!first_entry)
          first_entry = &map->map[map->count];
@@ -864,33 +983,42 @@ fill_copy_descs_for_binding(struct lower_desc_ctx *ctx, unsigned set,
 }
 
 static void
-create_copy_table(struct lower_desc_ctx *ctx)
+create_copy_table(nir_shader *nir, struct lower_desc_ctx *ctx)
 {
    struct panvk_shader_desc_info *desc_info = &ctx->desc_info;
-   uint32_t *copy_table;
    uint32_t copy_count;
 
+#if PAN_ARCH <= 7
    copy_count = desc_info->dyn_ubos.count + desc_info->dyn_ssbos.count;
    for (uint32_t i = 0; i < PANVK_BIFROST_DESC_TABLE_COUNT; i++)
       copy_count += desc_info->others[i].count;
+#else
+   copy_count = desc_info->dyn_bufs.count + desc_info->dyn_bufs.count;
+#endif
 
    if (copy_count == 0)
       return;
 
-   copy_table = rzalloc_array(ctx->ht, uint32_t, copy_count);
-   assert(copy_table);
+#if PAN_ARCH <= 7
+   uint32_t *copy_table = rzalloc_array(ctx->ht, uint32_t, copy_count);
 
+   assert(copy_table);
    desc_info->dyn_ubos.map = copy_table;
    copy_table += desc_info->dyn_ubos.count;
    desc_info->dyn_ubos.count = 0;
    desc_info->dyn_ssbos.map = copy_table;
    copy_table += desc_info->dyn_ssbos.count;
    desc_info->dyn_ssbos.count = 0;
+
    for (uint32_t i = 0; i < PANVK_BIFROST_DESC_TABLE_COUNT; i++) {
       desc_info->others[i].map = copy_table;
       copy_table += desc_info->others[i].count;
       desc_info->others[i].count = 0;
    }
+#else
+   desc_info->dyn_bufs.map = rzalloc_array(ctx->ht, uint32_t, copy_count);
+   assert(desc_info->dyn_bufs.map);
+#endif
 
    hash_table_foreach(ctx->ht, he) {
       /* We use the upper binding bit to encode the subdesc index. */
@@ -903,6 +1031,15 @@ create_copy_table(struct lower_desc_ctx *ctx)
       he->data = fill_copy_descs_for_binding(ctx, src.set, src.binding,
                                              src.subdesc, desc_count);
    }
+
+#if PAN_ARCH >= 9
+   /* Dummy sampler comes after the vertex attributes. */
+   uint32_t dummy_sampler_idx = nir->info.stage == MESA_SHADER_VERTEX ? 16 : 0;
+   desc_info->dummy_sampler_handle = pan_res_handle(0, dummy_sampler_idx);
+
+   /* Dynamic buffers come after the dummy sampler. */
+   desc_info->dyn_bufs_start = dummy_sampler_idx + 1;
+#endif
 }
 
 /* TODO: Texture instructions support bindless through DTSEL_IMM(63),
@@ -999,6 +1136,7 @@ static void
 upload_shader_desc_info(struct panvk_device *dev, struct panvk_shader *shader,
                         const struct panvk_shader_desc_info *desc_info)
 {
+#if PAN_ARCH <= 7
    unsigned copy_count = 0;
    for (unsigned i = 0; i < ARRAY_SIZE(shader->desc_info.others.count); i++) {
       shader->desc_info.others.count[i] = desc_info->others[i].count;
@@ -1022,6 +1160,14 @@ upload_shader_desc_info(struct panvk_device *dev, struct panvk_shader *shader,
    memcpy(
       shader->desc_info.dyn_ssbos.map, desc_info->dyn_ssbos.map,
       desc_info->dyn_ssbos.count * sizeof(*shader->desc_info.dyn_ssbos.map));
+#else
+   assert(desc_info->dyn_bufs.count <
+          ARRAY_SIZE(shader->desc_info.dyn_bufs.map));
+   shader->desc_info.dyn_bufs.count = desc_info->dyn_bufs.count;
+   memcpy(shader->desc_info.dyn_bufs.map, desc_info->dyn_bufs.map,
+          desc_info->dyn_bufs.count * sizeof(*shader->desc_info.dyn_bufs.map));
+#endif
+
    shader->desc_info.used_set_mask = desc_info->used_set_mask;
 }
 
@@ -1031,28 +1177,33 @@ panvk_per_arch(nir_lower_descriptors)(
    struct vk_descriptor_set_layout *const *set_layouts,
    struct panvk_shader *shader)
 {
-   struct lower_desc_ctx ctx = {
-      .ubo_addr_format = nir_address_format_32bit_index_offset,
-      .ssbo_addr_format = dev->vk.enabled_features.robustBufferAccess
+   struct lower_desc_ctx ctx = {0};
+   bool progress;
+
+#if PAN_ARCH <= 7
+   ctx.ubo_addr_format = nir_address_format_32bit_index_offset;
+   ctx.ssbo_addr_format = dev->vk.enabled_features.robustBufferAccess
                              ? nir_address_format_64bit_bounded_global
-                             : nir_address_format_64bit_global_32bit_offset,
-   };
+                             : nir_address_format_64bit_global_32bit_offset;
+#else
+   ctx.ubo_addr_format = nir_address_format_vec2_index_32bit_offset;
+   ctx.ssbo_addr_format = nir_address_format_vec2_index_32bit_offset;
+#endif
 
    ctx.ht = _mesa_hash_table_create_u32_keys(NULL);
    assert(ctx.ht);
 
    _mesa_hash_table_set_deleted_key(ctx.ht, DELETED_KEY);
 
-   for (uint32_t i = 0; i < set_layout_count; i++) {
+   for (uint32_t i = 0; i < set_layout_count; i++)
       ctx.set_layouts[i] = to_panvk_descriptor_set_layout(set_layouts[i]);
-   }
 
-   bool progress = nir_shader_instructions_pass(nir, collect_instr_desc_access,
-                                                nir_metadata_all, &ctx);
+   progress = nir_shader_instructions_pass(nir, collect_instr_desc_access,
+                                           nir_metadata_all, &ctx);
    if (!progress)
       goto out;
 
-   create_copy_table(&ctx);
+   create_copy_table(nir, &ctx);
    upload_shader_desc_info(dev, shader, &ctx.desc_info);
 
    progress = nir_shader_instructions_pass(nir, lower_descriptors_instr,
