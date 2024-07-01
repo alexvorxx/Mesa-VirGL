@@ -449,6 +449,7 @@ llvmpipe_memobj_create_from_handle(struct pipe_screen *pscreen,
 {
 #ifdef PIPE_MEMORY_FD
    struct llvmpipe_memory_object *memobj = CALLOC_STRUCT(llvmpipe_memory_object);
+   pipe_reference_init(&memobj->reference, 1);
 
    if (handle->type == WINSYS_HANDLE_TYPE_FD &&
        pscreen->import_memory_fd(pscreen, handle->handle, &memobj->data, &memobj->size, false)) {
@@ -467,10 +468,13 @@ llvmpipe_memobj_destroy(struct pipe_screen *pscreen,
    if (!memobj)
       return;
    struct llvmpipe_memory_object *lpmo = llvmpipe_memory_object(memobj);
+   if (pipe_reference(&lpmo->reference, NULL))
+   {
 #ifdef PIPE_MEMORY_FD
-   pscreen->free_memory_fd(pscreen, lpmo->data);
+      pscreen->free_memory_fd(pscreen, lpmo->data);
 #endif
-   free(lpmo);
+      free(lpmo);
+   }
 }
 
 
@@ -526,7 +530,8 @@ llvmpipe_resource_from_memobj(struct pipe_screen *pscreen,
       lpr->data = lpmo->data;
    }
    lpr->id = id_counter++;
-   lpr->imported_memory = true;
+   lpr->imported_memory = &lpmo->b;
+   pipe_reference(NULL, &lpmo->reference);
 
 #if MESA_DEBUG
    simple_mtx_lock(&resource_list_mutex);
@@ -556,13 +561,19 @@ llvmpipe_resource_destroy(struct pipe_screen *pscreen,
       } else if (llvmpipe_resource_is_texture(pt)) {
          /* free linear image data */
          if (lpr->tex_data) {
-            if (!lpr->imported_memory)
+            if (lpr->imported_memory)
+               llvmpipe_memobj_destroy(pscreen, lpr->imported_memory);
+            else
                align_free(lpr->tex_data);
             lpr->tex_data = NULL;
+            lpr->imported_memory = NULL;
          }
       } else if (lpr->data) {
-         if (!lpr->imported_memory)
-            align_free(lpr->data);
+         if (lpr->imported_memory)
+            llvmpipe_memobj_destroy(pscreen, lpr->imported_memory);
+         else
+             align_free(lpr->data);
+         lpr->imported_memory = NULL;
       }
    }
 
