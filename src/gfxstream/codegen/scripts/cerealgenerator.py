@@ -123,6 +123,7 @@ SUPPORTED_FEATURES = [
     "VK_EXT_metal_objects",
     "VK_KHR_external_semaphore_win32",
     "VK_KHR_external_memory_win32",
+    "VK_NV_device_diagnostic_checkpoints",
     # Android
     "VK_ANDROID_native_buffer",
     "VK_ANDROID_external_memory_android_hardware_buffer",
@@ -169,6 +170,7 @@ SUPPORTED_MODULES = {
     "VK_KHR_android_surface": ["func_table"],
     "VK_EXT_swapchain_maintenance1" : HOST_MODULES,
     "VK_KHR_swapchain" : HOST_MODULES,
+    "VK_NV_device_diagnostic_checkpoints": ["goldfish_vk_dispatch"],
 }
 
 # These modules will be used when the feature is not supported.
