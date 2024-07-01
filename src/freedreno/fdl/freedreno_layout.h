@@ -334,6 +334,23 @@ void
 fdl6_format_swiz(enum pipe_format format, bool has_z24uint_s8uint,
                  unsigned char *format_swiz);
 
+enum fdl_macrotile_mode {
+   FDL_MACROTILE_4_CHANNEL,
+   FDL_MACROTILE_8_CHANNEL,
+   /* Used internally by turnip */
+   FDL_MACROTILE_INVALID = ~0,
+};
+
+/* Parameters that affect UBWC swizzling. Note that because we don't handle
+ * compression, this isn't a complete set of knobs. See the documentation in
+ * fd6_tiled_memcpy.c for a description of each one.
+ */
+struct fdl_ubwc_config {
+   unsigned highest_bank_bit;
+   unsigned bank_swizzle_levels;
+   enum fdl_macrotile_mode macrotile_mode;
+};
+
 ENDC;
 
 #endif /* FREEDRENO_LAYOUT_H_ */
