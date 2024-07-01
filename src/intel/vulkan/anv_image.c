@@ -252,6 +252,9 @@ anv_image_choose_isl_surf_usage(struct anv_physical_device *device,
                           VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT))
       isl_usage |= ISL_SURF_USAGE_2D_3D_COMPATIBLE_BIT;
 
+   if (vk_create_flags & VK_IMAGE_CREATE_PROTECTED_BIT)
+      isl_usage |= ISL_SURF_USAGE_PROTECTED_BIT;
+
    /* Even if we're only using it for transfer operations, clears to depth and
     * stencil images happen as depth and stencil so they need the right ISL
     * usage bits or else things will fall apart.
