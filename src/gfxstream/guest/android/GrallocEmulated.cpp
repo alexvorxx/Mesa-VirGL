@@ -128,6 +128,8 @@ std::optional<uint32_t> DrmToVirglFormat(uint32_t drmFormat) {
             return VIRGL_FORMAT_R8G8B8_UNORM;
         case DRM_FORMAT_BGR565:
             return VIRGL_FORMAT_B5G6R5_UNORM;
+        case DRM_FORMAT_YVU420:
+            return VIRGL_FORMAT_YV12;
         case DRM_FORMAT_R8:
         case DRM_FORMAT_R8_BLOB:
             return VIRGL_FORMAT_R8_UNORM;
