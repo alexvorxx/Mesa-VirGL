@@ -77,6 +77,7 @@ class ApiLogDecoder(VulkanWrapperGenerator):
         "vkGetPhysicalDeviceFormatProperties",
         "vkGetPhysicalDeviceProperties2KHR",
         "vkGetPipelineCacheData",
+        "vkGetSemaphoreGOOGLE",
         "vkGetSwapchainGrallocUsageANDROID",
         "vkQueueCommitDescriptorSetUpdatesGOOGLE",
         "vkQueueFlushCommandsGOOGLE",

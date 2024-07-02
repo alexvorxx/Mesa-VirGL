@@ -246,6 +246,12 @@ specific entries.
             <param><type>VkDeviceSize</type> <name>dataOffset</name></param>
             <param><type>VkDeviceSize</type> <name>dataSize</name></param>
         </command>
+        <command successcodes="VK_SUCCESS" errorcodes="VK_ERROR_OUT_OF_HOST_MEMORY">
+            <proto><type>VkResult</type> <name>vkGetSemaphoreGOOGLE</name></proto>
+            <param><type>VkDevice</type> <name>device</name></param>
+            <param><type>VkSemaphore</type> <name>semaphore</name></param>
+	    <param><type>uint64_t</type> <name>syncId</name></param>
+        </command>
     </commands>
     <extensions comment="Vulkan extension interface definitions">
         <extension name="VK_ANDROID_native_buffer" supported="vulkan"/>
@@ -284,6 +290,7 @@ specific entries.
                 <command name="vkGetBlobGOOGLE"/>
                 <command name="vkUpdateDescriptorSetWithTemplateSized2GOOGLE"/>
                 <command name="vkQueueSubmitAsync2GOOGLE"/>
+                <command name="vkGetSemaphoreGOOGLE"/>
             </require>
         </extension>
     </extensions>

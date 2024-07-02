@@ -348,6 +348,7 @@ KNOWN_FUNCTION_OPCODES = {
     "vkGetLinearImageLayoutGOOGLE": 20333,
     "vkQueueFlushCommandsGOOGLE": 20340,
     "vkGetBlobGOOGLE": 20341,
+    "vkGetSemaphoreGOOGLE": 20342,
 }
 
 CUSTOM_MARSHAL_TYPES = {
