@@ -1307,6 +1307,8 @@ blorp_emit_depth_stencil_config(struct blorp_batch *batch,
                                 const struct blorp_params *params)
 {
    const struct isl_device *isl_dev = batch->blorp->isl_dev;
+   const struct intel_device_info *devinfo =
+      batch->blorp->compiler->brw->devinfo;
 
    uint32_t *dw = blorp_emit_dwords(batch, isl_dev->ds.size / 4);
    if (dw == NULL)
@@ -1358,21 +1360,24 @@ blorp_emit_depth_stencil_config(struct blorp_batch *batch,
 
    isl_emit_depth_stencil_hiz_s(isl_dev, dw, &info);
 
-#if GFX_VER >= 11
-   /* Wa_1408224581
-    *
-    * Workaround: Gfx12LP Astep only An additional pipe control with
-    * post-sync = store dword operation would be required.( w/a is to
-    * have an additional pipe control after the stencil state whenever
-    * the surface state bits of this state is changing).
-    *
-    * This also seems sufficient to handle Wa_14014097488.
-    */
-   blorp_emit(batch, GENX(PIPE_CONTROL), pc) {
-      pc.PostSyncOperation = WriteImmediateData;
-      pc.Address = blorp_get_workaround_address(batch);
+   if (intel_needs_workaround(devinfo, 1408224581) ||
+       intel_needs_workaround(devinfo, 14014097488) ||
+       intel_needs_workaround(devinfo, 14016712196)) {
+      /* Wa_1408224581
+       *
+       * Workaround: Gfx12LP Astep only An additional pipe control with
+       * post-sync = store dword operation would be required.( w/a is to
+       * have an additional pipe control after the stencil state whenever
+       * the surface state bits of this state is changing).
+       *
+       * This also seems sufficient to handle Wa_14014097488 and
+       * Wa_14016712196.
+       */
+      blorp_emit(batch, GENX(PIPE_CONTROL), pc) {
+         pc.PostSyncOperation = WriteImmediateData;
+         pc.Address = blorp_get_workaround_address(batch);
+      }
    }
-#endif
 }
 
 /* Emits the Optimized HiZ sequence specified in the BDW+ PRMs. The
