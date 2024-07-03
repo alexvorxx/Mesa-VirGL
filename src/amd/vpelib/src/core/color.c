@@ -54,7 +54,7 @@ static bool color_update_degamma_tf(struct vpe_priv *vpe_priv,
 
 static bool color_update_input_cs(struct vpe_priv *vpe_priv, enum color_space in_cs,
     const struct vpe_color_adjust *adjustments, struct vpe_csc_matrix *input_cs,
-    struct vpe_color_adjust *stream_clr_adjustments, struct fixed31_32 *matrix_scaling_factor);
+    struct fixed31_32 *matrix_scaling_factor);
 
 static bool is_ycbcr(enum color_space in_cs);
 
@@ -361,7 +361,7 @@ static enum color_space color_get_icsc_cs(enum color_space ics)
 // return true is bypass can be done
 static bool color_update_input_cs(struct vpe_priv *vpe_priv, enum color_space in_cs,
     const struct vpe_color_adjust *adjustments, struct vpe_csc_matrix *input_cs,
-    struct vpe_color_adjust *stream_clr_adjustments, struct fixed31_32 *matrix_scaling_factor)
+    struct fixed31_32 *matrix_scaling_factor)
 {
     int  i, j;
     bool use_adjustments = false;
@@ -390,7 +390,6 @@ static bool color_update_input_cs(struct vpe_priv *vpe_priv, enum color_space in
         if (!vpe_color_calculate_input_cs(
                 vpe_priv, in_cs, adjustments, input_cs, matrix_scaling_factor))
             return false;
-        *stream_clr_adjustments = *adjustments;
     }
 
     return true;
@@ -727,9 +726,10 @@ enum vpe_status vpe_color_update_color_space_and_tf(
                 stream_ctx->stream.surface_info.format);
 
             if (stream_ctx->dirty_bits.color_space) {
+                stream_ctx->color_adjustments = stream_ctx->stream.color_adj; // Always update the cached color adj when it's dirty
                 if (!color_update_input_cs(vpe_priv, stream_ctx->cs,
                     &stream_ctx->stream.color_adj, stream_ctx->input_cs,
-                    &stream_ctx->color_adjustments, &new_matrix_scaling_factor)) {
+                    &new_matrix_scaling_factor)) {
                     vpe_log("err: input cs not being programmed!");
                 }
                 else {
