@@ -207,7 +207,6 @@ VirtGpuResourcePtr VirtGpuKumquatDevice::importBlob(const struct VirtGpuExternal
 
     return std::make_shared<VirtGpuKumquatResource>(
         mVirtGpu, resource_import.bo_handle, resource_import.res_handle, resource_import.size);
-    return nullptr;
 }
 
 int VirtGpuKumquatDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer,
