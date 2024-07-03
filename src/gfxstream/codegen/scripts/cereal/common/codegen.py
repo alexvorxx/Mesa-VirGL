@@ -22,6 +22,7 @@ import os
 import sys
 import shutil
 import subprocess
+import re
 
 # Class capturing a single file
 
@@ -166,6 +167,25 @@ class Module(object):
         self._headerFileModule.end()
         self._implFileModule.end()
 
+        # Removes empty ifdef blocks with a regex query over the file
+        # which are mainly introduced by extensions with no functions or variables
+        def remove_empty_ifdefs(filename: Path):
+            """Removes empty #ifdef blocks from a C++ file."""
+
+            # Load file contents
+            with open(filename, 'r') as file:
+                content = file.read()
+
+            # Regular Expression Pattern
+            pattern = r"#ifdef\s+(\w+)\s*(?://.*)?\s*\n\s*#endif\s*(?://.*)?\s*"
+
+            # Replace Empty Blocks
+            modified_content = re.sub(pattern, "", content)
+
+            # Save file back
+            with open(filename, 'w') as file:
+                file.write(modified_content)
+
         clang_format_command = shutil.which('clang-format')
         assert (clang_format_command is not None)
 
@@ -174,10 +194,14 @@ class Module(object):
                     "--style=file", str(filename.resolve())]) == 0)
 
         if not self._headerFileModule.suppress:
-            formatFile(Path(self._headerFileModule.file.name))
+            filename = Path(self._headerFileModule.file.name)
+            remove_empty_ifdefs(filename)
+            formatFile(filename)
 
         if not self._implFileModule.suppress:
-            formatFile(Path(self._implFileModule.file.name))
+            filename = Path(self._implFileModule.file.name)
+            remove_empty_ifdefs(filename)
+            formatFile(filename)
 
 
 class PyScript(SingleFileModule):
