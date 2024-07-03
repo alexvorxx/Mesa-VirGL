@@ -1022,6 +1022,7 @@ bi_should_remove_store(nir_intrinsic_instr *intr, enum bi_idvs_mode idvs)
    switch (sem.location) {
    case VARYING_SLOT_POS:
    case VARYING_SLOT_PSIZ:
+   case VARYING_SLOT_LAYER:
       return idvs == BI_IDVS_VARYING;
    default:
       return idvs == BI_IDVS_POSITION;
@@ -1101,6 +1102,8 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
 
    bool psiz =
       (nir_intrinsic_io_semantics(instr).location == VARYING_SLOT_PSIZ);
+   bool layer =
+      (nir_intrinsic_io_semantics(instr).location == VARYING_SLOT_LAYER);
 
    bi_index a[4] = {bi_null()};
 
@@ -1116,20 +1119,30 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
                 bi_imm_u32(format), regfmt, nr - 1);
    } else if (b->shader->arch >= 9 && b->shader->idvs != BI_IDVS_NONE) {
       bi_index index = bi_preload(b, 59);
+      unsigned pos_attr_offset = 0;
+      unsigned src_bit_sz = nir_src_bit_size(instr->src[0]);
 
-      if (psiz) {
-         assert(T_size == 16 && "should've been lowered");
+      if (psiz || layer)
          index = bi_iadd_imm_i32(b, index, 4);
+
+      if (layer) {
+         assert(nr == 1 && src_bit_sz == 32);
+         src_bit_sz = 8;
+         pos_attr_offset = 2;
+         data = bi_byte(data, 0);
       }
+
+      if (psiz)
+         assert(T_size == 16 && "should've been lowered");
 
       bi_index address = bi_lea_buf_imm(b, index);
       bi_emit_split_i32(b, a, address, 2);
 
       bool varying = (b->shader->idvs == BI_IDVS_VARYING);
 
-      bi_store(b, nr * nir_src_bit_size(instr->src[0]), data, a[0], a[1],
+      bi_store(b, nr * src_bit_sz, data, a[0], a[1],
                varying ? BI_SEG_VARY : BI_SEG_POS,
-               varying ? bi_varying_offset(b->shader, instr) : 0);
+               varying ? bi_varying_offset(b->shader, instr) : pos_attr_offset);
    } else if (immediate) {
       bi_index address = bi_lea_attr_imm(b, bi_vertex_id(b), bi_instance_id(b),
                                          regfmt, imm_index);
@@ -1918,6 +1931,11 @@ bi_emit_intrinsic(bi_builder *b, nir_intrinsic_instr *instr)
       break;
    case nir_intrinsic_ddy_coarse:
       bi_emit_derivative(b, dst, instr, 2, true);
+      break;
+
+   case nir_intrinsic_load_layer_id:
+      assert(b->shader->arch >= 9);
+      bi_mov_i32_to(b, dst, bi_u8_to_u32(b, bi_byte(bi_preload(b, 62), 0)));
       break;
 
    default:

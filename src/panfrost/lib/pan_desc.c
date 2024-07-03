@@ -815,6 +815,15 @@ GENX(pan_emit_fbd)(const struct pan_fb_info *fb, unsigned layer_idx,
 #if PAN_ARCH >= 9
       cfg.point_sprite_coord_origin_max_y = fb->sprite_coord_origin;
       cfg.first_provoking_vertex = fb->first_provoking_vertex;
+
+      /* internal_layer_index is used to select the right primitive list in the
+       * tiler context, and frame_arg is the value that's passed to the fragment
+       * shader through r62-r63, which we use to pass gl_Layer. Since the
+       * layer_idx only takes 8-bits, we might use the extra 56-bits we have
+       * in frame_argument to pass other information to the fragment shader at
+       * some point. */
+      cfg.internal_layer_index = layer_idx;
+      cfg.frame_argument = layer_idx;
 #endif
    }
 
