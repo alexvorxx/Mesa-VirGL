@@ -68,7 +68,6 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int fd)
     for (uint32_t i = 0; i < kParamMax; i++) {
         struct drm_kumquat_getparam get_param = {0};
         get_param.param = params[i].param;
-        get_param.value = (uint64_t)(uintptr_t)&params[i].value;
 
         ret = virtgpu_kumquat_get_param(mVirtGpu, &get_param);
         if (ret) {
@@ -76,7 +75,7 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int fd)
             continue;
         }
 
-        mCaps.params[i] = params[i].value;
+        mCaps.params[i] = get_param.value;
     }
 
     get_caps.cap_set_id = static_cast<uint32_t>(capset);
