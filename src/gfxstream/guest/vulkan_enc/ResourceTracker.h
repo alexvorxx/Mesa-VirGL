@@ -892,7 +892,7 @@ class ResourceTracker {
     std::vector<VkExtensionProperties> mHostDeviceExtensions;
 
     // 32 bits only for now, upper bits may be used later.
-    std::atomic<uint32_t> mBlobId = 0;
+    std::atomic<uint32_t> mAtomicId = 0;
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
     int mSyncDeviceFd = -1;
 #endif

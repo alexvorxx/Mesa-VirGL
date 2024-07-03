@@ -3045,7 +3045,7 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
         VirtGpuDevice* instance = VirtGpuDevice::getInstance();
         struct gfxstreamPlaceholderCommandVk placeholderCmd = {};
 
-        createBlobInfo.blobId = ++mBlobId;
+        createBlobInfo.blobId = ++mAtomicId;
         createBlobInfo.blobMem = kBlobMemGuest;
         createBlobInfo.blobFlags = kBlobFlagCreateGuestHandle;
         vk_append_struct(&structChainIter, &createBlobInfo);
@@ -3073,7 +3073,7 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
 
         guestBlob->wait();
     } else if (mCaps.vulkanCapset.deferredMapping) {
-        createBlobInfo.blobId = ++mBlobId;
+        createBlobInfo.blobId = ++mAtomicId;
         createBlobInfo.blobMem = kBlobMemHost3d;
         vk_append_struct(&structChainIter, &createBlobInfo);
     }
@@ -3819,7 +3819,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                     create3d.format = virglFormat;
                     create3d.width = imageCreateInfo.extent.width;
                     create3d.height = imageCreateInfo.extent.height;
-                    create3d.blobId = ++mBlobId;
+                    create3d.blobId = ++mAtomicId;
 
                     createBlob.blobCmd = reinterpret_cast<uint8_t*>(&create3d);
                     createBlob.blobCmdSize = sizeof(create3d);
@@ -3883,7 +3883,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 create3d.format = virglFormat;
                 create3d.width = width;
                 create3d.height = height;
-                create3d.blobId = ++mBlobId;
+                create3d.blobId = ++mAtomicId;
 
                 createBlob.blobCmd = reinterpret_cast<uint8_t*>(&create3d);
                 createBlob.blobCmdSize = sizeof(create3d);
