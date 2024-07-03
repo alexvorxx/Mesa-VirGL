@@ -4723,21 +4723,9 @@ cmd_buffer_emit_depth_stencil(struct anv_cmd_buffer *cmd_buffer)
 
    isl_emit_depth_stencil_hiz_s(&device->isl_dev, dw, &info);
 
-   /* Wa_14016712196:
-    * Emit depth flush after state that sends implicit depth flush.
-    */
-   if (intel_needs_workaround(cmd_buffer->device->info, 14016712196)) {
-      genx_batch_emit_pipe_control(&cmd_buffer->batch,
-                                   cmd_buffer->device->info,
-                                   cmd_buffer->state.current_pipeline,
-                                   ANV_PIPE_DEPTH_CACHE_FLUSH_BIT);
-   }
-
-   if (info.depth_surf)
-      genX(cmd_buffer_emit_gfx12_depth_wa)(cmd_buffer, info.depth_surf);
-
    if (intel_needs_workaround(cmd_buffer->device->info, 1408224581) ||
-       intel_needs_workaround(cmd_buffer->device->info, 14014097488)) {
+       intel_needs_workaround(cmd_buffer->device->info, 14014097488) ||
+       intel_needs_workaround(cmd_buffer->device->info, 14016712196)) {
       /* Wa_1408224581
        *
        * Workaround: Gfx12LP Astep only An additional pipe control with
@@ -4745,13 +4733,17 @@ cmd_buffer_emit_depth_stencil(struct anv_cmd_buffer *cmd_buffer)
        * an additional pipe control after the stencil state whenever the
        * surface state bits of this state is changing).
        *
-       * This also seems sufficient to handle Wa_14014097488.
+       * This also seems sufficient to handle Wa_14014097488 and
+       * Wa_14016712196.
        */
       genx_batch_emit_pipe_control_write(&cmd_buffer->batch, device->info,
                                          cmd_buffer->state.current_pipeline,
                                          WriteImmediateData,
                                          device->workaround_address, 0, 0);
    }
+
+   if (info.depth_surf)
+      genX(cmd_buffer_emit_gfx12_depth_wa)(cmd_buffer, info.depth_surf);
 
    cmd_buffer->state.hiz_enabled = isl_aux_usage_has_hiz(info.hiz_usage);
 }
@@ -4792,14 +4784,15 @@ cmd_buffer_emit_cps_control_buffer(struct anv_cmd_buffer *cmd_buffer,
    isl_emit_cpb_control_s(&device->isl_dev, dw, &info);
 
    /* Wa_14016712196:
-    * Emit depth flush after state that sends implicit depth flush.
+    * Emit dummy pipe control after state that sends implicit depth flush.
     */
-   if (intel_needs_workaround(cmd_buffer->device->info, 14016712196)) {
-      genx_batch_emit_pipe_control(&cmd_buffer->batch,
-                                   cmd_buffer->device->info,
-                                   cmd_buffer->state.current_pipeline,
-                                   ANV_PIPE_DEPTH_CACHE_FLUSH_BIT);
+   if (intel_needs_workaround(device->info, 14016712196)) {
+      genx_batch_emit_pipe_control_write(&cmd_buffer->batch, device->info,
+                                         cmd_buffer->state.current_pipeline,
+                                         WriteImmediateData,
+                                         device->workaround_address, 0, 0);
    }
+
 #endif /* GFX_VERx10 >= 125 */
 }
 
