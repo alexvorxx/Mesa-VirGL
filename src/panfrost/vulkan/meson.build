@@ -63,6 +63,8 @@ csf_files = [
   'csf/panvk_vX_cmd_buffer.c',
   'csf/panvk_vX_cmd_dispatch.c',
   'csf/panvk_vX_cmd_draw.c',
+  'csf/panvk_vX_cmd_event.c',
+  'csf/panvk_vX_event.c',
   'csf/panvk_vX_queue.c',
 ]
 
