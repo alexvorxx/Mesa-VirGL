@@ -31,6 +31,9 @@
 #include "virtgpu_drm.h"
 #include "virtgpu_gfxstream_protocol.h"
 
+#define VIRTGPU_PARAM_CREATE_FENCE_PASSING 9  /* Fence passing */
+#define VIRTGPU_PARAM_CREATE_GUEST_HANDLE 10  /* Host OS handle can be created from guest memory. */
+
 #define PARAM(x) \
     (struct VirtGpuParam) { x, #x, 0 }
 
@@ -42,6 +45,7 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) : Virt
         PARAM(VIRTGPU_PARAM_RESOURCE_BLOB),        PARAM(VIRTGPU_PARAM_HOST_VISIBLE),
         PARAM(VIRTGPU_PARAM_CROSS_DEVICE),         PARAM(VIRTGPU_PARAM_CONTEXT_INIT),
         PARAM(VIRTGPU_PARAM_SUPPORTED_CAPSET_IDs), PARAM(VIRTGPU_PARAM_EXPLICIT_DEBUG_NAME),
+        PARAM(VIRTGPU_PARAM_CREATE_FENCE_PASSING),
         PARAM(VIRTGPU_PARAM_CREATE_GUEST_HANDLE),
     };
 

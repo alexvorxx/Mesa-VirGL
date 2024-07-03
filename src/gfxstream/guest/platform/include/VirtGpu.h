@@ -44,14 +44,18 @@ enum VirtGpuParamId : uint32_t {
     kParamContextInit = 5,
     kParamSupportedCapsetIds = 6,
     kParamExplicitDebugName = 7,
-    kParamCreateGuestHandle = 8,
-    kParamMax = 9,
+    // Experimental, not in upstream Linux
+    kParamFencePassing = 8,
+    kParamCreateGuestHandle = 9,
+    kParamMax = 10,
 };
 
 enum VirtGpuExecBufferFlags : uint32_t {
     kFenceIn = 0x0001,
     kFenceOut = 0x0002,
     kRingIdx = 0x0004,
+    kShareableIn = 0x0008,
+    kShareableOut = 0x0010,
 };
 
 enum VirtGpuCapset {
