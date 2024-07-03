@@ -753,6 +753,24 @@ CoherentMemoryPtr ResourceTracker::freeCoherentMemoryLocked(VkDeviceMemory memor
     return nullptr;
 }
 
+VkResult acquireSync(uint64_t syncId, int64_t& osHandle) {
+    struct VirtGpuExecBuffer exec = {};
+    struct gfxstreamAcquireSync acquireSync = {};
+    VirtGpuDevice* instance = VirtGpuDevice::getInstance();
+
+    acquireSync.hdr.opCode = GFXSTREAM_ACQUIRE_SYNC;
+    acquireSync.syncId = syncId;
+
+    exec.command = static_cast<void*>(&acquireSync);
+    exec.command_size = sizeof(acquireSync);
+    exec.flags = kFenceOut | kRingIdx | kShareableOut;
+
+    if (instance->execBuffer(exec, nullptr)) return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+    osHandle = exec.handle.osHandle;
+    return VK_SUCCESS;
+}
+
 VkResult createFence(VkDevice device, uint64_t hostFenceHandle, int64_t& osHandle) {
     struct VirtGpuExecBuffer exec = {};
     struct gfxstreamCreateExportSyncVK exportSync = {};
@@ -5610,7 +5628,8 @@ VkResult ResourceTracker::on_vkCreateSemaphore(void* context, VkResult input_res
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
     if (exportSyncFd) {
-        if (mFeatureInfo->hasVirtioGpuNativeSync) {
+        if (mFeatureInfo->hasVirtioGpuNativeSync &&
+            !(mCaps.params[kParamFencePassing] && mCaps.vulkanCapset.externalSync)) {
             VkResult result;
             int64_t osHandle;
             uint64_t hostFenceHandle = get_host_u64_VkSemaphore(*pSemaphore);
@@ -5658,15 +5677,39 @@ VkResult ResourceTracker::on_vkGetSemaphoreFdKHR(void* context, VkResult, VkDevi
     bool getSyncFd = pGetFdInfo->handleType & VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
 
     if (getSyncFd) {
-        AutoLock<RecursiveLock> lock(mLock);
-        auto it = info_VkSemaphore.find(pGetFdInfo->semaphore);
-        if (it == info_VkSemaphore.end()) return VK_ERROR_OUT_OF_HOST_MEMORY;
-        auto& semInfo = it->second;
-        // syncFd is supposed to have value.
-        auto* syncHelper =
-            ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
-        *pFd = syncHelper->dup(semInfo.syncFd.value_or(-1));
-        return VK_SUCCESS;
+        if (mCaps.params[kParamFencePassing] && mCaps.vulkanCapset.externalSync) {
+            uint64_t syncId = ++mAtomicId;
+            int64_t osHandle = -1;
+
+            VkResult result = enc->vkGetSemaphoreGOOGLE(device, pGetFdInfo->semaphore, syncId,
+                                                        true /* do lock */);
+            if (result != VK_SUCCESS) {
+                ALOGE("unable to get the semaphore");
+                return result;
+            }
+
+            result = acquireSync(syncId, osHandle);
+            if (result != VK_SUCCESS) {
+                ALOGE("unable to create host sync object");
+                return result;
+            }
+
+            *pFd = (int)osHandle;
+            return VK_SUCCESS;
+        } else {
+            // Doesn't this assume that sync file descriptor generated via the non-fence
+            // passing path during "on_vkCreateSemaphore" is the same one that would be
+            // generated via guest's "okGetSemaphoreFdKHR" call?
+            AutoLock<RecursiveLock> lock(mLock);
+            auto it = info_VkSemaphore.find(pGetFdInfo->semaphore);
+            if (it == info_VkSemaphore.end()) return VK_ERROR_OUT_OF_HOST_MEMORY;
+            auto& semInfo = it->second;
+            // syncFd is supposed to have value.
+            auto* syncHelper =
+                ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
+            *pFd = syncHelper->dup(semInfo.syncFd.value_or(-1));
+            return VK_SUCCESS;
+        }
     } else {
         // opaque fd
         int hostFd = 0;
