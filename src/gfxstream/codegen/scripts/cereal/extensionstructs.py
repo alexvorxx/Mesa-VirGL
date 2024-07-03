@@ -110,7 +110,7 @@ class VulkanExtensionStructs(VulkanWrapperGenerator):
             # emitForEachStructExtension and not accessible here. Consequently,
             # this is a copy-paste from there and must be updated accordingly.
             # NOTE: No need for %% if no substitution is made.
-            cgen.stmt("fprintf(stderr, \"Unhandled Vulkan structure type %d, aborting.\\n\", structType)")
+            cgen.stmt("fprintf(stderr, \"Unhandled Vulkan structure type %s [%d], aborting.\\n\", string_VkStructureType(VkStructureType(structType)), structType)")
             cgen.stmt("GFXSTREAM_ABORT(::emugl::FatalError(::emugl::ABORT_REASON_OTHER))")
             cgen.stmt("return (%s)0" % self.extensionStructSizeRetType.typeName)
 
