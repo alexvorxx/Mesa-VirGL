@@ -272,7 +272,7 @@ def build_instr(el, overrides = {}):
     i = 0
 
     for src in el.findall('src'):
-        if (src.attrib.get('ir_only', False)):
+        if (src.attrib.get('pseudo', False)):
             continue
         built = build_source(src, i, tsize)
         sources += [built]
@@ -298,9 +298,9 @@ def build_instr(el, overrides = {}):
 
     modifiers = []
     for mod in el:
-        if (mod.tag in MODIFIERS) and not (mod.attrib.get('ir_only', False)):
+        if (mod.tag in MODIFIERS) and not (mod.attrib.get('pseudo', False)):
             modifiers.append(MODIFIERS[mod.tag])
-        elif mod.tag =='mod':
+        elif mod.tag =='va_mod':
             modifiers.append(build_modifier(mod))
 
     instr = Instruction(name, opcode, opcode2, srcs = sources, dests = dests, immediates = imms, modifiers = modifiers, staging = staging, unit = unit)
