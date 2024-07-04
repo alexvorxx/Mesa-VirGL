@@ -364,7 +364,7 @@ panfrost_emit_plane(const struct pan_image_view *iview, int index,
                     mali_ptr plane2_ptr, void **payload)
 {
    const struct util_format_description *desc =
-      util_format_description(layout->format);
+      util_format_description(format);
 
    assert(row_stride >= 0 && surface_stride >= 0 && "negative stride");
 
