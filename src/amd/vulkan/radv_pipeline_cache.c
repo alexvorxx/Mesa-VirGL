@@ -408,6 +408,7 @@ struct radv_ray_tracing_stage_cache_data {
 
 struct radv_ray_tracing_pipeline_cache_data {
    uint32_t has_traversal_shader : 1;
+   uint32_t num_stages;
    struct radv_ray_tracing_stage_cache_data stages[];
 };
 
@@ -431,7 +432,8 @@ radv_ray_tracing_pipeline_cache_search(struct radv_device *device, struct vk_pip
    if (data->has_traversal_shader)
       pipeline->base.base.shaders[MESA_SHADER_INTERSECTION] = radv_shader_ref(pipeline_obj->shaders[idx++]);
 
-   for (unsigned i = 0; i < pipeline->non_imported_stage_count; i++) {
+   const uint32_t num_stages = data->num_stages;
+   for (unsigned i = 0; i < num_stages; i++) {
       pipeline->stages[i].stack_size = data->stages[i].stack_size;
       pipeline->stages[i].info = data->stages[i].info;
       memcpy(pipeline->stages[i].sha1, data->stages[i].sha1, sizeof(pipeline->stages[i].sha1));
@@ -485,6 +487,8 @@ radv_ray_tracing_pipeline_cache_insert(struct radv_device *device, struct vk_pip
    unsigned idx = 0;
    if (data->has_traversal_shader)
       pipeline_obj->shaders[idx++] = radv_shader_ref(pipeline->base.base.shaders[MESA_SHADER_INTERSECTION]);
+
+   data->num_stages = num_stages;
 
    for (unsigned i = 0; i < num_stages; ++i) {
       data->stages[i].stack_size = pipeline->stages[i].stack_size;
