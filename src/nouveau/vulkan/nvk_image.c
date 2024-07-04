@@ -1307,6 +1307,11 @@ nvk_image_plane_bind(struct nvk_device *dev,
       plane->addr = mem->mem->va->addr + *offset_B;
    }
 
+   if (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) {
+      plane->host_mem = mem;
+      plane->host_offset = *offset_B;
+   }
+
    *offset_B += plane_size_B;
 
    return VK_SUCCESS;

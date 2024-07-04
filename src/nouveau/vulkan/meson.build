@@ -38,6 +38,7 @@ nvk_files = files(
   'nvk_format.h',
   'nvk_heap.c',
   'nvk_heap.h',
+  'nvk_host_copy.c',
   'nvk_image.c',
   'nvk_image.h',
   'nvk_image_view.c',
