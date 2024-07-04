@@ -21,6 +21,7 @@ uint64_t debug_flags = 0;
 static const struct debug_control aco_debug_options[] = {
    {"validateir", DEBUG_VALIDATE_IR},
    {"validatera", DEBUG_VALIDATE_RA},
+   {"validate-livevars", DEBUG_VALIDATE_LIVE_VARS},
    {"novalidateir", DEBUG_NO_VALIDATE_IR},
    {"force-waitcnt", DEBUG_FORCE_WAITCNT},
    {"force-waitdeps", DEBUG_FORCE_WAITDEPS},

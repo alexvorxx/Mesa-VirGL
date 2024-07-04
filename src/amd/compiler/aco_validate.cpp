@@ -942,6 +942,116 @@ validate_cfg(Program* program)
    return is_valid;
 }
 
+bool
+validate_live_vars(Program* program)
+{
+   if (!(debug_flags & DEBUG_VALIDATE_LIVE_VARS))
+      return true;
+
+   bool is_valid = true;
+   const int prev_num_waves = program->num_waves;
+   const monotonic_buffer_resource old_memory = std::move(program->live.memory);
+   const std::vector<IDSet> prev_live_in = std::move(program->live.live_in);
+   const RegisterDemand prev_max_demand = program->max_reg_demand;
+   std::vector<RegisterDemand> block_demands(program->blocks.size());
+   std::vector<RegisterDemand> live_in_demands(program->blocks.size());
+   std::vector<std::vector<RegisterDemand>> register_demands(program->blocks.size());
+
+   for (unsigned i = 0; i < program->blocks.size(); i++) {
+      Block& b = program->blocks[i];
+      block_demands[i] = b.register_demand;
+      live_in_demands[i] = b.live_in_demand;
+      register_demands[i].reserve(b.instructions.size());
+      for (unsigned j = 0; j < b.instructions.size(); j++)
+         register_demands[i].emplace_back(b.instructions[j]->register_demand);
+   }
+
+   aco::live_var_analysis(program);
+
+   /* Validate RegisterDemand calculation */
+   for (unsigned i = 0; i < program->blocks.size(); i++) {
+      Block& b = program->blocks[i];
+
+      if (!(b.register_demand == block_demands[i])) {
+         is_valid = false;
+         aco_err(program,
+                 "Register Demand not updated correctly for BB%d: got (%3u vgpr, %3u sgpr), but "
+                 "should be (%3u vgpr, %3u sgpr)",
+                 i, block_demands[i].vgpr, block_demands[i].sgpr, b.register_demand.vgpr,
+                 b.register_demand.sgpr);
+      }
+      if (!(b.live_in_demand == live_in_demands[i])) {
+         is_valid = false;
+         aco_err(program,
+                 "Live-in Demand not updated correctly for BB%d: got (%3u vgpr, %3u sgpr), but "
+                 "should be (%3u vgpr, %3u sgpr)",
+                 i, live_in_demands[i].vgpr, live_in_demands[i].sgpr, b.live_in_demand.vgpr,
+                 b.live_in_demand.sgpr);
+      }
+
+      for (unsigned j = 0; j < b.instructions.size(); j++) {
+         if (b.instructions[j]->register_demand == register_demands[i][j])
+            continue;
+
+         char* out;
+         size_t outsize;
+         struct u_memstream mem;
+         u_memstream_open(&mem, &out, &outsize);
+         FILE* const memf = u_memstream_get(&mem);
+
+         fprintf(memf,
+                 "Register Demand not updated correctly: got (%3u vgpr, %3u sgpr), but should be "
+                 "(%3u vgpr, %3u sgpr): \n\t",
+                 register_demands[i][j].vgpr, register_demands[i][j].sgpr,
+                 b.instructions[j]->register_demand.vgpr, b.instructions[j]->register_demand.sgpr);
+         aco_print_instr(program->gfx_level, b.instructions[j].get(), memf, print_kill);
+         u_memstream_close(&mem);
+
+         aco_err(program, "%s", out);
+         free(out);
+
+         is_valid = false;
+      }
+   }
+   if (!(program->max_reg_demand == prev_max_demand) || program->num_waves != prev_num_waves) {
+      is_valid = false;
+      aco_err(program,
+              "Max Register Demand and Num Waves not updated correctly: got (%3u vgpr, %3u sgpr) "
+              "and %2u waves, but should be (%3u vgpr, %3u sgpr) and %2u waves",
+              prev_max_demand.vgpr, prev_max_demand.sgpr, prev_num_waves,
+              program->max_reg_demand.vgpr, program->max_reg_demand.sgpr, program->num_waves);
+   }
+
+   /* Validate Live-in sets */
+   for (unsigned i = 0; i < program->blocks.size(); i++) {
+      if (prev_live_in[i] != program->live.live_in[i]) {
+         char* out;
+         size_t outsize;
+         struct u_memstream mem;
+         u_memstream_open(&mem, &out, &outsize);
+         FILE* const memf = u_memstream_get(&mem);
+
+         fprintf(memf, "Live-in set not updated correctly for BB%d:", i);
+         fprintf(memf, "\nMissing values: ");
+         for (unsigned t : program->live.live_in[i]) {
+            if (prev_live_in[i].count(t) == 0)
+               fprintf(memf, "%%%d, ", t);
+         }
+         fprintf(memf, "\nAdditional values: ");
+         for (unsigned t : prev_live_in[i]) {
+            if (program->live.live_in[i].count(t) == 0)
+               fprintf(memf, "%%%d, ", t);
+         }
+         u_memstream_close(&mem);
+         aco_err(program, "%s", out);
+         free(out);
+         is_valid = false;
+      }
+   }
+
+   return is_valid;
+}
+
 /* RA validation */
 namespace {
 
