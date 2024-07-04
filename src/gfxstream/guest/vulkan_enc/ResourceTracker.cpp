@@ -3853,7 +3853,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                         mesa_loge("Failed to create colorBuffer resource for Image memory");
                         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
                     }
-                    if (!bufferBlob->wait()) {
+                    if (bufferBlob->wait()) {
                         mesa_loge("Failed to wait for colorBuffer resource for Image memory");
                         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
                     }
@@ -3913,7 +3913,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                     mesa_loge("Failed to create colorBuffer resource for Image memory");
                     return VK_ERROR_OUT_OF_DEVICE_MEMORY;
                 }
-                if (!bufferBlob->wait()) {
+                if (bufferBlob->wait()) {
                     mesa_loge("Failed to wait for colorBuffer resource for Image memory");
                     return VK_ERROR_OUT_OF_DEVICE_MEMORY;
                 }
