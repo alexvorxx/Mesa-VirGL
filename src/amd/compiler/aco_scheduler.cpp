@@ -1287,33 +1287,9 @@ schedule_program(Program* program)
    }
    update_vgpr_sgpr_demand(program, new_demand);
 
-/* if enabled, this code asserts that register_demand is updated correctly */
-#if 0
-   int prev_num_waves = program->num_waves;
-   const RegisterDemand prev_max_demand = program->max_reg_demand;
-
-   std::vector<RegisterDemand> block_demands(program->blocks.size());
-   std::vector<std::vector<RegisterDemand>> register_demands(program->blocks.size());
-   for (unsigned j = 0; j < program->blocks.size(); j++) {
-      Block &b = program->blocks[j];
-      block_demands[j] = b.register_demand;
-      register_demands[j].reserve(b.instructions.size());
-      for (unsigned i = 0; i < b.instructions.size(); i++)
-         register_demands[j].emplace_back(b.instructions[i]->register_demand);
-   }
-
-   aco::live_var_analysis(program);
-
-   for (unsigned j = 0; j < program->blocks.size(); j++) {
-      Block &b = program->blocks[j];
-      for (unsigned i = 0; i < b.instructions.size(); i++)
-         assert(register_demands[j][i] == b.instructions[i]->register_demand);
-      assert(b.register_demand == block_demands[j]);
-   }
-
-   assert(program->max_reg_demand == prev_max_demand);
-   assert(program->num_waves == prev_num_waves);
-#endif
+   /* Validate live variable information */
+   if (!validate_live_vars(program))
+      abort();
 }
 
 } // namespace aco
