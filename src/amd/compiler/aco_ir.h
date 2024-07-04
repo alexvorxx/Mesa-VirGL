@@ -459,8 +459,8 @@ class Operand final {
 public:
    constexpr Operand()
        : reg_(PhysReg{128}), isTemp_(false), isFixed_(true), isConstant_(false), isKill_(false),
-         isUndef_(true), isFirstKill_(false), constSize(0), isLateKill_(false), is16bit_(false),
-         is24bit_(false), signext(false)
+         isUndef_(true), isFirstKill_(false), constSize(0), isLateKill_(false), isClobbered_(false),
+         is16bit_(false), is24bit_(false), signext(false)
    {}
 
    explicit Operand(Temp r) noexcept
@@ -805,6 +805,10 @@ public:
 
    constexpr bool isLateKill() const noexcept { return isLateKill_; }
 
+   /* Indicates that the Operand's register gets clobbered by the instruction. */
+   constexpr void setClobbered(bool flag) noexcept { isClobbered_ = flag; }
+   constexpr bool isClobbered() const noexcept { return isClobbered_; }
+
    constexpr void setKill(bool flag) noexcept
    {
       isKill_ = flag;
@@ -874,6 +878,7 @@ private:
          uint8_t isFirstKill_ : 1;
          uint8_t constSize : 2;
          uint8_t isLateKill_ : 1;
+         uint8_t isClobbered_ : 1;
          uint8_t is16bit_ : 1;
          uint8_t is24bit_ : 1;
          uint8_t signext : 1;
