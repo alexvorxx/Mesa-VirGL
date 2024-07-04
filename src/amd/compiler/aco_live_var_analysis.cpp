@@ -29,17 +29,6 @@ get_live_changes(Instruction* instr)
 }
 
 RegisterDemand
-get_additional_operand_demand(Instruction* instr)
-{
-   RegisterDemand additional_demand;
-   int op_idx = get_op_fixed_to_def(instr);
-   if (op_idx != -1 && !instr->operands[op_idx].isKill())
-      additional_demand += instr->definitions[0].getTemp();
-
-   return additional_demand;
-}
-
-RegisterDemand
 get_temp_registers(Instruction* instr)
 {
    RegisterDemand demand_before;
@@ -57,10 +46,11 @@ get_temp_registers(Instruction* instr)
          demand_before += op.getTemp();
          if (op.isLateKill())
             demand_after += op.getTemp();
+      } else if (op.isClobbered() && !op.isKill()) {
+         demand_before += op.getTemp();
       }
    }
 
-   demand_before += get_additional_operand_demand(instr);
    demand_after.update(demand_before);
    return demand_after;
 }
@@ -257,6 +247,7 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
       }
 
       /* GEN */
+      RegisterDemand operand_demand;
       for (unsigned i = 0; i < insn->operands.size(); ++i) {
          Operand& operand = insn->operands[i];
          if (!operand.isTemp())
@@ -287,11 +278,13 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
             if (operand.isLateKill())
                insn->register_demand += temp;
             new_demand += temp;
+         } else if (operand.isClobbered()) {
+            operand_demand += temp;
          }
       }
 
-      RegisterDemand before_instr = new_demand + get_additional_operand_demand(insn);
-      insn->register_demand.update(before_instr);
+      operand_demand += new_demand;
+      insn->register_demand.update(operand_demand);
       block->register_demand.update(insn->register_demand);
    }
 
