@@ -247,6 +247,18 @@ public:
       free(buffer);
    }
 
+   /* Move-constructor and -assignment */
+   monotonic_buffer_resource(monotonic_buffer_resource&& other) : monotonic_buffer_resource()
+   {
+      *this = std::move(other);
+   }
+   monotonic_buffer_resource& operator=(monotonic_buffer_resource&& other)
+   {
+      release();
+      std::swap(buffer, other.buffer);
+      return *this;
+   }
+
    /* Delete copy-constructor and -assignment to avoid double free() */
    monotonic_buffer_resource(const monotonic_buffer_resource&) = delete;
    monotonic_buffer_resource& operator=(const monotonic_buffer_resource&) = delete;

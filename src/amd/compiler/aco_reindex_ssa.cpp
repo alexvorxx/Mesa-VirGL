@@ -84,11 +84,12 @@ reindex_ssa(Program* program, bool update_live_out = false)
    idx_ctx ctx;
    reindex_program(ctx, program);
    if (update_live_out) {
+      monotonic_buffer_resource old_memory = std::move(program->live.memory);
       for (IDSet& set : program->live.live_in) {
          IDSet new_set(program->live.memory);
          for (uint32_t id : set)
             new_set.insert(ctx.renames[id]);
-         set = new_set;
+         set = std::move(new_set);
       }
    }
 
