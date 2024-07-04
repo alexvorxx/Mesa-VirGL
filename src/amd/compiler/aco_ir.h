@@ -460,7 +460,7 @@ public:
    constexpr Operand()
        : reg_(PhysReg{128}), isTemp_(false), isFixed_(true), isConstant_(false), isKill_(false),
          isUndef_(true), isFirstKill_(false), constSize(0), isLateKill_(false), isClobbered_(false),
-         is16bit_(false), is24bit_(false), signext(false)
+         isCopyKill_(false), is16bit_(false), is24bit_(false), signext(false)
    {}
 
    explicit Operand(Temp r) noexcept
@@ -809,11 +809,24 @@ public:
    constexpr void setClobbered(bool flag) noexcept { isClobbered_ = flag; }
    constexpr bool isClobbered() const noexcept { return isClobbered_; }
 
+   /* Indicates that the Operand must be copied in order to satisfy register
+    * constraints. The copy is immediately killed by the instruction.
+    */
+   constexpr void setCopyKill(bool flag) noexcept
+   {
+      isCopyKill_ = flag;
+      if (flag)
+         setKill(flag);
+   }
+   constexpr bool isCopyKill() const noexcept { return isCopyKill_; }
+
    constexpr void setKill(bool flag) noexcept
    {
       isKill_ = flag;
-      if (!flag)
+      if (!flag) {
          setFirstKill(false);
+         setCopyKill(false);
+      }
    }
 
    constexpr bool isKill() const noexcept { return isKill_ || isFirstKill(); }
@@ -879,6 +892,7 @@ private:
          uint8_t constSize : 2;
          uint8_t isLateKill_ : 1;
          uint8_t isClobbered_ : 1;
+         uint8_t isCopyKill_ : 1;
          uint8_t is16bit_ : 1;
          uint8_t is24bit_ : 1;
          uint8_t signext : 1;

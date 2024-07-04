@@ -42,7 +42,7 @@ get_temp_registers(Instruction* instr)
    }
 
    for (Operand op : instr->operands) {
-      if (op.isFirstKill()) {
+      if (op.isFirstKill() || op.isCopyKill()) {
          demand_before += op.getTemp();
          if (op.isLateKill())
             demand_after += op.getTemp();
@@ -252,8 +252,12 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
          Operand& operand = insn->operands[i];
          if (!operand.isTemp())
             continue;
+
+         const Temp temp = operand.getTemp();
          if (operand.isFixed() && ctx.program->progress < CompilationProgress::after_ra) {
+            assert(!operand.isLateKill());
             ctx.program->needs_vcc |= operand.physReg() == vcc;
+
             /* Check if this operand gets overwritten by a precolored definition. */
             if (std::any_of(insn->definitions.begin(), insn->definitions.end(),
                             [=](Definition def)
@@ -263,8 +267,19 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
                                       operand.physReg() + operand.size() > def.physReg();
                             }))
                operand.setClobbered(true);
+
+            /* Check if this temp is fixed to a different register as well.
+             * This assumes that operands of one instruction are not precolored twice to
+             * the same register. In this case, register pressure might be overestimated.
+             */
+            for (unsigned j = i + 1; !operand.isCopyKill() && j < insn->operands.size(); ++j) {
+               if (insn->operands[j].isTemp() && insn->operands[j].getTemp() == temp &&
+                   insn->operands[j].isFixed()) {
+                  operand_demand += temp;
+                  insn->operands[j].setCopyKill(true);
+               }
+            }
          }
-         const Temp temp = operand.getTemp();
 
          if (operand.isKill())
             continue;
