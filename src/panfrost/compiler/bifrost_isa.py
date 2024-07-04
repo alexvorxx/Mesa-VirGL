@@ -195,6 +195,23 @@ def parse_instruction(ins, include_pseudo):
 
     return variants
 
+def ins_name(ins, group = False):
+    # a historical artifact: the first character of the name should contain
+    # a single character tag to indicate the unit: '+' for add, '*' for fma
+    # bifrost has only those two units, valhall has others but for those
+    # it doesn't matter (pretend they are '+')
+    if not group:
+        group = ins
+
+    base_name = ins.attrib['name']
+    if group.attrib['unit'] == 'fma':
+        tagged_name = '*' + base_name
+    elif group.attrib.get('ir_unit', '') == 'fma':
+        tagged_name = '*' + base_name
+    else:
+        tagged_name = '+' + base_name
+    return tagged_name
+
 def parse_instructions(xml, include_unused = False, include_pseudo = False):
     final = {}
     instructions = ET.parse(xml).getroot().findall('ins')
@@ -211,7 +228,8 @@ def parse_instructions(xml, include_unused = False, include_pseudo = False):
         if parsed[0][1]["pseudo"] and not include_pseudo:
             continue
 
-        final[ins.attrib['name']] = parsed
+        tagged_name = ins_name(ins)
+        final[tagged_name] = parsed
 
     return final
 
