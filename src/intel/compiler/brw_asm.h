@@ -13,6 +13,7 @@ struct intel_device_info;
 
 typedef struct {
    void *bin;
+   int   bin_size;
    int   inst_count;
 } brw_assemble_result;
 
