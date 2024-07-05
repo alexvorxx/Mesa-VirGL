@@ -10,7 +10,7 @@
 namespace aco {
 
 RegisterDemand
-get_live_changes(aco_ptr<Instruction>& instr)
+get_live_changes(Instruction* instr)
 {
    RegisterDemand changes;
    for (const Definition& def : instr->definitions) {
@@ -40,7 +40,7 @@ get_additional_operand_demand(Instruction* instr)
 }
 
 RegisterDemand
-get_temp_registers(aco_ptr<Instruction>& instr)
+get_temp_registers(Instruction* instr)
 {
    RegisterDemand demand_before;
    RegisterDemand demand_after;
@@ -60,7 +60,7 @@ get_temp_registers(aco_ptr<Instruction>& instr)
       }
    }
 
-   demand_before += get_additional_operand_demand(instr.get());
+   demand_before += get_additional_operand_demand(instr);
    demand_after.update(demand_before);
    return demand_after;
 }
