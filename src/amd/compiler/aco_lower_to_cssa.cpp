@@ -374,6 +374,9 @@ struct ltg_node {
 void
 emit_copies_block(Builder& bld, std::map<uint32_t, ltg_node>& ltg, RegType type)
 {
+   RegisterDemand live_changes;
+   RegisterDemand reg_demand = bld.it->get()->register_demand - get_temp_registers(bld.it->get()) -
+                               get_live_changes(bld.it->get());
    auto&& it = ltg.begin();
    while (it != ltg.end()) {
       copy& cp = *it->second.cp;
@@ -398,7 +401,10 @@ emit_copies_block(Builder& bld, std::map<uint32_t, ltg_node>& ltg, RegType type)
          cp.op.setKill(false);
 
       /* emit the copy */
-      bld.copy(cp.def, cp.op);
+      Instruction* instr = bld.copy(cp.def, cp.op);
+      live_changes += get_live_changes(instr);
+      RegisterDemand temps = get_temp_registers(instr);
+      instr->register_demand = reg_demand + live_changes + temps;
 
       it = ltg.begin();
    }
@@ -423,7 +429,15 @@ emit_copies_block(Builder& bld, std::map<uint32_t, ltg_node>& ltg, RegType type)
          copy->operands[i] = it->second.cp->op;
          it = ltg.erase(it);
       }
+      live_changes += get_live_changes(copy.get());
+      RegisterDemand temps = get_temp_registers(copy.get());
+      copy->register_demand = reg_demand + live_changes + temps;
       bld.insert(std::move(copy));
+   }
+
+   /* Update RegisterDemand after inserted copies */
+   for (auto instr_it = bld.it; instr_it != bld.instructions->end(); ++instr_it) {
+      instr_it->get()->register_demand += live_changes;
    }
 }
 
@@ -501,16 +515,14 @@ emit_parallelcopies(cssa_ctx& ctx)
 
       if (has_sgpr_copy) {
          /* emit SGPR copies */
-         aco_ptr<Instruction> branch = std::move(block.instructions.back());
-         block.instructions.pop_back();
-         bld.reset(&block.instructions);
+         bld.reset(&block.instructions, std::prev(block.instructions.end()));
          emit_copies_block(bld, ltg, RegType::sgpr);
-         bld.insert(std::move(branch));
       }
    }
 
-   /* finally, rename coalesced phi operands */
+   RegisterDemand new_demand;
    for (Block& block : ctx.program->blocks) {
+      /* Finally, rename coalesced phi operands */
       for (aco_ptr<Instruction>& phi : block.instructions) {
          if (phi->opcode != aco_opcode::p_phi && phi->opcode != aco_opcode::p_linear_phi)
             break;
@@ -525,7 +537,17 @@ emit_parallelcopies(cssa_ctx& ctx)
             }
          }
       }
+
+      /* Resummarize the block's register demand */
+      block.register_demand = block.live_in_demand;
+      for (const aco_ptr<Instruction>& instr : block.instructions)
+         block.register_demand.update(instr->register_demand);
+      new_demand.update(block.register_demand);
    }
+
+   /* Update max_reg_demand and num_waves */
+   update_vgpr_sgpr_demand(ctx.program, new_demand);
+
    assert(renames.empty());
 }
 
@@ -539,7 +561,8 @@ lower_to_cssa(Program* program)
    collect_parallelcopies(ctx);
    emit_parallelcopies(ctx);
 
-   /* update live variable information */
-   live_var_analysis(program);
+   /* Validate live variable information */
+   if (!validate_live_vars(program))
+      abort();
 }
 } // namespace aco
