@@ -151,7 +151,6 @@ intel_set_ps_dispatch_state(struct GENX(3DSTATE_PS) *ps,
       default:
          unreachable("Invalid polygon width");
       }
-
    } else if (enable_16) {
       ps->Kernel0Enable = true;
       ps->Kernel0SIMDWidth = PS_SIMD16;
@@ -161,7 +160,6 @@ intel_set_ps_dispatch_state(struct GENX(3DSTATE_PS) *ps,
    if (enable_32) {
       ps->Kernel1Enable = true;
       ps->Kernel1SIMDWidth = PS_SIMD32;
-
    } else if (enable_16 && dispatch_multi == 16) {
       ps->Kernel1Enable = true;
       ps->Kernel1SIMDWidth = PS_SIMD16;
