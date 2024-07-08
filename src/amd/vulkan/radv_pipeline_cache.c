@@ -22,6 +22,8 @@
 #include "vk_pipeline.h"
 #include "vk_util.h"
 
+#include "aco_interface.h"
+
 void
 radv_hash_graphics_spirv_to_nir(blake3_hash hash, const struct radv_shader_stage *stage,
                                 const struct radv_spirv_to_nir_options *options)
@@ -123,11 +125,39 @@ radv_shader_cache_serialize(struct vk_pipeline_cache_object *object, struct blob
    return true;
 }
 
+static bool
+radv_is_cache_disabled(const struct radv_device *device, const struct vk_pipeline_cache *cache)
+{
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+   const struct radv_instance *instance = radv_physical_device_instance(pdev);
+
+   /* The buffer address used for debug printf is hardcoded. */
+   if (device->printf.buffer_addr)
+      return true;
+
+   /* Pipeline caches can be disabled with RADV_DEBUG=nocache, with MESA_GLSL_CACHE_DISABLE=1 and
+    * when ACO_DEBUG is used. MESA_GLSL_CACHE_DISABLE is done elsewhere.
+    */
+   if ((instance->debug_flags & RADV_DEBUG_NO_CACHE) || (pdev->use_llvm ? 0 : aco_get_codegen_flags()))
+      return true;
+
+   if (!cache) {
+      /* When the application doesn't provide a pipeline cache and the in-memory cache is also
+       * disabled.
+       */
+      cache = device->mem_cache;
+      if (!cache)
+         return true;
+   }
+
+   return false;
+}
+
 struct radv_shader *
 radv_shader_create(struct radv_device *device, struct vk_pipeline_cache *cache, const struct radv_shader_binary *binary,
                    bool skip_cache)
 {
-   if (device->cache_disabled || skip_cache) {
+   if (radv_is_cache_disabled(device, cache) || skip_cache) {
       struct radv_shader *shader;
       radv_shader_create_uncached(device, binary, false, NULL, &shader);
       return shader;
@@ -301,7 +331,7 @@ radv_pipeline_cache_object_search(struct radv_device *device, struct vk_pipeline
 {
    *found_in_application_cache = false;
 
-   if (device->cache_disabled)
+   if (radv_is_cache_disabled(device, cache))
       return false;
 
    bool *found = found_in_application_cache;
@@ -366,7 +396,7 @@ radv_compute_pipeline_cache_search(struct radv_device *device, struct vk_pipelin
 void
 radv_pipeline_cache_insert(struct radv_device *device, struct vk_pipeline_cache *cache, struct radv_pipeline *pipeline)
 {
-   if (device->cache_disabled)
+   if (radv_is_cache_disabled(device, cache))
       return;
 
    if (!cache)
@@ -457,7 +487,7 @@ void
 radv_ray_tracing_pipeline_cache_insert(struct radv_device *device, struct vk_pipeline_cache *cache,
                                        struct radv_ray_tracing_pipeline *pipeline, unsigned num_stages)
 {
-   if (device->cache_disabled)
+   if (radv_is_cache_disabled(device, cache))
       return;
 
    if (!cache)
@@ -512,7 +542,7 @@ radv_pipeline_cache_lookup_nir(struct radv_device *device, struct vk_pipeline_ca
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
-   if (device->cache_disabled)
+   if (radv_is_cache_disabled(device, cache))
       return NULL;
 
    if (!cache)
@@ -525,7 +555,7 @@ void
 radv_pipeline_cache_insert_nir(struct radv_device *device, struct vk_pipeline_cache *cache, const blake3_hash key,
                                const nir_shader *nir)
 {
-   if (device->cache_disabled)
+   if (radv_is_cache_disabled(device, cache))
       return;
 
    if (!cache)
@@ -537,7 +567,7 @@ radv_pipeline_cache_insert_nir(struct radv_device *device, struct vk_pipeline_ca
 struct vk_pipeline_cache_object *
 radv_pipeline_cache_lookup_nir_handle(struct radv_device *device, struct vk_pipeline_cache *cache, const uint8_t *sha1)
 {
-   if (device->cache_disabled)
+   if (radv_is_cache_disabled(device, cache))
       return NULL;
 
    if (!cache)
@@ -585,7 +615,7 @@ radv_pipeline_cache_nir_to_handle(struct radv_device *device, struct vk_pipeline
    blob_finish_get_buffer(&blob, &data, &size);
    struct vk_pipeline_cache_object *object;
 
-   if (cached && !device->cache_disabled) {
+   if (cached && !radv_is_cache_disabled(device, cache)) {
       object = vk_pipeline_cache_create_and_insert_object(cache, sha1, SHA1_DIGEST_LENGTH, data, size,
                                                           &vk_raw_data_cache_object_ops);
    } else {

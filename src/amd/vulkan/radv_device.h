@@ -546,8 +546,6 @@ struct radv_device {
    uint32_t compute_scratch_size_per_wave;
    uint32_t compute_scratch_waves;
 
-   bool cache_disabled;
-
    /* PSO cache stats */
    simple_mtx_t pso_cache_stats_mtx;
    struct radv_pso_cache_stats pso_cache_stats[RADV_PIPELINE_TYPE_COUNT];
