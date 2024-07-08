@@ -121,6 +121,9 @@ struct radv_graphics_pipeline {
 
    /* For relocation of shaders with RGP. */
    struct radv_sqtt_shaders_reloc *sqtt_shaders_reloc;
+
+   /* Whether the pipeline imported binaries. */
+   bool has_pipeline_binaries;
 };
 
 RADV_DECL_PIPELINE_DOWNCAST(graphics, RADV_PIPELINE_GRAPHICS)
