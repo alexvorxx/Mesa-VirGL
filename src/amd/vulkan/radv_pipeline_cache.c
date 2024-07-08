@@ -17,6 +17,7 @@
 #include "radv_pipeline.h"
 #include "radv_pipeline_compute.h"
 #include "radv_pipeline_graphics.h"
+#include "radv_pipeline_binary.h"
 #include "radv_pipeline_rt.h"
 #include "radv_shader.h"
 #include "vk_pipeline.h"
@@ -626,4 +627,106 @@ radv_pipeline_cache_nir_to_handle(struct radv_device *device, struct vk_pipeline
 
    free(data);
    return object;
+}
+
+VkResult
+radv_pipeline_cache_get_binaries(struct radv_device *device, const VkAllocationCallbacks *pAllocator,
+                                 const unsigned char *sha1, struct util_dynarray *pipeline_binaries,
+                                 uint32_t *num_binaries, bool *found_in_internal_cache)
+{
+   struct vk_pipeline_cache *cache = device->mem_cache;
+   VkResult result;
+
+   *found_in_internal_cache = false;
+
+   if (radv_is_cache_disabled(device, cache))
+      return VK_SUCCESS;
+
+   struct vk_pipeline_cache_object *object =
+      vk_pipeline_cache_lookup_object(cache, sha1, SHA1_DIGEST_LENGTH, &radv_pipeline_ops, NULL);
+   if (!object)
+      return VK_SUCCESS;
+
+   struct radv_pipeline_cache_object *pipeline_obj = container_of(object, struct radv_pipeline_cache_object, base);
+
+   bool complete = true;
+   bool is_rt = false;
+   for (unsigned i = 0; i < pipeline_obj->num_shaders; i++) {
+      if (gl_shader_stage_is_rt(pipeline_obj->shaders[i]->info.stage)) {
+         is_rt = true;
+         break;
+      }
+   }
+
+   if (is_rt) {
+      struct radv_ray_tracing_pipeline_cache_data *data = pipeline_obj->data;
+      struct radv_shader *traversal_shader = NULL;
+      unsigned idx = 0;
+
+      if (data->has_traversal_shader)
+         traversal_shader = pipeline_obj->shaders[idx++];
+
+      for (unsigned i = 0; i < data->num_stages; i++) {
+         const struct radv_ray_tracing_stage_cache_data *stage_data = &data->stages[i];
+         struct vk_pipeline_cache_object *nir = NULL;
+         struct radv_shader *shader = NULL;
+
+         if (stage_data->has_shader)
+            shader = pipeline_obj->shaders[idx++];
+
+         if (data->is_library)
+            nir = radv_pipeline_cache_lookup_nir_handle(device, cache, data->stages[i].sha1);
+
+         result = radv_create_pipeline_binary_from_rt_shader(device, pAllocator, shader, false, data->stages[i].sha1,
+                                                             &stage_data->info, stage_data->stack_size, nir,
+                                                             pipeline_binaries, num_binaries);
+
+         if (data->is_library)
+            complete &= nir != NULL;
+
+         if (nir)
+            vk_pipeline_cache_object_unref(&device->vk, nir);
+
+         if (result != VK_SUCCESS)
+            goto fail;
+      }
+
+      if (traversal_shader) {
+         result = radv_create_pipeline_binary_from_rt_shader(device, pAllocator, traversal_shader, true,
+                                                             traversal_shader->hash, NULL, 0, NULL, pipeline_binaries,
+                                                             num_binaries);
+         if (result != VK_SUCCESS)
+            goto fail;
+      }
+   } else {
+      struct radv_shader *gs_copy_shader = NULL;
+
+      for (unsigned i = 0; i < pipeline_obj->num_shaders; i++) {
+         struct radv_shader *shader = pipeline_obj->shaders[i];
+         gl_shader_stage s = shader->info.stage;
+
+         if (s == MESA_SHADER_VERTEX && i > 0) {
+            /* The GS copy-shader is a VS placed after all other stages */
+            gs_copy_shader = shader;
+         } else {
+            result =
+               radv_create_pipeline_binary_from_shader(device, pAllocator, shader, pipeline_binaries, num_binaries);
+            if (result != VK_SUCCESS)
+               goto fail;
+         }
+      }
+
+      if (gs_copy_shader) {
+         result = radv_create_pipeline_binary_from_shader(device, pAllocator, gs_copy_shader, pipeline_binaries,
+                                                          num_binaries);
+         if (result != VK_SUCCESS)
+            goto fail;
+      }
+   }
+
+   *found_in_internal_cache = complete;
+
+fail:
+   vk_pipeline_cache_object_unref(&device->vk, &pipeline_obj->base);
+   return result;
 }

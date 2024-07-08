@@ -2505,10 +2505,15 @@ radv_is_fast_linking_enabled(const VkGraphicsPipelineCreateInfo *pCreateInfo)
 static bool
 radv_skip_graphics_pipeline_compile(const struct radv_device *device, const VkGraphicsPipelineCreateInfo *pCreateInfo)
 {
+   const VkPipelineBinaryInfoKHR *binary_info = vk_find_struct_const(pCreateInfo->pNext, PIPELINE_BINARY_INFO_KHR);
    const VkPipelineCreateFlags2KHR create_flags = vk_graphics_pipeline_create_flags(pCreateInfo);
    const struct radv_physical_device *pdev = radv_device_physical(device);
    VkShaderStageFlagBits binary_stages = 0;
    VkShaderStageFlags active_stages = 0;
+
+   /* No compilation when pipeline binaries are imported. */
+   if (binary_info)
+      return true;
 
    /* Do not skip for libraries. */
    if (create_flags & VK_PIPELINE_CREATE_2_LIBRARY_BIT_KHR)
