@@ -114,8 +114,6 @@ inline VkFormat
 vk_format_from_android(unsigned android_format, unsigned android_usage)
 {
    switch (android_format) {
-   case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
-      return VK_FORMAT_R8G8B8_UNORM;
    case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
    case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
       return VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
