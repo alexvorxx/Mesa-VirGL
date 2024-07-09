@@ -313,6 +313,8 @@ etna_screen_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
       return 0;
    case PIPE_CAP_UMA:
       return 1;
+   case PIPE_CAP_GRAPHICS:
+      return !VIV_FEATURE(screen, ETNA_FEATURE_COMPUTE_ONLY);
    default:
       return u_pipe_screen_get_param_defaults(pscreen, param);
    }
