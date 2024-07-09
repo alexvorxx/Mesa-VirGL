@@ -371,4 +371,3 @@ spec@glsl-1.30@execution@fs-uint-to-float-of-extract-int8,Fail
 
 # Updated by ci-collate
 spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-gs-getuniformdv,Crash
-dEQP-VK.api.version_check.unavailable_entry_points,Fail
