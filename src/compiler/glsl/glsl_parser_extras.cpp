@@ -846,6 +846,7 @@ static const _mesa_glsl_extension _mesa_glsl_supported_extensions[] = {
    EXT(NV_shader_atomic_int64),
    EXT(NV_shader_noperspective_interpolation),
    EXT(NV_viewport_array2),
+   EXT(OVR_multiview),
 };
 
 #undef EXT

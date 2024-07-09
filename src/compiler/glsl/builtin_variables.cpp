@@ -1144,6 +1144,10 @@ builtin_variable_generator::generate_vs_special_vars()
       add_system_value(SYSTEM_VALUE_VERTEX_ID, int_t, GLSL_PRECISION_HIGH,
                        "gl_VertexID");
    }
+   if (state->is_version(300, 300) && state->OVR_multiview_enable){
+      add_system_value(SYSTEM_VALUE_VIEW_INDEX, int_t, GLSL_PRECISION_MEDIUM,
+                      "gl_ViewID_OVR");
+   }
    if (state->is_version(460, 0)) {
       add_system_value(SYSTEM_VALUE_BASE_VERTEX, int_t, "gl_BaseVertex");
       add_system_value(SYSTEM_VALUE_BASE_INSTANCE, int_t, "gl_BaseInstance");

@@ -1708,6 +1708,8 @@ offsets = {
     "DrawElementsUserBufPacked": 1672,
     "TexStorageAttribs2DEXT": 1673,
     "TexStorageAttribs3DEXT": 1674,
+    "FramebufferTextureMultiviewOVR": 1675,
+    "NamedFramebufferTextureMultiviewOVR": 1676,
 }
 
 functions = [
@@ -2035,6 +2037,7 @@ functions = [
     "FramebufferTextureLayer",
     "FramebufferTextureLayerARB",
     "FramebufferTextureLayerEXT",
+    "FramebufferTextureMultiviewOVR",
     "FrontFace",
     "Frustum",
     "Frustumf",

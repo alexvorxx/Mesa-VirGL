@@ -606,7 +606,10 @@ _mesa_update_renderbuffer_surface(struct gl_context *ctx,
 
    /* determine the layer bounds */
    unsigned first_layer, last_layer;
-   if (rb->rtt_layered) {
+   if (rb->rtt_numviews) {
+      first_layer = rb->rtt_slice;
+      last_layer = first_layer + rb->rtt_numviews - 1;
+   } else if (rb->rtt_layered) {
       first_layer = 0;
       last_layer = util_max_layer(rb->texture, level);
    }

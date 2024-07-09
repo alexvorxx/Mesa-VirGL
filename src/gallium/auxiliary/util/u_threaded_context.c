@@ -1524,6 +1524,7 @@ tc_set_framebuffer_state(struct pipe_context *_pipe,
    p->state.samples = fb->samples;
    p->state.layers = fb->layers;
    p->state.nr_cbufs = nr_cbufs;
+   p->state.viewmask = fb->viewmask;
 
    /* when unbinding, mark attachments as used for the current batch */
    for (unsigned i = 0; i < tc->nr_cbufs; i++) {

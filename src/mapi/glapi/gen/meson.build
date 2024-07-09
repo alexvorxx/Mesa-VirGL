@@ -131,6 +131,7 @@ api_xml_files = files(
   'OES_fixed_point.xml',
   'OES_single_precision.xml',
   'OES_texture_compression_astc.xml',
+  'OVR_multiview.xml',
   'GL3x.xml',
   'GL4x.xml',
 )
