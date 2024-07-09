@@ -51,6 +51,7 @@ class EmulatedAHardwareBuffer {
     void release();
 
     int lock(uint8_t** ptr);
+    int lockPlanes(std::vector<Gralloc::LockedPlane>* ahbPlanes);
     int unlock();
 
    private:
@@ -77,6 +78,7 @@ class EmulatedGralloc : public Gralloc {
     void release(AHardwareBuffer* ahb) override;
 
     int lock(AHardwareBuffer* ahb, uint8_t** ptr) override;
+    int lockPlanes(AHardwareBuffer* ahb, std::vector<LockedPlane>* ahbPlanes) override;
     int unlock(AHardwareBuffer* ahb) override;
 
     uint32_t getHostHandle(const native_handle_t* handle) override;

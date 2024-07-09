@@ -48,6 +48,10 @@ int GoldfishGralloc::lock(AHardwareBuffer* ahb, uint8_t** ptr) {
                                 reinterpret_cast<void**>(ptr));
 }
 
+int GoldfishGralloc::lockPlanes(AHardwareBuffer* ahb, std::vector<LockedPlane>* ahbPlanes) {
+    return -1;
+}
+
 int GoldfishGralloc::unlock(AHardwareBuffer* ahb) { return AHardwareBuffer_unlock(ahb, nullptr); }
 
 uint32_t GoldfishGralloc::getHostHandle(native_handle_t const* handle) {

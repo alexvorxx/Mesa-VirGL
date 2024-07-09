@@ -29,6 +29,7 @@ class GoldfishGralloc : public Gralloc {
     void release(AHardwareBuffer* ahb) override;
 
     int lock(AHardwareBuffer* ahb, uint8_t** ptr) override;
+    int lockPlanes(AHardwareBuffer* ahb, std::vector<LockedPlane>* ahbPlanes) override;
     int unlock(AHardwareBuffer* ahb) override;
 
     uint32_t getHostHandle(native_handle_t const* handle) override;

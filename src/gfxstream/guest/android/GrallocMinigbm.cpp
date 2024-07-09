@@ -181,12 +181,17 @@ int MinigbmGralloc::lock(AHardwareBuffer* ahb, uint8_t** ptr) {
                                 reinterpret_cast<void**>(ptr));
 }
 
+int MinigbmGralloc::lockPlanes(AHardwareBuffer* ahb, std::vector<LockedPlane>* ahbPlanes) {
+    ALOGE("%s: unimplemented", __func__);
+    return -1;
+}
+
 int MinigbmGralloc::unlock(AHardwareBuffer* ahb) { return AHardwareBuffer_unlock(ahb, nullptr); }
 
 uint32_t MinigbmGralloc::getHostHandle(const native_handle_t* handle) {
     struct drm_virtgpu_resource_info info;
     if (!getVirtioGpuResourceInfo(m_fd, handle, &info)) {
-        ALOGE("%s: failed to get resource info\n", __func__);
+        ALOGE("%s: failed to get resource info", __func__);
         return 0;
     }
 

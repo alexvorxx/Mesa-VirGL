@@ -154,8 +154,9 @@ struct VirtGpuCaps LinuxVirtGpuDevice::getCaps(void) { return mCaps; }
 int64_t LinuxVirtGpuDevice::getDeviceHandle(void) { return mDeviceHandle; }
 
 VirtGpuResourcePtr LinuxVirtGpuDevice::createResource(uint32_t width, uint32_t height,
-                                                      uint32_t stride, uint32_t virglFormat,
-                                                      uint32_t target, uint32_t bind) {
+                                                      uint32_t stride, uint32_t size,
+                                                      uint32_t virglFormat, uint32_t target,
+                                                      uint32_t bind) {
     drm_virtgpu_resource_create create = {
         .target = target,
         .format = virglFormat,
@@ -166,7 +167,7 @@ VirtGpuResourcePtr LinuxVirtGpuDevice::createResource(uint32_t width, uint32_t h
         .array_size = 1U,
         .last_level = 0,
         .nr_samples = 0,
-        .size = stride * height,
+        .size = size,
         .stride = stride,
     };
 
