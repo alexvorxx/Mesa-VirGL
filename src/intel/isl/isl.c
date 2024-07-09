@@ -1862,6 +1862,21 @@ isl_calc_array_pitch_el_rows_gfx4_2d(
       pitch_el_rows = isl_align(pitch_el_rows, tile_info->logical_extent_el.height);
    }
 
+   if (isl_surf_usage_is_depth(info->usage) &&
+       _isl_surf_info_supports_ccs(dev, info->format, info->usage)) {
+      /* From the TGL PRM, Vol 9, "Compressed Depth Buffers" (under the
+       * "Texture performant" and "ZCS" columns):
+       *
+       *    Update with clear at either 16x8 or 8x4 granularity, based on
+       *    fs_clr or otherwise.
+       *
+       * When fast-clearing, hardware behaves in unexpected ways if the clear
+       * rectangle, aligned to 16x8, could cover neighboring LODs. Align the
+       * array pitch to 8 in order to increase the number of aligned LODs.
+       */
+      pitch_el_rows = isl_align(pitch_el_rows, 8);
+   }
+
    return pitch_el_rows;
 }
 

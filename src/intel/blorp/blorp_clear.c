@@ -981,11 +981,8 @@ blorp_can_hiz_clear_depth(const struct intel_device_info *devinfo,
                              (max_x1_y1 ? haligned_x1 % 16 || valigned_y1 % 8 :
                               x1 % 16 || y1 % 8);
       const bool partial_clear = x0 > 0 || y0 > 0 || !max_x1_y1;
-      const bool multislice_surf = surf->levels > 1 ||
-                                   surf->logical_level0_px.depth > 1 ||
-                                   surf->logical_level0_px.array_len > 1;
 
-      if (unaligned && (partial_clear || multislice_surf))
+      if (unaligned && (partial_clear || surf->levels > 1))
          return false;
    }
 
