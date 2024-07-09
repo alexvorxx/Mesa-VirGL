@@ -557,6 +557,8 @@ llvmpipe_resource_destroy(struct pipe_screen *pscreen,
       if (lpr->dt) {
          /* display target */
          struct sw_winsys *winsys = screen->winsys;
+         if (lpr->dmabuf)
+            winsys->displaytarget_unmap(winsys, lpr->dt);
          winsys->displaytarget_destroy(winsys, lpr->dt);
       } else if (llvmpipe_resource_is_texture(pt)) {
          /* free linear image data */
@@ -1611,7 +1613,10 @@ llvmpipe_resource_bind_backing(struct pipe_screen *pscreen,
 
       if (lpr->dmabuf) {
          if (lpr->dt)
+         {
+            winsys->displaytarget_unmap(winsys, lpr->dt);
             winsys->displaytarget_destroy(winsys, lpr->dt);
+         }
          if (pmem) {
             /* Round up the surface size to a multiple of the tile size to
              * avoid tile clipping.
