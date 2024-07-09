@@ -714,7 +714,7 @@ static std::vector<VkWriteDescriptorSet> transformDescriptorSetList(
         outDescriptorSet = srcDescriptorSet;
 
         bufferInfos.push_back(std::vector<VkDescriptorBufferInfo>());
-        bufferInfos[i].reserve(descriptorCount);
+        bufferInfos[i].resize(descriptorCount);
         memset(&bufferInfos[i][0], 0, sizeof(VkDescriptorBufferInfo) * descriptorCount);
         for (uint32_t j = 0; j < descriptorCount; ++j) {
             const auto* srcBufferInfo = srcDescriptorSet.pBufferInfo;

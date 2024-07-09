@@ -392,8 +392,7 @@ class VulkanFuncTable(VulkanWrapperGenerator):
                         cgen.stmt("%s = %s.size()" % (countParamName, nestedOutName))
                     else:
                         # Standard translation
-                        cgen.stmt("%s.reserve(%s)" % (nestedOutName, countParamName))
-                        cgen.stmt("memset(&%s[0], 0, sizeof(%s) * %s)" % (nestedOutName, member.typeName, countParamName))
+                        cgen.stmt("%s.resize(%s)" % (nestedOutName, countParamName))
                         if not nextLoopVar:
                             nextLoopVar = getNextLoopVar()
                         internalArray = genInternalArray(member, countParamName, nestedOutName, inArrayName, nextLoopVar)
