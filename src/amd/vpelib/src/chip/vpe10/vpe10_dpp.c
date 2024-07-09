@@ -346,26 +346,37 @@ void vpe10_dpp_cnv_program_pre_dgam(struct dpp *dpp, enum color_transfer_func tr
         VPCNVC_PRE_DEGAM, 0, PRE_DEGAM_MODE, pre_degam_en, PRE_DEGAM_SELECT, degamma_lut_selection);
 }
 
-void vpe10_dpp_cnv_program_alpha_keyer(struct dpp *dpp, struct cnv_color_keyer_params *color_keyer)
+void vpe10_dpp_cnv_program_alpha_keyer(
+    struct dpp *dpp,
+    enum vpe_surface_pixel_format format,
+    bool enable_luma_key,
+    float lower_luma_bound,
+    float upper_luma_bound)
 {
+    uint32_t lower_luma_bound_int = (uint32_t)lower_luma_bound * 65535;
+    uint32_t upper_luma_bound_int = (uint32_t)upper_luma_bound * 65535;
+
     PROGRAM_ENTRY();
 
-    REG_SET_2(VPCNVC_COLOR_KEYER_CONTROL, 0, COLOR_KEYER_EN, color_keyer->color_keyer_en,
-        COLOR_KEYER_MODE, color_keyer->color_keyer_mode);
+    REG_SET_2(VPCNVC_COLOR_KEYER_CONTROL, 0,
+        COLOR_KEYER_EN, enable_luma_key,
+        COLOR_KEYER_MODE, CNV_COLOR_KEYER_MODE_RANGE_00);
 
-    REG_SET_2(VPCNVC_COLOR_KEYER_ALPHA, 0, COLOR_KEYER_ALPHA_LOW,
-        color_keyer->color_keyer_alpha_low, COLOR_KEYER_ALPHA_HIGH,
-        color_keyer->color_keyer_alpha_high);
+    REG_SET_2(VPCNVC_COLOR_KEYER_ALPHA, 0,
+        COLOR_KEYER_ALPHA_LOW, lower_luma_bound_int,
+        COLOR_KEYER_ALPHA_HIGH, upper_luma_bound_int);
 
-    REG_SET_2(VPCNVC_COLOR_KEYER_RED, 0, COLOR_KEYER_RED_LOW, color_keyer->color_keyer_red_low,
-        COLOR_KEYER_RED_HIGH, color_keyer->color_keyer_red_high);
+    REG_SET_2(VPCNVC_COLOR_KEYER_RED, 0,
+        COLOR_KEYER_RED_LOW, lower_luma_bound_int,
+        COLOR_KEYER_RED_HIGH, upper_luma_bound_int);
 
-    REG_SET_2(VPCNVC_COLOR_KEYER_GREEN, 0, COLOR_KEYER_GREEN_LOW,
-        color_keyer->color_keyer_green_low, COLOR_KEYER_GREEN_HIGH,
-        color_keyer->color_keyer_green_high);
+    REG_SET_2(VPCNVC_COLOR_KEYER_GREEN, 0,
+        COLOR_KEYER_GREEN_LOW, lower_luma_bound_int,
+        COLOR_KEYER_GREEN_HIGH, upper_luma_bound_int);
 
-    REG_SET_2(VPCNVC_COLOR_KEYER_BLUE, 0, COLOR_KEYER_BLUE_LOW, color_keyer->color_keyer_blue_low,
-        COLOR_KEYER_BLUE_HIGH, color_keyer->color_keyer_blue_high);
+    REG_SET_2(VPCNVC_COLOR_KEYER_BLUE, 0,
+        COLOR_KEYER_BLUE_LOW, lower_luma_bound_int,
+        COLOR_KEYER_BLUE_HIGH, upper_luma_bound_int);
 }
 
 uint32_t vpe10_get_line_buffer_size()

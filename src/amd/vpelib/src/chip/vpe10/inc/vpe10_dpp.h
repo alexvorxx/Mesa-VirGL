@@ -870,7 +870,7 @@ void vpe10_dpp_cnv_program_pre_dgam(struct dpp *dpp, enum color_transfer_func tr
 
 void vpe10_dpp_program_cnv_bias_scale(struct dpp *dpp, struct bias_and_scale *bias_and_scale);
 
-void vpe10_dpp_cnv_program_alpha_keyer(struct dpp *dpp, struct cnv_color_keyer_params *color_keyer);
+void vpe10_dpp_cnv_program_alpha_keyer(struct dpp *dpp, enum vpe_surface_pixel_format format, bool enable_luma_key, float lower_luma_bound, float upper_luma_bound);
 
 void vpe10_dpp_program_input_transfer_func(struct dpp *dpp, struct transfer_func *input_tf);
 

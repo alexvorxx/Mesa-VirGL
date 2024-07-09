@@ -75,6 +75,8 @@ bool vpe_is_yuv444_8(enum vpe_surface_pixel_format format);
 bool vpe_is_yuv444_10(enum vpe_surface_pixel_format format);
 bool vpe_is_yuv444(enum vpe_surface_pixel_format format);
 
+bool vpe_is_yuv(enum vpe_surface_pixel_format format);
+
 enum color_depth vpe_get_color_depth(enum vpe_surface_pixel_format format);
 
 bool vpe_has_per_pixel_alpha(enum vpe_surface_pixel_format format);

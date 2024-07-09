@@ -346,10 +346,14 @@ static enum vpe_status populate_input_streams(struct vpe_priv *vpe_priv, const s
         stream_ctx = &stream_ctx_base[i];
         stream_ctx->stream_type = VPE_STREAM_TYPE_INPUT;
         stream_ctx->stream_idx = (int32_t)i;
+        
         stream_ctx->per_pixel_alpha =
             vpe_has_per_pixel_alpha(param->streams[i].surface_info.format);
+
         if (vpe_priv->init.debug.bypass_per_pixel_alpha) {
             stream_ctx->per_pixel_alpha = false;
+        } else if (param->streams[i].enable_luma_key) {
+            stream_ctx->per_pixel_alpha = true; 
         }
         if (param->streams[i].horizontal_mirror && !input_h_mirror && output_h_mirror)
             stream_ctx->flip_horizonal_output = true;

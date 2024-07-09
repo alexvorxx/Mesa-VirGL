@@ -47,21 +47,8 @@ struct cnv_alpha_2bit_lut {
 enum CNV_COLOR_KEYER_MODE {
     CNV_COLOR_KEYER_MODE_FORCE_00 = 0,
     CNV_COLOR_KEYER_MODE_FORCE_FF = 1,
-    CNV_COLOR_KEYER_MODE_RANGE_00 = 2,
-    CNV_COLOR_KEYER_MODE_RANGE_FF = 3
-};
-
-struct cnv_color_keyer_params {
-    int color_keyer_en;
-    int color_keyer_mode;
-    int color_keyer_alpha_low;
-    int color_keyer_alpha_high;
-    int color_keyer_red_low;
-    int color_keyer_red_high;
-    int color_keyer_green_low;
-    int color_keyer_green_high;
-    int color_keyer_blue_low;
-    int color_keyer_blue_high;
+    CNV_COLOR_KEYER_MODE_RANGE_FF = 2,
+    CNV_COLOR_KEYER_MODE_RANGE_00 = 3
 };
 
 enum input_csc_select {
@@ -85,7 +72,7 @@ struct dpp_funcs {
 
     void (*program_cnv_bias_scale)(struct dpp *dpp, struct bias_and_scale *bias_and_scale);
 
-    void (*program_alpha_keyer)(struct dpp *dpp, struct cnv_color_keyer_params *color_keyer);
+    void (*program_alpha_keyer)(struct dpp *dpp, enum vpe_surface_pixel_format format, bool enable_luma_key, float lower_luma_bound, float upper_luma_bound);
 
     void (*program_input_transfer_func)(struct dpp *dpp, struct transfer_func *input_tf);
 
