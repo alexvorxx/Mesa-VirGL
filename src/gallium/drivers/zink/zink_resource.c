@@ -526,6 +526,8 @@ double_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, VkImageUsag
          }
          prev = strct;
       }
+      if (!fmt_list)
+         return false;
       ici->flags &= ~VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
       if (suboptimal_check_ici(screen, ici, mod))
          return true;
