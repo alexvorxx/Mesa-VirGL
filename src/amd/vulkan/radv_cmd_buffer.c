@@ -164,6 +164,13 @@ radv_bind_dynamic_state(struct radv_cmd_buffer *cmd_buffer, const struct radv_dy
       dest_mask |= RADV_DYNAMIC_COLOR_ATTACHMENT_MAP;
    }
 
+   if (memcmp(&dest->vk.ial, &src->vk.ial, sizeof(src->vk.ial))) {
+      typed_memcpy(dest->vk.ial.color_map, src->vk.ial.color_map, MAX_RTS);
+      dest->vk.ial.depth_att = src->vk.ial.depth_att;
+      dest->vk.ial.stencil_att = src->vk.ial.stencil_att;
+      dest_mask |= RADV_DYNAMIC_INPUT_ATTACHMENT_MAP;
+   }
+
 #define RADV_CMP_COPY(field, flag)                                                                                     \
    if (copy_mask & flag) {                                                                                             \
       if (dest->field != src->field) {                                                                                 \
@@ -9162,6 +9169,40 @@ radv_CmdSetRenderingAttachmentLocationsKHR(VkCommandBuffer commandBuffer,
    }
 
    state->dirty_dynamic |= RADV_DYNAMIC_COLOR_ATTACHMENT_MAP;
+}
+
+VKAPI_ATTR void VKAPI_CALL
+radv_CmdSetRenderingInputAttachmentIndicesKHR(VkCommandBuffer commandBuffer,
+                                              const VkRenderingInputAttachmentIndexInfoKHR *pLocationInfo)
+{
+   VK_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+   struct radv_cmd_state *state = &cmd_buffer->state;
+
+   assume(pLocationInfo->colorAttachmentCount <= MESA_VK_MAX_COLOR_ATTACHMENTS);
+   for (uint32_t i = 0; i < pLocationInfo->colorAttachmentCount; i++) {
+      uint8_t val;
+
+      if (!pLocationInfo->pColorAttachmentInputIndices) {
+         val = i;
+      } else if (pLocationInfo->pColorAttachmentInputIndices[i] == VK_ATTACHMENT_UNUSED) {
+         val = MESA_VK_ATTACHMENT_UNUSED;
+      } else {
+         val = pLocationInfo->pColorAttachmentInputIndices[i];
+      }
+
+      state->dynamic.vk.ial.color_map[i] = val;
+   }
+
+   state->dynamic.vk.ial.depth_att = (pLocationInfo->pDepthInputAttachmentIndex == NULL ||
+                                      *pLocationInfo->pDepthInputAttachmentIndex == VK_ATTACHMENT_UNUSED)
+                                        ? MESA_VK_ATTACHMENT_UNUSED
+                                        : *pLocationInfo->pDepthInputAttachmentIndex;
+   state->dynamic.vk.ial.stencil_att = (pLocationInfo->pStencilInputAttachmentIndex == NULL ||
+                                        *pLocationInfo->pStencilInputAttachmentIndex == VK_ATTACHMENT_UNUSED)
+                                          ? MESA_VK_ATTACHMENT_UNUSED
+                                          : *pLocationInfo->pStencilInputAttachmentIndex;
+
+   state->dirty_dynamic |= RADV_DYNAMIC_INPUT_ATTACHMENT_MAP;
 }
 
 VKAPI_ATTR void VKAPI_CALL

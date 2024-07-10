@@ -1011,7 +1011,11 @@ radv_pipeline_init_dynamic_state(const struct radv_device *device, struct radv_g
 
    for (uint32_t i = 0; i < MAX_RTS; i++) {
       dynamic->vk.cal.color_map[i] = state->cal ? state->cal->color_map[i] : i;
+      dynamic->vk.ial.color_map[i] = state->ial ? state->ial->color_map[i] : i;
    }
+
+   dynamic->vk.ial.depth_att = state->ial ? state->ial->depth_att : MESA_VK_ATTACHMENT_UNUSED;
+   dynamic->vk.ial.stencil_att = state->ial ? state->ial->stencil_att : MESA_VK_ATTACHMENT_UNUSED;
 
    pipeline->dynamic_state.mask = states;
 }
