@@ -366,9 +366,6 @@ check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, uint64_t modifier)
       }
 
       ret = VKSCR(GetPhysicalDeviceImageFormatProperties2)(screen->pdev, &info, &props2);
-      /* this is using VK_IMAGE_CREATE_EXTENDED_USAGE_BIT and can't be validated */
-      if (vk_format_aspects(ici->format) & VK_IMAGE_ASPECT_PLANE_1_BIT)
-         ret = VK_SUCCESS;
       image_props = props2.imageFormatProperties;
       if (screen->info.have_EXT_host_image_copy && ici->usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT)
          optimalDeviceAccess = hic.optimalDeviceAccess;
@@ -688,9 +685,7 @@ init_ici(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe_r
 {
    ici->sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
    /* pNext may already be set */
-   if (util_format_get_num_planes(templ->format) > 1)
-      ici->flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT | VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
-   else if (bind & ZINK_BIND_MUTABLE)
+   if (bind & ZINK_BIND_MUTABLE)
       ici->flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
    else
       ici->flags = 0;
@@ -1269,6 +1264,7 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
                           alloc_info->whandle->modifier != DRM_FORMAT_MOD_INVALID;
    uint64_t *ici_modifiers = winsys_modifier ? &alloc_info->whandle->modifier : modifiers;
    unsigned ici_modifier_count = winsys_modifier ? 1 : modifiers_count;
+   unsigned num_planes = util_format_get_num_planes(templ->format);
    VkImageCreateInfo ici;
    enum pipe_format srgb = PIPE_FORMAT_NONE;
    /* we often need to be able to mutate between srgb and linear, but we don't need general
@@ -1280,21 +1276,23 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
       if (srgb == templ->format)
          srgb = PIPE_FORMAT_NONE;
    }
-   VkFormat formats[2];
+   VkFormat formats[4] = {VK_FORMAT_UNDEFINED};
    VkImageFormatListCreateInfo format_list;
    if (srgb) {
       formats[0] = zink_get_format(screen, templ->format);
       formats[1] = zink_get_format(screen, srgb);
-      /* only use format list if both formats have supported vk equivalents */
-      if (formats[0] && formats[1]) {
-         format_list.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO;
-         format_list.pNext = NULL;
-         format_list.viewFormatCount = 2;
-         format_list.pViewFormats = formats;
-         ici.pNext = &format_list;
-      } else {
-         ici.pNext = NULL;
-      }
+   } else if (templ->bind & ZINK_BIND_VIDEO) {
+      formats[0] = zink_get_format(screen, templ->format);
+      for (unsigned i = 0; i < num_planes; i++)
+         formats[i + 1] = zink_get_format(screen, util_format_get_plane_format(templ->format, i));
+   }
+   /* only use format list if multiple formats have supported vk equivalents */
+   if (formats[0] && formats[1]) {
+      format_list.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO;
+      format_list.pNext = NULL;
+      format_list.viewFormatCount = formats[2] ? 3 : 2;
+      format_list.pViewFormats = formats;
+      ici.pNext = &format_list;
    } else {
       ici.pNext = NULL;
    }
@@ -1444,7 +1442,6 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
       assert(num_dmabuf_planes <= 4);
    }
 
-   unsigned num_planes = util_format_get_num_planes(templ->format);
    alloc_info->need_dedicated = get_image_memory_requirement(screen, obj, num_planes, &reqs);
    if (templ->usage == PIPE_USAGE_STAGING && ici.tiling == VK_IMAGE_TILING_LINEAR)
       alloc_info->flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
