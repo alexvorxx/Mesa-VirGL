@@ -557,6 +557,8 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
          }
          VkFormatFeatureFlags feats = find_modifier_feats(prop, modifiers[i], mod);
          if (feats) {
+            if (feats & VK_FORMAT_FEATURE_DISJOINT_BIT && util_format_get_num_planes(templ->format))
+               ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
             VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
             assert(!need_extended);
             if (double_check_ici(screen, ici, usage, mod)) {
@@ -578,6 +580,8 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
       if (have_linear) {
          VkFormatFeatureFlags feats = find_modifier_feats(prop, DRM_FORMAT_MOD_LINEAR, mod);
          if (feats) {
+            if (feats & VK_FORMAT_FEATURE_DISJOINT_BIT && util_format_get_num_planes(templ->format))
+               ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
             VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
             assert(!need_extended);
             if (double_check_ici(screen, ici, usage, mod))
@@ -587,6 +591,8 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
    } else {
       struct zink_format_props props = screen->format_props[templ->format];
       VkFormatFeatureFlags2 feats = tiling == VK_IMAGE_TILING_LINEAR ? props.linearTilingFeatures : props.optimalTilingFeatures;
+      if (feats & VK_FORMAT_FEATURE_2_DISJOINT_BIT && util_format_get_num_planes(templ->format))
+         ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
       if (ici->flags & VK_IMAGE_CREATE_EXTENDED_USAGE_BIT)
          feats = UINT32_MAX;
       VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
@@ -1408,7 +1414,11 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
    }
 #endif
 
-   obj->vkfeats = get_format_feature_flags(ici, screen, templ);;
+   if (!(templ->bind & ZINK_BIND_VIDEO)) {
+      obj->vkfeats = get_format_feature_flags(ici, screen, templ);
+      if (obj->vkfeats & VK_FORMAT_FEATURE_DISJOINT_BIT)
+         ici.flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
+   }
    if (util_format_is_yuv(templ->format)) {
       if (!create_sampler_conversion(ici, screen, obj))
          return roc_fail_and_free_object;
@@ -1456,7 +1466,7 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
    if (retval != roc_success)
       return retval;
 
-   if (num_planes > 1) {
+   if (ici.flags & VK_IMAGE_CREATE_DISJOINT_BIT) {
       VkBindImageMemoryInfo infos[3];
       VkBindImagePlaneMemoryInfo planes[3];
       for (unsigned i = 0; i < num_planes; i++) {
