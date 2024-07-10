@@ -760,9 +760,12 @@ init_ici(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe_r
    ici->mipLevels = templ->last_level + 1;
    ici->arrayLayers = MAX2(templ->array_size, 1);
    ici->samples = templ->nr_samples ? templ->nr_samples : VK_SAMPLE_COUNT_1_BIT;
-   ici->tiling = screen->info.have_EXT_image_drm_format_modifier && modifiers_count ?
-                 VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT :
-                 bind & (PIPE_BIND_LINEAR | ZINK_BIND_DMABUF) ? VK_IMAGE_TILING_LINEAR : VK_IMAGE_TILING_OPTIMAL;
+   if (screen->info.have_EXT_image_drm_format_modifier && modifiers_count)
+      ici->tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
+   else if (bind & (PIPE_BIND_LINEAR | ZINK_BIND_DMABUF))
+      ici->tiling = VK_IMAGE_TILING_LINEAR;
+   else
+      ici->tiling = VK_IMAGE_TILING_OPTIMAL;
    /* XXX: does this have perf implications anywhere? hopefully not */
    if (ici->samples == VK_SAMPLE_COUNT_1_BIT &&
       screen->info.have_EXT_multisampled_render_to_single_sampled &&
