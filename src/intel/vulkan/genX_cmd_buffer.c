@@ -823,6 +823,7 @@ genX(cmd_buffer_mark_image_written)(struct anv_cmd_buffer *cmd_buffer,
                                     uint32_t base_layer,
                                     uint32_t layer_count)
 {
+#if GFX_VER < 20
    /* The aspect must be exactly one of the image aspects. */
    assert(util_bitcount(aspect) == 1 && (aspect & image->vk.aspects));
 
@@ -836,6 +837,7 @@ genX(cmd_buffer_mark_image_written)(struct anv_cmd_buffer *cmd_buffer,
 
    set_image_compressed_bit(cmd_buffer, image, aspect,
                             level, base_layer, layer_count, true);
+#endif
 }
 
 static void
@@ -3948,8 +3950,6 @@ cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
       return;
    }
 
-   struct anv_device *device = cmd_buffer->device;
-
    /* XXX: Right now, we're really dumb and just flush whatever categories
     * the app asks for. One of these days we may make this a bit better but
     * right now that's all the hardware allows for in most areas.
@@ -3959,6 +3959,7 @@ cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
 
 #if GFX_VER < 20
    bool apply_sparse_flushes = false;
+   struct anv_device *device = cmd_buffer->device;
 #endif
    bool flush_query_copies = false;
 
@@ -4096,7 +4097,7 @@ cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
                                        false /* will_full_fast_clear */);
             }
          }
-
+#if GFX_VER < 20
          /* Mark image as compressed if the destination layout has untracked
           * writes to the aux surface.
           */
@@ -4128,7 +4129,6 @@ cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
             }
          }
 
-#if GFX_VER < 20
          if (anv_image_is_sparse(image) && mask_is_write(src_flags))
             apply_sparse_flushes = true;
 #endif
@@ -5354,6 +5354,7 @@ cmd_buffer_mark_attachment_written(struct anv_cmd_buffer *cmd_buffer,
                                    struct anv_attachment *att,
                                    VkImageAspectFlagBits aspect)
 {
+#if GFX_VER < 20
    struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
    const struct anv_image_view *iview = att->iview;
 
@@ -5379,6 +5380,7 @@ cmd_buffer_mark_attachment_written(struct anv_cmd_buffer *cmd_buffer,
                                              level, layer, 1);
       }
    }
+#endif
 }
 
 void genX(CmdEndRendering)(
