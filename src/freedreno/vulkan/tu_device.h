@@ -235,6 +235,8 @@ struct tu6_global
 
    alignas(16) uint32_t cs_indirect_xyz[12];
 
+   uint32_t vsc_state[32];
+
    volatile uint32_t vtx_stats_query_not_running;
 
    /* To know when renderpass stats for autotune are valid */
@@ -390,6 +392,8 @@ struct tu_device
    struct tu_cs_entry *perfcntrs_pass_cs_entries;
 
    struct tu_cs_entry cmdbuf_start_a725_quirk_entry;
+
+   struct tu_cs_entry bin_preamble_entry;
 
    struct util_dynarray dynamic_rendering_pending;
    VkCommandPool dynamic_rendering_pool;

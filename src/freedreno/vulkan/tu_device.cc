@@ -2503,6 +2503,10 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       }
    }
 
+   result = tu_init_bin_preamble(device);
+   if (result != VK_SUCCESS)
+      goto fail_bin_preamble;
+
    if (physical_device->info->a7xx.cmdbuf_start_a725_quirk) {
          result = tu_init_cmdbuf_start_a725_quirk(device);
          if (result != VK_SUCCESS)
@@ -2596,6 +2600,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
 
 fail_timeline_cond:
 fail_a725_workaround:
+fail_bin_preamble:
 fail_prepare_perfcntrs_pass_cs:
    free(device->perfcntrs_pass_cs_entries);
 fail_perfcntrs_pass_entries_alloc:

@@ -1430,6 +1430,76 @@ tu6_init_static_regs(struct tu_device *dev, struct tu_cs *cs)
    }
 }
 
+/* Set always-identical registers used specifically for GMEM */
+static void
+tu7_emit_tile_render_begin_regs(struct tu_cs *cs)
+{
+   tu_cs_emit_regs(cs,
+                  A7XX_RB_UNKNOWN_8812(0x0));
+   tu_cs_emit_regs(cs,
+                A7XX_RB_UNKNOWN_8E06(0x0));
+
+   tu_cs_emit_regs(cs, A7XX_GRAS_UNKNOWN_8007(0x0));
+
+   tu_cs_emit_regs(cs, A6XX_GRAS_UNKNOWN_8110(0x2));
+   tu_cs_emit_regs(cs, A7XX_RB_UNKNOWN_8E09(0x4));
+
+   tu_cs_emit_regs(cs, A7XX_RB_BLIT_CLEAR_MODE(.clear_mode = CLEAR_MODE_GMEM));
+}
+
+/* Emit the bin restore preamble, which runs in between bins when L1
+ * preemption with skipsaverestore happens and we switch back to this context.
+ * We need to restore static registers normally programmed at cmdbuf start
+ * which weren't saved, and we need to program the CCU state which is normally
+ * programmed before rendering the bins and isn't saved/restored by the CP
+ * because it is always the same for GMEM render passes.
+ */
+template <chip CHIP>
+static void
+tu_emit_bin_preamble(struct tu_device *dev, struct tu_cs *cs)
+{
+   struct tu_physical_device *phys_dev = dev->physical_device;
+
+   tu6_init_static_regs<CHIP>(dev, cs);
+   emit_rb_ccu_cntl<CHIP>(cs, dev, true);
+
+   if (CHIP == A6XX) {
+      tu_cs_emit_regs(cs,
+                     A6XX_PC_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
+
+      tu_cs_emit_regs(cs,
+                     A6XX_VFD_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
+   }
+
+   if (CHIP == A7XX) {
+      tu7_emit_tile_render_begin_regs(cs);
+   }
+
+   /* TODO use CP_MEM_TO_SCRATCH_MEM on a7xx. The VSC scratch mem should be
+    * automatically saved, unlike GPU registers, so we wouldn't have to
+    * manually restore this state.
+    */
+   tu_cs_emit_pkt7(cs, CP_MEM_TO_REG, 3);
+   tu_cs_emit(cs, CP_MEM_TO_REG_0_REG(REG_A6XX_VSC_STATE(0)) |
+                  CP_MEM_TO_REG_0_CNT(32));
+   tu_cs_emit_qw(cs, dev->global_bo->iova + gb_offset(vsc_state));
+}
+
+VkResult
+tu_init_bin_preamble(struct tu_device *device)
+{
+   struct tu_cs preamble_cs;
+   VkResult result = tu_cs_begin_sub_stream(&device->sub_cs, 256, &preamble_cs);
+   if (result != VK_SUCCESS)
+      return vk_startup_errorf(device->instance, result, "bin restore");
+
+   TU_CALLX(device, tu_emit_bin_preamble)(device, &preamble_cs);
+
+   device->bin_preamble_entry = tu_cs_end_sub_stream(&device->sub_cs, &preamble_cs);
+
+   return VK_SUCCESS;
+}
+
 template <chip CHIP>
 static void
 tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
@@ -1489,6 +1559,21 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
       tu_cs_emit(cs, RENDER_MODE_CP_COND_REG_EXEC_1_DWORDS(4));
       tu_cs_emit_ib(cs, &dev->cmdbuf_start_a725_quirk_entry);
    }
+
+   tu_cs_emit_pkt7(cs, CP_SET_AMBLE, 3);
+   tu_cs_emit_qw(cs, cmd->device->bin_preamble_entry.bo->iova +
+                     cmd->device->bin_preamble_entry.offset);
+   tu_cs_emit(cs, CP_SET_AMBLE_2_DWORDS(cmd->device->bin_preamble_entry.size /
+                                        sizeof(uint32_t)) |
+                  CP_SET_AMBLE_2_TYPE(BIN_PREAMBLE_AMBLE_TYPE));
+
+   tu_cs_emit_pkt7(cs, CP_SET_AMBLE, 3);
+   tu_cs_emit_qw(cs, 0);
+   tu_cs_emit(cs, CP_SET_AMBLE_2_TYPE(PREAMBLE_AMBLE_TYPE));
+
+   tu_cs_emit_pkt7(cs, CP_SET_AMBLE, 3);
+   tu_cs_emit_qw(cs, 0);
+   tu_cs_emit(cs, CP_SET_AMBLE_2_TYPE(POSTAMBLE_AMBLE_TYPE));
 
    tu_cs_sanity_check(cs);
 }
@@ -2013,17 +2098,7 @@ tu6_tile_render_begin(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
    tu_cs_emit(cs, 0x0);
 
    if (CHIP >= A7XX) {
-      tu_cs_emit_regs(cs,
-                     A7XX_RB_UNKNOWN_8812(0x0));
-      tu_cs_emit_regs(cs,
-                   A7XX_RB_UNKNOWN_8E06(0x0));
-
-      tu_cs_emit_regs(cs, A7XX_GRAS_UNKNOWN_8007(0x0));
-
-      tu_cs_emit_regs(cs, A6XX_GRAS_UNKNOWN_8110(0x2));
-      tu_cs_emit_regs(cs, A7XX_RB_UNKNOWN_8E09(0x4));
-
-      tu_cs_emit_regs(cs, A7XX_RB_BLIT_CLEAR_MODE(.clear_mode = CLEAR_MODE_GMEM));
+      tu7_emit_tile_render_begin_regs(cs);
    }
 
    tu_emit_cache_flush_ccu<CHIP>(cmd, cs, TU_CMD_CCU_GMEM);
@@ -2069,6 +2144,16 @@ tu6_tile_render_begin(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
          for (int i = 0; i < pipe_count; i++)
             tu_cs_emit(cs, ~0);
       }
+   }
+
+   if (tiling->binning_possible) {
+      /* Upload state regs to memory to be restored on skipsaverestore
+       * preemption.
+       */
+      tu_cs_emit_pkt7(cs, CP_REG_TO_MEM, 3);
+      tu_cs_emit(cs, CP_REG_TO_MEM_0_REG(REG_A6XX_VSC_STATE_REG(0)) |
+                     CP_REG_TO_MEM_0_CNT(32));
+      tu_cs_emit_qw(cs, global_iova(cmd, vsc_state));
    }
 
    tu_autotune_begin_renderpass<CHIP>(cmd, cs, autotune_result);

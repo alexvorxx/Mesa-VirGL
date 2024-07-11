@@ -771,4 +771,6 @@ _tu_create_fdm_bin_patchpoint(struct tu_cmd_buffer *cmd,
 #define tu_create_fdm_bin_patchpoint(cmd, cs, size, apply, state) \
    _tu_create_fdm_bin_patchpoint(cmd, cs, size, apply, &state, sizeof(state))
 
+VkResult tu_init_bin_preamble(struct tu_device *device);
+
 #endif /* TU_CMD_BUFFER_H */
