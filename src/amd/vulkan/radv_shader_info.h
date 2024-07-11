@@ -215,6 +215,7 @@ struct radv_shader_info {
       bool load_provoking_vtx;
       bool load_rasterization_prim;
       bool force_sample_iter_shading_rate;
+      bool uses_fbfetch_output;
    } ps;
    struct {
       bool uses_grid_size;

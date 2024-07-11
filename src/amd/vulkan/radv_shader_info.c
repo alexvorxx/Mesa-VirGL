@@ -875,6 +875,7 @@ gather_shader_info_fs(const struct radv_device *device, const nir_shader *nir,
    info->ps.post_depth_coverage = nir->info.fs.post_depth_coverage;
    info->ps.depth_layout = nir->info.fs.depth_layout;
    info->ps.uses_sample_shading = nir->info.fs.uses_sample_shading;
+   info->ps.uses_fbfetch_output = nir->info.fs.uses_fbfetch_output;
    info->ps.writes_memory = nir->info.writes_memory;
    info->ps.has_pcoord = nir->info.inputs_read & VARYING_BIT_PNTC;
    info->ps.prim_id_input = nir->info.inputs_read & VARYING_BIT_PRIMITIVE_ID;
