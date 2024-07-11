@@ -1591,6 +1591,7 @@ load_attachment(struct vk_command_buffer *cmd_buffer,
 
    VkRenderingInfo render = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+      .flags = VK_RENDERING_INPUT_ATTACHMENT_NO_CONCURRENT_WRITES_BIT_MESA,
       .renderArea = cmd_buffer->render_area,
       .layerCount = pass->is_multiview ? 1 : framebuffer->layers,
       .viewMask = pass->is_multiview ? view_mask : 0,
@@ -2112,6 +2113,7 @@ begin_subpass(struct vk_command_buffer *cmd_buffer,
 
    VkRenderingInfo rendering = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+      .flags = VK_RENDERING_INPUT_ATTACHMENT_NO_CONCURRENT_WRITES_BIT_MESA,
       .renderArea = cmd_buffer->render_area,
       .layerCount = pass->is_multiview ? 1 : framebuffer->layers,
       .viewMask = pass->is_multiview ? subpass->view_mask : 0,
@@ -2119,9 +2121,10 @@ begin_subpass(struct vk_command_buffer *cmd_buffer,
       .pColorAttachments = color_attachments,
       .pDepthAttachment = &depth_attachment,
       .pStencilAttachment = &stencil_attachment,
-      .flags = subpass->legacy_dithering_enabled ?
-         VK_RENDERING_ENABLE_LEGACY_DITHERING_BIT_EXT : 0,
    };
+
+   if (subpass->legacy_dithering_enabled)
+      rendering.flags |= VK_RENDERING_ENABLE_LEGACY_DITHERING_BIT_EXT;
 
    VkRenderingFragmentShadingRateAttachmentInfoKHR fsr_attachment;
    if (subpass->fragment_shading_rate_attachment) {
