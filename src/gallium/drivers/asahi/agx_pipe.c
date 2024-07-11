@@ -1557,6 +1557,15 @@ agx_flush(struct pipe_context *pctx, struct pipe_fence_handle **fence,
 
    agx_flush_all(ctx, "Gallium flush");
 
+   if (!(flags & (PIPE_FLUSH_DEFERRED | PIPE_FLUSH_ASYNC))) {
+      agx_sync_all(ctx, "Gallium sync flush");
+
+      if (fence)
+         *fence = NULL;
+
+      return;
+   }
+
    /* At this point all pending work has been submitted. Since jobs are
     * started and completed sequentially from a UAPI perspective, and since
     * we submit all jobs with compute+render barriers on the prior job,
