@@ -26,6 +26,7 @@
 #include "radv_shader_object.h"
 #include "radv_sqtt.h"
 
+#include "vk_render_pass.h"
 #include "vk_shader_module.h"
 
 #ifdef __cplusplus
