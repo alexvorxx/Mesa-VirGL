@@ -823,9 +823,11 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
           * wait on these using their syncobj.
           */
          uint64_t writer = p_atomic_read_relaxed(&bo->writer);
-         if (writer && agx_bo_writer_queue(writer) != ctx->queue_id) {
-            batch_debug(batch, "Waits on inter-context BO @ 0x%" PRIx64,
-                        bo->ptr.gpu);
+         uint32_t queue_id = agx_bo_writer_queue(writer);
+         if (writer && queue_id != ctx->queue_id) {
+            batch_debug(
+               batch, "Waits on inter-context BO @ 0x%" PRIx64 " from queue %u",
+               bo->ptr.gpu, queue_id);
 
             agx_add_sync(in_syncs, &in_sync_count,
                          agx_bo_writer_syncobj(writer));
@@ -956,6 +958,7 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
       /* But any BOs written by active batches are ours */
       assert(writer == batch && "exclusive writer");
       p_atomic_set(&bo->writer, agx_bo_writer(ctx->queue_id, batch->syncobj));
+      batch_debug(batch, "Writes to BO @ 0x%" PRIx64, bo->ptr.gpu);
    }
 
    free(in_syncs);
