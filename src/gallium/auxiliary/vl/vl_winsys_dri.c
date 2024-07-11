@@ -376,6 +376,20 @@ vl_dri2_format_for_depth(struct vl_screen *vscreen, int depth)
    }
 }
 
+xcb_screen_t *
+vl_dri_get_screen_for_root(xcb_connection_t *conn, xcb_window_t root)
+{
+   xcb_screen_iterator_t screen_iter =
+   xcb_setup_roots_iterator(xcb_get_setup(conn));
+
+   for (; screen_iter.rem; xcb_screen_next (&screen_iter)) {
+      if (screen_iter.data->root == root)
+         return screen_iter.data;
+   }
+
+   return NULL;
+}
+
 #ifdef HAVE_X11_DRI2
 struct vl_screen *
 vl_dri2_screen_create(Display *display, int screen)
