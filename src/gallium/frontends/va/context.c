@@ -124,6 +124,11 @@ VA_PUBLIC_API VAStatus
 VA_DRIVER_INIT_FUNC(VADriverContextP ctx)
 {
    vlVaDriver *drv;
+#if !defined(_WIN32) && defined(GALLIUM_ZINK)
+   /* TODO: this should work on Windows too */
+   const char *drivername = os_get_option_cached("LIBVA_DRIVER_NAME");
+   bool zink = drivername && !strcmp(drivername, "zink");
+#endif
 
    if (!ctx)
       return VA_STATUS_ERROR_INVALID_CONTEXT;
@@ -144,7 +149,12 @@ VA_DRIVER_INIT_FUNC(VADriverContextP ctx)
       return VA_STATUS_ERROR_UNIMPLEMENTED;
    case VA_DISPLAY_GLX:
    case VA_DISPLAY_X11:
-      drv->vscreen = vl_dri3_screen_create(ctx->native_dpy, ctx->x11_screen);
+#ifdef GALLIUM_ZINK
+      if (zink)
+         drv->vscreen = vl_kopper_screen_create(ctx->native_dpy, ctx->x11_screen);
+#endif
+      if (!drv->vscreen)
+         drv->vscreen = vl_dri3_screen_create(ctx->native_dpy, ctx->x11_screen);
 #ifdef HAVE_X11_DRI2
       if (!drv->vscreen)
          drv->vscreen = vl_dri2_screen_create(ctx->native_dpy, ctx->x11_screen);

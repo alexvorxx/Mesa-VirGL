@@ -447,6 +447,9 @@ if with_platform_x11
     files_libgalliumvlwinsys += files('vl/vl_winsys_dri3.c')
   endif
 endif
+if with_platform_x11 and with_gallium_zink
+  files_libgalliumvlwinsys += files('vl/vl_winsys_kopper.c')
+endif
 
 if with_glx == 'xlib'
   files_libgalliumvlwinsys += files('vl/vl_winsys_xlib_swrast.c')
@@ -574,5 +577,6 @@ libgalliumvlwinsys = static_library(
   files_libgalliumvlwinsys,
   include_directories : [inc_gallium, inc_include, inc_loader, inc_src],
   dependencies : [dep_libdrm, vlwinsys_deps, idep_mesautil],
+  link_with : [libloader_x11],
   build_by_default : false,
 )
