@@ -1300,7 +1300,6 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
             !dev->physical_device->info->a6xx.has_gmem_fast_clear,
          .concurrent_resolve = dev->physical_device->info->a6xx.concurrent_resolve,
       ));
-      tu_cs_emit_wfi(cs);
    }
 
    emit_rb_ccu_cntl<CHIP>(cs, cmd->device, false);
