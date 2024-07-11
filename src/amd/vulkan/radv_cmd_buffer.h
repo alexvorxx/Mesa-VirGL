@@ -93,7 +93,8 @@ enum radv_cmd_dirty_bits {
    RADV_CMD_DIRTY_STREAMOUT_ENABLE = 1ull << 10,
    RADV_CMD_DIRTY_GRAPHICS_SHADERS = 1ull << 11,
    RADV_CMD_DIRTY_COLOR_OUTPUT = 1ull << 12,
-   RADV_CMD_DIRTY_ALL = (1ull << 13) - 1,
+   RADV_CMD_DIRTY_FBFETCH_OUTPUT = 1ull << 13,
+   RADV_CMD_DIRTY_ALL = (1ull << 14) - 1,
 };
 
 enum radv_cmd_flush_bits {
@@ -184,6 +185,7 @@ struct radv_attachment {
 struct radv_rendering_state {
    bool active;
    bool has_image_views;
+   bool has_input_attachment_no_concurrent_writes;
    VkRect2D area;
    uint32_t layer_count;
    uint32_t view_mask;
@@ -447,6 +449,7 @@ struct radv_cmd_state {
    bool uses_vrs_coarse_shading;
    bool uses_dynamic_patch_control_points;
    bool uses_dynamic_vertex_binding_stride;
+   bool uses_fbfetch_output;
 };
 
 struct radv_enc_state {
