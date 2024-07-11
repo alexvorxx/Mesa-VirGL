@@ -65,6 +65,7 @@ static const struct debug_named_value agx_debug_options[] = {
    {"nomsaa",    AGX_DBG_NOMSAA,   "Force disable MSAA"},
    {"noshadow",  AGX_DBG_NOSHADOW, "Force disable resource shadowing"},
    {"scratch",   AGX_DBG_SCRATCH,  "Debug scratch memory usage"},
+   {"1queue",    AGX_DBG_1QUEUE,   "Force usage of a single queue for multiple contexts"},
    DEBUG_NAMED_VALUE_END
 };
 /* clang-format on */
@@ -612,6 +613,16 @@ uint32_t
 agx_create_command_queue(struct agx_device *dev, uint32_t caps,
                          uint32_t priority)
 {
+
+   if (dev->debug & AGX_DBG_1QUEUE) {
+      // Abuse this lock for this, it's debug only anyway
+      simple_mtx_lock(&dev->vma_lock);
+      if (dev->queue_id) {
+         simple_mtx_unlock(&dev->vma_lock);
+         return dev->queue_id;
+      }
+   }
+
    struct drm_asahi_queue_create queue_create = {
       .vm_id = dev->vm_id,
       .queue_caps = caps,
@@ -626,12 +637,20 @@ agx_create_command_queue(struct agx_device *dev, uint32_t caps,
       assert(0);
    }
 
+   if (dev->debug & AGX_DBG_1QUEUE) {
+      dev->queue_id = queue_create.queue_id;
+      simple_mtx_unlock(&dev->vma_lock);
+   }
+
    return queue_create.queue_id;
 }
 
 int
 agx_destroy_command_queue(struct agx_device *dev, uint32_t queue_id)
 {
+   if (dev->debug & AGX_DBG_1QUEUE)
+      return 0;
+
    struct drm_asahi_queue_destroy queue_destroy = {
       .queue_id = queue_id,
    };
