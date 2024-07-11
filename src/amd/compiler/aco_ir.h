@@ -1891,6 +1891,15 @@ struct Block {
    uint32_t kind = 0;
    int32_t logical_idom = -1;
    int32_t linear_idom = -1;
+
+   /* Preorder and postorder traversal indices of the dominance tree. Because a program can have
+    * several dominance trees (because of block_kind_resume), these start at the block index of the
+    * root node. */
+   uint32_t logical_dom_pre_index = 0;
+   uint32_t logical_dom_post_index = 0;
+   uint32_t linear_dom_pre_index = 0;
+   uint32_t linear_dom_post_index = 0;
+
    uint16_t loop_nest_depth = 0;
    uint16_t divergent_if_logical_depth = 0;
    uint16_t uniform_if_depth = 0;
@@ -2244,6 +2253,20 @@ uint16_t get_addr_sgpr_from_waves(Program* program, uint16_t max_waves);
 uint16_t get_addr_vgpr_from_waves(Program* program, uint16_t max_waves);
 
 bool uses_scratch(Program* program);
+
+inline bool
+dominates_logical(const Block& parent, const Block& child)
+{
+   return child.logical_dom_pre_index >= parent.logical_dom_pre_index &&
+          child.logical_dom_post_index <= parent.logical_dom_post_index;
+}
+
+inline bool
+dominates_linear(const Block& parent, const Block& child)
+{
+   return child.linear_dom_pre_index >= parent.linear_dom_pre_index &&
+          child.linear_dom_post_index <= parent.linear_dom_post_index;
+}
 
 typedef struct {
    const int16_t opcode_gfx7[static_cast<int>(aco_opcode::num_opcodes)];
