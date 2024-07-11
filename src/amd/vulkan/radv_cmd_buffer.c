@@ -12418,9 +12418,6 @@ radv_handle_depth_image_transition(struct radv_cmd_buffer *cmd_buffer, struct ra
 
    if (src_layout == VK_IMAGE_LAYOUT_UNDEFINED) {
       radv_initialize_htile(cmd_buffer, image, range);
-   } else if (!radv_layout_is_htile_compressed(device, image, src_layout, src_queue_mask) &&
-              radv_layout_is_htile_compressed(device, image, dst_layout, dst_queue_mask)) {
-      radv_initialize_htile(cmd_buffer, image, range);
    } else if (radv_layout_is_htile_compressed(device, image, src_layout, src_queue_mask) &&
               !radv_layout_is_htile_compressed(device, image, dst_layout, dst_queue_mask)) {
       cmd_buffer->state.flush_bits |= RADV_CMD_FLAG_FLUSH_AND_INV_DB | RADV_CMD_FLAG_FLUSH_AND_INV_DB_META;
