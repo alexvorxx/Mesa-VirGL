@@ -146,14 +146,12 @@ inline bool
 dominates(cssa_ctx& ctx, Temp a, Temp b)
 {
    assert(defined_after(ctx, b, a));
-   merge_node& node_a = ctx.merge_node_table[a.id()];
-   merge_node& node_b = ctx.merge_node_table[b.id()];
-   unsigned idom = node_b.defined_at;
-   while (idom > node_a.defined_at)
-      idom = b.regClass().type() == RegType::vgpr ? ctx.program->blocks[idom].logical_idom
-                                                  : ctx.program->blocks[idom].linear_idom;
-
-   return idom == node_a.defined_at;
+   Block& parent = ctx.program->blocks[ctx.merge_node_table[a.id()].defined_at];
+   Block& child = ctx.program->blocks[ctx.merge_node_table[b.id()].defined_at];
+   if (b.regClass().type() == RegType::vgpr)
+      return dominates_logical(parent, child);
+   else
+      return dominates_linear(parent, child);
 }
 
 /* Checks whether some variable is live-out, not considering any phi-uses. */
