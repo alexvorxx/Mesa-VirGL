@@ -1246,47 +1246,9 @@ tu_disable_draw_states(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
 
 template <chip CHIP>
 static void
-tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
+tu6_init_static_regs(struct tu_device *dev, struct tu_cs *cs)
 {
-   struct tu_device *dev = cmd->device;
    const struct tu_physical_device *phys_dev = dev->physical_device;
-
-   if (CHIP == A6XX) {
-      tu_emit_event_write<CHIP>(cmd, cs, FD_CACHE_INVALIDATE);
-   } else {
-      tu_cs_emit_pkt7(cs, CP_THREAD_CONTROL, 1);
-      tu_cs_emit(cs, CP_THREAD_CONTROL_0_THREAD(CP_SET_THREAD_BR) |
-                     CP_THREAD_CONTROL_0_CONCURRENT_BIN_DISABLE);
-
-      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_INVALIDATE_COLOR);
-      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_INVALIDATE_DEPTH);
-      tu_emit_raw_event_write<CHIP>(cmd, cs, UNK_40, false);
-      tu_emit_event_write<CHIP>(cmd, cs, FD_CACHE_INVALIDATE);
-      tu_cs_emit_wfi(cs);
-   }
-
-   tu_cs_emit_regs(cs, HLSQ_INVALIDATE_CMD(CHIP,
-         .vs_state = true,
-         .hs_state = true,
-         .ds_state = true,
-         .gs_state = true,
-         .fs_state = true,
-         .cs_state = true,
-         .cs_ibo = true,
-         .gfx_ibo = true,
-         .cs_shared_const = true,
-         .gfx_shared_const = true,
-         .cs_bindless = CHIP == A6XX ? 0x1f : 0xff,
-         .gfx_bindless = CHIP == A6XX ? 0x1f : 0xff,));
-
-   tu_cs_emit_wfi(cs);
-
-   if (dev->dbg_cmdbuf_stomp_cs) {
-      tu_cs_emit_call(cs, dev->dbg_cmdbuf_stomp_cs);
-   }
-
-   cmd->state.cache.pending_flush_bits &=
-      ~(TU_CMD_FLAG_WAIT_FOR_IDLE | TU_CMD_FLAG_CACHE_INVALIDATE);
 
    if (CHIP >= A7XX) {
       /* On A7XX, RB_CCU_CNTL was broken into two registers, RB_CCU_CNTL which has
@@ -1301,9 +1263,6 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
          .concurrent_resolve = dev->physical_device->info->a6xx.concurrent_resolve,
       ));
    }
-
-   emit_rb_ccu_cntl<CHIP>(cs, cmd->device, false);
-   cmd->state.ccu_state = TU_CMD_CCU_SYSMEM;
 
    for (size_t i = 0; i < ARRAY_SIZE(phys_dev->info->a6xx.magic_raw); i++) {
       auto magic_reg = phys_dev->info->a6xx.magic_raw[i];
@@ -1410,8 +1369,6 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
 
    tu_cs_emit_regs(cs, A6XX_RB_ALPHA_CONTROL()); /* always disable alpha test */
 
-   tu_disable_draw_states(cmd, cs);
-
    tu_cs_emit_regs(cs,
                    A6XX_SP_TP_BORDER_COLOR_BASE_ADDR(.bo = dev->global_bo,
                                                      .bo_offset = gb_offset(bcolor_builtin)));
@@ -1425,15 +1382,6 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
                       TPL1_BICUBIC_WEIGHTS_TABLE_2(CHIP, 0x3fa0ebee),
                       TPL1_BICUBIC_WEIGHTS_TABLE_3(CHIP, 0x3f5193ed),
                       TPL1_BICUBIC_WEIGHTS_TABLE_4(CHIP, 0x3f0243f0), );
-   }
-
-   if (phys_dev->info->a7xx.cmdbuf_start_a725_quirk) {
-      tu_cs_reserve(cs, 3 + 4);
-      tu_cs_emit_pkt7(cs, CP_COND_REG_EXEC, 2);
-      tu_cs_emit(cs, CP_COND_REG_EXEC_0_MODE(THREAD_MODE) |
-                     CP_COND_REG_EXEC_0_BR | CP_COND_REG_EXEC_0_LPAC);
-      tu_cs_emit(cs, RENDER_MODE_CP_COND_REG_EXEC_1_DWORDS(4));
-      tu_cs_emit_ib(cs, dev->cmdbuf_start_a725_quirk_entry);
    }
 
    if (CHIP >= A7XX) {
@@ -1463,6 +1411,67 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
     */
    if (phys_dev->info->a6xx.has_early_preamble) {
       tu_cs_emit_regs(cs, A6XX_SP_FS_CTRL_REG0());
+   }
+}
+
+template <chip CHIP>
+static void
+tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
+{
+   struct tu_device *dev = cmd->device;
+   const struct tu_physical_device *phys_dev = dev->physical_device;
+
+   if (CHIP == A6XX) {
+      tu_emit_event_write<CHIP>(cmd, cs, FD_CACHE_INVALIDATE);
+   } else {
+      tu_cs_emit_pkt7(cs, CP_THREAD_CONTROL, 1);
+      tu_cs_emit(cs, CP_THREAD_CONTROL_0_THREAD(CP_SET_THREAD_BR) |
+                     CP_THREAD_CONTROL_0_CONCURRENT_BIN_DISABLE);
+
+      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_INVALIDATE_COLOR);
+      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_INVALIDATE_DEPTH);
+      tu_emit_raw_event_write<CHIP>(cmd, cs, UNK_40, false);
+      tu_emit_event_write<CHIP>(cmd, cs, FD_CACHE_INVALIDATE);
+      tu_cs_emit_wfi(cs);
+   }
+
+   tu_cs_emit_regs(cs, HLSQ_INVALIDATE_CMD(CHIP,
+         .vs_state = true,
+         .hs_state = true,
+         .ds_state = true,
+         .gs_state = true,
+         .fs_state = true,
+         .cs_state = true,
+         .cs_ibo = true,
+         .gfx_ibo = true,
+         .cs_shared_const = true,
+         .gfx_shared_const = true,
+         .cs_bindless = CHIP == A6XX ? 0x1f : 0xff,
+         .gfx_bindless = CHIP == A6XX ? 0x1f : 0xff,));
+
+   tu_cs_emit_wfi(cs);
+
+   if (dev->dbg_cmdbuf_stomp_cs) {
+      tu_cs_emit_call(cs, dev->dbg_cmdbuf_stomp_cs);
+   }
+
+   cmd->state.cache.pending_flush_bits &=
+      ~(TU_CMD_FLAG_WAIT_FOR_IDLE | TU_CMD_FLAG_CACHE_INVALIDATE);
+
+   tu6_init_static_regs<CHIP>(cmd->device, cs);
+
+   emit_rb_ccu_cntl<CHIP>(cs, cmd->device, false);
+   cmd->state.ccu_state = TU_CMD_CCU_SYSMEM;
+
+   tu_disable_draw_states(cmd, cs);
+
+   if (phys_dev->info->a7xx.cmdbuf_start_a725_quirk) {
+      tu_cs_reserve(cs, 3 + 4);
+      tu_cs_emit_pkt7(cs, CP_COND_REG_EXEC, 2);
+      tu_cs_emit(cs, CP_COND_REG_EXEC_0_MODE(THREAD_MODE) |
+                     CP_COND_REG_EXEC_0_BR | CP_COND_REG_EXEC_0_LPAC);
+      tu_cs_emit(cs, RENDER_MODE_CP_COND_REG_EXEC_1_DWORDS(4));
+      tu_cs_emit_ib(cs, dev->cmdbuf_start_a725_quirk_entry);
    }
 
    tu_cs_sanity_check(cs);
