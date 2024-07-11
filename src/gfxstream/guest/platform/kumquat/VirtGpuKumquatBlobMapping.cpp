@@ -15,11 +15,18 @@
  */
 
 #include "VirtGpuKumquat.h"
+#include "cutils/log.h"
 
-VirtGpuKumquatResourceMapping::VirtGpuKumquatResourceMapping(VirtGpuResourcePtr blob, uint8_t* ptr,
-                                                             uint64_t size)
-    : mBlob(blob), mPtr(ptr), mSize(size) {}
+VirtGpuKumquatResourceMapping::VirtGpuKumquatResourceMapping(VirtGpuResourcePtr blob,
+                                                             struct virtgpu_kumquat* virtGpu,
+                                                             uint8_t* ptr, uint64_t size)
+    : mBlob(blob), mVirtGpu(virtGpu), mPtr(ptr), mSize(size) {}
 
-VirtGpuKumquatResourceMapping::~VirtGpuKumquatResourceMapping(void) { return; }
+VirtGpuKumquatResourceMapping::~VirtGpuKumquatResourceMapping(void) {
+    int32_t ret = virtgpu_kumquat_resource_unmap(mVirtGpu, mBlob->getBlobHandle());
+    if (ret) {
+        ALOGE("failed to unmap buffer");
+    }
+}
 
 uint8_t* VirtGpuKumquatResourceMapping::asRawPtr(void) { return mPtr; }

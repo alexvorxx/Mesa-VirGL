@@ -57,8 +57,8 @@ VirtGpuResourceMappingPtr VirtGpuKumquatResource::createMapping() {
         return nullptr;
     }
 
-    return std::make_shared<VirtGpuKumquatResourceMapping>(shared_from_this(), (uint8_t*)map.ptr,
-                                                           mSize);
+    return std::make_shared<VirtGpuKumquatResourceMapping>(shared_from_this(), mVirtGpu,
+                                                           (uint8_t*)map.ptr, mSize);
 }
 
 int VirtGpuKumquatResource::exportBlob(struct VirtGpuExternalHandle& handle) {
