@@ -23,7 +23,8 @@
    do {                                                                        \
       if (unlikely(agx_device(batch->ctx->base.screen)->debug &                \
                    AGX_DBG_BATCH))                                             \
-         agx_msg("[Batch %u] " fmt "\n", agx_batch_idx(batch), ##__VA_ARGS__); \
+         agx_msg("[Queue %u Batch %u] " fmt "\n", batch->ctx->queue_id,        \
+                 agx_batch_idx(batch), ##__VA_ARGS__);                         \
    } while (0)
 
 bool
