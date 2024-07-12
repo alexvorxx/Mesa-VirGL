@@ -122,6 +122,8 @@ HANDWRITTEN_ENTRY_POINTS = [
     "vkResetCommandPool",
     "vkFreeCommandBuffers",
     "vkResetCommandPool",
+    # Transform feedback
+    "vkCmdBeginTransformFeedbackEXT",
     # Special cases to handle struct translations in the pNext chain
     # TODO: Make a codegen module (use deepcopy as reference) to make this more robust
     "vkAllocateMemory",

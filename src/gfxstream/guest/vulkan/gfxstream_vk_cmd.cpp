@@ -186,3 +186,25 @@ void gfxstream_vk_FreeCommandBuffers(VkDevice device, VkCommandPool commandPool,
         vk_command_buffer_destroyOp(&gfxstream_commandBuffer->vk);
     }
 }
+
+void gfxstream_vk_CmdBeginTransformFeedbackEXT(VkCommandBuffer commandBuffer,
+                                               uint32_t firstCounterBuffer,
+                                               uint32_t counterBufferCount,
+                                               const VkBuffer* pCounterBuffers,
+                                               const VkDeviceSize* pCounterBufferOffsets) {
+    AEMU_SCOPED_TRACE("vkCmdBeginTransformFeedbackEXT");
+    VK_FROM_HANDLE(gfxstream_vk_command_buffer, gfxstream_commandBuffer, commandBuffer);
+    auto vkEnc = gfxstream::vk::ResourceTracker::getCommandBufferEncoder(
+        gfxstream_commandBuffer->internal_object);
+    std::vector<VkBuffer> internal_pCounterBuffers(counterBufferCount);
+    for (uint32_t i = 0; i < counterBufferCount; ++i) {
+        if (pCounterBuffers && pCounterBuffers[i]) {
+            VK_FROM_HANDLE(gfxstream_vk_buffer, gfxstream_pCounterBuffers, pCounterBuffers[i]);
+            internal_pCounterBuffers[i] = gfxstream_pCounterBuffers->internal_object;
+        }
+    }
+    vkEnc->vkCmdBeginTransformFeedbackEXT(gfxstream_commandBuffer->internal_object,
+                                          firstCounterBuffer, counterBufferCount,
+                                          pCounterBuffers ? internal_pCounterBuffers.data() : NULL,
+                                          pCounterBufferOffsets, true /* do lock */);
+}
