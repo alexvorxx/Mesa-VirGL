@@ -30,6 +30,60 @@ static const GLuint gl_prim_to_hw_prim[MESA_PRIM_TRIANGLE_STRIP_ADJACENCY+1] = {
    [MESA_PRIM_TRIANGLE_STRIP_ADJACENCY] = _3DPRIM_TRISTRIP_ADJ,
 };
 
+static void
+brw_emit_gs_thread_end(fs_visitor &s)
+{
+   assert(s.stage == MESA_SHADER_GEOMETRY);
+
+   struct brw_gs_prog_data *gs_prog_data = brw_gs_prog_data(s.prog_data);
+
+   if (s.gs_compile->control_data_header_size_bits > 0) {
+      s.emit_gs_control_data_bits(s.final_gs_vertex_count);
+   }
+
+   const fs_builder abld = fs_builder(&s).at_end().annotate("thread end");
+   fs_inst *inst;
+
+   if (gs_prog_data->static_vertex_count != -1) {
+      /* Try and tag the last URB write with EOT instead of emitting a whole
+       * separate write just to finish the thread.
+       */
+      if (s.mark_last_urb_write_with_eot())
+         return;
+
+      brw_reg srcs[URB_LOGICAL_NUM_SRCS];
+      srcs[URB_LOGICAL_SRC_HANDLE] = s.gs_payload().urb_handles;
+      srcs[URB_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(0);
+      inst = abld.emit(SHADER_OPCODE_URB_WRITE_LOGICAL, reg_undef,
+                       srcs, ARRAY_SIZE(srcs));
+   } else {
+      brw_reg srcs[URB_LOGICAL_NUM_SRCS];
+      srcs[URB_LOGICAL_SRC_HANDLE] = s.gs_payload().urb_handles;
+      srcs[URB_LOGICAL_SRC_DATA] = s.final_gs_vertex_count;
+      srcs[URB_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(1);
+      inst = abld.emit(SHADER_OPCODE_URB_WRITE_LOGICAL, reg_undef,
+                       srcs, ARRAY_SIZE(srcs));
+   }
+   inst->eot = true;
+   inst->offset = 0;
+}
+
+static void
+brw_assign_gs_urb_setup(fs_visitor &s)
+{
+   assert(s.stage == MESA_SHADER_GEOMETRY);
+
+   struct brw_vue_prog_data *vue_prog_data = brw_vue_prog_data(s.prog_data);
+
+   s.first_non_payload_grf +=
+      8 * vue_prog_data->urb_read_length * s.nir->info.gs.vertices_in;
+
+   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+      /* Rewrite all ATTR file references to GRFs. */
+      s.convert_attr_sources_to_hw_regs(inst);
+   }
+}
+
 static bool
 run_gs(fs_visitor &s)
 {
@@ -57,7 +111,7 @@ run_gs(fs_visitor &s)
 
    nir_to_brw(&s);
 
-   s.emit_gs_thread_end();
+   brw_emit_gs_thread_end(s);
 
    if (s.failed)
       return false;
@@ -67,7 +121,7 @@ run_gs(fs_visitor &s)
    brw_fs_optimize(s);
 
    s.assign_curb_setup();
-   s.assign_gs_urb_setup();
+   brw_assign_gs_urb_setup(s);
 
    brw_fs_lower_3src_null_dest(s);
    brw_fs_workaround_memory_fence_before_eot(s);

@@ -1117,44 +1117,6 @@ fs_visitor::mark_last_urb_write_with_eot()
    return false;
 }
 
-void
-fs_visitor::emit_gs_thread_end()
-{
-   assert(stage == MESA_SHADER_GEOMETRY);
-
-   struct brw_gs_prog_data *gs_prog_data = brw_gs_prog_data(prog_data);
-
-   if (gs_compile->control_data_header_size_bits > 0) {
-      emit_gs_control_data_bits(this->final_gs_vertex_count);
-   }
-
-   const fs_builder abld = fs_builder(this).at_end().annotate("thread end");
-   fs_inst *inst;
-
-   if (gs_prog_data->static_vertex_count != -1) {
-      /* Try and tag the last URB write with EOT instead of emitting a whole
-       * separate write just to finish the thread.
-       */
-      if (mark_last_urb_write_with_eot())
-         return;
-
-      brw_reg srcs[URB_LOGICAL_NUM_SRCS];
-      srcs[URB_LOGICAL_SRC_HANDLE] = gs_payload().urb_handles;
-      srcs[URB_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(0);
-      inst = abld.emit(SHADER_OPCODE_URB_WRITE_LOGICAL, reg_undef,
-                       srcs, ARRAY_SIZE(srcs));
-   } else {
-      brw_reg srcs[URB_LOGICAL_NUM_SRCS];
-      srcs[URB_LOGICAL_SRC_HANDLE] = gs_payload().urb_handles;
-      srcs[URB_LOGICAL_SRC_DATA] = this->final_gs_vertex_count;
-      srcs[URB_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(1);
-      inst = abld.emit(SHADER_OPCODE_URB_WRITE_LOGICAL, reg_undef,
-                       srcs, ARRAY_SIZE(srcs));
-   }
-   inst->eot = true;
-   inst->offset = 0;
-}
-
 static unsigned
 round_components_to_whole_registers(const intel_device_info *devinfo,
                                     unsigned c)
@@ -1417,22 +1379,6 @@ fs_visitor::assign_tes_urb_setup()
 
    /* Rewrite all ATTR file references to HW_REGs. */
    foreach_block_and_inst(block, fs_inst, inst, cfg) {
-      convert_attr_sources_to_hw_regs(inst);
-   }
-}
-
-void
-fs_visitor::assign_gs_urb_setup()
-{
-   assert(stage == MESA_SHADER_GEOMETRY);
-
-   struct brw_vue_prog_data *vue_prog_data = brw_vue_prog_data(prog_data);
-
-   first_non_payload_grf +=
-      8 * vue_prog_data->urb_read_length * nir->info.gs.vertices_in;
-
-   foreach_block_and_inst(block, fs_inst, inst, cfg) {
-      /* Rewrite all ATTR file references to GRFs. */
       convert_attr_sources_to_hw_regs(inst);
    }
 }

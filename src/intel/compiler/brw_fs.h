@@ -307,7 +307,6 @@ public:
    void convert_attr_sources_to_hw_regs(fs_inst *inst);
    void assign_tcs_urb_setup();
    void assign_tes_urb_setup();
-   void assign_gs_urb_setup();
    bool assign_regs(bool allow_spilling, bool spill_all);
    void assign_regs_trivial();
    void calculate_payload_ranges(unsigned payload_node_count,
@@ -332,7 +331,6 @@ public:
    void emit_gs_control_data_bits(const brw_reg &vertex_count);
    brw_reg gs_urb_channel_mask(const brw_reg &dword_index);
    brw_reg gs_urb_per_slot_dword_index(const brw_reg &vertex_count);
-   void emit_gs_thread_end();
    bool mark_last_urb_write_with_eot();
    void emit_tcs_thread_end();
    void emit_urb_fence();
