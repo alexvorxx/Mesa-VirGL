@@ -10615,9 +10615,12 @@ begin_divergent_if_then(isel_context* ctx, if_context* ic, Temp cond,
    branch.reset(create_instruction(aco_opcode::p_cbranch_z, Format::PSEUDO_BRANCH, 1, 1));
    branch->definitions[0] = Definition(ctx->program->allocateTmp(s2));
    branch->operands[0] = Operand(cond);
-   branch->branch().selection_control_remove =
-      sel_ctrl == nir_selection_control_flatten ||
-      sel_ctrl == nir_selection_control_divergent_always_taken;
+   bool never_taken =
+      sel_ctrl == nir_selection_control_divergent_always_taken &&
+      !(ctx->cf_info.exec.potentially_empty_discard || ctx->cf_info.exec.potentially_empty_break ||
+        ctx->cf_info.exec.potentially_empty_continue);
+   branch->branch().rarely_taken = sel_ctrl == nir_selection_control_flatten || never_taken;
+   branch->branch().never_taken = never_taken;
    ctx->block->instructions.push_back(std::move(branch));
 
    ic->BB_if_idx = ctx->block->index;
@@ -10680,9 +10683,12 @@ begin_divergent_if_else(isel_context* ctx, if_context* ic,
    /* branch to linear else block (skip else) */
    branch.reset(create_instruction(aco_opcode::p_branch, Format::PSEUDO_BRANCH, 0, 1));
    branch->definitions[0] = Definition(ctx->program->allocateTmp(s2));
-   branch->branch().selection_control_remove =
-      sel_ctrl == nir_selection_control_flatten ||
-      sel_ctrl == nir_selection_control_divergent_always_taken;
+   bool never_taken =
+      sel_ctrl == nir_selection_control_divergent_always_taken &&
+      !(ctx->cf_info.exec.potentially_empty_discard || ctx->cf_info.exec.potentially_empty_break ||
+        ctx->cf_info.exec.potentially_empty_continue);
+   branch->branch().rarely_taken = sel_ctrl == nir_selection_control_flatten || never_taken;
+   branch->branch().never_taken = never_taken;
    ctx->block->instructions.push_back(std::move(branch));
 
    ic->exec_old.combine(ctx->cf_info.exec);

@@ -2832,8 +2832,7 @@ lower_to_hw_instr(Program* program)
              * - The application prefers to remove control flow
              * - The compiler stack knows that it's a divergent branch always taken
              */
-            const bool prefer_remove =
-               branch->selection_control_remove && ctx.program->gfx_level >= GFX10;
+            const bool prefer_remove = branch->rarely_taken && ctx.program->gfx_level >= GFX10;
             bool can_remove = block->index < target;
             unsigned num_scalar = 0;
             unsigned num_vector = 0;
