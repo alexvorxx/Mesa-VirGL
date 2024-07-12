@@ -871,7 +871,7 @@ struct pipe_h265_enc_picture_desc
    struct pipe_h265_enc_seq_param seq;
    struct pipe_h265_enc_pic_param pic;
    struct pipe_h265_enc_slice_param slice;
-   struct pipe_h265_enc_rate_control rc;
+   struct pipe_h265_enc_rate_control rc[4];
 
    enum pipe_h2645_enc_picture_type picture_type;
    unsigned decoded_curr_pic;

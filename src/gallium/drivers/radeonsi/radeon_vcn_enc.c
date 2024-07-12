@@ -554,49 +554,49 @@ static void radeon_vcn_enc_hevc_get_rc_param(struct radeon_encoder *enc,
 {
    uint32_t frame_rate_den, frame_rate_num, max_qp;
 
-   enc->enc_pic.rc_layer_init[0].target_bit_rate = pic->rc.target_bitrate;
-   enc->enc_pic.rc_layer_init[0].peak_bit_rate = pic->rc.peak_bitrate;
-   frame_rate_den = pic->rc.frame_rate_den;
-   frame_rate_num = pic->rc.frame_rate_num;
+   enc->enc_pic.rc_layer_init[0].target_bit_rate = pic->rc[0].target_bitrate;
+   enc->enc_pic.rc_layer_init[0].peak_bit_rate = pic->rc[0].peak_bitrate;
+   frame_rate_den = pic->rc[0].frame_rate_den;
+   frame_rate_num = pic->rc[0].frame_rate_num;
    radeon_vcn_enc_invalid_frame_rate(&frame_rate_den, &frame_rate_num);
    enc->enc_pic.rc_layer_init[0].frame_rate_den = frame_rate_den;
    enc->enc_pic.rc_layer_init[0].frame_rate_num = frame_rate_num;
-   enc->enc_pic.rc_layer_init[0].vbv_buffer_size = pic->rc.vbv_buffer_size;
+   enc->enc_pic.rc_layer_init[0].vbv_buffer_size = pic->rc[0].vbv_buffer_size;
    enc->enc_pic.rc_layer_init[0].avg_target_bits_per_picture =
-      radeon_vcn_per_frame_integer(pic->rc.target_bitrate,
+      radeon_vcn_per_frame_integer(pic->rc[0].target_bitrate,
             frame_rate_den,
             frame_rate_num);
    enc->enc_pic.rc_layer_init[0].peak_bits_per_picture_integer =
-      radeon_vcn_per_frame_integer(pic->rc.peak_bitrate,
+      radeon_vcn_per_frame_integer(pic->rc[0].peak_bitrate,
             frame_rate_den,
             frame_rate_num);
    enc->enc_pic.rc_layer_init[0].peak_bits_per_picture_fractional =
-      radeon_vcn_per_frame_frac(pic->rc.peak_bitrate,
+      radeon_vcn_per_frame_frac(pic->rc[0].peak_bitrate,
             frame_rate_den,
             frame_rate_num);
-   enc->enc_pic.rc_session_init.vbv_buffer_level = pic->rc.vbv_buf_lv;
-   enc->enc_pic.rc_per_pic.qp_obs = pic->rc.quant_i_frames;
-   enc->enc_pic.rc_per_pic.min_qp_app_obs = pic->rc.min_qp;
-   enc->enc_pic.rc_per_pic.max_qp_app_obs = pic->rc.max_qp ? pic->rc.max_qp : 51;
-   enc->enc_pic.rc_per_pic.qp_i = pic->rc.quant_i_frames;
-   enc->enc_pic.rc_per_pic.qp_p = pic->rc.quant_p_frames;
-   enc->enc_pic.rc_per_pic.min_qp_i = pic->rc.min_qp;
-   enc->enc_pic.rc_per_pic.min_qp_p = pic->rc.min_qp;
-   max_qp = pic->rc.max_qp ? pic->rc.max_qp : 51;
+   enc->enc_pic.rc_session_init.vbv_buffer_level = pic->rc[0].vbv_buf_lv;
+   enc->enc_pic.rc_per_pic.qp_obs = pic->rc[0].quant_i_frames;
+   enc->enc_pic.rc_per_pic.min_qp_app_obs = pic->rc[0].min_qp;
+   enc->enc_pic.rc_per_pic.max_qp_app_obs = pic->rc[0].max_qp ? pic->rc[0].max_qp : 51;
+   enc->enc_pic.rc_per_pic.qp_i = pic->rc[0].quant_i_frames;
+   enc->enc_pic.rc_per_pic.qp_p = pic->rc[0].quant_p_frames;
+   enc->enc_pic.rc_per_pic.min_qp_i = pic->rc[0].min_qp;
+   enc->enc_pic.rc_per_pic.min_qp_p = pic->rc[0].min_qp;
+   max_qp = pic->rc[0].max_qp ? pic->rc[0].max_qp : 51;
    enc->enc_pic.rc_per_pic.max_qp_i = max_qp;
    enc->enc_pic.rc_per_pic.max_qp_p = max_qp;
    enc->enc_pic.rc_per_pic.enabled_filler_data = 0;
-   enc->enc_pic.rc_per_pic.skip_frame_enable = pic->rc.skip_frame_enable;
-   enc->enc_pic.rc_per_pic.enforce_hrd = pic->rc.enforce_hrd;
-   enc->enc_pic.rc_per_pic.qvbr_quality_level = pic->rc.vbr_quality_factor;
-   switch (pic->rc.rate_ctrl_method) {
+   enc->enc_pic.rc_per_pic.skip_frame_enable = pic->rc[0].skip_frame_enable;
+   enc->enc_pic.rc_per_pic.enforce_hrd = pic->rc[0].enforce_hrd;
+   enc->enc_pic.rc_per_pic.qvbr_quality_level = pic->rc[0].vbr_quality_factor;
+   switch (pic->rc[0].rate_ctrl_method) {
       case PIPE_H2645_ENC_RATE_CONTROL_METHOD_DISABLE:
          enc->enc_pic.rc_session_init.rate_control_method = RENCODE_RATE_CONTROL_METHOD_NONE;
          break;
       case PIPE_H2645_ENC_RATE_CONTROL_METHOD_CONSTANT_SKIP:
       case PIPE_H2645_ENC_RATE_CONTROL_METHOD_CONSTANT:
          enc->enc_pic.rc_session_init.rate_control_method = RENCODE_RATE_CONTROL_METHOD_CBR;
-         enc->enc_pic.rc_per_pic.enabled_filler_data = pic->rc.fill_data_enable;
+         enc->enc_pic.rc_per_pic.enabled_filler_data = pic->rc[0].fill_data_enable;
          break;
       case PIPE_H2645_ENC_RATE_CONTROL_METHOD_VARIABLE_SKIP:
       case PIPE_H2645_ENC_RATE_CONTROL_METHOD_VARIABLE:
@@ -612,9 +612,9 @@ static void radeon_vcn_enc_hevc_get_rc_param(struct radeon_encoder *enc,
       default:
          enc->enc_pic.rc_session_init.rate_control_method = RENCODE_RATE_CONTROL_METHOD_NONE;
    }
-   enc->enc_pic.rc_per_pic.max_au_size_obs = pic->rc.max_au_size;
-   enc->enc_pic.rc_per_pic.max_au_size_i = pic->rc.max_au_size;
-   enc->enc_pic.rc_per_pic.max_au_size_p = pic->rc.max_au_size;
+   enc->enc_pic.rc_per_pic.max_au_size_obs = pic->rc[0].max_au_size;
+   enc->enc_pic.rc_per_pic.max_au_size_i = pic->rc[0].max_au_size;
+   enc->enc_pic.rc_per_pic.max_au_size_p = pic->rc[0].max_au_size;
 }
 
 static void radeon_vcn_enc_hevc_get_vui_param(struct radeon_encoder *enc,
@@ -1442,9 +1442,9 @@ static void radeon_enc_begin_frame(struct pipe_video_codec *encoder,
    } else if (u_reduce_video_profile(picture->profile) == PIPE_VIDEO_FORMAT_HEVC) {
       struct pipe_h265_enc_picture_desc *pic = (struct pipe_h265_enc_picture_desc *)picture;
       enc->need_rate_control =
-         (enc->enc_pic.rc_layer_init[0].target_bit_rate != pic->rc.target_bitrate) ||
-         (enc->enc_pic.rc_layer_init[0].frame_rate_num != pic->rc.frame_rate_num) ||
-         (enc->enc_pic.rc_layer_init[0].frame_rate_den != pic->rc.frame_rate_den);
+         (enc->enc_pic.rc_layer_init[0].target_bit_rate != pic->rc[0].target_bitrate) ||
+         (enc->enc_pic.rc_layer_init[0].frame_rate_num != pic->rc[0].frame_rate_num) ||
+         (enc->enc_pic.rc_layer_init[0].frame_rate_den != pic->rc[0].frame_rate_den);
 
       if (enc->need_rate_control) {
          enc->enc_pic.rc_per_pic.qp_i = 0;
@@ -1452,9 +1452,9 @@ static void radeon_enc_begin_frame(struct pipe_video_codec *encoder,
       }
 
       enc->need_rc_per_pic =
-         (!enc->enc_pic.rc_per_pic.qp_i && enc->enc_pic.rc_per_pic.qp_i != pic->rc.quant_i_frames) ||
-         (!enc->enc_pic.rc_per_pic.qp_p && enc->enc_pic.rc_per_pic.qp_p != pic->rc.quant_p_frames) ||
-         (enc->enc_pic.rc_per_pic.qvbr_quality_level != pic->rc.vbr_quality_factor);
+         (!enc->enc_pic.rc_per_pic.qp_i && enc->enc_pic.rc_per_pic.qp_i != pic->rc[0].quant_i_frames) ||
+         (!enc->enc_pic.rc_per_pic.qp_p && enc->enc_pic.rc_per_pic.qp_p != pic->rc[0].quant_p_frames) ||
+         (enc->enc_pic.rc_per_pic.qvbr_quality_level != pic->rc[0].vbr_quality_factor);
    } else if (u_reduce_video_profile(picture->profile) == PIPE_VIDEO_FORMAT_AV1) {
       struct pipe_av1_enc_picture_desc *pic = (struct pipe_av1_enc_picture_desc *)picture;
       enc->need_rate_control =
