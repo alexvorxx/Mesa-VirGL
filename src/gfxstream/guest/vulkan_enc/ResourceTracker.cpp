@@ -5982,6 +5982,35 @@ VkResult ResourceTracker::on_vkQueueSubmit(void* context, VkResult input_result,
                                            uint32_t submitCount, const VkSubmitInfo* pSubmits,
                                            VkFence fence) {
     AEMU_SCOPED_TRACE("on_vkQueueSubmit");
+
+    /* From the Vulkan 1.3.204 spec:
+     *
+     *    VUID-VkSubmitInfo-pNext-03240
+     *
+     *    "If the pNext chain of this structure includes a VkTimelineSemaphoreSubmitInfo structure
+     *    and any element of pSignalSemaphores was created with a VkSemaphoreType of
+     *    VK_SEMAPHORE_TYPE_TIMELINE, then its signalSemaphoreValueCount member must equal
+     *    signalSemaphoreCount"
+     *
+     * Internally, Mesa WSI creates placeholder semaphores/fences (see transformVkSemaphore functions
+     * in in gfxstream_vk_private.cpp).  We don't want to forward that to the host, since there is
+     * no host side Vulkan object associated with the placeholder sync objects.
+     *
+     * The way to test this behavior is Zink + glxgears, on Linux hosts.  It should fail without
+     * this check.
+     */
+    for (uint32_t i = 0; i < submitCount; i++) {
+        VkTimelineSemaphoreSubmitInfo* tssi = const_cast<VkTimelineSemaphoreSubmitInfo*>(
+            vk_find_struct<VkTimelineSemaphoreSubmitInfo>(&pSubmits[i]));
+
+        if (tssi) {
+            uint32_t count = getSignalSemaphoreCount(pSubmits[i]);
+            if (count != tssi->signalSemaphoreValueCount) {
+                tssi->signalSemaphoreValueCount = count;
+            }
+        }
+    }
+
     return on_vkQueueSubmitTemplate<VkSubmitInfo>(context, input_result, queue, submitCount,
                                                   pSubmits, fence);
 }
