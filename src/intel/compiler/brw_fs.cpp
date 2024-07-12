@@ -1358,17 +1358,6 @@ fs_visitor::convert_attr_sources_to_hw_regs(fs_inst *inst)
 }
 
 void
-fs_visitor::assign_tcs_urb_setup()
-{
-   assert(stage == MESA_SHADER_TESS_CTRL);
-
-   /* Rewrite all ATTR file references to HW_REGs. */
-   foreach_block_and_inst(block, fs_inst, inst, cfg) {
-      convert_attr_sources_to_hw_regs(inst);
-   }
-}
-
-void
 fs_visitor::assign_tes_urb_setup()
 {
    assert(stage == MESA_SHADER_TESS_EVAL);
@@ -2392,78 +2381,6 @@ fs_visitor::allocate_registers(bool allow_spilling)
       return;
 
    brw_fs_lower_scoreboard(*this);
-}
-
-void
-fs_visitor::set_tcs_invocation_id()
-{
-   struct brw_tcs_prog_data *tcs_prog_data = brw_tcs_prog_data(prog_data);
-   struct brw_vue_prog_data *vue_prog_data = &tcs_prog_data->base;
-   const fs_builder bld = fs_builder(this).at_end();
-
-   const unsigned instance_id_mask =
-      (devinfo->verx10 >= 125) ? INTEL_MASK(7, 0) :
-      (devinfo->ver >= 11)     ? INTEL_MASK(22, 16) :
-                                 INTEL_MASK(23, 17);
-   const unsigned instance_id_shift =
-      (devinfo->verx10 >= 125) ? 0 : (devinfo->ver >= 11) ? 16 : 17;
-
-   /* Get instance number from g0.2 bits:
-    *  * 7:0 on DG2+
-    *  * 22:16 on gfx11+
-    *  * 23:17 otherwise
-    */
-   brw_reg t =
-      bld.AND(brw_reg(retype(brw_vec1_grf(0, 2), BRW_TYPE_UD)),
-              brw_imm_ud(instance_id_mask));
-
-   if (vue_prog_data->dispatch_mode == INTEL_DISPATCH_MODE_TCS_MULTI_PATCH) {
-      /* gl_InvocationID is just the thread number */
-      invocation_id = bld.SHR(t, brw_imm_ud(instance_id_shift));
-      return;
-   }
-
-   assert(vue_prog_data->dispatch_mode == INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH);
-
-   brw_reg channels_uw = bld.vgrf(BRW_TYPE_UW);
-   brw_reg channels_ud = bld.vgrf(BRW_TYPE_UD);
-   bld.MOV(channels_uw, brw_reg(brw_imm_uv(0x76543210)));
-   bld.MOV(channels_ud, channels_uw);
-
-   if (tcs_prog_data->instances == 1) {
-      invocation_id = channels_ud;
-   } else {
-      /* instance_id = 8 * t + <76543210> */
-      invocation_id =
-         bld.ADD(bld.SHR(t, brw_imm_ud(instance_id_shift - 3)), channels_ud);
-   }
-}
-
-void
-fs_visitor::emit_tcs_thread_end()
-{
-   /* Try and tag the last URB write with EOT instead of emitting a whole
-    * separate write just to finish the thread.  There isn't guaranteed to
-    * be one, so this may not succeed.
-    */
-   if (mark_last_urb_write_with_eot())
-      return;
-
-   const fs_builder bld = fs_builder(this).at_end();
-
-   /* Emit a URB write to end the thread.  On Broadwell, we use this to write
-    * zero to the "TR DS Cache Disable" bit (we haven't implemented a fancy
-    * algorithm to set it optimally).  On other platforms, we simply write
-    * zero to a reserved/MBZ patch header DWord which has no consequence.
-    */
-   brw_reg srcs[URB_LOGICAL_NUM_SRCS];
-   srcs[URB_LOGICAL_SRC_HANDLE] = tcs_payload().patch_urb_output;
-   srcs[URB_LOGICAL_SRC_CHANNEL_MASK] = brw_imm_ud(WRITEMASK_X << 16);
-   srcs[URB_LOGICAL_SRC_DATA] = brw_imm_ud(0);
-   srcs[URB_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(1);
-   fs_inst *inst = bld.emit(SHADER_OPCODE_URB_WRITE_LOGICAL,
-                            reg_undef, srcs, ARRAY_SIZE(srcs));
-   inst->eot = true;
 }
 
 /**
