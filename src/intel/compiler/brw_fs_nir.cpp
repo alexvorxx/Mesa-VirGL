@@ -4410,6 +4410,15 @@ fs_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
    }
 }
 
+static unsigned
+brw_workgroup_size(fs_visitor &s)
+{
+   assert(gl_shader_stage_uses_workgroup(s.stage));
+   assert(!s.nir->info.workgroup_size_variable);
+   const struct brw_cs_prog_data *cs = brw_cs_prog_data(s.prog_data);
+   return cs->local_size[0] * cs->local_size[1] * cs->local_size[2];
+}
+
 static void
 fs_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
                          nir_intrinsic_instr *instr)
@@ -4435,7 +4444,7 @@ fs_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
           * barrier just emit a scheduling fence, that will generate no code.
           */
          if (!s.nir->info.workgroup_size_variable &&
-             s.workgroup_size() <= s.dispatch_width) {
+             brw_workgroup_size(s) <= s.dispatch_width) {
             bld.exec_all().group(1, 0).emit(FS_OPCODE_SCHEDULING_FENCE);
             break;
          }
@@ -6264,7 +6273,7 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
        * TODO: Check if applies for many HW threads sharing same Data Port.
        */
       if (!s.nir->info.workgroup_size_variable &&
-          slm_fence && s.workgroup_size() <= s.dispatch_width)
+          slm_fence && brw_workgroup_size(s) <= s.dispatch_width)
          slm_fence = false;
 
       switch (s.stage) {

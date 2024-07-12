@@ -1977,14 +1977,6 @@ brw_cs_get_dispatch_info(const struct intel_device_info *devinfo,
    return info;
 }
 
-unsigned
-fs_visitor::workgroup_size() const
-{
-   assert(gl_shader_stage_uses_workgroup(stage));
-   const struct brw_cs_prog_data *cs = brw_cs_prog_data(prog_data);
-   return cs->local_size[0] * cs->local_size[1] * cs->local_size[2];
-}
-
 bool brw_should_print_shader(const nir_shader *shader, uint64_t debug_flag)
 {
    return INTEL_DEBUG(debug_flag) && (!shader->info.internal || NIR_DEBUG(PRINT_INTERNAL));
