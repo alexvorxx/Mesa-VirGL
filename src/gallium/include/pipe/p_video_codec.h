@@ -222,6 +222,7 @@ struct pipe_video_buffer
    unsigned height;
    bool interlaced;
    unsigned bind;
+   unsigned flags;
    bool contiguous_planes;
 
    /**
