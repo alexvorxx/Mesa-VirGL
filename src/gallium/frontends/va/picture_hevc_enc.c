@@ -784,7 +784,7 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeHEVC(vlVaContext *context, vlVaBuffer *
       vl_vlc_eatbits(&vlc, 1);
       unsigned nal_unit_type = vl_vlc_get_uimsbf(&vlc, 6);
       vl_vlc_eatbits(&vlc, 6);
-      vl_vlc_eatbits(&vlc, 3);
+      context->desc.h265enc.pic.temporal_id = vl_vlc_get_uimsbf(&vlc, 3) - 1;
 
       struct vl_rbsp rbsp;
       vl_rbsp_init(&rbsp, &vlc, ~0, context->packed_header_emulation_bytes);

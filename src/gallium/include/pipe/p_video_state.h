@@ -818,6 +818,7 @@ struct pipe_h265_enc_pic_param
 {
    uint8_t log2_parallel_merge_level_minus2;
    uint8_t nal_unit_type;
+   uint8_t temporal_id;
    bool constrained_intra_pred_flag;
    bool pps_loop_filter_across_slices_enabled_flag;
    bool transform_skip_enabled_flag;
