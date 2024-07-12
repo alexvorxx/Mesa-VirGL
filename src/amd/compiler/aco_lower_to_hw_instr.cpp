@@ -2889,9 +2889,9 @@ lower_to_hw_instr(Program* program)
                      can_remove = prefer_remove;
                   } else if (inst->isSMEM()) {
                      /* SMEM are at least as expensive as branches */
-                     can_remove = prefer_remove;
+                     can_remove = prefer_remove && branch->never_taken;
                   } else if (inst->isBarrier()) {
-                     can_remove = prefer_remove;
+                     can_remove = prefer_remove && branch->never_taken;
                   } else {
                      can_remove = false;
                      assert(false && "Pseudo instructions should be lowered by this point.");
