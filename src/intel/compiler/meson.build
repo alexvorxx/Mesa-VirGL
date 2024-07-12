@@ -101,6 +101,7 @@ libintel_compiler_brw_files = files(
   'brw_nir_rt_builder.h',
   'brw_packed_float.c',
   'brw_predicated_break.cpp',
+  'brw_print.cpp',
   'brw_prim.h',
   'brw_private.h',
   'brw_reg.h',
