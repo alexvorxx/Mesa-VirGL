@@ -705,6 +705,7 @@ struct agx_context {
    uint32_t dummy_syncobj;
    int in_sync_fd;
    uint32_t in_sync_obj;
+   uint64_t flush_last_seqid;
 
    struct agx_scratch scratch_vs;
    struct agx_scratch scratch_fs;
@@ -928,6 +929,13 @@ struct agx_screen {
    struct pipe_screen pscreen;
    struct agx_device dev;
    struct disk_cache *disk_cache;
+
+   /* Shared timeline syncobj and value to serialize flushes across contexts */
+   uint32_t flush_syncobj;
+   uint64_t flush_cur_seqid;
+   uint64_t flush_wait_seqid;
+   /* Lock to protect flush_wait_seqid updates (reads are just atomic) */
+   simple_mtx_t flush_seqid_lock;
 
    /* Lock to protect syncobj usage vs. destruction in context destroy */
    struct u_rwlock destroy_lock;
