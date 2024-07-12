@@ -3045,13 +3045,13 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
     // Support device address capture/replay allocations
     if (deviceAddressMemoryAllocation) {
         if (allocFlagsInfoPtr) {
-            mesa_logi("%s: has alloc flags\n", __func__);
+            mesa_logd("%s: has alloc flags\n", __func__);
             allocFlagsInfo = *allocFlagsInfoPtr;
             vk_append_struct(&structChainIter, &allocFlagsInfo);
         }
 
         if (opaqueCaptureAddressAllocInfoPtr) {
-            mesa_logi("%s: has opaque capture address\n", __func__);
+            mesa_logd("%s: has opaque capture address\n", __func__);
             opaqueCaptureAddressAllocInfo = *opaqueCaptureAddressAllocInfoPtr;
             vk_append_struct(&structChainIter, &opaqueCaptureAddressAllocInfo);
         }
@@ -3270,13 +3270,13 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         vk_find_struct<VkMemoryOpaqueCaptureAddressAllocateInfo>(pAllocateInfo);
 
     if (allocFlagsInfoPtr) {
-        mesa_logi("%s: has alloc flags\n", __func__);
+        mesa_logd("%s: has alloc flags\n", __func__);
         allocFlagsInfo = *allocFlagsInfoPtr;
         vk_append_struct(&structChainIter, &allocFlagsInfo);
     }
 
     if (opaqueCaptureAddressAllocInfoPtr) {
-        mesa_logi("%s: has opaque capture address\n", __func__);
+        mesa_logd("%s: has opaque capture address\n", __func__);
         opaqueCaptureAddressAllocInfo = *opaqueCaptureAddressAllocInfoPtr;
         vk_append_struct(&structChainIter, &opaqueCaptureAddressAllocInfo);
     }
@@ -4651,11 +4651,11 @@ VkResult ResourceTracker::on_vkCreateFence(void* context, VkResult input_result,
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
     if (exportSyncFd) {
         if (!mFeatureInfo->hasVirtioGpuNativeSync) {
-            mesa_logi("%s: ensure sync device\n", __func__);
+            mesa_logd("%s: ensure sync device\n", __func__);
             ensureSyncDeviceFd();
         }
 
-        mesa_logi("%s: getting fence info\n", __func__);
+        mesa_logd("%s: getting fence info\n", __func__);
         AutoLock<RecursiveLock> lock(mLock);
         auto it = info_VkFence.find(*pFence);
 
@@ -4665,7 +4665,7 @@ VkResult ResourceTracker::on_vkCreateFence(void* context, VkResult input_result,
 
         info.external = true;
         info.exportFenceCreateInfo = *exportFenceInfoPtr;
-        mesa_logi("%s: info set (fence still -1). fence: %p\n", __func__, (void*)(*pFence));
+        mesa_logd("%s: info set (fence still -1). fence: %p\n", __func__, (void*)(*pFence));
         // syncFd is still -1 because we expect user to explicitly
         // export it via vkGetFenceFdKHR
     }
@@ -4701,7 +4701,7 @@ VkResult ResourceTracker::on_vkResetFences(void* context, VkResult, VkDevice dev
 
 #if GFXSTREAM_ENABLE_GUEST_GOLDFISH
         if (info.syncFd >= 0) {
-            mesa_logi("%s: resetting fence. make fd -1\n", __func__);
+            mesa_logd("%s: resetting fence. make fd -1\n", __func__);
             goldfish_sync_signal(info.syncFd);
             auto* syncHelper =
                 ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
@@ -4734,14 +4734,14 @@ VkResult ResourceTracker::on_vkImportFenceFdKHR(void* context, VkResult, VkDevic
     bool syncFdImport = pImportFenceFdInfo->handleType & VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT;
 
     if (!syncFdImport) {
-        mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd import\n", __func__);
+        mesa_loge("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd import\n", __func__);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     AutoLock<RecursiveLock> lock(mLock);
     auto it = info_VkFence.find(pImportFenceFdInfo->fence);
     if (it == info_VkFence.end()) {
-        mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence info\n", __func__);
+        mesa_loge("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence info\n", __func__);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
@@ -4750,17 +4750,17 @@ VkResult ResourceTracker::on_vkImportFenceFdKHR(void* context, VkResult, VkDevic
     auto* syncHelper = ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
 #if GFXSTREAM_ENABLE_GUEST_GOLDFISH
     if (info.syncFd >= 0) {
-        mesa_logi("%s: previous sync fd exists, close it\n", __func__);
+        mesa_logd("%s: previous sync fd exists, close it\n", __func__);
         goldfish_sync_signal(info.syncFd);
         syncHelper->close(info.syncFd);
     }
 #endif
 
     if (pImportFenceFdInfo->fd < 0) {
-        mesa_logi("%s: import -1, set to -1 and exit\n", __func__);
+        mesa_logd("%s: import -1, set to -1 and exit\n", __func__);
         info.syncFd = -1;
     } else {
-        mesa_logi("%s: import actual fd, dup and close()\n", __func__);
+        mesa_logd("%s: import actual fd, dup and close()\n", __func__);
         info.syncFd = syncHelper->dup(pImportFenceFdInfo->fd);
         syncHelper->close(pImportFenceFdInfo->fd);
     }
@@ -4782,7 +4782,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
     bool hasFence = pGetFdInfo->fence != VK_NULL_HANDLE;
 
     if (!hasFence) {
-        mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence\n", __func__);
+        mesa_loge("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence\n", __func__);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
@@ -4790,7 +4790,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
     bool syncFdExport = pGetFdInfo->handleType & VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT;
 
     if (!syncFdExport) {
-        mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd fence\n", __func__);
+        mesa_loge("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd fence\n", __func__);
         return VK_ERROR_OUT_OF_HOST_MEMORY;
     }
 
@@ -4798,7 +4798,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
         enc->vkGetFenceStatus(device, pGetFdInfo->fence, true /* do lock */);
 
     if (VK_ERROR_DEVICE_LOST == currentFenceStatus) {  // Other error
-        mesa_logi("%s: VK_ERROR_DEVICE_LOST: Other error\n", __func__);
+        mesa_loge("%s: VK_ERROR_DEVICE_LOST: Other error\n", __func__);
         *pFd = -1;
         return VK_ERROR_DEVICE_LOST;
     }
@@ -4812,7 +4812,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
 
         auto it = info_VkFence.find(pGetFdInfo->fence);
         if (it == info_VkFence.end()) {
-            mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence info\n", __func__);
+            mesa_loge("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no fence info\n", __func__);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
@@ -4822,7 +4822,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
                                                VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT);
 
         if (!syncFdCreated) {
-            mesa_logi("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd created\n", __func__);
+            mesa_loge("%s: VK_ERROR_OUT_OF_HOST_MEMORY: no sync fd created\n", __func__);
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
@@ -4846,7 +4846,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
 
         // relinquish ownership
         info.syncFd = -1;
-        mesa_logi("%s: got fd: %d\n", __func__, *pFd);
+        mesa_logd("%s: got fd: %d\n", __func__, *pFd);
         return VK_SUCCESS;
     }
     return VK_ERROR_DEVICE_LOST;
@@ -4890,15 +4890,15 @@ VkResult ResourceTracker::on_vkWaitForFences(void* context, VkResult, VkDevice d
         // schedule a wait group with waitAny/waitAll
         std::vector<WorkPool::Task> tasks;
 
-        mesa_logi("%s: scheduling ext waits\n", __func__);
+        mesa_logd("%s: scheduling ext waits\n", __func__);
 
         for (auto fd : fencesExternalWaitFds) {
-            mesa_logi("%s: wait on %d\n", __func__, fd);
+            mesa_logd("%s: wait on %d\n", __func__, fd);
             tasks.push_back([fd] {
                 auto* syncHelper =
                     ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
                 syncHelper->wait(fd, 3000);
-                mesa_logi("done waiting on fd %d\n", fd);
+                mesa_logd("done waiting on fd %d\n", fd);
             });
         }
 
@@ -4907,7 +4907,7 @@ VkResult ResourceTracker::on_vkWaitForFences(void* context, VkResult, VkDevice d
                 [this, fencesNonExternal /* copy of vector */, device, waitAll, timeout] {
                     auto hostConn = ResourceTracker::threadingCallbacks.hostConnectionGetFunc();
                     auto vkEncoder = ResourceTracker::threadingCallbacks.vkEncoderGetFunc(hostConn);
-                    mesa_logi("%s: vkWaitForFences to host\n", __func__);
+                    mesa_logd("%s: vkWaitForFences to host\n", __func__);
                     vkEncoder->vkWaitForFences(device, fencesNonExternal.size(),
                                                fencesNonExternal.data(), waitAll, timeout,
                                                true /* do lock */);
@@ -4925,10 +4925,10 @@ VkResult ResourceTracker::on_vkWaitForFences(void* context, VkResult, VkDevice d
         }
 
         if (waitRes) {
-            mesa_logi("%s: VK_SUCCESS\n", __func__);
+            mesa_logd("%s: VK_SUCCESS\n", __func__);
             return VK_SUCCESS;
         } else {
-            mesa_logi("%s: VK_TIMEOUT\n", __func__);
+            mesa_loge("%s: VK_TIMEOUT\n", __func__);
             return VK_TIMEOUT;
         }
     }
@@ -5073,7 +5073,7 @@ VkResult ResourceTracker::on_vkFreeDescriptorSets(void* context, VkResult, VkDev
 
             for (uint32_t i = 0; i < descriptorSetCount; ++i) {
                 if (allocedSets.end() == allocedSets.find(pDescriptorSets[i])) {
-                    mesa_logi(
+                    mesa_loge(
                         "%s: Warning: descriptor set %p not found in pool. Was this "
                         "double-freed?\n",
                         __func__, (void*)pDescriptorSets[i]);
@@ -6165,7 +6165,7 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
             }
 
             if (externalFenceFdToSignal >= 0) {
-                mesa_logi("%s: external fence real signal: %d\n", __func__, externalFenceFdToSignal);
+                mesa_logd("%s: external fence real signal: %d\n", __func__, externalFenceFdToSignal);
                 goldfish_sync_signal(externalFenceFdToSignal);
             }
 #endif
@@ -6186,12 +6186,12 @@ VkResult ResourceTracker::on_vkQueueWaitIdle(void* context, VkResult, VkQueue qu
     lock.unlock();
 
     if (toWait.empty()) {
-        mesa_logi("%s: No queue-specific work pool items\n", __func__);
+        mesa_logd("%s: No queue-specific work pool items\n", __func__);
         return enc->vkQueueWaitIdle(queue, true /* do lock */);
     }
 
     for (auto handle : toWait) {
-        mesa_logi("%s: waiting on work group item: %llu\n", __func__, (unsigned long long)handle);
+        mesa_logd("%s: waiting on work group item: %llu\n", __func__, (unsigned long long)handle);
         mWorkPool.waitAll(handle);
     }
 
@@ -7156,7 +7156,7 @@ VkResult ResourceTracker::on_vkAllocateCommandBuffers(
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 VkResult ResourceTracker::exportSyncFdForQSRILocked(VkImage image, int* fd) {
-    mesa_logi("%s: call for image %p hos timage handle 0x%llx\n", __func__, (void*)image,
+    mesa_logd("%s: call for image %p hos timage handle 0x%llx\n", __func__, (void*)image,
           (unsigned long long)get_host_u64_VkImage(image));
 
     if (mFeatureInfo->hasVirtioGpuNativeSync) {
@@ -7185,7 +7185,7 @@ VkResult ResourceTracker::exportSyncFdForQSRILocked(VkImage image, int* fd) {
 #endif
     }
 
-    mesa_logi("%s: got fd: %d\n", __func__, *fd);
+    mesa_logd("%s: got fd: %d\n", __func__, *fd);
     auto imageInfoIt = info_VkImage.find(image);
     if (imageInfoIt != info_VkImage.end()) {
         auto& imageInfo = imageInfoIt->second;
