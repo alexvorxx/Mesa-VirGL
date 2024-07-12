@@ -810,6 +810,7 @@ struct pipe_h265_enc_seq_param
    uint32_t max_bits_per_min_cu_denom;
    uint32_t log2_max_mv_length_horizontal;
    uint32_t log2_max_mv_length_vertical;
+   uint32_t num_temporal_layers;
    struct pipe_h265_enc_hrd_params hrd_parameters;
 };
 

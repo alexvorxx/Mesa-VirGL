@@ -612,6 +612,7 @@ VAStatus vlVaHandleVAEncPackedHeaderDataBufferTypeHEVC(vlVaContext *context, vlV
 VAStatus vlVaHandleVAEncMiscParameterTypeQualityLevelHEVC(vlVaContext *context, VAEncMiscParameterBuffer *buf);
 VAStatus vlVaHandleVAEncMiscParameterTypeMaxFrameSizeHEVC(vlVaContext *context, VAEncMiscParameterBuffer *buf);
 VAStatus vlVaHandleVAEncMiscParameterTypeHRDHEVC(vlVaContext *context, VAEncMiscParameterBuffer *buf);
+VAStatus vlVaHandleVAEncMiscParameterTypeTemporalLayerHEVC(vlVaContext *context, VAEncMiscParameterBuffer *buf);
 
 #if VA_CHECK_VERSION(1, 16, 0)
 VAStatus vlVaHandleVAEncSequenceParameterBufferTypeAV1(vlVaDriver *drv, vlVaContext *context, vlVaBuffer *buf);

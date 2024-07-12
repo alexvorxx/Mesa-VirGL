@@ -293,31 +293,43 @@ vlVaHandleVAEncSequenceParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *con
 VAStatus
 vlVaHandleVAEncMiscParameterTypeRateControlHEVC(vlVaContext *context, VAEncMiscParameterBuffer *misc)
 {
+   unsigned temporal_id;
    VAEncMiscParameterRateControl *rc = (VAEncMiscParameterRateControl *)misc->data;
 
-   if (context->desc.h265enc.rc[0].rate_ctrl_method ==
-         PIPE_H2645_ENC_RATE_CONTROL_METHOD_CONSTANT)
-      context->desc.h265enc.rc[0].target_bitrate = rc->bits_per_second;
-   else
-      context->desc.h265enc.rc[0].target_bitrate = rc->bits_per_second * (rc->target_percentage / 100.0);
-   context->desc.h265enc.rc[0].peak_bitrate = rc->bits_per_second;
-   if (context->desc.h265enc.rc[0].target_bitrate < 2000000)
-      context->desc.h265enc.rc[0].vbv_buffer_size = MIN2((context->desc.h265enc.rc[0].target_bitrate * 2.75), 2000000);
-   else
-      context->desc.h265enc.rc[0].vbv_buffer_size = context->desc.h265enc.rc[0].target_bitrate;
+   temporal_id = context->desc.h265enc.rc[0].rate_ctrl_method !=
+                 PIPE_H2645_ENC_RATE_CONTROL_METHOD_DISABLE ?
+                 rc->rc_flags.bits.temporal_id :
+                 0;
 
-   context->desc.h265enc.rc[0].fill_data_enable = !(rc->rc_flags.bits.disable_bit_stuffing);
-   /* context->desc.h265enc.rc[0].skip_frame_enable = !(rc->rc_flags.bits.disable_frame_skip); */
-   context->desc.h265enc.rc[0].skip_frame_enable = 0;
-   context->desc.h265enc.rc[0].max_qp = rc->max_qp;
-   context->desc.h265enc.rc[0].min_qp = rc->min_qp;
+   if (context->desc.h265enc.seq.num_temporal_layers > 0 &&
+       temporal_id >= context->desc.h265enc.seq.num_temporal_layers)
+      return VA_STATUS_ERROR_INVALID_PARAMETER;
+
+   if (context->desc.h265enc.rc[temporal_id].rate_ctrl_method ==
+         PIPE_H2645_ENC_RATE_CONTROL_METHOD_CONSTANT)
+      context->desc.h265enc.rc[temporal_id].target_bitrate = rc->bits_per_second;
+   else
+      context->desc.h265enc.rc[temporal_id].target_bitrate =
+         rc->bits_per_second * (rc->target_percentage / 100.0);
+   context->desc.h265enc.rc[temporal_id].peak_bitrate = rc->bits_per_second;
+   if (context->desc.h265enc.rc[temporal_id].target_bitrate < 2000000)
+      context->desc.h265enc.rc[temporal_id].vbv_buffer_size =
+         MIN2((context->desc.h265enc.rc[temporal_id].target_bitrate * 2.75), 2000000);
+   else
+      context->desc.h265enc.rc[temporal_id].vbv_buffer_size = context->desc.h265enc.rc[0].target_bitrate;
+
+   context->desc.h265enc.rc[temporal_id].fill_data_enable = !(rc->rc_flags.bits.disable_bit_stuffing);
+   /* context->desc.h265enc.rc[temporal_id].skip_frame_enable = !(rc->rc_flags.bits.disable_frame_skip); */
+   context->desc.h265enc.rc[temporal_id].skip_frame_enable = 0;
+   context->desc.h265enc.rc[temporal_id].max_qp = rc->max_qp;
+   context->desc.h265enc.rc[temporal_id].min_qp = rc->min_qp;
    /* Distinguishes from the default params set for these values in other
       functions and app specific params passed down */
-   context->desc.h265enc.rc[0].app_requested_qp_range = ((rc->max_qp > 0) || (rc->min_qp > 0));
+   context->desc.h265enc.rc[temporal_id].app_requested_qp_range = ((rc->max_qp > 0) || (rc->min_qp > 0));
 
-   if (context->desc.h265enc.rc[0].rate_ctrl_method ==
+   if (context->desc.h265enc.rc[temporal_id].rate_ctrl_method ==
        PIPE_H2645_ENC_RATE_CONTROL_METHOD_QUALITY_VARIABLE)
-      context->desc.h265enc.rc[0].vbr_quality_factor =
+      context->desc.h265enc.rc[temporal_id].vbr_quality_factor =
          rc->quality_factor;
 
    return VA_STATUS_SUCCESS;
@@ -326,14 +338,24 @@ vlVaHandleVAEncMiscParameterTypeRateControlHEVC(vlVaContext *context, VAEncMiscP
 VAStatus
 vlVaHandleVAEncMiscParameterTypeFrameRateHEVC(vlVaContext *context, VAEncMiscParameterBuffer *misc)
 {
+   unsigned temporal_id;
    VAEncMiscParameterFrameRate *fr = (VAEncMiscParameterFrameRate *)misc->data;
 
+   temporal_id = context->desc.h265enc.rc[0].rate_ctrl_method !=
+                 PIPE_H2645_ENC_RATE_CONTROL_METHOD_DISABLE ?
+                 fr->framerate_flags.bits.temporal_id :
+                 0;
+
+   if (context->desc.h265enc.seq.num_temporal_layers > 0 &&
+       temporal_id >= context->desc.h265enc.seq.num_temporal_layers)
+      return VA_STATUS_ERROR_INVALID_PARAMETER;
+
    if (fr->framerate & 0xffff0000) {
-      context->desc.h265enc.rc[0].frame_rate_num = fr->framerate       & 0xffff;
-      context->desc.h265enc.rc[0].frame_rate_den = fr->framerate >> 16 & 0xffff;
+      context->desc.h265enc.rc[temporal_id].frame_rate_num = fr->framerate       & 0xffff;
+      context->desc.h265enc.rc[temporal_id].frame_rate_den = fr->framerate >> 16 & 0xffff;
    } else {
-      context->desc.h265enc.rc[0].frame_rate_num = fr->framerate;
-      context->desc.h265enc.rc[0].frame_rate_den = 1;
+      context->desc.h265enc.rc[temporal_id].frame_rate_num = fr->framerate;
+      context->desc.h265enc.rc[temporal_id].frame_rate_den = 1;
    }
 
    return VA_STATUS_SUCCESS;
@@ -816,6 +838,16 @@ vlVaHandleVAEncMiscParameterTypeHRDHEVC(vlVaContext *context, VAEncMiscParameter
          functions and app specific params passed down via HRD buffer */
       context->desc.h265enc.rc[0].app_requested_hrd_buffer = true;
    }
+
+   return VA_STATUS_SUCCESS;
+}
+
+VAStatus
+vlVaHandleVAEncMiscParameterTypeTemporalLayerHEVC(vlVaContext *context, VAEncMiscParameterBuffer *misc)
+{
+   VAEncMiscParameterTemporalLayerStructure *tl = (VAEncMiscParameterTemporalLayerStructure *)misc->data;
+
+   context->desc.h265enc.seq.num_temporal_layers = tl->number_of_layers;
 
    return VA_STATUS_SUCCESS;
 }
