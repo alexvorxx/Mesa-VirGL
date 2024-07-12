@@ -91,7 +91,7 @@ run_cs(fs_visitor &s, bool allow_spilling)
    brw_fs_workaround_memory_fence_before_eot(s);
    brw_fs_workaround_emit_dummy_mov_instruction(s);
 
-   s.allocate_registers(allow_spilling);
+   brw_allocate_registers(s, allow_spilling);
 
    return !s.failed;
 }

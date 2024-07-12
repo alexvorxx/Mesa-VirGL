@@ -45,33 +45,34 @@ assign_reg(const struct intel_device_info *devinfo,
 }
 
 void
-fs_visitor::assign_regs_trivial()
+brw_assign_regs_trivial(fs_visitor &s)
 {
-   unsigned hw_reg_mapping[this->alloc.count + 1];
+   const struct intel_device_info *devinfo = s.devinfo;
+   unsigned hw_reg_mapping[s.alloc.count + 1];
    unsigned i;
-   int reg_width = dispatch_width / 8;
+   int reg_width = s.dispatch_width / 8;
 
    /* Note that compressed instructions require alignment to 2 registers. */
-   hw_reg_mapping[0] = ALIGN(this->first_non_payload_grf, reg_width);
-   for (i = 1; i <= this->alloc.count; i++) {
+   hw_reg_mapping[0] = ALIGN(s.first_non_payload_grf, reg_width);
+   for (i = 1; i <= s.alloc.count; i++) {
       hw_reg_mapping[i] = (hw_reg_mapping[i - 1] +
-                           DIV_ROUND_UP(this->alloc.sizes[i - 1],
+                           DIV_ROUND_UP(s.alloc.sizes[i - 1],
                                         reg_unit(devinfo)));
    }
-   this->grf_used = hw_reg_mapping[this->alloc.count];
+   s.grf_used = hw_reg_mapping[s.alloc.count];
 
-   foreach_block_and_inst(block, fs_inst, inst, cfg) {
+   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
       assign_reg(devinfo, hw_reg_mapping, &inst->dst);
       for (i = 0; i < inst->sources; i++) {
          assign_reg(devinfo, hw_reg_mapping, &inst->src[i]);
       }
    }
 
-   if (this->grf_used >= BRW_MAX_GRF) {
-      fail("Ran out of regs on trivial allocator (%d/%d)\n",
-	   this->grf_used, BRW_MAX_GRF);
+   if (s.grf_used >= BRW_MAX_GRF) {
+      s.fail("Ran out of regs on trivial allocator (%d/%d)\n",
+	     s.grf_used, BRW_MAX_GRF);
    } else {
-      this->alloc.count = this->grf_used;
+      s.alloc.count = s.grf_used;
    }
 
 }
@@ -1140,13 +1141,13 @@ fs_reg_alloc::assign_regs(bool allow_spilling, bool spill_all)
 }
 
 bool
-fs_visitor::assign_regs(bool allow_spilling, bool spill_all)
+brw_assign_regs(fs_visitor &s, bool allow_spilling, bool spill_all)
 {
-   fs_reg_alloc alloc(this);
+   fs_reg_alloc alloc(&s);
    bool success = alloc.assign_regs(allow_spilling, spill_all);
    if (!success && allow_spilling) {
-      fail("no register to spill:\n");
-      brw_print_instructions(*this, NULL);
+      s.fail("no register to spill:\n");
+      brw_print_instructions(s, NULL);
    }
    return success;
 }

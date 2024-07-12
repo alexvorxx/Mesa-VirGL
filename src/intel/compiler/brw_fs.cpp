@@ -1597,12 +1597,12 @@ fs_visitor::debug_optimizer(const nir_shader *nir,
    free(filename);
 }
 
-uint32_t
-fs_visitor::compute_max_register_pressure()
+static uint32_t
+brw_compute_max_register_pressure(fs_visitor &s)
 {
-   const register_pressure &rp = regpressure_analysis.require();
+   const register_pressure &rp = s.regpressure_analysis.require();
    uint32_t ip = 0, max_pressure = 0;
-   foreach_block_and_inst(block, fs_inst, inst, cfg) {
+   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
       max_pressure = MAX2(max_pressure, rp.regs_live_at_ip[ip]);
       ip++;
    }
@@ -1653,8 +1653,10 @@ brw_get_scratch_size(int size)
 }
 
 void
-fs_visitor::allocate_registers(bool allow_spilling)
+brw_allocate_registers(fs_visitor &s, bool allow_spilling)
 {
+   const struct intel_device_info *devinfo = s.devinfo;
+   const nir_shader *nir = s.nir;
    bool allocated;
 
    static const enum instruction_scheduler_mode pre_modes[] = {
@@ -1675,12 +1677,12 @@ fs_visitor::allocate_registers(bool allow_spilling)
    uint32_t best_register_pressure = UINT32_MAX;
    enum instruction_scheduler_mode best_sched = SCHEDULE_NONE;
 
-   brw_fs_opt_compact_virtual_grfs(*this);
+   brw_fs_opt_compact_virtual_grfs(s);
 
-   if (needs_register_pressure)
-      shader_stats.max_register_pressure = compute_max_register_pressure();
+   if (s.needs_register_pressure)
+      s.shader_stats.max_register_pressure = brw_compute_max_register_pressure(s);
 
-   debug_optimizer(nir, "pre_register_allocate", 90, 90);
+   s.debug_optimizer(nir, "pre_register_allocate", 90, 90);
 
    bool spill_all = allow_spilling && INTEL_DEBUG(DEBUG_SPILL_FS);
 
@@ -1688,11 +1690,11 @@ fs_visitor::allocate_registers(bool allow_spilling)
     * of fs_inst *.  This way, we can reset it between scheduling passes to
     * prevent dependencies between the different scheduling modes.
     */
-   fs_inst **orig_order = save_instruction_order(cfg);
+   fs_inst **orig_order = save_instruction_order(s.cfg);
    fs_inst **best_pressure_order = NULL;
 
    void *scheduler_ctx = ralloc_context(NULL);
-   instruction_scheduler *sched = prepare_scheduler(scheduler_ctx);
+   instruction_scheduler *sched = brw_prepare_scheduler(s, scheduler_ctx);
 
    /* Try each scheduling heuristic to see if it can successfully register
     * allocate without spilling.  They should be ordered by decreasing
@@ -1701,26 +1703,26 @@ fs_visitor::allocate_registers(bool allow_spilling)
    for (unsigned i = 0; i < ARRAY_SIZE(pre_modes); i++) {
       enum instruction_scheduler_mode sched_mode = pre_modes[i];
 
-      schedule_instructions_pre_ra(sched, sched_mode);
-      this->shader_stats.scheduler_mode = scheduler_mode_name[sched_mode];
+      brw_schedule_instructions_pre_ra(s, sched, sched_mode);
+      s.shader_stats.scheduler_mode = scheduler_mode_name[sched_mode];
 
-      debug_optimizer(nir, shader_stats.scheduler_mode, 95, i);
+      s.debug_optimizer(nir, s.shader_stats.scheduler_mode, 95, i);
 
       if (0) {
-         assign_regs_trivial();
+         brw_assign_regs_trivial(s);
          allocated = true;
          break;
       }
 
       /* We should only spill registers on the last scheduling. */
-      assert(!spilled_any_registers);
+      assert(!s.spilled_any_registers);
 
-      allocated = assign_regs(false, spill_all);
+      allocated = brw_assign_regs(s, false, spill_all);
       if (allocated)
          break;
 
       /* Save the maximum register pressure */
-      uint32_t this_pressure = compute_max_register_pressure();
+      uint32_t this_pressure = brw_compute_max_register_pressure(s);
 
       if (0) {
          fprintf(stderr, "Scheduler mode \"%s\" spilled, max pressure = %u\n",
@@ -1731,12 +1733,12 @@ fs_visitor::allocate_registers(bool allow_spilling)
          best_register_pressure = this_pressure;
          best_sched = sched_mode;
          delete[] best_pressure_order;
-         best_pressure_order = save_instruction_order(cfg);
+         best_pressure_order = save_instruction_order(s.cfg);
       }
 
       /* Reset back to the original order before trying the next mode */
-      restore_instruction_order(cfg, orig_order);
-      invalidate_analysis(DEPENDENCY_INSTRUCTIONS);
+      restore_instruction_order(s.cfg, orig_order);
+      s.invalidate_analysis(DEPENDENCY_INSTRUCTIONS);
    }
 
    ralloc_free(scheduler_ctx);
@@ -1746,38 +1748,38 @@ fs_visitor::allocate_registers(bool allow_spilling)
          fprintf(stderr, "Spilling - using lowest-pressure mode \"%s\"\n",
                  scheduler_mode_name[best_sched]);
       }
-      restore_instruction_order(cfg, best_pressure_order);
-      shader_stats.scheduler_mode = scheduler_mode_name[best_sched];
+      restore_instruction_order(s.cfg, best_pressure_order);
+      s.shader_stats.scheduler_mode = scheduler_mode_name[best_sched];
 
-      allocated = assign_regs(allow_spilling, spill_all);
+      allocated = brw_assign_regs(s, allow_spilling, spill_all);
    }
 
    delete[] orig_order;
    delete[] best_pressure_order;
 
    if (!allocated) {
-      fail("Failure to register allocate.  Reduce number of "
+      s.fail("Failure to register allocate.  Reduce number of "
            "live scalar values to avoid this.");
-   } else if (spilled_any_registers) {
-      brw_shader_perf_log(compiler, log_data,
+   } else if (s.spilled_any_registers) {
+      brw_shader_perf_log(s.compiler, s.log_data,
                           "%s shader triggered register spilling.  "
                           "Try reducing the number of live scalar "
                           "values to improve performance.\n",
-                          _mesa_shader_stage_to_string(stage));
+                          _mesa_shader_stage_to_string(s.stage));
    }
 
-   if (failed)
+   if (s.failed)
       return;
 
-   debug_optimizer(nir, "post_ra_alloc", 96, 0);
+   s.debug_optimizer(nir, "post_ra_alloc", 96, 0);
 
-   brw_fs_opt_bank_conflicts(*this);
+   brw_fs_opt_bank_conflicts(s);
 
-   debug_optimizer(nir, "bank_conflict", 96, 1);
+   s.debug_optimizer(nir, "bank_conflict", 96, 1);
 
-   schedule_instructions_post_ra();
+   brw_schedule_instructions_post_ra(s);
 
-   debug_optimizer(nir, "post_ra_alloc_scheduling", 96, 2);
+   s.debug_optimizer(nir, "post_ra_alloc_scheduling", 96, 2);
 
    /* Lowering VGRF to FIXED_GRF is currently done as a separate pass instead
     * of part of assign_regs since both bank conflicts optimization and post
@@ -1787,12 +1789,11 @@ fs_visitor::allocate_registers(bool allow_spilling)
     * TODO: Change the passes above, then move this lowering to be part of
     * assign_regs.
     */
-   brw_fs_lower_vgrfs_to_fixed_grfs(*this);
+   brw_fs_lower_vgrfs_to_fixed_grfs(s);
 
-   debug_optimizer(nir, "lowered_vgrfs_to_fixed_grfs", 96, 3);
+   s.debug_optimizer(nir, "lowered_vgrfs_to_fixed_grfs", 96, 3);
 
-   if (last_scratch > 0) {
-
+   if (s.last_scratch > 0) {
       /* We currently only support up to 2MB of scratch space.  If we
        * need to support more eventually, the documentation suggests
        * that we could allocate a larger buffer, and partition it out
@@ -1803,22 +1804,22 @@ fs_visitor::allocate_registers(bool allow_spilling)
        * See 3D-Media-GPGPU Engine > Media GPGPU Pipeline >
        * Thread Group Tracking > Local Memory/Scratch Space.
        */
-      if (last_scratch <= devinfo->max_scratch_size_per_thread) {
+      if (s.last_scratch <= devinfo->max_scratch_size_per_thread) {
          /* Take the max of any previously compiled variant of the shader. In the
           * case of bindless shaders with return parts, this will also take the
           * max of all parts.
           */
-         prog_data->total_scratch = MAX2(brw_get_scratch_size(last_scratch),
-                                         prog_data->total_scratch);
+         s.prog_data->total_scratch = MAX2(brw_get_scratch_size(s.last_scratch),
+                                           s.prog_data->total_scratch);
       } else {
-         fail("Scratch space required is larger than supported");
+         s.fail("Scratch space required is larger than supported");
       }
    }
 
-   if (failed)
+   if (s.failed)
       return;
 
-   brw_fs_lower_scoreboard(*this);
+   brw_fs_lower_scoreboard(s);
 }
 
 /**

@@ -301,23 +301,14 @@ public:
                                    uint8_t alignment,
                                    unsigned components);
 
-   void allocate_registers(bool allow_spilling);
-   uint32_t compute_max_register_pressure();
    void assign_curb_setup();
    void convert_attr_sources_to_hw_regs(fs_inst *inst);
-   bool assign_regs(bool allow_spilling, bool spill_all);
-   void assign_regs_trivial();
    void calculate_payload_ranges(unsigned payload_node_count,
                                  int *payload_last_use_ip) const;
    void assign_constant_locations();
    bool get_pull_locs(const brw_reg &src, unsigned *out_surf_index,
                       unsigned *out_pull_index);
    void invalidate_analysis(brw::analysis_dependency_class c);
-
-   instruction_scheduler *prepare_scheduler(void *mem_ctx);
-   void schedule_instructions_pre_ra(instruction_scheduler *sched,
-                                     instruction_scheduler_mode mode);
-   void schedule_instructions_post_ra();
 
    void vfail(const char *msg, va_list args);
    void fail(const char *msg, ...);
@@ -622,6 +613,15 @@ static inline void brw_fs_validate(const fs_visitor &s) {}
 #endif
 
 void brw_fs_optimize(fs_visitor &s);
+
+instruction_scheduler *brw_prepare_scheduler(fs_visitor &s, void *mem_ctx);
+void brw_schedule_instructions_pre_ra(fs_visitor &s, instruction_scheduler *sched,
+                                      instruction_scheduler_mode mode);
+void brw_schedule_instructions_post_ra(fs_visitor &s);
+
+void brw_allocate_registers(fs_visitor &s, bool allow_spilling);
+bool brw_assign_regs(fs_visitor &s, bool allow_spilling, bool spill_all);
+void brw_assign_regs_trivial(fs_visitor &s);
 
 bool brw_fs_lower_3src_null_dest(fs_visitor &s);
 bool brw_fs_lower_alu_restrictions(fs_visitor &s);
