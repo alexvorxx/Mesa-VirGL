@@ -304,7 +304,6 @@ public:
    void allocate_registers(bool allow_spilling);
    uint32_t compute_max_register_pressure();
    void assign_curb_setup();
-   void assign_urb_setup();
    void convert_attr_sources_to_hw_regs(fs_inst *inst);
    void assign_tcs_urb_setup();
    void assign_tes_urb_setup();
@@ -327,16 +326,8 @@ public:
    void fail(const char *msg, ...);
    void limit_dispatch_width(unsigned n, const char *msg);
 
-   void emit_repclear_shader();
-   void emit_interpolation_setup();
-
    void set_tcs_invocation_id();
 
-   fs_inst *emit_single_fb_write(const brw::fs_builder &bld,
-                                 brw_reg color1, brw_reg color2,
-                                 brw_reg src0_alpha, unsigned components);
-   void do_emit_fb_writes(int nr_color_regions, bool replicate_alpha);
-   void emit_fb_writes();
    void emit_urb_writes(const brw_reg &gs_vertex_count = brw_reg());
    void emit_gs_control_data_bits(const brw_reg &vertex_count);
    brw_reg gs_urb_channel_mask(const brw_reg &dword_index);

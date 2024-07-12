@@ -19,6 +19,622 @@
 
 using namespace brw;
 
+static fs_inst *
+brw_emit_single_fb_write(fs_visitor &s, const fs_builder &bld,
+                         brw_reg color0, brw_reg color1,
+                         brw_reg src0_alpha, unsigned components)
+{
+   assert(s.stage == MESA_SHADER_FRAGMENT);
+   struct brw_wm_prog_data *prog_data = brw_wm_prog_data(s.prog_data);
+
+   /* Hand over gl_FragDepth or the payload depth. */
+   const brw_reg dst_depth = fetch_payload_reg(bld, s.fs_payload().dest_depth_reg);
+   brw_reg src_depth, src_stencil;
+
+   if (s.nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_DEPTH))
+      src_depth = s.frag_depth;
+
+   if (s.nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_STENCIL))
+      src_stencil = s.frag_stencil;
+
+   const brw_reg sources[] = {
+      color0, color1, src0_alpha, src_depth, dst_depth, src_stencil,
+      (prog_data->uses_omask ? s.sample_mask : brw_reg()),
+      brw_imm_ud(components)
+   };
+   assert(ARRAY_SIZE(sources) - 1 == FB_WRITE_LOGICAL_SRC_COMPONENTS);
+   fs_inst *write = bld.emit(FS_OPCODE_FB_WRITE_LOGICAL, brw_reg(),
+                             sources, ARRAY_SIZE(sources));
+
+   if (prog_data->uses_kill) {
+      write->predicate = BRW_PREDICATE_NORMAL;
+      write->flag_subreg = sample_mask_flag_subreg(s);
+   }
+
+   return write;
+}
+
+static void
+brw_do_emit_fb_writes(fs_visitor &s, int nr_color_regions, bool replicate_alpha)
+{
+   const fs_builder bld = fs_builder(&s).at_end();
+   fs_inst *inst = NULL;
+
+   for (int target = 0; target < nr_color_regions; target++) {
+      /* Skip over outputs that weren't written. */
+      if (s.outputs[target].file == BAD_FILE)
+         continue;
+
+      const fs_builder abld = bld.annotate(
+         ralloc_asprintf(s.mem_ctx, "FB write target %d", target));
+
+      brw_reg src0_alpha;
+      if (replicate_alpha && target != 0)
+         src0_alpha = offset(s.outputs[0], bld, 3);
+
+      inst = brw_emit_single_fb_write(s, abld, s.outputs[target],
+                                      s.dual_src_output, src0_alpha, 4);
+      inst->target = target;
+   }
+
+   if (inst == NULL) {
+      /* Even if there's no color buffers enabled, we still need to send
+       * alpha out the pipeline to our null renderbuffer to support
+       * alpha-testing, alpha-to-coverage, and so on.
+       */
+      /* FINISHME: Factor out this frequently recurring pattern into a
+       * helper function.
+       */
+      const brw_reg srcs[] = { reg_undef, reg_undef,
+                              reg_undef, offset(s.outputs[0], bld, 3) };
+      const brw_reg tmp = bld.vgrf(BRW_TYPE_UD, 4);
+      bld.LOAD_PAYLOAD(tmp, srcs, 4, 0);
+
+      inst = brw_emit_single_fb_write(s, bld, tmp, reg_undef, reg_undef, 4);
+      inst->target = 0;
+   }
+
+   inst->last_rt = true;
+   inst->eot = true;
+}
+
+static void
+brw_emit_fb_writes(fs_visitor &s)
+{
+   const struct intel_device_info *devinfo = s.devinfo;
+   assert(s.stage == MESA_SHADER_FRAGMENT);
+   struct brw_wm_prog_data *prog_data = brw_wm_prog_data(s.prog_data);
+   brw_wm_prog_key *key = (brw_wm_prog_key*) s.key;
+
+   if (s.nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_STENCIL)) {
+      /* From the 'Render Target Write message' section of the docs:
+       * "Output Stencil is not supported with SIMD16 Render Target Write
+       * Messages."
+       */
+      if (devinfo->ver >= 20)
+         s.limit_dispatch_width(16, "gl_FragStencilRefARB unsupported "
+                                "in SIMD32+ mode.\n");
+      else
+         s.limit_dispatch_width(8, "gl_FragStencilRefARB unsupported "
+                                "in SIMD16+ mode.\n");
+   }
+
+   /* ANV doesn't know about sample mask output during the wm key creation
+    * so we compute if we need replicate alpha and emit alpha to coverage
+    * workaround here.
+    */
+   const bool replicate_alpha = key->alpha_test_replicate_alpha ||
+      (key->nr_color_regions > 1 && key->alpha_to_coverage &&
+       s.sample_mask.file == BAD_FILE);
+
+   prog_data->dual_src_blend = (s.dual_src_output.file != BAD_FILE &&
+                                s.outputs[0].file != BAD_FILE);
+   assert(!prog_data->dual_src_blend || key->nr_color_regions == 1);
+
+   /* Following condition implements Wa_14017468336:
+    *
+    * "If dual source blend is enabled do not enable SIMD32 dispatch" and
+    * "For a thread dispatched as SIMD32, must not issue SIMD8 message with Last
+    *  Render Target Select set."
+    */
+   if (devinfo->ver >= 11 && devinfo->ver <= 12 &&
+       prog_data->dual_src_blend) {
+      /* The dual-source RT write messages fail to release the thread
+       * dependency on ICL and TGL with SIMD32 dispatch, leading to hangs.
+       *
+       * XXX - Emit an extra single-source NULL RT-write marked LastRT in
+       *       order to release the thread dependency without disabling
+       *       SIMD32.
+       *
+       * The dual-source RT write messages may lead to hangs with SIMD16
+       * dispatch on ICL due some unknown reasons, see
+       * https://gitlab.freedesktop.org/mesa/mesa/-/issues/2183
+       */
+      if (devinfo->ver >= 20)
+         s.limit_dispatch_width(16, "Dual source blending unsupported "
+                                "in SIMD32 mode.\n");
+      else
+         s.limit_dispatch_width(8, "Dual source blending unsupported "
+                                "in SIMD16 and SIMD32 modes.\n");
+   }
+
+   brw_do_emit_fb_writes(s, key->nr_color_regions, replicate_alpha);
+}
+
+
+/** Emits the interpolation for the varying inputs. */
+static void
+brw_emit_interpolation_setup(fs_visitor &s)
+{
+   const struct intel_device_info *devinfo = s.devinfo;
+   const fs_builder bld = fs_builder(&s).at_end();
+   fs_builder abld = bld.annotate("compute pixel centers");
+
+   s.pixel_x = bld.vgrf(BRW_TYPE_F);
+   s.pixel_y = bld.vgrf(BRW_TYPE_F);
+
+   const struct brw_wm_prog_key *wm_key = (brw_wm_prog_key*) s.key;
+   struct brw_wm_prog_data *wm_prog_data = brw_wm_prog_data(s.prog_data);
+   fs_thread_payload &payload = s.fs_payload();
+
+   brw_reg int_sample_offset_x, int_sample_offset_y; /* Used on Gen12HP+ */
+   brw_reg int_sample_offset_xy; /* Used on Gen8+ */
+   brw_reg half_int_sample_offset_x, half_int_sample_offset_y;
+   if (wm_prog_data->coarse_pixel_dispatch != BRW_ALWAYS) {
+      /* The thread payload only delivers subspan locations (ss0, ss1,
+       * ss2, ...). Since subspans covers 2x2 pixels blocks, we need to
+       * generate 4 pixel coordinates out of each subspan location. We do this
+       * by replicating a subspan coordinate 4 times and adding an offset of 1
+       * in each direction from the initial top left (tl) location to generate
+       * top right (tr = +1 in x), bottom left (bl = +1 in y) and bottom right
+       * (br = +1 in x, +1 in y).
+       *
+       * The locations we build look like this in SIMD8 :
+       *
+       *    ss0.tl ss0.tr ss0.bl ss0.br ss1.tl ss1.tr ss1.bl ss1.br
+       *
+       * The value 0x11001010 is a vector of 8 half byte vector. It adds
+       * following to generate the 4 pixels coordinates out of the subspan0:
+       *
+       *  0x
+       *    1 : ss0.y + 1 -> ss0.br.y
+       *    1 : ss0.y + 1 -> ss0.bl.y
+       *    0 : ss0.y + 0 -> ss0.tr.y
+       *    0 : ss0.y + 0 -> ss0.tl.y
+       *    1 : ss0.x + 1 -> ss0.br.x
+       *    0 : ss0.x + 0 -> ss0.bl.x
+       *    1 : ss0.x + 1 -> ss0.tr.x
+       *    0 : ss0.x + 0 -> ss0.tl.x
+       *
+       * By doing a SIMD16 add in a SIMD8 shader, we can generate the 8 pixels
+       * coordinates out of 2 subspans coordinates in a single ADD instruction
+       * (twice the operation above).
+       */
+      int_sample_offset_xy = brw_reg(brw_imm_v(0x11001010));
+      half_int_sample_offset_x = brw_reg(brw_imm_uw(0));
+      half_int_sample_offset_y = brw_reg(brw_imm_uw(0));
+      /* On Gfx12.5, because of regioning restrictions, the interpolation code
+       * is slightly different and works off X & Y only inputs. The ordering
+       * of the half bytes here is a bit odd, with each subspan replicated
+       * twice and every other element is discarded :
+       *
+       *             ss0.tl ss0.tl ss0.tr ss0.tr ss0.bl ss0.bl ss0.br ss0.br
+       *  X offset:    0      0      1      0      0      0      1      0
+       *  Y offset:    0      0      0      0      1      0      1      0
+       */
+      int_sample_offset_x = brw_reg(brw_imm_v(0x01000100));
+      int_sample_offset_y = brw_reg(brw_imm_v(0x01010000));
+   }
+
+   brw_reg int_coarse_offset_x, int_coarse_offset_y; /* Used on Gen12HP+ */
+   brw_reg int_coarse_offset_xy; /* Used on Gen8+ */
+   brw_reg half_int_coarse_offset_x, half_int_coarse_offset_y;
+   if (wm_prog_data->coarse_pixel_dispatch != BRW_NEVER) {
+      /* In coarse pixel dispatch we have to do the same ADD instruction that
+       * we do in normal per pixel dispatch, except this time we're not adding
+       * 1 in each direction, but instead the coarse pixel size.
+       *
+       * The coarse pixel size is delivered as 2 u8 in r1.0
+       */
+      struct brw_reg r1_0 = retype(brw_vec1_reg(BRW_GENERAL_REGISTER_FILE, 1, 0), BRW_TYPE_UB);
+
+      const fs_builder dbld =
+         abld.exec_all().group(MIN2(16, s.dispatch_width) * 2, 0);
+
+      if (devinfo->verx10 >= 125) {
+         /* To build the array of half bytes we do and AND operation with the
+          * right mask in X.
+          */
+         int_coarse_offset_x = dbld.vgrf(BRW_TYPE_UW);
+         dbld.AND(int_coarse_offset_x, byte_offset(r1_0, 0), brw_imm_v(0x0f000f00));
+
+         /* And the right mask in Y. */
+         int_coarse_offset_y = dbld.vgrf(BRW_TYPE_UW);
+         dbld.AND(int_coarse_offset_y, byte_offset(r1_0, 1), brw_imm_v(0x0f0f0000));
+      } else {
+         /* To build the array of half bytes we do and AND operation with the
+          * right mask in X.
+          */
+         int_coarse_offset_x = dbld.vgrf(BRW_TYPE_UW);
+         dbld.AND(int_coarse_offset_x, byte_offset(r1_0, 0), brw_imm_v(0x0000f0f0));
+
+         /* And the right mask in Y. */
+         int_coarse_offset_y = dbld.vgrf(BRW_TYPE_UW);
+         dbld.AND(int_coarse_offset_y, byte_offset(r1_0, 1), brw_imm_v(0xff000000));
+
+         /* Finally OR the 2 registers. */
+         int_coarse_offset_xy = dbld.vgrf(BRW_TYPE_UW);
+         dbld.OR(int_coarse_offset_xy, int_coarse_offset_x, int_coarse_offset_y);
+      }
+
+      /* Also compute the half coarse size used to center coarses. */
+      half_int_coarse_offset_x = bld.vgrf(BRW_TYPE_UW);
+      half_int_coarse_offset_y = bld.vgrf(BRW_TYPE_UW);
+
+      bld.SHR(half_int_coarse_offset_x, suboffset(r1_0, 0), brw_imm_ud(1));
+      bld.SHR(half_int_coarse_offset_y, suboffset(r1_0, 1), brw_imm_ud(1));
+   }
+
+   brw_reg int_pixel_offset_x, int_pixel_offset_y; /* Used on Gen12HP+ */
+   brw_reg int_pixel_offset_xy; /* Used on Gen8+ */
+   brw_reg half_int_pixel_offset_x, half_int_pixel_offset_y;
+   switch (wm_prog_data->coarse_pixel_dispatch) {
+   case BRW_NEVER:
+      int_pixel_offset_x = int_sample_offset_x;
+      int_pixel_offset_y = int_sample_offset_y;
+      int_pixel_offset_xy = int_sample_offset_xy;
+      half_int_pixel_offset_x = half_int_sample_offset_x;
+      half_int_pixel_offset_y = half_int_sample_offset_y;
+      break;
+
+   case BRW_SOMETIMES: {
+      const fs_builder dbld =
+         abld.exec_all().group(MIN2(16, s.dispatch_width) * 2, 0);
+
+      check_dynamic_msaa_flag(dbld, wm_prog_data,
+                              INTEL_MSAA_FLAG_COARSE_RT_WRITES);
+
+      int_pixel_offset_x = dbld.vgrf(BRW_TYPE_UW);
+      set_predicate(BRW_PREDICATE_NORMAL,
+                    dbld.SEL(int_pixel_offset_x,
+                             int_coarse_offset_x,
+                             int_sample_offset_x));
+
+      int_pixel_offset_y = dbld.vgrf(BRW_TYPE_UW);
+      set_predicate(BRW_PREDICATE_NORMAL,
+                    dbld.SEL(int_pixel_offset_y,
+                             int_coarse_offset_y,
+                             int_sample_offset_y));
+
+      int_pixel_offset_xy = dbld.vgrf(BRW_TYPE_UW);
+      set_predicate(BRW_PREDICATE_NORMAL,
+                    dbld.SEL(int_pixel_offset_xy,
+                             int_coarse_offset_xy,
+                             int_sample_offset_xy));
+
+      half_int_pixel_offset_x = bld.vgrf(BRW_TYPE_UW);
+      set_predicate(BRW_PREDICATE_NORMAL,
+                    bld.SEL(half_int_pixel_offset_x,
+                            half_int_coarse_offset_x,
+                            half_int_sample_offset_x));
+
+      half_int_pixel_offset_y = bld.vgrf(BRW_TYPE_UW);
+      set_predicate(BRW_PREDICATE_NORMAL,
+                    bld.SEL(half_int_pixel_offset_y,
+                            half_int_coarse_offset_y,
+                            half_int_sample_offset_y));
+      break;
+   }
+
+   case BRW_ALWAYS:
+      int_pixel_offset_x = int_coarse_offset_x;
+      int_pixel_offset_y = int_coarse_offset_y;
+      int_pixel_offset_xy = int_coarse_offset_xy;
+      half_int_pixel_offset_x = half_int_coarse_offset_x;
+      half_int_pixel_offset_y = half_int_coarse_offset_y;
+      break;
+   }
+
+   for (unsigned i = 0; i < DIV_ROUND_UP(s.dispatch_width, 16); i++) {
+      const fs_builder hbld = abld.group(MIN2(16, s.dispatch_width), i);
+      /* According to the "PS Thread Payload for Normal Dispatch"
+       * pages on the BSpec, subspan X/Y coordinates are stored in
+       * R1.2-R1.5/R2.2-R2.5 on gfx6+, and on R0.10-R0.13/R1.10-R1.13
+       * on gfx20+.  gi_reg is the 32B section of the GRF that
+       * contains the subspan coordinates.
+       */
+      const struct brw_reg gi_reg = devinfo->ver >= 20 ? xe2_vec1_grf(i, 8) :
+                                    brw_vec1_grf(i + 1, 0);
+      const struct brw_reg gi_uw = retype(gi_reg, BRW_TYPE_UW);
+
+      if (devinfo->verx10 >= 125) {
+         const fs_builder dbld =
+            abld.exec_all().group(hbld.dispatch_width() * 2, 0);
+         const brw_reg int_pixel_x = dbld.vgrf(BRW_TYPE_UW);
+         const brw_reg int_pixel_y = dbld.vgrf(BRW_TYPE_UW);
+
+         dbld.ADD(int_pixel_x,
+                  brw_reg(stride(suboffset(gi_uw, 4), 2, 8, 0)),
+                  int_pixel_offset_x);
+         dbld.ADD(int_pixel_y,
+                  brw_reg(stride(suboffset(gi_uw, 5), 2, 8, 0)),
+                  int_pixel_offset_y);
+
+         if (wm_prog_data->coarse_pixel_dispatch != BRW_NEVER) {
+            fs_inst *addx = dbld.ADD(int_pixel_x, int_pixel_x,
+                                     horiz_stride(half_int_pixel_offset_x, 0));
+            fs_inst *addy = dbld.ADD(int_pixel_y, int_pixel_y,
+                                     horiz_stride(half_int_pixel_offset_y, 0));
+            if (wm_prog_data->coarse_pixel_dispatch != BRW_ALWAYS) {
+               addx->predicate = BRW_PREDICATE_NORMAL;
+               addy->predicate = BRW_PREDICATE_NORMAL;
+            }
+         }
+
+         hbld.MOV(offset(s.pixel_x, hbld, i), horiz_stride(int_pixel_x, 2));
+         hbld.MOV(offset(s.pixel_y, hbld, i), horiz_stride(int_pixel_y, 2));
+
+      } else {
+         /* The "Register Region Restrictions" page says for BDW (and newer,
+          * presumably):
+          *
+          *     "When destination spans two registers, the source may be one or
+          *      two registers. The destination elements must be evenly split
+          *      between the two registers."
+          *
+          * Thus we can do a single add(16) in SIMD8 or an add(32) in SIMD16
+          * to compute our pixel centers.
+          */
+         const fs_builder dbld =
+            abld.exec_all().group(hbld.dispatch_width() * 2, 0);
+         brw_reg int_pixel_xy = dbld.vgrf(BRW_TYPE_UW);
+
+         dbld.ADD(int_pixel_xy,
+                  brw_reg(stride(suboffset(gi_uw, 4), 1, 4, 0)),
+                  int_pixel_offset_xy);
+
+         hbld.emit(FS_OPCODE_PIXEL_X, offset(s.pixel_x, hbld, i), int_pixel_xy,
+                                      horiz_stride(half_int_pixel_offset_x, 0));
+         hbld.emit(FS_OPCODE_PIXEL_Y, offset(s.pixel_y, hbld, i), int_pixel_xy,
+                                      horiz_stride(half_int_pixel_offset_y, 0));
+      }
+   }
+
+   abld = bld.annotate("compute pos.z");
+   brw_reg coarse_z;
+   if (wm_prog_data->coarse_pixel_dispatch != BRW_NEVER &&
+       wm_prog_data->uses_depth_w_coefficients) {
+      /* In coarse pixel mode, the HW doesn't interpolate Z coordinate
+       * properly. In the same way we have to add the coarse pixel size to
+       * pixels locations, here we recompute the Z value with 2 coefficients
+       * in X & Y axis.
+       */
+      brw_reg coef_payload = brw_vec8_grf(payload.depth_w_coef_reg, 0);
+      const brw_reg x_start = brw_vec1_grf(coef_payload.nr, 2);
+      const brw_reg y_start = brw_vec1_grf(coef_payload.nr, 6);
+      const brw_reg z_cx    = brw_vec1_grf(coef_payload.nr, 1);
+      const brw_reg z_cy    = brw_vec1_grf(coef_payload.nr, 0);
+      const brw_reg z_c0    = brw_vec1_grf(coef_payload.nr, 3);
+
+      const brw_reg float_pixel_x = abld.vgrf(BRW_TYPE_F);
+      const brw_reg float_pixel_y = abld.vgrf(BRW_TYPE_F);
+
+      abld.ADD(float_pixel_x, s.pixel_x, negate(x_start));
+      abld.ADD(float_pixel_y, s.pixel_y, negate(y_start));
+
+      /* r1.0 - 0:7 ActualCoarsePixelShadingSize.X */
+      const brw_reg u8_cps_width = brw_reg(retype(brw_vec1_grf(1, 0), BRW_TYPE_UB));
+      /* r1.0 - 15:8 ActualCoarsePixelShadingSize.Y */
+      const brw_reg u8_cps_height = byte_offset(u8_cps_width, 1);
+      const brw_reg u32_cps_width = abld.vgrf(BRW_TYPE_UD);
+      const brw_reg u32_cps_height = abld.vgrf(BRW_TYPE_UD);
+      abld.MOV(u32_cps_width, u8_cps_width);
+      abld.MOV(u32_cps_height, u8_cps_height);
+
+      const brw_reg f_cps_width = abld.vgrf(BRW_TYPE_F);
+      const brw_reg f_cps_height = abld.vgrf(BRW_TYPE_F);
+      abld.MOV(f_cps_width, u32_cps_width);
+      abld.MOV(f_cps_height, u32_cps_height);
+
+      /* Center in the middle of the coarse pixel. */
+      abld.MAD(float_pixel_x, float_pixel_x, brw_imm_f(0.5f), f_cps_width);
+      abld.MAD(float_pixel_y, float_pixel_y, brw_imm_f(0.5f), f_cps_height);
+
+      coarse_z = abld.vgrf(BRW_TYPE_F);
+      abld.MAD(coarse_z, z_c0, z_cx, float_pixel_x);
+      abld.MAD(coarse_z, coarse_z, z_cy, float_pixel_y);
+   }
+
+   if (wm_prog_data->uses_src_depth)
+      s.pixel_z = fetch_payload_reg(bld, payload.source_depth_reg);
+
+   if (wm_prog_data->uses_depth_w_coefficients ||
+       wm_prog_data->uses_src_depth) {
+      brw_reg sample_z = s.pixel_z;
+
+      switch (wm_prog_data->coarse_pixel_dispatch) {
+      case BRW_NEVER:
+         break;
+
+      case BRW_SOMETIMES:
+         assert(wm_prog_data->uses_src_depth);
+         assert(wm_prog_data->uses_depth_w_coefficients);
+         s.pixel_z = abld.vgrf(BRW_TYPE_F);
+
+         /* We re-use the check_dynamic_msaa_flag() call from above */
+         set_predicate(BRW_PREDICATE_NORMAL,
+                       abld.SEL(s.pixel_z, coarse_z, sample_z));
+         break;
+
+      case BRW_ALWAYS:
+         assert(!wm_prog_data->uses_src_depth);
+         assert(wm_prog_data->uses_depth_w_coefficients);
+         s.pixel_z = coarse_z;
+         break;
+      }
+   }
+
+   if (wm_prog_data->uses_src_w) {
+      abld = bld.annotate("compute pos.w");
+      s.pixel_w = fetch_payload_reg(abld, payload.source_w_reg);
+      s.wpos_w = bld.vgrf(BRW_TYPE_F);
+      abld.emit(SHADER_OPCODE_RCP, s.wpos_w, s.pixel_w);
+   }
+
+   if (wm_key->persample_interp == BRW_SOMETIMES) {
+      assert(!devinfo->needs_unlit_centroid_workaround);
+
+      const fs_builder ubld = bld.exec_all().group(16, 0);
+      bool loaded_flag = false;
+
+      for (int i = 0; i < BRW_BARYCENTRIC_MODE_COUNT; ++i) {
+         if (!(wm_prog_data->barycentric_interp_modes & BITFIELD_BIT(i)))
+            continue;
+
+         /* The sample mode will always be the top bit set in the perspective
+          * or non-perspective section.  In the case where no SAMPLE mode was
+          * requested, wm_prog_data_barycentric_modes() will swap out the top
+          * mode for SAMPLE so this works regardless of whether SAMPLE was
+          * requested or not.
+          */
+         int sample_mode;
+         if (BITFIELD_BIT(i) & BRW_BARYCENTRIC_NONPERSPECTIVE_BITS) {
+            sample_mode = util_last_bit(wm_prog_data->barycentric_interp_modes &
+                                        BRW_BARYCENTRIC_NONPERSPECTIVE_BITS) - 1;
+         } else {
+            sample_mode = util_last_bit(wm_prog_data->barycentric_interp_modes &
+                                        BRW_BARYCENTRIC_PERSPECTIVE_BITS) - 1;
+         }
+         assert(wm_prog_data->barycentric_interp_modes &
+                BITFIELD_BIT(sample_mode));
+
+         if (i == sample_mode)
+            continue;
+
+         uint8_t *barys = payload.barycentric_coord_reg[i];
+
+         uint8_t *sample_barys = payload.barycentric_coord_reg[sample_mode];
+         assert(barys[0] && sample_barys[0]);
+
+         if (!loaded_flag) {
+            check_dynamic_msaa_flag(ubld, wm_prog_data,
+                                    INTEL_MSAA_FLAG_PERSAMPLE_INTERP);
+         }
+
+         for (unsigned j = 0; j < s.dispatch_width / 8; j++) {
+            set_predicate(
+               BRW_PREDICATE_NORMAL,
+               ubld.MOV(brw_vec8_grf(barys[j / 2] + (j % 2) * 2, 0),
+                        brw_vec8_grf(sample_barys[j / 2] + (j % 2) * 2, 0)));
+         }
+      }
+   }
+
+   for (int i = 0; i < BRW_BARYCENTRIC_MODE_COUNT; ++i) {
+      s.delta_xy[i] = fetch_barycentric_reg(
+         bld, payload.barycentric_coord_reg[i]);
+   }
+
+   uint32_t centroid_modes = wm_prog_data->barycentric_interp_modes &
+      (1 << BRW_BARYCENTRIC_PERSPECTIVE_CENTROID |
+       1 << BRW_BARYCENTRIC_NONPERSPECTIVE_CENTROID);
+
+   if (devinfo->needs_unlit_centroid_workaround && centroid_modes) {
+      /* Get the pixel/sample mask into f0 so that we know which
+       * pixels are lit.  Then, for each channel that is unlit,
+       * replace the centroid data with non-centroid data.
+       */
+      for (unsigned i = 0; i < DIV_ROUND_UP(s.dispatch_width, 16); i++) {
+         bld.exec_all().group(1, 0)
+            .MOV(retype(brw_flag_reg(0, i), BRW_TYPE_UW),
+                 retype(brw_vec1_grf(1 + i, 7), BRW_TYPE_UW));
+      }
+
+      for (int i = 0; i < BRW_BARYCENTRIC_MODE_COUNT; ++i) {
+         if (!(centroid_modes & (1 << i)))
+            continue;
+
+         const brw_reg centroid_delta_xy = s.delta_xy[i];
+         const brw_reg &pixel_delta_xy = s.delta_xy[i - 1];
+
+         s.delta_xy[i] = bld.vgrf(BRW_TYPE_F, 2);
+
+         for (unsigned c = 0; c < 2; c++) {
+            for (unsigned q = 0; q < s.dispatch_width / 8; q++) {
+               set_predicate(BRW_PREDICATE_NORMAL,
+                  bld.quarter(q).SEL(
+                     quarter(offset(s.delta_xy[i], bld, c), q),
+                     quarter(offset(centroid_delta_xy, bld, c), q),
+                     quarter(offset(pixel_delta_xy, bld, c), q)));
+            }
+         }
+      }
+   }
+}
+
+
+/**
+ * Once we've generated code, try to convert normal FS_OPCODE_FB_WRITE
+ * instructions to FS_OPCODE_REP_FB_WRITE.
+ */
+static void
+brw_emit_repclear_shader(fs_visitor &s)
+{
+   brw_wm_prog_key *key = (brw_wm_prog_key*) s.key;
+   fs_inst *write = NULL;
+
+   assert(s.devinfo->ver < 20);
+   assert(s.uniforms == 0);
+   assume(key->nr_color_regions > 0);
+
+   brw_reg color_output = retype(brw_vec4_grf(127, 0), BRW_TYPE_UD);
+   brw_reg header = retype(brw_vec8_grf(125, 0), BRW_TYPE_UD);
+
+   /* We pass the clear color as a flat input.  Copy it to the output. */
+   brw_reg color_input =
+      brw_make_reg(BRW_GENERAL_REGISTER_FILE, 2, 3, 0, 0, BRW_TYPE_UD,
+              BRW_VERTICAL_STRIDE_8, BRW_WIDTH_2, BRW_HORIZONTAL_STRIDE_4,
+              BRW_SWIZZLE_XYZW, WRITEMASK_XYZW);
+
+   const fs_builder bld = fs_builder(&s).at_end();
+   bld.exec_all().group(4, 0).MOV(color_output, color_input);
+
+   if (key->nr_color_regions > 1) {
+      /* Copy g0..g1 as the message header */
+      bld.exec_all().group(16, 0)
+         .MOV(header, retype(brw_vec8_grf(0, 0), BRW_TYPE_UD));
+   }
+
+   for (int i = 0; i < key->nr_color_regions; ++i) {
+      if (i > 0)
+         bld.exec_all().group(1, 0).MOV(component(header, 2), brw_imm_ud(i));
+
+      write = bld.emit(SHADER_OPCODE_SEND);
+      write->resize_sources(3);
+      write->sfid = GFX6_SFID_DATAPORT_RENDER_CACHE;
+      write->src[0] = brw_imm_ud(0);
+      write->src[1] = brw_imm_ud(0);
+      write->src[2] = i == 0 ? color_output : header;
+      write->check_tdr = true;
+      write->send_has_side_effects = true;
+      write->desc = brw_fb_write_desc(s.devinfo, i,
+         BRW_DATAPORT_RENDER_TARGET_WRITE_SIMD16_SINGLE_SOURCE_REPLICATED,
+         i == key->nr_color_regions - 1, false);
+
+      /* We can use a headerless message for the first render target */
+      write->header_size = i == 0 ? 0 : 2;
+      write->mlen = 1 + write->header_size;
+   }
+   write->eot = true;
+   write->last_rt = true;
+
+   s.calculate_cfg();
+
+   s.first_non_payload_grf = s.payload().num_regs;
+
+   brw_fs_lower_scoreboard(s);
+}
+
 /**
  * Turn one of the two CENTROID barycentric modes into PIXEL mode.
  */
@@ -618,6 +1234,189 @@ gfx9_ps_header_only_workaround(struct brw_wm_prog_data *wm_prog_data)
    brw_compute_urb_setup_index(wm_prog_data);
 }
 
+static void
+brw_assign_urb_setup(fs_visitor &s)
+{
+   assert(s.stage == MESA_SHADER_FRAGMENT);
+
+   const struct intel_device_info *devinfo = s.devinfo;
+   struct brw_wm_prog_data *prog_data = brw_wm_prog_data(s.prog_data);
+
+   int urb_start = s.payload().num_regs + prog_data->base.curb_read_length;
+
+   /* Offset all the urb_setup[] index by the actual position of the
+    * setup regs, now that the location of the constants has been chosen.
+    */
+   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+      for (int i = 0; i < inst->sources; i++) {
+         if (inst->src[i].file == ATTR) {
+            /* ATTR brw_reg::nr in the FS is in units of logical scalar
+             * inputs each of which consumes 16B on Gfx4-Gfx12.  In
+             * single polygon mode this leads to the following layout
+             * of the vertex setup plane parameters in the ATTR
+             * register file:
+             *
+             *  brw_reg::nr   Input   Comp0  Comp1  Comp2  Comp3
+             *      0       Attr0.x  a1-a0  a2-a0   N/A    a0
+             *      1       Attr0.y  a1-a0  a2-a0   N/A    a0
+             *      2       Attr0.z  a1-a0  a2-a0   N/A    a0
+             *      3       Attr0.w  a1-a0  a2-a0   N/A    a0
+             *      4       Attr1.x  a1-a0  a2-a0   N/A    a0
+             *     ...
+             *
+             * In multipolygon mode that no longer works since
+             * different channels may be processing polygons with
+             * different plane parameters, so each parameter above is
+             * represented as a dispatch_width-wide vector:
+             *
+             *  brw_reg::nr     brw_reg::offset    Input      Comp0     ...    CompN
+             *      0                 0          Attr0.x  a1[0]-a0[0] ... a1[N]-a0[N]
+             *      0        4 * dispatch_width  Attr0.x  a2[0]-a0[0] ... a2[N]-a0[N]
+             *      0        8 * dispatch_width  Attr0.x     N/A      ...     N/A
+             *      0       12 * dispatch_width  Attr0.x    a0[0]     ...    a0[N]
+             *      1                 0          Attr0.y  a1[0]-a0[0] ... a1[N]-a0[N]
+             *     ...
+             *
+             * Note that many of the components on a single row above
+             * are likely to be replicated multiple times (if, say, a
+             * single SIMD thread is only processing 2 different
+             * polygons), so plane parameters aren't actually stored
+             * in GRF memory with that layout to avoid wasting space.
+             * Instead we compose ATTR register regions with a 2D
+             * region that walks through the parameters of each
+             * polygon with the correct stride, reading the parameter
+             * corresponding to each channel directly from the PS
+             * thread payload.
+             *
+             * The latter layout corresponds to a param_width equal to
+             * dispatch_width, while the former (scalar parameter)
+             * layout has a param_width of 1.
+             *
+             * Gfx20+ represent plane parameters in a format similar
+             * to the above, except the parameters are packed in 12B
+             * and ordered like "a0, a1-a0, a2-a0" instead of the
+             * above vec4 representation with a missing component.
+             */
+            const unsigned param_width = (s.max_polygons > 1 ? s.dispatch_width : 1);
+
+            /* Size of a single scalar component of a plane parameter
+             * in bytes.
+             */
+            const unsigned chan_sz = 4;
+            struct brw_reg reg;
+            assert(s.max_polygons > 0);
+
+            /* Calculate the base register on the thread payload of
+             * either the block of vertex setup data or the block of
+             * per-primitive constant data depending on whether we're
+             * accessing a primitive or vertex input.  Also calculate
+             * the index of the input within that block.
+             */
+            const bool per_prim = inst->src[i].nr < prog_data->num_per_primitive_inputs;
+            const unsigned base = urb_start +
+               (per_prim ? 0 :
+                ALIGN(prog_data->num_per_primitive_inputs / 2,
+                      reg_unit(devinfo)) * s.max_polygons);
+            const unsigned idx = per_prim ? inst->src[i].nr :
+               inst->src[i].nr - prog_data->num_per_primitive_inputs;
+
+            /* Translate the offset within the param_width-wide
+             * representation described above into an offset and a
+             * grf, which contains the plane parameters for the first
+             * polygon processed by the thread.
+             */
+            if (devinfo->ver >= 20 && !per_prim) {
+               /* Gfx20+ is able to pack 5 logical input components
+                * per 64B register for vertex setup data.
+                */
+               const unsigned grf = base + idx / 5 * 2 * s.max_polygons;
+               assert(inst->src[i].offset / param_width < 12);
+               const unsigned delta = idx % 5 * 12 +
+                  inst->src[i].offset / (param_width * chan_sz) * chan_sz +
+                  inst->src[i].offset % chan_sz;
+               reg = byte_offset(retype(brw_vec8_grf(grf, 0), inst->src[i].type),
+                                 delta);
+            } else {
+               /* Earlier platforms and per-primitive block pack 2 logical
+                * input components per 32B register.
+                */
+               const unsigned grf = base + idx / 2 * s.max_polygons;
+               assert(inst->src[i].offset / param_width < REG_SIZE / 2);
+               const unsigned delta = (idx % 2) * (REG_SIZE / 2) +
+                  inst->src[i].offset / (param_width * chan_sz) * chan_sz +
+                  inst->src[i].offset % chan_sz;
+               reg = byte_offset(retype(brw_vec8_grf(grf, 0), inst->src[i].type),
+                                 delta);
+            }
+
+            if (s.max_polygons > 1) {
+               assert(devinfo->ver >= 12);
+               /* Misaligned channel strides that would lead to
+                * cross-channel access in the representation above are
+                * disallowed.
+                */
+               assert(inst->src[i].stride * brw_type_size_bytes(inst->src[i].type) == chan_sz);
+
+               /* Number of channels processing the same polygon. */
+               const unsigned poly_width = s.dispatch_width / s.max_polygons;
+               assert(s.dispatch_width % s.max_polygons == 0);
+
+               /* Accessing a subset of channels of a parameter vector
+                * starting from "chan" is necessary to handle
+                * SIMD-lowered instructions though.
+                */
+               const unsigned chan = inst->src[i].offset %
+                  (param_width * chan_sz) / chan_sz;
+               assert(chan < s.dispatch_width);
+               assert(chan % poly_width == 0);
+               const unsigned reg_size = reg_unit(devinfo) * REG_SIZE;
+               reg = byte_offset(reg, chan / poly_width * reg_size);
+
+               if (inst->exec_size > poly_width) {
+                  /* Accessing the parameters for multiple polygons.
+                   * Corresponding parameters for different polygons
+                   * are stored a GRF apart on the thread payload, so
+                   * use that as vertical stride.
+                   */
+                  const unsigned vstride = reg_size / brw_type_size_bytes(inst->src[i].type);
+                  assert(vstride <= 32);
+                  assert(chan % poly_width == 0);
+                  reg = stride(reg, vstride, poly_width, 0);
+               } else {
+                  /* Accessing one parameter for a single polygon --
+                   * Translate to a scalar region.
+                   */
+                  assert(chan % poly_width + inst->exec_size <= poly_width);
+                  reg = stride(reg, 0, 1, 0);
+               }
+
+            } else {
+               const unsigned width = inst->src[i].stride == 0 ?
+                  1 : MIN2(inst->exec_size, 8);
+               reg = stride(reg, width * inst->src[i].stride,
+                            width, inst->src[i].stride);
+            }
+
+            reg.abs = inst->src[i].abs;
+            reg.negate = inst->src[i].negate;
+            inst->src[i] = reg;
+         }
+      }
+   }
+
+   /* Each attribute is 4 setup channels, each of which is half a reg,
+    * but they may be replicated multiple times for multipolygon
+    * dispatch.
+    */
+   s.first_non_payload_grf += prog_data->num_varying_inputs * 2 * s.max_polygons;
+
+   /* Unlike regular attributes, per-primitive attributes have all 4 channels
+    * in the same slot, so each GRF can store two slots.
+    */
+   assert(prog_data->num_per_primitive_inputs % 2 == 0);
+   s.first_non_payload_grf += prog_data->num_per_primitive_inputs / 2 * s.max_polygons;
+}
+
 static bool
 run_fs(fs_visitor &s, bool allow_spilling, bool do_rep_send)
 {
@@ -636,12 +1435,12 @@ run_fs(fs_visitor &s, bool allow_spilling, bool do_rep_send)
 
    if (do_rep_send) {
       assert(s.dispatch_width == 16);
-      s.emit_repclear_shader();
+      brw_emit_repclear_shader(s);
    } else {
       if (nir->info.inputs_read > 0 ||
           BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_FRAG_COORD) ||
           (nir->info.outputs_read > 0 && !wm_key->coherent_fb_fetch)) {
-         s.emit_interpolation_setup();
+         brw_emit_interpolation_setup(s);
       }
 
       /* We handle discards by keeping track of the still-live pixels in f0.1.
@@ -672,7 +1471,7 @@ run_fs(fs_visitor &s, bool allow_spilling, bool do_rep_send)
       if (s.failed)
 	 return false;
 
-      s.emit_fb_writes();
+      brw_emit_fb_writes(s);
 
       s.calculate_cfg();
 
@@ -683,7 +1482,7 @@ run_fs(fs_visitor &s, bool allow_spilling, bool do_rep_send)
       if (devinfo->ver == 9)
          gfx9_ps_header_only_workaround(wm_prog_data);
 
-      s.assign_urb_setup();
+      brw_assign_urb_setup(s);
 
       brw_fs_lower_3src_null_dest(s);
       brw_fs_workaround_memory_fence_before_eot(s);
