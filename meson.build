@@ -1943,6 +1943,11 @@ if with_clc
   endif
 endif
 
+dep_lua = dependency('lua54', 'lua5.4', 'lua-5.4',
+                     'lua53', 'lua5.3', 'lua-5.3',
+                     'lua', required: false,
+                     allow_fallback: true, version: '>=5.3')
+
 # Be explicit about only using this lib on Windows, to avoid picking
 # up random libs with the generic name 'libversion'
 dep_version = null_dep
