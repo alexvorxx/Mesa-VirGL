@@ -11,6 +11,36 @@
 
 using namespace brw;
 
+static bool
+run_vs(fs_visitor &s)
+{
+   assert(s.stage == MESA_SHADER_VERTEX);
+
+   s.payload_ = new vs_thread_payload(s);
+
+   nir_to_brw(&s);
+
+   if (s.failed)
+      return false;
+
+   s.emit_urb_writes();
+
+   s.calculate_cfg();
+
+   brw_fs_optimize(s);
+
+   s.assign_curb_setup();
+   s.assign_vs_urb_setup();
+
+   brw_fs_lower_3src_null_dest(s);
+   brw_fs_workaround_memory_fence_before_eot(s);
+   brw_fs_workaround_emit_dummy_mov_instruction(s);
+
+   s.allocate_registers(true /* allow_spilling */);
+
+   return !s.failed;
+}
+
 extern "C" const unsigned *
 brw_compile_vs(const struct brw_compiler *compiler,
                struct brw_compile_vs_params *params)
@@ -102,7 +132,7 @@ brw_compile_vs(const struct brw_compiler *compiler,
    fs_visitor v(compiler, &params->base, &key->base,
                 &prog_data->base.base, nir, dispatch_width,
                 params->base.stats != NULL, debug_enabled);
-   if (!v.run_vs()) {
+   if (!run_vs(v)) {
       params->base.error_str =
          ralloc_strdup(params->base.mem_ctx, v.fail_msg);
       return NULL;

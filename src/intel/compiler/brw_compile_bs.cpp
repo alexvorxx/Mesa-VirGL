@@ -28,6 +28,36 @@ brw_bsr(const struct intel_device_info *devinfo,
           SET_BITS(local_arg_offset / 8, 2, 0);
 }
 
+static bool
+run_bs(fs_visitor &s, bool allow_spilling)
+{
+   assert(s.stage >= MESA_SHADER_RAYGEN && s.stage <= MESA_SHADER_CALLABLE);
+
+   s.payload_ = new bs_thread_payload(s);
+
+   nir_to_brw(&s);
+
+   if (s.failed)
+      return false;
+
+   /* TODO(RT): Perhaps rename this? */
+   s.emit_cs_terminate();
+
+   s.calculate_cfg();
+
+   brw_fs_optimize(s);
+
+   s.assign_curb_setup();
+
+   brw_fs_lower_3src_null_dest(s);
+   brw_fs_workaround_memory_fence_before_eot(s);
+   brw_fs_workaround_emit_dummy_mov_instruction(s);
+
+   s.allocate_registers(allow_spilling);
+
+   return !s.failed;
+}
+
 static uint8_t
 compile_single_bs(const struct brw_compiler *compiler,
                   struct brw_compile_bs_params *params,
@@ -78,7 +108,7 @@ compile_single_bs(const struct brw_compiler *compiler,
                                              debug_enabled);
 
       const bool allow_spilling = !brw_simd_any_compiled(simd_state);
-      if (v[simd]->run_bs(allow_spilling)) {
+      if (run_bs(*v[simd], allow_spilling)) {
          brw_simd_mark_compiled(simd_state, simd, v[simd]->spilled_any_registers);
       } else {
          simd_state.error[simd] = ralloc_strdup(params->base.mem_ctx,

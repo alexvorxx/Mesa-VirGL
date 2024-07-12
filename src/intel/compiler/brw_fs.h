@@ -301,15 +301,6 @@ public:
                                    uint8_t alignment,
                                    unsigned components);
 
-   bool run_fs(bool allow_spilling, bool do_rep_send);
-   bool run_vs();
-   bool run_tcs();
-   bool run_tes();
-   bool run_gs();
-   bool run_cs(bool allow_spilling);
-   bool run_bs(bool allow_spilling);
-   bool run_task(bool allow_spilling);
-   bool run_mesh(bool allow_spilling);
    void allocate_registers(bool allow_spilling);
    uint32_t compute_max_register_pressure();
    void assign_curb_setup();

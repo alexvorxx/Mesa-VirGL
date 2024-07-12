@@ -5,6 +5,7 @@
 
 #include "brw_eu.h"
 #include "brw_fs.h"
+#include "brw_fs_builder.h"
 #include "brw_fs_live_variables.h"
 #include "brw_nir.h"
 #include "brw_cfg.h"
@@ -590,6 +591,110 @@ brw_nir_populate_wm_prog_data(nir_shader *shader,
    brw_compute_flat_inputs(prog_data, shader);
 }
 
+/* From the SKL PRM, Volume 16, Workarounds:
+ *
+ *   0877  3D   Pixel Shader Hang possible when pixel shader dispatched with
+ *              only header phases (R0-R2)
+ *
+ *   WA: Enable a non-header phase (e.g. push constant) when dispatch would
+ *       have been header only.
+ *
+ * Instead of enabling push constants one can alternatively enable one of the
+ * inputs. Here one simply chooses "layer" which shouldn't impose much
+ * overhead.
+ */
+static void
+gfx9_ps_header_only_workaround(struct brw_wm_prog_data *wm_prog_data)
+{
+   if (wm_prog_data->num_varying_inputs)
+      return;
+
+   if (wm_prog_data->base.curb_read_length)
+      return;
+
+   wm_prog_data->urb_setup[VARYING_SLOT_LAYER] = 0;
+   wm_prog_data->num_varying_inputs = 1;
+
+   brw_compute_urb_setup_index(wm_prog_data);
+}
+
+static bool
+run_fs(fs_visitor &s, bool allow_spilling, bool do_rep_send)
+{
+   const struct intel_device_info *devinfo = s.devinfo;
+   struct brw_wm_prog_data *wm_prog_data = brw_wm_prog_data(s.prog_data);
+   brw_wm_prog_key *wm_key = (brw_wm_prog_key *) s.key;
+   const fs_builder bld = fs_builder(&s).at_end();
+   const nir_shader *nir = s.nir;
+
+   assert(s.stage == MESA_SHADER_FRAGMENT);
+
+   s.payload_ = new fs_thread_payload(s, s.source_depth_to_render_target);
+
+   if (nir->info.ray_queries > 0)
+      s.limit_dispatch_width(16, "SIMD32 not supported with ray queries.\n");
+
+   if (do_rep_send) {
+      assert(s.dispatch_width == 16);
+      s.emit_repclear_shader();
+   } else {
+      if (nir->info.inputs_read > 0 ||
+          BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_FRAG_COORD) ||
+          (nir->info.outputs_read > 0 && !wm_key->coherent_fb_fetch)) {
+         s.emit_interpolation_setup();
+      }
+
+      /* We handle discards by keeping track of the still-live pixels in f0.1.
+       * Initialize it with the dispatched pixels.
+       */
+      if (devinfo->ver >= 20 || wm_prog_data->uses_kill) {
+         const unsigned lower_width = MIN2(s.dispatch_width, 16);
+         for (unsigned i = 0; i < s.dispatch_width / lower_width; i++) {
+            /* According to the "PS Thread Payload for Normal
+             * Dispatch" pages on the BSpec, the dispatch mask is
+             * stored in R0.15/R1.15 on gfx20+ and in R1.7/R2.7 on
+             * gfx6+.
+             */
+            const brw_reg dispatch_mask =
+               devinfo->ver >= 20 ? xe2_vec1_grf(i, 15) :
+                                    brw_vec1_grf(i + 1, 7);
+            bld.exec_all().group(1, 0)
+               .MOV(brw_sample_mask_reg(bld.group(lower_width, i)),
+                    retype(dispatch_mask, BRW_TYPE_UW));
+         }
+      }
+
+      if (nir->info.writes_memory)
+         wm_prog_data->has_side_effects = true;
+
+      nir_to_brw(&s);
+
+      if (s.failed)
+	 return false;
+
+      s.emit_fb_writes();
+
+      s.calculate_cfg();
+
+      brw_fs_optimize(s);
+
+      s.assign_curb_setup();
+
+      if (devinfo->ver == 9)
+         gfx9_ps_header_only_workaround(wm_prog_data);
+
+      s.assign_urb_setup();
+
+      brw_fs_lower_3src_null_dest(s);
+      brw_fs_workaround_memory_fence_before_eot(s);
+      brw_fs_workaround_emit_dummy_mov_instruction(s);
+
+      s.allocate_registers(allow_spilling);
+   }
+
+   return !s.failed;
+}
+
 const unsigned *
 brw_compile_fs(const struct brw_compiler *compiler,
                struct brw_compile_fs_params *params)
@@ -644,7 +749,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
                                         prog_data, nir, 8, 1,
                                         params->base.stats != NULL,
                                         debug_enabled);
-      if (!v8->run_fs(allow_spilling, false /* do_rep_send */)) {
+      if (!run_fs(*v8, allow_spilling, false /* do_rep_send */)) {
          params->base.error_str = ralloc_strdup(params->base.mem_ctx,
                                                 v8->fail_msg);
          return NULL;
@@ -680,7 +785,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
                                          debug_enabled);
       if (v8)
          v16->import_uniforms(v8.get());
-      if (!v16->run_fs(allow_spilling, params->use_rep_send)) {
+      if (!run_fs(*v16, allow_spilling, params->use_rep_send)) {
          brw_shader_perf_log(compiler, params->base.log_data,
                              "SIMD16 shader failed to compile: %s\n",
                              v16->fail_msg);
@@ -715,7 +820,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
       else if (v16)
          v32->import_uniforms(v16.get());
 
-      if (!v32->run_fs(allow_spilling, false)) {
+      if (!run_fs(*v32, allow_spilling, false)) {
          brw_shader_perf_log(compiler, params->base.log_data,
                              "SIMD32 shader failed to compile: %s\n",
                              v32->fail_msg);
@@ -752,7 +857,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
                                                params->base.stats != NULL,
                                                debug_enabled);
          vmulti->import_uniforms(vbase);
-         if (!vmulti->run_fs(false, params->use_rep_send)) {
+         if (!run_fs(*vmulti, false, params->use_rep_send)) {
             brw_shader_perf_log(compiler, params->base.log_data,
                                 "Quad-SIMD8 shader failed to compile: %s\n",
                                 vmulti->fail_msg);
@@ -772,7 +877,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
                                                params->base.stats != NULL,
                                                debug_enabled);
          vmulti->import_uniforms(vbase);
-         if (!vmulti->run_fs(false, params->use_rep_send)) {
+         if (!run_fs(*vmulti, false, params->use_rep_send)) {
             brw_shader_perf_log(compiler, params->base.log_data,
                                 "Dual-SIMD16 shader failed to compile: %s\n",
                                 vmulti->fail_msg);
@@ -791,7 +896,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
                                                params->base.stats != NULL,
                                                debug_enabled);
          vmulti->import_uniforms(vbase);
-         if (!vmulti->run_fs(allow_spilling, params->use_rep_send)) {
+         if (!run_fs(*vmulti, allow_spilling, params->use_rep_send)) {
             brw_shader_perf_log(compiler, params->base.log_data,
                                 "Dual-SIMD8 shader failed to compile: %s\n",
                                 vmulti->fail_msg);

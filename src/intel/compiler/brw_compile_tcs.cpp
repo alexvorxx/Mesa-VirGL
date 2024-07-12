@@ -7,8 +7,11 @@
 #include "intel_nir.h"
 #include "brw_nir.h"
 #include "brw_fs.h"
+#include "brw_fs_builder.h"
 #include "brw_private.h"
 #include "dev/intel_debug.h"
+
+using namespace brw;
 
 /**
  * Return the number of patches to accumulate before a MULTI_PATCH mode thread is
@@ -37,6 +40,60 @@ get_patch_count_threshold(int input_control_points)
 
    /* Return patch count 1 for PATCHLIST_15 - PATCHLIST_32 */
    return 1;
+}
+
+static bool
+run_tcs(fs_visitor &s)
+{
+   assert(s.stage == MESA_SHADER_TESS_CTRL);
+
+   struct brw_vue_prog_data *vue_prog_data = brw_vue_prog_data(s.prog_data);
+   const fs_builder bld = fs_builder(&s).at_end();
+
+   assert(vue_prog_data->dispatch_mode == INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH ||
+          vue_prog_data->dispatch_mode == INTEL_DISPATCH_MODE_TCS_MULTI_PATCH);
+
+   s.payload_ = new tcs_thread_payload(s);
+
+   /* Initialize gl_InvocationID */
+   s.set_tcs_invocation_id();
+
+   const bool fix_dispatch_mask =
+      vue_prog_data->dispatch_mode == INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH &&
+      (s.nir->info.tess.tcs_vertices_out % 8) != 0;
+
+   /* Fix the disptach mask */
+   if (fix_dispatch_mask) {
+      bld.CMP(bld.null_reg_ud(), s.invocation_id,
+              brw_imm_ud(s.nir->info.tess.tcs_vertices_out), BRW_CONDITIONAL_L);
+      bld.IF(BRW_PREDICATE_NORMAL);
+   }
+
+   nir_to_brw(&s);
+
+   if (fix_dispatch_mask) {
+      bld.emit(BRW_OPCODE_ENDIF);
+   }
+
+   s.emit_tcs_thread_end();
+
+   if (s.failed)
+      return false;
+
+   s.calculate_cfg();
+
+   brw_fs_optimize(s);
+
+   s.assign_curb_setup();
+   s.assign_tcs_urb_setup();
+
+   brw_fs_lower_3src_null_dest(s);
+   brw_fs_workaround_memory_fence_before_eot(s);
+   brw_fs_workaround_emit_dummy_mov_instruction(s);
+
+   s.allocate_registers(true /* allow_spilling */);
+
+   return !s.failed;
 }
 
 extern "C" const unsigned *
@@ -136,7 +193,7 @@ brw_compile_tcs(const struct brw_compiler *compiler,
    fs_visitor v(compiler, &params->base, &key->base,
                 &prog_data->base.base, nir, dispatch_width,
                 params->base.stats != NULL, debug_enabled);
-   if (!v.run_tcs()) {
+   if (!run_tcs(v)) {
       params->base.error_str =
          ralloc_strdup(params->base.mem_ctx, v.fail_msg);
       return NULL;

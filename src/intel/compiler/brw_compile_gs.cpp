@@ -5,10 +5,13 @@
 
 #include "brw_eu.h"
 #include "brw_fs.h"
+#include "brw_fs_builder.h"
 #include "brw_prim.h"
 #include "brw_nir.h"
 #include "brw_private.h"
 #include "dev/intel_debug.h"
+
+using namespace brw;
 
 static const GLuint gl_prim_to_hw_prim[MESA_PRIM_TRIANGLE_STRIP_ADJACENCY+1] = {
    [MESA_PRIM_POINTS] =_3DPRIM_POINTLIST,
@@ -26,6 +29,54 @@ static const GLuint gl_prim_to_hw_prim[MESA_PRIM_TRIANGLE_STRIP_ADJACENCY+1] = {
    [MESA_PRIM_TRIANGLES_ADJACENCY] = _3DPRIM_TRILIST_ADJ,
    [MESA_PRIM_TRIANGLE_STRIP_ADJACENCY] = _3DPRIM_TRISTRIP_ADJ,
 };
+
+static bool
+run_gs(fs_visitor &s)
+{
+   assert(s.stage == MESA_SHADER_GEOMETRY);
+
+   s.payload_ = new gs_thread_payload(s);
+
+   const fs_builder bld = fs_builder(&s).at_end();
+
+   s.final_gs_vertex_count = bld.vgrf(BRW_TYPE_UD);
+
+   if (s.gs_compile->control_data_header_size_bits > 0) {
+      /* Create a VGRF to store accumulated control data bits. */
+      s.control_data_bits = bld.vgrf(BRW_TYPE_UD);
+
+      /* If we're outputting more than 32 control data bits, then EmitVertex()
+       * will set control_data_bits to 0 after emitting the first vertex.
+       * Otherwise, we need to initialize it to 0 here.
+       */
+      if (s.gs_compile->control_data_header_size_bits <= 32) {
+         const fs_builder abld = bld.annotate("initialize control data bits");
+         abld.MOV(s.control_data_bits, brw_imm_ud(0u));
+      }
+   }
+
+   nir_to_brw(&s);
+
+   s.emit_gs_thread_end();
+
+   if (s.failed)
+      return false;
+
+   s.calculate_cfg();
+
+   brw_fs_optimize(s);
+
+   s.assign_curb_setup();
+   s.assign_gs_urb_setup();
+
+   brw_fs_lower_3src_null_dest(s);
+   brw_fs_workaround_memory_fence_before_eot(s);
+   brw_fs_workaround_emit_dummy_mov_instruction(s);
+
+   s.allocate_registers(true /* allow_spilling */);
+
+   return !s.failed;
+}
 
 extern "C" const unsigned *
 brw_compile_gs(const struct brw_compiler *compiler,
@@ -244,7 +295,7 @@ brw_compile_gs(const struct brw_compiler *compiler,
 
    fs_visitor v(compiler, &params->base, &c, prog_data, nir,
                 params->base.stats != NULL, debug_enabled);
-   if (v.run_gs()) {
+   if (run_gs(v)) {
       prog_data->base.dispatch_mode = INTEL_DISPATCH_MODE_SIMD8;
 
       assert(v.payload().num_regs % reg_unit(compiler->devinfo) == 0);

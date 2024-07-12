@@ -11,6 +11,36 @@
 #include "dev/intel_debug.h"
 #include "util/macros.h"
 
+static bool
+run_tes(fs_visitor &s)
+{
+   assert(s.stage == MESA_SHADER_TESS_EVAL);
+
+   s.payload_ = new tes_thread_payload(s);
+
+   nir_to_brw(&s);
+
+   if (s.failed)
+      return false;
+
+   s.emit_urb_writes();
+
+   s.calculate_cfg();
+
+   brw_fs_optimize(s);
+
+   s.assign_curb_setup();
+   s.assign_tes_urb_setup();
+
+   brw_fs_lower_3src_null_dest(s);
+   brw_fs_workaround_memory_fence_before_eot(s);
+   brw_fs_workaround_emit_dummy_mov_instruction(s);
+
+   s.allocate_registers(true /* allow_spilling */);
+
+   return !s.failed;
+}
+
 const unsigned *
 brw_compile_tes(const struct brw_compiler *compiler,
                 brw_compile_tes_params *params)
@@ -109,7 +139,7 @@ brw_compile_tes(const struct brw_compiler *compiler,
    fs_visitor v(compiler, &params->base, &key->base,
                 &prog_data->base.base, nir, dispatch_width,
                 params->base.stats != NULL, debug_enabled);
-   if (!v.run_tes()) {
+   if (!run_tes(v)) {
       params->base.error_str =
          ralloc_strdup(params->base.mem_ctx, v.fail_msg);
       return NULL;

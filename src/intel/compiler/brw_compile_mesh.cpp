@@ -259,6 +259,38 @@ brw_nir_align_launch_mesh_workgroups(nir_shader *nir)
                                        NULL);
 }
 
+static bool
+run_task_mesh(fs_visitor &s, bool allow_spilling)
+{
+   assert(s.stage == MESA_SHADER_TASK ||
+          s.stage == MESA_SHADER_MESH);
+
+   s.payload_ = new task_mesh_thread_payload(s);
+
+   nir_to_brw(&s);
+
+   if (s.failed)
+      return false;
+
+   s.emit_urb_fence();
+
+   s.emit_cs_terminate();
+
+   s.calculate_cfg();
+
+   brw_fs_optimize(s);
+
+   s.assign_curb_setup();
+
+   brw_fs_lower_3src_null_dest(s);
+   brw_fs_workaround_memory_fence_before_eot(s);
+   brw_fs_workaround_emit_dummy_mov_instruction(s);
+
+   s.allocate_registers(allow_spilling);
+
+   return !s.failed;
+}
+
 const unsigned *
 brw_compile_task(const struct brw_compiler *compiler,
                  struct brw_compile_task_params *params)
@@ -331,7 +363,7 @@ brw_compile_task(const struct brw_compiler *compiler,
       }
 
       const bool allow_spilling = !brw_simd_any_compiled(simd_state);
-      if (v[simd]->run_task(allow_spilling))
+      if (run_task_mesh(*v[simd], allow_spilling))
          brw_simd_mark_compiled(simd_state, simd, v[simd]->spilled_any_registers);
       else
          simd_state.error[simd] = ralloc_strdup(params->base.mem_ctx, v[simd]->fail_msg);
@@ -1621,7 +1653,7 @@ brw_compile_mesh(const struct brw_compiler *compiler,
       }
 
       const bool allow_spilling = !brw_simd_any_compiled(simd_state);
-      if (v[simd]->run_mesh(allow_spilling))
+      if (run_task_mesh(*v[simd], allow_spilling))
          brw_simd_mark_compiled(simd_state, simd, v[simd]->spilled_any_registers);
       else
          simd_state.error[simd] = ralloc_strdup(params->base.mem_ctx, v[simd]->fail_msg);

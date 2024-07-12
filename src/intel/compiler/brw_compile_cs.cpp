@@ -4,6 +4,7 @@
  */
 
 #include "brw_fs.h"
+#include "brw_fs_builder.h"
 #include "brw_fs_live_variables.h"
 #include "brw_nir.h"
 #include "brw_cfg.h"
@@ -14,6 +15,8 @@
 #include "dev/intel_wa.h"
 
 #include <memory>
+
+using namespace brw;
 
 static void
 fill_push_const_block_info(struct brw_push_const_block *block, unsigned dwords)
@@ -54,6 +57,43 @@ cs_fill_push_const_info(const struct intel_device_info *devinfo,
    assert(cs_prog_data->push.cross_thread.dwords +
           cs_prog_data->push.per_thread.dwords ==
              prog_data->nr_params);
+}
+
+static bool
+run_cs(fs_visitor &s, bool allow_spilling)
+{
+   assert(gl_shader_stage_is_compute(s.stage));
+   const fs_builder bld = fs_builder(&s).at_end();
+
+   s.payload_ = new cs_thread_payload(s);
+
+   if (s.devinfo->platform == INTEL_PLATFORM_HSW && s.prog_data->total_shared > 0) {
+      /* Move SLM index from g0.0[27:24] to sr0.1[11:8] */
+      const fs_builder abld = bld.exec_all().group(1, 0);
+      abld.MOV(retype(brw_sr0_reg(1), BRW_TYPE_UW),
+               suboffset(retype(brw_vec1_grf(0, 0), BRW_TYPE_UW), 1));
+   }
+
+   nir_to_brw(&s);
+
+   if (s.failed)
+      return false;
+
+   s.emit_cs_terminate();
+
+   s.calculate_cfg();
+
+   brw_fs_optimize(s);
+
+   s.assign_curb_setup();
+
+   brw_fs_lower_3src_null_dest(s);
+   brw_fs_workaround_memory_fence_before_eot(s);
+   brw_fs_workaround_emit_dummy_mov_instruction(s);
+
+   s.allocate_registers(allow_spilling);
+
+   return !s.failed;
 }
 
 const unsigned *
@@ -119,7 +159,7 @@ brw_compile_cs(const struct brw_compiler *compiler,
 
       const bool allow_spilling = first < 0 || nir->info.workgroup_size_variable;
 
-      if (v[simd]->run_cs(allow_spilling)) {
+      if (run_cs(*v[simd], allow_spilling)) {
          cs_fill_push_const_info(compiler->devinfo, prog_data);
 
          brw_simd_mark_compiled(simd_state, simd, v[simd]->spilled_any_registers);
