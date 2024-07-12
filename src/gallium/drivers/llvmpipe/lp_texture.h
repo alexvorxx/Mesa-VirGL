@@ -144,7 +144,7 @@ struct llvmpipe_memory_object
 {
    struct pipe_memory_object b;
    struct pipe_reference reference;
-   struct pipe_memory_allocation *data;
+   struct llvmpipe_memory_allocation *mem_alloc;
    uint64_t size;
 };
 

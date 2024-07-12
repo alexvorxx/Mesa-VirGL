@@ -452,7 +452,11 @@ llvmpipe_memobj_create_from_handle(struct pipe_screen *pscreen,
    pipe_reference_init(&memobj->reference, 1);
 
    if (handle->type == WINSYS_HANDLE_TYPE_FD &&
-       pscreen->import_memory_fd(pscreen, handle->handle, &memobj->data, &memobj->size, false)) {
+       pscreen->import_memory_fd(pscreen,
+                                 handle->handle,
+                                 (struct pipe_memory_allocation **)&memobj->mem_alloc,
+                                 &memobj->size,
+                                 false)) {
       return &memobj->b;
    }
    free(memobj);
@@ -471,7 +475,7 @@ llvmpipe_memobj_destroy(struct pipe_screen *pscreen,
    if (pipe_reference(&lpmo->reference, NULL))
    {
 #ifdef PIPE_MEMORY_FD
-      pscreen->free_memory_fd(pscreen, lpmo->data);
+      pscreen->free_memory_fd(pscreen, (struct pipe_memory_allocation *)lpmo->mem_alloc);
 #endif
       free(lpmo);
    }
@@ -501,7 +505,7 @@ llvmpipe_resource_from_memobj(struct pipe_screen *pscreen,
          goto fail;
       if (lpmo->size < lpr->size_required)
          goto fail;
-      lpr->tex_data = lpmo->data;
+      lpr->tex_data = lpmo->mem_alloc->cpu_addr;
    } else {
       /* other data (vertex buffer, const buffer, etc) */
       const uint bytes = templat->width0;
@@ -527,7 +531,7 @@ llvmpipe_resource_from_memobj(struct pipe_screen *pscreen,
 
       if (lpmo->size < lpr->size_required)
          goto fail;
-      lpr->data = lpmo->data;
+      lpr->data = lpmo->mem_alloc->cpu_addr;
    }
    lpr->id = id_counter++;
    lpr->imported_memory = &lpmo->b;
