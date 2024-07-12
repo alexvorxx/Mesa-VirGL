@@ -35,7 +35,7 @@
       if (!(assertion)) {                                               \
          fprintf(stderr, "ASSERT: Scalar %s validation failed!\n",      \
                  _mesa_shader_stage_to_abbrev(s.stage));                \
-         s.dump_instruction(inst, stderr);                              \
+         brw_print_instruction(s, inst, stderr);                        \
          fprintf(stderr, "%s:%d: '%s' failed\n", __FILE__, __LINE__, #assertion);  \
          abort();                                                       \
       }                                                                 \
@@ -48,7 +48,7 @@
       if (a != b) {                                                     \
          fprintf(stderr, "ASSERT: Scalar %s validation failed!\n",      \
                  _mesa_shader_stage_to_abbrev(s.stage));                \
-         s.dump_instruction(inst, stderr);                              \
+         brw_print_instruction(s, inst, stderr);                        \
          fprintf(stderr, "%s:%d: A == B failed\n", __FILE__, __LINE__); \
          fprintf(stderr, "  A = %s = %u\n", #A, a);                     \
          fprintf(stderr, "  B = %s = %u\n", #B, b);                     \
@@ -63,7 +63,7 @@
       if (a == b) {                                                     \
          fprintf(stderr, "ASSERT: Scalar %s validation failed!\n",      \
                  _mesa_shader_stage_to_abbrev(s.stage));                \
-         s.dump_instruction(inst, stderr);                              \
+         brw_print_instruction(s, inst, stderr);                        \
          fprintf(stderr, "%s:%d: A != B failed\n", __FILE__, __LINE__); \
          fprintf(stderr, "  A = %s = %u\n", #A, a);                     \
          fprintf(stderr, "  B = %s = %u\n", #B, b);                     \
@@ -78,7 +78,7 @@
       if (a > b) {                                                      \
          fprintf(stderr, "ASSERT: Scalar %s validation failed!\n",      \
                  _mesa_shader_stage_to_abbrev(s.stage));                \
-         s.dump_instruction(inst, stderr);                              \
+         brw_print_instruction(s, inst, stderr);                        \
          fprintf(stderr, "%s:%d: A <= B failed\n", __FILE__, __LINE__); \
          fprintf(stderr, "  A = %s = %u\n", #A, a);                     \
          fprintf(stderr, "  B = %s = %u\n", #B, b);                     \

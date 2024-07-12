@@ -12,16 +12,16 @@
 using namespace brw;
 
 void
-fs_visitor::dump_instructions_to_file(FILE *file) const
+brw_print_instructions_to_file(const fs_visitor &s, FILE *file)
 {
-   if (cfg && grf_used == 0) {
-      const brw::def_analysis &defs = def_analysis.require();
+   if (s.cfg && s.grf_used == 0) {
+      const brw::def_analysis &defs = s.def_analysis.require();
       const register_pressure *rp =
-         INTEL_DEBUG(DEBUG_REG_PRESSURE) ? &regpressure_analysis.require() : NULL;
+         INTEL_DEBUG(DEBUG_REG_PRESSURE) ? &s.regpressure_analysis.require() : NULL;
 
       unsigned ip = 0, max_pressure = 0;
       unsigned cf_count = 0;
-      foreach_block_and_inst(block, fs_inst, inst, cfg) {
+      foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
          if (inst->is_control_flow_end())
             cf_count -= 1;
 
@@ -32,7 +32,7 @@ fs_visitor::dump_instructions_to_file(FILE *file) const
 
          for (unsigned i = 0; i < cf_count; i++)
             fprintf(file, "  ");
-         dump_instruction(inst, file, &defs);
+         brw_print_instruction(s, inst, file, &defs);
          ip++;
 
          if (inst->is_control_flow_begin())
@@ -40,19 +40,19 @@ fs_visitor::dump_instructions_to_file(FILE *file) const
       }
       if (rp)
          fprintf(file, "Maximum %3d registers live at once.\n", max_pressure);
-   } else if (cfg && exec_list_is_empty(&instructions)) {
-      foreach_block_and_inst(block, fs_inst, inst, cfg) {
-         dump_instruction(inst, file);
+   } else if (s.cfg && exec_list_is_empty(&s.instructions)) {
+      foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+         brw_print_instruction(s, inst, file);
       }
    } else {
-      foreach_in_list(fs_inst, inst, &instructions) {
-         dump_instruction(inst, file);
+      foreach_in_list(fs_inst, inst, &s.instructions) {
+         brw_print_instruction(s, inst, file);
       }
    }
 }
 
 void
-fs_visitor::dump_instructions(const char *name) const
+brw_print_instructions(const fs_visitor &s, const char *name)
 {
    FILE *file = stderr;
    if (name && __normal_user()) {
@@ -61,7 +61,7 @@ fs_visitor::dump_instructions(const char *name) const
          file = stderr;
    }
 
-   dump_instructions_to_file(file);
+   brw_print_instructions_to_file(s, file);
 
    if (file != stderr) {
       fclose(file);
@@ -314,7 +314,7 @@ brw_instruction_name(const struct brw_isa_info *isa, enum opcode op)
 
 
 void
-fs_visitor::dump_instruction_to_file(const fs_inst *inst, FILE *file, const brw::def_analysis *defs) const
+brw_print_instruction_to_file(const fs_visitor &s, const fs_inst *inst, FILE *file, const brw::def_analysis *defs)
 {
    if (inst->predicate) {
       fprintf(file, "(%cf%d.%d) ",
@@ -323,7 +323,7 @@ fs_visitor::dump_instruction_to_file(const fs_inst *inst, FILE *file, const brw:
               inst->flag_subreg % 2);
    }
 
-   fprintf(file, "%s", brw_instruction_name(&compiler->isa, inst->opcode));
+   fprintf(file, "%s", brw_instruction_name(&s.compiler->isa, inst->opcode));
    if (inst->saturate)
       fprintf(file, ".sat");
    if (inst->conditional_mod) {
@@ -401,7 +401,7 @@ fs_visitor::dump_instruction_to_file(const fs_inst *inst, FILE *file, const brw:
 
    if (inst->dst.offset ||
        (inst->dst.file == VGRF &&
-        alloc.sizes[inst->dst.nr] * REG_SIZE != inst->size_written)) {
+        s.alloc.sizes[inst->dst.nr] * REG_SIZE != inst->size_written)) {
       const unsigned reg_size = (inst->dst.file == UNIFORM ? 4 : REG_SIZE);
       fprintf(file, "+%d.%d", inst->dst.offset / reg_size,
               inst->dst.offset % reg_size);
@@ -514,7 +514,7 @@ fs_visitor::dump_instruction_to_file(const fs_inst *inst, FILE *file, const brw:
          fprintf(file, ".%d", inst->src[i].subnr / brw_type_size_bytes(inst->src[i].type));
       } else if (inst->src[i].offset ||
           (inst->src[i].file == VGRF &&
-           alloc.sizes[inst->src[i].nr] * REG_SIZE != inst->size_read(i))) {
+           s.alloc.sizes[inst->src[i].nr] * REG_SIZE != inst->size_read(i))) {
          const unsigned reg_size = (inst->src[i].file == UNIFORM ? 4 : REG_SIZE);
          fprintf(file, "+%d.%d", inst->src[i].offset / reg_size,
                  inst->src[i].offset % reg_size);
@@ -543,7 +543,7 @@ fs_visitor::dump_instruction_to_file(const fs_inst *inst, FILE *file, const brw:
    if (inst->force_writemask_all)
       fprintf(file, "NoMask ");
 
-   if (inst->exec_size != dispatch_width)
+   if (inst->exec_size != s.dispatch_width)
       fprintf(file, "group%d ", inst->group);
 
    if (inst->has_no_mask_send_params)
@@ -551,7 +551,7 @@ fs_visitor::dump_instruction_to_file(const fs_inst *inst, FILE *file, const brw:
 
    if (inst->sched.pipe != TGL_PIPE_NONE) {
       fprintf(file, "{ ");
-      brw_print_swsb(file, devinfo, inst->sched);
+      brw_print_swsb(file, s.devinfo, inst->sched);
       fprintf(file, " } ");
    }
 

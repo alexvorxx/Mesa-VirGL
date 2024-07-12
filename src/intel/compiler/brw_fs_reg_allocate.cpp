@@ -1146,7 +1146,7 @@ fs_visitor::assign_regs(bool allow_spilling, bool spill_all)
    bool success = alloc.assign_regs(allow_spilling, spill_all);
    if (!success && allow_spilling) {
       fail("no register to spill:\n");
-      dump_instructions(NULL);
+      brw_print_instructions(*this, NULL);
    }
    return success;
 }

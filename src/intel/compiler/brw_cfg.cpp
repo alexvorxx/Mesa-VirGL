@@ -162,7 +162,7 @@ bblock_t::dump(FILE *file) const
    int ip = this->start_ip;
    foreach_inst_in_block(fs_inst, inst, this) {
       fprintf(file, "%5d: ", ip);
-      s->dump_instruction(inst, file);
+      brw_print_instruction(*s, inst, file);
       ip++;
    }
 }

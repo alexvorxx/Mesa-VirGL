@@ -1503,7 +1503,7 @@ instruction_scheduler::schedule(schedule_node *chosen)
 
    if (debug) {
       fprintf(stderr, "clock %4d, scheduled: ", current.time);
-      s->dump_instruction(chosen->inst);
+      brw_print_instruction(*s, chosen->inst);
    }
 }
 
@@ -1523,7 +1523,7 @@ instruction_scheduler::update_children(schedule_node *chosen)
 
       if (debug) {
          fprintf(stderr, "\tchild %d, %d parents: ", i, child->n->tmp.parent_count);
-         s->dump_instruction(child->n->inst);
+         brw_print_instruction(*s, child->n->inst);
       }
 
       child->n->tmp.cand_generation = current.cand_generation;
@@ -1578,7 +1578,7 @@ instruction_scheduler::run(instruction_scheduler_mode mode)
    if (debug && !post_reg_alloc) {
       fprintf(stderr, "\nInstructions before scheduling (reg_alloc %d)\n",
               post_reg_alloc);
-         s->dump_instructions();
+         brw_print_instructions(*s);
    }
 
    if (!post_reg_alloc) {
@@ -1601,7 +1601,7 @@ instruction_scheduler::run(instruction_scheduler_mode mode)
    if (debug && !post_reg_alloc) {
       fprintf(stderr, "\nInstructions after scheduling (reg_alloc %d)\n",
               post_reg_alloc);
-      s->dump_instructions();
+      brw_print_instructions(*s);
    }
 }
 

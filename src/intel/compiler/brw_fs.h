@@ -335,15 +335,6 @@ public:
    brw_reg per_primitive_reg(const brw::fs_builder &bld,
                             int location, unsigned comp);
 
-   void dump_instruction_to_file(const fs_inst *inst, FILE *file, const brw::def_analysis *defs) const;
-   void dump_instructions_to_file(FILE *file) const;
-
-   /* Convenience functions based on the above. */
-   void dump_instruction(const fs_inst *inst, FILE *file = stderr, const brw::def_analysis *defs = nullptr) const {
-      dump_instruction_to_file(inst, file, defs);
-   }
-   void dump_instructions(const char *name = nullptr) const;
-
    void calculate_cfg();
 
    const struct brw_compiler *compiler;
@@ -481,6 +472,15 @@ public:
                         const char *pass_name,
                         int iteration, int pass_num) const;
 };
+
+void brw_print_instruction_to_file(const fs_visitor &s, const fs_inst *inst, FILE *file, const brw::def_analysis *defs);
+void brw_print_instructions_to_file(const fs_visitor &s, FILE *file);
+
+/* Convenience functions based on the above. */
+inline void brw_print_instruction(const fs_visitor &s, const fs_inst *inst, FILE *file = stderr, const brw::def_analysis *defs = nullptr) {
+   brw_print_instruction_to_file(s, inst, file, defs);
+}
+void brw_print_instructions(const fs_visitor &s, const char *name = nullptr);
 
 void brw_print_swsb(FILE *f, const struct intel_device_info *devinfo, const tgl_swsb swsb);
 
