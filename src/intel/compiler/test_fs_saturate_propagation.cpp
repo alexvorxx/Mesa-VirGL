@@ -137,7 +137,7 @@ TEST_F(saturate_propagation_test, basic)
     * 1: mov(16)       dst1  dst0
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -173,7 +173,7 @@ TEST_F(saturate_propagation_test, other_non_saturated_use)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -208,7 +208,7 @@ TEST_F(saturate_propagation_test, predicated_instruction)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -241,7 +241,7 @@ TEST_F(saturate_propagation_test, neg_mov_sat)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -276,7 +276,7 @@ TEST_F(saturate_propagation_test, add_neg_mov_sat)
     * 1: mov(16)       dst1  dst0
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -313,7 +313,7 @@ TEST_F(saturate_propagation_test, add_imm_float_neg_mov_sat)
     * 1: mov(16)       dst1  dst0
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -350,7 +350,7 @@ TEST_F(saturate_propagation_test, mul_neg_mov_sat)
     * 1: mov(16)       dst1  dst0
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -388,7 +388,7 @@ TEST_F(saturate_propagation_test, mad_neg_mov_sat)
     * 1: mov(16)       dst1  dst0
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -433,7 +433,7 @@ TEST_F(saturate_propagation_test, mad_imm_float_neg_mov_sat)
     * 1: mov(16)       dst1  dst0
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -473,7 +473,7 @@ TEST_F(saturate_propagation_test, mul_mov_sat_neg_mov_sat)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -514,7 +514,7 @@ TEST_F(saturate_propagation_test, mul_neg_mov_sat_neg_mov_sat)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -553,7 +553,7 @@ TEST_F(saturate_propagation_test, abs_mov_sat)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -591,7 +591,7 @@ TEST_F(saturate_propagation_test, producer_saturates)
     * 2: mov(16)       dst2  dst0
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -629,7 +629,7 @@ TEST_F(saturate_propagation_test, intervening_saturating_copy)
     * 2: mov(16)       dst2  dst0
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -676,7 +676,7 @@ TEST_F(saturate_propagation_test, intervening_dest_write)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -716,7 +716,7 @@ TEST_F(saturate_propagation_test, mul_neg_mov_sat_mov_sat)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -753,7 +753,7 @@ TEST_F(saturate_propagation_test, smaller_exec_size_consumer)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -786,7 +786,7 @@ TEST_F(saturate_propagation_test, larger_exec_size_consumer)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -822,7 +822,7 @@ TEST_F(saturate_propagation_test, offset_source_barrier)
     * (no changes)
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);

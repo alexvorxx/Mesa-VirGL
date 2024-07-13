@@ -160,7 +160,7 @@ TEST_F(scoreboard_test, RAW_inorder_inorder)
    bld.MUL(   y, g[3], g[4]);
    bld.AND(g[5],    x,    y);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(2, block0->end_ip);
@@ -185,7 +185,7 @@ TEST_F(scoreboard_test, RAW_inorder_outoforder)
    bld.MUL(       g[3], g[4], g[5]);
    emit_SEND(bld, g[6], g[7],    x);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(2, block0->end_ip);
@@ -211,7 +211,7 @@ TEST_F(scoreboard_test, RAW_outoforder_inorder)
    bld.MUL(          y, g[3], g[4]);
    bld.AND(       g[5],    x,    y);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(2, block0->end_ip);
@@ -239,7 +239,7 @@ TEST_F(scoreboard_test, RAW_outoforder_outoforder)
    emit_SEND(bld,    x, g[1], g[2]);
    emit_SEND(bld, g[3],    x, g[4])->sfid++;
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(1, block0->end_ip);
@@ -268,7 +268,7 @@ TEST_F(scoreboard_test, WAR_inorder_inorder)
    bld.MUL(g[3], g[4], g[5]);
    bld.AND(   x, g[6], g[7]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(2, block0->end_ip);
@@ -293,7 +293,7 @@ TEST_F(scoreboard_test, WAR_inorder_outoforder)
    bld.MUL(       g[3], g[4], g[5]);
    emit_SEND(bld,    x, g[6], g[7]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(2, block0->end_ip);
@@ -318,7 +318,7 @@ TEST_F(scoreboard_test, WAR_outoforder_inorder)
    bld.MUL(       g[4], g[5], g[6]);
    bld.AND(          x, g[7], g[8]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(2, block0->end_ip);
@@ -342,7 +342,7 @@ TEST_F(scoreboard_test, WAR_outoforder_outoforder)
    emit_SEND(bld, g[1], g[2],    x);
    emit_SEND(bld,    x, g[3], g[4])->sfid++;
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(1, block0->end_ip);
@@ -371,7 +371,7 @@ TEST_F(scoreboard_test, WAW_inorder_inorder)
    bld.MUL(g[3], g[4], g[5]);
    bld.AND(   x, g[6], g[7]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(2, block0->end_ip);
@@ -401,7 +401,7 @@ TEST_F(scoreboard_test, WAW_inorder_outoforder)
    bld.MUL(       g[3], g[4], g[5]);
    emit_SEND(bld,    x, g[6], g[7]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(2, block0->end_ip);
@@ -426,7 +426,7 @@ TEST_F(scoreboard_test, WAW_outoforder_inorder)
    bld.MUL(       g[3], g[4], g[5]);
    bld.AND(          x, g[6], g[7]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(2, block0->end_ip);
@@ -450,7 +450,7 @@ TEST_F(scoreboard_test, WAW_outoforder_outoforder)
    emit_SEND(bld, x, g[1], g[2]);
    emit_SEND(bld, x, g[3], g[4])->sfid++;
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(1, block0->end_ip);
@@ -485,7 +485,7 @@ TEST_F(scoreboard_test, loop1)
 
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    bblock_t *body = v->cfg->blocks[2];
@@ -518,7 +518,7 @@ TEST_F(scoreboard_test, loop2)
 
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    /* Now the write in ADD has the tightest RegDist for both ADD and MUL. */
@@ -556,7 +556,7 @@ TEST_F(scoreboard_test, loop3)
 
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    bblock_t *body = v->cfg->blocks[2];
@@ -586,7 +586,7 @@ TEST_F(scoreboard_test, conditional1)
    bld.emit(BRW_OPCODE_ENDIF);
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    bblock_t *body = v->cfg->blocks[1];
@@ -618,7 +618,7 @@ TEST_F(scoreboard_test, conditional2)
    bld.emit(BRW_OPCODE_ENDIF);
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    bblock_t *body = v->cfg->blocks[1];
@@ -650,7 +650,7 @@ TEST_F(scoreboard_test, conditional3)
    bld.emit(BRW_OPCODE_ENDIF);
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    bblock_t *body = v->cfg->blocks[1];
@@ -682,7 +682,7 @@ TEST_F(scoreboard_test, conditional4)
    bld.emit(BRW_OPCODE_ENDIF);
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    bblock_t *body = v->cfg->blocks[1];
@@ -714,7 +714,7 @@ TEST_F(scoreboard_test, conditional5)
    bld.emit(BRW_OPCODE_ENDIF);
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    bblock_t *then_body = v->cfg->blocks[1];
@@ -758,7 +758,7 @@ TEST_F(scoreboard_test, conditional6)
    bld.emit(BRW_OPCODE_ENDIF);
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    bblock_t *then_body = v->cfg->blocks[1];
@@ -802,7 +802,7 @@ TEST_F(scoreboard_test, conditional7)
    bld.emit(BRW_OPCODE_ENDIF);
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    bblock_t *then_body = v->cfg->blocks[1];
@@ -844,7 +844,7 @@ TEST_F(scoreboard_test, conditional8)
    bld.emit(BRW_OPCODE_ENDIF);
    bld.MUL(   x, g[1], g[2]);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    lower_scoreboard(v);
 
    bblock_t *then_body = v->cfg->blocks[1];
@@ -880,7 +880,7 @@ TEST_F(scoreboard_test, gfx125_RaR_over_different_pipes)
    bld.ADD(a, x, x);
    bld.ADD(x, b, b);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(2, block0->end_ip);
@@ -905,7 +905,7 @@ TEST_F(scoreboard_test, gitlab_issue_from_mr_29723)
    bld1.ADD(             a, stride(b, 0, 1, 0),    brw_imm_ud(256));
    bld1.CMP(brw_null_reg(), stride(a, 2, 1, 2), stride(b, 0, 1, 0), BRW_CONDITIONAL_L);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(1, block0->end_ip);
@@ -929,7 +929,7 @@ TEST_F(scoreboard_test, gitlab_issue_11069)
    bld1.ADD(stride(a, 2, 1, 2), stride(b, 0, 1, 0),   brw_imm_ud(0x80));
    bld1.CMP(    brw_null_reg(), stride(a, 0, 1, 0), stride(b, 0, 1, 0), BRW_CONDITIONAL_L);
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
    ASSERT_EQ(0, block0->start_ip);
    ASSERT_EQ(1, block0->end_ip);

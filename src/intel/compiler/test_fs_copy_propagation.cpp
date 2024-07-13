@@ -136,7 +136,7 @@ TEST_F(copy_propagation_test, basic)
     * 1: add(8)        vgrf1  vgrf2  vgrf3
     */
 
-   v->calculate_cfg();
+   brw_calculate_cfg(*v);
    bblock_t *block0 = v->cfg->blocks[0];
 
    EXPECT_EQ(0, block0->start_ip);
@@ -197,7 +197,7 @@ TEST_F(copy_propagation_test, maxmax_sat_imm)
                                  bld.SEL(vgrf2, vgrf0,
                                          brw_imm_f(test[i].immediate)));
 
-      v->calculate_cfg();
+      brw_calculate_cfg(*v);
 
       bblock_t *block0 = v->cfg->blocks[0];
 

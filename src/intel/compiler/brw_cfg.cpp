@@ -735,11 +735,11 @@ cfg_t::dump_cfg()
 }
 
 void
-fs_visitor::calculate_cfg()
+brw_calculate_cfg(fs_visitor &s)
 {
-   if (this->cfg)
+   if (s.cfg)
       return;
-   cfg = new(mem_ctx) cfg_t(this, &this->instructions);
+   s.cfg = new(s.mem_ctx) cfg_t(&s, &s.instructions);
 }
 
 #define cfgv_assert(assertion)                                          \

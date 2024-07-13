@@ -326,8 +326,6 @@ public:
    brw_reg per_primitive_reg(const brw::fs_builder &bld,
                             int location, unsigned comp);
 
-   void calculate_cfg();
-
    const struct brw_compiler *compiler;
    void *log_data; /* Passed to compiler->*_log functions */
 
@@ -611,6 +609,8 @@ void brw_fs_validate(const fs_visitor &s);
 #else
 static inline void brw_fs_validate(const fs_visitor &s) {}
 #endif
+
+void brw_calculate_cfg(fs_visitor &s);
 
 void brw_fs_optimize(fs_visitor &s);
 

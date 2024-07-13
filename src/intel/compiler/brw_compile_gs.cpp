@@ -116,7 +116,7 @@ run_gs(fs_visitor &s)
    if (s.failed)
       return false;
 
-   s.calculate_cfg();
+   brw_calculate_cfg(s);
 
    brw_fs_optimize(s);
 

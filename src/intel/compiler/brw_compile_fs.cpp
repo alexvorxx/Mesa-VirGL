@@ -628,7 +628,7 @@ brw_emit_repclear_shader(fs_visitor &s)
    write->eot = true;
    write->last_rt = true;
 
-   s.calculate_cfg();
+   brw_calculate_cfg(s);
 
    s.first_non_payload_grf = s.payload().num_regs;
 
@@ -1473,7 +1473,7 @@ run_fs(fs_visitor &s, bool allow_spilling, bool do_rep_send)
 
       brw_emit_fb_writes(s);
 
-      s.calculate_cfg();
+      brw_calculate_cfg(s);
 
       brw_fs_optimize(s);
 

@@ -296,7 +296,7 @@ run_task_mesh(fs_visitor &s, bool allow_spilling)
 
    s.emit_cs_terminate();
 
-   s.calculate_cfg();
+   brw_calculate_cfg(s);
 
    brw_fs_optimize(s);
 

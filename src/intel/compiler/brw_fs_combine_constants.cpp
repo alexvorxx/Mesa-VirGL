@@ -1750,7 +1750,7 @@ brw_fs_opt_combine_constants(fs_visitor &s)
 
       delete s.cfg;
       s.cfg = NULL;
-      s.calculate_cfg();
+      brw_calculate_cfg(s);
    }
 
    ralloc_free(const_ctx);

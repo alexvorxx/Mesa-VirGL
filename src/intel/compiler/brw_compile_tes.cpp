@@ -40,7 +40,7 @@ run_tes(fs_visitor &s)
 
    s.emit_urb_writes();
 
-   s.calculate_cfg();
+   brw_calculate_cfg(s);
 
    brw_fs_optimize(s);
 
