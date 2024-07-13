@@ -312,11 +312,6 @@ public:
    bool mark_last_urb_write_with_eot();
    void emit_cs_terminate();
 
-   brw_reg interp_reg(const brw::fs_builder &bld, unsigned location,
-                     unsigned channel, unsigned comp);
-   brw_reg per_primitive_reg(const brw::fs_builder &bld,
-                            int location, unsigned comp);
-
    const struct brw_compiler *compiler;
    void *log_data; /* Passed to compiler->*_log functions */
 
