@@ -306,7 +306,6 @@ public:
    void assign_curb_setup();
    void assign_urb_setup();
    void convert_attr_sources_to_hw_regs(fs_inst *inst);
-   void assign_vs_urb_setup();
    void assign_tcs_urb_setup();
    void assign_tes_urb_setup();
    void assign_gs_urb_setup();

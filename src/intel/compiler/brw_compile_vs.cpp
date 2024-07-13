@@ -11,6 +11,24 @@
 
 using namespace brw;
 
+static void
+brw_assign_vs_urb_setup(fs_visitor &s)
+{
+   struct brw_vs_prog_data *vs_prog_data = brw_vs_prog_data(s.prog_data);
+
+   assert(s.stage == MESA_SHADER_VERTEX);
+
+   /* Each attribute is 4 regs. */
+   s.first_non_payload_grf += 4 * vs_prog_data->nr_attribute_slots;
+
+   assert(vs_prog_data->base.urb_read_length <= 15);
+
+   /* Rewrite all ATTR file references to the hw grf that they land in. */
+   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+      s.convert_attr_sources_to_hw_regs(inst);
+   }
+}
+
 static bool
 run_vs(fs_visitor &s)
 {
@@ -30,7 +48,7 @@ run_vs(fs_visitor &s)
    brw_fs_optimize(s);
 
    s.assign_curb_setup();
-   s.assign_vs_urb_setup();
+   brw_assign_vs_urb_setup(s);
 
    brw_fs_lower_3src_null_dest(s);
    brw_fs_workaround_memory_fence_before_eot(s);

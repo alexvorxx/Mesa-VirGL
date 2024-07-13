@@ -1577,24 +1577,6 @@ fs_visitor::convert_attr_sources_to_hw_regs(fs_inst *inst)
 }
 
 void
-fs_visitor::assign_vs_urb_setup()
-{
-   struct brw_vs_prog_data *vs_prog_data = brw_vs_prog_data(prog_data);
-
-   assert(stage == MESA_SHADER_VERTEX);
-
-   /* Each attribute is 4 regs. */
-   this->first_non_payload_grf += 4 * vs_prog_data->nr_attribute_slots;
-
-   assert(vs_prog_data->base.urb_read_length <= 15);
-
-   /* Rewrite all ATTR file references to the hw grf that they land in. */
-   foreach_block_and_inst(block, fs_inst, inst, cfg) {
-      convert_attr_sources_to_hw_regs(inst);
-   }
-}
-
-void
 fs_visitor::assign_tcs_urb_setup()
 {
    assert(stage == MESA_SHADER_TESS_CTRL);
