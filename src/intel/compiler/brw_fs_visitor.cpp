@@ -406,25 +406,6 @@ fs_visitor::emit_urb_writes(const brw_reg &gs_vertex_count)
 }
 
 void
-fs_visitor::emit_urb_fence()
-{
-   const fs_builder bld = fs_builder(this).at_end();
-   brw_reg dst = bld.vgrf(BRW_TYPE_UD);
-   fs_inst *fence = bld.emit(SHADER_OPCODE_MEMORY_FENCE, dst,
-                             brw_vec8_grf(0, 0),
-                             brw_imm_ud(true),
-                             brw_imm_ud(0));
-   fence->sfid = BRW_SFID_URB;
-   fence->desc = lsc_fence_msg_desc(devinfo, LSC_FENCE_LOCAL,
-                                    LSC_FLUSH_TYPE_NONE, true);
-
-   bld.exec_all().group(1, 0).emit(FS_OPCODE_SCHEDULING_FENCE,
-                                   bld.null_reg_ud(),
-                                   &dst,
-                                   1);
-}
-
-void
 fs_visitor::emit_cs_terminate()
 {
    const fs_builder ubld = fs_builder(this).at_end().exec_all();

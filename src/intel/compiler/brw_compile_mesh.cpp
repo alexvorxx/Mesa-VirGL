@@ -25,6 +25,7 @@
 #include <vector>
 #include "brw_compiler.h"
 #include "brw_fs.h"
+#include "brw_fs_builder.h"
 #include "brw_nir.h"
 #include "brw_private.h"
 #include "compiler/nir/nir_builder.h"
@@ -259,6 +260,25 @@ brw_nir_align_launch_mesh_workgroups(nir_shader *nir)
                                        NULL);
 }
 
+static void
+brw_emit_urb_fence(fs_visitor &s)
+{
+   const fs_builder bld = fs_builder(&s).at_end();
+   brw_reg dst = bld.vgrf(BRW_TYPE_UD);
+   fs_inst *fence = bld.emit(SHADER_OPCODE_MEMORY_FENCE, dst,
+                             brw_vec8_grf(0, 0),
+                             brw_imm_ud(true),
+                             brw_imm_ud(0));
+   fence->sfid = BRW_SFID_URB;
+   fence->desc = lsc_fence_msg_desc(s.devinfo, LSC_FENCE_LOCAL,
+                                    LSC_FLUSH_TYPE_NONE, true);
+
+   bld.exec_all().group(1, 0).emit(FS_OPCODE_SCHEDULING_FENCE,
+                                   bld.null_reg_ud(),
+                                   &dst,
+                                   1);
+}
+
 static bool
 run_task_mesh(fs_visitor &s, bool allow_spilling)
 {
@@ -272,7 +292,7 @@ run_task_mesh(fs_visitor &s, bool allow_spilling)
    if (s.failed)
       return false;
 
-   s.emit_urb_fence();
+   brw_emit_urb_fence(s);
 
    s.emit_cs_terminate();
 
