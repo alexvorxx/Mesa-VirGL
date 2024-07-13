@@ -64,11 +64,11 @@ brw_fs_lower_constant_loads(fs_visitor &s)
          if (!s.get_pull_locs(inst->src[0], &index, &pull_index))
             continue;
 
-         s.VARYING_PULL_CONSTANT_LOAD(ibld, inst->dst,
-                                      brw_imm_ud(index),
-                                      brw_reg() /* surface_handle */,
-                                      inst->src[1],
-                                      pull_index * 4, 4, 1);
+         ibld.VARYING_PULL_CONSTANT_LOAD(inst->dst,
+                                         brw_imm_ud(index),
+                                         brw_reg() /* surface_handle */,
+                                         inst->src[1],
+                                         pull_index * 4, 4, 1);
          inst->remove(block);
 
          progress = true;

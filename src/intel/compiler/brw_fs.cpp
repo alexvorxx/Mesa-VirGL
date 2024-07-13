@@ -200,45 +200,6 @@ fs_inst::resize_sources(uint8_t num_sources)
    this->src = new_src;
 }
 
-void
-fs_visitor::VARYING_PULL_CONSTANT_LOAD(const fs_builder &bld,
-                                       const brw_reg &dst,
-                                       const brw_reg &surface,
-                                       const brw_reg &surface_handle,
-                                       const brw_reg &varying_offset,
-                                       uint32_t const_offset,
-                                       uint8_t alignment,
-                                       unsigned components)
-{
-   assert(components <= 4);
-
-   /* We have our constant surface use a pitch of 4 bytes, so our index can
-    * be any component of a vector, and then we load 4 contiguous
-    * components starting from that.  TODO: Support loading fewer than 4.
-    */
-   brw_reg total_offset = bld.ADD(varying_offset, brw_imm_ud(const_offset));
-
-   /* The pull load message will load a vec4 (16 bytes). If we are loading
-    * a double this means we are only loading 2 elements worth of data.
-    * We also want to use a 32-bit data type for the dst of the load operation
-    * so other parts of the driver don't get confused about the size of the
-    * result.
-    */
-   brw_reg vec4_result = bld.vgrf(BRW_TYPE_F, 4);
-
-   brw_reg srcs[PULL_VARYING_CONSTANT_SRCS];
-   srcs[PULL_VARYING_CONSTANT_SRC_SURFACE]        = surface;
-   srcs[PULL_VARYING_CONSTANT_SRC_SURFACE_HANDLE] = surface_handle;
-   srcs[PULL_VARYING_CONSTANT_SRC_OFFSET]         = total_offset;
-   srcs[PULL_VARYING_CONSTANT_SRC_ALIGNMENT]      = brw_imm_ud(alignment);
-
-   fs_inst *inst = bld.emit(FS_OPCODE_VARYING_PULL_CONSTANT_LOAD_LOGICAL,
-                            vec4_result, srcs, PULL_VARYING_CONSTANT_SRCS);
-   inst->size_written = 4 * vec4_result.component_size(inst->exec_size);
-
-   shuffle_from_32bit_read(bld, dst, vec4_result, 0, components);
-}
-
 bool
 fs_inst::is_send_from_grf() const
 {

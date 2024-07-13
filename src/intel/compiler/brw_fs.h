@@ -292,15 +292,6 @@ public:
 
    void import_uniforms(fs_visitor *v);
 
-   void VARYING_PULL_CONSTANT_LOAD(const brw::fs_builder &bld,
-                                   const brw_reg &dst,
-                                   const brw_reg &surface,
-                                   const brw_reg &surface_handle,
-                                   const brw_reg &varying_offset,
-                                   uint32_t const_offset,
-                                   uint8_t alignment,
-                                   unsigned components);
-
    void assign_curb_setup();
    void convert_attr_sources_to_hw_regs(fs_inst *inst);
    void calculate_payload_ranges(unsigned payload_node_count,
