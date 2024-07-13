@@ -1357,21 +1357,6 @@ fs_visitor::convert_attr_sources_to_hw_regs(fs_inst *inst)
    }
 }
 
-void
-fs_visitor::assign_tes_urb_setup()
-{
-   assert(stage == MESA_SHADER_TESS_EVAL);
-
-   struct brw_vue_prog_data *vue_prog_data = brw_vue_prog_data(prog_data);
-
-   first_non_payload_grf += 8 * vue_prog_data->urb_read_length;
-
-   /* Rewrite all ATTR file references to HW_REGs. */
-   foreach_block_and_inst(block, fs_inst, inst, cfg) {
-      convert_attr_sources_to_hw_regs(inst);
-   }
-}
-
 int
 brw_get_subgroup_id_param_index(const intel_device_info *devinfo,
                                 const brw_stage_prog_data *prog_data)

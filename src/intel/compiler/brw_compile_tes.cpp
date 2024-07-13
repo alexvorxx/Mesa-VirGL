@@ -11,6 +11,21 @@
 #include "dev/intel_debug.h"
 #include "util/macros.h"
 
+static void
+brw_assign_tes_urb_setup(fs_visitor &s)
+{
+   assert(s.stage == MESA_SHADER_TESS_EVAL);
+
+   struct brw_vue_prog_data *vue_prog_data = brw_vue_prog_data(s.prog_data);
+
+   s.first_non_payload_grf += 8 * vue_prog_data->urb_read_length;
+
+   /* Rewrite all ATTR file references to HW_REGs. */
+   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+      s.convert_attr_sources_to_hw_regs(inst);
+   }
+}
+
 static bool
 run_tes(fs_visitor &s)
 {
@@ -30,7 +45,7 @@ run_tes(fs_visitor &s)
    brw_fs_optimize(s);
 
    s.assign_curb_setup();
-   s.assign_tes_urb_setup();
+   brw_assign_tes_urb_setup(s);
 
    brw_fs_lower_3src_null_dest(s);
    brw_fs_workaround_memory_fence_before_eot(s);

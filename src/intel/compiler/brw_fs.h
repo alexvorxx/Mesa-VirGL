@@ -305,7 +305,6 @@ public:
    uint32_t compute_max_register_pressure();
    void assign_curb_setup();
    void convert_attr_sources_to_hw_regs(fs_inst *inst);
-   void assign_tes_urb_setup();
    bool assign_regs(bool allow_spilling, bool spill_all);
    void assign_regs_trivial();
    void calculate_payload_ranges(unsigned payload_node_count,
