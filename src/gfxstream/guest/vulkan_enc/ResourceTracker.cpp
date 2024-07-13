@@ -3866,7 +3866,9 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 } else {
                     bufferBlob = instance->createResource(
                         imageCreateInfo.extent.width, imageCreateInfo.extent.height,
-                        subResourceLayout.rowPitch, virglFormat, target, bind);
+                        subResourceLayout.rowPitch,
+                        subResourceLayout.rowPitch * imageCreateInfo.extent.height, virglFormat,
+                        target, bind);
                     if (!bufferBlob) {
                         mesa_loge("Failed to create colorBuffer resource for Image memory");
                         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -3925,8 +3927,8 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 
                 bufferBlob->wait();
             } else {
-                bufferBlob =
-                    instance->createResource(width, height, width, virglFormat, target, bind);
+                bufferBlob = instance->createResource(width, height, width, width * height,
+                                                      virglFormat, target, bind);
                 if (!bufferBlob) {
                     mesa_loge("Failed to create colorBuffer resource for Image memory");
                     return VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -6165,7 +6167,8 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
             }
 
             if (externalFenceFdToSignal >= 0) {
-                mesa_logd("%s: external fence real signal: %d\n", __func__, externalFenceFdToSignal);
+                mesa_logd("%s: external fence real signal: %d\n", __func__,
+                          externalFenceFdToSignal);
                 goldfish_sync_signal(externalFenceFdToSignal);
             }
 #endif
@@ -7157,7 +7160,7 @@ VkResult ResourceTracker::on_vkAllocateCommandBuffers(
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
 VkResult ResourceTracker::exportSyncFdForQSRILocked(VkImage image, int* fd) {
     mesa_logd("%s: call for image %p hos timage handle 0x%llx\n", __func__, (void*)image,
-          (unsigned long long)get_host_u64_VkImage(image));
+              (unsigned long long)get_host_u64_VkImage(image));
 
     if (mFeatureInfo->hasVirtioGpuNativeSync) {
         struct VirtGpuExecBuffer exec = {};

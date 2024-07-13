@@ -145,8 +145,9 @@ struct VirtGpuCaps VirtGpuKumquatDevice::getCaps(void) { return mCaps; }
 int64_t VirtGpuKumquatDevice::getDeviceHandle(void) { return -1; }
 
 VirtGpuResourcePtr VirtGpuKumquatDevice::createResource(uint32_t width, uint32_t height,
+                                                        uint32_t stride, uint32_t size,
                                                         uint32_t virglFormat, uint32_t target,
-                                                        uint32_t bind, uint32_t bpp) {
+                                                        uint32_t bind) {
     struct drm_kumquat_resource_create_3d create = {
         .target = target,
         .format = virglFormat,
@@ -157,8 +158,8 @@ VirtGpuResourcePtr VirtGpuKumquatDevice::createResource(uint32_t width, uint32_t
         .array_size = 1U,
         .last_level = 0,
         .nr_samples = 0,
-        .size = width * height * bpp,
-        .stride = width * bpp,
+        .size = size,
+        .stride = stride,
     };
 
     int ret = virtgpu_kumquat_resource_create_3d(mVirtGpu, &create);
