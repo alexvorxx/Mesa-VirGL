@@ -648,7 +648,7 @@ ac_nir_lower_indirect_derefs(nir_shader *shader,
     * scratch to alloca's, assuming LLVM won't generate VGPR indexing.
     */
    NIR_PASS(progress, shader, nir_lower_vars_to_scratch, nir_var_function_temp, 256,
-            glsl_get_natural_size_align_bytes);
+            glsl_get_natural_size_align_bytes, glsl_get_natural_size_align_bytes);
 
    /* LLVM doesn't support VGPR indexing on GFX9. */
    bool llvm_has_working_vgpr_indexing = gfx_level != GFX9;

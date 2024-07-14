@@ -181,6 +181,31 @@ ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
    return 0;
 }
 
+static void
+ir3_get_variable_size_align_bytes(const glsl_type *type, unsigned *size, unsigned *align)
+{
+   switch (type->base_type) {
+   case GLSL_TYPE_ARRAY:
+   case GLSL_TYPE_INTERFACE:
+   case GLSL_TYPE_STRUCT:
+      glsl_size_align_handle_array_and_structs(type, ir3_get_variable_size_align_bytes,
+                                               size, align);
+      break;
+   case GLSL_TYPE_UINT8:
+   case GLSL_TYPE_INT8:
+      /* 8-bit values are handled through 16-bit half-registers, so the resulting size
+       * and alignment value has to be doubled to reflect the actual variable size
+       * requirement.
+       */
+      *size = 2 * glsl_get_components(type);
+      *align = 2;
+      break;
+   default:
+      glsl_get_natural_size_align_bytes(type, size, align);
+      break;
+   }
+}
+
 #define OPT(nir, pass, ...)                                                    \
    ({                                                                          \
       bool this_progress = false;                                              \
@@ -828,7 +853,8 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so, nir_shader *s)
     */
    if (so->compiler->has_pvtmem) {
       progress |= OPT(s, nir_lower_vars_to_scratch, nir_var_function_temp,
-                      16 * 16 /* bytes */, glsl_get_natural_size_align_bytes);
+                      16 * 16 /* bytes */,
+                      ir3_get_variable_size_align_bytes, glsl_get_natural_size_align_bytes);
    }
 
    /* Lower scratch writemasks */

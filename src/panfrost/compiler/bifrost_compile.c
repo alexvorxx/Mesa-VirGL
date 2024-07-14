@@ -4937,12 +4937,12 @@ bifrost_preprocess_nir(nir_shader *nir, unsigned gpu_id)
     * (currently unconditional for Valhall), we force vec4 alignment for
     * scratch access.
     */
-   bool packed_tls = (gpu_id >= 0x9000);
-
+   glsl_type_size_align_func vars_to_scratch_size_align_func =
+      (gpu_id >= 0x9000) ? glsl_get_vec4_size_align_bytes
+                         : glsl_get_natural_size_align_bytes;
    /* Lower large arrays to scratch and small arrays to bcsel */
    NIR_PASS_V(nir, nir_lower_vars_to_scratch, nir_var_function_temp, 256,
-              packed_tls ? glsl_get_vec4_size_align_bytes
-                         : glsl_get_natural_size_align_bytes);
+              vars_to_scratch_size_align_func, vars_to_scratch_size_align_func);
    NIR_PASS_V(nir, nir_lower_indirect_derefs, nir_var_function_temp, ~0);
 
    NIR_PASS_V(nir, nir_split_var_copies);

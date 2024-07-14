@@ -3685,7 +3685,7 @@ glsl_channel_type(const glsl_type *t)
    }
 }
 
-static void
+void
 glsl_size_align_handle_array_and_structs(const glsl_type *type,
                                          glsl_type_size_align_func size_align,
                                          unsigned *size, unsigned *align)
