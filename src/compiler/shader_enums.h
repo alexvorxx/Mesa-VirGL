@@ -1145,6 +1145,19 @@ enum gl_access_qualifier
     * on AGX, used for some internal shaders.
     */
    ACCESS_IN_BOUNDS_AGX = (1 << 14),
+
+   /**
+    * Disallow vectorization.
+    *
+    * On some hw (AMD), sparse buffer loads return 0 for all components if
+    * a sparse load starts on a non-resident page, crosses the page boundary,
+    * and ends on a resident page. Sometimes we want it to return 0 only for
+    * the portion of the load that's non-resident, and load values for
+    * the portion that's resident. The workaround is to scalarize such loads
+    * and disallow vectorization. This is used by an internal copy_buffer
+    * shader where the API wants to copy all bytes that are resident.
+    */
+   ACCESS_KEEP_SCALAR = (1 << 15),
 };
 
 /**

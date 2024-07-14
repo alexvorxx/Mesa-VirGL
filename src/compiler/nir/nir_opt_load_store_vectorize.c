@@ -1066,6 +1066,9 @@ is_strided_vector(const struct glsl_type *type)
 static bool
 can_vectorize(struct vectorize_ctx *ctx, struct entry *first, struct entry *second)
 {
+   if ((first->access | second->access) & ACCESS_KEEP_SCALAR)
+      return false;
+
    if (!(get_variable_mode(first) & ctx->options->modes) ||
        !(get_variable_mode(second) & ctx->options->modes))
       return false;
