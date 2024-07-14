@@ -239,6 +239,7 @@ struct ir3_compiler {
 
    bool has_dp2acc;
    bool has_dp4acc;
+   bool has_compliant_dp4acc;
 
    /* Type to use for 1b nir bools: */
    type_t bool_type;

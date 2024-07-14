@@ -290,6 +290,8 @@ struct fd_dev_info {
        * R8G8B8A8_UNORM in the mutable formats list.
        */
       bool ubwc_all_formats_compatible;
+
+      bool has_compliant_dp4acc;
    } a7xx;
 };
 

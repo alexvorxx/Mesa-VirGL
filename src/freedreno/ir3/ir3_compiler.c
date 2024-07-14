@@ -206,6 +206,7 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
 
       compiler->has_dp2acc = dev_info->a6xx.has_dp2acc;
       compiler->has_dp4acc = dev_info->a6xx.has_dp4acc;
+      compiler->has_compliant_dp4acc = dev_info->a7xx.has_compliant_dp4acc;
 
       if (compiler->gen == 6 && options->shared_push_consts) {
          compiler->shared_consts_base_offset = 504;
@@ -301,14 +302,19 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
    if (compiler->gen >= 6) {
       compiler->nir_options.vectorize_io = true,
       compiler->nir_options.force_indirect_unrolling = nir_var_all,
+      compiler->nir_options.lower_device_index_to_zero = true;
 
-      compiler->nir_options.lower_device_index_to_zero = true,
-      compiler->nir_options.has_udot_4x8 = true,
-      compiler->nir_options.has_sudot_4x8 = true,
-      compiler->nir_options.has_udot_4x8 = dev_info->a6xx.has_dp2acc;
-      compiler->nir_options.has_sudot_4x8 = dev_info->a6xx.has_dp2acc;
-      compiler->nir_options.has_udot_4x8_sat = dev_info->a6xx.has_dp2acc;
-      compiler->nir_options.has_sudot_4x8_sat = dev_info->a6xx.has_dp2acc;
+      if (dev_info->a6xx.has_dp2acc || dev_info->a6xx.has_dp4acc) {
+         compiler->nir_options.has_udot_4x8 =
+            compiler->nir_options.has_udot_4x8_sat = true;
+         compiler->nir_options.has_sudot_4x8 =
+            compiler->nir_options.has_sudot_4x8_sat = true;
+      }
+
+      if (dev_info->a6xx.has_dp4acc && dev_info->a7xx.has_compliant_dp4acc) {
+         compiler->nir_options.has_sdot_4x8 =
+            compiler->nir_options.has_sdot_4x8_sat = true;
+      }
    } else if (compiler->gen >= 3 && compiler->gen <= 5) {
       compiler->nir_options.vertex_id_zero_based = true;
    } else if (compiler->gen <= 2) {

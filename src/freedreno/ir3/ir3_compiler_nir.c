@@ -356,6 +356,37 @@ emit_alu_dot_4x8_as_dp4acc(struct ir3_context *ctx, nir_alu_instr *alu,
                            struct ir3_instruction **dst,
                            struct ir3_instruction **src)
 {
+   if (ctx->compiler->has_compliant_dp4acc) {
+      dst[0] = ir3_DP4ACC(ctx->block, src[0], 0, src[1], 0, src[2], 0);
+
+      /* This is actually the LHS signedness attribute.
+       * IR3_SRC_UNSIGNED ~ unsigned LHS (i.e. OpUDot and OpUDotAccSat).
+       */
+      if (alu->op == nir_op_udot_4x8_uadd ||
+          alu->op == nir_op_udot_4x8_uadd_sat) {
+         dst[0]->cat3.signedness = IR3_SRC_UNSIGNED;
+      } else {
+         dst[0]->cat3.signedness = IR3_SRC_MIXED;
+      }
+
+      /* This is actually the RHS signedness attribute.
+       * IR3_SRC_PACKED_HIGH ~ signed RHS (i.e. OpSDot and OpSDotAccSat).
+       */
+      if (alu->op == nir_op_sdot_4x8_iadd ||
+          alu->op == nir_op_sdot_4x8_iadd_sat) {
+         dst[0]->cat3.packed = IR3_SRC_PACKED_HIGH;
+      } else {
+         dst[0]->cat3.packed = IR3_SRC_PACKED_LOW;
+      }
+
+      if (alu->op == nir_op_udot_4x8_uadd_sat ||
+          alu->op == nir_op_sdot_4x8_iadd_sat ||
+          alu->op == nir_op_sudot_4x8_iadd_sat) {
+         dst[0]->flags |= IR3_INSTR_SAT;
+      }
+      return;
+   }
+
    struct ir3_instruction *accumulator = NULL;
    if (alu->op == nir_op_udot_4x8_uadd_sat) {
       accumulator = create_immed(ctx->block, 0);
@@ -446,6 +477,8 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
       /* it probably isn't worth emulating these with scalar-only ops */
       alu->op != nir_op_udot_4x8_uadd &&
       alu->op != nir_op_udot_4x8_uadd_sat &&
+      alu->op != nir_op_sdot_4x8_iadd &&
+      alu->op != nir_op_sdot_4x8_iadd_sat &&
       alu->op != nir_op_sudot_4x8_iadd &&
       alu->op != nir_op_sudot_4x8_iadd_sat &&
       /* not supported in HW, we have to fall back to normal registers */
@@ -896,6 +929,8 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
 
    case nir_op_udot_4x8_uadd:
    case nir_op_udot_4x8_uadd_sat:
+   case nir_op_sdot_4x8_iadd:
+   case nir_op_sdot_4x8_iadd_sat:
    case nir_op_sudot_4x8_iadd:
    case nir_op_sudot_4x8_iadd_sat: {
       if (ctx->compiler->has_dp4acc) {
