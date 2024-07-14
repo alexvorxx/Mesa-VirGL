@@ -161,21 +161,48 @@ ir3_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
 static unsigned
 ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
 {
-   if (instr->type != nir_instr_type_intrinsic)
-      return 0;
+   if (instr->type == nir_instr_type_intrinsic) {
+      nir_intrinsic_instr *intrinsic = nir_instr_as_intrinsic(instr);
+      switch (intrinsic->intrinsic) {
+      case nir_intrinsic_exclusive_scan:
+      case nir_intrinsic_inclusive_scan:
+      case nir_intrinsic_quad_broadcast:
+      case nir_intrinsic_quad_swap_diagonal:
+      case nir_intrinsic_quad_swap_horizontal:
+      case nir_intrinsic_quad_swap_vertical:
+      case nir_intrinsic_reduce:
+         return intrinsic->def.bit_size == 8 ? 16 : 0;
+      default:
+         break;
+      }
+   }
 
-   nir_intrinsic_instr *intrinsic = nir_instr_as_intrinsic(instr);
-   switch (intrinsic->intrinsic) {
-   case nir_intrinsic_exclusive_scan:
-   case nir_intrinsic_inclusive_scan:
-   case nir_intrinsic_quad_broadcast:
-   case nir_intrinsic_quad_swap_diagonal:
-   case nir_intrinsic_quad_swap_horizontal:
-   case nir_intrinsic_quad_swap_vertical:
-   case nir_intrinsic_reduce:
-      return intrinsic->def.bit_size == 8 ? 16 : 0;
-   default:
-      break;
+   if (instr->type == nir_instr_type_alu) {
+      nir_alu_instr *alu = nir_instr_as_alu(instr);
+      switch (alu->op) {
+      case nir_op_iabs:
+      case nir_op_iadd_sat:
+      case nir_op_imax:
+      case nir_op_imin:
+      case nir_op_ineg:
+      case nir_op_ishl:
+      case nir_op_ishr:
+      case nir_op_isub_sat:
+      case nir_op_uadd_sat:
+      case nir_op_umax:
+      case nir_op_umin:
+      case nir_op_ushr:
+         return alu->def.bit_size == 8 ? 16 : 0;
+      case nir_op_ieq:
+      case nir_op_ige:
+      case nir_op_ilt:
+      case nir_op_ine:
+      case nir_op_uge:
+      case nir_op_ult:
+         return nir_src_bit_size(alu->src[0].src) == 8 ? 16 : 0;
+      default:
+         break;
+      }
    }
 
    return 0;
