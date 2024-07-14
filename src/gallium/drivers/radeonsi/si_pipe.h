@@ -248,6 +248,8 @@ enum
 enum
 {
    /* Tests: */
+   DBG_TEST_CLEAR_BUFFER,
+   DBG_TEST_COPY_BUFFER,
    DBG_TEST_IMAGE_COPY,
    DBG_TEST_CB_RESOLVE,
    DBG_TEST_COMPUTE_BLIT,
@@ -1676,6 +1678,8 @@ void si_test_blit(struct si_screen *sscreen, unsigned test_flags);
 /* si_test_dma_perf.c */
 void si_test_dma_perf(struct si_screen *sscreen);
 void si_test_mem_perf(struct si_screen *sscreen);
+void si_test_clear_buffer(struct si_screen *sscreen);
+void si_test_copy_buffer(struct si_screen *sscreen);
 
 /* si_test_blit_perf.c */
 void si_test_blit_perf(struct si_screen *sscreen);
