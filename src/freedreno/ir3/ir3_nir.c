@@ -158,6 +158,29 @@ ir3_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
    return true;
 }
 
+static unsigned
+ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
+{
+   if (instr->type != nir_instr_type_intrinsic)
+      return 0;
+
+   nir_intrinsic_instr *intrinsic = nir_instr_as_intrinsic(instr);
+   switch (intrinsic->intrinsic) {
+   case nir_intrinsic_exclusive_scan:
+   case nir_intrinsic_inclusive_scan:
+   case nir_intrinsic_quad_broadcast:
+   case nir_intrinsic_quad_swap_diagonal:
+   case nir_intrinsic_quad_swap_horizontal:
+   case nir_intrinsic_quad_swap_vertical:
+   case nir_intrinsic_reduce:
+      return intrinsic->def.bit_size == 8 ? 16 : 0;
+   default:
+      break;
+   }
+
+   return 0;
+}
+
 #define OPT(nir, pass, ...)                                                    \
    ({                                                                          \
       bool this_progress = false;                                              \
@@ -221,6 +244,7 @@ ir3_optimize_loop(struct ir3_compiler *compiler, nir_shader *s)
       progress |= OPT(s, nir_opt_algebraic);
       progress |= OPT(s, nir_lower_alu);
       progress |= OPT(s, nir_lower_pack);
+      progress |= OPT(s, nir_lower_bit_size, ir3_lower_bit_size, NULL);
       progress |= OPT(s, nir_opt_constant_folding);
 
       const nir_opt_offsets_options offset_options = {
