@@ -42,6 +42,12 @@ static uint8_t si_vectorize_callback(const nir_instr *instr, const void *data)
       switch (alu->op) {
       case nir_op_unpack_32_2x16_split_x:
       case nir_op_unpack_32_2x16_split_y:
+      case nir_op_extract_i8:
+      case nir_op_extract_u8:
+      case nir_op_extract_i16:
+      case nir_op_extract_u16:
+      case nir_op_insert_u8:
+      case nir_op_insert_u16:
          return 1;
       default:
          return 2;
