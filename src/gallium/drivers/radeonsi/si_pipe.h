@@ -1648,7 +1648,13 @@ union si_cs_clear_copy_buffer_key {
    struct {
       bool is_clear:1;
       unsigned dwords_per_thread:3; /* 1..4 allowed */
-      unsigned clear_value_size_is_12:1;
+      bool clear_value_size_is_12:1;
+      bool src_is_sparse:1;
+      /* Unaligned clears and copies. */
+      unsigned src_align_offset:2; /* how much is the source address unaligned */
+      unsigned dst_align_offset:4; /* the first thread shouldn't write this many bytes */
+      unsigned dst_last_thread_bytes:4; /* if non-zero, the last thread should write this many bytes */
+      bool dst_single_thread_unaligned:1; /* only 1 thread executes, both previous fields apply */
    };
    uint64_t key;
 };

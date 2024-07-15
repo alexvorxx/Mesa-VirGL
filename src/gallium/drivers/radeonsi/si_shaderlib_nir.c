@@ -227,6 +227,39 @@ void *si_create_ubyte_to_ushort_compute_shader(struct si_context *sctx)
    return si_create_shader_state(sctx, b.shader);
 }
 
+/* This is regular load_ssbo with special handling for sparse buffers. Normally, sparse buffer
+ * loads return 0 for all components if a sparse load starts on a non-resident page, crosses
+ * the page boundary, and ends on a resident page. For copy_buffer, we want it to return 0 only
+ * for the portion of the load that's non-resident, and load values for the portion that's
+ * resident. The workaround is to scalarize such loads and disallow vectorization.
+ */
+static nir_def *
+load_ssbo_sparse(nir_builder *b, unsigned num_components, unsigned bit_size, nir_def *buf,
+                 nir_def *offset, struct _nir_load_ssbo_indices params, bool sparse)
+{
+   if (sparse && num_components > 1) {
+      nir_def *vec[NIR_MAX_VEC_COMPONENTS];
+
+      /* Split the vector load into scalar loads. */
+      for (unsigned i = 0; i < num_components; i++) {
+         unsigned elem_offset = i * bit_size / 8;
+         unsigned align_offset = (params.align_offset + elem_offset) % params.align_mul;
+
+         vec[i] = nir_load_ssbo(b, 1, bit_size, buf,
+                                nir_iadd_imm(b, offset, elem_offset),
+                                .access = params.access | ACCESS_KEEP_SCALAR,
+                                .align_mul = params.align_mul,
+                                .align_offset = align_offset);
+      }
+      return nir_vec(b, vec, num_components);
+   } else {
+      return nir_load_ssbo(b, num_components, bit_size, buf, offset,
+                           .access = params.access,
+                           .align_mul = params.align_mul,
+                           .align_offset = params.align_offset);
+   }
+}
+
 /* Create a compute shader implementing clear_buffer or copy_buffer. */
 void *si_create_dma_compute_shader(struct si_context *sctx, union si_cs_clear_copy_buffer_key *key)
 {
@@ -235,6 +268,11 @@ void *si_create_dma_compute_shader(struct si_context *sctx, union si_cs_clear_co
       fprintf(stderr, "   key.is_clear = %u\n", key->is_clear);
       fprintf(stderr, "   key.dwords_per_thread = %u\n", key->dwords_per_thread);
       fprintf(stderr, "   key.clear_value_size_is_12 = %u\n", key->clear_value_size_is_12);
+      fprintf(stderr, "   key.src_is_sparse = %u\n", key->src_is_sparse);
+      fprintf(stderr, "   key.src_align_offset = %u\n", key->src_align_offset);
+      fprintf(stderr, "   key.dst_align_offset = %u\n", key->dst_align_offset);
+      fprintf(stderr, "   key.dst_last_thread_bytes = %u\n", key->dst_last_thread_bytes);
+      fprintf(stderr, "   key.dst_single_thread_unaligned = %u\n", key->dst_single_thread_unaligned);
       fprintf(stderr, "\n");
    }
 
@@ -247,7 +285,11 @@ void *si_create_dma_compute_shader(struct si_context *sctx, union si_cs_clear_co
    b.shader->info.workgroup_size[2] = 1;
    b.shader->info.num_ssbos = key->is_clear ? 1 : 2;
    b.shader->info.cs.user_data_components_amd =
-      key->is_clear ? (key->clear_value_size_is_12 ? 3 : key->dwords_per_thread) : 0;
+      (key->is_clear ? (key->clear_value_size_is_12 ? 3 : key->dwords_per_thread) : 0);
+
+   /* Add the last thread ID value. */
+   if (key->dst_last_thread_bytes)
+      b.shader->info.cs.user_data_components_amd = key->is_clear ? 5 : 1;
 
    nir_def *thread_id = ac_get_global_ids(&b, 1, 32);
    /* Convert the global thread ID into bytes. */
@@ -277,11 +319,203 @@ void *si_create_dma_compute_shader(struct si_context *sctx, union si_cs_clear_co
          value = nir_vec4(&b, vec[0], vec[1], vec[2], vec[0]);
       }
    } else {
-      value = nir_load_ssbo(&b, key->dwords_per_thread, 32, nir_imm_int(&b, 0), offset,
-                            .access = ACCESS_RESTRICT);
+      /* The hw doesn't support unaligned 32-bit loads, and only supports single-component
+       * unaligned 1-byte and 2-byte loads. Luckily, we don't have to use single-component loads
+       * because ac_nir_lower_subdword_load converts 1-byte and 2-byte vector loads with unaligned
+       * offsets into aligned 32-bit loads by loading an extra dword and then bit-shifting all bits
+       * to get the expected result. We only have to set bit_size to 8 or 16 and align_offset to
+       * 1..3 to indicate that this is an unaligned load. align_offset is the amount of
+       * unalignment.
+       *
+       * Since the buffer binding offsets are rounded down to the clear/copy size of the thread
+       * (i.e. dst_align_offset is subtracted from dst_offset, and src_align_offset is subtracted
+       * from src_offset), the stores expect the loaded value to be byte-shifted accordingly.
+       * realign_offset is the amount of byte-shifting we have to do.
+       */
+      assert(util_is_power_of_two_nonzero(key->dwords_per_thread));
+      int realign_offset = key->src_align_offset - key->dst_align_offset;
+      unsigned alignment = (unsigned)realign_offset % 4 == 0 ? 4 :
+                           (unsigned)realign_offset % 2 == 0 ? 2 : 1;
+      unsigned bit_size = alignment * 8;
+      unsigned num_comps = key->dwords_per_thread * 4 / alignment;
+      nir_if *if_first_thread = NULL;
+      nir_def *value0 = NULL;
+
+      if (realign_offset < 0) {
+         /* if src_align_offset is less than dst_align_offset, realign_offset is
+          * negative, which causes the first thread to use a negative buffer offset, which goes
+          * entirely out of bounds because the offset is treated as unsigned. Instead of that,
+          * the first thread should load from offset 0 by not loading the bytes before
+          * the beginning of the buffer.
+          */
+         if_first_thread = nir_push_if(&b, nir_ieq_imm(&b, thread_id, 0));
+         {
+            unsigned num_removed_comps = -realign_offset / alignment;
+            unsigned num_inbounds_comps = num_comps - num_removed_comps;
+
+            /* Only 8 and 16 component vectors are valid after 5 in NIR. */
+            while (!nir_num_components_valid(num_inbounds_comps))
+               num_inbounds_comps = util_next_power_of_two(num_inbounds_comps);
+
+            value0 = load_ssbo_sparse(&b, num_inbounds_comps, bit_size, nir_imm_int(&b, 0), offset,
+                                      (struct _nir_load_ssbo_indices){
+                                         .access = ACCESS_RESTRICT,
+                                         .align_mul = 4,
+                                         .align_offset = 0
+                                      }, key->src_is_sparse);
+
+            /* Add the components that we didn't load as undef. */
+            nir_def *comps[16];
+            assert(num_comps <= ARRAY_SIZE(comps));
+            for (unsigned i = 0; i < num_comps; i++) {
+               if (i < num_removed_comps)
+                  comps[i] = nir_undef(&b, 1, bit_size);
+               else
+                  comps[i] = nir_channel(&b, value0, i - num_removed_comps);
+            }
+            value0 = nir_vec(&b, comps, num_comps);
+         }
+         nir_push_else(&b, if_first_thread);
+      }
+
+      value = load_ssbo_sparse(&b, num_comps, bit_size, nir_imm_int(&b, 0),
+                               nir_iadd_imm(&b, offset, realign_offset),
+                               (struct _nir_load_ssbo_indices){
+                                  .access = ACCESS_RESTRICT,
+                                  .align_mul = 4,
+                                  .align_offset = (unsigned)realign_offset % 4
+                               }, key->src_is_sparse);
+
+
+      if (if_first_thread) {
+         nir_pop_if(&b, if_first_thread);
+         value = nir_if_phi(&b, value0, value);
+      }
+
+      /* Bitcast the vector to 32 bits. */
+      if (value->bit_size != 32)
+         value = nir_extract_bits(&b, &value, 1, 0, key->dwords_per_thread, 32);
    }
 
-   nir_store_ssbo(&b, value, nir_imm_int(&b, !key->is_clear), offset, .access = ACCESS_RESTRICT);
+   nir_def *dst_buf = nir_imm_int(&b, !key->is_clear);
+   nir_if *if_first_thread = NULL, *if_last_thread = NULL;
+
+   if (!key->dst_single_thread_unaligned) {
+      /* dst_align_offset means how many bytes the first thread should skip because the offset of
+       * the buffer binding is rounded down to the clear/copy size of thread, causing the bytes
+       * before dst_align_offset to be writable. Above we used realign_offset to byte-shift
+       * the value to compensate for the rounded-down offset, so that all stores are dword stores
+       * regardless of the offset/size alignment except that the first thread shouldn't store
+       * the first dst_align_offset bytes, and the last thread should only store the first
+       * dst_last_thread_bytes. In both cases, there is a dword that must be only partially
+       * written by splitting it into 8-bit and 16-bit stores.
+       */
+      if (key->dst_align_offset) {
+          if_first_thread = nir_push_if(&b, nir_ieq_imm(&b, thread_id, 0));
+          {
+             unsigned local_offset = key->dst_align_offset;
+             nir_def *first_dword = nir_channel(&b, value, local_offset / 4);
+
+             if (local_offset % 2 == 1) {
+                nir_store_ssbo(&b, nir_channel(&b, nir_unpack_32_4x8(&b, first_dword), local_offset % 4),
+                               dst_buf, nir_iadd_imm_nuw(&b, offset, local_offset),
+                               .access = ACCESS_RESTRICT);
+                local_offset++;
+             }
+
+             if (local_offset % 4 == 2) {
+                nir_store_ssbo(&b, nir_unpack_32_2x16_split_y(&b, first_dword), dst_buf,
+                               nir_iadd_imm_nuw(&b, offset, local_offset),
+                               .access = ACCESS_RESTRICT);
+                local_offset += 2;
+             }
+
+             assert(local_offset % 4 == 0);
+             unsigned num_dw_remaining = key->dwords_per_thread - local_offset / 4;
+
+             if (num_dw_remaining) {
+                nir_def *dwords =
+                   nir_channels(&b, value, BITFIELD_RANGE(local_offset / 4, num_dw_remaining));
+
+                nir_store_ssbo(&b, dwords, dst_buf, nir_iadd_imm_nuw(&b, offset, local_offset),
+                               .access = ACCESS_RESTRICT);
+             }
+          }
+          nir_push_else(&b, if_first_thread);
+      }
+
+      if (key->dst_last_thread_bytes) {
+         nir_def *last_thread_id =
+            nir_channel(&b, nir_load_user_data_amd(&b), key->is_clear ? 4 : 0);
+
+         if_last_thread = nir_push_if(&b, nir_ieq(&b, thread_id, last_thread_id));
+         {
+            unsigned num_dwords = key->dst_last_thread_bytes / 4;
+            bool write_short = (key->dst_last_thread_bytes - num_dwords * 4) / 2;
+            bool write_byte = key->dst_last_thread_bytes % 2;
+            nir_def *last_dword = nir_channel(&b, value, num_dwords);
+
+            if (num_dwords) {
+               nir_def *dwords = nir_channels(&b, value, BITFIELD_MASK(num_dwords));
+               nir_store_ssbo(&b, dwords, dst_buf, offset, .access = ACCESS_RESTRICT);
+            }
+
+            if (write_short) {
+               nir_store_ssbo(&b, nir_u2u16(&b, last_dword), dst_buf,
+                              nir_iadd_imm_nuw(&b, offset, num_dwords * 4),
+                              .access = ACCESS_RESTRICT);
+            }
+
+            if (write_byte) {
+               nir_store_ssbo(&b, nir_channel(&b, nir_unpack_32_4x8(&b, last_dword), write_short * 2),
+                              dst_buf, nir_iadd_imm_nuw(&b, offset, num_dwords * 4 + write_short * 2),
+                              .access = ACCESS_RESTRICT);
+            }
+         }
+         nir_push_else(&b, if_last_thread);
+      }
+
+      nir_store_ssbo(&b, value, dst_buf, offset, .access = ACCESS_RESTRICT);
+
+      if (if_last_thread)
+         nir_pop_if(&b, if_last_thread);
+      if (if_first_thread)
+         nir_pop_if(&b, if_first_thread);
+   } else {
+      /* This shader only executes a single thread (tiny copy or clear) and it's unaligned at both
+       * the beginning and the end. Walk the individual dwords/words/bytes that should be written
+       * to split the store accordingly.
+       */
+      for (unsigned local_offset = key->dst_align_offset;
+           local_offset < key->dst_last_thread_bytes;) {
+         unsigned remaining = key->dst_last_thread_bytes - local_offset;
+         nir_def *src_dword = nir_channel(&b, value, local_offset / 4);
+
+         if (local_offset % 2 == 1 || remaining == 1) {
+            /* 1-byte store. */
+            nir_def *src_dword4x8 = nir_unpack_32_4x8(&b, src_dword);
+            nir_store_ssbo(&b, nir_channel(&b, src_dword4x8, local_offset % 4), dst_buf,
+                           nir_iadd_imm_nuw(&b, offset, local_offset), .access = ACCESS_RESTRICT);
+            local_offset++;
+         } else if (local_offset % 4 == 2 || remaining == 2 || remaining == 3) {
+            /* 2-byte store. */
+            nir_def *src_dword2x16 = nir_unpack_32_2x16(&b, src_dword);
+            nir_store_ssbo(&b, nir_channel(&b, src_dword2x16, (local_offset / 2) % 2), dst_buf,
+                           nir_iadd_imm_nuw(&b, offset, local_offset), .access = ACCESS_RESTRICT);
+            local_offset += 2;
+         } else {
+            /* 1-N dwords. */
+            unsigned dw_size = remaining / 4;
+            assert(dw_size);
+            assert(local_offset % 4 == 0);
+
+            nir_store_ssbo(&b, nir_channels(&b, value, BITFIELD_RANGE(local_offset / 4, dw_size)),
+                           dst_buf, nir_iadd_imm_nuw(&b, offset, local_offset),
+                           .access = ACCESS_RESTRICT);
+            local_offset += dw_size * 4;
+         }
+      }
+   }
 
    return si_create_shader_state(sctx, b.shader);
 }
