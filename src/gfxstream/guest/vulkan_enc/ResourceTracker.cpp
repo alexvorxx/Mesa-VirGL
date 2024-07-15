@@ -2633,7 +2633,8 @@ VkResult ResourceTracker::setBufferCollectionImageConstraintsFUCHSIA(
     if (info_VkBufferCollectionFUCHSIA.find(buffer_collection) !=
         info_VkBufferCollectionFUCHSIA.end()) {
         info_VkBufferCollectionFUCHSIA[buffer_collection].constraints =
-            gfxstream::guest::makeOptional(std::move(setConstraintsResult.constraints));
+            std::make_optional<fuchsia_sysmem::wire::BufferCollectionConstraints>(
+                std::move(setConstraintsResult.constraints));
         info_VkBufferCollectionFUCHSIA[buffer_collection].createInfoIndex =
             std::move(setConstraintsResult.createInfoIndex);
     }
@@ -2658,7 +2659,8 @@ VkResult ResourceTracker::setBufferCollectionBufferConstraintsFUCHSIA(
     if (info_VkBufferCollectionFUCHSIA.find(buffer_collection) !=
         info_VkBufferCollectionFUCHSIA.end()) {
         info_VkBufferCollectionFUCHSIA[buffer_collection].constraints =
-            gfxstream::guest::makeOptional(setConstraintsResult.constraints);
+            std::make_optional<fuchsia_sysmem::wire::BufferCollectionConstraints>(
+                setConstraintsResult.constraints);
     }
 
     return VK_SUCCESS;
@@ -2805,7 +2807,7 @@ VkResult ResourceTracker::on_vkGetBufferCollectionPropertiesFUCHSIA(
         }
 
         info_VkBufferCollectionFUCHSIA[collection].properties =
-            gfxstream::guest::makeOptional(*pProperties);
+            std::make_optional<VkBufferCollectionPropertiesFUCHSIA>(*pProperties);
 
         // We only do a shallow copy so we should remove all pNext pointers.
         info_VkBufferCollectionFUCHSIA[collection].properties->pNext = nullptr;
@@ -5395,7 +5397,7 @@ VkResult ResourceTracker::on_vkCreateBuffer(void* context, VkResult, VkDevice de
     }
 
 #ifdef VK_USE_PLATFORM_FUCHSIA
-    Optional<zx::vmo> vmo;
+    std::optional<zx::vmo> vmo;
     bool isSysmemBackedMemory = false;
 
     if (extBufCiPtr &&
@@ -5416,7 +5418,7 @@ VkResult ResourceTracker::on_vkCreateBuffer(void* context, VkResult, VkDevice de
         if (result.ok() && result->status == ZX_OK) {
             auto& info = result->buffer_collection_info;
             if (index < info.buffer_count) {
-                vmo = gfxstream::guest::makeOptional(std::move(info.buffers[index].vmo));
+                vmo = std::make_optional<zx::vmo>(std::move(info.buffers[index].vmo));
             }
         } else {
             mesa_loge("WaitForBuffersAllocated failed: %d %d", result.status(),

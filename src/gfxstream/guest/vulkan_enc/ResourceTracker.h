@@ -29,12 +29,10 @@
 #include "VirtGpu.h"
 #include "VulkanHandleMapping.h"
 #include "VulkanHandles.h"
-#include "aemu/base/Optional.h"
 #include "aemu/base/Tracing.h"
 #include "aemu/base/threads/AndroidWorkPool.h"
 #include "goldfish_vk_transform_guest.h"
 
-using gfxstream::guest::Optional;
 using gfxstream::guest::WorkPool;
 
 /// Use installed headers or locally defined Fuchsia-specific bits
@@ -858,8 +856,8 @@ class ResourceTracker {
 
     struct VkBufferCollectionFUCHSIA_Info {
 #ifdef VK_USE_PLATFORM_FUCHSIA
-        gfxstream::guest::Optional<fuchsia_sysmem::wire::BufferCollectionConstraints> constraints;
-        gfxstream::guest::Optional<VkBufferCollectionPropertiesFUCHSIA> properties;
+        std::optional<fuchsia_sysmem::wire::BufferCollectionConstraints> constraints;
+        std::optional<VkBufferCollectionPropertiesFUCHSIA> properties;
 
         // the index of corresponding createInfo for each image format
         // constraints in |constraints|.
