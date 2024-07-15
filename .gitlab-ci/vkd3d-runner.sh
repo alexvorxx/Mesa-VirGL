@@ -38,11 +38,11 @@ if ! vulkaninfo | grep driverInfo | tee /tmp/version.txt | grep -F "Mesa $MESA_V
 fi
 
 # Gather the list expected failures
-EXPECTATIONFILE="$RESULTS/$GPU_VERSION-vkd3d.txt"
-if [ -f "$INSTALL/$GPU_VERSION-vkd3d.txt" ]; then
-    cp "$INSTALL/$GPU_VERSION-vkd3d.txt" "$EXPECTATIONFILE"
+EXPECTATIONFILE="$RESULTS/$GPU_VERSION-vkd3d-fails.txt"
+if [ -f "$INSTALL/$GPU_VERSION-vkd3d-fails.txt" ]; then
+    cp "$INSTALL/$GPU_VERSION-vkd3d-fails.txt" "$EXPECTATIONFILE"
 else
-    printf "%s\n" "$GPU_VERSION-vkd3d.txt not found, assuming a \"no failures\" baseline."
+    printf "%s\n" "$GPU_VERSION-vkd3d-fails.txt not found, assuming a \"no failures\" baseline."
     touch "$EXPECTATIONFILE"
 fi
 
