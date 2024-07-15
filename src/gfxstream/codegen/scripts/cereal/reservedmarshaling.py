@@ -223,7 +223,7 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
                     self.cgen.beginIf(lenAccessGuard)
                 self.cgen.beginFor("uint32_t k = 0", "k < %s" % lenAccess, "++k")
                 self.cgen.stmt("uint64_t tmpval; memcpy(&tmpval, %s_ptr + k * 8, sizeof(uint64_t))" % handle64Var)
-                self.cgen.stmt("*((%s%s) + k) = (%s)%s((%s)tmpval)" % (
+                self.cgen.stmt("*((%s%s) + k) = tmpval ? (%s)%s((%s)tmpval) : VK_NULL_HANDLE" % (
                     self.makeCastExpr(vulkanType.getForNonConstAccess()), access,
                     vulkanType.typeName, mapFunc, vulkanType.typeName))
                 if lenAccessGuard is not None:
