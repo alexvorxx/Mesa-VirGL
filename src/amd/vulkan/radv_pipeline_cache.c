@@ -408,6 +408,7 @@ struct radv_ray_tracing_stage_cache_data {
 
 struct radv_ray_tracing_pipeline_cache_data {
    uint32_t has_traversal_shader : 1;
+   uint32_t is_library : 1;
    uint32_t num_stages;
    struct radv_ray_tracing_stage_cache_data stages[];
 };
@@ -425,7 +426,6 @@ radv_ray_tracing_pipeline_cache_search(struct radv_device *device, struct vk_pip
 
    struct radv_ray_tracing_pipeline_cache_data *data = pipeline_obj->data;
 
-   bool is_library = pipeline->base.base.create_flags & VK_PIPELINE_CREATE_2_LIBRARY_BIT_KHR;
    bool complete = true;
    unsigned idx = 0;
 
@@ -441,7 +441,7 @@ radv_ray_tracing_pipeline_cache_search(struct radv_device *device, struct vk_pip
       if (data->stages[i].has_shader)
          pipeline->stages[i].shader = radv_shader_ref(pipeline_obj->shaders[idx++]);
 
-      if (is_library) {
+      if (data->is_library) {
          pipeline->stages[i].nir = radv_pipeline_cache_lookup_nir_handle(device, cache, pipeline->stages[i].sha1);
          complete &= pipeline->stages[i].nir != NULL;
       }
@@ -482,6 +482,7 @@ radv_ray_tracing_pipeline_cache_insert(struct radv_device *device, struct vk_pip
       radv_pipeline_cache_object_create(&device->vk, num_shaders, pipeline->base.base.sha1, data_size);
    struct radv_ray_tracing_pipeline_cache_data *data = pipeline_obj->data;
 
+   data->is_library = !!(pipeline->base.base.create_flags & VK_PIPELINE_CREATE_2_LIBRARY_BIT_KHR);
    data->has_traversal_shader = !!pipeline->base.base.shaders[MESA_SHADER_INTERSECTION];
 
    unsigned idx = 0;
