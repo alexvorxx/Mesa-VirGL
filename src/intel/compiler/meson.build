@@ -83,6 +83,7 @@ libintel_compiler_brw_files = files(
   'brw_ir_performance.cpp',
   'brw_isa_info.h',
   'brw_lower_logical_sends.cpp',
+  'brw_lower_subgroup_ops.cpp',
   'brw_nir.h',
   'brw_nir.c',
   'brw_nir_analyze_ubo_ranges.c',

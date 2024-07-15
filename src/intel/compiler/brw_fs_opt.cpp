@@ -90,6 +90,7 @@ brw_fs_optimize(fs_visitor &s)
       OPT(brw_fs_opt_dead_code_eliminate);
    }
 
+   OPT(brw_fs_lower_subgroup_ops);
    OPT(brw_fs_lower_csel);
    OPT(brw_fs_lower_simd_width);
    OPT(brw_fs_lower_barycentrics);

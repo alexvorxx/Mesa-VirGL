@@ -318,6 +318,7 @@ fs_inst::can_do_source_mods(const struct intel_device_info *devinfo) const
    case SHADER_OPCODE_SHUFFLE:
    case SHADER_OPCODE_INT_QUOTIENT:
    case SHADER_OPCODE_INT_REMAINDER:
+   case SHADER_OPCODE_REDUCE:
       return false;
    default:
       return true;

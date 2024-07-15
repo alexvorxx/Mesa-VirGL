@@ -231,6 +231,7 @@ brw_validate_instruction_phase(const fs_visitor &s, fs_inst *inst)
    case RT_OPCODE_TRACE_RAY_LOGICAL:
    case SHADER_OPCODE_URB_READ_LOGICAL:
    case SHADER_OPCODE_URB_WRITE_LOGICAL:
+   case SHADER_OPCODE_REDUCE:
       invalid_from = BRW_SHADER_PHASE_AFTER_EARLY_LOWERING;
       break;
 
