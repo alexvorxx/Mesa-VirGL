@@ -281,6 +281,7 @@ vlVaGetConfigAttributes(VADriverContextP ctx, VAProfile profile, VAEntrypoint en
             value = pscreen->get_video_param(pscreen, ProfileToPipe(profile),
                                              PIPE_VIDEO_ENTRYPOINT_ENCODE,
                                              PIPE_VIDEO_CAP_MAX_TEMPORAL_LAYERS);
+            assert(value <= 4);
             if (value > 0) {
                value -= 1;
                value |= (1 << 8);   /* temporal_layer_bitrate_control_flag */
