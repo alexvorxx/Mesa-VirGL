@@ -235,6 +235,10 @@ get_io_offset(nir_deref_instr *deref, nir_variable *var, bool is_arrayed,
          assert(glsl_type_is_array(var->type));
          return 0;
       }
+
+      if (deref->deref_type == nir_deref_type_array_wildcard)
+         return -1;
+
       assert(deref->deref_type == nir_deref_type_array);
       return nir_src_is_const(deref->arr.index) ? (nir_src_as_uint(deref->arr.index) + var->data.location_frac) / 4u : (unsigned)-1;
    }
