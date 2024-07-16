@@ -319,6 +319,8 @@ fs_inst::can_do_source_mods(const struct intel_device_info *devinfo) const
    case SHADER_OPCODE_INT_QUOTIENT:
    case SHADER_OPCODE_INT_REMAINDER:
    case SHADER_OPCODE_REDUCE:
+   case SHADER_OPCODE_INCLUSIVE_SCAN:
+   case SHADER_OPCODE_EXCLUSIVE_SCAN:
       return false;
    default:
       return true;

@@ -173,6 +173,49 @@ brw_lower_reduce(fs_visitor &s, bblock_t *block, fs_inst *inst)
    return true;
 }
 
+static bool
+brw_lower_scan(fs_visitor &s, bblock_t *block, fs_inst *inst)
+{
+   const fs_builder bld(&s, block, inst);
+
+   assert(inst->dst.type == inst->src[0].type);
+   brw_reg dst = inst->dst;
+   brw_reg src = inst->src[0];
+
+   assert(inst->src[1].file == IMM);
+   enum brw_reduce_op op = (enum brw_reduce_op)inst->src[1].ud;
+
+   struct brw_reduction_info info = brw_get_reduction_info(op, src.type);
+
+   /* Set up a register for all of our scratching around and initialize it
+    * to reduction operation's identity value.
+    */
+   brw_reg scan = bld.vgrf(src.type);
+   const fs_builder ubld = bld.exec_all();
+   ubld.emit(SHADER_OPCODE_SEL_EXEC, scan, src, info.identity);
+
+   if (inst->opcode == SHADER_OPCODE_EXCLUSIVE_SCAN) {
+      /* Exclusive scan is a bit harder because we have to do an annoying
+       * shift of the contents before we can begin.  To make things worse,
+       * we can't do this with a normal stride; we have to use indirects.
+       */
+      brw_reg shifted = bld.vgrf(src.type);
+      brw_reg idx = bld.vgrf(BRW_TYPE_W);
+
+      ubld.ADD(idx, bld.LOAD_SUBGROUP_INVOCATION(), brw_imm_w(-1));
+      ubld.emit(SHADER_OPCODE_SHUFFLE, shifted, scan, idx);
+      ubld.group(1, 0).MOV(horiz_offset(shifted, 0), info.identity);
+      scan = shifted;
+   }
+
+   bld.emit_scan(info.op, scan, s.dispatch_width, info.cond_mod);
+
+   bld.MOV(dst, scan);
+
+   inst->remove(block);
+   return true;
+}
+
 bool
 brw_fs_lower_subgroup_ops(fs_visitor &s)
 {
@@ -182,6 +225,11 @@ brw_fs_lower_subgroup_ops(fs_visitor &s)
       switch (inst->opcode) {
       case SHADER_OPCODE_REDUCE:
          progress |= brw_lower_reduce(s, block, inst);
+         break;
+
+      case SHADER_OPCODE_INCLUSIVE_SCAN:
+      case SHADER_OPCODE_EXCLUSIVE_SCAN:
+         progress |= brw_lower_scan(s, block, inst);
          break;
 
       default:

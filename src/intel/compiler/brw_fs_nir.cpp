@@ -4680,35 +4680,6 @@ fs_nir_emit_bs_intrinsic(nir_to_brw_state &ntb,
    }
 }
 
-static brw_reg
-brw_nir_reduction_op_identity(const fs_builder &bld,
-                              nir_op op, brw_reg_type type)
-{
-   nir_const_value value =
-      nir_alu_binop_identity(op, brw_type_size_bits(type));
-
-   switch (brw_type_size_bytes(type)) {
-   case 1:
-      if (type == BRW_TYPE_UB) {
-         return brw_imm_uw(value.u8);
-      } else {
-         assert(type == BRW_TYPE_B);
-         return brw_imm_w(value.i8);
-      }
-   case 2:
-      return retype(brw_imm_uw(value.u16), type);
-   case 4:
-      return retype(brw_imm_ud(value.u32), type);
-   case 8:
-      if (type == BRW_TYPE_DF)
-         return brw_imm_df(value.f64);
-      else
-         return retype(brw_imm_u64(value.u64), type);
-   default:
-      unreachable("Invalid type size");
-   }
-}
-
 static brw_reduce_op
 brw_reduce_op_for_nir_reduction_op(nir_op op)
 {
@@ -4726,50 +4697,6 @@ brw_reduce_op_for_nir_reduction_op(nir_op op)
    case nir_op_iand: return BRW_REDUCE_OP_AND;
    case nir_op_ior:  return BRW_REDUCE_OP_OR;
    case nir_op_ixor: return BRW_REDUCE_OP_XOR;
-   default:
-      unreachable("Invalid reduction operation");
-   }
-}
-
-static opcode
-brw_op_for_nir_reduction_op(nir_op op)
-{
-   switch (op) {
-   case nir_op_iadd: return BRW_OPCODE_ADD;
-   case nir_op_fadd: return BRW_OPCODE_ADD;
-   case nir_op_imul: return BRW_OPCODE_MUL;
-   case nir_op_fmul: return BRW_OPCODE_MUL;
-   case nir_op_imin: return BRW_OPCODE_SEL;
-   case nir_op_umin: return BRW_OPCODE_SEL;
-   case nir_op_fmin: return BRW_OPCODE_SEL;
-   case nir_op_imax: return BRW_OPCODE_SEL;
-   case nir_op_umax: return BRW_OPCODE_SEL;
-   case nir_op_fmax: return BRW_OPCODE_SEL;
-   case nir_op_iand: return BRW_OPCODE_AND;
-   case nir_op_ior:  return BRW_OPCODE_OR;
-   case nir_op_ixor: return BRW_OPCODE_XOR;
-   default:
-      unreachable("Invalid reduction operation");
-   }
-}
-
-static brw_conditional_mod
-brw_cond_mod_for_nir_reduction_op(nir_op op)
-{
-   switch (op) {
-   case nir_op_iadd: return BRW_CONDITIONAL_NONE;
-   case nir_op_fadd: return BRW_CONDITIONAL_NONE;
-   case nir_op_imul: return BRW_CONDITIONAL_NONE;
-   case nir_op_fmul: return BRW_CONDITIONAL_NONE;
-   case nir_op_imin: return BRW_CONDITIONAL_L;
-   case nir_op_umin: return BRW_CONDITIONAL_L;
-   case nir_op_fmin: return BRW_CONDITIONAL_L;
-   case nir_op_imax: return BRW_CONDITIONAL_GE;
-   case nir_op_umax: return BRW_CONDITIONAL_GE;
-   case nir_op_fmax: return BRW_CONDITIONAL_GE;
-   case nir_op_iand: return BRW_CONDITIONAL_NONE;
-   case nir_op_ior:  return BRW_CONDITIONAL_NONE;
-   case nir_op_ixor: return BRW_CONDITIONAL_NONE;
    default:
       unreachable("Invalid reduction operation");
    }
@@ -7074,40 +7001,18 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
    case nir_intrinsic_inclusive_scan:
    case nir_intrinsic_exclusive_scan: {
       brw_reg src = get_nir_src(ntb, instr->src[0]);
-      nir_op redop = (nir_op)nir_intrinsic_reduction_op(instr);
+      nir_op op = (nir_op)nir_intrinsic_reduction_op(instr);
+      enum brw_reduce_op brw_op = brw_reduce_op_for_nir_reduction_op(op);
 
       /* Figure out the source type */
       src.type = brw_type_for_nir_type(devinfo,
-         (nir_alu_type)(nir_op_infos[redop].input_types[0] |
+         (nir_alu_type)(nir_op_infos[op].input_types[0] |
                         nir_src_bit_size(instr->src[0])));
 
-      brw_reg identity = brw_nir_reduction_op_identity(bld, redop, src.type);
-      opcode brw_op = brw_op_for_nir_reduction_op(redop);
-      brw_conditional_mod cond_mod = brw_cond_mod_for_nir_reduction_op(redop);
+      enum opcode opcode = instr->intrinsic == nir_intrinsic_exclusive_scan ?
+            SHADER_OPCODE_EXCLUSIVE_SCAN : SHADER_OPCODE_INCLUSIVE_SCAN;
 
-      /* Set up a register for all of our scratching around and initialize it
-       * to reduction operation's identity value.
-       */
-      brw_reg scan = bld.vgrf(src.type);
-      const fs_builder allbld = bld.exec_all();
-      allbld.emit(SHADER_OPCODE_SEL_EXEC, scan, src, identity);
-
-      if (instr->intrinsic == nir_intrinsic_exclusive_scan) {
-         /* Exclusive scan is a bit harder because we have to do an annoying
-          * shift of the contents before we can begin.  To make things worse,
-          * we can't do this with a normal stride; we have to use indirects.
-          */
-         brw_reg shifted = bld.vgrf(src.type);
-         brw_reg idx = bld.vgrf(BRW_TYPE_W);
-         allbld.ADD(idx, bld.LOAD_SUBGROUP_INVOCATION(), brw_imm_w(-1));
-         allbld.emit(SHADER_OPCODE_SHUFFLE, shifted, scan, idx);
-         allbld.group(1, 0).MOV(horiz_offset(shifted, 0), identity);
-         scan = shifted;
-      }
-
-      bld.emit_scan(brw_op, scan, s.dispatch_width, cond_mod);
-
-      bld.MOV(retype(dest, src.type), scan);
+      bld.emit(opcode, retype(dest, src.type), src, brw_imm_ud(brw_op));
       break;
    }
 

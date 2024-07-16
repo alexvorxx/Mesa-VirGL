@@ -412,6 +412,15 @@ enum opcode {
     */
    SHADER_OPCODE_REDUCE,
 
+   /* Combine values of previous channels using an operation.  Inclusive scan
+    * will include the value of the channel itself in the channel result.
+    *
+    * Source 0: Value.
+    * Source 1: Immediate with brw_reduce_op.
+    */
+   SHADER_OPCODE_INCLUSIVE_SCAN,
+   SHADER_OPCODE_EXCLUSIVE_SCAN,
+
    /* Select between src0 and src1 based on channel enables.
     *
     * This instruction copies src0 into the enabled channels of the
