@@ -91,6 +91,7 @@ SUPPORTED_FEATURES = [
     "VK_EXT_host_image_copy",
     "VK_EXT_image_compression_control",
     "VK_EXT_image_compression_control_swapchain",
+    "VK_EXT_image_drm_format_modifier",
     # VK1.3 extensions: see b/298704840
     "VK_KHR_copy_commands2",
     "VK_KHR_dynamic_rendering",
