@@ -1001,6 +1001,29 @@ fs_inst::has_sampler_residency() const
    }
 }
 
+/* \sa inst_is_raw_move in brw_eu_validate. */
+bool
+fs_inst::is_raw_move() const
+{
+   if (opcode != BRW_OPCODE_MOV)
+      return false;
+
+   if (src[0].file == IMM) {
+      if (brw_type_is_vector_imm(src[0].type))
+         return false;
+   } else if (src[0].negate || src[0].abs) {
+      return false;
+   }
+
+   if (saturate)
+      return false;
+
+   return src[0].type == dst.type ||
+          (brw_type_is_int(src[0].type) &&
+           brw_type_is_int(dst.type) &&
+           brw_type_size_bits(src[0].type) == brw_type_size_bits(dst.type));
+}
+
 /* For SIMD16, we need to follow from the uniform setup of SIMD8 dispatch.
  * This brings in those uniform definitions
  */

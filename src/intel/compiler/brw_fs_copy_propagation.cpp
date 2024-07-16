@@ -1274,8 +1274,12 @@ can_propagate_from(fs_inst *inst)
             inst->src[0].file == IMM ||
             (inst->src[0].file == FIXED_GRF &&
              inst->src[0].is_contiguous())) &&
-           inst->src[0].type == inst->dst.type &&
-           !inst->saturate &&
+           /* is_raw_move also rejects source modifiers, but copy propagation
+            * can handle that if the types are the same.
+            */
+           ((inst->src[0].type == inst->dst.type &&
+             !inst->saturate) ||
+            inst->is_raw_move()) &&
            /* Subset of !is_partial_write() conditions. */
            !inst->predicate && inst->dst.is_contiguous()) ||
           is_identity_payload(FIXED_GRF, inst);
@@ -1752,7 +1756,11 @@ find_value_for_offset(fs_inst *def, const brw_reg &src, unsigned src_size)
 
    switch (def->opcode) {
    case BRW_OPCODE_MOV:
-      if (def->dst.type == def->src[0].type && def->src[0].stride <= 1) {
+      /* is_raw_move also rejects source modifiers, but copy propagation
+       * can handle that if the tyeps are the same.
+       */
+      if ((def->dst.type == def->src[0].type || def->is_raw_move()) &&
+          def->src[0].stride <= 1) {
          val = def->src[0];
 
          unsigned rel_offset = src.offset - def->dst.offset;

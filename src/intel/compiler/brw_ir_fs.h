@@ -70,6 +70,7 @@ public:
    bool is_control_flow_end() const;
    bool is_control_flow() const;
    bool is_commutative() const;
+   bool is_raw_move() const;
    bool can_do_saturate() const;
    bool reads_accumulator_implicitly() const;
    bool writes_accumulator_implicitly(const struct intel_device_info *devinfo) const;
