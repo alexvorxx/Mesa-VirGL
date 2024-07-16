@@ -263,28 +263,46 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
                                   unsigned dwords_per_thread, bool fail_if_slow)
 {
    bool is_copy = src != NULL;
+   uint32_t tmp_clear_value;
 
-   if (src_offset % 4 || dst_offset % 4 || size % 4 || clear_value_size % 4)
-      return false;
+   si_improve_sync_flags(sctx, dst, src, &flags);
 
-   if (dwords_per_thread) {
-      /* Validate dwords_per_thread. Only set by the microbenchmark. */
-      if (dwords_per_thread > 4) {
-         assert(!"dwords_per_thread must be <= 4");
-         return false; /* invalid value */
-      }
+   if (!is_copy) {
+      if (util_lower_clearsize_to_dword(clear_value, (int*)&clear_value_size, &tmp_clear_value))
+         clear_value = &tmp_clear_value;
 
-      if (clear_value_size > dwords_per_thread * 4) {
-         assert(!"clear_value_size must be <= dwords_per_thread");
-         return false; /* invalid value */
-      }
-   } else {
+      assert(clear_value_size % 4 == 0);
+   }
+
+   if (!dwords_per_thread) {
       /* Set default optimal settings. */
-      /* Clearing 4 dwords per thread with a 3-dword clear value is slightly faster with big sizes. */
-      if (!is_copy && clear_value_size == 12)
-         dwords_per_thread = size <= 4096 ? 3 : 4;
-      else
-         dwords_per_thread = 4;
+      dwords_per_thread = size <= 64 * 1024 ? 2 : 4;
+
+      if (!is_copy) {
+         if (clear_value_size == 12) {
+            /* Clearing 4 dwords per thread with a 3-dword clear value is faster with big sizes. */
+            dwords_per_thread = size <= 4096 ? 3 : 4;
+         } else {
+            /* dwords_per_thread must be at least the size of the clear value. */
+            dwords_per_thread = MAX2(dwords_per_thread, clear_value_size / 4);
+         }
+      }
+   }
+
+   /* Validate dwords_per_thread. */
+   if (dwords_per_thread > 4) {
+      assert(!"dwords_per_thread must be <= 4");
+      return false; /* invalid value */
+   }
+
+   if (clear_value_size > dwords_per_thread * 4) {
+      assert(!"clear_value_size must be <= dwords_per_thread");
+      return false; /* invalid value */
+   }
+
+   if (clear_value_size == 12 && dst_offset % 4) {
+      assert(!"if clear_value_size == 12, dst_offset must be aligned to 4");
+      return false; /* invalid value */
    }
 
    /* This doesn't fail very often because the only possible fallback is CP DMA, which doesn't
