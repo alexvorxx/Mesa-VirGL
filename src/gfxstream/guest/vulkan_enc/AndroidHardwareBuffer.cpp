@@ -25,6 +25,8 @@
 #define DRM_FORMAT_S8_UINT fourcc_code('9', '9', '9', '1')
 #endif
 
+#if defined(ANDROID)
+
 #include <assert.h>
 
 #include "gfxstream/guest/Gralloc.h"
@@ -331,3 +333,5 @@ VkResult createAndroidHardwareBuffer(gfxstream::Gralloc* gralloc, bool hasDedica
 
 }  // namespace vk
 }  // namespace gfxstream
+
+#endif  // ANDROID

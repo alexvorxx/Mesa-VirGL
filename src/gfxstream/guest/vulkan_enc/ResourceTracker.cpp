@@ -33,9 +33,9 @@
 
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #include "vk_format_info.h"
+#include <vndk/hardware_buffer.h>
 #endif
 #include <stdlib.h>
-#include <vndk/hardware_buffer.h>
 
 #include <algorithm>
 #include <set>
