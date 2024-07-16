@@ -6606,16 +6606,8 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
 
             srcs[SURFACE_LOGICAL_SRC_SURFACE]        = surface;
             srcs[SURFACE_LOGICAL_SRC_SURFACE_HANDLE] = surface_handle;
-
-            const nir_src load_offset = instr->src[1];
-            if (nir_src_is_const(load_offset)) {
-               brw_reg addr =
-                  ubld8.MOV(brw_imm_ud(nir_src_as_uint(load_offset)));
-               srcs[SURFACE_LOGICAL_SRC_ADDRESS] = component(addr, 0);
-            } else {
-               srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
-                  bld.emit_uniformize(get_nir_src(ntb, load_offset));
-            }
+            srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
+               bld.emit_uniformize(get_nir_src(ntb, instr->src[1]));
 
             const unsigned total_dwords =
                ALIGN(instr->num_components, REG_SIZE * reg_unit(devinfo) / 4);
