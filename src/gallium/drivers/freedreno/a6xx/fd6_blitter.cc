@@ -279,6 +279,26 @@ emit_setup(struct fd_batch *batch)
 
 template <chip CHIP>
 static void
+emit_blit_fini(struct fd_context *ctx, struct fd_ringbuffer *ring)
+{
+   fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
+   OUT_WFI5(ring);
+
+   OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
+   OUT_RING(ring, ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit);
+
+   OUT_PKT7(ring, CP_BLIT, 1);
+   OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
+
+   OUT_WFI5(ring);
+
+   OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
+   OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
+}
+FD_GENX(emit_blit_fini);
+
+template <chip CHIP>
+static void
 emit_blit_setup(struct fd_ringbuffer *ring, enum pipe_format pfmt,
                 bool scissor_enable, union pipe_color_union *color,
                 uint32_t unknown_8c01, enum a6xx_rotation rotate)
@@ -463,19 +483,7 @@ emit_blit_buffer(struct fd_context *ctx, struct fd_ringbuffer *ring,
       OUT_RING(ring, A6XX_GRAS_2D_DST_BR_X(dshift + w - 1) |
                         A6XX_GRAS_2D_DST_BR_Y(0));
 
-      fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit);
-
-      OUT_PKT7(ring, CP_BLIT, 1);
-      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
-
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
+      emit_blit_fini<CHIP>(ctx, ring);
    }
 }
 
@@ -541,20 +549,7 @@ fd6_clear_ubwc(struct fd_batch *batch, struct fd_resource *rsc) assert_dt
       OUT_RING(ring,
                A6XX_GRAS_2D_DST_BR_X(w - 1) | A6XX_GRAS_2D_DST_BR_Y(h - 1));
 
-      fd6_event_write<CHIP>(batch->ctx, ring, FD_LABEL);
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, batch->ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit);
-
-      OUT_PKT7(ring, CP_BLIT, 1);
-      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
-
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
-
+      emit_blit_fini<CHIP>(batch->ctx, ring);
       offset += w * h;
       size -= w * h;
    }
@@ -742,22 +737,7 @@ emit_blit_texture(struct fd_context *ctx, struct fd_ringbuffer *ring,
       emit_blit_dst(ring, info->dst.resource, info->dst.format, info->dst.level,
                     dbox->z + i);
 
-      /*
-       * Blit command:
-       */
-      fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit);
-
-      OUT_PKT7(ring, CP_BLIT, 1);
-      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
-
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
+      emit_blit_fini<CHIP>(ctx, ring);
    }
 }
 
@@ -816,6 +796,7 @@ emit_clear_color(struct fd_ringbuffer *ring, enum pipe_format pfmt,
       break;
    }
 }
+
 
 template <chip CHIP>
 void
@@ -915,22 +896,7 @@ fd6_clear_surface(struct fd_context *ctx, struct fd_ringbuffer *ring,
         i++) {
       emit_blit_dst(ring, psurf->texture, psurf->format, psurf->u.tex.level, i);
 
-      /*
-       * Blit command:
-       */
-      fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit);
-
-      OUT_PKT7(ring, CP_BLIT, 1);
-      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
-
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
+      emit_blit_fini<CHIP>(ctx, ring);
    }
 }
 FD_GENX(fd6_clear_surface);
