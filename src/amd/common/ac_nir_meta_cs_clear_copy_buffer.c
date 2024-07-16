@@ -386,20 +386,26 @@ ac_prepare_cs_clear_copy_buffer(const struct ac_cs_clear_copy_buffer_options *op
     */
    if (options->fail_if_slow && !info->render_condition_enabled && options->info->has_cp_dma &&
        !options->info->cp_sdma_ge_use_system_memory_scope) {
-      if (is_copy) {
-         /* Only use compute for large VRAM copies on dGPUs. */
-         if (info->size <= 8192 || !options->info->has_dedicated_vram || !info->dst_is_vram ||
-             !info->src_is_vram)
+      switch (options->info->gfx_level) {
+      case GFX11:
+         /* Verified on Navi31. */
+         if (is_copy && info->size < 1024 && info->dst_offset % 256 && info->dst_is_vram && info->src_is_vram)
             return false;
-      } else {
-         /* Buffer clear.
-          *
-          * CP DMA clears are terribly slow with GTT on GFX6-8, which can be encountered with any
-          * buffer due to BO evictions, so never use CP DMA clears on GFX6-8. On GFX9+, use CP DMA
-          * clears if the size is small.
-          */
-         if (options->info->gfx_level >= GFX9 && clear_value_size <= 4 && info->size <= 4096)
-            return false;
+         break;
+
+      default:
+         if (is_copy) {
+            /* Only use compute for large VRAM copies on dGPUs. */
+            if (info->size <= 8192 || !options->info->has_dedicated_vram || !info->dst_is_vram ||
+                !info->src_is_vram)
+               return false;
+         } else {
+            /* CP DMA clears are terribly slow with GTT on GFX6-8, which can be encountered with
+             * any buffer due to BO evictions, so never use CP DMA clears on GFX6-8.
+             */
+            if (options->info->gfx_level >= GFX9 && clear_value_size <= 4 && info->size <= 4096)
+               return false;
+         }
       }
    }
 
