@@ -7,7 +7,6 @@
 #include "util/bitscan.h"
 #include "util/macros.h"
 #include "agx_nir_lower_gs.h"
-#include "glsl_types.h"
 #include "libagx_shaders.h"
 #include "nir.h"
 #include "nir_builder.h"
@@ -244,12 +243,6 @@ lower_tes(nir_builder *b, nir_intrinsic_instr *intr, void *data)
    } else {
       return false;
    }
-}
-
-static int
-glsl_type_size(const struct glsl_type *type, bool bindless)
-{
-   return glsl_count_attribute_slots(type, false);
 }
 
 bool
