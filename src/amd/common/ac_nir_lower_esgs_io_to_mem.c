@@ -150,6 +150,13 @@ lower_es_output_store(nir_builder *b,
    }
 
    lower_esgs_io_state *st = (lower_esgs_io_state *) state;
+
+   /* When an ES output isn't read by GS, don't emit anything. */
+   if ((io_sem.no_varying || !(st->gs_inputs_read & BITFIELD64_BIT(io_sem.location)))) {
+      nir_instr_remove(&intrin->instr);
+      return true;
+   }
+
    const unsigned write_mask = nir_intrinsic_write_mask(intrin);
 
    b->cursor = nir_before_instr(&intrin->instr);
