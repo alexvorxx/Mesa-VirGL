@@ -1644,22 +1644,6 @@ void si_suspend_queries(struct si_context *sctx);
 void si_resume_queries(struct si_context *sctx);
 
 /* si_shaderlib_nir.c */
-union si_cs_clear_copy_buffer_key {
-   struct {
-      bool is_clear:1;
-      unsigned dwords_per_thread:3; /* 1..4 allowed */
-      bool clear_value_size_is_12:1;
-      bool src_is_sparse:1;
-      /* Unaligned clears and copies. */
-      unsigned src_align_offset:2; /* how much is the source address unaligned */
-      unsigned dst_align_offset:4; /* the first thread shouldn't write this many bytes */
-      unsigned dst_last_thread_bytes:4; /* if non-zero, the last thread should write this many bytes */
-      bool dst_single_thread_unaligned:1; /* only 1 thread executes, both previous fields apply */
-      bool has_start_thread:1; /* whether the first few threads should be skipped, making later
-                                  waves start on a 256B boundary */
-   };
-   uint64_t key;
-};
 
 void *si_create_shader_state(struct si_context *sctx, struct nir_shader *nir);
 void *si_create_dcc_retile_cs(struct si_context *sctx, struct radeon_surf *surf);
@@ -1668,7 +1652,6 @@ void *si_create_passthrough_tcs(struct si_context *sctx);
 void *si_clear_image_dcc_single_shader(struct si_context *sctx, bool is_msaa, unsigned wg_dim);
 void *si_get_blitter_vs(struct si_context *sctx, enum blitter_attrib_type type,
                         unsigned num_layers);
-void *si_create_dma_compute_shader(struct si_context *sctx, union si_cs_clear_copy_buffer_key *key);
 void *si_create_ubyte_to_ushort_compute_shader(struct si_context *sctx);
 void *si_create_clear_buffer_rmw_cs(struct si_context *sctx);
 void *si_create_fmask_expand_cs(struct si_context *sctx, unsigned num_samples, bool is_array);

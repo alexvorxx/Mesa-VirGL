@@ -274,164 +274,60 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
                                   unsigned flags, enum si_coherency coher,
                                   unsigned dwords_per_thread, bool fail_if_slow)
 {
+   assert(dst->target != PIPE_BUFFER || dst_offset + size <= dst->width0);
+   assert(!src || src_offset + size <= src->width0);
    bool is_copy = src != NULL;
-   uint32_t tmp_clear_value;
 
    si_improve_sync_flags(sctx, dst, src, &flags);
 
-   if (!is_copy) {
-      if (util_lower_clearsize_to_dword(clear_value, (int*)&clear_value_size, &tmp_clear_value))
-         clear_value = &tmp_clear_value;
+   struct ac_cs_clear_copy_buffer_options options = {
+      .nir_options = sctx->screen->nir_options,
+      .info = &sctx->screen->info,
+      .print_key = si_can_dump_shader(sctx->screen, MESA_SHADER_COMPUTE, SI_DUMP_SHADER_KEY),
+      .fail_if_slow = fail_if_slow,
+   };
 
-      assert(clear_value_size % 4 == 0);
-   }
+   struct ac_cs_clear_copy_buffer_info info = {
+      .dst_offset = dst_offset,
+      .src_offset = src_offset,
+      .size = size,
+      .clear_value_size = is_copy ? 0 : clear_value_size,
+      .dwords_per_thread = dwords_per_thread,
+      .render_condition_enabled = flags & SI_OP_CS_RENDER_COND_ENABLE,
+      .dst_is_vram = si_resource(dst)->domains & RADEON_DOMAIN_VRAM,
+      .src_is_vram = src && si_resource(src)->domains & RADEON_DOMAIN_VRAM,
+      .src_is_sparse = src && src->flags & PIPE_RESOURCE_FLAG_SPARSE,
+   };
+   memcpy(info.clear_value, clear_value, clear_value_size);
 
-   if (!dwords_per_thread) {
-      /* Set default optimal settings. */
-      dwords_per_thread = size <= 64 * 1024 ? 2 : 4;
+   struct ac_cs_clear_copy_buffer_dispatch dispatch;
 
-      if (!is_copy) {
-         if (clear_value_size == 12) {
-            /* Clearing 4 dwords per thread with a 3-dword clear value is faster with big sizes. */
-            dwords_per_thread = size <= 4096 ? 3 : 4;
-         } else {
-            /* dwords_per_thread must be at least the size of the clear value. */
-            dwords_per_thread = MAX2(dwords_per_thread, clear_value_size / 4);
-         }
-      }
-   }
-
-   /* Validate dwords_per_thread. */
-   if (dwords_per_thread > 4) {
-      assert(!"dwords_per_thread must be <= 4");
-      return false; /* invalid value */
-   }
-
-   if (clear_value_size > dwords_per_thread * 4) {
-      assert(!"clear_value_size must be <= dwords_per_thread");
-      return false; /* invalid value */
-   }
-
-   if (clear_value_size == 12 && dst_offset % 4) {
-      assert(!"if clear_value_size == 12, dst_offset must be aligned to 4");
-      return false; /* invalid value */
-   }
-
-   /* This doesn't fail very often because the only possible fallback is CP DMA, which doesn't
-    * support the render condition.
-    */
-   if (fail_if_slow && !(flags & SI_OP_CS_RENDER_COND_ENABLE) && sctx->screen->info.has_cp_dma &&
-       !sctx->screen->info.cp_sdma_ge_use_system_memory_scope) {
-      if (is_copy) {
-         /* Only use compute for large VRAM copies on dGPUs. */
-         if (size <= 8192 || !sctx->screen->info.has_dedicated_vram ||
-             !(si_resource(dst)->domains & RADEON_DOMAIN_VRAM) ||
-             !(si_resource(src)->domains & RADEON_DOMAIN_VRAM))
-            return false;
-      } else {
-         /* Buffer clear.
-          *
-          * CP DMA clears are terribly slow with GTT on GFX6-8, which can be encountered with any
-          * buffer due to BO evictions, so never use CP DMA clears on GFX6-8. On GFX9+, use CP DMA
-          * clears if the size is small.
-          */
-         if (sctx->gfx_level >= GFX9 && clear_value_size <= 4 && size <= 4096)
-            return false;
-      }
-   }
-
-   assert(dst->target != PIPE_BUFFER || dst_offset + size <= dst->width0);
-   assert(!src || src_offset + size <= src->width0);
-   unsigned dst_align_offset = dst_offset % (dwords_per_thread * 4);
-   unsigned dst_offset_bound = dst_offset - dst_align_offset;
-   unsigned src_align_offset = is_copy ? src_offset % 4 : 0;
-   unsigned num_user_data_terms = 0;
+   if (!ac_prepare_cs_clear_copy_buffer(&options, &info, &dispatch))
+      return false;
 
    struct pipe_shader_buffer sb[2] = {};
-   sb[is_copy].buffer = dst;
-   /* We need to bind whole dwords because of how we compute voffset. The bytes that shouldn't
-    * be written are not written by the shader.
-    */
-   sb[is_copy].buffer_offset = dst_offset_bound;
-   sb[is_copy].buffer_size = align(dst_align_offset + size, 4);
+   for (unsigned i = 0; i < 2; i++) {
+      sb[i].buffer_offset = dispatch.ssbo[i].offset;
+      sb[i].buffer_size = dispatch.ssbo[i].size;
+   }
 
-   if (is_copy) {
+   if (is_copy)
       sb[0].buffer = src;
-      /* Since unaligned copies use 32-bit loads, any dword that's partially covered by the copy
-       * range must be fully covered, so that the 32-bit loads succeed.
-       */
-      sb[0].buffer_offset = src_offset - src_align_offset;
-      sb[0].buffer_size = align(src_align_offset + size, 4);
-      assert(sb[0].buffer_offset % 4 == 0 && sb[0].buffer_size % 4 == 0);
-   } else {
-      assert(clear_value_size >= 4 && clear_value_size <= 16 &&
-             (clear_value_size == 12 || util_is_power_of_two_or_zero(clear_value_size)));
+   sb[is_copy].buffer = dst;
 
-      /* Since the clear value may start on an unaligned offset and we just pass user SGPRs
-       * to dword stores as-is, we need to byte-shift the clear value to that offset and
-       * replicate it because 1 invocation stores up to 4 dwords from user SGPRs regardless of
-       * the clear value size.
-       */
-      num_user_data_terms = clear_value_size == 12 ? 3 : dwords_per_thread;
-      unsigned user_data_size = num_user_data_terms * 4;
-
-      memcpy(sctx->cs_user_data,
-             (uint8_t*)clear_value + clear_value_size - dst_align_offset % clear_value_size,
-             dst_align_offset % clear_value_size);
-      unsigned offset = dst_align_offset % clear_value_size;
-
-      while (offset + clear_value_size <= user_data_size) {
-         memcpy((uint8_t*)sctx->cs_user_data + offset, clear_value, clear_value_size);
-         offset += clear_value_size;
-      }
-
-      if (offset < user_data_size)
-         memcpy((uint8_t*)sctx->cs_user_data + offset, clear_value, user_data_size - offset);
-   }
-
-   union si_cs_clear_copy_buffer_key key;
-   key.key = 0;
-
-   key.is_clear = !is_copy;
-   assert(dwords_per_thread && dwords_per_thread <= 4);
-   key.dwords_per_thread = dwords_per_thread;
-   key.clear_value_size_is_12 = !is_copy && clear_value_size == 12;
-   key.src_is_sparse = src ? src->flags & PIPE_RESOURCE_FLAG_SPARSE : false;
-   key.src_align_offset = src_align_offset;
-   key.dst_align_offset = dst_align_offset;
-
-   if ((dst_align_offset + size) % 4)
-      key.dst_last_thread_bytes = (dst_align_offset + size) % (dwords_per_thread * 4);
-
-   unsigned num_threads = DIV_ROUND_UP(dst_align_offset + size, dwords_per_thread * 4);
-   key.dst_single_thread_unaligned = num_threads == 1 && dst_align_offset && key.dst_last_thread_bytes;
-
-   /* start_thread offsets threads to make sure all non-zero waves start clearing/copying from
-    * the beginning a 256B block and clear/copy whole 256B blocks. Clearing/copying a 256B block
-    * partially for each wave is inefficient, which happens when dst_offset isn't aligned to 256.
-    * Clearing/copying whole 256B blocks per wave isn't possible if dwords_per_thread isn't 2^n.
-    */
-   unsigned start_thread =
-      dst_offset_bound % 256 && util_is_power_of_two_nonzero(dwords_per_thread) ?
-            DIV_ROUND_UP(256 - dst_offset_bound % 256, dwords_per_thread * 4) : 0;
-   key.has_start_thread = start_thread != 0;
-
-   void *shader = _mesa_hash_table_u64_search(sctx->cs_dma_shaders, key.key);
+   void *shader = _mesa_hash_table_u64_search(sctx->cs_dma_shaders, dispatch.shader_key.key);
    if (!shader) {
-      shader = si_create_dma_compute_shader(sctx, &key);
-      _mesa_hash_table_u64_insert(sctx->cs_dma_shaders, key.key, shader);
+      shader = si_create_shader_state(sctx, ac_create_clear_copy_buffer_cs(&options,
+                                                                           &dispatch.shader_key));
+      _mesa_hash_table_u64_insert(sctx->cs_dma_shaders, dispatch.shader_key.key, shader);
    }
 
-   /* Set the value of the last thread ID, so that the shader knows which thread is the last one. */
-   if (key.dst_last_thread_bytes)
-      sctx->cs_user_data[num_user_data_terms++] = num_threads - 1;
-   if (key.has_start_thread)
-      sctx->cs_user_data[num_user_data_terms++] = start_thread;
+   memcpy(sctx->cs_user_data, dispatch.user_data, sizeof(dispatch.user_data));
 
-   struct pipe_grid_info info = {};
-   set_work_size(&info, 64, 1, 1, start_thread + num_threads, 1, 1);
+   struct pipe_grid_info grid = {};
+   set_work_size(&grid, dispatch.workgroup_size, 1, 1, dispatch.num_threads, 1, 1);
 
-   si_launch_grid_internal_ssbos(sctx, &info, shader, flags, coher, is_copy ? 2 : 1, sb,
+   si_launch_grid_internal_ssbos(sctx, &grid, shader, flags, coher, dispatch.num_ssbos, sb,
                                  is_copy ? 0x2 : 0x1);
    return true;
 }
