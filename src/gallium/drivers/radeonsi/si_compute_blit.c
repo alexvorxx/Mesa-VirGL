@@ -7,7 +7,7 @@
 #include "si_pipe.h"
 #include "util/format/u_format.h"
 #include "util/format_srgb.h"
-#include "util/u_helpers.h"
+#include "util/helpers.h"
 #include "util/hash_table.h"
 #include "util/u_pack_color.h"
 #include "ac_nir_meta.h"
