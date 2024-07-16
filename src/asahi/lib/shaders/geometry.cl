@@ -587,7 +587,7 @@ libagx_work_group_scan_inclusive_add(uint x, local uint *scratch)
    uint prefix = base + sg;
 
    /* Reduce the workgroup using the prefix sum we already did */
-   uint reduction = sub_group_broadcast(other_sums, 31) + other_sum;
+   uint reduction = sub_group_broadcast(other_sums + other_sum, 31);
 
    return (uint2)(prefix, reduction);
 }
