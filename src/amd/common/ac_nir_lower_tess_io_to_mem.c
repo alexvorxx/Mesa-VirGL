@@ -271,6 +271,12 @@ lower_ls_output_store(nir_builder *b,
 
    lower_tess_io_state *st = (lower_tess_io_state *) state;
 
+   /* When a VS output isn't read by TCS, don't emit anything. */
+   if ((io_sem.no_varying || !(st->tcs_inputs_read & BITFIELD64_BIT(io_sem.location)))) {
+      nir_instr_remove(&intrin->instr);
+      return true;
+   }
+
    /* If this is a temp-only TCS input, we don't need to use shared memory at all. */
    if (st->tcs_temp_only_inputs & BITFIELD64_BIT(io_sem.location))
       return false;
