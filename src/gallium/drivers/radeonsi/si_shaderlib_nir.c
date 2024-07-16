@@ -284,14 +284,35 @@ void *si_create_dma_compute_shader(struct si_context *sctx, union si_cs_clear_co
    b.shader->info.workgroup_size[1] = 1;
    b.shader->info.workgroup_size[2] = 1;
    b.shader->info.num_ssbos = key->is_clear ? 1 : 2;
-   b.shader->info.cs.user_data_components_amd =
-      (key->is_clear ? (key->clear_value_size_is_12 ? 3 : key->dwords_per_thread) : 0);
+   b.shader->info.cs.user_data_components_amd = 0;
+
+   if (key->is_clear) {
+      b.shader->info.cs.user_data_components_amd +=
+         key->clear_value_size_is_12 ? 3 : key->dwords_per_thread;
+   }
 
    /* Add the last thread ID value. */
+   unsigned last_thread_user_data_index = b.shader->info.cs.user_data_components_amd;
    if (key->dst_last_thread_bytes)
-      b.shader->info.cs.user_data_components_amd = key->is_clear ? 5 : 1;
+      b.shader->info.cs.user_data_components_amd++;
+
+   unsigned start_thread_user_data_index = b.shader->info.cs.user_data_components_amd;
+   if (key->has_start_thread)
+      b.shader->info.cs.user_data_components_amd++;
 
    nir_def *thread_id = ac_get_global_ids(&b, 1, 32);
+
+   /* If the clear/copy area is unaligned, we launched extra threads at the beginning to make it
+    * aligned. Skip those threads here.
+    */
+   nir_if *if_positive = NULL;
+   if (key->has_start_thread) {
+      nir_def *start_thread =
+         nir_channel(&b, nir_load_user_data_amd(&b), start_thread_user_data_index);
+      thread_id = nir_isub(&b, thread_id, start_thread);
+      if_positive = nir_push_if(&b, nir_ige_imm(&b, thread_id, 0));
+   }
+
    /* Convert the global thread ID into bytes. */
    nir_def *offset = nir_imul_imm(&b, thread_id, 4 * key->dwords_per_thread);
    nir_def *value;
@@ -446,7 +467,7 @@ void *si_create_dma_compute_shader(struct si_context *sctx, union si_cs_clear_co
 
       if (key->dst_last_thread_bytes) {
          nir_def *last_thread_id =
-            nir_channel(&b, nir_load_user_data_amd(&b), key->is_clear ? 4 : 0);
+            nir_channel(&b, nir_load_user_data_amd(&b), last_thread_user_data_index);
 
          if_last_thread = nir_push_if(&b, nir_ieq(&b, thread_id, last_thread_id));
          {
@@ -516,6 +537,9 @@ void *si_create_dma_compute_shader(struct si_context *sctx, union si_cs_clear_co
          }
       }
    }
+
+   if (key->has_start_thread)
+      nir_pop_if(&b, if_positive);
 
    return si_create_shader_state(sctx, b.shader);
 }

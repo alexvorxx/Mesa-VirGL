@@ -406,6 +406,16 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
    unsigned num_threads = DIV_ROUND_UP(dst_align_offset + size, dwords_per_thread * 4);
    key.dst_single_thread_unaligned = num_threads == 1 && dst_align_offset && key.dst_last_thread_bytes;
 
+   /* start_thread offsets threads to make sure all non-zero waves start clearing/copying from
+    * the beginning a 256B block and clear/copy whole 256B blocks. Clearing/copying a 256B block
+    * partially for each wave is inefficient, which happens when dst_offset isn't aligned to 256.
+    * Clearing/copying whole 256B blocks per wave isn't possible if dwords_per_thread isn't 2^n.
+    */
+   unsigned start_thread =
+      dst_offset_bound % 256 && util_is_power_of_two_nonzero(dwords_per_thread) ?
+            DIV_ROUND_UP(256 - dst_offset_bound % 256, dwords_per_thread * 4) : 0;
+   key.has_start_thread = start_thread != 0;
+
    void *shader = _mesa_hash_table_u64_search(sctx->cs_dma_shaders, key.key);
    if (!shader) {
       shader = si_create_dma_compute_shader(sctx, &key);
@@ -415,9 +425,11 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
    /* Set the value of the last thread ID, so that the shader knows which thread is the last one. */
    if (key.dst_last_thread_bytes)
       sctx->cs_user_data[num_user_data_terms++] = num_threads - 1;
+   if (key.has_start_thread)
+      sctx->cs_user_data[num_user_data_terms++] = start_thread;
 
    struct pipe_grid_info info = {};
-   set_work_size(&info, 64, 1, 1, num_threads, 1, 1);
+   set_work_size(&info, 64, 1, 1, start_thread + num_threads, 1, 1);
 
    si_launch_grid_internal_ssbos(sctx, &info, shader, flags, coher, is_copy ? 2 : 1, sb,
                                  is_copy ? 0x2 : 0x1);

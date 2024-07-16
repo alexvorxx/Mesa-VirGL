@@ -1655,6 +1655,8 @@ union si_cs_clear_copy_buffer_key {
       unsigned dst_align_offset:4; /* the first thread shouldn't write this many bytes */
       unsigned dst_last_thread_bytes:4; /* if non-zero, the last thread should write this many bytes */
       bool dst_single_thread_unaligned:1; /* only 1 thread executes, both previous fields apply */
+      bool has_start_thread:1; /* whether the first few threads should be skipped, making later
+                                  waves start on a 256B boundary */
    };
    uint64_t key;
 };
