@@ -498,10 +498,20 @@ can_fast_clear_depth(struct iris_context *ice,
    if (!iris_resource_level_has_hiz(devinfo, res, level))
       return false;
 
-   if (!blorp_can_hiz_clear_depth(devinfo, &res->surf, res->aux.usage,
-                                  level, box->z, box->x, box->y,
-                                  box->x + box->width,
-                                  box->y + box->height)) {
+   /* From the TGL PRM, Vol 9, "Compressed Depth Buffers" (under the
+    * "Texture performant" and "ZCS" columns):
+    *
+    *    Update with clear at either 16x8 or 8x4 granularity, based on
+    *    fs_clr or otherwise.
+    *
+    * When fast-clearing, hardware behaves in unexpected ways if the clear
+    * rectangle, aligned to 16x8, could cover neighboring LODs. Fortunately,
+    * ISL guarantees that LOD0 will be 8-row aligned and LOD0's height seems
+    * to not matter. Also, few applications ever clear LOD1+. Only allow
+    * fast-clearing upper LODs if no overlap can occur.
+    */
+   if (res->aux.usage == ISL_AUX_USAGE_HIZ_CCS_WT && level >= 1 &&
+       (p_res->width0 % 32 != 0 || res->surf.image_alignment_el.h % 8 != 0)) {
       return false;
    }
 

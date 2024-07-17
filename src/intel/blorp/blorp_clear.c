@@ -916,62 +916,6 @@ blorp_clear_depth_stencil(struct blorp_batch *batch,
    }
 }
 
-bool
-blorp_can_hiz_clear_depth(const struct intel_device_info *devinfo,
-                          const struct isl_surf *surf,
-                          enum isl_aux_usage aux_usage,
-                          uint32_t level, uint32_t layer,
-                          uint32_t x0, uint32_t y0, uint32_t x1, uint32_t y1)
-{
-   /* This function currently doesn't support any gen prior to gfx8 */
-   assert(devinfo->ver >= 8);
-
-   if (aux_usage == ISL_AUX_USAGE_HIZ_CCS_WT && level > 0) {
-      /* We have to set the WM_HZ_OP::FullSurfaceDepthandStencilClear bit
-       * whenever we clear an uninitialized HIZ buffer (as some drivers
-       * currently do). However, this bit seems liable to clear 16x8 pixels in
-       * the ZCS on Gfx12 - greater than the slice alignments of many depth
-       * buffers.
-       *
-       * This is the hypothesis behind some corruption that was seen with the
-       * amd_vertex_shader_layer-layered-depth-texture-render piglit test.
-       *
-       * From the Compressed Depth Buffers section of the Bspec, under the
-       * Gfx12 texture performant and ZCS columns:
-       *
-       *    Update with clear at either 16x8 or 8x4 granularity, based on
-       *    fs_clr or otherwise.
-       *
-       * There are a number of ways to avoid full surface CCS clears that
-       * overlap other slices, but for now we choose to disable fast-clears
-       * when an initializing clear could hit another miplevel.
-       *
-       * NOTE: Because the CCS compresses the depth buffer and not a version
-       * of it that has been rearranged with different alignments (like Gfx8+
-       * HIZ), we have to make sure that the x0 and y0 are at least 16x8
-       * aligned in the context of the entire surface.
-       */
-      uint32_t slice_x0, slice_y0, slice_z0, slice_a0;
-      isl_surf_get_image_offset_el(surf, level,
-                                   surf->dim == ISL_SURF_DIM_3D ? 0 : layer,
-                                   surf->dim == ISL_SURF_DIM_3D ? layer: 0,
-                                   &slice_x0, &slice_y0, &slice_z0, &slice_a0);
-      const bool max_x1_y1 =
-         x1 == u_minify(surf->logical_level0_px.width, level) &&
-         y1 == u_minify(surf->logical_level0_px.height, level);
-      const uint32_t haligned_x1 = ALIGN(x1, surf->image_alignment_el.w);
-      const uint32_t valigned_y1 = ALIGN(y1, surf->image_alignment_el.h);
-      const bool unaligned = (slice_x0 + x0) % 16 || (slice_y0 + y0) % 8 ||
-                             (max_x1_y1 ? haligned_x1 % 16 || valigned_y1 % 8 :
-                              x1 % 16 || y1 % 8);
-
-      if (unaligned)
-         return false;
-   }
-
-   return isl_aux_usage_has_hiz(aux_usage);
-}
-
 static bool
 blorp_can_clear_full_surface(const struct blorp_surf *depth,
                              const struct blorp_surf *stencil,

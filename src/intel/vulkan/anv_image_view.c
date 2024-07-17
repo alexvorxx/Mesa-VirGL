@@ -192,17 +192,8 @@ anv_can_hiz_clear_ds_view(struct anv_device *device,
                               VK_IMAGE_ASPECT_DEPTH_BIT,
                               VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                               layout, queue_flags);
-   if (!blorp_can_hiz_clear_depth(device->info,
-                                  &iview->image->planes[0].primary_surface.isl,
-                                  clear_aux_usage,
-                                  iview->planes[0].isl.base_level,
-                                  iview->planes[0].isl.base_array_layer,
-                                  render_area.offset.x,
-                                  render_area.offset.y,
-                                  render_area.offset.x +
-                                  render_area.extent.width,
-                                  render_area.offset.y +
-                                  render_area.extent.height))
+
+   if (!isl_aux_usage_has_fast_clears(clear_aux_usage))
       return false;
 
    if (isl_aux_usage_has_ccs(clear_aux_usage)) {
@@ -222,6 +213,24 @@ anv_can_hiz_clear_ds_view(struct anv_device *device,
           u_minify(iview->vk.extent.width, iview->vk.base_mip_level) ||
           render_area.extent.height !=
           u_minify(iview->vk.extent.height, iview->vk.base_mip_level)) {
+         return false;
+      }
+
+      /* When fast-clearing, hardware behaves in unexpected ways if the clear
+       * rectangle, aligned to 16x8, could cover neighboring LODs.
+       * Fortunately, ISL guarantees that LOD0 will be 8-row aligned and
+       * LOD0's height seems to not matter. Also, few applications ever clear
+       * LOD1+. Only allow fast-clearing upper LODs if no overlap can occur.
+       */
+      const struct isl_surf *surf =
+         &iview->image->planes[0].primary_surface.isl;
+      assert(isl_surf_usage_is_depth(surf->usage));
+      assert(surf->dim_layout == ISL_DIM_LAYOUT_GFX4_2D);
+      assert(surf->array_pitch_el_rows % 8 == 0);
+      if (clear_aux_usage == ISL_AUX_USAGE_HIZ_CCS_WT &&
+          iview->vk.base_mip_level >= 1 &&
+          (iview->vk.extent.width % 32 != 0 ||
+           surf->image_alignment_el.h % 8 != 0)) {
          return false;
       }
    }
