@@ -636,6 +636,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .EXT_debug_marker = instance->vk.trace_mode & RADV_TRACE_MODE_RGP,
       .EXT_depth_bias_control = true,
       .EXT_depth_clamp_zero_one = true,
+      .EXT_depth_clamp_control = true,
       .EXT_depth_clip_control = true,
       .EXT_depth_clip_enable = true,
       .EXT_depth_range_unrestricted = true,
@@ -1283,6 +1284,9 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
 
       /* VK_KHR_shader_float_controls2 */
       .shaderFloatControls2 = true,
+
+      /* VK_EXT_depth_clamp_control */
+      .depthClampControl = true,
    };
 }
 

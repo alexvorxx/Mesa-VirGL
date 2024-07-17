@@ -397,6 +397,8 @@ radv_dynamic_state_mask(VkDynamicState state)
       return RADV_DYNAMIC_SAMPLE_LOCATIONS_ENABLE;
    case VK_DYNAMIC_STATE_ALPHA_TO_ONE_ENABLE_EXT:
       return RADV_DYNAMIC_ALPHA_TO_ONE_ENABLE;
+   case VK_DYNAMIC_STATE_DEPTH_CLAMP_RANGE_EXT:
+      return RADV_DYNAMIC_DEPTH_CLAMP_RANGE;
    default:
       unreachable("Unhandled dynamic state");
    }
@@ -771,6 +773,11 @@ radv_pipeline_init_dynamic_state(const struct radv_device *device, struct radv_g
 
    if (states & RADV_DYNAMIC_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE) {
       dynamic->vk.vp.depth_clip_negative_one_to_one = state->vp->depth_clip_negative_one_to_one;
+   }
+
+   if (states & RADV_DYNAMIC_DEPTH_CLAMP_RANGE) {
+      dynamic->vk.vp.depth_clamp_mode = state->vp->depth_clamp_mode;
+      dynamic->vk.vp.depth_clamp_range = state->vp->depth_clamp_range;
    }
 
    /* Discard rectangles. */

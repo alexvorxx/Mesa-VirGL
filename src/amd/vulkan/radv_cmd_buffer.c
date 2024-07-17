@@ -183,6 +183,9 @@ radv_bind_dynamic_state(struct radv_cmd_buffer *cmd_buffer, const struct radv_dy
    RADV_CMP_COPY(vk.ia.primitive_restart_enable, RADV_DYNAMIC_PRIMITIVE_RESTART_ENABLE);
 
    RADV_CMP_COPY(vk.vp.depth_clip_negative_one_to_one, RADV_DYNAMIC_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE);
+   RADV_CMP_COPY(vk.vp.depth_clamp_mode, RADV_DYNAMIC_DEPTH_CLAMP_RANGE);
+   RADV_CMP_COPY(vk.vp.depth_clamp_range.minDepthClamp, RADV_DYNAMIC_DEPTH_CLAMP_RANGE);
+   RADV_CMP_COPY(vk.vp.depth_clamp_range.maxDepthClamp, RADV_DYNAMIC_DEPTH_CLAMP_RANGE);
 
    RADV_CMP_COPY(vk.ts.patch_control_points, RADV_DYNAMIC_PATCH_CONTROL_POINTS);
    RADV_CMP_COPY(vk.ts.domain_origin, RADV_DYNAMIC_TESS_DOMAIN_ORIGIN);
@@ -2938,9 +2941,10 @@ radv_get_depth_clip_enable(struct radv_cmd_buffer *cmd_buffer)
 }
 
 enum radv_depth_clamp_mode {
-   RADV_DEPTH_CLAMP_MODE_VIEWPORT = 0,    /* Clamp to the viewport min/max depth bounds */
-   RADV_DEPTH_CLAMP_MODE_ZERO_TO_ONE = 1, /* Clamp between 0.0f and 1.0f */
-   RADV_DEPTH_CLAMP_MODE_DISABLED = 2,    /* Disable depth clamping */
+   RADV_DEPTH_CLAMP_MODE_VIEWPORT = 0,     /* Clamp to the viewport min/max depth bounds */
+   RADV_DEPTH_CLAMP_MODE_USER_DEFINED = 1, /* Range set using VK_EXT_depth_clamp_control */
+   RADV_DEPTH_CLAMP_MODE_ZERO_TO_ONE = 2,  /* Clamp between 0.0f and 1.0f */
+   RADV_DEPTH_CLAMP_MODE_DISABLED = 3,     /* Disable depth clamping */
 };
 
 static enum radv_depth_clamp_mode
@@ -2951,7 +2955,7 @@ radv_get_depth_clamp_mode(struct radv_cmd_buffer *cmd_buffer)
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    enum radv_depth_clamp_mode mode;
 
-   mode = RADV_DEPTH_CLAMP_MODE_VIEWPORT;
+   mode = d->vk.vp.depth_clamp_mode;
    if (!d->vk.rs.depth_clamp_enable) {
       /* For optimal performance, depth clamping should always be enabled except if the application
        * disables clamping explicitly or uses depth values outside of the [0.0, 1.0] range.
@@ -2989,6 +2993,10 @@ radv_get_viewport_zmin_zmax(struct radv_cmd_buffer *cmd_buffer, const VkViewport
    if (depth_clamp_mode == RADV_DEPTH_CLAMP_MODE_ZERO_TO_ONE) {
       *zmin = 0.0f;
       *zmax = 1.0f;
+   } else if (depth_clamp_mode == RADV_DEPTH_CLAMP_MODE_USER_DEFINED) {
+      const struct radv_dynamic_state *d = &cmd_buffer->state.dynamic;
+      *zmin = d->vk.vp.depth_clamp_range.minDepthClamp;
+      *zmax = d->vk.vp.depth_clamp_range.maxDepthClamp;
    } else {
       *zmin = MIN2(viewport->minDepth, viewport->maxDepth);
       *zmax = MAX2(viewport->minDepth, viewport->maxDepth);
@@ -5674,7 +5682,7 @@ radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer, const ui
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
    if (states & (RADV_DYNAMIC_VIEWPORT | RADV_DYNAMIC_DEPTH_CLIP_ENABLE | RADV_DYNAMIC_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE |
-                 RADV_DYNAMIC_DEPTH_CLAMP_ENABLE))
+                 RADV_DYNAMIC_DEPTH_CLAMP_ENABLE | RADV_DYNAMIC_DEPTH_CLAMP_RANGE))
       radv_emit_viewport(cmd_buffer);
 
    if (states & (RADV_DYNAMIC_SCISSOR | RADV_DYNAMIC_VIEWPORT) && !pdev->info.has_gfx9_scissor_bug)
@@ -13932,4 +13940,19 @@ VKAPI_ATTR void VKAPI_CALL
 radv_CmdSetViewportWScalingEnableNV(VkCommandBuffer commandBuffer, VkBool32 viewportWScalingEnable)
 {
    unreachable("Not supported by RADV.");
+}
+
+VKAPI_ATTR void VKAPI_CALL
+radv_CmdSetDepthClampRangeEXT(VkCommandBuffer commandBuffer, VkDepthClampModeEXT depthClampMode,
+                              const VkDepthClampRangeEXT *pDepthClampRange)
+{
+   VK_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
+   struct radv_cmd_state *state = &cmd_buffer->state;
+
+   state->dynamic.vk.vp.depth_clamp_mode = depthClampMode;
+   if (depthClampMode == VK_DEPTH_CLAMP_MODE_USER_DEFINED_RANGE_EXT) {
+      state->dynamic.vk.vp.depth_clamp_range = *pDepthClampRange;
+   }
+
+   state->dirty_dynamic |= RADV_DYNAMIC_DEPTH_CLAMP_RANGE;
 }
