@@ -794,7 +794,7 @@ anv_cmd_buffer_bind_descriptor_set(struct anv_cmd_buffer *cmd_buffer,
    assert(!set->pool || !set->pool->host_only);
 
    struct anv_descriptor_set_layout *set_layout =
-      layout->set[set_index].layout;
+      layout ? layout->set[set_index].layout: set->layout;
 
    anv_cmd_buffer_maybe_dirty_descriptor_mode(
       cmd_buffer,
@@ -1481,7 +1481,13 @@ anv_cmd_buffer_save_state(struct anv_cmd_buffer *cmd_buffer,
       state->pipeline = pipe_state->pipeline;
 
    if (state->flags & ANV_CMD_SAVED_STATE_DESCRIPTOR_SET_0)
-      state->descriptor_set = pipe_state->descriptors[0];
+      state->descriptor_set[0] = pipe_state->descriptors[0];
+
+   if (state->flags & ANV_CMD_SAVED_STATE_DESCRIPTOR_SET_ALL) {
+      for (uint32_t i = 0; i < MAX_SETS; i++) {
+         state->descriptor_set[i] = pipe_state->descriptors[i];
+      }
+   }
 
    if (state->flags & ANV_CMD_SAVED_STATE_PUSH_CONSTANTS) {
       memcpy(state->push_constants, pipe_state->push_constants.client_data,
@@ -1510,11 +1516,24 @@ anv_cmd_buffer_restore_state(struct anv_cmd_buffer *cmd_buffer,
    }
 
    if (state->flags & ANV_CMD_SAVED_STATE_DESCRIPTOR_SET_0) {
-      if (state->descriptor_set) {
+      if (state->descriptor_set[0]) {
          anv_cmd_buffer_bind_descriptor_set(cmd_buffer, bind_point, NULL, 0,
-                                            state->descriptor_set, NULL, NULL);
+                                            state->descriptor_set[0], NULL,
+                                            NULL);
       } else {
          pipe_state->descriptors[0] = NULL;
+      }
+   }
+
+   if (state->flags & ANV_CMD_SAVED_STATE_DESCRIPTOR_SET_ALL) {
+      for (uint32_t i = 0; i < MAX_SETS; i++) {
+         if (state->descriptor_set[i]) {
+            anv_cmd_buffer_bind_descriptor_set(cmd_buffer, bind_point, NULL, i,
+                                               state->descriptor_set[i], NULL,
+                                               NULL);
+         } else {
+            pipe_state->descriptors[i] = NULL;
+         }
       }
    }
 

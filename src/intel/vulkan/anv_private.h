@@ -4427,14 +4427,15 @@ anv_cmd_buffer_get_view_count(struct anv_cmd_buffer *cmd_buffer)
 enum anv_cmd_saved_state_flags {
    ANV_CMD_SAVED_STATE_COMPUTE_PIPELINE         = BITFIELD_BIT(0),
    ANV_CMD_SAVED_STATE_DESCRIPTOR_SET_0         = BITFIELD_BIT(1),
-   ANV_CMD_SAVED_STATE_PUSH_CONSTANTS           = BITFIELD_BIT(2),
+   ANV_CMD_SAVED_STATE_DESCRIPTOR_SET_ALL       = BITFIELD_BIT(2),
+   ANV_CMD_SAVED_STATE_PUSH_CONSTANTS           = BITFIELD_BIT(3),
 };
 
 struct anv_cmd_saved_state {
    uint32_t flags;
 
    struct anv_pipeline *pipeline;
-   struct anv_descriptor_set *descriptor_set;
+   struct anv_descriptor_set *descriptor_set[MAX_SETS];
    uint8_t push_constants[MAX_PUSH_CONSTANTS_SIZE];
 };
 
