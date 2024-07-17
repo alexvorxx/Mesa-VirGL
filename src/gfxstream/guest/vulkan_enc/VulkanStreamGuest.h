@@ -21,7 +21,6 @@
 #include "ResourceTracker.h"
 #include "VulkanHandleMapping.h"
 #include "aemu/base/BumpPool.h"
-#include "aemu/base/Tracing.h"
 #include "aemu/base/files/Stream.h"
 #include "aemu/base/files/StreamSerializing.h"
 #include "gfxstream/guest/IOStream.h"

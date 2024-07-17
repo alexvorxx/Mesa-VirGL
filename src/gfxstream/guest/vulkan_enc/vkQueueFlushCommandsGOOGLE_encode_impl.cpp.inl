@@ -55,7 +55,7 @@ if (watchdog) {
     memcpy(&healthMonitorAnnotation_packetContents[0], packetBeginPtr, watchdogBufSize);
 }
 
-AEMU_SCOPED_TRACE("vkQueueFlush large xfer");
+MESA_TRACE_SCOPE("vkQueueFlush large xfer");
 stream->flush();
 stream->writeLarge(local_pData, dataSize);
 

@@ -14,6 +14,7 @@
 #include "VulkanStreamGuest.h"
 
 #include "util/log.h"
+#include "util/perf/cpu_trace.h"
 
 namespace gfxstream {
 namespace vk {
@@ -128,7 +129,7 @@ void VulkanStreamGuest::unsetHandleMapping() { mCurrentHandleMapping = &mDefault
 VulkanHandleMapping* VulkanStreamGuest::handleMapping() const { return mCurrentHandleMapping; }
 
 void VulkanStreamGuest::flush() {
-    AEMU_SCOPED_TRACE("VulkanStreamGuest device write");
+    MESA_TRACE_SCOPE("VulkanStreamGuest device write");
     mStream->flush();
 }
 
