@@ -3136,3 +3136,33 @@ TEST_F(cmod_propagation_test, prop_across_sel)
    EXPECT_EQ(BRW_CONDITIONAL_GE, instruction(block0, 1)->conditional_mod);
 }
 
+TEST_F(cmod_propagation_test, Boolean_size_conversion)
+{
+   brw_reg dest1 = bld.vgrf(BRW_TYPE_W);
+   brw_reg src0 = bld.vgrf(BRW_TYPE_W);
+   brw_reg zero(brw_imm_w(0));
+
+   bld.CMP(dest1, src0, zero, BRW_CONDITIONAL_NZ);
+   set_condmod(BRW_CONDITIONAL_NZ, bld.MOV(bld.null_reg_d(), dest1));
+
+   /* = Before =
+    * 0: cmp.nz.f0     dest1:W    src0:W    0W
+    * 1: mov.nz.f0     null:D     dest1:W
+    *
+    * = After =
+    * 0: cmp.nz.f0     dest1:W    src0:W    0W
+    */
+
+   brw_calculate_cfg(*v);
+   bblock_t *block0 = v->cfg->blocks[0];
+
+   EXPECT_EQ(0, block0->start_ip);
+   EXPECT_EQ(1, block0->end_ip);
+
+   EXPECT_TRUE(cmod_propagation(v));
+   EXPECT_EQ(0, block0->start_ip);
+   EXPECT_EQ(0, block0->end_ip);
+
+   EXPECT_EQ(BRW_OPCODE_CMP, instruction(block0, 0)->opcode);
+   EXPECT_EQ(BRW_CONDITIONAL_NZ, instruction(block0, 0)->conditional_mod);
+}
