@@ -169,8 +169,7 @@ agx_nir_vs_prolog(nir_builder *b, const void *key_)
    lower_vbo(b->shader, key->attribs, key->robustness);
 
    if (!key->hw) {
-      agx_nir_lower_index_buffer(b->shader, key->sw_index_size_B);
-      agx_nir_lower_sw_vs_id(b->shader);
+      agx_nir_lower_sw_vs(b->shader, key->sw_index_size_B);
    }
 
    /* Finally, lower uniforms according to our ABI */

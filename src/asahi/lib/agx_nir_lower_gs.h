@@ -24,9 +24,7 @@ struct nir_def *agx_load_per_vertex_input(struct nir_builder *b,
                                           nir_intrinsic_instr *intr,
                                           struct nir_def *vertex);
 
-bool agx_nir_lower_index_buffer(struct nir_shader *s, unsigned index_size_B);
-
-bool agx_nir_lower_sw_vs_id(nir_shader *s);
+bool agx_nir_lower_sw_vs(struct nir_shader *s, unsigned index_size_B);
 
 bool agx_nir_lower_vs_before_gs(struct nir_shader *vs,
                                 const struct nir_shader *libagx,

@@ -340,31 +340,6 @@ lower_gs_count_instr(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 }
 
 static bool
-lower_prolog_id(nir_builder *b, nir_intrinsic_instr *intr, void *data)
-{
-   b->cursor = nir_before_instr(&intr->instr);
-
-   nir_def *id;
-   if (intr->intrinsic == nir_intrinsic_load_primitive_id)
-      id = load_primitive_id(b);
-   else if (intr->intrinsic == nir_intrinsic_load_instance_id)
-      id = load_instance_id(b);
-   else
-      return false;
-
-   b->cursor = nir_instr_remove(&intr->instr);
-   nir_def_rewrite_uses(&intr->def, id);
-   return true;
-}
-
-bool
-agx_nir_lower_sw_vs_id(nir_shader *s)
-{
-   return nir_shader_intrinsics_pass(s, lower_prolog_id,
-                                     nir_metadata_control_flow, NULL);
-}
-
-static bool
 lower_id(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
    b->cursor = nir_before_instr(&intr->instr);

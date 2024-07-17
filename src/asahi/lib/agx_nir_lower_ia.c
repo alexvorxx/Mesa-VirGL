@@ -22,7 +22,7 @@
 static nir_def *
 load_vertex_id(nir_builder *b, unsigned index_size_B)
 {
-   nir_def *id = nir_load_primitive_id(b);
+   nir_def *id = nir_channel(b, nir_load_global_invocation_id(b, 32), 0);
 
    /* If drawing with an index buffer, pull the vertex ID. Otherwise, the
     * vertex ID is just the index as-is.
@@ -43,21 +43,26 @@ load_vertex_id(nir_builder *b, unsigned index_size_B)
 }
 
 static bool
-lower_vertex_id(nir_builder *b, nir_intrinsic_instr *intr, void *data)
+lower(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
-   if (intr->intrinsic != nir_intrinsic_load_vertex_id)
-      return false;
-
    unsigned *index_size_B = data;
-   b->cursor = nir_instr_remove(&intr->instr);
-   assert(intr->def.bit_size == 32);
-   nir_def_rewrite_uses(&intr->def, load_vertex_id(b, *index_size_B));
-   return true;
+   b->cursor = nir_before_instr(&intr->instr);
+
+   if (intr->intrinsic == nir_intrinsic_load_vertex_id) {
+      nir_def_replace(&intr->def, load_vertex_id(b, *index_size_B));
+      return true;
+   } else if (intr->intrinsic == nir_intrinsic_load_instance_id) {
+      nir_def_replace(&intr->def,
+                      nir_channel(b, nir_load_global_invocation_id(b, 32), 1));
+      return true;
+   }
+
+   return false;
 }
 
 bool
-agx_nir_lower_index_buffer(nir_shader *s, unsigned index_size_B)
+agx_nir_lower_sw_vs(nir_shader *s, unsigned index_size_B)
 {
-   return nir_shader_intrinsics_pass(s, lower_vertex_id,
-                                     nir_metadata_control_flow, &index_size_B);
+   return nir_shader_intrinsics_pass(s, lower, nir_metadata_control_flow,
+                                     &index_size_B);
 }
