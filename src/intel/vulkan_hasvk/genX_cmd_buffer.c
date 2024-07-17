@@ -427,6 +427,31 @@ anv_can_hiz_clear_ds_view(struct anv_device *device,
                                   render_area.extent.height))
       return false;
 
+   assert(GFX_VER == 8);
+   assert(iview->vk.format != VK_FORMAT_D16_UNORM_S8_UINT);
+   if (iview->vk.format == VK_FORMAT_D16_UNORM) {
+      /* From the BDW PRM, Vol 7, "Depth Buffer Clear":
+       *
+       *   The following restrictions apply only if the depth buffer surface
+       *   type is D16_UNORM and software does not use the “full surf clear”:
+       *
+       *   If Number of Multisamples is NUMSAMPLES_1, the rectangle must be
+       *   aligned to an 8x4 pixel block relative to the upper left corner of
+       *   the depth buffer, and contain an integer number of these pixel
+       *   blocks, and all 8x4 pixels must be lit.
+       *
+       * Simply disable partial clears for D16 on BDW.
+       */
+      if (render_area.offset.x > 0 ||
+          render_area.offset.y > 0 ||
+          render_area.extent.width !=
+          u_minify(iview->vk.extent.width, iview->vk.base_mip_level) ||
+          render_area.extent.height !=
+          u_minify(iview->vk.extent.height, iview->vk.base_mip_level)) {
+         return false;
+      }
+   }
+
    if (depth_clear_value != ANV_HZ_FC_VAL)
       return false;
 

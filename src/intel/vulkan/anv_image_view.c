@@ -205,6 +205,27 @@ anv_can_hiz_clear_ds_view(struct anv_device *device,
                                   render_area.extent.height))
       return false;
 
+   if (isl_aux_usage_has_ccs(clear_aux_usage)) {
+      /* From the TGL PRM, Vol 9, "Compressed Depth Buffers" (under the
+       * "Texture performant" and "ZCS" columns):
+       *
+       *    Update with clear at either 16x8 or 8x4 granularity, based on
+       *    fs_clr or otherwise.
+       *
+       * Although alignment requirements are only listed for the texture
+       * performant mode, test results indicate that requirements exist for
+       * the non-texture performant mode as well. Disable partial clears.
+       */
+      if (render_area.offset.x > 0 ||
+          render_area.offset.y > 0 ||
+          render_area.extent.width !=
+          u_minify(iview->vk.extent.width, iview->vk.base_mip_level) ||
+          render_area.extent.height !=
+          u_minify(iview->vk.extent.height, iview->vk.base_mip_level)) {
+         return false;
+      }
+   }
+
    if (depth_clear_value != ANV_HZ_FC_VAL)
       return false;
 

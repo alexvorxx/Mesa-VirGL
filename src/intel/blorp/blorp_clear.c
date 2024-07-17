@@ -926,23 +926,7 @@ blorp_can_hiz_clear_depth(const struct intel_device_info *devinfo,
    /* This function currently doesn't support any gen prior to gfx8 */
    assert(devinfo->ver >= 8);
 
-   if (devinfo->ver == 8 && surf->format == ISL_FORMAT_R16_UNORM) {
-      /* From the BDW PRM, Vol 7, "Depth Buffer Clear":
-       *
-       *   The following restrictions apply only if the depth buffer surface
-       *   type is D16_UNORM and software does not use the “full surf clear”:
-       *
-       *   If Number of Multisamples is NUMSAMPLES_1, the rectangle must be
-       *   aligned to an 8x4 pixel block relative to the upper left corner of
-       *   the depth buffer, and contain an integer number of these pixel
-       *   blocks, and all 8x4 pixels must be lit.
-       *
-       * Alignment requirements for other sample counts are listed, but they
-       * can all be satisfied by the one mentioned above.
-       */
-      if (x0 % 8 || y0 % 4 || x1 % 8 || y1 % 4)
-         return false;
-   } else if (isl_aux_usage_has_ccs(aux_usage)) {
+   if (aux_usage == ISL_AUX_USAGE_HIZ_CCS_WT && level > 0) {
       /* We have to set the WM_HZ_OP::FullSurfaceDepthandStencilClear bit
        * whenever we clear an uninitialized HIZ buffer (as some drivers
        * currently do). However, this bit seems liable to clear 16x8 pixels in
@@ -980,9 +964,8 @@ blorp_can_hiz_clear_depth(const struct intel_device_info *devinfo,
       const bool unaligned = (slice_x0 + x0) % 16 || (slice_y0 + y0) % 8 ||
                              (max_x1_y1 ? haligned_x1 % 16 || valigned_y1 % 8 :
                               x1 % 16 || y1 % 8);
-      const bool partial_clear = x0 > 0 || y0 > 0 || !max_x1_y1;
 
-      if (unaligned && (partial_clear || level > 0))
+      if (unaligned)
          return false;
    }
 
