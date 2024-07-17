@@ -58,6 +58,7 @@ enum mesa_vk_dynamic_graphics_state {
    MESA_VK_DYNAMIC_VP_SCISSOR_COUNT,
    MESA_VK_DYNAMIC_VP_SCISSORS,
    MESA_VK_DYNAMIC_VP_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE,
+   MESA_VK_DYNAMIC_VP_DEPTH_CLAMP_RANGE,
    MESA_VK_DYNAMIC_DR_RECTANGLES,
    MESA_VK_DYNAMIC_DR_MODE,
    MESA_VK_DYNAMIC_DR_ENABLE,
@@ -196,6 +197,18 @@ struct vk_viewport_state {
    /** VkPipelineViewportDepthClipControlCreateInfoEXT::negativeOneToOne
     */
    bool depth_clip_negative_one_to_one;
+
+   /** VkPipelineViewportDepthClampControlCreateInfoEXT::depthClampMode
+    *
+    * MESA_VK_DYNAMIC_GRAPHICS_STATE_VP_DEPTH_CLAMP_RANGE
+    */
+   VkDepthClampModeEXT depth_clamp_mode;
+
+   /** VkPipelineViewportDepthClampControlCreateInfoEXT::pDepthClampRange
+    *
+    * MESA_VK_DYNAMIC_GRAPHICS_STATE_VP_DEPTH_CLAMP_RANGE
+    */
+   VkDepthClampRangeEXT depth_clamp_range;
 
    /** VkPipelineViewportStateCreateInfo::viewportCount
     *
