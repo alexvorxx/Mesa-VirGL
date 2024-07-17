@@ -39,7 +39,7 @@ fi
 
 printf "%s\n" "Running vkd3d-proton testsuite..."
 
-if ! /vkd3d-proton-tests/x64/bin/d3d12 > "$RESULTS/vkd3d-proton-log.txt"; then
+if ! /vkd3d-proton-tests/x64/bin/d3d12 &> "$RESULTS/vkd3d-proton-log.txt"; then
     # Check if the executable finished (ie. no segfault).
     if ! grep "tests executed" "$RESULTS/vkd3d-proton-log.txt" > /dev/null; then
         error "Failed, see ${ARTIFACTS_BASE_URL}/results/vkd3d-proton-log.txt"
