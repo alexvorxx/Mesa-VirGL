@@ -29,11 +29,7 @@ load_vertex_id(nir_builder *b, unsigned index_size_B)
     */
    if (index_size_B) {
       nir_def *ia = nir_load_input_assembly_buffer_agx(b);
-
-      nir_def *index =
-         libagx_load_index_buffer(b, ia, id, nir_imm_int(b, index_size_B));
-
-      id = nir_u2uN(b, index, id->bit_size);
+      id = libagx_load_index_buffer(b, ia, id, nir_imm_int(b, index_size_B));
    }
 
    /* Add the "start", either an index bias or a base vertex. This must happen
