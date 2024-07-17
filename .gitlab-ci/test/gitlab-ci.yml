@@ -124,7 +124,7 @@ python-test:
 
 .b2c-vkd3d-proton-test:
   variables:
-    HWCI_TEST_SCRIPT: ./install/vkd3d-proton/run.sh
+    HWCI_TEST_SCRIPT: install/vkd3d-runner.sh
 
 .piglit-traces-test:
   artifacts:
