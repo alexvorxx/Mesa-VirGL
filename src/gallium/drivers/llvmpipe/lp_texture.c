@@ -1305,6 +1305,11 @@ llvmpipe_allocate_memory(struct pipe_screen *_screen, uint64_t size)
    mtx_lock(&screen->mem_mutex);
 
    mem->offset = util_vma_heap_alloc(&screen->mem_heap, mem->size, alignment);
+   if (!mem->offset) {
+      mtx_unlock(&screen->mem_mutex);
+      FREE(mem);
+      return NULL;
+   }
 
    if (mem->offset + mem->size > screen->mem_file_size) {
       /* expand the anonymous file */
