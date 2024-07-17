@@ -3,16 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "asahi/compiler/agx_compile.h"
 #include "compiler/nir/nir_builder.h"
 #include "shaders/geometry.h"
-#include "util/compiler.h"
 #include "agx_nir_lower_gs.h"
 #include "libagx_shaders.h"
 #include "nir.h"
-#include "nir_builder_opcodes.h"
-#include "nir_intrinsics.h"
-#include "shader_enums.h"
 
 /*
  * This file implements basic input assembly in software. It runs on software
