@@ -22,6 +22,7 @@
 #include "VkEncoder.h"
 #include "gfxstream_vk_entrypoints.h"
 #include "gfxstream_vk_private.h"
+#include "util/perf/cpu_trace.h"
 #include "vk_alloc.h"
 #include "vk_device.h"
 #include "vk_instance.h"
@@ -302,7 +303,7 @@ static struct vk_instance_extension_table* get_instance_extensions() {
 VkResult gfxstream_vk_CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
                                      const VkAllocationCallbacks* pAllocator,
                                      VkInstance* pInstance) {
-    AEMU_SCOPED_TRACE("vkCreateInstance");
+    MESA_TRACE_SCOPE("vkCreateInstance");
 
     struct gfxstream_vk_instance* instance;
 
@@ -366,7 +367,7 @@ VkResult gfxstream_vk_CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
 }
 
 void gfxstream_vk_DestroyInstance(VkInstance _instance, const VkAllocationCallbacks* pAllocator) {
-    AEMU_SCOPED_TRACE("vkDestroyInstance");
+    MESA_TRACE_SCOPE("vkDestroyInstance");
     if (VK_NULL_HANDLE == _instance) return;
 
     VK_FROM_HANDLE(gfxstream_vk_instance, instance, _instance);
@@ -388,7 +389,7 @@ void gfxstream_vk_DestroyInstance(VkInstance _instance, const VkAllocationCallba
 VkResult gfxstream_vk_EnumerateInstanceExtensionProperties(const char* pLayerName,
                                                            uint32_t* pPropertyCount,
                                                            VkExtensionProperties* pProperties) {
-    AEMU_SCOPED_TRACE("vkvkEnumerateInstanceExtensionProperties");
+    MESA_TRACE_SCOPE("vkvkEnumerateInstanceExtensionProperties");
     (void)pLayerName;
 
     return vk_enumerate_instance_extension_properties(get_instance_extensions(), pPropertyCount,
@@ -399,7 +400,7 @@ VkResult gfxstream_vk_EnumerateDeviceExtensionProperties(VkPhysicalDevice physic
                                                          const char* pLayerName,
                                                          uint32_t* pPropertyCount,
                                                          VkExtensionProperties* pProperties) {
-    AEMU_SCOPED_TRACE("vkEnumerateDeviceExtensionProperties");
+    MESA_TRACE_SCOPE("vkEnumerateDeviceExtensionProperties");
     (void)pLayerName;
     VK_FROM_HANDLE(vk_physical_device, pdevice, physicalDevice);
 
@@ -419,7 +420,7 @@ VkResult gfxstream_vk_EnumerateDeviceExtensionProperties(VkPhysicalDevice physic
 VkResult gfxstream_vk_CreateDevice(VkPhysicalDevice physicalDevice,
                                    const VkDeviceCreateInfo* pCreateInfo,
                                    const VkAllocationCallbacks* pAllocator, VkDevice* pDevice) {
-    AEMU_SCOPED_TRACE("vkCreateDevice");
+    MESA_TRACE_SCOPE("vkCreateDevice");
     VK_FROM_HANDLE(gfxstream_vk_physical_device, gfxstream_physicalDevice, physicalDevice);
     VkResult result = (VkResult)0;
 
@@ -516,7 +517,7 @@ VkResult gfxstream_vk_CreateDevice(VkPhysicalDevice physicalDevice,
 }
 
 void gfxstream_vk_DestroyDevice(VkDevice device, const VkAllocationCallbacks* pAllocator) {
-    AEMU_SCOPED_TRACE("vkDestroyDevice");
+    MESA_TRACE_SCOPE("vkDestroyDevice");
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     if (VK_NULL_HANDLE == device) return;
 
@@ -534,7 +535,7 @@ void gfxstream_vk_DestroyDevice(VkDevice device, const VkAllocationCallbacks* pA
 
 void gfxstream_vk_GetDeviceQueue(VkDevice device, uint32_t queueFamilyIndex, uint32_t queueIndex,
                                  VkQueue* pQueue) {
-    AEMU_SCOPED_TRACE("vkGetDeviceQueue");
+    MESA_TRACE_SCOPE("vkGetDeviceQueue");
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     struct gfxstream_vk_queue* gfxstream_queue = (struct gfxstream_vk_queue*)vk_zalloc(
         &gfxstream_device->vk.alloc, sizeof(struct gfxstream_vk_queue), 8,
@@ -566,7 +567,7 @@ void gfxstream_vk_GetDeviceQueue(VkDevice device, uint32_t queueFamilyIndex, uin
 
 void gfxstream_vk_GetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2* pQueueInfo,
                                   VkQueue* pQueue) {
-    AEMU_SCOPED_TRACE("vkGetDeviceQueue2");
+    MESA_TRACE_SCOPE("vkGetDeviceQueue2");
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     struct gfxstream_vk_queue* gfxstream_queue = (struct gfxstream_vk_queue*)vk_zalloc(
         &gfxstream_device->vk.alloc, sizeof(struct gfxstream_vk_queue), 8,
@@ -637,7 +638,7 @@ PFN_vkVoidFunction gfxstream_vk_GetInstanceProcAddr(VkInstance _instance, const 
 }
 
 PFN_vkVoidFunction gfxstream_vk_GetDeviceProcAddr(VkDevice _device, const char* pName) {
-    AEMU_SCOPED_TRACE("vkGetDeviceProcAddr");
+    MESA_TRACE_SCOPE("vkGetDeviceProcAddr");
     VK_FROM_HANDLE(gfxstream_vk_device, device, _device);
     return vk_device_get_proc_addr(&device->vk, pName);
 }
@@ -645,7 +646,7 @@ PFN_vkVoidFunction gfxstream_vk_GetDeviceProcAddr(VkDevice _device, const char* 
 VkResult gfxstream_vk_AllocateMemory(VkDevice device, const VkMemoryAllocateInfo* pAllocateInfo,
                                      const VkAllocationCallbacks* pAllocator,
                                      VkDeviceMemory* pMemory) {
-    AEMU_SCOPED_TRACE("vkAllocateMemory");
+    MESA_TRACE_SCOPE("vkAllocateMemory");
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     VkResult vkAllocateMemory_VkResult_return = (VkResult)0;
     /* VkMemoryDedicatedAllocateInfo */
@@ -670,7 +671,7 @@ VkResult gfxstream_vk_AllocateMemory(VkDevice device, const VkMemoryAllocateInfo
 
 VkResult gfxstream_vk_EnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
                                                        VkLayerProperties* pProperties) {
-    AEMU_SCOPED_TRACE("vkEnumerateInstanceLayerProperties");
+    MESA_TRACE_SCOPE("vkEnumerateInstanceLayerProperties");
     auto result = SetupInstanceForProcess();
     if (VK_SUCCESS != result) {
         return vk_error(NULL, result);
@@ -687,7 +688,7 @@ VkResult gfxstream_vk_EnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
 }
 
 VkResult gfxstream_vk_EnumerateInstanceVersion(uint32_t* pApiVersion) {
-    AEMU_SCOPED_TRACE("vkEnumerateInstanceVersion");
+    MESA_TRACE_SCOPE("vkEnumerateInstanceVersion");
     auto result = SetupInstanceForProcess();
     if (VK_SUCCESS != result) {
         return vk_error(NULL, result);
@@ -737,7 +738,7 @@ void gfxstream_vk_UpdateDescriptorSets(VkDevice device, uint32_t descriptorWrite
                                        const VkWriteDescriptorSet* pDescriptorWrites,
                                        uint32_t descriptorCopyCount,
                                        const VkCopyDescriptorSet* pDescriptorCopies) {
-    AEMU_SCOPED_TRACE("vkUpdateDescriptorSets");
+    MESA_TRACE_SCOPE("vkUpdateDescriptorSets");
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();

@@ -15,11 +15,12 @@
 #include "ResourceTracker.h"
 #include "VkEncoder.h"
 #include "gfxstream_vk_private.h"
+#include "util/perf/cpu_trace.h"
 
 VkResult gfxstream_vk_CreateCommandPool(VkDevice device, const VkCommandPoolCreateInfo* pCreateInfo,
                                         const VkAllocationCallbacks* pAllocator,
                                         VkCommandPool* pCommandPool) {
-    AEMU_SCOPED_TRACE("vkCreateCommandPool");
+    MESA_TRACE_SCOPE("vkCreateCommandPool");
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     VkResult result = (VkResult)0;
     struct gfxstream_vk_command_pool* gfxstream_pCommandPool =
@@ -43,7 +44,7 @@ VkResult gfxstream_vk_CreateCommandPool(VkDevice device, const VkCommandPoolCrea
 
 void gfxstream_vk_DestroyCommandPool(VkDevice device, VkCommandPool commandPool,
                                      const VkAllocationCallbacks* pAllocator) {
-    AEMU_SCOPED_TRACE("vkDestroyCommandPool");
+    MESA_TRACE_SCOPE("vkDestroyCommandPool");
     if (VK_NULL_HANDLE == commandPool) {
         return;
     }
@@ -61,7 +62,7 @@ void gfxstream_vk_DestroyCommandPool(VkDevice device, VkCommandPool commandPool,
 
 VkResult gfxstream_vk_ResetCommandPool(VkDevice device, VkCommandPool commandPool,
                                        VkCommandPoolResetFlags flags) {
-    AEMU_SCOPED_TRACE("vkResetCommandPool");
+    MESA_TRACE_SCOPE("vkResetCommandPool");
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     VK_FROM_HANDLE(gfxstream_vk_command_pool, gfxstream_commandPool, commandPool);
     VkResult vkResetCommandPool_VkResult_return = (VkResult)0;
@@ -121,7 +122,7 @@ void vk_command_buffer_destroyOp(struct vk_command_buffer* commandBuffer) {
 VkResult gfxstream_vk_AllocateCommandBuffers(VkDevice device,
                                              const VkCommandBufferAllocateInfo* pAllocateInfo,
                                              VkCommandBuffer* pCommandBuffers) {
-    AEMU_SCOPED_TRACE("vkAllocateCommandBuffers");
+    MESA_TRACE_SCOPE("vkAllocateCommandBuffers");
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     VK_FROM_HANDLE(gfxstream_vk_command_pool, gfxstream_commandPool, pAllocateInfo->commandPool);
     VkResult result = (VkResult)0;
@@ -165,7 +166,7 @@ VkResult gfxstream_vk_AllocateCommandBuffers(VkDevice device,
 void gfxstream_vk_FreeCommandBuffers(VkDevice device, VkCommandPool commandPool,
                                      uint32_t commandBufferCount,
                                      const VkCommandBuffer* pCommandBuffers) {
-    AEMU_SCOPED_TRACE("vkFreeCommandBuffers");
+    MESA_TRACE_SCOPE("vkFreeCommandBuffers");
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     VK_FROM_HANDLE(gfxstream_vk_command_pool, gfxstream_commandPool, commandPool);
     {
@@ -192,7 +193,7 @@ void gfxstream_vk_CmdBeginTransformFeedbackEXT(VkCommandBuffer commandBuffer,
                                                uint32_t counterBufferCount,
                                                const VkBuffer* pCounterBuffers,
                                                const VkDeviceSize* pCounterBufferOffsets) {
-    AEMU_SCOPED_TRACE("vkCmdBeginTransformFeedbackEXT");
+    MESA_TRACE_SCOPE("vkCmdBeginTransformFeedbackEXT");
     VK_FROM_HANDLE(gfxstream_vk_command_buffer, gfxstream_commandBuffer, commandBuffer);
     auto vkEnc = gfxstream::vk::ResourceTracker::getCommandBufferEncoder(
         gfxstream_commandBuffer->internal_object);

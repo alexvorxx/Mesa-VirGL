@@ -29,9 +29,9 @@
 #include "VirtGpu.h"
 #include "VulkanHandleMapping.h"
 #include "VulkanHandles.h"
-#include "aemu/base/Tracing.h"
 #include "aemu/base/threads/AndroidWorkPool.h"
 #include "goldfish_vk_transform_guest.h"
+#include "util/perf/cpu_trace.h"
 
 using gfxstream::guest::WorkPool;
 

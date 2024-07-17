@@ -30,6 +30,7 @@
 #include "virtgpu_gfxstream_protocol.h"
 #include "vulkan/vk_enum_string_helper.h"
 #include "vulkan/vulkan_core.h"
+
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #include "vk_format_info.h"
 #endif
@@ -5984,7 +5985,7 @@ void ResourceTracker::flushStagingStreams(void* context, VkQueue queue, uint32_t
 VkResult ResourceTracker::on_vkQueueSubmit(void* context, VkResult input_result, VkQueue queue,
                                            uint32_t submitCount, const VkSubmitInfo* pSubmits,
                                            VkFence fence) {
-    AEMU_SCOPED_TRACE("on_vkQueueSubmit");
+    MESA_TRACE_SCOPE("on_vkQueueSubmit");
 
     /* From the Vulkan 1.3.204 spec:
      *
@@ -6021,7 +6022,7 @@ VkResult ResourceTracker::on_vkQueueSubmit(void* context, VkResult input_result,
 VkResult ResourceTracker::on_vkQueueSubmit2(void* context, VkResult input_result, VkQueue queue,
                                             uint32_t submitCount, const VkSubmitInfo2* pSubmits,
                                             VkFence fence) {
-    AEMU_SCOPED_TRACE("on_vkQueueSubmit2");
+    MESA_TRACE_SCOPE("on_vkQueueSubmit2");
     return on_vkQueueSubmitTemplate<VkSubmitInfo2>(context, input_result, queue, submitCount,
                                                    pSubmits, fence);
 }
@@ -6181,7 +6182,7 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
             auto vkEncoder = ResourceTracker::threadingCallbacks.vkEncoderGetFunc(hostConn);
             auto waitIdleRes = vkEncoder->vkQueueWaitIdle(queue, true /* do lock */);
 #ifdef VK_USE_PLATFORM_FUCHSIA
-            AEMU_SCOPED_TRACE("on_vkQueueSubmit::SignalSemaphores");
+            MESA_TRACE_SCOPE("on_vkQueueSubmit::SignalSemaphores");
             (void)externalFenceFdToSignal;
             for (auto& [event, koid] : post_wait_events) {
 #ifndef FUCHSIA_NO_TRACE
@@ -6286,7 +6287,7 @@ void ResourceTracker::unwrap_vkAcquireImageANDROID_nativeFenceFd(int fd, int* fd
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
     (void)fd_out;
     if (fd != -1) {
-        AEMU_SCOPED_TRACE("waitNativeFenceInAcquire");
+        MESA_TRACE_SCOPE("waitNativeFenceInAcquire");
         // Implicit Synchronization
         auto* syncHelper =
             ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();

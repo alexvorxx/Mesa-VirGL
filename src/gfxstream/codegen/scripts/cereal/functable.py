@@ -518,7 +518,7 @@ class VulkanFuncTable(VulkanWrapperGenerator):
                 cgen.stmt("return %s" % api.getRetVarExpr())
 
         def genGfxstreamEntry(declareResources=True):
-            cgen.stmt("AEMU_SCOPED_TRACE(\"%s\")" % api.name)
+            cgen.stmt("MESA_TRACE_SCOPE(\"%s\")" % api.name)
             # declare returnVar
             retTypeName = api.getRetTypeExpr()
             retVar = api.getRetVarExpr()
