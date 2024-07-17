@@ -47,7 +47,7 @@ if ! /vkd3d-proton-tests/x64/bin/d3d12 &> "$RESULTS/vkd3d-proton-log.txt"; then
     fi
 
     # Collect all the failures
-    RESULTSFILE="$RESULTS/$VKD3D_PROTON_RESULTS.txt"
+    RESULTSFILE="$RESULTS/$GPU_VERSION.txt"
     mkdir -p .gitlab-ci/vkd3d-proton
     if ! grep "Test failed" "$RESULTS"/vkd3d-proton-log.txt > "$RESULTSFILE"; then
       error "Failed to get the list of failing tests, see ${ARTIFACTS_BASE_URL}/results/vkd3d-proton-log.txt"
@@ -55,16 +55,16 @@ if ! /vkd3d-proton-tests/x64/bin/d3d12 &> "$RESULTS/vkd3d-proton-log.txt"; then
     fi
 
     # Gather the list expected failures
-    if [ -f "$INSTALL/$VKD3D_PROTON_RESULTS-vkd3d.txt" ]; then
-        cp "$INSTALL/$VKD3D_PROTON_RESULTS-vkd3d.txt" \
-           ".gitlab-ci/vkd3d-proton/$VKD3D_PROTON_RESULTS.txt.baseline"
+    if [ -f "$INSTALL/$GPU_VERSION-vkd3d.txt" ]; then
+        cp "$INSTALL/$GPU_VERSION-vkd3d.txt" \
+           ".gitlab-ci/vkd3d-proton/$GPU_VERSION.txt.baseline"
     else
-        printf "%s\n" "$VKD3D_PROTON_RESULTS-vkd3d.txt not found, assuming a \"no failures\" baseline."
-        touch ".gitlab-ci/vkd3d-proton/$VKD3D_PROTON_RESULTS.txt.baseline"
+        printf "%s\n" "$GPU_VERSION-vkd3d.txt not found, assuming a \"no failures\" baseline."
+        touch ".gitlab-ci/vkd3d-proton/$GPU_VERSION.txt.baseline"
     fi
 
     # Make sure that the failures found in this run match the current expectation
-    if ! diff --color=always -u ".gitlab-ci/vkd3d-proton/$VKD3D_PROTON_RESULTS.txt.baseline" "$RESULTSFILE"; then
+    if ! diff --color=always -u ".gitlab-ci/vkd3d-proton/$GPU_VERSION.txt.baseline" "$RESULTSFILE"; then
         error "Changes found, see ${ARTIFACTS_BASE_URL}/results/vkd3d-proton-log.txt"
         exit 1
     fi
