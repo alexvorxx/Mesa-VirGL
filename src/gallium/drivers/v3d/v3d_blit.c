@@ -307,15 +307,11 @@ is_tile_unaligned(unsigned size, unsigned tile_size)
         return size & (tile_size - 1);
 }
 
-static void
-v3d_tlb_blit(struct pipe_context *pctx, struct pipe_blit_info *info)
+static bool
+check_tlb_blit_ok(struct v3d_device_info *devinfo, struct pipe_blit_info *info)
 {
-        struct v3d_context *v3d = v3d_context(pctx);
-        struct v3d_screen *screen = v3d->screen;
-        struct v3d_device_info *devinfo = &screen->devinfo;
-
         if (!info->mask)
-                return;
+                return false;
 
         bool is_color_blit = info->mask & PIPE_MASK_RGBA;
         bool is_depth_blit = info->mask & PIPE_MASK_Z;
@@ -328,36 +324,47 @@ v3d_tlb_blit(struct pipe_context *pctx, struct pipe_blit_info *info)
                 (!is_color_blit && (is_depth_blit || is_stencil_blit)));
 
         if (info->scissor_enable)
-                return;
+                return false;
 
         if (info->src.box.x != info->dst.box.x ||
             info->src.box.y != info->dst.box.y ||
             info->src.box.width != info->dst.box.width ||
             info->src.box.height != info->dst.box.height)
-                return;
+                return false;
 
         if (is_color_blit &&
             util_format_is_depth_or_stencil(info->dst.format))
-                return;
+                return false;
 
         if ((is_depth_blit || is_stencil_blit) &&
             !util_format_is_depth_or_stencil(info->dst.format))
-                return;
+                return false;
 
         if (!v3d_rt_format_supported(devinfo, info->src.format))
-                return;
+                return false;
 
         if (v3d_get_rt_format(devinfo, info->src.format) !=
             v3d_get_rt_format(devinfo, info->dst.format))
-                return;
+                return false;
 
-        bool msaa = (info->src.resource->nr_samples > 1 ||
-                     info->dst.resource->nr_samples > 1);
         bool is_msaa_resolve = (info->src.resource->nr_samples > 1 &&
                                 info->dst.resource->nr_samples < 2);
 
         if (is_msaa_resolve &&
             !v3d_format_supports_tlb_msaa_resolve(devinfo, info->src.format))
+                return false;
+
+        return true;
+}
+
+static void
+v3d_tlb_blit(struct pipe_context *pctx, struct pipe_blit_info *info)
+{
+        struct v3d_context *v3d = v3d_context(pctx);
+        struct v3d_screen *screen = v3d->screen;
+        struct v3d_device_info *devinfo = &screen->devinfo;
+
+        if (!check_tlb_blit_ok(devinfo, info))
                 return;
 
         v3d_flush_jobs_writing_resource(v3d, info->src.resource, V3D_FLUSH_DEFAULT, false);
@@ -367,9 +374,16 @@ v3d_tlb_blit(struct pipe_context *pctx, struct pipe_blit_info *info)
         struct pipe_surface *src_surf =
            v3d_get_blit_surface(pctx, info->src.resource, info->src.format, info->src.level, info->src.box.z);
 
+        bool is_color_blit = info->mask & PIPE_MASK_RGBA;
+        bool is_depth_blit = info->mask & PIPE_MASK_Z;
+        bool is_stencil_blit = info->mask & PIPE_MASK_S;
+
         struct pipe_surface *surfaces[V3D_MAX_DRAW_BUFFERS] = { 0 };
         if (is_color_blit)
                 surfaces[0] = dst_surf;
+
+        bool msaa = (info->src.resource->nr_samples > 1 ||
+                     info->dst.resource->nr_samples > 1);
 
         bool double_buffer = V3D_DBG(DOUBLE_BUFFER) && !msaa;
 
