@@ -930,10 +930,12 @@ llvmpipe_destroy_screen(struct pipe_screen *_screen)
    close(screen->udmabuf_fd);
 #endif
 
+#if DETECT_OS_LINUX
    util_vma_heap_finish(&screen->mem_heap);
 
    close(screen->fd_mem_alloc);
    mtx_destroy(&screen->mem_mutex);
+#endif
    mtx_destroy(&screen->rast_mutex);
    mtx_destroy(&screen->cs_mutex);
    FREE(screen);
@@ -1175,15 +1177,17 @@ llvmpipe_create_screen(struct sw_winsys *winsys)
    screen->udmabuf_fd = open("/dev/udmabuf", O_RDWR);
 #endif
 
-   screen->fd_mem_alloc = os_create_anonymous_file(0, "allocation fd");
-   (void) mtx_init(&screen->mem_mutex, mtx_plain);
-
    uint64_t alignment;
    if (!os_get_page_size(&alignment))
       alignment = 256;
 
+#if DETECT_OS_LINUX
+   (void) mtx_init(&screen->mem_mutex, mtx_plain);
+
    util_vma_heap_init(&screen->mem_heap, alignment, UINT64_MAX - alignment);
    screen->mem_heap.alloc_high = false;
+   screen->fd_mem_alloc = os_create_anonymous_file(0, "allocation fd");
+#endif
 
    snprintf(screen->renderer_string, sizeof(screen->renderer_string),
             "llvmpipe (LLVM " MESA_LLVM_VERSION_STRING ", %u bits)",
