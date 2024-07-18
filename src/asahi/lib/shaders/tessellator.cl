@@ -1118,19 +1118,19 @@ libagx_tess_tri(constant struct libagx_tess_args *p, enum libagx_tess_mode mode,
          int startPoint = ring;
          int endPoint = numPointsForInsideTessFactor - 1 - startPoint;
 
+         int perpendicularAxisPoint = startPoint;
+         FXP fxpPerpParam = PlacePointIn1D(
+            &insideTessFactorCtx, insideTessFactorOdd, perpendicularAxisPoint);
+
+         // Map location to the right size in
+         // barycentric space. We know this fixed
+         // point math won't over/underflow
+         fxpPerpParam *= FXP_TWO_THIRDS;
+         fxpPerpParam = (fxpPerpParam + FXP_ONE_HALF /*round*/) >>
+                        FXP_FRACTION_BITS; // get back to n.16
+
          for (int edge = 0; edge < TRI_EDGES; edge++) {
             int odd = edge & 0x1;
-            int perpendicularAxisPoint = startPoint;
-            FXP fxpPerpParam =
-               PlacePointIn1D(&insideTessFactorCtx, insideTessFactorOdd,
-                              perpendicularAxisPoint);
-
-            // Map location to the right size in
-            // barycentric space. We know this fixed
-            // point math won't over/underflow
-            fxpPerpParam *= FXP_TWO_THIRDS;
-            fxpPerpParam = (fxpPerpParam + FXP_ONE_HALF /*round*/) >>
-                           FXP_FRACTION_BITS; // get back to n.16
 
             // don't include end: next edge starts with it.
             for (int p = startPoint; p < endPoint; p++, pointOffset++) {
