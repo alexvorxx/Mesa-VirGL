@@ -1705,7 +1705,7 @@ copy_format(VkFormat vk_format, VkImageAspectFlags aspect_mask)
       }
    }
 
-   enum pipe_format format = tu_vk_format_to_pipe_format(vk_format);
+   enum pipe_format format = vk_format_to_pipe_format(vk_format);
 
    /* For SNORM formats, copy them as the equivalent UNORM format.  If we treat
     * them as snorm then the 0x80 (-1.0 snorm8) value will get clamped to 0x81
@@ -2706,9 +2706,9 @@ tu_CmdResolveImage2(VkCommandBuffer commandBuffer,
    struct tu_cs *cs = &cmd->cs;
 
    enum pipe_format src_format =
-      tu_vk_format_to_pipe_format(src_image->vk.format);
+      vk_format_to_pipe_format(src_image->vk.format);
    enum pipe_format dst_format =
-      tu_vk_format_to_pipe_format(dst_image->vk.format);
+      vk_format_to_pipe_format(dst_image->vk.format);
    ops->setup(cmd, cs, src_format, dst_format,
               VK_IMAGE_ASPECT_COLOR_BIT, 0, false, dst_image->layout[0].ubwc, 
               VK_SAMPLE_COUNT_1_BIT);
@@ -2762,8 +2762,8 @@ resolve_sysmem(struct tu_cmd_buffer *cmd,
 
    trace_start_sysmem_resolve(&cmd->trace, cs, vk_dst_format);
 
-   enum pipe_format src_format = tu_vk_format_to_pipe_format(vk_src_format);
-   enum pipe_format dst_format = tu_vk_format_to_pipe_format(vk_dst_format);
+   enum pipe_format src_format = vk_format_to_pipe_format(vk_src_format);
+   enum pipe_format dst_format = vk_format_to_pipe_format(vk_dst_format);
 
    ops->setup(cmd, cs, src_format, dst_format,
               VK_IMAGE_ASPECT_COLOR_BIT, 0, false, dst->view.ubwc_enabled,
@@ -3250,7 +3250,7 @@ tu_emit_clear_gmem_attachment(struct tu_cmd_buffer *cmd,
    tu_cs_emit_regs(cs,
                    A6XX_RB_BLIT_GMEM_MSAA_CNTL(tu_msaa_samples(att->samples)));
 
-   enum pipe_format format = tu_vk_format_to_pipe_format(att->format);
+   enum pipe_format format = vk_format_to_pipe_format(att->format);
    for_each_layer(i, layer_mask, layers) {
       uint32_t layer = i + base_layer;
       if (att->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
@@ -3394,7 +3394,7 @@ clear_sysmem_attachment(struct tu_cmd_buffer *cmd,
                         uint32_t a,
                         bool separate_ds)
 {
-   enum pipe_format format = tu_vk_format_to_pipe_format(vk_format);
+   enum pipe_format format = vk_format_to_pipe_format(vk_format);
    const struct tu_framebuffer *fb = cmd->state.framebuffer;
    const struct tu_image_view *iview = cmd->state.attachments[a];
    const uint32_t clear_views = cmd->state.pass->attachments[a].clear_views;
@@ -4114,11 +4114,11 @@ tu_store_gmem_attachment(struct tu_cmd_buffer *cmd,
 
    assert(cmd->state.gmem_layout == TU_GMEM_LAYOUT_AVOID_CCU);
 
-   enum pipe_format src_format = tu_vk_format_to_pipe_format(src->format);
+   enum pipe_format src_format = vk_format_to_pipe_format(src->format);
    if (src_format == PIPE_FORMAT_Z32_FLOAT_S8X24_UINT)
       src_format = PIPE_FORMAT_Z32_FLOAT;
 
-   enum pipe_format dst_format = tu_vk_format_to_pipe_format(dst->format);
+   enum pipe_format dst_format = vk_format_to_pipe_format(dst->format);
    if (dst_format == PIPE_FORMAT_Z32_FLOAT_S8X24_UINT)
       dst_format = PIPE_FORMAT_Z32_FLOAT;
 

@@ -977,7 +977,7 @@ write_texel_buffer_descriptor_addr(uint32_t *dst,
       uint8_t swiz[4] = { PIPE_SWIZZLE_X, PIPE_SWIZZLE_Y, PIPE_SWIZZLE_Z,
                           PIPE_SWIZZLE_W };
       fdl6_buffer_view_init(dst,
-                            tu_vk_format_to_pipe_format(buffer_info->format),
+                            vk_format_to_pipe_format(buffer_info->format),
                             swiz, buffer_info->address, buffer_info->range);
    }
 }

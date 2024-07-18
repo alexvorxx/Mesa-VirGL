@@ -20,27 +20,6 @@
 
 #include <vulkan/vulkan_android.h>
 
-/* Map non-colorspace-converted YUV formats to RGB pipe formats where we can,
- * since our hardware doesn't support colorspace conversion.
- *
- * Really, we should probably be returning the RGB formats in
- * vk_format_to_pipe_format, but we don't have all the equivalent pipe formats
- * for VK RGB formats yet, and we'd have to switch all consumers of that
- * function at once.
- */
-enum pipe_format
-tu_vk_format_to_pipe_format(VkFormat vk_format)
-{
-   switch (vk_format) {
-   case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM:
-      return PIPE_FORMAT_G8_B8R8_420_UNORM;
-   case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM:
-      return PIPE_FORMAT_G8_B8_R8_420_UNORM;
-   default:
-      return vk_format_to_pipe_format(vk_format);
-   }
-}
-
 static bool
 tu6_format_vtx_supported(enum pipe_format format)
 {
@@ -131,7 +110,7 @@ tu_physical_device_get_format_properties(
    VkFormatProperties3 *out_properties)
 {
    VkFormatFeatureFlags2 linear = 0, optimal = 0, buffer = 0;
-   enum pipe_format format = tu_vk_format_to_pipe_format(vk_format);
+   enum pipe_format format = vk_format_to_pipe_format(vk_format);
    const struct util_format_description *desc = util_format_description(format);
 
    bool supported_vtx = tu6_format_vtx_supported(format);

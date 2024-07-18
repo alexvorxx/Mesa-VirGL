@@ -55,7 +55,7 @@ tu6_plane_format(VkFormat format, uint32_t plane)
    case VK_FORMAT_D32_SFLOAT_S8_UINT:
       return plane ? PIPE_FORMAT_S8_UINT : PIPE_FORMAT_Z32_FLOAT;
    default:
-      return tu_vk_format_to_pipe_format(format);
+      return vk_format_to_pipe_format(format);
    }
 }
 
@@ -205,7 +205,7 @@ tu_image_view_init(struct tu_device *device,
    if (aspect_mask != VK_IMAGE_ASPECT_COLOR_BIT)
       format = tu6_plane_format(vk_format, tu6_plane_index(vk_format, aspect_mask));
    else
-      format = tu_vk_format_to_pipe_format(vk_format);
+      format = vk_format_to_pipe_format(vk_format);
 
    if (image->vk.format == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM &&
        aspect_mask == VK_IMAGE_ASPECT_PLANE_0_BIT) {
@@ -424,7 +424,7 @@ format_list_reinterprets_r8g8_r16(enum pipe_format format, const VkImageFormatLi
    bool has_non_r8g8 = false;
    for (uint32_t i = 0; i < fmt_list->viewFormatCount; i++) {
       enum pipe_format format =
-         tu_vk_format_to_pipe_format(fmt_list->pViewFormats[i]);
+         vk_format_to_pipe_format(fmt_list->pViewFormats[i]);
       if (tu_is_r8g8(format))
          has_r8g8 = true;
       else
@@ -444,7 +444,7 @@ format_list_has_swaps(const VkImageFormatListCreateInfo *fmt_list)
 
    for (uint32_t i = 0; i < fmt_list->viewFormatCount; i++) {
       enum pipe_format format =
-         tu_vk_format_to_pipe_format(fmt_list->pViewFormats[i]);
+         vk_format_to_pipe_format(fmt_list->pViewFormats[i]);
 
       if (tu6_format_texture(format, TILE6_LINEAR).swap)
          return true;
@@ -470,7 +470,7 @@ tu_image_update_layout(struct tu_device *device, struct tu_image *image,
    }
 
    /* Whether a view of the image with an R8G8 format could be made. */
-   bool has_r8g8 = tu_is_r8g8(tu_vk_format_to_pipe_format(image->vk.format));
+   bool has_r8g8 = tu_is_r8g8(vk_format_to_pipe_format(image->vk.format));
 
    /* With AHB, we could be asked to create an image with VK_IMAGE_TILING_LINEAR
     * but gralloc doesn't know this.  So if we are explicitly told that it is
@@ -691,7 +691,7 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
             image->ubwc_enabled = false;
          }
 
-         bool r8g8_r16 = format_list_reinterprets_r8g8_r16(tu_vk_format_to_pipe_format(image->vk.format), fmt_list);
+         bool r8g8_r16 = format_list_reinterprets_r8g8_r16(vk_format_to_pipe_format(image->vk.format), fmt_list);
 
          /* A750+ TODO: Correctly handle swaps when copying mutable images.
           * We should be able to support UBWC for mutable images with swaps.
