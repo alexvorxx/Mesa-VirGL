@@ -4003,6 +4003,7 @@ agx_batch_geometry_params(struct agx_batch *batch, uint64_t input_index_buffer,
     */
    unsigned count_buffer_stride = batch->ctx->gs->gs_count_words * 4;
    batch->uniforms.vertex_outputs = batch->ctx->vs->b.info.outputs;
+   params.input_mask = batch->uniforms.vertex_outputs;
 
    if (indirect) {
       params.count_buffer_stride = count_buffer_stride;
@@ -4032,6 +4033,8 @@ agx_batch_geometry_params(struct agx_batch *batch, uint64_t input_index_buffer,
          uint64_t addr = agx_pool_alloc_aligned(&batch->pool, vb_size, 4).gpu;
          batch->uniforms.vertex_output_buffer_ptr =
             agx_pool_upload(&batch->pool, &addr, 8);
+
+         params.input_buffer = addr;
       }
    }
 

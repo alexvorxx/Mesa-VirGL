@@ -163,6 +163,13 @@ struct agx_geometry_params {
     */
    GLOBAL(uchar) xfb_base[MAX_SO_BUFFERS];
 
+   /* Address and present mask for the input to the geometry shader. These will
+    * reflect the vertex shader for VS->GS or instead the tessellation
+    * evaluation shader for TES->GS.
+    */
+   uint64_t input_buffer;
+   uint64_t input_mask;
+
    /* Location-indexed mask of flat outputs, used for lowering GL edge flags. */
    uint64_t flat_outputs;
 
@@ -201,7 +208,7 @@ struct agx_geometry_params {
     */
    uint32_t input_topology;
 } PACKED;
-AGX_STATIC_ASSERT(sizeof(struct agx_geometry_params) == 78 * 4);
+AGX_STATIC_ASSERT(sizeof(struct agx_geometry_params) == 82 * 4);
 
 /* TCS shared memory layout:
  *

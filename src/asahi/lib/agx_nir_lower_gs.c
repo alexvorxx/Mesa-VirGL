@@ -209,9 +209,21 @@ agx_load_per_vertex_input(nir_builder *b, nir_intrinsic_instr *intr,
    assert(intr->intrinsic == nir_intrinsic_load_per_vertex_input);
    nir_io_semantics sem = nir_intrinsic_io_semantics(intr);
 
-   nir_def *addr = libagx_vertex_output_address(
-      b, nir_load_vs_output_buffer_agx(b), nir_load_vs_outputs_agx(b), vertex,
-      nir_iadd_imm(b, intr->src[1].ssa, sem.location));
+   nir_def *location = nir_iadd_imm(b, intr->src[1].ssa, sem.location);
+   nir_def *addr;
+
+   if (b->shader->info.stage == MESA_SHADER_GEOMETRY) {
+      /* GS may be preceded by VS or TES so specified as param */
+      addr = libagx_geometry_input_address(
+         b, nir_load_geometry_param_buffer_agx(b), vertex, location);
+   } else {
+      assert(b->shader->info.stage == MESA_SHADER_TESS_CTRL);
+
+      /* TCS always preceded by VS so we use the VS state directly */
+      addr = libagx_vertex_output_address(b, nir_load_vs_output_buffer_agx(b),
+                                          nir_load_vs_outputs_agx(b), vertex,
+                                          location);
+   }
 
    addr = nir_iadd_imm(b, addr, 4 * nir_intrinsic_component(intr));
    return nir_load_global_constant(b, addr, 4, intr->def.num_components,
