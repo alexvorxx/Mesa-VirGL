@@ -32,10 +32,6 @@ enum pipe_format
 tu_vk_format_to_pipe_format(VkFormat vk_format)
 {
    switch (vk_format) {
-   case VK_FORMAT_G8B8G8R8_422_UNORM: /* YUYV */
-      return PIPE_FORMAT_R8G8_R8B8_UNORM;
-   case VK_FORMAT_B8G8R8G8_422_UNORM: /* UYVY */
-      return PIPE_FORMAT_G8R8_B8R8_UNORM;
    case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM:
       return PIPE_FORMAT_G8_B8R8_420_UNORM;
    case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM:

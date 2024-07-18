@@ -59,8 +59,8 @@ fdl6_format_swiz(enum pipe_format format, bool has_z24uint_s8uint,
     * exceptions, called out below.
     */
    switch (format) {
-   case PIPE_FORMAT_R8G8_R8B8_UNORM:
-   case PIPE_FORMAT_G8R8_B8R8_UNORM:
+   case PIPE_FORMAT_G8B8_G8R8_UNORM:
+   case PIPE_FORMAT_B8G8_R8G8_UNORM:
    case PIPE_FORMAT_G8_B8R8_420_UNORM:
    case PIPE_FORMAT_G8_B8_R8_420_UNORM:
       /* These formats are currently only used for Vulkan, and border colors
