@@ -1806,8 +1806,15 @@ brw_postprocess_nir(nir_shader *nir, const struct brw_compiler *compiler,
       /* Some of the optimizations can generate 64-bit integer multiplication
        * that must be lowered.
        */
-      if (OPT(nir_lower_int64))
-         brw_nir_optimize(nir, devinfo);
+      OPT(nir_lower_int64);
+
+      /* Even if nir_lower_int64 did not make progress, re-run the main
+       * optimization loop. nir_opt_uniform_subgroup may have made some things
+       * that previously appeared divergent be marked as convergent. This
+       * allows the elimination of some loops over, say, a TXF instruction
+       * with a non-uniform texture handle.
+       */
+      brw_nir_optimize(nir, devinfo);
 
       OPT(nir_lower_subgroups, &subgroups_options);
    }
