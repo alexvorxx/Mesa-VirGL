@@ -283,6 +283,13 @@ struct fd_dev_info {
       bool enable_tp_ubwc_flag_hint;
 
       bool storage_8bit;
+
+      /* A750+ added a special flag that allows HW to correctly interpret UBWC, including
+       * UBWC fast-clear when casting image to a different format permitted by Vulkan.
+       * So it's possible to have UBWC enabled for image that has e.g. R32_UINT and
+       * R8G8B8A8_UNORM in the mutable formats list.
+       */
+      bool ubwc_all_formats_compatible;
    } a7xx;
 };
 

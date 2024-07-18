@@ -4172,6 +4172,7 @@ to upconvert to 32b float internally?
 			<bitfield name="UNK10" pos="10"/>
 			<bitfield name="LOSSLESSCOMPEN" pos="11" type="boolean"/>
 			<bitfield name="COLOR_SWAP" low="13" high="14" type="a3xx_color_swap"/>
+			<bitfield name="MUTABLEEN" pos="16" type="boolean" variants="A7XX-"/>
 		</reg32>
 		<!--
 		at least in gmem, things seem to be aligned to pitch of 64..
@@ -4337,6 +4338,7 @@ to upconvert to 32b float internally?
 		<bitfield name="COLOR_SWAP" low="5" high="6" type="a3xx_color_swap"/>
 		<bitfield name="COLOR_FORMAT" low="7" high="14" type="a6xx_format"/>
 		<bitfield name="UNK15" pos="15" type="boolean"/>
+		<bitfield name="MUTABLEEN" pos="16" type="boolean" variants="A7XX-"/>
 	</reg32>
 	<reg64 offset="0x88d8" name="RB_BLIT_DST" type="waddress" align="64" usage="rp_blit"/>
 	<reg32 offset="0x88da" name="RB_BLIT_DST_PITCH" low="0" high="15" shr="6" type="uint" usage="rp_blit"/>
@@ -4453,13 +4455,12 @@ to upconvert to 32b float internally?
 	<reg32 offset="0x8c00" name="RB_2D_BLIT_CNTL" type="a6xx_2d_blit_cntl" usage="rp_blit"/>
 	<reg32 offset="0x8c01" name="RB_2D_UNKNOWN_8C01" low="0" high="31" usage="rp_blit"/>
 
-	<bitset name="a6xx_2d_surf_info" inline="yes">
+	<bitset name="a6xx_2d_src_surf_info" inline="yes">
 		<bitfield name="COLOR_FORMAT" low="0" high="7" type="a6xx_format"/>
 		<bitfield name="TILE_MODE" low="8" high="9" type="a6xx_tile_mode"/>
 		<bitfield name="COLOR_SWAP" low="10" high="11" type="a3xx_color_swap"/>
 		<bitfield name="FLAGS" pos="12" type="boolean"/>
 		<bitfield name="SRGB" pos="13" type="boolean"/>
-		<!-- the rest is only for src -->
 		<bitfield name="SAMPLES" low="14" high="15" type="a3xx_msaa_samples"/>
 		<bitfield name="FILTER" pos="16" type="boolean"/>
 		<bitfield name="UNK17" pos="17" type="boolean"/>
@@ -4470,11 +4471,21 @@ to upconvert to 32b float internally?
 		<bitfield name="UNK22" pos="22" type="boolean"/>
 		<bitfield name="UNK23" low="23" high="26"/>
 		<bitfield name="UNK28" pos="28" type="boolean"/>
+		<bitfield name="MUTABLEEN" pos="29" type="boolean" variants="A7XX-"/>
+	</bitset>
+
+	<bitset name="a6xx_2d_dst_surf_info" inline="yes">
+		<bitfield name="COLOR_FORMAT" low="0" high="7" type="a6xx_format"/>
+		<bitfield name="TILE_MODE" low="8" high="9" type="a6xx_tile_mode"/>
+		<bitfield name="COLOR_SWAP" low="10" high="11" type="a3xx_color_swap"/>
+		<bitfield name="FLAGS" pos="12" type="boolean"/>
+		<bitfield name="SRGB" pos="13" type="boolean"/>
+		<bitfield name="SAMPLES" low="14" high="15" type="a3xx_msaa_samples"/>
+		<bitfield name="MUTABLEEN" pos="17" type="boolean" variants="A7XX-"/>
 	</bitset>
 
 	<!-- 0x8c02-0x8c16 invalid -->
-	<!-- TODO: RB_2D_DST_INFO has 17 valid bits (doesn't match a6xx_2d_surf_info) -->
-	<reg32 offset="0x8c17" name="RB_2D_DST_INFO" type="a6xx_2d_surf_info" usage="rp_blit"/>
+	<reg32 offset="0x8c17" name="RB_2D_DST_INFO" type="a6xx_2d_dst_surf_info" usage="rp_blit"/>
 	<reg64 offset="0x8c18" name="RB_2D_DST" type="waddress" align="64" usage="rp_blit"/>
 	<reg32 offset="0x8c1a" name="RB_2D_DST_PITCH" low="0" high="15" shr="6" type="uint" usage="rp_blit"/>
 	<!-- this is a guess but seems likely (for NV12/IYUV): -->
@@ -5845,7 +5856,7 @@ to upconvert to 32b float internally?
 	badly named or the functionality moved in a6xx.  But downstream kernel
 	calls this "a6xx_sp_ps_tp_2d_cluster"
 	 -->
-	<reg32 offset="0xb4c0" name="SP_PS_2D_SRC_INFO" type="a6xx_2d_surf_info" variants="A6XX" usage="rp_blit"/>
+	<reg32 offset="0xb4c0" name="SP_PS_2D_SRC_INFO" type="a6xx_2d_src_surf_info" variants="A6XX" usage="rp_blit"/>
 	<reg32 offset="0xb4c1" name="SP_PS_2D_SRC_SIZE" variants="A6XX" usage="rp_blit">
 		<bitfield name="WIDTH" low="0" high="14" type="uint"/>
 		<bitfield name="HEIGHT" low="15" high="29" type="uint"/>
@@ -5856,7 +5867,7 @@ to upconvert to 32b float internally?
 		<bitfield name="PITCH" low="9" high="23" shr="6" type="uint"/>
 	</reg32>
 
-	<reg32 offset="0xb2c0" name="SP_PS_2D_SRC_INFO" type="a6xx_2d_surf_info" variants="A7XX-" usage="rp_blit"/>
+	<reg32 offset="0xb2c0" name="SP_PS_2D_SRC_INFO" type="a6xx_2d_src_surf_info" variants="A7XX-" usage="rp_blit"/>
 	<reg32 offset="0xb2c1" name="SP_PS_2D_SRC_SIZE" variants="A7XX">
 		<bitfield name="WIDTH" low="0" high="14" type="uint"/>
 		<bitfield name="HEIGHT" low="15" high="29" type="uint"/>
@@ -6380,7 +6391,7 @@ to upconvert to 32b float internally?
 	<reg32 offset="3" name="3"/>
 </domain>
 
-<domain name="A6XX_TEX_CONST" width="32">
+<domain name="A6XX_TEX_CONST" width="32" varset="chip">
 	<doc>Texture constant dwords</doc>
 	<enum name="a6xx_tex_swiz"> <!-- same as a4xx? -->
 		<value name="A6XX_TEX_X" value="0"/>
@@ -6420,6 +6431,7 @@ to upconvert to 32b float internally?
 	<reg32 offset="1" name="1">
 		<bitfield name="WIDTH" low="0" high="14" type="uint"/>
 		<bitfield name="HEIGHT" low="15" high="29" type="uint"/>
+		<bitfield name="MUTABLEEN" pos="31" type="boolean" variants="A7XX-"/>
 	</reg32>
 	<reg32 offset="2" name="2">
 		<!--

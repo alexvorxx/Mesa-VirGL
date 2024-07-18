@@ -296,6 +296,7 @@ struct fdl_view_args {
    enum pipe_format format;
    enum fdl_view_type type;
    enum fdl_chroma_location chroma_offsets[2];
+   bool ubwc_fc_mutable;
 };
 
 #define FDL6_TEX_CONST_DWORDS 16

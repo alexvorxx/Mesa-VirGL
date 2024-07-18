@@ -871,6 +871,7 @@ a7xx_750 = A7XXProps(
         no_gs_hw_binning_quirk = True,
         gs_vpc_adjacency_quirk = True,
         storage_8bit = True,
+        ubwc_all_formats_compatible = True,
     )
 
 a730_magic_regs = dict(

@@ -239,6 +239,7 @@ tu_image_view_init(struct tu_device *device,
    args.level_count = vk_image_subresource_level_count(&image->vk, range);
    args.min_lod_clamp = iview->vk.min_lod;
    args.format = tu_format_for_aspect(format, aspect_mask);
+   args.ubwc_fc_mutable = image->ubwc_fc_mutable;
    vk_component_mapping_to_pipe_swizzle(pCreateInfo->components, args.swiz);
    if (conversion) {
       unsigned char conversion_swiz[4], create_swiz[4];
@@ -647,6 +648,7 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
                       device->use_z24uint_s8uint))
       image->ubwc_enabled = false;
 
+   bool fmt_list_has_swaps = false;
    /* Mutable images can be reinterpreted as any other compatible format.
     * This is a problem with UBWC (compression for different formats is different),
     * but also tiling ("swap" affects how tiled formats are stored in memory)
@@ -663,9 +665,11 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
        !vk_format_is_depth_or_stencil(image->vk.format)) {
       const VkImageFormatListCreateInfo *fmt_list =
          vk_find_struct_const(pCreateInfo->pNext, IMAGE_FORMAT_LIST_CREATE_INFO);
+      fmt_list_has_swaps = format_list_has_swaps(fmt_list);
       if (!tu6_mutable_format_list_ubwc_compatible(device->physical_device->info,
                                                    fmt_list)) {
-         if (image->ubwc_enabled) {
+         bool mutable_ubwc_fc = device->physical_device->info->a7xx.ubwc_all_formats_compatible;
+         if (image->ubwc_enabled && !mutable_ubwc_fc) {
             if (fmt_list && fmt_list->viewFormatCount == 2) {
                perf_debug(
                   device,
@@ -687,10 +691,17 @@ tu_image_init(struct tu_device *device, struct tu_image *image,
             image->ubwc_enabled = false;
          }
 
-         if (format_list_reinterprets_r8g8_r16(tu_vk_format_to_pipe_format(image->vk.format), fmt_list) ||
-            format_list_has_swaps(fmt_list)) {
+         bool r8g8_r16 = format_list_reinterprets_r8g8_r16(tu_vk_format_to_pipe_format(image->vk.format), fmt_list);
+
+         /* A750+ TODO: Correctly handle swaps when copying mutable images.
+          * We should be able to support UBWC for mutable images with swaps.
+          */
+         if ((r8g8_r16 && !mutable_ubwc_fc) || fmt_list_has_swaps) {
+            image->ubwc_enabled = false;
             image->force_linear_tile = true;
          }
+
+         image->ubwc_fc_mutable = image->ubwc_enabled && mutable_ubwc_fc;
       }
    }
 
