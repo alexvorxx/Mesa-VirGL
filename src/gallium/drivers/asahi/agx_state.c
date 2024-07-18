@@ -1894,7 +1894,7 @@ agx_shader_initialize(struct agx_device *dev, struct agx_uncompiled_shader *so,
    so->type = pipe_shader_type_from_mesa(nir->info.stage);
 
    if (nir->info.stage == MESA_SHADER_TESS_EVAL) {
-      NIR_PASS(_, nir, agx_nir_lower_tes, dev->libagx);
+      NIR_PASS(_, nir, agx_nir_lower_tes, dev->libagx, true);
    }
 
    blob_init(&so->serialized_nir);

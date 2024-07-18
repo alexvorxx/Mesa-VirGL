@@ -71,7 +71,8 @@ void agx_nir_tessellate(struct nir_builder *b, const void *key);
 
 bool agx_nir_lower_tcs(struct nir_shader *tcs, const struct nir_shader *libagx);
 
-bool agx_nir_lower_tes(struct nir_shader *tes, const struct nir_shader *libagx);
+bool agx_nir_lower_tes(struct nir_shader *tes, const struct nir_shader *libagx,
+                       bool to_hw_vs);
 
 uint64_t agx_tcs_per_vertex_outputs(const struct nir_shader *nir);
 

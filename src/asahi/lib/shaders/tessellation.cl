@@ -25,6 +25,22 @@ libagx_tcs_unrolled_id(constant struct libagx_tess_args *p, uint3 wg_id)
    return (wg_id.y * p->patches_per_instance) + wg_id.x;
 }
 
+/*
+ * Helper to lower indexing for a tess eval shader ran as a compute shader. This
+ * handles the tess+geom case. This is simpler than the general input assembly
+ * lowering, as we know:
+ *
+ * 1. the index buffer is U32
+ * 2. the index is in bounds
+ *
+ * Therefore we do a simple load. No bounds checking needed.
+ */
+uint32_t
+libagx_load_tes_index(constant struct libagx_tess_args *p, uint32_t index)
+{
+   return p->index_buffer[index];
+}
+
 ushort
 libagx_tcs_in_offset(uint vtx, gl_varying_slot location,
                      uint64_t crosslane_vs_out_mask)
