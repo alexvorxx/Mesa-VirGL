@@ -22,6 +22,10 @@
  *
  */
 
+/**
+ * @file         vpe_version.h
+ * @brief        This is the file containing the information and definitions for VPE versioning.
+ */
 #pragma once
 
 #ifdef __cplusplus
