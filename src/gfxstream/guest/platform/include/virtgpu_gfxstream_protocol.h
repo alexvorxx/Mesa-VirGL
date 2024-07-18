@@ -124,7 +124,7 @@ struct vulkanCapset {
     uint32_t noRenderControlEnc;
     uint32_t alwaysBlob;
     uint32_t externalSync;
-    uint32_t padding[12];
+    uint32_t virglSupportedFormats[16];
 };
 
 struct magmaCapset {
