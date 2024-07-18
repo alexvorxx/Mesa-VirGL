@@ -3065,6 +3065,11 @@ cmd_buffer_emit_depth_viewport(struct anv_cmd_buffer *cmd_buffer,
       float min_depth = MIN2(vp->minDepth, vp->maxDepth);
       float max_depth = MAX2(vp->minDepth, vp->maxDepth);
 
+      if (dyn->vp.depth_clamp_mode == VK_DEPTH_CLAMP_MODE_USER_DEFINED_RANGE_EXT) {
+         min_depth = dyn->vp.depth_clamp_range.minDepthClamp;
+         max_depth = dyn->vp.depth_clamp_range.maxDepthClamp;
+      }
+
       struct GENX(CC_VIEWPORT) cc_viewport = {
          .MinimumDepth = depth_clamp_enable ? min_depth : 0.0f,
          .MaximumDepth = depth_clamp_enable ? max_depth : 1.0f,

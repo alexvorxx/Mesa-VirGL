@@ -285,6 +285,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_conditional_rendering             = device->info.verx10 >= 75,
       .EXT_custom_border_color               = device->info.ver >= 8,
       .EXT_depth_clamp_zero_one              = true,
+      .EXT_depth_clamp_control               = true,
       .EXT_depth_clip_control                = true,
       .EXT_depth_clip_enable                 = true,
 #ifdef VK_USE_PLATFORM_DISPLAY_KHR
@@ -648,6 +649,9 @@ get_features(const struct anv_physical_device *pdevice,
       /* VK_EXT_primitive_topology_list_restart */
       .primitiveTopologyListRestart = true,
       .primitiveTopologyPatchListRestart = true,
+
+      /* VK_EXT_depth_clamp_control */
+      .depthClampControl = true,
 
       /* VK_EXT_depth_clip_control */
       .depthClipControl = true,
