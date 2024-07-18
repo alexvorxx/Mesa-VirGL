@@ -1488,7 +1488,7 @@ lower_vs_before_gs(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 
 bool
 agx_nir_lower_vs_before_gs(struct nir_shader *vs,
-                           const struct nir_shader *libagx, uint64_t *outputs)
+                           const struct nir_shader *libagx)
 {
    bool progress = false;
 
@@ -1500,12 +1500,7 @@ agx_nir_lower_vs_before_gs(struct nir_shader *vs,
    if (progress)
       link_libagx(vs, libagx);
 
-   /* Turn into a compute shader now that we're free of vertexisms */
-   vs->info.stage = MESA_SHADER_COMPUTE;
-   memset(&vs->info.cs, 0, sizeof(vs->info.cs));
-   vs->xfb_info = NULL;
-   *outputs = vs->info.outputs_written;
-   return true;
+   return progress;
 }
 
 void
