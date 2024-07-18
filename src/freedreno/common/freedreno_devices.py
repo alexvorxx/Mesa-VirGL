@@ -536,6 +536,36 @@ add_gpus([
     ))
 
 add_gpus([
+        GPUId(chip_id=0xffff06020100, name="FD621"),
+    ], A6xxGPUInfo(
+        CHIP.A6XX,
+        [a6xx_base, a6xx_gen3, A6XXProps(lrz_track_quirk = False)],
+        num_ccu = 2,
+        tile_align_w = 96,
+        tile_align_h = 16,
+        num_vsc_pipes = 32,
+        cs_shared_mem_size = 32 * 1024,
+        wave_granularity = 2,
+        fibers_per_sp = 128 * 2 * 16,
+        magic_regs = dict(
+            PC_POWER_CNTL = 0,
+            # this seems to be a chicken bit that fixes cubic filtering:
+            TPL1_DBG_ECO_CNTL = 0x01008000,
+            GRAS_DBG_ECO_CNTL = 0x0,
+            SP_CHICKEN_BITS = 0x00001400,
+            # UCHE_CLIENT_PF = 0x00000004,
+            PC_MODE_CNTL = 0x1f,
+            SP_DBG_ECO_CNTL = 0x03000000,
+            RB_DBG_ECO_CNTL = 0x04100000,
+            RB_DBG_ECO_CNTL_blit = 0x04100000,
+            HLSQ_DBG_ECO_CNTL = 0x0,
+            RB_UNKNOWN_8E01 = 0x0,
+            VPC_DBG_ECO_CNTL = 0x02000000,
+            UCHE_UNKNOWN_0E12 = 0x00000001
+        )
+    ))
+
+add_gpus([
         GPUId(630),
     ], A6xxGPUInfo(
         CHIP.A6XX,
