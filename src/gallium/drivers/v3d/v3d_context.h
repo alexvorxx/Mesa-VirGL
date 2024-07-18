@@ -378,11 +378,14 @@ struct v3d_job {
          * Surfaces to submit rendering for.
          * For blit operations, bbuf is the source surface, and cbufs[0] is
          * the destination surface.
+         * For blit operations straight from the job's tile buffer, dbuf is the
+         * blit destination surface.
          */
         uint32_t nr_cbufs;
         struct pipe_surface *cbufs[V3D_MAX_DRAW_BUFFERS];
         struct pipe_surface *zsbuf;
         struct pipe_surface *bbuf;
+        struct pipe_surface *dbuf;
         /** @} */
         /** @{
          * Bounding box of the scissor across all queued drawing.
@@ -453,6 +456,13 @@ struct v3d_job {
          * (either clears or draws) and should be stored.
          */
         uint32_t store;
+        /* Bitmask of PIPE_CLEAR_* of buffers that need to be blitted into
+         * a destination buffer other than the jobs RT. Used to implement
+         * blits from jobs that have not yet been flushed, including MSAA
+         * resolve.
+         */
+        uint32_t blit_tlb;
+
         uint32_t clear_color[V3D_MAX_DRAW_BUFFERS][4];
         float clear_z;
         uint8_t clear_s;
