@@ -270,7 +270,4 @@ fd6_compute_init(struct pipe_context *pctx)
    pctx->create_compute_state = fd6_compute_state_create;
    pctx->delete_compute_state = fd6_compute_state_delete;
 }
-
-/* Teach the compiler about needed variants: */
-template void fd6_compute_init<A6XX>(struct pipe_context *pctx);
-template void fd6_compute_init<A7XX>(struct pipe_context *pctx);
+FD_GENX(fd6_compute_init);

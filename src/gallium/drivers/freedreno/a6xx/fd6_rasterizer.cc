@@ -114,9 +114,7 @@ __fd6_setup_rasterizer_stateobj(struct fd_context *ctx,
 
    return ring;
 }
-
-template struct fd_ringbuffer *__fd6_setup_rasterizer_stateobj<A6XX>(struct fd_context *ctx, const struct pipe_rasterizer_state *cso, bool primitive_restart);
-template struct fd_ringbuffer *__fd6_setup_rasterizer_stateobj<A7XX>(struct fd_context *ctx, const struct pipe_rasterizer_state *cso, bool primitive_restart);
+FD_GENX(__fd6_setup_rasterizer_stateobj);
 
 void *
 fd6_rasterizer_state_create(struct pipe_context *pctx,

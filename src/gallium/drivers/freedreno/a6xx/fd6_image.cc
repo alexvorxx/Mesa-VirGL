@@ -346,9 +346,7 @@ fd6_build_bindless_state(struct fd_context *ctx, enum pipe_shader_type shader,
 
    return ring;
 }
-
-template struct fd_ringbuffer *fd6_build_bindless_state<A6XX>(struct fd_context *ctx, enum pipe_shader_type shader, bool append_fb_read);
-template struct fd_ringbuffer *fd6_build_bindless_state<A7XX>(struct fd_context *ctx, enum pipe_shader_type shader, bool append_fb_read);
+FD_GENX(fd6_build_bindless_state);
 
 static void
 fd6_set_shader_buffers(struct pipe_context *pctx, enum pipe_shader_type shader,

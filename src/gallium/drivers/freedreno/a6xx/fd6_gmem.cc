@@ -1940,7 +1940,4 @@ fd6_gmem_init(struct pipe_context *pctx)
    ctx->emit_sysmem = fd6_emit_sysmem<CHIP>;
    ctx->emit_sysmem_fini = fd6_emit_sysmem_fini;
 }
-
-/* Teach the compiler about needed variants: */
-template void fd6_gmem_init<A6XX>(struct pipe_context *pctx);
-template void fd6_gmem_init<A7XX>(struct pipe_context *pctx);
+FD_GENX(fd6_gmem_init);

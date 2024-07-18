@@ -1479,7 +1479,4 @@ fd6_prog_init(struct pipe_context *pctx)
 
    fd_prog_init(pctx);
 }
-
-/* Teach the compiler about needed variants: */
-template void fd6_prog_init<A6XX>(struct pipe_context *pctx);
-template void fd6_prog_init<A7XX>(struct pipe_context *pctx);
+FD_GENX(fd6_prog_init);

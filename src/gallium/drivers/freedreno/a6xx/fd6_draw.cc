@@ -687,7 +687,4 @@ fd6_draw_init(struct pipe_context *pctx)
    ctx->update_draw = fd6_update_draw<CHIP>;
    fd6_update_draw<CHIP>(ctx);
 }
-
-/* Teach the compiler about needed variants: */
-template void fd6_draw_init<A6XX>(struct pipe_context *pctx);
-template void fd6_draw_init<A7XX>(struct pipe_context *pctx);
+FD_GENX(fd6_draw_init);

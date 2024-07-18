@@ -856,9 +856,7 @@ fd6_clear_lrz(struct fd_batch *batch, struct fd_resource *zsbuf,
    OUT_PKT7(ring, CP_BLIT, 1);
    OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
 }
-
-template void fd6_clear_lrz<A6XX>(struct fd_batch *batch, struct fd_resource *zsbuf, struct fd_bo *lrz, double depth);
-template void fd6_clear_lrz<A7XX>(struct fd_batch *batch, struct fd_resource *zsbuf, struct fd_bo *lrz, double depth);
+FD_GENX(fd6_clear_lrz);
 
 /**
  * Handle conversion of clear color
@@ -933,13 +931,7 @@ fd6_clear_surface(struct fd_context *ctx, struct fd_ringbuffer *ring,
       OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
    }
 }
-
-template void fd6_clear_surface<A6XX>(struct fd_context *ctx, struct fd_ringbuffer *ring,
-                                      struct pipe_surface *psurf, const struct pipe_box *box2d,
-                                      union pipe_color_union *color, uint32_t unknown_8c01);
-template void fd6_clear_surface<A7XX>(struct fd_context *ctx, struct fd_ringbuffer *ring,
-                                      struct pipe_surface *psurf, const struct pipe_box *box2d,
-                                      union pipe_color_union *color, uint32_t unknown_8c01);
+FD_GENX(fd6_clear_surface);
 
 template <chip CHIP>
 static void
@@ -1112,11 +1104,7 @@ fd6_resolve_tile(struct fd_batch *batch, struct fd_ringbuffer *ring,
    fd6_emit_flushes(batch->ctx, ring,
                     FD6_FLUSH_CCU_COLOR | FD6_WAIT_FOR_IDLE);
 }
-
-template void fd6_resolve_tile<A6XX>(struct fd_batch *batch, struct fd_ringbuffer *ring,
-                                     uint32_t base, struct pipe_surface *psurf, uint32_t unknown_8c01);
-template void fd6_resolve_tile<A7XX>(struct fd_batch *batch, struct fd_ringbuffer *ring,
-                                     uint32_t base, struct pipe_surface *psurf, uint32_t unknown_8c01);
+FD_GENX(fd6_resolve_tile);
 
 template <chip CHIP>
 static bool
@@ -1416,10 +1404,7 @@ fd6_blitter_init(struct pipe_context *pctx)
    pctx->clear_texture = fd6_clear_texture<CHIP>;
    ctx->blit = fd6_blit<CHIP>;
 }
-
-/* Teach the compiler about needed variants: */
-template void fd6_blitter_init<A6XX>(struct pipe_context *pctx);
-template void fd6_blitter_init<A7XX>(struct pipe_context *pctx);
+FD_GENX(fd6_blitter_init);
 
 unsigned
 fd6_tile_mode_for_format(enum pipe_format pfmt)

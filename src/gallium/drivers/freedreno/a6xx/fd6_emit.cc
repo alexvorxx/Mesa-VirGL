@@ -799,9 +799,7 @@ fd6_emit_ccu_cntl(struct fd_ringbuffer *ring, struct fd_screen *screen, bool gme
                             .color_offset = offset,
                             ));
 }
-
-template void fd6_emit_cs_state<A6XX>(struct fd_context *ctx, struct fd_ringbuffer *ring, struct fd6_compute_state *cs);
-template void fd6_emit_cs_state<A7XX>(struct fd_context *ctx, struct fd_ringbuffer *ring, struct fd6_compute_state *cs);
+FD_GENX(fd6_emit_cs_state);
 
 template <chip CHIP>
 static void
@@ -999,9 +997,7 @@ fd6_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
       trace_end_state_restore(&batch->trace, ring);
    }
 }
-
-template void fd6_emit_restore<A6XX>(struct fd_batch *batch, struct fd_ringbuffer *ring);
-template void fd6_emit_restore<A7XX>(struct fd_batch *batch, struct fd_ringbuffer *ring);
+FD_GENX(fd6_emit_restore);
 
 static void
 fd6_mem_to_mem(struct fd_ringbuffer *ring, struct pipe_resource *dst,

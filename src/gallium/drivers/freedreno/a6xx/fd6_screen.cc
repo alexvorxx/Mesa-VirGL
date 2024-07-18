@@ -186,11 +186,7 @@ fd6_screen_init(struct pipe_screen *pscreen)
          FD_GMEM_DEPTH_ENABLED | FD_GMEM_STENCIL_ENABLED |
          FD_GMEM_BLEND_ENABLED | FD_GMEM_LOGICOP_ENABLED);
 
-   if (screen->gen == 7) {
-      pscreen->context_create = fd6_context_create<A7XX>;
-   } else {
-      pscreen->context_create = fd6_context_create<A6XX>;
-   }
+   pscreen->context_create = FD_CALLX(screen->info, fd6_context_create);
    pscreen->is_format_supported = fd6_screen_is_format_supported;
 
    screen->tile_mode = fd6_tile_mode;

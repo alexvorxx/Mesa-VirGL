@@ -331,7 +331,4 @@ fd6_context_create(struct pipe_screen *pscreen, void *priv,
 
    return fd_context_init_tc(pctx, flags);
 }
-
-/* Teach the compiler about needed variants: */
-template struct pipe_context *fd6_context_create<A6XX>(struct pipe_screen *pscreen, void *priv, unsigned flags);
-template struct pipe_context *fd6_context_create<A7XX>(struct pipe_screen *pscreen, void *priv, unsigned flags);
+FD_GENX(fd6_context_create);
