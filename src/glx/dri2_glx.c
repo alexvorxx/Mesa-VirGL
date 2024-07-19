@@ -56,7 +56,6 @@
 
 struct dri2_display
 {
-   const __DRIextension *loader_extensions[5];
 };
 
 struct dri2_drawable
@@ -964,13 +963,18 @@ static const struct glx_screen_vtable dri2_screen_vtable = {
    .get_driver_name        = dri2_get_driver_name,
 };
 
+static const __DRIextension *loader_extensions[] = {
+   &dri2LoaderExtension.base,
+   &dri2UseInvalidate.base,
+   &driBackgroundCallable.base,
+   NULL
+};
+
 struct glx_screen *
 dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_inferred)
 {
    const __DRIconfig **driver_configs;
    const __DRIextension **extensions;
-   const struct dri2_display *const pdp = (struct dri2_display *)
-      priv->dri2Display;
    struct dri2_screen *psc;
    __GLXDRIscreen *psp;
    struct glx_config *configs = NULL, *visuals = NULL;
@@ -1036,7 +1040,7 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
 
    psc->driScreen =
        psc->dri2->createNewScreen3(screen, psc->fd,
-                                   (const __DRIextension **)&pdp->loader_extensions[0],
+                                   loader_extensions,
                                    extensions,
                                    &driver_configs, driver_name_is_inferred, psc);
 
@@ -1198,13 +1202,6 @@ dri2CreateDisplay(Display * dpy)
    pdp = malloc(sizeof *pdp);
    if (pdp == NULL)
       return NULL;
-
-
-   int i = 0;
-   pdp->loader_extensions[i++] = &dri2LoaderExtension.base;
-   pdp->loader_extensions[i++] = &dri2UseInvalidate.base;
-   pdp->loader_extensions[i++] = &driBackgroundCallable.base;
-   pdp->loader_extensions[i++] = NULL;
 
    return (void*)pdp;
 }
