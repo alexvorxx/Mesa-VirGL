@@ -30,7 +30,6 @@
 
 struct driwindows_display
 {
-   int event_base;
 };
 
 struct driwindows_context
@@ -50,6 +49,7 @@ struct driwindows_screen
    struct glx_screen base;
    __DRIscreen *driScreen;
    __GLXDRIscreen vtable;
+   int event_base;
    Bool copySubBuffer;
 };
 
@@ -466,6 +466,24 @@ driwindowsCreateScreen(int screen, struct glx_display *priv, bool driver_name_is
    struct driwindows_screen *psc;
    struct glx_config *configs = NULL, *visuals = NULL;
    int directCapable;
+   int eventBase, errorBase;
+   int major, minor, patch;
+
+   /* Verify server has Windows-DRI extension */
+   if (!XWindowsDRIQueryExtension(dpy, &eventBase, &errorBase)) {
+      ErrorMessageF("Windows-DRI extension not available\n");
+      return NULL;
+   }
+
+   if (!XWindowsDRIQueryVersion(dpy, &major, &minor, &patch)) {
+      ErrorMessageF("Fetching Windows-DRI extension version failed\n");
+      return NULL;
+   }
+
+   if (!windows_check_renderer()) {
+      ErrorMessageF("Windows-DRI extension disabled for GDI Generic renderer\n");
+      return NULL;
+   }
 
    psc = calloc(1, sizeof *psc);
    if (psc == NULL)
@@ -537,30 +555,9 @@ driwindowsCreateDisplay(Display * dpy)
 {
    struct driwindows_display *pdpyp;
 
-   int eventBase, errorBase;
-   int major, minor, patch;
-
-   /* Verify server has Windows-DRI extension */
-   if (!XWindowsDRIQueryExtension(dpy, &eventBase, &errorBase)) {
-      ErrorMessageF("Windows-DRI extension not available\n");
-      return NULL;
-   }
-
-   if (!XWindowsDRIQueryVersion(dpy, &major, &minor, &patch)) {
-      ErrorMessageF("Fetching Windows-DRI extension version failed\n");
-      return NULL;
-   }
-
-   if (!windows_check_renderer()) {
-      ErrorMessageF("Windows-DRI extension disabled for GDI Generic renderer\n");
-      return NULL;
-   }
-
    pdpyp = malloc(sizeof *pdpyp);
    if (pdpyp == NULL)
       return NULL;
-
-   pdpyp->event_base = eventBase;
 
    return &pdpyp->base;
 }
