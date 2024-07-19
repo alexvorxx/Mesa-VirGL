@@ -85,6 +85,7 @@ class VirtGpuKumquatDevice : public VirtGpuDevice {
     virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuResource* blob);
 
    private:
+    int32_t mDescriptor = 0;
     struct virtgpu_kumquat* mVirtGpu = nullptr;
     struct VirtGpuCaps mCaps;
 };

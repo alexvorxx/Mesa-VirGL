@@ -407,7 +407,12 @@ int EmulatedAHardwareBuffer::unlock() {
     return 0;
 }
 
-EmulatedGralloc::EmulatedGralloc() {}
+EmulatedGralloc::EmulatedGralloc(VirtGpuDevice* device) : mDevice(device) {}
+
+EmulatedGralloc::~EmulatedGralloc() {
+    mOwned.clear();
+    delete mDevice;
+}
 
 uint32_t EmulatedGralloc::createColorBuffer(void*, int width, int height, uint32_t glFormat) {
     auto drmFormat = GlFormatToDrmFormat(glFormat);
@@ -449,12 +454,6 @@ int EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint32_t ahbForma
 AHardwareBuffer* EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint32_t drmFormat) {
     ALOGE("Allocating AHB w:%u, h:%u, format %u", width, height, drmFormat);
 
-    auto device = VirtGpuDevice::getInstance();
-    if (!device) {
-        ALOGE("Failed to allocate: no virtio gpu device.");
-        return nullptr;
-    }
-
     const auto& formatInfosMap = GetDrmFormatInfoMap();
     auto formatInfoIt = formatInfosMap.find(drmFormat);
     if (formatInfoIt == formatInfosMap.end()) {
@@ -483,8 +482,8 @@ AHardwareBuffer* EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint
                               ? VIRGL_BIND_LINEAR
                               : VIRGL_BIND_RENDER_TARGET;
 
-    auto resource = device->createResource(width, height, stride, size, formatInfo.virglFormat,
-                                           PIPE_TEXTURE_2D, bind);
+    auto resource = mDevice->createResource(width, height, stride, size, formatInfo.virglFormat,
+                                            PIPE_TEXTURE_2D, bind);
     if (!resource) {
         ALOGE("Failed to allocate: failed to create virtio resource.");
         return nullptr;
@@ -577,13 +576,13 @@ int EmulatedGralloc::getId(const AHardwareBuffer* ahb, uint64_t* id) {
 }
 
 Gralloc* createPlatformGralloc(int32_t descriptor) {
-    auto device = VirtGpuDevice::getInstance(kCapsetNone, descriptor);
+    auto device = createPlatformVirtGpuDevice(kCapsetNone, descriptor);
     if (!device) {
         ALOGE("no virtio gpu device.");
         return nullptr;
     }
 
-    return new EmulatedGralloc();
+    return new EmulatedGralloc(device);
 }
 
 }  // namespace gfxstream

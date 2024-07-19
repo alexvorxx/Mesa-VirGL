@@ -99,18 +99,6 @@ static VkResult SetupInstanceForProcess(void) {
     return VK_SUCCESS;
 }
 
-#if defined(END2END_TESTS)
-static VkResult vkInitializeKumquat(uint32_t descriptor) {
-    HostConnection* hostCon = HostConnection::getWithDescriptor(kCapsetGfxStreamVulkan, descriptor);
-    if (!hostCon) {
-        mesa_loge("failed to get kumquat connection");
-        return VK_ERROR_INITIALIZATION_FAILED;
-    }
-
-    return VK_SUCCESS;
-}
-#endif
-
 static bool isMesaOnlyInstanceExtension(const char* name) {
     for (auto mesaExt : kMesaOnlyInstanceExtension) {
         if (!strncmp(mesaExt, name, VK_MAX_EXTENSION_NAME_SIZE)) return true;
@@ -646,13 +634,6 @@ PFN_vkVoidFunction vk_icdGetPhysicalDeviceProcAddr(VkInstance _instance, const c
 
 PFN_vkVoidFunction gfxstream_vk_GetInstanceProcAddr(VkInstance _instance, const char* pName) {
     VK_FROM_HANDLE(gfxstream_vk_instance, instance, _instance);
-
-#if defined(END2END_TESTS)
-    if (strcmp(pName, "vkInitializeKumquat") == 0) {
-        return (PFN_vkVoidFunction)vkInitializeKumquat;
-    }
-#endif
-
     return vk_instance_get_proc_addr(&instance->vk, &gfxstream_vk_instance_entrypoints, pName);
 }
 

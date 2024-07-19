@@ -62,6 +62,7 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int32_t de
 
     if (descriptor >= 0) {
         gpu_socket_path.append(std::to_string(descriptor));
+        mDescriptor = descriptor;
     } else {
         gpu_socket_path.append("0");
     }
@@ -148,7 +149,7 @@ VirtGpuKumquatDevice::~VirtGpuKumquatDevice() { virtgpu_kumquat_finish(&mVirtGpu
 
 struct VirtGpuCaps VirtGpuKumquatDevice::getCaps(void) { return mCaps; }
 
-int64_t VirtGpuKumquatDevice::getDeviceHandle(void) { return -1; }
+int64_t VirtGpuKumquatDevice::getDeviceHandle(void) { return mDescriptor; }
 
 VirtGpuResourcePtr VirtGpuKumquatDevice::createResource(uint32_t width, uint32_t height,
                                                         uint32_t stride, uint32_t size,
