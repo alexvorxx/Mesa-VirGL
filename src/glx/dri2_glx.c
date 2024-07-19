@@ -54,10 +54,6 @@
 #undef DRI2_MINOR
 #define DRI2_MINOR 1
 
-struct dri2_display
-{
-};
-
 struct dri2_drawable
 {
    __GLXDRIdrawable base;
@@ -1130,6 +1126,8 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    if (psc->show_fps_interval < 0)
       psc->show_fps_interval = 0;
 
+   priv->driver = GLX_DRIVER_DRI2;
+
    InfoMessageF("Using DRI2 for screen %d\n", screen);
 
    return &psc->base;
@@ -1152,14 +1150,6 @@ handle_error:
    free(psc);
 
    return NULL;
-}
-
-/* Called from __glXFreeDisplayPrivate.
- */
-void
-dri2DestroyDisplay(__GLXDRIdisplay * dpy)
-{
-   free(dpy);
 }
 
 _X_HIDDEN __GLXDRIdrawable *
@@ -1187,23 +1177,6 @@ dri2CheckSupport(Display *dpy)
       return false;
    }
    return true;
-}
-
-/*
- * Allocate, initialize and return a __DRIdisplayPrivate object.
- * This is called from __glXInitialize() when we are given a new
- * display pointer.
- */
-_X_HIDDEN __GLXDRIdisplay *
-dri2CreateDisplay(Display * dpy)
-{
-   struct dri2_display *pdp;
-
-   pdp = malloc(sizeof *pdp);
-   if (pdp == NULL)
-      return NULL;
-
-   return (void*)pdp;
 }
 
 #endif /* GLX_DIRECT_RENDERING */

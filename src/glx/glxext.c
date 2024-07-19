@@ -286,29 +286,6 @@ glx_display_free(struct glx_display *priv)
    if (priv->dri2Hash)
       __glxHashDestroy(priv->dri2Hash);
 
-   /* Free the direct rendering per display data */
-   if (priv->driswDisplay)
-      driswDestroyDisplay(priv->driswDisplay);
-   priv->driswDisplay = NULL;
-
-#if defined (GLX_USE_DRM)
-#if defined(HAVE_X11_DRI2)
-   if (priv->dri2Display)
-      dri2DestroyDisplay(priv->dri2Display);
-#endif
-   priv->dri2Display = NULL;
-
-   if (priv->dri3Display)
-      dri3_destroy_display(priv->dri3Display);
-   priv->dri3Display = NULL;
-#endif /* GLX_USE_DRM */
-
-#if defined(GLX_USE_WINDOWSGL)
-   if (priv->windowsdriDisplay)
-      driwindowsDestroyDisplay(priv->windowsdriDisplay);
-   priv->windowsdriDisplay = NULL;
-#endif /* GLX_USE_WINDOWSGL */
-
 #endif /* GLX_DIRECT_RENDERING && !GLX_USE_APPLEGL */
 
    free((char *) priv);
@@ -792,13 +769,11 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
 #if defined(GLX_USE_DRM)
 #if defined(HAVE_DRI3)
       if (glx_driver & GLX_DRIVER_DRI3) {
-         priv->dri3Display = dri3_create_display(dpy);
          psc = dri3_create_screen(i, priv, driver_name_is_inferred);
       }
 #endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
       if (psc == NULL && glx_driver & GLX_DRIVER_DRI2 && dri2CheckSupport(dpy)) {
-         priv->dri2Display = dri2CreateDisplay(dpy);
 	      psc = dri2CreateScreen(i, priv, driver_name_is_inferred);
          if (psc)
             priv->dri2Hash = __glxHashCreate();
@@ -808,7 +783,6 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
 
 #ifdef GLX_USE_WINDOWSGL
       if (psc == NULL && glx_driver & GLX_DRIVER_WINDOWS) {
-         priv->windowsdriDisplay = driwindowsCreateDisplay(dpy);
 	      psc = driwindowsCreateScreen(i, priv, driver_name_is_inferred);
       }
 #endif
@@ -817,7 +791,6 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
       if ((psc == GLX_LOADER_USE_ZINK || psc == NULL) &&
           (glx_driver & GLX_DRIVER_SW || zink)) {
-         priv->driswDisplay = driswCreateDisplay(dpy, glx_driver);
 	      psc = driswCreateScreen(i, priv, glx_driver, psc == GLX_LOADER_USE_ZINK ? false : driver_name_is_inferred);
       }
 #endif
@@ -969,7 +942,6 @@ __glXInitialize(Display * dpy)
       Bool fail = True;
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
       if (glx_driver & GLX_DRIVER_ZINK_INFER) {
-         driswDestroyDisplay(dpyPriv->driswDisplay);
          fail = !AllocAndFetchScreenConfigs(dpy, dpyPriv, GLX_DRIVER_SW, true);
       }
 #endif

@@ -1038,6 +1038,8 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       psp->maxSwapInterval = 1;
    }
 
+   priv->driver = glx_driver;
+
    return &psc->base;
 
  handle_error:
@@ -1056,31 +1058,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       CriticalErrorMessageF("failed to load driver: %s\n", driver);
 
    return NULL;
-}
-
-/* Called from __glXFreeDisplayPrivate.
- */
-void
-driswDestroyDisplay(__GLXDRIdisplay * dpy)
-{
-   free(dpy);
-}
-
-/*
- * Allocate, initialize and return a __DRIdisplayPrivate object.
- * This is called from __glXInitialize() when we are given a new
- * display pointer.
- */
-_X_HIDDEN __GLXDRIdisplay *
-driswCreateDisplay(Display * dpy, enum glx_driver glx_driver)
-{
-   struct drisw_display *pdpyp;
-
-   pdpyp = malloc(sizeof *pdpyp);
-   if (pdpyp == NULL)
-      return NULL;
-
-   return (void*)pdpyp;
 }
 
 #endif /* GLX_DIRECT_RENDERING */

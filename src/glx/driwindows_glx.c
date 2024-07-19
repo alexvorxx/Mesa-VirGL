@@ -28,10 +28,6 @@
 #include "windows/xwindowsdri.h"
 #include "windows/windowsgl.h"
 
-struct driwindows_display
-{
-};
-
 struct driwindows_context
 {
    struct glx_context base;
@@ -528,6 +524,8 @@ driwindowsCreateScreen(int screen, struct glx_display *priv, bool driver_name_is
 
    if (psc->copySubBuffer)
       psp->copySubBuffer = driwindowsCopySubBuffer;
+   
+   priv->driver = GLX_DRIVER_WINDOWS;
 
    return &psc->base;
 
@@ -535,29 +533,4 @@ handle_error:
    glx_screen_cleanup(&psc->base);
 
    return NULL;
-}
-
-/* Called from __glXFreeDisplayPrivate.
- */
-static void
-driwindowsDestroyDisplay(__GLXDRIdisplay * dpy)
-{
-   free(dpy);
-}
-
-/*
- * Allocate, initialize and return a  __GLXDRIdisplay object.
- * This is called from __glXInitialize() when we are given a new
- * display pointer.
- */
-_X_HIDDEN __GLXDRIdisplay *
-driwindowsCreateDisplay(Display * dpy)
-{
-   struct driwindows_display *pdpyp;
-
-   pdpyp = malloc(sizeof *pdpyp);
-   if (pdpyp == NULL)
-      return NULL;
-
-   return &pdpyp->base;
 }
