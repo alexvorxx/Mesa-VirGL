@@ -814,7 +814,7 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
       if ((psc == GLX_LOADER_USE_ZINK || psc == NULL) &&
           (glx_driver & GLX_DRIVER_SW || zink)) {
          priv->driswDisplay = driswCreateDisplay(dpy, glx_driver);
-	      psc = driswCreateScreen(i, priv, psc == GLX_LOADER_USE_ZINK ? false : driver_name_is_inferred);
+	      psc = driswCreateScreen(i, priv, glx_driver, psc == GLX_LOADER_USE_ZINK ? false : driver_name_is_inferred);
       }
 #endif
 

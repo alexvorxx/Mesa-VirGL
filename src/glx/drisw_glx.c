@@ -797,6 +797,7 @@ driswDestroyScreen(struct glx_screen *base)
    psc->core->destroyScreen(psc->driScreen);
    driDestroyConfigs(psc->driver_configs);
    psc->driScreen = NULL;
+   free(psc->name);
    free(psc);
 }
 
@@ -929,9 +930,8 @@ kopperGetSwapInterval(__GLXDRIdrawable *pdraw)
    return pdp->swapInterval;
 }
 
-static struct glx_screen *
-driswCreateScreenDriver(int screen, struct glx_display *priv,
-                        const char *driver, bool driver_name_is_inferred)
+struct glx_screen *
+driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driver, bool driver_name_is_inferred)
 {
    __GLXDRIscreen *psp;
    const __DRIconfig **driver_configs;
@@ -939,7 +939,10 @@ driswCreateScreenDriver(int screen, struct glx_display *priv,
    struct drisw_screen *psc;
    struct glx_config *configs = NULL, *visuals = NULL;
    const __DRIextension **loader_extensions_local;
-   const struct drisw_display *pdpyp = (struct drisw_display *)priv->driswDisplay;
+
+   /* this is only relevant if zink bits are set */
+   glx_driver &= (GLX_DRIVER_ZINK_INFER | GLX_DRIVER_ZINK_YES);
+   const char *driver = glx_driver && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false) ? "zink" : "swrast";
 
    psc = calloc(1, sizeof *psc);
    if (psc == NULL)
@@ -953,9 +956,9 @@ driswCreateScreenDriver(int screen, struct glx_display *priv,
    extensions = driOpenDriver(driver, driver_name_is_inferred);
    if (extensions == NULL)
       goto handle_error;
-   psc->name = driver;
+   psc->name = strdup(driver);
 
-   if (pdpyp->zink)
+   if (glx_driver)
       loader_extensions_local = kopper_extensions_noshm;
    else if (!check_xshm(psc->base.dpy))
       loader_extensions_local = loader_extensions_noshm;
@@ -977,7 +980,7 @@ driswCreateScreenDriver(int screen, struct glx_display *priv,
                                     extensions,
                                     &driver_configs, driver_name_is_inferred, psc);
    if (psc->driScreen == NULL) {
-      if (!pdpyp->zink || !driver_name_is_inferred)
+      if (!glx_driver || !driver_name_is_inferred)
          ErrorMessageF("glx: failed to create drisw screen\n");
       goto handle_error;
    }
@@ -994,14 +997,14 @@ driswCreateScreenDriver(int screen, struct glx_display *priv,
    }
 
 #if defined(HAVE_DRI3)
-   if (pdpyp->zink) {
+   if (glx_driver) {
       bool err;
       psc->has_multibuffer = loader_dri3_check_multibuffer(XGetXCBConnection(priv->dpy), &err);
       if (!psc->has_multibuffer &&
           !debug_get_bool_option("LIBGL_ALWAYS_SOFTWARE", false) &&
           !debug_get_bool_option("LIBGL_KOPPER_DRI2", false)) {
          /* only print error if zink was explicitly requested */
-         if (pdpyp->zink & GLX_DRIVER_ZINK_YES)
+         if (glx_driver & GLX_DRIVER_ZINK_YES)
             CriticalErrorMessageF("DRI3 not available\n");
          goto handle_error;
       }
@@ -1049,21 +1052,10 @@ driswCreateScreenDriver(int screen, struct glx_display *priv,
    glx_screen_cleanup(&psc->base);
    free(psc);
 
-   if (pdpyp->zink & GLX_DRIVER_ZINK_YES && !driver_name_is_inferred)
+   if (glx_driver & GLX_DRIVER_ZINK_YES && !driver_name_is_inferred)
       CriticalErrorMessageF("failed to load driver: %s\n", driver);
 
    return NULL;
-}
-
-struct glx_screen *
-driswCreateScreen(int screen, struct glx_display *priv, bool driver_name_is_inferred)
-{
-   const struct drisw_display *pdpyp = (struct drisw_display *)priv->driswDisplay;
-   if (pdpyp->zink && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false)) {
-      return driswCreateScreenDriver(screen, priv, "zink", driver_name_is_inferred);
-   }
-
-   return driswCreateScreenDriver(screen, priv, "swrast", driver_name_is_inferred);
 }
 
 /* Called from __glXFreeDisplayPrivate.
@@ -1087,8 +1079,6 @@ driswCreateDisplay(Display * dpy, enum glx_driver glx_driver)
    pdpyp = malloc(sizeof *pdpyp);
    if (pdpyp == NULL)
       return NULL;
-
-   pdpyp->zink = glx_driver & (GLX_DRIVER_ZINK_INFER | GLX_DRIVER_ZINK_YES);
 
    return (void*)pdpyp;
 }
