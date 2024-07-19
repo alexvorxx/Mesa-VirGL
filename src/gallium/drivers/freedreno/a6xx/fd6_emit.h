@@ -237,7 +237,7 @@ __event_write(struct fd_ringbuffer *ring, enum fd_gpu_event event,
       OUT_RING(ring, CP_EVENT_WRITE7_0_EVENT(info.raw_event) |
                CP_EVENT_WRITE7_0_WRITE_SRC(esrc) |
                CP_EVENT_WRITE7_0_WRITE_DST(edst) |
-               CP_EVENT_WRITE7_0_WRITE_ENABLED);
+               COND(info.needs_seqno, CP_EVENT_WRITE7_0_WRITE_ENABLED));
    }
 
    if (info.needs_seqno) {

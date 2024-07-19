@@ -70,6 +70,14 @@ ok_ubwc_format(struct pipe_screen *pscreen, enum pipe_format pfmt)
       break;
    }
 
+   /* In copy_format, we treat snorm as unorm to avoid clamping.  But snorm
+    * and unorm are UBWC incompatible for special values such as all 0's or
+    * all 1's prior to a740.  Disable UBWC for snorm.
+    */
+   if (util_format_is_snorm(pfmt) &&
+       !info->a7xx.ubwc_unorm_snorm_int_compatible)
+      return false;
+
    /* A690 seem to have broken UBWC for depth/stencil, it requires
     * depth flushing where we cannot realistically place it, like between
     * ordinary draw calls writing read/depth. WSL blob seem to use ubwc

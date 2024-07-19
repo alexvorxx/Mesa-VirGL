@@ -267,7 +267,7 @@ fd6_context_create(struct pipe_screen *pscreen, void *priv,
    pctx->destroy = fd6_context_destroy;
    pctx->create_blend_state = fd6_blend_state_create;
    pctx->create_rasterizer_state = fd6_rasterizer_state_create;
-   pctx->create_depth_stencil_alpha_state = fd6_zsa_state_create;
+   pctx->create_depth_stencil_alpha_state = fd6_zsa_state_create<CHIP>;
    pctx->create_vertex_elements_state = fd6_vertex_state_create;
 
    fd6_draw_init<CHIP>(pctx);

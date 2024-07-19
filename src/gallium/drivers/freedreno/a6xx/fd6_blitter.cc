@@ -305,6 +305,11 @@ emit_blit_setup(struct fd_ringbuffer *ring, enum pipe_format pfmt,
    OUT_PKT4(ring, REG_A6XX_GRAS_2D_BLIT_CNTL, 1);
    OUT_RING(ring, blit_cntl);
 
+   if (CHIP >= A7XX) {
+      OUT_PKT4(ring, REG_A7XX_SP_PS_UNKNOWN_B2D2, 1);
+      OUT_RING(ring, 0x20000000);
+   }
+
    if (fmt == FMT6_10_10_10_2_UNORM_DEST)
       fmt = FMT6_16_16_16_16_FLOAT;
 

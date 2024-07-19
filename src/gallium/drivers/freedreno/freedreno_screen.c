@@ -1201,6 +1201,10 @@ fd_screen_create(int fd,
    screen->dev_info = info;
    screen->info = &screen->dev_info;
 
+   /* HACK: disable lrz for now on a7xx: */
+   if (screen->gen == 7)
+      fd_mesa_debug |= FD_DBG_NOLRZ;
+
    /* explicitly checking for GPU revisions that are known to work.  This
     * may be overly conservative for a3xx, where spoofing the gpu_id with
     * the blob driver seems to generate identical cmdstream dumps.  But
@@ -1226,6 +1230,7 @@ fd_screen_create(int fd,
       fd5_screen_init(pscreen);
       break;
    case 6:
+   case 7:
       fd6_screen_init(pscreen);
       break;
    default:

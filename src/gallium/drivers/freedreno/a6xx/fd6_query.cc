@@ -36,6 +36,8 @@
 #include "fd6_emit.h"
 #include "fd6_query.h"
 
+#include "fd6_pack.h"
+
 /* g++ is a picky about offsets that cannot be resolved at compile time, so
  * roll our own __offsetof()
  */
@@ -75,6 +77,7 @@ template <chip CHIP>
 static void
 occlusion_resume(struct fd_acc_query *aq, struct fd_batch *batch)
 {
+   struct fd_context *ctx = batch->ctx;
    struct fd_ringbuffer *ring = batch->draw;
 
    ASSERT_ALIGNED(struct fd6_query_sample, start, 16);
@@ -82,55 +85,109 @@ occlusion_resume(struct fd_acc_query *aq, struct fd_batch *batch)
    OUT_PKT4(ring, REG_A6XX_RB_SAMPLE_COUNT_CONTROL, 1);
    OUT_RING(ring, A6XX_RB_SAMPLE_COUNT_CONTROL_COPY);
 
-   OUT_PKT4(ring, REG_A6XX_RB_SAMPLE_COUNT_ADDR, 2);
-   OUT_RELOC(ring, query_sample(aq, start));
+   if (!ctx->screen->info->a7xx.has_event_write_sample_count) {
+      OUT_PKT4(ring, REG_A6XX_RB_SAMPLE_COUNT_ADDR, 2);
+      OUT_RELOC(ring, query_sample(aq, start));
 
-   fd6_event_write<CHIP>(batch->ctx, ring, FD_ZPASS_DONE);
+      fd6_event_write<CHIP>(ctx, ring, FD_ZPASS_DONE);
+
+      /* Copied from blob's cmdstream, not sure why it is done. */
+      if (CHIP == A7XX) {
+         fd6_event_write<CHIP>(ctx, ring, FD_CCU_CLEAN_DEPTH);
+      }
+   } else {
+      OUT_PKT(ring, CP_EVENT_WRITE7,
+         CP_EVENT_WRITE7_0(
+            .event = ZPASS_DONE,
+            .write_sample_count = true,
+         ),
+         EV_DST_RAM_CP_EVENT_WRITE7_1(query_sample(aq, start)),
+      );
+      OUT_PKT(ring, CP_EVENT_WRITE7,
+         CP_EVENT_WRITE7_0(
+            .event = ZPASS_DONE,
+            .write_sample_count = true,
+            .sample_count_end_offset = true,
+            .write_accum_sample_count_diff = true,
+         ),
+         EV_DST_RAM_CP_EVENT_WRITE7_1(query_sample(aq, start)),
+      );
+   }
+
 }
 
 template <chip CHIP>
 static void
 occlusion_pause(struct fd_acc_query *aq, struct fd_batch *batch) assert_dt
 {
+   struct fd_context *ctx = batch->ctx;
    struct fd_ringbuffer *ring = batch->draw;
 
-   OUT_PKT7(ring, CP_MEM_WRITE, 4);
-   OUT_RELOC(ring, query_sample(aq, stop));
-   OUT_RING(ring, 0xffffffff);
-   OUT_RING(ring, 0xffffffff);
+   if (!ctx->screen->info->a7xx.has_event_write_sample_count) {
+      OUT_PKT7(ring, CP_MEM_WRITE, 4);
+      OUT_RELOC(ring, query_sample(aq, stop));
+      OUT_RING(ring, 0xffffffff);
+      OUT_RING(ring, 0xffffffff);
 
-   OUT_PKT7(ring, CP_WAIT_MEM_WRITES, 0);
+      OUT_PKT7(ring, CP_WAIT_MEM_WRITES, 0);
+   }
 
    OUT_PKT4(ring, REG_A6XX_RB_SAMPLE_COUNT_CONTROL, 1);
    OUT_RING(ring, A6XX_RB_SAMPLE_COUNT_CONTROL_COPY);
 
    ASSERT_ALIGNED(struct fd6_query_sample, stop, 16);
 
-   OUT_PKT4(ring, REG_A6XX_RB_SAMPLE_COUNT_ADDR, 2);
-   OUT_RELOC(ring, query_sample(aq, stop));
+   if (!ctx->screen->info->a7xx.has_event_write_sample_count) {
+      OUT_PKT4(ring, REG_A6XX_RB_SAMPLE_COUNT_ADDR, 2);
+      OUT_RELOC(ring, query_sample(aq, stop));
 
-   fd6_event_write<CHIP>(batch->ctx, ring, FD_ZPASS_DONE);
+      fd6_event_write<CHIP>(batch->ctx, ring, FD_ZPASS_DONE);
 
-   /* To avoid stalling in the draw buffer, emit code the code to compute the
-    * counter delta in the epilogue ring.
-    */
-   struct fd_ringbuffer *epilogue = fd_batch_get_tile_epilogue(batch);
+      /* To avoid stalling in the draw buffer, emit code the code to compute the
+       * counter delta in the epilogue ring.
+       */
+      struct fd_ringbuffer *epilogue = fd_batch_get_tile_epilogue(batch);
 
-   OUT_PKT7(epilogue, CP_WAIT_REG_MEM, 6);
-   OUT_RING(epilogue, CP_WAIT_REG_MEM_0_FUNCTION(WRITE_NE) |
-                      CP_WAIT_REG_MEM_0_POLL(POLL_MEMORY));
-   OUT_RELOC(epilogue, query_sample(aq, stop));
-   OUT_RING(epilogue, CP_WAIT_REG_MEM_3_REF(0xffffffff));
-   OUT_RING(epilogue, CP_WAIT_REG_MEM_4_MASK(0xffffffff));
-   OUT_RING(epilogue, CP_WAIT_REG_MEM_5_DELAY_LOOP_CYCLES(16));
+      OUT_PKT7(epilogue, CP_WAIT_REG_MEM, 6);
+      OUT_RING(epilogue, CP_WAIT_REG_MEM_0_FUNCTION(WRITE_NE) |
+                            CP_WAIT_REG_MEM_0_POLL(POLL_MEMORY));
+      OUT_RELOC(epilogue, query_sample(aq, stop));
+      OUT_RING(epilogue, CP_WAIT_REG_MEM_3_REF(0xffffffff));
+      OUT_RING(epilogue, CP_WAIT_REG_MEM_4_MASK(0xffffffff));
+      OUT_RING(epilogue, CP_WAIT_REG_MEM_5_DELAY_LOOP_CYCLES(16));
 
-   /* result += stop - start: */
-   OUT_PKT7(epilogue, CP_MEM_TO_MEM, 9);
-   OUT_RING(epilogue, CP_MEM_TO_MEM_0_DOUBLE | CP_MEM_TO_MEM_0_NEG_C);
-   OUT_RELOC(epilogue, query_sample(aq, result)); /* dst */
-   OUT_RELOC(epilogue, query_sample(aq, result)); /* srcA */
-   OUT_RELOC(epilogue, query_sample(aq, stop));   /* srcB */
-   OUT_RELOC(epilogue, query_sample(aq, start));  /* srcC */
+      /* result += stop - start: */
+      OUT_PKT7(epilogue, CP_MEM_TO_MEM, 9);
+      OUT_RING(epilogue, CP_MEM_TO_MEM_0_DOUBLE | CP_MEM_TO_MEM_0_NEG_C);
+      OUT_RELOC(epilogue, query_sample(aq, result)); /* dst */
+      OUT_RELOC(epilogue, query_sample(aq, result)); /* srcA */
+      OUT_RELOC(epilogue, query_sample(aq, stop));   /* srcB */
+      OUT_RELOC(epilogue, query_sample(aq, start));  /* srcC */
+   } else {
+      OUT_PKT(ring, CP_EVENT_WRITE7,
+         CP_EVENT_WRITE7_0(
+            .event = ZPASS_DONE,
+            .write_sample_count = true,
+         ),
+         EV_DST_RAM_CP_EVENT_WRITE7_1(query_sample(aq, stop)),
+      );
+      OUT_PKT(ring, CP_EVENT_WRITE7,
+         CP_EVENT_WRITE7_0(
+            .event = ZPASS_DONE,
+            .write_sample_count = true,
+            .sample_count_end_offset = true,
+            .write_accum_sample_count_diff = true,
+         ),
+         /* Note: SQE is adding offsets to the iova, SAMPLE_COUNT_END_OFFSET causes
+          * the result to be written to iova+16, and WRITE_ACCUM_SAMP_COUNT_DIFF
+          * does *(iova + 8) += *(iova + 16) - *iova
+          *
+          * It just so happens this is the layout we already to for start/result/stop
+          * So we just give the start address in all cases.
+          */
+         EV_DST_RAM_CP_EVENT_WRITE7_1(query_sample(aq, start)),
+      );
+   }
 }
 
 static void
