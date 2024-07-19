@@ -86,6 +86,7 @@ if with_dri
   link_for_egl += libloader
   incs_for_egl += inc_loader
   incs_for_egl += inc_loader_x11
+  incs_for_egl += inc_loader_dri3
   incs_for_egl += inc_gallium
   incs_for_egl += inc_gallium_aux
   incs_for_egl += inc_mesa
