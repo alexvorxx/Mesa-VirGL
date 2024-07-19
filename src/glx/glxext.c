@@ -797,7 +797,7 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
       }
 #endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
-      if (psc == NULL && glx_driver & GLX_DRIVER_DRI2) {
+      if (psc == NULL && glx_driver & GLX_DRIVER_DRI2 && dri2CheckSupport(dpy)) {
          priv->dri2Display = dri2CreateDisplay(dpy);
 	      psc = dri2CreateScreen(i, priv, driver_name_is_inferred);
          if (psc)

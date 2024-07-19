@@ -1170,6 +1170,21 @@ dri2GetGlxDrawableFromXDrawableId(Display *dpy, XID id)
    return NULL;
 }
 
+bool
+dri2CheckSupport(Display *dpy)
+{
+   int eventBase, errorBase;
+   int driMajor, driMinor;
+
+   if (!DRI2QueryExtension(dpy, &eventBase, &errorBase))
+      return false;
+   if (!DRI2QueryVersion(dpy, &driMajor, &driMinor) ||
+       driMinor < 3) {
+      return false;
+   }
+   return true;
+}
+
 /*
  * Allocate, initialize and return a __DRIdisplayPrivate object.
  * This is called from __glXInitialize() when we are given a new
@@ -1179,22 +1194,13 @@ _X_HIDDEN __GLXDRIdisplay *
 dri2CreateDisplay(Display * dpy)
 {
    struct dri2_display *pdp;
-   int eventBase, errorBase, i;
-   int driMajor, driMinor;
-
-   if (!DRI2QueryExtension(dpy, &eventBase, &errorBase))
-      return NULL;
-   if (!DRI2QueryVersion(dpy, &driMajor, &driMinor) ||
-       driMinor < 3) {
-      return NULL;
-   }
 
    pdp = malloc(sizeof *pdp);
    if (pdp == NULL)
       return NULL;
 
 
-   i = 0;
+   int i = 0;
    pdp->loader_extensions[i++] = &dri2LoaderExtension.base;
    pdp->loader_extensions[i++] = &dri2UseInvalidate.base;
    pdp->loader_extensions[i++] = &driBackgroundCallable.base;
