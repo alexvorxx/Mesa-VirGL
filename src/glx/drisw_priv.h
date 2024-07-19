@@ -31,7 +31,7 @@
 
 struct drisw_display
 {
-   enum try_zink zink;
+   enum glx_driver zink;
 };
 
 struct drisw_screen

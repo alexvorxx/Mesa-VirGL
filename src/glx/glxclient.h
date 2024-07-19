@@ -123,17 +123,22 @@ struct __GLXDRIdrawableRec
    int refcount;
 };
 
-enum try_zink {
-   TRY_ZINK_NO,
-   TRY_ZINK_INFER,
-   TRY_ZINK_YES,
+/* bits */
+enum glx_driver {
+   GLX_DRIVER_NONE = 0,
+   GLX_DRIVER_ZINK_INFER = (1<<0),
+   GLX_DRIVER_SW = (1<<1),
+   GLX_DRIVER_DRI2 = (1<<2),
+   GLX_DRIVER_DRI3 = (1<<3),
+   GLX_DRIVER_WINDOWS = (1<<4),
+   GLX_DRIVER_ZINK_YES = (1<<5),
 };
 
 /*
 ** Function to create and DRI display data and initialize the display
 ** dependent methods.
 */
-extern __GLXDRIdisplay *driswCreateDisplay(Display * dpy, enum try_zink zink);
+extern __GLXDRIdisplay *driswCreateDisplay(Display * dpy, enum glx_driver glx_driver);
 extern __GLXDRIdisplay *dri2CreateDisplay(Display * dpy);
 extern __GLXDRIdisplay *dri3_create_display(Display * dpy);
 extern __GLXDRIdisplay *driwindowsCreateDisplay(Display * dpy);
@@ -148,7 +153,7 @@ void dri3_destroy_display(__GLXDRIdisplay * dpy);
 struct glx_screen *dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_inferred);
 void dri2DestroyDisplay(__GLXDRIdisplay * dpy);
 
-struct glx_screen * driswCreateScreenDriver(int screen, struct glx_display *priv, const char *driver, bool driver_name_is_inferred);
+struct glx_screen *driswCreateScreen(int screen, struct glx_display *priv, bool driver_name_is_inferred);
 void driswDestroyDisplay(__GLXDRIdisplay * dpy);
 #endif
 

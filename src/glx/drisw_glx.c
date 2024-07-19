@@ -929,7 +929,7 @@ kopperGetSwapInterval(__GLXDRIdrawable *pdraw)
    return pdp->swapInterval;
 }
 
-struct glx_screen *
+static struct glx_screen *
 driswCreateScreenDriver(int screen, struct glx_display *priv,
                         const char *driver, bool driver_name_is_inferred)
 {
@@ -1001,7 +1001,7 @@ driswCreateScreenDriver(int screen, struct glx_display *priv,
           !debug_get_bool_option("LIBGL_ALWAYS_SOFTWARE", false) &&
           !debug_get_bool_option("LIBGL_KOPPER_DRI2", false)) {
          /* only print error if zink was explicitly requested */
-         if (pdpyp->zink == TRY_ZINK_YES)
+         if (pdpyp->zink & GLX_DRIVER_ZINK_YES)
             CriticalErrorMessageF("DRI3 not available\n");
          goto handle_error;
       }
@@ -1049,7 +1049,7 @@ driswCreateScreenDriver(int screen, struct glx_display *priv,
    glx_screen_cleanup(&psc->base);
    free(psc);
 
-   if (pdpyp->zink == TRY_ZINK_YES && !driver_name_is_inferred)
+   if (pdpyp->zink & GLX_DRIVER_ZINK_YES && !driver_name_is_inferred)
       CriticalErrorMessageF("failed to load driver: %s\n", driver);
 
    return NULL;
@@ -1080,7 +1080,7 @@ driswDestroyDisplay(__GLXDRIdisplay * dpy)
  * display pointer.
  */
 _X_HIDDEN __GLXDRIdisplay *
-driswCreateDisplay(Display * dpy, enum try_zink zink)
+driswCreateDisplay(Display * dpy, enum glx_driver glx_driver)
 {
    struct drisw_display *pdpyp;
 
@@ -1088,7 +1088,7 @@ driswCreateDisplay(Display * dpy, enum try_zink zink)
    if (pdpyp == NULL)
       return NULL;
 
-   pdpyp->zink = zink;
+   pdpyp->zink = glx_driver & (GLX_DRIVER_ZINK_INFER | GLX_DRIVER_ZINK_YES);
 
    return (void*)pdpyp;
 }

@@ -32,6 +32,10 @@
 #include "dri_common.h"
 #endif
 
+#ifdef HAVE_DRI3
+#include "loader_dri3_helper.h"
+#endif
+
 #include <X11/Xlib-xcb.h>
 #include <xcb/xcb.h>
 #include <xcb/glx.h>
@@ -286,8 +290,10 @@ glx_display_free(struct glx_display *priv)
    priv->driswDisplay = NULL;
 
 #if defined (GLX_USE_DRM)
+#if defined(HAVE_X11_DRI2)
    if (priv->dri2Display)
       dri2DestroyDisplay(priv->dri2Display);
+#endif
    priv->dri2Display = NULL;
 
    if (priv->dri3Display)
@@ -763,11 +769,12 @@ glx_screen_cleanup(struct glx_screen *psc)
 ** If that works then fetch the per screen configs data.
 */
 static Bool
-AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, Bool zink, Bool driver_name_is_inferred)
+AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_driver glx_driver, Bool driver_name_is_inferred)
 {
    struct glx_screen *psc;
    GLint i, screens;
    unsigned screen_count = 0;
+   bool zink = (glx_driver & (GLX_DRIVER_ZINK_INFER | GLX_DRIVER_ZINK_YES)) > 0;
 
    /*
     ** First allocate memory for the array of per screen configs.
@@ -782,26 +789,32 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, Bool zink, 
 #if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
 #if defined(GLX_USE_DRM)
 #if defined(HAVE_DRI3)
-      if (priv->dri3Display)
+      if (glx_driver & GLX_DRIVER_DRI3) {
+         priv->dri3Display = dri3_create_display(dpy);
          psc = dri3_create_screen(i, priv, driver_name_is_inferred);
+      }
 #endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
-      if (psc == NULL && priv->dri2Display)
+      if (psc == NULL && glx_driver & GLX_DRIVER_DRI2) {
+         priv->dri2Display = dri2CreateDisplay(dpy);
 	      psc = dri2CreateScreen(i, priv, driver_name_is_inferred);
+      }
+#endif
 #endif /* GLX_USE_DRM */
 
 #ifdef GLX_USE_WINDOWSGL
-      if (psc == NULL && priv->windowsdriDisplay)
+      if (psc == NULL && glx_driver & GLX_DRIVER_WINDOWS) {
+         priv->windowsdriDisplay = driwindowsCreateDisplay(dpy);
 	      psc = driwindowsCreateScreen(i, priv, driver_name_is_inferred);
+      }
 #endif
 
-      if ((psc == GLX_LOADER_USE_ZINK || psc == NULL) && priv->driswDisplay)
-	      psc = driswCreateScreen(i, priv, psc == GLX_LOADER_USE_ZINK ? false : driver_name_is_inferred);
 #endif /* GLX_DIRECT_RENDERING && !GLX_USE_APPLEGL */
-
-#if defined(GLX_USE_APPLE)
-      if (psc == NULL && priv->driswDisplay) {
-         psc = driswCreateScreen(i, priv);
+#if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
+      if ((psc == GLX_LOADER_USE_ZINK || psc == NULL) &&
+          (glx_driver & GLX_DRIVER_SW || zink)) {
+         priv->driswDisplay = driswCreateDisplay(dpy, glx_driver);
+	      psc = driswCreateScreen(i, priv, psc == GLX_LOADER_USE_ZINK ? false : driver_name_is_inferred);
       }
 #endif
 
@@ -884,15 +897,15 @@ __glXInitialize(Display * dpy)
 
    dpyPriv->glXDrawHash = __glxHashCreate();
 
-   Bool zink = False;
-   enum try_zink try_zink = TRY_ZINK_NO;
+   enum glx_driver glx_driver = 0;
    const char *env = getenv("MESA_LOADER_DRIVER_OVERRIDE");
 
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
    Bool glx_direct = !debug_get_bool_option("LIBGL_ALWAYS_INDIRECT", false);
    Bool glx_accel = !debug_get_bool_option("LIBGL_ALWAYS_SOFTWARE", false);
 
-   zink = env && !strcmp(env, "zink");
+   if (env && !strcmp(env, "zink"))
+      glx_driver |= GLX_DRIVER_ZINK_YES;
 
    dpyPriv->drawHash = __glxHashCreate();
 
@@ -908,50 +921,50 @@ __glXInitialize(Display * dpy)
     */
 #if defined(GLX_USE_DRM)
    if (glx_direct && glx_accel &&
-       (!zink || debug_get_bool_option("LIBGL_KOPPER_DISABLE", false))) {
+       (!(glx_driver & GLX_DRIVER_ZINK_YES) || debug_get_bool_option("LIBGL_KOPPER_DISABLE", false))) {
 #if defined(HAVE_DRI3)
       if (!debug_get_bool_option("LIBGL_DRI3_DISABLE", false)) {
-         dpyPriv->dri3Display = dri3_create_display(dpy);
-         /* nouveau wants to fallback to zink so if we get a screen enable try_zink */
-         if (dpyPriv->dri3Display)
-            try_zink = !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false) ? TRY_ZINK_INFER : TRY_ZINK_NO;
+         bool err = false;
+         loader_dri3_check_multibuffer(XGetXCBConnection(dpy), &err);
+         /* dri3 is tried as long as this doesn't error; whether modifiers work is not relevant */
+         if (!err) {
+            glx_driver |= GLX_DRIVER_DRI3;
+            /* nouveau wants to fallback to zink so if we get a screen enable try_zink */
+            if (!debug_get_bool_option("LIBGL_KOPPER_DISABLE", false))
+               glx_driver |= GLX_DRIVER_ZINK_INFER;
+         }
       }
 #endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
       if (!debug_get_bool_option("LIBGL_DRI2_DISABLE", false))
-         dpyPriv->dri2Display = dri2CreateDisplay(dpy);
+         glx_driver |= GLX_DRIVER_DRI2;
 #endif
 #if defined(HAVE_ZINK)
-      if (!dpyPriv->dri3Display && !dpyPriv->dri2Display)
-         try_zink = !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false) &&
-                    !getenv("GALLIUM_DRIVER") ? TRY_ZINK_INFER : TRY_ZINK_NO;
+      if (!(glx_driver & (GLX_DRIVER_DRI2 | GLX_DRIVER_DRI3)))
+         if (!debug_get_bool_option("LIBGL_KOPPER_DISABLE", false) && !getenv("GALLIUM_DRIVER"))
+            glx_driver |= GLX_DRIVER_ZINK_INFER;
 #endif /* HAVE_ZINK */
    }
 #endif /* GLX_USE_DRM */
    if (glx_direct)
-      dpyPriv->driswDisplay = driswCreateDisplay(dpy, zink ? TRY_ZINK_YES : try_zink);
+      glx_driver |= GLX_DRIVER_SW;
 
 #ifdef GLX_USE_WINDOWSGL
    if (glx_direct && glx_accel)
-      dpyPriv->windowsdriDisplay = driwindowsCreateDisplay(dpy);
+      glx_driver |= GLX_DRIVER_WINDOWS;
 #endif
 #endif /* GLX_DIRECT_RENDERING && !GLX_USE_APPLEGL */
 
 #if defined(GLX_USE_APPLEGL) && !defined(GLX_USE_APPLE)
-   if (!applegl_create_display(dpyPriv)) {
-      free(dpyPriv);
-      return NULL;
-   }
+   glx_driver |= GLX_DRIVER_SW;
 #endif
 
-   if (!AllocAndFetchScreenConfigs(dpy, dpyPriv, zink || try_zink, !env)) {
+   if (!AllocAndFetchScreenConfigs(dpy, dpyPriv, glx_driver, !env)) {
       Bool fail = True;
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
-      if (try_zink) {
-         free(dpyPriv->screens);
+      if (glx_driver & GLX_DRIVER_ZINK_INFER) {
          driswDestroyDisplay(dpyPriv->driswDisplay);
-         dpyPriv->driswDisplay = driswCreateDisplay(dpy, TRY_ZINK_NO);
-         fail = !AllocAndFetchScreenConfigs(dpy, dpyPriv, False, true);
+         fail = !AllocAndFetchScreenConfigs(dpy, dpyPriv, GLX_DRIVER_SW, true);
       }
 #endif
       if (fail) {
