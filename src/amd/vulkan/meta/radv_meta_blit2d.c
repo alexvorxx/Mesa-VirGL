@@ -207,6 +207,24 @@ radv_meta_blit2d_normal_dst(struct radv_cmd_buffer *cmd_buffer, struct radv_meta
                                  device->meta_state.blit2d[log2_samples].p_layouts[src_type],
                                  VK_SHADER_STAGE_VERTEX_BIT, 0, 16, vertex_push_constants);
 
+      const VkRenderingAttachmentInfo att_info = {
+         .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
+         .imageView = radv_image_view_to_handle(&dst_iview),
+         .imageLayout = dst->current_layout,
+         .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+         .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+      };
+
+      VkRenderingInfo rendering_info = {
+         .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
+         .renderArea =
+            {
+               .offset = {rect->dst_x, rect->dst_y},
+               .extent = {rect->width, rect->height},
+            },
+         .layerCount = 1,
+      };
+
       if (aspect_mask == VK_IMAGE_ASPECT_COLOR_BIT || aspect_mask == VK_IMAGE_ASPECT_PLANE_0_BIT ||
           aspect_mask == VK_IMAGE_ASPECT_PLANE_1_BIT || aspect_mask == VK_IMAGE_ASPECT_PLANE_2_BIT) {
          unsigned fs_key = radv_format_meta_fs_key(device, dst_iview.vk.format);
@@ -220,27 +238,8 @@ radv_meta_blit2d_normal_dst(struct radv_cmd_buffer *cmd_buffer, struct radv_meta
             }
          }
 
-         const VkRenderingAttachmentInfo color_att_info = {
-            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-            .imageView = radv_image_view_to_handle(&dst_iview),
-            .imageLayout = dst->current_layout,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-         };
-
-         const VkRenderingInfo rendering_info = {
-            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-            .renderArea =
-               {
-                  .offset = {rect->dst_x, rect->dst_y},
-                  .extent = {rect->width, rect->height},
-               },
-            .layerCount = 1,
-            .colorAttachmentCount = 1,
-            .pColorAttachments = &color_att_info,
-         };
-
-         radv_CmdBeginRendering(radv_cmd_buffer_to_handle(cmd_buffer), &rendering_info);
+         rendering_info.colorAttachmentCount = 1;
+         rendering_info.pColorAttachments = &att_info;
 
          bind_pipeline(cmd_buffer, src_type, fs_key, log2_samples);
       } else if (aspect_mask == VK_IMAGE_ASPECT_DEPTH_BIT) {
@@ -252,27 +251,8 @@ radv_meta_blit2d_normal_dst(struct radv_cmd_buffer *cmd_buffer, struct radv_meta
             }
          }
 
-         const VkRenderingAttachmentInfo depth_att_info = {
-            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-            .imageView = radv_image_view_to_handle(&dst_iview),
-            .imageLayout = dst->current_layout,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-         };
-
-         const VkRenderingInfo rendering_info = {
-            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-            .renderArea =
-               {
-                  .offset = {rect->dst_x, rect->dst_y},
-                  .extent = {rect->width, rect->height},
-               },
-            .layerCount = 1,
-            .pDepthAttachment = &depth_att_info,
-            .pStencilAttachment = (dst->image->vk.aspects & VK_IMAGE_ASPECT_STENCIL_BIT) ? &depth_att_info : NULL,
-         };
-
-         radv_CmdBeginRendering(radv_cmd_buffer_to_handle(cmd_buffer), &rendering_info);
+         rendering_info.pDepthAttachment = &att_info,
+         rendering_info.pStencilAttachment = (dst->image->vk.aspects & VK_IMAGE_ASPECT_STENCIL_BIT) ? &att_info : NULL,
 
          bind_depth_pipeline(cmd_buffer, src_type, log2_samples);
 
@@ -285,31 +265,14 @@ radv_meta_blit2d_normal_dst(struct radv_cmd_buffer *cmd_buffer, struct radv_meta
             }
          }
 
-         const VkRenderingAttachmentInfo stencil_att_info = {
-            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-            .imageView = radv_image_view_to_handle(&dst_iview),
-            .imageLayout = dst->current_layout,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
-            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-         };
-
-         const VkRenderingInfo rendering_info = {
-            .sType = VK_STRUCTURE_TYPE_RENDERING_INFO,
-            .renderArea =
-               {
-                  .offset = {rect->dst_x, rect->dst_y},
-                  .extent = {rect->width, rect->height},
-               },
-            .layerCount = 1,
-            .pDepthAttachment = (dst->image->vk.aspects & VK_IMAGE_ASPECT_DEPTH_BIT) ? &stencil_att_info : NULL,
-            .pStencilAttachment = &stencil_att_info,
-         };
-
-         radv_CmdBeginRendering(radv_cmd_buffer_to_handle(cmd_buffer), &rendering_info);
+         rendering_info.pDepthAttachment = (dst->image->vk.aspects & VK_IMAGE_ASPECT_DEPTH_BIT) ? &att_info : NULL,
+         rendering_info.pStencilAttachment = &att_info,
 
          bind_stencil_pipeline(cmd_buffer, src_type, log2_samples);
       } else
          unreachable("Processing blit2d with multiple aspects.");
+
+      radv_CmdBeginRendering(radv_cmd_buffer_to_handle(cmd_buffer), &rendering_info);
 
       radv_CmdDraw(radv_cmd_buffer_to_handle(cmd_buffer), 3, 1, 0, 0);
 
