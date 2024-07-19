@@ -881,6 +881,7 @@ __glXInitialize(Display * dpy)
    Bool glx_direct = !debug_get_bool_option("LIBGL_ALWAYS_INDIRECT", false);
    Bool glx_accel = !debug_get_bool_option("LIBGL_ALWAYS_SOFTWARE", false);
    Bool dri3 = !debug_get_bool_option("LIBGL_DRI3_DISABLE", false);
+   Bool kopper = !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
 
    if (env && !strcmp(env, "zink"))
       glx_driver |= GLX_DRIVER_ZINK_YES;
@@ -902,7 +903,7 @@ __glXInitialize(Display * dpy)
    if (glx_direct && glx_accel && dri3)
       dpyPriv->has_multibuffer = loader_dri3_check_multibuffer(XGetXCBConnection(dpy), &dri3_err);
    if (glx_direct && glx_accel &&
-       (!(glx_driver & GLX_DRIVER_ZINK_YES) || debug_get_bool_option("LIBGL_KOPPER_DISABLE", false))) {
+       (!(glx_driver & GLX_DRIVER_ZINK_YES) || !kopper)) {
 #if defined(HAVE_DRI3)
       if (dri3) {
          /* dri3 is tried as long as this doesn't error; whether modifiers work is not relevant */
@@ -920,7 +921,7 @@ __glXInitialize(Display * dpy)
 #endif
 #if defined(HAVE_ZINK)
       if (!(glx_driver & (GLX_DRIVER_DRI2 | GLX_DRIVER_DRI3)))
-         if (!debug_get_bool_option("LIBGL_KOPPER_DISABLE", false) && !getenv("GALLIUM_DRIVER"))
+         if (kopper && !getenv("GALLIUM_DRIVER"))
             glx_driver |= GLX_DRIVER_ZINK_INFER;
 #endif /* HAVE_ZINK */
    }
