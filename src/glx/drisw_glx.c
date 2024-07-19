@@ -1055,7 +1055,7 @@ driswCreateScreenDriver(int screen, struct glx_display *priv,
    return NULL;
 }
 
-static struct glx_screen *
+struct glx_screen *
 driswCreateScreen(int screen, struct glx_display *priv, bool driver_name_is_inferred)
 {
    const struct drisw_display *pdpyp = (struct drisw_display *)priv->driswDisplay;
@@ -1068,7 +1068,7 @@ driswCreateScreen(int screen, struct glx_display *priv, bool driver_name_is_infe
 
 /* Called from __glXFreeDisplayPrivate.
  */
-static void
+void
 driswDestroyDisplay(__GLXDRIdisplay * dpy)
 {
    free(dpy);
@@ -1088,11 +1088,9 @@ driswCreateDisplay(Display * dpy, enum try_zink zink)
    if (pdpyp == NULL)
       return NULL;
 
-   pdpyp->base.destroyDisplay = driswDestroyDisplay;
-   pdpyp->base.createScreen = driswCreateScreen;
    pdpyp->zink = zink;
 
-   return &pdpyp->base;
+   return (void*)pdpyp;
 }
 
 #endif /* GLX_DIRECT_RENDERING */

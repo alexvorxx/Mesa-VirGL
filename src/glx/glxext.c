@@ -36,8 +36,8 @@
 #include <xcb/xcb.h>
 #include <xcb/glx.h>
 
-#define __GLX_MIN_CONFIG_PROPS   18
-#define __GLX_EXT_CONFIG_PROPS   32
+#define __GLX_MIN_CONFIG_PROPS	18
+#define __GLX_EXT_CONFIG_PROPS	32
 
 /*
 ** Since we send all non-core visual properties as token, value pairs,
@@ -152,7 +152,7 @@ __glXWireToEvent(Display *dpy, XEvent *event, xEvent *wire)
       struct glx_drawable *glxDraw = GetGLXDrawable(dpy, awire->drawable);
 
       if (!glxDraw)
-    return False;
+	 return False;
 
       aevent->serial = _XSetLastRequestRead(dpy, (xGenericReply *) wire);
       aevent->send_event = (awire->type & 0x80) != 0;
@@ -234,7 +234,7 @@ FreeScreenConfigs(struct glx_display * priv)
       if (psc->driScreen) {
          psc->driScreen->destroyScreen(psc);
       } else {
-    free(psc);
+	 free(psc);
       }
 #else
       free(psc);
@@ -282,22 +282,22 @@ glx_display_free(struct glx_display *priv)
 
    /* Free the direct rendering per display data */
    if (priv->driswDisplay)
-      priv->driswDisplay->destroyDisplay(priv->driswDisplay);
+      driswDestroyDisplay(priv->driswDisplay);
    priv->driswDisplay = NULL;
 
 #if defined (GLX_USE_DRM)
    if (priv->dri2Display)
-      priv->dri2Display->destroyDisplay(priv->dri2Display);
+      dri2DestroyDisplay(priv->dri2Display);
    priv->dri2Display = NULL;
 
    if (priv->dri3Display)
-      priv->dri3Display->destroyDisplay(priv->dri3Display);
+      dri3_destroy_display(priv->dri3Display);
    priv->dri3Display = NULL;
 #endif /* GLX_USE_DRM */
 
 #if defined(GLX_USE_WINDOWSGL)
    if (priv->windowsdriDisplay)
-      priv->windowsdriDisplay->destroyDisplay(priv->windowsdriDisplay);
+      driwindowsDestroyDisplay(priv->windowsdriDisplay);
    priv->windowsdriDisplay = NULL;
 #endif /* GLX_USE_WINDOWSGL */
 
@@ -316,7 +316,7 @@ __glXCloseDisplay(Display * dpy, XExtCodes * codes)
    for (priv = glx_displays; priv; prev = &priv->next, priv = priv->next) {
       if (priv->dpy == dpy) {
          *prev = priv->next;
-    break;
+	 break;
       }
    }
    _XUnlockMutex(_Xglobal_lock);
@@ -661,7 +661,7 @@ createConfigsFromProperties(Display * dpy, int nvisuals, int nprops,
 
 static GLboolean
 getVisualConfigs(struct glx_screen *psc,
-        struct glx_display *priv, int screen)
+		  struct glx_display *priv, int screen)
 {
    xGLXGetVisualConfigsReq *req;
    xGLXGetVisualConfigsReply reply;
@@ -724,7 +724,7 @@ getFBConfigs(struct glx_screen *psc, struct glx_display *priv, int screen)
 
 _X_HIDDEN Bool
 glx_screen_init(struct glx_screen *psc,
-       int screen, struct glx_display * priv)
+		 int screen, struct glx_display * priv)
 {
    /* Initialize per screen dynamic client GLX extensions */
    psc->ext_list_first_time = GL_TRUE;
@@ -783,25 +783,25 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, Bool zink, 
 #if defined(GLX_USE_DRM)
 #if defined(HAVE_DRI3)
       if (priv->dri3Display)
-         psc = priv->dri3Display->createScreen(i, priv, driver_name_is_inferred);
+         psc = dri3_create_screen(i, priv, driver_name_is_inferred);
 #endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
       if (psc == NULL && priv->dri2Display)
-         psc = priv->dri2Display->createScreen(i, priv, driver_name_is_inferred);
+	      psc = dri2CreateScreen(i, priv, driver_name_is_inferred);
 #endif /* GLX_USE_DRM */
 
 #ifdef GLX_USE_WINDOWSGL
       if (psc == NULL && priv->windowsdriDisplay)
-         psc = priv->windowsdriDisplay->createScreen(i, priv, driver_name_is_inferred);
+	      psc = driwindowsCreateScreen(i, priv, driver_name_is_inferred);
 #endif
 
       if ((psc == GLX_LOADER_USE_ZINK || psc == NULL) && priv->driswDisplay)
-         psc = priv->driswDisplay->createScreen(i, priv, psc == GLX_LOADER_USE_ZINK ? false : driver_name_is_inferred);
+	      psc = driswCreateScreen(i, priv, psc == GLX_LOADER_USE_ZINK ? false : driver_name_is_inferred);
 #endif /* GLX_DIRECT_RENDERING && !GLX_USE_APPLEGL */
 
 #if defined(GLX_USE_APPLE)
       if (psc == NULL && priv->driswDisplay) {
-         psc = priv->driswDisplay->createScreen(i, priv);
+         psc = driswCreateScreen(i, priv);
       }
 #endif
 
@@ -844,8 +844,8 @@ __glXInitialize(Display * dpy)
 
    for (dpyPriv = glx_displays; dpyPriv; dpyPriv = dpyPriv->next) {
       if (dpyPriv->dpy == dpy) {
-    _XUnlockMutex(_Xglobal_lock);
-    return dpyPriv;
+	 _XUnlockMutex(_Xglobal_lock);
+	 return dpyPriv;
       }
    }
 
@@ -867,7 +867,7 @@ __glXInitialize(Display * dpy)
 
    /* This GLX implementation requires GLX 1.3 */
    if (!QueryVersion(dpy, dpyPriv->codes.major_opcode,
-           &majorVersion, &dpyPriv->minorVersion)
+		     &majorVersion, &dpyPriv->minorVersion)
        || (majorVersion != 1)
        || (majorVersion == 1 && dpyPriv->minorVersion < 3)) {
       free(dpyPriv);
@@ -951,7 +951,7 @@ __glXInitialize(Display * dpy)
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
       if (try_zink) {
          free(dpyPriv->screens);
-         dpyPriv->driswDisplay->destroyDisplay(dpyPriv->driswDisplay);
+         driswDestroyDisplay(dpyPriv->driswDisplay);
          dpyPriv->driswDisplay = driswCreateDisplay(dpy, TRY_ZINK_NO);
          fail = !AllocAndFetchScreenConfigs(dpy, dpyPriv, False, true);
       }
@@ -970,9 +970,9 @@ __glXInitialize(Display * dpy)
 
    for (d = glx_displays; d; d = d->next) {
       if (d->dpy == dpy) {
-    _XUnlockMutex(_Xglobal_lock);
-    glx_display_free(dpyPriv);
-    return d;
+	 _XUnlockMutex(_Xglobal_lock);
+	 glx_display_free(dpyPriv);
+	 return d;
       }
    }
 

@@ -30,7 +30,6 @@
 
 struct driwindows_display
 {
-   __GLXDRIdisplay base;
    int event_base;
 };
 
@@ -560,9 +559,6 @@ driwindowsCreateDisplay(Display * dpy)
    pdpyp = malloc(sizeof *pdpyp);
    if (pdpyp == NULL)
       return NULL;
-
-   pdpyp->base.destroyDisplay = driwindowsDestroyDisplay;
-   pdpyp->base.createScreen = driwindowsCreateScreen;
 
    pdpyp->event_base = eventBase;
 

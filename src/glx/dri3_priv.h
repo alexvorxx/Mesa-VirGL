@@ -64,8 +64,6 @@
 
 struct dri3_display
 {
-   __GLXDRIdisplay base;
-
    const __DRIextension **loader_extensions;
    int has_multibuffer;
 };

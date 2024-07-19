@@ -789,7 +789,7 @@ static const struct glx_screen_vtable dri3_screen_vtable = {
  * Initializes the driver for the screen and sets up our structures
  */
 
-static struct glx_screen *
+struct glx_screen *
 dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_inferred)
 {
    xcb_connection_t *c = XGetXCBConnection(priv->dpy);
@@ -1045,7 +1045,7 @@ handle_error:
  *
  * Called from __glXFreeDisplayPrivate.
  */
-static void
+void
 dri3_destroy_display(__GLXDRIdisplay * dpy)
 {
    free(dpy);
@@ -1072,12 +1072,9 @@ dri3_create_display(Display * dpy)
       return NULL;
    pdp->has_multibuffer = has_multibuffer;
 
-   pdp->base.destroyDisplay = dri3_destroy_display;
-   pdp->base.createScreen = dri3_create_screen;
-
    pdp->loader_extensions = loader_extensions;
 
-   return &pdp->base;
+   return (void*)pdp;
 }
 
 #endif /* GLX_DIRECT_RENDERING */
