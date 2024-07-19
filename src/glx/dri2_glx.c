@@ -1184,16 +1184,15 @@ dri2CreateDisplay(Display * dpy)
 
    if (!DRI2QueryExtension(dpy, &eventBase, &errorBase))
       return NULL;
+   if (!DRI2QueryVersion(dpy, &driMajor, &driMinor) ||
+       driMinor < 3) {
+      return NULL;
+   }
 
    pdp = malloc(sizeof *pdp);
    if (pdp == NULL)
       return NULL;
 
-   if (!DRI2QueryVersion(dpy, &driMajor, &driMinor) ||
-       driMinor < 3) {
-      free(pdp);
-      return NULL;
-   }
 
    i = 0;
    pdp->loader_extensions[i++] = &dri2LoaderExtension.base;
