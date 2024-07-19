@@ -100,9 +100,9 @@ ChangeDrawableAttribute(Display * dpy, GLXDrawable drawable,
    for (i = 0; i < num_attribs; i++) {
       switch(attribs[i * 2]) {
       case GLX_EVENT_MASK:
-	 /* Keep a local copy for masking out DRI2 proto events as needed */
-	 pdraw->eventMask = attribs[i * 2 + 1];
-	 break;
+    /* Keep a local copy for masking out DRI2 proto events as needed */
+    pdraw->eventMask = attribs[i * 2 + 1];
+    break;
       }
    }
 #endif
@@ -150,8 +150,8 @@ determineTextureFormat(const int *attribs, int numAttribs)
 
 static GLboolean
 CreateDRIDrawable(Display *dpy, struct glx_config *config,
-		  XID drawable, XID glxdrawable, int type,
-		  const int *attrib_list, size_t num_attribs)
+        XID drawable, XID glxdrawable, int type,
+        const int *attrib_list, size_t num_attribs)
 {
 #ifdef GLX_DIRECT_RENDERING
    struct glx_display *const priv = __glXInitialize(dpy);

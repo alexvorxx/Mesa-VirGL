@@ -64,7 +64,7 @@ struct glx_context;
 #ifdef GLX_DIRECT_RENDERING
 
 extern void DRI_glXUseXFont(struct glx_context *ctx,
-			    Font font, int first, int count, int listbase);
+             Font font, int first, int count, int listbase);
 
 #endif
 
@@ -95,22 +95,22 @@ struct __GLXDRIscreenRec {
    void (*destroyScreen)(struct glx_screen *psc);
 
    __GLXDRIdrawable *(*createDrawable)(struct glx_screen *psc,
-				       XID drawable,
-				       GLXDrawable glxDrawable,
-				       int type,
-				       struct glx_config *config);
+                   XID drawable,
+                   GLXDrawable glxDrawable,
+                   int type,
+                   struct glx_config *config);
 
    int64_t (*swapBuffers)(__GLXDRIdrawable *pdraw, int64_t target_msc,
-			  int64_t divisor, int64_t remainder, Bool flush);
+           int64_t divisor, int64_t remainder, Bool flush);
    void (*copySubBuffer)(__GLXDRIdrawable *pdraw,
-			 int x, int y, int width, int height, Bool flush);
+          int x, int y, int width, int height, Bool flush);
    int (*getDrawableMSC)(struct glx_screen *psc, __GLXDRIdrawable *pdraw,
-			 int64_t *ust, int64_t *msc, int64_t *sbc);
+          int64_t *ust, int64_t *msc, int64_t *sbc);
    int (*waitForMSC)(__GLXDRIdrawable *pdraw, int64_t target_msc,
-		     int64_t divisor, int64_t remainder, int64_t *ust,
-		     int64_t *msc, int64_t *sbc);
+           int64_t divisor, int64_t remainder, int64_t *ust,
+           int64_t *msc, int64_t *sbc);
    int (*waitForSBC)(__GLXDRIdrawable *pdraw, int64_t target_sbc, int64_t *ust,
-		     int64_t *msc, int64_t *sbc);
+           int64_t *msc, int64_t *sbc);
    int (*setSwapInterval)(__GLXDRIdrawable *pdraw, int interval);
    int (*getSwapInterval)(__GLXDRIdrawable *pdraw);
    int (*getBufferAge)(__GLXDRIdrawable *pdraw);
@@ -418,7 +418,7 @@ struct glx_context
 
 extern Bool
 glx_context_init(struct glx_context *gc,
-		 struct glx_screen *psc, struct glx_config *fbconfig);
+       struct glx_screen *psc, struct glx_config *fbconfig);
 
 #define __glXSetError(gc,code)  \
    if (!(gc)->error) {          \
@@ -459,9 +459,9 @@ glx_context_init(struct glx_context *gc,
  */
 struct glx_screen_vtable {
    struct glx_context *(*create_context)(struct glx_screen *psc,
-					 struct glx_config *config,
-					 struct glx_context *shareList,
-					 int renderType);
+                struct glx_config *config,
+                struct glx_context *shareList,
+                int renderType);
 
    /* The error outparameter abuses the fact that the only possible errors are
     * GLXBadContext (0), GLXBadFBConfig (9), GLXBadProfileARB (13), BadValue
@@ -469,11 +469,11 @@ struct glx_screen_vtable {
     * use them directly rather than try to offset or use a sign convention.
     */
    struct glx_context *(*create_context_attribs)(struct glx_screen *psc,
-						 struct glx_config *config,
-						 struct glx_context *shareList,
-						 unsigned num_attrib,
-						 const uint32_t *attribs,
-						 unsigned *error);
+                   struct glx_config *config,
+                   struct glx_context *shareList,
+                   unsigned num_attrib,
+                   const uint32_t *attribs,
+                   unsigned *error);
    int (*query_renderer_integer)(struct glx_screen *psc,
                                  int attribute,
                                  unsigned int *value);
@@ -609,7 +609,7 @@ struct glx_drawable {
 
 extern int
 glx_screen_init(struct glx_screen *psc,
-		int screen, struct glx_display * priv);
+      int screen, struct glx_display * priv);
 extern void
 glx_screen_cleanup(struct glx_screen *psc);
 
@@ -735,7 +735,7 @@ extern GLboolean __glXGetMscRateOML(Display * dpy, GLXDrawable drawable,
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
 extern GLboolean
 __glxGetMscRate(struct glx_screen *psc,
-		int32_t * numerator, int32_t * denominator);
+      int32_t * numerator, int32_t * denominator);
 
 /* So that dri2.c:DRI2WireToEvent() can access
  * glx_info->codes->first_event */
@@ -753,8 +753,8 @@ applegl_create_screen(int screen, struct glx_display * priv);
 
 extern struct glx_context *
 applegl_create_context(struct glx_screen *psc,
-			struct glx_config *mode,
-			struct glx_context *shareList, int renderType);
+         struct glx_config *mode,
+         struct glx_context *shareList, int renderType);
 
 extern int
 applegl_create_display(struct glx_display *display);
@@ -769,7 +769,7 @@ extern Bool validate_renderType_against_config(const struct glx_config *config,
 
 extern struct glx_drawable *GetGLXDrawable(Display *dpy, GLXDrawable drawable);
 extern int InitGLXDrawable(Display *dpy, struct glx_drawable *glxDraw,
-			   XID xDrawable, GLXDrawable drawable);
+            XID xDrawable, GLXDrawable drawable);
 extern void DestroyGLXDrawable(Display *dpy, GLXDrawable drawable);
 
 extern struct glx_context dummyContext;
@@ -778,8 +778,8 @@ extern struct glx_screen *
 indirect_create_screen(int screen, struct glx_display * priv);
 extern struct glx_context *
 indirect_create_context(struct glx_screen *psc,
-			struct glx_config *mode,
-			struct glx_context *shareList, int renderType);
+         struct glx_config *mode,
+         struct glx_context *shareList, int renderType);
 extern struct glx_context *
 indirect_create_context_attribs(struct glx_screen *base,
                                 struct glx_config *config_base,

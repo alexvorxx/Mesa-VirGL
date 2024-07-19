@@ -231,7 +231,7 @@ driConfigEqual(const __DRIcoreExtension *core,
 
 static struct glx_config *
 createDriMode(const __DRIcoreExtension * core,
-	      struct glx_config *config, const __DRIconfig **driConfigs)
+         struct glx_config *config, const __DRIconfig **driConfigs)
 {
    __GLXDRIconfigPrivate *driConfig;
    int i;
@@ -502,23 +502,23 @@ dri_convert_glx_attribs(unsigned num_attribs, const uint32_t *attribs,
    for (i = 0; i < num_attribs; i++) {
       switch (attribs[i * 2]) {
       case GLX_CONTEXT_MAJOR_VERSION_ARB:
-	 dca->major_ver = attribs[i * 2 + 1];
-	 break;
+    dca->major_ver = attribs[i * 2 + 1];
+    break;
       case GLX_CONTEXT_MINOR_VERSION_ARB:
-	 dca->minor_ver = attribs[i * 2 + 1];
-	 break;
+    dca->minor_ver = attribs[i * 2 + 1];
+    break;
       case GLX_CONTEXT_FLAGS_ARB:
-	 dca->flags = attribs[i * 2 + 1];
-	 break;
+    dca->flags = attribs[i * 2 + 1];
+    break;
       case GLX_CONTEXT_OPENGL_NO_ERROR_ARB:
-	 dca->no_error = attribs[i * 2 + 1];
-	 break;
+    dca->no_error = attribs[i * 2 + 1];
+    break;
       case GLX_CONTEXT_PROFILE_MASK_ARB:
-	 profile = attribs[i * 2 + 1];
-	 break;
+    profile = attribs[i * 2 + 1];
+    break;
       case GLX_RENDER_TYPE:
          dca->render_type = attribs[i * 2 + 1];
-	 break;
+    break;
       case GLX_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB:
          switch (attribs[i * 2 + 1]) {
          case GLX_NO_RESET_NOTIFICATION_ARB:
@@ -548,9 +548,9 @@ dri_convert_glx_attribs(unsigned num_attribs, const uint32_t *attribs,
          dca->render_type = GLX_DONT_CARE;
          break;
       default:
-	 /* If an unknown attribute is received, fail.
-	  */
-	 return BadValue;
+    /* If an unknown attribute is received, fail.
+     */
+    return BadValue;
       }
    }
 
