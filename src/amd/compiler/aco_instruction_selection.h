@@ -61,10 +61,14 @@ struct isel_context {
       bool exec_potentially_empty_discard =
          false; /* set to false when loop_nest_depth==0 && parent_if.is_divergent==false */
       uint16_t exec_potentially_empty_break_depth = UINT16_MAX;
-      /* Set to false when loop_nest_depth==exec_potentially_empty_break_depth
-       * and parent_if.is_divergent==false. Called _break but it's also used for
-       * loop continues. */
+      /* Set to false when loop_nest_depth==exec_potentially_empty_break_depth,
+       * parent_if.is_divergent==false and parent_loop.has_divergent_continue==false. Also set to
+       * false if loop_nest_depth<exec_potentially_empty_break_depth */
       bool exec_potentially_empty_break = false;
+      uint16_t exec_potentially_empty_continue_depth = UINT16_MAX;
+      /* Set to false when loop_nest_depth==exec_potentially_empty_break_depth
+       * and parent_if.is_divergent==false. */
+      bool exec_potentially_empty_continue = false;
    } cf_info;
 
    /* NIR range analysis. */
