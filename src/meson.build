@@ -46,6 +46,7 @@ if cc.get_argument_syntax() == 'msvc'
 else
   idep_getopt = null_dep
 endif
+subdir('x11')
 if with_gallium or with_gbm or with_platform_wayland
   subdir('loader')
 endif

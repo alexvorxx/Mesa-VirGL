@@ -32,6 +32,7 @@
 #include "dri_common.h"
 #endif
 
+#include "loader_x11.h"
 #ifdef HAVE_DRI3
 #include "loader_dri3_helper.h"
 #endif
@@ -907,7 +908,7 @@ __glXInitialize(Display * dpy)
 #if defined(GLX_USE_DRM)
    bool dri3_err = false;
    if (glx_direct && glx_accel && dri3)
-      dpyPriv->has_multibuffer = loader_dri3_check_multibuffer(XGetXCBConnection(dpy), &dri3_err);
+      dpyPriv->has_multibuffer = x11_dri3_check_multibuffer(XGetXCBConnection(dpy), &dri3_err);
    if (glx_direct && glx_accel &&
        (!(glx_driver & GLX_DRIVER_ZINK_YES) || !kopper)) {
 #if defined(HAVE_DRI3)

@@ -56,6 +56,7 @@
 
 #ifdef HAVE_X11_PLATFORM
 #include "X11/Xlibint.h"
+#include "loader_x11.h"
 #endif
 
 #include "GL/mesa_glinterop.h"
@@ -963,7 +964,7 @@ dri2_setup_extensions(_EGLDisplay *disp)
 #ifdef HAVE_X11_PLATFORM
    if (dri2_dpy->conn) {
       bool err;
-      dri2_dpy->multibuffers_available = loader_dri3_check_multibuffer(dri2_dpy->conn, &err) &&
+      dri2_dpy->multibuffers_available = x11_dri3_check_multibuffer(dri2_dpy->conn, &err) &&
                                          !err &&
                                          (dri2_dpy->image && dri2_dpy->image->base.version >= 15);
    }

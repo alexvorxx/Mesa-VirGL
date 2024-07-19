@@ -38,6 +38,7 @@
 #include "platform_x11_dri3.h"
 
 #include "loader.h"
+#include "loader_x11.h"
 #include "loader_dri3_helper.h"
 
 static struct dri3_egl_surface *
@@ -530,7 +531,7 @@ enum dri2_egl_driver_fail
 dri3_x11_connect(struct dri2_egl_display *dri2_dpy, bool swrast)
 {
    dri2_dpy->fd_render_gpu =
-      loader_dri3_open(dri2_dpy->conn, dri2_dpy->screen->root, 0);
+      x11_dri3_open(dri2_dpy->conn, dri2_dpy->screen->root, 0);
    if (dri2_dpy->fd_render_gpu < 0) {
       int conn_error = xcb_connection_has_error(dri2_dpy->conn);
       if (!swrast) {

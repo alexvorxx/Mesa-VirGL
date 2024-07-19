@@ -76,6 +76,7 @@
 #include "dri_common.h"
 #include "dri3_priv.h"
 #include "loader.h"
+#include "loader_x11.h"
 #include "loader_dri_helper.h"
 #include "dri2.h"
 #include "util/u_debug.h"
@@ -809,7 +810,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       return NULL;
    }
 
-   psc->fd_render_gpu = loader_dri3_open(c, RootWindow(priv->dpy, screen), None);
+   psc->fd_render_gpu = x11_dri3_open(c, RootWindow(priv->dpy, screen), None);
    if (psc->fd_render_gpu < 0) {
       int conn_error = xcb_connection_has_error(c);
 

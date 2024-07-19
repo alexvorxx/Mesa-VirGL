@@ -259,10 +259,6 @@ loader_dri3_wait_x(struct loader_dri3_drawable *draw);
 void
 loader_dri3_wait_gl(struct loader_dri3_drawable *draw);
 
-int loader_dri3_open(xcb_connection_t *conn,
-                     xcb_window_t root,
-                     uint32_t provider);
-
 __DRIimage *
 loader_dri3_create_image(xcb_connection_t *c,
                          xcb_dri3_buffer_from_pixmap_reply_t *bp_reply,
@@ -297,6 +293,4 @@ loader_dri3_swapbuffer_barrier(struct loader_dri3_drawable *draw);
 void
 loader_dri3_close_screen(__DRIscreen *dri_screen);
 
-bool
-loader_dri3_check_multibuffer(xcb_connection_t *c, bool *err);
 #endif
