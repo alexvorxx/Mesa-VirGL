@@ -105,9 +105,6 @@ endif
 if with_gallium
   subdir('mesa')
   subdir('gallium')
-  if with_glx == 'dri'
-     subdir('glx')
-  endif
   # This has to be here since it requires libgallium, and subdir cannot
   # contain ..
   if with_tests
@@ -116,6 +113,9 @@ if with_gallium
   if with_tests and with_shared_glapi
     subdir('mesa/state_tracker/tests')
   endif
+endif
+if with_glx == 'dri'
+  subdir('glx')
 endif
 if with_gbm
   subdir('gbm')
