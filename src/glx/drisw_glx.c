@@ -728,7 +728,7 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
       pdp->driDrawable =
          kopper->createNewDrawable(psc->driScreen, config->driConfig, pdp,
          &(__DRIkopperDrawableInfo){
-            .multiplanes_available = psc->has_multibuffer,
+            .multiplanes_available = base->display->has_multibuffer,
             .is_pixmap = !(type & GLX_WINDOW_BIT),
          });
 
@@ -998,9 +998,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
 
 #if defined(HAVE_DRI3)
    if (glx_driver) {
-      bool err;
-      psc->has_multibuffer = loader_dri3_check_multibuffer(XGetXCBConnection(priv->dpy), &err);
-      if (!psc->has_multibuffer &&
+      if (!priv->has_multibuffer &&
           !debug_get_bool_option("LIBGL_ALWAYS_SOFTWARE", false) &&
           !debug_get_bool_option("LIBGL_KOPPER_DRI2", false)) {
          /* only print error if zink was explicitly requested */
