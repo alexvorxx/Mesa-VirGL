@@ -996,19 +996,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
        goto handle_error;
    }
 
-#if defined(HAVE_DRI3)
-   if (glx_driver) {
-      if (!priv->has_multibuffer &&
-          !debug_get_bool_option("LIBGL_ALWAYS_SOFTWARE", false) &&
-          !debug_get_bool_option("LIBGL_KOPPER_DRI2", false)) {
-         /* only print error if zink was explicitly requested */
-         if (glx_driver & GLX_DRIVER_ZINK_YES)
-            CriticalErrorMessageF("DRI3 not available\n");
-         goto handle_error;
-      }
-   }
-#endif
-
    glx_config_destroy_list(psc->base.configs);
    psc->base.configs = configs;
    glx_config_destroy_list(psc->base.visuals);

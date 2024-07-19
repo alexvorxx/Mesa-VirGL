@@ -928,6 +928,17 @@ __glXInitialize(Display * dpy)
    if (glx_direct)
       glx_driver |= GLX_DRIVER_SW;
 
+   if (!dpyPriv->has_multibuffer && glx_accel && !debug_get_bool_option("LIBGL_KOPPER_DRI2", false)) {
+      if (glx_driver & GLX_DRIVER_ZINK_YES) {
+         /* only print error if zink was explicitly requested */
+         CriticalErrorMessageF("DRI3 not available\n");
+         free(dpyPriv);
+         return NULL;
+      }
+      /* if no dri3 and not using dri2, disable zink */
+      glx_driver &= ~GLX_DRIVER_ZINK_INFER;
+   }
+
 #ifdef GLX_USE_WINDOWSGL
    if (glx_direct && glx_accel)
       glx_driver |= GLX_DRIVER_WINDOWS;
