@@ -56,8 +56,6 @@
 
 struct dri2_display
 {
-   __glxHashTable *dri2Hash;
-
    const __DRIextension *loader_extensions[5];
 };
 
@@ -265,9 +263,8 @@ dri2DestroyDrawable(__GLXDRIdrawable *base)
    struct dri2_screen *psc = (struct dri2_screen *) base->psc;
    struct dri2_drawable *pdraw = (struct dri2_drawable *) base;
    struct glx_display *dpyPriv = psc->base.display;
-   struct dri2_display *pdp = (struct dri2_display *)dpyPriv->dri2Display;
 
-   __glxHashDelete(pdp->dri2Hash, pdraw->base.xDrawable);
+   __glxHashDelete(dpyPriv->dri2Hash, pdraw->base.xDrawable);
    psc->core->destroyDrawable(pdraw->driDrawable);
 
    /* If it's a GLX 1.3 drawables, we can destroy the DRI2 drawable
@@ -292,7 +289,6 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
    struct dri2_screen *psc = (struct dri2_screen *) base;
    __GLXDRIconfigPrivate *config = (__GLXDRIconfigPrivate *) config_base;
    struct glx_display *dpyPriv;
-   struct dri2_display *pdp;
 
    dpyPriv = __glXInitialize(psc->base.dpy);
    if (dpyPriv == NULL)
@@ -311,7 +307,6 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
    pdraw->have_back = 0;
 
    DRI2CreateDrawable(psc->base.dpy, xDrawable);
-   pdp = (struct dri2_display *)dpyPriv->dri2Display;
    /* Create a new drawable */
    pdraw->driDrawable =
       psc->dri2->createNewDrawable(psc->driScreen,
@@ -323,7 +318,7 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
       return NULL;
    }
 
-   if (__glxHashInsert(pdp->dri2Hash, xDrawable, pdraw)) {
+   if (__glxHashInsert(dpyPriv->dri2Hash, xDrawable, pdraw)) {
       psc->core->destroyDrawable(pdraw->driDrawable);
       DRI2DestroyDrawable(psc->base.dpy, xDrawable);
       free(pdraw);
@@ -1160,9 +1155,6 @@ handle_error:
 void
 dri2DestroyDisplay(__GLXDRIdisplay * dpy)
 {
-   struct dri2_display *pdp = (struct dri2_display *) dpy;
-
-   __glxHashDestroy(pdp->dri2Hash);
    free(dpy);
 }
 
@@ -1170,10 +1162,9 @@ _X_HIDDEN __GLXDRIdrawable *
 dri2GetGlxDrawableFromXDrawableId(Display *dpy, XID id)
 {
    struct glx_display *d = __glXInitialize(dpy);
-   struct dri2_display *pdp = (struct dri2_display *) d->dri2Display;
    __GLXDRIdrawable *pdraw;
 
-   if (__glxHashLookup(pdp->dri2Hash, id, (void *) &pdraw) == 0)
+   if (__glxHashLookup(d->dri2Hash, id, (void *) &pdraw) == 0)
       return pdraw;
 
    return NULL;
@@ -1209,12 +1200,6 @@ dri2CreateDisplay(Display * dpy)
    pdp->loader_extensions[i++] = &dri2UseInvalidate.base;
    pdp->loader_extensions[i++] = &driBackgroundCallable.base;
    pdp->loader_extensions[i++] = NULL;
-
-   pdp->dri2Hash = __glxHashCreate();
-   if (pdp->dri2Hash == NULL) {
-      free(pdp);
-      return NULL;
-   }
 
    return (void*)pdp;
 }

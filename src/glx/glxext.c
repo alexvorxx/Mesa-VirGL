@@ -283,6 +283,8 @@ glx_display_free(struct glx_display *priv)
 
 #if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
    __glxHashDestroy(priv->drawHash);
+   if (priv->dri2Hash)
+      __glxHashDestroy(priv->dri2Hash);
 
    /* Free the direct rendering per display data */
    if (priv->driswDisplay)
@@ -798,6 +800,8 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
       if (psc == NULL && glx_driver & GLX_DRIVER_DRI2) {
          priv->dri2Display = dri2CreateDisplay(dpy);
 	      psc = dri2CreateScreen(i, priv, driver_name_is_inferred);
+         if (psc)
+            priv->dri2Hash = __glxHashCreate();
       }
 #endif
 #endif /* GLX_USE_DRM */

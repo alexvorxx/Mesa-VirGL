@@ -600,6 +600,8 @@ struct glx_display
     */
    struct set *zombieGLXDrawable;
 
+   __glxHashTable *dri2Hash;
+
     /**
      * Per display direct rendering interface functions and data.
      */
