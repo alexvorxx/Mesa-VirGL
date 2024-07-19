@@ -885,7 +885,7 @@ __glXInitialize(Display * dpy)
    dpyPriv->glXDrawHash = __glxHashCreate();
 
    Bool zink = False;
-   Bool try_zink = False;
+   enum try_zink try_zink = TRY_ZINK_NO;
    const char *env = getenv("MESA_LOADER_DRIVER_OVERRIDE");
 
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
@@ -893,7 +893,6 @@ __glXInitialize(Display * dpy)
    Bool glx_accel = !debug_get_bool_option("LIBGL_ALWAYS_SOFTWARE", false);
 
    zink = env && !strcmp(env, "zink");
-   try_zink = False;
 
    dpyPriv->drawHash = __glxHashCreate();
 
@@ -915,7 +914,7 @@ __glXInitialize(Display * dpy)
          dpyPriv->dri3Display = dri3_create_display(dpy);
          /* nouveau wants to fallback to zink so if we get a screen enable try_zink */
          if (dpyPriv->dri3Display)
-            try_zink = !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
+            try_zink = !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false) ? TRY_ZINK_INFER : TRY_ZINK_NO;
       }
 #endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
@@ -925,13 +924,12 @@ __glXInitialize(Display * dpy)
 #if defined(HAVE_ZINK)
       if (!dpyPriv->dri3Display && !dpyPriv->dri2Display)
          try_zink = !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false) &&
-                    !getenv("GALLIUM_DRIVER");
+                    !getenv("GALLIUM_DRIVER") ? TRY_ZINK_INFER : TRY_ZINK_NO;
 #endif /* HAVE_ZINK */
    }
 #endif /* GLX_USE_DRM */
    if (glx_direct)
-      dpyPriv->driswDisplay = driswCreateDisplay(dpy, zink ? TRY_ZINK_YES :
-                                                             try_zink ? TRY_ZINK_INFER : TRY_ZINK_NO);
+      dpyPriv->driswDisplay = driswCreateDisplay(dpy, zink ? TRY_ZINK_YES : try_zink);
 
 #ifdef GLX_USE_WINDOWSGL
    if (glx_direct && glx_accel)
@@ -946,7 +944,7 @@ __glXInitialize(Display * dpy)
    }
 #endif
 
-   if (!AllocAndFetchScreenConfigs(dpy, dpyPriv, zink | try_zink, zink || try_zink ? try_zink : !env)) {
+   if (!AllocAndFetchScreenConfigs(dpy, dpyPriv, zink || try_zink, !env)) {
       Bool fail = True;
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
       if (try_zink) {

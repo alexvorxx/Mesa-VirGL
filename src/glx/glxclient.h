@@ -148,7 +148,7 @@ void dri3_destroy_display(__GLXDRIdisplay * dpy);
 struct glx_screen *dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_inferred);
 void dri2DestroyDisplay(__GLXDRIdisplay * dpy);
 
-struct glx_screen *driswCreateScreen(int screen, struct glx_display *priv, bool driver_name_is_inferred);
+struct glx_screen * driswCreateScreenDriver(int screen, struct glx_display *priv, const char *driver, bool driver_name_is_inferred);
 void driswDestroyDisplay(__GLXDRIdisplay * dpy);
 #endif
 

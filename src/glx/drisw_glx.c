@@ -929,7 +929,7 @@ kopperGetSwapInterval(__GLXDRIdrawable *pdraw)
    return pdp->swapInterval;
 }
 
-static struct glx_screen *
+struct glx_screen *
 driswCreateScreenDriver(int screen, struct glx_display *priv,
                         const char *driver, bool driver_name_is_inferred)
 {
