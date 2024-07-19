@@ -795,8 +795,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    xcb_connection_t *c = XGetXCBConnection(priv->dpy);
    const __DRIconfig **driver_configs;
    const __DRIextension **extensions;
-   const struct dri3_display *const pdp = (struct dri3_display *)
-      priv->dri3Display;
    struct dri3_screen *psc;
    __GLXDRIscreen *psp;
    struct glx_config *configs = NULL, *visuals = NULL;
@@ -866,7 +864,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
          if (strcmp(driverName, driverNameDisplayGPU) == 0) {
             psc->driScreenDisplayGPU =
                psc->image_driver->createNewScreen3(screen, psc->fd_display_gpu,
-                                                   pdp->loader_extensions,
+                                                   loader_extensions,
                                                    extensions,
                                                    &driver_configs, driver_name_is_inferred, psc);
          }
@@ -877,7 +875,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
 
    psc->driScreenRenderGPU =
       psc->image_driver->createNewScreen3(screen, psc->fd_render_gpu,
-                                          pdp->loader_extensions,
+                                          loader_extensions,
                                           extensions,
                                           &driver_configs, driver_name_is_inferred, psc);
 
@@ -1071,8 +1069,6 @@ dri3_create_display(Display * dpy)
    if (pdp == NULL)
       return NULL;
    pdp->has_multibuffer = has_multibuffer;
-
-   pdp->loader_extensions = loader_extensions;
 
    return (void*)pdp;
 }
