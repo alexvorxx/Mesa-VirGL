@@ -345,10 +345,6 @@ dri3_create_drawable(struct glx_screen *base, XID xDrawable,
    struct dri3_screen *psc = (struct dri3_screen *) base;
    __GLXDRIconfigPrivate *config = (__GLXDRIconfigPrivate *) config_base;
    bool has_multibuffer = false;
-#ifdef HAVE_DRI3_MODIFIERS
-   const struct dri3_display *const pdp = (struct dri3_display *)
-      base->display->dri3Display;
-#endif
 
    pdraw = calloc(1, sizeof(*pdraw));
    if (!pdraw)
@@ -360,7 +356,7 @@ dri3_create_drawable(struct glx_screen *base, XID xDrawable,
    pdraw->base.psc = &psc->base;
 
 #ifdef HAVE_DRI3_MODIFIERS
-   if (pdp->has_multibuffer && psc->image && psc->image->base.version >= 15)
+   if (base->display->has_multibuffer && psc->image && psc->image->base.version >= 15)
       has_multibuffer = true;
 #endif
 
@@ -1060,15 +1056,10 @@ _X_HIDDEN __GLXDRIdisplay *
 dri3_create_display(Display * dpy)
 {
    struct dri3_display                  *pdp;
-   bool err = false;
-   bool has_multibuffer = loader_dri3_check_multibuffer(XGetXCBConnection(dpy), &err);
-   if (err)
-      return NULL;
 
    pdp = calloc(1, sizeof *pdp);
    if (pdp == NULL)
       return NULL;
-   pdp->has_multibuffer = has_multibuffer;
 
    return (void*)pdp;
 }

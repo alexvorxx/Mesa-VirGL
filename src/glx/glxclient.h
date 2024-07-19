@@ -606,6 +606,7 @@ struct glx_display
    __GLXDRIdisplay *driswDisplay;
    __GLXDRIdisplay *dri2Display;
    __GLXDRIdisplay *dri3Display;
+   bool has_multibuffer;
 #endif
 #ifdef GLX_USE_WINDOWSGL
    __GLXDRIdisplay *windowsdriDisplay;
