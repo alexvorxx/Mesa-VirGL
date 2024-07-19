@@ -259,17 +259,18 @@ can_do_clear(const struct pipe_resource *prsc, unsigned level,
    return true;
 }
 
+template <chip CHIP>
 static void
 emit_setup(struct fd_batch *batch)
 {
    struct fd_ringbuffer *ring = batch->draw;
    struct fd_screen *screen = batch->ctx->screen;
 
-   fd6_emit_flushes(batch->ctx, ring,
-                    FD6_FLUSH_CCU_COLOR |
-                    FD6_INVALIDATE_CCU_COLOR |
-                    FD6_FLUSH_CCU_DEPTH |
-                    FD6_INVALIDATE_CCU_DEPTH);
+   fd6_emit_flushes<CHIP>(batch->ctx, ring,
+                          FD6_FLUSH_CCU_COLOR |
+                          FD6_INVALIDATE_CCU_COLOR |
+                          FD6_FLUSH_CCU_DEPTH |
+                          FD6_INVALIDATE_CCU_DEPTH);
 
    /* normal BLIT_OP_SCALE operation needs bypass RB_CCU_CNTL */
    OUT_WFI5(ring);
@@ -457,8 +458,7 @@ emit_blit_buffer(struct fd_context *ctx, struct fd_ringbuffer *ring,
       OUT_RING(ring, A6XX_GRAS_2D_DST_BR_X(dshift + w - 1) |
                         A6XX_GRAS_2D_DST_BR_Y(0));
 
-      OUT_PKT7(ring, CP_EVENT_WRITE, 1);
-      OUT_RING(ring, LABEL);
+      fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
       OUT_WFI5(ring);
 
       OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
@@ -536,8 +536,7 @@ fd6_clear_ubwc(struct fd_batch *batch, struct fd_resource *rsc) assert_dt
       OUT_RING(ring,
                A6XX_GRAS_2D_DST_BR_X(w - 1) | A6XX_GRAS_2D_DST_BR_Y(h - 1));
 
-      OUT_PKT7(ring, CP_EVENT_WRITE, 1);
-      OUT_RING(ring, LABEL);
+      fd6_event_write<CHIP>(batch->ctx, ring, FD_LABEL);
       OUT_WFI5(ring);
 
       OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
@@ -555,11 +554,11 @@ fd6_clear_ubwc(struct fd_batch *batch, struct fd_resource *rsc) assert_dt
       size -= w * h;
    }
 
-   fd6_emit_flushes(batch->ctx, ring,
-                    FD6_FLUSH_CCU_COLOR |
-                    FD6_FLUSH_CCU_DEPTH |
-                    FD6_FLUSH_CACHE |
-                    FD6_WAIT_FOR_IDLE);
+   fd6_emit_flushes<CHIP>(batch->ctx, ring,
+                          FD6_FLUSH_CCU_COLOR |
+                          FD6_FLUSH_CCU_DEPTH |
+                          FD6_FLUSH_CACHE |
+                          FD6_WAIT_FOR_IDLE);
 }
 
 static void
@@ -741,8 +740,7 @@ emit_blit_texture(struct fd_context *ctx, struct fd_ringbuffer *ring,
       /*
        * Blit command:
        */
-      OUT_PKT7(ring, CP_EVENT_WRITE, 1);
-      OUT_RING(ring, LABEL);
+      fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
       OUT_WFI5(ring);
 
       OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
@@ -915,8 +913,7 @@ fd6_clear_surface(struct fd_context *ctx, struct fd_ringbuffer *ring,
       /*
        * Blit command:
        */
-      OUT_PKT7(ring, CP_EVENT_WRITE, 1);
-      OUT_RING(ring, LABEL);
+      fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
       OUT_WFI5(ring);
 
       OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
@@ -992,7 +989,7 @@ fd6_clear_texture(struct pipe_context *pctx, struct pipe_resource *prsc,
 
    fd_batch_update_queries(batch);
 
-   emit_setup(batch);
+   emit_setup<CHIP>(batch);
 
    struct pipe_surface surf = {
          .format = prsc->format,
@@ -1008,11 +1005,11 @@ fd6_clear_texture(struct pipe_context *pctx, struct pipe_resource *prsc,
 
    fd6_clear_surface<CHIP>(ctx, batch->draw, &surf, box, &color, 0);
 
-   fd6_emit_flushes(batch->ctx, batch->draw,
-                    FD6_FLUSH_CCU_COLOR |
-                    FD6_FLUSH_CCU_DEPTH |
-                    FD6_FLUSH_CACHE |
-                    FD6_WAIT_FOR_IDLE);
+   fd6_emit_flushes<CHIP>(batch->ctx, batch->draw,
+                          FD6_FLUSH_CCU_COLOR |
+                          FD6_FLUSH_CCU_DEPTH |
+                          FD6_FLUSH_CACHE |
+                          FD6_WAIT_FOR_IDLE);
 
    fd_batch_flush(batch);
    fd_batch_reference(&batch, NULL);
@@ -1087,7 +1084,7 @@ fd6_resolve_tile(struct fd_batch *batch, struct fd_ringbuffer *ring,
    );
 
    /* sync GMEM writes with CACHE. */
-   fd6_cache_inv(batch, ring);
+   fd6_cache_inv<CHIP>(batch->ctx, ring);
 
    /* Wait for CACHE_INVALIDATE to land */
    OUT_WFI5(ring);
@@ -1101,8 +1098,8 @@ fd6_resolve_tile(struct fd_batch *batch, struct fd_ringbuffer *ring,
     * sysmem, and we generally assume that GMEM renderpasses leave their
     * results in sysmem, so we need to flush manually here.
     */
-   fd6_emit_flushes(batch->ctx, ring,
-                    FD6_FLUSH_CCU_COLOR | FD6_WAIT_FOR_IDLE);
+   fd6_emit_flushes<CHIP>(batch->ctx, ring,
+                          FD6_FLUSH_CCU_COLOR | FD6_WAIT_FOR_IDLE);
 }
 FD_GENX(fd6_resolve_tile);
 
@@ -1143,7 +1140,7 @@ handle_rgba_blit(struct fd_context *ctx, const struct pipe_blit_info *info)
 
    fd_batch_update_queries(batch);
 
-   emit_setup(batch);
+   emit_setup<CHIP>(batch);
 
    DBG_BLIT(info, batch);
 
@@ -1164,11 +1161,11 @@ handle_rgba_blit(struct fd_context *ctx, const struct pipe_blit_info *info)
 
    trace_end_blit(&batch->trace, batch->draw);
 
-   fd6_emit_flushes(batch->ctx, batch->draw,
-                    FD6_FLUSH_CCU_COLOR |
-                    FD6_FLUSH_CCU_DEPTH |
-                    FD6_FLUSH_CACHE |
-                    FD6_WAIT_FOR_IDLE);
+   fd6_emit_flushes<CHIP>(batch->ctx, batch->draw,
+                          FD6_FLUSH_CCU_COLOR |
+                          FD6_FLUSH_CCU_DEPTH |
+                          FD6_FLUSH_CACHE |
+                          FD6_WAIT_FOR_IDLE);
 
    fd_batch_flush(batch);
    fd_batch_reference(&batch, NULL);

@@ -275,7 +275,7 @@ fd6_context_create(struct pipe_screen *pscreen, void *priv,
    fd6_gmem_init<CHIP>(pctx);
    fd6_texture_init(pctx);
    fd6_prog_init<CHIP>(pctx);
-   fd6_query_context_init(pctx);
+   fd6_query_context_init<CHIP>(pctx);
 
    setup_state_map(&fd6_ctx->base);
 

@@ -833,7 +833,7 @@ fd6_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
    OUT_PKT7(ring, CP_SET_MODE, 1);
    OUT_RING(ring, 0);
 
-   fd6_cache_inv(batch, ring);
+   fd6_cache_inv<CHIP>(batch->ctx, ring);
 
    OUT_REG(ring,
            HLSQ_INVALIDATE_CMD(CHIP, .vs_state = true, .hs_state = true,

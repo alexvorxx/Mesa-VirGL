@@ -130,7 +130,7 @@ fd6_launch_grid(struct fd_context *ctx, const struct pipe_grid_info *info) in_dt
                        cs->v->shader_id);
 
    if (ctx->batch->barrier)
-      fd6_barrier_flush(ctx->batch);
+      fd6_barrier_flush<CHIP>(ctx->batch);
 
    bool emit_instrlen_workaround =
       cs->v->instrlen > ctx->screen->info->a6xx.instr_cache_size;
@@ -152,7 +152,7 @@ fd6_launch_grid(struct fd_context *ctx, const struct pipe_grid_info *info) in_dt
     */
    if (emit_instrlen_workaround) {
       OUT_REG(ring, A6XX_SP_FS_INSTRLEN(cs->v->instrlen));
-      fd6_event_write(ctx->batch, ring, LABEL, false);
+      fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
    }
 
    if (ctx->gen_dirty)
