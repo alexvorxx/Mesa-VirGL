@@ -78,8 +78,6 @@ typedef struct __GLXDRIdisplay __GLXDRIdisplay;
 typedef struct __GLXDRIscreenRec __GLXDRIscreen;
 typedef struct __GLXDRIdrawableRec __GLXDRIdrawable;
 
-#define GLX_LOADER_USE_ZINK ((struct glx_screen *)(uintptr_t)-1)
-
 struct __GLXDRIscreenRec {
 
    void (*destroyScreen)(struct glx_screen *psc);
@@ -146,7 +144,7 @@ extern __GLXDRIdisplay *driwindowsCreateDisplay(Display * dpy);
 
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
 #ifdef HAVE_DRI3
-struct glx_screen *dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_inferred);
+struct glx_screen *dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_inferred, bool *return_zink);
 void dri3_destroy_display(__GLXDRIdisplay * dpy);
 #endif
 

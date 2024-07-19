@@ -769,7 +769,13 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
 #if defined(GLX_USE_DRM)
 #if defined(HAVE_DRI3)
       if (glx_driver & GLX_DRIVER_DRI3) {
-         psc = dri3_create_screen(i, priv, driver_name_is_inferred);
+         bool use_zink;
+         psc = dri3_create_screen(i, priv, driver_name_is_inferred, &use_zink);
+         if (use_zink) {
+            glx_driver |= GLX_DRIVER_ZINK_YES;
+            zink = true;
+            driver_name_is_inferred = false;
+         }
       }
 #endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
@@ -789,9 +795,9 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
 
 #endif /* GLX_DIRECT_RENDERING && !GLX_USE_APPLEGL */
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
-      if ((psc == GLX_LOADER_USE_ZINK || psc == NULL) &&
+      if (psc == NULL &&
           (glx_driver & GLX_DRIVER_SW || zink)) {
-	      psc = driswCreateScreen(i, priv, glx_driver, psc == GLX_LOADER_USE_ZINK ? false : driver_name_is_inferred);
+	      psc = driswCreateScreen(i, priv, glx_driver, driver_name_is_inferred);
       }
 #endif
 

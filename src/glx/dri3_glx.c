@@ -786,7 +786,7 @@ static const struct glx_screen_vtable dri3_screen_vtable = {
  */
 
 struct glx_screen *
-dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_inferred)
+dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_inferred, bool *return_zink)
 {
    xcb_connection_t *c = XGetXCBConnection(priv->dpy);
    const __DRIconfig **driver_configs;
@@ -795,7 +795,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    __GLXDRIscreen *psp;
    struct glx_config *configs = NULL, *visuals = NULL;
    char *driverName, *driverNameDisplayGPU, *tmp;
-   bool return_zink = false;
+   *return_zink = false;
 
    psc = calloc(1, sizeof *psc);
    if (psc == NULL)
@@ -832,7 +832,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    }
 
    if (!strcmp(driverName, "zink") && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false)) {
-      return_zink = true;
+      *return_zink = true;
       goto handle_error;
    }
 
@@ -1012,7 +1012,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    return &psc->base;
 
 handle_error:
-   if (!return_zink)
+   if (!*return_zink)
       CriticalErrorMessageF("failed to load driver: %s\n", driverName ? driverName : "(null)");
 
    if (configs)
@@ -1034,7 +1034,7 @@ handle_error:
    glx_screen_cleanup(&psc->base);
    free(psc);
 
-   return return_zink ? GLX_LOADER_USE_ZINK : NULL;
+   return NULL;
 }
 
 #endif /* GLX_DIRECT_RENDERING */
