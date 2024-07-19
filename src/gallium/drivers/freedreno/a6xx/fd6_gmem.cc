@@ -324,7 +324,7 @@ emit_lrz_clears(struct fd_batch *batch)
       if (count == 0) {
          struct fd_ringbuffer *ring = fd_batch_get_prologue(batch);
 
-         fd6_emit_ccu_cntl(ring, ctx->screen, false);
+         fd6_emit_ccu_cntl<CHIP>(ring, ctx->screen, false);
 
          OUT_PKT7(ring, CP_SET_MARKER, 1);
          OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_BLIT2DSCALE));
@@ -959,7 +959,7 @@ emit_binning_pass(struct fd_batch *batch) assert_dt
 
    OUT_WFI5(ring);
 
-   fd6_emit_ccu_cntl(ring, screen, true);
+   fd6_emit_ccu_cntl<CHIP>(ring, screen, true);
 }
 
 static void
@@ -1029,7 +1029,7 @@ fd6_emit_tile_init(struct fd_batch *batch) assert_dt
    OUT_RING(ring, 0x1);
 
    OUT_WFI5(ring);
-   fd6_emit_ccu_cntl(ring, screen, true);
+   fd6_emit_ccu_cntl<CHIP>(ring, screen, true);
 
    emit_zs<CHIP>(batch->ctx, ring, pfb->zsbuf, batch->gmem_state);
    emit_mrt<CHIP>(ring, pfb, batch->gmem_state);
@@ -1898,7 +1898,7 @@ fd6_emit_sysmem(struct fd_batch *batch)
       }
 
       OUT_WFI5(ring);
-      fd6_emit_ccu_cntl(ring, screen, false);
+      fd6_emit_ccu_cntl<CHIP>(ring, screen, false);
 
       struct pipe_framebuffer_state *pfb = &batch->framebuffer;
       update_render_cntl<CHIP>(batch, pfb, false);

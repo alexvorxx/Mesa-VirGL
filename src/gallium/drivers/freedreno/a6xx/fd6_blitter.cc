@@ -274,7 +274,7 @@ emit_setup(struct fd_batch *batch)
 
    /* normal BLIT_OP_SCALE operation needs bypass RB_CCU_CNTL */
    OUT_WFI5(ring);
-   fd6_emit_ccu_cntl(ring, screen, false);
+   fd6_emit_ccu_cntl<CHIP>(ring, screen, false);
 }
 
 template <chip CHIP>

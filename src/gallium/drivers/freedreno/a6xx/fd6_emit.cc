@@ -777,29 +777,60 @@ fd6_emit_cs_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
 
    fd6_state_emit(&state, ring);
 }
+FD_GENX(fd6_emit_cs_state);
 
+template <chip CHIP>
 void
 fd6_emit_ccu_cntl(struct fd_ringbuffer *ring, struct fd_screen *screen, bool gmem)
 {
-   enum a6xx_ccu_cache_size cache_size = (enum a6xx_ccu_cache_size)(screen->info->a6xx.gmem_ccu_color_cache_fraction);
-   uint32_t offset = gmem ? screen->ccu_offset_gmem : screen->ccu_offset_bypass;
-   uint32_t offset_hi = offset >> 21;
-   offset &= 0x1fffff;
+   const struct fd6_gmem_config *cfg = gmem ? &screen->config_gmem : &screen->config_sysmem;
+   enum a6xx_ccu_cache_size color_cache_size =
+      (enum a6xx_ccu_cache_size)(screen->info->a6xx.gmem_ccu_color_cache_fraction);
+   uint32_t color_offset = cfg->color_ccu_offset & 0x1fffff;
+   uint32_t color_offset_hi = cfg->color_ccu_offset >> 21;
 
-   OUT_REG(ring,
-           A6XX_RB_CCU_CNTL(.gmem_fast_clear_disable =
-                               !screen->info->a6xx.has_gmem_fast_clear,
-                            .concurrent_resolve =
-                               screen->info->a6xx.concurrent_resolve,
-                            .depth_offset_hi = 0,
-                            .color_offset_hi = offset_hi,
-                            .depth_cache_size = CCU_CACHE_SIZE_FULL,
-                            .depth_offset = 0,
-                            .color_cache_size = cache_size,
-                            .color_offset = offset,
-                            ));
+   uint32_t depth_offset = cfg->depth_ccu_offset & 0x1fffff;
+   uint32_t depth_offset_hi = cfg->depth_ccu_offset >> 21;
+
+   if (CHIP == A7XX) {
+      OUT_REG(ring,
+         A7XX_RB_CCU_CNTL2(
+            .depth_offset_hi = depth_offset_hi,
+            .color_offset_hi = color_offset_hi,
+            .depth_cache_size = CCU_CACHE_SIZE_FULL,
+            .depth_offset = depth_offset,
+            .color_cache_size = color_cache_size,
+            .color_offset = color_offset,
+         )
+      );
+
+      if (screen->info->a7xx.has_gmem_vpc_attr_buf) {
+         OUT_REG(ring,
+            A7XX_VPC_ATTR_BUF_SIZE_GMEM(.size_gmem = cfg->vpc_attr_buf_size),
+            A7XX_VPC_ATTR_BUF_BASE_GMEM(.base_gmem = cfg->vpc_attr_buf_offset)
+         );
+         OUT_REG(ring,
+            A7XX_PC_ATTR_BUF_SIZE_GMEM(.size_gmem = cfg->vpc_attr_buf_size)
+         );
+      }
+   } else {
+      OUT_REG(ring,
+         A6XX_RB_CCU_CNTL(
+            .gmem_fast_clear_disable =
+               !screen->info->a6xx.has_gmem_fast_clear,
+            .concurrent_resolve =
+               screen->info->a6xx.concurrent_resolve,
+            .depth_offset_hi = depth_offset_hi,
+            .color_offset_hi = color_offset_hi,
+            .depth_cache_size = CCU_CACHE_SIZE_FULL,
+            .depth_offset = depth_offset,
+            .color_cache_size = color_cache_size,
+            .color_offset = color_offset,
+         )
+      );
+   }
 }
-FD_GENX(fd6_emit_cs_state);
+FD_GENX(fd6_emit_ccu_cntl);
 
 template <chip CHIP>
 static void

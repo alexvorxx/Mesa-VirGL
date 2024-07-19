@@ -399,6 +399,7 @@ template <chip CHIP>
 void fd6_emit_cs_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
                        struct fd6_compute_state *cs) assert_dt;
 
+template <chip CHIP>
 void fd6_emit_ccu_cntl(struct fd_ringbuffer *ring, struct fd_screen *screen, bool gmem);
 
 template <chip CHIP>
