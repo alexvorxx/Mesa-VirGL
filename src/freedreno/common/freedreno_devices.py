@@ -877,6 +877,7 @@ a7xx_750 = A7XXProps(
         # example dEQP-VK.image.load_store.with_format.2d.*. Disable this for
         # now.
         #supports_ibo_ubwc = True,
+        has_generic_clear = True,
         gs_vpc_adjacency_quirk = True,
         storage_8bit = True,
         ubwc_all_formats_compatible = True,

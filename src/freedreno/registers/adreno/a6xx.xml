@@ -3861,9 +3861,13 @@ to upconvert to 32b float internally?
 		 -->
 		<bitfield name="BUFFER_ID" low="12" high="15"/>
 	</reg32>
-	<reg32 offset="0x88e4" name="RB_UNKNOWN_88E4" variants="A7XX-" usage="rp_blit">
-		<!-- Value conditioned based on predicate, changed before blits -->
-		<bitfield name="UNK0" pos="0" type="boolean"/>
+
+	<enum name="a7xx_blit_clear_mode">
+		<value value="0x0" name="CLEAR_MODE_SYSMEM"/>
+		<value value="0x1" name="CLEAR_MODE_GMEM"/>
+	</enum>
+	<reg32 offset="0x88e4" name="RB_BLIT_CLEAR_MODE" variants="A7XX-" usage="rp_blit">
+			<bitfield name="CLEAR_MODE" pos="0" type="a7xx_blit_clear_mode"/>
 	</reg32>
 
 	<enum name="a6xx_ccu_cache_size">

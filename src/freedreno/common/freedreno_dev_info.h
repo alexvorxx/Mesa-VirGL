@@ -285,6 +285,9 @@ struct fd_dev_info {
       bool ubwc_all_formats_compatible;
 
       bool has_compliant_dp4acc;
+
+      /* Whether a single clear blit could be used for both sysmem and gmem.*/
+      bool has_generic_clear;
    } a7xx;
 };
 

@@ -1467,6 +1467,21 @@ aspect_write_mask(enum pipe_format format, VkImageAspectFlags aspect_mask)
    return mask;
 }
 
+static uint8_t
+aspect_write_mask_generic_clear(enum pipe_format format, VkImageAspectFlags aspect_mask)
+{
+   uint8_t mask = 0xf;
+   assert(aspect_mask);
+   /* note: the only format with partial writing is D24S8 */
+   if (format == PIPE_FORMAT_Z24_UNORM_S8_UINT) {
+      if (aspect_mask == VK_IMAGE_ASPECT_DEPTH_BIT)
+         mask = 0x1;
+      if (aspect_mask == VK_IMAGE_ASPECT_STENCIL_BIT)
+         mask = 0x2;
+   }
+   return mask;
+}
+
 enum r3d_blit_param {
    R3D_Z_SCALE = 1 << 0,
    R3D_DST_GMEM = 1 << 1,
@@ -1751,6 +1766,181 @@ copy_format(VkFormat vk_format, VkImageAspectFlags aspect_mask)
       return format;
    }
 }
+
+static void
+pack_blit_event_clear_value(const VkClearValue *val, enum pipe_format format, uint32_t clear_value[4])
+{
+   switch (format) {
+   case PIPE_FORMAT_Z24X8_UNORM:
+   case PIPE_FORMAT_Z24_UNORM_S8_UINT:
+      clear_value[0] = tu_pack_float32_for_unorm(val->depthStencil.depth, 24) |
+                       val->depthStencil.stencil << 24;
+      return;
+   case PIPE_FORMAT_Z16_UNORM:
+      clear_value[0] = tu_pack_float32_for_unorm(val->depthStencil.depth, 16);
+      return;
+   case PIPE_FORMAT_Z32_FLOAT:
+      clear_value[0] = fui(val->depthStencil.depth);
+      return;
+   case PIPE_FORMAT_S8_UINT:
+      clear_value[0] = val->depthStencil.stencil;
+      return;
+   default:
+      break;
+   }
+
+   float tmp[4];
+   memcpy(tmp, val->color.float32, 4 * sizeof(float));
+   if (util_format_is_srgb(format)) {
+      for (int i = 0; i < 3; i++)
+         tmp[i] = util_format_linear_to_srgb_float(tmp[i]);
+   }
+
+#define PACK_F(type) util_format_##type##_pack_rgba_float \
+   ( (uint8_t*) &clear_value[0], 0, tmp, 0, 1, 1)
+   switch (util_format_get_component_bits(format, UTIL_FORMAT_COLORSPACE_RGB, PIPE_SWIZZLE_X)) {
+   case 4:
+      PACK_F(r4g4b4a4_unorm);
+      break;
+   case 5:
+      if (util_format_get_component_bits(format, UTIL_FORMAT_COLORSPACE_RGB, PIPE_SWIZZLE_Y) == 6)
+         PACK_F(r5g6b5_unorm);
+      else
+         PACK_F(r5g5b5a1_unorm);
+      break;
+   case 8:
+      if (util_format_is_snorm(format))
+         PACK_F(r8g8b8a8_snorm);
+      else if (util_format_is_unorm(format))
+         PACK_F(r8g8b8a8_unorm);
+      else
+         pack_int8(clear_value, val->color.uint32);
+      break;
+   case 10:
+      if (util_format_is_pure_integer(format))
+         pack_int10_2(clear_value, val->color.uint32);
+      else
+         PACK_F(r10g10b10a2_unorm);
+      break;
+   case 11:
+      clear_value[0] = float3_to_r11g11b10f(val->color.float32);
+      break;
+   case 16:
+      if (util_format_is_snorm(format))
+         PACK_F(r16g16b16a16_snorm);
+      else if (util_format_is_unorm(format))
+         PACK_F(r16g16b16a16_unorm);
+      else if (util_format_is_float(format))
+         PACK_F(r16g16b16a16_float);
+      else
+         pack_int16(clear_value, val->color.uint32);
+      break;
+   case 32:
+      memcpy(clear_value, val->color.float32, 4 * sizeof(float));
+      break;
+   case 0:
+      assert(format == PIPE_FORMAT_A8_UNORM);
+      PACK_F(a8_unorm);
+      break;
+   default:
+      unreachable("unexpected channel size");
+   }
+#undef PACK_F
+}
+
+static void
+event_blit_setup(struct tu_cs *cs,
+                 const struct tu_render_pass_attachment *att,
+                 enum a6xx_blit_event_type blit_event_type,
+                 uint32_t clear_mask)
+{
+   tu_cs_emit_regs(
+      cs, A6XX_RB_BLIT_GMEM_MSAA_CNTL(tu_msaa_samples(att->samples)));
+
+   tu_cs_emit_pkt4(cs, REG_A6XX_RB_UNKNOWN_88D0, 1);
+   tu_cs_emit(cs, 0);
+
+   tu_cs_emit_regs(
+      cs,
+      A6XX_RB_BLIT_INFO(.type = blit_event_type,
+                        .sample_0 =
+                           vk_format_is_int(att->format) ||
+                           vk_format_is_depth_or_stencil(att->format),
+                        .depth = vk_format_is_depth_or_stencil(att->format),
+                        .clear_mask = clear_mask, ));
+}
+
+template <chip CHIP>
+static void
+event_blit_run(struct tu_cmd_buffer *cmd,
+               struct tu_cs *cs,
+               const struct tu_render_pass_attachment *att,
+               const struct tu_image_view *iview,
+               bool separate_stencil,
+               uint32_t layer)
+{
+   tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_DST_INFO, 4);
+   if (iview->image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+      if (!separate_stencil) {
+         tu_cs_emit(cs, tu_image_view_depth(iview, RB_BLIT_DST_INFO));
+         tu_cs_emit_qw(
+            cs, iview->depth_base_addr + iview->depth_layer_size * layer);
+         tu_cs_emit(cs, A6XX_RB_2D_DST_PITCH(iview->depth_pitch).value);
+
+         tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_FLAG_DST, 3);
+         tu_cs_image_flag_ref(cs, &iview->view, layer);
+      } else {
+         tu_cs_emit(cs, tu_image_view_stencil(iview, RB_BLIT_DST_INFO) &
+                           ~A6XX_RB_BLIT_DST_INFO_FLAGS);
+         tu_cs_emit_qw(
+            cs, iview->stencil_base_addr + iview->stencil_layer_size * layer);
+         tu_cs_emit(cs, A6XX_RB_BLIT_DST_PITCH(iview->stencil_pitch).value);
+      }
+   } else {
+      tu_cs_emit(cs, iview->view.RB_BLIT_DST_INFO);
+      tu_cs_image_ref_2d<CHIP>(cs, &iview->view, layer, false);
+
+      tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_FLAG_DST, 3);
+      tu_cs_image_flag_ref(cs, &iview->view, layer);
+   }
+
+   if (att->format == VK_FORMAT_D32_SFLOAT_S8_UINT && separate_stencil) {
+      tu_cs_emit_regs(cs,
+                      A6XX_RB_BLIT_BASE_GMEM(
+                         tu_attachment_gmem_offset_stencil(cmd, att, layer)));
+   } else {
+      tu_cs_emit_regs(cs, A6XX_RB_BLIT_BASE_GMEM(
+                             tu_attachment_gmem_offset(cmd, att, layer)));
+   }
+
+   tu_emit_event_write<CHIP>(cmd, cs, FD_BLIT);
+}
+
+static void
+tu7_generic_layer_clear(struct tu_cmd_buffer *cmd,
+                        struct tu_cs *cs,
+                        enum pipe_format format,
+                        uint8_t clear_mask,
+                        bool separate_stencil,
+                        uint32_t layer,
+                        const VkClearValue *value,
+                        uint32_t a)
+{
+   const struct tu_render_pass_attachment *att =
+      &cmd->state.pass->attachments[a];
+   const struct tu_image_view *iview = cmd->state.attachments[a];
+
+   uint32_t clear_vals[4] = {};
+   pack_blit_event_clear_value(value, format, clear_vals);
+
+   tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_CLEAR_COLOR_DW0, 4);
+   tu_cs_emit_array(cs, clear_vals, 4);
+
+   event_blit_setup(cs, att, BLIT_EVENT_CLEAR, clear_mask);
+   event_blit_run<A7XX>(cmd, cs, att, iview, separate_stencil, layer);
+}
+
+
 
 /* Copies/fills/updates for buffers are happening through CCU but need
  * additional synchronization when write range is not aligned to 64 bytes.
@@ -3132,87 +3322,6 @@ tu_clear_sysmem_attachments(struct tu_cmd_buffer *cmd,
    trace_end_sysmem_clear_all(&cmd->trace, cs);
 }
 
-static void
-pack_gmem_clear_value(const VkClearValue *val, enum pipe_format format, uint32_t clear_value[4])
-{
-   switch (format) {
-   case PIPE_FORMAT_Z24X8_UNORM:
-   case PIPE_FORMAT_Z24_UNORM_S8_UINT:
-      clear_value[0] = tu_pack_float32_for_unorm(val->depthStencil.depth, 24) |
-                       val->depthStencil.stencil << 24;
-      return;
-   case PIPE_FORMAT_Z16_UNORM:
-      clear_value[0] = tu_pack_float32_for_unorm(val->depthStencil.depth, 16);
-      return;
-   case PIPE_FORMAT_Z32_FLOAT:
-      clear_value[0] = fui(val->depthStencil.depth);
-      return;
-   case PIPE_FORMAT_S8_UINT:
-      clear_value[0] = val->depthStencil.stencil;
-      return;
-   default:
-      break;
-   }
-
-   float tmp[4];
-   memcpy(tmp, val->color.float32, 4 * sizeof(float));
-   if (util_format_is_srgb(format)) {
-      for (int i = 0; i < 3; i++)
-         tmp[i] = util_format_linear_to_srgb_float(tmp[i]);
-   }
-
-#define PACK_F(type) util_format_##type##_pack_rgba_float \
-   ( (uint8_t*) &clear_value[0], 0, tmp, 0, 1, 1)
-   switch (util_format_get_component_bits(format, UTIL_FORMAT_COLORSPACE_RGB, PIPE_SWIZZLE_X)) {
-   case 4:
-      PACK_F(r4g4b4a4_unorm);
-      break;
-   case 5:
-      if (util_format_get_component_bits(format, UTIL_FORMAT_COLORSPACE_RGB, PIPE_SWIZZLE_Y) == 6)
-         PACK_F(r5g6b5_unorm);
-      else
-         PACK_F(r5g5b5a1_unorm);
-      break;
-   case 8:
-      if (util_format_is_snorm(format))
-         PACK_F(r8g8b8a8_snorm);
-      else if (util_format_is_unorm(format))
-         PACK_F(r8g8b8a8_unorm);
-      else
-         pack_int8(clear_value, val->color.uint32);
-      break;
-   case 10:
-      if (util_format_is_pure_integer(format))
-         pack_int10_2(clear_value, val->color.uint32);
-      else
-         PACK_F(r10g10b10a2_unorm);
-      break;
-   case 11:
-      clear_value[0] = float3_to_r11g11b10f(val->color.float32);
-      break;
-   case 16:
-      if (util_format_is_snorm(format))
-         PACK_F(r16g16b16a16_snorm);
-      else if (util_format_is_unorm(format))
-         PACK_F(r16g16b16a16_unorm);
-      else if (util_format_is_float(format))
-         PACK_F(r16g16b16a16_float);
-      else
-         pack_int16(clear_value, val->color.uint32);
-      break;
-   case 32:
-      memcpy(clear_value, val->color.float32, 4 * sizeof(float));
-      break;
-   case 0:
-      assert(format == PIPE_FORMAT_A8_UNORM);
-      PACK_F(a8_unorm);
-      break;
-   default:
-      unreachable("unexpected channel size");
-   }
-#undef PACK_F
-}
-
 template <chip CHIP>
 static void
 clear_gmem_attachment(struct tu_cmd_buffer *cmd,
@@ -3236,13 +3345,10 @@ clear_gmem_attachment(struct tu_cmd_buffer *cmd,
    tu_cs_emit(cs, 0);
 
    uint32_t clear_vals[4] = {};
-   pack_gmem_clear_value(value, format, clear_vals);
+   pack_blit_event_clear_value(value, format, clear_vals);
 
    tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_CLEAR_COLOR_DW0, 4);
    tu_cs_emit_array(cs, clear_vals, 4);
-
-   if (CHIP >= A7XX)
-      tu_cs_emit_regs(cs, A7XX_RB_UNKNOWN_88E4(.unk0 = 1));
 
    tu_emit_event_write<CHIP>(cmd, cs, FD_BLIT);
 }
@@ -3513,65 +3619,60 @@ tu_clear_gmem_attachment(struct tu_cmd_buffer *cmd,
 }
 TU_GENX(tu_clear_gmem_attachment);
 
+void
+tu7_generic_clear_attachment(struct tu_cmd_buffer *cmd, struct tu_cs *cs, uint32_t a)
+{
+   const struct tu_render_pass_attachment *att =
+      &cmd->state.pass->attachments[a];
+   const VkClearValue *value = &cmd->state.clear_values[a];
+   const struct tu_image_view *iview = cmd->state.attachments[a];
+
+   trace_start_generic_clear(&cmd->trace, cs, att->format,
+                             iview->view.ubwc_enabled, att->samples);
+
+   enum pipe_format format = vk_format_to_pipe_format(att->format);
+   for_each_layer(i, att->clear_views, cmd->state.framebuffer->layers) {
+      uint32_t layer = i + 0;
+      uint32_t mask =
+         aspect_write_mask_generic_clear(format, att->clear_mask);
+      if (att->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+         if (att->clear_mask & VK_IMAGE_ASPECT_DEPTH_BIT) {
+            tu7_generic_layer_clear(cmd, cs, PIPE_FORMAT_Z32_FLOAT, mask,
+                                    false, layer, value, a);
+         }
+         if (att->clear_mask & VK_IMAGE_ASPECT_STENCIL_BIT) {
+            tu7_generic_layer_clear(cmd, cs, PIPE_FORMAT_S8_UINT, mask, true,
+                                    layer, value, a);
+         }
+      } else {
+         tu7_generic_layer_clear(cmd, cs, format, mask, false, layer, value, a);
+      }
+   }
+
+   tu_flush_for_access(&cmd->state.renderpass_cache,
+                       TU_ACCESS_BLIT_WRITE_GMEM, TU_ACCESS_NONE);
+
+   trace_end_generic_clear(&cmd->trace, cs);
+}
+
 template <chip CHIP>
 static void
 tu_emit_blit(struct tu_cmd_buffer *cmd,
              struct tu_cs *cs,
              const struct tu_image_view *iview,
              const struct tu_render_pass_attachment *attachment,
-             bool resolve,
+             enum a6xx_blit_event_type blit_event_type,
              bool separate_stencil)
 {
-   tu_cs_emit_regs(cs,
-                   A6XX_RB_BLIT_GMEM_MSAA_CNTL(tu_msaa_samples(attachment->samples)));
-
-   tu_cs_emit_regs(cs, A6XX_RB_BLIT_INFO(
-      .type = resolve ? BLIT_EVENT_STORE : BLIT_EVENT_LOAD,
-      .sample_0 = vk_format_is_int(attachment->format) ||
-         vk_format_is_depth_or_stencil(attachment->format),
-      .depth = vk_format_is_depth_or_stencil(attachment->format),));
+   assert(blit_event_type != BLIT_EVENT_CLEAR);
+   event_blit_setup(cs, attachment, blit_event_type, 0x0);
 
    for_each_layer(i, attachment->clear_views, cmd->state.framebuffer->layers) {
-      tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_DST_INFO, 4);
-      if (iview->image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-         if (!separate_stencil) {
-            tu_cs_emit(cs, tu_image_view_depth(iview, RB_BLIT_DST_INFO));
-            tu_cs_emit_qw(cs, iview->depth_base_addr + iview->depth_layer_size * i);
-            tu_cs_emit(cs, A6XX_RB_2D_DST_PITCH(iview->depth_pitch).value);
-
-            tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_FLAG_DST, 3);
-            tu_cs_image_flag_ref(cs, &iview->view, i);
-         } else {
-            tu_cs_emit(cs, tu_image_view_stencil(iview, RB_BLIT_DST_INFO) & ~A6XX_RB_BLIT_DST_INFO_FLAGS);
-            tu_cs_emit_qw(cs, iview->stencil_base_addr + iview->stencil_layer_size * i);
-            tu_cs_emit(cs, A6XX_RB_BLIT_DST_PITCH(iview->stencil_pitch).value);
-         }
-      } else {
-         tu_cs_emit(cs, iview->view.RB_BLIT_DST_INFO);
-         tu_cs_image_ref_2d<CHIP>(cs, &iview->view, i, false);
-
-         tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_FLAG_DST, 3);
-         tu_cs_image_flag_ref(cs, &iview->view, i);
-      }
-
-      if (attachment->format == VK_FORMAT_D32_SFLOAT_S8_UINT && separate_stencil) {
-            tu_cs_emit_regs(cs,
-                           A6XX_RB_BLIT_BASE_GMEM(tu_attachment_gmem_offset_stencil(cmd, attachment, i)));
-      } else {
-         tu_cs_emit_regs(cs,
-                        A6XX_RB_BLIT_BASE_GMEM(tu_attachment_gmem_offset(cmd, attachment, i)));
-      }
-
-      tu_cs_emit_pkt4(cs, REG_A6XX_RB_UNKNOWN_88D0, 1);
-      tu_cs_emit(cs, 0);
-
-      if (CHIP >= A7XX)
-         tu_cs_emit_regs(cs, A7XX_RB_UNKNOWN_88E4(.unk0 = 1));
-
-      tu_emit_event_write<CHIP>(cmd, cs, FD_BLIT);
+      event_blit_run<CHIP>(cmd, cs, attachment, iview, separate_stencil, i);
    }
 
-   tu_flush_for_access(&cmd->state.cache, TU_ACCESS_BLIT_WRITE_GMEM, TU_ACCESS_NONE);
+   tu_flush_for_access(&cmd->state.cache, TU_ACCESS_BLIT_WRITE_GMEM,
+                       TU_ACCESS_NONE);
 }
 
 static bool
@@ -3796,10 +3897,10 @@ tu_load_gmem_attachment(struct tu_cmd_buffer *cmd,
          load_3d_blit<CHIP>(cmd, cs, iview, attachment, true);
    } else {
       if (load_common)
-         tu_emit_blit<CHIP>(cmd, cs, iview, attachment, false, false);
+         tu_emit_blit<CHIP>(cmd, cs, iview, attachment, BLIT_EVENT_LOAD, false);
 
       if (load_stencil)
-         tu_emit_blit<CHIP>(cmd, cs, iview, attachment, false, true);
+         tu_emit_blit<CHIP>(cmd, cs, iview, attachment, BLIT_EVENT_LOAD, true);
    }
 
    if (cond_exec)
@@ -4115,9 +4216,9 @@ tu_store_gmem_attachment(struct tu_cmd_buffer *cmd,
    /* use fast path when render area is aligned, except for unsupported resolve cases */
    if (use_fast_path) {
       if (store_common)
-         tu_emit_blit<CHIP>(cmd, cs, iview, src, true, false);
+         tu_emit_blit<CHIP>(cmd, cs, iview, src, BLIT_EVENT_STORE, false);
       if (store_separate_stencil)
-         tu_emit_blit<CHIP>(cmd, cs, iview, src, true, true);
+         tu_emit_blit<CHIP>(cmd, cs, iview, src, BLIT_EVENT_STORE, true);
 
       if (cond_exec) {
          tu_end_load_store_cond_exec(cmd, cs, false);

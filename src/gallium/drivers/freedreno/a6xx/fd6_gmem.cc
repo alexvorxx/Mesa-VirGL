@@ -1342,7 +1342,7 @@ emit_blit(struct fd_batch *batch, struct fd_ringbuffer *ring, uint32_t base,
    }
 
    if (CHIP >= A7XX)
-      OUT_REG(ring, A7XX_RB_UNKNOWN_88E4(.unk0 = 1));
+      OUT_REG(ring, A7XX_RB_BLIT_CLEAR_MODE(.clear_mode = CLEAR_MODE_GMEM));
 
    fd6_emit_blit<CHIP>(batch->ctx, ring);
 }
@@ -1444,7 +1444,7 @@ emit_subpass_clears(struct fd_batch *batch, struct fd_batch_subpass *subpass)
          OUT_RING(ring, uc.ui[3]);
 
          if (CHIP >= A7XX)
-            OUT_REG(ring, A7XX_RB_UNKNOWN_88E4(.unk0 = 1));
+            OUT_REG(ring, A7XX_RB_BLIT_CLEAR_MODE(.clear_mode = CLEAR_MODE_GMEM));
 
          fd6_emit_blit<CHIP>(batch->ctx, ring);
       }

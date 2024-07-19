@@ -101,6 +101,11 @@ begin_end_tp('binning_ib')
 begin_end_tp('draw_ib_sysmem')
 begin_end_tp('draw_ib_gmem')
 
+begin_end_tp('generic_clear',
+    args=[Arg(type='enum VkFormat',  var='format',  c_format='%s', to_prim_type='vk_format_description({})->short_name'),
+          Arg(type='bool',           var='ubwc',    c_format='%s', to_prim_type='({} ? "true" : "false")'),
+          Arg(type='uint8_t',        var='samples', c_format='%u')])
+
 begin_end_tp('gmem_clear',
     args=[Arg(type='enum VkFormat',  var='format',  c_format='%s', to_prim_type='vk_format_description({})->short_name'),
           Arg(type='uint8_t',        var='samples', c_format='%u')])

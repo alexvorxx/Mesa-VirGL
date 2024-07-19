@@ -53,6 +53,7 @@ enum tu_stage_id {
    COMPUTE_STAGE_ID,
    CLEAR_SYSMEM_STAGE_ID,
    CLEAR_GMEM_STAGE_ID,
+   GENERIC_CLEAR_STAGE_ID,
    GMEM_LOAD_STAGE_ID,
    GMEM_STORE_STAGE_ID,
    SYSMEM_RESOLVE_STAGE_ID,
@@ -81,6 +82,7 @@ static const struct {
    [COMPUTE_STAGE_ID]        = { "Compute", "Compute job" },
    [CLEAR_SYSMEM_STAGE_ID]   = { "Clear Sysmem", "" },
    [CLEAR_GMEM_STAGE_ID]     = { "Clear GMEM", "Per-tile (GMEM) clear" },
+   [GENERIC_CLEAR_STAGE_ID]  = { "Clear Sysmem/Gmem", ""},
    [GMEM_LOAD_STAGE_ID]      = { "GMEM Load", "Per tile system memory to GMEM load" },
    [GMEM_STORE_STAGE_ID]     = { "GMEM Store", "Per tile GMEM to system memory store" },
    [SYSMEM_RESOLVE_STAGE_ID] = { "SysMem Resolve", "System memory MSAA resolve" },
@@ -500,6 +502,7 @@ CREATE_EVENT_CALLBACK(draw_ib_sysmem, BYPASS_STAGE_ID)
 CREATE_EVENT_CALLBACK(blit, BLIT_STAGE_ID)
 CREATE_EVENT_CALLBACK(compute, COMPUTE_STAGE_ID)
 CREATE_EVENT_CALLBACK(compute_indirect, COMPUTE_STAGE_ID)
+CREATE_EVENT_CALLBACK(generic_clear, GENERIC_CLEAR_STAGE_ID)
 CREATE_EVENT_CALLBACK(gmem_clear, CLEAR_GMEM_STAGE_ID)
 CREATE_EVENT_CALLBACK(sysmem_clear, CLEAR_SYSMEM_STAGE_ID)
 CREATE_EVENT_CALLBACK(sysmem_clear_all, CLEAR_SYSMEM_STAGE_ID)
