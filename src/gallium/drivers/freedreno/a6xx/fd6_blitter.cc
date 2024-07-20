@@ -352,11 +352,11 @@ emit_blit_setup(struct fd_ringbuffer *ring, enum pipe_format pfmt,
 
 static void
 emit_blit_buffer_dst(struct fd_ringbuffer *ring, struct fd_resource *dst,
-                     unsigned off, unsigned size)
+                     unsigned off, unsigned size, a6xx_format color_format)
 {
    OUT_REG(ring,
            A6XX_RB_2D_DST_INFO(
-                 .color_format = FMT6_8_UNORM,
+                 .color_format = color_format,
                  .tile_mode = TILE6_LINEAR,
                  .color_swap = WZYX,
            ),
@@ -466,7 +466,7 @@ emit_blit_buffer(struct fd_context *ctx, struct fd_ringbuffer *ring,
       /*
        * Emit destination:
        */
-      emit_blit_buffer_dst(ring, dst, doff, p);
+      emit_blit_buffer_dst(ring, dst, doff, p, FMT6_8_UNORM);
 
       /*
        * Blit command:
@@ -538,7 +538,7 @@ fd6_clear_ubwc(struct fd_batch *batch, struct fd_resource *rsc) assert_dt
       /*
        * Emit destination:
        */
-      emit_blit_buffer_dst(ring, rsc, offset, p);
+      emit_blit_buffer_dst(ring, rsc, offset, p, FMT6_8_UNORM);
 
       /*
        * Blit command:
