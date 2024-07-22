@@ -239,7 +239,7 @@ driSWRastCreateNewScreen3(int scrn, const __DRIextension **extensions,
  * This function calls __DriverAPIRec::DestroyScreen on \p screenPrivate, calls
  * drmClose(), and finally frees \p screenPrivate.
  */
-static void driDestroyScreen(__DRIscreen *psp)
+void driDestroyScreen(__DRIscreen *psp)
 {
     if (psp) {
         /* No interaction with the X-server is possible at this point.  This
@@ -251,7 +251,7 @@ static void driDestroyScreen(__DRIscreen *psp)
     }
 }
 
-static const __DRIextension **driGetExtensions(__DRIscreen *psp)
+const __DRIextension **driGetExtensions(__DRIscreen *psp)
 {
     return dri_screen(psp)->extensions;
 }
@@ -390,7 +390,7 @@ driGetConfigAttribIndex(const __DRIconfig *config,
  * \param value  returns the attribute's value
  * \return 1 for success, 0 for failure
  */
-static int
+int
 driGetConfigAttrib(const __DRIconfig *config,
                    unsigned int attrib, unsigned int *value)
 {
@@ -404,7 +404,7 @@ driGetConfigAttrib(const __DRIconfig *config,
  * \param value  returns the attribute's value
  * \return 1 for success, 0 for failure
  */
-static int
+int
 driIndexConfigAttrib(const __DRIconfig *config, int index,
                      unsigned int *attrib, unsigned int *value)
 {
@@ -667,7 +667,7 @@ driCreateNewContextForAPI(__DRIscreen *screen, int api,
                                    &error, data);
 }
 
-static __DRIcontext *
+__DRIcontext *
 driCreateNewContext(__DRIscreen *screen, const __DRIconfig *config,
                     __DRIcontext *shared, void *data)
 {
@@ -682,14 +682,14 @@ driCreateNewContext(__DRIscreen *screen, const __DRIconfig *config,
  * This function calls __DriverAPIRec::DestroyContext on \p contextPrivate, calls
  * drmDestroyContext(), and finally frees \p contextPrivate.
  */
-static void
+void
 driDestroyContext(__DRIcontext *pcp)
 {
     if (pcp)
         dri_destroy_context(dri_context(pcp));
 }
 
-static int
+int
 driCopyContext(__DRIcontext *dest, __DRIcontext *src, unsigned long mask)
 {
     (void) dest;
@@ -711,9 +711,9 @@ driCopyContext(__DRIcontext *dest, __DRIcontext *src, unsigned long mask)
  * for \c glXMakeCurrentReadSGI or GLX 1.3's \c glXMakeContextCurrent
  * function.
  */
-static int driBindContext(__DRIcontext *pcp,
-                          __DRIdrawable *pdp,
-                          __DRIdrawable *prp)
+int driBindContext(__DRIcontext *pcp,
+                   __DRIdrawable *pdp,
+                   __DRIdrawable *prp)
 {
    /*
     ** Assume error checking is done properly in glXMakeCurrent before
@@ -743,7 +743,7 @@ static int driBindContext(__DRIcontext *pcp,
  * While casting the opaque private pointers associated with the parameters
  * into their respective real types it also assures they are not \c NULL.
  */
-static int driUnbindContext(__DRIcontext *pcp)
+int driUnbindContext(__DRIcontext *pcp)
 {
     /*
     ** Assume error checking is done properly in glXMakeCurrent before
@@ -777,7 +777,7 @@ driCreateNewDrawable(__DRIscreen *psp,
     return opaque_dri_drawable(drawable);
 }
 
-static void
+void
 driDestroyDrawable(__DRIdrawable *pdp)
 {
     dri_put_drawable(dri_drawable(pdp));
@@ -867,7 +867,7 @@ driGetAPIMask(__DRIscreen *screen)
  * DRI2 implements this inside the loader with only flushes handled by the
  * driver.
  */
-static void
+void
 driSwapBuffersWithDamage(__DRIdrawable *pdp, int nrects, const int *rects)
 {
    struct dri_drawable *drawable = dri_drawable(pdp);
@@ -877,7 +877,7 @@ driSwapBuffersWithDamage(__DRIdrawable *pdp, int nrects, const int *rects)
    drawable->swap_buffers_with_damage(drawable, nrects, rects);
 }
 
-static void
+void
 driSwapBuffers(__DRIdrawable *pdp)
 {
    struct dri_drawable *drawable = dri_drawable(pdp);

@@ -129,5 +129,24 @@ driGetAPIMask(__DRIscreen *screen);
 PUBLIC __DRIdrawable *
 driCreateNewDrawable(__DRIscreen *psp, const __DRIconfig *config, void *data);
 extern const __DRIimageDriverExtension driImageDriverExtension;
-
+PUBLIC void driDestroyScreen(__DRIscreen *psp);
+PUBLIC const __DRIextension **driGetExtensions(__DRIscreen *psp);
+PUBLIC int
+driGetConfigAttrib(const __DRIconfig *config, unsigned int attrib, unsigned int *value);
+PUBLIC int
+driIndexConfigAttrib(const __DRIconfig *config, int index, unsigned int *attrib, unsigned int *value);
+PUBLIC void
+driDestroyDrawable(__DRIdrawable *pdp);
+PUBLIC void
+driSwapBuffers(__DRIdrawable *pdp);
+PUBLIC void
+driSwapBuffersWithDamage(__DRIdrawable *pdp, int nrects, const int *rects);
+PUBLIC __DRIcontext *
+driCreateNewContext(__DRIscreen *screen, const __DRIconfig *config, __DRIcontext *shared, void *data);
+PUBLIC int
+driCopyContext(__DRIcontext *dest, __DRIcontext *src, unsigned long mask);
+PUBLIC void
+driDestroyContext(__DRIcontext *pcp);
+PUBLIC int driBindContext(__DRIcontext *pcp, __DRIdrawable *pdp, __DRIdrawable *prp);
+PUBLIC int driUnbindContext(__DRIcontext *pcp);
 #endif /* _DRI_UTIL_H_ */
