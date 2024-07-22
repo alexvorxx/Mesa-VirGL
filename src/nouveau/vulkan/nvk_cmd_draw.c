@@ -1614,7 +1614,8 @@ nvk_flush_vp_state(struct nvk_cmd_buffer *cmd)
    /* Nothing to do for MESA_VK_DYNAMIC_VP_VIEWPORT_COUNT */
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VP_VIEWPORTS) ||
-       BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VP_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE)) {
+       BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VP_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE) ||
+       BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VP_DEPTH_CLAMP_RANGE)) {
       for (uint32_t i = 0; i < dyn->vp.viewport_count; i++) {
          const VkViewport *vp = &dyn->vp.viewports[i];
 
@@ -1642,13 +1643,19 @@ nvk_flush_vp_state(struct nvk_cmd_buffer *cmd)
          P_NV9097_SET_VIEWPORT_OFFSET_Y(p, i, fui(o_y));
          P_NV9097_SET_VIEWPORT_OFFSET_Z(p, i, fui(o_z));
 
+         const bool user_defined_range =
+            dyn->vp.depth_clamp_mode == VK_DEPTH_CLAMP_MODE_USER_DEFINED_RANGE_EXT;
          float xmin = vp->x;
          float xmax = vp->x + vp->width;
          float ymin = MIN2(vp->y, vp->y + vp->height);
          float ymax = MAX2(vp->y, vp->y + vp->height);
-         float zmin = MIN2(vp->minDepth, vp->maxDepth);
-         float zmax = MAX2(vp->minDepth, vp->maxDepth);
-         assert(xmin <= xmax && ymin <= ymax);
+         float zmin = user_defined_range ?
+                      dyn->vp.depth_clamp_range.minDepthClamp :
+                      MIN2(vp->minDepth, vp->maxDepth);
+         float zmax = user_defined_range ?
+                      dyn->vp.depth_clamp_range.maxDepthClamp :
+                      MAX2(vp->minDepth, vp->maxDepth);
+         assert(xmin <= xmax && ymin <= ymax && zmin <= zmax);
 
          const float max_dim = (float)0xffff;
          xmin = CLAMP(xmin, 0, max_dim);
