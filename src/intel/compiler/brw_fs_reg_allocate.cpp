@@ -220,6 +220,12 @@ void fs_visitor::calculate_payload_ranges(unsigned payload_node_count,
          }
       }
 
+      /* The generator implicitly uses g0 to construct extended message
+       * descriptors for scratch send messages when this bit is set.
+       */
+      if (inst->send_ex_desc_scratch)
+         payload_last_use_ip[0] = use_ip;
+
       if (inst->eot) {
          /* We could omit this for the !inst->header_present case, except
           * that the simulator apparently incorrectly reads from g0/g1
