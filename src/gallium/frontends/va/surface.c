@@ -155,8 +155,7 @@ _vlVaSyncSurface(VADriverContextP ctx, VASurfaceID render_target, uint64_t timeo
 
    mtx_lock(&drv->mutex);
    surf = handle_table_get(drv->htab, render_target);
-
-   if (!surf || !surf->buffer) {
+   if (!surf) {
       mtx_unlock(&drv->mutex);
       return VA_STATUS_ERROR_INVALID_SURFACE;
    }
@@ -167,7 +166,7 @@ _vlVaSyncSurface(VADriverContextP ctx, VASurfaceID render_target, uint64_t timeo
     * Some apps try to sync/map the surface right after creation and
     * would get VA_STATUS_ERROR_INVALID_CONTEXT
     */
-   if ((!surf->feedback) && (!surf->fence)) {
+   if (!surf->buffer || (!surf->feedback && !surf->fence)) {
       // No outstanding encode/decode operation: nothing to do.
       mtx_unlock(&drv->mutex);
       return VA_STATUS_SUCCESS;
@@ -271,7 +270,7 @@ vlVaQuerySurfaceStatus(VADriverContextP ctx, VASurfaceID render_target, VASurfac
    mtx_lock(&drv->mutex);
 
    surf = handle_table_get(drv->htab, render_target);
-   if (!surf || !surf->buffer) {
+   if (!surf) {
       mtx_unlock(&drv->mutex);
       return VA_STATUS_ERROR_INVALID_SURFACE;
    }
@@ -282,7 +281,7 @@ vlVaQuerySurfaceStatus(VADriverContextP ctx, VASurfaceID render_target, VASurfac
     * Some apps try to sync/map the surface right after creation and
     * would get VA_STATUS_ERROR_INVALID_CONTEXT
     */
-   if ((!surf->feedback) && (!surf->fence)) {
+   if (!surf->buffer || (!surf->feedback && !surf->fence)) {
       // No outstanding encode/decode operation: nothing to do.
       *status = VASurfaceReady;
       mtx_unlock(&drv->mutex);
@@ -485,7 +484,8 @@ vlVaPutSurface(VADriverContextP ctx, VASurfaceID surface_id, void* draw, short s
    drv = VL_VA_DRIVER(ctx);
    mtx_lock(&drv->mutex);
    surf = handle_table_get(drv->htab, surface_id);
-   if (!surf) {
+   vlVaGetSurfaceBuffer(drv, surf);
+   if (!surf || !surf->buffer) {
       mtx_unlock(&drv->mutex);
       return VA_STATUS_ERROR_INVALID_SURFACE;
    }
@@ -1111,6 +1111,17 @@ vlVaHandleSurfaceAllocate(vlVaDriver *drv, vlVaSurface *surface,
    return VA_STATUS_SUCCESS;
 }
 
+struct pipe_video_buffer *
+vlVaGetSurfaceBuffer(vlVaDriver *drv, vlVaSurface *surface)
+{
+   if (!surface)
+      return NULL;
+   if (surface->buffer)
+      return surface->buffer;
+   vlVaHandleSurfaceAllocate(drv, surface, &surface->templat, NULL, 0);
+   return surface->buffer;
+}
+
 VAStatus
 vlVaCreateSurfaces2(VADriverContextP ctx, unsigned int format,
                     unsigned int width, unsigned int height,
@@ -1325,12 +1336,14 @@ vlVaCreateSurfaces2(VADriverContextP ctx, unsigned int format,
           */
          if (memory_attribute &&
              !(memory_attribute->flags & VA_SURFACE_EXTBUF_DESC_ENABLE_TILING))
-            templat.bind = PIPE_BIND_LINEAR | PIPE_BIND_SHARED;
+            surf->templat.bind = PIPE_BIND_LINEAR | PIPE_BIND_SHARED;
 
-	 vaStatus = vlVaHandleSurfaceAllocate(drv, surf, &templat, modifiers,
-                                              modifiers_count);
-         if (vaStatus != VA_STATUS_SUCCESS)
-            goto free_surf;
+         if (modifiers) {
+            vaStatus = vlVaHandleSurfaceAllocate(drv, surf, &surf->templat, modifiers,
+                                                 modifiers_count);
+            if (vaStatus != VA_STATUS_SUCCESS)
+               goto free_surf;
+         } /* Delayed allocation from vlVaGetSurfaceBuffer otherwise */
          break;
 
 #ifdef _WIN32
@@ -1372,7 +1385,8 @@ vlVaCreateSurfaces2(VADriverContextP ctx, unsigned int format,
    return VA_STATUS_SUCCESS;
 
 destroy_surf:
-   surf->buffer->destroy(surf->buffer);
+   if (surf->buffer)
+      surf->buffer->destroy(surf->buffer);
 
 free_surf:
    FREE(surf);
@@ -1644,6 +1658,7 @@ vlVaExportSurfaceHandle(VADriverContextP ctx,
    mtx_lock(&drv->mutex);
 
    surf = handle_table_get(drv->htab, surface_id);
+   vlVaGetSurfaceBuffer(drv, surf);
    if (!surf || !surf->buffer) {
       mtx_unlock(&drv->mutex);
       return VA_STATUS_ERROR_INVALID_SURFACE;

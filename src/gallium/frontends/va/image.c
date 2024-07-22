@@ -286,7 +286,7 @@ vlVaDeriveImage(VADriverContextP ctx, VASurfaceID surface, VAImage *image)
       return VA_STATUS_ERROR_INVALID_CONTEXT;
 
    surf = handle_table_get(drv->htab, surface);
-
+   vlVaGetSurfaceBuffer(drv, surf);
    if (!surf || !surf->buffer)
       return VA_STATUS_ERROR_INVALID_SURFACE;
 
@@ -538,6 +538,7 @@ vlVaGetImage(VADriverContextP ctx, VASurfaceID surface, int x, int y,
 
    mtx_lock(&drv->mutex);
    surf = handle_table_get(drv->htab, surface);
+   vlVaGetSurfaceBuffer(drv, surf);
    if (!surf || !surf->buffer) {
       mtx_unlock(&drv->mutex);
       return VA_STATUS_ERROR_INVALID_SURFACE;
@@ -679,6 +680,7 @@ vlVaPutImage(VADriverContextP ctx, VASurfaceID surface, VAImageID image,
    mtx_lock(&drv->mutex);
 
    surf = handle_table_get(drv->htab, surface);
+   vlVaGetSurfaceBuffer(drv, surf);
    if (!surf || !surf->buffer) {
       mtx_unlock(&drv->mutex);
       return VA_STATUS_ERROR_INVALID_SURFACE;

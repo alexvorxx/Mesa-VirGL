@@ -97,6 +97,7 @@ vlVaBeginPicture(VADriverContextP ctx, VAContextID context_id, VASurfaceID rende
    }
 
    surf = handle_table_get(drv->htab, render_target);
+   vlVaGetSurfaceBuffer(drv, surf);
    if (!surf || !surf->buffer) {
       mtx_unlock(&drv->mutex);
       return VA_STATUS_ERROR_INVALID_SURFACE;
@@ -174,7 +175,7 @@ vlVaGetReferenceFrame(vlVaDriver *drv, VASurfaceID surface_id,
 {
    vlVaSurface *surf = handle_table_get(drv->htab, surface_id);
    if (surf)
-      *ref_frame = surf->buffer;
+      *ref_frame = vlVaGetSurfaceBuffer(drv, surf);
    else
       *ref_frame = NULL;
 }
@@ -1161,6 +1162,7 @@ vlVaEndPicture(VADriverContextP ctx, VAContextID context_id)
 
    mtx_lock(&drv->mutex);
    surf = handle_table_get(drv->htab, output_id);
+   vlVaGetSurfaceBuffer(drv, surf);
    if (!surf || !surf->buffer) {
       mtx_unlock(&drv->mutex);
       return VA_STATUS_ERROR_INVALID_SURFACE;
