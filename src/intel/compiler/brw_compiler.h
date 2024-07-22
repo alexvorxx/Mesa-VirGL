@@ -48,6 +48,8 @@ struct shader_info;
 struct nir_shader_compiler_options;
 typedef struct nir_shader nir_shader;
 
+#define REG_CLASS_COUNT 20
+
 struct brw_compiler {
    const struct intel_device_info *devinfo;
 
@@ -65,7 +67,7 @@ struct brw_compiler {
        * Array of the ra classes for the unaligned contiguous register
        * block sizes used, indexed by register size.
        */
-      struct ra_class *classes[16];
+      struct ra_class *classes[REG_CLASS_COUNT];
    } fs_reg_set;
 
    void (*shader_debug_log)(void *, unsigned *id, const char *str, ...) PRINTFLIKE(3, 4);
