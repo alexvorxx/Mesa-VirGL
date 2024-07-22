@@ -1513,7 +1513,7 @@ resource_object_create(struct zink_screen *screen, const struct pipe_resource *t
          mesa_loge("ZINK: failed to allocate obj->bo!");
          return NULL;
       }
-         
+
       obj->transfer_dst = true;
       return obj;
    }
@@ -2099,7 +2099,7 @@ zink_memobj_destroy(struct pipe_screen *pscreen, struct pipe_memory_object *pmem
    CloseHandle(memobj->whandle.handle);
 #endif /* _WIN32 */
 #endif /* ZINK_USE_DMABUF */
-   
+
    FREE(pmemobj);
 }
 
