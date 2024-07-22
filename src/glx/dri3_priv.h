@@ -80,7 +80,6 @@ struct dri3_screen {
    __DRIscreen *driScreenRenderGPU;
 
    const __DRIimageExtension *image;
-   const __DRIimageDriverExtension *image_driver;
    const __DRIcoreExtension *core;
    const __DRImesaCoreExtension *mesa;
    const __DRI2flushExtension *f;

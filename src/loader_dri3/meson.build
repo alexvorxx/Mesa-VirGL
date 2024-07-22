@@ -8,7 +8,7 @@ if with_platform_x11 and with_dri3
     'loader_dri3_helper',
     'loader_dri3_helper.c',
     gnu_symbol_visibility : 'hidden',
-    include_directories : [inc_include, inc_src, inc_loader, inc_gallium],
+    include_directories : [inc_include, inc_src, inc_loader, inc_gallium, inc_mesa, inc_st_dri],
     dependencies : [
       idep_mesautil,
       dep_libdrm, dep_xcb_dri3, dep_xcb_present, dep_xcb_sync, dep_xshmfence,

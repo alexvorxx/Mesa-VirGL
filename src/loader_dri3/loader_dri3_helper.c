@@ -39,6 +39,7 @@
 #include "util/macros.h"
 #include "util/simple_mtx.h"
 #include "drm-uapi/drm_fourcc.h"
+#include "dri_util.h"
 
 /**
  * A cached blit context.
@@ -441,10 +442,7 @@ loader_dri3_drawable_init(xcb_connection_t *conn,
    dri3_update_max_num_back(draw);
 
    /* Create a new drawable */
-   draw->dri_drawable =
-      draw->ext->image_driver->createNewDrawable(dri_screen_render_gpu,
-                                                 dri_config,
-                                                 draw);
+   draw->dri_drawable = driCreateNewDrawable(dri_screen_render_gpu, dri_config, draw);
 
    if (!draw->dri_drawable)
       return 1;

@@ -80,6 +80,7 @@
 #include "loader_dri_helper.h"
 #include "dri2.h"
 #include "util/u_debug.h"
+#include "dri_util.h"
 
 static struct dri3_drawable *
 loader_drawable_to_dri3_drawable(struct loader_dri3_drawable *draw) {
@@ -287,15 +288,15 @@ dri3_create_context_attribs(struct glx_screen *base,
    pcp->renderType = dca.render_type;
 
    pcp->driContext =
-      psc->image_driver->createContextAttribs(psc->driScreenRenderGPU,
-                                              dca.api,
-                                              config ? config->driConfig
-                                              : NULL,
-                                              shared,
-                                              num_ctx_attribs / 2,
-                                              ctx_attribs,
-                                              error,
-                                              pcp);
+      driCreateContextAttribs(psc->driScreenRenderGPU,
+                              dca.api,
+                              config ? config->driConfig
+                              : NULL,
+                              shared,
+                              num_ctx_attribs / 2,
+                              ctx_attribs,
+                              error,
+                              pcp);
 
    *error = dri_context_error_to_glx_error(*error);
 
@@ -706,7 +707,7 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
    __glXEnableDirectExtension(&psc->base, "GLX_SGI_make_current_read");
    __glXEnableDirectExtension(&psc->base, "GLX_INTEL_swap_event");
 
-   mask = psc->image_driver->getAPIMask(psc->driScreenRenderGPU);
+   mask = driGetAPIMask(psc->driScreenRenderGPU);
 
    __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context");
    __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context_profile");
@@ -843,7 +844,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
 
    static const struct dri_extension_match exts[] = {
        { __DRI_CORE, 1, offsetof(struct dri3_screen, core), false },
-       { __DRI_IMAGE_DRIVER, 2, offsetof(struct dri3_screen, image_driver), false },
        { __DRI_MESA, 2, offsetof(struct dri3_screen, mesa), false },
    };
    if (!loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions))
@@ -859,22 +859,20 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
           * extension pointer is shared because it keeps things simple.
           */
          if (strcmp(driverName, driverNameDisplayGPU) == 0) {
-            psc->driScreenDisplayGPU =
-               psc->image_driver->createNewScreen3(screen, psc->fd_display_gpu,
-                                                   loader_extensions,
-                                                   extensions,
-                                                   &driver_configs, driver_name_is_inferred, psc);
+            psc->driScreenDisplayGPU = driCreateNewScreen3(screen, psc->fd_display_gpu,
+                                                           loader_extensions,
+                                                           extensions,
+                                                           &driver_configs, driver_name_is_inferred, psc);
          }
 
          free(driverNameDisplayGPU);
       }
    }
 
-   psc->driScreenRenderGPU =
-      psc->image_driver->createNewScreen3(screen, psc->fd_render_gpu,
-                                          loader_extensions,
-                                          extensions,
-                                          &driver_configs, driver_name_is_inferred, psc);
+   psc->driScreenRenderGPU = driCreateNewScreen3(screen, psc->fd_render_gpu,
+                                                 loader_extensions,
+                                                 extensions,
+                                                 &driver_configs, driver_name_is_inferred, psc);
 
    if (psc->driScreenRenderGPU == NULL) {
       ErrorMessageF("glx: failed to create dri3 screen\n");
@@ -915,7 +913,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    }
 
    psc->loader_dri3_ext.core = psc->core;
-   psc->loader_dri3_ext.image_driver = psc->image_driver;
    psc->loader_dri3_ext.flush = psc->f;
    psc->loader_dri3_ext.tex_buffer = psc->texBuffer;
    psc->loader_dri3_ext.image = psc->image;
