@@ -148,13 +148,11 @@ static const struct glx_context_vtable dri3_context_vtable;
 static void
 dri3_destroy_context(struct glx_context *context)
 {
-   struct dri3_screen *psc = (struct dri3_screen *) context->psc;
-
    driReleaseDrawables(context);
 
    free((char *) context->extensions);
 
-   psc->core->destroyContext(context->driContext);
+   driDestroyContext(context->driContext);
 
    free(context);
 }
@@ -181,7 +179,7 @@ dri3_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable rea
    else if (read != None)
       return GLXBadDrawable;
 
-   if (!psc->core->bindContext(context->driContext, dri_draw, dri_read))
+   if (!driBindContext(context->driContext, dri_draw, dri_read))
       return GLXBadContext;
 
    if (dri_draw)
@@ -195,9 +193,7 @@ dri3_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable rea
 static void
 dri3_unbind_context(struct glx_context *context)
 {
-   struct dri3_screen *psc = (struct dri3_screen *) context->psc;
-
-   psc->core->unbindContext(context->driContext);
+   driUnbindContext(context->driContext);
 }
 
 static struct glx_context *
@@ -590,12 +586,12 @@ dri3_destroy_screen(struct glx_screen *base)
    /* Free the direct rendering per screen data */
    if (psc->fd_render_gpu != psc->fd_display_gpu && psc->driScreenDisplayGPU) {
       loader_dri3_close_screen(psc->driScreenDisplayGPU);
-      psc->core->destroyScreen(psc->driScreenDisplayGPU);
+      driDestroyScreen(psc->driScreenDisplayGPU);
    }
    if (psc->fd_render_gpu != psc->fd_display_gpu)
       close(psc->fd_display_gpu);
    loader_dri3_close_screen(psc->driScreenRenderGPU);
-   psc->core->destroyScreen(psc->driScreenRenderGPU);
+   driDestroyScreen(psc->driScreenRenderGPU);
    driDestroyConfigs(psc->driver_configs);
    close(psc->fd_render_gpu);
    free(psc);
@@ -698,7 +694,7 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
    unsigned mask;
    int i;
 
-   extensions = psc->core->getExtensions(psc->driScreenRenderGPU);
+   extensions = driGetExtensions(psc->driScreenRenderGPU);
 
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control");
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control_tear");
@@ -843,7 +839,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       goto handle_error;
 
    static const struct dri_extension_match exts[] = {
-       { __DRI_CORE, 1, offsetof(struct dri3_screen, core), false },
        { __DRI_MESA, 2, offsetof(struct dri3_screen, mesa), false },
    };
    if (!loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions))
@@ -917,8 +912,8 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    psc->loader_dri3_ext.image = psc->image;
    psc->loader_dri3_ext.config = psc->config;
 
-   configs = driConvertConfigs(psc->core, psc->base.configs, driver_configs);
-   visuals = driConvertConfigs(psc->core, psc->base.visuals, driver_configs);
+   configs = driConvertConfigs(psc->base.configs, driver_configs);
+   visuals = driConvertConfigs(psc->base.visuals, driver_configs);
 
    if (!configs || !visuals) {
        ErrorMessageF("No matching fbConfigs or visuals found\n");
@@ -1017,10 +1012,10 @@ handle_error:
    if (visuals)
        glx_config_destroy_list(visuals);
    if (psc->driScreenRenderGPU)
-       psc->core->destroyScreen(psc->driScreenRenderGPU);
+       driDestroyScreen(psc->driScreenRenderGPU);
    psc->driScreenRenderGPU = NULL;
    if (psc->fd_render_gpu != psc->fd_display_gpu && psc->driScreenDisplayGPU)
-       psc->core->destroyScreen(psc->driScreenDisplayGPU);
+       driDestroyScreen(psc->driScreenDisplayGPU);
    psc->driScreenDisplayGPU = NULL;
    if (psc->fd_display_gpu >= 0 && psc->fd_render_gpu != psc->fd_display_gpu)
       close(psc->fd_display_gpu);

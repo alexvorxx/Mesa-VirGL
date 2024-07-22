@@ -51,8 +51,7 @@ struct __GLXDRIconfigPrivateRec
    const __DRIconfig *driConfig;
 };
 
-extern struct glx_config *driConvertConfigs(const __DRIcoreExtension * core,
-                                           struct glx_config * modes,
+extern struct glx_config *driConvertConfigs(struct glx_config * modes,
                                            const __DRIconfig ** configs);
 
 extern void driDestroyConfigs(const __DRIconfig **configs);

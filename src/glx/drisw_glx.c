@@ -42,6 +42,7 @@
 #include "util/u_debug.h"
 #include "kopper_interface.h"
 #include "loader_dri_helper.h"
+#include "dri_util.h"
 
 static int xshm_error = 0;
 static int xshm_opcode = -1;
@@ -421,13 +422,11 @@ static const __DRIextension *kopper_extensions_noshm[] = {
 static void
 drisw_destroy_context(struct glx_context *context)
 {
-   struct drisw_screen *psc = (struct drisw_screen *) context->psc;
-
    driReleaseDrawables(context);
 
    free((char *) context->extensions);
 
-   psc->core->destroyContext(context->driContext);
+   driDestroyContext(context->driContext);
 
    free(context);
 }
@@ -443,7 +442,7 @@ drisw_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable re
 
    driReleaseDrawables(context);
 
-   if (!psc->core->bindContext(context->driContext,
+   if (!driBindContext(context->driContext,
                                pdraw ? pdraw->driDrawable : NULL,
                                pread ? pread->driDrawable : NULL))
       return GLXBadContext;
@@ -460,9 +459,7 @@ drisw_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable re
 static void
 drisw_unbind_context(struct glx_context *context)
 {
-   struct drisw_screen *psc = (struct drisw_screen *) context->psc;
-
-   psc->core->unbindContext(context->driContext);
+   driUnbindContext(context->driContext);
 }
 
 static void
@@ -660,9 +657,8 @@ static void
 driswDestroyDrawable(__GLXDRIdrawable * pdraw)
 {
    struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
-   struct drisw_screen *psc = (struct drisw_screen *) pdp->base.psc;
 
-   psc->core->destroyDrawable(pdp->driDrawable);
+   driDestroyDrawable(pdp->driDrawable);
 
    XDestroyDrawable(pdp, pdraw->psc->dpy, pdraw->drawable);
    free(pdp);
@@ -769,7 +765,7 @@ driswSwapBuffers(__GLXDRIdrawable * pdraw,
    if (psc->kopper)
        return psc->kopper->swapBuffers (pdp->driDrawable, 0);
 
-   psc->core->swapBuffers(pdp->driDrawable);
+   driSwapBuffers(pdp->driDrawable);
 
    return 0;
 }
@@ -794,7 +790,7 @@ driswDestroyScreen(struct glx_screen *base)
    struct drisw_screen *psc = (struct drisw_screen *) base;
 
    /* Free the direct rendering per screen data */
-   psc->core->destroyScreen(psc->driScreen);
+   driDestroyScreen(psc->driScreen);
    driDestroyConfigs(psc->driver_configs);
    psc->driScreen = NULL;
    free(psc->name);
@@ -966,7 +962,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       loader_extensions_local = loader_extensions_shm;
 
    static const struct dri_extension_match exts[] = {
-       { __DRI_CORE, 1, offsetof(struct drisw_screen, core), false },
        { __DRI_SWRAST, 5, offsetof(struct drisw_screen, swrast), false },
        { __DRI_KOPPER, 1, offsetof(struct drisw_screen, kopper), true },
        { __DRI_COPY_SUB_BUFFER, 1, offsetof(struct drisw_screen, copySubBuffer), true },
@@ -985,11 +980,11 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       goto handle_error;
    }
 
-   extensions = psc->core->getExtensions(psc->driScreen);
+   extensions = driGetExtensions(psc->driScreen);
    driswBindExtensions(psc, extensions);
 
-   configs = driConvertConfigs(psc->core, psc->base.configs, driver_configs);
-   visuals = driConvertConfigs(psc->core, psc->base.visuals, driver_configs);
+   configs = driConvertConfigs(psc->base.configs, driver_configs);
+   visuals = driConvertConfigs(psc->base.visuals, driver_configs);
 
    if (!configs || !visuals) {
        ErrorMessageF("No matching fbConfigs or visuals found\n");
@@ -1033,7 +1028,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    if (visuals)
        glx_config_destroy_list(visuals);
    if (psc->driScreen)
-       psc->core->destroyScreen(psc->driScreen);
+       driDestroyScreen(psc->driScreen);
    psc->driScreen = NULL;
 
    glx_screen_cleanup(&psc->base);

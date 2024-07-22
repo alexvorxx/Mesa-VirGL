@@ -43,6 +43,7 @@
 #include "loader.h"
 #include <X11/Xlib-xcb.h>
 #include <xcb/xproto.h>
+#include "dri_util.h"
 
 #ifndef RTLD_NOW
 #define RTLD_NOW 0
@@ -135,14 +136,13 @@ scalarEqual(struct glx_config *mode, unsigned int attrib, unsigned int value)
 }
 
 static int
-driConfigEqual(const __DRIcoreExtension *core,
-               struct glx_config *config, const __DRIconfig *driConfig)
+driConfigEqual(struct glx_config *config, const __DRIconfig *driConfig)
 {
    unsigned int attrib, value, glxValue;
    int i;
 
    i = 0;
-   while (core->indexConfigAttrib(driConfig, i++, &attrib, &value)) {
+   while (driIndexConfigAttrib(driConfig, i++, &attrib, &value)) {
       switch (attrib) {
       case __DRI_ATTRIB_RENDER_TYPE:
          glxValue = 0;
@@ -230,14 +230,13 @@ driConfigEqual(const __DRIcoreExtension *core,
 }
 
 static struct glx_config *
-createDriMode(const __DRIcoreExtension * core,
-         struct glx_config *config, const __DRIconfig **driConfigs)
+createDriMode(struct glx_config *config, const __DRIconfig **driConfigs)
 {
    __GLXDRIconfigPrivate *driConfig;
    int i;
 
    for (i = 0; driConfigs[i]; i++) {
-      if (driConfigEqual(core, config, driConfigs[i]))
+      if (driConfigEqual(config, driConfigs[i]))
          break;
    }
 
@@ -255,15 +254,14 @@ createDriMode(const __DRIcoreExtension * core,
 }
 
 _X_HIDDEN struct glx_config *
-driConvertConfigs(const __DRIcoreExtension * core,
-                  struct glx_config *configs, const __DRIconfig **driConfigs)
+driConvertConfigs(struct glx_config *configs, const __DRIconfig **driConfigs)
 {
    struct glx_config head, *tail, *m;
 
    tail = &head;
    head.next = NULL;
    for (m = configs; m; m = m->next) {
-      tail->next = createDriMode(core, m, driConfigs);
+      tail->next = createDriMode(m, driConfigs);
       if (tail->next == NULL) {
          /* no matching dri config for m */
          continue;

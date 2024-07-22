@@ -50,6 +50,7 @@
 #include "dri2_priv.h"
 #include "loader.h"
 #include "loader_dri_helper.h"
+#include "dri_util.h"
 
 #undef DRI2_MINOR
 #define DRI2_MINOR 1
@@ -90,13 +91,11 @@ merge_counter(uint32_t hi, uint32_t lo)
 static void
 dri2_destroy_context(struct glx_context *context)
 {
-   struct dri2_screen *psc = (struct dri2_screen *) context->psc;
-
    driReleaseDrawables(context);
 
    free((char *) context->extensions);
 
-   psc->core->destroyContext(context->driContext);
+   driDestroyContext(context->driContext);
 
    free(context);
 }
@@ -104,7 +103,6 @@ dri2_destroy_context(struct glx_context *context)
 static Bool
 dri2_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read)
 {
-   struct dri2_screen *psc = (struct dri2_screen *) context->psc;
    struct dri2_drawable *pdraw, *pread;
    __DRIdrawable *dri_draw = NULL, *dri_read = NULL;
 
@@ -123,7 +121,7 @@ dri2_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable rea
    else if (read != None)
       return GLXBadDrawable;
 
-   if (!psc->core->bindContext(context->driContext, dri_draw, dri_read))
+   if (!driBindContext(context->driContext, dri_draw, dri_read))
       return GLXBadContext;
 
    return Success;
@@ -132,9 +130,7 @@ dri2_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable rea
 static void
 dri2_unbind_context(struct glx_context *context)
 {
-   struct dri2_screen *psc = (struct dri2_screen *) context->psc;
-
-   psc->core->unbindContext(context->driContext);
+   driUnbindContext(context->driContext);
 }
 
 static struct glx_context *
@@ -260,7 +256,7 @@ dri2DestroyDrawable(__GLXDRIdrawable *base)
    struct glx_display *dpyPriv = psc->base.display;
 
    __glxHashDelete(dpyPriv->dri2Hash, pdraw->base.xDrawable);
-   psc->core->destroyDrawable(pdraw->driDrawable);
+   driDestroyDrawable(pdraw->driDrawable);
 
    /* If it's a GLX 1.3 drawables, we can destroy the DRI2 drawable
     * now, as the application explicitly asked to destroy the GLX
@@ -314,7 +310,7 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
    }
 
    if (__glxHashInsert(dpyPriv->dri2Hash, xDrawable, pdraw)) {
-      psc->core->destroyDrawable(pdraw->driDrawable);
+      driDestroyDrawable(pdraw->driDrawable);
       DRI2DestroyDrawable(psc->base.dpy, xDrawable);
       free(pdraw);
       return None;
@@ -596,7 +592,7 @@ dri2DestroyScreen(struct glx_screen *base)
    struct dri2_screen *psc = (struct dri2_screen *) base;
 
    /* Free the direct rendering per screen data */
-   psc->core->destroyScreen(psc->driScreen);
+   driDestroyScreen(psc->driScreen);
    driDestroyConfigs(psc->driver_configs);
    free(psc->driverName);
    close(psc->fd);
@@ -876,7 +872,7 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
    const __DRIextension **extensions;
    int i;
 
-   extensions = psc->core->getExtensions(psc->driScreen);
+   extensions = driGetExtensions(psc->driScreen);
 
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control");
    __glXEnableDirectExtension(&psc->base, "GLX_SGI_swap_control");
@@ -1027,7 +1023,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
       goto handle_error;
 
    static const struct dri_extension_match exts[] = {
-       { __DRI_CORE, 1, offsetof(struct dri2_screen, core), false },
        { __DRI_DRI2, 5, offsetof(struct dri2_screen, dri2), false },
        { __DRI_MESA, 2, offsetof(struct dri2_screen, mesa), false },
    };
@@ -1047,8 +1042,8 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
 
    dri2BindExtensions(psc, priv, driverName);
 
-   configs = driConvertConfigs(psc->core, psc->base.configs, driver_configs);
-   visuals = driConvertConfigs(psc->core, psc->base.visuals, driver_configs);
+   configs = driConvertConfigs(psc->base.configs, driver_configs);
+   visuals = driConvertConfigs(psc->base.visuals, driver_configs);
 
    if (!configs || !visuals) {
        ErrorMessageF("No matching fbConfigs or visuals found\n");
@@ -1140,7 +1135,7 @@ handle_error:
    if (visuals)
        glx_config_destroy_list(visuals);
    if (psc->driScreen)
-       psc->core->destroyScreen(psc->driScreen);
+       driDestroyScreen(psc->driScreen);
    psc->driScreen = NULL;
    if (psc->fd >= 0)
       close(psc->fd);
