@@ -620,6 +620,9 @@ anv_queue_trace(struct anv_queue *queue, const char *label, bool frame, bool beg
    if (result != VK_SUCCESS)
       goto error_batch;
 
+   if (frame && !begin)
+      intel_ds_device_process(&device->ds, true);
+
    return;
 
  error_batch:

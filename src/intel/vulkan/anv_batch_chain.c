@@ -1622,7 +1622,7 @@ anv_queue_submit(struct vk_queue *vk_queue,
 
    pthread_mutex_unlock(&device->mutex);
 
-   intel_ds_device_process(&device->ds, true);
+   intel_ds_device_process(&device->ds, false);
 
    return result;
 }
