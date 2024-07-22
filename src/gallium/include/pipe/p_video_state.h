@@ -689,6 +689,15 @@ struct pipe_h264_enc_picture_desc
    bool insert_aud_nalu;
    enum pipe_video_feedback_metadata_type requested_metadata;
    bool renew_headers_on_idr;
+
+   union {
+      struct {
+         uint32_t sps:1;
+         uint32_t pps:1;
+         uint32_t aud:1;
+      };
+      uint32_t value;
+   } header_flags;
 };
 
 struct pipe_h265_st_ref_pic_set
@@ -892,11 +901,15 @@ struct pipe_h265_enc_picture_desc
 
    union {
       struct {
+         uint32_t vps:1;
+         uint32_t sps:1;
+         uint32_t pps:1;
+         uint32_t aud:1;
          uint32_t hdr_cll:1;
          uint32_t hdr_mdcv:1;
       };
       uint32_t value;
-   } metadata_flags;
+   } header_flags;
 
    struct pipe_enc_hdr_cll metadata_hdr_cll;
    struct pipe_enc_hdr_mdcv metadata_hdr_mdcv;

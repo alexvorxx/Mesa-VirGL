@@ -689,12 +689,12 @@ static void radeon_vcn_enc_hevc_get_metadata(struct radeon_encoder *enc,
 {
    memset (&enc->enc_pic.enc_sei, 0, sizeof(rvcn_enc_seidata_t));
 
-   if (!pic->metadata_flags.value) {
+   if (!pic->header_flags.value) {
       enc->enc_pic.enc_sei.flags.value = 0;
       return;
    }
 
-   if (pic->metadata_flags.hdr_cll) {
+   if (pic->header_flags.hdr_cll) {
       enc->enc_pic.enc_sei.flags.hdr_cll = 1;
       enc->enc_pic.enc_sei.hdr_cll = (rvcn_enc_sei_hdr_cll_t) {
          .max_cll = pic->metadata_hdr_cll.max_cll,
@@ -702,7 +702,7 @@ static void radeon_vcn_enc_hevc_get_metadata(struct radeon_encoder *enc,
       };
    }
 
-   if (pic->metadata_flags.hdr_mdcv) {
+   if (pic->header_flags.hdr_mdcv) {
       enc->enc_pic.enc_sei.flags.hdr_mdcv = 1;
       for (int32_t i = 0; i < 3; i++) {
          enc->enc_pic.enc_sei.hdr_mdcv.primary_chromaticity_x[i]

@@ -690,7 +690,7 @@ static void parseEncSeiPayloadH265(vlVaContext *context, struct vl_rbsp *rbsp, i
 {
    switch (payloadType) {
    case MASTERING_DISPLAY_COLOUR_VOLUME:
-      context->desc.h265enc.metadata_flags.hdr_mdcv = 1;
+      context->desc.h265enc.header_flags.hdr_mdcv = 1;
       for (int32_t i = 0; i < 3; i++) {
          context->desc.h265enc.metadata_hdr_mdcv.primary_chromaticity_x[i] = vl_rbsp_u(rbsp, 16);
          context->desc.h265enc.metadata_hdr_mdcv.primary_chromaticity_y[i] = vl_rbsp_u(rbsp, 16);
@@ -701,7 +701,7 @@ static void parseEncSeiPayloadH265(vlVaContext *context, struct vl_rbsp *rbsp, i
       context->desc.h265enc.metadata_hdr_mdcv.luminance_min = vl_rbsp_u(rbsp, 32);
       break;
    case CONTENT_LIGHT_LEVEL_INFO:
-      context->desc.h265enc.metadata_flags.hdr_cll = 1;
+      context->desc.h265enc.header_flags.hdr_cll = 1;
       context->desc.h265enc.metadata_hdr_cll.max_cll= vl_rbsp_u(rbsp, 16);
       context->desc.h265enc.metadata_hdr_cll.max_fall= vl_rbsp_u(rbsp, 16);
       break;
