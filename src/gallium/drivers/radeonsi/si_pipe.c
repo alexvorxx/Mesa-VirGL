@@ -1066,7 +1066,6 @@ static void si_destroy_screen(struct pipe_screen *pscreen)
 
    sscreen->ws->destroy(sscreen->ws);
    FREE(sscreen->nir_options);
-   FREE(sscreen->nir_lower_subgroups_options);
    FREE(sscreen);
 }
 
@@ -1235,7 +1234,6 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
    sscreen->b.finalize_nir = si_finalize_nir;
 
    sscreen->nir_options = CALLOC_STRUCT(nir_shader_compiler_options);
-   sscreen->nir_lower_subgroups_options = CALLOC_STRUCT(nir_lower_subgroups_options);
 
    si_init_screen_get_functions(sscreen);
    si_init_screen_buffer_functions(sscreen);
@@ -1272,7 +1270,6 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
    si_init_gs_info(sscreen);
    if (!si_init_shader_cache(sscreen)) {
       FREE(sscreen->nir_options);
-      FREE(sscreen->nir_lower_subgroups_options);
       FREE(sscreen);
       return NULL;
    }
@@ -1329,7 +1326,6 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
                         UTIL_QUEUE_INIT_SET_FULL_THREAD_AFFINITY, NULL)) {
       si_destroy_shader_cache(sscreen);
       FREE(sscreen->nir_options);
-      FREE(sscreen->nir_lower_subgroups_options);
       FREE(sscreen);
       glsl_type_singleton_decref();
       return NULL;
@@ -1341,7 +1337,6 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
                         UTIL_QUEUE_INIT_SET_FULL_THREAD_AFFINITY, NULL)) {
       si_destroy_shader_cache(sscreen);
       FREE(sscreen->nir_options);
-      FREE(sscreen->nir_lower_subgroups_options);
       FREE(sscreen);
       glsl_type_singleton_decref();
       return NULL;

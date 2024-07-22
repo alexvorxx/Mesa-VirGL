@@ -20,6 +20,12 @@
 #include "util/ralloc.h"
 #include "util/u_upload_mgr.h"
 
+#if LLVM_AVAILABLE
+#include <llvm/Config/llvm-config.h> /* for LLVM_VERSION_MAJOR */
+#else
+#define LLVM_VERSION_MAJOR 0
+#endif
+
 static const char scratch_rsrc_dword0_symbol[] = "SCRATCH_RSRC_DWORD0";
 
 static const char scratch_rsrc_dword1_symbol[] = "SCRATCH_RSRC_DWORD1";
@@ -1957,9 +1963,6 @@ static void si_lower_ngg(struct si_shader *shader, nir_shader *nir)
       NIR_PASS_V(nir, ac_nir_lower_ngg_gs, &options);
    }
 
-   /* may generate some subgroup op like ballot */
-   NIR_PASS_V(nir, nir_lower_subgroups, sel->screen->nir_lower_subgroups_options);
-
    /* may generate some vector output store */
    NIR_PASS_V(nir, nir_lower_io_to_scalar, nir_var_shader_out, NULL, NULL);
 }
@@ -2480,6 +2483,30 @@ struct nir_shader *si_get_nir_shader(struct si_shader *shader,
       progress = true;
    }
 
+   assert(shader->wave_size == 32 || shader->wave_size == 64);
+
+   NIR_PASS(progress, nir, nir_lower_subgroups,
+            &(struct nir_lower_subgroups_options) {
+               .subgroup_size = shader->wave_size,
+               .ballot_bit_size = shader->wave_size,
+               .ballot_components = 1,
+               .lower_to_scalar = true,
+               .lower_subgroup_masks = true,
+               .lower_relative_shuffle = true,
+               .lower_rotate_to_shuffle = !sel->info.base.use_aco_amd,
+               .lower_shuffle_to_32bit = true,
+               .lower_vote_eq = true,
+               .lower_vote_bool_eq = true,
+               .lower_quad_broadcast_dynamic = true,
+               .lower_quad_broadcast_dynamic_to_const = sel->screen->info.gfx_level <= GFX7,
+               .lower_shuffle_to_swizzle_amd = true,
+               .lower_ballot_bit_count_to_mbcnt_amd = true,
+               .lower_inverse_ballot = !sel->info.base.use_aco_amd && LLVM_VERSION_MAJOR < 17,
+               .lower_boolean_reduce = true,
+               .lower_boolean_shuffle = true,
+            });
+
+   NIR_PASS(progress, nir, nir_lower_pack);
    NIR_PASS(progress, nir, nir_lower_int64);
    NIR_PASS(progress, nir, nir_opt_idiv_const, 8);
    NIR_PASS(progress, nir, nir_lower_idiv,
@@ -3595,6 +3622,7 @@ nir_shader *si_get_prev_stage_nir_shader(struct si_shader *shader,
     */
    prev_shader->key.ge.opt.kill_outputs = 0;
    prev_shader->is_monolithic = true;
+   prev_shader->wave_size = shader->wave_size;
 
    si_init_shader_args(prev_shader, args);
 

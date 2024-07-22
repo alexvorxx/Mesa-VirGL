@@ -125,7 +125,6 @@ extern "C" {
 
 struct nir_shader;
 struct nir_instr;
-struct nir_lower_subgroups_options;
 
 #define SI_NUM_INTERP     32
 #define SI_MAX_ATTRIBS    16
