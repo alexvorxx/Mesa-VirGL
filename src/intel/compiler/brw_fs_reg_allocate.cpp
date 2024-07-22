@@ -622,7 +622,8 @@ fs_reg_alloc::build_legacy_scratch_header(const fs_builder &bld,
    brw_reg header = retype(alloc_spill_reg(1, ip), BRW_TYPE_UD);
    ra_add_node_interference(g, first_vgrf_node + header.nr, first_payload_node);
 
-   fs_inst *inst = ubld8.emit(SHADER_OPCODE_SCRATCH_HEADER, header);
+   fs_inst *inst =
+      ubld8.emit(SHADER_OPCODE_SCRATCH_HEADER, header, brw_ud8_grf(0, 0));
    _mesa_set_add(spill_insts, inst);
 
    /* Write the scratch offset */

@@ -1461,7 +1461,7 @@ lower_surface_logical_send(const fs_builder &bld, fs_inst *inst)
       assert(!is_surface_access);
       fs_builder ubld = bld.exec_all().group(8, 0);
       header = ubld.vgrf(BRW_TYPE_UD);
-      ubld.emit(SHADER_OPCODE_SCRATCH_HEADER, header);
+      ubld.emit(SHADER_OPCODE_SCRATCH_HEADER, header, brw_ud8_grf(0, 0));
    }
    const unsigned header_sz = header.file != BAD_FILE ? 1 : 0;
 
@@ -1947,7 +1947,7 @@ lower_surface_block_logical_send(const fs_builder &bld, fs_inst *inst)
    brw_reg header = ubld.vgrf(BRW_TYPE_UD);
 
    if (is_stateless)
-      ubld.emit(SHADER_OPCODE_SCRATCH_HEADER, header);
+      ubld.emit(SHADER_OPCODE_SCRATCH_HEADER, header, brw_ud8_grf(0, 0));
    else
       ubld.MOV(header, brw_imm_d(0));
 

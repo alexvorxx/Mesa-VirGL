@@ -505,7 +505,8 @@ private:
                      struct brw_reg dst, struct brw_reg src);
    void generate_ddy(const fs_inst *inst,
                      struct brw_reg dst, struct brw_reg src);
-   void generate_scratch_header(fs_inst *inst, struct brw_reg dst);
+   void generate_scratch_header(fs_inst *inst,
+                                struct brw_reg dst, struct brw_reg src);
 
    void generate_halt(fs_inst *inst);
 

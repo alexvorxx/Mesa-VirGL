@@ -701,10 +701,14 @@ fs_generator::generate_halt(fs_inst *)
  * information required by either set of opcodes.
  */
 void
-fs_generator::generate_scratch_header(fs_inst *inst, struct brw_reg dst)
+fs_generator::generate_scratch_header(fs_inst *inst,
+                                      struct brw_reg dst,
+                                      struct brw_reg src)
 {
    assert(inst->exec_size == 8 && inst->force_writemask_all);
    assert(dst.file == BRW_GENERAL_REGISTER_FILE);
+   assert(src.file == BRW_GENERAL_REGISTER_FILE);
+   assert(src.type == BRW_TYPE_UD);
 
    dst.type = BRW_TYPE_UD;
 
@@ -716,8 +720,7 @@ fs_generator::generate_scratch_header(fs_inst *inst, struct brw_reg dst)
 
    /* Copy the per-thread scratch space size from g0.3[3:0] */
    brw_set_default_exec_size(p, BRW_EXECUTE_1);
-   insn = brw_AND(p, suboffset(dst, 3),
-                     retype(brw_vec1_grf(0, 3), BRW_TYPE_UD),
+   insn = brw_AND(p, suboffset(dst, 3), component(src, 3),
                      brw_imm_ud(INTEL_MASK(3, 0)));
    if (devinfo->ver < 12) {
       brw_inst_set_no_dd_clear(p->devinfo, insn, true);
@@ -725,8 +728,7 @@ fs_generator::generate_scratch_header(fs_inst *inst, struct brw_reg dst)
    }
 
    /* Copy the scratch base address from g0.5[31:10] */
-   insn = brw_AND(p, suboffset(dst, 5),
-                     retype(brw_vec1_grf(0, 5), BRW_TYPE_UD),
+   insn = brw_AND(p, suboffset(dst, 5), component(src, 5),
                      brw_imm_ud(INTEL_MASK(31, 10)));
    if (devinfo->ver < 12)
       brw_inst_set_no_dd_check(p->devinfo, insn, true);
@@ -1159,7 +1161,7 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
 	 break;
 
       case SHADER_OPCODE_SCRATCH_HEADER:
-         generate_scratch_header(inst, dst);
+         generate_scratch_header(inst, dst, src[0]);
          break;
 
       case SHADER_OPCODE_MOV_INDIRECT:
