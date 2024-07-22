@@ -37,6 +37,7 @@
 #include "freedreno_query_hw.h"
 #include "freedreno_resource.h"
 #include "freedreno_state.h"
+#include "freedreno_stompable_regs.h"
 #include "freedreno_tracepoints.h"
 
 #include "fd6_blend.h"
@@ -802,6 +803,17 @@ fd6_emit_ccu_cntl(struct fd_ringbuffer *ring, struct fd_screen *screen, bool gme
 template void fd6_emit_cs_state<A6XX>(struct fd_context *ctx, struct fd_ringbuffer *ring, struct fd6_compute_state *cs);
 template void fd6_emit_cs_state<A7XX>(struct fd_context *ctx, struct fd_ringbuffer *ring, struct fd6_compute_state *cs);
 
+template <chip CHIP>
+static void
+fd6_emit_stomp(struct fd_ringbuffer *ring, const uint16_t *regs, size_t count)
+{
+   for (size_t i = 0; i < count; i++) {
+      if (fd_reg_stomp_allowed(CHIP, regs[i])) {
+         WRITE(regs[i], 0xffffffff);
+      }
+   }
+}
+
 /* emit setup at begin of new cmdstream buffer (don't rely on previous
  * state, there could have been a context switch between ioctls):
  */
@@ -813,6 +825,11 @@ fd6_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
 
    if (!batch->nondraw) {
       trace_start_state_restore(&batch->trace, ring);
+   }
+
+   if (FD_DBG(STOMP)) {
+      fd6_emit_stomp<CHIP>(ring, &RP_BLIT_REGS<CHIP>[0], ARRAY_SIZE(RP_BLIT_REGS<CHIP>));
+      fd6_emit_stomp<CHIP>(ring, &CMD_REGS<CHIP>[0], ARRAY_SIZE(CMD_REGS<CHIP>));
    }
 
    OUT_PKT7(ring, CP_SET_MODE, 1);
