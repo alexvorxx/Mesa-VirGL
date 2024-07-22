@@ -28,6 +28,8 @@ Header('vk_enum_to_str.h', scope=HeaderScope.SOURCE|HeaderScope.PERFETTO)
 Header('vk_format.h')
 Header('tu_cmd_buffer.h', scope=HeaderScope.SOURCE)
 Header('tu_device.h', scope=HeaderScope.SOURCE)
+Header('common/freedreno_lrz.h')
+Header('vulkan/vulkan_core.h', scope=HeaderScope.SOURCE|HeaderScope.PERFETTO)
 
 # we can't use tu_common.h because it includes ir3 headers which are not
 # compatible with C++
@@ -91,7 +93,8 @@ begin_end_tp('render_pass',
               Arg(type='uint32_t',                              var='drawCount',                                            c_format='%u'),
               Arg(type='uint32_t',                              var='avgPerSampleBandwidth',                                c_format='%u'),
               Arg(type='bool',                                  var='lrz',                                                  c_format='%s', to_prim_type='({} ? "true" : "false")'),
-              Arg(type='const char *',                          var='lrzDisableReason',                                     c_format='%s'),])
+              Arg(type='const char *',                          var='lrzDisableReason',                                     c_format='%s'),
+              Arg(type='uint32_t',                              var='lrzStatus', c_format='%s', to_prim_type='(fd_lrz_gpu_dir_to_str((enum fd_lrz_gpu_dir)({} & 0xff)))', is_indirect=True),])
 
 
 begin_end_tp('binning_ib')
@@ -139,6 +142,10 @@ begin_end_tp('compute',
           Arg(type='uint16_t', var='num_groups_y',   c_format='%u'),
           Arg(type='uint16_t', var='num_groups_z',   c_format='%u')])
 
+begin_end_tp('compute_indirect',
+             end_args=[ArgStruct(type='VkDispatchIndirectCommand', var='size',
+                                      is_indirect=True, c_format="%ux%ux%u",
+                                      fields=['x', 'y', 'z'])])
 
 # Annotations for Cmd(Begin|End)DebugUtilsLabelEXT
 for suffix in ["", "_rp"]:

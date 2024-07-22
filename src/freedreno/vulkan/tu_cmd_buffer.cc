@@ -21,6 +21,7 @@
 #include "tu_tracepoints.h"
 
 #include "common/freedreno_gpu_event.h"
+#include "common/freedreno_lrz.h"
 
 static void
 tu_clone_trace_range(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
@@ -1825,6 +1826,31 @@ tu_trace_start_render_pass(struct tu_cmd_buffer *cmd)
                            load_cpp, store_cpp, has_depth, ubwc);
 }
 
+template <chip CHIP>
+static void
+tu_trace_end_render_pass(struct tu_cmd_buffer *cmd, bool gmem)
+{
+   if (!u_trace_enabled(&cmd->device->trace_context))
+      return;
+
+   uint32_t avg_per_sample_bandwidth =
+      cmd->state.rp.drawcall_bandwidth_per_sample_sum /
+      MAX2(cmd->state.rp.drawcall_count, 1);
+
+   struct u_trace_address addr = {};
+   if (cmd->state.lrz.image_view) {
+      struct tu_image *image = cmd->state.lrz.image_view->image;
+      addr.bo = image->bo;
+      addr.offset = (image->iova - image->bo->iova) + image->lrz_fc_offset +
+                    offsetof(fd_lrzfc_layout<CHIP>, dir_track);
+   }
+
+   trace_end_render_pass(&cmd->trace, &cmd->cs, gmem,
+                         cmd->state.rp.drawcall_count,
+                         avg_per_sample_bandwidth, cmd->state.lrz.valid,
+                         cmd->state.rp.lrz_disable_reason, addr);
+}
+
 static void
 tu_emit_renderpass_begin(struct tu_cmd_buffer *cmd)
 {
@@ -2145,12 +2171,7 @@ tu_cmd_render_tiles(struct tu_cmd_buffer *cmd,
 
    tu6_tile_render_end<CHIP>(cmd, &cmd->cs, autotune_result);
 
-   trace_end_render_pass(&cmd->trace, &cmd->cs, true,
-                         cmd->state.rp.drawcall_count,
-                         cmd->state.rp.drawcall_bandwidth_per_sample_sum /
-                            MAX2(cmd->state.rp.drawcall_count, 1),
-                         cmd->state.lrz.valid,
-                         cmd->state.rp.lrz_disable_reason);
+   tu_trace_end_render_pass<CHIP>(cmd, true);
 
    /* We have trashed the dynamically-emitted viewport, scissor, and FS params
     * via the patchpoints, so we need to re-emit them if they are reused for a
@@ -2187,12 +2208,7 @@ tu_cmd_render_sysmem(struct tu_cmd_buffer *cmd,
 
    tu6_sysmem_render_end<CHIP>(cmd, &cmd->cs, autotune_result);
 
-   trace_end_render_pass(&cmd->trace, &cmd->cs, false,
-                         cmd->state.rp.drawcall_count,
-                         cmd->state.rp.drawcall_bandwidth_per_sample_sum /
-                            MAX2(cmd->state.rp.drawcall_count, 1),
-                         cmd->state.lrz.valid,
-                         cmd->state.rp.lrz_disable_reason);
+   tu_trace_end_render_pass<CHIP>(cmd, false);
 }
 
 template <chip CHIP>
@@ -6304,12 +6320,10 @@ tu_dispatch(struct tu_cmd_buffer *cmd,
                    HLSQ_CS_KERNEL_GROUP_Y(CHIP, 1),
                    HLSQ_CS_KERNEL_GROUP_Z(CHIP, 1));
 
-   trace_start_compute(&cmd->trace, cs, info->indirect != NULL, local_size[0],
-                       local_size[1], local_size[2], info->blocks[0],
-                       info->blocks[1], info->blocks[2]);
-
    if (info->indirect) {
       uint64_t iova = info->indirect->iova + info->indirect_offset;
+
+      trace_start_compute_indirect(&cmd->trace, cs);
 
       tu_cs_emit_pkt7(cs, CP_EXEC_CS_INDIRECT, 4);
       tu_cs_emit(cs, 0x00000000);
@@ -6318,15 +6332,25 @@ tu_dispatch(struct tu_cmd_buffer *cmd,
                  A5XX_CP_EXEC_CS_INDIRECT_3_LOCALSIZEX(local_size[0] - 1) |
                  A5XX_CP_EXEC_CS_INDIRECT_3_LOCALSIZEY(local_size[1] - 1) |
                  A5XX_CP_EXEC_CS_INDIRECT_3_LOCALSIZEZ(local_size[2] - 1));
+
+      trace_end_compute_indirect(&cmd->trace, cs,
+                                 (struct u_trace_address) {
+                                    .bo = info->indirect->bo,
+                                    .offset = info->indirect_offset,
+                                 });
    } else {
+      trace_start_compute(&cmd->trace, cs, info->indirect != NULL,
+                          local_size[0], local_size[1], local_size[2],
+                          info->blocks[0], info->blocks[1], info->blocks[2]);
+
       tu_cs_emit_pkt7(cs, CP_EXEC_CS, 4);
       tu_cs_emit(cs, 0x00000000);
       tu_cs_emit(cs, CP_EXEC_CS_1_NGROUPS_X(info->blocks[0]));
       tu_cs_emit(cs, CP_EXEC_CS_2_NGROUPS_Y(info->blocks[1]));
       tu_cs_emit(cs, CP_EXEC_CS_3_NGROUPS_Z(info->blocks[2]));
-   }
 
-   trace_end_compute(&cmd->trace, cs);
+      trace_end_compute(&cmd->trace, cs);
+   }
 
    /* For the workaround above, because it's using the "wrong" context for
     * SP_FS_INSTRLEN we should emit another dummy event write to avoid a
