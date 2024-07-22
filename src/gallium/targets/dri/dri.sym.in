@@ -1,6 +1,8 @@
 {
 	global:
 		__driDriverGetExtensions*;
+		driCreate*;
+		driGet*;
 		dri_loader_get_extensions;
 		@nouveau_drm_screen_create@
 		@radeon_drm_winsys_create@

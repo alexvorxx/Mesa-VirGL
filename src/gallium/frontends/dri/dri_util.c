@@ -762,7 +762,7 @@ static int driUnbindContext(__DRIcontext *pcp)
 
 /*@}*/
 
-static __DRIdrawable *
+__DRIdrawable *
 driCreateNewDrawable(__DRIscreen *psp,
                      const __DRIconfig *config,
                      void *data)
@@ -855,7 +855,7 @@ dri2ConfigQuerys(__DRIscreen *psp, const char *var, char **val)
     return 0;
 }
 
-static unsigned int
+unsigned int
 driGetAPIMask(__DRIscreen *screen)
 {
     return dri_screen(screen)->api_mask;

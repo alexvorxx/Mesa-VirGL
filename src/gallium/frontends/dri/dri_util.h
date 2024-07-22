@@ -103,7 +103,7 @@ struct __DriverContextConfig {
 #define __DRIVER_CONTEXT_ATTRIB_NO_ERROR         (1 << 3)
 #define __DRIVER_CONTEXT_ATTRIB_PROTECTED        (1 << 4)
 
-__DRIscreen *
+PUBLIC __DRIscreen *
 driCreateNewScreen3(int scrn, int fd,
                     const __DRIextension **loader_extensions,
                     const __DRIextension **driver_extensions,
@@ -113,7 +113,7 @@ driCreateNewScreen2(int scrn, int fd,
                     const __DRIextension **loader_extensions,
                     const __DRIextension **driver_extensions,
                     const __DRIconfig ***driver_configs, void *data);
-__DRIcontext *
+PUBLIC __DRIcontext *
 driCreateContextAttribs(__DRIscreen *psp, int api,
                         const __DRIconfig *config,
                         __DRIcontext *shared,
@@ -124,7 +124,10 @@ driCreateContextAttribs(__DRIscreen *psp, int api,
 
 extern uint32_t
 driImageFormatToSizedInternalGLFormat(uint32_t image_format);
-
+PUBLIC unsigned int
+driGetAPIMask(__DRIscreen *screen);
+PUBLIC __DRIdrawable *
+driCreateNewDrawable(__DRIscreen *psp, const __DRIconfig *config, void *data);
 extern const __DRIimageDriverExtension driImageDriverExtension;
 
 #endif /* _DRI_UTIL_H_ */
