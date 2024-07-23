@@ -45,6 +45,7 @@ SUPPORTED_FEATURES = [
     "VK_EXT_debug_report",
     "VK_EXT_validation_features",
     # Device extensions
+    "VK_EXT_external_memory_host",
     "VK_KHR_storage_buffer_storage_class",
     "VK_KHR_vulkan_memory_model",
     "VK_KHR_buffer_device_address",
@@ -155,6 +156,7 @@ HOST_MODULES = ["goldfish_vk_extension_structs", "goldfish_vk_marshaling",
 # we wish run wrappers when the module requires it. For example, `VK_GOOGLE_gfxstream`
 # shouldn't generate a function table entry since it's an internal interface.
 SUPPORTED_MODULES = {
+    "VK_EXT_external_memory_host": HOST_MODULES,
     "VK_EXT_debug_utils": HOST_MODULES,
     "VK_EXT_debug_report": HOST_MODULES,
     "VK_EXT_validation_features": HOST_MODULES,
