@@ -730,18 +730,18 @@ vtn_handle_alu(struct vtn_builder *b, SpvOp opcode,
 
    case SpvOpFwidth:
       dest->def = nir_fadd(&b->nb,
-                               nir_fabs(&b->nb, nir_fddx(&b->nb, src[0])),
-                               nir_fabs(&b->nb, nir_fddy(&b->nb, src[0])));
+                               nir_fabs(&b->nb, nir_ddx(&b->nb, src[0])),
+                               nir_fabs(&b->nb, nir_ddy(&b->nb, src[0])));
       break;
    case SpvOpFwidthFine:
       dest->def = nir_fadd(&b->nb,
-                               nir_fabs(&b->nb, nir_fddx_fine(&b->nb, src[0])),
-                               nir_fabs(&b->nb, nir_fddy_fine(&b->nb, src[0])));
+                               nir_fabs(&b->nb, nir_ddx_fine(&b->nb, src[0])),
+                               nir_fabs(&b->nb, nir_ddy_fine(&b->nb, src[0])));
       break;
    case SpvOpFwidthCoarse:
       dest->def = nir_fadd(&b->nb,
-                               nir_fabs(&b->nb, nir_fddx_coarse(&b->nb, src[0])),
-                               nir_fabs(&b->nb, nir_fddy_coarse(&b->nb, src[0])));
+                               nir_fabs(&b->nb, nir_ddx_coarse(&b->nb, src[0])),
+                               nir_fabs(&b->nb, nir_ddy_coarse(&b->nb, src[0])));
       break;
 
    case SpvOpVectorTimesScalar:

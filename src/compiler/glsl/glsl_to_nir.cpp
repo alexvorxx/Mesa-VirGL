@@ -1964,12 +1964,12 @@ nir_visitor::visit(ir_expression *ir)
    case ir_unop_round_even: result = nir_fround_even(&b, srcs[0]); break;
    case ir_unop_sin:   result = nir_fsin(&b, srcs[0]); break;
    case ir_unop_cos:   result = nir_fcos(&b, srcs[0]); break;
-   case ir_unop_dFdx:        result = nir_fddx(&b, srcs[0]); break;
-   case ir_unop_dFdy:        result = nir_fddy(&b, srcs[0]); break;
-   case ir_unop_dFdx_fine:   result = nir_fddx_fine(&b, srcs[0]); break;
-   case ir_unop_dFdy_fine:   result = nir_fddy_fine(&b, srcs[0]); break;
-   case ir_unop_dFdx_coarse: result = nir_fddx_coarse(&b, srcs[0]); break;
-   case ir_unop_dFdy_coarse: result = nir_fddy_coarse(&b, srcs[0]); break;
+   case ir_unop_dFdx:        result = nir_ddx(&b, srcs[0]); break;
+   case ir_unop_dFdy:        result = nir_ddy(&b, srcs[0]); break;
+   case ir_unop_dFdx_fine:   result = nir_ddx_fine(&b, srcs[0]); break;
+   case ir_unop_dFdy_fine:   result = nir_ddy_fine(&b, srcs[0]); break;
+   case ir_unop_dFdx_coarse: result = nir_ddx_coarse(&b, srcs[0]); break;
+   case ir_unop_dFdy_coarse: result = nir_ddy_coarse(&b, srcs[0]); break;
    case ir_unop_pack_snorm_2x16:
       result = nir_pack_snorm_2x16(&b, srcs[0]);
       break;
