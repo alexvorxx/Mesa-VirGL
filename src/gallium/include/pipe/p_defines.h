@@ -665,6 +665,19 @@ enum pipe_conservative_raster_mode
 #define PIPE_IMAGE_ACCESS_DRIVER_INTERNAL    (1 << 5)
 
 /**
+ * Shader subgroup feature flags aligned with GL_KHR_shader_subgroup.
+ */
+#define PIPE_SHADER_SUBGROUP_FEATURE_BASIC            (1 << 0)
+#define PIPE_SHADER_SUBGROUP_FEATURE_VOTE             (1 << 1)
+#define PIPE_SHADER_SUBGROUP_FEATURE_ARITHMETIC       (1 << 2)
+#define PIPE_SHADER_SUBGROUP_FEATURE_BALLOT           (1 << 3)
+#define PIPE_SHADER_SUBGROUP_FEATURE_SHUFFLE          (1 << 4)
+#define PIPE_SHADER_SUBGROUP_FEATURE_SHUFFLE_RELATIVE (1 << 5)
+#define PIPE_SHADER_SUBGROUP_FEATURE_CLUSTERED        (1 << 6)
+#define PIPE_SHADER_SUBGROUP_FEATURE_QUAD             (1 << 7)
+#define PIPE_SHADER_SUBGROUP_NUM_FEATURES             8
+
+/**
  * Implementation capabilities/limits which are queried through
  * pipe_screen::get_param()
  */
@@ -954,6 +967,11 @@ enum pipe_cap
    PIPE_CAP_PERFORMANCE_MONITOR,
    PIPE_CAP_TEXTURE_SAMPLER_INDEPENDENT,
    PIPE_CAP_ASTC_DECODE_MODE,
+   /** For GL_KHR_shader_subgroup */
+   PIPE_CAP_SHADER_SUBGROUP_SIZE,
+   PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_STAGES,
+   PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_FEATURES,
+   PIPE_CAP_SHADER_SUBGROUP_QUAD_ALL_STAGES,
    PIPE_CAP_LAST,
    /* XXX do not add caps after PIPE_CAP_LAST! */
 };

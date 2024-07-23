@@ -561,6 +561,12 @@ u_pipe_screen_get_param_defaults(struct pipe_screen *pscreen,
       return pscreen->get_driver_query_info && pscreen->get_driver_query_group_info &&
              pscreen->get_driver_query_group_info(pscreen, 0, NULL) != 0;
 
+   case PIPE_CAP_SHADER_SUBGROUP_SIZE:
+   case PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_STAGES:
+   case PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_FEATURES:
+   case PIPE_CAP_SHADER_SUBGROUP_QUAD_ALL_STAGES:
+      return 0;
+
    default:
       unreachable("bad PIPE_CAP_*");
    }
