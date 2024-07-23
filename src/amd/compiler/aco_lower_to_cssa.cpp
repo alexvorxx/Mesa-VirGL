@@ -328,7 +328,11 @@ bool
 try_coalesce_copy(cssa_ctx& ctx, copy copy, uint32_t block_idx)
 {
    /* we can only coalesce temporaries */
-   if (!copy.op.isTemp())
+   if (!copy.op.isTemp() || !copy.op.isKill())
+      return false;
+
+   /* we can only coalesce copies of the same register class */
+   if (copy.op.regClass() != copy.def.regClass())
       return false;
 
    /* try emplace a merge_node for the copy operand */
@@ -342,10 +346,6 @@ try_coalesce_copy(cssa_ctx& ctx, copy copy, uint32_t block_idx)
       op_node.defined_at = block_idx;
       op_node.value = copy.op;
    }
-
-   /* we can only coalesce copies of the same register class */
-   if (copy.op.regClass() != copy.def.regClass())
-      return false;
 
    /* check if this operand has not yet been coalesced */
    if (op_node.index == -1u) {
