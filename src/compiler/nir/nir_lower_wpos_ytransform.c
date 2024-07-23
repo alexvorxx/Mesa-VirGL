@@ -255,6 +255,21 @@ lower_fddy(lower_wpos_ytransform_state *state, nir_alu_instr *fddy)
       fddy->src[0].swizzle[i] = MIN2(i, pt->num_components - 1);
 }
 
+static void
+lower_ddy(lower_wpos_ytransform_state *state, nir_intrinsic_instr *ddy)
+{
+   nir_builder *b = &state->b;
+   nir_def *wpostrans = get_transform(state);
+
+   b->cursor = nir_before_instr(&ddy->instr);
+
+   nir_def *p = ddy->src[0].ssa;
+   nir_def *trans = nir_f2fN(b, nir_channel(b, wpostrans, 0), p->bit_size);
+   nir_def *pt = nir_fmul(b, p, trans);
+
+   nir_src_rewrite(&ddy->src[0], pt);
+}
+
 /* Multiply interp_deref_at_offset's or load_barycentric_at_offset's offset
  * by transform.x to flip it.
  */
@@ -332,6 +347,10 @@ lower_wpos_ytransform_instr(nir_builder *b, nir_instr *instr,
          lower_interp_deref_or_load_baryc_at_offset(state, intr, 1);
       } else if (intr->intrinsic == nir_intrinsic_load_barycentric_at_offset) {
          lower_interp_deref_or_load_baryc_at_offset(state, intr, 0);
+      } else if (intr->intrinsic == nir_intrinsic_ddy ||
+                 intr->intrinsic == nir_intrinsic_ddy_fine ||
+                 intr->intrinsic == nir_intrinsic_ddy_coarse) {
+         lower_ddy(state, intr);
       }
    } else if (instr->type == nir_instr_type_alu) {
       nir_alu_instr *alu = nir_instr_as_alu(instr);
