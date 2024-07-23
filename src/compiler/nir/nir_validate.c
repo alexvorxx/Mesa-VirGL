@@ -898,6 +898,23 @@ validate_tex_instr(nir_tex_instr *instr, validate_state *state)
          break;
       }
 
+      case nir_tex_src_sampler_deref_intrinsic:
+      case nir_tex_src_texture_deref_intrinsic: {
+         nir_intrinsic_instr *intrin =
+            nir_instr_as_intrinsic(instr->src[i].src.ssa->parent_instr);
+         nir_deref_instr *deref =
+            nir_instr_as_deref(intrin->src[0].ssa->parent_instr);
+         if (!validate_assert(state, deref))
+            break;
+
+         if (instr->src[i].src_type == nir_tex_src_sampler_deref_intrinsic)
+            validate_assert(state, glsl_type_is_sampler(deref->type));
+         else
+            validate_tex_src_texture_deref(instr, state, deref);
+
+         break;
+      }
+
       case nir_tex_src_coord:
       case nir_tex_src_projector:
       case nir_tex_src_offset:
