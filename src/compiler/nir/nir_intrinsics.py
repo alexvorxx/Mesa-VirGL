@@ -414,6 +414,13 @@ intrinsic("sparse_residency_code_and", dest_comp=1, src_comp=[1, 1], bit_sizes=[
 intrinsic("is_sparse_resident_zink", dest_comp=1, src_comp=[0], bit_sizes=[1],
           flags=[CAN_ELIMINATE, CAN_REORDER])
 
+# The following intrinsics calculate screen-space partial derivatives. These are
+# not CAN_REORDER as they cannot be moved across discards.
+for suffix in ["", "_fine", "_coarse"]:
+    for axis in ["x", "y"]:
+        intrinsic(f"dd{axis}{suffix}", dest_comp=0, src_comp=[0],
+                  bit_sizes=[16, 32], flags=[CAN_ELIMINATE])
+
 # a barrier is an intrinsic with no inputs/outputs but which can't be moved
 # around/optimized in general
 def barrier(name):

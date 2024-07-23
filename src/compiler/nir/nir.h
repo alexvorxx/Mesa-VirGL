@@ -4278,6 +4278,16 @@ typedef struct nir_shader_compiler_options {
     */
    bool discard_is_demote;
 
+   /**
+    * Whether the new-style derivative intrinsics are supported. If false,
+    * legacy ALU derivative ops will be emitted. This transitional option will
+    * be removed once all drivers are converted to derivative intrinsics.
+    */
+   bool has_ddx_intrinsics;
+
+   /** Whether derivative intrinsics must be scalarized. */
+   bool scalarize_ddx;
+
    /** Options determining lowering and behavior of inputs and outputs. */
    nir_io_options io_options;
 
