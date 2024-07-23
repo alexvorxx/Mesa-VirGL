@@ -32,6 +32,7 @@
 #include "a6xx/fd6_blitter.h"
 #include "fd6_resource.h"
 #include "fdl/fd6_format_table.h"
+#include "common/freedreno_lrz.h"
 #include "common/freedreno_ubwc.h"
 
 #include "a6xx.xml.h"
@@ -233,6 +234,7 @@ fd6_validate_format(struct fd_context *ctx, struct fd_resource *rsc,
    }
 }
 
+template <chip CHIP>
 static void
 setup_lrz(struct fd_resource *rsc)
 {
@@ -252,21 +254,43 @@ setup_lrz(struct fd_resource *rsc)
    unsigned lrz_pitch = align(DIV_ROUND_UP(width0, 8), 32);
    unsigned lrz_height = align(DIV_ROUND_UP(height0, 8), 16);
 
-   unsigned size = lrz_pitch * lrz_height * 2;
-
    rsc->lrz_height = lrz_height;
    rsc->lrz_width = lrz_pitch;
    rsc->lrz_pitch = lrz_pitch;
-   rsc->lrz = fd_bo_new(screen->dev, size, FD_BO_NOMAP, "lrz");
+
+   unsigned lrz_size = lrz_pitch * lrz_height * 2;
+
+   unsigned nblocksx = DIV_ROUND_UP(DIV_ROUND_UP(width0, 8), 16);
+   unsigned nblocksy = DIV_ROUND_UP(DIV_ROUND_UP(height0, 8), 4);
+
+   /* Fast-clear buffer is 1bit/block */
+   unsigned lrz_fc_size = DIV_ROUND_UP(nblocksx * nblocksy, 8);
+
+   /* Fast-clear buffer cannot be larger than 512 bytes on A6XX and 1024 bytes
+    * on A7XX (HW limitation)
+    */
+   bool has_lrz_fc = screen->info->a6xx.enable_lrz_fast_clear &&
+                     lrz_fc_size <= fd_lrzfc_layout<CHIP>::FC_SIZE;
+
+   /* Allocate a LRZ fast-clear buffer even if we aren't using FC, if the
+    * hw is re-using this buffer for direction tracking
+    */
+   if (has_lrz_fc || screen->info->a6xx.has_lrz_dir_tracking) {
+      rsc->lrz_fc_offset = lrz_size;
+      lrz_size += sizeof(fd_lrzfc_layout<CHIP>);
+   }
+
+   rsc->lrz = fd_bo_new(screen->dev, lrz_size, FD_BO_NOMAP, "lrz");
 }
 
 static uint32_t
 fd6_setup_slices(struct fd_resource *rsc)
 {
    struct pipe_resource *prsc = &rsc->b.b;
+   struct fd_screen *screen = fd_screen(prsc->screen);
 
    if (!FD_DBG(NOLRZ) && has_depth(prsc->format) && !is_z32(prsc->format))
-      setup_lrz(rsc);
+      FD_CALLX(screen->info, setup_lrz)(rsc);
 
    if (rsc->layout.ubwc && !ok_ubwc_format(prsc->screen, prsc->format))
       rsc->layout.ubwc = false;
