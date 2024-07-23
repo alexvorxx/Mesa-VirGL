@@ -4689,6 +4689,11 @@ struct anv_graphics_lib_pipeline {
 
       enum gl_subgroup_size                     subgroup_size_type;
 
+      /* Hold on the value of VK_PIPELINE_CREATE_VIEW_INDEX_FROM_DEVICE_INDEX_BIT
+       * from library that introduces the stage, so it remains consistent.
+       */
+      bool                                      view_index_from_device_index;
+
       /* NIR captured in anv_pipeline_stage_get_nir(), includes specialization
        * constants.
        */

@@ -344,6 +344,8 @@ struct anv_pipeline_stage {
 
    bool uses_bt_for_push_descs;
 
+   bool view_index_from_device_index;
+
    enum anv_dynamic_push_bits dynamic_push_values;
 
    union brw_any_prog_data prog_data;
@@ -711,6 +713,8 @@ anv_pipeline_hash_graphics(struct anv_graphics_base_pipeline *pipeline,
          _mesa_sha1_update(&ctx, stages[s].shader_sha1,
                            sizeof(stages[s].shader_sha1));
          _mesa_sha1_update(&ctx, &stages[s].key, brw_prog_key_size(s));
+         bool vi_from_di = stages[s].view_index_from_device_index;
+         _mesa_sha1_update(&ctx, &vi_from_di, sizeof(vi_from_di));
       }
    }
 
@@ -1898,6 +1902,8 @@ anv_graphics_lib_retain_shaders(struct anv_graphics_base_pipeline *pipeline,
              sizeof(stages[s].shader_sha1));
 
       lib->retained_shaders[s].subgroup_size_type = stages[s].subgroup_size_type;
+      lib->retained_shaders[s].view_index_from_device_index =
+         stages[s].view_index_from_device_index;
 
       nir_shader *nir = stages[s].nir != NULL ? stages[s].nir : stages[s].imported.nir;
       assert(nir != NULL);
@@ -2075,6 +2081,9 @@ anv_pipeline_nir_preprocess(struct anv_pipeline *pipeline,
    struct anv_device *device = pipeline->device;
    const struct brw_compiler *compiler = device->physical->compiler;
 
+   if (stage->view_index_from_device_index)
+      NIR_PASS(_, stage->nir, nir_lower_view_index_to_device_index);
+
    const struct nir_lower_sysvals_to_varyings_options sysvals_to_varyings = {
       .point_coord = true,
    };
@@ -2177,6 +2186,9 @@ anv_graphics_pipeline_compile(struct anv_graphics_base_pipeline *pipeline,
    const struct intel_device_info *devinfo = device->info;
    const struct brw_compiler *compiler = device->physical->compiler;
 
+   bool view_index_from_device_index =
+      (pipeline->base.flags & VK_PIPELINE_CREATE_2_VIEW_INDEX_FROM_DEVICE_INDEX_BIT_KHR) != 0;
+
    /* Setup the shaders given in this VkGraphicsPipelineCreateInfo::pStages[].
     * Other shaders imported from libraries should have been added by
     * anv_graphics_pipeline_import_lib().
@@ -2195,6 +2207,7 @@ anv_graphics_pipeline_compile(struct anv_graphics_base_pipeline *pipeline,
       stages[stage].pipeline_pNext = info->pNext;
       stages[stage].info = &info->pStages[i];
       stages[stage].feedback_idx = shader_count++;
+      stages[stage].view_index_from_device_index = view_index_from_device_index;
 
       anv_stage_write_shader_hash(&stages[stage], device);
    }
@@ -3019,6 +3032,8 @@ anv_graphics_pipeline_import_lib(struct anv_graphics_base_pipeline *pipeline,
       stages[s].source_hash = lib->base.source_hashes[s];
 
       stages[s].subgroup_size_type = lib->retained_shaders[s].subgroup_size_type;
+      stages[s].view_index_from_device_index =
+         lib->retained_shaders[s].view_index_from_device_index;
       stages[s].imported.nir = lib->retained_shaders[s].nir;
       stages[s].imported.bin = lib->base.shaders[s];
    }
