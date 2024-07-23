@@ -1515,7 +1515,7 @@ brw::register_pressure::register_pressure(const fs_visitor *v)
    const unsigned payload_count = v->first_non_payload_grf;
 
    int *payload_last_use_ip = new int[payload_count];
-   v->calculate_payload_ranges(payload_count, payload_last_use_ip);
+   v->calculate_payload_ranges(true, payload_count, payload_last_use_ip);
 
    for (unsigned reg = 0; reg < payload_count; reg++) {
       for (int ip = 0; ip < payload_last_use_ip[reg]; ip++)

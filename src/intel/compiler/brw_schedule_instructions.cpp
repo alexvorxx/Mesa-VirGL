@@ -848,7 +848,7 @@ instruction_scheduler::setup_liveness(cfg_t *cfg)
    }
 
    int payload_last_use_ip[hw_reg_count];
-   s->calculate_payload_ranges(hw_reg_count, payload_last_use_ip);
+   s->calculate_payload_ranges(true, hw_reg_count, payload_last_use_ip);
 
    for (unsigned i = 0; i < hw_reg_count; i++) {
       if (payload_last_use_ip[i] == -1)

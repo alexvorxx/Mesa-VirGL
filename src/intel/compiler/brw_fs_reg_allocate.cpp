@@ -151,7 +151,8 @@ count_to_loop_end(const bblock_t *block)
    unreachable("not reached");
 }
 
-void fs_visitor::calculate_payload_ranges(unsigned payload_node_count,
+void fs_visitor::calculate_payload_ranges(bool allow_spilling,
+                                          unsigned payload_node_count,
                                           int *payload_last_use_ip) const
 {
    int loop_depth = 0;
@@ -226,18 +227,16 @@ void fs_visitor::calculate_payload_ranges(unsigned payload_node_count,
       if (inst->send_ex_desc_scratch)
          payload_last_use_ip[0] = use_ip;
 
-      if (inst->eot) {
-         /* We could omit this for the !inst->header_present case, except
-          * that the simulator apparently incorrectly reads from g0/g1
-          * instead of sideband.  It also really freaks out driver
-          * developers to see g0 used in unusual places, so just always
-          * reserve it.
-          */
-         payload_last_use_ip[0] = use_ip;
-      }
-
       ip++;
    }
+
+   /* g0 is needed to construct scratch headers for spilling.  While we could
+    * extend its live range each time we spill a register, and update the
+    * interference graph accordingly, this would get pretty messy.  Instead,
+    * simply consider g0 live for the whole program if spilling is required.
+    */
+   if (allow_spilling)
+      payload_last_use_ip[0] = ip - 1;
 }
 
 class fs_reg_alloc {
@@ -292,7 +291,7 @@ private:
                                 int node_start_ip, int node_end_ip);
    void setup_inst_interference(const fs_inst *inst);
 
-   void build_interference_graph();
+   void build_interference_graph(bool allow_spilling);
 
    brw_reg build_lane_offsets(const fs_builder &bld,
                              uint32_t spill_offset, int ip);
@@ -513,7 +512,7 @@ fs_reg_alloc::setup_inst_interference(const fs_inst *inst)
 }
 
 void
-fs_reg_alloc::build_interference_graph()
+fs_reg_alloc::build_interference_graph(bool allow_spilling)
 {
    /* Compute the RA node layout */
    node_count = 0;
@@ -528,7 +527,7 @@ fs_reg_alloc::build_interference_graph()
    last_vgrf_node = node_count - 1;
    first_spill_node = node_count;
 
-   fs->calculate_payload_ranges(payload_node_count,
+   fs->calculate_payload_ranges(allow_spilling, payload_node_count,
                                 payload_last_use_ip);
 
    assert(g == NULL);
@@ -1069,7 +1068,7 @@ fs_reg_alloc::spill_reg(unsigned spill_reg)
 bool
 fs_reg_alloc::assign_regs(bool allow_spilling, bool spill_all)
 {
-   build_interference_graph();
+   build_interference_graph(allow_spilling);
 
    unsigned spilled = 0;
    while (1) {

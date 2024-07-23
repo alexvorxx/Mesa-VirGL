@@ -294,7 +294,8 @@ public:
 
    void assign_curb_setup();
    void convert_attr_sources_to_hw_regs(fs_inst *inst);
-   void calculate_payload_ranges(unsigned payload_node_count,
+   void calculate_payload_ranges(bool allow_spilling,
+                                 unsigned payload_node_count,
                                  int *payload_last_use_ip) const;
    void assign_constant_locations();
    bool get_pull_locs(const brw_reg &src, unsigned *out_surf_index,
