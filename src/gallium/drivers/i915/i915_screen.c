@@ -126,6 +126,7 @@ static const nir_shader_compiler_options i915_compiler_options = {
    .max_unroll_iterations = 32,
    .no_integers = true,
    .has_fused_comp_and_csel = true,
+   .has_ddx_intrinsics = true,
 };
 
 static const struct nir_shader_compiler_options gallivm_nir_options = {
@@ -171,6 +172,7 @@ static const struct nir_shader_compiler_options gallivm_nir_options = {
    .lower_vector_cmp = true,
    .lower_device_index_to_zero = true,
    /* .support_16bit_alu = true, */
+   .has_ddx_intrinsics = true,
 };
 
 static const void *
