@@ -118,6 +118,7 @@ api_xml_files = files(
   'KHR_context_flush_control.xml',
   'KHR_robustness.xml',
   'KHR_robustness_es.xml',
+  'KHR_shader_subgroup.xml',
   'KHR_texture_compression_astc.xml',
   'NV_alpha_to_coverage_dither_control.xml',
   'NV_copy_image.xml',

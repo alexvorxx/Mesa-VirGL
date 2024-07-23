@@ -381,6 +381,7 @@ EXT(KHR_no_error                            , dummy_true                        
 EXT(KHR_parallel_shader_compile             , dummy_true                             , GLL, GLC,  x , ES2, 2017)
 EXT(KHR_robust_buffer_access_behavior       , ARB_robust_buffer_access_behavior      , GLL, GLC,  x , ES2, 2014)
 EXT(KHR_robustness                          , KHR_robustness                         , GLL, GLC,  x , ES2, 2012)
+EXT(KHR_shader_subgroup                     , KHR_shader_subgroup                    ,  43,  43,  x ,  31, 2019)
 EXT(KHR_texture_compression_astc_hdr        , KHR_texture_compression_astc_hdr       , GLL, GLC,  x , ES2, 2012)
 EXT(KHR_texture_compression_astc_ldr        , KHR_texture_compression_astc_ldr       , GLL, GLC,  x , ES2, 2012)
 EXT(KHR_texture_compression_astc_sliced_3d  , KHR_texture_compression_astc_sliced_3d , GLL, GLC,  x , ES2, 2015)

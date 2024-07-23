@@ -8491,6 +8491,10 @@
 
 <xi:include href="ARB_spirv_extensions.xml" xmlns:xi="http://www.w3.org/2001/XInclude"/>
 
+<!-- ARB extensions 195 -->
+
+<xi:include href="KHR_shader_subgroup.xml" xmlns:xi="http://www.w3.org/2001/XInclude"/>
+
 <!-- Non-ARB extensions sorted by extension number. -->
 
 <category name="GL_EXT_blend_color" number="2">
