@@ -2688,7 +2688,7 @@ VkResult ResourceTracker::on_vkSetBufferCollectionBufferConstraintsFUCHSIA(
 VkResult ResourceTracker::getBufferCollectionImageCreateInfoIndexLocked(
     VkBufferCollectionFUCHSIA collection, fuchsia_sysmem::wire::BufferCollectionInfo2& info,
     uint32_t* outCreateInfoIndex) {
-    if (!info_VkBufferCollectionFUCHSIA[collection].constraints.hasValue()) {
+    if (!info_VkBufferCollectionFUCHSIA[collection].constraints.has_value()) {
         mesa_loge("%s: constraints not set", __func__);
         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
     }
@@ -3496,7 +3496,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         fuchsia_sysmem::wire::BufferCollectionInfo2& info = result->buffer_collection_info;
         uint32_t index = importBufferCollectionInfoPtr->index;
         if (info.buffer_count < index) {
-            mesa_loge("Invalid buffer index: %d %d", index);
+            mesa_loge("Invalid buffer index: %d", index);
             _RETURN_FAILURE_WITH_DEVICE_MEMORY_REPORT(VK_ERROR_INITIALIZATION_FAILED);
         }
         vmo_handle = info.buffers[index].vmo.release();
@@ -4053,7 +4053,7 @@ void ResourceTracker::on_vkFreeMemory(void* context, VkDevice device, VkDeviceMe
         zx_status_t status = zx_vmar_unmap(
             zx_vmar_root_self(), reinterpret_cast<zx_paddr_t>(info.ptr), info.allocationSize);
         if (status != ZX_OK) {
-            mesa_loge("%s: Cannot unmap ptr: status %d", status);
+            mesa_loge("%s: Cannot unmap ptr: status %d", __func__, status);
         }
         info.ptr = nullptr;
     }
