@@ -759,6 +759,18 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
       }
       break;
 
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_fine:
+   case nir_intrinsic_ddx_coarse:
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_fine:
+   case nir_intrinsic_ddy_coarse:
+      shader->info.uses_fddx_fddy = true;
+
+      if (shader->info.stage == MESA_SHADER_FRAGMENT)
+         shader->info.fs.needs_quad_helper_invocations = true;
+      break;
+
    case nir_intrinsic_quad_vote_any:
    case nir_intrinsic_quad_vote_all:
    case nir_intrinsic_quad_broadcast:
