@@ -2377,20 +2377,12 @@ nir_visitor::visit(ir_texture *ir)
    instr->is_sparse = ir->is_sparse;
 
    nir_deref_instr *sampler_deref = evaluate_deref(ir->sampler);
+   nir_def *tex_intrin = nir_deref_texture_src(&b, 32, &sampler_deref->def);
 
-   /* check for bindless handles */
-   if (!nir_deref_mode_is(sampler_deref, nir_var_uniform) ||
-       (nir_deref_instr_get_variable(sampler_deref) &&
-        nir_deref_instr_get_variable(sampler_deref)->data.bindless)) {
-      nir_def *load = nir_load_deref(&b, sampler_deref);
-      instr->src[0] = nir_tex_src_for_ssa(nir_tex_src_texture_handle, load);
-      instr->src[1] = nir_tex_src_for_ssa(nir_tex_src_sampler_handle, load);
-   } else {
-      instr->src[0] = nir_tex_src_for_ssa(nir_tex_src_texture_deref,
-                                          &sampler_deref->def);
-      instr->src[1] = nir_tex_src_for_ssa(nir_tex_src_sampler_deref,
-                                          &sampler_deref->def);
-   }
+   instr->src[0] = nir_tex_src_for_ssa(nir_tex_src_sampler_deref_intrinsic,
+                                       tex_intrin);
+   instr->src[1] = nir_tex_src_for_ssa(nir_tex_src_texture_deref_intrinsic,
+                                       tex_intrin);
 
    unsigned src_number = 2;
 
