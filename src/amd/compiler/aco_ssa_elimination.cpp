@@ -215,6 +215,7 @@ try_remove_simple_block(ssa_elimination_ctx& ctx, Block* block)
       assert(branch.target[1] == block->index);
       branch.target[1] = succ.index;
       branch.opcode = aco_opcode::p_branch;
+      branch.rarely_taken = branch.never_taken = false;
    } else if (branch.target[1] == block->index) {
       /* check if there is a fall-through path from block to succ */
       bool falls_through = block->index < succ.index;
@@ -256,6 +257,7 @@ try_remove_simple_block(ssa_elimination_ctx& ctx, Block* block)
          branch.operands.pop_back();
 
       branch.opcode = aco_opcode::p_branch;
+      branch.rarely_taken = branch.never_taken = false;
    }
 
    for (unsigned i = 0; i < pred.linear_succs.size(); i++)
