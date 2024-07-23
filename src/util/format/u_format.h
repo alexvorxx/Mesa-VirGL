@@ -1320,6 +1320,8 @@ util_format_get_plane_width(enum pipe_format format, unsigned plane,
    case PIPE_FORMAT_P012:
    case PIPE_FORMAT_P016:
    case PIPE_FORMAT_P030:
+   case PIPE_FORMAT_G8_B8R8_420_UNORM:
+   case PIPE_FORMAT_G8_B8_R8_420_UNORM:
    case PIPE_FORMAT_Y8_U8_V8_422_UNORM:
    case PIPE_FORMAT_Y8_U8V8_422_UNORM:
    case PIPE_FORMAT_Y16_U16_V16_420_UNORM:
@@ -1344,6 +1346,8 @@ util_format_get_plane_height(enum pipe_format format, unsigned plane,
    case PIPE_FORMAT_P012:
    case PIPE_FORMAT_P016:
    case PIPE_FORMAT_P030:
+   case PIPE_FORMAT_G8_B8R8_420_UNORM:
+   case PIPE_FORMAT_G8_B8_R8_420_UNORM:
    case PIPE_FORMAT_Y16_U16_V16_420_UNORM:
    case PIPE_FORMAT_Y8_U8_V8_440_UNORM:
       return !plane ? height : (height + 1) / 2;
