@@ -6318,7 +6318,7 @@ impl Instr {
         self.op.is_uniform()
     }
 
-    pub fn has_fixed_latency(&self, _sm: u8) -> bool {
+    pub fn has_fixed_latency(&self, sm: u8) -> bool {
         match &self.op {
             // Float ALU
             Op::FAdd(_)
@@ -6347,6 +6347,7 @@ impl Instr {
 
             // Integer ALU
             Op::BRev(_) | Op::Flo(_) | Op::PopC(_) => false,
+            Op::IMad(_) | Op::IMul(_) => sm >= 70,
             Op::BMsk(_)
             | Op::IAbs(_)
             | Op::IAdd2(_)
@@ -6354,9 +6355,7 @@ impl Instr {
             | Op::IAdd3(_)
             | Op::IAdd3X(_)
             | Op::IDp4(_)
-            | Op::IMad(_)
             | Op::IMad64(_)
-            | Op::IMul(_)
             | Op::IMnMx(_)
             | Op::ISetP(_)
             | Op::Lop2(_)
