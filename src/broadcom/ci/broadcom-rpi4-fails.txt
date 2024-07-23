@@ -621,3 +621,6 @@ program@run kernel with max work item sizes,Fail
 
 # Failures from arm32
 arm32-KHR-GL31.texture_size_promotion.functional,Fail
+
+# https://gitlab.freedesktop.org/mesa/piglit/-/merge_requests/931
+asan-spec@arb_texture_buffer_object@formats (vs- ext_gpu_shader4),Fail

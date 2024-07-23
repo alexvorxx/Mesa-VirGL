@@ -1214,3 +1214,8 @@ arm32-dEQP-GLES2.functional.texture.mipmap.2d.basic.nearest_linear_repeat_non_sq
 arm32-dEQP-GLES2.functional.texture.wrap.clamp_clamp_nearest_npot_etc1,Fail
 arm32-dEQP-GLES2.functional.uniform_api.random.3,Fail
 arm32-dEQP-GLES2.functional.uniform_api.random.79,Fail
+
+# These are known failures
+asan-KHR-GLES2.core.internalformat.texture2d.depth_component_unsigned_int_depth_component16,Fail
+asan-dEQP-GLES2.functional.texture.mipmap.2d.basic.nearest_linear_clamp_non_square,Fail
+asan-dEQP-GLES2.functional.texture.wrap.clamp_clamp_nearest_npot_etc1,Fail

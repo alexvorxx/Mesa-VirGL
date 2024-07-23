@@ -32,6 +32,16 @@ vc4-rpi3-gl:arm32:
   variables:
     DEQP_SUITE: broadcom-rpi3-arm32
 
+vc4-rpi3-gl-asan:arm64:
+  extends:
+    - .igalia-bcm2837-rpi-3-b
+    - .broadcom-asan-test:arm64
+    - .vc4-manual-rules
+  variables:
+    FDO_CI_CONCURRENT: 1
+    HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
+    DEQP_SUITE: broadcom-rpi3-asan
+    DEQP_FRACTION: 10
 
 v3d-rpi4-gl:arm64:
   extends:
@@ -90,6 +100,17 @@ v3d-rpi4-gl:arm32:
   variables:
     DEQP_SUITE: broadcom-rpi4-arm32
 
+v3d-rpi4-gl-asan:arm64:
+  extends:
+    - .igalia-bcm2711-rpi-4
+    - .broadcom-asan-test:arm64
+    - .v3d-manual-rules
+  variables:
+    FDO_CI_CONCURRENT: 1
+    HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
+    DEQP_SUITE: broadcom-rpi4-asan
+    DEQP_FRACTION: 30
+
 v3dv-rpi4-vk:arm64:
   extends:
     - .igalia-bcm2711-rpi-4
@@ -117,6 +138,16 @@ v3dv-rpi4-vk-full:arm64:
     TEST_PHASE_TIMEOUT: 110
     DEQP_FRACTION: 1
 
+v3dv-rpi4-vk-asan:arm64:
+  extends:
+    - .igalia-bcm2711-rpi-4
+    - .broadcom-asan-test:arm64
+    - .v3dv-manual-rules
+  variables:
+    FDO_CI_CONCURRENT: 1
+    HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
+    DEQP_SUITE: broadcom-rpi4-vk-asan
+    DEQP_FRACTION: 200
 
 v3d-rpi5-gl:arm64:
   extends:
