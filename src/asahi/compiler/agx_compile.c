@@ -1469,6 +1469,16 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
       return NULL;
    }
 
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_coarse:
+   case nir_intrinsic_ddx_fine:
+      return agx_dfdx_to(b, dst, agx_src_index(&instr->src[0]));
+
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_coarse:
+   case nir_intrinsic_ddy_fine:
+      return agx_dfdy_to(b, dst, agx_src_index(&instr->src[0]));
+
    case nir_intrinsic_load_subgroup_invocation:
       return agx_get_sr_to(b, dst, AGX_SR_THREAD_INDEX_IN_SUBGROUP);
 
@@ -1740,14 +1750,6 @@ agx_emit_alu(agx_builder *b, nir_alu_instr *instr)
       UNOP(frsq, rsqrt);
       UNOP(flog2, log2);
       UNOP(fexp2, exp2);
-
-      UNOP(fddx, dfdx);
-      UNOP(fddx_coarse, dfdx);
-      UNOP(fddx_fine, dfdx);
-
-      UNOP(fddy, dfdy);
-      UNOP(fddy_coarse, dfdy);
-      UNOP(fddy_fine, dfdy);
 
       UNOP(mov, mov);
       UNOP(u2u32, mov);

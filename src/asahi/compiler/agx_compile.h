@@ -303,4 +303,6 @@ static const nir_shader_compiler_options agx_nir_options = {
    .lower_fquantize2f16 = true,
    .compact_arrays = true,
    .discard_is_demote = true,
+   .has_ddx_intrinsics = true,
+   .scalarize_ddx = true,
 };
