@@ -182,6 +182,12 @@ block_check_for_allowed_instrs(nir_block *block, unsigned *count,
          case nir_intrinsic_quad_swap_vertical:
          case nir_intrinsic_quad_swap_diagonal:
          case nir_intrinsic_lane_permute_16_amd:
+         case nir_intrinsic_ddx:
+         case nir_intrinsic_ddx_fine:
+         case nir_intrinsic_ddx_coarse:
+         case nir_intrinsic_ddy:
+         case nir_intrinsic_ddy_fine:
+         case nir_intrinsic_ddy_coarse:
             if (!alu_ok)
                return false;
             break;
