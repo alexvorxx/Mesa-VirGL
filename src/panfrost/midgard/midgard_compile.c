@@ -622,14 +622,6 @@ mir_copy_src(midgard_instruction *ins, nir_alu_instr *instr, unsigned i,
 static void
 emit_alu(compiler_context *ctx, nir_alu_instr *instr)
 {
-   /* Derivatives end up emitted on the texture pipe, not the ALUs. This
-    * is handled elsewhere */
-
-   if (instr->op == nir_op_fddx || instr->op == nir_op_fddy) {
-      midgard_emit_derivatives(ctx, instr);
-      return;
-   }
-
    unsigned nr_components = instr->def.num_components;
    unsigned nr_inputs = nir_op_infos[instr->op].num_inputs;
    unsigned op = 0;
@@ -1926,6 +1918,11 @@ emit_intrinsic(compiler_context *ctx, nir_intrinsic_instr *instr)
    case nir_intrinsic_global_atomic:
    case nir_intrinsic_global_atomic_swap:
       emit_atomic(ctx, instr);
+      break;
+
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddy:
+      midgard_emit_derivatives(ctx, instr);
       break;
 
    default:
