@@ -287,7 +287,6 @@ private:
    void setup_inst_interference(const fs_inst *inst);
 
    void build_interference_graph();
-   void discard_interference_graph();
 
    brw_reg build_lane_offsets(const fs_builder &bld,
                              uint32_t spill_offset, int ip);
@@ -559,14 +558,6 @@ fs_reg_alloc::build_interference_graph()
     */
    foreach_block_and_inst(block, fs_inst, inst, fs->cfg)
       setup_inst_interference(inst);
-}
-
-void
-fs_reg_alloc::discard_interference_graph()
-{
-   ralloc_free(g);
-   g = NULL;
-   have_spill_costs = false;
 }
 
 brw_reg
