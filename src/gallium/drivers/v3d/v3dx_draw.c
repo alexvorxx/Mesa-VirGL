@@ -1357,14 +1357,29 @@ v3d_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
                                 u_stream_outputs_for_vertices(info->mode, draws[0].count);
         }
 
-        uint32_t clear_mask = job->clear_tlb | job->clear_draw;
+        if (v3d->zsa && job->zsbuf) {
+                struct v3d_resource *rsc = v3d_resource(job->zsbuf->texture);
+                if (rsc->invalidated) {
+                        /* Currently gallium only applies invalidates if it
+                         * affects both depth and stencil together.
+                         */
+                        job->invalidated_load |=
+                                PIPE_CLEAR_DEPTH | PIPE_CLEAR_STENCIL;
+                        rsc->invalidated = false;
+                        if (rsc->separate_stencil)
+                                rsc->separate_stencil->invalidated = false;
+                }
+        }
+
+        uint32_t no_load_mask =
+                job->clear_tlb | job->clear_draw | job->invalidated_load;
         if (v3d->zsa && job->zsbuf && v3d->zsa->base.depth_enabled) {
                 struct v3d_resource *rsc = v3d_resource(job->zsbuf->texture);
                 v3d_job_add_bo(job, rsc->bo);
-                job->load |= PIPE_CLEAR_DEPTH & ~clear_mask;
+                job->load |= PIPE_CLEAR_DEPTH & ~no_load_mask;
                 if (v3d->zsa->base.depth_writemask)
                         job->store |= PIPE_CLEAR_DEPTH;
-                rsc->initialized_buffers = PIPE_CLEAR_DEPTH;
+                rsc->initialized_buffers |= PIPE_CLEAR_DEPTH;
         }
 
         if (v3d->zsa && job->zsbuf && v3d->zsa->base.stencil[0].enabled) {
@@ -1374,13 +1389,14 @@ v3d_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
 
                 v3d_job_add_bo(job, rsc->bo);
 
-                job->load |= PIPE_CLEAR_STENCIL & ~clear_mask;
+                job->load |= PIPE_CLEAR_STENCIL & ~no_load_mask;
                 if (v3d->zsa->base.stencil[0].writemask ||
                     v3d->zsa->base.stencil[1].writemask) {
                         job->store |= PIPE_CLEAR_STENCIL;
                 }
                 rsc->initialized_buffers |= PIPE_CLEAR_STENCIL;
         }
+
 
         for (int i = 0; i < job->nr_cbufs; i++) {
                 uint32_t bit = PIPE_CLEAR_COLOR0 << i;
@@ -1390,7 +1406,12 @@ v3d_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
                         continue;
                 struct v3d_resource *rsc = v3d_resource(job->cbufs[i]->texture);
 
-                job->load |= bit & ~clear_mask;
+                if (rsc->invalidated) {
+                        job->invalidated_load |= bit;
+                        rsc->invalidated = false;
+                } else {
+                        job->load |= bit & ~no_load_mask;
+                }
                 if (v3d->blend->base.rt[blend_rt].colormask)
                         job->store |= bit;
                 v3d_job_add_bo(job, rsc->bo);

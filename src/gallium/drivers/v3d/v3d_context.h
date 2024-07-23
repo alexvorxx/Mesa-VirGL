@@ -448,6 +448,10 @@ struct v3d_job {
          * clear.
          */
         uint32_t clear_draw;
+        /* Bitmask of PIPE_CLEAR_* of attached buffers that were invalidated
+         * by glInvalidateFramebuffer so we can avoid loading them.
+         */
+        uint32_t invalidated_load;
         /* Bitmask of PIPE_CLEAR_* of buffers that have been read by a draw
          * call without having been cleared first.
          */
