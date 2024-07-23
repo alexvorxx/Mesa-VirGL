@@ -1018,6 +1018,12 @@ struct gl_constants
 
    /** Whether pipe_context::draw_vertex_state is supported. */
    bool HasDrawVertexState;
+
+   /** GL_KHR_shader_subgroup */
+   GLuint ShaderSubgroupSize;
+   GLuint ShaderSubgroupSupportedStages;
+   GLuint ShaderSubgroupSupportedFeatures;
+   bool ShaderSubgroupQuadAllStages;
 };
 
 #endif
