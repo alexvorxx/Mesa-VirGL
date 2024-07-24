@@ -196,6 +196,8 @@ lvp_physical_device_get_format_properties(struct lvp_physical_device *physical_d
        util_format_get_nr_components(pformat) != 3 &&
        !util_format_is_subsampled_422(pformat) &&
        !util_format_is_yuv(pformat) &&
+       pformat != PIPE_FORMAT_G8_B8R8_420_UNORM &&
+       pformat != PIPE_FORMAT_G8_B8_R8_420_UNORM &&
        pformat != PIPE_FORMAT_R10G10B10A2_SNORM &&
        pformat != PIPE_FORMAT_B10G10R10A2_SNORM &&
        pformat != PIPE_FORMAT_B10G10R10A2_UNORM) {
