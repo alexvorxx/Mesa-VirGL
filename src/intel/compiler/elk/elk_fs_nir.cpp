@@ -1174,21 +1174,6 @@ fs_nir_emit_alu(nir_to_elk_state &ntb, nir_alu_instr *instr,
       inst = bld.emit(ELK_SHADER_OPCODE_COS, result, op[0]);
       break;
 
-   case nir_op_fddx_fine:
-      inst = bld.emit(ELK_FS_OPCODE_DDX_FINE, result, op[0]);
-      break;
-   case nir_op_fddx:
-   case nir_op_fddx_coarse:
-      inst = bld.emit(ELK_FS_OPCODE_DDX_COARSE, result, op[0]);
-      break;
-   case nir_op_fddy_fine:
-      inst = bld.emit(ELK_FS_OPCODE_DDY_FINE, result, op[0]);
-      break;
-   case nir_op_fddy:
-   case nir_op_fddy_coarse:
-      inst = bld.emit(ELK_FS_OPCODE_DDY_COARSE, result, op[0]);
-      break;
-
    case nir_op_fadd:
       if (nir_has_any_rounding_mode_enabled(execution_mode)) {
          elk_rnd_mode rnd =
@@ -4000,6 +3985,25 @@ fs_nir_emit_fs_intrinsic(nir_to_elk_state &ntb,
       }
       break;
    }
+
+   case nir_intrinsic_ddx_fine:
+      bld.emit(ELK_FS_OPCODE_DDX_FINE, retype(dest, ELK_REGISTER_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
+      break;
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_coarse:
+      bld.emit(ELK_FS_OPCODE_DDX_COARSE, retype(dest, ELK_REGISTER_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
+      break;
+   case nir_intrinsic_ddy_fine:
+      bld.emit(ELK_FS_OPCODE_DDY_FINE, retype(dest, ELK_REGISTER_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
+      break;
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_coarse:
+      bld.emit(ELK_FS_OPCODE_DDY_COARSE, retype(dest, ELK_REGISTER_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
+      break;
 
    default:
       fs_nir_emit_intrinsic(ntb, bld, instr);
