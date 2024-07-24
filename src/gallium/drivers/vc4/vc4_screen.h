@@ -105,7 +105,7 @@ struct vc4_screen {
         bool has_perfmon_ioctl;
         bool has_syncobj;
 
-#if USE_V3D_SIMULATOR
+#ifdef USE_VC4_SIMULATOR
         struct vc4_simulator_file *sim_file;
 #endif
 };
