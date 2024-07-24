@@ -412,6 +412,15 @@ nir_schedule_intrinsic_deps(nir_deps_state *state,
       break;
    }
 
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_fine:
+   case nir_intrinsic_ddx_coarse:
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_fine:
+   case nir_intrinsic_ddy_coarse:
+      /* Match the old behaviour. TODO: Is this correct with discards? */
+      break;
+
    default:
       /* Attempt to handle other intrinsics that we haven't individually
        * categorized by serializing them in the same order relative to each
