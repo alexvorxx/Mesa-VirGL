@@ -1587,6 +1587,75 @@ bi_emit_ld_tile(bi_builder *b, nir_intrinsic_instr *instr)
    bi_emit_cached_split(b, dest, size * nr);
 }
 
+/*
+ * Older Bifrost hardware has a limited CLPER instruction. Add a safe helper
+ * that uses the hardware functionality if available and lowers otherwise.
+ */
+static bi_index
+bi_clper(bi_builder *b, bi_index s0, bi_index s1, enum bi_lane_op lop)
+{
+   if (b->shader->quirks & BIFROST_LIMITED_CLPER) {
+      if (lop == BI_LANE_OP_XOR) {
+         bi_index lane_id = bi_fau(BIR_FAU_LANE_ID, false);
+         s1 = bi_lshift_xor_i32(b, lane_id, s1, bi_imm_u8(0));
+      } else {
+         assert(lop == BI_LANE_OP_NONE);
+      }
+
+      return bi_clper_old_i32(b, s0, s1);
+   } else {
+      return bi_clper_i32(b, s0, s1, BI_INACTIVE_RESULT_ZERO, lop,
+                          BI_SUBGROUP_SUBGROUP4);
+   }
+}
+
+static bool
+bi_nir_all_uses_fabs(nir_def *def)
+{
+   nir_foreach_use(use, def) {
+      nir_instr *instr = nir_src_parent_instr(use);
+
+      if (instr->type != nir_instr_type_alu ||
+          nir_instr_as_alu(instr)->op != nir_op_fabs)
+         return false;
+   }
+
+   return true;
+}
+
+static void
+bi_emit_derivative(bi_builder *b, bi_index dst, nir_intrinsic_instr *instr,
+                   unsigned axis, bool coarse)
+{
+   bi_index left, right;
+   bi_index s0 = bi_src_index(&instr->src[0]);
+   unsigned sz = instr->def.bit_size;
+
+   /* If all uses are fabs, the sign of the derivative doesn't matter. This is
+    * inherently based on fine derivatives so we can't do it for coarse.
+    */
+   if (bi_nir_all_uses_fabs(&instr->def) && !coarse) {
+      left = s0;
+      right = bi_clper(b, s0, bi_imm_u32(axis), BI_LANE_OP_XOR);
+   } else {
+      bi_index lane1, lane2;
+      if (coarse) {
+         lane1 = bi_imm_u32(0);
+         lane2 = bi_imm_u32(axis);
+      } else {
+         lane1 = bi_lshift_and_i32(b, bi_fau(BIR_FAU_LANE_ID, false),
+                                   bi_imm_u32(0x3 & ~axis), bi_imm_u8(0));
+
+         lane2 = bi_iadd_u32(b, lane1, bi_imm_u32(axis), false);
+      }
+
+      left = bi_clper(b, s0, lane1, BI_LANE_OP_NONE);
+      right = bi_clper(b, s0, lane2, BI_LANE_OP_NONE);
+   }
+
+   bi_fadd_to(b, sz, dst, right, bi_neg(left));
+}
+
 static void
 bi_emit_intrinsic(bi_builder *b, nir_intrinsic_instr *instr)
 {
@@ -1834,6 +1903,21 @@ bi_emit_intrinsic(bi_builder *b, nir_intrinsic_instr *instr)
    case nir_intrinsic_shader_clock:
       bi_ld_gclk_u64_to(b, dst, BI_SOURCE_CYCLE_COUNTER);
       bi_split_def(b, &instr->def);
+      break;
+
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_fine:
+      bi_emit_derivative(b, dst, instr, 1, false);
+      break;
+   case nir_intrinsic_ddx_coarse:
+      bi_emit_derivative(b, dst, instr, 1, true);
+      break;
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_fine:
+      bi_emit_derivative(b, dst, instr, 2, false);
+      break;
+   case nir_intrinsic_ddy_coarse:
+      bi_emit_derivative(b, dst, instr, 2, true);
       break;
 
    default:
@@ -2137,24 +2221,6 @@ bi_lower_fsincos_32(bi_builder *b, bi_index dst, bi_index s0, bool cos)
 
    /* f(x) + e f'(x) - (e^2/2) f''(x) */
    bi_fadd_f32_to(b, dst, I->dest[0], cos ? cosx : sinx);
-}
-
-/*
- * The XOR lane op is useful for derivative calculations, but not all Bifrost
- * implementations have it. Add a safe helper that uses the hardware
- * functionality when available and lowers where unavailable.
- */
-static bi_index
-bi_clper_xor(bi_builder *b, bi_index s0, bi_index s1)
-{
-   if (!(b->shader->quirks & BIFROST_LIMITED_CLPER)) {
-      return bi_clper_i32(b, s0, s1, BI_INACTIVE_RESULT_ZERO, BI_LANE_OP_XOR,
-                          BI_SUBGROUP_SUBGROUP4);
-   }
-
-   bi_index lane_id = bi_fau(BIR_FAU_LANE_ID, false);
-   bi_index lane = bi_lshift_xor_i32(b, lane_id, s1, bi_imm_u8(0));
-   return bi_clper_old_i32(b, s0, lane);
 }
 
 static enum bi_cmpf
@@ -2637,73 +2703,6 @@ bi_emit_alu(bi_builder *b, nir_alu_instr *instr)
       bi_csel_to(b, nir_op_infos[instr->op].input_types[0], sz, dst, s0, s1, s0,
                  s1, BI_CMPF_GT);
       break;
-
-   case nir_op_fddx_must_abs_mali:
-   case nir_op_fddy_must_abs_mali: {
-      bi_index bit = bi_imm_u32(instr->op == nir_op_fddx_must_abs_mali ? 1 : 2);
-      bi_index adjacent = bi_clper_xor(b, s0, bit);
-      bi_fadd_to(b, sz, dst, adjacent, bi_neg(s0));
-      break;
-   }
-
-   case nir_op_fddx:
-   case nir_op_fddy:
-   case nir_op_fddx_coarse:
-   case nir_op_fddy_coarse:
-   case nir_op_fddx_fine:
-   case nir_op_fddy_fine: {
-      unsigned axis;
-      switch (instr->op) {
-      case nir_op_fddx:
-      case nir_op_fddx_coarse:
-      case nir_op_fddx_fine:
-         axis = 1;
-         break;
-      case nir_op_fddy:
-      case nir_op_fddy_coarse:
-      case nir_op_fddy_fine:
-         axis = 2;
-         break;
-      default:
-         unreachable("Invalid derivative op");
-      }
-
-      bi_index lane1, lane2;
-      switch (instr->op) {
-      case nir_op_fddx:
-      case nir_op_fddx_fine:
-      case nir_op_fddy:
-      case nir_op_fddy_fine:
-         lane1 = bi_lshift_and_i32(b, bi_fau(BIR_FAU_LANE_ID, false),
-                                   bi_imm_u32(0x3 & ~axis), bi_imm_u8(0));
-
-         lane2 = bi_iadd_u32(b, lane1, bi_imm_u32(axis), false);
-         break;
-      case nir_op_fddx_coarse:
-      case nir_op_fddy_coarse:
-         lane1 = bi_imm_u32(0);
-         lane2 = bi_imm_u32(axis);
-         break;
-      default:
-         unreachable("Invalid derivative op");
-      }
-
-      bi_index left, right;
-
-      if (b->shader->quirks & BIFROST_LIMITED_CLPER) {
-         left = bi_clper_old_i32(b, s0, lane1);
-         right = bi_clper_old_i32(b, s0, lane2);
-      } else {
-         left = bi_clper_i32(b, s0, lane1, BI_INACTIVE_RESULT_ZERO,
-                             BI_LANE_OP_NONE, BI_SUBGROUP_SUBGROUP4);
-
-         right = bi_clper_i32(b, s0, lane2, BI_INACTIVE_RESULT_ZERO,
-                              BI_LANE_OP_NONE, BI_SUBGROUP_SUBGROUP4);
-      }
-
-      bi_fadd_to(b, sz, dst, right, bi_neg(left));
-      break;
-   }
 
    case nir_op_f2f32:
       bi_f16_to_f32_to(b, dst, s0);

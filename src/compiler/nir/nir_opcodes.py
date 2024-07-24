@@ -1516,10 +1516,6 @@ opcode("b32fcsel_mdg", 0, tuint, [0, 0, 0],
        the backend.
        """)
 
-# Magnitude equal to fddx/y, sign undefined. Derivative of a constant is zero.
-unop("fddx_must_abs_mali", tfloat, "0.0", algebraic_properties = "derivative")
-unop("fddy_must_abs_mali", tfloat, "0.0", algebraic_properties = "derivative")
-
 # DXIL specific double [un]pack
 # DXIL doesn't support generic [un]pack instructions, so we want those
 # lowered to bit ops. HLSL doesn't support 64bit bitcasts to/from

@@ -56,9 +56,6 @@ algebraic_late = [
     (('fmax', ('fmin', a, 1.0), -1.0), ('fsat_signed_mali', a)),
     (('fmax', a, 0.0), ('fclamp_pos_mali', a)),
 
-    (('fabs', ('fddx', a)), ('fabs', ('fddx_must_abs_mali', a))),
-    (('fabs', ('fddy', b)), ('fabs', ('fddy_must_abs_mali', b))),
-
     (('b32csel', 'b@32', ('iadd', 'a@32', 1), a), ('iadd', a, ('b2i32', b))),
 
     # We don't have an 8-bit CSEL, so this is the best we can do.
