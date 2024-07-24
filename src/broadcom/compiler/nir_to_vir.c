@@ -1716,18 +1716,6 @@ ntq_emit_alu(struct v3d_compile *c, nir_alu_instr *instr)
                 result = vir_MAX(c, src[0], vir_NEG(c, src[0]));
                 break;
 
-        case nir_op_fddx:
-        case nir_op_fddx_coarse:
-        case nir_op_fddx_fine:
-                result = vir_FDX(c, src[0]);
-                break;
-
-        case nir_op_fddy:
-        case nir_op_fddy_coarse:
-        case nir_op_fddy_fine:
-                result = vir_FDY(c, src[0]);
-                break;
-
         case nir_op_uadd_carry:
                 vir_set_pf(c, vir_ADD_dest(c, vir_nop_reg(), src[0], src[1]),
                            V3D_QPU_PF_PUSHC);
@@ -3935,6 +3923,22 @@ ntq_emit_intrinsic(struct v3d_compile *c, nir_intrinsic_instr *instr)
         case nir_intrinsic_load_subgroup_invocation:
                 ntq_store_def(c, &instr->def, 0, vir_EIDX(c));
                 break;
+
+        case nir_intrinsic_ddx:
+        case nir_intrinsic_ddx_coarse:
+        case nir_intrinsic_ddx_fine: {
+                struct qreg value = ntq_get_src(c, instr->src[0], 0);
+                ntq_store_def(c, &instr->def, 0, vir_FDX(c, value));
+                break;
+        }
+
+        case nir_intrinsic_ddy:
+        case nir_intrinsic_ddy_coarse:
+        case nir_intrinsic_ddy_fine: {
+                struct qreg value = ntq_get_src(c, instr->src[0], 0);
+                ntq_store_def(c, &instr->def, 0, vir_FDY(c, value));
+                break;
+        }
 
         case nir_intrinsic_elect: {
                 struct qreg first;
