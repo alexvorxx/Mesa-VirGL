@@ -32,6 +32,7 @@
 #include "a6xx/fd6_blitter.h"
 #include "fd6_resource.h"
 #include "fdl/fd6_format_table.h"
+#include "common/freedreno_ubwc.h"
 
 #include "a6xx.xml.h"
 
@@ -128,14 +129,6 @@ can_do_ubwc(struct pipe_resource *prsc)
 }
 
 static bool
-is_norm(enum pipe_format format)
-{
-   const struct util_format_description *desc = util_format_description(format);
-
-   return desc->is_snorm || desc->is_unorm;
-}
-
-static bool
 is_z24s8(enum pipe_format format)
 {
    switch (format) {
@@ -150,8 +143,12 @@ is_z24s8(enum pipe_format format)
 }
 
 static bool
-valid_format_cast(struct fd_resource *rsc, enum pipe_format format)
+valid_ubwc_format_cast(struct fd_resource *rsc, enum pipe_format format)
 {
+   const struct fd_dev_info *info = fd_screen(rsc->b.b.screen)->info;
+
+   assert(rsc->layout.ubwc);
+
    /* Special case "casting" format in hw: */
    if (format == PIPE_FORMAT_Z24_UNORM_S8_UINT_AS_R8G8B8A8)
       return true;
@@ -163,27 +160,8 @@ valid_format_cast(struct fd_resource *rsc, enum pipe_format format)
          is_z24s8(format) && is_z24s8(rsc->b.b.format))
       return true;
 
-   /* For some color values (just "solid white") compression metadata maps to
-    * different pixel values for uint/sint vs unorm/snorm, so we can't reliably
-    * "cast" u/snorm to u/sint and visa versa:
-    */
-   if (is_norm(format) != is_norm(rsc->b.b.format))
-      return false;
-
-   /* The UBWC formats can be re-interpreted so long as the components
-    * have the same # of bits
-    */
-   for (unsigned i = 0; i < 4; i++) {
-      unsigned sb, db;
-
-      sb = util_format_get_component_bits(rsc->b.b.format, UTIL_FORMAT_COLORSPACE_RGB, i);
-      db = util_format_get_component_bits(format, UTIL_FORMAT_COLORSPACE_RGB, i);
-
-      if (sb != db)
-         return false;
-   }
-
-   return true;
+   return fd6_ubwc_compat_mode(info, format) ==
+       fd6_ubwc_compat_mode(info, rsc->b.b.format);
 }
 
 /**
@@ -217,7 +195,8 @@ fd6_check_valid_format(struct fd_resource *rsc, enum pipe_format format)
    if (!rsc->layout.ubwc)
       return FORMAT_OK;
 
-   if (ok_ubwc_format(rsc->b.b.screen, format) && valid_format_cast(rsc, format))
+   if (ok_ubwc_format(rsc->b.b.screen, format) &&
+       valid_ubwc_format_cast(rsc, format))
       return FORMAT_OK;
 
    return DEMOTE_TO_TILED;
