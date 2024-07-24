@@ -129,6 +129,8 @@ static const nir_shader_compiler_options ir3_base_options = {
    .lower_doubles_options = (nir_lower_doubles_options)~0,
 
    .divergence_analysis_options = nir_divergence_uniform_load_tears,
+   .has_ddx_intrinsics = true,
+   .scalarize_ddx = true,
 };
 
 struct ir3_compiler *

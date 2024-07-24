@@ -467,13 +467,6 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
 
    bool use_shared = !alu->def.divergent &&
       ctx->compiler->has_scalar_alu &&
-      /* not ALU ops */
-      alu->op != nir_op_fddx &&
-      alu->op != nir_op_fddx_fine &&
-      alu->op != nir_op_fddx_coarse &&
-      alu->op != nir_op_fddy &&
-      alu->op != nir_op_fddy_fine &&
-      alu->op != nir_op_fddy_coarse &&
       /* it probably isn't worth emulating these with scalar-only ops */
       alu->op != nir_op_udot_4x8_uadd &&
       alu->op != nir_op_udot_4x8_uadd_sat &&
@@ -634,25 +627,6 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
       break;
    case nir_op_ffma:
       dst[0] = ir3_MAD_F32(b, src[0], 0, src[1], 0, src[2], 0);
-      break;
-   case nir_op_fddx:
-   case nir_op_fddx_coarse:
-      dst[0] = ir3_DSX(b, src[0], 0);
-      dst[0]->cat5.type = TYPE_F32;
-      break;
-   case nir_op_fddx_fine:
-      dst[0] = ir3_DSXPP_MACRO(b, src[0], 0);
-      dst[0]->cat5.type = TYPE_F32;
-      break;
-   case nir_op_fddy:
-   case nir_op_fddy_coarse:
-      dst[0] = ir3_DSY(b, src[0], 0);
-      dst[0]->cat5.type = TYPE_F32;
-      break;
-      break;
-   case nir_op_fddy_fine:
-      dst[0] = ir3_DSYPP_MACRO(b, src[0], 0);
-      dst[0]->cat5.type = TYPE_F32;
       break;
    case nir_op_flt:
       dst[0] = ir3_CMPS_F(b, src[0], 0, src[1], 0);
@@ -2996,7 +2970,32 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       dst[0]->cat5.type = type_uint_size(intr->def.bit_size);
       break;
    }
-
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_coarse: {
+      struct ir3_instruction *src = ir3_get_src(ctx, &intr->src[0])[0];
+      dst[0] = ir3_DSX(b, src, 0);
+      dst[0]->cat5.type = TYPE_F32;
+      break;
+   }
+   case nir_intrinsic_ddx_fine: {
+      struct ir3_instruction *src = ir3_get_src(ctx, &intr->src[0])[0];
+      dst[0] = ir3_DSXPP_MACRO(b, src, 0);
+      dst[0]->cat5.type = TYPE_F32;
+      break;
+   }
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_coarse: {
+      struct ir3_instruction *src = ir3_get_src(ctx, &intr->src[0])[0];
+      dst[0] = ir3_DSY(b, src, 0);
+      dst[0]->cat5.type = TYPE_F32;
+      break;
+   }
+   case nir_intrinsic_ddy_fine: {
+      struct ir3_instruction *src = ir3_get_src(ctx, &intr->src[0])[0];
+      dst[0] = ir3_DSYPP_MACRO(b, src, 0);
+      dst[0]->cat5.type = TYPE_F32;
+      break;
+   }
    case nir_intrinsic_load_shared_ir3:
       emit_intrinsic_load_shared_ir3(ctx, intr, dst);
       break;
