@@ -1131,21 +1131,6 @@ fs_nir_emit_alu(nir_to_brw_state &ntb, nir_alu_instr *instr,
       bld.COS(result, op[0]);
       break;
 
-   case nir_op_fddx_fine:
-      bld.emit(FS_OPCODE_DDX_FINE, result, op[0]);
-      break;
-   case nir_op_fddx:
-   case nir_op_fddx_coarse:
-      bld.emit(FS_OPCODE_DDX_COARSE, result, op[0]);
-      break;
-   case nir_op_fddy_fine:
-      bld.emit(FS_OPCODE_DDY_FINE, result, op[0]);
-      break;
-   case nir_op_fddy:
-   case nir_op_fddy_coarse:
-      bld.emit(FS_OPCODE_DDY_COARSE, result, op[0]);
-      break;
-
    case nir_op_fadd:
       if (nir_has_any_rounding_mode_enabled(execution_mode)) {
          brw_rnd_mode rnd =
@@ -7323,6 +7308,25 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
    case nir_intrinsic_load_subgroup_le_mask:
    case nir_intrinsic_load_subgroup_lt_mask:
       unreachable("not reached");
+
+   case nir_intrinsic_ddx_fine:
+      bld.emit(FS_OPCODE_DDX_FINE, retype(dest, BRW_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), BRW_TYPE_F));
+      break;
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_coarse:
+      bld.emit(FS_OPCODE_DDX_COARSE, retype(dest, BRW_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), BRW_TYPE_F));
+      break;
+   case nir_intrinsic_ddy_fine:
+      bld.emit(FS_OPCODE_DDY_FINE, retype(dest, BRW_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), BRW_TYPE_F));
+      break;
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_coarse:
+      bld.emit(FS_OPCODE_DDY_COARSE, retype(dest, BRW_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), BRW_TYPE_F));
+      break;
 
    case nir_intrinsic_quad_vote_any:
    case nir_intrinsic_quad_vote_all: {
