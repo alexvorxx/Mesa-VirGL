@@ -35,6 +35,7 @@ enum HEVCNALUnitType {
     HEVC_NAL_VPS        = 32,
     HEVC_NAL_SPS        = 33,
     HEVC_NAL_PPS        = 34,
+    HEVC_NAL_AUD        = 35,
     HEVC_NAL_PREFIX_SEI    = 39,
 };
 
@@ -279,6 +280,12 @@ vlVaHandleVAEncSequenceParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *con
    context->desc.h265enc.seq.time_scale = time_scale;
    context->desc.h265enc.rc.frame_rate_num = time_scale;
    context->desc.h265enc.rc.frame_rate_den = num_units_in_tick;
+
+   if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SEQUENCE)) {
+      context->desc.h265enc.header_flags.vps = 1;
+      context->desc.h265enc.header_flags.sps = 1;
+      context->desc.h265enc.header_flags.pps = 1;
+   }
 
    return VA_STATUS_SUCCESS;
 }
@@ -761,12 +768,18 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeHEVC(vlVaContext *context, vlVaBuffer *
       vl_rbsp_init(&rbsp, &vlc, ~0, context->packed_header_emulation_bytes);
 
       switch(nal_unit_type) {
+      case HEVC_NAL_VPS:
+         context->desc.h265enc.header_flags.vps = 1;
+         break;
       case HEVC_NAL_SPS:
          parseEncSpsParamsH265(context, &rbsp);
-         break;
-      case HEVC_NAL_VPS:
+         context->desc.h265enc.header_flags.sps = 1;
          break;
       case HEVC_NAL_PPS:
+         context->desc.h265enc.header_flags.pps = 1;
+         break;
+      case HEVC_NAL_AUD:
+         context->desc.h265enc.header_flags.aud = 1;
          break;
       case HEVC_NAL_PREFIX_SEI:
          parseEncSeiH265(context, &rbsp);

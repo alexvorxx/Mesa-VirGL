@@ -195,6 +195,7 @@ struct pipe_picture_desc
    unsigned flush_flags;
    /* A fence used on PIPE_VIDEO_ENTRYPOINT_DECODE/PROCESSING to signal job completion */
    struct pipe_fence_handle **fence;
+   unsigned packed_headers;
 };
 
 struct pipe_quant_matrix

@@ -151,6 +151,8 @@ vlVaBeginPicture(VADriverContextP ctx, VAContextID context_id, VASurfaceID rende
             context->desc.h265enc.header_flags.value = 0;
             break;
          case PIPE_VIDEO_FORMAT_MPEG4_AVC:
+            context->desc.h264enc.header_flags.value = 0;
+            break;
          default:
             break;
       }
@@ -732,8 +734,24 @@ handleVAEncMiscParameterTypeRIR(vlVaContext *context, VAEncMiscParameterBuffer *
       if (p_intra_refresh->mode) {
          p_intra_refresh->region_size = ir->intra_insert_size;
          p_intra_refresh->offset = ir->intra_insertion_location;
-         if (p_intra_refresh->offset == 0)
+         if (p_intra_refresh->offset == 0) {
             p_intra_refresh->need_sequence_header = 1;
+            if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SEQUENCE)) {
+               switch (u_reduce_video_profile(context->templat.profile)) {
+                  case PIPE_VIDEO_FORMAT_MPEG4_AVC:
+                     context->desc.h264enc.header_flags.sps = 1;
+                     context->desc.h264enc.header_flags.pps = 1;
+                     break;
+                  case PIPE_VIDEO_FORMAT_HEVC:
+                     context->desc.h265enc.header_flags.vps = 1;
+                     context->desc.h265enc.header_flags.sps = 1;
+                     context->desc.h265enc.header_flags.pps = 1;
+                     break;
+                  default:
+                     break;
+               }
+            }
+         }
       }
    } else {
       p_intra_refresh->mode = INTRA_REFRESH_MODE_NONE;

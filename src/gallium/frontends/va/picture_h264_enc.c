@@ -34,6 +34,7 @@
 enum H264NALUnitType {
     H264_NAL_SPS        = 7,
     H264_NAL_PPS        = 8,
+    H264_NAL_AUD        = 9,
 };
 
 VAStatus
@@ -273,6 +274,12 @@ vlVaHandleVAEncSequenceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *con
       context->desc.h264enc.seq.enc_frame_crop_top_offset = h264->frame_crop_top_offset;
       context->desc.h264enc.seq.enc_frame_crop_bottom_offset = h264->frame_crop_bottom_offset;
    }
+
+   if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SEQUENCE)) {
+      context->desc.h264enc.header_flags.sps = 1;
+      context->desc.h264enc.header_flags.pps = 1;
+   }
+
    return VA_STATUS_SUCCESS;
 }
 
@@ -527,8 +534,14 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeH264(vlVaContext *context, vlVaBuffer *
       switch(nal_unit_type) {
       case H264_NAL_SPS:
          parseEncSpsParamsH264(context, &rbsp);
+         context->desc.h264enc.header_flags.sps = 1;
          break;
       case H264_NAL_PPS:
+         context->desc.h264enc.header_flags.pps = 1;
+         break;
+      case H264_NAL_AUD:
+         context->desc.h264enc.header_flags.aud = 1;
+         break;
       default:
          break;
       }

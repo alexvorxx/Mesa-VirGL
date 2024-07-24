@@ -85,9 +85,15 @@
 #define VBAQ_DISABLE (0)
 #define VBAQ_AUTO    (1)
 
-#define ENC_PACKED_HEADERS_H264 (VA_ENC_PACKED_HEADER_SEQUENCE)
+#define ENC_PACKED_HEADERS_H264 (VA_ENC_PACKED_HEADER_SEQUENCE | \
+                                 VA_ENC_PACKED_HEADER_PICTURE | \
+                                 VA_ENC_PACKED_HEADER_SLICE | \
+                                 VA_ENC_PACKED_HEADER_RAW_DATA)
 #define ENC_PACKED_HEADERS_HEVC (VA_ENC_PACKED_HEADER_SEQUENCE | \
-                                 VA_ENC_PACKED_HEADER_MISC)
+                                 VA_ENC_PACKED_HEADER_PICTURE | \
+                                 VA_ENC_PACKED_HEADER_SLICE | \
+                                 VA_ENC_PACKED_HEADER_MISC | \
+                                 VA_ENC_PACKED_HEADER_RAW_DATA)
 #define ENC_PACKED_HEADERS_AV1  (VA_ENC_PACKED_HEADER_SEQUENCE | \
                                  VA_ENC_PACKED_HEADER_PICTURE  | \
                                  VA_ENC_PACKED_HEADER_MISC)
@@ -425,6 +431,7 @@ typedef struct {
    enum pipe_video_entrypoint entrypoint;
    enum pipe_h2645_enc_rate_control_method rc;
    unsigned int rt_format;
+   unsigned int packed_headers;
 } vlVaConfig;
 
 typedef struct vlVaSurface {

@@ -383,6 +383,7 @@ vlVaCreateContext(VADriverContextP ctx, VAConfigID config_id, int picture_width,
       default:
          break;
       }
+      context->desc.base.packed_headers = config->packed_headers;
    }
 
    context->surfaces = _mesa_set_create(NULL, _mesa_hash_pointer, _mesa_key_pointer_equal);

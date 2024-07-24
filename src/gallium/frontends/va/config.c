@@ -744,6 +744,7 @@ vlVaCreateConfig(VADriverContextP ctx, VAProfile profile, VAEntrypoint entrypoin
             FREE(config);
             return VA_STATUS_ERROR_INVALID_VALUE;
          }
+         config->packed_headers = attrib_value;
       }
    }
 
