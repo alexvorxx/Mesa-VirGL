@@ -386,14 +386,6 @@ vtn_nir_alu_op_for_spirv_opcode(struct vtn_builder *b,
    case SpvOpPtrCastToGeneric:   return nir_op_mov;
    case SpvOpGenericCastToPtr:   return nir_op_mov;
 
-   /* Derivatives: */
-   case SpvOpDPdx:         return nir_op_fddx;
-   case SpvOpDPdy:         return nir_op_fddy;
-   case SpvOpDPdxFine:     return nir_op_fddx_fine;
-   case SpvOpDPdyFine:     return nir_op_fddy_fine;
-   case SpvOpDPdxCoarse:   return nir_op_fddx_coarse;
-   case SpvOpDPdyCoarse:   return nir_op_fddy_coarse;
-
    case SpvOpIsNormal:     return nir_op_fisnormal;
    case SpvOpIsFinite:     return nir_op_fisfinite;
 
@@ -727,6 +719,25 @@ vtn_handle_alu(struct vtn_builder *b, SpvOp opcode,
       }
       break;
    }
+
+   case SpvOpDPdx:
+      dest->def = nir_ddx(&b->nb, src[0]);
+      break;
+   case SpvOpDPdxFine:
+      dest->def = nir_ddx_fine(&b->nb, src[0]);
+      break;
+   case SpvOpDPdxCoarse:
+      dest->def = nir_ddx_coarse(&b->nb, src[0]);
+      break;
+   case SpvOpDPdy:
+      dest->def = nir_ddy(&b->nb, src[0]);
+      break;
+   case SpvOpDPdyFine:
+      dest->def = nir_ddy_fine(&b->nb, src[0]);
+      break;
+   case SpvOpDPdyCoarse:
+      dest->def = nir_ddy_coarse(&b->nb, src[0]);
+      break;
 
    case SpvOpFwidth:
       dest->def = nir_fadd(&b->nb,
