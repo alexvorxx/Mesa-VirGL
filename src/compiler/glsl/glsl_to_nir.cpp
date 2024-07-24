@@ -2528,13 +2528,8 @@ nir_visitor::visit(ir_dereference_variable *ir)
          i++;
       }
 
-      nir_variable_mode mode =
-         glsl_contains_opaque(ir->variable_referenced()->type) &&
-         ir->variable_referenced()->data.mode == ir_var_function_in ?
-            nir_var_uniform : nir_var_function_temp;
-
       this->deref = nir_build_deref_cast(&b, nir_load_param(&b, i),
-                                         mode, ir->type, 0);
+                                         nir_var_function_temp, ir->type, 0);
       return;
    }
 
