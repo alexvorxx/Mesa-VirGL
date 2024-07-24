@@ -789,6 +789,10 @@ custom_decodes = {
     "vkCmdCopyBufferToImage2KHR" : emit_global_state_wrapped_decoding_with_context,
     "vkCmdCopyImage2KHR" : emit_global_state_wrapped_decoding,
     "vkCmdCopyImageToBuffer2KHR" : emit_global_state_wrapped_decoding,
+
+    # VK_KHR_device_group_creation / VK_VERSION_1_1
+    "vkEnumeratePhysicalDeviceGroups" : emit_global_state_wrapped_decoding,
+    "vkEnumeratePhysicalDeviceGroupsKHR" : emit_global_state_wrapped_decoding,
 }
 
 class VulkanDecoder(VulkanWrapperGenerator):
