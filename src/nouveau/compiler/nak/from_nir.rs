@@ -6,7 +6,6 @@
 use crate::api::GetDebugFlags;
 use crate::api::DEBUG;
 use crate::builder::*;
-use crate::cfg::CFGBuilder;
 use crate::ir::*;
 use crate::nir::*;
 use crate::nir_instr_printer::NirInstrPrinter;
@@ -14,6 +13,7 @@ use crate::sph::{OutputTopology, PixelImap};
 
 use nak_bindings::*;
 
+use compiler::cfg::CFGBuilder;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::ops::Index;

@@ -1,7 +1,7 @@
 // Copyright © 2023 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use compiler::bitset::BitSet;
+use crate::bitset::BitSet;
 use std::collections::HashMap;
 use std::hash::Hash;
 use std::ops::{Deref, DerefMut, Index, IndexMut};

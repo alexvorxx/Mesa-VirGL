@@ -3,6 +3,7 @@
 
 _compiler_rs_sources = [
   'bitset.rs',
+  'cfg.rs',
 ]
 
 _compiler_rs_sources = structured_sources([

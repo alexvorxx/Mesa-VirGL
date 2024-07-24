@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: MIT
 
 use crate::api::{GetDebugFlags, ShaderBin, DEBUG};
-use crate::cfg::CFGBuilder;
 use crate::hw_runner::{Runner, CB0};
 use crate::ir::*;
 use crate::sm50::ShaderModel50;
 use crate::sm70::ShaderModel70;
 
 use acorn::Acorn;
+use compiler::cfg::CFGBuilder;
 use nak_bindings::*;
 use std::str::FromStr;
 use std::sync::OnceLock;

@@ -8,9 +8,9 @@ use bitview::{BitMutView, BitView};
 use nak_bindings::*;
 
 pub use crate::builder::{Builder, InstrBuilder, SSABuilder, SSAInstrBuilder};
-use crate::cfg::CFG;
 use crate::legalize::LegalizeBuilder;
 use crate::sph::{OutputTopology, PixelImap};
+use compiler::cfg::CFG;
 use nak_ir_proc::*;
 use std::cmp::{max, min};
 use std::fmt;
