@@ -5961,6 +5961,26 @@ pub enum Op {
 }
 impl_display_for_op!(Op);
 
+impl Op {
+    pub fn is_crs_push(&self) -> bool {
+        match self {
+            Op::SSy(_) | Op::PBk(_) | Op::PCnt(_) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_branch(&self) -> bool {
+        match self {
+            Op::Bra(_)
+            | Op::Sync(_)
+            | Op::Brk(_)
+            | Op::Cont(_)
+            | Op::Exit(_) => true,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub enum PredRef {
     None,
@@ -6254,14 +6274,7 @@ impl Instr {
     }
 
     pub fn is_branch(&self) -> bool {
-        match &self.op {
-            Op::Bra(_)
-            | Op::Sync(_)
-            | Op::Brk(_)
-            | Op::Cont(_)
-            | Op::Exit(_) => true,
-            _ => false,
-        }
+        self.op.is_branch()
     }
 
     pub fn uses_global_mem(&self) -> bool {
