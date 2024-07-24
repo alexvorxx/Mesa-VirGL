@@ -3,7 +3,6 @@
 
 mod api;
 mod assign_regs;
-mod bitset;
 mod builder;
 mod calc_instr_deps;
 mod cfg;

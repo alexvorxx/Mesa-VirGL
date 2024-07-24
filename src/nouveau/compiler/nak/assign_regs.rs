@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: MIT
 
 use crate::api::{GetDebugFlags, DEBUG};
-use crate::bitset::BitSet;
 use crate::ir::*;
 use crate::liveness::{BlockLiveness, Liveness, SimpleLiveness};
 
+use compiler::bitset::BitSet;
 use std::cmp::{max, Ordering};
 use std::collections::{HashMap, HashSet};
 

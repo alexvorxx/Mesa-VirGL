@@ -143,6 +143,7 @@ _libnak_rs = static_library(
   ],
   dependencies : [
     dep_paste,
+    idep_compiler_rs,
     idep_nvidia_headers_rs,
   ],
   link_with : [

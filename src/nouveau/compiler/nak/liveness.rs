@@ -1,9 +1,9 @@
 // Copyright © 2022 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::bitset::BitSet;
 use crate::ir::*;
 
+use compiler::bitset::BitSet;
 use std::cell::RefCell;
 use std::cmp::{max, Ord, Ordering};
 use std::collections::{hash_set, HashMap, HashSet};
