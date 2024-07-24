@@ -1660,72 +1660,6 @@ impl<'a> ShaderFromNir<'a> {
                     b.shr(srcs[0], srcs[1], false)
                 }
             }
-            nir_op_fddx | nir_op_fddx_coarse | nir_op_fddx_fine => {
-                // TODO: Real coarse derivatives
-
-                assert!(alu.def.bit_size() == 32);
-                let ftype = FloatType::F32;
-                let scratch = b.alloc_ssa(RegFile::GPR, 1);
-
-                b.push_op(OpShfl {
-                    dst: scratch[0].into(),
-                    in_bounds: Dst::None,
-                    src: srcs[0],
-                    lane: 1_u32.into(),
-                    c: (0x3_u32 | 0x1c_u32 << 8).into(),
-                    op: ShflOp::Bfly,
-                });
-
-                let dst = b.alloc_ssa(RegFile::GPR, 1);
-
-                b.push_op(OpFSwzAdd {
-                    dst: dst[0].into(),
-                    srcs: [scratch[0].into(), srcs[0]],
-                    ops: [
-                        FSwzAddOp::SubLeft,
-                        FSwzAddOp::SubRight,
-                        FSwzAddOp::SubLeft,
-                        FSwzAddOp::SubRight,
-                    ],
-                    rnd_mode: self.float_ctl[ftype].rnd_mode,
-                    ftz: self.float_ctl[ftype].ftz,
-                });
-
-                dst
-            }
-            nir_op_fddy | nir_op_fddy_coarse | nir_op_fddy_fine => {
-                // TODO: Real coarse derivatives
-
-                assert!(alu.def.bit_size() == 32);
-                let ftype = FloatType::F32;
-                let scratch = b.alloc_ssa(RegFile::GPR, 1);
-
-                b.push_op(OpShfl {
-                    dst: scratch[0].into(),
-                    in_bounds: Dst::None,
-                    src: srcs[0],
-                    lane: 2_u32.into(),
-                    c: (0x3_u32 | 0x1c_u32 << 8).into(),
-                    op: ShflOp::Bfly,
-                });
-
-                let dst = b.alloc_ssa(RegFile::GPR, 1);
-
-                b.push_op(OpFSwzAdd {
-                    dst: dst[0].into(),
-                    srcs: [scratch[0].into(), srcs[0]],
-                    ops: [
-                        FSwzAddOp::SubLeft,
-                        FSwzAddOp::SubLeft,
-                        FSwzAddOp::SubRight,
-                        FSwzAddOp::SubRight,
-                    ],
-                    rnd_mode: self.float_ctl[ftype].rnd_mode,
-                    ftz: self.float_ctl[ftype].ftz,
-                });
-
-                dst
-            }
             _ => panic!("Unsupported ALU instruction: {}", alu.info().name()),
         };
         self.set_dst(&alu.def, dst);
@@ -2131,6 +2065,76 @@ impl<'a> ShaderFromNir<'a> {
                     dst.push(u[0]);
                 }
                 self.set_ssa(&intrin.def, dst);
+            }
+            nir_intrinsic_ddx
+            | nir_intrinsic_ddx_coarse
+            | nir_intrinsic_ddx_fine => {
+                // TODO: Real coarse derivatives
+
+                assert!(intrin.def.bit_size() == 32);
+                let ftype = FloatType::F32;
+                let scratch = b.alloc_ssa(RegFile::GPR, 1);
+
+                b.push_op(OpShfl {
+                    dst: scratch[0].into(),
+                    in_bounds: Dst::None,
+                    src: self.get_src(&srcs[0]),
+                    lane: 1_u32.into(),
+                    c: (0x3_u32 | 0x1c_u32 << 8).into(),
+                    op: ShflOp::Bfly,
+                });
+
+                let dst = b.alloc_ssa(RegFile::GPR, 1);
+
+                b.push_op(OpFSwzAdd {
+                    dst: dst[0].into(),
+                    srcs: [scratch[0].into(), self.get_src(&srcs[0])],
+                    ops: [
+                        FSwzAddOp::SubLeft,
+                        FSwzAddOp::SubRight,
+                        FSwzAddOp::SubLeft,
+                        FSwzAddOp::SubRight,
+                    ],
+                    rnd_mode: self.float_ctl[ftype].rnd_mode,
+                    ftz: self.float_ctl[ftype].ftz,
+                });
+
+                self.set_dst(&intrin.def, dst);
+            }
+            nir_intrinsic_ddy
+            | nir_intrinsic_ddy_coarse
+            | nir_intrinsic_ddy_fine => {
+                // TODO: Real coarse derivatives
+
+                assert!(intrin.def.bit_size() == 32);
+                let ftype = FloatType::F32;
+                let scratch = b.alloc_ssa(RegFile::GPR, 1);
+
+                b.push_op(OpShfl {
+                    dst: scratch[0].into(),
+                    in_bounds: Dst::None,
+                    src: self.get_src(&srcs[0]),
+                    lane: 2_u32.into(),
+                    c: (0x3_u32 | 0x1c_u32 << 8).into(),
+                    op: ShflOp::Bfly,
+                });
+
+                let dst = b.alloc_ssa(RegFile::GPR, 1);
+
+                b.push_op(OpFSwzAdd {
+                    dst: dst[0].into(),
+                    srcs: [scratch[0].into(), self.get_src(&srcs[0])],
+                    ops: [
+                        FSwzAddOp::SubLeft,
+                        FSwzAddOp::SubLeft,
+                        FSwzAddOp::SubRight,
+                        FSwzAddOp::SubRight,
+                    ],
+                    rnd_mode: self.float_ctl[ftype].rnd_mode,
+                    ftz: self.float_ctl[ftype].ftz,
+                });
+
+                self.set_dst(&intrin.def, dst);
             }
             nir_intrinsic_ballot => {
                 assert!(srcs[0].bit_size() == 1);
