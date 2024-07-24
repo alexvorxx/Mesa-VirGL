@@ -357,6 +357,113 @@ check_tlb_blit_ok(struct v3d_device_info *devinfo, struct pipe_blit_info *info)
         return true;
 }
 
+/* This checks if we can implement the blit straight from a job that we have
+ * not yet flushed, including MSAA resolves.
+ */
+static void
+v3d_tlb_blit_fast(struct pipe_context *pctx, struct pipe_blit_info *info)
+{
+        struct v3d_context *v3d = v3d_context(pctx);
+        struct v3d_screen *screen = v3d->screen;
+        struct v3d_device_info *devinfo = &screen->devinfo;
+
+        if (!check_tlb_blit_ok(devinfo, info))
+                return;
+
+        /* FIXME: support depth/stencil */
+        if (!(info->mask & PIPE_MASK_RGBA))
+                return;
+
+        /* Can't blit from 1x to 4x since the render target configuration
+         * for the job would not be compatible.
+         */
+        if (info->src.resource->nr_samples < info->dst.resource->nr_samples)
+                return;
+
+        /* Can't blit form RGBX to RGBA since we can't force A=1 on tile
+         * stores.
+         */
+        if (util_format_has_alpha1(info->src.format) &&
+            !util_format_has_alpha1(info->dst.format))
+            return;
+
+        /* Find the job that writes the blit source */
+        struct hash_entry *entry = _mesa_hash_table_search(v3d->write_jobs,
+                                                           info->src.resource);
+        if (!entry)
+                return;
+
+        struct v3d_job *job = entry->data;
+        assert(job);
+
+        /* The TLB store will involve the same area and tiles as the job
+         * writing to the resource, so only do this if we are blitting the
+         * full resource and the job is writing the full resource.
+         */
+        int dst_width = u_minify(info->dst.resource->width0, info->dst.level);
+        int dst_height = u_minify(info->dst.resource->height0, info->dst.level);
+        if (info->dst.box.x != 0 || info->dst.box.width != dst_width ||
+            info->dst.box.y != 0 || info->dst.box.height != dst_height ||
+            job->draw_min_x != 0 || job->draw_min_y != 0 ||
+            job->draw_max_x != dst_width || job->draw_max_y != dst_height) {
+                return;
+        }
+
+        /* Blits are specified for single-layered FBOs, if the job that
+         * produces the blit source is multilayered we would attempt to
+         * blit all layers and write out of bounds on the destination.
+         */
+        if (job->num_layers > 1)
+                return;
+
+        /* Find which color attachment in the job is the blit source  */
+        int idx = -1;
+        for (int i = 0; i < job->nr_cbufs; i++) {
+                if (!job->cbufs[i] ||
+                    job->cbufs[i]->texture != info->src.resource) {
+                        continue;
+                }
+                idx = i;
+                break;
+        }
+
+        if (idx < 0)
+                return;
+
+        struct pipe_surface *dbuf =
+                v3d_get_blit_surface(pctx, info->dst.resource,
+                                     info->dst.format, info->dst.level,
+                                     info->dst.box.z);
+
+        /* The job's RT setup must be compatible with the blit buffer. */
+        struct v3d_surface *ssurf = v3d_surface(job->cbufs[idx]);
+        struct v3d_surface *rsurf = v3d_surface(dbuf);
+        if (ssurf->internal_bpp < rsurf->internal_bpp)
+                return;
+        if (ssurf->internal_type != rsurf->internal_type)
+                return;
+
+        /* If we had any other jobs writing to the blit dst we should submit
+         * them now before we blit.
+         *
+         * FIXME: We could just drop these jobs completely if they are
+         * rendering a subset of the resource being blit here.
+         */
+        v3d_flush_jobs_writing_resource(v3d, info->dst.resource,
+                                        V3D_FLUSH_DEFAULT, false);
+
+        /* Program the job to blit from the TLB into the destination buffer */
+        info->mask &= ~PIPE_MASK_RGBA;
+        job->blit_tlb |= PIPE_CLEAR_COLOR0 << idx;
+        job->dbuf = dbuf;
+        v3d_job_add_write_resource(job, info->dst.resource);
+
+        /* Submit the job immediately, since otherwise we could accumulate
+         * draw calls happening after the blit.
+         */
+        v3d_job_submit(v3d, job);
+}
+
 static void
 v3d_tlb_blit(struct pipe_context *pctx, struct pipe_blit_info *info)
 {
@@ -1077,6 +1184,8 @@ v3d_blit(struct pipe_context *pctx, const struct pipe_blit_info *blit_info)
         v3d_sand30_blit(pctx, &info);
 
         v3d_sand8_blit(pctx, &info);
+
+        v3d_tlb_blit_fast(pctx, &info);
 
         v3d_tfu_blit(pctx, &info);
 
