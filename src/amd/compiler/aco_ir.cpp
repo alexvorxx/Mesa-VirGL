@@ -828,6 +828,12 @@ get_operand_size(aco_ptr<Instruction>& instr, unsigned index)
             instr->opcode == aco_opcode::v_fma_mixlo_f16 ||
             instr->opcode == aco_opcode::v_fma_mixhi_f16)
       return instr->valu().opsel_hi[index] ? 16 : 32;
+   else if (instr->opcode == aco_opcode::v_interp_p10_f16_f32_inreg ||
+            instr->opcode == aco_opcode::v_interp_p10_rtz_f16_f32_inreg)
+      return index == 1 ? 32 : 16;
+   else if (instr->opcode == aco_opcode::v_interp_p2_f16_f32_inreg ||
+            instr->opcode == aco_opcode::v_interp_p2_rtz_f16_f32_inreg)
+      return index == 0 ? 16 : 32;
    else if (instr->isVALU() || instr->isSALU())
       return instr_info.operand_size[(int)instr->opcode];
    else

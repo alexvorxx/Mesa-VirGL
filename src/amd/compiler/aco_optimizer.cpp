@@ -469,7 +469,7 @@ can_use_VOP3(opt_ctx& ctx, const aco_ptr<Instruction>& instr)
    if (instr->isVOP3())
       return true;
 
-   if (instr->isVOP3P())
+   if (instr->isVOP3P() || instr->isVINTERP_INREG())
       return false;
 
    if (instr->operands.size() && instr->operands[0].isLiteral() && ctx.program->gfx_level < GFX10)
@@ -1361,6 +1361,8 @@ label_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
             can_use_mod &= instr->sdwa().sel[i].size() == 4;
          else if (instr->isVOP3P())
             can_use_mod &= !packed_math || !info.is_abs();
+         else if (instr->isVINTERP_INREG())
+            can_use_mod &= !info.is_abs();
          else
             can_use_mod &= instr->isDPP16() || can_use_VOP3(ctx, instr);
 

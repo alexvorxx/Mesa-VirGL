@@ -261,7 +261,9 @@ class Instruction(object):
         self.operand_size = 0
       elif 'sad_' in name:
         self.operand_size = 32
-      elif name in ['v_mad_u64_u32', 'v_mad_i64_i32']:
+      elif name in ['v_mad_u64_u32', 'v_mad_i64_i32',
+                    'v_interp_p10_f16_f32_inreg', 'v_interp_p10_rtz_f16_f32_inreg',
+                    'v_interp_p2_f16_f32_inreg', 'v_interp_p2_rtz_f16_f32_inreg']:
         self.operand_size = 0
       elif self.operand_size == 24:
         self.operand_size = 32
@@ -1244,7 +1246,7 @@ VINTERP = {
    ("v_interp_p2_rtz_f16_f32_inreg",  op(gfx11=0x05)),
 }
 for (name, num) in VINTERP:
-   insn(name, num, Format.VINTERP_INREG, InstrClass.Valu32, False, True, definitions = dst(1), operands = src(1, 1, 1))
+   insn(name, num, Format.VINTERP_INREG, InstrClass.Valu32, True, True, definitions = dst(1), operands = src(1, 1, 1))
 
 
 # VOP3 instructions: 3 inputs, 1 output
