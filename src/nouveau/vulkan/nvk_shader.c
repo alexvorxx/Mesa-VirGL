@@ -616,7 +616,9 @@ nvk_shader_upload(struct nvk_device *dev, struct nvk_shader *shader)
 
    uint32_t data_offset = 0;
    if (shader->data_size > 0) {
-      total_size = align(total_size, nvk_min_cbuf_alignment(&pdev->info));
+      uint32_t cbuf_alignment = nvk_min_cbuf_alignment(&pdev->info);
+      alignment = MAX2(alignment, cbuf_alignment);
+      total_size = align(total_size, cbuf_alignment);
       data_offset = total_size;
       total_size += shader->data_size;
    }
