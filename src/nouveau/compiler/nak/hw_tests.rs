@@ -1,7 +1,7 @@
 // Copyright © 2022 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
-use crate::api::ShaderBin;
+use crate::api::{GetDebugFlags, ShaderBin, DEBUG};
 use crate::cfg::CFGBuilder;
 use crate::ir::*;
 use crate::sm50::ShaderModel50;
@@ -243,6 +243,10 @@ impl<'a> TestShaderBuilder<'a> {
         s.lower_par_copies();
         s.lower_copy_swap();
         s.calc_instr_deps();
+
+        if DEBUG.print() {
+            eprintln!("NAK shader: {s}");
+        }
 
         s.gather_info();
         s.remove_annotations();
