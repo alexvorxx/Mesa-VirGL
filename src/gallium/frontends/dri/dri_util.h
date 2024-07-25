@@ -162,4 +162,8 @@ kopperQueryBufferAge(__DRIdrawable *dPriv);
 
 PUBLIC void
 driswCopySubBuffer(__DRIdrawable *pdp, int x, int y, int w, int h);
+
+PUBLIC void
+dri_set_tex_buffer2(__DRIcontext *pDRICtx, GLint target,
+                    GLint format, __DRIdrawable *dPriv);
 #endif /* _DRI_UTIL_H_ */

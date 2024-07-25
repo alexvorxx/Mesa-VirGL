@@ -9,6 +9,7 @@
 		driIndexConfigAttrib;
 		dri*indContext*;
 		driswCopySubBuffer;
+		dri_set_tex_buffer2;
 		kopper*;
 		dri_loader_get_extensions;
 		@nouveau_drm_screen_create@

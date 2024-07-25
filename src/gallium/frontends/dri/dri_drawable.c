@@ -252,7 +252,7 @@ dri_drawable_validate_att(struct dri_context *ctx,
 /**
  * These are used for GLX_EXT_texture_from_pixmap
  */
-static void
+void
 dri_set_tex_buffer2(__DRIcontext *pDRICtx, GLint target,
                     GLint format, __DRIdrawable *dPriv)
 {
