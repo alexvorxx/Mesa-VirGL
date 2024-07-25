@@ -483,7 +483,7 @@ impl SM50Op for OpFFma {
                 e.set_reg_src_ref(39..47, self.srcs[2].src_ref);
             }
             SrcRef::CBuf(cb) => {
-                e.set_opcode(0x4980);
+                e.set_opcode(0x5180);
                 e.set_src_cb(20..39, cb);
                 e.set_reg_src_ref(39..47, self.srcs[1].src_ref);
             }
