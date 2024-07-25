@@ -1356,8 +1356,7 @@ emit_restore_blit(struct fd_batch *batch, struct fd_ringbuffer *ring,
 
    OUT_REG(ring,
            A6XX_RB_BLIT_INFO(
-                 .unk0 = true,
-                 .gmem = true,
+                 .type = BLIT_EVENT_LOAD,
                  .sample_0 = util_format_is_pure_integer(psurf->format),
                  .depth = (buffer == FD_BUFFER_DEPTH),
            ),
@@ -1429,8 +1428,8 @@ emit_subpass_clears(struct fd_batch *batch, struct fd_batch_subpass *subpass)
                      A6XX_RB_BLIT_DST_INFO_COLOR_FORMAT(fd6_color_format(pfmt, TILE6_LINEAR)));
 
          OUT_PKT4(ring, REG_A6XX_RB_BLIT_INFO, 1);
-         OUT_RING(ring,
-                  A6XX_RB_BLIT_INFO_GMEM | A6XX_RB_BLIT_INFO_CLEAR_MASK(0xf));
+         OUT_RING(ring, A6XX_RB_BLIT_INFO_TYPE(BLIT_EVENT_CLEAR) |
+                           A6XX_RB_BLIT_INFO_CLEAR_MASK(0xf));
 
          OUT_PKT4(ring, REG_A6XX_RB_BLIT_BASE_GMEM, 1);
          OUT_RING(ring, gmem->cbuf_base[i]);
@@ -1484,8 +1483,7 @@ emit_subpass_clears(struct fd_batch *batch, struct fd_batch_subpass *subpass)
                   A6XX_RB_BLIT_DST_INFO_COLOR_FORMAT(fd6_color_format(pfmt, TILE6_LINEAR)));
 
       OUT_PKT4(ring, REG_A6XX_RB_BLIT_INFO, 1);
-      OUT_RING(ring, A6XX_RB_BLIT_INFO_GMEM |
-                        // XXX UNK0 for separate stencil ??
+      OUT_RING(ring, A6XX_RB_BLIT_INFO_TYPE(BLIT_EVENT_CLEAR) |
                         A6XX_RB_BLIT_INFO_DEPTH |
                         A6XX_RB_BLIT_INFO_CLEAR_MASK(mask));
 
@@ -1510,8 +1508,7 @@ emit_subpass_clears(struct fd_batch *batch, struct fd_batch_subpass *subpass)
                         A6XX_RB_BLIT_DST_INFO_COLOR_FORMAT(FMT6_8_UINT));
 
       OUT_PKT4(ring, REG_A6XX_RB_BLIT_INFO, 1);
-      OUT_RING(ring, A6XX_RB_BLIT_INFO_GMEM |
-                        // A6XX_RB_BLIT_INFO_UNK0 |
+      OUT_RING(ring, A6XX_RB_BLIT_INFO_TYPE(BLIT_EVENT_CLEAR) |
                         A6XX_RB_BLIT_INFO_DEPTH |
                         A6XX_RB_BLIT_INFO_CLEAR_MASK(0x1));
 
@@ -1699,13 +1696,14 @@ emit_resolve_blit(struct fd_batch *batch, struct fd_ringbuffer *ring,
 
    switch (buffer) {
    case FD_BUFFER_COLOR:
+      info = A6XX_RB_BLIT_INFO_TYPE(BLIT_EVENT_STORE);
       break;
    case FD_BUFFER_STENCIL:
-      info |= A6XX_RB_BLIT_INFO_UNK0;
+      info = A6XX_RB_BLIT_INFO_TYPE(BLIT_EVENT_STORE_AND_CLEAR);
       stencil = true;
       break;
    case FD_BUFFER_DEPTH:
-      info |= A6XX_RB_BLIT_INFO_DEPTH;
+      info = A6XX_RB_BLIT_INFO_TYPE(BLIT_EVENT_STORE) | A6XX_RB_BLIT_INFO_DEPTH;
       break;
    }
 

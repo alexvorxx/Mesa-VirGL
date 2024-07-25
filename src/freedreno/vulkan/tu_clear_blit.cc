@@ -3226,7 +3226,8 @@ clear_gmem_attachment(struct tu_cmd_buffer *cmd,
    tu_cs_emit(cs, A6XX_RB_BLIT_DST_INFO_COLOR_FORMAT(
             blit_base_format<CHIP>(format, false, true)));
 
-   tu_cs_emit_regs(cs, A6XX_RB_BLIT_INFO(.gmem = 1, .clear_mask = clear_mask));
+   tu_cs_emit_regs(cs, A6XX_RB_BLIT_INFO(.type = BLIT_EVENT_CLEAR,
+                                         .clear_mask = clear_mask));
 
    tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_BASE_GMEM, 1);
    tu_cs_emit(cs, gmem_offset);
@@ -3525,8 +3526,7 @@ tu_emit_blit(struct tu_cmd_buffer *cmd,
                    A6XX_RB_BLIT_GMEM_MSAA_CNTL(tu_msaa_samples(attachment->samples)));
 
    tu_cs_emit_regs(cs, A6XX_RB_BLIT_INFO(
-      .unk0 = !resolve,
-      .gmem = !resolve,
+      .type = resolve ? BLIT_EVENT_STORE : BLIT_EVENT_LOAD,
       .sample_0 = vk_format_is_int(attachment->format) ||
          vk_format_is_depth_or_stencil(attachment->format),
       .depth = vk_format_is_depth_or_stencil(attachment->format),));
