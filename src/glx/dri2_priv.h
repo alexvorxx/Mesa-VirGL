@@ -45,7 +45,6 @@ struct dri2_screen {
    __DRIscreen *driScreen;
    __GLXDRIscreen vtable;
 
-   const __DRI2throttleExtension *throttle;
    const __DRI2interopExtension *interop;
    const __DRIconfig **driver_configs;
 

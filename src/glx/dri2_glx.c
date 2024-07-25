@@ -425,11 +425,9 @@ dri2Throttle(struct dri2_screen *psc,
 	     struct dri2_drawable *draw,
 	     enum __DRI2throttleReason reason)
 {
-   if (psc->throttle) {
-      __DRIcontext *ctx = dri2GetCurrentContext();
+   __DRIcontext *ctx = dri2GetCurrentContext();
 
-      psc->throttle->throttle(ctx, draw->driDrawable, reason);
-   }
+   dri_throttle(ctx, draw->driDrawable, reason);
 }
 
 /**
@@ -872,7 +870,6 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
    }
 
    static const struct dri_extension_match exts[] = {
-       { __DRI2_THROTTLE, 1, offsetof(struct dri2_screen, throttle), true },
        { __DRI2_INTEROP, 1, offsetof(struct dri2_screen, interop), true },
    };
    loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions);
