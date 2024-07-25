@@ -3439,27 +3439,19 @@ tu_clear_gmem_attachments(struct tu_cmd_buffer *cmd,
 }
 
 template <chip CHIP>
-VKAPI_ATTR void VKAPI_CALL
-tu_CmdClearAttachments(VkCommandBuffer commandBuffer,
-                       uint32_t attachmentCount,
-                       const VkClearAttachment *pAttachments,
-                       uint32_t rectCount,
-                       const VkClearRect *pRects)
+static void
+tu_clear_attachments(struct tu_cmd_buffer *cmd,
+                     uint32_t attachmentCount,
+                     const VkClearAttachment *pAttachments,
+                     uint32_t rectCount,
+                     const VkClearRect *pRects)
 {
-   VK_FROM_HANDLE(tu_cmd_buffer, cmd, commandBuffer);
    struct tu_cs *cs = &cmd->draw_cs;
 
    /* sysmem path behaves like a draw, note we don't have a way of using different
     * flushes for sysmem/gmem, so this needs to be outside of the cond_exec
     */
    tu_emit_cache_flush_renderpass<CHIP>(cmd);
-
-   for (uint32_t j = 0; j < attachmentCount; j++) {
-      if ((pAttachments[j].aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT) == 0)
-         continue;
-
-      tu_lrz_disable_during_renderpass<CHIP>(cmd);
-   }
 
    /* vkCmdClearAttachments is supposed to respect the predicate if active. The
     * easiest way to do this is to always use the 3d path, which always works
@@ -3504,6 +3496,133 @@ tu_CmdClearAttachments(VkCommandBuffer commandBuffer,
    tu_cond_exec_start(cs, CP_COND_EXEC_0_RENDER_MODE_SYSMEM);
    tu_clear_sysmem_attachments<CHIP>(cmd, attachmentCount, pAttachments, rectCount, pRects);
    tu_cond_exec_end(cs);
+}
+
+static void
+tu7_clear_attachment_generic_single_rect(
+   struct tu_cmd_buffer *cmd,
+   struct tu_cs *cs,
+   const struct tu_render_pass_attachment *att,
+   const VkClearAttachment *clear_att,
+   uint32_t a,
+   const VkClearRect *rect)
+{
+   const struct tu_subpass *subpass = cmd->state.subpass;
+   unsigned x1 = rect->rect.offset.x;
+   unsigned y1 = rect->rect.offset.y;
+   unsigned x2 = x1 + rect->rect.extent.width - 1;
+   unsigned y2 = y1 + rect->rect.extent.height - 1;
+
+   tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_SCISSOR_TL, 2);
+   tu_cs_emit(cs,
+              A6XX_RB_BLIT_SCISSOR_TL_X(x1) | A6XX_RB_BLIT_SCISSOR_TL_Y(y1));
+   tu_cs_emit(cs,
+              A6XX_RB_BLIT_SCISSOR_BR_X(x2) | A6XX_RB_BLIT_SCISSOR_BR_Y(y2));
+
+   auto value = &clear_att->clearValue;
+
+   enum pipe_format format = vk_format_to_pipe_format(att->format);
+   for_each_layer(i, subpass->multiview_mask, rect->layerCount) {
+      uint32_t layer = i + rect->baseArrayLayer;
+      uint32_t mask =
+         aspect_write_mask_generic_clear(format, clear_att->aspectMask);
+
+      if (att->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+         if (clear_att->aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT) {
+            tu7_generic_layer_clear(cmd, cs, PIPE_FORMAT_Z32_FLOAT, mask,
+                                    false, layer, value, a);
+         }
+         if (clear_att->aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT) {
+            tu7_generic_layer_clear(cmd, cs, PIPE_FORMAT_S8_UINT, mask, true,
+                                    layer, value, a);
+         }
+      } else {
+         tu7_generic_layer_clear(cmd, cs, format, mask, false, layer, value, a);
+      }
+   }
+}
+
+static void
+tu_clear_attachments_generic(struct tu_cmd_buffer *cmd,
+                             uint32_t attachmentCount,
+                             const VkClearAttachment *pAttachments,
+                             uint32_t rectCount,
+                             const VkClearRect *pRects)
+{
+   struct tu_cs *cs = &cmd->draw_cs;
+
+   uint32_t clear_aspects = 0;
+   for (uint32_t i = 0; i < attachmentCount; i++) {
+      clear_aspects |= pAttachments[i].aspectMask;
+   }
+
+   /* Generic clear doesn't go through CCU (or other caches),
+    * so we have to flush (clean+invalidate) corresponding caches.
+    */
+   tu_cond_exec_start(cs, CP_COND_EXEC_0_RENDER_MODE_SYSMEM);
+   if (clear_aspects & VK_IMAGE_ASPECT_COLOR_BIT) {
+      tu_cs_emit_pkt7(cs, CP_EVENT_WRITE7, 1);
+      tu_cs_emit(cs, CP_EVENT_WRITE7_0(.event = CCU_FLUSH_COLOR).value);
+   }
+   if (clear_aspects & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)) {
+      tu_cs_emit_pkt7(cs, CP_EVENT_WRITE7, 1);
+      tu_cs_emit(cs, CP_EVENT_WRITE7_0(.event = CCU_FLUSH_DEPTH).value);
+   }
+   tu_cs_emit_wfi(cs);
+   tu_cond_exec_end(cs);
+
+   const struct tu_subpass *subpass = cmd->state.subpass;
+   for (uint32_t i = 0; i < attachmentCount; i++) {
+      uint32_t a;
+      if (pAttachments[i].aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) {
+         uint32_t c = pAttachments[i].colorAttachment;
+         a = subpass->color_attachments[c].attachment;
+      } else {
+         a = subpass->depth_stencil_attachment.attachment;
+      }
+      if (a != VK_ATTACHMENT_UNUSED) {
+         const struct tu_render_pass_attachment *att = &cmd->state.pass->attachments[a];
+         const struct tu_image_view *iview = cmd->state.attachments[a];
+         trace_start_generic_clear(&cmd->trace, cs, att->format,
+                                   iview->view.ubwc_enabled, att->samples);
+         for (unsigned j = 0; j < rectCount; j++) {
+            tu7_clear_attachment_generic_single_rect(
+               cmd, cs, att, &pAttachments[i], a, &pRects[j]);
+         }
+         trace_end_generic_clear(&cmd->trace, cs);
+      }
+   }
+}
+
+template <chip CHIP>
+VKAPI_ATTR void VKAPI_CALL
+tu_CmdClearAttachments(VkCommandBuffer commandBuffer,
+                       uint32_t attachmentCount,
+                       const VkClearAttachment *pAttachments,
+                       uint32_t rectCount,
+                       const VkClearRect *pRects)
+{
+   VK_FROM_HANDLE(tu_cmd_buffer, cmd, commandBuffer);
+
+   for (uint32_t j = 0; j < attachmentCount; j++) {
+      if ((pAttachments[j].aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT) == 0)
+         continue;
+
+      tu_lrz_disable_during_renderpass<CHIP>(cmd);
+   }
+
+   if (cmd->device->physical_device->info->a7xx.has_generic_clear &&
+       /* Both having predication and not knowing layout could be solved
+        * by cs patching, which is exactly what prop driver is doing.
+        * We don't implement it because we don't expect a reasonable impact.
+        */
+       !(cmd->state.predication_active ||
+         cmd->state.gmem_layout == TU_GMEM_LAYOUT_COUNT)) {
+      tu_clear_attachments_generic(cmd, attachmentCount, pAttachments, rectCount, pRects);
+   } else {
+      tu_clear_attachments<CHIP>(cmd, attachmentCount, pAttachments,
+                                 rectCount, pRects);
+   }
 }
 TU_GENX(tu_CmdClearAttachments);
 

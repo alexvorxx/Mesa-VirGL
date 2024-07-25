@@ -537,8 +537,15 @@ tu_render_pass_calc_hash(struct tu_render_pass *pass)
 }
 
 static void
-tu_render_pass_cond_config(struct tu_render_pass *pass)
+tu_render_pass_cond_config(struct tu_device *device,
+                           struct tu_render_pass *pass)
 {
+   /* With generic clears CmdClearAttachments isn't a draw and doesn't
+    * contribute to bin's geometry.
+    */
+   if (device->physical_device->info->a7xx.has_generic_clear)
+      return;
+
    for (uint32_t i = 0; i < pass->attachment_count; i++) {
       struct tu_render_pass_attachment *att = &pass->attachments[i];
 
@@ -996,7 +1003,7 @@ tu_CreateRenderPass2(VkDevice _device,
       }
    }
 
-   tu_render_pass_cond_config(pass);
+   tu_render_pass_cond_config(device, pass);
    tu_render_pass_gmem_config(pass, device->physical_device);
    tu_render_pass_bandwidth_config(pass);
    tu_render_pass_calc_views(pass);
@@ -1197,7 +1204,7 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
 
    pass->attachment_count = a;
 
-   tu_render_pass_cond_config(pass);
+   tu_render_pass_cond_config(device, pass);
    tu_render_pass_gmem_config(pass, device->physical_device);
    tu_render_pass_bandwidth_config(pass);
    tu_render_pass_calc_views(pass);
