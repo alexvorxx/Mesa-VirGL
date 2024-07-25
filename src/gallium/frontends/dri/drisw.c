@@ -640,13 +640,6 @@ driswCopySubBuffer(__DRIdrawable *pdp, int x, int y, int w, int h)
    drisw_copy_sub_buffer(drawable, x, y, w, h);
 }
 
-/* for swrast only */
-const __DRIcopySubBufferExtension driSWCopySubBufferExtension = {
-   .base = { __DRI_COPY_SUB_BUFFER, 1 },
-
-   .copySubBuffer               = driswCopySubBuffer,
-};
-
 static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
    .base = { __DRI_MESA, 2 },
    .version_string = MESA_INTERFACE_VERSION_STRING,
@@ -660,7 +653,6 @@ const __DRIextension *galliumsw_driver_extensions[] = {
     &driCoreExtension.base,
     &mesaCoreExtension.base,
     &driSWRastExtension.base,
-    &driSWCopySubBufferExtension.base,
     &gallium_config_options.base,
     NULL
 };

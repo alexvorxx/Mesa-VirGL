@@ -49,7 +49,6 @@ typedef struct __DRIversionRec		__DRIversion;
 
 typedef struct __DRIcoreExtensionRec		__DRIcoreExtension;
 typedef struct __DRIextensionRec		__DRIextension;
-typedef struct __DRIcopySubBufferExtensionRec	__DRIcopySubBufferExtension;
 typedef struct __DRIswapControlExtensionRec	__DRIswapControlExtension;
 typedef struct __DRIframeTrackingExtensionRec	__DRIframeTrackingExtension;
 typedef struct __DRImediaStreamCounterExtensionRec	__DRImediaStreamCounterExtension;
@@ -110,18 +109,6 @@ struct __DRIextensionRec {
  */
 #define __DRI_READ_DRAWABLE "DRI_ReadDrawable"
 #define __DRI_READ_DRAWABLE_VERSION 1
-
-/**
- * Used by drivers that implement the GLX_MESA_copy_sub_buffer extension.
- *
- * Used by the X server in swrast mode.
- */
-#define __DRI_COPY_SUB_BUFFER "DRI_CopySubBuffer"
-#define __DRI_COPY_SUB_BUFFER_VERSION 1
-struct __DRIcopySubBufferExtensionRec {
-    __DRIextension base;
-    void (*copySubBuffer)(__DRIdrawable *drawable, int x, int y, int w, int h);
-};
 
 /**
  * Used by drivers that implement the GLX_SGI_swap_control or
