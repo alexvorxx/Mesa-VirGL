@@ -372,11 +372,6 @@ validate_ir(Program* program)
                 op.isUndefined())
                continue;
 
-            /* Check that linear vgprs are late kill: this is to ensure linear VGPR operands and
-             * normal VGPR definitions don't try to use the same register, which is problematic
-             * because of assignment restrictions. */
-            check(op.isLateKill(), "Linear VGPR operands must be late kill", instr.get());
-
             /* Only kill linear VGPRs in top-level blocks. Otherwise, we might have to move linear
              * VGPRs to make space for normal ones and that isn't possible inside control flow. */
             if (op.isKill()) {

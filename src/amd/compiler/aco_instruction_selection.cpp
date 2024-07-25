@@ -180,13 +180,8 @@ emit_bpermute(isel_context* ctx, Builder& bld, Temp index, Temp data)
 
    if (ctx->options->gfx_level <= GFX7 || avoid_shared_vgprs) {
       /* GFX6-7: there is no bpermute instruction */
-      Operand index_op(index);
-      Operand input_data(data);
-      index_op.setLateKill(true);
-      input_data.setLateKill(true);
-
       return bld.pseudo(aco_opcode::p_bpermute_readlane, bld.def(v1), bld.def(bld.lm),
-                        bld.def(bld.lm, vcc), index_op, input_data);
+                        bld.def(bld.lm, vcc), index, data);
    } else if (ctx->options->gfx_level >= GFX10 && ctx->program->wave_size == 64) {
 
       /* GFX10 wave64 mode: emulate full-wave bpermute */
@@ -199,11 +194,6 @@ emit_bpermute(isel_context* ctx, Builder& bld, Temp index, Temp data)
       Operand same_half = bld.pseudo(aco_opcode::p_create_vector, bld.def(s2),
                                      index_is_lo_split.def(0).getTemp(), index_is_lo_n1);
       Operand index_x4 = bld.vop2(aco_opcode::v_lshlrev_b32, bld.def(v1), Operand::c32(2u), index);
-      Operand input_data(data);
-
-      index_x4.setLateKill(true);
-      input_data.setLateKill(true);
-      same_half.setLateKill(true);
 
       if (ctx->options->gfx_level <= GFX10_3) {
          /* We need one pair of shared VGPRs:
@@ -212,11 +202,10 @@ emit_bpermute(isel_context* ctx, Builder& bld, Temp index, Temp data)
          ctx->program->config->num_shared_vgprs = 2 * ctx->program->dev.vgpr_alloc_granule;
 
          return bld.pseudo(aco_opcode::p_bpermute_shared_vgpr, bld.def(v1), bld.def(s2),
-                           bld.def(s1, scc), index_x4, input_data, same_half);
+                           bld.def(s1, scc), index_x4, data, same_half);
       } else {
          return bld.pseudo(aco_opcode::p_bpermute_permlane, bld.def(v1), bld.def(s2),
-                           bld.def(s1, scc), Operand(v1.as_linear()), index_x4, input_data,
-                           same_half);
+                           bld.def(s1, scc), Operand(v1.as_linear()), index_x4, data, same_half);
       }
    } else {
       /* GFX8-9 or GFX10 wave32: bpermute works normally */
@@ -3610,11 +3599,8 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
       Temp ref = get_alu_src(ctx, instr->src[0]);
       Temp src = get_alu_src(ctx, instr->src[1], 2);
       Temp accum = get_alu_src(ctx, instr->src[2], 4);
-      Builder::Result res = bld.vop3(aco_opcode::v_mqsad_u32_u8, Definition(dst), as_vgpr(ctx, src),
-                                     as_vgpr(ctx, ref), as_vgpr(ctx, accum));
-      res.instr->operands[0].setLateKill(true);
-      res.instr->operands[1].setLateKill(true);
-      res.instr->operands[2].setLateKill(true);
+      bld.vop3(aco_opcode::v_mqsad_u32_u8, Definition(dst), as_vgpr(ctx, src), as_vgpr(ctx, ref),
+               as_vgpr(ctx, accum));
       emit_split_vector(ctx, dst, 4);
       break;
    }
@@ -5613,13 +5599,9 @@ emit_interp_instr_gfx11(isel_context* ctx, unsigned idx, unsigned component, Tem
    Builder bld(ctx->program, ctx->block);
 
    if (in_exec_divergent_or_in_loop(ctx)) {
-      Operand prim_mask_op = bld.m0(prim_mask);
-      prim_mask_op.setLateKill(true); /* we don't want the bld.lm definition to use m0 */
-      Operand coord2_op(coord2);
-      coord2_op.setLateKill(true); /* we re-use the destination reg in the middle */
       bld.pseudo(aco_opcode::p_interp_gfx11, Definition(dst), Operand(v1.as_linear()),
                  Operand::c32(idx), Operand::c32(component), Operand::c32(high_16bits), coord1,
-                 coord2_op, prim_mask_op);
+                 coord2, bld.m0(prim_mask));
       return;
    }
 
@@ -5676,11 +5658,8 @@ emit_interp_instr(isel_context* ctx, unsigned idx, unsigned component, Temp src,
       }
    } else {
       assert(!high_16bits);
-      Builder::Result interp_p1 = bld.vintrp(aco_opcode::v_interp_p1_f32, bld.def(v1), coord1,
-                                             bld.m0(prim_mask), idx, component);
-
-      if (ctx->program->dev.has_16bank_lds)
-         interp_p1->operands[0].setLateKill(true);
+      Temp interp_p1 = bld.vintrp(aco_opcode::v_interp_p1_f32, bld.def(v1), coord1,
+                                  bld.m0(prim_mask), idx, component);
 
       bld.vintrp(aco_opcode::v_interp_p2_f32, Definition(dst), coord2, bld.m0(prim_mask), interp_p1,
                  idx, component);
@@ -5696,11 +5675,9 @@ emit_interp_mov_instr(isel_context* ctx, unsigned idx, unsigned component, unsig
    if (ctx->options->gfx_level >= GFX11) {
       uint16_t dpp_ctrl = dpp_quad_perm(vertex_id, vertex_id, vertex_id, vertex_id);
       if (in_exec_divergent_or_in_loop(ctx)) {
-         Operand prim_mask_op = bld.m0(prim_mask);
-         prim_mask_op.setLateKill(true); /* we don't want the bld.lm definition to use m0 */
          bld.pseudo(aco_opcode::p_interp_gfx11, Definition(tmp), Operand(v1.as_linear()),
                     Operand::c32(idx), Operand::c32(component), Operand::c32(dpp_ctrl),
-                    prim_mask_op);
+                    bld.m0(prim_mask));
       } else {
          Temp p =
             bld.ldsdir(aco_opcode::lds_param_load, bld.def(v1), bld.m0(prim_mask), idx, component);
@@ -6189,11 +6166,8 @@ emit_mimg(Builder& bld, aco_opcode op, Temp dst, Temp rsrc, Operand samp, std::v
    mimg->operands[0] = Operand(rsrc);
    mimg->operands[1] = samp;
    mimg->operands[2] = vdata;
-   for (unsigned i = 0; i < coords.size(); i++) {
+   for (unsigned i = 0; i < coords.size(); i++)
       mimg->operands[3 + i] = Operand(coords[i]);
-      if (coords[i].regClass().is_linear_vgpr())
-         mimg->operands[3 + i].setLateKill(true);
-   }
    mimg->mimg().strict_wqm = strict_wqm;
 
    return &bld.insert(std::move(mimg))->mimg();
@@ -8219,9 +8193,7 @@ create_fs_dual_src_export_gfx11(isel_context* ctx, const struct aco_export_mrt* 
       create_instruction(aco_opcode::p_dual_src_export_gfx11, Format::PSEUDO, 8, 6)};
    for (unsigned i = 0; i < 4; i++) {
       exp->operands[i] = mrt0 ? mrt0->out[i] : Operand(v1);
-      exp->operands[i].setLateKill(true);
       exp->operands[i + 4] = mrt1 ? mrt1->out[i] : Operand(v1);
-      exp->operands[i + 4].setLateKill(true);
    }
 
    RegClass type = RegClass(RegType::vgpr, util_bitcount(mrt0->enabled_channels));
@@ -8266,9 +8238,6 @@ visit_cmat_muladd(isel_context* ctx, nir_intrinsic_instr* instr)
    Operand A(as_vgpr(ctx, get_ssa_temp(ctx, instr->src[0].ssa)));
    Operand B(as_vgpr(ctx, get_ssa_temp(ctx, instr->src[1].ssa)));
    Operand C(as_vgpr(ctx, get_ssa_temp(ctx, instr->src[2].ssa)));
-
-   A.setLateKill(true);
-   B.setLateKill(true);
 
    VALU_instruction& vop3p = bld.vop3p(opcode, Definition(dst), A, B, C, 0, 0)->valu();
    vop3p.neg_lo[0] = (signed_mask & 0x1) != 0;
@@ -10501,9 +10470,7 @@ visit_block(isel_context* ctx, nir_block* block)
    if (ctx->block->kind & block_kind_top_level) {
       Builder bld(ctx->program, ctx->block);
       for (Temp tmp : ctx->unended_linear_vgprs) {
-         Operand op(tmp);
-         op.setLateKill(true);
-         bld.pseudo(aco_opcode::p_end_linear_vgpr, op);
+         bld.pseudo(aco_opcode::p_end_linear_vgpr, tmp);
       }
       ctx->unended_linear_vgprs.clear();
    }
@@ -11462,16 +11429,13 @@ add_startpgm(struct isel_context* ctx)
       } else if (ctx->program->gfx_level <= GFX10_3 && ctx->program->stage != raytracing_cs) {
          /* Manually initialize scratch. For RT stages scratch initialization is done in the prolog.
           */
-         Operand scratch_offset = Operand(get_arg(ctx, ctx->args->scratch_offset));
-         scratch_offset.setLateKill(true);
-
          Operand scratch_addr = ctx->args->ring_offsets.used
                                    ? Operand(get_arg(ctx, ctx->args->ring_offsets))
                                    : Operand(s2);
 
          Builder bld(ctx->program, ctx->block);
          bld.pseudo(aco_opcode::p_init_scratch, bld.def(s2), bld.def(s1, scc), scratch_addr,
-                    scratch_offset);
+                    get_arg(ctx, ctx->args->scratch_offset));
       }
    }
 

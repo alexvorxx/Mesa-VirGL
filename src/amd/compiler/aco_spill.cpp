@@ -1419,10 +1419,8 @@ end_unused_spill_vgprs(spill_ctx& ctx, Block& block, std::vector<Temp>& vgpr_spi
 
    aco_ptr<Instruction> destr{
       create_instruction(aco_opcode::p_end_linear_vgpr, Format::PSEUDO, temps.size(), 0)};
-   for (unsigned i = 0; i < temps.size(); i++) {
+   for (unsigned i = 0; i < temps.size(); i++)
       destr->operands[i] = Operand(temps[i]);
-      destr->operands[i].setLateKill(true);
-   }
 
    std::vector<aco_ptr<Instruction>>::iterator it = block.instructions.begin();
    while (is_phi(*it))
@@ -1540,7 +1538,6 @@ assign_spill_slots(spill_ctx& ctx, unsigned spills_to_vgpr)
                /* spill sgpr: just add the vgpr temp to operands */
                Instruction* spill = create_instruction(aco_opcode::p_spill, Format::PSEUDO, 3, 0);
                spill->operands[0] = Operand(vgpr_spill_temps[spill_slot / ctx.wave_size]);
-               spill->operands[0].setLateKill(true);
                spill->operands[1] = Operand::c32(spill_slot % ctx.wave_size);
                spill->operands[2] = (*it)->operands[0];
                instructions.emplace_back(aco_ptr<Instruction>(spill));
@@ -1586,7 +1583,6 @@ assign_spill_slots(spill_ctx& ctx, unsigned spills_to_vgpr)
                /* reload sgpr: just add the vgpr temp to operands */
                Instruction* reload = create_instruction(aco_opcode::p_reload, Format::PSEUDO, 2, 1);
                reload->operands[0] = Operand(vgpr_spill_temps[spill_slot / ctx.wave_size]);
-               reload->operands[0].setLateKill(true);
                reload->operands[1] = Operand::c32(spill_slot % ctx.wave_size);
                reload->definitions[0] = (*it)->definitions[0];
                instructions.emplace_back(aco_ptr<Instruction>(reload));
