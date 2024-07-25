@@ -491,7 +491,7 @@ dri3_handle_present_event(struct loader_dri3_drawable *draw,
       draw->width = ce->width;
       draw->height = ce->height;
       draw->vtable->set_drawable_size(draw, draw->width, draw->height);
-      draw->ext->flush->invalidate(draw->dri_drawable);
+      dri_invalidate_drawable(draw->dri_drawable);
       break;
    }
    case XCB_PRESENT_COMPLETE_NOTIFY: {
@@ -821,8 +821,7 @@ loader_dri3_flush(struct loader_dri3_drawable *draw,
    __DRIcontext *dri_context = draw->vtable->get_dri_context(draw);
 
    if (dri_context) {
-      draw->ext->flush->flush_with_flags(dri_context, draw->dri_drawable,
-                                         flags, throttle_reason);
+      dri_flush(dri_context, draw->dri_drawable, flags, throttle_reason);
    }
 }
 
@@ -1239,7 +1238,7 @@ loader_dri3_swap_buffers_msc(struct loader_dri3_drawable *draw,
 
    mtx_unlock(&draw->mtx);
 
-   draw->ext->flush->invalidate(draw->dri_drawable);
+   dri_invalidate_drawable(draw->dri_drawable);
 
    /* Clients that use up all available buffers usually regulate their drawing
     * through swapchain contention backpressure. In such a scenario the client
@@ -2272,7 +2271,7 @@ loader_dri3_update_drawable_geometry(struct loader_dri3_drawable *draw)
       draw->height = geom_reply->height;
       if (changed) {
          draw->vtable->set_drawable_size(draw, draw->width, draw->height);
-         draw->ext->flush->invalidate(draw->dri_drawable);
+         dri_invalidate_drawable(draw->dri_drawable);
       }
 
       free(geom_reply);
