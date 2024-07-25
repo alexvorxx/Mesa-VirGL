@@ -3004,6 +3004,7 @@ impl SM70Op for OpCCtl {
                 CCtlOp::IVAllP => 6_u8,
                 CCtlOp::WBAll => 7_u8,
                 CCtlOp::WBAllP => 8_u8,
+                op => panic!("Unsupported cache control {op:?}"),
             },
         );
     }

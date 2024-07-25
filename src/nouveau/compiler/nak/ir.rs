@@ -5011,26 +5011,33 @@ impl DisplayOp for OpLdTram {
 impl_display_for_op!(OpLdTram);
 
 #[allow(dead_code)]
+#[derive(Copy, Clone, Debug)]
 pub enum CCtlOp {
+    Qry1, // Only available pre-Volta
     PF1,
+    PF1_5, // Only available pre-Volta
     PF2,
     WB,
     IV,
     IVAll,
     RS,
-    IVAllP,
-    WBAll,
-    WBAllP,
+    RSLB,   // Only available pre-Volta
+    IVAllP, // Only available on Volta+
+    WBAll,  // Only available on Volta+
+    WBAllP, // Only available on Volta+
 }
 
 impl CCtlOp {
     pub fn is_all(&self) -> bool {
         match self {
-            CCtlOp::PF1
+            CCtlOp::Qry1
+            | CCtlOp::PF1
+            | CCtlOp::PF1_5
             | CCtlOp::PF2
             | CCtlOp::WB
             | CCtlOp::IV
-            | CCtlOp::RS => false,
+            | CCtlOp::RS
+            | CCtlOp::RSLB => false,
             CCtlOp::IVAll | CCtlOp::IVAllP | CCtlOp::WBAll | CCtlOp::WBAllP => {
                 true
             }
@@ -5041,12 +5048,15 @@ impl CCtlOp {
 impl fmt::Display for CCtlOp {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            CCtlOp::Qry1 => write!(f, "qry1"),
             CCtlOp::PF1 => write!(f, "pf1"),
+            CCtlOp::PF1_5 => write!(f, "pf1.5"),
             CCtlOp::PF2 => write!(f, "pf2"),
             CCtlOp::WB => write!(f, "wb"),
             CCtlOp::IV => write!(f, "iv"),
             CCtlOp::IVAll => write!(f, "ivall"),
             CCtlOp::RS => write!(f, "rs"),
+            CCtlOp::RSLB => write!(f, "rslb"),
             CCtlOp::IVAllP => write!(f, "ivallp"),
             CCtlOp::WBAll => write!(f, "wball"),
             CCtlOp::WBAllP => write!(f, "wballp"),
