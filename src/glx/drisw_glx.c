@@ -934,10 +934,11 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    struct drisw_screen *psc;
    struct glx_config *configs = NULL, *visuals = NULL;
    const __DRIextension **loader_extensions_local;
+   bool kopper_disable = debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
 
    /* this is only relevant if zink bits are set */
    glx_driver &= (GLX_DRIVER_ZINK_INFER | GLX_DRIVER_ZINK_YES);
-   const char *driver = glx_driver && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false) ? "zink" : "swrast";
+   const char *driver = glx_driver && !kopper_disable ? "zink" : "swrast";
 
    psc = calloc(1, sizeof *psc);
    if (psc == NULL)
