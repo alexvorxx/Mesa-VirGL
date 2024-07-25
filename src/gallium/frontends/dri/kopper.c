@@ -796,7 +796,7 @@ kopper_create_drawable(struct dri_screen *screen, const struct gl_config *visual
    return drawable;
 }
 
-static int64_t
+int64_t
 kopperSwapBuffersWithDamage(__DRIdrawable *dPriv, uint32_t flush_flags, int nrects, const int *rects)
 {
    struct dri_drawable *drawable = dri_drawable(dPriv);
@@ -850,7 +850,7 @@ kopperSwapBuffersWithDamage(__DRIdrawable *dPriv, uint32_t flush_flags, int nrec
    return 0;
 }
 
-static int64_t
+int64_t
 kopperSwapBuffers(__DRIdrawable *dPriv, uint32_t flush_flags)
 {
    return kopperSwapBuffersWithDamage(dPriv, flush_flags, 0, NULL);
@@ -869,7 +869,7 @@ kopper_swap_buffers(struct dri_drawable *drawable)
    kopper_swap_buffers_with_damage(drawable, 0, NULL);
 }
 
-static __DRIdrawable *
+__DRIdrawable *
 kopperCreateNewDrawable(__DRIscreen *psp,
                         const __DRIconfig *config,
                         void *data,
@@ -886,7 +886,7 @@ kopperCreateNewDrawable(__DRIscreen *psp,
     return opaque_dri_drawable(drawable);
 }
 
-static void
+void
 kopperSetSwapInterval(__DRIdrawable *dPriv, int interval)
 {
    struct dri_drawable *drawable = dri_drawable(dPriv);
@@ -908,7 +908,7 @@ kopperSetSwapInterval(__DRIdrawable *dPriv, int interval)
    drawable->info.initial_swap_interval = interval;
 }
 
-static int
+int
 kopperQueryBufferAge(__DRIdrawable *dPriv)
 {
    struct dri_drawable *drawable = dri_drawable(dPriv);

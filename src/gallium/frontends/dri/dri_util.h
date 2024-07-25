@@ -144,4 +144,19 @@ PUBLIC void
 driDestroyContext(__DRIcontext *pcp);
 PUBLIC int driBindContext(__DRIcontext *pcp, __DRIdrawable *pdp, __DRIdrawable *prp);
 PUBLIC int driUnbindContext(__DRIcontext *pcp);
+
+
+PUBLIC int64_t
+kopperSwapBuffers(__DRIdrawable *dPriv, uint32_t flush_flags);
+PUBLIC int64_t
+kopperSwapBuffersWithDamage(__DRIdrawable *dPriv, uint32_t flush_flags, int nrects, const int *rects);
+PUBLIC __DRIdrawable *
+kopperCreateNewDrawable(__DRIscreen *psp,
+                        const __DRIconfig *config,
+                        void *data,
+                        __DRIkopperDrawableInfo *info);
+PUBLIC void
+kopperSetSwapInterval(__DRIdrawable *dPriv, int interval);
+PUBLIC int
+kopperQueryBufferAge(__DRIdrawable *dPriv);
 #endif /* _DRI_UTIL_H_ */

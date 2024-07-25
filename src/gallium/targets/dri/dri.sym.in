@@ -8,6 +8,7 @@
 		driGet*;
 		driIndexConfigAttrib;
 		dri*indContext*;
+		kopper*;
 		dri_loader_get_extensions;
 		@nouveau_drm_screen_create@
 		@radeon_drm_winsys_create@

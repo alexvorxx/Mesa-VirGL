@@ -903,7 +903,7 @@ check_xshm(Display *dpy)
 }
 
 static int
-kopperSetSwapInterval(__GLXDRIdrawable *pdraw, int interval)
+driswKopperSetSwapInterval(__GLXDRIdrawable *pdraw, int interval)
 {
    struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
    struct drisw_screen *psc = (struct drisw_screen *) pdp->base.psc;
@@ -1008,7 +1008,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
 
    if (psc->kopper) {
       psp->getBufferAge = kopper_get_buffer_age;
-      psp->setSwapInterval = kopperSetSwapInterval;
+      psp->setSwapInterval = driswKopperSetSwapInterval;
       psp->getSwapInterval = kopperGetSwapInterval;
       psp->maxSwapInterval = 1;
    }
