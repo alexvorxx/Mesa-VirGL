@@ -1182,20 +1182,18 @@ const __DRIimageDriverExtension driImageDriverExtension = {
 };
 
 
-static int dri_vblank_mode(__DRIscreen *driScreen, const __DRI2configQueryExtension *config)
+static int dri_vblank_mode(__DRIscreen *driScreen)
 {
    GLint vblank_mode = DRI_CONF_VBLANK_DEF_INTERVAL_1;
  
-   if (config)
-      config->configQueryi(driScreen, "vblank_mode", &vblank_mode);
+   dri2GalliumConfigQueryi(driScreen, "vblank_mode", &vblank_mode);
  
    return vblank_mode;
 }
  
-int dri_get_initial_swap_interval(__DRIscreen *driScreen,
-                                  const __DRI2configQueryExtension *config)
+int dri_get_initial_swap_interval(__DRIscreen *driScreen)
 {
-   int vblank_mode = dri_vblank_mode(driScreen, config);
+   int vblank_mode = dri_vblank_mode(driScreen);
  
    switch (vblank_mode) {
    case DRI_CONF_VBLANK_NEVER:
@@ -1208,10 +1206,9 @@ int dri_get_initial_swap_interval(__DRIscreen *driScreen,
    }
 }
  
-bool dri_valid_swap_interval(__DRIscreen *driScreen,
-                             const __DRI2configQueryExtension *config, int interval)
+bool dri_valid_swap_interval(__DRIscreen *driScreen, int interval)
 {
-   int vblank_mode = dri_vblank_mode(driScreen, config);
+   int vblank_mode = dri_vblank_mode(driScreen);
  
    switch (vblank_mode) {
    case DRI_CONF_VBLANK_NEVER:

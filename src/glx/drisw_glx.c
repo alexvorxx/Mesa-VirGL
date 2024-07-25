@@ -690,7 +690,7 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
             .is_pixmap = !(type & GLX_WINDOW_BIT),
          });
 
-      pdp->swapInterval = dri_get_initial_swap_interval(psc->driScreen, psc->config);
+      pdp->swapInterval = dri_get_initial_swap_interval(psc->driScreen);
       kopperSetSwapInterval(pdp->driDrawable, pdp->swapInterval);
    }
    else
@@ -859,7 +859,7 @@ driswKopperSetSwapInterval(__GLXDRIdrawable *pdraw, int interval)
    struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
    struct drisw_screen *psc = (struct drisw_screen *) pdp->base.psc;
 
-   if (!dri_valid_swap_interval(psc->driScreen, psc->config, interval))
+   if (!dri_valid_swap_interval(psc->driScreen, interval))
       return GLX_BAD_VALUE;
 
    kopperSetSwapInterval(pdp->driDrawable, interval);

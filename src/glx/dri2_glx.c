@@ -294,7 +294,7 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
    pdraw->base.drawable = drawable;
    pdraw->base.psc = &psc->base;
    pdraw->bufferCount = 0;
-   pdraw->swap_interval = dri_get_initial_swap_interval(psc->driScreen, psc->config);
+   pdraw->swap_interval = dri_get_initial_swap_interval(psc->driScreen);
    pdraw->have_back = 0;
 
    DRI2CreateDrawable(psc->base.dpy, xDrawable);
@@ -763,7 +763,7 @@ dri2SetSwapInterval(__GLXDRIdrawable *pdraw, int interval)
    struct dri2_drawable *priv =  (struct dri2_drawable *) pdraw;
    struct dri2_screen *psc = (struct dri2_screen *) priv->base.psc;
 
-   if (!dri_valid_swap_interval(psc->driScreen, psc->config, interval))
+   if (!dri_valid_swap_interval(psc->driScreen, interval))
       return GLX_BAD_VALUE;
 
    xcb_dri2_swap_interval(c, priv->base.xDrawable, interval);

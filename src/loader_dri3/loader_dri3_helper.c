@@ -435,8 +435,7 @@ loader_dri3_drawable_init(xcb_connection_t *conn,
    if (!draw->adaptive_sync)
       set_adaptive_sync_property(conn, draw->drawable, false);
 
-   draw->swap_interval = dri_get_initial_swap_interval(draw->dri_screen_render_gpu,
-                                                       draw->ext->config);
+   draw->swap_interval = dri_get_initial_swap_interval(draw->dri_screen_render_gpu);
 
    dri3_update_max_num_back(draw);
 

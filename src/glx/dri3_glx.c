@@ -608,7 +608,7 @@ dri3_set_swap_interval(__GLXDRIdrawable *pdraw, int interval)
    struct dri3_drawable *priv =  (struct dri3_drawable *) pdraw;
    struct dri3_screen *psc = (struct dri3_screen *) priv->base.psc;
 
-   if (!dri_valid_swap_interval(psc->driScreenRenderGPU, psc->config, interval))
+   if (!dri_valid_swap_interval(psc->driScreenRenderGPU, interval))
       return GLX_BAD_VALUE;
 
    loader_dri3_set_swap_interval(&priv->loader_drawable, interval);
