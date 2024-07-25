@@ -1405,7 +1405,7 @@ impl SM50Op for OpISetP {
         e.set_reg_src(8..16, self.srcs[0]);
         e.set_pred_src(39..42, 42, self.accum);
 
-        e.set_bit(43, false); // .X
+        e.set_bit(43, self.ex);
         e.set_pred_set_op(45..47, self.set_op);
 
         e.set_field(
