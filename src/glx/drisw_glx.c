@@ -812,6 +812,7 @@ driswBindExtensions(struct drisw_screen *psc, const __DRIextension **extensions)
        // This needs to check whether RELAXED is available
        // __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control_tear");
    }
+   __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");
 }
 
 static int
