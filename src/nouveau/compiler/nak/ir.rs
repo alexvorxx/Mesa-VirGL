@@ -1759,9 +1759,20 @@ impl fmt::Display for IntCmpOp {
     }
 }
 
+#[derive(Clone, Copy, Eq, Hash, PartialEq)]
 pub enum IntCmpType {
     U32,
     I32,
+}
+
+impl IntCmpType {
+    #[allow(dead_code)]
+    pub fn is_signed(&self) -> bool {
+        match self {
+            IntCmpType::U32 => false,
+            IntCmpType::I32 => true,
+        }
+    }
 }
 
 impl fmt::Display for IntCmpType {

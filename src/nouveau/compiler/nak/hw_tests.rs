@@ -612,6 +612,90 @@ fn test_op_prmt() {
 }
 
 #[test]
+fn test_isetp64() {
+    let run = RunSingleton::get();
+    let invocations = 100;
+
+    let types = [IntCmpType::U32, IntCmpType::I32];
+    let ops = [
+        IntCmpOp::Eq,
+        IntCmpOp::Ne,
+        IntCmpOp::Lt,
+        IntCmpOp::Le,
+        IntCmpOp::Gt,
+        IntCmpOp::Ge,
+    ];
+
+    for i in 0..(ops.len() * 2) {
+        let mut b = TestShaderBuilder::new(run.sm.as_ref());
+
+        let cmp_type = types[i % 2];
+        let cmp_op = ops[i / 2];
+
+        let x = SSARef::from([
+            b.ld_test_data(0, MemType::B32)[0],
+            b.ld_test_data(4, MemType::B32)[0],
+        ]);
+        let y = SSARef::from([
+            b.ld_test_data(8, MemType::B32)[0],
+            b.ld_test_data(12, MemType::B32)[0],
+        ]);
+        let p = b.isetp64(cmp_type, cmp_op, x.into(), y.into());
+        let dst = b.sel(p.into(), 1.into(), 0.into());
+        b.st_test_data(16, MemType::B32, dst.into());
+
+        let bin = b.compile();
+
+        let mut a = Acorn::new();
+        let mut data = Vec::new();
+        for _ in 0..invocations {
+            if a.get_bool() {
+                let high = a.get_u32();
+                data.push([a.get_u32(), high, a.get_u32(), high, 0]);
+            } else {
+                data.push([
+                    a.get_u32(),
+                    a.get_u32(),
+                    a.get_u32(),
+                    a.get_u32(),
+                    0,
+                ]);
+            }
+        }
+
+        run.run.run(&bin, &mut data).unwrap();
+
+        for d in &data {
+            let x = u64::from(d[0]) | (u64::from(d[1]) << 32);
+            let y = u64::from(d[2]) | (u64::from(d[3]) << 32);
+            let p = if cmp_type.is_signed() {
+                let x = x as i64;
+                let y = y as i64;
+                match cmp_op {
+                    IntCmpOp::Eq => x == y,
+                    IntCmpOp::Ne => x != y,
+                    IntCmpOp::Lt => x < y,
+                    IntCmpOp::Le => x <= y,
+                    IntCmpOp::Gt => x > y,
+                    IntCmpOp::Ge => x >= y,
+                }
+            } else {
+                match cmp_op {
+                    IntCmpOp::Eq => x == y,
+                    IntCmpOp::Ne => x != y,
+                    IntCmpOp::Lt => x < y,
+                    IntCmpOp::Le => x <= y,
+                    IntCmpOp::Gt => x > y,
+                    IntCmpOp::Ge => x >= y,
+                }
+            };
+            let dst = p as u32;
+            assert_eq!(d[4], dst);
+        }
+    }
+}
+
+#[test]
 fn test_shl64() {
     let run = RunSingleton::get();
     let invocations = 100;
