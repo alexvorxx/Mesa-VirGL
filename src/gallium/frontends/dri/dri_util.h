@@ -173,4 +173,15 @@ dri_query_renderer_string(__DRIscreen *_screen, int param,
 PUBLIC int
 dri_query_renderer_integer(__DRIscreen *_screen, int param,
                             unsigned int *value);
+
+PUBLIC void
+dri_flush_drawable(__DRIdrawable *dPriv);
+PUBLIC void
+dri_flush(__DRIcontext *cPriv,
+          __DRIdrawable *dPriv,
+          unsigned flags,
+          enum __DRI2throttleReason reason);
+PUBLIC void
+dri_invalidate_drawable(__DRIdrawable *dPriv);
+
 #endif /* _DRI_UTIL_H_ */

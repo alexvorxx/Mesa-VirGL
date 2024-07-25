@@ -93,8 +93,8 @@ dri2_buffer(__DRIbuffer * driBufferPriv)
  *          -> loader_dri3_update_drawable_geometry
  *       EGL: wl_egl_window::resize_callback (called outside Mesa)
  */
-static void
-dri2_invalidate_drawable(__DRIdrawable *dPriv)
+void
+dri_invalidate_drawable(__DRIdrawable *dPriv)
 {
    struct dri_drawable *drawable = dri_drawable(dPriv);
 
@@ -108,7 +108,7 @@ static const __DRI2flushExtension dri2FlushExtension = {
     .base = { __DRI2_FLUSH, 4 },
 
     .flush                = dri_flush_drawable,
-    .invalidate           = dri2_invalidate_drawable,
+    .invalidate           = dri_invalidate_drawable,
     .flush_with_flags     = dri_flush,
 };
 
