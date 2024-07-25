@@ -524,7 +524,6 @@ static const __DRIrobustnessExtension dri2Robustness = {
 static const __DRIextension *drisw_screen_extensions[] = {
    &driSWImageExtension.base,
    &driTexBufferExtension.base,
-   &dri2RendererQueryExtension.base,
    &dri2ConfigQueryExtension.base,
    &dri2FenceExtension.base,
    &dri2FlushControlExtension.base,
@@ -534,7 +533,6 @@ static const __DRIextension *drisw_screen_extensions[] = {
 static const __DRIextension *drisw_robust_screen_extensions[] = {
    &driSWImageExtension.base,
    &driTexBufferExtension.base,
-   &dri2RendererQueryExtension.base,
    &dri2ConfigQueryExtension.base,
    &dri2FenceExtension.base,
    &dri2Robustness.base,

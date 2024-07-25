@@ -141,10 +141,3 @@ dri_query_renderer_string(__DRIscreen *_screen, int param,
       return -1;
    }
 }
-
-const __DRI2rendererQueryExtension dri2RendererQueryExtension = {
-    .base = { __DRI2_RENDERER_QUERY, 1 },
-
-    .queryInteger         = dri_query_renderer_integer,
-    .queryString          = dri_query_renderer_string
-};
