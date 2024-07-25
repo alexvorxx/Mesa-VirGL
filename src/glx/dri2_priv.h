@@ -45,7 +45,6 @@ struct dri2_screen {
    __DRIscreen *driScreen;
    __GLXDRIscreen vtable;
    const __DRIdri2Extension *dri2;
-   const __DRImesaCoreExtension *mesa;
 
    const __DRI2flushExtension *f;
    const __DRI2configQueryExtension *config;

@@ -838,12 +838,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    if (extensions == NULL)
       goto handle_error;
 
-   static const struct dri_extension_match exts[] = {
-       { __DRI_MESA, 2, offsetof(struct dri3_screen, mesa), false },
-   };
-   if (!loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions))
-      goto handle_error;
-
    if (psc->fd_render_gpu != psc->fd_display_gpu) {
       driverNameDisplayGPU = loader_get_driver_for_fd(psc->fd_display_gpu);
       if (driverNameDisplayGPU) {

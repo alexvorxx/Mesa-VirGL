@@ -39,7 +39,6 @@ struct drisw_screen
 
    __DRIscreen *driScreen;
    __GLXDRIscreen vtable;
-   const __DRImesaCoreExtension *mesa;
    const __DRIswrastExtension *swrast;
    const __DRIkopperExtension *kopper;
    const __DRI2flushExtension *f;
