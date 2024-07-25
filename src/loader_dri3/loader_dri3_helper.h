@@ -98,7 +98,6 @@ struct loader_dri3_extensions {
    const __DRIimageDriverExtension *image_driver;
    const __DRI2flushExtension *flush;
    const __DRI2configQueryExtension *config;
-   const __DRItexBufferExtension *tex_buffer;
    const __DRIimageExtension *image;
 };
 
