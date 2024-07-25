@@ -3093,10 +3093,7 @@ fn encode_instr(
     } else {
         let nop = OpNop { label: None };
         nop.encode(&mut e);
-        e.set_pred(&Pred {
-            pred_ref: PredRef::None,
-            pred_inv: false,
-        });
+        e.set_pred(&true.into());
         e.set_instr_deps(&InstrDeps::new());
     }
 

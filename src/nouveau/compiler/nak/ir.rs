@@ -6167,6 +6167,15 @@ impl Pred {
     }
 }
 
+impl From<bool> for Pred {
+    fn from(b: bool) -> Self {
+        Pred {
+            pred_ref: PredRef::None,
+            pred_inv: !b,
+        }
+    }
+}
+
 impl<T: Into<PredRef>> From<T> for Pred {
     fn from(p: T) -> Self {
         Pred {
@@ -6294,7 +6303,7 @@ impl Instr {
     pub fn new(op: impl Into<Op>) -> Instr {
         Instr {
             op: op.into(),
-            pred: PredRef::None.into(),
+            pred: true.into(),
             deps: InstrDeps::new(),
         }
     }
