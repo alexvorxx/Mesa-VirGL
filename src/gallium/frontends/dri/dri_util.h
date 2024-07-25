@@ -200,4 +200,16 @@ PUBLIC bool dri_valid_swap_interval(__DRIscreen *driScreen, int interval);
 PUBLIC void
 dri_throttle(__DRIcontext *cPriv, __DRIdrawable *dPriv,
              enum __DRI2throttleReason reason);
+
+PUBLIC int
+dri_interop_query_device_info(__DRIcontext *_ctx,
+                               struct mesa_glinterop_device_info *out);
+PUBLIC int
+dri_interop_export_object(__DRIcontext *_ctx,
+                           struct mesa_glinterop_export_in *in,
+                           struct mesa_glinterop_export_out *out);
+PUBLIC int
+dri_interop_flush_objects(__DRIcontext *_ctx,
+                           unsigned count, struct mesa_glinterop_export_in *objects,
+                           struct mesa_glinterop_flush_out *out);
 #endif /* _DRI_UTIL_H_ */

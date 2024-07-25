@@ -1993,23 +1993,23 @@ static const __DRIrobustnessExtension dri2Robustness = {
    .base = { __DRI2_ROBUSTNESS, 1 }
 };
 
-static int
-dri2_interop_query_device_info(__DRIcontext *_ctx,
+int
+dri_interop_query_device_info(__DRIcontext *_ctx,
                                struct mesa_glinterop_device_info *out)
 {
    return st_interop_query_device_info(dri_context(_ctx)->st, out);
 }
 
-static int
-dri2_interop_export_object(__DRIcontext *_ctx,
+int
+dri_interop_export_object(__DRIcontext *_ctx,
                            struct mesa_glinterop_export_in *in,
                            struct mesa_glinterop_export_out *out)
 {
    return st_interop_export_object(dri_context(_ctx)->st, in, out);
 }
 
-static int
-dri2_interop_flush_objects(__DRIcontext *_ctx,
+int
+dri_interop_flush_objects(__DRIcontext *_ctx,
                            unsigned count, struct mesa_glinterop_export_in *objects,
                            struct mesa_glinterop_flush_out *out)
 {
@@ -2018,9 +2018,9 @@ dri2_interop_flush_objects(__DRIcontext *_ctx,
 
 static const __DRI2interopExtension dri2InteropExtension = {
    .base = { __DRI2_INTEROP, 2 },
-   .query_device_info = dri2_interop_query_device_info,
-   .export_object = dri2_interop_export_object,
-   .flush_objects = dri2_interop_flush_objects
+   .query_device_info = dri_interop_query_device_info,
+   .export_object = dri_interop_export_object,
+   .flush_objects = dri_interop_flush_objects
 };
 
 /**

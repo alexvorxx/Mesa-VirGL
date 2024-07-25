@@ -20,6 +20,9 @@
 		dri_throttle;
 		dri_get_initial_swap_interval;
 		dri_valid_swap_interval;
+		dri_interop_query_device_info;
+		dri_interop_export_object;
+		dri_interop_flush_objects;
 		dri_loader_get_extensions;
 		@nouveau_drm_screen_create@
 		@radeon_drm_winsys_create@
