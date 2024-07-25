@@ -2415,11 +2415,6 @@ MesaGLInteropGLXQueryDeviceInfo(Display *dpy, GLXContext context,
       return MESA_GLINTEROP_INVALID_CONTEXT;
    }
 
-   if (!gc->vtable->interop_query_device_info) {
-      __glXUnlock();
-      return MESA_GLINTEROP_UNSUPPORTED;
-   }
-
    ret = gc->vtable->interop_query_device_info(gc, out);
    __glXUnlock();
    return ret;
@@ -2438,11 +2433,6 @@ MesaGLInteropGLXExportObject(Display *dpy, GLXContext context,
    if (!gc || gc->xid == None || !gc->isDirect) {
       __glXUnlock();
       return MESA_GLINTEROP_INVALID_CONTEXT;
-   }
-
-   if (!gc->vtable->interop_export_object) {
-      __glXUnlock();
-      return MESA_GLINTEROP_UNSUPPORTED;
    }
 
    ret = gc->vtable->interop_export_object(gc, in, out);
@@ -2464,11 +2454,6 @@ MesaGLInteropGLXFlushObjects(Display *dpy, GLXContext context,
    if (!gc || gc->xid == None || !gc->isDirect) {
       __glXUnlock();
       return MESA_GLINTEROP_INVALID_CONTEXT;
-   }
-
-   if (!gc->vtable->interop_flush_objects) {
-      __glXUnlock();
-      return MESA_GLINTEROP_UNSUPPORTED;
    }
 
    ret = gc->vtable->interop_flush_objects(gc, count, resources, out);
