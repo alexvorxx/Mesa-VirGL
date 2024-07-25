@@ -2572,6 +2572,26 @@ impl SM50Op for OpAtom {
     }
 }
 
+impl SM50Op for OpAL2P {
+    fn legalize(&mut self, b: &mut LegalizeBuilder) {
+        legalize_ext_instr(self, b);
+    }
+
+    fn encode(&self, e: &mut SM50Encoder<'_>) {
+        e.set_opcode(0xefa0);
+
+        e.set_dst(self.dst);
+        e.set_reg_src(8..16, self.offset);
+
+        e.set_field(20..31, self.access.addr);
+        assert!(!self.access.patch);
+        e.set_bit(32, self.access.output);
+
+        e.set_field(47..49, 0_u8); // comps
+        e.set_pred_dst(44..47, Dst::None);
+    }
+}
+
 impl SM50Op for OpALd {
     fn legalize(&mut self, b: &mut LegalizeBuilder) {
         legalize_ext_instr(self, b);
@@ -2581,10 +2601,14 @@ impl SM50Op for OpALd {
         e.set_opcode(0xefd8);
 
         e.set_dst(self.dst);
+        if self.access.phys {
+            assert!(self.offset.src_ref.as_reg().is_some());
+        } else {
+            assert!(self.offset.is_zero());
+        }
         e.set_reg_src(8..16, self.offset);
         e.set_reg_src(39..47, self.vtx);
 
-        assert!(!self.access.phys);
         e.set_field(20..30, self.access.addr);
         e.set_bit(31, self.access.patch);
         e.set_bit(32, self.access.output);
@@ -3048,6 +3072,7 @@ macro_rules! as_sm50_op_match {
             Op::Txd(op) => op,
             Op::Txq(op) => op,
             Op::Ipa(op) => op,
+            Op::AL2P(op) => op,
             Op::ALd(op) => op,
             Op::ASt(op) => op,
             Op::CCtl(op) => op,
