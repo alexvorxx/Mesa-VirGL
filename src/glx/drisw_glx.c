@@ -769,8 +769,8 @@ driswSwapBuffers(__GLXDRIdrawable * pdraw,
 }
 
 static void
-driswCopySubBuffer(__GLXDRIdrawable * pdraw,
-                   int x, int y, int width, int height, Bool flush)
+drisw_copy_sub_buffer(__GLXDRIdrawable * pdraw,
+                      int x, int y, int width, int height, Bool flush)
 {
    struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
    struct drisw_screen *psc = (struct drisw_screen *) pdp->base.psc;
@@ -1004,7 +1004,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    psp->releaseTexImage = drisw_release_tex_image;
 
    if (psc->copySubBuffer)
-      psp->copySubBuffer = driswCopySubBuffer;
+      psp->copySubBuffer = drisw_copy_sub_buffer;
 
    if (psc->kopper) {
       psp->getBufferAge = kopper_get_buffer_age;
