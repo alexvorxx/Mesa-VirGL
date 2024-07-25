@@ -353,8 +353,7 @@ dri3_create_drawable(struct glx_screen *base, XID xDrawable,
    pdraw->base.psc = &psc->base;
 
 #ifdef HAVE_DRI3_MODIFIERS
-   if (base->display->has_multibuffer && psc->image && psc->image->base.version >= 15)
-      has_multibuffer = true;
+   has_multibuffer = base->display->has_multibuffer;
 #endif
 
    (void) __glXInitialize(psc->base.dpy);
@@ -835,21 +834,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       psc->driScreenDisplayGPU = psc->driScreenRenderGPU;
 
    dri3_bind_extensions(psc, priv, driverName);
-
-   if (!psc->image || !psc->image->createImageFromDmaBufs) {
-      ErrorMessageF("Version 7 or imageFromDmaBufs image extension not found\n");
-      goto handle_error;
-   }
-
-   if (psc->fd_render_gpu != psc->fd_display_gpu && psc->image->base.version < 9) {
-      ErrorMessageF("Different GPU, but image extension version 9 or later not found\n");
-      goto handle_error;
-   }
-
-   if (psc->fd_render_gpu != psc->fd_display_gpu && !psc->image->blitImage) {
-      ErrorMessageF("Different GPU, but blitImage not implemented for this driver\n");
-      goto handle_error;
-   }
 
    psc->loader_dri3_ext.image = psc->image;
 
