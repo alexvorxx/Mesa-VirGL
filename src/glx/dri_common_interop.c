@@ -27,6 +27,7 @@
 #include "glx_error.h"
 #include "mesa_interface.h"
 #include "dri2_priv.h"
+#include "dri_util.h"
 #if defined(HAVE_DRI3)
 #include "dri3_priv.h"
 #endif
@@ -41,7 +42,7 @@ dri2_interop_query_device_info(struct glx_context *ctx,
    if (!psc->interop)
       return MESA_GLINTEROP_UNSUPPORTED;
 
-   return psc->interop->query_device_info(ctx->driContext, out);
+   return dri_interop_query_device_info(ctx->driContext, out);
 }
 
 _X_HIDDEN int
@@ -54,7 +55,7 @@ dri2_interop_export_object(struct glx_context *ctx,
    if (!psc->interop)
       return MESA_GLINTEROP_UNSUPPORTED;
 
-   return psc->interop->export_object(ctx->driContext, in, out);
+   return dri_interop_export_object(ctx->driContext, in, out);
 }
 
 _X_HIDDEN int
@@ -67,7 +68,7 @@ dri2_interop_flush_objects(struct glx_context *ctx,
    if (!psc->interop || psc->interop->base.version < 2)
       return MESA_GLINTEROP_UNSUPPORTED;
 
-   return psc->interop->flush_objects(ctx->driContext, count, objects, out);
+   return dri_interop_flush_objects(ctx->driContext, count, objects, out);
 }
 
 #if defined(HAVE_DRI3)
@@ -81,7 +82,7 @@ dri3_interop_query_device_info(struct glx_context *ctx,
    if (!psc->interop)
       return MESA_GLINTEROP_UNSUPPORTED;
 
-   return psc->interop->query_device_info(ctx->driContext, out);
+   return dri_interop_query_device_info(ctx->driContext, out);
 }
 
 _X_HIDDEN int
@@ -94,7 +95,7 @@ dri3_interop_export_object(struct glx_context *ctx,
    if (!psc->interop)
       return MESA_GLINTEROP_UNSUPPORTED;
 
-   return psc->interop->export_object(ctx->driContext, in, out);
+   return dri_interop_export_object(ctx->driContext, in, out);
 }
 
 _X_HIDDEN int
@@ -107,7 +108,7 @@ dri3_interop_flush_objects(struct glx_context *ctx,
    if (!psc->interop || psc->interop->base.version < 2)
       return MESA_GLINTEROP_UNSUPPORTED;
 
-   return psc->interop->flush_objects(ctx->driContext, count, objects, out);
+   return dri_interop_flush_objects(ctx->driContext, count, objects, out);
 }
 
 #endif /* HAVE_DRI3 */
