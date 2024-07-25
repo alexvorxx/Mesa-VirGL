@@ -585,12 +585,4 @@ dri_throttle(__DRIcontext *cPriv, __DRIdrawable *dPriv,
    dri_flush(cPriv, dPriv, 0, reason);
 }
 
-
-const __DRI2throttleExtension dri2ThrottleExtension = {
-    .base = { __DRI2_THROTTLE, 1 },
-
-    .throttle          = dri_throttle,
-};
-
-
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

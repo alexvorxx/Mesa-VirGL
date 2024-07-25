@@ -167,7 +167,6 @@ void
 dri_flush_drawable(__DRIdrawable *dPriv);
 
 extern const __DRItexBufferExtension driTexBufferExtension;
-extern const __DRI2throttleExtension dri2ThrottleExtension;
 #endif
 
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

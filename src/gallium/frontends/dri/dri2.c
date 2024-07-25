@@ -2106,7 +2106,6 @@ static const __DRIextension *dri_screen_extensions_base[] = {
    &driTexBufferExtension.base,
    &dri2FlushExtension.base,
    &dri2GalliumConfigQueryExtension.base,
-   &dri2ThrottleExtension.base,
    &dri2FenceExtension.base,
    &dri2InteropExtension.base,
    &driBlobExtension.base,

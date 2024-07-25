@@ -60,7 +60,6 @@ typedef struct __DRIbufferRec			__DRIbuffer;
 typedef struct __DRIdri2ExtensionRec		__DRIdri2Extension;
 typedef struct __DRIdri2LoaderExtensionRec	__DRIdri2LoaderExtension;
 typedef struct __DRI2flushExtensionRec	__DRI2flushExtension;
-typedef struct __DRI2throttleExtensionRec	__DRI2throttleExtension;
 typedef struct __DRI2fenceExtensionRec          __DRI2fenceExtension;
 typedef struct __DRI2interopExtensionRec	__DRI2interopExtension;
 typedef struct __DRI2blobExtensionRec           __DRI2blobExtension;
@@ -230,24 +229,6 @@ struct __DRI2flushExtensionRec {
                              __DRIdrawable *drawable,
                              unsigned flags,
                              enum __DRI2throttleReason throttle_reason);
-};
-
-
-/**
- * Extension that the driver uses to request
- * throttle callbacks.
- *
- * Not used by the X server.
- */
-
-#define __DRI2_THROTTLE "DRI2_Throttle"
-#define __DRI2_THROTTLE_VERSION 1
-
-struct __DRI2throttleExtensionRec {
-   __DRIextension base;
-   void (*throttle)(__DRIcontext *ctx,
-		    __DRIdrawable *drawable,
-		    enum __DRI2throttleReason reason);
 };
 
 /**
