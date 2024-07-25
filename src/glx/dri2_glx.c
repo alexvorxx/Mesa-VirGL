@@ -890,14 +890,10 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
       if (strcmp(extensions[i]->name, __DRI2_ROBUSTNESS) == 0)
          __glXEnableDirectExtension(&psc->base,
                                     "GLX_ARB_create_context_robustness");
-
-      if (strcmp(extensions[i]->name, __DRI2_FLUSH_CONTROL) == 0)
-         __glXEnableDirectExtension(&psc->base,
-                                    "GLX_ARB_context_flush_control");
    }
 
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
-
+   __glXEnableDirectExtension(&psc->base, "GLX_ARB_context_flush_control");
    __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
 
    if (psc->interop)
