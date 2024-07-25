@@ -693,11 +693,6 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
                                  "GLX_EXT_create_context_es2_profile");
    }
 
-   static const struct dri_extension_match exts[] = {
-       { __DRI_IMAGE, 1, offsetof(struct dri3_screen, image), true },
-   };
-   loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions);
-
    /* when on a different gpu than the server, the server pixmaps
     * can have a tiling mode we can't read. Thus we can't create
     * a texture from them.

@@ -79,7 +79,6 @@ struct dri3_screen {
    __DRIscreen *driScreenDisplayGPU;
    __DRIscreen *driScreenRenderGPU;
 
-   const __DRIimageExtension *image;
    const __DRIconfig **driver_configs;
 
    /* fd of the GPU used for rendering. */
