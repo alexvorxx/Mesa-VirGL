@@ -484,7 +484,7 @@ BEGIN_TEST(d3d11_derivs.cube_array)
    pbld.print_ir(VK_SHADER_STAGE_FRAGMENT_BIT, "Assembly");
 END_TEST
 
-BEGIN_TEST(d3d11_derivs.fddxy)
+BEGIN_TEST(d3d11_derivs.dfdxy)
    // clang-format off
    QoShaderModuleCreateInfo vs = qoShaderModuleCreateInfoGLSL(VERTEX,
       layout(location = 0) in vec2 in_coord;
