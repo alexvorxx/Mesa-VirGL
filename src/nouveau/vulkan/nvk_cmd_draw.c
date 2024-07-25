@@ -2624,8 +2624,12 @@ nvk_CmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(nvk_buffer, buffer, _buffer);
+   struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
    struct nvk_addr_range addr_range =
       nvk_buffer_addr_range(buffer, offset, size);
+
+   if (addr_range.addr == 0 && nvk_cmd_buffer_3d_cls(cmd) < TURING_A)
+      addr_range.addr = dev->zero_page->va->addr;
 
    struct nv_push *p = nvk_cmd_buffer_push(cmd, 10);
 
@@ -2641,9 +2645,7 @@ nvk_CmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer,
       P_NVC597_SET_INDEX_BUFFER_SIZE_A(p, addr_range.range >> 32);
       P_NVC597_SET_INDEX_BUFFER_SIZE_B(p, addr_range.range);
    } else {
-      /* TODO: What about robust zero-size buffers? */
-      const uint64_t limit = addr_range.range > 0 ?
-         addr_range.addr + addr_range.range - 1 : 0;
+      const uint64_t limit = addr_range.addr + addr_range.range - 1;
       P_MTHD(p, NV9097, SET_INDEX_BUFFER_C);
       P_NV9097_SET_INDEX_BUFFER_C(p, limit >> 32);
       P_NV9097_SET_INDEX_BUFFER_D(p, limit);
@@ -2656,11 +2658,16 @@ void
 nvk_cmd_bind_vertex_buffer(struct nvk_cmd_buffer *cmd, uint32_t vb_idx,
                            struct nvk_addr_range addr_range)
 {
+   struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
+
    /* Used for meta save/restore */
    if (vb_idx == 0)
       cmd->state.gfx.vb0 = addr_range;
 
    struct nv_push *p = nvk_cmd_buffer_push(cmd, 6);
+
+   if (addr_range.addr == 0 && nvk_cmd_buffer_3d_cls(cmd) < TURING_A)
+      addr_range.addr = dev->zero_page->va->addr;
 
    P_MTHD(p, NV9097, SET_VERTEX_STREAM_A_LOCATION_A(vb_idx));
    P_NV9097_SET_VERTEX_STREAM_A_LOCATION_A(p, vb_idx, addr_range.addr >> 32);
@@ -2671,9 +2678,7 @@ nvk_cmd_bind_vertex_buffer(struct nvk_cmd_buffer *cmd, uint32_t vb_idx,
       P_NVC597_SET_VERTEX_STREAM_SIZE_A(p, vb_idx, addr_range.range >> 32);
       P_NVC597_SET_VERTEX_STREAM_SIZE_B(p, vb_idx, addr_range.range);
    } else {
-      /* TODO: What about robust zero-size buffers? */
-      const uint64_t limit = addr_range.range > 0 ?
-         addr_range.addr + addr_range.range - 1 : 0;
+      const uint64_t limit = addr_range.addr + addr_range.range - 1;
       P_MTHD(p, NV9097, SET_VERTEX_STREAM_LIMIT_A_A(vb_idx));
       P_NV9097_SET_VERTEX_STREAM_LIMIT_A_A(p, vb_idx, limit >> 32);
       P_NV9097_SET_VERTEX_STREAM_LIMIT_A_B(p, vb_idx, limit);
