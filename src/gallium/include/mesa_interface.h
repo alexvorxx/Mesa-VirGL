@@ -166,17 +166,6 @@ struct __DRItexBufferExtensionRec {
 
     /**
      * Method to override base texture image with the contents of a
-     * __DRIdrawable.
-     *
-     * For GLX_EXT_texture_from_pixmap with AIGLX.  Deprecated in favor of
-     * setTexBuffer2 in version 2 of this interface.  Not used by post-2011 X.
-     */
-    void (*setTexBuffer)(__DRIcontext *pDRICtx,
-			 int target,
-			 __DRIdrawable *pDraw);
-
-    /**
-     * Method to override base texture image with the contents of a
      * __DRIdrawable, including the required texture format attribute.
      *
      * For GLX_EXT_texture_from_pixmap with AIGLX.  Used by the X server since

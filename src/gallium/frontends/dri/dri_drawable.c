@@ -300,17 +300,9 @@ dri_set_tex_buffer2(__DRIcontext *pDRICtx, GLint target,
    }
 }
 
-static void
-dri_set_tex_buffer(__DRIcontext *pDRICtx, GLint target,
-                   __DRIdrawable *dPriv)
-{
-   dri_set_tex_buffer2(pDRICtx, target, __DRI_TEXTURE_FORMAT_RGBA, dPriv);
-}
-
 const __DRItexBufferExtension driTexBufferExtension = {
    .base = { __DRI_TEX_BUFFER, 2 },
 
-   .setTexBuffer       = dri_set_tex_buffer,
    .setTexBuffer2      = dri_set_tex_buffer2,
 };
 
