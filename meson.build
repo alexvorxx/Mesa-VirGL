@@ -126,31 +126,31 @@ if gallium_drivers.contains('auto')
     # TODO: Sparc
     if ['x86', 'x86_64'].contains(host_machine.cpu_family())
       gallium_drivers = [
-        'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'svga', 'swrast',
+        'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'svga', 'llvmpipe', 'softpipe',
         'iris', 'crocus', 'i915', 'zink'
       ]
     elif ['arm', 'aarch64'].contains(host_machine.cpu_family())
       gallium_drivers = [
         'v3d', 'vc4', 'freedreno', 'etnaviv', 'nouveau', 'svga',
-        'tegra', 'virgl', 'lima', 'panfrost', 'swrast', 'iris',
+        'tegra', 'virgl', 'lima', 'panfrost', 'llvmpipe', 'softpipe', 'iris',
         'zink'
       ]
     elif ['mips', 'mips64', 'ppc', 'ppc64', 'riscv32', 'riscv64'].contains(host_machine.cpu_family())
       gallium_drivers = [
-        'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'swrast', 'zink'
+        'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'llvmpipe', 'softpipe', 'zink'
       ]
     elif ['loongarch64'].contains(host_machine.cpu_family())
       gallium_drivers = [
-        'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'etnaviv', 'swrast', 'zink'
+        'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'etnaviv', 'llvmpipe', 'softpipe', 'zink'
       ]
     else
       error('Unknown architecture @0@. Please pass -Dgallium-drivers to set driver options. Patches gladly accepted to fix this.'.format(
             host_machine.cpu_family()))
     endif
   elif ['windows'].contains(host_machine.system())
-    gallium_drivers = ['swrast', 'zink', 'd3d12']
+    gallium_drivers = ['llvmpipe', 'softpipe', 'zink', 'd3d12']
   elif ['darwin', 'cygwin', 'haiku'].contains(host_machine.system())
-    gallium_drivers = ['swrast']
+    gallium_drivers = ['llvmpipe', 'softpipe']
   else
     error('Unknown OS @0@. Please pass -Dgallium-drivers to set driver options. Patches gladly accepted to fix this.'.format(
           host_machine.system()))
@@ -160,7 +160,7 @@ elif gallium_drivers.contains('all')
    # is not available on non-Intel distros.
    gallium_drivers = [
      'r300', 'r600', 'radeonsi', 'crocus', 'v3d', 'vc4', 'freedreno', 'etnaviv',
-     'nouveau', 'svga', 'tegra', 'virgl', 'lima', 'panfrost', 'swrast', 'iris',
+     'nouveau', 'svga', 'tegra', 'virgl', 'lima', 'panfrost', 'llvmpipe', 'softpipe', 'iris',
      'zink', 'd3d12', 'asahi'
    ]
 endif
