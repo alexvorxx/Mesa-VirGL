@@ -1838,9 +1838,9 @@ if with_llvm
 elif with_amd_vk and with_aco_tests
   error('ACO tests require LLVM, but LLVM is disabled.')
 elif with_swrast_vk
-  error('The following drivers require LLVM: Lavapipe. One of these is enabled, but LLVM is disabled.')
+  error('lavapipe requires LLVM and is enabled, but LLVM is disabled.')
 elif with_gallium_llvmpipe
-  error('The following drivers require LLVM: llvmpipe. It is enabled, but LLVM is disabled.')
+  error('llvmpipe requires LLVM and is enabled, but LLVM is disabled.')
 elif with_gallium_clover
   error('The OpenCL "Clover" state tracker requires LLVM, but LLVM is disabled.')
 elif with_clc
