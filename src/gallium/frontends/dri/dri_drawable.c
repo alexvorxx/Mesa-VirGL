@@ -578,7 +578,7 @@ dri_flush_drawable(__DRIdrawable *dPriv)
 /**
  * dri_throttle - A DRI2ThrottleExtension throttling function.
  */
-static void
+void
 dri_throttle(__DRIcontext *cPriv, __DRIdrawable *dPriv,
              enum __DRI2throttleReason reason)
 {

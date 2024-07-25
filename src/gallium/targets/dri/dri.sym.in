@@ -17,6 +17,7 @@
 		dri_flush;
 		dri_invalidate_drawable;
 		dri2GalliumConfigQuery*;
+		dri_throttle;
 		dri_get_initial_swap_interval;
 		dri_valid_swap_interval;
 		dri_loader_get_extensions;

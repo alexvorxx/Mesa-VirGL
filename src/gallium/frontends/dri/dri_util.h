@@ -196,4 +196,8 @@ dri2GalliumConfigQuerys(__DRIscreen *sPriv, const char *var, char **val);
 
 PUBLIC int dri_get_initial_swap_interval(__DRIscreen *driScreen);
 PUBLIC bool dri_valid_swap_interval(__DRIscreen *driScreen, int interval);
+
+PUBLIC void
+dri_throttle(__DRIcontext *cPriv, __DRIdrawable *dPriv,
+             enum __DRI2throttleReason reason);
 #endif /* _DRI_UTIL_H_ */
