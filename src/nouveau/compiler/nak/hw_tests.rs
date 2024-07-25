@@ -567,6 +567,61 @@ fn test_op_iadd3x() {
 }
 
 #[test]
+fn test_op_isetp() {
+    let set_ops = [PredSetOp::And, PredSetOp::Or, PredSetOp::Xor];
+    let cmp_ops = [
+        IntCmpOp::Eq,
+        IntCmpOp::Ne,
+        IntCmpOp::Lt,
+        IntCmpOp::Le,
+        IntCmpOp::Gt,
+        IntCmpOp::Ge,
+    ];
+    let cmp_types = [IntCmpType::U32, IntCmpType::I32];
+
+    for mut i in 0..(set_ops.len() * cmp_ops.len() * cmp_types.len() * 2) {
+        let set_op = set_ops[i % set_ops.len()];
+        i /= set_ops.len();
+
+        let cmp_op = cmp_ops[i % cmp_ops.len()];
+        i /= cmp_ops.len();
+
+        let cmp_type = cmp_types[i % cmp_types.len()];
+        i /= cmp_types.len();
+
+        let ex = i != 0;
+
+        let op = OpISetP {
+            dst: Dst::None,
+            set_op,
+            cmp_op,
+            cmp_type,
+            ex,
+            srcs: [0.into(), 0.into()],
+            accum: 0.into(),
+            low_cmp: 0.into(),
+        };
+
+        let src0_idx = op.src_idx(&op.srcs[0]);
+        let mut a = Acorn::new();
+        let mut src0 = 0_u32;
+        test_foldable_op_with(op, &mut |i| {
+            let x = a.get_u32();
+            if i == src0_idx {
+                src0 = x;
+            }
+
+            // Make src0 and src1
+            if i == src0_idx + 1 && a.get_bool() {
+                src0
+            } else {
+                x
+            }
+        });
+    }
+}
+
+#[test]
 fn test_op_shf() {
     let sm = &RunSingleton::get().sm;
 

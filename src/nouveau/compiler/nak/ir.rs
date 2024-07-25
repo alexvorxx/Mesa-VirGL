@@ -3541,7 +3541,7 @@ impl DisplayOp for OpIMnMx {
 impl_display_for_op!(OpIMnMx);
 
 #[repr(C)]
-#[derive(SrcsAsSlice, DstsAsSlice)]
+#[derive(Clone, SrcsAsSlice, DstsAsSlice)]
 pub struct OpISetP {
     #[dst_type(Pred)]
     pub dst: Dst,
@@ -3559,6 +3559,73 @@ pub struct OpISetP {
 
     #[src_type(Pred)]
     pub low_cmp: Src,
+}
+
+impl Foldable for OpISetP {
+    fn fold(&self, sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
+        let x = f.get_u32_src(self, &self.srcs[0]);
+        let y = f.get_u32_src(self, &self.srcs[1]);
+        let accum = f.get_pred_src(self, &self.accum);
+        let low_cmp = f.get_pred_src(self, &self.low_cmp);
+
+        let cmp = if self.cmp_type.is_signed() {
+            let x = x as i32;
+            let y = y as i32;
+            match &self.cmp_op {
+                IntCmpOp::Eq => x == y,
+                IntCmpOp::Ne => x != y,
+                IntCmpOp::Lt => x < y,
+                IntCmpOp::Le => x <= y,
+                IntCmpOp::Gt => x > y,
+                IntCmpOp::Ge => x >= y,
+            }
+        } else {
+            match &self.cmp_op {
+                IntCmpOp::Eq => x == y,
+                IntCmpOp::Ne => x != y,
+                IntCmpOp::Lt => x < y,
+                IntCmpOp::Le => x <= y,
+                IntCmpOp::Gt => x > y,
+                IntCmpOp::Ge => x >= y,
+            }
+        };
+
+        let dst = if sm.sm() >= 70 {
+            let cmp = if self.ex && x == y { low_cmp } else { cmp };
+            match &self.set_op {
+                PredSetOp::And => cmp & accum,
+                PredSetOp::Or => cmp | accum,
+                PredSetOp::Xor => cmp ^ accum,
+            }
+        } else {
+            if self.ex && x == y {
+                match self.cmp_op {
+                    IntCmpOp::Eq | IntCmpOp::Gt | IntCmpOp::Ge => {
+                        match &self.set_op {
+                            PredSetOp::And => false,
+                            PredSetOp::Or => accum,
+                            PredSetOp::Xor => accum,
+                        }
+                    }
+                    IntCmpOp::Ne | IntCmpOp::Lt | IntCmpOp::Le => {
+                        match &self.set_op {
+                            PredSetOp::And => accum,
+                            PredSetOp::Or => true,
+                            PredSetOp::Xor => !accum,
+                        }
+                    }
+                }
+            } else {
+                match &self.set_op {
+                    PredSetOp::And => cmp & accum,
+                    PredSetOp::Or => cmp | accum,
+                    PredSetOp::Xor => cmp ^ accum,
+                }
+            }
+        };
+
+        f.set_pred_dst(self, &self.dst, dst);
+    }
 }
 
 impl DisplayOp for OpISetP {
