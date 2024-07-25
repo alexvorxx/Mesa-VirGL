@@ -646,10 +646,10 @@ dri3_bind_tex_image(__GLXDRIdrawable *base,
 
       XSync(gc->currentDpy, false);
 
-      psc->texBuffer->setTexBuffer2(gc->driContext,
-                                        pdraw->base.textureTarget,
-                                        pdraw->base.textureFormat,
-                                        pdraw->loader_drawable.dri_drawable);
+      dri_set_tex_buffer2(gc->driContext,
+                          pdraw->base.textureTarget,
+                          pdraw->base.textureFormat,
+                          pdraw->loader_drawable.dri_drawable);
    }
 }
 

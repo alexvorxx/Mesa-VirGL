@@ -813,15 +813,12 @@ dri2_bind_tex_image(__GLXDRIdrawable *base,
 {
    struct glx_context *gc = __glXGetCurrentContext();
    struct dri2_drawable *pdraw = (struct dri2_drawable *) base;
-   struct dri2_screen *psc;
 
    if (pdraw != NULL) {
-      psc = (struct dri2_screen *) base->psc;
-
-      psc->texBuffer->setTexBuffer2(gc->driContext,
-                                    pdraw->base.textureTarget,
-                                    pdraw->base.textureFormat,
-                                    pdraw->driDrawable);
+      dri_set_tex_buffer2(gc->driContext,
+                          pdraw->base.textureTarget,
+                          pdraw->base.textureFormat,
+                          pdraw->driDrawable);
    }
 }
 

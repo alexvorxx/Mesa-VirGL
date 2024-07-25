@@ -488,10 +488,10 @@ drisw_bind_tex_image(__GLXDRIdrawable *base,
       if (!psc->texBuffer)
          return;
 
-      psc->texBuffer->setTexBuffer2(gc->driContext,
-                                    pdraw->base.textureTarget,
-                                    pdraw->base.textureFormat,
-                                    pdraw->driDrawable);
+      dri_set_tex_buffer2(gc->driContext,
+                          pdraw->base.textureTarget,
+                          pdraw->base.textureFormat,
+                          pdraw->driDrawable);
    }
 }
 
