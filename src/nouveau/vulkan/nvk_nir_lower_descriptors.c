@@ -13,6 +13,7 @@
 #include "nir_deref.h"
 
 #include "clc397.h"
+#include "clc597.h"
 
 struct lower_desc_cbuf {
    struct nvk_cbuf key;
@@ -457,6 +458,14 @@ build_cbuf_map(nir_shader *nir, struct lower_descriptors_ctx *ctx)
       /* We can't support indirect cbufs in compute yet */
       if ((nir->info.stage == MESA_SHADER_COMPUTE ||
            nir->info.stage == MESA_SHADER_KERNEL) &&
+          cbufs[i].key.type == NVK_CBUF_TYPE_UBO_DESC)
+         continue;
+
+      /* Prior to Turing, indirect cbufs require splitting the pushbuf and
+       * pushing bits of the descriptor set.  Doing this every draw call is
+       * probably more overhead than it's worth.
+       */
+      if (ctx->dev_info->cls_eng3d < TURING_A &&
           cbufs[i].key.type == NVK_CBUF_TYPE_UBO_DESC)
          continue;
 
