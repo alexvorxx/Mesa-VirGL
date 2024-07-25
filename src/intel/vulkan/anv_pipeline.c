@@ -1208,7 +1208,8 @@ anv_pipeline_compile_vs(const struct brw_compiler *compiler,
                         void *mem_ctx,
                         struct anv_graphics_base_pipeline *pipeline,
                         struct anv_pipeline_stage *vs_stage,
-                        uint32_t view_mask)
+                        uint32_t view_mask,
+                        char **error_str)
 {
    /* When using Primitive Replication for multiview, each view gets its own
     * position slot.
@@ -1241,6 +1242,7 @@ anv_pipeline_compile_vs(const struct brw_compiler *compiler,
    };
 
    vs_stage->code = brw_compile_vs(compiler, &params);
+   *error_str = params.base.error_str;
 }
 
 static void
@@ -1311,7 +1313,8 @@ anv_pipeline_compile_tcs(const struct brw_compiler *compiler,
                          void *mem_ctx,
                          struct anv_device *device,
                          struct anv_pipeline_stage *tcs_stage,
-                         struct anv_pipeline_stage *prev_stage)
+                         struct anv_pipeline_stage *prev_stage,
+                         char **error_str)
 {
    tcs_stage->key.tcs.outputs_written =
       tcs_stage->nir->info.outputs_written;
@@ -1333,6 +1336,7 @@ anv_pipeline_compile_tcs(const struct brw_compiler *compiler,
    };
 
    tcs_stage->code = brw_compile_tcs(compiler, &params);
+   *error_str = params.base.error_str;
 }
 
 static void
@@ -1349,7 +1353,8 @@ anv_pipeline_compile_tes(const struct brw_compiler *compiler,
                          void *mem_ctx,
                          struct anv_device *device,
                          struct anv_pipeline_stage *tes_stage,
-                         struct anv_pipeline_stage *tcs_stage)
+                         struct anv_pipeline_stage *tcs_stage,
+                         char **error_str)
 {
    tes_stage->key.tes.inputs_read =
       tcs_stage->nir->info.outputs_written;
@@ -1372,6 +1377,7 @@ anv_pipeline_compile_tes(const struct brw_compiler *compiler,
    };
 
    tes_stage->code = brw_compile_tes(compiler, &params);
+   *error_str = params.base.error_str;
 }
 
 static void
@@ -1388,7 +1394,8 @@ anv_pipeline_compile_gs(const struct brw_compiler *compiler,
                         void *mem_ctx,
                         struct anv_device *device,
                         struct anv_pipeline_stage *gs_stage,
-                        struct anv_pipeline_stage *prev_stage)
+                        struct anv_pipeline_stage *prev_stage,
+                        char **error_str)
 {
    brw_compute_vue_map(compiler->devinfo,
                        &gs_stage->prog_data.gs.base.vue_map,
@@ -1410,6 +1417,7 @@ anv_pipeline_compile_gs(const struct brw_compiler *compiler,
    };
 
    gs_stage->code = brw_compile_gs(compiler, &params);
+   *error_str = params.base.error_str;
 }
 
 static void
@@ -1426,7 +1434,8 @@ static void
 anv_pipeline_compile_task(const struct brw_compiler *compiler,
                           void *mem_ctx,
                           struct anv_device *device,
-                          struct anv_pipeline_stage *task_stage)
+                          struct anv_pipeline_stage *task_stage,
+                          char **error_str)
 {
    task_stage->num_stats = 1;
 
@@ -1443,6 +1452,7 @@ anv_pipeline_compile_task(const struct brw_compiler *compiler,
    };
 
    task_stage->code = brw_compile_task(compiler, &params);
+   *error_str = params.base.error_str;
 }
 
 static void
@@ -1460,7 +1470,8 @@ anv_pipeline_compile_mesh(const struct brw_compiler *compiler,
                           void *mem_ctx,
                           struct anv_device *device,
                           struct anv_pipeline_stage *mesh_stage,
-                          struct anv_pipeline_stage *prev_stage)
+                          struct anv_pipeline_stage *prev_stage,
+                          char **error_str)
 {
    mesh_stage->num_stats = 1;
 
@@ -1482,6 +1493,7 @@ anv_pipeline_compile_mesh(const struct brw_compiler *compiler,
    }
 
    mesh_stage->code = brw_compile_mesh(compiler, &params);
+   *error_str = params.base.error_str;
 }
 
 static void
@@ -1556,7 +1568,8 @@ anv_pipeline_compile_fs(const struct brw_compiler *compiler,
                         struct anv_pipeline_stage *prev_stage,
                         struct anv_graphics_base_pipeline *pipeline,
                         uint32_t view_mask,
-                        bool use_primitive_replication)
+                        bool use_primitive_replication,
+                        char **error_str)
 {
    /* When using Primitive Replication for multiview, each view gets its own
     * position slot.
@@ -1602,6 +1615,7 @@ anv_pipeline_compile_fs(const struct brw_compiler *compiler,
    }
 
    fs_stage->code = brw_compile_fs(compiler, &params);
+   *error_str = params.base.error_str;
 
    fs_stage->num_stats = (uint32_t)!!fs_stage->prog_data.wm.dispatch_multi +
                          (uint32_t)fs_stage->prog_data.wm.dispatch_8 +
@@ -2453,44 +2467,48 @@ anv_graphics_pipeline_compile(struct anv_graphics_base_pipeline *pipeline,
       int64_t stage_start = os_time_get_nano();
 
       void *stage_ctx = ralloc_context(NULL);
+      char *error_str = NULL;
 
       switch (s) {
       case MESA_SHADER_VERTEX:
          anv_pipeline_compile_vs(compiler, stage_ctx, pipeline,
-                                 stage, view_mask);
+                                 stage, view_mask, &error_str);
          break;
       case MESA_SHADER_TESS_CTRL:
          anv_pipeline_compile_tcs(compiler, stage_ctx, device,
-                                  stage, prev_stage);
+                                  stage, prev_stage, &error_str);
          break;
       case MESA_SHADER_TESS_EVAL:
          anv_pipeline_compile_tes(compiler, stage_ctx, device,
-                                  stage, prev_stage);
+                                  stage, prev_stage, &error_str);
          break;
       case MESA_SHADER_GEOMETRY:
          anv_pipeline_compile_gs(compiler, stage_ctx, device,
-                                 stage, prev_stage);
+                                 stage, prev_stage, &error_str);
          break;
       case MESA_SHADER_TASK:
          anv_pipeline_compile_task(compiler, stage_ctx, device,
-                                   stage);
+                                   stage, &error_str);
          break;
       case MESA_SHADER_MESH:
          anv_pipeline_compile_mesh(compiler, stage_ctx, device,
-                                   stage, prev_stage);
+                                   stage, prev_stage, &error_str);
          break;
       case MESA_SHADER_FRAGMENT:
          anv_pipeline_compile_fs(compiler, stage_ctx, device,
                                  stage, prev_stage, pipeline,
-                                 view_mask,
-                                 use_primitive_replication);
+                                 view_mask, use_primitive_replication,
+                                 &error_str);
          break;
       default:
          unreachable("Invalid graphics shader stage");
       }
       if (stage->code == NULL) {
+         if (error_str)
+            result = vk_errorf(pipeline, VK_ERROR_UNKNOWN, "%s", error_str);
+         else
+            result = vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
          ralloc_free(stage_ctx);
-         result = vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
          goto fail;
       }
 
@@ -2679,8 +2697,15 @@ anv_pipeline_compile_cs(struct anv_compute_pipeline *pipeline,
 
       stage.code = brw_compile_cs(compiler, &params);
       if (stage.code == NULL) {
+         VkResult result;
+
+         if (params.base.error_str)
+            result = vk_errorf(pipeline, VK_ERROR_UNKNOWN, "%s", params.base.error_str);
+         else
+            result = vk_error(pipeline, VK_ERROR_OUT_OF_HOST_MEMORY);
+
          ralloc_free(mem_ctx);
-         return vk_error(pipeline, VK_ERROR_OUT_OF_HOST_MEMORY);
+         return result;
       }
 
       anv_nir_validate_push_layout(device->physical, &stage.prog_data.base,
@@ -3375,8 +3400,16 @@ compile_upload_rt_shader(struct anv_ray_tracing_pipeline *pipeline,
    };
 
    stage->code = brw_compile_bs(compiler, &params);
-   if (stage->code == NULL)
-      return vk_error(pipeline, VK_ERROR_OUT_OF_HOST_MEMORY);
+   if (stage->code == NULL) {
+      VkResult result;
+
+      if (params.base.error_str)
+         result = vk_errorf(pipeline, VK_ERROR_UNKNOWN, "%s", params.base.error_str);
+      else
+         result = vk_error(pipeline, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+      return result;
+   }
 
    struct anv_shader_upload_params upload_params = {
       .stage               = stage->stage,
