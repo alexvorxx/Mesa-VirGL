@@ -1122,10 +1122,25 @@ impl SM50Op for OpIAdd2 {
         use RegFile::GPR;
         let [src0, src1] = &mut self.srcs;
         swap_srcs_if_not_reg(src0, src1, GPR);
+        if src0.src_mod.is_ineg() && src1.src_mod.is_ineg() {
+            let val = b.alloc_ssa(GPR, 1);
+            b.push_op(OpIAdd2 {
+                dst: val.into(),
+                carry_out: Dst::None,
+                srcs: [Src::new_zero(), *src0],
+            });
+            *src0 = val.into();
+        }
         b.copy_alu_src_if_not_reg(src0, GPR, SrcType::I32);
     }
 
     fn encode(&self, e: &mut SM50Encoder<'_>) {
+        // Hardware requires at least one of these be unmodified.  Otherwise, it
+        // encodes as iadd.po which isn't what we want.
+        assert!(
+            self.srcs[0].src_mod.is_none() || self.srcs[1].src_mod.is_none()
+        );
+
         let carry_out = match self.carry_out {
             Dst::Reg(reg) if reg.file() == RegFile::Carry => true,
             Dst::None => false,
