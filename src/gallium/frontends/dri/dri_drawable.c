@@ -312,7 +312,6 @@ const __DRItexBufferExtension driTexBufferExtension = {
 
    .setTexBuffer       = dri_set_tex_buffer,
    .setTexBuffer2      = dri_set_tex_buffer2,
-   .releaseTexBuffer   = NULL,
 };
 
 /**

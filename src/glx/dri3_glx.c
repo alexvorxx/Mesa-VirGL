@@ -653,24 +653,6 @@ dri3_bind_tex_image(__GLXDRIdrawable *base,
    }
 }
 
-static void
-dri3_release_tex_image(__GLXDRIdrawable *base, int buffer)
-{
-   struct glx_context *gc = __glXGetCurrentContext();
-   struct dri3_drawable *pdraw = (struct dri3_drawable *) base;
-   struct dri3_screen *psc;
-
-   if (pdraw != NULL) {
-      psc = (struct dri3_screen *) base->psc;
-
-      if (psc->texBuffer->base.version >= 3 &&
-          psc->texBuffer->releaseTexBuffer != NULL)
-         psc->texBuffer->releaseTexBuffer(gc->driContext,
-                                              pdraw->base.textureTarget,
-                                              pdraw->loader_drawable.dri_drawable);
-   }
-}
-
 static const struct glx_context_vtable dri3_context_vtable = {
    .destroy             = dri3_destroy_context,
    .bind                = dri3_bind_context,
@@ -935,7 +917,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    psp->setSwapInterval = dri3_set_swap_interval;
    psp->getSwapInterval = dri3_get_swap_interval;
    psp->bindTexImage = dri3_bind_tex_image;
-   psp->releaseTexImage = dri3_release_tex_image;
    psp->maxSwapInterval = INT_MAX;
 
    __glXEnableDirectExtension(&psc->base, "GLX_OML_sync_control");

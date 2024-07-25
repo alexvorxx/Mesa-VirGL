@@ -2055,31 +2055,10 @@ static EGLBoolean
 dri2_release_tex_image(_EGLDisplay *disp, _EGLSurface *surf, EGLint buffer)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
-   struct dri2_egl_context *dri2_ctx;
-   _EGLContext *ctx;
-   GLint target;
-   __DRIdrawable *dri_drawable = dri2_dpy->vtbl->get_dri_drawable(surf);
-
-   ctx = _eglGetCurrentContext();
-   dri2_ctx = dri2_egl_context(ctx);
 
    if (!_eglReleaseTexImage(disp, surf, buffer)) {
       mtx_unlock(&dri2_dpy->lock);
       return EGL_FALSE;
-   }
-
-   switch (surf->TextureTarget) {
-   case EGL_TEXTURE_2D:
-      target = GL_TEXTURE_2D;
-      break;
-   default:
-      assert(!"missing texture target");
-   }
-
-   if (dri2_dpy->tex_buffer->base.version >= 3 &&
-       dri2_dpy->tex_buffer->releaseTexBuffer != NULL) {
-      dri2_dpy->tex_buffer->releaseTexBuffer(dri2_ctx->dri_context, target,
-                                             dri_drawable);
    }
 
    mtx_unlock(&dri2_dpy->lock);

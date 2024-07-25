@@ -2167,10 +2167,6 @@ glXReleaseTexImageEXT(Display * dpy, GLXDrawable drawable, int buffer)
 #ifdef GLX_DIRECT_RENDERING
    __GLXDRIdrawable *pdraw = GetGLXDRIDrawable(dpy, drawable);
    if (pdraw != NULL) {
-      struct glx_screen *psc = pdraw->psc;
-      if (psc->driScreen->releaseTexImage != NULL)
-         psc->driScreen->releaseTexImage(pdraw, buffer);
-
       return;
    }
 #endif

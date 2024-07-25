@@ -503,28 +503,6 @@ drisw_bind_tex_image(__GLXDRIdrawable *base,
    }
 }
 
-static void
-drisw_release_tex_image(__GLXDRIdrawable *base, int buffer)
-{
-   struct glx_context *gc = __glXGetCurrentContext();
-   struct drisw_drawable *pdraw = (struct drisw_drawable *) base;
-   struct drisw_screen *psc;
-
-   if (pdraw != NULL) {
-      psc = (struct drisw_screen *) base->psc;
-
-      if (!psc->texBuffer)
-         return;
-
-      if (psc->texBuffer->base.version >= 3 &&
-          psc->texBuffer->releaseTexBuffer != NULL) {
-         psc->texBuffer->releaseTexBuffer(gc->driContext,
-                                          pdraw->base.textureTarget,
-                                          pdraw->driDrawable);
-      }
-   }
-}
-
 static int
 kopper_get_buffer_age(__GLXDRIdrawable *pdraw)
 {
@@ -994,7 +972,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    psp->createDrawable = driswCreateDrawable;
    psp->swapBuffers = driswSwapBuffers;
    psp->bindTexImage = drisw_bind_tex_image;
-   psp->releaseTexImage = drisw_release_tex_image;
 
    if (!glx_driver)
       psp->copySubBuffer = drisw_copy_sub_buffer;

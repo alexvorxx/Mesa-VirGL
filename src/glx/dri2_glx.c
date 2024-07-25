@@ -833,25 +833,6 @@ dri2_bind_tex_image(__GLXDRIdrawable *base,
    }
 }
 
-static void
-dri2_release_tex_image(__GLXDRIdrawable *base, int buffer)
-{
-   struct glx_context *gc = __glXGetCurrentContext();
-   struct dri2_drawable *pdraw = (struct dri2_drawable *) base;
-   struct dri2_screen *psc;
-
-   if (pdraw != NULL) {
-      psc = (struct dri2_screen *) base->psc;
-
-      if (psc->texBuffer->base.version >= 3 &&
-          psc->texBuffer->releaseTexBuffer != NULL) {
-         psc->texBuffer->releaseTexBuffer(gc->driContext,
-                                           pdraw->base.textureTarget,
-                                           pdraw->driDrawable);
-      }
-   }
-}
-
 static const struct glx_context_vtable dri2_context_vtable = {
    .destroy             = dri2_destroy_context,
    .bind                = dri2_bind_context,
@@ -1060,7 +1041,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psp->getSwapInterval = NULL;
    psp->getBufferAge = NULL;
    psp->bindTexImage = dri2_bind_tex_image;
-   psp->releaseTexImage = dri2_release_tex_image;
 
    psp->getDrawableMSC = dri2DrawableGetMSC;
    psp->waitForMSC = dri2WaitForMSC;

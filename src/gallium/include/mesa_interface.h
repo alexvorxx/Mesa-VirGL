@@ -188,20 +188,6 @@ struct __DRItexBufferExtensionRec {
 			  int target,
 			  int format,
 			  __DRIdrawable *pDraw);
-    /**
-     * Called from glXReleaseTexImageEXT().
-     *
-     * This was used by i965 in 24952160fde9 ("i965: Use finish_external instead
-     * of make_shareable in setTexBuffer2") to note when the user mis-used the
-     * interface in a way that would produce rendering bugs, and try to recover
-     * from them.  This has only ever been used from inside the Mesa tree and
-     * was never used by the X server.
-     *
-     * \since 3
-     */
-    void (*releaseTexBuffer)(__DRIcontext *pDRICtx,
-			int target,
-			__DRIdrawable *pDraw);
 };
 
 /**
