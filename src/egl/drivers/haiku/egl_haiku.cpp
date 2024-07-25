@@ -49,6 +49,8 @@
 #include "hgl/hgl_sw_winsys.h"
 #include "hgl_context.h"
 
+#include <Bitmap.h>
+
 extern "C" {
 #include "target-helpers/inline_sw_helper.h"
 }
@@ -238,6 +240,8 @@ haiku_swap_buffers(_EGLDisplay *disp, _EGLSurface *surf)
    // XXX: right front / back if HGL_STEREO?
 
    update_size(buffer);
+
+   st_context_invalidate_state(st, ST_INVALIDATE_FB_STATE);
 
    return EGL_TRUE;
 }
