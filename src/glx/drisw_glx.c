@@ -633,14 +633,14 @@ drisw_create_context_attribs(struct glx_screen *base,
    pcp->renderType = dca.render_type;
 
    pcp->driContext =
-      psc->swrast->createContextAttribs(psc->driScreen,
-                                        dca.api,
-                                        config ? config->driConfig : NULL,
-                                        shared,
-                                        num_ctx_attribs / 2,
-                                        ctx_attribs,
-                                        error,
-                                        pcp);
+      driCreateContextAttribs(psc->driScreen,
+                              dca.api,
+                              config ? config->driConfig : NULL,
+                              shared,
+                              num_ctx_attribs / 2,
+                              ctx_attribs,
+                              error,
+                              pcp);
    *error = dri_context_error_to_glx_error(*error);
 
    if (pcp->driContext == NULL) {
@@ -673,7 +673,6 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
    __GLXDRIconfigPrivate *config = (__GLXDRIconfigPrivate *) modes;
    unsigned depth;
    struct drisw_screen *psc = (struct drisw_screen *) base;
-   const __DRIswrastExtension *swrast = psc->swrast;
    const __DRIkopperExtension *kopper = psc->kopper;
    Display *dpy = psc->base.dpy;
 
@@ -733,7 +732,7 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
    }
    else
       pdp->driDrawable =
-         swrast->createNewDrawable(psc->driScreen, config->driConfig, pdp);
+         driCreateNewDrawable(psc->driScreen, config->driConfig, pdp);
 
    if (!pdp->driDrawable) {
       XDestroyDrawable(pdp, psc->base.dpy, xDrawable);
@@ -962,7 +961,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       loader_extensions_local = loader_extensions_shm;
 
    static const struct dri_extension_match exts[] = {
-       { __DRI_SWRAST, 5, offsetof(struct drisw_screen, swrast), false },
        { __DRI_KOPPER, 1, offsetof(struct drisw_screen, kopper), true },
        { __DRI_COPY_SUB_BUFFER, 1, offsetof(struct drisw_screen, copySubBuffer), true },
    };
