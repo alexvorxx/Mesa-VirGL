@@ -2624,31 +2624,26 @@ nvk_CmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(nvk_buffer, buffer, _buffer);
+   struct nvk_addr_range addr_range =
+      nvk_buffer_addr_range(buffer, offset, size);
 
    struct nv_push *p = nvk_cmd_buffer_push(cmd, 10);
-
-   uint64_t addr, range;
-   if (buffer != NULL && size > 0) {
-      addr = nvk_buffer_address(buffer, offset);
-      range = vk_buffer_range(&buffer->vk, offset, size);
-   } else {
-      range = addr = 0;
-   }
 
    P_IMMD(p, NV9097, SET_DA_PRIMITIVE_RESTART_INDEX,
           vk_index_to_restart(indexType));
 
    P_MTHD(p, NV9097, SET_INDEX_BUFFER_A);
-   P_NV9097_SET_INDEX_BUFFER_A(p, addr >> 32);
-   P_NV9097_SET_INDEX_BUFFER_B(p, addr);
+   P_NV9097_SET_INDEX_BUFFER_A(p, addr_range.addr >> 32);
+   P_NV9097_SET_INDEX_BUFFER_B(p, addr_range.addr);
 
    if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
       P_MTHD(p, NVC597, SET_INDEX_BUFFER_SIZE_A);
-      P_NVC597_SET_INDEX_BUFFER_SIZE_A(p, range >> 32);
-      P_NVC597_SET_INDEX_BUFFER_SIZE_B(p, range);
+      P_NVC597_SET_INDEX_BUFFER_SIZE_A(p, addr_range.range >> 32);
+      P_NVC597_SET_INDEX_BUFFER_SIZE_B(p, addr_range.range);
    } else {
       /* TODO: What about robust zero-size buffers? */
-      const uint64_t limit = range > 0 ? addr + range - 1 : 0;
+      const uint64_t limit = addr_range.range > 0 ?
+         addr_range.addr + addr_range.range - 1 : 0;
       P_MTHD(p, NV9097, SET_INDEX_BUFFER_C);
       P_NV9097_SET_INDEX_BUFFER_C(p, limit >> 32);
       P_NV9097_SET_INDEX_BUFFER_D(p, limit);
