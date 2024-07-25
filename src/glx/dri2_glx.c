@@ -445,14 +445,13 @@ dri2Flush(struct dri2_screen *psc,
           unsigned flags,
           enum __DRI2throttleReason throttle_reason)
 {
-   if (ctx && psc->f && psc->f->base.version >= 4) {
-      psc->f->flush_with_flags(ctx, draw->driDrawable, flags, throttle_reason);
+   if (ctx) {
+      dri_flush(ctx, draw->driDrawable, flags, throttle_reason);
    } else {
       if (flags & __DRI2_FLUSH_CONTEXT)
          glFlush();
 
-      if (psc->f)
-         psc->f->flush(draw->driDrawable);
+      dri_flush_drawable(draw->driDrawable);
 
       dri2Throttle(psc, draw, throttle_reason);
    }
@@ -519,8 +518,7 @@ dri2_copy_drawable(struct dri2_drawable *priv, int dest, int src)
    xrect.width = priv->width;
    xrect.height = priv->height;
 
-   if (psc->f)
-      psc->f->flush(priv->driDrawable);
+   dri_flush_drawable(priv->driDrawable);
 
    region = XFixesCreateRegion(psc->base.dpy, &xrect, 1);
    DRI2CopyRegion(psc->base.dpy, priv->base.xDrawable, region, dest, src);
@@ -795,16 +793,12 @@ dri2InvalidateBuffers(Display *dpy, XID drawable)
 {
    __GLXDRIdrawable *pdraw =
       dri2GetGlxDrawableFromXDrawableId(dpy, drawable);
-   struct dri2_screen *psc;
    struct dri2_drawable *pdp = (struct dri2_drawable *) pdraw;
 
    if (!pdraw)
       return;
 
-   psc = (struct dri2_screen *) pdraw->psc;
-
-   if (psc->f && psc->f->base.version >= 3 && psc->f->invalidate)
-       psc->f->invalidate(pdp->driDrawable);
+   dri_invalidate_drawable(pdp->driDrawable);
 }
 
 static void
@@ -878,7 +872,6 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
    }
 
    static const struct dri_extension_match exts[] = {
-       { __DRI2_FLUSH, 1, offsetof(struct dri2_screen, f), true },
        { __DRI2_CONFIG_QUERY, 1, offsetof(struct dri2_screen, config), true },
        { __DRI2_THROTTLE, 1, offsetof(struct dri2_screen, throttle), true },
        { __DRI2_INTEROP, 1, offsetof(struct dri2_screen, interop), true },

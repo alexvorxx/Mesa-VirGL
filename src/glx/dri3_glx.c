@@ -160,7 +160,6 @@ dri3_destroy_context(struct glx_context *context)
 static Bool
 dri3_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read)
 {
-   struct dri3_screen *psc = (struct dri3_screen *) context->psc;
    struct dri3_drawable *pdraw, *pread;
    __DRIdrawable *dri_draw = NULL, *dri_read = NULL;
 
@@ -183,9 +182,9 @@ dri3_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable rea
       return GLXBadContext;
 
    if (dri_draw)
-      psc->f->invalidate(dri_draw);
+      dri_invalidate_drawable(dri_draw);
    if (dri_read && dri_read != dri_draw)
-      psc->f->invalidate(dri_read);
+      dri_invalidate_drawable(dri_read);
 
    return Success;
 }
@@ -475,7 +474,7 @@ dri3_flush_front_buffer(__DRIdrawable *driDrawable, void *loaderPrivate)
 
    loader_dri3_flush(draw, __DRI2_FLUSH_DRAWABLE, __DRI2_THROTTLE_FLUSHFRONT);
 
-   psc->f->invalidate(driDrawable);
+   dri_invalidate_drawable(driDrawable);
    loader_dri3_wait_gl(draw);
 }
 
@@ -637,12 +636,9 @@ dri3_bind_tex_image(__GLXDRIdrawable *base,
 {
    struct glx_context *gc = __glXGetCurrentContext();
    struct dri3_drawable *pdraw = (struct dri3_drawable *) base;
-   struct dri3_screen *psc;
 
    if (pdraw != NULL) {
-      psc = (struct dri3_screen *) base->psc;
-
-      psc->f->invalidate(pdraw->loader_drawable.dri_drawable);
+      dri_invalidate_drawable(pdraw->loader_drawable.dri_drawable);
 
       XSync(gc->currentDpy, false);
 
@@ -702,7 +698,6 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
    }
 
    static const struct dri_extension_match exts[] = {
-       { __DRI2_FLUSH, 1, offsetof(struct dri3_screen, f), true },
        { __DRI_IMAGE, 1, offsetof(struct dri3_screen, image), true },
        { __DRI2_INTEROP, 1, offsetof(struct dri3_screen, interop), true },
        { __DRI2_CONFIG_QUERY, 1, offsetof(struct dri3_screen, config), true },
@@ -852,11 +847,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       goto handle_error;
    }
 
-   if (!psc->f || psc->f->base.version < 4) {
-      ErrorMessageF("Version 4 or later of flush extension not found\n");
-      goto handle_error;
-   }
-
    if (psc->fd_render_gpu != psc->fd_display_gpu && psc->image->base.version < 9) {
       ErrorMessageF("Different GPU, but image extension version 9 or later not found\n");
       goto handle_error;
@@ -867,7 +857,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       goto handle_error;
    }
 
-   psc->loader_dri3_ext.flush = psc->f;
    psc->loader_dri3_ext.image = psc->image;
    psc->loader_dri3_ext.config = psc->config;
 

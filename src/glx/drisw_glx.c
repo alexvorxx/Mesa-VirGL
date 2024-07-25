@@ -446,11 +446,11 @@ drisw_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable re
                                pdraw ? pdraw->driDrawable : NULL,
                                pread ? pread->driDrawable : NULL))
       return GLXBadContext;
-   if (psc->f) {
+   if (psc->kopper) {
       if (pdraw)
-         psc->f->invalidate(pdraw->driDrawable);
+         dri_invalidate_drawable(pdraw->driDrawable);
       if (pread && (!pdraw || pread->driDrawable != pdraw->driDrawable))
-         psc->f->invalidate(pread->driDrawable);
+         dri_invalidate_drawable(pread->driDrawable);
    }
 
    return Success;
@@ -795,7 +795,6 @@ driswBindExtensions(struct drisw_screen *psc, const __DRIextension **extensions)
 
    /* FIXME: Figure out what other extensions can be ported here from dri2. */
    static const struct dri_extension_match exts[] = {
-       { __DRI2_FLUSH, 1, offsetof(struct drisw_screen, f), true },
        { __DRI2_CONFIG_QUERY, 1, offsetof(struct drisw_screen, config), true },
    };
    loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions);
