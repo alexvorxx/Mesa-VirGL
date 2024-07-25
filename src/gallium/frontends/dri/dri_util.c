@@ -173,17 +173,6 @@ driCreateNewScreen3(int scrn, int fd,
     return opaque_dri_screen(screen);
 }
 
-__DRIscreen *
-driCreateNewScreen2(int scrn, int fd,
-                    const __DRIextension **loader_extensions,
-                    const __DRIextension **driver_extensions,
-                    const __DRIconfig ***driver_configs, void *data)
-{
-   return driCreateNewScreen3(scrn, fd, loader_extensions,
-                              driver_extensions,
-                              driver_configs, false, data);
-}
-
 static __DRIscreen *
 dri2CreateNewScreen(int scrn, int fd,
                     const __DRIextension **extensions,
@@ -928,7 +917,6 @@ const __DRIdri2Extension driDRI2Extension = {
     .allocateBuffer             = dri2AllocateBuffer,
     .releaseBuffer              = dri2ReleaseBuffer,
     .createContextAttribs       = driCreateContextAttribs,
-    .createNewScreen2           = driCreateNewScreen2,
     .createNewScreen3           = driCreateNewScreen3,
 };
 
@@ -943,7 +931,6 @@ const __DRIdri2Extension swkmsDRI2Extension = {
     .allocateBuffer             = dri2AllocateBuffer,
     .releaseBuffer              = dri2ReleaseBuffer,
     .createContextAttribs       = driCreateContextAttribs,
-    .createNewScreen2           = driCreateNewScreen2,
     .createNewScreen3           = driCreateNewScreen3,
 };
 
@@ -1114,7 +1101,6 @@ driImageFormatToSizedInternalGLFormat(uint32_t image_format)
 const __DRIimageDriverExtension driImageDriverExtension = {
     .base = { __DRI_IMAGE_DRIVER, 2 },
 
-    .createNewScreen2           = driCreateNewScreen2,
     .createNewDrawable          = driCreateNewDrawable,
     .getAPIMask                 = driGetAPIMask,
     .createContextAttribs       = driCreateContextAttribs,
