@@ -145,7 +145,3 @@ libgl = shared_library(
   darwin_versions : '4.0.0',
   install : true,
 )
-
-if with_tests
-  subdir('tests')
-endif
