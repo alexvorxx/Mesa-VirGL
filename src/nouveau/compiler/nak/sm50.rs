@@ -1457,7 +1457,6 @@ impl SM50Op for OpLop2 {
             e.set_dst(self.dst);
             e.set_reg_bnot_src(8..16, 55, self.srcs[0]);
             e.set_src_imm32(20..52, imm32);
-            e.set_bit(43, false); // .X
             e.set_field(
                 53..55,
                 match self.op {
