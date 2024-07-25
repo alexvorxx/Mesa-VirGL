@@ -6,6 +6,7 @@
 #define NVK_MME_H 1
 
 #include "mme_builder.h"
+#include "nvk_private.h"
 
 struct nv_device_info;
 
@@ -27,6 +28,9 @@ enum nvk_mme {
    NVK_MME_SET_PRIV_REG,
    NVK_MME_SET_WRITE_MASK,
    NVK_MME_SET_CONSERVATIVE_RASTER_STATE,
+   NVK_MME_SET_VIEWPORT_MIN_MAX_Z,
+   NVK_MME_SET_Z_CLAMP,
+
    NVK_MME_COUNT,
 };
 
@@ -51,9 +55,16 @@ enum nvk_mme_scratch {
    NVK_MME_SCRATCH_CB0_DRAW_INDEX,
    NVK_MME_SCRATCH_CB0_VIEW_INDEX,
 
+   NVK_MME_SCRATCH_VIEWPORT0_MIN_Z,
+   NVK_MME_SCRATCH_VIEWPORT0_MAX_Z,
+   NVK_MME_SCRATCH_Z_CLAMP = NVK_MME_SCRATCH_VIEWPORT0_MIN_Z
+                             + (NVK_MAX_VIEWPORTS * 2),
+
    /* Must be at the end */
    NVK_MME_NUM_SCRATCH,
 };
+
+#define NVK_SET_MME_SCRATCH(S) (0x3400 + (NVK_MME_SCRATCH_##S) * 4)
 
 static inline void
 _nvk_mme_load_scratch_to(struct mme_builder *b, struct mme_value val,
@@ -140,5 +151,7 @@ void nvk_mme_xfb_draw_indirect(struct mme_builder *b);
 void nvk_mme_set_priv_reg(struct mme_builder *b);
 void nvk_mme_set_write_mask(struct mme_builder *b);
 void nvk_mme_set_conservative_raster_state(struct mme_builder *b);
+void nvk_mme_set_viewport_min_max_z(struct mme_builder *b);
+void nvk_mme_set_z_clamp(struct mme_builder *b);
 
 #endif /* NVK_MME_H */

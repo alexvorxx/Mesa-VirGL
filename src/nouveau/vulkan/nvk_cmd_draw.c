@@ -1506,7 +1506,7 @@ nvk_flush_vp_state(struct nvk_cmd_buffer *cmd)
       &cmd->vk.dynamic_graphics_state;
 
    struct nv_push *p =
-      nvk_cmd_buffer_push(cmd, 16 * dyn->vp.viewport_count + 4 * NVK_MAX_VIEWPORTS);
+      nvk_cmd_buffer_push(cmd, 18 * dyn->vp.viewport_count + 4 * NVK_MAX_VIEWPORTS);
 
    /* Nothing to do for MESA_VK_DYNAMIC_VP_VIEWPORT_COUNT */
 
@@ -1562,8 +1562,16 @@ nvk_flush_vp_state(struct nvk_cmd_buffer *cmd)
             .y0      = ymin,
             .height  = ymax - ymin,
          });
-         P_NV9097_SET_VIEWPORT_CLIP_MIN_Z(p, i, fui(zmin));
-         P_NV9097_SET_VIEWPORT_CLIP_MAX_Z(p, i, fui(zmax));
+
+         if (nvk_cmd_buffer_3d_cls(cmd) >= VOLTA_A) {
+            P_NV9097_SET_VIEWPORT_CLIP_MIN_Z(p, i, fui(zmin));
+            P_NV9097_SET_VIEWPORT_CLIP_MAX_Z(p, i, fui(zmax));
+         } else {
+            P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_VIEWPORT_MIN_MAX_Z));
+            P_INLINE_DATA(p, i);
+            P_INLINE_DATA(p, fui(zmin));
+            P_INLINE_DATA(p, fui(zmax));
+         }
 
          if (nvk_cmd_buffer_3d_cls(cmd) >= MAXWELL_B) {
             P_IMMD(p, NVB197, SET_VIEWPORT_COORDINATE_SWIZZLE(i), {
@@ -1667,10 +1675,76 @@ vk_to_nv9097_provoking_vertex(VkProvokingVertexModeEXT vk_mode)
    return vk_mode;
 }
 
+void
+nvk_mme_set_viewport_min_max_z(struct mme_builder *b)
+{
+   struct mme_value vp_idx = mme_load(b);
+   struct mme_value min_z = mme_load(b);
+   struct mme_value max_z = mme_load(b);
+
+   /* Multiply by 2 because it's an array with stride 8 */
+   mme_sll_to(b, vp_idx, vp_idx, mme_imm(1));
+   mme_mthd_arr(b, NVK_SET_MME_SCRATCH(VIEWPORT0_MIN_Z), vp_idx);
+   mme_emit(b, min_z);
+   mme_emit(b, max_z);
+
+   struct mme_value z_clamp = nvk_mme_load_scratch(b, Z_CLAMP);
+   mme_if(b, ine, z_clamp, mme_zero()) {
+      /* Multiply by 2 again because this array has stride 16 */
+      mme_sll_to(b, vp_idx, vp_idx, mme_imm(1));
+      mme_mthd_arr(b, NV9097_SET_VIEWPORT_CLIP_MIN_Z(0), vp_idx);
+      mme_emit(b, min_z);
+      mme_emit(b, max_z);
+   }
+}
+
+void
+nvk_mme_set_z_clamp(struct mme_builder *b)
+{
+   struct mme_value z_clamp = mme_load(b);
+   struct mme_value old_z_clamp = nvk_mme_load_scratch(b, Z_CLAMP);
+   mme_if(b, ine, z_clamp, old_z_clamp) {
+      nvk_mme_store_scratch(b, Z_CLAMP, z_clamp);
+
+      mme_if(b, ine, z_clamp, mme_zero()) {
+         struct mme_value i_2 = mme_mov(b, mme_zero());
+         mme_while(b, ine, i_2, mme_imm(NVK_MAX_VIEWPORTS * 2)) {
+            struct mme_value min_z =
+               mme_state_arr(b, NVK_SET_MME_SCRATCH(VIEWPORT0_MIN_Z), i_2);
+            struct mme_value max_z =
+               mme_state_arr(b, NVK_SET_MME_SCRATCH(VIEWPORT0_MAX_Z), i_2);
+
+            struct mme_value i_4 = mme_sll(b, i_2, mme_imm(1));
+            mme_mthd_arr(b, NV9097_SET_VIEWPORT_CLIP_MIN_Z(0), i_4);
+            mme_emit(b, min_z);
+            mme_emit(b, max_z);
+
+            mme_free_reg(b, i_4);
+            mme_free_reg(b, min_z);
+            mme_free_reg(b, max_z);
+
+            mme_add_to(b, i_2, i_2, mme_imm(2));
+         }
+         mme_free_reg(b, i_2);
+      }
+      mme_if(b, ieq, z_clamp, mme_zero()) {
+         struct mme_value i_4 = mme_mov(b, mme_zero());
+         mme_while(b, ine, i_4, mme_imm(NVK_MAX_VIEWPORTS * 4)) {
+            mme_mthd_arr(b, NV9097_SET_VIEWPORT_CLIP_MIN_Z(0), i_4);
+            mme_emit(b, mme_imm(fui(-INFINITY)));
+            mme_emit(b, mme_imm(fui(INFINITY)));
+
+            mme_add_to(b, i_4, i_4, mme_imm(4));
+         }
+         mme_free_reg(b, i_4);
+      }
+   }
+}
+
 static void
 nvk_flush_rs_state(struct nvk_cmd_buffer *cmd)
 {
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 44);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 46);
 
    const struct vk_dynamic_graphics_state *dyn =
       &cmd->vk.dynamic_graphics_state;
@@ -1685,12 +1759,6 @@ nvk_flush_rs_state(struct nvk_cmd_buffer *cmd)
       P_IMMD(p, NVC397, SET_VIEWPORT_CLIP_CONTROL, {
          /* We only set Z clip range if clamp is requested.  Otherwise, we
           * leave it set to -/+INF and clamp using the guardband below.
-          *
-          * TODO: Fix pre-Volta
-          *
-          * This probably involves a few macros, one which stases viewport
-          * min/maxDepth in scratch states and one which goes here and
-          * emits either min/maxDepth or -/+INF as needed.
           */
          .min_z_zero_max_z_one = MIN_Z_ZERO_MAX_Z_ONE_FALSE,
          .z_clip_range = nvk_cmd_buffer_3d_cls(cmd) >= VOLTA_A
@@ -1725,6 +1793,17 @@ nvk_flush_rs_state(struct nvk_cmd_buffer *cmd)
          .geometry_guardband_z = z_clip ? GEOMETRY_GUARDBAND_Z_SCALE_1
                                         : GEOMETRY_GUARDBAND_Z_SCALE_256,
       });
+
+      /* Pre-Volta, we don't have SET_VIEWPORT_CLIP_CONTROL::z_clip_range.
+       * Instead, we have to emulate it by smashing VIEWPORT_CLIP_MIN/MAX_Z
+       * based on whether or not z_clamp is set. This is done by a pair of
+       * macros, one of which is called here and the other is called in
+       * viewport setup.
+       */
+      if (nvk_cmd_buffer_3d_cls(cmd) < VOLTA_A) {
+         P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_Z_CLAMP));
+         P_INLINE_DATA(p, z_clamp);
+      }
    }
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_POLYGON_MODE)) {

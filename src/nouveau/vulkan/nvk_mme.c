@@ -24,6 +24,8 @@ static const nvk_mme_builder_func mme_builders[NVK_MME_COUNT] = {
    [NVK_MME_SET_PRIV_REG]                  = nvk_mme_set_priv_reg,
    [NVK_MME_SET_WRITE_MASK]                = nvk_mme_set_write_mask,
    [NVK_MME_SET_CONSERVATIVE_RASTER_STATE] = nvk_mme_set_conservative_raster_state,
+   [NVK_MME_SET_VIEWPORT_MIN_MAX_Z]        = nvk_mme_set_viewport_min_max_z,
+   [NVK_MME_SET_Z_CLAMP]                   = nvk_mme_set_z_clamp,
 };
 
 uint32_t *

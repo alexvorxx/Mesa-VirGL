@@ -479,7 +479,7 @@ nvk_get_device_features(const struct nv_device_info *info,
       .depthBiasExact = true,
 
       /* VK_EXT_depth_clip_control */
-      .depthClipControl = info->cls_eng3d >= VOLTA_A,
+      .depthClipControl = true,
 
       /* VK_EXT_depth_clip_enable */
       .depthClipEnable = true,
