@@ -115,6 +115,9 @@ haiku_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
       return NULL;
    }
 
+   // Unset and delete previously set bitmap if any.
+   delete ((BitmapHook *)native_window)->SetBitmap(NULL);
+
    return &wgl_surf->base;
 }
 
@@ -168,6 +171,13 @@ haiku_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
       struct haiku_egl_surface *hgl_surf = haiku_egl_surface(surf);
       struct pipe_screen *screen = hgl_dpy->disp->fscreen->screen;
       screen->fence_reference(screen, &hgl_surf->throttle_fence, NULL);
+
+      // Unset bitmap to release ownership. Bitmap will be deleted later
+      // when destroying framebuffer.
+      BitmapHook *bitmapHook = (BitmapHook*)hgl_surf->fb->winsysContext;
+      if (bitmapHook != NULL)
+         bitmapHook->SetBitmap(NULL);
+
       hgl_destroy_st_framebuffer(hgl_surf->fb);
       free(surf);
    }
