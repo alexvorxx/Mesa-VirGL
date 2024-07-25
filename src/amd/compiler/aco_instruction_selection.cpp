@@ -4166,84 +4166,6 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
       bld.vopc(op, Definition(dst), Operand::c32(0), res);
       break;
    }
-   case nir_op_fddx:
-   case nir_op_fddy:
-   case nir_op_fddx_fine:
-   case nir_op_fddy_fine:
-   case nir_op_fddx_coarse:
-   case nir_op_fddy_coarse: {
-      uint16_t dpp_ctrl1, dpp_ctrl2;
-      if (instr->op == nir_op_fddx_fine) {
-         dpp_ctrl1 = dpp_quad_perm(0, 0, 2, 2);
-         dpp_ctrl2 = dpp_quad_perm(1, 1, 3, 3);
-      } else if (instr->op == nir_op_fddy_fine) {
-         dpp_ctrl1 = dpp_quad_perm(0, 1, 0, 1);
-         dpp_ctrl2 = dpp_quad_perm(2, 3, 2, 3);
-      } else {
-         dpp_ctrl1 = dpp_quad_perm(0, 0, 0, 0);
-         if (instr->op == nir_op_fddx || instr->op == nir_op_fddx_coarse)
-            dpp_ctrl2 = dpp_quad_perm(1, 1, 1, 1);
-         else
-            dpp_ctrl2 = dpp_quad_perm(2, 2, 2, 2);
-      }
-
-      if (dst.regClass() == v1 && instr->def.bit_size == 16) {
-         assert(instr->def.num_components == 2);
-
-         Temp src = as_vgpr(ctx, get_alu_src_vop3p(ctx, instr->src[0]));
-
-         /* swizzle to opsel: all swizzles are either 0 (x) or 1 (y) */
-         unsigned opsel_lo = instr->src[0].swizzle[0] & 1;
-         unsigned opsel_hi = instr->src[0].swizzle[1] & 1;
-         opsel_lo |= opsel_lo << 1;
-         opsel_hi |= opsel_hi << 1;
-
-         Temp tl = src;
-         if (nir_src_is_divergent(instr->src[0].src))
-            tl = bld.vop1_dpp(aco_opcode::v_mov_b32, bld.def(v1), src, dpp_ctrl1);
-
-         Builder::Result sub =
-            bld.vop3p(aco_opcode::v_pk_add_f16, bld.def(v1), src, tl, opsel_lo, opsel_hi);
-         sub->valu().neg_lo[1] = true;
-         sub->valu().neg_hi[1] = true;
-
-         if (nir_src_is_divergent(instr->src[0].src))
-            bld.vop1_dpp(aco_opcode::v_mov_b32, Definition(dst), sub, dpp_ctrl2);
-         else
-            bld.copy(Definition(dst), sub);
-         emit_split_vector(ctx, dst, 2);
-      } else {
-         Temp src = as_vgpr(ctx, get_alu_src(ctx, instr->src[0]));
-
-         aco_opcode subrev =
-            instr->def.bit_size == 16 ? aco_opcode::v_subrev_f16 : aco_opcode::v_subrev_f32;
-         bool use_interp = dpp_ctrl1 == dpp_quad_perm(0, 0, 0, 0) && instr->def.bit_size == 32 &&
-                           ctx->program->gfx_level >= GFX11_5;
-         if (!nir_src_is_divergent(instr->src[0].src)) {
-            bld.vop2(subrev, Definition(dst), src, src);
-         } else if (use_interp && dpp_ctrl2 == dpp_quad_perm(1, 1, 1, 1)) {
-            bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, Definition(dst), src,
-                              Operand::c32(0x3f800000), src)
-               ->valu()
-               .neg[2] = true;
-         } else if (use_interp && dpp_ctrl2 == dpp_quad_perm(2, 2, 2, 2)) {
-            Builder::Result tmp = bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, bld.def(v1),
-                                                    Operand::c32(0), Operand::c32(0), src);
-            tmp->valu().neg = 0x6;
-            bld.vinterp_inreg(aco_opcode::v_interp_p2_f32_inreg, Definition(dst), src,
-                              Operand::c32(0x3f800000), tmp);
-         } else if (ctx->program->gfx_level >= GFX8) {
-            Temp tmp = bld.vop2_dpp(subrev, bld.def(v1), src, src, dpp_ctrl1);
-            bld.vop1_dpp(aco_opcode::v_mov_b32, Definition(dst), tmp, dpp_ctrl2);
-         } else {
-            Temp tl = bld.ds(aco_opcode::ds_swizzle_b32, bld.def(v1), src, (1 << 15) | dpp_ctrl1);
-            Temp tr = bld.ds(aco_opcode::ds_swizzle_b32, bld.def(v1), src, (1 << 15) | dpp_ctrl2);
-            bld.vop2(subrev, Definition(dst), tl, tr);
-         }
-      }
-      set_wqm(ctx, true);
-      break;
-   }
    default: isel_err(&instr->instr, "Unknown NIR ALU instr");
    }
 }
@@ -8573,6 +8495,83 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       }
       break;
    }
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddx_fine:
+   case nir_intrinsic_ddy_fine:
+   case nir_intrinsic_ddx_coarse:
+   case nir_intrinsic_ddy_coarse: {
+      Temp src = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[0].ssa));
+      Temp dst = get_ssa_temp(ctx, &instr->def);
+
+      uint16_t dpp_ctrl1, dpp_ctrl2;
+      if (instr->intrinsic == nir_intrinsic_ddx_fine) {
+         dpp_ctrl1 = dpp_quad_perm(0, 0, 2, 2);
+         dpp_ctrl2 = dpp_quad_perm(1, 1, 3, 3);
+      } else if (instr->intrinsic == nir_intrinsic_ddy_fine) {
+         dpp_ctrl1 = dpp_quad_perm(0, 1, 0, 1);
+         dpp_ctrl2 = dpp_quad_perm(2, 3, 2, 3);
+      } else {
+         dpp_ctrl1 = dpp_quad_perm(0, 0, 0, 0);
+         if (instr->intrinsic == nir_intrinsic_ddx ||
+             instr->intrinsic == nir_intrinsic_ddx_coarse)
+            dpp_ctrl2 = dpp_quad_perm(1, 1, 1, 1);
+         else
+            dpp_ctrl2 = dpp_quad_perm(2, 2, 2, 2);
+      }
+
+      if (dst.regClass() == v1 && instr->def.bit_size == 16) {
+         assert(instr->def.num_components == 2);
+
+         /* identify swizzle to opsel */
+         unsigned opsel_lo = 0b00;
+         unsigned opsel_hi = 0b11;
+
+         Temp tl = src;
+         if (nir_src_is_divergent(instr->src[0]))
+            tl = bld.vop1_dpp(aco_opcode::v_mov_b32, bld.def(v1), src, dpp_ctrl1);
+
+         Builder::Result sub =
+            bld.vop3p(aco_opcode::v_pk_add_f16, bld.def(v1), src, tl, opsel_lo, opsel_hi);
+         sub->valu().neg_lo[1] = true;
+         sub->valu().neg_hi[1] = true;
+
+         if (nir_src_is_divergent(instr->src[0]))
+            bld.vop1_dpp(aco_opcode::v_mov_b32, Definition(dst), sub, dpp_ctrl2);
+         else
+            bld.copy(Definition(dst), sub);
+         emit_split_vector(ctx, dst, 2);
+      } else {
+         aco_opcode subrev =
+            instr->def.bit_size == 16 ? aco_opcode::v_subrev_f16 : aco_opcode::v_subrev_f32;
+         bool use_interp = dpp_ctrl1 == dpp_quad_perm(0, 0, 0, 0) && instr->def.bit_size == 32 &&
+                           ctx->program->gfx_level >= GFX11_5;
+         if (!nir_src_is_divergent(instr->src[0])) {
+            bld.vop2(subrev, Definition(dst), src, src);
+         } else if (use_interp && dpp_ctrl2 == dpp_quad_perm(1, 1, 1, 1)) {
+            bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, Definition(dst), src,
+                              Operand::c32(0x3f800000), src)
+               ->valu()
+               .neg[2] = true;
+         } else if (use_interp && dpp_ctrl2 == dpp_quad_perm(2, 2, 2, 2)) {
+            Builder::Result tmp = bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, bld.def(v1),
+                                                    Operand::c32(0), Operand::c32(0), src);
+            tmp->valu().neg = 0x6;
+            bld.vinterp_inreg(aco_opcode::v_interp_p2_f32_inreg, Definition(dst), src,
+                              Operand::c32(0x3f800000), tmp);
+         } else if (ctx->program->gfx_level >= GFX8) {
+            Temp tmp = bld.vop2_dpp(subrev, bld.def(v1), src, src, dpp_ctrl1);
+            bld.vop1_dpp(aco_opcode::v_mov_b32, Definition(dst), tmp, dpp_ctrl2);
+         } else {
+            Temp tl = bld.ds(aco_opcode::ds_swizzle_b32, bld.def(v1), src, (1 << 15) | dpp_ctrl1);
+            Temp tr = bld.ds(aco_opcode::ds_swizzle_b32, bld.def(v1), src, (1 << 15) | dpp_ctrl2);
+            bld.vop2(subrev, Definition(dst), tl, tr);
+         }
+      }
+      set_wqm(ctx, true);
+      break;
+   }
+
    case nir_intrinsic_load_subgroup_invocation: {
       emit_mbcnt(ctx, get_ssa_temp(ctx, &instr->def));
       break;

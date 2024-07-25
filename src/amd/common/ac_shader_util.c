@@ -101,6 +101,8 @@ void ac_set_nir_options(struct radeon_info *info, bool use_llvm,
                          nir_io_prefer_scalar_fs_inputs |
                          nir_io_mix_convergent_flat_with_interpolated |
                          nir_io_vectorizer_ignores_types;
+   options->has_ddx_intrinsics = true;
+   options->scalarize_ddx = true;
 }
 
 bool

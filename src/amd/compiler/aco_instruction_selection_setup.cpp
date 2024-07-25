@@ -337,12 +337,6 @@ init_context(isel_context* ctx, nir_shader* shader)
                case nir_op_pack_snorm_2x16:
                case nir_op_pack_uint_2x16:
                case nir_op_pack_sint_2x16:
-               case nir_op_fddx:
-               case nir_op_fddy:
-               case nir_op_fddx_fine:
-               case nir_op_fddy_fine:
-               case nir_op_fddx_coarse:
-               case nir_op_fddy_coarse:
                case nir_op_ldexp:
                case nir_op_frexp_sig:
                case nir_op_frexp_exp:
@@ -529,6 +523,14 @@ init_context(isel_context* ctx, nir_shader* shader)
                case nir_intrinsic_load_ssbo:
                case nir_intrinsic_load_global_amd:
                   type = intrinsic->def.divergent ? RegType::vgpr : RegType::sgpr;
+                  break;
+               case nir_intrinsic_ddx:
+               case nir_intrinsic_ddy:
+               case nir_intrinsic_ddx_fine:
+               case nir_intrinsic_ddy_fine:
+               case nir_intrinsic_ddx_coarse:
+               case nir_intrinsic_ddy_coarse:
+                  type = RegType::vgpr;
                   break;
                case nir_intrinsic_load_view_index:
                   type = ctx->stage == fragment_fs ? RegType::vgpr : RegType::sgpr;

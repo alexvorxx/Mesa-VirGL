@@ -404,21 +404,21 @@ static LLVMValueRef emit_unpack_half_2x16(struct ac_llvm_context *ctx, LLVMValue
    return ac_build_gather_values(ctx, temps, 2);
 }
 
-static LLVMValueRef emit_ddxy(struct ac_nir_context *ctx, nir_op op, LLVMValueRef src0)
+static LLVMValueRef emit_ddxy(struct ac_nir_context *ctx, nir_intrinsic_op op, LLVMValueRef src0)
 {
    unsigned mask;
    int idx;
    LLVMValueRef result;
 
-   if (op == nir_op_fddx_fine)
+   if (op == nir_intrinsic_ddx_fine)
       mask = AC_TID_MASK_LEFT;
-   else if (op == nir_op_fddy_fine)
+   else if (op == nir_intrinsic_ddy_fine)
       mask = AC_TID_MASK_TOP;
    else
       mask = AC_TID_MASK_TOP_LEFT;
 
    /* for DDX we want to next X pixel, DDY next Y pixel. */
-   if (op == nir_op_fddx_fine || op == nir_op_fddx_coarse || op == nir_op_fddx)
+   if (op == nir_intrinsic_ddx_fine || op == nir_intrinsic_ddx_coarse || op == nir_intrinsic_ddx)
       idx = 1;
    else
       idx = 2;
@@ -1081,15 +1081,6 @@ static bool visit_alu(struct ac_nir_context *ctx, const nir_alu_instr *instr)
       result = LLVMBuildExtractElement(ctx->ac.builder, tmp, ctx->ac.i32_1, "");
       break;
    }
-   case nir_op_fddx:
-   case nir_op_fddy:
-   case nir_op_fddx_fine:
-   case nir_op_fddy_fine:
-   case nir_op_fddx_coarse:
-   case nir_op_fddy_coarse:
-      result = emit_ddxy(ctx, instr->op, src[0]);
-      break;
-
    case nir_op_unpack_64_4x16: {
       result = LLVMBuildBitCast(ctx->ac.builder, src[0], ctx->ac.v4i16, "");
       break;
@@ -2884,6 +2875,14 @@ static bool visit_intrinsic(struct ac_nir_context *ctx, nir_intrinsic_instr *ins
    LLVMValueRef result = NULL;
 
    switch (instr->intrinsic) {
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddx_fine:
+   case nir_intrinsic_ddy_fine:
+   case nir_intrinsic_ddx_coarse:
+   case nir_intrinsic_ddy_coarse:
+      result = emit_ddxy(ctx, instr->intrinsic, get_src(ctx, instr->src[0]));
+      break;
    case nir_intrinsic_ballot:
    case nir_intrinsic_ballot_relaxed:
       result = ac_build_ballot(&ctx->ac, get_src(ctx, instr->src[0]));
