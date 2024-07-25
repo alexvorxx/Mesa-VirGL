@@ -78,7 +78,7 @@ const __DRIkopperExtension driKopperExtension;
 
 static const __DRIextension *drivk_screen_extensions[] = {
    &driTexBufferExtension.base,
-   &dri2ConfigQueryExtension.base,
+   &dri2GalliumConfigQueryExtension.base,
    &dri2FenceExtension.base,
    &dri2Robustness.base,
    &driVkImageExtension.base,
@@ -90,7 +90,7 @@ static const __DRIextension *drivk_screen_extensions[] = {
 
 static const __DRIextension *drivk_sw_screen_extensions[] = {
    &driTexBufferExtension.base,
-   &dri2ConfigQueryExtension.base,
+   &dri2GalliumConfigQueryExtension.base,
    &dri2FenceExtension.base,
    &dri2Robustness.base,
    &driVkImageExtensionSw.base,

@@ -54,6 +54,7 @@
 #include "loader/loader.h"
 #include "mesa_interface.h"
 #include "loader_dri_helper.h"
+#include "pipe-loader/pipe_loader.h"
 
 driOptionDescription __dri2ConfigOptions[] = {
       DRI_CONF_SECTION_DEBUG
@@ -844,6 +845,88 @@ dri2ConfigQuerys(__DRIscreen *psp, const char *var, char **val)
     return 0;
 }
 
+
+/**
+ * \brief the DRI2ConfigQueryExtension configQueryb method
+ */
+static int
+dri2GalliumConfigQueryb(__DRIscreen *sPriv, const char *var,
+                        unsigned char *val)
+{
+   struct dri_screen *screen = dri_screen(sPriv);
+
+   if (!driCheckOption(&screen->dev->option_cache, var, DRI_BOOL))
+      return dri2ConfigQueryb(sPriv, var, val);
+
+   *val = driQueryOptionb(&screen->dev->option_cache, var);
+
+   return 0;
+}
+
+/**
+ * \brief the DRI2ConfigQueryExtension configQueryi method
+ */
+static int
+dri2GalliumConfigQueryi(__DRIscreen *sPriv, const char *var, int *val)
+{
+   struct dri_screen *screen = dri_screen(sPriv);
+
+   if (!driCheckOption(&screen->dev->option_cache, var, DRI_INT) &&
+       !driCheckOption(&screen->dev->option_cache, var, DRI_ENUM))
+      return dri2ConfigQueryi(sPriv, var, val);
+
+    *val = driQueryOptioni(&screen->dev->option_cache, var);
+
+    return 0;
+}
+
+/**
+ * \brief the DRI2ConfigQueryExtension configQueryf method
+ */
+static int
+dri2GalliumConfigQueryf(__DRIscreen *sPriv, const char *var, float *val)
+{
+   struct dri_screen *screen = dri_screen(sPriv);
+
+   if (!driCheckOption(&screen->dev->option_cache, var, DRI_FLOAT))
+      return dri2ConfigQueryf(sPriv, var, val);
+
+    *val = driQueryOptionf(&screen->dev->option_cache, var);
+
+    return 0;
+}
+
+/**
+ * \brief the DRI2ConfigQueryExtension configQuerys method
+ */
+static int
+dri2GalliumConfigQuerys(__DRIscreen *sPriv, const char *var, char **val)
+{
+   struct dri_screen *screen = dri_screen(sPriv);
+
+   if (!driCheckOption(&screen->dev->option_cache, var, DRI_STRING))
+      return dri2ConfigQuerys(sPriv, var, val);
+
+    *val = driQueryOptionstr(&screen->dev->option_cache, var);
+
+    return 0;
+}
+
+/**
+ * \brief the DRI2ConfigQueryExtension struct.
+ *
+ * We first query the driver option cache. Then the dri2 option cache.
+ */
+const __DRI2configQueryExtension dri2GalliumConfigQueryExtension = {
+   .base = { __DRI2_CONFIG_QUERY, 2 },
+
+   .configQueryb        = dri2GalliumConfigQueryb,
+   .configQueryi        = dri2GalliumConfigQueryi,
+   .configQueryf        = dri2GalliumConfigQueryf,
+   .configQuerys        = dri2GalliumConfigQuerys,
+};
+
+
 unsigned int
 driGetAPIMask(__DRIscreen *screen)
 {
@@ -946,15 +1029,6 @@ const __DRIswrastExtension driSWRastExtension = {
     .createNewScreen2           = driSWRastCreateNewScreen2,
     .queryBufferAge             = driSWRastQueryBufferAge,
     .createNewScreen3           = driSWRastCreateNewScreen3,
-};
-
-const __DRI2configQueryExtension dri2ConfigQueryExtension = {
-   .base = { __DRI2_CONFIG_QUERY, 2 },
-
-   .configQueryb        = dri2ConfigQueryb,
-   .configQueryi        = dri2ConfigQueryi,
-   .configQueryf        = dri2ConfigQueryf,
-   .configQuerys        = dri2ConfigQuerys,
 };
 
 const __DRI2flushControlExtension dri2FlushControlExtension = {
