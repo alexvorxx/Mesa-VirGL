@@ -95,7 +95,6 @@ loader_dri3_pixmap_buf_id(enum loader_dri3_buffer_type buffer_type)
 }
 
 struct loader_dri3_extensions {
-   const __DRIcoreExtension *core;
    const __DRIimageDriverExtension *image_driver;
    const __DRI2flushExtension *flush;
    const __DRI2configQueryExtension *config;

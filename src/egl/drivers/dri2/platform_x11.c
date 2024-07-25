@@ -1927,7 +1927,6 @@ dri2_initialize_x11_dri3(_EGLDisplay *disp)
    loader_init_screen_resources(&dri2_dpy->screen_resources, dri2_dpy->conn,
                                 dri2_dpy->screen);
 
-   dri2_dpy->loader_dri3_ext.core = dri2_dpy->core;
    dri2_dpy->loader_dri3_ext.image_driver = dri2_dpy->image_driver;
    dri2_dpy->loader_dri3_ext.flush = dri2_dpy->flush;
    dri2_dpy->loader_dri3_ext.tex_buffer = dri2_dpy->tex_buffer;

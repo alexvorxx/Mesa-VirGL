@@ -167,15 +167,14 @@ loader_dri3_blit_context_get(struct loader_dri3_drawable *draw)
    simple_mtx_lock(&blit_context.mtx);
 
    if (blit_context.ctx && blit_context.cur_screen != draw->dri_screen_render_gpu) {
-      blit_context.core->destroyContext(blit_context.ctx);
+      driDestroyContext(blit_context.ctx);
       blit_context.ctx = NULL;
    }
 
    if (!blit_context.ctx) {
-      blit_context.ctx = draw->ext->core->createNewContext(draw->dri_screen_render_gpu,
+      blit_context.ctx = driCreateNewContext(draw->dri_screen_render_gpu,
                                                            NULL, NULL, NULL);
       blit_context.cur_screen = draw->dri_screen_render_gpu;
-      blit_context.core = draw->ext->core;
    }
 
    return blit_context.ctx;
@@ -354,7 +353,7 @@ loader_dri3_drawable_fini(struct loader_dri3_drawable *draw)
 {
    int i;
 
-   draw->ext->core->destroyDrawable(draw->dri_drawable);
+   driDestroyDrawable(draw->dri_drawable);
 
    for (i = 0; i < ARRAY_SIZE(draw->buffers); i++)
       dri3_free_render_buffer(draw, i);
@@ -450,7 +449,7 @@ loader_dri3_drawable_init(xcb_connection_t *conn,
    cookie = xcb_get_geometry(draw->conn, draw->drawable);
    reply = xcb_get_geometry_reply(draw->conn, cookie, &error);
    if (reply == NULL || error != NULL) {
-      draw->ext->core->destroyDrawable(draw->dri_drawable);
+      driDestroyDrawable(draw->dri_drawable);
       return 1;
    }
 
@@ -2305,7 +2304,7 @@ loader_dri3_close_screen(__DRIscreen *dri_screen)
 {
    simple_mtx_lock(&blit_context.mtx);
    if (blit_context.ctx && blit_context.cur_screen == dri_screen) {
-      blit_context.core->destroyContext(blit_context.ctx);
+      driDestroyContext(blit_context.ctx);
       blit_context.ctx = NULL;
    }
    simple_mtx_unlock(&blit_context.mtx);

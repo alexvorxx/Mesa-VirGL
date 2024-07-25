@@ -912,7 +912,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       goto handle_error;
    }
 
-   psc->loader_dri3_ext.core = psc->core;
    psc->loader_dri3_ext.flush = psc->f;
    psc->loader_dri3_ext.tex_buffer = psc->texBuffer;
    psc->loader_dri3_ext.image = psc->image;
