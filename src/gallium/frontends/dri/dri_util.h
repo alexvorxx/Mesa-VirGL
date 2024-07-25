@@ -159,4 +159,7 @@ PUBLIC void
 kopperSetSwapInterval(__DRIdrawable *dPriv, int interval);
 PUBLIC int
 kopperQueryBufferAge(__DRIdrawable *dPriv);
+
+PUBLIC void
+driswCopySubBuffer(__DRIdrawable *pdp, int x, int y, int w, int h);
 #endif /* _DRI_UTIL_H_ */

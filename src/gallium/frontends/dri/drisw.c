@@ -630,8 +630,8 @@ fail:
 }
 
 /* swrast copy sub buffer entrypoint. */
-static void driswCopySubBuffer(__DRIdrawable *pdp, int x, int y,
-                               int w, int h)
+void
+driswCopySubBuffer(__DRIdrawable *pdp, int x, int y, int w, int h)
 {
    struct dri_drawable *drawable = dri_drawable(pdp);
 
