@@ -282,4 +282,12 @@ PUBLIC bool
 dri2_query_dma_buf_format_modifier_attribs(__DRIscreen *_screen,
                                            uint32_t fourcc, uint64_t modifier,
                                            int attrib, uint64_t *value);
+PUBLIC __DRIimage *
+dri_create_image_with_modifiers(__DRIscreen *screen,
+                                 const __DRIimageExtension *image,
+                                 uint32_t width, uint32_t height,
+                                 uint32_t dri_format, uint32_t dri_usage,
+                                 const uint64_t *modifiers,
+                                 unsigned int modifiers_count,
+                                 void *loaderPrivate);
 #endif /* _DRI_UTIL_H_ */

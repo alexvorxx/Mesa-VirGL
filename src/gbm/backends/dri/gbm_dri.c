@@ -49,6 +49,7 @@
 #include "loader.h"
 #include "util/u_debug.h"
 #include "util/macros.h"
+#include "dri_util.h"
 
 /* For importing wl_buffer */
 #if HAVE_WAYLAND_PLATFORM
@@ -1044,7 +1045,7 @@ gbm_dri_bo_create(struct gbm_device *gbm,
       mods_comp = NULL;
    }
 
-   bo->image = loader_dri_create_image(dri->screen, dri->image, width, height,
+   bo->image = dri_create_image_with_modifiers(dri->screen, dri->image, width, height,
                                        dri_format, dri_use,
                                        mods_filtered ? mods_filtered : modifiers,
                                        mods_filtered ? count_filtered : count,

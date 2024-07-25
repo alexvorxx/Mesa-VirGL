@@ -30,38 +30,6 @@
 #include "loader_dri_helper.h"
 #include "util/driconf.h"
 
-__DRIimage *loader_dri_create_image(__DRIscreen *screen,
-                                    const __DRIimageExtension *image,
-                                    uint32_t width, uint32_t height,
-                                    uint32_t dri_format, uint32_t dri_usage,
-                                    const uint64_t *modifiers,
-                                    unsigned int modifiers_count,
-                                    void *loaderPrivate)
-{
-   if (modifiers && modifiers_count > 0) {
-      bool has_valid_modifier = false;
-      int i;
-
-      /* It's acceptable to create an image with INVALID modifier in the list,
-       * but it cannot be on the only modifier (since it will certainly fail
-       * later). While we could easily catch this after modifier creation, doing
-       * the check here is a convenient debug check likely pointing at whatever
-       * interface the client is using to build its modifier list.
-       */
-      for (i = 0; i < modifiers_count; i++) {
-         if (modifiers[i] != DRM_FORMAT_MOD_INVALID) {
-            has_valid_modifier = true;
-            break;
-         }
-      }
-      if (!has_valid_modifier)
-         return NULL;
-   }
-
-   return image->createImage(screen, width, height, dri_format,
-                             modifiers, modifiers_count, dri_usage,
-                             loaderPrivate);
-}
 
 /* the DRIimage createImage function takes __DRI_IMAGE_FORMAT codes, while
  * the createImageFromDmaBufs call takes DRM_FORMAT codes. To avoid

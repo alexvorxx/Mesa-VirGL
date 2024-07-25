@@ -50,6 +50,7 @@
 #include "kopper_interface.h"
 #include "loader.h"
 #include "loader_dri_helper.h"
+#include "dri_util.h"
 #include <loader_wayland_helper.h>
 
 #include "linux-dmabuf-unstable-v1-client-protocol.h"
@@ -1068,7 +1069,7 @@ create_dri_image(struct dri2_egl_surface *dri2_surf,
       modifiers = NULL;
    }
 
-   dri2_surf->back->dri_image = loader_dri_create_image(
+   dri2_surf->back->dri_image = dri_create_image_with_modifiers(
       dri2_dpy->dri_screen_render_gpu, dri2_dpy->image, dri2_surf->base.Width,
       dri2_surf->base.Height, pipe_format,
       (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu) ? 0 : use_flags,
@@ -1209,7 +1210,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
       __DRIimage *linear_copy_display_gpu_image = NULL;
 
       if (dri2_dpy->dri_screen_display_gpu) {
-         linear_copy_display_gpu_image = loader_dri_create_image(
+         linear_copy_display_gpu_image = dri_create_image_with_modifiers(
             dri2_dpy->dri_screen_display_gpu, dri2_dpy->image,
             dri2_surf->base.Width, dri2_surf->base.Height,
             linear_pipe_format, use_flags | __DRI_IMAGE_USE_LINEAR,
@@ -1294,7 +1295,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
       }
 
       if (!dri2_surf->back->linear_copy) {
-         dri2_surf->back->linear_copy = loader_dri_create_image(
+         dri2_surf->back->linear_copy = dri_create_image_with_modifiers(
             dri2_dpy->dri_screen_render_gpu, dri2_dpy->image,
             dri2_surf->base.Width, dri2_surf->base.Height,
             linear_pipe_format, use_flags | __DRI_IMAGE_USE_LINEAR,

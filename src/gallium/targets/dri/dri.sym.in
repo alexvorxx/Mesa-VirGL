@@ -24,10 +24,11 @@
 		dri_interop_export_object;
 		dri_interop_flush_objects;
 		dri_loader_get_extensions;
+		dri_create_image_with_modifiers;
 		dri_create_image_from_renderbuffer;
 		dri2_destroy_image;
 		dri2_create_from_texture;
-		dri2_create_image;
+		dri_create_image;
 		dri2_query_image;
 		dri2_dup_image;
 		dri2_validate_usage;

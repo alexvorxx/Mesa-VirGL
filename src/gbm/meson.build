@@ -16,8 +16,11 @@ args_gbm = [
 ]
 deps_gbm = []
 incs_gbm = [
-  include_directories('main'), inc_include, inc_src, inc_loader, inc_gallium
+  include_directories('main'), inc_include, inc_src, inc_loader, inc_gallium, inc_st_dri
 ]
+
+# TODO: fix includes to delete this
+incs_gbm += inc_mesa
 
 if with_dri2
   files_gbm += files('backends/dri/gbm_dri.c', 'backends/dri/gbm_driint.h')
