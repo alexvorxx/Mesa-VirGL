@@ -66,7 +66,7 @@ kopper_invalidate_drawable(__DRIdrawable *dPriv)
 {
    struct dri_drawable *drawable = dri_drawable(dPriv);
 
-   drawable->texture_stamp = drawable->lastStamp - 1;
+   drawable->lastStamp++;
 
    p_atomic_inc(&drawable->base.stamp);
 }
