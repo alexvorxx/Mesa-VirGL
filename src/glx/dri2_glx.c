@@ -881,7 +881,6 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
        { __DRI2_FLUSH, 1, offsetof(struct dri2_screen, f), true },
        { __DRI2_CONFIG_QUERY, 1, offsetof(struct dri2_screen, config), true },
        { __DRI2_THROTTLE, 1, offsetof(struct dri2_screen, throttle), true },
-       { __DRI2_RENDERER_QUERY, 1, offsetof(struct dri2_screen, rendererQuery), true },
        { __DRI2_INTEROP, 1, offsetof(struct dri2_screen, interop), true },
    };
    loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions);
@@ -899,8 +898,7 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
 
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
 
-   if (psc->rendererQuery)
-      __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
+   __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
 
    if (psc->interop)
       __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");

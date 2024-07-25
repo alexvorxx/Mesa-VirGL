@@ -82,7 +82,6 @@ struct dri3_screen {
    const __DRIimageExtension *image;
    const __DRI2flushExtension *f;
    const __DRI2configQueryExtension *config;
-   const __DRI2rendererQueryExtension *rendererQuery;
    const __DRI2interopExtension *interop;
    const __DRIconfig **driver_configs;
 

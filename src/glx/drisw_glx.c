@@ -795,7 +795,6 @@ driswBindExtensions(struct drisw_screen *psc, const __DRIextension **extensions)
 
    /* FIXME: Figure out what other extensions can be ported here from dri2. */
    static const struct dri_extension_match exts[] = {
-       { __DRI2_RENDERER_QUERY, 1, offsetof(struct drisw_screen, rendererQuery), true },
        { __DRI2_FLUSH, 1, offsetof(struct drisw_screen, f), true },
        { __DRI2_CONFIG_QUERY, 1, offsetof(struct drisw_screen, config), true },
    };
@@ -815,9 +814,7 @@ driswBindExtensions(struct drisw_screen *psc, const __DRIextension **extensions)
 
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
 
-   if (psc->rendererQuery) {
-      __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
-   }
+   __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
 
    if (psc->kopper) {
        __glXEnableDirectExtension(&psc->base, "GLX_EXT_buffer_age");

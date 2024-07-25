@@ -702,7 +702,6 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
    }
 
    static const struct dri_extension_match exts[] = {
-       { __DRI2_RENDERER_QUERY, 1, offsetof(struct dri3_screen, rendererQuery), true },
        { __DRI2_FLUSH, 1, offsetof(struct dri3_screen, f), true },
        { __DRI_IMAGE, 1, offsetof(struct dri3_screen, image), true },
        { __DRI2_INTEROP, 1, offsetof(struct dri3_screen, interop), true },
@@ -727,8 +726,7 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
                                     "GLX_ARB_context_flush_control");
    }
 
-   if (psc->rendererQuery)
-      __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
+   __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
 
    if (psc->interop)
       __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");
@@ -954,11 +952,11 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    InfoMessageF("Using DRI3 for screen %d\n", screen);
 
    psc->prefer_back_buffer_reuse = 1;
-   if (psc->fd_render_gpu != psc->fd_display_gpu && psc->rendererQuery) {
+   if (psc->fd_render_gpu != psc->fd_display_gpu) {
       unsigned value;
-      if (psc->rendererQuery->queryInteger(psc->driScreenRenderGPU,
-                                           __DRI2_RENDERER_PREFER_BACK_BUFFER_REUSE,
-                                           &value) == 0)
+      if (dri_query_renderer_integer(psc->driScreenRenderGPU,
+                                     __DRI2_RENDERER_PREFER_BACK_BUFFER_REUSE,
+                                     &value) == 0)
          psc->prefer_back_buffer_reuse = value;
    }
 
