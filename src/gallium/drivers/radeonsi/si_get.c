@@ -760,7 +760,7 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
 
       case PIPE_VIDEO_CAP_ENC_SLICES_STRUCTURE:
          if (sscreen->info.vcn_ip_version >= VCN_2_0_0) {
-            int value = (PIPE_VIDEO_CAP_SLICE_STRUCTURE_POWER_OF_TWO_ROWS |
+            int value = (PIPE_VIDEO_CAP_SLICE_STRUCTURE_ARBITRARY_MACROBLOCKS |
                          PIPE_VIDEO_CAP_SLICE_STRUCTURE_EQUAL_ROWS |
                          PIPE_VIDEO_CAP_SLICE_STRUCTURE_EQUAL_MULTI_ROWS);
             return value;

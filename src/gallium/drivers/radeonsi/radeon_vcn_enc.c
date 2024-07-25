@@ -358,24 +358,38 @@ static void radeon_vcn_enc_h264_get_vui_param(struct radeon_encoder *enc,
    enc->enc_pic.vui_info.max_num_reorder_frames = pic->seq.max_num_reorder_frames;
 }
 
-/* only checking the first slice to get num of mbs in slice to
- * determine the number of slices in this frame, only fixed MB mode
- * is supported now, the last slice in frame could have less number of
- * MBs.
- */
 static void radeon_vcn_enc_h264_get_slice_ctrl_param(struct radeon_encoder *enc,
                                                      struct pipe_h264_enc_picture_desc *pic)
 {
-   uint32_t width_in_mb, height_in_mb, num_mbs_in_slice;
+   uint32_t num_mbs_total, num_mbs_in_slice;
 
-   width_in_mb = PIPE_ALIGN_IN_BLOCK_SIZE(enc->base.width, PIPE_H264_MB_SIZE);
-   height_in_mb = PIPE_ALIGN_IN_BLOCK_SIZE(enc->base.height, PIPE_H264_MB_SIZE);
+   num_mbs_total =
+      PIPE_ALIGN_IN_BLOCK_SIZE(enc->base.width, PIPE_H264_MB_SIZE) *
+      PIPE_ALIGN_IN_BLOCK_SIZE(enc->base.height, PIPE_H264_MB_SIZE);
 
-   if (pic->slices_descriptors[0].num_macroblocks >= width_in_mb * height_in_mb ||
-       pic->slices_descriptors[0].num_macroblocks == 0)
-      num_mbs_in_slice = width_in_mb * height_in_mb;
-   else
+   if (pic->num_slice_descriptors <= 1) {
+      num_mbs_in_slice = num_mbs_total;
+   } else {
+      bool use_app_config = true;
       num_mbs_in_slice = pic->slices_descriptors[0].num_macroblocks;
+
+      /* All slices must have equal size */
+      for (unsigned i = 1; i < pic->num_slice_descriptors - 1; i++) {
+         if (num_mbs_in_slice != pic->slices_descriptors[i].num_macroblocks)
+            use_app_config = false;
+      }
+      /* Except last one can be smaller */
+      if (pic->slices_descriptors[pic->num_slice_descriptors - 1].num_macroblocks > num_mbs_in_slice)
+         use_app_config = false;
+
+      if (!use_app_config) {
+         assert(num_mbs_total >= pic->num_slice_descriptors);
+         num_mbs_in_slice =
+            (num_mbs_total + pic->num_slice_descriptors - 1) / pic->num_slice_descriptors;
+      }
+   }
+
+   num_mbs_in_slice = MAX2(4, num_mbs_in_slice);
 
    enc->enc_pic.slice_ctrl.num_mbs_per_slice = num_mbs_in_slice;
 }
@@ -630,26 +644,38 @@ static void radeon_vcn_enc_hevc_get_vui_param(struct radeon_encoder *enc,
       pic->seq.chroma_sample_loc_type_bottom_field;
 }
 
-/* only checking the first slice to get num of ctbs in slice to
- * determine the number of slices in this frame, only fixed CTB mode
- * is supported now, the last slice in frame could have less number of
- * ctbs.
- */
 static void radeon_vcn_enc_hevc_get_slice_ctrl_param(struct radeon_encoder *enc,
                                                      struct pipe_h265_enc_picture_desc *pic)
 {
-   uint32_t width_in_ctb, height_in_ctb, num_ctbs_in_slice;
+   uint32_t num_ctbs_total, num_ctbs_in_slice;
 
-   width_in_ctb = PIPE_ALIGN_IN_BLOCK_SIZE(pic->seq.pic_width_in_luma_samples,
-                                           PIPE_H265_ENC_CTB_SIZE);
-   height_in_ctb = PIPE_ALIGN_IN_BLOCK_SIZE(pic->seq.pic_height_in_luma_samples,
-                                            PIPE_H265_ENC_CTB_SIZE);
+   num_ctbs_total =
+      PIPE_ALIGN_IN_BLOCK_SIZE(pic->seq.pic_width_in_luma_samples, PIPE_H265_ENC_CTB_SIZE) *
+      PIPE_ALIGN_IN_BLOCK_SIZE(pic->seq.pic_height_in_luma_samples, PIPE_H265_ENC_CTB_SIZE);
 
-   if (pic->slices_descriptors[0].num_ctu_in_slice >= width_in_ctb * height_in_ctb ||
-       pic->slices_descriptors[0].num_ctu_in_slice == 0)
-      num_ctbs_in_slice = width_in_ctb * height_in_ctb;
-   else
+   if (pic->num_slice_descriptors <= 1) {
+      num_ctbs_in_slice = num_ctbs_total;
+   } else {
+      bool use_app_config = true;
       num_ctbs_in_slice = pic->slices_descriptors[0].num_ctu_in_slice;
+
+      /* All slices must have equal size */
+      for (unsigned i = 1; i < pic->num_slice_descriptors - 1; i++) {
+         if (num_ctbs_in_slice != pic->slices_descriptors[i].num_ctu_in_slice)
+            use_app_config = false;
+      }
+      /* Except last one can be smaller */
+      if (pic->slices_descriptors[pic->num_slice_descriptors - 1].num_ctu_in_slice > num_ctbs_in_slice)
+         use_app_config = false;
+
+      if (!use_app_config) {
+         assert(num_ctbs_total >= pic->num_slice_descriptors);
+         num_ctbs_in_slice =
+            (num_ctbs_total + pic->num_slice_descriptors - 1) / pic->num_slice_descriptors;
+      }
+   }
+
+   num_ctbs_in_slice = MAX2(4, num_ctbs_in_slice);
 
    enc->enc_pic.hevc_slice_ctrl.fixed_ctbs_per_slice.num_ctbs_per_slice =
       num_ctbs_in_slice;
