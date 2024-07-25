@@ -857,7 +857,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    }
 
    psc->loader_dri3_ext.image = psc->image;
-   psc->loader_dri3_ext.config = psc->config;
 
    configs = driConvertConfigs(psc->base.configs, driver_configs);
    visuals = driConvertConfigs(psc->base.visuals, driver_configs);
