@@ -942,7 +942,7 @@ from_dri_compression_rate(enum __DRIFixedRateCompression rate)
 }
 
 static __DRIimage *
-dri2_create_image_from_winsys(__DRIscreen *_screen,
+dri_create_image_from_winsys(__DRIscreen *_screen,
                               int width, int height, const struct dri2_format_mapping *map,
                               int num_handles, struct winsys_handle *whandle,
                               unsigned bind,
@@ -1147,8 +1147,8 @@ dri2_get_modifier_num_planes(__DRIscreen *_screen,
    }
 }
 
-static __DRIimage *
-dri2_create_image(__DRIscreen *_screen,
+__DRIimage *
+dri_create_image(__DRIscreen *_screen,
                   int width, int height,
                   int format,
                   const uint64_t *modifiers,
@@ -1466,7 +1466,7 @@ dri2_query_image_by_resource_param(__DRIimage *image, int attrib, int *value)
    }
 }
 
-static GLboolean
+GLboolean
 dri2_query_image(__DRIimage *image, int attrib, int *value)
 {
    if (dri2_query_image_common(image, attrib, value))
@@ -1479,7 +1479,7 @@ dri2_query_image(__DRIimage *image, int attrib, int *value)
       return GL_FALSE;
 }
 
-static __DRIimage *
+__DRIimage *
 dri2_dup_image(__DRIimage *image, void *loaderPrivate)
 {
    __DRIimage *img;
@@ -1505,7 +1505,7 @@ dri2_dup_image(__DRIimage *image, void *loaderPrivate)
    return img;
 }
 
-static GLboolean
+GLboolean
 dri2_validate_usage(__DRIimage *image, unsigned int use)
 {
    if (!image || !image->texture)
@@ -1533,7 +1533,7 @@ dri2_validate_usage(__DRIimage *image, unsigned int use)
    return screen->check_resource_capability(screen, image->texture, bind);
 }
 
-static __DRIimage *
+__DRIimage *
 dri2_from_names(__DRIscreen *screen, int width, int height, int fourcc,
                 int *names, int num_names, int *strides, int *offsets,
                 void *loaderPrivate)
@@ -1556,7 +1556,7 @@ dri2_from_names(__DRIscreen *screen, int width, int height, int fourcc,
    whandle.format = map->pipe_format;
    whandle.modifier = DRM_FORMAT_MOD_INVALID;
 
-   img = dri2_create_image_from_winsys(screen, width, height, map,
+   img = dri_create_image_from_winsys(screen, width, height, map,
                                        1, &whandle, 0, loaderPrivate);
    if (img == NULL)
       return NULL;
@@ -1568,7 +1568,7 @@ dri2_from_names(__DRIscreen *screen, int width, int height, int fourcc,
    return img;
 }
 
-static __DRIimage *
+__DRIimage *
 dri2_from_planar(__DRIimage *image, int plane, void *loaderPrivate)
 {
    __DRIimage *img;
@@ -1607,8 +1607,8 @@ dri2_from_planar(__DRIimage *image, int plane, void *loaderPrivate)
    return img;
 }
 
-static bool
-dri2_query_dma_buf_modifiers(__DRIscreen *_screen, int fourcc, int max,
+bool
+dri_query_dma_buf_modifiers(__DRIscreen *_screen, int fourcc, int max,
                              uint64_t *modifiers, unsigned int *external_only,
                              int *count)
 {
@@ -1645,7 +1645,7 @@ dri2_query_dma_buf_modifiers(__DRIscreen *_screen, int fourcc, int max,
    return false;
 }
 
-static bool
+bool
 dri2_query_dma_buf_format_modifier_attribs(__DRIscreen *_screen,
                                            uint32_t fourcc, uint64_t modifier,
                                            int attrib, uint64_t *value)
@@ -1669,7 +1669,7 @@ dri2_query_dma_buf_format_modifier_attribs(__DRIscreen *_screen,
    }
 }
 
-static __DRIimage *
+__DRIimage *
 dri2_from_dma_bufs(__DRIscreen *screen,
                     int width, int height, int fourcc,
                     uint64_t modifier, int *fds, int num_fds,
@@ -1726,7 +1726,7 @@ dri2_from_dma_bufs(__DRIscreen *screen,
       whandles[i].plane = i;
    }
 
-   img = dri2_create_image_from_winsys(screen, width, height, map,
+   img = dri_create_image_from_winsys(screen, width, height, map,
                                        num_fds, whandles, flags,
                                        loaderPrivate);
    if (img == NULL) {
@@ -1803,7 +1803,7 @@ dri2_query_compression_modifiers(__DRIscreen *_screen, uint32_t fourcc,
    return true;
 }
 
-static void
+void
 dri2_blit_image(__DRIcontext *context, __DRIimage *dst, __DRIimage *src,
                 int dstx0, int dsty0, int dstwidth, int dstheight,
                 int srcx0, int srcy0, int srcwidth, int srcheight,
@@ -1857,7 +1857,7 @@ dri2_blit_image(__DRIcontext *context, __DRIimage *dst, __DRIimage *src,
    }
 }
 
-static void *
+void *
 dri2_map_image(__DRIcontext *context, __DRIimage *image,
                 int x0, int y0, int width, int height,
                 unsigned int flags, int *stride, void **data)
@@ -1901,7 +1901,7 @@ dri2_map_image(__DRIcontext *context, __DRIimage *image,
    return map;
 }
 
-static void
+void
 dri2_unmap_image(__DRIcontext *context, __DRIimage *image, void *data)
 {
    struct dri_context *ctx = dri_context(context);
@@ -1915,7 +1915,7 @@ dri2_unmap_image(__DRIcontext *context, __DRIimage *image, void *data)
    pipe_texture_unmap(pipe, (struct pipe_transfer *)data);
 }
 
-static int
+int
 dri2_get_capabilities(__DRIscreen *_screen)
 {
    struct dri_screen *screen = dri_screen(_screen);
@@ -1927,9 +1927,9 @@ dri2_get_capabilities(__DRIscreen *_screen)
 static const __DRIimageExtension dri2ImageExtensionTempl = {
     .base = { __DRI_IMAGE, 22 },
 
-    .createImageFromRenderbuffer  = dri2_create_image_from_renderbuffer,
+    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
     .destroyImage                 = dri2_destroy_image,
-    .createImage                  = dri2_create_image,
+    .createImage                  = dri_create_image,
     .queryImage                   = dri2_query_image,
     .dupImage                     = dri2_dup_image,
     .validateUsage                = dri2_validate_usage,
@@ -1951,9 +1951,9 @@ static const __DRIimageExtension dri2ImageExtensionTempl = {
 const __DRIimageExtension driVkImageExtension = {
     .base = { __DRI_IMAGE, 20 },
 
-    .createImageFromRenderbuffer  = dri2_create_image_from_renderbuffer,
+    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
     .destroyImage                 = dri2_destroy_image,
-    .createImage                  = dri2_create_image,
+    .createImage                  = dri_create_image,
     .queryImage                   = dri2_query_image,
     .dupImage                     = dri2_dup_image,
     .validateUsage                = dri2_validate_usage,
@@ -1965,17 +1965,17 @@ const __DRIimageExtension driVkImageExtension = {
     .getCapabilities              = dri2_get_capabilities,
     .mapImage                     = dri2_map_image,
     .unmapImage                   = dri2_unmap_image,
-    .queryDmaBufFormats           = dri2_query_dma_buf_formats,
-    .queryDmaBufModifiers         = dri2_query_dma_buf_modifiers,
+    .queryDmaBufFormats           = dri_query_dma_buf_formats,
+    .queryDmaBufModifiers         = dri_query_dma_buf_modifiers,
     .queryDmaBufFormatModifierAttribs = dri2_query_dma_buf_format_modifier_attribs,
 };
 
 const __DRIimageExtension driVkImageExtensionSw = {
     .base = { __DRI_IMAGE, 20 },
 
-    .createImageFromRenderbuffer  = dri2_create_image_from_renderbuffer,
+    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
     .destroyImage                 = dri2_destroy_image,
-    .createImage                  = dri2_create_image,
+    .createImage                  = dri_create_image,
     .queryImage                   = dri2_query_image,
     .dupImage                     = dri2_dup_image,
     .validateUsage                = dri2_validate_usage,
@@ -2142,9 +2142,9 @@ dri2_init_screen_extensions(struct dri_screen *screen,
    if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_IMPORT) {
       screen->image_extension.createImageFromDmaBufs = dri2_from_dma_bufs;
       screen->image_extension.queryDmaBufFormats =
-         dri2_query_dma_buf_formats;
+         dri_query_dma_buf_formats;
       screen->image_extension.queryDmaBufModifiers =
-         dri2_query_dma_buf_modifiers;
+         dri_query_dma_buf_modifiers;
       if (!is_kms_screen) {
          screen->image_extension.queryDmaBufFormatModifierAttribs =
             dri2_query_dma_buf_format_modifier_attribs;

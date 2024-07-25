@@ -212,4 +212,74 @@ PUBLIC int
 dri_interop_flush_objects(__DRIcontext *_ctx,
                            unsigned count, struct mesa_glinterop_export_in *objects,
                            struct mesa_glinterop_flush_out *out);
+
+PUBLIC __DRIimage *
+dri_create_image_from_renderbuffer(__DRIcontext *context,
+				     int renderbuffer, void *loaderPrivate,
+                                     unsigned *error);
+
+PUBLIC void
+dri2_destroy_image(__DRIimage *img);
+
+PUBLIC __DRIimage *
+dri2_create_from_texture(__DRIcontext *context, int target, unsigned texture,
+                         int depth, int level, unsigned *error,
+                         void *loaderPrivate);
+
+PUBLIC __DRIimage *
+dri_create_image(__DRIscreen *_screen,
+                  int width, int height,
+                  int format,
+                  const uint64_t *modifiers,
+                  const unsigned _count,
+                  unsigned int use,
+                  void *loaderPrivate);
+PUBLIC GLboolean
+dri2_query_image(__DRIimage *image, int attrib, int *value);
+PUBLIC __DRIimage *
+dri2_dup_image(__DRIimage *image, void *loaderPrivate);
+PUBLIC GLboolean
+dri2_validate_usage(__DRIimage *image, unsigned int use);
+PUBLIC __DRIimage *
+dri2_from_names(__DRIscreen *screen, int width, int height, int fourcc,
+                int *names, int num_names, int *strides, int *offsets,
+                void *loaderPrivate);
+PUBLIC __DRIimage *
+dri2_from_planar(__DRIimage *image, int plane, void *loaderPrivate);
+PUBLIC __DRIimage *
+dri2_from_dma_bufs(__DRIscreen *screen,
+                    int width, int height, int fourcc,
+                    uint64_t modifier, int *fds, int num_fds,
+                    int *strides, int *offsets,
+                    enum __DRIYUVColorSpace yuv_color_space,
+                    enum __DRISampleRange sample_range,
+                    enum __DRIChromaSiting horizontal_siting,
+                    enum __DRIChromaSiting vertical_siting,
+                    uint32_t dri_flags,
+                    unsigned *error,
+                    void *loaderPrivate);
+PUBLIC void
+dri2_blit_image(__DRIcontext *context, __DRIimage *dst, __DRIimage *src,
+                int dstx0, int dsty0, int dstwidth, int dstheight,
+                int srcx0, int srcy0, int srcwidth, int srcheight,
+                int flush_flag);
+PUBLIC int
+dri2_get_capabilities(__DRIscreen *_screen);
+PUBLIC void *
+dri2_map_image(__DRIcontext *context, __DRIimage *image,
+                int x0, int y0, int width, int height,
+                unsigned int flags, int *stride, void **data);
+PUBLIC void
+dri2_unmap_image(__DRIcontext *context, __DRIimage *image, void *data);
+PUBLIC bool
+dri_query_dma_buf_formats(__DRIscreen *_screen, int max, int *formats,
+                           int *count);
+PUBLIC bool
+dri_query_dma_buf_modifiers(__DRIscreen *_screen, int fourcc, int max,
+                             uint64_t *modifiers, unsigned int *external_only,
+                             int *count);
+PUBLIC bool
+dri2_query_dma_buf_format_modifier_attribs(__DRIscreen *_screen,
+                                           uint32_t fourcc, uint64_t modifier,
+                                           int attrib, uint64_t *value);
 #endif /* _DRI_UTIL_H_ */

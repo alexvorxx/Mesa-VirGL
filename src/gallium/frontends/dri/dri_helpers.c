@@ -257,7 +257,7 @@ const __DRI2fenceExtension dri2FenceExtension = {
 };
 
 __DRIimage *
-dri2_create_image_from_renderbuffer(__DRIcontext *context,
+dri_create_image_from_renderbuffer(__DRIcontext *context,
 				     int renderbuffer, void *loaderPrivate,
                                      unsigned *error)
 {
@@ -700,7 +700,7 @@ dri2_yuv_dma_buf_supported(struct dri_screen *screen,
 }
 
 bool
-dri2_query_dma_buf_formats(__DRIscreen *_screen, int max, int *formats,
+dri_query_dma_buf_formats(__DRIscreen *_screen, int max, int *formats,
                            int *count)
 {
    struct dri_screen *screen = dri_screen(_screen);

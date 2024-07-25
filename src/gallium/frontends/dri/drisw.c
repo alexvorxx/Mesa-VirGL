@@ -506,7 +506,7 @@ drisw_update_tex_buffer(struct dri_drawable *drawable,
 static __DRIimageExtension driSWImageExtension = {
     .base = { __DRI_IMAGE, 6 },
 
-    .createImageFromRenderbuffer  = dri2_create_image_from_renderbuffer,
+    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
     .createImageFromTexture = dri2_create_from_texture,
     .destroyImage = dri2_destroy_image,
 };
