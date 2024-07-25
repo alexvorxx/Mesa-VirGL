@@ -878,7 +878,6 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
    }
 
    static const struct dri_extension_match exts[] = {
-       { __DRI_TEX_BUFFER, 1, offsetof(struct dri2_screen, texBuffer), true },
        { __DRI2_FLUSH, 1, offsetof(struct dri2_screen, f), true },
        { __DRI2_CONFIG_QUERY, 1, offsetof(struct dri2_screen, config), true },
        { __DRI2_THROTTLE, 1, offsetof(struct dri2_screen, throttle), true },
@@ -898,8 +897,7 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
                                     "GLX_ARB_context_flush_control");
    }
 
-   if (psc->texBuffer)
-      __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
+   __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
 
    if (psc->rendererQuery)
       __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");

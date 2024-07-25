@@ -710,17 +710,14 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
    };
    loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions);
 
-   for (i = 0; extensions[i]; i++) {
-      /* when on a different gpu than the server, the server pixmaps
-       * can have a tiling mode we can't read. Thus we can't create
-       * a texture from them.
-       */
-      if (psc->fd_render_gpu == psc->fd_display_gpu &&
-         (strcmp(extensions[i]->name, __DRI_TEX_BUFFER) == 0)) {
-         psc->texBuffer = (__DRItexBufferExtension *) extensions[i];
-         __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
-      }
+   /* when on a different gpu than the server, the server pixmaps
+    * can have a tiling mode we can't read. Thus we can't create
+    * a texture from them.
+    */
+   if (psc->fd_render_gpu == psc->fd_display_gpu)
+      __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
 
+   for (i = 0; extensions[i]; i++) {
       if (strcmp(extensions[i]->name, __DRI2_ROBUSTNESS) == 0)
          __glXEnableDirectExtension(&psc->base,
                                     "GLX_ARB_create_context_robustness");
