@@ -284,7 +284,6 @@ dri2_query_dma_buf_format_modifier_attribs(__DRIscreen *_screen,
                                            int attrib, uint64_t *value);
 PUBLIC __DRIimage *
 dri_create_image_with_modifiers(__DRIscreen *screen,
-                                 const __DRIimageExtension *image,
                                  uint32_t width, uint32_t height,
                                  uint32_t dri_format, uint32_t dri_usage,
                                  const uint64_t *modifiers,

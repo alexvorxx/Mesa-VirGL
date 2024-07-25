@@ -735,7 +735,6 @@ dri_query_dma_buf_formats(__DRIscreen *_screen, int max, int *formats,
 
 __DRIimage *
 dri_create_image_with_modifiers(__DRIscreen *screen,
-                                 const __DRIimageExtension *image,
                                  uint32_t width, uint32_t height,
                                  uint32_t dri_format, uint32_t dri_usage,
                                  const uint64_t *modifiers,
@@ -762,8 +761,8 @@ dri_create_image_with_modifiers(__DRIscreen *screen,
          return NULL;
    }
 
-   return image->createImage(screen, width, height, dri_format,
-                             modifiers, modifiers_count, dri_usage,
-                             loaderPrivate);
+   return dri_create_image(screen, width, height, dri_format,
+                           modifiers, modifiers_count, dri_usage,
+                           loaderPrivate);
 }
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

@@ -1467,7 +1467,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
          free(mod_reply);
       }
 #endif
-      buffer->image = dri_create_image_with_modifiers(draw->dri_screen_render_gpu, draw->ext->image,
+      buffer->image = dri_create_image_with_modifiers(draw->dri_screen_render_gpu,
                                               width, height, format,
                                               __DRI_IMAGE_USE_SHARE |
                                               __DRI_IMAGE_USE_SCANOUT |

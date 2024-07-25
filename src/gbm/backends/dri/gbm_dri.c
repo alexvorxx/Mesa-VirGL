@@ -1045,7 +1045,7 @@ gbm_dri_bo_create(struct gbm_device *gbm,
       mods_comp = NULL;
    }
 
-   bo->image = dri_create_image_with_modifiers(dri->screen, dri->image, width, height,
+   bo->image = dri_create_image_with_modifiers(dri->screen, width, height,
                                        dri_format, dri_use,
                                        mods_filtered ? mods_filtered : modifiers,
                                        mods_filtered ? count_filtered : count,

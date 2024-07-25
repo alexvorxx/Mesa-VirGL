@@ -1070,7 +1070,7 @@ create_dri_image(struct dri2_egl_surface *dri2_surf,
    }
 
    dri2_surf->back->dri_image = dri_create_image_with_modifiers(
-      dri2_dpy->dri_screen_render_gpu, dri2_dpy->image, dri2_surf->base.Width,
+      dri2_dpy->dri_screen_render_gpu, dri2_surf->base.Width,
       dri2_surf->base.Height, pipe_format,
       (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu) ? 0 : use_flags,
       modifiers, num_modifiers, NULL);
@@ -1211,7 +1211,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
 
       if (dri2_dpy->dri_screen_display_gpu) {
          linear_copy_display_gpu_image = dri_create_image_with_modifiers(
-            dri2_dpy->dri_screen_display_gpu, dri2_dpy->image,
+            dri2_dpy->dri_screen_display_gpu,
             dri2_surf->base.Width, dri2_surf->base.Height,
             linear_pipe_format, use_flags | __DRI_IMAGE_USE_LINEAR,
             &linear_mod, 1, NULL);
@@ -1296,7 +1296,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
 
       if (!dri2_surf->back->linear_copy) {
          dri2_surf->back->linear_copy = dri_create_image_with_modifiers(
-            dri2_dpy->dri_screen_render_gpu, dri2_dpy->image,
+            dri2_dpy->dri_screen_render_gpu,
             dri2_surf->base.Width, dri2_surf->base.Height,
             linear_pipe_format, use_flags | __DRI_IMAGE_USE_LINEAR,
             &linear_mod, 1, NULL);
