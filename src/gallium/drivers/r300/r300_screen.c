@@ -489,7 +489,8 @@ static int r300_get_video_param(struct pipe_screen *screen,
    .lower_uniforms_to_ubo = true,             \
    .lower_vector_cmp = true,                  \
    .no_integers = true,                       \
-   .use_interpolated_input_intrinsics = true
+   .use_interpolated_input_intrinsics = true, \
+   .has_ddx_intrinsics = true
 
 static const nir_shader_compiler_options r500_vs_compiler_options = {
    COMMON_NIR_OPTIONS,
