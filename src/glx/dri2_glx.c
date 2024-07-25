@@ -818,18 +818,10 @@ dri2_bind_tex_image(__GLXDRIdrawable *base,
    if (pdraw != NULL) {
       psc = (struct dri2_screen *) base->psc;
 
-      if (psc->texBuffer->base.version >= 2 &&
-	  psc->texBuffer->setTexBuffer2 != NULL) {
-	 psc->texBuffer->setTexBuffer2(gc->driContext,
-					   pdraw->base.textureTarget,
-					   pdraw->base.textureFormat,
-					   pdraw->driDrawable);
-      }
-      else {
-	 psc->texBuffer->setTexBuffer(gc->driContext,
-					  pdraw->base.textureTarget,
-					  pdraw->driDrawable);
-      }
+      psc->texBuffer->setTexBuffer2(gc->driContext,
+                                    pdraw->base.textureTarget,
+                                    pdraw->base.textureFormat,
+                                    pdraw->driDrawable);
    }
 }
 
