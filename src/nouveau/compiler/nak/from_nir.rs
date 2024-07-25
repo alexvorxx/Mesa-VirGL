@@ -2736,12 +2736,16 @@ impl<'a> ShaderFromNir<'a> {
                 if (modes & nir_var_mem_global) != 0
                     && (semantics & NIR_MEMORY_RELEASE) != 0
                 {
-                    b.push_op(OpCCtl {
-                        op: CCtlOp::WBAll,
-                        mem_space: MemSpace::Global(MemAddrType::A64),
-                        addr: 0.into(),
-                        addr_offset: 0,
-                    });
+                    // Pre-Volta doesn't have WBAll but it also seems that we
+                    // don't need it.
+                    if self.sm.sm() >= 70 {
+                        b.push_op(OpCCtl {
+                            op: CCtlOp::WBAll,
+                            mem_space: MemSpace::Global(MemAddrType::A64),
+                            addr: 0.into(),
+                            addr_offset: 0,
+                        });
+                    }
                 }
                 match intrin.execution_scope() {
                     SCOPE_NONE => (),
