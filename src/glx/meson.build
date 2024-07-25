@@ -16,7 +16,6 @@ files_libglx = files(
   'dri_common.c',
   'dri_common.h',
   'dri_common_query_renderer.c',
-  'dri_common_interop.c',
   'drisw_glx.c',
   'drisw_priv.h',
   'eval.c',

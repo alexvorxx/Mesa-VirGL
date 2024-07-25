@@ -111,17 +111,3 @@ dri3_query_renderer_integer(struct glx_screen *base, int attribute,
 _X_HIDDEN int
 dri3_query_renderer_string(struct glx_screen *base, int attribute,
                            const char **value);
-
-_X_HIDDEN int
-dri3_interop_query_device_info(struct glx_context *ctx,
-                               struct mesa_glinterop_device_info *out);
-
-_X_HIDDEN int
-dri3_interop_export_object(struct glx_context *ctx,
-                           struct mesa_glinterop_export_in *in,
-                           struct mesa_glinterop_export_out *out);
-
-_X_HIDDEN int
-dri3_interop_flush_objects(struct glx_context *ctx,
-                           unsigned count, struct mesa_glinterop_export_in *objects,
-                           struct mesa_glinterop_flush_out *out);

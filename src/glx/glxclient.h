@@ -235,14 +235,6 @@ struct glx_context_vtable {
    void (*unbind)(struct glx_context *context);
    void (*wait_gl)(struct glx_context *ctx);
    void (*wait_x)(struct glx_context *ctx);
-   int (*interop_query_device_info)(struct glx_context *ctx,
-                                    struct mesa_glinterop_device_info *out);
-   int (*interop_export_object)(struct glx_context *ctx,
-                                struct mesa_glinterop_export_in *in,
-                                struct mesa_glinterop_export_out *out);
-   int (*interop_flush_objects)(struct glx_context *ctx,
-                                unsigned count, struct mesa_glinterop_export_in *objects,
-                                struct mesa_glinterop_flush_out *out);
 };
 
 /**
