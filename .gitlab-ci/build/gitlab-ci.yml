@@ -433,7 +433,7 @@ debian-android:
     - debian/arm64_build
   variables:
     VULKAN_DRIVERS: freedreno,broadcom
-    GALLIUM_DRIVERS: "etnaviv,freedreno,kmsro,lima,nouveau,panfrost,softpipe,tegra,v3d,vc4,zink"
+    GALLIUM_DRIVERS: "etnaviv,freedreno,kmsro,lima,nouveau,panfrost,llvmpipe,softpipe,tegra,v3d,vc4,zink"
     BUILDTYPE: "debugoptimized"
   tags:
     - aarch64
@@ -446,6 +446,8 @@ debian-arm32:
     CROSS: armhf
     DRI_LOADERS:
       -D glvnd=disabled
+    # remove llvmpipe from the .meson-arm list because here we have llvm=disabled
+    GALLIUM_DRIVERS: "etnaviv,freedreno,kmsro,lima,nouveau,panfrost,softpipe,tegra,v3d,vc4,zink"
     EXTRA_OPTION: >
       -D llvm=disabled
       -D valgrind=disabled
@@ -480,7 +482,6 @@ debian-arm64:
     C_ARGS: >
       -Wno-error=array-bounds
       -Wno-error=stringop-truncation
-    GALLIUM_DRIVERS: "etnaviv,freedreno,kmsro,lima,nouveau,panfrost,llvmpipe,softpipe,tegra,v3d,vc4,zink"
     VULKAN_DRIVERS: "freedreno,broadcom,panfrost,imagination-experimental"
     DRI_LOADERS:
       -D glvnd=disabled
