@@ -696,7 +696,6 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
 
    static const struct dri_extension_match exts[] = {
        { __DRI_IMAGE, 1, offsetof(struct dri3_screen, image), true },
-       { __DRI2_INTEROP, 1, offsetof(struct dri3_screen, interop), true },
    };
    loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions);
 
@@ -716,8 +715,7 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
    __glXEnableDirectExtension(&psc->base, "GLX_ARB_context_flush_control");
    __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
 
-   if (psc->interop)
-      __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");
+   __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");
 }
 
 static char *

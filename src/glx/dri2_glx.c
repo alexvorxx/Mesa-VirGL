@@ -866,11 +866,6 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
                                  "GLX_EXT_create_context_es2_profile");
    }
 
-   static const struct dri_extension_match exts[] = {
-       { __DRI2_INTEROP, 1, offsetof(struct dri2_screen, interop), true },
-   };
-   loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions);
-
    /* Extensions where we don't care about the extension struct */
    for (i = 0; extensions[i]; i++) {
       if (strcmp(extensions[i]->name, __DRI2_ROBUSTNESS) == 0)
@@ -882,8 +877,7 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
    __glXEnableDirectExtension(&psc->base, "GLX_ARB_context_flush_control");
    __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
 
-   if (psc->interop)
-      __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");
+   __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");
 }
 
 static char *
