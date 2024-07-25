@@ -939,6 +939,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    /* this is only relevant if zink bits are set */
    glx_driver &= (GLX_DRIVER_ZINK_INFER | GLX_DRIVER_ZINK_YES);
    const char *driver = glx_driver && !kopper_disable ? "zink" : "swrast";
+   bool kopper = !strcmp(driver, "zink");
 
    psc = calloc(1, sizeof *psc);
    if (psc == NULL)
@@ -1007,7 +1008,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    if (psc->copySubBuffer)
       psp->copySubBuffer = driswCopySubBuffer;
 
-   if (psc->kopper) {
+   if (kopper) {
       psp->getBufferAge = kopper_get_buffer_age;
       psp->setSwapInterval = driswKopperSetSwapInterval;
       psp->getSwapInterval = kopperGetSwapInterval;
