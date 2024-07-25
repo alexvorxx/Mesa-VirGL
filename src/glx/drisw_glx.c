@@ -793,12 +793,6 @@ driswBindExtensions(struct drisw_screen *psc, const __DRIextension **extensions)
    if (!(psc->base.display->driver & (GLX_DRIVER_ZINK_INFER | GLX_DRIVER_ZINK_YES)))
       __glXEnableDirectExtension(&psc->base, "GLX_MESA_copy_sub_buffer");
 
-   /* FIXME: Figure out what other extensions can be ported here from dri2. */
-   static const struct dri_extension_match exts[] = {
-       { __DRI2_CONFIG_QUERY, 1, offsetof(struct drisw_screen, config), true },
-   };
-   loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions);
-
    /* Extensions where we don't care about the extension struct */
    for (i = 0; extensions[i]; i++) {
       if (strcmp(extensions[i]->name, __DRI2_ROBUSTNESS) == 0)

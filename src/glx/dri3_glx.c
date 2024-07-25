@@ -700,7 +700,6 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
    static const struct dri_extension_match exts[] = {
        { __DRI_IMAGE, 1, offsetof(struct dri3_screen, image), true },
        { __DRI2_INTEROP, 1, offsetof(struct dri3_screen, interop), true },
-       { __DRI2_CONFIG_QUERY, 1, offsetof(struct dri3_screen, config), true },
    };
    loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions);
 
@@ -900,33 +899,31 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    psp->getBufferAge = dri3_get_buffer_age;
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_buffer_age");
 
-   if (psc->config->base.version > 1 &&
-          psc->config->configQuerys(psc->driScreenRenderGPU, "glx_extension_override",
+   if (dri2GalliumConfigQuerys(psc->driScreenRenderGPU, "glx_extension_override",
                                     &tmp) == 0)
       __glXParseExtensionOverride(&psc->base, tmp);
 
-   if (psc->config->base.version > 1 &&
-          psc->config->configQuerys(psc->driScreenRenderGPU,
+   if (dri2GalliumConfigQuerys(psc->driScreenRenderGPU,
                                     "indirect_gl_extension_override",
                                     &tmp) == 0)
       __IndirectGlParseExtensionOverride(&psc->base, tmp);
 
-   if (psc->config->base.version > 1) {
+   {
       uint8_t force = false;
-      if (psc->config->configQueryb(psc->driScreenRenderGPU, "force_direct_glx_context",
+      if (dri2GalliumConfigQueryb(psc->driScreenRenderGPU, "force_direct_glx_context",
                                     &force) == 0) {
          psc->base.force_direct_context = force;
       }
 
       uint8_t invalid_glx_destroy_window = false;
-      if (psc->config->configQueryb(psc->driScreenRenderGPU,
+      if (dri2GalliumConfigQueryb(psc->driScreenRenderGPU,
                                     "allow_invalid_glx_destroy_window",
                                     &invalid_glx_destroy_window) == 0) {
          psc->base.allow_invalid_glx_destroy_window = invalid_glx_destroy_window;
       }
 
       uint8_t keep_native_window_glx_drawable = false;
-      if (psc->config->configQueryb(psc->driScreenRenderGPU,
+      if (dri2GalliumConfigQueryb(psc->driScreenRenderGPU,
                                     "keep_native_window_glx_drawable",
                                     &keep_native_window_glx_drawable) == 0) {
          psc->base.keep_native_window_glx_drawable = keep_native_window_glx_drawable;

@@ -415,17 +415,17 @@ loader_dri3_drawable_init(xcb_connection_t *conn,
    mtx_init(&draw->mtx, mtx_plain);
    cnd_init(&draw->event_cnd);
 
-   if (draw->ext->config) {
+   {
       unsigned char adaptive_sync = 0;
       unsigned char block_on_depleted_buffers = 0;
 
-      draw->ext->config->configQueryb(draw->dri_screen_render_gpu,
+      dri2GalliumConfigQueryb(draw->dri_screen_render_gpu,
                                       "adaptive_sync",
                                       &adaptive_sync);
 
       draw->adaptive_sync = adaptive_sync;
 
-      draw->ext->config->configQueryb(draw->dri_screen_render_gpu,
+      dri2GalliumConfigQueryb(draw->dri_screen_render_gpu,
                                       "block_on_depleted_buffers",
                                       &block_on_depleted_buffers);
 

@@ -872,7 +872,6 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
    }
 
    static const struct dri_extension_match exts[] = {
-       { __DRI2_CONFIG_QUERY, 1, offsetof(struct dri2_screen, config), true },
        { __DRI2_THROTTLE, 1, offsetof(struct dri2_screen, throttle), true },
        { __DRI2_INTEROP, 1, offsetof(struct dri2_screen, interop), true },
    };
@@ -1026,26 +1025,24 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    __glXEnableDirectExtension(&psc->base, "GLX_OML_sync_control");
    __glXEnableDirectExtension(&psc->base, "GLX_SGI_video_sync");
 
-   if (psc->config->base.version > 1 &&
-          psc->config->configQuerys(psc->driScreen, "glx_extension_override",
+   if (dri2GalliumConfigQuerys(psc->driScreen, "glx_extension_override",
                                     &tmp) == 0)
       __glXParseExtensionOverride(&psc->base, tmp);
 
-   if (psc->config->base.version > 1 &&
-          psc->config->configQuerys(psc->driScreen,
+   if (dri2GalliumConfigQuerys(psc->driScreen,
                                     "indirect_gl_extension_override",
                                     &tmp) == 0)
       __IndirectGlParseExtensionOverride(&psc->base, tmp);
 
-   if (psc->config->base.version > 1) {
+   {
       uint8_t force = false;
-      if (psc->config->configQueryb(psc->driScreen, "force_direct_glx_context",
+      if (dri2GalliumConfigQueryb(psc->driScreen, "force_direct_glx_context",
                                     &force) == 0) {
          psc->base.force_direct_context = force;
       }
 
       uint8_t invalid_glx_destroy_window = false;
-      if (psc->config->configQueryb(psc->driScreen,
+      if (dri2GalliumConfigQueryb(psc->driScreen,
                                     "allow_invalid_glx_destroy_window",
                                     &invalid_glx_destroy_window) == 0) {
          psc->base.allow_invalid_glx_destroy_window = invalid_glx_destroy_window;

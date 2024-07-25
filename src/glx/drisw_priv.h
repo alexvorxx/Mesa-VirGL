@@ -39,7 +39,6 @@ struct drisw_screen
 
    __DRIscreen *driScreen;
    __GLXDRIscreen vtable;
-   const __DRI2configQueryExtension *config;
 
    const __DRIconfig **driver_configs;
 

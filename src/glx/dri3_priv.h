@@ -80,7 +80,6 @@ struct dri3_screen {
    __DRIscreen *driScreenRenderGPU;
 
    const __DRIimageExtension *image;
-   const __DRI2configQueryExtension *config;
    const __DRI2interopExtension *interop;
    const __DRIconfig **driver_configs;
 
