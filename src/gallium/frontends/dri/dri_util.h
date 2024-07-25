@@ -193,4 +193,9 @@ PUBLIC int
 dri2GalliumConfigQueryf(__DRIscreen *sPriv, const char *var, float *val);
 PUBLIC int
 dri2GalliumConfigQuerys(__DRIscreen *sPriv, const char *var, char **val);
+
+PUBLIC int dri_get_initial_swap_interval(__DRIscreen *driScreen,
+                                  const __DRI2configQueryExtension *config);
+PUBLIC bool dri_valid_swap_interval(__DRIscreen *driScreen,
+                             const __DRI2configQueryExtension *config, int interval);
 #endif /* _DRI_UTIL_H_ */

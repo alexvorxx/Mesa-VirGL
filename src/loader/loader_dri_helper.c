@@ -63,53 +63,6 @@ __DRIimage *loader_dri_create_image(__DRIscreen *screen,
                              loaderPrivate);
 }
 
-static int dri_vblank_mode(__DRIscreen *driScreen, const __DRI2configQueryExtension *config)
-{
-   GLint vblank_mode = DRI_CONF_VBLANK_DEF_INTERVAL_1;
-
-   if (config)
-      config->configQueryi(driScreen, "vblank_mode", &vblank_mode);
-
-   return vblank_mode;
-}
-
-int dri_get_initial_swap_interval(__DRIscreen *driScreen,
-                                  const __DRI2configQueryExtension *config)
-{
-   int vblank_mode = dri_vblank_mode(driScreen, config);
-
-   switch (vblank_mode) {
-   case DRI_CONF_VBLANK_NEVER:
-   case DRI_CONF_VBLANK_DEF_INTERVAL_0:
-      return 0;
-   case DRI_CONF_VBLANK_DEF_INTERVAL_1:
-   case DRI_CONF_VBLANK_ALWAYS_SYNC:
-   default:
-      return 1;
-   }
-}
-
-bool dri_valid_swap_interval(__DRIscreen *driScreen,
-                             const __DRI2configQueryExtension *config, int interval)
-{
-   int vblank_mode = dri_vblank_mode(driScreen, config);
-
-   switch (vblank_mode) {
-   case DRI_CONF_VBLANK_NEVER:
-      if (interval != 0)
-         return false;
-      break;
-   case DRI_CONF_VBLANK_ALWAYS_SYNC:
-      if (interval <= 0)
-         return false;
-      break;
-   default:
-      break;
-   }
-
-   return true;
-}
-
 /* the DRIimage createImage function takes __DRI_IMAGE_FORMAT codes, while
  * the createImageFromDmaBufs call takes DRM_FORMAT codes. To avoid
  * complete confusion, just deal in __DRI_IMAGE_FORMAT codes for now and
