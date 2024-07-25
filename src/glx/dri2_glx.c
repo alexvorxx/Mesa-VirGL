@@ -224,7 +224,7 @@ dri2_create_context_attribs(struct glx_screen *base,
    pcp->renderType = dca.render_type;
 
    pcp->driContext =
-      psc->dri2->createContextAttribs(psc->driScreen,
+      driCreateContextAttribs(psc->driScreen,
 					  dca.api,
 					  config ? config->driConfig : NULL,
 					  shared,
@@ -300,8 +300,7 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
    DRI2CreateDrawable(psc->base.dpy, xDrawable);
    /* Create a new drawable */
    pdraw->driDrawable =
-      psc->dri2->createNewDrawable(psc->driScreen,
-                                       config->driConfig, pdraw);
+      driCreateNewDrawable(psc->driScreen, config->driConfig, pdraw);
 
    if (!pdraw->driDrawable) {
       DRI2DestroyDrawable(psc->base.dpy, xDrawable);
@@ -868,7 +867,7 @@ static void
 dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
                    const char *driverName)
 {
-   const unsigned mask = psc->dri2->getAPIMask(psc->driScreen);
+   const unsigned mask = driGetAPIMask(psc->driScreen);
    const __DRIextension **extensions;
    int i;
 
@@ -1020,12 +1019,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
 
    extensions = driOpenDriver(driverName, driver_name_is_inferred);
    if (extensions == NULL)
-      goto handle_error;
-
-   static const struct dri_extension_match exts[] = {
-       { __DRI_DRI2, 5, offsetof(struct dri2_screen, dri2), false },
-   };
-   if (!loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions))
       goto handle_error;
 
    psc->driScreen = driCreateNewScreen3(screen, psc->fd, loader_extensions, extensions,
