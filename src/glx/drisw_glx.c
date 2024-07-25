@@ -773,13 +773,12 @@ drisw_copy_sub_buffer(__GLXDRIdrawable * pdraw,
                       int x, int y, int width, int height, Bool flush)
 {
    struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
-   struct drisw_screen *psc = (struct drisw_screen *) pdp->base.psc;
 
    if (flush) {
       glFlush();
    }
 
-   psc->copySubBuffer->copySubBuffer(pdp->driDrawable, x, y, width, height);
+   driswCopySubBuffer(pdp->driDrawable, x, y, width, height);
 }
 
 static void
@@ -827,7 +826,7 @@ driswBindExtensions(struct drisw_screen *psc, const __DRIextension **extensions)
    __glXEnableDirectExtension(&psc->base,
                               "GLX_EXT_create_context_es2_profile");
 
-   if (psc->copySubBuffer)
+   if (!(psc->base.display->driver & (GLX_DRIVER_ZINK_INFER | GLX_DRIVER_ZINK_YES)))
       __glXEnableDirectExtension(&psc->base, "GLX_MESA_copy_sub_buffer");
 
    /* FIXME: Figure out what other extensions can be ported here from dri2. */
@@ -961,12 +960,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    else
       loader_extensions_local = loader_extensions_shm;
 
-   static const struct dri_extension_match exts[] = {
-       { __DRI_COPY_SUB_BUFFER, 1, offsetof(struct drisw_screen, copySubBuffer), true },
-   };
-   if (!loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions))
-      goto handle_error;
-
    psc->driScreen = driCreateNewScreen3(screen, -1, loader_extensions_local, extensions,
                                         &driver_configs, driver_name_is_inferred, psc);
    if (psc->driScreen == NULL) {
@@ -1003,7 +996,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    psp->bindTexImage = drisw_bind_tex_image;
    psp->releaseTexImage = drisw_release_tex_image;
 
-   if (psc->copySubBuffer)
+   if (!glx_driver)
       psp->copySubBuffer = drisw_copy_sub_buffer;
 
    if (psc->kopper) {
