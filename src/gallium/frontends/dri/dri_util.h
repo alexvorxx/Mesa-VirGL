@@ -184,4 +184,13 @@ dri_flush(__DRIcontext *cPriv,
 PUBLIC void
 dri_invalidate_drawable(__DRIdrawable *dPriv);
 
+PUBLIC int
+dri2GalliumConfigQueryb(__DRIscreen *sPriv, const char *var,
+                        unsigned char *val);
+PUBLIC int
+dri2GalliumConfigQueryi(__DRIscreen *sPriv, const char *var, int *val);
+PUBLIC int
+dri2GalliumConfigQueryf(__DRIscreen *sPriv, const char *var, float *val);
+PUBLIC int
+dri2GalliumConfigQuerys(__DRIscreen *sPriv, const char *var, char **val);
 #endif /* _DRI_UTIL_H_ */

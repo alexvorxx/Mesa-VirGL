@@ -849,7 +849,7 @@ dri2ConfigQuerys(__DRIscreen *psp, const char *var, char **val)
 /**
  * \brief the DRI2ConfigQueryExtension configQueryb method
  */
-static int
+int
 dri2GalliumConfigQueryb(__DRIscreen *sPriv, const char *var,
                         unsigned char *val)
 {
@@ -866,7 +866,7 @@ dri2GalliumConfigQueryb(__DRIscreen *sPriv, const char *var,
 /**
  * \brief the DRI2ConfigQueryExtension configQueryi method
  */
-static int
+int
 dri2GalliumConfigQueryi(__DRIscreen *sPriv, const char *var, int *val)
 {
    struct dri_screen *screen = dri_screen(sPriv);
@@ -883,7 +883,7 @@ dri2GalliumConfigQueryi(__DRIscreen *sPriv, const char *var, int *val)
 /**
  * \brief the DRI2ConfigQueryExtension configQueryf method
  */
-static int
+int
 dri2GalliumConfigQueryf(__DRIscreen *sPriv, const char *var, float *val)
 {
    struct dri_screen *screen = dri_screen(sPriv);
@@ -899,7 +899,7 @@ dri2GalliumConfigQueryf(__DRIscreen *sPriv, const char *var, float *val)
 /**
  * \brief the DRI2ConfigQueryExtension configQuerys method
  */
-static int
+int
 dri2GalliumConfigQuerys(__DRIscreen *sPriv, const char *var, char **val)
 {
    struct dri_screen *screen = dri_screen(sPriv);
