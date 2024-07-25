@@ -260,7 +260,6 @@ loader_dri3_create_image(xcb_connection_t *c,
                          xcb_dri3_buffer_from_pixmap_reply_t *bp_reply,
                          unsigned int fourcc,
                          __DRIscreen *dri_screen,
-                         const __DRIimageExtension *image,
                          void *loaderPrivate);
 
 #ifdef HAVE_DRI3_MODIFIERS
@@ -269,7 +268,6 @@ loader_dri3_create_image_from_buffers(xcb_connection_t *c,
                                       xcb_dri3_buffers_from_pixmap_reply_t *bp_reply,
                                       unsigned int fourcc,
                                       __DRIscreen *dri_screen,
-                                      const __DRIimageExtension *image,
                                       void *loaderPrivate);
 #endif
 int

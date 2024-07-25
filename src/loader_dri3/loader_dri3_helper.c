@@ -138,18 +138,6 @@ dri3_get_red_mask_for_depth(struct loader_dri3_drawable *draw, int depth)
 }
 
 /**
- * Do we have blit functionality in the image blit extension?
- *
- * \param draw[in]  The drawable intended to blit from / to.
- * \return  true if we have blit functionality. false otherwise.
- */
-static bool loader_dri3_have_image_blit(const struct loader_dri3_drawable *draw)
-{
-   return draw->ext->image->base.version >= 9 &&
-      draw->ext->image->blitImage != NULL;
-}
-
-/**
  * Get and lock (for use with the current thread) a dri context associated
  * with the drawable's dri screen. The context is intended to be used with
  * the dri image extension's blitImage method.
@@ -214,9 +202,6 @@ loader_dri3_blit_image(struct loader_dri3_drawable *draw,
    __DRIcontext *dri_context;
    bool use_blit_context = false;
 
-   if (!loader_dri3_have_image_blit(draw))
-      return false;
-
    dri_context = draw->vtable->get_dri_context(draw);
 
    if (!dri_context || !draw->vtable->in_current_context(draw)) {
@@ -226,9 +211,9 @@ loader_dri3_blit_image(struct loader_dri3_drawable *draw,
    }
 
    if (dri_context)
-      draw->ext->image->blitImage(dri_context, dst, src, dstx0, dsty0,
-                                  width, height, srcx0, srcy0,
-                                  width, height, flush_flag);
+      dri2_blit_image(dri_context, dst, src, dstx0, dsty0,
+                     width, height, srcx0, srcy0,
+                     width, height, flush_flag);
 
    if (use_blit_context)
       loader_dri3_blit_context_put();
@@ -337,9 +322,9 @@ dri3_free_render_buffer(struct loader_dri3_drawable *draw,
       xcb_free_pixmap(draw->conn, buffer->pixmap);
    xcb_sync_destroy_fence(draw->conn, buffer->sync_fence);
    xshmfence_unmap_shm(buffer->shm_fence);
-   draw->ext->image->destroyImage(buffer->image);
+   dri2_destroy_image(buffer->image);
    if (buffer->linear_buffer)
-      draw->ext->image->destroyImage(buffer->linear_buffer);
+      dri2_destroy_image(buffer->linear_buffer);
    free(buffer);
 
    draw->buffers[buf_id] = NULL;
@@ -701,7 +686,7 @@ dri3_find_back(struct loader_dri3_drawable *draw, bool prefer_a_different)
    /* Check whether we need to reuse the current back buffer as new back.
     * In that case, wait until it's not busy anymore.
     */
-   if (!loader_dri3_have_image_blit(draw) && draw->cur_blit_source != -1) {
+   if (draw->cur_blit_source != -1) {
       max_num = 1;
       draw->cur_blit_source = -1;
    } else {
@@ -1127,7 +1112,7 @@ loader_dri3_swap_buffers_msc(struct loader_dri3_drawable *draw,
        * buffer slot due to lack of local blit capabilities, make sure
        * the server doesn't flip and we deadlock.
        */
-      if (!loader_dri3_have_image_blit(draw) && draw->cur_blit_source != -1)
+      if (draw->cur_blit_source != -1)
          options |= XCB_PRESENT_OPTION_COPY;
 #ifdef HAVE_DRI3_MODIFIERS
       if (draw->multiplanes_available)
@@ -1207,7 +1192,7 @@ loader_dri3_swap_buffers_msc(struct loader_dri3_drawable *draw,
     * b) We need to preserve the back buffer,
     * c) We don't have local blit capabilities.
     */
-   if (!loader_dri3_have_image_blit(draw) && draw->cur_blit_source != -1 &&
+   if (draw->cur_blit_source != -1 &&
        draw->cur_blit_source != LOADER_DRI3_BACK_ID(draw->cur_back)) {
       struct loader_dri3_buffer *new_back = dri3_back_buffer(draw);
       struct loader_dri3_buffer *src = draw->buffers[draw->cur_blit_source];
@@ -1342,7 +1327,7 @@ has_supported_modifier(struct loader_dri3_drawable *draw, unsigned int format,
    bool found = false;
    int i, j;
 
-   if (!draw->ext->image->queryDmaBufModifiers(draw->dri_screen_render_gpu,
+   if (!dri_query_dma_buf_modifiers(draw->dri_screen_render_gpu,
                                                format, 0, NULL, NULL,
                                                &supported_modifiers_count) ||
        supported_modifiers_count == 0)
@@ -1352,7 +1337,7 @@ has_supported_modifier(struct loader_dri3_drawable *draw, unsigned int format,
    if (!supported_modifiers)
       return false;
 
-   draw->ext->image->queryDmaBufModifiers(draw->dri_screen_render_gpu, format,
+   dri_query_dma_buf_modifiers(draw->dri_screen_render_gpu, format,
                                           supported_modifiers_count,
                                           supported_modifiers, NULL,
                                           &supported_modifiers_count);
@@ -1417,8 +1402,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
 
    if (draw->dri_screen_render_gpu == draw->dri_screen_display_gpu) {
 #ifdef HAVE_DRI3_MODIFIERS
-      if (draw->multiplanes_available &&
-          draw->ext->image->queryDmaBufModifiers) {
+      if (draw->multiplanes_available) {
          xcb_dri3_get_supported_modifiers_cookie_t mod_cookie;
          xcb_dri3_get_supported_modifiers_reply_t *mod_reply;
          xcb_generic_error_t *error = NULL;
@@ -1483,7 +1467,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
          goto no_image;
    } else {
       buffer->image =
-         draw->ext->image->createImage(draw->dri_screen_render_gpu,
+         dri_create_image(draw->dri_screen_render_gpu,
                                        width, height, format,
                                        NULL, 0, 0, buffer);
 
@@ -1496,7 +1480,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
        */
       if (draw->dri_screen_display_gpu) {
          linear_buffer_display_gpu =
-           draw->ext->image->createImage(draw->dri_screen_display_gpu,
+           dri_create_image(draw->dri_screen_display_gpu,
                                          width, height,
                                          dri3_linear_format_for_format(draw, format),
                                          NULL, 0,
@@ -1510,7 +1494,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
 
       if (!pixmap_buffer) {
          buffer->linear_buffer =
-           draw->ext->image->createImage(draw->dri_screen_render_gpu,
+           dri_create_image(draw->dri_screen_render_gpu,
                                         width, height,
                                         dri3_linear_format_for_format(draw, format),
                                         NULL, 0,
@@ -1530,12 +1514,12 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
 
    /* X want some information about the planes, so ask the image for it
     */
-   if (!draw->ext->image->queryImage(pixmap_buffer, __DRI_IMAGE_ATTRIB_NUM_PLANES,
+   if (!dri2_query_image(pixmap_buffer, __DRI_IMAGE_ATTRIB_NUM_PLANES,
                                      &num_planes))
       num_planes = 1;
 
    for (i = 0; i < num_planes; i++) {
-      __DRIimage *image = draw->ext->image->fromPlanar(pixmap_buffer, i, NULL);
+      __DRIimage *image = dri2_from_planar(pixmap_buffer, i, NULL);
 
       if (!image) {
          assert(i == 0);
@@ -1544,23 +1528,23 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
 
       buffer_fds[i] = -1;
 
-      ret = draw->ext->image->queryImage(image, __DRI_IMAGE_ATTRIB_FD,
+      ret = dri2_query_image(image, __DRI_IMAGE_ATTRIB_FD,
                                          &buffer_fds[i]);
-      ret &= draw->ext->image->queryImage(image, __DRI_IMAGE_ATTRIB_STRIDE,
+      ret &= dri2_query_image(image, __DRI_IMAGE_ATTRIB_STRIDE,
                                           &buffer->strides[i]);
-      ret &= draw->ext->image->queryImage(image, __DRI_IMAGE_ATTRIB_OFFSET,
+      ret &= dri2_query_image(image, __DRI_IMAGE_ATTRIB_OFFSET,
                                           &buffer->offsets[i]);
       if (image != pixmap_buffer)
-         draw->ext->image->destroyImage(image);
+         dri2_destroy_image(image);
 
       if (!ret)
          goto no_buffer_attrib;
    }
 
-   ret = draw->ext->image->queryImage(pixmap_buffer,
+   ret = dri2_query_image(pixmap_buffer,
                                      __DRI_IMAGE_ATTRIB_MODIFIER_UPPER, &mod);
    buffer->modifier = (uint64_t) mod << 32;
-   ret &= draw->ext->image->queryImage(pixmap_buffer,
+   ret &= dri2_query_image(pixmap_buffer,
                                        __DRI_IMAGE_ATTRIB_MODIFIER_LOWER, &mod);
    buffer->modifier |= (uint64_t)(mod & 0xffffffff);
 
@@ -1573,7 +1557,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
        * need to make it visible to render GPU
        */
       buffer->linear_buffer =
-         draw->ext->image->createImageFromDmaBufs(draw->dri_screen_render_gpu,
+         dri2_from_dma_bufs(draw->dri_screen_render_gpu,
                                                   width,
                                                   height,
                                                   fourcc,
@@ -1586,7 +1570,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
       if (!buffer->linear_buffer)
          goto no_buffer_attrib;
 
-      draw->ext->image->destroyImage(linear_buffer_display_gpu);
+      dri2_destroy_image(linear_buffer_display_gpu);
    }
 
    pixmap = xcb_generate_id(draw->conn);
@@ -1641,10 +1625,10 @@ no_buffer_attrib:
       if (buffer_fds[i] != -1)
          close(buffer_fds[i]);
    } while (--i >= 0);
-   draw->ext->image->destroyImage(pixmap_buffer);
+   dri2_destroy_image(pixmap_buffer);
 no_linear_buffer:
    if (draw->dri_screen_render_gpu != draw->dri_screen_display_gpu)
-      draw->ext->image->destroyImage(buffer->image);
+      dri2_destroy_image(buffer->image);
 no_image:
    free(buffer);
 no_buffer:
@@ -1781,7 +1765,6 @@ loader_dri3_create_image(xcb_connection_t *c,
                          xcb_dri3_buffer_from_pixmap_reply_t *bp_reply,
                          unsigned int fourcc,
                          __DRIscreen *dri_screen,
-                         const __DRIimageExtension *image,
                          void *loaderPrivate)
 {
    int                                  *fds;
@@ -1800,25 +1783,25 @@ loader_dri3_create_image(xcb_connection_t *c,
     * we've gotten the planar wrapper, pull the single plane out of it and
     * discard the wrapper.
     */
-   image_planar = image->createImageFromDmaBufs(dri_screen,
-                                                bp_reply->width,
-                                                bp_reply->height,
-                                                fourcc,
-                                                DRM_FORMAT_MOD_INVALID,
-                                                fds, 1,
-                                                &stride, &offset,
-                                                0, 0, 0, 0, 0,
-                                                NULL, loaderPrivate);
+   image_planar = dri2_from_dma_bufs(dri_screen,
+                                       bp_reply->width,
+                                       bp_reply->height,
+                                       fourcc,
+                                       DRM_FORMAT_MOD_INVALID,
+                                       fds, 1,
+                                       &stride, &offset,
+                                       0, 0, 0, 0, 0,
+                                       NULL, loaderPrivate);
    close(fds[0]);
    if (!image_planar)
       return NULL;
 
-   ret = image->fromPlanar(image_planar, 0, loaderPrivate);
+   ret = dri2_from_planar(image_planar, 0, loaderPrivate);
 
    if (!ret)
       ret = image_planar;
    else
-      image->destroyImage(image_planar);
+      dri2_destroy_image(image_planar);
 
    return ret;
 }
@@ -1829,7 +1812,6 @@ loader_dri3_create_image_from_buffers(xcb_connection_t *c,
                                       xcb_dri3_buffers_from_pixmap_reply_t *bp_reply,
                                       unsigned int fourcc,
                                       __DRIscreen *dri_screen,
-                                      const __DRIimageExtension *image,
                                       void *loaderPrivate)
 {
    __DRIimage                           *ret;
@@ -1850,7 +1832,7 @@ loader_dri3_create_image_from_buffers(xcb_connection_t *c,
       offsets[i] = offsets_in[i];
    }
 
-   ret = image->createImageFromDmaBufs(dri_screen,
+   ret = dri2_from_dma_bufs(dri_screen,
                                        bp_reply->width,
                                        bp_reply->height,
                                        fourcc,
@@ -1920,9 +1902,7 @@ dri3_get_pixmap_buffer(__DRIdrawable *driDrawable, unsigned int fourcc,
                           false,
                           fence_fd);
 #ifdef HAVE_DRI3_MODIFIERS
-   if (draw->multiplanes_available &&
-       draw->ext->image->base.version >= 15 &&
-       draw->ext->image->createImageFromDmaBufs) {
+   if (draw->multiplanes_available) {
       xcb_dri3_buffers_from_pixmap_cookie_t bps_cookie;
       xcb_dri3_buffers_from_pixmap_reply_t *bps_reply;
 
@@ -1933,7 +1913,7 @@ dri3_get_pixmap_buffer(__DRIdrawable *driDrawable, unsigned int fourcc,
          goto no_image;
       buffer->image =
          loader_dri3_create_image_from_buffers(draw->conn, bps_reply, fourcc,
-                                               cur_screen, draw->ext->image,
+                                               cur_screen,
                                                buffer);
       width = bps_reply->width;
       height = bps_reply->height;
@@ -1950,7 +1930,7 @@ dri3_get_pixmap_buffer(__DRIdrawable *driDrawable, unsigned int fourcc,
          goto no_image;
 
       buffer->image = loader_dri3_create_image(draw->conn, bp_reply, fourcc,
-                                               cur_screen, draw->ext->image,
+                                               cur_screen,
                                                buffer);
       width = bp_reply->width;
       height = bp_reply->height;
