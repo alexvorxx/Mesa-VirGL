@@ -1928,7 +1928,6 @@ dri2_initialize_x11_dri3(_EGLDisplay *disp)
                                 dri2_dpy->screen);
 
    dri2_dpy->loader_dri3_ext.image_driver = dri2_dpy->image_driver;
-   dri2_dpy->loader_dri3_ext.flush = dri2_dpy->flush;
    dri2_dpy->loader_dri3_ext.image = dri2_dpy->image;
    dri2_dpy->loader_dri3_ext.config = dri2_dpy->config;
 
