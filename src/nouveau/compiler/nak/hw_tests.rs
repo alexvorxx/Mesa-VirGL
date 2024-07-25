@@ -626,6 +626,37 @@ fn test_op_isetp() {
 }
 
 #[test]
+fn test_op_lop2() {
+    if RunSingleton::get().sm.sm() < 70 {
+        let logic_ops =
+            [LogicOp2::And, LogicOp2::Or, LogicOp2::Xor, LogicOp2::PassB];
+
+        for logic_op in logic_ops {
+            let op = OpLop2 {
+                dst: Dst::None,
+                srcs: [0.into(), 0.into()],
+                op: logic_op,
+            };
+            test_foldable_op(op);
+        }
+    }
+}
+
+#[test]
+fn test_op_lop3() {
+    if RunSingleton::get().sm.sm() >= 70 {
+        for lut in 0..255 {
+            let op = OpLop3 {
+                dst: Dst::None,
+                srcs: [0.into(), 0.into(), 0.into()],
+                op: LogicOp3 { lut },
+            };
+            test_foldable_op(op);
+        }
+    }
+}
+
+#[test]
 fn test_op_shf() {
     let sm = &RunSingleton::get().sm;
 

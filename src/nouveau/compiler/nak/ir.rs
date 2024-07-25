@@ -3650,7 +3650,7 @@ impl DisplayOp for OpISetP {
 impl_display_for_op!(OpISetP);
 
 #[repr(C)]
-#[derive(SrcsAsSlice, DstsAsSlice)]
+#[derive(Clone, SrcsAsSlice, DstsAsSlice)]
 pub struct OpLop2 {
     #[dst_type(GPR)]
     pub dst: Dst,
@@ -3667,8 +3667,24 @@ impl DisplayOp for OpLop2 {
     }
 }
 
+impl Foldable for OpLop2 {
+    fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
+        let srcs = [
+            f.get_u32_src(self, &self.srcs[0]),
+            f.get_u32_src(self, &self.srcs[1]),
+        ];
+        let dst = match self.op {
+            LogicOp2::And => srcs[0] & srcs[1],
+            LogicOp2::Or => srcs[0] | srcs[1],
+            LogicOp2::Xor => srcs[0] ^ srcs[1],
+            LogicOp2::PassB => srcs[1],
+        };
+        f.set_u32_dst(self, &self.dst, dst);
+    }
+}
+
 #[repr(C)]
-#[derive(SrcsAsSlice, DstsAsSlice)]
+#[derive(Clone, SrcsAsSlice, DstsAsSlice)]
 pub struct OpLop3 {
     #[dst_type(GPR)]
     pub dst: Dst,
@@ -3677,6 +3693,18 @@ pub struct OpLop3 {
     pub srcs: [Src; 3],
 
     pub op: LogicOp3,
+}
+
+impl Foldable for OpLop3 {
+    fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
+        let srcs = [
+            f.get_u32_src(self, &self.srcs[0]),
+            f.get_u32_src(self, &self.srcs[1]),
+            f.get_u32_src(self, &self.srcs[2]),
+        ];
+        let dst = self.op.eval(srcs[0], srcs[1], srcs[2]);
+        f.set_u32_dst(self, &self.dst, dst);
+    }
 }
 
 impl DisplayOp for OpLop3 {
