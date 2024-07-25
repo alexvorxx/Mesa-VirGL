@@ -534,7 +534,7 @@ kopper_get_buffer_age(__GLXDRIdrawable *pdraw)
       struct drisw_screen *psc = (struct drisw_screen *) pdraw->psc;
 
       if (psc->kopper)
-         return psc->kopper->queryBufferAge(pdp->driDrawable);
+         return kopperQueryBufferAge(pdp->driDrawable);
    }
    return 0;
 }
@@ -673,7 +673,6 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
    __GLXDRIconfigPrivate *config = (__GLXDRIconfigPrivate *) modes;
    unsigned depth;
    struct drisw_screen *psc = (struct drisw_screen *) base;
-   const __DRIkopperExtension *kopper = psc->kopper;
    Display *dpy = psc->base.dpy;
 
    xcb_connection_t *conn = XGetXCBConnection(dpy);
@@ -719,16 +718,16 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
    }
 
    /* Create a new drawable */
-   if (kopper) {
+   if (psc->kopper) {
       pdp->driDrawable =
-         kopper->createNewDrawable(psc->driScreen, config->driConfig, pdp,
+         kopperCreateNewDrawable(psc->driScreen, config->driConfig, pdp,
          &(__DRIkopperDrawableInfo){
             .multiplanes_available = base->display->has_multibuffer,
             .is_pixmap = !(type & GLX_WINDOW_BIT),
          });
 
       pdp->swapInterval = dri_get_initial_swap_interval(psc->driScreen, psc->config);
-      psc->kopper->setSwapInterval(pdp->driDrawable, pdp->swapInterval);
+      kopperSetSwapInterval(pdp->driDrawable, pdp->swapInterval);
    }
    else
       pdp->driDrawable =
@@ -762,7 +761,7 @@ driswSwapBuffers(__GLXDRIdrawable * pdraw,
    }
 
    if (psc->kopper)
-       return psc->kopper->swapBuffers (pdp->driDrawable, 0);
+       return kopperSwapBuffers (pdp->driDrawable, 0);
 
    driSwapBuffers(pdp->driDrawable);
 
@@ -911,7 +910,7 @@ driswKopperSetSwapInterval(__GLXDRIdrawable *pdraw, int interval)
    if (!dri_valid_swap_interval(psc->driScreen, psc->config, interval))
       return GLX_BAD_VALUE;
 
-   psc->kopper->setSwapInterval(pdp->driDrawable, interval);
+   kopperSetSwapInterval(pdp->driDrawable, interval);
    pdp->swapInterval = interval;
 
    return 0;
@@ -939,11 +938,11 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    /* this is only relevant if zink bits are set */
    glx_driver &= (GLX_DRIVER_ZINK_INFER | GLX_DRIVER_ZINK_YES);
    const char *driver = glx_driver && !kopper_disable ? "zink" : "swrast";
-   bool kopper = !strcmp(driver, "zink");
 
    psc = calloc(1, sizeof *psc);
    if (psc == NULL)
       return NULL;
+   psc->kopper = !strcmp(driver, "zink");
 
    if (!glx_screen_init(&psc->base, screen, priv)) {
       free(psc);
@@ -963,7 +962,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       loader_extensions_local = loader_extensions_shm;
 
    static const struct dri_extension_match exts[] = {
-       { __DRI_KOPPER, 1, offsetof(struct drisw_screen, kopper), true },
        { __DRI_COPY_SUB_BUFFER, 1, offsetof(struct drisw_screen, copySubBuffer), true },
    };
    if (!loader_bind_extensions(psc, exts, ARRAY_SIZE(exts), extensions))
@@ -1008,7 +1006,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    if (psc->copySubBuffer)
       psp->copySubBuffer = driswCopySubBuffer;
 
-   if (kopper) {
+   if (psc->kopper) {
       psp->getBufferAge = kopper_get_buffer_age;
       psp->setSwapInterval = driswKopperSetSwapInterval;
       psp->getSwapInterval = kopperGetSwapInterval;
