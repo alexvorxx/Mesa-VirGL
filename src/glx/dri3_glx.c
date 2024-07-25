@@ -875,14 +875,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       goto handle_error;
    }
 
-   if (psc->fd_render_gpu == psc->fd_display_gpu && (
-       !psc->texBuffer || psc->texBuffer->base.version < 2 ||
-       !psc->texBuffer->setTexBuffer2
-       )) {
-      ErrorMessageF("Version 2 or later of texBuffer extension not found\n");
-      goto handle_error;
-   }
-
    psc->loader_dri3_ext.flush = psc->f;
    psc->loader_dri3_ext.tex_buffer = psc->texBuffer;
    psc->loader_dri3_ext.image = psc->image;
