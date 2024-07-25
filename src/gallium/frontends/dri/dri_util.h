@@ -166,4 +166,11 @@ driswCopySubBuffer(__DRIdrawable *pdp, int x, int y, int w, int h);
 PUBLIC void
 dri_set_tex_buffer2(__DRIcontext *pDRICtx, GLint target,
                     GLint format, __DRIdrawable *dPriv);
+
+PUBLIC int
+dri_query_renderer_string(__DRIscreen *_screen, int param,
+                           const char **value);
+PUBLIC int
+dri_query_renderer_integer(__DRIscreen *_screen, int param,
+                            unsigned int *value);
 #endif /* _DRI_UTIL_H_ */
