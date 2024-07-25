@@ -2,6 +2,11 @@
 
 set -ex
 
+comma_separated() {
+  local IFS=,
+  echo "$*"
+}
+
 if [[ -z "$VK_DRIVER" ]]; then
     exit 1
 fi
@@ -28,6 +33,12 @@ export VK_DRIVER_FILES="$INSTALL/share/vulkan/icd.d/${VK_DRIVER}_icd.$ARCH.json"
 export WINEDEBUG="-all"
 export WINEPREFIX="/vkd3d-proton-wine64"
 export WINEESYNC=1
+
+if [ -f "$INSTALL/$GPU_VERSION-vkd3d-skips.txt" ]; then
+  mapfile -t skips < <(grep -vE '^#|^$' "$INSTALL/$GPU_VERSION-vkd3d-skips.txt")
+  VKD3D_TEST_EXCLUDE=$(comma_separated "${skips[@]}")
+  export VKD3D_TEST_EXCLUDE
+fi
 
 # Sanity check to ensure that our environment is sufficient to make our tests
 # run against the Mesa built by CI, rather than any installed distro version.

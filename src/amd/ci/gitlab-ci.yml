@@ -322,8 +322,6 @@ vkd3d-tahiti-valve:
     - .radv-valve-manual-rules
   variables:
     GPU_VERSION: radv-tahiti
-    # These vkd3d-proton tests are skipped because they trigger GPU hangs.
-    VKD3D_TEST_EXCLUDE: test_execute_indirect_state,test_execute_indirect_state_predication,test_undefined_descriptor_heap_mismatch_types
 
 vkd3d-polaris10-valve:
   extends:
