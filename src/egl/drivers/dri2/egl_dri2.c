@@ -1563,17 +1563,7 @@ dri2_create_drawable(struct dri2_egl_display *dri2_dpy,
                          dri2_surf->base.Type == EGL_PIXMAP_BIT,
          });
    } else {
-      __DRIcreateNewDrawableFunc createNewDrawable;
-      if (dri2_dpy->image_driver)
-         createNewDrawable = dri2_dpy->image_driver->createNewDrawable;
-      else if (dri2_dpy->dri2)
-         createNewDrawable = dri2_dpy->dri2->createNewDrawable;
-      else if (dri2_dpy->swrast)
-         createNewDrawable = driCreateNewDrawable;
-      else
-         return _eglError(EGL_BAD_ALLOC, "no createNewDrawable");
-
-      dri2_surf->dri_drawable = createNewDrawable(
+      dri2_surf->dri_drawable = driCreateNewDrawable(
          dri2_dpy->dri_screen_render_gpu, config, loaderPrivate);
    }
    if (dri2_surf->dri_drawable == NULL)
