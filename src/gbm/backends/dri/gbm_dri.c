@@ -306,7 +306,7 @@ dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool
       goto fail;
 
    if (!swrast) {
-      extensions = dri->core->getExtensions(dri->screen);
+      extensions = driGetExtensions(dri->screen);
       if (!loader_bind_extensions(dri, dri_core_extensions,
                                   ARRAY_SIZE(dri_core_extensions),
                                   extensions)) {
@@ -319,7 +319,7 @@ dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool
    return 0;
 
 free_screen:
-   dri->core->destroyScreen(dri->screen);
+   driDestroyScreen(dri->screen);
 
 fail:
    free(dri->driver_name);
@@ -1203,9 +1203,9 @@ dri_destroy(struct gbm_device *gbm)
    unsigned i;
 
    if (dri->context)
-      dri->core->destroyContext(dri->context);
+      driDestroyContext(dri->context);
 
-   dri->core->destroyScreen(dri->screen);
+   driDestroyScreen(dri->screen);
    for (i = 0; dri->driver_configs[i]; i++)
       free((__DRIconfig *) dri->driver_configs[i]);
    free(dri->driver_configs);
