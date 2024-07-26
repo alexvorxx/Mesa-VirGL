@@ -223,6 +223,10 @@ compile_shader(struct anv_device *device,
    }
 
    assert(prog_data.base.total_scratch == 0);
+   assert(program != NULL);
+   struct anv_shader_bin *kernel = NULL;
+   if (program == NULL)
+      goto exit;
 
    struct anv_pipeline_bind_map empty_bind_map = {};
    struct anv_push_descriptor_info empty_push_desc_info = {};
@@ -238,9 +242,9 @@ compile_shader(struct anv_device *device,
       .push_desc_info      = &empty_push_desc_info,
    };
 
-   struct anv_shader_bin *kernel =
-      anv_device_upload_kernel(device, device->internal_cache, &upload_params);
+   kernel = anv_device_upload_kernel(device, device->internal_cache, &upload_params);
 
+exit:
    ralloc_free(temp_ctx);
    ralloc_free(nir);
 
