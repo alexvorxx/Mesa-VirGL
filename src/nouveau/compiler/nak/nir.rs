@@ -570,6 +570,7 @@ pub trait NirBlock {
     fn successors(&self) -> [Option<&nir_block>; 2];
     fn following_if(&self) -> Option<&nir_if>;
     fn following_loop(&self) -> Option<&nir_loop>;
+    fn parent(&self) -> &nir_cf_node;
 }
 
 impl NirBlock for nir_block {
@@ -592,6 +593,10 @@ impl NirBlock for nir_block {
     fn following_loop(&self) -> Option<&nir_loop> {
         let self_ptr = self as *const _ as *mut _;
         unsafe { nir_block_get_following_loop(self_ptr).as_ref() }
+    }
+
+    fn parent(&self) -> &nir_cf_node {
+        self.cf_node.parent().unwrap()
     }
 }
 
@@ -623,12 +628,17 @@ impl NirIf for nir_if {
 
 pub trait NirLoop {
     fn iter_body(&self) -> ExecListIter<nir_cf_node>;
+    fn first_block(&self) -> &nir_block;
     fn following_block(&self) -> &nir_block;
 }
 
 impl NirLoop for nir_loop {
     fn iter_body(&self) -> ExecListIter<nir_cf_node> {
         ExecListIter::new(&self.body, offset_of!(nir_cf_node, node))
+    }
+
+    fn first_block(&self) -> &nir_block {
+        self.iter_body().next().unwrap().as_block().unwrap()
     }
 
     fn following_block(&self) -> &nir_block {
@@ -642,6 +652,7 @@ pub trait NirCfNode {
     fn as_loop(&self) -> Option<&nir_loop>;
     fn next(&self) -> Option<&nir_cf_node>;
     fn prev(&self) -> Option<&nir_cf_node>;
+    fn parent(&self) -> Option<&nir_cf_node>;
 }
 
 impl NirCfNode for nir_cf_node {
@@ -679,6 +690,10 @@ impl NirCfNode for nir_cf_node {
         let mut iter: ExecListIter<nir_cf_node> =
             ExecListIter::at(&self.node, offset_of!(nir_cf_node, node), true);
         iter.next()
+    }
+
+    fn parent(&self) -> Option<&nir_cf_node> {
+        NonNull::new(self.parent).map(|b| unsafe { b.as_ref() })
     }
 }
 
