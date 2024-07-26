@@ -49,6 +49,7 @@
 #include "loader.h"
 #include "loader_dri_helper.h"
 #include "platform_android.h"
+#include "dri_util.h"
 
 static __DRIimage *
 droid_create_image_from_buffer_info(
@@ -421,7 +422,7 @@ droid_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
       dri2_surf->dri_image_front = NULL;
    }
 
-   dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
+   driDestroyDrawable(dri2_surf->dri_drawable);
 
    close_in_fence_fd(dri2_surf);
    dri2_fini_surface(surf);

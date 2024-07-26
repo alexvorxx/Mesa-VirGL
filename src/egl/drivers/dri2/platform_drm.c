@@ -44,6 +44,7 @@
 #include "egldevice.h"
 #include "eglglobals.h"
 #include "loader.h"
+#include "dri_util.h"
 
 static struct gbm_bo *
 lock_front_buffer(struct gbm_surface *_surf)
@@ -200,10 +201,9 @@ dri2_drm_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
 static EGLBoolean
 dri2_drm_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
-   dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
+   driDestroyDrawable(dri2_surf->dri_drawable);
 
    for (unsigned i = 0; i < ARRAY_SIZE(dri2_surf->color_buffers); i++) {
       if (dri2_surf->color_buffers[i].bo)
@@ -317,7 +317,7 @@ dri2_drm_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
 
    if (!dri2_dpy->flush) {
-      dri2_dpy->core->swapBuffers(dri2_surf->dri_drawable);
+      driSwapBuffers(dri2_surf->dri_drawable);
       return EGL_TRUE;
    }
 

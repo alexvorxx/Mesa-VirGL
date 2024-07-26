@@ -306,22 +306,21 @@ dri2_match_config(const _EGLConfig *conf, const _EGLConfig *criteria)
 }
 
 void
-dri2_get_shifts_and_sizes(const __DRIcoreExtension *core,
-                          const __DRIconfig *config, int *shifts,
+dri2_get_shifts_and_sizes(const __DRIconfig *config, int *shifts,
                           unsigned int *sizes)
 {
-   core->getConfigAttrib(config, __DRI_ATTRIB_RED_SHIFT,
+   driGetConfigAttrib(config, __DRI_ATTRIB_RED_SHIFT,
                          (unsigned int *)&shifts[0]);
-   core->getConfigAttrib(config, __DRI_ATTRIB_GREEN_SHIFT,
+   driGetConfigAttrib(config, __DRI_ATTRIB_GREEN_SHIFT,
                          (unsigned int *)&shifts[1]);
-   core->getConfigAttrib(config, __DRI_ATTRIB_BLUE_SHIFT,
+   driGetConfigAttrib(config, __DRI_ATTRIB_BLUE_SHIFT,
                          (unsigned int *)&shifts[2]);
-   core->getConfigAttrib(config, __DRI_ATTRIB_ALPHA_SHIFT,
+   driGetConfigAttrib(config, __DRI_ATTRIB_ALPHA_SHIFT,
                          (unsigned int *)&shifts[3]);
-   core->getConfigAttrib(config, __DRI_ATTRIB_RED_SIZE, &sizes[0]);
-   core->getConfigAttrib(config, __DRI_ATTRIB_GREEN_SIZE, &sizes[1]);
-   core->getConfigAttrib(config, __DRI_ATTRIB_BLUE_SIZE, &sizes[2]);
-   core->getConfigAttrib(config, __DRI_ATTRIB_ALPHA_SIZE, &sizes[3]);
+   driGetConfigAttrib(config, __DRI_ATTRIB_RED_SIZE, &sizes[0]);
+   driGetConfigAttrib(config, __DRI_ATTRIB_GREEN_SIZE, &sizes[1]);
+   driGetConfigAttrib(config, __DRI_ATTRIB_BLUE_SIZE, &sizes[2]);
+   driGetConfigAttrib(config, __DRI_ATTRIB_ALPHA_SIZE, &sizes[3]);
 }
 
 enum pipe_format
@@ -353,7 +352,7 @@ dri2_add_config(_EGLDisplay *disp, const __DRIconfig *dri_config,
    bind_to_texture_rgba = 0;
 
    for (int i = 0; i < __DRI_ATTRIB_MAX; ++i) {
-      if (!dri2_dpy->core->indexConfigAttrib(dri_config, i, &attrib, &value))
+      if (!driIndexConfigAttrib(dri_config, i, &attrib, &value))
          break;
 
       switch (attrib) {
@@ -937,7 +936,7 @@ dri2_setup_extensions(_EGLDisplay *disp)
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    const __DRIextension **extensions;
 
-   extensions = dri2_dpy->core->getExtensions(dri2_dpy->dri_screen_render_gpu);
+   extensions = driGetExtensions(dri2_dpy->dri_screen_render_gpu);
 
    if (dri2_dpy->image_driver || dri2_dpy->dri2) {
       if (!loader_bind_extensions(dri2_dpy, dri2_core_extensions,
@@ -1114,11 +1113,11 @@ dri2_display_destroy(_EGLDisplay *disp)
       if (dri2_dpy->vtbl && dri2_dpy->vtbl->close_screen_notify)
          dri2_dpy->vtbl->close_screen_notify(disp);
 
-      dri2_dpy->core->destroyScreen(dri2_dpy->dri_screen_render_gpu);
+      driDestroyScreen(dri2_dpy->dri_screen_render_gpu);
 
       if (dri2_dpy->dri_screen_display_gpu &&
           dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu)
-         dri2_dpy->core->destroyScreen(dri2_dpy->dri_screen_display_gpu);
+         driDestroyScreen(dri2_dpy->dri_screen_display_gpu);
    }
    if (dri2_dpy->fd_display_gpu >= 0 &&
        dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu)
@@ -1473,10 +1472,9 @@ static EGLBoolean
 dri2_destroy_context(_EGLDisplay *disp, _EGLContext *ctx)
 {
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
    if (_eglPutContext(ctx)) {
-      dri2_dpy->core->destroyContext(dri2_ctx->dri_context);
+      driDestroyContext(dri2_ctx->dri_context);
       free(dri2_ctx);
    }
 
@@ -1634,7 +1632,7 @@ dri2_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
          old_dri2_dpy->vtbl->set_shared_buffer_mode(old_disp, old_dsurf, false);
       }
 
-      old_dri2_dpy->core->unbindContext(old_cctx);
+      driUnbindContext(old_cctx);
 
       if (old_dsurf)
          dri2_surf_update_fence_fd(old_ctx, old_disp, old_dsurf);
@@ -1645,10 +1643,10 @@ dri2_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
    cctx = (dri2_ctx) ? dri2_ctx->dri_context : NULL;
 
    if (cctx) {
-      if (!dri2_dpy->core->bindContext(cctx, ddraw, rdraw)) {
+      if (!driBindContext(cctx, ddraw, rdraw)) {
          _EGLContext *tmp_ctx;
 
-         /* dri2_dpy->core->bindContext failed. We cannot tell for sure why, but
+         /* driBindContext failed. We cannot tell for sure why, but
           * setting the error to EGL_BAD_MATCH is surely better than leaving it
           * as EGL_SUCCESS.
           */
@@ -1674,8 +1672,8 @@ dri2_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
             (old_rsurf) ? dri2_dpy->vtbl->get_dri_drawable(old_rsurf) : NULL;
          cctx = (old_ctx) ? dri2_egl_context(old_ctx)->dri_context : NULL;
 
-         /* undo the previous dri2_dpy->core->unbindContext */
-         if (dri2_dpy->core->bindContext(cctx, ddraw, rdraw)) {
+         /* undo the previous driUnbindContext */
+         if (driBindContext(cctx, ddraw, rdraw)) {
             if (old_dsurf && _eglSurfaceInSharedBufferMode(old_dsurf) &&
                 old_dri2_dpy->vtbl->set_shared_buffer_mode) {
                old_dri2_dpy->vtbl->set_shared_buffer_mode(old_disp, old_dsurf,
@@ -1699,7 +1697,7 @@ dri2_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
 
          _eglLog(_EGL_WARNING, "DRI2: failed to rebind the previous context");
       } else {
-         /* dri2_dpy->core->bindContext succeeded, so take a reference on the
+         /* driBindContext succeeded, so take a reference on the
           * dri2_dpy. This prevents dri2_dpy from being reinitialized when a
           * EGLDisplay is terminated and then initialized again while a
           * context is still bound. See dri2_initialize() for a more in depth

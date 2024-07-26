@@ -848,7 +848,7 @@ dri2_wl_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
-   dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
+   driDestroyDrawable(dri2_surf->dri_drawable);
 
    for (int i = 0; i < ARRAY_SIZE(dri2_surf->color_buffers); i++) {
       if (dri2_surf->color_buffers[i].wl_buffer)
@@ -2713,12 +2713,12 @@ dri2_wl_kopper_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
       if (dri2_dpy->kopper)
          dri2_dpy->kopper->swapBuffersWithDamage(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY, n_rects, rects);
       else
-         dri2_dpy->core->swapBuffersWithDamage(dri2_surf->dri_drawable, n_rects, rects);
+         driSwapBuffersWithDamage(dri2_surf->dri_drawable, n_rects, rects);
    } else {
       if (dri2_dpy->kopper)
          dri2_dpy->kopper->swapBuffers(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY);
       else
-         dri2_dpy->core->swapBuffers(dri2_surf->dri_drawable);
+         driSwapBuffers(dri2_surf->dri_drawable);
    }
 
    dri2_surf->current = dri2_surf->back;
@@ -2738,7 +2738,6 @@ static EGLBoolean
 dri2_wl_swrast_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
                                         const EGLint *rects, EGLint n_rects)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
 
    if (!dri2_surf->wl_win)
@@ -2761,9 +2760,9 @@ dri2_wl_swrast_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
                                  dri2_surf->base.Height, dst, dri2_surf);
 
    if (n_rects)
-      dri2_dpy->core->swapBuffersWithDamage(dri2_surf->dri_drawable, n_rects, rects);
+      driSwapBuffersWithDamage(dri2_surf->dri_drawable, n_rects, rects);
    else
-      dri2_dpy->core->swapBuffers(dri2_surf->dri_drawable);
+      driSwapBuffers(dri2_surf->dri_drawable);
 
    dri2_surf->current = dri2_surf->back;
    dri2_surf->back = NULL;

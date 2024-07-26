@@ -593,7 +593,7 @@ wgl_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
          rdraw = (old_rsurf) ? wgl_egl_surface(old_rsurf)->fb : NULL;
          cctx = (old_ctx) ? wgl_egl_context(old_ctx)->ctx : NULL;
 
-         /* undo the previous wgl_dpy->core->unbindContext */
+         /* undo the previous _eglBindContext */
          if (stw_make_current(ddraw, rdraw, cctx)) {
             return _eglError(egl_error, "eglMakeCurrent");
          }
@@ -612,7 +612,7 @@ wgl_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
 
          _eglLog(_EGL_WARNING, "wgl: failed to rebind the previous context");
       } else {
-         /* wgl_dpy->core->bindContext succeeded, so take a reference on the
+         /* _eglBindContext succeeded, so take a reference on the
           * wgl_dpy. This prevents wgl_dpy from being reinitialized when a
           * EGLDisplay is terminated and then initialized again while a
           * context is still bound. See wgl_initialize() for a more in depth

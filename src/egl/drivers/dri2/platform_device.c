@@ -43,6 +43,7 @@
 #include "egl_dri2.h"
 #include "kopper_interface.h"
 #include "loader.h"
+#include "dri_util.h"
 
 static __DRIimage *
 device_alloc_image(struct dri2_egl_display *dri2_dpy,
@@ -155,12 +156,11 @@ cleanup_surface:
 static EGLBoolean
 device_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
    device_free_images(dri2_surf);
 
-   dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
+   driDestroyDrawable(dri2_surf->dri_drawable);
 
    dri2_fini_surface(surf);
    free(dri2_surf);

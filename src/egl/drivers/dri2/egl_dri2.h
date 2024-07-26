@@ -500,8 +500,7 @@ __DRIimage *
 dri2_lookup_egl_image_validated(void *image, void *data);
 
 void
-dri2_get_shifts_and_sizes(const __DRIcoreExtension *core,
-                          const __DRIconfig *config, int *shifts,
+dri2_get_shifts_and_sizes(const __DRIconfig *config, int *shifts,
                           unsigned int *sizes);
 
 enum pipe_format
