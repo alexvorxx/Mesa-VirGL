@@ -186,6 +186,8 @@ ForEachMacros:
 # asahi
   - foreach_active
   - foreach_submitted
+  - hk_foreach_view
+  - hk_foreach_variant
   - AGX_BATCH_FOREACH_BO_HANDLE
   - agx_pack
   - agx_push
