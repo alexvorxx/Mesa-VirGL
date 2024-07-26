@@ -889,6 +889,17 @@ struct pipe_h265_enc_picture_desc
    unsigned max_slice_bytes;
    enum pipe_video_feedback_metadata_type requested_metadata;
    bool renew_headers_on_idr;
+
+   union {
+      struct {
+         uint32_t hdr_cll:1;
+         uint32_t hdr_mdcv:1;
+      };
+      uint32_t value;
+   } metadata_flags;
+
+   struct pipe_enc_hdr_cll metadata_hdr_cll;
+   struct pipe_enc_hdr_mdcv metadata_hdr_mdcv;
 };
 
 struct pipe_av1_enc_rate_control
