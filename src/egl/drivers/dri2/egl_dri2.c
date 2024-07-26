@@ -585,8 +585,6 @@ const __DRIimageLookupExtension image_lookup_extension = {
 };
 
 static const struct dri_extension_match dri3_driver_extensions[] = {
-   {__DRI_IMAGE_DRIVER, 2, offsetof(struct dri2_egl_display, image_driver),
-    false},
    {__DRI_CONFIG_OPTIONS, 2, offsetof(struct dri2_egl_display, configOptions),
     true},
 };
@@ -743,7 +741,6 @@ dri2_setup_screen(_EGLDisplay *disp)
    if ((api_mask & (1 << __DRI_API_GLES3)) && _eglIsApiValid(EGL_OPENGL_ES_API))
       disp->ClientAPIs |= EGL_OPENGL_ES3_BIT_KHR;
 
-   assert(dri2_dpy->image_driver || dri2_dpy->dri2 || dri2_dpy->kopper || dri2_dpy->swrast);
    disp->Extensions.KHR_create_context = EGL_TRUE;
    disp->Extensions.KHR_create_context_no_error = EGL_TRUE;
    disp->Extensions.KHR_no_config_context = EGL_TRUE;
