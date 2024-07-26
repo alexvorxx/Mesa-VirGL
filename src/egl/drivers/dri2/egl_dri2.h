@@ -242,7 +242,6 @@ struct dri2_egl_display {
    __DRIscreen *dri_screen_display_gpu;
    bool own_dri_screen;
    const __DRIconfig **driver_configs;
-   const __DRImesaCoreExtension *mesa;
    const __DRIimageDriverExtension *image_driver;
    const __DRIdri2Extension *dri2;
    const __DRIswrastExtension *swrast;
