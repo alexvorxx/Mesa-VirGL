@@ -17,6 +17,7 @@ mod nir;
 mod nir_instr_printer;
 mod opt_bar_prop;
 mod opt_copy_prop;
+mod opt_crs;
 mod opt_dce;
 mod opt_jump_thread;
 mod opt_lop;

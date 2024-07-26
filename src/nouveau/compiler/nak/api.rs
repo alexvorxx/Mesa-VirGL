@@ -417,6 +417,8 @@ pub extern "C" fn nak_compile_shader(
     pass!(s, lower_copy_swap);
     if nak.sm >= 70 {
         pass!(s, opt_jump_thread);
+    } else {
+        pass!(s, opt_crs);
     }
     pass!(s, calc_instr_deps);
 
