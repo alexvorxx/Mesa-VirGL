@@ -25,6 +25,12 @@ libagx_tcs_unrolled_id(constant struct libagx_tess_args *p, uint3 wg_id)
    return (wg_id.y * p->patches_per_instance) + wg_id.x;
 }
 
+uint64_t
+libagx_tes_buffer(constant struct libagx_tess_args *p)
+{
+   return p->tes_buffer;
+}
+
 /*
  * Helper to lower indexing for a tess eval shader ran as a compute shader. This
  * handles the tess+geom case. This is simpler than the general input assembly

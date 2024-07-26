@@ -91,6 +91,11 @@ struct libagx_tess_args {
     */
    GLOBAL(uint64_t) vertex_output_buffer_ptr;
 
+   /* When geom+tess used together, the buffer containing TES outputs (executed
+    * as a hardware compute shader).
+    */
+   uint64_t tes_buffer;
+
    /* For indirect draws, the bitfield of VS outputs */
    uint64_t vertex_outputs;
 
@@ -121,4 +126,4 @@ struct libagx_tess_args {
    /* Number of patches being tessellated */
    uint32_t nr_patches;
 } PACKED;
-AGX_STATIC_ASSERT(sizeof(struct libagx_tess_args) == 40 * 4);
+AGX_STATIC_ASSERT(sizeof(struct libagx_tess_args) == 42 * 4);

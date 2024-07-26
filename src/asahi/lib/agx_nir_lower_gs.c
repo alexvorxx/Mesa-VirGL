@@ -1461,22 +1461,25 @@ lower_vs_before_gs(nir_builder *b, nir_intrinsic_instr *intr, void *data)
     */
    nir_def *mask = nir_imm_int64(b, b->shader->info.outputs_written);
 
+   nir_def *buffer;
    nir_def *nr_verts;
    if (b->shader->info.stage == MESA_SHADER_VERTEX) {
+      buffer = nir_load_vs_output_buffer_agx(b);
       nr_verts =
          libagx_input_vertices(b, nir_load_input_assembly_buffer_agx(b));
    } else {
-      /* TODO: Do something similar for tessellation, load_num_workgroups is
-       * annoying in a software graphics shader.
-       */
-      nr_verts = nir_channel(b, nir_load_num_workgroups(b), 0);
+      assert(b->shader->info.stage == MESA_SHADER_TESS_EVAL);
+
+      /* Instancing is unrolled during tessellation so nr_verts is ignored. */
+      nr_verts = nir_imm_int(b, 0);
+      buffer = libagx_tes_buffer(b, nir_load_tess_param_buffer_agx(b));
    }
 
    nir_def *linear_id = nir_iadd(b, nir_imul(b, load_instance_id(b), nr_verts),
                                  load_primitive_id(b));
 
-   nir_def *addr = libagx_vertex_output_address(
-      b, nir_load_vs_output_buffer_agx(b), mask, linear_id, location);
+   nir_def *addr =
+      libagx_vertex_output_address(b, buffer, mask, linear_id, location);
 
    assert(nir_src_bit_size(intr->src[0]) == 32);
    addr = nir_iadd_imm(b, addr, nir_intrinsic_component(intr) * 4);
