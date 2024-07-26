@@ -509,10 +509,10 @@ void tu_setup_dynamic_framebuffer(struct tu_cmd_buffer *cmd_buffer,
                                   const VkRenderingInfo *pRenderingInfo);
 
 void
-tu_copy_timestamp_buffer(struct u_trace_context *utctx, void *cmdstream,
-                         void *ts_from, uint32_t from_offset,
-                         void *ts_to, uint32_t to_offset,
-                         uint32_t count);
+tu_copy_buffer(struct u_trace_context *utctx, void *cmdstream,
+               void *ts_from, uint64_t from_offset_B,
+               void *ts_to, uint64_t to_offset_B,
+               uint64_t size_B);
 
 
 VkResult

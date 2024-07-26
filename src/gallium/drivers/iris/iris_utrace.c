@@ -61,29 +61,27 @@ union iris_utrace_timestamp {
 };
 
 static void *
-iris_utrace_create_ts_buffer(struct u_trace_context *utctx, uint32_t size)
+iris_utrace_create_buffer(struct u_trace_context *utctx, uint64_t size_B)
 {
    struct iris_context *ice =
       container_of(utctx, struct iris_context, ds.trace_context);
    struct pipe_context *ctx = &ice->ctx;
    struct iris_screen *screen = (struct iris_screen *)ctx->screen;
-   uint32_t iris_size =
-      (size / sizeof(uint64_t)) * sizeof(union iris_utrace_timestamp);
 
    struct iris_bo *bo =
       iris_bo_alloc(screen->bufmgr, "utrace timestamps",
-                    iris_size, 16 /* alignment */,
+                    size_B, 16 /* alignment */,
                     IRIS_MEMZONE_OTHER,
                     BO_ALLOC_COHERENT | BO_ALLOC_SMEM);
 
    void *ptr = iris_bo_map(NULL, bo, MAP_READ | MAP_WRITE);
-   memset(ptr, 0, iris_size);
+   memset(ptr, 0, size_B);
 
    return bo;
 }
 
 static void
-iris_utrace_delete_ts_buffer(struct u_trace_context *utctx, void *timestamps)
+iris_utrace_delete_buffer(struct u_trace_context *utctx, void *timestamps)
 {
    struct iris_bo *bo = timestamps;
    iris_bo_unreference(bo);
@@ -91,13 +89,12 @@ iris_utrace_delete_ts_buffer(struct u_trace_context *utctx, void *timestamps)
 
 static void
 iris_utrace_record_ts(struct u_trace *trace, void *cs,
-                      void *timestamps, unsigned idx,
+                      void *timestamps, uint64_t offset_B,
                       uint32_t flags)
 {
    struct iris_batch *batch = container_of(trace, struct iris_batch, trace);
    struct iris_context *ice = batch->ice;
    struct iris_bo *bo = timestamps;
-   uint32_t ts_offset = idx * sizeof(union iris_utrace_timestamp);
 
    iris_use_pinned_bo(batch, bo, true, IRIS_DOMAIN_NONE);
 
@@ -107,22 +104,22 @@ iris_utrace_record_ts(struct u_trace *trace, void *cs,
    if (is_end_compute) {
       assert(ice->utrace.last_compute_walker != NULL);
       batch->screen->vtbl.rewrite_compute_walker_pc(
-         batch, ice->utrace.last_compute_walker, bo, ts_offset);
+         batch, ice->utrace.last_compute_walker, bo, offset_B);
       ice->utrace.last_compute_walker = NULL;
    } else if (flags & INTEL_DS_TRACEPOINT_FLAG_END_OF_PIPE) {
       iris_emit_pipe_control_write(batch, "query: pipelined snapshot write",
                                    PIPE_CONTROL_WRITE_TIMESTAMP,
-                                   bo, ts_offset, 0ull);
+                                   bo, offset_B, 0ull);
    } else {
       batch->screen->vtbl.store_register_mem64(batch, 0x2358,
-                                               bo, ts_offset,
+                                               bo, offset_B,
                                                false);
    }
 }
 
 static uint64_t
 iris_utrace_read_ts(struct u_trace_context *utctx,
-                    void *timestamps, unsigned idx, void *flush_data)
+                    void *timestamps, uint64_t offset_B, void *flush_data)
 {
    struct iris_context *ice =
       container_of(utctx, struct iris_context, ds.trace_context);
@@ -130,17 +127,17 @@ iris_utrace_read_ts(struct u_trace_context *utctx,
    struct iris_screen *screen = (struct iris_screen *)ctx->screen;
    struct iris_bo *bo = timestamps;
 
-   if (idx == 0)
+   if (offset_B == 0)
       iris_bo_wait_rendering(bo);
 
-   union iris_utrace_timestamp *ts = iris_bo_map(NULL, bo, MAP_READ);
+   union iris_utrace_timestamp *ts = iris_bo_map(NULL, bo, MAP_READ) + offset_B;
 
    /* Don't translate the no-timestamp marker: */
-   if (ts[idx].timestamp == U_TRACE_NO_TIMESTAMP)
+   if (ts->timestamp == U_TRACE_NO_TIMESTAMP)
       return U_TRACE_NO_TIMESTAMP;
 
    /* Detect a 16bytes timestamp write */
-   if (ts[idx].compute_walker[2] != 0 || ts[idx].compute_walker[3] != 0) {
+   if (ts->compute_walker[2] != 0 || ts->compute_walker[3] != 0) {
       /* The timestamp written by COMPUTE_WALKER::PostSync only as 32bits. We
        * need to rebuild the full 64bits using the previous timestamp. We
        * assume that utrace is reading the timestamp in order. Anyway
@@ -149,14 +146,14 @@ iris_utrace_read_ts(struct u_trace_context *utctx,
        */
       uint64_t timestamp =
          (ice->utrace.last_full_timestamp & 0xffffffff00000000) |
-         (uint64_t) ts[idx].compute_walker[3];
+         (uint64_t) ts->compute_walker[3];
 
       return intel_device_info_timebase_scale(screen->devinfo, timestamp);
    }
 
-   ice->utrace.last_full_timestamp = ts[idx].timestamp;
+   ice->utrace.last_full_timestamp = ts->timestamp;
 
-   return intel_device_info_timebase_scale(screen->devinfo, ts[idx].timestamp);
+   return intel_device_info_timebase_scale(screen->devinfo, ts->timestamp);
 }
 
 static void
@@ -190,8 +187,9 @@ void iris_utrace_init(struct iris_context *ice)
                         INTEL_DS_API_OPENGL);
 
    u_trace_context_init(&ice->ds.trace_context, &ice->ctx,
-                        iris_utrace_create_ts_buffer,
-                        iris_utrace_delete_ts_buffer,
+                        sizeof(union iris_utrace_timestamp),
+                        iris_utrace_create_buffer,
+                        iris_utrace_delete_buffer,
                         iris_utrace_record_ts,
                         iris_utrace_read_ts,
                         iris_utrace_delete_flush_data);

@@ -6217,6 +6217,13 @@ anv_device_utrace_flush_cmd_buffers(struct anv_queue *queue,
                                     struct anv_cmd_buffer **cmd_buffers,
                                     struct anv_utrace_submit **out_submit);
 
+void
+anv_device_utrace_emit_gfx_copy_buffer(struct u_trace_context *utctx,
+                                       void *cmdstream,
+                                       void *ts_from, uint64_t from_offset_B,
+                                       void *ts_to, uint64_t to_offset_B,
+                                       uint64_t size_B);
+
 static bool
 anv_has_cooperative_matrix(const struct anv_physical_device *device)
 {

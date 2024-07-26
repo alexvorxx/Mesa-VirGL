@@ -284,7 +284,7 @@ free_chunk(void *ptr)
 {
    struct u_trace_chunk *chunk = ptr;
 
-   chunk->utctx->delete_timestamp_buffer(chunk->utctx, chunk->timestamps);
+   chunk->utctx->delete_buffer(chunk->utctx, chunk->timestamps);
 
    /* Unref payloads attached to this chunk. */
    struct u_trace_payload_buf **payload;
@@ -347,7 +347,8 @@ get_chunk(struct u_trace *ut, size_t payload_size)
 
    chunk->utctx = ut->utctx;
    chunk->timestamps =
-      ut->utctx->create_timestamp_buffer(ut->utctx, TIMESTAMP_BUF_SIZE);
+      ut->utctx->create_buffer(ut->utctx,
+                               chunk->utctx->timestamp_size_bytes * TIMESTAMP_BUF_SIZE);
    chunk->last = true;
    u_vector_init(&chunk->payloads, 4, sizeof(struct u_trace_payload_buf *));
    if (payload_size > 0) {
@@ -434,8 +435,9 @@ queue_init(struct u_trace_context *utctx)
 void
 u_trace_context_init(struct u_trace_context *utctx,
                      void *pctx,
-                     u_trace_create_ts_buffer create_timestamp_buffer,
-                     u_trace_delete_ts_buffer delete_timestamp_buffer,
+                     uint32_t timestamp_size_bytes,
+                     u_trace_create_buffer create_buffer,
+                     u_trace_delete_buffer delete_buffer,
                      u_trace_record_ts record_timestamp,
                      u_trace_read_ts read_timestamp,
                      u_trace_delete_flush_data delete_flush_data)
@@ -444,11 +446,12 @@ u_trace_context_init(struct u_trace_context *utctx,
 
    utctx->enabled_traces = u_trace_state.enabled_traces;
    utctx->pctx = pctx;
-   utctx->create_timestamp_buffer = create_timestamp_buffer;
-   utctx->delete_timestamp_buffer = delete_timestamp_buffer;
+   utctx->create_buffer = create_buffer;
+   utctx->delete_buffer = delete_buffer;
    utctx->record_timestamp = record_timestamp;
    utctx->read_timestamp = read_timestamp;
    utctx->delete_flush_data = delete_flush_data;
+   utctx->timestamp_size_bytes = timestamp_size_bytes;
 
    utctx->last_time_ns = 0;
    utctx->first_time_ns = 0;
@@ -591,7 +594,9 @@ process_chunk(void *job, void *gdata, int thread_index)
       if (!evt->tp)
          continue;
 
-      uint64_t ns = utctx->read_timestamp(utctx, chunk->timestamps, idx,
+      uint64_t ns = utctx->read_timestamp(utctx,
+                                          chunk->timestamps,
+                                          utctx->timestamp_size_bytes * idx,
                                           chunk->flush_data);
       int32_t delta;
 
@@ -754,7 +759,7 @@ u_trace_clone_append(struct u_trace_iterator begin_it,
                      struct u_trace_iterator end_it,
                      struct u_trace *into,
                      void *cmdstream,
-                     u_trace_copy_ts_buffer copy_ts_buffer)
+                     u_trace_copy_buffer copy_buffer)
 {
    begin_it = sanitize_iterator(begin_it);
    end_it = sanitize_iterator(end_it);
@@ -770,9 +775,12 @@ u_trace_clone_append(struct u_trace_iterator begin_it,
       if (from_chunk == end_it.chunk)
          to_copy = MIN2(to_copy, end_it.event_idx - from_idx);
 
-      copy_ts_buffer(begin_it.ut->utctx, cmdstream, from_chunk->timestamps,
-                     from_idx, to_chunk->timestamps, to_chunk->num_traces,
-                     to_copy);
+      copy_buffer(begin_it.ut->utctx, cmdstream,
+                  from_chunk->timestamps,
+                  begin_it.ut->utctx->timestamp_size_bytes * from_idx,
+                  to_chunk->timestamps,
+                  begin_it.ut->utctx->timestamp_size_bytes * to_chunk->num_traces,
+                  begin_it.ut->utctx->timestamp_size_bytes * to_copy);
 
       memcpy(&to_chunk->traces[to_chunk->num_traces],
              &from_chunk->traces[from_idx],
@@ -853,7 +861,9 @@ u_trace_appendv(struct u_trace *ut,
    }
 
    /* record a timestamp for the trace: */
-   ut->utctx->record_timestamp(ut, cs, chunk->timestamps, tp_idx, tp->flags);
+   ut->utctx->record_timestamp(ut, cs, chunk->timestamps,
+                               ut->utctx->timestamp_size_bytes * tp_idx,
+                               tp->flags);
 
    chunk->traces[tp_idx] = (struct u_trace_event) {
       .tp = tp,

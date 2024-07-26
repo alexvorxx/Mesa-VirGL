@@ -1706,19 +1706,19 @@ tu_device_get_u_trace(struct tu_device *device)
 }
 
 static void*
-tu_trace_create_ts_buffer(struct u_trace_context *utctx, uint32_t size)
+tu_trace_create_buffer(struct u_trace_context *utctx, uint64_t size_B)
 {
    struct tu_device *device =
       container_of(utctx, struct tu_device, trace_context);
 
    struct tu_bo *bo;
-   tu_bo_init_new(device, NULL, &bo, size, TU_BO_ALLOC_INTERNAL_RESOURCE, "trace");
+   tu_bo_init_new(device, NULL, &bo, size_B, TU_BO_ALLOC_INTERNAL_RESOURCE, "trace");
 
    return bo;
 }
 
 static void
-tu_trace_destroy_ts_buffer(struct u_trace_context *utctx, void *timestamps)
+tu_trace_destroy_buffer(struct u_trace_context *utctx, void *timestamps)
 {
    struct tu_device *device =
       container_of(utctx, struct tu_device, trace_context);
@@ -1730,18 +1730,16 @@ tu_trace_destroy_ts_buffer(struct u_trace_context *utctx, void *timestamps)
 template <chip CHIP>
 static void
 tu_trace_record_ts(struct u_trace *ut, void *cs, void *timestamps,
-                   unsigned idx, uint32_t)
+                   uint64_t offset_B, uint32_t)
 {
    struct tu_bo *bo = (struct tu_bo *) timestamps;
    struct tu_cs *ts_cs = (struct tu_cs *) cs;
-
-   unsigned ts_offset = idx * sizeof(uint64_t);
 
    if (CHIP == A6XX) {
       tu_cs_emit_pkt7(ts_cs, CP_EVENT_WRITE, 4);
       tu_cs_emit(ts_cs, CP_EVENT_WRITE_0_EVENT(RB_DONE_TS) |
                            CP_EVENT_WRITE_0_TIMESTAMP);
-      tu_cs_emit_qw(ts_cs, bo->iova + ts_offset);
+      tu_cs_emit_qw(ts_cs, bo->iova + offset_B);
       tu_cs_emit(ts_cs, 0x00000000);
    } else {
       tu_cs_emit_pkt7(ts_cs, CP_EVENT_WRITE7, 3);
@@ -1750,13 +1748,13 @@ tu_trace_record_ts(struct u_trace *ut, void *cs, void *timestamps,
                                           .write_dst = EV_DST_RAM,
                                           .write_enabled = true)
                            .value);
-      tu_cs_emit_qw(ts_cs, bo->iova + ts_offset);
+      tu_cs_emit_qw(ts_cs, bo->iova + offset_B);
    }
 }
 
 static uint64_t
 tu_trace_read_ts(struct u_trace_context *utctx,
-                 void *timestamps, unsigned idx, void *flush_data)
+                 void *timestamps, uint64_t offset_B, void *flush_data)
 {
    struct tu_device *device =
       container_of(utctx, struct tu_device, trace_context);
@@ -1765,7 +1763,7 @@ tu_trace_read_ts(struct u_trace_context *utctx,
       (struct tu_u_trace_submission_data *) flush_data;
 
    /* Only need to stall on results for the first entry: */
-   if (idx == 0) {
+   if (offset_B == 0) {
       tu_device_wait_u_trace(device, submission_data->syncobj);
    }
 
@@ -1773,13 +1771,13 @@ tu_trace_read_ts(struct u_trace_context *utctx,
       return U_TRACE_NO_TIMESTAMP;
    }
 
-   uint64_t *ts = (uint64_t *) bo->map;
+   uint64_t *ts = (uint64_t *) ((char *)bo->map + offset_B);
 
    /* Don't translate the no-timestamp marker: */
-   if (ts[idx] == U_TRACE_NO_TIMESTAMP)
+   if (*ts == U_TRACE_NO_TIMESTAMP)
       return U_TRACE_NO_TIMESTAMP;
 
-   return tu_device_ticks_to_ns(device, ts[idx]);
+   return tu_device_ticks_to_ns(device, *ts);
 }
 
 static void
@@ -1794,19 +1792,19 @@ tu_trace_delete_flush_data(struct u_trace_context *utctx, void *flush_data)
 }
 
 void
-tu_copy_timestamp_buffer(struct u_trace_context *utctx, void *cmdstream,
-                         void *ts_from, uint32_t from_offset,
-                         void *ts_to, uint32_t to_offset,
-                         uint32_t count)
+tu_copy_buffer(struct u_trace_context *utctx, void *cmdstream,
+               void *ts_from, uint64_t from_offset_B,
+               void *ts_to, uint64_t to_offset_B,
+               uint64_t size_B)
 {
    struct tu_cs *cs = (struct tu_cs *) cmdstream;
    struct tu_bo *bo_from = (struct tu_bo *) ts_from;
    struct tu_bo *bo_to = (struct tu_bo *) ts_to;
 
    tu_cs_emit_pkt7(cs, CP_MEMCPY, 5);
-   tu_cs_emit(cs, count * sizeof(uint64_t) / sizeof(uint32_t));
-   tu_cs_emit_qw(cs, bo_from->iova + from_offset * sizeof(uint64_t));
-   tu_cs_emit_qw(cs, bo_to->iova + to_offset * sizeof(uint64_t));
+   tu_cs_emit(cs, size_B / sizeof(uint32_t));
+   tu_cs_emit_qw(cs, bo_from->iova + from_offset_B);
+   tu_cs_emit_qw(cs, bo_to->iova + to_offset_B);
 }
 
 /* Special helpers instead of u_trace_begin_iterator()/u_trace_end_iterator()
@@ -1872,7 +1870,7 @@ tu_create_copy_timestamp_cs(struct tu_cmd_buffer *cmdbuf, struct tu_cs** cs,
    u_trace_clone_append(tu_cmd_begin_iterator(cmdbuf),
                         tu_cmd_end_iterator(cmdbuf),
                         *trace_copy, *cs,
-                        tu_copy_timestamp_buffer);
+                        tu_copy_buffer);
 
    tu_cs_emit_wfi(*cs);
 
@@ -2522,8 +2520,9 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
 
    device->submit_count = 0;
    u_trace_context_init(&device->trace_context, device,
-                     tu_trace_create_ts_buffer,
-                     tu_trace_destroy_ts_buffer,
+                     sizeof(uint64_t),
+                     tu_trace_create_buffer,
+                     tu_trace_destroy_buffer,
                      TU_CALLX(device, tu_trace_record_ts),
                      tu_trace_read_ts,
                      tu_trace_delete_flush_data);

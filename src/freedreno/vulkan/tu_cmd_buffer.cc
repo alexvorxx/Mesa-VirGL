@@ -31,8 +31,7 @@ tu_clone_trace_range(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
 
    tu_cs_emit_wfi(cs);
    tu_cs_emit_pkt7(cs, CP_WAIT_FOR_ME, 0);
-   u_trace_clone_append(begin, end, &cmd->trace, cs,
-         tu_copy_timestamp_buffer);
+   u_trace_clone_append(begin, end, &cmd->trace, cs, tu_copy_buffer);
 }
 
 static void

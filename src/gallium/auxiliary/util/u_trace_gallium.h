@@ -38,6 +38,7 @@ struct pipe_framebuffer_state;
 void
 u_trace_pipe_context_init(struct u_trace_context *utctx,
                           struct pipe_context *pctx,
+                          uint32_t timestamp_size_B,
                           u_trace_record_ts record_timestamp,
                           u_trace_read_ts read_timestamp,
                           u_trace_delete_flush_data delete_flush_data);
