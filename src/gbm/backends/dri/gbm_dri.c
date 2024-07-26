@@ -738,15 +738,15 @@ gbm_dri_bo_import(struct gbm_device *gbm,
        * the sARGB format. */
       fourcc = gbm_core.v0.format_canonicalize(fd_data->format);
 
-      image = dri->image->createImageFromDmaBufs(dri->screen,
-                                                 fd_data->width,
-                                                 fd_data->height,
-                                                 fourcc,
-                                                 DRM_FORMAT_MOD_INVALID,
-                                                 &fd_data->fd, 1,
-                                                 &stride, &offset,
-                                                 0, 0, 0, 0, 0,
-                                                 NULL, NULL);
+      image = dri2_from_dma_bufs(dri->screen,
+                                 fd_data->width,
+                                 fd_data->height,
+                                 fourcc,
+                                 DRM_FORMAT_MOD_INVALID,
+                                 &fd_data->fd, 1,
+                                 &stride, &offset,
+                                 0, 0, 0, 0, 0,
+                                 NULL, NULL);
       if (image == NULL) {
          errno = EINVAL;
          return NULL;
@@ -761,18 +761,12 @@ gbm_dri_bo_import(struct gbm_device *gbm,
       unsigned int error;
       int fourcc;
 
-      /* Import with modifier requires createImageFromDmaBufs */
-      if (dri->image->createImageFromDmaBufs == NULL) {
-         errno = ENOSYS;
-         return NULL;
-      }
-
       /* GBM's GBM_FORMAT_* tokens are a strict superset of the DRI FourCC
        * tokens accepted by createImageFromDmaBufs, except for not supporting
        * the sARGB format. */
       fourcc = gbm_core.v0.format_canonicalize(fd_data->format);
 
-      image = dri->image->createImageFromDmaBufs(dri->screen, fd_data->width,
+      image = dri2_from_dma_bufs(dri->screen, fd_data->width,
                                                  fd_data->height, fourcc,
                                                  fd_data->modifier,
                                                  fd_data->fds,
