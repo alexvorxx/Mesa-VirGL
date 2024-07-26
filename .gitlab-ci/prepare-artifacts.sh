@@ -43,10 +43,14 @@ cp -Rp .gitlab-ci/setup-test-env.sh install/
 cp -Rp .gitlab-ci/*-runner.sh install/
 cp -Rp .gitlab-ci/bin/structured_logger.py install/
 cp -Rp .gitlab-ci/bin/custom_logger.py install/
-find . -path \*/ci/\*.txt \
-    -o -path \*/ci/\*.toml \
-    -o -path \*/ci/\*traces\*.yml \
-    | xargs -I '{}' cp -p '{}' install/
+
+find src/ -path '*/ci/*' \
+  \( \
+    -name '*.txt' \
+    -o -name '*.toml' \
+    -o -name '*traces*.yml' \
+  \) \
+  -exec cp -p {} install/ \;
 
 # Tar up the install dir so that symlinks and hardlinks aren't each
 # packed separately in the zip file.
