@@ -1554,7 +1554,7 @@ fs_visitor::debug_optimizer(const nir_shader *nir,
                       iteration, pass_num, pass_name);
    if (ret == -1)
       return;
-   brw_print_instructions(*this);
+   brw_print_instructions(*this, filename);
    free(filename);
 }
 
