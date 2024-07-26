@@ -240,10 +240,6 @@ static struct dri_extension_match gbm_dri_device_extensions[] = {
    { __DRI_IMAGE_DRIVER, 2, offsetof(struct gbm_dri_device, image_driver), false },
 };
 
-static struct dri_extension_match gbm_swrast_device_extensions[] = {
-   { __DRI_SWRAST, 5, offsetof(struct gbm_dri_device, swrast), false },
-};
-
 const __DRIextension **
 dri_loader_get_extensions(const char *driver_name);
 
@@ -281,10 +277,10 @@ dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool
                                        ARRAY_SIZE(gbm_dri_device_extensions),
                                        extensions);
    } else {
-      bind_ok = loader_bind_extensions(dri, gbm_swrast_device_extensions,
-                                       ARRAY_SIZE(gbm_swrast_device_extensions),
-                                       extensions);
+      bind_ok = true;
    }
+
+   dri->swrast = swrast;
 
    if (!bind_ok) {
       fprintf(stderr, "failed to bind extensions\n");

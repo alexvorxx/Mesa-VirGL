@@ -244,7 +244,6 @@ struct dri2_egl_display {
    const __DRIconfig **driver_configs;
    const __DRIimageDriverExtension *image_driver;
    const __DRIdri2Extension *dri2;
-   const __DRIswrastExtension *swrast;
    const __DRI2flushExtension *flush;
    const __DRI2flushControlExtension *flush_control;
    const __DRItexBufferExtension *tex_buffer;
@@ -271,6 +270,7 @@ struct dri2_egl_display {
    bool own_device;
    bool invalidate_available;
    bool kopper;
+   bool swrast;
    int min_swap_interval;
    int max_swap_interval;
    int default_swap_interval;

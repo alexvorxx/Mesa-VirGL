@@ -604,7 +604,6 @@ static const struct dri_extension_match dri2_core_extensions[] = {
 };
 
 static const struct dri_extension_match swrast_driver_extensions[] = {
-   {__DRI_SWRAST, 5, offsetof(struct dri2_egl_display, swrast), false},
    {__DRI_CONFIG_OPTIONS, 2, offsetof(struct dri2_egl_display, configOptions),
     true},
 };
@@ -659,6 +658,8 @@ dri2_load_driver_common(_EGLDisplay *disp,
    }
    dri2_dpy->driver_extensions = extensions;
    dri2_dpy->kopper = disp->Options.Zink && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
+   dri2_dpy->swrast = (disp->Options.ForceSoftware && !dri2_dpy->kopper) ||
+                      !dri2_dpy->driver_name || strstr(dri2_dpy->driver_name, "swrast");
 
    return EGL_TRUE;
 }
@@ -742,7 +743,7 @@ dri2_setup_screen(_EGLDisplay *disp)
    if ((api_mask & (1 << __DRI_API_GLES3)) && _eglIsApiValid(EGL_OPENGL_ES_API))
       disp->ClientAPIs |= EGL_OPENGL_ES3_BIT_KHR;
 
-   assert(dri2_dpy->image_driver || dri2_dpy->dri2 || dri2_dpy->swrast);
+   assert(dri2_dpy->image_driver || dri2_dpy->dri2 || dri2_dpy->kopper || dri2_dpy->swrast);
    disp->Extensions.KHR_create_context = EGL_TRUE;
    disp->Extensions.KHR_create_context_no_error = EGL_TRUE;
    disp->Extensions.KHR_no_config_context = EGL_TRUE;
@@ -907,7 +908,7 @@ dri2_create_screen(_EGLDisplay *disp)
       }
    }
 
-   int screen_fd = dri2_dpy->swrast ? -1 : dri2_dpy->fd_render_gpu;
+   int screen_fd = dri2_dpy->swrast || dri2_dpy->kopper ? -1 : dri2_dpy->fd_render_gpu;
    dri2_dpy->dri_screen_render_gpu = driCreateNewScreen3(
       0, screen_fd, dri2_dpy->loader_extensions, dri2_dpy->driver_extensions,
       &dri2_dpy->driver_configs, false, disp);

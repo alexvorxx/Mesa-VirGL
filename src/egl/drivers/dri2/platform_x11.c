@@ -579,7 +579,6 @@ dri2_x11_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
       xcb_dri2_destroy_drawable(dri2_dpy->conn, dri2_surf->drawable);
 #endif
    } else {
-      assert(dri2_dpy->swrast);
       swrastDestroyDrawable(dri2_dpy, dri2_surf);
    }
 
