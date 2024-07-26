@@ -124,6 +124,11 @@ def monitor_pipeline(
     execution_times = defaultdict(lambda: defaultdict(tuple))
     target_id: int = -1
     name_field_pad: int = len(max(dependencies, key=len))+2
+    # In a running pipeline, we can skip following job traces that are in these statuses.
+    skip_follow_statuses = COMPLETED_STATUSES
+    if not force_manual:
+        # If the target job is marked as manual and we don't force it to run, it will be skipped.
+        skip_follow_statuses.add("manual")
 
     # Pre-populate the stress status counter for already completed target jobs.
     if stress:
@@ -235,7 +240,7 @@ def monitor_pipeline(
             )
             return None, 1, execution_times
 
-        if {"success", "manual"}.issuperset(target_statuses.values()):
+        if skip_follow_statuses.issuperset(target_statuses.values()):
             return None, 0, execution_times
 
         pretty_wait(REFRESH_WAIT_JOBS)
