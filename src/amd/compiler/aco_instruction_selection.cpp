@@ -4201,32 +4201,33 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
          opsel_hi |= opsel_hi << 1;
 
          Temp tl = src;
-         Temp tr = src;
-         if (nir_src_is_divergent(instr->src[0].src)) {
+         if (nir_src_is_divergent(instr->src[0].src))
             tl = bld.vop1_dpp(aco_opcode::v_mov_b32, bld.def(v1), src, dpp_ctrl1);
-            tr = bld.vop1_dpp(aco_opcode::v_mov_b32, bld.def(v1), src, dpp_ctrl2);
-         }
 
-         VALU_instruction& sub =
-            bld.vop3p(aco_opcode::v_pk_add_f16, Definition(dst), tr, tl, opsel_lo, opsel_hi)
-               .instr->valu();
-         sub.neg_lo[1] = true;
-         sub.neg_hi[1] = true;
+         Builder::Result sub =
+            bld.vop3p(aco_opcode::v_pk_add_f16, bld.def(v1), src, tl, opsel_lo, opsel_hi);
+         sub->valu().neg_lo[1] = true;
+         sub->valu().neg_hi[1] = true;
+
+         if (nir_src_is_divergent(instr->src[0].src))
+            bld.vop1_dpp(aco_opcode::v_mov_b32, Definition(dst), sub, dpp_ctrl2);
+         else
+            bld.copy(Definition(dst), sub);
          emit_split_vector(ctx, dst, 2);
       } else {
          Temp src = as_vgpr(ctx, get_alu_src(ctx, instr->src[0]));
 
-         aco_opcode sub =
-            instr->def.bit_size == 16 ? aco_opcode::v_sub_f16 : aco_opcode::v_sub_f32;
+         aco_opcode subrev =
+            instr->def.bit_size == 16 ? aco_opcode::v_subrev_f16 : aco_opcode::v_subrev_f32;
          if (!nir_src_is_divergent(instr->src[0].src)) {
-            bld.vop2(sub, Definition(dst), src, src);
+            bld.vop2(subrev, Definition(dst), src, src);
          } else if (ctx->program->gfx_level >= GFX8) {
-            Temp tl = bld.vop1_dpp(aco_opcode::v_mov_b32, bld.def(v1), src, dpp_ctrl1);
-            bld.vop2_dpp(sub, Definition(dst), src, tl, dpp_ctrl2);
+            Temp tmp = bld.vop2_dpp(subrev, bld.def(v1), src, src, dpp_ctrl1);
+            bld.vop1_dpp(aco_opcode::v_mov_b32, Definition(dst), tmp, dpp_ctrl2);
          } else {
             Temp tl = bld.ds(aco_opcode::ds_swizzle_b32, bld.def(v1), src, (1 << 15) | dpp_ctrl1);
             Temp tr = bld.ds(aco_opcode::ds_swizzle_b32, bld.def(v1), src, (1 << 15) | dpp_ctrl2);
-            bld.vop2(aco_opcode::v_sub_f32, Definition(dst), tr, tl);
+            bld.vop2(subrev, Definition(dst), tl, tr);
          }
       }
       set_wqm(ctx, true);

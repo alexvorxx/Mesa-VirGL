@@ -509,8 +509,8 @@ BEGIN_TEST(d3d11_derivs.fddxy)
    pbld.add_vsfs(vs, fs);
 
    /* Must be before BB1 */
-   //>> v1: %_ = v_sub_f32 (kill)%_, (kill)%_ quad_perm:[1,1,3,3] bound_ctrl:1 fi
-   //>> v1: %_ = v_sub_f32 (kill)%_, (kill)%_ quad_perm:[2,2,2,2] bound_ctrl:1 fi
+   //>> v1: %_ = v_subrev_f32 (kill)%_, (kill)%_ quad_perm:[0,0,2,2] bound_ctrl:1 fi
+   //>> v1: %_ = v_subrev_f32 (kill)%_, (kill)%_ quad_perm:[0,0,0,0] bound_ctrl:1 fi
    //>> BB1
    pbld.print_ir(VK_SHADER_STAGE_FRAGMENT_BIT, "ACO IR");
 END_TEST
@@ -579,12 +579,12 @@ BEGIN_TEST(d3d11_derivs.get_lod)
    //>> v1: %x = v_interp_p2_f32 %_, %_:m0, (kill)%_ attr0.x
    //>> v1: %y = v_interp_p2_f32 (kill)%_, (kill)%_:m0, (kill)%_ attr0.y
    //>> lv2: %wqm = p_start_linear_vgpr %x, %y
-   //>> v1: %x0 = v_mov_b32 %x quad_perm:[0,0,0,0] bound_ctrl:1 fi
-   //>> v1: %x1_m_x0 = v_sub_f32 %x, %x0 quad_perm:[1,1,1,1] bound_ctrl:1 fi
-   //>> v1: %x2_m_x0 = v_sub_f32 (kill)%x, (kill)%x0 quad_perm:[2,2,2,2] bound_ctrl:1 fi
-   //>> v1: %y0 = v_mov_b32 %y quad_perm:[0,0,0,0] bound_ctrl:1 fi
-   //>> v1: %y1_m_y0 = v_sub_f32 %y, %y0 quad_perm:[1,1,1,1] bound_ctrl:1 fi
-   //>> v1: %y2_m_y0 = v_sub_f32 (kill)%y, (kill)%y0 quad_perm:[2,2,2,2] bound_ctrl:1 fi
+   //>> v1: %x12_m_x0 = v_subrev_f32 (kill)%x, (kill)%x quad_perm:[0,0,0,0] bound_ctrl:1 fi
+   //>> v1: %x1_m_x0 = v_mov_b32 %x12_m_x0 quad_perm:[1,1,1,1] bound_ctrl:1 fi
+   //>> v1: %x2_m_x0 = v_mov_b32 (kill)%x12_m_x0 quad_perm:[2,2,2,2] bound_ctrl:1 fi
+   //>> v1: %y12_m_y0 = v_subrev_f32 (kill)%y, (kill)%y quad_perm:[0,0,0,0] bound_ctrl:1 fi
+   //>> v1: %y1_m_y0 = v_mov_b32 %y12_m_x0 quad_perm:[1,1,1,1] bound_ctrl:1 fi
+   //>> v1: %y2_m_y0 = v_mov_b32 (kill)%y12_m_x0 quad_perm:[2,2,2,2] bound_ctrl:1 fi
    //>> BB1
    //>> v2: %_ = image_get_lod (kill)%_, (kill)%_, v1: undef, (latekill)%wqm 2d
    //>> BB2
