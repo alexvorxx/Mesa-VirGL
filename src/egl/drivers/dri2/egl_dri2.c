@@ -1552,7 +1552,7 @@ dri2_create_drawable(struct dri2_egl_display *dri2_dpy,
                      struct dri2_egl_surface *dri2_surf, void *loaderPrivate)
 {
    if (dri2_dpy->kopper) {
-      dri2_surf->dri_drawable = dri2_dpy->kopper->createNewDrawable(
+      dri2_surf->dri_drawable = kopperCreateNewDrawable(
          dri2_dpy->dri_screen_render_gpu, config, loaderPrivate,
          &(__DRIkopperDrawableInfo){
 #if defined(HAVE_X11_PLATFORM) && defined(HAVE_DRI3)
