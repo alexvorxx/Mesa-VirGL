@@ -45,6 +45,7 @@ struct vk_meta_rect {
 };
 
 #define VK_PRIMITIVE_TOPOLOGY_META_RECT_LIST_MESA (VkPrimitiveTopology)11
+#define VK_IMAGE_VIEW_CREATE_INTERNAL_MESA (VkImageViewCreateFlagBits)0x40000000
 
 struct vk_meta_device {
    struct hash_table *cache;
