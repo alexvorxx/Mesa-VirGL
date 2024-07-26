@@ -312,8 +312,7 @@ panvk_per_arch(meta_get_copy_desc_job)(
       .img_attrib_table = shader_desc_state->img_attrib_table,
       .desc_copy = {
          .table = copy_table,
-         .attrib_buf_idx_offset =
-            shader->info.stage == MESA_SHADER_VERTEX ? MAX_VS_ATTRIBS : 0,
+         .attrib_buf_idx_offset = attrib_buf_idx_offset,
       },
    };
 
