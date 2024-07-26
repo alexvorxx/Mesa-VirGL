@@ -1716,6 +1716,7 @@ tu_trace_create_buffer(struct u_trace_context *utctx, uint64_t size_B)
 
    struct tu_bo *bo;
    tu_bo_init_new(device, NULL, &bo, size_B, TU_BO_ALLOC_INTERNAL_RESOURCE, "trace");
+   tu_bo_map(device, bo, NULL);
 
    return bo;
 }
@@ -1810,6 +1811,30 @@ tu_copy_buffer(struct u_trace_context *utctx, void *cmdstream,
    tu_cs_emit_qw(cs, bo_to->iova + to_offset_B);
 }
 
+static void
+tu_trace_capture_data(struct u_trace *ut,
+                        void *cs,
+                        void *dst_buffer,
+                        uint64_t dst_offset_B,
+                        void *src_buffer,
+                        uint64_t src_offset_B,
+                        uint32_t size_B)
+{
+   if (src_buffer)
+      tu_copy_buffer(ut->utctx, cs, src_buffer, src_offset_B, dst_buffer,
+                     dst_offset_B, size_B);
+}
+
+static const void *
+tu_trace_get_data(struct u_trace_context *utctx,
+                  void *buffer,
+                  uint64_t offset_B,
+                  uint32_t size_B)
+{
+   struct tu_bo *bo = (struct tu_bo *) buffer;
+   return (char *) bo->map + offset_B;
+}
+
 /* Special helpers instead of u_trace_begin_iterator()/u_trace_end_iterator()
  * that ignore tracepoints at the beginning/end that are part of a
  * suspend/resume chain.
@@ -1854,7 +1879,7 @@ tu_create_copy_timestamp_cs(struct tu_cmd_buffer *cmdbuf, struct tu_cs** cs,
    }
 
    tu_cs_init(*cs, cmdbuf->device, TU_CS_MODE_GROW,
-              list_length(&cmdbuf->trace.trace_chunks) * 6 + 3, "trace copy timestamp cs");
+              list_length(&cmdbuf->trace.trace_chunks) * 6 * 2 + 3, "trace copy timestamp cs");
 
    tu_cs_begin(*cs);
 
@@ -2525,13 +2550,13 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
    device->submit_count = 0;
    u_trace_context_init(&device->trace_context, device,
                      sizeof(uint64_t),
-                     0,
+                     12,
                      tu_trace_create_buffer,
                      tu_trace_destroy_buffer,
                      TU_CALLX(device, tu_trace_record_ts),
                      tu_trace_read_ts,
-                     NULL,
-                     NULL,
+                     tu_trace_capture_data,
+                     tu_trace_get_data,
                      tu_trace_delete_flush_data);
 
    tu_breadcrumbs_init(device);
