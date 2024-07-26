@@ -34,6 +34,7 @@ extern "C" {
 
 struct hash_table;
 struct vk_command_buffer;
+struct vk_buffer;
 struct vk_device;
 struct vk_image;
 
@@ -184,6 +185,11 @@ VkResult vk_meta_create_buffer(struct vk_command_buffer *cmd,
                                struct vk_meta_device *meta,
                                const VkBufferCreateInfo *info,
                                VkBuffer *buffer_out);
+
+VkResult vk_meta_create_buffer_view(struct vk_command_buffer *cmd,
+                                    struct vk_meta_device *meta,
+                                    const VkBufferViewCreateInfo *info,
+                                    VkBufferView *buffer_view_out);
 VkResult vk_meta_create_image_view(struct vk_command_buffer *cmd,
                                    struct vk_meta_device *meta,
                                    const VkImageViewCreateInfo *info,

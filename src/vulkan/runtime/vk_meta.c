@@ -537,3 +537,23 @@ vk_meta_create_image_view(struct vk_command_buffer *cmd,
                                   (uint64_t)*image_view_out);
    return VK_SUCCESS;
 }
+
+VkResult
+vk_meta_create_buffer_view(struct vk_command_buffer *cmd,
+                           struct vk_meta_device *meta,
+                           const VkBufferViewCreateInfo *info,
+                           VkBufferView *buffer_view_out)
+{
+   struct vk_device *device = cmd->base.device;
+   const struct vk_device_dispatch_table *disp = &device->dispatch_table;
+   VkDevice _device = vk_device_to_handle(device);
+
+   VkResult result = disp->CreateBufferView(_device, info, NULL, buffer_view_out);
+   if (unlikely(result != VK_SUCCESS))
+      return result;
+
+   vk_meta_object_list_add_handle(&cmd->meta_objects,
+                                  VK_OBJECT_TYPE_BUFFER_VIEW,
+                                  (uint64_t)*buffer_view_out);
+   return VK_SUCCESS;
+}

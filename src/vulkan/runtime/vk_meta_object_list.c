@@ -17,6 +17,9 @@ vk_meta_destroy_object(struct vk_device *device, struct vk_object_base *obj)
    case VK_OBJECT_TYPE_BUFFER:
       disp->DestroyBuffer(_device, (VkBuffer)(uintptr_t)obj, NULL);
       break;
+   case VK_OBJECT_TYPE_BUFFER_VIEW:
+      disp->DestroyBufferView(_device, (VkBufferView)(uintptr_t)obj, NULL);
+      break;
    case VK_OBJECT_TYPE_IMAGE_VIEW:
       disp->DestroyImageView(_device, (VkImageView)(uintptr_t)obj, NULL);
       break;
