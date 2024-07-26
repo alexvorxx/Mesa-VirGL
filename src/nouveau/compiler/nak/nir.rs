@@ -73,15 +73,20 @@ impl<'a, T: 'a> Iterator for ExecListIter<'a, T> {
     fn next(&mut self) -> Option<Self::Item> {
         if self.rev {
             self.n = unsafe { &*self.n.prev };
+            if self.n.prev.is_null() {
+                None
+            } else {
+                let t: *const c_void = (self.n as *const exec_node).cast();
+                Some(unsafe { &*(t.sub(self.offset).cast()) })
+            }
         } else {
             self.n = unsafe { &*self.n.next };
-        }
-
-        if self.n.next.is_null() {
-            None
-        } else {
-            let t: *const c_void = (self.n as *const exec_node).cast();
-            Some(unsafe { &*(t.sub(self.offset).cast()) })
+            if self.n.next.is_null() {
+                None
+            } else {
+                let t: *const c_void = (self.n as *const exec_node).cast();
+                Some(unsafe { &*(t.sub(self.offset).cast()) })
+            }
         }
     }
 }
