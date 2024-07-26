@@ -249,7 +249,7 @@ dri_loader_get_extensions(const char *driver_name)
       return __driDriverGetExtensions_tegra();
 #endif
 
-#if defined(HAVE_KMSRO)
+#if defined(GALLIUM_KMSRO)
    if (!strcmp(driver_name, "armada-drm"))
       return __driDriverGetExtensions_armada_drm();
    if (!strcmp(driver_name, "exynos"))
