@@ -3135,11 +3135,11 @@ iris_create_surface(struct pipe_context *ctx,
        * have a renderable view format.  We must be attempting to upload
        * blocks of compressed data via an uncompressed view.
        *
-       * In this case, we can assume there are no auxiliary buffers, a single
+       * In this case, we can assume there are no auxiliary surfaces, a single
        * miplevel, and that the resource is single-sampled.  Gallium may try
        * and create an uncompressed view with multiple layers, however.
        */
-      assert(res->aux.usage == ISL_AUX_USAGE_NONE);
+      assert(res->aux.surf.size_B == 0);
       assert(res->surf.samples == 1);
       assert(view->levels == 1);
 
