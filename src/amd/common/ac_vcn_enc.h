@@ -98,6 +98,9 @@
 #define RENCODE_H264_HEADER_INSTRUCTION_FIRST_MB                                    0x00020000
 #define RENCODE_H264_HEADER_INSTRUCTION_SLICE_QP_DELTA                              0x00020001
 
+#define RENCODE_HEVC_SEI_TYPE_MDCV                                                  137
+#define RENCODE_HEVC_SEI_TYPE_CLL                                                   144
+
 #define RENCODE_AV1_BITSTREAM_INSTRUCTION_OBU_START                                 0x00000002
 #define RENCODE_AV1_BITSTREAM_INSTRUCTION_OBU_SIZE                                  0x00000003
 #define RENCODE_AV1_BITSTREAM_INSTRUCTION_OBU_END                                   0x00000004

@@ -684,6 +684,43 @@ static void radeon_vcn_enc_hevc_get_slice_ctrl_param(struct radeon_encoder *enc,
       num_ctbs_in_slice;
 }
 
+static void radeon_vcn_enc_hevc_get_metadata(struct radeon_encoder *enc,
+                                          struct pipe_h265_enc_picture_desc *pic)
+{
+   memset (&enc->enc_pic.enc_sei, 0, sizeof(rvcn_enc_seidata_t));
+
+   if (!pic->metadata_flags.value) {
+      enc->enc_pic.enc_sei.flags.value = 0;
+      return;
+   }
+
+   if (pic->metadata_flags.hdr_cll) {
+      enc->enc_pic.enc_sei.flags.hdr_cll = 1;
+      enc->enc_pic.enc_sei.hdr_cll = (rvcn_enc_sei_hdr_cll_t) {
+         .max_cll = pic->metadata_hdr_cll.max_cll,
+         .max_fall = pic->metadata_hdr_cll.max_fall
+      };
+   }
+
+   if (pic->metadata_flags.hdr_mdcv) {
+      enc->enc_pic.enc_sei.flags.hdr_mdcv = 1;
+      for (int32_t i = 0; i < 3; i++) {
+         enc->enc_pic.enc_sei.hdr_mdcv.primary_chromaticity_x[i]
+            = pic->metadata_hdr_mdcv.primary_chromaticity_x[i];
+         enc->enc_pic.enc_sei.hdr_mdcv.primary_chromaticity_y[i]
+            = pic->metadata_hdr_mdcv.primary_chromaticity_y[i];
+      }
+      enc->enc_pic.enc_sei.hdr_mdcv.white_point_chromaticity_x =
+                  pic->metadata_hdr_mdcv.white_point_chromaticity_x;
+      enc->enc_pic.enc_sei.hdr_mdcv.white_point_chromaticity_y =
+                  pic->metadata_hdr_mdcv.white_point_chromaticity_y;
+      enc->enc_pic.enc_sei.hdr_mdcv.luminance_max =
+                  pic->metadata_hdr_mdcv.luminance_max;
+      enc->enc_pic.enc_sei.hdr_mdcv.luminance_min =
+                  pic->metadata_hdr_mdcv.luminance_min;
+   }
+}
+
 static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
                                           struct pipe_h265_enc_picture_desc *pic)
 {
@@ -745,6 +782,7 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
                                          &pic->intra_refresh);
    radeon_vcn_enc_get_roi_param(enc, &pic->roi);
    radeon_vcn_enc_get_latency_param(enc);
+   radeon_vcn_enc_hevc_get_metadata(enc, pic);
 }
 
 static void radeon_vcn_enc_av1_get_spec_misc_param(struct radeon_encoder *enc,
