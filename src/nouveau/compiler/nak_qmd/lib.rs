@@ -23,6 +23,7 @@ trait QMD {
     fn set_local_size(&mut self, width: u16, height: u16, depth: u16);
     fn set_prog_addr(&mut self, addr: u64);
     fn set_register_count(&mut self, register_count: u8);
+    fn set_crs_size(&mut self, crs_size: u32);
     fn set_slm_size(&mut self, slm_size: u32);
     fn set_smem_size(&mut self, smem_size: u32, smem_max: u32);
 }
@@ -90,6 +91,16 @@ macro_rules! qmd_impl_common {
             let slm_size = slm_size.next_multiple_of(0x10);
             set_field!(bv, $c, $s, SHADER_LOCAL_MEMORY_HIGH_SIZE, 0);
             set_field!(bv, $c, $s, SHADER_LOCAL_MEMORY_LOW_SIZE, slm_size);
+        }
+    };
+}
+
+macro_rules! qmd_impl_set_crs_size {
+    ($c:ident, $s:ident) => {
+        fn set_crs_size(&mut self, crs_size: u32) {
+            let mut bv = QMDBitView::new(&mut self.qmd);
+            let crs_size = crs_size.next_multiple_of(0x200);
+            set_field!(bv, $c, $s, SHADER_LOCAL_MEMORY_CRS_SIZE, crs_size);
         }
     };
 }
@@ -170,6 +181,7 @@ mod qmd_0_6 {
         }
 
         qmd_impl_common!(cla0c0, QMDV00_06);
+        qmd_impl_set_crs_size!(cla0c0, QMDV00_06);
         qmd_impl_set_cbuf!(cla0c0, QMDV00_06, SIZE);
         qmd_impl_set_prog_addr_32!(cla0c0, QMDV00_06);
         qmd_impl_set_register_count!(cla0c0, QMDV00_06, REGISTER_COUNT);
@@ -214,6 +226,7 @@ mod qmd_2_1 {
         }
 
         qmd_impl_common!(clc0c0, QMDV02_01);
+        qmd_impl_set_crs_size!(clc0c0, QMDV02_01);
         qmd_impl_set_cbuf!(clc0c0, QMDV02_01, SIZE_SHIFTED4);
         qmd_impl_set_prog_addr_32!(clc0c0, QMDV02_01);
         qmd_impl_set_register_count!(clc0c0, QMDV02_01, REGISTER_COUNT);
@@ -281,6 +294,7 @@ mod qmd_2_2 {
         }
 
         qmd_impl_common!(clc3c0, QMDV02_02);
+        qmd_impl_set_crs_size!(clc3c0, QMDV02_02);
         qmd_impl_set_cbuf!(clc3c0, QMDV02_02, SIZE_SHIFTED4);
         qmd_impl_set_prog_addr_64!(clc3c0, QMDV02_02);
         qmd_impl_set_register_count!(clc3c0, QMDV02_02, REGISTER_COUNT_V);
@@ -308,6 +322,11 @@ mod qmd_3_0 {
         }
 
         qmd_impl_common!(clc6c0, QMDV03_00);
+
+        fn set_crs_size(&mut self, crs_size: u32) {
+            assert!(crs_size == 0);
+        }
+
         qmd_impl_set_cbuf!(clc6c0, QMDV03_00, SIZE_SHIFTED4);
         qmd_impl_set_prog_addr_64!(clc6c0, QMDV03_00);
         qmd_impl_set_register_count!(clc6c0, QMDV03_00, REGISTER_COUNT_V);
@@ -337,6 +356,7 @@ fn fill_qmd<Q: QMD>(info: &nak_shader_info, qmd_info: &nak_qmd_info) -> Q {
     );
     qmd.set_prog_addr(qmd_info.addr);
     qmd.set_register_count(info.num_gprs);
+    qmd.set_crs_size(info.crs_size);
     qmd.set_slm_size(info.slm_size);
 
     assert!(qmd_info.smem_size >= cs_info.smem_size);

@@ -38,6 +38,16 @@ impl ShaderModel for ShaderModel50 {
         }
     }
 
+    fn crs_size(&self, max_crs_depth: u32) -> u32 {
+        if max_crs_depth <= 16 {
+            0
+        } else if max_crs_depth <= 32 {
+            1024
+        } else {
+            ((max_crs_depth + 32) * 16).next_multiple_of(512)
+        }
+    }
+
     fn op_can_be_uniform(&self, _op: &Op) -> bool {
         false
     }

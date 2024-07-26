@@ -60,6 +60,11 @@ impl ShaderModel for ShaderModel70 {
         }
     }
 
+    fn crs_size(&self, max_crs_depth: u32) -> u32 {
+        assert!(max_crs_depth == 0);
+        0
+    }
+
     fn op_can_be_uniform(&self, op: &Op) -> bool {
         if !self.has_uniform_alu() {
             return false;

@@ -480,6 +480,8 @@ pub fn encode_header(
 
     let slm_size = shader_info.slm_size.next_multiple_of(16);
     sph.set_shader_local_memory_size(slm_size.into());
+    let crs_size = sm.crs_size(shader_info.max_crs_depth);
+    sph.set_shader_local_memory_crs_size(crs_size);
 
     match &shader_info.io {
         ShaderIoInfo::Vtg(io) => {

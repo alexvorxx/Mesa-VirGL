@@ -24,6 +24,7 @@ fn init_info_from_nir(nir: &nir_shader) -> ShaderInfo {
         num_instrs: 0,
         num_control_barriers: 0,
         slm_size: nir.scratch_size,
+        max_crs_depth: 0,
         uses_global_mem: false,
         writes_global_mem: false,
         // TODO: handle this.

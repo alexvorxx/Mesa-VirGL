@@ -115,6 +115,9 @@ struct nak_shader_info {
    /** Size of shader local (scratch) memory */
    uint32_t slm_size;
 
+   /** Size of call/return stack in bytes/warp */
+   uint32_t crs_size;
+
    union {
       struct {
          /* Local workgroup size */

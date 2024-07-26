@@ -7096,6 +7096,7 @@ pub struct ShaderInfo {
     pub num_control_barriers: u8,
     pub num_instrs: u32,
     pub slm_size: u32,
+    pub max_crs_depth: u32,
     pub uses_global_mem: bool,
     pub writes_global_mem: bool,
     pub uses_fp64: bool,
@@ -7106,6 +7107,7 @@ pub struct ShaderInfo {
 pub trait ShaderModel {
     fn sm(&self) -> u8;
     fn num_regs(&self, file: RegFile) -> u32;
+    fn crs_size(&self, max_crs_depth: u32) -> u32;
 
     fn op_can_be_uniform(&self, op: &Op) -> bool;
 

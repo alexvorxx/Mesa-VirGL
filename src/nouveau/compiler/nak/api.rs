@@ -238,6 +238,7 @@ impl ShaderBin {
             _pad0: Default::default(),
             num_instrs: info.num_instrs,
             slm_size: info.slm_size,
+            crs_size: sm.crs_size(info.max_crs_depth),
             __bindgen_anon_1: match &info.stage {
                 ShaderStageInfo::Compute(cs_info) => {
                     nak_shader_info__bindgen_ty_1 {
