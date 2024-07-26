@@ -555,7 +555,7 @@ get_fd_render_gpu_drm(struct gbm_dri_device *gbm_dri, int fd_display_gpu)
       return fd_display_gpu;
 
    /* Display-only device, so return a compatible render-only device. */
-   return gbm_dri->mesa->queryCompatibleRenderOnlyDeviceFd(fd_display_gpu);
+   return dri_query_compatible_render_only_device_fd(fd_display_gpu);
 }
 
 EGLBoolean

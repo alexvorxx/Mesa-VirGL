@@ -902,7 +902,7 @@ dri2_create_screen(_EGLDisplay *disp)
           * will not crash.
           */
          if (strcmp(dri2_dpy->driver_name, driver_name_display_gpu) == 0) {
-            dri2_dpy->dri_screen_display_gpu = dri2_dpy->mesa->createNewScreen3(
+            dri2_dpy->dri_screen_display_gpu = driCreateNewScreen3(
                0, dri2_dpy->fd_display_gpu, dri2_dpy->loader_extensions,
                dri2_dpy->driver_extensions, &dri2_dpy->driver_configs, false, disp);
          }
@@ -911,7 +911,7 @@ dri2_create_screen(_EGLDisplay *disp)
    }
 
    int screen_fd = dri2_dpy->swrast ? -1 : dri2_dpy->fd_render_gpu;
-   dri2_dpy->dri_screen_render_gpu = dri2_dpy->mesa->createNewScreen3(
+   dri2_dpy->dri_screen_render_gpu = driCreateNewScreen3(
       0, screen_fd, dri2_dpy->loader_extensions, dri2_dpy->driver_extensions,
       &dri2_dpy->driver_configs, false, disp);
 
@@ -988,7 +988,7 @@ dri2_setup_device(_EGLDisplay *disp, EGLBoolean software)
    } else if (loader_is_device_render_capable(dri2_dpy->fd_render_gpu)) {
       render_fd = dri2_dpy->fd_render_gpu;
    } else {
-      render_fd = dri2_dpy->mesa->queryCompatibleRenderOnlyDeviceFd(
+      render_fd = dri_query_compatible_render_only_device_fd(
          dri2_dpy->fd_render_gpu);
       if (render_fd < 0)
          return EGL_FALSE;
@@ -1444,7 +1444,7 @@ dri2_create_context(_EGLDisplay *disp, _EGLConfig *conf,
                                   &num_attribs))
       goto cleanup;
 
-   dri2_ctx->dri_context = dri2_dpy->mesa->createContext(
+   dri2_ctx->dri_context = driCreateContextAttribs(
       dri2_dpy->dri_screen_render_gpu, api, dri_config, shared, num_attribs / 2,
       ctx_attribs, &error, dri2_ctx);
    dri2_create_context_attribs_error(error);
