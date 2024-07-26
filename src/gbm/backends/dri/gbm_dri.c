@@ -237,12 +237,10 @@ static struct dri_extension_match dri_core_extensions[] = {
 };
 
 static struct dri_extension_match gbm_dri_device_extensions[] = {
-   { __DRI_MESA, 2, offsetof(struct gbm_dri_device, mesa), false },
    { __DRI_IMAGE_DRIVER, 2, offsetof(struct gbm_dri_device, image_driver), false },
 };
 
 static struct dri_extension_match gbm_swrast_device_extensions[] = {
-   { __DRI_MESA, 2, offsetof(struct gbm_dri_device, mesa), false },
    { __DRI_SWRAST, 5, offsetof(struct gbm_dri_device, swrast), false },
    { __DRI_KOPPER, 1, offsetof(struct gbm_dri_device, kopper), true },
 };
