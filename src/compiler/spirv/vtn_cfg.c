@@ -123,7 +123,12 @@ function_parameter_decoration_cb(struct vtn_builder *b, struct vtn_value *val,
       break;
 
    /* ignore for now */
+   case SpvDecorationAliased:
+   case SpvDecorationAliasedPointer:
    case SpvDecorationAlignment:
+   case SpvDecorationRelaxedPrecision:
+   case SpvDecorationRestrict:
+   case SpvDecorationRestrictPointer:
       break;
 
    default:
