@@ -69,6 +69,8 @@ enum vpe_status {
     VPE_STATUS_ALPHA_BLENDING_NOT_SUPPORTED,    /**<  Alpha blending is not supported. */
     VPE_STATUS_VIEWPORT_SIZE_NOT_SUPPORTED,     /**<  Given viewport size is not supported. */
     VPE_STATUS_LUMA_KEYING_NOT_SUPPORTED,       /**<  Luma keying is not supported. */
+    VPE_STATUS_COLOR_KEYING_NOT_SUPPORTED,      /**<  Color keying is not supported. */
+    VPE_STATUS_INVALID_KEYER_CONFIG,            /**<  Keying config is invalid. */
     VPE_STATUS_PLANE_ADDR_NOT_SUPPORTED,        /**<  Given plane address is not supported. */
     VPE_STATUS_ADJUSTMENT_NOT_SUPPORTED,        /**<  Color adjustment is not supported. */
     VPE_STATUS_CMD_OVERFLOW_ERROR,              /**<  More than 256 commands/jobs. */
@@ -161,6 +163,7 @@ struct vpe_rom_curve_caps {
 struct dpp_color_caps {
     uint32_t                  pre_csc    : 1;
     uint32_t                  luma_key   : 1;
+    uint32_t                  color_key  : 1;
     uint32_t                  dgam_ram   : 1;
     uint32_t                  post_csc   : 1; /**< before gamut remap */
     uint32_t                  gamma_corr : 1;
@@ -727,6 +730,33 @@ struct vpe_tonemap_params {
     bool enable_3dlut; /**< Enable/Disable 3D-LUT */
 };
 
+/** @enum vpe_keyer_mode
+ *  @brief Dictates the behavior of keyer's generated alpha
+ */
+enum vpe_keyer_mode {
+    VPE_KEYER_MODE_RANGE_00 = 0, /**< (Default) if in range -> generated alpha = 00 */
+    VPE_KEYER_MODE_RANGE_FF,     /**< if in_range -> generated alpha = FF */
+    VPE_KEYER_MODE_FORCE_00,     /**< ignore range setting, force generating alpha = 00 */
+    VPE_KEYER_MODE_FORCE_FF,     /**< ignore range setting, force generating alpha = FF */
+};
+
+/** @enum vpe_color_keyer
+ *  @brief Input Parameters for Color keyer.
+ *  bounds should be programmed to 0.0 <= 1.0, with lower < upper
+ *  if format does not have alpha (RGBx) when using the color keyer, alpha should be programmed to
+ *  lower=0.0, upper=1.0
+ */
+struct vpe_color_keyer {
+    bool  enable_color_key; /**< Enable Color Key. Mutually Exclusive with Luma Key */
+    float lower_g_bound;    /**< Green Low Bound.  */
+    float upper_g_bound;    /**< Green High Bound. */
+    float lower_b_bound;    /**< Blue Low Bound.   */
+    float upper_b_bound;    /**< Blue High Bound.  */
+    float lower_r_bound;    /**< Red Low Bound.    */
+    float upper_r_bound;    /**< Red High Bound.   */
+    float lower_a_bound; /**< Alpha Low Bound. Program 0.0f if no alpha channel in input format.*/
+    float upper_a_bound; /**< Alpha High Bound. Program 1.0f if no alpha channel in input format.*/
+};
 /** @struct vpe_stream
  *  @brief Input stream/frame properties to be passed to vpelib
  */
@@ -756,6 +786,10 @@ struct vpe_stream {
                                                                 */
     float lower_luma_bound;                                    /**< Lowest range of the luma */
     float upper_luma_bound;                                    /**< Highest range of the luma */
+    struct vpe_color_keyer color_keyer; /**< Enable Luma Keying & Set Parameters. */
+    enum vpe_keyer_mode    keyer_mode;  /**< Set Keyer Behavior.
+                                         * Used for both Luma & Color Keying.
+                                         */
     struct vpe_reserved_param        reserved_param;
 
     struct {

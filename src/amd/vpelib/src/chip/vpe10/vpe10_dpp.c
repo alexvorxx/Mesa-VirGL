@@ -41,6 +41,7 @@ static struct dpp_funcs vpe10_dpp_funcs = {
     .program_cnv            = vpe10_dpp_program_cnv,
     .program_pre_dgam       = vpe10_dpp_cnv_program_pre_dgam,
     .program_cnv_bias_scale = vpe10_dpp_program_cnv_bias_scale,
+    .build_keyer_params     = vpe10_dpp_build_keyer_params,
     .program_alpha_keyer    = vpe10_dpp_cnv_program_alpha_keyer,
     .program_crc            = vpe10_dpp_program_crc,
 
@@ -346,37 +347,88 @@ void vpe10_dpp_cnv_program_pre_dgam(struct dpp *dpp, enum color_transfer_func tr
         VPCNVC_PRE_DEGAM, 0, PRE_DEGAM_MODE, pre_degam_en, PRE_DEGAM_SELECT, degamma_lut_selection);
 }
 
-void vpe10_dpp_cnv_program_alpha_keyer(
-    struct dpp *dpp,
-    enum vpe_surface_pixel_format format,
-    bool enable_luma_key,
-    float lower_luma_bound,
-    float upper_luma_bound)
+/** @brief Build the color Keyer Structure */
+void vpe10_dpp_build_keyer_params(
+    struct dpp *dpp, const struct stream_ctx *stream_ctx, struct cnv_keyer_params *keyer_params)
 {
-    uint32_t lower_luma_bound_int = (uint32_t)lower_luma_bound * 65535;
-    uint32_t upper_luma_bound_int = (uint32_t)upper_luma_bound * 65535;
+    if (stream_ctx->stream.enable_luma_key) {
+        keyer_params->keyer_en     = 1;
+        keyer_params->is_color_key = 0;
+        keyer_params->keyer_mode   = stream_ctx->stream.keyer_mode;
 
+        keyer_params->luma_keyer.lower_luma_bound =
+            (uint16_t)(stream_ctx->stream.lower_luma_bound * 65535);
+        keyer_params->luma_keyer.upper_luma_bound =
+            (uint16_t)(stream_ctx->stream.upper_luma_bound * 65535);
+    } else if (stream_ctx->stream.color_keyer.enable_color_key) {
+        keyer_params->keyer_en     = 1;
+        keyer_params->is_color_key = 1;
+        keyer_params->keyer_mode   = stream_ctx->stream.keyer_mode;
+
+        keyer_params->color_keyer.color_keyer_green_low =
+            (uint16_t)(stream_ctx->stream.color_keyer.lower_g_bound * 65535);
+        keyer_params->color_keyer.color_keyer_green_high =
+            (uint16_t)(stream_ctx->stream.color_keyer.upper_g_bound * 65535);
+        keyer_params->color_keyer.color_keyer_alpha_low =
+            (uint16_t)(stream_ctx->stream.color_keyer.lower_a_bound * 65535);
+        keyer_params->color_keyer.color_keyer_alpha_high =
+            (uint16_t)(stream_ctx->stream.color_keyer.upper_a_bound * 65535);
+        keyer_params->color_keyer.color_keyer_red_low =
+            (uint16_t)(stream_ctx->stream.color_keyer.lower_r_bound * 65535);
+        keyer_params->color_keyer.color_keyer_red_high =
+            (uint16_t)(stream_ctx->stream.color_keyer.upper_r_bound * 65535);
+        keyer_params->color_keyer.color_keyer_blue_low =
+            (uint16_t)(stream_ctx->stream.color_keyer.lower_b_bound * 65535);
+        keyer_params->color_keyer.color_keyer_blue_high =
+            (uint16_t)(stream_ctx->stream.color_keyer.upper_b_bound * 65535);
+    } else {
+        keyer_params->keyer_en = 0;
+    }
+}
+
+/** @brief Program DPP FCNV Keyer
+ * if keyer_params.keyer_en -> Program keyer
+ * else program reset default
+ */
+void vpe10_dpp_cnv_program_alpha_keyer(struct dpp *dpp, const struct cnv_keyer_params *keyer_params)
+{
     PROGRAM_ENTRY();
 
-    REG_SET_2(VPCNVC_COLOR_KEYER_CONTROL, 0,
-        COLOR_KEYER_EN, enable_luma_key,
-        COLOR_KEYER_MODE, CNV_COLOR_KEYER_MODE_RANGE_00);
+    if (keyer_params->keyer_en && keyer_params->is_color_key) {
+        uint8_t keyer_mode = 0;
 
-    REG_SET_2(VPCNVC_COLOR_KEYER_ALPHA, 0,
-        COLOR_KEYER_ALPHA_LOW, lower_luma_bound_int,
-        COLOR_KEYER_ALPHA_HIGH, upper_luma_bound_int);
+        switch (keyer_params->keyer_mode) {
+        case VPE_KEYER_MODE_FORCE_00:
+            keyer_mode = 0;
+            break;
+        case VPE_KEYER_MODE_FORCE_FF:
+            keyer_mode = 1;
+            break;
+        case VPE_KEYER_MODE_RANGE_FF:
+            keyer_mode = 2;
+            break;
+        case VPE_KEYER_MODE_RANGE_00:
+        default:
+            keyer_mode = 3; // Default Mode VPE_KEYER_MODE_RANGE_00
+            break;
+        }
 
-    REG_SET_2(VPCNVC_COLOR_KEYER_RED, 0,
-        COLOR_KEYER_RED_LOW, lower_luma_bound_int,
-        COLOR_KEYER_RED_HIGH, upper_luma_bound_int);
-
-    REG_SET_2(VPCNVC_COLOR_KEYER_GREEN, 0,
-        COLOR_KEYER_GREEN_LOW, lower_luma_bound_int,
-        COLOR_KEYER_GREEN_HIGH, upper_luma_bound_int);
-
-    REG_SET_2(VPCNVC_COLOR_KEYER_BLUE, 0,
-        COLOR_KEYER_BLUE_LOW, lower_luma_bound_int,
-        COLOR_KEYER_BLUE_HIGH, upper_luma_bound_int);
+        REG_SET_2(VPCNVC_COLOR_KEYER_CONTROL, 0, COLOR_KEYER_EN, 1, COLOR_KEYER_MODE, keyer_mode);
+        REG_SET_2(VPCNVC_COLOR_KEYER_GREEN, 0, COLOR_KEYER_GREEN_LOW,
+            keyer_params->color_keyer.color_keyer_green_low, COLOR_KEYER_GREEN_HIGH,
+            keyer_params->color_keyer.color_keyer_green_high);
+        REG_SET_2(VPCNVC_COLOR_KEYER_BLUE, 0, COLOR_KEYER_BLUE_LOW,
+            keyer_params->color_keyer.color_keyer_blue_low, COLOR_KEYER_BLUE_HIGH,
+            keyer_params->color_keyer.color_keyer_blue_high);
+        REG_SET_2(VPCNVC_COLOR_KEYER_RED, 0, COLOR_KEYER_RED_LOW,
+            keyer_params->color_keyer.color_keyer_red_low, COLOR_KEYER_RED_HIGH,
+            keyer_params->color_keyer.color_keyer_red_high);
+        REG_SET_2(VPCNVC_COLOR_KEYER_ALPHA, 0, COLOR_KEYER_ALPHA_LOW,
+            keyer_params->color_keyer.color_keyer_alpha_low, COLOR_KEYER_ALPHA_HIGH,
+            keyer_params->color_keyer.color_keyer_alpha_high);
+    } else {
+        REG_SET_DEFAULT(VPCNVC_COLOR_KEYER_CONTROL);
+    }
 }
 
 uint32_t vpe10_get_line_buffer_size()

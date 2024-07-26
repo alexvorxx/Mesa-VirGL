@@ -184,6 +184,12 @@ bool vpe_is_yuv444(enum vpe_surface_pixel_format format)
     return (vpe_is_yuv444_8(format) || vpe_is_yuv444_10(format));
 }
 
+bool vpe_is_yuv(enum vpe_surface_pixel_format format)
+{
+    return (vpe_is_yuv420(format) ||
+            vpe_is_yuv444(format));
+}
+
 static uint8_t vpe_get_element_size_in_bytes(enum vpe_surface_pixel_format format, int plane_idx)
 {
     switch (format) {
@@ -539,12 +545,29 @@ enum vpe_status vpe_check_input_support(struct vpe *vpe, const struct vpe_stream
         return VPE_STATUS_ROTATION_NOT_SUPPORTED;
     }
 
-    // luma keying
-    if (stream->enable_luma_key && !vpe->caps->color_caps.dpp.luma_key) {
-        vpe_log("luma keying not supported\n");
-        return VPE_STATUS_LUMA_KEYING_NOT_SUPPORTED;
+    // keying
+    if (stream->enable_luma_key && stream->color_keyer.enable_color_key) {
+        vpe_log("Invalid Keying configuration. Both Luma and Color Keying Enabled\n");
+        return VPE_STATUS_INVALID_KEYER_CONFIG;
+    } else if (stream->enable_luma_key) {
+        if (!vpe->caps->color_caps.dpp.luma_key) {
+            vpe_log("Luma keying not supported\n");
+            return VPE_STATUS_LUMA_KEYING_NOT_SUPPORTED;
+        } else if (!vpe_is_yuv(surface_info->format)) {
+            vpe_log("Invalid Keying configuration. Luma Key Enabled with RGB Input\n");
+            return VPE_STATUS_INVALID_KEYER_CONFIG;
+        }
+    } else if (stream->color_keyer.enable_color_key) {
+        if (!vpe->caps->color_caps.dpp.color_key) {
+            vpe_log("color keying not supported\n");
+            return VPE_STATUS_COLOR_KEYING_NOT_SUPPORTED;
+        } else if (vpe_is_yuv(surface_info->format)) {
+            vpe_log("Invalid Keying configuration. Color Keying Enabled with YUV Input\n");
+            return VPE_STATUS_INVALID_KEYER_CONFIG;
+        }
     }
 
+    // mirroring
     if (stream->horizontal_mirror && !vpe->caps->h_mirror_support) {
         vpe_log("output horizontal mirroring not supported h:%d\n", (int)stream->horizontal_mirror);
         return VPE_STATUS_MIRROR_NOT_SUPPORTED;

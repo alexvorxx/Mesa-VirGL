@@ -82,6 +82,7 @@ static struct vpe_caps caps = {
                        {
                            .pre_csc    = 1,
                            .luma_key   = 0,
+                           .color_key  = 1,
                            .dgam_ram   = 0,
                            .post_csc   = 1,
                            .gamma_corr = 1,

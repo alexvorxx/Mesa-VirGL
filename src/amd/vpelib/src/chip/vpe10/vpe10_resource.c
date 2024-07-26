@@ -130,6 +130,7 @@ static struct vpe_caps caps = {
                        {
                            .pre_csc    = 1,
                            .luma_key   = 0,
+                           .color_key  = 1,
                            .dgam_ram   = 0,
                            .post_csc   = 1,
                            .gamma_corr = 1,
@@ -718,6 +719,7 @@ int32_t vpe10_program_frontend(struct vpe_priv *vpe_priv, uint32_t pipe_idx, uin
     struct mpc                *mpc          = vpe_priv->resource.mpc[pipe_idx];
     enum input_csc_select      select       = INPUT_CSC_SELECT_BYPASS;
     uint32_t                   hw_mult      = 0;
+    struct cnv_keyer_params    keyer_params;
     struct custom_float_format fmt;
 
     vpe_priv->fe_cb_ctx.stream_idx = cmd_input->stream_idx;
@@ -740,6 +742,9 @@ int32_t vpe10_program_frontend(struct vpe_priv *vpe_priv, uint32_t pipe_idx, uin
         dpp->funcs->program_cnv(dpp, surface_info->format, vpe_priv->expansion_mode);
         if (stream_ctx->bias_scale)
             dpp->funcs->program_cnv_bias_scale(dpp, stream_ctx->bias_scale);
+
+        dpp->funcs->build_keyer_params(dpp, stream_ctx, &keyer_params);
+        dpp->funcs->program_alpha_keyer(dpp, &keyer_params);
 
         /* If input adjustment exists, program the ICSC with those values. */
         if (stream_ctx->input_cs) {
