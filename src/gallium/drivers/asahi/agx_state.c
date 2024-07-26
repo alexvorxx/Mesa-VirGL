@@ -722,9 +722,8 @@ agx_pack_texture(void *out, struct agx_resource *rsrc,
          cfg.width = AGX_TEXTURE_BUFFER_WIDTH;
          cfg.height = DIV_ROUND_UP(size_el, cfg.width);
          cfg.first_level = cfg.last_level = 0;
-
-         /* Stash the actual size in the software-defined section for txs */
-         cfg.software_defined = size_el;
+         cfg.buffer_size_sw = size_el;
+         cfg.buffer_offset_sw = 0;
       } else {
          cfg.width = rsrc->base.width0;
          cfg.height = rsrc->base.height0;

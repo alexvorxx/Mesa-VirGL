@@ -134,15 +134,18 @@ static bool
 lower_buffer_texture(nir_builder *b, nir_tex_instr *tex)
 {
    nir_def *coord = nir_steal_tex_src(tex, nir_tex_src_coord);
+   nir_def *size = nir_get_texture_size(b, tex);
+   nir_def *oob = nir_uge(b, coord, size);
+
+   /* Apply the buffer offset after calculating oob but before remapping */
+   nir_def *desc = texture_descriptor_ptr(b, tex);
+   coord = libagx_buffer_texture_offset(b, desc, coord);
 
    /* Map out-of-bounds indices to out-of-bounds coordinates for robustness2
     * semantics from the hardware.
     */
-   nir_def *size = nir_get_texture_size(b, tex);
-   nir_def *oob = nir_uge(b, coord, size);
    coord = nir_bcsel(b, oob, nir_imm_int(b, -1), coord);
 
-   nir_def *desc = texture_descriptor_ptr(b, tex);
    bool is_float = nir_alu_type_get_base_type(tex->dest_type) == nir_type_float;
 
    /* Lower RGB32 reads if the format requires. If we are out-of-bounds, we use
@@ -502,6 +505,15 @@ lower_buffer_image(nir_builder *b, nir_intrinsic_instr *intr)
    nir_def *coord_vector = intr->src[1].ssa;
    nir_def *coord = nir_channel(b, coord_vector, 0);
 
+   /* If we're not bindless, assume we don't need an offset (GL driver) */
+   if (intr->intrinsic == nir_intrinsic_bindless_image_load) {
+      nir_def *desc = nir_load_from_texture_handle_agx(b, intr->src[0].ssa);
+      coord = libagx_buffer_texture_offset(b, desc, coord);
+   } else if (intr->intrinsic == nir_intrinsic_bindless_image_store) {
+      nir_def *desc = nir_load_from_texture_handle_agx(b, intr->src[0].ssa);
+      coord = libagx_buffer_image_offset(b, desc, coord);
+   }
+
    /* Lower the buffer load/store to a 2D image load/store, matching the 2D
     * texture/PBE descriptor the driver supplies for buffer images.
     */
@@ -667,14 +679,17 @@ lower_robustness(nir_builder *b, nir_intrinsic_instr *intr, UNUSED void *data)
    }
 
    /* Replace the last coordinate component with a large coordinate for
-    * out-of-bounds. We pick 65535 as it fits in 16-bit, and it is not signed as
-    * 32-bit so we won't get in-bounds coordinates for arrays due to two's
-    * complement wraparound. This ensures the resulting hardware coordinate is
-    * definitely out-of-bounds, giving hardware-level robustness2 behaviour.
+    * out-of-bounds. We pick 0xFFF0 as it fits in 16-bit, and it is not signed
+    * as 32-bit so we won't get in-bounds coordinates for arrays due to two's
+    * complement wraparound. Additionally it still meets this requirement after
+    * adding 0xF, the maximum tail offset.
+    *
+    * This ensures the resulting hardware coordinate is definitely
+    * out-of-bounds, giving hardware-level robustness2 behaviour.
     */
    unsigned c = size_components - 1;
    nir_def *r =
-      nir_bcsel(b, oob, nir_imm_int(b, 65535), nir_channel(b, coord, c));
+      nir_bcsel(b, oob, nir_imm_int(b, 0xFFF0), nir_channel(b, coord, c));
 
    nir_src_rewrite(&intr->src[1], nir_vector_insert_imm(b, coord, r, c));
    return true;

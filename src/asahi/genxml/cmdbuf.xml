@@ -259,6 +259,7 @@
     <field name="Tile height (sw)" size="3" start="158" type="uint" modifier="log2" default="1"/>
     <field name="Layer stride (sw)" size="27" start="161" type="uint" modifier="shr(7)"/>
     <field name="Sample count log2 (sw)" size="2" start="188" type="uint"/>
+    <field name="Buffer offset (sw)" size="32" start="128" type="uint"/>
   </struct>
 
   <struct name="Texture" size="24">
@@ -301,8 +302,9 @@
     <field name="Depth (linear)" size="11" start="128" type="uint" modifier="minus(1)" default="1"/>
     <field name="Layer stride (linear)" size="27" start="139" type="uint" modifier="shr(7)"/>
 
-    <!-- Buffer texture size -->
-    <field name="Software-defined" size="64" start="128" type="hex"/>
+    <!-- Buffer texture metadata  -->
+    <field name="Buffer size (sw)" size="32" start="128" type="uint"/>
+    <field name="Buffer offset (sw)" size="32" start="160" type="uint"/>
   </struct>
 
   <enum name="Wrap">
