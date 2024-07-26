@@ -2288,7 +2288,7 @@ fail:
    return NULL;
 }
 
-static int
+int
 dri_query_compatible_render_only_device_fd(int kms_only_fd)
 {
 #ifdef HAVE_LIBDRM

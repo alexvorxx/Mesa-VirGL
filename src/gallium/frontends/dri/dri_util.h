@@ -289,4 +289,7 @@ dri_create_image_with_modifiers(__DRIscreen *screen,
                                  const uint64_t *modifiers,
                                  unsigned int modifiers_count,
                                  void *loaderPrivate);
+PUBLIC int
+dri_query_compatible_render_only_device_fd(int kms_only_fd);
+
 #endif /* _DRI_UTIL_H_ */
