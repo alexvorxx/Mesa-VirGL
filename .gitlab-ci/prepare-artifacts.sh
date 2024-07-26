@@ -44,6 +44,21 @@ cp -Rp .gitlab-ci/*-runner.sh install/
 cp -Rp .gitlab-ci/bin/structured_logger.py install/
 cp -Rp .gitlab-ci/bin/custom_logger.py install/
 
+mapfile -t duplicate_files < <(
+  find src/ -path '*/ci/*' \
+    \( \
+      -name '*.txt' \
+      -o -name '*.toml' \
+      -o -name '*traces*.yml' \
+    \) \
+    -exec basename -a {} + | sort | uniq -d
+)
+if [ ${#duplicate_files[@]} -gt 0 ]; then
+  echo 'Several files with the same name in various ci/ folders:'
+  printf -- '  %s\n' "${duplicate_files[@]}"
+  exit 1
+fi
+
 find src/ -path '*/ci/*' \
   \( \
     -name '*.txt' \
