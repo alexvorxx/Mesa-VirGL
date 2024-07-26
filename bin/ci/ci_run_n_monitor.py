@@ -33,6 +33,7 @@ from gitlab_common import (
     get_gitlab_project,
     get_token_from_default_dir,
     pretty_duration,
+    print_once,
     read_token,
     wait_for_pipeline,
 )
@@ -79,9 +80,9 @@ def print_job_status(
 
     duration = job_duration(job)
 
-    print(
+    print_once(
         STATUS_COLORS[job.status]
-        + "🞋 target job "  # U+1F78B Round target
+        + "🞋 job "  # U+1F78B Round target
         + link2print(job.web_url, job.name, job_name_field_pad)
         + (f"has new status: {job.status}" if new_status else f"{job.status}")
         + (f" ({pretty_duration(duration)})" if job.started_at else "")
@@ -206,10 +207,8 @@ def monitor_pipeline(
                 pretty_wait(REFRESH_WAIT_JOBS)
                 continue
 
-        print("---------------------------------", flush=False)
-
         if jobs_waiting:
-            print(
+            print_once(
                 f"{Fore.YELLOW}Waiting for jobs to update status:",
                 ", ".join(jobs_waiting),
                 Fore.RESET,
@@ -321,7 +320,9 @@ def cancel_jobs(
     with ThreadPoolExecutor(max_workers=6) as exe:
         part = partial(cancel_job, project)
         exe.map(part, to_cancel)
-    print()
+
+    # The cancelled jobs are printed without a newline
+    print_once()
 
 
 def print_log(

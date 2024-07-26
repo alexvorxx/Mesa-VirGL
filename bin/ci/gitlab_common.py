@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import time
+from functools import cache
 from pathlib import Path
 
 GITLAB_URL = "https://gitlab.freedesktop.org"
@@ -28,8 +29,14 @@ TOKEN_PREFIXES: dict[str, str] = {
     "Feed token": "glft-",
     "Incoming mail token": "glimt-",
     "GitLab Agent for Kubernetes token": "glagent-",
-    "SCIM Tokens": "glsoat-"
+    "SCIM Tokens": "glsoat-",
 }
+
+
+@cache
+def print_once(*args, **kwargs):
+    """Print without spamming the output"""
+    print(*args, **kwargs)
 
 
 def pretty_duration(seconds):
