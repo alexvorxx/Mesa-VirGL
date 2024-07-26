@@ -504,10 +504,6 @@ dri2_get_shifts_and_sizes(const __DRIcoreExtension *core,
                           const __DRIconfig *config, int *shifts,
                           unsigned int *sizes);
 
-void
-dri2_get_render_type_float(const __DRIcoreExtension *core,
-                           const __DRIconfig *config, bool *is_float);
-
 enum pipe_format
 dri2_image_format_for_pbuffer_config(struct dri2_egl_display *dri2_dpy,
                                      const __DRIconfig *config);
