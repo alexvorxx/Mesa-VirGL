@@ -186,6 +186,19 @@ ail_get_layer_level_B(const struct ail_layout *layout, unsigned z_px,
 }
 
 static inline uint32_t
+ail_get_level_size_B(const struct ail_layout *layout, unsigned level)
+{
+   if (layout->tiling == AIL_TILING_LINEAR) {
+      assert(level == 0);
+      return layout->layer_stride_B;
+   } else {
+      assert(level + 1 < ARRAY_SIZE(layout->level_offsets_B));
+      return layout->level_offsets_B[level + 1] -
+             layout->level_offsets_B[level];
+   }
+}
+
+static inline uint32_t
 ail_get_linear_pixel_B(const struct ail_layout *layout, ASSERTED unsigned level,
                        uint32_t x_px, uint32_t y_px, uint32_t z_px)
 {
