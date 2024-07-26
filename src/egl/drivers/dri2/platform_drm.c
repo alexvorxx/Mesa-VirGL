@@ -647,7 +647,6 @@ dri2_initialize_drm(_EGLDisplay *disp)
    dri2_dpy->dri_screen_render_gpu = dri2_dpy->gbm_dri->screen;
    dri2_dpy->image_driver = dri2_dpy->gbm_dri->image_driver;
    dri2_dpy->swrast = dri2_dpy->gbm_dri->swrast;
-   dri2_dpy->kopper = dri2_dpy->gbm_dri->kopper;
    dri2_dpy->driver_configs = dri2_dpy->gbm_dri->driver_configs;
 
    dri2_dpy->gbm_dri->validate_image = dri2_validate_egl_image;

@@ -59,7 +59,6 @@ struct gbm_dri_device {
    const __DRIimageExtension  *image;
    const __DRIimageDriverExtension  *image_driver;
    const __DRIswrastExtension *swrast;
-   const __DRIkopperExtension *kopper;
    const __DRI2flushExtension *flush;
 
    const __DRIconfig   **driver_configs;

@@ -625,7 +625,6 @@ static const struct dri_extension_match optional_core_extensions[] = {
    {__DRI2_BLOB, 1, offsetof(struct dri2_egl_display, blob), true},
    {__DRI_MUTABLE_RENDER_BUFFER_DRIVER, 1,
     offsetof(struct dri2_egl_display, mutable_render_buffer), true},
-   {__DRI_KOPPER, 1, offsetof(struct dri2_egl_display, kopper), true},
 };
 
 const __DRIextension **
@@ -659,6 +658,7 @@ dri2_load_driver_common(_EGLDisplay *disp,
       return EGL_FALSE;
    }
    dri2_dpy->driver_extensions = extensions;
+   dri2_dpy->kopper = disp->Options.Zink && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
 
    return EGL_TRUE;
 }

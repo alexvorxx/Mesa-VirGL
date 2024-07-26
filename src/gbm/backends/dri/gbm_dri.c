@@ -242,7 +242,6 @@ static struct dri_extension_match gbm_dri_device_extensions[] = {
 
 static struct dri_extension_match gbm_swrast_device_extensions[] = {
    { __DRI_SWRAST, 5, offsetof(struct gbm_dri_device, swrast), false },
-   { __DRI_KOPPER, 1, offsetof(struct gbm_dri_device, kopper), true },
 };
 
 const __DRIextension **
