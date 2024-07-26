@@ -794,19 +794,11 @@ dri2_setup_screen(_EGLDisplay *disp)
 
    disp->Extensions.KHR_reusable_sync = EGL_TRUE;
 
+   int capabilities;
+   capabilities = dri2_get_capabilities(dri2_dpy->dri_screen_render_gpu);
+   disp->Extensions.MESA_drm_image = (capabilities & __DRI_IMAGE_CAP_GLOBAL_NAMES) != 0;
+
    if (dri2_dpy->image) {
-      if (dri2_dpy->image->base.version >= 10 &&
-          dri2_dpy->image->getCapabilities != NULL) {
-         int capabilities;
-
-         capabilities =
-            dri2_dpy->image->getCapabilities(dri2_dpy->dri_screen_render_gpu);
-         disp->Extensions.MESA_drm_image =
-            (capabilities & __DRI_IMAGE_CAP_GLOBAL_NAMES) != 0;
-
-      } else {
-         disp->Extensions.MESA_drm_image = EGL_TRUE;
-      }
 #ifdef HAVE_LIBDRM
       if (dri2_dpy->image->base.version >= 11 &&
           get_screen_param(disp, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT) {
