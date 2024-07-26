@@ -5252,22 +5252,26 @@ impl_display_for_op!(OpSSy);
 
 #[repr(C)]
 #[derive(SrcsAsSlice, DstsAsSlice)]
-pub struct OpSync {}
+pub struct OpSync {
+    pub target: Label,
+}
 
 impl DisplayOp for OpSync {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "sync")
+        write!(f, "sync {}", self.target)
     }
 }
 impl_display_for_op!(OpSync);
 
 #[repr(C)]
 #[derive(SrcsAsSlice, DstsAsSlice)]
-pub struct OpBrk {}
+pub struct OpBrk {
+    pub target: Label,
+}
 
 impl DisplayOp for OpBrk {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "brk")
+        write!(f, "brk {}", self.target)
     }
 }
 impl_display_for_op!(OpBrk);
@@ -5287,11 +5291,13 @@ impl_display_for_op!(OpPBk);
 
 #[repr(C)]
 #[derive(SrcsAsSlice, DstsAsSlice)]
-pub struct OpCont {}
+pub struct OpCont {
+    pub target: Label,
+}
 
 impl DisplayOp for OpCont {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "cont")
+        write!(f, "cont {}", self.target)
     }
 }
 impl_display_for_op!(OpCont);

@@ -3163,20 +3163,27 @@ impl<'a> ShaderFromNir<'a> {
             b.push_op(OpExit {});
         } else {
             self.cfg.add_edge(nb.index, target.index);
+            let target_label = self.get_block_label(target);
 
             match self.peek_crs(target) {
                 Some(SyncType::Sync) => {
-                    b.push_op(OpSync {});
+                    b.push_op(OpSync {
+                        target: target_label,
+                    });
                 }
                 Some(SyncType::Brk) => {
-                    b.push_op(OpBrk {});
+                    b.push_op(OpBrk {
+                        target: target_label,
+                    });
                 }
                 Some(SyncType::Cont) => {
-                    b.push_op(OpCont {});
+                    b.push_op(OpCont {
+                        target: target_label,
+                    });
                 }
                 None => {
                     b.push_op(OpBra {
-                        target: self.get_block_label(target),
+                        target: target_label,
                     });
                 }
             }
