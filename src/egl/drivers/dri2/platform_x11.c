@@ -1527,7 +1527,7 @@ dri2_kopper_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
    if (dri2_dpy->kopper)
       return kopperQueryBufferAge(dri2_surf->dri_drawable);
    else
-      return dri2_dpy->swrast->queryBufferAge(dri2_surf->dri_drawable);
+      return driSWRastQueryBufferAge(dri2_surf->dri_drawable);
 
    return 0;
 }
@@ -1535,11 +1535,9 @@ dri2_kopper_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
 static EGLint
 dri2_swrast_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
-   assert(dri2_dpy->swrast);
-   return dri2_dpy->swrast->queryBufferAge(dri2_surf->dri_drawable);
+   return driSWRastQueryBufferAge(dri2_surf->dri_drawable);
 }
 
 static const struct dri2_egl_display_vtbl dri2_x11_swrast_display_vtbl = {

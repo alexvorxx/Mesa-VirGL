@@ -1568,7 +1568,7 @@ dri2_create_drawable(struct dri2_egl_display *dri2_dpy,
       else if (dri2_dpy->dri2)
          createNewDrawable = dri2_dpy->dri2->createNewDrawable;
       else if (dri2_dpy->swrast)
-         createNewDrawable = dri2_dpy->swrast->createNewDrawable;
+         createNewDrawable = driCreateNewDrawable;
       else
          return _eglError(EGL_BAD_ALLOC, "no createNewDrawable");
 
