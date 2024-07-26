@@ -672,59 +672,70 @@ get_bufferview_for_binding(struct zink_context *ctx, gl_shader_stage stage, enum
 }
 
 ALWAYS_INLINE static struct zink_resource *
-update_descriptor_state_ubo(struct zink_context *ctx, gl_shader_stage shader, unsigned slot, struct zink_resource *res)
+update_descriptor_state_ubo_db(struct zink_context *ctx, gl_shader_stage shader, unsigned slot, struct zink_resource *res)
 {
    struct zink_screen *screen = zink_screen(ctx->base.screen);
-   bool have_null_descriptors = screen->info.rb2_feats.nullDescriptor;
-   const enum zink_descriptor_type type = ZINK_DESCRIPTOR_TYPE_UBO;
-   ctx->di.descriptor_res[type][shader][slot] = res;
-   if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {
-      if (res)
-         ctx->di.db.ubos[shader][slot].address = res->obj->bda + ctx->ubos[shader][slot].buffer_offset;
-      else
-         ctx->di.db.ubos[shader][slot].address = 0;
-      ctx->di.db.ubos[shader][slot].range = res ? ctx->ubos[shader][slot].buffer_size : VK_WHOLE_SIZE;
+   ctx->di.descriptor_res[ZINK_DESCRIPTOR_TYPE_UBO][shader][slot] = res;
+   if (res) {
+      ctx->di.db.ubos[shader][slot].address = res->obj->bda + ctx->ubos[shader][slot].buffer_offset;
+      ctx->di.db.ubos[shader][slot].range = ctx->ubos[shader][slot].buffer_size;
       assert(ctx->di.db.ubos[shader][slot].range == VK_WHOLE_SIZE ||
-             ctx->di.db.ubos[shader][slot].range <= screen->info.props.limits.maxUniformBufferRange);
+               ctx->di.db.ubos[shader][slot].range <= screen->info.props.limits.maxUniformBufferRange);
    } else {
-      ctx->di.t.ubos[shader][slot].offset = ctx->ubos[shader][slot].buffer_offset;
-      if (res) {
-         ctx->di.t.ubos[shader][slot].buffer = res->obj->buffer;
-         ctx->di.t.ubos[shader][slot].range = ctx->ubos[shader][slot].buffer_size;
-         assert(ctx->di.t.ubos[shader][slot].range <= screen->info.props.limits.maxUniformBufferRange);
-      } else {
-         VkBuffer null_buffer = zink_resource(ctx->dummy_vertex_buffer)->obj->buffer;
-         ctx->di.t.ubos[shader][slot].buffer = have_null_descriptors ? VK_NULL_HANDLE : null_buffer;
-         ctx->di.t.ubos[shader][slot].range = VK_WHOLE_SIZE;
-      }
+      ctx->di.db.ubos[shader][slot].address = 0;
+      ctx->di.db.ubos[shader][slot].range = VK_WHOLE_SIZE;
    }
-
    return res;
 }
 
 ALWAYS_INLINE static struct zink_resource *
-update_descriptor_state_ssbo(struct zink_context *ctx, gl_shader_stage shader, unsigned slot, struct zink_resource *res)
+update_descriptor_state_ubo_lazy(struct zink_context *ctx, gl_shader_stage shader, unsigned slot, struct zink_resource *res)
 {
    struct zink_screen *screen = zink_screen(ctx->base.screen);
-   bool have_null_descriptors = screen->info.rb2_feats.nullDescriptor;
-   const enum zink_descriptor_type type = ZINK_DESCRIPTOR_TYPE_SSBO;
-   ctx->di.descriptor_res[type][shader][slot] = res;
-   if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {
-      if (res)
-         ctx->di.db.ssbos[shader][slot].address = res->obj->bda + ctx->ssbos[shader][slot].buffer_offset;
-      else
-         ctx->di.db.ssbos[shader][slot].address = 0;
-      ctx->di.db.ssbos[shader][slot].range = res ? ctx->ssbos[shader][slot].buffer_size : VK_WHOLE_SIZE;
+   ctx->di.t.ubos[shader][slot].offset = ctx->ubos[shader][slot].buffer_offset;
+   ctx->di.descriptor_res[ZINK_DESCRIPTOR_TYPE_UBO][shader][slot] = res;
+   if (res) {
+      ctx->di.t.ubos[shader][slot].buffer = res->obj->buffer;
+      ctx->di.t.ubos[shader][slot].range = ctx->ubos[shader][slot].buffer_size;
+      assert(ctx->di.t.ubos[shader][slot].range <= screen->info.props.limits.maxUniformBufferRange);
+   }
+   else {
+      bool have_null_descriptors = screen->info.rb2_feats.nullDescriptor;
+      VkBuffer null_buffer = zink_resource(ctx->dummy_vertex_buffer)->obj->buffer;
+      ctx->di.t.ubos[shader][slot].buffer = have_null_descriptors ? VK_NULL_HANDLE : null_buffer;
+      ctx->di.t.ubos[shader][slot].range = VK_WHOLE_SIZE;
+   }
+   return res;
+}
+
+ALWAYS_INLINE static struct zink_resource *
+update_descriptor_state_ssbo_db(struct zink_context *ctx, gl_shader_stage shader, unsigned slot, struct zink_resource *res)
+{
+   ctx->di.descriptor_res[ZINK_DESCRIPTOR_TYPE_SSBO][shader][slot] = res;
+   if (res) {
+      ctx->di.db.ssbos[shader][slot].address = res->obj->bda + ctx->ssbos[shader][slot].buffer_offset;
+      ctx->di.db.ssbos[shader][slot].range = ctx->ssbos[shader][slot].buffer_size;
    } else {
-      ctx->di.t.ssbos[shader][slot].offset = ctx->ssbos[shader][slot].buffer_offset;
-      if (res) {
-         ctx->di.t.ssbos[shader][slot].buffer = res->obj->buffer;
-         ctx->di.t.ssbos[shader][slot].range = ctx->ssbos[shader][slot].buffer_size;
-      } else {
-         VkBuffer null_buffer = zink_resource(ctx->dummy_vertex_buffer)->obj->buffer;
-         ctx->di.t.ssbos[shader][slot].buffer = have_null_descriptors ? VK_NULL_HANDLE : null_buffer;
-         ctx->di.t.ssbos[shader][slot].range = VK_WHOLE_SIZE;
-      }
+      ctx->di.db.ssbos[shader][slot].address = 0;
+      ctx->di.db.ssbos[shader][slot].range = VK_WHOLE_SIZE;
+   }
+   return res;
+}
+
+ALWAYS_INLINE static struct zink_resource *
+update_descriptor_state_ssbo_lazy(struct zink_context *ctx, gl_shader_stage shader, unsigned slot, struct zink_resource *res)
+{
+   struct zink_screen *screen = zink_screen(ctx->base.screen);
+   ctx->di.t.ssbos[shader][slot].offset = ctx->ssbos[shader][slot].buffer_offset;
+   ctx->di.descriptor_res[ZINK_DESCRIPTOR_TYPE_SSBO][shader][slot] = res;
+   if (res) {
+      ctx->di.t.ssbos[shader][slot].buffer = res->obj->buffer;
+      ctx->di.t.ssbos[shader][slot].range = ctx->ssbos[shader][slot].buffer_size;
+   } else {
+      bool have_null_descriptors = screen->info.rb2_feats.nullDescriptor;
+      VkBuffer null_buffer = zink_resource(ctx->dummy_vertex_buffer)->obj->buffer;
+      ctx->di.t.ssbos[shader][slot].buffer = have_null_descriptors ? VK_NULL_HANDLE : null_buffer;
+      ctx->di.t.ssbos[shader][slot].range = VK_WHOLE_SIZE;
    }
    return res;
 }
@@ -1485,11 +1496,12 @@ invalidate_inlined_uniforms(struct zink_context *ctx, gl_shader_stage pstage)
    key->inline_uniforms = false;
 }
 
-static void
-zink_set_constant_buffer(struct pipe_context *pctx,
+ALWAYS_INLINE static void
+zink_set_constant_buffer_internal(struct pipe_context *pctx,
                          gl_shader_stage shader, uint index,
                          bool take_ownership,
-                         const struct pipe_constant_buffer *cb)
+                         const struct pipe_constant_buffer *cb,
+                         bool use_db)
 {
    struct zink_context *ctx = zink_context(pctx);
    bool update = false;
@@ -1539,14 +1551,23 @@ zink_set_constant_buffer(struct pipe_context *pctx,
 
       if (index + 1 >= ctx->di.num_ubos[shader])
          ctx->di.num_ubos[shader] = index + 1;
-      update_descriptor_state_ubo(ctx, shader, index, new_res);
+      
+      if (use_db) {
+         update_descriptor_state_ubo_db(ctx, shader, index, new_res);
+      } else {
+         update_descriptor_state_ubo_lazy(ctx, shader, index, new_res);
+      }
    } else {
       ctx->ubos[shader][index].buffer_offset = 0;
       ctx->ubos[shader][index].buffer_size = 0;
       ctx->ubos[shader][index].user_buffer = NULL;
       if (res) {
          unbind_ubo(ctx, res, shader, index);
-         update_descriptor_state_ubo(ctx, shader, index, NULL);
+         if (use_db) {
+            update_descriptor_state_ubo_db(ctx, shader, index, NULL);
+         } else {
+            update_descriptor_state_ubo_lazy(ctx, shader, index, NULL);
+         }
       }
       update = !!ctx->ubos[shader][index].buffer;
 
@@ -1561,6 +1582,24 @@ zink_set_constant_buffer(struct pipe_context *pctx,
 
    if (update)
       ctx->invalidate_descriptor_state(ctx, shader, ZINK_DESCRIPTOR_TYPE_UBO, index, 1);
+}
+
+static void
+zink_set_constant_buffer_db(struct pipe_context *pctx,
+                         gl_shader_stage shader, uint index,
+                         bool take_ownership,
+                         const struct pipe_constant_buffer *cb)
+{
+   zink_set_constant_buffer_internal(pctx, shader, index, take_ownership, cb, true);
+}
+
+static void
+zink_set_constant_buffer_lazy(struct pipe_context *pctx,
+                         gl_shader_stage shader, uint index,
+                         bool take_ownership,
+                         const struct pipe_constant_buffer *cb)
+{
+   zink_set_constant_buffer_internal(pctx, shader, index, take_ownership, cb, false);
 }
 
 ALWAYS_INLINE static void
@@ -1593,12 +1632,13 @@ unbind_ssbo(struct zink_context *ctx, struct zink_resource *res, gl_shader_stage
       res->barrier_access[pstage == MESA_SHADER_COMPUTE] &= ~VK_ACCESS_SHADER_WRITE_BIT;
 }
 
-static void
-zink_set_shader_buffers(struct pipe_context *pctx,
+ALWAYS_INLINE static void
+zink_set_shader_buffers_internal(struct pipe_context *pctx,
                         gl_shader_stage p_stage,
                         unsigned start_slot, unsigned count,
                         const struct pipe_shader_buffer *buffers,
-                        unsigned writable_bitmask)
+                        unsigned writable_bitmask,
+                        bool use_db)
 {
    struct zink_context *ctx = zink_context(pctx);
    bool update = false;
@@ -1640,7 +1680,11 @@ zink_set_shader_buffers(struct pipe_context *pctx,
          zink_batch_resource_usage_set(ctx->bs, new_res, access & VK_ACCESS_SHADER_WRITE_BIT, true);
          update = true;
          max_slot = MAX2(max_slot, slot);
-         update_descriptor_state_ssbo(ctx, p_stage, slot, new_res);
+         if (use_db) {
+            update_descriptor_state_ssbo_db(ctx, p_stage, slot, new_res);
+         } else {
+            update_descriptor_state_ssbo_lazy(ctx, p_stage, slot, new_res);
+         }
          if (zink_resource_access_is_write(access))
             new_res->obj->unordered_write = false;
          new_res->obj->unordered_read = false;
@@ -1651,7 +1695,12 @@ zink_set_shader_buffers(struct pipe_context *pctx,
          ssbo->buffer_size = 0;
          if (res) {
             unbind_ssbo(ctx, res, p_stage, slot, was_writable);
-            update_descriptor_state_ssbo(ctx, p_stage, slot, NULL);
+            if (use_db) {
+               update_descriptor_state_ssbo_db(ctx, p_stage, slot, NULL);
+            } else {
+               update_descriptor_state_ssbo_lazy(ctx, p_stage, slot, NULL);
+            }
+
          }
          pipe_resource_reference(&ssbo->buffer, NULL);
       }
@@ -1660,6 +1709,26 @@ zink_set_shader_buffers(struct pipe_context *pctx,
       ctx->di.num_ssbos[p_stage] = max_slot + 1;
    if (update)
       ctx->invalidate_descriptor_state(ctx, p_stage, ZINK_DESCRIPTOR_TYPE_SSBO, start_slot, count);
+}
+
+static void
+zink_set_shader_buffers_db(struct pipe_context *pctx,
+                        gl_shader_stage p_stage,
+                        unsigned start_slot, unsigned count,
+                        const struct pipe_shader_buffer *buffers,
+                        unsigned writable_bitmask)
+{
+   zink_set_shader_buffers_internal(pctx, p_stage, start_slot, count, buffers, writable_bitmask, true);
+}
+
+static void
+zink_set_shader_buffers_lazy(struct pipe_context *pctx,
+                        gl_shader_stage p_stage,
+                        unsigned start_slot, unsigned count,
+                        const struct pipe_shader_buffer *buffers,
+                        unsigned writable_bitmask)
+{
+   zink_set_shader_buffers_internal(pctx, p_stage, start_slot, count, buffers, writable_bitmask, false);
 }
 
 static void
@@ -4322,8 +4391,12 @@ zink_rebind_framebuffer(struct zink_context *ctx, struct zink_resource *res)
 ALWAYS_INLINE static struct zink_resource *
 rebind_ubo(struct zink_context *ctx, gl_shader_stage shader, unsigned slot)
 {
-   struct zink_resource *res = update_descriptor_state_ubo(ctx, shader, slot,
-                                                           ctx->di.descriptor_res[ZINK_DESCRIPTOR_TYPE_UBO][shader][slot]);
+   struct zink_resource *res;
+   if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {
+      res = update_descriptor_state_ubo_db(ctx, shader, slot, ctx->di.descriptor_res[ZINK_DESCRIPTOR_TYPE_UBO][shader][slot]);
+   } else {
+      res = update_descriptor_state_ubo_lazy(ctx, shader, slot, ctx->di.descriptor_res[ZINK_DESCRIPTOR_TYPE_UBO][shader][slot]);
+   }
    if (res) {
       res->obj->unordered_read = false;
       res->obj->access |= VK_ACCESS_SHADER_READ_BIT;
@@ -4341,7 +4414,11 @@ rebind_ssbo(struct zink_context *ctx, gl_shader_stage shader, unsigned slot)
       return NULL;
    util_range_add(&res->base.b, &res->valid_buffer_range, ssbo->buffer_offset,
                   ssbo->buffer_offset + ssbo->buffer_size);
-   update_descriptor_state_ssbo(ctx, shader, slot, res);
+   if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {
+      update_descriptor_state_ssbo_db(ctx, shader, slot, res);
+   } else {
+      update_descriptor_state_ssbo_lazy(ctx, shader, slot, res);
+   }
    if (res) {
       res->obj->unordered_read = false;
       res->obj->access |= VK_ACCESS_SHADER_READ_BIT;
@@ -5185,13 +5262,18 @@ zink_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
 
    zink_program_init(ctx);
 
+   if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {
+      ctx->base.set_constant_buffer = zink_set_constant_buffer_db;
+      ctx->base.set_shader_buffers = zink_set_shader_buffers_db;
+   } else {
+      ctx->base.set_constant_buffer = zink_set_constant_buffer_lazy;
+      ctx->base.set_shader_buffers = zink_set_shader_buffers_lazy;
+   }
    ctx->base.set_polygon_stipple = zink_set_polygon_stipple;
    ctx->base.set_vertex_buffers = zink_set_vertex_buffers;
    ctx->base.set_viewport_states = zink_set_viewport_states;
    ctx->base.set_scissor_states = zink_set_scissor_states;
    ctx->base.set_inlinable_constants = zink_set_inlinable_constants;
-   ctx->base.set_constant_buffer = zink_set_constant_buffer;
-   ctx->base.set_shader_buffers = zink_set_shader_buffers;
    ctx->base.set_shader_images = zink_set_shader_images;
    ctx->base.set_framebuffer_state = zink_set_framebuffer_state;
    ctx->base.set_stencil_ref = zink_set_stencil_ref;
@@ -5392,9 +5474,12 @@ zink_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
       for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
          /* need to update these based on screen config for null descriptors */
          for (unsigned j = 0; j < ARRAY_SIZE(ctx->di.t.ubos[i]); j++) {
-            update_descriptor_state_ubo(ctx, i, j, NULL);
-            if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB)
+            if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {
+               update_descriptor_state_ubo_db(ctx, i, j, NULL);
                ctx->di.db.ubos[i][j].sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
+            } else {
+               update_descriptor_state_ubo_lazy(ctx, i, j, NULL);
+            }
          }
          for (unsigned j = 0; j < ARRAY_SIZE(ctx->di.textures[i]); j++) {
             update_descriptor_state_sampler(ctx, i, j, NULL);
@@ -5402,9 +5487,12 @@ zink_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
                ctx->di.db.tbos[i][j].sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
          }
          for (unsigned j = 0; j < ARRAY_SIZE(ctx->di.t.ssbos[i]); j++) {
-            update_descriptor_state_ssbo(ctx, i, j, NULL);
-            if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB)
+            if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {
+               update_descriptor_state_ssbo_db(ctx, i, j, NULL);
                ctx->di.db.ssbos[i][j].sType = VK_STRUCTURE_TYPE_DESCRIPTOR_ADDRESS_INFO_EXT;
+            } else {
+               update_descriptor_state_ssbo_lazy(ctx, i, j, NULL);
+            }
          }
          for (unsigned j = 0; j < ARRAY_SIZE(ctx->di.images[i]); j++) {
             update_descriptor_state_image(ctx, i, j, NULL);
