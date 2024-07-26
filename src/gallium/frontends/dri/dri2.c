@@ -1685,6 +1685,9 @@ dri2_from_dma_bufs(__DRIscreen *screen,
    __DRIimage *img;
    const struct dri2_format_mapping *map = dri2_get_mapping_by_fourcc(fourcc);
 
+   if (!dri_screen(screen)->dmabuf_import)
+      return NULL;
+
    unsigned err = __DRI_IMAGE_ERROR_SUCCESS;
    /* Allow a NULL error arg since many callers don't care. */
    unsigned unused_error;
