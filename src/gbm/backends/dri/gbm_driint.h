@@ -56,7 +56,6 @@ struct gbm_dri_device {
    __DRIcontext *context;
    mtx_t mutex;
 
-   const __DRIcoreExtension   *core;
    const __DRImesaCoreExtension   *mesa;
    const __DRIimageExtension  *image;
    const __DRIimageDriverExtension  *image_driver;
