@@ -1584,6 +1584,19 @@ anv_image_init(struct anv_device *device, struct anv_image *image,
 
       if (isl_drm_modifier_needs_display_layout(image->vk.drm_format_mod))
          isl_extra_usage_flags |= ISL_SURF_USAGE_DISPLAY_BIT;
+
+      if (device->info->ver >= 20 &&
+          !isl_drm_modifier_has_aux(image->vk.drm_format_mod)) {
+         /* TODO: On Xe2+, we cannot support modifiers that don't support
+          * compression because such support requires an explicit resolve
+          * that hasn't been implemented.
+          *
+          * We disable this in anv_AllocateMemory() as well.
+          *
+          * https://gitlab.freedesktop.org/mesa/mesa/-/issues/11537
+          */
+         isl_extra_usage_flags |= ISL_SURF_USAGE_DISABLE_AUX_BIT;
+      }
    }
 
    for (int i = 0; i < ANV_IMAGE_MEMORY_BINDING_END; ++i) {
