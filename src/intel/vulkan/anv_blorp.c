@@ -1043,13 +1043,15 @@ copy_buffer(struct anv_device *device,
       .buffer = src_buffer->address.bo,
       .offset = src_buffer->address.offset + region->srcOffset,
       .mocs = anv_mocs(device, src_buffer->address.bo,
-                       blorp_batch_isl_copy_usage(batch, false /* is_dest */)),
+                       blorp_batch_isl_copy_usage(batch, false /* is_dest */,
+                                                  anv_buffer_is_protected(src_buffer))),
    };
    struct blorp_address dst = {
       .buffer = dst_buffer->address.bo,
       .offset = dst_buffer->address.offset + region->dstOffset,
       .mocs = anv_mocs(device, dst_buffer->address.bo,
-                       blorp_batch_isl_copy_usage(batch, true /* is_dest */)),
+                       blorp_batch_isl_copy_usage(batch, true /* is_dest */,
+                                                  anv_buffer_is_protected(dst_buffer))),
    };
 
    blorp_buffer_copy(batch, src, dst, region->size);
