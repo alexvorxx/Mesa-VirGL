@@ -365,7 +365,7 @@ dri3_create_drawable(struct glx_screen *base, XID xDrawable,
                                  has_multibuffer,
                                  psc->prefer_back_buffer_reuse,
                                  config->driConfig,
-                                 &psc->loader_dri3_ext, &glx_dri3_vtable,
+                                 &glx_dri3_vtable,
                                  &pdraw->loader_drawable)) {
       free(pdraw);
       return NULL;

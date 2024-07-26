@@ -89,8 +89,6 @@ struct dri3_screen {
     */
    int fd_display_gpu;
    bool prefer_back_buffer_reuse;
-
-   struct loader_dri3_extensions loader_dri3_ext;
 };
 
 struct dri3_drawable {

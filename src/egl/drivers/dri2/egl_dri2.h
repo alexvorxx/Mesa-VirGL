@@ -291,7 +291,6 @@ struct dri2_egl_display {
    bool swap_available;
 #ifdef HAVE_DRI3
    bool multibuffers_available;
-   struct loader_dri3_extensions loader_dri3_ext;
    struct loader_screen_resources screen_resources;
 #endif
 #endif

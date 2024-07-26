@@ -194,7 +194,7 @@ dri3_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
           dri2_dpy->conn, drawable, egl_to_loader_dri3_drawable_type(type),
           dri2_dpy->dri_screen_render_gpu, dri2_dpy->dri_screen_display_gpu,
           dri2_dpy->multibuffers_available, true, dri_config,
-          &dri2_dpy->loader_dri3_ext, &egl_dri3_vtable,
+          &egl_dri3_vtable,
           &dri3_surf->loader_drawable)) {
       _eglError(EGL_BAD_ALLOC, "dri3_surface_create");
       goto cleanup_pixmap;

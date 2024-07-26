@@ -368,7 +368,6 @@ loader_dri3_drawable_init(xcb_connection_t *conn,
                           bool multiplanes_available,
                           bool prefer_back_buffer_reuse,
                           const __DRIconfig *dri_config,
-                          struct loader_dri3_extensions *ext,
                           const struct loader_dri3_vtable *vtable,
                           struct loader_dri3_drawable *draw)
 {
@@ -377,7 +376,6 @@ loader_dri3_drawable_init(xcb_connection_t *conn,
    xcb_generic_error_t *error;
 
    draw->conn = conn;
-   draw->ext = ext;
    draw->vtable = vtable;
    draw->drawable = drawable;
    draw->type = type;

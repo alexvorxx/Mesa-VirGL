@@ -94,10 +94,6 @@ loader_dri3_pixmap_buf_id(enum loader_dri3_buffer_type buffer_type)
       return LOADER_DRI3_FRONT_ID;
 }
 
-struct loader_dri3_extensions {
-   const __DRIimageDriverExtension *image_driver;
-};
-
 struct loader_dri3_drawable;
 
 struct loader_dri3_vtable {
@@ -174,7 +170,6 @@ struct loader_dri3_drawable {
    bool queries_buffer_age;
    int swap_interval;
 
-   struct loader_dri3_extensions *ext;
    const struct loader_dri3_vtable *vtable;
 
    unsigned int back_format;
@@ -209,7 +204,6 @@ loader_dri3_drawable_init(xcb_connection_t *conn,
                           bool is_multiplanes_available,
                           bool prefer_back_buffer_reuse,
                           const __DRIconfig *dri_config,
-                          struct loader_dri3_extensions *ext,
                           const struct loader_dri3_vtable *vtable,
                           struct loader_dri3_drawable*);
 
