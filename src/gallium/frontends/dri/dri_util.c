@@ -959,7 +959,7 @@ driSwapBuffers(__DRIdrawable *pdp)
    drawable->swap_buffers(drawable);
 }
 
-static int
+int
 driSWRastQueryBufferAge(__DRIdrawable *pdp)
 {
    struct dri_drawable *drawable = dri_drawable(pdp);

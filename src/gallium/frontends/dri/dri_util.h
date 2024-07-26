@@ -292,4 +292,6 @@ dri_create_image_with_modifiers(__DRIscreen *screen,
 PUBLIC int
 dri_query_compatible_render_only_device_fd(int kms_only_fd);
 
+PUBLIC int
+driSWRastQueryBufferAge(__DRIdrawable *pdp);
 #endif /* _DRI_UTIL_H_ */
