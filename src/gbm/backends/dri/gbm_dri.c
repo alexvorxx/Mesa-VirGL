@@ -1081,11 +1081,10 @@ gbm_dri_bo_map(struct gbm_bo *_bo,
    if (!dri->context) {
       unsigned error;
 
-      dri->context =
-         dri->image_driver->createContextAttribs(dri->screen,
-                                                 __DRI_API_OPENGL,
-                                                 NULL, NULL, 0, NULL,
-                                                 &error, NULL);
+      dri->context = driCreateContextAttribs(dri->screen,
+                                             __DRI_API_OPENGL,
+                                             NULL, NULL, 0, NULL,
+                                             &error, NULL);
    }
    assert(dri->context);
    mtx_unlock(&dri->mutex);
