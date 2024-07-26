@@ -28,6 +28,14 @@ struct libagx_xfb_counter_copy {
    GLOBAL(uint32_t) src[4];
 };
 
+struct libagx_increment_params {
+   /* Pointer to the invocation statistic */
+   GLOBAL(uint32_t) statistic;
+
+   /* Value to increment by */
+   uint32_t delta;
+};
+
 struct libagx_cs_invocation_params {
    /* Pointer to the indirect dispatch grid */
    GLOBAL(uint32_t) grid;

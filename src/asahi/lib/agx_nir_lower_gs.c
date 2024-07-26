@@ -1589,6 +1589,12 @@ agx_nir_tess_setup_indirect(nir_builder *b, const void *data)
 }
 
 void
+agx_nir_increment_statistic(nir_builder *b, const void *data)
+{
+   libagx_increment_statistic(b, nir_load_preamble(b, 1, 64, .base = 0));
+}
+
+void
 agx_nir_increment_cs_invocations(nir_builder *b, const void *data)
 {
    libagx_increment_cs_invocations(b, nir_load_preamble(b, 1, 64, .base = 0));

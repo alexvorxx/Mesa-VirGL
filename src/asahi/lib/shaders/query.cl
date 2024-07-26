@@ -52,6 +52,12 @@ libagx_copy_xfb_counters(constant struct libagx_xfb_counter_copy *push)
 }
 
 void
+libagx_increment_statistic(constant struct libagx_increment_params *p)
+{
+   *(p->statistic) += p->delta;
+}
+
+void
 libagx_increment_cs_invocations(constant struct libagx_cs_invocation_params *p)
 {
    *(p->statistic) += libagx_cs_invocations(p->local_size_threads, p->grid[0],
