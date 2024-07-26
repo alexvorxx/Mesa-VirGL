@@ -585,8 +585,10 @@ nvk_cmd_bind_shaders(struct vk_command_buffer *vk_cmd,
       struct nvk_shader *shader =
          container_of(shaders[i], struct nvk_shader, vk);
 
-      if (shader != NULL && shader->info.slm_size > 0)
-         nvk_device_ensure_slm(dev, shader->info.slm_size);
+      if (shader != NULL) {
+         nvk_device_ensure_slm(dev, shader->info.slm_size,
+                                    shader->info.crs_size);
+      }
 
       if (stages[i] == MESA_SHADER_COMPUTE ||
           stages[i] == MESA_SHADER_KERNEL)

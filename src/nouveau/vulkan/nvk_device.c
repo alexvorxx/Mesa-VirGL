@@ -52,17 +52,15 @@ nvk_slm_area_get_mem_ref(struct nvk_slm_area *area,
 static VkResult
 nvk_slm_area_ensure(struct nvk_device *dev,
                     struct nvk_slm_area *area,
-                    uint32_t bytes_per_thread)
+                    uint32_t slm_bytes_per_lane,
+                    uint32_t crs_bytes_per_warp)
 {
    struct nvk_physical_device *pdev = nvk_device_physical(dev);
    VkResult result;
 
-   assert(bytes_per_thread < (1 << 24));
-
-   /* TODO: Volta+doesn't use CRC */
-   const uint32_t crs_size = 0;
-
-   uint64_t bytes_per_warp = bytes_per_thread * 32 + crs_size;
+   assert(slm_bytes_per_lane < (1 << 24));
+   assert(crs_bytes_per_warp <= (1 << 20));
+   uint64_t bytes_per_warp = slm_bytes_per_lane * 32 + crs_bytes_per_warp;
 
    /* The hardware seems to require this alignment for
     * NV9097_SET_SHADER_LOCAL_MEMORY_E_DEFAULT_SIZE_PER_WARP
@@ -359,7 +357,10 @@ nvk_GetCalibratedTimestampsKHR(VkDevice _device,
 
 VkResult
 nvk_device_ensure_slm(struct nvk_device *dev,
-                      uint32_t bytes_per_thread)
+                      uint32_t slm_bytes_per_lane,
+                      uint32_t crs_bytes_per_warp)
 {
-   return nvk_slm_area_ensure(dev, &dev->slm, bytes_per_thread);
+   return nvk_slm_area_ensure(dev, &dev->slm,
+                              slm_bytes_per_lane,
+                              crs_bytes_per_warp);
 }
