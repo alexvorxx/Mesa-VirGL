@@ -196,24 +196,6 @@ _libnak_rs = static_library(
 # with the sanitizers because meson doesn't know to pass -fsanitize to the
 # Rust linker.  See also https://github.com/mesonbuild/meson/issues/11741
 if with_tests and get_option('b_sanitize') == 'none'
-  _libnak_runner = static_library(
-    'nak_runner',
-    files('nak_runner/lib.rs'),
-    gnu_symbol_visibility : 'hidden',
-    rust_abi : 'rust',
-    rust_args : nak_rust_args,
-    dependencies : [
-      dep_libdrm,
-      idep_nouveau_ws,
-      idep_nvidia_headers_rs,
-      idep_nv_push_rs,
-    ],
-    link_with: [
-      _libnak_bindings_rs,
-      _libnak_qmd_rs,
-    ],
-  )
-
   rust.test(
     'nak',
     _libnak_rs,
@@ -223,12 +205,15 @@ if with_tests and get_option('b_sanitize') == 'none'
     ],
     suite : ['nouveau'],
     dependencies : [
-      idep_mesautil.partial_dependency(link_args : true, links : true),
+      dep_libdrm,
+      idep_nouveau_ws,
       idep_compiler.partial_dependency(link_args : true, links : true),
+      idep_mesautil.partial_dependency(link_args : true, links : true),
+      idep_nvidia_headers_rs,
+      idep_nv_push_rs,
     ],
     link_with: [
       _libacorn_rs,
-      _libnak_runner,
     ],
   )
 endif

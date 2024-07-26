@@ -33,3 +33,6 @@ mod union_find;
 
 #[cfg(test)]
 mod hw_tests;
+
+#[cfg(test)]
+mod hw_runner;
