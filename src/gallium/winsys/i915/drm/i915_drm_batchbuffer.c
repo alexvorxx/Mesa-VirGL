@@ -77,14 +77,16 @@ i915_drm_batchbuffer_validate_buffers(struct i915_winsys_batchbuffer *batch,
 				      int num_of_buffers)
 {
    struct i915_drm_batchbuffer *drm_batch = i915_drm_batchbuffer(batch);
-   drm_intel_bo *bos[num_of_buffers + 1];
+   /* 1 extra for drm_batch->bo */
+   int count = num_of_buffers + 1;
+   drm_intel_bo *bos[count];
    int i, ret;
 
    bos[0] = drm_batch->bo;
    for (i = 0; i < num_of_buffers; i++)
       bos[i+1] = intel_bo(buffer[i]);
 
-   ret = drm_intel_bufmgr_check_aperture_space(bos, num_of_buffers + 1);
+   ret = drm_intel_bufmgr_check_aperture_space(bos, count);
    if (ret != 0)
       return false;
 
