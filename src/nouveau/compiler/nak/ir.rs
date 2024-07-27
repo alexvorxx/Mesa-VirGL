@@ -1688,6 +1688,14 @@ pub enum PredSetOp {
 }
 
 impl PredSetOp {
+    pub fn eval(&self, a: bool, b: bool) -> bool {
+        match self {
+            PredSetOp::And => a & b,
+            PredSetOp::Or => a | b,
+            PredSetOp::Xor => a ^ b,
+        }
+    }
+
     pub fn is_trivial(&self, accum: &Src) -> bool {
         if let Some(b) = accum.as_bool() {
             match self {
@@ -3692,11 +3700,7 @@ impl Foldable for OpISetP {
 
         let dst = if sm.sm() >= 70 {
             let cmp = if self.ex && x == y { low_cmp } else { cmp };
-            match &self.set_op {
-                PredSetOp::And => cmp & accum,
-                PredSetOp::Or => cmp | accum,
-                PredSetOp::Xor => cmp ^ accum,
-            }
+            self.set_op.eval(cmp, accum)
         } else {
             if self.ex && x == y {
                 match self.cmp_op {
@@ -3716,11 +3720,7 @@ impl Foldable for OpISetP {
                     }
                 }
             } else {
-                match &self.set_op {
-                    PredSetOp::And => cmp & accum,
-                    PredSetOp::Or => cmp | accum,
-                    PredSetOp::Xor => cmp ^ accum,
-                }
+                self.set_op.eval(cmp, accum)
             }
         };
 
