@@ -1452,6 +1452,10 @@ impl SM70Op for OpIAdd3 {
         }
         b.copy_alu_src_if_not_reg(src0, gpr, SrcType::I32);
         b.copy_alu_src_if_both_not_reg(src1, src2, gpr, SrcType::I32);
+        if !self.overflow[0].is_none() || !self.overflow[1].is_none() {
+            b.copy_alu_src_if_ineg_imm(src1, gpr, SrcType::I32);
+            b.copy_alu_src_if_ineg_imm(src2, gpr, SrcType::I32);
+        }
     }
 
     fn encode(&self, e: &mut SM70Encoder<'_>) {
@@ -1556,6 +1560,7 @@ impl SM70Op for OpIDp4 {
             std::mem::swap(src_type0, src_type1);
         }
         b.copy_alu_src_if_not_reg(src0, gpr, SrcType::ALU);
+        b.copy_alu_src_if_ineg_imm(src1, gpr, SrcType::I32);
         b.copy_alu_src_if_not_reg(src2, gpr, SrcType::ALU);
     }
 

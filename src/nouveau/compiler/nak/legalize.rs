@@ -204,6 +204,18 @@ pub trait LegalizeBuildHelpers: SSABuilder {
         }
     }
 
+    fn copy_alu_src_if_ineg_imm(
+        &mut self,
+        src: &mut Src,
+        reg_file: RegFile,
+        src_type: SrcType,
+    ) {
+        assert!(src_type == SrcType::I32);
+        if src_is_imm(src) && src.src_mod.is_ineg() {
+            self.copy_alu_src(src, reg_file, src_type);
+        }
+    }
+
     fn copy_alu_src_if_both_not_reg(
         &mut self,
         src1: &Src,

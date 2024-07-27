@@ -1142,6 +1142,9 @@ impl SM50Op for OpIAdd2 {
             *src0 = val.into();
         }
         b.copy_alu_src_if_not_reg(src0, GPR, SrcType::I32);
+        if !self.carry_out.is_none() {
+            b.copy_alu_src_if_ineg_imm(src1, GPR, SrcType::I32);
+        }
     }
 
     fn encode(&self, e: &mut SM50Encoder<'_>) {

@@ -1132,6 +1132,13 @@ impl Src {
 
         assert!(src_type == SrcType::F16v2 || self.src_swizzle.is_none());
 
+        // INeg affects more than just the 32 bits of input data so it can't be
+        // trivially folded.  In fact, -imm may not be representable as a 32-bit
+        // immediate at all.
+        if src_type == SrcType::I32 {
+            return *self;
+        }
+
         u = match src_type {
             SrcType::F16 => {
                 let low = u & 0xFFFF;
@@ -1277,8 +1284,11 @@ impl Src {
     pub fn is_zero(&self) -> bool {
         match self.src_ref {
             SrcRef::Zero | SrcRef::Imm32(0) => match self.src_mod {
-                SrcMod::None | SrcMod::FAbs | SrcMod::INeg => true,
+                SrcMod::None | SrcMod::FAbs => true,
                 SrcMod::FNeg | SrcMod::FNegAbs | SrcMod::BNot => false,
+                // INeg affects more than just the 32 bits of input data so -0
+                // may not be equivalent to 0.
+                SrcMod::INeg => false,
             },
             _ => false,
         }
