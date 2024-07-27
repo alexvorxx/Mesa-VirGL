@@ -1528,6 +1528,7 @@ fn fmt_dst_slice(f: &mut fmt::Formatter<'_>, dsts: &[Dst]) -> fmt::Result {
 #[derive(Clone, Copy)]
 pub enum FoldData {
     Pred(bool),
+    Carry(bool),
     U32(u32),
     Vec2([u32; 2]),
 }
@@ -1570,6 +1571,16 @@ impl OpFoldData<'_> {
         }
     }
 
+    pub fn get_carry_src(&self, op: &impl SrcsAsSlice, src: &Src) -> bool {
+        assert!(src.src_ref.as_ssa().is_some());
+        let i = op.src_idx(src);
+        if let FoldData::Carry(b) = self.srcs[i] {
+            b
+        } else {
+            panic!("FoldData is not a predicate");
+        }
+    }
+
     #[allow(dead_code)]
     pub fn get_f32_src(&self, op: &impl SrcsAsSlice, src: &Src) -> f32 {
         f32::from_bits(self.get_u32_src(op, src))
@@ -1595,6 +1606,10 @@ impl OpFoldData<'_> {
 
     pub fn set_pred_dst(&mut self, op: &impl DstsAsSlice, dst: &Dst, b: bool) {
         self.dsts[op.dst_idx(dst)] = FoldData::Pred(b);
+    }
+
+    pub fn set_carry_dst(&mut self, op: &impl DstsAsSlice, dst: &Dst, b: bool) {
+        self.dsts[op.dst_idx(dst)] = FoldData::Carry(b);
     }
 
     pub fn set_u32_dst(&mut self, op: &impl DstsAsSlice, dst: &Dst, u: u32) {
@@ -3303,14 +3318,38 @@ impl_display_for_op!(OpIAbs);
 
 /// Only used on SM50
 #[repr(C)]
-#[derive(SrcsAsSlice, DstsAsSlice)]
+#[derive(Clone, SrcsAsSlice, DstsAsSlice)]
 pub struct OpIAdd2 {
     #[dst_type(GPR)]
     pub dst: Dst,
+    #[dst_type(Carry)]
     pub carry_out: Dst,
 
     #[src_type(I32)]
     pub srcs: [Src; 2],
+}
+
+impl Foldable for OpIAdd2 {
+    fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
+        let srcs = [
+            f.get_u32_src(self, &self.srcs[0]),
+            f.get_u32_src(self, &self.srcs[1]),
+        ];
+
+        let mut sum = 0_u64;
+        for i in 0..2 {
+            if self.srcs[i].src_mod.is_ineg() {
+                // This is a very literal interpretation of 2's compliment.
+                // This is not -u64::from(src) or u64::from(-src).
+                sum += u64::from(!srcs[i]) + 1;
+            } else {
+                sum += u64::from(srcs[i]);
+            }
+        }
+
+        f.set_u32_dst(self, &self.dst, sum as u32);
+        f.set_carry_dst(self, &self.carry_out, sum >= (1 << 32));
+    }
 }
 
 impl DisplayOp for OpIAdd2 {
@@ -3321,8 +3360,9 @@ impl DisplayOp for OpIAdd2 {
 
 /// Only used on SM50
 #[repr(C)]
-#[derive(SrcsAsSlice, DstsAsSlice)]
+#[derive(Clone, SrcsAsSlice, DstsAsSlice)]
 pub struct OpIAdd2X {
+    #[dst_type(GPR)]
     pub dst: Dst,
     #[dst_type(Carry)]
     pub carry_out: Dst,
@@ -3331,6 +3371,29 @@ pub struct OpIAdd2X {
     pub srcs: [Src; 2],
     #[src_type(Carry)]
     pub carry_in: Src,
+}
+
+impl Foldable for OpIAdd2X {
+    fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
+        let srcs = [
+            f.get_u32_src(self, &self.srcs[0]),
+            f.get_u32_src(self, &self.srcs[1]),
+        ];
+        let carry_in = f.get_carry_src(self, &self.carry_in);
+
+        let mut sum = 0_u64;
+        for i in 0..2 {
+            if self.srcs[i].src_mod.is_bnot() {
+                sum += u64::from(!srcs[i]);
+            } else {
+                sum += u64::from(srcs[i]);
+            }
+        }
+        sum += u64::from(carry_in);
+
+        f.set_u32_dst(self, &self.dst, sum as u32);
+        f.set_carry_dst(self, &self.carry_out, sum >= (1 << 32));
+    }
 }
 
 impl DisplayOp for OpIAdd2X {

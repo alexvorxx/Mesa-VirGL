@@ -349,6 +349,21 @@ pub fn test_foldable_op_with(
                 src.src_ref = pred.into();
                 fold_src.push(FoldData::Pred(false));
             }
+            SrcType::Carry => {
+                let data = b.ld_test_data(comps * 4, MemType::B32);
+                comps += 1;
+
+                let bit = b.lop2(LogicOp2::And, data.into(), 1.into());
+                let dst = b.alloc_ssa(RegFile::GPR, 1);
+                let carry = b.alloc_ssa(RegFile::Carry, 1);
+                b.push_op(OpIAdd2 {
+                    dst: dst.into(),
+                    carry_out: carry.into(),
+                    srcs: [u32::MAX.into(), bit.into()],
+                });
+                src.src_ref = carry.into();
+                fold_src.push(FoldData::Carry(false));
+            }
             typ => panic!("Can't auto-generate {typ:?} data"),
         }
     }
@@ -370,6 +385,10 @@ pub fn test_foldable_op_with(
                 *dst = b.alloc_ssa(RegFile::GPR, 2).into();
                 fold_dst.push(FoldData::Vec2([0, 0]));
             }
+            DstType::Carry => {
+                *dst = b.alloc_ssa(RegFile::Carry, 1).into();
+                fold_dst.push(FoldData::Carry(false));
+            }
             typ => panic!("Can't auto-test {typ:?} data"),
         }
     }
@@ -386,6 +405,16 @@ pub fn test_foldable_op_with(
             let u = match ssa.file() {
                 RegFile::Pred => b.sel((*ssa).into(), 1.into(), 0.into()),
                 RegFile::GPR => (*ssa).into(),
+                RegFile::Carry => {
+                    let gpr = b.alloc_ssa(RegFile::GPR, 1);
+                    b.push_op(OpIAdd2X {
+                        dst: gpr.into(),
+                        carry_out: Dst::None,
+                        srcs: [0.into(), 0.into()],
+                        carry_in: (*ssa).into(),
+                    });
+                    gpr.into()
+                }
                 file => panic!("Can't auto-test {file:?} data"),
             };
             b.st_test_data(comps * 4, MemType::B32, u);
@@ -439,7 +468,7 @@ pub fn test_foldable_op_with(
         let mut c = 0_usize;
         for src in &mut fold_src {
             match src {
-                FoldData::Pred(b) => {
+                FoldData::Pred(b) | FoldData::Carry(b) => {
                     let u = data[c];
                     *b = (u & 1) != 0;
                     c += 1;
@@ -465,7 +494,7 @@ pub fn test_foldable_op_with(
         debug_assert!(fold_dst.len() == op.dsts_as_slice().len());
         for (i, dst) in fold_dst.iter().enumerate() {
             match dst {
-                FoldData::Pred(b) => {
+                FoldData::Pred(b) | FoldData::Carry(b) => {
                     let d = data[c];
                     c += 1;
                     assert_eq!(*b, (d & 1) != 0);
@@ -560,6 +589,51 @@ fn get_iadd_int(a: &mut Acorn) -> u32 {
         4 => u32::MAX,
         5 => u32::MAX - 1,
         _ => x as u32,
+    }
+}
+
+#[test]
+fn test_op_iadd2() {
+    if RunSingleton::get().sm.sm() < 70 {
+        for i in 0..3 {
+            let mut op = OpIAdd2 {
+                dst: Dst::None,
+                carry_out: Dst::None,
+                srcs: [0.into(), 0.into()],
+            };
+            if i & 0x1 != 0 {
+                op.srcs[0].src_mod = SrcMod::INeg;
+            }
+            if i & 0x2 != 0 {
+                op.srcs[1].src_mod = SrcMod::INeg;
+            }
+
+            let mut a = Acorn::new();
+            test_foldable_op_with(op, |_| get_iadd_int(&mut a));
+        }
+    }
+}
+
+#[test]
+fn test_op_iadd2x() {
+    if RunSingleton::get().sm.sm() < 70 {
+        for i in 0..3 {
+            let mut op = OpIAdd2X {
+                dst: Dst::None,
+                carry_out: Dst::None,
+                srcs: [0.into(), 0.into()],
+                carry_in: 0.into(),
+            };
+            if i & 0x1 != 0 {
+                op.srcs[0].src_mod = SrcMod::BNot;
+            }
+            if i & 0x2 != 0 {
+                op.srcs[1].src_mod = SrcMod::BNot;
+            }
+
+            let mut a = Acorn::new();
+            test_foldable_op_with(op, |_| get_iadd_int(&mut a));
+        }
     }
 }
 
