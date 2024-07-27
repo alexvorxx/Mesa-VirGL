@@ -1583,6 +1583,7 @@ struct anv_gfx_dynamic_state {
 
    /* 3DSTATE_PS_EXTRA */
    struct {
+      bool PixelShaderHasUAV;
       bool PixelShaderIsPerSample;
       bool PixelShaderKillsPixel;
       bool PixelShaderIsPerCoarsePixel;
@@ -1711,7 +1712,6 @@ struct anv_gfx_dynamic_state {
 
    /* 3DSTATE_WM */
    struct {
-      uint32_t ForceThreadDispatchEnable;
       bool     LineStippleEnable;
       uint32_t BarycentricInterpolationMode;
    } wm;
@@ -4707,7 +4707,6 @@ struct anv_graphics_pipeline {
    bool                                         rp_has_ds_self_dep;
 
    bool                                         kill_pixel;
-   bool                                         force_fragment_thread_dispatch;
    bool                                         uses_xfb;
    bool                                         sample_shading_enable;
    float                                        min_sample_shading;

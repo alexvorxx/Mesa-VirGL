@@ -1642,26 +1642,6 @@ emit_3dstate_wm(struct anv_graphics_pipeline *pipeline,
          } else {
             wm.EarlyDepthStencilControl         = EDSC_NORMAL;
          }
-
-         /* Gen8 hardware tries to compute ThreadDispatchEnable for us but
-          * doesn't take into account KillPixels when no depth or stencil
-          * writes are enabled. In order for occlusion queries to work
-          * correctly with no attachments, we need to force-enable PS thread
-          * dispatch.
-          *
-          * The BDW docs are pretty clear that that this bit isn't validated
-          * and probably shouldn't be used in production:
-          *
-          *    "This must always be set to Normal. This field should not be
-          *     tested for functional validation."
-          *
-          * Unfortunately, however, the other mechanism we have for doing this
-          * is 3DSTATE_PS_EXTRA::PixelShaderHasUAV which causes hangs on BDW.
-          * Given two bad options, we choose the one which works.
-          */
-         pipeline->force_fragment_thread_dispatch =
-            wm_prog_data->has_side_effects ||
-            wm_prog_data->uses_kill;
       }
    }
 }
