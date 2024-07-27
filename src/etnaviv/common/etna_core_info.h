@@ -103,6 +103,8 @@ struct etna_core_info {
    uint32_t eco_id;
    uint32_t customer_id;
 
+   int8_t halti; /* HALTI (gross architecture) level. -1 for pre-HALTI. */
+
    enum etna_core_type type;
 
    union {
