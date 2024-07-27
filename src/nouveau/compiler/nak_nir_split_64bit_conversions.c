@@ -26,6 +26,16 @@
 #include "nak_private.h"
 #include "nir_builder.h"
 
+static nir_rounding_mode
+op_rounding_mode(nir_op op)
+{
+   switch (op) {
+   case nir_op_f2f16_rtne: return nir_rounding_mode_rtne;
+   case nir_op_f2f16_rtz: return nir_rounding_mode_rtz;
+   default: return nir_rounding_mode_undef;
+   }
+}
+
 static bool
 split_64bit_conversion(nir_builder *b, nir_instr *instr, UNUSED void *_data)
 {
@@ -80,7 +90,7 @@ split_64bit_conversion(nir_builder *b, nir_instr *instr, UNUSED void *_data)
    nir_def *tmp = nir_type_convert(b, src, src_type, tmp_type,
                                    nir_rounding_mode_undef);
    nir_def *res = nir_type_convert(b, tmp, tmp_type, dst_full_type,
-                                   nir_rounding_mode_undef);
+                                   op_rounding_mode(alu->op));
    nir_def_replace(&alu->def, res);
 
    return true;
