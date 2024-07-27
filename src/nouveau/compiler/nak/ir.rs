@@ -6084,13 +6084,6 @@ pub enum Op {
 impl_display_for_op!(Op);
 
 impl Op {
-    pub fn is_crs_push(&self) -> bool {
-        match self {
-            Op::SSy(_) | Op::PBk(_) | Op::PCnt(_) => true,
-            _ => false,
-        }
-    }
-
     pub fn is_branch(&self) -> bool {
         match self {
             Op::Bra(_)
