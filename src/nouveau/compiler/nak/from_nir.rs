@@ -3049,6 +3049,8 @@ impl<'a> ShaderFromNir<'a> {
 
                 if self.sm.sm() >= 70 {
                     b.push_op(OpOutFinal { handle: handle });
+                } else {
+                    b.push_op(OpRegOut { srcs: vec![handle] });
                 }
             }
             nir_intrinsic_vote_all
