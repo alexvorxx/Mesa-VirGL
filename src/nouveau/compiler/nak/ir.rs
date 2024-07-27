@@ -3385,20 +3385,12 @@ pub struct OpIAdd2X {
 impl Foldable for OpIAdd2X {
     fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
         let srcs = [
-            f.get_u32_src(self, &self.srcs[0]),
-            f.get_u32_src(self, &self.srcs[1]),
+            f.get_u32_bnot_src(self, &self.srcs[0]),
+            f.get_u32_bnot_src(self, &self.srcs[1]),
         ];
         let carry_in = f.get_carry_src(self, &self.carry_in);
 
-        let mut sum = 0_u64;
-        for i in 0..2 {
-            if self.srcs[i].src_mod.is_bnot() {
-                sum += u64::from(!srcs[i]);
-            } else {
-                sum += u64::from(srcs[i]);
-            }
-        }
-        sum += u64::from(carry_in);
+        let sum = u64::from(srcs[0]) + u64::from(srcs[1]) + u64::from(carry_in);
 
         f.set_u32_dst(self, &self.dst, sum as u32);
         f.set_carry_dst(self, &self.carry_out, sum >= (1 << 32));
@@ -3483,9 +3475,9 @@ pub struct OpIAdd3X {
 impl Foldable for OpIAdd3X {
     fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
         let srcs = [
-            f.get_u32_src(self, &self.srcs[0]),
-            f.get_u32_src(self, &self.srcs[1]),
-            f.get_u32_src(self, &self.srcs[2]),
+            f.get_u32_bnot_src(self, &self.srcs[0]),
+            f.get_u32_bnot_src(self, &self.srcs[1]),
+            f.get_u32_bnot_src(self, &self.srcs[2]),
         ];
         let carry = [
             f.get_pred_src(self, &self.carry[0]),
@@ -3494,11 +3486,7 @@ impl Foldable for OpIAdd3X {
 
         let mut sum = 0_u64;
         for i in 0..3 {
-            if self.srcs[i].src_mod.is_bnot() {
-                sum += u64::from(!srcs[i]);
-            } else {
-                sum += u64::from(srcs[i]);
-            }
+            sum += u64::from(srcs[i]);
         }
 
         for i in 0..2 {
@@ -3810,9 +3798,9 @@ pub struct OpLop3 {
 impl Foldable for OpLop3 {
     fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
         let srcs = [
-            f.get_u32_src(self, &self.srcs[0]),
-            f.get_u32_src(self, &self.srcs[1]),
-            f.get_u32_src(self, &self.srcs[2]),
+            f.get_u32_bnot_src(self, &self.srcs[0]),
+            f.get_u32_bnot_src(self, &self.srcs[1]),
+            f.get_u32_bnot_src(self, &self.srcs[2]),
         ];
         let dst = self.op.eval(srcs[0], srcs[1], srcs[2]);
         f.set_u32_dst(self, &self.dst, dst);
