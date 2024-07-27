@@ -2619,8 +2619,9 @@ impl SM50Op for OpALd {
 
         e.set_dst(self.dst);
         if self.access.phys {
+            assert!(!self.access.patch);
             assert!(self.offset.src_ref.as_reg().is_some());
-        } else {
+        } else if !self.access.patch {
             assert!(self.offset.is_zero());
         }
         e.set_reg_src(8..16, self.offset);
