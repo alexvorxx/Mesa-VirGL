@@ -807,6 +807,14 @@ impl SrcRef {
         }
     }
 
+    pub fn is_carry(&self) -> bool {
+        match self {
+            SrcRef::SSA(ssa) => ssa.file() == Some(RegFile::Carry),
+            SrcRef::Reg(reg) => reg.file() == RegFile::Carry,
+            _ => false,
+        }
+    }
+
     #[allow(dead_code)]
     pub fn is_barrier(&self) -> bool {
         match self {
@@ -1359,6 +1367,7 @@ impl Src {
 
                 self.src_ref.is_predicate()
             }
+            SrcType::Carry => self.src_mod.is_none() && self.src_ref.is_carry(),
             SrcType::Bar => self.src_mod.is_none() && self.src_ref.is_barrier(),
         }
     }
@@ -1402,6 +1411,7 @@ pub enum SrcType {
     I32,
     B32,
     Pred,
+    Carry,
     Bar,
 }
 
@@ -1462,6 +1472,7 @@ pub enum DstType {
     F16v2,
     F32,
     F64,
+    Carry,
     Bar,
     Vec,
 }
@@ -3313,10 +3324,12 @@ impl DisplayOp for OpIAdd2 {
 #[derive(SrcsAsSlice, DstsAsSlice)]
 pub struct OpIAdd2X {
     pub dst: Dst,
+    #[dst_type(Carry)]
     pub carry_out: Dst,
 
     #[src_type(B32)]
     pub srcs: [Src; 2],
+    #[src_type(Carry)]
     pub carry_in: Src,
 }
 

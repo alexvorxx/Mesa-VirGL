@@ -373,6 +373,9 @@ fn legalize_ext_instr(op: &mut impl SrcsAsSlice, _b: &mut LegalizeBuilder) {
             SrcType::Pred => {
                 panic!("Predicates must be legalized explicitly");
             }
+            SrcType::Carry => {
+                panic!("Carry values must be legalized explicitly");
+            }
             SrcType::Bar => panic!("Barrier regs are Volta+"),
         }
     }

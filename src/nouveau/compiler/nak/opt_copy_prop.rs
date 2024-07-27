@@ -448,7 +448,7 @@ impl CopyPropPass {
             SrcType::F64 => {
                 self.prop_to_f64_src(cbuf_rule, src);
             }
-            SrcType::Bar => (),
+            SrcType::Carry | SrcType::Bar => (),
         }
     }
 
