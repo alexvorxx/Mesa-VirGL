@@ -1505,7 +1505,7 @@ impl SM50Op for OpLop2 {
             }
 
             e.set_dst(self.dst);
-            e.set_reg_src_ref(8..16, self.srcs[0].src_ref);
+            e.set_reg_bnot_src(8..16, 39, self.srcs[0]);
 
             e.set_field(
                 41..43,

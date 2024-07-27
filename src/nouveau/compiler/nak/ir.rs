@@ -1571,6 +1571,15 @@ impl OpFoldData<'_> {
         }
     }
 
+    pub fn get_u32_bnot_src(&self, op: &impl SrcsAsSlice, src: &Src) -> u32 {
+        let x = self.get_u32_src(op, src);
+        if src.src_mod.is_bnot() {
+            !x
+        } else {
+            x
+        }
+    }
+
     pub fn get_carry_src(&self, op: &impl SrcsAsSlice, src: &Src) -> bool {
         assert!(src.src_ref.as_ssa().is_some());
         let i = op.src_idx(src);
@@ -3773,8 +3782,8 @@ impl DisplayOp for OpLop2 {
 impl Foldable for OpLop2 {
     fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
         let srcs = [
-            f.get_u32_src(self, &self.srcs[0]),
-            f.get_u32_src(self, &self.srcs[1]),
+            f.get_u32_bnot_src(self, &self.srcs[0]),
+            f.get_u32_bnot_src(self, &self.srcs[1]),
         ];
         let dst = match self.op {
             LogicOp2::And => srcs[0] & srcs[1],

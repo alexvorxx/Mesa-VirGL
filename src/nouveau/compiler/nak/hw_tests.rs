@@ -747,13 +747,25 @@ fn test_op_lop2() {
         let logic_ops =
             [LogicOp2::And, LogicOp2::Or, LogicOp2::Xor, LogicOp2::PassB];
 
+        let src_mods = [
+            (SrcMod::None, SrcMod::None),
+            (SrcMod::BNot, SrcMod::None),
+            (SrcMod::None, SrcMod::BNot),
+            (SrcMod::BNot, SrcMod::BNot),
+        ];
+
         for logic_op in logic_ops {
-            let op = OpLop2 {
-                dst: Dst::None,
-                srcs: [0.into(), 0.into()],
-                op: logic_op,
-            };
-            test_foldable_op(op);
+            for (x_mod, y_mod) in src_mods {
+                let mut op = OpLop2 {
+                    dst: Dst::None,
+                    srcs: [0.into(), 0.into()],
+                    op: logic_op,
+                };
+                op.srcs[0].src_mod = x_mod;
+                op.srcs[1].src_mod = y_mod;
+
+                test_foldable_op(op);
+            }
         }
     }
 }
