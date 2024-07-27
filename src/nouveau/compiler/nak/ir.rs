@@ -3225,7 +3225,7 @@ impl DisplayOp for OpBfe {
 impl_display_for_op!(OpBfe);
 
 #[repr(C)]
-#[derive(SrcsAsSlice, DstsAsSlice)]
+#[derive(Clone, SrcsAsSlice, DstsAsSlice)]
 pub struct OpFlo {
     #[dst_type(GPR)]
     pub dst: Dst,
@@ -3235,6 +3235,23 @@ pub struct OpFlo {
 
     pub signed: bool,
     pub return_shift_amount: bool,
+}
+
+impl Foldable for OpFlo {
+    fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
+        let src = f.get_u32_src(self, &self.src);
+        let leading = if self.signed && (src & 0x80000000) != 0 {
+            (!src).leading_zeros()
+        } else {
+            src.leading_zeros()
+        };
+        let dst = if self.return_shift_amount {
+            leading
+        } else {
+            31 - leading
+        };
+        f.set_u32_dst(self, &self.dst, dst);
+    }
 }
 
 impl DisplayOp for OpFlo {

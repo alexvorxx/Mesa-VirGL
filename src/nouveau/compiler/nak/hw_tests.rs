@@ -516,6 +516,30 @@ pub fn test_foldable_op(op: impl Foldable + Clone + Into<Op>) {
 }
 
 #[test]
+fn test_op_flo() {
+    for i in 0..4 {
+        let op = OpFlo {
+            dst: Dst::None,
+            src: 0.into(),
+            signed: i & 0x1 != 0,
+            return_shift_amount: i & 0x2 != 0,
+        };
+
+        let mut a = Acorn::new();
+        test_foldable_op_with(op, &mut |_| {
+            let x = a.get_uint(36);
+            let signed = x & (1 << 32) != 0;
+            let shift = x >> 33;
+            if signed {
+                ((x as i32) >> shift) as u32
+            } else {
+                (x as u32) >> shift
+            }
+        });
+    }
+}
+
+#[test]
 fn test_op_iabs() {
     if RunSingleton::get().sm.sm() >= 70 {
         let op = OpIAbs {
