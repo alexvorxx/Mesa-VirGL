@@ -476,6 +476,9 @@ fn exec_latency(sm: u8, op: &Op) -> u32 {
             // CCTL.C needs 8, CCTL.I needs 11
             11
         }
+        Op::Kill(_) if sm < 70 => {
+            13
+        }
         _ if sm < 70 && (op.is_crs_push() || op.is_branch()) => {
             // pre-Volta needs a delay for control-flow ops
             13
