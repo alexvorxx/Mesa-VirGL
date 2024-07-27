@@ -785,6 +785,19 @@ fn test_op_lop3() {
 }
 
 #[test]
+fn test_op_popc() {
+    let src_mods = [SrcMod::None, SrcMod::BNot];
+    for src_mod in src_mods {
+        let mut op = OpPopC {
+            dst: Dst::None,
+            src: 0.into(),
+        };
+        op.src.src_mod = src_mod;
+        test_foldable_op(op);
+    }
+}
+
+#[test]
 fn test_op_shf() {
     let sm = &RunSingleton::get().sm;
 

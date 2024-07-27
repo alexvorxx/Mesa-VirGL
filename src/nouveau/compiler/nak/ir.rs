@@ -4529,13 +4529,21 @@ impl DisplayOp for OpPSetP {
 }
 
 #[repr(C)]
-#[derive(SrcsAsSlice, DstsAsSlice)]
+#[derive(Clone, SrcsAsSlice, DstsAsSlice)]
 pub struct OpPopC {
     #[dst_type(GPR)]
     pub dst: Dst,
 
-    #[src_type(ALU)]
+    #[src_type(B32)]
     pub src: Src,
+}
+
+impl Foldable for OpPopC {
+    fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
+        let src = f.get_u32_bnot_src(self, &self.src);
+        let dst = src.count_ones();
+        f.set_u32_dst(self, &self.dst, dst);
+    }
 }
 
 impl DisplayOp for OpPopC {
