@@ -372,52 +372,59 @@ pub trait SSABuilder: Builder {
     }
 
     fn iadd64(&mut self, x: Src, y: Src, z: Src) -> SSARef {
-        let x = x.as_ssa().unwrap();
-        let y = y.as_ssa().unwrap();
+        fn split_iadd64_src(src: Src) -> [Src; 2] {
+            match src.src_ref {
+                SrcRef::Zero => [0.into(), 0.into()],
+                SrcRef::SSA(ssa) => {
+                    if src.src_mod.is_ineg() {
+                        [Src::from(ssa[0]).ineg(), Src::from(ssa[1]).bnot()]
+                    } else {
+                        [Src::from(ssa[0]), Src::from(ssa[1])]
+                    }
+                }
+                _ => panic!("Unsupported iadd64 source"),
+            }
+        }
+
+        let is_3src = !x.is_zero() && !y.is_zero() && !z.is_zero();
+
+        let x = split_iadd64_src(x);
+        let y = split_iadd64_src(y);
         let dst = self.alloc_ssa(RegFile::GPR, 2);
         if self.sm() >= 70 {
-            if let Some(z) = z.as_ssa() {
-                let carry = [
-                    self.alloc_ssa(RegFile::Pred, 1),
-                    self.alloc_ssa(RegFile::Pred, 1),
-                ];
-                self.push_op(OpIAdd3 {
-                    dst: dst[0].into(),
-                    overflow: [carry[0].into(), carry[1].into()],
-                    srcs: [x[0].into(), y[0].into(), z[0].into()],
-                });
-                self.push_op(OpIAdd3X {
-                    dst: dst[1].into(),
-                    overflow: [Dst::None, Dst::None],
-                    srcs: [x[1].into(), y[1].into(), z[1].into()],
-                    carry: [carry[0].into(), carry[1].into()],
-                });
+            let carry1 = self.alloc_ssa(RegFile::Pred, 1);
+            let (carry2_dst, carry2_src) = if is_3src {
+                let carry2 = self.alloc_ssa(RegFile::Pred, 1);
+                (carry2.into(), carry2.into())
             } else {
-                assert!(z.is_zero());
-                let carry = self.alloc_ssa(RegFile::Pred, 1);
-                self.push_op(OpIAdd3 {
-                    dst: dst[0].into(),
-                    overflow: [carry.into(), Dst::None],
-                    srcs: [x[0].into(), y[0].into(), 0.into()],
-                });
-                self.push_op(OpIAdd3X {
-                    dst: dst[1].into(),
-                    overflow: [Dst::None, Dst::None],
-                    srcs: [x[1].into(), y[1].into(), 0.into()],
-                    carry: [carry.into(), false.into()],
-                });
-            }
+                // If one of the sources is known to be zero, we only need one
+                // carry predicate.
+                (Dst::None, false.into())
+            };
+
+            let z = split_iadd64_src(z);
+            self.push_op(OpIAdd3 {
+                dst: dst[0].into(),
+                overflow: [carry1.into(), carry2_dst],
+                srcs: [x[0], y[0], z[0]],
+            });
+            self.push_op(OpIAdd3X {
+                dst: dst[1].into(),
+                overflow: [Dst::None, Dst::None],
+                srcs: [x[1], y[1], z[1]],
+                carry: [carry1.into(), carry2_src],
+            });
         } else {
             assert!(z.is_zero());
             let carry = self.alloc_ssa(RegFile::Carry, 1);
             self.push_op(OpIAdd2 {
                 dst: dst[0].into(),
-                srcs: [x[0].into(), y[0].into()],
+                srcs: [x[0], y[0]],
                 carry_out: carry.into(),
             });
             self.push_op(OpIAdd2X {
                 dst: dst[1].into(),
-                srcs: [x[1].into(), y[1].into()],
+                srcs: [x[1], y[1]],
                 carry_out: Dst::None,
                 carry_in: carry.into(),
             });
@@ -499,36 +506,7 @@ pub trait SSABuilder: Builder {
     }
 
     fn ineg64(&mut self, x: Src) -> SSARef {
-        let x = x.as_ssa().unwrap();
-        let dst = self.alloc_ssa(RegFile::GPR, 2);
-        if self.sm() >= 70 {
-            let carry = self.alloc_ssa(RegFile::Pred, 1);
-            self.push_op(OpIAdd3 {
-                dst: dst[0].into(),
-                overflow: [carry.into(), Dst::None],
-                srcs: [0.into(), Src::from(x[0]).ineg(), 0.into()],
-            });
-            self.push_op(OpIAdd3X {
-                dst: dst[1].into(),
-                overflow: [Dst::None, Dst::None],
-                srcs: [0.into(), Src::from(x[1]).bnot(), 0.into()],
-                carry: [carry.into(), SrcRef::False.into()],
-            });
-        } else {
-            let carry = self.alloc_ssa(RegFile::Carry, 1);
-            self.push_op(OpIAdd2 {
-                dst: dst[0].into(),
-                srcs: [0.into(), Src::from(x[0]).ineg()],
-                carry_out: carry.into(),
-            });
-            self.push_op(OpIAdd2X {
-                dst: dst[1].into(),
-                srcs: [0.into(), Src::from(x[1]).bnot()],
-                carry_out: Dst::None,
-                carry_in: carry.into(),
-            });
-        }
-        dst
+        self.iadd64(0.into(), x.ineg(), 0.into())
     }
 
     fn isetp(

@@ -707,36 +707,54 @@ fn test_iadd64() {
     let run = RunSingleton::get();
     let invocations = 100;
 
-    let mut b = TestShaderBuilder::new(run.sm.as_ref());
+    let cases = [
+        (SrcMod::None, SrcMod::None),
+        (SrcMod::INeg, SrcMod::None),
+        (SrcMod::None, SrcMod::INeg),
+    ];
 
-    let x = SSARef::from([
-        b.ld_test_data(0, MemType::B32)[0],
-        b.ld_test_data(4, MemType::B32)[0],
-    ]);
-    let y = SSARef::from([
-        b.ld_test_data(8, MemType::B32)[0],
-        b.ld_test_data(12, MemType::B32)[0],
-    ]);
-    let dst = b.iadd64(x.into(), y.into(), 0.into());
-    b.st_test_data(16, MemType::B32, dst[0].into());
-    b.st_test_data(20, MemType::B32, dst[1].into());
+    for (x_mod, y_mod) in cases {
+        let mut b = TestShaderBuilder::new(run.sm.as_ref());
 
-    let bin = b.compile();
+        let mut x = Src::from([
+            b.ld_test_data(0, MemType::B32)[0],
+            b.ld_test_data(4, MemType::B32)[0],
+        ]);
+        x.src_mod = x_mod;
 
-    let mut a = Acorn::new();
-    let mut data = Vec::new();
-    for _ in 0..invocations {
-        data.push([a.get_u32(), a.get_u32(), a.get_u32(), a.get_u32(), 0, 0]);
-    }
+        let mut y = Src::from([
+            b.ld_test_data(8, MemType::B32)[0],
+            b.ld_test_data(12, MemType::B32)[0],
+        ]);
+        y.src_mod = y_mod;
 
-    run.run.run(&bin, &mut data).unwrap();
+        let dst = b.iadd64(x, y, 0.into());
+        b.st_test_data(16, MemType::B32, dst[0].into());
+        b.st_test_data(20, MemType::B32, dst[1].into());
 
-    for d in &data {
-        let x = u64::from(d[0]) | (u64::from(d[1]) << 32);
-        let y = u64::from(d[2]) | (u64::from(d[3]) << 32);
-        let dst = x.wrapping_add(y);
-        assert_eq!(d[4], dst as u32);
-        assert_eq!(d[5], (dst >> 32) as u32);
+        let bin = b.compile();
+
+        let mut a = Acorn::new();
+        let mut data = Vec::new();
+        for _ in 0..invocations {
+            data.push([a.get_u32(), a.get_u32(), a.get_u32(), a.get_u32(), 0, 0]);
+        }
+
+        run.run.run(&bin, &mut data).unwrap();
+
+        for d in &data {
+            let mut x = u64::from(d[0]) | (u64::from(d[1]) << 32);
+            let mut y = u64::from(d[2]) | (u64::from(d[3]) << 32);
+            if x_mod.is_ineg() {
+                x = -(x as i64) as u64;
+            }
+            if y_mod.is_ineg() {
+                y = -(y as i64) as u64;
+            }
+            let dst = x.wrapping_add(y);
+            assert_eq!(d[4], dst as u32);
+            assert_eq!(d[5], (dst >> 32) as u32);
+        }
     }
 }
 
