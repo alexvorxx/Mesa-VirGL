@@ -829,17 +829,27 @@ fn test_isetp64() {
         let mut a = Acorn::new();
         let mut data = Vec::new();
         for _ in 0..invocations {
-            if a.get_bool() {
-                let high = a.get_u32();
-                data.push([a.get_u32(), high, a.get_u32(), high, 0]);
-            } else {
-                data.push([
-                    a.get_u32(),
-                    a.get_u32(),
-                    a.get_u32(),
-                    a.get_u32(),
-                    0,
-                ]);
+            match a.get_u32() % 4 {
+                0 => {
+                    // Equal
+                    let high = a.get_u32();
+                    let low = a.get_u32();
+                    data.push([low, high, low, high, 0]);
+                }
+                1 => {
+                    // High bits are equal
+                    let high = a.get_u32();
+                    data.push([a.get_u32(), high, a.get_u32(), high, 0]);
+                }
+                _ => {
+                    data.push([
+                        a.get_u32(),
+                        a.get_u32(),
+                        a.get_u32(),
+                        a.get_u32(),
+                        0,
+                    ]);
+                }
             }
         }
 
