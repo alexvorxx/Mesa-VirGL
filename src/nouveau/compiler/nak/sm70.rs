@@ -1442,6 +1442,8 @@ impl SM70Op for OpIAdd3 {
         swap_srcs_if_not_reg(src0, src1, gpr);
         swap_srcs_if_not_reg(src2, src1, gpr);
         if !src0.src_mod.is_none() && !src1.src_mod.is_none() {
+            assert!(self.overflow[0].is_none());
+            assert!(self.overflow[1].is_none());
             let val = b.alloc_ssa(gpr, 1);
             b.push_op(OpIAdd3 {
                 srcs: [Src::new_zero(), *src0, Src::new_zero()],
