@@ -550,6 +550,19 @@ fn test_op_iabs() {
     }
 }
 
+fn get_iadd_int(a: &mut Acorn) -> u32 {
+    let x = a.get_uint(36);
+    match x >> 32 {
+        0 => 0,
+        1 => 1,
+        2 => 1 << 31,
+        3 => (1 << 31) - 1,
+        4 => u32::MAX,
+        5 => u32::MAX - 1,
+        _ => x as u32,
+    }
+}
+
 #[test]
 fn test_op_iadd3() {
     if RunSingleton::get().sm.sm() >= 70 {
@@ -567,7 +580,9 @@ fn test_op_iadd3() {
             if i / 3 == 1 {
                 op.srcs[2].src_mod = SrcMod::INeg;
             }
-            test_foldable_op(op);
+
+            let mut a = Acorn::new();
+            test_foldable_op_with(op, |_| get_iadd_int(&mut a));
         }
     }
 }
@@ -590,7 +605,9 @@ fn test_op_iadd3x() {
             if i / 3 == 1 {
                 op.srcs[2].src_mod = SrcMod::BNot;
             }
-            test_foldable_op(op);
+
+            let mut a = Acorn::new();
+            test_foldable_op_with(op, |_| get_iadd_int(&mut a));
         }
     }
 }
@@ -761,7 +778,14 @@ fn test_iadd64() {
         let mut a = Acorn::new();
         let mut data = Vec::new();
         for _ in 0..invocations {
-            data.push([a.get_u32(), a.get_u32(), a.get_u32(), a.get_u32(), 0, 0]);
+            data.push([
+                get_iadd_int(&mut a),
+                get_iadd_int(&mut a),
+                get_iadd_int(&mut a),
+                get_iadd_int(&mut a),
+                0,
+                0,
+            ]);
         }
 
         run.run.run(&bin, &mut data).unwrap();
