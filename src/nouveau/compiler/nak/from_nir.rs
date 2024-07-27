@@ -1441,6 +1441,11 @@ impl<'a> ShaderFromNir<'a> {
                     b.shr(srcs[0], srcs[1], true)
                 }
             }
+            nir_op_isub => match alu.def.bit_size {
+                32 => b.iadd(srcs[0], srcs[1].ineg(), 0.into()),
+                64 => b.iadd64(srcs[0], srcs[1].ineg(), 0.into()),
+                x => panic!("unsupported bit size for nir_op_iadd: {x}"),
+            },
             nir_op_ixor => b.lop2(LogicOp2::Xor, srcs[0], srcs[1]),
             nir_op_pack_half_2x16_split | nir_op_pack_half_2x16_rtz_split => {
                 assert!(alu.get_src(0).bit_size() == 32);
