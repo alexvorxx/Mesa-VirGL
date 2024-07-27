@@ -1541,7 +1541,7 @@ pub struct OpFoldData<'a> {
 impl OpFoldData<'_> {
     pub fn get_pred_src(&self, op: &impl SrcsAsSlice, src: &Src) -> bool {
         let i = op.src_idx(src);
-        match src.src_ref {
+        let b = match src.src_ref {
             SrcRef::Zero | SrcRef::Imm32(_) => panic!("Expected a predicate"),
             SrcRef::True => true,
             SrcRef::False => false,
@@ -1552,7 +1552,8 @@ impl OpFoldData<'_> {
                     panic!("FoldData is not a predicate");
                 }
             }
-        }
+        };
+        b ^ src.src_mod.is_bnot()
     }
 
     pub fn get_u32_src(&self, op: &impl SrcsAsSlice, src: &Src) -> u32 {
@@ -4507,7 +4508,7 @@ impl DisplayOp for OpPLop3 {
 impl_display_for_op!(OpPLop3);
 
 #[repr(C)]
-#[derive(SrcsAsSlice, DstsAsSlice)]
+#[derive(Clone, SrcsAsSlice, DstsAsSlice)]
 pub struct OpPSetP {
     #[dst_type(Pred)]
     pub dsts: [Dst; 2],
@@ -4516,6 +4517,25 @@ pub struct OpPSetP {
 
     #[src_type(Pred)]
     pub srcs: [Src; 3],
+}
+
+impl Foldable for OpPSetP {
+    fn fold(&self, _sm: &dyn ShaderModel, f: &mut OpFoldData<'_>) {
+        let srcs = [
+            f.get_pred_src(self, &self.srcs[0]),
+            f.get_pred_src(self, &self.srcs[1]),
+            f.get_pred_src(self, &self.srcs[2]),
+        ];
+
+        let tmp = self.ops[0].eval(srcs[0], srcs[1]);
+        let dst0 = self.ops[1].eval(srcs[2], tmp);
+
+        let tmp = self.ops[0].eval(!srcs[0], srcs[1]);
+        let dst1 = self.ops[1].eval(srcs[2], tmp);
+
+        f.set_pred_dst(self, &self.dsts[0], dst0);
+        f.set_pred_dst(self, &self.dsts[1], dst1);
+    }
 }
 
 impl DisplayOp for OpPSetP {

@@ -843,6 +843,30 @@ fn test_op_prmt() {
 }
 
 #[test]
+fn test_op_psetp() {
+    if RunSingleton::get().sm.sm() < 70 {
+        let set_ops = [PredSetOp::And, PredSetOp::Or, PredSetOp::Xor];
+        let src_mods = [SrcMod::None, SrcMod::BNot];
+        for mut i in 0..(3 * 3 * 2 * 2 * 2) {
+            let op1 = set_ops[i % 3];
+            i /= 3;
+            let op2 = set_ops[i % 3];
+            i /= 3;
+            let mut op = OpPSetP {
+                dsts: [Dst::None, Dst::None],
+                ops: [op1, op2],
+                srcs: [true.into(), true.into(), true.into()],
+            };
+            op.srcs[0].src_mod = src_mods[(i >> 0) & 1];
+            op.srcs[1].src_mod = src_mods[(i >> 1) & 1];
+            op.srcs[2].src_mod = src_mods[(i >> 2) & 1];
+
+            test_foldable_op(op);
+        }
+    }
+}
+
+#[test]
 fn test_iadd64() {
     let run = RunSingleton::get();
     let invocations = 100;
