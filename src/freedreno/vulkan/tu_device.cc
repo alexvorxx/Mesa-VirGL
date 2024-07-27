@@ -390,7 +390,7 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->shaderBufferInt64Atomics            = false;
    features->shaderSharedInt64Atomics            = false;
    features->shaderFloat16                       = true;
-   features->shaderInt8                          = false;
+   features->shaderInt8                          = true;
 
    features->descriptorIndexing                                 = true;
    features->shaderInputAttachmentArrayDynamicIndexing          = false;

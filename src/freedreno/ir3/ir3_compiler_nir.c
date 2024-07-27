@@ -758,7 +758,7 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
       }
       break;
    case nir_op_imul:
-      compile_assert(ctx, alu->def.bit_size == 16);
+      compile_assert(ctx, alu->def.bit_size == 8 || alu->def.bit_size == 16);
       dst[0] = ir3_MUL_S24(b, src[0], 0, src[1], 0);
       break;
    case nir_op_imul24:
@@ -841,7 +841,15 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
             cond = prev_entry->data;
          } else {
             if (is_half(cond)) {
-               cond = ir3_COV(b, cond, TYPE_U16, TYPE_U32);
+               if (bs[0] == 8) {
+                  /* Zero-extension of an 8-bit value has to be done through masking,
+                   * as in create_cov.
+                   */
+                  struct ir3_instruction *mask = create_immed_typed(b, 0xff, TYPE_U8);
+                  cond = ir3_AND_B(b, cond, 0, mask, 0);
+               } else {
+                  cond = ir3_COV(b, cond, TYPE_U16, TYPE_U32);
+               }
             } else {
                cond = ir3_COV(b, cond, TYPE_U32, TYPE_U16);
             }
