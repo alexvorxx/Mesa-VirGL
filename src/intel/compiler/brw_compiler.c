@@ -97,8 +97,7 @@ brw_compiler_create(void *mem_ctx, const struct intel_device_info *devinfo)
 
    compiler->use_tcs_multi_patch = devinfo->ver >= 12;
 
-   /* Default to the sampler since that's what we've done since forever */
-   compiler->indirect_ubos_use_sampler = true;
+   compiler->indirect_ubos_use_sampler = devinfo->ver < 12;
 
    compiler->lower_dpas = devinfo->verx10 < 125 ||
       intel_device_info_is_mtl(devinfo) ||
