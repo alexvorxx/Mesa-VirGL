@@ -763,6 +763,16 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
    struct agx_bo **shared_bos = malloc(max_syncs * sizeof(struct agx_bo *));
 
    uint64_t wait_seqid = p_atomic_read(&screen->flush_wait_seqid);
+
+   /* Elide syncing against our own queue */
+   if (wait_seqid && wait_seqid == ctx->flush_my_seqid) {
+      batch_debug(batch,
+                  "Wait sync point %" PRIu64 " is ours, waiting on %" PRIu64
+                  " instead",
+                  wait_seqid, ctx->flush_other_seqid);
+      wait_seqid = ctx->flush_other_seqid;
+   }
+
    uint64_t seqid = p_atomic_inc_return(&screen->flush_cur_seqid);
    assert(seqid > wait_seqid);
 

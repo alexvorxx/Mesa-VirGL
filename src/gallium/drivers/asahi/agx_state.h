@@ -706,6 +706,8 @@ struct agx_context {
    int in_sync_fd;
    uint32_t in_sync_obj;
    uint64_t flush_last_seqid;
+   uint64_t flush_my_seqid;
+   uint64_t flush_other_seqid;
 
    struct agx_scratch scratch_vs;
    struct agx_scratch scratch_fs;

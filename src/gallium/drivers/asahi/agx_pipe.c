@@ -1562,7 +1562,8 @@ agx_flush(struct pipe_context *pctx, struct pipe_fence_handle **fence,
 
    agx_flush_all(ctx, "Gallium flush");
 
-   if (!(flags & (PIPE_FLUSH_DEFERRED | PIPE_FLUSH_ASYNC))) {
+   if (!(flags & (PIPE_FLUSH_DEFERRED | PIPE_FLUSH_ASYNC)) &&
+       ctx->flush_last_seqid) {
       /* Ensure other contexts in this screen serialize against the last
        * submission (and all prior submissions).
        */
@@ -1580,6 +1581,27 @@ agx_flush(struct pipe_context *pctx, struct pipe_fence_handle **fence,
        */
 
       simple_mtx_unlock(&screen->flush_seqid_lock);
+
+      /* Optimization: Avoid serializing against our own queue by
+       * recording the last seen foreign seqid when flushing, and our own
+       * flush seqid. If we then try to sync against our own seqid, we'll
+       * instead sync against the last possible foreign one. This is *not*
+       * the `val` we got above, because another context might flush with a
+       * seqid between `val` and `flush_last_seqid` (which would not update
+       * `flush_wait_seqid` per the logic above). This is somewhat
+       * conservative: it means that if *any* foreign context flushes, then
+       * on next flush of this context we will start waiting for *all*
+       * prior submits on *all* contexts (even if unflushed) at that point,
+       * including any local submissions prior to the latest one. That's
+       * probably fine, it creates a one-time "wait for the second-previous
+       * batch" wait on this queue but that still allows for at least
+       * the previous batch to pipeline on the GPU and it's one-time
+       * until another foreign flush happens. Phew.
+       */
+      if (val && val != ctx->flush_my_seqid)
+         ctx->flush_other_seqid = ctx->flush_last_seqid - 1;
+
+      ctx->flush_my_seqid = ctx->flush_last_seqid;
    }
 
    /* At this point all pending work has been submitted. Since jobs are
