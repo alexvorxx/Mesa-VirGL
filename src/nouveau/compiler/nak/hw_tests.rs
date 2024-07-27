@@ -329,7 +329,7 @@ pub fn test_foldable_op_with(
                 let data = b.ld_test_data(comps * 4, MemType::B32);
                 comps += 1;
 
-                *src = data.into();
+                src.src_ref = data.into();
                 fold_src.push(FoldData::U32(0));
             }
             SrcType::F64 => {
@@ -346,7 +346,7 @@ pub fn test_foldable_op_with(
                     bit.into(),
                     0.into(),
                 );
-                *src = pred.into();
+                src.src_ref = pred.into();
                 fold_src.push(FoldData::Pred(false));
             }
             typ => panic!("Can't auto-generate {typ:?} data"),
