@@ -298,7 +298,7 @@ fn legalize_instr(
         | Op::PhiDsts(_)
         | Op::Pin(_)
         | Op::Unpin(_)
-        | Op::FSOut(_) => {
+        | Op::RegOut(_) => {
             // These are implemented by RA and can take pretty much anything
             // you can throw at them.
             debug_assert!(instr.pred.is_true());

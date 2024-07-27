@@ -5974,11 +5974,11 @@ impl_display_for_op!(OpParCopy);
 
 #[repr(C)]
 #[derive(DstsAsSlice)]
-pub struct OpFSOut {
+pub struct OpRegOut {
     pub srcs: Vec<Src>,
 }
 
-impl SrcsAsSlice for OpFSOut {
+impl SrcsAsSlice for OpRegOut {
     fn srcs_as_slice(&self) -> &[Src] {
         &self.srcs
     }
@@ -5992,9 +5992,9 @@ impl SrcsAsSlice for OpFSOut {
     }
 }
 
-impl DisplayOp for OpFSOut {
+impl DisplayOp for OpRegOut {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "fs_out {{")?;
+        write!(f, "reg_out {{")?;
         for (i, src) in self.srcs.iter().enumerate() {
             if i > 0 {
                 write!(f, ",")?;
@@ -6004,7 +6004,7 @@ impl DisplayOp for OpFSOut {
         write!(f, " }}")
     }
 }
-impl_display_for_op!(OpFSOut);
+impl_display_for_op!(OpRegOut);
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub enum OutType {
@@ -6184,7 +6184,7 @@ pub enum Op {
     Unpin(OpUnpin),
     Swap(OpSwap),
     ParCopy(OpParCopy),
-    FSOut(OpFSOut),
+    RegOut(OpRegOut),
     Out(OpOut),
     OutFinal(OpOutFinal),
     Annotate(OpAnnotate),
@@ -6550,7 +6550,7 @@ impl Instr {
             | Op::Exit(_)
             | Op::WarpSync(_)
             | Op::Bar(_)
-            | Op::FSOut(_)
+            | Op::RegOut(_)
             | Op::Out(_)
             | Op::OutFinal(_)
             | Op::Annotate(_) => false,
@@ -6687,7 +6687,7 @@ impl Instr {
             | Op::Unpin(_)
             | Op::Swap(_)
             | Op::ParCopy(_)
-            | Op::FSOut(_)
+            | Op::RegOut(_)
             | Op::Annotate(_) => {
                 panic!("Not a hardware opcode")
             }

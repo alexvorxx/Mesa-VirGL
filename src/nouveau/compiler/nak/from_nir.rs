@@ -2364,7 +2364,7 @@ impl<'a> ShaderFromNir<'a> {
                     }
                 }
 
-                b.push_op(OpFSOut { srcs: srcs });
+                b.push_op(OpRegOut { srcs: srcs });
             }
             nir_intrinsic_demote => {
                 if let ShaderStageInfo::Fragment(info) = &mut self.info.stage {
