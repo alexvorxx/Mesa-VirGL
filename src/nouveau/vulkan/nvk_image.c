@@ -20,6 +20,7 @@
 #include "clb097.h"
 #include "clb197.h"
 #include "clc097.h"
+#include "clc597.h"
 
 static VkFormatFeatureFlags2
 nvk_get_image_plane_format_features(struct nvk_physical_device *pdev,
@@ -352,6 +353,16 @@ nvk_GetPhysicalDeviceImageFormatProperties2(
    /* Maxwell B and earlier don't support sparse residency */
    if ((pImageFormatInfo->flags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT) &&
        pdev->info.cls_eng3d < MAXWELL_B)
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+
+   /* Don't allow sparse on D32S8 cube maps.  The hardware doesn't seem to
+    * handle these correctly and hard-faults instead of the expected soft
+    * fault when there's sparse VA.
+    */
+   if (pImageFormatInfo->format == VK_FORMAT_D32_SFLOAT_S8_UINT &&
+       (pImageFormatInfo->flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) &&
+       (pImageFormatInfo->flags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT) &&
+       pdev->info.cls_eng3d < TURING_A)
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
    /* From the Vulkan 1.3.279 spec:
