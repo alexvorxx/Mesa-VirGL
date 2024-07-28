@@ -574,50 +574,37 @@ pub trait SSABuilder: Builder {
                         low_cmp: low.into(),
                     });
                 } else {
-                    // On Maxwell, iset.ex only has one source for both accum
-                    // and low_cmp and it does a weird truth table dance.  (See
-                    // Foldable for OpISetP for details.)
-                    let low_or_accum = self.alloc_ssa(RegFile::Pred, 1);
-                    let set_op = match cmp_op {
-                        IntCmpOp::Ge | IntCmpOp::Gt => {
-                            // When x != y, we want low_or_accum == false
-                            self.push_op(OpISetP {
-                                dst: low_or_accum.into(),
-                                set_op: PredSetOp::And,
-                                cmp_op: IntCmpOp::Eq,
-                                cmp_type: IntCmpType::U32,
-                                ex: false,
-                                srcs: [x[1].into(), y[1].into()],
-                                accum: low.into(),
-                                low_cmp: true.into(),
-                            });
-                            PredSetOp::Or
-                        }
-                        IntCmpOp::Le | IntCmpOp::Lt => {
-                            // When x != y, we want low_or_accum == true
-                            self.push_op(OpISetP {
-                                dst: low_or_accum.into(),
-                                set_op: PredSetOp::Or,
-                                cmp_op: IntCmpOp::Ne,
-                                cmp_type: IntCmpType::U32,
-                                ex: false,
-                                srcs: [x[1].into(), y[1].into()],
-                                accum: low.into(),
-                                low_cmp: true.into(),
-                            });
-                            PredSetOp::And
-                        }
-                        _ => panic!("Not an integer inequality"),
-                    };
+                    // On Maxwell, iset.ex doesn't do what we want so we need to
+                    // do it with 3 comparisons.  Fortunately, we can chain them
+                    // together and don't need the extra logic that the NIR
+                    // lowering would emit.
+                    let low_and_high_eq = self.alloc_ssa(RegFile::Pred, 1);
+                    self.push_op(OpISetP {
+                        dst: low_and_high_eq.into(),
+                        set_op: PredSetOp::And,
+                        cmp_op: IntCmpOp::Eq,
+                        cmp_type: IntCmpType::U32,
+                        ex: false,
+                        srcs: [x[1].into(), y[1].into()],
+                        accum: low.into(),
+                        low_cmp: true.into(),
+                    });
                     self.push_op(OpISetP {
                         dst: dst.into(),
-                        set_op,
-                        cmp_op,
+                        set_op: PredSetOp::Or,
+                        // We always want a strict inequality for the high part
+                        // so it's false when the two are equal and safe to OR
+                        // with the low part.
+                        cmp_op: match cmp_op {
+                            IntCmpOp::Lt | IntCmpOp::Le => IntCmpOp::Lt,
+                            IntCmpOp::Gt | IntCmpOp::Ge => IntCmpOp::Gt,
+                            _ => panic!("Not an integer inequality"),
+                        },
                         cmp_type,
-                        ex: true,
+                        ex: false,
                         srcs: [x[1].into(), y[1].into()],
-                        accum: low_or_accum.into(),
-                        low_cmp: low_or_accum.into(),
+                        accum: low_and_high_eq.into(),
+                        low_cmp: true.into(),
                     });
                 }
             }
