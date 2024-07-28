@@ -1160,7 +1160,25 @@ impl<'a> ShaderFromNir<'a> {
                     high: false,
                     integer_rnd: false,
                 });
-                dst
+                if b.sm() < 70 {
+                    // Pre-Volta, F2F.ftz doesn't flush denorms so we need to do
+                    // that manually
+                    let denorm = b.alloc_ssa(RegFile::Pred, 1);
+                    b.push_op(OpFSetP {
+                        dst: denorm.into(),
+                        set_op: PredSetOp::And,
+                        cmp_op: FloatCmpOp::OrdLt,
+                        srcs: [srcs[0].fabs(), 0x38800000.into()],
+                        accum: true.into(),
+                        ftz: false,
+                    });
+                    // Get the correctly signed zero
+                    let zero =
+                        b.lop2(LogicOp2::And, srcs[0], 0x80000000.into());
+                    b.sel(denorm.into(), zero.into(), dst.into())
+                } else {
+                    dst
+                }
             }
             nir_op_frcp => {
                 assert!(alu.def.bit_size() == 32);
