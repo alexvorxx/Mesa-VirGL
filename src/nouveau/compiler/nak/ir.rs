@@ -3977,7 +3977,9 @@ pub struct OpF2F {
     pub dst_type: FloatType,
     pub rnd_mode: FRndMode,
     pub ftz: bool,
-    /// Place the result into the upper 16 bits of the destination register
+    /// For 16-bit up-conversions, take the high 16 bits of the source register.
+    /// For 16-bit down-conversions, place the result into the upper 16 bits of
+    /// the destination register
     pub high: bool,
     /// Round to the nearest integer rather than nearest float
     ///

@@ -1698,6 +1698,7 @@ impl SM50Op for OpF2F {
         e.set_field(10..12, (self.src_type.bits() / 8).ilog2());
 
         e.set_rnd_mode(39..41, self.rnd_mode);
+        e.set_bit(41, self.high);
         e.set_bit(42, self.integer_rnd);
         e.set_bit(44, self.ftz);
         e.set_bit(50, false); // saturate
