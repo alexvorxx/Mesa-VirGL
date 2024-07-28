@@ -711,6 +711,10 @@ fn test_op_isetp() {
 
         let ex = i != 0;
 
+        if ex && RunSingleton::get().sm.sm() < 70 {
+            continue;
+        }
+
         let op = OpISetP {
             dst: Dst::None,
             set_op,

@@ -3699,31 +3699,17 @@ impl Foldable for OpISetP {
             }
         };
 
-        let dst = if sm.sm() >= 70 {
-            let cmp = if self.ex && x == y { low_cmp } else { cmp };
-            self.set_op.eval(cmp, accum)
+        let cmp = if self.ex && x == y {
+            // Pre-Volta, isetp.x takes the accumulator into account.  If we
+            // want to support this, we need to take an an accumulator into
+            // account.  Disallow it for now.
+            assert!(sm.sm() >= 70);
+            low_cmp
         } else {
-            if self.ex && x == y {
-                match self.cmp_op {
-                    IntCmpOp::Eq | IntCmpOp::Gt | IntCmpOp::Ge => {
-                        match &self.set_op {
-                            PredSetOp::And => false,
-                            PredSetOp::Or => accum,
-                            PredSetOp::Xor => accum,
-                        }
-                    }
-                    IntCmpOp::Ne | IntCmpOp::Lt | IntCmpOp::Le => {
-                        match &self.set_op {
-                            PredSetOp::And => accum,
-                            PredSetOp::Or => true,
-                            PredSetOp::Xor => !accum,
-                        }
-                    }
-                }
-            } else {
-                self.set_op.eval(cmp, accum)
-            }
+            cmp
         };
+
+        let dst = self.set_op.eval(cmp, accum);
 
         f.set_pred_dst(self, &self.dst, dst);
     }
