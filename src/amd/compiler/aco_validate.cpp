@@ -77,6 +77,16 @@ validate_ir(Program* program)
    for (Block& block : program->blocks) {
       for (aco_ptr<Instruction>& instr : block.instructions) {
 
+         if (program->progress < CompilationProgress::after_lower_to_hw) {
+            for (const Operand& op : instr->operands)
+               check(!op.isTemp() || op.regClass() == program->temp_rc[op.tempId()],
+                     "Operand RC not consistent.", instr.get());
+
+            for (const Definition& def : instr->definitions)
+               check(!def.isTemp() || def.regClass() == program->temp_rc[def.tempId()],
+                     "Definition RC not consistent.", instr.get());
+         }
+
          unsigned pck_defs = instr_info.definitions[(int)instr->opcode];
          unsigned pck_ops = instr_info.operands[(int)instr->opcode];
 
