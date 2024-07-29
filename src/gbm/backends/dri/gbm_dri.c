@@ -235,7 +235,6 @@ static const __DRIextension *gbm_dri_screen_extensions[] = {
 
 static struct dri_extension_match dri_core_extensions[] = {
    { __DRI2_FLUSH, 1, offsetof(struct gbm_dri_device, flush), false },
-   { __DRI_IMAGE, 6, offsetof(struct gbm_dri_device, image), false },
 };
 
 const __DRIextension **
