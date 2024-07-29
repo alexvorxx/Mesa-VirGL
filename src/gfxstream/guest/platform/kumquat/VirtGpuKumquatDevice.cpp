@@ -26,15 +26,13 @@
 
 #include "VirtGpuKumquat.h"
 #include "virtgpu_gfxstream_protocol.h"
-#include "virtgpu_kumquat/virtgpu_kumquat_ffi.h"
 
 #define PARAM(x) \
     (struct VirtGpuParam) { x, #x, 0 }
 
 static inline uint32_t align_up(uint32_t n, uint32_t a) { return ((n + a - 1) / a) * a; }
 
-VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int fd)
-    : VirtGpuDevice(capset) {
+VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int) : VirtGpuDevice(capset) {
     struct VirtGpuParam params[] = {
         PARAM(VIRTGPU_KUMQUAT_PARAM_3D_FEATURES),
         PARAM(VIRTGPU_KUMQUAT_PARAM_CAPSET_QUERY_FIX),
@@ -60,7 +58,7 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int fd)
     processName = getprogname();
 #endif
 
-    ret = virtgpu_kumquat_init(&mVirtGpu);
+    ret = virtgpu_kumquat_init(&mVirtGpu, nullptr);
     if (ret) {
         ALOGV("Failed to init virtgpu kumquat");
         return;

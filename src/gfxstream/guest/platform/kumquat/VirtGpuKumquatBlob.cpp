@@ -23,7 +23,6 @@
 #include <cstring>
 
 #include "VirtGpuKumquat.h"
-#include "virtgpu_kumquat/virtgpu_kumquat_ffi.h"
 
 VirtGpuKumquatResource::VirtGpuKumquatResource(struct virtgpu_kumquat* virtGpu, uint32_t blobHandle,
                                                uint32_t resourceHandle, uint64_t size)
@@ -53,7 +52,8 @@ VirtGpuResourceMappingPtr VirtGpuKumquatResource::createMapping() {
 
     ret = virtgpu_kumquat_resource_map(mVirtGpu, &map);
     if (ret < 0) {
-        ALOGE("Mapping failed with %s", strerror(errno));
+        ALOGE("Mapping failed with %s for resource %u blob %u", strerror(errno), mResourceHandle,
+              mBlobHandle);
         return nullptr;
     }
 
