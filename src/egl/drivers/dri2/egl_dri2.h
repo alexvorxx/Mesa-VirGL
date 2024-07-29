@@ -630,19 +630,12 @@ dri2_set_WL_bind_wayland_display(_EGLDisplay *disp)
 #ifdef HAVE_WAYLAND_PLATFORM
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
-   if (!dri2_dpy->swrast && dri2_dpy->image) {
-      if (dri2_dpy->image->base.version >= 10 &&
-          dri2_dpy->image->getCapabilities != NULL) {
-         int capabilities;
+   int capabilities;
 
-         capabilities =
-            dri2_get_capabilities(dri2_dpy->dri_screen_render_gpu);
-         disp->Extensions.WL_bind_wayland_display =
-            (capabilities & __DRI_IMAGE_CAP_GLOBAL_NAMES) != 0;
-      } else {
-         disp->Extensions.WL_bind_wayland_display = EGL_TRUE;
-      }
-   }
+   capabilities =
+      dri2_get_capabilities(dri2_dpy->dri_screen_render_gpu);
+   disp->Extensions.WL_bind_wayland_display =
+      (capabilities & __DRI_IMAGE_CAP_GLOBAL_NAMES) != 0;
 #endif
 }
 
