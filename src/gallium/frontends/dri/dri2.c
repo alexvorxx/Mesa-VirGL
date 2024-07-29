@@ -389,7 +389,7 @@ dri2_release_buffer(__DRIbuffer *bPriv)
    FREE(buffer);
 }
 
-static void
+void
 dri2_set_in_fence_fd(__DRIimage *img, int fd)
 {
    validate_fence_fd(fd);
@@ -1754,7 +1754,7 @@ exit:
    return NULL;
 }
 
-static bool
+bool
 dri2_query_compression_rates(__DRIscreen *_screen, const __DRIconfig *config, int max,
                              enum __DRIFixedRateCompression *rates, int *count)
 {
@@ -1779,7 +1779,7 @@ dri2_query_compression_rates(__DRIscreen *_screen, const __DRIconfig *config, in
    return true;
 }
 
-static bool
+bool
 dri2_query_compression_modifiers(__DRIscreen *_screen, uint32_t fourcc,
                                  enum __DRIFixedRateCompression rate, int max,
                                  uint64_t *modifiers, int *count)

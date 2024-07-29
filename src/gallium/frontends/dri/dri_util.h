@@ -294,4 +294,15 @@ dri_query_compatible_render_only_device_fd(int kms_only_fd);
 
 PUBLIC int
 driSWRastQueryBufferAge(__DRIdrawable *pdp);
+
+PUBLIC void
+dri2_set_in_fence_fd(__DRIimage *img, int fd);
+
+PUBLIC bool
+dri2_query_compression_rates(__DRIscreen *_screen, const __DRIconfig *config, int max,
+                             enum __DRIFixedRateCompression *rates, int *count);
+PUBLIC bool
+dri2_query_compression_modifiers(__DRIscreen *_screen, uint32_t fourcc,
+                                 enum __DRIFixedRateCompression rate, int max,
+                                 uint64_t *modifiers, int *count);
 #endif /* _DRI_UTIL_H_ */
