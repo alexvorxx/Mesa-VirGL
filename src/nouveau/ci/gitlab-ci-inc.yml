@@ -20,6 +20,9 @@
         - src/nouveau/ci/$GPU_VERSION-fails.txt
         - src/nouveau/ci/$GPU_VERSION-flakes.txt
         - src/nouveau/ci/$GPU_VERSION-skips.txt
+        - src/nouveau/ci/$GPU_VERSION-vkd3d-fails.txt
+        - src/nouveau/ci/$GPU_VERSION-vkd3d-flakes.txt
+        - src/nouveau/ci/$GPU_VERSION-vkd3d-skips.txt
       when: on_success
 
 .nvk-valve-manual-rules:
