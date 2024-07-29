@@ -224,9 +224,9 @@ where
     }
 }
 
-pub fn cl_prop<T: CLProp>(v: T) -> Vec<MaybeUninit<u8>>
+pub fn cl_prop<T>(v: T) -> Vec<MaybeUninit<u8>>
 where
-    T: Sized,
+    T: CLProp + Sized,
 {
     v.cl_vec()
 }
