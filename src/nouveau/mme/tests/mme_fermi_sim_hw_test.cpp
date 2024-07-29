@@ -51,7 +51,7 @@ mme_fermi_sim_test::test_macro(const mme_builder *b,
       .size = DATA_BO_SIZE,
    };
    mme_fermi_sim(insts.size(), &insts[0],
-                 params.size(), &params[0],
+                 params.size(), params.size() ? &params[0] : NULL,
                  1, &sim_mem);
 
    run_macro(macro, params);
