@@ -57,7 +57,12 @@ if ! /vkd3d-proton-tests/x64/bin/d3d12 &> "$RESULTS/vkd3d-proton-log.txt"; then
 
     # Collect all the failures
     RESULTSFILE="$RESULTS/$GPU_VERSION.txt"
-    if ! grep "Test failed" "$RESULTS"/vkd3d-proton-log.txt > "$RESULTSFILE"; then
+    # Sometimes, some lines are randomly (?) prefixed with one of these:
+    # 058f:info:vkd3d_pipeline_library_disk_cache_initial_setup:
+    # 058f:info:vkd3d_pipeline_library_disk_cache_merge:
+    # 058f:info:vkd3d_pipeline_library_disk_thread_main:
+    # As a result, we have to specifically start the grep at the test name.
+    if ! grep -oE "test_\w+:.*Test failed.*$" "$RESULTS"/vkd3d-proton-log.txt > "$RESULTSFILE"; then
       error "Failed to get the list of failing tests, see ${ARTIFACTS_BASE_URL}/results/vkd3d-proton-log.txt"
       exit 1
     fi
