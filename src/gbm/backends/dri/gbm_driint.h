@@ -53,6 +53,7 @@ struct gbm_dri_device {
    bool software; /* A software driver was loaded */
    bool swrast; /* this is swrast */
    bool has_dmabuf_import;
+   bool has_dmabuf_export;
    bool has_compression_modifiers;
 
    __DRIscreen *screen;

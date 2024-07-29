@@ -898,7 +898,7 @@ gbm_dri_bo_create(struct gbm_device *gbm,
 
    format = gbm_core.v0.format_canonicalize(format);
 
-   if (usage & GBM_BO_USE_WRITE || dri->image == NULL)
+   if (usage & GBM_BO_USE_WRITE || !dri->has_dmabuf_export)
       return create_dumb(gbm, width, height, format, usage);
 
    bo = calloc(1, sizeof *bo);
@@ -1243,6 +1243,8 @@ dri_device_create(int fd, uint32_t gbm_backend_version)
 #ifdef HAVE_DRI3
    if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_IMPORT)
       dri->has_dmabuf_import = true;
+   if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT)
+      dri->has_dmabuf_export = true;
 #endif
    dri->has_compression_modifiers = pscreen->query_compression_rates &&
                                     pscreen->query_compression_modifiers;
