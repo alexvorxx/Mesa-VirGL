@@ -189,6 +189,48 @@ TEST_F(mme_builder_test, sub_imm)
    }
 }
 
+static const uint32_t mul_cases[] = {
+   0x00000000,
+   0x00000001,
+   0x0000005c,
+   0x00c0ffee,
+   0xffffffff,
+   0x0000ffff,
+   0x00008000,
+   0x0001ffff,
+   0xffff8000,
+   0x00010000,
+   0x00020000,
+   0xfffc0000,
+   0xfffe0000,
+};
+
+TEST_F(mme_builder_test, mul)
+{
+   for (auto sim : sims) {
+      mme_builder b;
+      mme_builder_init(&b, sim->devinfo);
+
+      mme_value x = mme_load(&b);
+      mme_value y = mme_load(&b);
+
+      sim->mme_store_data(&b, 0, mme_mul(&b, x, y));
+
+      auto macro = mme_builder_finish_vec(&b);
+
+      for (uint32_t i = 0; i < ARRAY_SIZE(mul_cases); i++) {
+         for (uint32_t j = 0; j < ARRAY_SIZE(mul_cases); j++) {
+            std::vector<uint32_t> params;
+            params.push_back(mul_cases[i]);
+            params.push_back(mul_cases[j]);
+
+            sim->run_macro(macro, params);
+            ASSERT_EQ(sim->data[0], mul_cases[i] * mul_cases[j]);
+         }
+      }
+   }
+}
+
 TEST_F(mme_builder_test, sll_srl)
 {
    static const uint32_t x = 0xac406fe1;
