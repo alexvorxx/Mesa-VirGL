@@ -23,7 +23,7 @@ gk20a-gles:
   variables:
     HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
     DEQP_SUITE: nouveau-gm20b
-    TEST_PHASE_TIMEOUT: 120
+    TEST_PHASE_TIMEOUT_MINUTES: 120
 
 .gm20b-gles:
   extends:

@@ -109,12 +109,12 @@ def main():
     parser.add_argument('--powerdown', type=str,
                         help='shell command for powering off', required=True)
     parser.add_argument(
-        '--test-timeout', type=int, help='Test phase timeout (minutes)', required=True)
+        '--test-timeout-minutes', type=int, help='Test phase timeout (minutes)', required=True)
     args = parser.parse_args()
 
     logger = CustomLogger("job_detail.json")
     logger.update_dut_time("start", None)
-    poe = PoERun(args, args.test_timeout * 60, logger)
+    poe = PoERun(args, args.test_timeout_minutes * 60, logger)
     retval = poe.run()
 
     poe.logged_system(args.powerdown)
