@@ -403,7 +403,7 @@ macro_rules! impl_cl_type_trait_base {
         impl std::cmp::Eq for $t {}
         impl std::cmp::PartialEq for $t {
             fn eq(&self, other: &Self) -> bool {
-                (self as *const Self) == (other as *const Self)
+                std::ptr::addr_eq(self, other)
             }
         }
 
