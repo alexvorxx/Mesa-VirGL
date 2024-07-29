@@ -60,8 +60,6 @@ struct gbm_dri_device {
    __DRIcontext *context;
    mtx_t mutex;
 
-   const __DRI2flushExtension *flush;
-
    const __DRIconfig   **driver_configs;
    const __DRIextension **loader_extensions;
    const __DRIextension **driver_extensions;

@@ -233,10 +233,6 @@ static const __DRIextension *gbm_dri_screen_extensions[] = {
    NULL,
 };
 
-static struct dri_extension_match dri_core_extensions[] = {
-   { __DRI2_FLUSH, 1, offsetof(struct gbm_dri_device, flush), false },
-};
-
 const __DRIextension **
 dri_loader_get_extensions(const char *driver_name);
 
@@ -279,21 +275,9 @@ dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool
    if (dri->screen == NULL)
       goto fail;
 
-   if (!swrast) {
-      extensions = driGetExtensions(dri->screen);
-      if (!loader_bind_extensions(dri, dri_core_extensions,
-                                  ARRAY_SIZE(dri_core_extensions),
-                                  extensions)) {
-         goto free_screen;
-      }
-   }
-
    dri->lookup_user_data = NULL;
 
    return 0;
-
-free_screen:
-   driDestroyScreen(dri->screen);
 
 fail:
    free(dri->driver_name);
