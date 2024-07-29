@@ -158,22 +158,6 @@ _libnak_ir_proc_rs = rust.proc_macro(
   dependencies : [dep_syn],
 )
 
-_libnak_qmd_rs = static_library(
-  'nak_qmd_rs',
-  files('nak_qmd/lib.rs'),
-  gnu_symbol_visibility : 'hidden',
-  rust_abi : 'c',
-  rust_args : nak_rust_args,
-  dependencies : [
-    dep_paste,
-    idep_nvidia_headers_rs,
-  ],
-  link_with: [
-    _libbitview_rs,
-    _libnak_bindings_rs,
-  ],
-)
-
 _libnak_rs = static_library(
   'nak_rs',
   files('nak/lib.rs'),
@@ -184,11 +168,14 @@ _libnak_rs = static_library(
     # Otherwise, rustc trips up on -pthread
     '-Clink-arg=-Wno-unused-command-line-argument',
   ],
-  link_with: [
+  dependencies : [
+    dep_paste,
+    idep_nvidia_headers_rs,
+  ],
+  link_with : [
     _libbitview_rs,
     _libnak_bindings_rs,
     _libnak_ir_proc_rs,
-    _libnak_qmd_rs,
   ],
 )
 
@@ -209,7 +196,6 @@ if with_tests and get_option('b_sanitize') == 'none'
       idep_nouveau_ws,
       idep_compiler.partial_dependency(link_args : true, links : true),
       idep_mesautil.partial_dependency(link_args : true, links : true),
-      idep_nvidia_headers_rs,
       idep_nv_push_rs,
     ],
     link_with: [
