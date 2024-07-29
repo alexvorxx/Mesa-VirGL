@@ -393,7 +393,7 @@ gbm_dri_is_format_supported(struct gbm_device *gbm,
    }
 
    /* This returns false if the format isn't supported */
-   if (!dri->image->queryDmaBufModifiers(dri->screen, format, 0, NULL, NULL,
+   if (!dri_query_dma_buf_modifiers(dri->screen, format, 0, NULL, NULL,
                                          &count))
       return 0;
 
@@ -415,8 +415,7 @@ gbm_dri_get_format_modifier_plane_count(struct gbm_device *gbm,
    if (gbm_format_to_dri_format(format) == 0)
       return -1;
 
-   if (!dri->image->queryDmaBufFormatModifierAttribs(
-         dri->screen, format, modifier,
+   if (!dri2_query_dma_buf_format_modifier_attribs(dri->screen, format, modifier,
          __DRI_IMAGE_FORMAT_MODIFIER_ATTRIB_PLANE_COUNT, &plane_count))
       return -1;
 
@@ -441,14 +440,13 @@ gbm_dri_bo_write(struct gbm_bo *_bo, const void *buf, size_t count)
 static int
 gbm_dri_bo_get_fd(struct gbm_bo *_bo)
 {
-   struct gbm_dri_device *dri = gbm_dri_device(_bo->gbm);
    struct gbm_dri_bo *bo = gbm_dri_bo(_bo);
    int fd;
 
    if (bo->image == NULL)
       return -1;
 
-   if (!dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_FD, &fd))
+   if (!dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_FD, &fd))
       return -1;
 
    return fd;
@@ -463,7 +461,7 @@ get_number_planes(struct gbm_dri_device *dri, __DRIimage *image)
    if (!image)
       return 1;
 
-   dri->image->queryImage(image, __DRI_IMAGE_ATTRIB_NUM_PLANES, &num_planes);
+   dri2_query_image(image, __DRI_IMAGE_ATTRIB_NUM_PLANES, &num_planes);
 
    if (num_planes <= 0)
       num_planes = 1;
@@ -500,13 +498,13 @@ gbm_dri_bo_get_handle_for_plane(struct gbm_bo *_bo, int plane)
       return ret;
    }
 
-   __DRIimage *image = dri->image->fromPlanar(bo->image, plane, NULL);
+   __DRIimage *image = dri2_from_planar(bo->image, plane, NULL);
    if (image) {
-      dri->image->queryImage(image, __DRI_IMAGE_ATTRIB_HANDLE, &ret.s32);
-      dri->image->destroyImage(image);
+      dri2_query_image(image, __DRI_IMAGE_ATTRIB_HANDLE, &ret.s32);
+      dri2_destroy_image(image);
    } else {
       assert(plane == 0);
-      dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_HANDLE, &ret.s32);
+      dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_HANDLE, &ret.s32);
    }
 
    return ret;
@@ -539,13 +537,13 @@ gbm_dri_bo_get_plane_fd(struct gbm_bo *_bo, int plane)
       return -1;
    }
 
-   __DRIimage *image = dri->image->fromPlanar(bo->image, plane, NULL);
+   __DRIimage *image = dri2_from_planar(bo->image, plane, NULL);
    if (image) {
-      dri->image->queryImage(image, __DRI_IMAGE_ATTRIB_FD, &fd);
-      dri->image->destroyImage(image);
+      dri2_query_image(image, __DRI_IMAGE_ATTRIB_FD, &fd);
+      dri2_destroy_image(image);
    } else {
       assert(plane == 0);
-      dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_FD, &fd);
+      dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_FD, &fd);
    }
 
    return fd;
@@ -578,13 +576,13 @@ gbm_dri_bo_get_stride(struct gbm_bo *_bo, int plane)
       return _bo->v0.stride;
    }
 
-   image = dri->image->fromPlanar(bo->image, plane, NULL);
+   image = dri2_from_planar(bo->image, plane, NULL);
    if (image) {
-      dri->image->queryImage(image, __DRI_IMAGE_ATTRIB_STRIDE, &stride);
-      dri->image->destroyImage(image);
+      dri2_query_image(image, __DRI_IMAGE_ATTRIB_STRIDE, &stride);
+      dri2_destroy_image(image);
    } else {
       assert(plane == 0);
-      dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_STRIDE, &stride);
+      dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_STRIDE, &stride);
    }
 
    return (uint32_t)stride;
@@ -606,13 +604,13 @@ gbm_dri_bo_get_offset(struct gbm_bo *_bo, int plane)
       return 0;
    }
 
-   __DRIimage *image = dri->image->fromPlanar(bo->image, plane, NULL);
+   __DRIimage *image = dri2_from_planar(bo->image, plane, NULL);
    if (image) {
-      dri->image->queryImage(image, __DRI_IMAGE_ATTRIB_OFFSET, &offset);
-      dri->image->destroyImage(image);
+      dri2_query_image(image, __DRI_IMAGE_ATTRIB_OFFSET, &offset);
+      dri2_destroy_image(image);
    } else {
       assert(plane == 0);
-      dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_OFFSET, &offset);
+      dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_OFFSET, &offset);
    }
 
    return (uint32_t)offset;
@@ -621,7 +619,6 @@ gbm_dri_bo_get_offset(struct gbm_bo *_bo, int plane)
 static uint64_t
 gbm_dri_bo_get_modifier(struct gbm_bo *_bo)
 {
-   struct gbm_dri_device *dri = gbm_dri_device(_bo->gbm);
    struct gbm_dri_bo *bo = gbm_dri_bo(_bo);
 
    /* Dumb buffers have no modifiers */
@@ -630,13 +627,13 @@ gbm_dri_bo_get_modifier(struct gbm_bo *_bo)
 
    uint64_t ret = 0;
    int mod;
-   if (!dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_MODIFIER_UPPER,
+   if (!dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_MODIFIER_UPPER,
                                &mod))
       return DRM_FORMAT_MOD_INVALID;
 
    ret = (uint64_t)mod << 32;
 
-   if (!dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_MODIFIER_LOWER,
+   if (!dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_MODIFIER_LOWER,
                                &mod))
       return DRM_FORMAT_MOD_INVALID;
 
@@ -653,7 +650,7 @@ gbm_dri_bo_destroy(struct gbm_bo *_bo)
    struct drm_mode_destroy_dumb arg;
 
    if (bo->image != NULL) {
-      dri->image->destroyImage(bo->image);
+      dri2_destroy_image(bo->image);
    } else {
       gbm_dri_bo_unmap_dumb(bo);
       memset(&arg, 0, sizeof(arg));
@@ -696,7 +693,7 @@ gbm_dri_bo_import(struct gbm_device *gbm,
          return NULL;
       }
 
-      image = dri->image->dupImage(wb->driver_buffer, NULL);
+      image = dri2_dup_image(wb->driver_buffer, NULL);
 
       /* GBM_FORMAT_* is identical to WL_DRM_FORMAT_*, so no conversion
        * required. */
@@ -717,11 +714,11 @@ gbm_dri_bo_import(struct gbm_device *gbm,
          return NULL;
       }
       image = dri->lookup_image_validated(buffer, dri->lookup_user_data);
-      image = dri->image->dupImage(image, NULL);
-      dri->image->queryImage(image, __DRI_IMAGE_ATTRIB_FOURCC, &gbm_format);
+      image = dri2_dup_image(image, NULL);
+      dri2_query_image(image, __DRI_IMAGE_ATTRIB_FOURCC, &gbm_format);
       if (gbm_format == DRM_FORMAT_INVALID) {
          errno = EINVAL;
-         dri->image->destroyImage(image);
+         dri2_destroy_image(image);
          return NULL;
       }
       break;
@@ -792,7 +789,7 @@ gbm_dri_bo_import(struct gbm_device *gbm,
 
    bo = calloc(1, sizeof *bo);
    if (bo == NULL) {
-      dri->image->destroyImage(image);
+      dri2_destroy_image(image);
       return NULL;
    }
 
@@ -802,9 +799,9 @@ gbm_dri_bo_import(struct gbm_device *gbm,
       dri_use |= __DRI_IMAGE_USE_SCANOUT;
    if (usage & GBM_BO_USE_CURSOR)
       dri_use |= __DRI_IMAGE_USE_CURSOR;
-   if (!dri->image->validateUsage(bo->image, dri_use)) {
+   if (!dri2_validate_usage(bo->image, dri_use)) {
       errno = EINVAL;
-      dri->image->destroyImage(bo->image);
+      dri2_destroy_image(bo->image);
       free(bo);
       return NULL;
    }
@@ -812,13 +809,13 @@ gbm_dri_bo_import(struct gbm_device *gbm,
    bo->base.gbm = gbm;
    bo->base.v0.format = gbm_format;
 
-   dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_WIDTH,
+   dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_WIDTH,
                           (int*)&bo->base.v0.width);
-   dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_HEIGHT,
+   dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_HEIGHT,
                           (int*)&bo->base.v0.height);
-   dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_STRIDE,
+   dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_STRIDE,
                           (int*)&bo->base.v0.stride);
-   dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_HANDLE,
+   dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_HANDLE,
                           &bo->base.v0.handle.s32);
 
    return &bo->base;
@@ -961,7 +958,7 @@ gbm_dri_bo_create(struct gbm_device *gbm,
       /* Find how many acceptable modifiers there are for our rate. If there
        * are none, fall back to no compression, as it is not mandatory to use
        * the specified compression rate. */
-      if (!dri->image->queryCompressionModifiers(dri->screen, format, comp,
+      if (!dri2_query_compression_modifiers(dri->screen, format, comp,
                                                  0, NULL, &count_comp) ||
          count_comp == 0) {
          if (comp == __DRI_FIXED_RATE_COMPRESSION_NONE) {
@@ -970,7 +967,7 @@ gbm_dri_bo_create(struct gbm_device *gbm,
          }
 
          comp = __DRI_FIXED_RATE_COMPRESSION_NONE;
-         if (!dri->image->queryCompressionModifiers(dri->screen, format, comp,
+         if (!dri2_query_compression_modifiers(dri->screen, format, comp,
                                                     0, NULL, &count_comp)) {
             errno = EINVAL;
             goto failed;
@@ -989,7 +986,7 @@ gbm_dri_bo_create(struct gbm_device *gbm,
          goto failed;
       }
 
-      if (!dri->image->queryCompressionModifiers(dri->screen, format, comp,
+      if (!dri2_query_compression_modifiers(dri->screen, format, comp,
                                                  count_comp, mods_comp,
                                                  &count_comp)) {
          errno = ENOMEM;
@@ -1023,9 +1020,9 @@ gbm_dri_bo_create(struct gbm_device *gbm,
    free(mods_filtered);
    mods_filtered = NULL;
 
-   dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_HANDLE,
+   dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_HANDLE,
                           &bo->base.v0.handle.s32);
-   dri->image->queryImage(bo->image, __DRI_IMAGE_ATTRIB_STRIDE,
+   dri2_query_image(bo->image, __DRI_IMAGE_ATTRIB_STRIDE,
                           (int *) &bo->base.v0.stride);
 
    return &bo->base;
@@ -1066,7 +1063,7 @@ gbm_dri_bo_map(struct gbm_bo *_bo,
    mtx_unlock(&dri->mutex);
 
    /* GBM flags and DRI flags are the same, so just pass them on */
-   return dri->image->mapImage(dri->context, bo->image, x, y,
+   return dri2_map_image(dri->context, bo->image, x, y,
                                width, height, flags, (int *)stride,
                                map_data);
 }
@@ -1087,7 +1084,7 @@ gbm_dri_bo_unmap(struct gbm_bo *_bo, void *map_data)
    if (!dri->context || !dri->image->unmapImage)
       return;
 
-   dri->image->unmapImage(dri->context, bo->image, map_data);
+   dri2_unmap_image(dri->context, bo->image, map_data);
 
    /*
     * Not all DRI drivers use direct maps. They may queue up DMA operations
