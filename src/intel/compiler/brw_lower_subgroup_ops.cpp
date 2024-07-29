@@ -121,6 +121,135 @@ brw_get_reduction_info(brw_reduce_op red_op, brw_reg_type type)
    return info;
 }
 
+static void
+brw_emit_scan_step(const fs_builder &bld, enum opcode opcode, brw_conditional_mod mod,
+                   const brw_reg &tmp,
+                   unsigned left_offset, unsigned left_stride,
+                   unsigned right_offset, unsigned right_stride)
+{
+   brw_reg left, right;
+   left = horiz_stride(horiz_offset(tmp, left_offset), left_stride);
+   right = horiz_stride(horiz_offset(tmp, right_offset), right_stride);
+   if ((tmp.type == BRW_TYPE_Q || tmp.type == BRW_TYPE_UQ) &&
+       (!bld.shader->devinfo->has_64bit_int || bld.shader->devinfo->ver >= 20)) {
+      switch (opcode) {
+      case BRW_OPCODE_MUL:
+         /* This will get lowered by integer MUL lowering */
+         set_condmod(mod, bld.emit(opcode, right, left, right));
+         break;
+
+      case BRW_OPCODE_SEL: {
+         /* In order for the comparisons to work out right, we need our
+          * comparisons to be strict.
+          */
+         assert(mod == BRW_CONDITIONAL_L || mod == BRW_CONDITIONAL_GE);
+         if (mod == BRW_CONDITIONAL_GE)
+            mod = BRW_CONDITIONAL_G;
+
+         /* We treat the bottom 32 bits as unsigned regardless of
+          * whether or not the integer as a whole is signed.
+          */
+         brw_reg right_low = subscript(right, BRW_TYPE_UD, 0);
+         brw_reg left_low = subscript(left, BRW_TYPE_UD, 0);
+
+         /* The upper bits get the same sign as the 64-bit type */
+         brw_reg_type type32 = brw_type_with_size(tmp.type, 32);
+         brw_reg right_high = subscript(right, type32, 1);
+         brw_reg left_high = subscript(left, type32, 1);
+
+         /* Build up our comparison:
+          *
+          *   l_hi < r_hi || (l_hi == r_hi && l_low < r_low)
+          */
+         bld.CMP(bld.null_reg_ud(), retype(left_low, BRW_TYPE_UD),
+                            retype(right_low, BRW_TYPE_UD), mod);
+         set_predicate(BRW_PREDICATE_NORMAL,
+                       bld.CMP(bld.null_reg_ud(), left_high, right_high,
+                           BRW_CONDITIONAL_EQ));
+         set_predicate_inv(BRW_PREDICATE_NORMAL, true,
+                           bld.CMP(bld.null_reg_ud(), left_high, right_high, mod));
+
+         /* We could use selects here or we could use predicated MOVs
+          * because the destination and second source (if it were a SEL)
+          * are the same.
+          */
+         set_predicate(BRW_PREDICATE_NORMAL, bld.MOV(right_low, left_low));
+         set_predicate(BRW_PREDICATE_NORMAL, bld.MOV(right_high, left_high));
+         break;
+      }
+
+      default:
+         unreachable("Unsupported 64-bit scan op");
+      }
+   } else {
+      set_condmod(mod, bld.emit(opcode, right, left, right));
+   }
+}
+
+static void
+brw_emit_scan(const fs_builder &bld, enum opcode opcode, const brw_reg &tmp,
+              unsigned cluster_size, brw_conditional_mod mod)
+{
+   unsigned dispatch_width = bld.dispatch_width();
+   assert(dispatch_width >= 8);
+
+   /* The instruction splitting code isn't advanced enough to split
+    * these so we need to handle that ourselves.
+    */
+   if (dispatch_width * brw_type_size_bytes(tmp.type) > 2 * REG_SIZE) {
+      const unsigned half_width = dispatch_width / 2;
+      const fs_builder ubld = bld.exec_all().group(half_width, 0);
+      brw_reg left = tmp;
+      brw_reg right = horiz_offset(tmp, half_width);
+      brw_emit_scan(ubld, opcode, left, cluster_size, mod);
+      brw_emit_scan(ubld, opcode, right, cluster_size, mod);
+      if (cluster_size > half_width) {
+         brw_emit_scan_step(ubld, opcode, mod, tmp,
+                            half_width - 1, 0, half_width, 1);
+      }
+      return;
+   }
+
+   if (cluster_size > 1) {
+      const fs_builder ubld = bld.exec_all().group(dispatch_width / 2, 0);
+      brw_emit_scan_step(ubld, opcode, mod, tmp, 0, 2, 1, 2);
+   }
+
+   if (cluster_size > 2) {
+      if (brw_type_size_bytes(tmp.type) <= 4) {
+         const fs_builder ubld =
+            bld.exec_all().group(dispatch_width / 4, 0);
+         brw_emit_scan_step(ubld, opcode, mod, tmp, 1, 4, 2, 4);
+         brw_emit_scan_step(ubld, opcode, mod, tmp, 1, 4, 3, 4);
+      } else {
+         /* For 64-bit types, we have to do things differently because
+          * the code above would land us with destination strides that
+          * the hardware can't handle.  Fortunately, we'll only be
+          * 8-wide in that case and it's the same number of
+          * instructions.
+          */
+         const fs_builder ubld = bld.exec_all().group(2, 0);
+         for (unsigned i = 0; i < dispatch_width; i += 4)
+            brw_emit_scan_step(ubld, opcode, mod, tmp, i + 1, 0, i + 2, 1);
+      }
+   }
+
+   for (unsigned i = 4;
+        i < MIN2(cluster_size, dispatch_width);
+        i *= 2) {
+      const fs_builder ubld = bld.exec_all().group(i, 0);
+      brw_emit_scan_step(ubld, opcode, mod, tmp, i - 1, 0, i, 1);
+
+      if (dispatch_width > i * 2)
+         brw_emit_scan_step(ubld, opcode, mod, tmp, i * 3 - 1, 0, i * 3, 1);
+
+      if (dispatch_width > i * 4) {
+         brw_emit_scan_step(ubld, opcode, mod, tmp, i * 5 - 1, 0, i * 5, 1);
+         brw_emit_scan_step(ubld, opcode, mod, tmp, i * 7 - 1, 0, i * 7, 1);
+      }
+   }
+}
+
 static bool
 brw_lower_reduce(fs_visitor &s, bblock_t *block, fs_inst *inst)
 {
@@ -147,7 +276,7 @@ brw_lower_reduce(fs_visitor &s, bblock_t *block, fs_inst *inst)
    brw_reg scan = bld.vgrf(src.type);
    bld.exec_all().emit(SHADER_OPCODE_SEL_EXEC, scan, src, info.identity);
 
-   bld.emit_scan(info.op, scan, cluster_size, info.cond_mod);
+   brw_emit_scan(bld, info.op, scan, cluster_size, info.cond_mod);
 
    if (cluster_size * brw_type_size_bytes(src.type) >= REG_SIZE * 2) {
       /* In this case, CLUSTER_BROADCAST instruction isn't needed because
@@ -208,7 +337,7 @@ brw_lower_scan(fs_visitor &s, bblock_t *block, fs_inst *inst)
       scan = shifted;
    }
 
-   bld.emit_scan(info.op, scan, s.dispatch_width, info.cond_mod);
+   brw_emit_scan(bld, info.op, scan, s.dispatch_width, info.cond_mod);
 
    bld.MOV(dst, scan);
 
