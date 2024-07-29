@@ -17,6 +17,8 @@ spec@amd_performance_monitor@vc4@test_counter_string_normal_buffer
 spec@amd_performance_monitor@vc4@test_counter_string_single_character_buffer
 spec@amd_performance_monitor@vc4@test_counter_string_small_buffer
 spec@arb_occlusion_query@occlusion_query_order
+spec@arb_texture_buffer_object@formats \(fs- arb\)@GL_ALPHA16F_ARB
+spec@arb_texture_buffer_object@formats \(fs- arb\)@GL_ALPHA32F_ARB
 spec@arb_texture_buffer_object@formats \(vs- arb\)@GL_ALPHA16F_ARB
 spec@arb_texture_buffer_object@formats \(vs- arb\)@GL_ALPHA32F_ARB
 spec@arb_texture_multisample@large-float-texture
