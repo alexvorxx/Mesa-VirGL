@@ -1042,9 +1042,11 @@ nir_visitor::visit(ir_call *ir)
       case ir_intrinsic_vote_all:
          op = nir_intrinsic_vote_all;
          break;
-      case ir_intrinsic_vote_eq:
-         op = nir_intrinsic_vote_ieq;
+      case ir_intrinsic_vote_eq: {
+         ir_rvalue *rvalue = (ir_rvalue *) ir->actual_parameters.get_head();
+         op = glsl_type_is_integer(rvalue->type) ? nir_intrinsic_vote_ieq : nir_intrinsic_vote_feq;
          break;
+      }
       case ir_intrinsic_ballot:
          op = nir_intrinsic_ballot;
          break;
@@ -1442,6 +1444,7 @@ nir_visitor::visit(ir_call *ir)
       case nir_intrinsic_begin_invocation_interlock:
       case nir_intrinsic_end_invocation_interlock:
       case nir_intrinsic_vote_ieq:
+      case nir_intrinsic_vote_feq:
       case nir_intrinsic_vote_any:
       case nir_intrinsic_vote_all:
       case nir_intrinsic_ballot:

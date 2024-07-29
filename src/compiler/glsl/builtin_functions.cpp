@@ -858,9 +858,30 @@ vote_ext(const _mesa_glsl_parse_state *state)
 }
 
 static bool
+vote_khr(const _mesa_glsl_parse_state *state)
+{
+   return state->KHR_shader_subgroup_vote_enable;
+}
+
+static bool
+vote_khr_and_fp64(const _mesa_glsl_parse_state *state)
+{
+   return vote_khr(state) && fp64(state);
+}
+
+static bool
 vote_or_v460_desktop(const _mesa_glsl_parse_state *state)
 {
-   return state->EXT_shader_group_vote_enable || state->ARB_shader_group_vote_enable || v460_desktop(state);
+   return state->KHR_shader_subgroup_vote_enable ||
+          state->EXT_shader_group_vote_enable ||
+          state->ARB_shader_group_vote_enable ||
+          v460_desktop(state);
+}
+
+static bool
+vote_or_v460_desktop_and_fp64(const _mesa_glsl_parse_state *state)
+{
+   return vote_or_v460_desktop(state) && fp64(state);
 }
 
 static bool
@@ -1533,6 +1554,28 @@ builtin_builder::create_shader()
 
 /** @} */
 
+#define FIUBD_AVAIL(func, avail, ...) \
+   func(&glsl_type_builtin_float, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_vec2, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_vec3, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_vec4, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_int, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_ivec2, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_ivec3, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_ivec4, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uint, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uvec2, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uvec3, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uvec4, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_bool, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_bvec2, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_bvec3, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_bvec4, avail, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_double, avail##_and_fp64, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_dvec2, avail##_and_fp64, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_dvec3, avail##_and_fp64, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_dvec4, avail##_and_fp64, ##__VA_ARGS__)
+
 /**
  * Create ir_function and ir_function_signature objects for each
  * intrinsic.
@@ -1739,8 +1782,7 @@ builtin_builder::create_intrinsics()
                                 ir_intrinsic_vote_any),
                 NULL);
    add_function("__intrinsic_vote_eq",
-                _vote_intrinsic(&glsl_type_builtin_bool, vote_or_v460_desktop,
-                                ir_intrinsic_vote_eq),
+                FIUBD_AVAIL(_vote_intrinsic, vote_or_v460_desktop, ir_intrinsic_vote_eq),
                 NULL);
 
    add_function("__intrinsic_ballot", _ballot_intrinsic(), NULL);
@@ -5713,6 +5755,13 @@ builtin_builder::create_builtins()
                 NULL);
 
    add_function("subgroupElect", _elect(), NULL);
+
+   add_function("subgroupAll",
+                _vote(&glsl_type_builtin_bool, vote_khr, "__intrinsic_vote_all"), NULL);
+   add_function("subgroupAny",
+                _vote(&glsl_type_builtin_bool, vote_khr, "__intrinsic_vote_any"), NULL);
+   add_function("subgroupAllEqual",
+                FIUBD_AVAIL(_vote, vote_khr, "__intrinsic_vote_eq"), NULL);
 
 #undef F
 #undef FI
