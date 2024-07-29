@@ -2324,14 +2324,6 @@ dri2_initialize_wayland_drm(_EGLDisplay *disp)
       }
    }
 
-   if (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu &&
-       dri2_dpy->image->blitImage == NULL) {
-      _eglLog(_EGL_WARNING, "wayland-egl: Different GPU selected, but the "
-                            "Image extension in the driver is not "
-                            "compatible. blitImage() is required");
-      goto cleanup;
-   }
-
    dri2_wl_add_configs_for_visuals(disp);
 
    dri2_set_WL_bind_wayland_display(disp);
