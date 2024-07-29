@@ -1083,7 +1083,7 @@ gbm_dri_bo_unmap(struct gbm_bo *_bo, void *map_data)
       return;
    }
 
-   if (!dri->context || !dri->image->unmapImage)
+   if (!dri->context)
       return;
 
    dri2_unmap_image(dri->context, bo->image, map_data);
