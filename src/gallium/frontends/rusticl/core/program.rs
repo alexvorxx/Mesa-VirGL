@@ -343,7 +343,7 @@ impl Program {
 
                     debug_assert!(
                         // `blob_read_*` doesn't advance the pointer on failure to read
-                        blob.current.offset_from(blob.data) == BIN_HEADER_SIZE_V1 as isize
+                        blob.current.byte_offset_from(blob.data) == BIN_HEADER_SIZE_V1 as isize
                             || blob.overrun,
                     );
 

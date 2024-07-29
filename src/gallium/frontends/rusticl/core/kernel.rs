@@ -1266,7 +1266,7 @@ impl Kernel {
             let mut globals: Vec<*mut u32> = Vec::with_capacity(resource_info.len());
             for (res, offset) in resource_info {
                 resources.push(res);
-                globals.push(unsafe { input.as_mut_ptr().add(offset) }.cast());
+                globals.push(unsafe { input.as_mut_ptr().byte_add(offset) }.cast());
             }
 
             let temp_cso;

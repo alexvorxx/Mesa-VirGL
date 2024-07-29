@@ -3,7 +3,6 @@ use mesa_rust_util::bitset;
 use mesa_rust_util::offset_of;
 
 use std::convert::TryInto;
-use std::ffi::c_void;
 use std::ffi::CString;
 use std::marker::PhantomData;
 use std::ptr;
@@ -34,8 +33,8 @@ impl<'a, T: 'a> Iterator for ExecListIter<'a, T> {
         if self.n.next.is_null() {
             None
         } else {
-            let t: *mut c_void = (self.n as *mut exec_node).cast();
-            Some(unsafe { &mut *(t.sub(self.offset).cast()) })
+            let t: *mut _ = self.n;
+            Some(unsafe { &mut *(t.byte_sub(self.offset).cast()) })
         }
     }
 }
