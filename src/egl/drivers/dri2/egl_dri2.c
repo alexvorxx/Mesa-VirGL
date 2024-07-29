@@ -732,6 +732,7 @@ dri2_setup_screen(_EGLDisplay *disp)
 #ifdef HAVE_ANDROID_PLATFORM
    dri2_dpy->has_native_fence_fd = get_screen_param(disp, PIPE_CAP_NATIVE_FENCE_FD);
 #endif
+   dri2_dpy->has_compression_modifiers = pscreen->query_compression_rates && pscreen->query_compression_modifiers;
 
    /*
     * EGL 1.5 specification defines the default value to 1. Moreover,
@@ -3536,8 +3537,7 @@ dri2_query_supported_compression_rates(_EGLDisplay *disp, _EGLConfig *config,
    struct dri2_egl_config *conf = dri2_egl_config(config);
    enum __DRIFixedRateCompression dri_rates[rate_size];
 
-   if (dri2_dpy->image->base.version >= 22 &&
-       dri2_dpy->image->queryCompressionRates) {
+   if (dri2_dpy->has_compression_modifiers) {
       const __DRIconfig *dri_conf =
          dri2_get_dri_config(conf, EGL_WINDOW_BIT, EGL_GL_COLORSPACE_LINEAR);
       if (!dri2_query_compression_rates(

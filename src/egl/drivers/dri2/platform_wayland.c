@@ -952,7 +952,7 @@ get_surface_specific_modifiers(struct dri2_egl_surface *dri2_surf,
        !dri2_surf->wl_win)
       return NULL;
 
-   if (!dri2_dpy->image->queryCompressionModifiers(
+   if (!dri2_query_compression_modifiers(
           dri2_dpy->dri_screen_render_gpu, dri2_surf->format, rate,
           0, NULL, modifiers_count))
       return NULL;
@@ -961,7 +961,7 @@ get_surface_specific_modifiers(struct dri2_egl_surface *dri2_surf,
    if (!modifiers)
       return NULL;
 
-   if (!dri2_dpy->image->queryCompressionModifiers(
+   if (!dri2_query_compression_modifiers(
           dri2_dpy->dri_screen_render_gpu, dri2_surf->format, rate,
           *modifiers_count, modifiers, modifiers_count)) {
       free(modifiers);

@@ -266,6 +266,7 @@ struct dri2_egl_display {
     * dri2_make_current (tracks if there are active contexts/surfaces). */
    int ref_count;
 
+   bool has_compression_modifiers;
    bool own_device;
    bool invalidate_available;
    bool kopper;
