@@ -52,6 +52,7 @@ struct gbm_dri_device {
    char *driver_name; /* Name of the DRI module, without the _dri suffix */
    bool software; /* A software driver was loaded */
    bool swrast; /* this is swrast */
+   bool has_dmabuf_import;
 
    __DRIscreen *screen;
    __DRIcontext *context;

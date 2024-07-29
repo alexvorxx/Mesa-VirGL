@@ -50,6 +50,8 @@
 #include "util/u_debug.h"
 #include "util/macros.h"
 #include "dri_util.h"
+#include "pipe/p_screen.h"
+#include "dri_screen.h"
 
 /* For importing wl_buffer */
 #if HAVE_WAYLAND_PLATFORM
@@ -1235,6 +1237,13 @@ dri_device_create(int fd, uint32_t gbm_backend_version)
 
    if (ret)
       goto err_dri;
+
+   struct dri_screen *screen = dri_screen(dri->screen);
+   struct pipe_screen *pscreen = screen->base.screen;
+#ifdef HAVE_DRI3
+   if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_IMPORT)
+      dri->has_dmabuf_import = true;
+#endif
 
    return &dri->base;
 
