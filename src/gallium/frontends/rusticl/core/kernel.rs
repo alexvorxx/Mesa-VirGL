@@ -1153,7 +1153,7 @@ impl Kernel {
                         // TODO 32 bit
                         let pot = cmp::min(*size, 0x80);
                         variable_local_size =
-                            align(variable_local_size, pot.next_power_of_two() as u64);
+                            variable_local_size.next_multiple_of(pot.next_power_of_two() as u64);
                         if q.device.address_bits() == 64 {
                             let variable_local_size: [u8; 8] = variable_local_size.to_ne_bytes();
                             input.extend_from_slice(&variable_local_size);
