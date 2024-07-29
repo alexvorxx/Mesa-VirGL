@@ -310,7 +310,12 @@ nvk_mme_dispatch_indirect(struct mme_builder *b)
 
    mme_tu104_read_fifoed(b, dispatch_addr, mme_imm(3));
 
-   uint32_t qmd_size_offset = nak_qmd_dispatch_size_offset(b->devinfo);
+   struct nak_qmd_dispatch_size_layout qmd_size_layout =
+      nak_get_qmd_dispatch_size_layout(b->devinfo);
+   assert(qmd_size_layout.y_start == qmd_size_layout.x_start + 32);
+   assert(qmd_size_layout.z_start == qmd_size_layout.x_start + 64);
+   uint32_t qmd_size_offset = qmd_size_layout.x_start / 32;
+
    uint32_t root_desc_size_offset =
       offsetof(struct nvk_root_descriptor_table, cs.group_count);
 

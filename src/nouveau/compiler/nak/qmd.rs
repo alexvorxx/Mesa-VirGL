@@ -12,7 +12,7 @@ use paste::paste;
 type QMDBitView<'a> = BitMutView<'a, [u32]>;
 
 trait QMD {
-    const GLOBAL_SIZE_OFFSET: usize;
+    const GLOBAL_SIZE_LAYOUT: nak_qmd_dispatch_size_layout;
 
     fn new() -> Self;
     fn set_barrier_count(&mut self, barrier_count: u8);
@@ -64,10 +64,18 @@ macro_rules! qmd_impl_common {
             set_field!(bv, $c, $s, BARRIER_COUNT, barrier_count);
         }
 
-        const GLOBAL_SIZE_OFFSET: usize = {
+        const GLOBAL_SIZE_LAYOUT: nak_qmd_dispatch_size_layout = {
             let w = paste! {$c::[<$s _CTA_RASTER_WIDTH>]};
-            assert!(w.end == w.start + 32);
-            w.start / 8
+            let h = paste! {$c::[<$s _CTA_RASTER_HEIGHT>]};
+            let d = paste! {$c::[<$s _CTA_RASTER_DEPTH>]};
+            nak_qmd_dispatch_size_layout {
+                x_start: w.start as u16,
+                x_end: w.end as u16,
+                y_start: h.start as u16,
+                y_end: h.end as u16,
+                z_start: d.start as u16,
+                z_end: d.end as u16,
+            }
         };
 
         fn set_global_size(&mut self, width: u32, height: u32, depth: u32) {
@@ -412,20 +420,17 @@ pub extern "C" fn nak_fill_qmd(
 }
 
 #[no_mangle]
-pub extern "C" fn nak_qmd_dispatch_size_offset(
-    dev: *const nv_device_info,
-) -> u32 {
-    assert!(!dev.is_null());
-    let dev = unsafe { &*dev };
-
+pub extern "C" fn nak_get_qmd_dispatch_size_layout(
+    dev: &nv_device_info,
+) -> nak_qmd_dispatch_size_layout {
     if dev.cls_compute >= clc6c0::AMPERE_COMPUTE_A {
-        Qmd3_0::GLOBAL_SIZE_OFFSET.try_into().unwrap()
+        Qmd3_0::GLOBAL_SIZE_LAYOUT.try_into().unwrap()
     } else if dev.cls_compute >= clc3c0::VOLTA_COMPUTE_A {
-        Qmd2_2::GLOBAL_SIZE_OFFSET.try_into().unwrap()
+        Qmd2_2::GLOBAL_SIZE_LAYOUT.try_into().unwrap()
     } else if dev.cls_compute >= clc0c0::PASCAL_COMPUTE_A {
-        Qmd2_1::GLOBAL_SIZE_OFFSET.try_into().unwrap()
+        Qmd2_1::GLOBAL_SIZE_LAYOUT.try_into().unwrap()
     } else if dev.cls_compute >= cla0c0::KEPLER_COMPUTE_A {
-        Qmd0_6::GLOBAL_SIZE_OFFSET.try_into().unwrap()
+        Qmd0_6::GLOBAL_SIZE_LAYOUT.try_into().unwrap()
     } else {
         panic!("Unsupported shader model");
     }

@@ -205,7 +205,14 @@ void nak_fill_qmd(const struct nv_device_info *dev,
                   const struct nak_qmd_info *qmd_info,
                   void *qmd_out, size_t qmd_size);
 
-uint32_t nak_qmd_dispatch_size_offset(const struct nv_device_info *dev);
+struct nak_qmd_dispatch_size_layout {
+   uint16_t x_start, x_end;
+   uint16_t y_start, y_end;
+   uint16_t z_start, z_end;
+};
+
+struct nak_qmd_dispatch_size_layout
+nak_get_qmd_dispatch_size_layout(const struct nv_device_info *dev);
 
 #ifdef __cplusplus
 }
