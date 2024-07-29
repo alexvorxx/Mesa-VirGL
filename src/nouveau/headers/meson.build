@@ -70,9 +70,6 @@ executable(
 
 # Only generate Rust bindings for NVK
 if with_nouveau_vk
-  add_languages('rust', required: true)
-  rust = import('rust')
-
   cl_rs_generated = []
   foreach cl : nv_classes
     cl_rs_generated += custom_target(

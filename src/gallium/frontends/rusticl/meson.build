@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: MIT
 
 fs = import('fs')
-rust = import('rust')
 
 libmesa_rust_util_files = files(
   'util/lib.rs',

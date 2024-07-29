@@ -845,12 +845,15 @@ if with_gallium_rusticl
   if meson.version().version_compare('< 1.4.0')
     error('rusticl requires meson 1.4.0 or newer')
   endif
+endif
 
+if with_gallium_rusticl or with_nouveau_vk or with_tools.contains('etnaviv')
   add_languages('rust', required: true)
   rustc = meson.get_compiler('rust')
+  rust = import('rust')
 
   if rustc.version().version_compare('< 1.76')
-    error('rusticl requires Rust 1.76.0 or newer')
+    error('Mesa requires Rust 1.76.0 or newer')
   endif
 endif
 
