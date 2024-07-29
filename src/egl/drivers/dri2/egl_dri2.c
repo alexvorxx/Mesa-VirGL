@@ -729,6 +729,9 @@ dri2_setup_screen(_EGLDisplay *disp)
    dri2_dpy->has_modifiers = has_modifiers && util_bitcount(caps) == 2;
    dri2_dpy->has_dmabuf_import = has_modifiers && caps & DRM_PRIME_CAP_IMPORT;
 #endif
+#ifdef HAVE_ANDROID_PLATFORM
+   dri2_dpy->has_native_fence_fd = get_screen_param(disp, PIPE_CAP_NATIVE_FENCE_FD);
+#endif
 
    /*
     * EGL 1.5 specification defines the default value to 1. Moreover,

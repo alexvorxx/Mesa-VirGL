@@ -123,8 +123,7 @@ handle_in_fence_fd(struct dri2_egl_surface *dri2_surf, __DRIimage *img)
 
    validate_fence_fd(dri2_surf->in_fence_fd);
 
-   if (dri2_dpy->image->base.version >= 21 &&
-       dri2_dpy->image->setInFenceFd != NULL) {
+   if (dri2_dpy->has_native_fence_fd) {
       dri2_set_in_fence_fd(img, dri2_surf->in_fence_fd);
    } else {
       sync_wait(dri2_surf->in_fence_fd, -1);
