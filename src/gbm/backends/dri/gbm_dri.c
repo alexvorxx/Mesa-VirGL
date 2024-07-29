@@ -1092,7 +1092,7 @@ gbm_dri_bo_unmap(struct gbm_bo *_bo, void *map_data)
     * on the mapping context. Since there is no explicit gbm flush
     * mechanism, we need to flush here.
     */
-   dri->flush->flush_with_flags(dri->context, NULL, __DRI2_FLUSH_CONTEXT, 0);
+   dri_flush(dri->context, NULL, __DRI2_FLUSH_CONTEXT, 0);
 }
 
 
