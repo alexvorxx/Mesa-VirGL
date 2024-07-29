@@ -201,6 +201,7 @@ symbolic links for drivers). To install:
 After installation, you can check if the installation happened properly or not by running the command:
 
 .. code-block:: sh
+
    glxinfo | grep OpenGL
 
 If the installation succeeded, you should see the Mesa devel version and also the commit hash of the latest commit.
@@ -208,6 +209,7 @@ If the installation succeeded, you should see the Mesa devel version and also th
 In case you don't see the devel version, you can run
 
 .. code-block:: sh
+
    sudo ldconfig
 
 Windows specific instructions
