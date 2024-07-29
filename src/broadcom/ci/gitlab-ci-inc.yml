@@ -151,6 +151,7 @@
   script:
     - ./install/bare-metal/poe-powered.sh
   variables:
+    BOOT_PHASE_TIMEOUT_SECONDS: 90
     HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
     FLAKES_CHANNEL: "#videocore-ci"
     FARM: igalia
