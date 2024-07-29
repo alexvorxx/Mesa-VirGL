@@ -338,6 +338,28 @@ mme_fermi_umul_32x32_32_to_free_srcs(struct mme_builder *b,
       mme_srl_to(b, x, x, mme_imm(1u));
       mme_sll_to(b, y, y, mme_imm(1u));
    }
+   mme_free_reg(b, x);
+   mme_free_reg(b, y);
+}
+
+void
+mme_fermi_umul_32x64_64_to_free_srcs(struct mme_builder *b,
+                                     struct mme_value64 dst,
+                                     struct mme_value x,
+                                     struct mme_value64 y)
+{
+   mme_while (b, ine, x, mme_zero()) {
+      struct mme_value lsb = mme_and(b, x, mme_imm(1));
+      mme_if (b, ine, lsb, mme_zero()) {
+         mme_add64_to(b, dst, dst, y);
+      }
+      mme_free_reg(b, lsb);
+      mme_srl_to(b, x, x, mme_imm(1u));
+      /* y = y << 1 */
+      mme_add64_to(b, y, y, y);
+   }
+   mme_free_reg(b, x);
+   mme_free_reg64(b, y);
 }
 
 static struct mme_value

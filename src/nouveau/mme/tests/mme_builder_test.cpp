@@ -205,7 +205,7 @@ static const uint32_t mul_cases[] = {
    0xfffe0000,
 };
 
-TEST_F(mme_builder_test, mul)
+TEST_F(mme_builder_test, mul_32x32_32)
 {
    for (auto sim : sims) {
       mme_builder b;
@@ -214,7 +214,7 @@ TEST_F(mme_builder_test, mul)
       mme_value x = mme_load(&b);
       mme_value y = mme_load(&b);
 
-      sim->mme_store_data(&b, 0, mme_mul(&b, x, y));
+      sim->mme_store_data(&b, 0, mme_mul_32x32_32_free_srcs(&b, x, y));
 
       auto macro = mme_builder_finish_vec(&b);
 
@@ -226,6 +226,81 @@ TEST_F(mme_builder_test, mul)
 
             sim->run_macro(macro, params);
             ASSERT_EQ(sim->data[0], mul_cases[i] * mul_cases[j]);
+         }
+      }
+   }
+}
+
+TEST_F(mme_builder_test, umul_32x32_64)
+{
+   for (auto sim : sims) {
+      mme_builder b;
+      mme_builder_init(&b, sim->devinfo);
+
+      mme_value x = mme_load(&b);
+      mme_value y = mme_load(&b);
+
+      struct mme_value64 d = mme_umul_32x32_64_free_srcs(&b, x, y);
+
+      sim->mme_store_data(&b, 0, d.lo);
+      sim->mme_store_data(&b, 1, d.hi);
+
+      auto macro = mme_builder_finish_vec(&b);
+
+      for (uint32_t i = 0; i < ARRAY_SIZE(mul_cases); i++) {
+         for (uint32_t j = 0; j < ARRAY_SIZE(mul_cases); j++) {
+            std::vector<uint32_t> params;
+            params.push_back(mul_cases[i]);
+            params.push_back(mul_cases[j]);
+
+            sim->run_macro(macro, params);
+
+            uint64_t d = (uint64_t)mul_cases[i] * (uint64_t)mul_cases[j];
+            ASSERT_EQ(sim->data[0], (uint32_t)d);
+            ASSERT_EQ(sim->data[1], (uint32_t)(d >> 32));
+         }
+      }
+   }
+}
+
+TEST_F(mme_builder_test, umul_32x64_64)
+{
+   for (auto sim : sims) {
+      mme_builder b;
+      mme_builder_init(&b, sim->devinfo);
+
+      mme_value x = mme_load(&b);
+      struct mme_value64 y;
+      y.lo = mme_load(&b);
+      y.hi = mme_load(&b);
+
+      struct mme_value64 d = mme_umul_32x64_64_free_srcs(&b, x, y);
+
+      sim->mme_store_data(&b, 0, d.lo);
+      sim->mme_store_data(&b, 1, d.hi);
+
+      auto macro = mme_builder_finish_vec(&b);
+
+      for (uint32_t i = 0; i < ARRAY_SIZE(mul_cases); i++) {
+         for (uint32_t j = 0; j < ARRAY_SIZE(mul_cases); j++) {
+            for (uint32_t k = 0; k < ARRAY_SIZE(mul_cases); k++) {
+               std::vector<uint32_t> params;
+               params.push_back(mul_cases[i]);
+               params.push_back(mul_cases[j]);
+               params.push_back(mul_cases[k]);
+
+               sim->run_macro(macro, params);
+
+               uint32_t x = mul_cases[i];
+               uint32_t y_lo = mul_cases[j];
+               uint32_t y_hi = mul_cases[k];
+               uint64_t y = ((uint64_t)y_hi << 32) | (uint64_t)y_lo;
+
+               uint64_t d = x * y;
+
+               ASSERT_EQ(sim->data[0], (uint32_t)d);
+               ASSERT_EQ(sim->data[1], (uint32_t)(d >> 32));
+            }
          }
       }
    }
