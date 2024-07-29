@@ -383,7 +383,7 @@ gbm_dri_is_format_supported(struct gbm_device *gbm,
 
    /* If there is no query, fall back to the small table which was originally
     * here. */
-   if (!dri->image->queryDmaBufModifiers) {
+   if (!dri->has_dmabuf_import) {
       switch (format) {
       case GBM_FORMAT_XRGB8888:
       case GBM_FORMAT_ARGB8888:
@@ -410,7 +410,7 @@ gbm_dri_get_format_modifier_plane_count(struct gbm_device *gbm,
    struct gbm_dri_device *dri = gbm_dri_device(gbm);
    uint64_t plane_count;
 
-   if (!dri->image->queryDmaBufFormatModifierAttribs)
+   if (!dri->has_dmabuf_import)
       return -1;
 
    format = gbm_core.v0.format_canonicalize(format);
@@ -519,7 +519,7 @@ gbm_dri_bo_get_plane_fd(struct gbm_bo *_bo, int plane)
    struct gbm_dri_bo *bo = gbm_dri_bo(_bo);
    int fd = -1;
 
-   if (!dri->image || !dri->image->fromPlanar) {
+   if (!dri->has_dmabuf_import) {
       /* Preserve legacy behavior if plane is 0 */
       if (plane == 0)
          return gbm_dri_bo_get_fd(_bo);
@@ -559,7 +559,7 @@ gbm_dri_bo_get_stride(struct gbm_bo *_bo, int plane)
    __DRIimage *image;
    int stride = 0;
 
-   if (!dri->image || !dri->image->fromPlanar) {
+   if (!dri->has_dmabuf_import) {
       /* Preserve legacy behavior if plane is 0 */
       if (plane == 0)
          return _bo->v0.stride;
@@ -673,7 +673,7 @@ gbm_dri_bo_import(struct gbm_device *gbm,
    unsigned dri_use = 0;
    int gbm_format;
 
-   if (dri->image == NULL) {
+   if (!dri->has_dmabuf_import) {
       errno = ENOSYS;
       return NULL;
    }
