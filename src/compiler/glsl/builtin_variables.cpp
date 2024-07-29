@@ -532,6 +532,7 @@ private:
    const glsl_type * const vec3_t;
    const glsl_type * const vec4_t;
    const glsl_type * const uvec3_t;
+   const glsl_type * const uvec4_t;
    const glsl_type * const mat3_t;
    const glsl_type * const mat4_t;
 
@@ -549,7 +550,7 @@ builtin_variable_generator::builtin_variable_generator(
      uint64_t(&glsl_type_builtin_uint64_t),
      float_t(&glsl_type_builtin_float), vec2_t(&glsl_type_builtin_vec2),
      vec3_t(&glsl_type_builtin_vec3), vec4_t(&glsl_type_builtin_vec4),
-     uvec3_t(&glsl_type_builtin_uvec3),
+     uvec3_t(&glsl_type_builtin_uvec3), uvec4_t(&glsl_type_builtin_uvec4),
      mat3_t(&glsl_type_builtin_mat3), mat4_t(&glsl_type_builtin_mat4)
 {
 }
@@ -1117,6 +1118,19 @@ builtin_variable_generator::generate_special_vars()
       add_system_value(SYSTEM_VALUE_SUBGROUP_LE_MASK, uint64_t, "gl_SubGroupLeMaskARB");
       add_system_value(SYSTEM_VALUE_SUBGROUP_LT_MASK, uint64_t, "gl_SubGroupLtMaskARB");
    }
+
+   if (state->KHR_shader_subgroup_basic_enable) {
+      add_system_value(SYSTEM_VALUE_SUBGROUP_SIZE, uint_t, "gl_SubgroupSize");
+      add_system_value(SYSTEM_VALUE_SUBGROUP_INVOCATION, uint_t, "gl_SubgroupInvocationID");
+   }
+
+   if (state->KHR_shader_subgroup_ballot_enable) {
+      add_system_value(SYSTEM_VALUE_SUBGROUP_EQ_MASK, uvec4_t, "gl_SubgroupEqMask");
+      add_system_value(SYSTEM_VALUE_SUBGROUP_GE_MASK, uvec4_t, "gl_SubgroupGeMask");
+      add_system_value(SYSTEM_VALUE_SUBGROUP_GT_MASK, uvec4_t, "gl_SubgroupGtMask");
+      add_system_value(SYSTEM_VALUE_SUBGROUP_LE_MASK, uvec4_t, "gl_SubgroupLeMask");
+      add_system_value(SYSTEM_VALUE_SUBGROUP_LT_MASK, uvec4_t, "gl_SubgroupLtMask");
+   }
 }
 
 
@@ -1480,6 +1494,11 @@ builtin_variable_generator::generate_cs_special_vars()
                     uvec3_t, "gl_GlobalInvocationID");
    add_system_value(SYSTEM_VALUE_LOCAL_INVOCATION_INDEX,
                     uint_t, "gl_LocalInvocationIndex");
+
+   if (state->KHR_shader_subgroup_basic_enable) {
+      add_system_value(SYSTEM_VALUE_NUM_SUBGROUPS, uint_t, "gl_NumSubgroups");
+      add_system_value(SYSTEM_VALUE_SUBGROUP_ID, uint_t, "gl_SubgroupID");
+   }
 }
 
 
