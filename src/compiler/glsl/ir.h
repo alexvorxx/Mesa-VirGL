@@ -1132,6 +1132,13 @@ enum ir_intrinsic_id {
    ir_intrinsic_helper_invocation,
 
    ir_intrinsic_is_sparse_texels_resident,
+
+   ir_intrinsic_subgroup_barrier,
+   ir_intrinsic_subgroup_memory_barrier,
+   ir_intrinsic_subgroup_memory_barrier_buffer,
+   ir_intrinsic_subgroup_memory_barrier_shared,
+   ir_intrinsic_subgroup_memory_barrier_image,
+   ir_intrinsic_elect,
 };
 
 /*@{*/

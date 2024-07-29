@@ -1011,6 +1011,11 @@ nir_visitor::visit(ir_call *ir)
       case ir_intrinsic_memory_barrier_shared:
       case ir_intrinsic_memory_barrier_atomic_counter:
       case ir_intrinsic_group_memory_barrier:
+      case ir_intrinsic_subgroup_barrier:
+      case ir_intrinsic_subgroup_memory_barrier:
+      case ir_intrinsic_subgroup_memory_barrier_buffer:
+      case ir_intrinsic_subgroup_memory_barrier_shared:
+      case ir_intrinsic_subgroup_memory_barrier_image:
          op = nir_intrinsic_barrier;
          break;
       case ir_intrinsic_image_size:
@@ -1054,6 +1059,9 @@ nir_visitor::visit(ir_call *ir)
          break;
       case ir_intrinsic_is_sparse_texels_resident:
          op = nir_intrinsic_is_sparse_texels_resident;
+         break;
+      case ir_intrinsic_elect:
+         op = nir_intrinsic_elect;
          break;
       default:
          unreachable("not reached");
@@ -1274,6 +1282,12 @@ nir_visitor::visit(ir_call *ir)
           *
           *   https://www.khronos.org/registry/OpenGL/extensions/ARB/ARB_gl_spirv.txt
           */
+         if (ir->callee->intrinsic_id == ir_intrinsic_subgroup_barrier) {
+            nir_barrier(&b, SCOPE_SUBGROUP, SCOPE_SUBGROUP, NIR_MEMORY_ACQ_REL,
+                        nir_var_image | nir_var_mem_ssbo | nir_var_mem_shared | nir_var_mem_global);
+            break;
+         }
+
          mesa_scope scope;
          unsigned modes;
          switch (ir->callee->intrinsic_id) {
@@ -1314,6 +1328,26 @@ nir_visitor::visit(ir_call *ir)
              */
             scope = SCOPE_DEVICE;
             modes = nir_var_mem_ssbo;
+            break;
+         case ir_intrinsic_subgroup_memory_barrier:
+            scope = SCOPE_SUBGROUP;
+            modes = nir_var_image |
+                    nir_var_mem_ssbo |
+                    nir_var_mem_shared |
+                    nir_var_mem_global;
+            break;
+         case ir_intrinsic_subgroup_memory_barrier_buffer:
+            scope = SCOPE_SUBGROUP;
+            modes = nir_var_mem_ssbo |
+                    nir_var_mem_global;
+            break;
+         case ir_intrinsic_subgroup_memory_barrier_shared:
+            scope = SCOPE_SUBGROUP;
+            modes = nir_var_mem_shared;
+            break;
+         case ir_intrinsic_subgroup_memory_barrier_image:
+            scope = SCOPE_SUBGROUP;
+            modes = nir_var_image;
             break;
          default:
                unreachable("invalid intrinsic id for memory barrier");
@@ -1414,7 +1448,8 @@ nir_visitor::visit(ir_call *ir)
       case nir_intrinsic_read_invocation:
       case nir_intrinsic_read_first_invocation:
       case nir_intrinsic_is_helper_invocation:
-      case nir_intrinsic_is_sparse_texels_resident: {
+      case nir_intrinsic_is_sparse_texels_resident:
+      case nir_intrinsic_elect: {
          if (ir->return_deref) {
             const glsl_type *type = ir->return_deref->type;
             nir_def_init(&instr->instr, &instr->def, glsl_get_vector_elements(type),

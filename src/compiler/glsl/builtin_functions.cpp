@@ -1000,6 +1000,18 @@ derivatives_texture_cube_map_array_and_clamp(const _mesa_glsl_parse_state *state
    return derivatives_texture_cube_map_array(state) && state->ARB_sparse_texture_clamp_enable;
 }
 
+static bool
+subgroup_basic(const _mesa_glsl_parse_state *state)
+{
+   return state->KHR_shader_subgroup_basic_enable;
+}
+
+static bool
+compute_shader_and_subgroup_basic(const _mesa_glsl_parse_state *state)
+{
+   return state->stage == MESA_SHADER_COMPUTE && state->KHR_shader_subgroup_basic_enable;
+}
+
 /** @} */
 
 /******************************************************************************/
@@ -1393,6 +1405,14 @@ private:
    ir_function_signature *_helper_invocation_intrinsic();
    ir_function_signature *_helper_invocation();
 
+   ir_function_signature *_subgroup_barrier_intrinsic(enum ir_intrinsic_id id,
+                                                      builtin_available_predicate avail);
+   ir_function_signature *_subgroup_barrier(const char *intrinsic_name,
+                                            builtin_available_predicate avail);
+
+   ir_function_signature *_elect_intrinsic();
+   ir_function_signature *_elect();
+
 #undef B0
 #undef B1
 #undef B2
@@ -1759,6 +1779,28 @@ builtin_builder::create_intrinsics()
 
    add_function("__intrinsic_is_sparse_texels_resident",
                 _is_sparse_texels_resident_intrinsic(), NULL);
+
+   add_function("__intrinsic_subgroup_barrier",
+                _subgroup_barrier_intrinsic(ir_intrinsic_subgroup_barrier, subgroup_basic),
+                NULL);
+   add_function("__intrinsic_subgroup_memory_barrier",
+                _subgroup_barrier_intrinsic(ir_intrinsic_subgroup_memory_barrier,
+                                            subgroup_basic),
+                NULL);
+   add_function("__intrinsic_subgroup_memory_barrier_buffer",
+                _subgroup_barrier_intrinsic(ir_intrinsic_subgroup_memory_barrier_buffer,
+                                            subgroup_basic),
+                NULL);
+   add_function("__intrinsic_subgroup_memory_barrier_shared",
+                _subgroup_barrier_intrinsic(ir_intrinsic_subgroup_memory_barrier_shared,
+                                            compute_shader_and_subgroup_basic),
+                NULL);
+   add_function("__intrinsic_subgroup_memory_barrier_image",
+                _subgroup_barrier_intrinsic(ir_intrinsic_subgroup_memory_barrier_image,
+                                            subgroup_basic),
+                NULL);
+
+   add_function("__intrinsic_elect", _elect_intrinsic(), NULL);
 }
 
 /**
@@ -5650,6 +5692,23 @@ builtin_builder::create_builtins()
                                &glsl_type_builtin_uvec4),
                 NULL);
 
+   add_function("subgroupBarrier",
+                _subgroup_barrier("__intrinsic_subgroup_barrier", subgroup_basic), NULL);
+   add_function("subgroupMemoryBarrier",
+                _subgroup_barrier("__intrinsic_subgroup_memory_barrier", subgroup_basic), NULL);
+   add_function("subgroupMemoryBarrierBuffer",
+                _subgroup_barrier("__intrinsic_subgroup_memory_barrier_buffer", subgroup_basic),
+                NULL);
+   add_function("subgroupMemoryBarrierShared",
+                _subgroup_barrier("__intrinsic_subgroup_memory_barrier_shared",
+                                  compute_shader_and_subgroup_basic),
+                NULL);
+   add_function("subgroupMemoryBarrierImage",
+                _subgroup_barrier("__intrinsic_subgroup_memory_barrier_image", subgroup_basic),
+                NULL);
+
+   add_function("subgroupElect", _elect(), NULL);
+
 #undef F
 #undef FI
 #undef FIUDHF_VEC
@@ -8828,6 +8887,43 @@ builtin_builder::_helper_invocation()
 
    body.emit(call(shader->symbols->get_function("__intrinsic_helper_invocation"),
                   retval, sig->parameters));
+   body.emit(ret(retval));
+
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_subgroup_barrier_intrinsic(enum ir_intrinsic_id id,
+                                             builtin_available_predicate avail)
+{
+   MAKE_INTRINSIC(&glsl_type_builtin_void, id, avail, 0);
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_subgroup_barrier(const char *intrinsic_name,
+                                   builtin_available_predicate avail)
+{
+   MAKE_SIG(&glsl_type_builtin_void, avail, 0);
+   body.emit(call(shader->symbols->get_function(intrinsic_name), NULL, sig->parameters));
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_elect_intrinsic()
+{
+   MAKE_INTRINSIC(&glsl_type_builtin_bool, ir_intrinsic_elect, subgroup_basic, 0);
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_elect()
+{
+   MAKE_SIG(&glsl_type_builtin_bool, subgroup_basic, 0);
+
+   ir_variable *retval = body.make_temp(&glsl_type_builtin_bool, "retval");
+
+   body.emit(call(shader->symbols->get_function("__intrinsic_elect"), retval, sig->parameters));
    body.emit(ret(retval));
 
    return sig;
