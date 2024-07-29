@@ -813,30 +813,25 @@ dri2_setup_screen(_EGLDisplay *disp)
    capabilities = dri2_get_capabilities(dri2_dpy->dri_screen_render_gpu);
    disp->Extensions.MESA_drm_image = (capabilities & __DRI_IMAGE_CAP_GLOBAL_NAMES) != 0;
 
-   if (dri2_dpy->image) {
 #ifdef HAVE_LIBDRM
-      if (get_screen_param(disp, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT) {
-         disp->Extensions.MESA_image_dma_buf_export = true;
-      }
-#endif
-      disp->Extensions.MESA_x11_native_visual_id = EGL_TRUE;
+   if (get_screen_param(disp, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT)
+      disp->Extensions.MESA_image_dma_buf_export = true;
 
+   if (dri2_dpy->has_dmabuf_import) {
+      disp->Extensions.EXT_image_dma_buf_import = EGL_TRUE;
+      disp->Extensions.EXT_image_dma_buf_import_modifiers = EGL_TRUE;
+   }
+#endif
+   if (dri2_dpy->image) {
+      disp->Extensions.MESA_x11_native_visual_id = EGL_TRUE;
       disp->Extensions.EXT_surface_compression = EGL_TRUE;
       disp->Extensions.KHR_image_base = EGL_TRUE;
       disp->Extensions.KHR_gl_renderbuffer_image = EGL_TRUE;
       disp->Extensions.KHR_gl_texture_2D_image = EGL_TRUE;
       disp->Extensions.KHR_gl_texture_cubemap_image = EGL_TRUE;
-
-      if (get_screen_param(disp, PIPE_CAP_MAX_TEXTURE_3D_LEVELS) != 0)
-         disp->Extensions.KHR_gl_texture_3D_image = EGL_TRUE;
-
-#ifdef HAVE_LIBDRM
-      if (dri2_dpy->has_dmabuf_import) {
-         disp->Extensions.EXT_image_dma_buf_import = EGL_TRUE;
-         disp->Extensions.EXT_image_dma_buf_import_modifiers = EGL_TRUE;
-      }
-#endif
    }
+   if (get_screen_param(disp, PIPE_CAP_MAX_TEXTURE_3D_LEVELS) != 0)
+      disp->Extensions.KHR_gl_texture_3D_image = EGL_TRUE;
 
    if (dri2_dpy->flush_control)
       disp->Extensions.KHR_context_flush_control = EGL_TRUE;
