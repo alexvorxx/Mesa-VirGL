@@ -848,6 +848,10 @@ if with_gallium_rusticl
 
   add_languages('rust', required: true)
   rustc = meson.get_compiler('rust')
+
+  if rustc.version().version_compare('< 1.76')
+    error('rusticl requires Rust 1.76.0 or newer')
+  endif
 endif
 
 with_clover_spirv = with_gallium_clover and get_option('opencl-spirv')
