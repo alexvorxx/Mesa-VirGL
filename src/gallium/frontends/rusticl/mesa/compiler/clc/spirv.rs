@@ -79,7 +79,7 @@ unsafe extern "C" fn spirv_to_nir_msg_callback(
 
 fn create_clc_logger(msgs: &mut Vec<String>) -> clc_logger {
     clc_logger {
-        priv_: msgs as *mut Vec<String> as *mut c_void,
+        priv_: ptr::from_mut(msgs).cast(),
         error: Some(spirv_msg_callback),
         warning: Some(spirv_msg_callback),
     }
@@ -180,7 +180,7 @@ impl SPIRVBin {
 
     // TODO cache linking, parsing is around 25% of link time
     pub fn link(spirvs: &[&SPIRVBin], library: bool) -> (Option<Self>, String) {
-        let bins: Vec<_> = spirvs.iter().map(|s| &s.spirv as *const _).collect();
+        let bins: Vec<_> = spirvs.iter().map(|s| ptr::from_ref(&s.spirv)).collect();
 
         let linker_args = clc_linker_args {
             in_objs: bins.as_ptr(),
@@ -308,7 +308,7 @@ impl SPIRVBin {
 
         let debug = log.map(|log| spirv_to_nir_options__bindgen_ty_1 {
             func: Some(spirv_to_nir_msg_callback),
-            private_data: (log as *mut Vec<String>).cast(),
+            private_data: ptr::from_mut(log).cast(),
         });
 
         spirv_to_nir_options {

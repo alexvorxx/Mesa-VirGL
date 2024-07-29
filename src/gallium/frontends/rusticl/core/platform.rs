@@ -7,6 +7,7 @@ use mesa_rust_gen::*;
 use rusticl_opencl_gen::*;
 
 use std::env;
+use std::ptr;
 use std::ptr::addr_of;
 use std::ptr::addr_of_mut;
 use std::sync::Once;
@@ -124,7 +125,7 @@ fn load_env() {
 
 impl Platform {
     pub fn as_ptr(&self) -> cl_platform_id {
-        (self as *const Self) as cl_platform_id
+        ptr::from_ref(self) as cl_platform_id
     }
 
     pub fn get() -> &'static Self {

@@ -409,7 +409,7 @@ macro_rules! impl_cl_type_trait_base {
 
         impl std::hash::Hash for $t {
             fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-                (self as *const Self).hash(state);
+                std::ptr::from_ref(self).hash(state);
             }
         }
     };
