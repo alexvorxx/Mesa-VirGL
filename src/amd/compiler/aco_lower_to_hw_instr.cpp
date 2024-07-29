@@ -3010,6 +3010,8 @@ lower_to_hw_instr(Program* program)
       end_with_regs_block->kind &= ~block_kind_end_with_regs;
       exit_block->kind |= block_kind_end_with_regs;
    }
+
+   program->progress = CompilationProgress::after_lower_to_hw;
 }
 
 } // namespace aco

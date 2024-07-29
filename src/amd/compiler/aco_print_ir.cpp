@@ -1059,6 +1059,9 @@ aco_print_program(const Program* program, FILE* output, unsigned flags)
       flags |= print_kill;
       break;
    case CompilationProgress::after_ra: fprintf(output, "After RA:\n"); break;
+   case CompilationProgress::after_lower_to_hw:
+      fprintf(output, "After lowering to hw instructions:\n");
+      break;
    }
 
    print_stage(program->stage, output);

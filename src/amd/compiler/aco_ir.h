@@ -2013,6 +2013,7 @@ enum class CompilationProgress {
    after_isel,
    after_spilling,
    after_ra,
+   after_lower_to_hw,
 };
 
 class Program final {
