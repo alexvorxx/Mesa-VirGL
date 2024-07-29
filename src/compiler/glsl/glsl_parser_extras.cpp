@@ -602,7 +602,7 @@ struct _mesa_glsl_extension {
     * Predicate that checks whether the relevant extension is available for
     * this context.
     */
-   bool (*available_pred)(const struct gl_extensions *,
+   bool (*available_pred)(const _mesa_glsl_parse_state *,
                           gl_api api, uint8_t version);
 
    /**
@@ -632,13 +632,62 @@ struct _mesa_glsl_extension {
 /** Checks if the context supports a user-facing extension */
 #define EXT(name_str, driver_cap, ...) \
 static UNUSED bool \
-has_##name_str(const struct gl_extensions *exts, gl_api api, uint8_t version) \
+has_##name_str(const _mesa_glsl_parse_state *state, gl_api api, uint8_t version) \
 { \
-   return exts->driver_cap && (version >= \
+   return state->exts->driver_cap && (version >= \
           _mesa_extension_table[MESA_EXTENSION_##name_str].version[api]); \
 }
 #include "main/extensions_table.h"
 #undef EXT
+
+static unsigned
+mesa_stage_to_gl_stage_bit(unsigned stage)
+{
+   switch (stage) {
+   case MESA_SHADER_VERTEX:
+      return GL_VERTEX_SHADER_BIT;
+   case MESA_SHADER_TESS_CTRL:
+      return GL_TESS_CONTROL_SHADER_BIT;
+   case MESA_SHADER_TESS_EVAL:
+      return GL_TESS_EVALUATION_SHADER_BIT;
+   case MESA_SHADER_GEOMETRY:
+      return GL_GEOMETRY_SHADER_BIT;
+   case MESA_SHADER_FRAGMENT:
+      return GL_FRAGMENT_SHADER_BIT;
+   case MESA_SHADER_COMPUTE:
+      return GL_COMPUTE_SHADER_BIT;
+   default:
+      unreachable("glsl parser: invalid shader stage");
+   }
+}
+
+#define HAS_SUBGROUP_EXT(name, feature) \
+static bool \
+has_KHR_shader_subgroup_##name(const _mesa_glsl_parse_state *state, gl_api api, uint8_t version) \
+{ \
+   unsigned stage = mesa_stage_to_gl_stage_bit(state->stage); \
+   return state->exts->KHR_shader_subgroup && \
+      (version >= _mesa_extension_table[MESA_EXTENSION_KHR_shader_subgroup].version[api]) && \
+      (state->consts->ShaderSubgroupSupportedStages & stage) && \
+      (state->consts->ShaderSubgroupSupportedFeatures & GL_SUBGROUP_FEATURE_##feature##_BIT_KHR); \
+}
+
+HAS_SUBGROUP_EXT(basic, BASIC)
+HAS_SUBGROUP_EXT(vote, VOTE)
+HAS_SUBGROUP_EXT(arithmetic, ARITHMETIC)
+HAS_SUBGROUP_EXT(ballot, BALLOT)
+HAS_SUBGROUP_EXT(shuffle, SHUFFLE)
+HAS_SUBGROUP_EXT(shuffle_relative, SHUFFLE_RELATIVE)
+HAS_SUBGROUP_EXT(clustered, CLUSTERED)
+HAS_SUBGROUP_EXT(quad_, QUAD)
+
+static bool
+has_KHR_shader_subgroup_quad(const _mesa_glsl_parse_state *state, gl_api api, uint8_t version)
+{
+   return has_KHR_shader_subgroup_quad_(state, api, version) &&
+      ((state->stage == MESA_SHADER_FRAGMENT || state->stage == MESA_SHADER_COMPUTE) ||
+       state->consts->ShaderSubgroupQuadAllStages);
+}
 
 #define EXT(NAME)                                           \
    { "GL_" #NAME, false, has_##NAME,                        \
@@ -716,6 +765,14 @@ static const _mesa_glsl_extension _mesa_glsl_supported_extensions[] = {
    /* KHR extensions go here, sorted alphabetically.
     */
    EXT_AEP(KHR_blend_equation_advanced),
+   EXT(KHR_shader_subgroup_arithmetic),
+   EXT(KHR_shader_subgroup_ballot),
+   EXT(KHR_shader_subgroup_basic),
+   EXT(KHR_shader_subgroup_clustered),
+   EXT(KHR_shader_subgroup_quad),
+   EXT(KHR_shader_subgroup_shuffle),
+   EXT(KHR_shader_subgroup_shuffle_relative),
+   EXT(KHR_shader_subgroup_vote),
 
    /* OES extensions go here, sorted alphabetically.
     */
@@ -802,7 +859,7 @@ static const _mesa_glsl_extension _mesa_glsl_supported_extensions[] = {
 bool _mesa_glsl_extension::compatible_with_state(
       const _mesa_glsl_parse_state *state, gl_api api, uint8_t gl_version) const
 {
-   return this->available_pred(state->exts, api, gl_version);
+   return this->available_pred(state, api, gl_version);
 }
 
 /**
@@ -939,6 +996,23 @@ _mesa_glsl_process_extension(const char *name, YYLTYPE *name_locp,
                 */
                assert(extension->compatible_with_state(state, api, gl_version));
                extension->set_flags(state, behavior);
+            }
+         } else if (extension->available_pred == has_KHR_shader_subgroup_vote ||
+                    extension->available_pred == has_KHR_shader_subgroup_arithmetic ||
+                    extension->available_pred == has_KHR_shader_subgroup_ballot ||
+                    extension->available_pred == has_KHR_shader_subgroup_shuffle ||
+                    extension->available_pred == has_KHR_shader_subgroup_shuffle_relative ||
+                    extension->available_pred == has_KHR_shader_subgroup_clustered ||
+                    extension->available_pred == has_KHR_shader_subgroup_quad) {
+            /* GLSL KHR_shader_subgroup spec says when any of above subgroup extension
+             * is enabled, KHR_shader_subgroup_basic extension is also implicitly enabled.
+             */
+            for (unsigned i = 0; i < ARRAY_SIZE(_mesa_glsl_supported_extensions); ++i) {
+               const _mesa_glsl_extension *extension = &_mesa_glsl_supported_extensions[i];
+               if (extension->available_pred == has_KHR_shader_subgroup_basic) {
+                  assert(extension->compatible_with_state(state, api, gl_version));
+                  extension->set_flags(state, behavior);
+               }
             }
          }
       } else {
