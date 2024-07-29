@@ -282,12 +282,14 @@ struct dri2_egl_display {
    const __DRIextension **loader_extensions;
    const __DRIextension **driver_extensions;
 
+   bool has_dmabuf_import;
+   bool has_modifiers;
+   bool multibuffers_available;
 #ifdef HAVE_X11_PLATFORM
    xcb_connection_t *conn;
    xcb_screen_t *screen;
    bool swap_available;
 #ifdef HAVE_DRI3
-   bool multibuffers_available;
    struct loader_screen_resources screen_resources;
 #endif
 #endif

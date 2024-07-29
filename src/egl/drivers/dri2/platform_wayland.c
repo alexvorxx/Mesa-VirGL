@@ -2318,7 +2318,7 @@ dri2_initialize_wayland_drm(_EGLDisplay *disp)
        * supported by the driver. We deprecated the support to GEM names API, so
        * we bail out if the driver does not support Prime. */
       if (!(dri2_dpy->capabilities & WL_DRM_CAPABILITY_PRIME) ||
-          (dri2_dpy->image->createImageFromDmaBufs == NULL)) {
+          !dri2_dpy->has_dmabuf_import) {
          _eglLog(_EGL_WARNING, "wayland-egl: display does not support prime");
          goto cleanup;
       }

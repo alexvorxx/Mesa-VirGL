@@ -719,6 +719,17 @@ dri2_setup_screen(_EGLDisplay *disp)
    struct pipe_screen *pscreen = screen->base.screen;
    unsigned int api_mask = screen->api_mask;
 
+#ifdef HAVE_DRI3
+   bool has_modifiers = true;
+   if (disp->Platform == _EGL_PLATFORM_X11 ||
+       disp->Platform == _EGL_PLATFORM_XCB)
+      has_modifiers = dri2_dpy->multibuffers_available;
+   int caps = get_screen_param(disp, PIPE_CAP_DMABUF);
+   /* set if both import and export are suported */
+   dri2_dpy->has_modifiers = has_modifiers && util_bitcount(caps) == 2;
+   dri2_dpy->has_dmabuf_import = has_modifiers && caps & DRM_PRIME_CAP_IMPORT;
+#endif
+
    /*
     * EGL 1.5 specification defines the default value to 1. Moreover,
     * eglSwapInterval() is required to clamp requested value to the supported
@@ -800,8 +811,7 @@ dri2_setup_screen(_EGLDisplay *disp)
 
    if (dri2_dpy->image) {
 #ifdef HAVE_LIBDRM
-      if (dri2_dpy->image->base.version >= 11 &&
-          get_screen_param(disp, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT) {
+      if (get_screen_param(disp, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT) {
          disp->Extensions.MESA_image_dma_buf_export = true;
       }
 #endif
@@ -817,8 +827,7 @@ dri2_setup_screen(_EGLDisplay *disp)
          disp->Extensions.KHR_gl_texture_3D_image = EGL_TRUE;
 
 #ifdef HAVE_LIBDRM
-      if (dri2_dpy->image->base.version >= 8 &&
-          dri2_dpy->image->createImageFromDmaBufs) {
+      if (dri2_dpy->has_dmabuf_import) {
          disp->Extensions.EXT_image_dma_buf_import = EGL_TRUE;
          disp->Extensions.EXT_image_dma_buf_import_modifiers = EGL_TRUE;
       }
@@ -937,9 +946,7 @@ dri2_setup_extensions(_EGLDisplay *disp)
 #ifdef HAVE_X11_PLATFORM
    if (dri2_dpy->conn) {
       bool err;
-      dri2_dpy->multibuffers_available = x11_dri3_check_multibuffer(dri2_dpy->conn, &err) &&
-                                         !err &&
-                                         (dri2_dpy->image && dri2_dpy->image->base.version >= 15);
+      dri2_dpy->multibuffers_available = x11_dri3_check_multibuffer(dri2_dpy->conn, &err);
    }
 #endif
    if (disp->Options.Zink && !disp->Options.ForceSoftware &&
@@ -2598,8 +2605,7 @@ dri2_query_dma_buf_formats(_EGLDisplay *disp, EGLint max, EGLint *formats,
       goto fail;
    }
 
-   if (dri2_dpy->image->base.version < 15 ||
-       dri2_dpy->image->queryDmaBufFormats == NULL)
+   if (!dri2_dpy->has_dmabuf_import)
       goto fail;
 
    if (!dri_query_dma_buf_formats(dri2_dpy->dri_screen_render_gpu,
@@ -2646,8 +2652,7 @@ dri2_query_dma_buf_modifiers(_EGLDisplay *disp, EGLint format, EGLint max,
       return dri2_egl_error_unlock(dri2_dpy, EGL_BAD_PARAMETER,
                                    "invalid modifiers array");
 
-   if (dri2_dpy->image->base.version < 15 ||
-       dri2_dpy->image->queryDmaBufModifiers == NULL) {
+   if (!dri2_dpy->has_dmabuf_import) {
       mtx_unlock(&dri2_dpy->lock);
       return EGL_FALSE;
    }
@@ -3065,7 +3070,6 @@ dri2_bind_wayland_display_wl(_EGLDisplay *disp, struct wl_display *wl_dpy)
    };
    int flags = 0;
    char *device_name;
-   uint64_t cap;
 
    if (dri2_dpy->wl_server_drm)
       goto fail;
@@ -3076,9 +3080,7 @@ dri2_bind_wayland_display_wl(_EGLDisplay *disp, struct wl_display *wl_dpy)
    if (!device_name)
       goto fail;
 
-   if (drmGetCap(dri2_dpy->fd_render_gpu, DRM_CAP_PRIME, &cap) == 0 &&
-       cap == (DRM_PRIME_CAP_IMPORT | DRM_PRIME_CAP_EXPORT) &&
-       dri2_dpy->image->createImageFromDmaBufs != NULL)
+   if (dri2_dpy->has_modifiers)
       flags |= WAYLAND_DRM_PRIME;
 
    dri2_dpy->wl_server_drm =
