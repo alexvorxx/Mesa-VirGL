@@ -110,6 +110,16 @@ struct radeon_enc_pic {
    bool use_rc_per_pic_ex;
    bool av1_tile_splitting_legacy_flag;
 
+   union {
+      struct {
+         uint32_t vps:1;
+         uint32_t sps:1;
+         uint32_t pps:1;
+         uint32_t aud:1;
+      };
+      uint32_t value;
+   } header_flags;
+
    struct {
       struct {
          struct {

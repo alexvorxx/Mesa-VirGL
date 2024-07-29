@@ -487,6 +487,9 @@ static void radeon_vcn_enc_h264_get_param(struct radeon_encoder *enc,
    enc->enc_pic.is_idr = (pic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_IDR);
    enc->enc_pic.is_ltr = pic->is_ltr;
    enc->enc_pic.ltr_idx = pic->is_ltr ? pic->ltr_index : 0;
+   enc->enc_pic.header_flags.sps = pic->header_flags.sps;
+   enc->enc_pic.header_flags.pps = pic->header_flags.pps;
+   enc->enc_pic.header_flags.aud = pic->header_flags.aud;
    radeon_vcn_enc_h264_get_cropping_param(enc, pic);
    radeon_vcn_enc_h264_get_dbk_param(enc, pic);
    radeon_vcn_enc_h264_get_rc_param(enc, pic);
@@ -689,11 +692,6 @@ static void radeon_vcn_enc_hevc_get_metadata(struct radeon_encoder *enc,
 {
    memset (&enc->enc_pic.enc_sei, 0, sizeof(rvcn_enc_seidata_t));
 
-   if (!pic->header_flags.value) {
-      enc->enc_pic.enc_sei.flags.value = 0;
-      return;
-   }
-
    if (pic->header_flags.hdr_cll) {
       enc->enc_pic.enc_sei.flags.hdr_cll = 1;
       enc->enc_pic.enc_sei.hdr_cll = (rvcn_enc_sei_hdr_cll_t) {
@@ -770,6 +768,10 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
       pic->seq.sample_adaptive_offset_enabled_flag;
    enc->enc_pic.pcm_enabled_flag = pic->seq.pcm_enabled_flag;
    enc->enc_pic.sps_temporal_mvp_enabled_flag = pic->seq.sps_temporal_mvp_enabled_flag;
+   enc->enc_pic.header_flags.vps = pic->header_flags.vps;
+   enc->enc_pic.header_flags.sps = pic->header_flags.sps;
+   enc->enc_pic.header_flags.pps = pic->header_flags.pps;
+   enc->enc_pic.header_flags.aud = pic->header_flags.aud;
    radeon_vcn_enc_hevc_get_spec_misc_param(enc, pic);
    radeon_vcn_enc_hevc_get_dbk_param(enc, pic);
    radeon_vcn_enc_hevc_get_rc_param(enc, pic);
