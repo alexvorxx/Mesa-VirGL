@@ -1348,7 +1348,7 @@ dri2_create_image_khr_pixmap(_EGLDisplay *disp, _EGLContext *ctx,
 
    _eglInitImage(&dri2_img->base, disp);
 
-   dri2_img->dri_image = dri2_dpy->image->createImageFromNames(
+   dri2_img->dri_image = dri2_from_names(
       dri2_dpy->dri_screen_render_gpu, buffers_reply->width,
       buffers_reply->height, fourcc, (int *) &buffers[0].name, 1,
       (int *) &buffers[0].pitch, 0, dri2_img);

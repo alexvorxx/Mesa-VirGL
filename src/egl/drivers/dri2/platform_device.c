@@ -49,7 +49,7 @@ static __DRIimage *
 device_alloc_image(struct dri2_egl_display *dri2_dpy,
                    struct dri2_egl_surface *dri2_surf)
 {
-   return dri2_dpy->image->createImage(
+   return dri_create_image(
       dri2_dpy->dri_screen_render_gpu, dri2_surf->base.Width,
       dri2_surf->base.Height, dri2_surf->visual, NULL, 0, 0, NULL);
 }
@@ -57,11 +57,8 @@ device_alloc_image(struct dri2_egl_display *dri2_dpy,
 static void
 device_free_images(struct dri2_egl_surface *dri2_surf)
 {
-   struct dri2_egl_display *dri2_dpy =
-      dri2_egl_display(dri2_surf->base.Resource.Display);
-
    if (dri2_surf->front) {
-      dri2_dpy->image->destroyImage(dri2_surf->front);
+      dri2_destroy_image(dri2_surf->front);
       dri2_surf->front = NULL;
    }
 

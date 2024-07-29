@@ -2088,7 +2088,6 @@ dri2_create_image_khr_renderbuffer(_EGLDisplay *disp, _EGLContext *ctx,
                                    EGLClientBuffer buffer,
                                    const EGLint *attr_list)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
    GLuint renderbuffer = (GLuint)(uintptr_t)buffer;
    __DRIimage *dri_image;
@@ -2104,7 +2103,7 @@ dri2_create_image_khr_renderbuffer(_EGLDisplay *disp, _EGLContext *ctx,
    }
 
    unsigned error = ~0;
-   dri_image = dri2_dpy->image->createImageFromRenderbuffer(
+   dri_image = dri_create_image_from_renderbuffer(
       dri2_ctx->dri_context, renderbuffer, NULL, &error);
 
    assert(!!dri_image == (error == __DRI_IMAGE_ERROR_SUCCESS));
@@ -2165,9 +2164,9 @@ dri2_create_image_wayland_wl_buffer(_EGLDisplay *disp, _EGLContext *ctx,
       return NULL;
    }
 
-   dri_image = dri2_dpy->image->fromPlanar(buffer->driver_buffer, plane, NULL);
+   dri_image = dri2_from_planar(buffer->driver_buffer, plane, NULL);
    if (dri_image == NULL && plane == 0)
-      dri_image = dri2_dpy->image->dupImage(buffer->driver_buffer, NULL);
+      dri_image = dri2_dup_image(buffer->driver_buffer, NULL);
    if (dri_image == NULL) {
       _eglError(EGL_BAD_PARAMETER, "dri2_create_image_wayland_wl_buffer");
       return NULL;
@@ -2219,7 +2218,6 @@ dri2_create_image_khr_texture(_EGLDisplay *disp, _EGLContext *ctx,
                               EGLenum target, EGLClientBuffer buffer,
                               const EGLint *attr_list)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
    struct dri2_egl_image *dri2_img;
    GLuint texture = (GLuint)(uintptr_t)buffer;
@@ -2281,7 +2279,7 @@ dri2_create_image_khr_texture(_EGLDisplay *disp, _EGLContext *ctx,
 
    _eglInitImage(&dri2_img->base, disp);
 
-   dri2_img->dri_image = dri2_dpy->image->createImageFromTexture(
+   dri2_img->dri_image = dri2_create_from_texture(
       dri2_ctx->dri_context, gl_target, texture, depth, attrs.GLTextureLevel,
       &error, NULL);
    dri2_create_image_khr_texture_error(error);
@@ -2357,7 +2355,7 @@ dri2_create_image_mesa_drm_buffer(_EGLDisplay *disp, _EGLContext *ctx,
       return NULL;
    }
 
-   dri_image = dri2_dpy->image->createImageFromNames(
+   dri_image = dri2_from_names(
       dri2_dpy->dri_screen_render_gpu, attrs.Width, attrs.Height, fourcc,
       (int *) &name, 1, (int *) &pitch, 0, NULL);
 
@@ -2604,7 +2602,7 @@ dri2_query_dma_buf_formats(_EGLDisplay *disp, EGLint max, EGLint *formats,
        dri2_dpy->image->queryDmaBufFormats == NULL)
       goto fail;
 
-   if (!dri2_dpy->image->queryDmaBufFormats(dri2_dpy->dri_screen_render_gpu,
+   if (!dri_query_dma_buf_formats(dri2_dpy->dri_screen_render_gpu,
                                             max, formats, count))
       goto fail;
 
@@ -2654,7 +2652,7 @@ dri2_query_dma_buf_modifiers(_EGLDisplay *disp, EGLint format, EGLint max,
       return EGL_FALSE;
    }
 
-   if (dri2_dpy->image->queryDmaBufModifiers(
+   if (dri_query_dma_buf_modifiers(
           dri2_dpy->dri_screen_render_gpu, format, max, modifiers,
           (unsigned int *)external_only, count) == false)
       return dri2_egl_error_unlock(dri2_dpy, EGL_BAD_PARAMETER,
@@ -2732,7 +2730,7 @@ dri2_create_image_dma_buf(_EGLDisplay *disp, _EGLContext *ctx,
    if (attrs.ProtectedContent)
       flags |= __DRI_IMAGE_PROTECTED_CONTENT_FLAG;
 
-   dri_image = dri2_dpy->image->createImageFromDmaBufs(
+   dri_image = dri2_from_dma_bufs(
       dri2_dpy->dri_screen_render_gpu, attrs.Width, attrs.Height,
       attrs.DMABufFourCC.Value, modifier, fds, num_fds, pitches, offsets,
       attrs.DMABufYuvColorSpaceHint.Value, attrs.DMABufSampleRangeHint.Value,
@@ -2807,7 +2805,7 @@ dri2_create_drm_image_mesa(_EGLDisplay *disp, const EGLint *attr_list)
    _eglInitImage(&dri2_img->base, disp);
 
    dri2_img->dri_image =
-      dri2_dpy->image->createImage(dri2_dpy->dri_screen_render_gpu, attrs.Width,
+      dri_create_image(dri2_dpy->dri_screen_render_gpu, attrs.Width,
                                    attrs.Height, format, NULL, 0, dri_use, dri2_img);
    if (dri2_img->dri_image == NULL) {
       free(dri2_img);
@@ -2831,17 +2829,17 @@ dri2_export_drm_image_mesa(_EGLDisplay *disp, _EGLImage *img, EGLint *name,
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    struct dri2_egl_image *dri2_img = dri2_egl_image(img);
 
-   if (name && !dri2_dpy->image->queryImage(dri2_img->dri_image,
+   if (name && !dri2_query_image(dri2_img->dri_image,
                                             __DRI_IMAGE_ATTRIB_NAME, name))
       return dri2_egl_error_unlock(dri2_dpy, EGL_BAD_ALLOC,
                                    "dri2_export_drm_image_mesa");
 
    if (handle)
-      dri2_dpy->image->queryImage(dri2_img->dri_image,
+      dri2_query_image(dri2_img->dri_image,
                                   __DRI_IMAGE_ATTRIB_HANDLE, handle);
 
    if (stride)
-      dri2_dpy->image->queryImage(dri2_img->dri_image,
+      dri2_query_image(dri2_img->dri_image,
                                   __DRI_IMAGE_ATTRIB_STRIDE, stride);
 
    mtx_unlock(&dri2_dpy->lock);
@@ -2859,11 +2857,10 @@ dri2_export_drm_image_mesa(_EGLDisplay *disp, _EGLImage *img, EGLint *name,
 static bool
 dri2_can_export_dma_buf_image(_EGLDisplay *disp, _EGLImage *img)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_image *dri2_img = dri2_egl_image(img);
    EGLint fourcc;
 
-   if (!dri2_dpy->image->queryImage(dri2_img->dri_image,
+   if (!dri2_query_image(dri2_img->dri_image,
                                     __DRI_IMAGE_ATTRIB_FOURCC, &fourcc)) {
       return false;
    }
@@ -2885,13 +2882,13 @@ dri2_export_dma_buf_image_query_mesa(_EGLDisplay *disp, _EGLImage *img,
       return EGL_FALSE;
    }
 
-   dri2_dpy->image->queryImage(dri2_img->dri_image,
+   dri2_query_image(dri2_img->dri_image,
                                __DRI_IMAGE_ATTRIB_NUM_PLANES, &num_planes);
    if (nplanes)
       *nplanes = num_planes;
 
    if (fourcc)
-      dri2_dpy->image->queryImage(dri2_img->dri_image,
+      dri2_query_image(dri2_img->dri_image,
                                   __DRI_IMAGE_ATTRIB_FOURCC, fourcc);
 
    if (modifiers) {
@@ -2899,9 +2896,9 @@ dri2_export_dma_buf_image_query_mesa(_EGLDisplay *disp, _EGLImage *img,
       uint64_t modifier = DRM_FORMAT_MOD_INVALID;
       bool query;
 
-      query = dri2_dpy->image->queryImage(
+      query = dri2_query_image(
          dri2_img->dri_image, __DRI_IMAGE_ATTRIB_MODIFIER_UPPER, &mod_hi);
-      query &= dri2_dpy->image->queryImage(
+      query &= dri2_query_image(
          dri2_img->dri_image, __DRI_IMAGE_ATTRIB_MODIFIER_LOWER, &mod_lo);
       if (query)
          modifier = combine_u32_into_u64(mod_hi, mod_lo);
@@ -2934,23 +2931,23 @@ dri2_export_dma_buf_image_mesa(_EGLDisplay *disp, _EGLImage *img, int *fds,
     */
    if (fds) {
       /* Query nplanes so that we know how big the given array is. */
-      dri2_dpy->image->queryImage(dri2_img->dri_image,
+      dri2_query_image(dri2_img->dri_image,
                                   __DRI_IMAGE_ATTRIB_NUM_PLANES, &nplanes);
       memset(fds, -1, nplanes * sizeof(int));
    }
 
    /* rework later to provide multiple fds/strides/offsets */
    if (fds)
-      dri2_dpy->image->queryImage(dri2_img->dri_image, __DRI_IMAGE_ATTRIB_FD,
+      dri2_query_image(dri2_img->dri_image, __DRI_IMAGE_ATTRIB_FD,
                                   fds);
 
    if (strides)
-      dri2_dpy->image->queryImage(dri2_img->dri_image,
+      dri2_query_image(dri2_img->dri_image,
                                   __DRI_IMAGE_ATTRIB_STRIDE, strides);
 
    if (offsets) {
       int img_offset;
-      bool ret = dri2_dpy->image->queryImage(
+      bool ret = dri2_query_image(
          dri2_img->dri_image, __DRI_IMAGE_ATTRIB_OFFSET, &img_offset);
       if (ret)
          offsets[0] = img_offset;
@@ -3004,7 +3001,7 @@ dri2_destroy_image_khr(_EGLDisplay *disp, _EGLImage *image)
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    struct dri2_egl_image *dri2_img = dri2_egl_image(image);
 
-   dri2_dpy->image->destroyImage(dri2_img->dri_image);
+   dri2_destroy_image(dri2_img->dri_image);
    free(dri2_img);
 
    mtx_unlock(&dri2_dpy->lock);
@@ -3024,11 +3021,11 @@ dri2_wl_reference_buffer(void *user_data, uint32_t name, int fd,
    int dri_components = 0;
 
    if (fd == -1)
-      img = dri2_dpy->image->createImageFromNames(
+      img = dri2_from_names(
          dri2_dpy->dri_screen_render_gpu, buffer->width, buffer->height,
          buffer->format, (int *)&name, 1, buffer->stride, buffer->offset, NULL);
    else
-      img = dri2_dpy->image->createImageFromDmaBufs(
+      img = dri2_from_dma_bufs(
          dri2_dpy->dri_screen_render_gpu, buffer->width, buffer->height,
          buffer->format, DRM_FORMAT_MOD_INVALID, &fd, 1, buffer->stride,
          buffer->offset, 0, 0, 0, 0, 0, NULL, NULL);
@@ -3036,7 +3033,7 @@ dri2_wl_reference_buffer(void *user_data, uint32_t name, int fd,
    if (img == NULL)
       return;
 
-   dri2_dpy->image->queryImage(img, __DRI_IMAGE_ATTRIB_COMPONENTS,
+   dri2_query_image(img, __DRI_IMAGE_ATTRIB_COMPONENTS,
                                &dri_components);
 
    buffer->driver_format = NULL;
@@ -3045,7 +3042,7 @@ dri2_wl_reference_buffer(void *user_data, uint32_t name, int fd,
          buffer->driver_format = &wl_drm_components[i];
 
    if (buffer->driver_format == NULL)
-      dri2_dpy->image->destroyImage(img);
+      dri2_destroy_image(img);
    else
       buffer->driver_buffer = img;
 }
@@ -3053,10 +3050,7 @@ dri2_wl_reference_buffer(void *user_data, uint32_t name, int fd,
 static void
 dri2_wl_release_buffer(void *user_data, struct wl_drm_buffer *buffer)
 {
-   _EGLDisplay *disp = user_data;
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-
-   dri2_dpy->image->destroyImage(buffer->driver_buffer);
+   dri2_destroy_image(buffer->driver_buffer);
 }
 
 static EGLBoolean
@@ -3541,7 +3535,7 @@ dri2_query_supported_compression_rates(_EGLDisplay *disp, _EGLConfig *config,
        dri2_dpy->image->queryCompressionRates) {
       const __DRIconfig *dri_conf =
          dri2_get_dri_config(conf, EGL_WINDOW_BIT, EGL_GL_COLORSPACE_LINEAR);
-      if (!dri2_dpy->image->queryCompressionRates(
+      if (!dri2_query_compression_rates(
              dri2_dpy->dri_screen_render_gpu, dri_conf, rate_size, dri_rates,
              num_rate))
          return EGL_FALSE;

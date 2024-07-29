@@ -619,7 +619,7 @@ dri2_flush_drawable_for_swapbuffers(_EGLDisplay *disp, _EGLSurface *draw);
 const __DRIconfig *
 dri2_get_dri_config(struct dri2_egl_config *conf, EGLint surface_type,
                     EGLenum colorspace);
-
+#include "dri_util.h"
 static inline void
 dri2_set_WL_bind_wayland_display(_EGLDisplay *disp)
 {
@@ -632,7 +632,7 @@ dri2_set_WL_bind_wayland_display(_EGLDisplay *disp)
          int capabilities;
 
          capabilities =
-            dri2_dpy->image->getCapabilities(dri2_dpy->dri_screen_render_gpu);
+            dri2_get_capabilities(dri2_dpy->dri_screen_render_gpu);
          disp->Extensions.WL_bind_wayland_display =
             (capabilities & __DRI_IMAGE_CAP_GLOBAL_NAMES) != 0;
       } else {
