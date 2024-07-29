@@ -932,7 +932,7 @@ gbm_dri_bo_create(struct gbm_device *gbm,
 
    /* If the driver supports fixed-rate compression, filter the acceptable
     * modifiers by the compression rate. */
-   if (modifiers && dri->image->queryCompressionModifiers) {
+   if (modifiers && dri->has_compression_modifiers) {
       enum __DRIFixedRateCompression comp = __DRI_FIXED_RATE_COMPRESSION_NONE;
 
       switch (usage & GBM_BO_FIXED_COMPRESSION_MASK) {
@@ -1244,6 +1244,8 @@ dri_device_create(int fd, uint32_t gbm_backend_version)
    if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_IMPORT)
       dri->has_dmabuf_import = true;
 #endif
+   dri->has_compression_modifiers = pscreen->query_compression_rates &&
+                                    pscreen->query_compression_modifiers;
 
    return &dri->base;
 
