@@ -822,14 +822,13 @@ dri2_setup_screen(_EGLDisplay *disp)
       disp->Extensions.EXT_image_dma_buf_import_modifiers = EGL_TRUE;
    }
 #endif
-   if (dri2_dpy->image) {
-      disp->Extensions.MESA_x11_native_visual_id = EGL_TRUE;
-      disp->Extensions.EXT_surface_compression = EGL_TRUE;
-      disp->Extensions.KHR_image_base = EGL_TRUE;
-      disp->Extensions.KHR_gl_renderbuffer_image = EGL_TRUE;
-      disp->Extensions.KHR_gl_texture_2D_image = EGL_TRUE;
-      disp->Extensions.KHR_gl_texture_cubemap_image = EGL_TRUE;
-   }
+   disp->Extensions.MESA_x11_native_visual_id = EGL_TRUE;
+   disp->Extensions.EXT_surface_compression = EGL_TRUE;
+   disp->Extensions.KHR_image_base = EGL_TRUE;
+   disp->Extensions.KHR_gl_renderbuffer_image = EGL_TRUE;
+   disp->Extensions.KHR_gl_texture_2D_image = EGL_TRUE;
+   disp->Extensions.KHR_gl_texture_cubemap_image = EGL_TRUE;
+
    if (get_screen_param(disp, PIPE_CAP_MAX_TEXTURE_3D_LEVELS) != 0)
       disp->Extensions.KHR_gl_texture_3D_image = EGL_TRUE;
 
