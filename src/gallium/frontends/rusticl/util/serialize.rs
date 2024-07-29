@@ -7,5 +7,5 @@
 #[inline]
 pub unsafe fn as_byte_slice<T>(t: &[T]) -> &[u8] {
     let new_len = core::mem::size_of_val(t) / core::mem::size_of::<u8>();
-    unsafe { core::slice::from_raw_parts(t.as_ptr() as *const u8, new_len) }
+    unsafe { core::slice::from_raw_parts(t.as_ptr().cast(), new_len) }
 }

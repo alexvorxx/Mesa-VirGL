@@ -14,7 +14,7 @@ use std::os::raw::c_void;
 use std::ptr;
 use std::slice;
 
-const INPUT_STR: *const c_char = b"input.cl\0" as *const u8 as *const c_char;
+const INPUT_STR: *const c_char = b"input.cl\0".as_ptr().cast();
 
 pub enum SpecConstant {
     None,
