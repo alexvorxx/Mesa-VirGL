@@ -515,6 +515,8 @@ struct glx_screen
    bool allow_invalid_glx_destroy_window;
    bool keep_native_window_glx_drawable;
 
+   char *driverName;
+
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
     /**
      * Per screen direct rendering interface functions and data.

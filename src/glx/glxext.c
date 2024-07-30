@@ -742,6 +742,7 @@ glx_screen_cleanup(struct glx_screen *psc)
    free((char *) psc->serverGLXexts);
    free((char *) psc->serverGLXvendor);
    free((char *) psc->serverGLXversion);
+   free(psc->driverName);
 }
 
 /*

@@ -754,7 +754,6 @@ driswDestroyScreen(struct glx_screen *base)
    driDestroyScreen(psc->driScreen);
    driDestroyConfigs(psc->driver_configs);
    psc->driScreen = NULL;
-   free(psc->name);
    free(psc);
 }
 
@@ -762,7 +761,7 @@ static char *
 drisw_get_driver_name(struct glx_screen *glx_screen)
 {
    struct drisw_screen *psc = (struct drisw_screen *) glx_screen;
-   return strdup(psc->name);
+   return strdup(psc->base.driverName);
 }
 
 static const struct glx_screen_vtable drisw_screen_vtable = {
@@ -894,7 +893,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    extensions = driOpenDriver(driver, driver_name_is_inferred);
    if (extensions == NULL)
       goto handle_error;
-   psc->name = strdup(driver);
+   psc->base.driverName = strdup(driver);
 
    if (glx_driver)
       loader_extensions_local = kopper_extensions_noshm;

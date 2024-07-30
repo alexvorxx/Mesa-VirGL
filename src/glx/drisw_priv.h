@@ -42,7 +42,6 @@ struct drisw_screen
 
    const __DRIconfig **driver_configs;
 
-   char *name;
    bool kopper;
 };
 

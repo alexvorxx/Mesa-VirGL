@@ -589,7 +589,6 @@ dri2DestroyScreen(struct glx_screen *base)
    /* Free the direct rendering per screen data */
    driDestroyScreen(psc->driScreen);
    driDestroyConfigs(psc->driver_configs);
-   free(psc->driverName);
    close(psc->fd);
    free(psc);
 }
@@ -876,9 +875,7 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
 static char *
 dri2_get_driver_name(struct glx_screen *glx_screen)
 {
-    struct dri2_screen *psc = (struct dri2_screen *)glx_screen;
-
-    return psc->driverName;
+    return glx_screen->driverName;
 }
 
 static const struct glx_screen_vtable dri2_screen_vtable = {
@@ -950,7 +947,7 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
       free(driverName);
       driverName = loader_driverName;
    }
-   psc->driverName = driverName;
+   psc->base.driverName = driverName;
 
    extensions = driOpenDriver(driverName, driver_name_is_inferred);
    if (extensions == NULL)

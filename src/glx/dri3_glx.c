@@ -779,6 +779,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       ErrorMessageF("No driver found\n");
       goto handle_error;
    }
+   psc->base.driverName = driverName;
 
    if (!strcmp(driverName, "zink") && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false)) {
       *return_zink = true;
@@ -895,8 +896,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       }
    }
 
-   free(driverName);
-
    InfoMessageF("Using DRI3 for screen %d\n", screen);
 
    psc->prefer_back_buffer_reuse = 1;
@@ -931,7 +930,6 @@ handle_error:
    if (psc->fd_render_gpu >= 0)
       close(psc->fd_render_gpu);
 
-   free(driverName);
    glx_screen_cleanup(&psc->base);
    free(psc);
 
