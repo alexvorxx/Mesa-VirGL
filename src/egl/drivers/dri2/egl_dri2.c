@@ -710,9 +710,7 @@ dri2_setup_screen(_EGLDisplay *disp)
    disp->Extensions.KHR_no_config_context = EGL_TRUE;
    disp->Extensions.KHR_surfaceless_context = EGL_TRUE;
 
-   if (dri2_dpy->interop) {
-      disp->Extensions.MESA_gl_interop = EGL_TRUE;
-   }
+   disp->Extensions.MESA_gl_interop = EGL_TRUE;
 
    disp->Extensions.MESA_query_driver = EGL_TRUE;
 
@@ -3364,13 +3362,9 @@ static int
 dri2_interop_query_device_info(_EGLDisplay *disp, _EGLContext *ctx,
                                struct mesa_glinterop_device_info *out)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
 
-   if (!dri2_dpy->interop)
-      return MESA_GLINTEROP_UNSUPPORTED;
-
-   return dri2_dpy->interop->query_device_info(dri2_ctx->dri_context, out);
+   return dri_interop_query_device_info(dri2_ctx->dri_context, out);
 }
 
 static int
@@ -3378,13 +3372,9 @@ dri2_interop_export_object(_EGLDisplay *disp, _EGLContext *ctx,
                            struct mesa_glinterop_export_in *in,
                            struct mesa_glinterop_export_out *out)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
 
-   if (!dri2_dpy->interop)
-      return MESA_GLINTEROP_UNSUPPORTED;
-
-   return dri2_dpy->interop->export_object(dri2_ctx->dri_context, in, out);
+   return dri_interop_export_object(dri2_ctx->dri_context, in, out);
 }
 
 static int
@@ -3392,13 +3382,9 @@ dri2_interop_flush_objects(_EGLDisplay *disp, _EGLContext *ctx, unsigned count,
                            struct mesa_glinterop_export_in *objects,
                            struct mesa_glinterop_flush_out *out)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
 
-   if (!dri2_dpy->interop || dri2_dpy->interop->base.version < 2)
-      return MESA_GLINTEROP_UNSUPPORTED;
-
-   return dri2_dpy->interop->flush_objects(dri2_ctx->dri_context, count,
+   return dri_interop_flush_objects(dri2_ctx->dri_context, count,
                                            objects, out);
 }
 
