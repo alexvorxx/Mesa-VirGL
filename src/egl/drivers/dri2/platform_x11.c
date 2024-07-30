@@ -1115,7 +1115,7 @@ dri2_x11_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
       kopperSwapBuffers(dri2_surf->dri_drawable,
                                     __DRI2_FLUSH_INVALIDATE_ANCILLARY);
       return EGL_TRUE;
-   } else if (!dri2_dpy->flush) {
+   } else if (dri2_dpy->swrast) {
       /* aka the swrast path, which does the swap in the gallium driver. */
       driSwapBuffers(dri2_surf->dri_drawable);
       return EGL_TRUE;
