@@ -99,7 +99,7 @@ bti_multiplier(const struct apply_pipeline_layout_state *state,
    const struct anv_descriptor_set_binding_layout *bind_layout =
       &set_layout->binding[binding];
 
-   return bind_layout->max_plane_count == 0 ? 1 : bind_layout->max_plane_count;
+   return bind_layout->max_plane_count;
 }
 
 static nir_address_format
