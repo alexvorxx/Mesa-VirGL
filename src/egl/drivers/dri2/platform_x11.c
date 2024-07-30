@@ -1240,7 +1240,7 @@ dri2_x11_copy_buffers(_EGLDisplay *disp, _EGLSurface *surf,
    STATIC_ASSERT(sizeof(uintptr_t) == sizeof(native_pixmap_target));
    target = (uintptr_t)native_pixmap_target;
 
-   if (dri2_dpy->flush)
+   if (!dri2_dpy->swrast_not_kms)
       dri_flush_drawable(dri2_surf->dri_drawable);
    else {
       /* This should not be a swapBuffers, because it could present an
