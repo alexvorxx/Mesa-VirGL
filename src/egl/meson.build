@@ -6,7 +6,7 @@ inc_egl_dri2 = include_directories('drivers/dri2')
 
 c_args_for_egl = [asan_c_args]
 cpp_args_for_egl = []
-link_for_egl = []
+link_for_egl = [libpipe_loader_dynamic]
 if with_dri
   link_for_egl += libgallium_dri
 endif

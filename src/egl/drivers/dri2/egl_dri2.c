@@ -60,6 +60,7 @@
 #endif
 
 #include "GL/mesa_glinterop.h"
+#include "pipe-loader/pipe_loader.h"
 #include "loader/loader.h"
 #include "mapi/glapi/glapi.h"
 #include "pipe/p_screen.h"
@@ -693,7 +694,7 @@ dri2_query_driver_config(_EGLDisplay *disp)
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    char *ret;
 
-   ret = dri2_dpy->configOptions->getXml(dri2_dpy->driver_name);
+   ret = pipe_loader_get_driinfo_xml(dri2_dpy->driver_name);
 
    mtx_unlock(&dri2_dpy->lock);
 
@@ -762,9 +763,7 @@ dri2_setup_screen(_EGLDisplay *disp)
       disp->Extensions.MESA_gl_interop = EGL_TRUE;
    }
 
-   if (dri2_dpy->configOptions) {
-      disp->Extensions.MESA_query_driver = EGL_TRUE;
-   }
+   disp->Extensions.MESA_query_driver = EGL_TRUE;
 
    /* Report back to EGL the bitmask of priorities supported */
    disp->Extensions.IMG_context_priority =
