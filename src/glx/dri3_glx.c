@@ -664,11 +664,7 @@ static void
 dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
                      const char *driverName)
 {
-   const __DRIextension **extensions;
    unsigned mask;
-   int i;
-
-   extensions = driGetExtensions(psc->driScreenRenderGPU);
 
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control");
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control_tear");
@@ -700,11 +696,9 @@ dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
    if (psc->fd_render_gpu == psc->fd_display_gpu)
       __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
 
-   for (i = 0; extensions[i]; i++) {
-      if (strcmp(extensions[i]->name, __DRI2_ROBUSTNESS) == 0)
-         __glXEnableDirectExtension(&psc->base,
-                                    "GLX_ARB_create_context_robustness");
-   }
+   if (dri_get_screen_param(psc->driScreenRenderGPU, PIPE_CAP_DEVICE_RESET_STATUS_QUERY))
+      __glXEnableDirectExtension(&psc->base,
+                                 "GLX_ARB_create_context_robustness");
 
    __glXEnableDirectExtension(&psc->base, "GLX_ARB_context_flush_control");
    __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");

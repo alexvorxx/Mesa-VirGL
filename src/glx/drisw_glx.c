@@ -774,10 +774,8 @@ static const struct glx_screen_vtable drisw_screen_vtable = {
 };
 
 static void
-driswBindExtensions(struct drisw_screen *psc, const __DRIextension **extensions)
+driswBindExtensions(struct drisw_screen *psc)
 {
-   int i;
-
    __glXEnableDirectExtension(&psc->base, "GLX_SGI_make_current_read");
    __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context");
    __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context_profile");
@@ -793,12 +791,9 @@ driswBindExtensions(struct drisw_screen *psc, const __DRIextension **extensions)
    if (!(psc->base.display->driver & (GLX_DRIVER_ZINK_INFER | GLX_DRIVER_ZINK_YES)))
       __glXEnableDirectExtension(&psc->base, "GLX_MESA_copy_sub_buffer");
 
-   /* Extensions where we don't care about the extension struct */
-   for (i = 0; extensions[i]; i++) {
-      if (strcmp(extensions[i]->name, __DRI2_ROBUSTNESS) == 0)
-         __glXEnableDirectExtension(&psc->base,
-                                    "GLX_ARB_create_context_robustness");
-   }
+   if (dri_get_screen_param(psc->driScreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY))
+      __glXEnableDirectExtension(&psc->base,
+                                 "GLX_ARB_create_context_robustness");
 
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
    __glXEnableDirectExtension(&psc->base, "GLX_ARB_context_flush_control");
@@ -916,8 +911,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       goto handle_error;
    }
 
-   extensions = driGetExtensions(psc->driScreen);
-   driswBindExtensions(psc, extensions);
+   driswBindExtensions(psc);
 
    configs = driConvertConfigs(psc->base.configs, driver_configs);
    visuals = driConvertConfigs(psc->base.visuals, driver_configs);

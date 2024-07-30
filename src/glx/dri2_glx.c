@@ -827,10 +827,6 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
                    const char *driverName)
 {
    const unsigned mask = driGetAPIMask(psc->driScreen);
-   const __DRIextension **extensions;
-   int i;
-
-   extensions = driGetExtensions(psc->driScreen);
 
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control");
    __glXEnableDirectExtension(&psc->base, "GLX_SGI_swap_control");
@@ -866,12 +862,9 @@ dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
                                  "GLX_EXT_create_context_es2_profile");
    }
 
-   /* Extensions where we don't care about the extension struct */
-   for (i = 0; extensions[i]; i++) {
-      if (strcmp(extensions[i]->name, __DRI2_ROBUSTNESS) == 0)
-         __glXEnableDirectExtension(&psc->base,
-                                    "GLX_ARB_create_context_robustness");
-   }
+   if (dri_get_screen_param(psc->driScreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY))
+      __glXEnableDirectExtension(&psc->base,
+                                 "GLX_ARB_create_context_robustness");
 
    __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
    __glXEnableDirectExtension(&psc->base, "GLX_ARB_context_flush_control");
