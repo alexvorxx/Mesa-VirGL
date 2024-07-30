@@ -314,7 +314,7 @@ dri2_drm_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
 
-   if (!dri2_dpy->flush) {
+   if (dri2_dpy->swrast_not_kms) {
       driSwapBuffers(dri2_surf->dri_drawable);
       return EGL_TRUE;
    }
