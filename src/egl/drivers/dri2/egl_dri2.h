@@ -242,7 +242,6 @@ struct dri2_egl_display {
    __DRIscreen *dri_screen_display_gpu;
    bool own_dri_screen;
    const __DRIconfig **driver_configs;
-   const __DRI2fenceExtension *fence;
    const __DRI2blobExtension *blob;
    const __DRI2interopExtension *interop;
    const __DRImutableRenderBufferDriverExtension *mutable_render_buffer;
