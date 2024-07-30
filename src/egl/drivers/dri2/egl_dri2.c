@@ -1757,7 +1757,7 @@ dri2_swap_buffers(_EGLDisplay *disp, _EGLSurface *surf)
     * use again next time.
     */
    if (ret && disp->Extensions.KHR_partial_update)
-      dri2_dpy->buffer_damage->set_damage_region(dri_drawable, 0, NULL);
+      dri_set_damage_region(dri_drawable, 0, NULL);
 
    return ret;
 }
@@ -1783,7 +1783,7 @@ dri2_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *surf,
     * use again next time.
     */
    if (ret && disp->Extensions.KHR_partial_update)
-      dri2_dpy->buffer_damage->set_damage_region(dri_drawable, 0, NULL);
+      dri_set_damage_region(dri_drawable, 0, NULL);
 
    return ret;
 }
@@ -1804,7 +1804,7 @@ dri2_swap_buffers_region(_EGLDisplay *disp, _EGLSurface *surf, EGLint numRects,
     * use again next time.
     */
    if (ret && disp->Extensions.KHR_partial_update)
-      dri2_dpy->buffer_damage->set_damage_region(dri_drawable, 0, NULL);
+      dri_set_damage_region(dri_drawable, 0, NULL);
 
    return ret;
 }
@@ -1821,7 +1821,7 @@ dri2_set_damage_region(_EGLDisplay *disp, _EGLSurface *surf, EGLint *rects,
       return EGL_FALSE;
    }
 
-   dri2_dpy->buffer_damage->set_damage_region(drawable, n_rects, rects);
+   dri_set_damage_region(drawable, n_rects, rects);
    mtx_unlock(&dri2_dpy->lock);
    return EGL_TRUE;
 }
