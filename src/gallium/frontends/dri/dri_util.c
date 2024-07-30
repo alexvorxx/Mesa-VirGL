@@ -783,25 +783,6 @@ driDestroyDrawable(__DRIdrawable *pdp)
     dri_put_drawable(dri_drawable(pdp));
 }
 
-static __DRIbuffer *
-dri2AllocateBuffer(__DRIscreen *psp,
-                   unsigned int attachment, unsigned int format,
-                   int width, int height)
-{
-   struct dri_screen *screen = dri_screen(psp);
-
-   return screen->allocate_buffer(screen, attachment, format, width, height);
-}
-
-static void
-dri2ReleaseBuffer(__DRIscreen *psp, __DRIbuffer *buffer)
-{
-   struct dri_screen *screen = dri_screen(psp);
-
-   screen->release_buffer(buffer);
-}
-
-
 static int
 dri2ConfigQueryb(__DRIscreen *psp, const char *var, unsigned char *val)
 {
