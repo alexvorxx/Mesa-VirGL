@@ -244,11 +244,6 @@ void driDestroyScreen(__DRIscreen *psp)
     }
 }
 
-const __DRIextension **driGetExtensions(__DRIscreen *psp)
-{
-    return dri_screen(psp)->extensions;
-}
-
 /*@}*/
 
 /* WARNING: HACK: Local defines to avoid pulling glx.h.
@@ -956,7 +951,6 @@ const __DRIcoreExtension driCoreExtension = {
 
     .createNewScreen            = NULL,
     .destroyScreen              = driDestroyScreen,
-    .getExtensions              = driGetExtensions,
     .getConfigAttrib            = driGetConfigAttrib,
     .indexConfigAttrib          = driIndexConfigAttrib,
     .createNewDrawable          = NULL,

@@ -126,7 +126,6 @@ PUBLIC __DRIdrawable *
 driCreateNewDrawable(__DRIscreen *psp, const __DRIconfig *config, void *data);
 extern const __DRIimageDriverExtension driImageDriverExtension;
 PUBLIC void driDestroyScreen(__DRIscreen *psp);
-PUBLIC const __DRIextension **driGetExtensions(__DRIscreen *psp);
 PUBLIC int
 driGetConfigAttrib(const __DRIconfig *config, unsigned int attrib, unsigned int *value);
 PUBLIC int
