@@ -3143,10 +3143,8 @@ dri2_create_sync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list)
       break;
 
    case EGL_SYNC_NATIVE_FENCE_ANDROID:
-      if (dri2_dpy->fence->create_fence_fd) {
-         dri2_sync->fence = dri2_dpy->fence->create_fence_fd(
+      dri2_sync->fence = dri2_dpy->fence->create_fence_fd(
             dri2_ctx->dri_context, dri2_sync->base.SyncFd);
-      }
       if (!dri2_sync->fence) {
          _eglError(EGL_BAD_ATTRIBUTE, "eglCreateSyncKHR");
          goto fail;
