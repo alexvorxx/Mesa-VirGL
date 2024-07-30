@@ -37,6 +37,7 @@ if [[ "$RUST_TARGET" != *-android ]]; then
     # When CC (/usr/lib/ccache/gcc) variable is set, the rust compiler uses
     # this variable when cross-compiling arm32 and build fails for zsys-sys.
     # So unset the CC variable when cross-compiling for arm32.
+    SAVEDCC=$CC
     if [ "$RUST_TARGET" = "armv7-unknown-linux-gnueabihf" ]; then
         unset CC
     fi
@@ -44,6 +45,7 @@ if [[ "$RUST_TARGET" != *-android ]]; then
         -j ${FDO_CI_CONCURRENT:-4} \
         --root /usr/local \
         ${DEQP_RUNNER_CARGO_ARGS}
+    CC=$SAVEDCC
 else
     mkdir -p /deqp-runner
     pushd /deqp-runner
