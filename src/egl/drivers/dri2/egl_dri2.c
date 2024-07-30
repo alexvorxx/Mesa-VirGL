@@ -744,7 +744,7 @@ dri2_setup_screen(_EGLDisplay *disp)
    disp->Extensions.KHR_fence_sync = EGL_TRUE;
    disp->Extensions.KHR_wait_sync = EGL_TRUE;
    disp->Extensions.KHR_cl_event2 = EGL_TRUE;
-   if (dri2_dpy->fence->get_capabilities(dri2_dpy->dri_screen_render_gpu)
+   if (dri_fence_get_caps(dri2_dpy->dri_screen_render_gpu)
       & __DRI_FENCE_CAP_NATIVE_FD)
       disp->Extensions.ANDROID_native_fence_sync = EGL_TRUE;
 
@@ -1426,11 +1426,10 @@ dri2_surf_update_fence_fd(_EGLContext *ctx, _EGLDisplay *disp,
    if (!dri2_surf->enable_out_fence)
       return;
 
-   fence = dri2_dpy->fence->create_fence_fd(dri_ctx, -1);
+   fence = dri_create_fence_fd(dri_ctx, -1);
    if (fence) {
-      fence_fd =
-         dri2_dpy->fence->get_fence_fd(dri2_dpy->dri_screen_render_gpu, fence);
-      dri2_dpy->fence->destroy_fence(dri2_dpy->dri_screen_render_gpu, fence);
+      fence_fd = dri_get_fence_fd(dri2_dpy->dri_screen_render_gpu, fence);
+      dri_destroy_fence(dri2_dpy->dri_screen_render_gpu, fence);
    }
    dri2_surface_set_out_fence_fd(surf, fence_fd);
 }
@@ -3058,7 +3057,7 @@ dri2_egl_unref_sync(struct dri2_egl_display *dri2_dpy,
       }
 
       if (dri2_sync->fence)
-         dri2_dpy->fence->destroy_fence(dri2_dpy->dri_screen_render_gpu,
+         dri_destroy_fence(dri2_dpy->dri_screen_render_gpu,
                                         dri2_sync->fence);
 
       free(dri2_sync);
@@ -3087,7 +3086,7 @@ dri2_create_sync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list)
 
    switch (type) {
    case EGL_SYNC_FENCE_KHR:
-      dri2_sync->fence = dri2_dpy->fence->create_fence(dri2_ctx->dri_context);
+      dri2_sync->fence = dri_create_fence(dri2_ctx->dri_context);
       if (!dri2_sync->fence) {
          /* Why did it fail? DRI doesn't return an error code, so we emit
           * a generic EGL error that doesn't communicate user error.
@@ -3098,7 +3097,7 @@ dri2_create_sync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list)
       break;
 
    case EGL_SYNC_CL_EVENT_KHR:
-      dri2_sync->fence = dri2_dpy->fence->get_fence_from_cl_event(
+      dri2_sync->fence = dri_get_fence_from_cl_event(
          dri2_dpy->dri_screen_render_gpu, dri2_sync->base.CLEvent);
       /* this can only happen if the cl_event passed in is invalid. */
       if (!dri2_sync->fence) {
@@ -3107,7 +3106,7 @@ dri2_create_sync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list)
       }
 
       /* the initial status must be "signaled" if the cl_event is signaled */
-      if (dri2_dpy->fence->client_wait_sync(dri2_ctx->dri_context,
+      if (dri_client_wait_sync(dri2_ctx->dri_context,
                                             dri2_sync->fence, 0, 0))
          dri2_sync->base.SyncStatus = EGL_SIGNALED_KHR;
       break;
@@ -3143,7 +3142,7 @@ dri2_create_sync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list)
       break;
 
    case EGL_SYNC_NATIVE_FENCE_ANDROID:
-      dri2_sync->fence = dri2_dpy->fence->create_fence_fd(
+      dri2_sync->fence = dri_create_fence_fd(
             dri2_ctx->dri_context, dri2_sync->base.SyncFd);
       if (!dri2_sync->fence) {
          _eglError(EGL_BAD_ATTRIBUTE, "eglCreateSyncKHR");
@@ -3206,7 +3205,7 @@ dri2_dup_native_fence_fd(_EGLDisplay *disp, _EGLSync *sync)
       /* try to retrieve the actual native fence fd.. if rendering is
        * not flushed this will just return -1, aka NO_NATIVE_FENCE_FD:
        */
-      sync->SyncFd = dri2_dpy->fence->get_fence_fd(
+      sync->SyncFd = dri_get_fence_fd(
          dri2_dpy->dri_screen_render_gpu, dri2_sync->fence);
    }
 
@@ -3259,7 +3258,7 @@ dri2_client_wait_sync(_EGLDisplay *disp, _EGLSync *sync, EGLint flags,
    case EGL_SYNC_FENCE_KHR:
    case EGL_SYNC_NATIVE_FENCE_ANDROID:
    case EGL_SYNC_CL_EVENT_KHR:
-      if (dri2_dpy->fence->client_wait_sync(
+      if (dri_client_wait_sync(
              dri2_ctx ? dri2_ctx->dri_context : NULL, dri2_sync->fence,
              wait_flags, timeout))
          dri2_sync->base.SyncStatus = EGL_SIGNALED_KHR;
@@ -3354,11 +3353,10 @@ static EGLint
 dri2_server_wait_sync(_EGLDisplay *disp, _EGLSync *sync)
 {
    _EGLContext *ctx = _eglGetCurrentContext();
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
    struct dri2_egl_sync *dri2_sync = dri2_egl_sync(sync);
 
-   dri2_dpy->fence->server_wait_sync(dri2_ctx->dri_context, dri2_sync->fence,
+   dri_server_wait_sync(dri2_ctx->dri_context, dri2_sync->fence,
                                      0);
    return EGL_TRUE;
 }
