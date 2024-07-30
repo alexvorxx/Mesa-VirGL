@@ -27,6 +27,7 @@
 #ifndef H_ETNAVIV_COMPILER
 #define H_ETNAVIV_COMPILER
 
+#include "etna_core_info.h"
 #include "etnaviv_context.h"
 #include "etnaviv_internal.h"
 #include "etnaviv_shader.h"
@@ -147,7 +148,7 @@ struct etna_shader_link_info {
 };
 
 struct etna_compiler *
-etna_compiler_create(const char *renderer, const struct etna_specs *specs);
+etna_compiler_create(const char *renderer, const struct etna_core_info *info);
 
 void
 etna_compiler_destroy(const struct etna_compiler *compiler);

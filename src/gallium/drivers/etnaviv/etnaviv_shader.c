@@ -593,7 +593,7 @@ etna_shader_screen_init(struct pipe_screen *pscreen)
    /* Create at least one thread - even on single core CPU systems. */
    num_threads = MAX2(1, num_threads);
 
-   screen->compiler = etna_compiler_create(pscreen->get_name(pscreen), &screen->specs);
+   screen->compiler = etna_compiler_create(pscreen->get_name(pscreen), screen->info);
    if (!screen->compiler)
       return false;
 
