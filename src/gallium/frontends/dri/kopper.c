@@ -53,9 +53,6 @@
 #include "drm-uapi/drm_fourcc.h"
 #endif
 
-extern const __DRIimageExtension driVkImageExtension;
-extern const __DRIimageExtension driVkImageExtensionSw;
-
 static struct dri_drawable *
 kopper_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
                        bool isPixmap, void *loaderPrivate);
@@ -151,7 +148,6 @@ dri3_create_image_from_buffers(xcb_connection_t *c,
                                xcb_dri3_buffers_from_pixmap_reply_t *bp_reply,
                                uint32_t fourcc,
                                struct dri_screen *screen,
-                               const __DRIimageExtension *image,
                                void *loaderPrivate)
 {
    __DRIimage                           *ret;
@@ -172,7 +168,7 @@ dri3_create_image_from_buffers(xcb_connection_t *c,
       offsets[i] = offsets_in[i];
    }
 
-   ret = image->createImageFromDmaBufs(opaque_dri_screen(screen),
+   ret = dri2_from_dma_bufs(opaque_dri_screen(screen),
                                        bp_reply->width,
                                        bp_reply->height,
                                        fourcc,
@@ -194,7 +190,6 @@ dri3_create_image(xcb_connection_t *c,
                   xcb_dri3_buffer_from_pixmap_reply_t *bp_reply,
                   uint32_t fourcc,
                   struct dri_screen *screen,
-                  const __DRIimageExtension *image,
                   void *loaderPrivate)
 {
    int                                  *fds;
@@ -208,12 +203,12 @@ dri3_create_image(xcb_connection_t *c,
    stride = bp_reply->stride;
    offset = 0;
 
-   /* createImageFromDmaBufs creates a wrapper __DRIimage structure which
+   /* dri2_from_dma_bufs creates a wrapper __DRIimage structure which
     * can deal with multiple planes for things like Yuv images. So, once
     * we've gotten the planar wrapper, pull the single plane out of it and
     * discard the wrapper.
     */
-   image_planar = image->createImageFromDmaBufs(opaque_dri_screen(screen),
+   image_planar = dri2_from_dma_bufs(opaque_dri_screen(screen),
                                                 bp_reply->width,
                                                 bp_reply->height,
                                                 fourcc,
@@ -225,12 +220,12 @@ dri3_create_image(xcb_connection_t *c,
    if (!image_planar)
       return NULL;
 
-   ret = image->fromPlanar(image_planar, 0, loaderPrivate);
+   ret = dri2_from_planar(image_planar, 0, loaderPrivate);
 
    if (!ret)
       ret = image_planar;
    else
-      image->destroyImage(image_planar);
+      dri2_destroy_image(image_planar);
 
    return ret;
 }
@@ -298,7 +293,7 @@ kopper_get_pixmap_buffer(struct dri_drawable *drawable,
       }
       drawable->image =
          dri3_create_image_from_buffers(conn, bps_reply, fourcc,
-                                        screen, &driVkImageExtension,
+                                        screen,
                                         drawable);
       if (!drawable->image)
          return NULL;
@@ -321,7 +316,7 @@ kopper_get_pixmap_buffer(struct dri_drawable *drawable,
       }
 
       drawable->image = dri3_create_image(conn, bp_reply, fourcc,
-                                       screen, &driVkImageExtension,
+                                       screen,
                                        drawable);
       if (!drawable->image)
          return NULL;
