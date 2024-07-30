@@ -170,6 +170,7 @@ v3d-rpi5-gl-full:arm64:
   variables:
     TEST_PHASE_TIMEOUT_MINUTES: 50 # usually takes around 46min
     DEQP_FRACTION: 1
+    BM_BOOTFS: /boot/raspberrypi_arm64_no2712
 
 v3d-rpi5-rusticl:arm64:
   extends:
@@ -223,3 +224,4 @@ v3dv-rpi5-vk-full:arm64:
     # Keep 10 minutes for boot + setup + uploading the artifacts at the end
     TEST_PHASE_TIMEOUT_MINUTES: 170
     DEQP_FRACTION: 1
+    BM_BOOTFS: /boot/raspberrypi_arm64_no2712
