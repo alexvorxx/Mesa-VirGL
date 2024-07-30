@@ -585,11 +585,6 @@ const __DRIimageLookupExtension image_lookup_extension = {
    .lookupEGLImageValidated = dri2_lookup_egl_image_validated,
 };
 
-static const struct dri_extension_match optional_core_extensions[] = {
-   {__DRI_MUTABLE_RENDER_BUFFER_DRIVER, 1,
-    offsetof(struct dri2_egl_display, mutable_render_buffer), true},
-};
-
 const __DRIextension **
 dri_loader_get_extensions(const char *driver_name);
 
@@ -862,9 +857,6 @@ EGLBoolean
 dri2_setup_extensions(_EGLDisplay *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-   const __DRIextension **extensions;
-
-   extensions = driGetExtensions(dri2_dpy->dri_screen_render_gpu);
 
 #ifdef HAVE_DRI3_MODIFIERS
 #ifdef HAVE_X11_PLATFORM
@@ -882,8 +874,6 @@ dri2_setup_extensions(_EGLDisplay *disp)
       return EGL_FALSE;
 #endif
 
-   loader_bind_extensions(dri2_dpy, optional_core_extensions,
-                          ARRAY_SIZE(optional_core_extensions), extensions);
    return EGL_TRUE;
 }
 

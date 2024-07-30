@@ -242,7 +242,6 @@ struct dri2_egl_display {
    __DRIscreen *dri_screen_display_gpu;
    bool own_dri_screen;
    const __DRIconfig **driver_configs;
-   const __DRImutableRenderBufferDriverExtension *mutable_render_buffer;
    /* fd of the GPU used for rendering. */
    int fd_render_gpu;
    /* fd of the GPU used for display. If the same GPU is used for display
