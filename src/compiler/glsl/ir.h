@@ -1126,6 +1126,13 @@ enum ir_intrinsic_id {
    ir_intrinsic_vote_any,
    ir_intrinsic_vote_eq,
    ir_intrinsic_ballot,
+   ir_intrinsic_inverse_ballot,
+   ir_intrinsic_ballot_bit_extract,
+   ir_intrinsic_ballot_bit_count,
+   ir_intrinsic_ballot_inclusive_bit_count,
+   ir_intrinsic_ballot_exclusive_bit_count,
+   ir_intrinsic_ballot_find_lsb,
+   ir_intrinsic_ballot_find_msb,
    ir_intrinsic_read_invocation,
    ir_intrinsic_read_first_invocation,
 

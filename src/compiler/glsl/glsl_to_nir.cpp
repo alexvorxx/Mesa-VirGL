@@ -1065,6 +1065,27 @@ nir_visitor::visit(ir_call *ir)
       case ir_intrinsic_elect:
          op = nir_intrinsic_elect;
          break;
+      case ir_intrinsic_inverse_ballot:
+         op = nir_intrinsic_inverse_ballot;
+         break;
+      case ir_intrinsic_ballot_bit_extract:
+         op = nir_intrinsic_ballot_bitfield_extract;
+         break;
+      case ir_intrinsic_ballot_bit_count:
+         op = nir_intrinsic_ballot_bit_count_reduce;
+         break;
+      case ir_intrinsic_ballot_inclusive_bit_count:
+         op = nir_intrinsic_ballot_bit_count_inclusive;
+         break;
+      case ir_intrinsic_ballot_exclusive_bit_count:
+         op = nir_intrinsic_ballot_bit_count_exclusive;
+         break;
+      case ir_intrinsic_ballot_find_lsb:
+         op = nir_intrinsic_ballot_find_lsb;
+         break;
+      case ir_intrinsic_ballot_find_msb:
+         op = nir_intrinsic_ballot_find_msb;
+         break;
       default:
          unreachable("not reached");
       }
@@ -1452,7 +1473,14 @@ nir_visitor::visit(ir_call *ir)
       case nir_intrinsic_read_first_invocation:
       case nir_intrinsic_is_helper_invocation:
       case nir_intrinsic_is_sparse_texels_resident:
-      case nir_intrinsic_elect: {
+      case nir_intrinsic_elect:
+      case nir_intrinsic_inverse_ballot:
+      case nir_intrinsic_ballot_bitfield_extract:
+      case nir_intrinsic_ballot_bit_count_reduce:
+      case nir_intrinsic_ballot_bit_count_inclusive:
+      case nir_intrinsic_ballot_bit_count_exclusive:
+      case nir_intrinsic_ballot_find_lsb:
+      case nir_intrinsic_ballot_find_msb: {
          if (ir->return_deref) {
             const glsl_type *type = ir->return_deref->type;
             nir_def_init(&instr->instr, &instr->def, glsl_get_vector_elements(type),
