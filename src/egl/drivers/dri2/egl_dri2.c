@@ -585,31 +585,11 @@ const __DRIimageLookupExtension image_lookup_extension = {
    .lookupEGLImageValidated = dri2_lookup_egl_image_validated,
 };
 
-const __DRIextension **
-dri_loader_get_extensions(const char *driver_name);
-
-static const __DRIextension **
-dri2_open_driver(_EGLDisplay *disp)
-{
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-
-   return dri_loader_get_extensions(dri2_dpy->driver_name);
-}
-
 EGLBoolean
 dri2_load_driver(_EGLDisplay *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-   const __DRIextension **extensions;
 
-   extensions = dri2_open_driver(disp);
-   if (!extensions) {
-      if (disp->Options.FallbackZink)
-         _eglLog(_LOADER_WARNING, "MESA-LOADER: egl: failed to open %s: driver not built!\n", dri2_dpy->driver_name);
-      return EGL_FALSE;
-   }
-
-   dri2_dpy->driver_extensions = extensions;
    dri2_dpy->kopper = disp->Options.Zink && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
    dri2_dpy->swrast = (disp->Options.ForceSoftware && !dri2_dpy->kopper) ||
                       !dri2_dpy->driver_name || strstr(dri2_dpy->driver_name, "swrast");

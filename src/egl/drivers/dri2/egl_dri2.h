@@ -270,7 +270,6 @@ struct dri2_egl_display {
    char *driver_name;
 
    const __DRIextension **loader_extensions;
-   const __DRIextension **driver_extensions;
 
    bool has_dmabuf_import;
    bool has_modifiers;
