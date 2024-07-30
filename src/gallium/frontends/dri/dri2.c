@@ -2119,7 +2119,7 @@ dri_swrast_kms_init_screen(struct dri_screen *screen, bool driver_name_is_inferr
 #endif
 
    if (!pscreen)
-       goto fail;
+       return NULL;
 
    configs = dri_init_screen(screen, pscreen);
    if (!configs)
@@ -2132,7 +2132,7 @@ dri_swrast_kms_init_screen(struct dri_screen *screen, bool driver_name_is_inferr
    return configs;
 
 fail:
-   dri_release_screen(screen);
+   pipe_loader_release(&screen->dev, 1);
 
 #endif // HAVE_SWRAST
    return NULL;
