@@ -2304,7 +2304,6 @@ static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
    .version_string = MESA_INTERFACE_VERSION_STRING,
    .createContext = driCreateContextAttribs,
    .initScreen = dri2_init_screen,
-   .queryCompatibleRenderOnlyDeviceFd = dri_query_compatible_render_only_device_fd,
    .createNewScreen3 = driCreateNewScreen3,
 };
 
