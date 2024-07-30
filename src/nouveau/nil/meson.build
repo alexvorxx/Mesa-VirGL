@@ -1,9 +1,5 @@
 # Copyright © 2022 Collabora Ltd
 # SPDX-License-Identifier: MIT
-if meson.version().version_compare('< 1.3.0')
-  error('NVK requires meson 1.3.0 or newer')
-endif
-
 prog_cbindgen = find_program(
   'cbindgen',
   required : true,

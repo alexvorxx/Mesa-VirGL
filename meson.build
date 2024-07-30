@@ -841,13 +841,21 @@ if with_gallium_rusticl
   if not with_gallium
     error('rusticl requires at least one gallium driver.')
   endif
-
-  if meson.version().version_compare('< 1.4.0')
-    error('rusticl requires meson 1.4.0 or newer')
-  endif
 endif
 
 if with_gallium_rusticl or with_nouveau_vk or with_tools.contains('etnaviv')
+  if with_gallium_rusticl
+    # uses rust.bindgen.output_inline_wrapper needing 1.4.0
+    if meson.version().version_compare('< 1.4.0')
+      error('Rusticl requires meson 1.4.0 or newer')
+    endif
+  else
+    # see https://github.com/mesonbuild/meson/issues/12758 (backported to 1.3.2)
+    if meson.version().version_compare('< 1.3.2')
+      error('Mesa Rust support requires meson 1.3.2 or newer')
+    endif
+  endif
+
   add_languages('rust', required: true)
   rustc = meson.get_compiler('rust')
   rust = import('rust')
