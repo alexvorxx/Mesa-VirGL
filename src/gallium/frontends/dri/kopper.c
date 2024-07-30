@@ -57,8 +57,6 @@ static struct dri_drawable *
 kopper_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
                        bool isPixmap, void *loaderPrivate);
 
-const __DRIkopperExtension driKopperExtension;
-
 const __DRIconfig **
 kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
@@ -868,27 +866,5 @@ kopperQueryBufferAge(__DRIdrawable *dPriv)
    return zink_kopper_query_buffer_age(ctx->st->pipe, ptex);
 }
 
-const __DRIkopperExtension driKopperExtension = {
-   .base = { __DRI_KOPPER, 1 },
-   .createNewDrawable          = kopperCreateNewDrawable,
-   .swapBuffers                = kopperSwapBuffers,
-   .swapBuffersWithDamage      = kopperSwapBuffersWithDamage,
-   .setSwapInterval            = kopperSetSwapInterval,
-   .queryBufferAge             = kopperQueryBufferAge,
-};
-
-static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
-   .base = { __DRI_MESA, 2 },
-   .version_string = MESA_INTERFACE_VERSION_STRING,
-   .createContext = driCreateContextAttribs,
-   .initScreen = kopper_init_screen,
-};
-
-const __DRIextension *galliumvk_driver_extensions[] = {
-   &mesaCoreExtension.base,
-   &driKopperExtension.base,
-   &gallium_config_options.base,
-   NULL
-};
 
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

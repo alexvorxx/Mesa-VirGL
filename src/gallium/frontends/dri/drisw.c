@@ -586,8 +586,6 @@ drisw_update_tex_buffer(struct dri_drawable *drawable,
    pipe_texture_unmap(pipe, transfer);
 }
 
-extern const __DRIimageExtension driVkImageExtension;
-
 /*
  * Backend function for init_screen.
  */
@@ -675,19 +673,5 @@ driswCopySubBuffer(__DRIdrawable *pdp, int x, int y, int w, int h)
 
    drisw_copy_sub_buffer(drawable, x, y, w, h);
 }
-
-static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
-   .base = { __DRI_MESA, 2 },
-   .version_string = MESA_INTERFACE_VERSION_STRING,
-   .createContext = driCreateContextAttribs,
-   .initScreen = drisw_init_screen,
-};
-
-/* This is the table of extensions that the loader will dlsym() for. */
-const __DRIextension *galliumsw_driver_extensions[] = {
-    &mesaCoreExtension.base,
-    &gallium_config_options.base,
-    NULL
-};
 
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

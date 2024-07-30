@@ -1918,47 +1918,6 @@ dri2_get_capabilities(__DRIscreen *_screen)
    return (screen->can_share_buffer ? __DRI_IMAGE_CAP_GLOBAL_NAMES : 0);
 }
 
-const __DRIimageExtension driVkImageExtension = {
-    .base = { __DRI_IMAGE, 20 },
-
-    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
-    .destroyImage                 = dri2_destroy_image,
-    .createImage                  = dri_create_image,
-    .queryImage                   = dri2_query_image,
-    .dupImage                     = dri2_dup_image,
-    .validateUsage                = dri2_validate_usage,
-    .createImageFromNames         = dri2_from_names,
-    .fromPlanar                   = dri2_from_planar,
-    .createImageFromTexture       = dri2_create_from_texture,
-    .createImageFromDmaBufs       = dri2_from_dma_bufs,
-    .blitImage                    = dri2_blit_image,
-    .getCapabilities              = dri2_get_capabilities,
-    .mapImage                     = dri2_map_image,
-    .unmapImage                   = dri2_unmap_image,
-    .queryDmaBufFormats           = dri_query_dma_buf_formats,
-    .queryDmaBufModifiers         = dri_query_dma_buf_modifiers,
-    .queryDmaBufFormatModifierAttribs = dri2_query_dma_buf_format_modifier_attribs,
-};
-
-const __DRIimageExtension driVkImageExtensionSw = {
-    .base = { __DRI_IMAGE, 20 },
-
-    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
-    .destroyImage                 = dri2_destroy_image,
-    .createImage                  = dri_create_image,
-    .queryImage                   = dri2_query_image,
-    .dupImage                     = dri2_dup_image,
-    .validateUsage                = dri2_validate_usage,
-    .createImageFromNames         = dri2_from_names,
-    .fromPlanar                   = dri2_from_planar,
-    .createImageFromTexture       = dri2_create_from_texture,
-    .createImageFromDmaBufs       = dri2_from_dma_bufs,
-    .blitImage                    = dri2_blit_image,
-    .getCapabilities              = dri2_get_capabilities,
-    .mapImage                     = dri2_map_image,
-    .unmapImage                   = dri2_unmap_image,
-};
-
 int
 dri_interop_query_device_info(__DRIcontext *_ctx,
                                struct mesa_glinterop_device_info *out)
@@ -2147,32 +2106,4 @@ dri_query_compatible_render_only_device_fd(int kms_only_fd)
    return -1;
 #endif
 }
-
-static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
-   .base = { __DRI_MESA, 2 },
-   .version_string = MESA_INTERFACE_VERSION_STRING,
-   .createContext = driCreateContextAttribs,
-   .initScreen = dri2_init_screen,
-};
-
-/* This is the table of extensions that the loader will dlsym() for. */
-const __DRIextension *galliumdrm_driver_extensions[] = {
-    &mesaCoreExtension.base,
-    &gallium_config_options.base,
-    NULL
-};
-
-static const struct __DRImesaCoreExtensionRec swkmsMesaCoreExtension = {
-   .base = { __DRI_MESA, 2 },
-   .version_string = MESA_INTERFACE_VERSION_STRING,
-   .createContext = driCreateContextAttribs,
-   .initScreen = dri_swrast_kms_init_screen,
-};
-
-const __DRIextension *dri_swrast_kms_driver_extensions[] = {
-    &swkmsMesaCoreExtension.base,
-    &gallium_config_options.base,
-    NULL
-};
-
 /* vim: set sw=3 ts=8 sts=3 expandtab: */
