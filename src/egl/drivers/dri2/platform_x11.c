@@ -1093,8 +1093,7 @@ dri2_x11_swap_buffers_msc(_EGLDisplay *disp, _EGLSurface *draw, int64_t msc,
     * happened.  The driver should still be using the viewport hack to catch
     * window resizes.
     */
-   if (dri2_dpy->flush->base.version >= 3 && dri2_dpy->flush->invalidate)
-      dri2_dpy->flush->invalidate(dri2_surf->dri_drawable);
+   dri2_dpy->flush->invalidate(dri2_surf->dri_drawable);
 
    return swap_count;
 }
