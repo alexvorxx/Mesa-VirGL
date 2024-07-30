@@ -107,8 +107,6 @@ struct etna_specs {
    unsigned vertex_max_elements;
    /* size of a cached vertex (?) */
    unsigned vertex_cache_size;
-   /* number of shader cores */
-   unsigned shader_core_count;
    /* number of vertex streams */
    unsigned stream_count;
    /* vertex shader memory address*/

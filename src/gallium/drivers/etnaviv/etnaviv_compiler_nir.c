@@ -26,6 +26,7 @@
  *    Wladimir J. van der Laan <laanwj@gmail.com>
  */
 
+#include "etna_core_info.h"
 #include "etnaviv_compiler.h"
 #include "etnaviv_compiler_nir.h"
 #include "etnaviv_asm.h"
@@ -1065,6 +1066,7 @@ etna_compile_check_limits(struct etna_shader_variant *v)
 static void
 fill_vs_mystery(struct etna_shader_variant *v)
 {
+   const struct etna_core_info *info = v->shader->info;
    const struct etna_specs *specs = v->shader->specs;
 
    v->input_count_unk8 = DIV_ROUND_UP(v->infile.num_reg + 4, 16); /* XXX what is this */
@@ -1095,7 +1097,7 @@ fill_vs_mystery(struct etna_shader_variant *v)
                            2 * half_out * specs->vertex_cache_size)) +
                  9) /
                 10;
-   uint32_t a = (b + 256 / (specs->shader_core_count * half_out)) / 2;
+   uint32_t a = (b + 256 / (info->gpu.shader_core_count * half_out)) / 2;
    v->vs_load_balancing = VIVS_VS_LOAD_BALANCING_A(MIN2(a, 255)) |
                              VIVS_VS_LOAD_BALANCING_B(MIN2(b, 255)) |
                              VIVS_VS_LOAD_BALANCING_C(0x3f) |

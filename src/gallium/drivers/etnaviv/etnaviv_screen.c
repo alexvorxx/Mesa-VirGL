@@ -854,7 +854,6 @@ etna_get_specs(struct etna_screen *screen)
       instruction_count = info->gpu.max_instructions;
       screen->specs.vertex_output_buffer_size = info->gpu.vertex_output_buffer_size;
       screen->specs.vertex_cache_size = info->gpu.vertex_cache_size;
-      screen->specs.shader_core_count = info->gpu.shader_core_count;
       screen->specs.stream_count = info->gpu.stream_count;
       screen->specs.max_registers = info->gpu.max_registers;
       screen->specs.pixel_pipes = info->gpu.pixel_pipes;
