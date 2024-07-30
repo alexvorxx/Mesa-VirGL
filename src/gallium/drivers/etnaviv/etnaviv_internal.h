@@ -67,10 +67,6 @@ struct etna_specs {
    unsigned can_supertile : 1;
    /* needs z=(z+w)/2, for older GCxxx */
    unsigned vs_need_z_div : 1;
-   /* supports trigonometric instructions */
-   unsigned has_sin_cos_sqrt : 1;
-   /* has SIGN/FLOOR/CEIL instructions */
-   unsigned has_sign_floor_ceil : 1;
    /* can use VS_RANGE, PS_RANGE registers*/
    unsigned has_shader_range_registers : 1;
    /* has the new sin/cos/log functions */

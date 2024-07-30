@@ -901,10 +901,6 @@ etna_get_specs(struct etna_screen *screen)
 
    screen->specs.vs_need_z_div =
       screen->info->model < 0x1000 && screen->info->model != 0x880;
-   screen->specs.has_sin_cos_sqrt =
-      VIV_FEATURE(screen, ETNA_FEATURE_HAS_SQRT_TRIG);
-   screen->specs.has_sign_floor_ceil =
-      VIV_FEATURE(screen, ETNA_FEATURE_HAS_SIGN_FLOOR_CEIL);
    screen->specs.has_shader_range_registers =
       screen->info->model >= 0x1000 || screen->info->model == 0x880;
    screen->specs.npot_tex_any_wrap =
