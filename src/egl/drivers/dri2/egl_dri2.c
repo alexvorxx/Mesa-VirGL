@@ -590,7 +590,6 @@ static const struct dri_extension_match dri3_driver_extensions[] = {
 };
 
 static const struct dri_extension_match dri2_driver_extensions[] = {
-   {__DRI_DRI2, 5, offsetof(struct dri2_egl_display, dri2), false},
    {__DRI_CONFIG_OPTIONS, 2, offsetof(struct dri2_egl_display, configOptions),
     true},
 };
