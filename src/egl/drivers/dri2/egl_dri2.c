@@ -854,30 +854,6 @@ dri2_create_screen(_EGLDisplay *disp)
 }
 
 EGLBoolean
-dri2_setup_extensions(_EGLDisplay *disp)
-{
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-
-#ifdef HAVE_DRI3_MODIFIERS
-#ifdef HAVE_X11_PLATFORM
-   if (dri2_dpy->conn) {
-      bool err;
-      dri2_dpy->multibuffers_available = x11_dri3_check_multibuffer(dri2_dpy->conn, &err);
-   }
-#endif
-   if (disp->Options.Zink && !disp->Options.ForceSoftware &&
-       !dri2_dpy->multibuffers_available &&
-       /* this is enum _egl_platform_type */
-       (disp->Platform == _EGL_PLATFORM_X11 ||
-        disp->Platform == _EGL_PLATFORM_XCB) &&
-       !debug_get_bool_option("LIBGL_KOPPER_DRI2", false))
-      return EGL_FALSE;
-#endif
-
-   return EGL_TRUE;
-}
-
-EGLBoolean
 dri2_setup_device(_EGLDisplay *disp, EGLBoolean software)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);

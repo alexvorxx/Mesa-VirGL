@@ -364,11 +364,6 @@ dri2_initialize_device(_EGLDisplay *disp)
       goto cleanup;
    }
 
-   if (!dri2_setup_extensions(disp)) {
-      err = "DRI2: failed to find required DRI extensions";
-      goto cleanup;
-   }
-
    dri2_setup_screen(disp);
 #ifdef HAVE_WAYLAND_PLATFORM
    dri2_dpy->device_name =
