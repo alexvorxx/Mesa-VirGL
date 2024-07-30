@@ -2074,9 +2074,9 @@ static const __DRI2bufferDamageExtension dri2BufferDamageExtensionTempl = {
 /**
  * \brief the DRI2blobExtension set_cache_funcs method
  */
-static void
-set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
-                     __DRIblobCacheGet get)
+void
+dri_set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
+                         __DRIblobCacheGet get)
 {
    struct dri_screen *screen = dri_screen(sPriv);
    struct pipe_screen *pscreen = screen->base.screen;
@@ -2094,7 +2094,7 @@ set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
 
 static const __DRI2blobExtension driBlobExtension = {
    .base = { __DRI2_BLOB, 1 },
-   .set_cache_funcs = set_blob_cache_funcs
+   .set_cache_funcs = dri_set_blob_cache_funcs
 };
 
 static const __DRImutableRenderBufferDriverExtension driMutableRenderBufferExtension = {

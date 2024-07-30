@@ -327,4 +327,7 @@ dri_client_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags,
 PUBLIC void
 dri_server_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags);
 
+PUBLIC void
+dri_set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
+                         __DRIblobCacheGet get);
 #endif /* _DRI_UTIL_H_ */
