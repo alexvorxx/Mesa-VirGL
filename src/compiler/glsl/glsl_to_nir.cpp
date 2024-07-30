@@ -1086,6 +1086,12 @@ nir_visitor::visit(ir_call *ir)
       case ir_intrinsic_ballot_find_msb:
          op = nir_intrinsic_ballot_find_msb;
          break;
+      case ir_intrinsic_shuffle:
+         op = nir_intrinsic_shuffle;
+         break;
+      case ir_intrinsic_shuffle_xor:
+         op = nir_intrinsic_shuffle_xor;
+         break;
       default:
          unreachable("not reached");
       }
@@ -1480,7 +1486,9 @@ nir_visitor::visit(ir_call *ir)
       case nir_intrinsic_ballot_bit_count_inclusive:
       case nir_intrinsic_ballot_bit_count_exclusive:
       case nir_intrinsic_ballot_find_lsb:
-      case nir_intrinsic_ballot_find_msb: {
+      case nir_intrinsic_ballot_find_msb:
+      case nir_intrinsic_shuffle:
+      case nir_intrinsic_shuffle_xor: {
          if (ir->return_deref) {
             const glsl_type *type = ir->return_deref->type;
             nir_def_init(&instr->instr, &instr->def, glsl_get_vector_elements(type),

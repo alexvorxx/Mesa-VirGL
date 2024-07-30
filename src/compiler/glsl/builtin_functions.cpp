@@ -1057,6 +1057,18 @@ compute_shader_and_subgroup_basic(const _mesa_glsl_parse_state *state)
    return state->stage == MESA_SHADER_COMPUTE && state->KHR_shader_subgroup_basic_enable;
 }
 
+static bool
+subgroup_shuffle(const _mesa_glsl_parse_state *state)
+{
+   return state->KHR_shader_subgroup_shuffle_enable;
+}
+
+static bool
+subgroup_shuffle_and_fp64(const _mesa_glsl_parse_state *state)
+{
+   return subgroup_shuffle(state) && fp64(state);
+}
+
 /** @} */
 
 /******************************************************************************/
@@ -1473,6 +1485,12 @@ private:
    ir_function_signature *_elect_intrinsic();
    ir_function_signature *_elect();
 
+   ir_function_signature *_shuffle_intrinsic(const glsl_type *type);
+   ir_function_signature *_shuffle(const glsl_type *type);
+
+   ir_function_signature *_shuffle_xor_intrinsic(const glsl_type *type);
+   ir_function_signature *_shuffle_xor(const glsl_type *type);
+
 #undef B0
 #undef B1
 #undef B2
@@ -1887,6 +1905,10 @@ builtin_builder::create_intrinsics()
                 NULL);
 
    add_function("__intrinsic_elect", _elect_intrinsic(), NULL);
+
+   add_function("__intrinsic_shuffle", FIUBD(_shuffle_intrinsic), NULL);
+
+   add_function("__intrinsic_shuffle_xor", FIUBD(_shuffle_xor_intrinsic), NULL);
 }
 
 /**
@@ -5796,6 +5818,10 @@ builtin_builder::create_builtins()
    add_function("subgroupBallotFindLSB", _ballot_bit("__intrinsic_ballot_find_lsb"), NULL);
    add_function("subgroupBallotFindMSB", _ballot_bit("__intrinsic_ballot_find_msb"), NULL);
 
+   add_function("subgroupShuffle", FIUBD(_shuffle), NULL);
+
+   add_function("subgroupShuffleXor", FIUBD(_shuffle_xor), NULL);
+
 #undef F
 #undef FI
 #undef FIUDHF_VEC
@@ -9085,6 +9111,61 @@ builtin_builder::_elect()
    body.emit(call(shader->symbols->get_function("__intrinsic_elect"), retval, sig->parameters));
    body.emit(ret(retval));
 
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_shuffle_intrinsic(const glsl_type *type)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *id = in_var(&glsl_type_builtin_uint, "id");
+   MAKE_INTRINSIC(type, ir_intrinsic_shuffle,
+                  glsl_type_is_double(type) ? subgroup_shuffle_and_fp64 : subgroup_shuffle,
+                  2, value, id);
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_shuffle(const glsl_type *type)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *id = in_var(&glsl_type_builtin_uint, "id");
+
+   MAKE_SIG(type, glsl_type_is_double(type) ? subgroup_shuffle_and_fp64 : subgroup_shuffle,
+            2, value, id);
+
+   ir_variable *retval = body.make_temp(type, "retval");
+
+   body.emit(call(shader->symbols->get_function("__intrinsic_shuffle"), retval, sig->parameters));
+   body.emit(ret(retval));
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_shuffle_xor_intrinsic(const glsl_type *type)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *mask = in_var(&glsl_type_builtin_uint, "mask");
+   MAKE_INTRINSIC(type, ir_intrinsic_shuffle_xor,
+                  glsl_type_is_double(type) ? subgroup_shuffle_and_fp64 : subgroup_shuffle,
+                  2, value, mask);
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_shuffle_xor(const glsl_type *type)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *mask = in_var(&glsl_type_builtin_uint, "mask");
+
+   MAKE_SIG(type, glsl_type_is_double(type) ? subgroup_shuffle_and_fp64 : subgroup_shuffle,
+            2, value, mask);
+
+   ir_variable *retval = body.make_temp(type, "retval");
+
+   body.emit(call(shader->symbols->get_function("__intrinsic_shuffle_xor"),
+                  retval, sig->parameters));
+   body.emit(ret(retval));
    return sig;
 }
 

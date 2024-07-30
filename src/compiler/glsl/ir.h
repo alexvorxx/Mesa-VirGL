@@ -1146,6 +1146,9 @@ enum ir_intrinsic_id {
    ir_intrinsic_subgroup_memory_barrier_shared,
    ir_intrinsic_subgroup_memory_barrier_image,
    ir_intrinsic_elect,
+
+   ir_intrinsic_shuffle,
+   ir_intrinsic_shuffle_xor,
 };
 
 /*@{*/
