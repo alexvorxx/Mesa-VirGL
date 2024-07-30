@@ -14,11 +14,17 @@
 
 #define TU_MAX_PLANE_COUNT 3
 
+#define tu_fdl_view_stencil(view, x) \
+   (((view)->x & ~A6XX_##x##_COLOR_FORMAT__MASK) | A6XX_##x##_COLOR_FORMAT(FMT6_8_UINT))
+
+#define tu_fdl_view_depth(view, x) \
+   (((view)->x & ~A6XX_##x##_COLOR_FORMAT__MASK) | A6XX_##x##_COLOR_FORMAT(FMT6_32_FLOAT))
+
 #define tu_image_view_stencil(iview, x) \
-   ((iview->view.x & ~A6XX_##x##_COLOR_FORMAT__MASK) | A6XX_##x##_COLOR_FORMAT(FMT6_8_UINT))
+   tu_fdl_view_stencil(&iview->view, x)
 
 #define tu_image_view_depth(iview, x) \
-   ((iview->view.x & ~A6XX_##x##_COLOR_FORMAT__MASK) | A6XX_##x##_COLOR_FORMAT(FMT6_32_FLOAT))
+   tu_fdl_view_depth(&iview->view, x)
 
 struct tu_image
 {
