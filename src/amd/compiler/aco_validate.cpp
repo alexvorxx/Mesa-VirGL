@@ -74,6 +74,63 @@ validate_ir(Program* program)
       }
    };
 
+   /* check reachability */
+   if (program->progress < CompilationProgress::after_lower_to_hw) {
+      std::map<uint32_t, std::pair<uint32_t, bool>> def_blocks;
+      for (Block& block : program->blocks) {
+         for (aco_ptr<Instruction>& instr : block.instructions) {
+            for (Definition def : instr->definitions) {
+               if (!def.isTemp())
+                  continue;
+               check(!def_blocks.count(def.tempId()), "Temporary defined twice", instr.get());
+               def_blocks[def.tempId()] = std::make_pair(block.index, false);
+            }
+         }
+      }
+
+      for (Block& block : program->blocks) {
+         for (aco_ptr<Instruction>& instr : block.instructions) {
+            for (unsigned i = 0; i < instr->operands.size(); i++) {
+               Operand op = instr->operands[i];
+               if (!op.isTemp())
+                  continue;
+
+               uint32_t use_block_idx = block.index;
+               if (instr->opcode == aco_opcode::p_phi || instr->opcode == aco_opcode::p_boolean_phi)
+                  use_block_idx = block.logical_preds[i];
+               else if (instr->opcode == aco_opcode::p_linear_phi)
+                  use_block_idx = block.linear_preds[i];
+
+               auto it = def_blocks.find(op.tempId());
+               if (it != def_blocks.end()) {
+                  Block& def_block = program->blocks[it->second.first];
+                  Block& use_block = program->blocks[use_block_idx];
+                  bool dominates =
+                     def_block.index == use_block_idx
+                        ? (use_block_idx == block.index ? it->second.second : true)
+                        : (op.regClass().is_linear() ? dominates_linear(def_block, use_block)
+                                                     : dominates_logical(def_block, use_block));
+                  if (!dominates) {
+                     char msg[256];
+                     snprintf(msg, sizeof(msg), "Definition of %%%u does not dominate use",
+                              op.tempId());
+                     check(false, msg, instr.get());
+                  }
+               } else {
+                  char msg[256];
+                  snprintf(msg, sizeof(msg), "%%%u never defined", op.tempId());
+                  check(false, msg, instr.get());
+               }
+            }
+
+            for (Definition def : instr->definitions) {
+               if (def.isTemp())
+                  def_blocks[def.tempId()].second = true;
+            }
+         }
+      }
+   }
+
    for (Block& block : program->blocks) {
       for (aco_ptr<Instruction>& instr : block.instructions) {
 

@@ -158,7 +158,7 @@ setup_nir_cs(enum amd_gfx_level gfx_level, gl_shader_stage stage, enum radeon_fa
 }
 
 void
-finish_program(Program* prog, bool endpgm)
+finish_program(Program* prog, bool endpgm, bool dominance)
 {
    for (Block& BB : prog->blocks) {
       for (unsigned idx : BB.linear_preds)
@@ -174,12 +174,15 @@ finish_program(Program* prog, bool endpgm)
             Builder(prog, &block).sopp(aco_opcode::s_endpgm);
       }
    }
+
+   if (dominance)
+      dominator_tree(program.get());
 }
 
 void
 finish_validator_test()
 {
-   finish_program(program.get());
+   finish_program(program.get(), true, true);
    aco_print_program(program.get(), output);
    fprintf(output, "Validation results:\n");
    if (aco::validate_ir(program.get()))
@@ -191,7 +194,7 @@ finish_validator_test()
 void
 finish_opt_test()
 {
-   finish_program(program.get());
+   finish_program(program.get(), true, true);
    if (!aco::validate_ir(program.get())) {
       fail_test("Validation before optimization failed");
       return;
@@ -207,7 +210,7 @@ finish_opt_test()
 void
 finish_setup_reduce_temp_test()
 {
-   finish_program(program.get());
+   finish_program(program.get(), true, true);
    if (!aco::validate_ir(program.get())) {
       fail_test("Validation before setup_reduce_temp failed");
       return;
@@ -223,7 +226,7 @@ finish_setup_reduce_temp_test()
 void
 finish_lower_subdword_test()
 {
-   finish_program(program.get());
+   finish_program(program.get(), true, true);
    if (!aco::validate_ir(program.get())) {
       fail_test("Validation before lower_subdword failed");
       return;
@@ -239,7 +242,7 @@ finish_lower_subdword_test()
 void
 finish_ra_test(ra_test_policy policy)
 {
-   finish_program(program.get());
+   finish_program(program.get(), true, true);
    if (!aco::validate_ir(program.get())) {
       fail_test("Validation before register allocation failed");
       return;
@@ -260,7 +263,7 @@ finish_ra_test(ra_test_policy policy)
 void
 finish_optimizer_postRA_test()
 {
-   finish_program(program.get());
+   finish_program(program.get(), true, true);
 
    if (!aco::validate_ir(program.get())) {
       fail_test("Validation before optimize_postRA failed");
@@ -280,7 +283,7 @@ finish_optimizer_postRA_test()
 void
 finish_to_hw_instr_test()
 {
-   finish_program(program.get());
+   finish_program(program.get(), true, true);
 
    if (!aco::validate_ir(program.get())) {
       fail_test("Validation before lower_to_hw_instr failed");

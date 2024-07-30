@@ -173,10 +173,14 @@ BEGIN_TEST(optimize.output_modifiers)
    /* omod has no effect if denormals are enabled but clamp is fine */
 
    //>> BB1
-   //! /* logical preds: / linear preds: / kind: uniform, */
+   //! /* logical preds: BB0, / linear preds: BB0, / kind: */
    program->next_fp_mode.denorm32 = fp_denorm_keep;
    program->next_fp_mode.denorm16_64 = fp_denorm_flush;
    bld.reset(program->create_and_insert_block());
+   program->blocks[0].linear_succs.push_back(1);
+   program->blocks[0].logical_succs.push_back(1);
+   program->blocks[1].linear_preds.push_back(0);
+   program->blocks[1].logical_preds.push_back(0);
 
    //! v1: %res14_tmp = v_add_f32 %a, %b
    //! v1: %res14 = v_mul_f32 2.0, %res13_tmp
@@ -191,10 +195,14 @@ BEGIN_TEST(optimize.output_modifiers)
                          Operand::c32(0x3f800000u), tmp));
 
    //>> BB2
-   //! /* logical preds: / linear preds: / kind: uniform, */
+   //! /* logical preds: BB1, / linear preds: BB1, / kind: */
    program->next_fp_mode.denorm32 = fp_denorm_flush;
    program->next_fp_mode.denorm16_64 = fp_denorm_keep;
    bld.reset(program->create_and_insert_block());
+   program->blocks[1].linear_succs.push_back(2);
+   program->blocks[1].logical_succs.push_back(2);
+   program->blocks[2].linear_preds.push_back(1);
+   program->blocks[2].logical_preds.push_back(1);
 
    //! v2b: %res16_tmp = v_add_f16 %a, %b
    //! v2b: %res16 = v_mul_f16 2.0, %res15_tmp
@@ -211,12 +219,16 @@ BEGIN_TEST(optimize.output_modifiers)
    /* omod flushes -0.0 to +0.0 */
 
    //>> BB3
-   //! /* logical preds: / linear preds: / kind: uniform, */
+   //! /* logical preds: BB2, / linear preds: BB2, / kind: */
    program->next_fp_mode.denorm32 = fp_denorm_keep;
    program->next_fp_mode.denorm16_64 = fp_denorm_keep;
    program->next_fp_mode.preserve_signed_zero_inf_nan32 = true;
    program->next_fp_mode.preserve_signed_zero_inf_nan16_64 = false;
    bld.reset(program->create_and_insert_block());
+   program->blocks[2].linear_succs.push_back(3);
+   program->blocks[2].logical_succs.push_back(3);
+   program->blocks[3].linear_preds.push_back(2);
+   program->blocks[3].logical_preds.push_back(2);
 
    //! v1: %res18_tmp = v_add_f32 %a, %b
    //! v1: %res18 = v_mul_f32 2.0, %res18_tmp
@@ -230,10 +242,15 @@ BEGIN_TEST(optimize.output_modifiers)
                          Operand::c32(0x3f800000u), tmp));
 
    //>> BB4
-   //! /* logical preds: / linear preds: / kind: uniform, */
+   //! /* logical preds: BB3, / linear preds: BB3, / kind: uniform, */
    program->next_fp_mode.preserve_signed_zero_inf_nan32 = false;
    program->next_fp_mode.preserve_signed_zero_inf_nan16_64 = true;
    bld.reset(program->create_and_insert_block());
+   program->blocks[3].linear_succs.push_back(4);
+   program->blocks[3].logical_succs.push_back(4);
+   program->blocks[4].linear_preds.push_back(3);
+   program->blocks[4].logical_preds.push_back(3);
+
    //! v2b: %res20_tmp = v_add_f16 %a, %b
    //! v2b: %res20 = v_mul_f16 2.0, %res20_tmp
    //! p_unit_test 20, %res20
@@ -1755,9 +1772,13 @@ BEGIN_TEST(optimize.fmamix_two_literals)
       writeout(5, fma(a, c15, c_denorm));
 
       //>> BB1
-      //! /* logical preds: / linear preds: / kind: uniform, */
+      //! /* logical preds: BB0, / linear preds: BB0, / kind: uniform, */
       program->next_fp_mode.denorm16_64 = fp_denorm_flush;
       bld.reset(program->create_and_insert_block());
+      program->blocks[0].linear_succs.push_back(1);
+      program->blocks[0].logical_succs.push_back(1);
+      program->blocks[1].linear_preds.push_back(0);
+      program->blocks[1].logical_preds.push_back(0);
 
       //~gfx10; del c15
       //! v1: %c15 = p_parallelcopy 0x3fc00000

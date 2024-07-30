@@ -328,10 +328,8 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
                 block->logical_preds.back() <= block->linear_preds.back());
          ctx.worklist = std::max<int>(ctx.worklist, block->linear_preds.back());
       } else {
-         for (unsigned t : live) {
-            aco_err(ctx.program, "Temporary never defined or are defined after use: %%%d in BB%d",
-                    t, block->index);
-         }
+         ASSERTED bool is_valid = validate_ir(ctx.program);
+         assert(!is_valid);
       }
    }
 
