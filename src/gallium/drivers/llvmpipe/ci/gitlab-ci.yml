@@ -41,7 +41,7 @@ llvmpipe-full:
   extends:
     - llvmpipe
     - .llvmpipe-manual-rules
-  timeout: 45m  # base runtime = 30m
+  timeout: 1h  # base runtime = 40m
   variables:
     DEQP_FRACTION: 1
 
