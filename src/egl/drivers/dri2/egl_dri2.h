@@ -243,7 +243,6 @@ struct dri2_egl_display {
    bool own_dri_screen;
    const __DRIconfig **driver_configs;
    const __DRItexBufferExtension *tex_buffer;
-   const __DRI2configQueryExtension *config;
    const __DRI2fenceExtension *fence;
    const __DRI2blobExtension *blob;
    const __DRI2interopExtension *interop;
