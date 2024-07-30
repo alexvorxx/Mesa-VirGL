@@ -1631,9 +1631,6 @@ static void si_query_hw_get_result_resource(struct si_context *sctx, struct si_q
          ssbo[2].buffer = resource;
          ssbo[2].buffer_offset = offset;
          ssbo[2].buffer_size = resource->width0 - offset;
-         /* assert size is correct, based on result_type ? */
-
-         si_resource(resource)->TC_L2_dirty = true;
       }
 
       if ((flags & PIPE_QUERY_WAIT) && qbuf == &query->buffer) {
