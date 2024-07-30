@@ -191,7 +191,7 @@ etna_set_framebuffer_state(struct pipe_context *pctx,
              cbuf->offset, cbuf->level->stride * 4);
       }
 
-      if (screen->specs.halti >= 0 && screen->info->model != 0x880) {
+      if (screen->info->halti >= 0 && screen->info->model != 0x880) {
          /* Rendertargets on GPUs with more than a single pixel pipe must always
           * be multi-tiled, or single-buffer mode must be supported */
          assert(screen->specs.pixel_pipes == 1 ||
@@ -235,7 +235,7 @@ etna_set_framebuffer_state(struct pipe_context *pctx,
 
       cs->PS_CONTROL = COND(util_format_is_unorm(cbuf->base.format), VIVS_PS_CONTROL_SATURATE_RT0);
       cs->PS_CONTROL_EXT =
-         VIVS_PS_CONTROL_EXT_OUTPUT_MODE0(translate_output_mode(cbuf->base.format, screen->specs.halti >= 5));
+         VIVS_PS_CONTROL_EXT_OUTPUT_MODE0(translate_output_mode(cbuf->base.format, screen->info->halti >= 5));
    } else {
       /* Clearing VIVS_PE_COLOR_FORMAT_COMPONENTS__MASK and
        * VIVS_PE_COLOR_FORMAT_OVERWRITE prevents us from overwriting the
@@ -274,7 +274,7 @@ etna_set_framebuffer_state(struct pipe_context *pctx,
       /* VIVS_PE_DEPTH_CONFIG_ONLY_DEPTH */
       /* merged with depth_stencil_alpha */
 
-      if (screen->specs.halti >= 0 && screen->info->model != 0x880) {
+      if (screen->info->halti >= 0 && screen->info->model != 0x880) {
          for (int i = 0; i < screen->specs.pixel_pipes; i++) {
             cs->PE_PIPE_DEPTH_ADDR[i] = zsbuf->reloc[i];
             cs->PE_PIPE_DEPTH_ADDR[i].flags = ETNA_RELOC_READ | ETNA_RELOC_WRITE;
@@ -578,7 +578,7 @@ etna_vertex_elements_state_create(struct pipe_context *pctx,
       assert(format_type != ETNA_NO_MATCH);
       assert(normalize != ETNA_NO_MATCH);
 
-      if (screen->specs.halti < 5) {
+      if (screen->info->halti < 5) {
          cs->FE_VERTEX_ELEMENT_CONFIG[idx] =
             COND(nonconsecutive, VIVS_FE_VERTEX_ELEMENT_CONFIG_NONCONSECUTIVE) |
             format_type |
