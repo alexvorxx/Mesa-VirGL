@@ -1094,7 +1094,7 @@ fill_vs_mystery(struct etna_shader_variant *v)
    assert(half_out);
 
    uint32_t b = ((20480 / (specs->vertex_output_buffer_size -
-                           2 * half_out * specs->vertex_cache_size)) +
+                           2 * half_out * info->gpu.vertex_cache_size)) +
                  9) /
                 10;
    uint32_t a = (b + 256 / (info->gpu.shader_core_count * half_out)) / 2;
