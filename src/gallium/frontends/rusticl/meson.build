@@ -105,16 +105,6 @@ rusticl_bindgen_args = [
   '--anon-fields-prefix', 'anon_',
 ]
 
-bindgen_version = find_program('bindgen').version()
-
-if bindgen_version == 'unknown'
-  error('Failed to detect bindgen version. If you are using bindgen 0.69.0, please either update to 0.69.1 or downgrade to 0.68.1. You can install the latest version for your user with `cargo install bindgen-cli`.')
-endif
-
-if bindgen_version.version_compare('< 0.65')
-  error('rusticl requires bindgen 0.65 or newer. If your distribution does not ship a recent enough version, you can install the latest version for your user with `cargo install bindgen-cli`.')
-endif
-
 rusticl_bindgen_c_args = [
   '-fno-builtin-malloc',
 ]

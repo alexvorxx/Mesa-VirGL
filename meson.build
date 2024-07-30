@@ -855,6 +855,19 @@ if with_gallium_rusticl or with_nouveau_vk or with_tools.contains('etnaviv')
   if rustc.version().version_compare('< 1.76')
     error('Mesa requires Rust 1.76.0 or newer')
   endif
+
+  bindgen_version = find_program('bindgen').version()
+  if bindgen_version == 'unknown'
+    error('Failed to detect bindgen version. If you are using bindgen 0.69.0, ' +
+          'please either update to 0.69.1 or downgrade to 0.68.1. ' +
+          'You can install the latest version for your user with `cargo install bindgen-cli`.')
+  endif
+
+  if bindgen_version.version_compare('< 0.65')
+    error('Mesa requires bindgen 0.65 or newer. ' +
+          'If your distribution does not ship a recent enough version, ' +
+          'you can install the latest version for your user with `cargo install bindgen-cli`.')
+  endif
 endif
 
 with_clover_spirv = with_gallium_clover and get_option('opencl-spirv')
