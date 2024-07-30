@@ -659,12 +659,19 @@ dri2_query_driver_config(_EGLDisplay *disp)
    return ret;
 }
 
-static int
-get_screen_param(_EGLDisplay *disp, enum pipe_cap param)
+static struct pipe_screen *
+get_pipe_screen(_EGLDisplay *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri_screen *screen = dri_screen(dri2_dpy->dri_screen_render_gpu);
-   return screen->base.screen->get_param(screen->base.screen, param);
+   return screen->base.screen;
+}
+
+static int
+get_screen_param(_EGLDisplay *disp, enum pipe_cap param)
+{
+   struct pipe_screen *screen = get_pipe_screen(disp);
+   return screen->get_param(screen, param);
 }
 
 void
