@@ -947,7 +947,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       psp->maxSwapInterval = 1;
    }
 
-   priv->driver = glx_driver;
+   priv->driver = glx_driver ? GLX_DRIVER_ZINK_YES : GLX_DRIVER_SW;
 
    return &psc->base;
 
