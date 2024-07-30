@@ -246,7 +246,6 @@ struct dri2_egl_display {
    const __DRItexBufferExtension *tex_buffer;
    const __DRI2configQueryExtension *config;
    const __DRI2fenceExtension *fence;
-   const __DRI2bufferDamageExtension *buffer_damage;
    const __DRI2blobExtension *blob;
    const __DRI2interopExtension *interop;
    const __DRImutableRenderBufferDriverExtension *mutable_render_buffer;
