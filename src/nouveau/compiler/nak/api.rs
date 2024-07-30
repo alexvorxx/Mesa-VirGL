@@ -7,6 +7,7 @@ use crate::sm50::ShaderModel50;
 use crate::sm70::ShaderModel70;
 use crate::sph;
 
+use compiler::bindings::*;
 use nak_bindings::*;
 
 use std::cmp::max;

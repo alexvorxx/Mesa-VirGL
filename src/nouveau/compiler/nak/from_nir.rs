@@ -7,13 +7,14 @@ use crate::api::GetDebugFlags;
 use crate::api::DEBUG;
 use crate::builder::*;
 use crate::ir::*;
-use crate::nir::*;
 use crate::nir_instr_printer::NirInstrPrinter;
 use crate::sph::{OutputTopology, PixelImap};
 
 use nak_bindings::*;
 
+use compiler::bindings::*;
 use compiler::cfg::CFGBuilder;
+use compiler::nir::*;
 use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::ops::Index;
@@ -479,7 +480,9 @@ impl<'a> ShaderFromNir<'a> {
     }
 
     fn alu_src_is_saturated(&self, src: &nir_alu_src) -> bool {
-        self.saturated.get(&(src.as_def() as *const _)).is_some()
+        self.saturated
+            .get(&(src.src.as_def() as *const _))
+            .is_some()
     }
 
     fn parse_alu(&mut self, b: &mut impl SSABuilder, alu: &nir_alu_instr) {

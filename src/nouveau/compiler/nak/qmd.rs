@@ -3,6 +3,7 @@
 
 extern crate nvidia_headers;
 
+use compiler::bindings::*;
 use nak_bindings::*;
 use nvidia_headers::classes::{cla0c0, clc0c0, clc3c0, clc6c0};
 

@@ -3,12 +3,12 @@
 
 use std::pin::Pin;
 
+use compiler::bindings::nir_instr;
 use nak_bindings::nak_clear_memstream;
 use nak_bindings::nak_close_memstream;
 use nak_bindings::nak_memstream;
 use nak_bindings::nak_nir_asprint_instr;
 use nak_bindings::nak_open_memstream;
-use nak_bindings::nir_instr;
 
 /// A memstream that holds the printed NIR instructions.
 pub struct NirInstrPrinter {

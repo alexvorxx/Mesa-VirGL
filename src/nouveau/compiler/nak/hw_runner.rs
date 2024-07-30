@@ -1,6 +1,7 @@
 // Copyright © 2022 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
+use compiler::bindings::*;
 use nak_bindings::*;
 use nv_push_rs::Push as NvPush;
 use nvidia_headers::classes::cla0c0::mthd as cla0c0;
