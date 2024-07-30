@@ -41,7 +41,10 @@
 #include "main/glconfig.h"
 #include "main/menums.h"
 #include "util/xmlconfig.h"
+#include "pipe/p_defines.h"
 #include <stdbool.h>
+
+struct pipe_screen;
 
 struct dri_screen;
 
@@ -328,4 +331,9 @@ dri_server_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags);
 PUBLIC void
 dri_set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
                          __DRIblobCacheGet get);
+
+PUBLIC struct pipe_screen *
+dri_get_pipe_screen(__DRIscreen *driScreen);
+PUBLIC int
+dri_get_screen_param(__DRIscreen *driScreen, enum pipe_cap param);
 #endif /* _DRI_UTIL_H_ */

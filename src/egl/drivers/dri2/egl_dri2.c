@@ -638,21 +638,6 @@ dri2_query_driver_config(_EGLDisplay *disp)
    return ret;
 }
 
-static struct pipe_screen *
-get_pipe_screen(_EGLDisplay *disp)
-{
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-   struct dri_screen *screen = dri_screen(dri2_dpy->dri_screen_render_gpu);
-   return screen->base.screen;
-}
-
-static int
-get_screen_param(_EGLDisplay *disp, enum pipe_cap param)
-{
-   struct pipe_screen *screen = get_pipe_screen(disp);
-   return screen->get_param(screen, param);
-}
-
 void
 dri2_setup_screen(_EGLDisplay *disp)
 {
@@ -666,13 +651,13 @@ dri2_setup_screen(_EGLDisplay *disp)
    if (disp->Platform == _EGL_PLATFORM_X11 ||
        disp->Platform == _EGL_PLATFORM_XCB)
       has_modifiers = dri2_dpy->multibuffers_available;
-   int caps = get_screen_param(disp, PIPE_CAP_DMABUF);
+   int caps = dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_DMABUF);
    /* set if both import and export are suported */
    dri2_dpy->has_modifiers = has_modifiers && util_bitcount(caps) == 2;
    dri2_dpy->has_dmabuf_import = has_modifiers && caps & DRM_PRIME_CAP_IMPORT;
 #endif
 #ifdef HAVE_ANDROID_PLATFORM
-   dri2_dpy->has_native_fence_fd = get_screen_param(disp, PIPE_CAP_NATIVE_FENCE_FD);
+   dri2_dpy->has_native_fence_fd = dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_NATIVE_FENCE_FD);
 #endif
    dri2_dpy->has_compression_modifiers = pscreen->query_compression_rates && pscreen->query_compression_modifiers;
 
@@ -709,7 +694,7 @@ dri2_setup_screen(_EGLDisplay *disp)
 
    /* Report back to EGL the bitmask of priorities supported */
    disp->Extensions.IMG_context_priority =
-      get_screen_param(disp, PIPE_CAP_CONTEXT_PRIORITY_MASK);
+      dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_CONTEXT_PRIORITY_MASK);
 
    disp->Extensions.EXT_pixel_format_float = EGL_TRUE;
 
@@ -722,9 +707,9 @@ dri2_setup_screen(_EGLDisplay *disp)
    disp->Extensions.EXT_config_select_group = EGL_TRUE;
 
    disp->Extensions.EXT_create_context_robustness =
-      get_screen_param(disp, PIPE_CAP_DEVICE_RESET_STATUS_QUERY);
+      dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_DEVICE_RESET_STATUS_QUERY);
    disp->RobustBufferAccess =
-      get_screen_param(disp, PIPE_CAP_ROBUST_BUFFER_ACCESS_BEHAVIOR);
+      dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_ROBUST_BUFFER_ACCESS_BEHAVIOR);
 
    /* EXT_query_reset_notification_strategy complements and requires
     * EXT_create_context_robustness. */
@@ -738,7 +723,7 @@ dri2_setup_screen(_EGLDisplay *disp)
       & __DRI_FENCE_CAP_NATIVE_FD)
       disp->Extensions.ANDROID_native_fence_sync = EGL_TRUE;
 
-   if (get_pipe_screen(disp)->get_disk_shader_cache)
+   if (dri_get_pipe_screen(dri2_dpy->dri_screen_render_gpu)->get_disk_shader_cache)
       disp->Extensions.ANDROID_blob_cache = EGL_TRUE;
 
    disp->Extensions.KHR_reusable_sync = EGL_TRUE;
@@ -748,7 +733,7 @@ dri2_setup_screen(_EGLDisplay *disp)
    disp->Extensions.MESA_drm_image = (capabilities & __DRI_IMAGE_CAP_GLOBAL_NAMES) != 0;
 
 #ifdef HAVE_LIBDRM
-   if (get_screen_param(disp, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT)
+   if (dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT)
       disp->Extensions.MESA_image_dma_buf_export = true;
 
    if (dri2_dpy->has_dmabuf_import) {
@@ -763,18 +748,18 @@ dri2_setup_screen(_EGLDisplay *disp)
    disp->Extensions.KHR_gl_texture_2D_image = EGL_TRUE;
    disp->Extensions.KHR_gl_texture_cubemap_image = EGL_TRUE;
 
-   if (get_screen_param(disp, PIPE_CAP_MAX_TEXTURE_3D_LEVELS) != 0)
+   if (dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_MAX_TEXTURE_3D_LEVELS) != 0)
       disp->Extensions.KHR_gl_texture_3D_image = EGL_TRUE;
 
    disp->Extensions.KHR_context_flush_control = EGL_TRUE;
 
-   if (get_pipe_screen(disp)->set_damage_region)
+   if (dri_get_pipe_screen(dri2_dpy->dri_screen_render_gpu)->set_damage_region)
       disp->Extensions.KHR_partial_update = EGL_TRUE;
 
    disp->Extensions.EXT_protected_surface =
-      get_screen_param(disp, PIPE_CAP_DEVICE_PROTECTED_SURFACE) != 0;
+      dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_DEVICE_PROTECTED_SURFACE) != 0;
    disp->Extensions.EXT_protected_content =
-      get_screen_param(disp, PIPE_CAP_DEVICE_PROTECTED_CONTEXT) != 0;
+      dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_DEVICE_PROTECTED_CONTEXT) != 0;
 }
 
 void

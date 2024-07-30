@@ -1176,3 +1176,17 @@ bool dri_valid_swap_interval(__DRIscreen *driScreen, int interval)
  
    return true;
 }
+
+struct pipe_screen *
+dri_get_pipe_screen(__DRIscreen *driScreen)
+{
+   struct dri_screen *screen = dri_screen(driScreen);
+   return screen->base.screen;
+}
+
+int
+dri_get_screen_param(__DRIscreen *driScreen, enum pipe_cap param)
+{
+   struct pipe_screen *screen = dri_get_pipe_screen(driScreen);
+   return screen->get_param(screen, param);
+}
