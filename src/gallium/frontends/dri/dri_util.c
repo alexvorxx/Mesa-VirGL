@@ -996,39 +996,6 @@ const __DRIcoreExtension driCoreExtension = {
     .unbindContext              = driUnbindContext
 };
 
-#if HAVE_DRI2
-
-/** DRI2 interface */
-const __DRIdri2Extension driDRI2Extension = {
-    .base = { __DRI_DRI2, 5 },
-
-    .createNewScreen            = dri2CreateNewScreen,
-    .createNewDrawable          = driCreateNewDrawable,
-    .createNewContext           = driCreateNewContext,
-    .getAPIMask                 = driGetAPIMask,
-    .createNewContextForAPI     = driCreateNewContextForAPI,
-    .allocateBuffer             = dri2AllocateBuffer,
-    .releaseBuffer              = dri2ReleaseBuffer,
-    .createContextAttribs       = driCreateContextAttribs,
-    .createNewScreen3           = driCreateNewScreen3,
-};
-
-const __DRIdri2Extension swkmsDRI2Extension = {
-    .base = { __DRI_DRI2, 5 },
-
-    .createNewScreen            = swkmsCreateNewScreen,
-    .createNewDrawable          = driCreateNewDrawable,
-    .createNewContext           = driCreateNewContext,
-    .getAPIMask                 = driGetAPIMask,
-    .createNewContextForAPI     = driCreateNewContextForAPI,
-    .allocateBuffer             = dri2AllocateBuffer,
-    .releaseBuffer              = dri2ReleaseBuffer,
-    .createContextAttribs       = driCreateContextAttribs,
-    .createNewScreen3           = driCreateNewScreen3,
-};
-
-#endif
-
 const __DRIswrastExtension driSWRastExtension = {
     .base = { __DRI_SWRAST, 5 },
 

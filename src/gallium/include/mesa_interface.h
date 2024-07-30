@@ -1118,61 +1118,6 @@ struct __DRIdri2LoaderExtensionRec {
 #define __DRI_CTX_ERROR_UNKNOWN_FLAG		6
 /*@}*/
 
-struct __DRIdri2ExtensionRec {
-    __DRIextension base;
-
-    __DRIscreen *(*createNewScreen)(int screen, int fd,
-				    const __DRIextension **extensions,
-				    const __DRIconfig ***driver_configs,
-				    void *loaderPrivate);
-
-   __DRIcreateNewDrawableFunc   createNewDrawable;
-   __DRIcontext *(*createNewContext)(__DRIscreen *screen,
-                                     const __DRIconfig *config,
-                                     __DRIcontext *shared,
-                                     void *loaderPrivate);
-
-   /* Since version 2 */
-   __DRIgetAPIMaskFunc          getAPIMask;
-
-   __DRIcontext *(*createNewContextForAPI)(__DRIscreen *screen,
-					   int api,
-					   const __DRIconfig *config,
-					   __DRIcontext *shared,
-					   void *data);
-
-   __DRIbuffer *(*allocateBuffer)(__DRIscreen *screen,
-				  unsigned int attachment,
-				  unsigned int format,
-				  int width,
-				  int height);
-   void (*releaseBuffer)(__DRIscreen *screen,
-			 __DRIbuffer *buffer);
-
-   /**
-    * Create a context for a particular API with a set of attributes
-    *
-    * \since version 3
-    *
-    * \sa __DRIswrastExtensionRec::createContextAttribs
-    */
-   __DRIcreateContextAttribsFunc        createContextAttribs;
-
-   /**
-    * createNewScreen with the driver's extension list passed in.
-    *
-    * \since version 4
-    */
-   __DRIcreateNewScreen2Func            createNewScreen2;
-
-   /**
-    * createNewScreen with the driver's extension list passed in and implicit load flag.
-    *
-    * \since version 5
-    */
-   __DRIcreateNewScreen3Func            createNewScreen3;
-};
-
 
 /**
  * This extension provides functionality to enable various EGLImage

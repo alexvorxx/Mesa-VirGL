@@ -943,7 +943,6 @@ const __DRIextension *galliumvk_driver_extensions[] = {
    &driCoreExtension.base,
    &mesaCoreExtension.base,
    &driSWRastExtension.base,
-   &driDRI2Extension.base,
    &driImageDriverExtension.base,
    &driKopperExtension.base,
    &gallium_config_options.base,
