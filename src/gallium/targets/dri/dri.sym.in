@@ -51,6 +51,7 @@
 		dri2_query_dma_buf_format_modifier_attribs;
 		dri_query_compatible_render_only_device_fd;
 		driSWRastQueryBufferAge;
+		dri_set_damage_region;
 		@nouveau_drm_screen_create@
 		@radeon_drm_winsys_create@
 		@amdgpu_winsys_create@

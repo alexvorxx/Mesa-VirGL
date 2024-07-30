@@ -305,4 +305,7 @@ PUBLIC bool
 dri2_query_compression_modifiers(__DRIscreen *_screen, uint32_t fourcc,
                                  enum __DRIFixedRateCompression rate, int max,
                                  uint64_t *modifiers, int *count);
+
+PUBLIC void
+dri_set_damage_region(__DRIdrawable *dPriv, unsigned int nrects, int *rects);
 #endif /* _DRI_UTIL_H_ */

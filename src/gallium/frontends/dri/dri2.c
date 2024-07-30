@@ -2029,8 +2029,8 @@ static const __DRI2interopExtension dri2InteropExtension = {
 /**
  * \brief the DRI2bufferDamageExtension set_damage_region method
  */
-static void
-dri2_set_damage_region(__DRIdrawable *dPriv, unsigned int nrects, int *rects)
+void
+dri_set_damage_region(__DRIdrawable *dPriv, unsigned int nrects, int *rects)
 {
    struct dri_drawable *drawable = dri_drawable(dPriv);
    struct pipe_box *boxes = NULL;
@@ -2166,7 +2166,7 @@ dri2_init_screen_extensions(struct dri_screen *screen,
 
    if (!is_kms_screen && pscreen->set_damage_region) {
       screen->buffer_damage_extension = dri2BufferDamageExtensionTempl;
-      screen->buffer_damage_extension.set_damage_region = dri2_set_damage_region;
+      screen->buffer_damage_extension.set_damage_region = dri_set_damage_region;
       *nExt++ = &screen->buffer_damage_extension.base;
    }
 
