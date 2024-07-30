@@ -846,7 +846,6 @@ struct glx_screen *
 dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_inferred)
 {
    const __DRIconfig **driver_configs;
-   const __DRIextension **extensions;
    struct dri2_screen *psc;
    __GLXDRIscreen *psp;
    struct glx_config *configs = NULL, *visuals = NULL;
@@ -897,10 +896,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
       driverName = loader_driverName;
    }
    psc->base.driverName = driverName;
-
-   extensions = driOpenDriver(driverName, driver_name_is_inferred);
-   if (extensions == NULL)
-      goto handle_error;
 
    psc->driScreen = driCreateNewScreen3(screen, psc->fd, loader_extensions, DRI_SCREEN_DRI3,
                                         &driver_configs, driver_name_is_inferred, psc);

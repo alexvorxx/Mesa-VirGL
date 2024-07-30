@@ -833,7 +833,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
 {
    __GLXDRIscreen *psp;
    const __DRIconfig **driver_configs;
-   const __DRIextension **extensions;
    struct drisw_screen *psc;
    struct glx_config *configs = NULL, *visuals = NULL;
    const __DRIextension **loader_extensions_local;
@@ -853,9 +852,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       return NULL;
    }
 
-   extensions = driOpenDriver(driver, driver_name_is_inferred);
-   if (extensions == NULL)
-      goto handle_error;
    psc->base.driverName = strdup(driver);
 
    if (glx_driver)

@@ -62,9 +62,6 @@ driFetchDrawable(struct glx_context *gc, GLXDrawable glxDrawable);
 extern void
 driReleaseDrawables(struct glx_context *gc);
 
-extern const __DRIextension **driOpenDriver(const char *driverName,
-                                            bool driver_name_is_inferred);
-
 struct dri_ctx_attribs {
    unsigned major_ver;
    unsigned minor_ver;

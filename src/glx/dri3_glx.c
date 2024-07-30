@@ -689,7 +689,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
 {
    xcb_connection_t *c = XGetXCBConnection(priv->dpy);
    const __DRIconfig **driver_configs;
-   const __DRIextension **extensions;
    struct dri3_screen *psc;
    __GLXDRIscreen *psp;
    struct glx_config *configs = NULL, *visuals = NULL;
@@ -735,10 +734,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       *return_zink = true;
       goto handle_error;
    }
-
-   extensions = driOpenDriver(driverName, driver_name_is_inferred);
-   if (extensions == NULL)
-      goto handle_error;
 
    if (psc->fd_render_gpu != psc->fd_display_gpu) {
       driverNameDisplayGPU = loader_get_driver_for_fd(psc->fd_display_gpu);
