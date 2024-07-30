@@ -2045,8 +2045,11 @@ label_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
       break;
    }
    case aco_opcode::v_cvt_f16_f32: {
-      if (instr->operands[0].isTemp())
-         ctx.info[instr->operands[0].tempId()].set_f2f16(instr.get());
+      if (instr->operands[0].isTemp()) {
+         ssa_info& info = ctx.info[instr->operands[0].tempId()];
+         if (!info.is_dpp() || info.instr->pass_flags != instr->pass_flags)
+            info.set_f2f16(instr.get());
+      }
       break;
    }
    case aco_opcode::v_cvt_f32_f16: {
