@@ -807,9 +807,8 @@ dri2_setup_swap_interval(_EGLDisplay *disp, int max_swap_interval)
    GLint vblank_mode = DRI_CONF_VBLANK_DEF_INTERVAL_1;
 
    /* Allow driconf to override applications.*/
-   if (dri2_dpy->config)
-      dri2_dpy->config->configQueryi(dri2_dpy->dri_screen_render_gpu,
-                                     "vblank_mode", &vblank_mode);
+   dri2GalliumConfigQueryi(dri2_dpy->dri_screen_render_gpu, "vblank_mode", &vblank_mode);
+
    switch (vblank_mode) {
    case DRI_CONF_VBLANK_NEVER:
       dri2_dpy->min_swap_interval = 0;
