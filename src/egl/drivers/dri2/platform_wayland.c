@@ -791,7 +791,7 @@ dri2_wl_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
    dri2_surf->wl_win = window;
    dri2_surf->wl_win->driver_private = dri2_surf;
    dri2_surf->wl_win->destroy_window_callback = destroy_window_callback;
-   if (dri2_dpy->flush)
+   if (!dri2_dpy->swrast_not_kms)
       dri2_surf->wl_win->resize_callback = resize_callback;
 
    if (!dri2_create_drawable(dri2_dpy, config, dri2_surf, dri2_surf))
@@ -1709,7 +1709,7 @@ dri2_wl_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
          dri2_surf->base.Height, 0, 0, dri2_surf->base.Width,
          dri2_surf->base.Height, 0);
 
-      if (dri2_dpy->flush) {
+      if (dri2_dpy->swrast_not_kms) {
          __DRIdrawable *dri_drawable = dri2_dpy->vtbl->get_dri_drawable(draw);
 
          dri_flush_drawable(dri_drawable);
