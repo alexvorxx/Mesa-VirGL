@@ -1706,29 +1706,27 @@ dri2_flush_drawable_for_swapbuffers_flags(
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    __DRIdrawable *dri_drawable = dri2_dpy->vtbl->get_dri_drawable(draw);
 
-   if (dri2_dpy->flush) {
-      if (dri2_dpy->flush->base.version >= 4) {
-         /* We know there's a current context because:
-          *
-          *     "If surface is not bound to the calling thread’s current
-          *      context, an EGL_BAD_SURFACE error is generated."
-          */
-         _EGLContext *ctx = _eglGetCurrentContext();
-         struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
+   /* flush not available for swrast */
+   if (dri2_dpy->swrast_not_kms)
+      return;
 
-         /* From the EGL 1.4 spec (page 52):
-          *
-          *     "The contents of ancillary buffers are always undefined
-          *      after calling eglSwapBuffers."
-          */
-         dri2_dpy->flush->flush_with_flags(
-            dri2_ctx->dri_context, dri_drawable,
-            __DRI2_FLUSH_DRAWABLE | __DRI2_FLUSH_INVALIDATE_ANCILLARY,
-            throttle_reason);
-      } else {
-         dri2_dpy->flush->flush(dri_drawable);
-      }
-   }
+   /* We know there's a current context because:
+      *
+      *     "If surface is not bound to the calling thread’s current
+      *      context, an EGL_BAD_SURFACE error is generated."
+      */
+   _EGLContext *ctx = _eglGetCurrentContext();
+   struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
+
+   /* From the EGL 1.4 spec (page 52):
+      *
+      *     "The contents of ancillary buffers are always undefined
+      *      after calling eglSwapBuffers."
+      */
+   dri2_dpy->flush->flush_with_flags(
+      dri2_ctx->dri_context, dri_drawable,
+      __DRI2_FLUSH_DRAWABLE | __DRI2_FLUSH_INVALIDATE_ANCILLARY,
+      throttle_reason);
 }
 
 void
