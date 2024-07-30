@@ -585,14 +585,6 @@ const __DRIimageLookupExtension image_lookup_extension = {
    .lookupEGLImageValidated = dri2_lookup_egl_image_validated,
 };
 
-static const struct dri_extension_match dri2_core_extensions[] = {
-   {__DRI_TEX_BUFFER, 2, offsetof(struct dri2_egl_display, tex_buffer), false},
-};
-
-static const struct dri_extension_match swrast_core_extensions[] = {
-   {__DRI_TEX_BUFFER, 2, offsetof(struct dri2_egl_display, tex_buffer), false},
-};
-
 static const struct dri_extension_match optional_core_extensions[] = {
    {__DRI2_FENCE, 2, offsetof(struct dri2_egl_display, fence), true},
    {__DRI2_INTEROP, 1, offsetof(struct dri2_egl_display, interop), true},
@@ -882,17 +874,6 @@ dri2_setup_extensions(_EGLDisplay *disp)
    const __DRIextension **extensions;
 
    extensions = driGetExtensions(dri2_dpy->dri_screen_render_gpu);
-
-   if (!dri2_dpy->swrast) {
-      if (!loader_bind_extensions(dri2_dpy, dri2_core_extensions,
-                                  ARRAY_SIZE(dri2_core_extensions), extensions))
-         return EGL_FALSE;
-   } else {
-      if (!loader_bind_extensions(dri2_dpy, swrast_core_extensions,
-                                  ARRAY_SIZE(swrast_core_extensions),
-                                  extensions))
-         return EGL_FALSE;
-   }
 
 #ifdef HAVE_DRI3_MODIFIERS
 #ifdef HAVE_X11_PLATFORM
