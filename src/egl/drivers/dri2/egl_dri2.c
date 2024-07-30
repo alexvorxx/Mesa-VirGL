@@ -744,7 +744,7 @@ dri2_setup_screen(_EGLDisplay *disp)
       & __DRI_FENCE_CAP_NATIVE_FD)
       disp->Extensions.ANDROID_native_fence_sync = EGL_TRUE;
 
-   if (dri2_dpy->blob)
+   if (get_pipe_screen(disp)->get_disk_shader_cache)
       disp->Extensions.ANDROID_blob_cache = EGL_TRUE;
 
    disp->Extensions.KHR_reusable_sync = EGL_TRUE;
@@ -3223,7 +3223,7 @@ dri2_set_blob_cache_funcs(_EGLDisplay *disp, EGLSetBlobFuncANDROID set,
                           EGLGetBlobFuncANDROID get)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
-   dri2_dpy->blob->set_cache_funcs(dri2_dpy->dri_screen_render_gpu, set, get);
+   dri_set_blob_cache_funcs(dri2_dpy->dri_screen_render_gpu, set, get);
    mtx_unlock(&dri2_dpy->lock);
 }
 
