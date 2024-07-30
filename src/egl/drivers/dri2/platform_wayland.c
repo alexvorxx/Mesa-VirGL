@@ -845,7 +845,6 @@ dri2_wl_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
 static EGLBoolean
 dri2_wl_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
    driDestroyDrawable(dri2_surf->dri_drawable);
@@ -861,9 +860,6 @@ dri2_wl_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
          munmap(dri2_surf->color_buffers[i].data,
                 dri2_surf->color_buffers[i].data_size);
    }
-
-   if (dri2_dpy->dri2)
-      dri2_egl_surface_free_local_buffers(dri2_surf);
 
    if (dri2_surf->throttle_callback)
       wl_callback_destroy(dri2_surf->throttle_callback);
@@ -906,9 +902,6 @@ dri2_wl_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
 static void
 dri2_wl_release_buffers(struct dri2_egl_surface *dri2_surf)
 {
-   struct dri2_egl_display *dri2_dpy =
-      dri2_egl_display(dri2_surf->base.Resource.Display);
-
    for (int i = 0; i < ARRAY_SIZE(dri2_surf->color_buffers); i++) {
       if (dri2_surf->color_buffers[i].wl_buffer) {
          if (dri2_surf->color_buffers[i].locked) {
@@ -931,9 +924,6 @@ dri2_wl_release_buffers(struct dri2_egl_surface *dri2_surf)
       dri2_surf->color_buffers[i].data = NULL;
       dri2_surf->color_buffers[i].age = 0;
    }
-
-   if (dri2_dpy->dri2)
-      dri2_egl_surface_free_local_buffers(dri2_surf);
 }
 
 /* Return list of modifiers that should be used to restrict the list of

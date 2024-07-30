@@ -362,9 +362,6 @@ struct dri2_egl_surface {
    struct gbm_dri_surface *gbm_surf;
 #endif
 
-   /* EGL-owned buffers */
-   __DRIbuffer *local_buffers[__DRI_BUFFER_COUNT];
-
 #if defined(HAVE_WAYLAND_PLATFORM) || defined(HAVE_DRM_PLATFORM)
    struct {
 #ifdef HAVE_WAYLAND_PLATFORM
@@ -643,13 +640,6 @@ dri2_display_destroy(_EGLDisplay *disp);
 
 struct dri2_egl_display *
 dri2_display_create(void);
-
-__DRIbuffer *
-dri2_egl_surface_alloc_local_buffer(struct dri2_egl_surface *dri2_surf,
-                                    unsigned int att, unsigned int format);
-
-void
-dri2_egl_surface_free_local_buffers(struct dri2_egl_surface *dri2_surf);
 
 EGLBoolean
 dri2_init_surface(_EGLSurface *surf, _EGLDisplay *disp, EGLint type,

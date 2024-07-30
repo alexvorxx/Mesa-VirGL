@@ -210,8 +210,6 @@ dri2_drm_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
          gbm_bo_destroy(dri2_surf->color_buffers[i].bo);
    }
 
-   dri2_egl_surface_free_local_buffers(dri2_surf);
-
    dri2_fini_surface(surf);
    free(surf);
 
