@@ -233,23 +233,6 @@ static const __DRIextension *gbm_dri_screen_extensions[] = {
    NULL,
 };
 
-const __DRIextension **
-dri_loader_get_extensions(const char *driver_name);
-
-static const __DRIextension **
-dri_open_driver(struct gbm_dri_device *dri)
-{
-   /* Temporarily work around dri driver libs that need symbols in libglapi
-    * but don't automatically link it in.
-    */
-   /* XXX: Library name differs on per platforms basis. Update this as
-    * osx/cygwin/windows/bsd gets support for GBM..
-    */
-   dlopen("libglapi.so.0", RTLD_LAZY | RTLD_GLOBAL);
-
-   return dri_loader_get_extensions(dri->driver_name);
-}
-
 static int
 dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool driver_name_is_inferred)
 {
@@ -266,16 +249,8 @@ dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool
 
    dri->driver_name = swrast ? strdup("swrast") : driver_name;
 
-   const __DRIextension **extensions = dri_open_driver(dri);
-   if (!extensions) {
-      if (driver_name_is_inferred)
-         fprintf(stderr, "MESA-LOADER: gbm: failed to open %s: driver not built!\n", dri->driver_name);
-      goto fail;
-   }
-
    dri->swrast = swrast;
 
-   dri->driver_extensions = extensions;
    dri->loader_extensions = gbm_dri_screen_extensions;
    dri->screen = driCreateNewScreen3(0, swrast ? -1 : dri->base.v0.fd,
                                              dri->loader_extensions,
