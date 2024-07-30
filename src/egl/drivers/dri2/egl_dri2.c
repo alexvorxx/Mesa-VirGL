@@ -741,16 +741,12 @@ dri2_setup_screen(_EGLDisplay *disp)
    disp->Extensions.EXT_query_reset_notification_strategy =
       disp->Extensions.EXT_create_context_robustness;
 
-   if (dri2_dpy->fence) {
-      disp->Extensions.KHR_fence_sync = EGL_TRUE;
-      disp->Extensions.KHR_wait_sync = EGL_TRUE;
-      if (dri2_dpy->fence->get_fence_from_cl_event)
-         disp->Extensions.KHR_cl_event2 = EGL_TRUE;
-      unsigned capabilities =
-         dri2_dpy->fence->get_capabilities(dri2_dpy->dri_screen_render_gpu);
-      disp->Extensions.ANDROID_native_fence_sync =
-         (capabilities & __DRI_FENCE_CAP_NATIVE_FD) != 0;
-   }
+   disp->Extensions.KHR_fence_sync = EGL_TRUE;
+   disp->Extensions.KHR_wait_sync = EGL_TRUE;
+   disp->Extensions.KHR_cl_event2 = EGL_TRUE;
+   if (dri2_dpy->fence->get_capabilities(dri2_dpy->dri_screen_render_gpu)
+      & __DRI_FENCE_CAP_NATIVE_FD)
+      disp->Extensions.ANDROID_native_fence_sync = EGL_TRUE;
 
    if (dri2_dpy->blob)
       disp->Extensions.ANDROID_blob_cache = EGL_TRUE;
@@ -1379,9 +1375,8 @@ dri2_init_surface(_EGLSurface *surf, _EGLDisplay *disp, EGLint type,
 
    dri2_surf->out_fence_fd = -1;
    dri2_surf->enable_out_fence = false;
-   if (dri2_dpy->fence &&
-       (dri2_dpy->fence->get_capabilities(dri2_dpy->dri_screen_render_gpu) &
-        __DRI_FENCE_CAP_NATIVE_FD)) {
+   if (dri2_dpy->fence->get_capabilities(dri2_dpy->dri_screen_render_gpu) &
+        __DRI_FENCE_CAP_NATIVE_FD) {
       dri2_surf->enable_out_fence = enable_out_fence;
    }
 
