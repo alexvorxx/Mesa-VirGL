@@ -1921,8 +1921,7 @@ dri2_bind_tex_image(_EGLDisplay *disp, _EGLSurface *surf, EGLint buffer)
       assert(!"Unexpected texture target in dri2_bind_tex_image()");
    }
 
-   dri2_dpy->tex_buffer->setTexBuffer2(dri2_ctx->dri_context, target, format,
-                                       dri_drawable);
+   dri_set_tex_buffer2(dri2_ctx->dri_context, target, format, dri_drawable);
 
    mtx_unlock(&dri2_dpy->lock);
 
