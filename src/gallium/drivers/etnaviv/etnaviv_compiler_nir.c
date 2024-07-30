@@ -1067,7 +1067,6 @@ static void
 fill_vs_mystery(struct etna_shader_variant *v)
 {
    const struct etna_core_info *info = v->shader->info;
-   const struct etna_specs *specs = v->shader->specs;
 
    v->input_count_unk8 = DIV_ROUND_UP(v->infile.num_reg + 4, 16); /* XXX what is this */
 
@@ -1093,7 +1092,7 @@ fill_vs_mystery(struct etna_shader_variant *v)
    int half_out = v->outfile.num_reg / 2 + 1;
    assert(half_out);
 
-   uint32_t b = ((20480 / (specs->vertex_output_buffer_size -
+   uint32_t b = ((20480 / (info->gpu.vertex_output_buffer_size -
                            2 * half_out * info->gpu.vertex_cache_size)) +
                  9) /
                 10;

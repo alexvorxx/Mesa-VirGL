@@ -101,8 +101,6 @@ struct etna_specs {
    unsigned fragment_sampler_count;
    /* number of vertex sampler units */
    unsigned vertex_sampler_count;
-   /* size of vertex shader output buffer */
-   unsigned vertex_output_buffer_size;
    /* maximum number of vertex element configurations */
    unsigned vertex_max_elements;
    /* number of vertex streams */
