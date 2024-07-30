@@ -586,7 +586,6 @@ const __DRIimageLookupExtension image_lookup_extension = {
 };
 
 static const struct dri_extension_match dri2_core_extensions[] = {
-   {__DRI2_FLUSH, 1, offsetof(struct dri2_egl_display, flush), false},
    {__DRI_TEX_BUFFER, 2, offsetof(struct dri2_egl_display, tex_buffer), false},
 };
 
