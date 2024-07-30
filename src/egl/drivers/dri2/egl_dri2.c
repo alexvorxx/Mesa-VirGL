@@ -1371,12 +1371,10 @@ dri2_init_surface(_EGLSurface *surf, _EGLDisplay *disp, EGLint type,
                   EGLBoolean enable_out_fence, void *native_surface)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
    dri2_surf->out_fence_fd = -1;
    dri2_surf->enable_out_fence = false;
-   if (dri2_dpy->fence->get_capabilities(dri2_dpy->dri_screen_render_gpu) &
-        __DRI_FENCE_CAP_NATIVE_FD) {
+   if (disp->Extensions.ANDROID_native_fence_sync) {
       dri2_surf->enable_out_fence = enable_out_fence;
    }
 
