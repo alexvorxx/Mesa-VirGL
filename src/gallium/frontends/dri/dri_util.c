@@ -104,7 +104,6 @@ driCreateNewScreen3(int scrn, int fd,
                     const __DRIextension **driver_extensions,
                     const __DRIconfig ***driver_configs, bool driver_name_is_inferred, void *data)
 {
-    static const __DRIextension *emptyExtensionList[] = { NULL };
     struct dri_screen *screen;
     const __DRImesaCoreExtension *mesa = NULL;
 
@@ -128,8 +127,6 @@ driCreateNewScreen3(int scrn, int fd,
 
     screen->loaderPrivate = data;
 
-    /* This will be filled in by mesa->initScreen(). */
-    screen->extensions = emptyExtensionList;
     screen->fd = fd;
     screen->myNum = scrn;
 

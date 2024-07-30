@@ -63,8 +63,6 @@ struct dri_screen
    int max_gl_es1_version;
    int max_gl_es2_version;
 
-   const __DRIextension **extensions;
-
    const __DRIswrastLoaderExtension *swrast_loader;
    const __DRIkopperLoaderExtension *kopper_loader;
 

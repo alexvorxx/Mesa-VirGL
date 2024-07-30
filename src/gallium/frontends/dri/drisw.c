@@ -586,42 +586,11 @@ drisw_update_tex_buffer(struct dri_drawable *drawable,
    pipe_texture_unmap(pipe, transfer);
 }
 
-static __DRIimageExtension driSWImageExtension = {
-    .base = { __DRI_IMAGE, 6 },
-
-    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
-    .createImageFromTexture = dri2_create_from_texture,
-    .destroyImage = dri2_destroy_image,
-};
-
 extern const __DRIimageExtension driVkImageExtension;
-
-static const __DRIrobustnessExtension dri2Robustness = {
-   .base = { __DRI2_ROBUSTNESS, 1 }
-};
 
 /*
  * Backend function for init_screen.
  */
-
-static const __DRIextension *drisw_screen_extensions[] = {
-   &driSWImageExtension.base,
-   &driTexBufferExtension.base,
-   &dri2GalliumConfigQueryExtension.base,
-   &dri2FenceExtension.base,
-   &dri2FlushControlExtension.base,
-   NULL
-};
-
-static const __DRIextension *drisw_robust_screen_extensions[] = {
-   &driSWImageExtension.base,
-   &driTexBufferExtension.base,
-   &dri2GalliumConfigQueryExtension.base,
-   &dri2FenceExtension.base,
-   &dri2Robustness.base,
-   &dri2FlushControlExtension.base,
-   NULL
-};
 
 static const struct drisw_loader_funcs drisw_lf = {
    .get_image = drisw_get_image,
@@ -687,21 +656,6 @@ drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    configs = dri_init_screen(screen, pscreen);
    if (!configs)
       goto fail;
-
-   if (pscreen->get_param(pscreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY)) {
-      screen->extensions = drisw_robust_screen_extensions;
-   }
-   else
-      screen->extensions = drisw_screen_extensions;
-
-#ifdef HAVE_LIBDRM
-   int dmabuf_cap = pscreen->get_param(pscreen, PIPE_CAP_DMABUF);
-   if (pscreen->resource_create_with_modifiers && (dmabuf_cap & DRM_PRIME_CAP_EXPORT))
-      screen->extensions[0] = &driVkImageExtension.base;
-   else if (pscreen->resource_create_with_modifiers && dmabuf_cap) {
-      driSWImageExtension.createImageFromDmaBufs = driVkImageExtension.createImageFromDmaBufs;
-   }
-#endif
 
    screen->create_drawable = drisw_create_drawable;
 

@@ -60,43 +60,7 @@ static struct dri_drawable *
 kopper_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
                        bool isPixmap, void *loaderPrivate);
 
-
-static const __DRI2flushExtension driVkFlushExtension = {
-    .base = { __DRI2_FLUSH, 4 },
-
-    .flush                = dri_flush_drawable,
-    .invalidate           = dri_invalidate_drawable,
-    .flush_with_flags     = dri_flush,
-};
-
-static const __DRIrobustnessExtension dri2Robustness = {
-   .base = { __DRI2_ROBUSTNESS, 1 }
-};
-
 const __DRIkopperExtension driKopperExtension;
-
-static const __DRIextension *drivk_screen_extensions[] = {
-   &driTexBufferExtension.base,
-   &dri2GalliumConfigQueryExtension.base,
-   &dri2FenceExtension.base,
-   &dri2Robustness.base,
-   &driVkImageExtension.base,
-   &dri2FlushControlExtension.base,
-   &driVkFlushExtension.base,
-   &driKopperExtension.base,
-   NULL
-};
-
-static const __DRIextension *drivk_sw_screen_extensions[] = {
-   &driTexBufferExtension.base,
-   &dri2GalliumConfigQueryExtension.base,
-   &dri2FenceExtension.base,
-   &dri2Robustness.base,
-   &driVkImageExtensionSw.base,
-   &dri2FlushControlExtension.base,
-   &driVkFlushExtension.base,
-   NULL
-};
 
 static const __DRIconfig **
 kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
@@ -135,10 +99,6 @@ kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 
    assert(pscreen->get_param(pscreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY));
    screen->is_sw = zink_kopper_is_cpu(pscreen);
-   if (screen->has_dmabuf)
-      screen->extensions = drivk_screen_extensions;
-   else
-      screen->extensions = drivk_sw_screen_extensions;
 
    screen->create_drawable = kopper_create_drawable;
 
