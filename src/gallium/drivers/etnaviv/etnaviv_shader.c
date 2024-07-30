@@ -489,6 +489,7 @@ etna_create_shader_state(struct pipe_context *pctx,
       return NULL;
 
    shader->id = p_atomic_inc_return(&compiler->shader_count);
+   shader->info = screen->info;
    shader->specs = &screen->specs;
    shader->compiler = screen->compiler;
    util_queue_fence_init(&shader->ready);

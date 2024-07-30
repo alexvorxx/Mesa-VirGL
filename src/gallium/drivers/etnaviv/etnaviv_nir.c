@@ -119,7 +119,7 @@ etna_lower_io(nir_shader *shader, struct etna_shader_variant *v)
 
             /* pre HALTI5 needs texture sources in a single source */
 
-            if (!src1 || v->shader->specs->halti >= 5)
+            if (!src1 || v->shader->info->halti >= 5)
                continue;
 
             assert(coord && src1 && tex->coord_components < 4);

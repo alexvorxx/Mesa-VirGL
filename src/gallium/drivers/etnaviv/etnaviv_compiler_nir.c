@@ -241,7 +241,7 @@ static hw_src
 const_src(struct etna_compile *c, nir_const_value *value, unsigned num_components)
 {
    /* use inline immediates if possible */
-   if (c->specs->halti >= 2 && num_components == 1 &&
+   if (c->info->halti >= 2 && num_components == 1 &&
        value[0].u64 >> 32 == ETNA_UNIFORM_CONSTANT) {
       uint32_t bits = value[0].u32;
 
@@ -966,7 +966,7 @@ emit_shader(struct etna_compile *c, unsigned *num_temps, unsigned *num_consts)
 
             unsigned base = nir_intrinsic_base(intr);
             /* pre halti2 uniform offset will be float */
-            if (c->specs->halti < 2)
+            if (c->info->halti < 2)
                base += (unsigned) off[0].f32;
             else
                base += off[0].u32;
@@ -1113,6 +1113,7 @@ etna_compile_shader(struct etna_shader_variant *v)
       return false;
 
    c->variant = v;
+   c->info = v->shader->info;
    c->specs = v->shader->specs;
    c->nir = nir_shader_clone(NULL, v->shader->nir);
 
@@ -1173,7 +1174,7 @@ etna_compile_shader(struct etna_shader_variant *v)
    NIR_PASS_V(s, etna_nir_lower_texture, &v->key);
 
    NIR_PASS_V(s, nir_lower_alu_to_scalar, etna_alu_to_scalar_filter_cb, specs);
-   if (c->specs->halti >= 2) {
+   if (c->info->halti >= 2) {
       nir_lower_idiv_options idiv_options = {
          .allow_fp16 = true,
       };
@@ -1195,7 +1196,7 @@ etna_compile_shader(struct etna_shader_variant *v)
       NIR_PASS_V(s, nir_lower_clip_halfz);
 
    /* lower pre-halti2 to float (halti0 has integers, but only scalar..) */
-   if (c->specs->halti < 2) {
+   if (c->info->halti < 2) {
       /* use opt_algebraic between int_to_float and boot_to_float because
        * int_to_float emits ftrunc, and ftrunc lowering generates bool ops
        */
