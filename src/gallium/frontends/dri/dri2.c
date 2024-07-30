@@ -2164,11 +2164,9 @@ dri2_init_screen_extensions(struct dri_screen *screen,
 
    *nExt++ = &screen->image_extension.base;
 
-   if (!is_kms_screen) {
+   if (!is_kms_screen && pscreen->set_damage_region) {
       screen->buffer_damage_extension = dri2BufferDamageExtensionTempl;
-      if (pscreen->set_damage_region)
-         screen->buffer_damage_extension.set_damage_region =
-            dri2_set_damage_region;
+      screen->buffer_damage_extension.set_damage_region = dri2_set_damage_region;
       *nExt++ = &screen->buffer_damage_extension.base;
    }
 
