@@ -1001,6 +1001,8 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psp->getSwapInterval = dri2GetSwapInterval;
    psp->maxSwapInterval = INT_MAX;
 
+   psc->base.can_EXT_texture_from_pixmap = true;
+
    __glXEnableDirectExtension(&psc->base, "GLX_OML_sync_control");
    __glXEnableDirectExtension(&psc->base, "GLX_SGI_video_sync");
 

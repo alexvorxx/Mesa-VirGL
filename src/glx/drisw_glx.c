@@ -931,6 +931,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    psp = &psc->vtable;
    psc->base.driScreen = psp;
    psc->base.frontend_screen = psc->driScreen;
+   psc->base.can_EXT_texture_from_pixmap = true;
    psp->destroyScreen = driswDestroyScreen;
    psp->createDrawable = driswCreateDrawable;
    psp->swapBuffers = driswSwapBuffers;

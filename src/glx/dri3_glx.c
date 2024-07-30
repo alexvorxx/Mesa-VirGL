@@ -857,6 +857,12 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    psp->bindTexImage = dri3_bind_tex_image;
    psp->maxSwapInterval = INT_MAX;
 
+   /* when on a different gpu than the server, the server pixmaps
+    * can have a tiling mode we can't read. Thus we can't create
+    * a texture from them.
+    */
+   psc->base.can_EXT_texture_from_pixmap = psc->fd_render_gpu == psc->fd_display_gpu;
+
    __glXEnableDirectExtension(&psc->base, "GLX_OML_sync_control");
    __glXEnableDirectExtension(&psc->base, "GLX_SGI_video_sync");
 
