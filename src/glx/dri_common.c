@@ -44,6 +44,7 @@
 #include <X11/Xlib-xcb.h>
 #include <xcb/xproto.h>
 #include "dri_util.h"
+#include "pipe-loader/pipe_loader.h"
 
 #ifndef RTLD_NOW
 #define RTLD_NOW 0
@@ -734,29 +735,6 @@ clear_driver_config_cache()
    }
 }
 
-static char *
-get_driver_config(const char *driverName)
-{
-   char *config = NULL;
-   const __DRIextension **extensions = driOpenDriver(driverName, false);
-   if (extensions) {
-      for (int i = 0; extensions[i]; i++) {
-         if (strcmp(extensions[i]->name, __DRI_CONFIG_OPTIONS) != 0)
-            continue;
-
-         __DRIconfigOptionsExtension *ext =
-            (__DRIconfigOptionsExtension *)extensions[i];
-
-         if (ext->base.version >= 2)
-            config = ext->getXml(driverName);
-
-         break;
-      }
-   }
-
-   return config;
-}
-
 /*
  * Exported function for obtaining a driver's option list (UTF-8 encoded XML).
  *
@@ -782,7 +760,7 @@ glXGetDriverConfig(const char *driverName)
    if (!e)
       goto out;
 
-   e->config = get_driver_config(driverName);
+   e->config = pipe_loader_get_driinfo_xml(driverName);
    e->driverName = strdup(driverName);
    if (!e->config || !e->driverName) {
       free(e->config);
