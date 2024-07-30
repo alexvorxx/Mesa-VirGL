@@ -104,14 +104,6 @@ dri_invalidate_drawable(__DRIdrawable *dPriv)
    p_atomic_inc(&drawable->base.stamp);
 }
 
-static const __DRI2flushExtension dri2FlushExtension = {
-    .base = { __DRI2_FLUSH, 4 },
-
-    .flush                = dri_flush_drawable,
-    .invalidate           = dri_invalidate_drawable,
-    .flush_with_flags     = dri_flush,
-};
-
 /**
  * Retrieve __DRIbuffer from the DRI loader.
  */
@@ -1926,31 +1918,6 @@ dri2_get_capabilities(__DRIscreen *_screen)
    return (screen->can_share_buffer ? __DRI_IMAGE_CAP_GLOBAL_NAMES : 0);
 }
 
-/* The extension is modified during runtime if DRI_PRIME is detected */
-static const __DRIimageExtension dri2ImageExtensionTempl = {
-    .base = { __DRI_IMAGE, 22 },
-
-    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
-    .destroyImage                 = dri2_destroy_image,
-    .createImage                  = dri_create_image,
-    .queryImage                   = dri2_query_image,
-    .dupImage                     = dri2_dup_image,
-    .validateUsage                = dri2_validate_usage,
-    .createImageFromNames         = dri2_from_names,
-    .fromPlanar                   = dri2_from_planar,
-    .createImageFromTexture       = dri2_create_from_texture,
-    .createImageFromDmaBufs       = NULL,
-    .blitImage                    = dri2_blit_image,
-    .getCapabilities              = dri2_get_capabilities,
-    .mapImage                     = dri2_map_image,
-    .unmapImage                   = dri2_unmap_image,
-    .queryDmaBufFormats           = NULL,
-    .queryDmaBufModifiers         = NULL,
-    .queryDmaBufFormatModifierAttribs = NULL,
-    .queryCompressionRates        = NULL,
-    .queryCompressionModifiers    = NULL,
-};
-
 const __DRIimageExtension driVkImageExtension = {
     .base = { __DRI_IMAGE, 20 },
 
@@ -1992,10 +1959,6 @@ const __DRIimageExtension driVkImageExtensionSw = {
     .unmapImage                   = dri2_unmap_image,
 };
 
-static const __DRIrobustnessExtension dri2Robustness = {
-   .base = { __DRI2_ROBUSTNESS, 1 }
-};
-
 int
 dri_interop_query_device_info(__DRIcontext *_ctx,
                                struct mesa_glinterop_device_info *out)
@@ -2018,13 +1981,6 @@ dri_interop_flush_objects(__DRIcontext *_ctx,
 {
    return st_interop_flush_objects(dri_context(_ctx)->st, count, objects, out);
 }
-
-static const __DRI2interopExtension dri2InteropExtension = {
-   .base = { __DRI2_INTEROP, 2 },
-   .query_device_info = dri_interop_query_device_info,
-   .export_object = dri_interop_export_object,
-   .flush_objects = dri_interop_flush_objects
-};
 
 /**
  * \brief the DRI2bufferDamageExtension set_damage_region method
@@ -2067,10 +2023,6 @@ dri_set_damage_region(__DRIdrawable *dPriv, unsigned int nrects, int *rects)
    }
 }
 
-static const __DRI2bufferDamageExtension dri2BufferDamageExtensionTempl = {
-   .base = { __DRI2_BUFFER_DAMAGE, 1 },
-};
-
 /**
  * \brief the DRI2blobExtension set_cache_funcs method
  */
@@ -2092,95 +2044,9 @@ dri_set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
    disk_cache_set_callbacks(cache, set, get);
 }
 
-static const __DRI2blobExtension driBlobExtension = {
-   .base = { __DRI2_BLOB, 1 },
-   .set_cache_funcs = dri_set_blob_cache_funcs
-};
-
-static const __DRImutableRenderBufferDriverExtension driMutableRenderBufferExtension = {
-   .base = { __DRI_MUTABLE_RENDER_BUFFER_DRIVER, 1 },
-};
-
 /*
  * Backend function init_screen.
  */
-
-static const __DRIextension *dri_screen_extensions_base[] = {
-   &driTexBufferExtension.base,
-   &dri2FlushExtension.base,
-   &dri2GalliumConfigQueryExtension.base,
-   &dri2FenceExtension.base,
-   &dri2InteropExtension.base,
-   &driBlobExtension.base,
-   &driMutableRenderBufferExtension.base,
-   &dri2FlushControlExtension.base,
-};
-
-/**
- * Set up the DRI extension list for this screen based on its underlying
- * gallium screen's capabilities.
- */
-static void
-dri2_init_screen_extensions(struct dri_screen *screen,
-                            struct pipe_screen *pscreen,
-                            bool is_kms_screen)
-{
-   const __DRIextension **nExt;
-
-   STATIC_ASSERT(sizeof(screen->screen_extensions) >=
-                 sizeof(dri_screen_extensions_base));
-   memcpy(&screen->screen_extensions, dri_screen_extensions_base,
-          sizeof(dri_screen_extensions_base));
-   screen->extensions = screen->screen_extensions;
-
-   /* Point nExt at the end of the extension list */
-   nExt = &screen->screen_extensions[ARRAY_SIZE(dri_screen_extensions_base)];
-
-   screen->image_extension = dri2ImageExtensionTempl;
-
-   if (pscreen->get_param(pscreen, PIPE_CAP_NATIVE_FENCE_FD)) {
-      screen->image_extension.setInFenceFd = dri2_set_in_fence_fd;
-   }
-
-   if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_IMPORT) {
-      screen->image_extension.createImageFromDmaBufs = dri2_from_dma_bufs;
-      screen->image_extension.queryDmaBufFormats =
-         dri_query_dma_buf_formats;
-      screen->image_extension.queryDmaBufModifiers =
-         dri_query_dma_buf_modifiers;
-      if (!is_kms_screen) {
-         screen->image_extension.queryDmaBufFormatModifierAttribs =
-            dri2_query_dma_buf_format_modifier_attribs;
-      }
-   }
-
-   if (pscreen->query_compression_rates &&
-       pscreen->query_compression_modifiers) {
-      screen->image_extension.queryCompressionRates =
-         dri2_query_compression_rates;
-      screen->image_extension.queryCompressionModifiers =
-         dri2_query_compression_modifiers;
-   }
-
-   *nExt++ = &screen->image_extension.base;
-
-   if (!is_kms_screen && pscreen->set_damage_region) {
-      screen->buffer_damage_extension = dri2BufferDamageExtensionTempl;
-      screen->buffer_damage_extension.set_damage_region = dri_set_damage_region;
-      *nExt++ = &screen->buffer_damage_extension.base;
-   }
-
-   if (pscreen->get_param(pscreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY)) {
-      *nExt++ = &dri2Robustness.base;
-      screen->has_reset_status_query = true;
-   }
-
-   /* Ensure the extension list didn't overrun its buffer and is still
-    * NULL-terminated */
-   assert(nExt - screen->screen_extensions <=
-          ARRAY_SIZE(screen->screen_extensions) - 1);
-   assert(!*nExt);
-}
 
 static struct dri_drawable *
 dri2_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
@@ -2218,8 +2084,6 @@ dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    if (!pscreen)
        return NULL;
 
-   dri2_init_screen_extensions(screen, pscreen, false);
-
    configs = dri_init_screen(screen, pscreen);
    if (!configs)
       goto fail;
@@ -2256,8 +2120,6 @@ dri_swrast_kms_init_screen(struct dri_screen *screen, bool driver_name_is_inferr
 
    if (!pscreen)
        goto fail;
-
-   dri2_init_screen_extensions(screen, pscreen, true);
 
    configs = dri_init_screen(screen, pscreen);
    if (!configs)
