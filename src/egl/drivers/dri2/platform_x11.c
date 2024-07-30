@@ -617,7 +617,7 @@ dri2_query_surface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
          surf->Width = w;
          surf->Height = h;
          if (changed && dri2_dpy->flush)
-            dri2_dpy->flush->invalidate(drawable);
+            dri_invalidate_drawable(drawable);
       }
       break;
    default:
@@ -1034,7 +1034,7 @@ dri2_copy_region(_EGLDisplay *disp, _EGLSurface *draw,
       return EGL_TRUE;
 
    assert(!dri2_dpy->kopper);
-   dri2_dpy->flush->flush(dri2_surf->dri_drawable);
+   dri_flush_drawable(dri2_surf->dri_drawable);
 
    if (dri2_surf->have_fake_front)
       render_attachment = XCB_DRI2_ATTACHMENT_BUFFER_FAKE_FRONT_LEFT;
@@ -1093,7 +1093,7 @@ dri2_x11_swap_buffers_msc(_EGLDisplay *disp, _EGLSurface *draw, int64_t msc,
     * happened.  The driver should still be using the viewport hack to catch
     * window resizes.
     */
-   dri2_dpy->flush->invalidate(dri2_surf->dri_drawable);
+   dri_invalidate_drawable(dri2_surf->dri_drawable);
 
    return swap_count;
 }
@@ -1241,7 +1241,7 @@ dri2_x11_copy_buffers(_EGLDisplay *disp, _EGLSurface *surf,
    target = (uintptr_t)native_pixmap_target;
 
    if (dri2_dpy->flush)
-      dri2_dpy->flush->flush(dri2_surf->dri_drawable);
+      dri_flush_drawable(dri2_surf->dri_drawable);
    else {
       /* This should not be a swapBuffers, because it could present an
        * incomplete frame, and it could invalidate the back buffer if it's not

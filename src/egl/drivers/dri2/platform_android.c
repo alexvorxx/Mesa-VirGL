@@ -616,7 +616,6 @@ droid_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surface)
 static EGLBoolean
 droid_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
    const bool has_mutable_rb = _eglSurfaceHasMutableRenderBuffer(draw);
 
@@ -655,7 +654,7 @@ droid_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
    if (dri2_surf->buffer)
       droid_window_enqueue_buffer(disp, dri2_surf);
 
-   dri2_dpy->flush->invalidate(dri2_surf->dri_drawable);
+   dri_invalidate_drawable(dri2_surf->dri_drawable);
 
    /* Update the shared buffer mode */
    if (has_mutable_rb &&
@@ -924,9 +923,6 @@ droid_display_shared_buffer(__DRIdrawable *driDrawable, int fence_fd,
    if (ANativeWindow_dequeueBuffer(dri2_surf->window, &dri2_surf->buffer,
                                    &fence_fd)) {
       /* Tear down the surface because it no longer has a back buffer. */
-      struct dri2_egl_display *dri2_dpy =
-         dri2_egl_display(dri2_surf->base.Resource.Display);
-
       _eglLog(_EGL_WARNING, "%s: ANativeWindow_dequeueBuffer failed", __func__);
 
       dri2_surf->base.Lost = true;
@@ -938,7 +934,7 @@ droid_display_shared_buffer(__DRIdrawable *driDrawable, int fence_fd,
          dri2_surf->dri_image_back = NULL;
       }
 
-      dri2_dpy->flush->invalidate(dri2_surf->dri_drawable);
+      dri_invalidate_drawable(dri2_surf->dri_drawable);
       return;
    }
 

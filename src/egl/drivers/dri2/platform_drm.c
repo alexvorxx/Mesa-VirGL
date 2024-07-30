@@ -330,7 +330,7 @@ dri2_drm_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
     * call get_back_bo (eg: through dri2_drm_image_get_buffers).
     */
    dri2_flush_drawable_for_swapbuffers(disp, draw);
-   dri2_dpy->flush->invalidate(dri2_surf->dri_drawable);
+   dri_invalidate_drawable(dri2_surf->dri_drawable);
 
    /* Make sure we have a back buffer in case we're swapping without
     * ever rendering. */

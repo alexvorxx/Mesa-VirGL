@@ -1723,8 +1723,7 @@ dri2_flush_drawable_for_swapbuffers_flags(
       *     "The contents of ancillary buffers are always undefined
       *      after calling eglSwapBuffers."
       */
-   dri2_dpy->flush->flush_with_flags(
-      dri2_ctx->dri_context, dri_drawable,
+   dri_flush(dri2_ctx->dri_context, dri_drawable,
       __DRI2_FLUSH_DRAWABLE | __DRI2_FLUSH_INVALIDATE_ANCILLARY,
       throttle_reason);
 }
@@ -1874,7 +1873,7 @@ dri2_wait_client(_EGLDisplay *disp, _EGLContext *ctx)
     * we need to copy fake to real here.*/
 
    if (!dri2_dpy->swrast_not_kms)
-      dri2_dpy->flush->flush(dri_drawable);
+      dri_flush_drawable(dri_drawable);
 
    return EGL_TRUE;
 }

@@ -417,8 +417,6 @@ static void
 resize_callback(struct wl_egl_window *wl_win, void *data)
 {
    struct dri2_egl_surface *dri2_surf = data;
-   struct dri2_egl_display *dri2_dpy =
-      dri2_egl_display(dri2_surf->base.Resource.Display);
 
    if (dri2_surf->base.Width == wl_win->width &&
        dri2_surf->base.Height == wl_win->height)
@@ -437,7 +435,7 @@ resize_callback(struct wl_egl_window *wl_win, void *data)
       dri2_surf->base.Width = wl_win->width;
       dri2_surf->base.Height = wl_win->height;
    }
-   dri2_dpy->flush->invalidate(dri2_surf->dri_drawable);
+   dri_invalidate_drawable(dri2_surf->dri_drawable);
 }
 
 static void
@@ -1638,7 +1636,7 @@ dri2_wl_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
     *     and glthread causes troubles (see #7624 and #8136)
     */
    dri2_flush_drawable_for_swapbuffers(disp, draw);
-   dri2_dpy->flush->invalidate(dri2_surf->dri_drawable);
+   dri_invalidate_drawable(dri2_surf->dri_drawable);
 
    while (dri2_surf->throttle_callback != NULL)
       if (loader_wayland_dispatch(dri2_dpy->wl_dpy, dri2_surf->wl_queue, NULL) ==
@@ -1714,7 +1712,7 @@ dri2_wl_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
       if (dri2_dpy->flush) {
          __DRIdrawable *dri_drawable = dri2_dpy->vtbl->get_dri_drawable(draw);
 
-         dri2_dpy->flush->flush(dri_drawable);
+         dri_flush_drawable(dri_drawable);
       }
    }
 
