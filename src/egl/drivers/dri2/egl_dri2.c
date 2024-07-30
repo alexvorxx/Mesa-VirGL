@@ -1873,7 +1873,7 @@ dri2_wait_client(_EGLDisplay *disp, _EGLContext *ctx)
    /* FIXME: If EGL allows frontbuffer rendering for window surfaces,
     * we need to copy fake to real here.*/
 
-   if (dri2_dpy->flush != NULL)
+   if (!dri2_dpy->swrast_not_kms)
       dri2_dpy->flush->flush(dri_drawable);
 
    return EGL_TRUE;
