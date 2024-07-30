@@ -104,7 +104,11 @@ if with_gallium_asahi or with_tools.contains('asahi')
 endif
 if with_gallium
   subdir('mesa')
+endif
+if with_gallium_or_lvp
   subdir('gallium')
+endif
+if with_gallium
   # This has to be here since it requires libgallium, and subdir cannot
   # contain ..
   if with_tests

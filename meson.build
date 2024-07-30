@@ -263,6 +263,7 @@ if with_any_vk and host_machine.system() == 'windows' and meson.version().versio
 endif
 
 with_any_llvmpipe = with_gallium_llvmpipe or with_swrast_vk
+with_gallium_or_lvp = with_gallium or with_swrast_vk
 
 freedreno_kmds = get_option('freedreno-kmds')
 if freedreno_kmds.length() != 0 and freedreno_kmds != [ 'msm' ] and with_freedreno_vk
@@ -1879,7 +1880,7 @@ elif with_amd_vk and with_aco_tests
   error('ACO tests require LLVM, but LLVM is disabled.')
 elif with_swrast_vk
   error('lavapipe requires LLVM and is enabled, but LLVM is disabled.')
-elif with_gallium_llvmpipe
+elif with_any_llvmpipe
   error('llvmpipe requires LLVM and is enabled, but LLVM is disabled.')
 elif with_gallium_clover
   error('The OpenCL "Clover" state tracker requires LLVM, but LLVM is disabled.')
