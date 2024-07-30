@@ -20,7 +20,7 @@ struct nv_device_info {
    char device_name[64];
    char chipset_name[16];
 
-   /* Populated if type == NV_DEVICE_TYPE_DIS */
+   /* Populated if type != NV_DEVICE_TYPE_SOC */
    struct {
       uint16_t domain;
       uint8_t bus;
