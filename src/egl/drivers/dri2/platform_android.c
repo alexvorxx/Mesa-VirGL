@@ -1186,7 +1186,7 @@ dri2_initialize_android(_EGLDisplay *disp)
 
    dri2_dpy->front_rendering_usage = 0;
 #if ANDROID_API_LEVEL >= 24
-   if (dri2_dpy->mutable_render_buffer &&
+   if (!dri2_dpy->swrast_not_kms &&
        dri2_dpy->loader_extensions == droid_image_loader_extensions &&
        /* In big GL, front rendering is done at the core API level by directly
         * rendering on the front buffer. However, in ES, the front buffer is
