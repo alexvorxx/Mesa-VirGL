@@ -53,11 +53,13 @@ agx_upload_vbos(struct agx_batch *batch)
 
    for (unsigned i = 0; i < PIPE_MAX_ATTRIBS; ++i) {
       unsigned buf = attribs->buffers[i];
+      uint64_t addr;
 
       batch->uniforms.attrib_clamp[i] = agx_calculate_vbo_clamp(
          buffers[buf], sink, attribs->key[i].format, buf_sizes[buf],
-         attribs->key[i].stride, attribs->src_offsets[i],
-         &batch->uniforms.attrib_base[i]);
+         attribs->key[i].stride, attribs->src_offsets[i], &addr);
+
+      batch->uniforms.attrib_base[i] = addr;
    }
 }
 
