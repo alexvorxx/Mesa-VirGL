@@ -791,8 +791,7 @@ dri2_setup_screen(_EGLDisplay *disp)
    if (get_screen_param(disp, PIPE_CAP_MAX_TEXTURE_3D_LEVELS) != 0)
       disp->Extensions.KHR_gl_texture_3D_image = EGL_TRUE;
 
-   if (dri2_dpy->flush_control)
-      disp->Extensions.KHR_context_flush_control = EGL_TRUE;
+   disp->Extensions.KHR_context_flush_control = EGL_TRUE;
 
    if (get_pipe_screen(disp)->set_damage_region)
       disp->Extensions.KHR_partial_update = EGL_TRUE;
