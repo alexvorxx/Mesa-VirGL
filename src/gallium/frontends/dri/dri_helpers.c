@@ -76,7 +76,8 @@ struct dri2_fence {
    void *cl_event;
 };
 
-static unsigned dri2_fence_get_caps(__DRIscreen *_screen)
+unsigned
+dri_fence_get_caps(__DRIscreen *_screen)
 {
    struct dri_screen *driscreen = dri_screen(_screen);
    struct pipe_screen *screen = driscreen->base.screen;
@@ -88,8 +89,8 @@ static unsigned dri2_fence_get_caps(__DRIscreen *_screen)
    return caps;
 }
 
-static void *
-dri2_create_fence(__DRIcontext *_ctx)
+void *
+dri_create_fence(__DRIcontext *_ctx)
 {
    struct dri_context *ctx = dri_context(_ctx);
    struct st_context *st = ctx->st;
@@ -114,8 +115,8 @@ dri2_create_fence(__DRIcontext *_ctx)
    return fence;
 }
 
-static void *
-dri2_create_fence_fd(__DRIcontext *_ctx, int fd)
+void *
+dri_create_fence_fd(__DRIcontext *_ctx, int fd)
 {
    struct dri_context *dri_ctx = dri_context(_ctx);
    struct st_context *st = dri_ctx->st;
@@ -143,8 +144,8 @@ dri2_create_fence_fd(__DRIcontext *_ctx, int fd)
    return fence;
 }
 
-static int
-dri2_get_fence_fd(__DRIscreen *_screen, void *_fence)
+int
+dri_get_fence_fd(__DRIscreen *_screen, void *_fence)
 {
    struct dri_screen *driscreen = dri_screen(_screen);
    struct pipe_screen *screen = driscreen->base.screen;
@@ -153,8 +154,8 @@ dri2_get_fence_fd(__DRIscreen *_screen, void *_fence)
    return screen->fence_get_fd(screen, fence->pipe_fence);
 }
 
-static void *
-dri2_get_fence_from_cl_event(__DRIscreen *_screen, intptr_t cl_event)
+void *
+dri_get_fence_from_cl_event(__DRIscreen *_screen, intptr_t cl_event)
 {
    struct dri_screen *driscreen = dri_screen(_screen);
    struct dri2_fence *fence;
@@ -177,8 +178,8 @@ dri2_get_fence_from_cl_event(__DRIscreen *_screen, intptr_t cl_event)
    return fence;
 }
 
-static void
-dri2_destroy_fence(__DRIscreen *_screen, void *_fence)
+void
+dri_destroy_fence(__DRIscreen *_screen, void *_fence)
 {
    struct dri_screen *driscreen = dri_screen(_screen);
    struct pipe_screen *screen = driscreen->base.screen;
@@ -194,8 +195,8 @@ dri2_destroy_fence(__DRIscreen *_screen, void *_fence)
    FREE(fence);
 }
 
-static GLboolean
-dri2_client_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags,
+GLboolean
+dri_client_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags,
                       uint64_t timeout)
 {
    struct dri2_fence *fence = (struct dri2_fence*)_fence;
@@ -221,8 +222,8 @@ dri2_client_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags,
    }
 }
 
-static void
-dri2_server_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags)
+void
+dri_server_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags)
 {
    struct st_context *st = dri_context(_ctx)->st;
    struct pipe_context *ctx = st->pipe;
@@ -246,14 +247,14 @@ dri2_server_wait_sync(__DRIcontext *_ctx, void *_fence, unsigned flags)
 const __DRI2fenceExtension dri2FenceExtension = {
    .base = { __DRI2_FENCE, 2 },
 
-   .create_fence = dri2_create_fence,
-   .get_fence_from_cl_event = dri2_get_fence_from_cl_event,
-   .destroy_fence = dri2_destroy_fence,
-   .client_wait_sync = dri2_client_wait_sync,
-   .server_wait_sync = dri2_server_wait_sync,
-   .get_capabilities = dri2_fence_get_caps,
-   .create_fence_fd = dri2_create_fence_fd,
-   .get_fence_fd = dri2_get_fence_fd,
+   .create_fence = dri_create_fence,
+   .get_fence_from_cl_event = dri_get_fence_from_cl_event,
+   .destroy_fence = dri_destroy_fence,
+   .client_wait_sync = dri_client_wait_sync,
+   .server_wait_sync = dri_server_wait_sync,
+   .get_capabilities = dri_fence_get_caps,
+   .create_fence_fd = dri_create_fence_fd,
+   .get_fence_fd = dri_get_fence_fd,
 };
 
 __DRIimage *

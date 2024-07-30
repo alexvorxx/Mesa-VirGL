@@ -52,6 +52,14 @@
 		dri_query_compatible_render_only_device_fd;
 		driSWRastQueryBufferAge;
 		dri_set_damage_region;
+		dri_fence_get_caps;
+		dri_create_fence;
+		dri_create_fence_fd;
+		dri_get_fence_fd;
+		dri_get_fence_from_cl_event;
+		dri_destroy_fence;
+		dri_client_wait_sync;
+		dri_server_wait_sync;
 		@nouveau_drm_screen_create@
 		@radeon_drm_winsys_create@
 		@amdgpu_winsys_create@
