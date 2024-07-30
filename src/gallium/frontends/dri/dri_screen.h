@@ -136,13 +136,6 @@ struct dri_screen
                                            const struct gl_config *glVis,
                                            bool pixmapBuffer,
                                            void *loaderPrivate);
-
-   __DRIbuffer *(*allocate_buffer)(struct dri_screen *screen,
-                                   unsigned int attachment,
-                                   unsigned int format,
-                                   int width, int height);
-
-   void (*release_buffer)(__DRIbuffer *buffer);
 };
 
 /** cast wrapper */

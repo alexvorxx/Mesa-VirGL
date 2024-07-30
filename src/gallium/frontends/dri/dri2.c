@@ -2236,8 +2236,6 @@ dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    screen->auto_fake_front = dri_with_format(screen);
 
    screen->create_drawable = dri2_create_drawable;
-   screen->allocate_buffer = dri2_allocate_buffer;
-   screen->release_buffer = dri2_release_buffer;
 
    return configs;
 
@@ -2277,8 +2275,6 @@ dri_swrast_kms_init_screen(struct dri_screen *screen, bool driver_name_is_inferr
    screen->can_share_buffer = false;
    screen->auto_fake_front = dri_with_format(screen);
    screen->create_drawable = dri2_create_drawable;
-   screen->allocate_buffer = dri2_allocate_buffer;
-   screen->release_buffer = dri2_release_buffer;
 
    return configs;
 
