@@ -27,7 +27,6 @@
 		dri_interop_query_device_info;
 		dri_interop_export_object;
 		dri_interop_flush_objects;
-		dri_loader_get_extensions;
 		dri_create_image_with_modifiers;
 		dri_create_image_from_renderbuffer;
 		dri2_set_in_fence_fd;
