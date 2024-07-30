@@ -636,7 +636,7 @@ dri2_initialize_drm(_EGLDisplay *disp)
 
    dri2_dpy->driver_name = strdup(dri2_dpy->gbm_dri->driver_name);
 
-   if (!dri2_load_driver_dri3(disp)) {
+   if (!dri2_load_driver(disp)) {
       err = "DRI3: failed to load driver";
       goto cleanup;
    }

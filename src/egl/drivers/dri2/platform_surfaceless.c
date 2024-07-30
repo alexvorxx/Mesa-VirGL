@@ -263,7 +263,7 @@ surfaceless_probe_device(_EGLDisplay *disp, bool swrast, bool zink)
          dri2_dpy->driver_name = driver_name;
       }
 
-      if (dri2_dpy->driver_name && dri2_load_driver_dri3(disp)) {
+      if (dri2_dpy->driver_name && dri2_load_driver(disp)) {
          if (swrast || zink)
             dri2_dpy->loader_extensions = swrast_loader_extensions;
          else
@@ -305,7 +305,7 @@ surfaceless_probe_device_sw(_EGLDisplay *disp)
    if (!dri2_dpy->driver_name)
       return false;
 
-   if (!dri2_load_driver_swrast(disp)) {
+   if (!dri2_load_driver(disp)) {
       free(dri2_dpy->driver_name);
       dri2_dpy->driver_name = NULL;
       return false;

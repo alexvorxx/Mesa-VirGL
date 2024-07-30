@@ -989,7 +989,7 @@ droid_load_driver(_EGLDisplay *disp, bool swrast)
    }
 
    dri2_dpy->loader_extensions = droid_image_loader_extensions;
-   if (!dri2_load_driver_dri3(disp)) {
+   if (!dri2_load_driver(disp)) {
       goto error;
    }
 

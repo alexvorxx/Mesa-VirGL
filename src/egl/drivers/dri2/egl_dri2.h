@@ -471,12 +471,6 @@ void
 dri2_setup_swap_interval(_EGLDisplay *disp, int max_swap_interval);
 
 EGLBoolean
-dri2_load_driver_swrast(_EGLDisplay *disp);
-
-EGLBoolean
-dri2_load_driver_dri3(_EGLDisplay *disp);
-
-EGLBoolean
 dri2_create_screen(_EGLDisplay *disp);
 
 EGLBoolean

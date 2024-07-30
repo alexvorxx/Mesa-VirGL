@@ -618,8 +618,8 @@ dri2_open_driver(_EGLDisplay *disp)
    return dri_loader_get_extensions(dri2_dpy->driver_name);
 }
 
-static EGLBoolean
-dri2_load_driver_common(_EGLDisplay *disp)
+EGLBoolean
+dri2_load_driver(_EGLDisplay *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    const __DRIextension **extensions;
@@ -637,24 +637,6 @@ dri2_load_driver_common(_EGLDisplay *disp)
                       !dri2_dpy->driver_name || strstr(dri2_dpy->driver_name, "swrast");
 
    return EGL_TRUE;
-}
-
-EGLBoolean
-dri2_load_driver(_EGLDisplay *disp)
-{
-   return dri2_load_driver_common(disp);
-}
-
-EGLBoolean
-dri2_load_driver_dri3(_EGLDisplay *disp)
-{
-   return dri2_load_driver_common(disp);
-}
-
-EGLBoolean
-dri2_load_driver_swrast(_EGLDisplay *disp)
-{
-   return dri2_load_driver_common(disp);
 }
 
 static const char *

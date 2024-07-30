@@ -1799,7 +1799,7 @@ dri2_initialize_x11_swrast(_EGLDisplay *disp)
        !debug_get_bool_option("LIBGL_KOPPER_DRI2", false))
       dri3_x11_connect(dri2_dpy, disp->Options.ForceSoftware);
 #endif
-   if (!dri2_load_driver_swrast(disp))
+   if (!dri2_load_driver(disp))
       goto cleanup;
 
    if (check_xshm(dri2_dpy)) {
@@ -1886,7 +1886,7 @@ dri2_initialize_x11_dri3(_EGLDisplay *disp)
    if (status != DRI2_EGL_DRIVER_LOADED)
       goto cleanup;
 
-   if (!dri2_load_driver_dri3(disp))
+   if (!dri2_load_driver(disp))
       goto cleanup;
 
    dri2_dpy->loader_extensions = dri3_image_loader_extensions;
