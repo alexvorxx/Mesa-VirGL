@@ -652,42 +652,9 @@ kopper_update_tex_buffer(struct dri_drawable *drawable,
                          struct pipe_resource *res)
 {
    struct dri_screen *screen = drawable->screen;
-   struct st_context *st_ctx = (struct st_context *)ctx->st;
-   struct pipe_context *pipe = st_ctx->pipe;
-   struct pipe_transfer *transfer;
-   char *map;
-   int x, y, w, h;
-   int ximage_stride, line;
    if (screen->has_dmabuf || drawable->is_window || drawable->info.bos.sType != VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR)
       return;
-   int cpp = util_format_get_blocksize(res->format);
-
-   /* Wait for glthread to finish because we can't use pipe_context from
-    * multiple threads.
-    */
-   _mesa_glthread_finish(ctx->st->ctx);
-
-   get_drawable_info(drawable, &x, &y, &w, &h);
-
-   map = pipe_texture_map(pipe, res,
-                          0, 0, // level, layer,
-                          PIPE_MAP_WRITE,
-                          x, y, w, h, &transfer);
-
-   /* Copy the Drawable content to the mapped texture buffer */
-   if (!get_image_shm(drawable, x, y, w, h, res))
-      get_image(drawable, x, y, w, h, map);
-
-   /* The pipe transfer has a pitch rounded up to the nearest 64 pixels.
-      get_image() has a pitch rounded up to 4 bytes.  */
-   ximage_stride = ((w * cpp) + 3) & -4;
-   for (line = h-1; line; --line) {
-      memmove(&map[line * transfer->stride],
-              &map[line * ximage_stride],
-              ximage_stride);
-   }
-
-   pipe_texture_unmap(pipe, transfer);
+   drisw_update_tex_buffer(drawable, ctx, res);
 }
 
 static void

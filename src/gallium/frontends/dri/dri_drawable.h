@@ -167,6 +167,12 @@ void
 dri_flush_drawable(__DRIdrawable *dPriv);
 
 extern const __DRItexBufferExtension driTexBufferExtension;
+
+void
+drisw_update_tex_buffer(struct dri_drawable *drawable,
+                        struct dri_context *ctx,
+                        struct pipe_resource *res);
+
 #endif
 
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

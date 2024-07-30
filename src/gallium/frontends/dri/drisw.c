@@ -545,7 +545,7 @@ drisw_allocate_textures(struct dri_context *stctx,
    drawable->old_h = height;
 }
 
-static void
+void
 drisw_update_tex_buffer(struct dri_drawable *drawable,
                         struct dri_context *ctx,
                         struct pipe_resource *res)
