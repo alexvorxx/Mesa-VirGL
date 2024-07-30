@@ -74,6 +74,16 @@ genX(cmd_buffer_ensure_cfe_state)(struct anv_cmd_buffer *cmd_buffer,
       case 2048: cfe.StackIDControl = StackIDs2048; break;
       default:   unreachable("invalid stack_ids value");
       }
+
+#if INTEL_WA_14021821874_GFX_VER
+      /* Wa_14021821874: "StackIDControlOverride_RTGlobals = 0 (i.e. 2k)". We
+       * already set stack size per ray to 64 in brw_nir_lower_rt_intrinsics
+       * as the workaround also requires.
+       */
+      if (intel_needs_workaround(cmd_buffer->device->info, 14021821874))
+         cfe.StackIDControl = StackIDs2048;
+#endif
+
 #endif
 
       cfe.OverDispatchControl = 2; /* 50% overdispatch */
