@@ -33,7 +33,6 @@
 #include "state_tracker/st_context.h"
 #include "zink/zink_public.h"
 #include "zink/zink_kopper.h"
-#include "driver_trace/tr_screen.h"
 
 #include "dri_screen.h"
 #include "dri_context.h"
@@ -105,8 +104,6 @@ kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    const __DRIconfig **configs;
    struct pipe_screen *pscreen = NULL;
 
-   (void) mtx_init(&screen->opencl_func_mutex, mtx_plain);
-
    if (!screen->kopper_loader) {
       fprintf(stderr, "mesa: Kopper interface not found!\n"
                       "      Ensure the versions of %s built with this version of Zink are\n"
@@ -132,17 +129,11 @@ kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    if (!pscreen)
       return NULL;
 
-   dri_init_options(screen);
-   screen->unwrapped_screen = trace_screen_unwrap(pscreen);
-
    configs = dri_init_screen(screen, pscreen);
    if (!configs)
       goto fail;
 
    assert(pscreen->get_param(pscreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY));
-   screen->has_reset_status_query = true;
-   screen->has_dmabuf = pscreen->get_param(pscreen, PIPE_CAP_DMABUF);
-   screen->has_modifiers = pscreen->query_dmabuf_modifiers != NULL;
    screen->is_sw = zink_kopper_is_cpu(pscreen);
    if (screen->has_dmabuf)
       screen->extensions = drivk_screen_extensions;

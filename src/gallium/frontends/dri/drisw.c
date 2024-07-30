@@ -663,8 +663,6 @@ drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    struct pipe_screen *pscreen = NULL;
    const struct drisw_loader_funcs *lf = &drisw_lf;
 
-   (void) mtx_init(&screen->opencl_func_mutex, mtx_plain);
-
    screen->swrast_no_present = debug_get_option_swrast_no_present();
 
    if (loader->base.version >= 4) {
@@ -686,14 +684,12 @@ drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    if (!pscreen)
       return NULL;
 
-   dri_init_options(screen);
    configs = dri_init_screen(screen, pscreen);
    if (!configs)
       goto fail;
 
    if (pscreen->get_param(pscreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY)) {
       screen->extensions = drisw_robust_screen_extensions;
-      screen->has_reset_status_query = true;
    }
    else
       screen->extensions = drisw_screen_extensions;

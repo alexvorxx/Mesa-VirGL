@@ -44,7 +44,11 @@
 #include "util/format/u_format_s3tc.h"
 
 #include "state_tracker/st_context.h"
+#include "driver_trace/tr_screen.h"
 
+#ifdef HAVE_LIBDRM
+#include <xf86drm.h>
+#endif
 #define MSAA_VISUAL_MAX_SAMPLES 32
 
 #undef false
@@ -627,6 +631,7 @@ dri_init_screen(struct dri_screen *screen,
    else
       screen->target = PIPE_TEXTURE_RECT;
 
+   dri_init_options(screen);
    dri_postprocessing_init(screen);
 
    st_api_query_versions(&screen->base,
@@ -635,6 +640,22 @@ dri_init_screen(struct dri_screen *screen,
                          &screen->max_gl_compat_version,
                          &screen->max_gl_es1_version,
                          &screen->max_gl_es2_version);
+
+   screen->unwrapped_screen = trace_screen_unwrap(pscreen);
+   screen->throttle = pscreen->get_param(pscreen, PIPE_CAP_THROTTLE);
+   if (pscreen->get_param(pscreen, PIPE_CAP_DEVICE_PROTECTED_CONTEXT))
+      screen->has_protected_context = true;
+   screen->has_reset_status_query = pscreen->get_param(pscreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY);
+   screen->has_modifiers = pscreen->query_dmabuf_modifiers != NULL;
+
+
+#ifdef HAVE_LIBDRM
+   int dmabuf_caps = pscreen->get_param(pscreen, PIPE_CAP_DMABUF);
+   if (dmabuf_caps & DRM_PRIME_CAP_IMPORT)
+      screen->dmabuf_import = true;
+   if (screen->dmabuf_import && dmabuf_caps & DRM_PRIME_CAP_EXPORT)
+      screen->has_dmabuf = true;
+#endif
 
    return dri_fill_in_modes(screen);
 }

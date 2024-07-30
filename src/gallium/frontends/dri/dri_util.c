@@ -57,10 +57,6 @@
 #include "pipe-loader/pipe_loader.h"
 #include "pipe/p_screen.h"
 
-#ifdef HAVE_LIBDRM
-#include "xf86drm.h"
-#endif
-
 driOptionDescription __dri2ConfigOptions[] = {
       DRI_CONF_SECTION_DEBUG
          DRI_CONF_GLX_EXTENSION_OVERRIDE()
@@ -143,11 +139,13 @@ driCreateNewScreen3(int scrn, int fd,
     driParseConfigFiles(&screen->optionCache, &screen->optionInfo, screen->myNum,
                         "dri2", NULL, NULL, NULL, 0, NULL, 0);
 
-    *driver_configs = mesa->initScreen(screen, driver_name_is_inferred);
-    if (*driver_configs == NULL) {
-        dri_destroy_screen(screen);
-        return NULL;
-    }
+   (void) mtx_init(&screen->opencl_func_mutex, mtx_plain);
+
+   *driver_configs = mesa->initScreen(screen, driver_name_is_inferred);
+   if (*driver_configs == NULL) {
+      dri_destroy_screen(screen);
+      return NULL;
+   }
 
     struct gl_constants consts = { 0 };
     gl_api api;
@@ -175,11 +173,6 @@ driCreateNewScreen3(int scrn, int fd,
        screen->api_mask |= (1 << __DRI_API_GLES2);
     if (screen->max_gl_es2_version >= 30)
        screen->api_mask |= (1 << __DRI_API_GLES3);
-
-#ifdef HAVE_LIBDRM
-   if (screen->base.screen->get_param(screen->base.screen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_IMPORT)
-      screen->dmabuf_import = true;
-#endif
 
     return opaque_dri_screen(screen);
 }

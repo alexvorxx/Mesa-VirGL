@@ -2210,8 +2210,6 @@ dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    const __DRIconfig **configs;
    struct pipe_screen *pscreen = NULL;
 
-   (void) mtx_init(&screen->opencl_func_mutex, mtx_plain);
-
 #ifdef HAVE_LIBDRM
    if (pipe_loader_drm_probe_fd(&screen->dev, screen->fd, false))
       pscreen = pipe_loader_create_screen(screen->dev, driver_name_is_inferred);
@@ -2220,13 +2218,7 @@ dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    if (!pscreen)
        return NULL;
 
-   dri_init_options(screen);
-   screen->throttle = pscreen->get_param(pscreen, PIPE_CAP_THROTTLE);
-
    dri2_init_screen_extensions(screen, pscreen, false);
-
-   if (pscreen->get_param(pscreen, PIPE_CAP_DEVICE_PROTECTED_CONTEXT))
-      screen->has_protected_context = true;
 
    configs = dri_init_screen(screen, pscreen);
    if (!configs)
@@ -2265,7 +2257,6 @@ dri_swrast_kms_init_screen(struct dri_screen *screen, bool driver_name_is_inferr
    if (!pscreen)
        goto fail;
 
-   dri_init_options(screen);
    dri2_init_screen_extensions(screen, pscreen, true);
 
    configs = dri_init_screen(screen, pscreen);
