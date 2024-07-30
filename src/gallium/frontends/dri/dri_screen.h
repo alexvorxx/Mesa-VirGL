@@ -63,6 +63,8 @@ struct dri_screen
    int max_gl_es1_version;
    int max_gl_es2_version;
 
+   enum dri_screen_type type;
+
    const __DRIswrastLoaderExtension *swrast_loader;
    const __DRIkopperLoaderExtension *kopper_loader;
 
@@ -212,6 +214,15 @@ dri_release_screen(struct dri_screen * screen);
 
 void
 dri_destroy_screen(struct dri_screen *screen);
+
+const __DRIconfig **
+dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred);
+const __DRIconfig **
+dri_swrast_kms_init_screen(struct dri_screen *screen, bool driver_name_is_inferred);
+const __DRIconfig **
+kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred);
+const __DRIconfig **
+drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred);
 
 extern const struct __DriverAPIRec dri_swrast_kms_driver_api;
 extern const __DRIextension *dri_swrast_kms_driver_extensions[];

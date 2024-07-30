@@ -752,7 +752,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
          if (strcmp(driverName, driverNameDisplayGPU) == 0) {
             psc->driScreenDisplayGPU = driCreateNewScreen3(screen, psc->fd_display_gpu,
                                                            loader_extensions,
-                                                           extensions,
+                                                           DRI_SCREEN_DRI3,
                                                            &driver_configs, driver_name_is_inferred, psc);
          }
 
@@ -762,7 +762,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
 
    psc->driScreenRenderGPU = driCreateNewScreen3(screen, psc->fd_render_gpu,
                                                  loader_extensions,
-                                                 extensions,
+                                                 DRI_SCREEN_DRI3,
                                                  &driver_configs, driver_name_is_inferred, psc);
 
    if (psc->driScreenRenderGPU == NULL) {

@@ -2070,7 +2070,7 @@ dri2_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
  *
  * Returns the struct gl_config supported by this driver.
  */
-static const __DRIconfig **
+const __DRIconfig **
 dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
    const __DRIconfig **configs;
@@ -2106,7 +2106,7 @@ fail:
  *
  * Returns the struct gl_config supported by this driver.
  */
-static const __DRIconfig **
+const __DRIconfig **
 dri_swrast_kms_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
 #if defined(HAVE_SWRAST)
@@ -2153,7 +2153,6 @@ static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
    .version_string = MESA_INTERFACE_VERSION_STRING,
    .createContext = driCreateContextAttribs,
    .initScreen = dri2_init_screen,
-   .createNewScreen3 = driCreateNewScreen3,
 };
 
 /* This is the table of extensions that the loader will dlsym() for. */
@@ -2168,7 +2167,6 @@ static const struct __DRImesaCoreExtensionRec swkmsMesaCoreExtension = {
    .version_string = MESA_INTERFACE_VERSION_STRING,
    .createContext = driCreateContextAttribs,
    .initScreen = dri_swrast_kms_init_screen,
-   .createNewScreen3 = driCreateNewScreen3,
 };
 
 const __DRIextension *dri_swrast_kms_driver_extensions[] = {

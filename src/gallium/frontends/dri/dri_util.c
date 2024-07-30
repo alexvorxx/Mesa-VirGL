@@ -101,22 +101,14 @@ setupLoaderExtensions(struct dri_screen *screen,
 __DRIscreen *
 driCreateNewScreen3(int scrn, int fd,
                     const __DRIextension **loader_extensions,
-                    const __DRIextension **driver_extensions,
+                    enum dri_screen_type type,
                     const __DRIconfig ***driver_configs, bool driver_name_is_inferred, void *data)
 {
     struct dri_screen *screen;
-    const __DRImesaCoreExtension *mesa = NULL;
 
     screen = CALLOC_STRUCT(dri_screen);
     if (!screen)
        return NULL;
-
-    assert(driver_extensions);
-    for (int i = 0; driver_extensions[i]; i++) {
-       if (strcmp(driver_extensions[i]->name, __DRI_MESA) == 0) {
-          mesa = (__DRImesaCoreExtension *)driver_extensions[i];
-       }
-    }
 
     setupLoaderExtensions(screen, loader_extensions);
     // dri2 drivers require working invalidate
@@ -129,6 +121,7 @@ driCreateNewScreen3(int scrn, int fd,
 
     screen->fd = fd;
     screen->myNum = scrn;
+    screen->type = type;
 
     /* Option parsing before ->InitScreen(), as some options apply there. */
     driParseOptionInfo(&screen->optionInfo,
@@ -138,7 +131,22 @@ driCreateNewScreen3(int scrn, int fd,
 
    (void) mtx_init(&screen->opencl_func_mutex, mtx_plain);
 
-   *driver_configs = mesa->initScreen(screen, driver_name_is_inferred);
+   switch (type) {
+   case DRI_SCREEN_DRI3:
+      *driver_configs = dri2_init_screen(screen, driver_name_is_inferred);
+      break;
+   case DRI_SCREEN_KOPPER:
+      *driver_configs = kopper_init_screen(screen, driver_name_is_inferred);
+      break;
+   case DRI_SCREEN_SWRAST:
+      *driver_configs = drisw_init_screen(screen, driver_name_is_inferred);
+      break;
+   case DRI_SCREEN_KMS_SWRAST:
+      *driver_configs = dri_swrast_kms_init_screen(screen, driver_name_is_inferred);
+      break;
+   default:
+      unreachable("unknown dri screen type");
+   }
    if (*driver_configs == NULL) {
       dri_destroy_screen(screen);
       return NULL;

@@ -33,3 +33,11 @@ kopperQueryBufferAge(__DRIdrawable *dPriv)
 {
    return 0;
 }
+
+const __DRIconfig **
+kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred);
+const __DRIconfig **
+kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
+{
+   return NULL;
+}

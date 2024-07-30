@@ -62,7 +62,7 @@ kopper_create_drawable(struct dri_screen *screen, const struct gl_config *visual
 
 const __DRIkopperExtension driKopperExtension;
 
-static const __DRIconfig **
+const __DRIconfig **
 kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
    const __DRIconfig **configs;
@@ -887,7 +887,6 @@ static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
    .version_string = MESA_INTERFACE_VERSION_STRING,
    .createContext = driCreateContextAttribs,
    .initScreen = kopper_init_screen,
-   .createNewScreen3 = driCreateNewScreen3,
 };
 
 const __DRIextension *galliumvk_driver_extensions[] = {

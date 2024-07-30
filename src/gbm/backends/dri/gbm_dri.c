@@ -254,6 +254,15 @@ static int
 dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool driver_name_is_inferred)
 {
    bool swrast = driver_name == NULL; /* If it's pure swrast, not just swkms. */
+   enum dri_screen_type type = DRI_SCREEN_SWRAST;
+   if (!swrast) {
+      if (!strcmp(driver_name, "zink"))
+         type = DRI_SCREEN_KOPPER;
+      else if (!strcmp(driver_name, "kms_swrast"))
+         type = DRI_SCREEN_KMS_SWRAST;
+      else
+         type = DRI_SCREEN_DRI3;
+   }
 
    dri->driver_name = swrast ? strdup("swrast") : driver_name;
 
@@ -270,7 +279,7 @@ dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool
    dri->loader_extensions = gbm_dri_screen_extensions;
    dri->screen = driCreateNewScreen3(0, swrast ? -1 : dri->base.v0.fd,
                                              dri->loader_extensions,
-                                             dri->driver_extensions,
+                                             type,
                                              &dri->driver_configs, driver_name_is_inferred, dri);
    if (dri->screen == NULL)
       goto fail;

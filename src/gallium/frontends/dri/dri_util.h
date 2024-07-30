@@ -54,6 +54,12 @@ struct __DRIconfigRec {
     struct gl_config modes;
 };
 
+enum dri_screen_type {
+   DRI_SCREEN_DRI3,
+   DRI_SCREEN_KOPPER,
+   DRI_SCREEN_SWRAST,
+   DRI_SCREEN_KMS_SWRAST,
+};
 
 /**
  * Description of the attributes used to create a config.
@@ -100,7 +106,7 @@ struct __DriverContextConfig {
 PUBLIC __DRIscreen *
 driCreateNewScreen3(int scrn, int fd,
                     const __DRIextension **loader_extensions,
-                    const __DRIextension **driver_extensions,
+                    enum dri_screen_type type,
                     const __DRIconfig ***driver_configs, bool driver_name_is_inferred, void *data);
 PUBLIC __DRIcontext *
 driCreateContextAttribs(__DRIscreen *psp, int api,

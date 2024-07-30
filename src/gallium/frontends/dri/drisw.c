@@ -624,7 +624,7 @@ drisw_create_drawable(struct dri_screen *screen, const struct gl_config * visual
    return drawable;
 }
 
-static const __DRIconfig **
+const __DRIconfig **
 drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
    const __DRIswrastLoaderExtension *loader = screen->swrast_loader;
@@ -681,7 +681,6 @@ static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
    .version_string = MESA_INTERFACE_VERSION_STRING,
    .createContext = driCreateContextAttribs,
    .initScreen = drisw_init_screen,
-   .createNewScreen3 = driCreateNewScreen3,
 };
 
 /* This is the table of extensions that the loader will dlsym() for. */

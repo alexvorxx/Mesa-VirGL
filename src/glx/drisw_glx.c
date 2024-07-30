@@ -865,7 +865,8 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    else
       loader_extensions_local = loader_extensions_shm;
 
-   psc->driScreen = driCreateNewScreen3(screen, -1, loader_extensions_local, extensions,
+   psc->driScreen = driCreateNewScreen3(screen, -1, loader_extensions_local,
+                                        glx_driver ? DRI_SCREEN_KOPPER : DRI_SCREEN_SWRAST,
                                         &driver_configs, driver_name_is_inferred, psc);
    if (psc->driScreen == NULL) {
       if (!glx_driver || !driver_name_is_inferred)

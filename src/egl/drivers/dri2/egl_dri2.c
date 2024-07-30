@@ -804,6 +804,14 @@ dri2_create_screen(_EGLDisplay *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    char *driver_name_display_gpu;
+   enum dri_screen_type type = DRI_SCREEN_DRI3;
+
+   if (dri2_dpy->kopper)
+      type = DRI_SCREEN_KOPPER;
+   else if (dri2_dpy->swrast_not_kms)
+      type = DRI_SCREEN_SWRAST;
+   else if (dri2_dpy->swrast)
+      type = DRI_SCREEN_KMS_SWRAST;
 
    if (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu) {
       driver_name_display_gpu =
@@ -815,7 +823,7 @@ dri2_create_screen(_EGLDisplay *disp)
          if (strcmp(dri2_dpy->driver_name, driver_name_display_gpu) == 0) {
             dri2_dpy->dri_screen_display_gpu = driCreateNewScreen3(
                0, dri2_dpy->fd_display_gpu, dri2_dpy->loader_extensions,
-               dri2_dpy->driver_extensions, &dri2_dpy->driver_configs, false, disp);
+               type, &dri2_dpy->driver_configs, false, disp);
          }
          free(driver_name_display_gpu);
       }
@@ -823,7 +831,7 @@ dri2_create_screen(_EGLDisplay *disp)
 
    int screen_fd = dri2_dpy->swrast ? -1 : dri2_dpy->fd_render_gpu;
    dri2_dpy->dri_screen_render_gpu = driCreateNewScreen3(
-      0, screen_fd, dri2_dpy->loader_extensions, dri2_dpy->driver_extensions,
+      0, screen_fd, dri2_dpy->loader_extensions, type,
       &dri2_dpy->driver_configs, false, disp);
 
    if (dri2_dpy->dri_screen_render_gpu == NULL) {
