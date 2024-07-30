@@ -772,42 +772,6 @@ static const struct glx_screen_vtable drisw_screen_vtable = {
    .get_driver_name        = drisw_get_driver_name,
 };
 
-static void
-driswBindExtensions(struct drisw_screen *psc)
-{
-   __glXEnableDirectExtension(&psc->base, "GLX_SGI_make_current_read");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context_profile");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context_no_error");
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_no_config_context");
-
-   /* DRISW version >= 2 implies support for OpenGL ES. */
-   __glXEnableDirectExtension(&psc->base,
-                              "GLX_EXT_create_context_es_profile");
-   __glXEnableDirectExtension(&psc->base,
-                              "GLX_EXT_create_context_es2_profile");
-
-   if (dri_get_screen_param(psc->driScreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY))
-      __glXEnableDirectExtension(&psc->base,
-                                 "GLX_ARB_create_context_robustness");
-
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_context_flush_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
-
-   if (psc->base.display->driver == GLX_DRIVER_ZINK_YES) {
-       __glXEnableDirectExtension(&psc->base, "GLX_EXT_buffer_age");
-       __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control");
-       __glXEnableDirectExtension(&psc->base, "GLX_SGI_swap_control");
-       __glXEnableDirectExtension(&psc->base, "GLX_MESA_swap_control");
-       // This needs to check whether RELAXED is available
-       // __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control_tear");
-   } else {
-      __glXEnableDirectExtension(&psc->base, "GLX_MESA_copy_sub_buffer");
-   }
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");
-}
-
 static int
 check_xshm(Display *dpy)
 {
@@ -908,8 +872,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
          ErrorMessageF("glx: failed to create drisw screen\n");
       goto handle_error;
    }
-
-   driswBindExtensions(psc);
 
    configs = driConvertConfigs(psc->base.configs, driver_configs);
    visuals = driConvertConfigs(psc->base.visuals, driver_configs);

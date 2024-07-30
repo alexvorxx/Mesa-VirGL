@@ -821,57 +821,6 @@ static const struct glx_context_vtable dri2_context_vtable = {
    .wait_x              = dri2_wait_x,
 };
 
-static void
-dri2BindExtensions(struct dri2_screen *psc, struct glx_display * priv,
-                   const char *driverName)
-{
-   const unsigned mask = driGetAPIMask(psc->driScreen);
-
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_SGI_swap_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_swap_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_SGI_make_current_read");
-
-   /*
-    * GLX_INTEL_swap_event is broken on the server side, where it's
-    * currently unconditionally enabled. This completely breaks
-    * systems running on drivers which don't support that extension.
-    * There's no way to test for its presence on this side, so instead
-    * of disabling it unconditionally, just disable it for drivers
-    * which are known to not support it.
-    *
-    * This was fixed in xserver 1.15.0 (190b03215), so now we only
-    * disable the broken driver.
-    */
-   if (strcmp(driverName, "vmwgfx") != 0) {
-      __glXEnableDirectExtension(&psc->base, "GLX_INTEL_swap_event");
-   }
-
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context_profile");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context_no_error");
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_no_config_context");
-
-   if ((mask & ((1 << __DRI_API_GLES) |
-                (1 << __DRI_API_GLES2) |
-                (1 << __DRI_API_GLES3))) != 0) {
-      __glXEnableDirectExtension(&psc->base,
-                                 "GLX_EXT_create_context_es_profile");
-      __glXEnableDirectExtension(&psc->base,
-                                 "GLX_EXT_create_context_es2_profile");
-   }
-
-   if (dri_get_screen_param(psc->driScreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY))
-      __glXEnableDirectExtension(&psc->base,
-                                 "GLX_ARB_create_context_robustness");
-
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_context_flush_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
-
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");
-}
-
 static char *
 dri2_get_driver_name(struct glx_screen *glx_screen)
 {
@@ -961,8 +910,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
       goto handle_error;
    }
 
-   dri2BindExtensions(psc, priv, driverName);
-
    configs = driConvertConfigs(psc->base.configs, driver_configs);
    visuals = driConvertConfigs(psc->base.visuals, driver_configs);
 
@@ -1033,7 +980,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    /* DRI2 supports SubBuffer through DRI2CopyRegion, so it's always
     * available.*/
    psp->copySubBuffer = dri2CopySubBuffer;
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_copy_sub_buffer");
 
    free(deviceName);
 

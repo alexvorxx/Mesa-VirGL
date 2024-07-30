@@ -656,56 +656,6 @@ static const struct glx_context_vtable dri3_context_vtable = {
    .wait_x              = dri3_wait_x,
 };
 
-/** dri3_bind_extensions
- *
- * Enable all of the extensions supported on DRI3
- */
-static void
-dri3_bind_extensions(struct dri3_screen *psc, struct glx_display * priv,
-                     const char *driverName)
-{
-   unsigned mask;
-
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_swap_control_tear");
-   __glXEnableDirectExtension(&psc->base, "GLX_SGI_swap_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_swap_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_SGI_make_current_read");
-   __glXEnableDirectExtension(&psc->base, "GLX_INTEL_swap_event");
-
-   mask = driGetAPIMask(psc->driScreenRenderGPU);
-
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context_profile");
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_create_context_no_error");
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_no_config_context");
-
-   if ((mask & ((1 << __DRI_API_GLES) |
-                (1 << __DRI_API_GLES2) |
-                (1 << __DRI_API_GLES3))) != 0) {
-      __glXEnableDirectExtension(&psc->base,
-                                 "GLX_EXT_create_context_es_profile");
-      __glXEnableDirectExtension(&psc->base,
-                                 "GLX_EXT_create_context_es2_profile");
-   }
-
-   /* when on a different gpu than the server, the server pixmaps
-    * can have a tiling mode we can't read. Thus we can't create
-    * a texture from them.
-    */
-   if (psc->fd_render_gpu == psc->fd_display_gpu)
-      __glXEnableDirectExtension(&psc->base, "GLX_EXT_texture_from_pixmap");
-
-   if (dri_get_screen_param(psc->driScreenRenderGPU, PIPE_CAP_DEVICE_RESET_STATUS_QUERY))
-      __glXEnableDirectExtension(&psc->base,
-                                 "GLX_ARB_create_context_robustness");
-
-   __glXEnableDirectExtension(&psc->base, "GLX_ARB_context_flush_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_query_renderer");
-
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_gl_interop");
-}
-
 static char *
 dri3_get_driver_name(struct glx_screen *glx_screen)
 {
@@ -823,8 +773,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    if (psc->fd_render_gpu == psc->fd_display_gpu)
       psc->driScreenDisplayGPU = psc->driScreenRenderGPU;
 
-   dri3_bind_extensions(psc, priv, driverName);
-
    configs = driConvertConfigs(psc->base.configs, driver_configs);
    visuals = driConvertConfigs(psc->base.visuals, driver_configs);
 
@@ -867,10 +815,8 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    __glXEnableDirectExtension(&psc->base, "GLX_SGI_video_sync");
 
    psp->copySubBuffer = dri3_copy_sub_buffer;
-   __glXEnableDirectExtension(&psc->base, "GLX_MESA_copy_sub_buffer");
 
    psp->getBufferAge = dri3_get_buffer_age;
-   __glXEnableDirectExtension(&psc->base, "GLX_EXT_buffer_age");
 
    if (dri2GalliumConfigQuerys(psc->driScreenRenderGPU, "glx_extension_override",
                                     &tmp) == 0)

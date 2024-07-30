@@ -40,6 +40,7 @@
 #include <X11/Xlib-xcb.h>
 #include <xcb/xcb.h>
 #include <xcb/glx.h>
+#include "dri_util.h"
 
 #define __GLX_MIN_CONFIG_PROPS	18
 #define __GLX_EXT_CONFIG_PROPS	32
@@ -745,6 +746,69 @@ glx_screen_cleanup(struct glx_screen *psc)
    free(psc->driverName);
 }
 
+static void
+bind_extensions(struct glx_screen *psc, const char *driverName)
+{
+   unsigned mask;
+
+   if (psc->display->driver != GLX_DRIVER_SW) {
+      __glXEnableDirectExtension(psc, "GLX_EXT_buffer_age");
+      __glXEnableDirectExtension(psc, "GLX_EXT_swap_control");
+      __glXEnableDirectExtension(psc, "GLX_SGI_swap_control");
+      __glXEnableDirectExtension(psc, "GLX_MESA_swap_control");
+      // for zink this needs to check whether RELAXED is available
+      if (psc->display->driver == GLX_DRIVER_DRI3)
+         __glXEnableDirectExtension(psc, "GLX_EXT_swap_control_tear");
+   }
+   if (psc->display->driver != GLX_DRIVER_ZINK_YES)
+      __glXEnableDirectExtension(psc, "GLX_MESA_copy_sub_buffer");
+   __glXEnableDirectExtension(psc, "GLX_SGI_make_current_read");
+
+   if (psc->can_EXT_texture_from_pixmap)
+      __glXEnableDirectExtension(psc, "GLX_EXT_texture_from_pixmap");
+
+   /*
+    * GLX_INTEL_swap_event is broken on the server side, where it's
+    * currently unconditionally enabled. This completely breaks
+    * systems running on drivers which don't support that extension.
+    * There's no way to test for its presence on this side, so instead
+    * of disabling it unconditionally, just disable it for drivers
+    * which are known to not support it.
+    *
+    * This was fixed in xserver 1.15.0 (190b03215), so now we only
+    * disable the broken driver.
+    */
+   if (!driverName || strcmp(driverName, "vmwgfx") != 0) {
+      __glXEnableDirectExtension(psc, "GLX_INTEL_swap_event");
+   }
+
+   mask = driGetAPIMask(psc->frontend_screen);
+
+   __glXEnableDirectExtension(psc, "GLX_ARB_create_context");
+   __glXEnableDirectExtension(psc, "GLX_ARB_create_context_profile");
+   __glXEnableDirectExtension(psc, "GLX_ARB_create_context_no_error");
+   __glXEnableDirectExtension(psc, "GLX_EXT_no_config_context");
+
+   if ((mask & ((1 << __DRI_API_GLES) |
+                (1 << __DRI_API_GLES2) |
+                (1 << __DRI_API_GLES3))) != 0) {
+      __glXEnableDirectExtension(psc,
+                                 "GLX_EXT_create_context_es_profile");
+      __glXEnableDirectExtension(psc,
+                                 "GLX_EXT_create_context_es2_profile");
+   }
+
+   if (dri_get_screen_param(psc->frontend_screen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY))
+      __glXEnableDirectExtension(psc,
+                                 "GLX_ARB_create_context_robustness");
+
+   __glXEnableDirectExtension(psc, "GLX_ARB_context_flush_control");
+   __glXEnableDirectExtension(psc, "GLX_MESA_query_renderer");
+
+   __glXEnableDirectExtension(psc, "GLX_MESA_gl_interop");
+}
+
+
 /*
 ** Allocate the memory for the per screen configs for each screen.
 ** If that works then fetch the per screen configs data.
@@ -821,6 +885,8 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
 
       if(indirect) /* Load extensions required only for indirect glx */
          glxSendClientInfo(priv, i);
+      else if (priv->driver != GLX_DRIVER_WINDOWS)
+         bind_extensions(psc, psc->driverName);
    }
    if (zink && !screen_count)
       return GL_FALSE;
