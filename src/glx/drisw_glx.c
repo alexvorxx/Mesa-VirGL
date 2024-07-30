@@ -931,6 +931,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    psc->base.context_vtable = &drisw_context_vtable;
    psp = &psc->vtable;
    psc->base.driScreen = psp;
+   psc->base.frontend_screen = psc->driScreen;
    psp->destroyScreen = driswDestroyScreen;
    psp->createDrawable = driswCreateDrawable;
    psp->swapBuffers = driswSwapBuffers;

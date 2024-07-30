@@ -982,6 +982,7 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psc->base.context_vtable = &dri2_context_vtable;
    psp = &psc->vtable;
    psc->base.driScreen = psp;
+   psc->base.frontend_screen = psc->driScreen;
    psp->destroyScreen = dri2DestroyScreen;
    psp->createDrawable = dri2CreateDrawable;
    psp->swapBuffers = dri2SwapBuffers;

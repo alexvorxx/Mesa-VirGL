@@ -844,6 +844,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    psc->base.context_vtable = &dri3_context_vtable;
    psp = &psc->vtable;
    psc->base.driScreen = psp;
+   psc->base.frontend_screen = psc->driScreenRenderGPU;
    psp->destroyScreen = dri3_destroy_screen;
    psp->createDrawable = dri3_create_drawable;
    psp->swapBuffers = dri3_swap_buffers;
