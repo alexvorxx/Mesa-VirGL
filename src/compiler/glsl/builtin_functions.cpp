@@ -1069,6 +1069,18 @@ subgroup_shuffle_and_fp64(const _mesa_glsl_parse_state *state)
    return subgroup_shuffle(state) && fp64(state);
 }
 
+static bool
+subgroup_shuffle_relative(const _mesa_glsl_parse_state *state)
+{
+   return state->KHR_shader_subgroup_shuffle_relative_enable;
+}
+
+static bool
+subgroup_shuffle_relative_and_fp64(const _mesa_glsl_parse_state *state)
+{
+   return subgroup_shuffle_relative(state) && fp64(state);
+}
+
 /** @} */
 
 /******************************************************************************/
@@ -1491,6 +1503,12 @@ private:
    ir_function_signature *_shuffle_xor_intrinsic(const glsl_type *type);
    ir_function_signature *_shuffle_xor(const glsl_type *type);
 
+   ir_function_signature *_shuffle_up_intrinsic(const glsl_type *type);
+   ir_function_signature *_shuffle_up(const glsl_type *type);
+
+   ir_function_signature *_shuffle_down_intrinsic(const glsl_type *type);
+   ir_function_signature *_shuffle_down(const glsl_type *type);
+
 #undef B0
 #undef B1
 #undef B2
@@ -1909,6 +1927,10 @@ builtin_builder::create_intrinsics()
    add_function("__intrinsic_shuffle", FIUBD(_shuffle_intrinsic), NULL);
 
    add_function("__intrinsic_shuffle_xor", FIUBD(_shuffle_xor_intrinsic), NULL);
+
+   add_function("__intrinsic_shuffle_up", FIUBD(_shuffle_up_intrinsic), NULL);
+
+   add_function("__intrinsic_shuffle_down", FIUBD(_shuffle_down_intrinsic), NULL);
 }
 
 /**
@@ -5822,6 +5844,10 @@ builtin_builder::create_builtins()
 
    add_function("subgroupShuffleXor", FIUBD(_shuffle_xor), NULL);
 
+   add_function("subgroupShuffleUp", FIUBD(_shuffle_up), NULL);
+
+   add_function("subgroupShuffleDown", FIUBD(_shuffle_down), NULL);
+
 #undef F
 #undef FI
 #undef FIUDHF_VEC
@@ -9164,6 +9190,60 @@ builtin_builder::_shuffle_xor(const glsl_type *type)
    ir_variable *retval = body.make_temp(type, "retval");
 
    body.emit(call(shader->symbols->get_function("__intrinsic_shuffle_xor"),
+                  retval, sig->parameters));
+   body.emit(ret(retval));
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_shuffle_up_intrinsic(const glsl_type *type)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *delta = in_var(&glsl_type_builtin_uint, "delta");
+   MAKE_INTRINSIC(type, ir_intrinsic_shuffle_up,
+                  glsl_type_is_double(type) ? subgroup_shuffle_relative_and_fp64 : subgroup_shuffle_relative,
+                  2, value, delta);
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_shuffle_up(const glsl_type *type)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *delta = in_var(&glsl_type_builtin_uint, "delta");
+
+   MAKE_SIG(type, glsl_type_is_double(type) ? subgroup_shuffle_relative_and_fp64 : subgroup_shuffle_relative,
+            2, value, delta);
+   ir_variable *retval = body.make_temp(type, "retval");
+
+   body.emit(call(shader->symbols->get_function("__intrinsic_shuffle_up"),
+                  retval, sig->parameters));
+   body.emit(ret(retval));
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_shuffle_down_intrinsic(const glsl_type *type)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *delta = in_var(&glsl_type_builtin_uint, "delta");
+   MAKE_INTRINSIC(type, ir_intrinsic_shuffle_down,
+                  glsl_type_is_double(type) ? subgroup_shuffle_relative_and_fp64 : subgroup_shuffle_relative,
+                  2, value, delta);
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_shuffle_down(const glsl_type *type)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *delta = in_var(&glsl_type_builtin_uint, "delta");
+
+   MAKE_SIG(type, glsl_type_is_double(type) ? subgroup_shuffle_relative_and_fp64 : subgroup_shuffle_relative,
+            2, value, delta);
+   ir_variable *retval = body.make_temp(type, "retval");
+
+   body.emit(call(shader->symbols->get_function("__intrinsic_shuffle_down"),
                   retval, sig->parameters));
    body.emit(ret(retval));
    return sig;

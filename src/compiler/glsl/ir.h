@@ -1149,6 +1149,8 @@ enum ir_intrinsic_id {
 
    ir_intrinsic_shuffle,
    ir_intrinsic_shuffle_xor,
+   ir_intrinsic_shuffle_up,
+   ir_intrinsic_shuffle_down,
 };
 
 /*@{*/
