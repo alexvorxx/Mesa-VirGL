@@ -789,7 +789,7 @@ dri2_setup_screen(_EGLDisplay *disp)
    if (dri2_dpy->flush_control)
       disp->Extensions.KHR_context_flush_control = EGL_TRUE;
 
-   if (dri2_dpy->buffer_damage && dri2_dpy->buffer_damage->set_damage_region)
+   if (dri2_dpy->buffer_damage)
       disp->Extensions.KHR_partial_update = EGL_TRUE;
 
    disp->Extensions.EXT_protected_surface =
@@ -1749,8 +1749,7 @@ dri2_swap_buffers(_EGLDisplay *disp, _EGLSurface *surf)
    /* SwapBuffers marks the end of the frame; reset the damage region for
     * use again next time.
     */
-   if (ret && dri2_dpy->buffer_damage &&
-       dri2_dpy->buffer_damage->set_damage_region)
+   if (ret && dri2_dpy->buffer_damage)
       dri2_dpy->buffer_damage->set_damage_region(dri_drawable, 0, NULL);
 
    return ret;
@@ -1776,8 +1775,7 @@ dri2_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *surf,
    /* SwapBuffers marks the end of the frame; reset the damage region for
     * use again next time.
     */
-   if (ret && dri2_dpy->buffer_damage &&
-       dri2_dpy->buffer_damage->set_damage_region)
+   if (ret && dri2_dpy->buffer_damage)
       dri2_dpy->buffer_damage->set_damage_region(dri_drawable, 0, NULL);
 
    return ret;
@@ -1798,8 +1796,7 @@ dri2_swap_buffers_region(_EGLDisplay *disp, _EGLSurface *surf, EGLint numRects,
    /* SwapBuffers marks the end of the frame; reset the damage region for
     * use again next time.
     */
-   if (ret && dri2_dpy->buffer_damage &&
-       dri2_dpy->buffer_damage->set_damage_region)
+   if (ret && dri2_dpy->buffer_damage)
       dri2_dpy->buffer_damage->set_damage_region(dri_drawable, 0, NULL);
 
    return ret;
@@ -1812,8 +1809,7 @@ dri2_set_damage_region(_EGLDisplay *disp, _EGLSurface *surf, EGLint *rects,
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    __DRIdrawable *drawable = dri2_dpy->vtbl->get_dri_drawable(surf);
 
-   if (!dri2_dpy->buffer_damage ||
-       !dri2_dpy->buffer_damage->set_damage_region) {
+   if (!dri2_dpy->buffer_damage) {
       mtx_unlock(&dri2_dpy->lock);
       return EGL_FALSE;
    }
