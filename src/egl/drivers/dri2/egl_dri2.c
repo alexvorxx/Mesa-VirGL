@@ -585,24 +585,9 @@ const __DRIimageLookupExtension image_lookup_extension = {
    .lookupEGLImageValidated = dri2_lookup_egl_image_validated,
 };
 
-static const struct dri_extension_match dri3_driver_extensions[] = {
-   {__DRI_CONFIG_OPTIONS, 2, offsetof(struct dri2_egl_display, configOptions),
-    true},
-};
-
-static const struct dri_extension_match dri2_driver_extensions[] = {
-   {__DRI_CONFIG_OPTIONS, 2, offsetof(struct dri2_egl_display, configOptions),
-    true},
-};
-
 static const struct dri_extension_match dri2_core_extensions[] = {
    {__DRI2_FLUSH, 1, offsetof(struct dri2_egl_display, flush), false},
    {__DRI_TEX_BUFFER, 2, offsetof(struct dri2_egl_display, tex_buffer), false},
-};
-
-static const struct dri_extension_match swrast_driver_extensions[] = {
-   {__DRI_CONFIG_OPTIONS, 2, offsetof(struct dri2_egl_display, configOptions),
-    true},
 };
 
 static const struct dri_extension_match swrast_core_extensions[] = {
@@ -634,9 +619,7 @@ dri2_open_driver(_EGLDisplay *disp)
 }
 
 static EGLBoolean
-dri2_load_driver_common(_EGLDisplay *disp,
-                        const struct dri_extension_match *driver_extensions,
-                        int num_matches)
+dri2_load_driver_common(_EGLDisplay *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    const __DRIextension **extensions;
@@ -648,10 +631,6 @@ dri2_load_driver_common(_EGLDisplay *disp,
       return EGL_FALSE;
    }
 
-   if (!loader_bind_extensions(dri2_dpy, driver_extensions, num_matches,
-                               extensions)) {
-      return EGL_FALSE;
-   }
    dri2_dpy->driver_extensions = extensions;
    dri2_dpy->kopper = disp->Options.Zink && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
    dri2_dpy->swrast = (disp->Options.ForceSoftware && !dri2_dpy->kopper) ||
@@ -663,22 +642,19 @@ dri2_load_driver_common(_EGLDisplay *disp,
 EGLBoolean
 dri2_load_driver(_EGLDisplay *disp)
 {
-   return dri2_load_driver_common(disp, dri2_driver_extensions,
-                                  ARRAY_SIZE(dri2_driver_extensions));
+   return dri2_load_driver_common(disp);
 }
 
 EGLBoolean
 dri2_load_driver_dri3(_EGLDisplay *disp)
 {
-   return dri2_load_driver_common(disp, dri3_driver_extensions,
-                                  ARRAY_SIZE(dri3_driver_extensions));
+   return dri2_load_driver_common(disp);
 }
 
 EGLBoolean
 dri2_load_driver_swrast(_EGLDisplay *disp)
 {
-   return dri2_load_driver_common(disp, swrast_driver_extensions,
-                                  ARRAY_SIZE(swrast_driver_extensions));
+   return dri2_load_driver_common(disp);
 }
 
 static const char *

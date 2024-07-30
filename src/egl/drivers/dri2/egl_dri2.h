@@ -250,7 +250,6 @@ struct dri2_egl_display {
    const __DRI2bufferDamageExtension *buffer_damage;
    const __DRI2blobExtension *blob;
    const __DRI2interopExtension *interop;
-   const __DRIconfigOptionsExtension *configOptions;
    const __DRImutableRenderBufferDriverExtension *mutable_render_buffer;
    /* fd of the GPU used for rendering. */
    int fd_render_gpu;
