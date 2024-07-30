@@ -891,10 +891,7 @@ static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
 };
 
 const __DRIextension *galliumvk_driver_extensions[] = {
-   &driCoreExtension.base,
    &mesaCoreExtension.base,
-   &driSWRastExtension.base,
-   &driImageDriverExtension.base,
    &driKopperExtension.base,
    &gallium_config_options.base,
    NULL

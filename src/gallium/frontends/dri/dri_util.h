@@ -54,13 +54,6 @@ struct __DRIconfigRec {
     struct gl_config modes;
 };
 
-/**
- * Extensions.
- */
-extern const __DRIcoreExtension driCoreExtension;
-extern const __DRIswrastExtension driSWRastExtension;
-extern const __DRI2flushControlExtension dri2FlushControlExtension;
-extern const __DRI2configQueryExtension dri2GalliumConfigQueryExtension;
 
 /**
  * Description of the attributes used to create a config.

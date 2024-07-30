@@ -2158,9 +2158,7 @@ static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
 
 /* This is the table of extensions that the loader will dlsym() for. */
 const __DRIextension *galliumdrm_driver_extensions[] = {
-    &driCoreExtension.base,
     &mesaCoreExtension.base,
-    &driImageDriverExtension.base,
     &gallium_config_options.base,
     NULL
 };
@@ -2174,9 +2172,7 @@ static const struct __DRImesaCoreExtensionRec swkmsMesaCoreExtension = {
 };
 
 const __DRIextension *dri_swrast_kms_driver_extensions[] = {
-    &driCoreExtension.base,
     &swkmsMesaCoreExtension.base,
-    &driImageDriverExtension.base,
     &gallium_config_options.base,
     NULL
 };

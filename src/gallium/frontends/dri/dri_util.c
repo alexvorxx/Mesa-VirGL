@@ -174,54 +174,6 @@ driCreateNewScreen3(int scrn, int fd,
     return opaque_dri_screen(screen);
 }
 
-static __DRIscreen *
-dri2CreateNewScreen(int scrn, int fd,
-                    const __DRIextension **extensions,
-                    const __DRIconfig ***driver_configs, void *data)
-{
-   return driCreateNewScreen3(scrn, fd, extensions,
-                              galliumdrm_driver_extensions,
-                              driver_configs, false, data);
-}
-
-static __DRIscreen *
-swkmsCreateNewScreen(int scrn, int fd,
-                     const __DRIextension **extensions,
-                     const __DRIconfig ***driver_configs, void *data)
-{
-   return driCreateNewScreen3(scrn, fd, extensions,
-                              dri_swrast_kms_driver_extensions,
-                              driver_configs, false, data);
-}
-
-/** swrast driver createNewScreen entrypoint. */
-static __DRIscreen *
-driSWRastCreateNewScreen(int scrn, const __DRIextension **extensions,
-                         const __DRIconfig ***driver_configs, void *data)
-{
-   return driCreateNewScreen3(scrn, -1, extensions,
-                              galliumsw_driver_extensions,
-                              driver_configs, false, data);
-}
-
-static __DRIscreen *
-driSWRastCreateNewScreen2(int scrn, const __DRIextension **extensions,
-                          const __DRIextension **driver_extensions,
-                          const __DRIconfig ***driver_configs, void *data)
-{
-   return driCreateNewScreen3(scrn, -1, extensions, driver_extensions,
-                               driver_configs, false, data);
-}
-
-static __DRIscreen *
-driSWRastCreateNewScreen3(int scrn, const __DRIextension **extensions,
-                          const __DRIextension **driver_extensions,
-                          const __DRIconfig ***driver_configs, bool driver_name_is_inferred, void *data)
-{
-   return driCreateNewScreen3(scrn, -1, extensions, driver_extensions,
-                               driver_configs, driver_name_is_inferred, data);
-}
-
 /**
  * Destroy the per-screen private information.
  *
@@ -942,41 +894,6 @@ driSWRastQueryBufferAge(__DRIdrawable *pdp)
    return drawable->buffer_age;
 }
 
-/** Core interface */
-const __DRIcoreExtension driCoreExtension = {
-    .base = { __DRI_CORE, 2 },
-
-    .createNewScreen            = NULL,
-    .destroyScreen              = driDestroyScreen,
-    .getConfigAttrib            = driGetConfigAttrib,
-    .indexConfigAttrib          = driIndexConfigAttrib,
-    .createNewDrawable          = NULL,
-    .destroyDrawable            = driDestroyDrawable,
-    .swapBuffers                = driSwapBuffers, /* swrast */
-    .swapBuffersWithDamage      = driSwapBuffersWithDamage, /* swrast */
-    .createNewContext           = driCreateNewContext, /* swrast */
-    .copyContext                = driCopyContext,
-    .destroyContext             = driDestroyContext,
-    .bindContext                = driBindContext,
-    .unbindContext              = driUnbindContext
-};
-
-const __DRIswrastExtension driSWRastExtension = {
-    .base = { __DRI_SWRAST, 5 },
-
-    .createNewScreen            = driSWRastCreateNewScreen,
-    .createNewDrawable          = driCreateNewDrawable,
-    .createNewContextForAPI     = driCreateNewContextForAPI,
-    .createContextAttribs       = driCreateContextAttribs,
-    .createNewScreen2           = driSWRastCreateNewScreen2,
-    .queryBufferAge             = driSWRastQueryBufferAge,
-    .createNewScreen3           = driSWRastCreateNewScreen3,
-};
-
-const __DRI2flushControlExtension dri2FlushControlExtension = {
-   .base = { __DRI2_FLUSH_CONTROL, 1 }
-};
-
 /*
  * Note: the first match is returned, which is important for formats like
  * __DRI_IMAGE_FORMAT_R8 which maps to both MESA_FORMAT_{R,L}_UNORM8
@@ -1112,17 +1029,6 @@ driImageFormatToSizedInternalGLFormat(uint32_t image_format)
 
    return GL_NONE;
 }
-
-/** Image driver interface */
-const __DRIimageDriverExtension driImageDriverExtension = {
-    .base = { __DRI_IMAGE_DRIVER, 2 },
-
-    .createNewDrawable          = driCreateNewDrawable,
-    .getAPIMask                 = driGetAPIMask,
-    .createContextAttribs       = driCreateContextAttribs,
-    .createNewScreen3           = driCreateNewScreen3,
-};
-
 
 static int dri_vblank_mode(__DRIscreen *driScreen)
 {
