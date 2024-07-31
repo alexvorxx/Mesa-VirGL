@@ -359,3 +359,5 @@ mr-label-maker-test:
       optional: true
     - job: rustfmt
       optional: true
+    - job: toml-lint
+      optional: true
