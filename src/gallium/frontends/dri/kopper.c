@@ -166,54 +166,10 @@ kopper_get_pixmap_buffer(struct dri_drawable *drawable,
     */
    struct dri_screen *screen = drawable->screen;
 
-#ifdef HAVE_DRI3_MODIFIERS
-   if (drawable->has_modifiers) {
-      xcb_dri3_buffers_from_pixmap_cookie_t bps_cookie;
-      xcb_dri3_buffers_from_pixmap_reply_t *bps_reply;
-      xcb_generic_error_t *error;
-
-      bps_cookie = xcb_dri3_buffers_from_pixmap(conn, pixmap);
-      bps_reply = xcb_dri3_buffers_from_pixmap_reply(conn, bps_cookie, &error);
-      if (!bps_reply) {
-         mesa_loge("kopper: could not create texture from pixmap (%u)", error->error_code);
-         return NULL;
-      }
-      drawable->image =
-         loader_dri3_create_image_from_buffers(conn, bps_reply, fourcc,
-                                        opaque_dri_screen(screen),
-                                        drawable);
-      if (!drawable->image)
-         return NULL;
-      width = bps_reply->width;
-      height = bps_reply->height;
-      free(bps_reply);
-   } else
-#endif
-   {
-#ifdef HAVE_DRI3
-      xcb_dri3_buffer_from_pixmap_cookie_t bp_cookie;
-      xcb_dri3_buffer_from_pixmap_reply_t *bp_reply;
-      xcb_generic_error_t *error;
-
-      bp_cookie = xcb_dri3_buffer_from_pixmap(conn, pixmap);
-      bp_reply = xcb_dri3_buffer_from_pixmap_reply(conn, bp_cookie, &error);
-      if (!bp_reply) {
-         mesa_loge("kopper: could not create texture from pixmap (%u)", error->error_code);
-         return NULL;
-      }
-
-      drawable->image = loader_dri3_create_image(conn, bp_reply, fourcc,
-                                       opaque_dri_screen(screen),
-                                       drawable);
-      if (!drawable->image)
-         return NULL;
-      width = bp_reply->width;
-      height = bp_reply->height;
-      free(bp_reply);
-#else
+   drawable->image = loader_dri3_get_pixmap_buffer(conn, pixmap, opaque_dri_screen(screen),
+                                                   fourcc, drawable->has_modifiers, &width, &height, drawable);
+   if (!drawable->image)
       return NULL;
-#endif
-   }
 
    drawable->w = width;
    drawable->h = height;
