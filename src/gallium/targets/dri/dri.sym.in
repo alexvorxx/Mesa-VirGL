@@ -62,6 +62,8 @@
 		dri_set_blob_cache_funcs;
 		dri_get_pipe_screen;
 		dri_get_screen_param;
+		dri3*;
+		loader_dri3*;
 		@nouveau_drm_screen_create@
 		@radeon_drm_winsys_create@
 		@amdgpu_winsys_create@

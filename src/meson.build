@@ -113,11 +113,6 @@ if with_gallium
   if with_tests and with_shared_glapi
     subdir('mesa/state_tracker/tests')
   endif
-  if with_dri
-    if with_gallium or with_gbm or with_platform_wayland
-      subdir('loader_dri3')
-    endif
-  endif
 endif
 if with_glx == 'dri'
   subdir('glx')

@@ -21,6 +21,11 @@ files_libdri = files(
 
 if with_platform_x11
   deps_for_libdri += dep_xcb
+  if with_dri3
+    deps_for_libdri += [dep_xcb_dri3, dep_xcb_present, dep_xcb_sync,
+                        dep_xshmfence, dep_xcb_xfixes]
+    files_libdri += files('loader_dri3_helper.c')
+  endif
 endif
 
 if with_dri

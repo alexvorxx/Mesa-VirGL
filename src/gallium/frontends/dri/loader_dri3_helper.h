@@ -33,6 +33,7 @@
 
 #include <GL/gl.h>
 #include "mesa_interface.h"
+#include "util/macros.h"
 #include <c11/threads.h>
 
 enum loader_dri3_buffer_type {
@@ -188,14 +189,14 @@ struct loader_dri3_drawable {
    bool has_event_waiter;
 };
 
-void
+PUBLIC void
 loader_dri3_set_swap_interval(struct loader_dri3_drawable *draw,
                               int interval);
 
-void
+PUBLIC void
 loader_dri3_drawable_fini(struct loader_dri3_drawable *draw);
 
-int
+PUBLIC int
 loader_dri3_drawable_init(xcb_connection_t *conn,
                           xcb_drawable_t drawable,
                           enum loader_dri3_drawable_type type,
@@ -207,48 +208,48 @@ loader_dri3_drawable_init(xcb_connection_t *conn,
                           const struct loader_dri3_vtable *vtable,
                           struct loader_dri3_drawable*);
 
-bool loader_dri3_wait_for_msc(struct loader_dri3_drawable *draw,
+PUBLIC bool loader_dri3_wait_for_msc(struct loader_dri3_drawable *draw,
                               int64_t target_msc,
                               int64_t divisor, int64_t remainder,
                               int64_t *ust, int64_t *msc, int64_t *sbc);
 
-int64_t
+PUBLIC int64_t
 loader_dri3_swap_buffers_msc(struct loader_dri3_drawable *draw,
                              int64_t target_msc, int64_t divisor,
                              int64_t remainder, unsigned flush_flags,
                              const int *rects, int n_rects,
                              bool force_copy);
 
-int
+PUBLIC int
 loader_dri3_wait_for_sbc(struct loader_dri3_drawable *draw,
                          int64_t target_sbc, int64_t *ust,
                          int64_t *msc, int64_t *sbc);
 
-int loader_dri3_query_buffer_age(struct loader_dri3_drawable *draw);
+PUBLIC int loader_dri3_query_buffer_age(struct loader_dri3_drawable *draw);
 
-void
+PUBLIC void
 loader_dri3_flush(struct loader_dri3_drawable *draw,
                   unsigned flags,
                   enum __DRI2throttleReason throttle_reason);
 
-void
+PUBLIC void
 loader_dri3_copy_sub_buffer(struct loader_dri3_drawable *draw,
                             int x, int y,
                             int width, int height,
                             bool flush);
 
-void
+PUBLIC void
 loader_dri3_copy_drawable(struct loader_dri3_drawable *draw,
                           xcb_drawable_t dest,
                           xcb_drawable_t src);
 
-void
+PUBLIC void
 loader_dri3_wait_x(struct loader_dri3_drawable *draw);
 
-void
+PUBLIC void
 loader_dri3_wait_gl(struct loader_dri3_drawable *draw);
 
-__DRIimage *
+PUBLIC __DRIimage *
 loader_dri3_create_image(xcb_connection_t *c,
                          xcb_dri3_buffer_from_pixmap_reply_t *bp_reply,
                          unsigned int fourcc,
@@ -256,14 +257,14 @@ loader_dri3_create_image(xcb_connection_t *c,
                          void *loaderPrivate);
 
 #ifdef HAVE_DRI3_MODIFIERS
-__DRIimage *
+PUBLIC __DRIimage *
 loader_dri3_create_image_from_buffers(xcb_connection_t *c,
                                       xcb_dri3_buffers_from_pixmap_reply_t *bp_reply,
                                       unsigned int fourcc,
                                       __DRIscreen *dri_screen,
                                       void *loaderPrivate);
 #endif
-int
+PUBLIC int
 loader_dri3_get_buffers(__DRIdrawable *driDrawable,
                         unsigned int format,
                         uint32_t *stamp,
@@ -271,13 +272,13 @@ loader_dri3_get_buffers(__DRIdrawable *driDrawable,
                         uint32_t buffer_mask,
                         struct __DRIimageList *buffers);
 
-void
+PUBLIC void
 loader_dri3_update_drawable_geometry(struct loader_dri3_drawable *draw);
 
-void
+PUBLIC void
 loader_dri3_swapbuffer_barrier(struct loader_dri3_drawable *draw);
 
-void
+PUBLIC void
 loader_dri3_close_screen(__DRIscreen *dri_screen);
 
 #endif
