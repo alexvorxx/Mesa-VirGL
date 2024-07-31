@@ -208,11 +208,15 @@ cs_program_emit(struct fd_ringbuffer *ring, struct kernel *kernel)
                                    : (local_size[1] % 2 == 0) ? CS_YALIGN_2
                                                               : CS_YALIGN_1;
 
-      OUT_REG(ring, A7XX_HLSQ_CS_CNTL_1(.linearlocalidregid = regid(63, 0),
-                                        .threadsize = thrsz,
-                                        .unk11 = true,
-                                        .unk22 = true,
-                                        .yalign = yalign, ));
+      OUT_REG(ring,
+         HLSQ_CS_CNTL_1(CHIP,
+            .linearlocalidregid = regid(63, 0),
+            .threadsize = thrsz,
+            .unk11 = true,
+            .unk22 = true,
+            .yalign = yalign,
+         )
+      );
    }
 
    if (CHIP == A7XX || a6xx_backend->info->a6xx.has_lpac) {
