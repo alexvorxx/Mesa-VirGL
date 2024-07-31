@@ -27,6 +27,7 @@
 #include "state_tracker/st_texture.h"
 #include "state_tracker/st_context.h"
 #include "main/texobj.h"
+#include "util/libsync.h"
 
 #include "dri_helpers.h"
 #include "loader_dri_helper.h"
@@ -765,5 +766,26 @@ dri_create_image_with_modifiers(__DRIscreen *screen,
    return dri_create_image(screen, width, height, dri_format,
                            modifiers, modifiers_count, dri_usage,
                            loaderPrivate);
+}
+
+void
+dri_image_fence_sync(struct dri_context *ctx, __DRIimage *img)
+{
+   struct pipe_context *pipe = ctx->st->pipe;
+   struct pipe_fence_handle *fence;
+   int fd = img->in_fence_fd;
+
+   if (fd == -1)
+      return;
+
+   validate_fence_fd(fd);
+
+   img->in_fence_fd = -1;
+
+   pipe->create_fence_fd(pipe, &fence, fd, PIPE_FD_TYPE_NATIVE_SYNC);
+   pipe->fence_server_sync(pipe, fence);
+   pipe->screen->fence_reference(pipe->screen, &fence, NULL);
+
+   close(fd);
 }
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

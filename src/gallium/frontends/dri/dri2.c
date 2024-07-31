@@ -389,27 +389,6 @@ dri2_set_in_fence_fd(__DRIimage *img, int fd)
    sync_accumulate("dri", &img->in_fence_fd, fd);
 }
 
-static void
-handle_in_fence(struct dri_context *ctx, __DRIimage *img)
-{
-   struct pipe_context *pipe = ctx->st->pipe;
-   struct pipe_fence_handle *fence;
-   int fd = img->in_fence_fd;
-
-   if (fd == -1)
-      return;
-
-   validate_fence_fd(fd);
-
-   img->in_fence_fd = -1;
-
-   pipe->create_fence_fd(pipe, &fence, fd, PIPE_FD_TYPE_NATIVE_SYNC);
-   pipe->fence_server_sync(pipe, fence);
-   pipe->screen->fence_reference(pipe->screen, &fence, NULL);
-
-   close(fd);
-}
-
 /*
  * Backend functions for pipe_frontend_drawable.
  */
@@ -519,7 +498,7 @@ dri2_allocate_textures(struct dri_context *ctx,
          drawable->h = texture->height0;
 
          pipe_resource_reference(buf, texture);
-         handle_in_fence(ctx, images.front);
+         dri_image_fence_sync(ctx, images.front);
       }
 
       if (images.image_mask & __DRI_IMAGE_BUFFER_BACK) {
@@ -531,7 +510,7 @@ dri2_allocate_textures(struct dri_context *ctx,
          drawable->h = texture->height0;
 
          pipe_resource_reference(buf, texture);
-         handle_in_fence(ctx, images.back);
+         dri_image_fence_sync(ctx, images.back);
       }
 
       if (images.image_mask & __DRI_IMAGE_BUFFER_SHARED) {
@@ -543,7 +522,7 @@ dri2_allocate_textures(struct dri_context *ctx,
          drawable->h = texture->height0;
 
          pipe_resource_reference(buf, texture);
-         handle_in_fence(ctx, images.back);
+         dri_image_fence_sync(ctx, images.back);
 
          ctx->is_shared_buffer_bound = true;
       } else {
@@ -1821,7 +1800,7 @@ dri2_blit_image(__DRIcontext *context, __DRIimage *dst, __DRIimage *src,
     */
    _mesa_glthread_finish(ctx->st->ctx);
 
-   handle_in_fence(ctx, dst);
+   dri_image_fence_sync(ctx, dst);
 
    memset(&blit, 0, sizeof(blit));
    blit.dst.resource = dst->texture;
@@ -1878,7 +1857,7 @@ dri2_map_image(__DRIcontext *context, __DRIimage *image,
     */
    _mesa_glthread_finish(ctx->st->ctx);
 
-   handle_in_fence(ctx, image);
+   dri_image_fence_sync(ctx, image);
 
    struct pipe_resource *resource = image->texture;
    while (plane--)
