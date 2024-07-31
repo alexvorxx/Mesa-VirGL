@@ -1036,6 +1036,8 @@ static void si_emit_dispatch_packets(struct si_context *sctx, const struct pipe_
        * - Only supported by the gfx queue.
        * - Max 16 workgroups per SE can be launched, max 4 in each dimension.
        * - PARTIAL_TG_EN, USE_THREAD_DIMENSIONS, and ORDERED_APPEND_ENBL must be 0.
+       * - COMPUTE_START_X/Y are in units of 2D subgrids, not workgroups
+       *   (program COMPUTE_START_X to start_x >> log_x, COMPUTE_START_Y to start_y >> log_y).
        */
       if (sctx->has_graphics && !partial_block_en &&
           (info->indirect || info->grid[1] >= 4) && MIN2(info->block[0], info->block[1]) >= 4 &&
