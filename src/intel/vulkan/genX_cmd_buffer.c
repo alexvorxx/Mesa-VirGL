@@ -464,6 +464,33 @@ transition_depth_buffer(struct anv_cmd_buffer *cmd_buffer,
    if (image->planes[depth_plane].aux_usage == ISL_AUX_USAGE_NONE)
       return;
 
+   /* Initialize the indirect clear color prior to first use. */
+   const struct anv_address clear_color_addr =
+      anv_image_get_clear_color_addr(cmd_buffer->device, image,
+                                     VK_IMAGE_ASPECT_DEPTH_BIT);
+   if (!anv_address_is_null(clear_color_addr) &&
+       (initial_layout == VK_IMAGE_LAYOUT_UNDEFINED ||
+        initial_layout == VK_IMAGE_LAYOUT_PREINITIALIZED)) {
+      const enum isl_format depth_format =
+         image->planes[depth_plane].primary_surface.isl.format;
+      assert(ANV_HZ_FC_VAL == 1.0f);
+      const uint32_t depth_value = depth_format == ISL_FORMAT_R32_FLOAT ?
+                                   0x3f800000 : ~0;
+
+      const uint32_t clear_pixel_offset = clear_color_addr.offset +
+         isl_get_sampler_clear_field_offset(cmd_buffer->device->info,
+                                            depth_format);
+      const struct anv_address clear_pixel_addr = {
+         .bo = clear_color_addr.bo,
+         .offset = clear_pixel_offset,
+      };
+
+      struct mi_builder b;
+      mi_builder_init(&b, cmd_buffer->device->info, &cmd_buffer->batch);
+      mi_builder_set_write_check(&b, true);
+      mi_store(&b, mi_mem32(clear_pixel_addr), mi_imm(depth_value));
+   }
+
    /* If will_full_fast_clear is set, the caller promises to fast-clear the
     * largest portion of the specified range as it can.
     */

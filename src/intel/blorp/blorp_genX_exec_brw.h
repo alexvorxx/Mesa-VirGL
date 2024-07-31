@@ -1546,24 +1546,6 @@ blorp_update_clear_color(UNUSED struct blorp_batch *batch,
 
 #else
 
-#if GFX_VER == 12
-   if (isl_surf_usage_is_depth(info->surf.usage)) {
-      const struct intel_device_info *devinfo =
-         batch->blorp->compiler->brw->devinfo;
-      blorp_emit(batch, GENX(MI_STORE_DATA_IMM), sdi) {
-         sdi.Address = info->clear_color_addr;
-         sdi.Address.offset +=
-            isl_get_sampler_clear_field_offset(devinfo, info->surf.format);
-
-         isl_color_value_pack(&info->clear_color, info->surf.format,
-                              (uint32_t *)&sdi.ImmediateData);
-
-         sdi.ForceWriteCompletionCheck = true;
-      }
-      return;
-   }
-#endif
-
    for (int i = 0; i < 4; i++) {
       blorp_emit(batch, GENX(MI_STORE_DATA_IMM), sdi) {
          sdi.Address = info->clear_color_addr;
@@ -1591,16 +1573,10 @@ blorp_uses_bti_rt_writes(const struct blorp_batch *batch, const struct blorp_par
 static void
 blorp_exec_3d(struct blorp_batch *batch, const struct blorp_params *params)
 {
-   if (!(batch->flags & BLORP_BATCH_NO_UPDATE_CLEAR_COLOR)) {
-      if (params->fast_clear_op == ISL_AUX_OP_FAST_CLEAR &&
-          params->dst.clear_color_addr.buffer != NULL) {
-         blorp_update_clear_color(batch, &params->dst);
-      }
-
-      if (params->hiz_op == ISL_AUX_OP_FAST_CLEAR &&
-          params->depth.clear_color_addr.buffer != NULL) {
-         blorp_update_clear_color(batch, &params->depth);
-      }
+   if (!(batch->flags & BLORP_BATCH_NO_UPDATE_CLEAR_COLOR) &&
+       params->fast_clear_op == ISL_AUX_OP_FAST_CLEAR &&
+       params->dst.clear_color_addr.buffer != NULL) {
+      blorp_update_clear_color(batch, &params->dst);
    }
 
    if (params->hiz_op != ISL_AUX_OP_NONE) {

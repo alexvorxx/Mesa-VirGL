@@ -1879,16 +1879,10 @@ blorp_uses_bti_rt_writes(const struct blorp_batch *batch, const struct blorp_par
 static void
 blorp_exec_3d(struct blorp_batch *batch, const struct blorp_params *params)
 {
-   if (!(batch->flags & BLORP_BATCH_NO_UPDATE_CLEAR_COLOR)) {
-      if (params->fast_clear_op == ISL_AUX_OP_FAST_CLEAR &&
-          params->dst.clear_color_addr.buffer != NULL) {
-         blorp_update_clear_color(batch, &params->dst);
-      }
-
-      if (params->hiz_op == ISL_AUX_OP_FAST_CLEAR &&
-          params->depth.clear_color_addr.buffer != NULL) {
-         blorp_update_clear_color(batch, &params->depth);
-      }
+   if (!(batch->flags & BLORP_BATCH_NO_UPDATE_CLEAR_COLOR) &&
+       params->fast_clear_op == ISL_AUX_OP_FAST_CLEAR &&
+       params->dst.clear_color_addr.buffer != NULL) {
+      blorp_update_clear_color(batch, &params->dst);
    }
 
 #if GFX_VER >= 8

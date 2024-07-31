@@ -526,8 +526,7 @@ fast_clear_depth(struct iris_context *ice,
                  float depth)
 {
    struct iris_batch *batch = &ice->batches[IRIS_BATCH_RENDER];
-
-   bool update_clear_depth = false;
+   const struct intel_device_info *devinfo = batch->screen->devinfo;
 
    if (res->aux.usage == ISL_AUX_USAGE_HIZ_CCS_WT) {
       /* From Bspec 47010 (Depth Buffer Clear):
@@ -581,16 +580,27 @@ fast_clear_depth(struct iris_context *ice,
              * value so this shouldn't happen often.
              */
             iris_hiz_exec(ice, batch, res, res_level, layer, 1,
-                          ISL_AUX_OP_FULL_RESOLVE, false);
+                          ISL_AUX_OP_FULL_RESOLVE);
             iris_resource_set_aux_state(ice, res, res_level, layer, 1,
                                         ISL_AUX_STATE_RESOLVED);
          }
       }
       const union isl_color_value clear_value = { .f32 = {depth, } };
       iris_resource_set_clear_color(ice, res, clear_value);
-      update_clear_depth = true;
 
+      /* Also set the indirect clear color if it exists. */
       if (res->aux.clear_color_bo) {
+         uint32_t packed_depth;
+         isl_color_value_pack(&clear_value, res->surf.format, &packed_depth);
+
+         const uint64_t clear_pixel_offset = res->aux.clear_color_offset +
+            isl_get_sampler_clear_field_offset(devinfo, res->surf.format);
+
+         iris_emit_pipe_control_write(batch, "update fast clear value (Z)",
+                                      PIPE_CONTROL_WRITE_IMMEDIATE,
+                                      res->aux.clear_color_bo,
+                                      clear_pixel_offset, packed_depth);
+
          /* From the TGL PRMs, Volume 9: Render Engine, State Caching :
           *
           *    "Any values referenced by pointers within the
@@ -603,6 +613,7 @@ fast_clear_depth(struct iris_context *ice,
           * Invalidate the state cache as suggested.
           */
          iris_emit_pipe_control_flush(batch, "flush fast clear values (z)",
+                                      PIPE_CONTROL_FLUSH_ENABLE |
                                       PIPE_CONTROL_STATE_CACHE_INVALIDATE);
       }
    }
@@ -610,14 +621,9 @@ fast_clear_depth(struct iris_context *ice,
    for (unsigned l = 0; l < box->depth; l++) {
       enum isl_aux_state aux_state =
          iris_resource_get_aux_state(res, level, box->z + l);
-      if (update_clear_depth || aux_state != ISL_AUX_STATE_CLEAR) {
-         if (aux_state == ISL_AUX_STATE_CLEAR) {
-            perf_debug(&ice->dbg, "Performing HiZ clear just to update the "
-                                  "depth clear value\n");
-         }
+      if (aux_state != ISL_AUX_STATE_CLEAR) {
          iris_hiz_exec(ice, batch, res, level,
-                       box->z + l, 1, ISL_AUX_OP_FAST_CLEAR,
-                       update_clear_depth);
+                       box->z + l, 1, ISL_AUX_OP_FAST_CLEAR);
       }
    }
 

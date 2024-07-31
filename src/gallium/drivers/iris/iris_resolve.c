@@ -675,8 +675,7 @@ iris_hiz_exec(struct iris_context *ice,
               struct iris_batch *batch,
               struct iris_resource *res,
               unsigned int level, unsigned int start_layer,
-              unsigned int num_layers, enum isl_aux_op op,
-              bool update_clear_depth)
+              unsigned int num_layers, enum isl_aux_op op)
 {
    ASSERTED const struct intel_device_info *devinfo = batch->screen->devinfo;
 
@@ -738,9 +737,7 @@ iris_hiz_exec(struct iris_context *ice,
                                 res->aux.usage, level, true);
 
    struct blorp_batch blorp_batch;
-   enum blorp_batch_flags flags = 0;
-   flags |= update_clear_depth ? 0 : BLORP_BATCH_NO_UPDATE_CLEAR_COLOR;
-   blorp_batch_init(&ice->blorp, &blorp_batch, batch, flags);
+   blorp_batch_init(&ice->blorp, &blorp_batch, batch, 0);
    blorp_hiz_op(&blorp_batch, &surf, level, start_layer, num_layers, op);
    blorp_batch_finish(&blorp_batch);
 
@@ -914,7 +911,7 @@ iris_resource_prepare_access(struct iris_context *ice,
          } else if (isl_aux_usage_has_mcs(res->aux.usage)) {
             iris_mcs_exec(ice, batch, res, layer, 1, aux_op);
          } else if (isl_aux_usage_has_hiz(res->aux.usage)) {
-            iris_hiz_exec(ice, batch, res, level, layer, 1, aux_op, false);
+            iris_hiz_exec(ice, batch, res, level, layer, 1, aux_op);
          } else if (res->aux.usage == ISL_AUX_USAGE_STC_CCS) {
             unreachable("iris doesn't resolve STC_CCS resources");
          } else {
