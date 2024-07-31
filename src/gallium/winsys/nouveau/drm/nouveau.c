@@ -13,7 +13,6 @@
 #include "nvif/ioctl.h"
 
 #include "nv_push.h"
-#include "nv_device_info.h"
 
 #include "util/bitscan.h"
 #include "util/list.h"
@@ -412,6 +411,39 @@ nouveau_device_new(struct nouveau_object *parent, struct nouveau_device **pdev)
       goto done;
 
    nvdev->base.chipset = info.chipset;
+   nvdev->base.info.chipset = info.chipset;
+   switch (info.platform) {
+   case NV_DEVICE_INFO_V0_PCI:
+   case NV_DEVICE_INFO_V0_AGP:
+   case NV_DEVICE_INFO_V0_PCIE:
+      nvdev->base.info.type = NV_DEVICE_TYPE_DIS;
+      break;
+   case NV_DEVICE_INFO_V0_IGP:
+      nvdev->base.info.type = NV_DEVICE_TYPE_IGP;
+      break;
+   case NV_DEVICE_INFO_V0_SOC:
+      nvdev->base.info.type = NV_DEVICE_TYPE_SOC;
+      break;
+   default:
+      unreachable("unhandled nvidia device type");
+      break;
+   }
+
+   drmDevicePtr drm_device;
+   ret = drmGetDevice2(drm->fd, 0, &drm_device);
+   if (ret)
+      goto done;
+
+   if (drm_device->bustype == DRM_BUS_PCI) {
+      nvdev->base.info.pci.domain       = drm_device->businfo.pci->domain;
+      nvdev->base.info.pci.bus          = drm_device->businfo.pci->bus;
+      nvdev->base.info.pci.dev          = drm_device->businfo.pci->dev;
+      nvdev->base.info.pci.func         = drm_device->businfo.pci->func;
+      nvdev->base.info.pci.revision_id  = drm_device->deviceinfo.pci->revision_id;
+      nvdev->base.info.device_id        = drm_device->deviceinfo.pci->device_id;
+   }
+
+   drmFreeDevice(&drm_device);
 
    ret = nouveau_getparam(dev, NOUVEAU_GETPARAM_FB_SIZE, &v);
    if (ret)
