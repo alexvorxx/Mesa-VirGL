@@ -184,7 +184,6 @@ fn derive_as_slice(
             let mut as_slice_cases = TokenStream2::new();
             let mut as_mut_slice_cases = TokenStream2::new();
             let mut types_cases = TokenStream2::new();
-            let mut is_uniform_cases = TokenStream2::new();
             for v in e.variants {
                 let case = v.ident;
                 as_slice_cases.extend(quote! {
@@ -196,23 +195,7 @@ fn derive_as_slice(
                 types_cases.extend(quote! {
                     #ident::#case(x) => x.#types_fn(),
                 });
-                if search_type == "Dst" {
-                    is_uniform_cases.extend(quote! {
-                        #ident::#case(x) => x.is_uniform(),
-                    });
-                }
             }
-            let is_uniform_func = if search_type == "Dst" {
-                quote! {
-                    fn is_uniform(&self) -> bool {
-                        match self {
-                            #is_uniform_cases
-                        }
-                    }
-                }
-            } else {
-                TokenStream2::new()
-            };
             quote! {
                 impl #trait_name for #ident {
                     fn #as_slice(&self) -> &[#elem_type] {
@@ -232,7 +215,6 @@ fn derive_as_slice(
                             #types_cases
                         }
                     }
-                    #is_uniform_func
                 }
             }
             .into()

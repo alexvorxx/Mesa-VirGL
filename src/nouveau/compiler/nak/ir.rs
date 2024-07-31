@@ -1493,7 +1493,13 @@ pub trait DstsAsSlice {
         assert!(r.contains(&(dst as *const Dst)));
         unsafe { (dst as *const Dst).offset_from(r.start) as usize }
     }
+}
 
+pub trait IsUniform {
+    fn is_uniform(&self) -> bool;
+}
+
+impl<T: DstsAsSlice> IsUniform for T {
     fn is_uniform(&self) -> bool {
         all_dsts_uniform(self.dsts_as_slice())
     }
@@ -5826,10 +5832,6 @@ impl DstsAsSlice for OpPhiDsts {
 
     fn dst_types(&self) -> DstTypeList {
         DstTypeList::Uniform(DstType::Vec)
-    }
-
-    fn is_uniform(&self) -> bool {
-        false
     }
 }
 
