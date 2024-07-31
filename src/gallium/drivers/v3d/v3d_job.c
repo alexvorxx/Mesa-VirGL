@@ -76,6 +76,9 @@ v3d_job_free(struct v3d_context *v3d, struct v3d_job *job)
         if (job->bbuf)
                 pipe_surface_reference(&job->bbuf, NULL);
 
+        if (job->dbuf)
+                pipe_surface_reference(&job->dbuf, NULL);
+
         if (v3d->job == job)
                 v3d->job = NULL;
 
