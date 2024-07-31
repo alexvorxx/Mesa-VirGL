@@ -1397,10 +1397,12 @@ private:
    ir_function_signature *_shader_clock(builtin_available_predicate avail,
                                         const glsl_type *type);
 
-   ir_function_signature *_vote_intrinsic(builtin_available_predicate avail,
+   ir_function_signature *_vote_intrinsic(const glsl_type *type,
+                                          builtin_available_predicate avail,
                                           enum ir_intrinsic_id id);
-   ir_function_signature *_vote(const char *intrinsic_name,
-                                builtin_available_predicate avail);
+   ir_function_signature *_vote(const glsl_type *type,
+                                builtin_available_predicate avail,
+                                const char *intrinsic_name);
 
    ir_function_signature *_helper_invocation_intrinsic();
    ir_function_signature *_helper_invocation();
@@ -1729,13 +1731,16 @@ builtin_builder::create_intrinsics()
                 NULL);
 
    add_function("__intrinsic_vote_all",
-                _vote_intrinsic(vote_or_v460_desktop, ir_intrinsic_vote_all),
+                _vote_intrinsic(&glsl_type_builtin_bool, vote_or_v460_desktop,
+                                ir_intrinsic_vote_all),
                 NULL);
    add_function("__intrinsic_vote_any",
-                _vote_intrinsic(vote_or_v460_desktop, ir_intrinsic_vote_any),
+                _vote_intrinsic(&glsl_type_builtin_bool, vote_or_v460_desktop,
+                                ir_intrinsic_vote_any),
                 NULL);
    add_function("__intrinsic_vote_eq",
-                _vote_intrinsic(vote_or_v460_desktop, ir_intrinsic_vote_eq),
+                _vote_intrinsic(&glsl_type_builtin_bool, vote_or_v460_desktop,
+                                ir_intrinsic_vote_eq),
                 NULL);
 
    add_function("__intrinsic_ballot", _ballot_intrinsic(), NULL);
@@ -5434,39 +5439,39 @@ builtin_builder::create_builtins()
                 NULL);
 
    add_function("anyInvocationARB",
-                _vote("__intrinsic_vote_any", vote),
+                _vote(&glsl_type_builtin_bool, vote, "__intrinsic_vote_any"),
                 NULL);
 
    add_function("allInvocationsARB",
-                _vote("__intrinsic_vote_all", vote),
+                _vote(&glsl_type_builtin_bool, vote, "__intrinsic_vote_all"),
                 NULL);
 
    add_function("allInvocationsEqualARB",
-                _vote("__intrinsic_vote_eq", vote),
+                _vote(&glsl_type_builtin_bool, vote, "__intrinsic_vote_eq"),
                 NULL);
 
    add_function("anyInvocationEXT",
-                _vote("__intrinsic_vote_any", vote_ext),
+                _vote(&glsl_type_builtin_bool, vote_ext, "__intrinsic_vote_any"),
                 NULL);
 
    add_function("allInvocationsEXT",
-                _vote("__intrinsic_vote_all", vote_ext),
+                _vote(&glsl_type_builtin_bool, vote_ext, "__intrinsic_vote_all"),
                 NULL);
 
    add_function("allInvocationsEqualEXT",
-                _vote("__intrinsic_vote_eq", vote_ext),
+                _vote(&glsl_type_builtin_bool, vote_ext, "__intrinsic_vote_eq"),
                 NULL);
 
    add_function("anyInvocation",
-                _vote("__intrinsic_vote_any", v460_desktop),
+                _vote(&glsl_type_builtin_bool, v460_desktop, "__intrinsic_vote_any"),
                 NULL);
 
    add_function("allInvocations",
-                _vote("__intrinsic_vote_all", v460_desktop),
+                _vote(&glsl_type_builtin_bool, v460_desktop, "__intrinsic_vote_all"),
                 NULL);
 
    add_function("allInvocationsEqual",
-                _vote("__intrinsic_vote_eq", v460_desktop),
+                _vote(&glsl_type_builtin_bool, v460_desktop, "__intrinsic_vote_eq"),
                 NULL);
 
    add_function("helperInvocationEXT", _helper_invocation(), NULL);
@@ -8846,19 +8851,21 @@ builtin_builder::_shader_clock(builtin_available_predicate avail,
 }
 
 ir_function_signature *
-builtin_builder::_vote_intrinsic(builtin_available_predicate avail,
+builtin_builder::_vote_intrinsic(const glsl_type *type,
+                                 builtin_available_predicate avail,
                                  enum ir_intrinsic_id id)
 {
-   ir_variable *value = in_var(&glsl_type_builtin_bool, "value");
+   ir_variable *value = in_var(type, "value");
    MAKE_INTRINSIC(&glsl_type_builtin_bool, id, avail, 1, value);
    return sig;
 }
 
 ir_function_signature *
-builtin_builder::_vote(const char *intrinsic_name,
-                       builtin_available_predicate avail)
+builtin_builder::_vote(const glsl_type *type,
+                       builtin_available_predicate avail,
+                       const char *intrinsic_name)
 {
-   ir_variable *value = in_var(&glsl_type_builtin_bool, "value");
+   ir_variable *value = in_var(type, "value");
 
    MAKE_SIG(&glsl_type_builtin_bool, avail, 1, value);
 
