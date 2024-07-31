@@ -26,10 +26,10 @@ fn expr_as_usize(expr: &syn::Expr) -> usize {
         .expect("Failed to parse integer literal")
 }
 
-fn count_type(ty: &Type, search_type: &str) -> usize {
+fn count_type(ty: &Type, slice_type: &str) -> usize {
     match ty {
         syn::Type::Array(a) => {
-            let elems = count_type(a.elem.as_ref(), search_type);
+            let elems = count_type(a.elem.as_ref(), slice_type);
             if elems > 0 {
                 elems * expr_as_usize(&a.len)
             } else {
@@ -37,7 +37,7 @@ fn count_type(ty: &Type, search_type: &str) -> usize {
             }
         }
         syn::Type::Path(p) => {
-            if p.qself.is_none() && p.path.is_ident(search_type) {
+            if p.qself.is_none() && p.path.is_ident(slice_type) {
                 1
             } else {
                 0
@@ -47,10 +47,10 @@ fn count_type(ty: &Type, search_type: &str) -> usize {
     }
 }
 
-fn get_type_attr(field: &Field, ty_attr: &str) -> Option<String> {
+fn get_attr(field: &Field, attr_name: &str) -> Option<String> {
     for attr in &field.attrs {
         if let Meta::List(ml) = &attr.meta {
-            if ml.path.is_ident(ty_attr) {
+            if ml.path.is_ident(attr_name) {
                 return Some(format!("{}", ml.tokens));
             }
         }
@@ -60,24 +60,13 @@ fn get_type_attr(field: &Field, ty_attr: &str) -> Option<String> {
 
 fn derive_as_slice(
     input: TokenStream,
-    trait_name: &str,
-    func_prefix: &str,
-    search_type: &str,
+    slice_type: &str,
+    attr_name: &str,
+    attr_type: &str,
 ) -> TokenStream {
     let DeriveInput {
         attrs, ident, data, ..
     } = parse_macro_input!(input);
-
-    let trait_name = Ident::new(trait_name, Span::call_site());
-    let elem_type = Ident::new(search_type, Span::call_site());
-    let as_slice =
-        Ident::new(&format!("{func_prefix}s_as_slice"), Span::call_site());
-    let as_mut_slice =
-        Ident::new(&format!("{func_prefix}s_as_mut_slice"), Span::call_site());
-    let types_fn =
-        Ident::new(&format!("{func_prefix}_types"), Span::call_site());
-    let ty_attr = format!("{func_prefix}_type");
-    let ty_type = Ident::new(&format!("{search_type}Type"), Span::call_site());
 
     match data {
         Data::Struct(s) => {
@@ -99,35 +88,37 @@ fn derive_as_slice(
             let mut first = None;
             let mut count = 0_usize;
             let mut found_last = false;
-            let mut types = TokenStream2::new();
+            let mut attrs = TokenStream2::new();
 
             if let Fields::Named(named) = s.fields {
                 for f in named.named {
-                    let ty_count = count_type(&f.ty, search_type);
-                    let ty = get_type_attr(&f, &ty_attr);
+                    let f_count = count_type(&f.ty, slice_type);
+                    let f_attr = get_attr(&f, &attr_name);
 
-                    if ty_count > 0 {
+                    if f_count > 0 {
                         assert!(
                             !found_last,
-                            "All fields of type {search_type} must be consecutive",
+                            "All fields of type {slice_type} must be consecutive",
                         );
 
-                        let ty = if let Some(s) = ty {
+                        let attr_type =
+                            Ident::new(attr_type, Span::call_site());
+                        let f_attr = if let Some(s) = f_attr {
                             let s = syn::parse_str::<Ident>(&s).unwrap();
-                            quote! { #ty_type::#s, }
+                            quote! { #attr_type::#s, }
                         } else {
-                            quote! { #ty_type::DEFAULT, }
+                            quote! { #attr_type::DEFAULT, }
                         };
 
                         first.get_or_insert(f.ident);
-                        for _ in 0..ty_count {
-                            types.extend(ty.clone());
+                        for _ in 0..f_count {
+                            attrs.extend(f_attr.clone());
                         }
-                        count += ty_count;
+                        count += f_count;
                     } else {
                         assert!(
-                            ty.is_none(),
-                            "{ty_attr} attribute is only allowed on {search_type}"
+                            f_attr.is_none(),
+                            "{attr_name} attribute is only allowed on {slice_type}"
                         );
                         if !first.is_none() {
                             found_last = true;
@@ -138,42 +129,49 @@ fn derive_as_slice(
                 panic!("Fields are not named");
             }
 
-            if let Some(name) = first {
+            let slice_type = Ident::new(slice_type, Span::call_site());
+            let attr_type = Ident::new(attr_type, Span::call_site());
+            if let Some(first) = first {
                 quote! {
-                    impl #trait_name for #ident {
-                        fn #as_slice(&self) -> &[#elem_type] {
+                    impl AsSlice<#slice_type> for #ident {
+                        type Attr = #attr_type;
+
+                        fn as_slice(&self) -> &[#slice_type] {
                             unsafe {
-                                let first = &self.#name as *const #elem_type;
+                                let first = &self.#first as *const #slice_type;
                                 std::slice::from_raw_parts(first, #count)
                             }
                         }
 
-                        fn #as_mut_slice(&mut self) -> &mut [#elem_type] {
+                        fn as_mut_slice(&mut self) -> &mut [#slice_type] {
                             unsafe {
-                                let first = &mut self.#name as *mut #elem_type;
+                                let first =
+                                    &mut self.#first as *mut #slice_type;
                                 std::slice::from_raw_parts_mut(first, #count)
                             }
                         }
 
-                        fn #types_fn(&self) -> TypeList<#ty_type> {
-                            static TYPES: [#ty_type; #count] = [#types];
-                            TypeList::Array(&TYPES)
+                        fn attrs(&self) -> AttrList<Self::Attr> {
+                            static ATTRS: [#attr_type; #count] = [#attrs];
+                            AttrList::Array(&ATTRS)
                         }
                     }
                 }
             } else {
                 quote! {
-                    impl #trait_name for #ident {
-                        fn #as_slice(&self) -> &[#elem_type] {
+                    impl AsSlice<#slice_type> for #ident {
+                        type Attr = #attr_type;
+
+                        fn as_slice(&self) -> &[#slice_type] {
                             &[]
                         }
 
-                        fn #as_mut_slice(&mut self) -> &mut [#elem_type] {
+                        fn as_mut_slice(&mut self) -> &mut [#slice_type] {
                             &mut []
                         }
 
-                        fn #types_fn(&self) -> TypeList<#ty_type> {
-                            TypeList::Uniform(#ty_type::DEFAULT)
+                        fn attrs(&self) -> AttrList<Self::Attr> {
+                            AttrList::Uniform(#attr_type::DEFAULT)
                         }
                     }
                 }
@@ -184,33 +182,37 @@ fn derive_as_slice(
             let mut as_slice_cases = TokenStream2::new();
             let mut as_mut_slice_cases = TokenStream2::new();
             let mut types_cases = TokenStream2::new();
+            let slice_type = Ident::new(slice_type, Span::call_site());
+            let attr_type = Ident::new(attr_type, Span::call_site());
             for v in e.variants {
                 let case = v.ident;
                 as_slice_cases.extend(quote! {
-                    #ident::#case(x) => x.#as_slice(),
+                    #ident::#case(x) => AsSlice::<#slice_type>::as_slice(x),
                 });
                 as_mut_slice_cases.extend(quote! {
-                    #ident::#case(x) => x.#as_mut_slice(),
+                    #ident::#case(x) => AsSlice::<#slice_type>::as_mut_slice(x),
                 });
                 types_cases.extend(quote! {
-                    #ident::#case(x) => x.#types_fn(),
+                    #ident::#case(x) => AsSlice::<#slice_type>::attrs(x),
                 });
             }
             quote! {
-                impl #trait_name for #ident {
-                    fn #as_slice(&self) -> &[#elem_type] {
+                impl AsSlice<#slice_type> for #ident {
+                    type Attr = #attr_type;
+
+                    fn as_slice(&self) -> &[#slice_type] {
                         match self {
                             #as_slice_cases
                         }
                     }
 
-                    fn #as_mut_slice(&mut self) -> &mut [#elem_type] {
+                    fn as_mut_slice(&mut self) -> &mut [#slice_type] {
                         match self {
                             #as_mut_slice_cases
                         }
                     }
 
-                    fn #types_fn(&self) -> TypeList<#ty_type> {
+                    fn attrs(&self) -> AttrList<Self::Attr> {
                         match self {
                             #types_cases
                         }
@@ -225,12 +227,12 @@ fn derive_as_slice(
 
 #[proc_macro_derive(SrcsAsSlice, attributes(src_type))]
 pub fn derive_srcs_as_slice(input: TokenStream) -> TokenStream {
-    derive_as_slice(input, "SrcsAsSlice", "src", "Src")
+    derive_as_slice(input, "Src", "src_type", "SrcType")
 }
 
 #[proc_macro_derive(DstsAsSlice, attributes(dst_type))]
 pub fn derive_dsts_as_slice(input: TokenStream) -> TokenStream {
-    derive_as_slice(input, "DstsAsSlice", "dst", "Dst")
+    derive_as_slice(input, "Dst", "dst_type", "DstType")
 }
 
 #[proc_macro_derive(DisplayOp)]
