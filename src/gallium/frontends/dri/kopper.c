@@ -38,8 +38,7 @@
 #include "dri_context.h"
 #include "dri_drawable.h"
 #include "dri_helpers.h"
-#include "dri_query_renderer.h"
-#include "loader_dri_helper.h"
+#include "loader_dri3_helper.h"
 
 #include <vulkan/vulkan.h>
 
@@ -140,95 +139,6 @@ pipe_format_to_fourcc(enum pipe_format format)
    }
 }
 
-#ifdef HAVE_DRI3_MODIFIERS
-static __DRIimage *
-dri3_create_image_from_buffers(xcb_connection_t *c,
-                               xcb_dri3_buffers_from_pixmap_reply_t *bp_reply,
-                               uint32_t fourcc,
-                               struct dri_screen *screen,
-                               void *loaderPrivate)
-{
-   __DRIimage                           *ret;
-   int                                  *fds;
-   uint32_t                             *strides_in, *offsets_in;
-   int                                   strides[4], offsets[4];
-   unsigned                              error;
-   int                                   i;
-
-   if (bp_reply->nfd > 4)
-      return NULL;
-
-   fds = xcb_dri3_buffers_from_pixmap_reply_fds(c, bp_reply);
-   strides_in = xcb_dri3_buffers_from_pixmap_strides(bp_reply);
-   offsets_in = xcb_dri3_buffers_from_pixmap_offsets(bp_reply);
-   for (i = 0; i < bp_reply->nfd; i++) {
-      strides[i] = strides_in[i];
-      offsets[i] = offsets_in[i];
-   }
-
-   ret = dri2_from_dma_bufs(opaque_dri_screen(screen),
-                                       bp_reply->width,
-                                       bp_reply->height,
-                                       fourcc,
-                                       bp_reply->modifier,
-                                       fds, bp_reply->nfd,
-                                       strides, offsets,
-                                       0, 0, 0, 0, /* UNDEFINED */
-                                       0, &error, loaderPrivate);
-
-   for (i = 0; i < bp_reply->nfd; i++)
-      close(fds[i]);
-
-   return ret;
-}
-#endif
-
-static __DRIimage *
-dri3_create_image(xcb_connection_t *c,
-                  xcb_dri3_buffer_from_pixmap_reply_t *bp_reply,
-                  uint32_t fourcc,
-                  struct dri_screen *screen,
-                  void *loaderPrivate)
-{
-   int                                  *fds;
-   __DRIimage                           *image_planar, *ret;
-   int                                  stride, offset;
-
-   /* Get an FD for the pixmap object
-    */
-   fds = xcb_dri3_buffer_from_pixmap_reply_fds(c, bp_reply);
-
-   stride = bp_reply->stride;
-   offset = 0;
-
-   /* dri2_from_dma_bufs creates a wrapper __DRIimage structure which
-    * can deal with multiple planes for things like Yuv images. So, once
-    * we've gotten the planar wrapper, pull the single plane out of it and
-    * discard the wrapper.
-    */
-   image_planar = dri2_from_dma_bufs(opaque_dri_screen(screen),
-                                                bp_reply->width,
-                                                bp_reply->height,
-                                                fourcc,
-                                                DRM_FORMAT_MOD_INVALID, fds, 1,
-                                                &stride, &offset,
-                                                0, 0, 0, 0, 0,
-                                                NULL, loaderPrivate);
-   close(fds[0]);
-   if (!image_planar)
-      return NULL;
-
-   ret = dri2_from_planar(image_planar, 0, loaderPrivate);
-
-   if (!ret)
-      ret = image_planar;
-   else
-      dri2_destroy_image(image_planar);
-
-   return ret;
-}
-
-
 static void
 handle_in_fence(struct dri_context *ctx, __DRIimage *img)
 {
@@ -290,8 +200,8 @@ kopper_get_pixmap_buffer(struct dri_drawable *drawable,
          return NULL;
       }
       drawable->image =
-         dri3_create_image_from_buffers(conn, bps_reply, fourcc,
-                                        screen,
+         loader_dri3_create_image_from_buffers(conn, bps_reply, fourcc,
+                                        opaque_dri_screen(screen),
                                         drawable);
       if (!drawable->image)
          return NULL;
@@ -313,8 +223,8 @@ kopper_get_pixmap_buffer(struct dri_drawable *drawable,
          return NULL;
       }
 
-      drawable->image = dri3_create_image(conn, bp_reply, fourcc,
-                                       screen,
+      drawable->image = loader_dri3_create_image(conn, bp_reply, fourcc,
+                                       opaque_dri_screen(screen),
                                        drawable);
       if (!drawable->image)
          return NULL;
