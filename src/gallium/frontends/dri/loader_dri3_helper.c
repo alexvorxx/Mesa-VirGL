@@ -1847,6 +1847,47 @@ loader_dri3_create_image_from_buffers(xcb_connection_t *c,
 }
 #endif
 
+__DRIimage *
+loader_dri3_get_pixmap_buffer(xcb_connection_t *conn, xcb_drawable_t pixmap, __DRIscreen *screen,
+                              unsigned fourcc, bool multiplanes_available,
+                              int *width, int *height, void *loader_data)
+{
+   __DRIimage *image;
+#ifdef HAVE_DRI3_MODIFIERS
+   if (multiplanes_available) {
+      xcb_dri3_buffers_from_pixmap_cookie_t bps_cookie;
+      xcb_dri3_buffers_from_pixmap_reply_t *bps_reply;
+
+      bps_cookie = xcb_dri3_buffers_from_pixmap(conn, pixmap);
+      bps_reply = xcb_dri3_buffers_from_pixmap_reply(conn, bps_cookie,
+                                                     NULL);
+      if (!bps_reply)
+         return NULL;
+      image = loader_dri3_create_image_from_buffers(conn, bps_reply, fourcc,
+                                                    screen, loader_data);
+      *width = bps_reply->width;
+      *height = bps_reply->height;
+      free(bps_reply);
+   } else
+#endif
+   {
+      xcb_dri3_buffer_from_pixmap_cookie_t bp_cookie;
+      xcb_dri3_buffer_from_pixmap_reply_t *bp_reply;
+
+      bp_cookie = xcb_dri3_buffer_from_pixmap(conn, pixmap);
+      bp_reply = xcb_dri3_buffer_from_pixmap_reply(conn, bp_cookie, NULL);
+      if (!bp_reply)
+         return NULL;
+
+      image = loader_dri3_create_image(conn, bp_reply, fourcc, screen,
+                                               loader_data);
+      *width = bp_reply->width;
+      *height = bp_reply->height;
+      free(bp_reply);
+   }
+   return image;
+}
+
 /** dri3_get_pixmap_buffer
  *
  * Get the DRM object for a pixmap from the X server and
@@ -1899,41 +1940,8 @@ dri3_get_pixmap_buffer(__DRIdrawable *driDrawable, unsigned int fourcc,
                           (sync_fence = xcb_generate_id(draw->conn)),
                           false,
                           fence_fd);
-#ifdef HAVE_DRI3_MODIFIERS
-   if (draw->multiplanes_available) {
-      xcb_dri3_buffers_from_pixmap_cookie_t bps_cookie;
-      xcb_dri3_buffers_from_pixmap_reply_t *bps_reply;
-
-      bps_cookie = xcb_dri3_buffers_from_pixmap(draw->conn, pixmap);
-      bps_reply = xcb_dri3_buffers_from_pixmap_reply(draw->conn, bps_cookie,
-                                                     NULL);
-      if (!bps_reply)
-         goto no_image;
-      buffer->image =
-         loader_dri3_create_image_from_buffers(draw->conn, bps_reply, fourcc,
-                                               cur_screen,
-                                               buffer);
-      width = bps_reply->width;
-      height = bps_reply->height;
-      free(bps_reply);
-   } else
-#endif
-   {
-      xcb_dri3_buffer_from_pixmap_cookie_t bp_cookie;
-      xcb_dri3_buffer_from_pixmap_reply_t *bp_reply;
-
-      bp_cookie = xcb_dri3_buffer_from_pixmap(draw->conn, pixmap);
-      bp_reply = xcb_dri3_buffer_from_pixmap_reply(draw->conn, bp_cookie, NULL);
-      if (!bp_reply)
-         goto no_image;
-
-      buffer->image = loader_dri3_create_image(draw->conn, bp_reply, fourcc,
-                                               cur_screen,
-                                               buffer);
-      width = bp_reply->width;
-      height = bp_reply->height;
-      free(bp_reply);
-   }
+   buffer->image = loader_dri3_get_pixmap_buffer(draw->conn, pixmap, cur_screen, fourcc,
+                                                 draw->multiplanes_available, &width, &height, buffer);
 
    if (!buffer->image)
       goto no_image;

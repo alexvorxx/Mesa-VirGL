@@ -280,5 +280,8 @@ loader_dri3_swapbuffer_barrier(struct loader_dri3_drawable *draw);
 
 PUBLIC void
 loader_dri3_close_screen(__DRIscreen *dri_screen);
-
+__DRIimage *
+loader_dri3_get_pixmap_buffer(xcb_connection_t *conn, xcb_drawable_t pixmap, __DRIscreen *screen,
+                              unsigned fourcc, bool multiplanes_available,
+                              int *width, int *height, void *loader_data);
 #endif
