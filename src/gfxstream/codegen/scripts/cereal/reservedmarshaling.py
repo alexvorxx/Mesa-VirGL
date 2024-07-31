@@ -1013,7 +1013,9 @@ class VulkanReservedMarshaling(VulkanWrapperGenerator):
             cgen.stmt("(void)pNext_placeholder")
 
         def fatalDefault(cgen):
-            cgen.line("// fatal; the switch is only taken if the extension struct is known");
+            cgen.line("// fatal; the switch is only taken if the extension struct is known")
+            if self.variant != "guest":
+                cgen.stmt("fprintf(stderr, \" %s, Unhandled Vulkan structure type %s [%d], aborting.\\n\", __func__, string_VkStructureType(VkStructureType(structType)), structType)")
             cgen.stmt("abort()")
             pass
 
