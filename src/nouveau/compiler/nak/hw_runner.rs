@@ -272,12 +272,12 @@ impl<'a> Runner {
 
         // Copy the data from the caller into our BO
         let data_addr = bo.addr + u64::try_from(data_offset).unwrap();
-        let data_map = bo.map.offset(data_offset.try_into().unwrap());
+        let data_map = bo.map.byte_offset(data_offset.try_into().unwrap());
         std::ptr::copy(data, data_map, data_size);
 
         // Fill out cb0
         let cb0_addr = bo.addr + u64::try_from(cb0_offset).unwrap();
-        let cb0_map = bo.map.offset(cb0_offset.try_into().unwrap());
+        let cb0_map = bo.map.byte_offset(cb0_offset.try_into().unwrap());
         (cb0_map as *mut CB0).write(CB0 {
             data_addr_lo: data_addr as u32,
             data_addr_hi: (data_addr >> 32) as u32,
@@ -287,7 +287,7 @@ impl<'a> Runner {
 
         // Upload the shader
         let shader_addr = bo.addr + u64::try_from(shader_offset).unwrap();
-        let shader_map = bo.map.offset(shader_offset.try_into().unwrap());
+        let shader_map = bo.map.byte_offset(shader_offset.try_into().unwrap());
         std::ptr::copy(
             shader.code,
             shader_map,
@@ -319,7 +319,7 @@ impl<'a> Runner {
         };
 
         let qmd_addr = bo.addr + u64::try_from(qmd_offset).unwrap();
-        let qmd_map = bo.map.offset(qmd_offset.try_into().unwrap());
+        let qmd_map = bo.map.byte_offset(qmd_offset.try_into().unwrap());
         nak_fill_qmd(
             self.dev_info(),
             &shader.info,
@@ -388,13 +388,13 @@ impl<'a> Runner {
         }
 
         let push_addr = bo.addr + u64::try_from(push_offset).unwrap();
-        let push_map = bo.map.offset(push_offset.try_into().unwrap());
+        let push_map = bo.map.byte_offset(push_offset.try_into().unwrap());
         std::ptr::copy(p.as_ptr(), push_map as *mut u32, p.len());
 
         let res = self.exec(push_addr, (p.len() * 4).try_into().unwrap());
 
         // Always copy the data back to the caller, even if exec fails
-        let data_map = bo.map.offset(data_offset.try_into().unwrap());
+        let data_map = bo.map.byte_offset(data_offset.try_into().unwrap());
         std::ptr::copy(data_map, data, data_size);
 
         res
