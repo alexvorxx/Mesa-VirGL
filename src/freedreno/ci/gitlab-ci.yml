@@ -20,7 +20,7 @@ a306_piglit:
     DEQP_SUITE: freedreno-a306-piglit
     HWCI_START_WESTON: 1
     JOB_TIMEOUT: 40
-    TEST_PHASE_TIMEOUT: 40
+    TEST_PHASE_TIMEOUT_MINUTES: 40
 
 # Something happened and now this hangchecks and doesn't recover.  Unkown when
 # it started.
@@ -95,7 +95,7 @@ a618_vk_full:
     FDO_CI_CONCURRENT: 4
     DEQP_SUITE: freedreno-a618-vk-full
     JOB_TIMEOUT: 180
-    TEST_PHASE_TIMEOUT: 180
+    TEST_PHASE_TIMEOUT_MINUTES: 180
 
 a618_gl:
   extends:
@@ -156,7 +156,7 @@ a618_piglit_full:
     FLAKES_CHANNEL: "#freedreno-ci"
     HWCI_START_WESTON: 1
     JOB_TIMEOUT: 60
-    TEST_PHASE_TIMEOUT: 60
+    TEST_PHASE_TIMEOUT_MINUTES: 60
 
 a618-traces:
   extends:
@@ -265,7 +265,7 @@ a630_vk:
   parallel: 2
   variables:
     DEQP_SUITE: freedreno-a630-vk-full
-    TEST_PHASE_TIMEOUT: 180
+    TEST_PHASE_TIMEOUT_MINUTES: 180
 
 a630_vk_asan:
   extends:
@@ -298,7 +298,7 @@ a630_piglit_full:
   variables:
     HWCI_START_WESTON: 1
     DEQP_SUITE: freedreno-a630-piglit-full
-    TEST_PHASE_TIMEOUT: 60
+    TEST_PHASE_TIMEOUT_MINUTES: 60
 
 a630-traces:
   extends:

@@ -107,7 +107,7 @@ python3 $CI_INSTALL/custom_logger.py ${STRUCTURED_LOG_FILE} --update-dut-time su
 python3 $BM/cros_servo_run.py \
         --cpu $BM_SERIAL \
         --ec $BM_SERIAL_EC \
-        --test-timeout ${TEST_PHASE_TIMEOUT:-20}
+        --test-timeout ${TEST_PHASE_TIMEOUT_MINUTES:-20}
 ret=$?
 python3 $CI_INSTALL/custom_logger.py ${STRUCTURED_LOG_FILE} --close-dut-job
 python3 $CI_INSTALL/custom_logger.py ${STRUCTURED_LOG_FILE} --close
