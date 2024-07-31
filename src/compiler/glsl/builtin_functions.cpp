@@ -694,6 +694,12 @@ shader_ballot(const _mesa_glsl_parse_state *state)
 }
 
 static bool
+ballot_arb(const _mesa_glsl_parse_state *state)
+{
+   return state->ARB_shader_ballot_enable;
+}
+
+static bool
 supports_arb_fragment_shader_interlock(const _mesa_glsl_parse_state *state)
 {
    return state->ARB_fragment_shader_interlock_enable;
@@ -1398,12 +1404,14 @@ private:
    ir_function_signature *_memory_barrier(const char *intrinsic_name,
                                           builtin_available_predicate avail);
 
-   ir_function_signature *_ballot_intrinsic();
-   ir_function_signature *_ballot();
+   ir_function_signature *_ballot_intrinsic(const glsl_type *type);
+   ir_function_signature *_ballot(const glsl_type *type, builtin_available_predicate avail);
    ir_function_signature *_read_first_invocation_intrinsic(const glsl_type *type);
-   ir_function_signature *_read_first_invocation(const glsl_type *type);
+   ir_function_signature *_read_first_invocation(const glsl_type *type,
+                                                 builtin_available_predicate avail);
    ir_function_signature *_read_invocation_intrinsic(const glsl_type *type);
-   ir_function_signature *_read_invocation(const glsl_type *type);
+   ir_function_signature *_read_invocation(const glsl_type *type,
+                                           builtin_available_predicate avail);
 
 
    ir_function_signature *_invocation_interlock_intrinsic(
@@ -1553,6 +1561,20 @@ builtin_builder::create_shader()
 }
 
 /** @} */
+
+#define FIU(func, ...) \
+   func(&glsl_type_builtin_float, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_vec2, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_vec3, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_vec4, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_int, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_ivec2, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_ivec3, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_ivec4, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uint, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uvec2, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uvec3, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uvec4, ##__VA_ARGS__)
 
 #define FIUBD_AVAIL(func, avail, ...) \
    func(&glsl_type_builtin_float, avail, ##__VA_ARGS__), \
@@ -1785,7 +1807,7 @@ builtin_builder::create_intrinsics()
                 FIUBD_AVAIL(_vote_intrinsic, vote_or_v460_desktop, ir_intrinsic_vote_eq),
                 NULL);
 
-   add_function("__intrinsic_ballot", _ballot_intrinsic(), NULL);
+   add_function("__intrinsic_ballot", _ballot_intrinsic(&glsl_type_builtin_uint64_t), NULL);
 
    add_function("__intrinsic_read_invocation",
                 _read_invocation_intrinsic(&glsl_type_builtin_float),
@@ -5410,40 +5432,14 @@ builtin_builder::create_builtins()
                                 compute_shader),
                 NULL);
 
-   add_function("ballotARB", _ballot(), NULL);
+   add_function("ballotARB", _ballot(&glsl_type_builtin_uint64_t, ballot_arb), NULL);
 
    add_function("readInvocationARB",
-                _read_invocation(&glsl_type_builtin_float),
-                _read_invocation(&glsl_type_builtin_vec2),
-                _read_invocation(&glsl_type_builtin_vec3),
-                _read_invocation(&glsl_type_builtin_vec4),
-
-                _read_invocation(&glsl_type_builtin_int),
-                _read_invocation(&glsl_type_builtin_ivec2),
-                _read_invocation(&glsl_type_builtin_ivec3),
-                _read_invocation(&glsl_type_builtin_ivec4),
-
-                _read_invocation(&glsl_type_builtin_uint),
-                _read_invocation(&glsl_type_builtin_uvec2),
-                _read_invocation(&glsl_type_builtin_uvec3),
-                _read_invocation(&glsl_type_builtin_uvec4),
+                FIU(_read_invocation, ballot_arb),
                 NULL);
 
    add_function("readFirstInvocationARB",
-                _read_first_invocation(&glsl_type_builtin_float),
-                _read_first_invocation(&glsl_type_builtin_vec2),
-                _read_first_invocation(&glsl_type_builtin_vec3),
-                _read_first_invocation(&glsl_type_builtin_vec4),
-
-                _read_first_invocation(&glsl_type_builtin_int),
-                _read_first_invocation(&glsl_type_builtin_ivec2),
-                _read_first_invocation(&glsl_type_builtin_ivec3),
-                _read_first_invocation(&glsl_type_builtin_ivec4),
-
-                _read_first_invocation(&glsl_type_builtin_uint),
-                _read_first_invocation(&glsl_type_builtin_uvec2),
-                _read_first_invocation(&glsl_type_builtin_uvec3),
-                _read_first_invocation(&glsl_type_builtin_uvec4),
+                FIU(_read_first_invocation, ballot_arb),
                 NULL);
 
    add_function("clock2x32ARB",
@@ -8783,21 +8779,20 @@ builtin_builder::_memory_barrier(const char *intrinsic_name,
 }
 
 ir_function_signature *
-builtin_builder::_ballot_intrinsic()
+builtin_builder::_ballot_intrinsic(const glsl_type *type)
 {
    ir_variable *value = in_var(&glsl_type_builtin_bool, "value");
-   MAKE_INTRINSIC(&glsl_type_builtin_uint64_t, ir_intrinsic_ballot, shader_ballot,
-                  1, value);
+   MAKE_INTRINSIC(type, ir_intrinsic_ballot, shader_ballot, 1, value);
    return sig;
 }
 
 ir_function_signature *
-builtin_builder::_ballot()
+builtin_builder::_ballot(const glsl_type *type, builtin_available_predicate avail)
 {
    ir_variable *value = in_var(&glsl_type_builtin_bool, "value");
 
-   MAKE_SIG(&glsl_type_builtin_uint64_t, shader_ballot, 1, value);
-   ir_variable *retval = body.make_temp(&glsl_type_builtin_uint64_t, "retval");
+   MAKE_SIG(type, avail, 1, value);
+   ir_variable *retval = body.make_temp(type, "retval");
 
    body.emit(call(shader->symbols->get_function("__intrinsic_ballot"),
                   retval, sig->parameters));
@@ -8815,11 +8810,11 @@ builtin_builder::_read_first_invocation_intrinsic(const glsl_type *type)
 }
 
 ir_function_signature *
-builtin_builder::_read_first_invocation(const glsl_type *type)
+builtin_builder::_read_first_invocation(const glsl_type *type, builtin_available_predicate avail)
 {
    ir_variable *value = in_var(type, "value");
 
-   MAKE_SIG(type, shader_ballot, 1, value);
+   MAKE_SIG(type, avail, 1, value);
    ir_variable *retval = body.make_temp(type, "retval");
 
    body.emit(call(shader->symbols->get_function("__intrinsic_read_first_invocation"),
@@ -8839,7 +8834,7 @@ builtin_builder::_read_invocation_intrinsic(const glsl_type *type)
 }
 
 ir_function_signature *
-builtin_builder::_read_invocation(const glsl_type *type)
+builtin_builder::_read_invocation(const glsl_type *type, builtin_available_predicate avail)
 {
    ir_variable *value = in_var(type, "value");
    ir_variable *invocation = in_var(&glsl_type_builtin_uint, "invocation");
