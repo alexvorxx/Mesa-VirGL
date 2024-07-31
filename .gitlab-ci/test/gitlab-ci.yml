@@ -71,6 +71,25 @@ python-test:
     - changes: *bin_ci_files
       when: manual
 
+toml-lint:
+  extends:
+    - python-test
+    - .no-auto-retry  # this job can't be flaky
+  before_script:
+    - echo "If your change looks right but this script rejects it, contact @eric (GitLab) / eric_engestrom (IRC)."
+    - python3 bin/toml_lint.py
+  rules:
+    - !reference [.disable-farm-mr-rules, rules]
+    - !reference [.never-post-merge-rules, rules]
+    - if: $GITLAB_USER_LOGIN == "marge-bot"
+      changes: &toml_lint_files
+        - .gitlab-ci/test/gitlab-ci.yml
+        - bin/toml_lint.py
+        - src/**/ci/*.toml
+      when: on_success
+    - changes: *toml_lint_files
+      when: manual
+
 .test-gl:
   extends:
     - .test
