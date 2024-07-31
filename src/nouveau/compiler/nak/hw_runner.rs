@@ -12,6 +12,7 @@ use nvidia_headers::classes::clc6c0::mthd as clc6c0;
 use nvidia_headers::classes::clc6c0::AMPERE_COMPUTE_A;
 
 use std::io;
+use std::ptr;
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -53,7 +54,7 @@ impl<'a> BO<'a> {
                 0, // align
                 NOUVEAU_WS_BO_GART,
                 NOUVEAU_WS_BO_RDWR,
-                &mut map as *mut _,
+                ptr::from_mut(&mut map),
             )
         };
         let Some(bo) = NonNull::new(bo) else {
@@ -213,7 +214,7 @@ impl<'a> Runner {
             }
 
             // Exec again to check for errors
-            let exec = drm_nouveau_exec {
+            let mut exec = drm_nouveau_exec {
                 channel: self.ctx.as_ref().channel as u32,
                 wait_count: 0,
                 wait_ptr: 0,
@@ -225,7 +226,7 @@ impl<'a> Runner {
             let err = drmIoctl(
                 self.dev.as_ref().fd,
                 DRM_RS_IOCTL_NOUVEAU_EXEC,
-                &exec as *const _ as *mut std::os::raw::c_void,
+                ptr::from_mut(&mut exec).cast(),
             );
             if err != 0 {
                 return Err(io::Error::last_os_error());
@@ -278,7 +279,7 @@ impl<'a> Runner {
         // Fill out cb0
         let cb0_addr = bo.addr + u64::try_from(cb0_offset).unwrap();
         let cb0_map = bo.map.byte_offset(cb0_offset.try_into().unwrap());
-        (cb0_map as *mut CB0).write(CB0 {
+        cb0_map.cast::<CB0>().write(CB0 {
             data_addr_lo: data_addr as u32,
             data_addr_hi: (data_addr >> 32) as u32,
             data_stride,
@@ -389,7 +390,7 @@ impl<'a> Runner {
 
         let push_addr = bo.addr + u64::try_from(push_offset).unwrap();
         let push_map = bo.map.byte_offset(push_offset.try_into().unwrap());
-        std::ptr::copy(p.as_ptr(), push_map as *mut u32, p.len());
+        std::ptr::copy(p.as_ptr(), push_map.cast(), p.len());
 
         let res = self.exec(push_addr, (p.len() * 4).try_into().unwrap());
 
@@ -411,7 +412,7 @@ impl<'a> Runner {
                 shader,
                 data.len().try_into().unwrap(),
                 stride.try_into().unwrap(),
-                data.as_mut_ptr() as *mut std::os::raw::c_void,
+                data.as_mut_ptr().cast(),
                 data.len() * stride,
             )
         }

@@ -455,7 +455,7 @@ pub fn test_foldable_op_with(
                 &bin,
                 invocations.try_into().unwrap(),
                 (comps * 4).try_into().unwrap(),
-                data.as_mut_ptr() as *mut std::os::raw::c_void,
+                data.as_mut_ptr().cast(),
                 data.len() * 4,
             )
             .unwrap();
