@@ -139,27 +139,6 @@ pipe_format_to_fourcc(enum pipe_format format)
    }
 }
 
-static void
-handle_in_fence(struct dri_context *ctx, __DRIimage *img)
-{
-   struct pipe_context *pipe = ctx->st->pipe;
-   struct pipe_fence_handle *fence;
-   int fd = img->in_fence_fd;
-
-   if (fd == -1)
-      return;
-
-   validate_fence_fd(fd);
-
-   img->in_fence_fd = -1;
-
-   pipe->create_fence_fd(pipe, &fence, fd, PIPE_FD_TYPE_NATIVE_SYNC);
-   pipe->fence_server_sync(pipe, fence);
-   pipe->screen->fence_reference(pipe->screen, &fence, NULL);
-
-   close(fd);
-}
-
 /** kopper_get_pixmap_buffer
  *
  * Get the DRM object for a pixmap from the X server and
@@ -399,7 +378,7 @@ XXX do this once swapinterval is hooked up
          else if (is_pixmap && statts[i] == ST_ATTACHMENT_FRONT_LEFT && !screen->is_sw) {
             drawable->textures[statts[i]] = kopper_get_pixmap_buffer(drawable, format);
             if (drawable->textures[statts[i]])
-               handle_in_fence(ctx, drawable->image);
+               dri_image_fence_sync(ctx, drawable->image);
          }
 #endif
          if (!drawable->textures[statts[i]])
