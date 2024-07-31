@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 
 _compiler_rs_sources = [
+  'as_slice.rs',
   'bitset.rs',
   'cfg.rs',
   'nir.rs',
@@ -93,4 +94,22 @@ _libcompiler_rs = static_library(
 
 idep_compiler_rs = declare_dependency(
   link_with : _libcompiler_rs,
+)
+
+dep_syn = dependency('syn',
+  version : '>= 2.0.15',
+  fallback : ['syn', 'dep_syn'],
+  required : true,
+)
+
+_libcompiler_proc_rs = static_library(
+  'compiler_proc',
+  'proc/lib.rs',
+  gnu_symbol_visibility : 'hidden',
+  dependencies : [dep_syn],
+  rust_abi : 'rust',
+)
+
+idep_compiler_proc_rs = declare_dependency(
+  link_with : _libcompiler_proc_rs,
 )

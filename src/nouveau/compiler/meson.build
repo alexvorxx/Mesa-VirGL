@@ -16,12 +16,6 @@ nak_rust_args = [
   '-Anon_snake_case',
 ]
 
-dep_syn = dependency('syn',
-  version : '>= 2.0.15',
-  fallback : ['syn', 'dep_syn'],
-  required : true,
-)
-
 dep_paste = dependency('paste',
   version : '>= 1.0.14',
   fallback : ['paste', 'dep_paste'],
@@ -114,7 +108,7 @@ _libnak_bindings_rs = static_library(
 _libnak_ir_proc_rs = rust.proc_macro(
   'nak_ir_proc',
   files('nak/ir_proc.rs'),
-  dependencies : [dep_syn],
+  dependencies : [idep_compiler_proc_rs],
 )
 
 _libnak_rs = static_library(

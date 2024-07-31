@@ -10,6 +10,7 @@ use nak_bindings::*;
 pub use crate::builder::{Builder, InstrBuilder, SSABuilder, SSAInstrBuilder};
 use crate::legalize::LegalizeBuilder;
 use crate::sph::{OutputTopology, PixelImap};
+use compiler::as_slice::*;
 use compiler::cfg::CFG;
 use nak_ir_proc::*;
 use std::cmp::{max, min};
@@ -1396,30 +1397,6 @@ impl fmt::Display for Src {
             SrcMod::BNot => write!(f, "!{}{}", self.src_ref, self.src_swizzle),
         }
     }
-}
-
-pub enum AttrList<T: 'static> {
-    Array(&'static [T]),
-    Uniform(T),
-}
-
-impl<T: 'static> Index<usize> for AttrList<T> {
-    type Output = T;
-
-    fn index(&self, idx: usize) -> &T {
-        match self {
-            AttrList::Array(arr) => &arr[idx],
-            AttrList::Uniform(typ) => typ,
-        }
-    }
-}
-
-pub trait AsSlice<T> {
-    type Attr;
-
-    fn as_slice(&self) -> &[T];
-    fn as_mut_slice(&mut self) -> &mut [T];
-    fn attrs(&self) -> AttrList<Self::Attr>;
 }
 
 #[repr(u8)]
