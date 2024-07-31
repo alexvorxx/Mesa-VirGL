@@ -297,24 +297,13 @@ mme_store_global_vec3_free_addr(struct mme_builder *b,
    mme_free_reg64(b, addr);
 }
 
-void
-nvk_mme_dispatch_indirect(struct mme_builder *b)
+static void
+mme_store_root_desc_group_count(struct mme_builder *b,
+                                struct mme_value64 root_desc_addr,
+                                struct mme_value group_count_x,
+                                struct mme_value group_count_y,
+                                struct mme_value group_count_z)
 {
-   struct mme_value group_count_x, group_count_y, group_count_z;
-   if (b->devinfo->cls_eng3d >= TURING_A) {
-      struct mme_value64 dispatch_addr = mme_load_addr64(b);
-      mme_tu104_read_fifoed(b, dispatch_addr, mme_imm(3));
-      group_count_x = mme_load(b);
-      group_count_y = mme_load(b);
-      group_count_z = mme_load(b);
-      mme_free_reg64(b, dispatch_addr);
-   } else {
-      group_count_x = mme_load(b);
-      group_count_y = mme_load(b);
-      group_count_z = mme_load(b);
-   }
-
-   struct mme_value64 root_desc_addr = mme_load_addr64(b);
    uint32_t root_desc_size_offset =
       offsetof(struct nvk_root_descriptor_table, cs.group_count);
    mme_store_global_vec3_free_addr(b, root_desc_addr,
@@ -322,12 +311,19 @@ nvk_mme_dispatch_indirect(struct mme_builder *b)
                                    group_count_x,
                                    group_count_y,
                                    group_count_z);
+}
 
+static void
+mme_store_qmd_dispatch_size(struct mme_builder *b,
+                            struct mme_value64 qmd_addr,
+                            struct mme_value group_count_x,
+                            struct mme_value group_count_y,
+                            struct mme_value group_count_z)
+{
    struct nak_qmd_dispatch_size_layout qmd_size_layout =
       nak_get_qmd_dispatch_size_layout(b->devinfo);
    assert(qmd_size_layout.y_start == qmd_size_layout.x_start + 32);
 
-   struct mme_value64 qmd_addr = mme_load_addr64(b);
    if (qmd_size_layout.z_start == qmd_size_layout.y_start + 32) {
       mme_store_global_vec3_free_addr(b, qmd_addr,
                                       qmd_size_layout.x_start / 8,
@@ -348,26 +344,71 @@ nvk_mme_dispatch_indirect(struct mme_builder *b)
 
       mme_free_reg64(b, qmd_addr);
    };
+}
 
-   struct mme_value64 count;
+void
+nvk_mme_dispatch_indirect(struct mme_builder *b)
+{
    if (b->devinfo->cls_eng3d >= TURING_A) {
+      /* Load everything before we switch to an indirect read */
+      struct mme_value64 dispatch_addr = mme_load_addr64(b);
+      struct mme_value64 root_desc_addr = mme_load_addr64(b);
+      struct mme_value64 qmd_addr = mme_load_addr64(b);
       struct mme_value local_size = mme_load(b);
-      struct mme_value64 cs1 = mme_umul_32x32_64(b, group_count_y, group_count_z);
-      struct mme_value64 cs2 = mme_umul_32x32_64(b, group_count_x, local_size);
-      count = mme_mul64(b, cs1, cs2);
+
+      mme_tu104_read_fifoed(b, dispatch_addr, mme_imm(3));
+      mme_free_reg64(b, dispatch_addr);
+      struct mme_value group_count_x = mme_load(b);
+      struct mme_value group_count_y = mme_load(b);
+      struct mme_value group_count_z = mme_load(b);
+
+      mme_store_root_desc_group_count(b, root_desc_addr,
+                                      group_count_x,
+                                      group_count_y,
+                                      group_count_z);
+
+      mme_store_qmd_dispatch_size(b, qmd_addr,
+                                  group_count_x,
+                                  group_count_y,
+                                  group_count_z);
+
+      struct mme_value64 cs1 = mme_umul_32x32_64(b, group_count_y,
+                                                    group_count_z);
+      struct mme_value64 cs2 = mme_umul_32x32_64(b, group_count_x,
+                                                    local_size);
+      struct mme_value64 count = mme_mul64(b, cs1, cs2);
       mme_free_reg64(b, cs1);
       mme_free_reg64(b, cs2);
+
+      nvk_build_mme_add_cs_invocations(b, count);
    } else {
+      struct mme_value group_count_x = mme_load(b);
+      struct mme_value group_count_y = mme_load(b);
+      struct mme_value group_count_z = mme_load(b);
+
+      struct mme_value64 root_desc_addr = mme_load_addr64(b);
+      mme_store_root_desc_group_count(b, root_desc_addr,
+                                      group_count_x,
+                                      group_count_y,
+                                      group_count_z);
+
+      struct mme_value64 qmd_addr = mme_load_addr64(b);
+      mme_store_qmd_dispatch_size(b, qmd_addr,
+                                  group_count_x,
+                                  group_count_y,
+                                  group_count_z);
+
       /* Y and Z are 16b, so this cant't overflow */
       struct mme_value cs1 =
          mme_mul_32x32_32_free_srcs(b, group_count_y, group_count_z);
       struct mme_value64 cs2 =
          mme_umul_32x32_64_free_srcs(b, group_count_x, cs1);
       struct mme_value local_size = mme_load(b);
-      count = mme_umul_32x64_64_free_srcs(b, local_size, cs2);
+      struct mme_value64 count =
+         mme_umul_32x64_64_free_srcs(b, local_size, cs2);
+
+      nvk_build_mme_add_cs_invocations(b, count);
    }
-   nvk_build_mme_add_cs_invocations(b, count);
-   mme_free_reg64(b, count);
 }
 
 VKAPI_ATTR void VKAPI_CALL
