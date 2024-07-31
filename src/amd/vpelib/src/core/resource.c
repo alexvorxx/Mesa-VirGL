@@ -695,7 +695,7 @@ void vpe_resource_build_bit_depth_reduction_params(
 }
 
 void vpe_frontend_config_callback(
-    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size)
+    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size, uint32_t pipe_idx)
 {
     struct config_frontend_cb_ctx *cb_ctx = (struct config_frontend_cb_ctx*)ctx;
     struct vpe_priv *vpe_priv             = cb_ctx->vpe_priv;
@@ -703,24 +703,29 @@ void vpe_frontend_config_callback(
     enum vpe_cmd_type  cmd_type;
 
     if (cb_ctx->stream_sharing) {
-        VPE_ASSERT(stream_ctx->num_configs <
-                (int)(sizeof(stream_ctx->configs) / sizeof(struct config_record)));
+        VPE_ASSERT(stream_ctx->num_configs[pipe_idx] <
+                   (int)(sizeof(stream_ctx->configs[pipe_idx]) / sizeof(struct config_record)));
 
-        stream_ctx->configs[stream_ctx->num_configs].config_base_addr = cfg_base_gpu;
-        stream_ctx->configs[stream_ctx->num_configs].config_size = size;
-        stream_ctx->num_configs++;
+        stream_ctx->configs[pipe_idx][stream_ctx->num_configs[pipe_idx]].config_base_addr =
+            cfg_base_gpu;
+        stream_ctx->configs[pipe_idx][stream_ctx->num_configs[pipe_idx]].config_size = size;
+        stream_ctx->num_configs[pipe_idx]++;
     } else if (cb_ctx->stream_op_sharing) {
         cmd_type = cb_ctx->cmd_type;
 
-        VPE_ASSERT(
-            stream_ctx->num_stream_op_configs[cmd_type] <
-                   (int)(sizeof(stream_ctx->stream_op_configs[cmd_type]) / sizeof(struct config_record)));
+        VPE_ASSERT(stream_ctx->num_stream_op_configs[pipe_idx][cmd_type] <
+                   (int)(sizeof(stream_ctx->stream_op_configs[pipe_idx][cmd_type]) /
+                         sizeof(struct config_record)));
 
-        stream_ctx->stream_op_configs[cmd_type][stream_ctx->num_stream_op_configs[cmd_type]]
+        stream_ctx
+            ->stream_op_configs[pipe_idx][cmd_type]
+                               [stream_ctx->num_stream_op_configs[pipe_idx][cmd_type]]
             .config_base_addr = cfg_base_gpu;
-        stream_ctx->stream_op_configs[cmd_type][stream_ctx->num_stream_op_configs[cmd_type]]
+        stream_ctx
+            ->stream_op_configs[pipe_idx][cmd_type]
+                               [stream_ctx->num_stream_op_configs[pipe_idx][cmd_type]]
             .config_size = size;
-        stream_ctx->num_stream_op_configs[cmd_type]++;
+        stream_ctx->num_stream_op_configs[pipe_idx][cmd_type]++;
     }
 
     vpe_priv->vpe_desc_writer.add_config_desc(
@@ -728,19 +733,20 @@ void vpe_frontend_config_callback(
 }
 
 void vpe_backend_config_callback(
-    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size)
+    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size, uint32_t pipe_idx)
 {
     struct config_backend_cb_ctx *cb_ctx = (struct config_backend_cb_ctx*)ctx;
     struct vpe_priv *vpe_priv            = cb_ctx->vpe_priv;
     struct output_ctx *output_ctx        = &vpe_priv->output_ctx;
 
     if (cb_ctx->share) {
-        VPE_ASSERT(
-            output_ctx->num_configs < (sizeof(output_ctx->configs) / sizeof(struct config_record)));
+        VPE_ASSERT(output_ctx->num_configs[pipe_idx] <
+                   (sizeof(output_ctx->configs[pipe_idx]) / sizeof(struct config_record)));
 
-        output_ctx->configs[output_ctx->num_configs].config_base_addr = cfg_base_gpu;
-        output_ctx->configs[output_ctx->num_configs].config_size      = size;
-        output_ctx->num_configs++;
+        output_ctx->configs[pipe_idx][output_ctx->num_configs[pipe_idx]].config_base_addr =
+            cfg_base_gpu;
+        output_ctx->configs[pipe_idx][output_ctx->num_configs[pipe_idx]].config_size = size;
+        output_ctx->num_configs[pipe_idx]++;
     }
 
     vpe_priv->vpe_desc_writer.add_config_desc(

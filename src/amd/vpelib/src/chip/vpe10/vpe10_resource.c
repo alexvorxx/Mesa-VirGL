@@ -729,7 +729,7 @@ int32_t vpe10_program_frontend(struct vpe_priv *vpe_priv, uint32_t pipe_idx, uin
     config_writer_set_callback(
         &vpe_priv->config_writer, &vpe_priv->fe_cb_ctx, vpe_frontend_config_callback);
 
-    config_writer_set_type(&vpe_priv->config_writer, CONFIG_TYPE_DIRECT);
+    config_writer_set_type(&vpe_priv->config_writer, CONFIG_TYPE_DIRECT, pipe_idx);
 
     if (!seg_only) {
         /* start front-end programming that can be shared among segments */
@@ -825,7 +825,7 @@ int32_t vpe10_program_backend(
     config_writer_set_callback(
         &vpe_priv->config_writer, &vpe_priv->be_cb_ctx, vpe_backend_config_callback);
 
-    config_writer_set_type(&vpe_priv->config_writer, CONFIG_TYPE_DIRECT);
+    config_writer_set_type(&vpe_priv->config_writer, CONFIG_TYPE_DIRECT, pipe_idx);
 
     if (!seg_only) {
         /* start back-end programming that can be shared among segments */
@@ -958,7 +958,7 @@ void vpe10_create_stream_ops_config(struct vpe_priv *vpe_priv, uint32_t pipe_idx
         return;
 
     // return if already generated
-    if (stream_ctx->num_stream_op_configs[cmd_type])
+    if (stream_ctx->num_stream_op_configs[pipe_idx][cmd_type])
         return;
 
     vpe_priv->fe_cb_ctx.cmd_type = cmd_type;

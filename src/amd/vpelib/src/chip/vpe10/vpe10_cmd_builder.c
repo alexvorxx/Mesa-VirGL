@@ -65,7 +65,7 @@ enum vpe_status vpe10_build_vpe_cmd(
     struct vpe_buf         *emb_buf         = &cur_bufs->emb_buf;
     struct output_ctx   *output_ctx;
     struct pipe_ctx     *pipe_ctx = NULL;
-    uint32_t             i, j;
+    uint32_t                pipe_idx, config_idx;
     struct vpe_cmd_info    *cmd_info = vpe_vector_get(vpe_priv->vpe_cmd_vector, cmd_idx);
     VPE_ASSERT(cmd_info);
 
@@ -83,23 +83,24 @@ enum vpe_status vpe10_build_vpe_cmd(
     config_writer_init(&vpe_priv->config_writer, emb_buf);
 
     // frontend programming
-    for (i = 0; i < cmd_info->num_inputs; i++) {
+    for (pipe_idx = 0; pipe_idx < cmd_info->num_inputs; pipe_idx++) {
         bool               reuse;
         struct stream_ctx *stream_ctx;
         enum vpe_cmd_type  cmd_type = VPE_CMD_TYPE_COUNT;
 
         // keep using the same pipe whenever possible
         // this would allow reuse of the previous register configs
-        pipe_ctx = vpe_pipe_find_owner(vpe_priv, cmd_info->inputs[i].stream_idx, &reuse);
+        pipe_ctx = vpe_pipe_find_owner(vpe_priv, cmd_info->inputs[pipe_idx].stream_idx, &reuse);
         VPE_ASSERT(pipe_ctx);
 
         if (!reuse) {
-            vpe_priv->resource.program_frontend(vpe_priv, pipe_ctx->pipe_idx, cmd_idx, i, false);
+            vpe_priv->resource.program_frontend(
+                vpe_priv, pipe_ctx->pipe_idx, cmd_idx, pipe_idx, false);
         } else {
             if (vpe_priv->init.debug.disable_reuse_bit)
                 reuse = false;
 
-            stream_ctx = &vpe_priv->stream_ctx[cmd_info->inputs[i].stream_idx];
+            stream_ctx = &vpe_priv->stream_ctx[cmd_info->inputs[pipe_idx].stream_idx];
 
             // frame specific for same type of command
             if (cmd_info->ops == VPE_CMD_OPS_BG)
@@ -117,21 +118,24 @@ enum vpe_status vpe10_build_vpe_cmd(
 
             // follow the same order of config generation in "non-reuse" case
             // stream sharing
-            VPE_ASSERT(stream_ctx->num_configs);
-            for (j = 0; j < stream_ctx->num_configs; j++) {
+            VPE_ASSERT(stream_ctx->num_configs[pipe_idx]);
+            for (config_idx = 0; config_idx < stream_ctx->num_configs[pipe_idx]; config_idx++) {
                 vpe_desc_writer->add_config_desc(vpe_desc_writer,
-                    stream_ctx->configs[j].config_base_addr, reuse, (uint8_t)emb_buf->tmz);
-            }
-
-            // stream-op sharing
-            for (j = 0; j < stream_ctx->num_stream_op_configs[cmd_type]; j++) {
-                vpe_desc_writer->add_config_desc(vpe_desc_writer,
-                    stream_ctx->stream_op_configs[cmd_type][j].config_base_addr, reuse,
+                    stream_ctx->configs[pipe_idx][config_idx].config_base_addr, reuse,
                     (uint8_t)emb_buf->tmz);
             }
 
+            // stream-op sharing
+            for (config_idx = 0; config_idx < stream_ctx->num_stream_op_configs[pipe_idx][cmd_type];
+                 config_idx++) {
+                vpe_desc_writer->add_config_desc(vpe_desc_writer,
+                    stream_ctx->stream_op_configs[pipe_idx][cmd_type][config_idx].config_base_addr,
+                    reuse, (uint8_t)emb_buf->tmz);
+            }
+
             // command specific
-            vpe_priv->resource.program_frontend(vpe_priv, pipe_ctx->pipe_idx, cmd_idx, i, true);
+            vpe_priv->resource.program_frontend(
+                vpe_priv, pipe_ctx->pipe_idx, cmd_idx, pipe_idx, true);
         }
     }
 
@@ -144,14 +148,14 @@ enum vpe_status vpe10_build_vpe_cmd(
 
     // backend programming
     output_ctx = &vpe_priv->output_ctx;
-    if (!output_ctx->num_configs) {
+    if (!output_ctx->num_configs[0]) {
         vpe_priv->resource.program_backend(vpe_priv, pipe_ctx->pipe_idx, cmd_idx, false);
     } else {
         bool reuse = !vpe_priv->init.debug.disable_reuse_bit;
         // re-use output register configs
-        for (j = 0; j < output_ctx->num_configs; j++) {
+        for (config_idx = 0; config_idx < output_ctx->num_configs[0]; config_idx++) {
             vpe_desc_writer->add_config_desc(vpe_desc_writer,
-                output_ctx->configs[j].config_base_addr, reuse, (uint8_t)emb_buf->tmz);
+                output_ctx->configs[0][config_idx].config_base_addr, reuse, (uint8_t)emb_buf->tmz);
         }
 
         vpe_priv->resource.program_backend(vpe_priv, pipe_ctx->pipe_idx, cmd_idx, true);

@@ -130,11 +130,11 @@ struct stream_ctx {
     uint16_t            num_segments;
     struct segment_ctx *segment_ctx;
 
-    uint16_t num_configs;                               // shared among same stream
-    uint16_t num_stream_op_configs[VPE_CMD_TYPE_COUNT]; // shared among same cmd type within the
-                                                        // same stream
-    struct config_record configs[MAX_NUM_SAVED_CONFIG];
-    struct config_record stream_op_configs[VPE_CMD_TYPE_COUNT][MAX_NUM_SAVED_CONFIG];
+    uint16_t num_configs[MAX_PIPE];                               // shared among same stream
+    uint16_t num_stream_op_configs[MAX_PIPE][VPE_CMD_TYPE_COUNT]; // shared among same cmd type
+                                                                  // within the same stream
+    struct config_record configs[MAX_PIPE][MAX_NUM_SAVED_CONFIG];
+    struct config_record stream_op_configs[MAX_PIPE][VPE_CMD_TYPE_COUNT][MAX_NUM_SAVED_CONFIG];
 
     // cached color properties
     bool                     per_pixel_alpha;
@@ -180,8 +180,8 @@ struct output_ctx {
     enum color_transfer_func tf;
     enum color_space         cs;
 
-    uint32_t             num_configs;
-    struct config_record configs[MAX_NUM_SAVED_CONFIG];
+    uint32_t             num_configs[MAX_OUTPUT_PIPE];
+    struct config_record configs[MAX_OUTPUT_PIPE][MAX_NUM_SAVED_CONFIG];
 
     union {
         struct {

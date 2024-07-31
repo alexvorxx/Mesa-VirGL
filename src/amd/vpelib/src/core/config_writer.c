@@ -40,6 +40,7 @@ void config_writer_init(struct config_writer *writer, struct vpe_buf *buf)
     writer->callback_ctx = NULL;
     writer->callback     = NULL;
     writer->completed    = false;
+    writer->pipe_idx     = 0;
     writer->status       = VPE_STATUS_OK;
 }
 
@@ -83,21 +84,23 @@ static inline void config_writer_new(struct config_writer *writer)
     writer->completed = false;
 }
 
-void config_writer_set_type(struct config_writer *writer, enum config_type type)
+void config_writer_set_type(struct config_writer *writer, enum config_type type, uint32_t pipe_idx)
 {
     VPE_ASSERT(type != CONFIG_TYPE_UNKNOWN);
 
     if (writer->status != VPE_STATUS_OK)
         return;
 
-    if (writer->type != type) {
+    if (writer->type != type || writer->pipe_idx != pipe_idx) {
         if (writer->type == CONFIG_TYPE_UNKNOWN) {
             // new header. don't need to fill it yet until completion
+            writer->pipe_idx = pipe_idx;
             config_writer_new(writer);
         } else {
             // a new config type, close the previous one
             config_writer_complete(writer);
 
+            writer->pipe_idx = pipe_idx;
             config_writer_new(writer);
         }
         writer->type = type;
@@ -284,6 +287,7 @@ void config_writer_complete(struct config_writer *writer)
     writer->completed = true;
 
     if (writer->callback) {
-        writer->callback(writer->callback_ctx, writer->base_gpu_va, writer->base_cpu_va, size);
+        writer->callback(
+            writer->callback_ctx, writer->base_gpu_va, writer->base_cpu_va, size, writer->pipe_idx);
     }
 }

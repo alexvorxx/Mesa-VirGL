@@ -732,7 +732,7 @@ static void vpe10_mpc_set3dlut_ram12_indirect(
 
     uint32_t data_array_size = (entries / 2 * 3); // DW size of config data array, actual size
 
-    config_writer_set_type(config_writer, CONFIG_TYPE_INDIRECT);
+    config_writer_set_type(config_writer, CONFIG_TYPE_INDIRECT, mpc->inst);
 
     // Optimized by single VPEP indirect config packet
     // Fill the 3dLut array pointer
@@ -743,7 +743,7 @@ static void vpe10_mpc_set3dlut_ram12_indirect(
         config_writer, REG_OFFSET(VPMPCC_MCM_3DLUT_INDEX), 0, REG_OFFSET(VPMPCC_MCM_3DLUT_DATA));
 
     // restore back to direct
-    config_writer_set_type(config_writer, CONFIG_TYPE_DIRECT);
+    config_writer_set_type(config_writer, CONFIG_TYPE_DIRECT, mpc->inst);
 }
 
 static void vpe10_mpc_set3dlut_ram10(struct mpc *mpc, const struct vpe_rgb *lut, uint32_t entries)
@@ -801,7 +801,7 @@ static void vpe10_mpc_set3dlut_ram10_indirect(
     // DW0: R1<<22 | G1<<12 | B1 <<2
     //...
 
-    config_writer_set_type(config_writer, CONFIG_TYPE_INDIRECT);
+    config_writer_set_type(config_writer, CONFIG_TYPE_INDIRECT, mpc->inst);
 
     // Optimized by single VPEP indirect config packet
     // Fill the 3dLut array pointer
@@ -812,7 +812,7 @@ static void vpe10_mpc_set3dlut_ram10_indirect(
         config_writer, REG_OFFSET(VPMPCC_MCM_3DLUT_INDEX), 0, REG_OFFSET(VPMPCC_MCM_3DLUT_DATA));
 
     // resume back to direct
-    config_writer_set_type(config_writer, CONFIG_TYPE_DIRECT);
+    config_writer_set_type(config_writer, CONFIG_TYPE_DIRECT, mpc->inst);
 }
 
 static void vpe10_mpc_set_3dlut_mode(
@@ -931,7 +931,7 @@ bool vpe10_mpc_program_3dlut_indirect(struct mpc *mpc,
     struct tetrahedral_9x9x9    *tetra9  = NULL;
 
     // make sure it is in DIRECT type
-    config_writer_set_type(config_writer, CONFIG_TYPE_DIRECT);
+    config_writer_set_type(config_writer, CONFIG_TYPE_DIRECT, mpc->inst);
 
     if (lut0_3_buf == NULL) {
         vpe10_mpc_set_3dlut_mode(mpc, LUT_BYPASS, false);

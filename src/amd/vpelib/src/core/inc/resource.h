@@ -160,10 +160,10 @@ void vpe_resource_build_bit_depth_reduction_params(
 
 /** resource function call backs*/
 void vpe_frontend_config_callback(
-    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size);
+    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size, uint32_t pipe_idx);
 
 void vpe_backend_config_callback(
-    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size);
+    void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size, uint32_t pipe_idx);
 
 #ifdef __cplusplus
 }

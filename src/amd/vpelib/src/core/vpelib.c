@@ -629,14 +629,13 @@ enum vpe_status vpe_build_commands(
     struct vpe_priv      *vpe_priv;
     struct cmd_builder   *builder;
     enum vpe_status       status = VPE_STATUS_OK;
-    uint32_t              cmd_idx, i, j;
+    uint32_t              cmd_idx, i, pipe_idx, stream_idx, cmd_type_idx;
     struct vpe_build_bufs curr_bufs;
     int64_t               cmd_buf_size;
     int64_t               emb_buf_size;
     uint64_t              cmd_buf_gpu_a, cmd_buf_cpu_a;
     uint64_t              emb_buf_gpu_a, emb_buf_cpu_a;
     struct vpe_cmd_info  *cmd_info;
-
     if (!vpe || !param || !bufs)
         return VPE_STATUS_ERROR;
 
@@ -686,12 +685,16 @@ enum vpe_status vpe_build_commands(
     curr_bufs = *bufs;
 
     // copy the param, reset saved configs
-    for (i = 0; i < vpe_priv->num_streams; i++) {
-        vpe_priv->stream_ctx[i].num_configs = 0;
-        for (j = 0; j < VPE_CMD_TYPE_COUNT; j++)
-            vpe_priv->stream_ctx[i].num_stream_op_configs[j] = 0;
+    for (stream_idx = 0; stream_idx < vpe_priv->num_streams; stream_idx++) {
+        for (pipe_idx = 0; pipe_idx < MAX_PIPE; pipe_idx++) {
+            vpe_priv->stream_ctx[stream_idx].num_configs[pipe_idx] = 0;
+            for (cmd_type_idx = 0; cmd_type_idx < VPE_CMD_TYPE_COUNT; cmd_type_idx++)
+                vpe_priv->stream_ctx[stream_idx].num_stream_op_configs[pipe_idx][cmd_type_idx] = 0;
+        }
     }
-    vpe_priv->output_ctx.num_configs = 0;
+
+    for (i = 0; i < MAX_OUTPUT_PIPE; i++)
+        vpe_priv->output_ctx.num_configs[i] = 0;
 
     // Reset pipes
     vpe_pipe_reset(vpe_priv);

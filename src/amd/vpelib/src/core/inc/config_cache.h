@@ -109,7 +109,7 @@ struct config_cache {
                                                                                                    \
         if (!use_cache) {                                                                          \
             uint64_t start, end;                                                                   \
-            uint16_t config_num = (uint16_t)(obj_cfg_array)->num_configs;                          \
+            uint16_t config_num = (uint16_t)(obj_cfg_array)->num_configs[inst];                    \
                                                                                                    \
             start = config_writer->base_cpu_va;                                                    \
             program_func_call;                                                                     \
@@ -117,7 +117,7 @@ struct config_cache {
                                                                                                    \
             if (!disable_cache && !is_bypass) {                                                    \
                 /* only cache when it is not crossing config packets */                            \
-                if (config_num == (obj_cfg_array)->num_configs) {                                  \
+                if (config_num == (obj_cfg_array)->num_configs[inst]) {                            \
                     if ((obj_cache)->dirty[inst]) {                                                \
                         uint64_t size = end - start;                                               \
                                                                                                    \
