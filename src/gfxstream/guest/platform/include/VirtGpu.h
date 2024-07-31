@@ -180,8 +180,6 @@ class VirtGpuDevice {
     static VirtGpuDevice* getInstance(enum VirtGpuCapset capset = kCapsetNone);
     static void resetInstance();
 
-    static void setInstanceForTesting(VirtGpuDevice* device);
-
     VirtGpuDevice(enum VirtGpuCapset capset) : mCapset(capset) {}
     virtual ~VirtGpuDevice() {}
 

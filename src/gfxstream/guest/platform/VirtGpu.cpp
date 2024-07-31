@@ -45,7 +45,3 @@ void VirtGpuDevice::resetInstance() {
         sDevice = nullptr;
     }
 }
-
-void VirtGpuDevice::setInstanceForTesting(VirtGpuDevice* device) {
-    sDevice = device;
-}
