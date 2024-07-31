@@ -1449,7 +1449,7 @@ tu6_emit_cs_config(struct tu_cs *cs,
                                    : (v->local_size[1] % 2 == 0) ? CS_YALIGN_2
                                                                  : CS_YALIGN_1;
       tu_cs_emit_regs(
-         cs, A7XX_HLSQ_CS_CNTL_1(
+         cs, HLSQ_CS_CNTL_1(CHIP,
                    .linearlocalidregid = regid(63, 0), .threadsize = thrsz_cs,
                    /* A7XX TODO: blob either sets all of these unknowns
                     * together or doesn't set them at all.
@@ -1465,7 +1465,7 @@ tu6_emit_cs_config(struct tu_cs *cs,
                         A6XX_SP_CS_CNTL_0_LOCALIDREGID(local_invocation_id));
 
       tu_cs_emit_regs(cs,
-                      A7XX_SP_CS_CNTL_1(
+                      SP_CS_CNTL_1(CHIP,
                         .linearlocalidregid = regid(63, 0),
                         .threadsize = thrsz_cs,
                         /* A7XX TODO: enable UNK15 when we don't use subgroup ops. */

@@ -2153,7 +2153,7 @@ tu_init_cmdbuf_start_a725_quirk(struct tu_device *device)
    tu_cs_emit_regs(&sub_cs, A6XX_SP_CS_INSTRLEN(.sp_cs_instrlen = 1));
    tu_cs_emit_regs(&sub_cs, A6XX_SP_CS_TEX_COUNT(0));
    tu_cs_emit_regs(&sub_cs, A6XX_SP_CS_IBO_COUNT(0));
-   tu_cs_emit_regs(&sub_cs, A7XX_HLSQ_CS_CNTL_1(
+   tu_cs_emit_regs(&sub_cs, HLSQ_CS_CNTL_1(A7XX,
             .linearlocalidregid = regid(63, 0),
             .threadsize = THREAD128,
             .unk11 = true,

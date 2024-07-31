@@ -306,7 +306,7 @@ emit_rb_ccu_cntl(struct tu_cs *cs, struct tu_device *dev, bool gmem)
                           : dev->physical_device->vpc_attr_buf_size_bypass), );
       }
    } else {
-      tu_cs_emit_regs(cs, A6XX_RB_CCU_CNTL(
+      tu_cs_emit_regs(cs, RB_CCU_CNTL(CHIP,
          .gmem_fast_clear_disable =
             !dev->physical_device->info->a6xx.has_gmem_fast_clear,
          .concurrent_resolve =
@@ -381,7 +381,7 @@ tu6_emit_zs(struct tu_cmd_buffer *cmd,
    const uint32_t a = subpass->depth_stencil_attachment.attachment;
    if (a == VK_ATTACHMENT_UNUSED) {
       tu_cs_emit_regs(cs,
-                      A6XX_RB_DEPTH_BUFFER_INFO(.depth_format = DEPTH6_NONE),
+                      RB_DEPTH_BUFFER_INFO(CHIP, .depth_format = DEPTH6_NONE),
                       A6XX_RB_DEPTH_BUFFER_PITCH(0),
                       A6XX_RB_DEPTH_BUFFER_ARRAY_PITCH(0),
                       A6XX_RB_DEPTH_BUFFER_BASE(0),
@@ -390,7 +390,7 @@ tu6_emit_zs(struct tu_cmd_buffer *cmd,
       tu_cs_emit_regs(cs,
                       A6XX_GRAS_SU_DEPTH_BUFFER_INFO(.depth_format = DEPTH6_NONE));
 
-      tu_cs_emit_regs(cs, A6XX_RB_STENCIL_INFO(0));
+      tu_cs_emit_regs(cs, RB_STENCIL_INFO(CHIP, 0));
 
       return;
    }
@@ -435,10 +435,11 @@ tu6_emit_zs(struct tu_cmd_buffer *cmd,
       }
    } else {
       tu_cs_emit_regs(cs,
-                     A6XX_RB_STENCIL_INFO(0));
+                     RB_STENCIL_INFO(CHIP, 0));
    }
 }
 
+template <chip CHIP>
 static void
 tu6_emit_mrt(struct tu_cmd_buffer *cmd,
              const struct tu_subpass *subpass,
@@ -463,9 +464,13 @@ tu6_emit_mrt(struct tu_cmd_buffer *cmd,
           * to also be required for alpha-to-coverage which can use the alpha
           * value for an otherwise-unused attachment.
           */
-         tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_BUF_INFO(i), 6);
-         for (unsigned i = 0; i < 6; i++)
-            tu_cs_emit(cs, 0);
+         tu_cs_emit_regs(cs,
+            RB_MRT_BUF_INFO(CHIP, i),
+            A6XX_RB_MRT_PITCH(i),
+            A6XX_RB_MRT_ARRAY_PITCH(i),
+            A6XX_RB_MRT_BASE(i),
+            A6XX_RB_MRT_BASE_GMEM(i),
+         );
 
          tu_cs_emit_regs(cs,
                          A6XX_SP_FS_MRT_REG(i, .dword = 0));
@@ -474,10 +479,15 @@ tu6_emit_mrt(struct tu_cmd_buffer *cmd,
 
       const struct tu_image_view *iview = cmd->state.attachments[a];
 
-      tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_BUF_INFO(i), 6);
-      tu_cs_emit(cs, iview->view.RB_MRT_BUF_INFO);
-      tu_cs_image_ref(cs, &iview->view, 0);
-      tu_cs_emit(cs, tu_attachment_gmem_offset(cmd, &cmd->state.pass->attachments[a], 0));
+      tu_cs_emit_regs(cs,
+         RB_MRT_BUF_INFO(CHIP, i, .dword = iview->view.RB_MRT_BUF_INFO),
+         A6XX_RB_MRT_PITCH(i, iview->view.pitch),
+         A6XX_RB_MRT_ARRAY_PITCH(i, iview->view.layer_size),
+         A6XX_RB_MRT_BASE(i, .qword = tu_layer_address(&iview->view, 0)),
+         A6XX_RB_MRT_BASE_GMEM(i,
+            tu_attachment_gmem_offset(cmd, &cmd->state.pass->attachments[a], 0)
+         ),
+      );
 
       tu_cs_emit_regs(cs,
                       A6XX_SP_FS_MRT_REG(i, .dword = iview->view.SP_FS_MRT_REG));
@@ -621,7 +631,7 @@ tu6_emit_render_cntl<A7XX>(struct tu_cmd_buffer *cmd,
                      bool binning)
 {
    tu_cs_emit_regs(
-      cs, A7XX_RB_RENDER_CNTL(.binning = binning, .raster_mode = TYPE_TILED,
+      cs, RB_RENDER_CNTL(A7XX, .binning = binning, .raster_mode = TYPE_TILED,
                               .raster_direction = LR_TB));
    tu_cs_emit_regs(cs, A7XX_GRAS_SU_RENDER_CNTL(.binning = binning));
 }
@@ -1271,7 +1281,7 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
        * change per-RP and don't require a WFI to take effect, only CCU inval/flush
        * events are required.
        */
-      tu_cs_emit_regs(cs, A7XX_RB_CCU_CNTL(
+      tu_cs_emit_regs(cs, RB_CCU_CNTL(CHIP,
          .gmem_fast_clear_disable =
             !dev->physical_device->info->a6xx.has_gmem_fast_clear,
          .concurrent_resolve = dev->physical_device->info->a6xx.concurrent_resolve,
@@ -1398,11 +1408,11 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
                                                         .bo_offset = gb_offset(bcolor_builtin)));
 
    if (CHIP == A7XX) {
-      tu_cs_emit_regs(cs, A6XX_TPL1_BICUBIC_WEIGHTS_TABLE_0(0),
-                      A6XX_TPL1_BICUBIC_WEIGHTS_TABLE_1(0x3fe05ff4),
-                      A6XX_TPL1_BICUBIC_WEIGHTS_TABLE_2(0x3fa0ebee),
-                      A6XX_TPL1_BICUBIC_WEIGHTS_TABLE_3(0x3f5193ed),
-                      A6XX_TPL1_BICUBIC_WEIGHTS_TABLE_4(0x3f0243f0), );
+      tu_cs_emit_regs(cs, TPL1_BICUBIC_WEIGHTS_TABLE_0(CHIP, 0),
+                      TPL1_BICUBIC_WEIGHTS_TABLE_1(CHIP, 0x3fe05ff4),
+                      TPL1_BICUBIC_WEIGHTS_TABLE_2(CHIP, 0x3fa0ebee),
+                      TPL1_BICUBIC_WEIGHTS_TABLE_3(CHIP, 0x3f5193ed),
+                      TPL1_BICUBIC_WEIGHTS_TABLE_4(CHIP, 0x3f0243f0), );
    }
 
    if (phys_dev->info->a7xx.cmdbuf_start_a725_quirk) {
@@ -4400,7 +4410,7 @@ tu_emit_subpass_begin(struct tu_cmd_buffer *cmd)
    tu_emit_subpass_begin_sysmem<CHIP>(cmd);
 
    tu6_emit_zs<CHIP>(cmd, cmd->state.subpass, &cmd->draw_cs);
-   tu6_emit_mrt(cmd, cmd->state.subpass, &cmd->draw_cs);
+   tu6_emit_mrt<CHIP>(cmd, cmd->state.subpass, &cmd->draw_cs);
    tu6_emit_render_cntl<CHIP>(cmd, cmd->state.subpass, &cmd->draw_cs, false);
 
    tu_set_input_attachments(cmd, cmd->state.subpass);

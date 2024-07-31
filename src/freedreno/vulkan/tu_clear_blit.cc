@@ -1320,6 +1320,7 @@ r3d_src_gmem(struct tu_cmd_buffer *cmd,
    r3d_src_common(cmd, cs, desc, 0, 0, VK_FILTER_NEAREST);
 }
 
+template <chip CHIP>
 static void
 r3d_dst(struct tu_cs *cs, const struct fdl6_view *iview, uint32_t layer,
         enum pipe_format src_format)
@@ -1333,10 +1334,14 @@ r3d_dst(struct tu_cs *cs, const struct fdl6_view *iview, uint32_t layer,
    mrt_buf_info =
       (mrt_buf_info & ~A6XX_RB_MRT_BUF_INFO_COLOR_FORMAT__MASK) |
       A6XX_RB_MRT_BUF_INFO_COLOR_FORMAT(fmt);
-   tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_BUF_INFO(0), 6);
-   tu_cs_emit(cs, mrt_buf_info);
-   tu_cs_image_ref(cs, iview, layer);
-   tu_cs_emit(cs, 0);
+
+   tu_cs_emit_regs(cs,
+      RB_MRT_BUF_INFO(CHIP, 0, .dword = mrt_buf_info),
+      A6XX_RB_MRT_PITCH(0, iview->pitch),
+      A6XX_RB_MRT_ARRAY_PITCH(0, iview->layer_size),
+      A6XX_RB_MRT_BASE(0, .qword = tu_layer_address(iview, layer)),
+      A6XX_RB_MRT_BASE_GMEM(0),
+   );
 
    tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_FLAG_BUFFER(0), 3);
    tu_cs_image_flag_ref(cs, iview, layer);
@@ -1346,37 +1351,46 @@ r3d_dst(struct tu_cs *cs, const struct fdl6_view *iview, uint32_t layer,
     */
    tu_cs_emit_regs(cs, A6XX_GRAS_LRZ_MRT_BUF_INFO_0(.color_format = fmt));
 
-   tu_cs_emit_regs(cs, A6XX_RB_RENDER_CNTL(.flag_mrts = iview->ubwc_enabled));
+   tu_cs_emit_regs(cs, RB_RENDER_CNTL(CHIP, .flag_mrts = iview->ubwc_enabled));
    tu_cs_emit_regs(cs, A7XX_GRAS_SU_RENDER_CNTL());
 }
 
+template <chip CHIP>
 static void
 r3d_dst_depth(struct tu_cs *cs, const struct tu_image_view *iview, uint32_t layer)
 {
-   tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_BUF_INFO(0), 6);
-   tu_cs_emit(cs, tu_image_view_depth(iview, RB_MRT_BUF_INFO));
-   tu_cs_image_depth_ref(cs, iview, layer);
-   tu_cs_emit(cs, 0);
+   tu_cs_emit_regs(cs,
+      RB_MRT_BUF_INFO(CHIP, 0, .dword = tu_image_view_depth(iview, RB_MRT_BUF_INFO)),
+      A6XX_RB_MRT_PITCH(0, iview->depth_pitch),
+      A6XX_RB_MRT_ARRAY_PITCH(0, iview->depth_layer_size),
+      A6XX_RB_MRT_BASE(0, .qword = iview->depth_base_addr + iview->depth_layer_size * layer),
+      A6XX_RB_MRT_BASE_GMEM(0),
+   );
 
    tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_FLAG_BUFFER(0), 3);
    tu_cs_image_flag_ref(cs, &iview->view, layer);
 
-   tu_cs_emit_regs(cs, A6XX_RB_RENDER_CNTL(.flag_mrts = iview->view.ubwc_enabled));
+   tu_cs_emit_regs(cs, RB_RENDER_CNTL(CHIP, .flag_mrts = iview->view.ubwc_enabled));
    tu_cs_emit_regs(cs, A7XX_GRAS_SU_RENDER_CNTL());
 }
 
+template <chip CHIP>
 static void
 r3d_dst_stencil(struct tu_cs *cs, const struct tu_image_view *iview, uint32_t layer)
 {
-   tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_BUF_INFO(0), 6);
-   tu_cs_emit(cs, tu_image_view_stencil(iview, RB_MRT_BUF_INFO));
-   tu_cs_image_stencil_ref(cs, iview, layer);
-   tu_cs_emit(cs, 0);
+   tu_cs_emit_regs(cs,
+      RB_MRT_BUF_INFO(CHIP, 0, .dword = tu_image_view_stencil(iview, RB_MRT_BUF_INFO)),
+      A6XX_RB_MRT_PITCH(0, iview->stencil_pitch),
+      A6XX_RB_MRT_ARRAY_PITCH(0, iview->stencil_layer_size),
+      A6XX_RB_MRT_BASE(0, .qword = iview->stencil_base_addr + iview->stencil_layer_size * layer),
+      A6XX_RB_MRT_BASE_GMEM(0),
+   );
 
-   tu_cs_emit_regs(cs, A6XX_RB_RENDER_CNTL());
+   tu_cs_emit_regs(cs, RB_RENDER_CNTL(CHIP));
    tu_cs_emit_regs(cs, A7XX_GRAS_SU_RENDER_CNTL());
 }
 
+template <chip CHIP>
 static void
 r3d_dst_buffer(struct tu_cs *cs, enum pipe_format format, uint64_t va, uint32_t pitch,
                enum pipe_format src_format)
@@ -1387,16 +1401,17 @@ r3d_dst_buffer(struct tu_cs *cs, enum pipe_format format, uint64_t va, uint32_t 
    fixup_dst_format(src_format, &format, &color_fmt);
 
    tu_cs_emit_regs(cs,
-                   A6XX_RB_MRT_BUF_INFO(0, .color_format = color_fmt, .color_swap = fmt.swap),
+                   RB_MRT_BUF_INFO(CHIP, 0, .color_format = color_fmt, .color_swap = fmt.swap),
                    A6XX_RB_MRT_PITCH(0, pitch),
                    A6XX_RB_MRT_ARRAY_PITCH(0, 0),
                    A6XX_RB_MRT_BASE(0, .qword = va),
                    A6XX_RB_MRT_BASE_GMEM(0, 0));
 
-   tu_cs_emit_regs(cs, A6XX_RB_RENDER_CNTL());
+   tu_cs_emit_regs(cs, RB_RENDER_CNTL(CHIP));
    tu_cs_emit_regs(cs, A7XX_GRAS_SU_RENDER_CNTL());
 }
 
+template <chip CHIP>
 static void
 r3d_dst_gmem(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
              const struct tu_image_view *iview,
@@ -1420,7 +1435,7 @@ r3d_dst_gmem(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
    }
 
    tu_cs_emit_regs(cs,
-                   A6XX_RB_MRT_BUF_INFO(0, .dword = RB_MRT_BUF_INFO),
+                   RB_MRT_BUF_INFO(CHIP, 0, .dword = RB_MRT_BUF_INFO),
                    A6XX_RB_MRT_PITCH(0, 0),
                    A6XX_RB_MRT_ARRAY_PITCH(0, 0),
                    A6XX_RB_MRT_BASE(0, 0),
@@ -1431,7 +1446,7 @@ r3d_dst_gmem(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
    tu_cs_emit_regs(cs,
                    A6XX_GRAS_LRZ_MRT_BUF_INFO_0(.color_format = color_format));
 
-   tu_cs_emit_regs(cs, A6XX_RB_RENDER_CNTL());
+   tu_cs_emit_regs(cs, RB_RENDER_CNTL(CHIP));
    tu_cs_emit_regs(cs, A7XX_GRAS_SU_RENDER_CNTL());
 }
 
@@ -1663,10 +1678,10 @@ static const struct blit_ops r3d_ops = {
    .clear_value = r3d_clear_value,
    .src = r3d_src,
    .src_buffer = r3d_src_buffer<CHIP>,
-   .dst = r3d_dst,
-   .dst_depth = r3d_dst_depth,
-   .dst_stencil = r3d_dst_stencil,
-   .dst_buffer = r3d_dst_buffer,
+   .dst = r3d_dst<CHIP>,
+   .dst_depth = r3d_dst_depth<CHIP>,
+   .dst_stencil = r3d_dst_stencil<CHIP>,
+   .dst_buffer = r3d_dst_buffer<CHIP>,
    .setup = r3d_setup<CHIP>,
    .run = r3d_run,
    .teardown = r3d_teardown<CHIP>,
@@ -3666,7 +3681,7 @@ load_3d_blit(struct tu_cmd_buffer *cmd,
          tu_create_fdm_bin_patchpoint(cmd, cs, 4, fdm_apply_load_coords, state);
       }
 
-      r3d_dst_gmem(cmd, cs, iview, att, separate_stencil, i);
+      r3d_dst_gmem<CHIP>(cmd, cs, iview, att, separate_stencil, i);
 
       if (iview->image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
          if (separate_stencil)
@@ -3897,12 +3912,12 @@ store_3d_blit(struct tu_cmd_buffer *cmd,
 
    if (iview->image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
       if (!separate_stencil) {
-         r3d_dst_depth(cs, iview, layer);
+         r3d_dst_depth<CHIP>(cs, iview, layer);
       } else {
-         r3d_dst_stencil(cs, iview, layer);
+         r3d_dst_stencil<CHIP>(cs, iview, layer);
       }
    } else {
-      r3d_dst(cs, &iview->view, layer, src_format);
+      r3d_dst<CHIP>(cs, &iview->view, layer, src_format);
    }
 
    r3d_src_gmem<CHIP>(cmd, cs, iview, src_format, dst_format, gmem_offset, cpp);
