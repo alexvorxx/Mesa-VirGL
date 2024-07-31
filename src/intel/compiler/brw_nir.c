@@ -996,6 +996,12 @@ brw_preprocess_nir(const struct brw_compiler *compiler, nir_shader *nir,
 
    OPT(nir_lower_alu_to_scalar, NULL, NULL);
 
+   struct nir_opt_16bit_tex_image_options options = {
+      .rounding_mode = nir_rounding_mode_undef,
+      .opt_tex_dest_types = nir_type_float | nir_type_int | nir_type_uint,
+   };
+   OPT(nir_opt_16bit_tex_image, &options);
+
    if (nir->info.stage == MESA_SHADER_GEOMETRY)
       OPT(nir_lower_gs_intrinsics, 0);
 

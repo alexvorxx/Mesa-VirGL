@@ -8623,7 +8623,12 @@ fs_nir_emit_texture(nir_to_brw_state &ntb,
 
    brw_reg nir_def_reg = get_nir_def(ntb, instr->def);
 
-   brw_reg dst = bld.vgrf(brw_type_for_nir_type(devinfo, instr->dest_type), 4 + instr->is_sparse);
+   bool is_simd8_16bit = nir_alu_type_get_type_size(instr->dest_type) == 16
+      && bld.dispatch_width() == 8;
+
+   brw_reg dst = bld.vgrf(brw_type_for_nir_type(devinfo, instr->dest_type),
+      (is_simd8_16bit ? 8 : 4) + instr->is_sparse);
+
    fs_inst *inst = bld.emit(opcode, dst, srcs, ARRAY_SIZE(srcs));
    inst->offset = header_bits;
 
@@ -8635,15 +8640,18 @@ fs_nir_emit_texture(nir_to_brw_state &ntb,
       if (instr->is_sparse) {
          read_size = util_last_bit(write_mask) - 1;
          inst->size_written =
-            read_size * inst->dst.component_size(inst->exec_size) +
+            (is_simd8_16bit ? 2 : 1) * read_size *
+            inst->dst.component_size(inst->exec_size) +
             (reg_unit(devinfo) * REG_SIZE);
       } else {
          read_size = util_last_bit(write_mask);
          inst->size_written =
-            read_size * inst->dst.component_size(inst->exec_size);
+            (is_simd8_16bit ? 2 : 1) * read_size *
+            inst->dst.component_size(inst->exec_size);
       }
    } else {
-      inst->size_written = 4 * inst->dst.component_size(inst->exec_size) +
+      inst->size_written = (is_simd8_16bit ? 2 : 1) * 4 *
+                           inst->dst.component_size(inst->exec_size) +
                            (instr->is_sparse ? (reg_unit(devinfo) * REG_SIZE) : 0);
    }
 
@@ -8666,7 +8674,8 @@ fs_nir_emit_texture(nir_to_brw_state &ntb,
       inst->keep_payload_trailing_zeros = true;
    }
 
-   if (instr->op != nir_texop_query_levels && !instr->is_sparse) {
+   if (instr->op != nir_texop_query_levels && !instr->is_sparse
+      && !is_simd8_16bit) {
       /* In most cases we can write directly to the result. */
       inst->dst = nir_def_reg;
    } else {
@@ -8675,7 +8684,7 @@ fs_nir_emit_texture(nir_to_brw_state &ntb,
        */
       brw_reg nir_dest[5];
       for (unsigned i = 0; i < read_size; i++)
-         nir_dest[i] = offset(dst, bld, i);
+         nir_dest[i] = offset(dst, bld, (is_simd8_16bit ? 2 : 1) * i);
 
       if (instr->op == nir_texop_query_levels) {
          /* # levels is in .w */
