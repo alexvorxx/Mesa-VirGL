@@ -171,7 +171,6 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    /* Fresh handle */
    assert(!memcmp(bo, &((struct agx_bo){}), sizeof(*bo)));
 
-   bo->type = AGX_ALLOC_REGULAR;
    bo->size = gem_create.size;
    bo->align = MAX2(dev->params.vm_page_size, align);
    bo->flags = flags;

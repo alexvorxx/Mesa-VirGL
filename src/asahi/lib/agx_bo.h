@@ -14,13 +14,6 @@
 
 struct agx_device;
 
-enum agx_alloc_type {
-   AGX_ALLOC_REGULAR = 0,
-   AGX_ALLOC_MEMMAP = 1,
-   AGX_ALLOC_CMDBUF = 2,
-   AGX_NUM_ALLOC,
-};
-
 enum agx_bo_flags {
    /* BO is shared across processes (imported or exported) and therefore cannot
     * be cached locally
@@ -50,7 +43,7 @@ struct agx_ptr {
    /* If CPU mapped, CPU address. NULL if not mapped */
    void *cpu;
 
-   /* If type REGULAR, mapped GPU address */
+   /* Mapped GPU address */
    uint64_t gpu;
 };
 
@@ -64,8 +57,6 @@ struct agx_bo {
    /* The time this BO was used last, so we can evict stale BOs. */
    time_t last_used;
 
-   enum agx_alloc_type type;
-
    /* Creation attributes */
    enum agx_bo_flags flags;
    size_t size;
@@ -74,7 +65,7 @@ struct agx_bo {
    /* Mapping */
    struct agx_ptr ptr;
 
-   /* Index unique only up to type, process-local */
+   /* Process-local index */
    uint32_t handle;
 
    /* DMA-BUF fd clone for adding fences to imports/exports */

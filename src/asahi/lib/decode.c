@@ -25,9 +25,6 @@
 
 struct libagxdecode_config lib_config;
 
-UNUSED static const char *agx_alloc_types[AGX_NUM_ALLOC] = {"mem", "map",
-                                                            "cmd"};
-
 static void
 agx_disassemble(void *_code, size_t maxlen, FILE *fp)
 {
@@ -59,8 +56,7 @@ agxdecode_find_mapped_gpu_mem_containing(struct agxdecode_ctx *ctx,
                                          uint64_t addr)
 {
    util_dynarray_foreach(&ctx->mmap_array, struct agx_bo, it) {
-      if (it->type == AGX_ALLOC_REGULAR && addr >= it->ptr.gpu &&
-          (addr - it->ptr.gpu) < it->size)
+      if (addr >= it->ptr.gpu && (addr - it->ptr.gpu) < it->size)
          return it;
    }
 
@@ -71,13 +67,8 @@ static struct agx_bo *
 agxdecode_find_handle(struct agxdecode_ctx *ctx, unsigned handle, unsigned type)
 {
    util_dynarray_foreach(&ctx->mmap_array, struct agx_bo, it) {
-      if (it->type != type)
-         continue;
-
-      if (it->handle != handle)
-         continue;
-
-      return it;
+      if (it->handle == handle)
+         return it;
    }
 
    return NULL;
@@ -1030,7 +1021,7 @@ void
 agxdecode_track_alloc(struct agxdecode_ctx *ctx, struct agx_bo *alloc)
 {
    util_dynarray_foreach(&ctx->mmap_array, struct agx_bo, it) {
-      bool match = (it->handle == alloc->handle && it->type == alloc->type);
+      bool match = (it->handle == alloc->handle);
       assert(!match && "tried to alloc already allocated BO");
    }
 
@@ -1043,8 +1034,7 @@ agxdecode_track_free(struct agxdecode_ctx *ctx, struct agx_bo *bo)
    bool found = false;
 
    util_dynarray_foreach(&ctx->mmap_array, struct agx_bo, it) {
-      if (it->handle == bo->handle &&
-          (it->type == AGX_ALLOC_REGULAR) == (bo->type == AGX_ALLOC_REGULAR)) {
+      if (it->handle == bo->handle) {
          assert(!found && "mapped multiple times!");
          found = true;
 
