@@ -660,7 +660,7 @@ static const struct glx_context_vtable dri2_context_vtable = {
 static char *
 dri2_get_driver_name(struct glx_screen *glx_screen)
 {
-    return glx_screen->driverName;
+    return strdup(glx_screen->driverName);
 }
 
 static const struct glx_screen_vtable dri2_screen_vtable = {
