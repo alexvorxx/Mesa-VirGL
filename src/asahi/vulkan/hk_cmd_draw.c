@@ -3169,7 +3169,7 @@ hk_flush_gfx_state(struct hk_cmd_buffer *cmd, uint32_t draw_id,
       hk_cmd_buffer_flush_push_descriptors(cmd, desc);
 
    if ((gfx->dirty & HK_DIRTY_INDEX) &&
-       (gfx->index.restart || gfx->shaders[MESA_SHADER_GEOMETRY]))
+       (draw.restart || gfx->shaders[MESA_SHADER_GEOMETRY]))
       hk_flush_index(cmd, cs);
 
    hk_flush_dynamic_state(cmd, cs, draw_id, draw);
