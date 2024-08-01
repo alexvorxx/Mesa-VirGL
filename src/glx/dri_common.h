@@ -102,6 +102,12 @@ dri_create_context_attribs(struct glx_screen *base,
                            unsigned num_attribs,
                            const uint32_t *attribs,
                            unsigned *error);
+_X_HIDDEN int
+glx_dri_query_renderer_integer(struct glx_screen *base, int attribute,
+                            unsigned int *value);
+_X_HIDDEN int
+glx_dri_query_renderer_string(struct glx_screen *base, int attribute,
+                           const char **value);
 #endif /* GLX_DIRECT_RENDERING */
 
 #endif /* _DRI_COMMON_H */

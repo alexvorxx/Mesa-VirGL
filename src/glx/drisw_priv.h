@@ -57,11 +57,4 @@ struct drisw_drawable
    int swapInterval;
 };
 
-_X_HIDDEN int
-drisw_query_renderer_integer(struct glx_screen *base, int attribute,
-                             unsigned int *value);
-_X_HIDDEN int
-drisw_query_renderer_string(struct glx_screen *base, int attribute,
-                            const char **value);
-
 #endif
