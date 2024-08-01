@@ -48,6 +48,7 @@ is_timer(struct agx_query *query)
 
 struct agx_oq_heap {
    /* The GPU allocation itself */
+   struct agx_device *dev;
    struct agx_bo *bo;
 
    /* Bitset of query indices that are in use */
@@ -58,7 +59,7 @@ static void
 agx_destroy_oq_heap(void *heap_)
 {
    struct agx_oq_heap *heap = heap_;
-   agx_bo_unreference(heap->bo);
+   agx_bo_unreference(heap->dev, heap->bo);
 }
 
 static struct agx_oq_heap *
@@ -67,9 +68,10 @@ agx_alloc_oq_heap(struct agx_context *ctx)
    struct agx_oq_heap *heap = rzalloc(ctx, struct agx_oq_heap);
    ralloc_set_destructor(heap, agx_destroy_oq_heap);
 
-   heap->bo = agx_bo_create(agx_device(ctx->base.screen),
-                            AGX_MAX_OCCLUSION_QUERIES * sizeof(uint64_t),
-                            AGX_BO_WRITEBACK, "Occlusion query heap");
+   heap->dev = agx_device(ctx->base.screen);
+   heap->bo =
+      agx_bo_create(heap->dev, AGX_MAX_OCCLUSION_QUERIES * sizeof(uint64_t),
+                    AGX_BO_WRITEBACK, "Occlusion query heap");
 
    /* At the start, everything is available */
    BITSET_ONES(heap->available);
@@ -216,6 +218,7 @@ agx_destroy_query(struct pipe_context *pctx, struct pipe_query *pquery)
 {
    struct agx_context *ctx = agx_context(pctx);
    struct agx_query *query = (struct agx_query *)pquery;
+   struct agx_device *dev = agx_device(pctx->screen);
 
    /* We don't reference count the occlusion query allocations, so we need to
     * sync writers when destroying so we can freely write from the CPU after
@@ -228,7 +231,7 @@ agx_destroy_query(struct pipe_context *pctx, struct pipe_query *pquery)
       sync_query_writers(ctx, query, "Occlusion query destroy");
       agx_free_oq(ctx, query);
    } else {
-      agx_bo_unreference(query->bo);
+      agx_bo_unreference(dev, query->bo);
    }
 
    free(pquery);

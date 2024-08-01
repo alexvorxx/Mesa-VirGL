@@ -80,7 +80,7 @@ hk_GetMemoryFdPropertiesKHR(VkDevice device,
 
    pMemoryFdProperties->memoryTypeBits = type_bits;
 
-   agx_bo_unreference(bo);
+   agx_bo_unreference(&dev->dev, bo);
 
    return VK_SUCCESS;
 }
@@ -190,7 +190,7 @@ hk_FreeMemory(VkDevice device, VkDeviceMemory _mem,
    struct hk_memory_heap *heap = &pdev->mem_heaps[type->heapIndex];
    p_atomic_add(&heap->used, -((int64_t)mem->bo->size));
 
-   agx_bo_unreference(mem->bo);
+   agx_bo_unreference(&dev->dev, mem->bo);
 
    vk_device_memory_destroy(&dev->vk, pAllocator, &mem->vk);
 }
@@ -312,7 +312,7 @@ hk_GetMemoryFdKHR(VkDevice device, const VkMemoryGetFdInfoKHR *pGetFdInfo,
    switch (pGetFdInfo->handleType) {
    case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT:
    case VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT:
-      *pFD = agx_bo_export(memory->bo);
+      *pFD = agx_bo_export(&dev->dev, memory->bo);
       return VK_SUCCESS;
    default:
       assert(!"unsupported handle type");

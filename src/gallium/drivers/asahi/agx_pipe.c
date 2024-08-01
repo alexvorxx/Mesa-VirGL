@@ -281,7 +281,7 @@ agx_resource_get_handle(struct pipe_screen *pscreen, struct pipe_context *ctx,
 
       handle->handle = rsrc->bo->handle;
    } else if (handle->type == WINSYS_HANDLE_TYPE_FD) {
-      int fd = agx_bo_export(rsrc->bo);
+      int fd = agx_bo_export(dev, rsrc->bo);
 
       if (fd < 0)
          return false;
@@ -631,7 +631,7 @@ agx_resource_destroy(struct pipe_screen *screen, struct pipe_resource *prsrc)
    if (rsrc->scanout)
       renderonly_scanout_destroy(rsrc->scanout, agx_screen->dev.ro);
 
-   agx_bo_unreference(rsrc->bo);
+   agx_bo_unreference(&agx_screen->dev, rsrc->bo);
    FREE(rsrc);
 }
 
@@ -717,7 +717,7 @@ agx_shadow(struct agx_context *ctx, struct agx_resource *rsrc, bool needs_copy)
    }
 
    /* Swap the pointers, dropping a reference */
-   agx_bo_unreference(rsrc->bo);
+   agx_bo_unreference(dev, rsrc->bo);
    rsrc->bo = new_;
 
    /* Reemit descriptors using this resource */
@@ -1000,11 +1000,11 @@ agx_transfer_map(struct pipe_context *pctx, struct pipe_resource *resource,
          agx_sync_writer(ctx, staging, "GPU read staging blit");
       }
 
-      dev->ops.bo_mmap(staging->bo);
+      dev->ops.bo_mmap(dev, staging->bo);
       return staging->bo->ptr.cpu;
    }
 
-   dev->ops.bo_mmap(rsrc->bo);
+   dev->ops.bo_mmap(dev, rsrc->bo);
 
    if (ail_is_level_twiddled_uncompressed(&rsrc->layout, level)) {
       /* Should never happen for buffers, and it's not safe */
@@ -1791,7 +1791,7 @@ agx_destroy_context(struct pipe_context *pctx)
    agx_bg_eot_cleanup(&ctx->bg_eot);
    agx_destroy_meta_shaders(ctx);
 
-   agx_bo_unreference(ctx->result_buf);
+   agx_bo_unreference(dev, ctx->result_buf);
 
    /* Lock around the syncobj destruction, to avoid racing
     * command submission in another context.

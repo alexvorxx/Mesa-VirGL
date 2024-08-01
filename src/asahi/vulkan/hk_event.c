@@ -52,7 +52,7 @@ hk_DestroyEvent(VkDevice device, VkEvent _event,
    if (!event)
       return;
 
-   agx_bo_unreference(event->bo);
+   agx_bo_unreference(&dev->dev, event->bo);
    vk_object_free(&dev->vk, pAllocator, event);
 }
 

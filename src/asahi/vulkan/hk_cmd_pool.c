@@ -38,7 +38,8 @@ hk_cmd_bo_create(struct hk_cmd_pool *pool, bool usc, struct hk_cmd_bo **bo_out)
 static void
 hk_cmd_bo_destroy(struct hk_cmd_pool *pool, struct hk_cmd_bo *bo)
 {
-   agx_bo_unreference(bo->bo);
+   struct hk_device *dev = hk_cmd_pool_device(pool);
+   agx_bo_unreference(&dev->dev, bo->bo);
    vk_free(&pool->vk.alloc, bo);
 }
 

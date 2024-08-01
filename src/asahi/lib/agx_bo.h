@@ -83,9 +83,6 @@ struct agx_bo {
    /* Current writer, if any (queue in upper 32 bits, syncobj in lower 32 bits) */
    uint64_t writer;
 
-   /* Owner */
-   struct agx_device *dev;
-
    /* Update atomically */
    int32_t refcnt;
 
@@ -132,9 +129,9 @@ agx_bo_create(struct agx_device *dev, unsigned size, enum agx_bo_flags flags,
 }
 
 void agx_bo_reference(struct agx_bo *bo);
-void agx_bo_unreference(struct agx_bo *bo);
+void agx_bo_unreference(struct agx_device *dev, struct agx_bo *bo);
 struct agx_bo *agx_bo_import(struct agx_device *dev, int fd);
-int agx_bo_export(struct agx_bo *bo);
+int agx_bo_export(struct agx_device *dev, struct agx_bo *bo);
 
 void agx_bo_free(struct agx_device *dev, struct agx_bo *bo);
 struct agx_bo *agx_bo_cache_fetch(struct agx_device *dev, size_t size,

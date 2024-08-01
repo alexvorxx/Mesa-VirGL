@@ -136,7 +136,7 @@ agx_batch_init(struct agx_context *ctx,
    batch->initialized = false;
    batch->draws = 0;
    batch->incoherent_writes = false;
-   agx_bo_unreference(batch->sampler_heap.bo);
+   agx_bo_unreference(dev, batch->sampler_heap.bo);
    batch->sampler_heap.bo = NULL;
    batch->sampler_heap.count = 0;
    batch->vs_scratch = false;
@@ -347,7 +347,7 @@ agx_batch_cleanup(struct agx_context *ctx, struct agx_batch *batch, bool reset)
          /* We should write no buffers if this is an empty batch */
          assert(agx_writer_get(ctx, handle) != batch);
 
-         agx_bo_unreference(agx_lookup_bo(dev, handle));
+         agx_bo_unreference(dev, agx_lookup_bo(dev, handle));
       }
    } else {
       int handle;
@@ -363,12 +363,12 @@ agx_batch_cleanup(struct agx_context *ctx, struct agx_batch *batch, bool reset)
          p_atomic_cmpxchg(&bo->writer,
                           agx_bo_writer(ctx->queue_id, batch->syncobj), 0);
 
-         agx_bo_unreference(agx_lookup_bo(dev, handle));
+         agx_bo_unreference(dev, agx_lookup_bo(dev, handle));
       }
    }
 
-   agx_bo_unreference(batch->vdm.bo);
-   agx_bo_unreference(batch->cdm.bo);
+   agx_bo_unreference(dev, batch->vdm.bo);
+   agx_bo_unreference(dev, batch->cdm.bo);
    agx_pool_cleanup(&batch->pool);
    agx_pool_cleanup(&batch->pipeline_pool);
 

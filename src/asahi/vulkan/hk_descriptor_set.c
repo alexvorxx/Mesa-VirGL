@@ -419,7 +419,7 @@ hk_destroy_descriptor_pool(struct hk_device *dev,
       hk_descriptor_set_destroy(dev, pool, set);
 
    util_vma_heap_finish(&pool->heap);
-   agx_bo_unreference(pool->bo);
+   agx_bo_unreference(&dev->dev, pool->bo);
 
    vk_object_free(&dev->vk, pAllocator, pool);
 }

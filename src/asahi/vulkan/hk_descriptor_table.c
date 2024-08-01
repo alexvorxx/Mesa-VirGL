@@ -88,7 +88,7 @@ void
 hk_descriptor_table_finish(struct hk_device *dev,
                            struct hk_descriptor_table *table)
 {
-   agx_bo_unreference(table->bo);
+   agx_bo_unreference(&dev->dev, table->bo);
    vk_free(&dev->vk.alloc, table->free_table);
    simple_mtx_destroy(&table->mutex);
 }

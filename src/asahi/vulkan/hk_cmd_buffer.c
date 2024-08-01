@@ -48,6 +48,7 @@ static void
 hk_free_resettable_cmd_buffer(struct hk_cmd_buffer *cmd)
 {
    struct hk_cmd_pool *pool = hk_cmd_buffer_pool(cmd);
+   struct hk_device *dev = hk_cmd_pool_device(pool);
 
    hk_descriptor_state_fini(cmd, &cmd->state.gfx.descriptors);
    hk_descriptor_state_fini(cmd, &cmd->state.cs.descriptors);
@@ -61,7 +62,7 @@ hk_free_resettable_cmd_buffer(struct hk_cmd_buffer *cmd)
    }
 
    util_dynarray_foreach(&cmd->large_bos, struct agx_bo *, bo) {
-      agx_bo_unreference(*bo);
+      agx_bo_unreference(&dev->dev, *bo);
    }
 
    util_dynarray_clear(&cmd->large_bos);

@@ -45,7 +45,7 @@ void
 agx_pool_cleanup(struct agx_pool *pool)
 {
    util_dynarray_foreach(&pool->bos, struct agx_bo *, bo) {
-      agx_bo_unreference(*bo);
+      agx_bo_unreference(pool->dev, *bo);
    }
 
    util_dynarray_fini(&pool->bos);

@@ -92,7 +92,7 @@ static void
 agx_scratch_realloc(struct agx_scratch *scratch)
 {
    if (scratch->buf)
-      agx_bo_unreference(scratch->buf);
+      agx_bo_unreference(scratch->dev, scratch->buf);
 
    struct spill_size size = agx_scratch_get_spill_size(scratch->size_dwords);
 
@@ -301,6 +301,6 @@ void
 agx_scratch_fini(struct agx_scratch *scratch)
 {
    if (scratch->buf)
-      agx_bo_unreference(scratch->buf);
+      agx_bo_unreference(scratch->dev, scratch->buf);
    scratch->buf = NULL;
 }

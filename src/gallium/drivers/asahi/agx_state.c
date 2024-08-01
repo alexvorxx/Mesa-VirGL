@@ -2463,34 +2463,35 @@ agx_bind_cs_state(struct pipe_context *pctx, void *cso)
 }
 
 /* Forward declare because of the recursion hit with geometry shaders */
-static void agx_delete_uncompiled_shader(struct agx_uncompiled_shader *so);
+static void agx_delete_uncompiled_shader(struct agx_device *dev,
+                                         struct agx_uncompiled_shader *so);
 
 static void
-agx_delete_compiled_shader_internal(struct agx_compiled_shader *so)
+agx_delete_compiled_shader(struct agx_device *dev,
+                           struct agx_compiled_shader *so)
 {
    if (so->gs_count)
-      agx_delete_compiled_shader_internal(so->gs_count);
+      agx_delete_compiled_shader(dev, so->gs_count);
 
    if (so->pre_gs)
-      agx_delete_compiled_shader_internal(so->pre_gs);
+      agx_delete_compiled_shader(dev, so->pre_gs);
 
    if (so->gs_copy)
-      agx_delete_compiled_shader_internal(so->gs_copy);
+      agx_delete_compiled_shader(dev, so->gs_copy);
 
-   agx_bo_unreference(so->bo);
+   agx_bo_unreference(dev, so->bo);
    FREE(so);
 }
 
 static void
-agx_delete_compiled_shader(struct hash_entry *ent)
+agx_delete_uncompiled_shader(struct agx_device *dev,
+                             struct agx_uncompiled_shader *so)
 {
-   agx_delete_compiled_shader_internal(ent->data);
-}
+   hash_table_foreach(so->variants, ent) {
+      agx_delete_compiled_shader(dev, ent->data);
+   }
 
-static void
-agx_delete_uncompiled_shader(struct agx_uncompiled_shader *so)
-{
-   _mesa_hash_table_destroy(so->variants, agx_delete_compiled_shader);
+   _mesa_hash_table_destroy(so->variants, NULL);
    blob_finish(&so->serialized_nir);
    blob_finish(&so->early_serialized_nir);
 
@@ -2498,14 +2499,15 @@ agx_delete_uncompiled_shader(struct agx_uncompiled_shader *so)
       for (unsigned j = 0; j < 3; ++j) {
          for (unsigned k = 0; k < 2; ++k) {
             if (so->passthrough_progs[i][j][k])
-               agx_delete_uncompiled_shader(so->passthrough_progs[i][j][k]);
+               agx_delete_uncompiled_shader(dev,
+                                            so->passthrough_progs[i][j][k]);
          }
       }
    }
 
    for (unsigned i = 0; i < ARRAY_SIZE(so->passthrough_tcs); ++i) {
       if (so->passthrough_tcs[i])
-         agx_delete_uncompiled_shader(so->passthrough_tcs[i]);
+         agx_delete_uncompiled_shader(dev, so->passthrough_tcs[i]);
    }
 
    ralloc_free(so);
@@ -2514,7 +2516,8 @@ agx_delete_uncompiled_shader(struct agx_uncompiled_shader *so)
 static void
 agx_delete_shader_state(struct pipe_context *ctx, void *cso)
 {
-   agx_delete_uncompiled_shader(cso);
+   struct agx_device *dev = agx_device(ctx->screen);
+   agx_delete_uncompiled_shader(dev, cso);
 }
 
 struct agx_generic_meta_key {
@@ -2552,7 +2555,12 @@ agx_init_meta_shaders(struct agx_context *ctx)
 void
 agx_destroy_meta_shaders(struct agx_context *ctx)
 {
-   _mesa_hash_table_destroy(ctx->generic_meta, agx_delete_compiled_shader);
+   struct agx_device *dev = agx_device(ctx->base.screen);
+   hash_table_foreach(ctx->generic_meta, ent) {
+      agx_delete_compiled_shader(dev, ent->data);
+   }
+
+   _mesa_hash_table_destroy(ctx->generic_meta, NULL);
 }
 
 static struct agx_compiled_shader *

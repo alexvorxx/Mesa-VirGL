@@ -869,30 +869,30 @@ hk_compile_nir(struct hk_device *dev, const VkAllocationCallbacks *pAllocator,
 static const struct vk_shader_ops hk_shader_ops;
 
 static void
-hk_destroy_linked_shader(struct hk_linked_shader *linked)
+hk_destroy_linked_shader(struct hk_device *dev, struct hk_linked_shader *linked)
 {
-   agx_bo_unreference(linked->b.bo);
+   agx_bo_unreference(&dev->dev, linked->b.bo);
    ralloc_free(linked);
 }
 
 static void
-hk_destroy_linked_shader_ht(struct hash_entry *he)
-{
-   hk_destroy_linked_shader(he->data);
-}
-
-static void
-hk_shader_destroy(struct hk_shader *s)
+hk_shader_destroy(struct hk_device *dev, struct hk_shader *s)
 {
    free((void *)s->code_ptr);
    free((void *)s->data_ptr);
-   agx_bo_unreference(s->bo);
+   agx_bo_unreference(&dev->dev, s->bo);
 
    simple_mtx_destroy(&s->linked.lock);
-   _mesa_hash_table_destroy(s->linked.ht, hk_destroy_linked_shader_ht);
 
    if (s->only_linked)
-      hk_destroy_linked_shader(s->only_linked);
+      hk_destroy_linked_shader(dev, s->only_linked);
+
+   if (s->linked.ht) {
+      hash_table_foreach(s->linked.ht, entry) {
+         hk_destroy_linked_shader(dev, entry->data);
+      }
+      _mesa_hash_table_destroy(s->linked.ht, NULL);
+   }
 }
 
 void
@@ -904,7 +904,7 @@ hk_api_shader_destroy(struct vk_device *vk_dev, struct vk_shader *vk_shader,
       container_of(vk_shader, struct hk_api_shader, vk);
 
    hk_foreach_variant(obj, shader) {
-      hk_shader_destroy(shader);
+      hk_shader_destroy(dev, shader);
    }
 
    vk_shader_free(&dev->vk, pAllocator, &obj->vk);

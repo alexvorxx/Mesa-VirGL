@@ -175,7 +175,6 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    bo->size = gem_create.size;
    bo->align = MAX2(dev->params.vm_page_size, align);
    bo->flags = flags;
-   bo->dev = dev;
    bo->handle = handle;
    bo->prime_fd = -1;
 
@@ -207,7 +206,7 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
       return NULL;
    }
 
-   dev->ops.bo_mmap(bo);
+   dev->ops.bo_mmap(dev, bo);
 
    if (flags & AGX_BO_LOW_VA)
       bo->ptr.gpu -= dev->shader_base;
@@ -218,7 +217,7 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
 }
 
 static void
-agx_bo_mmap(struct agx_bo *bo)
+agx_bo_mmap(struct agx_device *dev, struct agx_bo *bo)
 {
    struct drm_asahi_gem_mmap_offset gem_mmap_offset = {.handle = bo->handle};
    int ret;
@@ -226,20 +225,20 @@ agx_bo_mmap(struct agx_bo *bo)
    if (bo->ptr.cpu)
       return;
 
-   ret =
-      drmIoctl(bo->dev->fd, DRM_IOCTL_ASAHI_GEM_MMAP_OFFSET, &gem_mmap_offset);
+   ret = drmIoctl(dev->fd, DRM_IOCTL_ASAHI_GEM_MMAP_OFFSET, &gem_mmap_offset);
    if (ret) {
       fprintf(stderr, "DRM_IOCTL_ASAHI_MMAP_BO failed: %m\n");
       assert(0);
    }
 
    bo->ptr.cpu = os_mmap(NULL, bo->size, PROT_READ | PROT_WRITE, MAP_SHARED,
-                         bo->dev->fd, gem_mmap_offset.offset);
+                         dev->fd, gem_mmap_offset.offset);
    if (bo->ptr.cpu == MAP_FAILED) {
       bo->ptr.cpu = NULL;
+
       fprintf(stderr,
               "mmap failed: result=%p size=0x%llx fd=%i offset=0x%llx %m\n",
-              bo->ptr.cpu, (long long)bo->size, bo->dev->fd,
+              bo->ptr.cpu, (long long)bo->size, dev->fd,
               (long long)gem_mmap_offset.offset);
    }
 }
@@ -263,9 +262,9 @@ agx_bo_import(struct agx_device *dev, int fd)
    bo = agx_lookup_bo(dev, gem_handle);
    dev->max_handle = MAX2(dev->max_handle, gem_handle);
 
-   if (!bo->dev) {
-      bo->dev = dev;
+   if (!bo->size) {
       bo->size = lseek(fd, 0, SEEK_END);
+      bo->align = dev->params.vm_page_size;
 
       /* Sometimes this can fail and return -1. size of -1 is not
        * a nice thing for mmap to try mmap. Be more robust also
@@ -345,13 +344,13 @@ error:
 }
 
 int
-agx_bo_export(struct agx_bo *bo)
+agx_bo_export(struct agx_device *dev, struct agx_bo *bo)
 {
    int fd;
 
    assert(bo->flags & AGX_BO_SHAREABLE);
 
-   if (drmPrimeHandleToFD(bo->dev->fd, bo->handle, DRM_CLOEXEC, &fd))
+   if (drmPrimeHandleToFD(dev->fd, bo->handle, DRM_CLOEXEC, &fd))
       return -1;
 
    if (!(bo->flags & AGX_BO_SHARED)) {
@@ -366,11 +365,11 @@ agx_bo_export(struct agx_bo *bo)
       if (writer) {
          int out_sync_fd = -1;
          int ret = drmSyncobjExportSyncFile(
-            bo->dev->fd, agx_bo_writer_syncobj(writer), &out_sync_fd);
+            dev->fd, agx_bo_writer_syncobj(writer), &out_sync_fd);
          assert(ret >= 0);
          assert(out_sync_fd >= 0);
 
-         ret = agx_import_sync_file(bo->dev, bo, out_sync_fd);
+         ret = agx_import_sync_file(dev, bo, out_sync_fd);
          assert(ret >= 0);
          close(out_sync_fd);
       }
@@ -615,7 +614,7 @@ void
 agx_close_device(struct agx_device *dev)
 {
    ralloc_free((void *)dev->libagx);
-   agx_bo_unreference(dev->helper);
+   agx_bo_unreference(dev, dev->helper);
    agx_bo_cache_evict_all(dev);
    util_sparse_array_finish(&dev->bo_map);
    agxdecode_destroy_context(dev->agxdecode);
@@ -725,7 +724,7 @@ agx_debug_fault(struct agx_device *dev, uint64_t addr)
       if (bo->flags & AGX_BO_LOW_VA)
          bo_addr += dev->shader_base;
 
-      if (!bo->dev || bo_addr > addr)
+      if (!bo->size || bo_addr > addr)
          continue;
 
       if (!best || bo_addr > best->ptr.gpu)

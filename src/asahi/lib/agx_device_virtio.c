@@ -122,14 +122,13 @@ agx_virtio_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    bo->size = size;
    bo->align = MAX2(dev->params.vm_page_size, align);
    bo->flags = flags;
-   bo->dev = dev;
    bo->handle = handle;
    bo->prime_fd = -1;
    bo->blob_id = blob_id;
    bo->ptr.gpu = ptr_gpu;
    bo->vbo_res_id = vdrm_handle_to_res_id(dev->vdrm, handle);
 
-   dev->ops.bo_mmap(bo);
+   dev->ops.bo_mmap(dev, bo);
 
    if (flags & AGX_BO_LOW_VA)
       bo->ptr.gpu -= dev->shader_base;
@@ -164,17 +163,17 @@ agx_virtio_bo_bind(struct agx_device *dev, struct agx_bo *bo, uint64_t addr,
 }
 
 static void
-agx_virtio_bo_mmap(struct agx_bo *bo)
+agx_virtio_bo_mmap(struct agx_device *dev, struct agx_bo *bo)
 {
    if (bo->ptr.cpu) {
       return;
    }
 
-   bo->ptr.cpu = vdrm_bo_map(bo->dev->vdrm, bo->handle, bo->size, NULL);
+   bo->ptr.cpu = vdrm_bo_map(dev->vdrm, bo->handle, bo->size, NULL);
    if (bo->ptr.cpu == MAP_FAILED) {
       bo->ptr.cpu = NULL;
       fprintf(stderr, "mmap failed: result=%p size=0x%llx fd=%i\n", bo->ptr.cpu,
-              (long long)bo->size, bo->dev->fd);
+              (long long)bo->size, dev->fd);
    }
 }
 

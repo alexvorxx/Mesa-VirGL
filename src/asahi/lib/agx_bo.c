@@ -97,9 +97,8 @@ agx_bo_cache_evict_stale_bos(struct agx_device *dev, unsigned tv_sec)
 }
 
 static void
-agx_bo_cache_put_locked(struct agx_bo *bo)
+agx_bo_cache_put_locked(struct agx_device *dev, struct agx_bo *bo)
 {
-   struct agx_device *dev = bo->dev;
    struct list_head *bucket = agx_bucket(dev, bo->size);
    struct timespec time;
 
@@ -132,15 +131,13 @@ agx_bo_cache_put_locked(struct agx_bo *bo)
 
 /* Tries to add a BO to the cache. Returns if it was successful */
 static bool
-agx_bo_cache_put(struct agx_bo *bo)
+agx_bo_cache_put(struct agx_device *dev, struct agx_bo *bo)
 {
-   struct agx_device *dev = bo->dev;
-
    if (bo->flags & AGX_BO_SHARED) {
       return false;
    } else {
       simple_mtx_lock(&dev->bo_cache.lock);
-      agx_bo_cache_put_locked(bo);
+      agx_bo_cache_put_locked(dev, bo);
       simple_mtx_unlock(&dev->bo_cache.lock);
 
       return true;
@@ -172,7 +169,7 @@ agx_bo_reference(struct agx_bo *bo)
 }
 
 void
-agx_bo_unreference(struct agx_bo *bo)
+agx_bo_unreference(struct agx_device *dev, struct agx_bo *bo)
 {
    if (!bo)
       return;
@@ -180,8 +177,6 @@ agx_bo_unreference(struct agx_bo *bo)
    /* Don't return to cache if there are still references */
    if (p_atomic_dec_return(&bo->refcnt))
       return;
-
-   struct agx_device *dev = bo->dev;
 
    pthread_mutex_lock(&dev->bo_map_lock);
 
@@ -194,7 +189,7 @@ agx_bo_unreference(struct agx_bo *bo)
       if (dev->debug & AGX_DBG_TRACE)
          agxdecode_track_free(dev->agxdecode, bo);
 
-      if (!agx_bo_cache_put(bo))
+      if (!agx_bo_cache_put(dev, bo))
          agx_bo_free(dev, bo);
    }
 

@@ -64,7 +64,7 @@ typedef struct {
                               enum agx_bo_flags flags);
    int (*bo_bind)(struct agx_device *dev, struct agx_bo *bo, uint64_t addr,
                   uint32_t flags);
-   void (*bo_mmap)(struct agx_bo *bo);
+   void (*bo_mmap)(struct agx_device *dev, struct agx_bo *bo);
    ssize_t (*get_params)(struct agx_device *dev, void *buf, size_t size);
    int (*submit)(struct agx_device *dev, struct drm_asahi_submit *submit,
                  uint32_t vbo_res_id);

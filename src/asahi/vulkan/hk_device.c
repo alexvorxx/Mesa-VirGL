@@ -440,7 +440,7 @@ fail_mem_cache:
 fail_queue:
    hk_queue_finish(dev, &dev->queue);
 fail_rodata:
-   agx_bo_unreference(dev->rodata.bo);
+   agx_bo_unreference(&dev->dev, dev->rodata.bo);
 fail_bg_eot:
    agx_bg_eot_cleanup(&dev->bg_eot);
 fail_internal_shaders_2:
@@ -487,8 +487,8 @@ hk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    hk_destroy_sampler_heap(dev, &dev->samplers);
    hk_descriptor_table_finish(dev, &dev->images);
    hk_descriptor_table_finish(dev, &dev->occlusion_queries);
-   agx_bo_unreference(dev->rodata.bo);
-   agx_bo_unreference(dev->heap);
+   agx_bo_unreference(&dev->dev, dev->rodata.bo);
+   agx_bo_unreference(&dev->dev, dev->heap);
    agx_bg_eot_cleanup(&dev->bg_eot);
    agx_close_device(&dev->dev);
    vk_free(&dev->vk.alloc, dev);

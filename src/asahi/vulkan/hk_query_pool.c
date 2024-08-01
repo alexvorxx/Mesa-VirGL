@@ -140,7 +140,7 @@ hk_DestroyQueryPool(VkDevice device, VkQueryPool queryPool,
       hk_descriptor_table_remove(dev, &dev->occlusion_queries, oq_index[i]);
    }
 
-   agx_bo_unreference(pool->bo);
+   agx_bo_unreference(&dev->dev, pool->bo);
    vk_query_pool_destroy(&dev->vk, pAllocator, &pool->vk);
 }
 
