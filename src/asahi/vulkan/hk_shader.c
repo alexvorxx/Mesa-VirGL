@@ -234,19 +234,20 @@ hk_hash_graphics_state(struct vk_physical_device *device,
 
 static bool
 lower_load_global_constant_offset_instr(nir_builder *b,
-                                        nir_intrinsic_instr *intrin,
-                                        UNUSED void *_data)
+                                        nir_intrinsic_instr *intrin, void *data)
 {
    if (intrin->intrinsic != nir_intrinsic_load_global_constant_offset &&
        intrin->intrinsic != nir_intrinsic_load_global_constant_bounded)
       return false;
 
    b->cursor = nir_before_instr(&intrin->instr);
+   bool *has_soft_fault = data;
 
    nir_def *base_addr = intrin->src[0].ssa;
    nir_def *offset = intrin->src[1].ssa;
 
    nir_def *zero = NULL;
+   nir_def *in_bounds = NULL;
    if (intrin->intrinsic == nir_intrinsic_load_global_constant_bounded) {
       nir_def *bound = intrin->src[2].ssa;
 
@@ -260,10 +261,15 @@ lower_load_global_constant_offset_instr(nir_builder *b,
 
       nir_def *sat_offset =
          nir_umin(b, offset, nir_imm_int(b, UINT32_MAX - (load_size - 1)));
-      nir_def *in_bounds =
-         nir_ilt(b, nir_iadd_imm(b, sat_offset, load_size - 1), bound);
+      in_bounds = nir_ilt(b, nir_iadd_imm(b, sat_offset, load_size - 1), bound);
 
-      nir_push_if(b, in_bounds);
+      /* If we do not have soft fault, we branch to bounds check. This is slow,
+       * fortunately we always have soft fault for release drivers.
+       *
+       * With soft fault, we speculatively load and smash to zero at the end.
+       */
+      if (!(*has_soft_fault))
+         nir_push_if(b, in_bounds);
    }
 
    nir_def *val = nir_build_load_global_constant(
@@ -274,12 +280,15 @@ lower_load_global_constant_offset_instr(nir_builder *b,
       .access = nir_intrinsic_access(intrin));
 
    if (intrin->intrinsic == nir_intrinsic_load_global_constant_bounded) {
-      nir_pop_if(b, NULL);
-      val = nir_if_phi(b, val, zero);
+      if (*has_soft_fault) {
+         val = nir_bcsel(b, in_bounds, val, zero);
+      } else {
+         nir_pop_if(b, NULL);
+         val = nir_if_phi(b, val, zero);
+      }
    }
 
-   nir_def_rewrite_uses(&intrin->def, val);
-
+   nir_def_replace(&intrin->def, val);
    return true;
 }
 
@@ -593,8 +602,11 @@ hk_lower_nir(struct hk_device *dev, nir_shader *nir,
             hk_buffer_addr_format(rs->storage_buffers));
    NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_mem_ubo,
             hk_buffer_addr_format(rs->uniform_buffers));
+
+   bool soft_fault = agx_has_soft_fault(&dev->dev);
    NIR_PASS(_, nir, nir_shader_intrinsics_pass,
-            lower_load_global_constant_offset_instr, nir_metadata_none, NULL);
+            lower_load_global_constant_offset_instr, nir_metadata_none,
+            &soft_fault);
 
    if (!nir->info.shared_memory_explicit_layout) {
       /* There may be garbage in shared_size, but it's the job of
