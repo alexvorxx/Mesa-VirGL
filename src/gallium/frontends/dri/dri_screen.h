@@ -129,7 +129,6 @@ struct dri_screen
    /* kopper */
    struct pipe_screen *unwrapped_screen;
    bool has_dmabuf;
-   bool has_modifiers;
    bool is_sw;
 
    struct dri_drawable *(*create_drawable)(struct dri_screen *screen,

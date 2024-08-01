@@ -647,7 +647,6 @@ dri_init_screen(struct dri_screen *screen,
    if (pscreen->get_param(pscreen, PIPE_CAP_DEVICE_PROTECTED_CONTEXT))
       screen->has_protected_context = true;
    screen->has_reset_status_query = pscreen->get_param(pscreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY);
-   screen->has_modifiers = pscreen->query_dmabuf_modifiers != NULL;
 
 
 #ifdef HAVE_LIBDRM

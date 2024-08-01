@@ -158,7 +158,7 @@ kopper_get_pixmap_buffer(struct dri_drawable *drawable,
    struct dri_screen *screen = drawable->screen;
 
    drawable->image = loader_dri3_get_pixmap_buffer(conn, pixmap, opaque_dri_screen(screen),
-                                                   fourcc, drawable->has_modifiers, &width, &height, drawable);
+                                                   fourcc, drawable->screen->dmabuf_import, &width, &height, drawable);
    if (!drawable->image)
       return NULL;
 
@@ -620,8 +620,6 @@ kopperCreateNewDrawable(__DRIscreen *psp,
     struct dri_screen *screen = dri_screen(psp);
     struct dri_drawable *drawable =
        screen->create_drawable(screen, &config->modes, info->is_pixmap, data);
-   if (drawable)
-      drawable->has_modifiers = screen->has_modifiers && info->multiplanes_available;
 
     return opaque_dri_drawable(drawable);
 }
