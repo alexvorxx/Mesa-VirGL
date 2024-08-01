@@ -2250,6 +2250,9 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
       goto fail_fd;
    }
 
+   if (devinfo.ver == 20 && instance->disable_xe2_ccs)
+      intel_debug |= DEBUG_NO_CCS;
+
    /* Disable Wa_16013994831 on Gfx12.0 because we found other cases where we
     * need to always disable preemption :
     *    - https://gitlab.freedesktop.org/mesa/mesa/-/issues/5963
