@@ -32,7 +32,7 @@ hk_get_buffer_alignment(const struct hk_physical_device *pdev,
 
    if (create_flags & (VK_BUFFER_CREATE_SPARSE_BINDING_BIT |
                        VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT))
-      alignment = MAX2(alignment, 4096);
+      alignment = MAX2(alignment, 16384);
 
    return alignment;
 }
@@ -97,15 +97,14 @@ hk_CreateBuffer(VkDevice device, const VkBufferCreateInfo *pCreateInfo,
         (VK_BUFFER_CREATE_SPARSE_BINDING_BIT |
          VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT))) {
 
-      const uint32_t alignment =
-         hk_get_buffer_alignment(hk_device_physical(dev),
-                                  buffer->vk.usage,
-                                  buffer->vk.create_flags);
-      assert(alignment >= 4096);
+      const uint32_t alignment = hk_get_buffer_alignment(
+         hk_device_physical(dev), buffer->vk.usage, buffer->vk.create_flags);
+      assert(alignment >= 16384);
       uint64_t vma_size_B = align64(buffer->vk.size, alignment);
 
       const bool bda_capture_replay =
-         buffer->vk.create_flags & VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
+         buffer->vk.create_flags &
+         VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT;
 
       enum agx_va_flags flags = 0;
       uint64_t bda_fixed_addr = 0;
