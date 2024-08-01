@@ -35,6 +35,17 @@
 #include "loader.h"
 #include "glxextensions.h"
 
+/* bits */
+enum glx_driver {
+   GLX_DRIVER_NONE = 0,
+   GLX_DRIVER_ZINK_INFER = (1<<0),
+   GLX_DRIVER_SW = (1<<1),
+   GLX_DRIVER_DRI2 = (1<<2),
+   GLX_DRIVER_DRI3 = (1<<3),
+   GLX_DRIVER_WINDOWS = (1<<4),
+   GLX_DRIVER_ZINK_YES = (1<<5),
+};
+
 #if USE_LIBGLVND
 #define _GLX_PUBLIC _X_HIDDEN
 #else
@@ -118,17 +129,6 @@ struct __GLXDRIdrawableRec
    GLenum textureFormat;        /* EXT_texture_from_pixmap support */
    unsigned long eventMask;
    int refcount;
-};
-
-/* bits */
-enum glx_driver {
-   GLX_DRIVER_NONE = 0,
-   GLX_DRIVER_ZINK_INFER = (1<<0),
-   GLX_DRIVER_SW = (1<<1),
-   GLX_DRIVER_DRI2 = (1<<2),
-   GLX_DRIVER_DRI3 = (1<<3),
-   GLX_DRIVER_WINDOWS = (1<<4),
-   GLX_DRIVER_ZINK_YES = (1<<5),
 };
 
 /*
