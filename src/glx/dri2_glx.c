@@ -898,7 +898,8 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psc->base.driverName = driverName;
 
    psc->driScreen = driCreateNewScreen3(screen, psc->fd, loader_extensions, DRI_SCREEN_DRI3,
-                                        &driver_configs, driver_name_is_inferred, psc);
+                                        &driver_configs, driver_name_is_inferred,
+                                        priv->has_multibuffer, psc);
 
    if (psc->driScreen == NULL) {
       ErrorMessageF("glx: failed to create dri2 screen\n");

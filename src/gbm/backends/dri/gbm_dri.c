@@ -255,7 +255,7 @@ dri_screen_create_for_driver(struct gbm_dri_device *dri, char *driver_name, bool
    dri->screen = driCreateNewScreen3(0, swrast ? -1 : dri->base.v0.fd,
                                              dri->loader_extensions,
                                              type,
-                                             &dri->driver_configs, driver_name_is_inferred, dri);
+                                             &dri->driver_configs, driver_name_is_inferred, true, dri);
    if (dri->screen == NULL)
       goto fail;
 

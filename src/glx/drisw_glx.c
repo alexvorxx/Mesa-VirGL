@@ -863,7 +863,8 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
 
    psc->driScreen = driCreateNewScreen3(screen, -1, loader_extensions_local,
                                         glx_driver ? DRI_SCREEN_KOPPER : DRI_SCREEN_SWRAST,
-                                        &driver_configs, driver_name_is_inferred, psc);
+                                        &driver_configs, driver_name_is_inferred,
+                                        priv->has_multibuffer, psc);
    if (psc->driScreen == NULL) {
       if (!glx_driver || !driver_name_is_inferred)
          ErrorMessageF("glx: failed to create drisw screen\n");

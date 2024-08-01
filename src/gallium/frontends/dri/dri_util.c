@@ -102,7 +102,8 @@ __DRIscreen *
 driCreateNewScreen3(int scrn, int fd,
                     const __DRIextension **loader_extensions,
                     enum dri_screen_type type,
-                    const __DRIconfig ***driver_configs, bool driver_name_is_inferred, void *data)
+                    const __DRIconfig ***driver_configs, bool driver_name_is_inferred,
+                    bool has_multibuffer, void *data)
 {
     struct dri_screen *screen;
 
