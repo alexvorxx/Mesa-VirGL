@@ -967,4 +967,67 @@ dri_bind_tex_image(__GLXDRIdrawable *base, int buffer, const int *attrib_list)
                         base->dri_drawable);
 }
 
+bool
+dri_screen_init(struct glx_screen *psc, struct glx_display *priv, int screen, int fd, const __DRIextension **loader_extensions, bool driver_name_is_inferred)
+{
+   const __DRIconfig **driver_configs;
+   struct glx_config *configs = NULL, *visuals = NULL;
+
+   if (!glx_screen_init(psc, screen, priv))
+      return false;
+
+   enum dri_screen_type type;
+   switch (psc->display->driver) {
+   case GLX_DRIVER_DRI3:
+   case GLX_DRIVER_DRI2:
+      type = DRI_SCREEN_DRI3;
+      break;
+   case GLX_DRIVER_ZINK_YES:
+      type = DRI_SCREEN_KOPPER;
+      break;
+   case GLX_DRIVER_SW:
+      type = DRI_SCREEN_SWRAST;
+      break;
+   default:
+      unreachable("unknown glx driver type");
+   }
+
+   psc->frontend_screen = driCreateNewScreen3(screen, fd,
+                                                 loader_extensions,
+                                                 type,
+                                                 &driver_configs, driver_name_is_inferred,
+                                                 psc->display->has_multibuffer, psc);
+
+   if (psc->frontend_screen == NULL) {
+      goto handle_error;
+   }
+
+   configs = driConvertConfigs(psc->configs, driver_configs);
+   visuals = driConvertConfigs(psc->visuals, driver_configs);
+
+   if (!configs || !visuals) {
+       ErrorMessageF("No matching fbConfigs or visuals found\n");
+       goto handle_error;
+   }
+
+   glx_config_destroy_list(psc->configs);
+   psc->configs = configs;
+   glx_config_destroy_list(psc->visuals);
+   psc->visuals = visuals;
+
+   psc->driver_configs = driver_configs;
+
+   psc->vtable = &dri_screen_vtable;
+   psc->driScreen.bindTexImage = dri_bind_tex_image;
+
+   return true;
+
+handle_error:
+   if (configs)
+       glx_config_destroy_list(configs);
+   if (visuals)
+       glx_config_destroy_list(visuals);
+
+   return false;
+}
 #endif /* GLX_DIRECT_RENDERING */

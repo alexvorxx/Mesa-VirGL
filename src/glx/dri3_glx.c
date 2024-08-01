@@ -494,7 +494,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    const __DRIconfig **driver_configs;
    struct dri3_screen *psc;
    __GLXDRIscreen *psp;
-   struct glx_config *configs = NULL, *visuals = NULL;
    char *driverName, *driverNameDisplayGPU;
    *return_zink = false;
 
@@ -502,13 +501,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    if (psc == NULL)
       return NULL;
 
-   psc->fd_render_gpu = -1;
    psc->fd_display_gpu = -1;
-
-   if (!glx_screen_init(&psc->base, screen, priv)) {
-      free(psc);
-      return NULL;
-   }
 
    psc->fd_render_gpu = x11_dri3_open(c, RootWindow(priv->dpy, screen), None);
    if (psc->fd_render_gpu < 0) {
@@ -558,14 +551,9 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
          free(driverNameDisplayGPU);
       }
    }
+   priv->driver = GLX_DRIVER_DRI3;
 
-   psc->base.frontend_screen = driCreateNewScreen3(screen, psc->fd_render_gpu,
-                                                 loader_extensions,
-                                                 DRI_SCREEN_DRI3,
-                                                 &driver_configs, driver_name_is_inferred,
-                                                 priv->has_multibuffer, psc);
-
-   if (psc->base.frontend_screen == NULL) {
+   if (!dri_screen_init(&psc->base, priv, screen, psc->fd_render_gpu, loader_extensions, driver_name_is_inferred)) {
       ErrorMessageF("glx: failed to create dri3 screen\n");
       goto handle_error;
    }
@@ -573,22 +561,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    if (psc->fd_render_gpu == psc->fd_display_gpu)
       psc->driScreenDisplayGPU = psc->base.frontend_screen;
 
-   configs = driConvertConfigs(psc->base.configs, driver_configs);
-   visuals = driConvertConfigs(psc->base.visuals, driver_configs);
-
-   if (!configs || !visuals) {
-       ErrorMessageF("No matching fbConfigs or visuals found\n");
-       goto handle_error;
-   }
-
-   glx_config_destroy_list(psc->base.configs);
-   psc->base.configs = configs;
-   glx_config_destroy_list(psc->base.visuals);
-   psc->base.visuals = visuals;
-
-   psc->base.driver_configs = driver_configs;
-
-   psc->base.vtable = &dri_screen_vtable;
    psc->base.context_vtable = &dri3_context_vtable;
    psp = &psc->base.driScreen;
    psp->deinitScreen = dri3_deinit_screen;
@@ -600,7 +572,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    psp->waitForSBC = dri3_wait_for_sbc;
    psp->setSwapInterval = dri3_set_swap_interval;
    psp->getSwapInterval = dri3_get_swap_interval;
-   psp->bindTexImage = dri_bind_tex_image;
    psp->maxSwapInterval = INT_MAX;
 
    /* when on a different gpu than the server, the server pixmaps
@@ -621,7 +592,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
          psc->prefer_back_buffer_reuse = value;
    }
 
-   priv->driver = GLX_DRIVER_DRI3;
 
    return &psc->base;
 
@@ -629,10 +599,6 @@ handle_error:
    if (!*return_zink)
       CriticalErrorMessageF("failed to load driver: %s\n", driverName ? driverName : "(null)");
 
-   if (configs)
-       glx_config_destroy_list(configs);
-   if (visuals)
-       glx_config_destroy_list(visuals);
    if (psc->fd_render_gpu != psc->fd_display_gpu && psc->driScreenDisplayGPU)
        driDestroyScreen(psc->driScreenDisplayGPU);
    psc->driScreenDisplayGPU = NULL;

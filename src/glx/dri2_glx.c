@@ -649,10 +649,8 @@ static const __DRIextension *loader_extensions[] = {
 struct glx_screen *
 dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_inferred)
 {
-   const __DRIconfig **driver_configs;
    struct dri2_screen *psc;
    __GLXDRIscreen *psp;
-   struct glx_config *configs = NULL, *visuals = NULL;
    char *driverName = NULL, *loader_driverName, *deviceName, *tmp;
    drm_magic_t magic;
 
@@ -662,10 +660,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
 
    psc->fd = -1;
 
-   if (!glx_screen_init(&psc->base, screen, priv)) {
-      free(psc);
-      return NULL;
-   }
 
    if (!DRI2Connect(priv->dpy, RootWindow(priv->dpy, screen),
 		    &driverName, &deviceName)) {
@@ -700,32 +694,13 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
       driverName = loader_driverName;
    }
    psc->base.driverName = driverName;
+   priv->driver = GLX_DRIVER_DRI2;
 
-   psc->base.frontend_screen = driCreateNewScreen3(screen, psc->fd, loader_extensions, DRI_SCREEN_DRI3,
-                                        &driver_configs, driver_name_is_inferred,
-                                        priv->has_multibuffer, psc);
-
-   if (psc->base.frontend_screen == NULL) {
+   if (!dri_screen_init(&psc->base, priv, screen, psc->fd, loader_extensions, driver_name_is_inferred)) {
       ErrorMessageF("glx: failed to create dri2 screen\n");
       goto handle_error;
    }
 
-   configs = driConvertConfigs(psc->base.configs, driver_configs);
-   visuals = driConvertConfigs(psc->base.visuals, driver_configs);
-
-   if (!configs || !visuals) {
-       ErrorMessageF("No matching fbConfigs or visuals found\n");
-       goto handle_error;
-   }
-
-   glx_config_destroy_list(psc->base.configs);
-   psc->base.configs = configs;
-   glx_config_destroy_list(psc->base.visuals);
-   psc->base.visuals = visuals;
-
-   psc->base.driver_configs = driver_configs;
-
-   psc->base.vtable = &dri_screen_vtable;
    psc->base.context_vtable = &dri2_context_vtable;
    psp = &psc->base.driScreen;
    psp->deinitScreen = dri2DeinitScreen;
@@ -736,7 +711,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psp->waitForSBC = NULL;
    psp->setSwapInterval = NULL;
    psp->getSwapInterval = NULL;
-   psp->bindTexImage = dri_bind_tex_image;
 
    psp->getDrawableMSC = dri2DrawableGetMSC;
    psp->waitForMSC = dri2WaitForMSC;
@@ -758,7 +732,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    if (psc->show_fps_interval < 0)
       psc->show_fps_interval = 0;
 
-   priv->driver = GLX_DRIVER_DRI2;
 
    InfoMessageF("Using DRI2 for screen %d\n", screen);
 
@@ -767,10 +740,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
 handle_error:
    CriticalErrorMessageF("failed to load driver: %s\n", driverName);
 
-   if (configs)
-       glx_config_destroy_list(configs);
-   if (visuals)
-       glx_config_destroy_list(visuals);
    if (psc->fd >= 0)
       close(psc->fd);
 

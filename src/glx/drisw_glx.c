@@ -623,9 +623,7 @@ struct glx_screen *
 driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driver, bool driver_name_is_inferred)
 {
    __GLXDRIscreen *psp;
-   const __DRIconfig **driver_configs;
    struct drisw_screen *psc;
-   struct glx_config *configs = NULL, *visuals = NULL;
    const __DRIextension **loader_extensions_local;
    bool kopper_disable = debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
 
@@ -651,39 +649,19 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       loader_extensions_local = loader_extensions_noshm;
    else
       loader_extensions_local = loader_extensions_shm;
+   priv->driver = glx_driver ? GLX_DRIVER_ZINK_YES : GLX_DRIVER_SW;
 
-   psc->base.frontend_screen = driCreateNewScreen3(screen, -1, loader_extensions_local,
-                                        glx_driver ? DRI_SCREEN_KOPPER : DRI_SCREEN_SWRAST,
-                                        &driver_configs, driver_name_is_inferred,
-                                        priv->has_multibuffer, psc);
-   if (psc->base.frontend_screen == NULL) {
+   if (!dri_screen_init(&psc->base, priv, screen, -1, loader_extensions_local, driver_name_is_inferred)) {
       if (!glx_driver || !driver_name_is_inferred)
          ErrorMessageF("glx: failed to create drisw screen\n");
       goto handle_error;
    }
 
-   configs = driConvertConfigs(psc->base.configs, driver_configs);
-   visuals = driConvertConfigs(psc->base.visuals, driver_configs);
-
-   if (!configs || !visuals) {
-       ErrorMessageF("No matching fbConfigs or visuals found\n");
-       goto handle_error;
-   }
-
-   glx_config_destroy_list(psc->base.configs);
-   psc->base.configs = configs;
-   glx_config_destroy_list(psc->base.visuals);
-   psc->base.visuals = visuals;
-
-   psc->base.driver_configs = driver_configs;
-
-   psc->base.vtable = &dri_screen_vtable;
    psc->base.context_vtable = &drisw_context_vtable;
    psp = &psc->base.driScreen;
    psc->base.can_EXT_texture_from_pixmap = true;
    psp->createDrawable = driswCreateDrawable;
    psp->swapBuffers = driswSwapBuffers;
-   psp->bindTexImage = dri_bind_tex_image;
 
    if (!glx_driver)
       psp->copySubBuffer = drisw_copy_sub_buffer;
@@ -694,15 +672,9 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       psp->maxSwapInterval = 1;
    }
 
-   priv->driver = glx_driver ? GLX_DRIVER_ZINK_YES : GLX_DRIVER_SW;
-
    return &psc->base;
 
  handle_error:
-   if (configs)
-       glx_config_destroy_list(configs);
-   if (visuals)
-       glx_config_destroy_list(visuals);
 
    glx_screen_cleanup(&psc->base);
    free(psc);
