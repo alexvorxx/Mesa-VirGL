@@ -892,6 +892,14 @@ namespace brw {
          shuffle_from_32bit_read(*this, dst, vec4_result, 0, components);
       }
 
+      brw_reg
+      LOAD_SUBGROUP_INVOCATION() const
+      {
+         brw_reg reg = vgrf(shader->dispatch_width < 16 ? BRW_TYPE_UD : BRW_TYPE_UW);
+         exec_all().emit(SHADER_OPCODE_LOAD_SUBGROUP_INVOCATION, reg);
+         return reg;
+      }
+
       fs_visitor *shader;
 
       fs_inst *BREAK()    { return emit(BRW_OPCODE_BREAK); }

@@ -367,21 +367,11 @@ emit_system_values_block(nir_to_brw_state &ntb, nir_block *block)
 static void
 fs_nir_emit_system_values(nir_to_brw_state &ntb)
 {
-   const fs_builder &bld = ntb.bld;
    fs_visitor &s = ntb.s;
 
    ntb.system_values = ralloc_array(ntb.mem_ctx, brw_reg, SYSTEM_VALUE_MAX);
    for (unsigned i = 0; i < SYSTEM_VALUE_MAX; i++) {
       ntb.system_values[i] = brw_reg();
-   }
-
-   /* Always emit SUBGROUP_INVOCATION.  Dead code will clean it up if we
-    * never end up using it.
-    */
-   {
-      brw_reg &reg = ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION];
-      reg = bld.vgrf(s.dispatch_width < 16 ? BRW_TYPE_UD : BRW_TYPE_UW);
-      bld.emit(SHADER_OPCODE_LOAD_SUBGROUP_INVOCATION, reg);
    }
 
    nir_function_impl *impl = nir_shader_get_entrypoint((nir_shader *)s.nir);
@@ -2650,8 +2640,7 @@ emit_gs_input_load(nir_to_brw_state &ntb, const brw_reg &dst,
           * by 32 (shifting by 5), and add the two together.  This is
           * the final indirect byte offset.
           */
-         brw_reg sequence =
-            ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION];
+         brw_reg sequence = bld.LOAD_SUBGROUP_INVOCATION();
 
          /* channel_offsets = 4 * sequence = <28, 24, 20, 16, 12, 8, 4, 0> */
          brw_reg channel_offsets = bld.SHL(sequence, brw_imm_ud(2u));
@@ -2899,7 +2888,7 @@ get_tcs_multi_patch_icp_handle(nir_to_brw_state &ntb, const fs_builder &bld,
     * by the GRF size (by shifting), and add the two together.  This is
     * the final indirect byte offset.
     */
-   brw_reg sequence = ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION];
+   brw_reg sequence = bld.LOAD_SUBGROUP_INVOCATION();
 
    /* Offsets will be 0, 4, 8, ... */
    brw_reg channel_offsets = bld.SHL(sequence, brw_imm_ud(2u));
@@ -5254,8 +5243,7 @@ swizzle_nir_scratch_addr(nir_to_brw_state &ntb,
 {
    fs_visitor &s = ntb.s;
 
-   const brw_reg &chan_index =
-      ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION];
+   const brw_reg chan_index = bld.LOAD_SUBGROUP_INVOCATION();
    const unsigned chan_index_bits = ffs(s.dispatch_width) - 1;
 
    if (nir_src_is_const(nir_addr_src)) {
@@ -7357,8 +7345,7 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
       break;
 
    case nir_intrinsic_load_subgroup_invocation:
-      bld.MOV(retype(dest, BRW_TYPE_UD),
-              ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION]);
+      bld.MOV(retype(dest, BRW_TYPE_UD), bld.LOAD_SUBGROUP_INVOCATION());
       break;
 
    case nir_intrinsic_load_subgroup_eq_mask:
@@ -7415,7 +7402,7 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
        * 0b...1111, invocations 4-7 will have 0b...11110000 and so on.
        */
       brw_reg invoc_ud = bld.vgrf(BRW_TYPE_UD);
-      bld.MOV(invoc_ud, ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION]);
+      bld.MOV(invoc_ud, bld.LOAD_SUBGROUP_INVOCATION());
       brw_reg quad_mask =
          bld.SHL(brw_imm_ud(0xF), bld.AND(invoc_ud, brw_imm_ud(0xFFFFFFFC)));
 
@@ -7679,8 +7666,7 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
           * MOVs or else fall back to doing indirects.
           */
          brw_reg idx = bld.vgrf(BRW_TYPE_W);
-         bld.XOR(idx, ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION],
-                      brw_imm_w(0x2));
+         bld.XOR(idx, bld.LOAD_SUBGROUP_INVOCATION(), brw_imm_w(0x2));
          bld.emit(SHADER_OPCODE_SHUFFLE, retype(dest, value.type), value, idx);
       }
       break;
@@ -7700,8 +7686,7 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
           * MOVs or else fall back to doing indirects.
           */
          brw_reg idx = bld.vgrf(BRW_TYPE_W);
-         bld.XOR(idx, ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION],
-                      brw_imm_w(0x3));
+         bld.XOR(idx, bld.LOAD_SUBGROUP_INVOCATION(), brw_imm_w(0x3));
          bld.emit(SHADER_OPCODE_SHUFFLE, retype(dest, value.type), value, idx);
       }
       break;
@@ -7783,8 +7768,7 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
           */
          brw_reg shifted = bld.vgrf(src.type);
          brw_reg idx = bld.vgrf(BRW_TYPE_W);
-         allbld.ADD(idx, ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION],
-                         brw_imm_w(-1));
+         allbld.ADD(idx, bld.LOAD_SUBGROUP_INVOCATION(), brw_imm_w(-1));
          allbld.emit(SHADER_OPCODE_SHUFFLE, shifted, scan, idx);
          allbld.group(1, 0).MOV(horiz_offset(shifted, 0), identity);
          scan = shifted;
@@ -8079,10 +8063,9 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
             bld.SHL(bld.AND(raw_id, brw_imm_ud(INTEL_MASK(2, 0))),
                     brw_imm_ud(4));
 
-         /* LaneID[0:3] << 0 (Use nir SYSTEM_VALUE_SUBGROUP_INVOCATION) */
+         /* LaneID[0:3] << 0 (Use subgroup invocation) */
          assert(bld.dispatch_width() <= 16); /* Limit to 4 bits */
-         bld.ADD(dst, bld.OR(eu, tid),
-                 ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION]);
+         bld.ADD(dst, bld.OR(eu, tid), bld.LOAD_SUBGROUP_INVOCATION());
          break;
       }
       default:

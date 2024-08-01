@@ -798,6 +798,7 @@ brw_fs_lower_load_subgroup_invocation(fs_visitor &s)
       const fs_builder abld =
          fs_builder(&s, block, inst).annotate("SubgroupInvocation", NULL);
       const fs_builder ubld8 = abld.group(8, 0).exec_all();
+      ubld8.UNDEF(inst->dst);
 
       if (inst->exec_size == 8) {
          assert(inst->dst.type == BRW_TYPE_UD);
@@ -806,7 +807,6 @@ brw_fs_lower_load_subgroup_invocation(fs_visitor &s)
          ubld8.MOV(inst->dst, uw);
       } else {
          assert(inst->dst.type == BRW_TYPE_UW);
-         abld.UNDEF(inst->dst);
          ubld8.MOV(inst->dst, brw_imm_v(0x76543210));
          ubld8.ADD(byte_offset(inst->dst, 16), inst->dst, brw_imm_uw(8u));
          if (inst->exec_size > 16) {
@@ -817,11 +817,6 @@ brw_fs_lower_load_subgroup_invocation(fs_visitor &s)
 
       inst->remove(block);
       progress = true;
-
-      /* Currently this is only ever emitted once, so there's no point in
-       * continuing to look for more cases.  Drop if we ever re-emit it.
-       */
-      break;
    }
 
    if (progress)
