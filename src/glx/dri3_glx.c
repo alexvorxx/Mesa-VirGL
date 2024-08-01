@@ -470,24 +470,6 @@ dri3_get_swap_interval(__GLXDRIdrawable *pdraw)
   return priv->loader_drawable.swap_interval;
 }
 
-static void
-dri3_bind_tex_image(__GLXDRIdrawable *base,
-                    int buffer, const int *attrib_list)
-{
-   struct glx_context *gc = __glXGetCurrentContext();
-
-   if (base) {
-      dri_invalidate_drawable(base->dri_drawable);
-
-      XSync(gc->currentDpy, false);
-
-      dri_set_tex_buffer2(gc->driContext,
-                          base->textureTarget,
-                          base->textureFormat,
-                          base->dri_drawable);
-   }
-}
-
 static const struct glx_context_vtable dri3_context_vtable = {
    .destroy             = dri_destroy_context,
    .bind                = dri_bind_context,
@@ -623,7 +605,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    psp->waitForSBC = dri3_wait_for_sbc;
    psp->setSwapInterval = dri3_set_swap_interval;
    psp->getSwapInterval = dri3_get_swap_interval;
-   psp->bindTexImage = dri3_bind_tex_image;
+   psp->bindTexImage = dri_bind_tex_image;
    psp->maxSwapInterval = INT_MAX;
 
    /* when on a different gpu than the server, the server pixmaps

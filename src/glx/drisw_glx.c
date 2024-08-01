@@ -432,20 +432,6 @@ drisw_wait_x(struct glx_context *context)
    XSync(context->currentDpy, False);
 }
 
-static void
-drisw_bind_tex_image(__GLXDRIdrawable *base,
-                     int buffer, const int *attrib_list)
-{
-   struct glx_context *gc = __glXGetCurrentContext();
-
-   if (base != NULL) {
-      dri_set_tex_buffer2(gc->driContext,
-                          base->textureTarget,
-                          base->textureFormat,
-                          base->dri_drawable);
-   }
-}
-
 int
 kopper_get_buffer_age(__GLXDRIdrawable *pdraw);
 int
@@ -712,7 +698,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    psp->destroyScreen = driswDestroyScreen;
    psp->createDrawable = driswCreateDrawable;
    psp->swapBuffers = driswSwapBuffers;
-   psp->bindTexImage = drisw_bind_tex_image;
+   psp->bindTexImage = dri_bind_tex_image;
 
    if (!glx_driver)
       psp->copySubBuffer = drisw_copy_sub_buffer;

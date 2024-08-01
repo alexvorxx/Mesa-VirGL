@@ -635,20 +635,6 @@ dri2InvalidateBuffers(Display *dpy, XID drawable)
    dri_invalidate_drawable(pdraw->dri_drawable);
 }
 
-static void
-dri2_bind_tex_image(__GLXDRIdrawable *base,
-		    int buffer, const int *attrib_list)
-{
-   struct glx_context *gc = __glXGetCurrentContext();
-
-   if (base != NULL) {
-      dri_set_tex_buffer2(gc->driContext,
-                          base->textureTarget,
-                          base->textureFormat,
-                          base->dri_drawable);
-   }
-}
-
 static const struct glx_context_vtable dri2_context_vtable = {
    .destroy             = dri_destroy_context,
    .bind                = dri_bind_context,
@@ -756,7 +742,7 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psp->waitForSBC = NULL;
    psp->setSwapInterval = NULL;
    psp->getSwapInterval = NULL;
-   psp->bindTexImage = dri2_bind_tex_image;
+   psp->bindTexImage = dri_bind_tex_image;
 
    psp->getDrawableMSC = dri2DrawableGetMSC;
    psp->waitForMSC = dri2WaitForMSC;

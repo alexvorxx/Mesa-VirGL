@@ -946,4 +946,25 @@ const struct glx_screen_vtable dri_screen_vtable = {
    .query_renderer_string  = glx_dri_query_renderer_string,
    .get_driver_name        = dri_get_driver_name,
 };
+
+void
+dri_bind_tex_image(__GLXDRIdrawable *base, int buffer, const int *attrib_list)
+{
+   struct glx_context *gc = __glXGetCurrentContext();
+
+   if (!base)
+      return;
+
+   if (base->psc->display->driver == GLX_DRIVER_DRI3) {
+      dri_invalidate_drawable(base->dri_drawable);
+
+      XSync(gc->currentDpy, false);
+   }
+
+   dri_set_tex_buffer2(gc->driContext,
+                        base->textureTarget,
+                        base->textureFormat,
+                        base->dri_drawable);
+}
+
 #endif /* GLX_DIRECT_RENDERING */

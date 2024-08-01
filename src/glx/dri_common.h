@@ -112,6 +112,8 @@ glx_dri_query_renderer_string(struct glx_screen *base, int attribute,
                            const char **value);
 char *
 dri_get_driver_name(struct glx_screen *glx_screen);
+void
+dri_bind_tex_image(__GLXDRIdrawable *base, int buffer, const int *attrib_list);
 #endif /* GLX_DIRECT_RENDERING */
 
 #endif /* _DRI_COMMON_H */
