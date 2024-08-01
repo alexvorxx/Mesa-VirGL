@@ -4621,6 +4621,71 @@ ntq_emit_impl(struct v3d_compile *c, nir_function_impl *impl)
         ntq_emit_cf_list(c, &impl->body);
 }
 
+static bool
+vir_inst_reads_reg(struct qinst *inst, struct qreg r)
+{
+   for (int i = 0; i < vir_get_nsrc(inst); i++) {
+           if (inst->src[i].file == r.file && inst->src[i].index == r.index)
+                   return true;
+   }
+   return false;
+}
+
+static void
+sched_flags_in_block(struct v3d_compile *c, struct qblock *block)
+{
+        struct qinst *flags_inst = NULL;
+        list_for_each_entry_safe_rev(struct qinst, inst, &block->instructions, link) {
+                /* Check for cases that would prevent us from moving a flags
+                 * instruction any earlier than this instruction:
+                 *
+                 * - The flags instruction reads the result of this instr.
+                 * - The instruction reads or writes flags.
+                 */
+                if (flags_inst) {
+                        if (vir_inst_reads_reg(flags_inst, inst->dst) ||
+                            v3d_qpu_writes_flags(&inst->qpu) ||
+                            v3d_qpu_reads_flags(&inst->qpu)) {
+                                list_move_to(&flags_inst->link, &inst->link);
+                                flags_inst = NULL;
+                        }
+                }
+
+                /* Skip if this instruction does more than just write flags */
+                if (inst->qpu.type != V3D_QPU_INSTR_TYPE_ALU ||
+                    inst->dst.file != QFILE_NULL ||
+                    !v3d_qpu_writes_flags(&inst->qpu)) {
+                        continue;
+                }
+
+                /* If we already had a flags_inst we should've moved it after
+                 * this instruction in the if (flags_inst) above.
+                 */
+                assert(!flags_inst);
+                flags_inst = inst;
+        }
+
+        /* If we reached the beginning of the block and we still have a flags
+         * instruction selected we can put it at the top of the block.
+         */
+        if (flags_inst) {
+                list_move_to(&flags_inst->link, &block->instructions);
+                flags_inst = NULL;
+        }
+}
+
+/**
+ * The purpose of this pass is to emit instructions that are only concerned
+ * with producing flags as early as possible to hopefully reduce liveness
+ * of their source arguments.
+ */
+static void
+sched_flags(struct v3d_compile *c)
+{
+        vir_for_each_block(block, c)
+                sched_flags_in_block(c, block);
+}
+
 static void
 nir_to_vir(struct v3d_compile *c)
 {
@@ -4894,6 +4959,7 @@ v3d_nir_to_vir(struct v3d_compile *c)
         }
 
         vir_optimize(c);
+        sched_flags(c);
 
         vir_check_payload_w(c);
 
