@@ -71,13 +71,12 @@ struct dri3_screen {
     * This screen is used to allocate linear_buffer from
     * display GPU space in dri3_alloc_render_buffer() function.
     * In case of not gpu offloading driScreenDisplayGPU will be assigned with
-    * driScreenRenderGPU.
+    * base.frontend_screen.
     * In case of prime gpu offloading if display and render driver names are different
     * (potentially not compatible), driScreenDisplayGPU will be NULL but
     * fd_display_gpu will still hold fd for display driver.
     */
    __DRIscreen *driScreenDisplayGPU;
-   __DRIscreen *driScreenRenderGPU;
 
    /* fd of the GPU used for rendering. */
    int fd_render_gpu;

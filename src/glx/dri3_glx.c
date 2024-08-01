@@ -125,7 +125,7 @@ glx_dri3_get_dri_screen(void)
    struct glx_context *gc = __glXGetCurrentContext();
    struct dri3_screen *psc = (struct dri3_screen *) gc->psc;
 
-   return (gc != &dummyContext && psc) ? psc->driScreenRenderGPU : NULL;
+   return (gc != &dummyContext && psc) ? psc->base.frontend_screen : NULL;
 }
 
 static void
@@ -198,7 +198,7 @@ dri3_create_drawable(struct glx_screen *base, XID xDrawable,
    if (loader_dri3_drawable_init(XGetXCBConnection(base->dpy),
                                  xDrawable,
                                  glx_to_loader_dri3_drawable_type(type),
-                                 psc->driScreenRenderGPU, psc->driScreenDisplayGPU,
+                                 psc->base.frontend_screen, psc->driScreenDisplayGPU,
                                  has_multibuffer,
                                  psc->prefer_back_buffer_reuse,
                                  config->driConfig,
@@ -429,7 +429,7 @@ dri3_deinit_screen(struct glx_screen *base)
    }
    if (psc->fd_render_gpu != psc->fd_display_gpu)
       close(psc->fd_display_gpu);
-   loader_dri3_close_screen(psc->driScreenRenderGPU);
+   loader_dri3_close_screen(psc->base.frontend_screen);
    close(psc->fd_render_gpu);
 }
 
@@ -445,7 +445,7 @@ dri3_set_swap_interval(__GLXDRIdrawable *pdraw, int interval)
    struct dri3_drawable *priv =  (struct dri3_drawable *) pdraw;
    struct dri3_screen *psc = (struct dri3_screen *) priv->base.psc;
 
-   if (!dri_valid_swap_interval(psc->driScreenRenderGPU, interval))
+   if (!dri_valid_swap_interval(psc->base.frontend_screen, interval))
       return GLX_BAD_VALUE;
 
    loader_dri3_set_swap_interval(&priv->loader_drawable, interval);
@@ -559,19 +559,19 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
       }
    }
 
-   psc->driScreenRenderGPU = driCreateNewScreen3(screen, psc->fd_render_gpu,
+   psc->base.frontend_screen = driCreateNewScreen3(screen, psc->fd_render_gpu,
                                                  loader_extensions,
                                                  DRI_SCREEN_DRI3,
                                                  &driver_configs, driver_name_is_inferred,
                                                  priv->has_multibuffer, psc);
 
-   if (psc->driScreenRenderGPU == NULL) {
+   if (psc->base.frontend_screen == NULL) {
       ErrorMessageF("glx: failed to create dri3 screen\n");
       goto handle_error;
    }
 
    if (psc->fd_render_gpu == psc->fd_display_gpu)
-      psc->driScreenDisplayGPU = psc->driScreenRenderGPU;
+      psc->driScreenDisplayGPU = psc->base.frontend_screen;
 
    configs = driConvertConfigs(psc->base.configs, driver_configs);
    visuals = driConvertConfigs(psc->base.visuals, driver_configs);
@@ -592,7 +592,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    psc->base.context_vtable = &dri3_context_vtable;
    psp = &psc->vtable;
    psc->base.driScreen = psp;
-   psc->base.frontend_screen = psc->driScreenRenderGPU;
    psp->deinitScreen = dri3_deinit_screen;
    psp->createDrawable = dri3_create_drawable;
    psp->swapBuffers = dri3_swap_buffers;
@@ -616,31 +615,31 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
 
    psp->copySubBuffer = dri3_copy_sub_buffer;
 
-   if (dri2GalliumConfigQuerys(psc->driScreenRenderGPU, "glx_extension_override",
+   if (dri2GalliumConfigQuerys(psc->base.frontend_screen, "glx_extension_override",
                                     &tmp) == 0)
       __glXParseExtensionOverride(&psc->base, tmp);
 
-   if (dri2GalliumConfigQuerys(psc->driScreenRenderGPU,
+   if (dri2GalliumConfigQuerys(psc->base.frontend_screen,
                                     "indirect_gl_extension_override",
                                     &tmp) == 0)
       __IndirectGlParseExtensionOverride(&psc->base, tmp);
 
    {
       uint8_t force = false;
-      if (dri2GalliumConfigQueryb(psc->driScreenRenderGPU, "force_direct_glx_context",
+      if (dri2GalliumConfigQueryb(psc->base.frontend_screen, "force_direct_glx_context",
                                     &force) == 0) {
          psc->base.force_direct_context = force;
       }
 
       uint8_t invalid_glx_destroy_window = false;
-      if (dri2GalliumConfigQueryb(psc->driScreenRenderGPU,
+      if (dri2GalliumConfigQueryb(psc->base.frontend_screen,
                                     "allow_invalid_glx_destroy_window",
                                     &invalid_glx_destroy_window) == 0) {
          psc->base.allow_invalid_glx_destroy_window = invalid_glx_destroy_window;
       }
 
       uint8_t keep_native_window_glx_drawable = false;
-      if (dri2GalliumConfigQueryb(psc->driScreenRenderGPU,
+      if (dri2GalliumConfigQueryb(psc->base.frontend_screen,
                                     "keep_native_window_glx_drawable",
                                     &keep_native_window_glx_drawable) == 0) {
          psc->base.keep_native_window_glx_drawable = keep_native_window_glx_drawable;
@@ -652,7 +651,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    psc->prefer_back_buffer_reuse = 1;
    if (psc->fd_render_gpu != psc->fd_display_gpu) {
       unsigned value;
-      if (dri_query_renderer_integer(psc->driScreenRenderGPU,
+      if (dri_query_renderer_integer(psc->base.frontend_screen,
                                      __DRI2_RENDERER_PREFER_BACK_BUFFER_REUSE,
                                      &value) == 0)
          psc->prefer_back_buffer_reuse = value;
