@@ -743,6 +743,9 @@ glx_screen_cleanup(struct glx_screen *psc)
       glx_config_destroy_list(psc->visuals);
       psc->visuals = NULL;   /* NOTE: just for paranoia */
    }
+#if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
+   driDestroyConfigs(psc->driver_configs);
+#endif
    free((char *) psc->serverGLXexts);
    free((char *) psc->serverGLXvendor);
    free((char *) psc->serverGLXversion);

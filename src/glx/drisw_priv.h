@@ -39,8 +39,6 @@ struct drisw_screen
 
    __GLXDRIscreen vtable;
 
-   const __DRIconfig **driver_configs;
-
    bool kopper;
 };
 

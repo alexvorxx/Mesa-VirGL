@@ -570,7 +570,6 @@ driswDestroyScreen(struct glx_screen *base)
 
    /* Free the direct rendering per screen data */
    driDestroyScreen(psc->base.frontend_screen);
-   driDestroyConfigs(psc->driver_configs);
    free(psc);
 }
 
@@ -686,7 +685,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    glx_config_destroy_list(psc->base.visuals);
    psc->base.visuals = visuals;
 
-   psc->driver_configs = driver_configs;
+   psc->base.driver_configs = driver_configs;
 
    psc->base.vtable = &dri_screen_vtable;
    psc->base.context_vtable = &drisw_context_vtable;

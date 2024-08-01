@@ -79,8 +79,6 @@ struct dri3_screen {
    __DRIscreen *driScreenDisplayGPU;
    __DRIscreen *driScreenRenderGPU;
 
-   const __DRIconfig **driver_configs;
-
    /* fd of the GPU used for rendering. */
    int fd_render_gpu;
    /* fd of the GPU used for display. If the same GPU is used for display

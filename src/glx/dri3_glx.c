@@ -431,7 +431,6 @@ dri3_destroy_screen(struct glx_screen *base)
       close(psc->fd_display_gpu);
    loader_dri3_close_screen(psc->driScreenRenderGPU);
    driDestroyScreen(psc->driScreenRenderGPU);
-   driDestroyConfigs(psc->driver_configs);
    close(psc->fd_render_gpu);
    free(psc);
 }
@@ -589,7 +588,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    glx_config_destroy_list(psc->base.visuals);
    psc->base.visuals = visuals;
 
-   psc->driver_configs = driver_configs;
+   psc->base.driver_configs = driver_configs;
 
    psc->base.vtable = &dri_screen_vtable;
    psc->base.context_vtable = &dri3_context_vtable;
