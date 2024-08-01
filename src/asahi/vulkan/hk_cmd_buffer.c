@@ -7,6 +7,7 @@
 #include "hk_cmd_buffer.h"
 
 #include "agx_bo.h"
+#include "agx_device.h"
 #include "agx_linker.h"
 #include "agx_tilebuffer.h"
 #include "agx_usc.h"
@@ -605,6 +606,8 @@ uint32_t
 hk_upload_usc_words(struct hk_cmd_buffer *cmd, struct hk_shader *s,
                     struct hk_linked_shader *linked)
 {
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
+
    enum pipe_shader_type sw_stage = s->info.stage;
    enum pipe_shader_type hw_stage = s->b.info.stage;
 
@@ -675,7 +678,7 @@ hk_upload_usc_words(struct hk_cmd_buffer *cmd, struct hk_shader *s,
    }
 
    agx_usc_push_blob(&b, linked->usc.data, linked->usc.size);
-   return t.gpu;
+   return agx_usc_addr(&dev->dev, t.gpu);
 }
 
 /* Specialized variant of hk_upload_usc_words for internal dispatches that do
@@ -685,6 +688,8 @@ uint32_t
 hk_upload_usc_words_kernel(struct hk_cmd_buffer *cmd, struct hk_shader *s,
                            void *data, size_t data_size)
 {
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
+
    assert(s->info.stage == MESA_SHADER_COMPUTE);
    assert(s->b.info.scratch_size == 0 && "you shouldn't be spilling!");
    assert(s->b.info.preamble_scratch_size == 0 && "you shouldn't be spilling!");
@@ -704,7 +709,7 @@ hk_upload_usc_words_kernel(struct hk_cmd_buffer *cmd, struct hk_shader *s,
                    hk_pool_upload(cmd, data, data_size, 4));
 
    agx_usc_push_blob(&b, s->only_linked->usc.data, s->only_linked->usc.size);
-   return t.gpu;
+   return agx_usc_addr(&dev->dev, t.gpu);
 }
 
 void

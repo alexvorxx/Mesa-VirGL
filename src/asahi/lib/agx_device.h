@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <stdint.h>
 #include <xf86drm.h>
 #include "util/simple_mtx.h"
 #include "util/sparse_array.h"
@@ -137,6 +138,15 @@ static inline bool
 agx_has_soft_fault(struct agx_device *dev)
 {
    return dev->params.feat_compat & DRM_ASAHI_FEAT_SOFT_FAULTS;
+}
+
+static uint32_t
+agx_usc_addr(struct agx_device *dev, uint64_t addr)
+{
+   assert(addr >= dev->shader_base);
+   assert((addr - dev->shader_base) <= UINT32_MAX);
+
+   return addr - dev->shader_base;
 }
 
 bool agx_open_device(void *memctx, struct agx_device *dev);

@@ -83,13 +83,8 @@ agx_virtio_bo_alloc(struct agx_device *dev, size_t size, size_t align,
 
    uint32_t blob_id = p_atomic_inc_return(&dev->next_blob_id);
 
-   ASSERTED bool lo = (flags & AGX_BO_LOW_VA);
-
-   struct util_vma_heap *heap;
-   if (lo)
-      heap = &dev->usc_heap;
-   else
-      heap = &dev->main_heap;
+   struct util_vma_heap *heap =
+      (flags & AGX_BO_LOW_VA) ? &dev->usc_heap : &dev->main_heap;
 
    simple_mtx_lock(&dev->vma_lock);
    ptr_gpu = util_vma_heap_alloc(heap, size + dev->guard_size,
@@ -128,12 +123,6 @@ agx_virtio_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    bo->vbo_res_id = vdrm_handle_to_res_id(dev->vdrm, handle);
 
    dev->ops.bo_mmap(dev, bo);
-
-   if (flags & AGX_BO_LOW_VA)
-      bo->ptr.gpu -= dev->shader_base;
-
-   assert(bo->ptr.gpu < (1ull << (lo ? 32 : 40)));
-
    return bo;
 }
 

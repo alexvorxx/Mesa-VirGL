@@ -400,7 +400,7 @@ hk_build_bg_eot(struct hk_cmd_buffer *cmd, const VkRenderingInfo *info,
    struct agx_bg_eot_shader *shader = agx_get_bg_eot_shader(&dev->bg_eot, &key);
 
    agx_usc_pack(&b, SHADER, cfg) {
-      cfg.code = shader->ptr;
+      cfg.code = agx_usc_addr(&dev->dev, shader->ptr);
       cfg.unk_2 = 0;
    }
 
@@ -409,7 +409,8 @@ hk_build_bg_eot(struct hk_cmd_buffer *cmd, const VkRenderingInfo *info,
 
    if (shader->info.has_preamble) {
       agx_usc_pack(&b, PRESHADER, cfg) {
-         cfg.code = shader->ptr + shader->info.preamble_offset;
+         cfg.code =
+            agx_usc_addr(&dev->dev, shader->ptr + shader->info.preamble_offset);
       }
    } else {
       agx_usc_pack(&b, NO_PRESHADER, cfg)
@@ -2884,7 +2885,7 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
             t.cpu, &gfx->linked_varyings, hw_vs->info.uvs.user_size,
             &linked_fs->b.cf, gfx->provoking, 0, &gfx->generate_primitive_id);
 
-         gfx->varyings = t.gpu;
+         gfx->varyings = agx_usc_addr(&dev->dev, t.gpu);
       } else {
          gfx->varyings = 0;
       }

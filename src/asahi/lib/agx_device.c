@@ -84,7 +84,6 @@ agx_bo_free(struct agx_device *dev, struct agx_bo *bo)
 
       if (bo->flags & AGX_BO_LOW_VA) {
          heap = &dev->usc_heap;
-         bo_addr += dev->shader_base;
       } else {
          heap = &dev->main_heap;
       }
@@ -177,13 +176,8 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    bo->handle = handle;
    bo->prime_fd = -1;
 
-   ASSERTED bool lo = (flags & AGX_BO_LOW_VA);
-
-   struct util_vma_heap *heap;
-   if (lo)
-      heap = &dev->usc_heap;
-   else
-      heap = &dev->main_heap;
+   struct util_vma_heap *heap =
+      (flags & AGX_BO_LOW_VA) ? &dev->usc_heap : &dev->main_heap;
 
    simple_mtx_lock(&dev->vma_lock);
    bo->ptr.gpu = util_vma_heap_alloc(heap, size + dev->guard_size, bo->align);
@@ -206,12 +200,6 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    }
 
    dev->ops.bo_mmap(dev, bo);
-
-   if (flags & AGX_BO_LOW_VA)
-      bo->ptr.gpu -= dev->shader_base;
-
-   assert(bo->ptr.gpu < (1ull << (lo ? 32 : 40)));
-
    return bo;
 }
 
@@ -436,7 +424,6 @@ agx_open_device(void *memctx, struct agx_device *dev)
    dev->debug =
       debug_get_flags_option("ASAHI_MESA_DEBUG", agx_debug_options, 0);
 
-   dev->agxdecode = agxdecode_new_context();
    dev->ops = agx_device_drm_ops;
 
    ssize_t params_size = -1;
@@ -562,6 +549,8 @@ agx_open_device(void *memctx, struct agx_device *dev)
 
    assert(dev->shader_base >= dev->params.vm_user_start);
    assert(user_start < dev->params.vm_user_end);
+
+   dev->agxdecode = agxdecode_new_context(dev->shader_base);
 
    util_sparse_array_init(&dev->bo_map, sizeof(struct agx_bo), 512);
    pthread_mutex_init(&dev->bo_map_lock, NULL);

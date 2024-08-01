@@ -176,7 +176,7 @@ agx_fast_link(struct agx_linked_shader *linked, struct agx_device *dev,
    assert(offset == size);
 
    agx_pack(&linked->shader, USC_SHADER, cfg) {
-      cfg.code = linked->bo->ptr.gpu;
+      cfg.code = agx_usc_addr(dev, linked->bo->ptr.gpu);
       cfg.unk_2 = fragment ? 2 : 3;
 
       if (fragment)

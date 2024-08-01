@@ -14,7 +14,7 @@
 
 struct agxdecode_ctx;
 
-struct agxdecode_ctx *agxdecode_new_context(void);
+struct agxdecode_ctx *agxdecode_new_context(uint64_t shader_base);
 
 void agxdecode_destroy_context(struct agxdecode_ctx *ctx);
 

@@ -37,12 +37,21 @@ FILE *agxdecode_dump_stream;
 
 struct agxdecode_ctx {
    struct util_dynarray mmap_array;
+   uint64_t shader_base;
 };
 
-struct agxdecode_ctx *
-agxdecode_new_context(void)
+static uint64_t
+decode_usc(struct agxdecode_ctx *ctx, uint64_t addr)
 {
-   return calloc(1, sizeof(struct agxdecode_ctx));
+   return ctx->shader_base + addr;
+}
+
+struct agxdecode_ctx *
+agxdecode_new_context(uint64_t shader_base)
+{
+   struct agxdecode_ctx *ctx = calloc(1, sizeof(struct agxdecode_ctx));
+   ctx->shader_base = shader_base;
+   return ctx;
 }
 
 void
@@ -288,8 +297,9 @@ agxdecode_usc(struct agxdecode_ctx *ctx, const uint8_t *map,
       agx_unpack(agxdecode_dump_stream, map, USC_PRESHADER, ctrl);
       DUMP_UNPACKED(USC_PRESHADER, ctrl, "Preshader\n");
 
-      agx_disassemble(buf, agxdecode_fetch_gpu_array(ctx, ctrl.code, buf),
-                      agxdecode_dump_stream);
+      agx_disassemble(
+         buf, agxdecode_fetch_gpu_array(ctx, decode_usc(ctx, ctrl.code), buf),
+         agxdecode_dump_stream);
 
       return STATE_DONE;
    }
@@ -299,8 +309,9 @@ agxdecode_usc(struct agxdecode_ctx *ctx, const uint8_t *map,
       DUMP_UNPACKED(USC_SHADER, ctrl, "Shader\n");
 
       agxdecode_log("\n");
-      agx_disassemble(buf, agxdecode_fetch_gpu_array(ctx, ctrl.code, buf),
-                      agxdecode_dump_stream);
+      agx_disassemble(
+         buf, agxdecode_fetch_gpu_array(ctx, decode_usc(ctx, ctrl.code), buf),
+         agxdecode_dump_stream);
       agxdecode_log("\n");
 
       return AGX_USC_SHADER_LENGTH;
@@ -462,15 +473,16 @@ agxdecode_record(struct agxdecode_ctx *ctx, uint64_t va, size_t size,
                  frag_1);
       agx_unpack(agxdecode_dump_stream, map + 8, FRAGMENT_SHADER_WORD_2,
                  frag_2);
-      agxdecode_stateful(ctx, frag_1.pipeline, "Fragment pipeline",
-                         agxdecode_usc, verbose, params,
+      agxdecode_stateful(ctx, decode_usc(ctx, frag_1.pipeline),
+                         "Fragment pipeline", agxdecode_usc, verbose, params,
                          &frag_0.sampler_state_register_count);
 
       if (frag_2.cf_bindings) {
          uint8_t buf[128];
          uint8_t *cf = buf;
 
-         agxdecode_fetch_gpu_array(ctx, frag_2.cf_bindings, buf);
+         agxdecode_fetch_gpu_array(ctx, decode_usc(ctx, frag_2.cf_bindings),
+                                   buf);
          u_hexdump(agxdecode_dump_stream, cf, 128, false);
 
          DUMP_CL(CF_BINDING_HEADER, cf, "Coefficient binding header:");
@@ -522,8 +534,9 @@ agxdecode_cdm(struct agxdecode_ctx *ctx, const uint8_t *map, uint64_t *link,
       agx_unpack(agxdecode_dump_stream, map + 0, CDM_LAUNCH_WORD_0, hdr0);
       agx_unpack(agxdecode_dump_stream, map + 4, CDM_LAUNCH_WORD_1, hdr1);
 
-      agxdecode_stateful(ctx, hdr1.pipeline, "Pipeline", agxdecode_usc, verbose,
-                         params, &hdr0.sampler_state_register_count);
+      agxdecode_stateful(ctx, decode_usc(ctx, hdr1.pipeline), "Pipeline",
+                         agxdecode_usc, verbose, params,
+                         &hdr0.sampler_state_register_count);
       DUMP_UNPACKED(CDM_LAUNCH_WORD_0, hdr0, "Compute\n");
       DUMP_UNPACKED(CDM_LAUNCH_WORD_1, hdr1, "Compute\n");
       map += 8;
@@ -641,8 +654,8 @@ agxdecode_vdm(struct agxdecode_ctx *ctx, const uint8_t *map, uint64_t *link,
                     word_1);
          fprintf(agxdecode_dump_stream, "Pipeline %X\n",
                  (uint32_t)word_1.pipeline);
-         agxdecode_stateful(ctx, word_1.pipeline, "Pipeline", agxdecode_usc,
-                            verbose, params, &sampler_states);
+         agxdecode_stateful(ctx, decode_usc(ctx, word_1.pipeline), "Pipeline",
+                            agxdecode_usc, verbose, params, &sampler_states);
       }
 
       VDM_PRINT(vertex_shader_word_1, VERTEX_SHADER_WORD_1,
@@ -738,9 +751,10 @@ agxdecode_cs(struct agxdecode_ctx *ctx, uint32_t *cmdbuf, uint64_t encoder,
 
    fprintf(agxdecode_dump_stream, "Context switch program:\n");
    uint8_t buf[1024];
-   agx_disassemble(
-      buf, agxdecode_fetch_gpu_array(ctx, cs.context_switch_program, buf),
-      agxdecode_dump_stream);
+   agx_disassemble(buf,
+                   agxdecode_fetch_gpu_array(
+                      ctx, decode_usc(ctx, cs.context_switch_program), buf),
+                   agxdecode_dump_stream);
 }
 
 static void
@@ -755,25 +769,27 @@ agxdecode_gfx(struct agxdecode_ctx *ctx, uint32_t *cmdbuf, uint64_t encoder,
 
    if (gfx.clear_pipeline_unk) {
       fprintf(agxdecode_dump_stream, "Unk: %X\n", gfx.clear_pipeline_unk);
-      agxdecode_stateful(ctx, gfx.clear_pipeline, "Clear pipeline",
-                         agxdecode_usc, verbose, params, NULL);
+      agxdecode_stateful(ctx, decode_usc(ctx, gfx.clear_pipeline),
+                         "Clear pipeline", agxdecode_usc, verbose, params,
+                         NULL);
    }
 
    if (gfx.store_pipeline_unk) {
       assert(gfx.store_pipeline_unk == 0x4);
-      agxdecode_stateful(ctx, gfx.store_pipeline, "Store pipeline",
-                         agxdecode_usc, verbose, params, NULL);
+      agxdecode_stateful(ctx, decode_usc(ctx, gfx.store_pipeline),
+                         "Store pipeline", agxdecode_usc, verbose, params,
+                         NULL);
    }
 
    assert((gfx.partial_reload_pipeline_unk & 0xF) == 0x4);
    if (gfx.partial_reload_pipeline) {
-      agxdecode_stateful(ctx, gfx.partial_reload_pipeline,
+      agxdecode_stateful(ctx, decode_usc(ctx, gfx.partial_reload_pipeline),
                          "Partial reload pipeline", agxdecode_usc, verbose,
                          params, NULL);
    }
 
    if (gfx.partial_store_pipeline) {
-      agxdecode_stateful(ctx, gfx.partial_store_pipeline,
+      agxdecode_stateful(ctx, decode_usc(ctx, gfx.partial_store_pipeline),
                          "Partial store pipeline", agxdecode_usc, verbose,
                          params, NULL);
    }
@@ -864,20 +880,20 @@ agxdecode_drm_cmd_render(struct agxdecode_ctx *ctx,
    DUMP_FIELD(c, "%d", utile_height);
    DUMP_FIELD(c, "0x%x", load_pipeline);
    DUMP_FIELD(c, "0x%x", load_pipeline_bind);
-   agxdecode_stateful(ctx, c->load_pipeline & ~0x7, "Load pipeline",
-                      agxdecode_usc, verbose, params, NULL);
+   agxdecode_stateful(ctx, decode_usc(ctx, c->load_pipeline & ~0x7),
+                      "Load pipeline", agxdecode_usc, verbose, params, NULL);
    DUMP_FIELD(c, "0x%x", store_pipeline);
    DUMP_FIELD(c, "0x%x", store_pipeline_bind);
-   agxdecode_stateful(ctx, c->store_pipeline & ~0x7, "Store pipeline",
-                      agxdecode_usc, verbose, params, NULL);
+   agxdecode_stateful(ctx, decode_usc(ctx, c->store_pipeline & ~0x7),
+                      "Store pipeline", agxdecode_usc, verbose, params, NULL);
    DUMP_FIELD(c, "0x%x", partial_reload_pipeline);
    DUMP_FIELD(c, "0x%x", partial_reload_pipeline_bind);
-   agxdecode_stateful(ctx, c->partial_reload_pipeline & ~0x7,
+   agxdecode_stateful(ctx, decode_usc(ctx, c->partial_reload_pipeline & ~0x7),
                       "Partial reload pipeline", agxdecode_usc, verbose, params,
                       NULL);
    DUMP_FIELD(c, "0x%x", partial_store_pipeline);
    DUMP_FIELD(c, "0x%x", partial_store_pipeline_bind);
-   agxdecode_stateful(ctx, c->partial_store_pipeline & ~0x7,
+   agxdecode_stateful(ctx, decode_usc(ctx, c->partial_store_pipeline & ~0x7),
                       "Partial store pipeline", agxdecode_usc, verbose, params,
                       NULL);
 
@@ -929,9 +945,10 @@ agxdecode_drm_cmd_compute(struct agxdecode_ctx *ctx,
    if (c->helper_program & 1) {
       fprintf(agxdecode_dump_stream, "Helper program:\n");
       uint8_t buf[1024];
-      agx_disassemble(
-         buf, agxdecode_fetch_gpu_array(ctx, c->helper_program & ~1, buf),
-         agxdecode_dump_stream);
+      agx_disassemble(buf,
+                      agxdecode_fetch_gpu_array(
+                         ctx, decode_usc(ctx, c->helper_program & ~1), buf),
+                      agxdecode_dump_stream);
    }
 }
 

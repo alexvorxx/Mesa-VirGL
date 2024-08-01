@@ -1430,7 +1430,7 @@ hk_fast_link(struct hk_device *dev, bool fragment, struct hk_shader *main,
 
    if (main && main->b.info.has_preamble) {
       agx_usc_pack(&b, PRESHADER, cfg) {
-         cfg.code = main->preamble_addr;
+         cfg.code = agx_usc_addr(&dev->dev, main->preamble_addr);
       }
    } else {
       agx_usc_pack(&b, NO_PRESHADER, cfg)

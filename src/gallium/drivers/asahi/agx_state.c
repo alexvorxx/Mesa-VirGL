@@ -2932,6 +2932,7 @@ agx_build_pipeline(struct agx_batch *batch, struct agx_compiled_shader *cs,
                    unsigned variable_shared_mem, size_t max_subgroups)
 {
    struct agx_context *ctx = batch->ctx;
+   struct agx_device *dev = agx_device(ctx->base.screen);
    unsigned constant_push_ranges =
       DIV_ROUND_UP(cs->b.info.immediate_size_16, 64);
 
@@ -3030,7 +3031,7 @@ agx_build_pipeline(struct agx_batch *batch, struct agx_compiled_shader *cs,
          agx_usc_push_packed(&b, FRAGMENT_PROPERTIES, linked->fragment_props);
    } else {
       agx_usc_pack(&b, SHADER, cfg) {
-         cfg.code = (cs->bo->ptr.gpu + cs->b.info.main_offset);
+         cfg.code = agx_usc_addr(dev, cs->bo->ptr.gpu + cs->b.info.main_offset);
          cfg.unk_2 = 3;
       }
 
@@ -3044,20 +3045,22 @@ agx_build_pipeline(struct agx_batch *batch, struct agx_compiled_shader *cs,
 
    if (cs->b.info.has_preamble) {
       agx_usc_pack(&b, PRESHADER, cfg) {
-         cfg.code = cs->bo->ptr.gpu + cs->b.info.preamble_offset;
+         cfg.code =
+            agx_usc_addr(dev, cs->bo->ptr.gpu + cs->b.info.preamble_offset);
       }
    } else {
       agx_usc_pack(&b, NO_PRESHADER, cfg)
          ;
    }
 
-   return t.gpu;
+   return agx_usc_addr(dev, t.gpu);
 }
 
 static uint32_t
 agx_build_internal_usc(struct agx_batch *batch, struct agx_compiled_shader *cs,
                        uint64_t data)
 {
+   struct agx_device *dev = agx_device(batch->ctx->base.screen);
    size_t usc_size = agx_usc_size(12);
 
    struct agx_ptr t =
@@ -3080,7 +3083,7 @@ agx_build_internal_usc(struct agx_batch *batch, struct agx_compiled_shader *cs,
    }
 
    agx_usc_pack(&b, SHADER, cfg) {
-      cfg.code = (cs->bo->ptr.gpu + cs->b.info.main_offset);
+      cfg.code = agx_usc_addr(dev, cs->bo->ptr.gpu + cs->b.info.main_offset);
       cfg.unk_2 = 3;
    }
 
@@ -3091,14 +3094,15 @@ agx_build_internal_usc(struct agx_batch *batch, struct agx_compiled_shader *cs,
 
    if (cs->b.info.has_preamble) {
       agx_usc_pack(&b, PRESHADER, cfg) {
-         cfg.code = cs->bo->ptr.gpu + cs->b.info.preamble_offset;
+         cfg.code =
+            agx_usc_addr(dev, cs->bo->ptr.gpu + cs->b.info.preamble_offset);
       }
    } else {
       agx_usc_pack(&b, NO_PRESHADER, cfg)
          ;
    }
 
-   return t.gpu;
+   return agx_usc_addr(dev, t.gpu);
 }
 
 static void
@@ -3280,11 +3284,12 @@ agx_build_bg_eot(struct agx_batch *batch, bool store, bool partial_render)
 
    /* Get the shader */
    key.reserved_preamble = uniforms;
+   struct agx_device *dev = agx_device(ctx->base.screen);
    struct agx_bg_eot_shader *shader = agx_get_bg_eot_shader(&ctx->bg_eot, &key);
    agx_batch_add_bo(batch, shader->bo);
 
    agx_usc_pack(&b, SHADER, cfg) {
-      cfg.code = shader->ptr;
+      cfg.code = agx_usc_addr(dev, shader->ptr);
       cfg.unk_2 = 0;
    }
 
@@ -3293,7 +3298,8 @@ agx_build_bg_eot(struct agx_batch *batch, bool store, bool partial_render)
 
    if (shader->info.has_preamble) {
       agx_usc_pack(&b, PRESHADER, cfg) {
-         cfg.code = shader->ptr + shader->info.preamble_offset;
+         cfg.code =
+            agx_usc_addr(dev, shader->ptr + shader->info.preamble_offset);
       }
    } else {
       agx_usc_pack(&b, NO_PRESHADER, cfg)
@@ -3487,6 +3493,7 @@ static uint8_t *
 agx_encode_state(struct agx_batch *batch, uint8_t *out)
 {
    struct agx_context *ctx = batch->ctx;
+   struct agx_device *dev = agx_device(ctx->base.screen);
 
    /* If nothing is dirty, encode nothing */
    if (!ctx->dirty)
@@ -3520,7 +3527,7 @@ agx_encode_state(struct agx_batch *batch, uint8_t *out)
                                     : 0,
                                  &batch->generate_primitive_id);
 
-         batch->varyings = t.gpu;
+         batch->varyings = agx_usc_addr(dev, t.gpu);
       } else {
          batch->varyings = 0;
       }
