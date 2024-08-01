@@ -202,6 +202,14 @@ DestroyDRIDrawable(Display *dpy, GLXDrawable drawable)
 #endif
 }
 
+/* TODO: delete these after more refactoring */
+#if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
+int
+dri3_get_buffer_age(__GLXDRIdrawable *pdraw);
+int
+kopper_get_buffer_age(__GLXDRIdrawable *pdraw);
+#endif
+
 /**
  * Get a drawable's attribute.
  *
@@ -278,8 +286,10 @@ __glXGetDrawableAttribute(Display * dpy, GLXDrawable drawable,
 
       psc = pdraw->psc;
 
-      if (psc->driScreen->getBufferAge != NULL)
-         *value = psc->driScreen->getBufferAge(pdraw);
+      if (psc->display->driver == GLX_DRIVER_DRI3)
+         *value = dri3_get_buffer_age(pdraw);
+      else if (psc->display->driver == GLX_DRIVER_ZINK_YES)
+         *value = kopper_get_buffer_age(pdraw);
 
       return 1;
    }

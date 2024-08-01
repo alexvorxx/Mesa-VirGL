@@ -934,7 +934,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psp->waitForSBC = NULL;
    psp->setSwapInterval = NULL;
    psp->getSwapInterval = NULL;
-   psp->getBufferAge = NULL;
    psp->bindTexImage = dri2_bind_tex_image;
 
    psp->getDrawableMSC = dri2DrawableGetMSC;

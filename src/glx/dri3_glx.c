@@ -566,7 +566,9 @@ dri3_swap_buffers(__GLXDRIdrawable *pdraw, int64_t target_msc, int64_t divisor,
                                        flags, NULL, 0, false);
 }
 
-static int
+int
+dri3_get_buffer_age(__GLXDRIdrawable *pdraw);
+int
 dri3_get_buffer_age(__GLXDRIdrawable *pdraw)
 {
    struct dri3_drawable *priv = (struct dri3_drawable *)pdraw;
@@ -812,8 +814,6 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    __glXEnableDirectExtension(&psc->base, "GLX_SGI_video_sync");
 
    psp->copySubBuffer = dri3_copy_sub_buffer;
-
-   psp->getBufferAge = dri3_get_buffer_age;
 
    if (dri2GalliumConfigQuerys(psc->driScreenRenderGPU, "glx_extension_override",
                                     &tmp) == 0)

@@ -489,7 +489,9 @@ drisw_bind_tex_image(__GLXDRIdrawable *base,
    }
 }
 
-static int
+int
+kopper_get_buffer_age(__GLXDRIdrawable *pdraw);
+int
 kopper_get_buffer_age(__GLXDRIdrawable *pdraw)
 {
    struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
@@ -885,7 +887,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       psp->copySubBuffer = drisw_copy_sub_buffer;
 
    if (psc->kopper) {
-      psp->getBufferAge = kopper_get_buffer_age;
       psp->setSwapInterval = driswKopperSetSwapInterval;
       psp->getSwapInterval = kopperGetSwapInterval;
       psp->maxSwapInterval = 1;
