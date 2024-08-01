@@ -521,6 +521,11 @@ unsafe extern "C" fn can_remove_var(var: *mut nir_variable, _: *mut c_void) -> b
     }
 }
 
+const DV_OPTS: nir_remove_dead_variables_options = nir_remove_dead_variables_options {
+    can_remove_var: Some(can_remove_var),
+    can_remove_var_data: ptr::null_mut(),
+};
+
 fn lower_and_optimize_nir(
     dev: &Device,
     nir: &mut NirShader,
@@ -630,10 +635,6 @@ fn lower_and_optimize_nir(
         }
     }
 
-    let dv_opts = nir_remove_dead_variables_options {
-        can_remove_var: Some(can_remove_var),
-        can_remove_var_data: ptr::null_mut(),
-    };
     nir_pass!(
         nir,
         nir_remove_dead_variables,
@@ -642,7 +643,7 @@ fn lower_and_optimize_nir(
             | nir_variable_mode::nir_var_mem_constant
             | nir_variable_mode::nir_var_mem_shared
             | nir_variable_mode::nir_var_function_temp,
-        &dv_opts,
+        &DV_OPTS,
     );
 
     nir_pass!(nir, nir_lower_readonly_images_to_tex, true);
@@ -803,7 +804,7 @@ fn lower_and_optimize_nir(
         nir,
         nir_remove_dead_variables,
         nir_variable_mode::nir_var_function_temp | nir_variable_mode::nir_var_mem_shared,
-        &dv_opts,
+        &DV_OPTS,
     );
     nir_pass!(
         nir,
