@@ -681,6 +681,7 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
       pdp->xDepth = depth;
    }
 
+   pdp->swapInterval = dri_get_initial_swap_interval(psc->driScreen);
    /* Create a new drawable */
    if (psc->kopper) {
       pdp->driDrawable =
@@ -690,7 +691,6 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
             .is_pixmap = !(type & GLX_WINDOW_BIT),
          });
 
-      pdp->swapInterval = dri_get_initial_swap_interval(psc->driScreen);
       kopperSetSwapInterval(pdp->driDrawable, pdp->swapInterval);
    }
    else
