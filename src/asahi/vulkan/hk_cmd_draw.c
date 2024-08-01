@@ -2574,7 +2574,7 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
                ? AGX_ROBUSTNESS_D3D
                : AGX_ROBUSTNESS_GL,
 
-         .prolog.robustness.soft_fault = false /*TODO*/,
+         .prolog.robustness.soft_fault = agx_has_soft_fault(&dev->dev),
       };
 
       if (!key.prolog.hw) {

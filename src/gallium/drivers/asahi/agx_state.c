@@ -2213,17 +2213,14 @@ agx_update_vs(struct agx_context *ctx, unsigned index_size_B)
    agx_update_shader(ctx, &ctx->vs, PIPE_SHADER_VERTEX,
                      (union asahi_shader_key *)&key);
 
+   struct agx_device *dev = agx_device(ctx->base.screen);
    struct agx_fast_link_key link_key = {
       .prolog.vs.hw = key.hw,
       .prolog.vs.sw_index_size_B = key.hw ? 0 : index_size_B,
 
       /* TODO: We could optimize this */
-      .prolog.vs.robustness =
-         {
-            .level = AGX_ROBUSTNESS_GL,
-            .soft_fault = false,
-         },
-
+      .prolog.vs.robustness.level = AGX_ROBUSTNESS_GL,
+      .prolog.vs.robustness.soft_fault = agx_has_soft_fault(dev),
       .main = ctx->vs,
    };
 
