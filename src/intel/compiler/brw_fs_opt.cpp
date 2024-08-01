@@ -76,8 +76,6 @@ brw_fs_optimize(fs_visitor &s)
    progress = false;
    pass_num = 0;
 
-   OPT(brw_fs_opt_predicated_break);
-
    if (OPT(brw_fs_lower_pack)) {
       OPT(brw_fs_opt_register_coalesce);
       OPT(brw_fs_opt_dead_code_eliminate);

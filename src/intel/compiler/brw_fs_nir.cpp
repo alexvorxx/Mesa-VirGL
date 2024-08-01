@@ -450,7 +450,8 @@ fs_nir_emit_if(nir_to_brw_state &ntb, nir_if *if_stmt)
                            retype(cond_reg, BRW_TYPE_D));
    inst->conditional_mod = BRW_CONDITIONAL_NZ;
 
-   bld.IF(BRW_PREDICATE_NORMAL)->predicate_inverse = invert;
+   fs_inst *iff = bld.IF(BRW_PREDICATE_NORMAL);
+   iff->predicate_inverse = invert;
 
    fs_nir_emit_cf_list(ntb, &if_stmt->then_list);
 
@@ -459,7 +460,20 @@ fs_nir_emit_if(nir_to_brw_state &ntb, nir_if *if_stmt)
       fs_nir_emit_cf_list(ntb, &if_stmt->else_list);
    }
 
-   bld.emit(BRW_OPCODE_ENDIF);
+   fs_inst *endif = bld.emit(BRW_OPCODE_ENDIF);
+
+   /* Peephole: replace IF-JUMP-ENDIF with predicated jump */
+   if (endif->prev->prev == iff) {
+      fs_inst *jump = (fs_inst *) endif->prev;
+      if (jump->predicate == BRW_PREDICATE_NONE &&
+          (jump->opcode == BRW_OPCODE_BREAK ||
+           jump->opcode == BRW_OPCODE_CONTINUE)) {
+         jump->predicate = iff->predicate;
+         jump->predicate_inverse = iff->predicate_inverse;
+         iff->exec_node::remove();
+         endif->exec_node::remove();
+      }
+   }
 }
 
 static void
@@ -472,7 +486,17 @@ fs_nir_emit_loop(nir_to_brw_state &ntb, nir_loop *loop)
 
    fs_nir_emit_cf_list(ntb, &loop->body);
 
-   bld.emit(BRW_OPCODE_WHILE);
+   fs_inst *peep_while = bld.emit(BRW_OPCODE_WHILE);
+
+   /* Peephole: replace (+f0) break; while with (-f0) while */
+   fs_inst *peep_break = (fs_inst *) peep_while->prev;
+
+   if (peep_break->opcode == BRW_OPCODE_BREAK &&
+       peep_break->predicate != BRW_PREDICATE_NONE) {
+      peep_while->predicate = peep_break->predicate;
+      peep_while->predicate_inverse = !peep_break->predicate_inverse;
+      peep_break->exec_node::remove();
+   }
 }
 
 static void

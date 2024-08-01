@@ -98,7 +98,6 @@ libintel_compiler_brw_files = files(
   'brw_nir_rt.c',
   'brw_nir_rt_builder.h',
   'brw_packed_float.c',
-  'brw_predicated_break.cpp',
   'brw_print.cpp',
   'brw_prim.h',
   'brw_private.h',
@@ -194,7 +193,6 @@ if with_tests
     executable(
       'intel_compiler_brw_tests',
       files(
-        'test_predicated_break.cpp',
         'test_eu_compact.cpp',
         'test_eu_validate.cpp',
         'test_fs_cmod_propagation.cpp',
