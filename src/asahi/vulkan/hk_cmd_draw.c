@@ -871,7 +871,7 @@ hk_geometry_state(struct hk_cmd_buffer *cmd)
    /* We tie heap allocation to geometry state allocation, so allocate now. */
    if (unlikely(!dev->heap)) {
       size_t size = 128 * 1024 * 1024;
-      dev->heap = agx_bo_create(&dev->dev, size, 0, "Geometry heap");
+      dev->heap = agx_bo_create(&dev->dev, size, 0, 0, "Geometry heap");
 
       /* The geometry state buffer is initialized here and then is treated by
        * the CPU as rodata, even though the GPU uses it for scratch internally.

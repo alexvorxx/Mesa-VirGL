@@ -93,7 +93,7 @@ hk_CreateQueryPool(VkDevice device, const VkQueryPoolCreateInfo *pCreateInfo,
          bo_size += pool->query_stride * pool->vk.query_count;
 
       pool->bo =
-         agx_bo_create(&dev->dev, bo_size, AGX_BO_WRITEBACK, "Query pool");
+         agx_bo_create(&dev->dev, bo_size, 0, AGX_BO_WRITEBACK, "Query pool");
       if (!pool->bo) {
          hk_DestroyQueryPool(device, hk_query_pool_to_handle(pool), pAllocator);
          return vk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);

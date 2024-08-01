@@ -31,7 +31,7 @@ hk_CreateEvent(VkDevice device, const VkEventCreateInfo *pCreateInfo,
     * XXX
     */
    event->bo =
-      agx_bo_create(&dev->dev, HK_EVENT_MEM_SIZE, AGX_BO_WRITEBACK, "Event");
+      agx_bo_create(&dev->dev, HK_EVENT_MEM_SIZE, 0, AGX_BO_WRITEBACK, "Event");
    event->status = event->bo->ptr.cpu;
    event->addr = event->bo->ptr.gpu;
 

@@ -139,7 +139,7 @@ hk_AllocateMemory(VkDevice device, const VkMemoryAllocateInfo *pAllocateInfo,
       if (handle_types)
          flags |= AGX_BO_SHAREABLE;
 
-      mem->bo = agx_bo_create(&dev->dev, aligned_size, flags, "App memory");
+      mem->bo = agx_bo_create(&dev->dev, aligned_size, 0, flags, "App memory");
       if (!mem->bo) {
          result = vk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);
          goto fail_alloc;

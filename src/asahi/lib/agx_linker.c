@@ -115,7 +115,7 @@ agx_fast_link(struct agx_linked_shader *linked, struct agx_device *dev,
 
    assert(size > 0 && "must stop");
 
-   linked->bo = agx_bo_create(dev, size, AGX_BO_EXEC | AGX_BO_LOW_VA,
+   linked->bo = agx_bo_create(dev, size, 0, AGX_BO_EXEC | AGX_BO_LOW_VA,
                               "Linked executable");
 
    size_t offset = 0;

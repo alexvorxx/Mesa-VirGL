@@ -197,8 +197,8 @@ agx_bo_unreference(struct agx_device *dev, struct agx_bo *bo)
 }
 
 struct agx_bo *
-agx_bo_create_aligned(struct agx_device *dev, unsigned size, unsigned align,
-                      enum agx_bo_flags flags, const char *label)
+agx_bo_create(struct agx_device *dev, unsigned size, unsigned align,
+              enum agx_bo_flags flags, const char *label)
 {
    struct agx_bo *bo;
    assert(size > 0);

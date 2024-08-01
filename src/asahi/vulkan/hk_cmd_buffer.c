@@ -181,7 +181,7 @@ hk_pool_alloc_internal(struct hk_cmd_buffer *cmd, uint32_t size,
    if (size > HK_CMD_BO_SIZE) {
       uint32_t flags = usc ? AGX_BO_LOW_VA : 0;
       struct agx_bo *bo =
-         agx_bo_create(&dev->dev, size, flags, "Large pool allocation");
+         agx_bo_create(&dev->dev, size, flags, 0, "Large pool allocation");
 
       util_dynarray_append(&cmd->large_bos, struct agx_bo *, bo);
       return bo->ptr;

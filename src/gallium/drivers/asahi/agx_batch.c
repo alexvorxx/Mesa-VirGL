@@ -79,7 +79,7 @@ agx_batch_mark_complete(struct agx_batch *batch)
 struct agx_encoder
 agx_encoder_allocate(struct agx_batch *batch, struct agx_device *dev)
 {
-   struct agx_bo *bo = agx_bo_create(dev, 0x80000, 0, "Encoder");
+   struct agx_bo *bo = agx_bo_create(dev, 0x80000, 0, 0, "Encoder");
 
    return (struct agx_encoder){
       .bo = bo,

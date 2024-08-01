@@ -43,7 +43,7 @@ static VkResult
 hk_upload_rodata(struct hk_device *dev)
 {
    dev->rodata.bo =
-      agx_bo_create(&dev->dev, AGX_SAMPLER_LENGTH, 0, "Read only data");
+      agx_bo_create(&dev->dev, AGX_SAMPLER_LENGTH, 0, 0, "Read only data");
 
    if (!dev->rodata.bo)
       return VK_ERROR_OUT_OF_HOST_MEMORY;

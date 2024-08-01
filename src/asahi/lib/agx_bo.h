@@ -103,15 +103,9 @@ agx_bo_writer(uint32_t queue, uint32_t syncobj)
    return (((uint64_t)queue) << 32) | syncobj;
 }
 
-struct agx_bo *agx_bo_create_aligned(struct agx_device *dev, unsigned size,
-                                     unsigned align, enum agx_bo_flags flags,
-                                     const char *label);
-static inline struct agx_bo *
-agx_bo_create(struct agx_device *dev, unsigned size, enum agx_bo_flags flags,
-              const char *label)
-{
-   return agx_bo_create_aligned(dev, size, 0, flags, label);
-}
+struct agx_bo *agx_bo_create(struct agx_device *dev, unsigned size,
+                             unsigned align, enum agx_bo_flags flags,
+                             const char *label);
 
 void agx_bo_reference(struct agx_bo *bo);
 void agx_bo_unreference(struct agx_device *dev, struct agx_bo *bo);

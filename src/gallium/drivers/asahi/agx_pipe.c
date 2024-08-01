@@ -599,7 +599,7 @@ agx_resource_create_with_modifiers(struct pipe_screen *screen,
       create_flags |= AGX_BO_SHAREABLE;
 
    nresource->bo =
-      agx_bo_create(dev, nresource->layout.size_B, create_flags, label);
+      agx_bo_create(dev, nresource->layout.size_B, 0, create_flags, label);
 
    if (!nresource->bo) {
       FREE(nresource);
@@ -702,7 +702,7 @@ agx_shadow(struct agx_context *ctx, struct agx_resource *rsrc, bool needs_copy)
    if (needs_copy)
       flags |= AGX_BO_WRITEBACK;
 
-   struct agx_bo *new_ = agx_bo_create(dev, size, flags, old->label);
+   struct agx_bo *new_ = agx_bo_create(dev, size, 0, flags, old->label);
 
    /* If allocation failed, we can fallback on a flush gracefully*/
    if (new_ == NULL)
@@ -1922,7 +1922,7 @@ agx_create_context(struct pipe_screen *screen, void *priv, unsigned flags)
 
    ctx->result_buf =
       agx_bo_create(agx_device(screen),
-                    (2 * sizeof(union agx_batch_result)) * AGX_MAX_BATCHES,
+                    (2 * sizeof(union agx_batch_result)) * AGX_MAX_BATCHES, 0,
                     AGX_BO_WRITEBACK, "Batch result buffer");
    assert(ctx->result_buf);
 

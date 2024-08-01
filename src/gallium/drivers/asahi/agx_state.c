@@ -1590,7 +1590,7 @@ agx_compile_nir(struct agx_device *dev, nir_shader *nir,
    agx_compile_shader_nir(nir, &key, debug, &compiled->b);
 
    if (compiled->b.binary_size && !secondary) {
-      compiled->bo = agx_bo_create(dev, compiled->b.binary_size,
+      compiled->bo = agx_bo_create(dev, compiled->b.binary_size, 0,
                                    AGX_BO_EXEC | AGX_BO_LOW_VA, "Executable");
 
       memcpy(compiled->bo->ptr.cpu, compiled->b.binary,
@@ -2799,7 +2799,7 @@ agx_sampler_heap_add(struct agx_device *dev, struct agx_sampler_heap *heap,
    /* Allocate (maximally sized) BO if we haven't already */
    if (!heap->bo) {
       heap->bo = agx_bo_create(dev, AGX_SAMPLER_HEAP_SIZE * AGX_SAMPLER_LENGTH,
-                               AGX_BO_WRITEBACK, "Sampler heap");
+                               0, AGX_BO_WRITEBACK, "Sampler heap");
 
       assert(heap->count == 0);
    }

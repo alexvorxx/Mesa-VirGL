@@ -23,7 +23,7 @@ hk_descriptor_table_grow_locked(struct hk_device *dev,
    assert(new_alloc > table->alloc && new_alloc <= table->max_alloc);
 
    const uint32_t new_bo_size = new_alloc * table->desc_size;
-   new_bo = agx_bo_create(&dev->dev, new_bo_size, 0, "Descriptor table");
+   new_bo = agx_bo_create(&dev->dev, new_bo_size, 0, 0, "Descriptor table");
 
    if (new_bo == NULL) {
       return vk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,

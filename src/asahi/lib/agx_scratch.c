@@ -33,7 +33,7 @@ struct agx_bo *
 agx_build_helper(struct agx_device *dev)
 {
    struct agx_bo *bo = agx_bo_create(
-      dev, sizeof(libagx_g13_helper),
+      dev, sizeof(libagx_g13_helper), 0,
       AGX_BO_READONLY | AGX_BO_EXEC | AGX_BO_LOW_VA, "Helper shader");
    assert(bo);
    memcpy(bo->ptr.cpu, libagx_g13_helper, sizeof(libagx_g13_helper));
@@ -130,8 +130,8 @@ agx_scratch_realloc(struct agx_scratch *scratch)
 #ifdef SCRATCH_DEBUG
    flags = AGX_BO_WRITEBACK;
 #endif
-   scratch->buf = agx_bo_create_aligned(scratch->dev, total_alloc,
-                                        block_size_bytes, flags, "Scratch");
+   scratch->buf = agx_bo_create(scratch->dev, total_alloc, block_size_bytes,
+                                flags, "Scratch");
    memset(scratch->buf->ptr.cpu, 0, blocks_off);
 
    struct agx_helper_header *hdr = scratch->buf->ptr.cpu;

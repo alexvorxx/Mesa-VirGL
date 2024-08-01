@@ -70,7 +70,7 @@ agx_alloc_oq_heap(struct agx_context *ctx)
 
    heap->dev = agx_device(ctx->base.screen);
    heap->bo =
-      agx_bo_create(heap->dev, AGX_MAX_OCCLUSION_QUERIES * sizeof(uint64_t),
+      agx_bo_create(heap->dev, AGX_MAX_OCCLUSION_QUERIES * sizeof(uint64_t), 0,
                     AGX_BO_WRITEBACK, "Occlusion query heap");
 
    /* At the start, everything is available */
@@ -166,7 +166,7 @@ agx_create_query(struct pipe_context *ctx, unsigned query_type, unsigned index)
        * tracking / reference counting to deal with lifetimes.
        */
       query->bo = agx_bo_create(agx_device(ctx->screen), sizeof(uint64_t) * 2,
-                                AGX_BO_WRITEBACK, "Query");
+                                0, AGX_BO_WRITEBACK, "Query");
       query->ptr = query->bo->ptr;
    }
 
