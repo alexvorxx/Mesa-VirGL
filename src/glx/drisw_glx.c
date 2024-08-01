@@ -470,7 +470,7 @@ drisw_create_context_attribs(struct glx_screen *base,
                              const uint32_t *attribs,
                              unsigned *error)
 {
-   struct glx_context *pcp, *pcp_shared;
+   struct glx_context *pcp = NULL;
    __GLXDRIconfigPrivate *config = (__GLXDRIconfigPrivate *) config_base;
    struct drisw_screen *psc = (struct drisw_screen *) base;
    __DRIcontext *shared = NULL;
@@ -478,9 +478,6 @@ drisw_create_context_attribs(struct glx_screen *base,
    struct dri_ctx_attribs dca;
    uint32_t ctx_attribs[2 * 5];
    unsigned num_ctx_attribs = 0;
-
-   if (!psc->base.driScreen)
-      return NULL;
 
    *error = dri_convert_glx_attribs(num_attribs, attribs, &dca);
    if (*error != __DRI_CTX_ERROR_SUCCESS)
@@ -508,23 +505,27 @@ drisw_create_context_attribs(struct glx_screen *base,
          return NULL;
       }
 
-      pcp_shared = (struct glx_context *) shareList;
-      shared = pcp_shared->driContext;
+      shared = shareList->driContext;
    }
 
    pcp = calloc(1, sizeof *pcp);
-   if (pcp == NULL)
-      return NULL;
-
-   if (!glx_context_init(pcp, &psc->base, config_base)) {
-      free(pcp);
+   if (pcp == NULL) {
+      *error = BadAlloc;
       return NULL;
    }
+
+   if (!glx_context_init(pcp, &psc->base, config_base))
+      goto error_exit;
 
    ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_MAJOR_VERSION;
    ctx_attribs[num_ctx_attribs++] = dca.major_ver;
    ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_MINOR_VERSION;
    ctx_attribs[num_ctx_attribs++] = dca.minor_ver;
+
+   /* Only send a value when the non-default value is requested.  By doing
+    * this we don't have to check the driver's DRI2 version before sending the
+    * default value.
+    */
    if (dca.reset != __DRI_CTX_RESET_NO_NOTIFICATION) {
       ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_RESET_STRATEGY;
       ctx_attribs[num_ctx_attribs++] = dca.reset;
@@ -536,7 +537,7 @@ drisw_create_context_attribs(struct glx_screen *base,
    }
    if (dca.no_error) {
        ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_NO_ERROR;
-       ctx_attribs[num_ctx_attribs++] = GL_TRUE;
+       ctx_attribs[num_ctx_attribs++] = dca.no_error;
        pcp->noError = GL_TRUE;
    }
 
@@ -545,6 +546,9 @@ drisw_create_context_attribs(struct glx_screen *base,
       ctx_attribs[num_ctx_attribs++] = dca.flags;
    }
 
+   /* The renderType is retrieved from attribs, or set to default
+    *  of GLX_RGBA_TYPE.
+    */
    pcp->renderType = dca.render_type;
 
    pcp->driContext =
@@ -556,16 +560,20 @@ drisw_create_context_attribs(struct glx_screen *base,
                               ctx_attribs,
                               error,
                               pcp);
+
    *error = dri_context_error_to_glx_error(*error);
 
-   if (pcp->driContext == NULL) {
-      free(pcp);
-      return NULL;
-   }
+   if (pcp->driContext == NULL)
+      goto error_exit;
 
    pcp->vtable = base->context_vtable;
 
    return pcp;
+
+error_exit:
+   free(pcp);
+
+   return NULL;
 }
 
 static void
