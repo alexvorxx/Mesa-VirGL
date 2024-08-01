@@ -230,13 +230,15 @@ dri3_create_context_attribs(struct glx_screen *base,
       ctx_attribs[num_ctx_attribs++] = dca.flags;
    }
 
+   /* The renderType is retrieved from attribs, or set to default
+    *  of GLX_RGBA_TYPE.
+    */
    pcp->renderType = dca.render_type;
 
    pcp->driContext =
       driCreateContextAttribs(psc->driScreenRenderGPU,
                               dca.api,
-                              config ? config->driConfig
-                              : NULL,
+                              config ? config->driConfig : NULL,
                               shared,
                               num_ctx_attribs / 2,
                               ctx_attribs,
