@@ -589,19 +589,12 @@ driswDestroyScreen(struct glx_screen *base)
    free(psc);
 }
 
-static char *
-drisw_get_driver_name(struct glx_screen *glx_screen)
-{
-   struct drisw_screen *psc = (struct drisw_screen *) glx_screen;
-   return strdup(psc->base.driverName);
-}
-
 static const struct glx_screen_vtable drisw_screen_vtable = {
    .create_context         = dri_common_create_context,
    .create_context_attribs = dri_create_context_attribs,
    .query_renderer_integer = glx_dri_query_renderer_integer,
    .query_renderer_string  = glx_dri_query_renderer_string,
-   .get_driver_name        = drisw_get_driver_name,
+   .get_driver_name        = dri_get_driver_name,
 };
 
 static int

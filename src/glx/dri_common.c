@@ -933,4 +933,10 @@ error_exit:
    return NULL;
 }
 
+char *
+dri_get_driver_name(struct glx_screen *glx_screen)
+{
+    return strdup(glx_screen->driverName);
+}
+
 #endif /* GLX_DIRECT_RENDERING */
