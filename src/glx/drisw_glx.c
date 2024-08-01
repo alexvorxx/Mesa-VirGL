@@ -431,31 +431,6 @@ drisw_destroy_context(struct glx_context *context)
    free(context);
 }
 
-static int
-drisw_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read)
-{
-   struct drisw_screen *psc = (struct drisw_screen *) context->psc;
-   __GLXDRIdrawable *pdraw, *pread;
-
-   pdraw = driFetchDrawable(context, draw);
-   pread = driFetchDrawable(context, read);
-
-   driReleaseDrawables(context);
-
-   if (!driBindContext(context->driContext,
-                               pdraw ? pdraw->dri_drawable : NULL,
-                               pread ? pread->dri_drawable : NULL))
-      return GLXBadContext;
-   if (psc->kopper) {
-      if (pdraw)
-         dri_invalidate_drawable(pdraw->dri_drawable);
-      if (pread && (!pdraw || pread->dri_drawable != pdraw->dri_drawable))
-         dri_invalidate_drawable(pread->dri_drawable);
-   }
-
-   return Success;
-}
-
 static void
 drisw_unbind_context(struct glx_context *context)
 {
@@ -498,7 +473,7 @@ kopper_get_buffer_age(__GLXDRIdrawable *pdraw)
 
 static const struct glx_context_vtable drisw_context_vtable = {
    .destroy             = drisw_destroy_context,
-   .bind                = drisw_bind_context,
+   .bind                = dri_bind_context,
    .unbind              = drisw_unbind_context,
    .wait_gl             = drisw_wait_gl,
    .wait_x              = drisw_wait_x,

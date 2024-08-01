@@ -99,33 +99,6 @@ dri2_destroy_context(struct glx_context *context)
    free(context);
 }
 
-static Bool
-dri2_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read)
-{
-   __GLXDRIdrawable *pdraw, *pread;
-   __DRIdrawable *dri_draw = NULL, *dri_read = NULL;
-
-   pdraw = driFetchDrawable(context, draw);
-   pread = driFetchDrawable(context, read);
-
-   driReleaseDrawables(context);
-
-   if (pdraw)
-      dri_draw = pdraw->dri_drawable;
-   else if (draw != None)
-      return GLXBadDrawable;
-
-   if (pread)
-      dri_read = pread->dri_drawable;
-   else if (read != None)
-      return GLXBadDrawable;
-
-   if (!driBindContext(context->driContext, dri_draw, dri_read))
-      return GLXBadContext;
-
-   return Success;
-}
-
 static void
 dri2_unbind_context(struct glx_context *context)
 {
@@ -811,7 +784,7 @@ dri2_bind_tex_image(__GLXDRIdrawable *base,
 
 static const struct glx_context_vtable dri2_context_vtable = {
    .destroy             = dri2_destroy_context,
-   .bind                = dri2_bind_context,
+   .bind                = dri_bind_context,
    .unbind              = dri2_unbind_context,
    .wait_gl             = dri2_wait_gl,
    .wait_x              = dri2_wait_x,

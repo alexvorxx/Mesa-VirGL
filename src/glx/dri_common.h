@@ -89,6 +89,8 @@ dri_common_create_context(struct glx_screen *base,
 extern const __DRIbackgroundCallableExtension driBackgroundCallable;
 extern const __DRIuseInvalidateExtension dri2UseInvalidate;
 
+Bool
+dri_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read);
 #endif /* GLX_DIRECT_RENDERING */
 
 #endif /* _DRI_COMMON_H */

@@ -766,4 +766,39 @@ const __DRIuseInvalidateExtension dri2UseInvalidate = {
    .base = { __DRI_USE_INVALIDATE, 1 }
 };
 
+Bool
+dri_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read)
+{
+   __GLXDRIdrawable *pdraw, *pread;
+   __DRIdrawable *dri_draw = NULL, *dri_read = NULL;
+
+   pdraw = driFetchDrawable(context, draw);
+   pread = driFetchDrawable(context, read);
+
+   driReleaseDrawables(context);
+
+   if (pdraw)
+      dri_draw = pdraw->dri_drawable;
+   else if (draw != None)
+      return GLXBadDrawable;
+
+   if (pread)
+      dri_read = pread->dri_drawable;
+   else if (read != None)
+      return GLXBadDrawable;
+
+   if (!driBindContext(context->driContext, dri_draw, dri_read))
+      return GLXBadContext;
+
+   if (context->psc->display->driver == GLX_DRIVER_DRI3 ||
+       context->psc->display->driver == GLX_DRIVER_ZINK_YES) {
+      if (dri_draw)
+         dri_invalidate_drawable(dri_draw);
+      if (dri_read && dri_read != dri_draw)
+         dri_invalidate_drawable(dri_read);
+   }
+
+   return Success;
+}
+
 #endif /* GLX_DIRECT_RENDERING */
