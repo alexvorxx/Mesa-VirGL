@@ -418,7 +418,7 @@ dri3_get_buffer_age(__GLXDRIdrawable *pdraw)
 /** dri3_destroy_screen
  */
 static void
-dri3_destroy_screen(struct glx_screen *base)
+dri3_deinit_screen(struct glx_screen *base)
 {
    struct dri3_screen *psc = (struct dri3_screen *) base;
 
@@ -432,7 +432,6 @@ dri3_destroy_screen(struct glx_screen *base)
    loader_dri3_close_screen(psc->driScreenRenderGPU);
    driDestroyScreen(psc->driScreenRenderGPU);
    close(psc->fd_render_gpu);
-   free(psc);
 }
 
 /** dri3_set_swap_interval
@@ -595,7 +594,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    psp = &psc->vtable;
    psc->base.driScreen = psp;
    psc->base.frontend_screen = psc->driScreenRenderGPU;
-   psp->destroyScreen = dri3_destroy_screen;
+   psp->deinitScreen = dri3_deinit_screen;
    psp->createDrawable = dri3_create_drawable;
    psp->swapBuffers = dri3_swap_buffers;
 

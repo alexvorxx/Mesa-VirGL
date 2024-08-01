@@ -420,14 +420,13 @@ dri2FlushFrontBuffer(__DRIdrawable *driDrawable, void *loaderPrivate)
 
 
 static void
-dri2DestroyScreen(struct glx_screen *base)
+dri2DeinitScreen(struct glx_screen *base)
 {
    struct dri2_screen *psc = (struct dri2_screen *) base;
 
    /* Free the direct rendering per screen data */
    driDestroyScreen(psc->base.frontend_screen);
    close(psc->fd);
-   free(psc);
 }
 
 /**
@@ -732,7 +731,7 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psc->base.context_vtable = &dri2_context_vtable;
    psp = &psc->vtable;
    psc->base.driScreen = psp;
-   psp->destroyScreen = dri2DestroyScreen;
+   psp->deinitScreen = dri2DeinitScreen;
    psp->createDrawable = dri2CreateDrawable;
    psp->swapBuffers = dri2SwapBuffers;
    psp->getDrawableMSC = NULL;

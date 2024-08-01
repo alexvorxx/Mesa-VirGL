@@ -240,14 +240,10 @@ FreeScreenConfigs(struct glx_display * priv)
       glx_screen_cleanup(psc);
 
 #if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
-      if (psc->driScreen) {
-         psc->driScreen->destroyScreen(psc);
-      } else {
-	 free(psc);
-      }
-#else
-      free(psc);
+      if (psc->driScreen && psc->driScreen->deinitScreen)
+         psc->driScreen->deinitScreen(psc);
 #endif
+      free(psc);
    }
    free((char *) priv->screens);
    priv->screens = NULL;

@@ -564,13 +564,12 @@ drisw_copy_sub_buffer(__GLXDRIdrawable * pdraw,
 }
 
 static void
-driswDestroyScreen(struct glx_screen *base)
+driswDeinitScreen(struct glx_screen *base)
 {
    struct drisw_screen *psc = (struct drisw_screen *) base;
 
    /* Free the direct rendering per screen data */
    driDestroyScreen(psc->base.frontend_screen);
-   free(psc);
 }
 
 static int
@@ -692,7 +691,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    psp = &psc->vtable;
    psc->base.driScreen = psp;
    psc->base.can_EXT_texture_from_pixmap = true;
-   psp->destroyScreen = driswDestroyScreen;
+   psp->deinitScreen = driswDeinitScreen;
    psp->createDrawable = driswCreateDrawable;
    psp->swapBuffers = driswSwapBuffers;
    psp->bindTexImage = dri_bind_tex_image;

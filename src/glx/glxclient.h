@@ -91,7 +91,7 @@ typedef struct __GLXDRIdrawableRec __GLXDRIdrawable;
 
 struct __GLXDRIscreenRec {
 
-   void (*destroyScreen)(struct glx_screen *psc);
+   void (*deinitScreen)(struct glx_screen *psc);
 
    __GLXDRIdrawable *(*createDrawable)(struct glx_screen *psc,
 				       XID drawable,
