@@ -1558,9 +1558,7 @@ agx_compile_nir(struct agx_device *dev, nir_shader *nir,
       BITSET_COPY(compiled->attrib_components_read, attrib_components_read);
 
    struct agx_shader_key key = {
-      .needs_g13x_coherency = (dev->params.gpu_generation == 13 &&
-                               dev->params.num_clusters_total > 1) ||
-                              dev->params.num_dies > 1,
+      .dev = agx_gather_device_key(dev),
       .libagx = dev->libagx,
       .has_scratch = !secondary,
       .promote_constants = true,

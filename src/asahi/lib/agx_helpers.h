@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include "asahi/compiler/agx_compile.h"
 #include "asahi/layout/layout.h"
+#include "agx_device.h"
 #include "agx_pack.h"
 #include "agx_ppp.h"
 
@@ -234,4 +235,14 @@ agx_calculate_vbo_clamp(uint64_t vbuf, uint64_t sink, enum pipe_format format,
       *vbuf_out = sink;
       return 0;
    }
+}
+
+static struct agx_device_key
+agx_gather_device_key(struct agx_device *dev)
+{
+   return (struct agx_device_key){
+      .needs_g13x_coherency = (dev->params.gpu_generation == 13 &&
+                               dev->params.num_clusters_total > 1) ||
+                              dev->params.num_dies > 1,
+   };
 }

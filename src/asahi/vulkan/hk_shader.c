@@ -789,9 +789,7 @@ hk_compile_nir(struct hk_device *dev, const VkAllocationCallbacks *pAllocator,
 #endif
 
    struct agx_shader_key backend_key = {
-      .needs_g13x_coherency = (dev->dev.params.gpu_generation == 13 &&
-                               dev->dev.params.num_clusters_total > 1) ||
-                              dev->dev.params.num_dies > 1,
+      .dev = agx_gather_device_key(&dev->dev),
       .reserved_preamble = 128 /* TODO */,
       .libagx = dev->dev.libagx,
       .no_stop = nir->info.stage == MESA_SHADER_FRAGMENT,

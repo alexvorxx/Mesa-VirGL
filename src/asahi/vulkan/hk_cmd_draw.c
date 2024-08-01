@@ -1706,9 +1706,7 @@ hk_get_prolog_epilog_locked(struct hk_device *dev, struct hk_internal_key *key,
       agx_preprocess_nir(b.shader, dev->dev.libagx);
 
    struct agx_shader_key backend_key = {
-      .needs_g13x_coherency = (dev->dev.params.gpu_generation == 13 &&
-                               dev->dev.params.num_clusters_total > 1) ||
-                              dev->dev.params.num_dies > 1,
+      .dev = agx_gather_device_key(&dev->dev),
       .libagx = dev->dev.libagx,
       .secondary = true,
       .no_stop = !stop,

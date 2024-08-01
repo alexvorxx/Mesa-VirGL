@@ -185,14 +185,19 @@ struct agx_fs_shader_key {
    uint8_t cf_base;
 };
 
-struct agx_shader_key {
-   /* Number of reserved preamble slots at the start */
-   unsigned reserved_preamble;
-
+struct agx_device_key {
    /* Does the target GPU need explicit cluster coherency for atomics?
     * Only used on G13X.
     */
    bool needs_g13x_coherency;
+};
+
+struct agx_shader_key {
+   /* Device info */
+   struct agx_device_key dev;
+
+   /* Number of reserved preamble slots at the start */
+   unsigned reserved_preamble;
 
    /* Library routines to link against */
    const nir_shader *libagx;

@@ -1150,7 +1150,8 @@ agx_pack_binary(agx_context *ctx, struct util_dynarray *emission)
 
       agx_foreach_instr_in_block(block, ins) {
          block->last_offset = emission->size;
-         agx_pack_instr(emission, &fixups, ins, ctx->key->needs_g13x_coherency);
+         agx_pack_instr(emission, &fixups, ins,
+                        ctx->key->dev.needs_g13x_coherency);
       }
    }
 
