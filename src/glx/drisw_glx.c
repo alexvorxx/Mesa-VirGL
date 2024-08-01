@@ -512,9 +512,9 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
       pdp->xDepth = depth;
    }
 
-   pdp->swapInterval = dri_get_initial_swap_interval(psc->driScreen);
+   pdp->swapInterval = dri_get_initial_swap_interval(psc->base.frontend_screen);
    /* Create a new drawable */
-   pdp->base.dri_drawable = dri_create_drawable(psc->driScreen, config->driConfig, !(type & GLX_WINDOW_BIT), pdp);
+   pdp->base.dri_drawable = dri_create_drawable(psc->base.frontend_screen, config->driConfig, !(type & GLX_WINDOW_BIT), pdp);
    if (psc->kopper)
       kopperSetSwapInterval(pdp->base.dri_drawable, pdp->swapInterval);
 
@@ -569,9 +569,8 @@ driswDestroyScreen(struct glx_screen *base)
    struct drisw_screen *psc = (struct drisw_screen *) base;
 
    /* Free the direct rendering per screen data */
-   driDestroyScreen(psc->driScreen);
+   driDestroyScreen(psc->base.frontend_screen);
    driDestroyConfigs(psc->driver_configs);
-   psc->driScreen = NULL;
    free(psc);
 }
 
@@ -614,7 +613,7 @@ driswKopperSetSwapInterval(__GLXDRIdrawable *pdraw, int interval)
    struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
    struct drisw_screen *psc = (struct drisw_screen *) pdp->base.psc;
 
-   if (!dri_valid_swap_interval(psc->driScreen, interval))
+   if (!dri_valid_swap_interval(psc->base.frontend_screen, interval))
       return GLX_BAD_VALUE;
 
    kopperSetSwapInterval(pdp->base.dri_drawable, interval);
@@ -664,11 +663,11 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    else
       loader_extensions_local = loader_extensions_shm;
 
-   psc->driScreen = driCreateNewScreen3(screen, -1, loader_extensions_local,
+   psc->base.frontend_screen = driCreateNewScreen3(screen, -1, loader_extensions_local,
                                         glx_driver ? DRI_SCREEN_KOPPER : DRI_SCREEN_SWRAST,
                                         &driver_configs, driver_name_is_inferred,
                                         priv->has_multibuffer, psc);
-   if (psc->driScreen == NULL) {
+   if (psc->base.frontend_screen == NULL) {
       if (!glx_driver || !driver_name_is_inferred)
          ErrorMessageF("glx: failed to create drisw screen\n");
       goto handle_error;
@@ -693,7 +692,6 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
    psc->base.context_vtable = &drisw_context_vtable;
    psp = &psc->vtable;
    psc->base.driScreen = psp;
-   psc->base.frontend_screen = psc->driScreen;
    psc->base.can_EXT_texture_from_pixmap = true;
    psp->destroyScreen = driswDestroyScreen;
    psp->createDrawable = driswCreateDrawable;
@@ -718,9 +716,8 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
        glx_config_destroy_list(configs);
    if (visuals)
        glx_config_destroy_list(visuals);
-   if (psc->driScreen)
-       driDestroyScreen(psc->driScreen);
-   psc->driScreen = NULL;
+   if (psc->base.frontend_screen)
+       driDestroyScreen(psc->base.frontend_screen);
 
    glx_screen_cleanup(&psc->base);
    free(psc);

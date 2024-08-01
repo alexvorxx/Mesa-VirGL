@@ -132,13 +132,13 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
    pdraw->base.drawable = drawable;
    pdraw->base.psc = &psc->base;
    pdraw->bufferCount = 0;
-   pdraw->swap_interval = dri_get_initial_swap_interval(psc->driScreen);
+   pdraw->swap_interval = dri_get_initial_swap_interval(psc->base.frontend_screen);
    pdraw->have_back = 0;
 
    DRI2CreateDrawable(psc->base.dpy, xDrawable);
    /* Create a new drawable */
    pdraw->base.dri_drawable =
-      dri_create_drawable(psc->driScreen, config->driConfig, false, pdraw);
+      dri_create_drawable(psc->base.frontend_screen, config->driConfig, false, pdraw);
 
    if (!pdraw->base.dri_drawable) {
       DRI2DestroyDrawable(psc->base.dpy, xDrawable);
@@ -425,7 +425,7 @@ dri2DestroyScreen(struct glx_screen *base)
    struct dri2_screen *psc = (struct dri2_screen *) base;
 
    /* Free the direct rendering per screen data */
-   driDestroyScreen(psc->driScreen);
+   driDestroyScreen(psc->base.frontend_screen);
    driDestroyConfigs(psc->driver_configs);
    close(psc->fd);
    free(psc);
@@ -598,7 +598,7 @@ dri2SetSwapInterval(__GLXDRIdrawable *pdraw, int interval)
    struct dri2_drawable *priv =  (struct dri2_drawable *) pdraw;
    struct dri2_screen *psc = (struct dri2_screen *) priv->base.psc;
 
-   if (!dri_valid_swap_interval(psc->driScreen, interval))
+   if (!dri_valid_swap_interval(psc->base.frontend_screen, interval))
       return GLX_BAD_VALUE;
 
    xcb_dri2_swap_interval(c, priv->base.xDrawable, interval);
@@ -705,11 +705,11 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    }
    psc->base.driverName = driverName;
 
-   psc->driScreen = driCreateNewScreen3(screen, psc->fd, loader_extensions, DRI_SCREEN_DRI3,
+   psc->base.frontend_screen = driCreateNewScreen3(screen, psc->fd, loader_extensions, DRI_SCREEN_DRI3,
                                         &driver_configs, driver_name_is_inferred,
                                         priv->has_multibuffer, psc);
 
-   if (psc->driScreen == NULL) {
+   if (psc->base.frontend_screen == NULL) {
       ErrorMessageF("glx: failed to create dri2 screen\n");
       goto handle_error;
    }
@@ -733,7 +733,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    psc->base.context_vtable = &dri2_context_vtable;
    psp = &psc->vtable;
    psc->base.driScreen = psp;
-   psc->base.frontend_screen = psc->driScreen;
    psp->destroyScreen = dri2DestroyScreen;
    psp->createDrawable = dri2CreateDrawable;
    psp->swapBuffers = dri2SwapBuffers;
@@ -756,24 +755,24 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
    __glXEnableDirectExtension(&psc->base, "GLX_OML_sync_control");
    __glXEnableDirectExtension(&psc->base, "GLX_SGI_video_sync");
 
-   if (dri2GalliumConfigQuerys(psc->driScreen, "glx_extension_override",
+   if (dri2GalliumConfigQuerys(psc->base.frontend_screen, "glx_extension_override",
                                     &tmp) == 0)
       __glXParseExtensionOverride(&psc->base, tmp);
 
-   if (dri2GalliumConfigQuerys(psc->driScreen,
+   if (dri2GalliumConfigQuerys(psc->base.frontend_screen,
                                     "indirect_gl_extension_override",
                                     &tmp) == 0)
       __IndirectGlParseExtensionOverride(&psc->base, tmp);
 
    {
       uint8_t force = false;
-      if (dri2GalliumConfigQueryb(psc->driScreen, "force_direct_glx_context",
+      if (dri2GalliumConfigQueryb(psc->base.frontend_screen, "force_direct_glx_context",
                                     &force) == 0) {
          psc->base.force_direct_context = force;
       }
 
       uint8_t invalid_glx_destroy_window = false;
-      if (dri2GalliumConfigQueryb(psc->driScreen,
+      if (dri2GalliumConfigQueryb(psc->base.frontend_screen,
                                     "allow_invalid_glx_destroy_window",
                                     &invalid_glx_destroy_window) == 0) {
          psc->base.allow_invalid_glx_destroy_window = invalid_glx_destroy_window;
@@ -804,9 +803,9 @@ handle_error:
        glx_config_destroy_list(configs);
    if (visuals)
        glx_config_destroy_list(visuals);
-   if (psc->driScreen)
-       driDestroyScreen(psc->driScreen);
-   psc->driScreen = NULL;
+   if (psc->base.frontend_screen)
+       driDestroyScreen(psc->base.frontend_screen);
+   psc->base.frontend_screen = NULL;
    if (psc->fd >= 0)
       close(psc->fd);
 

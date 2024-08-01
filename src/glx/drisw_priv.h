@@ -37,7 +37,6 @@ struct drisw_screen
 {
    struct glx_screen base;
 
-   __DRIscreen *driScreen;
    __GLXDRIscreen vtable;
 
    const __DRIconfig **driver_configs;
