@@ -145,121 +145,6 @@ static const struct loader_dri3_vtable glx_dri3_vtable = {
 
 static const struct glx_context_vtable dri3_context_vtable;
 
-static struct glx_context *
-dri3_create_context_attribs(struct glx_screen *base,
-                            struct glx_config *config_base,
-                            struct glx_context *shareList,
-                            unsigned num_attribs,
-                            const uint32_t *attribs,
-                            unsigned *error)
-{
-   struct glx_context *pcp = NULL;
-   struct dri3_screen *psc = (struct dri3_screen *) base;
-   __GLXDRIconfigPrivate *config = (__GLXDRIconfigPrivate *) config_base;
-   __DRIcontext *shared = NULL;
-
-   struct dri_ctx_attribs dca;
-   uint32_t ctx_attribs[2 * 6];
-   unsigned num_ctx_attribs = 0;
-
-   *error = dri_convert_glx_attribs(num_attribs, attribs, &dca);
-   if (*error != __DRI_CTX_ERROR_SUCCESS)
-      goto error_exit;
-
-   /* Check the renderType value */
-   if (!validate_renderType_against_config(config_base, dca.render_type)) {
-      *error = BadValue;
-      goto error_exit;
-   }
-
-   if (shareList) {
-      /* We can't share with an indirect context */
-      if (!shareList->isDirect)
-         return NULL;
-
-      /* The GLX_ARB_create_context_no_error specs say:
-       *
-       *    BadMatch is generated if the value of GLX_CONTEXT_OPENGL_NO_ERROR_ARB
-       *    used to create <share_context> does not match the value of
-       *    GLX_CONTEXT_OPENGL_NO_ERROR_ARB for the context being created.
-       */
-      if (!!shareList->noError != !!dca.no_error) {
-         *error = BadMatch;
-         return NULL;
-      }
-
-      shared = shareList->driContext;
-   }
-
-   pcp = calloc(1, sizeof *pcp);
-   if (pcp == NULL) {
-      *error = BadAlloc;
-      goto error_exit;
-   }
-
-   if (!glx_context_init(pcp, &psc->base, config_base))
-      goto error_exit;
-
-   ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_MAJOR_VERSION;
-   ctx_attribs[num_ctx_attribs++] = dca.major_ver;
-   ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_MINOR_VERSION;
-   ctx_attribs[num_ctx_attribs++] = dca.minor_ver;
-
-   /* Only send a value when the non-default value is requested.  By doing
-    * this we don't have to check the driver's DRI3 version before sending the
-    * default value.
-    */
-   if (dca.reset != __DRI_CTX_RESET_NO_NOTIFICATION) {
-      ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_RESET_STRATEGY;
-      ctx_attribs[num_ctx_attribs++] = dca.reset;
-   }
-
-   if (dca.release != __DRI_CTX_RELEASE_BEHAVIOR_FLUSH) {
-      ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_RELEASE_BEHAVIOR;
-      ctx_attribs[num_ctx_attribs++] = dca.release;
-   }
-
-   if (dca.no_error) {
-      ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_NO_ERROR;
-      ctx_attribs[num_ctx_attribs++] = dca.no_error;
-      pcp->noError = GL_TRUE;
-   }
-
-   if (dca.flags != 0) {
-      ctx_attribs[num_ctx_attribs++] = __DRI_CTX_ATTRIB_FLAGS;
-      ctx_attribs[num_ctx_attribs++] = dca.flags;
-   }
-
-   /* The renderType is retrieved from attribs, or set to default
-    *  of GLX_RGBA_TYPE.
-    */
-   pcp->renderType = dca.render_type;
-
-   pcp->driContext =
-      driCreateContextAttribs(psc->driScreenRenderGPU,
-                              dca.api,
-                              config ? config->driConfig : NULL,
-                              shared,
-                              num_ctx_attribs / 2,
-                              ctx_attribs,
-                              error,
-                              pcp);
-
-   *error = dri_context_error_to_glx_error(*error);
-
-   if (pcp->driContext == NULL)
-      goto error_exit;
-
-   pcp->vtable = base->context_vtable;
-
-   return pcp;
-
-error_exit:
-   free(pcp);
-
-   return NULL;
-}
-
 static void
 dri3_destroy_drawable(__GLXDRIdrawable *base)
 {
@@ -621,7 +506,7 @@ dri3_get_driver_name(struct glx_screen *glx_screen)
 
 static const struct glx_screen_vtable dri3_screen_vtable = {
    .create_context         = dri_common_create_context,
-   .create_context_attribs = dri3_create_context_attribs,
+   .create_context_attribs = dri_create_context_attribs,
    .query_renderer_integer = dri3_query_renderer_integer,
    .query_renderer_string  = dri3_query_renderer_string,
    .get_driver_name        = dri3_get_driver_name,

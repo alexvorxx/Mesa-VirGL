@@ -95,6 +95,13 @@ void
 dri_unbind_context(struct glx_context *context);
 void
 dri_destroy_context(struct glx_context *context);
+struct glx_context *
+dri_create_context_attribs(struct glx_screen *base,
+                           struct glx_config *config_base,
+                           struct glx_context *shareList,
+                           unsigned num_attribs,
+                           const uint32_t *attribs,
+                           unsigned *error);
 #endif /* GLX_DIRECT_RENDERING */
 
 #endif /* _DRI_COMMON_H */
