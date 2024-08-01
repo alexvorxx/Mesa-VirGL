@@ -40,7 +40,6 @@ FILE *agxdecode_dump_stream;
 
 struct agxdecode_ctx {
    struct util_dynarray mmap_array;
-   struct util_dynarray ro_mappings;
 };
 
 struct agxdecode_ctx *
@@ -56,8 +55,8 @@ agxdecode_destroy_context(struct agxdecode_ctx *ctx)
 }
 
 static struct agx_bo *
-agxdecode_find_mapped_gpu_mem_containing_rw(struct agxdecode_ctx *ctx,
-                                            uint64_t addr)
+agxdecode_find_mapped_gpu_mem_containing(struct agxdecode_ctx *ctx,
+                                         uint64_t addr)
 {
    util_dynarray_foreach(&ctx->mmap_array, struct agx_bo, it) {
       if (it->type == AGX_ALLOC_REGULAR && addr >= it->ptr.gpu &&
@@ -66,21 +65,6 @@ agxdecode_find_mapped_gpu_mem_containing_rw(struct agxdecode_ctx *ctx,
    }
 
    return NULL;
-}
-
-static struct agx_bo *
-agxdecode_find_mapped_gpu_mem_containing(struct agxdecode_ctx *ctx,
-                                         uint64_t addr)
-{
-   struct agx_bo *mem = agxdecode_find_mapped_gpu_mem_containing_rw(ctx, addr);
-
-   if (mem && mem->ptr.cpu && !mem->ro) {
-      mprotect(mem->ptr.cpu, mem->size, PROT_READ);
-      mem->ro = true;
-      util_dynarray_append(&ctx->ro_mappings, struct agx_bo *, mem);
-   }
-
-   return mem;
 }
 
 static struct agx_bo *
@@ -139,17 +123,6 @@ __agxdecode_fetch_gpu_mem(struct agxdecode_ctx *ctx, const struct agx_bo *mem,
 
 #define agxdecode_fetch_gpu_array(ctx, gpu_va, buf)                            \
    agxdecode_fetch_gpu_mem(ctx, gpu_va, sizeof(buf), buf)
-
-static void
-agxdecode_map_read_write(struct agxdecode_ctx *ctx)
-{
-   util_dynarray_foreach(&ctx->ro_mappings, struct agx_bo *, it) {
-      (*it)->ro = false;
-      mprotect((*it)->ptr.cpu, (*it)->size, PROT_READ | PROT_WRITE);
-   }
-
-   util_dynarray_clear(&ctx->ro_mappings);
-}
 
 /* Helpers for parsing the cmdstream */
 
@@ -863,8 +836,6 @@ agxdecode_image_heap(struct agxdecode_ctx *ctx, uint64_t heap,
    }
 
    free(map);
-
-   agxdecode_map_read_write(ctx);
 }
 
 void
@@ -946,8 +917,6 @@ agxdecode_drm_cmd_render(struct agxdecode_ctx *ctx,
       DUMP_FIELD((&fragment_attachments[i]), "0x%llx", size);
       DUMP_FIELD((&fragment_attachments[i]), "0x%llx", pointer);
    }
-
-   agxdecode_map_read_write(ctx);
 }
 
 void
@@ -965,8 +934,6 @@ agxdecode_drm_cmd_compute(struct agxdecode_ctx *ctx,
    DUMP_FIELD(c, "0x%x", cmd_id);
 
    agxdecode_sampler_heap(ctx, c->sampler_array, c->sampler_count);
-
-   agxdecode_map_read_write(ctx);
 
    if (c->helper_program & 1) {
       fprintf(agxdecode_dump_stream, "Helper program:\n");
@@ -1055,8 +1022,6 @@ agxdecode_cmdstream(struct agxdecode_ctx *ctx, unsigned cmdbuf_handle,
       agxdecode_cs((uint32_t *)cmdbuf->ptr.cpu, cmd.encoder, verbose, &params);
    else
       agxdecode_gfx((uint32_t *)cmdbuf->ptr.cpu, cmd.encoder, verbose, &params);
-
-   agxdecode_map_read_write();
 }
 
 #endif

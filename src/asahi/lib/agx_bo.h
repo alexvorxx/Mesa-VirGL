@@ -86,9 +86,6 @@ struct agx_bo {
    /* Update atomically */
    int32_t refcnt;
 
-   /* Used while decoding, marked read-only */
-   bool ro;
-
    /* For debugging */
    const char *label;
 
