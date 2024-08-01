@@ -232,9 +232,6 @@ lower_system_value_instr(nir_builder *b, nir_instr *instr, void *_state)
             return nir_imm_int(b, 0);
          break;
 
-      case SYSTEM_VALUE_GLOBAL_GROUP_SIZE:
-         return build_global_group_size(b, bit_size);
-
       case SYSTEM_VALUE_BARYCENTRIC_LINEAR_PIXEL:
          return nir_load_barycentric(b, nir_intrinsic_load_barycentric_pixel,
                                      INTERP_MODE_NOPERSPECTIVE);
@@ -717,7 +714,7 @@ lower_compute_system_value_instr(nir_builder *b,
       /* OpenCL's global_linear_id explicitly ignores the global offset */
       assert(b->shader->info.stage == MESA_SHADER_KERNEL);
       nir_def *global_id = nir_load_global_invocation_id(b, bit_size);
-      nir_def *global_size = build_global_group_size(b, bit_size);
+      nir_def *global_size = nir_load_global_size(b, bit_size);
 
       /* index = id.x + ((id.y + (id.z * size.y)) * size.x) */
       nir_def *index;
@@ -727,6 +724,12 @@ lower_compute_system_value_instr(nir_builder *b,
       index = nir_imul(b, nir_channel(b, global_size, 0), index);
       index = nir_iadd(b, nir_channel(b, global_id, 0), index);
       return index;
+   }
+
+   case nir_intrinsic_load_global_size: {
+      if (options && !options->has_global_size)
+         return build_global_group_size(b, bit_size);
+      return NULL;
    }
 
    case nir_intrinsic_load_workgroup_id: {

@@ -5971,6 +5971,7 @@ nir_build_lowered_load_helper_invocation(struct nir_builder *b);
 typedef struct nir_lower_compute_system_values_options {
    bool has_base_global_invocation_id : 1;
    bool has_base_workgroup_id : 1;
+   bool has_global_size : 1;
    bool shuffle_local_ids_for_quad_derivatives : 1;
    bool lower_local_invocation_index : 1;
    bool lower_cs_local_id_to_index : 1;

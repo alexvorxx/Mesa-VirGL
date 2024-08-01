@@ -939,6 +939,8 @@ system_value("global_invocation_id", 3, bit_sizes=[32, 64])
 # e.g. global_work_offset of clEnqueueNDRangeKernel
 system_value("base_global_invocation_id", 3, bit_sizes=[32, 64])
 system_value("global_invocation_index", 1, bit_sizes=[32, 64])
+# threads per dimension in an invocation
+system_value("global_size", 3, bit_sizes=[32, 64])
 system_value("work_dim", 1)
 system_value("line_width", 1)
 system_value("aa_line_width", 1)
