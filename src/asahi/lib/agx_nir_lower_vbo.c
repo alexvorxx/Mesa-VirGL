@@ -198,10 +198,16 @@ pass(struct nir_builder *b, nir_intrinsic_instr *intr, void *data)
     *
     * TODO: Optimize.
     *
-    * TODO: We always clamp to handle null descriptors. Maybe optimize?
     */
    nir_def *oob = nir_ult(b, bounds, el);
-   el = nir_bcsel(b, oob, nir_imm_int(b, 0), el);
+
+   /* TODO: We clamp to handle null descriptors. This should be optimized
+    * further. However, with the fix up after the load for D3D robustness, we
+    * don't need this clamp if we can ignore the fault.
+    */
+   if (!(ctx->rs.level >= AGX_ROBUSTNESS_D3D && ctx->rs.soft_fault)) {
+      el = nir_bcsel(b, oob, nir_imm_int(b, 0), el);
+   }
 
    nir_def *base = nir_load_vbo_base_agx(b, buf_handle);
 
