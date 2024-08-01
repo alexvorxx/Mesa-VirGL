@@ -207,7 +207,8 @@ dri_init_options(struct dri_screen *screen);
 
 const __DRIconfig **
 dri_init_screen(struct dri_screen *screen,
-                struct pipe_screen *pscreen);
+                struct pipe_screen *pscreen,
+                bool has_multibuffer);
 
 void
 dri_release_screen(struct dri_screen * screen);

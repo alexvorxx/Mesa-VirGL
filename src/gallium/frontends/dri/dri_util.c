@@ -153,7 +153,7 @@ driCreateNewScreen3(int scrn, int fd,
       dri_destroy_screen(screen);
       return NULL;
    }
-   *driver_configs = dri_init_screen(screen, pscreen);
+   *driver_configs = dri_init_screen(screen, pscreen, has_multibuffer);
    if (*driver_configs == NULL) {
       dri_destroy_screen(screen);
       return NULL;
