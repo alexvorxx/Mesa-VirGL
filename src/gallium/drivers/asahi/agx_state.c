@@ -1593,8 +1593,7 @@ agx_compile_nir(struct agx_device *dev, nir_shader *nir,
       compiled->bo = agx_bo_create(dev, compiled->b.binary_size, 0,
                                    AGX_BO_EXEC | AGX_BO_LOW_VA, "Executable");
 
-      memcpy(compiled->bo->ptr.cpu, compiled->b.binary,
-             compiled->b.binary_size);
+      memcpy(compiled->bo->map, compiled->b.binary, compiled->b.binary_size);
    }
 
    return compiled;
@@ -2808,7 +2807,7 @@ agx_sampler_heap_add(struct agx_device *dev, struct agx_sampler_heap *heap,
 
    /* Precondition: there is room in the heap */
    assert(heap->count < AGX_SAMPLER_HEAP_SIZE);
-   struct agx_sampler_packed *samplers = heap->bo->ptr.cpu;
+   struct agx_sampler_packed *samplers = heap->bo->map;
    memcpy(samplers + heap->count, sampler, sizeof(*sampler));
 
    return heap->count++;
@@ -3031,7 +3030,8 @@ agx_build_pipeline(struct agx_batch *batch, struct agx_compiled_shader *cs,
          agx_usc_push_packed(&b, FRAGMENT_PROPERTIES, linked->fragment_props);
    } else {
       agx_usc_pack(&b, SHADER, cfg) {
-         cfg.code = agx_usc_addr(dev, cs->bo->ptr.gpu + cs->b.info.main_offset);
+         cfg.code =
+            agx_usc_addr(dev, cs->bo->va->addr + cs->b.info.main_offset);
          cfg.unk_2 = 3;
       }
 
@@ -3046,7 +3046,7 @@ agx_build_pipeline(struct agx_batch *batch, struct agx_compiled_shader *cs,
    if (cs->b.info.has_preamble) {
       agx_usc_pack(&b, PRESHADER, cfg) {
          cfg.code =
-            agx_usc_addr(dev, cs->bo->ptr.gpu + cs->b.info.preamble_offset);
+            agx_usc_addr(dev, cs->bo->va->addr + cs->b.info.preamble_offset);
       }
    } else {
       agx_usc_pack(&b, NO_PRESHADER, cfg)
@@ -3083,7 +3083,7 @@ agx_build_internal_usc(struct agx_batch *batch, struct agx_compiled_shader *cs,
    }
 
    agx_usc_pack(&b, SHADER, cfg) {
-      cfg.code = agx_usc_addr(dev, cs->bo->ptr.gpu + cs->b.info.main_offset);
+      cfg.code = agx_usc_addr(dev, cs->bo->va->addr + cs->b.info.main_offset);
       cfg.unk_2 = 3;
    }
 
@@ -3095,7 +3095,7 @@ agx_build_internal_usc(struct agx_batch *batch, struct agx_compiled_shader *cs,
    if (cs->b.info.has_preamble) {
       agx_usc_pack(&b, PRESHADER, cfg) {
          cfg.code =
-            agx_usc_addr(dev, cs->bo->ptr.gpu + cs->b.info.preamble_offset);
+            agx_usc_addr(dev, cs->bo->va->addr + cs->b.info.preamble_offset);
       }
    } else {
       agx_usc_pack(&b, NO_PRESHADER, cfg)
@@ -3804,7 +3804,7 @@ agx_index_buffer_rsrc_ptr(struct agx_batch *batch,
    agx_batch_reads(batch, rsrc);
 
    *extent = ALIGN_POT(rsrc->layout.size_B, 4);
-   return rsrc->bo->ptr.gpu;
+   return rsrc->bo->va->addr;
 }
 
 static uint64_t
@@ -3938,7 +3938,7 @@ agx_batch_geometry_state(struct agx_batch *batch)
       }
 
       struct agx_geometry_state state = {
-         .heap = agx_resource(ctx->heap)->bo->ptr.gpu,
+         .heap = agx_resource(ctx->heap)->bo->va->addr,
          .heap_size = size,
       };
 
@@ -3985,7 +3985,7 @@ agx_batch_geometry_params(struct agx_batch *batch, uint64_t input_index_buffer,
       params.xfb_size[i] = size;
 
       if (rsrc) {
-         params.xfb_offs_ptrs[i] = rsrc->bo->ptr.gpu;
+         params.xfb_offs_ptrs[i] = rsrc->bo->va->addr;
          agx_batch_writes(batch, rsrc, 0);
          batch->incoherent_writes = true;
       } else {
@@ -4065,7 +4065,7 @@ agx_indirect_buffer_ptr(struct agx_batch *batch,
 
    struct agx_resource *rsrc = agx_resource(indirect->buffer);
    agx_batch_reads(batch, rsrc);
-   return rsrc->bo->ptr.gpu + indirect->offset;
+   return rsrc->bo->va->addr + indirect->offset;
 }
 
 static void
@@ -4236,7 +4236,7 @@ agx_draw_without_restart(struct agx_batch *batch,
       .restart_index = info->restart_index,
       .index_buffer_size_el = ib_extent / info->index_size,
       .flatshade_first = batch->ctx->rast->base.flatshade_first,
-      .draws = indirect_rsrc->bo->ptr.gpu + indirect->offset,
+      .draws = indirect_rsrc->bo->va->addr + indirect->offset,
    };
 
    /* Unroll the index buffer for each draw */
@@ -4258,7 +4258,7 @@ agx_draw_without_restart(struct agx_batch *batch,
 
    struct pipe_draw_indirect_info new_indirect = *indirect;
    new_indirect.buffer = &out_draws_rsrc.base;
-   new_indirect.offset = out_draws.gpu - out_draws_rsrc.bo->ptr.gpu;
+   new_indirect.offset = out_draws.gpu - out_draws_rsrc.bo->va->addr;
    new_indirect.stride = 5 * sizeof(uint32_t);
 
    ctx->active_draw_without_restart = true;
@@ -4455,7 +4455,7 @@ agx_upload_draw_params(struct agx_batch *batch,
 {
    if (indirect) {
       struct agx_resource *indirect_rsrc = agx_resource(indirect->buffer);
-      uint64_t address = indirect_rsrc->bo->ptr.gpu + indirect->offset;
+      uint64_t address = indirect_rsrc->bo->va->addr + indirect->offset;
       agx_batch_reads(batch, indirect_rsrc);
 
       /* To implement draw parameters, we use the last 2 words of the
@@ -4601,7 +4601,7 @@ agx_draw_patches(struct agx_context *ctx, const struct pipe_draw_info *info,
       .output_patch_size = tcs->tess.output_patch_size,
       .tcs_patch_constants = tcs->tess.nr_patch_outputs,
       .tcs_per_vertex_outputs = tcs->tess.per_vertex_outputs,
-      .patch_coord_buffer = agx_resource(ctx->heap)->bo->ptr.gpu,
+      .patch_coord_buffer = agx_resource(ctx->heap)->bo->va->addr,
    };
 
    memcpy(&args.tess_level_outer_default, ctx->default_outer_level,
@@ -4791,7 +4791,7 @@ agx_draw_patches(struct agx_context *ctx, const struct pipe_draw_info *info,
 
    struct pipe_draw_indirect_info copy_indirect = {
       .buffer = &indirect_rsrc.base,
-      .offset = args.out_draws - draw_bo->ptr.gpu,
+      .offset = args.out_draws - draw_bo->va->addr,
       .stride = draw_stride,
       .draw_count = 1,
    };
@@ -5123,7 +5123,7 @@ agx_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
       indirect_gs = (struct pipe_draw_indirect_info){
          .draw_count = 1,
          .buffer = &indirect_rsrc.base,
-         .offset = batch->geom_indirect - indirect_rsrc.bo->ptr.gpu,
+         .offset = batch->geom_indirect - indirect_rsrc.bo->va->addr,
       };
 
       info = &info_gs;
@@ -5134,7 +5134,7 @@ agx_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
       ctx->dirty |= AGX_DIRTY_PRIM;
 
       if (info_gs.index_size) {
-         ib = agx_resource(ctx->heap)->bo->ptr.gpu;
+         ib = agx_resource(ctx->heap)->bo->va->addr;
          ib_extent = agx_resource(ctx->heap)->bo->size;
       } else {
          ib = 0;
@@ -5182,7 +5182,7 @@ agx_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
 
    if (ctx->in_generated_vdm) {
       struct agx_resource *indirect_rsrc = agx_resource(indirect->buffer);
-      uint64_t address = indirect_rsrc->bo->ptr.gpu + indirect->offset;
+      uint64_t address = indirect_rsrc->bo->va->addr + indirect->offset;
 
       agx_push(out, VDM_STREAM_LINK, cfg) {
          cfg.target_lo = address & BITFIELD_MASK(32);
@@ -5227,7 +5227,7 @@ agx_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
 
       if (indirect) {
          struct agx_resource *indirect_rsrc = agx_resource(indirect->buffer);
-         uint64_t address = indirect_rsrc->bo->ptr.gpu + indirect->offset;
+         uint64_t address = indirect_rsrc->bo->va->addr + indirect->offset;
 
          agx_push(out, INDEX_LIST_INDIRECT_BUFFER, cfg) {
             cfg.address_hi = address >> 32;
@@ -5460,7 +5460,7 @@ agx_launch_grid(struct pipe_context *pipe, const struct pipe_grid_info *info)
    if (info->indirect) {
       struct agx_resource *rsrc = agx_resource(info->indirect);
       agx_batch_reads(batch, rsrc);
-      indirect = rsrc->bo->ptr.gpu + info->indirect_offset;
+      indirect = rsrc->bo->va->addr + info->indirect_offset;
    }
 
    /* Increment the pipeline stats query.
@@ -5511,7 +5511,7 @@ agx_launch_grid(struct pipe_context *pipe, const struct pipe_grid_info *info)
       agx_batch_reads(batch, indirect);
 
       grid.mode = AGX_CDM_MODE_INDIRECT_GLOBAL;
-      grid.indirect = indirect->bo->ptr.gpu + info->indirect_offset;
+      grid.indirect = indirect->bo->va->addr + info->indirect_offset;
    } else {
       grid.mode = AGX_CDM_MODE_DIRECT;
 
@@ -5576,7 +5576,7 @@ agx_set_global_binding(struct pipe_context *pipe, unsigned first,
          struct agx_resource *rsrc = agx_resource(resources[i]);
 
          memcpy(&addr, handles[i], sizeof(addr));
-         addr += rsrc->bo->ptr.gpu;
+         addr += rsrc->bo->va->addr;
          memcpy(handles[i], &addr, sizeof(addr));
       } else {
          pipe_resource_reference(res, NULL);

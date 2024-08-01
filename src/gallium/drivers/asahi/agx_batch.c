@@ -83,8 +83,8 @@ agx_encoder_allocate(struct agx_batch *batch, struct agx_device *dev)
 
    return (struct agx_encoder){
       .bo = bo,
-      .current = bo->ptr.cpu,
-      .end = (uint8_t *)bo->ptr.cpu + bo->size,
+      .current = bo->map,
+      .end = (uint8_t *)bo->map + bo->size,
    };
 }
 
@@ -162,7 +162,7 @@ agx_batch_init(struct agx_context *ctx,
    batch->result_off =
       (2 * sizeof(union agx_batch_result)) * agx_batch_idx(batch);
    batch->result =
-      (void *)(((uint8_t *)ctx->result_buf->ptr.cpu) + batch->result_off);
+      (void *)(((uint8_t *)ctx->result_buf->map) + batch->result_off);
    memset(batch->result, 0, sizeof(union agx_batch_result) * 2);
 
    agx_batch_mark_active(batch);
@@ -837,7 +837,7 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
       struct agx_bo *bo = agx_lookup_bo(dev, handle);
 
       if (bo->flags & AGX_BO_SHARED) {
-         batch_debug(batch, "Waits on shared BO @ 0x%" PRIx64, bo->ptr.gpu);
+         batch_debug(batch, "Waits on shared BO @ 0x%" PRIx64, bo->va->addr);
 
          /* Get a sync file fd from the buffer */
          int in_sync_fd = agx_export_sync_file(dev, bo);
@@ -869,7 +869,7 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
          if (writer && queue_id != ctx->queue_id) {
             batch_debug(
                batch, "Waits on inter-context BO @ 0x%" PRIx64 " from queue %u",
-               bo->ptr.gpu, queue_id);
+               bo->va->addr, queue_id);
 
             agx_add_sync(in_syncs, &in_sync_count,
                          agx_bo_writer_syncobj(writer));
@@ -981,7 +981,7 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
             continue;
 
          batch_debug(batch, "Signals shared BO @ 0x%" PRIx64,
-                     shared_bos[i]->ptr.gpu);
+                     shared_bos[i]->va->addr);
 
          /* Free the in_sync handle we just acquired */
          ret = drmSyncobjDestroy(dev->fd, in_syncs[i].handle);
@@ -1011,7 +1011,7 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
       /* But any BOs written by active batches are ours */
       assert(writer == batch && "exclusive writer");
       p_atomic_set(&bo->writer, agx_bo_writer(ctx->queue_id, batch->syncobj));
-      batch_debug(batch, "Writes to BO @ 0x%" PRIx64, bo->ptr.gpu);
+      batch_debug(batch, "Writes to BO @ 0x%" PRIx64, bo->va->addr);
    }
 
    free(in_syncs);

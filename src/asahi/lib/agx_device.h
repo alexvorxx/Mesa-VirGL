@@ -7,6 +7,7 @@
 
 #include <stdint.h>
 #include <xf86drm.h>
+#include "util/ralloc.h"
 #include "util/simple_mtx.h"
 #include "util/sparse_array.h"
 #include "util/timespec.h"
@@ -180,3 +181,8 @@ agx_gpu_time_to_ns(struct agx_device *dev, uint64_t gpu_time)
 
 void agx_get_device_uuid(const struct agx_device *dev, void *uuid);
 void agx_get_driver_uuid(void *uuid);
+
+struct agx_va *agx_va_alloc(struct agx_device *dev, uint32_t size_B,
+                            uint32_t align_B, enum agx_va_flags flags,
+                            uint64_t fixed_va);
+void agx_va_free(struct agx_device *dev, struct agx_va *va);

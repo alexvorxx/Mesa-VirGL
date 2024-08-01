@@ -18,7 +18,7 @@ agx_const_buffer_ptr(struct agx_batch *batch, struct pipe_constant_buffer *cb)
       struct agx_resource *rsrc = agx_resource(cb->buffer);
       agx_batch_reads(batch, rsrc);
 
-      return rsrc->bo->ptr.gpu + cb->buffer_offset;
+      return rsrc->bo->va->addr + cb->buffer_offset;
    } else {
       return 0;
    }
@@ -43,7 +43,7 @@ agx_upload_vbos(struct agx_batch *batch)
          struct agx_resource *rsrc = agx_resource(vb.buffer.resource);
          agx_batch_reads(batch, rsrc);
 
-         buffers[vbo] = rsrc->bo->ptr.gpu + vb.buffer_offset;
+         buffers[vbo] = rsrc->bo->va->addr + vb.buffer_offset;
          buf_sizes[vbo] = rsrc->layout.size_B - vb.buffer_offset;
       }
    }
@@ -148,7 +148,7 @@ agx_set_ssbo_uniforms(struct agx_batch *batch, enum pipe_shader_type stage)
             agx_batch_reads(batch, rsrc);
          }
 
-         unif->ssbo_base[cb] = rsrc->bo->ptr.gpu + sb->buffer_offset;
+         unif->ssbo_base[cb] = rsrc->bo->va->addr + sb->buffer_offset;
          unif->ssbo_size[cb] = st->ssbo[cb].buffer_size;
       } else {
          /* Invalid, so use the sink */

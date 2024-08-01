@@ -39,6 +39,20 @@ enum agx_bo_flags {
    AGX_BO_READONLY = 1 << 5,
 };
 
+enum agx_va_flags {
+   /* VA must be inside the USC region, otherwise unrestricted. */
+   AGX_VA_USC = (1 << 0),
+
+   /* VA must be fixed, otherwise allocated by the driver. */
+   AGX_VA_FIXED = (1 << 1),
+};
+
+struct agx_va {
+   enum agx_va_flags flags;
+   uint64_t addr;
+   uint64_t size_B;
+};
+
 struct agx_ptr {
    /* If CPU mapped, CPU address. NULL if not mapped */
    void *cpu;
@@ -63,7 +77,8 @@ struct agx_bo {
    size_t align;
 
    /* Mapping */
-   struct agx_ptr ptr;
+   struct agx_va *va;
+   void *map;
 
    /* Process-local index */
    uint32_t handle;

@@ -75,26 +75,13 @@ agx_bo_free(struct agx_device *dev, struct agx_bo *bo)
 {
    const uint64_t handle = bo->handle;
 
-   if (bo->ptr.cpu)
-      munmap(bo->ptr.cpu, bo->size);
+   if (bo->map)
+      munmap(bo->map, bo->size);
 
-   if (bo->ptr.gpu) {
-      struct util_vma_heap *heap;
-      uint64_t bo_addr = bo->ptr.gpu;
-
-      if (bo->flags & AGX_BO_LOW_VA) {
-         heap = &dev->usc_heap;
-      } else {
-         heap = &dev->main_heap;
-      }
-
-      simple_mtx_lock(&dev->vma_lock);
-      util_vma_heap_free(heap, bo_addr, bo->size + dev->guard_size);
-      simple_mtx_unlock(&dev->vma_lock);
-
-      /* No need to unmap the BO, as the kernel will take care of that when we
-       * close it. */
-   }
+   /* Free the VA. No need to unmap the BO, as the kernel will take care of that
+    * when we close it.
+    */
+   agx_va_free(dev, bo->va);
 
    if (bo->prime_fd != -1)
       close(bo->prime_fd);
@@ -176,13 +163,9 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    bo->handle = handle;
    bo->prime_fd = -1;
 
-   struct util_vma_heap *heap =
-      (flags & AGX_BO_LOW_VA) ? &dev->usc_heap : &dev->main_heap;
-
-   simple_mtx_lock(&dev->vma_lock);
-   bo->ptr.gpu = util_vma_heap_alloc(heap, size + dev->guard_size, bo->align);
-   simple_mtx_unlock(&dev->vma_lock);
-   if (!bo->ptr.gpu) {
+   enum agx_va_flags va_flags = flags & AGX_BO_LOW_VA ? AGX_VA_USC : 0;
+   bo->va = agx_va_alloc(dev, size, bo->align, va_flags, 0);
+   if (!bo->va) {
       fprintf(stderr, "Failed to allocate BO VMA\n");
       agx_bo_free(dev, bo);
       return NULL;
@@ -193,7 +176,7 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
       bind |= ASAHI_BIND_WRITE;
    }
 
-   ret = dev->ops.bo_bind(dev, bo, bo->ptr.gpu, bind);
+   ret = dev->ops.bo_bind(dev, bo, bo->va->addr, bind);
    if (ret) {
       agx_bo_free(dev, bo);
       return NULL;
@@ -209,7 +192,7 @@ agx_bo_mmap(struct agx_device *dev, struct agx_bo *bo)
    struct drm_asahi_gem_mmap_offset gem_mmap_offset = {.handle = bo->handle};
    int ret;
 
-   if (bo->ptr.cpu)
+   if (bo->map)
       return;
 
    ret = drmIoctl(dev->fd, DRM_IOCTL_ASAHI_GEM_MMAP_OFFSET, &gem_mmap_offset);
@@ -218,14 +201,13 @@ agx_bo_mmap(struct agx_device *dev, struct agx_bo *bo)
       assert(0);
    }
 
-   bo->ptr.cpu = os_mmap(NULL, bo->size, PROT_READ | PROT_WRITE, MAP_SHARED,
-                         dev->fd, gem_mmap_offset.offset);
-   if (bo->ptr.cpu == MAP_FAILED) {
-      bo->ptr.cpu = NULL;
-
+   bo->map = os_mmap(NULL, bo->size, PROT_READ | PROT_WRITE, MAP_SHARED,
+                     dev->fd, gem_mmap_offset.offset);
+   if (bo->map == MAP_FAILED) {
+      bo->map = NULL;
       fprintf(stderr,
               "mmap failed: result=%p size=0x%llx fd=%i offset=0x%llx %m\n",
-              bo->ptr.cpu, (long long)bo->size, dev->fd,
+              bo->map, (long long)bo->size, dev->fd,
               (long long)gem_mmap_offset.offset);
    }
 }
@@ -276,13 +258,9 @@ agx_bo_import(struct agx_device *dev, int fd)
       assert(bo->prime_fd >= 0);
 
       p_atomic_set(&bo->refcnt, 1);
+      bo->va = agx_va_alloc(dev, bo->size, bo->align, 0, 0);
 
-      simple_mtx_lock(&dev->vma_lock);
-      bo->ptr.gpu = util_vma_heap_alloc(
-         &dev->main_heap, bo->size + dev->guard_size, dev->params.vm_page_size);
-      simple_mtx_unlock(&dev->vma_lock);
-
-      if (!bo->ptr.gpu) {
+      if (!bo->va) {
          fprintf(
             stderr,
             "import failed: Could not allocate from VMA heap (0x%llx bytes)\n",
@@ -294,11 +272,11 @@ agx_bo_import(struct agx_device *dev, int fd)
          bo->vbo_res_id = vdrm_handle_to_res_id(dev->vdrm, bo->handle);
       }
 
-      ret = dev->ops.bo_bind(dev, bo, bo->ptr.gpu,
+      ret = dev->ops.bo_bind(dev, bo, bo->va->addr,
                              ASAHI_BIND_READ | ASAHI_BIND_WRITE);
       if (ret) {
          fprintf(stderr, "import failed: Could not bind BO at 0x%llx\n",
-                 (long long)bo->ptr.gpu);
+                 (long long)bo->va->addr);
          abort();
       }
    } else {
@@ -691,22 +669,22 @@ agx_debug_fault(struct agx_device *dev, uint64_t addr)
 
    for (uint32_t handle = 0; handle < dev->max_handle; handle++) {
       struct agx_bo *bo = agx_lookup_bo(dev, handle);
-      uint64_t bo_addr = bo->ptr.gpu;
+      uint64_t bo_addr = bo->va->addr;
       if (bo->flags & AGX_BO_LOW_VA)
          bo_addr += dev->shader_base;
 
       if (!bo->size || bo_addr > addr)
          continue;
 
-      if (!best || bo_addr > best->ptr.gpu)
+      if (!best || bo_addr > best->va->addr)
          best = bo;
    }
 
    if (!best) {
       mesa_logw("Address 0x%" PRIx64 " is unknown\n", addr);
    } else {
-      uint64_t start = best->ptr.gpu;
-      uint64_t end = best->ptr.gpu + best->size;
+      uint64_t start = best->va->addr;
+      uint64_t end = best->va->addr + best->size;
       if (addr > (end + 1024 * 1024 * 1024)) {
          /* 1GiB max as a sanity check */
          mesa_logw("Address 0x%" PRIx64 " is unknown\n", addr);

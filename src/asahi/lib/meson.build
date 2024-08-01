@@ -27,6 +27,7 @@ libasahi_lib_files = files(
   'agx_nir_prolog_epilog.c',
   'agx_ppp.h',
   'agx_scratch.c',
+  'agx_va.c',
   'pool.c',
 )
 

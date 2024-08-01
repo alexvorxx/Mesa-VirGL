@@ -1019,14 +1019,14 @@ agx_resource_valid(struct agx_resource *rsrc, int level)
 static inline void *
 agx_map_texture_cpu(struct agx_resource *rsrc, unsigned level, unsigned z)
 {
-   return ((uint8_t *)rsrc->bo->ptr.cpu) +
+   return ((uint8_t *)rsrc->bo->map) +
           ail_get_layer_level_B(&rsrc->layout, z, level);
 }
 
 static inline uint64_t
 agx_map_texture_gpu(struct agx_resource *rsrc, unsigned z)
 {
-   return rsrc->bo->ptr.gpu +
+   return rsrc->bo->va->addr +
           (uint64_t)ail_get_layer_offset_B(&rsrc->layout, z);
 }
 

@@ -65,7 +65,7 @@ agxdecode_find_mapped_gpu_mem_containing(struct agxdecode_ctx *ctx,
                                          uint64_t addr)
 {
    util_dynarray_foreach(&ctx->mmap_array, struct agx_bo, it) {
-      if (addr >= it->ptr.gpu && (addr - it->ptr.gpu) < it->size)
+      if (it->va && addr >= it->va->addr && (addr - it->va->addr) < it->size)
          return it;
    }
 
@@ -103,17 +103,17 @@ __agxdecode_fetch_gpu_mem(struct agxdecode_ctx *ctx, const struct agx_bo *mem,
 
    assert(mem);
 
-   if (size + (gpu_va - mem->ptr.gpu) > mem->size) {
+   if (size + (gpu_va - mem->va->addr) > mem->size) {
       fprintf(stderr,
               "Overflowing to unknown memory %" PRIx64
               " of size %zu (max size %zu) in %s:%d\n",
-              gpu_va, size, (size_t)(mem->size - (gpu_va - mem->ptr.gpu)),
+              gpu_va, size, (size_t)(mem->size - (gpu_va - mem->va->addr)),
               filename, line);
       fflush(agxdecode_dump_stream);
       assert(0);
    }
 
-   memcpy(buf, mem->ptr.cpu + gpu_va - mem->ptr.gpu, size);
+   memcpy(buf, mem->map + gpu_va - mem->va->addr, size);
 
    return size;
 }
@@ -173,7 +173,7 @@ agxdecode_stateful(struct agxdecode_ctx *ctx, uint64_t va, const char *label,
       assert(alloc != NULL && "nonexistent object");
       fprintf(agxdecode_dump_stream, "%s (%" PRIx64 ", handle %u)\n", label, va,
               alloc->handle);
-      size = MIN2(size, alloc->size - (va - alloc->ptr.gpu));
+      size = MIN2(size, alloc->size - (va - alloc->va->addr));
    } else {
       fprintf(agxdecode_dump_stream, "%s (%" PRIx64 ")\n", label, va);
    }
@@ -1007,15 +1007,15 @@ agxdecode_cmdstream(struct agxdecode_ctx *ctx, unsigned cmdbuf_handle,
    assert(map != NULL && "nonexistent mapping");
 
    /* Print the IOGPU stuff */
-   agx_unpack(agxdecode_dump_stream, cmdbuf->ptr.cpu, IOGPU_HEADER, cmd);
+   agx_unpack(agxdecode_dump_stream, cmdbuf->map, IOGPU_HEADER, cmd);
    DUMP_UNPACKED(IOGPU_HEADER, cmd, "IOGPU Header\n");
 
    DUMP_CL(IOGPU_ATTACHMENT_COUNT,
-           ((uint8_t *)cmdbuf->ptr.cpu + cmd.attachment_offset),
+           ((uint8_t *)cmdbuf->map + cmd.attachment_offset),
            "Attachment count");
 
    uint32_t *attachments =
-      (uint32_t *)((uint8_t *)cmdbuf->ptr.cpu + cmd.attachment_offset);
+      (uint32_t *)((uint8_t *)cmdbuf->map + cmd.attachment_offset);
    unsigned attachment_count = attachments[3];
    for (unsigned i = 0; i < attachment_count; ++i) {
       uint32_t *ptr = attachments + 4 + (i * AGX_IOGPU_ATTACHMENT_LENGTH / 4);
@@ -1027,9 +1027,9 @@ agxdecode_cmdstream(struct agxdecode_ctx *ctx, unsigned cmdbuf_handle,
    chip_id_to_params(&params, 0x8103);
 
    if (cmd.unk_5 == 3)
-      agxdecode_cs((uint32_t *)cmdbuf->ptr.cpu, cmd.encoder, verbose, &params);
+      agxdecode_cs((uint32_t *)cmdbuf->map, cmd.encoder, verbose, &params);
    else
-      agxdecode_gfx((uint32_t *)cmdbuf->ptr.cpu, cmd.encoder, verbose, &params);
+      agxdecode_gfx((uint32_t *)cmdbuf->map, cmd.encoder, verbose, &params);
 }
 
 #endif

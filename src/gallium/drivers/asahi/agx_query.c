@@ -105,8 +105,8 @@ agx_alloc_oq(struct agx_context *ctx)
    unsigned offset = index * sizeof(uint64_t);
 
    return (struct agx_ptr){
-      (uint8_t *)heap->bo->ptr.cpu + offset,
-      heap->bo->ptr.gpu + offset,
+      (uint8_t *)heap->bo->map + offset,
+      heap->bo->va->addr + offset,
    };
 }
 
@@ -115,7 +115,7 @@ agx_oq_index(struct agx_context *ctx, struct agx_query *q)
 {
    assert(is_occlusion(q));
 
-   return (q->ptr.gpu - ctx->oq->bo->ptr.gpu) / sizeof(uint64_t);
+   return (q->ptr.gpu - ctx->oq->bo->va->addr) / sizeof(uint64_t);
 }
 
 static void
@@ -139,7 +139,7 @@ agx_get_occlusion_heap(struct agx_batch *batch)
    struct agx_bo *bo = batch->ctx->oq->bo;
 
    if (agx_batch_uses_bo(batch, bo))
-      return bo->ptr.gpu;
+      return bo->va->addr;
    else
       return 0;
 }
@@ -167,7 +167,10 @@ agx_create_query(struct pipe_context *ctx, unsigned query_type, unsigned index)
        */
       query->bo = agx_bo_create(agx_device(ctx->screen), sizeof(uint64_t) * 2,
                                 0, AGX_BO_WRITEBACK, "Query");
-      query->ptr = query->bo->ptr;
+      query->ptr = (struct agx_ptr){
+         .gpu = query->bo->va->addr,
+         .cpu = query->bo->map,
+      };
    }
 
    if (!query->ptr.gpu) {
@@ -546,7 +549,7 @@ agx_get_query_result_resource_gpu(struct agx_context *ctx,
    memcpy(&saved_cb, &stage->cb[0], sizeof(struct pipe_constant_buffer));
 
    /* Set params */
-   uint64_t params[2] = {query->ptr.gpu, rsrc->bo->ptr.gpu + offset};
+   uint64_t params[2] = {query->ptr.gpu, rsrc->bo->va->addr + offset};
    agx_batch_writes_range(batch, rsrc, offset, result_type_size(result_type));
 
    struct pipe_constant_buffer cb = {

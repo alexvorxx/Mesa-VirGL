@@ -58,7 +58,6 @@ agx_virtio_bo_alloc(struct agx_device *dev, size_t size, size_t align,
 {
    struct agx_bo *bo;
    unsigned handle = 0;
-   uint64_t ptr_gpu;
 
    size = ALIGN_POT(size, dev->params.vm_page_size);
 
@@ -83,19 +82,15 @@ agx_virtio_bo_alloc(struct agx_device *dev, size_t size, size_t align,
 
    uint32_t blob_id = p_atomic_inc_return(&dev->next_blob_id);
 
-   struct util_vma_heap *heap =
-      (flags & AGX_BO_LOW_VA) ? &dev->usc_heap : &dev->main_heap;
-
-   simple_mtx_lock(&dev->vma_lock);
-   ptr_gpu = util_vma_heap_alloc(heap, size + dev->guard_size,
-                                 dev->params.vm_page_size);
-   simple_mtx_unlock(&dev->vma_lock);
-   if (!ptr_gpu) {
+   enum agx_va_flags va_flags = flags & AGX_BO_LOW_VA ? AGX_VA_USC : 0;
+   struct agx_va *va =
+      agx_va_alloc(dev, size, dev->params.vm_page_size, va_flags, 0);
+   if (!va) {
       fprintf(stderr, "Failed to allocate BO VMA\n");
       return NULL;
    }
 
-   req.addr = ptr_gpu;
+   req.addr = va->addr;
    req.blob_id = blob_id;
    req.vm_id = dev->vm_id;
 
@@ -119,7 +114,7 @@ agx_virtio_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    bo->handle = handle;
    bo->prime_fd = -1;
    bo->blob_id = blob_id;
-   bo->ptr.gpu = ptr_gpu;
+   bo->va = va;
    bo->vbo_res_id = vdrm_handle_to_res_id(dev->vdrm, handle);
 
    dev->ops.bo_mmap(dev, bo);
@@ -153,14 +148,14 @@ agx_virtio_bo_bind(struct agx_device *dev, struct agx_bo *bo, uint64_t addr,
 static void
 agx_virtio_bo_mmap(struct agx_device *dev, struct agx_bo *bo)
 {
-   if (bo->ptr.cpu) {
+   if (bo->map) {
       return;
    }
 
-   bo->ptr.cpu = vdrm_bo_map(dev->vdrm, bo->handle, bo->size, NULL);
-   if (bo->ptr.cpu == MAP_FAILED) {
-      bo->ptr.cpu = NULL;
-      fprintf(stderr, "mmap failed: result=%p size=0x%llx fd=%i\n", bo->ptr.cpu,
+   bo->map = vdrm_bo_map(dev->vdrm, bo->handle, bo->size, NULL);
+   if (bo->map == MAP_FAILED) {
+      bo->map = NULL;
+      fprintf(stderr, "mmap failed: result=%p size=0x%llx fd=%i\n", bo->map,
               (long long)bo->size, dev->fd);
    }
 }

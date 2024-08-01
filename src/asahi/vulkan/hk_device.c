@@ -48,14 +48,14 @@ hk_upload_rodata(struct hk_device *dev)
    if (!dev->rodata.bo)
       return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-   uint8_t *map = dev->rodata.bo->ptr.cpu;
+   uint8_t *map = dev->rodata.bo->map;
    uint32_t offs = 0;
 
    offs = align(offs, 8);
    agx_pack(&dev->rodata.txf_sampler, USC_SAMPLER, cfg) {
       cfg.start = 0;
       cfg.count = 1;
-      cfg.buffer = dev->rodata.bo->ptr.gpu + offs;
+      cfg.buffer = dev->rodata.bo->va->addr + offs;
    }
 
    agx_pack(map + offs, SAMPLER, cfg) {
@@ -81,11 +81,11 @@ hk_upload_rodata(struct hk_device *dev)
    agx_pack(&dev->rodata.image_heap, USC_UNIFORM, cfg) {
       cfg.start_halfs = HK_IMAGE_HEAP_UNIFORM;
       cfg.size_halfs = 4;
-      cfg.buffer = dev->rodata.bo->ptr.gpu + offs;
+      cfg.buffer = dev->rodata.bo->va->addr + offs;
    }
 
-   uint64_t *image_heap_ptr = dev->rodata.bo->ptr.cpu + offs;
-   *image_heap_ptr = dev->images.bo->ptr.gpu;
+   uint64_t *image_heap_ptr = dev->rodata.bo->map + offs;
+   *image_heap_ptr = dev->images.bo->va->addr;
    offs += sizeof(uint64_t);
 
    /* The geometry state buffer isn't strictly readonly data, but we only have a
@@ -97,15 +97,15 @@ hk_upload_rodata(struct hk_device *dev)
     * So, we allocate it here for convenience.
     */
    offs = align(offs, sizeof(uint64_t));
-   dev->rodata.geometry_state = dev->rodata.bo->ptr.gpu + offs;
+   dev->rodata.geometry_state = dev->rodata.bo->va->addr + offs;
    offs += sizeof(struct agx_geometry_state);
 
    /* For null readonly buffers, we need to allocate 16 bytes of zeroes for
     * robustness2 semantics on read.
     */
    offs = align(offs, 16);
-   dev->rodata.zero_sink = dev->rodata.bo->ptr.gpu + offs;
-   memset(dev->rodata.bo->ptr.cpu + offs, 0, 16);
+   dev->rodata.zero_sink = dev->rodata.bo->va->addr + offs;
+   memset(dev->rodata.bo->map + offs, 0, 16);
    offs += 16;
 
    /* For null storage descriptors, we need to reserve 16 bytes to catch writes.
@@ -113,7 +113,7 @@ hk_upload_rodata(struct hk_device *dev)
     * without more work.
     */
    offs = align(offs, 16);
-   dev->rodata.null_sink = dev->rodata.bo->ptr.gpu + offs;
+   dev->rodata.null_sink = dev->rodata.bo->va->addr + offs;
    offs += 16;
 
    return VK_SUCCESS;

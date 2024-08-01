@@ -243,7 +243,7 @@ hk_MapMemory2KHR(VkDevice device, const VkMemoryMapInfoKHR *pMemoryMapInfo,
                        "Memory object already mapped.");
    }
 
-   mem->map = mem->bo->ptr.cpu;
+   mem->map = mem->bo->map;
    *ppData = mem->map + offset;
 
    return VK_SUCCESS;
@@ -326,5 +326,5 @@ hk_GetDeviceMemoryOpaqueCaptureAddress(
 {
    VK_FROM_HANDLE(hk_device_memory, mem, pInfo->memory);
 
-   return mem->bo->ptr.gpu;
+   return mem->bo->va->addr;
 }

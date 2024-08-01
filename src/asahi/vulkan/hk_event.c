@@ -32,8 +32,8 @@ hk_CreateEvent(VkDevice device, const VkEventCreateInfo *pCreateInfo,
     */
    event->bo =
       agx_bo_create(&dev->dev, HK_EVENT_MEM_SIZE, 0, AGX_BO_WRITEBACK, "Event");
-   event->status = event->bo->ptr.cpu;
-   event->addr = event->bo->ptr.gpu;
+   event->status = event->bo->map;
+   event->addr = event->bo->va->addr;
 
    *event->status = VK_EVENT_RESET;
 
@@ -91,7 +91,7 @@ hk_CmdSetEvent2(VkCommandBuffer commandBuffer, VkEvent _event,
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(hk_event, event, _event);
 
-   hk_queue_write(cmd, event->bo->ptr.gpu, VK_EVENT_SET, false);
+   hk_queue_write(cmd, event->bo->va->addr, VK_EVENT_SET, false);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -101,7 +101,7 @@ hk_CmdResetEvent2(VkCommandBuffer commandBuffer, VkEvent _event,
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(hk_event, event, _event);
 
-   hk_queue_write(cmd, event->bo->ptr.gpu, VK_EVENT_RESET, false);
+   hk_queue_write(cmd, event->bo->va->addr, VK_EVENT_RESET, false);
 }
 
 VKAPI_ATTR void VKAPI_CALL

@@ -673,8 +673,8 @@ hk_upload_shader(struct hk_device *dev, struct hk_shader *shader)
 
       shader->bo = agx_bo_create(&dev->dev, size, 0,
                                  AGX_BO_EXEC | AGX_BO_LOW_VA, "Preamble");
-      memcpy(shader->bo->ptr.cpu, shader->b.binary + offs, size);
-      shader->preamble_addr = shader->bo->ptr.gpu;
+      memcpy(shader->bo->map, shader->b.binary + offs, size);
+      shader->preamble_addr = shader->bo->va->addr;
    }
 
    if (!shader->linked.ht) {

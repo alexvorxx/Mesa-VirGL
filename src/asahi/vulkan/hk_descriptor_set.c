@@ -489,13 +489,13 @@ hk_CreateDescriptorPool(VkDevice _device,
          return vk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);
       }
 
-      pool->mapped_ptr = pool->bo->ptr.cpu;
+      pool->mapped_ptr = pool->bo->map;
 
       /* The BO may be larger thanks to GPU page alignment.  We may as well
        * make that extra space available to the client.
        */
       assert(pool->bo->size >= bo_size);
-      util_vma_heap_init(&pool->heap, pool->bo->ptr.gpu, pool->bo->size);
+      util_vma_heap_init(&pool->heap, pool->bo->va->addr, pool->bo->size);
    } else {
       util_vma_heap_init(&pool->heap, 0, 0);
    }
@@ -513,9 +513,9 @@ hk_descriptor_pool_alloc(struct hk_descriptor_pool *pool, uint64_t size,
    if (addr == 0)
       return VK_ERROR_OUT_OF_POOL_MEMORY;
 
-   assert(addr >= pool->bo->ptr.gpu);
-   assert(addr + size <= pool->bo->ptr.gpu + pool->bo->size);
-   uint64_t offset = addr - pool->bo->ptr.gpu;
+   assert(addr >= pool->bo->va->addr);
+   assert(addr + size <= pool->bo->va->addr + pool->bo->size);
+   uint64_t offset = addr - pool->bo->va->addr;
 
    *addr_out = addr;
    *map_out = pool->mapped_ptr + offset;
@@ -528,8 +528,8 @@ hk_descriptor_pool_free(struct hk_descriptor_pool *pool, uint64_t addr,
                         uint64_t size)
 {
    assert(size > 0);
-   assert(addr >= pool->bo->ptr.gpu);
-   assert(addr + size <= pool->bo->ptr.gpu + pool->bo->size);
+   assert(addr >= pool->bo->va->addr);
+   assert(addr + size <= pool->bo->va->addr + pool->bo->size);
    util_vma_heap_free(&pool->heap, addr, size);
 }
 

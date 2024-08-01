@@ -347,7 +347,7 @@ hk_build_bg_eot(struct hk_cmd_buffer *cmd, const VkRenderingInfo *info,
             /* Shifted to match eMRT indexing, could be optimized */
             cfg.start = rt * 2;
             cfg.count = 1;
-            cfg.buffer = dev->images.bo->ptr.gpu + index * AGX_TEXTURE_LENGTH;
+            cfg.buffer = dev->images.bo->va->addr + index * AGX_TEXTURE_LENGTH;
          }
 
          nr_tex = (rt * 2) + 1;
@@ -366,7 +366,7 @@ hk_build_bg_eot(struct hk_cmd_buffer *cmd, const VkRenderingInfo *info,
          agx_usc_pack(&b, TEXTURE, cfg) {
             cfg.start = rt;
             cfg.count = 1;
-            cfg.buffer = dev->images.bo->ptr.gpu + index * AGX_TEXTURE_LENGTH;
+            cfg.buffer = dev->images.bo->va->addr + index * AGX_TEXTURE_LENGTH;
          }
 
          nr_tex = rt + 1;
@@ -876,11 +876,11 @@ hk_geometry_state(struct hk_cmd_buffer *cmd)
       /* The geometry state buffer is initialized here and then is treated by
        * the CPU as rodata, even though the GPU uses it for scratch internally.
        */
-      off_t off = dev->rodata.geometry_state - dev->rodata.bo->ptr.gpu;
-      struct agx_geometry_state *map = dev->rodata.bo->ptr.cpu + off;
+      off_t off = dev->rodata.geometry_state - dev->rodata.bo->va->addr;
+      struct agx_geometry_state *map = dev->rodata.bo->map + off;
 
       *map = (struct agx_geometry_state){
-         .heap = dev->heap->ptr.gpu,
+         .heap = dev->heap->va->addr,
          .heap_size = size,
       };
    }
@@ -1109,7 +1109,7 @@ hk_upload_tess_params(struct hk_cmd_buffer *cmd, struct hk_draw draw)
    size_t draw_stride_B = draw_stride_el * sizeof(uint32_t);
 
    /* heap is allocated by hk_geometry_state */
-   args.patch_coord_buffer = dev->heap->ptr.gpu;
+   args.patch_coord_buffer = dev->heap->va->addr;
 
    if (!draw.b.indirect) {
       unsigned in_patches = draw.b.count[0] / args.input_patch_size;
@@ -1323,7 +1323,7 @@ hk_draw_without_restart(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
                         hk_grid(1024, 1, 1));
 
    struct hk_addr_range out_index = {
-      .addr = dev->heap->ptr.gpu,
+      .addr = dev->heap->va->addr,
       .range = dev->heap->size,
    };
 
@@ -1423,7 +1423,7 @@ hk_launch_gs_prerast(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
    hk_dispatch_with_local_size(cmd, cs, main, grid_gs, hk_grid(1, 1, 1));
 
    struct hk_addr_range range = (struct hk_addr_range){
-      .addr = dev->heap->ptr.gpu,
+      .addr = dev->heap->va->addr,
       .range = dev->heap->size,
    };
 
@@ -1586,7 +1586,7 @@ hk_launch_tess(struct hk_cmd_buffer *cmd, struct hk_cs *cs, struct hk_draw draw)
    }
 
    struct hk_addr_range range = (struct hk_addr_range){
-      .addr = dev->heap->ptr.gpu,
+      .addr = dev->heap->va->addr,
       .range = dev->heap->size,
    };
 

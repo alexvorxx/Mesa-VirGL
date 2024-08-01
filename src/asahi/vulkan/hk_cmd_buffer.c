@@ -184,7 +184,10 @@ hk_pool_alloc_internal(struct hk_cmd_buffer *cmd, uint32_t size,
          agx_bo_create(&dev->dev, size, flags, 0, "Large pool allocation");
 
       util_dynarray_append(&cmd->large_bos, struct agx_bo *, bo);
-      return bo->ptr;
+      return (struct agx_ptr){
+         .gpu = bo->va->addr,
+         .cpu = bo->map,
+      };
    }
 
    assert(size <= HK_CMD_BO_SIZE);
@@ -216,13 +219,13 @@ hk_pool_alloc_internal(struct hk_cmd_buffer *cmd, uint32_t size,
     * BO.
     */
    if (uploader->map == NULL || size < uploader->offset) {
-      uploader->map = bo->bo->ptr.cpu;
-      uploader->base = bo->bo->ptr.gpu;
+      uploader->map = bo->bo->map;
+      uploader->base = bo->bo->va->addr;
       uploader->offset = size;
    }
 
    return (struct agx_ptr){
-      .gpu = bo->bo->ptr.gpu,
+      .gpu = bo->bo->va->addr,
       .cpu = bo->map,
    };
 }
@@ -527,7 +530,7 @@ hk_cmd_buffer_upload_root(struct hk_cmd_buffer *cmd,
    struct hk_root_descriptor_table *root = &desc->root;
 
    struct agx_ptr root_ptr = hk_pool_alloc(cmd, sizeof(*root), 8);
-   if (!root_ptr.cpu)
+   if (!root_ptr.gpu)
       return 0;
 
    root->root_desc_addr = root_ptr.gpu;

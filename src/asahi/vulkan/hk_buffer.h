@@ -18,8 +18,8 @@ struct hk_buffer {
    struct vk_buffer vk;
    uint64_t addr;
 
-   /** Size of the reserved VMA range for sparse buffers, zero otherwise. */
-   uint64_t vma_size_B;
+   /** Reserved VA for sparse buffers, NULL otherwise. */
+   struct agx_va *va;
 };
 
 VK_DEFINE_NONDISP_HANDLE_CASTS(hk_buffer, vk.base, VkBuffer,
