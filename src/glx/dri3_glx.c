@@ -169,12 +169,12 @@ dri3_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable rea
    driReleaseDrawables(context);
 
    if (pdraw)
-      dri_draw = pdraw->loader_drawable.dri_drawable;
+      dri_draw = pdraw->base.dri_drawable;
    else if (draw != None)
       return GLXBadDrawable;
 
    if (pread)
-      dri_read = pread->loader_drawable.dri_drawable;
+      dri_read = pread->base.dri_drawable;
    else if (read != None)
       return GLXBadDrawable;
 
@@ -370,6 +370,8 @@ dri3_create_drawable(struct glx_screen *base, XID xDrawable,
       free(pdraw);
       return NULL;
    }
+
+   pdraw->base.dri_drawable = pdraw->loader_drawable.dri_drawable;
 
    return &pdraw->base;
 }
@@ -639,14 +641,14 @@ dri3_bind_tex_image(__GLXDRIdrawable *base,
    struct dri3_drawable *pdraw = (struct dri3_drawable *) base;
 
    if (pdraw != NULL) {
-      dri_invalidate_drawable(pdraw->loader_drawable.dri_drawable);
+      dri_invalidate_drawable(pdraw->base.dri_drawable);
 
       XSync(gc->currentDpy, false);
 
       dri_set_tex_buffer2(gc->driContext,
                           pdraw->base.textureTarget,
                           pdraw->base.textureFormat,
-                          pdraw->loader_drawable.dri_drawable);
+                          pdraw->base.dri_drawable);
    }
 }
 

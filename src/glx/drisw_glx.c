@@ -443,14 +443,14 @@ drisw_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable re
    driReleaseDrawables(context);
 
    if (!driBindContext(context->driContext,
-                               pdraw ? pdraw->driDrawable : NULL,
-                               pread ? pread->driDrawable : NULL))
+                               pdraw ? pdraw->base.dri_drawable : NULL,
+                               pread ? pread->base.dri_drawable : NULL))
       return GLXBadContext;
    if (psc->kopper) {
       if (pdraw)
-         dri_invalidate_drawable(pdraw->driDrawable);
-      if (pread && (!pdraw || pread->driDrawable != pdraw->driDrawable))
-         dri_invalidate_drawable(pread->driDrawable);
+         dri_invalidate_drawable(pdraw->base.dri_drawable);
+      if (pread && (!pdraw || pread->base.dri_drawable != pdraw->base.dri_drawable))
+         dri_invalidate_drawable(pread->base.dri_drawable);
    }
 
    return Success;
@@ -485,7 +485,7 @@ drisw_bind_tex_image(__GLXDRIdrawable *base,
       dri_set_tex_buffer2(gc->driContext,
                           pdraw->base.textureTarget,
                           pdraw->base.textureFormat,
-                          pdraw->driDrawable);
+                          pdraw->base.dri_drawable);
    }
 }
 
@@ -496,7 +496,7 @@ kopper_get_buffer_age(__GLXDRIdrawable *pdraw)
 {
    struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
 
-   return kopperQueryBufferAge(pdp->driDrawable);
+   return kopperQueryBufferAge(pdp->base.dri_drawable);
 }
 
 static const struct glx_context_vtable drisw_context_vtable = {
@@ -618,7 +618,7 @@ driswDestroyDrawable(__GLXDRIdrawable * pdraw)
 {
    struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
 
-   driDestroyDrawable(pdp->driDrawable);
+   driDestroyDrawable(pdp->base.dri_drawable);
 
    XDestroyDrawable(pdp, pdraw->psc->dpy, pdraw->drawable);
    free(pdp);
@@ -679,11 +679,11 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
 
    pdp->swapInterval = dri_get_initial_swap_interval(psc->driScreen);
    /* Create a new drawable */
-   pdp->driDrawable = dri_create_drawable(psc->driScreen, config->driConfig, !(type & GLX_WINDOW_BIT), pdp);
+   pdp->base.dri_drawable = dri_create_drawable(psc->driScreen, config->driConfig, !(type & GLX_WINDOW_BIT), pdp);
    if (psc->kopper)
-      kopperSetSwapInterval(pdp->driDrawable, pdp->swapInterval);
+      kopperSetSwapInterval(pdp->base.dri_drawable, pdp->swapInterval);
 
-   if (!pdp->driDrawable) {
+   if (!pdp->base.dri_drawable) {
       XDestroyDrawable(pdp, psc->base.dpy, xDrawable);
       free(pdp);
       return NULL;
@@ -711,9 +711,9 @@ driswSwapBuffers(__GLXDRIdrawable * pdraw,
    }
 
    if (psc->kopper)
-       return kopperSwapBuffers (pdp->driDrawable, 0);
+       return kopperSwapBuffers (pdp->base.dri_drawable, 0);
 
-   driSwapBuffers(pdp->driDrawable);
+   driSwapBuffers(pdp->base.dri_drawable);
 
    return 0;
 }
@@ -728,7 +728,7 @@ drisw_copy_sub_buffer(__GLXDRIdrawable * pdraw,
       glFlush();
    }
 
-   driswCopySubBuffer(pdp->driDrawable, x, y, width, height);
+   driswCopySubBuffer(pdp->base.dri_drawable, x, y, width, height);
 }
 
 static void
@@ -800,7 +800,7 @@ driswKopperSetSwapInterval(__GLXDRIdrawable *pdraw, int interval)
    if (!dri_valid_swap_interval(psc->driScreen, interval))
       return GLX_BAD_VALUE;
 
-   kopperSetSwapInterval(pdp->driDrawable, interval);
+   kopperSetSwapInterval(pdp->base.dri_drawable, interval);
    pdp->swapInterval = interval;
 
    return 0;

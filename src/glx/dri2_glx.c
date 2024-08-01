@@ -58,7 +58,6 @@
 struct dri2_drawable
 {
    __GLXDRIdrawable base;
-   __DRIdrawable *driDrawable;
    __DRIbuffer buffers[5];
    int bufferCount;
    int width, height;
@@ -112,12 +111,12 @@ dri2_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable rea
    driReleaseDrawables(context);
 
    if (pdraw)
-      dri_draw = pdraw->driDrawable;
+      dri_draw = pdraw->base.dri_drawable;
    else if (draw != None)
       return GLXBadDrawable;
 
    if (pread)
-      dri_read = pread->driDrawable;
+      dri_read = pread->base.dri_drawable;
    else if (read != None)
       return GLXBadDrawable;
 
@@ -256,7 +255,7 @@ dri2DestroyDrawable(__GLXDRIdrawable *base)
    struct glx_display *dpyPriv = psc->base.display;
 
    __glxHashDelete(dpyPriv->dri2Hash, pdraw->base.xDrawable);
-   driDestroyDrawable(pdraw->driDrawable);
+   driDestroyDrawable(pdraw->base.dri_drawable);
 
    /* If it's a GLX 1.3 drawables, we can destroy the DRI2 drawable
     * now, as the application explicitly asked to destroy the GLX
@@ -299,17 +298,17 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
 
    DRI2CreateDrawable(psc->base.dpy, xDrawable);
    /* Create a new drawable */
-   pdraw->driDrawable =
+   pdraw->base.dri_drawable =
       dri_create_drawable(psc->driScreen, config->driConfig, false, pdraw);
 
-   if (!pdraw->driDrawable) {
+   if (!pdraw->base.dri_drawable) {
       DRI2DestroyDrawable(psc->base.dpy, xDrawable);
       free(pdraw);
       return NULL;
    }
 
    if (__glxHashInsert(dpyPriv->dri2Hash, xDrawable, pdraw)) {
-      driDestroyDrawable(pdraw->driDrawable);
+      driDestroyDrawable(pdraw->base.dri_drawable);
       DRI2DestroyDrawable(psc->base.dpy, xDrawable);
       free(pdraw);
       return None;
@@ -427,7 +426,7 @@ dri2Throttle(struct dri2_screen *psc,
 {
    __DRIcontext *ctx = dri2GetCurrentContext();
 
-   dri_throttle(ctx, draw->driDrawable, reason);
+   dri_throttle(ctx, draw->base.dri_drawable, reason);
 }
 
 /**
@@ -444,12 +443,12 @@ dri2Flush(struct dri2_screen *psc,
           enum __DRI2throttleReason throttle_reason)
 {
    if (ctx) {
-      dri_flush(ctx, draw->driDrawable, flags, throttle_reason);
+      dri_flush(ctx, draw->base.dri_drawable, flags, throttle_reason);
    } else {
       if (flags & __DRI2_FLUSH_CONTEXT)
          glFlush();
 
-      dri_flush_drawable(draw->driDrawable);
+      dri_flush_drawable(draw->base.dri_drawable);
 
       dri2Throttle(psc, draw, throttle_reason);
    }
@@ -516,7 +515,7 @@ dri2_copy_drawable(struct dri2_drawable *priv, int dest, int src)
    xrect.width = priv->width;
    xrect.height = priv->height;
 
-   dri_flush_drawable(priv->driDrawable);
+   dri_flush_drawable(priv->base.dri_drawable);
 
    region = XFixesCreateRegion(psc->base.dpy, &xrect, 1);
    DRI2CopyRegion(psc->base.dpy, priv->base.xDrawable, region, dest, src);
@@ -795,7 +794,7 @@ dri2InvalidateBuffers(Display *dpy, XID drawable)
    if (!pdraw)
       return;
 
-   dri_invalidate_drawable(pdp->driDrawable);
+   dri_invalidate_drawable(pdp->base.dri_drawable);
 }
 
 static void
@@ -809,7 +808,7 @@ dri2_bind_tex_image(__GLXDRIdrawable *base,
       dri_set_tex_buffer2(gc->driContext,
                           pdraw->base.textureTarget,
                           pdraw->base.textureFormat,
-                          pdraw->driDrawable);
+                          pdraw->base.dri_drawable);
    }
 }
 
