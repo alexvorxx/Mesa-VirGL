@@ -23,7 +23,7 @@ static VirtGpuDevice* sDevice = nullptr;
 
 }  // namespace
 
-VirtGpuDevice* VirtGpuDevice::getInstance(enum VirtGpuCapset capset) {
+VirtGpuDevice* VirtGpuDevice::getInstance(enum VirtGpuCapset capset, int32_t descriptor) {
     // If kCapsetNone is passed, we return a device that was created with any capset.
     // Otherwise, the created device's capset must match the requested capset.
     // We could support multiple capsets with a map of devices but that case isn't needed
@@ -34,7 +34,7 @@ VirtGpuDevice* VirtGpuDevice::getInstance(enum VirtGpuCapset capset) {
         return nullptr;
     }
     if (!sDevice) {
-        sDevice = createPlatformVirtGpuDevice(capset);
+        sDevice = createPlatformVirtGpuDevice(capset, descriptor);
     }
     return sDevice;
 }

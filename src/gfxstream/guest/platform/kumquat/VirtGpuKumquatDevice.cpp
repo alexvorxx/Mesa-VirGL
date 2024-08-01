@@ -32,7 +32,8 @@
 
 static inline uint32_t align_up(uint32_t n, uint32_t a) { return ((n + a - 1) / a) * a; }
 
-VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int) : VirtGpuDevice(capset) {
+VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int32_t descriptor)
+    : VirtGpuDevice(capset) {
     struct VirtGpuParam params[] = {
         PARAM(VIRTGPU_KUMQUAT_PARAM_3D_FEATURES),
         PARAM(VIRTGPU_KUMQUAT_PARAM_CAPSET_QUERY_FIX),
@@ -46,6 +47,7 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int) : Vir
         PARAM(VIRTGPU_KUMQUAT_PARAM_CREATE_GUEST_HANDLE),
     };
 
+    (void)descriptor;
     int ret;
     struct drm_kumquat_get_caps get_caps = {0};
     struct drm_kumquat_context_init init = {0};
@@ -240,6 +242,6 @@ int VirtGpuKumquatDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer,
     return 0;
 }
 
-VirtGpuDevice* createPlatformVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
-    return new VirtGpuKumquatDevice(capset, fd);
+VirtGpuDevice* createPlatformVirtGpuDevice(enum VirtGpuCapset capset, int32_t descriptor) {
+    return new VirtGpuKumquatDevice(capset, descriptor);
 }

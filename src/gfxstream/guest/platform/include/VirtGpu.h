@@ -141,6 +141,8 @@ struct VirtGpuCaps {
     struct composerCapset composerCapset;
 };
 
+#define INVALID_DESCRIPTOR -1
+
 class VirtGpuResourceMapping;
 class VirtGpuResource;
 using VirtGpuResourcePtr = std::shared_ptr<VirtGpuResource>;
@@ -177,28 +179,29 @@ class VirtGpuResourceMapping {
 
 class VirtGpuDevice {
   public:
-    static VirtGpuDevice* getInstance(enum VirtGpuCapset capset = kCapsetNone);
-    static void resetInstance();
+   static VirtGpuDevice* getInstance(enum VirtGpuCapset capset = kCapsetNone,
+                                     int32_t descriptor = INVALID_DESCRIPTOR);
+   static void resetInstance();
 
-    VirtGpuDevice(enum VirtGpuCapset capset) : mCapset(capset) {}
-    virtual ~VirtGpuDevice() {}
+   VirtGpuDevice(enum VirtGpuCapset capset) : mCapset(capset) {}
+   virtual ~VirtGpuDevice() {}
 
-    enum VirtGpuCapset capset() { return mCapset; }
+   enum VirtGpuCapset capset() { return mCapset; }
 
-    virtual int64_t getDeviceHandle(void) = 0;
+   virtual int64_t getDeviceHandle(void) = 0;
 
-    virtual struct VirtGpuCaps getCaps(void) = 0;
+   virtual struct VirtGpuCaps getCaps(void) = 0;
 
-    virtual VirtGpuResourcePtr createBlob(const struct VirtGpuCreateBlob& blobCreate) = 0;
-    virtual VirtGpuResourcePtr createResource(uint32_t width, uint32_t height, uint32_t stride,
-                                              uint32_t size, uint32_t virglFormat, uint32_t target,
-                                              uint32_t bind) = 0;
-    virtual VirtGpuResourcePtr importBlob(const struct VirtGpuExternalHandle& handle) = 0;
+   virtual VirtGpuResourcePtr createBlob(const struct VirtGpuCreateBlob& blobCreate) = 0;
+   virtual VirtGpuResourcePtr createResource(uint32_t width, uint32_t height, uint32_t stride,
+                                             uint32_t size, uint32_t virglFormat, uint32_t target,
+                                             uint32_t bind) = 0;
+   virtual VirtGpuResourcePtr importBlob(const struct VirtGpuExternalHandle& handle) = 0;
 
-    virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuResource* blob) = 0;
+   virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuResource* blob) = 0;
 
-   private:
-    enum VirtGpuCapset mCapset;
+  private:
+   enum VirtGpuCapset mCapset;
 };
 
 VirtGpuDevice* createPlatformVirtGpuDevice(enum VirtGpuCapset capset = kCapsetNone, int fd = -1);

@@ -39,7 +39,8 @@
 
 static inline uint32_t align_up(uint32_t n, uint32_t a) { return ((n + a - 1) / a) * a; }
 
-LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) : VirtGpuDevice(capset) {
+LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int32_t descriptor)
+    : VirtGpuDevice(capset) {
     struct VirtGpuParam params[] = {
         PARAM(VIRTGPU_PARAM_3D_FEATURES),          PARAM(VIRTGPU_PARAM_CAPSET_QUERY_FIX),
         PARAM(VIRTGPU_PARAM_RESOURCE_BLOB),        PARAM(VIRTGPU_PARAM_HOST_VISIBLE),
@@ -61,14 +62,14 @@ LinuxVirtGpuDevice::LinuxVirtGpuDevice(enum VirtGpuCapset capset, int fd) : Virt
     processName = getprogname();
 #endif
 
-    if (fd < 0) {
+    if (descriptor < 0) {
         mDeviceHandle = static_cast<int64_t>(drmOpenRender(128));
         if (mDeviceHandle < 0) {
             ALOGE("Failed to open rendernode: %s", strerror(errno));
             return;
         }
     } else {
-        mDeviceHandle = dup(fd);
+        mDeviceHandle = dup(descriptor);
         if (mDeviceHandle < 0) {
             ALOGE("Failed to dup rendernode: %s", strerror(errno));
             return;
@@ -257,6 +258,6 @@ int LinuxVirtGpuDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer,
     return 0;
 }
 
-VirtGpuDevice* createPlatformVirtGpuDevice(enum VirtGpuCapset capset, int fd) {
-    return new LinuxVirtGpuDevice(capset, fd);
+VirtGpuDevice* createPlatformVirtGpuDevice(enum VirtGpuCapset capset, int32_t descriptor) {
+    return new LinuxVirtGpuDevice(capset, descriptor);
 }
