@@ -47,12 +47,12 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int32_t de
         PARAM(VIRTGPU_KUMQUAT_PARAM_CREATE_GUEST_HANDLE),
     };
 
-    (void)descriptor;
     int ret;
     struct drm_kumquat_get_caps get_caps = {0};
     struct drm_kumquat_context_init init = {0};
     struct drm_kumquat_context_set_param ctx_set_params[3] = {{0}};
     const char* processName = nullptr;
+    std::string gpu_socket_path = "/tmp/kumquat-gpu-";
 
     memset(&mCaps, 0, sizeof(struct VirtGpuCaps));
 
@@ -60,7 +60,13 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int32_t de
     processName = getprogname();
 #endif
 
-    ret = virtgpu_kumquat_init(&mVirtGpu, nullptr);
+    if (descriptor >= 0) {
+        gpu_socket_path.append(std::to_string(descriptor));
+    } else {
+        gpu_socket_path.append("0");
+    }
+
+    ret = virtgpu_kumquat_init(&mVirtGpu, gpu_socket_path.c_str());
     if (ret) {
         ALOGV("Failed to init virtgpu kumquat");
         return;
