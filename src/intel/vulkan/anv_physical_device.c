@@ -165,10 +165,12 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_uniform_buffer_standard_layout    = true,
       .KHR_variable_pointers                 = true,
       .KHR_vertex_attribute_divisor          = true,
-      .KHR_video_queue                       = device->video_decode_enabled,
+      .KHR_video_queue                       = device->video_decode_enabled || device->video_encode_enabled,
       .KHR_video_decode_queue                = device->video_decode_enabled,
       .KHR_video_decode_h264                 = VIDEO_CODEC_H264DEC && device->video_decode_enabled,
       .KHR_video_decode_h265                 = VIDEO_CODEC_H265DEC && device->video_decode_enabled,
+      .KHR_video_encode_queue                = device->video_encode_enabled,
+      .KHR_video_encode_h264                 = VIDEO_CODEC_H264ENC && device->video_encode_enabled,
       .KHR_vulkan_memory_model               = true,
       .KHR_workgroup_memory_explicit_layout  = true,
       .KHR_zero_initialize_workgroup_memory  = true,
@@ -2141,7 +2143,7 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
             .engine_class = compute_class,
          };
       }
-      if (v_count > 0 && pdevice->video_decode_enabled) {
+      if (v_count > 0 && (pdevice->video_decode_enabled || pdevice->video_encode_enabled)) {
          /* HEVC support on Gfx9 is only available on VCS0. So limit the number of video queues
           * to the first VCS engine instance.
           *
@@ -2154,7 +2156,8 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
           */
          /* TODO: enable protected content on video queue */
          pdevice->queue.families[family_count++] = (struct anv_queue_family) {
-            .queueFlags = VK_QUEUE_VIDEO_DECODE_BIT_KHR,
+            .queueFlags = (pdevice->video_decode_enabled ? VK_QUEUE_VIDEO_DECODE_BIT_KHR : 0) |
+                          (pdevice->video_encode_enabled ? VK_QUEUE_VIDEO_ENCODE_BIT_KHR : 0),
             .queueCount = pdevice->info.ver == 9 ? MIN2(1, v_count) : v_count,
             .engine_class = INTEL_ENGINE_CLASS_VIDEO,
          };
@@ -2368,6 +2371,7 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
       !debug_get_bool_option("ANV_DISABLE_SECONDARY_CMD_BUFFER_CALLS", false);
 
    device->video_decode_enabled = debug_get_bool_option("ANV_VIDEO_DECODE", false);
+   device->video_encode_enabled = debug_get_bool_option("ANV_VIDEO_ENCODE", false);
 
    device->uses_ex_bso = device->info.verx10 >= 125;
 
@@ -2613,6 +2617,10 @@ void anv_GetPhysicalDeviceQueueFamilyProperties2(
                if (queue_family->queueFlags & VK_QUEUE_VIDEO_DECODE_BIT_KHR) {
                   prop->videoCodecOperations = VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR |
                                                VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR;
+               }
+
+               if (queue_family->queueFlags & VK_QUEUE_VIDEO_ENCODE_BIT_KHR) {
+                  prop->videoCodecOperations |= VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR;
                }
                break;
             }
