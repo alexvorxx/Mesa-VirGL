@@ -499,9 +499,7 @@ static const struct glx_context_vtable dri3_context_vtable = {
 static char *
 dri3_get_driver_name(struct glx_screen *glx_screen)
 {
-    struct dri3_screen *psc = (struct dri3_screen *)glx_screen;
-
-    return loader_get_driver_for_fd(psc->fd_render_gpu);
+    return strdup(psc->base.driverName);
 }
 
 static const struct glx_screen_vtable dri3_screen_vtable = {
