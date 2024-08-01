@@ -6,5 +6,4 @@ if with_guest_test
   subdir('kumquat')
 else
   subdir('linux')
-  subdir('stub')
 endif
