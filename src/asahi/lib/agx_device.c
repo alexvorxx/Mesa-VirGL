@@ -97,15 +97,15 @@ agx_bo_free(struct agx_device *dev, struct agx_bo *bo)
 
 static int
 agx_bo_bind(struct agx_device *dev, struct agx_bo *bo, uint64_t addr,
-            uint32_t flags)
+            size_t size_B, uint64_t offset_B, uint32_t flags, bool unbind)
 {
    struct drm_asahi_gem_bind gem_bind = {
-      .op = ASAHI_BIND_OP_BIND,
+      .op = unbind ? ASAHI_BIND_OP_UNBIND : ASAHI_BIND_OP_BIND,
       .flags = flags,
       .handle = bo->handle,
       .vm_id = dev->vm_id,
-      .offset = 0,
-      .range = bo->size,
+      .offset = offset_B,
+      .range = size_B,
       .addr = addr,
    };
 
@@ -176,7 +176,7 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
       bind |= ASAHI_BIND_WRITE;
    }
 
-   ret = dev->ops.bo_bind(dev, bo, bo->va->addr, bind);
+   ret = dev->ops.bo_bind(dev, bo, bo->va->addr, bo->size, 0, bind, false);
    if (ret) {
       agx_bo_free(dev, bo);
       return NULL;
@@ -272,8 +272,8 @@ agx_bo_import(struct agx_device *dev, int fd)
          bo->vbo_res_id = vdrm_handle_to_res_id(dev->vdrm, bo->handle);
       }
 
-      ret = dev->ops.bo_bind(dev, bo, bo->va->addr,
-                             ASAHI_BIND_READ | ASAHI_BIND_WRITE);
+      ret = dev->ops.bo_bind(dev, bo, bo->va->addr, bo->size, 0,
+                             ASAHI_BIND_READ | ASAHI_BIND_WRITE, false);
       if (ret) {
          fprintf(stderr, "import failed: Could not bind BO at 0x%llx\n",
                  (long long)bo->va->addr);

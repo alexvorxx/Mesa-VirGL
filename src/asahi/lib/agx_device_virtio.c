@@ -9,6 +9,7 @@
 #include <sys/mman.h>
 
 #include "drm-uapi/virtgpu_drm.h"
+#include "unstable_asahi_drm.h"
 
 #define VIRGL_RENDERER_UNSTABLE_APIS 1
 #include "vdrm.h"
@@ -123,14 +124,17 @@ agx_virtio_bo_alloc(struct agx_device *dev, size_t size, size_t align,
 
 static int
 agx_virtio_bo_bind(struct agx_device *dev, struct agx_bo *bo, uint64_t addr,
-                   uint32_t flags)
+                   size_t size_B, uint64_t offset_B, uint32_t flags,
+                   bool unbind)
 {
+   assert(offset_B == 0 && "TODO: need to extend virtgpu");
+
    struct asahi_ccmd_gem_bind_req req = {
-      .op = ASAHI_BIND_OP_BIND,
+      .op = unbind ? ASAHI_BIND_OP_UNBIND : ASAHI_BIND_OP_BIND,
       .flags = flags,
       .vm_id = dev->vm_id,
       .res_id = bo->vbo_res_id,
-      .size = bo->size,
+      .size = size_B,
       .addr = addr,
       .hdr.cmd = ASAHI_CCMD_GEM_BIND,
       .hdr.len = sizeof(struct asahi_ccmd_gem_bind_req),
