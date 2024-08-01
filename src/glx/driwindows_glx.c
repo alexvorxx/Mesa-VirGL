@@ -44,7 +44,6 @@ struct driwindows_screen
 {
    struct glx_screen base;
    __DRIscreen *driScreen;
-   __GLXDRIscreen vtable;
    int event_base;
    Bool copySubBuffer;
 };
@@ -506,8 +505,7 @@ driwindowsCreateScreen(int screen, struct glx_display *priv, bool driver_name_is
    psc->base.visuals = visuals;
 
    psc->base.vtable = &driwindows_screen_vtable;
-   psp = &psc->vtable;
-   psc->base.driScreen = psp;
+   psp = &psc->base.driScreen;
    psp->createDrawable = driwindowsCreateDrawable;
    psp->swapBuffers = driwindowsSwapBuffers;
 

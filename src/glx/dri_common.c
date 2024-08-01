@@ -341,7 +341,7 @@ driFetchDrawable(struct glx_context *gc, GLXDrawable glxDrawable)
       type = GLX_PBUFFER_BIT | GLX_WINDOW_BIT;
    }
 
-   pdraw = psc->driScreen->createDrawable(psc, glxDrawable, glxDrawable,
+   pdraw = psc->driScreen.createDrawable(psc, glxDrawable, glxDrawable,
                                           type, config);
 
    if (pdraw == NULL) {

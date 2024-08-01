@@ -42,8 +42,6 @@ extern "C" {
 struct dri2_screen {
    struct glx_screen base;
 
-   __GLXDRIscreen vtable;
-
    const __DRIconfig **driver_configs;
 
    int fd;

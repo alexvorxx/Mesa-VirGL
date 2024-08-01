@@ -37,8 +37,6 @@ struct drisw_screen
 {
    struct glx_screen base;
 
-   __GLXDRIscreen vtable;
-
    bool kopper;
 };
 

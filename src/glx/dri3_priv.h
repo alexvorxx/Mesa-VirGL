@@ -65,8 +65,6 @@
 struct dri3_screen {
    struct glx_screen base;
 
-   __GLXDRIscreen vtable;
-
    /* DRI screen is created for display GPU in case of prime gpu offloading.
     * This screen is used to allocate linear_buffer from
     * display GPU space in dri3_alloc_render_buffer() function.

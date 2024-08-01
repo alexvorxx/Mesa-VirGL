@@ -164,10 +164,10 @@ CreateDRIDrawable(Display *dpy, struct glx_config *config,
    }
 
    psc = priv->screens[config->screen];
-   if (psc->driScreen == NULL)
+   if (psc->driScreen.createDrawable == NULL)
       return GL_TRUE;
 
-   pdraw = psc->driScreen->createDrawable(psc, drawable, glxdrawable,
+   pdraw = psc->driScreen.createDrawable(psc, drawable, glxdrawable,
                                           type, config);
    if (pdraw == NULL) {
       fprintf(stderr, "failed to create drawable\n");
@@ -296,10 +296,10 @@ __glXGetDrawableAttribute(Display * dpy, GLXDrawable drawable,
 
    if (pdraw) {
       if (attribute == GLX_SWAP_INTERVAL_EXT) {
-         *value = pdraw->psc->driScreen->getSwapInterval(pdraw);
+         *value = pdraw->psc->driScreen.getSwapInterval(pdraw);
          return 1;
       } else if (attribute == GLX_MAX_SWAP_INTERVAL_EXT) {
-         *value = pdraw->psc->driScreen->maxSwapInterval;
+         *value = pdraw->psc->driScreen.maxSwapInterval;
          return 1;
       } else if (attribute == GLX_LATE_SWAPS_TEAR_EXT) {
          *value = __glXExtensionBitIsEnabled(pdraw->psc,
