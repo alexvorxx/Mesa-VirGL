@@ -133,6 +133,12 @@ struct agx_device {
    struct agxdecode_ctx *agxdecode;
 };
 
+static inline bool
+agx_has_soft_fault(struct agx_device *dev)
+{
+   return dev->params.feat_compat & DRM_ASAHI_FEAT_SOFT_FAULTS;
+}
+
 bool agx_open_device(void *memctx, struct agx_device *dev);
 
 void agx_close_device(struct agx_device *dev);

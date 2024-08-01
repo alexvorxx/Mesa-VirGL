@@ -2704,13 +2704,39 @@ mem_vectorize_cb(unsigned align_mul, unsigned align_offset, unsigned bit_size,
    return true;
 }
 
+static bool
+set_speculate(nir_builder *b, nir_intrinsic_instr *intr, UNUSED void *_)
+{
+   if (!nir_intrinsic_has_access(intr))
+      return false;
+
+   nir_intrinsic_set_access(intr,
+                            ACCESS_CAN_SPECULATE | nir_intrinsic_access(intr));
+   return true;
+}
+
 static void
-agx_optimize_nir(nir_shader *nir, unsigned *preamble_size)
+agx_optimize_nir(nir_shader *nir, bool soft_fault, unsigned *preamble_size)
 {
    /* This runs only once up front since other optimizations don't affect it */
    NIR_PASS(_, nir, nir_opt_shrink_stores, true);
 
    agx_optimize_loop_nir(nir);
+
+   /* If soft fault is enabled, we can freely speculate everything. That lets us
+    * peephole select and form preambles more aggressively.
+    */
+   if (soft_fault) {
+      NIR_PASS(_, nir, nir_shader_intrinsics_pass, set_speculate,
+               nir_metadata_control_flow, NULL);
+   }
+
+   /* Peephole select again after setting the speculate flag but before
+    * vectorizing. This cleans up short-circuit loads in unrolled loops.
+    *
+    * XXX: Set indirect_load_ok once we can investigate CTS flakes.
+    */
+   NIR_PASS(_, nir, nir_opt_peephole_select, 64, false, true);
 
    NIR_PASS(_, nir, nir_opt_load_store_vectorize,
             &(const nir_load_store_vectorize_options){
@@ -3426,7 +3452,8 @@ agx_compile_shader_nir(nir_shader *nir, struct agx_shader_key *key,
             nir_metadata_control_flow, NULL);
 
    info->push_count = key->reserved_preamble;
-   agx_optimize_nir(nir, key->secondary ? NULL : &info->push_count);
+   agx_optimize_nir(nir, key->dev.soft_fault,
+                    key->secondary ? NULL : &info->push_count);
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       info->varyings.fs.nr_cf = key->fs.cf_base;

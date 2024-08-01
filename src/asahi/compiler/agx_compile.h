@@ -190,6 +190,11 @@ struct agx_device_key {
     * Only used on G13X.
     */
    bool needs_g13x_coherency;
+
+   /* Is soft fault enabled? This is technically system-wide policy set by the
+    * kernel, but that's functionally a hardware feature.
+    */
+   bool soft_fault;
 };
 
 struct agx_shader_key {

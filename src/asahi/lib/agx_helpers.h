@@ -244,5 +244,6 @@ agx_gather_device_key(struct agx_device *dev)
       .needs_g13x_coherency = (dev->params.gpu_generation == 13 &&
                                dev->params.num_clusters_total > 1) ||
                               dev->params.num_dies > 1,
+      .soft_fault = agx_has_soft_fault(dev),
    };
 }
