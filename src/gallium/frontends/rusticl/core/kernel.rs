@@ -57,6 +57,7 @@ pub enum KernelArgType {
 enum InternalKernelArgType {
     ConstantBuffer,
     GlobalWorkOffsets,
+    GlobalWorkSize,
     PrintfBuffer,
     InlineSampler((cl_addressing_mode, cl_filter_mode, bool)),
     FormatArray,
@@ -237,6 +238,7 @@ impl InternalKernelArg {
                     InternalKernelArgType::WorkDim => blob_write_uint8(blob, 6),
                     InternalKernelArgType::WorkGroupOffsets => blob_write_uint8(blob, 7),
                     InternalKernelArgType::NumWorkgroups => blob_write_uint8(blob, 8),
+                    InternalKernelArgType::GlobalWorkSize => blob_write_uint8(blob, 9),
                 };
             }
         }
@@ -266,6 +268,7 @@ impl InternalKernelArg {
                     6 => InternalKernelArgType::WorkDim,
                     7 => InternalKernelArgType::WorkGroupOffsets,
                     8 => InternalKernelArgType::NumWorkgroups,
+                    9 => InternalKernelArgType::GlobalWorkSize,
                     _ => return None,
                 };
 
@@ -628,6 +631,7 @@ fn lower_and_optimize_nir(
     let mut compute_options = nir_lower_compute_system_values_options::default();
     compute_options.set_has_base_global_invocation_id(true);
     compute_options.set_has_base_workgroup_id(true);
+    compute_options.set_has_global_size(true);
     nir_pass!(nir, nir_lower_compute_system_values, &compute_options);
     nir.gather_info();
 
@@ -643,6 +647,21 @@ fn lower_and_optimize_nir(
             unsafe { glsl_vector_type(address_bits_base_type, 3) },
             lower_state.base_global_invoc_id_loc,
             "base_global_invocation_id",
+        );
+    }
+
+    if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_GLOBAL_GROUP_SIZE) {
+        internal_args.push(InternalKernelArg {
+            kind: InternalKernelArgType::GlobalWorkSize,
+            offset: 0,
+            size: (3 * dev.address_bits() / 8) as usize,
+        });
+        lower_state.global_size_loc = args.len() + internal_args.len() - 1;
+        nir.add_var(
+            nir_variable_mode::nir_var_uniform,
+            unsafe { glsl_vector_type(address_bits_base_type, 3) },
+            lower_state.global_size_loc,
+            "global_size",
         );
     }
 
@@ -1037,6 +1056,8 @@ impl Kernel {
         let mut grid = create_kernel_arr::<usize>(grid, 1)?;
         let offsets = create_kernel_arr::<usize>(offsets, 0)?;
 
+        let api_grid = grid;
+
         self.optimize_local_size(q.device, &mut grid, &mut block);
 
         Ok(Box::new(move |q, ctx| {
@@ -1079,6 +1100,14 @@ impl Kernel {
                 } else {
                     let offset: u32 = offset as u32;
                     input.extend_from_slice(&offset.to_ne_bytes());
+                }
+            }
+
+            fn add_sysval(q: &Queue, input: &mut Vec<u8>, vals: &[usize; 3]) {
+                if q.device.address_bits() == 64 {
+                    input.extend_from_slice(unsafe { as_byte_slice(&vals.map(|v| v as u64)) });
+                } else {
+                    input.extend_from_slice(unsafe { as_byte_slice(&vals.map(|v| v as u32)) });
                 }
             }
 
@@ -1204,27 +1233,14 @@ impl Kernel {
                         add_global(q, &mut input, &mut resource_info, res, 0);
                     }
                     InternalKernelArgType::GlobalWorkOffsets => {
-                        if q.device.address_bits() == 64 {
-                            input.extend_from_slice(unsafe {
-                                as_byte_slice(&[
-                                    offsets[0] as u64,
-                                    offsets[1] as u64,
-                                    offsets[2] as u64,
-                                ])
-                            });
-                        } else {
-                            input.extend_from_slice(unsafe {
-                                as_byte_slice(&[
-                                    offsets[0] as u32,
-                                    offsets[1] as u32,
-                                    offsets[2] as u32,
-                                ])
-                            });
-                        }
+                        add_sysval(q, &mut input, &offsets);
                     }
                     InternalKernelArgType::WorkGroupOffsets => {
                         workgroup_id_offset_loc = Some(input.len());
                         input.extend_from_slice(null_ptr_v3);
+                    }
+                    InternalKernelArgType::GlobalWorkSize => {
+                        add_sysval(q, &mut input, &api_grid);
                     }
                     InternalKernelArgType::PrintfBuffer => {
                         let res = printf_buf.as_ref().unwrap();
