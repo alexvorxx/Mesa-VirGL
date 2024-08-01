@@ -1150,7 +1150,7 @@ glXQueryExtensionsString(Display * dpy, int screen)
       }
 
 #if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
-      is_direct_capable = (psc->driScreen != NULL);
+      is_direct_capable = (psc->display->driver != 0);
 #endif
       __glXCalculateUsableExtensions(psc, is_direct_capable);
    }
