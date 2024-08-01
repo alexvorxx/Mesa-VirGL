@@ -435,22 +435,22 @@ static int
 drisw_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read)
 {
    struct drisw_screen *psc = (struct drisw_screen *) context->psc;
-   struct drisw_drawable *pdraw, *pread;
+   __GLXDRIdrawable *pdraw, *pread;
 
-   pdraw = (struct drisw_drawable *) driFetchDrawable(context, draw);
-   pread = (struct drisw_drawable *) driFetchDrawable(context, read);
+   pdraw = driFetchDrawable(context, draw);
+   pread = driFetchDrawable(context, read);
 
    driReleaseDrawables(context);
 
    if (!driBindContext(context->driContext,
-                               pdraw ? pdraw->base.dri_drawable : NULL,
-                               pread ? pread->base.dri_drawable : NULL))
+                               pdraw ? pdraw->dri_drawable : NULL,
+                               pread ? pread->dri_drawable : NULL))
       return GLXBadContext;
    if (psc->kopper) {
       if (pdraw)
-         dri_invalidate_drawable(pdraw->base.dri_drawable);
-      if (pread && (!pdraw || pread->base.dri_drawable != pdraw->base.dri_drawable))
-         dri_invalidate_drawable(pread->base.dri_drawable);
+         dri_invalidate_drawable(pdraw->dri_drawable);
+      if (pread && (!pdraw || pread->dri_drawable != pdraw->dri_drawable))
+         dri_invalidate_drawable(pread->dri_drawable);
    }
 
    return Success;
@@ -479,13 +479,12 @@ drisw_bind_tex_image(__GLXDRIdrawable *base,
                      int buffer, const int *attrib_list)
 {
    struct glx_context *gc = __glXGetCurrentContext();
-   struct drisw_drawable *pdraw = (struct drisw_drawable *) base;
 
-   if (pdraw != NULL) {
+   if (base != NULL) {
       dri_set_tex_buffer2(gc->driContext,
-                          pdraw->base.textureTarget,
-                          pdraw->base.textureFormat,
-                          pdraw->base.dri_drawable);
+                          base->textureTarget,
+                          base->textureFormat,
+                          base->dri_drawable);
    }
 }
 
@@ -494,9 +493,7 @@ kopper_get_buffer_age(__GLXDRIdrawable *pdraw);
 int
 kopper_get_buffer_age(__GLXDRIdrawable *pdraw)
 {
-   struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
-
-   return kopperQueryBufferAge(pdp->base.dri_drawable);
+   return kopperQueryBufferAge(pdraw->dri_drawable);
 }
 
 static const struct glx_context_vtable drisw_context_vtable = {
@@ -699,8 +696,7 @@ driswSwapBuffers(__GLXDRIdrawable * pdraw,
                  int64_t target_msc, int64_t divisor, int64_t remainder,
                  Bool flush)
 {
-   struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
-   struct drisw_screen *psc = (struct drisw_screen *) pdp->base.psc;
+   struct drisw_screen *psc = (struct drisw_screen *) pdraw->psc;
 
    (void) target_msc;
    (void) divisor;
@@ -711,9 +707,9 @@ driswSwapBuffers(__GLXDRIdrawable * pdraw,
    }
 
    if (psc->kopper)
-       return kopperSwapBuffers (pdp->base.dri_drawable, 0);
+       return kopperSwapBuffers(pdraw->dri_drawable, 0);
 
-   driSwapBuffers(pdp->base.dri_drawable);
+   driSwapBuffers(pdraw->dri_drawable);
 
    return 0;
 }
@@ -722,13 +718,11 @@ static void
 drisw_copy_sub_buffer(__GLXDRIdrawable * pdraw,
                       int x, int y, int width, int height, Bool flush)
 {
-   struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
-
    if (flush) {
       glFlush();
    }
 
-   driswCopySubBuffer(pdp->base.dri_drawable, x, y, width, height);
+   driswCopySubBuffer(pdraw->dri_drawable, x, y, width, height);
 }
 
 static void

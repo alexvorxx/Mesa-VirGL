@@ -102,21 +102,21 @@ dri2_destroy_context(struct glx_context *context)
 static Bool
 dri2_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read)
 {
-   struct dri2_drawable *pdraw, *pread;
+   __GLXDRIdrawable *pdraw, *pread;
    __DRIdrawable *dri_draw = NULL, *dri_read = NULL;
 
-   pdraw = (struct dri2_drawable *) driFetchDrawable(context, draw);
-   pread = (struct dri2_drawable *) driFetchDrawable(context, read);
+   pdraw = driFetchDrawable(context, draw);
+   pread = driFetchDrawable(context, read);
 
    driReleaseDrawables(context);
 
    if (pdraw)
-      dri_draw = pdraw->base.dri_drawable;
+      dri_draw = pdraw->dri_drawable;
    else if (draw != None)
       return GLXBadDrawable;
 
    if (pread)
-      dri_read = pread->base.dri_drawable;
+      dri_read = pread->dri_drawable;
    else if (read != None)
       return GLXBadDrawable;
 
@@ -251,11 +251,10 @@ static void
 dri2DestroyDrawable(__GLXDRIdrawable *base)
 {
    struct dri2_screen *psc = (struct dri2_screen *) base->psc;
-   struct dri2_drawable *pdraw = (struct dri2_drawable *) base;
    struct glx_display *dpyPriv = psc->base.display;
 
-   __glxHashDelete(dpyPriv->dri2Hash, pdraw->base.xDrawable);
-   driDestroyDrawable(pdraw->base.dri_drawable);
+   __glxHashDelete(dpyPriv->dri2Hash, base->xDrawable);
+   driDestroyDrawable(base->dri_drawable);
 
    /* If it's a GLX 1.3 drawables, we can destroy the DRI2 drawable
     * now, as the application explicitly asked to destroy the GLX
@@ -264,10 +263,10 @@ dri2DestroyDrawable(__GLXDRIdrawable *base)
     * knowing when the application is done with it.  The server will
     * destroy the DRI2 drawable when it destroys the X drawable or the
     * client exits anyway. */
-   if (pdraw->base.xDrawable != pdraw->base.drawable)
-      DRI2DestroyDrawable(psc->base.dpy, pdraw->base.xDrawable);
+   if (base->xDrawable != base->drawable)
+      DRI2DestroyDrawable(psc->base.dpy, base->xDrawable);
 
-   free(pdraw);
+   free(base);
 }
 
 static __GLXDRIdrawable *
@@ -789,12 +788,11 @@ dri2InvalidateBuffers(Display *dpy, XID drawable)
 {
    __GLXDRIdrawable *pdraw =
       dri2GetGlxDrawableFromXDrawableId(dpy, drawable);
-   struct dri2_drawable *pdp = (struct dri2_drawable *) pdraw;
 
    if (!pdraw)
       return;
 
-   dri_invalidate_drawable(pdp->base.dri_drawable);
+   dri_invalidate_drawable(pdraw->dri_drawable);
 }
 
 static void
@@ -802,13 +800,12 @@ dri2_bind_tex_image(__GLXDRIdrawable *base,
 		    int buffer, const int *attrib_list)
 {
    struct glx_context *gc = __glXGetCurrentContext();
-   struct dri2_drawable *pdraw = (struct dri2_drawable *) base;
 
-   if (pdraw != NULL) {
+   if (base != NULL) {
       dri_set_tex_buffer2(gc->driContext,
-                          pdraw->base.textureTarget,
-                          pdraw->base.textureFormat,
-                          pdraw->base.dri_drawable);
+                          base->textureTarget,
+                          base->textureFormat,
+                          base->dri_drawable);
    }
 }
 

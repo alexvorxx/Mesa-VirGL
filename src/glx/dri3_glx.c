@@ -160,21 +160,21 @@ dri3_destroy_context(struct glx_context *context)
 static Bool
 dri3_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read)
 {
-   struct dri3_drawable *pdraw, *pread;
+   __GLXDRIdrawable *pdraw, *pread;
    __DRIdrawable *dri_draw = NULL, *dri_read = NULL;
 
-   pdraw = (struct dri3_drawable *) driFetchDrawable(context, draw);
-   pread = (struct dri3_drawable *) driFetchDrawable(context, read);
+   pdraw = driFetchDrawable(context, draw);
+   pread = driFetchDrawable(context, read);
 
    driReleaseDrawables(context);
 
    if (pdraw)
-      dri_draw = pdraw->base.dri_drawable;
+      dri_draw = pdraw->dri_drawable;
    else if (draw != None)
       return GLXBadDrawable;
 
    if (pread)
-      dri_read = pread->base.dri_drawable;
+      dri_read = pread->dri_drawable;
    else if (read != None)
       return GLXBadDrawable;
 
@@ -638,17 +638,16 @@ dri3_bind_tex_image(__GLXDRIdrawable *base,
                     int buffer, const int *attrib_list)
 {
    struct glx_context *gc = __glXGetCurrentContext();
-   struct dri3_drawable *pdraw = (struct dri3_drawable *) base;
 
-   if (pdraw != NULL) {
-      dri_invalidate_drawable(pdraw->base.dri_drawable);
+   if (base) {
+      dri_invalidate_drawable(base->dri_drawable);
 
       XSync(gc->currentDpy, false);
 
       dri_set_tex_buffer2(gc->driContext,
-                          pdraw->base.textureTarget,
-                          pdraw->base.textureFormat,
-                          pdraw->base.dri_drawable);
+                          base->textureTarget,
+                          base->textureFormat,
+                          base->dri_drawable);
    }
 }
 
