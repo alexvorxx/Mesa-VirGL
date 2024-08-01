@@ -618,8 +618,7 @@ kopperCreateNewDrawable(__DRIscreen *psp,
     assert(data != NULL);
 
     struct dri_screen *screen = dri_screen(psp);
-    struct dri_drawable *drawable =
-       screen->create_drawable(screen, &config->modes, info->is_pixmap, data);
+    struct dri_drawable *drawable = kopper_create_drawable(screen, &config->modes, info->is_pixmap, data);
 
     return opaque_dri_drawable(drawable);
 }
