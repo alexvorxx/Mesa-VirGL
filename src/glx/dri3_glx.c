@@ -430,7 +430,6 @@ dri3_deinit_screen(struct glx_screen *base)
    if (psc->fd_render_gpu != psc->fd_display_gpu)
       close(psc->fd_display_gpu);
    loader_dri3_close_screen(psc->driScreenRenderGPU);
-   driDestroyScreen(psc->driScreenRenderGPU);
    close(psc->fd_render_gpu);
 }
 
@@ -671,9 +670,6 @@ handle_error:
        glx_config_destroy_list(configs);
    if (visuals)
        glx_config_destroy_list(visuals);
-   if (psc->driScreenRenderGPU)
-       driDestroyScreen(psc->driScreenRenderGPU);
-   psc->driScreenRenderGPU = NULL;
    if (psc->fd_render_gpu != psc->fd_display_gpu && psc->driScreenDisplayGPU)
        driDestroyScreen(psc->driScreenDisplayGPU);
    psc->driScreenDisplayGPU = NULL;

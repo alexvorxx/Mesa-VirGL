@@ -424,8 +424,6 @@ dri2DeinitScreen(struct glx_screen *base)
 {
    struct dri2_screen *psc = (struct dri2_screen *) base;
 
-   /* Free the direct rendering per screen data */
-   driDestroyScreen(psc->base.frontend_screen);
    close(psc->fd);
 }
 
@@ -801,9 +799,6 @@ handle_error:
        glx_config_destroy_list(configs);
    if (visuals)
        glx_config_destroy_list(visuals);
-   if (psc->base.frontend_screen)
-       driDestroyScreen(psc->base.frontend_screen);
-   psc->base.frontend_screen = NULL;
    if (psc->fd >= 0)
       close(psc->fd);
 
