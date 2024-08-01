@@ -801,4 +801,10 @@ dri_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read
    return Success;
 }
 
+void
+dri_unbind_context(struct glx_context *context)
+{
+   driUnbindContext(context->driContext);
+}
+
 #endif /* GLX_DIRECT_RENDERING */

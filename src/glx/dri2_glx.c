@@ -99,12 +99,6 @@ dri2_destroy_context(struct glx_context *context)
    free(context);
 }
 
-static void
-dri2_unbind_context(struct glx_context *context)
-{
-   driUnbindContext(context->driContext);
-}
-
 static struct glx_context *
 dri2_create_context_attribs(struct glx_screen *base,
 			    struct glx_config *config_base,
@@ -785,7 +779,7 @@ dri2_bind_tex_image(__GLXDRIdrawable *base,
 static const struct glx_context_vtable dri2_context_vtable = {
    .destroy             = dri2_destroy_context,
    .bind                = dri_bind_context,
-   .unbind              = dri2_unbind_context,
+   .unbind              = dri_unbind_context,
    .wait_gl             = dri2_wait_gl,
    .wait_x              = dri2_wait_x,
 };
