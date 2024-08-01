@@ -73,6 +73,8 @@ struct dri_ctx_attribs {
    int no_error;
 };
 
+extern const struct glx_screen_vtable dri_screen_vtable;
+
 extern unsigned
 dri_context_error_to_glx_error(unsigned error);
 

@@ -939,4 +939,11 @@ dri_get_driver_name(struct glx_screen *glx_screen)
     return strdup(glx_screen->driverName);
 }
 
+const struct glx_screen_vtable dri_screen_vtable = {
+   .create_context         = dri_common_create_context,
+   .create_context_attribs = dri_create_context_attribs,
+   .query_renderer_integer = glx_dri_query_renderer_integer,
+   .query_renderer_string  = glx_dri_query_renderer_string,
+   .get_driver_name        = dri_get_driver_name,
+};
 #endif /* GLX_DIRECT_RENDERING */

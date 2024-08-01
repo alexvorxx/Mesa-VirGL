@@ -496,14 +496,6 @@ static const struct glx_context_vtable dri3_context_vtable = {
    .wait_x              = dri3_wait_x,
 };
 
-static const struct glx_screen_vtable dri3_screen_vtable = {
-   .create_context         = dri_common_create_context,
-   .create_context_attribs = dri_create_context_attribs,
-   .query_renderer_integer = glx_dri_query_renderer_integer,
-   .query_renderer_string  = glx_dri_query_renderer_string,
-   .get_driver_name        = dri_get_driver_name,
-};
-
 /** dri3_create_screen
  *
  * Initialize DRI3 on the specified screen.
@@ -617,7 +609,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
 
    psc->driver_configs = driver_configs;
 
-   psc->base.vtable = &dri3_screen_vtable;
+   psc->base.vtable = &dri_screen_vtable;
    psc->base.context_vtable = &dri3_context_vtable;
    psp = &psc->vtable;
    psc->base.driScreen = psp;

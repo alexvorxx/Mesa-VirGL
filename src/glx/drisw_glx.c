@@ -589,14 +589,6 @@ driswDestroyScreen(struct glx_screen *base)
    free(psc);
 }
 
-static const struct glx_screen_vtable drisw_screen_vtable = {
-   .create_context         = dri_common_create_context,
-   .create_context_attribs = dri_create_context_attribs,
-   .query_renderer_integer = glx_dri_query_renderer_integer,
-   .query_renderer_string  = glx_dri_query_renderer_string,
-   .get_driver_name        = dri_get_driver_name,
-};
-
 static int
 check_xshm(Display *dpy)
 {
@@ -711,7 +703,7 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
 
    psc->driver_configs = driver_configs;
 
-   psc->base.vtable = &drisw_screen_vtable;
+   psc->base.vtable = &dri_screen_vtable;
    psc->base.context_vtable = &drisw_context_vtable;
    psp = &psc->vtable;
    psc->base.driScreen = psp;
