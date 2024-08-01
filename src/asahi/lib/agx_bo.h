@@ -89,9 +89,6 @@ struct agx_bo {
    /* Used while decoding, marked read-only */
    bool ro;
 
-   /* Used while decoding, mapped */
-   bool mapped;
-
    /* For debugging */
    const char *label;
 

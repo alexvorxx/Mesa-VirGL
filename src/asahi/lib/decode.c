@@ -99,117 +99,6 @@ agxdecode_find_handle(struct agxdecode_ctx *ctx, unsigned handle, unsigned type)
    return NULL;
 }
 
-static void
-agxdecode_mark_mapped(struct agxdecode_ctx *ctx, unsigned handle)
-{
-   struct agx_bo *bo = agxdecode_find_handle(ctx, handle, AGX_ALLOC_REGULAR);
-
-   if (!bo) {
-      fprintf(stderr, "ERROR - unknown BO mapped with handle %u\n", handle);
-      return;
-   }
-
-   /* Mark mapped for future consumption */
-   bo->mapped = true;
-}
-
-#ifdef __APPLE__
-
-static void
-agxdecode_decode_segment_list(struct agxdecode_ctx *ctx, void *segment_list)
-{
-   unsigned nr_handles = 0;
-
-   /* First, mark everything unmapped */
-   util_dynarray_foreach(&ctx->mmap_array, struct agx_bo, it) {
-      it->mapped = false;
-   }
-
-   /* Check the header */
-   struct agx_map_header *hdr = segment_list;
-   if (hdr->resource_group_count == 0) {
-      fprintf(agxdecode_dump_stream, "ERROR - empty map\n");
-      return;
-   }
-
-   if (hdr->segment_count != 1) {
-      fprintf(agxdecode_dump_stream, "ERROR - can't handle segment count %u\n",
-              hdr->segment_count);
-   }
-
-   fprintf(agxdecode_dump_stream, "Segment list:\n");
-   fprintf(agxdecode_dump_stream, "  Command buffer shmem ID: %" PRIx64 "\n",
-           hdr->cmdbuf_id);
-   fprintf(agxdecode_dump_stream, "  Encoder ID: %" PRIx64 "\n",
-           hdr->encoder_id);
-   fprintf(agxdecode_dump_stream, "  Kernel commands start offset: %u\n",
-           hdr->kernel_commands_start_offset);
-   fprintf(agxdecode_dump_stream, "  Kernel commands end offset: %u\n",
-           hdr->kernel_commands_end_offset);
-   fprintf(agxdecode_dump_stream, "  Unknown: 0x%X\n", hdr->unk);
-
-   /* Expected structure: header followed by resource groups */
-   size_t length = sizeof(struct agx_map_header);
-   length += sizeof(struct agx_map_entry) * hdr->resource_group_count;
-
-   if (length != hdr->length) {
-      fprintf(agxdecode_dump_stream, "ERROR: expected length %zu, got %u\n",
-              length, hdr->length);
-   }
-
-   if (hdr->padding[0] || hdr->padding[1])
-      fprintf(agxdecode_dump_stream, "ERROR - padding tripped\n");
-
-   /* Check the entries */
-   struct agx_map_entry *groups = ((void *)hdr) + sizeof(*hdr);
-   for (unsigned i = 0; i < hdr->resource_group_count; ++i) {
-      struct agx_map_entry group = groups[i];
-      unsigned count = group.resource_count;
-
-      STATIC_ASSERT(ARRAY_SIZE(group.resource_id) == 6);
-      STATIC_ASSERT(ARRAY_SIZE(group.resource_unk) == 6);
-      STATIC_ASSERT(ARRAY_SIZE(group.resource_flags) == 6);
-
-      if ((count < 1) || (count > 6)) {
-         fprintf(agxdecode_dump_stream, "ERROR - invalid count %u\n", count);
-         continue;
-      }
-
-      for (unsigned j = 0; j < count; ++j) {
-         unsigned handle = group.resource_id[j];
-         unsigned unk = group.resource_unk[j];
-         unsigned flags = group.resource_flags[j];
-
-         if (!handle) {
-            fprintf(agxdecode_dump_stream, "ERROR - invalid handle %u\n",
-                    handle);
-            continue;
-         }
-
-         agxdecode_mark_mapped(handle);
-         nr_handles++;
-
-         fprintf(agxdecode_dump_stream, "%u (0x%X, 0x%X)\n", handle, unk,
-                 flags);
-      }
-
-      if (group.unka)
-         fprintf(agxdecode_dump_stream, "ERROR - unknown 0x%X\n", group.unka);
-
-      /* Visual separator for resource groups */
-      fprintf(agxdecode_dump_stream, "\n");
-   }
-
-   /* Check the handle count */
-   if (nr_handles != hdr->total_resources) {
-      fprintf(agxdecode_dump_stream,
-              "ERROR - wrong handle count, got %u, expected %u (%u entries)\n",
-              nr_handles, hdr->total_resources, hdr->resource_group_count);
-   }
-}
-
-#endif
-
 static size_t
 __agxdecode_fetch_gpu_mem(struct agxdecode_ctx *ctx, const struct agx_bo *mem,
                           uint64_t gpu_va, size_t size, void *buf, int line,
@@ -1142,9 +1031,6 @@ agxdecode_cmdstream(struct agxdecode_ctx *ctx, unsigned cmdbuf_handle,
    assert(cmdbuf != NULL && "nonexistent command buffer");
    assert(map != NULL && "nonexistent mapping");
 
-   /* Before decoding anything, validate the map. Set bo->mapped fields */
-   agxdecode_decode_segment_list(map->ptr.cpu);
-
    /* Print the IOGPU stuff */
    agx_unpack(agxdecode_dump_stream, cmdbuf->ptr.cpu, IOGPU_HEADER, cmd);
    DUMP_UNPACKED(IOGPU_HEADER, cmd, "IOGPU Header\n");
@@ -1171,30 +1057,6 @@ agxdecode_cmdstream(struct agxdecode_ctx *ctx, unsigned cmdbuf_handle,
       agxdecode_gfx((uint32_t *)cmdbuf->ptr.cpu, cmd.encoder, verbose, &params);
 
    agxdecode_map_read_write();
-}
-
-void
-agxdecode_dump_mappings(struct agxdecode_ctx *ctx, unsigned map_handle)
-{
-   agxdecode_dump_file_open();
-
-   struct agx_bo *map = agxdecode_find_handle(map_handle, AGX_ALLOC_MEMMAP);
-   assert(map != NULL && "nonexistent mapping");
-   agxdecode_decode_segment_list(map->ptr.cpu);
-
-   util_dynarray_foreach(&ctx->mmap_array, struct agx_bo, it) {
-      if (!it->ptr.cpu || !it->size || !it->mapped)
-         continue;
-
-      assert(it->type < AGX_NUM_ALLOC);
-
-      fprintf(agxdecode_dump_stream,
-              "Buffer: type %s, gpu %" PRIx64 ", handle %u.bin:\n\n",
-              agx_alloc_types[it->type], it->ptr.gpu, it->handle);
-
-      u_hexdump(agxdecode_dump_stream, it->ptr.cpu, it->size, false);
-      fprintf(agxdecode_dump_stream, "\n");
-   }
 }
 
 #endif
