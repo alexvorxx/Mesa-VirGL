@@ -56,10 +56,9 @@ static struct dri_drawable *
 kopper_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
                        bool isPixmap, void *loaderPrivate);
 
-const __DRIconfig **
+struct pipe_screen *
 kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
-   const __DRIconfig **configs;
    struct pipe_screen *pscreen = NULL;
 
    if (!screen->kopper_loader) {
@@ -70,6 +69,7 @@ kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    }
 
    screen->can_share_buffer = true;
+   screen->create_drawable = kopper_create_drawable;
 
    bool success;
 #ifdef HAVE_LIBDRM
@@ -87,19 +87,10 @@ kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    if (!pscreen)
       return NULL;
 
-   configs = dri_init_screen(screen, pscreen);
-   if (!configs)
-      goto fail;
-
    assert(pscreen->get_param(pscreen, PIPE_CAP_DEVICE_RESET_STATUS_QUERY));
    screen->is_sw = zink_kopper_is_cpu(pscreen);
 
-   screen->create_drawable = kopper_create_drawable;
-
-   return configs;
-fail:
-   pipe_loader_release(&screen->dev, 1);
-   return NULL;
+   return pscreen;
 }
 
 // copypasta alert

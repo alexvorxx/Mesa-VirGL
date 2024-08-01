@@ -132,22 +132,28 @@ driCreateNewScreen3(int scrn, int fd,
 
    (void) mtx_init(&screen->opencl_func_mutex, mtx_plain);
 
+   struct pipe_screen *pscreen = NULL;
    switch (type) {
    case DRI_SCREEN_DRI3:
-      *driver_configs = dri2_init_screen(screen, driver_name_is_inferred);
+      pscreen = dri2_init_screen(screen, driver_name_is_inferred);
       break;
    case DRI_SCREEN_KOPPER:
-      *driver_configs = kopper_init_screen(screen, driver_name_is_inferred);
+      pscreen = kopper_init_screen(screen, driver_name_is_inferred);
       break;
    case DRI_SCREEN_SWRAST:
-      *driver_configs = drisw_init_screen(screen, driver_name_is_inferred);
+      pscreen = drisw_init_screen(screen, driver_name_is_inferred);
       break;
    case DRI_SCREEN_KMS_SWRAST:
-      *driver_configs = dri_swrast_kms_init_screen(screen, driver_name_is_inferred);
+      pscreen = dri_swrast_kms_init_screen(screen, driver_name_is_inferred);
       break;
    default:
       unreachable("unknown dri screen type");
    }
+   if (pscreen == NULL) {
+      dri_destroy_screen(screen);
+      return NULL;
+   }
+   *driver_configs = dri_init_screen(screen, pscreen);
    if (*driver_configs == NULL) {
       dri_destroy_screen(screen);
       return NULL;

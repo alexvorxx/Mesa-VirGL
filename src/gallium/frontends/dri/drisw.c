@@ -622,11 +622,10 @@ drisw_create_drawable(struct dri_screen *screen, const struct gl_config * visual
    return drawable;
 }
 
-const __DRIconfig **
+struct pipe_screen *
 drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
    const __DRIswrastLoaderExtension *loader = screen->swrast_loader;
-   const __DRIconfig **configs;
    struct pipe_screen *pscreen = NULL;
    const struct drisw_loader_funcs *lf = &drisw_lf;
 
@@ -636,6 +635,7 @@ drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
       if (loader->putImageShm)
          lf = &drisw_shm_lf;
    }
+   screen->create_drawable = drisw_create_drawable;
 
    bool success = false;
 #ifdef HAVE_DRISW_KMS
@@ -648,19 +648,7 @@ drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    if (success)
       pscreen = pipe_loader_create_screen(screen->dev, driver_name_is_inferred);
 
-   if (!pscreen)
-      return NULL;
-
-   configs = dri_init_screen(screen, pscreen);
-   if (!configs)
-      goto fail;
-
-   screen->create_drawable = drisw_create_drawable;
-
-   return configs;
-fail:
-   pipe_loader_release(&screen->dev, 1);
-   return NULL;
+   return pscreen;
 }
 
 /* swrast copy sub buffer entrypoint. */

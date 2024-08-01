@@ -215,13 +215,13 @@ dri_release_screen(struct dri_screen * screen);
 void
 dri_destroy_screen(struct dri_screen *screen);
 
-const __DRIconfig **
+struct pipe_screen *
 dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred);
-const __DRIconfig **
+struct pipe_screen *
 dri_swrast_kms_init_screen(struct dri_screen *screen, bool driver_name_is_inferred);
-const __DRIconfig **
+struct pipe_screen *
 kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred);
-const __DRIconfig **
+struct pipe_screen *
 drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred);
 
 extern const struct __DriverAPIRec dri_swrast_kms_driver_api;
