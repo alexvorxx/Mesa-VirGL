@@ -497,43 +497,26 @@ agx_open_device(void *memctx, struct agx_device *dev)
       return false;
    }
 
-   if (dev->params.gpu_generation >= 13 && dev->params.gpu_variant != 'P') {
-      const char *variant = " Unknown";
-      switch (dev->params.gpu_variant) {
-      case 'G':
-         variant = "";
-         break;
-      case 'S':
-         variant = " Pro";
-         break;
-      case 'C':
-         variant = " Max";
-         break;
-      case 'D':
-         variant = " Ultra";
-         break;
-      }
-      snprintf(dev->name, sizeof(dev->name), "Apple M%d%s (G%d%c %02X)",
-               dev->params.gpu_generation - 12, variant,
-               dev->params.gpu_generation, dev->params.gpu_variant,
-               dev->params.gpu_revision + 0xA0);
-   } else {
-      // Note: untested, theoretically this is the logic for at least a few
-      // generations back.
-      const char *variant = " Unknown";
-      switch (dev->params.gpu_variant) {
-      case 'P':
-         variant = "";
-         break;
-      case 'G':
-         variant = "X";
-         break;
-      }
-      snprintf(dev->name, sizeof(dev->name), "Apple A%d%s (G%d%c %02X)",
-               dev->params.gpu_generation + 1, variant,
-               dev->params.gpu_generation, dev->params.gpu_variant,
-               dev->params.gpu_revision + 0xA0);
+   assert(dev->params.gpu_generation >= 13);
+   const char *variant = " Unknown";
+   switch (dev->params.gpu_variant) {
+   case 'G':
+      variant = "";
+      break;
+   case 'S':
+      variant = " Pro";
+      break;
+   case 'C':
+      variant = " Max";
+      break;
+   case 'D':
+      variant = " Ultra";
+      break;
    }
+   snprintf(dev->name, sizeof(dev->name), "Apple M%d%s (G%d%c %02X)",
+            dev->params.gpu_generation - 12, variant,
+            dev->params.gpu_generation, dev->params.gpu_variant,
+            dev->params.gpu_revision + 0xA0);
 
    dev->guard_size = dev->params.vm_page_size;
    if (dev->params.vm_usc_start) {
