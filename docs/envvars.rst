@@ -13,10 +13,6 @@ LibGL environment variables
    If defined debug information will be printed to stderr. If set to
    ``verbose`` additional information will be printed.
 
-.. envvar:: LIBGL_DRIVERS_PATH
-
-   colon-separated list of paths to search for DRI drivers
-
 .. envvar:: LIBGL_ALWAYS_INDIRECT
 
    if set to ``true``, forces an indirect rendering context/connection.
