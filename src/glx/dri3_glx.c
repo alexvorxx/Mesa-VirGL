@@ -495,7 +495,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
    struct dri3_screen *psc;
    __GLXDRIscreen *psp;
    struct glx_config *configs = NULL, *visuals = NULL;
-   char *driverName, *driverNameDisplayGPU, *tmp;
+   char *driverName, *driverNameDisplayGPU;
    *return_zink = false;
 
    psc = calloc(1, sizeof *psc);
@@ -609,42 +609,7 @@ dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_in
     * a texture from them.
     */
    psc->base.can_EXT_texture_from_pixmap = psc->fd_render_gpu == psc->fd_display_gpu;
-
-   __glXEnableDirectExtension(&psc->base, "GLX_OML_sync_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_SGI_video_sync");
-
    psp->copySubBuffer = dri3_copy_sub_buffer;
-
-   if (dri2GalliumConfigQuerys(psc->base.frontend_screen, "glx_extension_override",
-                                    &tmp) == 0)
-      __glXParseExtensionOverride(&psc->base, tmp);
-
-   if (dri2GalliumConfigQuerys(psc->base.frontend_screen,
-                                    "indirect_gl_extension_override",
-                                    &tmp) == 0)
-      __IndirectGlParseExtensionOverride(&psc->base, tmp);
-
-   {
-      uint8_t force = false;
-      if (dri2GalliumConfigQueryb(psc->base.frontend_screen, "force_direct_glx_context",
-                                    &force) == 0) {
-         psc->base.force_direct_context = force;
-      }
-
-      uint8_t invalid_glx_destroy_window = false;
-      if (dri2GalliumConfigQueryb(psc->base.frontend_screen,
-                                    "allow_invalid_glx_destroy_window",
-                                    &invalid_glx_destroy_window) == 0) {
-         psc->base.allow_invalid_glx_destroy_window = invalid_glx_destroy_window;
-      }
-
-      uint8_t keep_native_window_glx_drawable = false;
-      if (dri2GalliumConfigQueryb(psc->base.frontend_screen,
-                                    "keep_native_window_glx_drawable",
-                                    &keep_native_window_glx_drawable) == 0) {
-         psc->base.keep_native_window_glx_drawable = keep_native_window_glx_drawable;
-      }
-   }
 
    InfoMessageF("Using DRI3 for screen %d\n", screen);
 

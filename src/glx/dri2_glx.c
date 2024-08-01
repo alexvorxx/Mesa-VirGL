@@ -748,33 +748,6 @@ dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_infe
 
    psc->base.can_EXT_texture_from_pixmap = true;
 
-   __glXEnableDirectExtension(&psc->base, "GLX_OML_sync_control");
-   __glXEnableDirectExtension(&psc->base, "GLX_SGI_video_sync");
-
-   if (dri2GalliumConfigQuerys(psc->base.frontend_screen, "glx_extension_override",
-                                    &tmp) == 0)
-      __glXParseExtensionOverride(&psc->base, tmp);
-
-   if (dri2GalliumConfigQuerys(psc->base.frontend_screen,
-                                    "indirect_gl_extension_override",
-                                    &tmp) == 0)
-      __IndirectGlParseExtensionOverride(&psc->base, tmp);
-
-   {
-      uint8_t force = false;
-      if (dri2GalliumConfigQueryb(psc->base.frontend_screen, "force_direct_glx_context",
-                                    &force) == 0) {
-         psc->base.force_direct_context = force;
-      }
-
-      uint8_t invalid_glx_destroy_window = false;
-      if (dri2GalliumConfigQueryb(psc->base.frontend_screen,
-                                    "allow_invalid_glx_destroy_window",
-                                    &invalid_glx_destroy_window) == 0) {
-         psc->base.allow_invalid_glx_destroy_window = invalid_glx_destroy_window;
-      }
-   }
-
    /* DRI2 supports SubBuffer through DRI2CopyRegion, so it's always
     * available.*/
    psp->copySubBuffer = dri2CopySubBuffer;

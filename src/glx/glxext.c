@@ -760,6 +760,8 @@ bind_extensions(struct glx_screen *psc, const char *driverName)
       __glXEnableDirectExtension(psc, "GLX_EXT_swap_control");
       __glXEnableDirectExtension(psc, "GLX_SGI_swap_control");
       __glXEnableDirectExtension(psc, "GLX_MESA_swap_control");
+      __glXEnableDirectExtension(psc, "GLX_OML_sync_control");
+      __glXEnableDirectExtension(psc, "GLX_SGI_video_sync");
       // for zink this needs to check whether RELAXED is available
       if (psc->display->driver == GLX_DRIVER_DRI3)
          __glXEnableDirectExtension(psc, "GLX_EXT_swap_control_tear");
@@ -810,6 +812,38 @@ bind_extensions(struct glx_screen *psc, const char *driverName)
    __glXEnableDirectExtension(psc, "GLX_MESA_query_renderer");
 
    __glXEnableDirectExtension(psc, "GLX_MESA_gl_interop");
+
+   char *tmp;
+   if (dri2GalliumConfigQuerys(psc->frontend_screen, "glx_extension_override",
+                                    &tmp) == 0)
+      __glXParseExtensionOverride(psc, tmp);
+
+   if (dri2GalliumConfigQuerys(psc->frontend_screen,
+                                    "indirect_gl_extension_override",
+                                    &tmp) == 0)
+      __IndirectGlParseExtensionOverride(psc, tmp);
+
+   {
+      uint8_t force = false;
+      if (dri2GalliumConfigQueryb(psc->frontend_screen, "force_direct_glx_context",
+                                    &force) == 0) {
+         psc->force_direct_context = force;
+      }
+
+      uint8_t invalid_glx_destroy_window = false;
+      if (dri2GalliumConfigQueryb(psc->frontend_screen,
+                                    "allow_invalid_glx_destroy_window",
+                                    &invalid_glx_destroy_window) == 0) {
+         psc->allow_invalid_glx_destroy_window = invalid_glx_destroy_window;
+      }
+
+      uint8_t keep_native_window_glx_drawable = false;
+      if (dri2GalliumConfigQueryb(psc->frontend_screen,
+                                    "keep_native_window_glx_drawable",
+                                    &keep_native_window_glx_drawable) == 0) {
+         psc->keep_native_window_glx_drawable = keep_native_window_glx_drawable;
+      }
+   }
 }
 
 
