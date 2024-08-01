@@ -14,15 +14,6 @@ kopperSwapBuffersWithDamage(__DRIdrawable *dPriv, uint32_t flush_flags, int nrec
    return 0;
 }
 
-__DRIdrawable *
-kopperCreateNewDrawable(__DRIscreen *psp,
-                        const __DRIconfig *config,
-                        void *data,
-                        __DRIkopperDrawableInfo *info)
-{
-   return NULL;
-}
-
 void
 kopperSetSwapInterval(__DRIdrawable *dPriv, int interval)
 {
@@ -40,4 +31,12 @@ const __DRIconfig **
 kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
    return NULL;
+}
+
+struct dri_drawable;
+void
+kopper_init_drawable(struct dri_drawable *drawable, bool isPixmap, int alphaBits);
+void
+kopper_init_drawable(struct dri_drawable *drawable, bool isPixmap, int alphaBits)
+{
 }

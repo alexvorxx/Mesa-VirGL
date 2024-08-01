@@ -300,7 +300,7 @@ dri2CreateDrawable(struct glx_screen *base, XID xDrawable,
    DRI2CreateDrawable(psc->base.dpy, xDrawable);
    /* Create a new drawable */
    pdraw->driDrawable =
-      driCreateNewDrawable(psc->driScreen, config->driConfig, pdraw);
+      dri_create_drawable(psc->driScreen, config->driConfig, false, pdraw);
 
    if (!pdraw->driDrawable) {
       DRI2DestroyDrawable(psc->base.dpy, xDrawable);

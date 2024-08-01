@@ -683,19 +683,9 @@ driswCreateDrawable(struct glx_screen *base, XID xDrawable,
 
    pdp->swapInterval = dri_get_initial_swap_interval(psc->driScreen);
    /* Create a new drawable */
-   if (psc->kopper) {
-      pdp->driDrawable =
-         kopperCreateNewDrawable(psc->driScreen, config->driConfig, pdp,
-         &(__DRIkopperDrawableInfo){
-            .multiplanes_available = base->display->has_multibuffer,
-            .is_pixmap = !(type & GLX_WINDOW_BIT),
-         });
-
+   pdp->driDrawable = dri_create_drawable(psc->driScreen, config->driConfig, !(type & GLX_WINDOW_BIT), pdp);
+   if (psc->kopper)
       kopperSetSwapInterval(pdp->driDrawable, pdp->swapInterval);
-   }
-   else
-      pdp->driDrawable =
-         driCreateNewDrawable(psc->driScreen, config->driConfig, pdp);
 
    if (!pdp->driDrawable) {
       XDestroyDrawable(pdp, psc->base.dpy, xDrawable);

@@ -123,7 +123,8 @@ driImageFormatToSizedInternalGLFormat(uint32_t image_format);
 PUBLIC unsigned int
 driGetAPIMask(__DRIscreen *screen);
 PUBLIC __DRIdrawable *
-driCreateNewDrawable(__DRIscreen *psp, const __DRIconfig *config, void *data);
+dri_create_drawable(__DRIscreen *psp, const __DRIconfig *config,
+                    bool isPixmap, void *loaderPrivate);
 extern const __DRIimageDriverExtension driImageDriverExtension;
 PUBLIC void driDestroyScreen(__DRIscreen *psp);
 PUBLIC int

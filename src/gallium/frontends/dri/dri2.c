@@ -1989,21 +1989,13 @@ dri_set_blob_cache_funcs(__DRIscreen *sPriv, __DRIblobCacheSet set,
  * Backend function init_screen.
  */
 
-static struct dri_drawable *
-dri2_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
-                     bool isPixmap, void *loaderPrivate)
+void
+dri2_init_drawable(struct dri_drawable *drawable, bool isPixmap, int alphaBits)
 {
-   struct dri_drawable *drawable = dri_create_drawable(screen, visual, isPixmap,
-                                                       loaderPrivate);
-   if (!drawable)
-      return NULL;
-
    drawable->allocate_textures = dri2_allocate_textures;
    drawable->flush_frontbuffer = dri2_flush_frontbuffer;
    drawable->update_tex_buffer = dri2_update_tex_buffer;
    drawable->flush_swapbuffers = dri2_flush_swapbuffers;
-
-   return drawable;
 }
 
 /**
@@ -2018,8 +2010,6 @@ dri2_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 
    screen->can_share_buffer = true;
    screen->auto_fake_front = dri_with_format(screen);
-
-   screen->create_drawable = dri2_create_drawable;
 
 #ifdef HAVE_LIBDRM
    if (pipe_loader_drm_probe_fd(&screen->dev, screen->fd, false))
@@ -2040,7 +2030,6 @@ dri_swrast_kms_init_screen(struct dri_screen *screen, bool driver_name_is_inferr
    struct pipe_screen *pscreen = NULL;
    screen->can_share_buffer = false;
    screen->auto_fake_front = dri_with_format(screen);
-   screen->create_drawable = dri2_create_drawable;
 
 #if defined(HAVE_DRISW_KMS) && defined(HAVE_SWRAST)
    if (pipe_loader_sw_probe_kms(&screen->dev, screen->fd))

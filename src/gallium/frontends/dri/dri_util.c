@@ -714,21 +714,6 @@ int driUnbindContext(__DRIcontext *pcp)
 
 /*@}*/
 
-__DRIdrawable *
-driCreateNewDrawable(__DRIscreen *psp,
-                     const __DRIconfig *config,
-                     void *data)
-{
-    assert(data != NULL);
-
-    struct dri_screen *screen = dri_screen(psp);
-    struct dri_drawable *drawable =
-       screen->create_drawable(screen, &config->modes, GL_FALSE, data);
-   drawable->buffer_age = 0;
-
-    return opaque_dri_drawable(drawable);
-}
-
 void
 driDestroyDrawable(__DRIdrawable *pdp)
 {

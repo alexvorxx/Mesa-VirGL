@@ -64,6 +64,7 @@
 		dri_get_screen_param;
 		dri3*;
 		loader_dri3*;
+		dri_create_drawable;
 		@nouveau_drm_screen_create@
 		@radeon_drm_winsys_create@
 		@amdgpu_winsys_create@

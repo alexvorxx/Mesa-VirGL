@@ -1376,20 +1376,9 @@ dri2_create_drawable(struct dri2_egl_display *dri2_dpy,
                      const __DRIconfig *config,
                      struct dri2_egl_surface *dri2_surf, void *loaderPrivate)
 {
-   if (dri2_dpy->kopper) {
-      dri2_surf->dri_drawable = kopperCreateNewDrawable(
-         dri2_dpy->dri_screen_render_gpu, config, loaderPrivate,
-         &(__DRIkopperDrawableInfo){
-#if defined(HAVE_X11_PLATFORM) && defined(HAVE_DRI3)
-            .multiplanes_available = dri2_dpy->multibuffers_available,
-#endif
-            .is_pixmap = dri2_surf->base.Type == EGL_PBUFFER_BIT ||
-                         dri2_surf->base.Type == EGL_PIXMAP_BIT,
-         });
-   } else {
-      dri2_surf->dri_drawable = driCreateNewDrawable(
-         dri2_dpy->dri_screen_render_gpu, config, loaderPrivate);
-   }
+   bool is_pixmap = dri2_surf->base.Type == EGL_PBUFFER_BIT ||
+                    dri2_surf->base.Type == EGL_PIXMAP_BIT;
+   dri2_surf->dri_drawable = dri_create_drawable(dri2_dpy->dri_screen_render_gpu, config, is_pixmap, loaderPrivate);
    if (dri2_surf->dri_drawable == NULL)
       return _eglError(EGL_BAD_ALLOC, "createNewDrawable");
 

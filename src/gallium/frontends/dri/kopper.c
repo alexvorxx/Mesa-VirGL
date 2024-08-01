@@ -69,7 +69,6 @@ kopper_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
    }
 
    screen->can_share_buffer = true;
-   screen->create_drawable = kopper_create_drawable;
 
    bool success;
 #ifdef HAVE_LIBDRM
@@ -505,17 +504,11 @@ kopper_swap_buffers(struct dri_drawable *drawable);
 static void
 kopper_swap_buffers_with_damage(struct dri_drawable *drawable, int nrects, const int *rects);
 
-static struct dri_drawable *
-kopper_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
-                       bool isPixmap, void *loaderPrivate)
+void
+kopper_init_drawable(struct dri_drawable *drawable, bool isPixmap, int alphaBits)
 {
-   /* always pass !pixmap because it isn't "handled" or relevant */
-   struct dri_drawable *drawable = dri_create_drawable(screen, visual, false,
-                                                       loaderPrivate);
-   if (!drawable)
-      return NULL;
+   struct dri_screen *screen = drawable->screen;
 
-   // and fill in the vtable
    drawable->allocate_textures = kopper_allocate_textures;
    drawable->update_drawable_info = kopper_update_drawable_info;
    drawable->flush_frontbuffer = kopper_flush_frontbuffer;
@@ -524,13 +517,11 @@ kopper_create_drawable(struct dri_screen *screen, const struct gl_config *visual
    drawable->swap_buffers = kopper_swap_buffers;
    drawable->swap_buffers_with_damage = kopper_swap_buffers_with_damage;
 
-   drawable->info.has_alpha = visual->alphaBits > 0;
+   drawable->info.has_alpha = alphaBits > 0;
    if (screen->kopper_loader->SetSurfaceCreateInfo)
       screen->kopper_loader->SetSurfaceCreateInfo(drawable->loaderPrivate,
                                                   &drawable->info);
    drawable->is_window = !isPixmap && drawable->info.bos.sType != 0;
-
-   return drawable;
 }
 
 int64_t
@@ -604,20 +595,6 @@ static void
 kopper_swap_buffers(struct dri_drawable *drawable)
 {
    kopper_swap_buffers_with_damage(drawable, 0, NULL);
-}
-
-__DRIdrawable *
-kopperCreateNewDrawable(__DRIscreen *psp,
-                        const __DRIconfig *config,
-                        void *data,
-                        __DRIkopperDrawableInfo *info)
-{
-    assert(data != NULL);
-
-    struct dri_screen *screen = dri_screen(psp);
-    struct dri_drawable *drawable = kopper_create_drawable(screen, &config->modes, info->is_pixmap, data);
-
-    return opaque_dri_drawable(drawable);
 }
 
 void

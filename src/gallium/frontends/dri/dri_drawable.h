@@ -138,10 +138,6 @@ dri_get_drawable(struct dri_drawable *drawable)
 /***********************************************************************
  * dri_drawable.c
  */
-struct dri_drawable *
-dri_create_drawable(struct dri_screen *screen, const struct gl_config *visual,
-                    bool isPixmap, void *loaderPrivate);
-
 void
 dri_put_drawable(struct dri_drawable *drawable);
 
@@ -172,6 +168,12 @@ drisw_update_tex_buffer(struct dri_drawable *drawable,
                         struct dri_context *ctx,
                         struct pipe_resource *res);
 
+void
+kopper_init_drawable(struct dri_drawable *drawable, bool isPixmap, int alphaBits);
+void
+drisw_init_drawable(struct dri_drawable *drawable, bool isPixmap, int alphaBits);
+void
+dri2_init_drawable(struct dri_drawable *drawable, bool isPixmap, int alphaBits);
 #endif
 
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

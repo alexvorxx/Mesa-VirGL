@@ -130,11 +130,6 @@ struct dri_screen
    struct pipe_screen *unwrapped_screen;
    bool has_dmabuf;
    bool is_sw;
-
-   struct dri_drawable *(*create_drawable)(struct dri_screen *screen,
-                                           const struct gl_config *glVis,
-                                           bool pixmapBuffer,
-                                           void *loaderPrivate);
 };
 
 /** cast wrapper */

@@ -603,23 +603,15 @@ static const struct drisw_loader_funcs drisw_shm_lf = {
    .put_image_shm = drisw_put_image_shm
 };
 
-static struct dri_drawable *
-drisw_create_drawable(struct dri_screen *screen, const struct gl_config * visual,
-                      bool isPixmap, void *loaderPrivate)
+void
+drisw_init_drawable(struct dri_drawable *drawable, bool isPixmap, int alphaBits)
 {
-   struct dri_drawable *drawable = dri_create_drawable(screen, visual, isPixmap,
-                                                       loaderPrivate);
-   if (!drawable)
-      return NULL;
-
    drawable->allocate_textures = drisw_allocate_textures;
    drawable->update_drawable_info = drisw_update_drawable_info;
    drawable->flush_frontbuffer = drisw_flush_frontbuffer;
    drawable->update_tex_buffer = drisw_update_tex_buffer;
    drawable->swap_buffers = drisw_swap_buffers;
    drawable->swap_buffers_with_damage = drisw_swap_buffers_with_damage;
-
-   return drawable;
 }
 
 struct pipe_screen *
@@ -635,7 +627,6 @@ drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
       if (loader->putImageShm)
          lf = &drisw_shm_lf;
    }
-   screen->create_drawable = drisw_create_drawable;
 
    bool success = false;
 #ifdef HAVE_DRISW_KMS

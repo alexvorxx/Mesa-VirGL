@@ -423,7 +423,8 @@ loader_dri3_drawable_init(xcb_connection_t *conn,
    dri3_update_max_num_back(draw);
 
    /* Create a new drawable */
-   draw->dri_drawable = driCreateNewDrawable(dri_screen_render_gpu, dri_config, draw);
+   draw->dri_drawable = dri_create_drawable(dri_screen_render_gpu, dri_config,
+                                            type == LOADER_DRI3_DRAWABLE_PIXMAP, draw);
 
    if (!draw->dri_drawable)
       return 1;
