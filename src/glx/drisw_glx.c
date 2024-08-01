@@ -494,13 +494,7 @@ kopper_get_buffer_age(__GLXDRIdrawable *pdraw)
 {
    struct drisw_drawable *pdp = (struct drisw_drawable *) pdraw;
 
-   if (pdp) {
-      struct drisw_screen *psc = (struct drisw_screen *) pdraw->psc;
-
-      if (psc->kopper)
-         return kopperQueryBufferAge(pdp->driDrawable);
-   }
-   return 0;
+   return kopperQueryBufferAge(pdp->driDrawable);
 }
 
 static const struct glx_context_vtable drisw_context_vtable = {
