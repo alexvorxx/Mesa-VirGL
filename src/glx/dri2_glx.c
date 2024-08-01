@@ -87,18 +87,6 @@ merge_counter(uint32_t hi, uint32_t lo)
    return ((uint64_t)hi << 32) | lo;
 }
 
-static void
-dri2_destroy_context(struct glx_context *context)
-{
-   driReleaseDrawables(context);
-
-   free((char *) context->extensions);
-
-   driDestroyContext(context->driContext);
-
-   free(context);
-}
-
 static struct glx_context *
 dri2_create_context_attribs(struct glx_screen *base,
 			    struct glx_config *config_base,
@@ -777,7 +765,7 @@ dri2_bind_tex_image(__GLXDRIdrawable *base,
 }
 
 static const struct glx_context_vtable dri2_context_vtable = {
-   .destroy             = dri2_destroy_context,
+   .destroy             = dri_destroy_context,
    .bind                = dri_bind_context,
    .unbind              = dri_unbind_context,
    .wait_gl             = dri2_wait_gl,

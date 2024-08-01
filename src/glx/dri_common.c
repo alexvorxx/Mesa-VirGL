@@ -807,4 +807,16 @@ dri_unbind_context(struct glx_context *context)
    driUnbindContext(context->driContext);
 }
 
+void
+dri_destroy_context(struct glx_context *context)
+{
+   driReleaseDrawables(context);
+ 
+   free((char *) context->extensions);
+ 
+   driDestroyContext(context->driContext);
+ 
+   free(context);
+}
+
 #endif /* GLX_DIRECT_RENDERING */

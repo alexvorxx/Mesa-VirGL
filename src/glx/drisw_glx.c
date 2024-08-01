@@ -419,17 +419,6 @@ static const __DRIextension *kopper_extensions_noshm[] = {
  * GLXDRI functions
  */
 
-static void
-drisw_destroy_context(struct glx_context *context)
-{
-   driReleaseDrawables(context);
-
-   free((char *) context->extensions);
-
-   driDestroyContext(context->driContext);
-
-   free(context);
-}
 
 static void
 drisw_wait_gl(struct glx_context *context)
@@ -466,7 +455,7 @@ kopper_get_buffer_age(__GLXDRIdrawable *pdraw)
 }
 
 static const struct glx_context_vtable drisw_context_vtable = {
-   .destroy             = drisw_destroy_context,
+   .destroy             = dri_destroy_context,
    .bind                = dri_bind_context,
    .unbind              = dri_unbind_context,
    .wait_gl             = drisw_wait_gl,
