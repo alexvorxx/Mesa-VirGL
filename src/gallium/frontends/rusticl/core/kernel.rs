@@ -22,7 +22,6 @@ use spirv::SpirvKernelInfo;
 use std::cmp;
 use std::collections::HashMap;
 use std::convert::TryInto;
-use std::mem::size_of;
 use std::os::raw::c_void;
 use std::ptr;
 use std::slice;
@@ -636,7 +635,7 @@ fn lower_and_optimize_nir(
         internal_args.push(InternalKernelArg {
             kind: InternalKernelArgType::GlobalWorkOffsets,
             offset: 0,
-            size: 3 * size_of::<usize>(),
+            size: (3 * dev.address_bits() / 8) as usize,
         });
         lower_state.base_global_invoc_id_loc = args.len() + internal_args.len() - 1;
         nir.add_var(
@@ -651,7 +650,7 @@ fn lower_and_optimize_nir(
         internal_args.push(InternalKernelArg {
             kind: InternalKernelArgType::WorkGroupOffsets,
             offset: 0,
-            size: 3 * size_of::<usize>(),
+            size: (3 * dev.address_bits() / 8) as usize,
         });
         lower_state.base_workgroup_id_loc = args.len() + internal_args.len() - 1;
         nir.add_var(
