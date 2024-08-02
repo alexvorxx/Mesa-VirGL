@@ -350,6 +350,12 @@ anv_can_fast_clear_color_view(struct anv_device *device,
                                     iview->planes[0].isl.format))
       return false;
 
+   /* Wa_16021232440: Disable fast clear when height is 16k */
+   if (intel_needs_workaround(device->info, 16021232440) &&
+       iview->vk.extent.height == 16 * 1024) {
+      return false;
+   }
+
    return true;
 }
 
