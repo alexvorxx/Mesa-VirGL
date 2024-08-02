@@ -272,7 +272,7 @@ alpine-build-testing:
       -D egl=enabled
       -D glvnd=disabled
       -D platforms=wayland
-    LLVM_VERSION: "16"
+    LLVM_VERSION: "18"
     GALLIUM_DRIVERS: "crocus,etnaviv,freedreno,iris,lima,nouveau,panfrost,r300,r600,radeonsi,svga,llvmpipe,softpipe,tegra,v3d,vc4,virgl,zink"
     GALLIUM_ST: >
       -D dri3=enabled

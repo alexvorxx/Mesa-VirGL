@@ -8,7 +8,7 @@
 set -e
 set -o xtrace
 
-export LLVM_VERSION="${LLVM_VERSION:=16}"
+export LLVM_VERSION="${LLVM_VERSION:=18}"
 
 EPHEMERAL=(
 )
