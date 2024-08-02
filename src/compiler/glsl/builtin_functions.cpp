@@ -1093,6 +1093,18 @@ subgroup_arithmetic_and_fp64(const _mesa_glsl_parse_state *state)
    return subgroup_arithmetic(state) && fp64(state);
 }
 
+static bool
+subgroup_clustered(const _mesa_glsl_parse_state *state)
+{
+   return state->KHR_shader_subgroup_clustered_enable;
+}
+
+static bool
+subgroup_clustered_and_fp64(const _mesa_glsl_parse_state *state)
+{
+   return subgroup_clustered(state) && fp64(state);
+}
+
 /** @} */
 
 /******************************************************************************/
@@ -1525,6 +1537,11 @@ private:
                                                          enum ir_intrinsic_id id);
    ir_function_signature *_subgroup_arithmetic(const glsl_type *type,
                                                const char *intrinsic_name);
+
+   ir_function_signature *_subgroup_clustered_intrinsic(const glsl_type *type,
+                                                        enum ir_intrinsic_id id);
+   ir_function_signature *_subgroup_clustered(const glsl_type *type,
+                                              const char *intrinsic_name);
 
 #undef B0
 #undef B1
@@ -1989,6 +2006,8 @@ builtin_builder::create_intrinsics()
    SUBGROUP_ARITH_INTRINSICS(arithmetic, reduce);
    SUBGROUP_ARITH_INTRINSICS(arithmetic, inclusive);
    SUBGROUP_ARITH_INTRINSICS(arithmetic, exclusive);
+
+   SUBGROUP_ARITH_INTRINSICS(clustered, clustered);
 }
 
 /**
@@ -5926,6 +5945,8 @@ builtin_builder::create_builtins()
    SUBGROUP_ARITH(arithmetic, Inclusive, inclusive);
    SUBGROUP_ARITH(arithmetic, Exclusive, exclusive);
 
+   SUBGROUP_ARITH(clustered, Clustered, clustered);
+
 #undef F
 #undef FI
 #undef FIUDHF_VEC
@@ -9343,6 +9364,35 @@ builtin_builder::_subgroup_arithmetic(const glsl_type *type, const char *intrins
    ir_variable *value = in_var(type, "value");
    MAKE_SIG(type, glsl_type_is_double(type) ? subgroup_arithmetic_and_fp64 : subgroup_arithmetic,
             1, value);
+
+   ir_variable *retval = body.make_temp(type, "retval");
+   body.emit(call(shader->symbols->get_function(intrinsic_name), retval, sig->parameters));
+   body.emit(ret(retval));
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_subgroup_clustered_intrinsic(const glsl_type *type, enum ir_intrinsic_id id)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *size =
+      new(mem_ctx) ir_variable(&glsl_type_builtin_uint, "clusterSize", ir_var_const_in);
+
+   MAKE_INTRINSIC(type, id,
+                  glsl_type_is_double(type) ? subgroup_clustered_and_fp64 : subgroup_clustered,
+                  2, value, size);
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_subgroup_clustered(const glsl_type *type, const char *intrinsic_name)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *size =
+      new(mem_ctx) ir_variable(&glsl_type_builtin_uint, "clusterSize", ir_var_const_in);
+
+   MAKE_SIG(type, glsl_type_is_double(type) ? subgroup_clustered_and_fp64 : subgroup_clustered,
+            2, value, size);
 
    ir_variable *retval = body.make_temp(type, "retval");
    body.emit(call(shader->symbols->get_function(intrinsic_name), retval, sig->parameters));

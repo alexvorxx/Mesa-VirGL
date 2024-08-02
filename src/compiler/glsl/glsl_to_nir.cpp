@@ -856,6 +856,7 @@ get_reduction_op(enum ir_intrinsic_id id, const glsl_type *type)
    case ir_intrinsic_reduce_##op: \
    case ir_intrinsic_inclusive_##op: \
    case ir_intrinsic_exclusive_##op: \
+   case ir_intrinsic_clustered_##op: \
       return CONV_OP(op);
 
    switch (id) {
@@ -1147,6 +1148,13 @@ nir_visitor::visit(ir_call *ir)
       case ir_intrinsic_reduce_and:
       case ir_intrinsic_reduce_or:
       case ir_intrinsic_reduce_xor:
+      case ir_intrinsic_clustered_add:
+      case ir_intrinsic_clustered_mul:
+      case ir_intrinsic_clustered_min:
+      case ir_intrinsic_clustered_max:
+      case ir_intrinsic_clustered_and:
+      case ir_intrinsic_clustered_or:
+      case ir_intrinsic_clustered_xor:
          op = nir_intrinsic_reduce;
          break;
       case ir_intrinsic_inclusive_add:
@@ -1548,8 +1556,17 @@ nir_visitor::visit(ir_call *ir)
                       glsl_get_bit_size(type));
          instr->num_components = instr->def.num_components;
 
-         ir_rvalue *value = (ir_rvalue *)ir->actual_parameters.get_head();
+         exec_node *param = ir->actual_parameters.get_head();
+         ir_rvalue *value = ((ir_instruction *)param)->as_rvalue();
          instr->src[0] = nir_src_for_ssa(evaluate_rvalue(value));
+
+         param = param->get_next();
+         if (!param->is_tail_sentinel()) {
+            ir_constant *size = ((ir_instruction *)param)->as_constant();
+            assert(size);
+
+            nir_intrinsic_set_cluster_size(instr, size->get_uint_component(0));
+         }
 
          nir_intrinsic_set_reduction_op(instr, get_reduction_op(ir->callee->intrinsic_id, type));
 

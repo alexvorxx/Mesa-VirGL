@@ -1175,6 +1175,14 @@ enum ir_intrinsic_id {
    ir_intrinsic_exclusive_and,
    ir_intrinsic_exclusive_or,
    ir_intrinsic_exclusive_xor,
+
+   ir_intrinsic_clustered_add,
+   ir_intrinsic_clustered_mul,
+   ir_intrinsic_clustered_min,
+   ir_intrinsic_clustered_max,
+   ir_intrinsic_clustered_and,
+   ir_intrinsic_clustered_or,
+   ir_intrinsic_clustered_xor,
 };
 
 /*@{*/
