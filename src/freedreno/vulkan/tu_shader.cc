@@ -554,27 +554,14 @@ lower_tex_ycbcr(const struct tu_pipeline_layout *layout,
    uint8_t bits = vk_format_get_component_bits(ycbcr_sampler->format,
                                                UTIL_FORMAT_COLORSPACE_RGB,
                                                PIPE_SWIZZLE_X);
-
-   switch (ycbcr_sampler->format) {
-   case VK_FORMAT_G8B8G8R8_422_UNORM:
-   case VK_FORMAT_B8G8R8G8_422_UNORM:
-   case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM:
-   case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM:
-      /* util_format_get_component_bits doesn't return what we want */
-      bits = 8;
-      break;
-   default:
-      break;
-   }
-
    uint32_t bpcs[3] = {bits, bits, bits}; /* TODO: use right bpc for each channel ? */
    nir_def *result = nir_convert_ycbcr_to_rgb(builder,
-                                                  ycbcr_sampler->ycbcr_model,
-                                                  ycbcr_sampler->ycbcr_range,
-                                                  &tex->def,
-                                                  bpcs);
+                                              ycbcr_sampler->ycbcr_model,
+                                              ycbcr_sampler->ycbcr_range,
+                                              &tex->def,
+                                              bpcs);
    nir_def_rewrite_uses_after(&tex->def, result,
-                                  result->parent_instr);
+                              result->parent_instr);
 
    builder->cursor = nir_before_instr(&tex->instr);
 }
