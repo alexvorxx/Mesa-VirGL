@@ -351,6 +351,8 @@ radv_rt_nir_to_asm(struct radv_device *device, struct vk_pipeline_cache *cache,
                    struct radv_serialized_shader_arena_block *replay_block, struct radv_shader **out_shader)
 {
    struct radv_physical_device *pdev = radv_device_physical(device);
+   struct radv_instance *instance = radv_physical_device_instance(pdev);
+
    struct radv_shader_binary *binary;
    bool keep_executable_info = radv_pipeline_capture_shaders(device, pipeline->base.base.create_flags);
    bool keep_statistic_info = radv_pipeline_capture_shader_stats(device, pipeline->base.base.create_flags);
@@ -418,14 +420,17 @@ radv_rt_nir_to_asm(struct radv_device *device, struct vk_pipeline_cache *cache,
 
       if (stage_info)
          radv_gather_unused_args(stage_info, shaders[i]);
-
-      if (radv_can_dump_shader(device, temp_stage.nir, false))
-         nir_print_shader(temp_stage.nir, stderr);
    }
 
    bool dump_shader = radv_can_dump_shader(device, shaders[0], false);
    bool replayable =
       pipeline->base.base.create_flags & VK_PIPELINE_CREATE_2_RAY_TRACING_SHADER_GROUP_HANDLE_CAPTURE_REPLAY_BIT_KHR;
+
+   if (dump_shader) {
+      simple_mtx_lock(&instance->shader_dump_mtx);
+      for (uint32_t i = 0; i < num_shaders; i++)
+         nir_print_shader(shaders[i], stderr);
+   }
 
    /* Compile NIR shader to AMD assembly. */
    binary =
@@ -434,6 +439,9 @@ radv_rt_nir_to_asm(struct radv_device *device, struct vk_pipeline_cache *cache,
    if (replay_block || replayable) {
       VkResult result = radv_shader_create_uncached(device, binary, replayable, replay_block, &shader);
       if (result != VK_SUCCESS) {
+         if (dump_shader)
+            simple_mtx_unlock(&instance->shader_dump_mtx);
+
          free(binary);
          return result;
       }
@@ -450,6 +458,9 @@ radv_rt_nir_to_asm(struct radv_device *device, struct vk_pipeline_cache *cache,
          shader->spirv_size = stage->spirv.size;
       }
    }
+
+   if (dump_shader)
+      simple_mtx_unlock(&instance->shader_dump_mtx);
 
    free(binary);
 

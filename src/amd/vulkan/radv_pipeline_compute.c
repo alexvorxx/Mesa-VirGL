@@ -100,6 +100,9 @@ radv_compile_cs(struct radv_device *device, struct vk_pipeline_cache *cache, str
                 bool keep_executable_info, bool keep_statistic_info, bool is_internal,
                 struct radv_shader_binary **cs_binary)
 {
+   struct radv_physical_device *pdev = radv_device_physical(device);
+   struct radv_instance *instance = radv_physical_device_instance(pdev);
+
    struct radv_shader *cs_shader;
 
    /* Compile SPIR-V shader to NIR. */
@@ -123,12 +126,14 @@ radv_compile_cs(struct radv_device *device, struct vk_pipeline_cache *cache, str
    /* Postprocess NIR. */
    radv_postprocess_nir(device, NULL, cs_stage);
 
-   if (radv_can_dump_shader(device, cs_stage->nir, false))
-      nir_print_shader(cs_stage->nir, stderr);
-
-   /* Compile NIR shader to AMD assembly. */
    bool dump_shader = radv_can_dump_shader(device, cs_stage->nir, false);
 
+   if (dump_shader) {
+      simple_mtx_lock(&instance->shader_dump_mtx);
+      nir_print_shader(cs_stage->nir, stderr);
+   }
+
+   /* Compile NIR shader to AMD assembly. */
    *cs_binary =
       radv_shader_nir_to_asm(device, cs_stage, &cs_stage->nir, 1, NULL, keep_executable_info, keep_statistic_info);
 
@@ -136,6 +141,9 @@ radv_compile_cs(struct radv_device *device, struct vk_pipeline_cache *cache, str
 
    radv_shader_generate_debug_info(device, dump_shader, keep_executable_info, *cs_binary, cs_shader, &cs_stage->nir, 1,
                                    &cs_stage->info);
+
+   if (dump_shader)
+      simple_mtx_unlock(&instance->shader_dump_mtx);
 
    if (keep_executable_info && cs_stage->spirv.size) {
       cs_shader->spirv = malloc(cs_stage->spirv.size);
