@@ -22,6 +22,9 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include <vulkan/vulkan_core.h>
+#include <vulkan/vulkan_android.h>
+
 #include "vk_format.h"
 
 #include "vk_enum_defines.h"
@@ -270,9 +273,9 @@ vk_format_to_pipe_format(enum VkFormat vkformat)
       case VK_FORMAT_B8G8R8G8_422_UNORM:
          return PIPE_FORMAT_B8G8_R8G8_UNORM;
       case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM:
-         return PIPE_FORMAT_IYUV;
+         return PIPE_FORMAT_G8_B8_R8_420_UNORM;
       case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM:
-         return PIPE_FORMAT_NV12;
+         return PIPE_FORMAT_G8_B8R8_420_UNORM;
       case VK_FORMAT_G8_B8_R8_3PLANE_422_UNORM:
          return PIPE_FORMAT_Y8_U8_V8_422_UNORM;
       case VK_FORMAT_G8_B8R8_2PLANE_422_UNORM:
@@ -846,4 +849,18 @@ vk_swizzle_color_value(VkClearColorValue color,
       swizzled_color_component(&color, swizzle.b, 2, is_int),
       swizzled_color_component(&color, swizzle.a, 3, is_int),
    }};
+}
+
+VkFormat
+vk_select_android_external_format(const void *next, VkFormat default_format)
+{
+   const VkExternalFormatANDROID *android_format = vk_find_struct_const(next, EXTERNAL_FORMAT_ANDROID);
+
+   if (android_format && android_format->externalFormat) {
+      assert(default_format == VK_FORMAT_UNDEFINED);
+      assert((VkFormat)android_format->externalFormat != VK_FORMAT_UNDEFINED);
+      return (VkFormat)android_format->externalFormat;
+   }
+
+   return default_format;
 }

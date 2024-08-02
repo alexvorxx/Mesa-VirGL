@@ -257,38 +257,7 @@ const __DRI2fenceExtension dri2FenceExtension = {
 };
 
 __DRIimage *
-dri2_lookup_egl_image(struct dri_screen *screen, void *handle)
-{
-   const __DRIimageLookupExtension *loader = screen->dri2.image;
-   __DRIimage *img;
-
-   if (!loader->lookupEGLImage)
-      return NULL;
-
-   img = loader->lookupEGLImage(opaque_dri_screen(screen),
-				handle, screen->loaderPrivate);
-
-   return img;
-}
-
-bool
-dri2_validate_egl_image(struct dri_screen *screen, void *handle)
-{
-   const __DRIimageLookupExtension *loader = screen->dri2.image;
-
-   return loader->validateEGLImage(handle, screen->loaderPrivate);
-}
-
-__DRIimage *
-dri2_lookup_egl_image_validated(struct dri_screen *screen, void *handle)
-{
-   const __DRIimageLookupExtension *loader = screen->dri2.image;
-
-   return loader->lookupEGLImageValidated(handle, screen->loaderPrivate);
-}
-
-__DRIimage *
-dri2_create_image_from_renderbuffer2(__DRIcontext *context,
+dri_create_image_from_renderbuffer(__DRIcontext *context,
 				     int renderbuffer, void *loaderPrivate,
                                      unsigned *error)
 {
@@ -354,15 +323,6 @@ dri2_create_image_from_renderbuffer2(__DRIcontext *context,
    ctx->Shared->HasExternallySharedImages = true;
    *error = __DRI_IMAGE_ERROR_SUCCESS;
    return img;
-}
-
-__DRIimage *
-dri2_create_image_from_renderbuffer(__DRIcontext *context,
-				    int renderbuffer, void *loaderPrivate)
-{
-   unsigned error;
-   return dri2_create_image_from_renderbuffer2(context, renderbuffer,
-                                               loaderPrivate, &error);
 }
 
 void
@@ -740,7 +700,7 @@ dri2_yuv_dma_buf_supported(struct dri_screen *screen,
 }
 
 bool
-dri2_query_dma_buf_formats(__DRIscreen *_screen, int max, int *formats,
+dri_query_dma_buf_formats(__DRIscreen *_screen, int max, int *formats,
                            int *count)
 {
    struct dri_screen *screen = dri_screen(_screen);
@@ -772,4 +732,37 @@ dri2_query_dma_buf_formats(__DRIscreen *_screen, int max, int *formats,
    return true;
 }
 
+
+__DRIimage *
+dri_create_image_with_modifiers(__DRIscreen *screen,
+                                 uint32_t width, uint32_t height,
+                                 uint32_t dri_format, uint32_t dri_usage,
+                                 const uint64_t *modifiers,
+                                 unsigned int modifiers_count,
+                                 void *loaderPrivate)
+{
+   if (modifiers && modifiers_count > 0) {
+      bool has_valid_modifier = false;
+      int i;
+
+      /* It's acceptable to create an image with INVALID modifier in the list,
+       * but it cannot be on the only modifier (since it will certainly fail
+       * later). While we could easily catch this after modifier creation, doing
+       * the check here is a convenient debug check likely pointing at whatever
+       * interface the client is using to build its modifier list.
+       */
+      for (i = 0; i < modifiers_count; i++) {
+         if (modifiers[i] != DRM_FORMAT_MOD_INVALID) {
+            has_valid_modifier = true;
+            break;
+         }
+      }
+      if (!has_valid_modifier)
+         return NULL;
+   }
+
+   return dri_create_image(screen, width, height, dri_format,
+                           modifiers, modifiers_count, dri_usage,
+                           loaderPrivate);
+}
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

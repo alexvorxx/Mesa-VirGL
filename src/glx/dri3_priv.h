@@ -60,15 +60,7 @@
 #include <xcb/sync.h>
 
 #include "loader_dri3_helper.h"
-#include "GL/internal/mesa_interface.h"
-
-struct dri3_display
-{
-   __GLXDRIdisplay base;
-
-   const __DRIextension **loader_extensions;
-   int has_multibuffer;
-};
+#include "mesa_interface.h"
 
 struct dri3_screen {
    struct glx_screen base;
@@ -87,18 +79,8 @@ struct dri3_screen {
    __DRIscreen *driScreenDisplayGPU;
    __DRIscreen *driScreenRenderGPU;
 
-   const __DRIimageExtension *image;
-   const __DRIimageDriverExtension *image_driver;
-   const __DRIcoreExtension *core;
-   const __DRImesaCoreExtension *mesa;
-   const __DRI2flushExtension *f;
-   const __DRI2configQueryExtension *config;
-   const __DRItexBufferExtension *texBuffer;
-   const __DRI2rendererQueryExtension *rendererQuery;
-   const __DRI2interopExtension *interop;
    const __DRIconfig **driver_configs;
 
-   void *driver;
    /* fd of the GPU used for rendering. */
    int fd_render_gpu;
    /* fd of the GPU used for display. If the same GPU is used for display
@@ -107,8 +89,6 @@ struct dri3_screen {
     */
    int fd_display_gpu;
    bool prefer_back_buffer_reuse;
-
-   struct loader_dri3_extensions loader_dri3_ext;
 };
 
 struct dri3_drawable {
@@ -120,9 +100,6 @@ struct dri3_drawable {
    unsigned frames;
 };
 
-bool
-dri3_check_multibuffer(Display * dpy, bool *err);
-
 _X_HIDDEN int
 dri3_query_renderer_integer(struct glx_screen *base, int attribute,
                             unsigned int *value);
@@ -130,17 +107,3 @@ dri3_query_renderer_integer(struct glx_screen *base, int attribute,
 _X_HIDDEN int
 dri3_query_renderer_string(struct glx_screen *base, int attribute,
                            const char **value);
-
-_X_HIDDEN int
-dri3_interop_query_device_info(struct glx_context *ctx,
-                               struct mesa_glinterop_device_info *out);
-
-_X_HIDDEN int
-dri3_interop_export_object(struct glx_context *ctx,
-                           struct mesa_glinterop_export_in *in,
-                           struct mesa_glinterop_export_out *out);
-
-_X_HIDDEN int
-dri3_interop_flush_objects(struct glx_context *ctx,
-                           unsigned count, struct mesa_glinterop_export_in *objects,
-                           struct mesa_glinterop_flush_out *out);

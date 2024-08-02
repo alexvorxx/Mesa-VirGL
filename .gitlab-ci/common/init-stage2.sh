@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # shellcheck disable=SC1090
 # shellcheck disable=SC1091
 # shellcheck disable=SC2086 # we want word splitting
@@ -43,14 +42,7 @@ trap cleanup INT TERM EXIT
 BACKGROUND_PIDS=
 
 
-
-# Second-stage init, used to set up devices and our job environment before
-# running tests.
-
-for path in '/set-job-env-vars.sh' './set-job-env-vars.sh'; do
-
 for path in '/dut-env-vars.sh' '/set-job-env-vars.sh' './set-job-env-vars.sh'; do
-
     [ -f "$path" ] && source "$path"
 done
 . "$SCRIPTS_DIR"/setup-test-env.sh
@@ -64,11 +56,7 @@ set -ex
 
 # Set up ZRAM
 HWCI_ZRAM_SIZE=2G
-
-if zramctl --find --size $HWCI_ZRAM_SIZE -a zstd; then
-
 if /sbin/zramctl --find --size $HWCI_ZRAM_SIZE -a zstd; then
-
     mkswap /dev/zram0
     swapon /dev/zram0
     echo "zram: $HWCI_ZRAM_SIZE activated"
@@ -85,23 +73,6 @@ fi
 #
 if [ "$HWCI_KVM" = "true" ]; then
     unset KVM_KERNEL_MODULE
-
-
-    grep -qs '\bvmx\b' /proc/cpuinfo && KVM_KERNEL_MODULE=kvm_intel || {
-        grep -qs '\bsvm\b' /proc/cpuinfo && KVM_KERNEL_MODULE=kvm_amd
-    }
-
-    [ -z "${KVM_KERNEL_MODULE}" ] && \
-        echo "WARNING: Failed to detect CPU virtualization extensions" || \
-
-    (grep -qs '\bvmx\b' /proc/cpuinfo && KVM_KERNEL_MODULE=kvm_intel) || {
-        grep -qs '\bsvm\b' /proc/cpuinfo && KVM_KERNEL_MODULE=kvm_amd
-    }
-
-    ([ -z "${KVM_KERNEL_MODULE}" ] && \
-      echo "WARNING: Failed to detect CPU virtualization extensions") || \
-
-
     {
       grep -qs '\bvmx\b' /proc/cpuinfo && KVM_KERNEL_MODULE=kvm_intel
     } || {
@@ -112,7 +83,6 @@ if [ "$HWCI_KVM" = "true" ]; then
       [ -z "${KVM_KERNEL_MODULE}" ] && \
       echo "WARNING: Failed to detect CPU virtualization extensions"
     } || \
-
         modprobe ${KVM_KERNEL_MODULE}
 
     mkdir -p /lava-files
@@ -150,32 +120,20 @@ if [ "$HWCI_FREQ_MAX" = "true" ]; then
   head -0 /dev/dri/renderD128
 
   # Disable GPU frequency scaling
-
-  DEVFREQ_GOVERNOR=`find /sys/devices -name governor | grep gpu || true`
-
   DEVFREQ_GOVERNOR=$(find /sys/devices -name governor | grep gpu || true)
-
   test -z "$DEVFREQ_GOVERNOR" || echo performance > $DEVFREQ_GOVERNOR || true
 
   # Disable CPU frequency scaling
   echo performance | tee -a /sys/devices/system/cpu/cpufreq/policy*/scaling_governor || true
 
   # Disable GPU runtime power management
-
-  GPU_AUTOSUSPEND=`find /sys/devices -name autosuspend_delay_ms | grep gpu | head -1`
-
   GPU_AUTOSUSPEND=$(find /sys/devices -name autosuspend_delay_ms | grep gpu | head -1)
-
   test -z "$GPU_AUTOSUSPEND" || echo -1 > $GPU_AUTOSUSPEND || true
   # Lock Intel GPU frequency to 70% of the maximum allowed by hardware
   # and enable throttling detection & reporting.
   # Additionally, set the upper limit for CPU scaling frequency to 65% of the
   # maximum permitted, as an additional measure to mitigate thermal throttling.
-
-  ./intel-gpu-freq.sh -s 70% --cpu-set-max 65% -g all -d
-
   /intel-gpu-freq.sh -s 70% --cpu-set-max 65% -g all -d
-
 fi
 
 # Start a little daemon to capture sysfs records and produce a JSON file
@@ -195,15 +153,13 @@ fi
 
 # Start a little daemon to capture the first devcoredump we encounter.  (They
 # expire after 5 minutes, so we poll for them).
-
-/capture-devcoredump.sh &
-BACKGROUND_PIDS="$! $BACKGROUND_PIDS"
-
 if [ -x /capture-devcoredump.sh ]; then
   /capture-devcoredump.sh &
   BACKGROUND_PIDS="$! $BACKGROUND_PIDS"
 fi
 
+ARCH=$(uname -m)
+export VK_DRIVER_FILES="/install/share/vulkan/icd.d/${VK_DRIVER}_icd.$ARCH.json"
 
 # If we want Xorg to be running for the test, then we start it up before the
 # HWCI_TEST_SCRIPT because we need to use xinit to start X (otherwise
@@ -212,16 +168,11 @@ fi
 if [ -n "$HWCI_START_XORG" ]; then
   echo "touch /xorg-started; sleep 100000" > /xorg-script
   env \
-    VK_DRIVER_FILES="/install/share/vulkan/icd.d/${VK_DRIVER}_icd.$(uname -m).json" \
     xinit /bin/sh /xorg-script -- /usr/bin/Xorg -noreset -s 0 -dpms -logfile /Xorg.0.log &
   BACKGROUND_PIDS="$! $BACKGROUND_PIDS"
 
   # Wait for xorg to be ready for connections.
-
-  for i in 1 2 3 4 5; do
-
   for _ in 1 2 3 4 5; do
-
     if [ -e /xorg-started ]; then
       break
     fi
@@ -243,7 +194,6 @@ if [ -n "$HWCI_START_WESTON" ]; then
   mkdir -p /tmp/.X11-unix
 
   env \
-    VK_DRIVER_FILES="/install/share/vulkan/icd.d/${VK_DRIVER}_icd.$(uname -m).json" \
     weston -Bheadless-backend.so --use-gl -Swayland-0 --xwayland --idle-time=0 &
   BACKGROUND_PIDS="$! $BACKGROUND_PIDS"
 
@@ -284,3 +234,4 @@ set +x
 for _ in $(seq 0 3); do echo "hwci: mesa: $RESULT"; sleep 1; echo; done
 
 exit $EXIT_CODE
+

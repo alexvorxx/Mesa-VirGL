@@ -35,6 +35,12 @@ enum HEVCNALUnitType {
     HEVC_NAL_VPS        = 32,
     HEVC_NAL_SPS        = 33,
     HEVC_NAL_PPS        = 34,
+    HEVC_NAL_PREFIX_SEI    = 39,
+};
+
+enum HEVCSEIPayloadType {
+   MASTERING_DISPLAY_COLOUR_VOLUME  = 137,
+   CONTENT_LIGHT_LEVEL_INFO         = 144,
 };
 
 VAStatus
@@ -680,6 +686,53 @@ static void parseEncSpsParamsH265(vlVaContext *context, struct vl_rbsp *rbsp)
    if (st_rps) FREE(st_rps);
 }
 
+static void parseEncSeiPayloadH265(vlVaContext *context, struct vl_rbsp *rbsp, int payloadType, int payloadSize)
+{
+   switch (payloadType) {
+   case MASTERING_DISPLAY_COLOUR_VOLUME:
+      context->desc.h265enc.metadata_flags.hdr_mdcv = 1;
+      for (int32_t i = 0; i < 3; i++) {
+         context->desc.h265enc.metadata_hdr_mdcv.primary_chromaticity_x[i] = vl_rbsp_u(rbsp, 16);
+         context->desc.h265enc.metadata_hdr_mdcv.primary_chromaticity_y[i] = vl_rbsp_u(rbsp, 16);
+      }
+      context->desc.h265enc.metadata_hdr_mdcv.white_point_chromaticity_x = vl_rbsp_u(rbsp, 16);
+      context->desc.h265enc.metadata_hdr_mdcv.white_point_chromaticity_y = vl_rbsp_u(rbsp, 16);
+      context->desc.h265enc.metadata_hdr_mdcv.luminance_max = vl_rbsp_u(rbsp, 32);
+      context->desc.h265enc.metadata_hdr_mdcv.luminance_min = vl_rbsp_u(rbsp, 32);
+      break;
+   case CONTENT_LIGHT_LEVEL_INFO:
+      context->desc.h265enc.metadata_flags.hdr_cll = 1;
+      context->desc.h265enc.metadata_hdr_cll.max_cll= vl_rbsp_u(rbsp, 16);
+      context->desc.h265enc.metadata_hdr_cll.max_fall= vl_rbsp_u(rbsp, 16);
+      break;
+   default:
+      break;
+   }
+}
+
+static void parseEncSeiH265(vlVaContext *context, struct vl_rbsp *rbsp)
+{
+   do {
+      /* sei_message() */
+      int payloadType = 0;
+      int payloadSize = 0;
+
+      int byte = 0xFF;
+      while (byte == 0xFF) {
+         byte = vl_rbsp_u(rbsp, 8);
+         payloadType += byte;
+      }
+
+      byte = 0xFF;
+      while (byte == 0xFF) {
+         byte = vl_rbsp_u(rbsp, 8);
+         payloadSize += byte;
+      }
+      parseEncSeiPayloadH265(context, rbsp, payloadType, payloadSize);
+
+   } while (vl_rbsp_more_data(rbsp));
+}
+
 VAStatus
 vlVaHandleVAEncPackedHeaderDataBufferTypeHEVC(vlVaContext *context, vlVaBuffer *buf)
 {
@@ -712,7 +765,12 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeHEVC(vlVaContext *context, vlVaBuffer *
          parseEncSpsParamsH265(context, &rbsp);
          break;
       case HEVC_NAL_VPS:
+         break;
       case HEVC_NAL_PPS:
+         break;
+      case HEVC_NAL_PREFIX_SEI:
+         parseEncSeiH265(context, &rbsp);
+         break;
       default:
          break;
       }

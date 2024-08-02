@@ -3,7 +3,6 @@ use mesa_rust_util::bitset;
 use mesa_rust_util::offset_of;
 
 use std::convert::TryInto;
-use std::ffi::c_void;
 use std::ffi::CString;
 use std::marker::PhantomData;
 use std::ptr;
@@ -34,8 +33,8 @@ impl<'a, T: 'a> Iterator for ExecListIter<'a, T> {
         if self.n.next.is_null() {
             None
         } else {
-            let t: *mut c_void = (self.n as *mut exec_node).cast();
-            Some(unsafe { &mut *(t.sub(self.offset).cast()) })
+            let t: *mut _ = self.n;
+            Some(unsafe { &mut *(t.byte_sub(self.offset).cast()) })
         }
     }
 }
@@ -156,29 +155,15 @@ impl NirShader {
     }
 
     pub fn deserialize(
-        input: &mut &[u8],
-        len: usize,
+        blob: &mut blob_reader,
         options: *const nir_shader_compiler_options,
     ) -> Option<Self> {
-        let mut reader = blob_reader::default();
-
-        let (bin, rest) = input.split_at(len);
-        *input = rest;
-
-        unsafe {
-            blob_reader_init(&mut reader, bin.as_ptr().cast(), len);
-            Self::new(nir_deserialize(ptr::null_mut(), options, &mut reader))
-        }
+        unsafe { Self::new(nir_deserialize(ptr::null_mut(), options, blob)) }
     }
 
-    pub fn serialize(&self) -> Vec<u8> {
-        let mut blob = blob::default();
+    pub fn serialize(&self, blob: &mut blob) {
         unsafe {
-            blob_init(&mut blob);
-            nir_serialize(&mut blob, self.nir.as_ptr(), false);
-            let res = slice::from_raw_parts(blob.data, blob.size).to_vec();
-            blob_finish(&mut blob);
-            res
+            nir_serialize(blob, self.nir.as_ptr(), false);
         }
     }
 

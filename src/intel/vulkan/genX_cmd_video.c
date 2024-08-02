@@ -51,6 +51,19 @@ genX(CmdControlVideoCodingKHR)(VkCommandBuffer commandBuffer,
          flush.VideoPipelineCacheInvalidate = 1;
       }
    }
+
+   if (pCodingControlInfo->flags &  VK_VIDEO_CODING_CONTROL_ENCODE_RATE_CONTROL_BIT_KHR) {
+      const struct VkVideoEncodeRateControlInfoKHR *rate_control_info =
+         vk_find_struct_const(pCodingControlInfo->pNext, VIDEO_ENCODE_RATE_CONTROL_INFO_KHR);
+
+      /* Support for only CQP rate control for the moment */
+      assert((rate_control_info->rateControlMode == VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DEFAULT_KHR) ||
+             (rate_control_info->rateControlMode == VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DISABLED_BIT_KHR));
+
+      cmd_buffer->video.params->rc_mode = rate_control_info->rateControlMode;
+   } else {
+      cmd_buffer->video.params->rc_mode = VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DEFAULT_KHR;
+   }
 }
 
 void
@@ -1001,7 +1014,7 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
          .MOCS = anv_mocs(cmd_buffer->device, bsp.BSDMPCRowStoreScratchBufferAddress.bo, 0),
       };
       bsp.MPRRowStoreScratchBufferAddress = (struct anv_address) { vid->vid_mem[ANV_VID_MEM_H264_MPR_ROW_SCRATCH].mem->bo,
-         vid->vid_mem[ANV_VID_MEM_H264_BSD_MPC_ROW_SCRATCH].offset };
+         vid->vid_mem[ANV_VID_MEM_H264_MPR_ROW_SCRATCH].offset };
 
       bsp.MPRRowStoreScratchBufferAttributes = (struct GENX(MEMORYADDRESSATTRIBUTES)) {
          .MOCS = anv_mocs(cmd_buffer->device, bsp.MPRRowStoreScratchBufferAddress.bo, 0),
@@ -1185,11 +1198,3 @@ genX(CmdDecodeVideoKHR)(VkCommandBuffer commandBuffer,
       assert(0);
    }
 }
-
-#ifdef VK_ENABLE_BETA_EXTENSIONS
-void
-genX(CmdEncodeVideoKHR)(VkCommandBuffer commandBuffer,
-                        const VkVideoEncodeInfoKHR *pEncodeInfo)
-{
-}
-#endif

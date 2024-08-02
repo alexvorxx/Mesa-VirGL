@@ -28,12 +28,6 @@
 #include "windows/xwindowsdri.h"
 #include "windows/windowsgl.h"
 
-struct driwindows_display
-{
-   __GLXDRIdisplay base;
-   int event_base;
-};
-
 struct driwindows_context
 {
    struct glx_context base;
@@ -51,6 +45,7 @@ struct driwindows_screen
    struct glx_screen base;
    __DRIscreen *driScreen;
    __GLXDRIscreen vtable;
+   int event_base;
    Bool copySubBuffer;
 };
 
@@ -461,12 +456,30 @@ driwindowsMapConfigs(struct glx_display *priv, int screen, struct glx_config *co
 }
 
 static struct glx_screen *
-driwindowsCreateScreen(int screen, struct glx_display *priv, bool implicit)
+driwindowsCreateScreen(int screen, struct glx_display *priv, bool driver_name_is_inferred)
 {
    __GLXDRIscreen *psp;
    struct driwindows_screen *psc;
    struct glx_config *configs = NULL, *visuals = NULL;
    int directCapable;
+   int eventBase, errorBase;
+   int major, minor, patch;
+
+   /* Verify server has Windows-DRI extension */
+   if (!XWindowsDRIQueryExtension(dpy, &eventBase, &errorBase)) {
+      ErrorMessageF("Windows-DRI extension not available\n");
+      return NULL;
+   }
+
+   if (!XWindowsDRIQueryVersion(dpy, &major, &minor, &patch)) {
+      ErrorMessageF("Fetching Windows-DRI extension version failed\n");
+      return NULL;
+   }
+
+   if (!windows_check_renderer()) {
+      ErrorMessageF("Windows-DRI extension disabled for GDI Generic renderer\n");
+      return NULL;
+   }
 
    psc = calloc(1, sizeof *psc);
    if (psc == NULL)
@@ -511,6 +524,8 @@ driwindowsCreateScreen(int screen, struct glx_display *priv, bool implicit)
 
    if (psc->copySubBuffer)
       psp->copySubBuffer = driwindowsCopySubBuffer;
+   
+   priv->driver = GLX_DRIVER_WINDOWS;
 
    return &psc->base;
 
@@ -518,53 +533,4 @@ handle_error:
    glx_screen_cleanup(&psc->base);
 
    return NULL;
-}
-
-/* Called from __glXFreeDisplayPrivate.
- */
-static void
-driwindowsDestroyDisplay(__GLXDRIdisplay * dpy)
-{
-   free(dpy);
-}
-
-/*
- * Allocate, initialize and return a  __GLXDRIdisplay object.
- * This is called from __glXInitialize() when we are given a new
- * display pointer.
- */
-_X_HIDDEN __GLXDRIdisplay *
-driwindowsCreateDisplay(Display * dpy)
-{
-   struct driwindows_display *pdpyp;
-
-   int eventBase, errorBase;
-   int major, minor, patch;
-
-   /* Verify server has Windows-DRI extension */
-   if (!XWindowsDRIQueryExtension(dpy, &eventBase, &errorBase)) {
-      ErrorMessageF("Windows-DRI extension not available\n");
-      return NULL;
-   }
-
-   if (!XWindowsDRIQueryVersion(dpy, &major, &minor, &patch)) {
-      ErrorMessageF("Fetching Windows-DRI extension version failed\n");
-      return NULL;
-   }
-
-   if (!windows_check_renderer()) {
-      ErrorMessageF("Windows-DRI extension disabled for GDI Generic renderer\n");
-      return NULL;
-   }
-
-   pdpyp = malloc(sizeof *pdpyp);
-   if (pdpyp == NULL)
-      return NULL;
-
-   pdpyp->base.destroyDisplay = driwindowsDestroyDisplay;
-   pdpyp->base.createScreen = driwindowsCreateScreen;
-
-   pdpyp->event_base = eventBase;
-
-   return &pdpyp->base;
 }

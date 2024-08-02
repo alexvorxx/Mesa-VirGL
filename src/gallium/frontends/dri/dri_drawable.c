@@ -252,7 +252,7 @@ dri_drawable_validate_att(struct dri_context *ctx,
 /**
  * These are used for GLX_EXT_texture_from_pixmap
  */
-static void
+void
 dri_set_tex_buffer2(__DRIcontext *pDRICtx, GLint target,
                     GLint format, __DRIdrawable *dPriv)
 {
@@ -300,19 +300,10 @@ dri_set_tex_buffer2(__DRIcontext *pDRICtx, GLint target,
    }
 }
 
-static void
-dri_set_tex_buffer(__DRIcontext *pDRICtx, GLint target,
-                   __DRIdrawable *dPriv)
-{
-   dri_set_tex_buffer2(pDRICtx, target, __DRI_TEXTURE_FORMAT_RGBA, dPriv);
-}
-
 const __DRItexBufferExtension driTexBufferExtension = {
    .base = { __DRI_TEX_BUFFER, 2 },
 
-   .setTexBuffer       = dri_set_tex_buffer,
    .setTexBuffer2      = dri_set_tex_buffer2,
-   .releaseTexBuffer   = NULL,
 };
 
 /**
@@ -587,19 +578,11 @@ dri_flush_drawable(__DRIdrawable *dPriv)
 /**
  * dri_throttle - A DRI2ThrottleExtension throttling function.
  */
-static void
+void
 dri_throttle(__DRIcontext *cPriv, __DRIdrawable *dPriv,
              enum __DRI2throttleReason reason)
 {
    dri_flush(cPriv, dPriv, 0, reason);
 }
-
-
-const __DRI2throttleExtension dri2ThrottleExtension = {
-    .base = { __DRI2_THROTTLE, 1 },
-
-    .throttle          = dri_throttle,
-};
-
 
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

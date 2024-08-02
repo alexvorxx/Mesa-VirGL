@@ -76,6 +76,9 @@ v3d_job_free(struct v3d_context *v3d, struct v3d_job *job)
         if (job->bbuf)
                 pipe_surface_reference(&job->bbuf, NULL);
 
+        if (job->dbuf)
+                pipe_surface_reference(&job->dbuf, NULL);
+
         if (v3d->job == job)
                 v3d->job = NULL;
 
@@ -406,20 +409,20 @@ v3d_get_job_for_fbo(struct v3d_context *v3d)
                 if (cbufs[i]) {
                         struct v3d_resource *rsc = v3d_resource(cbufs[i]->texture);
                         if (!rsc->writes)
-                                job->clear |= PIPE_CLEAR_COLOR0 << i;
+                                job->clear_tlb |= PIPE_CLEAR_COLOR0 << i;
                 }
         }
 
         if (zsbuf) {
                 struct v3d_resource *rsc = v3d_resource(zsbuf->texture);
                 if (!rsc->writes)
-                        job->clear |= PIPE_CLEAR_DEPTH;
+                        job->clear_tlb |= PIPE_CLEAR_DEPTH;
 
                 if (rsc->separate_stencil)
                         rsc = rsc->separate_stencil;
 
                 if (!rsc->writes)
-                        job->clear |= PIPE_CLEAR_STENCIL;
+                        job->clear_tlb |= PIPE_CLEAR_STENCIL;
         }
 
         job->draw_tiles_x = DIV_ROUND_UP(v3d->framebuffer.width,

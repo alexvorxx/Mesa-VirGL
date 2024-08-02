@@ -613,6 +613,7 @@ validate_intrinsic_instr(nir_intrinsic_instr *instr, validate_state *state)
 
    case nir_intrinsic_load_uniform:
    case nir_intrinsic_load_input:
+   case nir_intrinsic_load_per_primitive_input:
    case nir_intrinsic_load_per_vertex_input:
    case nir_intrinsic_load_interpolated_input:
    case nir_intrinsic_load_output:
@@ -645,12 +646,19 @@ validate_intrinsic_instr(nir_intrinsic_instr *instr, validate_state *state)
                       util_is_power_of_two_nonzero(nir_intrinsic_align_mul(instr)));
       validate_assert(state, nir_intrinsic_align_offset(instr) <
                                 nir_intrinsic_align_mul(instr));
-      FALLTHROUGH;
+      /* All memory store operations must store at least a byte */
+      validate_assert(state, nir_src_bit_size(instr->src[0]) >= 8);
+      break;
 
    case nir_intrinsic_store_output:
    case nir_intrinsic_store_per_vertex_output:
-      /* All memory store operations must store at least a byte */
-      validate_assert(state, nir_src_bit_size(instr->src[0]) >= 8);
+      if (state->shader->info.stage == MESA_SHADER_FRAGMENT)
+         validate_assert(state, nir_src_bit_size(instr->src[0]) >= 8);
+      else
+         validate_assert(state, nir_src_bit_size(instr->src[0]) >= 16);
+      validate_assert(state,
+                      nir_src_bit_size(instr->src[0]) ==
+                      nir_alu_type_get_type_size(nir_intrinsic_src_type(instr)));
       break;
 
    case nir_intrinsic_deref_mode_is:
@@ -798,6 +806,44 @@ validate_intrinsic_instr(nir_intrinsic_instr *instr, validate_state *state)
 }
 
 static void
+validate_tex_src_texture_deref(nir_tex_instr *instr, validate_state *state,
+                               nir_deref_instr *deref)
+{
+   validate_assert(state, glsl_type_is_image(deref->type) ||
+                             glsl_type_is_texture(deref->type) ||
+                             glsl_type_is_sampler(deref->type));
+
+   switch (instr->op) {
+   case nir_texop_descriptor_amd:
+   case nir_texop_sampler_descriptor_amd:
+   case nir_texop_custom_border_color_agx:
+      break;
+   case nir_texop_lod:
+   case nir_texop_lod_bias_agx:
+      validate_assert(state, nir_alu_type_get_base_type(instr->dest_type) == nir_type_float);
+      break;
+   case nir_texop_samples_identical:
+   case nir_texop_has_custom_border_color_agx:
+      validate_assert(state, nir_alu_type_get_base_type(instr->dest_type) == nir_type_bool);
+      break;
+   case nir_texop_txs:
+   case nir_texop_texture_samples:
+   case nir_texop_query_levels:
+   case nir_texop_fragment_mask_fetch_amd:
+   case nir_texop_txf_ms_mcs_intel:
+      validate_assert(state, nir_alu_type_get_base_type(instr->dest_type) == nir_type_int ||
+                             nir_alu_type_get_base_type(instr->dest_type) == nir_type_uint);
+      break;
+   default:
+      validate_assert(state,
+                      glsl_get_sampler_result_type(deref->type) == GLSL_TYPE_VOID ||
+                      glsl_base_type_is_integer(glsl_get_sampler_result_type(deref->type)) ==
+                         (nir_alu_type_get_base_type(instr->dest_type) == nir_type_int ||
+                          nir_alu_type_get_base_type(instr->dest_type) == nir_type_uint));
+   }
+}
+
+static void
 validate_tex_instr(nir_tex_instr *instr, validate_state *state)
 {
    bool src_type_seen[nir_num_tex_src_types];
@@ -839,36 +885,7 @@ validate_tex_instr(nir_tex_instr *instr, validate_state *state)
          if (!validate_assert(state, deref))
             break;
 
-         validate_assert(state, glsl_type_is_image(deref->type) ||
-                                   glsl_type_is_texture(deref->type) ||
-                                   glsl_type_is_sampler(deref->type));
-         switch (instr->op) {
-         case nir_texop_descriptor_amd:
-         case nir_texop_sampler_descriptor_amd:
-            break;
-         case nir_texop_lod:
-         case nir_texop_lod_bias_agx:
-            validate_assert(state, nir_alu_type_get_base_type(instr->dest_type) == nir_type_float);
-            break;
-         case nir_texop_samples_identical:
-            validate_assert(state, nir_alu_type_get_base_type(instr->dest_type) == nir_type_bool);
-            break;
-         case nir_texop_txs:
-         case nir_texop_texture_samples:
-         case nir_texop_query_levels:
-         case nir_texop_fragment_mask_fetch_amd:
-         case nir_texop_txf_ms_mcs_intel:
-            validate_assert(state, nir_alu_type_get_base_type(instr->dest_type) == nir_type_int ||
-                                      nir_alu_type_get_base_type(instr->dest_type) == nir_type_uint);
-
-            break;
-         default:
-            validate_assert(state,
-                            glsl_get_sampler_result_type(deref->type) == GLSL_TYPE_VOID ||
-                               glsl_base_type_is_integer(glsl_get_sampler_result_type(deref->type)) ==
-                                  (nir_alu_type_get_base_type(instr->dest_type) == nir_type_int ||
-                                   nir_alu_type_get_base_type(instr->dest_type) == nir_type_uint));
-         }
+         validate_tex_src_texture_deref(instr, state, deref);
          break;
       }
 
@@ -878,6 +895,23 @@ validate_tex_instr(nir_tex_instr *instr, validate_state *state)
             break;
 
          validate_assert(state, glsl_type_is_sampler(deref->type));
+         break;
+      }
+
+      case nir_tex_src_sampler_deref_intrinsic:
+      case nir_tex_src_texture_deref_intrinsic: {
+         nir_intrinsic_instr *intrin =
+            nir_instr_as_intrinsic(instr->src[i].src.ssa->parent_instr);
+         nir_deref_instr *deref =
+            nir_instr_as_deref(intrin->src[0].ssa->parent_instr);
+         if (!validate_assert(state, deref))
+            break;
+
+         if (instr->src[i].src_type == nir_tex_src_sampler_deref_intrinsic)
+            validate_assert(state, glsl_type_is_sampler(deref->type));
+         else
+            validate_tex_src_texture_deref(instr, state, deref);
+
          break;
       }
 

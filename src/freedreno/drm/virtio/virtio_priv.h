@@ -38,7 +38,6 @@
 /* We also use some types/defines from the host drm/msm uabi: */
 #include "drm-uapi/msm_drm.h"
 
-#define VIRGL_RENDERER_UNSTABLE_APIS 1
 #include "virglrenderer_hw.h"
 #include "msm_proto.h"
 
@@ -94,7 +93,7 @@ virtio_dev_alloc_iova(struct fd_device *dev, uint32_t size)
    uint64_t iova;
 
    simple_mtx_lock(&virtio_dev->address_space_lock);
-   iova = util_vma_heap_alloc(&virtio_dev->address_space, size, 0x1000);
+   iova = util_vma_heap_alloc(&virtio_dev->address_space, size, os_page_size);
    simple_mtx_unlock(&virtio_dev->address_space_lock);
 
    return iova;

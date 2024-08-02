@@ -28,12 +28,9 @@
 
 #include <X11/extensions/XShm.h>
 #include "kopper_interface.h"
-#include "GL/internal/mesa_interface.h"
 
 struct drisw_display
 {
-   __GLXDRIdisplay base;
-   enum try_zink zink;
 };
 
 struct drisw_screen
@@ -42,22 +39,11 @@ struct drisw_screen
 
    __DRIscreen *driScreen;
    __GLXDRIscreen vtable;
-   const __DRIcoreExtension *core;
-   const __DRImesaCoreExtension *mesa;
-   const __DRIswrastExtension *swrast;
-   const __DRIkopperExtension *kopper;
-   const __DRI2flushExtension *f;
-   const __DRI2configQueryExtension *config;
-   const __DRItexBufferExtension *texBuffer;
-   const __DRIcopySubBufferExtension *copySubBuffer;
-   const __DRI2rendererQueryExtension *rendererQuery;
 
    const __DRIconfig **driver_configs;
 
-   void *driver;
-   const char *name;
-
-   bool has_multibuffer;
+   char *name;
+   bool kopper;
 };
 
 struct drisw_drawable

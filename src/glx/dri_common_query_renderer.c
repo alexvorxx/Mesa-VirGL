@@ -25,12 +25,13 @@
 
 #include "glxclient.h"
 #include "glx_error.h"
-#include "GL/internal/dri_interface.h"
+#include "mesa_interface.h"
 #include "dri2_priv.h"
 #if defined(HAVE_DRI3)
 #include "dri3_priv.h"
 #endif
 #include "drisw_priv.h"
+#include "dri_util.h"
 
 #define __RENDERER(attrib) \
     { GLX_RENDERER_##attrib##_MESA, __DRI2_RENDERER_##attrib }
@@ -91,11 +92,7 @@ dri2_query_renderer_integer(struct glx_screen *base, int attribute,
     */
    const int dri_attribute = dri2_convert_glx_query_renderer_attribs(attribute);
 
-   if (psc->rendererQuery == NULL)
-      return -1;
-
-   ret = psc->rendererQuery->queryInteger(psc->driScreen, dri_attribute,
-                                          value);
+   ret = dri_query_renderer_integer(psc->driScreen, dri_attribute, value);
    dri_convert_context_profile_bits(attribute, value);
 
    return ret;
@@ -113,10 +110,7 @@ dri2_query_renderer_string(struct glx_screen *base, int attribute,
     */
    const int dri_attribute = dri2_convert_glx_query_renderer_attribs(attribute);
 
-   if (psc->rendererQuery == NULL)
-      return -1;
-
-   return psc->rendererQuery->queryString(psc->driScreen, dri_attribute, value);
+   return dri_query_renderer_string(psc->driScreen, dri_attribute, value);
 }
 
 #if defined(HAVE_DRI3)
@@ -134,11 +128,7 @@ dri3_query_renderer_integer(struct glx_screen *base, int attribute,
     */
    const int dri_attribute = dri2_convert_glx_query_renderer_attribs(attribute);
 
-   if (psc->rendererQuery == NULL)
-      return -1;
-
-   ret = psc->rendererQuery->queryInteger(psc->driScreenRenderGPU, dri_attribute,
-                                          value);
+   ret = dri_query_renderer_integer(psc->driScreenRenderGPU, dri_attribute, value);
    dri_convert_context_profile_bits(attribute, value);
 
    return ret;
@@ -156,10 +146,7 @@ dri3_query_renderer_string(struct glx_screen *base, int attribute,
     */
    const int dri_attribute = dri2_convert_glx_query_renderer_attribs(attribute);
 
-   if (psc->rendererQuery == NULL)
-      return -1;
-
-   return psc->rendererQuery->queryString(psc->driScreenRenderGPU, dri_attribute, value);
+   return dri_query_renderer_string(psc->driScreenRenderGPU, dri_attribute, value);
 }
 #endif /* HAVE_DRI3 */
 
@@ -177,11 +164,7 @@ drisw_query_renderer_integer(struct glx_screen *base, int attribute,
     */
    const int dri_attribute = dri2_convert_glx_query_renderer_attribs(attribute);
 
-   if (psc->rendererQuery == NULL)
-      return -1;
-
-   ret = psc->rendererQuery->queryInteger(psc->driScreen, dri_attribute,
-                                          value);
+   ret = dri_query_renderer_integer(psc->driScreen, dri_attribute, value);
    dri_convert_context_profile_bits(attribute, value);
 
    return ret;
@@ -199,10 +182,7 @@ drisw_query_renderer_string(struct glx_screen *base, int attribute,
     */
    const int dri_attribute = dri2_convert_glx_query_renderer_attribs(attribute);
 
-   if (psc->rendererQuery == NULL)
-      return -1;
-
-   return psc->rendererQuery->queryString(psc->driScreen, dri_attribute, value);
+   return dri_query_renderer_string(psc->driScreen, dri_attribute, value);
 }
 
 

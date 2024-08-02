@@ -1051,7 +1051,9 @@ intel_group_get_length(const struct intel_group *group, const uint32_t *p)
          else
             return -1;
       case 2: {
-         if (opcode == 0)
+         if (whole_opcode == 0x73A2 /* HCP_PAK_INSERT_OBJECT */)
+            return field_value(h, 0, 11) + 2;
+         else if (opcode == 0)
             return field_value(h, 0, 7) + 2;
          else if (opcode < 3)
             return field_value(h, 0, 15) + 2;

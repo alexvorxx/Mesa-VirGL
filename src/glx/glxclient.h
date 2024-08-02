@@ -35,7 +35,18 @@
 #include "loader.h"
 #include "glxextensions.h"
 
-#if defined(USE_LIBGLVND)
+/* bits */
+enum glx_driver {
+   GLX_DRIVER_NONE = 0,
+   GLX_DRIVER_ZINK_INFER = (1<<0),
+   GLX_DRIVER_SW = (1<<1),
+   GLX_DRIVER_DRI2 = (1<<2),
+   GLX_DRIVER_DRI3 = (1<<3),
+   GLX_DRIVER_WINDOWS = (1<<4),
+   GLX_DRIVER_ZINK_YES = (1<<5),
+};
+
+#if USE_LIBGLVND
 #define _GLX_PUBLIC _X_HIDDEN
 #else
 #define _GLX_PUBLIC _X_EXPORT
@@ -74,21 +85,9 @@ extern void DRI_glXUseXFont(struct glx_context *ctx,
  * Display dependent methods.  This structure is initialized during the
  * \c driCreateDisplay call.
  */
-typedef struct __GLXDRIdisplayRec __GLXDRIdisplay;
+typedef struct __GLXDRIdisplay __GLXDRIdisplay;
 typedef struct __GLXDRIscreenRec __GLXDRIscreen;
 typedef struct __GLXDRIdrawableRec __GLXDRIdrawable;
-
-#define GLX_LOADER_USE_ZINK ((struct glx_screen *)(uintptr_t)-1)
-
-struct __GLXDRIdisplayRec
-{
-    /**
-     * Method to destroy the private DRI display data.
-     */
-   void (*destroyDisplay) (__GLXDRIdisplay * display);
-
-   struct glx_screen *(*createScreen)(int screen, struct glx_display * priv, bool implicit);
-};
 
 struct __GLXDRIscreenRec {
 
@@ -115,7 +114,6 @@ struct __GLXDRIscreenRec {
    int (*getSwapInterval)(__GLXDRIdrawable *pdraw);
    int (*getBufferAge)(__GLXDRIdrawable *pdraw);
    void (*bindTexImage)(__GLXDRIdrawable *pdraw, int buffer, const int *attribs);
-   void (*releaseTexImage)(__GLXDRIdrawable *pdraw, int buffer);
 
    int maxSwapInterval;
 };
@@ -133,21 +131,34 @@ struct __GLXDRIdrawableRec
    int refcount;
 };
 
-enum try_zink {
-   TRY_ZINK_NO,
-   TRY_ZINK_INFER,
-   TRY_ZINK_YES,
-};
-
 /*
 ** Function to create and DRI display data and initialize the display
 ** dependent methods.
 */
-extern __GLXDRIdisplay *driswCreateDisplay(Display * dpy, enum try_zink zink);
+extern __GLXDRIdisplay *driswCreateDisplay(Display * dpy, enum glx_driver glx_driver);
 extern __GLXDRIdisplay *dri2CreateDisplay(Display * dpy);
 extern __GLXDRIdisplay *dri3_create_display(Display * dpy);
 extern __GLXDRIdisplay *driwindowsCreateDisplay(Display * dpy);
 
+
+#if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
+#ifdef HAVE_DRI3
+struct glx_screen *dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_inferred, bool *return_zink);
+void dri3_destroy_display(__GLXDRIdisplay * dpy);
+#endif
+
+bool dri2CheckSupport(Display *dpy);
+struct glx_screen *dri2CreateScreen(int screen, struct glx_display * priv, bool driver_name_is_inferred);
+void dri2DestroyDisplay(__GLXDRIdisplay * dpy);
+
+struct glx_screen *driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver driver, bool driver_name_is_inferred);
+void driswDestroyDisplay(__GLXDRIdisplay * dpy);
+#endif
+
+#ifdef GLX_USE_WINDOWSGL
+struct glx_screen *driwindowsCreateScreen(int screen, struct glx_display *priv, bool driver_name_is_inferred);
+void driwindowsDestroyDisplay(__GLXDRIdisplay * dpy);
+#endif
 /*
 **
 */
@@ -224,14 +235,6 @@ struct glx_context_vtable {
    void (*unbind)(struct glx_context *context);
    void (*wait_gl)(struct glx_context *ctx);
    void (*wait_x)(struct glx_context *ctx);
-   int (*interop_query_device_info)(struct glx_context *ctx,
-                                    struct mesa_glinterop_device_info *out);
-   int (*interop_export_object)(struct glx_context *ctx,
-                                struct mesa_glinterop_export_in *in,
-                                struct mesa_glinterop_export_out *out);
-   int (*interop_flush_objects)(struct glx_context *ctx,
-                                unsigned count, struct mesa_glinterop_export_in *objects,
-                                struct mesa_glinterop_flush_out *out);
 };
 
 /**
@@ -552,6 +555,8 @@ struct glx_display
 {
    struct glx_display *next;
 
+   enum glx_driver driver;
+
    /* The extension protocol codes */
    XExtCodes codes;
 
@@ -587,12 +592,8 @@ struct glx_display
     */
    struct set *zombieGLXDrawable;
 
-    /**
-     * Per display direct rendering interface functions and data.
-     */
-   __GLXDRIdisplay *driswDisplay;
-   __GLXDRIdisplay *dri2Display;
-   __GLXDRIdisplay *dri3Display;
+   __glxHashTable *dri2Hash;
+   bool has_multibuffer;
 #endif
 #ifdef GLX_USE_WINDOWSGL
    __GLXDRIdisplay *windowsdriDisplay;

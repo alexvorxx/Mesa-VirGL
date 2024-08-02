@@ -1,22 +1,5 @@
 # Copyright © 2017 Dylan Baker
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
+# SPDX-License-Identifier: MIT
 
 files_libgallium = files(
   'cso_cache/cso_cache.c',
@@ -346,7 +329,7 @@ if draw_with_llvm
     'gallivm/lp_bld_gather.c',
     'gallivm/lp_bld_gather.h',
     'gallivm/lp_bld.h',
-    'gallivm/lp_bld_init.c',
+    'gallivm/lp_bld_init_common.c',
     'gallivm/lp_bld_init.h',
     'gallivm/lp_bld_intr.c',
     'gallivm/lp_bld_intr.h',
@@ -366,6 +349,8 @@ if draw_with_llvm
     'gallivm/lp_bld_nir_soa.c',
     'gallivm/lp_bld_pack.c',
     'gallivm/lp_bld_pack.h',
+    'gallivm/lp_bld_passmgr.h',
+    'gallivm/lp_bld_passmgr.c',
     'gallivm/lp_bld_printf.c',
     'gallivm/lp_bld_printf.h',
     'gallivm/lp_bld_quad.c',
@@ -398,6 +383,11 @@ if draw_with_llvm
     'nir/nir_to_tgsi_info.c',
     'nir/nir_to_tgsi_info.h',
   )
+  if llvm_with_orcjit
+    files_libgallium += files('gallivm/lp_bld_init_orc.cpp',)
+  else
+    files_libgallium += files('gallivm/lp_bld_init.c',)
+  endif
 endif
 
 files_libgalliumvl = files(
@@ -541,14 +531,14 @@ if with_tests
       'util/u_surface_test.cpp',
       include_directories : [inc_include, inc_src, inc_mapi, inc_mesa, inc_gallium, inc_gallium_aux],
       link_with: libgallium,
-      dependencies : [idep_gtest],
+      dependencies : [idep_gtest, idep_mesautil],
     ),
     suite: 'gallium',
     protocol : 'gtest',
   )
 endif
 
-libgalliumvl_stub = static_library(
+_libgalliumvl_stub = static_library(
   'galliumvl_stub',
   'vl/vl_stubs.c',
   c_args : [c_msvc_compat_args],
@@ -569,6 +559,15 @@ libgalliumvl = static_library(
   dependencies : [idep_nir, idep_mesautil],
   build_by_default : false,
 )
+
+# some drivers export their screen creation function globally, so all frontends have to contain the
+# full libgalliumvl. So we'll handle this here globally for everybody.
+if (with_gallium_va or with_gallium_vdpau or with_gallium_omx != 'disabled' or
+   with_dri or with_gallium_radeonsi)
+  libgalliumvl_stub = libgalliumvl
+else
+  libgalliumvl_stub = _libgalliumvl_stub
+endif
 
 # XXX: The dependencies here may be off...
 libgalliumvlwinsys = static_library(

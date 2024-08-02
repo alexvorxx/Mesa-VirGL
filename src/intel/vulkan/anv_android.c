@@ -114,8 +114,6 @@ inline VkFormat
 vk_format_from_android(unsigned android_format, unsigned android_usage)
 {
    switch (android_format) {
-   case AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM:
-      return VK_FORMAT_R8G8B8_UNORM;
    case AHARDWAREBUFFER_FORMAT_Y8Cb8Cr8_420:
    case HAL_PIXEL_FORMAT_NV12_Y_TILED_INTEL:
       return VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
@@ -307,7 +305,8 @@ anv_import_ahw_memory(VkDevice device_h,
    if (dma_buf < 0)
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
 
-   VkResult result = anv_device_import_bo(device, dma_buf, 0,
+   VkResult result = anv_device_import_bo(device, dma_buf,
+                                          ANV_BO_ALLOC_EXTERNAL,
                                           0 /* client_address */,
                                           &mem->bo);
    assert(result == VK_SUCCESS);
@@ -338,19 +337,13 @@ anv_image_init_from_gralloc(struct anv_device *device,
     */
    int dma_buf = gralloc_info->handle->data[0];
 
-   /* We need to set the WRITE flag on window system buffers so that GEM will
-    * know we're writing to them and synchronize uses on other rings (for
-    * example, if the display server uses the blitter ring).
-    *
-    * If this function fails and if the imported bo was resident in the cache,
+   /* If this function fails and if the imported bo was resident in the cache,
     * we should avoid updating the bo's flags. Therefore, we defer updating
     * the flags until success is certain.
     *
     */
    result = anv_device_import_bo(device, dma_buf,
-                                 ANV_BO_ALLOC_EXTERNAL |
-                                 ANV_BO_ALLOC_IMPLICIT_SYNC |
-                                 ANV_BO_ALLOC_IMPLICIT_WRITE,
+                                 ANV_BO_ALLOC_EXTERNAL,
                                  0 /* client_address */,
                                  &bo);
    if (result != VK_SUCCESS) {
@@ -359,10 +352,29 @@ anv_image_init_from_gralloc(struct anv_device *device,
    }
 
    enum isl_tiling tiling;
-   result = anv_device_get_bo_tiling(device, bo, &tiling);
-   if (result != VK_SUCCESS) {
-      return vk_errorf(device, result,
-                       "failed to get tiling from VkNativeBufferANDROID");
+   if (device->u_gralloc) {
+      struct u_gralloc_buffer_basic_info buf_info;
+      struct u_gralloc_buffer_handle gr_handle = {
+         .handle = gralloc_info->handle,
+         .hal_format = gralloc_info->format,
+         .pixel_stride = gralloc_info->stride,
+      };
+      u_gralloc_get_buffer_basic_info(device->u_gralloc, &gr_handle, &buf_info);
+      const struct isl_drm_modifier_info *mod_info =
+         isl_drm_modifier_get_info(buf_info.modifier);
+      if (mod_info) {
+         tiling = mod_info->tiling;
+      } else {
+         return vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
+                          "unknown modifier of BO from VkNativeBufferANDROID");
+      }
+   } else {
+      /* Fallback to get_tiling API. */
+      result = anv_device_get_bo_tiling(device, bo, &tiling);
+      if (result != VK_SUCCESS) {
+         return vk_errorf(device, result,
+                          "failed to get tiling from VkNativeBufferANDROID");
+      }
    }
    anv_info.isl_tiling_flags = 1u << tiling;
 
@@ -421,20 +433,14 @@ anv_image_bind_from_gralloc(struct anv_device *device,
     */
    int dma_buf = gralloc_info->handle->data[0];
 
-   /* We need to set the WRITE flag on window system buffers so that GEM will
-    * know we're writing to them and synchronize uses on other rings (for
-    * example, if the display server uses the blitter ring).
-    *
-    * If this function fails and if the imported bo was resident in the cache,
+   /* If this function fails and if the imported bo was resident in the cache,
     * we should avoid updating the bo's flags. Therefore, we defer updating
     * the flags until success is certain.
     *
     */
    struct anv_bo *bo = NULL;
    VkResult result = anv_device_import_bo(device, dma_buf,
-                                          ANV_BO_ALLOC_EXTERNAL |
-                                          ANV_BO_ALLOC_IMPLICIT_SYNC |
-                                          ANV_BO_ALLOC_IMPLICIT_WRITE,
+                                          ANV_BO_ALLOC_EXTERNAL,
                                           0 /* client_address */,
                                           &bo);
    if (result != VK_SUCCESS) {

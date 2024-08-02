@@ -43,6 +43,7 @@
 #include "loader.h"
 #include <X11/Xlib-xcb.h>
 #include <xcb/xproto.h>
+#include "dri_util.h"
 
 #ifndef RTLD_NOW
 #define RTLD_NOW 0
@@ -55,12 +56,11 @@
 #define GL_LIB_NAME "libGL.so.1"
 #endif
 
+const __DRIextension **
+dri_loader_get_extensions(const char *driver_name);
+
 /**
  * Try to \c dlopen the named driver.
- *
- * This function adds the "_dri.so" suffix to the driver name and searches the
- * directories specified by the \c LIBGL_DRIVERS_PATH environment variable in
- * order to find the driver.
  *
  * \param driverName - a name like "i965", "radeon", "nouveau", etc.
  * \param out_driver_handle - Address to return the resulting dlopen() handle.
@@ -70,21 +70,19 @@
  * file not found.
  */
 _X_HIDDEN const __DRIextension **
-driOpenDriver(const char *driverName, void **out_driver_handle)
+driOpenDriver(const char *driverName, bool driver_name_is_inferred)
 {
    void *glhandle;
 
    /* Attempt to make sure libGL symbols will be visible to the driver */
    glhandle = dlopen(GL_LIB_NAME, RTLD_NOW | RTLD_GLOBAL);
 
-   static const char *search_path_vars[] = {
-      "LIBGL_DRIVERS_PATH",
-      "LIBGL_DRIVERS_DIR", /* deprecated */
-      NULL
-   };
+   const __DRIextension **extensions = dri_loader_get_extensions(driverName);
 
-   const __DRIextension **extensions =
-      loader_open_driver(driverName, out_driver_handle, search_path_vars);
+   if (!extensions && driver_name_is_inferred) {
+      glx_message(_LOADER_WARNING,
+           "MESA-LOADER: glx: failed to open %s: driver not built!\n", driverName);
+   }
 
    if (glhandle)
       dlclose(glhandle);
@@ -138,14 +136,13 @@ scalarEqual(struct glx_config *mode, unsigned int attrib, unsigned int value)
 }
 
 static int
-driConfigEqual(const __DRIcoreExtension *core,
-               struct glx_config *config, const __DRIconfig *driConfig)
+driConfigEqual(struct glx_config *config, const __DRIconfig *driConfig)
 {
    unsigned int attrib, value, glxValue;
    int i;
 
    i = 0;
-   while (core->indexConfigAttrib(driConfig, i++, &attrib, &value)) {
+   while (driIndexConfigAttrib(driConfig, i++, &attrib, &value)) {
       switch (attrib) {
       case __DRI_ATTRIB_RENDER_TYPE:
          glxValue = 0;
@@ -233,14 +230,13 @@ driConfigEqual(const __DRIcoreExtension *core,
 }
 
 static struct glx_config *
-createDriMode(const __DRIcoreExtension * core,
-	      struct glx_config *config, const __DRIconfig **driConfigs)
+createDriMode(struct glx_config *config, const __DRIconfig **driConfigs)
 {
    __GLXDRIconfigPrivate *driConfig;
    int i;
 
    for (i = 0; driConfigs[i]; i++) {
-      if (driConfigEqual(core, config, driConfigs[i]))
+      if (driConfigEqual(config, driConfigs[i]))
          break;
    }
 
@@ -258,15 +254,14 @@ createDriMode(const __DRIcoreExtension * core,
 }
 
 _X_HIDDEN struct glx_config *
-driConvertConfigs(const __DRIcoreExtension * core,
-                  struct glx_config *configs, const __DRIconfig **driConfigs)
+driConvertConfigs(struct glx_config *configs, const __DRIconfig **driConfigs)
 {
    struct glx_config head, *tail, *m;
 
    tail = &head;
    head.next = NULL;
    for (m = configs; m; m = m->next) {
-      tail->next = createDriMode(core, m, driConfigs);
+      tail->next = createDriMode(m, driConfigs);
       if (tail->next == NULL) {
          /* no matching dri config for m */
          continue;
@@ -505,23 +500,23 @@ dri_convert_glx_attribs(unsigned num_attribs, const uint32_t *attribs,
    for (i = 0; i < num_attribs; i++) {
       switch (attribs[i * 2]) {
       case GLX_CONTEXT_MAJOR_VERSION_ARB:
-	 dca->major_ver = attribs[i * 2 + 1];
-	 break;
+    dca->major_ver = attribs[i * 2 + 1];
+    break;
       case GLX_CONTEXT_MINOR_VERSION_ARB:
-	 dca->minor_ver = attribs[i * 2 + 1];
-	 break;
+    dca->minor_ver = attribs[i * 2 + 1];
+    break;
       case GLX_CONTEXT_FLAGS_ARB:
-	 dca->flags = attribs[i * 2 + 1];
-	 break;
+    dca->flags = attribs[i * 2 + 1];
+    break;
       case GLX_CONTEXT_OPENGL_NO_ERROR_ARB:
-	 dca->no_error = attribs[i * 2 + 1];
-	 break;
+    dca->no_error = attribs[i * 2 + 1];
+    break;
       case GLX_CONTEXT_PROFILE_MASK_ARB:
-	 profile = attribs[i * 2 + 1];
-	 break;
+    profile = attribs[i * 2 + 1];
+    break;
       case GLX_RENDER_TYPE:
          dca->render_type = attribs[i * 2 + 1];
-	 break;
+    break;
       case GLX_CONTEXT_RESET_NOTIFICATION_STRATEGY_ARB:
          switch (attribs[i * 2 + 1]) {
          case GLX_NO_RESET_NOTIFICATION_ARB:
@@ -551,9 +546,9 @@ dri_convert_glx_attribs(unsigned num_attribs, const uint32_t *attribs,
          dca->render_type = GLX_DONT_CARE;
          break;
       default:
-	 /* If an unknown attribute is received, fail.
-	  */
-	 return BadValue;
+    /* If an unknown attribute is received, fail.
+     */
+    return BadValue;
       }
    }
 
@@ -742,9 +737,8 @@ clear_driver_config_cache()
 static char *
 get_driver_config(const char *driverName)
 {
-   void *handle;
    char *config = NULL;
-   const __DRIextension **extensions = driOpenDriver(driverName, &handle);
+   const __DRIextension **extensions = driOpenDriver(driverName, false);
    if (extensions) {
       for (int i = 0; extensions[i]; i++) {
          if (strcmp(extensions[i]->name, __DRI_CONFIG_OPTIONS) != 0)
@@ -759,8 +753,6 @@ get_driver_config(const char *driverName)
          break;
       }
    }
-
-   dlclose(handle);
 
    return config;
 }
@@ -811,5 +803,34 @@ out:
 
    return e ? e->config : NULL;
 }
+
+static void
+driSetBackgroundContext(void *loaderPrivate)
+{
+   __glXSetCurrentContext(loaderPrivate);
+}
+
+static GLboolean
+driIsThreadSafe(void *loaderPrivate)
+{
+   struct glx_context *pcp = (struct glx_context *) loaderPrivate;
+   /* Check Xlib is running in thread safe mode
+    *
+    * 'lock_fns' is the XLockDisplay function pointer of the X11 display 'dpy'.
+    * It will be NULL if XInitThreads wasn't called.
+    */
+   return pcp->psc->dpy->lock_fns != NULL;
+}
+
+const __DRIbackgroundCallableExtension driBackgroundCallable = {
+   .base = { __DRI_BACKGROUND_CALLABLE, 2 },
+
+   .setBackgroundContext    = driSetBackgroundContext,
+   .isThreadSafe            = driIsThreadSafe,
+};
+
+const __DRIuseInvalidateExtension dri2UseInvalidate = {
+   .base = { __DRI_USE_INVALIDATE, 1 }
+};
 
 #endif /* GLX_DIRECT_RENDERING */

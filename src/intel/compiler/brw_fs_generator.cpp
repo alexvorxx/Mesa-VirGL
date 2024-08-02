@@ -21,7 +21,7 @@
  * IN THE SOFTWARE.
  */
 
-/** @file brw_fs_generator.cpp
+/** @file
  *
  * This file supports generating code from the FS LIR to the actual
  * native instructions.
@@ -65,8 +65,7 @@ brw_math_function(enum opcode op)
 }
 
 static struct brw_reg
-brw_reg_from_fs_reg(const struct intel_device_info *devinfo, fs_inst *inst,
-                    fs_reg *reg)
+normalize_brw_reg_for_encoding(brw_reg *reg)
 {
    struct brw_reg brw_reg;
 
@@ -75,7 +74,7 @@ brw_reg_from_fs_reg(const struct intel_device_info *devinfo, fs_inst *inst,
    case FIXED_GRF:
    case IMM:
       assert(reg->offset == 0);
-      brw_reg = reg->as_brw_reg();
+      brw_reg = *reg;
       break;
    case BAD_FILE:
       /* Probably unused. */
@@ -358,9 +357,10 @@ fs_generator::generate_shuffle(fs_inst *inst,
     * gets weird because it reads all of the channels regardless of execution
     * size.  It's easier just to split it here.
     */
-   const unsigned lower_width =
-      element_sz(src) > 4 || element_sz(dst) > 4 ? 8 :
-      MIN2(16, inst->exec_size);
+   unsigned lower_width = MIN2(16, inst->exec_size);
+   if (devinfo->ver < 20 && (element_sz(src) > 4 || element_sz(dst) > 4)) {
+      lower_width = 8;
+   }
 
    brw_set_default_exec_size(p, cvt(lower_width) - 1);
    for (unsigned group = 0; group < inst->exec_size; group += lower_width) {
@@ -701,10 +701,14 @@ fs_generator::generate_halt(fs_inst *)
  * information required by either set of opcodes.
  */
 void
-fs_generator::generate_scratch_header(fs_inst *inst, struct brw_reg dst)
+fs_generator::generate_scratch_header(fs_inst *inst,
+                                      struct brw_reg dst,
+                                      struct brw_reg src)
 {
    assert(inst->exec_size == 8 && inst->force_writemask_all);
    assert(dst.file == BRW_GENERAL_REGISTER_FILE);
+   assert(src.file == BRW_GENERAL_REGISTER_FILE);
+   assert(src.type == BRW_TYPE_UD);
 
    dst.type = BRW_TYPE_UD;
 
@@ -716,8 +720,7 @@ fs_generator::generate_scratch_header(fs_inst *inst, struct brw_reg dst)
 
    /* Copy the per-thread scratch space size from g0.3[3:0] */
    brw_set_default_exec_size(p, BRW_EXECUTE_1);
-   insn = brw_AND(p, suboffset(dst, 3),
-                     retype(brw_vec1_grf(0, 3), BRW_TYPE_UD),
+   insn = brw_AND(p, suboffset(dst, 3), component(src, 3),
                      brw_imm_ud(INTEL_MASK(3, 0)));
    if (devinfo->ver < 12) {
       brw_inst_set_no_dd_clear(p->devinfo, insn, true);
@@ -725,8 +728,7 @@ fs_generator::generate_scratch_header(fs_inst *inst, struct brw_reg dst)
    }
 
    /* Copy the scratch base address from g0.5[31:10] */
-   insn = brw_AND(p, suboffset(dst, 5),
-                     retype(brw_vec1_grf(0, 5), BRW_TYPE_UD),
+   insn = brw_AND(p, suboffset(dst, 5), component(src, 5),
                      brw_imm_ud(INTEL_MASK(31, 10)));
    if (devinfo->ver < 12)
       brw_inst_set_no_dd_check(p->devinfo, insn, true);
@@ -859,7 +861,7 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
       }
 
       for (unsigned int i = 0; i < inst->sources; i++) {
-         src[i] = brw_reg_from_fs_reg(devinfo, inst, &inst->src[i]);
+         src[i] = normalize_brw_reg_for_encoding(&inst->src[i]);
 	 /* The accumulator result appears to get used for the
 	  * conditional modifier generation.  When negating a UD
 	  * value, there is a 33rd bit generated for the sign in the
@@ -870,7 +872,7 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
 		inst->src[i].type != BRW_TYPE_UD ||
 		!inst->src[i].negate);
       }
-      dst = brw_reg_from_fs_reg(devinfo, inst, &inst->dst);
+      dst = normalize_brw_reg_for_encoding(&inst->dst);
 
       brw_set_default_access_mode(p, BRW_ALIGN_1);
       brw_set_default_predicate_control(p, inst->predicate);
@@ -901,6 +903,9 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
       assert(inst->mlen <= BRW_MAX_MSG_LENGTH * reg_unit(devinfo));
 
       switch (inst->opcode) {
+      case BRW_OPCODE_NOP:
+         brw_NOP(p);
+         break;
       case BRW_OPCODE_SYNC:
          assert(src[0].file == BRW_IMMEDIATE_VALUE);
          brw_SYNC(p, tgl_sync_function(src[0].ud));
@@ -1093,7 +1098,7 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
          assert(inst->conditional_mod == BRW_CONDITIONAL_NONE);
          assert(inst->mlen == 0);
          gfx6_math(p, dst, brw_math_function(inst->opcode),
-                   src[0], brw_null_reg());
+                   src[0], retype(brw_null_reg(), src[0].type));
 	 break;
       case SHADER_OPCODE_INT_QUOTIENT:
       case SHADER_OPCODE_INT_REMAINDER:
@@ -1156,7 +1161,7 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
 	 break;
 
       case SHADER_OPCODE_SCRATCH_HEADER:
-         generate_scratch_header(inst, dst);
+         generate_scratch_header(inst, dst, src[0]);
          break;
 
       case SHADER_OPCODE_MOV_INDIRECT:
@@ -1165,7 +1170,8 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
 
       case SHADER_OPCODE_MOV_RELOC_IMM:
          assert(src[0].file == BRW_IMMEDIATE_VALUE);
-         brw_MOV_reloc_imm(p, dst, dst.type, src[0].ud);
+         assert(src[1].file == BRW_IMMEDIATE_VALUE);
+         brw_MOV_reloc_imm(p, dst, dst.type, src[0].ud, src[1].ud);
          break;
 
       case BRW_OPCODE_HALT:
@@ -1325,7 +1331,7 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
          brw_float_controls_mode(p, src[0].d, src[1].d);
          break;
 
-      case SHADER_OPCODE_READ_SR_REG:
+      case SHADER_OPCODE_READ_ARCH_REG:
          if (devinfo->ver >= 12) {
             /* There is a SWSB restriction that requires that any time sr0 is
              * accessed both the instruction doing the access and the next one
@@ -1333,13 +1339,12 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
              */
             if (brw_get_default_swsb(p).mode != TGL_SBID_NULL)
                brw_SYNC(p, TGL_SYNC_NOP);
-            assert(src[0].file == BRW_IMMEDIATE_VALUE);
             brw_set_default_swsb(p, tgl_swsb_regdist(1));
-            brw_MOV(p, dst, brw_sr0_reg(src[0].ud));
+            brw_MOV(p, dst, src[0]);
             brw_set_default_swsb(p, tgl_swsb_regdist(1));
             brw_AND(p, dst, dst, brw_imm_ud(0xffffffff));
          } else {
-            brw_MOV(p, dst, brw_sr0_reg(src[0].ud));
+            brw_MOV(p, dst, src[0]);
          }
          break;
 

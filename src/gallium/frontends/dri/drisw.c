@@ -26,7 +26,7 @@
  *
  **************************************************************************/
 
-#include "GL/internal/mesa_interface.h"
+#include "mesa_interface.h"
 #include "git_sha1.h"
 #include "util/format/u_format.h"
 #include "util/u_memory.h"
@@ -506,7 +506,7 @@ drisw_update_tex_buffer(struct dri_drawable *drawable,
 static __DRIimageExtension driSWImageExtension = {
     .base = { __DRI_IMAGE, 6 },
 
-    .createImageFromRenderbuffer  = dri2_create_image_from_renderbuffer,
+    .createImageFromRenderbuffer  = dri_create_image_from_renderbuffer,
     .createImageFromTexture = dri2_create_from_texture,
     .destroyImage = dri2_destroy_image,
 };
@@ -524,8 +524,7 @@ static const __DRIrobustnessExtension dri2Robustness = {
 static const __DRIextension *drisw_screen_extensions[] = {
    &driSWImageExtension.base,
    &driTexBufferExtension.base,
-   &dri2RendererQueryExtension.base,
-   &dri2ConfigQueryExtension.base,
+   &dri2GalliumConfigQueryExtension.base,
    &dri2FenceExtension.base,
    &dri2FlushControlExtension.base,
    NULL
@@ -534,8 +533,7 @@ static const __DRIextension *drisw_screen_extensions[] = {
 static const __DRIextension *drisw_robust_screen_extensions[] = {
    &driSWImageExtension.base,
    &driTexBufferExtension.base,
-   &dri2RendererQueryExtension.base,
-   &dri2ConfigQueryExtension.base,
+   &dri2GalliumConfigQueryExtension.base,
    &dri2FenceExtension.base,
    &dri2Robustness.base,
    &dri2FlushControlExtension.base,
@@ -575,12 +573,14 @@ drisw_create_drawable(struct dri_screen *screen, const struct gl_config * visual
 }
 
 static const __DRIconfig **
-drisw_init_screen(struct dri_screen *screen, bool implicit)
+drisw_init_screen(struct dri_screen *screen, bool driver_name_is_inferred)
 {
    const __DRIswrastLoaderExtension *loader = screen->swrast_loader;
    const __DRIconfig **configs;
    struct pipe_screen *pscreen = NULL;
    const struct drisw_loader_funcs *lf = &drisw_lf;
+
+   (void) mtx_init(&screen->opencl_func_mutex, mtx_plain);
 
    screen->swrast_no_present = debug_get_option_swrast_no_present();
 
@@ -598,10 +598,10 @@ drisw_init_screen(struct dri_screen *screen, bool implicit)
       success = pipe_loader_sw_probe_dri(&screen->dev, lf);
 
    if (success)
-      pscreen = pipe_loader_create_screen(screen->dev, implicit);
+      pscreen = pipe_loader_create_screen(screen->dev, driver_name_is_inferred);
 
    if (!pscreen)
-      goto fail;
+      return NULL;
 
    dri_init_options(screen);
    configs = dri_init_screen(screen, pscreen);
@@ -618,28 +618,18 @@ drisw_init_screen(struct dri_screen *screen, bool implicit)
    if (pscreen->resource_create_with_modifiers && (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT))
       screen->extensions[0] = &driVkImageExtension.base;
 #endif
-   screen->lookup_egl_image = dri2_lookup_egl_image;
-
-   const __DRIimageLookupExtension *image = screen->dri2.image;
-   if (image &&
-       image->base.version >= 2 &&
-       image->validateEGLImage &&
-       image->lookupEGLImageValidated) {
-      screen->validate_egl_image = dri2_validate_egl_image;
-      screen->lookup_egl_image_validated = dri2_lookup_egl_image_validated;
-   }
 
    screen->create_drawable = drisw_create_drawable;
 
    return configs;
 fail:
-   dri_release_screen(screen);
+   pipe_loader_release(&screen->dev, 1);
    return NULL;
 }
 
 /* swrast copy sub buffer entrypoint. */
-static void driswCopySubBuffer(__DRIdrawable *pdp, int x, int y,
-                               int w, int h)
+void
+driswCopySubBuffer(__DRIdrawable *pdp, int x, int y, int w, int h)
 {
    struct dri_drawable *drawable = dri_drawable(pdp);
 
@@ -648,17 +638,9 @@ static void driswCopySubBuffer(__DRIdrawable *pdp, int x, int y,
    drisw_copy_sub_buffer(drawable, x, y, w, h);
 }
 
-/* for swrast only */
-const __DRIcopySubBufferExtension driSWCopySubBufferExtension = {
-   .base = { __DRI_COPY_SUB_BUFFER, 1 },
-
-   .copySubBuffer               = driswCopySubBuffer,
-};
-
 static const struct __DRImesaCoreExtensionRec mesaCoreExtension = {
    .base = { __DRI_MESA, 2 },
    .version_string = MESA_INTERFACE_VERSION_STRING,
-   .createNewScreen = driCreateNewScreen2,
    .createContext = driCreateContextAttribs,
    .initScreen = drisw_init_screen,
    .createNewScreen3 = driCreateNewScreen3,
@@ -669,7 +651,6 @@ const __DRIextension *galliumsw_driver_extensions[] = {
     &driCoreExtension.base,
     &mesaCoreExtension.base,
     &driSWRastExtension.base,
-    &driSWCopySubBufferExtension.base,
     &gallium_config_options.base,
     NULL
 };

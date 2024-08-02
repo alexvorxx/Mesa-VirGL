@@ -6,12 +6,13 @@
 #include <stdlib.h>
 #include <xf86drm.h>
 
-#include <nouveau/nvif/ioctl.h>
-
 #include "drm-uapi/nouveau_drm.h"
 #include "nouveau.h"
 #include "nvif/class.h"
 #include "nvif/cl0080.h"
+#include "nvif/ioctl.h"
+
+#include "nv_push.h"
 
 #include "util/bitscan.h"
 #include "util/list.h"
@@ -65,11 +66,11 @@ nouveau_drm_new(int fd, struct nouveau_drm **pdrm)
    if (!drm)
       return -ENOMEM;
    drm->fd = fd;
+   *pdrm = drm;
 
    drmVersionPtr ver = drmGetVersion(fd);
    if (!ver)
       goto out_err;
-   *pdrm = drm;
 
    drm->version = (ver->version_major << 24) |
                   (ver->version_minor << 8) |
@@ -81,7 +82,7 @@ nouveau_drm_new(int fd, struct nouveau_drm **pdrm)
    return 0;
 
 out_err:
-   nouveau_drm_del(&drm);
+   nouveau_drm_del(pdrm);
    return -EINVAL;
 }
 
@@ -410,6 +411,39 @@ nouveau_device_new(struct nouveau_object *parent, struct nouveau_device **pdev)
       goto done;
 
    nvdev->base.chipset = info.chipset;
+   nvdev->base.info.chipset = info.chipset;
+   switch (info.platform) {
+   case NV_DEVICE_INFO_V0_PCI:
+   case NV_DEVICE_INFO_V0_AGP:
+   case NV_DEVICE_INFO_V0_PCIE:
+      nvdev->base.info.type = NV_DEVICE_TYPE_DIS;
+      break;
+   case NV_DEVICE_INFO_V0_IGP:
+      nvdev->base.info.type = NV_DEVICE_TYPE_IGP;
+      break;
+   case NV_DEVICE_INFO_V0_SOC:
+      nvdev->base.info.type = NV_DEVICE_TYPE_SOC;
+      break;
+   default:
+      unreachable("unhandled nvidia device type");
+      break;
+   }
+
+   drmDevicePtr drm_device;
+   ret = drmGetDevice2(drm->fd, 0, &drm_device);
+   if (ret)
+      goto done;
+
+   if (drm_device->bustype == DRM_BUS_PCI) {
+      nvdev->base.info.pci.domain       = drm_device->businfo.pci->domain;
+      nvdev->base.info.pci.bus          = drm_device->businfo.pci->bus;
+      nvdev->base.info.pci.dev          = drm_device->businfo.pci->dev;
+      nvdev->base.info.pci.func         = drm_device->businfo.pci->func;
+      nvdev->base.info.pci.revision_id  = drm_device->deviceinfo.pci->revision_id;
+      nvdev->base.info.device_id        = drm_device->deviceinfo.pci->device_id;
+   }
+
+   drmFreeDevice(&drm_device);
 
    ret = nouveau_getparam(dev, NOUVEAU_GETPARAM_FB_SIZE, &v);
    if (ret)
@@ -441,6 +475,19 @@ done:
    if (ret)
       nouveau_device_del(pdev);
    return ret;
+}
+
+void
+nouveau_device_set_classes_for_debug(struct nouveau_device *dev,
+                                     uint32_t cls_eng3d,
+                                     uint32_t cls_compute,
+                                     uint32_t cls_m2mf,
+                                     uint32_t cls_copy)
+{
+   dev->info.cls_eng3d = cls_eng3d;
+   dev->info.cls_compute = cls_compute;
+   dev->info.cls_m2mf = cls_m2mf;
+   dev->info.cls_copy = cls_copy;
 }
 
 void
@@ -833,13 +880,18 @@ cli_kref_get(struct nouveau_client *client, struct nouveau_bo *bo)
    return kref;
 }
 
-static inline void
+static inline int
 cli_kref_set(struct nouveau_client *client, struct nouveau_bo *bo,
              struct drm_nouveau_gem_pushbuf_bo *kref, struct nouveau_pushbuf *push)
 {
    struct nouveau_client_priv *pcli = nouveau_client(client);
    if (pcli->kref_nr <= bo->handle) {
-      pcli->kref = realloc(pcli->kref, sizeof(*pcli->kref) * bo->handle * 2);
+      void *new_ptr = realloc(pcli->kref, sizeof(*pcli->kref) * bo->handle * 2);
+      if (!new_ptr) {
+         err("Failed to realloc memory, expect faulty rendering.\n");
+         return -ENOMEM;
+      }
+      pcli->kref = new_ptr;
       while (pcli->kref_nr < bo->handle * 2) {
          pcli->kref[pcli->kref_nr].kref = NULL;
          pcli->kref[pcli->kref_nr].push = NULL;
@@ -848,6 +900,7 @@ cli_kref_set(struct nouveau_client *client, struct nouveau_bo *bo,
    }
    pcli->kref[bo->handle].kref = kref;
    pcli->kref[bo->handle].push = push;
+   return 0;
 }
 
 int
@@ -1034,7 +1087,8 @@ nouveau_pushbuf(struct nouveau_pushbuf *push)
 }
 
 static void
-pushbuf_dump(struct nouveau_pushbuf_krec *krec, int krec_id, int chid)
+pushbuf_dump(struct nouveau_device *dev,
+             struct nouveau_pushbuf_krec *krec, int krec_id, int chid)
 {
    struct drm_nouveau_gem_pushbuf_reloc *krel;
    struct drm_nouveau_gem_pushbuf_push *kpsh;
@@ -1075,8 +1129,17 @@ pushbuf_dump(struct nouveau_pushbuf_krec *krec, int krec_id, int chid)
           (unsigned long long)(kpsh->offset + kpsh->length));
       if (!bo->map)
          continue;
-      while (bgn < end)
-         err("\t0x%08x\n", *bgn++);
+
+      if (dev->info.cls_eng3d) {
+         struct nv_push push = {
+            .start = bgn,
+            .end = end
+         };
+         vk_push_print(nouveau_out, &push, &dev->info);
+      } else {
+         while (bgn < end)
+            err("\t0x%08x\n", *bgn++);
+      }
    }
 }
 
@@ -1119,7 +1182,7 @@ pushbuf_submit(struct nouveau_pushbuf *push, struct nouveau_object *chan)
       req.gart_available = 0;
 
       if (dbg_on(0))
-         pushbuf_dump(krec, krec_id++, channel);
+         pushbuf_dump(dev, krec, krec_id++, channel);
 
       ret = drmCommandWriteRead(drm->fd, DRM_NOUVEAU_GEM_PUSHBUF, &req, sizeof(req));
       nvpb->suffix0 = req.suffix0;
@@ -1129,7 +1192,7 @@ pushbuf_submit(struct nouveau_pushbuf *push, struct nouveau_object *chan)
 
       if (ret) {
          err("kernel rejected pushbuf: %s\n", strerror(-ret));
-         pushbuf_dump(krec, krec_id++, channel);
+         pushbuf_dump(dev, krec, krec_id++, channel);
          break;
       }
 
@@ -1172,7 +1235,9 @@ pushbuf_flush(struct nouveau_pushbuf *push)
    kref = krec->buffer;
    for (i = 0; i < krec->nr_buffer; i++, kref++) {
       struct nouveau_bo *bo = (void *)(unsigned long)kref->user_priv;
-      cli_kref_set(push->client, bo, NULL, NULL);
+      ret = cli_kref_set(push->client, bo, NULL, NULL);
+      if (ret)
+         return ret;
       nouveau_bo_ref(NULL, &bo);
    }
 
@@ -1268,6 +1333,7 @@ pushbuf_kref(struct nouveau_pushbuf *push, struct nouveau_bo *bo, uint32_t flags
    struct nouveau_pushbuf *fpush;
    struct drm_nouveau_gem_pushbuf_bo *kref;
    uint32_t domains, domains_wr, domains_rd;
+   int ret;
 
    domains = 0;
    if (flags & NOUVEAU_BO_VRAM)
@@ -1323,7 +1389,9 @@ pushbuf_kref(struct nouveau_pushbuf *push, struct nouveau_bo *bo, uint32_t flags
       else
          kref->presumed.domain = NOUVEAU_GEM_DOMAIN_GART;
 
-      cli_kref_set(push->client, bo, kref, push);
+      ret = cli_kref_set(push->client, bo, kref, push);
+      if (ret)
+         return NULL;
       p_atomic_inc(&nouveau_bo(bo)->refcnt);
    }
 
@@ -1370,22 +1438,26 @@ pushbuf_krel(struct nouveau_pushbuf *push, struct nouveau_bo *bo,
    return reloc;
 }
 
-static void
+static int
 pushbuf_refn_fail(struct nouveau_pushbuf *push, int sref, int srel)
 {
    struct nouveau_pushbuf_priv *nvpb = nouveau_pushbuf(push);
    struct nouveau_pushbuf_krec *krec = nvpb->krec;
    struct drm_nouveau_gem_pushbuf_bo *kref;
+   int ret;
 
    kref = krec->buffer + sref;
    while (krec->nr_buffer-- > sref) {
       struct nouveau_bo *bo = (void *)(unsigned long)kref->user_priv;
-      cli_kref_set(push->client, bo, NULL, NULL);
+      ret = cli_kref_set(push->client, bo, NULL, NULL);
+      if (ret)
+         return ret;
       nouveau_bo_ref(NULL, &bo);
       kref++;
    }
    krec->nr_buffer = sref;
    krec->nr_reloc = srel;
+   return 0;
 }
 
 static int
@@ -1407,7 +1479,9 @@ pushbuf_refn(struct nouveau_pushbuf *push, bool retry,
    }
 
    if (ret) {
-      pushbuf_refn_fail(push, sref, krec->nr_reloc);
+      ret = pushbuf_refn_fail(push, sref, krec->nr_reloc);
+      if (ret)
+         return ret;
       if (retry) {
          pushbuf_flush(push);
          nouveau_pushbuf_space(push, 0, 0, 0);
@@ -1458,7 +1532,9 @@ pushbuf_validate(struct nouveau_pushbuf *push, bool retry)
    list_inithead(&bctx->pending);
 
    if (ret) {
-      pushbuf_refn_fail(push, sref, srel);
+      ret = pushbuf_refn_fail(push, sref, srel);
+      if (ret)
+         return ret;
       if (retry) {
          pushbuf_flush(push);
          return pushbuf_validate(push, false);

@@ -69,7 +69,7 @@ def gather_results(
                 target = yaml.load(target_file)
 
                 # parse artifact
-                results_json_bz2 = cur_job.artifact(path="results/results.json.bz2", streamed=False)
+                results_json_bz2 = cur_job.artifacts.raw(artifact_path="results/results.json.bz2")
                 results_json = bz2.decompress(results_json_bz2).decode("utf-8", errors="replace")
                 results = json.loads(results_json)
 

@@ -41,6 +41,7 @@
 
 .vc4-manual-rules:
   stage: broadcom
+  extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
     - !reference [.igalia-farm-manual-rules, rules]
@@ -67,7 +68,7 @@
 
 .v3d-manual-rules:
   stage: broadcom
-  retry: !reference [.scheduled_pipeline-rules, retry]
+  extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
     - !reference [.igalia-farm-manual-rules, rules]
@@ -76,6 +77,19 @@
     - changes:
         *v3d_file_list
       when: manual
+
+.v3d-rusticl-rules:
+  stage: broadcom
+  rules:
+    - !reference [.v3d-rules, rules]
+    - !reference [.rusticl-rules, rules]
+
+.v3d-rusticl-manual-rules:
+  stage: broadcom
+  extends: .no-auto-retry
+  rules:
+    - !reference [.v3d-manual-rules, rules]
+    - !reference [.rusticl-manual-rules, rules]
 
 .v3dv-rules:
   stage: broadcom
@@ -92,6 +106,7 @@
 
 .v3dv-manual-rules:
   stage: broadcom
+  extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
     - !reference [.igalia-farm-manual-rules, rules]
@@ -101,7 +116,7 @@
       when: manual
 
 # 8 devices (2023-12-18)
-.igalia-bcm2837-rpi-3-b:arm64:
+.igalia-bcm2837-rpi-3-b:
   variables:
     DEVICE_TYPE: rpi3
     GPU_VERSION: broadcom-rpi3
@@ -111,7 +126,7 @@
     - igalia-rpi3
 
 # 21 devices (2023-12-18)
-.igalia-bcm2711-rpi-4:arm64:
+.igalia-bcm2711-rpi-4:
   variables:
     DEVICE_TYPE: rpi4
     GPU_VERSION: broadcom-rpi4
@@ -121,8 +136,8 @@
   tags:
     - igalia-rpi4
 
-# 1 device (2024-01-02)
-.igalia-bcm2712-rpi-5:arm64:
+# 10 devices (2024-07-31)
+.igalia-bcm2712-rpi-5:
   variables:
     DEVICE_TYPE: rpi5
     GPU_VERSION: broadcom-rpi5
@@ -136,6 +151,7 @@
   script:
     - ./install/bare-metal/poe-powered.sh
   variables:
+    BOOT_PHASE_TIMEOUT_SECONDS: 90
     HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
     FLAKES_CHANNEL: "#videocore-ci"
     FARM: igalia
@@ -148,9 +164,14 @@
   variables:
     BM_BOOTFS: /boot/raspberrypi_arm64
 
+.broadcom-asan-test:arm64:
+  extends:
+    - .broadcom-test:arm64
+    - .baremetal-arm64-asan-test
+
 .broadcom-test:arm32:
   extends:
     - .broadcom-test
     - .baremetal-test-arm32
   variables:
-    BM_BOOTFS: /boot/raspberrypi_armhf
+    BM_BOOTFS: /boot/raspberrypi_arm32

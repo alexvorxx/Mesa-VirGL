@@ -91,6 +91,7 @@ struct dri_drawable
    struct kopper_loader_info info;
    __DRIimage   *image; //texture_from_pixmap
    bool is_window;
+   bool window_valid;
    bool has_modifiers;
 
    /* hooks filled in by dri2 & drisw */
@@ -166,7 +167,6 @@ void
 dri_flush_drawable(__DRIdrawable *dPriv);
 
 extern const __DRItexBufferExtension driTexBufferExtension;
-extern const __DRI2throttleExtension dri2ThrottleExtension;
 #endif
 
 /* vim: set sw=3 ts=8 sts=3 expandtab: */

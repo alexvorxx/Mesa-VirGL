@@ -1,7 +1,4 @@
-#!/bin/bash
-
 #!/usr/bin/env bash
-
 
 set +e
 set -o xtrace
@@ -21,9 +18,7 @@ TMP_DIR=$(mktemp -d)
 echo "$(date +"%F %T") Downloading archived master..."
 if ! /usr/bin/wget \
 	      -O "$TMP_DIR/$CI_PROJECT_NAME.tar.gz" \
-
-              "https://${S3_HOST}/git-cache/${FDO_UPSTREAM_REPO}/$CI_PROJECT_NAME.tar.gz";
-
+              "https://${S3_HOST}/${S3_GITCACHE_BUCKET}/${FDO_UPSTREAM_REPO}/$CI_PROJECT_NAME.tar.gz";
 then
     echo "Repository cache not available"
     exit
@@ -39,3 +34,4 @@ rm -rf "$TMP_DIR"
 chmod a+w "$CI_PROJECT_DIR"
 
 echo "$(date +"%F %T") Git cache download done"
+

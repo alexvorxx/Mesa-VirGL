@@ -16,13 +16,16 @@
 #include "util/half_float.h"
 #include "compiler/nir/nir_builder.h"
 
+#include "tu_buffer.h"
 #include "tu_cmd_buffer.h"
 #include "tu_cs.h"
 #include "tu_formats.h"
 #include "tu_image.h"
 #include "tu_tracepoints.h"
+#include "tu_lrz.h"
 
 #include "common/freedreno_gpu_event.h"
+#include "common/freedreno_lrz.h"
 
 static const VkOffset2D blt_no_coord = { ~0, ~0 };
 
@@ -1317,7 +1320,6 @@ r3d_src_gmem(struct tu_cmd_buffer *cmd,
    r3d_src_common(cmd, cs, desc, 0, 0, VK_FILTER_NEAREST);
 }
 
-template <chip CHIP>
 static void
 r3d_dst(struct tu_cs *cs, const struct fdl6_view *iview, uint32_t layer,
         enum pipe_format src_format)
@@ -1338,9 +1340,6 @@ r3d_dst(struct tu_cs *cs, const struct fdl6_view *iview, uint32_t layer,
 
    tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_FLAG_BUFFER(0), 3);
    tu_cs_image_flag_ref(cs, iview, layer);
-
-   if (CHIP >= A7XX)
-      tu_cs_emit_regs(cs, A7XX_GRAS_LRZ_DEPTH_BUFFER_INFO(0));
 
    /* Use color format from RB_MRT_BUF_INFO. This register is relevant for
     * FMT6_NV12_Y.
@@ -1541,6 +1540,9 @@ r3d_setup(struct tu_cmd_buffer *cmd,
    tu_cs_emit_regs(cs, A6XX_GRAS_LRZ_CNTL(0));
    tu_cs_emit_regs(cs, A6XX_RB_LRZ_CNTL(0));
 
+   if (CHIP >= A7XX)
+      tu_cs_emit_regs(cs, A7XX_GRAS_LRZ_DEPTH_BUFFER_INFO());
+
    tu_cs_emit_write_reg(cs, REG_A6XX_GRAS_SC_CNTL,
                         A6XX_GRAS_SC_CNTL_CCUSINGLECACHELINESIZE(2));
 
@@ -1661,7 +1663,7 @@ static const struct blit_ops r3d_ops = {
    .clear_value = r3d_clear_value,
    .src = r3d_src,
    .src_buffer = r3d_src_buffer<CHIP>,
-   .dst = r3d_dst<CHIP>,
+   .dst = r3d_dst,
    .dst_depth = r3d_dst_depth,
    .dst_stencil = r3d_dst_stencil,
    .dst_buffer = r3d_dst_buffer,
@@ -1703,7 +1705,7 @@ copy_format(VkFormat vk_format, VkImageAspectFlags aspect_mask)
       }
    }
 
-   enum pipe_format format = tu_vk_format_to_pipe_format(vk_format);
+   enum pipe_format format = vk_format_to_pipe_format(vk_format);
 
    /* For SNORM formats, copy them as the equivalent UNORM format.  If we treat
     * them as snorm then the 0x80 (-1.0 snorm8) value will get clamped to 0x81
@@ -1735,6 +1737,54 @@ copy_format(VkFormat vk_format, VkImageAspectFlags aspect_mask)
    }
 }
 
+/* Copies/fills/updates for buffers are happening through CCU but need
+ * additional synchronization when write range is not aligned to 64 bytes.
+ * Because dst buffer access uses either R8_UNORM or R32_UINT and they are not
+ * coherent between each other in CCU since format seem to be a part of a
+ * cache key.
+ *
+ * See: https://gitlab.khronos.org/vulkan/vulkan/-/issues/3306
+ *
+ * The synchronization with writes from UCHE (e.g. with SSBO stores) are
+ * solved by the fact that UCHE has byte level dirtiness tracking and that CCU
+ * flush would happen always before UCHE flush for such case (e.g. both
+ * renderpass and dispatch would flush pending CCU write).
+ *
+ * Additionally see:
+ * https://gitlab.khronos.org/vulkan/vulkan/-/issues/3398#note_400111
+ */
+template <chip CHIP>
+static void
+handle_buffer_unaligned_store(struct tu_cmd_buffer *cmd,
+                              uint64_t dst_va,
+                              uint64_t size,
+                              bool *unaligned_store)
+{
+   if (*unaligned_store)
+      return;
+
+   if ((dst_va & 63) || (size & 63)) {
+      tu_flush_for_access(&cmd->state.cache, TU_ACCESS_NONE,
+                          TU_ACCESS_CCU_COLOR_INCOHERENT_WRITE);
+      /* Wait for invalidations to land. */
+      cmd->state.cache.flush_bits |= TU_CMD_FLAG_WAIT_FOR_IDLE;
+      tu_emit_cache_flush<CHIP>(cmd);
+      *unaligned_store = true;
+   }
+}
+
+template <chip CHIP>
+static void
+after_buffer_unaligned_buffer_store(struct tu_cmd_buffer *cmd,
+                                    bool unaligned_store)
+{
+   if (unaligned_store) {
+      tu_flush_for_access(&cmd->state.cache,
+                          TU_ACCESS_CCU_COLOR_INCOHERENT_WRITE,
+                          TU_ACCESS_NONE);
+   }
+}
+
 template <chip CHIP>
 void
 tu6_clear_lrz(struct tu_cmd_buffer *cmd,
@@ -1751,7 +1801,7 @@ tu6_clear_lrz(struct tu_cmd_buffer *cmd,
     * LRZ via CCU. Don't need to invalidate CCU since we are presumably
     * writing whole cache lines we assume to be 64 bytes.
     */
-   tu_emit_event_write<CHIP>(cmd, &cmd->cs, FD_CACHE_FLUSH);
+   tu_emit_event_write<CHIP>(cmd, &cmd->cs, FD_CACHE_CLEAN);
 
    ops->setup(cmd, cs, PIPE_FORMAT_Z16_UNORM, PIPE_FORMAT_Z16_UNORM,
               VK_IMAGE_ASPECT_DEPTH_BIT, 0, true, false,
@@ -1769,7 +1819,7 @@ tu6_clear_lrz(struct tu_cmd_buffer *cmd,
     * UCHE in the earlier GRAS stage.
     */
    cmd->state.cache.flush_bits |=
-      TU_CMD_FLAG_CCU_FLUSH_COLOR | TU_CMD_FLAG_CACHE_INVALIDATE |
+      TU_CMD_FLAG_CCU_CLEAN_COLOR | TU_CMD_FLAG_CACHE_INVALIDATE |
       TU_CMD_FLAG_WAIT_FOR_IDLE;
 }
 TU_GENX(tu6_clear_lrz);
@@ -1784,16 +1834,30 @@ tu6_dirty_lrz_fc(struct tu_cmd_buffer *cmd,
    VkClearValue clear = {};
    clear.color.uint32[0] = 0xffffffff;
 
-   /* LRZ fast-clear buffer is always allocated with 512 bytes size. */
+   using LRZFC = fd_lrzfc_layout<CHIP>;
+   uint64_t lrz_fc_iova = image->iova + image->lrz_fc_offset;
    ops->setup(cmd, cs, PIPE_FORMAT_R32_UINT, PIPE_FORMAT_R32_UINT,
               VK_IMAGE_ASPECT_COLOR_BIT, 0, true, false,
               VK_SAMPLE_COUNT_1_BIT);
    ops->clear_value(cmd, cs, PIPE_FORMAT_R32_UINT, &clear);
    ops->dst_buffer(cs, PIPE_FORMAT_R32_UINT,
-                   image->iova + image->lrz_fc_offset, 512,
+                   lrz_fc_iova + offsetof(LRZFC, fc1),
+                   sizeof(LRZFC::fc1),
                    PIPE_FORMAT_R32_UINT);
-   ops->coords(cmd, cs, (VkOffset2D) {}, blt_no_coord, (VkExtent2D) {128, 1});
+   ops->coords(cmd, cs, (VkOffset2D) {}, blt_no_coord, (VkExtent2D) {
+      sizeof(LRZFC::fc1) / sizeof(uint32_t), 1
+   });
    ops->run(cmd, cs);
+   if constexpr (LRZFC::HAS_BIDIR) {
+      ops->dst_buffer(cs, PIPE_FORMAT_R32_UINT,
+                      lrz_fc_iova + offsetof(LRZFC, fc2),
+                      sizeof(LRZFC::fc2),
+                      PIPE_FORMAT_R32_UINT);
+      ops->coords(cmd, cs, (VkOffset2D) {}, blt_no_coord, (VkExtent2D) {
+         sizeof(LRZFC::fc2) / sizeof(uint32_t), 1
+      });
+      ops->run(cmd, cs);
+   }
    ops->teardown(cmd, cs);
 }
 TU_GENX(tu6_dirty_lrz_fc);
@@ -1830,6 +1894,7 @@ tu_image_view_copy_blit(struct fdl6_view *iview,
       },
       .format = tu_format_for_aspect(format, aspect_mask),
       .type = z_scale ? FDL_VIEW_TYPE_3D : FDL_VIEW_TYPE_2D,
+      .ubwc_fc_mutable = image->ubwc_fc_mutable,
    };
    fdl6_view_init(iview, &layout, &args, false);
 }
@@ -2147,7 +2212,8 @@ static void
 tu_copy_image_to_buffer(struct tu_cmd_buffer *cmd,
                         struct tu_image *src_image,
                         struct tu_buffer *dst_buffer,
-                        const VkBufferImageCopy2 *info)
+                        const VkBufferImageCopy2 *info,
+                        bool *unaligned_store)
 {
    struct tu_cs *cs = &cmd->cs;
    uint32_t layers = MAX2(info->imageExtent.depth,
@@ -2181,6 +2247,10 @@ tu_copy_image_to_buffer(struct tu_cmd_buffer *cmd,
 
    uint32_t pitch = dst_width * util_format_get_blocksize(dst_format);
    uint32_t layer_size = pitch * dst_height;
+
+   handle_buffer_unaligned_store<CHIP>(cmd,
+                                       dst_buffer->iova + info->bufferOffset,
+                                       layer_size * layers, unaligned_store);
 
    ops->setup(cmd, cs, src_format, dst_format, VK_IMAGE_ASPECT_COLOR_BIT, blit_param, false, false,
               VK_SAMPLE_COUNT_1_BIT);
@@ -2221,9 +2291,13 @@ tu_CmdCopyImageToBuffer2(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(tu_image, src_image, pCopyImageToBufferInfo->srcImage);
    VK_FROM_HANDLE(tu_buffer, dst_buffer, pCopyImageToBufferInfo->dstBuffer);
 
+   bool unaligned_store = false;
    for (unsigned i = 0; i < pCopyImageToBufferInfo->regionCount; ++i)
       tu_copy_image_to_buffer<CHIP>(cmd, src_image, dst_buffer,
-                              pCopyImageToBufferInfo->pRegions + i);
+                              pCopyImageToBufferInfo->pRegions + i,
+                              &unaligned_store);
+
+   after_buffer_unaligned_buffer_store<CHIP>(cmd, unaligned_store);
 }
 TU_GENX(tu_CmdCopyImageToBuffer2);
 
@@ -2394,6 +2468,7 @@ tu_copy_image_to_image(struct tu_cmd_buffer *cmd,
          .swiz = { PIPE_SWIZZLE_X, PIPE_SWIZZLE_Y, PIPE_SWIZZLE_Z, PIPE_SWIZZLE_W },
          .format = tu_format_for_aspect(src_format, VK_IMAGE_ASPECT_COLOR_BIT),
          .type = FDL_VIEW_TYPE_2D,
+         .ubwc_fc_mutable = false,
       };
       fdl6_view_init(&staging, &staging_layout_ptr, &copy_to_args, false);
 
@@ -2410,7 +2485,7 @@ tu_copy_image_to_image(struct tu_cmd_buffer *cmd,
       /* When executed by the user there has to be a pipeline barrier here,
        * but since we're doing it manually we'll have to flush ourselves.
        */
-      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_FLUSH_COLOR);
+      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_CLEAN_COLOR);
       tu_emit_event_write<CHIP>(cmd, cs, FD_CACHE_INVALIDATE);
       tu_cs_emit_wfi(cs);
 
@@ -2424,6 +2499,7 @@ tu_copy_image_to_image(struct tu_cmd_buffer *cmd,
          .swiz = { PIPE_SWIZZLE_X, PIPE_SWIZZLE_Y, PIPE_SWIZZLE_Z, PIPE_SWIZZLE_W },
          .format = tu_format_for_aspect(dst_format, VK_IMAGE_ASPECT_COLOR_BIT),
          .type = FDL_VIEW_TYPE_2D,
+         .ubwc_fc_mutable = false,
       };
       fdl6_view_init(&staging, &staging_layout_ptr, &copy_from_args, false);
 
@@ -2492,12 +2568,15 @@ copy_buffer(struct tu_cmd_buffer *cmd,
             uint64_t dst_va,
             uint64_t src_va,
             uint64_t size,
-            uint32_t block_size)
+            uint32_t block_size,
+            bool *unaligned_store)
 {
    const struct blit_ops *ops = &r2d_ops<CHIP>;
    struct tu_cs *cs = &cmd->cs;
    enum pipe_format format = block_size == 4 ? PIPE_FORMAT_R32_UINT : PIPE_FORMAT_R8_UNORM;
    uint64_t blocks = size / block_size;
+
+   handle_buffer_unaligned_store<CHIP>(cmd, dst_va, size, unaligned_store);
 
    ops->setup(cmd, cs, format, format, VK_IMAGE_ASPECT_COLOR_BIT, 0, false, false,
               VK_SAMPLE_COUNT_1_BIT);
@@ -2529,13 +2608,16 @@ tu_CmdCopyBuffer2(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(tu_buffer, src_buffer, pCopyBufferInfo->srcBuffer);
    VK_FROM_HANDLE(tu_buffer, dst_buffer, pCopyBufferInfo->dstBuffer);
 
+   bool unaligned_store = false;
    for (unsigned i = 0; i < pCopyBufferInfo->regionCount; ++i) {
       const VkBufferCopy2 *region = &pCopyBufferInfo->pRegions[i];
       copy_buffer<CHIP>(cmd,
                   dst_buffer->iova + region->dstOffset,
                   src_buffer->iova + region->srcOffset,
-                  region->size, 1);
+                  region->size, 1, &unaligned_store);
    }
+
+   after_buffer_unaligned_buffer_store<CHIP>(cmd, unaligned_store);
 }
 TU_GENX(tu_CmdCopyBuffer2);
 
@@ -2557,8 +2639,11 @@ tu_CmdUpdateBuffer(VkCommandBuffer commandBuffer,
       return;
    }
 
+   bool unaligned_store = false;
    memcpy(tmp.map, pData, dataSize);
-   copy_buffer<CHIP>(cmd, buffer->iova + dstOffset, tmp.iova, dataSize, 4);
+   copy_buffer<CHIP>(cmd, buffer->iova + dstOffset, tmp.iova, dataSize, 4, &unaligned_store);
+
+   after_buffer_unaligned_buffer_store<CHIP>(cmd, unaligned_store);
 }
 TU_GENX(tu_CmdUpdateBuffer);
 
@@ -2579,6 +2664,9 @@ tu_CmdFillBuffer(VkCommandBuffer commandBuffer,
 
    uint64_t dst_va = buffer->iova + dstOffset;
    uint32_t blocks = fillSize / 4;
+
+   bool unaligned_store = false;
+   handle_buffer_unaligned_store<CHIP>(cmd, dst_va, fillSize, &unaligned_store);
 
    ops->setup(cmd, cs, PIPE_FORMAT_R32_UINT, PIPE_FORMAT_R32_UINT,
               VK_IMAGE_ASPECT_COLOR_BIT, 0, true, false,
@@ -2601,6 +2689,8 @@ tu_CmdFillBuffer(VkCommandBuffer commandBuffer,
    }
 
    ops->teardown(cmd, cs);
+
+   after_buffer_unaligned_buffer_store<CHIP>(cmd, unaligned_store);
 }
 TU_GENX(tu_CmdFillBuffer);
 
@@ -2616,9 +2706,9 @@ tu_CmdResolveImage2(VkCommandBuffer commandBuffer,
    struct tu_cs *cs = &cmd->cs;
 
    enum pipe_format src_format =
-      tu_vk_format_to_pipe_format(src_image->vk.format);
+      vk_format_to_pipe_format(src_image->vk.format);
    enum pipe_format dst_format =
-      tu_vk_format_to_pipe_format(dst_image->vk.format);
+      vk_format_to_pipe_format(dst_image->vk.format);
    ops->setup(cmd, cs, src_format, dst_format,
               VK_IMAGE_ASPECT_COLOR_BIT, 0, false, dst_image->layout[0].ubwc, 
               VK_SAMPLE_COUNT_1_BIT);
@@ -2672,8 +2762,8 @@ resolve_sysmem(struct tu_cmd_buffer *cmd,
 
    trace_start_sysmem_resolve(&cmd->trace, cs, vk_dst_format);
 
-   enum pipe_format src_format = tu_vk_format_to_pipe_format(vk_src_format);
-   enum pipe_format dst_format = tu_vk_format_to_pipe_format(vk_dst_format);
+   enum pipe_format src_format = vk_format_to_pipe_format(vk_src_format);
+   enum pipe_format dst_format = vk_format_to_pipe_format(vk_dst_format);
 
    ops->setup(cmd, cs, src_format, dst_format,
               VK_IMAGE_ASPECT_COLOR_BIT, 0, false, dst->view.ubwc_enabled,
@@ -3160,7 +3250,7 @@ tu_emit_clear_gmem_attachment(struct tu_cmd_buffer *cmd,
    tu_cs_emit_regs(cs,
                    A6XX_RB_BLIT_GMEM_MSAA_CNTL(tu_msaa_samples(att->samples)));
 
-   enum pipe_format format = tu_vk_format_to_pipe_format(att->format);
+   enum pipe_format format = vk_format_to_pipe_format(att->format);
    for_each_layer(i, layer_mask, layers) {
       uint32_t layer = i + base_layer;
       if (att->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
@@ -3246,7 +3336,7 @@ tu_CmdClearAttachments(VkCommandBuffer commandBuffer,
       if ((pAttachments[j].aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT) == 0)
          continue;
 
-      tu_lrz_disable_during_renderpass(cmd);
+      tu_lrz_disable_during_renderpass<CHIP>(cmd);
    }
 
    /* vkCmdClearAttachments is supposed to respect the predicate if active. The
@@ -3304,7 +3394,7 @@ clear_sysmem_attachment(struct tu_cmd_buffer *cmd,
                         uint32_t a,
                         bool separate_ds)
 {
-   enum pipe_format format = tu_vk_format_to_pipe_format(vk_format);
+   enum pipe_format format = vk_format_to_pipe_format(vk_format);
    const struct tu_framebuffer *fb = cmd->state.framebuffer;
    const struct tu_image_view *iview = cmd->state.attachments[a];
    const uint32_t clear_views = cmd->state.pass->attachments[a].clear_views;
@@ -3376,11 +3466,11 @@ tu_clear_sysmem_attachment(struct tu_cmd_buffer *cmd,
     * beforehand as depth should already be flushed.
     */
    if (vk_format_is_depth_or_stencil(attachment->format)) {
-      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_FLUSH_COLOR);
-      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_FLUSH_DEPTH);
+      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_CLEAN_COLOR);
+      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_CLEAN_DEPTH);
       tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_INVALIDATE_DEPTH);
    } else {
-      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_FLUSH_COLOR);
+      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_CLEAN_COLOR);
       tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_INVALIDATE_COLOR);
    }
 
@@ -3573,7 +3663,7 @@ load_3d_blit(struct tu_cmd_buffer *cmd,
          struct apply_load_coords_state state = {
             .view = att->clear_views ? i : 0,
          };
-         tu_create_fdm_bin_patchpoint(cmd, cs, 1 + 3 + 8, fdm_apply_load_coords, state);
+         tu_create_fdm_bin_patchpoint(cmd, cs, 4, fdm_apply_load_coords, state);
       }
 
       r3d_dst_gmem(cmd, cs, iview, att, separate_stencil, i);
@@ -3755,7 +3845,7 @@ store_cp_blit(struct tu_cmd_buffer *cmd,
       /* On A7XX, we need to wait for any CP_EVENT_WRITE::BLIT operations
        * arising from GMEM load/clears to land before we can continue.
        */
-      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_FLUSH_BLIT_CACHE);
+      tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_CLEAN_BLIT_CACHE);
 
    /* Wait for cache event to land */
    tu_cs_emit_wfi(cs);
@@ -3766,7 +3856,7 @@ store_cp_blit(struct tu_cmd_buffer *cmd,
     * sysmem, and we generally assume that GMEM renderpasses leave their
     * results in sysmem, so we need to flush manually here.
     */
-   tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_FLUSH_COLOR);
+   tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_CLEAN_COLOR);
 }
 
 template <chip CHIP>
@@ -3812,7 +3902,7 @@ store_3d_blit(struct tu_cmd_buffer *cmd,
          r3d_dst_stencil(cs, iview, layer);
       }
    } else {
-      r3d_dst<CHIP>(cs, &iview->view, layer, src_format);
+      r3d_dst(cs, &iview->view, layer, src_format);
    }
 
    r3d_src_gmem<CHIP>(cmd, cs, iview, src_format, dst_format, gmem_offset, cpp);
@@ -3832,7 +3922,7 @@ store_3d_blit(struct tu_cmd_buffer *cmd,
     * results in sysmem, so we need to flush manually here. The 3d blit path
     * writes to depth images as a color RT, so there's no need to flush depth.
     */
-   tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_FLUSH_COLOR);
+   tu_emit_event_write<CHIP>(cmd, cs, FD_CCU_CLEAN_COLOR);
 
    /* Restore RB_BIN_CONTROL/GRAS_BIN_CONTROL saved above. */
    tu_cs_emit_pkt7(cs, CP_SCRATCH_TO_REG, 1);
@@ -4024,11 +4114,11 @@ tu_store_gmem_attachment(struct tu_cmd_buffer *cmd,
 
    assert(cmd->state.gmem_layout == TU_GMEM_LAYOUT_AVOID_CCU);
 
-   enum pipe_format src_format = tu_vk_format_to_pipe_format(src->format);
+   enum pipe_format src_format = vk_format_to_pipe_format(src->format);
    if (src_format == PIPE_FORMAT_Z32_FLOAT_S8X24_UINT)
       src_format = PIPE_FORMAT_Z32_FLOAT;
 
-   enum pipe_format dst_format = tu_vk_format_to_pipe_format(dst->format);
+   enum pipe_format dst_format = vk_format_to_pipe_format(dst->format);
    if (dst_format == PIPE_FORMAT_Z32_FLOAT_S8X24_UINT)
       dst_format = PIPE_FORMAT_Z32_FLOAT;
 
