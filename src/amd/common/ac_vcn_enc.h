@@ -534,13 +534,6 @@ typedef struct rvcn_enc_reconstructed_picture_s {
    uint32_t encode_metadata_offset; /* vcn5 only */
 } rvcn_enc_reconstructed_picture_t;
 
-typedef struct rvcn_enc_picture_info_s
-{
-   bool in_use;
-   bool is_ltr;
-   uint32_t pic_num;
-} rvcn_enc_picture_info_t;
-
 typedef struct rvcn_enc_pre_encode_input_picture_s {
    union {
       struct {

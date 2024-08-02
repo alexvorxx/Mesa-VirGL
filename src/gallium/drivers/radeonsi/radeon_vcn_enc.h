@@ -296,9 +296,9 @@ struct radeon_encoder {
    bool need_rate_control;
    bool need_rc_per_pic;
    unsigned dpb_size;
+   unsigned dpb_slots;
    unsigned roi_size;
    unsigned metadata_size;
-   rvcn_enc_picture_info_t dpb_info[RENCODE_MAX_NUM_RECONSTRUCTED_PICTURES];
    unsigned max_ltr_idx;
 
    struct pipe_context *ectx;
