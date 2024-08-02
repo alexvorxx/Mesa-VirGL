@@ -713,6 +713,7 @@ typedef struct bi_block {
    struct bi_block *successors[2];
    struct util_dynarray predecessors;
    bool unconditional_jumps;
+   bool loop_header;
 
    /* Per 32-bit word live masks for the block indexed by node */
    uint8_t *live_in;

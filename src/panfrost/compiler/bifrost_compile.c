@@ -4056,6 +4056,7 @@ emit_loop(bi_context *ctx, nir_loop *nloop)
    ctx->continue_block = create_empty_block(ctx);
    ctx->break_block = create_empty_block(ctx);
    ctx->after_block = ctx->continue_block;
+   ctx->after_block->loop_header = true;
 
    /* Emit the body itself */
    emit_cf_list(ctx, &nloop->body);
