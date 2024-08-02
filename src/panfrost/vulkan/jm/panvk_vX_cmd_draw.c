@@ -363,10 +363,12 @@ panvk_draw_prepare_fs_rsd(struct panvk_cmd_buffer *cmdbuf,
 
    mali_ptr fs_code = panvk_shader_get_dev_addr(fs);
 
-   panvk_per_arch(blend_emit_descs)(
-      dev, cb, cmdbuf->state.gfx.render.color_attachments.fmts,
-      cmdbuf->state.gfx.render.color_attachments.samples, fs_info, fs_code, bds,
-      &blend_reads_dest, &blend_shader_loads_blend_const);
+   if (fs_info != NULL) {
+      panvk_per_arch(blend_emit_descs)(
+         dev, cb, cmdbuf->state.gfx.render.color_attachments.fmts,
+         cmdbuf->state.gfx.render.color_attachments.samples, fs_info, fs_code,
+         bds, &blend_reads_dest, &blend_shader_loads_blend_const);
+   }
 
    pan_pack(rsd, RENDERER_STATE, cfg) {
       bool alpha_to_coverage = dyns->ms.alpha_to_coverage_enable;
