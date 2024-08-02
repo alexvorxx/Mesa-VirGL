@@ -38,7 +38,7 @@
 
 #include "va_private.h"
 
-static void
+void
 vlVaSetSurfaceContext(vlVaDriver *drv, vlVaSurface *surf, vlVaContext *context)
 {
    if (surf->ctx == context)

@@ -40,8 +40,10 @@
 extern "C" {
 #endif
 
-#define PIPE_H264_MAX_REFERENCES      16
-#define PIPE_H265_MAX_REFERENCES      15
+#define PIPE_H264_MAX_NUM_LIST_REF    32
+#define PIPE_H264_MAX_DPB_SIZE        33
+#define PIPE_H265_MAX_NUM_LIST_REF    15
+#define PIPE_H265_MAX_DPB_SIZE        16
 #define PIPE_H265_MAX_SLICES          128
 #define PIPE_AV1_MAX_REFERENCES       8
 #define PIPE_DEFAULT_FRAME_RATE_DEN   1
@@ -50,6 +52,7 @@ extern "C" {
 #define PIPE_H2645_EXTENDED_SAR       255
 #define PIPE_ENC_ROI_REGION_NUM_MAX   32
 #define PIPE_DEFAULT_DECODER_FEEDBACK_TIMEOUT_NS 1000000000
+#define PIPE_H2645_LIST_REF_INVALID_ENTRY 0xff
 
 /*
  * see table 6-12 in the spec
@@ -634,6 +637,14 @@ struct pipe_h264_enc_seq_param
    uint32_t max_dec_frame_buffering;
 };
 
+struct pipe_h265_enc_dpb_entry
+{
+   uint32_t id;
+   uint32_t frame_idx;
+   uint32_t pic_order_cnt;
+   bool is_ltr;
+};
+
 struct pipe_h264_enc_picture_desc
 {
    struct pipe_picture_desc base;
@@ -663,10 +674,10 @@ struct pipe_h264_enc_picture_desc
    unsigned pic_order_cnt;
    unsigned num_ref_idx_l0_active_minus1;
    unsigned num_ref_idx_l1_active_minus1;
-   unsigned ref_idx_l0_list[32];
-   bool l0_is_long_term[32];
-   unsigned ref_idx_l1_list[32];
-   bool l1_is_long_term[32];
+   unsigned ref_idx_l0_list[PIPE_H264_MAX_NUM_LIST_REF];
+   bool l0_is_long_term[PIPE_H264_MAX_NUM_LIST_REF];
+   unsigned ref_idx_l1_list[PIPE_H264_MAX_NUM_LIST_REF];
+   bool l1_is_long_term[PIPE_H264_MAX_NUM_LIST_REF];
    unsigned gop_size;
    struct pipe_enc_quality_modes quality_modes;
    struct pipe_enc_intra_refresh intra_refresh;
@@ -699,6 +710,12 @@ struct pipe_h264_enc_picture_desc
       };
       uint32_t value;
    } header_flags;
+
+   struct pipe_h265_enc_dpb_entry dpb[PIPE_H264_MAX_DPB_SIZE];
+   uint8_t dpb_size;
+   uint8_t dpb_curr_pic; /* index in dpb */
+   uint8_t ref_list0[PIPE_H264_MAX_NUM_LIST_REF]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
+   uint8_t ref_list1[PIPE_H264_MAX_NUM_LIST_REF]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
 };
 
 struct pipe_h265_st_ref_pic_set
@@ -866,6 +883,13 @@ struct pipe_h265_enc_rate_control
    unsigned vbr_quality_factor;
 };
 
+struct pipe_h264_enc_dpb_entry
+{
+   uint32_t id;
+   uint32_t pic_order_cnt;
+   bool is_ltr;
+};
+
 struct pipe_h265_enc_picture_desc
 {
    struct pipe_picture_desc base;
@@ -886,8 +910,8 @@ struct pipe_h265_enc_picture_desc
    struct pipe_enc_roi roi;
    unsigned num_ref_idx_l0_active_minus1;
    unsigned num_ref_idx_l1_active_minus1;
-   unsigned ref_idx_l0_list[PIPE_H265_MAX_REFERENCES];
-   unsigned ref_idx_l1_list[PIPE_H265_MAX_REFERENCES];
+   unsigned ref_idx_l0_list[PIPE_H265_MAX_NUM_LIST_REF];
+   unsigned ref_idx_l1_list[PIPE_H265_MAX_NUM_LIST_REF];
    bool not_referenced;
    struct hash_table *frame_idx;
 
@@ -916,6 +940,12 @@ struct pipe_h265_enc_picture_desc
 
    struct pipe_enc_hdr_cll metadata_hdr_cll;
    struct pipe_enc_hdr_mdcv metadata_hdr_mdcv;
+
+   struct pipe_h264_enc_dpb_entry dpb[PIPE_H265_MAX_DPB_SIZE];
+   uint8_t dpb_size;
+   uint8_t dpb_curr_pic; /* index in dpb */
+   uint8_t ref_list0[PIPE_H265_MAX_NUM_LIST_REF]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
+   uint8_t ref_list1[PIPE_H265_MAX_NUM_LIST_REF]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
 };
 
 struct pipe_av1_enc_rate_control

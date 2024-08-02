@@ -67,6 +67,34 @@ vlVaCreateSurfaces(VADriverContextP ctx, int width, int height, int format,
                               NULL, 0);
 }
 
+static void
+vlVaRemoveDpbSurface(vlVaSurface *surf, VASurfaceID id)
+{
+   assert(surf->ctx->templat.entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE);
+
+   switch (u_reduce_video_profile(surf->ctx->templat.profile)) {
+   case PIPE_VIDEO_FORMAT_MPEG4_AVC:
+      for (unsigned i = 0; i < surf->ctx->desc.h264enc.dpb_size; i++) {
+         if (surf->ctx->desc.h264enc.dpb[i].id == id) {
+            memset(&surf->ctx->desc.h264enc.dpb[i], 0, sizeof(surf->ctx->desc.h264enc.dpb[i]));
+            break;
+         }
+      }
+      break;
+   case PIPE_VIDEO_FORMAT_HEVC:
+      for (unsigned i = 0; i < surf->ctx->desc.h265enc.dpb_size; i++) {
+         if (surf->ctx->desc.h265enc.dpb[i].id == id) {
+            memset(&surf->ctx->desc.h265enc.dpb[i], 0, sizeof(surf->ctx->desc.h265enc.dpb[i]));
+            break;
+         }
+      }
+      break;
+   default:
+      assert(false);
+      break;
+   }
+}
+
 VAStatus
 vlVaDestroySurfaces(VADriverContextP ctx, VASurfaceID *surface_list, int num_surfaces)
 {
@@ -91,6 +119,8 @@ vlVaDestroySurfaces(VADriverContextP ctx, VASurfaceID *surface_list, int num_sur
          _mesa_set_remove_key(surf->ctx->surfaces, surf);
          if (surf->fence && surf->ctx->decoder && surf->ctx->decoder->destroy_fence)
             surf->ctx->decoder->destroy_fence(surf->ctx->decoder, surf->fence);
+         if (surf->is_dpb)
+            vlVaRemoveDpbSurface(surf, surface_list[i]);
       }
       if (drv->last_efc_surface) {
          vlVaSurface *efc_surf = drv->last_efc_surface;

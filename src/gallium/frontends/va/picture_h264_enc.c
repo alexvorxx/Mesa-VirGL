@@ -42,6 +42,8 @@ vlVaHandleVAEncPictureParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *cont
 {
    VAEncPictureParameterBufferH264 *h264;
    vlVaBuffer *coded_buf;
+   vlVaSurface *surf;
+   unsigned i;
 
    h264 = buf->data;
    if (h264->pic_fields.bits.idr_pic_flag == 1)
@@ -55,6 +57,31 @@ vlVaHandleVAEncPictureParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *cont
       context->desc.h264enc.i_remain = context->gop_coeff;
    else if (context->desc.h264enc.frame_num == 1)
       context->desc.h264enc.i_remain--;
+
+   surf = handle_table_get(drv->htab, h264->CurrPic.picture_id);
+   if (!surf)
+      return VA_STATUS_ERROR_INVALID_PARAMETER;
+
+   for (i = 0; i < ARRAY_SIZE(context->desc.h264enc.dpb); i++) {
+      if (context->desc.h264enc.dpb[i].id == h264->CurrPic.picture_id) {
+         assert(surf->is_dpb);
+         break;
+      }
+      if (!context->desc.h264enc.dpb[i].id) {
+         assert(!surf->is_dpb);
+         surf->is_dpb = true;
+         vlVaSetSurfaceContext(drv, surf, context);
+         context->desc.h264enc.dpb_size++;
+         break;
+      }
+   }
+   if (i == ARRAY_SIZE(context->desc.h264enc.dpb))
+      return VA_STATUS_ERROR_INVALID_PARAMETER;
+   context->desc.h264enc.dpb_curr_pic = i;
+   context->desc.h264enc.dpb[i].id = h264->CurrPic.picture_id;
+   context->desc.h264enc.dpb[i].frame_idx = h264->CurrPic.frame_idx;
+   context->desc.h264enc.dpb[i].pic_order_cnt = h264->CurrPic.TopFieldOrderCnt;
+   context->desc.h264enc.dpb[i].is_ltr = h264->CurrPic.flags & VA_PICTURE_H264_LONG_TERM_REFERENCE;
 
    context->desc.h264enc.p_remain = context->desc.h264enc.gop_size - context->desc.h264enc.gop_cnt - context->desc.h264enc.i_remain;
 
@@ -104,6 +131,16 @@ vlVaHandleVAEncPictureParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *cont
    return VA_STATUS_SUCCESS;
 }
 
+static uint8_t
+vlVaDpbIndex(vlVaContext *context, VASurfaceID id)
+{
+   for (uint8_t i = 0; i < context->desc.h264enc.dpb_size; i++) {
+      if (context->desc.h264enc.dpb[i].id == id)
+         return i;
+   }
+   return PIPE_H2645_LIST_REF_INVALID_ENTRY;
+}
+
 VAStatus
 vlVaHandleVAEncSliceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *context, vlVaBuffer *buf)
 {
@@ -113,6 +150,8 @@ vlVaHandleVAEncSliceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *contex
    h264 = buf->data;
    memset(&context->desc.h264enc.ref_idx_l0_list, VA_INVALID_ID, sizeof(context->desc.h264enc.ref_idx_l0_list));
    memset(&context->desc.h264enc.ref_idx_l1_list, VA_INVALID_ID, sizeof(context->desc.h264enc.ref_idx_l1_list));
+   memset(&context->desc.h264enc.ref_list0, PIPE_H2645_LIST_REF_INVALID_ENTRY, sizeof(context->desc.h264enc.ref_list0));
+   memset(&context->desc.h264enc.ref_list1, PIPE_H2645_LIST_REF_INVALID_ENTRY, sizeof(context->desc.h264enc.ref_list1));
 
    if(h264->num_ref_idx_active_override_flag) {
       context->desc.h264enc.num_ref_idx_l0_active_minus1 = h264->num_ref_idx_l0_active_minus1;
@@ -121,12 +160,14 @@ vlVaHandleVAEncSliceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *contex
 
    for (int i = 0; i < 32; i++) {
       if (h264->RefPicList0[i].picture_id != VA_INVALID_ID) {
+         context->desc.h264enc.ref_list0[i] = vlVaDpbIndex(context, h264->RefPicList0[i].picture_id);
                context->desc.h264enc.ref_idx_l0_list[i] = PTR_TO_UINT(util_hash_table_get(context->desc.h264enc.frame_idx,
                                  UINT_TO_PTR(h264->RefPicList0[i].picture_id + 1)));
                context->desc.h264enc.l0_is_long_term[i] = h264->RefPicList0[i].flags &
 		       					  VA_PICTURE_H264_LONG_TERM_REFERENCE;
       }
       if (h264->RefPicList1[i].picture_id != VA_INVALID_ID && h264->slice_type == 1) {
+         context->desc.h264enc.ref_list1[i] = vlVaDpbIndex(context, h264->RefPicList1[i].picture_id);
             context->desc.h264enc.ref_idx_l1_list[i] = PTR_TO_UINT(util_hash_table_get(context->desc.h264enc.frame_idx,
                			 UINT_TO_PTR(h264->RefPicList1[i].picture_id + 1)));
             context->desc.h264enc.l1_is_long_term[i] = h264->RefPicList1[i].flags &
