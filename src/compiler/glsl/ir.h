@@ -1151,6 +1151,30 @@ enum ir_intrinsic_id {
    ir_intrinsic_shuffle_xor,
    ir_intrinsic_shuffle_up,
    ir_intrinsic_shuffle_down,
+
+   ir_intrinsic_reduce_add,
+   ir_intrinsic_reduce_mul,
+   ir_intrinsic_reduce_min,
+   ir_intrinsic_reduce_max,
+   ir_intrinsic_reduce_and,
+   ir_intrinsic_reduce_or,
+   ir_intrinsic_reduce_xor,
+
+   ir_intrinsic_inclusive_add,
+   ir_intrinsic_inclusive_mul,
+   ir_intrinsic_inclusive_min,
+   ir_intrinsic_inclusive_max,
+   ir_intrinsic_inclusive_and,
+   ir_intrinsic_inclusive_or,
+   ir_intrinsic_inclusive_xor,
+
+   ir_intrinsic_exclusive_add,
+   ir_intrinsic_exclusive_mul,
+   ir_intrinsic_exclusive_min,
+   ir_intrinsic_exclusive_max,
+   ir_intrinsic_exclusive_and,
+   ir_intrinsic_exclusive_or,
+   ir_intrinsic_exclusive_xor,
 };
 
 /*@{*/

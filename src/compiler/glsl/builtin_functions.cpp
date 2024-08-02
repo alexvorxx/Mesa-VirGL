@@ -1081,6 +1081,18 @@ subgroup_shuffle_relative_and_fp64(const _mesa_glsl_parse_state *state)
    return subgroup_shuffle_relative(state) && fp64(state);
 }
 
+static bool
+subgroup_arithmetic(const _mesa_glsl_parse_state *state)
+{
+   return state->KHR_shader_subgroup_arithmetic_enable;
+}
+
+static bool
+subgroup_arithmetic_and_fp64(const _mesa_glsl_parse_state *state)
+{
+   return subgroup_arithmetic(state) && fp64(state);
+}
+
 /** @} */
 
 /******************************************************************************/
@@ -1509,6 +1521,11 @@ private:
    ir_function_signature *_shuffle_down_intrinsic(const glsl_type *type);
    ir_function_signature *_shuffle_down(const glsl_type *type);
 
+   ir_function_signature *_subgroup_arithmetic_intrinsic(const glsl_type *type,
+                                                         enum ir_intrinsic_id id);
+   ir_function_signature *_subgroup_arithmetic(const glsl_type *type,
+                                               const char *intrinsic_name);
+
 #undef B0
 #undef B1
 #undef B2
@@ -1648,6 +1665,13 @@ builtin_builder::create_shader()
    func(&glsl_type_builtin_bvec3, ##__VA_ARGS__), \
    func(&glsl_type_builtin_bvec4, ##__VA_ARGS__)
 
+#define FIUD(func, ...) \
+   FIU(func, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_double, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_dvec2, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_dvec3, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_dvec4, ##__VA_ARGS__)
+
 #define FIUBD(func, ...) \
    FIUB(func, ##__VA_ARGS__), \
    func(&glsl_type_builtin_double, ##__VA_ARGS__), \
@@ -1661,6 +1685,20 @@ builtin_builder::create_shader()
    func(&glsl_type_builtin_dvec2, avail##_and_fp64, ##__VA_ARGS__), \
    func(&glsl_type_builtin_dvec3, avail##_and_fp64, ##__VA_ARGS__), \
    func(&glsl_type_builtin_dvec4, avail##_and_fp64, ##__VA_ARGS__)
+
+#define IUB(func, ...) \
+   func(&glsl_type_builtin_int, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_ivec2, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_ivec3, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_ivec4, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uint, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uvec2, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uvec3, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_uvec4, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_bool, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_bvec2, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_bvec3, ##__VA_ARGS__), \
+   func(&glsl_type_builtin_bvec4, ##__VA_ARGS__)
 
 /**
  * Create ir_function and ir_function_signature objects for each
@@ -1931,6 +1969,26 @@ builtin_builder::create_intrinsics()
    add_function("__intrinsic_shuffle_up", FIUBD(_shuffle_up_intrinsic), NULL);
 
    add_function("__intrinsic_shuffle_down", FIUBD(_shuffle_down_intrinsic), NULL);
+
+#define SUBGROUP_ARITH_INTRINSICS(ext, group) \
+   add_function("__intrinsic_" #group "_add", \
+                FIUD(_subgroup_##ext##_intrinsic, ir_intrinsic_##group##_add), NULL); \
+   add_function("__intrinsic_" #group "_mul", \
+                FIUD(_subgroup_##ext##_intrinsic, ir_intrinsic_##group##_mul), NULL); \
+   add_function("__intrinsic_" #group "_min", \
+                FIUD(_subgroup_##ext##_intrinsic, ir_intrinsic_##group##_min), NULL); \
+   add_function("__intrinsic_" #group "_max", \
+                FIUD(_subgroup_##ext##_intrinsic, ir_intrinsic_##group##_max), NULL); \
+   add_function("__intrinsic_" #group "_and", \
+                IUB(_subgroup_##ext##_intrinsic, ir_intrinsic_##group##_and), NULL); \
+   add_function("__intrinsic_" #group "_or", \
+                IUB(_subgroup_##ext##_intrinsic, ir_intrinsic_##group##_or), NULL); \
+   add_function("__intrinsic_" #group "_xor", \
+                IUB(_subgroup_##ext##_intrinsic, ir_intrinsic_##group##_xor), NULL)
+
+   SUBGROUP_ARITH_INTRINSICS(arithmetic, reduce);
+   SUBGROUP_ARITH_INTRINSICS(arithmetic, inclusive);
+   SUBGROUP_ARITH_INTRINSICS(arithmetic, exclusive);
 }
 
 /**
@@ -5848,6 +5906,26 @@ builtin_builder::create_builtins()
 
    add_function("subgroupShuffleDown", FIUBD(_shuffle_down), NULL);
 
+#define SUBGROUP_ARITH(ext, group1, group2) \
+   add_function("subgroup" #group1 "Add", \
+                FIUD(_subgroup_##ext, "__intrinsic_" #group2 "_add"), NULL); \
+   add_function("subgroup" #group1 "Mul", \
+                FIUD(_subgroup_##ext, "__intrinsic_" #group2 "_mul"), NULL); \
+   add_function("subgroup" #group1 "Min", \
+                FIUD(_subgroup_##ext, "__intrinsic_" #group2 "_min"), NULL); \
+   add_function("subgroup" #group1 "Max", \
+                FIUD(_subgroup_##ext, "__intrinsic_" #group2 "_max"), NULL); \
+   add_function("subgroup" #group1 "And", \
+                IUB(_subgroup_##ext, "__intrinsic_" #group2 "_and"), NULL); \
+   add_function("subgroup" #group1 "Or", \
+                IUB(_subgroup_##ext, "__intrinsic_" #group2 "_or"), NULL); \
+   add_function("subgroup" #group1 "Xor", \
+                IUB(_subgroup_##ext, "__intrinsic_" #group2 "_xor"), NULL)
+
+   SUBGROUP_ARITH(arithmetic, /* empty */, reduce);
+   SUBGROUP_ARITH(arithmetic, Inclusive, inclusive);
+   SUBGROUP_ARITH(arithmetic, Exclusive, exclusive);
+
 #undef F
 #undef FI
 #undef FIUDHF_VEC
@@ -9245,6 +9323,29 @@ builtin_builder::_shuffle_down(const glsl_type *type)
 
    body.emit(call(shader->symbols->get_function("__intrinsic_shuffle_down"),
                   retval, sig->parameters));
+   body.emit(ret(retval));
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_subgroup_arithmetic_intrinsic(const glsl_type *type, enum ir_intrinsic_id id)
+{
+   ir_variable *value = in_var(type, "value");
+   MAKE_INTRINSIC(type, id,
+                  glsl_type_is_double(type) ? subgroup_arithmetic_and_fp64 : subgroup_arithmetic,
+                  1, value);
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_subgroup_arithmetic(const glsl_type *type, const char *intrinsic_name)
+{
+   ir_variable *value = in_var(type, "value");
+   MAKE_SIG(type, glsl_type_is_double(type) ? subgroup_arithmetic_and_fp64 : subgroup_arithmetic,
+            1, value);
+
+   ir_variable *retval = body.make_temp(type, "retval");
+   body.emit(call(shader->symbols->get_function(intrinsic_name), retval, sig->parameters));
    body.emit(ret(retval));
    return sig;
 }

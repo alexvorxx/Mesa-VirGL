@@ -849,6 +849,48 @@ deref_get_qualifier(nir_deref_instr *deref)
    return (gl_access_qualifier) qualifiers;
 }
 
+static nir_op
+get_reduction_op(enum ir_intrinsic_id id, const glsl_type *type)
+{
+#define IR_CASE(op) \
+   case ir_intrinsic_reduce_##op: \
+   case ir_intrinsic_inclusive_##op: \
+   case ir_intrinsic_exclusive_##op: \
+      return CONV_OP(op);
+
+   switch (id) {
+
+#define CONV_OP(op) \
+      type->base_type == GLSL_TYPE_INT || type->base_type == GLSL_TYPE_UINT ? \
+         nir_op_i##op : nir_op_f##op
+
+   IR_CASE(add)
+   IR_CASE(mul)
+
+#undef CONV_OP
+#define CONV_OP(op) \
+      type->base_type == GLSL_TYPE_INT ? nir_op_i##op : \
+         (type->base_type == GLSL_TYPE_UINT ? nir_op_u##op : nir_op_f##op)
+
+   IR_CASE(min)
+   IR_CASE(max)
+
+#undef CONV_OP
+#define CONV_OP(op) nir_op_i##op
+
+   IR_CASE(and)
+   IR_CASE(or)
+   IR_CASE(xor)
+
+#undef CONV_OP
+
+   default:
+      unreachable("not reached");
+   }
+
+#undef IR_CASE
+}
+
 void
 nir_visitor::visit(ir_call *ir)
 {
@@ -1097,6 +1139,33 @@ nir_visitor::visit(ir_call *ir)
          break;
       case ir_intrinsic_shuffle_down:
          op = nir_intrinsic_shuffle_down;
+         break;
+      case ir_intrinsic_reduce_add:
+      case ir_intrinsic_reduce_mul:
+      case ir_intrinsic_reduce_min:
+      case ir_intrinsic_reduce_max:
+      case ir_intrinsic_reduce_and:
+      case ir_intrinsic_reduce_or:
+      case ir_intrinsic_reduce_xor:
+         op = nir_intrinsic_reduce;
+         break;
+      case ir_intrinsic_inclusive_add:
+      case ir_intrinsic_inclusive_mul:
+      case ir_intrinsic_inclusive_min:
+      case ir_intrinsic_inclusive_max:
+      case ir_intrinsic_inclusive_and:
+      case ir_intrinsic_inclusive_or:
+      case ir_intrinsic_inclusive_xor:
+         op = nir_intrinsic_inclusive_scan;
+         break;
+      case ir_intrinsic_exclusive_add:
+      case ir_intrinsic_exclusive_mul:
+      case ir_intrinsic_exclusive_min:
+      case ir_intrinsic_exclusive_max:
+      case ir_intrinsic_exclusive_and:
+      case ir_intrinsic_exclusive_or:
+      case ir_intrinsic_exclusive_xor:
+         op = nir_intrinsic_exclusive_scan;
          break;
       default:
          unreachable("not reached");
@@ -1467,6 +1536,22 @@ nir_visitor::visit(ir_call *ir)
          instr->src[0] = nir_src_for_ssa(nir_val);
          instr->num_components = val->type->vector_elements;
          intrinsic_set_std430_align(instr, val->type);
+
+         nir_builder_instr_insert(&b, &instr->instr);
+         break;
+      }
+      case nir_intrinsic_reduce:
+      case nir_intrinsic_inclusive_scan:
+      case nir_intrinsic_exclusive_scan: {
+         const glsl_type *type = ir->return_deref->type;
+         nir_def_init(&instr->instr, &instr->def, glsl_get_vector_elements(type),
+                      glsl_get_bit_size(type));
+         instr->num_components = instr->def.num_components;
+
+         ir_rvalue *value = (ir_rvalue *)ir->actual_parameters.get_head();
+         instr->src[0] = nir_src_for_ssa(evaluate_rvalue(value));
+
+         nir_intrinsic_set_reduction_op(instr, get_reduction_op(ir->callee->intrinsic_id, type));
 
          nir_builder_instr_insert(&b, &instr->instr);
          break;
