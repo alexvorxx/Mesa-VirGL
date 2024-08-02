@@ -523,9 +523,18 @@ agx_pack_alu(struct util_dynarray *emission, agx_instr *I)
    if (length <= sizeof(uint64_t)) {
       unsigned extend_offset = ((length - sizeof(extend)) * 8);
 
-      /* XXX: This is a weird special case */
-      if (I->op == AGX_OPCODE_IADD)
+      /* XXX: Encode these special cases better */
+      switch (I->op) {
+      case AGX_OPCODE_IADD:
+      case AGX_OPCODE_ICMP_BALLOT:
+      case AGX_OPCODE_ICMP_QUAD_BALLOT:
+      case AGX_OPCODE_FCMP_BALLOT:
+      case AGX_OPCODE_FCMP_QUAD_BALLOT:
          extend_offset -= 16;
+         break;
+      default:
+         break;
+      }
 
       raw |= (uint64_t)extend << extend_offset;
       memcpy(util_dynarray_grow_bytes(emission, 1, length), &raw, length);
