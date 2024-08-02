@@ -286,6 +286,7 @@ alpine-build-testing:
       -D gles1=disabled
       -D gles2=enabled
       -D llvm=enabled
+      -D llvm-orcjit=true
       -D microsoft-clc=disabled
       -D shared-llvm=enabled
     UNWIND: "disabled"
