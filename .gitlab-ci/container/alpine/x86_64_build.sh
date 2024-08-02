@@ -38,6 +38,7 @@ DEPS=(
     musl-dev
     expat-dev
     elfutils-dev
+    libclc-dev
     libdrm-dev
     libselinux-dev
     libva-dev
@@ -63,12 +64,17 @@ apk --no-cache add "${DEPS[@]}" "${EPHEMERAL[@]}"
 
 pip3 install --break-system-packages sphinx===5.1.1 hawkmoth===0.16.0
 
-. .gitlab-ci/container/build-libclc.sh
-
 . .gitlab-ci/container/container_pre_build.sh
 
 
 ############### Uninstall the build software
+
+# too many vendor binarise, just keep the ones we need
+find /usr/share/clc \
+  \( -type f -o -type l \) \
+  ! -name 'spirv-mesa3d-.spv' \
+  ! -name 'spirv64-mesa3d-.spv' \
+  -delete
 
 apk del "${EPHEMERAL[@]}"
 
