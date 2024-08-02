@@ -30,6 +30,7 @@
 
 #include "asahi/genxml/agx_pack.h"
 #include "asahi/lib/libagx_shaders.h"
+#include "asahi/lib/shaders/draws.h"
 #include "asahi/lib/shaders/geometry.h"
 #include "shaders/query.h"
 #include "shaders/tessellator.h"
@@ -3511,12 +3512,11 @@ hk_CmdDrawMultiIndexedEXT(VkCommandBuffer commandBuffer, uint32_t drawCount,
    }
 }
 
-VKAPI_ATTR void VKAPI_CALL
-hk_CmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer _buffer,
-                   VkDeviceSize offset, uint32_t drawCount, uint32_t stride)
+static void
+hk_draw_indirect_inner(VkCommandBuffer commandBuffer, uint64_t base,
+                       uint32_t drawCount, uint32_t stride)
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
-   VK_FROM_HANDLE(hk_buffer, buffer, _buffer);
 
    /* From the Vulkan 1.3.238 spec:
     *
@@ -3535,18 +3535,26 @@ hk_CmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer _buffer,
    }
 
    for (unsigned draw_id = 0; draw_id < drawCount; ++draw_id) {
-      uint64_t addr = hk_buffer_address(buffer, offset) + stride * draw_id;
+      uint64_t addr = base + stride * draw_id;
       hk_draw(cmd, draw_id, hk_draw_indirect(addr));
    }
 }
 
 VKAPI_ATTR void VKAPI_CALL
-hk_CmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer _buffer,
-                          VkDeviceSize offset, uint32_t drawCount,
-                          uint32_t stride)
+hk_CmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer _buffer,
+                   VkDeviceSize offset, uint32_t drawCount, uint32_t stride)
+{
+   VK_FROM_HANDLE(hk_buffer, buffer, _buffer);
+
+   hk_draw_indirect_inner(commandBuffer, hk_buffer_address(buffer, offset),
+                          drawCount, stride);
+}
+
+static void
+hk_draw_indexed_indirect_inner(VkCommandBuffer commandBuffer, uint64_t buffer,
+                               uint32_t drawCount, uint32_t stride)
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
-   VK_FROM_HANDLE(hk_buffer, buffer, _buffer);
 
    /* From the Vulkan 1.3.238 spec:
     *
@@ -3566,11 +3574,77 @@ hk_CmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer _buffer,
    }
 
    for (unsigned draw_id = 0; draw_id < drawCount; ++draw_id) {
-      uint64_t addr = hk_buffer_address(buffer, offset) + stride * draw_id;
+      uint64_t addr = buffer + stride * draw_id;
 
       hk_draw(
          cmd, draw_id,
          hk_draw_indexed_indirect(addr, cmd->state.gfx.index.buffer, 0, 0));
+   }
+}
+
+VKAPI_ATTR void VKAPI_CALL
+hk_CmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer _buffer,
+                          VkDeviceSize offset, uint32_t drawCount,
+                          uint32_t stride)
+{
+   VK_FROM_HANDLE(hk_buffer, buffer, _buffer);
+
+   hk_draw_indexed_indirect_inner(
+      commandBuffer, hk_buffer_address(buffer, offset), drawCount, stride);
+}
+
+/*
+ * To implement drawIndirectCount generically, we dispatch a compute kernel to
+ * patch the indirect buffer and then we dispatch the predicated maxDrawCount
+ * indirect draws.
+ */
+static void
+hk_draw_indirect_count(VkCommandBuffer commandBuffer, VkBuffer _buffer,
+                       VkDeviceSize offset, VkBuffer countBuffer,
+                       VkDeviceSize countBufferOffset, uint32_t maxDrawCount,
+                       uint32_t stride, bool indexed)
+{
+   VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
+   VK_FROM_HANDLE(hk_buffer, buffer, _buffer);
+   VK_FROM_HANDLE(hk_buffer, count_buffer, countBuffer);
+
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
+   struct agx_predicate_indirect_key key = {.indexed = indexed};
+   struct hk_shader *s =
+      hk_meta_kernel(dev, agx_nir_predicate_indirect, &key, sizeof(key));
+
+   perf_debug(dev, "Draw indirect count");
+
+   struct hk_cs *cs =
+      hk_cmd_buffer_get_cs_general(cmd, &cmd->current_cs.pre_gfx, true);
+   if (!cs)
+      return;
+
+   hk_ensure_cs_has_space(cmd, cs, 0x2000 /* TODO */);
+
+   assert((stride % 4) == 0 && "aligned");
+
+   size_t out_stride = sizeof(uint32_t) * (indexed ? 5 : 4);
+   uint64_t patched = hk_pool_alloc(cmd, out_stride * maxDrawCount, 4).gpu;
+
+   struct libagx_predicate_indirect_push push = {
+      .in = hk_buffer_address(buffer, offset),
+      .out = patched,
+      .draw_count = hk_buffer_address(count_buffer, countBufferOffset),
+      .stride_el = stride / 4,
+   };
+
+   uint64_t push_ = hk_pool_upload(cmd, &push, sizeof(push), 8);
+   uint32_t usc = hk_upload_usc_words_kernel(cmd, s, &push_, sizeof(push_));
+
+   hk_dispatch_with_usc(dev, cs, s, usc, hk_grid(maxDrawCount, 1, 1),
+                        hk_grid(1, 1, 1));
+
+   if (indexed) {
+      hk_draw_indexed_indirect_inner(commandBuffer, patched, maxDrawCount,
+                                     out_stride);
+   } else {
+      hk_draw_indirect_inner(commandBuffer, patched, maxDrawCount, out_stride);
    }
 }
 
@@ -3580,7 +3654,8 @@ hk_CmdDrawIndirectCount(VkCommandBuffer commandBuffer, VkBuffer _buffer,
                         VkDeviceSize countBufferOffset, uint32_t maxDrawCount,
                         uint32_t stride)
 {
-   unreachable("TODO");
+   hk_draw_indirect_count(commandBuffer, _buffer, offset, countBuffer,
+                          countBufferOffset, maxDrawCount, stride, false);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -3589,7 +3664,8 @@ hk_CmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer, VkBuffer _buffer,
                                VkDeviceSize countBufferOffset,
                                uint32_t maxDrawCount, uint32_t stride)
 {
-   unreachable("TODO");
+   hk_draw_indirect_count(commandBuffer, _buffer, offset, countBuffer,
+                          countBufferOffset, maxDrawCount, stride, true);
 }
 
 VKAPI_ATTR void VKAPI_CALL
