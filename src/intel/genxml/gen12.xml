@@ -1327,6 +1327,129 @@
     <field name="Address" start="66" end="111" type="address" />
     <field name="Immediate Data" start="128" end="191" type="uint" />
   </instruction>
+  <instruction name="VDENC_CMD1" bias="2" length="31" engine="video">
+    <field name="DWord Length" start="0" end="11" type="uint" default="29" />
+    <field name="SubOpcodeB" start="16" end="20" type="uint" default="10" />
+    <field name="SubOpcodeA" start="21" end="22" type="uint" default="0" />
+    <field name="Media Command OpCode" start="23" end="26" type="uint" default="1" />
+    <field name="Pipeline" start="27" end="28" type="uint" default="2" />
+    <field name="Command Type" start="29" end="31" type="uint" default="3" />
+    <group count="30" start="32" size="32">
+      <field name="Values" start="0" end="31" type="uint" />
+    </group>
+  </instruction>
+  <instruction name="VDENC_CMD2" bias="2" length="51" engine="video">
+    <field name="DWord Length" start="0" end="11" type="uint" default="49" />
+    <field name="SubOpcodeB" start="16" end="20" type="uint" default="9" />
+    <field name="SubOpcodeA" start="21" end="22" type="uint" default="0" />
+    <field name="Media Command OpCode" start="23" end="26" type="uint" default="1" />
+    <field name="Pipeline" start="27" end="28" type="uint" default="2" />
+    <field name="Command Type" start="29" end="31" type="uint" default="3" />
+    <field name="Frame Width In Pixels Minus One" start="32" end="47" type="uint" />
+    <field name="Values1" start="32" end="63" type="uint" />
+    <field name="Frame Height In Pixels Minus One" start="48" end="63" type="uint" />
+    <field name="Values2" start="64" end="95" type="uint" />
+    <field name="Picture Type" start="84" end="85" type="uint" />
+    <field name="Temporal MVP Enable Flag" start="86" end="86" type="bool" />
+    <field name="Long Term Reference Flags L0" start="88" end="90" type="uint" />
+    <field name="Long Term Reference Flags L1" start="91" end="91" type="uint" />
+    <field name="Transform Skip" start="94" end="94" type="bool" />
+    <field name="POC Number For Refid0 In L0" start="96" end="103" type="uint" />
+    <field name="Values3" start="96" end="127" type="uint" />
+    <field name="POC Number For Refid0 In L1" start="104" end="111" type="uint" />
+    <field name="POC Number For Refid1 In L0" start="112" end="119" type="uint" />
+    <field name="POC Number For Refid1 In L1" start="120" end="127" type="uint" />
+    <field name="POC Number For Refid2 In L0" start="128" end="135" type="uint" />
+    <field name="Values4" start="128" end="159" type="uint" />
+    <field name="POC Number For Refid2 In L1" start="136" end="143" type="uint" />
+    <field name="Values5" start="160" end="191" type="uint" />
+    <field name="Stream In ROI Enable" start="168" end="168" type="bool" />
+    <field name="Sub Pel Mode" start="170" end="171" type="uint" />
+    <field name="Num Ref Idx L0 Minus One" start="184" end="187" type="uint" />
+    <field name="Num Ref Idx L1 Minus One" start="188" end="191" type="uint" />
+    <field name="Values6" start="192" end="223" type="uint" />
+    <field name="Values7" start="224" end="255" type="uint" />
+    <field name="Segmentation Enable" start="228" end="228" type="bool" />
+    <field name="Segmentation Map Temporal Prediction Enable" start="229" end="229" type="bool" />
+    <field name="Tiling Enable" start="231" end="231" type="bool" />
+    <field name="VDEnc Stream In Enable" start="233" end="233" type="bool" />
+    <field name="PAK Only Multi Pass Enable" start="240" end="240" type="bool" />
+    <field name="Values8" start="256" end="287" type="uint" />
+    <field name="Values9" start="288" end="319" type="uint" />
+    <field name="Values10" start="320" end="351" type="uint" />
+    <field name="Values11" start="352" end="383" type="uint" />
+    <field name="Values12" start="384" end="415" type="uint" />
+    <field name="Values13" start="416" end="447" type="uint" />
+    <field name="Roi QP Adjustment For Zone1 Stage3" start="420" end="423" type="uint" />
+    <field name="Roi QP Adjustment For Zone2 Stage3" start="424" end="427" type="uint" />
+    <field name="Roi QP Adjustment For Zone3 Stage3" start="428" end="431" type="uint" />
+    <field name="Values14" start="448" end="479" type="uint" />
+    <field name="Values15" start="480" end="511" type="uint" />
+    <field name="Min Qp" start="512" end="519" type="uint" />
+    <field name="Values16" start="512" end="543" type="uint" />
+    <field name="Max Qp" start="520" end="527" type="uint" />
+    <field name="Values17" start="544" end="575" type="uint" />
+    <field name="Temporal MV Enable For Integer Search" start="564" end="564" type="bool" />
+    <field name="Values18" start="576" end="607" type="uint" />
+    <field name="Values19" start="608" end="639" type="uint" />
+    <field name="Values20" start="640" end="671" type="uint" />
+    <field name="Intra Refresh Pos" start="672" end="680" type="uint" />
+    <field name="Values21" start="672" end="703" type="uint" />
+    <field name="Intra Refresh MB Size Minus One" start="688" end="695" type="uint" />
+    <field name="Intra Refresh Mode" start="696" end="696" type="uint" />
+    <field name="QP Adjustment For Rolling I" start="700" end="703" type="uint" />
+    <field name="Values22" start="704" end="735" type="uint" />
+    <field name="Values23" start="736" end="767" type="uint" />
+    <field name="QP For Seg0" start="768" end="775" type="uint" />
+    <field name="Values24" start="768" end="799" type="uint" />
+    <field name="QP For Seg1" start="776" end="783" type="uint" />
+    <field name="QP For Seg2" start="784" end="791" type="uint" />
+    <field name="QP For Seg3" start="792" end="799" type="uint" />
+    <field name="QP For Seg4" start="800" end="807" type="uint" />
+    <field name="Values25" start="800" end="831" type="uint" />
+    <field name="QP For Seg5" start="808" end="815" type="uint" />
+    <field name="QP For Seg6" start="816" end="823" type="uint" />
+    <field name="QP For Seg7" start="824" end="831" type="uint" />
+    <field name="Rd Qp Lambda" start="832" end="847" type="uint" />
+    <field name="Values26" start="832" end="863" type="uint" />
+    <field name="Sad Qp Lambda" start="848" end="856" type="uint" />
+    <field name="VP9 Dynamic Slice Enable" start="857" end="857" type="bool" />
+    <field name="Qp Prime YDc" start="864" end="871" type="uint" />
+    <field name="Values27" start="864" end="895" type="uint" />
+    <field name="Qp Prime YAc" start="872" end="879" type="uint" />
+    <field name="Values28" start="896" end="927" type="uint" />
+    <field name="Values29" start="928" end="959" type="uint" />
+    <field name="Values30" start="960" end="991" type="uint" />
+    <field name="Values31" start="992" end="1023" type="uint" />
+    <field name="Values32" start="1024" end="1055" type="uint" />
+    <field name="Values33" start="1056" end="1087" type="uint" />
+    <field name="Values34" start="1088" end="1119" type="uint" />
+    <field name="Values35" start="1120" end="1151" type="uint" />
+    <field name="Intra Refresh Boundary Ref0" start="1152" end="1160" type="uint" />
+    <field name="Intra Refresh Boundary Ref1" start="1162" end="1170" type="uint" />
+    <field name="Intra Refresh Boundary Ref2" start="1172" end="1180" type="uint" />
+    <field name="Tile Replay Enable" start="1211" end="1211" type="bool" />
+    <field name="Values39" start="1216" end="1247" type="uint" />
+    <field name="Values40" start="1248" end="1279" type="uint" />
+    <field name="Values41" start="1280" end="1311" type="uint" />
+    <field name="Values42" start="1312" end="1343" type="uint" />
+    <field name="Values43" start="1344" end="1375" type="uint" />
+    <field name="Values44" start="1376" end="1407" type="uint" />
+    <field name="Values45" start="1408" end="1439" type="uint" />
+    <field name="Values46" start="1440" end="1471" type="uint" />
+    <field name="Values47" start="1472" end="1503" type="uint" />
+    <field name="Values48" start="1504" end="1535" type="uint" />
+    <field name="Values49" start="1536" end="1567" type="uint" />
+    <field name="Values50" start="1568" end="1599" type="uint" />
+  </instruction>
+  <instruction name="VDENC_CONTROL_STATE" bias="2" length="2" engine="video">
+    <field name="DWord Length" start="0" end="11" type="uint" default="0" />
+    <field name="SubOpcode" start="16" end="22" type="uint" default="11" />
+    <field name="Media Command OpCode" start="23" end="26" type="uint" default="1" />
+    <field name="Pipeline" start="27" end="28" type="uint" default="2" />
+    <field name="Command Type" start="29" end="31" type="uint" default="3" />
+    <field name="Vdenc Initialization" start="33" end="33" type="bool" />
+  </instruction>
   <instruction name="VDENC_PIPE_BUF_ADDR_STATE" bias="2" length="71" engine="video">
     <field name="DWord Length" start="0" end="11" type="uint" default="69" />
     <field name="SubOpcode B" start="16" end="20" type="uint" default="4" />
