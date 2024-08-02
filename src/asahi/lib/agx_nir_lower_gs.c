@@ -8,6 +8,7 @@
 #include "asahi/compiler/agx_compile.h"
 #include "compiler/nir/nir_builder.h"
 #include "gallium/include/pipe/p_defines.h"
+#include "shaders/draws.h"
 #include "shaders/geometry.h"
 #include "util/bitscan.h"
 #include "util/list.h"
@@ -1614,4 +1615,16 @@ agx_nir_increment_ia_counters(nir_builder *b, const void *data)
    nir_def *thread = nir_channel(b, nir_load_global_invocation_id(b, 32), 0);
 
    libagx_increment_ia_counters(b, params, index_size_B, thread);
+}
+
+void
+agx_nir_predicate_indirect(nir_builder *b, const void *data)
+{
+   const struct agx_predicate_indirect_key *key = data;
+
+   nir_def *params = nir_load_preamble(b, 1, 64, .base = 0);
+   nir_def *indexed = nir_imm_bool(b, key->indexed);
+   nir_def *thread = nir_channel(b, nir_load_global_invocation_id(b, 32), 0);
+
+   libagx_predicate_indirect(b, params, thread, indexed);
 }

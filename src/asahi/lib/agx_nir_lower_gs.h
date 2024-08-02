@@ -90,3 +90,10 @@ struct agx_increment_ia_counters_key {
 static_assert(sizeof(struct agx_increment_ia_counters_key) == 1, "padded");
 
 void agx_nir_increment_ia_counters(struct nir_builder *b, const void *data);
+
+struct agx_predicate_indirect_key {
+   bool indexed;
+};
+static_assert(sizeof(struct agx_predicate_indirect_key) == 1, "padded");
+
+void agx_nir_predicate_indirect(struct nir_builder *b, const void *data);
