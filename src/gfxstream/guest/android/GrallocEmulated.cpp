@@ -576,7 +576,13 @@ int EmulatedGralloc::getId(const AHardwareBuffer* ahb, uint64_t* id) {
     return 0;
 }
 
-Gralloc* createPlatformGralloc(int /*deviceFd*/) {
+Gralloc* createPlatformGralloc(int32_t descriptor) {
+    auto device = VirtGpuDevice::getInstance(kCapsetNone, descriptor);
+    if (!device) {
+        ALOGE("no virtio gpu device.");
+        return nullptr;
+    }
+
     return new EmulatedGralloc();
 }
 
