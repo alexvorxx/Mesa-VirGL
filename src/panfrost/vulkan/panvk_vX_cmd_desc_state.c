@@ -83,6 +83,7 @@ panvk_per_arch(cmd_push_descriptors)(struct vk_command_buffer *vk_cmdbuf,
          list_first_entry(&pool->push_sets, struct panvk_push_set, base.node);
       list_del(&push_set->base.node);
       list_addtail(&push_set->base.node, &cmdbuf->push_sets);
+      memset(push_set->descs, 0, sizeof(push_set->descs));
    } else {
       push_set = vk_zalloc(&pool->vk.alloc, sizeof(*push_set), 8,
                            VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
