@@ -11,6 +11,7 @@
 #include "util/u_memory.h"
 #include "util/hex.h"
 #include "util/os_time.h"
+#include "util/xmlconfig.h"
 #include "vl/vl_decoder.h"
 #include "vl/vl_video_buffer.h"
 
@@ -826,9 +827,18 @@ struct pipe_screen* r300_screen_create(struct radeon_winsys *rws,
     r300_init_debug(r300screen);
     r300_parse_chipset(r300screen->info.pci_id, &r300screen->caps);
 
-    if (SCREEN_DBG_ON(r300screen, DBG_NO_ZMASK))
+    driParseConfigFiles(config->options, config->options_info, 0, "r300", NULL,
+                        NULL, NULL, 0, NULL, 0);
+
+#define OPT_BOOL(name, dflt, description)                                                          \
+    r300screen->options.name = driQueryOptionb(config->options, "r300_" #name);
+#include "r300_debug_options.h"
+
+    if (SCREEN_DBG_ON(r300screen, DBG_NO_ZMASK) ||
+        r300screen->options.nozmask)
         r300screen->caps.zmask_ram = 0;
-    if (SCREEN_DBG_ON(r300screen, DBG_NO_HIZ))
+    if (SCREEN_DBG_ON(r300screen, DBG_NO_HIZ) ||
+        r300screen->options.nohiz)
         r300screen->caps.hiz_ram = 0;
     if (SCREEN_DBG_ON(r300screen, DBG_NO_TCL))
         r300screen->caps.has_tcl = false;
