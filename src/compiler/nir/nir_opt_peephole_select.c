@@ -136,6 +136,14 @@ block_check_for_allowed_instrs(nir_block *block, unsigned *count,
                return false;
             break;
 
+         case nir_intrinsic_load_global_constant:
+         case nir_intrinsic_load_constant_agx:
+            if (!indirect_load_ok && !nir_src_is_const(intrin->src[0]))
+               return false;
+            if (!(nir_intrinsic_access(intrin) & ACCESS_CAN_SPECULATE))
+               return false;
+            break;
+
          case nir_intrinsic_load_uniform:
          case nir_intrinsic_load_preamble:
          case nir_intrinsic_load_helper_invocation:
