@@ -108,7 +108,7 @@ load_sample_pos_u4_at(nir_builder *b, nir_def *sample_id,
                       const struct nak_fs_key *fs_key)
 {
    nir_def *loc = nir_ldc_nv(b, 1, 8,
-                             nir_imm_int(b, fs_key->sample_locations_cb),
+                             nir_imm_int(b, fs_key->sample_info_cb),
                              nir_iadd_imm(b, sample_id,
                                           fs_key->sample_locations_offset),
                              .align_mul = 1, .align_offset = 0);
@@ -118,6 +118,20 @@ load_sample_pos_u4_at(nir_builder *b, nir_def *sample_id,
    nir_def *loc_x_u4 = nir_iand_imm(b, loc, 0xf);
    nir_def *loc_y_u4 = nir_iand_imm(b, nir_ushr_imm(b, loc, 4), 0xf);
    return nir_vec2(b, loc_x_u4, loc_y_u4);
+}
+
+static nir_def *
+load_pass_sample_mask_at(nir_builder *b, nir_def *sample_id,
+                         const struct nak_fs_key *fs_key)
+{
+   nir_def *offset =
+      nir_imul_imm(b, sample_id, sizeof(struct nak_sample_mask));
+   offset = nir_iadd_imm(b, offset, fs_key->sample_masks_offset);
+
+   return nir_ldc_nv(b, 1, 8 * sizeof(struct nak_sample_mask),
+                     nir_imm_int(b, fs_key->sample_info_cb), offset,
+                     .align_mul = sizeof(struct nak_sample_mask),
+                     .align_offset = 0);
 }
 
 static nir_def *
@@ -312,21 +326,40 @@ lower_fs_input_intrin(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
       break;
    }
 
-   case nir_intrinsic_load_sample_mask_in: {
-      if (!b->shader->info.fs.uses_sample_shading &&
-          !(ctx->fs_key && ctx->fs_key->force_sample_shading))
-         return false;
-
+   case nir_intrinsic_load_sample_mask_in:
       b->cursor = nir_after_instr(&intrin->instr);
 
-      /* Mask off just the current sample */
-      nir_def *sample = nir_load_sample_id(b);
-      nir_def *mask = nir_ishl(b, nir_imm_int(b, 1), sample);
-      mask = nir_iand(b, &intrin->def, mask);
-      nir_def_rewrite_uses_after(&intrin->def, mask, mask->parent_instr);
+      /* pixld.covmask returns the coverage mask for the entire pixel being
+       * shaded, not the set of samples covered by the current FS invocation.
+       * We need to mask off excess samples in order to get the GL/Vulkan
+       * behavior.
+       */
+      if (b->shader->info.fs.uses_sample_shading) {
+         /* Mask off just the current sample */
+         nir_def *sample = nir_load_sample_id(b);
+         nir_def *mask = nir_ishl(b, nir_imm_int(b, 1), sample);
+         mask = nir_iand(b, &intrin->def, mask);
+         nir_def_rewrite_uses_after(&intrin->def, mask, mask->parent_instr);
 
-      return true;
-   }
+         return true;
+      } else if (ctx->fs_key && ctx->fs_key->force_sample_shading) {
+         /* In this case we don't know up-front how many passes will be run so
+          * we need to take the per-pass sample mask from the driver and AND
+          * that with the coverage mask.
+          */
+         nir_def *sample = nir_load_sample_id(b);
+         nir_def *mask = load_pass_sample_mask_at(b, sample, ctx->fs_key);
+         mask = nir_iand(b, &intrin->def, nir_u2u32(b, mask));
+         nir_def_rewrite_uses_after(&intrin->def, mask, mask->parent_instr);
+
+         return true;
+      } else {
+         /* We're always executing single-pass so just use the sample mask as
+          * given by the hardware.
+          */
+         return false;
+      }
+      break;
 
    case nir_intrinsic_load_sample_pos:
       res = load_sample_pos_at(b, nir_load_sample_id(b), ctx->fs_key);

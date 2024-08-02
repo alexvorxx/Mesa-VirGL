@@ -185,8 +185,9 @@ nvk_populate_fs_key(struct nak_fs_key *key,
 {
    memset(key, 0, sizeof(*key));
 
-   key->sample_locations_cb = 0;
+   key->sample_info_cb = 0;
    key->sample_locations_offset = nvk_root_descriptor_offset(draw.sample_locations);
+   key->sample_masks_offset = nvk_root_descriptor_offset(draw.sample_masks);
 
    /* Turn underestimate on when no state is availaible or if explicitly set */
    if (state == NULL || state->rs == NULL ||

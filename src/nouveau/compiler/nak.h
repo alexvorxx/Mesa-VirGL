@@ -38,6 +38,12 @@ struct nak_sample_location {
 static_assert(sizeof(struct nak_sample_location) == 1,
               "This struct has no holes");
 
+struct nak_sample_mask {
+   uint16_t sample_mask;
+};
+static_assert(sizeof(struct nak_sample_mask) == 2,
+              "This struct has no holes");
+
 PRAGMA_DIAGNOSTIC_PUSH
 PRAGMA_DIAGNOSTIC_ERROR(-Wpadded)
 struct nak_fs_key {
@@ -50,10 +56,10 @@ struct nak_fs_key {
    bool uses_underestimate;
 
    /**
-    * The constant buffer index and offset at which the sample locations table
-    * lives.
+    * The constant buffer index and offset at which the sample locations and
+    * pass sample masks tables lives.
     */
-   uint8_t sample_locations_cb;
+   uint8_t sample_info_cb;
 
    /**
     * The offset into sample_info_cb at which the sample locations live.  The
@@ -62,9 +68,17 @@ struct nak_fs_key {
     * with the bottom 4 bits for x and the top 4 bits for y.
     */
    uint32_t sample_locations_offset;
+
+   /**
+    * The offset into sample_info_cb at which the sample masks table lives.
+    * The sample masks table is an array of nak_sample_mask where each entry
+    * represents the set of samples covered by that pass corresponding to that
+    * sample in a multi-pass fragment shader invocaiton.
+    */
+   uint32_t sample_masks_offset;
 };
 PRAGMA_DIAGNOSTIC_POP
-static_assert(sizeof(struct nak_fs_key) == 8, "This struct has no holes");
+static_assert(sizeof(struct nak_fs_key) == 12, "This struct has no holes");
 
 
 void nak_postprocess_nir(nir_shader *nir, const struct nak_compiler *nak,

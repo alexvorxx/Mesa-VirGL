@@ -1982,15 +1982,35 @@ nvk_flush_ms_state(struct nvk_cmd_buffer *cmd)
 
       struct nvk_shader *fs = cmd->state.gfx.shaders[MESA_SHADER_FRAGMENT];
       const float min_sample_shading = fs != NULL ? fs->min_sample_shading : 0;
-      uint32_t min_samples = ceilf(dyn->ms.rasterization_samples *
-                                   min_sample_shading);
-      min_samples = util_next_power_of_two(MAX2(1, min_samples));
+      uint32_t num_passes = ceilf(dyn->ms.rasterization_samples *
+                                  min_sample_shading);
+      num_passes = util_next_power_of_two(MAX2(1, num_passes));
 
       P_IMMD(p, NV9097, SET_HYBRID_ANTI_ALIAS_CONTROL, {
-         .passes = min_samples,
-         .centroid = min_samples > 1 ? CENTROID_PER_PASS
-                                     : CENTROID_PER_FRAGMENT,
+         .passes = num_passes,
+         .centroid = num_passes > 1 ? CENTROID_PER_PASS
+                                    : CENTROID_PER_FRAGMENT,
       });
+
+      if (dyn->ms.rasterization_samples > 0) {
+         assert(util_is_power_of_two_or_zero(dyn->ms.rasterization_samples));
+         assert(util_is_power_of_two_nonzero(num_passes));
+         uint32_t samples_per_pass = dyn->ms.rasterization_samples / num_passes;
+
+         struct nak_sample_mask push_sm[NVK_MAX_SAMPLES];
+         for (uint32_t s = 0; s < dyn->ms.rasterization_samples; s++) {
+            const uint32_t pass = s / samples_per_pass;
+            const uint32_t sample_mask =
+               BITFIELD_MASK(samples_per_pass) << (pass * samples_per_pass);
+            push_sm[s] = (struct nak_sample_mask) {
+               .sample_mask = sample_mask,
+            };
+         }
+         nvk_descriptor_state_set_root_array(cmd, &cmd->state.gfx.descriptors,
+                                             draw.sample_masks,
+                                             0, dyn->ms.rasterization_samples,
+                                             push_sm);
+      }
    }
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_MS_ALPHA_TO_COVERAGE_ENABLE) ||
