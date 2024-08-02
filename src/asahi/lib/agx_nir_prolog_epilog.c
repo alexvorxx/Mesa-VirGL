@@ -605,12 +605,14 @@ agx_nir_lower_stats_fs(nir_shader *s)
       nir_builder_at(nir_before_impl(nir_shader_get_entrypoint(s)));
    nir_builder *b = &b_;
 
+   nir_push_if(b, nir_inot(b, nir_load_helper_invocation(b, 1)));
    nir_def *samples = nir_bit_count(b, nir_load_sample_mask_in(b));
    unsigned query = PIPE_STAT_QUERY_PS_INVOCATIONS;
 
    nir_def *addr = nir_load_stat_query_address_agx(b, .base = query);
    nir_global_atomic(b, 32, addr, samples, .atomic_op = nir_atomic_op_iadd);
 
+   nir_pop_if(b, NULL);
    nir_metadata_preserve(b->impl, nir_metadata_control_flow);
    return true;
 }
