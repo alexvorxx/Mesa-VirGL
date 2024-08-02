@@ -1175,6 +1175,18 @@ nir_visitor::visit(ir_call *ir)
       case ir_intrinsic_exclusive_xor:
          op = nir_intrinsic_exclusive_scan;
          break;
+      case ir_intrinsic_quad_broadcast:
+         op = nir_intrinsic_quad_broadcast;
+         break;
+      case ir_intrinsic_quad_swap_horizontal:
+         op = nir_intrinsic_quad_swap_horizontal;
+         break;
+      case ir_intrinsic_quad_swap_vertical:
+         op = nir_intrinsic_quad_swap_vertical;
+         break;
+      case ir_intrinsic_quad_swap_diagonal:
+         op = nir_intrinsic_quad_swap_diagonal;
+         break;
       default:
          unreachable("not reached");
       }
@@ -1598,7 +1610,11 @@ nir_visitor::visit(ir_call *ir)
       case nir_intrinsic_shuffle:
       case nir_intrinsic_shuffle_xor:
       case nir_intrinsic_shuffle_up:
-      case nir_intrinsic_shuffle_down: {
+      case nir_intrinsic_shuffle_down:
+      case nir_intrinsic_quad_broadcast:
+      case nir_intrinsic_quad_swap_horizontal:
+      case nir_intrinsic_quad_swap_vertical:
+      case nir_intrinsic_quad_swap_diagonal: {
          if (ir->return_deref) {
             const glsl_type *type = ir->return_deref->type;
             nir_def_init(&instr->instr, &instr->def, glsl_get_vector_elements(type),

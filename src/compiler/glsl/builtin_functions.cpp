@@ -1105,6 +1105,18 @@ subgroup_clustered_and_fp64(const _mesa_glsl_parse_state *state)
    return subgroup_clustered(state) && fp64(state);
 }
 
+static bool
+subgroup_quad(const _mesa_glsl_parse_state *state)
+{
+   return state->KHR_shader_subgroup_quad_enable;
+}
+
+static bool
+subgroup_quad_and_fp64(const _mesa_glsl_parse_state *state)
+{
+   return subgroup_quad(state) && fp64(state);
+}
+
 /** @} */
 
 /******************************************************************************/
@@ -1542,6 +1554,12 @@ private:
                                                         enum ir_intrinsic_id id);
    ir_function_signature *_subgroup_clustered(const glsl_type *type,
                                               const char *intrinsic_name);
+
+   ir_function_signature *_quad_broadcast_intrinsic(const glsl_type *type);
+   ir_function_signature *_quad_broadcast(const glsl_type *type);
+
+   ir_function_signature *_quad_swap_intrinsic(const glsl_type *type, enum ir_intrinsic_id id);
+   ir_function_signature *_quad_swap(const glsl_type *type, const char *intrinsic_name);
 
 #undef B0
 #undef B1
@@ -2008,6 +2026,15 @@ builtin_builder::create_intrinsics()
    SUBGROUP_ARITH_INTRINSICS(arithmetic, exclusive);
 
    SUBGROUP_ARITH_INTRINSICS(clustered, clustered);
+
+   add_function("__intrinsic_quad_broadcast", FIUBD(_quad_broadcast_intrinsic), NULL);
+
+   add_function("__intrinsic_quad_swap_horizontal",
+                FIUBD(_quad_swap_intrinsic, ir_intrinsic_quad_swap_horizontal), NULL);
+   add_function("__intrinsic_quad_swap_vertical",
+                FIUBD(_quad_swap_intrinsic, ir_intrinsic_quad_swap_vertical), NULL);
+   add_function("__intrinsic_quad_swap_diagonal",
+                FIUBD(_quad_swap_intrinsic, ir_intrinsic_quad_swap_diagonal), NULL);
 }
 
 /**
@@ -5947,6 +5974,15 @@ builtin_builder::create_builtins()
 
    SUBGROUP_ARITH(clustered, Clustered, clustered);
 
+   add_function("subgroupQuadBroadcast", FIUBD(_quad_broadcast), NULL);
+
+   add_function("subgroupQuadSwapHorizontal",
+                FIUBD(_quad_swap, "__intrinsic_quad_swap_horizontal"), NULL);
+   add_function("subgroupQuadSwapVertical",
+                FIUBD(_quad_swap, "__intrinsic_quad_swap_vertical"), NULL);
+   add_function("subgroupQuadSwapDiagonal",
+                FIUBD(_quad_swap, "__intrinsic_quad_swap_diagonal"), NULL);
+
 #undef F
 #undef FI
 #undef FIUDHF_VEC
@@ -9393,6 +9429,56 @@ builtin_builder::_subgroup_clustered(const glsl_type *type, const char *intrinsi
 
    MAKE_SIG(type, glsl_type_is_double(type) ? subgroup_clustered_and_fp64 : subgroup_clustered,
             2, value, size);
+
+   ir_variable *retval = body.make_temp(type, "retval");
+   body.emit(call(shader->symbols->get_function(intrinsic_name), retval, sig->parameters));
+   body.emit(ret(retval));
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_quad_broadcast_intrinsic(const glsl_type *type)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *id = in_var(&glsl_type_builtin_uint, "id");
+   MAKE_INTRINSIC(type, ir_intrinsic_quad_broadcast,
+                  glsl_type_is_double(type) ? subgroup_quad_and_fp64 : subgroup_quad,
+                  2, value, id);
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_quad_broadcast(const glsl_type *type)
+{
+   ir_variable *value = in_var(type, "value");
+   ir_variable *id = in_var(&glsl_type_builtin_uint, "id");
+
+   MAKE_SIG(type, glsl_type_is_double(type) ? subgroup_quad_and_fp64 : subgroup_quad,
+            2, value, id);
+   ir_variable *retval = body.make_temp(type, "retval");
+
+   body.emit(call(shader->symbols->get_function("__intrinsic_quad_broadcast"),
+                  retval, sig->parameters));
+   body.emit(ret(retval));
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_quad_swap_intrinsic(const glsl_type *type, enum ir_intrinsic_id id)
+{
+   ir_variable *value = in_var(type, "value");
+   MAKE_INTRINSIC(type, id,
+                  glsl_type_is_double(type) ? subgroup_quad_and_fp64 : subgroup_quad,
+                  1, value);
+   return sig;
+}
+
+ir_function_signature *
+builtin_builder::_quad_swap(const glsl_type *type, const char *intrinsic_name)
+{
+   ir_variable *value = in_var(type, "value");
+   MAKE_SIG(type, glsl_type_is_double(type) ? subgroup_quad_and_fp64 : subgroup_quad,
+            1, value);
 
    ir_variable *retval = body.make_temp(type, "retval");
    body.emit(call(shader->symbols->get_function(intrinsic_name), retval, sig->parameters));

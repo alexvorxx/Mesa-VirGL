@@ -1183,6 +1183,11 @@ enum ir_intrinsic_id {
    ir_intrinsic_clustered_and,
    ir_intrinsic_clustered_or,
    ir_intrinsic_clustered_xor,
+
+   ir_intrinsic_quad_broadcast,
+   ir_intrinsic_quad_swap_horizontal,
+   ir_intrinsic_quad_swap_vertical,
+   ir_intrinsic_quad_swap_diagonal,
 };
 
 /*@{*/
