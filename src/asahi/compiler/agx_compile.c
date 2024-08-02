@@ -1489,6 +1489,10 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
       return agx_get_sr_coverage_to(b, dst,
                                     AGX_SR_ACTIVE_THREAD_INDEX_IN_SUBGROUP);
 
+   case nir_intrinsic_load_active_subgroup_count_agx:
+      return agx_get_sr_coverage_to(b, dst,
+                                    AGX_SR_TOTAL_ACTIVE_THREADS_IN_SUBGROUP);
+
    case nir_intrinsic_reduce: {
       assert((instr->def.bit_size == 1 || instr->def.bit_size == 16 ||
               instr->def.bit_size == 32) &&

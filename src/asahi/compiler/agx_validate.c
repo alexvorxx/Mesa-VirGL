@@ -423,6 +423,8 @@ agx_validate_sr(const agx_instr *I)
    switch (I->sr) {
    case AGX_SR_ACTIVE_THREAD_INDEX_IN_QUAD:
    case AGX_SR_ACTIVE_THREAD_INDEX_IN_SUBGROUP:
+   case AGX_SR_TOTAL_ACTIVE_THREADS_IN_QUAD:
+   case AGX_SR_TOTAL_ACTIVE_THREADS_IN_SUBGROUP:
    case AGX_SR_COVERAGE_MASK:
    case AGX_SR_IS_ACTIVE_THREAD:
       return coverage;
