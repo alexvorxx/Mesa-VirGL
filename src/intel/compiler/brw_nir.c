@@ -677,6 +677,28 @@ brw_nir_lower_fs_outputs(nir_shader *nir)
    nir_lower_io(nir, nir_var_shader_out, type_size_dvec4, 0);
 }
 
+static bool
+tag_speculative_access(nir_builder *b,
+                       nir_intrinsic_instr *intrin,
+                       void *unused)
+{
+   if (intrin->intrinsic == nir_intrinsic_load_ubo &&
+       brw_nir_ubo_surface_index_is_pushable(intrin->src[0])) {
+      nir_intrinsic_set_access(intrin, ACCESS_CAN_SPECULATE |
+                               nir_intrinsic_access(intrin));
+      return true;
+   }
+
+   return false;
+}
+
+static bool
+brw_nir_tag_speculative_access(nir_shader *nir)
+{
+   return nir_shader_intrinsics_pass(nir, tag_speculative_access,
+                                     nir_metadata_all, NULL);
+}
+
 #define OPT(pass, ...) ({                                  \
    bool this_progress = false;                             \
    NIR_PASS(this_progress, nir, pass, ##__VA_ARGS__);      \
@@ -1666,6 +1688,8 @@ brw_postprocess_nir(nir_shader *nir, const struct brw_compiler *compiler,
 
    if (gl_shader_stage_can_set_fragment_shading_rate(nir->info.stage))
       NIR_PASS(_, nir, intel_nir_lower_shading_rate_output);
+
+   OPT(brw_nir_tag_speculative_access);
 
    brw_nir_optimize(nir, devinfo);
 
