@@ -4552,6 +4552,8 @@ mem_vectorize_cb(unsigned align_mul, unsigned align_offset, unsigned bit_size,
 static void
 bi_optimize_nir(nir_shader *nir, unsigned gpu_id, bool is_blend)
 {
+   NIR_PASS_V(nir, nir_opt_shrink_stores, true);
+
    bool progress;
 
    do {
