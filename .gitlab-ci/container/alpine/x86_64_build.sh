@@ -53,6 +53,7 @@ DEPS=(
     py3-yaml
     vulkan-headers
     spirv-tools-dev
+    spirv-llvm-translator-dev
     util-macros
     wayland-dev
     wayland-protocols
@@ -61,8 +62,6 @@ DEPS=(
 apk --no-cache add "${DEPS[@]}" "${EPHEMERAL[@]}"
 
 pip3 install --break-system-packages sphinx===5.1.1 hawkmoth===0.16.0
-
-. .gitlab-ci/container/build-llvm-spirv.sh
 
 . .gitlab-ci/container/build-libclc.sh
 
