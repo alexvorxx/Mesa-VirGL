@@ -1700,7 +1700,7 @@ static struct pb_buffer_lean *rvcn_dec_message_decode(struct radeon_decoder *dec
             align(dec->base.height, dec->db_alignment) * 3 / 2);
 
          dec->dpb_size = calc_dpb_size(dec);
-         r = si_vid_resize_buffer(dec->screen, &dec->cs, &dec->dpb, dec->dpb_size, &buf_offset_info);
+         r = si_vid_resize_buffer(dec->base.context, &dec->cs, &dec->dpb, dec->dpb_size, &buf_offset_info);
          if (!r) {
             RVID_ERR("Can't resize dpb.\n");
             return NULL;
@@ -2503,7 +2503,7 @@ static void radeon_dec_decode_bitstream(struct pipe_video_codec *decoder,
             return;
          }
          si_vid_destroy_buffer(&old_buf);
-      } else if (!si_vid_resize_buffer(dec->screen, &dec->cs, buf, total_bs_size, NULL)) {
+      } else if (!si_vid_resize_buffer(dec->base.context, &dec->cs, buf, total_bs_size, NULL)) {
          RVID_ERR("Can't resize bitstream buffer!");
          return;
       }

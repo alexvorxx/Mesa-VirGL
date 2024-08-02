@@ -1051,7 +1051,7 @@ static void ruvd_decode_bitstream(struct pipe_video_codec *decoder,
 
       if (new_size > buf->res->buf->size) {
          dec->ws->buffer_unmap(dec->ws, buf->res->buf);
-         if (!si_vid_resize_buffer(dec->screen, &dec->cs, buf, new_size, NULL)) {
+         if (!si_vid_resize_buffer(dec->base.context, &dec->cs, buf, new_size, NULL)) {
             RVID_ERR("Can't resize bitstream buffer!");
             return;
          }
