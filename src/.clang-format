@@ -309,6 +309,7 @@ ForEachMacros:
   - bi_foreach_instr_in_tuple
   - bi_foreach_predecessor
   - bi_foreach_src
+  - bi_foreach_ssa_dest
   - bi_foreach_ssa_src
   - bi_foreach_successor
   - cs_emit
