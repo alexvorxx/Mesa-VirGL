@@ -557,7 +557,11 @@ hk_descriptor_set_create(struct hk_device *dev, struct hk_descriptor_pool *pool,
        (layout->binding[layout->binding_count - 1].flags &
         VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT)) {
       uint32_t stride = layout->binding[layout->binding_count - 1].stride;
-      set->size += stride * variable_count;
+
+      /* Off by one so we don't underallocate the end. Otherwise vkd3d-proton
+       * descriptor-performance underallocates.
+       */
+      set->size += stride * (variable_count + 1);
    }
 
    set->size = align64(set->size, HK_MIN_UBO_ALIGNMENT);
