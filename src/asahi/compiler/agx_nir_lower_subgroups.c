@@ -64,6 +64,12 @@ lower(nir_builder *b, nir_intrinsic_instr *intr, void *data)
       return true;
    }
 
+   case nir_intrinsic_last_invocation: {
+      nir_def *active_mask = nir_ballot(b, 1, 32, nir_imm_true(b));
+      nir_def_rewrite_uses(&intr->def, nir_ufind_msb(b, active_mask));
+      return true;
+   }
+
    case nir_intrinsic_vote_ieq:
    case nir_intrinsic_vote_feq: {
       /* The common lowering does:

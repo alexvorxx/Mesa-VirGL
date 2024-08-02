@@ -2717,7 +2717,27 @@ agx_optimize_nir(nir_shader *nir, unsigned *preamble_size)
             });
    NIR_PASS(_, nir, nir_lower_pack);
 
+   nir_convert_to_lcssa(nir, true, true);
+   NIR_PASS_V(nir, nir_divergence_analysis);
    bool progress = false;
+
+   static const nir_lower_subgroups_options subgroups_options = {
+      .ballot_bit_size = 32,
+      .ballot_components = 1,
+      .lower_elect = true,
+      .lower_subgroup_masks = true,
+   };
+
+   NIR_PASS(progress, nir, nir_opt_uniform_atomics, true);
+   NIR_PASS(progress, nir, nir_opt_uniform_subgroup, &subgroups_options);
+
+   /* The above create operations that need lowering/optimizing */
+   if (progress) {
+      NIR_PASS(_, nir, agx_nir_lower_subgroups);
+      NIR_PASS(_, nir, nir_opt_algebraic);
+   }
+
+   progress = false;
    NIR_PASS(progress, nir, agx_nir_lower_address);
 
    /* If address lowering made progress, clean up before forming preambles.
