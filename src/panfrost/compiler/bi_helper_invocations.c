@@ -110,6 +110,39 @@ bi_instr_uses_helpers(bi_instr *I)
    }
 }
 
+static void
+bi_add_branch_compare_values(const bi_instr *I, BITSET_WORD *deps)
+{
+   switch (I->op) {
+   case BI_OPCODE_BRANCHZI:
+   case BI_OPCODE_BRANCHC_I16:
+   case BI_OPCODE_BRANCHC_I32:
+      BITSET_SET(deps, I->src[0].value);
+      break;
+   case BI_OPCODE_BRANCH_F16:
+   case BI_OPCODE_BRANCH_F32:
+   case BI_OPCODE_BRANCH_I16:
+   case BI_OPCODE_BRANCH_I32:
+   case BI_OPCODE_BRANCH_S16:
+   case BI_OPCODE_BRANCH_S32:
+   case BI_OPCODE_BRANCH_U16:
+   case BI_OPCODE_BRANCH_U32:
+   case BI_OPCODE_BRANCHZ_F16:
+   case BI_OPCODE_BRANCHZ_F32:
+   case BI_OPCODE_BRANCHZ_I16:
+   case BI_OPCODE_BRANCHZ_I32:
+   case BI_OPCODE_BRANCHZ_S16:
+   case BI_OPCODE_BRANCHZ_S32:
+   case BI_OPCODE_BRANCHZ_U16:
+   case BI_OPCODE_BRANCHZ_U32:
+      BITSET_SET(deps, I->src[0].value);
+      BITSET_SET(deps, I->src[1].value);
+      break;
+   default:
+      break;
+   }
+}
+
 /* Does a block use helpers directly */
 static bool
 bi_block_uses_helpers(bi_block *block)
@@ -224,14 +257,15 @@ bi_analyze_helper_requirements(bi_context *ctx)
    BITSET_WORD *deps = calloc(sizeof(BITSET_WORD), ctx->ssa_alloc);
 
    /* Initialize with the sources of instructions consuming
-    * derivatives */
+    * derivatives and the sources of conditional branch instructions */
 
    bi_foreach_instr_global(ctx, I) {
-      if (!bi_instr_uses_helpers(I))
-         continue;
-
-      bi_foreach_ssa_src(I, s)
-         BITSET_SET(deps, I->src[s].value);
+      if (bi_instr_uses_helpers(I)) {
+         bi_foreach_ssa_src(I, s)
+            BITSET_SET(deps, I->src[s].value);
+      } else {
+         bi_add_branch_compare_values(I, deps);
+      }
    }
 
    /* Propagate that up */
