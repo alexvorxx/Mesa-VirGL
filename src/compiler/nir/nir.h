@@ -6718,7 +6718,7 @@ bool nir_opt_undef(nir_shader *shader);
 
 bool nir_lower_undef_to_zero(nir_shader *shader);
 
-bool nir_opt_uniform_atomics(nir_shader *shader);
+bool nir_opt_uniform_atomics(nir_shader *shader, bool fs_atomics_predicated);
 
 bool nir_opt_uniform_subgroup(nir_shader *shader,
                               const nir_lower_subgroups_options *);

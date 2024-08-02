@@ -1790,7 +1790,7 @@ brw_postprocess_nir(nir_shader *nir, const struct brw_compiler *compiler,
       .lower_subgroup_masks = true,
    };
 
-   if (OPT(nir_opt_uniform_atomics)) {
+   if (OPT(nir_opt_uniform_atomics, false)) {
       OPT(nir_lower_subgroups, &subgroups_options);
 
       OPT(nir_opt_algebraic_before_lower_int64);
