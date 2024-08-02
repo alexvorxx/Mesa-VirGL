@@ -216,10 +216,16 @@ main(void)
       return;
    }
 
-   atomicCompSwap(DEREF(args.header).sync_data.task_counts[0], 0xFFFFFFFF,
-                  DEREF(args.header).active_leaf_count);
-   atomicCompSwap(DEREF(args.header).sync_data.current_phase_end_counter, 0xFFFFFFFF,
-                  DIV_ROUND_UP(DEREF(args.header).active_leaf_count, gl_WorkGroupSize.x));
+   /* Only initialize sync_data once per workgroup. For intra-workgroup synchronization,
+    * fetch_task contains a workgroup-scoped control+memory barrier.
+    */
+   if (gl_LocalInvocationIndex == 0) {
+      atomicCompSwap(DEREF(args.header).sync_data.task_counts[0], 0xFFFFFFFF,
+                     DEREF(args.header).active_leaf_count);
+      atomicCompSwap(DEREF(args.header).sync_data.current_phase_end_counter, 0xFFFFFFFF,
+                     DIV_ROUND_UP(DEREF(args.header).active_leaf_count, gl_WorkGroupSize.x));
+   }
+
    REF(ploc_prefix_scan_partition)
    partitions = REF(ploc_prefix_scan_partition)(args.prefix_scan_partitions);
 
