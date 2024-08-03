@@ -33,7 +33,6 @@ libintel_compiler_brw_files = files(
   'brw_compile_vs.cpp',
   'brw_compiler.c',
   'brw_compiler.h',
-  'brw_dead_control_flow.cpp',
   'brw_debug_recompile.c',
   'brw_def_analysis.cpp',
   'brw_disasm.c',

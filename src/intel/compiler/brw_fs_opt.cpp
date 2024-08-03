@@ -67,7 +67,6 @@ brw_fs_optimize(fs_visitor &s)
          OPT(brw_fs_opt_copy_propagation);
       OPT(brw_fs_opt_cmod_propagation);
       OPT(brw_fs_opt_dead_code_eliminate);
-      OPT(brw_fs_opt_dead_control_flow_eliminate);
       OPT(brw_fs_opt_saturate_propagation);
       OPT(brw_fs_opt_register_coalesce);
 
