@@ -460,10 +460,10 @@ hk_get_device_features(
       /* VK_EXT_extended_dynamic_state2 */
       .extendedDynamicState2 = true,
       .extendedDynamicState2LogicOp = true,
-      .extendedDynamicState2PatchControlPoints = false,
+      .extendedDynamicState2PatchControlPoints = true,
 
       /* VK_EXT_extended_dynamic_state3 */
-      .extendedDynamicState3TessellationDomainOrigin = false,
+      .extendedDynamicState3TessellationDomainOrigin = true,
       .extendedDynamicState3DepthClampEnable = true,
       .extendedDynamicState3PolygonMode = true,
       .extendedDynamicState3RasterizationSamples = true,
