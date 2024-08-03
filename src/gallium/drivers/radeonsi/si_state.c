@@ -773,7 +773,8 @@ static void si_bind_blend_state(struct pipe_context *ctx, void *state)
    if ((sctx->screen->info.has_export_conflict_bug &&
         old_blend->blend_enable_4bit != blend->blend_enable_4bit) ||
        (sctx->occlusion_query_mode == SI_OCCLUSION_QUERY_MODE_PRECISE_BOOLEAN &&
-        !!old_blend->cb_target_mask != !!blend->cb_target_enabled_4bit))
+        !!old_blend->cb_target_mask != !!blend->cb_target_enabled_4bit) ||
+       (sctx->gfx_level >= GFX11 && old_blend->alpha_to_coverage != blend->alpha_to_coverage))
       si_mark_atom_dirty(sctx, &sctx->atoms.s.db_render_state);
 
    if (old_blend->cb_target_enabled_4bit != blend->cb_target_enabled_4bit ||
@@ -1789,6 +1790,23 @@ static void si_emit_db_render_state(struct si_context *sctx, unsigned index)
    unsigned db_shader_control = 0, db_render_control = 0, db_count_control = 0, vrs_override_cntl = 0;
 
    /* DB_RENDER_CONTROL */
+   /* Program OREO_MODE optimally for GFX11+. */
+   if (sctx->gfx_level >= GFX11) {
+      /* This ignores CONSERVATIVE_Z_EXPORT, so it's slightly pessimistic. */
+      bool late_z = !G_02880C_DEPTH_BEFORE_SHADER(sctx->ps_db_shader_control) &&
+                    (G_02880C_Z_ORDER(sctx->ps_db_shader_control) == V_02880C_LATE_Z ||
+                     (G_02880C_Z_ORDER(sctx->ps_db_shader_control) == V_02880C_EARLY_Z_THEN_LATE_Z &&
+                      (G_02880C_KILL_ENABLE(sctx->ps_db_shader_control) ||
+                       G_02880C_Z_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
+                       G_02880C_STENCIL_TEST_VAL_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
+                       G_02880C_STENCIL_OP_VAL_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
+                       G_02880C_COVERAGE_TO_MASK_ENABLE(sctx->ps_db_shader_control) ||
+                       G_02880C_MASK_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
+                       sctx->queued.named.blend->alpha_to_coverage)));
+
+      db_render_control |= S_028000_OREO_MODE(late_z ? V_028000_OMODE_BLEND : V_028000_OMODE_O_THEN_B);
+   }
+
    if (sctx->gfx_level >= GFX12) {
       assert(!sctx->dbcb_depth_copy_enabled && !sctx->dbcb_stencil_copy_enabled);
       assert(!sctx->db_flush_depth_inplace && !sctx->db_flush_stencil_inplace);
@@ -1911,11 +1929,10 @@ static void si_emit_db_render_state(struct si_context *sctx, unsigned index)
          S_028010_CENTROID_COMPUTATION_MODE(sctx->gfx_level >= GFX10_3 ? 1 : 0);
 
    if (sctx->gfx_level >= GFX12) {
-      /* Gfx12 sets DB_RENDER_CONTROL in the gfx preamble. */
-      assert(db_render_control == 0);
-
       radeon_begin(&sctx->gfx_cs);
       gfx12_begin_context_regs();
+      gfx12_opt_set_context_reg(R_028000_DB_RENDER_CONTROL, SI_TRACKED_DB_RENDER_CONTROL,
+                                db_render_control);
       gfx12_opt_set_context_reg(R_028010_DB_RENDER_OVERRIDE2, SI_TRACKED_DB_RENDER_OVERRIDE2,
                                 S_028010_DECOMPRESS_Z_ON_FLUSH(sctx->framebuffer.nr_samples >= 4) |
                                 S_028010_CENTROID_COMPUTATION_MODE(1));
@@ -5776,7 +5793,6 @@ static void gfx12_init_gfx_preamble_state(struct si_context *sctx)
    ac_pm4_set_reg(&pm4->base, R_00B4D4_SPI_SHADER_USER_ACCUM_LSHS_3, 0);
 
    /* Context registers */
-   ac_pm4_set_reg(&pm4->base, R_028000_DB_RENDER_CONTROL, 0);
    ac_pm4_set_reg(&pm4->base, R_02800C_DB_RENDER_OVERRIDE, S_02800C_FORCE_STENCIL_READ(1));
    ac_pm4_set_reg(&pm4->base, R_028040_DB_GL1_INTERFACE_CONTROL, 0);
    ac_pm4_set_reg(&pm4->base, R_028048_DB_MEM_TEMPORAL,

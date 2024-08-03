@@ -265,7 +265,7 @@ enum si_tracked_reg
 {
    /* CONTEXT registers. */
    /* 2 consecutive registers (GFX6-11), or separate registers (GFX12) */
-   SI_TRACKED_DB_RENDER_CONTROL,             /* GFX6-11 (not tracked on GFX12) */
+   SI_TRACKED_DB_RENDER_CONTROL,
    SI_TRACKED_DB_COUNT_CONTROL,
 
    SI_TRACKED_DB_DEPTH_CONTROL,
