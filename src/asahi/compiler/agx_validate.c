@@ -298,23 +298,32 @@ agx_read_registers(const agx_instr *I, unsigned s)
          return agx_coordinate_registers(I);
       } else if (s == 1) {
          /* LOD */
-         if (I->lod_mode == AGX_LOD_MODE_LOD_GRAD) {
+         if (I->lod_mode == AGX_LOD_MODE_LOD_GRAD ||
+             I->lod_mode == AGX_LOD_MODE_LOD_GRAD_MIN) {
+
+            /* Technically only 16-bit but we model as 32-bit to keep the IR
+             * simple, since the gradient is otherwise 32-bit.
+             */
+            unsigned min = I->lod_mode == AGX_LOD_MODE_LOD_GRAD_MIN ? 2 : 0;
+
             switch (I->dim) {
             case AGX_DIM_1D:
             case AGX_DIM_1D_ARRAY:
-               return 2 * 2 * 1;
+               return (2 * 2 * 1) + min;
             case AGX_DIM_2D:
             case AGX_DIM_2D_ARRAY:
             case AGX_DIM_2D_MS_ARRAY:
             case AGX_DIM_2D_MS:
-               return 2 * 2 * 2;
+               return (2 * 2 * 2) + min;
             case AGX_DIM_CUBE:
             case AGX_DIM_CUBE_ARRAY:
             case AGX_DIM_3D:
-               return 2 * 2 * 3;
+               return (2 * 2 * 3) + min;
             }
 
             unreachable("Invalid texture dimension");
+         } else if (I->lod_mode == AGX_LOD_MODE_AUTO_LOD_BIAS_MIN) {
+            return 2;
          } else {
             return 1;
          }

@@ -2007,23 +2007,33 @@ agx_emit_alu(agx_builder *b, nir_alu_instr *instr)
 }
 
 static enum agx_lod_mode
-agx_lod_mode_for_nir(nir_texop op, bool biased, bool lod_is_zero)
+agx_lod_mode_for_nir(nir_texop op, bool biased, bool min_lod, bool lod_is_zero)
 {
    switch (op) {
    case nir_texop_tex:
    case nir_texop_tg4:
+      /* We could support this for tex, but it's never actually seen because tex
+       * is always turned into txb to implement sampler LOD bias in Vulkan.
+       */
+      assert(!min_lod && "unimplemented");
+
       return AGX_LOD_MODE_AUTO_LOD;
    case nir_texop_txb:
-      return AGX_LOD_MODE_AUTO_LOD_BIAS;
+      return min_lod ? AGX_LOD_MODE_AUTO_LOD_BIAS_MIN
+                     : AGX_LOD_MODE_AUTO_LOD_BIAS;
    case nir_texop_lod:
+      assert(!min_lod);
       return biased ? AGX_LOD_MODE_AUTO_LOD_BIAS : AGX_LOD_MODE_AUTO_LOD;
    case nir_texop_txd:
-      return AGX_LOD_MODE_LOD_GRAD;
+      return min_lod ? AGX_LOD_MODE_LOD_GRAD_MIN : AGX_LOD_MODE_LOD_GRAD;
    case nir_texop_txl:
+      assert(!min_lod);
       return AGX_LOD_MODE_LOD_MIN;
    case nir_texop_txf:
+      assert(!min_lod);
       return lod_is_zero ? AGX_LOD_MODE_AUTO_LOD : AGX_LOD_MODE_LOD_MIN;
    case nir_texop_txf_ms:
+      assert(!min_lod);
       assert(lod_is_zero && "no mipmapping");
       return AGX_LOD_MODE_AUTO_LOD;
    default:
@@ -2055,7 +2065,8 @@ agx_emit_tex(agx_builder *b, nir_tex_instr *instr)
    agx_index coords = agx_null(), bindless = agx_immediate(0),
              texture = agx_immediate(instr->texture_index),
              sampler = agx_immediate(0), lod = agx_immediate(0),
-             compare = agx_null(), packed_offset = agx_null();
+             compare = agx_null(), packed_offset = agx_null(),
+             min_lod = agx_null();
 
    bool lod_is_zero = true;
 
@@ -2076,6 +2087,11 @@ agx_emit_tex(agx_builder *b, nir_tex_instr *instr)
          lod = index;
          lod_is_zero = nir_src_is_const(instr->src[i].src) &&
                        nir_src_as_uint(instr->src[i].src) == 0;
+         break;
+
+      case nir_tex_src_min_lod:
+         assert(index.size == AGX_SIZE_16);
+         min_lod = index;
          break;
 
       case nir_tex_src_comparator:
@@ -2099,19 +2115,36 @@ agx_emit_tex(agx_builder *b, nir_tex_instr *instr)
          int y_idx = nir_tex_instr_src_index(instr, nir_tex_src_ddy);
          assert(y_idx >= 0 && "we only handle gradients");
 
+         int min_idx = nir_tex_instr_src_index(instr, nir_tex_src_min_lod);
+         bool has_min = min_idx >= 0;
+         agx_index min;
+
          unsigned n = nir_tex_instr_src_size(instr, y_idx);
          assert((n == 2 || n == 3) && "other sizes not supported");
 
          agx_index index2 = agx_src_index(&instr->src[y_idx].src);
 
+         if (has_min) {
+            min = agx_src_index(&instr->src[min_idx].src);
+
+            /* Undef extend to 32-bit since our IR is iffy */
+            min = agx_vec2(b, min, agx_undef(AGX_SIZE_16));
+            min.channels_m1--;
+            min.size = AGX_SIZE_32;
+         }
+
          /* We explicitly don't cache about the split cache for this */
-         lod = agx_vec_temp(b->shader, AGX_SIZE_32, 2 * n);
-         agx_instr *I = agx_collect_to(b, lod, 2 * n);
+         unsigned chans = (2 * n) + (has_min ? 1 : 0);
+         lod = agx_vec_temp(b->shader, AGX_SIZE_32, chans);
+         agx_instr *I = agx_collect_to(b, lod, chans);
 
          for (unsigned i = 0; i < n; ++i) {
             I->src[(2 * i) + 0] = agx_emit_extract(b, index, i);
             I->src[(2 * i) + 1] = agx_emit_extract(b, index2, i);
          }
+
+         if (has_min)
+            I->src[2 * n] = min;
 
          break;
       }
@@ -2127,11 +2160,14 @@ agx_emit_tex(agx_builder *b, nir_tex_instr *instr)
 
    enum agx_lod_mode lod_mode = agx_lod_mode_for_nir(
       instr->op, nir_tex_instr_src_index(instr, nir_tex_src_bias) >= 0,
-      lod_is_zero);
+      nir_tex_instr_src_index(instr, nir_tex_src_min_lod) >= 0, lod_is_zero);
 
    if (lod_mode == AGX_LOD_MODE_AUTO_LOD) {
       /* Ignored logically but asserted 0 */
       lod = agx_immediate(0);
+   } else if (lod_mode == AGX_LOD_MODE_AUTO_LOD_BIAS_MIN) {
+      /* Combine min with lod */
+      lod = agx_vec2(b, lod, min_lod);
    }
 
    agx_index dst = agx_def_index(&instr->def);
