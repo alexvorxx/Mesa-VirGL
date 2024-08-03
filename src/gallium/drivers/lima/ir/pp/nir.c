@@ -153,6 +153,7 @@ static int nir_to_ppir_opcodes[nir_num_opcodes] = {
    [nir_op_fsat] = ppir_op_sat,
    [nir_op_fddx] = ppir_op_ddx,
    [nir_op_fddy] = ppir_op_ddy,
+   [nir_op_fclamp_pos_mali] = ppir_op_clamp_pos,
 };
 
 static bool ppir_emit_alu(ppir_block *block, nir_instr *ni)

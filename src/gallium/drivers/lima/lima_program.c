@@ -262,6 +262,7 @@ lima_program_optimize_fs_nir(struct nir_shader *s,
 
    /* Must be run after optimization loop */
    NIR_PASS_V(s, lima_nir_scale_trig);
+   NIR_PASS_V(s, lima_nir_ppir_algebraic_late);
 
    NIR_PASS_V(s, nir_copy_prop);
    NIR_PASS_V(s, nir_opt_dce);

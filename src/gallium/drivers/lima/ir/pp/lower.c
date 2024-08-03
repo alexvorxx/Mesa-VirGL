@@ -467,6 +467,11 @@ static bool ppir_lower_with_dest_mod(ppir_block *block, ppir_node *node, ppir_ou
    return true;
 }
 
+static bool ppir_lower_clamp_pos(ppir_block *block, ppir_node *node)
+{
+   return ppir_lower_with_dest_mod(block, node, ppir_outmod_clamp_positive);
+}
+
 static bool ppir_lower_sat(ppir_block *block, ppir_node *node)
 {
    return ppir_lower_with_dest_mod(block, node, ppir_outmod_clamp_fraction);
@@ -675,6 +680,7 @@ static bool (*ppir_lower_funcs[ppir_op_num])(ppir_block *, ppir_node *) = {
    [ppir_op_select] = ppir_lower_select,
    [ppir_op_trunc] = ppir_lower_trunc,
    [ppir_op_sat] = ppir_lower_sat,
+   [ppir_op_clamp_pos] = ppir_lower_clamp_pos,
    [ppir_op_branch] = ppir_lower_branch,
    [ppir_op_load_uniform] = ppir_lower_load,
    [ppir_op_load_temp] = ppir_lower_load,
