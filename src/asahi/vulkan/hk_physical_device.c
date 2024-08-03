@@ -262,7 +262,7 @@ hk_get_device_features(
       .shaderInt64 = true,
       .shaderInt16 = true,
       .shaderResourceResidency = false,
-      .shaderResourceMinLod = false,
+      .shaderResourceMinLod = true,
       .sparseBinding = false,
       .sparseResidency2Samples = false,
       .sparseResidency4Samples = false,
