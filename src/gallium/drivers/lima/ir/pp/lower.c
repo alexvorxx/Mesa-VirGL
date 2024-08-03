@@ -272,17 +272,6 @@ static bool ppir_lower_select(ppir_block *block, ppir_node *node)
    return true;
 }
 
-static bool ppir_lower_trunc(ppir_block *block, ppir_node *node)
-{
-   /* Turn it into a mov with a round to integer output modifier */
-   ppir_alu_node *alu = ppir_node_to_alu(node);
-   ppir_dest *move_dest = &alu->dest;
-   move_dest->modifier = ppir_outmod_round;
-   node->op = ppir_op_mov;
-
-   return true;
-}
-
 static bool ppir_lower_fold_src_mod(ppir_block *block, ppir_node *node)
 {
    assert(node->op == ppir_op_neg || node->op == ppir_op_abs);
@@ -465,6 +454,11 @@ static bool ppir_lower_with_dest_mod(ppir_block *block, ppir_node *node, ppir_ou
    node->op = ppir_op_mov;
 
    return true;
+}
+
+static bool ppir_lower_trunc(ppir_block *block, ppir_node *node)
+{
+   return ppir_lower_with_dest_mod(block, node, ppir_outmod_round);
 }
 
 static bool ppir_lower_clamp_pos(ppir_block *block, ppir_node *node)

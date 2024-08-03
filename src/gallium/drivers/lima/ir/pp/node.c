@@ -52,6 +52,9 @@ const ppir_op_info ppir_op_infos[] = {
    [ppir_op_clamp_pos] = {
       .name = "clamp_pos",
    },
+   [ppir_op_trunc] = {
+      .name = "trunc",
+   },
    [ppir_op_mul] = {
       .name = "mul",
       .slots = (int []) {
