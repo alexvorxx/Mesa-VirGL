@@ -81,7 +81,6 @@ static const struct debug_named_value fd_debug_options[] = {
    {"serialc",   FD_DBG_SERIALC,  "Disable asynchronous shader compile"},
    {"shaderdb",  FD_DBG_SHADERDB, "Enable shaderdb output"},
    {"flush",     FD_DBG_FLUSH,    "Force flush after every draw"},
-   {"deqp",      FD_DBG_DEQP,     "Enable dEQP hacks"},
    {"inorder",   FD_DBG_INORDER,  "Disable reordering for draws/blits"},
    {"bstat",     FD_DBG_BSTAT,    "Print batch stats at context destroy"},
    {"nogrow",    FD_DBG_NOGROW,   "Disable \"growable\" cmdstream buffers, even if kernel supports it"},
