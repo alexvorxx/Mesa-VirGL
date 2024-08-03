@@ -182,7 +182,9 @@ static void si_create_compute_state_async(void *job, void *gdata, int thread_ind
                                               sscreen->info.wave64_vgpr_alloc_granularity == 8) ? 8 : 4)) |
                              S_00B848_DX10_CLAMP(sscreen->info.gfx_level < GFX12) |
                              S_00B848_MEM_ORDERED(si_shader_mem_ordered(shader)) |
-                             S_00B848_FLOAT_MODE(shader->config.float_mode);
+                             S_00B848_FLOAT_MODE(shader->config.float_mode) |
+                             /* This is needed for CWSR, but it causes halts to work differently. */
+                             S_00B848_PRIV(sscreen->info.gfx_level == GFX11);
 
       if (sscreen->info.gfx_level < GFX10) {
          shader->config.rsrc1 |= S_00B848_SGPRS((shader->config.num_sgprs - 1) / 8);
