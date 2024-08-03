@@ -3153,6 +3153,7 @@ static bool gfx12_compute_miptree(struct ac_addrlib *addrlib, const struct radeo
          return false;
 
       assert(xout.pipeBankXor <= u_bit_consecutive(0, sizeof(surf->tile_swizzle) * 8 + 2));
+      surf->tile_swizzle = xout.pipeBankXor;
    }
 
    return true;
