@@ -5,6 +5,7 @@
 
 #include "compiler/nir/nir.h"
 #include "compiler/nir/nir_builder.h"
+#include "util/list.h"
 #include "agx_nir.h"
 #include "nir_builder_opcodes.h"
 #include "nir_intrinsics.h"
@@ -151,6 +152,26 @@ lower(nir_builder *b, nir_intrinsic_instr *intr, void *data)
       intr->intrinsic = nir_intrinsic_exclusive_scan;
       nir_def *accum = nir_build_alu2(b, red_op, data, &intr->def);
       nir_def_rewrite_uses_after(&intr->def, accum, accum->parent_instr);
+      return true;
+   }
+
+   case nir_intrinsic_ballot: {
+      /* Optimize popcount(ballot(true)) to load_active_subgroup_count_agx() */
+      if (!nir_src_is_const(intr->src[0]) || !nir_src_as_bool(intr->src[0]) ||
+          !list_is_singular(&intr->def.uses))
+         return false;
+
+      nir_src *use = list_first_entry(&intr->def.uses, nir_src, use_link);
+      nir_instr *parent = nir_src_parent_instr(use);
+      if (parent->type != nir_instr_type_alu)
+         return false;
+
+      nir_alu_instr *alu = nir_instr_as_alu(parent);
+      if (alu->op != nir_op_bit_count)
+         return false;
+
+      nir_def_rewrite_uses(&alu->def,
+                           nir_load_active_subgroup_count_agx(b, 32));
       return true;
    }
 
