@@ -226,7 +226,7 @@ dri3_authenticate(_EGLDisplay *disp, uint32_t id)
 #ifdef HAVE_WAYLAND_PLATFORM
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
-   if (dri2_dpy->device_name) {
+   if (!dri2_dpy->swrast) {
       _eglLog(_EGL_WARNING,
               "Wayland client render node authentication is unnecessary");
       return 0;

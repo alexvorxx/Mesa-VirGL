@@ -16,7 +16,7 @@ args_gbm = [
 ]
 deps_gbm = []
 incs_gbm = [
-  include_directories('main'), inc_include, inc_src, inc_loader, inc_gallium, inc_st_dri
+  include_directories('main'), inc_include, inc_src, inc_loader, inc_gallium, inc_st_dri, inc_gallium_aux
 ]
 
 # TODO: fix includes to delete this

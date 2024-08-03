@@ -30,7 +30,9 @@
 #include "util/format_srgb.h"
 #include "util/half_float.h"
 #include "util/u_dump.h"
+#include "util/u_helpers.h"
 #include "util/u_log.h"
+#include "util/u_transfer.h"
 #include "util/u_surface.h"
 
 #include "freedreno_blitter.h"
@@ -279,6 +281,26 @@ emit_setup(struct fd_batch *batch)
 
 template <chip CHIP>
 static void
+emit_blit_fini(struct fd_context *ctx, struct fd_ringbuffer *ring)
+{
+   fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
+   OUT_WFI5(ring);
+
+   OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
+   OUT_RING(ring, ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit);
+
+   OUT_PKT7(ring, CP_BLIT, 1);
+   OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
+
+   OUT_WFI5(ring);
+
+   OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
+   OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
+}
+FD_GENX(emit_blit_fini);
+
+template <chip CHIP>
+static void
 emit_blit_setup(struct fd_ringbuffer *ring, enum pipe_format pfmt,
                 bool scissor_enable, union pipe_color_union *color,
                 uint32_t unknown_8c01, enum a6xx_rotation rotate)
@@ -332,11 +354,11 @@ emit_blit_setup(struct fd_ringbuffer *ring, enum pipe_format pfmt,
 
 static void
 emit_blit_buffer_dst(struct fd_ringbuffer *ring, struct fd_resource *dst,
-                     unsigned off, unsigned size)
+                     unsigned off, unsigned size, a6xx_format color_format)
 {
    OUT_REG(ring,
            A6XX_RB_2D_DST_INFO(
-                 .color_format = FMT6_8_UNORM,
+                 .color_format = color_format,
                  .tile_mode = TILE6_LINEAR,
                  .color_swap = WZYX,
            ),
@@ -446,7 +468,7 @@ emit_blit_buffer(struct fd_context *ctx, struct fd_ringbuffer *ring,
       /*
        * Emit destination:
        */
-      emit_blit_buffer_dst(ring, dst, doff, p);
+      emit_blit_buffer_dst(ring, dst, doff, p, FMT6_8_UNORM);
 
       /*
        * Blit command:
@@ -463,19 +485,7 @@ emit_blit_buffer(struct fd_context *ctx, struct fd_ringbuffer *ring,
       OUT_RING(ring, A6XX_GRAS_2D_DST_BR_X(dshift + w - 1) |
                         A6XX_GRAS_2D_DST_BR_Y(0));
 
-      fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit);
-
-      OUT_PKT7(ring, CP_BLIT, 1);
-      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
-
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
+      emit_blit_fini<CHIP>(ctx, ring);
    }
 }
 
@@ -530,7 +540,7 @@ fd6_clear_ubwc(struct fd_batch *batch, struct fd_resource *rsc) assert_dt
       /*
        * Emit destination:
        */
-      emit_blit_buffer_dst(ring, rsc, offset, p);
+      emit_blit_buffer_dst(ring, rsc, offset, p, FMT6_8_UNORM);
 
       /*
        * Blit command:
@@ -541,20 +551,7 @@ fd6_clear_ubwc(struct fd_batch *batch, struct fd_resource *rsc) assert_dt
       OUT_RING(ring,
                A6XX_GRAS_2D_DST_BR_X(w - 1) | A6XX_GRAS_2D_DST_BR_Y(h - 1));
 
-      fd6_event_write<CHIP>(batch->ctx, ring, FD_LABEL);
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, batch->ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit);
-
-      OUT_PKT7(ring, CP_BLIT, 1);
-      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
-
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
-
+      emit_blit_fini<CHIP>(batch->ctx, ring);
       offset += w * h;
       size -= w * h;
    }
@@ -742,22 +739,7 @@ emit_blit_texture(struct fd_context *ctx, struct fd_ringbuffer *ring,
       emit_blit_dst(ring, info->dst.resource, info->dst.format, info->dst.level,
                     dbox->z + i);
 
-      /*
-       * Blit command:
-       */
-      fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit);
-
-      OUT_PKT7(ring, CP_BLIT, 1);
-      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
-
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
+      emit_blit_fini<CHIP>(ctx, ring);
    }
 }
 
@@ -816,6 +798,7 @@ emit_clear_color(struct fd_ringbuffer *ring, enum pipe_format pfmt,
       break;
    }
 }
+
 
 template <chip CHIP>
 void
@@ -888,6 +871,113 @@ convert_color(enum pipe_format format, union pipe_color_union *pcolor)
 }
 
 template <chip CHIP>
+static void
+fd6_clear_buffer(struct pipe_context *pctx,
+                 struct pipe_resource *prsc,
+                 unsigned offset, unsigned size,
+                 const void *clear_value, int clear_value_size)
+{
+   enum pipe_format dst_fmt;
+   union pipe_color_union color;
+
+   switch (clear_value_size) {
+   case 16:
+      dst_fmt = PIPE_FORMAT_R32G32B32A32_UINT;
+      memcpy(&color.ui, clear_value, 16);
+      break;
+   case 8:
+      dst_fmt = PIPE_FORMAT_R32G32_UINT;
+      memcpy(&color.ui, clear_value, 8);
+      memset(&color.ui[2], 0, 8);
+      break;
+   case 4:
+      dst_fmt = PIPE_FORMAT_R32_UINT;
+      memcpy(&color.ui, clear_value, 4);
+      memset(&color.ui[1], 0, 12);
+      break;
+   case 2:
+      dst_fmt = PIPE_FORMAT_R16_UINT;
+      color.ui[0] = *(unsigned short *)clear_value;
+      memset(&color.ui[1], 0, 12);
+      break;
+   case 1:
+      dst_fmt = PIPE_FORMAT_R8_UINT;
+      color.ui[0] = *(unsigned char *)clear_value;
+      memset(&color.ui[1], 0, 12);
+      break;
+   default:
+      dst_fmt = PIPE_FORMAT_NONE;
+      break;
+   }
+
+   /* unsupported clear_value_size and when alignment doesn't match fallback */
+   if ((dst_fmt == PIPE_FORMAT_NONE) || (offset % clear_value_size)) {
+      u_default_clear_buffer(pctx, prsc, offset, size, clear_value, clear_value_size);
+      return;
+   }
+
+   if (DEBUG_BLIT) {
+      fprintf(stderr, "buffer clear:\ndst resource: ");
+      util_dump_resource(stderr, prsc);
+      fprintf(stderr, "\n");
+   }
+
+   struct fd_context *ctx = fd_context(pctx);
+   struct fd_resource *rsc = fd_resource(prsc);
+   struct fd_batch *batch = fd_bc_alloc_batch(ctx, true);
+   struct fd_ringbuffer *ring = batch->draw;
+
+   fd_screen_lock(ctx->screen);
+   fd_batch_resource_write(batch, rsc);
+   fd_screen_unlock(ctx->screen);
+
+   assert(!batch->flushed);
+
+   /* Marking the batch as needing flush must come after the batch
+    * dependency tracking (resource_read()/resource_write()), as that
+    * can trigger a flush
+    */
+   fd_batch_needs_flush(batch);
+
+   fd_batch_update_queries(batch);
+
+   emit_setup<CHIP>(batch);
+
+   emit_clear_color(ring, dst_fmt, &color);
+   emit_blit_setup<CHIP>(ring, dst_fmt, false, &color, 0, ROTATE_0);
+
+   unsigned dshift = (offset / clear_value_size) & 0x3f;
+   for (unsigned part_offset = 0; part_offset < size; part_offset += (0x4000 - 0x40)) {
+      unsigned doff = (offset + part_offset) & ~0x3f;
+
+      unsigned w = MIN2((size - part_offset) / clear_value_size, (0x4000 - 0x40));
+
+      emit_blit_buffer_dst(ring, rsc, doff, 0, fd6_color_format(dst_fmt, TILE6_LINEAR));
+
+      OUT_PKT4(ring, REG_A6XX_GRAS_2D_DST_TL, 2);
+      OUT_RING(ring, A6XX_GRAS_2D_DST_TL_X(dshift) | A6XX_GRAS_2D_DST_TL_Y(0));
+      OUT_RING(ring, A6XX_GRAS_2D_DST_BR_X(dshift + w - 1) |
+                        A6XX_GRAS_2D_DST_BR_Y(0));
+
+      emit_blit_fini<CHIP>(ctx, ring);
+   }
+
+   fd6_emit_flushes<CHIP>(batch->ctx, ring,
+                    FD6_FLUSH_CCU_COLOR |
+                    FD6_FLUSH_CCU_DEPTH |
+                    FD6_FLUSH_CACHE |
+                    FD6_WAIT_FOR_IDLE);
+
+   fd_batch_flush(batch);
+   fd_batch_reference(&batch, NULL);
+
+   /* Acc query state will have been dirtied by our fd_batch_update_queries, so
+    * the ctx->batch may need to turn its queries back on.
+    */
+   fd_context_dirty(ctx, FD_DIRTY_QUERY);
+}
+
+template <chip CHIP>
 void
 fd6_clear_surface(struct fd_context *ctx, struct fd_ringbuffer *ring,
                   struct pipe_surface *psurf, const struct pipe_box *box2d,
@@ -915,22 +1005,7 @@ fd6_clear_surface(struct fd_context *ctx, struct fd_ringbuffer *ring,
         i++) {
       emit_blit_dst(ring, psurf->texture, psurf->format, psurf->u.tex.level, i);
 
-      /*
-       * Blit command:
-       */
-      fd6_event_write<CHIP>(ctx, ring, FD_LABEL);
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, ctx->screen->info->a6xx.magic.RB_DBG_ECO_CNTL_blit);
-
-      OUT_PKT7(ring, CP_BLIT, 1);
-      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
-
-      OUT_WFI5(ring);
-
-      OUT_PKT4(ring, REG_A6XX_RB_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0); /* RB_DBG_ECO_CNTL */
+      emit_blit_fini<CHIP>(ctx, ring);
    }
 }
 FD_GENX(fd6_clear_surface);
@@ -1403,6 +1478,7 @@ fd6_blitter_init(struct pipe_context *pctx)
    if (FD_DBG(NOBLIT))
       return;
 
+   pctx->clear_buffer = fd6_clear_buffer<CHIP>;
    pctx->clear_texture = fd6_clear_texture<CHIP>;
    ctx->blit = fd6_blit<CHIP>;
 }

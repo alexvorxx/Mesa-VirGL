@@ -91,6 +91,7 @@ struct dri_screen
    unsigned int api_mask;
 
    bool throttle;
+   bool dmabuf_import;
 
    struct st_config_options options;
 

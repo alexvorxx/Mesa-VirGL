@@ -38,12 +38,13 @@
 #include "kopper_interface.h"
 #include "loader.h"
 #include "loader_dri_helper.h"
+#include "dri_util.h"
 
 static __DRIimage *
 surfaceless_alloc_image(struct dri2_egl_display *dri2_dpy,
                         struct dri2_egl_surface *dri2_surf)
 {
-   return dri2_dpy->image->createImage(
+   return dri_create_image(
       dri2_dpy->dri_screen_render_gpu, dri2_surf->base.Width,
       dri2_surf->base.Height, dri2_surf->visual, NULL, 0, 0, NULL);
 }
@@ -51,11 +52,8 @@ surfaceless_alloc_image(struct dri2_egl_display *dri2_dpy,
 static void
 surfaceless_free_images(struct dri2_egl_surface *dri2_surf)
 {
-   struct dri2_egl_display *dri2_dpy =
-      dri2_egl_display(dri2_surf->base.Resource.Display);
-
    if (dri2_surf->front) {
-      dri2_dpy->image->destroyImage(dri2_surf->front);
+      dri2_destroy_image(dri2_surf->front);
       dri2_surf->front = NULL;
    }
 
@@ -151,12 +149,11 @@ cleanup_surface:
 static EGLBoolean
 surfaceless_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
    surfaceless_free_images(dri2_surf);
 
-   dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
+   driDestroyDrawable(dri2_surf->dri_drawable);
 
    dri2_fini_surface(surf);
    free(dri2_surf);

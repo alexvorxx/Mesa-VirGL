@@ -55,6 +55,11 @@
 #include "mesa_interface.h"
 #include "loader_dri_helper.h"
 #include "pipe-loader/pipe_loader.h"
+#include "pipe/p_screen.h"
+
+#ifdef HAVE_LIBDRM
+#include "xf86drm.h"
+#endif
 
 driOptionDescription __dri2ConfigOptions[] = {
       DRI_CONF_SECTION_DEBUG
@@ -170,6 +175,11 @@ driCreateNewScreen3(int scrn, int fd,
        screen->api_mask |= (1 << __DRI_API_GLES2);
     if (screen->max_gl_es2_version >= 30)
        screen->api_mask |= (1 << __DRI_API_GLES3);
+
+#ifdef HAVE_LIBDRM
+   if (screen->base.screen->get_param(screen->base.screen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_IMPORT)
+      screen->dmabuf_import = true;
+#endif
 
     return opaque_dri_screen(screen);
 }
@@ -959,7 +969,7 @@ driSwapBuffers(__DRIdrawable *pdp)
    drawable->swap_buffers(drawable);
 }
 
-static int
+int
 driSWRastQueryBufferAge(__DRIdrawable *pdp)
 {
    struct dri_drawable *drawable = dri_drawable(pdp);

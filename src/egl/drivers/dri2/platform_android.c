@@ -49,6 +49,7 @@
 #include "loader.h"
 #include "loader_dri_helper.h"
 #include "platform_android.h"
+#include "dri_util.h"
 
 static __DRIimage *
 droid_create_image_from_buffer_info(
@@ -58,7 +59,7 @@ droid_create_image_from_buffer_info(
 {
    unsigned error;
 
-   return dri2_dpy->image->createImageFromDmaBufs(
+   return dri2_from_dma_bufs(
       dri2_dpy->dri_screen_render_gpu, width, height, buf_info->drm_fourcc,
       buf_info->modifier, buf_info->fds, buf_info->num_planes,
       buf_info->strides, buf_info->offsets, color_info->yuv_color_space,
@@ -122,9 +123,8 @@ handle_in_fence_fd(struct dri2_egl_surface *dri2_surf, __DRIimage *img)
 
    validate_fence_fd(dri2_surf->in_fence_fd);
 
-   if (dri2_dpy->image->base.version >= 21 &&
-       dri2_dpy->image->setInFenceFd != NULL) {
-      dri2_dpy->image->setInFenceFd(img, dri2_surf->in_fence_fd);
+   if (dri2_dpy->has_native_fence_fd) {
+      dri2_set_in_fence_fd(img, dri2_surf->in_fence_fd);
    } else {
       sync_wait(dri2_surf->in_fence_fd, -1);
    }
@@ -188,8 +188,6 @@ static EGLBoolean
 droid_window_enqueue_buffer(_EGLDisplay *disp,
                             struct dri2_egl_surface *dri2_surf)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-
    /* Queue the buffer with stored out fence fd. The ANativeWindow or buffer
     * consumer may choose to wait for the fence to signal before accessing
     * it. If fence fd value is -1, buffer can be accessed by consumer
@@ -208,7 +206,7 @@ droid_window_enqueue_buffer(_EGLDisplay *disp,
    dri2_surf->back = NULL;
 
    if (dri2_surf->dri_image_back) {
-      dri2_dpy->image->destroyImage(dri2_surf->dri_image_back);
+      dri2_destroy_image(dri2_surf->dri_image_back);
       dri2_surf->dri_image_back = NULL;
    }
 
@@ -395,10 +393,7 @@ droid_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf,
 static EGLBoolean
 droid_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
-
-   dri2_egl_surface_free_local_buffers(dri2_surf);
 
    if (dri2_surf->base.Type == EGL_WINDOW_BIT) {
       if (dri2_surf->buffer)
@@ -410,18 +405,18 @@ droid_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
    if (dri2_surf->dri_image_back) {
       _eglLog(_EGL_DEBUG, "%s : %d : destroy dri_image_back", __func__,
               __LINE__);
-      dri2_dpy->image->destroyImage(dri2_surf->dri_image_back);
+      dri2_destroy_image(dri2_surf->dri_image_back);
       dri2_surf->dri_image_back = NULL;
    }
 
    if (dri2_surf->dri_image_front) {
       _eglLog(_EGL_DEBUG, "%s : %d : destroy dri_image_front", __func__,
               __LINE__);
-      dri2_dpy->image->destroyImage(dri2_surf->dri_image_front);
+      dri2_destroy_image(dri2_surf->dri_image_front);
       dri2_surf->dri_image_front = NULL;
    }
 
-   dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
+   driDestroyDrawable(dri2_surf->dri_drawable);
 
    close_in_fence_fd(dri2_surf);
    dri2_fini_surface(surf);
@@ -463,7 +458,6 @@ update_buffers(struct dri2_egl_surface *dri2_surf)
    /* free outdated buffers and update the surface size */
    if (dri2_surf->base.Width != dri2_surf->buffer->width ||
        dri2_surf->base.Height != dri2_surf->buffer->height) {
-      dri2_egl_surface_free_local_buffers(dri2_surf);
       dri2_surf->base.Width = dri2_surf->buffer->width;
       dri2_surf->base.Height = dri2_surf->buffer->height;
    }
@@ -490,7 +484,7 @@ get_front_bo(struct dri2_egl_surface *dri2_surf, unsigned int format)
          _EGL_DEBUG,
          "DRI driver requested unsupported front buffer for window surface");
    } else if (dri2_surf->base.Type == EGL_PBUFFER_BIT) {
-      dri2_surf->dri_image_front = dri2_dpy->image->createImage(
+      dri2_surf->dri_image_front = dri_create_image(
          dri2_dpy->dri_screen_render_gpu, dri2_surf->base.Width,
          dri2_surf->base.Height, format, NULL, 0, 0, NULL);
       if (!dri2_surf->dri_image_front) {
@@ -940,7 +934,7 @@ droid_display_shared_buffer(__DRIdrawable *driDrawable, int fence_fd,
       dri2_surf->back = NULL;
 
       if (dri2_surf->dri_image_back) {
-         dri2_dpy->image->destroyImage(dri2_surf->dri_image_back);
+         dri2_destroy_image(dri2_surf->dri_image_back);
          dri2_surf->dri_image_back = NULL;
       }
 

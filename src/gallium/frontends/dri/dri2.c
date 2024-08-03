@@ -389,7 +389,7 @@ dri2_release_buffer(__DRIbuffer *bPriv)
    FREE(buffer);
 }
 
-static void
+void
 dri2_set_in_fence_fd(__DRIimage *img, int fd)
 {
    validate_fence_fd(fd);
@@ -1685,6 +1685,9 @@ dri2_from_dma_bufs(__DRIscreen *screen,
    __DRIimage *img;
    const struct dri2_format_mapping *map = dri2_get_mapping_by_fourcc(fourcc);
 
+   if (!dri_screen(screen)->dmabuf_import)
+      return NULL;
+
    unsigned err = __DRI_IMAGE_ERROR_SUCCESS;
    /* Allow a NULL error arg since many callers don't care. */
    unsigned unused_error;
@@ -1751,7 +1754,7 @@ exit:
    return NULL;
 }
 
-static bool
+bool
 dri2_query_compression_rates(__DRIscreen *_screen, const __DRIconfig *config, int max,
                              enum __DRIFixedRateCompression *rates, int *count)
 {
@@ -1776,7 +1779,7 @@ dri2_query_compression_rates(__DRIscreen *_screen, const __DRIconfig *config, in
    return true;
 }
 
-static bool
+bool
 dri2_query_compression_modifiers(__DRIscreen *_screen, uint32_t fourcc,
                                  enum __DRIFixedRateCompression rate, int max,
                                  uint64_t *modifiers, int *count)
@@ -2288,7 +2291,7 @@ fail:
    return NULL;
 }
 
-static int
+int
 dri_query_compatible_render_only_device_fd(int kms_only_fd)
 {
 #ifdef HAVE_LIBDRM

@@ -845,25 +845,21 @@ dri2_wl_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
 static EGLBoolean
 dri2_wl_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
-   dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
+   driDestroyDrawable(dri2_surf->dri_drawable);
 
    for (int i = 0; i < ARRAY_SIZE(dri2_surf->color_buffers); i++) {
       if (dri2_surf->color_buffers[i].wl_buffer)
          wl_buffer_destroy(dri2_surf->color_buffers[i].wl_buffer);
       if (dri2_surf->color_buffers[i].dri_image)
-         dri2_dpy->image->destroyImage(dri2_surf->color_buffers[i].dri_image);
+         dri2_destroy_image(dri2_surf->color_buffers[i].dri_image);
       if (dri2_surf->color_buffers[i].linear_copy)
-         dri2_dpy->image->destroyImage(dri2_surf->color_buffers[i].linear_copy);
+         dri2_destroy_image(dri2_surf->color_buffers[i].linear_copy);
       if (dri2_surf->color_buffers[i].data)
          munmap(dri2_surf->color_buffers[i].data,
                 dri2_surf->color_buffers[i].data_size);
    }
-
-   if (dri2_dpy->dri2)
-      dri2_egl_surface_free_local_buffers(dri2_surf);
 
    if (dri2_surf->throttle_callback)
       wl_callback_destroy(dri2_surf->throttle_callback);
@@ -898,7 +894,7 @@ dri2_wl_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
    if (dri2_dpy->kopper)
-      dri2_dpy->kopper->setSwapInterval(dri2_surf->dri_drawable, interval);
+      kopperSetSwapInterval(dri2_surf->dri_drawable, interval);
 
    return EGL_TRUE;
 }
@@ -906,9 +902,6 @@ dri2_wl_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
 static void
 dri2_wl_release_buffers(struct dri2_egl_surface *dri2_surf)
 {
-   struct dri2_egl_display *dri2_dpy =
-      dri2_egl_display(dri2_surf->base.Resource.Display);
-
    for (int i = 0; i < ARRAY_SIZE(dri2_surf->color_buffers); i++) {
       if (dri2_surf->color_buffers[i].wl_buffer) {
          if (dri2_surf->color_buffers[i].locked) {
@@ -919,9 +912,9 @@ dri2_wl_release_buffers(struct dri2_egl_surface *dri2_surf)
          }
       }
       if (dri2_surf->color_buffers[i].dri_image)
-         dri2_dpy->image->destroyImage(dri2_surf->color_buffers[i].dri_image);
+         dri2_destroy_image(dri2_surf->color_buffers[i].dri_image);
       if (dri2_surf->color_buffers[i].linear_copy)
-         dri2_dpy->image->destroyImage(dri2_surf->color_buffers[i].linear_copy);
+         dri2_destroy_image(dri2_surf->color_buffers[i].linear_copy);
       if (dri2_surf->color_buffers[i].data)
          munmap(dri2_surf->color_buffers[i].data,
                 dri2_surf->color_buffers[i].data_size);
@@ -931,9 +924,6 @@ dri2_wl_release_buffers(struct dri2_egl_surface *dri2_surf)
       dri2_surf->color_buffers[i].data = NULL;
       dri2_surf->color_buffers[i].age = 0;
    }
-
-   if (dri2_dpy->dri2)
-      dri2_egl_surface_free_local_buffers(dri2_surf);
 }
 
 /* Return list of modifiers that should be used to restrict the list of
@@ -952,7 +942,7 @@ get_surface_specific_modifiers(struct dri2_egl_surface *dri2_surf,
        !dri2_surf->wl_win)
       return NULL;
 
-   if (!dri2_dpy->image->queryCompressionModifiers(
+   if (!dri2_query_compression_modifiers(
           dri2_dpy->dri_screen_render_gpu, dri2_surf->format, rate,
           0, NULL, modifiers_count))
       return NULL;
@@ -961,7 +951,7 @@ get_surface_specific_modifiers(struct dri2_egl_surface *dri2_surf,
    if (!modifiers)
       return NULL;
 
-   if (!dri2_dpy->image->queryCompressionModifiers(
+   if (!dri2_query_compression_modifiers(
           dri2_dpy->dri_screen_render_gpu, dri2_surf->format, rate,
           *modifiers_count, modifiers, modifiers_count)) {
       free(modifiers);
@@ -974,15 +964,13 @@ get_surface_specific_modifiers(struct dri2_egl_surface *dri2_surf,
 static void
 update_surface(struct dri2_egl_surface *dri2_surf, __DRIimage *dri_img)
 {
-   struct dri2_egl_display *dri2_dpy =
-      dri2_egl_display(dri2_surf->base.Resource.Display);
    int compression_rate;
 
    if (!dri_img)
       return;
 
    /* Update the surface with the actual compression rate */
-   dri2_dpy->image->queryImage(dri_img, __DRI_IMAGE_ATTRIB_COMPRESSION_RATE,
+   dri2_query_image(dri_img, __DRI_IMAGE_ATTRIB_COMPRESSION_RATE,
                                &compression_rate);
    dri2_surf->base.CompressionRate = compression_rate;
 }
@@ -1225,13 +1213,13 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
             int offsets[4];
             unsigned error;
 
-            if (!dri2_dpy->image->queryImage(linear_copy_display_gpu_image,
+            if (!dri2_query_image(linear_copy_display_gpu_image,
                                              __DRI_IMAGE_ATTRIB_NUM_PLANES,
                                              &num_planes))
                num_planes = 1;
 
             for (i = 0; i < num_planes; i++) {
-               __DRIimage *image = dri2_dpy->image->fromPlanar(
+               __DRIimage *image = dri2_from_planar(
                   linear_copy_display_gpu_image, i, NULL);
 
                if (!image) {
@@ -1240,27 +1228,27 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
                }
 
                buffer_fds[i] = -1;
-               ret &= dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_FD,
+               ret &= dri2_query_image(image, __DRI_IMAGE_ATTRIB_FD,
                                                   &buffer_fds[i]);
-               ret &= dri2_dpy->image->queryImage(
+               ret &= dri2_query_image(
                   image, __DRI_IMAGE_ATTRIB_STRIDE, &strides[i]);
-               ret &= dri2_dpy->image->queryImage(
+               ret &= dri2_query_image(
                   image, __DRI_IMAGE_ATTRIB_OFFSET, &offsets[i]);
 
                if (image != linear_copy_display_gpu_image)
-                  dri2_dpy->image->destroyImage(image);
+                  dri2_destroy_image(image);
 
                if (!ret) {
                   do {
                      if (buffer_fds[i] != -1)
                         close(buffer_fds[i]);
                   } while (--i >= 0);
-                  dri2_dpy->image->destroyImage(linear_copy_display_gpu_image);
+                  dri2_destroy_image(linear_copy_display_gpu_image);
                   return -1;
                }
             }
 
-            ret &= dri2_dpy->image->queryImage(linear_copy_display_gpu_image,
+            ret &= dri2_query_image(linear_copy_display_gpu_image,
                                                __DRI_IMAGE_ATTRIB_FOURCC,
                                                &fourcc);
             if (!ret) {
@@ -1268,7 +1256,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
                   if (buffer_fds[i] != -1)
                      close(buffer_fds[i]);
                } while (--i >= 0);
-               dri2_dpy->image->destroyImage(linear_copy_display_gpu_image);
+               dri2_destroy_image(linear_copy_display_gpu_image);
                return -1;
             }
 
@@ -1276,7 +1264,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
              * need to make it visible to render GPU
              */
             dri2_surf->back->linear_copy =
-               dri2_dpy->image->createImageFromDmaBufs(
+               dri2_from_dma_bufs(
                   dri2_dpy->dri_screen_render_gpu,
                   dri2_surf->base.Width, dri2_surf->base.Height,
                   fourcc, linear_mod,
@@ -1290,7 +1278,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
                if (buffer_fds[i] != -1)
                   close(buffer_fds[i]);
             }
-            dri2_dpy->image->destroyImage(linear_copy_display_gpu_image);
+            dri2_destroy_image(linear_copy_display_gpu_image);
          }
       }
 
@@ -1333,15 +1321,13 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
 static void
 back_bo_to_dri_buffer(struct dri2_egl_surface *dri2_surf, __DRIbuffer *buffer)
 {
-   struct dri2_egl_display *dri2_dpy =
-      dri2_egl_display(dri2_surf->base.Resource.Display);
    __DRIimage *image;
    int name, pitch;
 
    image = dri2_surf->back->dri_image;
 
-   dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_NAME, &name);
-   dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_STRIDE, &pitch);
+   dri2_query_image(image, __DRI_IMAGE_ATTRIB_NAME, &name);
+   dri2_query_image(image, __DRI_IMAGE_ATTRIB_STRIDE, &pitch);
 
    buffer->attachment = __DRI_BUFFER_BACK_LEFT;
    buffer->name = name;
@@ -1393,9 +1379,9 @@ update_buffers(struct dri2_egl_surface *dri2_surf)
           dri2_surf->color_buffers[i].wl_buffer &&
           dri2_surf->color_buffers[i].age > BUFFER_TRIM_AGE_HYSTERESIS) {
          wl_buffer_destroy(dri2_surf->color_buffers[i].wl_buffer);
-         dri2_dpy->image->destroyImage(dri2_surf->color_buffers[i].dri_image);
+         dri2_destroy_image(dri2_surf->color_buffers[i].dri_image);
          if (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu)
-            dri2_dpy->image->destroyImage(
+            dri2_destroy_image(
                dri2_surf->color_buffers[i].linear_copy);
          dri2_surf->color_buffers[i].wl_buffer = NULL;
          dri2_surf->color_buffers[i].dri_image = NULL;
@@ -1484,22 +1470,22 @@ create_wl_buffer(struct dri2_egl_display *dri2_dpy,
    uint64_t modifier = DRM_FORMAT_MOD_INVALID;
    int mod_hi, mod_lo;
 
-   query = dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_WIDTH, &width);
+   query = dri2_query_image(image, __DRI_IMAGE_ATTRIB_WIDTH, &width);
    query &=
-      dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_HEIGHT, &height);
+      dri2_query_image(image, __DRI_IMAGE_ATTRIB_HEIGHT, &height);
    query &=
-      dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_FOURCC, &fourcc);
+      dri2_query_image(image, __DRI_IMAGE_ATTRIB_FOURCC, &fourcc);
    if (!query)
       return NULL;
 
-   query = dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_NUM_PLANES,
+   query = dri2_query_image(image, __DRI_IMAGE_ATTRIB_NUM_PLANES,
                                        &num_planes);
    if (!query)
       num_planes = 1;
 
-   query = dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_MODIFIER_UPPER,
+   query = dri2_query_image(image, __DRI_IMAGE_ATTRIB_MODIFIER_UPPER,
                                        &mod_hi);
-   query &= dri2_dpy->image->queryImage(
+   query &= dri2_query_image(
       image, __DRI_IMAGE_ATTRIB_MODIFIER_LOWER, &mod_lo);
    if (query) {
       modifier = combine_u32_into_u64(mod_hi, mod_lo);
@@ -1546,20 +1532,20 @@ create_wl_buffer(struct dri2_egl_display *dri2_dpy,
          int stride, offset;
          int fd = -1;
 
-         p_image = dri2_dpy->image->fromPlanar(image, i, NULL);
+         p_image = dri2_from_planar(image, i, NULL);
          if (!p_image) {
             assert(i == 0);
             p_image = image;
          }
 
          query =
-            dri2_dpy->image->queryImage(p_image, __DRI_IMAGE_ATTRIB_FD, &fd);
-         query &= dri2_dpy->image->queryImage(
+            dri2_query_image(p_image, __DRI_IMAGE_ATTRIB_FD, &fd);
+         query &= dri2_query_image(
             p_image, __DRI_IMAGE_ATTRIB_STRIDE, &stride);
-         query &= dri2_dpy->image->queryImage(
+         query &= dri2_query_image(
             p_image, __DRI_IMAGE_ATTRIB_OFFSET, &offset);
          if (image != p_image)
-            dri2_dpy->image->destroyImage(p_image);
+            dri2_destroy_image(p_image);
 
          if (!query) {
             if (fd >= 0)
@@ -1593,9 +1579,9 @@ create_wl_buffer(struct dri2_egl_display *dri2_dpy,
       if (num_planes > 1)
          return NULL;
 
-      query = dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_FD, &fd);
+      query = dri2_query_image(image, __DRI_IMAGE_ATTRIB_FD, &fd);
       query &=
-         dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_STRIDE, &stride);
+         dri2_query_image(image, __DRI_IMAGE_ATTRIB_STRIDE, &stride);
       if (!query) {
          if (fd >= 0)
             close(fd);
@@ -1719,7 +1705,7 @@ dri2_wl_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
    if (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu) {
       _EGLContext *ctx = _eglGetCurrentContext();
       struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
-      dri2_dpy->image->blitImage(
+      dri2_blit_image(
          dri2_ctx->dri_context, dri2_surf->current->linear_copy,
          dri2_surf->current->dri_image, 0, 0, dri2_surf->base.Width,
          dri2_surf->base.Height, 0, 0, dri2_surf->base.Width,
@@ -1778,7 +1764,7 @@ dri2_wl_create_wayland_buffer_from_image(_EGLDisplay *disp, _EGLImage *img)
    int fourcc;
 
    /* Check the upstream display supports this buffer's format. */
-   dri2_dpy->image->queryImage(image, __DRI_IMAGE_ATTRIB_FOURCC, &fourcc);
+   dri2_query_image(image, __DRI_IMAGE_ATTRIB_FOURCC, &fourcc);
    if (!server_supports_fourcc(&dri2_dpy->formats, fourcc))
       goto bad_format;
 
@@ -2322,18 +2308,10 @@ dri2_initialize_wayland_drm(_EGLDisplay *disp)
        * supported by the driver. We deprecated the support to GEM names API, so
        * we bail out if the driver does not support Prime. */
       if (!(dri2_dpy->capabilities & WL_DRM_CAPABILITY_PRIME) ||
-          (dri2_dpy->image->createImageFromDmaBufs == NULL)) {
+          !dri2_dpy->has_dmabuf_import) {
          _eglLog(_EGL_WARNING, "wayland-egl: display does not support prime");
          goto cleanup;
       }
-   }
-
-   if (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu &&
-       dri2_dpy->image->blitImage == NULL) {
-      _eglLog(_EGL_WARNING, "wayland-egl: Different GPU selected, but the "
-                            "Image extension in the driver is not "
-                            "compatible. blitImage() is required");
-      goto cleanup;
    }
 
    dri2_wl_add_configs_for_visuals(disp);
@@ -2711,14 +2689,14 @@ dri2_wl_kopper_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
 
    if (n_rects) {
       if (dri2_dpy->kopper)
-         dri2_dpy->kopper->swapBuffersWithDamage(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY, n_rects, rects);
+         kopperSwapBuffersWithDamage(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY, n_rects, rects);
       else
-         dri2_dpy->core->swapBuffersWithDamage(dri2_surf->dri_drawable, n_rects, rects);
+         driSwapBuffersWithDamage(dri2_surf->dri_drawable, n_rects, rects);
    } else {
       if (dri2_dpy->kopper)
-         dri2_dpy->kopper->swapBuffers(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY);
+         kopperSwapBuffers(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY);
       else
-         dri2_dpy->core->swapBuffers(dri2_surf->dri_drawable);
+         driSwapBuffers(dri2_surf->dri_drawable);
    }
 
    dri2_surf->current = dri2_surf->back;
@@ -2738,7 +2716,6 @@ static EGLBoolean
 dri2_wl_swrast_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
                                         const EGLint *rects, EGLint n_rects)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
 
    if (!dri2_surf->wl_win)
@@ -2761,9 +2738,9 @@ dri2_wl_swrast_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
                                  dri2_surf->base.Height, dst, dri2_surf);
 
    if (n_rects)
-      dri2_dpy->core->swapBuffersWithDamage(dri2_surf->dri_drawable, n_rects, rects);
+      driSwapBuffersWithDamage(dri2_surf->dri_drawable, n_rects, rects);
    else
-      dri2_dpy->core->swapBuffers(dri2_surf->dri_drawable);
+      driSwapBuffers(dri2_surf->dri_drawable);
 
    dri2_surf->current = dri2_surf->back;
    dri2_surf->back = NULL;
@@ -2787,9 +2764,9 @@ dri2_wl_kopper_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surface)
 
    /* This can legitimately be null for lavapipe */
    if (dri2_dpy->kopper)
-      return dri2_dpy->kopper->queryBufferAge(dri2_surf->dri_drawable);
+      return kopperQueryBufferAge(dri2_surf->dri_drawable);
    else
-      return dri2_dpy->swrast->queryBufferAge(dri2_surf->dri_drawable);
+      return driSWRastQueryBufferAge(dri2_surf->dri_drawable);
    return 0;
 }
 
@@ -2800,7 +2777,7 @@ dri2_wl_swrast_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surface)
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surface);
 
    assert(dri2_dpy->swrast);
-   return dri2_dpy->swrast->queryBufferAge(dri2_surf->dri_drawable);
+   return driSWRastQueryBufferAge(dri2_surf->dri_drawable);
 }
 
 static void

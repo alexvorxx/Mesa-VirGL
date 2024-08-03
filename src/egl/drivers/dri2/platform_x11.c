@@ -55,6 +55,7 @@
 #include "loader.h"
 #include "platform_x11.h"
 #include "drm-uapi/drm_fourcc.h"
+#include "dri_util.h"
 
 #ifdef HAVE_DRI3
 #include "platform_x11_dri3.h"
@@ -478,7 +479,7 @@ dri2_x11_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
       goto cleanup_pixmap;
 
 #ifdef HAVE_X11_DRI2
-   if (dri2_dpy->dri2) {
+   if (disp->Options.fd > 0) {
       xcb_void_cookie_t cookie;
       int conn_error;
 
@@ -514,7 +515,7 @@ dri2_x11_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
    return &dri2_surf->base;
 
 cleanup_dri_drawable:
-   dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
+   driDestroyDrawable(dri2_surf->dri_drawable);
 cleanup_pixmap:
    if (type == EGL_PBUFFER_BIT)
       xcb_free_pixmap(dri2_dpy->conn, dri2_surf->drawable);
@@ -571,14 +572,13 @@ dri2_x11_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
-   dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
+   driDestroyDrawable(dri2_surf->dri_drawable);
 
-   if (dri2_dpy->dri2) {
+   if (disp->Options.fd > 0) {
 #ifdef HAVE_X11_DRI2
       xcb_dri2_destroy_drawable(dri2_dpy->conn, dri2_surf->drawable);
 #endif
    } else {
-      assert(dri2_dpy->swrast);
       swrastDestroyDrawable(dri2_dpy, dri2_surf);
    }
 
@@ -982,7 +982,7 @@ dri2_x11_add_configs_for_visuals(struct dri2_egl_display *dri2_dpy,
             int shifts[4];
             unsigned int sizes[4];
 
-            dri2_get_shifts_and_sizes(dri2_dpy->core, config, shifts, sizes);
+            dri2_get_shifts_and_sizes(config, shifts, sizes);
 
             if (memcmp(shifts, rgb_shifts, sizeof(rgb_shifts)) != 0 ||
                 memcmp(sizes, rgb_sizes, sizeof(rgb_sizes)) != 0) {
@@ -1112,12 +1112,12 @@ dri2_x11_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
        *     "The contents of ancillary buffers are always undefined
        *      after calling eglSwapBuffers."
        */
-      dri2_dpy->kopper->swapBuffers(dri2_surf->dri_drawable,
+      kopperSwapBuffers(dri2_surf->dri_drawable,
                                     __DRI2_FLUSH_INVALIDATE_ANCILLARY);
       return EGL_TRUE;
    } else if (!dri2_dpy->flush) {
       /* aka the swrast path, which does the swap in the gallium driver. */
-      dri2_dpy->core->swapBuffers(dri2_surf->dri_drawable);
+      driSwapBuffers(dri2_surf->dri_drawable);
       return EGL_TRUE;
    }
 
@@ -1186,14 +1186,14 @@ dri2_x11_kopper_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
    assert(dri2_dpy->kopper);
    if (numRects) {
       if (dri2_dpy->kopper)
-         dri2_dpy->kopper->swapBuffersWithDamage(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY, numRects, rects);
+         kopperSwapBuffersWithDamage(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY, numRects, rects);
       else
-         dri2_dpy->core->swapBuffersWithDamage(dri2_surf->dri_drawable, numRects, rects);
+         driSwapBuffersWithDamage(dri2_surf->dri_drawable, numRects, rects);
    } else {
       if (dri2_dpy->kopper)
-         dri2_dpy->kopper->swapBuffers(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY);
+         kopperSwapBuffers(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY);
       else
-         dri2_dpy->core->swapBuffers(dri2_surf->dri_drawable);
+         driSwapBuffers(dri2_surf->dri_drawable);
    }
    return EGL_TRUE;
 }
@@ -1202,12 +1202,11 @@ static EGLBoolean
 dri2_x11_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
                                   const EGLint *rects, EGLint numRects)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
    if (numRects)
-      dri2_dpy->core->swapBuffersWithDamage(dri2_surf->dri_drawable, numRects, rects);
+      driSwapBuffersWithDamage(dri2_surf->dri_drawable, numRects, rects);
    else
-      dri2_dpy->core->swapBuffers(dri2_surf->dri_drawable);
+      driSwapBuffers(dri2_surf->dri_drawable);
    return EGL_TRUE;
 }
 
@@ -1218,7 +1217,7 @@ dri2_x11_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
    if (dri2_dpy->kopper) {
-      dri2_dpy->kopper->setSwapInterval(dri2_surf->dri_drawable, interval);
+      kopperSetSwapInterval(dri2_surf->dri_drawable, interval);
       return EGL_TRUE;
    }
 
@@ -1251,7 +1250,7 @@ dri2_x11_copy_buffers(_EGLDisplay *disp, _EGLSurface *surf,
        * okay-ish on swrast because those aren't invalidating the back buffer on
        * swap.
        */
-      dri2_dpy->core->swapBuffers(dri2_surf->dri_drawable);
+      driSwapBuffers(dri2_surf->dri_drawable);
    }
 
    gc = xcb_generate_id(dri2_dpy->conn);
@@ -1349,7 +1348,7 @@ dri2_create_image_khr_pixmap(_EGLDisplay *disp, _EGLContext *ctx,
 
    _eglInitImage(&dri2_img->base, disp);
 
-   dri2_img->dri_image = dri2_dpy->image->createImageFromNames(
+   dri2_img->dri_image = dri2_from_names(
       dri2_dpy->dri_screen_render_gpu, buffers_reply->width,
       buffers_reply->height, fourcc, (int *) &buffers[0].name, 1,
       (int *) &buffers[0].pitch, 0, dri2_img);
@@ -1489,7 +1488,7 @@ dri2_kopper_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
 
    /* This can legitimately be null for lavapipe */
    if (dri2_dpy->kopper)
-      dri2_dpy->kopper->setSwapInterval(dri2_surf->dri_drawable, interval);
+      kopperSetSwapInterval(dri2_surf->dri_drawable, interval);
 
    return EGL_TRUE;
 }
@@ -1525,9 +1524,9 @@ dri2_kopper_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
 
    /* This can legitimately be null for lavapipe */
    if (dri2_dpy->kopper)
-      return dri2_dpy->kopper->queryBufferAge(dri2_surf->dri_drawable);
+      return kopperQueryBufferAge(dri2_surf->dri_drawable);
    else
-      return dri2_dpy->swrast->queryBufferAge(dri2_surf->dri_drawable);
+      return driSWRastQueryBufferAge(dri2_surf->dri_drawable);
 
    return 0;
 }
@@ -1535,11 +1534,9 @@ dri2_kopper_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
 static EGLint
 dri2_swrast_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
-   assert(dri2_dpy->swrast);
-   return dri2_dpy->swrast->queryBufferAge(dri2_surf->dri_drawable);
+   return driSWRastQueryBufferAge(dri2_surf->dri_drawable);
 }
 
 static const struct dri2_egl_display_vtbl dri2_x11_swrast_display_vtbl = {

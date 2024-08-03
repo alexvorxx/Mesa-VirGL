@@ -44,6 +44,7 @@
 #include "egldevice.h"
 #include "eglglobals.h"
 #include "loader.h"
+#include "dri_util.h"
 
 static struct gbm_bo *
 lock_front_buffer(struct gbm_surface *_surf)
@@ -200,17 +201,14 @@ dri2_drm_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
 static EGLBoolean
 dri2_drm_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
-   dri2_dpy->core->destroyDrawable(dri2_surf->dri_drawable);
+   driDestroyDrawable(dri2_surf->dri_drawable);
 
    for (unsigned i = 0; i < ARRAY_SIZE(dri2_surf->color_buffers); i++) {
       if (dri2_surf->color_buffers[i].bo)
          gbm_bo_destroy(dri2_surf->color_buffers[i].bo);
    }
-
-   dri2_egl_surface_free_local_buffers(dri2_surf);
 
    dri2_fini_surface(surf);
    free(surf);
@@ -317,7 +315,7 @@ dri2_drm_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
 
    if (!dri2_dpy->flush) {
-      dri2_dpy->core->swapBuffers(dri2_surf->dri_drawable);
+      driSwapBuffers(dri2_surf->dri_drawable);
       return EGL_TRUE;
    }
 
@@ -364,7 +362,6 @@ dri2_drm_create_image_khr_pixmap(_EGLDisplay *disp, _EGLContext *ctx,
                                  EGLClientBuffer buffer,
                                  const EGLint *attr_list)
 {
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct gbm_dri_bo *dri_bo = gbm_dri_bo((struct gbm_bo *)buffer);
    struct dri2_egl_image *dri2_img;
 
@@ -376,7 +373,7 @@ dri2_drm_create_image_khr_pixmap(_EGLDisplay *disp, _EGLContext *ctx,
 
    _eglInitImage(&dri2_img->base, disp);
 
-   dri2_img->dri_image = dri2_dpy->image->dupImage(dri_bo->image, dri2_img);
+   dri2_img->dri_image = dri2_dup_image(dri_bo->image, dri2_img);
    if (dri2_img->dri_image == NULL) {
       free(dri2_img);
       _eglError(EGL_BAD_ALLOC, "dri2_create_image_khr_pixmap");
@@ -555,7 +552,7 @@ get_fd_render_gpu_drm(struct gbm_dri_device *gbm_dri, int fd_display_gpu)
       return fd_display_gpu;
 
    /* Display-only device, so return a compatible render-only device. */
-   return gbm_dri->mesa->queryCompatibleRenderOnlyDeviceFd(fd_display_gpu);
+   return dri_query_compatible_render_only_device_fd(fd_display_gpu);
 }
 
 EGLBoolean
@@ -645,10 +642,6 @@ dri2_initialize_drm(_EGLDisplay *disp)
    }
 
    dri2_dpy->dri_screen_render_gpu = dri2_dpy->gbm_dri->screen;
-   dri2_dpy->core = dri2_dpy->gbm_dri->core;
-   dri2_dpy->image_driver = dri2_dpy->gbm_dri->image_driver;
-   dri2_dpy->swrast = dri2_dpy->gbm_dri->swrast;
-   dri2_dpy->kopper = dri2_dpy->gbm_dri->kopper;
    dri2_dpy->driver_configs = dri2_dpy->gbm_dri->driver_configs;
 
    dri2_dpy->gbm_dri->validate_image = dri2_validate_egl_image;
@@ -679,8 +672,7 @@ dri2_initialize_drm(_EGLDisplay *disp)
    drm_add_configs_for_visuals(disp);
 
    disp->Extensions.KHR_image_pixmap = EGL_TRUE;
-   if (dri2_dpy->image_driver)
-      disp->Extensions.EXT_buffer_age = EGL_TRUE;
+   disp->Extensions.EXT_buffer_age = EGL_TRUE;
 
 #ifdef HAVE_WAYLAND_PLATFORM
    dri2_dpy->device_name =
