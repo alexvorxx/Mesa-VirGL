@@ -7333,7 +7333,7 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
       break;
 
    case nir_intrinsic_load_subgroup_invocation:
-      bld.MOV(retype(dest, BRW_TYPE_D),
+      bld.MOV(retype(dest, BRW_TYPE_UD),
               ntb.system_values[SYSTEM_VALUE_SUBGROUP_INVOCATION]);
       break;
 
