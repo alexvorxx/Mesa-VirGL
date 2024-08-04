@@ -48,13 +48,13 @@ struct ac_llvm_compiler {
    /* Default compiler. */
    LLVMTargetMachineRef tm;
    struct ac_midend_optimizer *meo;
-   struct ac_compiler_passes *passes;
+   struct ac_backend_optimizer *beo;
 
    /* Optional compiler for faster compilation with fewer optimizations.
     * LLVM modules can be created with "tm" too. There is no difference.
     */
    LLVMTargetMachineRef low_opt_tm; /* uses -O1 instead of -O2 */
-   struct ac_compiler_passes *low_opt_passes;
+   struct ac_backend_optimizer *low_opt_beo;
 };
 
 LLVMTargetRef ac_get_llvm_target(const char *triple);
@@ -91,9 +91,9 @@ struct ac_midend_optimizer *ac_create_midend_optimizer(LLVMTargetMachineRef tm,
 void ac_destroy_midend_optimiser(struct ac_midend_optimizer *meo);
 bool ac_llvm_optimize_module(struct ac_midend_optimizer *meo, LLVMModuleRef module);
 
-struct ac_compiler_passes *ac_create_llvm_passes(LLVMTargetMachineRef tm);
-void ac_destroy_llvm_passes(struct ac_compiler_passes *p);
-bool ac_compile_module_to_elf(struct ac_compiler_passes *p, LLVMModuleRef module,
+struct ac_backend_optimizer *ac_create_backend_optimizer(LLVMTargetMachineRef tm);
+void ac_destroy_backend_optimizer(struct ac_backend_optimizer *beo);
+bool ac_compile_module_to_elf(struct ac_backend_optimizer *beo, LLVMModuleRef module,
                               char **pelf_buffer, size_t *pelf_size);
 
 static inline bool ac_has_vec3_support(enum amd_gfx_level chip, bool use_format)

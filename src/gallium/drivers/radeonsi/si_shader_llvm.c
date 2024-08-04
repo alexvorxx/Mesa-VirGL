@@ -73,15 +73,15 @@ bool si_compile_llvm(struct si_screen *sscreen, struct si_shader_binary *binary,
    }
 
    if (!si_replace_shader(count, binary)) {
-      struct ac_compiler_passes *passes = compiler->passes;
+      struct ac_backend_optimizer *beo = compiler->beo;
 
-      if (less_optimized && compiler->low_opt_passes)
-         passes = compiler->low_opt_passes;
+      if (less_optimized && compiler->low_opt_beo)
+         beo = compiler->low_opt_beo;
 
       struct si_llvm_diagnostics diag = {debug};
       LLVMContextSetDiagnosticHandler(ac->context, si_diagnostic_handler, &diag);
 
-      if (!ac_compile_module_to_elf(passes, ac->module, (char **)&binary->code_buffer,
+      if (!ac_compile_module_to_elf(beo, ac->module, (char **)&binary->code_buffer,
                                     &binary->code_size))
          diag.retval = 1;
 
@@ -794,7 +794,7 @@ static bool si_llvm_translate_nir(struct si_shader_context *ctx, struct si_shade
 static bool si_should_optimize_less(struct ac_llvm_compiler *compiler,
                                     struct si_shader_selector *sel)
 {
-   if (!compiler->low_opt_passes)
+   if (!compiler->low_opt_beo)
       return false;
 
    /* Assume a slow CPU. */

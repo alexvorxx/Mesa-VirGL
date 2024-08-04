@@ -328,48 +328,35 @@ struct ac_midend_optimizer
    }
 };
 
-/* The LLVM compiler is represented as a pass manager containing passes for
- * optimizations, instruction selection, and code generation.
+/* The backend passes for optimizations, instruction selection,
+ * and code generation in the LLVM compiler still requires the
+ * legacy::PassManager. The use of the legacy PM will be
+ * deprecated when the new PM can handle backend passes.
  */
-struct ac_compiler_passes {
-   raw_memory_ostream ostream;        /* ELF shader binary stream */
-   legacy::PassManager passmgr; /* list of passes */
-};
-
-struct ac_compiler_passes *ac_create_llvm_passes(LLVMTargetMachineRef tm)
+struct ac_backend_optimizer
 {
-   struct ac_compiler_passes *p = new ac_compiler_passes();
-   if (!p)
-      return NULL;
+   raw_memory_ostream ostream; /* ELF shader binary stream */
+   legacy::PassManager backend_pass_manager; /* for codegen only */
 
-   TargetMachine *TM = reinterpret_cast<TargetMachine *>(tm);
-
-   if (TM->addPassesToEmitFile(p->passmgr, p->ostream, nullptr,
+   ac_backend_optimizer(TargetMachine *arg_target_machine)
+   {
+      /* add backend passes */
+      if (arg_target_machine->addPassesToEmitFile(backend_pass_manager, ostream, nullptr,
 #if LLVM_VERSION_MAJOR >= 18
-                               CodeGenFileType::ObjectFile)) {
+                                             CodeGenFileType::ObjectFile)) {
 #else
-                               CGFT_ObjectFile)) {
+                                             CGFT_ObjectFile)) {
 #endif
-      fprintf(stderr, "amd: TargetMachine can't emit a file of this type!\n");
-      delete p;
-      return NULL;
+         fprintf(stderr, "amd: TargetMachine can't emit a file of this type!\n");
+      }
    }
-   return p;
-}
 
-void ac_destroy_llvm_passes(struct ac_compiler_passes *p)
-{
-   delete p;
-}
-
-/* This returns false on failure. */
-bool ac_compile_module_to_elf(struct ac_compiler_passes *p, LLVMModuleRef module,
-                              char **pelf_buffer, size_t *pelf_size)
-{
-   p->passmgr.run(*unwrap(module));
-   p->ostream.take(*pelf_buffer, *pelf_size);
-   return true;
-}
+   void run(Module &module, char *&out_buffer, size_t &out_size)
+   {
+      backend_pass_manager.run(module);
+      ostream.take(out_buffer, out_size);
+   }
+};
 
 ac_midend_optimizer *ac_create_midend_optimizer(LLVMTargetMachineRef tm,
                                                 bool check_ir)
@@ -390,6 +377,28 @@ bool ac_llvm_optimize_module(ac_midend_optimizer *meo, LLVMModuleRef module)
 
    /* Runs all the middle-end optimizations, no code generation */
    meo->run(*unwrap(module));
+   return true;
+}
+
+ac_backend_optimizer *ac_create_backend_optimizer(LLVMTargetMachineRef tm)
+{
+   TargetMachine *TM = reinterpret_cast<TargetMachine *>(tm);
+   return new ac_backend_optimizer(TM);
+}
+
+void ac_destroy_backend_optimizer(ac_backend_optimizer *beo)
+{
+   delete beo;
+}
+
+bool ac_compile_module_to_elf(ac_backend_optimizer *beo, LLVMModuleRef module,
+                              char **pelf_buffer, size_t *pelf_size)
+{
+   if (!beo)
+      return false;
+
+   /* Runs all backend optimizations and code generation */
+   beo->run(*unwrap(module), *pelf_buffer, *pelf_size);
    return true;
 }
 

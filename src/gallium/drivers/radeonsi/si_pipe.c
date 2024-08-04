@@ -154,9 +154,9 @@ struct ac_llvm_compiler *si_create_llvm_compiler(struct si_screen *sscreen)
    if (!ac_init_llvm_compiler(compiler, sscreen->info.family, tm_options))
       return NULL;
 
-   compiler->passes = ac_create_llvm_passes(compiler->tm);
+   compiler->beo = ac_create_backend_optimizer(compiler->tm);
    if (compiler->low_opt_tm)
-      compiler->low_opt_passes = ac_create_llvm_passes(compiler->low_opt_tm);
+      compiler->low_opt_beo = ac_create_backend_optimizer(compiler->low_opt_tm);
 
    return compiler;
 #else
