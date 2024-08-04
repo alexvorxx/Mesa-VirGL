@@ -2754,7 +2754,7 @@ static unsigned gfx12_select_swizzle_mode(struct ac_addrlib *addrlib,
 
    get_in.flags = in->flags;
    get_in.resourceType = in->resourceType;
-   get_in.bpp = in->bpp;
+   get_in.bpp = in->bpp ? in->bpp : (surf->bpe * 8);
    get_in.width = in->width;
    get_in.height = in->height;
    get_in.numSlices = in->numSlices;
@@ -3065,6 +3065,23 @@ static bool gfx12_compute_miptree(struct ac_addrlib *addrlib, const struct radeo
    ret = Addr3ComputeSurfaceInfo(addrlib->handle, in, &out);
    if (ret != ADDR_OK)
       return false;
+
+   /* TODO: remove this block once addrlib stops giving us 64K pitch for small images, breaking
+    * modifiers and X.Org.
+    */
+   if (in->swizzleMode >= ADDR3_256B_2D && in->swizzleMode <= ADDR3_256KB_2D &&
+       in->numMipLevels == 1) {
+      static unsigned block_bits[ADDR3_MAX_TYPE] = {
+         [ADDR3_256B_2D] = 8,
+         [ADDR3_4KB_2D] = 12,
+         [ADDR3_64KB_2D] = 16,
+         [ADDR3_256KB_2D] = 18,
+      };
+      unsigned align_bits = block_bits[in->swizzleMode] - util_logbase2(surf->bpe);
+      unsigned w_align = 1 << (align_bits / 2 + align_bits % 2);
+
+      out.pitch = align(in->width, w_align);
+   }
 
    if (in->flags.stencil) {
       surf->u.gfx9.zs.stencil_swizzle_mode = in->swizzleMode;
