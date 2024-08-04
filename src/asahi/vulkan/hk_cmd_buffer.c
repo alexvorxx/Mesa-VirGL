@@ -27,7 +27,6 @@
 #include "vk_pipeline_layout.h"
 #include "vk_synchronization.h"
 
-#include "nouveau/nouveau.h"
 #include "util/list.h"
 #include "util/macros.h"
 #include "util/u_dynarray.h"
