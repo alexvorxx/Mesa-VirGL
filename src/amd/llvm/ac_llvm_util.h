@@ -44,10 +44,10 @@ enum ac_float_mode
 /* Per-thread persistent LLVM objects. */
 struct ac_llvm_compiler {
    LLVMTargetLibraryInfoRef target_library_info;
-   LLVMPassManagerRef passmgr;
 
    /* Default compiler. */
    LLVMTargetMachineRef tm;
+   struct ac_midend_optimizer *meo;
    struct ac_compiler_passes *passes;
 
    /* Optional compiler for faster compilation with fewer optimizations.
@@ -86,12 +86,15 @@ bool ac_init_llvm_compiler(struct ac_llvm_compiler *compiler, enum radeon_family
                            enum ac_target_machine_options tm_options);
 void ac_destroy_llvm_compiler(struct ac_llvm_compiler *compiler);
 
+struct ac_midend_optimizer *ac_create_midend_optimizer(LLVMTargetMachineRef tm,
+                                                       bool check_ir);
+void ac_destroy_midend_optimiser(struct ac_midend_optimizer *meo);
+bool ac_llvm_optimize_module(struct ac_midend_optimizer *meo, LLVMModuleRef module);
+
 struct ac_compiler_passes *ac_create_llvm_passes(LLVMTargetMachineRef tm);
 void ac_destroy_llvm_passes(struct ac_compiler_passes *p);
 bool ac_compile_module_to_elf(struct ac_compiler_passes *p, LLVMModuleRef module,
                               char **pelf_buffer, size_t *pelf_size);
-LLVMPassManagerRef ac_create_passmgr(LLVMTargetLibraryInfoRef target_library_info,
-                                     bool check_ir);
 
 static inline bool ac_has_vec3_support(enum amd_gfx_level chip, bool use_format)
 {
