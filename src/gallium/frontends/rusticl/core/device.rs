@@ -293,6 +293,14 @@ impl Device {
 
                 fs.insert(t, flags as cl_mem_flags);
             }
+
+            // Restrict supported formats with 1DBuffer images. This is an OpenCL CTS workaround.
+            // See https://github.com/KhronosGroup/OpenCL-CTS/issues/1889
+            let image1d_mask = fs[&CL_MEM_OBJECT_IMAGE1D];
+            if let Some(entry) = fs.get_mut(&CL_MEM_OBJECT_IMAGE1D_BUFFER) {
+                *entry &= image1d_mask;
+            }
+
             self.formats.insert(f.cl_image_format, fs);
         }
 
