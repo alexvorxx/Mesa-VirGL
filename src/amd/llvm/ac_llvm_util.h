@@ -43,8 +43,6 @@ enum ac_float_mode
 
 /* Per-thread persistent LLVM objects. */
 struct ac_llvm_compiler {
-   LLVMTargetLibraryInfoRef target_library_info;
-
    /* Default compiler. */
    LLVMTargetMachineRef tm;
    struct ac_midend_optimizer *meo;
@@ -77,8 +75,6 @@ void ac_llvm_add_target_dep_function_attr(LLVMValueRef F, const char *name, unsi
 void ac_llvm_set_workgroup_size(LLVMValueRef F, unsigned size);
 void ac_llvm_set_target_features(LLVMValueRef F, struct ac_llvm_context *ctx, bool wgp_mode);
 
-LLVMTargetLibraryInfoRef ac_create_target_library_info(const char *triple);
-void ac_dispose_target_library_info(LLVMTargetLibraryInfoRef library_info);
 PUBLIC void ac_init_shared_llvm_once(void); /* Do not use directly, use ac_init_llvm_once */
 void ac_init_llvm_once(void);
 

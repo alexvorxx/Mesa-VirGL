@@ -164,17 +164,6 @@ void ac_disable_signed_zeros(struct ac_llvm_context *ctx)
    }
 }
 
-LLVMTargetLibraryInfoRef ac_create_target_library_info(const char *triple)
-{
-   return reinterpret_cast<LLVMTargetLibraryInfoRef>(
-      new TargetLibraryInfoImpl(Triple(triple)));
-}
-
-void ac_dispose_target_library_info(LLVMTargetLibraryInfoRef library_info)
-{
-   delete reinterpret_cast<TargetLibraryInfoImpl *>(library_info);
-}
-
 /* Implementation of raw_pwrite_stream that works on malloc()ed memory for
  * better compatibility with C code. */
 struct raw_memory_ostream : public raw_pwrite_stream {
