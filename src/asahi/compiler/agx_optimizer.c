@@ -292,14 +292,14 @@ agx_optimizer_copyprop(agx_context *ctx, agx_instr **defs, agx_instr *I)
 /*
  * Fuse conditions into if. Specifically, acts on if_icmp and fuses:
  *
- *    if_icmp(cmp(x, y, *), 0, ne) -> if_cmp(x, y, *)
+ *    if_icmp(cmp(x, y, *), 0, ne/eq) -> if_cmp(x, y, *)
  */
 static void
 agx_optimizer_if_cmp(agx_instr **defs, agx_instr *I)
 {
    /* Check for unfused if */
    if (!agx_is_equiv(I->src[1], agx_zero()) || I->icond != AGX_ICOND_UEQ ||
-       !I->invert_cond || I->src[0].type != AGX_INDEX_NORMAL)
+       I->src[0].type != AGX_INDEX_NORMAL)
       return;
 
    /* Check for condition */
@@ -310,7 +310,7 @@ agx_optimizer_if_cmp(agx_instr **defs, agx_instr *I)
    /* Fuse */
    I->src[0] = def->src[0];
    I->src[1] = def->src[1];
-   I->invert_cond = def->invert_cond;
+   I->invert_cond = def->invert_cond ^ !I->invert_cond;
 
    if (def->op == AGX_OPCODE_ICMP) {
       I->op = AGX_OPCODE_IF_ICMP;

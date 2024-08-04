@@ -365,3 +365,27 @@ TEST_F(Optimizer, IfInverted)
                               1, AGX_ICOND_UEQ, false, NULL),
                   agx_if_icmp(b, hx, agx_zero(), 1, AGX_ICOND_UEQ, true, NULL));
 }
+
+TEST_F(Optimizer, IfInvertedCondition)
+{
+   CASE_NO_RETURN(
+      agx_if_icmp(
+         b,
+         agx_xor(b, agx_icmp(b, wx, wy, AGX_ICOND_UEQ, true), agx_immediate(1)),
+         agx_zero(), 1, AGX_ICOND_UEQ, true, NULL),
+      agx_if_icmp(b, wx, wy, 1, AGX_ICOND_UEQ, false, NULL));
+
+   CASE_NO_RETURN(
+      agx_if_icmp(
+         b,
+         agx_xor(b, agx_fcmp(b, wx, wy, AGX_FCOND_EQ, true), agx_immediate(1)),
+         agx_zero(), 1, AGX_ICOND_UEQ, true, NULL),
+      agx_if_fcmp(b, wx, wy, 1, AGX_FCOND_EQ, false, NULL));
+
+   CASE_NO_RETURN(
+      agx_if_icmp(
+         b,
+         agx_xor(b, agx_fcmp(b, hx, hy, AGX_FCOND_LT, false), agx_immediate(1)),
+         agx_zero(), 1, AGX_ICOND_UEQ, true, NULL),
+      agx_if_fcmp(b, hx, hy, 1, AGX_FCOND_LT, true, NULL));
+}
