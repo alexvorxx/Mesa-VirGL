@@ -353,3 +353,15 @@ TEST_F(Optimizer, SelectCondition)
                          agx_zero(), wz, wx, AGX_ICOND_UEQ),
           agx_fcmpsel_to(b, out, wx, wy, wz, wx, AGX_FCOND_LT));
 }
+
+TEST_F(Optimizer, IfInverted)
+{
+   CASE_NO_RETURN(
+      agx_if_icmp(b, agx_xor(b, hx, agx_immediate(1)), agx_zero(), 1,
+                  AGX_ICOND_UEQ, true, NULL),
+      agx_if_icmp(b, hx, agx_zero(), 1, AGX_ICOND_UEQ, false, NULL));
+
+   CASE_NO_RETURN(agx_if_icmp(b, agx_xor(b, hx, agx_immediate(1)), agx_zero(),
+                              1, AGX_ICOND_UEQ, false, NULL),
+                  agx_if_icmp(b, hx, agx_zero(), 1, AGX_ICOND_UEQ, true, NULL));
+}
