@@ -572,12 +572,26 @@ static void
 sched_dag_max_delay_cb(struct dag_node *node, void *state)
 {
    struct ir3_postsched_node *n = (struct ir3_postsched_node *)node;
+   struct ir3_postsched_ctx *ctx = state;
    uint32_t max_delay = 0;
 
    util_dynarray_foreach (&n->dag.edges, struct dag_edge, edge) {
       struct ir3_postsched_node *child =
          (struct ir3_postsched_node *)edge->child;
       unsigned delay = edge->data;
+      unsigned sy_delay = 0;
+      unsigned ss_delay = 0;
+
+      if (child->has_sy_src && is_sy_producer(n->instr)) {
+         sy_delay = soft_sy_delay(n->instr, ctx->block->shader);
+      }
+
+      if (child->has_ss_src &&
+          needs_ss(ctx->v->compiler, n->instr, child->instr)) {
+         ss_delay = soft_ss_delay(n->instr);
+      }
+
+      delay = MAX3(delay, sy_delay, ss_delay);
       max_delay = MAX2(child->max_delay + delay, max_delay);
    }
 
@@ -661,7 +675,7 @@ sched_dag_init(struct ir3_postsched_ctx *ctx)
 #endif
 
    // TODO do we want to do this after reverse-dependencies?
-   dag_traverse_bottom_up(ctx->dag, sched_dag_max_delay_cb, NULL);
+   dag_traverse_bottom_up(ctx->dag, sched_dag_max_delay_cb, ctx);
 }
 
 static void
