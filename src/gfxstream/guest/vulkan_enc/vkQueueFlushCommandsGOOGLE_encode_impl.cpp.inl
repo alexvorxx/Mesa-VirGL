@@ -27,14 +27,11 @@ size_t* countPtr = &count;
 }
 bool queueSubmitWithCommandsEnabled = sFeatureBits & VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT;
 uint32_t packetSize_vkQueueFlushCommandsGOOGLE = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
-healthMonitorAnnotation_packetSize =
-    std::make_optional(packetSize_vkQueueFlushCommandsGOOGLE);
 uint8_t* streamPtr = stream->reserve(packetSize_vkQueueFlushCommandsGOOGLE - local_dataSize);
 uint8_t* packetBeginPtr = streamPtr;
 uint8_t** streamPtrPtr = &streamPtr;
 uint32_t opcode_vkQueueFlushCommandsGOOGLE = OP_vkQueueFlushCommandsGOOGLE;
 uint32_t seqno = ResourceTracker::nextSeqno();
-healthMonitorAnnotation_seqno = std::make_optional(seqno);
 memcpy(streamPtr, &opcode_vkQueueFlushCommandsGOOGLE, sizeof(uint32_t)); streamPtr += sizeof(uint32_t);
 memcpy(streamPtr, &packetSize_vkQueueFlushCommandsGOOGLE, sizeof(uint32_t)); streamPtr += sizeof(uint32_t);
 memcpy(streamPtr, &seqno, sizeof(uint32_t)); streamPtr += sizeof(uint32_t);
@@ -48,12 +45,6 @@ memcpy(*streamPtrPtr, (uint64_t*)&cgen_var_1408, 1 * 8);
 *streamPtrPtr += 1 * 8;
 memcpy(*streamPtrPtr, (VkDeviceSize*)&local_dataSize, sizeof(VkDeviceSize));
 *streamPtrPtr += sizeof(VkDeviceSize);
-if (watchdog) {
-    size_t watchdogBufSize = std::min<size_t>(
-        static_cast<size_t>(packetSize_vkQueueFlushCommandsGOOGLE), kWatchdogBufferMax);
-    healthMonitorAnnotation_packetContents.resize(watchdogBufSize);
-    memcpy(&healthMonitorAnnotation_packetContents[0], packetBeginPtr, watchdogBufSize);
-}
 
 MESA_TRACE_SCOPE("vkQueueFlush large xfer");
 stream->flush();

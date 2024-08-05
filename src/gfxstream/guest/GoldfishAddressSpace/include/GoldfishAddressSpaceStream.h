@@ -16,4 +16,4 @@
 
 #include "AddressSpaceStream.h"
 
-AddressSpaceStream* createGoldfishAddressSpaceStream(size_t bufSize, gfxstream::guest::HealthMonitor<>* healthMonitor);
+AddressSpaceStream* createGoldfishAddressSpaceStream(size_t bufSize);

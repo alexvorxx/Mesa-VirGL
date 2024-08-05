@@ -16,8 +16,7 @@
 
 #include "goldfish_address_space.h"
 
-AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize,
-                                                     HealthMonitor<>* healthMonitor) {
+AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize) {
     // Ignore incoming ignored_bufSize
     (void)ignored_bufSize;
 
@@ -122,10 +121,8 @@ AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize,
         .ping = goldfish_address_space_ping,
     };
 
-    AddressSpaceStream* res =
-        new AddressSpaceStream(
-            child_device_handle, version, context,
-            ringOffset, bufferOffset, ops, healthMonitor);
+    AddressSpaceStream* res = new AddressSpaceStream(child_device_handle, version, context,
+                                                     ringOffset, bufferOffset, ops);
 
     return res;
 }

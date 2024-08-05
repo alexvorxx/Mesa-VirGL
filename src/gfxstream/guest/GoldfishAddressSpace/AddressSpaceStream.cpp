@@ -34,39 +34,33 @@
 static const size_t kReadSize = 512 * 1024;
 static const size_t kWriteOffset = kReadSize;
 
-AddressSpaceStream::AddressSpaceStream(
-    address_space_handle_t handle,
-    uint32_t version,
-    struct asg_context context,
-    uint64_t ringOffset,
-    uint64_t writeBufferOffset,
-    struct address_space_ops ops,
-    HealthMonitor<>* healthMonitor) :
-    IOStream(context.ring_config->flush_interval),
-    m_ops(ops),
-    m_tmpBuf(0),
-    m_tmpBufSize(0),
-    m_tmpBufXferSize(0),
-    m_usingTmpBuf(0),
-    m_readBuf(0),
-    m_read(0),
-    m_readLeft(0),
-    m_handle(handle),
-    m_version(version),
-    m_context(context),
-    m_ringOffset(ringOffset),
-    m_writeBufferOffset(writeBufferOffset),
-    m_writeBufferSize(context.ring_config->buffer_size),
-    m_writeBufferMask(m_writeBufferSize - 1),
-    m_buf((unsigned char*)context.buffer),
-    m_writeStart(m_buf),
-    m_writeStep(context.ring_config->flush_interval),
-    m_notifs(0),
-    m_written(0),
-    m_backoffIters(0),
-    m_backoffFactor(1),
-    m_ringStorageSize(sizeof(struct asg_ring_storage) + m_writeBufferSize),
-    m_healthMonitor(healthMonitor) {
+AddressSpaceStream::AddressSpaceStream(address_space_handle_t handle, uint32_t version,
+                                       struct asg_context context, uint64_t ringOffset,
+                                       uint64_t writeBufferOffset, struct address_space_ops ops)
+    : IOStream(context.ring_config->flush_interval),
+      m_ops(ops),
+      m_tmpBuf(0),
+      m_tmpBufSize(0),
+      m_tmpBufXferSize(0),
+      m_usingTmpBuf(0),
+      m_readBuf(0),
+      m_read(0),
+      m_readLeft(0),
+      m_handle(handle),
+      m_version(version),
+      m_context(context),
+      m_ringOffset(ringOffset),
+      m_writeBufferOffset(writeBufferOffset),
+      m_writeBufferSize(context.ring_config->buffer_size),
+      m_writeBufferMask(m_writeBufferSize - 1),
+      m_buf((unsigned char*)context.buffer),
+      m_writeStart(m_buf),
+      m_writeStep(context.ring_config->flush_interval),
+      m_notifs(0),
+      m_written(0),
+      m_backoffIters(0),
+      m_backoffFactor(1),
+      m_ringStorageSize(sizeof(struct asg_ring_storage) + m_writeBufferSize) {
     // We'll use this in the future, but at the moment,
     // it's a potential compile Werror.
     (void)m_ringStorageSize;
@@ -95,8 +89,7 @@ size_t AddressSpaceStream::idealAllocSize(size_t len) {
     return m_writeStep;
 }
 
-void *AddressSpaceStream::allocBuffer(size_t minSize) {
-    auto watchdog = WATCHDOG_BUILDER(m_healthMonitor, "ASG watchdog").build();
+void* AddressSpaceStream::allocBuffer(size_t minSize) {
     AEMU_SCOPED_TRACE("allocBuffer");
     ensureType3Finished();
 
@@ -242,9 +235,7 @@ const unsigned char *AddressSpaceStream::read(void *buf, size_t *inout_len) {
     return (const unsigned char*)dst;
 }
 
-int AddressSpaceStream::writeFully(const void *buf, size_t size)
-{
-    auto watchdog = WATCHDOG_BUILDER(m_healthMonitor, "ASG watchdog").build();
+int AddressSpaceStream::writeFully(const void* buf, size_t size) {
     AEMU_SCOPED_TRACE("writeFully");
     ensureType3Finished();
     ensureType1Finished();
@@ -308,9 +299,7 @@ int AddressSpaceStream::writeFully(const void *buf, size_t size)
     return 0;
 }
 
-int AddressSpaceStream::writeFullyAsync(const void *buf, size_t size)
-{
-    auto watchdog = WATCHDOG_BUILDER(m_healthMonitor, "ASG watchdog").build();
+int AddressSpaceStream::writeFullyAsync(const void* buf, size_t size) {
     AEMU_SCOPED_TRACE("writeFullyAsync");
     ensureType3Finished();
     ensureType1Finished();
@@ -432,7 +421,6 @@ ssize_t AddressSpaceStream::speculativeRead(unsigned char* readBuffer, size_t tr
 }
 
 void AddressSpaceStream::notifyAvailable() {
-    auto watchdog = WATCHDOG_BUILDER(m_healthMonitor, "ASG watchdog").build();
     AEMU_SCOPED_TRACE("PING");
     struct address_space_ping request;
     request.metadata = ASG_NOTIFY_AVAILABLE;
@@ -475,7 +463,6 @@ void AddressSpaceStream::ensureConsumerFinishing() {
 }
 
 void AddressSpaceStream::ensureType1Finished() {
-    auto watchdog = WATCHDOG_BUILDER(m_healthMonitor, "ASG watchdog").build();
     AEMU_SCOPED_TRACE("ensureType1Finished");
 
     uint32_t currAvailRead =
@@ -492,7 +479,6 @@ void AddressSpaceStream::ensureType1Finished() {
 }
 
 void AddressSpaceStream::ensureType3Finished() {
-    auto watchdog = WATCHDOG_BUILDER(m_healthMonitor, "ASG watchdog").build();
     AEMU_SCOPED_TRACE("ensureType3Finished");
     uint32_t availReadLarge =
         ring_buffer_available_read(
@@ -516,8 +502,6 @@ void AddressSpaceStream::ensureType3Finished() {
 }
 
 int AddressSpaceStream::type1Write(uint32_t bufferOffset, size_t size) {
-
-    auto watchdog = WATCHDOG_BUILDER(m_healthMonitor, "ASG watchdog").build();
     AEMU_SCOPED_TRACE("type1Write");
 
     ensureType3Finished();

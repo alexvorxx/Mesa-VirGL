@@ -25,7 +25,6 @@ class VkEncoder::Impl {
 
     void log(const char* text) {
         if (!m_logEncodes) return;
-        ALOGD("encoder log: %s", text);
     }
 
     void flush() {
@@ -54,15 +53,8 @@ class VkEncoder::Impl {
 
 VkEncoder::~VkEncoder() {}
 
-struct EncoderAutoLock {
-    EncoderAutoLock(VkEncoder* enc) : mEnc(enc) { mEnc->lock(); }
-    ~EncoderAutoLock() { mEnc->unlock(); }
-    VkEncoder* mEnc;
-};
-
-VkEncoder::VkEncoder(gfxstream::guest::IOStream* stream,
-                     gfxstream::guest::HealthMonitor<>* healthMonitor)
-    : mImpl(new VkEncoder::Impl(stream)), mHealthMonitor(healthMonitor) {}
+VkEncoder::VkEncoder(gfxstream::guest::IOStream* stream)
+    : mImpl(new VkEncoder::Impl(stream)) {}
 
 void VkEncoder::flush() { mImpl->flush(); }
 

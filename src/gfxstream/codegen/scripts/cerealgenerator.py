@@ -310,7 +310,6 @@ class CerealGenerator(OutputGenerator):
         self.hostCommonExtraVulkanHeaders = '#include "vk_android_native_buffer_gfxstream.h"'
 
         encoderInclude = f"""
-#include "{self.guestBaseLibDirPrefix}/AndroidHealthMonitor.h"
 #include "goldfish_vk_private_defs.h"
 #include <memory>
 
@@ -330,7 +329,6 @@ class IOStream;
 
 #include "{self.guestBaseLibDirPrefix}/AlignedBuf.h"
 #include "{self.guestBaseLibDirPrefix}/BumpPool.h"
-#include "{self.guestBaseLibDirPrefix}/synchronization/AndroidLock.h"
 
 #include <cutils/properties.h>
 

@@ -16,5 +16,4 @@
 
 #include "AddressSpaceStream.h"
 
-AddressSpaceStream* createVirtioGpuAddressSpaceStream(
-    enum VirtGpuCapset capset, gfxstream::guest::HealthMonitor<>* healthMonitor);
+AddressSpaceStream* createVirtioGpuAddressSpaceStream(enum VirtGpuCapset capset);
