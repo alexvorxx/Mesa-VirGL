@@ -581,10 +581,11 @@ sched_dag_max_delay_cb(struct dag_node *node, void *state)
    util_dynarray_foreach (&n->dag.edges, struct dag_edge, edge) {
       struct ir3_postsched_node *child =
          (struct ir3_postsched_node *)edge->child;
-      max_delay = MAX2(child->max_delay, max_delay);
+      unsigned delay = edge->data;
+      max_delay = MAX2(child->max_delay + delay, max_delay);
    }
 
-   n->max_delay = MAX2(n->max_delay, max_delay + n->delay);
+   n->max_delay = MAX2(n->max_delay, max_delay);
 }
 
 static void
