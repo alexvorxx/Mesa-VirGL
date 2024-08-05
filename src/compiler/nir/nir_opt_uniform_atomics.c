@@ -369,6 +369,8 @@ nir_opt_uniform_atomics(nir_shader *shader)
       return false;
 
    nir_foreach_function_impl(impl, shader) {
+      nir_metadata_require(impl, nir_metadata_block_index);
+
       if (opt_uniform_atomics(impl)) {
          progress = true;
          nir_metadata_preserve(impl, nir_metadata_none);
