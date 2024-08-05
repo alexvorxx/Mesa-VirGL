@@ -317,7 +317,7 @@ nvk_queue_submit_exec(struct nvk_queue *queue,
    if (result != VK_SUCCESS)
       goto fail;
 
-   if (queue->state.push.mem != NULL) {
+   if (submit->command_buffer_count > 0 && queue->state.push.mem != NULL) {
       struct nvkmd_ctx_exec exec = {
          .addr = queue->state.push.mem->va->addr,
          .size_B = queue->state.push.dw_count * 4,
