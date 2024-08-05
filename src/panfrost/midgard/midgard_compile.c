@@ -697,6 +697,7 @@ emit_alu(compiler_context *ctx, nir_alu_instr *instr)
       ALU_CASE_CMP(b2f32, iand);
       ALU_CASE_CMP(b2f16, iand);
       ALU_CASE_CMP(b2i32, iand);
+      ALU_CASE_CMP(b2i16, iand);
 
       ALU_CASE(frcp, frcp);
       ALU_CASE(frsq, frsqrt);
