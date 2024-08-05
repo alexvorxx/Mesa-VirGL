@@ -329,25 +329,6 @@ choose_instr(struct ir3_postsched_ctx *ctx)
       return chosen->instr;
    }
 
-   /* Next try to find a ready leader that can be scheduled without nop's,
-    * which in the case of things that need (sy)/(ss) could result in
-    * stalls.. but we've already decided there is not a better option.
-    */
-   foreach_sched_node (n, &ctx->dag->heads) {
-      unsigned d = node_delay(ctx, n);
-
-      if (d > 0)
-         continue;
-
-      if (!chosen || (chosen->max_delay < n->max_delay))
-         chosen = n;
-   }
-
-   if (chosen) {
-      di(chosen->instr, "csp: chose (hard ready)");
-      return chosen->instr;
-   }
-
    /* Otherwise choose leader with maximum cost:
     */
    foreach_sched_node (n, &ctx->dag->heads) {
