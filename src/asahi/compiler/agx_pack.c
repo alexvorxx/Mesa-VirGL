@@ -961,7 +961,7 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
                        ((C & BITFIELD_MASK(6)) << 16) | (Ct ? (1 << 22) : 0) |
                        (unk1 ? (1u << 31) : 0);
 
-      uint32_t word1 = (T & BITFIELD_MASK(6)) | (Tt << 2) |
+      uint32_t word1 = (T & BITFIELD_MASK(6)) | (Tt << 6) |
                        ((I->dim & BITFIELD_MASK(3)) << 8) | (9 << 11) |
                        (Cs ? (1 << 15) : 0) |
                        ((I->dim & BITFIELD_BIT(3)) ? (1u << 23) : 0) |
