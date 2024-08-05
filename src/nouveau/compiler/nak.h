@@ -31,6 +31,13 @@ nak_nir_options(const struct nak_compiler *nak);
 
 void nak_preprocess_nir(nir_shader *nir, const struct nak_compiler *nak);
 
+struct nak_sample_location {
+   uint8_t x_u4 : 4;
+   uint8_t y_u4 : 4;
+};
+static_assert(sizeof(struct nak_sample_location) == 1,
+              "This struct has no holes");
+
 PRAGMA_DIAGNOSTIC_PUSH
 PRAGMA_DIAGNOSTIC_ERROR(-Wpadded)
 struct nak_fs_key {
@@ -43,11 +50,17 @@ struct nak_fs_key {
    bool uses_underestimate;
 
    /**
-    * The constant buffer index and offset at which the sample locations table lives.
-    * Each sample location is two 4-bit unorm values packed into an 8-bit value
-    * with the bottom 4 bits for x and the top 4 bits for y.
-   */
+    * The constant buffer index and offset at which the sample locations table
+    * lives.
+    */
    uint8_t sample_locations_cb;
+
+   /**
+    * The offset into sample_info_cb at which the sample locations live.  The
+    * sample locations table is an array of nak_sample_location where each
+    * sample location is two 4-bit unorm values packed into an 8-bit value
+    * with the bottom 4 bits for x and the top 4 bits for y.
+    */
    uint32_t sample_locations_offset;
 };
 PRAGMA_DIAGNOSTIC_POP

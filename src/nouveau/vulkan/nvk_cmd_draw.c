@@ -1941,10 +1941,10 @@ vk_sample_location(const struct vk_sample_locations_state *sl,
    return sl->locations[(x + y * sl->grid_size.width) * sl->per_pixel + s];
 }
 
-static struct nvk_sample_location
-vk_to_nvk_sample_location(VkSampleLocationEXT loc)
+static struct nak_sample_location
+vk_to_nak_sample_location(VkSampleLocationEXT loc)
 {
-   return (struct nvk_sample_location) {
+   return (struct nak_sample_location) {
       .x_u4 = util_bitpack_ufixed_clamp(loc.x, 0, 3, 4),
       .y_u4 = util_bitpack_ufixed_clamp(loc.y, 0, 3, 4),
    };
@@ -2013,23 +2013,23 @@ nvk_flush_ms_state(struct nvk_cmd_buffer *cmd)
          sl = vk_standard_sample_locations_state(samples);
       }
 
-      struct nvk_sample_location push_sl[NVK_MAX_SAMPLES];
+      struct nak_sample_location push_sl[NVK_MAX_SAMPLES];
       for (uint32_t i = 0; i < sl->per_pixel; i++)
-         push_sl[i] = vk_to_nvk_sample_location(sl->locations[i]);
+         push_sl[i] = vk_to_nak_sample_location(sl->locations[i]);
 
       nvk_descriptor_state_set_root_array(cmd, &cmd->state.gfx.descriptors,
                                           draw.sample_locations,
                                           0, NVK_MAX_SAMPLES, push_sl);
 
       if (nvk_cmd_buffer_3d_cls(cmd) >= MAXWELL_B) {
-         struct nvk_sample_location loc[16];
+         struct nak_sample_location loc[16];
          for (uint32_t n = 0; n < ARRAY_SIZE(loc); n++) {
             const uint32_t s = n % sl->per_pixel;
             const uint32_t px = n / sl->per_pixel;
             const uint32_t x = px % 2;
             const uint32_t y = px / 2;
 
-            loc[n] = vk_to_nvk_sample_location(vk_sample_location(sl, x, y, s));
+            loc[n] = vk_to_nak_sample_location(vk_sample_location(sl, x, y, s));
          }
 
          struct nv_push *p = nvk_cmd_buffer_push(cmd, 5);
