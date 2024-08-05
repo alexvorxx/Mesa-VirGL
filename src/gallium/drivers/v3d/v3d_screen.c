@@ -635,6 +635,14 @@ v3d_screen_is_format_supported(struct pipe_screen *pscreen,
                 return false;
         }
 
+        /* We do not support EXT_float_blend (blending with 32F formats)*/
+        if ((usage & PIPE_BIND_BLENDABLE) &&
+            (format == PIPE_FORMAT_R32G32B32A32_FLOAT ||
+             format == PIPE_FORMAT_R32G32_FLOAT ||
+             format == PIPE_FORMAT_R32_FLOAT)) {
+                return false;
+        }
+
         if ((usage & PIPE_BIND_SAMPLER_VIEW) &&
             !v3d_tex_format_supported(&screen->devinfo, format)) {
                 return false;
