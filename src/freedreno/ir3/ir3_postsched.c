@@ -53,6 +53,8 @@
       }                                                                        \
    } while (0)
 
+#define SCHED_DEBUG_DUMP_DEPTH 1
+
 /*
  * Post RA Instruction Scheduling
  */
@@ -167,24 +169,6 @@ schedule(struct ir3_postsched_ctx *ctx, struct ir3_instruction *instr)
    }
 }
 
-static void
-dump_state(struct ir3_postsched_ctx *ctx)
-{
-   if (!SCHED_DEBUG)
-      return;
-
-   foreach_sched_node (n, &ctx->dag->heads) {
-      di(n->instr, "maxdel=%3d    ", n->max_delay);
-
-      util_dynarray_foreach (&n->dag.edges, struct dag_edge, edge) {
-         struct ir3_postsched_node *child =
-            (struct ir3_postsched_node *)edge->child;
-
-         di(child->instr, " -> (%d parents) ", child->dag.parent_count);
-      }
-   }
-}
-
 static unsigned
 node_delay(struct ir3_postsched_ctx *ctx, struct ir3_postsched_node *n)
 {
@@ -205,6 +189,37 @@ node_delay_soft(struct ir3_postsched_ctx *ctx, struct ir3_postsched_node *n)
       delay = MAX2(delay, ctx->sy_delay);
 
    return delay;
+}
+
+static void
+dump_node(struct ir3_postsched_ctx *ctx, struct ir3_postsched_node *n,
+          int level)
+{
+   if (level > SCHED_DEBUG_DUMP_DEPTH)
+      return;
+
+   di(n->instr,
+      "%*s%smaxdel=%d, del=%d, node_delay=%d,node_delay_soft=%d, %d parents ",
+      level * 2, "", (level > 0 ? "-> " : ""), n->max_delay, n->delay,
+      node_delay(ctx, n), node_delay_soft(ctx, n), n->dag.parent_count);
+
+   util_dynarray_foreach (&n->dag.edges, struct dag_edge, edge) {
+      struct ir3_postsched_node *child =
+         (struct ir3_postsched_node *)edge->child;
+
+      dump_node(ctx, child, level + 1);
+   }
+}
+
+static void
+dump_state(struct ir3_postsched_ctx *ctx)
+{
+   if (!SCHED_DEBUG)
+      return;
+
+   foreach_sched_node (n, &ctx->dag->heads) {
+      dump_node(ctx, n, 0);
+   }
 }
 
 /* find instruction to schedule: */
