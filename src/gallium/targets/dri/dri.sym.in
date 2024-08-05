@@ -1,5 +1,9 @@
 {
 	global:
+		ddebug_screen_create;
+		noop_screen_create;
+		util_run_tests;
+		trace_screen_create;
 		__driDriverGetExtensions*;
 		driCreate*;
 		driCopy*;
