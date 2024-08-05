@@ -1136,19 +1136,6 @@ test_vgpr_bitset(std::bitset<256>& set, Operand op)
 }
 
 /* GFX11 */
-unsigned
-parse_vdst_wait(aco_ptr<Instruction>& instr)
-{
-   if (instr->isVMEM() || instr->isFlatLike() || instr->isDS() || instr->isEXP())
-      return 0;
-   else if (instr->isLDSDIR())
-      return instr->ldsdir().wait_vdst;
-   else if (instr->opcode == aco_opcode::s_waitcnt_depctr)
-      return (instr->salu().imm >> 12) & 0xf;
-   else
-      return 15;
-}
-
 struct LdsDirectVALUHazardGlobalState {
    unsigned wait_vdst = 15;
    PhysReg vgpr;
@@ -1188,7 +1175,7 @@ handle_lds_direct_valu_hazard_instr(LdsDirectVALUHazardGlobalState& global_state
       block_state.num_valu++;
    }
 
-   if (parse_vdst_wait(instr) == 0)
+   if (parse_vdst_wait(instr.get()) == 0)
       return true;
 
    block_state.num_instrs++;
@@ -1310,7 +1297,7 @@ handle_valu_partial_forwarding_hazard_instr(VALUPartialForwardingHazardGlobalSta
       }
 
       block_state.num_valu_since_read++;
-   } else if (parse_vdst_wait(instr) == 0) {
+   } else if (parse_vdst_wait(instr.get()) == 0) {
       return true;
    }
 
@@ -1407,7 +1394,7 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
       ctx.has_Vcmpx = false;
    }
 
-   unsigned va_vdst = parse_vdst_wait(instr);
+   unsigned va_vdst = parse_vdst_wait(instr.get());
    unsigned vm_vsrc = 7;
    unsigned sa_sdst = 1;
 
@@ -1608,7 +1595,7 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
 bool
 has_vdst0_since_valu_instr(bool& global_state, unsigned& block_state, aco_ptr<Instruction>& pred)
 {
-   if (parse_vdst_wait(pred) == 0)
+   if (parse_vdst_wait(pred.get()) == 0)
       return true;
 
    if (--block_state == 0) {

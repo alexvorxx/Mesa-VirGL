@@ -192,6 +192,16 @@ update_alu(delay_ctx& ctx, bool is_valu, bool is_trans, int cycles)
 void
 kill_alu(alu_delay_info& delay, Instruction* instr, delay_ctx& ctx)
 {
+   if (parse_vdst_wait(instr) == 0) {
+      std::map<PhysReg, alu_delay_info>::iterator it = ctx.gpr_map.begin();
+      while (it != ctx.gpr_map.end()) {
+         alu_delay_info& entry = it->second;
+         entry.valu_instrs = alu_delay_info::valu_nop;
+         entry.trans_instrs = alu_delay_info::trans_nop;
+         it = it->second.fixup() ? ctx.gpr_map.erase(it) : std::next(it);
+      }
+   }
+
    if (instr->isVALU() || instr->isSALU())
       check_alu(ctx, delay, instr);
 
@@ -213,12 +223,6 @@ kill_alu(alu_delay_info& delay, Instruction* instr, delay_ctx& ctx)
 void
 gen_alu(Instruction* instr, delay_ctx& ctx)
 {
-   if (instr->isEXP() || instr->isDS() || instr->isMIMG() || instr->isFlatLike() ||
-       instr->isMUBUF() || instr->isMTBUF()) {
-      ctx.gpr_map.clear();
-      return;
-   }
-
    Instruction_cycle_info cycle_info = get_cycle_info(*ctx.program, *instr);
    bool is_valu = instr->isVALU();
    bool is_trans = instr->isTrans();

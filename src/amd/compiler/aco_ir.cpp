@@ -1398,6 +1398,19 @@ get_vmem_type(enum amd_gfx_level gfx_level, Instruction* instr)
    return 0;
 }
 
+unsigned
+parse_vdst_wait(Instruction* instr)
+{
+   if (instr->isVMEM() || instr->isFlatLike() || instr->isDS() || instr->isEXP())
+      return 0;
+   else if (instr->isLDSDIR())
+      return instr->ldsdir().wait_vdst;
+   else if (instr->opcode == aco_opcode::s_waitcnt_depctr)
+      return (instr->salu().imm >> 12) & 0xf;
+   else
+      return 15;
+}
+
 bool
 dealloc_vgprs(Program* program)
 {

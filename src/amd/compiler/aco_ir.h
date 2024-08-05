@@ -1853,6 +1853,8 @@ enum vmem_type : uint8_t {
  */
 uint8_t get_vmem_type(enum amd_gfx_level gfx_level, Instruction* instr);
 
+unsigned parse_vdst_wait(Instruction* instr);
+
 enum block_kind {
    /* uniform indicates that leaving this block,
     * all actives lanes stay active */
