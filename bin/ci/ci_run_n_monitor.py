@@ -60,8 +60,8 @@ STATUS_COLORS = {
     "skipped": "",
 }
 
-COMPLETED_STATUSES = {"success", "failed"}
-RUNNING_STATUSES = {"created", "pending", "running"}
+COMPLETED_STATUSES = frozenset({"success", "failed"})
+RUNNING_STATUSES = frozenset({"created", "pending", "running"})
 
 
 def print_job_status(
@@ -126,10 +126,12 @@ def monitor_pipeline(
     target_id: int = -1
     name_field_pad: int = len(max(dependencies, key=len))+2
     # In a running pipeline, we can skip following job traces that are in these statuses.
-    skip_follow_statuses = COMPLETED_STATUSES.copy()
-    if not force_manual:
+    skip_follow_statuses: frozenset[str] = (
+        COMPLETED_STATUSES
+        if force_manual
         # If the target job is marked as manual and we don't force it to run, it will be skipped.
-        skip_follow_statuses.add("manual")
+        else frozenset({*COMPLETED_STATUSES, "manual"})
+    )
 
     # Pre-populate the stress status counter for already completed target jobs.
     if stress:
