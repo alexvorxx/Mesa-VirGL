@@ -459,6 +459,33 @@ isl_device_get_sample_counts(const struct isl_device *dev)
    }
 }
 
+uint64_t
+isl_get_sampler_clear_field_offset(const struct intel_device_info *devinfo,
+                                   enum isl_format format)
+{
+   assert(devinfo->ver == 11 || devinfo->ver == 12);
+
+   /* For 32bpc formats, the sampler fetches the raw clear color dwords
+    * used for rendering instead of the converted pixel dwords typically
+    * used for sampling. The CLEAR_COLOR struct page documents this for
+    * 128bpp formats, but not for 32bpp and 64bpp formats.
+    *
+    * Note that although the sampler doesn't use the converted clear color
+    * field with 32bpc formats, the hardware will still convert the clear
+    * color to a pixel when the surface format size is less than 128bpp.
+    */
+   if (isl_format_get_layout(format)->channels.r.bits == 32)
+      return 0;
+
+   /* According to Wa_2201730850, the gfx120 sampler reads the
+    * U24_X8-formatted pixel from the first raw clear color dword.
+    */
+   if (devinfo->verx10 == 120 && format == ISL_FORMAT_R24_UNORM_X8_TYPELESS)
+      return 0;
+
+   return 16;
+}
+
 static uint32_t
 isl_get_miptail_base_row(enum isl_tiling tiling)
 {

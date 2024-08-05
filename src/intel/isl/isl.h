@@ -1985,6 +1985,14 @@ isl_sample_count_mask_t ATTRIBUTE_CONST
 isl_device_get_sample_counts(const struct isl_device *dev);
 
 /**
+ * :returns: The offset of the field within CLEAR_COLOR from which the sampler
+ *           fetches the clear color.
+ */
+uint64_t
+isl_get_sampler_clear_field_offset(const struct intel_device_info *devinfo,
+                                   enum isl_format format);
+
+/**
  * :returns: The isl_format_layout for the given isl_format
  */
 static inline const struct isl_format_layout * ATTRIBUTE_CONST
