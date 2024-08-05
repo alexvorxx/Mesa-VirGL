@@ -294,20 +294,22 @@ nvk_queue_submit_exec(struct nvk_queue *queue,
 
    const bool sync = pdev->debug_flags & NVK_DEBUG_PUSH_SYNC;
 
-   uint64_t upload_time_point;
-   result = nvk_upload_queue_flush(dev, &dev->upload, &upload_time_point);
-   if (result != VK_SUCCESS)
-      return result;
-
-   if (upload_time_point > 0) {
-      struct vk_sync_wait wait = {
-         .sync = dev->upload.sync,
-         .stage_mask = ~0,
-         .wait_value = upload_time_point,
-      };
-      result = nvkmd_ctx_wait(queue->exec_ctx, &queue->vk.base, 1, &wait);
+   if (submit->command_buffer_count > 0) {
+      uint64_t upload_time_point;
+      result = nvk_upload_queue_flush(dev, &dev->upload, &upload_time_point);
       if (result != VK_SUCCESS)
-         goto fail;
+         return result;
+
+      if (upload_time_point > 0) {
+         struct vk_sync_wait wait = {
+            .sync = dev->upload.sync,
+            .stage_mask = ~0,
+            .wait_value = upload_time_point,
+         };
+         result = nvkmd_ctx_wait(queue->exec_ctx, &queue->vk.base, 1, &wait);
+         if (result != VK_SUCCESS)
+            goto fail;
+      }
    }
 
    result = nvkmd_ctx_wait(queue->exec_ctx, &queue->vk.base,
