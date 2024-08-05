@@ -85,7 +85,6 @@ struct ir3_postsched_node {
 
    bool has_sy_src, has_ss_src;
 
-   unsigned delay;
    unsigned max_delay;
 };
 
@@ -198,10 +197,9 @@ dump_node(struct ir3_postsched_ctx *ctx, struct ir3_postsched_node *n,
    if (level > SCHED_DEBUG_DUMP_DEPTH)
       return;
 
-   di(n->instr,
-      "%*s%smaxdel=%d, del=%d, node_delay=%d,node_delay_soft=%d, %d parents ",
-      level * 2, "", (level > 0 ? "-> " : ""), n->max_delay, n->delay,
-      node_delay(ctx, n), node_delay_soft(ctx, n), n->dag.parent_count);
+   di(n->instr, "%*s%smaxdel=%d, node_delay=%d,node_delay_soft=%d, %d parents ",
+      level * 2, "", (level > 0 ? "-> " : ""), n->max_delay, node_delay(ctx, n),
+      node_delay_soft(ctx, n), n->dag.parent_count);
 
    util_dynarray_foreach (&n->dag.edges, struct dag_edge, edge) {
       struct ir3_postsched_node *child =
@@ -426,9 +424,7 @@ add_single_reg_dep(struct ir3_postsched_deps_state *state,
       struct ir3_compiler *compiler = state->ctx->ir->compiler;
       /* get the dst_n this corresponds to */
       unsigned dst_n = state->dst_n[num];
-      unsigned d_soft = ir3_delayslots(compiler, dep->instr, node->instr, src_n, true);
       d = ir3_delayslots_with_repeat(compiler, dep->instr, node->instr, dst_n, src_n);
-      node->delay = MAX2(node->delay, d_soft);
       if (is_sy_producer(dep->instr))
          node->has_sy_src = true;
       if (needs_ss(compiler, dep->instr, node->instr))
