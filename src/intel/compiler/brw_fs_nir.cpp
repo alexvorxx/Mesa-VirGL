@@ -8710,6 +8710,9 @@ fs_nir_emit_texture(nir_to_brw_state &ntb,
       for (unsigned i = 0; i < read_size; i++)
          nir_dest[i] = offset(dst, bld, (is_simd8_16bit ? 2 : 1) * i);
 
+      for (unsigned i = read_size; i < dest_size; i++)
+         nir_dest[i].type = dst.type;
+
       if (instr->op == nir_texop_query_levels) {
          /* # levels is in .w */
          if (devinfo->ver == 9) {
