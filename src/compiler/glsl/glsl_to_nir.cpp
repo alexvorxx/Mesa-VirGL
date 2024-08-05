@@ -172,8 +172,6 @@ glsl_to_nir(const struct gl_constants *consts,
       nir_print_shader(shader, stdout);
    }
 
-   shader->info.subgroup_size = SUBGROUP_SIZE_UNIFORM;
-
    return shader;
 }
 

@@ -188,6 +188,7 @@ struct gl_shader
    bool EarlyFragmentTests;
 
    bool ARB_fragment_coord_conventions_enable;
+   bool KHR_shader_subgroup_basic_enable;
 
    bool redeclares_gl_fragcoord;
    bool uses_gl_fragcoord;
