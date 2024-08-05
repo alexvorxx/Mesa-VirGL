@@ -412,6 +412,7 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
    P_IMMD(p, NV9097, SET_ANTI_ALIAS_ENABLE, V_TRUE);
 
    if (pdev->info.cls_eng3d >= MAXWELL_B) {
+      P_IMMD(p, NVB197, SET_POST_PS_INITIAL_COVERAGE, true);
       P_IMMD(p, NVB197, SET_OFFSET_RENDER_TARGET_INDEX,
                         BY_VIEWPORT_INDEX_FALSE);
    }
