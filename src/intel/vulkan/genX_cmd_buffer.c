@@ -2515,20 +2515,6 @@ genX(batch_emit_pipe_control_write)(struct anv_batch *batch,
    if (GFX_VER == 9 && (bits & ANV_PIPE_VF_CACHE_INVALIDATE_BIT))
       anv_batch_emit(batch, GENX(PIPE_CONTROL), pipe);
 
-#if GFX_VER >= 9 && GFX_VER <= 11
-   /* From the SKL PRM, Vol. 2a, "PIPE_CONTROL",
-    *
-    *    "Workaround : “CS Stall” bit in PIPE_CONTROL command must be
-    *     always set for GPGPU workloads when “Texture Cache
-    *     Invalidation Enable” bit is set".
-    *
-    * Workaround stopped appearing in TGL PRMs.
-    */
-   if (current_pipeline == GPGPU &&
-       (bits & ANV_PIPE_TEXTURE_CACHE_INVALIDATE_BIT))
-      bits |= ANV_PIPE_CS_STALL_BIT;
-#endif
-
    anv_batch_emit(batch, GENX(PIPE_CONTROL), pipe) {
 #if GFX_VERx10 >= 125
       pipe.UntypedDataPortCacheFlushEnable =
