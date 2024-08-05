@@ -392,18 +392,84 @@ static bool ppir_lower_neg(ppir_block *block, ppir_node *node)
    return true;
 }
 
-static bool ppir_lower_sat(ppir_block *block, ppir_node *node)
+static bool ppir_lower_fold_dest_mod(ppir_block *block, ppir_node *node, ppir_outmod mod)
 {
-   /* Turn it into a mov with the saturate output modifier */
+   ppir_dest *dest = ppir_node_get_dest(node);
+   if (dest->type != ppir_target_ssa)
+      return false;
+
+   ppir_src *src = ppir_node_get_src(node, 0);
+   assert(src);
+   for (int i = 0; i < dest->ssa.num_components; i++) {
+      if (src->swizzle[i] != i)
+         return false;
+   }
+
+   if (!ppir_node_has_single_pred(node))
+      return false;
+
+   /* Can't track these successors with deps here so skip */
+   if (node->succ_different_block)
+      return false;
+
+   ppir_node *pred = ppir_node_first_pred(node);
+   assert(pred);
+
+   if (pred->type != ppir_node_type_alu)
+      return false;
+
+   ppir_dest *pred_dest = ppir_node_get_dest(pred);
+   if (!ppir_node_has_single_succ(pred) || pred_dest->type != ppir_target_ssa)
+      return false;
+
+   /* may happen for sum3 */
+   if (pred_dest->ssa.num_components != dest->ssa.num_components)
+      return false;
+
+   if (pred_dest->modifier != ppir_outmod_none)
+      return false;
+
+   pred_dest->modifier = mod;
+
+   if (node->is_out)
+      pred->is_out = true;
+   pred_dest->ssa.out_type = pred_dest->ssa.out_type;
+
+   ppir_node_replace_all_succ(pred, node);
+
+   /* for all nodes after the mod node */
+   ppir_node_foreach_succ_safe(node, dep) {
+      /* replace the mod node with the pred alu */
+      ppir_node *p = dep->succ;
+      ppir_node_remove_dep(dep);
+      ppir_node_add_dep(p, pred, ppir_dep_src);
+   }
+
+   ppir_node_delete(node);
+   return true;
+}
+
+static bool ppir_lower_with_dest_mod(ppir_block *block, ppir_node *node, ppir_outmod mod)
+{
+   /* Check if we can fold it as a dest modifier */
+   if (ppir_lower_fold_dest_mod(block, node, mod))
+      return true;
+
+   /* Fall back to a mov with the dest modifier */
    ppir_alu_node *alu = ppir_node_to_alu(node);
 
    assert(alu->num_src == 1);
 
    ppir_dest *move_dest = &alu->dest;
-   move_dest->modifier = ppir_outmod_clamp_fraction;
+   move_dest->modifier = mod;
    node->op = ppir_op_mov;
 
    return true;
+}
+
+static bool ppir_lower_sat(ppir_block *block, ppir_node *node)
+{
+   return ppir_lower_with_dest_mod(block, node, ppir_outmod_clamp_fraction);
 }
 
 static bool ppir_lower_branch_merge_condition(ppir_block *block, ppir_node *node)
