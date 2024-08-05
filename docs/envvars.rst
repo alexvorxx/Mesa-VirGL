@@ -1498,7 +1498,11 @@ RADV driver environment variables
    ``noopt``
       disable various optimizations
    ``nosched``
-      disable instructions scheduling
+      disable pre-RA, ILP and VOPD instruction scheduling
+   ``nosched-ilp``
+      disable ILP instruction scheduling
+   ``nosched-vopd``
+      disable VOPD instruction scheduling
    ``perfinfo``
       print information used to calculate some pipeline statistics
    ``liveinfo``
