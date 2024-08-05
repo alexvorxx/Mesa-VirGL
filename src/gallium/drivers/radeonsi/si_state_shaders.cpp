@@ -28,9 +28,8 @@ static void si_update_tess_in_out_patch_vertices(struct si_context *sctx);
 
 unsigned si_determine_wave_size(struct si_screen *sscreen, struct si_shader *shader)
 {
-   /* There are a few uses that pass shader=NULL here, expecting the default compute wave size. */
-   struct si_shader_info *info = shader ? &shader->selector->info : NULL;
-   gl_shader_stage stage = shader ? shader->selector->stage : MESA_SHADER_COMPUTE;
+   struct si_shader_info *info = &shader->selector->info;
+   gl_shader_stage stage = shader->selector->stage;
 
    if (sscreen->info.gfx_level < GFX10)
       return 64;
@@ -42,7 +41,7 @@ unsigned si_determine_wave_size(struct si_screen *sscreen, struct si_shader *sha
       return 64;
 
    /* Workgroup sizes that are not divisible by 64 use Wave32. */
-   if (stage == MESA_SHADER_COMPUTE && info && !info->base.workgroup_size_variable &&
+   if (stage == MESA_SHADER_COMPUTE && !info->base.workgroup_size_variable &&
        (info->base.workgroup_size[0] *
         info->base.workgroup_size[1] *
         info->base.workgroup_size[2]) % 64 != 0)
@@ -60,10 +59,10 @@ unsigned si_determine_wave_size(struct si_screen *sscreen, struct si_shader *sha
       return 64;
 
    /* Shader profiles. */
-   if (info && info->options & SI_PROFILE_WAVE32)
+   if (info->options & SI_PROFILE_WAVE32)
       return 32;
 
-   if (info && info->options & SI_PROFILE_GFX10_WAVE64 &&
+   if (info->options & SI_PROFILE_GFX10_WAVE64 &&
        (sscreen->info.gfx_level == GFX10 || sscreen->info.gfx_level == GFX10_3))
       return 64;
 
@@ -85,13 +84,13 @@ unsigned si_determine_wave_size(struct si_screen *sscreen, struct si_shader *sha
     */
    if (stage <= MESA_SHADER_GEOMETRY &&
        (sscreen->info.gfx_level == GFX10 || sscreen->info.gfx_level == GFX10_3) &&
-       !(sscreen->info.gfx_level == GFX10 && shader && shader->key.ge.opt.ngg_culling))
+       !(sscreen->info.gfx_level == GFX10 && shader->key.ge.opt.ngg_culling))
       return 32;
 
    /* TODO: Merged shaders must use the same wave size because the driver doesn't recompile
     * individual shaders of merged shaders to match the wave size between them.
     */
-   bool merged_shader = stage <= MESA_SHADER_GEOMETRY && shader && !shader->is_gs_copy_shader &&
+   bool merged_shader = stage <= MESA_SHADER_GEOMETRY && !shader->is_gs_copy_shader &&
                         (shader->key.ge.as_ls || shader->key.ge.as_es ||
                          stage == MESA_SHADER_TESS_CTRL || stage == MESA_SHADER_GEOMETRY);
 
@@ -101,7 +100,7 @@ unsigned si_determine_wave_size(struct si_screen *sscreen, struct si_shader *sha
     *
     * Gfx11: Wave32 continues to be faster with divergent loops despite worse VALU performance.
     */
-   if (!merged_shader && info && info->has_divergent_loop)
+   if (!merged_shader && info->has_divergent_loop)
       return 32;
 
    return 64;
