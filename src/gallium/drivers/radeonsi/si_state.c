@@ -1795,14 +1795,14 @@ static void si_emit_db_render_state(struct si_context *sctx, unsigned index)
       /* This ignores CONSERVATIVE_Z_EXPORT, so it's slightly pessimistic. */
       bool late_z = !G_02880C_DEPTH_BEFORE_SHADER(sctx->ps_db_shader_control) &&
                     (G_02880C_Z_ORDER(sctx->ps_db_shader_control) == V_02880C_LATE_Z ||
-                     (G_02880C_Z_ORDER(sctx->ps_db_shader_control) == V_02880C_EARLY_Z_THEN_LATE_Z &&
-                      (G_02880C_KILL_ENABLE(sctx->ps_db_shader_control) ||
-                       G_02880C_Z_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
-                       G_02880C_STENCIL_TEST_VAL_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
-                       G_02880C_STENCIL_OP_VAL_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
-                       G_02880C_COVERAGE_TO_MASK_ENABLE(sctx->ps_db_shader_control) ||
-                       G_02880C_MASK_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
-                       sctx->queued.named.blend->alpha_to_coverage)));
+                     /* Late Z is always used in these cases: */
+                     G_02880C_KILL_ENABLE(sctx->ps_db_shader_control) ||
+                     G_02880C_Z_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
+                     G_02880C_STENCIL_TEST_VAL_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
+                     G_02880C_STENCIL_OP_VAL_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
+                     G_02880C_COVERAGE_TO_MASK_ENABLE(sctx->ps_db_shader_control) ||
+                     G_02880C_MASK_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
+                     sctx->queued.named.blend->alpha_to_coverage);
 
       db_render_control |= S_028000_OREO_MODE(late_z ? V_028000_OMODE_BLEND : V_028000_OMODE_O_THEN_B);
    }
