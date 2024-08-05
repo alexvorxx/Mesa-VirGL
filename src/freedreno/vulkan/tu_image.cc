@@ -123,12 +123,18 @@ tu_is_r8g8_compatible(enum pipe_format format)
           !util_format_is_depth_or_stencil(format);
 }
 
+uint64_t
+tu_layer_address(const struct fdl6_view *iview, uint32_t layer)
+{
+   return iview->base_addr + iview->layer_size * layer;
+}
+
 void
 tu_cs_image_ref(struct tu_cs *cs, const struct fdl6_view *iview, uint32_t layer)
 {
    tu_cs_emit(cs, A6XX_RB_MRT_PITCH(0, iview->pitch).value);
    tu_cs_emit(cs, iview->layer_size >> 6);
-   tu_cs_emit_qw(cs, iview->base_addr + iview->layer_size * layer);
+   tu_cs_emit_qw(cs, tu_layer_address(iview, layer));
 }
 
 void
