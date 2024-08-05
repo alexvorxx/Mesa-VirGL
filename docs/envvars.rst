@@ -1487,8 +1487,6 @@ RADV driver environment variables
       disable ACO IR validation in debug/debugoptimized builds
    ``validatera``
       validate register assignment of ACO IR and catches many RA bugs
-   ``perfwarn``
-      abort on some suboptimal code generation
    ``force-waitcnt``
       force emitting waitcnt states if there is something to wait for
    ``force-waitdeps``
