@@ -862,6 +862,13 @@ struct pipe_screen {
                                             struct pipe_video_buffer *target,
                                             enum pipe_video_profile profile,
                                             enum pipe_video_entrypoint entrypoint);
+
+   /**
+    * pipe_screen is inherited by driver's screen but a simple cast to convert
+    * from the generic interface to the driver version won't work if dd_pipe
+    * is used.
+    */
+   struct pipe_screen* (*get_driver_pipe_screen)(struct pipe_screen *screen);
 };
 
 

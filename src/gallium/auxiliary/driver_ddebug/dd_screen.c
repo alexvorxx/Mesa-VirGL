@@ -545,6 +545,15 @@ match_uint(const char **cur, unsigned *value)
    return true;
 }
 
+static struct pipe_screen * dd_get_driver_pipe_screen(struct pipe_screen *_screen)
+{
+   struct pipe_screen * screen = dd_screen(_screen)->screen;
+
+   if (screen->get_driver_pipe_screen)
+      return screen->get_driver_pipe_screen(screen);
+   return screen;
+}
+
 struct pipe_screen *
 ddebug_screen_create(struct pipe_screen *screen)
 {
@@ -688,6 +697,7 @@ ddebug_screen_create(struct pipe_screen *screen)
    SCR_INIT(get_sparse_texture_virtual_page_size);
    SCR_INIT(create_vertex_state);
    SCR_INIT(vertex_state_destroy);
+   dscreen->base.get_driver_pipe_screen = dd_get_driver_pipe_screen;
 
 #undef SCR_INIT
 

@@ -591,7 +591,10 @@ struct pipe_resource
     * next plane.
     */
    struct pipe_resource *next;
-   /* The screen pointer should be last for optimal structure packing. */
+   /* The screen pointer should be last for optimal structure packing.
+    * This pointer cannot be casted directly to a driver's screen. Use
+    * screen::get_driver_pipe_screen instead if it's non-NULL.
+    */
    struct pipe_screen *screen; /**< screen that this texture belongs to */
 };
 

@@ -1524,6 +1524,15 @@ trace_enabled(void)
    return trace;
 }
 
+static struct pipe_screen * tr_get_driver_pipe_screen(struct pipe_screen *_screen)
+{
+   struct pipe_screen *screen = trace_screen(_screen)->screen;
+
+   if (screen->get_driver_pipe_screen)
+      return screen->get_driver_pipe_screen(screen);
+   return screen;
+}
+
 struct pipe_screen *
 trace_screen_create(struct pipe_screen *screen)
 {
@@ -1618,6 +1627,7 @@ trace_screen_create(struct pipe_screen *screen)
    SCR_INIT(query_compression_rates);
    SCR_INIT(query_compression_modifiers);
    SCR_INIT(is_compression_modifier);
+   tr_scr->base.get_driver_pipe_screen = tr_get_driver_pipe_screen;
 
    tr_scr->screen = screen;
 

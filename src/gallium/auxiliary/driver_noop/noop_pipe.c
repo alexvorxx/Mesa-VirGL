@@ -788,6 +788,15 @@ static void noop_set_fence_timeline_value(struct pipe_screen *screen,
    oscreen->set_fence_timeline_value(oscreen, fence, value);
 }
 
+static struct pipe_screen * noop_get_driver_pipe_screen(struct pipe_screen *_screen)
+{
+   struct pipe_screen * screen = ((struct noop_pipe_screen*)_screen)->oscreen;
+
+   if (screen->get_driver_pipe_screen)
+      return screen->get_driver_pipe_screen(screen);
+   return screen;
+}
+
 struct pipe_screen *noop_screen_create(struct pipe_screen *oscreen)
 {
    struct noop_pipe_screen *noop_screen;
@@ -850,6 +859,7 @@ struct pipe_screen *noop_screen_create(struct pipe_screen *oscreen)
    screen->query_compression_rates = noop_query_compression_rates;
    screen->query_compression_modifiers = noop_query_compression_modifiers;
    screen->is_compression_modifier = noop_is_compression_modifier;
+   screen->get_driver_pipe_screen = noop_get_driver_pipe_screen;
 
    slab_create_parent(&noop_screen->pool_transfers,
                       sizeof(struct pipe_transfer), 64);
