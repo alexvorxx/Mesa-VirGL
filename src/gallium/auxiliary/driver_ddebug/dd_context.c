@@ -839,6 +839,16 @@ dd_context_set_context_param(struct pipe_context *_pipe,
    pipe->set_context_param(pipe, param, value);
 }
 
+static void
+dd_context_set_inlinable_constants(struct pipe_context *_pipe,
+                                   enum pipe_shader_type shader,
+                                   uint num_values, uint32_t *values)
+{
+   struct pipe_context *pipe = dd_context(_pipe)->pipe;
+
+   pipe->set_inlinable_constants(pipe, shader, num_values, values);
+}
+
 struct pipe_context *
 dd_context_create(struct dd_screen *dscreen, struct pipe_context *pipe)
 {
@@ -946,6 +956,7 @@ dd_context_create(struct dd_screen *dscreen, struct pipe_context *pipe)
    CTX_INIT(delete_image_handle);
    CTX_INIT(make_image_handle_resident);
    CTX_INIT(set_context_param);
+   CTX_INIT(set_inlinable_constants);
 
    dd_init_draw_functions(dctx);
 
