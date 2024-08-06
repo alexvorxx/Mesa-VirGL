@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 #include "nvk_cmd_buffer.h"
-#include "nvk_descriptor_set.h"
 #include "nvk_descriptor_set_layout.h"
+#include "nvk_descriptor_types.h"
 #include "nvk_shader.h"
 
 #include "vk_pipeline.h"

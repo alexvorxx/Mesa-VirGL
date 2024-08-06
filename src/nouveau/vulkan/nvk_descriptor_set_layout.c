@@ -5,6 +5,7 @@
 #include "nvk_descriptor_set_layout.h"
 
 #include "nvk_descriptor_set.h"
+#include "nvk_descriptor_types.h"
 #include "nvk_device.h"
 #include "nvk_entrypoints.h"
 #include "nvk_physical_device.h"

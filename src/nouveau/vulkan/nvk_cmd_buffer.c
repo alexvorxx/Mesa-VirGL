@@ -6,7 +6,6 @@
 
 #include "nvk_buffer.h"
 #include "nvk_cmd_pool.h"
-#include "nvk_descriptor_set.h"
 #include "nvk_descriptor_set_layout.h"
 #include "nvk_device.h"
 #include "nvk_device_memory.h"
