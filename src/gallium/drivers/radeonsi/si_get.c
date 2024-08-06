@@ -414,6 +414,15 @@ static int si_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
       /* Conversion to nanos from cycles per millisecond */
       return DIV_ROUND_UP(1000000, sscreen->info.clock_crystal_freq);
 
+   case PIPE_CAP_SHADER_SUBGROUP_SIZE:
+      return 64;
+   case PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_STAGES:
+      return BITFIELD_MASK(PIPE_SHADER_TYPES);
+   case PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_FEATURES:
+      return BITFIELD_MASK(PIPE_SHADER_SUBGROUP_NUM_FEATURES);
+   case PIPE_CAP_SHADER_SUBGROUP_QUAD_ALL_STAGES:
+      return true;
+
    default:
       return u_pipe_screen_get_param_defaults(pscreen, param);
    }

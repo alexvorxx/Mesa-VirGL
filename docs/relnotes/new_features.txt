@@ -3,3 +3,4 @@ VK_EXT_descriptor_buffer on nvk
 VK_EXT_post_depth_coverage on nvk
 VK_KHR_video_maintenance1 on radv
 VK_EXT_legacy_vertex_attributes on nvk
+GL_KHR_shader_subgroup on radeonsi
