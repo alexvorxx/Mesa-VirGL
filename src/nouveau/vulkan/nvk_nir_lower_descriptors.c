@@ -864,13 +864,18 @@ load_resource_deref_desc(nir_builder *b,
 }
 
 static void
-lower_msaa_image_intrin(nir_builder *b, nir_intrinsic_instr *intrin)
+lower_msaa_image_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
+                        const struct lower_descriptors_ctx *ctx)
 {
    assert(nir_intrinsic_image_dim(intrin) == GLSL_SAMPLER_DIM_MS);
 
    b->cursor = nir_before_instr(&intrin->instr);
+   nir_deref_instr *deref = nir_src_as_deref(intrin->src[0]);
+   nir_def *desc = load_resource_deref_desc(b, 1, 32, deref, 0, ctx);
 
-   nir_def *desc = intrin->src[0].ssa;
+   nir_def *img_index = nir_ubitfield_extract_imm(b, desc, 0, 20);
+   nir_rewrite_image_intrinsic(intrin, img_index, true);
+
    nir_def *sw_log2 = nir_ubitfield_extract_imm(b, desc, 20, 2);
    nir_def *sh_log2 = nir_ubitfield_extract_imm(b, desc, 22, 2);
 
@@ -941,13 +946,15 @@ static bool
 lower_image_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
                    const struct lower_descriptors_ctx *ctx)
 {
-   b->cursor = nir_before_instr(&intrin->instr);
    nir_deref_instr *deref = nir_src_as_deref(intrin->src[0]);
-   nir_def *desc = load_resource_deref_desc(b, 1, 32, deref, 0, ctx);
-   nir_rewrite_image_intrinsic(intrin, desc, true);
 
-   if (nir_intrinsic_image_dim(intrin) == GLSL_SAMPLER_DIM_MS)
-      lower_msaa_image_intrin(b, intrin);
+   if (glsl_get_sampler_dim(deref->type) == GLSL_SAMPLER_DIM_MS) {
+      lower_msaa_image_intrin(b, intrin, ctx);
+   } else {
+      b->cursor = nir_before_instr(&intrin->instr);
+      nir_def *desc = load_resource_deref_desc(b, 1, 32, deref, 0, ctx);
+      nir_rewrite_image_intrinsic(intrin, desc, true);
+   }
 
    return true;
 }
