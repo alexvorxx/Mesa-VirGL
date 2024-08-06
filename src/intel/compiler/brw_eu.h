@@ -573,13 +573,6 @@ brw_mdc_cmask(unsigned num_channels)
    return 0xf & (0xf << num_channels);
 }
 
-static inline unsigned
-lsc_cmask(unsigned num_channels)
-{
-   assert(num_channels > 0 && num_channels <= 4);
-   return BITSET_MASK(num_channels);
-}
-
 static inline uint32_t
 brw_dp_untyped_surface_rw_desc(const struct intel_device_info *devinfo,
                                unsigned exec_size, /**< 0 for SIMD4x2 */
@@ -1163,7 +1156,7 @@ lsc_msg_desc_wcmask(const struct intel_device_info *devinfo,
       SET_BITS(addr_type, 30, 29);
 
    if (lsc_opcode_has_cmask(opcode))
-      msg_desc |= SET_BITS(cmask ? cmask : lsc_cmask(num_channels), 15, 12);
+      msg_desc |= SET_BITS(cmask, 15, 12);
    else
       msg_desc |= SET_BITS(lsc_vect_size(num_channels), 14, 12);
 
