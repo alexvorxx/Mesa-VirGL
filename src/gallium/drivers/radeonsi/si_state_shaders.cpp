@@ -31,6 +31,12 @@ unsigned si_determine_wave_size(struct si_screen *sscreen, struct si_shader *sha
    struct si_shader_info *info = &shader->selector->info;
    gl_shader_stage stage = shader->selector->stage;
 
+   struct si_shader_selector *prev_sel = NULL;
+   if (stage == MESA_SHADER_TESS_CTRL)
+      prev_sel = shader->key.ge.part.tcs.ls;
+   else if (stage == MESA_SHADER_GEOMETRY)
+      prev_sel = shader->key.ge.part.gs.es;
+
    if (sscreen->info.gfx_level < GFX10)
       return 64;
 
@@ -87,20 +93,15 @@ unsigned si_determine_wave_size(struct si_screen *sscreen, struct si_shader *sha
        !(sscreen->info.gfx_level == GFX10 && shader->key.ge.opt.ngg_culling))
       return 32;
 
-   /* TODO: Merged shaders must use the same wave size because the driver doesn't recompile
-    * individual shaders of merged shaders to match the wave size between them.
-    */
-   bool merged_shader = stage <= MESA_SHADER_GEOMETRY && !shader->is_gs_copy_shader &&
-                        (shader->key.ge.as_ls || shader->key.ge.as_es ||
-                         stage == MESA_SHADER_TESS_CTRL || stage == MESA_SHADER_GEOMETRY);
-
    /* Divergent loops in Wave64 can end up having too many iterations in one half of the wave
     * while the other half is idling but occupying VGPRs, preventing other waves from launching.
     * Wave32 eliminates the idling half to allow the next wave to start.
     *
     * Gfx11: Wave32 continues to be faster with divergent loops despite worse VALU performance.
     */
-   if (!merged_shader && info->has_divergent_loop)
+   if (info->has_divergent_loop ||
+       /* Merged shader has to use same wave size for two shader stages. */
+       (prev_sel && prev_sel->info.has_divergent_loop))
       return 32;
 
    return 64;
@@ -2867,9 +2868,9 @@ static union si_shader_key zeroed;
 
 static bool si_check_missing_main_part(struct si_screen *sscreen, struct si_shader_selector *sel,
                                        struct si_compiler_ctx_state *compiler_state,
-                                       const union si_shader_key *key)
+                                       const union si_shader_key *key, unsigned wave_size)
 {
-   struct si_shader **mainp = si_get_main_shader_part(sel, key);
+   struct si_shader **mainp = si_get_main_shader_part(sel, key, wave_size);
 
    if (!*mainp) {
       struct si_shader *main_part = CALLOC_STRUCT(si_shader);
@@ -2889,7 +2890,7 @@ static bool si_check_missing_main_part(struct si_screen *sscreen, struct si_shad
          main_part->key.ge.as_ngg = key->ge.as_ngg;
       }
       main_part->is_monolithic = false;
-      main_part->wave_size = si_determine_wave_size(sscreen, main_part);
+      main_part->wave_size = wave_size;
 
       if (!si_compile_shader(sscreen, compiler_state->compiler, main_part,
                              &compiler_state->debug)) {
@@ -3104,13 +3105,13 @@ current_not_ready:
 
          simple_mtx_lock(&previous_stage_sel->mutex);
          ok = si_check_missing_main_part(sscreen, previous_stage_sel, &shader->compiler_ctx_state,
-                                         &shader1_key);
+                                         &shader1_key, shader->wave_size);
          simple_mtx_unlock(&previous_stage_sel->mutex);
       }
 
       if (ok) {
          ok = si_check_missing_main_part(sscreen, sel, &shader->compiler_ctx_state,
-                                         (union si_shader_key*)key);
+                                         (union si_shader_key*)key, shader->wave_size);
       }
 
       if (!ok) {
@@ -3346,7 +3347,7 @@ static void si_init_shader_selector_async(void *job, void *gdata, int thread_ind
          simple_mtx_unlock(&sscreen->shader_cache_mutex);
       }
 
-      *si_get_main_shader_part(sel, &shader->key) = shader;
+      *si_get_main_shader_part(sel, &shader->key, shader->wave_size) = shader;
 
       /* Unset "outputs_written" flags for outputs converted to
        * DEFAULT_VAL, so that later inter-shader optimizations don't
@@ -3575,16 +3576,19 @@ static void *si_create_shader(struct pipe_context *ctx, const struct pipe_shader
       ctx, &sscreen->live_shader_cache, state, &cache_hit);
 
    if (sel && cache_hit && sctx->debug.debug_message) {
-      if (sel->main_shader_part)
-         si_shader_dump_stats_for_shader_db(sscreen, sel->main_shader_part, &sctx->debug);
-      if (sel->main_shader_part_ls)
-         si_shader_dump_stats_for_shader_db(sscreen, sel->main_shader_part_ls, &sctx->debug);
+      for (unsigned i = 0; i < 2; i++) {
+         if (sel->main_shader_part[i])
+            si_shader_dump_stats_for_shader_db(sscreen, sel->main_shader_part[i], &sctx->debug);
+         if (sel->main_shader_part_ls[i])
+            si_shader_dump_stats_for_shader_db(sscreen, sel->main_shader_part_ls[i], &sctx->debug);
+         if (sel->main_shader_part_ngg[i])
+            si_shader_dump_stats_for_shader_db(sscreen, sel->main_shader_part_ngg[i], &sctx->debug);
+         if (sel->main_shader_part_ngg_es[i])
+            si_shader_dump_stats_for_shader_db(sscreen, sel->main_shader_part_ngg_es[i], &sctx->debug);
+      }
+
       if (sel->main_shader_part_es)
          si_shader_dump_stats_for_shader_db(sscreen, sel->main_shader_part_es, &sctx->debug);
-      if (sel->main_shader_part_ngg)
-         si_shader_dump_stats_for_shader_db(sscreen, sel->main_shader_part_ngg, &sctx->debug);
-      if (sel->main_shader_part_ngg_es)
-         si_shader_dump_stats_for_shader_db(sscreen, sel->main_shader_part_ngg_es, &sctx->debug);
    }
    return sel;
 }
@@ -4017,16 +4021,19 @@ static void si_destroy_shader_selector(struct pipe_context *ctx, void *cso)
       si_delete_shader(sctx, sel->variants[i]);
    }
 
-   if (sel->main_shader_part)
-      si_delete_shader(sctx, sel->main_shader_part);
-   if (sel->main_shader_part_ls)
-      si_delete_shader(sctx, sel->main_shader_part_ls);
+   for (unsigned i = 0; i < 2; i++) {
+      if (sel->main_shader_part[i])
+         si_delete_shader(sctx, sel->main_shader_part[i]);
+      if (sel->main_shader_part_ls[i])
+         si_delete_shader(sctx, sel->main_shader_part_ls[i]);
+      if (sel->main_shader_part_ngg[i])
+         si_delete_shader(sctx, sel->main_shader_part_ngg[i]);
+      if (sel->main_shader_part_ngg_es[i])
+         si_delete_shader(sctx, sel->main_shader_part_ngg_es[i]);
+   }
+
    if (sel->main_shader_part_es)
       si_delete_shader(sctx, sel->main_shader_part_es);
-   if (sel->main_shader_part_ngg)
-      si_delete_shader(sctx, sel->main_shader_part_ngg);
-   if (sel->main_shader_part_ngg_es)
-      si_delete_shader(sctx, sel->main_shader_part_ngg_es);
 
    free(sel->keys);
    free(sel->variants);

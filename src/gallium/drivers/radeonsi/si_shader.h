@@ -552,12 +552,14 @@ struct si_shader_selector {
 
    /* The compiled NIR shader without a prolog and/or epilog (not
     * uploaded to a buffer object).
+    *
+    * [0] for wave32, [1] for wave64.
     */
-   struct si_shader *main_shader_part;
-   struct si_shader *main_shader_part_ls;     /* as_ls is set in the key */
-   struct si_shader *main_shader_part_es;     /* as_es is set in the key */
-   struct si_shader *main_shader_part_ngg;    /* as_ngg is set in the key */
-   struct si_shader *main_shader_part_ngg_es; /* for Wave32 TES before legacy GS */
+   struct si_shader *main_shader_part[2];
+   struct si_shader *main_shader_part_ls[2];     /* as_ls is set in the key */
+   struct si_shader *main_shader_part_es;        /* as_es && !as_ngg in the key */
+   struct si_shader *main_shader_part_ngg[2];    /* !as_es && as_ngg in the key */
+   struct si_shader *main_shader_part_ngg_es[2]; /* as_es && as_ngg in the key */
 
    struct nir_shader *nir;
    void *nir_binary;
@@ -1039,19 +1041,26 @@ bool si_should_clear_lds(struct si_screen *sscreen, const struct nir_shader *sha
 
 /* Return the pointer to the main shader part's pointer. */
 static inline struct si_shader **si_get_main_shader_part(struct si_shader_selector *sel,
-                                                         const union si_shader_key *key)
+                                                         const union si_shader_key *key,
+                                                         unsigned wave_size)
 {
+   assert(wave_size == 32 || wave_size == 64);
+   unsigned index = wave_size / 32 - 1;
+
    if (sel->stage <= MESA_SHADER_GEOMETRY) {
       if (key->ge.as_ls)
-         return &sel->main_shader_part_ls;
+         return &sel->main_shader_part_ls[index];
       if (key->ge.as_es && key->ge.as_ngg)
-         return &sel->main_shader_part_ngg_es;
-      if (key->ge.as_es)
+         return &sel->main_shader_part_ngg_es[index];
+      if (key->ge.as_es) {
+         /* legacy GS only support wave 64 */
+         assert(wave_size == 64);
          return &sel->main_shader_part_es;
+      }
       if (key->ge.as_ngg)
-         return &sel->main_shader_part_ngg;
+         return &sel->main_shader_part_ngg[index];
    }
-   return &sel->main_shader_part;
+   return &sel->main_shader_part[index];
 }
 
 static inline bool si_shader_uses_bindless_samplers(struct si_shader_selector *selector)

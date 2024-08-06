@@ -3144,8 +3144,11 @@ si_get_shader_part(struct si_screen *sscreen, struct si_shader_part **list,
 static bool si_shader_select_tcs_parts(struct si_screen *sscreen, struct ac_llvm_compiler *compiler,
                                        struct si_shader *shader, struct util_debug_callback *debug)
 {
-   if (sscreen->info.gfx_level >= GFX9)
-      shader->previous_stage = shader->key.ge.part.tcs.ls->main_shader_part_ls;
+   if (sscreen->info.gfx_level >= GFX9) {
+      assert(shader->wave_size == 32 || shader->wave_size == 64);
+      unsigned index = shader->wave_size / 32 - 1;
+      shader->previous_stage = shader->key.ge.part.tcs.ls->main_shader_part_ls[index];
+   }
 
    return true;
 }
@@ -3157,10 +3160,13 @@ static bool si_shader_select_gs_parts(struct si_screen *sscreen, struct ac_llvm_
                                       struct si_shader *shader, struct util_debug_callback *debug)
 {
    if (sscreen->info.gfx_level >= GFX9) {
-      if (shader->key.ge.as_ngg)
-         shader->previous_stage = shader->key.ge.part.gs.es->main_shader_part_ngg_es;
-      else
+      if (shader->key.ge.as_ngg) {
+         assert(shader->wave_size == 32 || shader->wave_size == 64);
+         unsigned index = shader->wave_size / 32 - 1;
+         shader->previous_stage = shader->key.ge.part.gs.es->main_shader_part_ngg_es[index];
+      } else {
          shader->previous_stage = shader->key.ge.part.gs.es->main_shader_part_es;
+      }
    }
 
    return true;
@@ -3382,7 +3388,7 @@ bool si_create_shader_variant(struct si_screen *sscreen, struct ac_llvm_compiler
                               struct si_shader *shader, struct util_debug_callback *debug)
 {
    struct si_shader_selector *sel = shader->selector;
-   struct si_shader *mainp = *si_get_main_shader_part(sel, &shader->key);
+   struct si_shader *mainp = *si_get_main_shader_part(sel, &shader->key, shader->wave_size);
 
    if (sel->stage == MESA_SHADER_FRAGMENT) {
       shader->ps.writes_samplemask = sel->info.writes_samplemask &&
@@ -3445,14 +3451,13 @@ bool si_create_shader_variant(struct si_screen *sscreen, struct ac_llvm_compiler
           * by multiple contexts.
           */
          if (!shader->key.ge.as_ngg) {
-            assert(sel->main_shader_part == mainp);
-            assert(sel->main_shader_part->gs_copy_shader);
-            assert(sel->main_shader_part->gs_copy_shader->bo);
-            assert(!sel->main_shader_part->gs_copy_shader->previous_stage_sel);
-            assert(!sel->main_shader_part->gs_copy_shader->scratch_va);
+            assert(mainp->gs_copy_shader);
+            assert(mainp->gs_copy_shader->bo);
+            assert(!mainp->gs_copy_shader->previous_stage_sel);
+            assert(!mainp->gs_copy_shader->scratch_va);
 
             shader->gs_copy_shader = CALLOC_STRUCT(si_shader);
-            memcpy(shader->gs_copy_shader, sel->main_shader_part->gs_copy_shader,
+            memcpy(shader->gs_copy_shader, mainp->gs_copy_shader,
                    sizeof(*shader->gs_copy_shader));
             /* Increase the reference count. */
             pipe_reference(NULL, &shader->gs_copy_shader->bo->b.b.reference);
