@@ -356,7 +356,7 @@ SOFTWARE.
 		LoaD Private
 	</doc>
 	<display>
-		{SY}{JP}{NAME}.{TYPE} {DST}, p[{SRC}{OFF}], {SIZE}
+		{SY}{JP}{NAME}.{TYPE} {TYPE_HALF}{DST}, p[{SRC}{OFF}], {SIZE}
 	</display>
 	<pattern low="54" high="58">00010</pattern>  <!-- OPC -->
 </bitset>
