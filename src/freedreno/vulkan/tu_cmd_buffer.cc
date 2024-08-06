@@ -1287,6 +1287,8 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
    emit_rb_ccu_cntl<CHIP>(cs, cmd->device, false);
    cmd->state.ccu_state = TU_CMD_CCU_SYSMEM;
 
+   tu_cs_emit_write_reg(cs, REG_A7XX_SP_DITHER_CNTL, 0);
+
    for (size_t i = 0; i < ARRAY_SIZE(phys_dev->info->a6xx.magic_raw); i++) {
       auto magic_reg = phys_dev->info->a6xx.magic_raw[i];
       if (!magic_reg.reg)
