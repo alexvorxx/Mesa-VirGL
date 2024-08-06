@@ -1000,11 +1000,29 @@ tu6_emit_tile_select(struct tu_cmd_buffer *cmd,
                      uint32_t tx, uint32_t ty, uint32_t pipe, uint32_t slot,
                      const struct tu_image_view *fdm)
 {
+   struct tu_physical_device *phys_dev = cmd->device->physical_device;
    const struct tu_tiling_config *tiling = cmd->state.tiling;
+   bool hw_binning = use_hw_binning(cmd);
 
    tu_cs_emit_pkt7(cs, CP_SET_MARKER, 1);
    tu_cs_emit(cs, A6XX_CP_SET_MARKER_0_MODE(RM6_BIN_RENDER_START) |
                   A6XX_CP_SET_MARKER_0_USES_GMEM);
+
+   tu6_emit_bin_size<CHIP>(
+      cs, tiling->tile0.width, tiling->tile0.height,
+      {
+         .render_mode = RENDERING_PASS,
+         .force_lrz_write_dis = !phys_dev->info->a6xx.has_lrz_feedback,
+         .buffers_location = BUFFERS_IN_GMEM,
+         .lrz_feedback_zmode_mask =
+            phys_dev->info->a6xx.has_lrz_feedback
+               ? (hw_binning ? LRZ_FEEDBACK_EARLY_Z_OR_EARLY_LRZ_LATE_Z :
+                  LRZ_FEEDBACK_EARLY_LRZ_LATE_Z)
+               : LRZ_FEEDBACK_NONE,
+      });
+
+   tu_cs_emit_regs(cs,
+                   A6XX_VFD_MODE_CNTL(RENDERING_PASS));
 
    const uint32_t x1 = tiling->tile0.width * tx;
    const uint32_t y1 = tiling->tile0.height * ty;
@@ -1012,8 +1030,6 @@ tu6_emit_tile_select(struct tu_cmd_buffer *cmd,
    const uint32_t y2 = MIN2(y1 + tiling->tile0.height, MAX_VIEWPORT_SIZE);
    tu6_emit_window_scissor(cs, x1, y1, x2 - 1, y2 - 1);
    tu6_emit_window_offset<CHIP>(cs, x1, y1);
-
-   bool hw_binning = use_hw_binning(cmd);
 
    if (hw_binning) {
       tu_cs_emit_pkt7(cs, CP_WAIT_FOR_ME, 0);
@@ -2031,21 +2047,6 @@ tu6_tile_render_begin(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
 
       tu6_emit_binning_pass<CHIP>(cmd, cs);
 
-      tu6_emit_bin_size<CHIP>(
-         cs, tiling->tile0.width, tiling->tile0.height,
-         {
-            .render_mode = RENDERING_PASS,
-            .force_lrz_write_dis = !phys_dev->info->a6xx.has_lrz_feedback,
-            .buffers_location = BUFFERS_IN_GMEM,
-            .lrz_feedback_zmode_mask =
-               phys_dev->info->a6xx.has_lrz_feedback
-                  ? LRZ_FEEDBACK_EARLY_LRZ_LATE_Z
-                  : LRZ_FEEDBACK_NONE,
-         });
-
-      tu_cs_emit_regs(cs,
-                      A6XX_VFD_MODE_CNTL(RENDERING_PASS));
-
       if (CHIP == A6XX) {
          tu_cs_emit_regs(cs,
                         A6XX_PC_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
@@ -2059,18 +2060,6 @@ tu6_tile_render_begin(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
       tu_cs_emit_pkt7(cs, CP_SKIP_IB2_ENABLE_LOCAL, 1);
       tu_cs_emit(cs, 0x1);
    } else {
-      tu6_emit_bin_size<CHIP>(
-         cs, tiling->tile0.width, tiling->tile0.height,
-         {
-            .render_mode = RENDERING_PASS,
-            .force_lrz_write_dis = !phys_dev->info->a6xx.has_lrz_feedback,
-            .buffers_location = BUFFERS_IN_GMEM,
-            .lrz_feedback_zmode_mask =
-               phys_dev->info->a6xx.has_lrz_feedback
-                  ? LRZ_FEEDBACK_EARLY_Z_OR_EARLY_LRZ_LATE_Z
-                  : LRZ_FEEDBACK_NONE,
-         });
-
       if (tiling->binning_possible) {
          /* Mark all tiles as visible for tu6_emit_cond_for_load_stores(), since
           * the actual binner didn't run.
