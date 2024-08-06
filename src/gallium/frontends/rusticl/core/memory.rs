@@ -1359,8 +1359,33 @@ impl Image {
         *row_pitch = self.image_desc.row_pitch()? as usize;
         *slice_pitch = self.image_desc.slice_pitch();
 
-        let (offset, size) =
-            CLVec::calc_offset_size(origin, region, [pixel_size, *row_pitch, *slice_pitch]);
+        let offset = CLVec::calc_offset(origin, [pixel_size, *row_pitch, *slice_pitch]);
+
+        // From the CL Spec:
+        //
+        //   The pointer returned maps a 1D, 2D or 3D region starting at origin and is at least
+        //   region[0] pixels in size for a 1D image, 1D image buffer or 1D image array,
+        //   (image_row_pitch × region[1]) pixels in size for a 2D image or 2D image array, and
+        //   (image_slice_pitch × region[2]) pixels in size for a 3D image. The result of a memory
+        //   access outside this region is undefined.
+        //
+        // It's not guaranteed that the row_pitch is taken into account for 1D images, but the CL
+        // CTS relies on this behavior.
+        //
+        // Also note, that the spec wording is wrong in regards to arrays, which need to take the
+        // image_slice_pitch into account.
+        let size = if self.image_desc.is_array() || self.image_desc.dims() == 3 {
+            debug_assert_ne!(*slice_pitch, 0);
+            // the slice count is in region[1] for 1D array images
+            if self.mem_type == CL_MEM_OBJECT_IMAGE1D_ARRAY {
+                region[1] * *slice_pitch
+            } else {
+                region[2] * *slice_pitch
+            }
+        } else {
+            debug_assert_ne!(*row_pitch, 0);
+            region[1] * *row_pitch
+        };
 
         let layout;
         unsafe {
