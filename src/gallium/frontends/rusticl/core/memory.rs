@@ -721,7 +721,9 @@ impl MemBase {
 
     fn is_pure_user_memory(&self, d: &Device) -> CLResult<bool> {
         let r = self.get_res_of_dev(d)?;
-        Ok(r.is_user())
+        // 1Dbuffer objects are weird. The parent memory object can be a host_ptr thing, but we are
+        // not allowed to actually return a pointer based on the host_ptr when mapping.
+        Ok(r.is_user() && !self.host_ptr().is_null())
     }
 
     fn map<T>(
