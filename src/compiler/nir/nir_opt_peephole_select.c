@@ -144,6 +144,11 @@ block_check_for_allowed_instrs(nir_block *block, unsigned *count,
                return false;
             break;
 
+         case nir_intrinsic_masked_swizzle_amd:
+         case nir_intrinsic_quad_swizzle_amd:
+            if (!nir_intrinsic_fetch_inactive(intrin))
+               return false;
+            FALLTHROUGH;
          case nir_intrinsic_load_uniform:
          case nir_intrinsic_load_preamble:
          case nir_intrinsic_load_helper_invocation:
@@ -176,8 +181,6 @@ block_check_for_allowed_instrs(nir_block *block, unsigned *count,
          case nir_intrinsic_quad_swap_horizontal:
          case nir_intrinsic_quad_swap_vertical:
          case nir_intrinsic_quad_swap_diagonal:
-         case nir_intrinsic_quad_swizzle_amd:
-         case nir_intrinsic_masked_swizzle_amd:
          case nir_intrinsic_lane_permute_16_amd:
             if (!alu_ok)
                return false;
