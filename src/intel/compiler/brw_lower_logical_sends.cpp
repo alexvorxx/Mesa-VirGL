@@ -1567,10 +1567,292 @@ lower_lsc_memory_logical_send(const fs_builder &bld, fs_inst *inst)
    inst->src[3] = payload2;
 }
 
+static brw_reg
+emit_a64_oword_block_header(const fs_builder &bld, const brw_reg &addr);
+
 static void
 lower_hdc_memory_logical_send(const fs_builder &bld, fs_inst *inst)
 {
-   unreachable("Not implemented yet");
+   const intel_device_info *devinfo = bld.shader->devinfo;
+   const brw_compiler *compiler = bld.shader->compiler;
+
+   assert(inst->src[MEMORY_LOGICAL_OPCODE].file == IMM);
+   assert(inst->src[MEMORY_LOGICAL_MODE].file == IMM);
+   assert(inst->src[MEMORY_LOGICAL_BINDING_TYPE].file == IMM);
+   assert(inst->src[MEMORY_LOGICAL_COORD_COMPONENTS].file == IMM);
+   assert(inst->src[MEMORY_LOGICAL_DATA_SIZE].file == IMM);
+   assert(inst->src[MEMORY_LOGICAL_FLAGS].file == IMM);
+
+   /* Get the logical send arguments. */
+   const enum lsc_opcode op = (lsc_opcode)inst->src[MEMORY_LOGICAL_OPCODE].ud;
+   const enum memory_logical_mode mode =
+      (enum memory_logical_mode) inst->src[MEMORY_LOGICAL_MODE].ud;
+   enum lsc_addr_surface_type binding_type =
+      (enum lsc_addr_surface_type) inst->src[MEMORY_LOGICAL_BINDING_TYPE].ud;
+   brw_reg binding = inst->src[MEMORY_LOGICAL_BINDING];
+   const brw_reg addr = inst->src[MEMORY_LOGICAL_ADDRESS];
+   const unsigned coord_components =
+      inst->src[MEMORY_LOGICAL_COORD_COMPONENTS].ud;
+   const unsigned alignment = inst->src[MEMORY_LOGICAL_ALIGNMENT].ud;
+   const unsigned components = inst->src[MEMORY_LOGICAL_COMPONENTS].ud;
+   const enum memory_flags flags =
+      (enum memory_flags) inst->src[MEMORY_LOGICAL_FLAGS].ud;
+   const bool block = flags & MEMORY_FLAG_TRANSPOSE;
+   const bool include_helpers = flags & MEMORY_FLAG_INCLUDE_HELPERS;
+   const brw_reg data0 = inst->src[MEMORY_LOGICAL_DATA0];
+   const brw_reg data1 = inst->src[MEMORY_LOGICAL_DATA1];
+   const bool has_side_effects = inst->has_side_effects();
+   const bool has_dest = inst->dst.file != BAD_FILE && !inst->dst.is_null();
+
+   /* Don't predicate scratch writes on the sample mask.  Otherwise,
+    * FS helper invocations would load undefined values from scratch memory.
+    * And scratch memory load/stores are produced from operations without
+    * side-effects, thus they should not have different behavior in the
+    * helper invocations.
+    */
+   bool allow_sample_mask = has_side_effects && mode != MEMORY_MODE_SCRATCH;
+
+   const enum lsc_data_size data_size =
+      (enum lsc_data_size) inst->src[MEMORY_LOGICAL_DATA_SIZE].ud;
+
+   /* unpadded data size */
+   const uint32_t data_bit_size =
+      data_size == LSC_DATA_SIZE_D8U32 ? 8 :
+      data_size == LSC_DATA_SIZE_D16U32 ? 16 :
+      8 * lsc_data_size_bytes(data_size);
+
+   const bool byte_scattered =
+      data_bit_size < 32 || (alignment != 0 && alignment < 4);
+   const bool dword_scattered = !byte_scattered && mode == MEMORY_MODE_SCRATCH;
+   const bool surface_access = !byte_scattered && !dword_scattered && !block;
+
+   /* SLM block reads must use the 16B-aligned OWord Block Read messages,
+    * as the unaligned message doesn't exist for SLM.
+    */
+   const bool oword_aligned = block && mode == MEMORY_MODE_SHARED_LOCAL;
+   assert(!oword_aligned || (alignment % 16) == 0);
+
+   enum lsc_addr_size addr_size = lsc_addr_size_for_type(addr.type);
+   unsigned addr_size_B = coord_components * lsc_addr_size_bytes(addr_size);
+
+   brw_reg header;
+   fs_builder ubld8 = bld.exec_all().group(8, 0);
+   fs_builder ubld1 = ubld8.group(1, 0);
+   if (mode == MEMORY_MODE_SCRATCH) {
+      header = ubld8.vgrf(BRW_TYPE_UD);
+      ubld8.emit(SHADER_OPCODE_SCRATCH_HEADER, header, brw_ud8_grf(0, 0));
+   } else if (block) {
+      if (addr_size == LSC_ADDR_SIZE_A64) {
+         header = emit_a64_oword_block_header(bld, addr);
+      } else {
+         header = ubld8.vgrf(BRW_TYPE_UD);
+         ubld8.MOV(header, brw_imm_ud(0));
+         if (oword_aligned)
+            ubld1.SHR(component(header, 2), addr, brw_imm_ud(4));
+         else
+            ubld1.MOV(component(header, 2), addr);
+      }
+   }
+
+   /* If we're a fragment shader, we have to predicate with the sample mask to
+    * avoid helper invocations to avoid helper invocations in instructions
+    * with side effects, unless they are explicitly required.
+    *
+    * There are also special cases when we actually want to run on helpers
+    * (ray queries).
+    */
+   if (bld.shader->stage == MESA_SHADER_FRAGMENT) {
+      if (include_helpers)
+         emit_predicate_on_vector_mask(bld, inst);
+      else if (allow_sample_mask &&
+               (header.file == BAD_FILE || !surface_access))
+         brw_emit_predicate_on_sample_mask(bld, inst);
+   }
+
+   brw_reg payload, payload2;
+   unsigned mlen, ex_mlen = 0;
+
+   if (!block) {
+      brw_reg data[11];
+      unsigned num_sources = 0;
+      if (header.file != BAD_FILE)
+         data[num_sources++] = header;
+
+      for (unsigned i = 0; i < coord_components; i++)
+         data[num_sources++] = offset(addr, inst->exec_size, i);
+
+      if (data0.file != BAD_FILE) {
+         for (unsigned i = 0; i < components; i++)
+            data[num_sources++] = offset(data0, inst->exec_size, i);
+         if (data1.file != BAD_FILE) {
+            for (unsigned i = 0; i < components; i++)
+               data[num_sources++] = offset(data1, inst->exec_size, i);
+         }
+      }
+
+      assert(num_sources <= ARRAY_SIZE(data));
+
+      unsigned payload_size_UDs = (header.file != BAD_FILE ? 1 : 0) +
+                                  (addr_size_B / 4) +
+                                  (lsc_op_num_data_values(op) * components *
+                                   lsc_data_size_bytes(data_size) / 4);
+
+      payload = bld.vgrf(BRW_TYPE_UD, payload_size_UDs);
+      fs_inst *load_payload =
+         emit_load_payload_with_padding(bld, payload, data, num_sources,
+                                        header.file != BAD_FILE ? 1 : 0,
+                                        REG_SIZE);
+      mlen = load_payload->size_written / REG_SIZE;
+   } else {
+      assert(data1.file == BAD_FILE);
+
+      payload = header;
+      mlen = 1;
+
+      if (data0.file != BAD_FILE) {
+         payload2 = bld.move_to_vgrf(data0, components);
+         ex_mlen = components * sizeof(uint32_t) / REG_SIZE;
+      }
+   }
+
+
+   if (mode == MEMORY_MODE_SHARED_LOCAL) {
+      binding_type = LSC_ADDR_SURFTYPE_BTI;
+      binding = brw_imm_ud(GFX7_BTI_SLM);
+   } else if (mode == MEMORY_MODE_SCRATCH) {
+      binding_type = LSC_ADDR_SURFTYPE_BTI;
+      binding = brw_imm_ud(GFX8_BTI_STATELESS_NON_COHERENT);
+   }
+
+   uint32_t sfid, desc;
+   if (mode == MEMORY_MODE_TYPED) {
+      assert(addr_size == LSC_ADDR_SIZE_A32);
+      assert(!block);
+
+      sfid = HSW_SFID_DATAPORT_DATA_CACHE_1;
+
+      if (lsc_opcode_is_atomic(op)) {
+         desc = brw_dp_typed_atomic_desc(devinfo, inst->exec_size, inst->group,
+                                         lsc_op_to_legacy_atomic(op),
+                                         has_dest);
+      } else {
+         desc = brw_dp_typed_surface_rw_desc(devinfo, inst->exec_size,
+                                             inst->group, components, !has_dest);
+      }
+   } else if (addr_size == LSC_ADDR_SIZE_A64) {
+      assert(binding_type == LSC_ADDR_SURFTYPE_FLAT);
+      assert(!dword_scattered);
+
+      sfid = HSW_SFID_DATAPORT_DATA_CACHE_1;
+
+      if (lsc_opcode_is_atomic(op)) {
+         unsigned aop = lsc_op_to_legacy_atomic(op);
+         if (lsc_opcode_is_atomic_float(op)) {
+            desc = brw_dp_a64_untyped_atomic_float_desc(devinfo, inst->exec_size,
+                                                        data_bit_size, aop,
+                                                        has_dest);
+         } else {
+            desc = brw_dp_a64_untyped_atomic_desc(devinfo, inst->exec_size,
+                                                  data_bit_size, aop,
+                                                  has_dest);
+         }
+      } else if (block) {
+         desc = brw_dp_a64_oword_block_rw_desc(devinfo, oword_aligned,
+                                               components, !has_dest);
+      } else if (byte_scattered) {
+         desc = brw_dp_a64_byte_scattered_rw_desc(devinfo, inst->exec_size,
+                                                  data_bit_size, !has_dest);
+      } else {
+         desc = brw_dp_a64_untyped_surface_rw_desc(devinfo, inst->exec_size,
+                                                   components, !has_dest);
+      }
+   } else {
+      assert(binding_type != LSC_ADDR_SURFTYPE_FLAT);
+
+      sfid = surface_access ? HSW_SFID_DATAPORT_DATA_CACHE_1
+                            : GFX7_SFID_DATAPORT_DATA_CACHE;
+
+      if (lsc_opcode_is_atomic(op)) {
+         unsigned aop = lsc_op_to_legacy_atomic(op);
+         if (lsc_opcode_is_atomic_float(op)) {
+            desc = brw_dp_untyped_atomic_float_desc(devinfo, inst->exec_size,
+                                                    aop, has_dest);
+         } else {
+            desc = brw_dp_untyped_atomic_desc(devinfo, inst->exec_size,
+                                              aop, has_dest);
+         }
+      } else if (block) {
+         desc = brw_dp_oword_block_rw_desc(devinfo, oword_aligned,
+                                           components, !has_dest);
+      } else if (byte_scattered) {
+         desc = brw_dp_byte_scattered_rw_desc(devinfo, inst->exec_size,
+                                              data_bit_size, !has_dest);
+      } else if (dword_scattered) {
+         desc = brw_dp_dword_scattered_rw_desc(devinfo, inst->exec_size,
+                                               !has_dest);
+      } else {
+         desc = brw_dp_untyped_surface_rw_desc(devinfo, inst->exec_size,
+                                               components, !has_dest);
+      }
+   }
+
+   assert(sfid);
+
+   /* Update the original instruction. */
+   inst->opcode = SHADER_OPCODE_SEND;
+   inst->sfid = sfid;
+   inst->mlen = mlen;
+   inst->ex_mlen = ex_mlen;
+   inst->header_size = header.file != BAD_FILE ? 1 : 0;
+   inst->send_has_side_effects = has_side_effects;
+   inst->send_is_volatile = !has_side_effects;
+
+   if (block) {
+      assert(inst->force_writemask_all);
+      inst->exec_size = components > 8 ? 16 : 8;
+   }
+
+   inst->resize_sources(4);
+
+   /* Set up descriptors */
+   switch (binding_type) {
+   case LSC_ADDR_SURFTYPE_FLAT:
+      inst->src[0] = brw_imm_ud(0);
+      inst->src[1] = brw_imm_ud(0);
+      break;
+   case LSC_ADDR_SURFTYPE_BSS:
+      inst->send_ex_bso = compiler->extended_bindless_surface_offset;
+      /* fall-through */
+   case LSC_ADDR_SURFTYPE_SS:
+      desc |= GFX9_BTI_BINDLESS;
+
+      /* We assume that the driver provided the handle in the top 20 bits so
+       * we can use the surface handle directly as the extended descriptor.
+       */
+      inst->src[0] = brw_imm_ud(0);
+      inst->src[1] = binding;
+      break;
+   case LSC_ADDR_SURFTYPE_BTI:
+      if (binding.file == IMM) {
+         desc |= binding.ud & 0xff;
+         inst->src[0] = brw_imm_ud(0);
+         inst->src[1] = brw_imm_ud(0);
+      } else {
+         brw_reg tmp = ubld1.vgrf(BRW_TYPE_UD);
+         ubld1.AND(tmp, binding, brw_imm_ud(0xff));
+         inst->src[0] = component(tmp, 0);
+         inst->src[1] = brw_imm_ud(0);
+      }
+      break;
+   default:
+      unreachable("Unknown surface type");
+   }
+
+   inst->desc = desc;
+
+   /* Finally, the payloads */
+   inst->src[2] = payload;
+   inst->src[3] = payload2;
 }
 
 static void
