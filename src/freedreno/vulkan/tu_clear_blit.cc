@@ -1579,6 +1579,11 @@ r3d_setup(struct tu_cmd_buffer *cmd,
    /* Disable sample counting in order to not affect occlusion query. */
    tu_cs_emit_regs(cs, A6XX_RB_SAMPLE_COUNT_CONTROL(.disable = true));
 
+   tu_cs_emit_regs(cs, A6XX_RB_DITHER_CNTL());
+   if (CHIP >= A7XX) {
+      tu_cs_emit_regs(cs, A7XX_SP_DITHER_CNTL());
+   }
+
    if (cmd->state.prim_generated_query_running_before_rp) {
       tu_emit_event_write<CHIP>(cmd, cs, FD_STOP_PRIMITIVE_CTRS);
    }

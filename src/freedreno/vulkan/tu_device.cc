@@ -256,6 +256,7 @@ get_device_extensions(const struct tu_physical_device *device,
       .EXT_image_view_min_lod = true,
       .EXT_index_type_uint8 = true,
       .EXT_inline_uniform_block = true,
+      .EXT_legacy_dithering = true,
       .EXT_legacy_vertex_attributes = true,
       .EXT_line_rasterization = true,
       .EXT_load_store_op_none = true,
@@ -596,6 +597,9 @@ tu_get_features(struct tu_physical_device *pdevice,
 
    /* VK_EXT_legacy_vertex_attributes */
    features->legacyVertexAttributes = true;
+
+   /* VK_EXT_legacy_dithering */
+   features->legacyDithering = true;
 
    /* VK_EXT_map_memory_placed */
    features->memoryMapPlaced = true;

@@ -501,6 +501,23 @@ tu6_emit_mrt(struct tu_cmd_buffer *cmd,
 
    tu_cs_emit_regs(cs, A6XX_GRAS_LRZ_MRT_BUF_INFO_0(.color_format = mrt0_format));
 
+   const bool dither = subpass->legacy_dithering_enabled;
+   const uint32_t dither_cntl =
+      A6XX_RB_DITHER_CNTL(
+            .dither_mode_mrt0 = dither ? DITHER_ALWAYS : DITHER_DISABLE,
+            .dither_mode_mrt1 = dither ? DITHER_ALWAYS : DITHER_DISABLE,
+            .dither_mode_mrt2 = dither ? DITHER_ALWAYS : DITHER_DISABLE,
+            .dither_mode_mrt3 = dither ? DITHER_ALWAYS : DITHER_DISABLE,
+            .dither_mode_mrt4 = dither ? DITHER_ALWAYS : DITHER_DISABLE,
+            .dither_mode_mrt5 = dither ? DITHER_ALWAYS : DITHER_DISABLE,
+            .dither_mode_mrt6 = dither ? DITHER_ALWAYS : DITHER_DISABLE,
+            .dither_mode_mrt7 = dither ? DITHER_ALWAYS : DITHER_DISABLE, )
+         .value;
+   tu_cs_emit_regs(cs, A6XX_RB_DITHER_CNTL(.dword = dither_cntl));
+   if (CHIP >= A7XX) {
+      tu_cs_emit_regs(cs, A7XX_SP_DITHER_CNTL(.dword = dither_cntl));
+   }
+
    tu_cs_emit_regs(cs,
                    A6XX_RB_SRGB_CNTL(.dword = subpass->srgb_cntl));
    tu_cs_emit_regs(cs,
@@ -1287,8 +1304,6 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
    emit_rb_ccu_cntl<CHIP>(cs, cmd->device, false);
    cmd->state.ccu_state = TU_CMD_CCU_SYSMEM;
 
-   tu_cs_emit_write_reg(cs, REG_A7XX_SP_DITHER_CNTL, 0);
-
    for (size_t i = 0; i < ARRAY_SIZE(phys_dev->info->a6xx.magic_raw); i++) {
       auto magic_reg = phys_dev->info->a6xx.magic_raw[i];
       if (!magic_reg.reg)
@@ -1393,7 +1408,6 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
    tu_cs_emit_write_reg(cs, REG_A6XX_PC_MODE_CNTL, phys_dev->info->a6xx.magic.PC_MODE_CNTL);
 
    tu_cs_emit_regs(cs, A6XX_RB_ALPHA_CONTROL()); /* always disable alpha test */
-   tu_cs_emit_regs(cs, A6XX_RB_DITHER_CNTL()); /* always disable dithering */
 
    tu_disable_draw_states(cmd, cs);
 

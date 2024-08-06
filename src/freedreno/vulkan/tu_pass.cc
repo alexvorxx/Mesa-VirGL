@@ -911,6 +911,8 @@ tu_CreateRenderPass2(VkDevice _device,
       subpass->resolve_depth_stencil = is_depth_stencil_resolve_enabled(ds_resolve);
       subpass->samples = (VkSampleCountFlagBits) 0;
       subpass->srgb_cntl = 0;
+      subpass->legacy_dithering_enabled = desc->flags &
+         VK_SUBPASS_DESCRIPTION_ENABLE_LEGACY_DITHERING_BIT_EXT;
 
       const BITMASK_ENUM(VkSubpassDescriptionFlagBits) raster_order_access_bits =
          VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT |
@@ -1076,6 +1078,8 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
    subpass->color_attachments = cmd_buffer->dynamic_color_attachments;
    subpass->resolve_attachments = cmd_buffer->dynamic_resolve_attachments;
    subpass->multiview_mask = info->viewMask;
+   subpass->legacy_dithering_enabled = info->flags &
+      VK_RENDERING_ENABLE_LEGACY_DITHERING_BIT_EXT;
 
    uint32_t a = 0;
    for (uint32_t i = 0; i < info->colorAttachmentCount; i++) {
