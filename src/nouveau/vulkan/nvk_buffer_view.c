@@ -48,26 +48,26 @@ nvk_CreateBufferView(VkDevice _device,
                      const VkAllocationCallbacks *pAllocator,
                      VkBufferView *pBufferView)
 {
-   VK_FROM_HANDLE(nvk_device, device, _device);
+   VK_FROM_HANDLE(nvk_device, dev, _device);
    VK_FROM_HANDLE(nvk_buffer, buffer, pCreateInfo->buffer);
    struct nvk_buffer_view *view;
    VkResult result;
 
-   view = vk_buffer_view_create(&device->vk, pCreateInfo,
+   view = vk_buffer_view_create(&dev->vk, pCreateInfo,
                                  pAllocator, sizeof(*view));
    if (!view)
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    uint32_t desc[8];
-   nil_buffer_fill_tic(&nvk_device_physical(device)->info,
+   nil_buffer_fill_tic(&nvk_device_physical(dev)->info,
                        nvk_buffer_address(buffer, view->vk.offset),
                        nil_format(vk_format_to_pipe_format(view->vk.format)),
                        view->vk.elements, &desc);
 
-   result = nvk_descriptor_table_add(device, &device->images,
+   result = nvk_descriptor_table_add(dev, &dev->images,
                                      desc, sizeof(desc), &view->desc_index);
    if (result != VK_SUCCESS) {
-      vk_buffer_view_destroy(&device->vk, pAllocator, &view->vk);
+      vk_buffer_view_destroy(&dev->vk, pAllocator, &view->vk);
       return result;
    }
 
@@ -81,13 +81,13 @@ nvk_DestroyBufferView(VkDevice _device,
                       VkBufferView bufferView,
                       const VkAllocationCallbacks *pAllocator)
 {
-   VK_FROM_HANDLE(nvk_device, device, _device);
+   VK_FROM_HANDLE(nvk_device, dev, _device);
    VK_FROM_HANDLE(nvk_buffer_view, view, bufferView);
 
    if (!view)
       return;
 
-   nvk_descriptor_table_remove(device, &device->images, view->desc_index);
+   nvk_descriptor_table_remove(dev, &dev->images, view->desc_index);
 
-   vk_buffer_view_destroy(&device->vk, pAllocator, &view->vk);
+   vk_buffer_view_destroy(&dev->vk, pAllocator, &view->vk);
 }
