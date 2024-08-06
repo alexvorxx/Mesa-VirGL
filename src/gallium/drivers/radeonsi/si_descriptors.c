@@ -402,7 +402,7 @@ static void si_set_sampler_view_desc(struct si_context *sctx, struct si_sampler_
 
 static bool color_needs_decompression(struct si_texture *tex)
 {
-   struct si_screen *sscreen = (struct si_screen *)tex->buffer.b.b.screen;
+   struct si_screen *sscreen = si_screen(tex->buffer.b.b.screen);
 
    if (sscreen->info.gfx_level >= GFX11 || tex->is_depth)
       return false;

@@ -1625,6 +1625,7 @@ void si_init_aux_async_compute_ctx(struct si_screen *sscreen);
 struct si_context *si_get_aux_context(struct si_aux_context *ctx);
 void si_put_aux_context_flush(struct si_aux_context *ctx);
 void si_put_aux_shader_upload_context_flush(struct si_screen *sscreen);
+void si_destroy_screen(struct pipe_screen *pscreen);
 
 /* si_perfcounters.c */
 void si_init_perfcounters(struct si_screen *screen);
@@ -1742,6 +1743,18 @@ void si_handle_sqtt(struct si_context *sctx, struct radeon_cmdbuf *rcs);
 /*
  * common helpers
  */
+
+/* Use this helper when casting pipe_resouce::screen to get a real si_screen
+ * instance (= this is only useful when intending to access si_screen members directly)
+ */
+static inline struct si_screen *
+si_screen(struct pipe_screen *pscreen)
+{
+   struct pipe_screen *s =
+      pscreen->get_driver_pipe_screen ? pscreen->get_driver_pipe_screen(pscreen) : pscreen;
+   assert(s->destroy == si_destroy_screen);
+   return (struct si_screen *)s;
+}
 
 static inline void si_compute_reference(struct si_compute **dst, struct si_compute *src)
 {
@@ -1929,7 +1942,7 @@ static inline bool si_can_sample_zs(struct si_texture *tex, bool stencil_sampler
 
 static inline bool si_htile_enabled(struct si_texture *tex, unsigned level, unsigned zs_mask)
 {
-   struct si_screen *sscreen = (struct si_screen *)tex->buffer.b.b.screen;
+   struct si_screen *sscreen = si_screen(tex->buffer.b.b.screen);
 
    /* Gfx12 should never call this. */
    assert(sscreen->info.gfx_level < GFX12);
@@ -1954,7 +1967,7 @@ static inline bool si_htile_enabled(struct si_texture *tex, unsigned level, unsi
 static inline bool vi_tc_compat_htile_enabled(struct si_texture *tex, unsigned level,
                                               unsigned zs_mask)
 {
-   struct si_screen *sscreen = (struct si_screen *)tex->buffer.b.b.screen;
+   struct si_screen *sscreen = si_screen(tex->buffer.b.b.screen);
 
    /* Gfx12 should never call this. */
    assert(sscreen->info.gfx_level < GFX12);

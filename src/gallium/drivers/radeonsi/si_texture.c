@@ -2208,7 +2208,7 @@ bool vi_dcc_formats_are_incompatible(struct pipe_resource *tex, unsigned level,
    struct si_texture *stex = (struct si_texture *)tex;
 
    return vi_dcc_enabled(stex, level) &&
-          !vi_dcc_formats_compatible((struct si_screen *)tex->screen, tex->format, view_format);
+          !vi_dcc_formats_compatible(si_screen(tex->screen), tex->format, view_format);
 }
 
 /* This can't be merged with the above function, because
