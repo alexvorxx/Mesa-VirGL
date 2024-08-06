@@ -1117,10 +1117,9 @@ static void si_emit_dispatch_packets(struct si_context *sctx, const struct pipe_
       radeon_emit(dispatch_initiator);
    }
 
-   if (unlikely(sctx->sqtt_enabled && sctx->gfx_level >= GFX9)) {
-      radeon_emit(PKT3(PKT3_EVENT_WRITE, 0, 0));
-      radeon_emit(EVENT_TYPE(V_028A90_THREAD_TRACE_MARKER) | EVENT_INDEX(0));
-   }
+   if (unlikely(sctx->sqtt_enabled && sctx->gfx_level >= GFX9))
+      radeon_event_write(V_028A90_THREAD_TRACE_MARKER);
+
    radeon_end();
 }
 

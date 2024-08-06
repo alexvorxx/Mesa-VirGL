@@ -980,8 +980,7 @@ static void si_query_hw_do_emit_stop(struct si_context *sctx, struct si_query_hw
 
       radeon_begin(cs);
       if (sctx->screen->use_ngg && query->flags & SI_QUERY_EMULATE_GS_COUNTERS) {
-         radeon_emit(PKT3(PKT3_EVENT_WRITE, 0, 0));
-         radeon_emit(EVENT_TYPE(V_028A90_VS_PARTIAL_FLUSH) | EVENT_INDEX(4));
+         radeon_event_write(V_028A90_VS_PARTIAL_FLUSH);
 
          if (--sctx->num_pipeline_stat_emulated_queries == 0) {
             si_set_internal_shader_buffer(sctx, SI_GS_QUERY_BUF, NULL);

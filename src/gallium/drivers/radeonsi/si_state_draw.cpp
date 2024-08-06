@@ -1212,16 +1212,6 @@ void si_emit_buffered_compute_sh_regs(struct si_context *sctx)
 
 #endif
 
-#define EMIT_SQTT_END_DRAW                                                     \
-  do {                                                                         \
-    if (GFX_VERSION >= GFX9 && unlikely(sctx->sqtt_enabled)) {                 \
-      radeon_begin(&sctx->gfx_cs);                                             \
-      radeon_emit(PKT3(PKT3_EVENT_WRITE, 0, 0));                               \
-      radeon_emit(EVENT_TYPE(V_028A90_THREAD_TRACE_MARKER) | EVENT_INDEX(0));  \
-      radeon_end();                                                            \
-    }                                                                          \
-  } while (0)
-
 template <amd_gfx_level GFX_VERSION, si_has_tess HAS_TESS, si_has_gs HAS_GS, si_has_ngg NGG,
           si_is_draw_vertex_state IS_DRAW_VERTEX_STATE, si_has_sh_pairs_packed HAS_SH_PAIRS_PACKED> ALWAYS_INLINE
 static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw_info *info,
@@ -1638,10 +1628,8 @@ static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw
             radeon_emit(0);
             radeon_emit(V_0287F0_DI_SRC_SEL_AUTO_INDEX | use_opaque);
 
-            for (unsigned i = 0; i < 3; i++) {
-               radeon_emit(PKT3(PKT3_EVENT_WRITE, 0, 0));
-               radeon_emit(EVENT_TYPE(V_028A90_SQ_NON_EVENT) | EVENT_INDEX(0));
-            }
+            for (unsigned i = 0; i < 3; i++)
+               radeon_event_write(V_028A90_SQ_NON_EVENT);
          } else if (increment_draw_id) {
             for (unsigned i = 0; i < num_draws; i++) {
                if (i > 0) {
@@ -1675,9 +1663,10 @@ static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw
          }
       }
    }
-   radeon_end();
 
-   EMIT_SQTT_END_DRAW;
+   if (GFX_VERSION >= GFX9 && unlikely(sctx->sqtt_enabled))
+     radeon_event_write(V_028A90_THREAD_TRACE_MARKER);
+   radeon_end();
 }
 
 /* Return false if not bound. */
