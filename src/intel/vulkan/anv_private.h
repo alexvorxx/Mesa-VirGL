@@ -3315,6 +3315,7 @@ enum anv_cmd_dirty_bits {
    ANV_CMD_DIRTY_RESTART_INDEX                       = 1 << 5,
    ANV_CMD_DIRTY_OCCLUSION_QUERY_ACTIVE              = 1 << 6,
    ANV_CMD_DIRTY_FS_MSAA_FLAGS                       = 1 << 7,
+   ANV_CMD_DIRTY_COARSE_PIXEL_ACTIVE                 = 1 << 8,
 };
 typedef enum anv_cmd_dirty_bits anv_cmd_dirty_mask_t;
 
@@ -3787,6 +3788,12 @@ struct anv_cmd_pipeline_state {
    struct anv_pipeline      *pipeline;
 };
 
+enum anv_coarse_pixel_state {
+   ANV_COARSE_PIXEL_STATE_UNKNOWN,
+   ANV_COARSE_PIXEL_STATE_DISABLED,
+   ANV_COARSE_PIXEL_STATE_ENABLED,
+};
+
 /** State tracking for graphics pipeline
  *
  * This has anv_cmd_pipeline_state as a base struct to track things which get
@@ -3849,6 +3856,11 @@ struct anv_cmd_graphics_state {
     * State tracking for Wa_18020335297.
     */
    bool                                         viewport_set;
+
+   /**
+    * State tracking for Wa_18038825448.
+    */
+   enum anv_coarse_pixel_state coarse_pixel_active;
 
    struct intel_urb_config urb_cfg;
 

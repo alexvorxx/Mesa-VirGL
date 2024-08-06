@@ -51,6 +51,7 @@ anv_cmd_state_init(struct anv_cmd_buffer *cmd_buffer)
    state->current_pipeline = UINT32_MAX;
    state->gfx.restart_index = UINT32_MAX;
    state->gfx.object_preemption = true;
+   state->gfx.coarse_pixel_active = ANV_COARSE_PIXEL_STATE_UNKNOWN;
    state->gfx.dirty = 0;
 
    memcpy(state->gfx.dyn_state.dirty,

@@ -214,6 +214,13 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
       ps.MaximumNumberofThreadsPerPSD = device->info->max_threads_per_psd - 1;
    }
 
+#if INTEL_WA_18038825448_GFX_VER
+   const bool needs_ps_dependency =
+      state->cmd_buffer != NULL &&
+      genX(cmd_buffer_set_coarse_pixel_active)
+         (state->cmd_buffer, ANV_COARSE_PIXEL_STATE_DISABLED);
+#endif
+
    anv_batch_emit(batch, GENX(3DSTATE_PS_EXTRA), psx) {
       psx.PixelShaderValid = true;
 #if GFX_VER < 20
@@ -222,6 +229,10 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
       psx.PixelShaderIsPerSample = prog_data->persample_dispatch;
       psx.PixelShaderComputedDepthMode = prog_data->computed_depth_mode;
       psx.PixelShaderComputesStencil = prog_data->computed_stencil;
+
+#if INTEL_WA_18038825448_GFX_VER
+      psx.EnablePSDependencyOnCPsizeChange = needs_ps_dependency;
+#endif
    }
 
    anv_batch_emit(batch, GENX(3DSTATE_VIEWPORT_STATE_POINTERS_CC), cc) {

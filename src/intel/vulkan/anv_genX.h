@@ -153,6 +153,25 @@ genX(cmd_buffer_ensure_wa_14018283232)(struct anv_cmd_buffer *cmd_buffer,
 }
 #endif
 
+static inline bool
+genX(cmd_buffer_set_coarse_pixel_active)(struct anv_cmd_buffer *cmd_buffer,
+                                         enum anv_coarse_pixel_state state)
+{
+#if INTEL_WA_18038825448_GFX_VER
+   struct anv_cmd_graphics_state *gfx =
+      &cmd_buffer->state.gfx;
+   if (intel_needs_workaround(cmd_buffer->device->info, 18038825448) &&
+       gfx->coarse_pixel_active != state) {
+      gfx->coarse_pixel_active = state;
+      gfx->dirty |= ANV_CMD_DIRTY_COARSE_PIXEL_ACTIVE;
+      return true;
+   }
+   return false;
+#else
+   return false;
+#endif
+}
+
 void genX(emit_so_memcpy_init)(struct anv_memcpy_state *state,
                                struct anv_device *device,
                                struct anv_cmd_buffer *cmd_buffer,

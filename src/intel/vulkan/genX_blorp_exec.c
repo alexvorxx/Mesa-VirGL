@@ -339,6 +339,13 @@ blorp_exec_on_render(struct blorp_batch *batch,
    genX(cmd_buffer_ensure_wa_14018283232)(cmd_buffer, false);
 #endif
 
+#if INTEL_WA_18038825448_GFX_VER
+   if (genX(cmd_buffer_set_coarse_pixel_active)
+       (cmd_buffer, ANV_COARSE_PIXEL_STATE_DISABLED)) {
+      batch->flags |= BLORP_BATCH_FORCE_CPS_DEPENDENCY;
+   }
+#endif
+
    if (params->depth.enabled &&
        !(batch->flags & BLORP_BATCH_NO_EMIT_DEPTH_STENCIL))
       genX(cmd_buffer_emit_gfx12_depth_wa)(cmd_buffer, &params->depth.surf);
@@ -421,7 +428,8 @@ blorp_exec_on_render(struct blorp_batch *batch,
                                   ANV_CMD_DIRTY_XFB_ENABLE |
                                   ANV_CMD_DIRTY_OCCLUSION_QUERY_ACTIVE |
                                   ANV_CMD_DIRTY_FS_MSAA_FLAGS |
-                                  ANV_CMD_DIRTY_RESTART_INDEX);
+                                  ANV_CMD_DIRTY_RESTART_INDEX |
+                                  ANV_CMD_DIRTY_COARSE_PIXEL_ACTIVE);
 
    cmd_buffer->state.gfx.vb_dirty = ~0;
    cmd_buffer->state.gfx.dirty |= dirty;
