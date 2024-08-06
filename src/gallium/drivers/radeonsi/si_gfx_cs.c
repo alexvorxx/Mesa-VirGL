@@ -789,7 +789,7 @@ void gfx10_emit_cache_flush(struct si_context *ctx, struct radeon_cmdbuf *cs)
    }
 
    /* We don't need these. */
-   assert(!(flags & (SI_CONTEXT_VGT_STREAMOUT_SYNC | SI_CONTEXT_FLUSH_AND_INV_DB_META)));
+   assert(!(flags & SI_CONTEXT_FLUSH_AND_INV_DB_META));
 
    prepare_cb_db_flushes(ctx, &flags);
 
@@ -1112,9 +1112,6 @@ void gfx6_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs)
    /* VGT state synchronization. */
    if (flags & SI_CONTEXT_VGT_FLUSH)
       radeon_event_write(V_028A90_VGT_FLUSH);
-
-   if (flags & SI_CONTEXT_VGT_STREAMOUT_SYNC)
-      radeon_event_write(V_028A90_VGT_STREAMOUT_SYNC);
 
    radeon_end();
 

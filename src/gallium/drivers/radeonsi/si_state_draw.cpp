@@ -2338,8 +2338,9 @@ static void si_draw(struct pipe_context *ctx,
    if (((GFX_VERSION == GFX7 && sctx->family == CHIP_HAWAII) ||
         (GFX_VERSION == GFX8 && (sctx->family == CHIP_TONGA || sctx->family == CHIP_FIJI))) &&
        si_get_strmout_en(sctx)) {
-      sctx->flags |= SI_CONTEXT_VGT_STREAMOUT_SYNC;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+      radeon_begin(&sctx->gfx_cs);
+      radeon_event_write(V_028A90_VGT_STREAMOUT_SYNC);
+      radeon_end();
    }
 
    if (unlikely(GFX_VERSION < GFX12 && sctx->decompression_enabled)) {

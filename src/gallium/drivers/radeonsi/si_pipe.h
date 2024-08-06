@@ -78,7 +78,7 @@ struct ac_llvm_compiler;
 #define SI_CONTEXT_PS_PARTIAL_FLUSH   (1 << 13)
 #define SI_CONTEXT_CS_PARTIAL_FLUSH   (1 << 14)
 #define SI_CONTEXT_VGT_FLUSH          (1 << 15)
-#define SI_CONTEXT_VGT_STREAMOUT_SYNC (1 << 16)
+/* gap */
 /* PFP waits for ME to finish. Used to sync for index and indirect buffers and render
  * condition. It's typically set when doing a VS/PS/CS partial flush for buffers. */
 #define SI_CONTEXT_PFP_SYNC_ME        (1 << 17)
