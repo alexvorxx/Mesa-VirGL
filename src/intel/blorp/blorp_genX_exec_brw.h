@@ -877,6 +877,12 @@ blorp_emit_ps_config(struct blorp_batch *batch,
          psx.PixelShaderComputedDepthMode = prog_data->computed_depth_mode;
          psx.PixelShaderComputesStencil = prog_data->computed_stencil;
          psx.PixelShaderIsPerSample = prog_data->persample_dispatch;
+
+#if INTEL_WA_18038825448_GFX_VER
+         psx.EnablePSDependencyOnCPsizeChange =
+            batch->flags & BLORP_BATCH_FORCE_CPS_DEPENDENCY;
+#endif
+
 #if GFX_VER < 20
          psx.AttributeEnable = prog_data->num_varying_inputs > 0;
 #else

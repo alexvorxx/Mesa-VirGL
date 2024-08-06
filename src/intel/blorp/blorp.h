@@ -135,6 +135,9 @@ enum blorp_batch_flags {
 
    /** Use the hardware blitter to perform any operations in this batch */
    BLORP_BATCH_USE_BLITTER           = BITFIELD_BIT(4),
+
+   /** Wa_18038825448 */
+   BLORP_BATCH_FORCE_CPS_DEPENDENCY  = BITFIELD_BIT(5),
 };
 
 struct blorp_batch {
