@@ -238,12 +238,12 @@ lower_urb_write_logical_send_xe2(const fs_builder &bld, fs_inst *inst)
    inst->sfid = BRW_SFID_URB;
 
    enum lsc_opcode op = mask ? LSC_OP_STORE_CMASK : LSC_OP_STORE;
-   inst->desc = lsc_msg_desc_wcmask(devinfo, op,
+   inst->desc = lsc_msg_desc(devinfo, op,
                              LSC_ADDR_SURFTYPE_FLAT, LSC_ADDR_SIZE_A32,
-                             LSC_DATA_SIZE_D32, src_comps /* num_channels */,
+                             LSC_DATA_SIZE_D32,
+                             mask ? mask : src_comps /* num_channels */,
                              false /* transpose */,
-                             LSC_CACHE(devinfo, STORE, L1UC_L3UC),
-                             mask);
+                             LSC_CACHE(devinfo, STORE, L1UC_L3UC));
 
 
    /* Update the original instruction. */
@@ -1743,12 +1743,12 @@ lower_lsc_surface_logical_send(bblock_t *block, const fs_builder &bld,
    switch (inst->opcode) {
    case SHADER_OPCODE_TYPED_SURFACE_READ_LOGICAL:
       num_components = arg.ud;
-      inst->desc = lsc_msg_desc_wcmask(devinfo, LSC_OP_LOAD_CMASK,
-                                       surf_type, LSC_ADDR_SIZE_A32,
-                                       LSC_DATA_SIZE_D32, num_components,
-                                       false /* transpose */,
-                                       LSC_CACHE(devinfo, LOAD, L1STATE_L3MOCS),
-                                       BITSET_MASK(num_components));
+      inst->desc = lsc_msg_desc(devinfo, LSC_OP_LOAD_CMASK,
+                                surf_type, LSC_ADDR_SIZE_A32,
+                                LSC_DATA_SIZE_D32,
+                                BITSET_MASK(num_components),
+                                false /* transpose */,
+                                LSC_CACHE(devinfo, LOAD, L1STATE_L3MOCS));
       break;
    case SHADER_OPCODE_UNTYPED_SURFACE_READ_LOGICAL:
       num_components = arg.ud;
@@ -1760,12 +1760,12 @@ lower_lsc_surface_logical_send(bblock_t *block, const fs_builder &bld,
       break;
    case SHADER_OPCODE_TYPED_SURFACE_WRITE_LOGICAL:
       num_components = arg.ud;
-      inst->desc = lsc_msg_desc_wcmask(devinfo, LSC_OP_STORE_CMASK,
-                                       surf_type, LSC_ADDR_SIZE_A32,
-                                       LSC_DATA_SIZE_D32, num_components,
-                                       false /* transpose */,
-                                       LSC_CACHE(devinfo, STORE, L1STATE_L3MOCS),
-                                       BITSET_MASK(num_components));
+      inst->desc = lsc_msg_desc(devinfo, LSC_OP_STORE_CMASK,
+                                surf_type, LSC_ADDR_SIZE_A32,
+                                LSC_DATA_SIZE_D32,
+                                BITSET_MASK(num_components),
+                                false /* transpose */,
+                                LSC_CACHE(devinfo, STORE, L1STATE_L3MOCS));
       break;
    case SHADER_OPCODE_UNTYPED_SURFACE_WRITE_LOGICAL:
       num_components = arg.ud;
