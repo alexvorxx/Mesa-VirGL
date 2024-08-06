@@ -221,8 +221,8 @@ dd_context_bind_sampler_states(struct pipe_context *_pipe,
    struct dd_context *dctx = dd_context(_pipe);
    struct pipe_context *pipe = dctx->pipe;
 
-   memcpy(&dctx->draw_state.sampler_states[shader][start], states,
-          sizeof(void*) * count);
+   safe_memcpy(&dctx->draw_state.sampler_states[shader][start], states,
+               sizeof(void*) * count);
 
    if (states) {
       void *samp[PIPE_MAX_SAMPLERS];
@@ -528,7 +528,7 @@ dd_context_set_sampler_views(struct pipe_context *_pipe,
 
    safe_memcpy(&dctx->draw_state.sampler_views[shader][start], views,
                sizeof(views[0]) * num);
-   safe_memcpy(&dctx->draw_state.sampler_views[shader][start + num], views,
+   safe_memcpy(&dctx->draw_state.sampler_views[shader][start + num], NULL,
                sizeof(views[0]) * unbind_num_trailing_slots);
    pipe->set_sampler_views(pipe, shader, start, num, take_ownership,
                            unbind_num_trailing_slots, views);
