@@ -6166,7 +6166,7 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
                   brw_reg(), srcs, SURFACE_LOGICAL_NUM_SRCS);
       } else {
          unsigned num_srcs = info->num_srcs;
-         enum lsc_opcode op = lsc_aop_for_nir_intrinsic(instr);
+         enum lsc_opcode op = lsc_op_for_nir_intrinsic(instr);
          if (op == LSC_OP_ATOMIC_INC || op == LSC_OP_ATOMIC_DEC) {
             assert(num_srcs == 4);
             num_srcs = 3;
@@ -8075,7 +8075,7 @@ fs_nir_emit_surface_atomic(nir_to_brw_state &ntb, const fs_builder &bld,
 {
    const intel_device_info *devinfo = ntb.devinfo;
 
-   enum lsc_opcode op = lsc_aop_for_nir_intrinsic(instr);
+   enum lsc_opcode op = lsc_op_for_nir_intrinsic(instr);
    int num_data = lsc_op_num_data_values(op);
 
    bool shared = surface.file == IMM && surface.ud == GFX7_BTI_SLM;
@@ -8142,7 +8142,7 @@ static void
 fs_nir_emit_global_atomic(nir_to_brw_state &ntb, const fs_builder &bld,
                           nir_intrinsic_instr *instr)
 {
-   enum lsc_opcode op = lsc_aop_for_nir_intrinsic(instr);
+   enum lsc_opcode op = lsc_op_for_nir_intrinsic(instr);
    int num_data = lsc_op_num_data_values(op);
 
    brw_reg dest = get_nir_def(ntb, instr->def);

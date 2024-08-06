@@ -204,7 +204,7 @@ unsigned brw_nir_api_subgroup_size(const nir_shader *nir,
                                    unsigned hw_subgroup_size);
 
 enum brw_conditional_mod brw_cmod_for_nir_comparison(nir_op op);
-enum lsc_opcode lsc_aop_for_nir_intrinsic(const nir_intrinsic_instr *atomic);
+enum lsc_opcode lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin);
 enum brw_reg_type brw_type_for_nir_type(const struct intel_device_info *devinfo,
                                         nir_alu_type type);
 

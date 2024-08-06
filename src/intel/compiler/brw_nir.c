@@ -2038,12 +2038,12 @@ brw_cmod_for_nir_comparison(nir_op op)
 }
 
 enum lsc_opcode
-lsc_aop_for_nir_intrinsic(const nir_intrinsic_instr *atomic)
+lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin)
 {
-   switch (nir_intrinsic_atomic_op(atomic)) {
+   switch (nir_intrinsic_atomic_op(intrin)) {
    case nir_atomic_op_iadd: {
       unsigned src_idx;
-      switch (atomic->intrinsic) {
+      switch (intrin->intrinsic) {
       case nir_intrinsic_image_atomic:
       case nir_intrinsic_bindless_image_atomic:
          src_idx = 3;
@@ -2059,8 +2059,8 @@ lsc_aop_for_nir_intrinsic(const nir_intrinsic_instr *atomic)
          unreachable("Invalid add atomic opcode");
       }
 
-      if (nir_src_is_const(atomic->src[src_idx])) {
-         int64_t add_val = nir_src_as_int(atomic->src[src_idx]);
+      if (nir_src_is_const(intrin->src[src_idx])) {
+         int64_t add_val = nir_src_as_int(intrin->src[src_idx]);
          if (add_val == 1)
             return LSC_OP_ATOMIC_INC;
          else if (add_val == -1)
