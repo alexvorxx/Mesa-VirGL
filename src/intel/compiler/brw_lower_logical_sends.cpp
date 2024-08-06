@@ -1415,10 +1415,156 @@ setup_lsc_surface_descriptors(const fs_builder &bld, fs_inst *inst,
    }
 }
 
+static enum lsc_addr_size
+lsc_addr_size_for_type(enum brw_reg_type type)
+{
+   switch (brw_type_size_bytes(type)) {
+   case 2: return LSC_ADDR_SIZE_A16;
+   case 4: return LSC_ADDR_SIZE_A32;
+   case 8: return LSC_ADDR_SIZE_A64;
+   default: unreachable("invalid type size");
+   }
+}
+
 static void
 lower_lsc_memory_logical_send(const fs_builder &bld, fs_inst *inst)
 {
-   unreachable("Not implemented yet");
+   const intel_device_info *devinfo = bld.shader->devinfo;
+   assert(devinfo->has_lsc);
+
+   assert(inst->src[MEMORY_LOGICAL_OPCODE].file == IMM);
+   assert(inst->src[MEMORY_LOGICAL_MODE].file == IMM);
+   assert(inst->src[MEMORY_LOGICAL_BINDING_TYPE].file == IMM);
+   assert(inst->src[MEMORY_LOGICAL_COORD_COMPONENTS].file == IMM);
+   assert(inst->src[MEMORY_LOGICAL_DATA_SIZE].file == IMM);
+   assert(inst->src[MEMORY_LOGICAL_FLAGS].file == IMM);
+
+   /* Get the logical send arguments. */
+   const enum lsc_opcode op = (lsc_opcode) inst->src[MEMORY_LOGICAL_OPCODE].ud;
+   const enum memory_logical_mode mode =
+      (enum memory_logical_mode) inst->src[MEMORY_LOGICAL_MODE].ud;
+   const enum lsc_addr_surface_type binding_type =
+      (enum lsc_addr_surface_type) inst->src[MEMORY_LOGICAL_BINDING_TYPE].ud;
+   const brw_reg binding = inst->src[MEMORY_LOGICAL_BINDING];
+   const brw_reg addr = inst->src[MEMORY_LOGICAL_ADDRESS];
+   const unsigned coord_components =
+      inst->src[MEMORY_LOGICAL_COORD_COMPONENTS].ud;
+   enum lsc_data_size data_size =
+      (enum lsc_data_size) inst->src[MEMORY_LOGICAL_DATA_SIZE].ud;
+   const unsigned components = inst->src[MEMORY_LOGICAL_COMPONENTS].ud;
+   const enum memory_flags flags =
+      (enum memory_flags) inst->src[MEMORY_LOGICAL_FLAGS].ud;
+   const bool transpose = flags & MEMORY_FLAG_TRANSPOSE;
+   const bool include_helpers = flags & MEMORY_FLAG_INCLUDE_HELPERS;
+   const brw_reg data0 = inst->src[MEMORY_LOGICAL_DATA0];
+   const brw_reg data1 = inst->src[MEMORY_LOGICAL_DATA1];
+   const bool has_side_effects = inst->has_side_effects();
+
+   const uint32_t data_size_B = lsc_data_size_bytes(data_size);
+   const enum brw_reg_type data_type =
+      brw_type_with_size(data0.type, data_size_B * 8);
+
+   const enum lsc_addr_size addr_size = lsc_addr_size_for_type(addr.type);
+
+   brw_reg payload = addr;
+
+   if (addr.file != VGRF || !addr.is_contiguous()) {
+      if (inst->force_writemask_all) {
+         const fs_builder dbld = bld.group(bld.shader->dispatch_width, 0);
+         payload = dbld.move_to_vgrf(addr, coord_components);
+      } else {
+         payload = bld.move_to_vgrf(addr, coord_components);
+      }
+   }
+
+   unsigned ex_mlen = 0;
+   brw_reg payload2;
+   if (data0.file != BAD_FILE) {
+      if (transpose) {
+         assert(data1.file == BAD_FILE);
+
+         payload2 = data0;
+         ex_mlen = DIV_ROUND_UP(components, 8);
+      } else {
+         brw_reg data[8];
+         unsigned size = 0;
+
+         assert(components < 8);
+
+         for (unsigned i = 0; i < components; i++)
+            data[size++] = offset(data0, inst->exec_size, i);
+
+         if (data1.file != BAD_FILE) {
+            for (unsigned i = 0; i < components; i++)
+               data[size++] = offset(data1, inst->exec_size, i);
+         }
+
+         payload2 = bld.vgrf(data0.type, size);
+         bld.LOAD_PAYLOAD(payload2, data, size, 0);
+         ex_mlen = (size * brw_type_size_bytes(data_type) * inst->exec_size) / REG_SIZE;
+      }
+   }
+
+   /* Bspec: Atomic instruction -> Cache section:
+    *
+    *    Atomic messages are always forced to "un-cacheable" in the L1
+    *    cache.
+    */
+   unsigned cache_mode =
+      lsc_opcode_is_atomic(op) ? (unsigned) LSC_CACHE(devinfo, STORE, L1UC_L3WB) :
+      lsc_opcode_is_store(op)  ? (unsigned) LSC_CACHE(devinfo, STORE, L1STATE_L3MOCS) :
+      (unsigned) LSC_CACHE(devinfo, LOAD, L1STATE_L3MOCS);
+
+   /* If we're a fragment shader, we have to predicate with the sample mask to
+    * avoid helper invocations in instructions with side effects, unless they
+    * are explicitly required.  One exception is for scratch writes - even
+    * though those have side effects, they represent operations that didn't
+    * originally have any.  We want to avoid accessing undefined values from
+    * scratch, so we disable helper invocations entirely there.
+    *
+    * There are also special cases when we actually want to run on helpers
+    * (ray queries).
+    */
+   if (bld.shader->stage == MESA_SHADER_FRAGMENT && !transpose) {
+      if (include_helpers)
+         emit_predicate_on_vector_mask(bld, inst);
+      else if (has_side_effects && mode != MEMORY_MODE_SCRATCH)
+         brw_emit_predicate_on_sample_mask(bld, inst);
+   }
+
+   switch (mode) {
+   case MEMORY_MODE_UNTYPED:
+   case MEMORY_MODE_SCRATCH:
+      inst->sfid = GFX12_SFID_UGM;
+      break;
+   case MEMORY_MODE_TYPED:
+      inst->sfid = GFX12_SFID_TGM;
+      break;
+   case MEMORY_MODE_SHARED_LOCAL:
+      inst->sfid = GFX12_SFID_SLM;
+      break;
+   }
+   assert(inst->sfid);
+
+   inst->desc = lsc_msg_desc(devinfo, op, binding_type, addr_size,
+                             data_size, components, transpose, cache_mode);
+
+   /* Set up extended descriptors, fills src[0] and src[1]. */
+   setup_lsc_surface_descriptors(bld, inst, inst->desc, binding);
+
+   inst->opcode = SHADER_OPCODE_SEND;
+   inst->mlen = lsc_msg_addr_len(devinfo, addr_size,
+                                 inst->exec_size * coord_components);
+   inst->ex_mlen = ex_mlen;
+   inst->header_size = 0;
+   inst->send_has_side_effects = has_side_effects;
+   inst->send_is_volatile = !has_side_effects;
+
+   inst->resize_sources(4);
+
+   /* Finally, the payload */
+   inst->src[2] = payload;
+   inst->src[3] = payload2;
 }
 
 static void
