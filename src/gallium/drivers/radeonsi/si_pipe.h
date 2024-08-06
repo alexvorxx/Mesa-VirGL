@@ -1559,6 +1559,16 @@ void si_cp_copy_data(struct si_context *sctx, struct radeon_cmdbuf *cs, unsigned
 /* si_cp_reg_shadowing.c */
 void si_init_cp_reg_shadowing(struct si_context *sctx);
 
+/* si_cp_utils.c */
+void si_cp_release_mem_pws(struct si_context *sctx, struct radeon_cmdbuf *cs,
+                           unsigned event_type, unsigned gcr_cntl);
+void si_cp_acquire_mem_pws(struct si_context *sctx, struct radeon_cmdbuf *cs,
+                           unsigned event_type, unsigned stage_sel, unsigned gcr_cntl,
+                           unsigned distance, unsigned sqtt_flush_flags);
+void si_cp_release_acquire_mem_pws(struct si_context *sctx, struct radeon_cmdbuf *cs,
+                                   unsigned event_type, unsigned gcr_cntl, unsigned stage_sel,
+                                   unsigned sqtt_flush_flags);
+
 /* si_debug.c */
 void si_gather_context_rolls(struct si_context *sctx);
 void si_save_cs(struct radeon_winsys *ws, struct radeon_cmdbuf *cs, struct radeon_saved_cs *saved,
