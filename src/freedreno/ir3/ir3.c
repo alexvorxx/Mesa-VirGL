@@ -315,9 +315,12 @@ ir3_collect_info(struct ir3_shader_variant *v)
 
          if ((instr->opc == OPC_STP || instr->opc == OPC_LDP)) {
             unsigned components = instr->srcs[2]->uim_val;
-            if (components * type_size(instr->cat6.type) > 32) {
+
+            /* This covers any multi-component access that could straddle
+             * across multiple double-words.
+             */
+            if (components > 1)
                info->multi_dword_ldp_stp = true;
-            }
 
             if (instr->opc == OPC_STP)
                info->stp_count += components;
