@@ -3560,6 +3560,8 @@ agx_compile_shader_nir(nir_shader *nir, struct agx_shader_key *key,
 
       info->reads_tib = nir->info.fs.uses_fbfetch_output;
       info->early_fragment_tests = nir->info.fs.early_fragment_tests;
+   } else if (nir->info.stage == MESA_SHADER_COMPUTE) {
+      info->imageblock_stride = nir->info.cs.image_block_size_per_thread_agx;
    }
 
    out->binary = binary.data;

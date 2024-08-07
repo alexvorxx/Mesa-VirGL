@@ -73,6 +73,9 @@ struct agx_shader_info {
    /* Local memory allocation in bytes */
    unsigned local_size;
 
+   /* Local imageblock allocation in bytes per thread */
+   unsigned imageblock_stride;
+
    /* Scratch memory allocation in bytes for main/preamble respectively */
    unsigned scratch_size, preamble_scratch_size;
 
