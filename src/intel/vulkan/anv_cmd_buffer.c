@@ -1199,8 +1199,10 @@ anv_cmd_buffer_merge_dynamic(struct anv_cmd_buffer *cmd_buffer,
    state = anv_cmd_buffer_alloc_dynamic_state(cmd_buffer,
                                               dwords * 4, alignment);
    p = state.map;
-   for (uint32_t i = 0; i < dwords; i++)
+   for (uint32_t i = 0; i < dwords; i++) {
+      assert((a[i] & b[i]) == 0);
       p[i] = a[i] | b[i];
+   }
 
    VG(VALGRIND_CHECK_MEM_IS_DEFINED(p, dwords * 4));
 

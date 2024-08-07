@@ -2447,6 +2447,9 @@ _anv_combine_address(struct anv_batch *batch, void *location,
            assert((pipeline)->state.len == __anv_cmd_length(cmd));      \
            __anv_cmd_pack(cmd)(batch, _partial, &name);                 \
            for (uint32_t i = 0; i < __anv_cmd_length(cmd); i++) {       \
+              assert((_partial[i] &                                     \
+                      (pipeline)->batch_data[                           \
+                         (pipeline)->state.offset + i]) == 0);          \
               ((uint32_t *)_dst)[i] = _partial[i] |                     \
                  (pipeline)->batch_data[(pipeline)->state.offset + i];  \
            }                                                            \
@@ -2466,6 +2469,9 @@ _anv_combine_address(struct anv_batch *batch, void *location,
            assert(_cmd_state->len == __anv_cmd_length(cmd));            \
            __anv_cmd_pack(cmd)(batch, _partial, &name);                 \
            for (uint32_t i = 0; i < __anv_cmd_length(cmd); i++) {       \
+              assert((_partial[i] &                                     \
+                      (pipeline)->batch_data[                           \
+                         (pipeline)->state.offset + i]) == 0);          \
               ((uint32_t *)_dst)[i] = _partial[i] |                     \
                  (pipeline)->batch_data[_cmd_state->offset + i];        \
            }                                                            \
