@@ -4233,6 +4233,7 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
 #if defined(LINUX_GUEST_BUILD)
     bool isDmaBufImage = false;
     VkImageDrmFormatModifierExplicitCreateInfoEXT localDrmFormatModifierInfo;
+    VkImageDrmFormatModifierListCreateInfoEXT localDrmFormatModifierList;
 
     if (extImgCiPtr &&
         (extImgCiPtr->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
@@ -4249,15 +4250,29 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
 
         const VkImageDrmFormatModifierExplicitCreateInfoEXT* drmFmtMod =
             vk_find_struct<VkImageDrmFormatModifierExplicitCreateInfoEXT>(pCreateInfo);
-        if (drmFmtMod) {
+        const VkImageDrmFormatModifierListCreateInfoEXT* drmFmtModList =
+            vk_find_struct<VkImageDrmFormatModifierListCreateInfoEXT>(pCreateInfo);
+        if (drmFmtMod || drmFmtModList) {
             if (getHostDeviceExtensionIndex(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) !=
                 -1) {
                 // host supports DRM format modifiers => forward the struct
-                localDrmFormatModifierInfo = vk_make_orphan_copy(*drmFmtMod);
-                vk_append_struct(&structChainIter, &localDrmFormatModifierInfo);
+                if (drmFmtMod) {
+                    localDrmFormatModifierInfo = vk_make_orphan_copy(*drmFmtMod);
+                    vk_append_struct(&structChainIter, &localDrmFormatModifierInfo);
+                }
+                if (drmFmtModList) {
+                    localDrmFormatModifierList = vk_make_orphan_copy(*drmFmtModList);
+                    vk_append_struct(&structChainIter, &localDrmFormatModifierList);
+                }
             } else {
+                bool canUseLinearModifier =
+                    (drmFmtMod && drmFmtMod->drmFormatModifier == DRM_FORMAT_MOD_LINEAR) ||
+                    std::any_of(
+                        drmFmtModList->pDrmFormatModifiers,
+                        drmFmtModList->pDrmFormatModifiers + drmFmtModList->drmFormatModifierCount,
+                        [](const uint64_t mod) { return mod == DRM_FORMAT_MOD_LINEAR; });
                 // host doesn't support DRM format modifiers, try emulating
-                if (drmFmtMod->drmFormatModifier == DRM_FORMAT_MOD_LINEAR) {
+                if (canUseLinearModifier) {
                     mesa_logd("emulating DRM_FORMAT_MOD_LINEAR with VK_IMAGE_TILING_LINEAR");
                     localCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
                 } else {
