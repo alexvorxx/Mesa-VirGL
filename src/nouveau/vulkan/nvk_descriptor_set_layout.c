@@ -171,6 +171,7 @@ nvk_CreateDescriptorSetLayout(VkDevice device,
                            MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT);
 
    uint32_t buffer_size = 0;
+   uint32_t max_variable_descriptor_size = 0;
    uint8_t dynamic_buffer_count = 0;
    for (uint32_t b = 0; b < num_bindings; b++) {
       /* We stashed the pCreateInfo->pBindings[] index (plus one) in the
@@ -263,6 +264,8 @@ nvk_CreateDescriptorSetLayout(VkDevice device,
              * In other words, it has to be the last binding.
              */
             assert(b == num_bindings - 1);
+            assert(max_variable_descriptor_size == 0);
+            max_variable_descriptor_size = stride * binding->descriptorCount;
          } else {
             /* the allocation size will be computed at descriptor allocation,
              * but the buffer size will be already aligned as this binding will
@@ -275,6 +278,7 @@ nvk_CreateDescriptorSetLayout(VkDevice device,
    }
 
    layout->non_variable_descriptor_buffer_size = buffer_size;
+   layout->max_buffer_size = buffer_size + max_variable_descriptor_size;
    layout->dynamic_buffer_count = dynamic_buffer_count;
 
    struct mesa_blake3 blake3_ctx;
@@ -434,4 +438,25 @@ nvk_GetDescriptorSetLayoutSupport(VkDevice device,
          break;
       }
    }
+}
+
+VKAPI_ATTR void VKAPI_CALL
+nvk_GetDescriptorSetLayoutSizeEXT(VkDevice device,
+                                  VkDescriptorSetLayout _layout,
+                                  VkDeviceSize *pLayoutSizeInBytes)
+{
+   VK_FROM_HANDLE(nvk_descriptor_set_layout, layout, _layout);
+
+   *pLayoutSizeInBytes = layout->max_buffer_size;
+}
+
+VKAPI_ATTR void VKAPI_CALL
+nvk_GetDescriptorSetLayoutBindingOffsetEXT(VkDevice device,
+                                           VkDescriptorSetLayout _layout,
+                                           uint32_t binding,
+                                           VkDeviceSize *pOffset)
+{
+   VK_FROM_HANDLE(nvk_descriptor_set_layout, layout, _layout);
+
+   *pOffset = layout->binding[binding].offset;
 }

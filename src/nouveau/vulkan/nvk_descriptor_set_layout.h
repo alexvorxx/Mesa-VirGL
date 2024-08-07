@@ -51,6 +51,9 @@ struct nvk_descriptor_set_layout {
    /* Does not contain the size needed for variable count descriptors */
    uint32_t non_variable_descriptor_buffer_size;
 
+   /* Maximum possible buffer size for this descriptor set */
+   uint32_t max_buffer_size;
+
    /* Number of dynamic UBO bindings in this set */
    uint8_t dynamic_buffer_count;
 
