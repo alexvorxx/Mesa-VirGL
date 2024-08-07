@@ -1074,13 +1074,13 @@ void gfx6_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs)
                         wait_mem_scratch, va, sctx->wait_mem_number, SI_NOT_QUERY);
 
       if (unlikely(sctx->sqtt_enabled)) {
-         si_sqtt_describe_barrier_start(sctx, &sctx->gfx_cs);
+         si_sqtt_describe_barrier_start(sctx, cs);
       }
 
       si_cp_wait_mem(sctx, cs, va, sctx->wait_mem_number, 0xffffffff, WAIT_REG_MEM_EQUAL);
 
       if (unlikely(sctx->sqtt_enabled)) {
-         si_sqtt_describe_barrier_end(sctx, &sctx->gfx_cs, sctx->flags);
+         si_sqtt_describe_barrier_end(sctx, cs, sctx->flags);
       }
    }
 
