@@ -840,10 +840,9 @@ void gfx10_emit_cache_flush(struct si_context *ctx, struct radeon_cmdbuf *cs)
       ctx->num_cs_flushes++;
       ctx->compute_is_busy = false;
    }
+   radeon_end();
 
    if (cb_db_event) {
-      radeon_end();
-
       if (ctx->gfx_level >= GFX11) {
          si_cp_release_mem_pws(ctx, cs, cb_db_event, gcr_cntl & C_586_GLI_INV);
 
@@ -900,33 +899,20 @@ void gfx10_emit_cache_flush(struct si_context *ctx, struct radeon_cmdbuf *cs)
             si_sqtt_describe_barrier_end(ctx, &ctx->gfx_cs, flags);
          }
       }
-
-      radeon_begin_again(cs);
    }
 
    /* Ignore fields that only modify the behavior of other fields. */
    if (gcr_cntl & C_586_GL1_RANGE & C_586_GL2_RANGE & C_586_SEQ) {
-      /* ACQUIRE_MEM in PFP is implemented as ACQUIRE_MEM in ME + PFP_SYNC_ME. */
-      unsigned dont_sync_pfp = (!(flags & SI_CONTEXT_PFP_SYNC_ME)) << 31;
-
-      /* Flush caches and wait for the caches to assert idle.
-       * The cache flush is executed in the ME, but the PFP waits
-       * for completion.
-       */
-      radeon_emit(PKT3(PKT3_ACQUIRE_MEM, 6, 0));
-      radeon_emit(dont_sync_pfp); /* CP_COHER_CNTL */
-      radeon_emit(0xffffffff); /* CP_COHER_SIZE */
-      radeon_emit(0xffffff);   /* CP_COHER_SIZE_HI */
-      radeon_emit(0);          /* CP_COHER_BASE */
-      radeon_emit(0);          /* CP_COHER_BASE_HI */
-      radeon_emit(0x0000000A); /* POLL_INTERVAL */
-      radeon_emit(gcr_cntl);   /* GCR_CNTL */
+      si_cp_acquire_mem(ctx, cs, gcr_cntl,
+                        flags & SI_CONTEXT_PFP_SYNC_ME ? V_580_CP_PFP : V_580_CP_ME);
    } else if (flags & SI_CONTEXT_PFP_SYNC_ME) {
-      /* Synchronize PFP with ME. (this stalls PFP) */
+      radeon_begin_again(cs);
       radeon_emit(PKT3(PKT3_PFP_SYNC_ME, 0, 0));
       radeon_emit(0);
+      radeon_end();
    }
 
+   radeon_begin_again(cs);
    if (flags & SI_CONTEXT_START_PIPELINE_STATS && ctx->pipeline_stats_enabled != 1) {
       radeon_event_write(V_028A90_PIPELINESTAT_START);
       ctx->pipeline_stats_enabled = 1;

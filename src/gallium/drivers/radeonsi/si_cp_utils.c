@@ -142,7 +142,20 @@ void si_cp_acquire_mem(struct si_context *sctx, struct radeon_cmdbuf *cs, unsign
    assert(gcr_cntl);
 
    if (sctx->gfx_level >= GFX10) {
-      /* TODO */
+      /* ACQUIRE_MEM in PFP is implemented as ACQUIRE_MEM in ME + PFP_SYNC_ME. */
+      unsigned engine_flag = engine == V_580_CP_ME ? BITFIELD_BIT(31) : 0;
+
+      /* Flush caches. This doesn't wait for idle. */
+      radeon_begin(cs);
+      radeon_emit(PKT3(PKT3_ACQUIRE_MEM, 6, 0));
+      radeon_emit(engine_flag);   /* which engine to use */
+      radeon_emit(0xffffffff);    /* CP_COHER_SIZE */
+      radeon_emit(0x01ffffff);    /* CP_COHER_SIZE_HI */
+      radeon_emit(0);             /* CP_COHER_BASE */
+      radeon_emit(0);             /* CP_COHER_BASE_HI */
+      radeon_emit(0x0000000A);    /* POLL_INTERVAL */
+      radeon_emit(gcr_cntl);      /* GCR_CNTL */
+      radeon_end();
    } else {
       bool compute_ib = !sctx->has_graphics;
 
