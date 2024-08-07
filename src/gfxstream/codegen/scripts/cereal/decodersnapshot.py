@@ -300,7 +300,9 @@ def emit_impl(typeInfo, api, cgen):
             if p.pointerIndirectionLevels > 0:
                 cgen.stmt("if (!%s) return" % access)
             isCreateExtraHandleApi = api.name in apiCrreateExtraHandles
-            if not isCreateExtraHandleApi:
+            if isCreateExtraHandleApi:
+                cgen.stmt("mLock.tryLock()");
+            else:
                 cgen.stmt("android::base::AutoLock lock(mLock)")
             cgen.line("// %s create" % p.paramName)
             if p.isCreatedBy(api):
