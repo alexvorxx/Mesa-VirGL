@@ -1361,6 +1361,7 @@ static const driOptionDescription tu_dri_options[] = {
       DRI_CONF_DISABLE_CONSERVATIVE_LRZ(false)
       DRI_CONF_TU_DONT_RESERVE_DESCRIPTOR_SET(false)
       DRI_CONF_TU_ALLOW_OOB_INDIRECT_UBO_LOADS(false)
+      DRI_CONF_TU_DISABLE_D24S8_BORDER_COLOR_WORKAROUND(false)
    DRI_CONF_SECTION_END
 };
 
@@ -1381,6 +1382,8 @@ tu_init_dri_options(struct tu_instance *instance)
          !driQueryOptionb(&instance->dri_options, "tu_dont_reserve_descriptor_set");
    instance->allow_oob_indirect_ubo_loads =
          driQueryOptionb(&instance->dri_options, "tu_allow_oob_indirect_ubo_loads");
+   instance->disable_d24s8_border_color_workaround =
+         driQueryOptionb(&instance->dri_options, "tu_disable_d24s8_border_color_workaround");
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -2513,7 +2516,8 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
 
    device->use_z24uint_s8uint =
       physical_device->info->a6xx.has_z24uint_s8uint &&
-      !border_color_without_format;
+      (!border_color_without_format ||
+       physical_device->instance->disable_d24s8_border_color_workaround);
    device->use_lrz = !TU_DEBUG(NOLRZ);
 
    tu_gpu_tracepoint_config_variable();
