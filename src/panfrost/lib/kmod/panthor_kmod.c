@@ -80,6 +80,7 @@ struct panthor_kmod_dev {
    struct {
       struct drm_panthor_gpu_info gpu;
       struct drm_panthor_csif_info csif;
+      struct drm_panthor_timestamp_info timestamp;
    } props;
 };
 
@@ -131,6 +132,20 @@ panthor_kmod_dev_create(int fd, uint32_t flags, drmVersionPtr version,
    if (ret) {
       mesa_loge("DRM_IOCTL_PANTHOR_DEV_QUERY failed (err=%d)", errno);
       goto err_free_dev;
+   }
+
+   if (version->version_major > 1 || version->version_minor >= 1) {
+      query = (struct drm_panthor_dev_query){
+         .type = DRM_PANTHOR_DEV_QUERY_TIMESTAMP_INFO,
+         .size = sizeof(panthor_dev->props.timestamp),
+         .pointer = (uint64_t)(uintptr_t)&panthor_dev->props.timestamp,
+      };
+
+      ret = drmIoctl(fd, DRM_IOCTL_PANTHOR_DEV_QUERY, &query);
+      if (ret) {
+         mesa_loge("DRM_IOCTL_PANTHOR_DEV_QUERY failed (err=%d)", errno);
+         goto err_free_dev;
+      }
    }
 
    /* Map the LATEST_FLUSH_ID register at device creation time. */
@@ -203,6 +218,11 @@ panthor_dev_query_props(const struct pan_kmod_dev *dev,
 
       /* This register does not exist because AFBC is no longer optional. */
       .afbc_features = 0,
+
+      /* Access to timstamp from the GPU is always supported on Panthor. */
+      .gpu_can_query_timestamp = true,
+
+      .timestamp_frequency = panthor_dev->props.timestamp.timestamp_frequency,
    };
 
    static_assert(sizeof(props->texture_features) ==
@@ -1086,6 +1106,29 @@ panthor_kmod_get_csif_props(const struct pan_kmod_dev *dev)
    return &panthor_dev->props.csif;
 }
 
+static uint64_t
+panthor_kmod_query_timestamp(const struct pan_kmod_dev *dev)
+{
+   if (dev->driver.version.major <= 1 && dev->driver.version.minor < 1)
+      return 0;
+
+   struct drm_panthor_timestamp_info timestamp_info;
+
+   struct drm_panthor_dev_query query = (struct drm_panthor_dev_query){
+      .type = DRM_PANTHOR_DEV_QUERY_TIMESTAMP_INFO,
+      .size = sizeof(timestamp_info),
+      .pointer = (uint64_t)(uintptr_t)&timestamp_info,
+   };
+
+   int ret = drmIoctl(dev->fd, DRM_IOCTL_PANTHOR_DEV_QUERY, &query);
+   if (ret) {
+      mesa_loge("DRM_IOCTL_PANTHOR_DEV_QUERY failed (err=%d)", errno);
+      return 0;
+   }
+
+   return timestamp_info.current_timestamp;
+}
+
 const struct pan_kmod_ops panthor_kmod_ops = {
    .dev_create = panthor_kmod_dev_create,
    .dev_destroy = panthor_kmod_dev_destroy,
@@ -1101,4 +1144,5 @@ const struct pan_kmod_ops panthor_kmod_ops = {
    .vm_destroy = panthor_kmod_vm_destroy,
    .vm_bind = panthor_kmod_vm_bind,
    .vm_query_state = panthor_kmod_vm_query_state,
+   .query_timestamp = panthor_kmod_query_timestamp,
 };

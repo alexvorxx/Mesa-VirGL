@@ -179,6 +179,12 @@ struct pan_kmod_dev_props {
 
    /* AFBC feature bits. */
    uint32_t afbc_features;
+
+   /* Support cycle count and timestamp propagation as job requirement */
+   bool gpu_can_query_timestamp;
+
+   /* GPU Timestamp frequency */
+   uint64_t timestamp_frequency;
 };
 
 /* Memory allocator for kmod internal allocations. */
@@ -404,6 +410,9 @@ struct pan_kmod_ops {
     * usable.
     */
    enum pan_kmod_vm_state (*vm_query_state)(struct pan_kmod_vm *vm);
+
+   /* Query the current GPU timestamp */
+   uint64_t (*query_timestamp)(const struct pan_kmod_dev *dev);
 };
 
 /* KMD information. */
@@ -638,6 +647,12 @@ static inline uint32_t
 pan_kmod_vm_handle(struct pan_kmod_vm *vm)
 {
    return vm->handle;
+}
+
+static inline uint64_t
+pan_kmod_query_timestamp(const struct pan_kmod_dev *dev)
+{
+   return dev->ops->query_timestamp(dev);
 }
 
 #if defined(__cplusplus)
