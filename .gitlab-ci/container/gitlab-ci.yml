@@ -346,7 +346,7 @@ alpine/x86_64_build:
     - .alpine/x86_64_build-base
   variables:
     MESA_IMAGE_TAG: &alpine-x86_64_build ${ALPINE_X86_64_BUILD_TAG}
-    LLVM_VERSION: 18
+    LLVM_VERSION: &alpine-llvm_version 18
   rules:
     # Note: the next three lines must remain in that order, so that the rules
     # in `linkcheck-docs` catch nightly pipelines before the rules in `pages`
@@ -362,6 +362,7 @@ alpine/x86_64_build:
   variables:
     MESA_IMAGE_PATH: "alpine/x86_64_build"
     MESA_IMAGE_TAG: *alpine-x86_64_build
+    LLVM_VERSION: *alpine-llvm_version
   needs:
     - alpine/x86_64_build
 
