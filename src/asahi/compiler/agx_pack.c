@@ -961,6 +961,10 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
       unsigned R = offset.value;
 
       bool unk1 = true;
+
+      /* This bit has weird behaviour with the interaction of the texture state
+       * index and the tilebuffer offset. Probably best not to use it for now.
+       */
       unsigned unk3 = 1;
 
       uint32_t word0 = agx_opcodes_info[I->op].encoding.exact |
