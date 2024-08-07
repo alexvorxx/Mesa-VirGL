@@ -6,10 +6,13 @@
 
 #include "nak.h"
 #include "nvk_buffer.h"
+#include "nvk_descriptor_types.h"
 #include "nvk_entrypoints.h"
 #include "nvk_format.h"
 #include "nvk_image.h"
+#include "nvk_image_view.h"
 #include "nvk_instance.h"
+#include "nvk_sampler.h"
 #include "nvk_shader.h"
 #include "nvk_wsi.h"
 #include "nvkmd/nvkmd.h"
@@ -181,6 +184,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .EXT_depth_clip_control = true,
       .EXT_depth_clip_enable = true,
       .EXT_depth_range_unrestricted = info->cls_eng3d >= VOLTA_A,
+      .EXT_descriptor_buffer = true,
       .EXT_descriptor_indexing = true,
 #ifdef VK_USE_PLATFORM_DISPLAY_KHR
       .EXT_display_control = true,
@@ -484,6 +488,12 @@ nvk_get_device_features(const struct nv_device_info *info,
 
       /* VK_EXT_depth_clip_enable */
       .depthClipEnable = true,
+
+      /* VK_EXT_descriptor_buffer */
+      .descriptorBuffer = true,
+      .descriptorBufferCaptureReplay = true,
+      .descriptorBufferImageLayoutIgnored = true,
+      .descriptorBufferPushDescriptors = false,
 
       /* VK_EXT_dynamic_rendering_unused_attachments */
       .dynamicRenderingUnusedAttachments = true,
@@ -885,6 +895,43 @@ nvk_get_device_properties(const struct nvk_instance *instance,
 
       /* VK_EXT_custom_border_color */
       .maxCustomBorderColorSamplers = 4000,
+
+      /* VK_EXT_descriptor_buffer */
+      .combinedImageSamplerDescriptorSingleArray = true,
+      .bufferlessPushDescriptors = false,
+      .allowSamplerImageViewPostSubmitCreation = false,
+      .descriptorBufferOffsetAlignment = nvk_min_cbuf_alignment(info),
+      .maxDescriptorBufferBindings = 32,
+      .maxResourceDescriptorBufferBindings = 32,
+      .maxSamplerDescriptorBufferBindings = 32,
+      .maxEmbeddedImmutableSamplerBindings = 32,
+      .maxEmbeddedImmutableSamplers = 4000,
+      .bufferCaptureReplayDescriptorDataSize = 0,
+      .imageCaptureReplayDescriptorDataSize = 0,
+      .imageViewCaptureReplayDescriptorDataSize =
+         sizeof(struct nvk_image_view_capture),
+      .samplerCaptureReplayDescriptorDataSize =
+         sizeof(struct nvk_sampler_capture),
+      .accelerationStructureCaptureReplayDescriptorDataSize = 0, // todo
+      .samplerDescriptorSize = sizeof(struct nvk_sampled_image_descriptor),
+      .combinedImageSamplerDescriptorSize = sizeof(struct nvk_sampled_image_descriptor),
+      .sampledImageDescriptorSize = sizeof(struct nvk_sampled_image_descriptor),
+      .storageImageDescriptorSize = sizeof(struct nvk_storage_image_descriptor),
+      .uniformTexelBufferDescriptorSize = sizeof(struct nvk_edb_buffer_view_descriptor),
+      .robustUniformTexelBufferDescriptorSize = sizeof(struct nvk_edb_buffer_view_descriptor),
+      .storageTexelBufferDescriptorSize = sizeof(struct nvk_edb_buffer_view_descriptor),
+      .robustStorageTexelBufferDescriptorSize = sizeof(struct nvk_edb_buffer_view_descriptor),
+      .uniformBufferDescriptorSize = sizeof(union nvk_buffer_descriptor),
+      .robustUniformBufferDescriptorSize = sizeof(union nvk_buffer_descriptor),
+      .storageBufferDescriptorSize = sizeof(union nvk_buffer_descriptor),
+      .robustStorageBufferDescriptorSize = sizeof(union nvk_buffer_descriptor),
+      .inputAttachmentDescriptorSize = sizeof(struct nvk_sampled_image_descriptor),
+      .accelerationStructureDescriptorSize = 0,
+      .maxSamplerDescriptorBufferRange = UINT32_MAX,
+      .maxResourceDescriptorBufferRange = UINT32_MAX,
+      .samplerDescriptorBufferAddressSpaceSize = UINT32_MAX,
+      .resourceDescriptorBufferAddressSpaceSize = UINT32_MAX,
+      .descriptorBufferAddressSpaceSize = UINT32_MAX,
 
       /* VK_EXT_extended_dynamic_state3 */
       .dynamicPrimitiveTopologyUnrestricted = true,
