@@ -266,6 +266,8 @@ agx_read_registers(const agx_instr *I, unsigned s)
       /* See agx_write_registers */
       if (s == 0)
          return util_bitcount(I->mask) * MIN2(size, 2);
+      else if (s == 2 && I->explicit_coords)
+         return 2;
       else
          return size;
 
@@ -333,6 +335,12 @@ agx_read_registers(const agx_instr *I, unsigned s)
       } else {
          return size;
       }
+
+   case AGX_OPCODE_BLOCK_IMAGE_STORE:
+      if (s == 2 && I->explicit_coords)
+         return agx_coordinate_registers(I);
+      else
+         return size;
 
    case AGX_OPCODE_ATOMIC:
    case AGX_OPCODE_LOCAL_ATOMIC:

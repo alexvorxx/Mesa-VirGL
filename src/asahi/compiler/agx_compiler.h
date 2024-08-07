@@ -367,6 +367,9 @@ typedef struct {
    bool query_lod         : 1;
    enum agx_gather gather : 3;
 
+   /* TODO: Handle tilebuffer ops more efficient */
+   bool explicit_coords : 1;
+
    /* TODO: Handle iter ops more efficient */
    enum agx_interpolation interpolation : 2;
 

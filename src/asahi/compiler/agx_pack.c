@@ -562,6 +562,7 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
       pack_assert(I, I->pixel_offset < 0x200);
 
       agx_index sample_index = load ? I->src[0] : I->src[1];
+      agx_index coords = load ? I->src[1] : I->src[2];
       pack_assert(I, sample_index.type == AGX_INDEX_REGISTER ||
                         sample_index.type == AGX_INDEX_IMMEDIATE);
       pack_assert(I, sample_index.size == AGX_SIZE_16);
@@ -569,14 +570,21 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
       unsigned S = sample_index.value;
       pack_assert(I, S < 0x100);
 
+      pack_assert(I, I->explicit_coords == (coords.type == AGX_INDEX_REGISTER));
+      unsigned C = I->explicit_coords ? coords.value : 0;
+
       uint64_t raw = agx_opcodes_info[I->op].encoding.exact |
                      ((uint64_t)(D & BITFIELD_MASK(8)) << 7) | (St << 22) |
                      ((uint64_t)(I->format) << 24) |
+                     ((uint64_t)(C & BITFIELD_MASK(6)) << 16) |
                      ((uint64_t)(I->pixel_offset & BITFIELD_MASK(7)) << 28) |
-                     (load ? (1ull << 35) : 0) | ((uint64_t)(I->mask) << 36) |
+                     (load || I->explicit_coords ? (1ull << 35) : 0) |
+                     ((uint64_t)(I->mask) << 36) |
                      ((uint64_t)(I->pixel_offset >> 7) << 40) |
                      ((uint64_t)(S & BITFIELD_MASK(6)) << 42) |
-                     ((uint64_t)(S >> 6) << 56) | (((uint64_t)(D >> 8)) << 60);
+                     (I->explicit_coords ? (1ull << 55) : 0) |
+                     ((uint64_t)(S >> 6) << 56) | ((uint64_t)(C >> 6) << 58) |
+                     (((uint64_t)(D >> 8)) << 60);
 
       unsigned size = 8;
       memcpy(util_dynarray_grow_bytes(emission, 1, size), &raw, size);
@@ -959,6 +967,7 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
                        (1 << 15) /* we always set length bit for now */ |
                        ((F & 1) << 8) | ((R & BITFIELD_MASK(6)) << 9) |
                        ((C & BITFIELD_MASK(6)) << 16) | (Ct ? (1 << 22) : 0) |
+                       (I->explicit_coords ? (1 << 23) : 0) |
                        (unk1 ? (1u << 31) : 0);
 
       uint32_t word1 = (T & BITFIELD_MASK(6)) | (Tt << 6) |

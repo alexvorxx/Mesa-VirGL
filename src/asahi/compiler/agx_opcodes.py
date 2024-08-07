@@ -81,6 +81,7 @@ BFI_MASK = immediate("bfi_mask")
 LOD_MODE = immediate("lod_mode", "enum agx_lod_mode")
 PIXEL_OFFSET = immediate("pixel_offset")
 STACK_SIZE = immediate("stack_size", 'int16_t')
+EXPLICIT_COORDS = immediate("explicit_coords", "bool")
 
 DIM = enum("dim", {
     0: '1d',
@@ -371,13 +372,14 @@ op("sample_mask", (0x7fc1, 0xffff, 6, _), dests = 0, srcs = 2,
 op("zs_emit", (0x41, 0xFF | L, 4, _), dests = 0, srcs = 2,
               can_eliminate = False, imms = [ZS], schedule_class = "coverage")
 
-# Essentially same encoding. Last source is the sample mask
-op("ld_tile", (0x49, 0x7F, 8, _), dests = 1, srcs = 1,
-        imms = [FORMAT, MASK, PIXEL_OFFSET], can_reorder = False,
+# Sources: sample mask, explicit coords (if present)
+op("ld_tile", (0x49, 0x7F, 8, _), dests = 1, srcs = 2,
+        imms = [FORMAT, MASK, PIXEL_OFFSET, EXPLICIT_COORDS], can_reorder = False,
         schedule_class = "coverage")
 
-op("st_tile", (0x09, 0x7F, 8, _), dests = 0, srcs = 2,
-      can_eliminate = False, imms = [FORMAT, MASK, PIXEL_OFFSET],
+# Sources: value, sample mask, explicit coords (if present)
+op("st_tile", (0x09, 0x7F, 8, _), dests = 0, srcs = 3,
+      can_eliminate = False, imms = [FORMAT, MASK, PIXEL_OFFSET, EXPLICIT_COORDS],
       schedule_class = "coverage")
 
 for (name, exact) in [("any", 0xC000), ("none", 0xC020), ("none_after", 0xC020)]:
@@ -430,10 +432,11 @@ op("signal_pix", (0x58, 0xFF, 4, _), dests = 0, imms = [WRITEOUT],
 op("image_write", (0xF1 | (1 << 23) | (9 << 43), 0xFF, 6, 8), dests = 0, srcs = 5, imms
    = [DIM], can_eliminate = False, schedule_class = "store")
 
-# Sources are the image, the offset within shared memory, and the layer.
+# Sources are the image, the offset within shared memory, and the coordinates
+# (or just the layer if implicit).
 # TODO: Do we need the short encoding?
 op("block_image_store", (0xB1, 0xFF, 10, _), dests = 0, srcs = 3,
-   imms = [FORMAT, DIM], can_eliminate = False, schedule_class = "store")
+   imms = [FORMAT, DIM, EXPLICIT_COORDS], can_eliminate = False, schedule_class = "store")
 
 # Barriers
 op("threadgroup_barrier", (0x0068, 0xFFFF, 2, _), dests = 0, srcs = 0,

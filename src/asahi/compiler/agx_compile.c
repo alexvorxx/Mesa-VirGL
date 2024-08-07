@@ -591,6 +591,8 @@ agx_emit_load_vary(agx_builder *b, agx_index dest, nir_intrinsic_instr *instr)
 static agx_instr *
 agx_emit_local_store_pixel(agx_builder *b, nir_intrinsic_instr *instr)
 {
+   bool explicit = nir_intrinsic_explicit_coord(instr);
+
    /* TODO: Reverse-engineer interactions with MRT */
    if (b->shader->stage == MESA_SHADER_FRAGMENT) {
       if (b->shader->key->fs.ignore_tib_dependencies) {
@@ -611,13 +613,14 @@ agx_emit_local_store_pixel(agx_builder *b, nir_intrinsic_instr *instr)
    }
 
    agx_index collected = agx_emit_collect(b, compact_count, compacted);
+   agx_index coords = explicit ? agx_src_index(&instr->src[2]) : agx_null();
 
    b->shader->did_writeout = true;
    b->shader->out->tag_write_disable = false;
-   return agx_st_tile(b, collected, agx_src_index(&instr->src[1]),
+   return agx_st_tile(b, collected, agx_src_index(&instr->src[1]), coords,
                       agx_format_for_pipe(nir_intrinsic_format(instr)),
                       nir_intrinsic_write_mask(instr),
-                      nir_intrinsic_base(instr));
+                      nir_intrinsic_base(instr), explicit);
 }
 
 static agx_instr *
@@ -663,9 +666,9 @@ agx_emit_local_load_pixel(agx_builder *b, agx_index dest,
    b->shader->did_writeout = true;
 
    unsigned nr_comps = instr->def.num_components;
-   agx_ld_tile_to(b, dest, agx_src_index(&instr->src[0]),
+   agx_ld_tile_to(b, dest, agx_src_index(&instr->src[0]), agx_null(),
                   agx_format_for_pipe(nir_intrinsic_format(instr)),
-                  BITFIELD_MASK(nr_comps), nir_intrinsic_base(instr));
+                  BITFIELD_MASK(nr_comps), nir_intrinsic_base(instr), false);
    agx_emit_cached_split(b, dest, nr_comps);
 }
 
@@ -779,12 +782,13 @@ agx_emit_block_image_store(agx_builder *b, nir_intrinsic_instr *instr)
 {
    unsigned image = nir_src_as_uint(instr->src[0]);
    agx_index offset = agx_src_index(&instr->src[1]);
-   agx_index layer = agx_src_index(&instr->src[2]);
+   agx_index coords = agx_src_index(&instr->src[2]);
    enum agx_format format = agx_format_for_pipe(nir_intrinsic_format(instr));
 
    bool ms = nir_intrinsic_image_dim(instr) == GLSL_SAMPLER_DIM_MS;
    bool array = nir_intrinsic_image_array(instr);
    enum agx_dim dim = agx_tex_dim(nir_intrinsic_image_dim(instr), array);
+   bool explicit = nir_intrinsic_explicit_coord(instr);
 
    /* 32-bit source physically, 16-bit in NIR, top half ignored but needed
     * logically to ensure alignment.
@@ -794,16 +798,18 @@ agx_emit_block_image_store(agx_builder *b, nir_intrinsic_instr *instr)
    offset.size = AGX_SIZE_32;
 
    /* Modified coordinate descriptor */
-   agx_index coords;
-   if (array) {
-      coords = agx_temp(b->shader, AGX_SIZE_32);
-      agx_emit_collect_to(b, coords, 2,
-                          (agx_index[]){
-                             ms ? agx_mov_imm(b, 16, 0) : layer,
-                             ms ? layer : agx_undef(AGX_SIZE_16),
-                          });
-   } else {
-      coords = agx_null();
+   if (!explicit) {
+      if (array) {
+         agx_index layer = coords;
+         coords = agx_temp(b->shader, AGX_SIZE_32);
+         agx_emit_collect_to(b, coords, 2,
+                             (agx_index[]){
+                                ms ? agx_mov_imm(b, 16, 0) : layer,
+                                ms ? layer : agx_undef(AGX_SIZE_16),
+                             });
+      } else {
+         coords = agx_null();
+      }
    }
 
    // XXX: how does this possibly work
@@ -811,7 +817,7 @@ agx_emit_block_image_store(agx_builder *b, nir_intrinsic_instr *instr)
       format = AGX_FORMAT_I16;
 
    return agx_block_image_store(b, agx_immediate(image), offset, coords, format,
-                                dim);
+                                dim, explicit);
 }
 
 static agx_instr *
