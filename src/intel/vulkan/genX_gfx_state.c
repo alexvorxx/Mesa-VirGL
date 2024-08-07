@@ -1262,10 +1262,23 @@ genX(cmd_buffer_flush_gfx_runtime_state)(struct anv_cmd_buffer *cmd_buffer)
    }
 
    if ((gfx->dirty & ANV_CMD_DIRTY_RENDER_AREA) ||
+       (gfx->dirty & ANV_CMD_DIRTY_PIPELINE) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VP_VIEWPORTS) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VP_SCISSORS) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_DEPTH_CLAMP_ENABLE) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VP_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE)) {
+      bool last_raster_stage_write_viewport;
+      if (anv_pipeline_is_primitive(pipeline)) {
+         const struct brw_vue_prog_data *last =
+            anv_pipeline_get_last_vue_prog_data(pipeline);
+         last_raster_stage_write_viewport =
+            (last->vue_map.slots_valid & VARYING_BIT_VIEWPORT) != 0;
+      } else {
+         const struct brw_mesh_prog_data *mesh_prog_data = get_mesh_prog_data(pipeline);
+         last_raster_stage_write_viewport =
+            mesh_prog_data->map.start_dw[VARYING_SLOT_VIEWPORT] >= 0;
+      }
+
       struct anv_instance *instance = cmd_buffer->device->physical->instance;
       const VkViewport *viewports = dyn->vp.viewports;
 
@@ -1390,7 +1403,14 @@ genX(cmd_buffer_flush_gfx_runtime_state)(struct anv_cmd_buffer *cmd_buffer)
          SET(VIEWPORT_CC, vp_cc.elem[i].MinimumDepth, min_depth);
          SET(VIEWPORT_CC, vp_cc.elem[i].MaximumDepth, max_depth);
 
-         SET(CLIP, clip.MaximumVPIndex, dyn->vp.viewport_count > 0 ?
+         /* From the Vulkan 1.0.45 spec:
+          *
+          *    "If the last active vertex processing stage shader entry
+          *    point's interface does not include a variable decorated with
+          *    ViewportIndex, then the first viewport is used."
+          */
+         SET(CLIP, clip.MaximumVPIndex, (last_raster_stage_write_viewport &&
+                                         dyn->vp.viewport_count > 0) ?
                                         dyn->vp.viewport_count - 1 : 0);
       }
 
