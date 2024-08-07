@@ -584,10 +584,40 @@ panfrost_destroy(struct pipe_context *pipe)
 static struct pipe_query *
 panfrost_create_query(struct pipe_context *pipe, unsigned type, unsigned index)
 {
+   struct panfrost_context *ctx = pan_context(pipe);
+   struct panfrost_device *dev = pan_device(ctx->base.screen);
    struct panfrost_query *q = rzalloc(pipe, struct panfrost_query);
 
    q->type = type;
    q->index = index;
+
+   unsigned size = 0;
+
+   switch (q->type) {
+   case PIPE_QUERY_OCCLUSION_COUNTER:
+   case PIPE_QUERY_OCCLUSION_PREDICATE:
+   case PIPE_QUERY_OCCLUSION_PREDICATE_CONSERVATIVE:
+      size = sizeof(uint64_t) * dev->core_id_range;
+      break;
+   default:
+      break;
+   }
+
+   /* Allocate a resource for the query results to be stored */
+   if (size > 0) {
+      q->rsrc =
+         pipe_buffer_create(ctx->base.screen, PIPE_BIND_QUERY_BUFFER, 0, size);
+
+      if (!q->rsrc) {
+         ralloc_free(q);
+         return NULL;
+      }
+
+      /* Default to 0 if nothing at all drawn. */
+      uint8_t *zeroes = alloca(size);
+      memset(zeroes, 0, size);
+      pipe_buffer_write(pipe, q->rsrc, 0, size, zeroes);
+   }
 
    return (struct pipe_query *)q;
 }
@@ -615,12 +645,6 @@ panfrost_begin_query(struct pipe_context *pipe, struct pipe_query *q)
    case PIPE_QUERY_OCCLUSION_PREDICATE:
    case PIPE_QUERY_OCCLUSION_PREDICATE_CONSERVATIVE: {
       unsigned size = sizeof(uint64_t) * dev->core_id_range;
-
-      /* Allocate a resource for the query results to be stored */
-      if (!query->rsrc) {
-         query->rsrc = pipe_buffer_create(ctx->base.screen,
-                                          PIPE_BIND_QUERY_BUFFER, 0, size);
-      }
 
       /* Default to 0 if nothing at all drawn. */
       uint8_t *zeroes = alloca(size);
