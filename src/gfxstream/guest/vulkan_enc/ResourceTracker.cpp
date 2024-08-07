@@ -3808,11 +3808,12 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 isDmaBufImage = imageInfo.isDmaBufImage;
             }
 
-            // TODO (b/326956485): Support DRM format modifiers for dmabuf memory
-            // For now, can only externalize memory for linear images
             if (isDmaBufImage) {
                 const VkImageSubresource imageSubresource = {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .aspectMask = exportAllocateInfoPtr->handleTypes &
+                                          VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT
+                                      ? VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT
+                                      : VK_IMAGE_ASPECT_COLOR_BIT,
                     .mipLevel = 0,
                     .arrayLayer = 0,
                 };
