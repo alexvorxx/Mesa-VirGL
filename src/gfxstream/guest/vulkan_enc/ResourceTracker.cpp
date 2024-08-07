@@ -6750,19 +6750,25 @@ VkResult ResourceTracker::on_vkGetPhysicalDeviceImageFormatProperties2_common(
 
     const VkPhysicalDeviceImageDrmFormatModifierInfoEXT* drmFmtMod =
         vk_find_struct<VkPhysicalDeviceImageDrmFormatModifierInfoEXT>(pImageFormatInfo);
+    VkDrmFormatModifierPropertiesListEXT* emulatedDrmFmtModPropsList = nullptr;
     if (drmFmtMod) {
         if (getHostDeviceExtensionIndex(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) != -1) {
             // Host supports DRM format modifiers => leave the input unchanged.
         } else {
+            mesa_logd("emulating DRM_FORMAT_MOD_LINEAR with VK_IMAGE_TILING_LINEAR");
+            emulatedDrmFmtModPropsList =
+                vk_find_struct<VkDrmFormatModifierPropertiesListEXT>(pImageFormatProperties);
+
             // Host doesn't support DRM format modifiers, try emulating.
-            if (drmFmtMod->drmFormatModifier == DRM_FORMAT_MOD_LINEAR) {
-                mesa_logd("emulating DRM_FORMAT_MOD_LINEAR with VK_IMAGE_TILING_LINEAR");
-                localImageFormatInfo.tiling = VK_IMAGE_TILING_LINEAR;
-                pImageFormatInfo = &localImageFormatInfo;
-                // Leave drmFormatMod in the input; it should be ignored when
-                // tiling is not VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT
-            } else {
-                return VK_ERROR_FORMAT_NOT_SUPPORTED;
+            if (drmFmtMod) {
+                if (drmFmtMod->drmFormatModifier == DRM_FORMAT_MOD_LINEAR) {
+                    localImageFormatInfo.tiling = VK_IMAGE_TILING_LINEAR;
+                    pImageFormatInfo = &localImageFormatInfo;
+                    // Leave drmFormatMod in the input; it should be ignored when
+                    // tiling is not VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT
+                } else {
+                    return VK_ERROR_FORMAT_NOT_SUPPORTED;
+                }
             }
         }
     }
@@ -6779,6 +6785,23 @@ VkResult ResourceTracker::on_vkGetPhysicalDeviceImageFormatProperties2_common(
     }
 
     if (hostRes != VK_SUCCESS) return hostRes;
+
+#ifdef LINUX_GUEST_BUILD
+    if (emulatedDrmFmtModPropsList) {
+        VkFormatProperties formatProperties;
+        enc->vkGetPhysicalDeviceFormatProperties(physicalDevice, localImageFormatInfo.format,
+                                                 &formatProperties, true /* do lock */);
+
+        emulatedDrmFmtModPropsList->drmFormatModifierCount = 1;
+        if (emulatedDrmFmtModPropsList->pDrmFormatModifierProperties) {
+            emulatedDrmFmtModPropsList->pDrmFormatModifierProperties[0] = {
+                .drmFormatModifier = DRM_FORMAT_MOD_LINEAR,
+                .drmFormatModifierPlaneCount = 1,
+                .drmFormatModifierTilingFeatures = formatProperties.linearTilingFeatures,
+            };
+        }
+    }
+#endif  // LINUX_GUEST_BUILD
 
 #ifdef VK_USE_PLATFORM_FUCHSIA
     if (ext_img_properties) {
