@@ -322,6 +322,11 @@ index("nir_op", "alu_op")
 index("unsigned", "systolic_depth")
 index("unsigned", "repeat_count")
 
+# For an AGX tilebuffer intrinsics, whether the coordinates are implicit or
+# explicit. Implicit coordinates are used in fragment shaders, explicit
+# coordinates in compute.
+index("bool", "explicit_coord")
+
 intrinsic("nop", flags=[CAN_ELIMINATE])
 
 # Uses a value and cannot be eliminated.
@@ -1931,9 +1936,9 @@ intrinsic("load_uvs_index_agx", dest_comp = 1, bit_sizes=[16],
 # src[] = { sample mask }
 # base = offset
 load("local_pixel_agx", [1], [BASE, FORMAT], [CAN_REORDER, CAN_ELIMINATE])
-# src[] = { value, sample mask }
+# src[] = { value, sample mask, coordinates }
 # base = offset
-store("local_pixel_agx", [1], [BASE, WRITE_MASK, FORMAT], [CAN_REORDER])
+store("local_pixel_agx", [1, -1], [BASE, WRITE_MASK, FORMAT, EXPLICIT_COORD], [CAN_REORDER])
 
 # Combined depth/stencil emit, applying to a mask of samples. base indicates
 # which to write (1 = depth, 2 = stencil, 3 = both).
@@ -1952,9 +1957,9 @@ intrinsic("store_zs_agx", [1, 1, 1], indices=[BASE], flags=[])
 # The image dimension is used to distinguish multisampled images from
 # non-multisampled images. It must be 2D or MS.
 #
-# src[] = { image index, logical offset within shared memory, layer }
-intrinsic("block_image_store_agx", [1, 1, 1], bit_sizes=[32, 16, 16],
-          indices=[FORMAT, IMAGE_DIM, IMAGE_ARRAY], flags=[CAN_REORDER])
+# src[] = { image index, logical offset within shared memory, coordinates/layer }
+intrinsic("block_image_store_agx", [1, 1, -1], bit_sizes=[32, 16, 0],
+          indices=[FORMAT, IMAGE_DIM, IMAGE_ARRAY, EXPLICIT_COORD], flags=[])
 
 # Formatted load/store. The format is the pipe_format in memory (see
 # agx_internal_formats.h for the supported list). This accesses:

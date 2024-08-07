@@ -90,8 +90,9 @@ store_tilebuffer(nir_builder *b, struct agx_tilebuffer_layout *tib,
       samples = nir_imm_intN_t(b, ALL_SAMPLES, 16);
 
    uint8_t offset_B = agx_tilebuffer_offset_B(tib, rt);
-   nir_store_local_pixel_agx(b, value, samples, .base = offset_B,
-                             .write_mask = write_mask, .format = format);
+   nir_store_local_pixel_agx(b, value, samples, nir_undef(b, 2, 16),
+                             .base = offset_B, .write_mask = write_mask,
+                             .format = format);
 }
 
 static nir_def *
