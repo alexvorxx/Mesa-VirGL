@@ -189,11 +189,15 @@ void si_cp_acquire_mem(struct si_context *sctx, struct radeon_cmdbuf *cs, unsign
       if (!compute_ib)
          sctx->context_roll = true;
 
-      if (engine == V_580_CP_PFP) {
-         radeon_begin(cs);
-         radeon_emit(PKT3(PKT3_PFP_SYNC_ME, 0, 0));
-         radeon_emit(0);
-         radeon_end();
-      }
+      if (engine == V_580_CP_PFP)
+         si_cp_pfp_sync_me(cs);
    }
+}
+
+void si_cp_pfp_sync_me(struct radeon_cmdbuf *cs)
+{
+   radeon_begin(cs);
+   radeon_emit(PKT3(PKT3_PFP_SYNC_ME, 0, 0));
+   radeon_emit(0);
+   radeon_end();
 }

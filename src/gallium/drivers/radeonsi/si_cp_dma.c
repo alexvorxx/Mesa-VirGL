@@ -116,17 +116,15 @@ static void si_emit_cp_dma(struct si_context *sctx, struct radeon_cmdbuf *cs, ui
       radeon_emit((dst_va >> 32) & 0xffff); /* DST_ADDR_HI [15:0] */
       radeon_emit(command);
    }
+   radeon_end();
 
    /* CP DMA is executed in ME, but index buffers are read by PFP.
     * This ensures that ME (CP DMA) is idle before PFP starts fetching
     * indices. If we wanted to execute CP DMA in PFP, this packet
     * should precede it.
     */
-   if (sctx->has_graphics && flags & CP_DMA_PFP_SYNC_ME) {
-      radeon_emit(PKT3(PKT3_PFP_SYNC_ME, 0, 0));
-      radeon_emit(0);
-   }
-   radeon_end();
+   if (sctx->has_graphics && flags & CP_DMA_PFP_SYNC_ME)
+      si_cp_pfp_sync_me(cs);
 }
 
 void si_cp_dma_wait_for_idle(struct si_context *sctx, struct radeon_cmdbuf *cs)

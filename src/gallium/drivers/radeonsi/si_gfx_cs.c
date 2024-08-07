@@ -906,10 +906,7 @@ void gfx10_emit_cache_flush(struct si_context *ctx, struct radeon_cmdbuf *cs)
       si_cp_acquire_mem(ctx, cs, gcr_cntl,
                         flags & SI_CONTEXT_PFP_SYNC_ME ? V_580_CP_PFP : V_580_CP_ME);
    } else if (flags & SI_CONTEXT_PFP_SYNC_ME) {
-      radeon_begin_again(cs);
-      radeon_emit(PKT3(PKT3_PFP_SYNC_ME, 0, 0));
-      radeon_emit(0);
-      radeon_end();
+      si_cp_pfp_sync_me(cs);
    }
 
    radeon_begin_again(cs);
@@ -1140,12 +1137,8 @@ void gfx6_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs)
       /* This might be needed even without any cache flags, such as when doing buffer stores
        * to an index buffer.
        */
-      if (flags & SI_CONTEXT_PFP_SYNC_ME) {
-         radeon_begin(cs);
-         radeon_emit(PKT3(PKT3_PFP_SYNC_ME, 0, 0));
-         radeon_emit(0);
-         radeon_end();
-      }
+      if (flags & SI_CONTEXT_PFP_SYNC_ME)
+         si_cp_pfp_sync_me(cs);
    }
 
    if (flags & SI_CONTEXT_START_PIPELINE_STATS && sctx->pipeline_stats_enabled != 1) {

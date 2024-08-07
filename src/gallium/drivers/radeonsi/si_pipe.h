@@ -1570,6 +1570,7 @@ void si_cp_release_acquire_mem_pws(struct si_context *sctx, struct radeon_cmdbuf
                                    unsigned sqtt_flush_flags);
 void si_cp_acquire_mem(struct si_context *sctx, struct radeon_cmdbuf *cs, unsigned gcr_cntl,
                        unsigned engine);
+void si_cp_pfp_sync_me(struct radeon_cmdbuf *cs);
 
 /* si_debug.c */
 void si_gather_context_rolls(struct si_context *sctx);
