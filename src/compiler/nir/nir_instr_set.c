@@ -41,8 +41,27 @@ instr_can_rewrite(const nir_instr *instr)
    case nir_instr_type_load_const:
    case nir_instr_type_phi:
       return true;
-   case nir_instr_type_intrinsic:
-      return nir_intrinsic_can_reorder(nir_instr_as_intrinsic(instr));
+   case nir_instr_type_intrinsic: {
+      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+      switch (intr->intrinsic) {
+      case nir_intrinsic_ddx:
+      case nir_intrinsic_ddx_fine:
+      case nir_intrinsic_ddx_coarse:
+      case nir_intrinsic_ddy:
+      case nir_intrinsic_ddy_fine:
+      case nir_intrinsic_ddy_coarse:
+         /* Derivatives are not CAN_REORDER, because we cannot move derivatives
+          * across terminates if that would lose helper invocations. However,
+          * they can be CSE'd as a special case - if it is legal to execute a
+          * derivative at instruction A, then it is also legal to execute the
+          * derivative from instruction B. So we can hoist up the derivatives as
+          * CSE is inclined to without a problem.
+          */
+         return true;
+      default:
+         return nir_intrinsic_can_reorder(intr);
+      }
+   }
    case nir_instr_type_call:
    case nir_instr_type_jump:
    case nir_instr_type_undef:
