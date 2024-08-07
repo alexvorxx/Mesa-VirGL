@@ -684,43 +684,6 @@ void si_emit_ts(struct si_context *sctx, struct si_resource* buffer, unsigned in
                         EOP_DATA_SEL_TIMESTAMP, buffer, va, 0, PIPE_QUERY_TIMESTAMP);
 }
 
-void si_emit_surface_sync(struct si_context *sctx, struct radeon_cmdbuf *cs, unsigned cp_coher_cntl)
-{
-   bool compute_ib = !sctx->has_graphics;
-
-   assert(sctx->gfx_level <= GFX9);
-
-   /* This seems problematic with GFX7 (see #4764) */
-   if (sctx->gfx_level != GFX7)
-      cp_coher_cntl |= 1u << 31; /* don't sync PFP, i.e. execute the sync in ME */
-
-   radeon_begin(cs);
-
-   if (sctx->gfx_level == GFX9 || compute_ib) {
-      /* Flush caches and wait for the caches to assert idle. */
-      radeon_emit(PKT3(PKT3_ACQUIRE_MEM, 5, 0));
-      radeon_emit(cp_coher_cntl); /* CP_COHER_CNTL */
-      radeon_emit(0xffffffff);    /* CP_COHER_SIZE */
-      radeon_emit(0xffffff);      /* CP_COHER_SIZE_HI */
-      radeon_emit(0);             /* CP_COHER_BASE */
-      radeon_emit(0);             /* CP_COHER_BASE_HI */
-      radeon_emit(0x0000000A);    /* POLL_INTERVAL */
-   } else {
-      /* ACQUIRE_MEM is only required on a compute ring. */
-      radeon_emit(PKT3(PKT3_SURFACE_SYNC, 3, 0));
-      radeon_emit(cp_coher_cntl); /* CP_COHER_CNTL */
-      radeon_emit(0xffffffff);    /* CP_COHER_SIZE */
-      radeon_emit(0);             /* CP_COHER_BASE */
-      radeon_emit(0x0000000A);    /* POLL_INTERVAL */
-   }
-   radeon_end();
-
-   /* ACQUIRE_MEM has an implicit context roll if the current context
-    * is busy. */
-   if (!compute_ib)
-      sctx->context_roll = true;
-}
-
 static struct si_resource *si_get_wait_mem_scratch_bo(struct si_context *ctx,
                                                       struct radeon_cmdbuf *cs, bool is_secure)
 {
@@ -1135,27 +1098,24 @@ void gfx6_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs)
       }
    }
 
-   /* GFX6-GFX8 only:
-    *   When one of the CP_COHER_CNTL.DEST_BASE flags is set, SURFACE_SYNC
-    *   waits for idle, so it should be last. SURFACE_SYNC is done in PFP.
+   /* GFX6-GFX8 only: When one of the CP_COHER_CNTL.DEST_BASE flags is set, SURFACE_SYNC waits
+    * for idle, so it should be last.
     *
-    * cp_coher_cntl should contain all necessary flags except TC and PFP flags
-    * at this point.
+    * cp_coher_cntl should contain everything except TC flags at this point.
     *
     * GFX6-GFX7 don't support L2 write-back.
     */
-   if (flags & SI_CONTEXT_INV_L2 || (sctx->gfx_level <= GFX7 && (flags & SI_CONTEXT_WB_L2))) {
-      /* Invalidate L1 & L2. (L1 is always invalidated on GFX6)
-       * WB must be set on GFX8+ when TC_ACTION is set.
-       */
-      si_emit_surface_sync(sctx, cs,
-                           cp_coher_cntl | S_0085F0_TC_ACTION_ENA(1) | S_0085F0_TCL1_ACTION_ENA(1) |
-                              S_0301F0_TC_WB_ACTION_ENA(sctx->gfx_level >= GFX8));
-      cp_coher_cntl = 0;
+   unsigned engine = flags & SI_CONTEXT_PFP_SYNC_ME ? V_580_CP_PFP : V_580_CP_ME;
+
+   if (flags & SI_CONTEXT_INV_L2 || (sctx->gfx_level <= GFX7 && flags & SI_CONTEXT_WB_L2)) {
+      /* Invalidate L1 & L2. WB must be set on GFX8+ when TC_ACTION is set. */
+      si_cp_acquire_mem(sctx, cs,
+                        cp_coher_cntl | S_0085F0_TC_ACTION_ENA(1) | S_0085F0_TCL1_ACTION_ENA(1) |
+                        S_0301F0_TC_WB_ACTION_ENA(sctx->gfx_level >= GFX8), engine);
       sctx->num_L2_invalidates++;
    } else {
-      /* L1 invalidation and L2 writeback must be done separately,
-       * because both operations can't be done together.
+      /* L1 invalidation and L2 writeback must be done separately, because both operations can't
+       * be done together.
        */
       if (flags & SI_CONTEXT_WB_L2) {
          /* WB = write-back
@@ -1163,29 +1123,43 @@ void gfx6_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs)
           *      (i.e. MTYPE <= 1, which is what we use everywhere)
           *
           * WB doesn't work without NC.
+          *
+          * If we get here, the only flag that can't be executed together with WB_L2 is VMEM cache
+          * invalidation.
           */
-         si_emit_surface_sync(
-            sctx, cs,
-            cp_coher_cntl | S_0301F0_TC_WB_ACTION_ENA(1) | S_0301F0_TC_NC_ACTION_ENA(1));
+         bool last_acquire_mem = !(flags & SI_CONTEXT_INV_VCACHE);
+
+         si_cp_acquire_mem(sctx, cs,
+                           cp_coher_cntl | S_0301F0_TC_WB_ACTION_ENA(1) |
+                           S_0301F0_TC_NC_ACTION_ENA(1),
+                           /* If this is not the last ACQUIRE_MEM, flush in ME.
+                            * We only want to synchronize with PFP in the last ACQUIRE_MEM. */
+                           last_acquire_mem ? engine : V_580_CP_ME);
+
+         if (last_acquire_mem)
+            flags &= ~SI_CONTEXT_PFP_SYNC_ME;
          cp_coher_cntl = 0;
          sctx->num_L2_writebacks++;
       }
-      if (flags & SI_CONTEXT_INV_VCACHE) {
-         /* Invalidate per-CU VMEM L1. */
-         si_emit_surface_sync(sctx, cs, cp_coher_cntl | S_0085F0_TCL1_ACTION_ENA(1));
-         cp_coher_cntl = 0;
+
+      if (flags & SI_CONTEXT_INV_VCACHE)
+         cp_coher_cntl |= S_0085F0_TCL1_ACTION_ENA(1);
+
+      /* If there are still some cache flags left... */
+      if (cp_coher_cntl) {
+         si_cp_acquire_mem(sctx, cs, cp_coher_cntl, engine);
+         flags &= ~SI_CONTEXT_PFP_SYNC_ME;
       }
-   }
 
-   /* If TC flushes haven't cleared this... */
-   if (cp_coher_cntl)
-      si_emit_surface_sync(sctx, cs, cp_coher_cntl);
-
-   if (flags & SI_CONTEXT_PFP_SYNC_ME) {
-      radeon_begin(cs);
-      radeon_emit(PKT3(PKT3_PFP_SYNC_ME, 0, 0));
-      radeon_emit(0);
-      radeon_end();
+      /* This might be needed even without any cache flags, such as when doing buffer stores
+       * to an index buffer.
+       */
+      if (flags & SI_CONTEXT_PFP_SYNC_ME) {
+         radeon_begin(cs);
+         radeon_emit(PKT3(PKT3_PFP_SYNC_ME, 0, 0));
+         radeon_emit(0);
+         radeon_end();
+      }
    }
 
    if (flags & SI_CONTEXT_START_PIPELINE_STATS && sctx->pipeline_stats_enabled != 1) {

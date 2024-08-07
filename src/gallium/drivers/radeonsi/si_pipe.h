@@ -1568,6 +1568,8 @@ void si_cp_acquire_mem_pws(struct si_context *sctx, struct radeon_cmdbuf *cs,
 void si_cp_release_acquire_mem_pws(struct si_context *sctx, struct radeon_cmdbuf *cs,
                                    unsigned event_type, unsigned gcr_cntl, unsigned stage_sel,
                                    unsigned sqtt_flush_flags);
+void si_cp_acquire_mem(struct si_context *sctx, struct radeon_cmdbuf *cs, unsigned gcr_cntl,
+                       unsigned engine);
 
 /* si_debug.c */
 void si_gather_context_rolls(struct si_context *sctx);
@@ -1610,8 +1612,6 @@ void si_set_tracked_regs_to_clear_state(struct si_context *ctx);
 void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs);
 void si_trace_emit(struct si_context *sctx);
 void si_emit_ts(struct si_context *sctx, struct si_resource* buffer, unsigned int offset);
-void si_emit_surface_sync(struct si_context *sctx, struct radeon_cmdbuf *cs,
-                          unsigned cp_coher_cntl);
 void gfx10_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs);
 void gfx6_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs);
 /* Replace the sctx->b.draw_vbo function with a wrapper. This can be use to implement
