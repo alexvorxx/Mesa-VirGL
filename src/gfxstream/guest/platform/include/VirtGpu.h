@@ -204,6 +204,9 @@ class VirtGpuDevice {
    enum VirtGpuCapset mCapset;
 };
 
+VirtGpuDevice* kumquatCreateVirtGpuDevice(enum VirtGpuCapset capset = kCapsetNone, int fd = -1);
+VirtGpuDevice* osCreateVirtGpuDevice(enum VirtGpuCapset capset = kCapsetNone, int fd = -1);
+
 VirtGpuDevice* createPlatformVirtGpuDevice(enum VirtGpuCapset capset = kCapsetNone, int fd = -1);
 
 // HACK: We can use gfxstream::guest::EnumFlags, but we'll have to do more guest

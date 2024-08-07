@@ -249,6 +249,6 @@ int VirtGpuKumquatDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer,
     return 0;
 }
 
-VirtGpuDevice* createPlatformVirtGpuDevice(enum VirtGpuCapset capset, int32_t descriptor) {
+VirtGpuDevice* kumquatCreateVirtGpuDevice(enum VirtGpuCapset capset, int32_t descriptor) {
     return new VirtGpuKumquatDevice(capset, descriptor);
 }

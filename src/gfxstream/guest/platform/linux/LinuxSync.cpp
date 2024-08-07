@@ -39,6 +39,6 @@ int LinuxSyncHelper::dup(int syncFd) { return ::dup(syncFd); }
 
 int LinuxSyncHelper::close(int syncFd) { return ::close(syncFd); }
 
-SyncHelper* createPlatformSyncHelper() { return new LinuxSyncHelper(); }
+SyncHelper* osCreateSyncHelper() { return new LinuxSyncHelper(); }
 
 }  // namespace gfxstream
