@@ -635,6 +635,25 @@ fn validate_buffer(
                         if desc.image_row_pitch * desc.image_height > mem.size {
                             return Err(err);
                         }
+
+                        // If the buffer object specified by mem_object was created with
+                        // CL_MEM_USE_HOST_PTR, the host_ptr specified to clCreateBuffer or
+                        // clCreateBufferWithProperties must be aligned to the maximum of the
+                        // CL_DEVICE_IMAGE_BASE_ADDRESS_ALIGNMENT value for all devices in the
+                        // context associated with the buffer specified by mem_object that support
+                        // images.
+                        if mem.flags & CL_MEM_USE_HOST_PTR as cl_mem_flags != 0 {
+                            for dev in &mem.context.devs {
+                                // CL_DEVICE_IMAGE_BASE_ADDRESS_ALIGNMENT is only relevant for 2D
+                                // images created from a buffer object.
+                                let addr_alignment = dev.image_base_address_alignment();
+                                if addr_alignment == 0 {
+                                    return Err(CL_INVALID_OPERATION);
+                                } else if !is_alligned(host_ptr, addr_alignment as usize) {
+                                    return Err(err);
+                                }
+                            }
+                        }
                     }
                     _ => return Err(err),
                 }
@@ -692,21 +711,6 @@ fn validate_buffer(
                 }
             }
             _ => return Err(err),
-        }
-
-        // If the buffer object specified by mem_object was created with CL_MEM_USE_HOST_PTR, the
-        // host_ptr specified to clCreateBuffer or clCreateBufferWithProperties must be aligned to
-        // the maximum of the CL_DEVICE_IMAGE_BASE_ADDRESS_ALIGNMENT value for all devices in the
-        // context associated with the buffer specified by mem_object that support images.
-        if mem.flags & CL_MEM_USE_HOST_PTR as cl_mem_flags != 0 {
-            for dev in &mem.context.devs {
-                let addr_alignment = dev.image_base_address_alignment();
-                if addr_alignment == 0 {
-                    return Err(CL_INVALID_OPERATION);
-                } else if !is_alligned(host_ptr, addr_alignment as usize) {
-                    return Err(err);
-                }
-            }
         }
 
         validate_matching_buffer_flags(mem, flags)?;
