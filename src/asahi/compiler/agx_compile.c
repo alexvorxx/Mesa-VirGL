@@ -592,12 +592,14 @@ static agx_instr *
 agx_emit_local_store_pixel(agx_builder *b, nir_intrinsic_instr *instr)
 {
    /* TODO: Reverse-engineer interactions with MRT */
-   if (b->shader->key->fs.ignore_tib_dependencies) {
-      assert(b->shader->nir->info.internal && "only for clear shaders");
-   } else if (b->shader->did_writeout) {
-      agx_wait_pix(b, 0x0004);
-   } else {
-      agx_wait_pix(b, 0x000C);
+   if (b->shader->stage == MESA_SHADER_FRAGMENT) {
+      if (b->shader->key->fs.ignore_tib_dependencies) {
+         assert(b->shader->nir->info.internal && "only for clear shaders");
+      } else if (b->shader->did_writeout) {
+         agx_wait_pix(b, 0x0004);
+      } else {
+         agx_wait_pix(b, 0x000C);
+      }
    }
 
    /* Compact the registers according to the mask */
@@ -1266,7 +1268,6 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
       return agx_emit_store_zs(b, instr);
 
    case nir_intrinsic_store_local_pixel_agx:
-      assert(stage == MESA_SHADER_FRAGMENT);
       return agx_emit_local_store_pixel(b, instr);
 
    case nir_intrinsic_load_local_pixel_agx:
