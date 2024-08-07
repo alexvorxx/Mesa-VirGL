@@ -220,8 +220,13 @@ panfrost_get_param(struct pipe_screen *screen, enum pipe_cap param)
    case PIPE_CAP_TEXTURE_BUFFER_OFFSET_ALIGNMENT:
       return 64;
 
+   case PIPE_CAP_QUERY_TIME_ELAPSED:
    case PIPE_CAP_QUERY_TIMESTAMP:
-      return is_gl3;
+      return dev->kmod.props.gpu_can_query_timestamp &&
+             dev->kmod.props.timestamp_frequency != 0;
+
+   case PIPE_CAP_TIMER_RESOLUTION:
+      return pan_gpu_time_to_ns(dev, 1);
 
    /* The hardware requires element alignment for data conversion to work
     * as expected. If data conversion is not required, this restriction is
@@ -908,6 +913,14 @@ panfrost_get_driver_query_info(struct pipe_screen *pscreen, unsigned index,
    return 1;
 }
 
+static uint64_t
+panfrost_get_timestamp(struct pipe_screen *pscreen)
+{
+   struct panfrost_device *dev = pan_device(pscreen);
+
+   return pan_gpu_time_to_ns(dev, pan_kmod_query_timestamp(dev->kmod.dev));
+}
+
 struct pipe_screen *
 panfrost_create_screen(int fd, const struct pipe_screen_config *config,
                        struct renderonly *ro)
@@ -977,7 +990,7 @@ panfrost_create_screen(int fd, const struct pipe_screen_config *config,
    screen->base.get_shader_param = panfrost_get_shader_param;
    screen->base.get_compute_param = panfrost_get_compute_param;
    screen->base.get_paramf = panfrost_get_paramf;
-   screen->base.get_timestamp = u_default_get_timestamp;
+   screen->base.get_timestamp = panfrost_get_timestamp;
    screen->base.is_format_supported = panfrost_is_format_supported;
    screen->base.query_dmabuf_modifiers = panfrost_query_dmabuf_modifiers;
    screen->base.is_dmabuf_modifier_supported =

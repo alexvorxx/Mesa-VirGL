@@ -1191,3 +1191,17 @@ GENX(csf_cleanup_context)(struct panfrost_context *ctx)
    panfrost_bo_unreference(ctx->csf.heap.desc_bo);
    ctx->csf.is_init = false;
 }
+
+void
+GENX(csf_emit_write_timestamp)(struct panfrost_batch *batch,
+                               struct panfrost_resource *dst, unsigned offset)
+{
+   struct cs_builder *b = batch->csf.cs.builder;
+
+   struct cs_index address = cs_reg64(b, 40);
+   cs_move64_to(b, address,
+                dst->image.data.base + dst->image.data.offset + offset);
+   cs_store_state(b, address, 0, MALI_CS_STATE_TIMESTAMP, cs_now());
+
+   panfrost_batch_write_rsrc(batch, dst, PIPE_SHADER_VERTEX);
+}

@@ -96,6 +96,10 @@ void GENX(csf_launch_draw_indirect)(struct panfrost_batch *batch,
                                     unsigned drawid_offset,
                                     const struct pipe_draw_indirect_info *indirect);
 
+void GENX(csf_emit_write_timestamp)(struct panfrost_batch *batch,
+                                    struct panfrost_resource *dst,
+                                    unsigned offset);
+
 #endif /* PAN_ARCH >= 10 */
 
 #endif /* __PAN_CSF_H__ */

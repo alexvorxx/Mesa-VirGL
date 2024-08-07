@@ -216,6 +216,12 @@ struct panfrost_batch {
    /* Number of compute jobs in the batch. */
    uint32_t compute_count;
 
+   /* Set when cycle count is required for this batch. */
+   bool need_job_req_cycle_count;
+
+   /* The batch contains a time query. */
+   bool has_time_query;
+
    /* Job frontend specific fields. */
    union {
       struct panfrost_jm_batch jm;

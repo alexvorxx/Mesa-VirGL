@@ -3901,6 +3901,16 @@ submit_batch(struct panfrost_batch *batch, struct pan_fb_info *fb)
    return JOBX(submit_batch)(batch);
 }
 
+static void
+emit_write_timestamp(struct panfrost_batch *batch,
+                     struct panfrost_resource *dst, unsigned offset)
+{
+   batch->need_job_req_cycle_count = true;
+   batch->has_time_query = true;
+
+   JOBX(emit_write_timestamp)(batch, dst, offset);
+}
+
 void
 GENX(panfrost_cmdstream_screen_init)(struct panfrost_screen *screen)
 {
@@ -3919,6 +3929,7 @@ GENX(panfrost_cmdstream_screen_init)(struct panfrost_screen *screen)
    screen->vtbl.compile_shader = GENX(pan_shader_compile);
    screen->vtbl.afbc_size = panfrost_afbc_size;
    screen->vtbl.afbc_pack = panfrost_afbc_pack;
+   screen->vtbl.emit_write_timestamp = emit_write_timestamp;
 
    GENX(pan_blitter_cache_init)
    (&dev->blitter, panfrost_device_gpu_id(dev), &dev->blend_shaders,

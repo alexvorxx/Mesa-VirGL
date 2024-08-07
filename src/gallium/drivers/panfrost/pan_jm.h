@@ -89,6 +89,10 @@ void GENX(jm_launch_draw_indirect)(struct panfrost_batch *batch,
                                    unsigned drawid_offset,
                                    const struct pipe_draw_indirect_info *indirect);
 
+void GENX(jm_emit_write_timestamp)(struct panfrost_batch *batch,
+                                   struct panfrost_resource *dst,
+                                   unsigned offset);
+
 #endif /* PAN_ARCH < 10 */
 
 #endif

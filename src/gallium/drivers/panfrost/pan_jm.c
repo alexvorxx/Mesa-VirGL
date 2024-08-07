@@ -203,6 +203,9 @@ GENX(jm_submit_batch)(struct panfrost_batch *batch)
    uint32_t out_sync = batch->ctx->syncobj;
    int ret = 0;
 
+   unsigned reqs =
+      batch->need_job_req_cycle_count ? PANFROST_JD_REQ_CYCLE_COUNT : 0;
+
    /* Take the submit lock to make sure no tiler jobs from other context
     * are inserted between our tiler and fragment jobs, failing to do that
     * might result in tiler heap corruption.
@@ -211,7 +214,7 @@ GENX(jm_submit_batch)(struct panfrost_batch *batch)
       pthread_mutex_lock(&dev->submit_lock);
 
    if (has_draws) {
-      ret = jm_submit_jc(batch, batch->jm.jobs.vtc_jc.first_job, 0,
+      ret = jm_submit_jc(batch, batch->jm.jobs.vtc_jc.first_job, reqs,
                          has_frag ? 0 : out_sync);
 
       if (ret)
@@ -219,8 +222,8 @@ GENX(jm_submit_batch)(struct panfrost_batch *batch)
    }
 
    if (has_frag) {
-      ret =
-         jm_submit_jc(batch, batch->jm.jobs.frag, PANFROST_JD_REQ_FS, out_sync);
+      ret = jm_submit_jc(batch, batch->jm.jobs.frag, reqs | PANFROST_JD_REQ_FS,
+                         out_sync);
       if (ret)
          goto done;
    }
@@ -977,4 +980,21 @@ GENX(jm_launch_draw_indirect)(struct panfrost_batch *batch,
                               const struct pipe_draw_indirect_info *indirect)
 {
    unreachable("draw indirect not implemented for jm");
+}
+
+void
+GENX(jm_emit_write_timestamp)(struct panfrost_batch *batch,
+                              struct panfrost_resource *dst, unsigned offset)
+{
+   struct panfrost_ptr job =
+      pan_pool_alloc_desc(&batch->pool.base, WRITE_VALUE_JOB);
+
+   pan_section_pack(job.cpu, WRITE_VALUE_JOB, PAYLOAD, cfg) {
+      cfg.address = dst->image.data.base + dst->image.data.offset + offset;
+      cfg.type = MALI_WRITE_VALUE_TYPE_SYSTEM_TIMESTAMP;
+   }
+
+   pan_jc_add_job(&batch->jm.jobs.vtc_jc, MALI_JOB_TYPE_WRITE_VALUE, false,
+                  false, 0, 0, &job, false);
+   panfrost_batch_write_rsrc(batch, dst, PIPE_SHADER_VERTEX);
 }
