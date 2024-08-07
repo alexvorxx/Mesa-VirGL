@@ -312,7 +312,7 @@ void
 finish_waitcnt_test()
 {
    finish_program(program.get());
-   aco::insert_wait_states(program.get());
+   aco::insert_waitcnt(program.get());
    aco_print_program(program.get(), output);
 }
 
