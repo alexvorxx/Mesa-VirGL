@@ -69,6 +69,7 @@ struct tu_bo {
 
    bool implicit_sync : 1;
    bool never_unmap : 1;
+   bool cached_non_coherent : 1;
 
    /* Pointer to the vk_object_base associated with the BO
     * for the purposes of VK_EXT_device_address_binding_report

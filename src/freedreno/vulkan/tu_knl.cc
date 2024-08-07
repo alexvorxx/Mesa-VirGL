@@ -44,6 +44,10 @@ tu_bo_init_new_explicit_iova(struct tu_device *dev,
    if (result != VK_SUCCESS)
       return result;
 
+   if ((mem_property & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) &&
+       !(mem_property & VK_MEMORY_PROPERTY_HOST_COHERENT_BIT))
+      (*out_bo)->cached_non_coherent = true;
+
    vk_address_binding_report(&instance->vk, base ? base : &dev->vk.base,
                              (*out_bo)->iova, (*out_bo)->size,
                              VK_DEVICE_ADDRESS_BINDING_TYPE_BIND_EXT);
@@ -57,7 +61,19 @@ tu_bo_init_dmabuf(struct tu_device *dev,
                   uint64_t size,
                   int fd)
 {
-   return dev->instance->knl->bo_init_dmabuf(dev, bo, size, fd);
+   VkResult result = dev->instance->knl->bo_init_dmabuf(dev, bo, size, fd);
+   if (result != VK_SUCCESS)
+      return result;
+
+   /* If we have non-coherent cached memory, then defensively assume that it
+    * may need to be invalidated/flushed. If not, then we just have to assume
+    * that whatever dma-buf producer didn't allocate it non-coherent cached
+    * because we have no way of handling that.
+    */
+   if (dev->physical_device->has_cached_non_coherent_memory)
+      (*bo)->cached_non_coherent = true;
+   
+   return VK_SUCCESS;
 }
 
 int
