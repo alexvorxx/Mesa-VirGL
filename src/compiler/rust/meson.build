@@ -5,6 +5,7 @@ _compiler_rs_sources = [
   'as_slice.rs',
   'bitset.rs',
   'cfg.rs',
+  'memstream.rs',
   'nir.rs',
   'smallvec.rs',
 ]
@@ -52,15 +53,34 @@ _compiler_bindgen_args = [
   '--raw-line', '#![allow(non_snake_case)]',
   '--raw-line', '#![allow(non_upper_case_globals)]',
   '--allowlist-var', 'nir_.*_infos',
+  '--allowlist-var', 'rust_.*',
   '--allowlist-function', 'glsl_.*',
   '--allowlist-function', '_mesa_shader_stage_to_string',
   '--allowlist-function', 'nir_.*',
+  '--allowlist-function', 'compiler_rs.*',
+  '--allowlist-function', 'u_memstream.*',
+  '--allowlist-type', 'u_memstream',
   '--no-prepend-enum-name',
 ]
 
 foreach type : _compiler_binding_types
   _compiler_bindgen_args += ['--allowlist-type', type]
 endforeach
+
+_libcompiler_c_sources = files('rust_helpers.c')
+
+_libcompiler_c = static_library(
+  'compiler_c_helpers',
+  [_libcompiler_c_sources],
+  include_directories : [inc_include, inc_util],
+  c_args : [no_override_init_args],
+  gnu_symbol_visibility : 'hidden',
+)
+
+_idep_libcompiler_c = declare_dependency(
+  include_directories: include_directories('.'),
+  link_with : _libcompiler_c,
+)
 
 _compiler_bindings_rs = rust.bindgen(
   input : ['bindings.h'],
@@ -71,6 +91,7 @@ _compiler_bindings_rs = rust.bindgen(
   args : _compiler_bindgen_args,
   dependencies : [
     idep_nir_headers,
+    idep_mesautil,
   ],
 )
 
@@ -91,6 +112,7 @@ _libcompiler_rs = static_library(
   _compiler_rs_sources,
   gnu_symbol_visibility : 'hidden',
   rust_abi : 'rust',
+  dependencies: [_idep_libcompiler_c],
 )
 
 idep_compiler_rs = declare_dependency(

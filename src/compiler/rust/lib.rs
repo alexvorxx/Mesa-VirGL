@@ -5,5 +5,6 @@ pub mod as_slice;
 pub mod bindings;
 pub mod bitset;
 pub mod cfg;
+pub mod memstream;
 pub mod nir;
 pub mod smallvec;

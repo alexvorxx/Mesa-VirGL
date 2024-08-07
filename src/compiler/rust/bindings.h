@@ -3,4 +3,6 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "util/memstream.h"
+#include "rust_helpers.h"
 #include "nir.h"
