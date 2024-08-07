@@ -14,6 +14,8 @@
 #include "nvk_sampler.h"
 #include "nvkmd/nvkmd.h"
 
+#include "util/format/u_format.h"
+
 static inline uint32_t
 align_u32(uint32_t v, uint32_t a)
 {
@@ -245,6 +247,22 @@ write_dynamic_ssbo_desc(struct nvk_descriptor_set *set,
       &set->layout->binding[binding];
    set->dynamic_buffers[binding_layout->dynamic_buffer_index + elem] =
       ssbo_desc(addr_range);
+}
+
+static void
+get_edb_buffer_view_desc(struct nvk_device *dev,
+                         const VkDescriptorAddressInfoEXT *info,
+                         void *dst, size_t dst_size)
+{
+   struct nvk_edb_buffer_view_descriptor desc = { };
+   if (info != NULL && info->address != 0) {
+      enum pipe_format format = vk_format_to_pipe_format(info->format);
+      desc = nvk_edb_bview_cache_get_descriptor(dev, &dev->edb_bview_cache,
+                                                info->address, info->range,
+                                                format);
+   }
+   assert(sizeof(desc) <= dst_size);
+   memcpy(dst, &desc, sizeof(desc));
 }
 
 static void
@@ -930,4 +948,90 @@ nvk_push_descriptor_set_update_template(
       .mapped_ptr = push_set->data,
    };
    nvk_descriptor_set_write_template(dev, &tmp_set, template, data);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+nvk_GetDescriptorEXT(VkDevice _device,
+                     const VkDescriptorGetInfoEXT *pDescriptorInfo,
+                     size_t dataSize, void *pDescriptor)
+{
+   VK_FROM_HANDLE(nvk_device, dev, _device);
+   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+
+   switch (pDescriptorInfo->type) {
+   case VK_DESCRIPTOR_TYPE_SAMPLER: {
+      const VkDescriptorImageInfo info = {
+         .sampler = *pDescriptorInfo->data.pSampler,
+      };
+      get_sampled_image_view_desc(VK_DESCRIPTOR_TYPE_SAMPLER,
+                                  &info, pDescriptor, dataSize);
+      break;
+   }
+
+   case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+      get_sampled_image_view_desc(pDescriptorInfo->type,
+                                  pDescriptorInfo->data.pCombinedImageSampler,
+                                  pDescriptor, dataSize);
+      break;
+
+   case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+      get_sampled_image_view_desc(pDescriptorInfo->type,
+                                  pDescriptorInfo->data.pSampledImage,
+                                  pDescriptor, dataSize);
+      break;
+
+   case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+      get_storage_image_view_desc(pDescriptorInfo->data.pStorageImage,
+                                  pDescriptor, dataSize);
+      break;
+
+   case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+      get_edb_buffer_view_desc(dev, pDescriptorInfo->data.pUniformTexelBuffer,
+                               pDescriptor, dataSize);
+      break;
+
+   case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+      get_edb_buffer_view_desc(dev, pDescriptorInfo->data.pStorageTexelBuffer,
+                               pDescriptor, dataSize);
+      break;
+
+   case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER: {
+      struct nvk_addr_range addr_range = { };
+      if (pDescriptorInfo->data.pUniformBuffer != NULL &&
+          pDescriptorInfo->data.pUniformBuffer->address != 0) {
+         addr_range = (const struct nvk_addr_range) {
+            .addr = pDescriptorInfo->data.pUniformBuffer->address,
+            .range = pDescriptorInfo->data.pUniformBuffer->range,
+         };
+      }
+      union nvk_buffer_descriptor desc = ubo_desc(pdev, addr_range);
+      assert(sizeof(desc) <= dataSize);
+      memcpy(pDescriptor, &desc, sizeof(desc));
+      break;
+   }
+
+   case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER: {
+      struct nvk_addr_range addr_range = { };
+      if (pDescriptorInfo->data.pUniformBuffer != NULL &&
+          pDescriptorInfo->data.pUniformBuffer->address != 0) {
+         addr_range = (const struct nvk_addr_range) {
+            .addr = pDescriptorInfo->data.pUniformBuffer->address,
+            .range = pDescriptorInfo->data.pUniformBuffer->range,
+         };
+      }
+      union nvk_buffer_descriptor desc = ssbo_desc(addr_range);
+      assert(sizeof(desc) <= dataSize);
+      memcpy(pDescriptor, &desc, sizeof(desc));
+      break;
+   }
+
+   case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
+      get_sampled_image_view_desc(pDescriptorInfo->type,
+                                  pDescriptorInfo->data.pInputAttachmentImage,
+                                  pDescriptor, dataSize);
+      break;
+
+   default:
+      unreachable("Unknown descriptor type");
+   }
 }
