@@ -314,7 +314,7 @@ llvmpipe_init_screen_fence_funcs(struct pipe_screen *pscreen)
    screen->dummy_sync_fd = -1;
 
    /* Try to create dummy dmabuf, and only set functions if we were able to */
-   int fd;
+   int fd = -1;
    screen->dummy_dmabuf =
       (struct llvmpipe_memory_allocation*)pscreen->allocate_memory_fd(
             pscreen, 1, &fd, true);
