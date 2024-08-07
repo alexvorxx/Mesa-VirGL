@@ -3010,6 +3010,18 @@ agx_build_pipeline(struct agx_batch *batch, struct agx_compiled_shader *cs,
 
    if (stage == PIPE_SHADER_FRAGMENT) {
       agx_usc_push_packed(&b, SHARED, &batch->tilebuffer_layout.usc);
+   } else if (stage == PIPE_SHADER_COMPUTE && cs->b.info.imageblock_stride) {
+      assert(cs->b.info.local_size == 0 && "we don't handle this interaction");
+      assert(variable_shared_mem == 0 && "we don't handle this interaction");
+
+      agx_usc_pack(&b, SHARED, cfg) {
+         cfg.layout = AGX_SHARED_LAYOUT_32X32;
+         cfg.uses_shared_memory = true;
+         cfg.sample_count = 1;
+         cfg.sample_stride_in_8_bytes =
+            DIV_ROUND_UP(cs->b.info.imageblock_stride, 8);
+         cfg.bytes_per_threadgroup = cfg.sample_stride_in_8_bytes * 8 * 32 * 32;
+      }
    } else if (stage == PIPE_SHADER_COMPUTE || stage == PIPE_SHADER_TESS_CTRL) {
       unsigned size = cs->b.info.local_size + variable_shared_mem;
 
