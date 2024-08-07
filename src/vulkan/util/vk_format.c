@@ -265,8 +265,10 @@ vk_format_to_pipe_format(enum VkFormat vkformat)
    if (vkformat >= ARRAY_SIZE(vk_format_map)) {
       switch (vkformat) {
       case VK_FORMAT_R10X6_UNORM_PACK16:
+      case VK_FORMAT_R12X4_UNORM_PACK16:
          return PIPE_FORMAT_R16_UNORM;
       case VK_FORMAT_R10X6G10X6_UNORM_2PACK16:
+      case VK_FORMAT_R12X4G12X4_UNORM_2PACK16:
          return PIPE_FORMAT_R16G16_UNORM;
       case VK_FORMAT_G8B8G8R8_422_UNORM:
          return PIPE_FORMAT_G8B8_G8R8_UNORM;
@@ -294,6 +296,8 @@ vk_format_to_pipe_format(enum VkFormat vkformat)
          return PIPE_FORMAT_Y16_U16_V16_444_UNORM;
       case VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16:
          return PIPE_FORMAT_P010;
+      case VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16:
+         return PIPE_FORMAT_P012;
       case VK_FORMAT_A4R4G4B4_UNORM_PACK16:
          return PIPE_FORMAT_B4G4R4A4_UNORM;
       case VK_FORMAT_A4B4G4R4_UNORM_PACK16:
