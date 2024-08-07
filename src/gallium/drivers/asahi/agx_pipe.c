@@ -1919,6 +1919,7 @@ agx_create_context(struct pipe_screen *screen, void *priv, unsigned flags)
    agx_init_meta_shaders(ctx);
 
    ctx->blitter = util_blitter_create(pctx);
+   ctx->compute_blitter.blit_cs = asahi_blit_key_table_create(ctx);
 
    ctx->result_buf =
       agx_bo_create(agx_device(screen),

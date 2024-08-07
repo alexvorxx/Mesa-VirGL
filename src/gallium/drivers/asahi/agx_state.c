@@ -2767,9 +2767,13 @@ agx_upload_textures(struct agx_batch *batch, struct agx_compiled_shader *cs,
       struct pipe_sampler_view sampler_view = util_image_to_sampler_view(view);
 
       /* For the texture descriptor, lower cubes to 2D arrays. This matches the
-       * transform done in the compiler.
+       * transform done in the compiler. Also, force 2D arrays for internal
+       * blitter images, this helps reduce shader variants.
        */
-      if (target_is_cube(sampler_view.target))
+      bool internal = (view->access & PIPE_IMAGE_ACCESS_DRIVER_INTERNAL);
+
+      if (target_is_cube(sampler_view.target) ||
+          (sampler_view.target == PIPE_TEXTURE_3D && internal))
          sampler_view.target = PIPE_TEXTURE_2D_ARRAY;
 
       agx_pack_texture(texture, agx_resource(view->resource), view->format,

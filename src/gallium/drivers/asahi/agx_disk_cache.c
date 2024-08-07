@@ -20,7 +20,7 @@
 #include "agx_state.h"
 
 /* Flags that are allowed and do not disable the disk cache */
-#define ALLOWED_FLAGS (AGX_DBG_NO16 | AGX_DBG_COMPBLIT)
+#define ALLOWED_FLAGS (AGX_DBG_NO16)
 
 /**
  * Compute a disk cache key for the given uncompiled shader and shader key.

@@ -41,7 +41,7 @@ enum agx_dbg {
    AGX_DBG_NOSHADOW = BITFIELD_BIT(16),
    /* bit 17 unused */
    AGX_DBG_SCRATCH = BITFIELD_BIT(18),
-   AGX_DBG_COMPBLIT = BITFIELD_BIT(19),
+   /* bit 19 unused */
    AGX_DBG_FEEDBACK = BITFIELD_BIT(20),
    AGX_DBG_1QUEUE = BITFIELD_BIT(21),
 };

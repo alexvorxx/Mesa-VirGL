@@ -575,11 +575,16 @@ enum asahi_blit_clamp {
    ASAHI_BLIT_CLAMP_COUNT,
 };
 
+struct asahi_blit_key {
+   enum pipe_format src_format, dst_format;
+   bool array;
+};
+
+DERIVE_HASH_TABLE(asahi_blit_key);
+
 struct asahi_blitter {
    bool active;
-
-   /* [clamp_type][is_array] */
-   void *blit_cs[ASAHI_BLIT_CLAMP_COUNT][2];
+   struct hash_table *blit_cs;
 
    /* [filter] */
    void *sampler[2];
