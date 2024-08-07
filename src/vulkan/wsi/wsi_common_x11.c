@@ -160,7 +160,7 @@ wsi_x11_check_dri3_compatible(const struct wsi_device *wsi_dev,
    if (dri3_fd == -1)
       return true;
 
-   bool match = wsi_device_matches_drm_fd(wsi_dev, dri3_fd);
+   bool match = wsi_dev->can_present_on_device(wsi_dev->pdevice, dri3_fd);
 
    close(dri3_fd);
 
