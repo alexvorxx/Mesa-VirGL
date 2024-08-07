@@ -8504,13 +8504,32 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       Temp src = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[0].ssa));
       Temp dst = get_ssa_temp(ctx, &instr->def);
 
+      bool only_used_by_abs = true;
+      nir_foreach_use (use, &instr->def) {
+         nir_instr* use_instr = nir_src_parent_instr(use);
+
+         if (use_instr->type != nir_instr_type_alu ||
+             nir_instr_as_alu(use_instr)->op != nir_op_fabs)
+            only_used_by_abs = false;
+      }
+
       uint16_t dpp_ctrl1, dpp_ctrl2;
       if (instr->intrinsic == nir_intrinsic_ddx_fine) {
-         dpp_ctrl1 = dpp_quad_perm(0, 0, 2, 2);
-         dpp_ctrl2 = dpp_quad_perm(1, 1, 3, 3);
+         if (only_used_by_abs) {
+            dpp_ctrl1 = dpp_quad_perm(1, 0, 3, 2);
+            dpp_ctrl2 = dpp_quad_perm(0, 1, 2, 3);
+         } else {
+            dpp_ctrl1 = dpp_quad_perm(0, 0, 2, 2);
+            dpp_ctrl2 = dpp_quad_perm(1, 1, 3, 3);
+         }
       } else if (instr->intrinsic == nir_intrinsic_ddy_fine) {
-         dpp_ctrl1 = dpp_quad_perm(0, 1, 0, 1);
-         dpp_ctrl2 = dpp_quad_perm(2, 3, 2, 3);
+         if (only_used_by_abs) {
+            dpp_ctrl1 = dpp_quad_perm(2, 3, 0, 1);
+            dpp_ctrl2 = dpp_quad_perm(0, 1, 2, 3);
+         } else {
+            dpp_ctrl1 = dpp_quad_perm(0, 1, 0, 1);
+            dpp_ctrl2 = dpp_quad_perm(2, 3, 2, 3);
+         }
       } else {
          dpp_ctrl1 = dpp_quad_perm(0, 0, 0, 0);
          if (instr->intrinsic == nir_intrinsic_ddx ||
@@ -8536,7 +8555,7 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
          sub->valu().neg_lo[1] = true;
          sub->valu().neg_hi[1] = true;
 
-         if (nir_src_is_divergent(instr->src[0]))
+         if (nir_src_is_divergent(instr->src[0]) && dpp_ctrl2 != dpp_quad_perm(0, 1, 2, 3))
             bld.vop1_dpp(aco_opcode::v_mov_b32, Definition(dst), sub, dpp_ctrl2);
          else
             bld.copy(Definition(dst), sub);
@@ -8559,12 +8578,16 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
             tmp->valu().neg = 0x6;
             bld.vinterp_inreg(aco_opcode::v_interp_p2_f32_inreg, Definition(dst), src,
                               Operand::c32(0x3f800000), tmp);
+         } else if (ctx->program->gfx_level >= GFX8 && dpp_ctrl2 == dpp_quad_perm(0, 1, 2, 3)) {
+            bld.vop2_dpp(subrev, Definition(dst), src, src, dpp_ctrl1);
          } else if (ctx->program->gfx_level >= GFX8) {
             Temp tmp = bld.vop2_dpp(subrev, bld.def(v1), src, src, dpp_ctrl1);
             bld.vop1_dpp(aco_opcode::v_mov_b32, Definition(dst), tmp, dpp_ctrl2);
          } else {
             Temp tl = bld.ds(aco_opcode::ds_swizzle_b32, bld.def(v1), src, (1 << 15) | dpp_ctrl1);
-            Temp tr = bld.ds(aco_opcode::ds_swizzle_b32, bld.def(v1), src, (1 << 15) | dpp_ctrl2);
+            Temp tr = src;
+            if (dpp_ctrl2 != dpp_quad_perm(0, 1, 2, 3))
+               tr = bld.ds(aco_opcode::ds_swizzle_b32, bld.def(v1), src, (1 << 15) | dpp_ctrl2);
             bld.vop2(subrev, Definition(dst), tl, tr);
          }
       }
