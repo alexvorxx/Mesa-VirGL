@@ -1437,13 +1437,10 @@ blorp_emit_gfx8_hiz_op(struct blorp_batch *batch,
     *    (inclusive) defined in the CC_VIEWPORT. If the depth buffer format is
     *    D32_FLOAT, then +/-DENORM values are also allowed.
     *
-    * Set the bounds to match our hardware limits, [0.0, 1.0].
+    * Set the bounds to match our hardware limits.
     */
-   if (params->depth.enabled && params->hiz_op == ISL_AUX_OP_FAST_CLEAR) {
-      assert(params->depth.clear_color.f32[0] >= 0.0f);
-      assert(params->depth.clear_color.f32[0] <= 1.0f);
+   if (params->depth.enabled && params->hiz_op == ISL_AUX_OP_FAST_CLEAR)
       blorp_emit_cc_viewport(batch);
-   }
 
    /* According to the SKL PRM formula for WM_INT::ThreadDispatchEnable, the
     * 3DSTATE_WM::ForceThreadDispatchEnable field can force WM thread dispatch
@@ -1476,6 +1473,16 @@ blorp_emit_gfx8_hiz_op(struct blorp_batch *batch,
          hzp.FullSurfaceDepthandStencilClear = params->full_surface_hiz_op;
 #if GFX_VER >= 20
          hzp.DepthClearValue = params->depth.clear_color.f32[0];
+
+         /* From the Xe2 Bspec 56437 (r61349):
+          *
+          *    The Depth Clear value cannot be a NAN (Not-A-Number) if the
+          *    depth format is Float32.
+          *
+          * We're not required to support NaN in APIs, so flush to zero.
+          */
+         if (util_is_nan(hzp.DepthClearValue))
+            hzp.DepthClearValue = 0;
 #endif
          break;
       case ISL_AUX_OP_FULL_RESOLVE:

@@ -236,7 +236,8 @@ anv_can_hiz_clear_ds_view(struct anv_device *device,
       }
    }
 
-   if (depth_clear_value != anv_image_hiz_clear_value(iview->image).f32[0])
+   if (device->info->ver <= 12 &&
+       depth_clear_value != anv_image_hiz_clear_value(iview->image).f32[0])
       return false;
 
    /* If we got here, then we can fast clear */
