@@ -14,6 +14,8 @@
 
 #include "GoldfishAddressSpaceStream.h"
 
+#include <log/log.h>
+
 #include "goldfish_address_space.h"
 
 AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize) {

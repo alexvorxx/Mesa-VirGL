@@ -15,6 +15,7 @@
 #include "VirtioGpuAddressSpaceStream.h"
 
 #include <cutils/log.h>
+#include <errno.h>
 
 #include "util.h"
 
