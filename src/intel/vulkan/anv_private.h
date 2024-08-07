@@ -4832,20 +4832,6 @@ struct anv_graphics_pipeline {
    } partial;
 };
 
-#define anv_batch_merge_pipeline_state(batch, dwords0, pipeline, state) \
-   do {                                                                 \
-      uint32_t *dw;                                                     \
-                                                                        \
-      assert(ARRAY_SIZE(dwords0) == (pipeline)->state.len);             \
-      dw = anv_batch_emit_dwords((batch), ARRAY_SIZE(dwords0));         \
-      if (!dw)                                                          \
-         break;                                                         \
-      for (uint32_t i = 0; i < ARRAY_SIZE(dwords0); i++)                \
-         dw[i] = (dwords0)[i] |                                         \
-            (pipeline)->batch_data[(pipeline)->state.offset + i];       \
-      VG(VALGRIND_CHECK_MEM_IS_DEFINED(dw, ARRAY_SIZE(dwords0) * 4));   \
-   } while (0)
-
 #define anv_batch_emit_pipeline_state(batch, pipeline, state)           \
    do {                                                                 \
       if ((pipeline)->state.len == 0)                                   \
