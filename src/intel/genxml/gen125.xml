@@ -1686,7 +1686,7 @@
     <field name="Argument Buffer Start Address" start="130" end="191" type="address" />
   </instruction>
   <instruction name="HCP_FQM_STATE" bias="2" length="34" engine="video">
-    <field name="DWord Length" start="0" end="11" type="uint" />
+    <field name="DWord Length" start="0" end="11" type="uint" default="32" />
     <field name="SubOpcode" start="16" end="22" type="uint" default="5" />
     <field name="Media Command Opcode" start="23" end="26" type="uint" default="7" />
     <field name="Pipeline" start="27" end="28" type="uint" default="2" />
@@ -1707,7 +1707,7 @@
       <value name="Chroma Cr" value="2" />
     </field>
     <field name="FQM DC Value" start="48" end="63" type="uint" />
-    <group count="64" start="64" size="8">
+    <group count="128" start="64" size="8">
       <field name="Quantizer Matrix 8x8" start="0" end="7" type="uint" />
     </group>
   </instruction>
