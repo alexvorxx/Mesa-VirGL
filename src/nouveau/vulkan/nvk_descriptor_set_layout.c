@@ -157,9 +157,9 @@ nvk_CreateDescriptorSetLayout(VkDevice device,
       const VkDescriptorSetLayoutBinding *binding = &pCreateInfo->pBindings[j];
       uint32_t b = binding->binding;
       /* We temporarily store pCreateInfo->pBindings[] index (plus one) in the
-     * immutable_samplers pointer.  This provides us with a quick-and-dirty
-     * way to sort the bindings by binding number.
-     */
+       * immutable_samplers pointer.  This provides us with a quick-and-dirty
+       * way to sort the bindings by binding number.
+       */
       layout->binding[b].immutable_samplers = (void *)(uintptr_t)(j + 1);
    }
 
