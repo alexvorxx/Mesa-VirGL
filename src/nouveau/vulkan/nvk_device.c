@@ -189,6 +189,12 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
    if (result != VK_SUCCESS)
       goto fail_images;
 
+   if (dev->vk.enabled_features.descriptorBuffer) {
+      result = nvk_edb_bview_cache_init(dev, &dev->edb_bview_cache);
+      if (result != VK_SUCCESS)
+         goto fail_samplers;
+   }
+
    /* If we have a full BAR, go ahead and do shader uploads on the CPU.
     * Otherwise, we fall back to doing shader uploads via the upload queue.
     *
@@ -203,7 +209,7 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
                           2048 /* overalloc */,
                           pdev->info.cls_eng3d < VOLTA_A);
    if (result != VK_SUCCESS)
-      goto fail_samplers;
+      goto fail_edb_bview_cache;
 
    result = nvk_heap_init(dev, &dev->event_heap,
                           NVKMD_MEM_LOCAL, NVKMD_MEM_MAP_WR,
@@ -257,6 +263,8 @@ fail_slm:
    nvk_heap_finish(dev, &dev->event_heap);
 fail_shader_heap:
    nvk_heap_finish(dev, &dev->shader_heap);
+fail_edb_bview_cache:
+   nvk_edb_bview_cache_finish(dev, &dev->edb_bview_cache);
 fail_samplers:
    nvk_descriptor_table_finish(dev, &dev->samplers);
 fail_images:
@@ -296,6 +304,7 @@ nvk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    nvk_slm_area_finish(&dev->slm);
    nvk_heap_finish(dev, &dev->event_heap);
    nvk_heap_finish(dev, &dev->shader_heap);
+   nvk_edb_bview_cache_finish(dev, &dev->edb_bview_cache);
    nvk_descriptor_table_finish(dev, &dev->samplers);
    nvk_descriptor_table_finish(dev, &dev->images);
    nvkmd_mem_unref(dev->zero_page);

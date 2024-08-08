@@ -28,6 +28,8 @@ nvk_files = files(
   'nvk_device.h',
   'nvk_device_memory.c',
   'nvk_device_memory.h',
+  'nvk_edb_bview_cache.c',
+  'nvk_edb_bview_cache.h',
   'nvk_event.c',
   'nvk_event.h',
   'nvk_format.c',

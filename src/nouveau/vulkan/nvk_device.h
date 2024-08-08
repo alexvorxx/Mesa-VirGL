@@ -7,6 +7,7 @@
 
 #include "nvk_private.h"
 
+#include "nvk_edb_bview_cache.h"
 #include "nvk_descriptor_table.h"
 #include "nvk_heap.h"
 #include "nvk_queue.h"
@@ -42,6 +43,7 @@ struct nvk_device {
    struct nvkmd_mem *zero_page;
    struct nvk_descriptor_table images;
    struct nvk_descriptor_table samplers;
+   struct nvk_edb_bview_cache edb_bview_cache;
    struct nvk_heap shader_heap;
    struct nvk_heap event_heap;
    struct nvk_slm_area slm;

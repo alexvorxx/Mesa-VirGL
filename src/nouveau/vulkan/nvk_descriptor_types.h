@@ -46,6 +46,23 @@ static_assert(sizeof(struct nvk_buffer_view_descriptor) == 4,
 
 PRAGMA_DIAGNOSTIC_PUSH
 PRAGMA_DIAGNOSTIC_ERROR(-Wpadded)
+/** See also nvk_edb_bview_cache */
+struct nvk_edb_buffer_view_descriptor {
+   /** Index of the HW descriptor in the texture/image table */
+   uint32_t index;
+   /** Offset into the HW descriptor in surface elements */
+   uint32_t offset_el;
+   /** Size of the virtual descriptor in surface elements */
+   uint32_t size_el;
+   /** Value returned in the alpha channel for OOB buffer access */
+   uint32_t oob_alpha;
+};
+PRAGMA_DIAGNOSTIC_POP
+static_assert(sizeof(struct nvk_edb_buffer_view_descriptor) == 16,
+              "nvk_edb_buffer_view_descriptor has no holes");
+
+PRAGMA_DIAGNOSTIC_PUSH
+PRAGMA_DIAGNOSTIC_ERROR(-Wpadded)
 struct nvk_bindless_cbuf {
    uint64_t base_addr_shift_4:45;
    uint64_t size_shift_4:19;
