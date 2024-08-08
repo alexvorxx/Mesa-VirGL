@@ -477,6 +477,7 @@ anv_cmd_buffer_set_ray_query_buffer(struct anv_cmd_buffer *cmd_buffer,
    }
 
    /* Add the HW buffer to the list of BO used. */
+   assert(device->ray_query_bo);
    anv_reloc_list_add_bo(cmd_buffer->batch.relocs,
                          device->ray_query_bo);
 
