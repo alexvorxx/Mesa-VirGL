@@ -836,7 +836,7 @@ dri2_create_screen(_EGLDisplay *disp)
       }
    }
 
-   int screen_fd = dri2_dpy->swrast || dri2_dpy->kopper ? -1 : dri2_dpy->fd_render_gpu;
+   int screen_fd = dri2_dpy->swrast ? -1 : dri2_dpy->fd_render_gpu;
    dri2_dpy->dri_screen_render_gpu = driCreateNewScreen3(
       0, screen_fd, dri2_dpy->loader_extensions, dri2_dpy->driver_extensions,
       &dri2_dpy->driver_configs, false, disp);
