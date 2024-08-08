@@ -108,6 +108,7 @@ _libcompiler_proc_rs = static_library(
   gnu_symbol_visibility : 'hidden',
   dependencies : [dep_syn],
   rust_abi : 'rust',
+  native : true,
 )
 
 idep_compiler_proc_rs = declare_dependency(
