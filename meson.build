@@ -1828,8 +1828,8 @@ if with_llvm
   pre_args += '-DMESA_LLVM_VERSION_STRING="@0@"'.format(dep_llvm.version())
   pre_args += '-DLLVM_IS_SHARED=@0@'.format(_shared_llvm.to_int())
 
-  if with_swrast_vk and not draw_with_llvm
-    error('Lavapipe requires LLVM draw support.')
+  if (with_swrast_vk or with_gallium_llvmpipe) and not draw_with_llvm
+    error('Lavapipe and llvmpipe require LLVM draw support.')
   endif
 
   if with_gallium_r600 and not amd_with_llvm
