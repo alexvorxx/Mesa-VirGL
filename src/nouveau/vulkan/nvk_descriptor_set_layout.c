@@ -28,6 +28,7 @@ binding_has_immutable_samplers(const VkDescriptorSetLayoutBinding *binding)
 
 void
 nvk_descriptor_stride_align_for_type(const struct nvk_physical_device *pdev,
+                                     VkPipelineLayoutCreateFlags layout_flags,
                                      VkDescriptorType type,
                                      const VkMutableDescriptorTypeListEXT *type_list,
                                      uint32_t *stride, uint32_t *alignment)
@@ -47,7 +48,11 @@ nvk_descriptor_stride_align_for_type(const struct nvk_physical_device *pdev,
 
    case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
    case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-      *stride = *alignment = sizeof(struct nvk_buffer_view_descriptor);
+      if (layout_flags & VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) {
+         *stride = *alignment = sizeof(struct nvk_edb_buffer_view_descriptor);
+      } else {
+         *stride = *alignment = sizeof(struct nvk_buffer_view_descriptor);
+      }
       break;
 
    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
@@ -74,7 +79,7 @@ nvk_descriptor_stride_align_for_type(const struct nvk_physical_device *pdev,
          assert(type_list->pDescriptorTypes[i] !=
                 VK_DESCRIPTOR_TYPE_MUTABLE_EXT);
          uint32_t desc_stride, desc_align;
-         nvk_descriptor_stride_align_for_type(pdev,
+         nvk_descriptor_stride_align_for_type(pdev, layout_flags,
                                               type_list->pDescriptorTypes[i],
                                               NULL, &desc_stride, &desc_align);
          *stride = MAX2(*stride, desc_stride);
@@ -144,6 +149,7 @@ nvk_CreateDescriptorSetLayout(VkDevice device,
    if (!vk_descriptor_set_layout_multizalloc(&dev->vk, &ma))
       return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
 
+   layout->flags = pCreateInfo->flags;
    layout->binding_count = num_bindings;
 
    for (uint32_t j = 0; j < pCreateInfo->bindingCount; j++) {
@@ -213,7 +219,8 @@ nvk_CreateDescriptorSetLayout(VkDevice device,
                                       mutable_info, info_idx);
 
       uint32_t stride, alignment;
-      nvk_descriptor_stride_align_for_type(pdev, binding->descriptorType,
+      nvk_descriptor_stride_align_for_type(pdev, pCreateInfo->flags,
+                                           binding->descriptorType,
                                            type_list, &stride, &alignment);
 
       uint8_t max_plane_count = 1;
@@ -332,7 +339,8 @@ nvk_GetDescriptorSetLayoutSupport(VkDevice device,
                                       mutable_info, i);
 
       uint32_t stride, alignment;
-      nvk_descriptor_stride_align_for_type(pdev, binding->descriptorType,
+      nvk_descriptor_stride_align_for_type(pdev, pCreateInfo->flags,
+                                           binding->descriptorType,
                                            type_list, &stride, &alignment);
       max_align = MAX2(max_align, alignment);
    }
@@ -363,7 +371,8 @@ nvk_GetDescriptorSetLayoutSupport(VkDevice device,
                                       mutable_info, i);
 
       uint32_t stride, alignment;
-      nvk_descriptor_stride_align_for_type(pdev, binding->descriptorType,
+      nvk_descriptor_stride_align_for_type(pdev, pCreateInfo->flags,
+                                           binding->descriptorType,
                                            type_list, &stride, &alignment);
 
       if (stride > 0) {

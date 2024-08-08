@@ -45,6 +45,8 @@ struct nvk_descriptor_set_binding_layout {
 struct nvk_descriptor_set_layout {
    struct vk_descriptor_set_layout vk;
 
+   VkDescriptorSetLayoutCreateFlagBits flags;
+
    /* Size of the descriptor buffer for this descriptor set */
    /* Does not contain the size needed for variable count descriptors */
    uint32_t non_variable_descriptor_buffer_size;
@@ -68,6 +70,7 @@ VK_DEFINE_NONDISP_HANDLE_CASTS(nvk_descriptor_set_layout, vk.base,
 
 void
 nvk_descriptor_stride_align_for_type(const struct nvk_physical_device *pdev,
+                                     VkPipelineLayoutCreateFlags layout_flags,
                                      VkDescriptorType type,
                                      const VkMutableDescriptorTypeListEXT *type_list,
                                      uint32_t *stride, uint32_t *alignment);

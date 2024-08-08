@@ -507,7 +507,7 @@ nvk_CreateDescriptorPool(VkDevice _device,
             type_list = &mutable_info->pMutableDescriptorTypeLists[i];
 
       uint32_t stride, alignment;
-      nvk_descriptor_stride_align_for_type(pdev,
+      nvk_descriptor_stride_align_for_type(pdev, 0 /* not DESCRIPTOR_BUFFER */,
                                            pCreateInfo->pPoolSizes[i].type,
                                            type_list, &stride, &alignment);
       max_align = MAX2(max_align, alignment);
@@ -521,7 +521,7 @@ nvk_CreateDescriptorPool(VkDevice _device,
             type_list = &mutable_info->pMutableDescriptorTypeLists[i];
 
       uint32_t stride, alignment;
-      nvk_descriptor_stride_align_for_type(pdev,
+      nvk_descriptor_stride_align_for_type(pdev, 0 /* not DESCRIPTOR_BUFFER */,
                                            pCreateInfo->pPoolSizes[i].type,
                                            type_list, &stride, &alignment);
       mem_size += MAX2(stride, max_align) *
