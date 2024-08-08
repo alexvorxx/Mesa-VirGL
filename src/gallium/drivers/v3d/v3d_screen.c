@@ -751,6 +751,7 @@ v3d_screen_get_compiler_options(struct pipe_screen *pscreen,
                 .lower_fquantize2f16 = true,
                 .has_fsub = true,
                 .has_isub = true,
+                .has_uclz = true,
                 .divergence_analysis_options =
                        nir_divergence_multiple_workgroup_per_compute_subgroup,
                 /* This will enable loop unrolling in the state tracker so we won't
