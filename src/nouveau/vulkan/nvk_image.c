@@ -1713,3 +1713,12 @@ nvk_queue_image_opaque_bind(struct nvk_queue *queue,
 
    return VK_SUCCESS;
 }
+
+VKAPI_ATTR VkResult VKAPI_CALL
+nvk_GetImageOpaqueCaptureDescriptorDataEXT(
+    VkDevice _device,
+    const VkImageCaptureDescriptorDataInfoEXT *pInfo,
+    void *pData)
+{
+   return VK_SUCCESS;
+}

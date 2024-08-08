@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: MIT
 nvk_files = files(
   '../../gallium/auxiliary/tgsi/tgsi_from_mesa.c',
+  'nvk_acceleration_structure.c',
   'nvk_buffer.c',
   'nvk_buffer.h',
   'nvk_buffer_view.c',

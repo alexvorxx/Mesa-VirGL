@@ -325,3 +325,12 @@ nvk_queue_buffer_bind(struct nvk_queue *queue,
 
    return result;
 }
+
+VKAPI_ATTR VkResult VKAPI_CALL
+nvk_GetBufferOpaqueCaptureDescriptorDataEXT(
+    VkDevice device,
+    const VkBufferCaptureDescriptorDataInfoEXT *pInfo,
+    void *pData)
+{
+   return VK_SUCCESS;
+}
