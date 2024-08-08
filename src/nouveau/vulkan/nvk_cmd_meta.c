@@ -64,6 +64,7 @@ struct nvk_meta_save {
    struct nvk_shader *shaders[MESA_SHADER_MESH + 1];
    struct nvk_addr_range vb0;
    struct nvk_descriptor_set_binding desc0;
+   struct nvk_buffer_address desc0_set_addr;
    struct nvk_push_descriptor_set push_desc0;
    uint8_t set_dynamic_buffer_start[NVK_MAX_SETS];
    uint8_t push[NVK_MAX_PUSH_SIZE];
@@ -85,6 +86,7 @@ nvk_meta_begin(struct nvk_cmd_buffer *cmd,
    save->vb0 = cmd->state.gfx.vb0;
 
    save->desc0 = desc->sets[0];
+   nvk_descriptor_state_get_root(desc, sets[0], &save->desc0_set_addr);
    if (desc->sets[0].push != NULL)
       save->push_desc0 = *desc->sets[0].push;
 
@@ -154,6 +156,12 @@ nvk_meta_end(struct nvk_cmd_buffer *cmd,
       desc->sets[0].set = NULL;
       *desc->sets[0].push = save->push_desc0;
       desc->push_dirty |= BITFIELD_BIT(0);
+      break;
+
+   case NVK_DESCRIPTOR_SET_TYPE_BUFFER:
+      desc->sets[0].type = NVK_DESCRIPTOR_SET_TYPE_BUFFER;
+      desc->sets[0].set = NULL;
+      nvk_descriptor_state_set_root(cmd, desc, sets[0], save->desc0_set_addr);
       break;
 
    default:

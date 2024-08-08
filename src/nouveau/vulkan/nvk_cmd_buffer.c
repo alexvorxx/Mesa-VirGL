@@ -775,6 +775,73 @@ nvk_CmdBindDescriptorSets2KHR(VkCommandBuffer commandBuffer,
    }
 }
 
+VKAPI_ATTR void VKAPI_CALL
+nvk_CmdBindDescriptorBuffersEXT(VkCommandBuffer commandBuffer,
+                                uint32_t bufferCount,
+                                const VkDescriptorBufferBindingInfoEXT *pBindingInfos)
+{
+   VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
+
+   for (uint32_t i = 0; i < bufferCount; i++)
+      cmd->state.descriptor_buffers[i] = pBindingInfos[i].address;
+}
+
+static void
+nvk_set_descriptor_buffer_offsets(struct nvk_cmd_buffer *cmd,
+                                  struct nvk_descriptor_state *desc,
+                                  const VkSetDescriptorBufferOffsetsInfoEXT *info)
+{
+   VK_FROM_HANDLE(vk_pipeline_layout, pipeline_layout, info->layout);
+
+   for (uint32_t i = 0; i < info->setCount; ++i) {
+      const uint32_t s = i + info->firstSet;
+
+      desc->sets[s].type = NVK_DESCRIPTOR_SET_TYPE_BUFFER;
+      desc->sets[s].set = NULL;
+
+      struct nvk_buffer_address set_addr;
+      if (pipeline_layout->set_layouts[s] != NULL) {
+         const struct nvk_descriptor_set_layout *set_layout =
+            vk_to_nvk_descriptor_set_layout(pipeline_layout->set_layouts[s]);
+         assert(set_layout->flags &
+                VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT);
+
+         const uint64_t buffer_base_addr =
+            cmd->state.descriptor_buffers[info->pBufferIndices[i]];
+
+         set_addr = (struct nvk_buffer_address) {
+            .base_addr = buffer_base_addr + info->pOffsets[i],
+            .size = set_layout->max_buffer_size,
+         };
+      } else {
+         set_addr = NVK_BUFFER_ADDRESS_NULL;
+      }
+      nvk_descriptor_state_set_root(cmd, desc, sets[s], set_addr);
+   }
+
+   nvk_cmd_dirty_cbufs_for_descriptors(cmd, info->stageFlags,
+                                       info->firstSet,
+                                       info->firstSet + info->setCount,
+                                       0, 0);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+nvk_CmdSetDescriptorBufferOffsets2EXT(VkCommandBuffer commandBuffer,
+                                      const VkSetDescriptorBufferOffsetsInfoEXT *pInfo)
+{
+   VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
+
+   if (pInfo->stageFlags & NVK_VK_GRAPHICS_STAGE_BITS) {
+      nvk_set_descriptor_buffer_offsets(cmd, &cmd->state.gfx.descriptors,
+                                        pInfo);
+   }
+
+   if (pInfo->stageFlags & VK_SHADER_STAGE_COMPUTE_BIT) {
+      nvk_set_descriptor_buffer_offsets(cmd, &cmd->state.cs.descriptors,
+                                        pInfo);
+   }
+}
+
 static void
 nvk_push_constants(UNUSED struct nvk_cmd_buffer *cmd,
                    struct nvk_descriptor_state *desc,
@@ -964,7 +1031,8 @@ nvk_cmd_buffer_get_cbuf_descriptor_addr(struct nvk_cmd_buffer *cmd,
 {
    assert(cbuf->type == NVK_CBUF_TYPE_UBO_DESC);
    switch (desc->sets[cbuf->desc_set].type) {
-   case NVK_DESCRIPTOR_SET_TYPE_SET: {
+   case NVK_DESCRIPTOR_SET_TYPE_SET:
+   case NVK_DESCRIPTOR_SET_TYPE_BUFFER: {
       struct nvk_buffer_address set_addr;
       nvk_descriptor_state_get_root(desc, sets[cbuf->desc_set], &set_addr);
 

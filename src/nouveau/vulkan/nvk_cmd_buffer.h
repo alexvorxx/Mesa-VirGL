@@ -73,6 +73,7 @@ enum ENUM_PACKED nvk_descriptor_set_type {
    NVK_DESCRIPTOR_SET_TYPE_NONE,
    NVK_DESCRIPTOR_SET_TYPE_SET,
    NVK_DESCRIPTOR_SET_TYPE_PUSH,
+   NVK_DESCRIPTOR_SET_TYPE_BUFFER,
 };
 
 struct nvk_descriptor_set_binding {
