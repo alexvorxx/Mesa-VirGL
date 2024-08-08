@@ -42,10 +42,10 @@ static uint16_t get_visual_confirm_segs_count(uint32_t max_seg_width, uint32_t t
 static uint16_t vpe_get_visual_confirm_total_seg_count(
     struct vpe_priv *vpe_priv, uint32_t max_seg_width, const struct vpe_build_param *params)
 {
-    uint16_t           segs_num                  = 0;
-    uint16_t           total_visual_confirm_segs = 0;
-    uint16_t           stream_idx;
-    struct stream_ctx *stream_ctx;
+    uint16_t             segs_num                  = 0;
+    uint16_t             total_visual_confirm_segs = 0;
+    uint16_t             stream_idx;
+    struct stream_ctx   *stream_ctx;
 
     if (vpe_priv->init.debug.visual_confirm_params.input_format) {
         for (stream_idx = 0; stream_idx < vpe_priv->num_streams; stream_idx++) {
@@ -205,6 +205,7 @@ enum vpe_status vpe_create_visual_confirm_segs(
         vpe_full_bg_gaps(current_gap, &visual_confirm_rect, seg_cnt);
         vpe_priv->resource.create_bg_segments(
             vpe_priv, current_gap, seg_cnt, VPE_CMD_OPS_BG_VSCF_OUTPUT);
+        current_gap += seg_cnt;
     }
 
     if (visual_confirm_gaps != NULL) {
