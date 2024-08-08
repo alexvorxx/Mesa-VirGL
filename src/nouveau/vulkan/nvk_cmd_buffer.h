@@ -69,14 +69,25 @@ struct nvk_root_descriptor_table {
 #define nvk_root_descriptor_offset(member)\
    offsetof(struct nvk_root_descriptor_table, member)
 
+enum ENUM_PACKED nvk_descriptor_set_type {
+   NVK_DESCRIPTOR_SET_TYPE_NONE,
+   NVK_DESCRIPTOR_SET_TYPE_SET,
+   NVK_DESCRIPTOR_SET_TYPE_PUSH,
+};
+
+struct nvk_descriptor_set_binding {
+   enum nvk_descriptor_set_type type;
+   struct nvk_descriptor_set *set;
+   struct nvk_push_descriptor_set *push;
+};
+
 struct nvk_descriptor_state {
    alignas(16) char root[sizeof(struct nvk_root_descriptor_table)];
    void (*flush_root)(struct nvk_cmd_buffer *cmd,
                       struct nvk_descriptor_state *desc,
                       size_t offset, size_t size);
 
-   struct nvk_descriptor_set *sets[NVK_MAX_SETS];
-   struct nvk_push_descriptor_set *push[NVK_MAX_SETS];
+   struct nvk_descriptor_set_binding sets[NVK_MAX_SETS];
    uint32_t push_dirty;
 };
 
@@ -185,6 +196,7 @@ struct nvk_cmd_buffer {
    struct vk_command_buffer vk;
 
    struct {
+      uint64_t descriptor_buffers[NVK_MAX_SETS];
       struct nvk_graphics_state gfx;
       struct nvk_compute_state cs;
    } state;

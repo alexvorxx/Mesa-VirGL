@@ -63,8 +63,7 @@ struct nvk_meta_save {
    struct vk_dynamic_graphics_state dynamic;
    struct nvk_shader *shaders[MESA_SHADER_MESH + 1];
    struct nvk_addr_range vb0;
-   struct nvk_descriptor_set *desc0;
-   bool has_push_desc0;
+   struct nvk_descriptor_set_binding desc0;
    struct nvk_push_descriptor_set push_desc0;
    uint8_t set_dynamic_buffer_start[NVK_MAX_SETS];
    uint8_t push[NVK_MAX_PUSH_SIZE];
@@ -86,9 +85,8 @@ nvk_meta_begin(struct nvk_cmd_buffer *cmd,
    save->vb0 = cmd->state.gfx.vb0;
 
    save->desc0 = desc->sets[0];
-   save->has_push_desc0 = desc->push[0];
-   if (save->has_push_desc0)
-      save->push_desc0 = *desc->push[0];
+   if (desc->sets[0].push != NULL)
+      save->push_desc0 = *desc->sets[0].push;
 
    nvk_descriptor_state_get_root_array(desc, set_dynamic_buffer_start,
                                        0, NVK_MAX_SETS,
@@ -138,13 +136,28 @@ nvk_meta_end(struct nvk_cmd_buffer *cmd,
 {
    struct nvk_descriptor_state *desc = &cmd->state.gfx.descriptors;
 
-   if (save->desc0) {
-      desc->sets[0] = save->desc0;
-      struct nvk_buffer_address addr = nvk_descriptor_set_addr(save->desc0);
+   switch (save->desc0.type) {
+   case NVK_DESCRIPTOR_SET_TYPE_NONE:
+      desc->sets[0].type = NVK_DESCRIPTOR_SET_TYPE_NONE;
+      break;
+
+   case NVK_DESCRIPTOR_SET_TYPE_SET: {
+      desc->sets[0].type = NVK_DESCRIPTOR_SET_TYPE_SET;
+      desc->sets[0].set = save->desc0.set;
+      struct nvk_buffer_address addr = nvk_descriptor_set_addr(save->desc0.set);
       nvk_descriptor_state_set_root(cmd, desc, sets[0], addr);
-   } else if (save->has_push_desc0) {
-      *desc->push[0] = save->push_desc0;
+      break;
+   }
+
+   case NVK_DESCRIPTOR_SET_TYPE_PUSH:
+      desc->sets[0].type = NVK_DESCRIPTOR_SET_TYPE_PUSH;
+      desc->sets[0].set = NULL;
+      *desc->sets[0].push = save->push_desc0;
       desc->push_dirty |= BITFIELD_BIT(0);
+      break;
+
+   default:
+      unreachable("Unknown descriptor set type");
    }
    nvk_cmd_dirty_cbufs_for_descriptors(cmd, ~0, 0, 1, 0, 0);
 

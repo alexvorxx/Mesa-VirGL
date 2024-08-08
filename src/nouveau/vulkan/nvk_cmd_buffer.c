@@ -31,8 +31,8 @@ nvk_descriptor_state_fini(struct nvk_cmd_buffer *cmd,
    struct nvk_cmd_pool *pool = nvk_cmd_buffer_pool(cmd);
 
    for (unsigned i = 0; i < NVK_MAX_SETS; i++) {
-      vk_free(&pool->vk.alloc, desc->push[i]);
-      desc->push[i] = NULL;
+      vk_free(&pool->vk.alloc, desc->sets[i].push);
+      desc->sets[i].push = NULL;
    }
 }
 
@@ -688,12 +688,19 @@ nvk_bind_descriptor_sets(struct nvk_cmd_buffer *cmd,
       unsigned s = i + info->firstSet;
       VK_FROM_HANDLE(nvk_descriptor_set, set, info->pDescriptorSets[i]);
 
-      if (desc->sets[s] != set) {
-         struct nvk_buffer_address set_addr =
-            set != NULL ? nvk_descriptor_set_addr(set)
-                        : NVK_BUFFER_ADDRESS_NULL;
+      if (desc->sets[s].type != NVK_DESCRIPTOR_SET_TYPE_SET ||
+          desc->sets[s].set != set) {
+         struct nvk_buffer_address set_addr;
+         if (set != NULL) {
+            desc->sets[s].type = NVK_DESCRIPTOR_SET_TYPE_SET;
+            desc->sets[s].set = set;
+            set_addr = nvk_descriptor_set_addr(set);
+         } else {
+            desc->sets[s].type = NVK_DESCRIPTOR_SET_TYPE_NONE;
+            desc->sets[s].set = NULL;
+            set_addr = NVK_BUFFER_ADDRESS_NULL;
+         }
          nvk_descriptor_state_set_root(cmd, desc, sets[s], set_addr);
-         desc->sets[s] = set;
       }
 
       set_dynamic_buffer_start[s] = dyn_buffer_end;
@@ -798,21 +805,22 @@ nvk_cmd_push_descriptors(struct nvk_cmd_buffer *cmd,
                          uint32_t set)
 {
    assert(set < NVK_MAX_SETS);
-   if (unlikely(desc->push[set] == NULL)) {
-      desc->push[set] = vk_zalloc(&cmd->vk.pool->alloc,
-                                  sizeof(*desc->push[set]), 8,
-                                  VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
-      if (unlikely(desc->push[set] == NULL)) {
+   if (unlikely(desc->sets[set].push == NULL)) {
+      desc->sets[set].push = vk_zalloc(&cmd->vk.pool->alloc,
+                                       sizeof(*desc->sets[set].push), 8,
+                                       VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+      if (unlikely(desc->sets[set].push == NULL)) {
          vk_command_buffer_set_error(&cmd->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
          return NULL;
       }
    }
 
    /* Pushing descriptors replaces whatever sets are bound */
-   desc->sets[set] = NULL;
+   desc->sets[set].type = NVK_DESCRIPTOR_SET_TYPE_PUSH;
+   desc->sets[set].set = NULL;
    desc->push_dirty |= BITFIELD_BIT(set);
 
-   return desc->push[set];
+   return desc->sets[set].push;
 }
 
 static void
@@ -866,12 +874,10 @@ nvk_cmd_buffer_flush_push_descriptors(struct nvk_cmd_buffer *cmd,
    VkResult result;
 
    u_foreach_bit(set_idx, desc->push_dirty) {
-      /* We only have an active push descriptor set if sets[set_idx] == NULL.
-       */
-      if (desc->sets[set_idx] != NULL)
+      if (desc->sets[set_idx].type != NVK_DESCRIPTOR_SET_TYPE_PUSH)
          continue;
 
-      struct nvk_push_descriptor_set *push_set = desc->push[set_idx];
+      struct nvk_push_descriptor_set *push_set = desc->sets[set_idx].push;
       uint64_t push_set_addr;
       result = nvk_cmd_buffer_upload_data(cmd, push_set->data,
                                           sizeof(push_set->data),
@@ -932,10 +938,10 @@ nvk_cmd_buffer_get_cbuf_addr(struct nvk_cmd_buffer *cmd,
    }
 
    case NVK_CBUF_TYPE_UBO_DESC: {
-      if (desc->sets[cbuf->desc_set] != NULL)
+      if (desc->sets[cbuf->desc_set].type != NVK_DESCRIPTOR_SET_TYPE_PUSH)
          return false;
 
-      struct nvk_push_descriptor_set *push = desc->push[cbuf->desc_set];
+      struct nvk_push_descriptor_set *push = desc->sets[cbuf->desc_set].push;
       if (push == NULL)
          return false;
 
@@ -957,12 +963,18 @@ nvk_cmd_buffer_get_cbuf_descriptor_addr(struct nvk_cmd_buffer *cmd,
                                         const struct nvk_cbuf *cbuf)
 {
    assert(cbuf->type == NVK_CBUF_TYPE_UBO_DESC);
+   switch (desc->sets[cbuf->desc_set].type) {
+   case NVK_DESCRIPTOR_SET_TYPE_SET: {
+      struct nvk_buffer_address set_addr;
+      nvk_descriptor_state_get_root(desc, sets[cbuf->desc_set], &set_addr);
 
-   struct nvk_buffer_address set_addr;
-   nvk_descriptor_state_get_root(desc, sets[cbuf->desc_set], &set_addr);
+      assert(cbuf->desc_offset < set_addr.size);
+      return set_addr.base_addr + cbuf->desc_offset;
+   }
 
-   assert(cbuf->desc_offset < set_addr.size);
-   return set_addr.base_addr + cbuf->desc_offset;
+   default:
+      unreachable("Unknown descriptor set type");
+   }
 }
 
 void
