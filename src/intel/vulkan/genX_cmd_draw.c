@@ -874,9 +874,12 @@ genX(cmd_buffer_flush_gfx_state)(struct anv_cmd_buffer *cmd_buffer)
       }
    }
 
+   /* State left dirty after flushing runtime state. */
+   anv_cmd_dirty_mask_t dirty_state_mask = 0;
+
    /* Flush the runtime state into the HW state tracking */
    if (cmd_buffer->state.gfx.dirty || any_dynamic_state_dirty)
-      genX(cmd_buffer_flush_gfx_runtime_state)(cmd_buffer);
+      dirty_state_mask = genX(cmd_buffer_flush_gfx_runtime_state)(cmd_buffer);
 
    /* Flush the HW state into the commmand buffer */
    if (!BITSET_IS_EMPTY(cmd_buffer->state.gfx.dyn_state.dirty))
@@ -939,8 +942,10 @@ genX(cmd_buffer_flush_gfx_state)(struct anv_cmd_buffer *cmd_buffer)
                                           dirty & VK_SHADER_STAGE_ALL_GRAPHICS);
    }
 
-   /* When we're done, there is no more dirty gfx state. */
-   cmd_buffer->state.gfx.dirty = 0;
+   /* When we're done, only thing left is the possible dirty state
+    * returned by cmd_buffer_flush_gfx_runtime_state.
+    */
+   cmd_buffer->state.gfx.dirty = dirty_state_mask;
 }
 
 ALWAYS_INLINE static bool

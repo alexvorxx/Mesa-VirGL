@@ -452,8 +452,10 @@ calculate_tile_dimensions(struct anv_cmd_buffer *cmd_buffer,
  * reemission if the values are changing.
  *
  * Nothing is emitted in the batch buffer.
+ *
+ * Returns a mask for state that we want to leave dirty afterwards.
  */
-void
+anv_cmd_dirty_mask_t
 genX(cmd_buffer_flush_gfx_runtime_state)(struct anv_cmd_buffer *cmd_buffer)
 {
    UNUSED struct anv_device *device = cmd_buffer->device;
@@ -465,6 +467,7 @@ genX(cmd_buffer_flush_gfx_runtime_state)(struct anv_cmd_buffer *cmd_buffer)
    struct anv_gfx_dynamic_state *hw_state = &gfx->dyn_state;
    const struct brw_wm_prog_data *wm_prog_data = get_wm_prog_data(pipeline);
    struct anv_instance *instance = cmd_buffer->device->physical->instance;
+   anv_cmd_dirty_mask_t dirty_state_mask = 0;
 
 #define GET(field) hw_state->field
 #define SET(bit, field, value)                               \
@@ -1515,6 +1518,8 @@ genX(cmd_buffer_flush_gfx_runtime_state)(struct anv_cmd_buffer *cmd_buffer)
 #undef SET_STAGE
 
    vk_dynamic_graphics_state_clear_dirty(&cmd_buffer->vk.dynamic_graphics_state);
+
+   return dirty_state_mask;
 }
 
 static void
