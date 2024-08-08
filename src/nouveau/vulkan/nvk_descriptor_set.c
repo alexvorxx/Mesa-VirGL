@@ -216,18 +216,24 @@ write_dynamic_ssbo_desc(struct nvk_descriptor_set *set,
 }
 
 static void
-write_buffer_view_desc(struct nvk_descriptor_set *set,
+write_buffer_view_desc(struct nvk_physical_device *pdev,
+                       struct nvk_descriptor_set *set,
                        const VkBufferView bufferView,
                        uint32_t binding, uint32_t elem)
 {
-   struct nvk_buffer_view_descriptor desc = { };
-   if (bufferView != VK_NULL_HANDLE) {
-      VK_FROM_HANDLE(nvk_buffer_view, view, bufferView);
+   VK_FROM_HANDLE(nvk_buffer_view, view, bufferView);
 
-      assert(view->desc_index < (1 << 20));
-      desc.image_index = view->desc_index;
+   if (nvk_use_edb_buffer_views(pdev)) {
+      struct nvk_edb_buffer_view_descriptor desc = { };
+      if (view != NULL)
+         desc = view->edb_desc;
+      write_desc(set, binding, elem, &desc, sizeof(desc));
+   } else {
+      struct nvk_buffer_view_descriptor desc = { };
+      if (view != NULL)
+         desc = view->desc;
+      write_desc(set, binding, elem, &desc, sizeof(desc));
    }
-   write_desc(set, binding, elem, &desc, sizeof(desc));
 }
 
 static void
@@ -277,7 +283,7 @@ nvk_UpdateDescriptorSets(VkDevice device,
       case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
       case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
          for (uint32_t j = 0; j < write->descriptorCount; j++) {
-            write_buffer_view_desc(set, write->pTexelBufferView[j],
+            write_buffer_view_desc(pdev, set, write->pTexelBufferView[j],
                                    write->dstBinding, write->dstArrayElement + j);
          }
          break;
@@ -417,7 +423,7 @@ nvk_push_descriptor_set_update(struct nvk_device *dev,
       case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
       case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
          for (uint32_t j = 0; j < write->descriptorCount; j++) {
-            write_buffer_view_desc(&set, write->pTexelBufferView[j],
+            write_buffer_view_desc(pdev, &set, write->pTexelBufferView[j],
                                    write->dstBinding, write->dstArrayElement + j);
          }
          break;
@@ -799,7 +805,7 @@ nvk_descriptor_set_write_template(struct nvk_device *dev,
             const VkBufferView *bview =
                data + entry->offset + j * entry->stride;
 
-            write_buffer_view_desc(set, *bview,
+            write_buffer_view_desc(pdev, set, *bview,
                                    entry->binding,
                                    entry->array_element + j);
          }

@@ -189,7 +189,8 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
    if (result != VK_SUCCESS)
       goto fail_images;
 
-   if (dev->vk.enabled_features.descriptorBuffer) {
+   if (dev->vk.enabled_features.descriptorBuffer ||
+       nvk_use_edb_buffer_views(pdev)) {
       result = nvk_edb_bview_cache_init(dev, &dev->edb_bview_cache);
       if (result != VK_SUCCESS)
          goto fail_samplers;

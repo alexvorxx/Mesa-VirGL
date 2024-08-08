@@ -55,6 +55,7 @@ struct lower_descriptors_ctx {
    const struct nvk_descriptor_set_layout *set_layouts[NVK_MAX_SETS];
 
    bool use_bindless_cbuf;
+   bool use_edb_buffer_views;
    bool clamp_desc_array_bounds;
    nir_address_format ubo_addr_format;
    nir_address_format ssbo_addr_format;
@@ -949,6 +950,9 @@ is_edb_buffer_view(nir_deref_instr *deref,
    if (glsl_get_sampler_dim(deref->type) != GLSL_SAMPLER_DIM_BUF)
       return false;
 
+   if (ctx->use_edb_buffer_views)
+      return true;
+
    nir_variable *var = nir_deref_instr_get_variable(deref);
    uint8_t set = var->data.descriptor_set;
 
@@ -1549,6 +1553,7 @@ nvk_nir_lower_descriptors(nir_shader *nir,
    struct lower_descriptors_ctx ctx = {
       .dev_info = &pdev->info,
       .use_bindless_cbuf = nvk_use_bindless_cbuf(&pdev->info),
+      .use_edb_buffer_views = nvk_use_edb_buffer_views(pdev),
       .clamp_desc_array_bounds =
          rs->storage_buffers != VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT ||
          rs->uniform_buffers != VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT ||

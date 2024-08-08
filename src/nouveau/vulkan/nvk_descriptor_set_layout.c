@@ -48,7 +48,8 @@ nvk_descriptor_stride_align_for_type(const struct nvk_physical_device *pdev,
 
    case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
    case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-      if (layout_flags & VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) {
+      if ((layout_flags & VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) ||
+          nvk_use_edb_buffer_views(pdev)) {
          *stride = *alignment = sizeof(struct nvk_edb_buffer_view_descriptor);
       } else {
          *stride = *alignment = sizeof(struct nvk_buffer_view_descriptor);

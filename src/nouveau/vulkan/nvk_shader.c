@@ -81,6 +81,7 @@ uint64_t
 nvk_physical_device_compiler_flags(const struct nvk_physical_device *pdev)
 {
    bool no_cbufs = pdev->debug_flags & NVK_DEBUG_NO_CBUF;
+   bool use_edb_buffer_views = nvk_use_edb_buffer_views(pdev);
    uint64_t prog_debug = nvk_cg_get_prog_debug();
    uint64_t prog_optimize = nvk_cg_get_prog_optimize();
    uint64_t nak_stages = nvk_nak_stages(&pdev->info);
@@ -94,6 +95,7 @@ nvk_physical_device_compiler_flags(const struct nvk_physical_device *pdev)
    return prog_debug
       | (prog_optimize << 8)
       | ((uint64_t)no_cbufs << 12)
+      | ((uint64_t)use_edb_buffer_views << 13)
       | (nak_stages << 16)
       | (nak_flags << 48);
 }

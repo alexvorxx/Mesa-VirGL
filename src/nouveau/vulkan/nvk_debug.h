@@ -29,6 +29,9 @@ enum nvk_debug {
     * Root descriptors still end up in a cbuf
     */
    NVK_DEBUG_NO_CBUF = 1ull << 5,
+
+   /* Use the EXT_descriptor_buffer path for all buffer views */
+   NVK_DEBUG_FORCE_EDB_BVIEW = 1ull << 6,
 };
 
 #endif /* NVK_DEBUG_H */
