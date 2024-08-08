@@ -1606,9 +1606,10 @@ panfrost_create_sampler_view_bo(struct panfrost_sampler_view *so,
       payload.gpu += pan_size(TEXTURE);
    }
 
+   const struct util_format_description *desc =
+      util_format_description(format);
+
    if ((device->debug & PAN_DBG_YUV) && panfrost_format_is_yuv(format)) {
-      const struct util_format_description *desc =
-         util_format_description(format);
 
       if (desc->layout == UTIL_FORMAT_LAYOUT_SUBSAMPLED) {
          iview.swizzle[2] = PIPE_SWIZZLE_1;
@@ -1616,6 +1617,11 @@ panfrost_create_sampler_view_bo(struct panfrost_sampler_view *so,
          iview.swizzle[1] = PIPE_SWIZZLE_0;
          iview.swizzle[2] = PIPE_SWIZZLE_0;
       }
+   }
+
+   if (desc->layout == UTIL_FORMAT_LAYOUT_ASTC &&
+       so->base.astc_decode_format == PIPE_ASTC_DECODE_FORMAT_UNORM8) {
+      iview.astc.narrow = true;
    }
 
    GENX(panfrost_new_texture)(&iview, tex, &payload);

@@ -357,7 +357,8 @@ translate_superblock_size(uint64_t modifier)
 }
 
 static void
-panfrost_emit_plane(int index, const struct pan_image_layout *layout,
+panfrost_emit_plane(const struct pan_image_view *iview, int index,
+                    const struct pan_image_layout *layout,
                     enum pipe_format format, mali_ptr pointer, unsigned level,
                     int32_t row_stride, int32_t surface_stride,
                     mali_ptr plane2_ptr, void **payload)
@@ -409,12 +410,10 @@ panfrost_emit_plane(int index, const struct pan_image_layout *layout,
 
          /* sRGB formats decode to RGBA8 sRGB, which is narrow.
           *
-          * Non-sRGB formats decode to RGBA16F which is wide.
-          * With a future extension, we could decode non-sRGB
-          * formats narrowly too, but this isn't wired up in Mesa
-          * yet.
+          * Non-sRGB formats decode to RGBA16F which is wide except if decode
+          * precision is set to GL_RGBA8 for that texture.
           */
-         cfg.astc.decode_wide = !srgb;
+         cfg.astc.decode_wide = !srgb && !iview->astc.narrow;
       } else if (afbc) {
          cfg.plane_type = MALI_PLANE_TYPE_AFBC;
          cfg.afbc.superblock_size = translate_superblock_size(layout->modifier);
@@ -512,12 +511,12 @@ panfrost_emit_surface(const struct pan_image_view *iview, unsigned level,
          /* 3-plane YUV requires equal stride for both chroma planes */
          assert(row_strides[2] == 0 || row_strides[1] == row_strides[2]);
 
-         panfrost_emit_plane(i, layouts[i], format, plane_ptrs[i], level,
+         panfrost_emit_plane(iview, i, layouts[i], format, plane_ptrs[i], level,
                              row_strides[i], surface_strides[i], plane_ptrs[2],
                              payload);
       }
    } else {
-      panfrost_emit_plane(0, layouts[0], format, plane_ptrs[0], level,
+      panfrost_emit_plane(iview, 0, layouts[0], format, plane_ptrs[0], level,
                           row_strides[0], surface_strides[0], 0, payload);
    }
    return;
@@ -618,8 +617,14 @@ GENX(panfrost_new_texture)(const struct pan_image_view *iview, void *out,
    const struct pan_image *base_image = pan_image_view_get_plane(iview, 0);
    const struct pan_image_layout *layout = &base_image->layout;
    enum pipe_format format = iview->format;
+   const struct util_format_description *desc = util_format_description(format);
    uint32_t mali_format = GENX(panfrost_format_from_pipe_format)(format)->hw;
    unsigned char swizzle[4];
+
+   if (desc->layout == UTIL_FORMAT_LAYOUT_ASTC && iview->astc.narrow &&
+       desc->colorspace != UTIL_FORMAT_COLORSPACE_SRGB) {
+      mali_format = MALI_PACK_FMT(RGBA8_UNORM, RGBA, L);
+   }
 
    if (PAN_ARCH >= 7 && util_format_is_depth_or_stencil(format)) {
       /* v7+ doesn't have an _RRRR component order, combine the

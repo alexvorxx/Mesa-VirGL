@@ -366,6 +366,9 @@ panfrost_get_param(struct pipe_screen *screen, enum pipe_cap param)
    case PIPE_CAP_NATIVE_FENCE_FD:
       return 1;
 
+   case PIPE_CAP_ASTC_DECODE_MODE:
+      return dev->arch >= 9 && (dev->compressed_formats & (1 << 30));
+
    default:
       return u_pipe_screen_get_param_defaults(screen, param);
    }

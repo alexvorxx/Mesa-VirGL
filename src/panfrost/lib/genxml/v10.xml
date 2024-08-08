@@ -110,8 +110,8 @@
     <value name="ASTC 2D HDR" value="23"/>
     <value name="AFBC" value="24"/>
     <value name="AFRC" value="25"/>
-    <value name="ASTC 2D NARROW" value="62"/>
-    <value name="ASTC 3D NARROW" value="63"/>
+    <value name="ASTC 2D NARROW" value="30"/>
+    <value name="ASTC 3D NARROW" value="31"/>
 
     <!-- Actual enum values follow -->
     <value name="YUV8" value="32"/>

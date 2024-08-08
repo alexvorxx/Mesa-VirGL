@@ -268,8 +268,8 @@ const struct panfrost_format GENX(panfrost_pipe_format)[PIPE_FORMAT_COUNT] = {
    FMT(BPTC_RGBA_UNORM,         RGBA8_UNORM,     RGBA, L, _T__),
    FMT(BPTC_SRGBA,              RGBA8_UNORM,     RGBA, S, _T__),
 
-   /* Mesa does not yet support astc_decode_mode extensions, so non-sRGB
-    * formats must be assumed to be wide.
+   /* If astc decode mode is set to RGBA8, the hardware format
+    * will be overriden to RGBA8_UNORM later on.
     */
    FMT(ASTC_4x4,                RGBA16F,         RGBA, L, _T__),
    FMT(ASTC_5x4,                RGBA16F,         RGBA, L, _T__),
