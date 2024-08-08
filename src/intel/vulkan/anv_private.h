@@ -1279,6 +1279,7 @@ struct anv_instance {
      * Workarounds for game bugs.
      */
     uint8_t                                     assume_full_subgroups;
+    bool                                        assume_full_subgroups_with_barrier;
     bool                                        limit_trig_input_range;
     bool                                        sample_mask_out_opengl_behaviour;
     bool                                        force_filter_addr_rounding;
