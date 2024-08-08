@@ -532,8 +532,11 @@ print_instr_format_specific(enum amd_gfx_level gfx_level, const Instruction* ins
    }
    case Format::MIMG: {
       const MIMG_instruction& mimg = instr->mimg();
-      unsigned identity_dmask =
-         !instr->definitions.empty() ? (1 << instr->definitions[0].size()) - 1 : 0xf;
+      unsigned identity_dmask = 0xf;
+      if (!instr->definitions.empty()) {
+         unsigned num_channels = instr->definitions[0].bytes() / (mimg.d16 ? 2 : 4);
+         identity_dmask = (1 << num_channels) - 1;
+      }
       if ((mimg.dmask & identity_dmask) != identity_dmask)
          fprintf(output, " dmask:%s%s%s%s", mimg.dmask & 0x1 ? "x" : "",
                  mimg.dmask & 0x2 ? "y" : "", mimg.dmask & 0x4 ? "z" : "",
