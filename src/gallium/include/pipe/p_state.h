@@ -483,7 +483,8 @@ struct pipe_sampler_view
    /* Put the refcount on its own cache line to prevent "False sharing". */
    EXCLUSIVE_CACHELINE(struct pipe_reference reference);
 
-   enum pipe_format format:14;      /**< typed PIPE_FORMAT_x */
+   enum pipe_format format:12;      /**< typed PIPE_FORMAT_x */
+   unsigned astc_decode_format:2;   /**< intermediate format used for ASTC textures */
    bool is_tex2d_from_buf:1;       /**< true if union is tex2d_from_buf */
    enum pipe_texture_target target:5; /**< PIPE_TEXTURE_x */
    unsigned swizzle_r:3;         /**< PIPE_SWIZZLE_x for red component */

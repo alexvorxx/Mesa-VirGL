@@ -192,6 +192,7 @@ struct gl_extensions
    GLboolean EXT_shadow_samplers;
    GLboolean EXT_texture_array;
    GLboolean EXT_texture_buffer_object;
+   GLboolean EXT_texture_compression_astc_decode_mode;
    GLboolean EXT_texture_compression_latc;
    GLboolean EXT_texture_compression_s3tc;
    GLboolean EXT_texture_compression_s3tc_srgb;

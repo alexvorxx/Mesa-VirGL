@@ -649,6 +649,7 @@ The integer capabilities:
 * ``PIPE_CAP_HAS_CONST_BW``: Whether the driver only supports non-data-dependent layouts (ie. not bandwidth compressed formats like AFBC, UBWC, etc), or supports ``PIPE_BIND_CONST_BW`` to disable data-dependent layouts on requested resources.
 * ``PIPE_CAP_PERFORMANCE_MONITOR``: Whether GL_AMD_performance_monitor should be exposed.
 * ``PIPE_CAP_TEXTURE_SAMPLER_INDEPENDENT``: Whether sampler views and sampler states are independent objects, meaning both can be freely mixed and matched by the frontend. This isn't required for OpenGL where on the shader level those are the same object. However for proper gallium nine and OpenCL support this is required.
+* ``PIPE_CAP_ASTC_DECODE_MODE``: Whether the driver supports ASTC decode precision. The :ext:`GL_KHR_texture_compression_astc_decode_mode` extension will only get exposed if :ext:`GL_KHR_texture_compression_astc_ldr` is also supported.
 
 
 .. _pipe_capf:

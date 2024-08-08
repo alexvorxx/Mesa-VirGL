@@ -834,6 +834,7 @@ void st_init_extensions(struct pipe_screen *screen,
 #endif
       { o(EXT_shader_samples_identical),     PIPE_CAP_SHADER_SAMPLES_IDENTICAL         },
       { o(EXT_texture_array),                PIPE_CAP_MAX_TEXTURE_ARRAY_LAYERS         },
+      { o(EXT_texture_compression_astc_decode_mode), PIPE_CAP_ASTC_DECODE_MODE         },
       { o(EXT_texture_filter_anisotropic),   PIPE_CAP_ANISOTROPIC_FILTER               },
       { o(EXT_texture_filter_minmax),        PIPE_CAP_SAMPLER_REDUCTION_MINMAX         },
       { o(EXT_texture_mirror_clamp),         PIPE_CAP_TEXTURE_MIRROR_CLAMP             },

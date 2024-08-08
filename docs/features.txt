@@ -331,6 +331,7 @@ Khronos, ARB, and OES extensions that are not part of any OpenGL or OpenGL ES ve
   GL_EXT_semaphore_win32                                DONE (zink, d3d12)
   GL_EXT_shader_group_vote                              DONE (all drivers that support GL_ARB_shader_group_vote)
   GL_EXT_sRGB_write_control                             DONE (all drivers that support GLES 3.0+)
+  GL_EXT_texture_compression_astc_decode_mode           DONE (core only)
   GL_EXT_texture_norm16                                 DONE (freedreno, r600, radeonsi, nvc0i, softpipe, zink, iris, crocus)
   GL_EXT_texture_sRGB_R8                                DONE (all drivers that support GLES 3.0+)
   GL_KHR_blend_equation_advanced_coherent               DONE (freedreno/a6xx, panfrost, zink, asahi, iris/gen9+)

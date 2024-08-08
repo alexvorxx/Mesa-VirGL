@@ -972,6 +972,9 @@ struct gl_texture_object
    /** GL_EXT_texture_storage_compression */
    GLint CompressionRate; /**< Fixed-rate compression bitrate */
 
+   /** GL_EXT_texture_compression_astc_decode_mode */
+   GLenum16 AstcDecodePrecision; /**< ASTC decoding precision */
+
    /* The texture must include at levels [0..lastLevel] once validated:
     */
    GLuint lastLevel;
