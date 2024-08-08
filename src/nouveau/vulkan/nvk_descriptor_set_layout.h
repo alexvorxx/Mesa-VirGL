@@ -63,6 +63,13 @@ struct nvk_descriptor_set_layout {
    /* Number of bindings in this descriptor set */
    uint32_t binding_count;
 
+   /* Address to the embedded sampler descriptor buffer.
+    *
+    * This is allocated from nvk_device::heap and has the size
+    * non_variable_descriptor_buffer_size.
+    */
+   uint64_t embedded_samplers_addr;
+
    /* Bindings in this descriptor set */
    struct nvk_descriptor_set_binding_layout binding[0];
 };

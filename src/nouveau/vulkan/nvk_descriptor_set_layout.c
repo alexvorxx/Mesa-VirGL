@@ -110,6 +110,23 @@ nvk_descriptor_get_type_list(VkDescriptorType type,
    return type_list;
 }
 
+static void
+nvk_descriptor_set_layout_destroy(struct vk_device *vk_dev,
+                                  struct vk_descriptor_set_layout *vk_layout)
+{
+   struct nvk_device *dev = container_of(vk_dev, struct nvk_device, vk);
+   struct nvk_descriptor_set_layout *layout =
+      vk_to_nvk_descriptor_set_layout(vk_layout);
+
+   if (layout->embedded_samplers_addr != 0) {
+      nvk_heap_free(dev, &dev->shader_heap,
+                    layout->embedded_samplers_addr,
+                    layout->non_variable_descriptor_buffer_size);
+   }
+
+   vk_object_free(&dev->vk, NULL, layout);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 nvk_CreateDescriptorSetLayout(VkDevice device,
                               const VkDescriptorSetLayoutCreateInfo *pCreateInfo,
@@ -150,6 +167,7 @@ nvk_CreateDescriptorSetLayout(VkDevice device,
    if (!vk_descriptor_set_layout_multizalloc(&dev->vk, &ma))
       return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
 
+   layout->vk.destroy = nvk_descriptor_set_layout_destroy;
    layout->flags = pCreateInfo->flags;
    layout->binding_count = num_bindings;
 
@@ -311,6 +329,51 @@ nvk_CreateDescriptorSetLayout(VkDevice device,
 #undef BLAKE3_UPDATE_VALUE
 
    _mesa_blake3_final(&blake3_ctx, layout->vk.blake3);
+
+    if (pCreateInfo->flags &
+        VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT) {
+      void *sampler_desc_data =
+         vk_alloc2(&dev->vk.alloc, pAllocator, buffer_size, 4,
+                   VK_SYSTEM_ALLOCATION_SCOPE_COMMAND);
+      if (sampler_desc_data == NULL) {
+         nvk_descriptor_set_layout_destroy(&dev->vk, &layout->vk);
+         return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
+      }
+
+      for (uint32_t b = 0; b < num_bindings; b++) {
+         assert(layout->binding[b].type == VK_DESCRIPTOR_TYPE_SAMPLER);
+         assert(layout->binding[b].array_size == 1);
+         assert(layout->binding[b].immutable_samplers != NULL);
+         assert(!(layout->binding[b].flags &
+                  VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT));
+
+         /* I'm paranoid */
+         if (layout->binding[b].immutable_samplers == NULL)
+            continue;
+
+         struct nvk_sampler *sampler = layout->binding[b].immutable_samplers[0];
+
+         /* YCbCr has to come in through a combined image/sampler */
+         assert(sampler->plane_count == 1);
+
+         assert(sampler->planes[0].desc_index < (1 << 12));
+         struct nvk_sampled_image_descriptor desc = {
+            .sampler_index = sampler->planes[0].desc_index,
+         };
+         memcpy(sampler_desc_data + layout->binding[b].offset,
+                &desc, sizeof(desc));
+      }
+
+      VkResult result = nvk_heap_upload(dev, &dev->shader_heap,
+                                        sampler_desc_data, buffer_size,
+                                        nvk_min_cbuf_alignment(&pdev->info),
+                                        &layout->embedded_samplers_addr);
+      vk_free2(&dev->vk.alloc, pAllocator, sampler_desc_data);
+      if (result != VK_SUCCESS) {
+         nvk_descriptor_set_layout_destroy(&dev->vk, &layout->vk);
+         return result;
+      }
+   }
 
    *pSetLayout = nvk_descriptor_set_layout_to_handle(layout);
 

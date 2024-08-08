@@ -843,6 +843,38 @@ nvk_CmdSetDescriptorBufferOffsets2EXT(VkCommandBuffer commandBuffer,
 }
 
 static void
+nvk_bind_embedded_samplers(struct nvk_cmd_buffer *cmd,
+                           struct nvk_descriptor_state *desc,
+                           const VkBindDescriptorBufferEmbeddedSamplersInfoEXT *info)
+{
+   VK_FROM_HANDLE(vk_pipeline_layout, pipeline_layout, info->layout);
+   const struct nvk_descriptor_set_layout *set_layout =
+      vk_to_nvk_descriptor_set_layout(pipeline_layout->set_layouts[info->set]);
+
+   struct nvk_buffer_address set_addr = {
+      .base_addr = set_layout->embedded_samplers_addr,
+      .size = set_layout->non_variable_descriptor_buffer_size,
+   };
+   nvk_descriptor_state_set_root(cmd, desc, sets[info->set], set_addr);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+nvk_CmdBindDescriptorBufferEmbeddedSamplers2EXT(
+    VkCommandBuffer commandBuffer,
+    const VkBindDescriptorBufferEmbeddedSamplersInfoEXT *pInfo)
+{
+   VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
+
+   if (pInfo->stageFlags & NVK_VK_GRAPHICS_STAGE_BITS) {
+      nvk_bind_embedded_samplers(cmd, &cmd->state.gfx.descriptors, pInfo);
+   }
+
+   if (pInfo->stageFlags & VK_SHADER_STAGE_COMPUTE_BIT) {
+      nvk_bind_embedded_samplers(cmd, &cmd->state.cs.descriptors, pInfo);
+   }
+}
+
+static void
 nvk_push_constants(UNUSED struct nvk_cmd_buffer *cmd,
                    struct nvk_descriptor_state *desc,
                    const VkPushConstantsInfoKHR *info)
