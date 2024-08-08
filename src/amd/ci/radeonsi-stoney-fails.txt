@@ -250,3 +250,4 @@ dEQP-GLES31.functional.program_interface_query.uniform.referenced_by_shader.vert
 dEQP-GLES31.functional.program_interface_query.uniform_block.referenced_by.vertex_geo_fragment_only_vertex.named_block,Fail
 dEQP-GLES31.functional.program_interface_query.uniform_block.referenced_by.vertex_tess_fragment.block_array,Fail
 dEQP-GLES31.functional.program_interface_query.uniform_block.referenced_by.vertex_tess_fragment_only_vertex.named_block,Fail
+spec@arb_bindless_texture@execution@samplers@basic-texture2d-local-var-function-params,Crash

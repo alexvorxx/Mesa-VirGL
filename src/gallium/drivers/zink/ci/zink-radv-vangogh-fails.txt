@@ -194,3 +194,4 @@ dEQP-GLES31.functional.blend_equation_advanced.msaa.multiply,Fail
 dEQP-GLES31.functional.blend_equation_advanced.msaa.overlay,Fail
 dEQP-GLES31.functional.blend_equation_advanced.msaa.screen,Fail
 dEQP-GLES31.functional.blend_equation_advanced.msaa.softlight,Fail
+spec@arb_bindless_texture@execution@samplers@basic-texture2d-local-var-function-params,Crash
