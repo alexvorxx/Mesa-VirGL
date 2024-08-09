@@ -295,6 +295,20 @@ nvk_queue_submit_exec(struct nvk_queue *queue,
    const bool sync = pdev->debug_flags & NVK_DEBUG_PUSH_SYNC;
 
    if (submit->command_buffer_count > 0) {
+      result = nvk_queue_state_update(queue, &queue->state);
+      if (result != VK_SUCCESS)
+         return result;
+
+      if (queue->state.push.mem != NULL) {
+         struct nvkmd_ctx_exec exec = {
+            .addr = queue->state.push.mem->va->addr,
+            .size_B = queue->state.push.dw_count * 4,
+         };
+         result = nvkmd_ctx_exec(queue->exec_ctx, &queue->vk.base, 1, &exec);
+         if (result != VK_SUCCESS)
+            goto fail;
+      }
+
       uint64_t upload_time_point;
       result = nvk_upload_queue_flush(dev, &dev->upload, &upload_time_point);
       if (result != VK_SUCCESS)
@@ -316,16 +330,6 @@ nvk_queue_submit_exec(struct nvk_queue *queue,
                            submit->wait_count, submit->waits);
    if (result != VK_SUCCESS)
       goto fail;
-
-   if (submit->command_buffer_count > 0 && queue->state.push.mem != NULL) {
-      struct nvkmd_ctx_exec exec = {
-         .addr = queue->state.push.mem->va->addr,
-         .size_B = queue->state.push.dw_count * 4,
-      };
-      result = nvkmd_ctx_exec(queue->exec_ctx, &queue->vk.base, 1, &exec);
-      if (result != VK_SUCCESS)
-         goto fail;
-   }
 
    for (unsigned i = 0; i < submit->command_buffer_count; i++) {
       struct nvk_cmd_buffer *cmd =
@@ -401,12 +405,6 @@ nvk_queue_submit(struct vk_queue *vk_queue,
       if (result != VK_SUCCESS)
          return vk_queue_set_lost(&queue->vk, "Bind operation failed");
    } else {
-      result = nvk_queue_state_update(queue, &queue->state);
-      if (result != VK_SUCCESS) {
-         return vk_queue_set_lost(&queue->vk, "Failed to update queue base "
-                                              "pointers pushbuf");
-      }
-
       result = nvk_queue_submit_exec(queue, submit);
       if (result != VK_SUCCESS)
          return vk_queue_set_lost(&queue->vk, "Submit failed");
