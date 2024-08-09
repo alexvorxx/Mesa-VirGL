@@ -896,6 +896,19 @@ Anvil(ANV) driver environment variables
    If set to 1, true, or yes, then VK_EXT_graphics_pipeline_library
    will be disabled.
 
+.. envvar:: ANV_SPARSE
+
+   By default, the sparse resources feature is enabled. However, if set to 0,
+   false, or no, it will be disabled.
+   Platforms older than Tiger Lake do not support this feature.
+
+.. envvar:: ANV_SPARSE_USE_TRTT
+
+   On platforms supported by Xe KMD (Lunar Lake and newer) this parameter
+   changes the implementation of sparse resources feature.
+   For i915 there is no option, sparse resources is always implemented with
+   TRTT.
+
 DRI environment variables
 -------------------------
 
