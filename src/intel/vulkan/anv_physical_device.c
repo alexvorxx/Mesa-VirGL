@@ -2020,6 +2020,7 @@ anv_physical_device_free_disk_cache(struct anv_physical_device *device)
  *  * "g" is for graphics queues with no compute support
  *  * "c" is for compute queues with no graphics support
  *  * "v" is for video queues with no graphics support
+ *  * "b" is for copy (blitter) queues with no graphics support
  *
  * For example, ANV_QUEUE_OVERRIDE=gc=2,c=1 would override the number of
  * advertised queues to be 2 queues with graphics+compute support, and 1 queue
@@ -2034,12 +2035,13 @@ anv_physical_device_free_disk_cache(struct anv_physical_device *device)
  * number of graphics+compute queues to be 0.
  */
 static void
-anv_override_engine_counts(int *gc_count, int *g_count, int *c_count, int *v_count)
+anv_override_engine_counts(int *gc_count, int *g_count, int *c_count, int *v_count, int *blit_count)
 {
    int gc_override = -1;
    int g_override = -1;
    int c_override = -1;
    int v_override = -1;
+   int blit_override = -1;
    const char *env_ = os_get_option("ANV_QUEUE_OVERRIDE");
 
    if (env_ == NULL)
@@ -2057,6 +2059,8 @@ anv_override_engine_counts(int *gc_count, int *g_count, int *c_count, int *v_cou
          c_override = strtol(next + 2, NULL, 0);
       } else if (strncmp(next, "v=", 2) == 0) {
          v_override = strtol(next + 2, NULL, 0);
+      } else if (strncmp(next, "b=", 2) == 0) {
+         blit_override = strtol(next + 2, NULL, 0);
       } else {
          mesa_logw("Ignoring unsupported ANV_QUEUE_OVERRIDE token: %s", next);
       }
@@ -2074,6 +2078,8 @@ anv_override_engine_counts(int *gc_count, int *g_count, int *c_count, int *v_cou
       *c_count = c_override;
    if (v_override >= 0)
       *v_count = v_override;
+   if (blit_override >= 0)
+      *blit_count = blit_override;
 }
 
 static void
@@ -2111,7 +2117,7 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
          blit_count = pdevice->info.engine_class_supported_count[INTEL_ENGINE_CLASS_COPY];
       }
 
-      anv_override_engine_counts(&gc_count, &g_count, &c_count, &v_count);
+      anv_override_engine_counts(&gc_count, &g_count, &c_count, &v_count, &blit_count);
 
       if (gc_count > 0) {
          pdevice->queue.families[family_count++] = (struct anv_queue_family) {
