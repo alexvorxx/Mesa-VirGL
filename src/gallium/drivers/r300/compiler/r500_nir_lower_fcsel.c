@@ -82,13 +82,8 @@ is_comparison(nir_instr *instr)
 }
 
 static bool
-r300_nir_lower_fcsel_instr(nir_builder *b, nir_instr *instr, void *data)
+r300_nir_lower_fcsel_instr(nir_builder *b, nir_alu_instr *alu, void *data)
 {
-   if (instr->type != nir_instr_type_alu)
-      return false;
-
-   nir_alu_instr *alu = nir_instr_as_alu(instr);
-
    if (alu->op != nir_op_fcsel && alu->op != nir_op_fcsel_ge && alu->op != nir_op_fcsel_gt)
       return false;
 
@@ -126,9 +121,6 @@ r300_nir_lower_fcsel_instr(nir_builder *b, nir_instr *instr, void *data)
 bool
 r300_nir_lower_fcsel_r500(nir_shader *shader)
 {
-   bool progress = nir_shader_instructions_pass(shader,
-                                                r300_nir_lower_fcsel_instr,
-                                                nir_metadata_control_flow,
-                                                NULL);
-   return progress;
+   return nir_shader_alu_pass(shader, r300_nir_lower_fcsel_instr,
+                              nir_metadata_control_flow, NULL);
 }
