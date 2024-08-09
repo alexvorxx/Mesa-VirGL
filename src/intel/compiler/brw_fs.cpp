@@ -1117,7 +1117,7 @@ fs_visitor::assign_curb_setup()
        */
       assert(devinfo->verx10 >= 125);
       assert(uniform_push_length <= reg_unit(devinfo));
-   } else if (is_compute && devinfo->verx10 >= 125) {
+   } else if (is_compute && devinfo->verx10 >= 125 && uniform_push_length > 0) {
       assert(devinfo->has_lsc);
       fs_builder ubld = fs_builder(this, 1).exec_all().at(
          cfg->first_block(), cfg->first_block()->start());
