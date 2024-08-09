@@ -2397,21 +2397,20 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
    device->uses_relocs = device->info.kmd_type != INTEL_KMD_TYPE_XE;
 
    /* While xe.ko can use both vm_bind and TR-TT, i915.ko only has TR-TT. */
-   if (device->info.kmd_type == INTEL_KMD_TYPE_XE) {
-      if (debug_get_bool_option("ANV_SPARSE_USE_TRTT", false))
-         device->sparse_type = ANV_SPARSE_TYPE_TRTT;
-      else
-         device->sparse_type = ANV_SPARSE_TYPE_VM_BIND;
-   } else {
-      if (device->info.ver >= 12 &&
-          device->has_exec_timeline &&
-          debug_get_bool_option("ANV_SPARSE", true)) {
-         device->sparse_type = ANV_SPARSE_TYPE_TRTT;
-      } else if (instance->has_fake_sparse) {
-         device->sparse_type = ANV_SPARSE_TYPE_FAKE;
+   if (debug_get_bool_option("ANV_SPARSE", true)) {
+      if (device->info.kmd_type == INTEL_KMD_TYPE_XE) {
+         if (debug_get_bool_option("ANV_SPARSE_USE_TRTT", false))
+            device->sparse_type = ANV_SPARSE_TYPE_TRTT;
+         else
+            device->sparse_type = ANV_SPARSE_TYPE_VM_BIND;
       } else {
-         device->sparse_type = ANV_SPARSE_TYPE_NOT_SUPPORTED;
+         if (device->info.ver >= 12 && device->has_exec_timeline)
+            device->sparse_type = ANV_SPARSE_TYPE_TRTT;
       }
+   }
+   if (device->sparse_type == ANV_SPARSE_TYPE_NOT_SUPPORTED) {
+      if (instance->has_fake_sparse)
+         device->sparse_type = ANV_SPARSE_TYPE_FAKE;
    }
 
    device->always_flush_cache = INTEL_DEBUG(DEBUG_STALL) ||
