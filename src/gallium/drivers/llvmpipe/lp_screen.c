@@ -663,6 +663,8 @@ static const struct nir_shader_compiler_options gallivm_nir_options = {
    .lower_fisnormal = true,
    .lower_fquantize2f16 = true,
    .driver_functions = true,
+   .has_ddx_intrinsics = true,
+   .scalarize_ddx = true,
 };
 
 

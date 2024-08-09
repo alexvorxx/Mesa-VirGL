@@ -677,16 +677,6 @@ do_alu_action(struct lp_build_nir_context *bld_base,
    case nir_op_fcos:
       result = lp_build_cos(get_flt_bld(bld_base, src_bit_size[0]), src[0]);
       break;
-   case nir_op_fddx:
-   case nir_op_fddx_coarse:
-   case nir_op_fddx_fine:
-      result = lp_build_ddx(get_flt_bld(bld_base, src_bit_size[0]), src[0]);
-      break;
-   case nir_op_fddy:
-   case nir_op_fddy_coarse:
-   case nir_op_fddy_fine:
-      result = lp_build_ddy(get_flt_bld(bld_base, src_bit_size[0]), src[0]);
-      break;
    case nir_op_fdiv:
       result = lp_build_div(get_flt_bld(bld_base, src_bit_size[0]),
                             src[0], src[1]);
@@ -2315,6 +2305,26 @@ visit_intrinsic(struct lp_build_nir_context *bld_base,
    case nir_intrinsic_load_param:
       visit_load_param(bld_base, instr, result);
       break;
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddx_coarse:
+   case nir_intrinsic_ddy_coarse:
+   case nir_intrinsic_ddx_fine:
+   case nir_intrinsic_ddy_fine: {
+      LLVMValueRef src = get_src(bld_base, instr->src[0]);
+      src = cast_type(bld_base, src, nir_type_float, nir_src_bit_size(instr->src[0]));
+
+      struct lp_build_context *bld = get_flt_bld(bld_base, nir_src_bit_size(instr->src[0]));
+
+      if (instr->intrinsic == nir_intrinsic_ddx ||
+          instr->intrinsic == nir_intrinsic_ddx_coarse ||
+          instr->intrinsic == nir_intrinsic_ddx_fine)
+         result[0] = lp_build_ddx(bld, src);
+      else
+         result[0] = lp_build_ddy(bld, src);
+
+      break;
+   }
    default:
       fprintf(stderr, "Unsupported intrinsic: ");
       nir_print_instr(&instr->instr, stderr);
