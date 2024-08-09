@@ -1657,12 +1657,3 @@ trace_screen(struct pipe_screen *screen)
    assert(screen->destroy == trace_screen_destroy);
    return (struct trace_screen *)screen;
 }
-
-struct pipe_screen *
-trace_screen_unwrap(struct pipe_screen *_screen)
-{
-   if (_screen->destroy != trace_screen_destroy)
-      return _screen;
-   struct trace_screen *tr_scr = trace_screen(_screen);
-   return tr_scr->screen;
-}

@@ -363,14 +363,13 @@ kopper_update_drawable_info(struct dri_drawable *drawable)
    struct dri_screen *screen = drawable->screen;
    bool is_window = drawable->info.bos.sType != 0;
    int x, y;
-   struct pipe_screen *pscreen = screen->unwrapped_screen;
    struct pipe_resource *ptex = drawable->textures[ST_ATTACHMENT_BACK_LEFT] ?
                                 drawable->textures[ST_ATTACHMENT_BACK_LEFT] :
                                 drawable->textures[ST_ATTACHMENT_FRONT_LEFT];
 
    bool do_kopper_update = is_window && ptex && screen->fd == -1;
    if (drawable->info.bos.sType == VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR && do_kopper_update)
-      zink_kopper_update(pscreen, ptex, &drawable->w, &drawable->h);
+      zink_kopper_update(kopper_get_zink_screen(screen->base.screen), ptex, &drawable->w, &drawable->h);
    else
       get_drawable_info(drawable, &x, &y, &drawable->w, &drawable->h);
 }
@@ -602,7 +601,6 @@ kopperSetSwapInterval(__DRIdrawable *dPriv, int interval)
 {
    struct dri_drawable *drawable = dri_drawable(dPriv);
    struct dri_screen *screen = drawable->screen;
-   struct pipe_screen *pscreen = screen->unwrapped_screen;
    struct pipe_resource *ptex = drawable->textures[ST_ATTACHMENT_BACK_LEFT] ?
                                 drawable->textures[ST_ATTACHMENT_BACK_LEFT] :
                                 drawable->textures[ST_ATTACHMENT_FRONT_LEFT];
@@ -614,8 +612,10 @@ kopperSetSwapInterval(__DRIdrawable *dPriv, int interval)
     * we're before allocation, then the initial_swap_interval will be used when
     * the swapchain is eventually created.
     */
-   if (ptex)
+   if (ptex) {
+      struct pipe_screen *pscreen = kopper_get_zink_screen(screen->base.screen);
       zink_kopper_set_swap_interval(pscreen, ptex, interval);
+   }
    drawable->info.initial_swap_interval = interval;
 }
 

@@ -127,7 +127,6 @@ struct dri_screen
    opencl_dri_event_get_fence_t opencl_dri_event_get_fence;
 
    /* kopper */
-   struct pipe_screen *unwrapped_screen;
    bool has_dmabuf;
    bool is_sw;
 };

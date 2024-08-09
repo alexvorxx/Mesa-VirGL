@@ -642,7 +642,6 @@ dri_init_screen(struct dri_screen *screen,
                          &screen->max_gl_es1_version,
                          &screen->max_gl_es2_version);
 
-   screen->unwrapped_screen = trace_screen_unwrap(pscreen);
    screen->throttle = pscreen->get_param(pscreen, PIPE_CAP_THROTTLE);
    if (pscreen->get_param(pscreen, PIPE_CAP_DEVICE_PROTECTED_CONTEXT))
       screen->has_protected_context = true;
