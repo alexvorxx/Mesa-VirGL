@@ -365,6 +365,7 @@ get_src(struct etna_compile *c, nir_src *src)
       switch (intr->intrinsic) {
       case nir_intrinsic_load_input:
       case nir_intrinsic_load_instance_id:
+      case nir_intrinsic_load_vertex_id:
       case nir_intrinsic_load_uniform:
       case nir_intrinsic_load_ubo:
       case nir_intrinsic_load_reg:
@@ -608,6 +609,7 @@ emit_intrinsic(struct etna_compile *c, nir_intrinsic_instr * intr)
       break;
    case nir_intrinsic_load_input:
    case nir_intrinsic_load_instance_id:
+   case nir_intrinsic_load_vertex_id:
    case nir_intrinsic_load_texture_scale:
    case nir_intrinsic_load_texture_size_etna:
    case nir_intrinsic_decl_reg:
