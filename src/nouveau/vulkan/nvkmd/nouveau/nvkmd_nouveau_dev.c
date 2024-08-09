@@ -23,6 +23,8 @@ nvkmd_nouveau_create_dev(struct nvkmd_pdev *_pdev,
 
    dev->base.ops = &nvkmd_nouveau_dev_ops;
    dev->base.pdev = &pdev->base;
+   dev->base.va_start = 0;
+   dev->base.va_end = NOUVEAU_WS_DEVICE_KERNEL_RESERVATION_START;
 
    drmDevicePtr drm_device = NULL;
    int ret = drmGetDeviceFromDevId(pdev->base.drm.render_dev, 0, &drm_device);

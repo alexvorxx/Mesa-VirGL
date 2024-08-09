@@ -177,6 +177,11 @@ struct nvkmd_dev_ops {
 struct nvkmd_dev {
    const struct nvkmd_dev_ops *ops;
    struct nvkmd_pdev *pdev;
+
+   /* Start and end of the usable VA space.  All nvkmd_va objects will be
+    * allocated within this range.
+    */
+   uint64_t va_start, va_end;
 };
 
 struct nvkmd_mem_ops {
