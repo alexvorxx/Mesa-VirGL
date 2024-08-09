@@ -129,13 +129,8 @@ lower_unpack_32_to_8(nir_builder *b, nir_def *src)
 }
 
 static bool
-lower_pack_instr(nir_builder *b, nir_instr *instr, void *data)
+lower_pack_instr(nir_builder *b, nir_alu_instr *alu_instr, void *data)
 {
-   if (instr->type != nir_instr_type_alu)
-      return false;
-
-   nir_alu_instr *alu_instr = (nir_alu_instr *)instr;
-
    if (alu_instr->op != nir_op_pack_64_2x32 &&
        alu_instr->op != nir_op_unpack_64_2x32 &&
        alu_instr->op != nir_op_pack_64_4x16 &&
@@ -187,6 +182,6 @@ lower_pack_instr(nir_builder *b, nir_instr *instr, void *data)
 bool
 nir_lower_pack(nir_shader *shader)
 {
-   return nir_shader_instructions_pass(shader, lower_pack_instr,
-                                       nir_metadata_control_flow, NULL);
+   return nir_shader_alu_pass(shader, lower_pack_instr,
+                              nir_metadata_control_flow, NULL);
 }
