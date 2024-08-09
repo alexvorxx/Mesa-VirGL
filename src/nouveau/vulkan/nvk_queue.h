@@ -34,11 +34,6 @@ struct nvk_queue_state {
       uint32_t bytes_per_warp;
       uint32_t bytes_per_tpc;
    } slm;
-
-   struct {
-      struct nvkmd_mem *mem;
-      uint32_t dw_count;
-   } push;
 };
 
 struct nvk_queue {
