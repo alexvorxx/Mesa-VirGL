@@ -8106,8 +8106,18 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
       srcs[RT_LOGICAL_SRC_BVH_LEVEL] = get_nir_src(ntb, instr->src[1]);
       srcs[RT_LOGICAL_SRC_TRACE_RAY_CONTROL] = get_nir_src(ntb, instr->src[2]);
       srcs[RT_LOGICAL_SRC_SYNCHRONOUS] = brw_imm_ud(synchronous);
-      bld.emit(RT_OPCODE_TRACE_RAY_LOGICAL, bld.null_reg_ud(),
-               srcs, RT_LOGICAL_NUM_SRCS);
+
+      /* Bspec 57508: Structure_SIMD16TraceRayMessage:: RayQuery Enable
+       *
+       *    "When this bit is set in the header, Trace Ray Message behaves like
+       *    a Ray Query. This message requires a write-back message indicating
+       *    RayQuery for all valid Rays (SIMD lanes) have completed."
+       */
+      brw_reg dst = (devinfo->ver >= 20 && synchronous) ?
+                    bld.vgrf(BRW_TYPE_UD) :
+                    bld.null_reg_ud();
+
+      bld.emit(RT_OPCODE_TRACE_RAY_LOGICAL, dst, srcs, RT_LOGICAL_NUM_SRCS);
 
       /* There is no actual value to use in the destination register of the
        * synchronous trace instruction. All of the communication with the HW
