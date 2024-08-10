@@ -444,7 +444,10 @@ option (
   'llvm-orcjit',
   type : 'boolean',
   value : false,
-  description: 'Build llvmpipe with LLVM ORCJIT support.'
+  description: 'Build llvmpipe with LLVM ORCJIT support. Has no effect when ' +
+               'building for architectures without LLVM MCJIT support -- ' +
+               'ORCJIT is the only choice on such architectures and will ' +
+               'always be enabled.'
 )
 
 option(
