@@ -235,7 +235,6 @@ spec@arb_gpu_shader_fp64@execution@conversion@frag-conversion-explicit-dmat2x3-m
 spec@arb_gpu_shader_fp64@execution@conversion@frag-conversion-explicit-dmat2x4-mat2x4,Fail
 spec@arb_gpu_shader_fp64@execution@conversion@frag-conversion-explicit-dmat3-mat3,Fail
 spec@arb_gpu_shader_fp64@execution@conversion@frag-conversion-explicit-dmat3x2-mat3x2,Fail
-spec@arb_gpu_shader_fp64@execution@conversion@frag-conversion-explicit-dmat4-mat4,Fail
 spec@arb_gpu_shader_fp64@execution@conversion@frag-conversion-explicit-dmat4x3-mat4x3,Fail
 spec@arb_gpu_shader_fp64@execution@conversion@frag-conversion-explicit-double-float,Fail
 spec@arb_gpu_shader_fp64@execution@conversion@frag-conversion-explicit-dvec2-vec2,Fail
@@ -252,12 +251,9 @@ spec@arb_gpu_shader_fp64@execution@conversion@geom-conversion-explicit-dmat4x3-m
 spec@arb_gpu_shader_fp64@execution@conversion@geom-conversion-explicit-double-float,Fail
 spec@arb_gpu_shader_fp64@execution@conversion@geom-conversion-explicit-dvec2-vec2,Fail
 spec@arb_gpu_shader_fp64@execution@conversion@geom-conversion-explicit-dvec3-vec3,Fail
-spec@arb_gpu_shader_fp64@execution@conversion@vert-conversion-explicit-dmat2-mat2,Fail
-spec@arb_gpu_shader_fp64@execution@conversion@vert-conversion-explicit-dmat2x4-mat2x4,Fail
 spec@arb_gpu_shader_fp64@execution@conversion@vert-conversion-explicit-dmat3x2-mat3x2,Fail
 spec@arb_gpu_shader_fp64@execution@conversion@vert-conversion-explicit-dmat4-mat4,Fail
 spec@arb_gpu_shader_fp64@execution@conversion@vert-conversion-explicit-dmat4x2-mat4x2,Fail
-spec@arb_gpu_shader_fp64@execution@conversion@vert-conversion-explicit-dvec4-vec4,Fail
 
 spec@arb_occlusion_query@occlusion_query_conform,Fail
 spec@arb_occlusion_query@occlusion_query_conform@GetObjivAval_multi1,Fail
@@ -582,12 +578,9 @@ spec@glsl-1.50@execution@primitive-id-no-gs-quad-strip,Fail
 spec@glsl-1.50@execution@primitive-id-no-gs-quads,Fail
 
 
-spec@glsl-4.00@execution@conversion@frag-conversion-explicit-dmat2x3-mat2x3,Fail
-spec@glsl-4.00@execution@conversion@frag-conversion-explicit-dmat4-mat4,Fail
 spec@glsl-4.00@execution@conversion@frag-conversion-explicit-dmat4x3-mat4x3,Fail
 spec@glsl-4.00@execution@conversion@frag-conversion-explicit-double-float,Fail
 spec@glsl-4.00@execution@conversion@geom-conversion-explicit-dmat2x3-mat2x3,Fail
-spec@glsl-4.00@execution@conversion@geom-conversion-explicit-dmat3-mat3,Fail
 spec@glsl-4.00@execution@conversion@geom-conversion-explicit-dmat3x4-mat3x4,Fail
 spec@glsl-4.00@execution@conversion@geom-conversion-explicit-dmat4x2-mat4x2,Fail
 spec@glsl-4.00@execution@conversion@geom-conversion-explicit-dvec4-vec4,Fail
