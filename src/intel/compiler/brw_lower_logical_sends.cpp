@@ -2675,7 +2675,8 @@ lower_trace_ray_logical_send(const fs_builder &bld, fs_inst *inst)
    brw_reg payload = bld.vgrf(BRW_TYPE_UD);
    if (bvh_level.file == BRW_IMMEDIATE_VALUE &&
        trace_ray_control.file == BRW_IMMEDIATE_VALUE) {
-      bld.MOV(payload, brw_imm_ud(SET_BITS(trace_ray_control.ud, 9, 8) |
+      uint32_t high = devinfo->ver >= 20 ? 10 : 9;
+      bld.MOV(payload, brw_imm_ud(SET_BITS(trace_ray_control.ud, high, 8) |
                                   (bvh_level.ud & 0x7)));
    } else {
       bld.SHL(payload, trace_ray_control, brw_imm_ud(8));
