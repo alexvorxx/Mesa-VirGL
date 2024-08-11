@@ -81,7 +81,6 @@ pub struct KernelArg {
 #[derive(Hash, PartialEq, Eq, Clone)]
 struct CompiledKernelArg {
     kind: InternalKernelArgType,
-    size: usize,
     offset: usize,
 }
 
@@ -233,7 +232,6 @@ impl CompiledKernelArg {
         unsafe {
             blob_write_uint16(blob, args.len() as u16);
             for arg in args {
-                blob_write_uint16(blob, arg.size as u16);
                 blob_write_uint16(blob, arg.offset as u16);
                 match arg.kind {
                     InternalKernelArgType::ConstantBuffer => blob_write_uint8(blob, 0),
@@ -262,7 +260,6 @@ impl CompiledKernelArg {
             let mut res = Vec::with_capacity(len);
 
             for _ in 0..len {
-                let size = blob_read_uint16(blob) as usize;
                 let offset = blob_read_uint16(blob) as usize;
 
                 let kind = match blob_read_uint8(blob) {
@@ -286,7 +283,6 @@ impl CompiledKernelArg {
 
                 res.push(Self {
                     kind: kind,
-                    size: size,
                     offset: offset,
                 });
             }
@@ -598,7 +594,6 @@ fn lower_and_optimize_nir(
                     s.normalized_coordinates(),
                 )),
                 offset: 0,
-                size: 0,
             });
         } else {
             last_loc = v.data.location;
@@ -651,7 +646,6 @@ fn lower_and_optimize_nir(
         compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::GlobalWorkOffsets,
             offset: 0,
-            size: (3 * dev.address_bits() / 8) as usize,
         });
         lower_state.base_global_invoc_id_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
@@ -666,7 +660,6 @@ fn lower_and_optimize_nir(
         compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::GlobalWorkSize,
             offset: 0,
-            size: (3 * dev.address_bits() / 8) as usize,
         });
         lower_state.global_size_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
@@ -681,7 +674,6 @@ fn lower_and_optimize_nir(
         compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::WorkGroupOffsets,
             offset: 0,
-            size: (3 * dev.address_bits() / 8) as usize,
         });
         lower_state.base_workgroup_id_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
@@ -696,7 +688,6 @@ fn lower_and_optimize_nir(
         compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::NumWorkgroups,
             offset: 0,
-            size: 12,
         });
 
         lower_state.num_workgroups_loc = args.len() + compiled_args.len() - 1;
@@ -712,7 +703,6 @@ fn lower_and_optimize_nir(
         compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::ConstantBuffer,
             offset: 0,
-            size: (dev.address_bits() / 8) as usize,
         });
         lower_state.const_buf_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
@@ -726,7 +716,6 @@ fn lower_and_optimize_nir(
         compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::PrintfBuffer,
             offset: 0,
-            size: (dev.address_bits() / 8) as usize,
         });
         lower_state.printf_buf_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
@@ -742,13 +731,11 @@ fn lower_and_optimize_nir(
         compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::FormatArray,
             offset: 0,
-            size: 2 * count as usize,
         });
 
         compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::OrderArray,
             offset: 0,
-            size: 2 * count as usize,
         });
 
         lower_state.format_arr_loc = args.len() + compiled_args.len() - 2;
@@ -771,7 +758,6 @@ fn lower_and_optimize_nir(
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_WORK_DIM) {
         compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::WorkDim,
-            size: 1,
             offset: 0,
         });
         lower_state.work_dim_loc = args.len() + compiled_args.len() - 1;
