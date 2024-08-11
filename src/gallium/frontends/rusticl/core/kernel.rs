@@ -79,7 +79,7 @@ pub struct KernelArg {
 }
 
 #[derive(Hash, PartialEq, Eq, Clone)]
-struct InternalKernelArg {
+struct CompiledKernelArg {
     kind: InternalKernelArgType,
     size: usize,
     offset: usize,
@@ -143,7 +143,7 @@ impl KernelArg {
 
     fn assign_locations(
         args: &mut [Self],
-        internal_args: &mut [InternalKernelArg],
+        compiled_args: &mut [CompiledKernelArg],
         nir: &mut NirShader,
     ) {
         for var in nir.variables_with_mode(
@@ -154,7 +154,7 @@ impl KernelArg {
                 arg.binding = var.data.binding;
                 arg.dead = false;
             } else {
-                internal_args
+                compiled_args
                     .get_mut(var.data.location as usize - args.len())
                     .unwrap()
                     .offset = var.data.driver_location as usize;
@@ -228,7 +228,7 @@ impl KernelArg {
     }
 }
 
-impl InternalKernelArg {
+impl CompiledKernelArg {
     fn serialize(args: &[Self], blob: &mut blob) {
         unsafe {
             blob_write_uint16(blob, args.len() as u16);
@@ -344,7 +344,7 @@ pub struct NirKernelBuild {
     info: pipe_compute_state_object_info,
     shared_size: u64,
     printf_info: Option<NirPrintfInfo>,
-    internal_args: Vec<InternalKernelArg>,
+    compiled_args: Vec<CompiledKernelArg>,
 }
 
 // SAFETY: `CSOWrapper` is only safe to use if the device supports `PIPE_CAP_SHAREABLE_SHADERS` and
@@ -356,7 +356,7 @@ impl NirKernelBuild {
     fn new(
         dev: &'static Device,
         mut nir: NirShader,
-        internal_args: Vec<InternalKernelArg>,
+        compiled_args: Vec<CompiledKernelArg>,
     ) -> Self {
         let cso = CSOWrapper::new(dev, &nir);
         let info = cso.get_cso_info();
@@ -376,7 +376,7 @@ impl NirKernelBuild {
             info: info,
             shared_size: shared_size,
             printf_info: printf_info,
-            internal_args: internal_args,
+            compiled_args: compiled_args,
         }
     }
 
@@ -507,7 +507,7 @@ fn lower_and_optimize_nir(
     nir: &mut NirShader,
     args: &[spirv::SPIRVKernelArg],
     lib_clc: &NirShader,
-) -> (Vec<KernelArg>, Vec<InternalKernelArg>) {
+) -> (Vec<KernelArg>, Vec<CompiledKernelArg>) {
     let address_bits_ptr_type;
     let address_bits_base_type;
     let global_address_format;
@@ -574,7 +574,7 @@ fn lower_and_optimize_nir(
     opt_nir(nir, dev, false);
 
     let mut args = KernelArg::from_spirv_nir(args, nir);
-    let mut internal_args = Vec::new();
+    let mut compiled_args = Vec::new();
 
     // asign locations for inline samplers.
     // IMPORTANT: this needs to happen before nir_remove_dead_variables.
@@ -591,7 +591,7 @@ fn lower_and_optimize_nir(
             last_loc += 1;
             v.data.location = last_loc;
 
-            internal_args.push(InternalKernelArg {
+            compiled_args.push(CompiledKernelArg {
                 kind: InternalKernelArgType::InlineSampler(Sampler::nir_to_cl(
                     s.addressing_mode(),
                     s.filter_mode(),
@@ -648,12 +648,12 @@ fn lower_and_optimize_nir(
     nir.gather_info();
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_BASE_GLOBAL_INVOCATION_ID) {
-        internal_args.push(InternalKernelArg {
+        compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::GlobalWorkOffsets,
             offset: 0,
             size: (3 * dev.address_bits() / 8) as usize,
         });
-        lower_state.base_global_invoc_id_loc = args.len() + internal_args.len() - 1;
+        lower_state.base_global_invoc_id_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
             unsafe { glsl_vector_type(address_bits_base_type, 3) },
@@ -663,12 +663,12 @@ fn lower_and_optimize_nir(
     }
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_GLOBAL_GROUP_SIZE) {
-        internal_args.push(InternalKernelArg {
+        compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::GlobalWorkSize,
             offset: 0,
             size: (3 * dev.address_bits() / 8) as usize,
         });
-        lower_state.global_size_loc = args.len() + internal_args.len() - 1;
+        lower_state.global_size_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
             unsafe { glsl_vector_type(address_bits_base_type, 3) },
@@ -678,12 +678,12 @@ fn lower_and_optimize_nir(
     }
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_BASE_WORKGROUP_ID) {
-        internal_args.push(InternalKernelArg {
+        compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::WorkGroupOffsets,
             offset: 0,
             size: (3 * dev.address_bits() / 8) as usize,
         });
-        lower_state.base_workgroup_id_loc = args.len() + internal_args.len() - 1;
+        lower_state.base_workgroup_id_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
             unsafe { glsl_vector_type(address_bits_base_type, 3) },
@@ -693,13 +693,13 @@ fn lower_and_optimize_nir(
     }
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_NUM_WORKGROUPS) {
-        internal_args.push(InternalKernelArg {
+        compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::NumWorkgroups,
             offset: 0,
             size: 12,
         });
 
-        lower_state.num_workgroups_loc = args.len() + internal_args.len() - 1;
+        lower_state.num_workgroups_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
             unsafe { glsl_vector_type(glsl_base_type::GLSL_TYPE_UINT, 3) },
@@ -709,12 +709,12 @@ fn lower_and_optimize_nir(
     }
 
     if nir.has_constant() {
-        internal_args.push(InternalKernelArg {
+        compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::ConstantBuffer,
             offset: 0,
             size: (dev.address_bits() / 8) as usize,
         });
-        lower_state.const_buf_loc = args.len() + internal_args.len() - 1;
+        lower_state.const_buf_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
             address_bits_ptr_type,
@@ -723,12 +723,12 @@ fn lower_and_optimize_nir(
         );
     }
     if nir.has_printf() {
-        internal_args.push(InternalKernelArg {
+        compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::PrintfBuffer,
             offset: 0,
             size: (dev.address_bits() / 8) as usize,
         });
-        lower_state.printf_buf_loc = args.len() + internal_args.len() - 1;
+        lower_state.printf_buf_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
             address_bits_ptr_type,
@@ -739,19 +739,19 @@ fn lower_and_optimize_nir(
 
     if nir.num_images() > 0 || nir.num_textures() > 0 {
         let count = nir.num_images() + nir.num_textures();
-        internal_args.push(InternalKernelArg {
+        compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::FormatArray,
             offset: 0,
             size: 2 * count as usize,
         });
 
-        internal_args.push(InternalKernelArg {
+        compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::OrderArray,
             offset: 0,
             size: 2 * count as usize,
         });
 
-        lower_state.format_arr_loc = args.len() + internal_args.len() - 2;
+        lower_state.format_arr_loc = args.len() + compiled_args.len() - 2;
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
             unsafe { glsl_array_type(glsl_int16_t_type(), count as u32, 2) },
@@ -759,7 +759,7 @@ fn lower_and_optimize_nir(
             "image_formats",
         );
 
-        lower_state.order_arr_loc = args.len() + internal_args.len() - 1;
+        lower_state.order_arr_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
             unsafe { glsl_array_type(glsl_int16_t_type(), count as u32, 2) },
@@ -769,12 +769,12 @@ fn lower_and_optimize_nir(
     }
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_WORK_DIM) {
-        internal_args.push(InternalKernelArg {
+        compiled_args.push(CompiledKernelArg {
             kind: InternalKernelArgType::WorkDim,
             size: 1,
             offset: 0,
         });
-        lower_state.work_dim_loc = args.len() + internal_args.len() - 1;
+        lower_state.work_dim_loc = args.len() + compiled_args.len() - 1;
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
             unsafe { glsl_uint8_t_type() },
@@ -850,7 +850,7 @@ fn lower_and_optimize_nir(
     /* before passing it into drivers, assign locations as drivers might remove nir_variables or
      * other things we depend on
      */
-    KernelArg::assign_locations(&mut args, &mut internal_args, nir);
+    KernelArg::assign_locations(&mut args, &mut compiled_args, nir);
 
     /* update the has_variable_shared_mem info as we might have DCEed all of them */
     nir.set_has_variable_shared_mem(
@@ -862,7 +862,7 @@ fn lower_and_optimize_nir(
     nir_pass!(nir, nir_opt_dce);
     nir.sweep_mem();
 
-    (args, internal_args)
+    (args, compiled_args)
 }
 
 pub struct SPIRVToNirResult {
@@ -875,7 +875,7 @@ impl SPIRVToNirResult {
         dev: &'static Device,
         kernel_info: &clc_kernel_info,
         args: Vec<KernelArg>,
-        internal_args: Vec<InternalKernelArg>,
+        compiled_args: Vec<CompiledKernelArg>,
         nir: NirShader,
     ) -> Self {
         let wgs = nir.workgroup_size();
@@ -889,7 +889,7 @@ impl SPIRVToNirResult {
 
         Self {
             kernel_info: kernel_info,
-            nir_kernel_build: NirKernelBuild::new(dev, nir, internal_args),
+            nir_kernel_build: NirKernelBuild::new(dev, nir, compiled_args),
         }
     }
 
@@ -905,13 +905,13 @@ impl SPIRVToNirResult {
                 .nir_shader_compiler_options(pipe_shader_type::PIPE_SHADER_COMPUTE),
         )?;
         let args = KernelArg::deserialize(&mut reader)?;
-        let internal_args = InternalKernelArg::deserialize(&mut reader)?;
+        let compiled_args = CompiledKernelArg::deserialize(&mut reader)?;
 
         Some(SPIRVToNirResult::new(
             d,
             kernel_info,
             args,
-            internal_args,
+            compiled_args,
             nir,
         ))
     }
@@ -922,11 +922,11 @@ impl SPIRVToNirResult {
         blob: &mut blob,
         nir: &NirShader,
         args: &[KernelArg],
-        internal_args: &[InternalKernelArg],
+        compiled_args: &[CompiledKernelArg],
     ) {
         nir.serialize(blob);
         KernelArg::serialize(args, blob);
-        InternalKernelArg::serialize(internal_args, blob);
+        CompiledKernelArg::serialize(compiled_args, blob);
     }
 }
 
@@ -946,20 +946,20 @@ pub(super) fn convert_spirv_to_nir(
         .and_then(|entry| SPIRVToNirResult::deserialize(&entry, dev, spirv_info))
         .unwrap_or_else(|| {
             let mut nir = build.to_nir(name, dev);
-            let (args, internal_args) = lower_and_optimize_nir(dev, &mut nir, args, &dev.lib_clc);
+            let (args, compiled_args) = lower_and_optimize_nir(dev, &mut nir, args, &dev.lib_clc);
 
             if let Some(cache) = cache {
                 let mut blob = blob::default();
                 unsafe {
                     blob_init(&mut blob);
-                    SPIRVToNirResult::serialize(&mut blob, &nir, &args, &internal_args);
+                    SPIRVToNirResult::serialize(&mut blob, &nir, &args, &compiled_args);
                     let bin = slice::from_raw_parts(blob.data, blob.size);
                     cache.put(bin, &mut key.unwrap());
                     blob_finish(&mut blob);
                 }
             }
 
-            SPIRVToNirResult::new(dev, spirv_info, args, internal_args, nir)
+            SPIRVToNirResult::new(dev, spirv_info, args, compiled_args, nir)
         })
 }
 
@@ -1234,7 +1234,7 @@ impl Kernel {
                 printf_buf = Some(buf);
             }
 
-            for arg in &nir_kernel_build.internal_args {
+            for arg in &nir_kernel_build.compiled_args {
                 if arg.offset > input.len() {
                     input.resize(arg.offset, 0);
                 }
