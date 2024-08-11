@@ -672,129 +672,109 @@ fn lower_and_optimize_nir(
     nir_pass!(nir, nir_lower_compute_system_values, &compute_options);
     nir.gather_info();
 
-    if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_BASE_GLOBAL_INVOCATION_ID) {
-        lower_state.base_global_invoc_id_loc = compiled_args.len();
+    let mut add_var = |nir: &mut NirShader,
+                       var_loc: &mut usize,
+                       kind: CompiledKernelArgType,
+                       glsl_type: *const glsl_type,
+                       name: &str| {
+        *var_loc = compiled_args.len();
         compiled_args.push(CompiledKernelArg {
-            kind: CompiledKernelArgType::GlobalWorkOffsets,
+            kind: kind,
             offset: 0,
         });
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
-            unsafe { glsl_vector_type(address_bits_base_type, 3) },
-            lower_state.base_global_invoc_id_loc,
-            "base_global_invocation_id",
+            glsl_type,
+            *var_loc,
+            name,
         );
+    };
+
+    if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_BASE_GLOBAL_INVOCATION_ID) {
+        add_var(
+            nir,
+            &mut lower_state.base_global_invoc_id_loc,
+            CompiledKernelArgType::GlobalWorkOffsets,
+            unsafe { glsl_vector_type(address_bits_base_type, 3) },
+            "base_global_invocation_id",
+        )
     }
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_GLOBAL_GROUP_SIZE) {
-        lower_state.global_size_loc = compiled_args.len();
-        compiled_args.push(CompiledKernelArg {
-            kind: CompiledKernelArgType::GlobalWorkSize,
-            offset: 0,
-        });
-        nir.add_var(
-            nir_variable_mode::nir_var_uniform,
+        add_var(
+            nir,
+            &mut lower_state.global_size_loc,
+            CompiledKernelArgType::GlobalWorkSize,
             unsafe { glsl_vector_type(address_bits_base_type, 3) },
-            lower_state.global_size_loc,
             "global_size",
-        );
+        )
     }
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_BASE_WORKGROUP_ID) {
-        lower_state.base_workgroup_id_loc = compiled_args.len();
-        compiled_args.push(CompiledKernelArg {
-            kind: CompiledKernelArgType::WorkGroupOffsets,
-            offset: 0,
-        });
-        nir.add_var(
-            nir_variable_mode::nir_var_uniform,
+        add_var(
+            nir,
+            &mut lower_state.base_workgroup_id_loc,
+            CompiledKernelArgType::WorkGroupOffsets,
             unsafe { glsl_vector_type(address_bits_base_type, 3) },
-            lower_state.base_workgroup_id_loc,
             "base_workgroup_id",
         );
     }
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_NUM_WORKGROUPS) {
-        lower_state.num_workgroups_loc = compiled_args.len();
-        compiled_args.push(CompiledKernelArg {
-            kind: CompiledKernelArgType::NumWorkgroups,
-            offset: 0,
-        });
-        nir.add_var(
-            nir_variable_mode::nir_var_uniform,
+        add_var(
+            nir,
+            &mut lower_state.num_workgroups_loc,
+            CompiledKernelArgType::NumWorkgroups,
             unsafe { glsl_vector_type(glsl_base_type::GLSL_TYPE_UINT, 3) },
-            lower_state.num_workgroups_loc,
             "num_workgroups",
         );
     }
 
     if nir.has_constant() {
-        lower_state.const_buf_loc = compiled_args.len();
-        compiled_args.push(CompiledKernelArg {
-            kind: CompiledKernelArgType::ConstantBuffer,
-            offset: 0,
-        });
-        nir.add_var(
-            nir_variable_mode::nir_var_uniform,
+        add_var(
+            nir,
+            &mut lower_state.const_buf_loc,
+            CompiledKernelArgType::ConstantBuffer,
             address_bits_ptr_type,
-            lower_state.const_buf_loc,
             "constant_buffer_addr",
         );
     }
     if nir.has_printf() {
-        lower_state.printf_buf_loc = compiled_args.len();
-        compiled_args.push(CompiledKernelArg {
-            kind: CompiledKernelArgType::PrintfBuffer,
-            offset: 0,
-        });
-        nir.add_var(
-            nir_variable_mode::nir_var_uniform,
+        add_var(
+            nir,
+            &mut lower_state.printf_buf_loc,
+            CompiledKernelArgType::PrintfBuffer,
             address_bits_ptr_type,
-            lower_state.printf_buf_loc,
             "printf_buffer_addr",
         );
     }
 
     if nir.num_images() > 0 || nir.num_textures() > 0 {
-        lower_state.format_arr_loc = compiled_args.len();
-        lower_state.order_arr_loc = compiled_args.len() + 1;
-
         let count = nir.num_images() + nir.num_textures();
-        compiled_args.push(CompiledKernelArg {
-            kind: CompiledKernelArgType::FormatArray,
-            offset: 0,
-        });
 
-        compiled_args.push(CompiledKernelArg {
-            kind: CompiledKernelArgType::OrderArray,
-            offset: 0,
-        });
-
-        nir.add_var(
-            nir_variable_mode::nir_var_uniform,
+        add_var(
+            nir,
+            &mut lower_state.format_arr_loc,
+            CompiledKernelArgType::FormatArray,
             unsafe { glsl_array_type(glsl_int16_t_type(), count as u32, 2) },
-            lower_state.format_arr_loc,
             "image_formats",
         );
 
-        nir.add_var(
-            nir_variable_mode::nir_var_uniform,
+        add_var(
+            nir,
+            &mut lower_state.order_arr_loc,
+            CompiledKernelArgType::OrderArray,
             unsafe { glsl_array_type(glsl_int16_t_type(), count as u32, 2) },
-            lower_state.order_arr_loc,
             "image_orders",
         );
     }
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_WORK_DIM) {
-        lower_state.work_dim_loc = compiled_args.len();
-        compiled_args.push(CompiledKernelArg {
-            kind: CompiledKernelArgType::WorkDim,
-            offset: 0,
-        });
-        nir.add_var(
-            nir_variable_mode::nir_var_uniform,
+        add_var(
+            nir,
+            &mut lower_state.work_dim_loc,
+            CompiledKernelArgType::WorkDim,
             unsafe { glsl_uint8_t_type() },
-            lower_state.work_dim_loc,
             "work_dim",
         );
     }
