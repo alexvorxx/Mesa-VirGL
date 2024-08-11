@@ -81,7 +81,7 @@ pub struct KernelArg {
 #[derive(Hash, PartialEq, Eq, Clone)]
 struct CompiledKernelArg {
     kind: InternalKernelArgType,
-    offset: usize,
+    offset: u32,
 }
 
 impl KernelArg {
@@ -156,7 +156,7 @@ impl KernelArg {
                 compiled_args
                     .get_mut(var.data.location as usize - args.len())
                     .unwrap()
-                    .offset = var.data.driver_location as usize;
+                    .offset = var.data.driver_location;
             }
         }
     }
@@ -232,7 +232,7 @@ impl CompiledKernelArg {
         unsafe {
             blob_write_uint16(blob, args.len() as u16);
             for arg in args {
-                blob_write_uint16(blob, arg.offset as u16);
+                blob_write_uint32(blob, arg.offset);
                 match arg.kind {
                     InternalKernelArgType::ConstantBuffer => blob_write_uint8(blob, 0),
                     InternalKernelArgType::GlobalWorkOffsets => blob_write_uint8(blob, 1),
@@ -260,7 +260,7 @@ impl CompiledKernelArg {
             let mut res = Vec::with_capacity(len);
 
             for _ in 0..len {
-                let offset = blob_read_uint16(blob) as usize;
+                let offset = blob_read_uint32(blob);
 
                 let kind = match blob_read_uint8(blob) {
                     0 => InternalKernelArgType::ConstantBuffer,
@@ -1221,8 +1221,8 @@ impl Kernel {
             }
 
             for arg in &nir_kernel_build.compiled_args {
-                if arg.offset > input.len() {
-                    input.resize(arg.offset, 0);
+                if arg.offset as usize > input.len() {
+                    input.resize(arg.offset as usize, 0);
                 }
                 match arg.kind {
                     InternalKernelArgType::ConstantBuffer => {
