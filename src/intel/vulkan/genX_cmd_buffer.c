@@ -1824,14 +1824,6 @@ genX(cmd_buffer_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer)
       return;
    }
 
-   const bool trace_flush =
-      (bits & (ANV_PIPE_FLUSH_BITS |
-               ANV_PIPE_STALL_BITS |
-               ANV_PIPE_INVALIDATE_BITS |
-               ANV_PIPE_END_OF_PIPE_SYNC_BIT)) != 0;
-   if (trace_flush)
-      trace_intel_begin_stall(&cmd_buffer->trace);
-
    if (GFX_VER == 9 &&
        (bits & ANV_PIPE_CS_STALL_BIT) &&
        (bits & ANV_PIPE_VF_CACHE_INVALIDATE_BIT)) {
@@ -1843,7 +1835,6 @@ genX(cmd_buffer_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer)
       memset(&cmd_buffer->state.gfx.ib_dirty_range, 0,
              sizeof(cmd_buffer->state.gfx.ib_dirty_range));
    }
-
 
    enum anv_pipe_bits emitted_bits = 0;
    cmd_buffer->state.pending_pipe_bits =
@@ -1866,20 +1857,6 @@ genX(cmd_buffer_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer)
    }
 #endif
 
-   if (trace_flush) {
-      trace_intel_end_stall(&cmd_buffer->trace,
-                            bits & ~cmd_buffer->state.pending_pipe_bits,
-                            anv_pipe_flush_bit_to_ds_stall_flag,
-                            cmd_buffer->state.pc_reasons[0],
-                            cmd_buffer->state.pc_reasons[1],
-                            cmd_buffer->state.pc_reasons[2],
-                            cmd_buffer->state.pc_reasons[3]);
-      cmd_buffer->state.pc_reasons[0] = NULL;
-      cmd_buffer->state.pc_reasons[1] = NULL;
-      cmd_buffer->state.pc_reasons[2] = NULL;
-      cmd_buffer->state.pc_reasons[3] = NULL;
-      cmd_buffer->state.pc_reasons_count = 0;
-   }
 }
 
 static inline struct anv_state
@@ -2428,6 +2405,20 @@ genX(batch_emit_pipe_control_write)(struct anv_batch *batch,
        (batch->engine_class == INTEL_ENGINE_CLASS_VIDEO))
       unreachable("Trying to emit unsupported PIPE_CONTROL command.");
 
+   const bool trace_flush =
+      (bits & (ANV_PIPE_FLUSH_BITS |
+               ANV_PIPE_STALL_BITS |
+               ANV_PIPE_INVALIDATE_BITS |
+               ANV_PIPE_END_OF_PIPE_SYNC_BIT)) != 0;
+   if (trace_flush && batch->trace != NULL) {
+      // Store pipe control reasons if there is enough space
+      if (batch->pc_reasons_count < ARRAY_SIZE(batch->pc_reasons)) {
+         batch->pc_reasons[batch->pc_reasons_count++] = reason;
+      }
+      trace_intel_begin_stall(batch->trace);
+   }
+
+
    /* XXX - insert all workarounds and GFX specific things below. */
 
    /* Wa_14014966230: For COMPUTE Workload - Any PIPE_CONTROL command with
@@ -2563,6 +2554,20 @@ genX(batch_emit_pipe_control_write)(struct anv_batch *batch,
       pipe.ImmediateData = imm_data;
 
       anv_debug_dump_pc(pipe, reason);
+   }
+
+   if (trace_flush && batch->trace != NULL) {
+         trace_intel_end_stall(batch->trace, bits,
+                               anv_pipe_flush_bit_to_ds_stall_flag,
+                               batch->pc_reasons[0],
+                               batch->pc_reasons[1],
+                               batch->pc_reasons[2],
+                               batch->pc_reasons[3]);
+         batch->pc_reasons[0] = NULL;
+         batch->pc_reasons[1] = NULL;
+         batch->pc_reasons[2] = NULL;
+         batch->pc_reasons[3] = NULL;
+         batch->pc_reasons_count = 0;
    }
 }
 

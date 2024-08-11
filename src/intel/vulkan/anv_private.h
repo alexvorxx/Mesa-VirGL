@@ -2346,6 +2346,11 @@ struct anv_batch {
     * Number of 3DPRIMITIVE's emitted for WA 16014538804
     */
    uint8_t num_3d_primitives_emitted;
+
+   struct u_trace * trace;
+   const char * pc_reasons[4];
+   uint32_t pc_reasons_count;
+
 };
 
 void *anv_batch_emit_dwords(struct anv_batch *batch, int num_dwords);
@@ -3926,8 +3931,6 @@ struct anv_cmd_state {
    struct anv_cmd_ray_tracing_state             rt;
 
    enum anv_pipe_bits                           pending_pipe_bits;
-   const char *                                 pc_reasons[4];
-   uint32_t                                     pc_reasons_count;
 
    /**
     * Whether the last programmed STATE_BASE_ADDRESS references
@@ -6153,11 +6156,8 @@ anv_add_pending_pipe_bits(struct anv_cmd_buffer* cmd_buffer,
       anv_dump_pipe_bits(bits, stdout);
       fprintf(stdout, "reason: %s\n", reason);
    }
-   /* store reason, if space available*/
-   if (cmd_buffer->state.pc_reasons_count <
-       ARRAY_SIZE(cmd_buffer->state.pc_reasons)) {
-      cmd_buffer->state.pc_reasons[
-         cmd_buffer->state.pc_reasons_count++] = reason;
+   if (cmd_buffer->batch.pc_reasons_count < ARRAY_SIZE(cmd_buffer->batch.pc_reasons)) {
+      cmd_buffer->batch.pc_reasons[cmd_buffer->batch.pc_reasons_count++] = reason;
    }
 }
 
