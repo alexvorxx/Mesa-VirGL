@@ -122,14 +122,6 @@ pub struct KernelArg {
     pub dead: bool,
 }
 
-#[derive(Hash, PartialEq, Eq, Clone)]
-struct CompiledKernelArg {
-    kind: CompiledKernelArgType,
-    /// The binding for image/sampler args, the offset into the input buffer
-    /// for anything else.
-    offset: u32,
-}
-
 impl KernelArg {
     fn from_spirv_nir(spirv: &[spirv::SPIRVKernelArg], nir: &mut NirShader) -> Vec<Self> {
         let nir_arg_map: HashMap<_, _> = nir
@@ -240,6 +232,14 @@ impl KernelArg {
             Some(res)
         }
     }
+}
+
+#[derive(Hash, PartialEq, Eq, Clone)]
+struct CompiledKernelArg {
+    kind: CompiledKernelArgType,
+    /// The binding for image/sampler args, the offset into the input buffer
+    /// for anything else.
+    offset: u32,
 }
 
 impl CompiledKernelArg {
