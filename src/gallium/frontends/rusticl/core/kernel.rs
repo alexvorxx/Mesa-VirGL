@@ -54,7 +54,7 @@ pub enum KernelArgType {
 }
 
 #[derive(Hash, PartialEq, Eq, Clone)]
-enum InternalKernelArgType {
+enum CompiledKernelArgType {
     ConstantBuffer,
     GlobalWorkOffsets,
     GlobalWorkSize,
@@ -80,7 +80,7 @@ pub struct KernelArg {
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 struct CompiledKernelArg {
-    kind: InternalKernelArgType,
+    kind: CompiledKernelArgType,
     offset: u32,
 }
 
@@ -234,21 +234,21 @@ impl CompiledKernelArg {
             for arg in args {
                 blob_write_uint32(blob, arg.offset);
                 match arg.kind {
-                    InternalKernelArgType::ConstantBuffer => blob_write_uint8(blob, 0),
-                    InternalKernelArgType::GlobalWorkOffsets => blob_write_uint8(blob, 1),
-                    InternalKernelArgType::PrintfBuffer => blob_write_uint8(blob, 2),
-                    InternalKernelArgType::InlineSampler((addr_mode, filter_mode, norm)) => {
+                    CompiledKernelArgType::ConstantBuffer => blob_write_uint8(blob, 0),
+                    CompiledKernelArgType::GlobalWorkOffsets => blob_write_uint8(blob, 1),
+                    CompiledKernelArgType::PrintfBuffer => blob_write_uint8(blob, 2),
+                    CompiledKernelArgType::InlineSampler((addr_mode, filter_mode, norm)) => {
                         blob_write_uint8(blob, 3);
                         blob_write_uint8(blob, norm.into());
                         blob_write_uint32(blob, addr_mode);
                         blob_write_uint32(blob, filter_mode)
                     }
-                    InternalKernelArgType::FormatArray => blob_write_uint8(blob, 4),
-                    InternalKernelArgType::OrderArray => blob_write_uint8(blob, 5),
-                    InternalKernelArgType::WorkDim => blob_write_uint8(blob, 6),
-                    InternalKernelArgType::WorkGroupOffsets => blob_write_uint8(blob, 7),
-                    InternalKernelArgType::NumWorkgroups => blob_write_uint8(blob, 8),
-                    InternalKernelArgType::GlobalWorkSize => blob_write_uint8(blob, 9),
+                    CompiledKernelArgType::FormatArray => blob_write_uint8(blob, 4),
+                    CompiledKernelArgType::OrderArray => blob_write_uint8(blob, 5),
+                    CompiledKernelArgType::WorkDim => blob_write_uint8(blob, 6),
+                    CompiledKernelArgType::WorkGroupOffsets => blob_write_uint8(blob, 7),
+                    CompiledKernelArgType::NumWorkgroups => blob_write_uint8(blob, 8),
+                    CompiledKernelArgType::GlobalWorkSize => blob_write_uint8(blob, 9),
                 };
             }
         }
@@ -263,21 +263,21 @@ impl CompiledKernelArg {
                 let offset = blob_read_uint32(blob);
 
                 let kind = match blob_read_uint8(blob) {
-                    0 => InternalKernelArgType::ConstantBuffer,
-                    1 => InternalKernelArgType::GlobalWorkOffsets,
-                    2 => InternalKernelArgType::PrintfBuffer,
+                    0 => CompiledKernelArgType::ConstantBuffer,
+                    1 => CompiledKernelArgType::GlobalWorkOffsets,
+                    2 => CompiledKernelArgType::PrintfBuffer,
                     3 => {
                         let norm = blob_read_uint8(blob) != 0;
                         let addr_mode = blob_read_uint32(blob);
                         let filter_mode = blob_read_uint32(blob);
-                        InternalKernelArgType::InlineSampler((addr_mode, filter_mode, norm))
+                        CompiledKernelArgType::InlineSampler((addr_mode, filter_mode, norm))
                     }
-                    4 => InternalKernelArgType::FormatArray,
-                    5 => InternalKernelArgType::OrderArray,
-                    6 => InternalKernelArgType::WorkDim,
-                    7 => InternalKernelArgType::WorkGroupOffsets,
-                    8 => InternalKernelArgType::NumWorkgroups,
-                    9 => InternalKernelArgType::GlobalWorkSize,
+                    4 => CompiledKernelArgType::FormatArray,
+                    5 => CompiledKernelArgType::OrderArray,
+                    6 => CompiledKernelArgType::WorkDim,
+                    7 => CompiledKernelArgType::WorkGroupOffsets,
+                    8 => CompiledKernelArgType::NumWorkgroups,
+                    9 => CompiledKernelArgType::GlobalWorkSize,
                     _ => return None,
                 };
 
@@ -588,7 +588,7 @@ fn lower_and_optimize_nir(
             v.data.location = last_loc;
 
             compiled_args.push(CompiledKernelArg {
-                kind: InternalKernelArgType::InlineSampler(Sampler::nir_to_cl(
+                kind: CompiledKernelArgType::InlineSampler(Sampler::nir_to_cl(
                     s.addressing_mode(),
                     s.filter_mode(),
                     s.normalized_coordinates(),
@@ -644,7 +644,7 @@ fn lower_and_optimize_nir(
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_BASE_GLOBAL_INVOCATION_ID) {
         compiled_args.push(CompiledKernelArg {
-            kind: InternalKernelArgType::GlobalWorkOffsets,
+            kind: CompiledKernelArgType::GlobalWorkOffsets,
             offset: 0,
         });
         lower_state.base_global_invoc_id_loc = args.len() + compiled_args.len() - 1;
@@ -658,7 +658,7 @@ fn lower_and_optimize_nir(
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_GLOBAL_GROUP_SIZE) {
         compiled_args.push(CompiledKernelArg {
-            kind: InternalKernelArgType::GlobalWorkSize,
+            kind: CompiledKernelArgType::GlobalWorkSize,
             offset: 0,
         });
         lower_state.global_size_loc = args.len() + compiled_args.len() - 1;
@@ -672,7 +672,7 @@ fn lower_and_optimize_nir(
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_BASE_WORKGROUP_ID) {
         compiled_args.push(CompiledKernelArg {
-            kind: InternalKernelArgType::WorkGroupOffsets,
+            kind: CompiledKernelArgType::WorkGroupOffsets,
             offset: 0,
         });
         lower_state.base_workgroup_id_loc = args.len() + compiled_args.len() - 1;
@@ -686,7 +686,7 @@ fn lower_and_optimize_nir(
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_NUM_WORKGROUPS) {
         compiled_args.push(CompiledKernelArg {
-            kind: InternalKernelArgType::NumWorkgroups,
+            kind: CompiledKernelArgType::NumWorkgroups,
             offset: 0,
         });
 
@@ -701,7 +701,7 @@ fn lower_and_optimize_nir(
 
     if nir.has_constant() {
         compiled_args.push(CompiledKernelArg {
-            kind: InternalKernelArgType::ConstantBuffer,
+            kind: CompiledKernelArgType::ConstantBuffer,
             offset: 0,
         });
         lower_state.const_buf_loc = args.len() + compiled_args.len() - 1;
@@ -714,7 +714,7 @@ fn lower_and_optimize_nir(
     }
     if nir.has_printf() {
         compiled_args.push(CompiledKernelArg {
-            kind: InternalKernelArgType::PrintfBuffer,
+            kind: CompiledKernelArgType::PrintfBuffer,
             offset: 0,
         });
         lower_state.printf_buf_loc = args.len() + compiled_args.len() - 1;
@@ -729,12 +729,12 @@ fn lower_and_optimize_nir(
     if nir.num_images() > 0 || nir.num_textures() > 0 {
         let count = nir.num_images() + nir.num_textures();
         compiled_args.push(CompiledKernelArg {
-            kind: InternalKernelArgType::FormatArray,
+            kind: CompiledKernelArgType::FormatArray,
             offset: 0,
         });
 
         compiled_args.push(CompiledKernelArg {
-            kind: InternalKernelArgType::OrderArray,
+            kind: CompiledKernelArgType::OrderArray,
             offset: 0,
         });
 
@@ -757,7 +757,7 @@ fn lower_and_optimize_nir(
 
     if nir.reads_sysval(gl_system_value::SYSTEM_VALUE_WORK_DIM) {
         compiled_args.push(CompiledKernelArg {
-            kind: InternalKernelArgType::WorkDim,
+            kind: CompiledKernelArgType::WorkDim,
             offset: 0,
         });
         lower_state.work_dim_loc = args.len() + compiled_args.len() - 1;
@@ -1225,40 +1225,40 @@ impl Kernel {
                     input.resize(arg.offset as usize, 0);
                 }
                 match arg.kind {
-                    InternalKernelArgType::ConstantBuffer => {
+                    CompiledKernelArgType::ConstantBuffer => {
                         assert!(nir_kernel_build.constant_buffer.is_some());
                         let res = nir_kernel_build.constant_buffer.as_ref().unwrap();
                         add_global(q, &mut input, &mut resource_info, res, 0);
                     }
-                    InternalKernelArgType::GlobalWorkOffsets => {
+                    CompiledKernelArgType::GlobalWorkOffsets => {
                         add_sysval(q, &mut input, &offsets);
                     }
-                    InternalKernelArgType::WorkGroupOffsets => {
+                    CompiledKernelArgType::WorkGroupOffsets => {
                         workgroup_id_offset_loc = Some(input.len());
                         input.extend_from_slice(null_ptr_v3);
                     }
-                    InternalKernelArgType::GlobalWorkSize => {
+                    CompiledKernelArgType::GlobalWorkSize => {
                         add_sysval(q, &mut input, &api_grid);
                     }
-                    InternalKernelArgType::PrintfBuffer => {
+                    CompiledKernelArgType::PrintfBuffer => {
                         let res = printf_buf.as_ref().unwrap();
                         add_global(q, &mut input, &mut resource_info, res, 0);
                     }
-                    InternalKernelArgType::InlineSampler(cl) => {
+                    CompiledKernelArgType::InlineSampler(cl) => {
                         samplers.push(Sampler::cl_to_pipe(cl));
                     }
-                    InternalKernelArgType::FormatArray => {
+                    CompiledKernelArgType::FormatArray => {
                         input.extend_from_slice(unsafe { as_byte_slice(&tex_formats) });
                         input.extend_from_slice(unsafe { as_byte_slice(&img_formats) });
                     }
-                    InternalKernelArgType::OrderArray => {
+                    CompiledKernelArgType::OrderArray => {
                         input.extend_from_slice(unsafe { as_byte_slice(&tex_orders) });
                         input.extend_from_slice(unsafe { as_byte_slice(&img_orders) });
                     }
-                    InternalKernelArgType::WorkDim => {
+                    CompiledKernelArgType::WorkDim => {
                         input.extend_from_slice(&[work_dim as u8; 1]);
                     }
-                    InternalKernelArgType::NumWorkgroups => {
+                    CompiledKernelArgType::NumWorkgroups => {
                         input.extend_from_slice(unsafe {
                             as_byte_slice(&[grid[0] as u32, grid[1] as u32, grid[2] as u32])
                         });
