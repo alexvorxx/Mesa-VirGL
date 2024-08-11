@@ -88,6 +88,16 @@ impl KernelArgType {
             };
         }
     }
+
+    fn is_opaque(&self) -> bool {
+        matches!(
+            self,
+            KernelArgType::Image
+                | KernelArgType::RWImage
+                | KernelArgType::Texture
+                | KernelArgType::Sampler
+        )
+    }
 }
 
 #[derive(Hash, PartialEq, Eq, Clone)]
@@ -1145,13 +1155,7 @@ impl Kernel {
 
             for arg in &nir_kernel_build.compiled_args {
                 let is_opaque = if let CompiledKernelArgType::APIArg(idx) = arg.kind {
-                    matches!(
-                        kernel_info.args[idx as usize].kind,
-                        KernelArgType::Image
-                            | KernelArgType::RWImage
-                            | KernelArgType::Texture
-                            | KernelArgType::Sampler
-                    )
+                    kernel_info.args[idx as usize].kind.is_opaque()
                 } else {
                     false
                 };
