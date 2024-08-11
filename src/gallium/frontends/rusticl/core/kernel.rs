@@ -43,14 +43,14 @@ pub enum KernelArgValue {
 #[repr(u8)]
 #[derive(Hash, PartialEq, Eq, Clone, Copy)]
 pub enum KernelArgType {
-    Constant = 0, // for anything passed by value
-    Image = 1,
-    RWImage = 2,
-    Sampler = 3,
-    Texture = 4,
-    MemGlobal = 5,
-    MemConstant = 6,
-    MemLocal = 7,
+    Constant(/* size */ u16), // for anything passed by value
+    Image,
+    RWImage,
+    Sampler,
+    Texture,
+    MemGlobal,
+    MemConstant,
+    MemLocal,
 }
 
 #[derive(Hash, PartialEq, Eq, Clone)]
@@ -71,7 +71,6 @@ enum InternalKernelArgType {
 pub struct KernelArg {
     spirv: spirv::SPIRVKernelArg,
     pub kind: KernelArgType,
-    pub size: usize,
     /// The offset into the input buffer
     offset: usize,
     /// The actual binding slot
@@ -103,7 +102,9 @@ impl KernelArg {
                     if unsafe { glsl_type_is_sampler(nir.type_) } {
                         KernelArgType::Sampler
                     } else {
-                        KernelArgType::Constant
+                        let size = unsafe { glsl_get_cl_size(nir.type_) } as u16;
+                        // nir types of non opaque types are never sized 0
+                        KernelArgType::Constant(size)
                     }
                 }
                 clc_kernel_arg_address_qualifier::CLC_KERNEL_ARG_ADDRESS_CONSTANT => {
@@ -130,7 +131,6 @@ impl KernelArg {
 
             res.push(Self {
                 spirv: s.clone(),
-                size: unsafe { glsl_get_cl_size(nir.type_) } as usize,
                 // we'll update it later in the 2nd pass
                 kind: kind,
                 offset: 0,
@@ -168,11 +168,22 @@ impl KernelArg {
 
             for arg in args {
                 arg.spirv.serialize(blob);
-                blob_write_uint16(blob, arg.size as u16);
                 blob_write_uint16(blob, arg.offset as u16);
                 blob_write_uint16(blob, arg.binding as u16);
                 blob_write_uint8(blob, arg.dead.into());
-                blob_write_uint8(blob, arg.kind as u8);
+                match arg.kind {
+                    KernelArgType::Constant(size) => {
+                        blob_write_uint8(blob, 0);
+                        blob_write_uint16(blob, size)
+                    }
+                    KernelArgType::Image => blob_write_uint8(blob, 1),
+                    KernelArgType::RWImage => blob_write_uint8(blob, 2),
+                    KernelArgType::Sampler => blob_write_uint8(blob, 3),
+                    KernelArgType::Texture => blob_write_uint8(blob, 4),
+                    KernelArgType::MemGlobal => blob_write_uint8(blob, 5),
+                    KernelArgType::MemConstant => blob_write_uint8(blob, 6),
+                    KernelArgType::MemLocal => blob_write_uint8(blob, 7),
+                };
             }
         }
     }
@@ -184,13 +195,15 @@ impl KernelArg {
 
             for _ in 0..len {
                 let spirv = spirv::SPIRVKernelArg::deserialize(blob)?;
-                let size = blob_read_uint16(blob) as usize;
                 let offset = blob_read_uint16(blob) as usize;
                 let binding = blob_read_uint16(blob) as u32;
                 let dead = blob_read_uint8(blob) != 0;
 
                 let kind = match blob_read_uint8(blob) {
-                    0 => KernelArgType::Constant,
+                    0 => {
+                        let size = blob_read_uint16(blob);
+                        KernelArgType::Constant(size)
+                    }
                     1 => KernelArgType::Image,
                     2 => KernelArgType::RWImage,
                     3 => KernelArgType::Sampler,
@@ -204,7 +217,6 @@ impl KernelArg {
                 res.push(Self {
                     spirv: spirv,
                     kind: kind,
-                    size: size,
                     offset: offset,
                     binding: binding,
                     dead: dead,
