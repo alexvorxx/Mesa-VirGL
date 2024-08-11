@@ -6597,7 +6597,10 @@ impl Instr {
     }
 
     pub fn is_uniform(&self) -> bool {
-        self.op.is_uniform()
+        match &self.op {
+            Op::PhiDsts(_) => false,
+            op => op.is_uniform(),
+        }
     }
 
     pub fn has_fixed_latency(&self, sm: u8) -> bool {
