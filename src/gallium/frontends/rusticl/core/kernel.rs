@@ -72,7 +72,7 @@ pub struct KernelArg {
     spirv: spirv::SPIRVKernelArg,
     pub kind: KernelArgType,
     /// The offset into the input buffer
-    offset: usize,
+    offset: u32,
     /// The actual binding slot
     binding: u32,
     pub dead: bool,
@@ -149,7 +149,7 @@ impl KernelArg {
             nir_variable_mode::nir_var_uniform | nir_variable_mode::nir_var_image,
         ) {
             if let Some(arg) = args.get_mut(var.data.location as usize) {
-                arg.offset = var.data.driver_location as usize;
+                arg.offset = var.data.driver_location;
                 arg.binding = var.data.binding;
                 arg.dead = false;
             } else {
@@ -167,8 +167,8 @@ impl KernelArg {
 
             for arg in args {
                 arg.spirv.serialize(blob);
-                blob_write_uint16(blob, arg.offset as u16);
-                blob_write_uint16(blob, arg.binding as u16);
+                blob_write_uint32(blob, arg.offset);
+                blob_write_uint32(blob, arg.binding);
                 blob_write_uint8(blob, arg.dead.into());
                 match arg.kind {
                     KernelArgType::Constant(size) => {
@@ -194,8 +194,8 @@ impl KernelArg {
 
             for _ in 0..len {
                 let spirv = spirv::SPIRVKernelArg::deserialize(blob)?;
-                let offset = blob_read_uint16(blob) as usize;
-                let binding = blob_read_uint16(blob) as u32;
+                let offset = blob_read_uint32(blob);
+                let binding = blob_read_uint32(blob);
                 let dead = blob_read_uint8(blob) != 0;
 
                 let kind = match blob_read_uint8(blob) {
@@ -1119,7 +1119,7 @@ impl Kernel {
                     && arg.kind != KernelArgType::Texture
                     && arg.kind != KernelArgType::Sampler
                 {
-                    input.resize(arg.offset, 0);
+                    input.resize(arg.offset as usize, 0);
                 }
                 match val.as_ref().unwrap() {
                     KernelArgValue::Constant(c) => input.extend_from_slice(c),
