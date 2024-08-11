@@ -53,6 +53,43 @@ pub enum KernelArgType {
     MemLocal,
 }
 
+impl KernelArgType {
+    fn deserialize(blob: &mut blob_reader) -> Option<Self> {
+        Some(match unsafe { blob_read_uint8(blob) } {
+            0 => {
+                let size = unsafe { blob_read_uint16(blob) };
+                KernelArgType::Constant(size)
+            }
+            1 => KernelArgType::Image,
+            2 => KernelArgType::RWImage,
+            3 => KernelArgType::Sampler,
+            4 => KernelArgType::Texture,
+            5 => KernelArgType::MemGlobal,
+            6 => KernelArgType::MemConstant,
+            7 => KernelArgType::MemLocal,
+            _ => return None,
+        })
+    }
+
+    fn serialize(&self, blob: &mut blob) {
+        unsafe {
+            match self {
+                KernelArgType::Constant(size) => {
+                    blob_write_uint8(blob, 0);
+                    blob_write_uint16(blob, *size)
+                }
+                KernelArgType::Image => blob_write_uint8(blob, 1),
+                KernelArgType::RWImage => blob_write_uint8(blob, 2),
+                KernelArgType::Sampler => blob_write_uint8(blob, 3),
+                KernelArgType::Texture => blob_write_uint8(blob, 4),
+                KernelArgType::MemGlobal => blob_write_uint8(blob, 5),
+                KernelArgType::MemConstant => blob_write_uint8(blob, 6),
+                KernelArgType::MemLocal => blob_write_uint8(blob, 7),
+            };
+        }
+    }
+}
+
 #[derive(Hash, PartialEq, Eq, Clone)]
 enum CompiledKernelArgType {
     ConstantBuffer,
@@ -170,19 +207,7 @@ impl KernelArg {
                 blob_write_uint32(blob, arg.offset);
                 blob_write_uint32(blob, arg.binding);
                 blob_write_uint8(blob, arg.dead.into());
-                match arg.kind {
-                    KernelArgType::Constant(size) => {
-                        blob_write_uint8(blob, 0);
-                        blob_write_uint16(blob, size)
-                    }
-                    KernelArgType::Image => blob_write_uint8(blob, 1),
-                    KernelArgType::RWImage => blob_write_uint8(blob, 2),
-                    KernelArgType::Sampler => blob_write_uint8(blob, 3),
-                    KernelArgType::Texture => blob_write_uint8(blob, 4),
-                    KernelArgType::MemGlobal => blob_write_uint8(blob, 5),
-                    KernelArgType::MemConstant => blob_write_uint8(blob, 6),
-                    KernelArgType::MemLocal => blob_write_uint8(blob, 7),
-                };
+                arg.kind.serialize(blob);
             }
         }
     }
@@ -197,21 +222,7 @@ impl KernelArg {
                 let offset = blob_read_uint32(blob);
                 let binding = blob_read_uint32(blob);
                 let dead = blob_read_uint8(blob) != 0;
-
-                let kind = match blob_read_uint8(blob) {
-                    0 => {
-                        let size = blob_read_uint16(blob);
-                        KernelArgType::Constant(size)
-                    }
-                    1 => KernelArgType::Image,
-                    2 => KernelArgType::RWImage,
-                    3 => KernelArgType::Sampler,
-                    4 => KernelArgType::Texture,
-                    5 => KernelArgType::MemGlobal,
-                    6 => KernelArgType::MemConstant,
-                    7 => KernelArgType::MemLocal,
-                    _ => return None,
-                };
+                let kind = KernelArgType::deserialize(blob)?;
 
                 res.push(Self {
                     spirv: spirv,
