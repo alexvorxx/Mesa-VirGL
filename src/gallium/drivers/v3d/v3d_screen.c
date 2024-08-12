@@ -749,6 +749,7 @@ v3d_screen_get_compiler_options(struct pipe_screen *pscreen,
                         nir_lower_shift64 |
                         nir_lower_ufind_msb64,
                 .lower_fquantize2f16 = true,
+                .lower_ufind_msb = true,
                 .has_fsub = true,
                 .has_isub = true,
                 .has_uclz = true,

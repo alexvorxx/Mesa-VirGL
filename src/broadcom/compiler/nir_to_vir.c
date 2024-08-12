@@ -1619,10 +1619,6 @@ ntq_emit_alu(struct v3d_compile *c, nir_alu_instr *instr)
                 result = vir_CLZ(c, src[0]);
                 break;
 
-        case nir_op_ufind_msb:
-                result = vir_SUB(c, vir_uniform_ui(c, 31), vir_CLZ(c, src[0]));
-                break;
-
         case nir_op_imul:
                 result = vir_UMUL(c, src[0], src[1]);
                 break;
