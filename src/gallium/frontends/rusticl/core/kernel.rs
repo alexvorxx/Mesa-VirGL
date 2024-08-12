@@ -522,36 +522,12 @@ const DV_OPTS: nir_remove_dead_variables_options = nir_remove_dead_variables_opt
     can_remove_var_data: ptr::null_mut(),
 };
 
-fn lower_and_optimize_nir(
+fn compile_nir_to_args(
     dev: &Device,
-    nir: &mut NirShader,
+    mut nir: NirShader,
     args: &[spirv::SPIRVKernelArg],
     lib_clc: &NirShader,
-) -> (Vec<KernelArg>, Vec<CompiledKernelArg>) {
-    let address_bits_ptr_type;
-    let address_bits_base_type;
-    let global_address_format;
-    let shared_address_format;
-
-    if dev.address_bits() == 64 {
-        address_bits_ptr_type = unsafe { glsl_uint64_t_type() };
-        address_bits_base_type = glsl_base_type::GLSL_TYPE_UINT64;
-        global_address_format = nir_address_format::nir_address_format_64bit_global;
-        shared_address_format = nir_address_format::nir_address_format_32bit_offset_as_64bit;
-    } else {
-        address_bits_ptr_type = unsafe { glsl_uint_type() };
-        address_bits_base_type = glsl_base_type::GLSL_TYPE_UINT;
-        global_address_format = nir_address_format::nir_address_format_32bit_global;
-        shared_address_format = nir_address_format::nir_address_format_32bit_offset;
-    }
-
-    let mut lower_state = rusticl_lower_state::default();
-    let nir_options = unsafe {
-        &*dev
-            .screen
-            .nir_shader_compiler_options(pipe_shader_type::PIPE_SHADER_COMPUTE)
-    };
-
+) -> (Vec<KernelArg>, NirShader) {
     // this is a hack until we support fp16 properly and check for denorms inside vstore/vload_half
     nir.preserve_fp16_denorms();
 
@@ -591,19 +567,17 @@ fn lower_and_optimize_nir(
     };
     nir_pass!(nir, nir_lower_printf, &printf_opts);
 
-    opt_nir(nir, dev, false);
+    opt_nir(&mut nir, dev, false);
 
-    let mut args = KernelArg::from_spirv_nir(args, nir);
+    (KernelArg::from_spirv_nir(args, &mut nir), nir)
+}
 
-    // add all API kernel args
-    let mut compiled_args: Vec<_> = (0..args.len())
-        .map(|idx| CompiledKernelArg {
-            kind: CompiledKernelArgType::APIArg(idx as u32),
-            offset: 0,
-        })
-        .collect();
-
-    // asign locations for inline samplers.
+fn compile_nir_prepare_for_variants(
+    dev: &Device,
+    nir: &mut NirShader,
+    compiled_args: &mut Vec<CompiledKernelArg>,
+) {
+    // assign locations for inline samplers.
     // IMPORTANT: this needs to happen before nir_remove_dead_variables.
     let mut last_loc = -1;
     for v in nir
@@ -660,8 +634,44 @@ fn lower_and_optimize_nir(
     // has to run before adding internal kernel arguments
     nir.extract_constant_initializers();
 
-    // run before gather info
+    // needed to convert variables to load intrinsics
     nir_pass!(nir, nir_lower_system_values);
+
+    // Run here so we can decide if it makes sense to compile a variant, e.g. read system values.
+    nir.gather_info();
+}
+
+fn compile_nir_variant(
+    dev: &Device,
+    nir: &mut NirShader,
+    args: &mut [KernelArg],
+    compiled_args: &mut Vec<CompiledKernelArg>,
+) {
+    let mut lower_state = rusticl_lower_state::default();
+
+    let address_bits_ptr_type;
+    let address_bits_base_type;
+    let global_address_format;
+    let shared_address_format;
+
+    if dev.address_bits() == 64 {
+        address_bits_ptr_type = unsafe { glsl_uint64_t_type() };
+        address_bits_base_type = glsl_base_type::GLSL_TYPE_UINT64;
+        global_address_format = nir_address_format::nir_address_format_64bit_global;
+        shared_address_format = nir_address_format::nir_address_format_32bit_offset_as_64bit;
+    } else {
+        address_bits_ptr_type = unsafe { glsl_uint_type() };
+        address_bits_base_type = glsl_base_type::GLSL_TYPE_UINT;
+        global_address_format = nir_address_format::nir_address_format_32bit_global;
+        shared_address_format = nir_address_format::nir_address_format_32bit_offset;
+    }
+
+    let nir_options = unsafe {
+        &*dev
+            .screen
+            .nir_shader_compiler_options(pipe_shader_type::PIPE_SHADER_COMPUTE)
+    };
+
     let mut compute_options = nir_lower_compute_system_values_options::default();
     compute_options.set_has_base_global_invocation_id(true);
     compute_options.set_has_base_workgroup_id(true);
@@ -843,7 +853,7 @@ fn lower_and_optimize_nir(
     /* before passing it into drivers, assign locations as drivers might remove nir_variables or
      * other things we depend on
      */
-    CompiledKernelArg::assign_locations(&mut args, &mut compiled_args, nir);
+    CompiledKernelArg::assign_locations(args, compiled_args, nir);
 
     /* update the has_variable_shared_mem info as we might have DCEed all of them */
     nir.set_has_variable_shared_mem(
@@ -854,8 +864,25 @@ fn lower_and_optimize_nir(
 
     nir_pass!(nir, nir_opt_dce);
     nir.sweep_mem();
+}
 
-    (args, compiled_args)
+fn compile_nir_remaining(
+    dev: &Device,
+    mut nir: NirShader,
+    args: &mut [KernelArg],
+) -> (Vec<CompiledKernelArg>, NirShader) {
+    // add all API kernel args
+    let mut compiled_args: Vec<_> = (0..args.len())
+        .map(|idx| CompiledKernelArg {
+            kind: CompiledKernelArgType::APIArg(idx as u32),
+            offset: 0,
+        })
+        .collect();
+
+    compile_nir_prepare_for_variants(dev, &mut nir, &mut compiled_args);
+    compile_nir_variant(dev, &mut nir, args, &mut compiled_args);
+
+    (compiled_args, nir)
 }
 
 pub struct SPIRVToNirResult {
@@ -938,8 +965,9 @@ pub(super) fn convert_spirv_to_nir(
         .and_then(|cache| cache.get(&mut key?))
         .and_then(|entry| SPIRVToNirResult::deserialize(&entry, dev, spirv_info))
         .unwrap_or_else(|| {
-            let mut nir = build.to_nir(name, dev);
-            let (args, compiled_args) = lower_and_optimize_nir(dev, &mut nir, args, &dev.lib_clc);
+            let nir = build.to_nir(name, dev);
+            let (mut args, nir) = compile_nir_to_args(dev, nir, args, &dev.lib_clc);
+            let (compiled_args, nir) = compile_nir_remaining(dev, nir, &mut args);
 
             if let Some(cache) = cache {
                 let mut blob = blob::default();
