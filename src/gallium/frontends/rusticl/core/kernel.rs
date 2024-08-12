@@ -176,30 +176,6 @@ impl KernelArg {
         res
     }
 
-    fn assign_locations(
-        args: &mut [Self],
-        compiled_args: &mut [CompiledKernelArg],
-        nir: &mut NirShader,
-    ) {
-        for var in nir.variables_with_mode(
-            nir_variable_mode::nir_var_uniform | nir_variable_mode::nir_var_image,
-        ) {
-            let arg = &mut compiled_args[var.data.location as usize];
-            if let CompiledKernelArgType::APIArg(idx) = arg.kind {
-                args[idx as usize].dead = false;
-            }
-
-            let t = var.type_;
-            arg.offset = if unsafe {
-                glsl_type_is_image(t) || glsl_type_is_texture(t) || glsl_type_is_sampler(t)
-            } {
-                var.data.binding
-            } else {
-                var.data.driver_location
-            };
-        }
-    }
-
     fn serialize(args: &[Self], blob: &mut blob) {
         unsafe {
             blob_write_uint16(blob, args.len() as u16);
@@ -243,6 +219,26 @@ struct CompiledKernelArg {
 }
 
 impl CompiledKernelArg {
+    fn assign_locations(args: &mut [KernelArg], compiled_args: &mut [Self], nir: &mut NirShader) {
+        for var in nir.variables_with_mode(
+            nir_variable_mode::nir_var_uniform | nir_variable_mode::nir_var_image,
+        ) {
+            let arg = &mut compiled_args[var.data.location as usize];
+            if let CompiledKernelArgType::APIArg(idx) = arg.kind {
+                args[idx as usize].dead = false;
+            }
+
+            let t = var.type_;
+            arg.offset = if unsafe {
+                glsl_type_is_image(t) || glsl_type_is_texture(t) || glsl_type_is_sampler(t)
+            } {
+                var.data.binding
+            } else {
+                var.data.driver_location
+            };
+        }
+    }
+
     fn serialize(args: &[Self], blob: &mut blob) {
         unsafe {
             blob_write_uint16(blob, args.len() as u16);
@@ -847,7 +843,7 @@ fn lower_and_optimize_nir(
     /* before passing it into drivers, assign locations as drivers might remove nir_variables or
      * other things we depend on
      */
-    KernelArg::assign_locations(&mut args, &mut compiled_args, nir);
+    CompiledKernelArg::assign_locations(&mut args, &mut compiled_args, nir);
 
     /* update the has_variable_shared_mem info as we might have DCEed all of them */
     nir.set_has_variable_shared_mem(
