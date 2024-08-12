@@ -311,6 +311,9 @@ radv-fossils:
     # RDNA3 (GFX11)
     - AMDGPU_GPU_ID="NAVI31"
       ./install/fossilize-runner.sh
+    # RDNA3.5 (GFX1150)
+    - AMDGPU_GPU_ID="GFX1150"
+      ./install/fossilize-runner.sh
 
 ############### vkd3d-proton
 
