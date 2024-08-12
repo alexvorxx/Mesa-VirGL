@@ -484,6 +484,14 @@ impl NirShader {
     }
 }
 
+impl Clone for NirShader {
+    fn clone(&self) -> Self {
+        Self {
+            nir: unsafe { NonNull::new_unchecked(self.dup_for_driver()) },
+        }
+    }
+}
+
 impl Drop for NirShader {
     fn drop(&mut self) {
         unsafe { ralloc_free(self.nir.as_ptr().cast()) };
