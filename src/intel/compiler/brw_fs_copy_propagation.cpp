@@ -1740,7 +1740,7 @@ extract_imm(brw_reg val, brw_reg_type type, unsigned offset)
 
    assert(bitsize < brw_type_size_bits(val.type));
 
-   val.ud = (val.ud >> (bitsize * offset)) & ((1u << bitsize) - 1);
+   val.u64 = (val.u64 >> (bitsize * offset)) & ((1ull << bitsize) - 1);
 
    return val;
 }
