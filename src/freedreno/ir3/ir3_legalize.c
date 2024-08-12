@@ -47,7 +47,9 @@ struct ir3_legalize_state {
    regmask_t needs_ss_scalar_full; /* half scalar ALU producer -> full scalar ALU consumer */
    regmask_t needs_ss_scalar_half; /* full scalar ALU producer -> half scalar ALU consumer */
    regmask_t needs_ss_war; /* write after read */
+   regmask_t needs_ss_or_sy_war;  /* WAR for sy-producer sources */
    regmask_t needs_ss_scalar_war; /* scalar ALU write -> ALU write */
+   regmask_t needs_ss_or_sy_scalar_war;
    regmask_t needs_sy;
    bool needs_ss_for_const;
 
@@ -85,9 +87,13 @@ needs_ss_war(struct ir3_legalize_state *state, struct ir3_register *dst,
 {
    if (regmask_get(&state->needs_ss_war, dst))
       return true;
+   if (regmask_get(&state->needs_ss_or_sy_war, dst))
+      return true;
 
    if (!is_scalar_alu) {
       if (regmask_get(&state->needs_ss_scalar_war, dst))
+         return true;
+      if (regmask_get(&state->needs_ss_or_sy_scalar_war, dst))
          return true;
    }
 
@@ -101,8 +107,10 @@ apply_ss(struct ir3_instruction *instr,
 {
    instr->flags |= IR3_INSTR_SS;
    regmask_init(&state->needs_ss_war, mergedregs);
+   regmask_init(&state->needs_ss_or_sy_war, mergedregs);
    regmask_init(&state->needs_ss, mergedregs);
    regmask_init(&state->needs_ss_scalar_war, mergedregs);
+   regmask_init(&state->needs_ss_or_sy_scalar_war, mergedregs);
    regmask_init(&state->needs_ss_scalar_full, mergedregs);
    regmask_init(&state->needs_ss_scalar_half, mergedregs);
    state->needs_ss_for_const = false;
@@ -115,6 +123,8 @@ apply_sy(struct ir3_instruction *instr,
 {
    instr->flags |= IR3_INSTR_SY;
    regmask_init(&state->needs_sy, mergedregs);
+   regmask_init(&state->needs_ss_or_sy_war, mergedregs);
+   regmask_init(&state->needs_ss_or_sy_scalar_war, mergedregs);
 }
 
 static bool
@@ -341,6 +351,8 @@ legalize_block(struct ir3_legalize_ctx *ctx, struct ir3_block *block)
       regmask_or(&state->needs_ss, &state->needs_ss, &pstate->needs_ss);
       regmask_or(&state->needs_ss_war, &state->needs_ss_war,
                  &pstate->needs_ss_war);
+      regmask_or(&state->needs_ss_or_sy_war, &state->needs_ss_or_sy_war,
+                 &pstate->needs_ss_or_sy_war);
       regmask_or(&state->needs_sy, &state->needs_sy, &pstate->needs_sy);
       state->needs_ss_for_const |= pstate->needs_ss_for_const;
 
@@ -377,6 +389,9 @@ legalize_block(struct ir3_legalize_ctx *ctx, struct ir3_block *block)
                         &pstate->needs_ss_scalar_half);
       regmask_or_shared(&state->needs_ss_scalar_war, &state->needs_ss_scalar_war,
                         &pstate->needs_ss_scalar_war);
+      regmask_or_shared(&state->needs_ss_or_sy_scalar_war,
+                        &state->needs_ss_or_sy_scalar_war,
+                        &pstate->needs_ss_or_sy_scalar_war);
    }
 
    memcpy(&bd->state, state, sizeof(*state));
@@ -635,21 +650,41 @@ legalize_block(struct ir3_legalize_ctx *ctx, struct ir3_block *block)
        * their src register(s):
        */
       if (is_tex(n) || is_mem(n) || is_ss_producer(n)) {
+         /* These WAR hazards can always be resolved with (ss). However, when
+          * the reader is a sy-producer, they can also be resolved using (sy)
+          * because once we have synced the reader's results using (sy), its
+          * sources have definitely been consumed. We track the two cases
+          * separately so that we don't add an unnecessary (ss) if a (sy) sync
+          * already happened.
+          * For example, this prevents adding the unnecessary (ss) in the
+          * following sequence:
+          * sam rd, rs, ...
+          * (sy)... ; sam synced so consumed its sources
+          * (ss)write rs ; (ss) unnecessary since rs has been consumed already
+          */
+         bool needs_ss = is_ss_producer(n) || is_store(n);
+
          if (n_is_scalar_alu) {
             /* Scalar ALU also does not immediately read its source because it
              * is not executed right away, but scalar ALU instructions are
              * executed in-order so subsequent scalar ALU instructions don't
              * need to wait for previous ones.
              */
+            regmask_t *mask = needs_ss ? &state->needs_ss_scalar_war
+                                       : &state->needs_ss_or_sy_scalar_war;
+
             foreach_src (reg, n) {
                if ((reg->flags & IR3_REG_SHARED) || is_reg_a0(reg)) {
-                  regmask_set(&state->needs_ss_scalar_war, reg);
+                  regmask_set(mask, reg);
                }
             }
          } else {
+            regmask_t *mask =
+               needs_ss ? &state->needs_ss_war : &state->needs_ss_or_sy_war;
+
             foreach_src (reg, n) {
                if (!(reg->flags & (IR3_REG_IMMED | IR3_REG_CONST))) {
-                  regmask_set(&state->needs_ss_war, reg);
+                  regmask_set(mask, reg);
                }
             }
          }
@@ -1633,13 +1668,17 @@ ir3_legalize(struct ir3 *ir, struct ir3_shader_variant *so, int *max_bary)
          rzalloc(ctx, struct ir3_legalize_block_data);
 
       regmask_init(&bd->state.needs_ss_war, mergedregs);
+      regmask_init(&bd->state.needs_ss_or_sy_war, mergedregs);
       regmask_init(&bd->state.needs_ss_scalar_war, mergedregs);
+      regmask_init(&bd->state.needs_ss_or_sy_scalar_war, mergedregs);
       regmask_init(&bd->state.needs_ss_scalar_full, mergedregs);
       regmask_init(&bd->state.needs_ss_scalar_half, mergedregs);
       regmask_init(&bd->state.needs_ss, mergedregs);
       regmask_init(&bd->state.needs_sy, mergedregs);
       regmask_init(&bd->begin_state.needs_ss_war, mergedregs);
+      regmask_init(&bd->begin_state.needs_ss_or_sy_war, mergedregs);
       regmask_init(&bd->begin_state.needs_ss_scalar_war, mergedregs);
+      regmask_init(&bd->begin_state.needs_ss_or_sy_scalar_war, mergedregs);
       regmask_init(&bd->begin_state.needs_ss_scalar_full, mergedregs);
       regmask_init(&bd->begin_state.needs_ss_scalar_half, mergedregs);
       regmask_init(&bd->begin_state.needs_ss, mergedregs);
