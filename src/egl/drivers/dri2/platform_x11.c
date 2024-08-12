@@ -1824,10 +1824,10 @@ dri2_initialize_x11_swrast(_EGLDisplay *disp)
       dri2_dpy->loader_extensions = swrast_loader_extensions;
    }
 
-   if (!dri2_create_screen(disp))
+   if (!dri2_x11_check_multibuffers(disp))
       goto cleanup;
 
-   if (!dri2_x11_check_multibuffers(disp))
+   if (!dri2_create_screen(disp))
       goto cleanup;
 
    if (!dri2_setup_device(disp, true)) {
@@ -1910,10 +1910,10 @@ dri2_initialize_x11_dri3(_EGLDisplay *disp)
    dri2_dpy->swap_available = true;
    dri2_dpy->invalidate_available = true;
 
-   if (!dri2_create_screen(disp))
+   if (!dri2_x11_check_multibuffers(disp))
       goto cleanup;
 
-   if (!dri2_x11_check_multibuffers(disp))
+   if (!dri2_create_screen(disp))
       goto cleanup;
 
    if (!dri2_setup_device(disp, false)) {
@@ -2013,10 +2013,10 @@ dri2_initialize_x11_dri2(_EGLDisplay *disp)
    dri2_dpy->swap_available = (dri2_dpy->dri2_minor >= 2);
    dri2_dpy->invalidate_available = (dri2_dpy->dri2_minor >= 3);
 
-   if (!dri2_create_screen(disp))
+   if (!dri2_x11_check_multibuffers(disp))
       goto cleanup;
 
-   if (!dri2_x11_check_multibuffers(disp))
+   if (!dri2_create_screen(disp))
       goto cleanup;
 
    if (!dri2_setup_device(disp, false)) {
