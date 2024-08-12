@@ -394,6 +394,17 @@ add_single_reg_dep(struct ir3_postsched_deps_state *state,
          node->has_ss_src = true;
    }
 
+   if (src_n >= 0 && dep && state->direction == R) {
+      /* If node generates a WAR hazard (because it doesn't consume its sources
+       * immediately, dep needs (ss) to sync its dest. Even though this isn't a
+       * (ss) source (but rather a dest), the effect is exactly the same so we
+       * model it as such.
+       */
+      if (is_war_hazard_producer(node->instr)) {
+         dep->has_ss_src = true;
+      }
+   }
+
    add_dep(state, dep, node, d);
    if (src_n < 0) {
       *dep_ptr = node;
