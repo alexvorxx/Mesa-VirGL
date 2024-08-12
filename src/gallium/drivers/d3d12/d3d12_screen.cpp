@@ -1638,8 +1638,10 @@ d3d12_init_screen(struct d3d12_screen *screen, IUnknown *adapter)
 
    D3D12_FEATURE_DATA_FEATURE_LEVELS feature_levels;
    static const D3D_FEATURE_LEVEL levels[] = {
+#ifndef _GAMING_XBOX
       D3D_FEATURE_LEVEL_1_0_GENERIC,
       D3D_FEATURE_LEVEL_1_0_CORE,
+#endif
       D3D_FEATURE_LEVEL_11_0,
       D3D_FEATURE_LEVEL_11_1,
       D3D_FEATURE_LEVEL_12_0,
@@ -1665,7 +1667,9 @@ d3d12_init_screen(struct d3d12_screen *screen, IUnknown *adapter)
 #ifdef HAVE_GALLIUM_D3D12_GRAPHICS
    if (screen->max_feature_level >= D3D_FEATURE_LEVEL_11_0) {
       static const D3D_SHADER_MODEL valid_shader_models[] = {
+#ifndef _GAMING_XBOX
          D3D_SHADER_MODEL_6_8,
+#endif
          D3D_SHADER_MODEL_6_7, D3D_SHADER_MODEL_6_6, D3D_SHADER_MODEL_6_5, D3D_SHADER_MODEL_6_4,
          D3D_SHADER_MODEL_6_3, D3D_SHADER_MODEL_6_2, D3D_SHADER_MODEL_6_1, D3D_SHADER_MODEL_6_0,
       };
@@ -1673,7 +1677,9 @@ d3d12_init_screen(struct d3d12_screen *screen, IUnknown *adapter)
          D3D12_FEATURE_DATA_SHADER_MODEL shader_model = { valid_shader_models[i] };
          if (SUCCEEDED(screen->dev->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &shader_model, sizeof(shader_model)))) {
             static_assert(D3D_SHADER_MODEL_6_0 == 0x60 && SHADER_MODEL_6_0 == 0x60000, "Validating math below");
+#ifndef _GAMING_XBOX
             static_assert(D3D_SHADER_MODEL_6_8 == 0x68 && SHADER_MODEL_6_8 == 0x60008, "Validating math below");
+#endif
             screen->max_shader_model = static_cast<dxil_shader_model>(((shader_model.HighestShaderModel & 0xf0) << 12) |
                                                                      (shader_model.HighestShaderModel & 0xf));
             break;

@@ -299,6 +299,7 @@ init_texture(struct d3d12_screen *screen,
 
    HRESULT hres = E_FAIL;
    enum d3d12_residency_status init_residency;
+#ifndef _GAMING_XBOX
 
    if (heap && screen->max_feature_level == D3D_FEATURE_LEVEL_1_0_GENERIC) {
       D3D12_FEATURE_DATA_PLACED_RESOURCE_SUPPORT_INFO capData;
@@ -353,7 +354,9 @@ init_texture(struct d3d12_screen *screen,
                                                         format_cast_list,
                                                         IID_PPV_ARGS(&d3d12_res));
       }
-   } else {
+   } else
+#endif
+   {
       if (heap) {
          init_residency = d3d12_permanently_resident;
          hres = screen->dev->CreatePlacedResource(heap,
