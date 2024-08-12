@@ -152,6 +152,9 @@ if with_tests and get_option('b_sanitize') == 'none'
       idep_mesautil.partial_dependency(link_args : true, links : true),
       idep_nv_push_rs,
     ],
+    # This is needed to ensure we link against glibc
+    # See also https://gitlab.freedesktop.org/mesa/mesa/-/issues/11632
+    rust_args: ['-C', 'default-linker-libraries'],
     link_with: [
       _libacorn_rs,
     ],
