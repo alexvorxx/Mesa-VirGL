@@ -635,7 +635,9 @@ legalize_block(struct ir3_legalize_ctx *ctx, struct ir3_block *block)
             }
          } else {
             foreach_src (reg, n) {
-               regmask_set(&state->needs_ss_war, reg);
+               if (!(reg->flags & (IR3_REG_IMMED | IR3_REG_CONST))) {
+                  regmask_set(&state->needs_ss_war, reg);
+               }
             }
          }
       }
