@@ -1483,6 +1483,7 @@ static inline unsigned
 ir3_reg_file_offset(const struct ir3_register *reg, unsigned num,
                     bool mergedregs, enum ir3_reg_file *file)
 {
+   assert(!(reg->flags & (IR3_REG_IMMED | IR3_REG_CONST)));
    unsigned size = reg_elem_size(reg);
    if (!is_reg_gpr(reg)) {
       *file = IR3_FILE_NONGPR;
