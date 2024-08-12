@@ -532,8 +532,9 @@ radv_shader_spirv_to_nir(struct radv_device *device, const struct radv_shader_st
 
    bool gfx7minus = pdev->info.gfx_level <= GFX7;
    bool has_inverse_ballot = true;
+   bool use_llvm = radv_use_llvm_for_stage(pdev, nir->info.stage);
 #if AMD_LLVM_AVAILABLE
-   has_inverse_ballot = !radv_use_llvm_for_stage(pdev, nir->info.stage) || LLVM_VERSION_MAJOR >= 17;
+   has_inverse_ballot = !use_llvm || LLVM_VERSION_MAJOR >= 17;
 #endif
 
    NIR_PASS(_, nir, nir_lower_subgroups,
@@ -544,7 +545,7 @@ radv_shader_spirv_to_nir(struct radv_device *device, const struct radv_shader_st
                .lower_to_scalar = 1,
                .lower_subgroup_masks = 1,
                .lower_relative_shuffle = 1,
-               .lower_rotate_to_shuffle = radv_use_llvm_for_stage(pdev, nir->info.stage),
+               .lower_rotate_to_shuffle = use_llvm,
                .lower_shuffle_to_32bit = 1,
                .lower_vote_eq = 1,
                .lower_vote_bool_eq = 1,
@@ -553,7 +554,7 @@ radv_shader_spirv_to_nir(struct radv_device *device, const struct radv_shader_st
                .lower_shuffle_to_swizzle_amd = 1,
                .lower_ballot_bit_count_to_mbcnt_amd = 1,
                .lower_inverse_ballot = !has_inverse_ballot,
-               .lower_boolean_reduce = 1,
+               .lower_boolean_reduce = !use_llvm,
                .lower_boolean_shuffle = true,
             });
 

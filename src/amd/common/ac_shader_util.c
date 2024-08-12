@@ -91,7 +91,7 @@ void ac_set_nir_options(struct radeon_info *info, bool use_llvm,
    options->lower_int64_options = nir_lower_imul64 | nir_lower_imul_high64 | nir_lower_imul_2x32_64 | nir_lower_divmod64 |
                                   nir_lower_minmax64 | nir_lower_iabs64 | nir_lower_iadd_sat64 | nir_lower_conv64;
    options->divergence_analysis_options = nir_divergence_view_index_uniform;
-   options->optimize_quad_vote_to_reduce = true;
+   options->optimize_quad_vote_to_reduce = !use_llvm;
    options->lower_fisnormal = true;
    options->support_16bit_alu = info->gfx_level >= GFX8;
    options->vectorize_vec2_16bit = info->has_packed_math_16bit;
