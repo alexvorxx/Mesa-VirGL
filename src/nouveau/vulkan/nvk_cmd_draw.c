@@ -1448,13 +1448,60 @@ nvk_flush_vi_state(struct nvk_cmd_buffer *cmd)
    }
 }
 
+static uint32_t
+vk_to_nv9097_primitive_topology(VkPrimitiveTopology prim)
+{
+   switch (prim) {
+   case VK_PRIMITIVE_TOPOLOGY_POINT_LIST:
+      return NV9097_BEGIN_OP_POINTS;
+   case VK_PRIMITIVE_TOPOLOGY_LINE_LIST:
+      return NV9097_BEGIN_OP_LINES;
+   case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP:
+      return NV9097_BEGIN_OP_LINE_STRIP;
+   case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wswitch"
+   case VK_PRIMITIVE_TOPOLOGY_META_RECT_LIST_MESA:
+#pragma GCC diagnostic pop
+      return NV9097_BEGIN_OP_TRIANGLES;
+   case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
+      return NV9097_BEGIN_OP_TRIANGLE_STRIP;
+   case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
+      return NV9097_BEGIN_OP_TRIANGLE_FAN;
+   case VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY:
+      return NV9097_BEGIN_OP_LINELIST_ADJCY;
+   case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY:
+      return NV9097_BEGIN_OP_LINESTRIP_ADJCY;
+   case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY:
+      return NV9097_BEGIN_OP_TRIANGLELIST_ADJCY;
+   case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY:
+      return NV9097_BEGIN_OP_TRIANGLESTRIP_ADJCY;
+   case VK_PRIMITIVE_TOPOLOGY_PATCH_LIST:
+      return NV9097_BEGIN_OP_PATCH;
+   default:
+      unreachable("Invalid primitive topology");
+   }
+}
+
 static void
 nvk_flush_ia_state(struct nvk_cmd_buffer *cmd)
 {
    const struct vk_dynamic_graphics_state *dyn =
       &cmd->vk.dynamic_graphics_state;
 
-   /** Nothing to do for MESA_VK_DYNAMIC_IA_PRIMITIVE_TOPOLOGY */
+   if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_IA_PRIMITIVE_TOPOLOGY)) {
+      uint32_t begin;
+      V_NV9097_BEGIN(begin, {
+         .op = vk_to_nv9097_primitive_topology(dyn->ia.primitive_topology),
+         .primitive_id = NV9097_BEGIN_PRIMITIVE_ID_FIRST,
+         .instance_id = NV9097_BEGIN_INSTANCE_ID_FIRST,
+         .split_mode = SPLIT_MODE_NORMAL_BEGIN_NORMAL_END,
+      });
+
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 2);
+      P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_DRAW_BEGIN));
+      P_INLINE_DATA(p, begin);
+   }
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_IA_PRIMITIVE_RESTART_ENABLE)) {
       struct nv_push *p = nvk_cmd_buffer_push(cmd, 2);
@@ -2734,41 +2781,6 @@ nvk_CmdBindVertexBuffers2(VkCommandBuffer commandBuffer,
    }
 }
 
-static uint32_t
-vk_to_nv9097_primitive_topology(VkPrimitiveTopology prim)
-{
-   switch (prim) {
-   case VK_PRIMITIVE_TOPOLOGY_POINT_LIST:
-      return NV9097_BEGIN_OP_POINTS;
-   case VK_PRIMITIVE_TOPOLOGY_LINE_LIST:
-      return NV9097_BEGIN_OP_LINES;
-   case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP:
-      return NV9097_BEGIN_OP_LINE_STRIP;
-   case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST:
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wswitch"
-   case VK_PRIMITIVE_TOPOLOGY_META_RECT_LIST_MESA:
-#pragma GCC diagnostic pop
-      return NV9097_BEGIN_OP_TRIANGLES;
-   case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP:
-      return NV9097_BEGIN_OP_TRIANGLE_STRIP;
-   case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN:
-      return NV9097_BEGIN_OP_TRIANGLE_FAN;
-   case VK_PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY:
-      return NV9097_BEGIN_OP_LINELIST_ADJCY;
-   case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY:
-      return NV9097_BEGIN_OP_LINESTRIP_ADJCY;
-   case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY:
-      return NV9097_BEGIN_OP_TRIANGLELIST_ADJCY;
-   case VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY:
-      return NV9097_BEGIN_OP_TRIANGLESTRIP_ADJCY;
-   case VK_PRIMITIVE_TOPOLOGY_PATCH_LIST:
-      return NV9097_BEGIN_OP_PATCH;
-   default:
-      unreachable("Invalid primitive topology");
-   }
-}
-
 static void
 nvk_mme_set_cb0_mthd(struct mme_builder *b,
                      uint16_t cb0_offset,
@@ -2943,9 +2955,7 @@ nvk_mme_build_draw(struct mme_builder *b,
 void
 nvk_mme_draw(struct mme_builder *b)
 {
-   nvk_mme_load_to_scratch(b, DRAW_BEGIN);
    struct mme_value draw_index = mme_load(b);
-
    nvk_mme_build_draw(b, draw_index);
 }
 
@@ -2957,22 +2967,11 @@ nvk_CmdDraw(VkCommandBuffer commandBuffer,
             uint32_t firstInstance)
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
-   const struct vk_dynamic_graphics_state *dyn =
-      &cmd->vk.dynamic_graphics_state;
 
    nvk_flush_gfx_state(cmd);
 
-   uint32_t begin;
-   V_NV9097_BEGIN(begin, {
-      .op = vk_to_nv9097_primitive_topology(dyn->ia.primitive_topology),
-      .primitive_id = NV9097_BEGIN_PRIMITIVE_ID_FIRST,
-      .instance_id = NV9097_BEGIN_INSTANCE_ID_FIRST,
-      .split_mode = SPLIT_MODE_NORMAL_BEGIN_NORMAL_END,
-   });
-
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 6);
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW));
-   P_INLINE_DATA(p, begin);
    P_INLINE_DATA(p, 0 /* draw_index */);
    P_INLINE_DATA(p, vertexCount);
    P_INLINE_DATA(p, instanceCount);
@@ -2989,23 +2988,12 @@ nvk_CmdDrawMultiEXT(VkCommandBuffer commandBuffer,
                     uint32_t stride)
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
-   const struct vk_dynamic_graphics_state *dyn =
-      &cmd->vk.dynamic_graphics_state;
 
    nvk_flush_gfx_state(cmd);
 
-   uint32_t begin;
-   V_NV9097_BEGIN(begin, {
-      .op = vk_to_nv9097_primitive_topology(dyn->ia.primitive_topology),
-      .primitive_id = NV9097_BEGIN_PRIMITIVE_ID_FIRST,
-      .instance_id = NV9097_BEGIN_INSTANCE_ID_FIRST,
-      .split_mode = SPLIT_MODE_NORMAL_BEGIN_NORMAL_END,
-   });
-
    for (uint32_t draw_index = 0; draw_index < drawCount; draw_index++) {
-      struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 6);
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW));
-      P_INLINE_DATA(p, begin);
       P_INLINE_DATA(p, draw_index);
       P_INLINE_DATA(p, pVertexInfo->vertexCount);
       P_INLINE_DATA(p, instanceCount);
@@ -3106,9 +3094,7 @@ nvk_mme_build_draw_indexed(struct mme_builder *b,
 void
 nvk_mme_draw_indexed(struct mme_builder *b)
 {
-   nvk_mme_load_to_scratch(b, DRAW_BEGIN);
    struct mme_value draw_index = mme_load(b);
-
    nvk_mme_build_draw_indexed(b, draw_index);
 }
 
@@ -3121,22 +3107,11 @@ nvk_CmdDrawIndexed(VkCommandBuffer commandBuffer,
                    uint32_t firstInstance)
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
-   const struct vk_dynamic_graphics_state *dyn =
-      &cmd->vk.dynamic_graphics_state;
 
    nvk_flush_gfx_state(cmd);
 
-   uint32_t begin;
-   V_NV9097_BEGIN(begin, {
-      .op = vk_to_nv9097_primitive_topology(dyn->ia.primitive_topology),
-      .primitive_id = NV9097_BEGIN_PRIMITIVE_ID_FIRST,
-      .instance_id = NV9097_BEGIN_INSTANCE_ID_FIRST,
-      .split_mode = SPLIT_MODE_NORMAL_BEGIN_NORMAL_END,
-   });
-
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 8);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDEXED));
-   P_INLINE_DATA(p, begin);
    P_INLINE_DATA(p, 0 /* draw_index */);
    P_INLINE_DATA(p, indexCount);
    P_INLINE_DATA(p, instanceCount);
@@ -3155,26 +3130,15 @@ nvk_CmdDrawMultiIndexedEXT(VkCommandBuffer commandBuffer,
                            const int32_t *pVertexOffset)
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
-   const struct vk_dynamic_graphics_state *dyn =
-      &cmd->vk.dynamic_graphics_state;
 
    nvk_flush_gfx_state(cmd);
-
-   uint32_t begin;
-   V_NV9097_BEGIN(begin, {
-      .op = vk_to_nv9097_primitive_topology(dyn->ia.primitive_topology),
-      .primitive_id = NV9097_BEGIN_PRIMITIVE_ID_FIRST,
-      .instance_id = NV9097_BEGIN_INSTANCE_ID_FIRST,
-      .split_mode = SPLIT_MODE_NORMAL_BEGIN_NORMAL_END,
-   });
 
    for (uint32_t draw_index = 0; draw_index < drawCount; draw_index++) {
       const uint32_t vertex_offset =
          pVertexOffset != NULL ? *pVertexOffset : pIndexInfo->vertexOffset;
 
-      struct nv_push *p = nvk_cmd_buffer_push(cmd, 8);
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDEXED));
-      P_INLINE_DATA(p, begin);
       P_INLINE_DATA(p, draw_index);
       P_INLINE_DATA(p, pIndexInfo->indexCount);
       P_INLINE_DATA(p, instanceCount);
@@ -3189,8 +3153,6 @@ nvk_CmdDrawMultiIndexedEXT(VkCommandBuffer commandBuffer,
 void
 nvk_mme_draw_indirect(struct mme_builder *b)
 {
-   nvk_mme_load_to_scratch(b, DRAW_BEGIN);
-
    if (b->devinfo->cls_eng3d >= TURING_A) {
       struct mme_value64 draw_addr = mme_load_addr64(b);
       struct mme_value draw_count = mme_load(b);
@@ -3236,8 +3198,6 @@ nvk_CmdDrawIndirect(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(nvk_buffer, buffer, _buffer);
-   const struct vk_dynamic_graphics_state *dyn =
-      &cmd->vk.dynamic_graphics_state;
 
    /* From the Vulkan 1.3.238 spec:
     *
@@ -3259,18 +3219,9 @@ nvk_CmdDrawIndirect(VkCommandBuffer commandBuffer,
 
    nvk_flush_gfx_state(cmd);
 
-   uint32_t begin;
-   V_NV9097_BEGIN(begin, {
-      .op = vk_to_nv9097_primitive_topology(dyn->ia.primitive_topology),
-      .primitive_id = NV9097_BEGIN_PRIMITIVE_ID_FIRST,
-      .instance_id = NV9097_BEGIN_INSTANCE_ID_FIRST,
-      .split_mode = SPLIT_MODE_NORMAL_BEGIN_NORMAL_END,
-   });
-
    if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
-      struct nv_push *p = nvk_cmd_buffer_push(cmd, 6);
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 5);
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDIRECT));
-      P_INLINE_DATA(p, begin);
       uint64_t draw_addr = nvk_buffer_address(buffer, offset);
       P_INLINE_DATA(p, draw_addr >> 32);
       P_INLINE_DATA(p, draw_addr);
@@ -3284,9 +3235,8 @@ nvk_CmdDrawIndirect(VkCommandBuffer commandBuffer,
       while (drawCount) {
          const uint32_t count = MIN2(drawCount, max_draws_per_push);
 
-         struct nv_push *p = nvk_cmd_buffer_push(cmd, 4);
+         struct nv_push *p = nvk_cmd_buffer_push(cmd, 3);
          P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDIRECT));
-         P_INLINE_DATA(p, begin);
          P_INLINE_DATA(p, count);
          P_INLINE_DATA(p, (stride - sizeof(VkDrawIndirectCommand)) / 4);
 
@@ -3303,8 +3253,6 @@ nvk_CmdDrawIndirect(VkCommandBuffer commandBuffer,
 void
 nvk_mme_draw_indexed_indirect(struct mme_builder *b)
 {
-   nvk_mme_load_to_scratch(b, DRAW_BEGIN);
-
    if (b->devinfo->cls_eng3d >= TURING_A) {
       struct mme_value64 draw_addr = mme_load_addr64(b);
       struct mme_value draw_count = mme_load(b);
@@ -3350,8 +3298,6 @@ nvk_CmdDrawIndexedIndirect(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(nvk_buffer, buffer, _buffer);
-   const struct vk_dynamic_graphics_state *dyn =
-      &cmd->vk.dynamic_graphics_state;
 
    /* From the Vulkan 1.3.238 spec:
     *
@@ -3373,18 +3319,9 @@ nvk_CmdDrawIndexedIndirect(VkCommandBuffer commandBuffer,
 
    nvk_flush_gfx_state(cmd);
 
-   uint32_t begin;
-   V_NV9097_BEGIN(begin, {
-      .op = vk_to_nv9097_primitive_topology(dyn->ia.primitive_topology),
-      .primitive_id = NV9097_BEGIN_PRIMITIVE_ID_FIRST,
-      .instance_id = NV9097_BEGIN_INSTANCE_ID_FIRST,
-      .split_mode = SPLIT_MODE_NORMAL_BEGIN_NORMAL_END,
-   });
-
    if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
-      struct nv_push *p = nvk_cmd_buffer_push(cmd, 6);
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 5);
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDEXED_INDIRECT));
-      P_INLINE_DATA(p, begin);
       uint64_t draw_addr = nvk_buffer_address(buffer, offset);
       P_INLINE_DATA(p, draw_addr >> 32);
       P_INLINE_DATA(p, draw_addr);
@@ -3398,9 +3335,8 @@ nvk_CmdDrawIndexedIndirect(VkCommandBuffer commandBuffer,
       while (drawCount) {
          const uint32_t count = MIN2(drawCount, max_draws_per_push);
 
-         struct nv_push *p = nvk_cmd_buffer_push(cmd, 4);
+         struct nv_push *p = nvk_cmd_buffer_push(cmd, 3);
          P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDEXED_INDIRECT));
-         P_INLINE_DATA(p, begin);
          P_INLINE_DATA(p, count);
          P_INLINE_DATA(p, (stride - sizeof(VkDrawIndexedIndirectCommand)) / 4);
 
@@ -3419,8 +3355,6 @@ nvk_mme_draw_indirect_count(struct mme_builder *b)
 {
    if (b->devinfo->cls_eng3d < TURING_A)
       return;
-
-   nvk_mme_load_to_scratch(b, DRAW_BEGIN);
 
    struct mme_value64 draw_addr = mme_load_addr64(b);
    struct mme_value64 draw_count_addr = mme_load_addr64(b);
@@ -3460,25 +3394,13 @@ nvk_CmdDrawIndirectCount(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(nvk_buffer, buffer, _buffer);
    VK_FROM_HANDLE(nvk_buffer, count_buffer, countBuffer);
 
-   const struct vk_dynamic_graphics_state *dyn =
-      &cmd->vk.dynamic_graphics_state;
-
    /* TODO: Indirect count draw pre-Turing */
    assert(nvk_cmd_buffer_3d_cls(cmd) >= TURING_A);
 
    nvk_flush_gfx_state(cmd);
 
-   uint32_t begin;
-   V_NV9097_BEGIN(begin, {
-      .op = vk_to_nv9097_primitive_topology(dyn->ia.primitive_topology),
-      .primitive_id = NV9097_BEGIN_PRIMITIVE_ID_FIRST,
-      .instance_id = NV9097_BEGIN_INSTANCE_ID_FIRST,
-      .split_mode = SPLIT_MODE_NORMAL_BEGIN_NORMAL_END,
-   });
-
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 8);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDIRECT_COUNT));
-   P_INLINE_DATA(p, begin);
    uint64_t draw_addr = nvk_buffer_address(buffer, offset);
    P_INLINE_DATA(p, draw_addr >> 32);
    P_INLINE_DATA(p, draw_addr);
@@ -3495,8 +3417,6 @@ nvk_mme_draw_indexed_indirect_count(struct mme_builder *b)
 {
    if (b->devinfo->cls_eng3d < TURING_A)
       return;
-
-   nvk_mme_load_to_scratch(b, DRAW_BEGIN);
 
    struct mme_value64 draw_addr = mme_load_addr64(b);
    struct mme_value64 draw_count_addr = mme_load_addr64(b);
@@ -3536,25 +3456,13 @@ nvk_CmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(nvk_buffer, buffer, _buffer);
    VK_FROM_HANDLE(nvk_buffer, count_buffer, countBuffer);
 
-   const struct vk_dynamic_graphics_state *dyn =
-      &cmd->vk.dynamic_graphics_state;
-
    /* TODO: Indexed indirect count draw pre-Turing */
    assert(nvk_cmd_buffer_3d_cls(cmd) >= TURING_A);
 
    nvk_flush_gfx_state(cmd);
 
-   uint32_t begin;
-   V_NV9097_BEGIN(begin, {
-      .op = vk_to_nv9097_primitive_topology(dyn->ia.primitive_topology),
-      .primitive_id = NV9097_BEGIN_PRIMITIVE_ID_FIRST,
-      .instance_id = NV9097_BEGIN_INSTANCE_ID_FIRST,
-      .split_mode = SPLIT_MODE_NORMAL_BEGIN_NORMAL_END,
-   });
-
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 8);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDEXED_INDIRECT_COUNT));
-   P_INLINE_DATA(p, begin);
    uint64_t draw_addr = nvk_buffer_address(buffer, offset);
    P_INLINE_DATA(p, draw_addr >> 32);
    P_INLINE_DATA(p, draw_addr);
@@ -3592,8 +3500,6 @@ nvk_mme_xfb_draw_indirect_loop(struct mme_builder *b,
 void
 nvk_mme_xfb_draw_indirect(struct mme_builder *b)
 {
-   nvk_mme_load_to_scratch(b, DRAW_BEGIN);
-
    struct mme_value instance_count = mme_load(b);
    struct mme_value first_instance = mme_load(b);
 
@@ -3653,40 +3559,28 @@ nvk_CmdDrawIndirectByteCountEXT(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(nvk_buffer, counter_buffer, counterBuffer);
-   const struct vk_dynamic_graphics_state *dyn =
-      &cmd->vk.dynamic_graphics_state;
 
    nvk_flush_gfx_state(cmd);
-
-   uint32_t begin;
-   V_NV9097_BEGIN(begin, {
-      .op = vk_to_nv9097_primitive_topology(dyn->ia.primitive_topology),
-      .primitive_id = NV9097_BEGIN_PRIMITIVE_ID_FIRST,
-      .instance_id = NV9097_BEGIN_INSTANCE_ID_FIRST,
-      .split_mode = SPLIT_MODE_NORMAL_BEGIN_NORMAL_END,
-   });
 
    uint64_t counter_addr = nvk_buffer_address(counter_buffer,
                                               counterBufferOffset);
 
    if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
-      struct nv_push *p = nvk_cmd_buffer_push(cmd, 10);
-      P_IMMD(p, NV9097, SET_DRAW_AUTO_START, counterOffset);
-      P_IMMD(p, NV9097, SET_DRAW_AUTO_STRIDE, vertexStride);
-
-      P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_XFB_DRAW_INDIRECT));
-      P_INLINE_DATA(p, begin);
-      P_INLINE_DATA(p, instanceCount);
-      P_INLINE_DATA(p, firstInstance);
-      P_INLINE_DATA(p, counter_addr >> 32);
-      P_INLINE_DATA(p, counter_addr);
-   } else {
       struct nv_push *p = nvk_cmd_buffer_push(cmd, 9);
       P_IMMD(p, NV9097, SET_DRAW_AUTO_START, counterOffset);
       P_IMMD(p, NV9097, SET_DRAW_AUTO_STRIDE, vertexStride);
 
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_XFB_DRAW_INDIRECT));
-      P_INLINE_DATA(p, begin);
+      P_INLINE_DATA(p, instanceCount);
+      P_INLINE_DATA(p, firstInstance);
+      P_INLINE_DATA(p, counter_addr >> 32);
+      P_INLINE_DATA(p, counter_addr);
+   } else {
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 8);
+      P_IMMD(p, NV9097, SET_DRAW_AUTO_START, counterOffset);
+      P_IMMD(p, NV9097, SET_DRAW_AUTO_STRIDE, vertexStride);
+
+      P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_XFB_DRAW_INDIRECT));
       P_INLINE_DATA(p, instanceCount);
       P_INLINE_DATA(p, firstInstance);
       nv_push_update_count(p, 1);
