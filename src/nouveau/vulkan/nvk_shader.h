@@ -118,6 +118,9 @@ struct nvk_shader {
    uint32_t *push_dw;
 };
 
+VK_DEFINE_NONDISP_HANDLE_CASTS(nvk_shader, vk.base, VkShaderEXT,
+                               VK_OBJECT_TYPE_SHADER_EXT);
+
 extern const struct vk_device_shader_ops nvk_device_shader_ops;
 
 VkShaderStageFlags nvk_nak_stages(const struct nv_device_info *info);

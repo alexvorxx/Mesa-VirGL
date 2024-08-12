@@ -41,6 +41,8 @@ nvk_files = files(
   'nvk_image.h',
   'nvk_image_view.c',
   'nvk_image_view.h',
+  'nvk_indirect_execution_set.c',
+  'nvk_indirect_execution_set.h',
   'nvk_instance.c',
   'nvk_instance.h',
   'nvk_mme.c',
