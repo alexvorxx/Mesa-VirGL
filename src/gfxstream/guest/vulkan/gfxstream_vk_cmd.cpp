@@ -126,6 +126,9 @@ VkResult gfxstream_vk_AllocateCommandBuffers(VkDevice device,
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     VK_FROM_HANDLE(gfxstream_vk_command_pool, gfxstream_commandPool, pAllocateInfo->commandPool);
     VkResult result = (VkResult)0;
+    for (uint32_t i = 0; i < pAllocateInfo->commandBufferCount; i++) {
+        pCommandBuffers[i] = VK_NULL_HANDLE;
+    }
     std::vector<gfxstream_vk_command_buffer*> gfxstream_commandBuffers(
         pAllocateInfo->commandBufferCount);
     for (uint32_t i = 0; i < pAllocateInfo->commandBufferCount; i++) {
