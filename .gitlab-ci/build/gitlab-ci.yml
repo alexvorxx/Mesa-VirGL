@@ -518,7 +518,7 @@ debian-arm64-build-test:
     - .meson-arm
     - .ci-deqp-artifacts
   variables:
-    VULKAN_DRIVERS: "amd"
+    VULKAN_DRIVERS: "amd,nouveau"
     DRI_LOADERS:
       -D glvnd=disabled
     EXTRA_OPTION: >
