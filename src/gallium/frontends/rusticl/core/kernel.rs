@@ -370,19 +370,15 @@ unsafe impl Send for NirKernelBuild {}
 unsafe impl Sync for NirKernelBuild {}
 
 impl NirKernelBuild {
-    fn new(
-        dev: &'static Device,
-        mut nir: NirShader,
-        compiled_args: Vec<CompiledKernelArg>,
-    ) -> Self {
-        let cso = CSOWrapper::new(dev, &nir);
+    fn new(dev: &'static Device, mut out: CompilationResult) -> Self {
+        let cso = CSOWrapper::new(dev, &out.nir);
         let info = cso.get_cso_info();
-        let cb = Self::create_nir_constant_buffer(dev, &nir);
-        let shared_size = nir.shared_size() as u64;
-        let printf_info = nir.take_printf_info();
+        let cb = Self::create_nir_constant_buffer(dev, &out.nir);
+        let shared_size = out.nir.shared_size() as u64;
+        let printf_info = out.nir.take_printf_info();
 
         let nir_or_cso = if !dev.shareable_shaders() {
-            KernelDevStateVariant::Nir(nir)
+            KernelDevStateVariant::Nir(out.nir)
         } else {
             KernelDevStateVariant::Cso(cso)
         };
@@ -393,7 +389,7 @@ impl NirKernelBuild {
             info: info,
             shared_size: shared_size,
             printf_info: printf_info,
-            compiled_args: compiled_args,
+            compiled_args: out.compiled_args,
         }
     }
 
@@ -441,6 +437,32 @@ where
     }
 
     Ok(res)
+}
+
+struct CompilationResult {
+    nir: NirShader,
+    compiled_args: Vec<CompiledKernelArg>,
+}
+
+impl CompilationResult {
+    fn deserialize(reader: &mut blob_reader, d: &Device) -> Option<Self> {
+        let nir = NirShader::deserialize(
+            reader,
+            d.screen()
+                .nir_shader_compiler_options(pipe_shader_type::PIPE_SHADER_COMPUTE),
+        )?;
+        let compiled_args = CompiledKernelArg::deserialize(reader)?;
+
+        Some(Self {
+            nir: nir,
+            compiled_args,
+        })
+    }
+
+    fn serialize(&self, blob: &mut blob) {
+        self.nir.serialize(blob);
+        CompiledKernelArg::serialize(&self.compiled_args, blob);
+    }
 }
 
 fn opt_nir(nir: &mut NirShader, dev: &Device, has_explicit_types: bool) {
@@ -644,13 +666,10 @@ fn compile_nir_prepare_for_variants(
     nir.gather_info();
 }
 
-fn compile_nir_variant(
-    dev: &Device,
-    nir: &mut NirShader,
-    args: &[KernelArg],
-    compiled_args: &mut Vec<CompiledKernelArg>,
-) {
+fn compile_nir_variant(res: &mut CompilationResult, dev: &Device, args: &[KernelArg]) {
     let mut lower_state = rusticl_lower_state::default();
+    let compiled_args = &mut res.compiled_args;
+    let nir = &mut res.nir;
 
     let address_bits_ptr_type;
     let address_bits_base_type;
@@ -877,7 +896,7 @@ fn compile_nir_remaining(
     dev: &Device,
     mut nir: NirShader,
     args: &[KernelArg],
-) -> (Vec<CompiledKernelArg>, NirShader) {
+) -> CompilationResult {
     // add all API kernel args
     let mut compiled_args: Vec<_> = (0..args.len())
         .map(|idx| CompiledKernelArg {
@@ -888,9 +907,14 @@ fn compile_nir_remaining(
         .collect();
 
     compile_nir_prepare_for_variants(dev, &mut nir, &mut compiled_args);
-    compile_nir_variant(dev, &mut nir, args, &mut compiled_args);
+    let mut default_build = CompilationResult {
+        nir: nir,
+        compiled_args: compiled_args,
+    };
 
-    (compiled_args, nir)
+    compile_nir_variant(&mut default_build, dev, args);
+
+    default_build
 }
 
 pub struct SPIRVToNirResult {
@@ -903,9 +927,9 @@ impl SPIRVToNirResult {
         dev: &'static Device,
         kernel_info: &clc_kernel_info,
         args: Vec<KernelArg>,
-        compiled_args: Vec<CompiledKernelArg>,
-        nir: NirShader,
+        default_build: CompilationResult,
     ) -> Self {
+        let nir = &default_build.nir;
         let wgs = nir.workgroup_size();
         let kernel_info = KernelInfo {
             args: args,
@@ -917,7 +941,7 @@ impl SPIRVToNirResult {
 
         Self {
             kernel_info: kernel_info,
-            nir_kernel_build: NirKernelBuild::new(dev, nir, compiled_args),
+            nir_kernel_build: NirKernelBuild::new(dev, default_build),
         }
     }
 
@@ -927,34 +951,17 @@ impl SPIRVToNirResult {
             blob_reader_init(&mut reader, bin.as_ptr().cast(), bin.len());
         }
 
-        let nir = NirShader::deserialize(
-            &mut reader,
-            d.screen()
-                .nir_shader_compiler_options(pipe_shader_type::PIPE_SHADER_COMPUTE),
-        )?;
         let args = KernelArg::deserialize(&mut reader)?;
-        let compiled_args = CompiledKernelArg::deserialize(&mut reader)?;
+        let default_build = CompilationResult::deserialize(&mut reader, d)?;
 
-        Some(SPIRVToNirResult::new(
-            d,
-            kernel_info,
-            args,
-            compiled_args,
-            nir,
-        ))
+        Some(SPIRVToNirResult::new(d, kernel_info, args, default_build))
     }
 
     // we can't use Self here as the nir shader might be compiled to a cso already and we can't
     // cache that.
-    fn serialize(
-        blob: &mut blob,
-        nir: &NirShader,
-        args: &[KernelArg],
-        compiled_args: &[CompiledKernelArg],
-    ) {
-        nir.serialize(blob);
+    fn serialize(blob: &mut blob, args: &[KernelArg], default_build: &CompilationResult) {
         KernelArg::serialize(args, blob);
-        CompiledKernelArg::serialize(compiled_args, blob);
+        default_build.serialize(blob);
     }
 }
 
@@ -975,9 +982,9 @@ pub(super) fn convert_spirv_to_nir(
         .unwrap_or_else(|| {
             let nir = build.to_nir(name, dev);
             let (mut args, nir) = compile_nir_to_args(dev, nir, args, &dev.lib_clc);
-            let (compiled_args, nir) = compile_nir_remaining(dev, nir, &args);
+            let default_build = compile_nir_remaining(dev, nir, &args);
 
-            for arg in &compiled_args {
+            for arg in &default_build.compiled_args {
                 if let CompiledKernelArgType::APIArg(idx) = arg.kind {
                     args[idx as usize].dead &= arg.dead;
                 }
@@ -987,14 +994,14 @@ pub(super) fn convert_spirv_to_nir(
                 let mut blob = blob::default();
                 unsafe {
                     blob_init(&mut blob);
-                    SPIRVToNirResult::serialize(&mut blob, &nir, &args, &compiled_args);
+                    SPIRVToNirResult::serialize(&mut blob, &args, &default_build);
                     let bin = slice::from_raw_parts(blob.data, blob.size);
                     cache.put(bin, &mut key.unwrap());
                     blob_finish(&mut blob);
                 }
             }
 
-            SPIRVToNirResult::new(dev, spirv_info, args, compiled_args, nir)
+            SPIRVToNirResult::new(dev, spirv_info, args, default_build)
         })
 }
 
