@@ -686,7 +686,7 @@ enum vpe_status vpe_build_commands(
 
     // copy the param, reset saved configs
     for (stream_idx = 0; stream_idx < vpe_priv->num_streams; stream_idx++) {
-        for (pipe_idx = 0; pipe_idx < MAX_PIPE; pipe_idx++) {
+        for (pipe_idx = 0; pipe_idx < MAX_INPUT_PIPE; pipe_idx++) {
             vpe_priv->stream_ctx[stream_idx].num_configs[pipe_idx] = 0;
             for (cmd_type_idx = 0; cmd_type_idx < VPE_CMD_TYPE_COUNT; cmd_type_idx++)
                 vpe_priv->stream_ctx[stream_idx].num_stream_op_configs[pipe_idx][cmd_type_idx] = 0;

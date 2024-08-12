@@ -169,10 +169,11 @@ struct transfer_func {
     };
 
     // the followings are for optimization: skip if no change
-    bool                dirty[MAX_PIPE];        /*< indicate this object is updated or not */
-    struct config_cache config_cache[MAX_PIPE]; /*< used by the hw hook layer to do the caching */
+    bool dirty[MAX_INPUT_PIPE];       /*< indicate this object is updated or not */
+    struct config_cache
+        config_cache[MAX_INPUT_PIPE]; /*< used by the hw hook layer to do the caching */
 
-    struct cache_info cache_info[MAX_PIPE];
+    struct cache_info cache_info[MAX_INPUT_PIPE];
 };
 
 enum color_white_point_type {

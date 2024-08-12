@@ -105,10 +105,11 @@ struct resource {
     int internal_hdr_normalization;
 
     // vpep components
-    struct cdc        *cdc[MAX_PIPE];
-    struct dpp        *dpp[MAX_PIPE];
-    struct opp        *opp[MAX_PIPE];
-    struct mpc        *mpc[MAX_PIPE];
+    struct cdc_fe     *cdc_fe[MAX_INPUT_PIPE];
+    struct cdc_be     *cdc_be[MAX_OUTPUT_PIPE];
+    struct dpp        *dpp[MAX_INPUT_PIPE];
+    struct opp        *opp[MAX_INPUT_PIPE];
+    struct mpc        *mpc[MAX_INPUT_PIPE];
     struct cmd_builder cmd_builder;
 };
 

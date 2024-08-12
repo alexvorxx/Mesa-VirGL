@@ -284,18 +284,6 @@ static void get_np_and_subop(struct vpe_priv *vpe_priv, struct vpe_cmd_info *cmd
             header->nps0 = VPE_PLANE_CFG_TWO_PLANES;
         else
             header->nps0 = VPE_PLANE_CFG_ONE_PLANE;
-    } else if (cmd_info->num_inputs == 2) {
-        if (vpe_is_dual_plane_format(
-                vpe_priv->stream_ctx[cmd_info->inputs[0].stream_idx].stream.surface_info.format))
-            header->nps0 = VPE_PLANE_CFG_TWO_PLANES;
-        else
-            header->nps0 = VPE_PLANE_CFG_ONE_PLANE;
-
-        if (vpe_is_dual_plane_format(
-                vpe_priv->stream_ctx[cmd_info->inputs[1].stream_idx].stream.surface_info.format))
-            header->nps1 = VPE_PLANE_CFG_TWO_PLANES;
-        else
-            header->nps1 = VPE_PLANE_CFG_ONE_PLANE;
     } else {
         header->nps0 = 0;
         header->nps1 = 0;

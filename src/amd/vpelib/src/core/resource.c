@@ -199,7 +199,7 @@ void vpe_free_stream_ctx(struct vpe_priv *vpe_priv)
     for (i = 0; i < vpe_priv->num_streams; i++) {
         ctx = &vpe_priv->stream_ctx[i];
         if (ctx->input_tf) {
-            for (int j = 0; j < MAX_PIPE; j++)
+            for (int j = 0; j < MAX_INPUT_PIPE; j++)
                 CONFIG_CACHE_FREE(ctx->input_tf->config_cache[j]);
             vpe_free(ctx->input_tf);
             ctx->input_tf = NULL;
@@ -221,14 +221,14 @@ void vpe_free_stream_ctx(struct vpe_priv *vpe_priv)
         }
 
         if (ctx->in_shaper_func) {
-            for (int j = 0; j < MAX_PIPE; j++)
+            for (int j = 0; j < MAX_INPUT_PIPE; j++)
                 CONFIG_CACHE_FREE(ctx->in_shaper_func->config_cache[j]);
             vpe_free(ctx->in_shaper_func);
             ctx->in_shaper_func = NULL;
         }
 
         if (ctx->blend_tf) {
-            for (int j = 0; j < MAX_PIPE; j++)
+            for (int j = 0; j < MAX_INPUT_PIPE; j++)
                 CONFIG_CACHE_FREE(ctx->blend_tf->config_cache[j]);
             vpe_free(ctx->blend_tf);
             ctx->blend_tf = NULL;

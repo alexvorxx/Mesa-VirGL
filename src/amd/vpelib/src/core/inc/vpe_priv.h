@@ -103,7 +103,7 @@ struct vpe_cmd_info {
 
     // input
     uint16_t             num_inputs;
-    struct vpe_cmd_input inputs[MAX_PIPE];
+    struct vpe_cmd_input inputs[MAX_INPUT_PIPE];
 
     // output
     uint16_t              num_outputs;
@@ -130,11 +130,13 @@ struct stream_ctx {
     uint16_t            num_segments;
     struct segment_ctx *segment_ctx;
 
-    uint16_t num_configs[MAX_PIPE];                               // shared among same stream
-    uint16_t num_stream_op_configs[MAX_PIPE][VPE_CMD_TYPE_COUNT]; // shared among same cmd type
-                                                                  // within the same stream
-    struct config_record configs[MAX_PIPE][MAX_NUM_SAVED_CONFIG];
-    struct config_record stream_op_configs[MAX_PIPE][VPE_CMD_TYPE_COUNT][MAX_NUM_SAVED_CONFIG];
+    uint16_t num_configs[MAX_INPUT_PIPE]; // shared among same stream
+    uint16_t num_stream_op_configs[MAX_INPUT_PIPE][VPE_CMD_TYPE_COUNT];
+    // shared among same cmd type, within the same stream
+
+    struct config_record configs[MAX_INPUT_PIPE][MAX_NUM_SAVED_CONFIG];
+    struct config_record stream_op_configs[MAX_INPUT_PIPE][VPE_CMD_TYPE_COUNT]
+                                          [MAX_NUM_SAVED_CONFIG];
 
     // cached color properties
     bool                     per_pixel_alpha;
@@ -259,7 +261,7 @@ struct vpe_priv {
     struct output_ctx output_ctx;
 
     uint16_t        num_pipe;
-    struct pipe_ctx pipe_ctx[MAX_PIPE];
+    struct pipe_ctx pipe_ctx[MAX_INPUT_PIPE];
 
     // internal temp structure for creating pure BG filling
     struct vpe_build_param *dummy_input_param;

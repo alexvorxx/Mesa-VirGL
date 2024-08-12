@@ -214,6 +214,7 @@ struct vpe_caps {
         int num_dpp;
         int num_opp;
         int num_mpc_3dlut;
+        int num_cdc_be;
 
         int num_queue; /**< num of hw queue */
     } resource_caps;

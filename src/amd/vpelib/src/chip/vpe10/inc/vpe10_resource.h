@@ -78,7 +78,8 @@ struct mpc *vpe10_mpc_create(struct vpe_priv *vpe_priv, int inst);
 
 struct dpp *vpe10_dpp_create(struct vpe_priv *vpe_priv, int inst);
 
-struct cdc *vpe10_cdc_create(struct vpe_priv *vpe_priv, int inst);
+struct cdc_fe *vpe10_cdc_fe_create(struct vpe_priv *vpe_priv, int inst);
+struct cdc_be *vpe10_cdc_be_create(struct vpe_priv *vpe_priv, int inst);
 
 #ifdef __cplusplus
 }

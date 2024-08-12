@@ -334,15 +334,15 @@ enum vpe_status vpe_check_output_support(struct vpe *vpe, const struct vpe_build
     struct vpe_priv               *vpe_priv = container_of(vpe, struct vpe_priv, pub);
     struct vpec                   *vpec;
     struct dpp                    *dpp;
-    struct cdc                    *cdc;
+    struct cdc_be                 *cdc_be;
     const struct vpe_surface_info *surface_info = &param->dst_surface;
     struct vpe_dcc_surface_param   params;
     struct vpe_surface_dcc_cap     cap;
     bool                           support;
 
-    vpec = &vpe_priv->resource.vpec;
-    dpp  = vpe_priv->resource.dpp[0];
-    cdc  = vpe_priv->resource.cdc[0];
+    vpec   = &vpe_priv->resource.vpec;
+    dpp    = vpe_priv->resource.dpp[0];
+    cdc_be = vpe_priv->resource.cdc_be[0];
 
     // swizzle mode
     support = vpec->funcs->check_swmode_support(vpec, surface_info->swizzle);
@@ -409,7 +409,7 @@ enum vpe_status vpe_check_output_support(struct vpe *vpe, const struct vpe_build
     }
 
     // pixel format
-    support = cdc->funcs->check_output_format(cdc, surface_info->format);
+    support = cdc_be->funcs->check_output_format(cdc_be, surface_info->format);
     if (!support) {
         vpe_log("output pixel format not supported %d\n", (int)surface_info->format);
         return VPE_STATUS_PIXEL_FORMAT_NOT_SUPPORTED;
@@ -435,7 +435,7 @@ enum vpe_status vpe_check_input_support(struct vpe *vpe, const struct vpe_stream
     struct vpe_priv               *vpe_priv = container_of(vpe, struct vpe_priv, pub);
     struct vpec                   *vpec;
     struct dpp                    *dpp;
-    struct cdc                    *cdc;
+    struct cdc_fe                 *cdc_fe;
     const struct vpe_surface_info *surface_info = &stream->surface_info;
     struct vpe_dcc_surface_param   params;
     struct vpe_surface_dcc_cap     cap;
@@ -444,9 +444,9 @@ enum vpe_status vpe_check_input_support(struct vpe *vpe, const struct vpe_stream
     bool                           use_adj = vpe_use_csc_adjust(&stream->color_adj);
     enum vpe_status                status  = VPE_STATUS_OK;
 
-    vpec = &vpe_priv->resource.vpec;
-    dpp  = vpe_priv->resource.dpp[0];
-    cdc  = vpe_priv->resource.cdc[0];
+    vpec   = &vpe_priv->resource.vpec;
+    dpp    = vpe_priv->resource.dpp[0];
+    cdc_fe = vpe_priv->resource.cdc_fe[0];
 
     // swizzle mode
     support = vpec->funcs->check_swmode_support(vpec, surface_info->swizzle);
@@ -513,7 +513,7 @@ enum vpe_status vpe_check_input_support(struct vpe *vpe, const struct vpe_stream
     }
 
     // pixel format
-    support = cdc->funcs->check_input_format(cdc, surface_info->format);
+    support = cdc_fe->funcs->check_input_format(cdc_fe, surface_info->format);
     if (!support) {
         vpe_log("input pixel format not supported %d\n", (int)surface_info->format);
         return VPE_STATUS_PIXEL_FORMAT_NOT_SUPPORTED;
