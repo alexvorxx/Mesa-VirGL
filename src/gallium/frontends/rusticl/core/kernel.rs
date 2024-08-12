@@ -216,19 +216,18 @@ struct CompiledKernelArg {
     /// The binding for image/sampler args, the offset into the input buffer
     /// for anything else.
     offset: u32,
+    dead: bool,
 }
 
 impl CompiledKernelArg {
-    fn assign_locations(args: &mut [KernelArg], compiled_args: &mut [Self], nir: &mut NirShader) {
+    fn assign_locations(compiled_args: &mut [Self], nir: &mut NirShader) {
         for var in nir.variables_with_mode(
             nir_variable_mode::nir_var_uniform | nir_variable_mode::nir_var_image,
         ) {
             let arg = &mut compiled_args[var.data.location as usize];
-            if let CompiledKernelArgType::APIArg(idx) = arg.kind {
-                args[idx as usize].dead = false;
-            }
-
             let t = var.type_;
+
+            arg.dead = false;
             arg.offset = if unsafe {
                 glsl_type_is_image(t) || glsl_type_is_texture(t) || glsl_type_is_sampler(t)
             } {
@@ -244,6 +243,7 @@ impl CompiledKernelArg {
             blob_write_uint16(blob, args.len() as u16);
             for arg in args {
                 blob_write_uint32(blob, arg.offset);
+                blob_write_uint8(blob, arg.dead.into());
                 match arg.kind {
                     CompiledKernelArgType::ConstantBuffer => blob_write_uint8(blob, 0),
                     CompiledKernelArgType::GlobalWorkOffsets => blob_write_uint8(blob, 1),
@@ -276,6 +276,7 @@ impl CompiledKernelArg {
 
             for _ in 0..len {
                 let offset = blob_read_uint32(blob);
+                let dead = blob_read_uint8(blob) != 0;
 
                 let kind = match blob_read_uint8(blob) {
                     0 => CompiledKernelArgType::ConstantBuffer,
@@ -303,6 +304,7 @@ impl CompiledKernelArg {
                 res.push(Self {
                     kind: kind,
                     offset: offset,
+                    dead: dead,
                 });
             }
 
@@ -599,6 +601,7 @@ fn compile_nir_prepare_for_variants(
                     s.normalized_coordinates(),
                 )),
                 offset: 0,
+                dead: true,
             });
         } else {
             last_loc = v.data.location;
@@ -644,7 +647,7 @@ fn compile_nir_prepare_for_variants(
 fn compile_nir_variant(
     dev: &Device,
     nir: &mut NirShader,
-    args: &mut [KernelArg],
+    args: &[KernelArg],
     compiled_args: &mut Vec<CompiledKernelArg>,
 ) {
     let mut lower_state = rusticl_lower_state::default();
@@ -688,6 +691,7 @@ fn compile_nir_variant(
         compiled_args.push(CompiledKernelArg {
             kind: kind,
             offset: 0,
+            dead: true,
         });
         nir.add_var(
             nir_variable_mode::nir_var_uniform,
@@ -853,13 +857,16 @@ fn compile_nir_variant(
     /* before passing it into drivers, assign locations as drivers might remove nir_variables or
      * other things we depend on
      */
-    CompiledKernelArg::assign_locations(args, compiled_args, nir);
+    CompiledKernelArg::assign_locations(compiled_args, nir);
 
     /* update the has_variable_shared_mem info as we might have DCEed all of them */
-    nir.set_has_variable_shared_mem(
-        args.iter()
-            .any(|arg| arg.kind == KernelArgType::MemLocal && !arg.dead),
-    );
+    nir.set_has_variable_shared_mem(compiled_args.iter().any(|arg| {
+        if let CompiledKernelArgType::APIArg(idx) = arg.kind {
+            args[idx as usize].kind == KernelArgType::MemLocal && !arg.dead
+        } else {
+            false
+        }
+    }));
     dev.screen.finalize_nir(nir);
 
     nir_pass!(nir, nir_opt_dce);
@@ -869,13 +876,14 @@ fn compile_nir_variant(
 fn compile_nir_remaining(
     dev: &Device,
     mut nir: NirShader,
-    args: &mut [KernelArg],
+    args: &[KernelArg],
 ) -> (Vec<CompiledKernelArg>, NirShader) {
     // add all API kernel args
     let mut compiled_args: Vec<_> = (0..args.len())
         .map(|idx| CompiledKernelArg {
             kind: CompiledKernelArgType::APIArg(idx as u32),
             offset: 0,
+            dead: true,
         })
         .collect();
 
@@ -967,7 +975,13 @@ pub(super) fn convert_spirv_to_nir(
         .unwrap_or_else(|| {
             let nir = build.to_nir(name, dev);
             let (mut args, nir) = compile_nir_to_args(dev, nir, args, &dev.lib_clc);
-            let (compiled_args, nir) = compile_nir_remaining(dev, nir, &mut args);
+            let (compiled_args, nir) = compile_nir_remaining(dev, nir, &args);
+
+            for arg in &compiled_args {
+                if let CompiledKernelArgType::APIArg(idx) = arg.kind {
+                    args[idx as usize].dead &= arg.dead;
+                }
+            }
 
             if let Some(cache) = cache {
                 let mut blob = blob::default();
