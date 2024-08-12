@@ -185,14 +185,15 @@ aco_postprocess_shader(const struct aco_compiler_options* options,
       schedule_ilp(program.get());
 
    insert_waitcnt(program.get());
-   if (program->gfx_level >= GFX11) {
-      insert_delay_alu(program.get());
-      combine_delay_alu(program.get());
-   }
    insert_NOPs(program.get());
+   if (program->gfx_level >= GFX11)
+      insert_delay_alu(program.get());
 
    if (program->gfx_level >= GFX10)
       form_hard_clauses(program.get());
+
+   if (program->gfx_level >= GFX11)
+      combine_delay_alu(program.get());
 
    if (program->collect_statistics || (debug_flags & DEBUG_PERF_INFO))
       collect_preasm_stats(program.get());
@@ -319,13 +320,13 @@ aco_compile_rt_prolog(const struct aco_compiler_options* options,
    select_rt_prolog(program.get(), &config, options, info, in_args, out_args);
    validate(program.get());
    insert_waitcnt(program.get());
-   if (program->gfx_level >= GFX11) {
-      insert_delay_alu(program.get());
-      combine_delay_alu(program.get());
-   }
    insert_NOPs(program.get());
+   if (program->gfx_level >= GFX11)
+      insert_delay_alu(program.get());
    if (program->gfx_level >= GFX10)
       form_hard_clauses(program.get());
+   if (program->gfx_level >= GFX11)
+      combine_delay_alu(program.get());
 
    if (options->dump_shader)
       aco_print_program(program.get(), stderr);
