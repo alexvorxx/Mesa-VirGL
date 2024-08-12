@@ -12,6 +12,7 @@ static const nvk_mme_builder_func mme_builders[NVK_MME_COUNT] = {
    [NVK_MME_SELECT_CB0]                    = nvk_mme_select_cb0,
    [NVK_MME_BIND_CBUF_DESC]                = nvk_mme_bind_cbuf_desc,
    [NVK_MME_CLEAR]                         = nvk_mme_clear,
+   [NVK_MME_BIND_IB]                       = nvk_mme_bind_ib,
    [NVK_MME_DRAW]                          = nvk_mme_draw,
    [NVK_MME_DRAW_INDEXED]                  = nvk_mme_draw_indexed,
    [NVK_MME_DRAW_INDIRECT]                 = nvk_mme_draw_indirect,

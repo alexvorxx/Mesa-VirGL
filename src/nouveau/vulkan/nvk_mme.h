@@ -14,6 +14,7 @@ enum nvk_mme {
    NVK_MME_SELECT_CB0,
    NVK_MME_BIND_CBUF_DESC,
    NVK_MME_CLEAR,
+   NVK_MME_BIND_IB,
    NVK_MME_DRAW,
    NVK_MME_DRAW_INDEXED,
    NVK_MME_DRAW_INDIRECT,
@@ -55,6 +56,10 @@ enum nvk_mme_scratch {
    NVK_MME_SCRATCH_CB0_ADDR_HI,
    NVK_MME_SCRATCH_CB0_ADDR_LO,
 
+   /* Addres of zero page */
+   NVK_MME_SCRATCH_ZERO_ADDR_HI,
+   NVK_MME_SCRATCH_ZERO_ADDR_LO,
+
    /* Shadow copies of values in CB0 */
    NVK_MME_SCRATCH_CB0_FIRST_VERTEX,
    NVK_MME_SCRATCH_CB0_DRAW_INDEX,
@@ -77,6 +82,8 @@ _nvk_mme_load_scratch_to(struct mme_builder *b, struct mme_value val,
 {
    mme_state_to(b, val, 0x3400 + scratch * 4);
 }
+#define nvk_mme_load_scratch_to(b, v, S) \
+   _nvk_mme_load_scratch_to(b, v, NVK_MME_SCRATCH_##S)
 
 static inline struct mme_value
 _nvk_mme_load_scratch(struct mme_builder *b, enum nvk_mme_scratch scratch)
@@ -140,6 +147,7 @@ uint32_t *nvk_build_mme(const struct nv_device_info *devinfo,
 void nvk_mme_select_cb0(struct mme_builder *b);
 void nvk_mme_bind_cbuf_desc(struct mme_builder *b);
 void nvk_mme_clear(struct mme_builder *b);
+void nvk_mme_bind_ib(struct mme_builder *b);
 void nvk_mme_draw(struct mme_builder *b);
 void nvk_mme_draw_indexed(struct mme_builder *b);
 void nvk_mme_draw_indirect(struct mme_builder *b);

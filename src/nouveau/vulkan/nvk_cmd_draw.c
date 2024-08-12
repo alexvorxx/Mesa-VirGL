@@ -509,6 +509,11 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
    P_NV9097_SET_MME_SHADOW_SCRATCH(p, NVK_MME_SCRATCH_CB0_ADDR_HI, cb0_addr >> 32);
    P_NV9097_SET_MME_SHADOW_SCRATCH(p, NVK_MME_SCRATCH_CB0_ADDR_LO, cb0_addr);
 
+   /* Store the address to the zero page in a pair of state registers */
+   P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_ZERO_ADDR_HI));
+   P_NV9097_SET_MME_SHADOW_SCRATCH(p, NVK_MME_SCRATCH_ZERO_ADDR_HI, zero_addr >> 32);
+   P_NV9097_SET_MME_SHADOW_SCRATCH(p, NVK_MME_SCRATCH_ZERO_ADDR_LO, zero_addr);
+
    /* We leave CB0 selected by default */
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SELECT_CB0));
    P_INLINE_DATA(p, 0);
@@ -2668,19 +2673,80 @@ nvk_flush_gfx_state(struct nvk_cmd_buffer *cmd)
    nvk_flush_descriptors(cmd);
 }
 
-static uint32_t
-vk_to_nv_index_format(VkIndexType type)
+void
+nvk_mme_bind_ib(struct mme_builder *b)
 {
-   switch (type) {
-   case VK_INDEX_TYPE_UINT16:
-      return NVC597_SET_INDEX_BUFFER_E_INDEX_SIZE_TWO_BYTES;
-   case VK_INDEX_TYPE_UINT32:
-      return NVC597_SET_INDEX_BUFFER_E_INDEX_SIZE_FOUR_BYTES;
-   case VK_INDEX_TYPE_UINT8_KHR:
-      return NVC597_SET_INDEX_BUFFER_E_INDEX_SIZE_ONE_BYTE;
-   default:
-      unreachable("Invalid index type");
+   struct mme_value64 addr = mme_load_addr64(b);
+   struct mme_value size_B = mme_load(b);
+
+   if (b->devinfo->cls_eng3d < TURING_A) {
+      mme_if(b, ieq, size_B, mme_zero()) {
+         nvk_mme_load_scratch_to(b, addr.hi, ZERO_ADDR_HI);
+         nvk_mme_load_scratch_to(b, addr.lo, ZERO_ADDR_LO);
+      }
    }
+
+   mme_mthd(b, NV9097_SET_INDEX_BUFFER_A);
+   mme_emit(b, addr.hi);
+   mme_emit(b, addr.lo);
+
+   if (b->devinfo->cls_eng3d >= TURING_A) {
+      mme_mthd(b, NVC597_SET_INDEX_BUFFER_SIZE_A);
+      mme_emit(b, mme_zero());
+      mme_emit(b, size_B);
+   } else {
+      /* Convert to an end address */
+      mme_add64_to(b, addr, addr, mme_value64(size_B, mme_zero()));
+      mme_add64_to(b, addr, addr, mme_imm64(-1));
+
+      /* mme_mthd(b, NV9097_SET_INDEX_BUFFER_C); */
+      mme_emit(b, addr.hi);
+      mme_emit(b, addr.lo);
+   }
+   mme_free_reg64(b, addr);
+   mme_free_reg(b, size_B);
+
+   struct mme_value fmt = mme_load(b);
+   struct mme_value restart = mme_mov(b, mme_imm(UINT32_MAX));
+   struct mme_value index_type = mme_mov(b,
+      mme_imm(NVC597_SET_INDEX_BUFFER_E_INDEX_SIZE_FOUR_BYTES));
+
+   /* The Vulkan and D3D enums don't overlap so we can handle both at the same
+    * time with one MME macro.
+    */
+   UNUSED static const uint32_t DXGI_FORMAT_R32_UINT = 42;
+   static const uint32_t DXGI_FORMAT_R16_UINT = 57;
+   static const uint32_t DXGI_FORMAT_R8_UINT = 62;
+
+   mme_if(b, ieq, fmt, mme_imm(VK_INDEX_TYPE_UINT16)) {
+      mme_mov_to(b, restart, mme_imm(UINT16_MAX));
+      mme_mov_to(b, index_type,
+                 mme_imm(NVC597_SET_INDEX_BUFFER_E_INDEX_SIZE_TWO_BYTES));
+   }
+
+   mme_if(b, ieq, fmt, mme_imm(DXGI_FORMAT_R16_UINT)) {
+      mme_mov_to(b, restart, mme_imm(UINT16_MAX));
+      mme_mov_to(b, index_type,
+                 mme_imm(NVC597_SET_INDEX_BUFFER_E_INDEX_SIZE_TWO_BYTES));
+   }
+
+   mme_if(b, ieq, fmt, mme_imm(VK_INDEX_TYPE_UINT8_KHR)) {
+      mme_mov_to(b, restart, mme_imm(UINT8_MAX));
+      mme_mov_to(b, index_type,
+                 mme_imm(NVC597_SET_INDEX_BUFFER_E_INDEX_SIZE_ONE_BYTE));
+   }
+
+   mme_if(b, ieq, fmt, mme_imm(DXGI_FORMAT_R8_UINT)) {
+      mme_mov_to(b, restart, mme_imm(UINT8_MAX));
+      mme_mov_to(b, index_type,
+                 mme_imm(NVC597_SET_INDEX_BUFFER_E_INDEX_SIZE_ONE_BYTE));
+   }
+
+   mme_mthd(b, NV9097_SET_DA_PRIMITIVE_RESTART_INDEX);
+   mme_emit(b, restart);
+
+   mme_mthd(b, NV9097_SET_INDEX_BUFFER_E);
+   mme_emit(b, index_type);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -2692,34 +2758,16 @@ nvk_CmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(nvk_buffer, buffer, _buffer);
-   struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
    struct nvk_addr_range addr_range =
       nvk_buffer_addr_range(buffer, offset, size);
 
-   if (addr_range.addr == 0 && nvk_cmd_buffer_3d_cls(cmd) < TURING_A)
-      addr_range.addr = dev->zero_page->va->addr;
-
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 10);
-
-   P_IMMD(p, NV9097, SET_DA_PRIMITIVE_RESTART_INDEX,
-          vk_index_to_restart(indexType));
-
-   P_MTHD(p, NV9097, SET_INDEX_BUFFER_A);
-   P_NV9097_SET_INDEX_BUFFER_A(p, addr_range.addr >> 32);
-   P_NV9097_SET_INDEX_BUFFER_B(p, addr_range.addr);
-
-   if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
-      P_MTHD(p, NVC597, SET_INDEX_BUFFER_SIZE_A);
-      P_NVC597_SET_INDEX_BUFFER_SIZE_A(p, addr_range.range >> 32);
-      P_NVC597_SET_INDEX_BUFFER_SIZE_B(p, addr_range.range);
-   } else {
-      const uint64_t limit = addr_range.addr + addr_range.range - 1;
-      P_MTHD(p, NV9097, SET_INDEX_BUFFER_C);
-      P_NV9097_SET_INDEX_BUFFER_C(p, limit >> 32);
-      P_NV9097_SET_INDEX_BUFFER_D(p, limit);
-   }
-
-   P_IMMD(p, NV9097, SET_INDEX_BUFFER_E, vk_to_nv_index_format(indexType));
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 5);
+   P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_BIND_IB));
+   P_INLINE_DATA(p, addr_range.addr >> 32);
+   P_INLINE_DATA(p, addr_range.addr);
+   assert(addr_range.range <= UINT32_MAX);
+   P_INLINE_DATA(p, addr_range.range);
+   P_INLINE_DATA(p, indexType);
 }
 
 void
