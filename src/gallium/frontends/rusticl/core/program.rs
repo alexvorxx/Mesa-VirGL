@@ -122,11 +122,10 @@ impl ProgramBuild {
                 let build_result = convert_spirv_to_nir(self, kernel_name, &args, dev);
                 kernel_info_set.insert(build_result.kernel_info);
 
-                self.builds
-                    .get_mut(dev)
-                    .unwrap()
-                    .kernels
-                    .insert(kernel_name.clone(), Arc::new(build_result.nir_kernel_build));
+                self.builds.get_mut(dev).unwrap().kernels.insert(
+                    kernel_name.clone(),
+                    Arc::new(build_result.nir_kernel_builds),
+                );
             }
 
             // we want the same (internal) args for every compiled kernel, for now
@@ -229,7 +228,7 @@ pub struct ProgramDevBuild {
     options: String,
     log: String,
     bin_type: cl_program_binary_type,
-    pub kernels: HashMap<String, Arc<NirKernelBuild>>,
+    pub kernels: HashMap<String, Arc<NirKernelBuilds>>,
 }
 
 fn prepare_options(options: &str, dev: &Device) -> Vec<CString> {
