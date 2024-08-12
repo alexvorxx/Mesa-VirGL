@@ -649,7 +649,7 @@ legalize_block(struct ir3_legalize_ctx *ctx, struct ir3_block *block)
       /* both tex/sfu appear to not always immediately consume
        * their src register(s):
        */
-      if (is_tex(n) || is_mem(n) || is_ss_producer(n)) {
+      if (is_war_hazard_producer(n)) {
          /* These WAR hazards can always be resolved with (ss). However, when
           * the reader is a sy-producer, they can also be resolved using (sy)
           * because once we have synced the reader's results using (sy), its

@@ -2154,6 +2154,15 @@ soft_sy_delay(struct ir3_instruction *instr, struct ir3 *shader)
    }
 }
 
+/* Some instructions don't immediately consume their sources so may introduce a
+ * WAR hazard.
+ */
+static inline bool
+is_war_hazard_producer(struct ir3_instruction *instr)
+{
+   return is_tex(instr) || is_mem(instr) || is_ss_producer(instr);
+}
+
 bool ir3_cleanup_rpt(struct ir3 *ir, struct ir3_shader_variant *v);
 bool ir3_merge_rpt(struct ir3 *ir, struct ir3_shader_variant *v);
 bool ir3_opt_predicates(struct ir3 *ir, struct ir3_shader_variant *v);
