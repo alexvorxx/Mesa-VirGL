@@ -155,6 +155,7 @@ static bool
 valid_ubwc_format_cast(struct fd_resource *rsc, enum pipe_format format)
 {
    const struct fd_dev_info *info = fd_screen(rsc->b.b.screen)->info;
+   enum pipe_format orig_format = rsc->b.b.format;
 
    assert(rsc->layout.ubwc);
 
@@ -165,12 +166,14 @@ valid_ubwc_format_cast(struct fd_resource *rsc, enum pipe_format format)
    /* If we support z24s8 ubwc then allow casts between the various
     * permutations of z24s8:
     */
-   if (fd_screen(rsc->b.b.screen)->info->a6xx.has_z24uint_s8uint &&
-         is_z24s8(format) && is_z24s8(rsc->b.b.format))
+   if (info->a6xx.has_z24uint_s8uint && is_z24s8(format) && is_z24s8(orig_format))
       return true;
 
-   return fd6_ubwc_compat_mode(info, format) ==
-       fd6_ubwc_compat_mode(info, rsc->b.b.format);
+   enum fd6_ubwc_compat_type type = fd6_ubwc_compat_mode(info, orig_format);
+   if (type == FD6_UBWC_UNKNOWN_COMPAT)
+      return false;
+
+   return fd6_ubwc_compat_mode(info, format) == type;
 }
 
 /**
