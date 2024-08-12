@@ -139,6 +139,8 @@ split_spill(struct ir3_instruction *spill)
       if (clone->srcs[1]->flags & IR3_REG_ARRAY) {
          clone->srcs[1]->num = clone->srcs[1]->array.base + comp;
          clone->srcs[1]->flags &= ~IR3_REG_ARRAY;
+      } else {
+         clone->srcs[1]->num += comp;
       }
 
       clone->srcs[2]->uim_val = components;
@@ -173,6 +175,8 @@ split_reload(struct ir3_instruction *reload)
       if (clone->dsts[0]->flags & IR3_REG_ARRAY) {
          clone->dsts[0]->num = clone->dsts[0]->array.base + comp;
          clone->dsts[0]->flags &= ~IR3_REG_ARRAY;
+      } else {
+         clone->dsts[0]->num += comp;
       }
 
       clone->srcs[2]->uim_val = components;
