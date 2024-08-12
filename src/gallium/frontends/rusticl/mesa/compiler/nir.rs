@@ -346,6 +346,20 @@ impl NirShader {
         }
     }
 
+    pub fn set_workgroup_size(&mut self, size: [u16; 3]) {
+        let nir = unsafe { self.nir.as_mut() };
+        nir.info.set_workgroup_size_variable(false);
+        nir.info.workgroup_size = size;
+    }
+
+    pub fn workgroup_size_variable(&self) -> bool {
+        unsafe { self.nir.as_ref() }.info.workgroup_size_variable()
+    }
+
+    pub fn workgroup_size_hint(&self) -> [u16; 3] {
+        unsafe { self.nir.as_ref().info.anon_1.cs.workgroup_size_hint }
+    }
+
     pub fn set_has_variable_shared_mem(&mut self, val: bool) {
         unsafe {
             self.nir
