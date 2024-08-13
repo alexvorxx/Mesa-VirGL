@@ -2796,7 +2796,7 @@ static const struct wl_shm_listener shm_listener = {
 };
 
 static void
-registry_handle_global_swrast(void *data, struct wl_registry *registry,
+registry_handle_global_kopper(void *data, struct wl_registry *registry,
                               uint32_t name, const char *interface,
                               uint32_t version)
 {
@@ -2806,19 +2806,35 @@ registry_handle_global_swrast(void *data, struct wl_registry *registry,
       dri2_dpy->wl_shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
       wl_shm_add_listener(dri2_dpy->wl_shm, &shm_listener, dri2_dpy);
    }
-   if (dri2_dpy->fd_render_gpu != -1 || dri2_dpy->fd_display_gpu != -1) {
-      if (strcmp(interface, wl_drm_interface.name) == 0) {
-         dri2_dpy->wl_drm_version = MIN2(version, 2);
-         dri2_dpy->wl_drm_name = name;
-      } else if (strcmp(interface, zwp_linux_dmabuf_v1_interface.name) == 0 &&
-                 version >= 3) {
-         dri2_dpy->wl_dmabuf = wl_registry_bind(
-            registry, name, &zwp_linux_dmabuf_v1_interface,
-            MIN2(version,
-                 ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK_SINCE_VERSION));
-         zwp_linux_dmabuf_v1_add_listener(dri2_dpy->wl_dmabuf, &dmabuf_listener,
-                                          dri2_dpy);
-      }
+   if (strcmp(interface, wl_drm_interface.name) == 0) {
+      dri2_dpy->wl_drm_version = MIN2(version, 2);
+      dri2_dpy->wl_drm_name = name;
+   } else if (strcmp(interface, zwp_linux_dmabuf_v1_interface.name) == 0 &&
+               version >= 3) {
+      dri2_dpy->wl_dmabuf = wl_registry_bind(
+         registry, name, &zwp_linux_dmabuf_v1_interface,
+         MIN2(version,
+               ZWP_LINUX_DMABUF_V1_GET_DEFAULT_FEEDBACK_SINCE_VERSION));
+      zwp_linux_dmabuf_v1_add_listener(dri2_dpy->wl_dmabuf, &dmabuf_listener,
+                                       dri2_dpy);
+   }
+}
+
+static const struct wl_registry_listener registry_listener_kopper = {
+   .global = registry_handle_global_kopper,
+   .global_remove = registry_handle_global_remove,
+};
+
+static void
+registry_handle_global_swrast(void *data, struct wl_registry *registry,
+                              uint32_t name, const char *interface,
+                              uint32_t version)
+{
+   struct dri2_egl_display *dri2_dpy = data;
+
+   if (strcmp(interface, wl_shm_interface.name) == 0) {
+      dri2_dpy->wl_shm = wl_registry_bind(registry, name, &wl_shm_interface, 1);
+      wl_shm_add_listener(dri2_dpy->wl_shm, &shm_listener, dri2_dpy);
    }
 }
 
@@ -2944,8 +2960,12 @@ dri2_initialize_wayland_swrast(_EGLDisplay *disp)
       wl_display_dispatch_pending(dri2_dpy->wl_dpy);
 
    dri2_dpy->wl_registry = wl_display_get_registry(dri2_dpy->wl_dpy_wrapper);
-   wl_registry_add_listener(dri2_dpy->wl_registry, &registry_listener_swrast,
-                            dri2_dpy);
+   if (disp->Options.Zink)
+      wl_registry_add_listener(dri2_dpy->wl_registry, &registry_listener_kopper,
+                              dri2_dpy);
+   else
+      wl_registry_add_listener(dri2_dpy->wl_registry, &registry_listener_swrast,
+                              dri2_dpy);
 
    if (roundtrip(dri2_dpy) < 0 || dri2_dpy->wl_shm == NULL)
       goto cleanup;
