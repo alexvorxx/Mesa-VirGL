@@ -1010,13 +1010,10 @@ create_dcc_comp_to_single_pipeline(struct radv_device *device, bool is_msaa, VkP
 }
 
 static VkResult
-init_meta_clear_dcc_comp_to_single_state(struct radv_device *device, bool on_demand)
+init_meta_clear_dcc_comp_to_single_state(struct radv_device *device)
 {
    struct radv_meta_state *state = &device->meta_state;
    VkResult result;
-
-   if (on_demand)
-      return VK_SUCCESS;
 
    for (uint32_t i = 0; i < 2; i++) {
       result = create_dcc_comp_to_single_pipeline(device, !!i, &state->clear_dcc_comp_to_single_pipeline[i]);
@@ -1033,12 +1030,12 @@ radv_device_init_meta_clear_state(struct radv_device *device, bool on_demand)
    VkResult res;
    struct radv_meta_state *state = &device->meta_state;
 
-   res = init_meta_clear_dcc_comp_to_single_state(device, on_demand);
-   if (res != VK_SUCCESS)
-      return res;
-
    if (on_demand)
       return VK_SUCCESS;
+
+   res = init_meta_clear_dcc_comp_to_single_state(device);
+   if (res != VK_SUCCESS)
+      return res;
 
    res = create_clear_htile_mask_pipeline(device);
    if (res != VK_SUCCESS)
