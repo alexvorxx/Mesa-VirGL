@@ -2771,34 +2771,103 @@ nvk_CmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer,
 }
 
 void
+nvk_mme_bind_vb(struct mme_builder *b)
+{
+   struct mme_value vb_idx = mme_load(b);
+   struct mme_value64 addr = mme_load_addr64(b);
+   struct mme_value size_B = mme_load(b);
+
+   if (b->devinfo->cls_eng3d < TURING_A) {
+      mme_if(b, ieq, size_B, mme_zero()) {
+         nvk_mme_load_scratch_to(b, addr.hi, ZERO_ADDR_HI);
+         nvk_mme_load_scratch_to(b, addr.lo, ZERO_ADDR_LO);
+      }
+   }
+
+   struct mme_value vb_idx4 = mme_sll(b, vb_idx, mme_imm(2));
+   mme_mthd_arr(b, NV9097_SET_VERTEX_STREAM_A_LOCATION_A(0), vb_idx4);
+   mme_free_reg(b, vb_idx4);
+   mme_emit(b, addr.hi);
+   mme_emit(b, addr.lo);
+
+   if (b->devinfo->cls_eng3d >= TURING_A) {
+      struct mme_value vb_idx2 = mme_sll(b, vb_idx, mme_imm(1));
+      mme_mthd_arr(b, NVC597_SET_VERTEX_STREAM_SIZE_A(0), vb_idx2);
+      mme_emit(b, mme_zero());
+      mme_emit(b, size_B);
+   } else {
+      /* Convert to an end address */
+      mme_add64_to(b, addr, addr, mme_value64(size_B, mme_zero()));
+      mme_add64_to(b, addr, addr, mme_imm64(-1));
+
+      struct mme_value vb_idx2 = mme_sll(b, vb_idx, mme_imm(1));
+      mme_mthd_arr(b, NV9097_SET_VERTEX_STREAM_LIMIT_A_A(0), vb_idx2);
+      mme_emit(b, addr.hi);
+      mme_emit(b, addr.lo);
+   }
+}
+
+static void
+nvk_mme_bind_vb_test_check(const struct nv_device_info *devinfo,
+                           const struct nvk_mme_test_case *test,
+                           const struct nvk_mme_mthd_data *results)
+{
+   assert(results[0].mthd == NV9097_SET_VERTEX_STREAM_A_LOCATION_A(3));
+   assert(results[1].mthd == NV9097_SET_VERTEX_STREAM_A_LOCATION_B(3));
+
+   if (devinfo->cls_eng3d >= TURING_A) {
+      assert(results[0].data == test->params[1]);
+      assert(results[1].data == test->params[2]);
+
+      assert(results[2].mthd == NVC597_SET_VERTEX_STREAM_SIZE_A(3));
+      assert(results[3].mthd == NVC597_SET_VERTEX_STREAM_SIZE_B(3));
+      assert(results[2].data == 0);
+      assert(results[3].data == test->params[3]);
+   } else {
+      uint64_t vb_addr = ((uint64_t)test->params[1] << 32) | test->params[2];
+      const uint32_t size = test->params[3];
+      if (size == 0)
+         vb_addr = ((uint64_t)test->init[0].data << 32) | test->init[1].data;
+
+      assert(results[0].data == vb_addr >> 32);
+      assert(results[1].data == (uint32_t)vb_addr);
+
+      const uint64_t limit = (vb_addr + size) - 1;
+      assert(results[2].mthd == NV9097_SET_VERTEX_STREAM_LIMIT_A_A(3));
+      assert(results[3].mthd == NV9097_SET_VERTEX_STREAM_LIMIT_A_B(3));
+      assert(results[2].data == limit >> 32);
+      assert(results[3].data == (uint32_t)limit);
+   }
+}
+
+const struct nvk_mme_test_case nvk_mme_bind_vb_tests[] = {{
+   .params = (uint32_t[]) { 3, 0xff3, 0xff4ab000, 0x10000 },
+   .check = nvk_mme_bind_vb_test_check,
+}, {
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ZERO_ADDR_HI), 0xff3 },
+      { NVK_SET_MME_SCRATCH(ZERO_ADDR_LO), 0xff356000 },
+      { }
+   },
+   .params = (uint32_t[]) { 3, 0xff3, 0xff4ab000, 0 },
+   .check = nvk_mme_bind_vb_test_check,
+}, {}};
+
+void
 nvk_cmd_bind_vertex_buffer(struct nvk_cmd_buffer *cmd, uint32_t vb_idx,
                            struct nvk_addr_range addr_range)
 {
-   struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
-
    /* Used for meta save/restore */
    if (vb_idx == 0)
       cmd->state.gfx.vb0 = addr_range;
 
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 6);
-
-   if (addr_range.addr == 0 && nvk_cmd_buffer_3d_cls(cmd) < TURING_A)
-      addr_range.addr = dev->zero_page->va->addr;
-
-   P_MTHD(p, NV9097, SET_VERTEX_STREAM_A_LOCATION_A(vb_idx));
-   P_NV9097_SET_VERTEX_STREAM_A_LOCATION_A(p, vb_idx, addr_range.addr >> 32);
-   P_NV9097_SET_VERTEX_STREAM_A_LOCATION_B(p, vb_idx, addr_range.addr);
-
-   if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
-      P_MTHD(p, NVC597, SET_VERTEX_STREAM_SIZE_A(vb_idx));
-      P_NVC597_SET_VERTEX_STREAM_SIZE_A(p, vb_idx, addr_range.range >> 32);
-      P_NVC597_SET_VERTEX_STREAM_SIZE_B(p, vb_idx, addr_range.range);
-   } else {
-      const uint64_t limit = addr_range.addr + addr_range.range - 1;
-      P_MTHD(p, NV9097, SET_VERTEX_STREAM_LIMIT_A_A(vb_idx));
-      P_NV9097_SET_VERTEX_STREAM_LIMIT_A_A(p, vb_idx, limit >> 32);
-      P_NV9097_SET_VERTEX_STREAM_LIMIT_A_B(p, vb_idx, limit);
-   }
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 5);
+   P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_BIND_VB));
+   P_INLINE_DATA(p, vb_idx);
+   P_INLINE_DATA(p, addr_range.addr >> 32);
+   P_INLINE_DATA(p, addr_range.addr);
+   assert(addr_range.range <= UINT32_MAX);
+   P_INLINE_DATA(p, addr_range.range);
 }
 
 VKAPI_ATTR void VKAPI_CALL

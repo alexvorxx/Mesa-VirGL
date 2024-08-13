@@ -15,6 +15,7 @@ enum nvk_mme {
    NVK_MME_BIND_CBUF_DESC,
    NVK_MME_CLEAR,
    NVK_MME_BIND_IB,
+   NVK_MME_BIND_VB,
    NVK_MME_DRAW,
    NVK_MME_DRAW_INDEXED,
    NVK_MME_DRAW_INDIRECT,
@@ -148,6 +149,7 @@ void nvk_mme_select_cb0(struct mme_builder *b);
 void nvk_mme_bind_cbuf_desc(struct mme_builder *b);
 void nvk_mme_clear(struct mme_builder *b);
 void nvk_mme_bind_ib(struct mme_builder *b);
+void nvk_mme_bind_vb(struct mme_builder *b);
 void nvk_mme_draw(struct mme_builder *b);
 void nvk_mme_draw_indexed(struct mme_builder *b);
 void nvk_mme_draw_indirect(struct mme_builder *b);
@@ -182,6 +184,7 @@ struct nvk_mme_test_case {
 };
 
 extern const struct nvk_mme_test_case nvk_mme_clear_tests[];
+extern const struct nvk_mme_test_case nvk_mme_bind_vb_tests[];
 
 void nvk_test_all_mmes(const struct nv_device_info *devinfo);
 
