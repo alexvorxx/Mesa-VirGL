@@ -149,14 +149,7 @@ radv_pipeline_get_shader_key(const struct radv_device *device, const VkPipelineS
 
    vk_pipeline_robustness_state_fill(&device->vk, &rs, pNext, stage->pNext);
 
-   if (rs.storage_buffers == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT)
-      key.storage_robustness2 = 1;
-   if (rs.uniform_buffers == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT)
-      key.uniform_robustness2 = 1;
-   if (s == MESA_SHADER_VERTEX &&
-       (rs.vertex_inputs == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_EXT ||
-        rs.vertex_inputs == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT))
-      key.vertex_robustness1 = 1u;
+   radv_set_stage_key_robustness(&rs, s, &key);
 
    const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo *const subgroup_size =
       vk_find_struct_const(stage->pNext, PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO);

@@ -32,6 +32,7 @@ struct radv_shader_args;
 struct radv_vs_input_state;
 struct radv_shader_args;
 struct radv_serialized_shader_arena_block;
+struct vk_pipeline_robustness_state;
 
 enum {
    RADV_GRAPHICS_STAGE_BITS =
@@ -720,5 +721,8 @@ uint32_t radv_get_user_sgpr(const struct radv_shader *shader, int idx);
 
 void radv_precompute_registers_hw_ngg(struct radv_device *device, const struct ac_shader_config *config,
                                       struct radv_shader_info *info);
+
+void radv_set_stage_key_robustness(const struct vk_pipeline_robustness_state *rs, gl_shader_stage stage,
+                                   struct radv_shader_stage_key *key);
 
 #endif /* RADV_SHADER_H */

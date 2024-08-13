@@ -2795,6 +2795,20 @@ radv_fill_nir_compiler_options(struct radv_nir_compiler_options *options, struct
    options->enable_mrt_output_nan_fixup = gfx_state ? gfx_state->ps.epilog.enable_mrt_output_nan_fixup : false;
 }
 
+void
+radv_set_stage_key_robustness(const struct vk_pipeline_robustness_state *rs, gl_shader_stage stage,
+                              struct radv_shader_stage_key *key)
+{
+   if (rs->storage_buffers == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT)
+      key->storage_robustness2 = 1;
+   if (rs->uniform_buffers == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT)
+      key->uniform_robustness2 = 1;
+   if (stage == MESA_SHADER_VERTEX &&
+       (rs->vertex_inputs == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_EXT ||
+        rs->vertex_inputs == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT))
+      key->vertex_robustness1 = 1u;
+}
+
 static void
 radv_capture_shader_executable_info(struct radv_device *device, struct radv_shader *shader,
                                     struct nir_shader *const *shaders, int shader_count,
