@@ -123,13 +123,10 @@ static VkResult device_select_CreateInstance(const VkInstanceCreateInfo *pCreate
          break;
 
    assert(chain_info->u.pLayerInfo);
-   struct instance_info *info = (struct instance_info *)calloc(1, sizeof(struct instance_info));
 
-   info->GetInstanceProcAddr = chain_info->u.pLayerInfo->pfnNextGetInstanceProcAddr;
-   PFN_vkCreateInstance fpCreateInstance =
-      (PFN_vkCreateInstance)info->GetInstanceProcAddr(NULL, "vkCreateInstance");
+   PFN_vkGetInstanceProcAddr GetInstanceProcAddr = chain_info->u.pLayerInfo->pfnNextGetInstanceProcAddr;
+   PFN_vkCreateInstance fpCreateInstance = (PFN_vkCreateInstance)GetInstanceProcAddr(NULL, "vkCreateInstance");
    if (fpCreateInstance == NULL) {
-      free(info);
       return VK_ERROR_INITIALIZATION_FAILED;
    }
 
@@ -137,9 +134,11 @@ static VkResult device_select_CreateInstance(const VkInstanceCreateInfo *pCreate
 
    VkResult result = fpCreateInstance(pCreateInfo, pAllocator, pInstance);
    if (result != VK_SUCCESS) {
-      free(info);
       return result;
    }
+
+   struct instance_info *info = (struct instance_info *)calloc(1, sizeof(struct instance_info));
+   info->GetInstanceProcAddr = GetInstanceProcAddr;
 
    for (unsigned i = 0; i < pCreateInfo->enabledExtensionCount; i++) {
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
