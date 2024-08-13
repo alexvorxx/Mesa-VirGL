@@ -391,7 +391,7 @@ init_live_in_vars(spill_ctx& ctx, Block* block, unsigned block_idx)
          for (aco_ptr<Instruction>& phi : block->instructions) {
             if (!is_phi(phi))
                break;
-            if (!phi->definitions[0].isTemp())
+            if (!phi->definitions[0].isTemp() || phi->definitions[0].isKill())
                continue;
             Temp var = phi->definitions[0].getTemp();
             if (var.type() == type && !ctx.spills_entry[block_idx].count(var) &&
@@ -486,7 +486,7 @@ init_live_in_vars(spill_ctx& ctx, Block* block, unsigned block_idx)
    for (aco_ptr<Instruction>& phi : block->instructions) {
       if (!is_phi(phi))
          break;
-      if (!phi->definitions[0].isTemp())
+      if (!phi->definitions[0].isTemp() || phi->definitions[0].isKill())
          continue;
 
       Block::edge_vec& preds =
@@ -596,6 +596,7 @@ add_coupling_code(spill_ctx& ctx, Block* block, IDSet& live_in)
       Block::edge_vec& preds =
          phi->opcode == aco_opcode::p_phi ? block->logical_preds : block->linear_preds;
       uint32_t def_spill_id = ctx.spills_entry[block_idx][phi->definitions[0].getTemp()];
+      phi->definitions[0].setKill(true);
 
       for (unsigned i = 0; i < phi->operands.size(); i++) {
          if (phi->operands[i].isUndefined())
@@ -717,11 +718,11 @@ add_coupling_code(spill_ctx& ctx, Block* block, IDSet& live_in)
    for (aco_ptr<Instruction>& phi : block->instructions) {
       if (!is_phi(phi))
          break;
+      if (phi->definitions[0].isKill())
+         continue;
 
       assert(!phi->definitions[0].isTemp() ||
-             !ctx.spills_entry[block_idx].count(phi->definitions[0].getTemp()) ||
-             std::all_of(phi->operands.begin(), phi->operands.end(),
-                         [](Operand op) { return op.isUndefined(); }));
+             !ctx.spills_entry[block_idx].count(phi->definitions[0].getTemp()));
 
       Block::edge_vec& preds =
          phi->opcode == aco_opcode::p_phi ? block->logical_preds : block->linear_preds;

@@ -70,7 +70,7 @@ collect_parallelcopies(cssa_ctx& ctx)
          /* if the definition is not temp, it is the exec mask.
           * We can reload the exec mask directly from the spill slot.
           */
-         if (!def.isTemp())
+         if (!def.isTemp() || def.isKill())
             continue;
 
          Block::edge_vec& preds =
