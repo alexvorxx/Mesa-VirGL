@@ -2989,7 +2989,7 @@ dri2_initialize_wayland_swrast(_EGLDisplay *disp)
    if (!dri2_create_screen(disp))
       goto cleanup;
 
-   if (!dri2_setup_device(disp, true)) {
+   if (!dri2_setup_device(disp, disp->Options.ForceSoftware)) {
       _eglError(EGL_NOT_INITIALIZED, "DRI2: failed to setup EGLDevice");
       goto cleanup;
    }
