@@ -32,11 +32,20 @@
 #include "util/vl_rbsp.h"
 
 enum HEVCNALUnitType {
-    HEVC_NAL_VPS        = 32,
-    HEVC_NAL_SPS        = 33,
-    HEVC_NAL_PPS        = 34,
-    HEVC_NAL_AUD        = 35,
-    HEVC_NAL_PREFIX_SEI    = 39,
+   HEVC_NAL_TRAIL_N    = 0,
+   HEVC_NAL_TRAIL_R    = 1,
+   HEVC_NAL_TSA_N      = 2,
+   HEVC_NAL_TSA_R      = 3,
+   HEVC_NAL_BLA_W_LP   = 16,
+   HEVC_NAL_IDR_W_RADL = 19,
+   HEVC_NAL_IDR_N_LP   = 20,
+   HEVC_NAL_CRA_NUT    = 21,
+   HEVC_NAL_RSV_IRAP_VCL23 = 23,
+   HEVC_NAL_VPS        = 32,
+   HEVC_NAL_SPS        = 33,
+   HEVC_NAL_PPS        = 34,
+   HEVC_NAL_AUD        = 35,
+   HEVC_NAL_PREFIX_SEI = 39,
 };
 
 enum HEVCSEIPayloadType {
@@ -128,6 +137,15 @@ vlVaHandleVAEncPictureParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *cont
 
    context->desc.h265enc.num_ref_idx_l0_active_minus1 = h265->num_ref_idx_l0_default_active_minus1;
    context->desc.h265enc.num_ref_idx_l1_active_minus1 = h265->num_ref_idx_l1_default_active_minus1;
+
+   if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SLICE)) {
+      unsigned max_poc = 1 << (context->desc.h265enc.seq.log2_max_pic_order_cnt_lsb_minus4 + 4);
+      context->desc.h265enc.slice.slice_pic_order_cnt_lsb = h265->decoded_curr_pic.pic_order_cnt % max_poc;
+      if (context->desc.h265enc.picture_type == PIPE_H2645_ENC_PICTURE_TYPE_P) {
+         context->desc.h265enc.slice.st_ref_pic_set.num_negative_pics = 1;
+         context->desc.h265enc.slice.st_ref_pic_set.used_by_curr_pic_s0_flag[0] = 1;
+      }
+   }
 
    return VA_STATUS_SUCCESS;
 }
@@ -326,9 +344,19 @@ vlVaHandleVAEncSequenceParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *con
    context->desc.h265enc.rc[0].frame_rate_den = num_units_in_tick;
 
    if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SEQUENCE)) {
+      struct pipe_h265_profile_tier_level *ptl =
+         &context->desc.h265enc.vid.profile_tier_level;
       context->desc.h265enc.header_flags.vps = 1;
       context->desc.h265enc.header_flags.sps = 1;
       context->desc.h265enc.header_flags.pps = 1;
+      context->desc.h265enc.vid.vps_base_layer_internal_flag = 1;
+      context->desc.h265enc.vid.vps_base_layer_available_flag = 1;
+      ptl->profile_tier.general_tier_flag = h265->general_tier_flag;
+      ptl->profile_tier.general_profile_idc = h265->general_profile_idc;
+      ptl->profile_tier.general_progressive_source_flag = 1;
+      ptl->profile_tier.general_frame_only_constraint_flag = 1;
+      ptl->general_level_idc = h265->general_level_idc;
+      context->desc.h265enc.seq.profile_tier_level = *ptl;
    }
 
    return VA_STATUS_SUCCESS;
@@ -415,20 +443,16 @@ vlVaHandleVAEncMiscParameterTypeQualityLevelHEVC(vlVaContext *context, VAEncMisc
    return VA_STATUS_SUCCESS;
 }
 
-static void profile_tier(struct vl_rbsp *rbsp)
+static void profile_tier(struct vl_rbsp *rbsp, struct pipe_h265_profile_tier *pt)
 {
-   vl_rbsp_u(rbsp, 2); /* general_profile_space */
-   vl_rbsp_u(rbsp, 1); /* general_tier_flag */
-   vl_rbsp_u(rbsp, 5); /* general_profile_idc */
-
-   /* general_profile_compatibility_flag */
-   for(int i = 0; i < 32; ++i)
-      vl_rbsp_u(rbsp, 1);
-
-   vl_rbsp_u(rbsp, 1); /* general_progressive_source_flag */
-   vl_rbsp_u(rbsp, 1); /* general_interlaced_source_flag */
-   vl_rbsp_u(rbsp, 1); /* general_non_packed_constraint_flag */
-   vl_rbsp_u(rbsp, 1); /* general_frame_only_constraint_flag */
+   pt->general_profile_space = vl_rbsp_u(rbsp, 2);
+   pt->general_tier_flag = vl_rbsp_u(rbsp, 1);
+   pt->general_profile_idc = vl_rbsp_u(rbsp, 5);
+   pt->general_profile_compatibility_flag = vl_rbsp_u(rbsp, 32);
+   pt->general_progressive_source_flag = vl_rbsp_u(rbsp, 1);
+   pt->general_interlaced_source_flag = vl_rbsp_u(rbsp, 1);
+   pt->general_non_packed_constraint_flag = vl_rbsp_u(rbsp, 1);
+   pt->general_frame_only_constraint_flag = vl_rbsp_u(rbsp, 1);
 
    /* general_reserved_zero_44bits */
    vl_rbsp_u(rbsp, 16);
@@ -436,20 +460,18 @@ static void profile_tier(struct vl_rbsp *rbsp)
    vl_rbsp_u(rbsp, 12);
 }
 
-static unsigned profile_tier_level(struct vl_rbsp *rbsp,
-                                   int max_sublayers_minus1)
+static void profile_tier_level(struct vl_rbsp *rbsp,
+                               int max_sublayers_minus1,
+                               struct pipe_h265_profile_tier_level *ptl)
 {
-   bool sub_layer_profile_present_flag[6];
-   bool sub_layer_level_present_flag[6];
-   unsigned level_idc;
    int i;
 
-   profile_tier(rbsp);
-   level_idc = vl_rbsp_u(rbsp, 8);  /* general_level_idc */
+   profile_tier(rbsp, &ptl->profile_tier);
+   ptl->general_level_idc = vl_rbsp_u(rbsp, 8);
 
    for (i = 0; i < max_sublayers_minus1; ++i) {
-      sub_layer_profile_present_flag[i] = vl_rbsp_u(rbsp, 1);
-      sub_layer_level_present_flag[i] = vl_rbsp_u(rbsp, 1);
+      ptl->sub_layer_profile_present_flag[i] = vl_rbsp_u(rbsp, 1);
+      ptl->sub_layer_level_present_flag[i] = vl_rbsp_u(rbsp, 1);
    }
 
    if (max_sublayers_minus1 > 0)
@@ -457,14 +479,12 @@ static unsigned profile_tier_level(struct vl_rbsp *rbsp,
          vl_rbsp_u(rbsp, 2);        /* reserved_zero_2bits */
 
    for (i = 0; i < max_sublayers_minus1; ++i) {
-      if (sub_layer_profile_present_flag[i])
-         profile_tier(rbsp);
+      if (ptl->sub_layer_profile_present_flag[i])
+         profile_tier(rbsp, &ptl->sub_layer_profile_tier[i]);
 
-      if (sub_layer_level_present_flag[i])
-         vl_rbsp_u(rbsp, 8);        /* sub_layer_level_idc */
+      if (ptl->sub_layer_level_present_flag[i])
+         ptl->sub_layer_level_idc[i] = vl_rbsp_u(rbsp, 8);
    }
-
-   return level_idc;
 }
 
 static void parse_enc_hrd_sublayer_params_hevc(uint32_t cpb_cnt,
@@ -554,57 +574,277 @@ static void scaling_list_data(struct vl_rbsp *rbsp)
    }
 }
 
-/* i is the working rps, st_rps is the start */
-static void st_ref_pic_set(unsigned index,
-                           unsigned num_short_term_ref_pic_sets,
-                           struct pipe_h265_st_ref_pic_set *st_rps,
-                           struct vl_rbsp *rbsp)
+/* i is the working rps, st_rps is the start
+ * returns num_pic_total_curr */
+static unsigned st_ref_pic_set(unsigned index,
+                               unsigned num_short_term_ref_pic_sets,
+                               struct pipe_h265_st_ref_pic_set *st_rps,
+                               struct vl_rbsp *rbsp)
 {
-   unsigned inter_ref_pic_set_pred_flag = (index) ? vl_rbsp_u(rbsp, 1) : 0;
    struct pipe_h265_st_ref_pic_set *ref_rps = NULL;
-   unsigned delta_idx_minus1 = 0;
-   unsigned i;
+   struct pipe_h265_st_ref_pic_set *rps = &st_rps[index];
+   unsigned i, num_pic_total_curr = 0;
 
-   if (inter_ref_pic_set_pred_flag) {
+   rps->inter_ref_pic_set_prediction_flag = index ? vl_rbsp_u(rbsp, 1) : 0;
+
+   if (rps->inter_ref_pic_set_prediction_flag) {
       if (index == num_short_term_ref_pic_sets)
-         delta_idx_minus1 = vl_rbsp_ue(rbsp);
-      vl_rbsp_u(rbsp, 1);  /* delta_rps_sign */
-      vl_rbsp_ue(rbsp); /* abs_delta_rps_minus1 */
-      ref_rps = st_rps + index - (delta_idx_minus1 + 1);
-      for (i = 0; i <= (ref_rps->num_neg_pics + ref_rps->num_pos_pics); i++) {
-         if (!vl_rbsp_u(rbsp, 1)) /* used_by_curr_pic_flag */
-            vl_rbsp_u(rbsp, 1); /* use_delta_flag */
+         rps->delta_idx_minus1 = vl_rbsp_ue(rbsp);
+      rps->delta_rps_sign = vl_rbsp_u(rbsp, 1);
+      rps->abs_delta_rps_minus1 = vl_rbsp_ue(rbsp);
+      ref_rps = st_rps + index +
+         (1 - 2 * rps->delta_rps_sign) * (st_rps->delta_idx_minus1 + 1);
+      for (i = 0; i <= (ref_rps->num_negative_pics + ref_rps->num_positive_pics); i++) {
+         rps->used_by_curr_pic_flag[i] = vl_rbsp_u(rbsp, 1);
+         if (!rps->used_by_curr_pic_flag[i])
+            rps->use_delta_flag[i] = vl_rbsp_u(rbsp, 1);
       }
    } else {
-      st_rps->num_neg_pics = vl_rbsp_ue(rbsp);
-      st_rps->num_pos_pics = vl_rbsp_ue(rbsp);
-      for (i = 0; i < st_rps->num_neg_pics; i++) {
-         vl_rbsp_ue(rbsp); /* delta_poc_s0_minus1 */
-         vl_rbsp_u(rbsp, 1); /* used_by_curr_pic_s0_flag */
+      rps->num_negative_pics = vl_rbsp_ue(rbsp);
+      rps->num_positive_pics = vl_rbsp_ue(rbsp);
+      for (i = 0; i < rps->num_negative_pics; i++) {
+         rps->delta_poc_s0_minus1[i] = vl_rbsp_ue(rbsp);
+         rps->used_by_curr_pic_s0_flag[i] = vl_rbsp_u(rbsp, 1);
+         if (rps->used_by_curr_pic_s0_flag[i])
+            num_pic_total_curr++;
       }
-      for (i = 0; i < st_rps->num_pos_pics; i++) {
-         vl_rbsp_ue(rbsp); /* delta_poc_s1_minus1 */
-         vl_rbsp_u(rbsp, 1); /* used_by_curr_pic_s1_flag */
+      for (i = 0; i < st_rps->num_positive_pics; i++) {
+         rps->delta_poc_s1_minus1[i] = vl_rbsp_ue(rbsp);
+         rps->used_by_curr_pic_s1_flag[i] = vl_rbsp_u(rbsp, 1);
+         if (rps->used_by_curr_pic_s1_flag[i])
+            num_pic_total_curr++;
+      }
+   }
+
+   return num_pic_total_curr;
+}
+
+static void parseEncSliceParamsH265(vlVaContext *context,
+                                    struct vl_rbsp *rbsp,
+                                    unsigned nal_unit_type,
+                                    unsigned temporal_id)
+{
+   struct pipe_h265_enc_pic_param *pic = &context->desc.h265enc.pic;
+   struct pipe_h265_enc_seq_param *seq = &context->desc.h265enc.seq;
+   struct pipe_h265_enc_slice_param *slice = &context->desc.h265enc.slice;
+   unsigned num_pic_total_curr = 0;
+
+   /* Only parse first slice */
+   if (!vl_rbsp_u(rbsp, 1)) /* first_slice_segment_in_pic_flag */
+      return;
+
+   pic->nal_unit_type = nal_unit_type;
+   pic->temporal_id = temporal_id;
+
+   if (nal_unit_type >= HEVC_NAL_BLA_W_LP && nal_unit_type <= HEVC_NAL_RSV_IRAP_VCL23)
+      slice->no_output_of_prior_pics_flag = vl_rbsp_u(rbsp, 1);
+
+   vl_rbsp_ue(rbsp); /* slice_pic_parameter_set_id */
+
+   if (slice->dependent_slice_segment_flag)
+      return;
+
+   for (uint8_t i = 0; i < pic->num_extra_slice_header_bits; i++)
+      vl_rbsp_u(rbsp, 1);
+
+   slice->slice_type = vl_rbsp_ue(rbsp);
+
+   if (pic->output_flag_present_flag)
+      slice->pic_output_flag = vl_rbsp_u(rbsp, 1);
+
+   if (nal_unit_type != HEVC_NAL_IDR_W_RADL && nal_unit_type != HEVC_NAL_IDR_N_LP) {
+      slice->slice_pic_order_cnt_lsb = vl_rbsp_u(rbsp, seq->log2_max_pic_order_cnt_lsb_minus4 + 4);
+      slice->short_term_ref_pic_set_sps_flag = vl_rbsp_u(rbsp, 1);
+      if (!slice->short_term_ref_pic_set_sps_flag) {
+         num_pic_total_curr = st_ref_pic_set(seq->num_short_term_ref_pic_sets, seq->num_short_term_ref_pic_sets,
+                                             &slice->st_ref_pic_set, rbsp);
+      }
+      else if (seq->num_short_term_ref_pic_sets > 1)
+         slice->short_term_ref_pic_set_idx = vl_rbsp_u(rbsp, util_logbase2_ceil(seq->num_short_term_ref_pic_sets));
+      if (seq->long_term_ref_pics_present_flag) {
+         slice->num_long_term_sps = 0;
+         if (seq->num_long_term_ref_pics_sps > 0)
+            slice->num_long_term_sps = vl_rbsp_ue(rbsp);
+         slice->num_long_term_pics = vl_rbsp_ue(rbsp);
+         for (unsigned i = 0; i < (slice->num_long_term_sps + slice->num_long_term_pics); i++) {
+            if (i < slice->num_long_term_sps) {
+               if (seq->num_long_term_ref_pics_sps > 1)
+                  slice->lt_idx_sps[i] = vl_rbsp_u(rbsp, util_logbase2_ceil(seq->num_long_term_ref_pics_sps));
+            } else {
+               slice->poc_lsb_lt[i] = vl_rbsp_u(rbsp, seq->log2_max_pic_order_cnt_lsb_minus4 + 4);
+               slice->used_by_curr_pic_lt_flag[i] = vl_rbsp_u(rbsp, 1);
+               if (slice->used_by_curr_pic_lt_flag[i])
+                  num_pic_total_curr++;
+            }
+            slice->delta_poc_msb_present_flag[i] = vl_rbsp_u(rbsp, 1);
+            if (slice->delta_poc_msb_present_flag[i])
+               slice->delta_poc_msb_cycle_lt[i] = vl_rbsp_ue(rbsp);
+         }
+      }
+   }
+
+   if (context->desc.h265enc.seq.sample_adaptive_offset_enabled_flag) {
+      slice->slice_sao_luma_flag = vl_rbsp_u(rbsp, 1);
+      slice->slice_sao_chroma_flag = vl_rbsp_u(rbsp, 1);
+   }
+
+   if (slice->slice_type == PIPE_H265_SLICE_TYPE_P || slice->slice_type == PIPE_H265_SLICE_TYPE_B) {
+      slice->num_ref_idx_active_override_flag = vl_rbsp_u(rbsp, 1);
+      if (slice->num_ref_idx_active_override_flag) {
+         slice->num_ref_idx_l0_active_minus1 = vl_rbsp_ue(rbsp);
+         if (slice->slice_type == PIPE_H265_SLICE_TYPE_B)
+            slice->num_ref_idx_l1_active_minus1 = vl_rbsp_ue(rbsp);
+      }
+      if (pic->lists_modification_present_flag && num_pic_total_curr > 1) {
+         unsigned num_bits = util_logbase2_ceil(num_pic_total_curr);
+         unsigned num_ref_l0_minus1 = slice->num_ref_idx_active_override_flag ?
+            slice->num_ref_idx_l0_active_minus1 : pic->num_ref_idx_l0_default_active_minus1;
+         slice->ref_pic_lists_modification.ref_pic_list_modification_flag_l0 = vl_rbsp_u(rbsp, 1);
+         if (slice->ref_pic_lists_modification.ref_pic_list_modification_flag_l0) {
+            for (unsigned i = 0; i <= num_ref_l0_minus1; i++)
+               slice->ref_pic_lists_modification.list_entry_l0[i] = vl_rbsp_u(rbsp, num_bits);
+         }
+         if (slice->slice_type == PIPE_H265_SLICE_TYPE_B) {
+            unsigned num_ref_l1_minus1 = slice->num_ref_idx_active_override_flag ?
+               slice->num_ref_idx_l1_active_minus1 : pic->num_ref_idx_l1_default_active_minus1;
+            slice->ref_pic_lists_modification.ref_pic_list_modification_flag_l1 = vl_rbsp_u(rbsp, 1);
+            if (slice->ref_pic_lists_modification.ref_pic_list_modification_flag_l1) {
+               for (unsigned i = 0; i <= num_ref_l1_minus1; i++)
+                  slice->ref_pic_lists_modification.list_entry_l1[i] = vl_rbsp_u(rbsp, num_bits);
+            }
+         }
+      }
+      if (slice->slice_type == PIPE_H265_SLICE_TYPE_B)
+         slice->mvd_l1_zero_flag = vl_rbsp_u(rbsp, 1);
+      if (pic->cabac_init_present_flag)
+         slice->cabac_init_flag = vl_rbsp_u(rbsp, 1);
+      slice->max_num_merge_cand = 5 - vl_rbsp_ue(rbsp);
+   }
+
+   slice->slice_qp_delta = vl_rbsp_se(rbsp);
+
+   if (pic->pps_slice_chroma_qp_offsets_present_flag) {
+      slice->slice_cb_qp_offset = vl_rbsp_se(rbsp);
+      slice->slice_cr_qp_offset = vl_rbsp_se(rbsp);
+   }
+
+   if (pic->deblocking_filter_override_enabled_flag)
+      slice->deblocking_filter_override_flag = vl_rbsp_u(rbsp, 1);
+
+   if (slice->deblocking_filter_override_flag) {
+      slice->slice_deblocking_filter_disabled_flag = vl_rbsp_u(rbsp, 1);
+      if (!slice->slice_deblocking_filter_disabled_flag) {
+         slice->slice_beta_offset_div2 = vl_rbsp_se(rbsp);
+         slice->slice_tc_offset_div2 = vl_rbsp_se(rbsp);
+      }
+   }
+
+   if (pic->pps_loop_filter_across_slices_enabled_flag &&
+       (slice->slice_sao_luma_flag ||
+        slice->slice_sao_chroma_flag ||
+        !slice->slice_deblocking_filter_disabled_flag))
+      slice->slice_loop_filter_across_slices_enabled_flag = vl_rbsp_u(rbsp, 1);
+}
+
+static void parseEncVpsParamsH265(vlVaContext *context, struct vl_rbsp *rbsp)
+{
+   struct pipe_h265_enc_vid_param *vid = &context->desc.h265enc.vid;
+   unsigned i;
+
+   vl_rbsp_u(rbsp, 4); /* vps_video_parameter_set_id */
+   vid->vps_base_layer_internal_flag = vl_rbsp_u(rbsp, 1);
+   vid->vps_base_layer_available_flag = vl_rbsp_u(rbsp, 1);
+   vid->vps_max_layers_minus1 = vl_rbsp_u(rbsp, 6);
+   vid->vps_max_sub_layers_minus1 = vl_rbsp_u(rbsp, 3);
+   vid->vps_temporal_id_nesting_flag = vl_rbsp_u(rbsp, 1);
+   vl_rbsp_u(rbsp, 16); /* vps_reserved_0xffff_16bits */
+   profile_tier_level(rbsp, vid->vps_max_sub_layers_minus1, &vid->profile_tier_level);
+   vid->vps_sub_layer_ordering_info_present_flag = vl_rbsp_u(rbsp, 1);
+   i = vid->vps_sub_layer_ordering_info_present_flag ? 0 : vid->vps_max_sub_layers_minus1;
+   for (; i <= vid->vps_max_sub_layers_minus1; i++) {
+      vid->vps_max_dec_pic_buffering_minus1[i] = vl_rbsp_ue(rbsp);
+      vid->vps_max_num_reorder_pics[i] = vl_rbsp_ue(rbsp);
+      vid->vps_max_latency_increase_plus1[i] = vl_rbsp_ue(rbsp);
+   }
+   vid->vps_max_layer_id = vl_rbsp_u(rbsp, 6);
+   vid->vps_num_layer_sets_minus1 = vl_rbsp_ue(rbsp);
+   for (unsigned i = 0; i <= vid->vps_num_layer_sets_minus1; i++) {
+      for (unsigned j = 0; j <= vid->vps_max_layer_id; j++)
+         vl_rbsp_u(rbsp, 1); /* layer_id_included_flag[i][j] */
+   }
+   vid->vps_timing_info_present_flag = vl_rbsp_u(rbsp, 1);
+   if (vid->vps_timing_info_present_flag) {
+      vid->vps_num_units_in_tick = vl_rbsp_u(rbsp, 32);
+      vid->vps_time_scale = vl_rbsp_u(rbsp, 32);
+      vid->vps_poc_proportional_to_timing_flag = vl_rbsp_u(rbsp, 1);
+      if (vid->vps_poc_proportional_to_timing_flag)
+         vid->vps_num_ticks_poc_diff_one_minus1 = vl_rbsp_ue(rbsp);
+   }
+}
+
+static void parseEncPpsParamsH265(vlVaContext *context, struct vl_rbsp *rbsp)
+{
+   struct pipe_h265_enc_pic_param *pic = &context->desc.h265enc.pic;
+
+   vl_rbsp_ue(rbsp); /* pps_pic_parameter_set_id */
+   vl_rbsp_ue(rbsp); /* pps_seq_parameter_set_id */
+   pic->dependent_slice_segments_enabled_flag = vl_rbsp_u(rbsp, 1);
+   pic->output_flag_present_flag = vl_rbsp_u(rbsp, 1);
+   pic->num_extra_slice_header_bits = vl_rbsp_u(rbsp, 3);
+   pic->sign_data_hiding_enabled_flag = vl_rbsp_u(rbsp, 1);
+   pic->cabac_init_present_flag = vl_rbsp_u(rbsp, 1);
+   pic->num_ref_idx_l0_default_active_minus1 = vl_rbsp_ue(rbsp);
+   pic->num_ref_idx_l1_default_active_minus1 = vl_rbsp_ue(rbsp);
+   pic->init_qp_minus26 = vl_rbsp_se(rbsp);
+   pic->constrained_intra_pred_flag = vl_rbsp_u(rbsp, 1);
+   pic->transform_skip_enabled_flag = vl_rbsp_u(rbsp, 1);
+   pic->cu_qp_delta_enabled_flag = vl_rbsp_u(rbsp, 1);
+   if (pic->cu_qp_delta_enabled_flag)
+      pic->diff_cu_qp_delta_depth = vl_rbsp_ue(rbsp);
+   pic->pps_cb_qp_offset = vl_rbsp_se(rbsp);
+   pic->pps_cr_qp_offset = vl_rbsp_se(rbsp);
+   pic->pps_slice_chroma_qp_offsets_present_flag = vl_rbsp_u(rbsp, 1);
+   pic->weighted_pred_flag = vl_rbsp_u(rbsp, 1);
+   pic->weighted_bipred_flag = vl_rbsp_u(rbsp, 1);
+   pic->transquant_bypass_enabled_flag = vl_rbsp_u(rbsp, 1);
+   unsigned tiles_enabled_flag = vl_rbsp_u(rbsp, 1);
+   pic->entropy_coding_sync_enabled_flag = vl_rbsp_u(rbsp, 1);
+   if (tiles_enabled_flag) {
+      unsigned num_tile_columns_minus1 = vl_rbsp_ue(rbsp);
+      unsigned num_tile_rows_minus1 = vl_rbsp_ue(rbsp);
+      if (!vl_rbsp_u(rbsp, 1)) { /* uniform_spacing_flag */
+         for (unsigned i = 0; i < num_tile_columns_minus1; i++)
+            vl_rbsp_ue(rbsp); /* column_width_minus1[i] */
+         for (unsigned i = 0; i < num_tile_rows_minus1; i++)
+            vl_rbsp_ue(rbsp); /* row_height_minus1[i] */
+      }
+      vl_rbsp_u(rbsp, 1); /* loop_filter_across_tiles_enabled_flag */
+   }
+   pic->pps_loop_filter_across_slices_enabled_flag = vl_rbsp_u(rbsp, 1);
+   pic->deblocking_filter_control_present_flag = vl_rbsp_u(rbsp, 1);
+   if (pic->deblocking_filter_control_present_flag) {
+      pic->deblocking_filter_override_enabled_flag = vl_rbsp_u(rbsp, 1);
+      pic->pps_deblocking_filter_disabled_flag = vl_rbsp_u(rbsp, 1);
+      if (!pic->pps_deblocking_filter_disabled_flag) {
+         pic->pps_beta_offset_div2 = vl_rbsp_se(rbsp);
+         pic->pps_tc_offset_div2 = vl_rbsp_se(rbsp);
       }
    }
 }
 
 static void parseEncSpsParamsH265(vlVaContext *context, struct vl_rbsp *rbsp)
 {
-   int sps_max_sub_layers_minus1;
-   unsigned i, sps_sub_layer_ordering_info_present_flag;
-   unsigned num_st_ref_pic_sets, num_long_term_ref_pics_sps;
-   unsigned log2_max_pic_order_cnt_lsb_minus4;
-   struct pipe_h265_st_ref_pic_set *st_rps = NULL;
+   unsigned i;
 
    vl_rbsp_u(rbsp, 4);     /* sps_video_parameter_set_id */
-   sps_max_sub_layers_minus1 = vl_rbsp_u(rbsp, 3);
-   vl_rbsp_u(rbsp, 1);     /* sps_temporal_id_nesting_flag */
+   context->desc.h265enc.seq.sps_max_sub_layers_minus1 = vl_rbsp_u(rbsp, 3);
+   context->desc.h265enc.seq.sps_temporal_id_nesting_flag = vl_rbsp_u(rbsp, 1);
 
    /* level_idc */
-   profile_tier_level(rbsp, sps_max_sub_layers_minus1);
+   profile_tier_level(rbsp, context->desc.h265enc.seq.sps_max_sub_layers_minus1,
+                      &context->desc.h265enc.seq.profile_tier_level);
 
-   vl_rbsp_ue(rbsp);       /* id */
+   vl_rbsp_ue(rbsp);       /* sps_seq_parameter_set_id */
    context->desc.h265enc.seq.chroma_format_idc = vl_rbsp_ue(rbsp);
    if (context->desc.h265enc.seq.chroma_format_idc == 3)
       vl_rbsp_u(rbsp, 1);  /* separate_colour_plane_flag */
@@ -621,32 +861,34 @@ static void parseEncSpsParamsH265(vlVaContext *context, struct vl_rbsp *rbsp)
       context->desc.h265enc.seq.conf_win_bottom_offset = vl_rbsp_ue(rbsp);
    }
 
-   vl_rbsp_ue(rbsp); /* bit_depth_luma_minus8 */
-   vl_rbsp_ue(rbsp); /* bit_depth_chroma_minus8 */
-   log2_max_pic_order_cnt_lsb_minus4 = vl_rbsp_ue(rbsp);
+   context->desc.h265enc.seq.bit_depth_luma_minus8 = vl_rbsp_ue(rbsp);
+   context->desc.h265enc.seq.bit_depth_chroma_minus8 = vl_rbsp_ue(rbsp);
+   context->desc.h265enc.seq.log2_max_pic_order_cnt_lsb_minus4 = vl_rbsp_ue(rbsp);
 
-   sps_sub_layer_ordering_info_present_flag = vl_rbsp_u(rbsp, 1);
-   i = sps_sub_layer_ordering_info_present_flag ? 0 : sps_max_sub_layers_minus1;
-   for (; i <= sps_max_sub_layers_minus1; ++i) {
-      vl_rbsp_ue(rbsp); /* sps_max_dec_pic_buffering_minus1[i] */
-      vl_rbsp_ue(rbsp); /* sps_max_num_reorder_pics[i] */
-      vl_rbsp_ue(rbsp); /* sps_max_latency_increase_plus1[i] */
+   context->desc.h265enc.seq.sps_sub_layer_ordering_info_present_flag = vl_rbsp_u(rbsp, 1);
+   i = context->desc.h265enc.seq.sps_sub_layer_ordering_info_present_flag ? 0 : context->desc.h265enc.seq.sps_max_sub_layers_minus1;
+   for (; i <= context->desc.h265enc.seq.sps_max_sub_layers_minus1; ++i) {
+      context->desc.h265enc.seq.sps_max_dec_pic_buffering_minus1[i] = vl_rbsp_ue(rbsp);
+      context->desc.h265enc.seq.sps_max_num_reorder_pics[i] = vl_rbsp_ue(rbsp);
+      context->desc.h265enc.seq.sps_max_latency_increase_plus1[i] = vl_rbsp_ue(rbsp);
    }
 
-   vl_rbsp_ue(rbsp); /* log2_min_luma_coding_block_size_minus3 */
-   vl_rbsp_ue(rbsp); /* log2_diff_max_min_luma_coding_block_size */
-   vl_rbsp_ue(rbsp); /* log2_min_luma_transform_block_size_minus2 */
-   vl_rbsp_ue(rbsp); /* log2_diff_max_min_luma_transform_block_size */
-   vl_rbsp_ue(rbsp); /* max_transform_hierarchy_depth_inter */
-   vl_rbsp_ue(rbsp); /* max_transform_hierarchy_depth_intra */
+   context->desc.h265enc.seq.log2_min_luma_coding_block_size_minus3 = vl_rbsp_ue(rbsp);
+   context->desc.h265enc.seq.log2_diff_max_min_luma_coding_block_size = vl_rbsp_ue(rbsp);
+   context->desc.h265enc.seq.log2_min_transform_block_size_minus2 = vl_rbsp_ue(rbsp);
+   context->desc.h265enc.seq.log2_diff_max_min_transform_block_size = vl_rbsp_ue(rbsp);
+   context->desc.h265enc.seq.max_transform_hierarchy_depth_inter = vl_rbsp_ue(rbsp);
+   context->desc.h265enc.seq.max_transform_hierarchy_depth_intra = vl_rbsp_ue(rbsp);
 
    if (vl_rbsp_u(rbsp, 1)) /* scaling_list_enabled_flag */
       if (vl_rbsp_u(rbsp, 1)) /* sps_scaling_list_data_present_flag */
          scaling_list_data(rbsp);
 
-   vl_rbsp_u(rbsp, 1); /* amp_enabled_flag */
-   vl_rbsp_u(rbsp, 1); /* sample_adaptive_offset_enabled_flag */
-   if (vl_rbsp_u(rbsp, 1)) { /* pcm_enabled_flag */
+   context->desc.h265enc.seq.amp_enabled_flag = vl_rbsp_u(rbsp, 1);
+   context->desc.h265enc.seq.sample_adaptive_offset_enabled_flag = vl_rbsp_u(rbsp, 1);
+
+   context->desc.h265enc.seq.pcm_enabled_flag = vl_rbsp_u(rbsp, 1);
+   if (context->desc.h265enc.seq.pcm_enabled_flag) {
       vl_rbsp_u(rbsp, 4); /* pcm_sample_bit_depth_luma_minus1 */
       vl_rbsp_u(rbsp, 4); /* pcm_sample_bit_depth_chroma_minus1 */
       vl_rbsp_ue(rbsp); /* log2_min_pcm_luma_coding_block_size_minus3 */
@@ -654,26 +896,25 @@ static void parseEncSpsParamsH265(vlVaContext *context, struct vl_rbsp *rbsp)
       vl_rbsp_u(rbsp, 1); /* pcm_loop_filter_disabled_flag */
    }
 
-   num_st_ref_pic_sets = vl_rbsp_ue(rbsp); /* num_short_term_ref_pic_sets */
-   for (i = 0; i < num_st_ref_pic_sets; i++) {
-      if (i == 0) /* allocating st_ref_pic_sets */
-         st_rps = (struct pipe_h265_st_ref_pic_set *)
-            CALLOC(num_st_ref_pic_sets + 1, sizeof(struct pipe_h265_st_ref_pic_set));
-
-      st_ref_pic_set(i, num_st_ref_pic_sets, st_rps, rbsp);
+   context->desc.h265enc.seq.num_short_term_ref_pic_sets = vl_rbsp_ue(rbsp);
+   for (i = 0; i < context->desc.h265enc.seq.num_short_term_ref_pic_sets; i++) {
+      st_ref_pic_set(i, context->desc.h265enc.seq.num_short_term_ref_pic_sets,
+                     context->desc.h265enc.seq.st_ref_pic_set, rbsp);
    }
 
-   if (vl_rbsp_u(rbsp, 1)) {/* long_term_ref_pics_present_flag */
-      num_long_term_ref_pics_sps = vl_rbsp_ue(rbsp);
-      for (i = 0; i < num_long_term_ref_pics_sps; i++) {
-         /* lt_ref_pic_poc_lsb_sps */
-         vl_rbsp_u(rbsp, log2_max_pic_order_cnt_lsb_minus4 + 4);
-         vl_rbsp_u(rbsp, 1); /* used_by_curr_pic_lt_sps_flag */
+   context->desc.h265enc.seq.long_term_ref_pics_present_flag = vl_rbsp_u(rbsp, 1);
+   if (context->desc.h265enc.seq.long_term_ref_pics_present_flag) {
+      context->desc.h265enc.seq.num_long_term_ref_pics_sps = vl_rbsp_ue(rbsp);
+      for (i = 0; i < context->desc.h265enc.seq.num_long_term_ref_pics_sps; i++) {
+         context->desc.h265enc.seq.lt_ref_pic_poc_lsb_sps[i] =
+            vl_rbsp_u(rbsp, context->desc.h265enc.seq.log2_max_pic_order_cnt_lsb_minus4 + 4);
+         context->desc.h265enc.seq.used_by_curr_pic_lt_sps_flag[i] =
+            vl_rbsp_u(rbsp, 1);
       }
    }
 
-   vl_rbsp_u(rbsp, 1); /* sps_temporal_mvp_enabled_flag */
-   vl_rbsp_u(rbsp, 1); /* strong_intra_smoothing_enabled_flag */
+   context->desc.h265enc.seq.sps_temporal_mvp_enabled_flag = vl_rbsp_u(rbsp, 1);
+   context->desc.h265enc.seq.strong_intra_smoothing_enabled_flag = vl_rbsp_u(rbsp, 1);
 
    context->desc.h265enc.seq.vui_parameters_present_flag = vl_rbsp_u(rbsp, 1);
    if (context->desc.h265enc.seq.vui_parameters_present_flag) {
@@ -738,7 +979,7 @@ static void parseEncSpsParamsH265(vlVaContext *context, struct vl_rbsp *rbsp)
             if (context->desc.h265enc.seq.vui_flags.hrd_parameters_present_flag)
                parse_enc_hrd_params_hevc(rbsp,
                                          1,
-                                         sps_max_sub_layers_minus1,
+                                         context->desc.h265enc.seq.sps_max_sub_layers_minus1,
                                          &context->desc.h265enc.seq.hrd_parameters);
          }
       }
@@ -755,8 +996,6 @@ static void parseEncSpsParamsH265(vlVaContext *context, struct vl_rbsp *rbsp)
          context->desc.h265enc.seq.log2_max_mv_length_vertical = vl_rbsp_ue(rbsp);
       }
    }
-
-   if (st_rps) FREE(st_rps);
 }
 
 static void parseEncSeiPayloadH265(vlVaContext *context, struct vl_rbsp *rbsp, int payloadType, int payloadSize)
@@ -828,13 +1067,23 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeHEVC(vlVaContext *context, vlVaBuffer *
       vl_vlc_eatbits(&vlc, 1);
       unsigned nal_unit_type = vl_vlc_get_uimsbf(&vlc, 6);
       vl_vlc_eatbits(&vlc, 6);
-      context->desc.h265enc.pic.temporal_id = vl_vlc_get_uimsbf(&vlc, 3) - 1;
+      unsigned temporal_id = vl_vlc_get_uimsbf(&vlc, 3) - 1;
 
       struct vl_rbsp rbsp;
       vl_rbsp_init(&rbsp, &vlc, ~0, context->packed_header_emulation_bytes);
 
-      switch(nal_unit_type) {
+      switch (nal_unit_type) {
+      case HEVC_NAL_TRAIL_N:
+      case HEVC_NAL_TRAIL_R:
+      case HEVC_NAL_TSA_N:
+      case HEVC_NAL_TSA_R:
+      case HEVC_NAL_IDR_W_RADL:
+      case HEVC_NAL_IDR_N_LP:
+      case HEVC_NAL_CRA_NUT:
+         parseEncSliceParamsH265(context, &rbsp, nal_unit_type, temporal_id);
+         break;
       case HEVC_NAL_VPS:
+         parseEncVpsParamsH265(context, &rbsp);
          context->desc.h265enc.header_flags.vps = 1;
          break;
       case HEVC_NAL_SPS:
@@ -842,6 +1091,7 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeHEVC(vlVaContext *context, vlVaBuffer *
          context->desc.h265enc.header_flags.sps = 1;
          break;
       case HEVC_NAL_PPS:
+         parseEncPpsParamsH265(context, &rbsp);
          context->desc.h265enc.header_flags.pps = 1;
          break;
       case HEVC_NAL_AUD:
