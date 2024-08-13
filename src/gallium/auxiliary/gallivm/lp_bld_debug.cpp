@@ -234,11 +234,14 @@ lp_disassemble(LLVMValueRef func, const void *code)
 extern "C" void
 lp_profile(LLVMValueRef func, const void *code)
 {
-#if defined(__linux__) && defined(PROFILE)
+#if defined(PROFILE)
    static std::ofstream perf_asm_file;
    static bool first_time = true;
    static FILE *perf_map_file = NULL;
    if (first_time) {
+      unsigned long long pid = (unsigned long long)getpid();
+      char filename[1024];
+#if defined(__linux__)
       /*
        * We rely on the disassembler for determining a function's size, but
        * the disassembly is a leaky and slow operation, so avoid running
@@ -246,13 +249,19 @@ lp_profile(LLVMValueRef func, const void *code)
        * by the PERF_BUILDID_DIR environment variable.
        */
       if (getenv("PERF_BUILDID_DIR")) {
-         pid_t pid = getpid();
-         char filename[256];
-         snprintf(filename, sizeof filename, "/tmp/perf-%llu.map", (unsigned long long)pid);
+         snprintf(filename, sizeof(filename), "/tmp/perf-%llu.map", pid);
          perf_map_file = fopen(filename, "wt");
-         snprintf(filename, sizeof filename, "/tmp/perf-%llu.map.asm", (unsigned long long)pid);
+         snprintf(filename, sizeof(filename), "/tmp/perf-%llu.map.asm", pid);
          perf_asm_file.open(filename);
       }
+#else
+      if (const char* output_dir = getenv("JIT_SYMBOL_MAP_DIR")) {
+         snprintf(filename, sizeof(filename), "%s/jit-symbols-%llu.map", output_dir, pid);
+         perf_map_file = fopen(filename, "wt");
+         snprintf(filename, sizeof(filename), "%s/jit-symbols-%llu.map.asm", output_dir, pid);
+         perf_asm_file.open(filename);
+      }
+#endif
       first_time = false;
    }
    if (perf_map_file) {

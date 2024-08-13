@@ -256,6 +256,25 @@ generated code annotated with the samples.
 You can obtain a call graph via
 `Gprof2Dot <https://github.com/jrfonseca/gprof2dot#linux-perf>`__.
 
+FlameGraph support
+~~~~~~~~~~~~~~~~~~~~~~
+
+Outside Linux, it is possible to generate a
+`FlameGraph https://github.com/brendangregg/FlameGraph`__:
+with resolved JIT symbols.
+
+Set the environment variable ``JIT_SYMBOL_MAP_DIR`` to a directory path,
+and run your LLVMpipe program. Follow the FlameGraph instructions:
+capture traces using a supported tool (for example DTrace),
+and fold the stacks using the associated script
+(``stackcollapse.pl`` for DTrace stacks).
+
+LLVMpipe will create a ``jit-symbols-XXXXX.map`` file containing the symbol
+address table inside the chosen directory. It will also dump the JIT
+disassemblies to ``jit-symbols-XXXXX.map.asm``. Run your folded traces and
+both output files through the ``bin/flamegraph_map_lp_jit.py`` script to map
+addresses to JIT symbols, and annotate the disassembly with the sample counts.
+
 Unit testing
 ------------
 
