@@ -2978,6 +2978,29 @@ dri2_initialize_wayland_swrast(_EGLDisplay *disp)
    if (disp->Options.Zink) {
       if (!dri2_initialize_wayland_drm_extensions(dri2_dpy) && !disp->Options.ForceSoftware)
          goto cleanup;
+
+      if (!disp->Options.ForceSoftware) {
+         loader_get_user_preferred_fd(&dri2_dpy->fd_render_gpu,
+                                       &dri2_dpy->fd_display_gpu);
+
+         if (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu) {
+            free(dri2_dpy->device_name);
+            dri2_dpy->device_name =
+               loader_get_device_name_for_fd(dri2_dpy->fd_render_gpu);
+            if (!dri2_dpy->device_name) {
+               _eglError(EGL_BAD_ALLOC, "wayland-egl: failed to get device name "
+                                          "for requested GPU");
+               goto cleanup;
+            }
+         }
+
+         /* we have to do the check now, because loader_get_user_preferred_fd
+            * will return a render-node when the requested gpu is different
+            * to the server, but also if the client asks for the same gpu than
+            * the server by requesting its pci-id */
+         dri2_dpy->is_render_node =
+            drmGetNodeTypeFromFd(dri2_dpy->fd_render_gpu) == DRM_NODE_RENDER;
+      }
    }
 
    dri2_dpy->driver_name = strdup(disp->Options.Zink ? "zink" : "swrast");
