@@ -294,14 +294,14 @@ setup_lrz(struct fd_resource *rsc)
    rsc->lrz = fd_bo_new(screen->dev, lrz_size, FD_BO_NOMAP, "lrz");
 }
 
+template <chip CHIP>
 static uint32_t
 fd6_setup_slices(struct fd_resource *rsc)
 {
    struct pipe_resource *prsc = &rsc->b.b;
-   struct fd_screen *screen = fd_screen(prsc->screen);
 
    if (!FD_DBG(NOLRZ) && has_depth(prsc->format) && !is_z32(prsc->format))
-      FD_CALLX(screen->info, setup_lrz)(rsc);
+      setup_lrz<CHIP>(rsc);
 
    if (rsc->layout.ubwc && !ok_ubwc_format(prsc->screen, prsc->format))
       rsc->layout.ubwc = false;
@@ -387,12 +387,14 @@ fd6_is_format_supported(struct pipe_screen *pscreen,
    }
 }
 
+template <chip CHIP>
 void
 fd6_resource_screen_init(struct pipe_screen *pscreen)
 {
    struct fd_screen *screen = fd_screen(pscreen);
 
-   screen->setup_slices = fd6_setup_slices;
+   screen->setup_slices = fd6_setup_slices<CHIP>;
    screen->layout_resource_for_modifier = fd6_layout_resource_for_modifier;
    screen->is_format_supported = fd6_is_format_supported;
 }
+FD_GENX(fd6_resource_screen_init);

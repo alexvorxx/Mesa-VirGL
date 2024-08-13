@@ -212,7 +212,7 @@ fd6_screen_init(struct pipe_screen *pscreen)
 
    screen->tile_mode = fd6_tile_mode;
 
-   fd6_resource_screen_init(pscreen);
+   FD_CALLX(screen->info, fd6_resource_screen_init)(pscreen);
    fd6_emit_init_screen(pscreen);
    ir3_screen_init(pscreen);
 
