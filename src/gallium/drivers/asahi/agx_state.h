@@ -578,6 +578,7 @@ enum asahi_blit_clamp {
 struct asahi_blit_key {
    enum pipe_format src_format, dst_format;
    bool array;
+   bool aligned;
 };
 
 DERIVE_HASH_TABLE(asahi_blit_key);
