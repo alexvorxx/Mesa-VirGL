@@ -728,6 +728,8 @@ static void radeon_vcn_enc_hevc_get_metadata(struct radeon_encoder *enc,
 static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
                                           struct pipe_h265_enc_picture_desc *pic)
 {
+   struct si_screen *sscreen = (struct si_screen *)enc->screen;
+
    enc->enc_pic.picture_type = pic->picture_type;
    enc->enc_pic.frame_num = pic->frame_num;
    radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
@@ -773,8 +775,12 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
    enc->enc_pic.bit_depth_chroma_minus8 = pic->seq.bit_depth_chroma_minus8;
    enc->enc_pic.nal_unit_type = pic->pic.nal_unit_type;
    enc->enc_pic.max_num_merge_cand = pic->slice.max_num_merge_cand;
-   enc->enc_pic.sample_adaptive_offset_enabled_flag =
-      pic->seq.sample_adaptive_offset_enabled_flag;
+   if (sscreen->info.vcn_ip_version >= VCN_2_0_0) {
+      enc->enc_pic.sample_adaptive_offset_enabled_flag =
+         pic->seq.sample_adaptive_offset_enabled_flag;
+   }
+   if (sscreen->info.vcn_ip_version >= VCN_3_0_0)
+      enc->enc_pic.transform_skip_enabled = true;
    enc->enc_pic.pcm_enabled_flag = pic->seq.pcm_enabled_flag;
    enc->enc_pic.sps_temporal_mvp_enabled_flag = pic->seq.sps_temporal_mvp_enabled_flag;
    enc->enc_pic.header_flags.vps = pic->header_flags.vps;

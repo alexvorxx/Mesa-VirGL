@@ -105,6 +105,7 @@ struct radeon_enc_pic {
    bool need_sequence_header;
    bool is_even_frame;
    bool sample_adaptive_offset_enabled_flag;
+   bool transform_skip_enabled;
    bool pcm_enabled_flag;
    bool sps_temporal_mvp_enabled_flag;
    bool use_rc_per_pic_ex;
