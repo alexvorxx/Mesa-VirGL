@@ -771,7 +771,7 @@ create_pipeline(struct radv_device *device, VkImageAspectFlagBits aspect, enum g
 }
 
 static VkResult
-radv_device_init_meta_blit_color(struct radv_device *device, bool on_demand)
+radv_device_init_meta_blit_color(struct radv_device *device)
 {
    VkResult result;
 
@@ -799,7 +799,7 @@ radv_device_init_meta_blit_color(struct radv_device *device, bool on_demand)
 }
 
 static VkResult
-radv_device_init_meta_blit_depth(struct radv_device *device, bool on_demand)
+radv_device_init_meta_blit_depth(struct radv_device *device)
 {
    VkResult result;
 
@@ -818,7 +818,7 @@ radv_device_init_meta_blit_depth(struct radv_device *device, bool on_demand)
 }
 
 static VkResult
-radv_device_init_meta_blit_stencil(struct radv_device *device, bool on_demand)
+radv_device_init_meta_blit_stencil(struct radv_device *device)
 {
    VkResult result;
 
@@ -844,13 +844,13 @@ radv_device_init_meta_blit_state(struct radv_device *device, bool on_demand)
    if (on_demand)
       return VK_SUCCESS;
 
-   result = radv_device_init_meta_blit_color(device, on_demand);
+   result = radv_device_init_meta_blit_color(device);
    if (result != VK_SUCCESS)
       return result;
 
-   result = radv_device_init_meta_blit_depth(device, on_demand);
+   result = radv_device_init_meta_blit_depth(device);
    if (result != VK_SUCCESS)
       return result;
 
-   return radv_device_init_meta_blit_stencil(device, on_demand);
+   return radv_device_init_meta_blit_stencil(device);
 }
