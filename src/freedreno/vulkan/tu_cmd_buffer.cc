@@ -1184,16 +1184,9 @@ tu6_emit_tile_store(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
 
    tu6_emit_blit_scissor(cmd, cs, true);
 
-   for (uint32_t a = 0; a < pass->attachment_count; ++a) {
-      if (pass->attachments[a].gmem) {
-         const bool cond_exec_allowed = cmd->state.tiling->binning_possible &&
-                                        cmd->state.pass->has_cond_load_store;
-         tu_store_gmem_attachment<CHIP>(cmd, cs, a, a,
-                                  fb->layers, subpass->multiview_mask,
-                                  cond_exec_allowed);
-      }
-   }
-
+   /* Resolve should happen before store in case BLIT_EVENT_STORE_AND_CLEAR is
+    * used for a store.
+    */
    if (subpass->resolve_attachments) {
       for (unsigned i = 0; i < subpass->resolve_count; i++) {
          uint32_t a = subpass->resolve_attachments[i].attachment;
@@ -1202,6 +1195,16 @@ tu6_emit_tile_store(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
             tu_store_gmem_attachment<CHIP>(cmd, cs, a, gmem_a, fb->layers,
                                      subpass->multiview_mask, false);
          }
+      }
+   }
+
+   for (uint32_t a = 0; a < pass->attachment_count; ++a) {
+      if (pass->attachments[a].gmem) {
+         const bool cond_exec_allowed = cmd->state.tiling->binning_possible &&
+                                        cmd->state.pass->has_cond_load_store;
+         tu_store_gmem_attachment<CHIP>(cmd, cs, a, a,
+                                  fb->layers, subpass->multiview_mask,
+                                  cond_exec_allowed);
       }
    }
 
@@ -4012,6 +4015,7 @@ tu_restore_suspended_pass(struct tu_cmd_buffer *cmd,
    cmd->state.subpass = suspended->state.suspended_pass.subpass;
    cmd->state.framebuffer = suspended->state.suspended_pass.framebuffer;
    cmd->state.attachments = suspended->state.suspended_pass.attachments;
+   cmd->state.clear_values = suspended->state.suspended_pass.clear_values;
    cmd->state.render_area = suspended->state.suspended_pass.render_area;
    cmd->state.gmem_layout = suspended->state.suspended_pass.gmem_layout;
    cmd->state.tiling = &cmd->state.framebuffer->tiling[cmd->state.gmem_layout];
@@ -4636,6 +4640,7 @@ tu_CmdBeginRendering(VkCommandBuffer commandBuffer,
       cmd->state.suspended_pass.framebuffer = cmd->state.framebuffer;
       cmd->state.suspended_pass.render_area = cmd->state.render_area;
       cmd->state.suspended_pass.attachments = cmd->state.attachments;
+      cmd->state.suspended_pass.clear_values = cmd->state.clear_values;
       cmd->state.suspended_pass.gmem_layout = cmd->state.gmem_layout;
    }
 

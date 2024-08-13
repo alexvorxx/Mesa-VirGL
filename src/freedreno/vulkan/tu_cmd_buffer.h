@@ -495,6 +495,7 @@ struct tu_cmd_state
       enum tu_gmem_layout gmem_layout;
 
       const struct tu_image_view **attachments;
+      VkClearValue *clear_values;
 
       struct tu_lrz_state lrz;
    } suspended_pass;

@@ -3957,11 +3957,46 @@ tu_emit_blit(struct tu_cmd_buffer *cmd,
              struct tu_cs *cs,
              const struct tu_image_view *iview,
              const struct tu_render_pass_attachment *attachment,
+             const VkClearValue *clear_value,
              enum a6xx_blit_event_type blit_event_type,
              bool separate_stencil)
 {
    assert(blit_event_type != BLIT_EVENT_CLEAR);
-   event_blit_setup(cs, attachment, blit_event_type, 0x0);
+   uint32_t clear_mask = 0;
+
+   /* BLIT_EVENT_STORE_AND_CLEAR would presumably swallow the
+    * BLIT_EVENT_CLEAR at the start of a renderpass, and be more efficient.
+    */
+   if (blit_event_type == BLIT_EVENT_STORE && clear_value &&
+       attachment->clear_mask &&
+       use_generic_clear_for_image_clear(cmd, iview->image)) {
+      blit_event_type = BLIT_EVENT_STORE_AND_CLEAR;
+
+      enum pipe_format format = vk_format_to_pipe_format(attachment->format);
+      VkImageAspectFlags aspect_mask = attachment->clear_mask;
+      if (format == PIPE_FORMAT_Z24_UNORM_S8_UINT) {
+         if (separate_stencil)
+            aspect_mask = VK_IMAGE_ASPECT_STENCIL_BIT;
+         else
+            aspect_mask = VK_IMAGE_ASPECT_DEPTH_BIT;
+      }
+      if (format == PIPE_FORMAT_Z32_FLOAT_S8X24_UINT) {
+         if (separate_stencil)
+            format = PIPE_FORMAT_S8_UINT;
+         else
+            format = PIPE_FORMAT_Z32_FLOAT;
+      }
+
+      clear_mask = aspect_write_mask_generic_clear(format, aspect_mask);
+
+      uint32_t clear_vals[4] = {};
+      pack_blit_event_clear_value(clear_value, format, clear_vals);
+
+      tu_cs_emit_pkt4(cs, REG_A6XX_RB_BLIT_CLEAR_COLOR_DW0, 4);
+      tu_cs_emit_array(cs, clear_vals, 4);
+   }
+
+   event_blit_setup(cs, attachment, blit_event_type, clear_mask);
 
    for_each_layer(i, attachment->clear_views, cmd->state.framebuffer->layers) {
       event_blit_dst_view blt_view = blt_view_from_tu_view(iview, i);
@@ -4194,10 +4229,10 @@ tu_load_gmem_attachment(struct tu_cmd_buffer *cmd,
          load_3d_blit<CHIP>(cmd, cs, iview, attachment, true);
    } else {
       if (load_common)
-         tu_emit_blit<CHIP>(cmd, cs, iview, attachment, BLIT_EVENT_LOAD, false);
+         tu_emit_blit<CHIP>(cmd, cs, iview, attachment, NULL, BLIT_EVENT_LOAD, false);
 
       if (load_stencil)
-         tu_emit_blit<CHIP>(cmd, cs, iview, attachment, BLIT_EVENT_LOAD, true);
+         tu_emit_blit<CHIP>(cmd, cs, iview, attachment, NULL, BLIT_EVENT_LOAD, true);
    }
 
    if (cond_exec)
@@ -4473,6 +4508,10 @@ tu_store_gmem_attachment(struct tu_cmd_buffer *cmd,
    struct tu_render_pass_attachment *dst = &cmd->state.pass->attachments[a];
    const struct tu_image_view *iview = cmd->state.attachments[a];
    struct tu_render_pass_attachment *src = &cmd->state.pass->attachments[gmem_a];
+   const VkClearValue *clear_value = &cmd->state.clear_values[gmem_a];
+   bool resolve = a != gmem_a;
+   if (resolve)
+      clear_value = NULL;
 
    if (!dst->store && !dst->store_stencil)
       return;
@@ -4513,9 +4552,9 @@ tu_store_gmem_attachment(struct tu_cmd_buffer *cmd,
    /* use fast path when render area is aligned, except for unsupported resolve cases */
    if (use_fast_path) {
       if (store_common)
-         tu_emit_blit<CHIP>(cmd, cs, iview, src, BLIT_EVENT_STORE, false);
+         tu_emit_blit<CHIP>(cmd, cs, iview, src, clear_value, BLIT_EVENT_STORE, false);
       if (store_separate_stencil)
-         tu_emit_blit<CHIP>(cmd, cs, iview, src, BLIT_EVENT_STORE, true);
+         tu_emit_blit<CHIP>(cmd, cs, iview, src, clear_value, BLIT_EVENT_STORE, true);
 
       if (cond_exec) {
          tu_end_load_store_cond_exec(cmd, cs, false);
