@@ -423,23 +423,9 @@ agx_compression_allowed(const struct agx_resource *pres)
       return false;
    }
 
-   /* We use the PBE for compression via staging blits, so we can only compress
-    * renderable formats. As framebuffer compression, other formats don't make a
-    * ton of sense to compress anyway.
-    */
-   if (ail_pixel_format[pres->base.format].renderable == PIPE_FORMAT_NONE &&
-       !util_format_is_depth_or_stencil(pres->base.format)) {
-      rsrc_debug(pres, "No compression: format not renderable\n");
-      return false;
-   }
-
-   /* Lossy-compressed texture formats cannot be compressed */
-   assert(!util_format_is_compressed(pres->base.format) &&
-          "block-compressed formats are not renderable");
-
-   if (!ail_can_compress(pres->base.width0, pres->base.height0,
-                         MAX2(pres->base.nr_samples, 1))) {
-      rsrc_debug(pres, "No compression: too small\n");
+   if (!ail_can_compress(pres->base.format, pres->base.width0,
+                         pres->base.height0, MAX2(pres->base.nr_samples, 1))) {
+      rsrc_debug(pres, "No compression: incompatible layout\n");
       return false;
    }
 

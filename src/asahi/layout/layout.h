@@ -228,16 +228,6 @@ ail_effective_height_sa(unsigned height_px, unsigned sample_count_sa)
 }
 
 static inline bool
-ail_can_compress(unsigned w_px, unsigned h_px, unsigned sample_count_sa)
-{
-   assert(sample_count_sa == 1 || sample_count_sa == 2 || sample_count_sa == 4);
-
-   /* Small textures cannot be compressed */
-   return ail_effective_width_sa(w_px, sample_count_sa) >= 16 &&
-          ail_effective_height_sa(h_px, sample_count_sa) >= 16;
-}
-
-static inline bool
 ail_is_compressed(const struct ail_layout *layout)
 {
    return layout->tiling == AIL_TILING_TWIDDLED_COMPRESSED;
@@ -336,6 +326,27 @@ static inline bool
 ail_is_valid_pixel_format(enum pipe_format format)
 {
    return ail_pixel_format[format].texturable;
+}
+
+/* Query whether an image with the specified layout is compressible */
+static inline bool
+ail_can_compress(enum pipe_format format, unsigned w_px, unsigned h_px,
+                 unsigned sample_count_sa)
+{
+   assert(sample_count_sa == 1 || sample_count_sa == 2 || sample_count_sa == 4);
+
+   /* We compress via the PBE, so we can only compress PBE-writeable formats. */
+   if (ail_pixel_format[format].renderable == PIPE_FORMAT_NONE &&
+       !util_format_is_depth_or_stencil(format))
+      return false;
+
+   /* Lossy-compressed texture formats cannot be compressed */
+   assert(!util_format_is_compressed(format) &&
+          "block-compressed formats are not renderable");
+
+   /* Small textures cannot be compressed */
+   return ail_effective_width_sa(w_px, sample_count_sa) >= 16 &&
+          ail_effective_height_sa(h_px, sample_count_sa) >= 16;
 }
 
 #ifdef __cplusplus
