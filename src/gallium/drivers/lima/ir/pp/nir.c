@@ -151,8 +151,6 @@ static int nir_to_ppir_opcodes[nir_num_opcodes] = {
    [nir_op_inot] = ppir_op_not,
    [nir_op_ftrunc] = ppir_op_trunc,
    [nir_op_fsat] = ppir_op_sat,
-   [nir_op_fddx] = ppir_op_ddx,
-   [nir_op_fddy] = ppir_op_ddy,
    [nir_op_fclamp_pos_mali] = ppir_op_clamp_pos,
 };
 
@@ -195,6 +193,33 @@ static bool ppir_emit_alu(ppir_block *block, nir_instr *ni)
       memcpy(ps->swizzle, alu_src->swizzle, sizeof(ps->swizzle));
       ppir_node_add_src(block->comp, &node->node, ps, &alu_src->src, src_mask);
    }
+
+   list_addtail(&node->node.list, &block->node_list);
+   return true;
+}
+
+static bool ppir_emit_derivative(ppir_block *block, nir_instr *ni, int op)
+{
+   assert(op == ppir_op_ddx || op == ppir_op_ddy);
+
+   nir_intrinsic_instr *instr = nir_instr_as_intrinsic(ni);
+   nir_def *def = &instr->def;
+
+   unsigned mask = nir_component_mask(def->num_components);
+   ppir_alu_node *node = ppir_node_create_dest(block, op, def, mask);
+   if (!node)
+      return false;
+
+   ppir_dest *pd = &node->dest;
+   unsigned src_mask = pd->write_mask;
+   uint8_t identity[4] = { PIPE_SWIZZLE_X, PIPE_SWIZZLE_Y,
+                           PIPE_SWIZZLE_Z, PIPE_SWIZZLE_W };
+
+   node->num_src = 1;
+   nir_src *intr_src = instr->src;
+   ppir_src *ps = node->src;
+   memcpy(ps->swizzle, identity, sizeof(identity));
+   ppir_node_add_src(block->comp, &node->node, ps, intr_src, src_mask);
 
    list_addtail(&node->node.list, &block->node_list);
    return true;
@@ -415,6 +440,11 @@ static bool ppir_emit_intrinsic(ppir_block *block, nir_instr *ni)
       node = ppir_emit_discard_if(block, ni);
       list_addtail(&node->list, &block->node_list);
       return true;
+
+   case nir_intrinsic_ddx:
+      return ppir_emit_derivative(block, ni, ppir_op_ddx);
+   case nir_intrinsic_ddy:
+      return ppir_emit_derivative(block, ni, ppir_op_ddy);
 
    default:
       ppir_error("unsupported nir_intrinsic_instr %s\n",
