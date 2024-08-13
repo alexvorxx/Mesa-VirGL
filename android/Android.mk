@@ -26,7 +26,6 @@ ifneq ($(filter true, $(BOARD_MESA3D_USES_MESON_BUILD)),)
 LOCAL_PATH := $(call my-dir)
 MESA3D_TOP := $(dir $(LOCAL_PATH))
 
-MESA3D_VERSION = $(shell cat $(MESA3D_TOP)/VERSION)
 LIBDRM_VERSION = $(shell cat external/libdrm/meson.build | grep -o "\<version\>\s*:\s*'\w*\.\w*\.\w*'" | grep -o "\w*\.\w*\.\w*" | head -1)
 
 MESA_VK_LIB_SUFFIX_amd := radeon
@@ -158,7 +157,7 @@ endif
 endef
 
 ifneq ($(strip $(BOARD_MESA3D_GALLIUM_DRIVERS)),)
-# Module 'libgallium_dri', produces '/vendor/lib{64}/libgallium-$MESA3D_VERSION.so'
+# Module 'libgallium_dri', produces '/vendor/lib{64}/libgallium_dri.so'
 # This module also trigger DRI symlinks creation process
 $(eval $(call mesa3d-lib,libgallium_dri,,MESA3D_GALLIUM_BIN))
 # Module 'libglapi', produces '/vendor/lib{64}/libglapi.so'
