@@ -1071,9 +1071,11 @@ struct x11_image {
     * We need to keep track of them when considering present ID. */
 
    /* This is arbitrarily chosen. With IMMEDIATE on a 3 deep swapchain,
-    * we allow up to 48 outstanding presentations per vblank, which is more than enough
-    * for any reasonable application. */
-#define X11_SWAPCHAIN_MAX_PENDING_COMPLETIONS 16
+    * we allow over 300 outstanding presentations per vblank, which is more than enough
+    * for any reasonable application.
+    * This used to be 16, but it regressed benchmarks that did 15k+ FPS.
+    * This should allow over 25k FPS on a 60 Hz monitor. Any more than this is comical. */
+#define X11_SWAPCHAIN_MAX_PENDING_COMPLETIONS 128
    uint32_t                                  present_queued_count;
    struct x11_image_pending_completion       pending_completions[X11_SWAPCHAIN_MAX_PENDING_COMPLETIONS];
 #ifdef HAVE_DRI3_EXPLICIT_SYNC
