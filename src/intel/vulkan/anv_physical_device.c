@@ -2148,6 +2148,7 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
                           protected_flag,
             .queueCount = gc_count,
             .engine_class = INTEL_ENGINE_CLASS_RENDER,
+            .supports_perf = true,
          };
       }
       if (g_count > 0) {

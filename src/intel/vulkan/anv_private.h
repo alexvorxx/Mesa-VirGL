@@ -954,6 +954,7 @@ struct anv_queue_family {
    uint32_t       queueCount;
 
    enum intel_engine_class engine_class;
+   bool supports_perf;
 };
 
 #define ANV_MAX_QUEUE_FAMILIES 5
