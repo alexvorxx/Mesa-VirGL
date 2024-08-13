@@ -2074,6 +2074,64 @@ build_dgc_prepare_shader(struct radv_device *dev)
    return b.shader;
 }
 
+static VkResult
+create_pipeline(struct radv_device *device, VkPipeline *pipeline)
+{
+   VkResult result;
+
+   if (!device->meta_state.dgc_prepare.ds_layout) {
+      const VkDescriptorSetLayoutBinding binding = {
+         .binding = 0,
+         .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+         .descriptorCount = 1,
+         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+      };
+
+      result = radv_meta_create_descriptor_set_layout(device, 1, &binding, &device->meta_state.dgc_prepare.ds_layout);
+      if (result != VK_SUCCESS)
+         return result;
+   }
+
+   if (!device->meta_state.dgc_prepare.p_layout) {
+      const VkPushConstantRange pc_range = {
+         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+         .size = sizeof(struct radv_dgc_params),
+      };
+
+      result = radv_meta_create_pipeline_layout(device, &device->meta_state.dgc_prepare.ds_layout, 1, &pc_range,
+                                                &device->meta_state.dgc_prepare.p_layout);
+      if (result != VK_SUCCESS)
+         return result;
+   }
+
+   nir_shader *cs = build_dgc_prepare_shader(device);
+
+   result = radv_meta_create_compute_pipeline(device, cs, device->meta_state.dgc_prepare.p_layout, pipeline);
+
+   ralloc_free(cs);
+   return result;
+}
+
+static VkResult
+get_pipeline(struct radv_device *device, VkPipeline *pipeline_out)
+{
+   struct radv_meta_state *state = &device->meta_state;
+   VkResult result = VK_SUCCESS;
+
+   mtx_lock(&state->mtx);
+   if (!state->dgc_prepare.pipeline) {
+      result = create_pipeline(device, &state->dgc_prepare.pipeline);
+      if (result != VK_SUCCESS)
+         goto fail;
+   }
+
+   *pipeline_out = state->dgc_prepare.pipeline;
+
+fail:
+   mtx_unlock(&state->mtx);
+   return result;
+}
+
 void
 radv_device_finish_dgc_prepare_state(struct radv_device *device)
 {
@@ -2086,37 +2144,12 @@ radv_device_finish_dgc_prepare_state(struct radv_device *device)
 }
 
 VkResult
-radv_device_init_dgc_prepare_state(struct radv_device *device)
+radv_device_init_dgc_prepare_state(struct radv_device *device, bool on_demand)
 {
-   VkResult result;
+   if (on_demand)
+      return VK_SUCCESS;
 
-   const VkDescriptorSetLayoutBinding binding = {
-      .binding = 0,
-      .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-      .descriptorCount = 1,
-      .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-   };
-
-   result = radv_meta_create_descriptor_set_layout(device, 1, &binding, &device->meta_state.dgc_prepare.ds_layout);
-   if (result != VK_SUCCESS)
-      return result;
-
-   const VkPushConstantRange pc_range = {
-      .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-      .size = sizeof(struct radv_dgc_params),
-   };
-
-   result = radv_meta_create_pipeline_layout(device, &device->meta_state.dgc_prepare.ds_layout, 1, &pc_range,
-                                             &device->meta_state.dgc_prepare.p_layout);
-   if (result != VK_SUCCESS)
-      return result;
-
-   nir_shader *cs = build_dgc_prepare_shader(device);
-
-   result = radv_meta_create_compute_pipeline(device, cs, device->meta_state.dgc_prepare.p_layout,
-                                              &device->meta_state.dgc_prepare.pipeline);
-   ralloc_free(cs);
-   return result;
+   return create_pipeline(device, &device->meta_state.dgc_prepare.pipeline);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -2493,7 +2526,9 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
    struct radv_meta_saved_state saved_state;
    unsigned upload_offset, upload_size;
    struct radv_buffer token_buffer;
+   VkPipeline dgc_pipeline;
    void *upload_data;
+   VkResult result;
 
    uint32_t cmd_stride, ace_cmd_stride, upload_stride;
    radv_get_sequence_size(layout, pipeline, &cmd_stride, &ace_cmd_stride, &upload_stride);
@@ -2616,11 +2651,16 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
 
    radv_buffer_init(&token_buffer, device, cmd_buffer->upload.upload_bo, upload_size, upload_offset);
 
+   result = get_pipeline(device, &dgc_pipeline);
+   if (result != VK_SUCCESS) {
+      vk_command_buffer_set_error(&cmd_buffer->vk, result);
+      return;
+   }
+
    radv_meta_save(&saved_state, cmd_buffer,
                   RADV_META_SAVE_COMPUTE_PIPELINE | RADV_META_SAVE_DESCRIPTORS | RADV_META_SAVE_CONSTANTS);
 
-   radv_CmdBindPipeline(radv_cmd_buffer_to_handle(cmd_buffer), VK_PIPELINE_BIND_POINT_COMPUTE,
-                        device->meta_state.dgc_prepare.pipeline);
+   radv_CmdBindPipeline(radv_cmd_buffer_to_handle(cmd_buffer), VK_PIPELINE_BIND_POINT_COMPUTE, dgc_pipeline);
 
    vk_common_CmdPushConstants(radv_cmd_buffer_to_handle(cmd_buffer), device->meta_state.dgc_prepare.p_layout,
                               VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(params), &params);
