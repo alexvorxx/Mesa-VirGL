@@ -63,6 +63,15 @@ struct radeon_enc_pic {
       enum pipe_av1_enc_frame_type frame_type;
    };
 
+   union {
+      struct {
+         struct pipe_h265_enc_vid_param vid;
+         struct pipe_h265_enc_seq_param seq;
+         struct pipe_h265_enc_pic_param pic;
+         struct pipe_h265_enc_slice_param slice;
+      } hevc;
+   };
+
    unsigned frame_num;
    unsigned pic_order_cnt;
    unsigned pic_order_cnt_type;
@@ -91,7 +100,6 @@ struct radeon_enc_pic {
    unsigned bit_depth_luma_minus8;
    unsigned bit_depth_chroma_minus8;
    unsigned nal_unit_type;
-   unsigned max_num_merge_cand;
    unsigned temporal_id;
    unsigned num_temporal_layers;
    unsigned temporal_layer_pattern_index;
@@ -104,8 +112,6 @@ struct radeon_enc_pic {
    bool is_idr;
    bool need_sequence_header;
    bool is_even_frame;
-   bool sample_adaptive_offset_enabled_flag;
-   bool transform_skip_enabled;
    bool pcm_enabled_flag;
    bool sps_temporal_mvp_enabled_flag;
    bool use_rc_per_pic_ex;
@@ -363,6 +369,20 @@ void radeon_enc_3_0_init(struct radeon_encoder *enc);
 void radeon_enc_4_0_init(struct radeon_encoder *enc);
 
 void radeon_enc_5_0_init(struct radeon_encoder *enc);
+
+void radeon_enc_hevc_profile_tier_level(struct radeon_encoder *enc,
+                                        unsigned int max_num_sub_layers_minus1,
+                                        struct pipe_h265_profile_tier_level *ptl);
+
+void radeon_enc_hevc_hrd_parameters(struct radeon_encoder *enc,
+                                    unsigned int common_inf_present_flag,
+                                    unsigned int max_sub_layers_minus1,
+                                    struct pipe_h265_enc_hrd_params *hrd);
+
+unsigned int radeon_enc_hevc_st_ref_pic_set(struct radeon_encoder *enc,
+                                            unsigned int index,
+                                            unsigned int num_short_term_ref_pic_sets,
+                                            struct pipe_h265_st_ref_pic_set *st_rps);
 
 void radeon_enc_av1_bs_instruction_type(struct radeon_encoder *enc,
                                         unsigned int inst, unsigned int obu_type);

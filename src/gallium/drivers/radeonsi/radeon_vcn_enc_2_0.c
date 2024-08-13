@@ -52,7 +52,7 @@ static void radeon_enc_op_preset(struct radeon_encoder *enc)
    uint32_t preset_mode;
 
    if (enc->enc_pic.quality_modes.preset_mode == RENCODE_PRESET_MODE_SPEED &&
-         (enc->enc_pic.sample_adaptive_offset_enabled_flag &&
+         (!enc->enc_pic.hevc_deblock.disable_sao &&
          (u_reduce_video_profile(enc->base.profile) == PIPE_VIDEO_FORMAT_HEVC)))
       preset_mode = RENCODE_IB_OP_SET_BALANCE_ENCODING_MODE;
    else if (enc->enc_pic.quality_modes.preset_mode == RENCODE_PRESET_MODE_QUALITY)
@@ -95,7 +95,7 @@ static void radeon_enc_loop_filter_hevc(struct radeon_encoder *enc)
    RADEON_ENC_CS(enc->enc_pic.hevc_deblock.tc_offset_div2);
    RADEON_ENC_CS(enc->enc_pic.hevc_deblock.cb_qp_offset);
    RADEON_ENC_CS(enc->enc_pic.hevc_deblock.cr_qp_offset);
-   RADEON_ENC_CS(!enc->enc_pic.sample_adaptive_offset_enabled_flag);
+   RADEON_ENC_CS(enc->enc_pic.hevc_deblock.disable_sao);
    RADEON_ENC_END();
 }
 

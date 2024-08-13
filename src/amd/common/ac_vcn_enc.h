@@ -494,6 +494,7 @@ typedef struct rvcn_enc_hevc_deblocking_filter_s {
    int32_t tc_offset_div2;
    int32_t cb_qp_offset;
    int32_t cr_qp_offset;
+   uint32_t disable_sao;
 } rvcn_enc_hevc_deblocking_filter_t;
 
 typedef struct rvcn_enc_intra_refresh_s {

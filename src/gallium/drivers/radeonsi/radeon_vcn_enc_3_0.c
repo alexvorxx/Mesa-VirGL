@@ -51,7 +51,6 @@ static void radeon_enc_spec_misc(struct radeon_encoder *enc)
 
 static void radeon_enc_spec_misc_hevc(struct radeon_encoder *enc)
 {
-   enc->enc_pic.hevc_spec_misc.transform_skip_discarded = 0;
    enc->enc_pic.hevc_spec_misc.cu_qp_delta_enabled_flag = 0;
 
    RADEON_ENC_BEGIN(enc->cmd.spec_misc_hevc);
