@@ -137,12 +137,9 @@ fail:
 
 /* Image to buffer - don't write use image accessors */
 static VkResult
-radv_device_init_meta_itob_state(struct radv_device *device, bool on_demand)
+radv_device_init_meta_itob_state(struct radv_device *device)
 {
    VkResult result;
-
-   if (on_demand)
-      return VK_SUCCESS;
 
    result = create_itob_pipeline(device, false, &device->meta_state.itob.pipeline);
    if (result != VK_SUCCESS)
@@ -285,12 +282,9 @@ fail:
 
 /* Buffer to image - don't write use image accessors */
 static VkResult
-radv_device_init_meta_btoi_state(struct radv_device *device, bool on_demand)
+radv_device_init_meta_btoi_state(struct radv_device *device)
 {
    VkResult result;
-
-   if (on_demand)
-      return VK_SUCCESS;
 
    result = create_btoi_pipeline(device, false, &device->meta_state.btoi.pipeline);
    if (result != VK_SUCCESS)
@@ -438,11 +432,8 @@ fail:
 }
 
 static VkResult
-radv_device_init_meta_btoi_r32g32b32_state(struct radv_device *device, bool on_demand)
+radv_device_init_meta_btoi_r32g32b32_state(struct radv_device *device)
 {
-   if (on_demand)
-      return VK_SUCCESS;
-
    return create_btoi_r32g32b32_pipeline(device, &device->meta_state.btoi_r32g32b32.pipeline);
 }
 
@@ -604,12 +595,9 @@ fail:
 
 /* image to image - don't write use image accessors */
 static VkResult
-radv_device_init_meta_itoi_state(struct radv_device *device, bool on_demand)
+radv_device_init_meta_itoi_state(struct radv_device *device)
 {
    VkResult result;
-
-   if (on_demand)
-      return VK_SUCCESS;
 
    for (uint32_t i = 0; i < MAX_SAMPLES_LOG2; i++) {
       uint32_t samples = 1 << i;
@@ -786,11 +774,8 @@ fail:
 }
 
 static VkResult
-radv_device_init_meta_itoi_r32g32b32_state(struct radv_device *device, bool on_demand)
+radv_device_init_meta_itoi_r32g32b32_state(struct radv_device *device)
 {
-   if (on_demand)
-      return VK_SUCCESS;
-
    return create_itoi_r32g32b32_pipeline(device, &device->meta_state.itoi_r32g32b32.pipeline);
 }
 
@@ -921,12 +906,9 @@ fail:
 }
 
 static VkResult
-radv_device_init_meta_cleari_state(struct radv_device *device, bool on_demand)
+radv_device_init_meta_cleari_state(struct radv_device *device)
 {
    VkResult result;
-
-   if (on_demand)
-      return VK_SUCCESS;
 
    for (uint32_t i = 0; i < MAX_SAMPLES_LOG2; i++) {
       uint32_t samples = 1 << i;
@@ -1060,11 +1042,8 @@ fail:
 }
 
 static VkResult
-radv_device_init_meta_cleari_r32g32b32_state(struct radv_device *device, bool on_demand)
+radv_device_init_meta_cleari_r32g32b32_state(struct radv_device *device)
 {
-   if (on_demand)
-      return VK_SUCCESS;
-
    return create_cleari_r32g32b32_pipeline(device, &device->meta_state.cleari_r32g32b32.pipeline);
 }
 
@@ -1096,31 +1075,34 @@ radv_device_init_meta_bufimage_state(struct radv_device *device, bool on_demand)
 {
    VkResult result;
 
-   result = radv_device_init_meta_itob_state(device, on_demand);
+   if (on_demand)
+      return VK_SUCCESS;
+
+   result = radv_device_init_meta_itob_state(device);
    if (result != VK_SUCCESS)
       return result;
 
-   result = radv_device_init_meta_btoi_state(device, on_demand);
+   result = radv_device_init_meta_btoi_state(device);
    if (result != VK_SUCCESS)
       return result;
 
-   result = radv_device_init_meta_btoi_r32g32b32_state(device, on_demand);
+   result = radv_device_init_meta_btoi_r32g32b32_state(device);
    if (result != VK_SUCCESS)
       return result;
 
-   result = radv_device_init_meta_itoi_state(device, on_demand);
+   result = radv_device_init_meta_itoi_state(device);
    if (result != VK_SUCCESS)
       return result;
 
-   result = radv_device_init_meta_itoi_r32g32b32_state(device, on_demand);
+   result = radv_device_init_meta_itoi_r32g32b32_state(device);
    if (result != VK_SUCCESS)
       return result;
 
-   result = radv_device_init_meta_cleari_state(device, on_demand);
+   result = radv_device_init_meta_cleari_state(device);
    if (result != VK_SUCCESS)
       return result;
 
-   result = radv_device_init_meta_cleari_r32g32b32_state(device, on_demand);
+   result = radv_device_init_meta_cleari_r32g32b32_state(device);
    if (result != VK_SUCCESS)
       return result;
 
