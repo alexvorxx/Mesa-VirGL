@@ -3986,25 +3986,6 @@ fs_nir_emit_fs_intrinsic(nir_to_elk_state &ntb,
       break;
    }
 
-   case nir_intrinsic_ddx_fine:
-      bld.emit(ELK_FS_OPCODE_DDX_FINE, retype(dest, ELK_REGISTER_TYPE_F),
-               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
-      break;
-   case nir_intrinsic_ddx:
-   case nir_intrinsic_ddx_coarse:
-      bld.emit(ELK_FS_OPCODE_DDX_COARSE, retype(dest, ELK_REGISTER_TYPE_F),
-               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
-      break;
-   case nir_intrinsic_ddy_fine:
-      bld.emit(ELK_FS_OPCODE_DDY_FINE, retype(dest, ELK_REGISTER_TYPE_F),
-               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
-      break;
-   case nir_intrinsic_ddy:
-   case nir_intrinsic_ddy_coarse:
-      bld.emit(ELK_FS_OPCODE_DDY_COARSE, retype(dest, ELK_REGISTER_TYPE_F),
-               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
-      break;
-
    default:
       fs_nir_emit_intrinsic(ntb, bld, instr);
       break;
@@ -5998,6 +5979,25 @@ fs_nir_emit_intrinsic(nir_to_elk_state &ntb,
       }
       break;
    }
+
+   case nir_intrinsic_ddx_fine:
+      bld.emit(ELK_FS_OPCODE_DDX_FINE, retype(dest, ELK_REGISTER_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
+      break;
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_coarse:
+      bld.emit(ELK_FS_OPCODE_DDX_COARSE, retype(dest, ELK_REGISTER_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
+      break;
+   case nir_intrinsic_ddy_fine:
+      bld.emit(ELK_FS_OPCODE_DDY_FINE, retype(dest, ELK_REGISTER_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
+      break;
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_coarse:
+      bld.emit(ELK_FS_OPCODE_DDY_COARSE, retype(dest, ELK_REGISTER_TYPE_F),
+               retype(get_nir_src(ntb, instr->src[0]), ELK_REGISTER_TYPE_F));
+      break;
 
    case nir_intrinsic_reduce: {
       elk_fs_reg src = get_nir_src(ntb, instr->src[0]);
