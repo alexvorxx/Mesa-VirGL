@@ -117,23 +117,6 @@ radv_DestroyPipeline(VkDevice _device, VkPipeline _pipeline, const VkAllocationC
    radv_pipeline_destroy(device, pipeline, pAllocator);
 }
 
-static enum radv_buffer_robustness
-radv_convert_buffer_robustness(const struct radv_device *device, VkPipelineRobustnessBufferBehaviorEXT behaviour)
-{
-   switch (behaviour) {
-   case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DEVICE_DEFAULT_EXT:
-      return device->buffer_robustness;
-   case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT:
-      return RADV_BUFFER_ROBUSTNESS_DISABLED;
-   case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_EXT:
-      return RADV_BUFFER_ROBUSTNESS_1;
-   case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT:
-      return RADV_BUFFER_ROBUSTNESS_2;
-   default:
-      unreachable("Invalid pipeline robustness behavior");
-   }
-}
-
 struct radv_shader_stage_key
 radv_pipeline_get_shader_key(const struct radv_device *device, const VkPipelineShaderStageCreateInfo *stage,
                              VkPipelineCreateFlags2KHR flags, const void *pNext)
@@ -141,6 +124,7 @@ radv_pipeline_get_shader_key(const struct radv_device *device, const VkPipelineS
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const struct radv_instance *instance = radv_physical_device_instance(pdev);
    gl_shader_stage s = vk_to_mesa_shader_stage(stage->stage);
+   struct vk_pipeline_robustness_state rs;
    struct radv_shader_stage_key key = {0};
 
    key.keep_statistic_info = radv_pipeline_capture_shader_stats(device, flags);
@@ -163,29 +147,15 @@ radv_pipeline_get_shader_key(const struct radv_device *device, const VkPipelineS
       key.version = instance->drirc.override_compute_shader_version;
    }
 
-   const VkPipelineRobustnessCreateInfoEXT *pipeline_robust_info =
-      vk_find_struct_const(pNext, PIPELINE_ROBUSTNESS_CREATE_INFO_EXT);
+   vk_pipeline_robustness_state_fill(&device->vk, &rs, pNext, stage->pNext);
 
-   const VkPipelineRobustnessCreateInfoEXT *stage_robust_info =
-      vk_find_struct_const(stage->pNext, PIPELINE_ROBUSTNESS_CREATE_INFO_EXT);
-
-   enum radv_buffer_robustness storage_robustness = device->buffer_robustness;
-   enum radv_buffer_robustness uniform_robustness = device->buffer_robustness;
-   enum radv_buffer_robustness vertex_robustness = device->buffer_robustness;
-
-   const VkPipelineRobustnessCreateInfoEXT *robust_info = stage_robust_info ? stage_robust_info : pipeline_robust_info;
-
-   if (robust_info) {
-      storage_robustness = radv_convert_buffer_robustness(device, robust_info->storageBuffers);
-      uniform_robustness = radv_convert_buffer_robustness(device, robust_info->uniformBuffers);
-      vertex_robustness = radv_convert_buffer_robustness(device, robust_info->vertexInputs);
-   }
-
-   if (storage_robustness >= RADV_BUFFER_ROBUSTNESS_2)
+   if (rs.storage_buffers == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT)
       key.storage_robustness2 = 1;
-   if (uniform_robustness >= RADV_BUFFER_ROBUSTNESS_2)
+   if (rs.uniform_buffers == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT)
       key.uniform_robustness2 = 1;
-   if (s == MESA_SHADER_VERTEX && vertex_robustness >= RADV_BUFFER_ROBUSTNESS_1)
+   if (s == MESA_SHADER_VERTEX &&
+       (rs.vertex_inputs == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_EXT ||
+        rs.vertex_inputs == VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT))
       key.vertex_robustness1 = 1u;
 
    const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo *const subgroup_size =

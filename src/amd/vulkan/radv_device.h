@@ -52,12 +52,6 @@ struct radv_layer_dispatch_tables {
    struct vk_device_dispatch_table ctx_roll;
 };
 
-enum radv_buffer_robustness {
-   RADV_BUFFER_ROBUSTNESS_DISABLED,
-   RADV_BUFFER_ROBUSTNESS_1, /* robustBufferAccess */
-   RADV_BUFFER_ROBUSTNESS_2, /* robustBufferAccess2 */
-};
-
 struct radv_device_cache_key {
    uint32_t disable_trunc_coord : 1;
    uint32_t image_2d_view_of_3d : 1;
@@ -447,9 +441,6 @@ struct radv_device {
 
    /* Whether to DMA shaders to invisible VRAM or to upload directly through BAR. */
    bool shader_use_invisible_vram;
-
-   /* Whether the app has enabled the robustBufferAccess/robustBufferAccess2 features. */
-   enum radv_buffer_robustness buffer_robustness;
 
    /* Whether to inline the compute dispatch size in user sgprs. */
    bool load_grid_size_from_user_sgpr;

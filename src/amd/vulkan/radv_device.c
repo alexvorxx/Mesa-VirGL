@@ -1134,10 +1134,6 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
       device->vk.enabled_extensions.KHR_acceleration_structure ||
       device->vk.enabled_extensions.VALVE_descriptor_set_host_mapping;
 
-   device->buffer_robustness = device->vk.enabled_features.robustBufferAccess2  ? RADV_BUFFER_ROBUSTNESS_2
-                               : device->vk.enabled_features.robustBufferAccess ? RADV_BUFFER_ROBUSTNESS_1
-                                                                                : RADV_BUFFER_ROBUSTNESS_DISABLED;
-
    radv_init_shader_arenas(device);
 
    device->overallocation_disallowed = overallocation_disallowed;
