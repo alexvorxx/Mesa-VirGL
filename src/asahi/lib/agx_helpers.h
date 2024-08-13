@@ -247,3 +247,8 @@ agx_gather_device_key(struct agx_device *dev)
       .soft_fault = agx_has_soft_fault(dev),
    };
 }
+
+struct agx_border_packed;
+
+void agx_pack_border(struct agx_border_packed *out, const uint32_t in[4],
+                     enum pipe_format format);

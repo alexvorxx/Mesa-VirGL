@@ -7,10 +7,10 @@ inc_asahi = include_directories([
 ])
 
 if with_gallium_asahi or with_asahi_vk
+   subdir('genxml')
    subdir('layout')
    subdir('compiler')
    subdir('clc')
-   subdir('genxml')
    subdir('lib')
 endif
 

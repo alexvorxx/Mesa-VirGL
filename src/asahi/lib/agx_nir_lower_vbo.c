@@ -4,7 +4,7 @@
  */
 
 #include "agx_nir_lower_vbo.h"
-#include "asahi/compiler/agx_internal_formats.h"
+#include "asahi/layout/layout.h"
 #include "compiler/nir/nir_builder.h"
 #include "compiler/nir/nir_format_convert.h"
 #include "util/bitset.h"
@@ -223,8 +223,7 @@ pass(struct nir_builder *b, nir_intrinsic_instr *intr, void *data)
     * i.e. the set of formats that support masking.
     */
    if (offset_el == 0 && (stride_el == 2 || stride_el == 4) &&
-       agx_internal_format_supports_mask(
-          (enum agx_internal_formats)interchange_format)) {
+       ail_isa_format_supports_mask((enum ail_isa_format)interchange_format)) {
 
       shift = util_logbase2(stride_el);
       stride_el = 1;

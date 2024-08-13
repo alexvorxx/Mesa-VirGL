@@ -4,13 +4,13 @@
  */
 
 #include <stdint.h>
-#include "compiler/agx_internal_formats.h"
 #include "compiler/glsl_types.h"
 #include "util/format/u_format.h"
 #include "util/macros.h"
 #include "agx_nir_format_helpers.h"
 #include "agx_pack.h"
 #include "agx_tilebuffer.h"
+#include "layout.h"
 #include "nir.h"
 #include "nir_builder.h"
 #include "nir_builder_opcodes.h"

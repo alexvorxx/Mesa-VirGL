@@ -10,7 +10,6 @@
 #include <xf86drm.h>
 #include "asahi/compiler/agx_compile.h"
 #include "asahi/layout/layout.h"
-#include "asahi/lib/agx_formats.h"
 #include "asahi/lib/decode.h"
 #include "asahi/lib/unstable_asahi_drm.h"
 #include "drm-uapi/drm_fourcc.h"
@@ -428,7 +427,7 @@ agx_compression_allowed(const struct agx_resource *pres)
     * renderable formats. As framebuffer compression, other formats don't make a
     * ton of sense to compress anyway.
     */
-   if (agx_pixel_format[pres->base.format].renderable == PIPE_FORMAT_NONE &&
+   if (ail_pixel_format[pres->base.format].renderable == PIPE_FORMAT_NONE &&
        !util_format_is_depth_or_stencil(pres->base.format)) {
       rsrc_debug(pres, "No compression: format not renderable\n");
       return false;
@@ -2497,9 +2496,9 @@ agx_is_format_supported(struct pipe_screen *pscreen, enum pipe_format format,
       if (tex_format == PIPE_FORMAT_X24S8_UINT)
          tex_format = PIPE_FORMAT_S8_UINT;
 
-      struct agx_pixel_format_entry ent = agx_pixel_format[tex_format];
+      struct ail_pixel_format_entry ent = ail_pixel_format[tex_format];
 
-      if (!agx_is_valid_pixel_format(tex_format))
+      if (!ail_is_valid_pixel_format(tex_format))
          return false;
 
       /* RGB32, luminance/alpha/intensity emulated for texture buffers only */

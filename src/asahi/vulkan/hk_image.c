@@ -6,7 +6,6 @@
  */
 #include "hk_image.h"
 #include "asahi/layout/layout.h"
-#include "asahi/lib/agx_formats.h"
 #include "drm-uapi/drm_fourcc.h"
 #include "util/bitscan.h"
 #include "util/format/u_format.h"
@@ -74,7 +73,7 @@ hk_get_image_plane_format_features(struct hk_physical_device *pdev,
       }
    }
 
-   if (agx_pixel_format[p_format].texturable) {
+   if (ail_pixel_format[p_format].texturable) {
       features |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT;
       features |= VK_FORMAT_FEATURE_2_BLIT_SRC_BIT;
 
@@ -90,7 +89,7 @@ hk_get_image_plane_format_features(struct hk_physical_device *pdev,
       }
    }
 
-   if (agx_pixel_format[p_format].renderable) {
+   if (ail_pixel_format[p_format].renderable) {
       /* For now, disable snorm rendering due to nir_lower_blend bugs.
        *
        * TODO: revisit.

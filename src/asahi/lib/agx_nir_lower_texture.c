@@ -8,7 +8,6 @@
 
 #include "compiler/nir/nir.h"
 #include "compiler/nir/nir_builder.h"
-#include "agx_internal_formats.h"
 #include "agx_nir_passes.h"
 #include "glsl_types.h"
 #include "libagx_shaders.h"

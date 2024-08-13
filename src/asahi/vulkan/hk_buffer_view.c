@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: MIT
  */
 #include "hk_buffer_view.h"
-#include "asahi/lib/agx_formats.h"
+#include "asahi/layout/layout.h"
 #include "asahi/lib/agx_nir_lower_vbo.h"
 #include "util/bitscan.h"
 #include "util/format/u_format.h"
@@ -34,7 +34,7 @@ hk_get_buffer_format_features(struct hk_physical_device *pdev,
    if (agx_vbo_supports_format(p_format))
       features |= VK_FORMAT_FEATURE_2_VERTEX_BUFFER_BIT;
 
-   if (agx_pixel_format[p_format].texturable &&
+   if (ail_pixel_format[p_format].texturable &&
        !util_format_is_depth_or_stencil(p_format)) {
 
       features |= VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT;
@@ -104,8 +104,8 @@ hk_CreateBufferView(VkDevice _device, const VkBufferViewCreateInfo *pCreateInfo,
    agx_pack(&tex, TEXTURE, cfg) {
       cfg.dimension = AGX_TEXTURE_DIMENSION_2D;
       cfg.layout = AGX_LAYOUT_LINEAR;
-      cfg.channels = agx_pixel_format[format].channels;
-      cfg.type = agx_pixel_format[format].type;
+      cfg.channels = ail_pixel_format[format].channels;
+      cfg.type = ail_pixel_format[format].type;
       cfg.swizzle_r = agx_channel_from_pipe(format_swizzle[0]);
       cfg.swizzle_g = agx_channel_from_pipe(format_swizzle[1]);
       cfg.swizzle_b = agx_channel_from_pipe(format_swizzle[2]);
@@ -130,8 +130,8 @@ hk_CreateBufferView(VkDevice _device, const VkBufferViewCreateInfo *pCreateInfo,
    agx_pack(&pbe, PBE, cfg) {
       cfg.dimension = AGX_TEXTURE_DIMENSION_2D;
       cfg.layout = AGX_LAYOUT_LINEAR;
-      cfg.channels = agx_pixel_format[format].channels;
-      cfg.type = agx_pixel_format[format].type;
+      cfg.channels = ail_pixel_format[format].channels;
+      cfg.type = ail_pixel_format[format].type;
       cfg.srgb = util_format_is_srgb(format);
 
       assert(desc->nr_channels >= 1 && desc->nr_channels <= 4);

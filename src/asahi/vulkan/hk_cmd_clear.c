@@ -4,8 +4,8 @@
  * Copyright 2022-2023 Collabora Ltd. and Red Hat Inc.
  * SPDX-License-Identifier: MIT
  */
-#include "agx_formats.h"
 #include "hk_cmd_buffer.h"
+#include "layout.h"
 
 #include "hk_device.h"
 #include "hk_entrypoints.h"
@@ -164,7 +164,7 @@ hk_CmdClearColorImage(VkCommandBuffer commandBuffer, VkImage _image,
    enum pipe_format p_format = vk_format_to_pipe_format(vk_format);
    assert(p_format != PIPE_FORMAT_NONE);
 
-   if (!agx_pixel_format[p_format].renderable) {
+   if (!ail_pixel_format[p_format].renderable) {
       memset(&clear_value, 0, sizeof(clear_value));
       util_format_pack_rgba(p_format, clear_value.color.uint32, pColor->uint32,
                             1);

@@ -6,6 +6,7 @@
  */
 
 #include "agx_compile.h"
+#include "asahi/layout/layout.h"
 #include "compiler/nir/nir_builder.h"
 #include "util/bitset.h"
 #include "util/glheader.h"
@@ -16,7 +17,6 @@
 #include "agx_builder.h"
 #include "agx_compiler.h"
 #include "agx_debug.h"
-#include "agx_internal_formats.h"
 #include "agx_nir.h"
 #include "glsl_types.h"
 #include "nir.h"
@@ -493,7 +493,7 @@ static enum agx_format
 agx_format_for_pipe(enum pipe_format format)
 {
 #define CASE(x)                                                                \
-   if (format == (enum pipe_format)AGX_INTERNAL_FORMAT_##x)                    \
+   if (format == (enum pipe_format)AIL_ISA_FORMAT_##x)                         \
       return AGX_FORMAT_##x;
 
    CASE(I8);

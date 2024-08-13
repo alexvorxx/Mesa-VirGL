@@ -287,6 +287,57 @@ void ail_tile(void *_tiled, void *_linear,
               unsigned linear_pitch_B, unsigned sx_px, unsigned sy_px,
               unsigned width_px, unsigned height_px);
 
+/* Define aliases for the subset formats that are accessible in the ISA. These
+ * subsets disregard component mapping and number of components. This
+ * constitutes ABI with the compiler.
+ */
+enum ail_isa_format {
+   AIL_ISA_FORMAT_I8 = PIPE_FORMAT_R8_UINT,
+   AIL_ISA_FORMAT_I16 = PIPE_FORMAT_R16_UINT,
+   AIL_ISA_FORMAT_I32 = PIPE_FORMAT_R32_UINT,
+   AIL_ISA_FORMAT_F16 = PIPE_FORMAT_R16_FLOAT,
+   AIL_ISA_FORMAT_U8NORM = PIPE_FORMAT_R8_UNORM,
+   AIL_ISA_FORMAT_S8NORM = PIPE_FORMAT_R8_SNORM,
+   AIL_ISA_FORMAT_U16NORM = PIPE_FORMAT_R16_UNORM,
+   AIL_ISA_FORMAT_S16NORM = PIPE_FORMAT_R16_SNORM,
+   AIL_ISA_FORMAT_RGB10A2 = PIPE_FORMAT_R10G10B10A2_UNORM,
+   AIL_ISA_FORMAT_SRGBA8 = PIPE_FORMAT_R8G8B8A8_SRGB,
+   AIL_ISA_FORMAT_RG11B10F = PIPE_FORMAT_R11G11B10_FLOAT,
+   AIL_ISA_FORMAT_RGB9E5 = PIPE_FORMAT_R9G9B9E5_FLOAT
+};
+
+/*
+ * The architecture load/store instructions support masking, but packed formats
+ * are not compatible with masking. Check if a format is packed.
+ */
+static inline bool
+ail_isa_format_supports_mask(enum ail_isa_format format)
+{
+   switch (format) {
+   case AIL_ISA_FORMAT_RGB10A2:
+   case AIL_ISA_FORMAT_RG11B10F:
+   case AIL_ISA_FORMAT_RGB9E5:
+      return false;
+   default:
+      return true;
+   }
+}
+
+struct ail_pixel_format_entry {
+   uint8_t channels;
+   uint8_t type;
+   bool texturable : 1;
+   enum pipe_format renderable;
+};
+
+extern const struct ail_pixel_format_entry ail_pixel_format[PIPE_FORMAT_COUNT];
+
+static inline bool
+ail_is_valid_pixel_format(enum pipe_format format)
+{
+   return ail_pixel_format[format].texturable;
+}
+
 #ifdef __cplusplus
 } /* extern C */
 #endif

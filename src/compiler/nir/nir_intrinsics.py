@@ -1923,7 +1923,7 @@ intrinsic("load_uvs_index_agx", dest_comp = 1, bit_sizes=[16],
 # converting between floating-point registers and normalized memory formats.
 #
 # The format is the pipe_format of the local memory (the source), see
-# agx_internal_formats.h for the supported list.
+# ail for the supported list.
 #
 # Logically, this loads/stores a single sample. The sample to load is
 # specified by the bitfield sample mask source. However, for stores multiple
@@ -1955,7 +1955,7 @@ intrinsic("store_zs_agx", [1, 1, 1], indices=[BASE], flags=[])
 # kernels.
 #
 # The format is the pipe_format of the local memory (the source), see
-# agx_internal_formats.h for the supported list. The image format is
+# ail for the supported list. The image format is
 # specified in the PBE descriptor.
 #
 # The image dimension is used to distinguish multisampled images from
@@ -1964,8 +1964,8 @@ intrinsic("store_zs_agx", [1, 1, 1], indices=[BASE], flags=[])
 # extra src[] = { logical offset within shared memory, coordinates/layer }
 image("store_block_agx", [1, -1], extra_indices=[EXPLICIT_COORD])
 
-# Formatted load/store. The format is the pipe_format in memory (see
-# agx_internal_formats.h for the supported list). This accesses:
+# Formatted load/store. The format is the pipe_format in memory (see ail for the
+# supported list). This accesses:
 #
 #     address + extend(index) << (format shift + shift)
 #

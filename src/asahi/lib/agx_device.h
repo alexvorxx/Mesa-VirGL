@@ -13,8 +13,8 @@
 #include "util/timespec.h"
 #include "util/vma.h"
 #include "agx_bo.h"
-#include "agx_formats.h"
 #include "decode.h"
+#include "layout.h"
 #include "unstable_asahi_drm.h"
 
 // TODO: this is a lie right now

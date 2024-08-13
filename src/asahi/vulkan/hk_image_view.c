@@ -255,8 +255,8 @@ pack_texture(struct hk_image_view *view, unsigned view_plane,
       cfg.dimension = translate_image_view_type(
          view->vk.view_type, view->vk.image->samples > 1, layers > 1, usage);
       cfg.layout = agx_translate_layout(layout->tiling);
-      cfg.channels = agx_pixel_format[p_format].channels;
-      cfg.type = agx_pixel_format[p_format].type;
+      cfg.channels = ail_pixel_format[p_format].channels;
+      cfg.type = ail_pixel_format[p_format].type;
       cfg.srgb = util_format_is_srgb(p_format);
 
       cfg.swizzle_r = agx_channel_from_pipe(out_swizzle[0]);
@@ -357,8 +357,8 @@ pack_pbe(struct hk_device *dev, struct hk_image_view *view, unsigned view_plane,
       cfg.dimension =
          translate_image_view_type(view->vk.view_type, msaa, layers > 1, usage);
       cfg.layout = agx_translate_layout(layout->tiling);
-      cfg.channels = agx_pixel_format[p_format].channels;
-      cfg.type = agx_pixel_format[p_format].type;
+      cfg.channels = ail_pixel_format[p_format].channels;
+      cfg.type = ail_pixel_format[p_format].type;
       cfg.srgb = util_format_is_srgb(p_format);
 
       assert(desc->nr_channels >= 1 && desc->nr_channels <= 4);

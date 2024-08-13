@@ -5,11 +5,10 @@
 
 #include "agx_tilebuffer.h"
 #include <assert.h>
-#include "compiler/agx_internal_formats.h"
 #include "util/bitscan.h"
 #include "util/format/u_format.h"
-#include "agx_formats.h"
 #include "agx_usc.h"
+#include "layout.h"
 
 /* Maximum number of bytes per tile on G13G. This may change in future versions
  * of the architecture.
@@ -141,7 +140,7 @@ agx_build_tilebuffer_layout(const enum pipe_format *formats, uint8_t nr_cbufs,
 enum pipe_format
 agx_tilebuffer_physical_format(struct agx_tilebuffer_layout *tib, unsigned rt)
 {
-   return agx_pixel_format[tib->logical_format[rt]].renderable;
+   return ail_pixel_format[tib->logical_format[rt]].renderable;
 }
 
 bool
@@ -154,7 +153,7 @@ agx_tilebuffer_supports_mask(struct agx_tilebuffer_layout *tib, unsigned rt)
       return false;
 
    enum pipe_format fmt = agx_tilebuffer_physical_format(tib, rt);
-   return agx_internal_format_supports_mask((enum agx_internal_formats)fmt);
+   return ail_isa_format_supports_mask((enum ail_isa_format)fmt);
 }
 
 uint32_t

@@ -25,8 +25,6 @@
 #include "util/ralloc.h"
 #include "util/u_sampler.h"
 #include "util/u_surface.h"
-#include "agx_formats.h"
-#include "agx_internal_formats.h"
 #include "agx_state.h"
 #include "glsl_types.h"
 #include "nir.h"
@@ -203,7 +201,7 @@ asahi_blit_compute_shader(struct pipe_context *ctx, struct asahi_blit_key *key)
     * flow of fragment and end-of-tile shaders.
     */
    enum pipe_format tib_format =
-      agx_pixel_format[effective_format(key->dst_format)].renderable;
+      ail_pixel_format[effective_format(key->dst_format)].renderable;
 
    nir_store_local_pixel_agx(b, color, nir_imm_int(b, 1), lid, .base = 0,
                              .write_mask = 0xf, .format = tib_format,

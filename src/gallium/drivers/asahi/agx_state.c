@@ -11,7 +11,6 @@
 #include "asahi/compiler/agx_compile.h"
 #include "asahi/genxml/agx_pack.h"
 #include "asahi/layout/layout.h"
-#include "asahi/lib/agx_formats.h"
 #include "asahi/lib/agx_helpers.h"
 #include "asahi/lib/agx_nir_passes.h"
 #include "asahi/lib/agx_ppp.h"
@@ -91,7 +90,7 @@ agx_legalize_compression(struct agx_context *ctx, struct agx_resource *rsrc,
     * This has not been exhaustively tested and might be missing some corner
     * cases around XR formats, but is well-motivated and seems to work.
     */
-   if (agx_pixel_format[storage].channels == agx_pixel_format[format].channels)
+   if (ail_pixel_format[storage].channels == ail_pixel_format[format].channels)
       return;
 
    /* Otherwise, decompress. */
@@ -671,7 +670,7 @@ agx_pack_texture(void *out, struct agx_resource *rsrc,
 {
    const struct util_format_description *desc = util_format_description(format);
 
-   assert(agx_is_valid_pixel_format(format));
+   assert(ail_is_valid_pixel_format(format));
 
    uint8_t format_swizzle[4] = {
       desc->swizzle[0],
@@ -707,8 +706,8 @@ agx_pack_texture(void *out, struct agx_resource *rsrc,
       cfg.dimension = agx_translate_tex_dim(state->target,
                                             util_res_sample_count(&rsrc->base));
       cfg.layout = agx_translate_layout(rsrc->layout.tiling);
-      cfg.channels = agx_pixel_format[format].channels;
-      cfg.type = agx_pixel_format[format].type;
+      cfg.channels = ail_pixel_format[format].channels;
+      cfg.type = ail_pixel_format[format].type;
       cfg.swizzle_r = agx_channel_from_pipe(out_swizzle[0]);
       cfg.swizzle_g = agx_channel_from_pipe(out_swizzle[1]);
       cfg.swizzle_b = agx_channel_from_pipe(out_swizzle[2]);
@@ -1228,8 +1227,8 @@ agx_batch_upload_pbe(struct agx_batch *batch, struct agx_pbe_packed *out,
       cfg.dimension =
          agx_translate_tex_dim(target, util_res_sample_count(&tex->base));
       cfg.layout = agx_translate_layout(tex->layout.tiling);
-      cfg.channels = agx_pixel_format[view->format].channels;
-      cfg.type = agx_pixel_format[view->format].type;
+      cfg.channels = ail_pixel_format[view->format].channels;
+      cfg.type = ail_pixel_format[view->format].type;
       cfg.srgb = util_format_is_srgb(view->format);
 
       assert(desc->nr_channels >= 1 && desc->nr_channels <= 4);
