@@ -1647,6 +1647,14 @@ static const __DRIkopperLoaderExtension kopper_loader_extension = {
    .SetSurfaceCreateInfo = kopperSetSurfaceCreateInfo,
 };
 
+static const __DRIextension *kopper_loader_extensions[] = {
+   &swrast_loader_extension.base,
+   &image_lookup_extension.base,
+   &kopper_loader_extension.base,
+   &use_invalidate.base,
+   NULL,
+};
+
 static const __DRIextension *swrast_loader_extensions[] = {
    &swrast_loader_extension.base,
    &image_lookup_extension.base,
@@ -1818,7 +1826,9 @@ dri2_initialize_x11_swrast(_EGLDisplay *disp)
    if (!dri2_load_driver(disp))
       goto cleanup;
 
-   if (check_xshm(dri2_dpy)) {
+   if (disp->Options.Zink && !disp->Options.ForceSoftware) {
+      dri2_dpy->loader_extensions = kopper_loader_extensions;
+   } else if (check_xshm(dri2_dpy)) {
       dri2_dpy->loader_extensions = swrast_loader_shm_extensions;
    } else {
       dri2_dpy->loader_extensions = swrast_loader_extensions;
