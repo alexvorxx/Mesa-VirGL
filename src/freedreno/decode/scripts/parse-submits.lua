@@ -332,6 +332,9 @@ function draw(primtype, nindx)
 		if m == "RM6_RESOLVE" and primtype == "EVENT:BLIT" then
 			return
 		end
+		if m == "RM6_BLIT2DSCALE" and primtype == "EVENT:LRZ_CLEAR" then
+			return
+		end
 		printf("unknown MODE %s for primtype %s\n", m, primtype)
 		return
 	end

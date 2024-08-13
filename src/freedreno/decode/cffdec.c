@@ -1906,7 +1906,7 @@ cp_event_write(uint32_t *dwords, uint32_t sizedwords, int level)
    if (name && (options->info->chip > 5)) {
       char eventname[64];
       snprintf(eventname, sizeof(eventname), "EVENT:%s", name);
-      if (!strcmp(name, "BLIT")) {
+      if (!strcmp(name, "BLIT") || !strcmp(name, "LRZ_CLEAR")) {
          do_query(eventname, 0);
          print_mode(level);
          dump_register_summary(level);
