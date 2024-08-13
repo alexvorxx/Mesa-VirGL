@@ -56,9 +56,52 @@ build_nir_itob_compute_shader(struct radv_device *dev, bool is_3d)
 }
 
 static VkResult
+create_itob_layout(struct radv_device *device)
+{
+   VkResult result = VK_SUCCESS;
+
+   if (!device->meta_state.itob.img_ds_layout) {
+      const VkDescriptorSetLayoutBinding bindings[] = {
+         {
+            .binding = 0,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+         },
+         {
+            .binding = 1,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+         },
+      };
+
+      result = radv_meta_create_descriptor_set_layout(device, 2, bindings, &device->meta_state.itob.img_ds_layout);
+      if (result != VK_SUCCESS)
+         return result;
+   }
+
+   if (!device->meta_state.itob.img_p_layout) {
+      const VkPushConstantRange pc_range = {
+         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+         .size = 16,
+      };
+
+      result = radv_meta_create_pipeline_layout(device, &device->meta_state.itob.img_ds_layout, 1, &pc_range,
+                                                &device->meta_state.itob.img_p_layout);
+   }
+
+   return result;
+}
+
+static VkResult
 create_itob_pipeline(struct radv_device *device, bool is_3d, VkPipeline *pipeline)
 {
    VkResult result;
+
+   result = create_itob_layout(device);
+   if (result != VK_SUCCESS)
+      return result;
 
    nir_shader *cs = build_nir_itob_compute_shader(device, is_3d);
 
@@ -97,35 +140,6 @@ static VkResult
 radv_device_init_meta_itob_state(struct radv_device *device, bool on_demand)
 {
    VkResult result;
-
-   const VkDescriptorSetLayoutBinding bindings[] = {
-      {
-         .binding = 0,
-         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-         .descriptorCount = 1,
-         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-      },
-      {
-         .binding = 1,
-         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,
-         .descriptorCount = 1,
-         .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-      },
-   };
-
-   result = radv_meta_create_descriptor_set_layout(device, 2, bindings, &device->meta_state.itob.img_ds_layout);
-   if (result != VK_SUCCESS)
-      return result;
-
-   const VkPushConstantRange pc_range = {
-      .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-      .size = 16,
-   };
-
-   result = radv_meta_create_pipeline_layout(device, &device->meta_state.itob.img_ds_layout, 1, &pc_range,
-                                             &device->meta_state.itob.img_p_layout);
-   if (result != VK_SUCCESS)
-      return result;
 
    if (on_demand)
       return VK_SUCCESS;
