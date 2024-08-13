@@ -462,6 +462,9 @@ radv_shader_spirv_to_nir(struct radv_device *device, const struct radv_shader_st
       NIR_PASS(_, nir, ac_nir_lower_sin_cos);
    }
 
+   if (options && options->lower_view_index_to_device_index)
+      NIR_PASS(_, nir, nir_lower_view_index_to_device_index);
+
    NIR_PASS(_, nir, nir_lower_system_values);
    nir_lower_compute_system_values_options csv_options = {
       /* Mesh shaders run as NGG which can implement local_invocation_index from

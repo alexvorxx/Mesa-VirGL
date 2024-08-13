@@ -148,6 +148,9 @@ radv_pipeline_get_shader_key(const struct radv_device *device, const VkPipelineS
    if (flags & VK_PIPELINE_CREATE_2_DISABLE_OPTIMIZATION_BIT_KHR)
       key.optimisations_disabled = 1;
 
+   if (flags & VK_PIPELINE_CREATE_2_VIEW_INDEX_FROM_DEVICE_INDEX_BIT_KHR)
+      key.view_index_from_device_index = 1;
+
    if (flags & VK_PIPELINE_CREATE_INDIRECT_BINDABLE_BIT_NV)
       key.indirect_bindable = 1;
 

@@ -2380,6 +2380,7 @@ radv_graphics_shaders_compile(struct radv_device *device, struct vk_pipeline_cac
             .lower_view_index_to_zero = !gfx_state->has_multiview_view_index,
             .fix_dual_src_mrt1_export =
                gfx_state->ps.epilog.mrt0_is_dual_src && instance->drirc.dual_color_blend_by_location,
+            .lower_view_index_to_device_index = stages[s].key.view_index_from_device_index,
          };
          blake3_hash key;
 

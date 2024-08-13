@@ -78,6 +78,7 @@ struct radv_shader_stage_key {
 
    uint8_t optimisations_disabled : 1;
    uint8_t keep_statistic_info : 1;
+   uint8_t view_index_from_device_index : 1;
 
    /* Shader version (up to 8) to force re-compilation when RADV_BUILD_ID_OVERRIDE is enabled. */
    uint8_t version : 3;
@@ -111,6 +112,7 @@ struct radv_ps_epilog_key {
 struct radv_spirv_to_nir_options {
    uint32_t lower_view_index_to_zero : 1;
    uint32_t fix_dual_src_mrt1_export : 1;
+   uint32_t lower_view_index_to_device_index : 1;
 };
 
 struct radv_graphics_state_key {
