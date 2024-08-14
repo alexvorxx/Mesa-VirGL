@@ -825,6 +825,7 @@ read_alu(read_ctx *ctx, union packed_instr header)
    return alu;
 }
 
+#define NUM_GENERIC_MODES 4
 #define MODE_ENC_GENERIC_BIT (1 << 4)
 
 static nir_variable_mode
@@ -848,8 +849,16 @@ encode_deref_modes(nir_variable_mode modes)
     * can compress them by only storing the bit position.  This, plus one bit
     * to select encoding, lets us pack the entire bitfield in 5 bits.
     */
+
+   /* Assert that the modes we are compressing fit along with the generic bit
+    */
+   STATIC_ASSERT((nir_num_variable_modes - NUM_GENERIC_MODES) <
+                 MODE_ENC_GENERIC_BIT);
+
+   /* Assert that the generic modes are defined at the end of the modes enum
+    */
    STATIC_ASSERT((nir_var_all & ~nir_var_mem_generic) <
-                 (1 << MODE_ENC_GENERIC_BIT));
+                 (1 << (nir_num_variable_modes - NUM_GENERIC_MODES)));
 
    unsigned enc;
    if (modes == 0 || (modes & nir_var_mem_generic)) {
