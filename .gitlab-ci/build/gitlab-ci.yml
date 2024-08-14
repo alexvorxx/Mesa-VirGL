@@ -289,7 +289,7 @@ alpine-build-testing:
       -D microsoft-clc=disabled
       -D shared-llvm=enabled
     UNWIND: "disabled"
-    VULKAN_DRIVERS: "amd,broadcom,freedreno,intel,imagination-experimental"
+    VULKAN_DRIVERS: "amd,asahi,broadcom,freedreno,intel,imagination-experimental"
 
 fedora-release:
   extends:
@@ -338,7 +338,7 @@ fedora-release:
       -D shared-llvm=enabled
     LLVM_VERSION: ""
     UNWIND: "disabled"
-    VULKAN_DRIVERS: "amd,broadcom,freedreno,imagination-experimental,intel,intel_hasvk"
+    VULKAN_DRIVERS: "amd,asahi,broadcom,freedreno,imagination-experimental,intel,intel_hasvk"
 
 debian-android:
   extends:
@@ -432,7 +432,7 @@ debian-android:
   needs:
     - debian/arm64_build
   variables:
-    VULKAN_DRIVERS: freedreno,broadcom
+    VULKAN_DRIVERS: asahi,freedreno,broadcom
     GALLIUM_DRIVERS: "etnaviv,freedreno,lima,nouveau,panfrost,llvmpipe,softpipe,tegra,v3d,vc4,zink"
     BUILDTYPE: "debugoptimized"
   tags:
@@ -446,7 +446,8 @@ debian-arm32:
     CROSS: armhf
     DRI_LOADERS:
       -D glvnd=disabled
-    # remove llvmpipe from the .meson-arm list because here we have llvm=disabled
+    # remove asahi & llvmpipe from the .meson-arm list because here we have llvm=disabled
+    VULKAN_DRIVERS: freedreno,broadcom
     GALLIUM_DRIVERS: "etnaviv,freedreno,lima,nouveau,panfrost,softpipe,tegra,v3d,vc4,zink"
     EXTRA_OPTION: >
       -D llvm=disabled
@@ -482,7 +483,7 @@ debian-arm64:
     C_ARGS: >
       -Wno-error=array-bounds
       -Wno-error=stringop-truncation
-    VULKAN_DRIVERS: "freedreno,broadcom,panfrost,imagination-experimental"
+    VULKAN_DRIVERS: "asahi,freedreno,broadcom,panfrost,imagination-experimental"
     DRI_LOADERS:
       -D glvnd=disabled
     EXTRA_OPTION: >
@@ -655,7 +656,7 @@ debian-vulkan:
       -D c_args=-fno-sanitize-recover=all
       -D cpp_args=-fno-sanitize-recover=all
     UBSAN_OPTIONS: "print_stacktrace=1"
-    VULKAN_DRIVERS: amd,broadcom,freedreno,intel,intel_hasvk,panfrost,virtio,imagination-experimental,microsoft-experimental,nouveau
+    VULKAN_DRIVERS: amd,asahi,broadcom,freedreno,intel,intel_hasvk,panfrost,virtio,imagination-experimental,microsoft-experimental,nouveau
     EXTRA_OPTION: >
       -D vulkan-layers=device-select,overlay
       -D build-aco-tests=true
