@@ -146,12 +146,15 @@ vlVaBeginPicture(VADriverContextP ctx, VAContextID context_id, VASurfaceID rende
       switch (u_reduce_video_profile(context->templat.profile)) {
          case PIPE_VIDEO_FORMAT_AV1:
             context->desc.av1enc.metadata_flags.value = 0;
+            context->desc.av1enc.roi.num = 0;
             break;
          case PIPE_VIDEO_FORMAT_HEVC:
             context->desc.h265enc.header_flags.value = 0;
+            context->desc.h265enc.roi.num = 0;
             break;
          case PIPE_VIDEO_FORMAT_MPEG4_AVC:
             context->desc.h264enc.header_flags.value = 0;
+            context->desc.h264enc.roi.num = 0;
             break;
          default:
             break;
