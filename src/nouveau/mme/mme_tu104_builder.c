@@ -423,6 +423,14 @@ mme_tu104_next_inst_can_add_mthd(struct mme_tu104_builder *tb,
       return false;
    }
 
+   /* We can't have a mthd in an op with STATE */
+   struct mme_tu104_inst *cur = mme_tu104_cur_inst(tb);
+   if (((tb->inst_parts & MME_TU104_INSTR_PART_ALU0) &&
+        cur->alu[0].op == MME_TU104_ALU_OP_STATE) ||
+       ((tb->inst_parts & MME_TU104_INSTR_PART_ALU1) &&
+        cur->alu[1].op == MME_TU104_ALU_OP_STATE))
+      return false;
+
    if (out == MME_TU104_OUT_OP_IMM0 &&
        (tb->inst_parts & MME_TU104_INSTR_PART_IMM0) &&
        (tb->inst_parts & MME_TU104_INSTR_PART_IMM1))
