@@ -1783,7 +1783,7 @@ dri2_x11_check_multibuffers(_EGLDisplay *disp)
 
 #ifdef HAVE_DRI3_MODIFIERS
    bool err;
-   dri2_dpy->multibuffers_available = x11_dri3_check_multibuffer(dri2_dpy->conn, &err);
+   dri2_dpy->multibuffers_available = x11_dri3_check_multibuffer(dri2_dpy->conn, &err, &dri2_dpy->explicit_modifiers);
 
    if (disp->Options.Zink && !disp->Options.ForceSoftware &&
        !dri2_dpy->multibuffers_available &&

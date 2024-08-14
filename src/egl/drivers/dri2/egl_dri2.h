@@ -273,6 +273,7 @@ struct dri2_egl_display {
 
    bool has_dmabuf_import;
    bool has_dmabuf_export;
+   bool explicit_modifiers;
    bool multibuffers_available;
 #ifdef HAVE_X11_PLATFORM
    xcb_connection_t *conn;

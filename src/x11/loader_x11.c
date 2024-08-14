@@ -93,7 +93,7 @@ x11_dri3_open(xcb_connection_t *conn,
 #endif
 
 bool
-x11_dri3_check_multibuffer(xcb_connection_t *c, bool *err)
+x11_dri3_check_multibuffer(xcb_connection_t *c, bool *err, bool *explicit_modifiers)
 {
    xcb_dri3_query_version_cookie_t      dri3_cookie;
    xcb_dri3_query_version_reply_t       *dri3_reply;
@@ -140,9 +140,11 @@ x11_dri3_check_multibuffer(xcb_connection_t *c, bool *err)
    free(present_reply);
 
 #ifdef HAVE_DRI3_MODIFIERS
-   if ((dri3Major > 1 || (dri3Major == 1 && dri3Minor >= 2)) &&
-       (presentMajor > 1 || (presentMajor == 1 && presentMinor >= 2)))
-      return true;
+   if (presentMajor > 1 || (presentMajor == 1 && presentMinor >= 2)) {
+      *explicit_modifiers = dri3Major > 1 || (dri3Major == 1 && dri3Minor >= 2);
+      if (dri3Major >= 1)
+         return true;
+   }
 #endif
    return false;
 error:
