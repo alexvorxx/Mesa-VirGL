@@ -570,12 +570,26 @@ static const char *const lsc_operation[] = {
    [LSC_OP_ATOMIC_XOR]      = "atomic_xor",
 };
 
+const char *
+brw_lsc_op_to_string(unsigned op)
+{
+   assert(op < ARRAY_SIZE(lsc_operation));
+   return lsc_operation[op];
+}
+
 static const char *const lsc_addr_surface_type[] = {
    [LSC_ADDR_SURFTYPE_FLAT] = "flat",
    [LSC_ADDR_SURFTYPE_BSS]  = "bss",
    [LSC_ADDR_SURFTYPE_SS]   = "ss",
    [LSC_ADDR_SURFTYPE_BTI]  = "bti",
 };
+
+const char *
+brw_lsc_addr_surftype_to_string(unsigned t)
+{
+   assert(t < ARRAY_SIZE(lsc_addr_surface_type));
+   return lsc_addr_surface_type[t];
+}
 
 static const char* const lsc_fence_scope[] = {
    [LSC_FENCE_THREADGROUP]     = "threadgroup",
@@ -617,6 +631,13 @@ static const char* const lsc_data_size[] = {
    [LSC_DATA_SIZE_D16U32]  = "d16u32",
    [LSC_DATA_SIZE_D16BF32] = "d16bf32",
 };
+
+const char *
+brw_lsc_data_size_to_string(unsigned s)
+{
+   assert(s < ARRAY_SIZE(lsc_data_size));
+   return lsc_data_size[s];
+}
 
 static const char* const lsc_vect_size_str[] = {
    [LSC_VECT_SIZE_V1] = "V1",
