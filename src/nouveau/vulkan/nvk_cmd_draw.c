@@ -46,7 +46,7 @@ mme_set_priv_reg(struct mme_builder *b,
    mme_mthd(b, NV9097_WAIT_FOR_IDLE);
    mme_emit(b, mme_zero());
 
-   mme_mthd(b, NV9097_SET_MME_SHADOW_SCRATCH(0));
+   mme_mthd(b, NVK_SET_MME_SCRATCH(FALCON_0));
    mme_emit(b, mme_zero());
    mme_emit(b, value);
    mme_emit(b, mask);
@@ -56,7 +56,7 @@ mme_set_priv_reg(struct mme_builder *b,
 
    struct mme_value loop_cond = mme_mov(b, mme_zero());
    mme_while(b, ine, loop_cond, mme_imm(1)) {
-      mme_state_to(b, loop_cond, NV9097_SET_MME_SHADOW_SCRATCH(0));
+      mme_state_to(b, loop_cond, NVK_SET_MME_SCRATCH(FALCON_0));
       mme_mthd(b, NV9097_NO_OPERATION);
       mme_emit(b, mme_zero());
    };

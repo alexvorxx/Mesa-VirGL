@@ -35,7 +35,12 @@ enum nvk_mme {
 };
 
 enum nvk_mme_scratch {
-   NVK_MME_SCRATCH_CS_INVOCATIONS_HI = 0,
+   /* These are reserved for communicating with FALCON */
+   NVK_MME_SCRATCH_FALCON_0 = 0,
+   NVK_MME_SCRATCH_FALCON_1 = 0,
+   NVK_MME_SCRATCH_FALCON_2 = 0,
+
+   NVK_MME_SCRATCH_CS_INVOCATIONS_HI,
    NVK_MME_SCRATCH_CS_INVOCATIONS_LO,
    NVK_MME_SCRATCH_DRAW_BEGIN,
    NVK_MME_SCRATCH_DRAW_COUNT,
