@@ -1369,12 +1369,14 @@ static void radeon_enc_encode_statistics(struct radeon_encoder *enc)
 
 static void radeon_enc_qp_map(struct radeon_encoder *enc)
 {
-   if (enc->enc_pic.enc_qp_map.qp_map_type == RENCODE_QP_MAP_TYPE_NONE)
-      return;
-
    RADEON_ENC_BEGIN(enc->cmd.enc_qp_map);
    RADEON_ENC_CS(enc->enc_pic.enc_qp_map.qp_map_type);
-   RADEON_ENC_READWRITE(enc->roi->res->buf, enc->roi->res->domains, 0);
+   if (enc->enc_pic.enc_qp_map.qp_map_type != RENCODE_QP_MAP_TYPE_NONE)
+      RADEON_ENC_READWRITE(enc->roi->res->buf, enc->roi->res->domains, 0);
+   else {
+      RADEON_ENC_CS(0); /* use null for roi buffer */
+      RADEON_ENC_CS(0); /* use null for roi buffer */
+   }
    RADEON_ENC_CS(0); /* qp_map pitch set to 0 for the ib */
    RADEON_ENC_END();
 }
