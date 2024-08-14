@@ -1421,8 +1421,7 @@ brw_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
    if (bit_size > 32)
       return false;
 
-   if (low->intrinsic == nir_intrinsic_load_global_const_block_intel ||
-       low->intrinsic == nir_intrinsic_load_ubo_uniform_block_intel ||
+   if (low->intrinsic == nir_intrinsic_load_ubo_uniform_block_intel ||
        low->intrinsic == nir_intrinsic_load_ssbo_uniform_block_intel ||
        low->intrinsic == nir_intrinsic_load_shared_uniform_block_intel ||
        low->intrinsic == nir_intrinsic_load_global_constant_uniform_block_intel) {
@@ -2175,8 +2174,12 @@ brw_nir_load_global_const(nir_builder *b, nir_intrinsic_instr *load_uniform,
       nir_def *data[2];
       for (unsigned i = 0; i < 2; i++) {
          nir_def *addr = nir_iadd_imm(b, base_addr, aligned_offset + i * 64);
-         data[i] = nir_load_global_const_block_intel(b, 16, addr,
-                                                     nir_imm_true(b));
+
+         data[i] = nir_load_global_constant_uniform_block_intel(
+            b, 16, 32, addr,
+            .access = ACCESS_CAN_REORDER | ACCESS_NON_WRITEABLE,
+            .align_mul = 64,
+            .align_offset = 64);
       }
 
       sysval = nir_extract_bits(b, data, 2, suboffset * 8,
