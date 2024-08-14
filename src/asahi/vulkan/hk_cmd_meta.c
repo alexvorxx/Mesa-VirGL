@@ -4,6 +4,8 @@
  * Copyright 2022-2023 Collabora Ltd. and Red Hat Inc.
  * SPDX-License-Identifier: MIT
  */
+#include "util/format/u_format.h"
+#include "util/format/u_formats.h"
 #include "vulkan/vulkan_core.h"
 #include "agx_pack.h"
 #include "hk_buffer.h"
@@ -13,7 +15,9 @@
 #include "hk_image.h"
 #include "hk_physical_device.h"
 
+#include "layout.h"
 #include "nir_builder.h"
+#include "nir_format_convert.h"
 #include "shader_enums.h"
 #include "vk_format.h"
 #include "vk_meta.h"
@@ -240,28 +244,61 @@ aspect_format(VkFormat fmt, VkImageAspectFlags aspect)
    return fmt;
 }
 
+/*
+ * Canonicalize formats to simplify the copies. The returned format must in the
+ * same compression class, and should roundtrip lossless (minifloat formats are
+ * the unfortunate exception).
+ */
+static enum pipe_format
+canonical_format_pipe(enum pipe_format fmt)
+{
+   if (util_format_is_depth_or_stencil(fmt))
+      return fmt;
+
+   assert(ail_is_valid_pixel_format(fmt));
+
+   if (util_format_is_compressed(fmt)) {
+      unsigned size_B = util_format_get_blocksize(fmt);
+      assert(size_B == 8 || size_B == 16);
+
+      return size_B == 16 ? PIPE_FORMAT_R32G32B32A32_UINT
+                          : PIPE_FORMAT_R32G32_UINT;
+   }
+
+#define CASE(x, y) [AGX_CHANNELS_##x] = PIPE_FORMAT_##y
+   /* clang-format off */
+   static enum pipe_format map[] = {
+      CASE(R8,           R8_UINT),
+      CASE(R16,          R16_UINT),
+      CASE(R8G8,         R8G8_UINT),
+      CASE(R5G6B5,       R5G6B5_UNORM),
+      CASE(R4G4B4A4,     R4G4B4A4_UNORM),
+      CASE(A1R5G5B5,     A1R5G5B5_UNORM),
+      CASE(R5G5B5A1,     B5G5R5A1_UNORM),
+      CASE(R32,          R32_UINT),
+      CASE(R16G16,       R16G16_UINT),
+      CASE(R11G11B10,    R11G11B10_FLOAT),
+      CASE(R10G10B10A2,  R10G10B10A2_UINT),
+      CASE(R9G9B9E5,     R9G9B9E5_FLOAT),
+      CASE(R8G8B8A8,     R8G8B8A8_UINT),
+      CASE(R32G32,       R32G32_UINT),
+      CASE(R16G16B16A16, R16G16B16A16_UINT),
+      CASE(R32G32B32A32, R32G32B32A32_UINT),
+   };
+   /* clang-format on */
+#undef CASE
+
+   enum agx_channels channels = ail_pixel_format[fmt].channels;
+   assert(channels < ARRAY_SIZE(map) && "all valid channels handled");
+   assert(map[channels] != PIPE_FORMAT_NONE && "all valid channels handled");
+   return map[channels];
+}
+
 static VkFormat
 canonical_format(VkFormat fmt)
 {
-   enum pipe_format p_format = vk_format_to_pipe_format(fmt);
-
-   if (util_format_is_depth_or_stencil(p_format))
-      return fmt;
-
-   switch (util_format_get_blocksize(p_format)) {
-   case 1:
-      return VK_FORMAT_R8_UINT;
-   case 2:
-      return VK_FORMAT_R16_UINT;
-   case 4:
-      return VK_FORMAT_R32_UINT;
-   case 8:
-      return VK_FORMAT_R32G32_UINT;
-   case 16:
-      return VK_FORMAT_R32G32B32A32_UINT;
-   default:
-      unreachable("invalid bpp");
-   }
+   return vk_format_from_pipe_format(
+      canonical_format_pipe(vk_format_to_pipe_format(fmt)));
 }
 
 enum copy_type {
@@ -288,6 +325,7 @@ struct vk_meta_push_data {
 struct vk_meta_image_copy_key {
    enum vk_meta_object_key_type key_type;
    enum copy_type type;
+   enum pipe_format src_format, dst_format;
    unsigned block_size;
    unsigned nr_samples;
 };
@@ -385,6 +423,12 @@ build_image_copy_shader(const struct vk_meta_image_copy_key *key)
 
          nir_def *value = msaa ? nir_txf_ms_deref(b, deref, src_coord, ms_index)
                                : nir_txf_deref(b, deref, src_coord, NULL);
+
+         /* Munge according to the implicit conversions so we get a bit copy */
+         if (key->src_format != key->dst_format) {
+            nir_def *packed = nir_format_pack_rgba(b, key->src_format, value);
+            value = nir_format_unpack_rgba(b, packed, key->dst_format);
+         }
 
          nir_image_deref_store(b, &nir_build_deref_var(b, image)->def,
                                nir_pad_vec4(b, dst_coord), ms_index, value,
@@ -582,6 +626,8 @@ hk_meta_copy_image_to_buffer2(struct vk_command_buffer *cmd,
             .type = IMG2BUF,
             .block_size = blocksize_B,
             .nr_samples = image->samples,
+            .src_format = vk_format_to_pipe_format(canonical),
+            .dst_format = vk_format_to_pipe_format(canonical),
          };
 
          VkPipelineLayout pipeline_layout;
@@ -761,6 +807,8 @@ hk_meta_copy_buffer_to_image2(struct vk_command_buffer *cmd,
             .type = BUF2IMG,
             .block_size = blocksize_B,
             .nr_samples = image->samples,
+            .src_format = vk_format_to_pipe_format(canonical),
+            .dst_format = vk_format_to_pipe_format(canonical),
          };
 
          VkPipelineLayout pipeline_layout;
@@ -952,11 +1000,20 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
             uint32_t blocksize_B =
                util_format_get_blocksize(vk_format_to_pipe_format(canonical));
 
+            VkImageAspectFlagBits dst_aspect_mask =
+               vk_format_get_ycbcr_info(dst_image->format) ||
+                     vk_format_get_ycbcr_info(src_image->format)
+                  ? region->dstSubresource.aspectMask
+                  : (1 << aspect);
+
             struct vk_meta_image_copy_key key = {
                .key_type = VK_META_OBJECT_KEY_COPY_IMAGE_TO_BUFFER_PIPELINE,
                .type = IMG2IMG,
                .block_size = blocksize_B,
                .nr_samples = dst_image->samples,
+               .src_format = vk_format_to_pipe_format(canonical),
+               .dst_format = canonical_format_pipe(vk_format_to_pipe_format(
+                  aspect_format(dst_image->format, dst_aspect_mask))),
             };
 
             assert(key.nr_samples == src_image->samples);
@@ -1020,14 +1077,10 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
                .pNext = &dst_view_usage,
                .image = info->dstImage,
                .viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
-               .format = canonical,
+               .format = vk_format_from_pipe_format(key.dst_format),
                .subresourceRange =
                   {
-                     .aspectMask =
-                        vk_format_get_ycbcr_info(dst_image->format) ||
-                              vk_format_get_ycbcr_info(src_image->format)
-                           ? region->dstSubresource.aspectMask
-                           : (1 << aspect),
+                     .aspectMask = dst_aspect_mask,
                      .baseMipLevel = region->dstSubresource.mipLevel,
                      .baseArrayLayer =
                         MAX2(region->dstOffset.z,
