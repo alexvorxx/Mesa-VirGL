@@ -218,6 +218,10 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
    P_IMMD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_CONSERVATIVE_RASTER_STATE),
                      ~0);
 
+   /* Initialize tessellation parameters */
+   P_IMMD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_TESS_PARAMS), 0);
+   P_IMMD(p, NV9097, SET_TESSELLATION_PARAMETERS, {});
+
    P_IMMD(p, NV9097, SET_RENDER_ENABLE_C, MODE_TRUE);
 
    P_IMMD(p, NV9097, SET_Z_COMPRESSION, ENABLE_TRUE);
@@ -1203,13 +1207,6 @@ nvk_cmd_bind_graphics_shader(struct nvk_cmd_buffer *cmd,
    cmd->state.gfx.shaders[stage] = shader;
    cmd->state.gfx.shaders_dirty |= BITFIELD_BIT(stage);
 
-   /* When a pipeline with tess shaders is bound we need to re-upload the
-    * tessellation parameters at flush_ts_state, as the domain origin can be
-    * dynamic.
-    */
-   if (stage == MESA_SHADER_TESS_EVAL)
-      BITSET_SET(dyn->dirty, MESA_VK_DYNAMIC_TS_DOMAIN_ORIGIN);
-
    /* Emitting SET_HYBRID_ANTI_ALIAS_CONTROL requires the fragment shader */
    if (stage == MESA_SHADER_FRAGMENT)
       BITSET_SET(dyn->dirty, MESA_VK_DYNAMIC_MS_RASTERIZATION_SAMPLES);
@@ -1234,6 +1231,114 @@ nvk_pipeline_bind_group(gl_shader_stage stage)
 {
    return stage;
 }
+
+static uint32_t
+nvk_mme_tess_params(enum nak_ts_domain domain,
+                    enum nak_ts_spacing spacing,
+                    enum nak_ts_prims prims)
+{
+   /* This is laid out the same as SET_TESSELLATION_PARAMETERS, only with an
+    * extra bit for lower_left
+    */
+   uint16_t params = ((uint16_t)domain << 0) |
+                     ((uint16_t)spacing << 4) |
+                     ((uint16_t)prims << 8);
+   return nvk_mme_val_mask(params, 0x0fff);
+}
+
+static uint32_t
+nvk_mme_tess_lower_left(bool lower_left)
+{
+   return nvk_mme_val_mask((uint16_t)lower_left << 12, 1u << 12);
+}
+
+void
+nvk_mme_set_tess_params(struct mme_builder *b)
+{
+   struct mme_value val_mask = mme_load(b);
+   struct mme_value old_params = nvk_mme_load_scratch(b, TESS_PARAMS);
+   struct mme_value params = nvk_mme_set_masked(b, old_params, val_mask);
+   mme_free_reg(b, val_mask);
+
+   mme_if(b, ine, params, old_params) {
+      nvk_mme_store_scratch(b, TESS_PARAMS, params);
+
+      /* lower_left lives at bit 12 */
+      struct mme_value lower_left = mme_merge(b, mme_zero(), params, 0, 1, 12);
+
+      /* Only the bottom 12 bits are valid to put in HW */
+      mme_merge_to(b, params, mme_zero(), params, 0, 12, 0);
+
+      /* If we're using a lower-left orientation, we need to flip triangles
+       * between CW and CCW.
+       */
+      mme_if(b, ine, lower_left, mme_zero()) {
+         struct mme_value prims_cw = mme_imm(NAK_TS_PRIMS_TRIANGLES_CW);
+         struct mme_value prims_ccw = mme_imm(NAK_TS_PRIMS_TRIANGLES_CCW);
+
+         struct mme_value prims = mme_merge(b, mme_zero(), params, 0, 4, 8);
+         mme_if(b, ieq, prims, prims_cw) {
+            mme_merge_to(b, params, params, prims_ccw, 8, 4, 0);
+         }
+         mme_if(b, ieq, prims, prims_ccw) {
+            mme_merge_to(b, params, params, prims_cw, 8, 4, 0);
+         }
+         mme_free_reg(b, prims);
+      }
+      mme_free_reg(b, lower_left);
+
+      mme_mthd(b, NV9097_SET_TESSELLATION_PARAMETERS);
+      mme_emit(b, params);
+   }
+}
+
+const struct nvk_mme_test_case nvk_mme_set_tess_params_tests[] = {{
+   /* This case doesn't change the state so it should do nothing */
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(TESS_PARAMS), 0 },
+      { }
+   },
+   .params = (uint32_t[]) { 0xffff0000 },
+   .expected = (struct nvk_mme_mthd_data[]) {
+      { }
+   },
+}, {
+   /* TRIANGLE, INTEGER, TRIANGLES_CW, lower_left = false */
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(TESS_PARAMS), 0 },
+      { }
+   },
+   .params = (uint32_t[]) { 0xffff0201 },
+   .expected = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(TESS_PARAMS), 0x0201 },
+      { NV9097_SET_TESSELLATION_PARAMETERS, 0x0201 },
+      { }
+   },
+}, {
+   /* TRIANGLE, INTEGER, TRIANGLES_CW, lower_left = true */
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(TESS_PARAMS), 0x0201 },
+      { }
+   },
+   .params = (uint32_t[]) { 0x10001000 },
+   .expected = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(TESS_PARAMS), 0x1201 },
+      { NV9097_SET_TESSELLATION_PARAMETERS, 0x0301 },
+      { }
+   },
+}, {
+   /* TRIANGLE, INTEGER, TRIANGLES_CCW, lower_left = true */
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(TESS_PARAMS), 0x0301 },
+      { }
+   },
+   .params = (uint32_t[]) { 0x10001000 },
+   .expected = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(TESS_PARAMS), 0x1301 },
+      { NV9097_SET_TESSELLATION_PARAMETERS, 0x0201 },
+      { }
+   },
+}, {}};
 
 static void
 nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
@@ -1283,7 +1388,7 @@ nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
       /* We always map index == type */
       const uint32_t idx = type;
 
-      struct nv_push *p = nvk_cmd_buffer_push(cmd, 8);
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 10);
       P_IMMD(p, NV9097, SET_PIPELINE_SHADER(idx), {
          .enable  = shader != NULL,
          .type    = type,
@@ -1306,6 +1411,13 @@ nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
       P_NVC397_SET_PIPELINE_REGISTER_COUNT(p, idx, shader->info.num_gprs);
       P_NVC397_SET_PIPELINE_BINDING(p, idx,
          nvk_pipeline_bind_group(shader->info.stage));
+
+      if (shader->info.stage == MESA_SHADER_TESS_EVAL) {
+         P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_TESS_PARAMS));
+         P_INLINE_DATA(p, nvk_mme_tess_params(shader->info.ts.domain,
+                                              shader->info.ts.spacing,
+                                              shader->info.ts.prims));
+      }
 
       if (shader->info.stage == MESA_SHADER_FRAGMENT) {
          p = nvk_cmd_buffer_push(cmd, 9);
@@ -1596,25 +1708,9 @@ nvk_flush_ts_state(struct nvk_cmd_buffer *cmd)
    }
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_TS_DOMAIN_ORIGIN)) {
-      const struct nvk_shader *shader =
-         cmd->state.gfx.shaders[MESA_SHADER_TESS_EVAL];
-
-      if (shader != NULL) {
-         enum nak_ts_prims prims = shader->info.ts.prims;
-         /* When the origin is lower-left, we have to flip the winding order */
-         if (dyn->ts.domain_origin == VK_TESSELLATION_DOMAIN_ORIGIN_LOWER_LEFT) {
-            if (prims == NAK_TS_PRIMS_TRIANGLES_CW)
-               prims = NAK_TS_PRIMS_TRIANGLES_CCW;
-            else if (prims == NAK_TS_PRIMS_TRIANGLES_CCW)
-               prims = NAK_TS_PRIMS_TRIANGLES_CW;
-         }
-         P_MTHD(p, NV9097, SET_TESSELLATION_PARAMETERS);
-         P_NV9097_SET_TESSELLATION_PARAMETERS(p, {
-            shader->info.ts.domain,
-            shader->info.ts.spacing,
-            prims
-         });
-      }
+      P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_TESS_PARAMS));
+      P_INLINE_DATA(p, nvk_mme_tess_lower_left(
+         dyn->ts.domain_origin == VK_TESSELLATION_DOMAIN_ORIGIN_LOWER_LEFT));
    }
 }
 

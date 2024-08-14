@@ -16,6 +16,7 @@ static const nvk_mme_builder_func mme_builders[NVK_MME_COUNT] = {
    [NVK_MME_BIND_VB]                       = nvk_mme_bind_vb,
    [NVK_MME_SET_VB_ENABLES]                = nvk_mme_set_vb_enables,
    [NVK_MME_SET_VB_STRIDE]                 = nvk_mme_set_vb_stride,
+   [NVK_MME_SET_TESS_PARAMS]               = nvk_mme_set_tess_params,
    [NVK_MME_DRAW]                          = nvk_mme_draw,
    [NVK_MME_DRAW_INDEXED]                  = nvk_mme_draw_indexed,
    [NVK_MME_DRAW_INDIRECT]                 = nvk_mme_draw_indirect,
@@ -37,6 +38,7 @@ static const nvk_mme_builder_func mme_builders[NVK_MME_COUNT] = {
 static const struct nvk_mme_test_case *mme_tests[NVK_MME_COUNT] = {
    [NVK_MME_CLEAR]                         = nvk_mme_clear_tests,
    [NVK_MME_BIND_VB]                       = nvk_mme_bind_vb_tests,
+   [NVK_MME_SET_TESS_PARAMS]               = nvk_mme_set_tess_params_tests,
 };
 
 uint32_t *
