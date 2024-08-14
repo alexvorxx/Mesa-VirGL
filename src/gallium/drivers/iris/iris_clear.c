@@ -259,14 +259,6 @@ fast_clear_color(struct iris_context *ice,
 
    iris_resource_set_clear_color(ice, res, color);
 
-   /* If the buffer is already in ISL_AUX_STATE_CLEAR, and the color hasn't
-    * changed, the clear is redundant and can be skipped.
-    */
-   const enum isl_aux_state aux_state =
-      iris_resource_get_aux_state(res, level, box->z);
-   if (!color_changed && box->depth == 1 && aux_state == ISL_AUX_STATE_CLEAR)
-      return;
-
    /* Ivybridge PRM Vol 2, Part 1, "11.7 MCS Buffer for Render Target(s)":
     *
     *    "Any transition from any value in {Clear, Render, Resolve} to a
@@ -291,6 +283,14 @@ fast_clear_color(struct iris_context *ice,
    /* Update the clear color now that previous rendering is complete. */
    if (color_changed && res->aux.clear_color_bo)
       iris_resource_update_indirect_color(batch, res);
+
+   /* If the buffer is already in ISL_AUX_STATE_CLEAR, the clear is redundant
+    * and can be skipped.
+    */
+   const enum isl_aux_state aux_state =
+      iris_resource_get_aux_state(res, level, box->z);
+   if (box->depth == 1 && aux_state == ISL_AUX_STATE_CLEAR)
+      return;
 
    iris_batch_sync_region_start(batch);
 
