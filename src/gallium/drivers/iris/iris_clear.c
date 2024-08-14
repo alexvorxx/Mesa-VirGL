@@ -288,31 +288,15 @@ fast_clear_color(struct iris_context *ice,
                                 PIPE_CONTROL_DATA_CACHE_FLUSH : 0) |
       PIPE_CONTROL_PSS_STALL_SYNC);
 
-   /* From the ICL PRMs, Volume 9: Render Engine, State Caching :
-    *
-    *    "Any values referenced by pointers within the RENDER_SURFACE_STATE
-    *    [...] (e.g. Clear Color Pointer, [...]) are considered to be part of
-    *    that state and any changes to these referenced values requires an
-    *    invalidation of the L1 state cache to ensure the new values are being
-    *    used as part of the state. [...]"
-    *
-    * Invalidate the state cache as suggested.
-    */
-   if (devinfo->ver >= 11) {
-      iris_emit_pipe_control_flush(batch, "fast clear: pre-inval",
-                                   PIPE_CONTROL_STATE_CACHE_INVALIDATE);
-   }
+   /* Update the clear color now that previous rendering is complete. */
+   if (color_changed && res->aux.clear_color_bo)
+      iris_resource_update_indirect_color(batch, res);
 
    iris_batch_sync_region_start(batch);
 
-   /* If we reach this point, we need to fast clear to change the state to
-    * ISL_AUX_STATE_CLEAR, or to update the fast clear color (or both).
-    */
-   enum blorp_batch_flags blorp_flags = 0;
-   blorp_flags |= color_changed ? 0 : BLORP_BATCH_NO_UPDATE_CLEAR_COLOR;
-
    struct blorp_batch blorp_batch;
-   blorp_batch_init(&ice->blorp, &blorp_batch, batch, blorp_flags);
+   blorp_batch_init(&ice->blorp, &blorp_batch, batch,
+                    BLORP_BATCH_NO_UPDATE_CLEAR_COLOR);
 
    struct blorp_surf surf;
    iris_blorp_surf_for_resource(batch, &surf, p_res, res->aux.usage,

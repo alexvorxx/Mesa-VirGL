@@ -1215,6 +1215,51 @@ iris_render_formats_color_compatible(enum isl_format a, enum isl_format b,
    return false;
 }
 
+void
+iris_resource_update_indirect_color(struct iris_batch *batch,
+                                    struct iris_resource *res)
+{
+   assert(res->aux.clear_color_bo);
+
+   uint32_t pixel[4];
+   isl_color_value_pack(&res->aux.clear_color, res->surf.format, pixel);
+
+   iris_emit_pipe_control_write(batch, "update fast clear color (RG____)",
+                                PIPE_CONTROL_WRITE_IMMEDIATE,
+                                res->aux.clear_color_bo,
+                                res->aux.clear_color_offset,
+                                (uint64_t) res->aux.clear_color.u32[0] |
+                                (uint64_t) res->aux.clear_color.u32[1] << 32);
+
+   iris_emit_pipe_control_write(batch, "update fast clear color (__BA__)",
+                                PIPE_CONTROL_WRITE_IMMEDIATE,
+                                res->aux.clear_color_bo,
+                                res->aux.clear_color_offset + 8,
+                                (uint64_t) res->aux.clear_color.u32[2] |
+                                (uint64_t) res->aux.clear_color.u32[3] << 32);
+
+   iris_emit_pipe_control_write(batch, "update fast clear color (____PX)",
+                                PIPE_CONTROL_WRITE_IMMEDIATE,
+                                res->aux.clear_color_bo,
+                                res->aux.clear_color_offset + 16,
+                                (uint64_t) pixel[0] |
+                                (uint64_t) pixel[1] << 32);
+
+   /* From the ICL PRMs, Volume 9: Render Engine, State Caching :
+    *
+    *    "Any values referenced by pointers within the RENDER_SURFACE_STATE
+    *    [...] (e.g. Clear Color Pointer, [...]) are considered to be part of
+    *    that state and any changes to these referenced values requires an
+    *    invalidation of the L1 state cache to ensure the new values are being
+    *    used as part of the state. [...]"
+    *
+    * Invalidate the state cache as suggested.
+    */
+   iris_emit_pipe_control_flush(batch, "new clear color affects state cache",
+                                PIPE_CONTROL_FLUSH_ENABLE |
+                                PIPE_CONTROL_STATE_CACHE_INVALIDATE);
+}
+
 enum isl_aux_usage
 iris_resource_render_aux_usage(struct iris_context *ice,
                                struct iris_resource *res,
@@ -1302,28 +1347,8 @@ iris_resource_prepare_render(struct iris_context *ice,
 
       if (res->aux.clear_color_bo) {
          /* Update dwords used for rendering and sampling. */
-         iris_emit_pipe_control_write(&ice->batches[IRIS_BATCH_RENDER],
-                                      "zero fast clear color (RG____)",
-                                      PIPE_CONTROL_WRITE_IMMEDIATE,
-                                      res->aux.clear_color_bo,
-                                      res->aux.clear_color_offset, 0);
-
-         iris_emit_pipe_control_write(&ice->batches[IRIS_BATCH_RENDER],
-                                      "zero fast clear color (__BA__)",
-                                      PIPE_CONTROL_WRITE_IMMEDIATE,
-                                      res->aux.clear_color_bo,
-                                      res->aux.clear_color_offset + 8, 0);
-
-         iris_emit_pipe_control_write(&ice->batches[IRIS_BATCH_RENDER],
-                                      "zero fast clear color (____PX)",
-                                      PIPE_CONTROL_WRITE_IMMEDIATE,
-                                      res->aux.clear_color_bo,
-                                      res->aux.clear_color_offset + 16, 0);
-
-         iris_emit_pipe_control_flush(&ice->batches[IRIS_BATCH_RENDER],
-                                      "new clear color affects state cache",
-                                      PIPE_CONTROL_FLUSH_ENABLE |
-                                      PIPE_CONTROL_STATE_CACHE_INVALIDATE);
+         struct iris_batch *batch = &ice->batches[IRIS_BATCH_RENDER];
+         iris_resource_update_indirect_color(batch, res);
       } else {
          /* Flag surface states with inline clear colors as dirty. */
          ice->state.stage_dirty |= IRIS_ALL_STAGE_DIRTY_BINDINGS;
