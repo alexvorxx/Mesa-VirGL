@@ -440,10 +440,7 @@ vk_meta_create_graphics_pipeline(struct vk_device *device,
       for (uint32_t i = 0; i < render->color_attachment_count; i++) {
          cb_att[i] = (VkPipelineColorBlendAttachmentState) {
             .blendEnable = false,
-            .colorWriteMask = VK_COLOR_COMPONENT_R_BIT |
-                              VK_COLOR_COMPONENT_G_BIT |
-                              VK_COLOR_COMPONENT_B_BIT |
-                              VK_COLOR_COMPONENT_A_BIT,
+            .colorWriteMask = render->color_attachment_write_masks[i],
          };
       }
       cb_info = (VkPipelineColorBlendStateCreateInfo) {

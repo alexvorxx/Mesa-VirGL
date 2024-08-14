@@ -134,6 +134,7 @@ struct vk_meta_rendering_info {
    uint32_t samples;
    uint32_t color_attachment_count;
    VkFormat color_attachment_formats[MESA_VK_MAX_COLOR_ATTACHMENTS];
+   VkColorComponentFlags color_attachment_write_masks[MESA_VK_MAX_COLOR_ATTACHMENTS];
    VkFormat depth_attachment_format;
    VkFormat stencil_attachment_format;
 };

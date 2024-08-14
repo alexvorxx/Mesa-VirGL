@@ -128,8 +128,12 @@ nvk_meta_init_render(struct nvk_cmd_buffer *cmd,
       .depth_attachment_format = render->depth_att.vk_format,
       .stencil_attachment_format = render->stencil_att.vk_format,
    };
-   for (uint32_t a = 0; a < render->color_att_count; a++)
+   for (uint32_t a = 0; a < render->color_att_count; a++) {
       info->color_attachment_formats[a] = render->color_att[a].vk_format;
+      info->color_attachment_write_masks[a] =
+         VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+         VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+   }
 }
 
 static void
