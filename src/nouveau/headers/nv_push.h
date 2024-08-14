@@ -201,6 +201,7 @@ nv_push_update_count(struct nv_push *push, uint16_t count)
 static inline void
 P_INLINE_DATA(struct nv_push *push, uint32_t value)
 {
+   assert(push->end < push->limit);
    if (nv_push_update_count(push, 1)) {
       /* push new value */
       *push->end = value;
@@ -211,6 +212,7 @@ P_INLINE_DATA(struct nv_push *push, uint32_t value)
 static inline void
 P_INLINE_FLOAT(struct nv_push *push, float value)
 {
+   assert(push->end < push->limit);
    if (nv_push_update_count(push, 1)) {
       /* push new value */
       *(float *)push->end = value;
@@ -221,6 +223,7 @@ P_INLINE_FLOAT(struct nv_push *push, float value)
 static inline void
 P_INLINE_ARRAY(struct nv_push *push, const uint32_t *data, int num_dw)
 {
+   assert(push->end + num_dw <= push->limit);
    if (nv_push_update_count(push, num_dw)) {
       /* push new value */
       memcpy(push->end, data, num_dw * 4);
