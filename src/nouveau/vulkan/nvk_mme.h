@@ -16,6 +16,8 @@ enum nvk_mme {
    NVK_MME_CLEAR,
    NVK_MME_BIND_IB,
    NVK_MME_BIND_VB,
+   NVK_MME_SET_VB_ENABLES,
+   NVK_MME_SET_VB_STRIDE,
    NVK_MME_DRAW,
    NVK_MME_DRAW_INDEXED,
    NVK_MME_DRAW_INDIRECT,
@@ -52,6 +54,9 @@ enum nvk_mme_scratch {
    NVK_MME_SCRATCH_WRITE_MASK_DYN,
    NVK_MME_SCRATCH_WRITE_MASK_PIPELINE,
    NVK_MME_SCRATCH_CONSERVATIVE_RASTER_STATE,
+
+   /* Bitfield of enabled vertex buffer bindings */
+   NVK_MME_SCRATCH_VB_ENABLES,
 
    /* Addres of cb0 */
    NVK_MME_SCRATCH_CB0_ADDR_HI,
@@ -150,6 +155,8 @@ void nvk_mme_bind_cbuf_desc(struct mme_builder *b);
 void nvk_mme_clear(struct mme_builder *b);
 void nvk_mme_bind_ib(struct mme_builder *b);
 void nvk_mme_bind_vb(struct mme_builder *b);
+void nvk_mme_set_vb_enables(struct mme_builder *b);
+void nvk_mme_set_vb_stride(struct mme_builder *b);
 void nvk_mme_draw(struct mme_builder *b);
 void nvk_mme_draw_indexed(struct mme_builder *b);
 void nvk_mme_draw_indirect(struct mme_builder *b);

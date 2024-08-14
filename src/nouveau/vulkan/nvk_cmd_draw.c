@@ -490,6 +490,14 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
    P_NV9097_SET_VERTEX_STREAM_SUBSTITUTE_A(p, zero_addr >> 32);
    P_NV9097_SET_VERTEX_STREAM_SUBSTITUTE_B(p, zero_addr);
 
+   P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_VB_ENABLES));
+   P_NV9097_SET_MME_SHADOW_SCRATCH(p, NVK_MME_SCRATCH_VB_ENABLES, 0);
+   for (uint32_t b = 0; b < 32; b++) {
+      P_IMMD(p, NV9097, SET_VERTEX_STREAM_A_FORMAT(b), {
+         .enable = false,
+      });
+   }
+
    if (pdev->info.cls_eng3d >= FERMI_A &&
        pdev->info.cls_eng3d < MAXWELL_A) {
       assert(dev->vab_memory);
@@ -1408,6 +1416,60 @@ nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
    cmd->state.gfx.shaders_dirty = 0;
 }
 
+void
+nvk_mme_set_vb_enables(struct mme_builder *b)
+{
+   struct mme_value enables = mme_load(b);
+   struct mme_value old_enables = nvk_mme_load_scratch(b, VB_ENABLES);
+   nvk_mme_store_scratch(b, VB_ENABLES, enables);
+
+   struct mme_value changed = mme_xor(b, enables, old_enables);
+   mme_free_reg(b, old_enables);
+
+   struct mme_value vb_idx4 = mme_mov(b, mme_zero());
+   mme_while(b, ine, changed, mme_zero()) {
+      mme_if(b, ine, mme_and(b, changed, mme_imm(1)), mme_zero()) {
+         struct mme_value state =
+            mme_state_arr(b, NV9097_SET_VERTEX_STREAM_A_FORMAT(0), vb_idx4);
+         mme_merge_to(b, state, state, enables, 12, 1, 0);
+         mme_mthd_arr(b, NV9097_SET_VERTEX_STREAM_A_FORMAT(0), vb_idx4);
+         mme_emit(b, state);
+      }
+      mme_add_to(b, vb_idx4, vb_idx4, mme_imm(4));
+      mme_srl_to(b, changed, changed, mme_imm(1));
+      mme_srl_to(b, enables, enables, mme_imm(1));
+   }
+}
+
+static uint32_t
+nvk_mme_vb_stride(uint32_t vb_idx, uint32_t stride)
+{
+   assert(stride < (1 << 12));
+   assert(vb_idx < (1 << 5));
+   return (vb_idx << 16) | stride;
+}
+
+void
+nvk_mme_set_vb_stride(struct mme_builder *b)
+{
+   /* Param is laid out as
+    *
+    *    bits 0..11  : stride
+    *    bits 16..21 : VB index
+    */
+   struct mme_value param = mme_load(b);
+
+   struct mme_value vb_idx4 = mme_merge(b, mme_zero(), param, 2, 5, 16);
+
+   struct mme_value state =
+      mme_state_arr(b, NV9097_SET_VERTEX_STREAM_A_FORMAT(0), vb_idx4);
+   struct mme_value new_state = mme_merge(b, state, param, 0, 12, 0);
+   mme_if(b, ine, state, new_state) {
+      mme_mthd_arr(b, NV9097_SET_VERTEX_STREAM_A_FORMAT(0), vb_idx4);
+      mme_emit(b, new_state);
+   }
+}
+
 static void
 nvk_flush_vi_state(struct nvk_cmd_buffer *cmd)
 {
@@ -1416,7 +1478,12 @@ nvk_flush_vi_state(struct nvk_cmd_buffer *cmd)
    const struct vk_dynamic_graphics_state *dyn =
       &cmd->vk.dynamic_graphics_state;
 
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 256);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 258);
+
+   if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VI_BINDINGS_VALID)) {
+      P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_VB_ENABLES));
+      P_INLINE_DATA(p, dyn->vi->bindings_valid);
+   }
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VI) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VI_BINDINGS_VALID)) {
@@ -1444,11 +1511,10 @@ nvk_flush_vi_state(struct nvk_cmd_buffer *cmd)
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VI_BINDINGS_VALID) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VI_BINDING_STRIDES)) {
-      for (uint32_t b = 0; b < 32; b++) {
-         P_IMMD(p, NV9097, SET_VERTEX_STREAM_A_FORMAT(b), {
-            .stride = dyn->vi_binding_strides[b],
-            .enable = (dyn->vi->bindings_valid & BITFIELD_BIT(b)) != 0,
-         });
+      u_foreach_bit(b, dyn->vi->bindings_valid) {
+         assert(dyn->vi_binding_strides[b] < (1 << 12));
+         P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_VB_STRIDE));
+         P_INLINE_DATA(p, nvk_mme_vb_stride(b, dyn->vi_binding_strides[b]));
       }
    }
 }
