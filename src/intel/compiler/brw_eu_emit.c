@@ -575,15 +575,7 @@ brw_alu3(struct brw_codegen *p, unsigned opcode, struct brw_reg dest,
              (dest.file == BRW_ARCHITECTURE_REGISTER_FILE &&
               (dest.nr & 0xF0) == BRW_ARF_ACCUMULATOR));
 
-      STATIC_ASSERT((BRW_ARCHITECTURE_REGISTER_FILE ^ 1) == BRW_ALIGN1_3SRC_ACCUMULATOR);
-      STATIC_ASSERT((BRW_GENERAL_REGISTER_FILE ^ 1) == BRW_ALIGN1_3SRC_GENERAL_REGISTER_FILE);
-
-      /* Gfx10 and Gfx11 bit encoding for the register file is the inversion of
-       * the actual register file (see the STATIC_ASSERTs above).
-       */
-      unsigned dst_reg_file = devinfo->ver >= 12 ? dest.file : dest.file ^ 1;
-
-      brw_inst_set_3src_a1_dst_reg_file(devinfo, inst, dst_reg_file);
+      brw_inst_set_3src_a1_dst_reg_file(devinfo, inst, dest.file);
       brw_inst_set_3src_dst_reg_nr(devinfo, inst, phys_nr(devinfo, dest));
       brw_inst_set_3src_a1_dst_subreg_nr(devinfo, inst, phys_subnr(devinfo, dest) / 8);
       brw_inst_set_3src_a1_dst_hstride(devinfo, inst, BRW_ALIGN1_3SRC_DST_HORIZONTAL_STRIDE_1);
@@ -662,18 +654,9 @@ brw_alu3(struct brw_codegen *p, unsigned opcode, struct brw_reg dest,
             brw_inst_set_3src_a1_src2_reg_file(devinfo, inst, src2.file);
          }
       } else {
-         brw_inst_set_3src_a1_src0_reg_file(devinfo, inst,
-                                            src0.file == BRW_GENERAL_REGISTER_FILE ?
-                                            BRW_ALIGN1_3SRC_GENERAL_REGISTER_FILE :
-                                            BRW_ALIGN1_3SRC_IMMEDIATE_VALUE);
-         brw_inst_set_3src_a1_src1_reg_file(devinfo, inst,
-                                            src1.file == BRW_GENERAL_REGISTER_FILE ?
-                                            BRW_ALIGN1_3SRC_GENERAL_REGISTER_FILE :
-                                            BRW_ALIGN1_3SRC_ACCUMULATOR);
-         brw_inst_set_3src_a1_src2_reg_file(devinfo, inst,
-                                            src2.file == BRW_GENERAL_REGISTER_FILE ?
-                                            BRW_ALIGN1_3SRC_GENERAL_REGISTER_FILE :
-                                            BRW_ALIGN1_3SRC_IMMEDIATE_VALUE);
+         brw_inst_set_3src_a1_src0_reg_file(devinfo, inst, src0.file);
+         brw_inst_set_3src_a1_src1_reg_file(devinfo, inst, src1.file);
+         brw_inst_set_3src_a1_src2_reg_file(devinfo, inst, src2.file);
       }
 
    } else {

@@ -1224,13 +1224,8 @@ src0_3src(FILE *file, const struct intel_device_info *devinfo,
       return 0;
 
    if (is_align1) {
-      if (devinfo->ver >= 12 && !brw_inst_3src_a1_src0_is_imm(devinfo, inst)) {
-         _file = brw_inst_3src_a1_src0_reg_file(devinfo, inst);
-      } else if (brw_inst_3src_a1_src0_reg_file(devinfo, inst) ==
-                 BRW_ALIGN1_3SRC_GENERAL_REGISTER_FILE) {
-         _file = BRW_GENERAL_REGISTER_FILE;
-      } else {
-         _file = BRW_IMMEDIATE_VALUE;
+      _file = brw_inst_3src_a1_src0_reg_file(devinfo, inst);
+      if (_file == BRW_IMMEDIATE_VALUE) {
          uint16_t imm_val = brw_inst_3src_a1_src0_imm(devinfo, inst);
          enum brw_reg_type type = brw_inst_3src_a1_src0_type(devinfo, inst);
 
@@ -1308,15 +1303,7 @@ src1_3src(FILE *file, const struct intel_device_info *devinfo,
       return 0;
 
    if (is_align1) {
-      if (devinfo->ver >= 12) {
-         _file = brw_inst_3src_a1_src1_reg_file(devinfo, inst);
-      } else if (brw_inst_3src_a1_src1_reg_file(devinfo, inst) ==
-                 BRW_ALIGN1_3SRC_GENERAL_REGISTER_FILE) {
-         _file = BRW_GENERAL_REGISTER_FILE;
-      } else {
-         _file = BRW_ARCHITECTURE_REGISTER_FILE;
-      }
-
+      _file = brw_inst_3src_a1_src1_reg_file(devinfo, inst);
       reg_nr = brw_inst_3src_src1_reg_nr(devinfo, inst);
       subreg_nr = brw_inst_3src_a1_src1_subreg_nr(devinfo, inst);
       type = brw_inst_3src_a1_src1_type(devinfo, inst);
@@ -1382,13 +1369,8 @@ src2_3src(FILE *file, const struct intel_device_info *devinfo,
       return 0;
 
    if (is_align1) {
-      if (devinfo->ver >= 12 && !brw_inst_3src_a1_src2_is_imm(devinfo, inst)) {
-         _file = brw_inst_3src_a1_src2_reg_file(devinfo, inst);
-      } else if (brw_inst_3src_a1_src2_reg_file(devinfo, inst) ==
-                 BRW_ALIGN1_3SRC_GENERAL_REGISTER_FILE) {
-         _file = BRW_GENERAL_REGISTER_FILE;
-      } else {
-         _file = BRW_IMMEDIATE_VALUE;
+      _file = brw_inst_3src_a1_src2_reg_file(devinfo, inst);
+      if (_file == BRW_IMMEDIATE_VALUE) {
          uint16_t imm_val = brw_inst_3src_a1_src2_imm(devinfo, inst);
          enum brw_reg_type type = brw_inst_3src_a1_src2_type(devinfo, inst);
 

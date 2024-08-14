@@ -738,12 +738,6 @@ enum ENUM_PACKED brw_reg_file {
    BAD_FILE,
 };
 
-enum ENUM_PACKED gfx10_align1_3src_reg_file {
-   BRW_ALIGN1_3SRC_GENERAL_REGISTER_FILE = 0,
-   BRW_ALIGN1_3SRC_IMMEDIATE_VALUE       = 1, /* src0, src2 */
-   BRW_ALIGN1_3SRC_ACCUMULATOR           = 1, /* dest, src1 */
-};
-
 /* CNL adds Align1 support for 3-src instructions. Bit 35 of the instruction
  * word is "Execution Datatype" which controls whether the instruction operates
  * on float or integer types. The register arguments have fields that offer
