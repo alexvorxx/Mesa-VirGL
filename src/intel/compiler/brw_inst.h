@@ -204,6 +204,27 @@ brw_inst_##name(const struct intel_device_info *devinfo, const brw_inst *inst)\
 #define FDC(name, hi9, lo9, hi12ex, lo12ex, hi12, lo12, assertions)     \
    FFDC(name, hi9, lo9, hi12ex, lo12ex, hi12, lo12, assertions)
 
+static inline uint64_t
+brw_reg_file_to_hw_reg_file(enum brw_reg_file file)
+{
+   switch (file) {
+   case BRW_ARCHITECTURE_REGISTER_FILE: return 0x0;
+   case BRW_GENERAL_REGISTER_FILE:      return 0x1;
+   default:                             /* Fallthrough. */
+   case BRW_IMMEDIATE_VALUE:            return 0x3;
+   }
+}
+
+static inline enum brw_reg_file
+hw_reg_file_to_brw_reg_file(uint64_t v)
+{
+   switch (v) {
+   case 0x0: return BRW_ARCHITECTURE_REGISTER_FILE;
+   case 0x1: return BRW_GENERAL_REGISTER_FILE;
+   default:  return BRW_IMMEDIATE_VALUE;
+   }
+}
+
 /* Macro for storing register file field.  See variant FF below for no
  * assertions.
  *
@@ -225,7 +246,7 @@ brw_inst_set_##name(const struct intel_device_info *devinfo,                  \
       bool grf_or_imm;                                                        \
       bool grf_or_acc;                                                        \
    } args = { ._ = false, __VA_ARGS__ };                                      \
-   uint64_t value = (unsigned)file;                                           \
+   uint64_t value = brw_reg_file_to_hw_reg_file(file);                        \
    if (devinfo->ver < 12) {                                                   \
       if (devinfo->ver == 11 && args.grf_or_imm) {                            \
          assert(file == BRW_GENERAL_REGISTER_FILE || file == BRW_IMMEDIATE_VALUE); \
@@ -267,7 +288,7 @@ brw_inst_##name(const struct intel_device_info *devinfo, const brw_inst *inst)\
               (brw_inst_bits(inst, hi12, hi12) == 0 ?                         \
                brw_inst_bits(inst, lo12, lo12) : 1);                          \
    }                                                                          \
-   return (enum brw_reg_file)value;                                           \
+   return hw_reg_file_to_brw_reg_file(value);                                 \
 }
 
 #define FF(name, hi9, lo9, hi12, lo12, ...) FFC(name, hi9, lo9, hi12, lo12, true, __VA_ARGS__)
