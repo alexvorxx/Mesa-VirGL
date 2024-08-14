@@ -244,16 +244,29 @@ build_alu_to(struct mme_builder *b,
    enum mme_tu104_reg x_reg = mme_value_alu_reg(x);
    enum mme_tu104_reg y_reg = mme_value_alu_reg(y);
 
-   if (x_reg == MME_TU104_REG_IMM32 && y_reg == MME_TU104_REG_IMM32) {
-      y = mme_mov(b, y);
-      y_reg = mme_value_alu_reg(y);
-   }
-
-   if (mme_tu104_alu_op_has_implicit_imm(op) &&
-       (x_reg == MME_TU104_REG_IMM32 ||
-        (x_reg == MME_TU104_REG_IMM && y_reg == MME_TU104_REG_IMM))) {
-      x = mme_mov(b, x);
-      x_reg = mme_value_alu_reg(x);
+   unsigned num_imms = mme_tu104_alu_op_has_implicit_imm(op) +
+                       mme_tu104_reg_num_imms(x_reg) +
+                       mme_tu104_reg_num_imms(y_reg);
+   while (num_imms > 2) {
+      if (y_reg == MME_TU104_REG_IMM32) {
+         y = mme_mov(b, y);
+         y_reg = mme_value_alu_reg(y);
+         num_imms -= 2;
+      } else if (x_reg == MME_TU104_REG_IMM32) {
+         x = mme_mov(b, x);
+         x_reg = mme_value_alu_reg(x);
+         num_imms -= 2;
+      } else if (mme_tu104_reg_num_imms(y_reg) > 0) {
+         assert(mme_tu104_reg_num_imms(y_reg) == 1);
+         y = mme_mov(b, y);
+         y_reg = mme_value_alu_reg(y);
+         num_imms--;
+      } else if (mme_tu104_reg_num_imms(x_reg) > 0) {
+         assert(mme_tu104_reg_num_imms(x_reg) == 1);
+         x = mme_mov(b, x);
+         x_reg = mme_value_alu_reg(x);
+         num_imms--;
+      }
    }
 
    uint16_t imm0 = 0, imm1 = 0;
