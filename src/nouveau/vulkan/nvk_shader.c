@@ -120,6 +120,9 @@ nvk_ubo_addr_format(const struct nvk_physical_device *pdev,
 {
    if (nvk_use_bindless_cbuf(&pdev->info)) {
       return nir_address_format_vec2_index_32bit_offset;
+   } else if (rs->null_uniform_buffer_descriptor) {
+      /* We need bounds checking for null descriptors */
+      return nir_address_format_64bit_bounded_global;
    } else {
       switch (rs->uniform_buffers) {
       case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT:
@@ -137,14 +140,19 @@ nir_address_format
 nvk_ssbo_addr_format(const struct nvk_physical_device *pdev,
                     const struct vk_pipeline_robustness_state *rs)
 {
-   switch (rs->storage_buffers) {
-   case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT:
-      return nir_address_format_64bit_global_32bit_offset;
-   case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_EXT:
-   case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT:
+   if (rs->null_storage_buffer_descriptor) {
+      /* We need bounds checking for null descriptors */
       return nir_address_format_64bit_bounded_global;
-   default:
-      unreachable("Invalid robust buffer access behavior");
+   } else {
+      switch (rs->storage_buffers) {
+      case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT:
+         return nir_address_format_64bit_global_32bit_offset;
+      case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_EXT:
+      case VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT:
+         return nir_address_format_64bit_bounded_global;
+      default:
+         unreachable("Invalid robust buffer access behavior");
+      }
    }
 }
 
