@@ -626,14 +626,12 @@ dri2_setup_screen(_EGLDisplay *disp)
    struct pipe_screen *pscreen = screen->base.screen;
    unsigned int api_mask = screen->api_mask;
 
-   bool has_modifiers = true;
-   if (disp->Platform == _EGL_PLATFORM_X11 ||
-       disp->Platform == _EGL_PLATFORM_XCB)
-      has_modifiers = dri2_dpy->multibuffers_available;
    int caps = dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_DMABUF);
    /* set if both import and export are suported */
-   dri2_dpy->has_modifiers = has_modifiers && util_bitcount(caps) == 2;
-   dri2_dpy->has_dmabuf_import = has_modifiers && caps & DRM_PRIME_CAP_IMPORT;
+   if (dri2_dpy->multibuffers_available) {
+      dri2_dpy->has_dmabuf_import = (caps & DRM_PRIME_CAP_IMPORT) > 0;
+      dri2_dpy->has_dmabuf_export = (caps & DRM_PRIME_CAP_EXPORT) > 0;
+   }
 #ifdef HAVE_ANDROID_PLATFORM
    dri2_dpy->has_native_fence_fd = dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_NATIVE_FENCE_FD);
 #endif
@@ -1036,6 +1034,7 @@ dri2_display_create(void)
 
    dri2_dpy->fd_render_gpu = -1;
    dri2_dpy->fd_display_gpu = -1;
+   dri2_dpy->multibuffers_available = true;
 
    return dri2_dpy;
 }
@@ -2901,7 +2900,7 @@ dri2_bind_wayland_display_wl(_EGLDisplay *disp, struct wl_display *wl_dpy)
    if (!device_name)
       goto fail;
 
-   if (dri2_dpy->has_modifiers)
+   if (dri2_dpy->has_dmabuf_import && dri2_dpy->has_dmabuf_export)
       flags |= WAYLAND_DRM_PRIME;
 
    dri2_dpy->wl_server_drm =
