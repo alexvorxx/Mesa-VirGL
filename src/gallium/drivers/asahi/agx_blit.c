@@ -214,7 +214,7 @@ asahi_blit_compute_shader(struct pipe_context *ctx, struct asahi_blit_key *key)
    nir_push_if(b, nir_ball(b, nir_ieq_imm(b, lid, 0)));
    {
       nir_def *pbe_index = nir_imm_int(b, 2);
-      nir_block_image_store_agx(
+      nir_image_store_block_agx(
          b, pbe_index, local_offset, image_pos_nd, .format = tib_format,
          .image_dim = GLSL_SAMPLER_DIM_2D, .image_array = key->array,
          .explicit_coord = true);

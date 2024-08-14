@@ -1356,7 +1356,7 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
    case nir_intrinsic_bindless_image_store:
       return agx_emit_image_store(b, instr);
 
-   case nir_intrinsic_block_image_store_agx:
+   case nir_intrinsic_image_store_block_agx:
       return agx_emit_block_image_store(b, instr);
 
    case nir_intrinsic_load_workgroup_id:
