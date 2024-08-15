@@ -288,11 +288,6 @@ fast_clear_color(struct crocus_context *ice,
                                 "fast clear: pre-flush",
                                 PIPE_CONTROL_RENDER_TARGET_FLUSH);
 
-   /* If we reach this point, we need to fast clear to change the state to
-    * ISL_AUX_STATE_CLEAR, or to update the fast clear color (or both).
-    */
-   blorp_flags |= color_changed ? 0 : BLORP_BATCH_NO_UPDATE_CLEAR_COLOR;
-
    struct blorp_batch blorp_batch;
    blorp_batch_init(&ice->blorp, &blorp_batch, batch, blorp_flags);
 

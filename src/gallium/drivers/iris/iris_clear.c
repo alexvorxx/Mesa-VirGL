@@ -295,8 +295,7 @@ fast_clear_color(struct iris_context *ice,
    iris_batch_sync_region_start(batch);
 
    struct blorp_batch blorp_batch;
-   blorp_batch_init(&ice->blorp, &blorp_batch, batch,
-                    BLORP_BATCH_NO_UPDATE_CLEAR_COLOR);
+   blorp_batch_init(&ice->blorp, &blorp_batch, batch, 0);
 
    struct blorp_surf surf;
    iris_blorp_surf_for_resource(batch, &surf, p_res, res->aux.usage,
