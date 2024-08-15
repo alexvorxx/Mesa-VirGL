@@ -454,7 +454,7 @@ fn validate_image_desc(
     let max_size = if dims == 3 {
         devs.iter().map(|d| d.image_3d_size()).min()
     } else if desc.image_type == CL_MEM_OBJECT_IMAGE1D_BUFFER {
-        devs.iter().map(|d| d.image_buffer_size()).min()
+        devs.iter().map(|d| d.image_buffer_max_size_pixels()).min()
     } else {
         devs.iter().map(|d| d.caps.image_2d_size as usize).min()
     }
