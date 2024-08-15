@@ -3626,6 +3626,8 @@ typedef struct {
    /* True if this paramater is actually the function return variable */
    bool is_return;
 
+   bool implicit_conversion_prohibited;
+
    nir_variable_mode mode;
 
    /* The type of the function param */

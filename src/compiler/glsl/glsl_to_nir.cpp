@@ -701,6 +701,8 @@ nir_visitor::create_function(ir_function_signature *ir)
       func->params[np].type = param->type;
       func->params[np].is_return = false;
       func->params[np].mode = get_param_mode(param);
+      func->params[np].implicit_conversion_prohibited =
+         !!param->data.implicit_conversion_prohibited;
       np++;
    }
    assert(np == func->num_params);
