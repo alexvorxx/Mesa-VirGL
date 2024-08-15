@@ -2220,11 +2220,11 @@ get_frag_coord(struct ir3_context *ctx, nir_intrinsic_instr *intr)
 {
    if (!ctx->frag_coord) {
       struct ir3_block *b = ir3_after_preamble(ctx->ir);
-      struct ir3_instruction *xyzw[4];
+      struct ir3_instruction_rpt xyzw;
       struct ir3_instruction *hw_frag_coord;
 
       hw_frag_coord = create_sysval_input(ctx, SYSTEM_VALUE_FRAG_COORD, 0xf);
-      ir3_split_dest(b, xyzw, hw_frag_coord, 0, 4);
+      ir3_split_dest(b, xyzw.rpts, hw_frag_coord, 0, 4);
 
       /* for frag_coord.xy, we get unsigned values.. we need
        * to subtract (integer) 8 and divide by 16 (right-
@@ -2235,13 +2235,12 @@ get_frag_coord(struct ir3_context *ctx, nir_intrinsic_instr *intr)
        *    mov.u32f32 dst, tmp
        *
        */
-      for (int i = 0; i < 2; i++) {
-         xyzw[i] = ir3_COV(b, xyzw[i], TYPE_U32, TYPE_F32);
-         xyzw[i] =
-            ir3_MUL_F(b, xyzw[i], 0, create_immed(b, fui(1.0 / 16.0)), 0);
-      }
-
-      ctx->frag_coord = ir3_create_collect(b, xyzw, 4);
+      struct ir3_instruction_rpt xy =
+         ir3_COV_rpt(b, 2, xyzw, TYPE_U32, TYPE_F32);
+      xy =
+         ir3_MUL_F_rpt(b, 2, xy, 0, create_immed_rpt(b, 2, fui(1.0 / 16.0)), 0);
+      cp_instrs(xyzw.rpts, xy.rpts, 2);
+      ctx->frag_coord = ir3_create_collect(b, xyzw.rpts, 4);
    }
 
    ctx->so->fragcoord_compmask |= nir_def_components_read(&intr->def);
