@@ -758,38 +758,53 @@ genX(cmd_buffer_mark_image_written)(struct anv_cmd_buffer *cmd_buffer,
 }
 
 static void
-init_fast_clear_color(struct anv_cmd_buffer *cmd_buffer,
+set_image_clear_color(struct anv_cmd_buffer *cmd_buffer,
                       const struct anv_image *image,
-                      VkImageAspectFlagBits aspect)
+                      const VkImageAspectFlags aspect,
+                      const union isl_color_value clear_color)
 {
-   assert(cmd_buffer && image);
-   assert(image->vk.aspects & VK_IMAGE_ASPECT_ANY_COLOR_BIT_ANV);
+   uint32_t plane = anv_image_aspect_to_plane(image, aspect);
+   enum isl_format format = image->planes[plane].primary_surface.isl.format;
 
-   set_image_fast_clear_state(cmd_buffer, image, aspect,
-                              ANV_FAST_CLEAR_NONE);
-
-   /* Initialize the struct fields that are accessed for fast-clears so that
-    * the HW restrictions on the field values are satisfied.
-    */
    struct anv_address addr =
       anv_image_get_clear_color_addr(cmd_buffer->device, image, aspect);
+   assert(!anv_address_is_null(addr));
 
    anv_batch_emit(&cmd_buffer->batch, GENX(MI_STORE_DATA_IMM), sdi) {
       sdi.Address = addr;
       if (GFX_VERx10 >= 75) {
-         /* Pre-SKL, the dword containing the clear values also contains
-          * other fields, so we need to initialize those fields to match the
-          * values that would be in a color attachment.
+         /* On HSW+, the RENDER_SURFACE_STATE dword containing the clear
+          * values also contains other fields. The dword constructed here
+          * will later be copied onto a surface state as-is. So, initialize
+          * those fields to match the values that we typically expect in a
+          * surface.
+          *
+          * XXX: Handle other values for ShaderChannelSelect and
+          *      ResourceMinLOD.
           */
          sdi.ImmediateData = ISL_CHANNEL_SELECT_RED   << 25 |
                              ISL_CHANNEL_SELECT_GREEN << 22 |
                              ISL_CHANNEL_SELECT_BLUE  << 19 |
                              ISL_CHANNEL_SELECT_ALPHA << 16;
-      } else if (GFX_VER == 7) {
-         /* On IVB, the dword containing the clear values also contains
-          * other fields that must be zero or can be zero.
-          */
-         sdi.ImmediateData = 0;
+      }
+      if (isl_format_has_int_channel(format)) {
+         for (unsigned i = 0; i < 4; i++) {
+            assert(clear_color.u32[i] == 0 ||
+                   clear_color.u32[i] == 1);
+         }
+         sdi.ImmediateData |= (clear_color.u32[0] != 0) << 31;
+         sdi.ImmediateData |= (clear_color.u32[1] != 0) << 30;
+         sdi.ImmediateData |= (clear_color.u32[2] != 0) << 29;
+         sdi.ImmediateData |= (clear_color.u32[3] != 0) << 28;
+      } else {
+         for (unsigned i = 0; i < 4; i++) {
+            assert(clear_color.f32[i] == 0.0f ||
+                   clear_color.f32[i] == 1.0f);
+         }
+         sdi.ImmediateData |= (clear_color.f32[0] != 0.0f) << 31;
+         sdi.ImmediateData |= (clear_color.f32[1] != 0.0f) << 30;
+         sdi.ImmediateData |= (clear_color.f32[2] != 0.0f) << 29;
+         sdi.ImmediateData |= (clear_color.f32[3] != 0.0f) << 28;
       }
    }
 }
@@ -1010,8 +1025,12 @@ transition_color_buffer(struct anv_cmd_buffer *cmd_buffer,
    }
 
    if (must_init_fast_clear_state) {
-      if (base_level == 0 && base_layer == 0)
-         init_fast_clear_color(cmd_buffer, image, aspect);
+      if (base_level == 0 && base_layer == 0) {
+         const union isl_color_value zero_color = {};
+         set_image_clear_color(cmd_buffer, image, aspect, zero_color);
+         set_image_fast_clear_state(cmd_buffer, image, aspect,
+                                    ANV_FAST_CLEAR_NONE);
+      }
    }
 
    if (must_init_aux_surface) {

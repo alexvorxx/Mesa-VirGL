@@ -864,64 +864,6 @@ genX(cmd_buffer_mark_image_written)(struct anv_cmd_buffer *cmd_buffer,
 #endif
 }
 
-static void
-init_fast_clear_color(struct anv_cmd_buffer *cmd_buffer,
-                      const struct anv_image *image,
-                      VkImageAspectFlagBits aspect)
-{
-   assert(cmd_buffer && image);
-   assert(image->vk.aspects & VK_IMAGE_ASPECT_ANY_COLOR_BIT_ANV);
-
-   /* Initialize the struct fields that are accessed for fast clears so that
-    * the HW restrictions on the field values are satisfied.
-    *
-    * On generations that do not support indirect clear color natively, we
-    * can just skip initializing the values, because they will be set by
-    * BLORP before actually doing the fast clear.
-    *
-    * For newer generations, we may not be able to skip initialization.
-    * Testing shows that writing to CLEAR_COLOR causes corruption if
-    * the surface is currently being used. So, care must be taken here.
-    * There are two cases that we consider:
-    *
-    *    1. For CCS_E without FCV, we can skip initializing the color-related
-    *       fields, just like on the older platforms. Also, DWORDS 6 and 7
-    *       are marked MBZ (or have a usable field on gfx11), but we can skip
-    *       initializing them because in practice these fields need other
-    *       state to be programmed for their values to matter.
-    *
-    *    2. When the FCV optimization is enabled, we must initialize the
-    *       color-related fields. Otherwise, the engine might reference their
-    *       uninitialized contents before we fill them for a manual fast clear
-    *       with BLORP. Although the surface may be in use, no synchronization
-    *       is needed before initialization. The only possible clear color we
-    *       support in this mode is 0.
-    */
-#if GFX_VER == 12
-   const uint32_t plane = anv_image_aspect_to_plane(image, aspect);
-
-   if (image->planes[plane].aux_usage == ISL_AUX_USAGE_FCV_CCS_E) {
-      struct anv_device *device = cmd_buffer->device;
-
-      assert(!image->planes[plane].can_non_zero_fast_clear);
-      assert(device->isl_dev.ss.clear_color_state_size == 32);
-
-      unsigned num_dwords = 6;
-      struct anv_address addr =
-         anv_image_get_clear_color_addr(device, image, aspect);
-
-      struct mi_builder b;
-      mi_builder_init(&b, device->info, &cmd_buffer->batch);
-      mi_builder_set_mocs(&b, anv_mocs_for_address(device, &addr));
-
-      for (unsigned i = 0; i < num_dwords; i++) {
-         mi_builder_set_write_check(&b, i == (num_dwords - 1));
-         mi_store(&b, mi_mem32(anv_address_add(addr, i * 4)), mi_imm(0));
-      }
-   }
-#endif
-}
-
 /* Copy the fast-clear value dword(s) between a surface state object and an
  * image's fast clear state buffer.
  */
@@ -966,6 +908,49 @@ genX(load_image_clear_color)(struct anv_cmd_buffer *cmd_buffer,
    anv_add_pending_pipe_bits(cmd_buffer,
                              ANV_PIPE_STATE_CACHE_INVALIDATE_BIT,
                              "after load_image_clear_color surface state update");
+#endif
+}
+
+static void
+set_image_clear_color(struct anv_cmd_buffer *cmd_buffer,
+                      const struct anv_image *image,
+                      const VkImageAspectFlags aspect,
+                      const uint32_t *pixel)
+{
+   UNUSED struct anv_batch *batch = &cmd_buffer->batch;
+   uint32_t plane = anv_image_aspect_to_plane(image, aspect);
+   enum isl_format format = image->planes[plane].primary_surface.isl.format;
+
+   union isl_color_value clear_color;
+   isl_color_value_unpack(&clear_color, format, pixel);
+
+   struct anv_address addr =
+      anv_image_get_clear_color_addr(cmd_buffer->device, image, aspect);
+   assert(!anv_address_is_null(addr));
+
+#if GFX_VER >= 20
+   assert(cmd_buffer->device->isl_dev.ss.clear_color_state_size == 0);
+   assert(cmd_buffer->device->isl_dev.ss.clear_value_size == 0);
+   unreachable("storing clear colors on invalid gfx_ver" );
+#elif GFX_VER >= 11
+   assert(cmd_buffer->device->isl_dev.ss.clear_color_state_size == 32);
+   uint32_t *dw = anv_batch_emitn(batch, 3 + 6, GENX(MI_STORE_DATA_IMM),
+                                  .StoreQword = true, .Address = addr);
+   dw[3] = clear_color.u32[0];
+   dw[4] = clear_color.u32[1];
+   dw[5] = clear_color.u32[2];
+   dw[6] = clear_color.u32[3];
+   dw[7] = pixel[0];
+   dw[8] = pixel[1];
+#else
+   assert(cmd_buffer->device->isl_dev.ss.clear_color_state_size == 0);
+   assert(cmd_buffer->device->isl_dev.ss.clear_value_size == 16);
+   uint32_t *dw = anv_batch_emitn(batch, 3 + 4, GENX(MI_STORE_DATA_IMM),
+                                  .StoreQword = true, .Address = addr);
+   dw[3] = clear_color.u32[0];
+   dw[4] = clear_color.u32[1];
+   dw[5] = clear_color.u32[2];
+   dw[6] = clear_color.u32[3];
 #endif
 }
 
@@ -1230,11 +1215,15 @@ transition_color_buffer(struct anv_cmd_buffer *cmd_buffer,
    }
 
    if (must_init_fast_clear_state) {
+      if (image->planes[plane].aux_usage == ISL_AUX_USAGE_FCV_CCS_E) {
+         assert(!image->planes[plane].can_non_zero_fast_clear);
+         const uint32_t zero_pixel[4] = {};
+         set_image_clear_color(cmd_buffer, image, aspect, zero_pixel);
+      }
       if (base_level == 0 && base_layer == 0) {
          set_image_fast_clear_state(cmd_buffer, image, aspect,
                                     ANV_FAST_CLEAR_NONE);
       }
-      init_fast_clear_color(cmd_buffer, image, aspect);
    }
 
    if (must_init_aux_surface) {
