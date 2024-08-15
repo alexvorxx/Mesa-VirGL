@@ -50,6 +50,29 @@
  * pass.
  */
 
+static nir_variable_mode
+get_param_mode(ir_variable *param)
+{
+   switch ((enum ir_variable_mode)(param->data.mode)) {
+   case ir_var_const_in:
+   case ir_var_function_in:
+      return nir_var_function_in;
+
+   case ir_var_function_out:
+      return nir_var_function_out;
+
+   case ir_var_function_inout:
+      return nir_var_function_inout;
+
+   case ir_var_auto:
+   case ir_var_uniform:
+   case ir_var_shader_storage:
+   case ir_var_temporary:
+   default:
+      unreachable("Unsupported function param mode");
+   }
+}
+
 namespace {
 
 class nir_visitor : public ir_visitor
@@ -661,13 +684,13 @@ nir_visitor::create_function(ir_function_signature *ir)
    func->params = ralloc_array(shader, nir_parameter, func->num_params);
 
    unsigned np = 0;
-
    if (ir->return_type != &glsl_type_builtin_void) {
       /* The return value is a variable deref (basically an out parameter) */
       func->params[np].num_components = 1;
       func->params[np].bit_size = 32;
       func->params[np].type = ir->return_type;
       func->params[np].is_return = true;
+      func->params[np].mode = nir_var_function_out;
       np++;
    }
 
@@ -677,6 +700,7 @@ nir_visitor::create_function(ir_function_signature *ir)
 
       func->params[np].type = param->type;
       func->params[np].is_return = false;
+      func->params[np].mode = get_param_mode(param);
       np++;
    }
    assert(np == func->num_params);

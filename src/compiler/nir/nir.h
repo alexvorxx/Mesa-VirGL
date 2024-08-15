@@ -3626,6 +3626,8 @@ typedef struct {
    /* True if this paramater is actually the function return variable */
    bool is_return;
 
+   nir_variable_mode mode;
+
    /* The type of the function param */
    const struct glsl_type *type;
 } nir_parameter;

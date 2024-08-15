@@ -1984,6 +1984,7 @@ write_function(write_ctx *ctx, const nir_function *fxn)
          ((uint32_t)fxn->params[i].bit_size) << 8;
       blob_write_uint32(ctx->blob, val);
       encode_type_to_blob(ctx->blob, fxn->params[i].type);
+      blob_write_uint32(ctx->blob, encode_deref_modes(fxn->params[i].mode));
    }
 
    /* At first glance, it looks like we should write the function_impl here.
@@ -2018,6 +2019,7 @@ read_function(read_ctx *ctx)
       fxn->params[i].num_components = val & 0xff;
       fxn->params[i].bit_size = (val >> 8) & 0xff;
       fxn->params[i].type = decode_type_from_blob(ctx->blob);
+      fxn->params[i].mode = decode_deref_modes(blob_read_uint32(ctx->blob));
    }
 
    fxn->is_entrypoint = flags & 0x1;
