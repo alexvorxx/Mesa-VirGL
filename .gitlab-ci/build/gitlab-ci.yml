@@ -691,6 +691,7 @@ debian-x86_32:
 
 # While s390 is dead, s390x is very much alive, and one of the last major
 # big-endian platforms, so it provides useful coverage.
+# In case of issues with this job, contact @ajax
 debian-s390x:
   extends:
     - debian-ppc64el
