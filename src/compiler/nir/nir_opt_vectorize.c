@@ -169,6 +169,67 @@ instr_can_rewrite(nir_instr *instr)
    return false;
 }
 
+static void
+rewrite_uses(nir_builder *b, struct set *instr_set, nir_def *def1,
+             nir_def *def2, nir_def *new_def)
+{
+   /* update all ALU uses */
+   nir_foreach_use_safe(src, def1) {
+      nir_instr *user_instr = nir_src_parent_instr(src);
+      if (user_instr->type == nir_instr_type_alu) {
+         /* Check if user is found in the hashset */
+         struct set_entry *entry = _mesa_set_search(instr_set, user_instr);
+
+         /* For ALU instructions, rewrite the source directly to avoid a
+          * round-trip through copy propagation.
+          */
+         nir_src_rewrite(src, new_def);
+
+         /* Rehash user if it was found in the hashset */
+         if (entry && entry->key == user_instr) {
+            _mesa_set_remove(instr_set, entry);
+            _mesa_set_add(instr_set, user_instr);
+         }
+      }
+   }
+
+   nir_foreach_use_safe(src, def2) {
+      if (nir_src_parent_instr(src)->type == nir_instr_type_alu) {
+         /* For ALU instructions, rewrite the source directly to avoid a
+          * round-trip through copy propagation.
+          */
+         nir_src_rewrite(src, new_def);
+
+         nir_alu_src *alu_src = container_of(src, nir_alu_src, src);
+         nir_alu_instr *use = nir_instr_as_alu(nir_src_parent_instr(src));
+         unsigned components =
+            nir_ssa_alu_instr_src_components(use, alu_src - use->src);
+         for (unsigned i = 0; i < components; i++)
+            alu_src->swizzle[i] += def1->num_components;
+      }
+   }
+
+   /* update all other uses if there are any */
+   unsigned swiz[NIR_MAX_VEC_COMPONENTS];
+
+   if (!nir_def_is_unused(def1)) {
+      for (unsigned i = 0; i < def1->num_components; i++)
+         swiz[i] = i;
+      nir_def *new_def1 = nir_swizzle(b, new_def, swiz, def1->num_components);
+      nir_def_rewrite_uses(def1, new_def1);
+   }
+
+   if (!nir_def_is_unused(def2)) {
+      for (unsigned i = 0; i < def2->num_components; i++)
+         swiz[i] = i + def1->num_components;
+      nir_def *new_def2 = nir_swizzle(b, new_def, swiz, def2->num_components);
+      nir_def_rewrite_uses(def2, new_def2);
+   }
+
+   nir_instr_remove(def1->parent_instr);
+   nir_instr_remove(def2->parent_instr);
+}
+
 /*
  * Tries to combine two instructions whose sources are different components of
  * the same instructions into one vectorized instruction. Note that instr1
@@ -241,63 +302,7 @@ instr_try_combine(struct set *instr_set, nir_instr *instr1, nir_instr *instr2)
    }
 
    nir_builder_instr_insert(&b, &new_alu->instr);
-
-   /* update all ALU uses */
-   nir_foreach_use_safe(src, &alu1->def) {
-      nir_instr *user_instr = nir_src_parent_instr(src);
-      if (user_instr->type == nir_instr_type_alu) {
-         /* Check if user is found in the hashset */
-         struct set_entry *entry = _mesa_set_search(instr_set, user_instr);
-
-         /* For ALU instructions, rewrite the source directly to avoid a
-          * round-trip through copy propagation.
-          */
-         nir_src_rewrite(src, &new_alu->def);
-
-         /* Rehash user if it was found in the hashset */
-         if (entry && entry->key == user_instr) {
-            _mesa_set_remove(instr_set, entry);
-            _mesa_set_add(instr_set, user_instr);
-         }
-      }
-   }
-
-   nir_foreach_use_safe(src, &alu2->def) {
-      if (nir_src_parent_instr(src)->type == nir_instr_type_alu) {
-         /* For ALU instructions, rewrite the source directly to avoid a
-          * round-trip through copy propagation.
-          */
-         nir_src_rewrite(src, &new_alu->def);
-
-         nir_alu_src *alu_src = container_of(src, nir_alu_src, src);
-         nir_alu_instr *use = nir_instr_as_alu(nir_src_parent_instr(src));
-         unsigned components = nir_ssa_alu_instr_src_components(use, alu_src - use->src);
-         for (unsigned i = 0; i < components; i++)
-            alu_src->swizzle[i] += alu1_components;
-      }
-   }
-
-   /* update all other uses if there are any */
-   unsigned swiz[NIR_MAX_VEC_COMPONENTS];
-
-   if (!nir_def_is_unused(&alu1->def)) {
-      for (unsigned i = 0; i < alu1_components; i++)
-         swiz[i] = i;
-      nir_def *new_alu1 = nir_swizzle(&b, &new_alu->def, swiz,
-                                      alu1_components);
-      nir_def_rewrite_uses(&alu1->def, new_alu1);
-   }
-
-   if (!nir_def_is_unused(&alu2->def)) {
-      for (unsigned i = 0; i < alu2_components; i++)
-         swiz[i] = i + alu1_components;
-      nir_def *new_alu2 = nir_swizzle(&b, &new_alu->def, swiz,
-                                      alu2_components);
-      nir_def_rewrite_uses(&alu2->def, new_alu2);
-   }
-
-   nir_instr_remove(instr1);
-   nir_instr_remove(instr2);
+   rewrite_uses(&b, instr_set, &alu1->def, &alu2->def, &new_alu->def);
 
    return &new_alu->instr;
 }
