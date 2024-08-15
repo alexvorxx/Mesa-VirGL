@@ -230,29 +230,19 @@ rewrite_uses(nir_builder *b, struct set *instr_set, nir_def *def1,
    nir_instr_remove(def2->parent_instr);
 }
 
-/*
- * Tries to combine two instructions whose sources are different components of
- * the same instructions into one vectorized instruction. Note that instr1
- * should dominate instr2.
- */
 static nir_instr *
-instr_try_combine(struct set *instr_set, nir_instr *instr1, nir_instr *instr2)
+instr_try_combine_alu(struct set *instr_set, nir_alu_instr *alu1, nir_alu_instr *alu2)
 {
-   assert(instr1->type == nir_instr_type_alu);
-   assert(instr2->type == nir_instr_type_alu);
-   nir_alu_instr *alu1 = nir_instr_as_alu(instr1);
-   nir_alu_instr *alu2 = nir_instr_as_alu(instr2);
-
    assert(alu1->def.bit_size == alu2->def.bit_size);
    unsigned alu1_components = alu1->def.num_components;
    unsigned alu2_components = alu2->def.num_components;
    unsigned total_components = alu1_components + alu2_components;
 
-   assert(instr1->pass_flags == instr2->pass_flags);
-   if (total_components > instr1->pass_flags)
+   assert(alu1->instr.pass_flags == alu2->instr.pass_flags);
+   if (total_components > alu1->instr.pass_flags)
       return NULL;
 
-   nir_builder b = nir_builder_at(nir_after_instr(instr1));
+   nir_builder b = nir_builder_at(nir_after_instr(&alu1->instr));
 
    nir_alu_instr *new_alu = nir_alu_instr_create(b.shader, alu1->op);
    nir_def_init(&new_alu->instr, &new_alu->def, total_components,
@@ -305,6 +295,25 @@ instr_try_combine(struct set *instr_set, nir_instr *instr1, nir_instr *instr2)
    rewrite_uses(&b, instr_set, &alu1->def, &alu2->def, &new_alu->def);
 
    return &new_alu->instr;
+}
+
+/*
+ * Tries to combine two instructions whose sources are different components of
+ * the same instructions into one vectorized instruction. Note that instr1
+ * should dominate instr2.
+ */
+static nir_instr *
+instr_try_combine(struct set *instr_set, nir_instr *instr1, nir_instr *instr2)
+{
+   switch (instr1->type) {
+   case nir_instr_type_alu:
+      assert(instr2->type == nir_instr_type_alu);
+      return instr_try_combine_alu(instr_set, nir_instr_as_alu(instr1),
+                                   nir_instr_as_alu(instr2));
+
+   default:
+      unreachable("Unsupported instruction type");
+   }
 }
 
 static struct set *
