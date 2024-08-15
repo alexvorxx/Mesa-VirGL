@@ -250,7 +250,7 @@ executor_print_bo(executor_bo *bo, const char *name)
    uint32_t *dw = bo->map;
    uint32_t len = (uint32_t *)bo->cursor - dw;
 
-   printf("=== %s (0x%08"PRIx64", %lu bytes) ===\n", name, bo->addr, bo->cursor - bo->map);
+   printf("=== %s (0x%08"PRIx64", %td bytes) ===\n", name, bo->addr, bo->cursor - bo->map);
 
    for (int i = 0; i < len; i++) {
       if ((i % 8) == 0) printf("[0x%08x] ", (i*4) + (uint32_t)bo->addr);
