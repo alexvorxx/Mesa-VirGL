@@ -32,6 +32,7 @@
 #include "radv_entrypoints.h"
 #include "radv_image_view.h"
 #include "radv_physical_device.h"
+#include "radv_query.h"
 #include "radv_video.h"
 
 #include "ac_vcn_enc.h"
@@ -1246,7 +1247,7 @@ radv_enc_bitstream(struct radv_cmd_buffer *cmd_buffer, struct radv_buffer *buffe
 }
 
 static void
-radv_enc_feedback(struct radv_cmd_buffer *cmd_buffer)
+radv_enc_feedback(struct radv_cmd_buffer *cmd_buffer, uint64_t feedback_query_va)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -1255,8 +1256,8 @@ radv_enc_feedback(struct radv_cmd_buffer *cmd_buffer)
 
    radeon_emit(cs, pdev->vcn_enc_cmds.feedback);
    radeon_emit(cs, RENCODE_FEEDBACK_BUFFER_MODE_LINEAR);
-   radeon_emit(cs, cmd_buffer->video.feedback_query_va >> 32);
-   radeon_emit(cs, cmd_buffer->video.feedback_query_va & 0xffffffff);
+   radeon_emit(cs, feedback_query_va >> 32);
+   radeon_emit(cs, feedback_query_va & 0xffffffff);
    radeon_emit(cs, 16); // buffer_size
    radeon_emit(cs, 40); // data_size
    ENC_END;
@@ -1664,7 +1665,7 @@ radv_vcn_encode_video(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInf
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_enc_state *enc = &cmd_buffer->video.enc;
-
+   uint64_t feedback_query_va;
    switch (vid->vk.op) {
    case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR:
    case VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR:
@@ -1673,6 +1674,20 @@ radv_vcn_encode_video(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInf
       assert(0);
       return;
    }
+
+   const struct VkVideoInlineQueryInfoKHR *inline_queries = NULL;
+   if (vid->vk.flags & VK_VIDEO_SESSION_CREATE_INLINE_QUERIES_BIT_KHR) {
+      inline_queries = vk_find_struct_const(enc_info->pNext, VIDEO_INLINE_QUERY_INFO_KHR);
+
+      if (inline_queries) {
+         VK_FROM_HANDLE(radv_query_pool, pool, inline_queries->queryPool);
+         feedback_query_va = radv_buffer_get_va(pool->bo);
+         feedback_query_va += pool->stride * inline_queries->firstQuery;
+      }
+   }
+
+   if (!inline_queries)
+      feedback_query_va = cmd_buffer->video.feedback_query_va;
 
    if (vid->enc_need_begin) {
       begin(cmd_buffer, enc_info);
@@ -1711,7 +1726,7 @@ radv_vcn_encode_video(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInf
    radv_enc_bitstream(cmd_buffer, dst_buffer, enc_info->dstBufferOffset);
 
    // feedback
-   radv_enc_feedback(cmd_buffer);
+   radv_enc_feedback(cmd_buffer, feedback_query_va);
 
    // v2 encode statistics
    if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_2) {
