@@ -13,7 +13,6 @@
 #include "fdl/freedreno_layout.h"
 #include <fcntl.h>
 #include <poll.h>
-#include <sys/sysinfo.h>
 
 #include "git_sha1.h"
 #include "util/u_debug.h"
@@ -1563,10 +1562,10 @@ tu_GetPhysicalDeviceQueueFamilyProperties2(
 uint64_t
 tu_get_system_heap_size(struct tu_physical_device *physical_device)
 {
-   struct sysinfo info;
-   sysinfo(&info);
-
-   uint64_t total_ram = (uint64_t) info.totalram * (uint64_t) info.mem_unit;
+   uint64_t total_ram = 0;
+   ASSERTED bool has_physical_memory =
+      os_get_total_physical_memory(&total_ram);
+   assert(has_physical_memory);
 
    /* We don't want to burn too much ram with the GPU.  If the user has 4GiB
     * or less, we use at most half.  If they have more than 4GiB, we use 3/4.
