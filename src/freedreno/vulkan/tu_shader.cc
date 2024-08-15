@@ -133,10 +133,8 @@ lower_load_push_constant(struct tu_device *dev,
    }
 
    nir_def *load =
-      nir_load_uniform(b, instr->num_components,
-            instr->def.bit_size,
-            nir_ushr_imm(b, instr->src[0].ssa, 2),
-            .base = base);
+      nir_load_const_ir3(b, instr->num_components, instr->def.bit_size,
+                         nir_ushr_imm(b, instr->src[0].ssa, 2), .base = base);
 
    nir_def_replace(&instr->def, load);
 }
@@ -187,9 +185,9 @@ lower_vulkan_resource_index(struct tu_device *dev, nir_builder *b,
             dynamic_offset_start =
                ir3_load_driver_ubo(b, 1, &shader->const_state.dynamic_offsets_ubo, set);
          } else {
-            dynamic_offset_start = 
-               nir_load_uniform(b, 1, 32, nir_imm_int(b, 0),
-                                .base = shader->const_state.dynamic_offset_loc + set);
+            dynamic_offset_start = nir_load_const_ir3(
+               b, 1, 32, nir_imm_int(b, 0),
+               .base = shader->const_state.dynamic_offset_loc + set);
          }
          base = nir_iadd(b, base, dynamic_offset_start);
       } else {
@@ -701,7 +699,8 @@ lower_inline_ubo(nir_builder *b, nir_intrinsic_instr *intrin, void *cb_data)
                                          &params->shader->const_state.inline_uniforms_ubo,
                                          base);
       } else {
-         base_addr = nir_load_uniform(b, 2, 32, nir_imm_int(b, 0), .base = base);
+         base_addr =
+            nir_load_const_ir3(b, 2, 32, nir_imm_int(b, 0), .base = base);
       }
       val = nir_load_global_ir3(b, intrin->num_components,
                                 intrin->def.bit_size,
@@ -715,9 +714,9 @@ lower_inline_ubo(nir_builder *b, nir_intrinsic_instr *intrin, void *cb_data)
                                 .range_base = 0,
                                 .range = range);
    } else {
-      val = nir_load_uniform(b, intrin->num_components,
-                             intrin->def.bit_size,
-                             nir_ishr_imm(b, offset, 2), .base = base);
+      val =
+         nir_load_const_ir3(b, intrin->num_components, intrin->def.bit_size,
+                            nir_ishr_imm(b, offset, 2), .base = base);
    }
 
    nir_def_replace(&intrin->def, val);

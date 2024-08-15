@@ -232,6 +232,7 @@ can_move_intrinsic(nir_intrinsic_instr *instr, opt_preamble_ctx *ctx)
    case nir_intrinsic_masked_swizzle_amd:
    case nir_intrinsic_load_ssbo_address:
    case nir_intrinsic_bindless_resource_ir3:
+   case nir_intrinsic_load_const_ir3:
    case nir_intrinsic_load_constant_agx:
       return can_move_srcs(&instr->instr, ctx);
 

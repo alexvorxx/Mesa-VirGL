@@ -537,8 +537,8 @@ r2d_run(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
 static nir_def *
 load_const(nir_builder *b, unsigned base, unsigned components)
 {
-   return nir_load_uniform(b, components, 32, nir_imm_int(b, 0),
-                           .base = base);
+   return nir_load_const_ir3(b, components, 32, nir_imm_int(b, 0),
+                             .base = base);
 }
 
 static nir_shader *

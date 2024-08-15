@@ -957,11 +957,11 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so, nir_shader *s)
    /* verify that progress is always set */
    assert(!ir3_optimize_loop(so->compiler, s));
 
-   /* Fixup indirect load_uniform's which end up with a const base offset
+   /* Fixup indirect load_const_ir3's which end up with a const base offset
     * which is too large to encode.  Do this late(ish) so we actually
     * can differentiate indirect vs non-indirect.
     */
-   if (OPT(s, ir3_nir_fixup_load_uniform))
+   if (OPT(s, ir3_nir_fixup_load_const_ir3))
       ir3_optimize_loop(so->compiler, s);
 
    /* Do late algebraic optimization to turn add(a, neg(b)) back into

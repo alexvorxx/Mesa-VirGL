@@ -2569,7 +2569,7 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       break;
    }
 
-   case nir_intrinsic_load_uniform:
+   case nir_intrinsic_load_const_ir3:
       idx = nir_intrinsic_base(intr);
       if (nir_src_is_const(intr->src[0])) {
          idx += nir_src_as_uint(intr->src[0]);

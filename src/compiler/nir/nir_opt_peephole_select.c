@@ -188,6 +188,7 @@ block_check_for_allowed_instrs(nir_block *block, unsigned *count,
          case nir_intrinsic_ddy:
          case nir_intrinsic_ddy_fine:
          case nir_intrinsic_ddy_coarse:
+         case nir_intrinsic_load_const_ir3:
             if (!alu_ok)
                return false;
             break;

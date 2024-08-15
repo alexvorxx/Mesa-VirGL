@@ -208,22 +208,22 @@ gather_ubo_ranges(nir_shader *nir, nir_intrinsic_instr *instr,
  * loads with the same base, but different constant offset, ie:
  *
  *    vec1 32 ssa_33 = iadd ssa_base, const_offset
- *    vec4 32 ssa_34 = intrinsic load_uniform (ssa_33) (base=N, 0, 0)
+ *    vec4 32 ssa_34 = intrinsic load_const_ir3 (ssa_33) (base=N, 0, 0)
  *
  * Detect this, and peel out the const_offset part, to end up with:
  *
- *    vec4 32 ssa_34 = intrinsic load_uniform (ssa_base) (base=N+const_offset,
+ *    vec4 32 ssa_34 = intrinsic load_const_ir3 (ssa_base) (base=N+const_offset,
  * 0, 0)
  *
  * Or similarly:
  *
  *    vec1 32 ssa_33 = imad24_ir3 a, b, const_offset
- *    vec4 32 ssa_34 = intrinsic load_uniform (ssa_33) (base=N, 0, 0)
+ *    vec4 32 ssa_34 = intrinsic load_const_ir3 (ssa_33) (base=N, 0, 0)
  *
  * Can be converted to:
  *
  *    vec1 32 ssa_base = imul24 a, b
- *    vec4 32 ssa_34 = intrinsic load_uniform (ssa_base) (base=N+const_offset,
+ *    vec4 32 ssa_34 = intrinsic load_const_ir3 (ssa_base) (base=N+const_offset,
  * 0, 0)
  *
  * This gives the other opt passes something much easier to work
@@ -296,7 +296,7 @@ lower_ubo_load_to_uniform(nir_intrinsic_instr *instr, nir_builder *b,
       return false;
    }
 
-   /* We don't lower dynamic block index UBO loads to load_uniform, but we
+   /* We don't lower dynamic block index UBO loads to load_const_ir3, but we
     * could probably with some effort determine a block stride in number of
     * registers.
     */
@@ -349,8 +349,8 @@ lower_ubo_load_to_uniform(nir_intrinsic_instr *instr, nir_builder *b,
    }
 
    nir_def *uniform =
-      nir_load_uniform(b, instr->num_components, instr->def.bit_size,
-                       uniform_offset, .base = const_offset);
+      nir_load_const_ir3(b, instr->num_components, instr->def.bit_size,
+                         uniform_offset, .base = const_offset);
 
    nir_def_replace(&instr->def, uniform);
 
@@ -734,16 +734,16 @@ ir3_nir_lower_ubo_loads(nir_shader *nir, struct ir3_shader_variant *v)
 }
 
 static bool
-fixup_load_uniform_filter(const nir_instr *instr, const void *arg)
+fixup_load_const_ir3_filter(const nir_instr *instr, const void *arg)
 {
    if (instr->type != nir_instr_type_intrinsic)
       return false;
    return nir_instr_as_intrinsic(instr)->intrinsic ==
-          nir_intrinsic_load_uniform;
+          nir_intrinsic_load_const_ir3;
 }
 
 static nir_def *
-fixup_load_uniform_instr(struct nir_builder *b, nir_instr *instr, void *arg)
+fixup_load_const_ir3_instr(struct nir_builder *b, nir_instr *instr, void *arg)
 {
    nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
 
@@ -764,9 +764,9 @@ fixup_load_uniform_instr(struct nir_builder *b, nir_instr *instr, void *arg)
 
    /* We'd like to avoid a sequence like:
     *
-    *   vec4 32 ssa_18 = intrinsic load_uniform (ssa_4) (1024, 0, 0)
-    *   vec4 32 ssa_19 = intrinsic load_uniform (ssa_4) (1072, 0, 0)
-    *   vec4 32 ssa_20 = intrinsic load_uniform (ssa_4) (1120, 0, 0)
+    *   vec4 32 ssa_18 = intrinsic load_const_ir3 (ssa_4) (1024, 0, 0)
+    *   vec4 32 ssa_19 = intrinsic load_const_ir3 (ssa_4) (1072, 0, 0)
+    *   vec4 32 ssa_20 = intrinsic load_const_ir3 (ssa_4) (1120, 0, 0)
     *
     * From turning into a unique offset value (which requires reloading
     * a0.x for each instruction).  So instead of just adding the constant
@@ -776,9 +776,9 @@ fixup_load_uniform_instr(struct nir_builder *b, nir_instr *instr, void *arg)
     *
     *   vec1 32 ssa_5 = load_const (1024)
     *   vec4 32 ssa_6  = iadd ssa4_, ssa_5
-    *   vec4 32 ssa_18 = intrinsic load_uniform (ssa_5) (0, 0, 0)
-    *   vec4 32 ssa_19 = intrinsic load_uniform (ssa_5) (48, 0, 0)
-    *   vec4 32 ssa_20 = intrinsic load_uniform (ssa_5) (96, 0, 0)
+    *   vec4 32 ssa_18 = intrinsic load_const_ir3 (ssa_5) (0, 0, 0)
+    *   vec4 32 ssa_19 = intrinsic load_const_ir3 (ssa_5) (48, 0, 0)
+    *   vec4 32 ssa_20 = intrinsic load_const_ir3 (ssa_5) (96, 0, 0)
     */
    unsigned new_base_offset = base_offset % base_offset_limit;
 
@@ -799,10 +799,10 @@ fixup_load_uniform_instr(struct nir_builder *b, nir_instr *instr, void *arg)
  * thing, so we can actually know if it is an indirect uniform offset or not.
  */
 bool
-ir3_nir_fixup_load_uniform(nir_shader *nir)
+ir3_nir_fixup_load_const_ir3(nir_shader *nir)
 {
-   return nir_shader_lower_instructions(nir, fixup_load_uniform_filter,
-                                        fixup_load_uniform_instr, NULL);
+   return nir_shader_lower_instructions(nir, fixup_load_const_ir3_filter,
+                                        fixup_load_const_ir3_instr, NULL);
 }
 static nir_def *
 ir3_nir_lower_load_const_instr(nir_builder *b, nir_instr *in_instr, void *data)
