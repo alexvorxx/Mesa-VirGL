@@ -319,6 +319,8 @@ TEST_F(mme_builder_test, sll_srl)
 
       sim->mme_store_data(&b, 0, mme_sll(&b, xv, yv));
       sim->mme_store_data(&b, 1, mme_srl(&b, xv, yv));
+      sim->mme_store_data(&b, 2, mme_sll(&b, mme_imm(x), yv));
+      sim->mme_store_data(&b, 3, mme_srl(&b, mme_imm(x), yv));
 
       auto macro = mme_builder_finish_vec(&b);
 
@@ -331,6 +333,8 @@ TEST_F(mme_builder_test, sll_srl)
          sim->run_macro(macro, params);
          ASSERT_EQ(sim->data[0], x << i);
          ASSERT_EQ(sim->data[1], x >> i);
+         ASSERT_EQ(sim->data[2], x << i);
+         ASSERT_EQ(sim->data[3], x >> i);
       }
    }
 }
