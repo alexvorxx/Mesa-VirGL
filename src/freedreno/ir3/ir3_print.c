@@ -460,6 +460,17 @@ print_instr(struct log_stream *stream, struct ir3_instruction *instr, int lvl)
       }
    }
 
+   if (ir3_instr_is_rpt(instr)) {
+      mesa_log_stream_printf(stream, ", rpt: ");
+
+      if (ir3_instr_is_first_rpt(instr)) {
+         mesa_log_stream_printf(stream, "first");
+      } else {
+         mesa_log_stream_printf(stream, "%u",
+                                ir3_instr_prev_rpt(instr)->serialno);
+      }
+   }
+
    mesa_log_stream_printf(stream, "\n");
 }
 

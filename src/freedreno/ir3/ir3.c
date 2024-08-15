@@ -646,6 +646,7 @@ instr_create(struct ir3_block *block, opc_t opc, int ndst, int nsrc)
    instr->srcs_max = nsrc;
 #endif
 
+   list_inithead(&instr->rpt_node);
    return instr;
 }
 
@@ -725,6 +726,7 @@ ir3_instr_clone(struct ir3_instruction *instr)
    *new_instr = *instr;
    new_instr->dsts = dsts;
    new_instr->srcs = srcs;
+   list_inithead(&new_instr->rpt_node);
 
    insert_instr(ir3_before_terminator(instr->block), new_instr);
 
@@ -763,6 +765,74 @@ ir3_instr_add_dep(struct ir3_instruction *instr, struct ir3_instruction *dep)
    }
 
    array_insert(instr, instr->deps, dep);
+}
+
+void
+ir3_instr_remove(struct ir3_instruction *instr)
+{
+   list_delinit(&instr->node);
+   list_delinit(&instr->rpt_node);
+}
+
+void
+ir3_instr_create_rpt(struct ir3_instruction **instrs, unsigned n)
+{
+   assert(n > 0 && !ir3_instr_is_rpt(instrs[0]));
+
+   for (unsigned i = 1; i < n; ++i) {
+      assert(!ir3_instr_is_rpt(instrs[i]));
+      assert(instrs[i]->serialno > instrs[i - 1]->serialno);
+
+      list_addtail(&instrs[i]->rpt_node, &instrs[0]->rpt_node);
+   }
+}
+
+bool
+ir3_instr_is_rpt(const struct ir3_instruction *instr)
+{
+   return !list_is_empty(&instr->rpt_node);
+}
+
+bool
+ir3_instr_is_first_rpt(const struct ir3_instruction *instr)
+{
+   if (!ir3_instr_is_rpt(instr))
+      return false;
+
+   struct ir3_instruction *prev_rpt =
+      list_entry(instr->rpt_node.prev, struct ir3_instruction, rpt_node);
+   return prev_rpt->serialno > instr->serialno;
+}
+
+struct ir3_instruction *
+ir3_instr_prev_rpt(const struct ir3_instruction *instr)
+{
+   assert(ir3_instr_is_rpt(instr));
+
+   if (ir3_instr_is_first_rpt(instr))
+      return NULL;
+   return list_entry(instr->rpt_node.prev, struct ir3_instruction, rpt_node);
+}
+
+struct ir3_instruction *
+ir3_instr_first_rpt(struct ir3_instruction *instr)
+{
+   assert(ir3_instr_is_rpt(instr));
+
+   while (!ir3_instr_is_first_rpt(instr)) {
+      instr = ir3_instr_prev_rpt(instr);
+      assert(instr);
+   }
+
+   return instr;
+}
+
+unsigned
+ir3_instr_rpt_length(const struct ir3_instruction *instr)
+{
+   assert(ir3_instr_is_first_rpt(instr));
+
+   return list_length(&instr->rpt_node) + 1;
 }
 
 struct ir3_register *
@@ -1438,4 +1508,23 @@ ir3_get_cond_for_nonzero_compare(struct ir3_instruction *instr)
    }
 
    return instr;
+}
+
+bool
+ir3_supports_rpt(unsigned opc)
+{
+   switch (opc_cat(opc)) {
+   case 0:
+      return opc == OPC_NOP;
+   case 1:
+      return opc == OPC_MOV || opc == OPC_SWZ || opc == OPC_MOVMSK;
+   case 2:
+      return true;
+   case 3:
+      return opc != OPC_DP2ACC && opc != OPC_DP4ACC;
+   case 4:
+      return opc != OPC_RCP;
+   default:
+      return false;
+   }
 }

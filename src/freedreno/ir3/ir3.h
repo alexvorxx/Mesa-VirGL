@@ -554,6 +554,25 @@ struct ir3_instruction {
    /* Entry in ir3_block's instruction list: */
    struct list_head node;
 
+   /* List of this instruction's repeat group. Vectorized NIR instructions are
+    * emitted as multiple scalar instructions that are linked together using
+    * this field. After RA, the ir3_combine_rpt pass iterates these groups and,
+    * if the register assignment allows it, merges them into a (rptN)
+    * instruction.
+    *
+    * NOTE: this is not a typical list as there is no empty list head. The list
+    * head is stored in the first instruction of the repeat group so also refers
+    * to a list entry. In order to distinguish the list's first entry, we use
+    * serialno: instructions in a repeat group are always emitted consecutively
+    * so the first will have the lowest serialno.
+    *
+    * As this is not a typical list, we have to be careful with using the
+    * existing list helper. For example, using list_length on the first
+    * instruction will yield one less than the number of instructions in its
+    * group.
+    */
+   struct list_head rpt_node;
+
    uint32_t serialno;
 
    // TODO only computerator/assembler:
@@ -807,6 +826,14 @@ struct ir3_instruction *ir3_instr_clone(struct ir3_instruction *instr);
 void ir3_instr_add_dep(struct ir3_instruction *instr,
                        struct ir3_instruction *dep);
 const char *ir3_instr_name(struct ir3_instruction *instr);
+void ir3_instr_remove(struct ir3_instruction *instr);
+
+void ir3_instr_create_rpt(struct ir3_instruction **instrs, unsigned n);
+bool ir3_instr_is_rpt(const struct ir3_instruction *instr);
+bool ir3_instr_is_first_rpt(const struct ir3_instruction *instr);
+struct ir3_instruction *ir3_instr_prev_rpt(const struct ir3_instruction *instr);
+struct ir3_instruction *ir3_instr_first_rpt(struct ir3_instruction *instr);
+unsigned ir3_instr_rpt_length(const struct ir3_instruction *instr);
 
 struct ir3_register *ir3_src_create(struct ir3_instruction *instr, int num,
                                     int flags);
@@ -900,6 +927,8 @@ bool ir3_valid_immediate(struct ir3_instruction *instr, int32_t immed);
  */
 struct ir3_instruction *
 ir3_get_cond_for_nonzero_compare(struct ir3_instruction *instr);
+
+bool ir3_supports_rpt(unsigned opc);
 
 #include "util/set.h"
 #define foreach_ssa_use(__use, __instr)                                        \
@@ -1937,6 +1966,26 @@ __ssa_srcp_n(struct ir3_instruction *instr, unsigned n)
 #define foreach_instr_from_safe(__instr, __start, __list)                      \
    list_for_each_entry_from_safe(struct ir3_instruction, __instr, __start,     \
                                  __list, node)
+
+/* Iterate over all instructions in a repeat group. */
+#define foreach_instr_rpt(__rpt, __instr)                                      \
+   if (assert(ir3_instr_is_first_rpt(__instr)), true)                          \
+      for (struct ir3_instruction *__rpt = __instr, *__first = __instr;        \
+           __first || __rpt != __instr;                                        \
+           __first = NULL, __rpt =                                             \
+                              list_entry(__rpt->rpt_node.next,                 \
+                                         struct ir3_instruction, rpt_node))
+
+/* Iterate over all instructions except the first one in a repeat group. */
+#define foreach_instr_rpt_excl(__rpt, __instr)                                 \
+   if (assert(ir3_instr_is_first_rpt(__instr)), true)                          \
+      list_for_each_entry (struct ir3_instruction, __rpt, &__instr->rpt_node,  \
+                           rpt_node)
+
+#define foreach_instr_rpt_excl_safe(__rpt, __instr)                            \
+   if (assert(ir3_instr_is_first_rpt(__instr)), true)                          \
+      list_for_each_entry_safe (struct ir3_instruction, __rpt,                 \
+                                &__instr->rpt_node, rpt_node)
 
 /* iterators for blocks: */
 #define foreach_block(__block, __list)                                         \

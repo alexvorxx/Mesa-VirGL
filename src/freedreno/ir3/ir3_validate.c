@@ -182,10 +182,45 @@ validate_dst(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr,
    validate_assert(                                                            \
       ctx, (type_size(type) <= 16) == !!((reg)->flags & IR3_REG_HALF))
 
+static bool
+block_contains(struct ir3_block *block, struct ir3_instruction *instr)
+{
+   foreach_instr (block_instr, &block->instr_list) {
+      if (block_instr == instr)
+         return true;
+   }
+
+   return false;
+}
+
+static void
+validate_rpt(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr)
+{
+   if (ir3_instr_is_first_rpt(instr)) {
+      /* All instructions in a repeat group should be in the same block as the
+       * first one.
+       */
+      foreach_instr_rpt (rpt, instr) {
+         validate_assert(ctx, rpt->block == instr->block);
+
+         /* Validate that the block actually contains the repeat. This would
+          * fail if, for example, list_delinit is called instead of
+          * ir3_instr_remove.
+          */
+         validate_assert(ctx, block_contains(instr->block, rpt));
+      }
+   } else if (instr->repeat) {
+      validate_assert(ctx, ir3_supports_rpt(instr->opc));
+      validate_assert(ctx, !instr->nop);
+   }
+}
+
 static void
 validate_instr(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr)
 {
    struct ir3_register *last_reg = NULL;
+
+   validate_rpt(ctx, instr);
 
    foreach_src_n (reg, n, instr) {
       if (reg->flags & IR3_REG_RELATIV)
