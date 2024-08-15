@@ -170,7 +170,7 @@ anv_device_utrace_flush_cmd_buffers(struct anv_queue *queue,
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    result = anv_async_submit_init(&submit->base, queue,
-                                  &device->utrace_bo_pool,
+                                  &device->batch_bo_pool,
                                   false, true);
    if (result != VK_SUCCESS)
       goto error_async;
@@ -580,7 +580,7 @@ anv_queue_trace(struct anv_queue *queue, const char *label, bool frame, bool beg
       return;
 
    result = anv_async_submit_init(&submit->base, queue,
-                                  &device->utrace_bo_pool,
+                                  &device->batch_bo_pool,
                                   false, true);
    if (result != VK_SUCCESS)
       goto error_async;
