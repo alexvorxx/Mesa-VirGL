@@ -689,6 +689,8 @@ debian-x86_32:
       -D intel-clc=enabled
       -D install-intel-clc=true
 
+# While s390 is dead, s390x is very much alive, and one of the last major
+# big-endian platforms, so it provides useful coverage.
 debian-s390x:
   extends:
     - debian-ppc64el
