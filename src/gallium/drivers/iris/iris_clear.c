@@ -529,6 +529,27 @@ fast_clear_depth(struct iris_context *ice,
 
    bool update_clear_depth = false;
 
+   if (res->aux.usage == ISL_AUX_USAGE_HIZ_CCS_WT) {
+      /* From Bspec 47010 (Depth Buffer Clear):
+       *
+       *    Since the fast clear cycles to CCS are not cached in TileCache,
+       *    any previous depth buffer writes to overlapping pixels must be
+       *    flushed out of TileCache before a succeeding Depth Buffer Clear.
+       *    This restriction only applies to Depth Buffer with write-thru
+       *    enabled, since fast clears to CCS only occur for write-thru mode.
+       *
+       * There may have been a write to this depth buffer. Flush it from the
+       * tile cache just in case.
+       *
+       * Set CS stall bit to guarantee that the fast clear starts the execution
+       * after the tile cache flush completed.
+       */
+      iris_emit_pipe_control_flush(batch, "hiz_ccs_wt: before fast clear",
+                                   PIPE_CONTROL_DEPTH_CACHE_FLUSH |
+                                   PIPE_CONTROL_CS_STALL |
+                                   PIPE_CONTROL_TILE_CACHE_FLUSH);
+   }
+
    /* If we're clearing to a new clear value, then we need to resolve any clear
     * flags out of the HiZ buffer into the real depth buffer.
     */
@@ -584,27 +605,6 @@ fast_clear_depth(struct iris_context *ice,
          iris_emit_pipe_control_flush(batch, "flush fast clear values (z)",
                                       PIPE_CONTROL_STATE_CACHE_INVALIDATE);
       }
-   }
-
-   if (res->aux.usage == ISL_AUX_USAGE_HIZ_CCS_WT) {
-      /* From Bspec 47010 (Depth Buffer Clear):
-       *
-       *    Since the fast clear cycles to CCS are not cached in TileCache,
-       *    any previous depth buffer writes to overlapping pixels must be
-       *    flushed out of TileCache before a succeeding Depth Buffer Clear.
-       *    This restriction only applies to Depth Buffer with write-thru
-       *    enabled, since fast clears to CCS only occur for write-thru mode.
-       *
-       * There may have been a write to this depth buffer. Flush it from the
-       * tile cache just in case.
-       *
-       * Set CS stall bit to guarantee that the fast clear starts the execution
-       * after the tile cache flush completed.
-       */
-      iris_emit_pipe_control_flush(batch, "hiz_ccs_wt: before fast clear",
-                                   PIPE_CONTROL_DEPTH_CACHE_FLUSH |
-                                   PIPE_CONTROL_CS_STALL |
-                                   PIPE_CONTROL_TILE_CACHE_FLUSH);
    }
 
    for (unsigned l = 0; l < box->depth; l++) {
