@@ -224,7 +224,6 @@
     - !reference [.never-post-merge-rules, rules]
     - !reference [.no_scheduled_pipelines-rules, rules]
     - !reference [.zink-common-rules, rules]
-    - !reference [.softpipe-rules, rules]
     - !reference [.llvmpipe-rules, rules]
     - !reference [.lavapipe-rules, rules]
 

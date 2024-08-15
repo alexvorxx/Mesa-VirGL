@@ -701,7 +701,7 @@ debian-s390x:
     - kvm
   variables:
     CROSS: s390x
-    GALLIUM_DRIVERS: "llvmpipe,softpipe,zink"
+    GALLIUM_DRIVERS: "llvmpipe,zink"
     LLVM_VERSION: 15
     VULKAN_DRIVERS: "swrast"
     DRI_LOADERS:
