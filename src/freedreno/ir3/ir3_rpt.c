@@ -5,6 +5,52 @@
 
 #include "ir3_nir.h"
 
+bool
+ir3_supports_vectorized_nir_op(nir_op op)
+{
+   switch (op) {
+      /* TODO: emitted as absneg which can often be folded away (e.g., into
+       * (neg)). This seems to often fail when repeated.
+       */
+   case nir_op_b2b1:
+
+      /* dsx/dsy don't seem to support repeat. */
+   case nir_op_fddx:
+   case nir_op_fddx_coarse:
+   case nir_op_fddx_fine:
+   case nir_op_fddy:
+   case nir_op_fddy_coarse:
+   case nir_op_fddy_fine:
+
+      /* dp2acc/dp4acc don't seem to support repeat. */
+   case nir_op_udot_4x8_uadd:
+   case nir_op_udot_4x8_uadd_sat:
+   case nir_op_sudot_4x8_iadd:
+   case nir_op_sudot_4x8_iadd_sat:
+
+      /* Among SFU instructions, only rcp doesn't seem to support repeat. */
+   case nir_op_frcp:
+      return false;
+
+   default:
+      return true;
+   }
+}
+
+uint8_t
+ir3_nir_vectorize_filter(const nir_instr *instr, const void *data)
+{
+   if (instr->type != nir_instr_type_alu)
+      return 0;
+
+   struct nir_alu_instr *alu = nir_instr_as_alu(instr);
+
+   if (!ir3_supports_vectorized_nir_op(alu->op))
+      return 0;
+
+   return 4;
+}
+
 static void
 rpt_list_split(struct list_head *list, struct list_head *at)
 {
