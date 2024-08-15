@@ -76,7 +76,8 @@ anv_device_init_trivial_batch(struct anv_device *device)
    VkResult result = anv_device_alloc_bo(device, "trivial-batch", 4096,
                                          ANV_BO_ALLOC_MAPPED |
                                          ANV_BO_ALLOC_HOST_COHERENT |
-                                         ANV_BO_ALLOC_INTERNAL,
+                                         ANV_BO_ALLOC_INTERNAL |
+                                         ANV_BO_ALLOC_CAPTURE,
                                          0 /* explicit_address */,
                                          &device->trivial_batch_bo);
    if (result != VK_SUCCESS)
