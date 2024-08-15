@@ -2614,11 +2614,13 @@ emit_gs_input_load(nir_to_brw_state &ntb, const brw_reg &dst,
 
    brw_reg start = s.gs_payload().icp_handle_start;
    brw_reg icp_handle = ntb.bld.vgrf(BRW_TYPE_UD);
+   const unsigned grf_size_bytes = REG_SIZE * reg_unit(devinfo);
 
    if (gs_prog_data->invocations == 1) {
       if (nir_src_is_const(vertex_src)) {
          /* The vertex index is constant; just select the proper URB handle. */
-         icp_handle = offset(start, ntb.bld, nir_src_as_uint(vertex_src));
+         icp_handle =
+            byte_offset(start, nir_src_as_uint(vertex_src) * grf_size_bytes);
       } else {
          /* The vertex index is non-constant.  We need to use indirect
           * addressing to fetch the proper URB handle.
@@ -2628,17 +2630,18 @@ emit_gs_input_load(nir_to_brw_state &ntb, const brw_reg &dst,
           * DWord <n>.  We convert that to bytes by multiplying by 4.
           *
           * Next, we convert the vertex index to bytes by multiplying
-          * by 32 (shifting by 5), and add the two together.  This is
+          * by 32/64 (shifting by 5/6), and add the two together.  This is
           * the final indirect byte offset.
           */
          brw_reg sequence = bld.LOAD_SUBGROUP_INVOCATION();
 
          /* channel_offsets = 4 * sequence = <28, 24, 20, 16, 12, 8, 4, 0> */
          brw_reg channel_offsets = bld.SHL(sequence, brw_imm_ud(2u));
-         /* Convert vertex_index to bytes (multiply by 32) */
+         /* Convert vertex_index to bytes (multiply by 32/64) */
+         assert(util_is_power_of_two_nonzero(grf_size_bytes)); /* for ffs() */
          brw_reg vertex_offset_bytes =
             bld.SHL(retype(get_nir_src(ntb, vertex_src), BRW_TYPE_UD),
-                    brw_imm_ud(5u));
+                    brw_imm_ud(ffs(grf_size_bytes) - 1));
          brw_reg icp_offset_bytes =
             bld.ADD(vertex_offset_bytes, channel_offsets);
 
@@ -2648,7 +2651,7 @@ emit_gs_input_load(nir_to_brw_state &ntb, const brw_reg &dst,
           */
          bld.emit(SHADER_OPCODE_MOV_INDIRECT, icp_handle, start,
                   brw_reg(icp_offset_bytes),
-                  brw_imm_ud(s.nir->info.gs.vertices_in * REG_SIZE));
+                  brw_imm_ud(s.nir->info.gs.vertices_in * grf_size_bytes));
       }
    } else {
       assert(gs_prog_data->invocations > 1);
@@ -2673,7 +2676,7 @@ emit_gs_input_load(nir_to_brw_state &ntb, const brw_reg &dst,
          bld.emit(SHADER_OPCODE_MOV_INDIRECT, icp_handle, start,
                   brw_reg(icp_offset_bytes),
                   brw_imm_ud(DIV_ROUND_UP(s.nir->info.gs.vertices_in, 8) *
-                             REG_SIZE));
+                             grf_size_bytes));
       }
    }
 
