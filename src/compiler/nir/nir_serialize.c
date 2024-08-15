@@ -537,8 +537,8 @@ union packed_instr {
       unsigned instr_type : 4;
       unsigned deref_type : 3;
       unsigned cast_type_same_as_last : 1;
-      unsigned modes : 5; /* See (de|en)code_deref_modes() */
-      unsigned _pad : 9;
+      unsigned modes : 6; /* See (de|en)code_deref_modes() */
+      unsigned _pad : 8;
       unsigned in_bounds : 1;
       unsigned packed_src_ssa_16bit : 1; /* deref_var redefines this */
       unsigned def : 8;
@@ -832,7 +832,7 @@ read_alu(read_ctx *ctx, union packed_instr header)
 }
 
 #define NUM_GENERIC_MODES 4
-#define MODE_ENC_GENERIC_BIT (1 << 4)
+#define MODE_ENC_GENERIC_BIT (1 << 5)
 
 static nir_variable_mode
 decode_deref_modes(unsigned modes)
@@ -853,7 +853,7 @@ encode_deref_modes(nir_variable_mode modes)
     * case, we need the full bitfield.  Fortunately, there are only 4 of
     * these.  For all other modes, we can only have one mode at a time so we
     * can compress them by only storing the bit position.  This, plus one bit
-    * to select encoding, lets us pack the entire bitfield in 5 bits.
+    * to select encoding, lets us pack the entire bitfield in 6 bits.
     */
 
    /* Assert that the modes we are compressing fit along with the generic bit
