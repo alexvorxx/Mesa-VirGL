@@ -1653,7 +1653,8 @@ lsc_bits_to_data_size(unsigned bit_size)
 }
 
 static void
-lower_lsc_surface_logical_send(const fs_builder &bld, fs_inst *inst)
+lower_lsc_surface_logical_send(bblock_t *block, const fs_builder &bld,
+                               fs_inst *inst)
 {
    const brw_compiler *compiler = bld.shader->compiler;
    const intel_device_info *devinfo = bld.shader->devinfo;
@@ -1809,6 +1810,20 @@ lower_lsc_surface_logical_send(const fs_builder &bld, fs_inst *inst)
    inst->send_is_volatile = !has_side_effects;
    inst->send_ex_bso = surf_type == LSC_ADDR_SURFTYPE_BSS &&
                        compiler->extended_bindless_surface_offset;
+
+   /* Messages with destination datatypes narrower than a dword use a
+    * D*32 LSC data size, update the destination to use a temporary of
+    * the raw (UD) return payload datatype.
+    */
+   if (dst_sz < 4) {
+      assert(lsc_data_size_bytes(lsc_bits_to_data_size(dst_sz * 8)) == 4);
+      assert(inst->size_written == inst->dst.component_size(inst->exec_size));
+      const brw_reg dest32 = bld.vgrf(BRW_TYPE_UD);
+      const brw_reg_type t = brw_int_type(dst_sz, false);
+      bld.at(block, inst->next).MOV(retype(inst->dst, t), dest32);
+      inst->dst = dest32;
+      inst->size_written = inst->dst.component_size(inst->exec_size);
+   }
 
    inst->resize_sources(4);
 
@@ -2032,7 +2047,7 @@ emit_fragment_mask(const fs_builder &bld, fs_inst *inst)
 }
 
 static void
-lower_lsc_a64_logical_send(const fs_builder &bld, fs_inst *inst)
+lower_lsc_a64_logical_send(bblock_t *block, const fs_builder &bld, fs_inst *inst)
 {
    const intel_device_info *devinfo = bld.shader->devinfo;
 
@@ -2143,6 +2158,20 @@ lower_lsc_a64_logical_send(const fs_builder &bld, fs_inst *inst)
    inst->header_size = 0;
    inst->send_has_side_effects = has_side_effects;
    inst->send_is_volatile = !has_side_effects;
+
+   /* Messages with destination datatypes narrower than a dword use a
+    * D*32 LSC data size, update the destination to use a temporary of
+    * the raw (UD) return payload datatype.
+    */
+   if (dst_sz < 4) {
+      assert(lsc_data_size_bytes(lsc_bits_to_data_size(dst_sz * 8)) == 4);
+      assert(inst->size_written == inst->dst.component_size(inst->exec_size));
+      const brw_reg dest32 = bld.vgrf(BRW_TYPE_UD);
+      const brw_reg_type t = brw_int_type(dst_sz, false);
+      bld.at(block, inst->next).MOV(retype(inst->dst, t), dest32);
+      inst->dst = dest32;
+      inst->size_written = inst->dst.component_size(inst->exec_size);
+   }
 
    /* Set up SFID and descriptors */
    inst->sfid = GFX12_SFID_UGM;
@@ -2805,7 +2834,7 @@ brw_fs_lower_logical_sends(fs_visitor &s)
       case SHADER_OPCODE_DWORD_SCATTERED_READ_LOGICAL:
       case SHADER_OPCODE_DWORD_SCATTERED_WRITE_LOGICAL:
          if (devinfo->has_lsc)
-            lower_lsc_surface_logical_send(ibld, inst);
+            lower_lsc_surface_logical_send(block, ibld, inst);
          else
             lower_surface_logical_send(ibld, inst);
          break;
@@ -2814,7 +2843,7 @@ brw_fs_lower_logical_sends(fs_visitor &s)
       case SHADER_OPCODE_TYPED_SURFACE_WRITE_LOGICAL:
       case SHADER_OPCODE_TYPED_ATOMIC_LOGICAL:
          devinfo->ver >= 20 && devinfo->has_lsc ?
-            lower_lsc_surface_logical_send(ibld, inst) :
+            lower_lsc_surface_logical_send(block, ibld, inst) :
             lower_surface_logical_send(ibld, inst);
          break;
 
@@ -2836,7 +2865,7 @@ brw_fs_lower_logical_sends(fs_visitor &s)
       case SHADER_OPCODE_A64_UNALIGNED_OWORD_BLOCK_READ_LOGICAL:
       case SHADER_OPCODE_A64_OWORD_BLOCK_WRITE_LOGICAL:
          if (devinfo->has_lsc) {
-            lower_lsc_a64_logical_send(ibld, inst);
+            lower_lsc_a64_logical_send(block, ibld, inst);
             break;
          }
          lower_a64_logical_send(ibld, inst);

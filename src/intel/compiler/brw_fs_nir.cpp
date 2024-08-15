@@ -8165,32 +8165,9 @@ fs_nir_emit_surface_atomic(nir_to_brw_state &ntb, const fs_builder &bld,
    }
    srcs[SURFACE_LOGICAL_SRC_DATA] = data;
 
-   fs_inst *inst;
-   unsigned size_written = 0;
    /* Emit the actual atomic operation */
-   switch (instr->def.bit_size) {
-      case 16: {
-         brw_reg dest32 = bld.vgrf(BRW_TYPE_UD);
-         inst = bld.emit(SHADER_OPCODE_UNTYPED_ATOMIC_LOGICAL,
-                         retype(dest32, dest.type),
-                         srcs, SURFACE_LOGICAL_NUM_SRCS);
-         size_written = dest32.component_size(inst->exec_size);
-         bld.MOV(retype(dest, BRW_TYPE_UW), dest32);
-         break;
-      }
-
-      case 32:
-      case 64:
-         inst = bld.emit(SHADER_OPCODE_UNTYPED_ATOMIC_LOGICAL,
-                         dest, srcs, SURFACE_LOGICAL_NUM_SRCS);
-         size_written = dest.component_size(inst->exec_size);
-         break;
-      default:
-         unreachable("Unsupported bit size");
-   }
-
-   assert(size_written);
-   inst->size_written = size_written * instr->def.num_components;
+   bld.emit(SHADER_OPCODE_UNTYPED_ATOMIC_LOGICAL, dest, srcs,
+            SURFACE_LOGICAL_NUM_SRCS);
 }
 
 static void
@@ -8224,30 +8201,8 @@ fs_nir_emit_global_atomic(nir_to_brw_state &ntb, const fs_builder &bld,
    srcs[A64_LOGICAL_ARG] = brw_imm_ud(op);
    srcs[A64_LOGICAL_ENABLE_HELPERS] = brw_imm_ud(0);
 
-   fs_inst *inst;
-   unsigned size_written = 0;
-   switch (instr->def.bit_size) {
-   case 16: {
-      brw_reg dest32 = bld.vgrf(BRW_TYPE_UD);
-      inst = bld.emit(SHADER_OPCODE_A64_UNTYPED_ATOMIC_LOGICAL,
-                      retype(dest32, dest.type),
-                      srcs, A64_LOGICAL_NUM_SRCS);
-      size_written = dest32.component_size(inst->exec_size);
-      bld.MOV(retype(dest, BRW_TYPE_UW), dest32);
-      break;
-   }
-   case 32:
-   case 64:
-      inst = bld.emit(SHADER_OPCODE_A64_UNTYPED_ATOMIC_LOGICAL, dest,
-                      srcs, A64_LOGICAL_NUM_SRCS);
-      size_written = dest.component_size(inst->exec_size);
-      break;
-   default:
-      unreachable("Unsupported bit size");
-   }
-
-   assert(size_written);
-   inst->size_written = size_written * instr->def.num_components;
+   bld.emit(SHADER_OPCODE_A64_UNTYPED_ATOMIC_LOGICAL, dest,
+            srcs, A64_LOGICAL_NUM_SRCS);
 }
 
 static void
