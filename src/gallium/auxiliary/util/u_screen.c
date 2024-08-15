@@ -73,7 +73,6 @@ u_pipe_screen_get_param_defaults(struct pipe_screen *pscreen,
       return 0;
 
    case PIPE_CAP_MAX_TEXTURE_2D_SIZE:
-   case PIPE_CAP_MAX_TEXTURE_3D_LEVELS:
    case PIPE_CAP_MAX_TEXTURE_CUBE_LEVELS:
       unreachable("driver must implement these.");
 
@@ -86,6 +85,7 @@ u_pipe_screen_get_param_defaults(struct pipe_screen *pscreen,
    case PIPE_CAP_PRIMITIVE_RESTART_FIXED_INDEX:
    case PIPE_CAP_INDEP_BLEND_ENABLE:
    case PIPE_CAP_INDEP_BLEND_FUNC:
+   case PIPE_CAP_MAX_TEXTURE_3D_LEVELS:
    case PIPE_CAP_MAX_TEXTURE_ARRAY_LAYERS: /* Enables GL_EXT_texture_array */
    case PIPE_CAP_FS_COORD_ORIGIN_UPPER_LEFT:
    case PIPE_CAP_FS_COORD_ORIGIN_LOWER_LEFT:

@@ -651,7 +651,6 @@ _eglComputeVersion(_EGLDisplay *disp)
    if (disp->Extensions.KHR_fence_sync && disp->Extensions.KHR_cl_event2 &&
        disp->Extensions.KHR_wait_sync && disp->Extensions.KHR_image_base &&
        disp->Extensions.KHR_gl_texture_2D_image &&
-       disp->Extensions.KHR_gl_texture_3D_image &&
        disp->Extensions.KHR_gl_texture_cubemap_image &&
        disp->Extensions.KHR_gl_renderbuffer_image &&
        disp->Extensions.KHR_create_context &&
