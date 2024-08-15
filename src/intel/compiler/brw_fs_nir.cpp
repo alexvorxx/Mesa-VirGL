@@ -3375,7 +3375,6 @@ fs_nir_emit_gs_intrinsic(nir_to_brw_state &ntb,
    fs_visitor &s = ntb.s;
 
    assert(s.stage == MESA_SHADER_GEOMETRY);
-   brw_reg indirect_offset;
 
    brw_reg dest;
    if (nir_intrinsic_infos[instr->intrinsic].has_dest)
