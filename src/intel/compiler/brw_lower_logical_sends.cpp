@@ -1546,6 +1546,19 @@ lower_lsc_memory_logical_send(const fs_builder &bld, fs_inst *inst)
    }
    assert(inst->sfid);
 
+   /* Disable LSC data port L1 cache scheme for the TGM load/store for RT
+    * shaders. (see HSD 18038444588)
+    */
+   if (devinfo->ver >= 20 && gl_shader_stage_is_rt(bld.shader->stage) &&
+       inst->sfid == GFX12_SFID_TGM &&
+       !lsc_opcode_is_atomic(op)) {
+      if (lsc_opcode_is_store(op)) {
+         cache_mode = (unsigned) LSC_CACHE(devinfo, STORE, L1UC_L3WB);
+      } else {
+         cache_mode = (unsigned) LSC_CACHE(devinfo, LOAD, L1UC_L3C);
+      }
+   }
+
    inst->desc = lsc_msg_desc(devinfo, op, binding_type, addr_size, data_size,
                              lsc_opcode_has_cmask(op) ?
                              (1 << components) - 1 : components,
