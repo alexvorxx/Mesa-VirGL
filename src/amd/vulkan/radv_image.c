@@ -1102,7 +1102,8 @@ radv_image_create_layout(struct radv_device *device, struct radv_image_create_in
    if (image->vk.usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
                           VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
                           VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR)) {
-      assert(profile_list);
+      if (!device->vk.enabled_features.videoMaintenance1)
+         assert(profile_list);
       uint32_t width_align, height_align;
       radv_video_get_profile_alignments(pdev, profile_list, &width_align, &height_align);
       image_info.width = align(image_info.width, width_align);

@@ -2706,14 +2706,18 @@ radv_video_get_profile_alignments(struct radv_physical_device *pdev, const VkVid
 {
    vk_video_get_profile_alignments(profile_list, width_align_out, height_align_out);
    bool is_h265_main_10 = false;
-   for (unsigned i = 0; i < profile_list->profileCount; i++) {
-      if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR) {
-         const struct VkVideoDecodeH265ProfileInfoKHR *h265_profile =
-            vk_find_struct_const(profile_list->pProfiles[i].pNext, VIDEO_DECODE_H265_PROFILE_INFO_KHR);
-         if (h265_profile->stdProfileIdc == STD_VIDEO_H265_PROFILE_IDC_MAIN_10)
-            is_h265_main_10 = true;
+
+   if (profile_list) {
+      for (unsigned i = 0; i < profile_list->profileCount; i++) {
+         if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR) {
+            const struct VkVideoDecodeH265ProfileInfoKHR *h265_profile =
+               vk_find_struct_const(profile_list->pProfiles[i].pNext, VIDEO_DECODE_H265_PROFILE_INFO_KHR);
+            if (h265_profile->stdProfileIdc == STD_VIDEO_H265_PROFILE_IDC_MAIN_10)
+               is_h265_main_10 = true;
+         }
       }
-   }
+   } else
+      is_h265_main_10 = true;
 
    uint32_t db_alignment = radv_video_get_db_alignment(pdev, 64, is_h265_main_10);
    *width_align_out = MAX2(*width_align_out, db_alignment);
