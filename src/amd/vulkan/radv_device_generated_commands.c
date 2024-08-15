@@ -1018,9 +1018,22 @@ dgc_emit_draw_indexed(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *draw
 /**
  * Emit VK_INDIRECT_COMMANDS_TOKEN_TYPE_INDEX_BUFFER_NV.
  */
+static nir_def *
+dgc_get_index_type(struct dgc_cmdbuf *cs, nir_def *user_index_type)
+{
+   nir_builder *b = cs->b;
+
+   nir_def *ibo_type_32 = load_param32(b, ibo_type_32);
+   nir_def *ibo_type_8 = load_param32(b, ibo_type_8);
+
+   nir_def *index_type = nir_bcsel(b, nir_ieq(b, user_index_type, ibo_type_32), nir_imm_int(b, V_028A7C_VGT_INDEX_32),
+                                   nir_imm_int(b, V_028A7C_VGT_INDEX_16));
+   return nir_bcsel(b, nir_ieq(b, user_index_type, ibo_type_8), nir_imm_int(b, V_028A7C_VGT_INDEX_8), index_type);
+}
+
 static void
-dgc_emit_index_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *index_buffer_offset, nir_def *ibo_type_32,
-                      nir_def *ibo_type_8, nir_variable *max_index_count_var)
+dgc_emit_index_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *index_buffer_offset,
+                      nir_variable *max_index_count_var)
 {
    const struct radv_device *device = cs->dev;
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -1029,11 +1042,7 @@ dgc_emit_index_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *inde
    nir_def *data = nir_build_load_global(b, 4, 32, nir_iadd(b, stream_addr, nir_u2u64(b, index_buffer_offset)),
                                          .access = ACCESS_NON_WRITEABLE);
 
-   nir_def *vk_index_type = nir_channel(b, data, 3);
-   nir_def *index_type = nir_bcsel(b, nir_ieq(b, vk_index_type, ibo_type_32), nir_imm_int(b, V_028A7C_VGT_INDEX_32),
-                                   nir_imm_int(b, V_028A7C_VGT_INDEX_16));
-   index_type = nir_bcsel(b, nir_ieq(b, vk_index_type, ibo_type_8), nir_imm_int(b, V_028A7C_VGT_INDEX_8), index_type);
-
+   nir_def *index_type = dgc_get_index_type(cs, nir_channel(b, data, 3));
    nir_def *index_size = nir_iand_imm(b, nir_ushr(b, nir_imm_int(b, 0x142), nir_imul_imm(b, index_type, 4)), 0xf);
 
    nir_def *max_index_count = nir_udiv(b, nir_channel(b, data, 2), index_size);
@@ -1986,8 +1995,7 @@ build_dgc_prepare_shader(struct radv_device *dev)
                nir_variable *max_index_count_var =
                   nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "max_index_count");
 
-               dgc_emit_index_buffer(&cmd_buf, stream_addr, load_param16(&b, index_buffer_offset),
-                                     load_param32(&b, ibo_type_32), load_param32(&b, ibo_type_8), max_index_count_var);
+               dgc_emit_index_buffer(&cmd_buf, stream_addr, load_param16(&b, index_buffer_offset), max_index_count_var);
 
                nir_def *max_index_count = nir_load_var(&b, max_index_count_var);
 
