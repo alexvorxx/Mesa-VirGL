@@ -115,3 +115,141 @@ ir3_cleanup_rpt(struct ir3 *ir, struct ir3_shader_variant *v)
 
    return progress;
 }
+
+enum rpt_src_type {
+   RPT_INCOMPATIBLE, /* Incompatible sources. */
+   RPT_SET,          /* Compatible sources that need (r) set. */
+   RPT_DONT_SET,     /* Compatible sources that don't need (r) set. */
+};
+
+static enum rpt_src_type
+srcs_rpt_compatible(struct ir3_instruction *instr, struct ir3_register *src,
+                    struct ir3_register *rpt_src)
+{
+   /* Shared RA may have demoted some sources from shared to non-shared. When
+    * this happened for some but not all instructions in a repeat group, the
+    * assert below would trigger. Detect this here.
+    */
+   if ((src->flags & IR3_REG_SHARED) != (rpt_src->flags & IR3_REG_SHARED))
+      return RPT_INCOMPATIBLE;
+
+   assert(srcs_can_rpt(src, rpt_src));
+
+   if (src->flags & IR3_REG_IMMED)
+      return RPT_DONT_SET;
+
+   if (rpt_src->num == src->num + instr->repeat + 1) {
+      if ((src->flags & IR3_REG_R) || instr->repeat == 0)
+         return RPT_SET;
+      return RPT_INCOMPATIBLE;
+   }
+
+   if (rpt_src->num == src->num && !(src->flags & IR3_REG_R))
+      return RPT_DONT_SET;
+   return RPT_INCOMPATIBLE;
+}
+
+static unsigned
+inc_wrmask(unsigned wrmask)
+{
+   return (wrmask << 1) | 0x1;
+}
+
+static bool
+try_merge(struct ir3_instruction *instr, struct ir3_instruction *rpt,
+          unsigned rpt_n)
+{
+   assert(rpt_n > 0 && rpt_n < 4);
+   assert(instr->opc == rpt->opc);
+   assert(instr->dsts_count == 1 && rpt->dsts_count == 1);
+   assert(instr->srcs_count == rpt->srcs_count);
+   assert(rpt_compatible_instr_flags(instr) == rpt_compatible_instr_flags(rpt));
+
+   struct ir3_register *dst = instr->dsts[0];
+   struct ir3_register *rpt_dst = rpt->dsts[0];
+
+   if (rpt->ip != instr->ip + rpt_n)
+      return false;
+   if (rpt_dst->num != dst->num + rpt_n)
+      return false;
+
+   enum rpt_src_type srcs_rpt[instr->srcs_count];
+
+   foreach_src_n (src, src_n, instr) {
+      srcs_rpt[src_n] = srcs_rpt_compatible(instr, src, rpt->srcs[src_n]);
+
+      if (srcs_rpt[src_n] == RPT_INCOMPATIBLE)
+         return false;
+   }
+
+   foreach_src_n (src, src_n, instr) {
+      assert((src->flags & ~(IR3_REG_R | IR3_REG_KILL | IR3_REG_FIRST_KILL)) ==
+             (rpt->srcs[src_n]->flags & ~(IR3_REG_KILL | IR3_REG_FIRST_KILL)));
+
+      if (srcs_rpt[src_n] == RPT_SET) {
+         src->flags |= IR3_REG_R;
+         src->wrmask = inc_wrmask(src->wrmask);
+      }
+   }
+
+   dst->wrmask = inc_wrmask(dst->wrmask);
+   return true;
+}
+
+static bool
+merge_instr(struct ir3_instruction *instr)
+{
+   if (!ir3_instr_is_first_rpt(instr))
+      return false;
+
+   bool progress = false;
+
+   unsigned rpt_n = 1;
+
+   foreach_instr_rpt_excl_safe (rpt, instr) {
+      /* When rpt cannot be merged, stop immediately. We will try to merge rpt
+       * with the following instructions (if any) once we encounter it in
+       * ir3_combine_rpt.
+       */
+      if (!try_merge(instr, rpt, rpt_n))
+         break;
+
+      instr->repeat++;
+
+      /* We cannot remove the rpt immediately since when it is the instruction
+       * after instr, foreach_instr_safe will fail. So mark it instead and
+       * remove it in ir3_combine_rpt when we encounter it.
+       */
+      rpt->flags |= IR3_INSTR_MARK;
+      list_delinit(&rpt->rpt_node);
+      ++rpt_n;
+      progress = true;
+   }
+
+   list_delinit(&instr->rpt_node);
+   return progress;
+}
+
+/* Merge compatible instructions in a repetition group into one or more rpt
+ * instructions.
+ */
+bool
+ir3_merge_rpt(struct ir3 *ir, struct ir3_shader_variant *v)
+{
+   ir3_clear_mark(ir);
+   ir3_count_instructions(ir);
+   bool progress = false;
+
+   foreach_block (block, &ir->block_list) {
+      foreach_instr_safe (instr, &block->instr_list) {
+         if (instr->flags & IR3_INSTR_MARK) {
+            list_delinit(&instr->node);
+            continue;
+         }
+
+         progress |= merge_instr(instr);
+      }
+   }
+
+   return progress;
+}

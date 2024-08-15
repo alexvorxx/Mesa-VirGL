@@ -2163,6 +2163,7 @@ soft_sy_delay(struct ir3_instruction *instr, struct ir3 *shader)
 }
 
 bool ir3_cleanup_rpt(struct ir3 *ir, struct ir3_shader_variant *v);
+bool ir3_merge_rpt(struct ir3 *ir, struct ir3_shader_variant *v);
 bool ir3_opt_predicates(struct ir3 *ir, struct ir3_shader_variant *v);
 
 /* unreachable block elimination: */
