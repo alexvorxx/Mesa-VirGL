@@ -14,6 +14,8 @@ files_libintel_common = files(
   'xe/intel_engine.h',
   'xe/intel_gem.c',
   'xe/intel_gem.h',
+  'xe/intel_queue.c',
+  'xe/intel_queue.h',
   'intel_aux_map.c',
   'intel_aux_map.h',
   'intel_bind_timeline.c',
