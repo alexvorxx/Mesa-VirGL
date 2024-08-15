@@ -155,7 +155,15 @@ ir3_context_init(struct ir3_compiler *compiler, struct ir3_shader *shader,
 
       unsigned instruction_count = 0;
       nir_foreach_block (block, fxn) {
-         instruction_count += exec_list_length(&block->instr_list);
+         nir_foreach_instr (instr, block) {
+            /* Vectorized ALU instructions expand to one scalar instruction per
+             * component.
+             */
+            if (instr->type == nir_instr_type_alu)
+               instruction_count += nir_instr_as_alu(instr)->def.num_components;
+            else
+               instruction_count++;
+         }
       }
 
       if (instruction_count < 50) {
