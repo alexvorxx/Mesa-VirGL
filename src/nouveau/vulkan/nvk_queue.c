@@ -460,7 +460,7 @@ nvk_queue_init_context_state(struct nvk_queue *queue,
    struct nvk_physical_device *pdev = nvk_device_physical(dev);
    VkResult result;
 
-   uint32_t push_data[1024 * 3];
+   uint32_t push_data[4096];
    struct nv_push push;
    nv_push_init(&push, push_data, ARRAY_SIZE(push_data));
    struct nv_push *p = &push;
