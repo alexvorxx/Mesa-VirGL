@@ -151,28 +151,38 @@ create_input(struct ir3_context *ctx, unsigned compmask)
    return in;
 }
 
-static struct ir3_instruction *
+static struct ir3_instruction_rpt
 create_frag_input(struct ir3_context *ctx, struct ir3_instruction *coord,
-                  unsigned n)
+                  unsigned n, unsigned ncomp)
 {
    struct ir3_block *block = ctx->block;
-   struct ir3_instruction *instr;
+   struct ir3_instruction_rpt instr;
    /* packed inloc is fixed up later: */
-   struct ir3_instruction *inloc = create_immed(block, n);
+   struct ir3_instruction_rpt inloc;
+
+   for (unsigned i = 0; i < ncomp; i++)
+      inloc.rpts[i] = create_immed(block, n + i);
 
    if (coord) {
-      instr = ir3_BARY_F(block, inloc, 0, coord, 0);
+      instr =
+         ir3_BARY_F_rpt(block, ncomp, inloc, 0, rpt_instr(coord, ncomp), 0);
    } else if (ctx->compiler->flat_bypass) {
       if (ctx->compiler->gen >= 6) {
-         instr = ir3_FLAT_B(block, inloc, 0, inloc, 0);
+         instr = ir3_FLAT_B_rpt(block, ncomp, inloc, 0, inloc, 0);
       } else {
-         instr = ir3_LDLV(block, inloc, 0, create_immed(block, 1), 0);
-         instr->cat6.type = TYPE_U32;
-         instr->cat6.iim_val = 1;
+         for (unsigned i = 0; i < ncomp; i++) {
+            instr.rpts[i] =
+               ir3_LDLV(block, inloc.rpts[i], 0, create_immed(block, 1), 0);
+            instr.rpts[i]->cat6.type = TYPE_U32;
+            instr.rpts[i]->cat6.iim_val = 1;
+         }
       }
    } else {
-      instr = ir3_BARY_F(block, inloc, 0, ctx->ij[IJ_PERSP_PIXEL], 0);
-      instr->srcs[1]->wrmask = 0x3;
+      instr = ir3_BARY_F_rpt(block, ncomp, inloc, 0,
+                             rpt_instr(ctx->ij[IJ_PERSP_PIXEL], ncomp), 0);
+
+      for (unsigned i = 0; i < ncomp; i++)
+         instr.rpts[i]->srcs[1]->wrmask = 0x3;
    }
 
    return instr;
@@ -4714,11 +4724,10 @@ setup_input(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       compile_assert(ctx, slot != VARYING_SLOT_POS);
 
       so->inputs[n].bary = true;
-
-      for (int i = 0; i < ncomp; i++) {
-         unsigned idx = (n * 4) + i + frac;
-         ctx->last_dst[i] = create_frag_input(ctx, coord, idx);
-      }
+      unsigned idx = (n * 4) + frac;
+      struct ir3_instruction_rpt instr =
+         create_frag_input(ctx, coord, idx, ncomp);
+      cp_instrs(ctx->last_dst, instr.rpts, ncomp);
 
       if (slot == VARYING_SLOT_PRIMITIVE_ID)
          so->reads_primid = true;

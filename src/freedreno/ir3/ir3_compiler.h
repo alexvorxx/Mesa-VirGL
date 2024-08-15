@@ -291,6 +291,9 @@ struct ir3_compiler {
     * whether the shader can use early preamble in ir3.
     */
    bool has_early_preamble;
+
+   /* True if (rptN) is supported for bary.f. */
+   bool has_rpt_bary_f;
 };
 
 void ir3_compiler_destroy(struct ir3_compiler *compiler);

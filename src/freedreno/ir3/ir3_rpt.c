@@ -91,14 +91,30 @@ rpt_compatible_instr_flags(struct ir3_instruction *instr)
 }
 
 static bool
-srcs_can_rpt(struct ir3_register *src, struct ir3_register *rpt_src)
+supports_imm_r(unsigned opc)
+{
+   return opc == OPC_BARY_F || opc == OPC_FLAT_B;
+}
+
+static bool
+srcs_can_rpt(struct ir3_instruction *instr, struct ir3_register *src,
+             struct ir3_register *rpt_src, unsigned rpt_n)
 {
    if (rpt_illegal_src_flags(src) != 0 || rpt_illegal_src_flags(rpt_src) != 0)
       return false;
    if (rpt_compatible_src_flags(src) != rpt_compatible_src_flags(rpt_src))
       return false;
-   if ((src->flags & IR3_REG_IMMED) && src->uim_val != rpt_src->uim_val)
+   if (src->flags & IR3_REG_IMMED) {
+      uint32_t val = src->uim_val;
+      uint32_t rpt_val = rpt_src->uim_val;
+
+      if (rpt_val == val)
+         return true;
+      if (supports_imm_r(instr->opc))
+         return rpt_val == val + rpt_n;
       return false;
+   }
+
    return true;
 }
 
@@ -110,6 +126,8 @@ can_rpt(struct ir3_instruction *instr, struct ir3_instruction *rpt,
       return false;
    if (rpt->opc != instr->opc)
       return false;
+   if (!ir3_supports_rpt(instr->block->shader->compiler, instr->opc))
+      return false;
    if (rpt_compatible_instr_flags(rpt) != rpt_compatible_instr_flags(instr))
       return false;
    if (rpt_compatible_dst_flags(rpt) != rpt_compatible_dst_flags(instr))
@@ -118,7 +136,7 @@ can_rpt(struct ir3_instruction *instr, struct ir3_instruction *rpt,
       return false;
 
    foreach_src_n (src, src_n, instr) {
-      if (!srcs_can_rpt(src, rpt->srcs[src_n]))
+      if (!srcs_can_rpt(instr, src, rpt->srcs[src_n], rpt_n))
          return false;
    }
 
@@ -181,10 +199,17 @@ srcs_rpt_compatible(struct ir3_instruction *instr, struct ir3_register *src,
    if ((src->flags & IR3_REG_SHARED) != (rpt_src->flags & IR3_REG_SHARED))
       return RPT_INCOMPATIBLE;
 
-   assert(srcs_can_rpt(src, rpt_src));
+   assert(srcs_can_rpt(instr, src, rpt_src, instr->repeat + 1));
 
-   if (src->flags & IR3_REG_IMMED)
+   if (src->flags & IR3_REG_IMMED) {
+      if (supports_imm_r(instr->opc) &&
+          rpt_src->uim_val == src->uim_val + instr->repeat + 1) {
+         return RPT_SET;
+      }
+
+      assert(rpt_src->uim_val == src->uim_val);
       return RPT_DONT_SET;
+   }
 
    if (rpt_src->num == src->num + instr->repeat + 1) {
       if ((src->flags & IR3_REG_R) || instr->repeat == 0)

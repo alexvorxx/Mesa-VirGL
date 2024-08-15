@@ -167,6 +167,7 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
    compiler->num_predicates = 1;
    compiler->bitops_can_write_predicates = false;
    compiler->has_branch_and_or = false;
+   compiler->has_rpt_bary_f = false;
 
    if (compiler->gen >= 6) {
       compiler->samgq_workaround = true;
@@ -234,6 +235,7 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
       compiler->has_ssbo_imm_offsets = dev_info->a6xx.has_ssbo_imm_offsets;
       compiler->fs_must_have_non_zero_constlen_quirk = dev_info->a7xx.fs_must_have_non_zero_constlen_quirk;
       compiler->has_early_preamble = dev_info->a6xx.has_early_preamble;
+      compiler->has_rpt_bary_f = true;
    } else {
       compiler->max_const_pipeline = 512;
       compiler->max_const_geom = 512;

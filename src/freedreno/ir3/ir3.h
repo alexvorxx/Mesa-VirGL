@@ -936,7 +936,7 @@ bool ir3_valid_immediate(struct ir3_instruction *instr, int32_t immed);
 struct ir3_instruction *
 ir3_get_cond_for_nonzero_compare(struct ir3_instruction *instr);
 
-bool ir3_supports_rpt(unsigned opc);
+bool ir3_supports_rpt(struct ir3_compiler *compiler, unsigned opc);
 
 #include "util/set.h"
 #define foreach_ssa_use(__use, __instr)                                        \

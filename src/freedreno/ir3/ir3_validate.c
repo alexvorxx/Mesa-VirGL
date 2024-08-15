@@ -210,7 +210,7 @@ validate_rpt(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr)
          validate_assert(ctx, block_contains(instr->block, rpt));
       }
    } else if (instr->repeat) {
-      validate_assert(ctx, ir3_supports_rpt(instr->opc));
+      validate_assert(ctx, ir3_supports_rpt(ctx->ir->compiler, instr->opc));
       validate_assert(ctx, !instr->nop);
    }
 }

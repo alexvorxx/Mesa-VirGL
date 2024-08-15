@@ -1511,7 +1511,7 @@ ir3_get_cond_for_nonzero_compare(struct ir3_instruction *instr)
 }
 
 bool
-ir3_supports_rpt(unsigned opc)
+ir3_supports_rpt(struct ir3_compiler *compiler, unsigned opc)
 {
    switch (opc_cat(opc)) {
    case 0:
@@ -1519,6 +1519,8 @@ ir3_supports_rpt(unsigned opc)
    case 1:
       return opc == OPC_MOV || opc == OPC_SWZ || opc == OPC_MOVMSK;
    case 2:
+      if (opc == OPC_BARY_F && !compiler->has_rpt_bary_f)
+         return false;
       return true;
    case 3:
       return opc != OPC_DP2ACC && opc != OPC_DP4ACC;
