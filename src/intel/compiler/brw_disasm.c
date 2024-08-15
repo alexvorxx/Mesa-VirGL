@@ -246,10 +246,9 @@ static const char *const access_mode[2] = {
 };
 
 static const char *const reg_file[4] = {
-   [0] = "A",
-   [1] = "g",
-   [2] = "m",
-   [3] = "imm",
+   [BRW_ARCHITECTURE_REGISTER_FILE] = "A",
+   [BRW_GENERAL_REGISTER_FILE]      = "g",
+   [BRW_IMMEDIATE_VALUE]            = "imm",
 };
 
 static const char *const writemask[16] = {

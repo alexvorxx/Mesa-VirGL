@@ -158,7 +158,7 @@ typedef struct brw_reg {
    union {
       struct {
          enum brw_reg_type type:5;
-         enum brw_reg_file file:3;      /* :2 hardware format */
+         enum brw_reg_file file:3;
          unsigned negate:1;             /* source only */
          unsigned abs:1;                /* source only */
          unsigned address_mode:1;       /* relative addressing, hopefully! */
@@ -195,9 +195,9 @@ typedef struct brw_reg {
    uint8_t stride;
 
 #ifdef __cplusplus
-   /* TODO: Remove this constructor to make this type a POD.  To achieve this
-    * we need to make sure the zero value (currently ARF_NULL) is a good
-    * replacement for BAD_FILE or make the zero value BAD_FILE.
+   /* TODO: Remove this constructor to make this type a POD.  Need
+    * to make sure that rest of compiler doesn't rely on type or
+    * stride of BAD_FILE registers.
     */
    brw_reg() {
       memset((void*)this, 0, sizeof(*this));

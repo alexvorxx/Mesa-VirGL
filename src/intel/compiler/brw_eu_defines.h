@@ -723,19 +723,19 @@ enum ENUM_PACKED brw_predicate {
 };
 
 enum ENUM_PACKED brw_reg_file {
-   BRW_ARCHITECTURE_REGISTER_FILE = 0,
-   BRW_GENERAL_REGISTER_FILE      = 1,
-   BRW_IMMEDIATE_VALUE            = 3,
+   BAD_FILE = 0,
 
-   ARF = BRW_ARCHITECTURE_REGISTER_FILE,
-   FIXED_GRF = BRW_GENERAL_REGISTER_FILE,
-   IMM = BRW_IMMEDIATE_VALUE,
+   ARF,
+   FIXED_GRF,
+   IMM,
 
-   /* These are not hardware values */
    VGRF,
    ATTR,
    UNIFORM, /* prog_data->params[reg] */
-   BAD_FILE,
+
+   BRW_ARCHITECTURE_REGISTER_FILE = ARF,
+   BRW_GENERAL_REGISTER_FILE      = FIXED_GRF,
+   BRW_IMMEDIATE_VALUE            = IMM,
 };
 
 /* CNL adds Align1 support for 3-src instructions. Bit 35 of the instruction
