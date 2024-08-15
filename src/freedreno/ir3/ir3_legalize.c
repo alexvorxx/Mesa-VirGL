@@ -1350,8 +1350,7 @@ dbg_sync_sched(struct ir3 *ir, struct ir3_shader_variant *so)
 {
    foreach_block (block, &ir->block_list) {
       foreach_instr_safe (instr, &block->instr_list) {
-         if (opc_cat(instr->opc) == 4 || opc_cat(instr->opc) == 5 ||
-             opc_cat(instr->opc) == 6) {
+         if (is_ss_producer(instr) || is_sy_producer(instr)) {
             struct ir3_instruction *nop = ir3_NOP(block);
             nop->flags |= IR3_INSTR_SS | IR3_INSTR_SY;
             ir3_instr_move_after(nop, instr);
