@@ -689,6 +689,7 @@ mme_to_fermi_alu_op(enum mme_alu_op op)
    ALU_CASE(SUB)
    ALU_CASE(SUBB)
    ALU_CASE(AND)
+   ALU_CASE(AND_NOT)
    ALU_CASE(NAND)
    ALU_CASE(OR)
    ALU_CASE(XOR)
@@ -741,6 +742,9 @@ mme_fermi_build_alu(struct mme_builder *b,
       return;
    case MME_ALU_OP_SRL:
       mme_fermi_srl_to(fb, dst, x, y);
+      return;
+   case MME_ALU_OP_NOT:
+      mme_and_not_to(b, dst, mme_imm(~(uint32_t)0), x);
       return;
    default:
       break;

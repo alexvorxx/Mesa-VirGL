@@ -335,6 +335,61 @@ TEST_F(mme_builder_test, sll_srl)
    }
 }
 
+TEST_F(mme_builder_test, not)
+{
+   static const uint32_t x = 0xac406fe1;
+
+   for (auto sim : sims) {
+      mme_builder b;
+      mme_builder_init(&b, sim->devinfo);
+
+      mme_value xv = mme_load(&b);
+
+      sim->mme_store_data(&b, 0, mme_not(&b, xv));
+
+      auto macro = mme_builder_finish_vec(&b);
+
+      /* Fermi can't shift by 0 */
+      for (uint32_t i = 1; i < 31; i++) {
+         std::vector<uint32_t> params;
+         params.push_back(x);
+
+         sim->run_macro(macro, params);
+         ASSERT_EQ(sim->data[0], ~x);
+      }
+   }
+}
+
+TEST_F(mme_builder_test, and_not)
+{
+   static const uint32_t x = 0xac406fe1;
+   static const uint32_t y = 0x00fff0c0;
+
+   for (auto sim : sims) {
+      mme_builder b;
+      mme_builder_init(&b, sim->devinfo);
+
+      mme_value xv = mme_load(&b);
+      mme_value yv = mme_load(&b);
+
+      sim->mme_store_data(&b, 0, mme_and(&b, xv, yv));
+      sim->mme_store_data(&b, 1, mme_and_not(&b, xv, yv));
+
+      auto macro = mme_builder_finish_vec(&b);
+
+      /* Fermi can't shift by 0 */
+      for (uint32_t i = 1; i < 31; i++) {
+         std::vector<uint32_t> params;
+         params.push_back(x);
+         params.push_back(y);
+
+         sim->run_macro(macro, params);
+         ASSERT_EQ(sim->data[0], x & y);
+         ASSERT_EQ(sim->data[1], x & ~y);
+      }
+   }
+}
+
 TEST_F(mme_builder_test, merge)
 {
    static const struct {

@@ -340,7 +340,43 @@ mme_tu104_alu_to(struct mme_builder *b,
                  struct mme_value x,
                  struct mme_value y)
 {
-   build_alu_to(b, dst, mme_to_tu104_alu_op(op), x, y, 0, false);
+   switch (op) {
+   case MME_ALU_OP_NOT:
+      mme_xor_to(b, dst, x, mme_imm(~(uint32_t)0));
+      break;
+
+   case MME_ALU_OP_AND_NOT: {
+      struct mme_value not_y;
+      switch (y.type) {
+      case MME_VALUE_TYPE_ZERO:
+         not_y = mme_imm(~(uint32_t)0);
+         break;
+
+      case MME_VALUE_TYPE_IMM:
+         if (y.imm == ~(uint32_t)0)
+            not_y = mme_zero();
+         else
+            not_y = mme_imm(~y.imm);
+         break;
+
+      case MME_VALUE_TYPE_REG:
+         not_y = mme_not(b, y);
+         break;
+
+      default:
+         unreachable("Unknown MME value type");
+      }
+
+      mme_and_to(b, dst, x, not_y);
+
+      if (not_y.type == MME_VALUE_TYPE_REG)
+         mme_free_reg(b, not_y);
+      break;
+   }
+
+   default:
+      build_alu_to(b, dst, mme_to_tu104_alu_op(op), x, y, 0, false);
+   }
 }
 
 void

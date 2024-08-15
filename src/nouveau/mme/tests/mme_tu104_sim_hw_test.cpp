@@ -909,6 +909,23 @@ TEST_F(mme_tu104_sim_test, bfe)
    }
 }
 
+TEST_F(mme_tu104_sim_test, not)
+{
+   mme_builder b;
+   mme_builder_init(&b, devinfo);
+
+   mme_value x = mme_load(&b);
+   mme_value v1 = mme_not(&b, x);
+   mme_store_imm_addr(&b, data_addr + 0, v1);
+
+   auto macro = mme_builder_finish_vec(&b);
+
+   std::vector<uint32_t> params;
+   params.push_back(0x0c406fe0);
+
+   test_macro(&b, macro, params);
+}
+
 #define BITOP_TEST(op)                                               \
 TEST_F(mme_tu104_sim_test, op)                                       \
 {                                                                    \
@@ -934,6 +951,7 @@ TEST_F(mme_tu104_sim_test, op)                                       \
 }
 
 BITOP_TEST(and)
+BITOP_TEST(and_not)
 BITOP_TEST(nand)
 BITOP_TEST(or)
 BITOP_TEST(xor)
