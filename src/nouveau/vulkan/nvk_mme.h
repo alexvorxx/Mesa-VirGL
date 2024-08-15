@@ -19,6 +19,7 @@ enum nvk_mme {
    NVK_MME_SET_VB_ENABLES,
    NVK_MME_SET_VB_STRIDE,
    NVK_MME_SET_TESS_PARAMS,
+   NVK_MME_SET_ANTI_ALIAS,
    NVK_MME_DRAW,
    NVK_MME_DRAW_INDEXED,
    NVK_MME_DRAW_INDIRECT,
@@ -61,6 +62,9 @@ enum nvk_mme_scratch {
 
    /* Tessellation parameters */
    NVK_MME_SCRATCH_TESS_PARAMS,
+
+   /* Anti-aliasing state */
+   NVK_MME_SCRATCH_ANTI_ALIAS,
 
    /* Addres of cb0 */
    NVK_MME_SCRATCH_CB0_ADDR_HI,
@@ -194,6 +198,7 @@ void nvk_mme_bind_vb(struct mme_builder *b);
 void nvk_mme_set_vb_enables(struct mme_builder *b);
 void nvk_mme_set_vb_stride(struct mme_builder *b);
 void nvk_mme_set_tess_params(struct mme_builder *b);
+void nvk_mme_set_anti_alias(struct mme_builder *b);
 void nvk_mme_draw(struct mme_builder *b);
 void nvk_mme_draw_indexed(struct mme_builder *b);
 void nvk_mme_draw_indirect(struct mme_builder *b);
@@ -230,6 +235,7 @@ struct nvk_mme_test_case {
 extern const struct nvk_mme_test_case nvk_mme_clear_tests[];
 extern const struct nvk_mme_test_case nvk_mme_bind_vb_tests[];
 extern const struct nvk_mme_test_case nvk_mme_set_tess_params_tests[];
+extern const struct nvk_mme_test_case nvk_mme_set_anti_alias_tests[];
 
 void nvk_test_all_mmes(const struct nv_device_info *devinfo);
 

@@ -100,6 +100,8 @@ nvk_mme_select_cb0(struct mme_builder *b)
    mme_emit(b, addr_lo);
 }
 
+static uint32_t nvk_mme_anti_alias_init(void);
+
 VkResult
 nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
 {
@@ -404,10 +406,8 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
 
    P_IMMD(p, NV9097, SET_VIEWPORT_PIXEL, CENTER_AT_HALF_INTEGERS);
 
-   P_IMMD(p, NV9097, SET_HYBRID_ANTI_ALIAS_CONTROL, {
-      .passes     = 1,
-      .centroid   = CENTROID_PER_FRAGMENT,
-   });
+   P_IMMD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_ANTI_ALIAS),
+          nvk_mme_anti_alias_init());
 
    /* Enable multisample rasterization even for one sample rasterization,
     * this way we get strict lines and rectangular line support.
@@ -1198,18 +1198,12 @@ nvk_cmd_bind_graphics_shader(struct nvk_cmd_buffer *cmd,
                              const gl_shader_stage stage,
                              struct nvk_shader *shader)
 {
-   struct vk_dynamic_graphics_state *dyn = &cmd->vk.dynamic_graphics_state;
-
    assert(stage < ARRAY_SIZE(cmd->state.gfx.shaders));
    if (cmd->state.gfx.shaders[stage] == shader)
       return;
 
    cmd->state.gfx.shaders[stage] = shader;
    cmd->state.gfx.shaders_dirty |= BITFIELD_BIT(stage);
-
-   /* Emitting SET_HYBRID_ANTI_ALIAS_CONTROL requires the fragment shader */
-   if (stage == MESA_SHADER_FRAGMENT)
-      BITSET_SET(dyn->dirty, MESA_VK_DYNAMIC_MS_RASTERIZATION_SAMPLES);
 }
 
 static uint32_t
@@ -1340,6 +1334,8 @@ const struct nvk_mme_test_case nvk_mme_set_tess_params_tests[] = {{
    },
 }, {}};
 
+static uint32_t nvk_mme_anti_alias_min_sample_shading(float mss);
+
 static void
 nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
 {
@@ -1420,7 +1416,7 @@ nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
       }
 
       if (shader->info.stage == MESA_SHADER_FRAGMENT) {
-         p = nvk_cmd_buffer_push(cmd, 9);
+         p = nvk_cmd_buffer_push(cmd, 11);
 
          P_MTHD(p, NVC397, SET_SUBTILING_PERF_KNOB_A);
          P_NV9097_SET_SUBTILING_PERF_KNOB_A(p, {
@@ -1445,6 +1441,10 @@ nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
             .z_min_unbounded_enable = shader->info.fs.writes_depth,
             .z_max_unbounded_enable = shader->info.fs.writes_depth,
          });
+
+         P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_ANTI_ALIAS));
+         P_INLINE_DATA(p,
+            nvk_mme_anti_alias_min_sample_shading(shader->min_sample_shading));
       }
    }
 
@@ -2146,6 +2146,260 @@ nvk_flush_rs_state(struct nvk_cmd_buffer *cmd)
    }
 }
 
+static uint32_t
+nvk_mme_anti_alias_init(void)
+{
+   /* This is a valid value but we never set it so it ensures that the macro
+    * will actuallryn the first time we set anything.
+    */
+   return 0xf;
+}
+
+static uint32_t
+nvk_mme_anti_alias_min_sample_shading(float mss)
+{
+   /* The value we want to comput in the MME is
+    *
+    *    passes = next_pow2(samples * minSampleShading)
+    *
+    * Since samples is already a power of two,
+    *
+    *    passes_log2 = log2_ceil(samples * minSampleShading)
+    *                = log2_ceil(samples / (1.0 / minSampleShading))
+    *                = samples_log2 - log2_floor(1.0 / minSampleShading)
+    *
+    * if we assume (1.0 / min_sample_shading) >= 1.0.  This last bit is
+    * something we can compute in the MME as long as the float math on the
+    * right-hand side happens  on the CPU.
+    */
+   float rcp_mss = CLAMP(1.0 / mss, 1.0f, 16.0f);
+   uint32_t rcp_mss_log2 = util_logbase2(floorf(rcp_mss));
+
+   assert(rcp_mss_log2 != nvk_mme_anti_alias_init());
+
+   return nvk_mme_val_mask(rcp_mss_log2 << 0, 0x000f);
+}
+
+static uint32_t
+nvk_mme_anti_alias_samples(uint32_t samples)
+{
+   assert(util_is_power_of_two_or_zero(samples));
+   const uint32_t samples_log2 = util_logbase2(MAX2(1, samples));
+
+   return nvk_mme_val_mask(samples_log2 << 4, 0x00f0);
+}
+
+void
+nvk_mme_set_anti_alias(struct mme_builder *b)
+{
+   struct mme_value val_mask = mme_load(b);
+   struct mme_value old_anti_alias = nvk_mme_load_scratch(b, ANTI_ALIAS);
+   struct mme_value anti_alias =
+      nvk_mme_set_masked(b, old_anti_alias, val_mask);
+   mme_free_reg(b, val_mask);
+
+   mme_if(b, ine, anti_alias, old_anti_alias) {
+      mme_free_reg(b, old_anti_alias);
+      nvk_mme_store_scratch(b, ANTI_ALIAS, anti_alias);
+
+      struct mme_value rcp_mss_log2 =
+         mme_merge(b, mme_zero(), anti_alias, 0, 3, 0);
+      struct mme_value samples_log2 =
+         mme_merge(b, mme_zero(), anti_alias, 0, 3, 4);
+      mme_free_reg(b, anti_alias);
+
+      /* We've already done all the hard work on the CPU in
+       * nvk_mme_min_sample_shading().  All we have to do here is add the two
+       * log2 values and clamp so we don't get negative.
+       */
+      struct mme_value passes_log2 = mme_sub(b, samples_log2, rcp_mss_log2);
+      mme_free_reg(b, rcp_mss_log2);
+
+      /* passes = MAX(passes, 1) */
+      struct mme_value neg = mme_srl(b, passes_log2, mme_imm(31));
+      mme_if(b, ine, neg, mme_zero()) {
+         mme_mov_to(b, passes_log2, mme_zero());
+      }
+      mme_free_reg(b, neg);
+
+      /*
+       * NV9097_SET_HYBRID_ANTI_ALIAS_CONTROL {
+       *    ...
+       *    .centroid = passes > 1 ? CENTROID_PER_PASS
+       *                           : CENTROID_PER_FRAGMENT,
+       * }
+       */
+      struct mme_value aac = mme_mov(b,
+         mme_imm(NV9097_SET_HYBRID_ANTI_ALIAS_CONTROL_CENTROID_PER_FRAGMENT
+                 << DRF_LO(NV9097_SET_HYBRID_ANTI_ALIAS_CONTROL_CENTROID)));
+      mme_if(b, ine, passes_log2, mme_zero()) {
+         mme_mov_to(b, aac,
+            mme_imm(NV9097_SET_HYBRID_ANTI_ALIAS_CONTROL_CENTROID_PER_PASS
+                    << DRF_LO(NV9097_SET_HYBRID_ANTI_ALIAS_CONTROL_CENTROID)));
+      }
+
+      struct mme_value passes = mme_sll(b, mme_imm(1), passes_log2);
+      mme_merge_to(b, aac, aac, passes, 0, 4, 0);
+      mme_free_reg(b, passes);
+
+      mme_mthd(b, NV9097_SET_HYBRID_ANTI_ALIAS_CONTROL);
+      mme_emit(b, aac);
+      mme_free_reg(b, aac);
+
+      /* Now we need to emit sample masks per-sample:
+       *
+       *    struct nak_sample_mask push_sm[NVK_MAX_SAMPLES];
+       *    uint32_t samples_per_pass = samples / passes;
+       *    uint32_t sample_mask = BITFIELD_MASK(samples_per_pass);
+       *    for (uint32_t s = 0; NVK_MAX_SAMPLES;) {
+       *       push_sm[s] = (struct nak_sample_mask) {
+       *          .sample_mask = sample_mask,
+       *       };
+       *
+       *       s++;
+       *
+       *       if (s & samples_per_pass)
+       *          sample_mask <<= samples_per_pass;
+       *    }
+       *
+       * Annoyingly, we have to pack these in pairs
+       */
+      STATIC_ASSERT(sizeof(struct nak_sample_mask) == 2);
+
+      mme_mthd(b, NV9097_LOAD_CONSTANT_BUFFER_OFFSET);
+      mme_emit(b, mme_imm(nvk_root_descriptor_offset(draw.sample_masks)));
+      mme_mthd(b, NV9097_LOAD_CONSTANT_BUFFER(0));
+
+      /* Annoyingly, we have to pack these in pairs */
+
+      struct mme_value samples_per_pass_log2 =
+         mme_sub(b, samples_log2, passes_log2);
+      mme_free_reg(b, samples_log2);
+      mme_free_reg(b, passes_log2);
+
+      mme_if(b, ieq, samples_per_pass_log2, mme_zero()) {
+         /* One sample per pass, we can just blast it out */
+         for (uint32_t i = 0; i < NVK_MAX_SAMPLES; i += 2) {
+            uint32_t mask0 = 1 << i;
+            uint32_t mask1 = 1 << (i + 1);
+            mme_emit(b, mme_imm(mask0 | (mask1 << 16)));
+         }
+      }
+
+      mme_if(b, ine, samples_per_pass_log2, mme_zero()) {
+         struct mme_value samples_per_pass =
+            mme_sll(b, mme_imm(1), samples_per_pass_log2);
+
+         /* sample_mask = (1 << samples_per_pass) - 1 */
+         struct mme_value sample_mask =
+            mme_sll(b, mme_imm(1), samples_per_pass);
+         mme_sub_to(b, sample_mask, sample_mask, mme_imm(1));
+
+         struct mme_value mod_mask = mme_sub(b, samples_per_pass, mme_imm(1));
+
+         struct mme_value s = mme_mov(b, mme_zero());
+         mme_while(b, ine, s, mme_imm(NVK_MAX_SAMPLES)) {
+            /* Since samples_per_pass >= 2, we know that both masks in the pair
+             * will be the same.
+             */
+            struct mme_value packed =
+               mme_merge(b, sample_mask, sample_mask, 16, 16, 0);
+            mme_emit(b, packed);
+            mme_free_reg(b, packed);
+
+            mme_add_to(b, s, s, mme_imm(2));
+
+            /* if (s % samples_per_pass == 0) */
+            struct mme_value mod = mme_and(b, s, mod_mask);
+            mme_if(b, ieq, mod, mme_zero()) {
+               mme_sll_to(b, sample_mask, sample_mask, samples_per_pass);
+            }
+         }
+      }
+   }
+}
+
+const struct nvk_mme_test_case nvk_mme_set_anti_alias_tests[] = {{
+   /* This case doesn't change the state so it should do nothing */
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0 },
+      { }
+   },
+   .params = (uint32_t[]) { 0xffff0000 },
+   .expected = (struct nvk_mme_mthd_data[]) {
+      { }
+   },
+}, {
+   /* Single sample, minSampleShading = 1.0 */
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0xf },
+      { }
+   },
+   .params = (uint32_t[]) { 0xffff0000 },
+   .expected = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0 },
+      { NV9097_SET_HYBRID_ANTI_ALIAS_CONTROL, 0x1 },
+      { NV9097_LOAD_CONSTANT_BUFFER_OFFSET,
+        nvk_root_descriptor_offset(draw.sample_masks) },
+      { NV9097_LOAD_CONSTANT_BUFFER(0), 0x020001 },
+      { NV9097_LOAD_CONSTANT_BUFFER(1), 0x080004 },
+      { NV9097_LOAD_CONSTANT_BUFFER(2), 0x200010 },
+      { NV9097_LOAD_CONSTANT_BUFFER(3), 0x800040 },
+      { }
+   },
+   /* Single sample, minSampleShading = 0.25 */
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0xf },
+      { }
+   },
+   .params = (uint32_t[]) { 0xffff0002 },
+   .expected = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0x2 },
+      { NV9097_SET_HYBRID_ANTI_ALIAS_CONTROL, 0x1 },
+      { NV9097_LOAD_CONSTANT_BUFFER_OFFSET,
+        nvk_root_descriptor_offset(draw.sample_masks) },
+      { NV9097_LOAD_CONSTANT_BUFFER(0), 0x020001 },
+      { NV9097_LOAD_CONSTANT_BUFFER(1), 0x080004 },
+      { NV9097_LOAD_CONSTANT_BUFFER(2), 0x200010 },
+      { NV9097_LOAD_CONSTANT_BUFFER(3), 0x800040 },
+      { }
+   },
+   /* 8 samples, minSampleShading = 0.5 */
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0x1 },
+      { }
+   },
+   .params = (uint32_t[]) { 0x00f00030 },
+   .expected = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0x31 },
+      { NV9097_SET_HYBRID_ANTI_ALIAS_CONTROL, 0x14 },
+      { NV9097_LOAD_CONSTANT_BUFFER_OFFSET,
+        nvk_root_descriptor_offset(draw.sample_masks) },
+      { NV9097_LOAD_CONSTANT_BUFFER(0), 0x030003 },
+      { NV9097_LOAD_CONSTANT_BUFFER(1), 0x0c000c },
+      { NV9097_LOAD_CONSTANT_BUFFER(2), 0x300030 },
+      { NV9097_LOAD_CONSTANT_BUFFER(3), 0xc000c0 },
+      { }
+   },
+   /* 8 samples, minSampleShading = 0.25 */
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0x30 },
+      { }
+   },
+   .params = (uint32_t[]) { 0x000f0002 },
+   .expected = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0x32 },
+      { NV9097_SET_HYBRID_ANTI_ALIAS_CONTROL, 0x12 },
+      { NV9097_LOAD_CONSTANT_BUFFER_OFFSET,
+        nvk_root_descriptor_offset(draw.sample_masks) },
+      { NV9097_LOAD_CONSTANT_BUFFER(0), 0x0f000f },
+      { NV9097_LOAD_CONSTANT_BUFFER(1), 0x0f000f },
+      { NV9097_LOAD_CONSTANT_BUFFER(2), 0xf000f0 },
+      { NV9097_LOAD_CONSTANT_BUFFER(3), 0xf000f0 },
+      { }
+   },
+}, {}};
+
 static VkSampleLocationEXT
 vk_sample_location(const struct vk_sample_locations_state *sl,
                    uint32_t x, uint32_t y, uint32_t s)
@@ -2195,37 +2449,9 @@ nvk_flush_ms_state(struct nvk_cmd_buffer *cmd)
                 dyn->ms.rasterization_samples == render->samples);
       }
 
-      struct nvk_shader *fs = cmd->state.gfx.shaders[MESA_SHADER_FRAGMENT];
-      const float min_sample_shading = fs != NULL ? fs->min_sample_shading : 0;
-      uint32_t num_passes = ceilf(dyn->ms.rasterization_samples *
-                                  min_sample_shading);
-      num_passes = util_next_power_of_two(MAX2(1, num_passes));
-
-      P_IMMD(p, NV9097, SET_HYBRID_ANTI_ALIAS_CONTROL, {
-         .passes = num_passes,
-         .centroid = num_passes > 1 ? CENTROID_PER_PASS
-                                    : CENTROID_PER_FRAGMENT,
-      });
-
-      if (dyn->ms.rasterization_samples > 0) {
-         assert(util_is_power_of_two_or_zero(dyn->ms.rasterization_samples));
-         assert(util_is_power_of_two_nonzero(num_passes));
-         uint32_t samples_per_pass = dyn->ms.rasterization_samples / num_passes;
-
-         struct nak_sample_mask push_sm[NVK_MAX_SAMPLES];
-         for (uint32_t s = 0; s < dyn->ms.rasterization_samples; s++) {
-            const uint32_t pass = s / samples_per_pass;
-            const uint32_t sample_mask =
-               BITFIELD_MASK(samples_per_pass) << (pass * samples_per_pass);
-            push_sm[s] = (struct nak_sample_mask) {
-               .sample_mask = sample_mask,
-            };
-         }
-         nvk_descriptor_state_set_root_array(cmd, &cmd->state.gfx.descriptors,
-                                             draw.sample_masks,
-                                             0, dyn->ms.rasterization_samples,
-                                             push_sm);
-      }
+      P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SET_ANTI_ALIAS));
+      P_INLINE_DATA(p,
+         nvk_mme_anti_alias_samples(dyn->ms.rasterization_samples));
    }
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_MS_ALPHA_TO_COVERAGE_ENABLE) ||
