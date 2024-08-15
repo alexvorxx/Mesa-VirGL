@@ -121,6 +121,38 @@ _nvk_mme_load_to_scratch(struct mme_builder *b, enum nvk_mme_scratch scratch)
 #define nvk_mme_load_to_scratch(b, S) \
    _nvk_mme_load_to_scratch(b, NVK_MME_SCRATCH_##S)
 
+static inline uint32_t
+nvk_mme_val_mask(uint16_t val, uint16_t mask)
+{
+   /* If there are bits in val which aren't in mask, it's probably a
+    * programming error on the CPU side.  nvk_mme_set_masked() will still
+    * work in this case but it's worth an assert.
+    */
+   assert(!(val & ~mask));
+
+   return ((uint32_t)val) | (((uint32_t)mask) << 16);
+}
+
+/* This is a common pattern in NVK.  The input val_mask is a value plus a mask
+ * where the top 16 bits are mask and the bottom 16 bits are data.  src is
+ * copied and the bits in the mask are replaced by the corresponding value
+ * bits in val_mask.
+ */
+static inline struct mme_value
+nvk_mme_set_masked(struct mme_builder *b, struct mme_value src,
+                   struct mme_value val_mask)
+{
+   struct mme_value mask = mme_merge(b, mme_zero(), val_mask, 0, 16, 16);
+   struct mme_value val = mme_and_not(b, src, mask);
+
+   /* Re-use the mask reg for val_mask & mask */
+   mme_and_to(b, mask, val_mask, mask);
+   mme_or_to(b, val, val, mask);
+   mme_free_reg(b, mask);
+
+   return val;
+}
+
 static void
 _nvk_mme_spill(struct mme_builder *b, enum nvk_mme_scratch scratch,
                struct mme_value val)
