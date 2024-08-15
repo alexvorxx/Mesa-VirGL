@@ -585,7 +585,8 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
    unsigned bs[info->num_inputs]; /* bit size */
    struct ir3_block *b = ctx->block;
    unsigned dst_sz;
-   type_t dst_type = type_uint_size(alu->def.bit_size);
+   unsigned dst_bitsize = ir3_bitsize(ctx, alu->def.bit_size);
+   type_t dst_type = type_uint_size(dst_bitsize);
 
    dst_sz = alu->def.num_components;
    assert(dst_sz == 1 || ir3_supports_vectorized_nir_op(alu->op));
