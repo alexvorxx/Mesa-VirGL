@@ -241,6 +241,17 @@ get_bit_size(struct entry *entry)
    return size == 1 ? 32u : size;
 }
 
+static unsigned
+get_write_mask(const nir_intrinsic_instr *intrin)
+{
+   if (nir_intrinsic_has_write_mask(intrin))
+      return nir_intrinsic_write_mask(intrin);
+
+   const struct intrinsic_info *info = get_info(intrin->intrinsic);
+   assert(info->value_src >= 0);
+   return nir_component_mask(intrin->src[info->value_src].ssa->num_components);
+}
+
 /* If "def" is from an alu instruction with the opcode "op" and one of it's
  * sources is a constant, update "def" to be the non-constant source, fill "c"
  * with the constant and return true. */
@@ -639,11 +650,11 @@ new_bitsize_acceptable(struct vectorize_ctx *ctx, unsigned new_bit_size,
       if (high_size % new_bit_size != 0)
          return false;
 
-      unsigned write_mask = nir_intrinsic_write_mask(low->intrin);
+      unsigned write_mask = get_write_mask(low->intrin);
       if (!nir_component_mask_can_reinterpret(write_mask, get_bit_size(low), new_bit_size))
          return false;
 
-      write_mask = nir_intrinsic_write_mask(high->intrin);
+      write_mask = get_write_mask(high->intrin);
       if (!nir_component_mask_can_reinterpret(write_mask, get_bit_size(high), new_bit_size))
          return false;
    }
@@ -784,8 +795,8 @@ vectorize_stores(nir_builder *b, struct vectorize_ctx *ctx,
    b->cursor = nir_before_instr(second->instr);
 
    /* get new writemasks */
-   uint32_t low_write_mask = nir_intrinsic_write_mask(low->intrin);
-   uint32_t high_write_mask = nir_intrinsic_write_mask(high->intrin);
+   uint32_t low_write_mask = get_write_mask(low->intrin);
+   uint32_t high_write_mask = get_write_mask(high->intrin);
    low_write_mask = nir_component_mask_reinterpret(low_write_mask,
                                                    get_bit_size(low),
                                                    new_bit_size);
@@ -822,7 +833,8 @@ vectorize_stores(nir_builder *b, struct vectorize_ctx *ctx,
    nir_def *data = nir_vec(b, data_channels, new_num_components);
 
    /* update the intrinsic */
-   nir_intrinsic_set_write_mask(second->intrin, write_mask);
+   if (nir_intrinsic_has_write_mask(second->intrin))
+      nir_intrinsic_set_write_mask(second->intrin, write_mask);
    second->intrin->num_components = data->num_components;
 
    const struct intrinsic_info *info = second->info;
@@ -1183,9 +1195,9 @@ try_vectorize_shared2(struct vectorize_ctx *ctx,
       return false;
 
    if (first->is_store) {
-      if (nir_intrinsic_write_mask(low->intrin) != BITFIELD_MASK(low->intrin->num_components))
+      if (get_write_mask(low->intrin) != BITFIELD_MASK(low->intrin->num_components))
          return false;
-      if (nir_intrinsic_write_mask(high->intrin) != BITFIELD_MASK(high->intrin->num_components))
+      if (get_write_mask(high->intrin) != BITFIELD_MASK(high->intrin->num_components))
          return false;
    }
 
