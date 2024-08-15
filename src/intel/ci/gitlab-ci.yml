@@ -16,7 +16,7 @@ anv-jsl:
 .anv-jsl-full:
   extends:
     - anv-jsl
-    - .intel-manual-rules
+    - .anv-manual-rules
   variables:
     DEQP_SUITE: anv-jsl-full
     JOB_TIMEOUT: 60
@@ -36,7 +36,7 @@ anv-tgl:
 .anv-tgl-full:
   extends:
     - anv-tgl
-    - .intel-manual-rules
+    - .anv-manual-rules
   variables:
     DEQP_SUITE: anv-tgl-full
     DEQP_FRACTION: 1
