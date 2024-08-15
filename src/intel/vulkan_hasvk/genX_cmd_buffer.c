@@ -5196,6 +5196,9 @@ void genX(CmdBeginRendering)(
             base_clear_layer++;
             clear_layer_count--;
 
+            set_image_clear_color(cmd_buffer, iview->image,
+                                  VK_IMAGE_ASPECT_COLOR_BIT, clear_color);
+
             if (isl_color_value_is_zero(clear_color,
                                         iview->planes[0].isl.format)) {
                /* This image has the auxiliary buffer enabled. We can mark the

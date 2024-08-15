@@ -960,6 +960,10 @@ genX(set_fast_clear_state)(struct anv_cmd_buffer *cmd_buffer,
                            const enum isl_format format,
                            union isl_color_value clear_color)
 {
+   uint32_t pixel[4];
+   isl_color_value_pack(&clear_color, format, pixel);
+   set_image_clear_color(cmd_buffer, image, VK_IMAGE_ASPECT_COLOR_BIT, pixel);
+
    if (isl_color_value_is_zero(clear_color, format)) {
       /* This image has the auxiliary buffer enabled. We can mark the
        * subresource as not needing a resolve because the clear color
