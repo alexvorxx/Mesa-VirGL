@@ -171,7 +171,6 @@ shaders@point-vertex-id gl_vertexid gl_instanceid,Crash
 shaders@point-vertex-id gl_vertexid gl_instanceid divisor,Crash
 spec@!opengl 1.0@gl-1.0-no-op-paths,Fail
 spec@!opengl 1.0@gl-1.0-user-clip-all-planes,Fail
-spec@!opengl 1.0@rasterpos,Crash
 spec@!opengl 1.1@depthstencil-default_fb-blit,Fail
 spec@!opengl 1.1@depthstencil-default_fb-copypixels,Fail
 spec@!opengl 1.1@polygon-mode,Fail
@@ -848,11 +847,6 @@ spec@glsl-1.40@uniform_buffer@two-stages,Fail
 # new failures since 2023/02/08 (CTS uprevs, regressions etc.)
 shaders@glsl-max-varyings >max_varying_components,Fail
 spec@!opengl 1.0@gl-1.0-ortho-pos,Fail
-spec@!opengl 1.1@gl_select - alpha-test enabled,Fail
-spec@!opengl 1.1@gl_select - depth-test enabled,Fail
-spec@!opengl 1.1@gl_select - no test function,Fail
-spec@!opengl 1.1@gl_select - scissor-test enabled,Fail
-spec@!opengl 1.1@gl_select - stencil-test enabled,Fail
 spec@!opengl 1.1@line-smooth-stipple,Fail
 spec@!opengl 1.1@teximage-colors gl_alpha16@Exact upload-download of GL_ALPHA16,Fail
 spec@!opengl 1.1@texwrap 1d,Fail
