@@ -222,9 +222,9 @@ mme_fermi_print_inst(FILE *fp, unsigned indent,
          fprintf(fp, "%s", mme_fermi_op_to_str(inst->op));
          print_reg(fp, inst->src[0]);
          print_reg(fp, inst->src[1]);
-         fprintf(fp, " (%u, %u, %u)", inst->bitfield.src_bit,
+         fprintf(fp, " (%u, %u, %u)", inst->bitfield.dst_bit,
                                       inst->bitfield.size,
-                                      inst->bitfield.dst_bit);
+                                      inst->bitfield.src_bit);
          break;
       case MME_FERMI_OP_BFE_LSL_IMM:
          fprintf(fp, "%s", mme_fermi_op_to_str(inst->op));
