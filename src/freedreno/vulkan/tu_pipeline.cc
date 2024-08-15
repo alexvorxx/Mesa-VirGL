@@ -615,7 +615,7 @@ tu6_emit_const(struct tu_cs *cs, uint32_t opcode, enum tu_geom_consts_type type,
    assert(size % 4 == 0);
    dwords = (uint32_t *)&((uint8_t *)dwords)[offset];
 
-   if (block == SB6_VS_SHADER || !cs->device->physical_device->info->a7xx.load_shader_consts_via_preamble) {
+   if (!cs->device->physical_device->info->a7xx.load_shader_consts_via_preamble) {
       uint32_t base;
       switch (type) {
       case TU_CONSTS_PRIMITIVE_MAP:
