@@ -342,6 +342,17 @@ vec_instr_set_add_or_rewrite(struct set *instr_set, nir_instr *instr,
    struct set_entry *entry = _mesa_set_search(instr_set, instr);
    if (entry) {
       nir_instr *old_instr = (nir_instr *)entry->key;
+
+      /* We cannot combine the instructions if the old one doesn't dominate
+       * the new one. Since we will never encounter a block again that is
+       * dominated by the old instruction, overwrite it with the new one in
+       * the instruction set.
+       */
+      if (!nir_block_dominates(old_instr->block, instr->block)) {
+         entry->key = instr;
+         return false;
+      }
+
       _mesa_set_remove(instr_set, entry);
       nir_instr *new_instr = instr_try_combine(instr_set, old_instr, instr);
       if (new_instr) {
@@ -356,30 +367,6 @@ vec_instr_set_add_or_rewrite(struct set *instr_set, nir_instr *instr,
 }
 
 static bool
-vectorize_block(nir_block *block, struct set *instr_set,
-                nir_vectorize_cb filter, void *data)
-{
-   bool progress = false;
-
-   nir_foreach_instr_safe(instr, block) {
-      if (vec_instr_set_add_or_rewrite(instr_set, instr, filter, data))
-         progress = true;
-   }
-
-   for (unsigned i = 0; i < block->num_dom_children; i++) {
-      nir_block *child = block->dom_children[i];
-      progress |= vectorize_block(child, instr_set, filter, data);
-   }
-
-   nir_foreach_instr_reverse(instr, block) {
-      if (instr_can_rewrite(instr))
-         _mesa_set_remove_key(instr_set, instr);
-   }
-
-   return progress;
-}
-
-static bool
 nir_opt_vectorize_impl(nir_function_impl *impl,
                        nir_vectorize_cb filter, void *data)
 {
@@ -387,8 +374,13 @@ nir_opt_vectorize_impl(nir_function_impl *impl,
 
    nir_metadata_require(impl, nir_metadata_dominance);
 
-   bool progress = vectorize_block(nir_start_block(impl), instr_set,
-                                   filter, data);
+   bool progress = false;
+
+   nir_foreach_block(block, impl) {
+      nir_foreach_instr_safe(instr, block) {
+         progress |= vec_instr_set_add_or_rewrite(instr_set, instr, filter, data);
+      }
+   }
 
    if (progress) {
       nir_metadata_preserve(impl, nir_metadata_control_flow);
