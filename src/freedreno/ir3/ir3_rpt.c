@@ -40,6 +40,8 @@ ir3_supports_vectorized_nir_op(nir_op op)
 uint8_t
 ir3_nir_vectorize_filter(const nir_instr *instr, const void *data)
 {
+   if (instr->type == nir_instr_type_phi)
+      return 4;
    if (instr->type != nir_instr_type_alu)
       return 0;
 

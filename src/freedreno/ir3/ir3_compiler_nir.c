@@ -3927,31 +3927,33 @@ emit_phi(struct ir3_context *ctx, nir_phi_instr *nphi)
 {
    struct ir3_instruction *phi, **dst;
 
-   /* NOTE: phi's should be lowered to scalar at this point */
-   compile_assert(ctx, nphi->def.num_components == 1);
-
-   dst = ir3_get_def(ctx, &nphi->def, 1);
+   unsigned num_components = nphi->def.num_components;
+   dst = ir3_get_def(ctx, &nphi->def, num_components);
 
    if (exec_list_is_singular(&nphi->srcs)) {
       nir_phi_src *src = list_entry(exec_list_get_head(&nphi->srcs),
                                     nir_phi_src, node);
       if (nphi->def.divergent == src->src.ssa->divergent) {
-         dst[0] = ir3_get_src_maybe_shared(ctx, &src->src)[0];
+         struct ir3_instruction *const *srcs =
+            ir3_get_src_maybe_shared(ctx, &src->src);
+         memcpy(dst, srcs, num_components * sizeof(struct ir3_instruction *));
          ir3_put_def(ctx, &nphi->def);
          return;
       }
    }
 
-   phi = ir3_instr_create(ctx->block, OPC_META_PHI, 1,
-                          exec_list_length(&nphi->srcs));
-   __ssa_dst(phi);
-   phi->phi.nphi = nphi;
+   for (unsigned i = 0; i < num_components; i++) {
+      phi = ir3_instr_create(ctx->block, OPC_META_PHI, 1,
+                             exec_list_length(&nphi->srcs));
+      __ssa_dst(phi);
+      phi->phi.nphi = nphi;
+      phi->phi.comp = i;
 
-   if (ctx->compiler->has_scalar_alu &&
-       !nphi->def.divergent)
-      phi->dsts[0]->flags |= IR3_REG_SHARED;
+      if (ctx->compiler->has_scalar_alu && !nphi->def.divergent)
+         phi->dsts[0]->flags |= IR3_REG_SHARED;
 
-   dst[0] = phi;
+      dst[i] = phi;
+   }
 
    ir3_put_def(ctx, &nphi->def);
 }
@@ -3989,9 +3991,9 @@ read_phi_src(struct ir3_context *ctx, struct ir3_block *blk,
             /* We need to insert the move at the end of the block */
             struct ir3_block *old_block = ctx->block;
             ctx->block = blk;
-            struct ir3_instruction *src =
-               ir3_get_src_shared(ctx, &nsrc->src,
-                                  phi->dsts[0]->flags & IR3_REG_SHARED)[0];
+            struct ir3_instruction *src = ir3_get_src_shared(
+               ctx, &nsrc->src,
+               phi->dsts[0]->flags & IR3_REG_SHARED)[phi->phi.comp];
             ctx->block = old_block;
             return src;
          }
