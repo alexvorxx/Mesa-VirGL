@@ -579,6 +579,13 @@ struct ir3_instruction {
    int line;
 };
 
+/* Represents repeat groups in return values and arguments of the rpt builder
+ * API functions.
+ */
+struct ir3_instruction_rpt {
+   struct ir3_instruction *rpts[4];
+};
+
 struct ir3 {
    struct ir3_compiler *compiler;
    gl_shader_stage type;
@@ -2443,6 +2450,20 @@ ir3_MOV(struct ir3_block *block, struct ir3_instruction *src, type_t type)
    return instr;
 }
 
+static inline struct ir3_instruction_rpt
+ir3_MOV_rpt(struct ir3_block *block, unsigned nrpt,
+            struct ir3_instruction_rpt src, type_t type)
+{
+   struct ir3_instruction_rpt dst;
+   assert(nrpt <= ARRAY_SIZE(dst.rpts));
+
+   for (unsigned rpt = 0; rpt < nrpt; ++rpt)
+      dst.rpts[rpt] = ir3_MOV(block, src.rpts[rpt], type);
+
+   ir3_instr_create_rpt(dst.rpts, nrpt);
+   return dst;
+}
+
 static inline struct ir3_instruction *
 ir3_COV(struct ir3_block *block, struct ir3_instruction *src, type_t src_type,
         type_t dst_type)
@@ -2459,6 +2480,19 @@ ir3_COV(struct ir3_block *block, struct ir3_instruction *src, type_t src_type,
    instr->cat1.dst_type = dst_type;
    assert(!(src->dsts[0]->flags & IR3_REG_ARRAY));
    return instr;
+}
+
+static inline struct ir3_instruction_rpt
+ir3_COV_rpt(struct ir3_block *block, unsigned nrpt,
+            struct ir3_instruction_rpt src, type_t src_type, type_t dst_type)
+{
+   struct ir3_instruction_rpt dst;
+
+   for (unsigned rpt = 0; rpt < nrpt; ++rpt)
+      dst.rpts[rpt] = ir3_COV(block, src.rpts[rpt], src_type, dst_type);
+
+   ir3_instr_create_rpt(dst.rpts, nrpt);
+   return dst;
 }
 
 static inline struct ir3_instruction *
@@ -2520,7 +2554,19 @@ static inline struct ir3_instruction *ir3_##name(                              \
    __ssa_src(instr, a, aflags);                                                \
    instr->flags |= flag;                                                       \
    return instr;                                                               \
+}                                                                              \
+static inline struct ir3_instruction_rpt ir3_##name##_rpt(                     \
+   struct ir3_block *block, unsigned nrpt,                                     \
+   struct ir3_instruction_rpt a, unsigned aflags)                              \
+{                                                                              \
+   struct ir3_instruction_rpt dst;                                             \
+   assert(nrpt <= ARRAY_SIZE(dst.rpts));                                       \
+   for (unsigned rpt = 0; rpt < nrpt; rpt++)                                   \
+      dst.rpts[rpt] = ir3_##name(block, a.rpts[rpt], aflags);                  \
+   ir3_instr_create_rpt(dst.rpts, nrpt);                                       \
+   return dst;                                                                 \
 }
+
 /* clang-format on */
 #define INSTR1F(f, name)  __INSTR1(IR3_INSTR_##f, 1, name##_##f, OPC_##name,   \
                                    false)
@@ -2543,6 +2589,20 @@ static inline struct ir3_instruction *ir3_##name(                              \
    __ssa_src(instr, b, bflags);                                                \
    instr->flags |= flag;                                                       \
    return instr;                                                               \
+}                                                                              \
+static inline struct ir3_instruction_rpt ir3_##name##_rpt(                     \
+   struct ir3_block *block, unsigned nrpt,                                     \
+   struct ir3_instruction_rpt a, unsigned aflags,                              \
+   struct ir3_instruction_rpt b, unsigned bflags)                              \
+{                                                                              \
+   struct ir3_instruction_rpt dst;                                             \
+   assert(nrpt <= ARRAY_SIZE(dst.rpts));                                       \
+   for (unsigned rpt = 0; rpt < nrpt; rpt++) {                                 \
+      dst.rpts[rpt] = ir3_##name(block, a.rpts[rpt], aflags,                   \
+                                 b.rpts[rpt], bflags);                         \
+   }                                                                           \
+   ir3_instr_create_rpt(dst.rpts, nrpt);                                       \
+   return dst;                                                                 \
 }
 /* clang-format on */
 #define INSTR2F(f, name)   __INSTR2(IR3_INSTR_##f, 1, name##_##f, OPC_##name,  \
@@ -2569,6 +2629,22 @@ static inline struct ir3_instruction *ir3_##name(                              \
    __ssa_src(instr, c, cflags);                                                \
    instr->flags |= flag;                                                       \
    return instr;                                                               \
+}                                                                              \
+static inline struct ir3_instruction_rpt ir3_##name##_rpt(                     \
+   struct ir3_block *block, unsigned nrpt,                                     \
+   struct ir3_instruction_rpt a, unsigned aflags,                              \
+   struct ir3_instruction_rpt b, unsigned bflags,                              \
+   struct ir3_instruction_rpt c, unsigned cflags)                              \
+{                                                                              \
+   struct ir3_instruction_rpt dst;                                             \
+   assert(nrpt <= ARRAY_SIZE(dst.rpts));                                       \
+   for (unsigned rpt = 0; rpt < nrpt; rpt++) {                                 \
+      dst.rpts[rpt] = ir3_##name(block, a.rpts[rpt], aflags,                   \
+                                 b.rpts[rpt], bflags,                          \
+                                 c.rpts[rpt], cflags);                         \
+   }                                                                           \
+   ir3_instr_create_rpt(dst.rpts, nrpt);                                       \
+   return dst;                                                                 \
 }
 /* clang-format on */
 #define INSTR3F(f, name)  __INSTR3(IR3_INSTR_##f, 1, name##_##f, OPC_##name,   \
