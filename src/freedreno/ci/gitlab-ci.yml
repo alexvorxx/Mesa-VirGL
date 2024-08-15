@@ -199,8 +199,7 @@ a660_gl:
   variables:
     DEQP_SUITE: freedreno-a660
 
-# disabled due to 1.3.7.0 CTS uprev, we have already -full job running in nightly
-.a660_vk:
+a660_vk:
   extends:
     - .lava-test-deqp:arm64
     - .collabora-turnip-rules
@@ -212,7 +211,7 @@ a660_gl:
 
 a660_vk_full:
   extends:
-    - .a660_vk
+    - a660_vk
     - .collabora-turnip-manual-rules
   parallel: 3
   timeout: 3h
