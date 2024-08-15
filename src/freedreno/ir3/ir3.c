@@ -89,7 +89,6 @@ collect_reg_info(struct ir3_instruction *instr, struct ir3_register *reg,
                  struct ir3_info *info)
 {
    struct ir3_shader_variant *v = info->data;
-   unsigned repeat = instr->repeat;
 
    if (reg->flags & IR3_REG_IMMED) {
       /* nothing to do */
@@ -100,10 +99,6 @@ collect_reg_info(struct ir3_instruction *instr, struct ir3_register *reg,
    if (is_shared_consts(v->compiler, ir3_const_state(v), reg))
       return;
 
-   if (!(reg->flags & IR3_REG_R)) {
-      repeat = 0;
-   }
-
    unsigned components;
    int16_t max;
 
@@ -112,7 +107,7 @@ collect_reg_info(struct ir3_instruction *instr, struct ir3_register *reg,
       max = (reg->array.base + components - 1);
    } else {
       components = util_last_bit(reg->wrmask);
-      max = (reg->num + repeat + components - 1);
+      max = (reg->num + components - 1);
    }
 
    if (reg->flags & IR3_REG_CONST) {
