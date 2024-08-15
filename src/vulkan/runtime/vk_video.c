@@ -1359,22 +1359,32 @@ vk_video_get_profile_alignments(const VkVideoProfileListInfoKHR *profile_list,
                                 uint32_t *width_align_out, uint32_t *height_align_out)
 {
    uint32_t width_align = 1, height_align = 1;
-   for (unsigned i = 0; i < profile_list->profileCount; i++) {
-      if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR ||
-          profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR
-         ) {
-         width_align = MAX2(width_align, VK_VIDEO_H264_MACROBLOCK_WIDTH);
-         height_align = MAX2(height_align, VK_VIDEO_H264_MACROBLOCK_HEIGHT);
-      }
-      if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR ||
-          profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR
-         ) {
-         width_align = MAX2(width_align, VK_VIDEO_H265_CTU_MAX_WIDTH);
-         height_align = MAX2(height_align, VK_VIDEO_H265_CTU_MAX_HEIGHT);
-      }
-      if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_KHR) {
-         width_align = MAX2(width_align, VK_VIDEO_AV1_BLOCK_WIDTH);
-         height_align = MAX2(height_align, VK_VIDEO_AV1_BLOCK_HEIGHT);
+
+   if (!profile_list) {
+      width_align = MAX2(width_align, VK_VIDEO_H264_MACROBLOCK_WIDTH);
+      height_align = MAX2(height_align, VK_VIDEO_H264_MACROBLOCK_HEIGHT);
+      width_align = MAX2(width_align, VK_VIDEO_H265_CTU_MAX_WIDTH);
+      height_align = MAX2(height_align, VK_VIDEO_H265_CTU_MAX_HEIGHT);
+      width_align = MAX2(width_align, VK_VIDEO_AV1_BLOCK_WIDTH);
+      height_align = MAX2(height_align, VK_VIDEO_AV1_BLOCK_HEIGHT);
+   } else {
+      for (unsigned i = 0; i < profile_list->profileCount; i++) {
+         if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR ||
+             profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR
+            ) {
+            width_align = MAX2(width_align, VK_VIDEO_H264_MACROBLOCK_WIDTH);
+            height_align = MAX2(height_align, VK_VIDEO_H264_MACROBLOCK_HEIGHT);
+         }
+         if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR ||
+             profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR
+            ) {
+            width_align = MAX2(width_align, VK_VIDEO_H265_CTU_MAX_WIDTH);
+            height_align = MAX2(height_align, VK_VIDEO_H265_CTU_MAX_HEIGHT);
+         }
+         if (profile_list->pProfiles[i].videoCodecOperation == VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_KHR) {
+            width_align = MAX2(width_align, VK_VIDEO_AV1_BLOCK_WIDTH);
+            height_align = MAX2(height_align, VK_VIDEO_AV1_BLOCK_HEIGHT);
+         }
       }
    }
    *width_align_out = width_align;
