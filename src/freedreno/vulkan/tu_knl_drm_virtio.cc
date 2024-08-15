@@ -1199,7 +1199,7 @@ static VkResult
 virtio_queue_submit(struct tu_queue *queue, struct vk_queue_submit *submit)
 {
    MESA_TRACE_FUNC();
-   uint32_t perf_pass_index = queue->device->perfcntrs_pass_cs ?
+   uint32_t perf_pass_index = queue->device->perfcntrs_pass_cs_entries ?
                               submit->perf_pass_index : ~0;
    struct tu_virtio_queue_submit submit_req;
 

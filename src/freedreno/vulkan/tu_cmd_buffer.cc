@@ -1487,7 +1487,7 @@ tu6_init_hw(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
       tu_cs_emit(cs, CP_COND_REG_EXEC_0_MODE(THREAD_MODE) |
                      CP_COND_REG_EXEC_0_BR | CP_COND_REG_EXEC_0_LPAC);
       tu_cs_emit(cs, RENDER_MODE_CP_COND_REG_EXEC_1_DWORDS(4));
-      tu_cs_emit_ib(cs, dev->cmdbuf_start_a725_quirk_entry);
+      tu_cs_emit_ib(cs, &dev->cmdbuf_start_a725_quirk_entry);
    }
 
    tu_cs_sanity_check(cs);

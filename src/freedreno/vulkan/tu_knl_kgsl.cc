@@ -1094,7 +1094,7 @@ kgsl_queue_submit(struct tu_queue *queue, struct vk_queue_submit *vk_submit)
    }
 
    uint32_t perf_pass_index =
-      queue->device->perfcntrs_pass_cs ? vk_submit->perf_pass_index : ~0;
+      queue->device->perfcntrs_pass_cs_entries ? vk_submit->perf_pass_index : ~0;
 
    if (TU_DEBUG(LOG_SKIP_GMEM_OPS))
       tu_dbg_log_gmem_load_store_skips(queue->device);
