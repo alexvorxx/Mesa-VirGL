@@ -404,7 +404,7 @@ add_single_reg_dep(struct ir3_postsched_deps_state *state,
    if (src_n >= 0 && dep && state->direction == F) {
       struct ir3_compiler *compiler = state->ctx->ir->compiler;
       /* get the dst_n this corresponds to */
-      unsigned dst_n = state->dst_n[num];
+      unsigned dst_n = *dst_n_ptr;
       d = ir3_delayslots_with_repeat(compiler, dep->instr, node->instr, dst_n, src_n);
       if (is_sy_producer(dep->instr))
          node->has_sy_src = true;
