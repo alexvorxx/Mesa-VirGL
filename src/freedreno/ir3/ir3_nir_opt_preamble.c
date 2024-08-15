@@ -809,7 +809,7 @@ ir3_nir_lower_preamble(nir_shader *nir, struct ir3_shader_variant *v)
             }
          }
 
-         nir_store_uniform_ir3(b, src, .base = offset);
+         nir_store_const_ir3(b, src, .base = offset);
          nir_instr_remove(instr);
          nir_instr_free(instr);
       }

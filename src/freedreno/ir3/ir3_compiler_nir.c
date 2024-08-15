@@ -3176,7 +3176,7 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       array_insert(b, b->keeps, instr);
       break;
    }
-   case nir_intrinsic_store_uniform_ir3: {
+   case nir_intrinsic_store_const_ir3: {
       unsigned components = nir_src_num_components(intr->src[0]);
       unsigned dst = nir_intrinsic_base(intr);
       unsigned dst_lo = dst & 0xff;

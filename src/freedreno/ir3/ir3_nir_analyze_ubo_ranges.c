@@ -437,7 +437,7 @@ copy_global_to_uniform(nir_shader *nir, struct ir3_ubo_analysis_state *state)
             nir_def *load =
                nir_load_global_ir3(b, 4, 32, base,
                                    nir_imm_int(b, (start + offset) / 4));
-            nir_store_uniform_ir3(b, load, .base = const_offset);
+            nir_store_const_ir3(b, load, .base = const_offset);
          }
       }
    }
