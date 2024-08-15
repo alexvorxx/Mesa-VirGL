@@ -96,6 +96,8 @@ print_instr_name(struct log_stream *stream, struct ir3_instruction *instr,
          mesa_log_stream_printf(stream, "(nop%d)", instr->nop);
       if (instr->flags & IR3_INSTR_UL)
          mesa_log_stream_printf(stream, "(ul)");
+      if (instr->flags & IR3_INSTR_SAT)
+         mesa_log_stream_printf(stream, "(sat)");
    } else {
       mesa_log_stream_printf(stream, " ");
    }
