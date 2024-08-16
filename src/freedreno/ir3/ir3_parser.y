@@ -217,7 +217,7 @@ static void fixup_cat5_s2en(void)
 
 static void add_const(unsigned reg, unsigned c0, unsigned c1, unsigned c2, unsigned c3)
 {
-	struct ir3_const_state *const_state = ir3_const_state(variant);
+	struct ir3_const_state *const_state = ir3_const_state_mut(variant);
 	assert((reg & 0x7) == 0);
 	int idx = reg >> (1 + 2); /* low bit is half vs full, next two bits are swiz */
 	if (idx * 4 + 4 > const_state->immediates_size) {

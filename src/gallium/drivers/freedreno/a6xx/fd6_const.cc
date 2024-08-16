@@ -234,8 +234,8 @@ fd6_user_consts_cmdstream_size(const struct ir3_shader_variant *v)
    if (!v)
       return 0;
 
-   struct ir3_const_state *const_state = ir3_const_state(v);
-   struct ir3_ubo_analysis_state *ubo_state = &const_state->ubo_state;
+   const struct ir3_const_state *const_state = ir3_const_state(v);
+   const struct ir3_ubo_analysis_state *ubo_state = &const_state->ubo_state;
    unsigned packets, size;
 
    /* pre-calculate size required for userconst stateobj: */

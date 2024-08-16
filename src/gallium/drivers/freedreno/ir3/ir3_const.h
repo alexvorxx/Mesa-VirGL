@@ -93,7 +93,7 @@ ring_wfi(struct fd_batch *batch, struct fd_ringbuffer *ring) assert_dt
  * Returns size in dwords.
  */
 static inline void
-ir3_user_consts_size(struct ir3_ubo_analysis_state *state, unsigned *packets,
+ir3_user_consts_size(const struct ir3_ubo_analysis_state *state, unsigned *packets,
                      unsigned *size)
 {
    *packets = *size = 0;

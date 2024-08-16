@@ -96,7 +96,11 @@ nir_def *ir3_nir_try_propagate_bit_shift(nir_builder *b,
 
 bool ir3_nir_opt_subgroups(nir_shader *nir, struct ir3_shader_variant *v);
 
+nir_def *ir3_get_shared_driver_ubo(nir_builder *b,
+                                   const struct ir3_driver_ubo *ubo);
 nir_def *ir3_get_driver_ubo(nir_builder *b, struct ir3_driver_ubo *ubo);
+nir_def *ir3_get_driver_consts_ubo(nir_builder *b,
+                                   struct ir3_shader_variant *v);
 nir_def *ir3_load_driver_ubo(nir_builder *b, unsigned components,
                              struct ir3_driver_ubo *ubo,
                              unsigned offset);

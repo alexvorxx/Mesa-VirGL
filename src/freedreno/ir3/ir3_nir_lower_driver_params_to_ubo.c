@@ -12,7 +12,8 @@
 static bool
 lower_driver_param_to_ubo(nir_builder *b, nir_intrinsic_instr *intr, void *in)
 {
-   struct ir3_const_state *const_state = in;
+   struct ir3_shader_variant *v = in;
+   struct ir3_const_state *const_state = ir3_const_state_mut(v);
 
    unsigned components = nir_intrinsic_dest_components(intr);
 
@@ -80,7 +81,7 @@ ir3_nir_lower_driver_params_to_ubo(nir_shader *nir,
 {
    bool result = nir_shader_intrinsics_pass(
       nir, lower_driver_param_to_ubo,
-      nir_metadata_control_flow, ir3_const_state(v));
+      nir_metadata_control_flow, v);
 
    return result;
 }

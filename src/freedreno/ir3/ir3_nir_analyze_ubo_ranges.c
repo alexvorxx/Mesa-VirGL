@@ -564,7 +564,7 @@ assign_offsets(struct ir3_ubo_analysis_state *state, unsigned start,
 bool
 ir3_nir_lower_const_global_loads(nir_shader *nir, struct ir3_shader_variant *v)
 {
-   struct ir3_const_state *const_state = ir3_const_state(v);
+   const struct ir3_const_state *const_state = ir3_const_state(v);
    struct ir3_compiler *compiler = v->compiler;
 
    if (ir3_shader_debug & IR3_DBG_NOUBOOPT)
@@ -630,7 +630,7 @@ ir3_nir_lower_const_global_loads(nir_shader *nir, struct ir3_shader_variant *v)
    }
 
    if (!v->binning_pass)
-      const_state->global_size = DIV_ROUND_UP(state.size, 16);
+      ir3_const_state_mut(v)->global_size = DIV_ROUND_UP(state.size, 16);
 
    return progress;
 }
@@ -638,7 +638,7 @@ ir3_nir_lower_const_global_loads(nir_shader *nir, struct ir3_shader_variant *v)
 void
 ir3_nir_analyze_ubo_ranges(nir_shader *nir, struct ir3_shader_variant *v)
 {
-   struct ir3_const_state *const_state = ir3_const_state(v);
+   struct ir3_const_state *const_state = ir3_const_state_mut(v);
    struct ir3_ubo_analysis_state *state = &const_state->ubo_state;
    struct ir3_compiler *compiler = v->compiler;
 
@@ -807,7 +807,7 @@ ir3_nir_fixup_load_const_ir3(nir_shader *nir)
 static nir_def *
 ir3_nir_lower_load_const_instr(nir_builder *b, nir_instr *in_instr, void *data)
 {
-   struct ir3_const_state *const_state = data;
+   struct ir3_shader_variant *v = data;
    nir_intrinsic_instr *instr = nir_instr_as_intrinsic(in_instr);
 
    unsigned num_components = instr->num_components;
@@ -823,7 +823,7 @@ ir3_nir_lower_load_const_instr(nir_builder *b, nir_instr *in_instr, void *data)
       bit_size = 32;
    }
    unsigned base = nir_intrinsic_base(instr);
-   nir_def *index = ir3_get_driver_ubo(b, &const_state->consts_ubo);
+   nir_def *index = ir3_get_driver_consts_ubo(b, v);
    nir_def *offset =
       nir_iadd_imm(b, instr->src[0].ssa, base);
 
@@ -855,11 +855,9 @@ ir3_lower_load_const_filter(const nir_instr *instr, const void *data)
 bool
 ir3_nir_lower_load_constant(nir_shader *nir, struct ir3_shader_variant *v)
 {
-   struct ir3_const_state *const_state = ir3_const_state(v);
-
    bool progress = nir_shader_lower_instructions(
       nir, ir3_lower_load_const_filter, ir3_nir_lower_load_const_instr,
-      const_state);
+      v);
 
    if (progress) {
       struct ir3_compiler *compiler = v->compiler;

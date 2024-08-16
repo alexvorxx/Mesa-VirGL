@@ -69,7 +69,7 @@ ir3_destroy(struct ir3 *shader)
 
 static bool
 is_shared_consts(struct ir3_compiler *compiler,
-                 struct ir3_const_state *const_state,
+                 const struct ir3_const_state *const_state,
                  struct ir3_register *reg)
 {
    if (const_state->push_consts_type == IR3_PUSH_CONSTS_SHARED &&

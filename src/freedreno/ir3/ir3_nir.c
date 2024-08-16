@@ -31,6 +31,15 @@
 #include "ir3_nir.h"
 #include "ir3_shader.h"
 
+nir_def *
+ir3_get_shared_driver_ubo(nir_builder *b, const struct ir3_driver_ubo *ubo)
+{
+   assert(ubo->idx > 0);
+
+   /* Binning shader shared ir3_driver_ubo definitions but not shader info */
+   b->shader->info.num_ubos = MAX2(b->shader->info.num_ubos, ubo->idx + 1);
+   return nir_imm_int(b, ubo->idx);
+}
 
 nir_def *
 ir3_get_driver_ubo(nir_builder *b, struct ir3_driver_ubo *ubo)
@@ -42,13 +51,18 @@ ir3_get_driver_ubo(nir_builder *b, struct ir3_driver_ubo *ubo)
       if (b->shader->info.num_ubos == 0)
          b->shader->info.num_ubos++;
       ubo->idx = b->shader->info.num_ubos++;
-   } else {
-      assert(ubo->idx != 0);
-      /* Binning shader shared ir3_driver_ubo definitions but not shader info */
-      b->shader->info.num_ubos = MAX2(b->shader->info.num_ubos, ubo->idx + 1);
+      return nir_imm_int(b, ubo->idx);
    }
 
-   return nir_imm_int(b, ubo->idx);
+   return ir3_get_shared_driver_ubo(b, ubo);
+}
+
+nir_def *
+ir3_get_driver_consts_ubo(nir_builder *b, struct ir3_shader_variant *v)
+{
+   if (v->binning_pass)
+      return ir3_get_shared_driver_ubo(b, &ir3_const_state(v)->consts_ubo);
+   return ir3_get_driver_ubo(b, &ir3_const_state_mut(v)->consts_ubo);
 }
 
 nir_def *
@@ -1068,7 +1082,7 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so, nir_shader *s)
     * passes:
     */
    if (!so->binning_pass)
-      ir3_setup_const_state(s, so, ir3_const_state(so));
+      ir3_setup_const_state(s, so, ir3_const_state_mut(so));
 }
 
 bool

@@ -193,7 +193,7 @@ create_driver_param(struct ir3_context *ctx, enum ir3_driver_param dp)
 {
    /* first four vec4 sysval's reserved for UBOs: */
    /* NOTE: dp is in scalar, but there can be >4 dp components: */
-   struct ir3_const_state *const_state = ir3_const_state(ctx->so);
+   const struct ir3_const_state *const_state = ir3_const_state(ctx->so);
    unsigned n = const_state->offsets.driver_param;
    unsigned r = regid(n + dp / 4, dp % 4);
    return create_uniform(ctx->block, r);
@@ -205,7 +205,7 @@ create_driver_param_indirect(struct ir3_context *ctx, enum ir3_driver_param dp,
 {
    /* first four vec4 sysval's reserved for UBOs: */
    /* NOTE: dp is in scalar, but there can be >4 dp components: */
-   struct ir3_const_state *const_state = ir3_const_state(ctx->so);
+   const struct ir3_const_state *const_state = ir3_const_state(ctx->so);
    unsigned n = const_state->offsets.driver_param;
    return create_uniform_indirect(ctx->block, n * 4 + dp, TYPE_U32, address);
 }
