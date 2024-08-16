@@ -307,6 +307,13 @@ print_reg_name(struct log_stream *stream, struct ir3_instruction *instr,
    if (reg->tied)
       mesa_log_stream_printf(stream, "(tied)");
 
+   if (instr->opc == OPC_BR || instr->opc == OPC_BRAA ||
+       instr->opc == OPC_BRAO) {
+      bool inv = reg == instr->srcs[0] ? instr->cat0.inv1 : instr->cat0.inv2;
+      if (inv)
+         mesa_log_stream_printf(stream, "!");
+   }
+
    if (reg->flags & IR3_REG_SHARED)
       mesa_log_stream_printf(stream, "s");
    if (reg->flags & IR3_REG_HALF)
