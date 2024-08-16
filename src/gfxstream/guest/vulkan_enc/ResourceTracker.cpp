@@ -22,7 +22,6 @@
 #include "HostVisibleMemoryVirtualization.h"
 #include "Resources.h"
 #include "VkEncoder.h"
-#include "aemu/base/AlignedBuf.h"
 #include "gfxstream_vk_private.h"
 #include "goldfish_address_space.h"
 #include "goldfish_vk_private_defs.h"
