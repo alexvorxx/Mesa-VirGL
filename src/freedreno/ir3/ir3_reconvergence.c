@@ -154,7 +154,7 @@ ir3_calc_reconvergence(struct ir3_shader_variant *so)
                };
 
                uinterval_tree_insert(&forward_edges, &edges[edge++].node);
-            } else if (block->successors[i]->index < block->index - 1) {
+            } else if (block->successors[i]->index <= block->index) {
                edges[edge] = (struct logical_edge) {
                   .node = {
                      .interval = {
@@ -233,6 +233,31 @@ ir3_calc_reconvergence(struct ir3_shader_variant *so)
          u_worklist_pop_head(&worklist, struct ir3_block, index);
       assert(block->reconvergence_point);
 
+      /* Backwards branches extend the range of divergence. For example, a
+       * divergent break creates a reconvergence point after the loop that
+       * stays outstanding throughout subsequent iterations, even at points
+       * before the break. This takes that into account.
+       *
+       * More precisely, a backwards edge that originates between the block and
+       * it's first_divergent_pred (i.e. in the divergence range) extends the
+       * divergence range to the beginning of its destination if it is taken, or
+       * alternatively to the end of the block before its destination.
+       */
+      struct uinterval interval2 = {
+         blocks[block->index].first_divergent_pred,
+         blocks[block->index].first_divergent_pred
+      };
+      uinterval_tree_foreach (struct logical_edge, back_edge, interval2, &backward_edges,
+                              node) {
+         if (back_edge->end_block->index < block->index) {
+            if (blocks[block->index].first_divergent_pred >
+                back_edge->start_block->index - 1) {
+               blocks[block->index].first_divergent_pred =
+                  back_edge->start_block->index - 1;
+            }
+         }
+      }
+
       /* Iterate over all edges stepping over the block. */
       struct uinterval interval = { block->index, block->index };
       struct logical_edge *prev = NULL;
@@ -261,33 +286,6 @@ ir3_calc_reconvergence(struct ir3_shader_variant *so)
             blocks[edge->end_block->index].first_divergent_pred =
                edge->start_block->index;
             u_worklist_push_tail(&worklist, edge->end_block, index);
-         }
-
-         /* Backwards branches extend the range of divergence. For example, a
-          * divergent break creates a reconvergence point after the loop that
-          * stays outstanding throughout subsequent iterations, even at points
-          * before the break. This takes that into account.
-          *
-          * More precisely, a backwards edge that originates between the start
-          * and end of "edge" extends the divergence range to the beginning of
-          * its destination if it is taken, or alternatively to the end of the
-          * block before its destination.
-          *
-          * TODO: in case we ever start accepting weird non-structured control
-          * flow, we may also need to handle this above if a divergent branch
-          * crosses over a backwards edge.
-          */
-         struct uinterval interval2 = { edge->start_block->index, edge->start_block->index };
-         uinterval_tree_foreach (struct logical_edge, back_edge, interval2, &backward_edges,
-                                 node) {
-            if (back_edge->end_block->index < edge->end_block->index) {
-               if (blocks[edge->end_block->index].first_divergent_pred >
-                   back_edge->start_block->index - 1) {
-                  blocks[edge->end_block->index].first_divergent_pred =
-                     back_edge->start_block->index - 1;
-                  u_worklist_push_tail(&worklist, edge->end_block, index);
-               }
-            }
          }
 
          if (!prev || prev->start_block != edge->start_block) {
