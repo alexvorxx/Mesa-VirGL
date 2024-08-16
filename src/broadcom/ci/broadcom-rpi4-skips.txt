@@ -312,3 +312,8 @@ dEQP-VK.transform_feedback.*
 asan-KHR-GLES31.core.geometry_shader.input.gl_position_value
 asan-KHR-GLES31.core.geometry_shader.primitive_counter.lines_to_points_rp
 asan-KHR-GL31.ext_texture_shadow_lod.texturelodoffset.sampler2darrayshadow_vertex
+
+# uprev Piglit in Mesa
+spec@arb_texture_rg@fbo-blending-formats-float@GL_R32F
+spec@arb_texture_rg@fbo-blending-formats-float@GL_RG32F
+

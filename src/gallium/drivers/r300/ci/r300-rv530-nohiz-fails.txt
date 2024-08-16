@@ -526,17 +526,6 @@ spec@arb_texture_float@fbo-alphatest-formats@GL_LUMINANCE_ALPHA16F_ARB,Fail
 spec@arb_texture_float@fbo-alphatest-formats@GL_LUMINANCE_ALPHA32F_ARB,Fail
 spec@arb_texture_float@fbo-alphatest-formats@GL_RGB32F,Fail
 spec@arb_texture_float@fbo-alphatest-formats@GL_RGBA32F,Fail
-spec@arb_texture_float@fbo-blending-formats,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_ALPHA16F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_ALPHA32F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_INTENSITY16F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_INTENSITY32F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_LUMINANCE16F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_LUMINANCE32F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_LUMINANCE_ALPHA16F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_LUMINANCE_ALPHA32F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_RGB32F,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_RGBA32F,Fail
 spec@arb_texture_float@texwrap formats bordercolor,Fail
 spec@arb_texture_float@texwrap formats bordercolor-swizzled,Fail
 spec@arb_texture_float@texwrap formats bordercolor-swizzled@GL_ALPHA16F_ARB- swizzled- border color only,Fail
@@ -581,14 +570,6 @@ spec@arb_texture_rg@fbo-alphatest-formats-float@GL_R16F,Fail
 spec@arb_texture_rg@fbo-alphatest-formats-float@GL_R32F,Fail
 spec@arb_texture_rg@fbo-alphatest-formats-float@GL_RG16F,Fail
 spec@arb_texture_rg@fbo-alphatest-formats-float@GL_RG32F,Fail
-spec@arb_texture_rg@fbo-blending-formats,Fail
-spec@arb_texture_rg@fbo-blending-formats-float,Fail
-spec@arb_texture_rg@fbo-blending-formats-float@GL_R16F,Fail
-spec@arb_texture_rg@fbo-blending-formats-float@GL_R32F,Fail
-spec@arb_texture_rg@fbo-blending-formats-float@GL_RG16F,Fail
-spec@arb_texture_rg@fbo-blending-formats-float@GL_RG32F,Fail
-spec@arb_texture_rg@fbo-blending-formats@GL_R16,Fail
-spec@arb_texture_rg@fbo-blending-formats@GL_RG16,Fail
 spec@arb_texture_rg@texwrap formats-float bordercolor,Fail
 spec@arb_texture_rg@texwrap formats-float bordercolor-swizzled,Fail
 spec@arb_texture_rg@texwrap formats-float bordercolor-swizzled@GL_R16F- swizzled- border color only,Fail
@@ -632,21 +613,6 @@ spec@ext_framebuffer_object@fbo-alphatest-formats@GL_RGB16,Fail
 spec@ext_framebuffer_object@fbo-alphatest-formats@GL_RGBA12,Fail
 spec@ext_framebuffer_object@fbo-alphatest-formats@GL_RGBA16,Fail
 spec@ext_framebuffer_object@fbo-blending-format-quirks,Fail
-spec@ext_framebuffer_object@fbo-blending-formats,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_ALPHA12,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_ALPHA16,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_INTENSITY12,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_INTENSITY16,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_LUMINANCE12,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_LUMINANCE12_ALPHA12,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_LUMINANCE16,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_LUMINANCE16_ALPHA16,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_LUMINANCE8_ALPHA8,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_LUMINANCE_ALPHA,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_RGB12,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_RGB16,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_RGBA12,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_RGBA16,Fail
 spec@ext_framebuffer_object@fbo-depth-sample-compare,Fail
 spec@ext_framebuffer_object@getteximage-formats init-by-clear-and-render,Fail
 spec@ext_framebuffer_object@getteximage-formats init-by-rendering,Fail
@@ -687,31 +653,6 @@ spec@ext_texture_snorm@fbo-alphatest-formats@GL_RGBA8_SNORM,Fail
 spec@ext_texture_snorm@fbo-alphatest-formats@GL_RGBA_SNORM,Fail
 spec@ext_texture_snorm@fbo-alphatest-formats@GL_RGB_SNORM,Fail
 spec@ext_texture_snorm@fbo-alphatest-formats@GL_RG_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_ALPHA16_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_ALPHA8_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_ALPHA_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_INTENSITY16_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_INTENSITY8_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_INTENSITY_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_LUMINANCE16_ALPHA16_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_LUMINANCE16_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_LUMINANCE8_ALPHA8_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_LUMINANCE8_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_LUMINANCE_ALPHA_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_LUMINANCE_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_R16_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_R8_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_RED_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_RG16_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_RG8_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_RGB16_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_RGB8_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_RGBA16_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_RGBA8_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_RGBA_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_RGB_SNORM,Fail
-spec@ext_texture_snorm@fbo-blending-formats@GL_RG_SNORM,Fail
 
 spec@ext_texture_srgb@texwrap formats,Fail
 spec@ext_texture_srgb@texwrap formats bordercolor,Fail
