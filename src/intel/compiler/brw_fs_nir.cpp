@@ -938,7 +938,8 @@ fs_nir_emit_alu(nir_to_brw_state &ntb, nir_alu_instr *instr,
       nir_component_mask_t write_mask = get_nir_write_mask(instr->def);
       unsigned last_bit = util_last_bit(write_mask);
 
-      brw_reg comps[last_bit];
+      assert(last_bit <= NIR_MAX_VEC_COMPONENTS);
+      brw_reg comps[NIR_MAX_VEC_COMPONENTS];
 
       for (unsigned i = 0; i < last_bit; i++) {
          if (instr->op == nir_op_mov)
@@ -1812,7 +1813,7 @@ fs_nir_emit_load_const(nir_to_brw_state &ntb,
       brw_type_with_size(BRW_TYPE_D, instr->def.bit_size);
    brw_reg reg = bld.vgrf(reg_type, instr->def.num_components);
 
-   brw_reg comps[instr->def.num_components];
+   brw_reg comps[NIR_MAX_VEC_COMPONENTS];
 
    switch (instr->def.bit_size) {
    case 8:
@@ -2413,9 +2414,10 @@ fs_visitor::emit_gs_control_data_bits(const brw_reg &vertex_count)
 
    /* If there are channel masks, add 3 extra copies of the data. */
    const unsigned length = 1 + 3 * unsigned(channel_mask.file != BAD_FILE);
-   brw_reg sources[length];
+   assert(length <= 4);
+   brw_reg sources[4];
 
-   for (unsigned i = 0; i < ARRAY_SIZE(sources); i++)
+   for (unsigned i = 0; i < length; i++)
       sources[i] = this->control_data_bits;
 
    brw_reg srcs[URB_LOGICAL_NUM_SRCS];
@@ -3279,7 +3281,7 @@ fs_nir_emit_tes_intrinsic(nir_to_brw_state &ntb,
          if (imm_offset < max_push_slots) {
             const brw_reg src = horiz_offset(brw_attr_reg(0, dest.type),
                                             4 * imm_offset + first_component);
-            brw_reg comps[instr->num_components];
+            brw_reg comps[NIR_MAX_VEC_COMPONENTS];
             for (unsigned i = 0; i < instr->num_components; i++) {
                comps[i] = component(src, i);
             }
@@ -5479,7 +5481,8 @@ emit_urb_direct_vec4_write_xe2(const fs_builder &bld,
    for (unsigned q = 0; q < bld.dispatch_width() / write_size; q++) {
       fs_builder hbld = bld.group(write_size, q);
 
-      brw_reg payload_srcs[comps];
+      assert(comps <= 4);
+      brw_reg payload_srcs[4];
 
       for (unsigned c = 0; c < comps; c++)
          payload_srcs[c] = horiz_offset(offset(src, bld, c), write_size * q);
@@ -5608,7 +5611,7 @@ emit_urb_indirect_writes_xe2(const fs_builder &bld, nir_intrinsic_instr *instr,
    for (unsigned q = 0; q < bld.dispatch_width() / write_size; q++) {
       fs_builder wbld = bld.group(write_size, q);
 
-      brw_reg payload_srcs[comps];
+      brw_reg payload_srcs[4];
 
       for (unsigned c = 0; c < comps; c++)
          payload_srcs[c] = horiz_offset(offset(src, bld, c), write_size * q);
