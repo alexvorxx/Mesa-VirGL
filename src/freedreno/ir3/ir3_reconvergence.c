@@ -222,7 +222,12 @@ ir3_calc_reconvergence(struct ir3_shader_variant *so)
          for (unsigned i = 0; i < num_reconv_points; i++) {
             struct ir3_block *reconv_point = reconv_points[i];
             reconv_point->reconvergence_point = true;
-            blocks[reconv_point->index].first_divergent_pred = block->index;
+
+            struct block_data *reconv_point_data = &blocks[reconv_point->index];
+            if (reconv_point_data->first_divergent_pred > block->index) {
+               reconv_point_data->first_divergent_pred = block->index;
+            }
+
             u_worklist_push_tail(&worklist, reconv_point, index);
          }
       }
