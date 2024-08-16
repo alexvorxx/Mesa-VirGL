@@ -5290,14 +5290,6 @@ fixup_tg4(struct ir3_context *ctx)
    }
 }
 
-static bool
-output_slot_used_for_binning(gl_varying_slot slot)
-{
-   return slot == VARYING_SLOT_POS || slot == VARYING_SLOT_PSIZ ||
-          slot == VARYING_SLOT_CLIP_DIST0 || slot == VARYING_SLOT_CLIP_DIST1 ||
-          slot == VARYING_SLOT_VIEWPORT;
-}
-
 static struct ir3_instruction *
 find_end(struct ir3 *ir)
 {
@@ -5308,48 +5300,6 @@ find_end(struct ir3 *ir)
       }
    }
    unreachable("couldn't find end instruction");
-}
-
-static void
-fixup_binning_pass(struct ir3_context *ctx, struct ir3_instruction *end)
-{
-   struct ir3_shader_variant *so = ctx->so;
-   unsigned i, j;
-
-   /* first pass, remove unused outputs from the IR level outputs: */
-   for (i = 0, j = 0; i < end->srcs_count; i++) {
-      unsigned outidx = end->end.outidxs[i];
-      unsigned slot = so->outputs[outidx].slot;
-
-      if (output_slot_used_for_binning(slot)) {
-         end->srcs[j] = end->srcs[i];
-         end->end.outidxs[j] = end->end.outidxs[i];
-         j++;
-      }
-   }
-   end->srcs_count = j;
-
-   /* second pass, cleanup the unused slots in ir3_shader_variant::outputs
-    * table:
-    */
-   for (i = 0, j = 0; i < so->outputs_count; i++) {
-      unsigned slot = so->outputs[i].slot;
-
-      if (output_slot_used_for_binning(slot)) {
-         so->outputs[j] = so->outputs[i];
-
-         /* fixup outidx to point to new output table entry: */
-         for (unsigned k = 0; k < end->srcs_count; k++) {
-            if (end->end.outidxs[k] == i) {
-               end->end.outidxs[k] = j;
-               break;
-            }
-         }
-
-         j++;
-      }
-   }
-   so->outputs_count = j;
 }
 
 static void
@@ -5601,10 +5551,6 @@ ir3_compile_shader_nir(struct ir3_compiler *compiler,
       memcpy(end->end.outidxs, outidxs, sizeof(unsigned) * outputs_count);
 
       array_insert(ctx->block, ctx->block->keeps, end);
-
-      /* at this point, for binning pass, throw away unneeded outputs: */
-      if (so->binning_pass && (ctx->compiler->gen < 6))
-         fixup_binning_pass(ctx, end);
    }
 
    if (so->type == MESA_SHADER_FRAGMENT &&
@@ -5636,18 +5582,6 @@ ir3_compile_shader_nir(struct ir3_compiler *compiler,
       progress |= IR3_PASS(ir, ir3_opt_predicates, so);
       progress |= IR3_PASS(ir, ir3_shared_fold);
    } while (progress);
-
-   /* at this point, for binning pass, throw away unneeded outputs:
-    * Note that for a6xx and later, we do this after ir3_cp to ensure
-    * that the uniform/constant layout for BS and VS matches, so that
-    * we can re-use same VS_CONST state group.
-    */
-   if (so->binning_pass && (ctx->compiler->gen >= 6)) {
-      fixup_binning_pass(ctx, find_end(ctx->so->ir));
-      /* cleanup the result of removing unneeded outputs: */
-      while (IR3_PASS(ir, ir3_dce, so)) {
-      }
-   }
 
    IR3_PASS(ir, ir3_sched_add_deps);
 
