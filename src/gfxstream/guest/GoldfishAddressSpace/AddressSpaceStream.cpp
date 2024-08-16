@@ -26,9 +26,6 @@
 #include "util.h"
 #include "virtgpu_gfxstream_protocol.h"
 
-#if defined(__ANDROID__)
-#include "android-base/properties.h"
-#endif
 #include <cutils/log.h>
 
 static const size_t kReadSize = 512 * 1024;
@@ -576,15 +573,8 @@ int AddressSpaceStream::type1Write(uint32_t bufferOffset, size_t size) {
 }
 
 void AddressSpaceStream::backoff() {
-#if defined(__APPLE__) || defined(__MACOSX) || defined(__Fuchsia__) || defined(__linux__)
     static const uint32_t kBackoffItersThreshold = 50000000;
     static const uint32_t kBackoffFactorDoublingIncrement = 50000000;
-#elif defined(__ANDROID__)
-    static const uint32_t kBackoffItersThreshold =
-        android::base::GetUintProperty("ro.boot.asg.backoffiters", 50000000);
-    static const uint32_t kBackoffFactorDoublingIncrement =
-        android::base::GetUintProperty("ro.boot.asg.backoffincrement", 50000000);
-#endif
     ++m_backoffIters;
 
     if (m_backoffIters > kBackoffItersThreshold) {
