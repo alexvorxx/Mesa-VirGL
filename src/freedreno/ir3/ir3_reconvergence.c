@@ -294,10 +294,16 @@ ir3_calc_reconvergence(struct ir3_shader_variant *so)
              * adding redundant physical edges in case multiple edges have the
              * same start point by comparing with the previous edge. Therefore
              * we should only add the physical edge once.
+             * However, we should skip logical successors of the edge's start
+             * block since physical edges for those have already been added
+             * initially.
              */
-            for (unsigned i = 0; i < block->physical_predecessors_count; i++)
-               assert(block->physical_predecessors[i] != edge->start_block);
-            ir3_block_link_physical(edge->start_block, block);
+            if (block != edge->start_block->successors[0] &&
+                block != edge->start_block->successors[1]) {
+               for (unsigned i = 0; i < block->physical_predecessors_count; i++)
+                  assert(block->physical_predecessors[i] != edge->start_block);
+               ir3_block_link_physical(edge->start_block, block);
+            }
          }
          prev = edge;
       }
