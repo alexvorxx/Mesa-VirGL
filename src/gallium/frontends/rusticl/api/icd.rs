@@ -115,7 +115,7 @@ pub static DISPATCH: cl_icd_dispatch = cl_icd_dispatch {
     clRetainDeviceEXT: None,
     clReleaseDeviceEXT: None,
     clCreateEventFromGLsyncKHR: None,
-    clCreateSubDevices: None,
+    clCreateSubDevices: Some(clCreateSubDevices),
     clRetainDevice: Some(clRetainDevice),
     clReleaseDevice: Some(clReleaseDevice),
     clCreateImage: Some(clCreateImage),

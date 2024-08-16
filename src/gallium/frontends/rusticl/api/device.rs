@@ -372,6 +372,20 @@ fn release_device(_device: cl_device_id) -> CLResult<()> {
     Ok(())
 }
 
+#[cl_entrypoint(clCreateSubDevices)]
+fn create_sub_devices(
+    _device: cl_device_id,
+    _properties: *const cl_device_partition_property,
+    _num_devices: cl_uint,
+    _out_devices: *mut cl_device_id,
+    _num_devices_ret: *mut cl_uint,
+) -> CLResult<()> {
+    // CL_INVALID_VALUE if values specified in properties are not valid or
+    // if values specified in properties are valid but not supported by the
+    // device.
+    Err(CL_INVALID_VALUE)
+}
+
 #[cl_entrypoint(clGetDeviceAndHostTimer)]
 fn get_device_and_host_timer(
     device: cl_device_id,
