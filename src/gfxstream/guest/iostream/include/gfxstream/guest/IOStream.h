@@ -20,8 +20,6 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "ErrorLog.h"
-
 namespace gfxstream {
 namespace guest {
 
@@ -71,7 +69,6 @@ public:
 
         if (m_iostreamBuf && len > m_free) {
             if (flush() < 0) {
-                ERR("Failed to flush in alloc\n");
                 return NULL; // we failed to flush so something is wrong
             }
         }
@@ -80,7 +77,6 @@ public:
             size_t allocLen = this->idealAllocSize(len);
             m_iostreamBuf = (unsigned char *)allocBuffer(allocLen);
             if (!m_iostreamBuf) {
-                ERR("Alloc (%zu bytes) failed\n", allocLen);
                 return NULL;
             }
             m_bufsize = m_free = allocLen;
