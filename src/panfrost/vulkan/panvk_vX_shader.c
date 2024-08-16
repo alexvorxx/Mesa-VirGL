@@ -117,6 +117,10 @@ panvk_lower_sysvals(nir_builder *b, nir_instr *instr, void *data)
       val = load_sysval_from_push_const(b, SYSVAL(graphics, blend.constants),
                                         bit_size, num_comps);
       break;
+   case nir_intrinsic_load_multisampled_pan:
+      val = load_sysval_from_push_const(b, SYSVAL(graphics, fs.multisampled),
+                                        bit_size, num_comps);
+      break;
 
    case nir_intrinsic_load_layer_id:
       assert(b->shader->info.stage == MESA_SHADER_FRAGMENT);
