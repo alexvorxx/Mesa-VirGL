@@ -548,6 +548,9 @@ print_block(struct ir3_block *block, int lvl)
       if (block->successors[1]) {
          mesa_log_stream_printf(stream, ", block%u",
                                 block_id(block->successors[1]));
+
+         mesa_log_stream_printf(stream, " (%s)",
+                                block->divergent_condition ? "div" : "con");
       }
       mesa_log_stream_printf(stream, " */\n");
    }
