@@ -28,6 +28,11 @@ DEQP_GLES_VERSION=3.2.10.1
 
 # shellcheck disable=SC2034
 vk_cts_commits_to_backport=(
+  # Add missing NonUniform decoration in variable pointers test
+  cd262587a42dcd20951c22f66d7525c76cf64af4
+
+  # Allow extra invocations in the pipeline stats
+  78f6618e147c0a745754b9e73ae10113a1ebde29
 )
 
 # shellcheck disable=SC2034
