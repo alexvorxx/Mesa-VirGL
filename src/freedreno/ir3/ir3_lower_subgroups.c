@@ -203,6 +203,8 @@ split_block(struct ir3 *ir, struct ir3_block *before_block,
       rem_instr->block = after_block;
    }
 
+   after_block->divergent_condition = before_block->divergent_condition;
+   before_block->divergent_condition = false;
    return after_block;
 }
 
@@ -239,6 +241,10 @@ link_blocks_branch(struct ir3_block *pred, struct ir3_block *target,
 
    link_blocks(pred, target, 0);
    link_blocks(pred, fallthrough, 1);
+
+   if (opc != OPC_BALL && opc != OPC_BANY) {
+      pred->divergent_condition = true;
+   }
 }
 
 static struct ir3_block *
