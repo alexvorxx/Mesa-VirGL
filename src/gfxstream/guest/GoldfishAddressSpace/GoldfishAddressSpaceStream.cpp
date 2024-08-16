@@ -14,9 +14,8 @@
 
 #include "GoldfishAddressSpaceStream.h"
 
-#include <log/log.h>
-
 #include "goldfish_address_space.h"
+#include "util/log.h"
 
 AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize) {
     // Ignore incoming ignored_bufSize
@@ -26,7 +25,7 @@ AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize) {
     address_space_handle_t child_device_handle;
 
     if (!goldfish_address_space_set_subdevice_type(handle, GoldfishAddressSpaceSubdeviceType::Graphics, &child_device_handle)) {
-        ALOGE("AddressSpaceStream::create failed (initial device create)\n");
+        mesa_loge("AddressSpaceStream::create failed (initial device create)\n");
         goldfish_address_space_close(handle);
         return nullptr;
     }
@@ -34,7 +33,7 @@ AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize) {
     struct address_space_ping request;
     request.metadata = ASG_GET_RING;
     if (!goldfish_address_space_ping(child_device_handle, &request)) {
-        ALOGE("AddressSpaceStream::create failed (get ring)\n");
+        mesa_loge("AddressSpaceStream::create failed (get ring)\n");
         goldfish_address_space_close(child_device_handle);
         return nullptr;
     }
@@ -43,7 +42,7 @@ AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize) {
 
     request.metadata = ASG_GET_BUFFER;
     if (!goldfish_address_space_ping(child_device_handle, &request)) {
-        ALOGE("AddressSpaceStream::create failed (get buffer)\n");
+        mesa_loge("AddressSpaceStream::create failed (get buffer)\n");
         goldfish_address_space_close(child_device_handle);
         return nullptr;
     }
@@ -53,14 +52,14 @@ AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize) {
 
     if (!goldfish_address_space_claim_shared(
         child_device_handle, ringOffset, sizeof(asg_ring_storage))) {
-        ALOGE("AddressSpaceStream::create failed (claim ring storage)\n");
+        mesa_loge("AddressSpaceStream::create failed (claim ring storage)\n");
         goldfish_address_space_close(child_device_handle);
         return nullptr;
     }
 
     if (!goldfish_address_space_claim_shared(
         child_device_handle, bufferOffset, bufferSize)) {
-        ALOGE("AddressSpaceStream::create failed (claim buffer storage)\n");
+        mesa_loge("AddressSpaceStream::create failed (claim buffer storage)\n");
         goldfish_address_space_unclaim_shared(child_device_handle, ringOffset);
         goldfish_address_space_close(child_device_handle);
         return nullptr;
@@ -70,7 +69,7 @@ AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize) {
         child_device_handle, ringOffset, sizeof(struct asg_ring_storage));
 
     if (!ringPtr) {
-        ALOGE("AddressSpaceStream::create failed (map ring storage)\n");
+        mesa_loge("AddressSpaceStream::create failed (map ring storage)\n");
         goldfish_address_space_unclaim_shared(child_device_handle, bufferOffset);
         goldfish_address_space_unclaim_shared(child_device_handle, ringOffset);
         goldfish_address_space_close(child_device_handle);
@@ -81,7 +80,7 @@ AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize) {
         child_device_handle, bufferOffset, bufferSize);
 
     if (!bufferPtr) {
-        ALOGE("AddressSpaceStream::create failed (map buffer storage)\n");
+        mesa_loge("AddressSpaceStream::create failed (map buffer storage)\n");
         goldfish_address_space_unmap(ringPtr, sizeof(struct asg_ring_storage));
         goldfish_address_space_unclaim_shared(child_device_handle, bufferOffset);
         goldfish_address_space_unclaim_shared(child_device_handle, ringOffset);
@@ -97,7 +96,7 @@ AddressSpaceStream* createGoldfishAddressSpaceStream(size_t ignored_bufSize) {
     request.size = 1; // version 1
 
     if (!goldfish_address_space_ping(child_device_handle, &request)) {
-        ALOGE("AddressSpaceStream::create failed (get buffer)\n");
+        mesa_loge("AddressSpaceStream::create failed (get buffer)\n");
         goldfish_address_space_unmap(bufferPtr, bufferSize);
         goldfish_address_space_unmap(ringPtr, sizeof(struct asg_ring_storage));
         goldfish_address_space_unclaim_shared(child_device_handle, bufferOffset);

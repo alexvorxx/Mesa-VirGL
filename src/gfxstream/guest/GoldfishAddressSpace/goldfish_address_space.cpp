@@ -13,21 +13,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include <linux/types.h>
-#include <linux/ioctl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/mman.h>
-#include <sys/ioctl.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <cstdlib>
-#include <errno.h>
-#include <memory>
-#include <cstring>
-
 #include "goldfish_address_space.h"
-#include <log/log.h>
+
+#include <errno.h>
+#include <fcntl.h>
+#include <linux/ioctl.h>
+#include <linux/types.h>
+#include <sys/ioctl.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
+
+#include <cstdlib>
+#include <cstring>
+#include <memory>
+
+#include "util/log.h"
 
 // See virgl_hw.h and p_defines.h
 #define VIRGL_FORMAT_R8_UNORM 64
@@ -119,8 +121,8 @@ GoldfishAddressSpaceBlockProvider::GoldfishAddressSpaceBlockProvider(GoldfishAdd
     if ((subdevice != GoldfishAddressSpaceSubdeviceType::NoSubdevice) && is_opened()) {
         const long ret = set_address_space_subdevice_type(m_handle, subdevice);
         if (ret != 0 && ret != subdevice) {  // TODO: retire the 'ret != subdevice' check
-            ALOGE("%s: set_address_space_subdevice_type failed for device_type=%lu, ret=%ld",
-                  __func__, static_cast<unsigned long>(subdevice), ret);
+            mesa_loge("%s: set_address_space_subdevice_type failed for device_type=%lu, ret=%ld",
+                      __func__, static_cast<unsigned long>(subdevice), ret);
             close();
         }
     }
@@ -247,22 +249,21 @@ uint64_t GoldfishAddressSpaceBlock::hostAddr() const
 void *GoldfishAddressSpaceBlock::mmap(uint64_t host_addr)
 {
     if (m_size == 0) {
-        ALOGE("%s: called with zero size\n", __func__);
+        mesa_loge("%s: called with zero size\n", __func__);
         return NULL;
     }
     if (m_mmaped_ptr) {
-        ALOGE("'mmap' called for an already mmaped address block");
+        mesa_loge("'mmap' called for an already mmaped address block");
         ::abort();
     }
 
     void *result;
     const int res = memoryMap(NULL, m_size, m_handle, m_offset, &result);
     if (res) {
-        ALOGE("%s: host memory map failed with size 0x%llx "
-              "off 0x%llx errno %d\n",
-              __func__,
-              (unsigned long long)m_size,
-              (unsigned long long)m_offset, res);
+        mesa_loge(
+            "%s: host memory map failed with size 0x%llx "
+            "off 0x%llx errno %d\n",
+            __func__, (unsigned long long)m_size, (unsigned long long)m_offset, res);
         return NULL;
     } else {
         m_mmaped_ptr = result;
@@ -289,13 +290,13 @@ void GoldfishAddressSpaceBlock::destroy()
         if (m_is_shared_mapping) {
             res = ioctl_unclaim_shared(m_handle, m_offset);
             if (res) {
-                ALOGE("ioctl_unclaim_shared failed, res=%ld", res);
+                mesa_loge("ioctl_unclaim_shared failed, res=%ld", res);
                 ::abort();
             }
         } else {
             res = ioctl_deallocate(m_handle, m_offset);
             if (res) {
-                ALOGE("ioctl_deallocate failed, res=%ld", res);
+                mesa_loge("ioctl_deallocate failed, res=%ld", res);
                 ::abort();
             }
         }
@@ -410,7 +411,7 @@ void GoldfishAddressSpaceHostMemoryAllocator::hostFree(GoldfishAddressSpaceBlock
     }
 
     if (!m_provider.is_opened()) {
-        ALOGE("%s: device is not available", __func__);
+        mesa_loge("%s: device is not available", __func__);
         ::abort();
     }
 
@@ -423,7 +424,7 @@ void GoldfishAddressSpaceHostMemoryAllocator::hostFree(GoldfishAddressSpaceBlock
 
         const long ret = ioctl_ping(m_provider.m_handle, &request);
         if (ret) {
-            ALOGE("%s: ioctl_ping failed, ret=%ld", __func__, ret);
+            mesa_loge("%s: ioctl_ping failed, ret=%ld", __func__, ret);
             ::abort();
         }
     }
@@ -462,7 +463,7 @@ bool goldfish_address_space_free(
     long res = ioctl_deallocate(handle, offset);
 
     if (res) {
-        ALOGE("ioctl_deallocate failed, res=%ld", res);
+        mesa_loge("ioctl_deallocate failed, res=%ld", res);
         ::abort();
     }
 
@@ -486,7 +487,7 @@ bool goldfish_address_space_unclaim_shared(
         address_space_handle_t handle, uint64_t offset) {
     long res = ioctl_unclaim_shared(handle, offset);
     if (res) {
-        ALOGE("ioctl_unclaim_shared failed, res=%ld", res);
+        mesa_loge("ioctl_unclaim_shared failed, res=%ld", res);
         ::abort();
     }
 
@@ -502,7 +503,7 @@ void* goldfish_address_space_map(
     void* res = ::mmap64(0, size, PROT_WRITE, MAP_SHARED, handle, offset);
 
     if (res == MAP_FAILED) {
-        ALOGE("%s: failed to map. errno: %d\n", __func__, errno);
+        mesa_loge("%s: failed to map. errno: %d\n", __func__, errno);
         return 0;
     }
 
@@ -529,7 +530,7 @@ bool goldfish_address_space_ping(
     long res = ioctl_ping(handle, ping);
 
     if (res) {
-        ALOGE("%s: ping failed: errno: %d\n", __func__, errno);
+        mesa_loge("%s: ping failed: errno: %d\n", __func__, errno);
         return false;
     }
 
