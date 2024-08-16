@@ -986,6 +986,9 @@ ir3_max_const(const struct ir3_shader_variant *v)
    return _ir3_max_const(v, v->key.safe_constlen);
 }
 
+uint16_t ir3_const_find_imm(struct ir3_shader_variant *v, uint32_t imm);
+uint16_t ir3_const_add_imm(struct ir3_shader_variant *v, uint32_t imm);
+
 /* Return true if a variant may need to be recompiled due to exceeding the
  * maximum "safe" constlen.
  */

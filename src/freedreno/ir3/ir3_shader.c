@@ -43,6 +43,59 @@
 
 #include "disasm.h"
 
+static uint16_t
+const_imm_index_to_reg(const struct ir3_const_state *const_state, unsigned i)
+{
+   return i + (4 * const_state->offsets.immediate);
+}
+
+uint16_t
+ir3_const_find_imm(struct ir3_shader_variant *v, uint32_t imm)
+{
+   const struct ir3_const_state *const_state = ir3_const_state(v);
+
+   for (unsigned i = 0; i < const_state->immediates_count; i++) {
+      if (const_state->immediates[i] == imm)
+         return const_imm_index_to_reg(const_state, i);
+   }
+
+   return INVALID_CONST_REG;
+}
+
+uint16_t
+ir3_const_add_imm(struct ir3_shader_variant *v, uint32_t imm)
+{
+   struct ir3_const_state *const_state = ir3_const_state(v);
+
+   /* Reallocate for 4 more elements whenever it's necessary.  Note that ir3
+    * printing relies on having groups of 4 dwords, so we fill the unused
+    * slots with a dummy value.
+    */
+   if (const_state->immediates_count == const_state->immediates_size) {
+      const_state->immediates = rerzalloc(
+         const_state, const_state->immediates,
+         __typeof__(const_state->immediates[0]), const_state->immediates_size,
+         const_state->immediates_size + 4);
+      const_state->immediates_size += 4;
+
+      for (int i = const_state->immediates_count;
+           i < const_state->immediates_size; i++) {
+         const_state->immediates[i] = 0xd0d0d0d0;
+      }
+   }
+
+   /* Add on a new immediate to be pushed, if we have space left in the
+    * constbuf.
+    */
+   if (const_state->offsets.immediate + const_state->immediates_count / 4 >=
+       ir3_max_const(v)) {
+      return INVALID_CONST_REG;
+   }
+
+   const_state->immediates[const_state->immediates_count] = imm;
+   return const_imm_index_to_reg(const_state, const_state->immediates_count++);
+}
+
 int
 ir3_glsl_type_size(const struct glsl_type *type, bool bindless)
 {

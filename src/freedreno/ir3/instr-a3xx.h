@@ -524,6 +524,8 @@ regid(int num, int comp)
 #define REG_P0 62 /* predicate register */
 #define REG_P0_X regid(REG_P0, 0) /* p0.x */
 
+#define INVALID_CONST_REG UINT16_MAX
+
 /* With is_bindless_s2en = 1, this determines whether bindless is enabled and
  * if so, how to get the (base, index) pair for both sampler and texture.
  * There is a single base embedded in the instruction, which is always used
