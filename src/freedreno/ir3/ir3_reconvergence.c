@@ -122,6 +122,10 @@ ir3_calc_reconvergence(struct ir3_shader_variant *so)
          edge_count++;
       if (block->successors[1])
          edge_count++;
+
+      block->physical_predecessors_count = 0;
+      block->physical_successors_count = 0;
+      block->reconvergence_point = false;
    }
 
    struct rb_tree forward_edges, backward_edges;

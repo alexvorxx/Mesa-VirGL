@@ -948,11 +948,6 @@ retarget_jump(struct ir3_instruction *instr, struct ir3_block *new_target)
    /* and remove old_target's predecessor: */
    ir3_block_remove_predecessor(old_target, cur_block);
 
-   /* If we reconverged at the old target, we'll reconverge at the new target
-    * too:
-    */
-   new_target->reconvergence_point |= old_target->reconvergence_point;
-
    instr->cat0.target = new_target;
 
    if (old_target->predecessors_count == 0) {
@@ -1757,8 +1752,6 @@ ir3_legalize(struct ir3 *ir, struct ir3_shader_variant *so, int *max_bary)
    }
 
    block_sched(ir);
-   if (so->type == MESA_SHADER_FRAGMENT)
-      kill_sched(ir, so);
 
    foreach_block (block, &ir->block_list) {
       progress |= apply_fine_deriv_macro(ctx, block);
@@ -1772,10 +1765,17 @@ ir3_legalize(struct ir3 *ir, struct ir3_shader_variant *so, int *max_bary)
       dbg_nop_sched(ir, so);
    }
 
+   bool cfg_changed = false;
    while (opt_jump(ir))
-      ;
+      cfg_changed = true;
 
    prede_sched(ir);
+
+   if (cfg_changed)
+      ir3_calc_reconvergence(so);
+
+   if (so->type == MESA_SHADER_FRAGMENT)
+      kill_sched(ir, so);
 
    /* TODO: does (eq) exist before a6xx? */
    if (so->type == MESA_SHADER_FRAGMENT && so->need_pixlod &&
