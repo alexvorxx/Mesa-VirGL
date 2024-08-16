@@ -152,10 +152,11 @@
     - ./install/bare-metal/poe-powered.sh
   variables:
     BOOT_PHASE_TIMEOUT_SECONDS: 90
+    TEST_PHASE_TIMEOUT_MINUTES: 20  # when overriding, keep this 5min less than the job's `timeout:`
     HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
     FLAKES_CHANNEL: "#videocore-ci"
     FARM: igalia
-  timeout: 20m
+  timeout: 25m
 
 .broadcom-test:arm64:
   extends:
