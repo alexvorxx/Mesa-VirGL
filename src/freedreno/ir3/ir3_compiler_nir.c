@@ -590,7 +590,6 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
 
    dst_sz = alu->def.num_components;
    assert(dst_sz == 1 || ir3_supports_vectorized_nir_op(alu->op));
-   assert(dst_sz <= ARRAY_SIZE(src[0].rpts));
 
    bool use_shared = !alu->def.divergent &&
       ctx->compiler->has_scalar_alu &&
@@ -613,21 +612,20 @@ emit_alu(struct ir3_context *ctx, nir_alu_instr *alu)
    if ((alu->op == nir_op_vec2) || (alu->op == nir_op_vec3) ||
        (alu->op == nir_op_vec4) || (alu->op == nir_op_vec8) ||
        (alu->op == nir_op_vec16)) {
-      struct ir3_instruction_rpt src;
-      assert(info->num_inputs <= ARRAY_SIZE(src.rpts));
-
       for (int i = 0; i < info->num_inputs; i++) {
          nir_alu_src *asrc = &alu->src[i];
-         src.rpts[i] =
+         struct ir3_instruction *src =
             ir3_get_src_shared(ctx, &asrc->src, use_shared)[asrc->swizzle[0]];
-         compile_assert(ctx, src.rpts[i]);
+         compile_assert(ctx, src);
+         def[i] = ir3_MOV(b, src, dst_type);
       }
 
-      dst = ir3_MOV_rpt(b, dst_sz, src, dst_type);
-      cp_instrs(def, dst.rpts, dst_sz);
+      ir3_instr_create_rpt(def, info->num_inputs);
       ir3_put_def(ctx, &alu->def);
       return;
    }
+
+   assert(dst_sz <= ARRAY_SIZE(src[0].rpts));
 
    for (int i = 0; i < info->num_inputs; i++) {
       nir_alu_src *asrc = &alu->src[i];

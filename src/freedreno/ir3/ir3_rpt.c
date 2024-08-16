@@ -122,6 +122,8 @@ static bool
 can_rpt(struct ir3_instruction *instr, struct ir3_instruction *rpt,
         unsigned rpt_n)
 {
+   if (rpt_n >= 4)
+      return false;
    if (rpt->ip != instr->ip + rpt_n)
       return false;
    if (rpt->opc != instr->opc)
