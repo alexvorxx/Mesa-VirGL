@@ -543,7 +543,6 @@ emit_vfd_dest(struct fd_ringbuffer *ring, const struct ir3_shader_variant *vs)
       OUT_PKT4(ring, REG_A6XX_VFD_DEST_CNTL_INSTR(0), attr_count);
 
    for (uint32_t i = 0; i < attr_count; i++) {
-      assert(vs->inputs[i].compmask);
       assert(!vs->inputs[i].sysval);
       OUT_RING(ring,
                A6XX_VFD_DEST_CNTL_INSTR_WRITEMASK(vs->inputs[i].compmask) |
@@ -1397,16 +1396,6 @@ fd6_program_create(void *data, const struct ir3_shader_variant *bs,
    state->fs = fs;
    state->binning_stateobj = fd_ringbuffer_new_object(ctx->pipe, 0x1000);
    state->stateobj = fd_ringbuffer_new_object(ctx->pipe, 0x1000);
-
-#if MESA_DEBUG
-   if (!ds) {
-      for (unsigned i = 0; i < bs->inputs_count; i++) {
-         if (vs->inputs[i].sysval)
-            continue;
-         assert(bs->inputs[i].regid == vs->inputs[i].regid);
-      }
-   }
-#endif
 
    if (hs) {
       /* Allocate the fixed-size tess factor BO globally on the screen.  This
