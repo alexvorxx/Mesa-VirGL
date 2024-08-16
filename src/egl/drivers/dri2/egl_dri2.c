@@ -2051,7 +2051,7 @@ dri2_create_image_khr_texture(_EGLDisplay *disp, _EGLContext *ctx,
    _EGLImageAttribs attrs;
    GLuint depth;
    GLenum gl_target;
-   unsigned error;
+   unsigned error = __DRI_IMAGE_ERROR_SUCCESS;
 
    if (texture == 0) {
       _eglError(EGL_BAD_PARAMETER, "dri2_create_image_khr");
@@ -2511,7 +2511,7 @@ dri2_create_image_dma_buf(_EGLDisplay *disp, _EGLContext *ctx,
    int pitches[DMA_BUF_MAX_PLANES];
    int offsets[DMA_BUF_MAX_PLANES];
    uint64_t modifier;
-   unsigned error;
+   unsigned error = __DRI_IMAGE_ERROR_SUCCESS;
    EGLint egl_error;
 
    /**
