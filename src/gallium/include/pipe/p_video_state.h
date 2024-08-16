@@ -523,12 +523,22 @@ struct pipe_h264_enc_pic_control
 {
    unsigned enc_cabac_enable;
    unsigned enc_cabac_init_idc;
-   unsigned chroma_qp_index_offset;
-   unsigned second_chroma_qp_index_offset;
    struct {
+      uint32_t entropy_coding_mode_flag : 1;
+      uint32_t weighted_pred_flag : 1;
       uint32_t deblocking_filter_control_present_flag : 1;
+      uint32_t constrained_intra_pred_flag : 1;
       uint32_t redundant_pic_cnt_present_flag : 1;
    };
+   uint8_t nal_ref_idc;
+   uint8_t nal_unit_type;
+   uint8_t num_ref_idx_l0_default_active_minus1;
+   uint8_t num_ref_idx_l1_default_active_minus1;
+   uint8_t weighted_bipred_idc;
+   int8_t pic_init_qp_minus26;
+   int8_t pic_init_qs_minus26;
+   int8_t chroma_qp_index_offset;
+   int8_t second_chroma_qp_index_offset;
 };
 
 struct pipe_h264_enc_dbk_param
@@ -588,8 +598,18 @@ typedef struct pipe_h264_enc_hrd_params
 
 struct pipe_h264_enc_seq_param
 {
+   struct {
+      uint32_t enc_frame_cropping_flag : 1;
+      uint32_t vui_parameters_present_flag : 1;
+      uint32_t video_full_range_flag : 1;
+      uint32_t direct_8x8_inference_flag : 1;
+      uint32_t gaps_in_frame_num_value_allowed_flag : 1;
+   };
+   unsigned profile_idc;
    unsigned enc_constraint_set_flags;
-   unsigned enc_frame_cropping_flag;
+   unsigned level_idc;
+   unsigned bit_depth_luma_minus8;
+   unsigned bit_depth_chroma_minus8;
    unsigned enc_frame_crop_left_offset;
    unsigned enc_frame_crop_right_offset;
    unsigned enc_frame_crop_top_offset;
@@ -598,7 +618,6 @@ struct pipe_h264_enc_seq_param
    unsigned log2_max_frame_num_minus4;
    unsigned log2_max_pic_order_cnt_lsb_minus4;
    unsigned num_temporal_layers;
-   uint32_t vui_parameters_present_flag;
    struct {
       uint32_t aspect_ratio_info_present_flag: 1;
       uint32_t timing_info_present_flag: 1;
@@ -621,7 +640,6 @@ struct pipe_h264_enc_seq_param
    uint32_t num_units_in_tick;
    uint32_t time_scale;
    uint32_t video_format;
-   uint32_t video_full_range_flag;
    uint32_t colour_primaries;
    uint32_t transfer_characteristics;
    uint32_t matrix_coefficients;
@@ -635,6 +653,57 @@ struct pipe_h264_enc_seq_param
    uint32_t log2_max_mv_length_vertical;
    uint32_t log2_max_mv_length_horizontal;
    uint32_t max_dec_frame_buffering;
+   uint32_t max_num_ref_frames;
+   uint32_t pic_width_in_mbs_minus1;
+   uint32_t pic_height_in_map_units_minus1;
+};
+
+struct pipe_h264_ref_list_mod_entry
+{
+   uint8_t modification_of_pic_nums_idc;
+   uint32_t abs_diff_pic_num_minus1;
+   uint32_t long_term_pic_num;
+};
+
+struct pipe_h264_ref_pic_marking_entry
+{
+   uint8_t memory_management_control_operation;
+   uint32_t difference_of_pic_nums_minus1;
+   uint32_t long_term_pic_num;
+   uint32_t long_term_frame_idx;
+   uint32_t max_long_term_frame_idx_plus1;
+};
+
+struct pipe_h264_enc_slice_param
+{
+   struct {
+      uint32_t direct_spatial_mv_pred_flag : 1;
+      uint32_t num_ref_idx_active_override_flag : 1;
+      uint32_t ref_pic_list_modification_flag_l0 : 1;
+      uint32_t ref_pic_list_modification_flag_l1 : 1;
+      uint32_t no_output_of_prior_pics_flag : 1;
+      uint32_t long_term_reference_flag : 1;
+      uint32_t adaptive_ref_pic_marking_mode_flag : 1;
+   };
+   uint8_t slice_type;
+   uint8_t colour_plane_id;
+   uint32_t frame_num;
+   uint32_t idr_pic_id;
+   uint32_t pic_order_cnt_lsb;
+   uint8_t redundant_pic_cnt;
+   uint8_t num_ref_idx_l0_active_minus1;
+   uint8_t num_ref_idx_l1_active_minus1;
+   uint8_t num_ref_list0_mod_operations;
+   struct pipe_h264_ref_list_mod_entry ref_list0_mod_operations[PIPE_H264_MAX_NUM_LIST_REF];
+   uint8_t num_ref_list1_mod_operations;
+   struct pipe_h264_ref_list_mod_entry ref_list1_mod_operations[PIPE_H264_MAX_NUM_LIST_REF];
+   uint8_t num_ref_pic_marking_operations;
+   struct pipe_h264_ref_pic_marking_entry ref_pic_marking_operations[PIPE_H264_MAX_NUM_LIST_REF];
+   uint8_t cabac_init_idc;
+   int32_t slice_qp_delta;
+   uint8_t disable_deblocking_filter_idc;
+   int32_t slice_alpha_c0_offset_div2;
+   int32_t slice_beta_offset_div2;
 };
 
 struct pipe_h265_enc_dpb_entry
@@ -650,10 +719,11 @@ struct pipe_h264_enc_picture_desc
    struct pipe_picture_desc base;
 
    struct pipe_h264_enc_seq_param seq;
+   struct pipe_h264_enc_slice_param slice;
+   struct pipe_h264_enc_pic_control pic_ctrl;
    struct pipe_h264_enc_rate_control rate_ctrl[4];
 
    struct pipe_h264_enc_motion_estimation motion_est;
-   struct pipe_h264_enc_pic_control pic_ctrl;
    struct pipe_h264_enc_dbk_param dbk;
 
    unsigned intra_idr_period;
