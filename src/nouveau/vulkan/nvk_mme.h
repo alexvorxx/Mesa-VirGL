@@ -137,8 +137,6 @@ typedef void (*nvk_mme_builder_func)(struct mme_builder *b);
 uint32_t *nvk_build_mme(const struct nv_device_info *devinfo,
                         enum nvk_mme mme, size_t *size_out);
 
-void nvk_test_build_all_mmes(const struct nv_device_info *devinfo);
-
 void nvk_mme_select_cb0(struct mme_builder *b);
 void nvk_mme_bind_cbuf_desc(struct mme_builder *b);
 void nvk_mme_clear(struct mme_builder *b);
@@ -158,5 +156,25 @@ void nvk_mme_set_write_mask(struct mme_builder *b);
 void nvk_mme_set_conservative_raster_state(struct mme_builder *b);
 void nvk_mme_set_viewport_min_max_z(struct mme_builder *b);
 void nvk_mme_set_z_clamp(struct mme_builder *b);
+
+struct nvk_mme_mthd_data {
+   uint16_t mthd;
+   uint32_t data;
+};
+
+#define NVK_MME_MTHD_DATA_END ((struct nvk_mme_mthd_data) { 0, 0 })
+
+struct nvk_mme_test_case {
+   const struct nvk_mme_mthd_data *init;
+   const uint32_t *params;
+   const struct nvk_mme_mthd_data *expected;
+   void (*check)(const struct nv_device_info *devinfo,
+                 const struct nvk_mme_test_case *test,
+                 const struct nvk_mme_mthd_data *results);
+};
+
+extern const struct nvk_mme_test_case nvk_mme_clear_tests[];
+
+void nvk_test_all_mmes(const struct nv_device_info *devinfo);
 
 #endif /* NVK_MME_H */
