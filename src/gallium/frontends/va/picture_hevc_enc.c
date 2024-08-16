@@ -149,6 +149,24 @@ vlVaHandleVAEncSliceParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *contex
    unsigned slice_qp;
 
    h265 = buf->data;
+
+   /* Handle the slice control parameters */
+   struct h265_slice_descriptor slice_descriptor;
+   memset(&slice_descriptor, 0, sizeof(slice_descriptor));
+   slice_descriptor.slice_segment_address = h265->slice_segment_address;
+   slice_descriptor.num_ctu_in_slice = h265->num_ctu_in_slice;
+   slice_descriptor.slice_type = h265->slice_type;
+   assert(slice_descriptor.slice_type <= PIPE_H265_SLICE_TYPE_I);
+
+   if (context->desc.h265enc.num_slice_descriptors < ARRAY_SIZE(context->desc.h265enc.slices_descriptors))
+      context->desc.h265enc.slices_descriptors[context->desc.h265enc.num_slice_descriptors++] = slice_descriptor;
+   else
+      return VA_STATUS_ERROR_NOT_ENOUGH_BUFFER;
+
+   /* Only use parameters for first slice */
+   if (h265->slice_segment_address)
+      return VA_STATUS_SUCCESS;
+
    memset(&context->desc.h265enc.ref_idx_l0_list, VA_INVALID_ID, sizeof(context->desc.h265enc.ref_idx_l0_list));
    memset(&context->desc.h265enc.ref_idx_l1_list, VA_INVALID_ID, sizeof(context->desc.h265enc.ref_idx_l1_list));
    memset(&context->desc.h265enc.ref_list0, PIPE_H2645_LIST_REF_INVALID_ENTRY, sizeof(context->desc.h265enc.ref_list0));
@@ -197,19 +215,6 @@ vlVaHandleVAEncSliceParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *contex
    default:
       break;
    }
-
-   /* Handle the slice control parameters */
-   struct h265_slice_descriptor slice_descriptor;
-   memset(&slice_descriptor, 0, sizeof(slice_descriptor));
-   slice_descriptor.slice_segment_address = h265->slice_segment_address;
-   slice_descriptor.num_ctu_in_slice = h265->num_ctu_in_slice;
-   slice_descriptor.slice_type = h265->slice_type;
-   assert(slice_descriptor.slice_type <= PIPE_H265_SLICE_TYPE_I);
-
-   if (context->desc.h265enc.num_slice_descriptors < ARRAY_SIZE(context->desc.h265enc.slices_descriptors))
-      context->desc.h265enc.slices_descriptors[context->desc.h265enc.num_slice_descriptors++] = slice_descriptor;
-   else
-      return VA_STATUS_ERROR_NOT_ENOUGH_BUFFER;
 
    return VA_STATUS_SUCCESS;
 }

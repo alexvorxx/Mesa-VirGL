@@ -148,6 +148,24 @@ vlVaHandleVAEncSliceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *contex
    unsigned slice_qp;
 
    h264 = buf->data;
+
+   /* Handle the slice control parameters */
+   struct h264_slice_descriptor slice_descriptor;
+   memset(&slice_descriptor, 0, sizeof(slice_descriptor));
+   slice_descriptor.macroblock_address = h264->macroblock_address;
+   slice_descriptor.num_macroblocks = h264->num_macroblocks;
+   slice_descriptor.slice_type = h264->slice_type;
+   assert(slice_descriptor.slice_type <= PIPE_H264_SLICE_TYPE_I);
+
+   if (context->desc.h264enc.num_slice_descriptors < ARRAY_SIZE(context->desc.h264enc.slices_descriptors))
+      context->desc.h264enc.slices_descriptors[context->desc.h264enc.num_slice_descriptors++] = slice_descriptor;
+   else
+      return VA_STATUS_ERROR_NOT_ENOUGH_BUFFER;
+
+   /* Only use parameters for first slice */
+   if (h264->macroblock_address)
+      return VA_STATUS_SUCCESS;
+
    memset(&context->desc.h264enc.ref_idx_l0_list, VA_INVALID_ID, sizeof(context->desc.h264enc.ref_idx_l0_list));
    memset(&context->desc.h264enc.ref_idx_l1_list, VA_INVALID_ID, sizeof(context->desc.h264enc.ref_idx_l1_list));
    memset(&context->desc.h264enc.ref_list0, PIPE_H2645_LIST_REF_INVALID_ENTRY, sizeof(context->desc.h264enc.ref_list0));
@@ -175,37 +193,19 @@ vlVaHandleVAEncSliceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *contex
       }
    }
 
-   /**
-    *  VAEncSliceParameterBufferH264.slice_type
-    *  Slice type.
-    *  Range: 0..2, 5..7, i.e. no switching slices.
-   */
-   struct h264_slice_descriptor slice_descriptor;
-   memset(&slice_descriptor, 0, sizeof(slice_descriptor));
-   slice_descriptor.macroblock_address = h264->macroblock_address;
-   slice_descriptor.num_macroblocks = h264->num_macroblocks;
-
    slice_qp = context->desc.h264enc.init_qp + h264->slice_qp_delta;
 
    if ((h264->slice_type == 1) || (h264->slice_type == 6)) {
       context->desc.h264enc.picture_type = PIPE_H2645_ENC_PICTURE_TYPE_B;
-      slice_descriptor.slice_type = PIPE_H264_SLICE_TYPE_B;
       context->desc.h264enc.quant_b_frames = slice_qp;
    } else if ((h264->slice_type == 0) || (h264->slice_type == 5)) {
       context->desc.h264enc.picture_type = PIPE_H2645_ENC_PICTURE_TYPE_P;
-      slice_descriptor.slice_type = PIPE_H264_SLICE_TYPE_P;
       context->desc.h264enc.quant_p_frames = slice_qp;
    } else if ((h264->slice_type == 2) || (h264->slice_type == 7)) {
-      if (context->desc.h264enc.picture_type == PIPE_H2645_ENC_PICTURE_TYPE_IDR) {
-         if (slice_descriptor.macroblock_address == 0) {
-            /* Increment it only for the first slice of the IDR frame */
-            context->desc.h264enc.idr_pic_id++;
-         }
-         slice_descriptor.slice_type = PIPE_H264_SLICE_TYPE_I;
-      } else {
+      if (context->desc.h264enc.picture_type == PIPE_H2645_ENC_PICTURE_TYPE_IDR)
+         context->desc.h264enc.idr_pic_id++;
+      else
          context->desc.h264enc.picture_type = PIPE_H2645_ENC_PICTURE_TYPE_I;
-         slice_descriptor.slice_type = PIPE_H264_SLICE_TYPE_I;
-      }
       context->desc.h264enc.quant_i_frames = slice_qp;
    } else {
       context->desc.h264enc.picture_type = PIPE_H2645_ENC_PICTURE_TYPE_SKIP;
@@ -215,13 +215,6 @@ vlVaHandleVAEncSliceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *contex
    context->desc.h264enc.dbk.disable_deblocking_filter_idc = h264->disable_deblocking_filter_idc;
    context->desc.h264enc.dbk.alpha_c0_offset_div2 = h264->slice_alpha_c0_offset_div2;
    context->desc.h264enc.dbk.beta_offset_div2 = h264->slice_beta_offset_div2;
-
-   /* Handle the slice control parameters */
-   if (context->desc.h264enc.num_slice_descriptors < ARRAY_SIZE(context->desc.h264enc.slices_descriptors)) {
-      context->desc.h264enc.slices_descriptors[context->desc.h264enc.num_slice_descriptors++] = slice_descriptor;
-   } else {
-      return VA_STATUS_ERROR_NOT_ENOUGH_BUFFER;
-   }
 
    return VA_STATUS_SUCCESS;
 }
