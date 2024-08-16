@@ -188,12 +188,43 @@ ir3_calc_reconvergence(struct ir3_shader_variant *so)
          continue;
       if (block->successors[0] && block->successors[1] &&
           block->divergent_condition) {
-         unsigned idx = block->successors[0]->index >
-            block->successors[1]->index ? 0 : 1;
-         block->successors[idx]->reconvergence_point = true;
-         blocks[block->successors[idx]->index].first_divergent_pred =
-            block->index;
-         u_worklist_push_tail(&worklist, block->successors[idx], index);
+         struct ir3_block *reconv_points[2];
+         unsigned num_reconv_points;
+         struct ir3_instruction *prev_instr = NULL;
+
+         if (!list_is_singular(&block->instr_list)) {
+            prev_instr =
+               list_entry(terminator->node.prev, struct ir3_instruction, node);
+         }
+
+         if (prev_instr && is_terminator(prev_instr)) {
+            /* There are two terminating branches so both successors are
+             * reconvergence points (i.e., there is no fall through into the
+             * next block). This can only happen after ir3_legalize when we fail
+             * to eliminate a non-invertible branch. For example:
+             * getone #bb0
+             * jump #bb1
+             * bb0: (jp)...
+             * bb1: (jp)...
+             */
+            reconv_points[0] = block->successors[0];
+            reconv_points[1] = block->successors[1];
+            num_reconv_points = 2;
+         } else {
+            unsigned idx =
+               block->successors[0]->index > block->successors[1]->index ? 0
+                                                                         : 1;
+            reconv_points[0] = block->successors[idx];
+            reconv_points[1] = NULL;
+            num_reconv_points = 1;
+         }
+
+         for (unsigned i = 0; i < num_reconv_points; i++) {
+            struct ir3_block *reconv_point = reconv_points[i];
+            reconv_point->reconvergence_point = true;
+            blocks[reconv_point->index].first_divergent_pred = block->index;
+            u_worklist_push_tail(&worklist, reconv_point, index);
+         }
       }
    }
 
