@@ -8,6 +8,7 @@ libnouveau_mme_files = files(
   'mme_fermi_builder.c',
   'mme_fermi_sim.c',
   'mme_sim.h',
+  'mme_sim.c',
   'mme_tu104.c',
   'mme_tu104.h',
   'mme_tu104_builder.c',
