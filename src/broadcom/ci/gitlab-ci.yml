@@ -97,7 +97,9 @@ v3d-rpi4-gl:arm32:
   tags:
     - igalia-rpi4
     - igalia-fullrun
+  timeout: 35m
   variables:
+    TEST_PHASE_TIMEOUT_MINUTES: 30
     DEQP_SUITE: broadcom-rpi4-arm32
 
 v3d-rpi4-gl-asan:arm64:
