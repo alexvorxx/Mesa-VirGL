@@ -6229,9 +6229,6 @@ struct anv_utrace_submit {
    struct anv_state_stream dynamic_state_stream;
    struct anv_state_stream general_state_stream;
 
-   /* Buffer of 64bits timestamps (only used for timestamp copies) */
-   struct anv_bo *trace_bo;
-
    /* Last fully read 64bit timestamp (used to rebuild the upper bits of 32bit
     * timestamps)
     */

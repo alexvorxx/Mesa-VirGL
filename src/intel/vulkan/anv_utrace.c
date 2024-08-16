@@ -87,9 +87,6 @@ anv_utrace_delete_submit(struct u_trace_context *utctx, void *submit_data)
    anv_state_stream_finish(&submit->dynamic_state_stream);
    anv_state_stream_finish(&submit->general_state_stream);
 
-   if (submit->trace_bo)
-      anv_bo_pool_free(&device->utrace_bo_pool, submit->trace_bo);
-
    anv_async_submit_fini(&submit->base);
 
    vk_free(&device->vk.alloc, submit);
@@ -179,12 +176,6 @@ anv_device_utrace_flush_cmd_buffers(struct anv_queue *queue,
 
    struct anv_batch *batch = &submit->base.batch;
    if (utrace_copies > 0) {
-      result = anv_bo_pool_alloc(&device->utrace_bo_pool,
-                                 utrace_copies * 4096,
-                                 &submit->trace_bo);
-      if (result != VK_SUCCESS)
-         goto error_sync;
-
       anv_state_stream_init(&submit->dynamic_state_stream,
                             &device->dynamic_state_pool, 16384);
       anv_state_stream_init(&submit->general_state_stream,
@@ -228,7 +219,7 @@ anv_device_utrace_flush_cmd_buffers(struct anv_queue *queue,
                                            ANV_INTERNAL_KERNEL_MEMCPY_COMPUTE,
                                            &copy_kernel);
          if (ret != VK_SUCCESS)
-            goto error_batch;
+            goto error_sync;
 
          trace_intel_begin_trace_copy_cb(&submit->ds.trace, batch);
 
@@ -266,7 +257,7 @@ anv_device_utrace_flush_cmd_buffers(struct anv_queue *queue,
 
       if (batch->status != VK_SUCCESS) {
          result = batch->status;
-         goto error_batch;
+         goto error_sync;
       }
 
       intel_ds_queue_flush_data(&queue->ds, &submit->ds.trace, &submit->ds,
@@ -284,8 +275,6 @@ anv_device_utrace_flush_cmd_buffers(struct anv_queue *queue,
 
    return VK_SUCCESS;
 
- error_batch:
-   anv_bo_pool_free(&device->utrace_bo_pool, submit->trace_bo);
  error_sync:
    intel_ds_flush_data_fini(&submit->ds);
    anv_async_submit_fini(&submit->base);
