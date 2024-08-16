@@ -92,8 +92,9 @@ flush_mthd(struct mme_tu104_sim *sim)
 
    for (uint32_t i = 0; i < sim->mthd.data_len; i++) {
       sim->state_ops->mthd(sim->state_handler,
-                           sim->mthd.mthd + (i * 4),
+                           sim->mthd.mthd,
                            sim->mthd.data[i]);
+      sim->mthd.mthd += sim->mthd.inc * 4;
    }
 
    sim->mthd.has_mthd = false;
