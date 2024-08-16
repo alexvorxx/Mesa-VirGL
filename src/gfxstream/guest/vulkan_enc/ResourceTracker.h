@@ -29,11 +29,8 @@
 #include "VirtGpu.h"
 #include "VulkanHandleMapping.h"
 #include "VulkanHandles.h"
-#include "aemu/base/threads/AndroidWorkPool.h"
 #include "goldfish_vk_transform_guest.h"
 #include "util/perf/cpu_trace.h"
-
-using gfxstream::guest::WorkPool;
 
 /// Use installed headers or locally defined Fuchsia-specific bits
 #ifdef VK_USE_PLATFORM_FUCHSIA
@@ -900,10 +897,6 @@ class ResourceTracker {
 #define HANDLE_REGISTER_DECLARATION(type) std::unordered_map<type, type##_Info> info_##type;
 
     GOLDFISH_VK_LIST_HANDLE_TYPES(HANDLE_REGISTER_DECLARATION)
-
-    WorkPool mWorkPool{4};
-    std::unordered_map<VkQueue, std::vector<WorkPool::WaitGroupHandle>>
-        mQueueSensitiveWorkPoolItems;
 
     std::unordered_map<const VkEncoder*, std::unordered_map<void*, CleanupCallback>>
         mEncoderCleanupCallbacks;
