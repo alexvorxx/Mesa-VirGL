@@ -1480,8 +1480,8 @@ helper_sched(struct ir3_legalize_ctx *ctx, struct ir3 *ir,
          if (!bd->uses_helpers_beginning)
             continue;
 
-         for (unsigned i = 0; i < block->predecessors_count; i++) {
-            struct ir3_block *pred = block->predecessors[i];
+         for (unsigned i = 0; i < block->physical_predecessors_count; i++) {
+            struct ir3_block *pred = block->physical_predecessors[i];
             struct ir3_helper_block_data *pred_bd = pred->data;
             if (!pred_bd->uses_helpers_end) {
                pred_bd->uses_helpers_end = true;
@@ -1548,8 +1548,8 @@ helper_sched(struct ir3_legalize_ctx *ctx, struct ir3 *ir,
        * helper invocations.
        */
       bool pred_uses_helpers = bd->uses_helpers_beginning;
-      for (unsigned i = 0; i < block->predecessors_count; i++) {
-         struct ir3_block *pred = block->predecessors[i];
+      for (unsigned i = 0; i < block->physical_predecessors_count; i++) {
+         struct ir3_block *pred = block->physical_predecessors[i];
          struct ir3_helper_block_data *pred_bd = pred->data;
          if (pred_bd->uses_helpers_end) {
             pred_uses_helpers = true;
