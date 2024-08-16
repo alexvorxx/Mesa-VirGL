@@ -996,11 +996,11 @@ _mesa_glsl_can_implicitly_convert(const glsl_type *from, const glsl_type *desire
       return true;
 
    /* No implicit conversions from double. */
-   if ((!state || state->has_double()) && glsl_type_is_double(from))
+   if (glsl_type_is_double(from))
       return false;
 
    /* Conversions from different types to double. */
-   if ((!state || state->has_double()) && glsl_type_is_double(desired)) {
+   if (glsl_type_is_double(desired)) {
       if (glsl_type_is_float_16_32(from))
          return true;
       if (glsl_type_is_integer_32(from))
