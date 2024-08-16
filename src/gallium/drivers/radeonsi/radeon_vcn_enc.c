@@ -326,38 +326,6 @@ static void radeon_vcn_enc_h264_get_rc_param(struct radeon_encoder *enc,
    enc->enc_pic.rc_per_pic.max_au_size_b = pic->rate_ctrl[0].max_au_size;
 }
 
-static void radeon_vcn_enc_h264_get_vui_param(struct radeon_encoder *enc,
-                                              struct pipe_h264_enc_picture_desc *pic)
-{
-   enc->enc_pic.vui_info.vui_parameters_present_flag =
-      pic->seq.vui_parameters_present_flag;
-   enc->enc_pic.vui_info.flags.aspect_ratio_info_present_flag =
-      pic->seq.vui_flags.aspect_ratio_info_present_flag;
-   enc->enc_pic.vui_info.flags.timing_info_present_flag =
-      pic->seq.vui_flags.timing_info_present_flag;
-   enc->enc_pic.vui_info.flags.video_signal_type_present_flag =
-      pic->seq.vui_flags.video_signal_type_present_flag;
-   enc->enc_pic.vui_info.flags.colour_description_present_flag =
-      pic->seq.vui_flags.colour_description_present_flag;
-   enc->enc_pic.vui_info.flags.chroma_loc_info_present_flag =
-      pic->seq.vui_flags.chroma_loc_info_present_flag;
-   enc->enc_pic.vui_info.aspect_ratio_idc = pic->seq.aspect_ratio_idc;
-   enc->enc_pic.vui_info.sar_width = pic->seq.sar_width;
-   enc->enc_pic.vui_info.sar_height = pic->seq.sar_height;
-   enc->enc_pic.vui_info.num_units_in_tick = pic->seq.num_units_in_tick;
-   enc->enc_pic.vui_info.time_scale = pic->seq.time_scale;
-   enc->enc_pic.vui_info.video_format = pic->seq.video_format;
-   enc->enc_pic.vui_info.video_full_range_flag = pic->seq.video_full_range_flag;
-   enc->enc_pic.vui_info.colour_primaries = pic->seq.colour_primaries;
-   enc->enc_pic.vui_info.transfer_characteristics = pic->seq.transfer_characteristics;
-   enc->enc_pic.vui_info.matrix_coefficients = pic->seq.matrix_coefficients;
-   enc->enc_pic.vui_info.chroma_sample_loc_type_top_field =
-      pic->seq.chroma_sample_loc_type_top_field;
-   enc->enc_pic.vui_info.chroma_sample_loc_type_bottom_field =
-      pic->seq.chroma_sample_loc_type_bottom_field;
-   enc->enc_pic.vui_info.max_num_reorder_frames = pic->seq.max_num_reorder_frames;
-}
-
 static void radeon_vcn_enc_h264_get_slice_ctrl_param(struct radeon_encoder *enc,
                                                      struct pipe_h264_enc_picture_desc *pic)
 {
@@ -475,32 +443,28 @@ static void radeon_vcn_enc_h264_get_param(struct radeon_encoder *enc,
    enc->enc_pic.picture_type = pic->picture_type;
    enc->enc_pic.bit_depth_luma_minus8 = 0;
    enc->enc_pic.bit_depth_chroma_minus8 = 0;
-   radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
-   enc->enc_pic.frame_num = pic->frame_num;
-   enc->enc_pic.pic_order_cnt = pic->pic_order_cnt;
-   enc->enc_pic.pic_order_cnt_type = pic->seq.pic_order_cnt_type;
-   enc->enc_pic.ref_idx_l0 = pic->ref_idx_l0_list[0];
-   enc->enc_pic.ref_idx_l0_is_ltr = pic->l0_is_long_term[0];
-   enc->enc_pic.ref_idx_l1 = pic->ref_idx_l1_list[0];
-   enc->enc_pic.ref_idx_l1_is_ltr = pic->l1_is_long_term[0];
    enc->enc_pic.enc_params.reference_picture_index =
       pic->ref_list0[0] == PIPE_H2645_LIST_REF_INVALID_ENTRY ? 0xffffffff : pic->ref_list0[0];
    enc->enc_pic.h264_enc_params.l1_reference_picture0_index =
       pic->ref_list1[0] == PIPE_H2645_LIST_REF_INVALID_ENTRY ? 0xffffffff : pic->ref_list1[0];
    enc->enc_pic.enc_params.reconstructed_picture_index = pic->dpb_curr_pic;
    enc->enc_pic.h264_enc_params.is_reference = !pic->not_referenced;
+   enc->enc_pic.h264_enc_params.is_long_term = pic->is_ltr;
    enc->enc_pic.not_referenced = pic->not_referenced;
-   enc->enc_pic.is_idr = (pic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_IDR);
-   enc->enc_pic.is_ltr = pic->is_ltr;
-   enc->enc_pic.ltr_idx = pic->is_ltr ? pic->ltr_index : 0;
    enc->enc_pic.header_flags.sps = pic->header_flags.sps;
    enc->enc_pic.header_flags.pps = pic->header_flags.pps;
    enc->enc_pic.header_flags.aud = pic->header_flags.aud;
+   if (enc->enc_pic.header_flags.sps)
+      enc->enc_pic.h264.seq = pic->seq;
+   if (enc->enc_pic.header_flags.pps)
+      enc->enc_pic.h264.pic = pic->pic_ctrl;
+   enc->enc_pic.h264.slice = pic->slice;
+
+   radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
    radeon_vcn_enc_h264_get_cropping_param(enc, pic);
    radeon_vcn_enc_h264_get_dbk_param(enc, pic);
    radeon_vcn_enc_h264_get_rc_param(enc, pic);
    radeon_vcn_enc_h264_get_spec_misc_param(enc, pic);
-   radeon_vcn_enc_h264_get_vui_param(enc, pic);
    radeon_vcn_enc_h264_get_slice_ctrl_param(enc, pic);
    radeon_vcn_enc_get_input_format_param(enc, &pic->base);
    radeon_vcn_enc_get_output_format_param(enc, pic->seq.video_full_range_flag);
@@ -1190,7 +1154,6 @@ static int setup_dpb(struct radeon_encoder *enc, uint32_t num_reconstructed_pict
    enc_pic->ctx_buf.rec_luma_pitch   = pitch;
    enc_pic->ctx_buf.pre_encode_picture_luma_pitch   = pitch;
    enc_pic->ctx_buf.num_reconstructed_pictures = num_reconstructed_pictures;
-   enc->max_ltr_idx = 0;
 
    offset = 0;
    enc->metadata_size = 0;

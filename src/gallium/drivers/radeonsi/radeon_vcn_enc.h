@@ -65,6 +65,11 @@ struct radeon_enc_pic {
 
    union {
       struct {
+         struct pipe_h264_enc_seq_param seq;
+         struct pipe_h264_enc_pic_control pic;
+         struct pipe_h264_enc_slice_param slice;
+      } h264;
+      struct {
          struct pipe_h265_enc_vid_param vid;
          struct pipe_h265_enc_seq_param seq;
          struct pipe_h265_enc_pic_param pic;
@@ -73,12 +78,6 @@ struct radeon_enc_pic {
    };
 
    unsigned frame_num;
-   unsigned pic_order_cnt;
-   unsigned pic_order_cnt_type;
-   unsigned ref_idx_l0;
-   bool ref_idx_l0_is_ltr;
-   unsigned ref_idx_l1;
-   bool ref_idx_l1_is_ltr;
    unsigned crop_left;
    unsigned crop_right;
    unsigned crop_top;
@@ -86,17 +85,8 @@ struct radeon_enc_pic {
    unsigned general_tier_flag;
    unsigned general_profile_idc;
    unsigned general_level_idc;
-   unsigned max_poc;
-   unsigned log2_max_poc;
-   unsigned chroma_format_idc;
    unsigned pic_width_in_luma_samples;
    unsigned pic_height_in_luma_samples;
-   unsigned log2_diff_max_min_luma_coding_block_size;
-   unsigned log2_min_transform_block_size_minus2;
-   unsigned log2_diff_max_min_transform_block_size;
-   unsigned max_transform_hierarchy_depth_inter;
-   unsigned max_transform_hierarchy_depth_intra;
-   unsigned log2_parallel_merge_level_minus2;
    unsigned bit_depth_luma_minus8;
    unsigned bit_depth_chroma_minus8;
    unsigned nal_unit_type;
@@ -104,16 +94,9 @@ struct radeon_enc_pic {
    unsigned num_temporal_layers;
    unsigned temporal_layer_pattern_index;
    rvcn_enc_quality_modes_t quality_modes;
-   rvcn_enc_vui_info vui_info;
 
    bool not_referenced;
-   bool is_ltr;
-   unsigned ltr_idx;
-   bool is_idr;
    bool need_sequence_header;
-   bool is_even_frame;
-   bool pcm_enabled_flag;
-   bool sps_temporal_mvp_enabled_flag;
    bool use_rc_per_pic_ex;
    bool av1_tile_splitting_legacy_flag;
 
@@ -306,7 +289,6 @@ struct radeon_encoder {
    unsigned dpb_slots;
    unsigned roi_size;
    unsigned metadata_size;
-   unsigned max_ltr_idx;
 
    struct pipe_context *ectx;
 };
@@ -369,6 +351,9 @@ void radeon_enc_3_0_init(struct radeon_encoder *enc);
 void radeon_enc_4_0_init(struct radeon_encoder *enc);
 
 void radeon_enc_5_0_init(struct radeon_encoder *enc);
+
+void radeon_enc_hrd_parameters(struct radeon_encoder *enc,
+                               struct pipe_h264_enc_hrd_params *hrd);
 
 void radeon_enc_hevc_profile_tier_level(struct radeon_encoder *enc,
                                         unsigned int max_num_sub_layers_minus1,

@@ -697,31 +697,6 @@ typedef struct rvcn_enc_quality_modes_s
    unsigned preset_mode;
 } rvcn_enc_quality_modes_t;
 
-typedef struct rvcn_enc_vui_info_s
-{
-   uint32_t vui_parameters_present_flag;
-   struct {
-      uint32_t aspect_ratio_info_present_flag : 1;
-      uint32_t timing_info_present_flag : 1;
-      uint32_t video_signal_type_present_flag : 1;
-      uint32_t colour_description_present_flag : 1;
-      uint32_t chroma_loc_info_present_flag : 1;
-   } flags;
-   uint32_t aspect_ratio_idc;
-   uint32_t sar_width;
-   uint32_t sar_height;
-   uint32_t num_units_in_tick;
-   uint32_t time_scale;
-   uint32_t video_format;
-   uint32_t video_full_range_flag;
-   uint32_t colour_primaries;
-   uint32_t transfer_characteristics;
-   uint32_t matrix_coefficients;
-   uint32_t chroma_sample_loc_type_top_field;
-   uint32_t chroma_sample_loc_type_bottom_field;
-   uint32_t max_num_reorder_frames;
-}rvcn_enc_vui_info;
-
 typedef struct rvcn_enc_input_format_s
 {
    uint32_t input_color_volume;

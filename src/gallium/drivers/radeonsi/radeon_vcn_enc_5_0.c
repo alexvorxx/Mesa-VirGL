@@ -148,8 +148,6 @@ static void radeon_enc_encode_params_h264(struct radeon_encoder *enc)
 {
    enc->enc_pic.h264_enc_params.input_picture_structure = RENCODE_H264_PICTURE_STRUCTURE_FRAME;
    enc->enc_pic.h264_enc_params.input_pic_order_cnt = 0;
-   enc->enc_pic.h264_enc_params.is_reference = !enc->enc_pic.not_referenced;
-   enc->enc_pic.h264_enc_params.is_long_term = enc->enc_pic.is_ltr;
    enc->enc_pic.h264_enc_params.interlaced_mode = RENCODE_H264_INTERLACING_MODE_PROGRESSIVE;
 
    if (enc->enc_pic.enc_params.reference_picture_index != 0xFFFFFFFF){
