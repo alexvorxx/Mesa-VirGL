@@ -632,7 +632,7 @@ prog_glslang = find_program('glslangValidator', native : true,
 if prog_glslang.found()
   # Check if glslang has depfile support. Support was added in 11.3.0, but
   # Windows path support was broken until 11.9.0.
-  # 
+  #
   # It is intentional to check the build machine, since we need to ensure that
   # glslang will output valid paths on the build platform
   _glslang_check = build_machine.system() == 'windows' ? '>= 11.9.0' : '>= 11.3.0'
@@ -1957,7 +1957,8 @@ endif
 dep_lua = dependency('lua54', 'lua5.4', 'lua-5.4',
                      'lua53', 'lua5.3', 'lua-5.3',
                      'lua', required: false,
-                     allow_fallback: true, version: '>=5.3')
+                     allow_fallback: with_tools.contains('freedreno'),
+                     version: '>=5.3')
 
 # Be explicit about only using this lib on Windows, to avoid picking
 # up random libs with the generic name 'libversion'
@@ -1994,7 +1995,7 @@ endif
 # so add a define to work silence these issues.
 if get_option('b_sanitize') == 'thread'
   pre_args += '-DTHREAD_SANITIZER=1'
-  # meson versions prior to 1.4 will warn "Consider using the built-in option for sanitizers ..." 
+  # meson versions prior to 1.4 will warn "Consider using the built-in option for sanitizers ..."
   # later on because it only checks whether the option starts with "-fsanitize",
   # but there is no built-in option for adding a blacklist
   tsan_blacklist = '-fsanitize-blacklist=@0@'.format(join_paths(meson.project_source_root(), 'build-support', 'tsan-blacklist.txt'))
