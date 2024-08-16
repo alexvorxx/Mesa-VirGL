@@ -152,6 +152,8 @@ struct gl_shader
    GLchar *Label;   /**< GL_KHR_debug */
    GLboolean DeletePending;
    bool IsES;              /**< True if this shader uses GLSL ES */
+   bool has_implicit_conversions;
+   bool has_implicit_int_to_uint_conversion;
 
    enum gl_compile_status CompileStatus;
 

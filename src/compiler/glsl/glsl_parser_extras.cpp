@@ -2400,6 +2400,9 @@ _mesa_glsl_compile_shader(struct gl_context *ctx, struct gl_shader *shader,
    shader->InfoLog = state->info_log;
    shader->Version = state->language_version;
    shader->IsES = state->es_shader;
+   shader->has_implicit_conversions = state->has_implicit_conversions();
+   shader->has_implicit_int_to_uint_conversion =
+      state->has_implicit_int_to_uint_conversion();
 
    struct gl_shader_compiler_options *options =
       &ctx->Const.ShaderCompilerOptions[shader->Stage];
