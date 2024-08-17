@@ -1311,6 +1311,7 @@ struct brw_compile_stats {
    uint32_t spills;
    uint32_t fills;
    uint32_t max_live_registers;
+   uint32_t non_ssa_registers_after_nir;
 };
 
 /** @} */

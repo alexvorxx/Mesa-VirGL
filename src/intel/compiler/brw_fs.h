@@ -97,6 +97,7 @@ namespace brw {
       }
 
       unsigned count() const { return def_count; }
+      unsigned ssa_count() const;
 
       void print_stats(const fs_visitor *) const;
 
@@ -148,6 +149,7 @@ struct brw_shader_stats {
    unsigned spill_count;
    unsigned fill_count;
    unsigned max_register_pressure;
+   unsigned non_ssa_registers_after_nir;
 };
 
 /** Register numbers for thread payload fields. */

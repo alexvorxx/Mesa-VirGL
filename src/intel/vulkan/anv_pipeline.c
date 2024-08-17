@@ -4490,6 +4490,13 @@ VkResult anv_GetPipelineExecutableStatisticsKHR(
       stat->value.u64 = hash;
    }
 
+   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
+      WRITE_STR(stat->name, "Non SSA regs after NIR");
+      WRITE_STR(stat->description, "Non SSA regs after NIR translation to BRW.");
+      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
+      stat->value.u64 = exe->stats.non_ssa_registers_after_nir;
+   }
+
    return vk_outarray_status(&out);
 }
 

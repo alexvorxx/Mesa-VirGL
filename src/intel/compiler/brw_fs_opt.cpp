@@ -19,6 +19,13 @@ brw_fs_optimize(fs_visitor &s)
    /* Start by validating the shader we currently have. */
    brw_fs_validate(s);
 
+   /* Track how much non-SSA at this point. */
+   {
+      const brw::def_analysis &defs = s.def_analysis.require();
+      s.shader_stats.non_ssa_registers_after_nir =
+         defs.count() - defs.ssa_count();
+   }
+
    bool progress = false;
    int iteration = 0;
    int pass_num = 0;

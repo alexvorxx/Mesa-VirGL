@@ -1487,6 +1487,7 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
       stats->spills = shader_stats.spill_count;
       stats->fills = shader_stats.fill_count;
       stats->max_live_registers = shader_stats.max_register_pressure;
+      stats->non_ssa_registers_after_nir = shader_stats.non_ssa_registers_after_nir;
    }
 
    return start_offset;
