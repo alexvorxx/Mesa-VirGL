@@ -775,8 +775,7 @@ static void si_bind_blend_state(struct pipe_context *ctx, void *state)
    if ((sctx->screen->info.has_export_conflict_bug &&
         old_blend->blend_enable_4bit != blend->blend_enable_4bit) ||
        (sctx->occlusion_query_mode == SI_OCCLUSION_QUERY_MODE_PRECISE_BOOLEAN &&
-        !!old_blend->cb_target_mask != !!blend->cb_target_enabled_4bit) ||
-       (sctx->gfx_level >= GFX11 && old_blend->alpha_to_coverage != blend->alpha_to_coverage))
+        !!old_blend->cb_target_mask != !!blend->cb_target_enabled_4bit))
       si_mark_atom_dirty(sctx, &sctx->atoms.s.db_render_state);
 
    if (old_blend->cb_target_enabled_4bit != blend->cb_target_enabled_4bit ||
@@ -1794,19 +1793,8 @@ static void si_emit_db_render_state(struct si_context *sctx, unsigned index)
    /* DB_RENDER_CONTROL */
    /* Program OREO_MODE optimally for GFX11+. */
    if (sctx->gfx_level >= GFX11) {
-      /* This ignores CONSERVATIVE_Z_EXPORT, so it's slightly pessimistic. */
-      bool late_z = !G_02880C_DEPTH_BEFORE_SHADER(sctx->ps_db_shader_control) &&
-                    (G_02880C_Z_ORDER(sctx->ps_db_shader_control) == V_02880C_LATE_Z ||
-                     /* Late Z is always used in these cases: */
-                     G_02880C_KILL_ENABLE(sctx->ps_db_shader_control) ||
-                     G_02880C_Z_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
-                     G_02880C_STENCIL_TEST_VAL_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
-                     G_02880C_STENCIL_OP_VAL_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
-                     G_02880C_COVERAGE_TO_MASK_ENABLE(sctx->ps_db_shader_control) ||
-                     G_02880C_MASK_EXPORT_ENABLE(sctx->ps_db_shader_control) ||
-                     sctx->queued.named.blend->alpha_to_coverage);
-
-      db_render_control |= S_028000_OREO_MODE(late_z ? V_028000_OMODE_BLEND : V_028000_OMODE_O_THEN_B);
+      bool z_export = G_02880C_Z_EXPORT_ENABLE(sctx->ps_db_shader_control);
+      db_render_control |= S_028000_OREO_MODE(z_export ? V_028000_OMODE_BLEND : V_028000_OMODE_O_THEN_B);
    }
 
    if (sctx->gfx_level >= GFX12) {
