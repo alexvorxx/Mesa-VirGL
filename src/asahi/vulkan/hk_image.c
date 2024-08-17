@@ -220,6 +220,77 @@ vk_image_usage_to_format_features(VkImageUsageFlagBits usage_flag)
    }
 }
 
+static bool
+hk_can_compress(struct agx_device *dev, VkFormat format, unsigned plane,
+                unsigned width, unsigned height, unsigned samples,
+                VkImageCreateFlagBits flags, VkImageUsageFlagBits usage,
+                const void *pNext)
+{
+   const struct vk_format_ycbcr_info *ycbcr_info =
+      vk_format_get_ycbcr_info(format);
+
+   if (ycbcr_info) {
+      format = ycbcr_info->planes[plane].format;
+      width /= ycbcr_info->planes[plane].denominator_scales[0];
+      height /= ycbcr_info->planes[plane].denominator_scales[0];
+   } else if (format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+      format = (plane == 0) ? VK_FORMAT_D32_SFLOAT : VK_FORMAT_S8_UINT;
+   }
+
+   /* Allow disabling compression for debugging */
+   if (dev->debug & AGX_DBG_NOCOMPRESS)
+      return false;
+
+   /* Image compression is not (yet?) supported with host image copies,
+    * although the vendor driver does support something similar if I recall.
+    * Compression is not supported in hardware for storage images or mutable
+    * formats in general.
+    */
+   if (usage &
+       (VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT | VK_IMAGE_USAGE_STORAGE_BIT))
+      return false;
+
+   enum pipe_format p_format = vk_format_to_pipe_format(format);
+
+   /* Check for format compatibility if mutability is enabled. */
+   if (flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) {
+      const struct VkImageFormatListCreateInfo *format_list =
+         (void *)vk_find_struct_const(pNext, IMAGE_FORMAT_LIST_CREATE_INFO);
+
+      if (!format_list || format_list->viewFormatCount == 0)
+         return false;
+
+      for (unsigned i = 0; i < format_list->viewFormatCount; ++i) {
+         if (format_list->pViewFormats[i] == VK_FORMAT_UNDEFINED)
+            continue;
+
+         enum pipe_format view_format =
+            vk_format_to_pipe_format(format_list->pViewFormats[i]);
+
+         if (!ail_formats_compatible(p_format, view_format))
+            return false;
+      }
+   }
+
+   /* TODO: Need to smarten up the blitter */
+   if (samples > 1)
+      return false;
+
+   return ail_can_compress(p_format, width, height, samples);
+}
+
+static bool
+hk_can_compress_format(struct agx_device *dev, VkFormat format)
+{
+   /* Check compressability of a sufficiently large image of the same
+    * format, since we don't have dimensions here. This is lossy for
+    * small images, but that's ok.
+    *
+    * Likewise, we do not set flags as flags only disable compression.
+    */
+   return hk_can_compress(dev, format, 0, 64, 64, 1, 0, 0, NULL);
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 hk_GetPhysicalDeviceImageFormatProperties2(
    VkPhysicalDevice physicalDevice,
@@ -489,9 +560,9 @@ hk_GetPhysicalDeviceImageFormatProperties2(
       case VK_STRUCTURE_TYPE_HOST_IMAGE_COPY_DEVICE_PERFORMANCE_QUERY_EXT: {
          VkHostImageCopyDevicePerformanceQueryEXT *hic_props = (void *)s;
 
-         /* TODO: Check compressability */
          hic_props->optimalDeviceAccess = hic_props->identicalMemoryLayout =
-            true;
+            !(pImageFormatInfo->tiling == VK_IMAGE_TILING_OPTIMAL &&
+              hk_can_compress_format(&pdev->dev, pImageFormatInfo->format));
          break;
       }
       default:
@@ -571,35 +642,21 @@ hk_GetPhysicalDeviceSparseImageFormatProperties2(
 }
 
 static enum ail_tiling
-hk_map_tiling(const VkImageCreateInfo *info, unsigned plane)
+hk_map_tiling(struct hk_device *dev, const VkImageCreateInfo *info,
+              unsigned plane)
 {
    switch (info->tiling) {
    case VK_IMAGE_TILING_LINEAR:
       return AIL_TILING_LINEAR;
 
-   case VK_IMAGE_TILING_OPTIMAL: {
-      const struct vk_format_ycbcr_info *ycbcr_info =
-         vk_format_get_ycbcr_info(info->format);
-      VkFormat format =
-         ycbcr_info ? ycbcr_info->planes[plane].format : info->format;
-
-      if (format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-         format = (plane == 0) ? VK_FORMAT_D32_SFLOAT : VK_FORMAT_S8_UINT;
-      }
-
-      const uint8_t width_scale =
-         ycbcr_info ? ycbcr_info->planes[plane].denominator_scales[0] : 1;
-      const uint8_t height_scale =
-         ycbcr_info ? ycbcr_info->planes[plane].denominator_scales[1] : 1;
-
-      if ((info->extent.width / width_scale) < 16 ||
-          (info->extent.height / height_scale) < 16)
+   case VK_IMAGE_TILING_OPTIMAL:
+      if (hk_can_compress(&dev->dev, info->format, plane, info->extent.width,
+                          info->extent.height, info->samples, info->flags,
+                          info->usage, info->pNext)) {
+         return AIL_TILING_TWIDDLED_COMPRESSED;
+      } else {
          return AIL_TILING_TWIDDLED;
-
-      // TODO: lots of bugs to fix first
-      // return AIL_TILING_TWIDDLED_COMPRESSED;
-      return AIL_TILING_TWIDDLED;
-   }
+      }
 
    case VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT:
       /* TODO */
@@ -726,7 +783,7 @@ hk_image_init(struct hk_device *dev, struct hk_image *image,
       const uint8_t height_scale =
          ycbcr_info ? ycbcr_info->planes[plane].denominator_scales[1] : 1;
 
-      enum ail_tiling tiling = hk_map_tiling(pCreateInfo, plane);
+      enum ail_tiling tiling = hk_map_tiling(dev, pCreateInfo, plane);
 
       image->planes[plane].layout = (struct ail_layout){
          .tiling = tiling,

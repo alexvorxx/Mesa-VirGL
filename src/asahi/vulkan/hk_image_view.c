@@ -442,7 +442,7 @@ pack_pbe(struct hk_device *dev, struct hk_image_view *view, unsigned view_plane,
             cfg.samples = agx_translate_sample_count(image->vk.samples);
       }
 
-      if (ail_is_compressed(layout)) {
+      if (ail_is_compressed(layout) && usage != HK_DESC_USAGE_EMRT) {
          cfg.compressed_1 = true;
          cfg.extended = true;
 
