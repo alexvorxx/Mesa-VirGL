@@ -299,16 +299,22 @@ spec@arb_gpu_shader_fp64@execution@built-in-functions@fs-inverse-dmat4,Fail
 spec@arb_gpu_shader_fp64@uniform_buffers@fs-ubo-load.indirect.3,Fail
 spec@glsl-4.00@execution@built-in-functions@fs-op-div-double-dmat4,Fail
 
-# New CTS failures in 1.3.6.3
-dEQP-VK.info.device_mandatory_features,Fail
-
-# New CTS failures in 1.3.7.0
-dEQP-VK.dynamic_rendering.primary_cmd_buff.basic.partial_binding_depth_stencil,Fail
-dynamic-dEQP-VK.renderpass2.depth_stencil_resolve.image_2d_32_32.samples_2.d24_unorm_s8_uint.compatibility_depth_zero_stencil_zero_testing_stencil,Fail
-dynamic-dEQP-VK.renderpass2.depth_stencil_resolve.image_2d_32_32.samples_2.d24_unorm_s8_uint_separate_layouts.compatibility_depth_zero_stencil_zero_testing_stencil,Fail
-dynamic-dEQP-VK.renderpass2.depth_stencil_resolve.image_2d_32_32.samples_2.d32_sfloat_s8_uint_separate_layouts.compatibility_depth_zero_stencil_zero_testing_stencil,Fail
-
 # uprev Piglit in Mesa
 spec@glsl-1.30@execution@fs-uint-to-float-of-extract-int16,Fail
 spec@glsl-1.30@execution@fs-uint-to-float-of-extract-int8,Fail
 
+
+# GL tests above, Vulkan tests below
+
+
+# New CTS failures in 1.3.7.0
+dynamic-dEQP-VK.renderpass2.depth_stencil_resolve.image_2d_32_32.samples_2.d24_unorm_s8_uint.compatibility_depth_zero_stencil_zero_testing_stencil,Fail
+dynamic-dEQP-VK.renderpass2.depth_stencil_resolve.image_2d_32_32.samples_2.d24_unorm_s8_uint_separate_layouts.compatibility_depth_zero_stencil_zero_testing_stencil,Fail
+dynamic-dEQP-VK.renderpass2.depth_stencil_resolve.image_2d_32_32.samples_2.d32_sfloat_s8_uint_separate_layouts.compatibility_depth_zero_stencil_zero_testing_stencil,Fail
+
+# We can't support VK_EXT_sample_locations on pre-A650 GPUs
+# See https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/4665#note_473653
+dEQP-VK.info.device_mandatory_features,Fail
+
+# Can be fixed by https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/26154
+dEQP-VK.dynamic_rendering.primary_cmd_buff.basic.partial_binding_depth_stencil,Fail
