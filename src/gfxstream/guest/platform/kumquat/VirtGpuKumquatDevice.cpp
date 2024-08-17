@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <cutils/log.h>
 #include <pthread.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -25,6 +24,7 @@
 #include <string>
 
 #include "VirtGpuKumquat.h"
+#include "util/log.h"
 #include "virtgpu_gfxstream_protocol.h"
 
 #define PARAM(x) \
@@ -69,7 +69,7 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int32_t de
 
     ret = virtgpu_kumquat_init(&mVirtGpu, gpu_socket_path.c_str());
     if (ret) {
-        ALOGV("Failed to init virtgpu kumquat");
+        mesa_logi("Failed to init virtgpu kumquat");
         return;
     }
 
@@ -79,7 +79,7 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int32_t de
 
         ret = virtgpu_kumquat_get_param(mVirtGpu, &get_param);
         if (ret) {
-            ALOGV("virtgpu backend not enabling %s", params[i].name);
+            mesa_logi("virtgpu backend not enabling %s", params[i].name);
             continue;
         }
 
@@ -112,7 +112,7 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int32_t de
     if (ret) {
         // Don't fail get capabilities just yet, AEMU doesn't use this API
         // yet (b/272121235);
-        ALOGE("DRM_IOCTL_VIRTGPU_KUMQUAT_GET_CAPS failed with %s", strerror(errno));
+        mesa_loge("DRM_IOCTL_VIRTGPU_KUMQUAT_GET_CAPS failed with %s", strerror(errno));
     }
 
     // We always need an ASG blob in some cases, so always define blobAlignment
@@ -139,7 +139,7 @@ VirtGpuKumquatDevice::VirtGpuKumquatDevice(enum VirtGpuCapset capset, int32_t de
     init.ctx_set_params = (unsigned long long)&ctx_set_params[0];
     ret = virtgpu_kumquat_context_init(mVirtGpu, &init);
     if (ret) {
-        ALOGE(
+        mesa_loge(
             "DRM_IOCTL_VIRTGPU_KUMQUAT_CONTEXT_INIT failed with %s, continuing without context...",
             strerror(errno));
     }
@@ -171,7 +171,7 @@ VirtGpuResourcePtr VirtGpuKumquatDevice::createResource(uint32_t width, uint32_t
 
     int ret = virtgpu_kumquat_resource_create_3d(mVirtGpu, &create);
     if (ret) {
-        ALOGE("DRM_IOCTL_VIRTGPU_KUMQUAT_RESOURCE_CREATE failed with %s", strerror(errno));
+        mesa_loge("DRM_IOCTL_VIRTGPU_KUMQUAT_RESOURCE_CREATE failed with %s", strerror(errno));
         return nullptr;
     }
 
@@ -192,7 +192,7 @@ VirtGpuResourcePtr VirtGpuKumquatDevice::createBlob(const struct VirtGpuCreateBl
 
     ret = virtgpu_kumquat_resource_create_blob(mVirtGpu, &create);
     if (ret < 0) {
-        ALOGE("DRM_VIRTGPU_KUMQUAT_RESOURCE_CREATE_BLOB failed with %s", strerror(errno));
+        mesa_loge("DRM_VIRTGPU_KUMQUAT_RESOURCE_CREATE_BLOB failed with %s", strerror(errno));
         return nullptr;
     }
 
@@ -209,7 +209,7 @@ VirtGpuResourcePtr VirtGpuKumquatDevice::importBlob(const struct VirtGpuExternal
 
     ret = virtgpu_kumquat_resource_import(mVirtGpu, &resource_import);
     if (ret < 0) {
-        ALOGE("DRM_VIRTGPU_KUMQUAT_RESOURCE_IMPORT failed with %s", strerror(errno));
+        mesa_loge("DRM_VIRTGPU_KUMQUAT_RESOURCE_IMPORT failed with %s", strerror(errno));
         return nullptr;
     }
 
@@ -237,7 +237,7 @@ int VirtGpuKumquatDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer,
 
     ret = virtgpu_kumquat_execbuffer(mVirtGpu, &exec);
     if (ret) {
-        ALOGE("DRM_IOCTL_VIRTGPU_KUMQUAT_EXECBUFFER failed: %s", strerror(errno));
+        mesa_loge("DRM_IOCTL_VIRTGPU_KUMQUAT_EXECBUFFER failed: %s", strerror(errno));
         return ret;
     }
 

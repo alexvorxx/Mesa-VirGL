@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-#include "VirtGpu.h"
 
-#include <cutils/log.h>
+#include "VirtGpu.h"
 
 #include <cstdlib>
 
 #include "Sync.h"
+#include "util/log.h"
 
 namespace {
 
@@ -41,8 +41,8 @@ VirtGpuDevice* VirtGpuDevice::getInstance(enum VirtGpuCapset capset, int32_t des
     // We could support multiple capsets with a map of devices but that case isn't needed
     // currently, and with multiple devices it's unclear how to handle kCapsetNone.
     if (capset != kCapsetNone && sDevice && sDevice->capset() != capset) {
-        ALOGE("Requested VirtGpuDevice capset %u, already created capset %u",
-            capset, sDevice->capset());
+        mesa_loge("Requested VirtGpuDevice capset %u, already created capset %u", capset,
+                  sDevice->capset());
         return nullptr;
     }
     if (!sDevice) {

@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-#include <cutils/log.h>
 #include <lib/zxio/zxio.h>
 #include <services/service_connector.h>
 #include <string.h>
 
 #include "os_dirent.h"
+#include "util/log.h"
 
 struct os_dir {
     ~os_dir() {
@@ -35,7 +35,7 @@ struct os_dir {
     bool Init(zx_handle_t dir_channel) {
         zx_status_t status = zxio_create(dir_channel, &io_storage_);
         if (status != ZX_OK) {
-            ALOGE("zxio_create failed: %d", status);
+            mesa_loge("zxio_create failed: %d", status);
             return false;
         }
 
@@ -43,7 +43,7 @@ struct os_dir {
 
         status = zxio_dirent_iterator_init(&iterator_, &io_storage_.io);
         if (status != ZX_OK) {
-            ALOGE("zxio_dirent_iterator_init failed: %d", status);
+            mesa_loge("zxio_dirent_iterator_init failed: %d", status);
             return false;
         }
 
@@ -59,7 +59,8 @@ struct os_dir {
 
         zx_status_t status = zxio_dirent_iterator_next(&iterator_, &dirent);
         if (status != ZX_OK) {
-            if (status != ZX_ERR_NOT_FOUND) ALOGE("zxio_dirent_iterator_next failed: %d", status);
+            if (status != ZX_ERR_NOT_FOUND)
+                mesa_loge("zxio_dirent_iterator_next failed: %d", status);
             return false;
         }
 
@@ -79,7 +80,7 @@ struct os_dir {
 os_dir_t* os_opendir(const char* path) {
     zx_handle_t dir_channel = GetConnectToServiceFunction()(path);
     if (dir_channel == ZX_HANDLE_INVALID) {
-        ALOGE("fuchsia_open(%s) failed", path);
+        mesa_loge("fuchsia_open(%s) failed", path);
         return nullptr;
     }
 

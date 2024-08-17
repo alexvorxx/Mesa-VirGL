@@ -15,7 +15,7 @@
  */
 
 #include "VirtGpuKumquat.h"
-#include "cutils/log.h"
+#include "util/log.h"
 
 VirtGpuKumquatResourceMapping::VirtGpuKumquatResourceMapping(VirtGpuResourcePtr blob,
                                                              struct virtgpu_kumquat* virtGpu,
@@ -25,7 +25,7 @@ VirtGpuKumquatResourceMapping::VirtGpuKumquatResourceMapping(VirtGpuResourcePtr 
 VirtGpuKumquatResourceMapping::~VirtGpuKumquatResourceMapping(void) {
     int32_t ret = virtgpu_kumquat_resource_unmap(mVirtGpu, mBlob->getBlobHandle());
     if (ret) {
-        ALOGE("failed to unmap buffer");
+        mesa_loge("failed to unmap buffer");
     }
 }
 

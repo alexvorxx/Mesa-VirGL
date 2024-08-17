@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
-#include <cutils/log.h>
-
 #include "Sync.h"
 #include "VirtGpu.h"
+#include "util/log.h"
 
 VirtGpuDevice* kumquatCreateVirtGpuDevice(enum VirtGpuCapset capset, int32_t descriptor) {
-    ALOGE("Using stub implementation of kumquat");
+    mesa_loge("Using stub implementation of kumquat");
     return nullptr;
 }
 

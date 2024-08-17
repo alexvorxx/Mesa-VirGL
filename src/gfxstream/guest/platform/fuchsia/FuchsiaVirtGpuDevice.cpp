@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <cutils/log.h>
 #include <lib/zx/vmo.h>
 #include <msd-virtio-gpu/magma-virtio-gpu-defs.h>
 #include <os_dirent.h>
@@ -26,6 +25,7 @@
 
 #include "FuchsiaVirtGpu.h"
 #include "Sync.h"
+#include "util/log.h"
 
 FuchsiaVirtGpuDevice::FuchsiaVirtGpuDevice(enum VirtGpuCapset capset, magma_device_t device)
     : VirtGpuDevice(capset), device_(device) {
@@ -56,7 +56,7 @@ FuchsiaVirtGpuDevice::FuchsiaVirtGpuDevice(enum VirtGpuCapset capset, magma_devi
                 capset_info.read(&mCaps.vulkanCapset, /*offset=*/0, sizeof(struct vulkanCapset));
             ALOGD("Got capset result, read status %d", status);
         } else {
-            ALOGE("Query(%lu) failed: status %d, expected buffer result", query_id, status);
+            mesa_loge("Query(%lu) failed: status %d, expected buffer result", query_id, status);
         }
 
         // We always need an ASG blob in some cases, so always define blobAlignment
@@ -71,7 +71,7 @@ FuchsiaVirtGpuDevice::~FuchsiaVirtGpuDevice() { magma_device_release(device_); }
 int64_t FuchsiaVirtGpuDevice::getDeviceHandle(void) { return device_; }
 
 VirtGpuResourcePtr FuchsiaVirtGpuDevice::createBlob(const struct VirtGpuCreateBlob& blobCreate) {
-    ALOGE("%s: unimplemented", __func__);
+    mesa_loge("%s: unimplemented", __func__);
     return nullptr;
 }
 
@@ -79,18 +79,18 @@ VirtGpuResourcePtr FuchsiaVirtGpuDevice::createResource(uint32_t width, uint32_t
                                                         uint32_t stride, uint32_t size,
                                                         uint32_t virglFormat, uint32_t target,
                                                         uint32_t bind) {
-    ALOGE("%s: unimplemented", __func__);
+    mesa_loge("%s: unimplemented", __func__);
     return nullptr;
 }
 
 VirtGpuResourcePtr FuchsiaVirtGpuDevice::importBlob(const struct VirtGpuExternalHandle& handle) {
-    ALOGE("%s: unimplemented", __func__);
+    mesa_loge("%s: unimplemented", __func__);
     return nullptr;
 }
 
 int FuchsiaVirtGpuDevice::execBuffer(struct VirtGpuExecBuffer& execbuffer,
                                      const VirtGpuResource* blob) {
-    ALOGE("%s: unimplemented", __func__);
+    mesa_loge("%s: unimplemented", __func__);
     return 0;
 }
 
@@ -99,7 +99,7 @@ struct VirtGpuCaps FuchsiaVirtGpuDevice::getCaps(void) { return {}; }
 VirtGpuDevice* osCreateVirtGpuDevice(enum VirtGpuCapset capset, int32_t descriptor) {
     // We don't handle the VirtioGpuPipeStream case.
     if (descriptor >= 0) {
-        ALOGE("Fuchsia: fd not handled");
+        mesa_loge("Fuchsia: fd not handled");
         return nullptr;
     }
 
@@ -108,7 +108,7 @@ VirtGpuDevice* osCreateVirtGpuDevice(enum VirtGpuCapset capset, int32_t descript
     struct os_dirent* de;
     os_dir_t* dir = os_opendir(kDevGpu);
     if (!dir) {
-        ALOGE("Error opening %s", kDevGpu);
+        mesa_loge("Error opening %s", kDevGpu);
         return nullptr;
     }
 
@@ -128,14 +128,14 @@ VirtGpuDevice* osCreateVirtGpuDevice(enum VirtGpuCapset capset, int32_t descript
 
         zx_handle_t device_channel = GetConnectToServiceFunction()(name);
         if (device_channel == ZX_HANDLE_INVALID) {
-            ALOGE("Failed to open device: %s", name);
+            mesa_loge("Failed to open device: %s", name);
             continue;
         }
 
         magma_device_t magma_device;
         magma_status_t status = magma_device_import(device_channel, &magma_device);
         if (status != MAGMA_STATUS_OK) {
-            ALOGE("magma_device_import failed: %d", status);
+            mesa_loge("magma_device_import failed: %d", status);
             continue;
         }
 
