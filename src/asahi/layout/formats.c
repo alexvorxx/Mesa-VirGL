@@ -142,9 +142,7 @@ const struct ail_pixel_format_entry ail_pixel_format[PIPE_FORMAT_COUNT] = {
    AIL_FMT(B10G10R10A2_SINT,        R10G10B10A2,           SINT,  _),
 
    AIL_FMT(R11G11B10_FLOAT,         R11G11B10,             FLOAT, RG11B10F),
-
-   /* TODO: This should be renderable but there are copyimage issues */
-   AIL_FMT(R9G9B9E5_FLOAT,          R9G9B9E5,              FLOAT, _),
+   AIL_FMT(R9G9B9E5_FLOAT,          R9G9B9E5,              FLOAT, RGB9E5),
 
    /* These formats are emulated for texture buffers only */
    AIL_FMT(R32G32B32_FLOAT,         R32G32B32_EMULATED,    FLOAT, _),
