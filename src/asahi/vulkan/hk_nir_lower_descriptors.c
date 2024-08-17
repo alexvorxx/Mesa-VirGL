@@ -542,6 +542,7 @@ try_lower_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
    case nir_intrinsic_image_deref_atomic_swap:
    case nir_intrinsic_image_deref_size:
    case nir_intrinsic_image_deref_samples:
+   case nir_intrinsic_image_deref_store_block_agx:
       return lower_image_intrin(b, intrin, ctx);
 
    case nir_intrinsic_load_num_workgroups: {

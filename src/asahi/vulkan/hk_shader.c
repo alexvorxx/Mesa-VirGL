@@ -1409,19 +1409,7 @@ hk_fast_link(struct hk_device *dev, bool fragment, struct hk_shader *main,
    if (s->b.uses_txf)
       agx_usc_push_packed(&b, SAMPLER, dev->rodata.txf_sampler);
 
-   if (main && (main->b.info.stage == MESA_SHADER_COMPUTE ||
-                main->b.info.stage == MESA_SHADER_TESS_CTRL)) {
-      unsigned size = main->b.info.local_size;
-
-      agx_usc_pack(&b, SHARED, cfg) {
-         cfg.layout = AGX_SHARED_LAYOUT_VERTEX_COMPUTE;
-         cfg.bytes_per_threadgroup = size > 0 ? size : 65536;
-         cfg.uses_shared_memory = size > 0;
-      }
-   } else if (!fragment) {
-      agx_usc_shared_none(&b);
-   }
-
+   agx_usc_shared_non_fragment(&b, &main->b.info, 0);
    agx_usc_push_packed(&b, SHADER, s->b.shader);
    agx_usc_push_packed(&b, REGISTERS, s->b.regs);
 
