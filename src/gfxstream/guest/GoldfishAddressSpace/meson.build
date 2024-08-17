@@ -20,9 +20,9 @@ lib_goldfish_address_space = static_library(
                          inc_guest_iostream,
                          inc_system,
                          inc_opengl_codec,
-                         inc_platform,
+                         inc_platform_virtgpu,
                          inc_include,
                          inc_src],
-   link_with: [lib_platform],
+   link_with: [libplatform_virtgpu],
    dependencies: drm_dep
 )
