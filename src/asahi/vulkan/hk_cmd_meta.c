@@ -17,11 +17,18 @@
 
 #include "layout.h"
 #include "nir_builder.h"
+#include "nir_builder_opcodes.h"
 #include "nir_format_convert.h"
 #include "shader_enums.h"
 #include "vk_format.h"
 #include "vk_meta.h"
 #include "vk_pipeline.h"
+
+/* For block based blit kernels, we hardcode the maximum tile size which we can
+ * always achieve. This simplifies our life.
+ */
+#define TILE_WIDTH  32
+#define TILE_HEIGHT 32
 
 static VkResult
 hk_cmd_bind_map_buffer(struct vk_command_buffer *vk_cmd,
@@ -250,9 +257,9 @@ aspect_format(VkFormat fmt, VkImageAspectFlags aspect)
  * the unfortunate exception).
  */
 static enum pipe_format
-canonical_format_pipe(enum pipe_format fmt)
+canonical_format_pipe(enum pipe_format fmt, bool canonicalize_zs)
 {
-   if (util_format_is_depth_or_stencil(fmt))
+   if (!canonicalize_zs && util_format_is_depth_or_stencil(fmt))
       return fmt;
 
    assert(ail_is_valid_pixel_format(fmt));
@@ -269,7 +276,7 @@ canonical_format_pipe(enum pipe_format fmt)
    /* clang-format off */
    static enum pipe_format map[] = {
       CASE(R8,           R8_UINT),
-      CASE(R16,          R16_UINT),
+      CASE(R16,          R16_UNORM /* XXX: Hack for Z16 copies */),
       CASE(R8G8,         R8G8_UINT),
       CASE(R5G6B5,       R5G6B5_UNORM),
       CASE(R4G4B4A4,     R4G4B4A4_UNORM),
@@ -298,7 +305,7 @@ static VkFormat
 canonical_format(VkFormat fmt)
 {
    return vk_format_from_pipe_format(
-      canonical_format_pipe(vk_format_to_pipe_format(fmt)));
+      canonical_format_pipe(vk_format_to_pipe_format(fmt), false));
 }
 
 enum copy_type {
@@ -328,6 +335,7 @@ struct vk_meta_image_copy_key {
    enum pipe_format src_format, dst_format;
    unsigned block_size;
    unsigned nr_samples;
+   bool block_based;
 };
 
 static nir_def *
@@ -358,8 +366,8 @@ build_image_copy_shader(const struct vk_meta_image_copy_key *key)
       nir_builder_init_simple_shader(MESA_SHADER_COMPUTE, NULL, "vk-meta-copy");
 
    nir_builder *b = &build;
-   b->shader->info.workgroup_size[0] = 32;
-   b->shader->info.workgroup_size[1] = 32;
+   b->shader->info.workgroup_size[0] = TILE_WIDTH;
+   b->shader->info.workgroup_size[1] = TILE_HEIGHT;
 
    bool src_is_buf = key->type == BUF2IMG;
    bool dst_is_buf = key->type == IMG2BUF;
@@ -397,46 +405,119 @@ build_image_copy_shader(const struct vk_meta_image_copy_key *key)
       b, 3, 32,
       nir_imm_int(b, offsetof(struct vk_meta_push_data, dst_offset_el)));
 
-   nir_def *grid_el = nir_load_push_constant(
-      b, 3, 32, nir_imm_int(b, offsetof(struct vk_meta_push_data, grid_el)));
+   nir_def *grid_2d_el = nir_load_push_constant(
+      b, 2, 32, nir_imm_int(b, offsetof(struct vk_meta_push_data, grid_el)));
 
    /* We're done setting up variables, do the copy */
    nir_def *coord = nir_load_global_invocation_id(b, 32);
 
-   nir_push_if(b,
-               nir_ball(b, nir_trim_vector(b, nir_ult(b, coord, grid_el), 2)));
-   {
-      nir_def *src_coord = nir_iadd(b, coord, src_offset_el);
-      nir_def *dst_coord = nir_iadd(b, coord, dst_offset_el);
+   /* The destination format is already canonical, convert to an ISA format */
+   enum pipe_format isa_format;
+   if (key->block_based) {
+      isa_format =
+         ail_pixel_format[canonical_format_pipe(key->dst_format, true)]
+            .renderable;
+      assert(isa_format != PIPE_FORMAT_NONE);
+   }
 
-      /* Special case handle buffer indexing */
-      if (dst_is_buf) {
-         dst_coord = linearize_coords(b, coord, key);
-      } else if (src_is_buf) {
-         src_coord = linearize_coords(b, coord, key);
-      }
+   nir_def *local_offset = nir_imm_intN_t(b, 0, 16);
+   nir_def *lid = nir_trim_vector(b, nir_load_local_invocation_id(b), 2);
+   lid = nir_u2u16(b, lid);
 
-      /* Copy formatted texel from texture to storage image */
-      for (unsigned s = 0; s < key->nr_samples; ++s) {
+   nir_def *src_coord = src_is_buf ? coord : nir_iadd(b, coord, src_offset_el);
+   nir_def *dst_coord = dst_is_buf ? coord : nir_iadd(b, coord, dst_offset_el);
+
+   nir_def *image_deref = &nir_build_deref_var(b, image)->def;
+
+   nir_def *coord_2d_el = nir_trim_vector(b, coord, 2);
+   nir_def *in_bounds;
+   if (key->block_based) {
+      nir_def *offset_in_block_el =
+         nir_umod_imm(b, nir_trim_vector(b, dst_offset_el, 2), TILE_WIDTH);
+
+      dst_coord =
+         nir_vector_insert_imm(b, nir_isub(b, dst_coord, offset_in_block_el),
+                               nir_channel(b, dst_coord, 2), 2);
+
+      src_coord =
+         nir_vector_insert_imm(b, nir_isub(b, src_coord, offset_in_block_el),
+                               nir_channel(b, src_coord, 2), 2);
+
+      in_bounds = nir_uge(b, coord_2d_el, offset_in_block_el);
+      in_bounds = nir_iand(
+         b, in_bounds,
+         nir_ult(b, coord_2d_el, nir_iadd(b, offset_in_block_el, grid_2d_el)));
+   } else {
+      in_bounds = nir_ult(b, coord_2d_el, grid_2d_el);
+   }
+
+   /* Special case handle buffer indexing */
+   if (dst_is_buf) {
+      assert(!key->block_based);
+      dst_coord = linearize_coords(b, dst_coord, key);
+   } else if (src_is_buf) {
+      src_coord = linearize_coords(b, src_coord, key);
+   }
+
+   for (unsigned s = 0; s < key->nr_samples; ++s) {
+      nir_def *ms_index = nir_imm_int(b, s);
+      nir_def *value1, *value2;
+
+      nir_push_if(b, nir_ball(b, in_bounds));
+      {
+         /* Copy formatted texel from texture to storage image */
          nir_deref_instr *deref = nir_build_deref_var(b, texture);
-         nir_def *ms_index = nir_imm_int(b, s);
 
-         nir_def *value = msaa ? nir_txf_ms_deref(b, deref, src_coord, ms_index)
-                               : nir_txf_deref(b, deref, src_coord, NULL);
+         value1 = msaa ? nir_txf_ms_deref(b, deref, src_coord, ms_index)
+                       : nir_txf_deref(b, deref, src_coord, NULL);
 
          /* Munge according to the implicit conversions so we get a bit copy */
          if (key->src_format != key->dst_format) {
-            nir_def *packed = nir_format_pack_rgba(b, key->src_format, value);
-            value = nir_format_unpack_rgba(b, packed, key->dst_format);
+            nir_def *packed = nir_format_pack_rgba(b, key->src_format, value1);
+            value1 = nir_format_unpack_rgba(b, packed, key->dst_format);
          }
 
-         nir_image_deref_store(b, &nir_build_deref_var(b, image)->def,
-                               nir_pad_vec4(b, dst_coord), ms_index, value,
-                               nir_imm_int(b, 0), .image_dim = dim_dst,
-                               .image_array = !dst_is_buf);
+         if (!key->block_based) {
+            nir_image_deref_store(b, image_deref, nir_pad_vec4(b, dst_coord),
+                                  ms_index, value1, nir_imm_int(b, 0),
+                                  .image_dim = dim_dst,
+                                  .image_array = !dst_is_buf);
+         }
+      }
+      nir_push_else(b, NULL);
+      if (key->block_based) {
+         /* Copy back the existing destination content */
+         value2 = nir_image_deref_load(b, 4, 32, image_deref,
+                                       nir_pad_vec4(b, dst_coord), ms_index,
+                                       nir_imm_int(b, 0), .image_dim = dim_dst,
+                                       .image_array = !dst_is_buf);
+      }
+      nir_pop_if(b, NULL);
+
+      if (key->block_based) {
+         nir_store_local_pixel_agx(b, nir_if_phi(b, value1, value2),
+                                   nir_imm_int(b, 1 << s), lid, .base = 0,
+                                   .write_mask = 0xf, .format = isa_format,
+                                   .explicit_coord = true);
       }
    }
-   nir_pop_if(b, NULL);
+
+   if (key->block_based) {
+      assert(!dst_is_buf);
+
+      nir_barrier(b, .execution_scope = SCOPE_WORKGROUP);
+
+      nir_push_if(b, nir_ball(b, nir_ieq_imm(b, lid, 0)));
+      {
+         nir_image_deref_store_block_agx(
+            b, image_deref, local_offset, dst_coord, .format = isa_format,
+            .image_dim = dim_2d, .image_array = true, .explicit_coord = true);
+      }
+      nir_pop_if(b, NULL);
+      b->shader->info.cs.image_block_size_per_thread_agx =
+         util_format_get_blocksize(key->dst_format);
+   }
+
    return b->shader;
 }
 
@@ -766,6 +847,42 @@ hk_meta_copy_image_to_buffer2(struct vk_command_buffer *cmd,
 }
 
 static void
+hk_meta_dispatch_to_image(struct vk_command_buffer *cmd,
+                          const struct vk_device_dispatch_table *disp,
+                          VkPipelineLayout pipeline_layout,
+                          struct vk_meta_push_data *push, VkOffset3D offset,
+                          VkExtent3D extent, bool per_layer, unsigned layers,
+                          enum pipe_format p_dst_fmt, enum pipe_format p_format)
+{
+   push->dst_offset_el[0] = util_format_get_nblocksx(p_dst_fmt, offset.x);
+   push->dst_offset_el[1] = util_format_get_nblocksy(p_dst_fmt, offset.y);
+   push->dst_offset_el[2] = 0;
+
+   push->grid_el[0] = util_format_get_nblocksx(p_format, extent.width);
+   push->grid_el[1] = util_format_get_nblocksy(p_format, extent.height);
+   push->grid_el[2] = per_layer ? 1 : layers;
+
+   unsigned w_el = util_format_get_nblocksx(p_format, extent.width);
+   unsigned h_el = util_format_get_nblocksy(p_format, extent.height);
+
+   /* Expand the grid so destinations are in tiles */
+   unsigned expanded_x0 = push->dst_offset_el[0] & ~(TILE_WIDTH - 1);
+   unsigned expanded_y0 = push->dst_offset_el[1] & ~(TILE_HEIGHT - 1);
+   unsigned expanded_x1 = align(push->dst_offset_el[0] + w_el, TILE_WIDTH);
+   unsigned expanded_y1 = align(push->dst_offset_el[1] + h_el, TILE_HEIGHT);
+
+   /* TODO: clamp to the destination size to save some redundant threads? */
+
+   disp->CmdPushConstants(vk_command_buffer_to_handle(cmd), pipeline_layout,
+                          VK_SHADER_STAGE_COMPUTE_BIT, 0, sizeof(*push), push);
+
+   disp->CmdDispatch(vk_command_buffer_to_handle(cmd),
+                     (expanded_x1 - expanded_x0) / TILE_WIDTH,
+                     (expanded_y1 - expanded_y0) / TILE_HEIGHT,
+                     push->grid_el[2]);
+}
+
+static void
 hk_meta_copy_buffer_to_image2(struct vk_command_buffer *cmd,
                               struct vk_meta_device *meta,
                               const struct VkCopyBufferToImageInfo2 *info)
@@ -808,7 +925,13 @@ hk_meta_copy_buffer_to_image2(struct vk_command_buffer *cmd,
             .block_size = blocksize_B,
             .nr_samples = image->samples,
             .src_format = vk_format_to_pipe_format(canonical),
-            .dst_format = vk_format_to_pipe_format(canonical),
+            .dst_format = canonical_format_pipe(
+               vk_format_to_pipe_format(aspect_format(image->format, aspect)),
+               false),
+
+            /* TODO: MSAA path */
+            .block_based =
+               (image->image_type != VK_IMAGE_TYPE_1D) && image->samples == 1,
          };
 
          VkPipelineLayout pipeline_layout;
@@ -933,28 +1056,13 @@ hk_meta_copy_buffer_to_image2(struct vk_command_buffer *cmd,
             .buffer_offset = region->bufferOffset,
             .row_extent = row_extent,
             .slice_or_layer_extent = is_3d ? slice_extent : layer_extent,
-
-            .dst_offset_el[0] =
-               util_format_get_nblocksx(p_format, region->imageOffset.x),
-            .dst_offset_el[1] =
-               util_format_get_nblocksy(p_format, region->imageOffset.y),
-
-            .grid_el[0] =
-               util_format_get_nblocksx(p_format, region->imageExtent.width),
-            .grid_el[1] =
-               util_format_get_nblocksy(p_format, region->imageExtent.height),
-            .grid_el[2] = per_layer ? 1 : layers,
          };
 
          push.buffer_offset += push.slice_or_layer_extent * layer_offs;
 
-         disp->CmdPushConstants(vk_command_buffer_to_handle(cmd),
-                                pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT, 0,
-                                sizeof(push), &push);
-
-         disp->CmdDispatch(vk_command_buffer_to_handle(cmd),
-                           DIV_ROUND_UP(push.grid_el[0], 32),
-                           DIV_ROUND_UP(push.grid_el[1], 32), push.grid_el[2]);
+         hk_meta_dispatch_to_image(cmd, disp, pipeline_layout, &push,
+                                   region->imageOffset, region->imageExtent,
+                                   per_layer, layers, p_format, p_format);
       }
    }
 }
@@ -1012,8 +1120,14 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
                .block_size = blocksize_B,
                .nr_samples = dst_image->samples,
                .src_format = vk_format_to_pipe_format(canonical),
-               .dst_format = canonical_format_pipe(vk_format_to_pipe_format(
-                  aspect_format(dst_image->format, dst_aspect_mask))),
+               .dst_format =
+                  canonical_format_pipe(vk_format_to_pipe_format(aspect_format(
+                                           dst_image->format, dst_aspect_mask)),
+                                        false),
+
+               /* TODO: MSAA path */
+               .block_based = (dst_image->image_type != VK_IMAGE_TYPE_1D) &&
+                              dst_image->samples == 1,
             };
 
             assert(key.nr_samples == src_image->samples);
@@ -1147,27 +1261,11 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
                   util_format_get_nblocksx(p_src_fmt, region->srcOffset.x),
                .src_offset_el[1] =
                   util_format_get_nblocksy(p_src_fmt, region->srcOffset.y),
-
-               .dst_offset_el[0] =
-                  util_format_get_nblocksx(p_dst_fmt, region->dstOffset.x),
-               .dst_offset_el[1] =
-                  util_format_get_nblocksy(p_dst_fmt, region->dstOffset.y),
-
-               .grid_el[0] =
-                  util_format_get_nblocksx(p_format, region->extent.width),
-               .grid_el[1] =
-                  util_format_get_nblocksy(p_format, region->extent.height),
-               .grid_el[2] = per_layer ? 1 : layers,
             };
 
-            disp->CmdPushConstants(vk_command_buffer_to_handle(cmd),
-                                   pipeline_layout, VK_SHADER_STAGE_COMPUTE_BIT,
-                                   0, sizeof(push), &push);
-
-            disp->CmdDispatch(vk_command_buffer_to_handle(cmd),
-                              DIV_ROUND_UP(push.grid_el[0], 32),
-                              DIV_ROUND_UP(push.grid_el[1], 32),
-                              push.grid_el[2]);
+            hk_meta_dispatch_to_image(cmd, disp, pipeline_layout, &push,
+                                      region->dstOffset, region->extent,
+                                      per_layer, layers, p_dst_fmt, p_format);
          }
       }
    }
