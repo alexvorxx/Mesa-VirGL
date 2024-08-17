@@ -749,6 +749,66 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
     */
    hk_cmd_buffer_end_compute(cmd);
 
+   /* If we spill colour attachments, we need to decompress them. This happens
+    * at the start of the render; it is not re-emitted when resuming
+    * secondaries. It could be hoisted to the start of the command buffer but
+    * we're not that clever yet.
+    */
+   if (agx_tilebuffer_spills(&render->tilebuffer)) {
+      struct hk_device *dev = hk_cmd_buffer_device(cmd);
+
+      perf_debug(dev, "eMRT render pass");
+
+      for (unsigned i = 0; i < render->color_att_count; ++i) {
+         struct hk_image_view *view = render->color_att[i].iview;
+         if (view) {
+            struct hk_image *image =
+               container_of(view->vk.image, struct hk_image, vk);
+
+            /* TODO: YCbCr interaction? */
+            uint8_t plane = 0;
+            uint8_t image_plane = view->planes[plane].image_plane;
+            struct ail_layout *layout = &image->planes[image_plane].layout;
+
+            if (ail_is_level_compressed(layout, view->vk.base_mip_level)) {
+               struct hk_device *dev = hk_cmd_buffer_device(cmd);
+               perf_debug(dev, "Decompressing in-place");
+
+               struct hk_cs *cs = hk_cmd_buffer_get_cs_general(
+                  cmd, &cmd->current_cs.pre_gfx, true);
+               if (!cs)
+                  return;
+
+               unsigned level = view->vk.base_mip_level;
+
+               struct agx_ptr data =
+                  hk_pool_alloc(cmd, sizeof(struct libagx_decompress_push), 64);
+               struct libagx_decompress_push *push = data.cpu;
+               agx_fill_decompress_push(
+                  push, layout, view->vk.base_array_layer, level,
+                  hk_image_base_address(image, image_plane));
+
+               push->compressed = view->planes[plane].emrt_texture;
+               push->uncompressed = view->planes[plane].emrt_pbe;
+
+               struct hk_grid grid =
+                  hk_grid(ail_metadata_width_tl(layout, level) * 32,
+                          ail_metadata_height_tl(layout, level), layer_count);
+
+               struct agx_decompress_key key = {
+                  .nr_samples = layout->sample_count_sa,
+               };
+
+               struct hk_shader *s =
+                  hk_meta_kernel(dev, agx_nir_decompress, &key, sizeof(key));
+
+               uint32_t usc = hk_upload_usc_words_kernel(cmd, s, &data.gpu, 8);
+               hk_dispatch_with_usc(dev, cs, s, usc, grid, hk_grid(32, 1, 1));
+            }
+         }
+      }
+   }
+
    if (incomplete_render_area) {
       uint32_t clear_count = 0;
       VkClearAttachment clear_att[HK_MAX_RTS + 1];
