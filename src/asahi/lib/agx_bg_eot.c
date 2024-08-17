@@ -169,8 +169,8 @@ agx_build_end_of_tile_shader(struct agx_bg_eot_cache *cache,
          layer = nir_u2u16(&b, nir_load_layer_id(&b));
 
       nir_image_store_block_agx(
-         &b, nir_imm_int(&b, rt), nir_imm_intN_t(&b, offset_B, 16), layer,
-         .format = agx_tilebuffer_physical_format(&key->tib, rt),
+         &b, nir_imm_intN_t(&b, rt, 16), nir_imm_intN_t(&b, offset_B, 16),
+         layer, .format = agx_tilebuffer_physical_format(&key->tib, rt),
          .image_dim = dim, .image_array = key->tib.layered);
    }
 

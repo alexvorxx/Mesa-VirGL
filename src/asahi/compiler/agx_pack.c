@@ -947,15 +947,16 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
       unsigned Tt = 0;
       pack_assert(I, Tt < 0x4);
 
-      UNUSED unsigned U;
-      unsigned T = agx_pack_texture(I, agx_zero(), I->src[0], &U, &Tt);
+      unsigned U;
+      unsigned T = agx_pack_texture(I, I->src[0], I->src[1], &U, &Tt);
       pack_assert(I, T < 0x100);
+      pack_assert(I, U < (1 << 5));
 
       bool Cs = false;
-      bool Ct = I->src[2].discard;
-      unsigned C = I->src[2].value;
+      bool Ct = I->src[3].discard;
+      unsigned C = I->src[3].value;
 
-      agx_index offset = I->src[1];
+      agx_index offset = I->src[2];
       pack_assert(I, offset.size == AGX_SIZE_32);
       assert_register_is_aligned(I, offset);
       unsigned R = offset.value;
@@ -976,7 +977,7 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
 
       uint32_t word1 = (T & BITFIELD_MASK(6)) | (Tt << 6) |
                        ((I->dim & BITFIELD_MASK(3)) << 8) | (9 << 11) |
-                       (Cs ? (1 << 15) : 0) |
+                       (Cs ? (1 << 15) : 0) | (((uint64_t)U) << 16) |
                        ((I->dim & BITFIELD_BIT(3)) ? (1u << 23) : 0) |
                        ((R >> 6) << 24) | ((C >> 6) << 26);
 

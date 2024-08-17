@@ -337,7 +337,7 @@ agx_read_registers(const agx_instr *I, unsigned s)
       }
 
    case AGX_OPCODE_BLOCK_IMAGE_STORE:
-      if (s == 2 && I->explicit_coords)
+      if (s == 3 && I->explicit_coords)
          return agx_coordinate_registers(I);
       else
          return size;
