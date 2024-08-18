@@ -307,12 +307,22 @@ void enc_ControlPicture_common(vid_enc_PrivateType * priv, struct pipe_h264_enc_
    picture->enable_vui = (picture->rate_ctrl[0].frame_rate_num != 0);
    enc_GetPictureParamPreset(picture);
 
+   uint8_t ref_idx = (priv->frame_num + 1) % 2;
    picture->header_flags.value = 0;
    if (picture->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_IDR) {
       picture->header_flags.sps = 1;
       picture->header_flags.pps = 1;
+      picture->ref_list0[0] = PIPE_H2645_LIST_REF_INVALID_ENTRY;
+   } else {
+      picture->ref_list0[0] = ref_idx;
    }
    picture->header_flags.aud = 1;
+   picture->slice.frame_num = priv->frame_num;
+   picture->slice.pic_order_cnt_lsb = priv->pic_order_cnt % 16;
+   picture->dpb_size = 2;
+   picture->dpb_curr_pic = priv->frame_num % 2;
+   picture->dpb[picture->dpb_curr_pic].frame_idx = priv->frame_num;
+   picture->dpb[ref_idx].frame_idx = priv->ref_idx_l0;
 }
 
 static void *create_compute_state(struct pipe_context *pipe,
