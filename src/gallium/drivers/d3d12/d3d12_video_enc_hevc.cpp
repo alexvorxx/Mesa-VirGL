@@ -811,9 +811,17 @@ d3d12_video_encoder_update_current_encoder_config_state_hevc(struct d3d12_video_
    }
    pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificSequenceStateDescH265 = hevcPic->seq;
 
-   if ((hevcPic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_IDR) &&
-       (hevcPic->renew_headers_on_idr))
-      pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_sequence_header;
+   // Iterate over the headers the app requested and set flags to emit those for this frame
+   util_dynarray_foreach(&hevcPic->raw_headers, struct pipe_enc_raw_header, header) {
+      if (header->type == PIPE_H265_NAL_VPS)
+         pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_video_header;
+      else if (header->type == PIPE_H265_NAL_SPS)
+         pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_sequence_header;
+      else if (header->type == PIPE_H265_NAL_PPS)
+         pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_picture_header;
+      else if (header->type == PIPE_H265_NAL_AUD)
+         pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_aud_header;
+   }
 
    // Set input format
    DXGI_FORMAT targetFmt = d3d12_convert_pipe_video_profile_to_dxgi_format(pD3D12Enc->base.profile);
@@ -1066,8 +1074,8 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
    uint32_t active_seq_parameter_set_id = pHEVCBitstreamBuilder->get_active_sps().sps_seq_parameter_set_id;
    uint32_t active_video_parameter_set_id = pHEVCBitstreamBuilder->get_active_vps().vps_video_parameter_set_id;
    
-   bool writeNewVPS = isFirstFrame;
-   
+   bool writeNewVPS = isFirstFrame || (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_video_header);
+
    size_t writtenVPSBytesCount = 0;
    if (writeNewVPS) {
       bool gopHasBFrames = (pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_HEVCGroupOfPictures.PPicturePeriod > 1);
@@ -1084,11 +1092,11 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
       pWrittenCodecUnitsSizes.push_back(writtenVPSBytesCount);
    }
 
+   bool forceWriteSPS = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_sequence_header);
    bool writeNewSPS = writeNewVPS                                          // on new VPS written
                       || ((pD3D12Enc->m_currentEncodeConfig.m_seqFlags &   // also on resolution change
                            D3D12_VIDEO_ENCODER_SEQUENCE_CONTROL_FLAG_RESOLUTION_CHANGE) != 0)
-                      // Also on input format dirty flag for new SPS, VUI etc
-                      || (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_sequence_header);
+                      || forceWriteSPS;
 
    size_t writtenSPSBytesCount = 0;
    if (writeNewSPS) {
@@ -1118,7 +1126,8 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
                                                                         writtenPPSBytesCount);
 
    const HevcPicParameterSet &active_pps = pHEVCBitstreamBuilder->get_active_pps();
-   if (d3d12_video_encoder_needs_new_pps_hevc(pD3D12Enc, writeNewSPS, tentative_pps, active_pps)) {
+   bool forceWritePPS = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_picture_header);
+   if (forceWritePPS || d3d12_video_encoder_needs_new_pps_hevc(pD3D12Enc, writeNewSPS, tentative_pps, active_pps)) {
       pHEVCBitstreamBuilder->set_active_pps(tentative_pps);
       pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenSPSBytesCount + writtenVPSBytesCount + writtenPPSBytesCount);
       memcpy(&pD3D12Enc->m_BitstreamHeadersBuffer.data()[(writtenSPSBytesCount + writtenVPSBytesCount)], pD3D12Enc->m_StagingHeadersBuffer.data(), writtenPPSBytesCount);

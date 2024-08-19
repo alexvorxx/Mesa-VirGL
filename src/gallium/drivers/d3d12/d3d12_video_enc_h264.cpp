@@ -923,9 +923,15 @@ d3d12_video_encoder_update_current_encoder_config_state_h264(struct d3d12_video_
    }
    pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificSequenceStateDescH264 = h264Pic->seq;
 
-   if ((h264Pic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_IDR) &&
-       (h264Pic->renew_headers_on_idr))
-      pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_sequence_header;
+   // Iterate over the headers the app requested and set flags to emit those for this frame
+   util_dynarray_foreach(&h264Pic->raw_headers, struct pipe_enc_raw_header, header) {
+      if (header->type == PIPE_H264_NAL_SPS)
+         pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_sequence_header;
+      else if (header->type == PIPE_H264_NAL_PPS)
+         pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_picture_header;
+      else if (header->type == PIPE_H264_NAL_AUD)
+         pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_aud_header;
+   }
 
    // Set input format
    DXGI_FORMAT targetFmt = d3d12_convert_pipe_video_profile_to_dxgi_format(pD3D12Enc->base.profile);
@@ -1163,7 +1169,9 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
 
    size_t writtenAUDBytesCount = 0;
    pWrittenCodecUnitsSizes.clear();
-   if (pH264BitstreamBuilder->insert_aud_nalu_requested())
+
+   bool forceWriteAUD = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_aud_header);
+   if (forceWriteAUD)
    {
       pH264BitstreamBuilder->write_aud(pD3D12Enc->m_BitstreamHeadersBuffer,
                                        pD3D12Enc->m_BitstreamHeadersBuffer.begin(),
@@ -1172,11 +1180,11 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
    }
 
    bool isFirstFrame = (pD3D12Enc->m_fenceValue == 1);
+   bool forceWriteSPS = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_sequence_header);
    bool writeNewSPS = isFirstFrame                                         // on first frame
                       || ((pD3D12Enc->m_currentEncodeConfig.m_seqFlags &   // also on resolution change
                            D3D12_VIDEO_ENCODER_SEQUENCE_CONTROL_FLAG_RESOLUTION_CHANGE) != 0)
-                      // Also on input format dirty flag for new SPS, VUI etc
-                      || (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_sequence_header);
+                      || forceWriteSPS;
 
    uint32_t active_seq_parameter_set_id = pH264BitstreamBuilder->get_active_sps().seq_parameter_set_id;
 
@@ -1209,7 +1217,8 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
                                                              writtenPPSBytesCount);
 
    const H264_PPS &active_pps = pH264BitstreamBuilder->get_active_pps();
-   if (d3d12_video_encoder_needs_new_pps_h264(pD3D12Enc, writeNewSPS, tentative_pps, active_pps)) {
+   bool forceWritePPS = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_picture_header);
+   if (forceWritePPS || d3d12_video_encoder_needs_new_pps_h264(pD3D12Enc, writeNewSPS, tentative_pps, active_pps)) {
       pH264BitstreamBuilder->set_active_pps(tentative_pps);
       pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenAUDBytesCount + writtenSPSBytesCount + writtenPPSBytesCount);
       memcpy(&pD3D12Enc->m_BitstreamHeadersBuffer.data()[writtenAUDBytesCount + writtenSPSBytesCount], pD3D12Enc->m_StagingHeadersBuffer.data(), writtenPPSBytesCount);

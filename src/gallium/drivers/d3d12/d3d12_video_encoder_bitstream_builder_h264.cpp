@@ -26,8 +26,7 @@
 #include <cmath>
 #include "util/u_video.h"
 
-d3d12_video_bitstream_builder_h264::d3d12_video_bitstream_builder_h264(bool insert_aud_nalu)
-   : m_insert_aud_nalu(insert_aud_nalu)
+d3d12_video_bitstream_builder_h264::d3d12_video_bitstream_builder_h264()
 { }
 
 inline H264_SPEC_PROFILES

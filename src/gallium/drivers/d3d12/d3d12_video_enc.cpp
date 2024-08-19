@@ -597,8 +597,7 @@ d3d12_video_encoder_create_reference_picture_manager(struct d3d12_video_encoder 
       case PIPE_VIDEO_FORMAT_MPEG4_AVC:
       {
          pD3D12Enc->m_upDPBManager = std::make_unique<d3d12_video_encoder_references_manager_h264>();
-         struct pipe_h264_enc_picture_desc *pH264Pic = (struct pipe_h264_enc_picture_desc *) picture;
-         pD3D12Enc->m_upBitstreamBuilder = std::make_unique<d3d12_video_bitstream_builder_h264>(pH264Pic->insert_aud_nalu);
+         pD3D12Enc->m_upBitstreamBuilder = std::make_unique<d3d12_video_bitstream_builder_h264>();
       } break;
 #endif
 #if VIDEO_CODEC_H265ENC

@@ -31,7 +31,7 @@ class d3d12_video_bitstream_builder_h264 : public d3d12_video_bitstream_builder_
 {
 
  public:
-   d3d12_video_bitstream_builder_h264(bool insert_aud_nalu = false);
+   d3d12_video_bitstream_builder_h264();
    ~d3d12_video_bitstream_builder_h264() {};
 
    H264_SPS build_sps(const struct pipe_h264_enc_seq_param &                 seqData,
@@ -88,13 +88,10 @@ class d3d12_video_bitstream_builder_h264 : public d3d12_video_bitstream_builder_
       m_activePPSStructure = active_pps;
    };
 
-   bool insert_aud_nalu_requested() { return m_insert_aud_nalu; }
-
  private:
    d3d12_video_nalu_writer_h264 m_h264Encoder;
    H264_SPS m_activeSPSStructure = {};
    H264_PPS m_activePPSStructure = {};
-   bool m_insert_aud_nalu = false;
 };
 
 #endif

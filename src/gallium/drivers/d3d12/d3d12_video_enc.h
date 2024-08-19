@@ -134,6 +134,8 @@ enum d3d12_video_encoder_config_dirty_flags
    d3d12_video_encoder_config_dirty_flag_sequence_header        = 0x400,
    d3d12_video_encoder_config_dirty_flag_intra_refresh          = 0x800,
    d3d12_video_encoder_config_dirty_flag_video_header           = 0x1000,
+   d3d12_video_encoder_config_dirty_flag_picture_header         = 0x2000,
+   d3d12_video_encoder_config_dirty_flag_aud_header             = 0x4000,
 };
 DEFINE_ENUM_FLAG_OPERATORS(d3d12_video_encoder_config_dirty_flags);
 
