@@ -104,6 +104,7 @@ nvk_descriptor_table_finish(struct nvk_device *dev,
 {
    if (table->mem != NULL)
       nvkmd_mem_unref(table->mem);
+   vk_free(&dev->vk.alloc, table->in_use);
    vk_free(&dev->vk.alloc, table->free_table);
    simple_mtx_destroy(&table->mutex);
 }
