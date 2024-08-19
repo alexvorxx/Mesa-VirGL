@@ -1612,21 +1612,37 @@ load_indirect_parameters(struct anv_cmd_buffer *cmd_buffer,
 #endif
 }
 
-static const bool
-execute_indirect_draw_supported(struct anv_cmd_buffer *cmd_buffer)
+static const inline bool
+execute_indirect_draw_supported(const struct anv_cmd_buffer *cmd_buffer)
 {
 #if GFX_VERx10 >= 125
    const struct intel_device_info *devinfo = cmd_buffer->device->info;
+
+   if (!devinfo->has_indirect_unroll)
+      return false;
+
    struct anv_graphics_pipeline *pipeline =
       anv_pipeline_to_graphics(cmd_buffer->state.gfx.base.pipeline);
    const struct brw_vs_prog_data *vs_prog_data = get_vs_prog_data(pipeline);
+   const struct brw_task_prog_data *task_prog_data = get_task_prog_data(pipeline);
+   const struct brw_mesh_prog_data *mesh_prog_data = get_mesh_prog_data(pipeline);
    const bool is_multiview = pipeline->instance_multiplier > 1;
 
-   return (devinfo->has_indirect_unroll &&
-           !is_multiview &&
-           !vs_prog_data->uses_firstvertex &&
-           !vs_prog_data->uses_baseinstance &&
-           !vs_prog_data->uses_drawid);
+   const bool uses_draw_id =
+      (vs_prog_data && vs_prog_data->uses_drawid) ||
+      (mesh_prog_data && mesh_prog_data->uses_drawid) ||
+      (task_prog_data && task_prog_data->uses_drawid);
+
+   const bool uses_firstvertex =
+      (vs_prog_data && vs_prog_data->uses_firstvertex);
+
+   const bool uses_baseinstance =
+      (vs_prog_data && vs_prog_data->uses_baseinstance);
+
+   return !is_multiview &&
+          !uses_draw_id &&
+          !uses_firstvertex &&
+          !uses_baseinstance;
 #else
    return false;
 #endif
@@ -1644,27 +1660,11 @@ emit_indirect_draws(struct anv_cmd_buffer *cmd_buffer,
       anv_pipeline_to_graphics(cmd_buffer->state.gfx.base.pipeline);
    const struct brw_vs_prog_data *vs_prog_data = get_vs_prog_data(pipeline);
 #endif
-   UNUSED const struct intel_device_info *devinfo = cmd_buffer->device->info;
-   UNUSED const bool aligned_stride =
-      (indirect_data_stride == 0 ||
-       (!indexed && indirect_data_stride == sizeof(VkDrawIndirectCommand)) ||
-       (indexed && indirect_data_stride == sizeof(VkDrawIndexedIndirectCommand)));
-   UNUSED const bool execute_indirect_supported =
-      execute_indirect_draw_supported(cmd_buffer);
-
    genX(cmd_buffer_flush_gfx_state)(cmd_buffer);
 
    if (cmd_buffer->state.conditional_render_enabled)
       genX(cmd_emit_conditional_render_predicate)(cmd_buffer);
 
-#if GFX_VER >= 20
-   if (execute_indirect_supported) {
-      anv_batch_emit(&cmd_buffer->batch, GENX(STATE_BYTE_STRIDE), sb_stride) {
-         sb_stride.ByteStride = indirect_data_stride;
-         sb_stride.ByteStrideEnable = !aligned_stride;
-      }
-   }
-#endif
    uint32_t offset = 0;
    for (uint32_t i = 0; i < draw_count; i++) {
       struct anv_address draw = anv_address_add(indirect_data_addr, offset);
@@ -1701,44 +1701,19 @@ emit_indirect_draws(struct anv_cmd_buffer *cmd_buffer,
          genX(emit_hs)(cmd_buffer);
       genX(emit_ds)(cmd_buffer);
 
-      if (execute_indirect_supported) {
-#if GFX_VERx10 >= 125
-         genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, true);
-         anv_batch_emit(&cmd_buffer->batch, GENX(EXECUTE_INDIRECT_DRAW), ind) {
-            ind.ArgumentFormat             = indexed ? XI_DRAWINDEXED : XI_DRAW;
-            ind.TBIMREnabled               = cmd_buffer->state.gfx.dyn_state.use_tbimr;
-            ind.PredicateEnable            =
-               cmd_buffer->state.conditional_render_enabled;
-            ind.MaxCount                   = aligned_stride ? draw_count : 1;
-            ind.ArgumentBufferStartAddress = draw;
-            ind.MOCS                       =
-               anv_mocs(cmd_buffer->device, draw.bo, 0);
-         }
-         /* If all the indirect structures are aligned, then we can let the HW
-          * do the unrolling and we only need one instruction. Otherwise we
-          * need to emit one instruction per draw, but we're still avoiding
-          * the register loads with MI commands.
-          */
-         if (aligned_stride || GFX_VER >= 20)
-            break;
-#else
-         unreachable("EXECUTE_INDIRECT_DRAW instruction expectation mismatch");
-#endif
-      } else {
-         load_indirect_parameters(cmd_buffer, draw, indexed, i);
+      load_indirect_parameters(cmd_buffer, draw, indexed, i);
 
-         genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, true);
-         anv_batch_emit(&cmd_buffer->batch, _3DPRIMITIVE_DIRECT, prim) {
+      genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, true);
+      anv_batch_emit(&cmd_buffer->batch, _3DPRIMITIVE_DIRECT, prim) {
 #if GFX_VERx10 >= 125
-            prim.TBIMREnable = cmd_buffer->state.gfx.dyn_state.use_tbimr;
+         prim.TBIMREnable = cmd_buffer->state.gfx.dyn_state.use_tbimr;
 #endif
-            prim.IndirectParameterEnable  = true;
-            prim.PredicateEnable          = cmd_buffer->state.conditional_render_enabled;
-            prim.VertexAccessType         = indexed ? RANDOM : SEQUENTIAL;
+         prim.IndirectParameterEnable  = true;
+         prim.PredicateEnable          = cmd_buffer->state.conditional_render_enabled;
+         prim.VertexAccessType         = indexed ? RANDOM : SEQUENTIAL;
 #if GFX_VER >= 11
-            prim.ExtendedParametersPresent = true;
+         prim.ExtendedParametersPresent = true;
 #endif
-         }
       }
 
       genX(batch_emit_post_3dprimitive_was)(&cmd_buffer->batch,
@@ -1748,13 +1723,102 @@ emit_indirect_draws(struct anv_cmd_buffer *cmd_buffer,
 
       genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, false);
 
-      update_dirty_vbs_for_gfx8_vb_flush(cmd_buffer,
-                                         indexed ? RANDOM : SEQUENTIAL);
+      update_dirty_vbs_for_gfx8_vb_flush(cmd_buffer, indexed ? RANDOM : SEQUENTIAL);
 
       offset += indirect_data_stride;
    }
 }
 
+static inline const uint32_t xi_argument_format_for_vk_cmd(enum vk_cmd_type cmd)
+{
+#if GFX_VERx10 >= 125
+   switch (cmd) {
+      case VK_CMD_DRAW_INDIRECT:
+         return XI_DRAW;
+      case VK_CMD_DRAW_INDEXED_INDIRECT:
+         return XI_DRAWINDEXED;
+      default:
+         unreachable("unhandled cmd type");
+   }
+#else
+   unreachable("unsupported GFX VER");
+#endif
+}
+
+static inline const bool
+stride_aligned_for_vk_cmd(uint32_t stride, enum vk_cmd_type cmd)
+{
+   if (stride == 0)
+      return true;
+
+   switch (cmd) {
+      case VK_CMD_DRAW_INDIRECT:
+         return stride == sizeof(VkDrawIndirectCommand);
+      case VK_CMD_DRAW_INDEXED_INDIRECT:
+         return stride == sizeof(VkDrawIndexedIndirectCommand);
+      default:
+         unreachable("unhandled cmd type");
+   }
+}
+
+static void
+genX(cmd_buffer_emit_execute_indirect_draws)(struct anv_cmd_buffer *cmd_buffer,
+                                             struct anv_address indirect_data_addr,
+                                             uint32_t indirect_data_stride,
+                                             struct anv_address count_addr,
+                                             uint32_t max_draw_count,
+                                             enum vk_cmd_type cmd)
+{
+#if GFX_VERx10 >= 125
+   genX(cmd_buffer_flush_gfx_state)(cmd_buffer);
+
+   if (cmd_buffer->state.conditional_render_enabled)
+      genX(cmd_emit_conditional_render_predicate)(cmd_buffer);
+
+   const bool aligned_stride =
+      stride_aligned_for_vk_cmd(indirect_data_stride, cmd);
+
+#if GFX_VER >= 20
+   anv_batch_emit(&cmd_buffer->batch, GENX(STATE_BYTE_STRIDE), sb_stride) {
+      sb_stride.ByteStride = indirect_data_stride;
+      sb_stride.ByteStrideEnable = !aligned_stride;
+   }
+#endif
+   uint32_t offset = 0;
+   for (uint32_t i = 0; i < max_draw_count; i++) {
+      struct anv_address draw = anv_address_add(indirect_data_addr, offset);
+      genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, true);
+      anv_batch_emit(&cmd_buffer->batch, GENX(EXECUTE_INDIRECT_DRAW), ind) {
+         ind.ArgumentFormat             = xi_argument_format_for_vk_cmd(cmd);
+         ind.TBIMREnabled               = cmd_buffer->state.gfx.dyn_state.use_tbimr;
+         ind.PredicateEnable            =
+            cmd_buffer->state.conditional_render_enabled;
+         ind.MaxCount                   = aligned_stride ? max_draw_count : 1;
+         ind.ArgumentBufferStartAddress = draw;
+         ind.CountBufferAddress         = count_addr;
+         ind.CountBufferIndirectEnable  = !anv_address_is_null(count_addr);
+         ind.MOCS                       =
+            anv_mocs(cmd_buffer->device, draw.bo, 0);
+
+      }
+
+      /* If all the indirect structures are aligned, then we can let the HW
+       * do the unrolling and we only need one instruction. Otherwise we
+       * need to emit one instruction per draw, but we're still avoiding
+       * the register loads with MI commands.
+       */
+      if (aligned_stride || GFX_VER >= 20)
+         break;
+
+      genX(batch_emit_post_3dprimitive_was)(&cmd_buffer->batch,
+                                            cmd_buffer->device,
+                                            cmd_buffer->state.gfx.primitive_topology,
+                                            1);
+      genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, false);
+      offset += indirect_data_stride;
+   }
+#endif // GFX_VERx10 >= 125
+}
 void genX(CmdDrawIndirect)(
     VkCommandBuffer                             commandBuffer,
     VkBuffer                                    _buffer,
@@ -1774,17 +1838,30 @@ void genX(CmdDrawIndirect)(
                         drawCount);
    trace_intel_begin_draw_indirect(&cmd_buffer->trace);
 
-   if (anv_use_generated_draws(cmd_buffer, drawCount)) {
+   struct anv_address indirect_data_addr =
+      anv_address_add(buffer->address, offset);
+
+   stride = MAX2(stride, sizeof(VkDrawIndirectCommand));
+
+   if (execute_indirect_draw_supported(cmd_buffer)) {
+      genX(cmd_buffer_emit_execute_indirect_draws)(
+         cmd_buffer,
+         indirect_data_addr,
+         stride,
+         ANV_NULL_ADDRESS /* count_addr */,
+         drawCount,
+         VK_CMD_DRAW_INDIRECT);
+   } else if (anv_use_generated_draws(cmd_buffer, drawCount)) {
       genX(cmd_buffer_emit_indirect_generated_draws)(
          cmd_buffer,
-         anv_address_add(buffer->address, offset),
-         MAX2(stride, sizeof(VkDrawIndirectCommand)),
+         indirect_data_addr,
+         stride,
          ANV_NULL_ADDRESS /* count_addr */,
          drawCount,
          false /* indexed */);
    } else {
       emit_indirect_draws(cmd_buffer,
-                          anv_address_add(buffer->address, offset),
+                          indirect_data_addr,
                           stride, drawCount, false /* indexed */);
    }
 
@@ -1810,17 +1887,30 @@ void genX(CmdDrawIndexedIndirect)(
                         drawCount);
    trace_intel_begin_draw_indexed_indirect(&cmd_buffer->trace);
 
-   if (anv_use_generated_draws(cmd_buffer, drawCount)) {
+   struct anv_address indirect_data_addr =
+      anv_address_add(buffer->address, offset);
+
+   stride = MAX2(stride, sizeof(VkDrawIndexedIndirectCommand));
+
+   if (execute_indirect_draw_supported(cmd_buffer)) {
+      genX(cmd_buffer_emit_execute_indirect_draws)(
+         cmd_buffer,
+         indirect_data_addr,
+         stride,
+         ANV_NULL_ADDRESS /* count_addr */,
+         drawCount,
+         VK_CMD_DRAW_INDEXED_INDIRECT);
+   } else if (anv_use_generated_draws(cmd_buffer, drawCount)) {
       genX(cmd_buffer_emit_indirect_generated_draws)(
          cmd_buffer,
-         anv_address_add(buffer->address, offset),
-         MAX2(stride, sizeof(VkDrawIndexedIndirectCommand)),
+         indirect_data_addr,
+         stride,
          ANV_NULL_ADDRESS /* count_addr */,
          drawCount,
          true /* indexed */);
    } else {
       emit_indirect_draws(cmd_buffer,
-                          anv_address_add(buffer->address, offset),
+                          indirect_data_addr,
                           stride, drawCount, true /* indexed */);
    }
 
