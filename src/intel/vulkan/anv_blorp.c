@@ -330,9 +330,7 @@ get_blorp_surf_for_anv_image(const struct anv_cmd_buffer *cmd_buffer,
          const struct anv_address clear_color_addr =
             anv_image_get_clear_color_addr(device, image, aspect);
          blorp_surf->clear_color_addr = anv_to_blorp_address(clear_color_addr);
-         blorp_surf->clear_color = (union isl_color_value) {
-            .f32 = { ANV_HZ_FC_VAL },
-         };
+         blorp_surf->clear_color = anv_image_hiz_clear_value(image);
       }
    }
 }

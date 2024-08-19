@@ -473,9 +473,11 @@ transition_depth_buffer(struct anv_cmd_buffer *cmd_buffer,
         initial_layout == VK_IMAGE_LAYOUT_PREINITIALIZED)) {
       const enum isl_format depth_format =
          image->planes[depth_plane].primary_surface.isl.format;
-      assert(ANV_HZ_FC_VAL == 1.0f);
-      const uint32_t depth_value = depth_format == ISL_FORMAT_R32_FLOAT ?
-                                   0x3f800000 : ~0;
+      const union isl_color_value clear_value =
+         anv_image_hiz_clear_value(image);
+
+      uint32_t depth_value;
+      isl_color_value_pack(&clear_value, depth_format, &depth_value);
 
       const uint32_t clear_pixel_offset = clear_color_addr.offset +
          isl_get_sampler_clear_field_offset(cmd_buffer->device->info,
@@ -5017,7 +5019,7 @@ cmd_buffer_emit_depth_stencil(struct anv_cmd_buffer *cmd_buffer)
          info.hiz_surf = &hiz_surface->isl;
          info.hiz_address = anv_address_physical(hiz_address);
 
-         info.depth_clear_value = ANV_HZ_FC_VAL;
+         info.depth_clear_value = anv_image_hiz_clear_value(image).f32[0];
       }
    }
 

@@ -69,7 +69,8 @@ anv_image_fill_surface_state(struct anv_device *device,
     */
    union isl_color_value default_clear_color = { .u32 = { 0, } };
    if (aspect == VK_IMAGE_ASPECT_DEPTH_BIT)
-      default_clear_color.f32[0] = ANV_HZ_FC_VAL;
+      default_clear_color = anv_image_hiz_clear_value(image);
+
    if (!clear_color)
       clear_color = &default_clear_color;
 
@@ -235,7 +236,7 @@ anv_can_hiz_clear_ds_view(struct anv_device *device,
       }
    }
 
-   if (depth_clear_value != ANV_HZ_FC_VAL)
+   if (depth_clear_value != anv_image_hiz_clear_value(iview->image).f32[0])
       return false;
 
    /* If we got here, then we can fast clear */
