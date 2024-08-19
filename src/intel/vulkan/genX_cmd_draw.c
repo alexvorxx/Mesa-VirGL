@@ -1734,8 +1734,10 @@ static inline const uint32_t xi_argument_format_for_vk_cmd(enum vk_cmd_type cmd)
 #if GFX_VERx10 >= 125
    switch (cmd) {
       case VK_CMD_DRAW_INDIRECT:
+      case VK_CMD_DRAW_INDIRECT_COUNT:
          return XI_DRAW;
       case VK_CMD_DRAW_INDEXED_INDIRECT:
+      case VK_CMD_DRAW_INDEXED_INDIRECT_COUNT:
          return XI_DRAWINDEXED;
       default:
          unreachable("unhandled cmd type");
@@ -1753,8 +1755,10 @@ stride_aligned_for_vk_cmd(uint32_t stride, enum vk_cmd_type cmd)
 
    switch (cmd) {
       case VK_CMD_DRAW_INDIRECT:
+      case VK_CMD_DRAW_INDIRECT_COUNT:
          return stride == sizeof(VkDrawIndirectCommand);
       case VK_CMD_DRAW_INDEXED_INDIRECT:
+      case VK_CMD_DRAW_INDEXED_INDIRECT_COUNT:
          return stride == sizeof(VkDrawIndexedIndirectCommand);
       default:
          unreachable("unhandled cmd type");
@@ -2105,7 +2109,15 @@ void genX(CmdDrawIndirectCount)(
       anv_address_add(count_buffer->address, countBufferOffset);
    stride = MAX2(stride, sizeof(VkDrawIndirectCommand));
 
-   if (anv_use_generated_draws(cmd_buffer, maxDrawCount)) {
+   if (execute_indirect_draw_supported(cmd_buffer)) {
+      genX(cmd_buffer_emit_execute_indirect_draws)(
+         cmd_buffer,
+         indirect_data_address,
+         stride,
+         count_address,
+         maxDrawCount,
+         VK_CMD_DRAW_INDIRECT_COUNT);
+   } else if (anv_use_generated_draws(cmd_buffer, maxDrawCount)) {
       genX(cmd_buffer_emit_indirect_generated_draws)(
          cmd_buffer,
          indirect_data_address,
@@ -2154,7 +2166,15 @@ void genX(CmdDrawIndexedIndirectCount)(
       anv_address_add(count_buffer->address, countBufferOffset);
    stride = MAX2(stride, sizeof(VkDrawIndexedIndirectCommand));
 
-   if (anv_use_generated_draws(cmd_buffer, maxDrawCount)) {
+   if (execute_indirect_draw_supported(cmd_buffer)) {
+      genX(cmd_buffer_emit_execute_indirect_draws)(
+         cmd_buffer,
+         indirect_data_address,
+         stride,
+         count_address,
+         maxDrawCount,
+         VK_CMD_DRAW_INDEXED_INDIRECT_COUNT);
+   } else if (anv_use_generated_draws(cmd_buffer, maxDrawCount)) {
       genX(cmd_buffer_emit_indirect_generated_draws)(
          cmd_buffer,
          indirect_data_address,
