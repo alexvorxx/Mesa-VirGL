@@ -608,6 +608,14 @@ alu_can_accept_constant(const aco_ptr<Instruction>& instr, unsigned operand)
       return false;
 
    switch (instr->opcode) {
+   case aco_opcode::v_s_exp_f16:
+   case aco_opcode::v_s_log_f16:
+   case aco_opcode::v_s_rcp_f16:
+   case aco_opcode::v_s_rsq_f16:
+   case aco_opcode::v_s_sqrt_f16:
+      /* These can't use inline constants on GFX12 but can use literals. We don't bother since they
+       * should be constant folded anyway. */
+      return false;
    case aco_opcode::s_fmac_f16:
    case aco_opcode::s_fmac_f32:
    case aco_opcode::v_mac_f32:
