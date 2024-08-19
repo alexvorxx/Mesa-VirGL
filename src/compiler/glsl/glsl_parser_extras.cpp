@@ -960,16 +960,14 @@ _mesa_glsl_process_extension(const char *name, YYLTYPE *name_locp,
 
 bool
 _mesa_glsl_can_implicitly_convert(const glsl_type *from, const glsl_type *desired,
-                                  _mesa_glsl_parse_state *state)
+                                  bool has_implicit_conversions,
+                                  bool has_implicit_int_to_uint_conversion)
 {
    if (from == desired)
       return true;
 
-   /* GLSL 1.10 and ESSL do not allow implicit conversions. If there is no
-    * state, we're doing intra-stage function linking where these checks have
-    * already been done.
-    */
-   if (state && !state->has_implicit_conversions())
+   /* GLSL 1.10 and ESSL do not allow implicit conversions. */
+   if (!has_implicit_conversions)
       return false;
 
    /* There is no conversion among matrix types. */
@@ -991,8 +989,8 @@ _mesa_glsl_can_implicitly_convert(const glsl_type *from, const glsl_type *desire
     * state-dependent checks have already happened though, so allow anything
     * that's allowed in any shader version.
     */
-   if ((!state || state->has_implicit_int_to_uint_conversion()) &&
-         desired->base_type == GLSL_TYPE_UINT && from->base_type == GLSL_TYPE_INT)
+   if (has_implicit_int_to_uint_conversion &&
+       desired->base_type == GLSL_TYPE_UINT && from->base_type == GLSL_TYPE_INT)
       return true;
 
    /* No implicit conversions from double. */

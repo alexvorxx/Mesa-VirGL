@@ -32,8 +32,9 @@ struct gl_shader;
 struct gl_linked_shader;
 
 extern bool
-link_function_calls(gl_shader_program *prog, gl_linked_shader *main,
-                    gl_shader **shader_list, unsigned num_shaders);
+link_function_calls(gl_shader_program *prog, gl_linked_shader *main_linked,
+                    gl_shader *main, gl_shader **shader_list,
+                    unsigned num_shaders);
 
 bool
 validate_intrastage_arrays(struct gl_shader_program *prog,

@@ -1683,7 +1683,7 @@ link_intrastage_shaders(void *mem_ctx,
       }
    }
 
-   if (!link_function_calls(prog, linked, shader_list, num_shaders)) {
+   if (!link_function_calls(prog, linked, main, shader_list, num_shaders)) {
       _mesa_delete_linked_shader(ctx, linked);
       return NULL;
    }

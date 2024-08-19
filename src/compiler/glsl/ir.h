@@ -1313,6 +1313,8 @@ public:
     */
    ir_function_signature *matching_signature(_mesa_glsl_parse_state *state,
                                              const exec_list *actual_param,
+                                             bool has_implicit_conversions,
+                                             bool has_implicit_int_to_uint_conversion,
                                              bool allow_builtins,
 					     bool *match_is_exact);
 
@@ -1322,6 +1324,8 @@ public:
     */
    ir_function_signature *matching_signature(_mesa_glsl_parse_state *state,
                                              const exec_list *actual_param,
+                                             bool has_implicit_conversions,
+                                             bool has_implicit_int_to_uint_conversion,
                                              bool allow_builtins);
 
    /**

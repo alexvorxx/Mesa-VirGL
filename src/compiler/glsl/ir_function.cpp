@@ -52,7 +52,8 @@ get_param_type(const ir_instruction *inst)
  * \see matching_signature()
  */
 static parameter_list_match_t
-parameter_lists_match(_mesa_glsl_parse_state *state,
+parameter_lists_match(bool has_implicit_conversions,
+                      bool has_implicit_int_to_uint_conversion,
                       const exec_list *list_a, const exec_list *list_b)
 {
    const exec_node *node_a = list_a->get_head_raw();
@@ -99,12 +100,16 @@ parameter_lists_match(_mesa_glsl_parse_state *state,
       case ir_var_const_in:
       case ir_var_function_in:
          if (param->data.implicit_conversion_prohibited ||
-             !_mesa_glsl_can_implicitly_convert(actual_type, param->type, state))
+             !_mesa_glsl_can_implicitly_convert(actual_type, param->type,
+                                                has_implicit_conversions,
+                                                has_implicit_int_to_uint_conversion))
             return PARAMETER_LIST_NO_MATCH;
 	 break;
 
       case ir_var_function_out:
-	 if (!_mesa_glsl_can_implicitly_convert(param->type, actual_type, state))
+	 if (!_mesa_glsl_can_implicitly_convert(param->type, actual_type,
+                                                has_implicit_conversions,
+                                                has_implicit_int_to_uint_conversion))
 	    return PARAMETER_LIST_NO_MATCH;
 	 break;
 
@@ -305,16 +310,21 @@ choose_best_inexact_overload(_mesa_glsl_parse_state *state,
 ir_function_signature *
 ir_function::matching_signature(_mesa_glsl_parse_state *state,
                                 const exec_list *actual_parameters,
+                                bool has_implicit_conversions,
+                                bool has_implicit_int_to_uint_conversion,
                                 bool allow_builtins)
 {
    bool is_exact;
-   return matching_signature(state, actual_parameters, allow_builtins,
-                             &is_exact);
+   return matching_signature(state, actual_parameters, has_implicit_conversions,
+                             has_implicit_int_to_uint_conversion,
+                             allow_builtins, &is_exact);
 }
 
 ir_function_signature *
 ir_function::matching_signature(_mesa_glsl_parse_state *state,
                                 const exec_list *actual_parameters,
+                                bool has_implicit_conversions,
+                                bool has_implicit_int_to_uint_conversion,
                                 bool allow_builtins,
                                 bool *is_exact)
 {
@@ -339,7 +349,9 @@ ir_function::matching_signature(_mesa_glsl_parse_state *state,
                                 !sig->is_builtin_available(state)))
          continue;
 
-      switch (parameter_lists_match(state, & sig->parameters, actual_parameters)) {
+      switch (parameter_lists_match(has_implicit_conversions,
+                                    has_implicit_int_to_uint_conversion,
+                                    &sig->parameters, actual_parameters)) {
       case PARAMETER_LIST_EXACT_MATCH:
          *is_exact = true;
          free(inexact_matches);

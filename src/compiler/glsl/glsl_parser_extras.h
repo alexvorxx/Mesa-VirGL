@@ -1087,7 +1087,8 @@ extern bool _mesa_glsl_process_extension(const char *name, YYLTYPE *name_locp,
  * \endverbatim
  */
 extern bool _mesa_glsl_can_implicitly_convert(const glsl_type *from, const glsl_type *desired,
-                                              _mesa_glsl_parse_state *state);
+                                              bool has_implicit_conversions,
+                                              bool has_implicit_int_to_uint_conversion);
 
 #endif /* __cplusplus */
 

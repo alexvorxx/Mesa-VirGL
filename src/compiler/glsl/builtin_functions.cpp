@@ -1461,7 +1461,10 @@ builtin_builder::find(_mesa_glsl_parse_state *state,
       return NULL;
 
    ir_function_signature *sig =
-      f->matching_signature(state, actual_parameters, true);
+      f->matching_signature(state, actual_parameters,
+                            state->has_implicit_conversions(),
+                            state->has_implicit_int_to_uint_conversion(),
+                            true);
    if (sig == NULL)
       return NULL;
 
@@ -9051,7 +9054,7 @@ _mesa_get_main_function_signature(glsl_symbol_table *symbols)
        * shaders) because that would have already been caught above.
        */
       ir_function_signature *sig =
-         f->matching_signature(NULL, &void_parameters, false);
+         f->matching_signature(NULL, &void_parameters, false, false, false);
       if ((sig != NULL) && sig->is_defined) {
          return sig;
       }

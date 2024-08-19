@@ -6448,6 +6448,8 @@ ast_function::hir(exec_list *instructions,
                continue;
 
             tsig = fn->matching_signature(state, &sig->parameters,
+                                          state->has_implicit_conversions(),
+                                          state->has_implicit_int_to_uint_conversion(),
                                           false);
             if (!tsig) {
                _mesa_glsl_error(& loc, state, "subroutine type mismatch '%s' - signatures do not match\n", decl->identifier);
@@ -7152,7 +7154,9 @@ ast_case_label::hir(exec_list *instructions,
 
          /* Check if int->uint implicit conversion is supported. */
          bool integer_conversion_supported =
-            _mesa_glsl_can_implicitly_convert(&glsl_type_builtin_int, &glsl_type_builtin_uint, state);
+            _mesa_glsl_can_implicitly_convert(&glsl_type_builtin_int, &glsl_type_builtin_uint,
+                                              state->has_implicit_conversions(),
+                                              state->has_implicit_int_to_uint_conversion());
 
          if ((!glsl_type_is_integer_32(type_a) || !glsl_type_is_integer_32(type_b)) ||
               !integer_conversion_supported) {
