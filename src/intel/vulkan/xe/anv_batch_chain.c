@@ -314,7 +314,7 @@ xe_queue_exec_locked(struct anv_queue *queue,
    xe_exec_print_debug(queue, cmd_buffer_count, cmd_buffers, perf_query_pool,
                        perf_query_pass, &exec);
 
-   if (perf_query_pool && perf_query_pass >= 0 && cmd_buffer_count) {
+   if (perf_query_pool && cmd_buffer_count) {
       struct drm_xe_exec perf_query_exec = {
             .exec_queue_id = queue->exec_queue_id,
             .num_batch_buffer = 1,
