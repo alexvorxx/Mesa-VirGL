@@ -568,7 +568,8 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->extendedDynamicState3LineRasterizationMode = true;
    features->extendedDynamicState3LineStippleEnable = false;
    features->extendedDynamicState3ProvokingVertexMode = true;
-   features->extendedDynamicState3SampleLocationsEnable = true;
+   features->extendedDynamicState3SampleLocationsEnable =
+      pdevice->info->a6xx.has_sample_locations;
    features->extendedDynamicState3ColorBlendEnable = true;
    features->extendedDynamicState3ColorBlendEquation = true;
    features->extendedDynamicState3ColorWriteMask = true;

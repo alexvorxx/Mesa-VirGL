@@ -312,6 +312,3 @@ spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-gs-getuniformdv,Crash
 # GL tests above, Vulkan tests below
 
 
-# We can't support VK_EXT_sample_locations on pre-A650 GPUs
-# See https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/4665#note_473653
-dEQP-VK.info.device_mandatory_features,Fail
