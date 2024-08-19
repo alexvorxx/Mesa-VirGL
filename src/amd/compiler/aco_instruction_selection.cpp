@@ -12601,7 +12601,7 @@ select_rt_prolog(Program* program, ac_shader_config* config,
    /* <gfx9 reads in_scratch_offset at the end of the prolog to write out the scratch_offset
     * arg. Make sure no other outputs have overwritten it by then.
     */
-   assert(in_scratch_offset.reg() >= out_args->num_sgprs_used);
+   assert(options->gfx_level >= GFX9 || in_scratch_offset.reg() >= out_args->num_sgprs_used);
 
    /* load raygen sbt */
    bld.smem(aco_opcode::s_load_dwordx2, Definition(tmp_raygen_sbt, s2), Operand(in_sbt_desc, s2),
