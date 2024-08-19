@@ -5714,7 +5714,7 @@ anv_image_clear_depth_stencil(struct anv_cmd_buffer *cmd_buffer,
                               uint32_t level,
                               uint32_t base_layer, uint32_t layer_count,
                               VkRect2D area,
-                              float depth_value, uint8_t stencil_value);
+                              const VkClearDepthStencilValue *clear_value);
 void
 anv_attachment_msaa_resolve(struct anv_cmd_buffer *cmd_buffer,
                             const struct anv_attachment *att,
@@ -5732,7 +5732,8 @@ anv_image_hiz_clear(struct anv_cmd_buffer *cmd_buffer,
                     VkImageAspectFlags aspects,
                     uint32_t level,
                     uint32_t base_layer, uint32_t layer_count,
-                    VkRect2D area, uint8_t stencil_value);
+                    VkRect2D area,
+                    const VkClearDepthStencilValue *clear_value);
 void
 anv_image_mcs_op(struct anv_cmd_buffer *cmd_buffer,
                  const struct anv_image *image,

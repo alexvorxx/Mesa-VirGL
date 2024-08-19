@@ -614,9 +614,10 @@ transition_stencil_buffer(struct anv_cmd_buffer *cmd_buffer,
           *    "When enabled, Stencil Buffer needs to be initialized via
           *    stencil clear (HZ_OP) before any renderpass."
           */
+         const VkClearDepthStencilValue clear_value = {};
          anv_image_hiz_clear(cmd_buffer, image, VK_IMAGE_ASPECT_STENCIL_BIT,
                              level, base_layer, level_layer_count,
-                             clear_rect, 0 /* Stencil clear value */);
+                             clear_rect, &clear_value);
       }
    }
 
@@ -5383,8 +5384,7 @@ void genX(CmdBeginRendering)(
       VkImageLayout initial_stencil_layout = VK_IMAGE_LAYOUT_UNDEFINED;
       enum isl_aux_usage depth_aux_usage = ISL_AUX_USAGE_NONE;
       enum isl_aux_usage stencil_aux_usage = ISL_AUX_USAGE_NONE;
-      float depth_clear_value = 0;
-      uint32_t stencil_clear_value = 0;
+      VkClearDepthStencilValue clear_value = {};
 
       if (d_att != NULL && d_att->imageView != VK_NULL_HANDLE) {
          d_iview = anv_image_view_from_handle(d_att->imageView);
@@ -5397,7 +5397,7 @@ void genX(CmdBeginRendering)(
                                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                                     depth_layout,
                                     cmd_buffer->queue_family->queueFlags);
-         depth_clear_value = d_att->clearValue.depthStencil.depth;
+         clear_value.depth = d_att->clearValue.depthStencil.depth;
       }
 
       if (s_att != NULL && s_att->imageView != VK_NULL_HANDLE) {
@@ -5411,7 +5411,7 @@ void genX(CmdBeginRendering)(
                                     VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
                                     stencil_layout,
                                     cmd_buffer->queue_family->queueFlags);
-         stencil_clear_value = s_att->clearValue.depthStencil.stencil;
+         clear_value.stencil = s_att->clearValue.depthStencil.stencil;
       }
 
       assert(s_iview == NULL || d_iview == NULL || s_iview == d_iview);
@@ -5442,7 +5442,7 @@ void genX(CmdBeginRendering)(
          const bool hiz_clear =
             anv_can_hiz_clear_ds_view(cmd_buffer->device, d_iview,
                                       depth_layout, clear_aspects,
-                                      depth_clear_value,
+                                      clear_value.depth,
                                       render_area,
                                       cmd_buffer->queue_family->queueFlags);
 
@@ -5505,16 +5505,13 @@ void genX(CmdBeginRendering)(
                   anv_image_hiz_clear(cmd_buffer, ds_iview->image,
                                       clear_aspects,
                                       level, layer, 1,
-                                      render_area,
-                                      stencil_clear_value);
+                                      render_area, &clear_value);
                } else {
                   anv_image_clear_depth_stencil(cmd_buffer, ds_iview->image,
                                                 clear_aspects,
                                                 depth_aux_usage,
                                                 level, layer, 1,
-                                                render_area,
-                                                depth_clear_value,
-                                                stencil_clear_value);
+                                                render_area, &clear_value);
                }
             }
          } else {
@@ -5526,16 +5523,13 @@ void genX(CmdBeginRendering)(
                anv_image_hiz_clear(cmd_buffer, ds_iview->image,
                                    clear_aspects,
                                    level, base_layer, layer_count,
-                                   render_area,
-                                   stencil_clear_value);
+                                   render_area, &clear_value);
             } else {
                anv_image_clear_depth_stencil(cmd_buffer, ds_iview->image,
                                              clear_aspects,
                                              depth_aux_usage,
                                              level, base_layer, layer_count,
-                                             render_area,
-                                             depth_clear_value,
-                                             stencil_clear_value);
+                                             render_area, &clear_value);
             }
          }
       } else {
