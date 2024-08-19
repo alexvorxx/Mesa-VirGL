@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Rob Clark <robclark@freedesktop.org>
+ * Copyright © 2013 Rob Clark <robclark@freedesktop.org>
  * SPDX-License-Identifier: MIT
  *
  */

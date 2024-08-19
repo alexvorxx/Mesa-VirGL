@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2020 Google, Inc.
+# Copyright © 2020 Google, Inc.
 #
 # SPDX-License-Identifier: MIT
 #

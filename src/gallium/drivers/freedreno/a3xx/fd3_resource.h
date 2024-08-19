@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2012 Rob Clark <robclark@freedesktop.org>
- * Copyright (C) 2019 Khaled Emara <ekhaled1836@gmail.com>
+ * Copyright © 2012 Rob Clark <robclark@freedesktop.org>
+ * Copyright © 2019 Khaled Emara <ekhaled1836@gmail.com>
  * SPDX-License-Identifier: MIT
  */
 

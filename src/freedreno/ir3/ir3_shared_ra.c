@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2021 Valve Corporation
- * Copyright (C) 2014 Rob Clark <robclark@freedesktop.org>
+ * Copyright © 2021 Valve Corporation
+ * Copyright © 2014 Rob Clark <robclark@freedesktop.org>
  * SPDX-License-Identifier: MIT
  */
 

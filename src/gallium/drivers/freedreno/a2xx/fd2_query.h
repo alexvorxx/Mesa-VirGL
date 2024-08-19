@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Jonathan Marek <jonathan@marek.ca>
+ * Copyright © 2019 Jonathan Marek <jonathan@marek.ca>
  * SPDX-License-Identifier: MIT
  *
  * Authors:

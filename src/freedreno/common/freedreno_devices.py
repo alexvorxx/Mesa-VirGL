@@ -1325,7 +1325,7 @@ add_gpus([
     ))
 
 template = """\
-/* Copyright (C) 2021 Google, Inc.
+/* Copyright © 2021 Google, Inc.
  *
  * SPDX-License-Identifier: MIT
  */

@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2010 Marcin Kościelnicki <koriakin@0x04.net>
- * Copyright (C) 2010 Luca Barbieri <luca@luca-barbieri.com>
+ * Copyright © 2010 Marcin Kościelnicki <koriakin@0x04.net>
+ * Copyright © 2010 Luca Barbieri <luca@luca-barbieri.com>
  * All Rights Reserved.
  * SPDX-License-Identifier: MIT
  */

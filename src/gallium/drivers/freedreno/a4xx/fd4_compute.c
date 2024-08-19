@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 Ilia Mirkin <imirkin@alum.mit.edu>
+ * Copyright © 2021 Ilia Mirkin <imirkin@alum.mit.edu>
  * SPDX-License-Identifier: MIT
  *
  * Authors:

@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2010-2011 Marcin Kościelnicki <koriakin@0x04.net>
- * Copyright (C) 2010 Francisco Jerez <currojerez@riseup.net>
+ * Copyright © 2010-2011 Marcin Kościelnicki <koriakin@0x04.net>
+ * Copyright © 2010 Francisco Jerez <currojerez@riseup.net>
  * All Rights Reserved.
  * SPDX-License-Identifier: MIT
  */

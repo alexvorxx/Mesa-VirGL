@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2023 Valve Corporation.
+ * Copyright © 2023 Valve Corporation.
  * SPDX-License-Identifier: MIT
  */
 

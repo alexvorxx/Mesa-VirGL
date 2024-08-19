@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Rob Clark <robdclark@gmail.com>
+ * Copyright © 2013 Rob Clark <robdclark@gmail.com>
  * SPDX-License-Identifier: MIT
  */
 

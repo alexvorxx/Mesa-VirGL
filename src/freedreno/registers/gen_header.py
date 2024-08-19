@@ -895,7 +895,7 @@ The rules-ng-ng source files this header was generated from are:
 	if p.copyright_year:
 		current_year = str(datetime.date.today().year)
 		print()
-		print("Copyright (C) %s-%s by the following authors:" % (p.copyright_year, current_year))
+		print("Copyright © %s-%s by the following authors:" % (p.copyright_year, current_year))
 		for author in p.authors:
 			print("- " + author)
 	if p.license:

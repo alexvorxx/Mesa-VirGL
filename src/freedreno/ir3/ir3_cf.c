@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2019 Google.
+ * Copyright © 2019 Google.
  * SPDX-License-Identifier: MIT
  */
 

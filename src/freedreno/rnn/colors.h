@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Marcin Kościelnicki <koriakin@0x04.net>
+ * Copyright © 2012 Marcin Kościelnicki <koriakin@0x04.net>
  * All Rights Reserved.
  * SPDX-License-Identifier: MIT
  */

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 Rob Clark <robclark@freedesktop.org>
+ * Copyright © 2017 Rob Clark <robclark@freedesktop.org>
  * Copyright © 2018 Google, Inc.
  * SPDX-License-Identifier: MIT
  *

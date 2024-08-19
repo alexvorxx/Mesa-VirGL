@@ -1,5 +1,5 @@
 #
-# Copyright (C) 2019 Igalia S.L.
+# Copyright © 2019 Igalia S.L.
 #
 # SPDX-License-Identifier: MIT
 
