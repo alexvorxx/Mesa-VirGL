@@ -92,6 +92,7 @@ void
 anv_device_perf_init(struct anv_device *device)
 {
    device->perf_fd = -1;
+   device->perf_queue = NULL;
 }
 
 void
@@ -127,6 +128,8 @@ anv_device_perf_open(struct anv_device *device, struct anv_queue *queue, uint64_
    ret = intel_perf_stream_open(device->physical->perf, device->fd,
                                 context_or_exec_queue_id, metric_id,
                                 period_exponent, true, true);
+   if (ret >= 0)
+      device->perf_queue = queue;
 
    return ret;
 }
