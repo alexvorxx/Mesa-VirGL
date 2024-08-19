@@ -2701,7 +2701,7 @@ int d3d12_video_encoder_get_encode_headers([[maybe_unused]] struct pipe_video_co
    bool postEncodeHeadersNeeded = false;
    uint64_t preEncodeGeneratedHeadersByteSize = 0;
    std::vector<uint64_t> pWrittenCodecUnitsSizes;
-   pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_sequence_info;
+   pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_sequence_header;
    d3d12_video_encoder_build_pre_encode_codec_headers(pD3D12Enc,
                                                       postEncodeHeadersNeeded,
                                                       preEncodeGeneratedHeadersByteSize,
