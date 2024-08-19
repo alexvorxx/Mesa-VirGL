@@ -94,6 +94,16 @@ anv_device_perf_init(struct anv_device *device)
    device->perf_fd = -1;
 }
 
+void
+anv_device_perf_close(struct anv_device *device)
+{
+   if (device->perf_fd == -1)
+      return;
+
+   close(device->perf_fd);
+   device->perf_fd = -1;
+}
+
 static int
 anv_device_perf_open(struct anv_device *device, uint64_t metric_id)
 {
@@ -245,10 +255,7 @@ void anv_UninitializePerformanceApiINTEL(
 {
    ANV_FROM_HANDLE(anv_device, device, _device);
 
-   if (device->perf_fd >= 0) {
-      close(device->perf_fd);
-      device->perf_fd = -1;
-   }
+   anv_device_perf_close(device);
 }
 
 /* VK_KHR_performance_query */
@@ -381,11 +388,7 @@ void anv_ReleaseProfilingLockKHR(
 {
    ANV_FROM_HANDLE(anv_device, device, _device);
 
-   if (!INTEL_DEBUG(DEBUG_NO_OACONFIG)) {
-      assert(device->perf_fd >= 0);
-      close(device->perf_fd);
-   }
-   device->perf_fd = -1;
+   anv_device_perf_close(device);
 }
 
 void
