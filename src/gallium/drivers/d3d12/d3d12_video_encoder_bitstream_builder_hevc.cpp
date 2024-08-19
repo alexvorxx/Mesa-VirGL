@@ -553,6 +553,15 @@ d3d12_video_bitstream_builder_hevc::write_end_of_sequence_nalu(std::vector<uint8
 }
 
 void
+d3d12_video_bitstream_builder_hevc::write_aud(std::vector<uint8_t> &         headerBitstream,
+                                              std::vector<uint8_t>::iterator placingPositionStart,
+                                              D3D12_VIDEO_ENCODER_FRAME_TYPE_HEVC frameType,
+                                              size_t &                       writtenBytes)
+{
+   m_hevcEncoder.write_aud(headerBitstream, placingPositionStart, frameType, writtenBytes);
+}
+
+void
 d3d12_video_bitstream_builder_hevc::print_vps(const HevcVideoParameterSet& VPS)
 {
    debug_printf("--------------------------------------\nHevcVideoParameterSet values below:\n");

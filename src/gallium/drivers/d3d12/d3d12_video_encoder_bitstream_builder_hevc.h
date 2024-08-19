@@ -72,6 +72,11 @@ class d3d12_video_bitstream_builder_hevc : public d3d12_video_bitstream_builder_
                                    std::vector<uint8_t>::iterator placingPositionStart,
                                    size_t &                       writtenBytes);
 
+   void write_aud(std::vector<uint8_t> &         headerBitstream,
+                  std::vector<uint8_t>::iterator placingPositionStart,
+                  D3D12_VIDEO_ENCODER_FRAME_TYPE_HEVC frameType,
+                  size_t &                       writtenBytes);
+
    void print_vps(const HevcVideoParameterSet& vps);
    void print_sps(const HevcSeqParameterSet& sps);
    void print_pps(const HevcPicParameterSet& pps);

@@ -90,6 +90,51 @@ d3d12_video_nalu_writer_hevc::write_end_of_sequence_nalu(std::vector<BYTE> &head
     generic_write_bytes(headerBitstream, placingPositionStart, writtenBytes, &endOfSeqNALU);
 }
 
+void
+d3d12_video_nalu_writer_hevc::write_aud(std::vector<BYTE> &headerBitstream,
+                                        std::vector<BYTE>::iterator placingPositionStart,
+                                        D3D12_VIDEO_ENCODER_FRAME_TYPE_HEVC frameType,
+                                        size_t &writtenBytes) {
+    HevcAccessUnitDelimiter AUD = {};
+
+    AUD.nalu =
+    {
+        // uint8_t forbidden_zero_bit;
+        static_cast<uint8_t>(0u),
+        // uint8_t nal_unit_type
+        static_cast<uint8_t>(HEVC_NALU_AUD_NUT),
+        // uint8_t nuh_layer_id
+        static_cast<uint8_t>(0u),
+        // uint8_t nuh_temporal_id_plus1
+        static_cast<uint8_t>(1u)
+    };
+
+    // pic_type slice_type values that may be present in the coded picture
+    switch (frameType)
+    {
+        case D3D12_VIDEO_ENCODER_FRAME_TYPE_HEVC_IDR_FRAME:
+        case D3D12_VIDEO_ENCODER_FRAME_TYPE_HEVC_I_FRAME:
+        {
+            AUD.pic_type = 0u; // 0 I
+        } break;
+        case D3D12_VIDEO_ENCODER_FRAME_TYPE_HEVC_P_FRAME:
+        {
+            AUD.pic_type = 1u; // 1 P, I
+        } break;
+        case D3D12_VIDEO_ENCODER_FRAME_TYPE_HEVC_B_FRAME:
+        {
+            AUD.pic_type = 2u; // 2 B, P, I
+        } break;
+        default:
+        {
+            debug_printf("d3d12_video_nalu_writer_hevc::write_aud failed: Invalid D3D12_VIDEO_ENCODER_FRAME_TYPE_HEVC frameType argument \n");
+            assert(false);
+        } break;
+    }
+
+    generic_write_bytes(headerBitstream, placingPositionStart, writtenBytes, &AUD);
+}
+
 void 
 d3d12_video_nalu_writer_hevc::generic_write_bytes( std::vector<BYTE> &headerBitstream,
                                                 std::vector<BYTE>::iterator placingPositionStart,
@@ -161,11 +206,29 @@ d3d12_video_nalu_writer_hevc::write_bytes_from_struct(d3d12_video_encoder_bitstr
             // Do nothing for these two, just the header suffices
             return 1;
         } break;
+        case HEVC_NALU_AUD_NUT:
+        {
+            return write_aud_bytes(pBitstream, (HevcAccessUnitDelimiter *) pData);
+        } break;
         default:
         {
             unreachable("Unsupported NALU value");
         } break;        
     }
+}
+
+uint32_t
+d3d12_video_nalu_writer_hevc::write_aud_bytes(d3d12_video_encoder_bitstream *pBitstream, HevcAccessUnitDelimiter *pAUD)
+{
+    int32_t iBytesWritten = pBitstream->get_byte_count();
+
+    pBitstream->put_bits(3, pAUD->pic_type);
+
+    rbsp_trailing(pBitstream);
+    pBitstream->flush();
+
+    iBytesWritten = pBitstream->get_byte_count() - iBytesWritten;
+    return (uint32_t) iBytesWritten;
 }
 
 uint32_t

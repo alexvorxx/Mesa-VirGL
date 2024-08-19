@@ -318,6 +318,11 @@ struct HevcVideoParameterSet {
    uint8_t        vps_extension_data_flag;
 };
 
+struct HevcAccessUnitDelimiter {
+   HEVCNaluHeader nalu;
+   uint8_t        pic_type;
+};
+
 class d3d12_video_nalu_writer_hevc
 {
 public:
@@ -362,12 +367,17 @@ public:
                                  placingPositionStart,
                                  size_t &writtenBytes);
 
+   void write_aud(std::vector<uint8_t> &         headerBitstream,
+                  std::vector<uint8_t>::iterator placingPositionStart,
+                  D3D12_VIDEO_ENCODER_FRAME_TYPE_HEVC frameType,
+                  size_t &                       writtenBytes);
 private:
 
    // Writes from structure into bitstream with RBSP trailing but WITHOUT NAL unit wrap (eg. nal_idc_type, etc)
    uint32_t write_vps_bytes(d3d12_video_encoder_bitstream *pBitstream, HevcVideoParameterSet *pSPS);
    uint32_t write_sps_bytes(d3d12_video_encoder_bitstream *pBitstream, HevcSeqParameterSet *pSPS);
    uint32_t write_pps_bytes(d3d12_video_encoder_bitstream *pBitstream, HevcPicParameterSet *pPPS);
+   uint32_t write_aud_bytes(d3d12_video_encoder_bitstream *pBitstream, HevcAccessUnitDelimiter *pAUD);
 
    // Adds NALU wrapping into structures and ending NALU control bits
    uint32_t wrap_rbsp_into_nalu(d3d12_video_encoder_bitstream *pNALU, d3d12_video_encoder_bitstream *pRBSP, HEVCNaluHeader *pHeader);

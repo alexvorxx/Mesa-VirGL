@@ -1071,6 +1071,17 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
       static_cast<d3d12_video_bitstream_builder_hevc *>(pD3D12Enc->m_upBitstreamBuilder.get());
    assert(pHEVCBitstreamBuilder);
 
+   size_t writtenAUDBytesCount = 0;
+   bool forceWriteAUD = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_aud_header);
+   if (forceWriteAUD)
+   {
+      pHEVCBitstreamBuilder->write_aud(pD3D12Enc->m_BitstreamHeadersBuffer,
+                                       pD3D12Enc->m_BitstreamHeadersBuffer.begin(),
+                                       currentPicParams.pHEVCPicData->FrameType,
+                                       writtenAUDBytesCount);
+      pWrittenCodecUnitsSizes.push_back(writtenAUDBytesCount);
+   }
+
    uint32_t active_seq_parameter_set_id = pHEVCBitstreamBuilder->get_active_sps().sps_seq_parameter_set_id;
    uint32_t active_video_parameter_set_id = pHEVCBitstreamBuilder->get_active_vps().vps_video_parameter_set_id;
    
@@ -1086,7 +1097,7 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
                                                                    gopHasBFrames,
                                                                    active_video_parameter_set_id,
                                                                    pD3D12Enc->m_BitstreamHeadersBuffer,
-                                                                   pD3D12Enc->m_BitstreamHeadersBuffer.begin(),
+                                                                   pD3D12Enc->m_BitstreamHeadersBuffer.begin() + writtenAUDBytesCount,
                                                                    writtenVPSBytesCount);
       pHEVCBitstreamBuilder->set_active_vps(vps);
       pWrittenCodecUnitsSizes.push_back(writtenVPSBytesCount);
@@ -1110,7 +1121,7 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
                                                                  *codecConfigDesc.pHEVCConfig,
                                                                  pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_HEVCGroupOfPictures,
                                                                  pD3D12Enc->m_BitstreamHeadersBuffer,
-                                                                 pD3D12Enc->m_BitstreamHeadersBuffer.begin() + writtenVPSBytesCount,
+                                                                 pD3D12Enc->m_BitstreamHeadersBuffer.begin() + writtenAUDBytesCount + writtenVPSBytesCount,
                                                                  writtenSPSBytesCount);
       pHEVCBitstreamBuilder->set_active_sps(sps);
       pWrittenCodecUnitsSizes.push_back(writtenSPSBytesCount);
@@ -1129,8 +1140,8 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
    bool forceWritePPS = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_picture_header);
    if (forceWritePPS || d3d12_video_encoder_needs_new_pps_hevc(pD3D12Enc, writeNewSPS, tentative_pps, active_pps)) {
       pHEVCBitstreamBuilder->set_active_pps(tentative_pps);
-      pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenSPSBytesCount + writtenVPSBytesCount + writtenPPSBytesCount);
-      memcpy(&pD3D12Enc->m_BitstreamHeadersBuffer.data()[(writtenSPSBytesCount + writtenVPSBytesCount)], pD3D12Enc->m_StagingHeadersBuffer.data(), writtenPPSBytesCount);
+      pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenAUDBytesCount + writtenVPSBytesCount + writtenSPSBytesCount + writtenPPSBytesCount);
+      memcpy(&pD3D12Enc->m_BitstreamHeadersBuffer.data()[(writtenAUDBytesCount + writtenVPSBytesCount + writtenSPSBytesCount)], pD3D12Enc->m_StagingHeadersBuffer.data(), writtenPPSBytesCount);
       pWrittenCodecUnitsSizes.push_back(writtenPPSBytesCount);
    } else {
       writtenPPSBytesCount = 0;
@@ -1138,8 +1149,8 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
    }
 
    // Shrink buffer to fit the headers
-   if (pD3D12Enc->m_BitstreamHeadersBuffer.size() > (writtenPPSBytesCount + writtenSPSBytesCount + writtenVPSBytesCount)) {
-      pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenPPSBytesCount + writtenSPSBytesCount + writtenVPSBytesCount);
+   if (pD3D12Enc->m_BitstreamHeadersBuffer.size() > (writtenAUDBytesCount + writtenVPSBytesCount + writtenSPSBytesCount + writtenPPSBytesCount)) {
+      pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenAUDBytesCount + writtenVPSBytesCount + writtenSPSBytesCount + writtenPPSBytesCount);
    }
 
    assert(std::accumulate(pWrittenCodecUnitsSizes.begin(), pWrittenCodecUnitsSizes.end(), 0u) ==
