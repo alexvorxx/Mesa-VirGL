@@ -17,7 +17,6 @@
 
 #include "../vulkan_enc/vk_util.h"
 #include "HostConnection.h"
-#include "ProcessPipe.h"
 #include "ResourceTracker.h"
 #include "VkEncoder.h"
 #include "gfxstream_vk_entrypoints.h"
@@ -35,6 +34,8 @@
         mesa_loge("vulkan: Failed to get Vulkan encoder\n");                       \
         return ret;                                                                \
     }
+
+uint32_t gSeqno = 0;
 
 namespace {
 
@@ -91,7 +92,7 @@ static VkResult SetupInstanceForProcess(void) {
         .hostConnectionGetFunc = getConnection,
         .vkEncoderGetFunc = getVkEncoder,
     });
-    gfxstream::vk::ResourceTracker::get()->setSeqnoPtr(getSeqnoPtrForProcess());
+    gfxstream::vk::ResourceTracker::get()->setSeqnoPtr(&gSeqno);
     gfxstream::vk::VkEncoder* vkEnc = getVkEncoder(hostCon);
     if (!vkEnc) {
         mesa_loge("vulkan: Failed to get Vulkan encoder\n");
@@ -384,7 +385,8 @@ void gfxstream_vk_DestroyInstance(VkInstance _instance, const VkAllocationCallba
     // libvulkan_ranchu.so [separate HostConnections now].
 #if defined(END2END_TESTS)
     hostCon->exit();
-    processPipeRestart();
+    VirtGpuDevice::resetInstance();
+    gSeqno = 0;
 #endif
 }
 
