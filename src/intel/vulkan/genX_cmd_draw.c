@@ -1657,6 +1657,14 @@ emit_indirect_draws(struct anv_cmd_buffer *cmd_buffer,
    if (cmd_buffer->state.conditional_render_enabled)
       genX(cmd_emit_conditional_render_predicate)(cmd_buffer);
 
+#if GFX_VER >= 20
+   if (execute_indirect_supported) {
+      anv_batch_emit(&cmd_buffer->batch, GENX(STATE_BYTE_STRIDE), sb_stride) {
+         sb_stride.ByteStride = indirect_data_stride;
+         sb_stride.ByteStrideEnable = !aligned_stride;
+      }
+   }
+#endif
    uint32_t offset = 0;
    for (uint32_t i = 0; i < draw_count; i++) {
       struct anv_address draw = anv_address_add(indirect_data_addr, offset);
@@ -1711,7 +1719,7 @@ emit_indirect_draws(struct anv_cmd_buffer *cmd_buffer,
           * need to emit one instruction per draw, but we're still avoiding
           * the register loads with MI commands.
           */
-         if (aligned_stride)
+         if (aligned_stride || GFX_VER >= 20)
             break;
 #else
          unreachable("EXECUTE_INDIRECT_DRAW instruction expectation mismatch");
