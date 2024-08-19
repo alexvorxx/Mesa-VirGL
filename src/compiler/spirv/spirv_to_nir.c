@@ -831,8 +831,13 @@ vtn_handle_extension(struct vtn_builder *b, SpvOp opcode,
       break;
    }
 
-   case SpvOpExtInst: {
+   case SpvOpExtInst:
+   case SpvOpExtInstWithForwardRefsKHR: {
       struct vtn_value *val = vtn_value(b, w[3], vtn_value_type_extension);
+
+      if (opcode == SpvOpExtInstWithForwardRefsKHR)
+         assert(val->ext_handler == vtn_handle_non_semantic_instruction);
+
       bool handled = val->ext_handler(b, w[4], w, count);
       vtn_assert(handled);
       break;
@@ -5007,7 +5012,8 @@ vtn_handle_preamble_instruction(struct vtn_builder *b, SpvOp opcode,
       vtn_handle_decoration(b, opcode, w, count);
       break;
 
-   case SpvOpExtInst: {
+   case SpvOpExtInst:
+   case SpvOpExtInstWithForwardRefsKHR: {
       struct vtn_value *val = vtn_value(b, w[3], vtn_value_type_extension);
       if (val->ext_handler == vtn_handle_non_semantic_instruction) {
          /* NonSemantic extended instructions are acceptable in preamble. */
@@ -5626,7 +5632,8 @@ vtn_handle_variable_or_type_instruction(struct vtn_builder *b, SpvOp opcode,
       vtn_handle_variables(b, opcode, w, count);
       break;
 
-   case SpvOpExtInst: {
+   case SpvOpExtInst:
+   case SpvOpExtInstWithForwardRefsKHR: {
       struct vtn_value *val = vtn_value(b, w[3], vtn_value_type_extension);
       /* NonSemantic extended instructions are acceptable in preamble, others
        * will indicate the end of preamble.
@@ -6105,6 +6112,7 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
    }
 
    case SpvOpExtInst:
+   case SpvOpExtInstWithForwardRefsKHR:
       vtn_handle_extension(b, opcode, w, count);
       break;
 
