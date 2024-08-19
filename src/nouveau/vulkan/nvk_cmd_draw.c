@@ -2347,6 +2347,7 @@ const struct nvk_mme_test_case nvk_mme_set_anti_alias_tests[] = {{
       { NV9097_LOAD_CONSTANT_BUFFER(3), 0x800040 },
       { }
    },
+}, {
    /* Single sample, minSampleShading = 0.25 */
    .init = (struct nvk_mme_mthd_data[]) {
       { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0xf },
@@ -2364,6 +2365,7 @@ const struct nvk_mme_test_case nvk_mme_set_anti_alias_tests[] = {{
       { NV9097_LOAD_CONSTANT_BUFFER(3), 0x800040 },
       { }
    },
+}, {
    /* 8 samples, minSampleShading = 0.5 */
    .init = (struct nvk_mme_mthd_data[]) {
       { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0x1 },
@@ -2381,6 +2383,7 @@ const struct nvk_mme_test_case nvk_mme_set_anti_alias_tests[] = {{
       { NV9097_LOAD_CONSTANT_BUFFER(3), 0xc000c0 },
       { }
    },
+}, {
    /* 8 samples, minSampleShading = 0.25 */
    .init = (struct nvk_mme_mthd_data[]) {
       { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0x30 },
