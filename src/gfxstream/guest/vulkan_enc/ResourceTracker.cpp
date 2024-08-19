@@ -15,7 +15,6 @@
 
 #include "ResourceTracker.h"
 
-#include "../OpenglSystemCommon/EmulatorFeatureInfo.h"
 #include "../OpenglSystemCommon/HostConnection.h"
 #include "CommandBufferStagingStream.h"
 #include "DescriptorSetVirtualization.h"
@@ -1243,10 +1242,10 @@ void ResourceTracker::freeDescriptorSetsIfHostAllocated(VkEncoder* enc, VkDevice
 void ResourceTracker::clearDescriptorPoolAndUnregisterDescriptorSets(void* context, VkDevice device,
                                                                      VkDescriptorPool pool) {
     std::vector<VkDescriptorSet> toClear =
-        clearDescriptorPool(pool, mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate);
+        clearDescriptorPool(pool, mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate);
 
     for (auto set : toClear) {
-        if (mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate) {
+        if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate) {
             VkDescriptorSetLayout setLayout = as_goldfish_VkDescriptorSet(set)->reified->setLayout;
             decDescriptorSetLayoutRef(context, device, setLayout, nullptr);
         }
@@ -1426,20 +1425,17 @@ void ResourceTracker::setupCaps(uint32_t& noRenderControlEnc) {
         // capabilities provide versioning. Set features to be unconditionally true, since
         // using virtio-gpu encompasses all prior goldfish features.  mFeatureInfo should be
         // deprecated in favor of caps.
-
-        mFeatureInfo.reset(new EmulatorFeatureInfo);
-
-        mFeatureInfo->hasVulkanNullOptionalStrings = true;
-        mFeatureInfo->hasVulkanIgnoredHandles = true;
-        mFeatureInfo->hasVulkanShaderFloat16Int8 = true;
-        mFeatureInfo->hasVulkanQueueSubmitWithCommands = true;
-        mFeatureInfo->hasDeferredVulkanCommands = true;
-        mFeatureInfo->hasVulkanAsyncQueueSubmit = true;
-        mFeatureInfo->hasVulkanCreateResourcesWithRequirements = true;
-        mFeatureInfo->hasVirtioGpuNext = true;
-        mFeatureInfo->hasVirtioGpuNativeSync = true;
-        mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate = true;
-        mFeatureInfo->hasVulkanAsyncQsri = true;
+        mFeatureInfo.hasVulkanNullOptionalStrings = true;
+        mFeatureInfo.hasVulkanIgnoredHandles = true;
+        mFeatureInfo.hasVulkanShaderFloat16Int8 = true;
+        mFeatureInfo.hasVulkanQueueSubmitWithCommands = true;
+        mFeatureInfo.hasDeferredVulkanCommands = true;
+        mFeatureInfo.hasVulkanAsyncQueueSubmit = true;
+        mFeatureInfo.hasVulkanCreateResourcesWithRequirements = true;
+        mFeatureInfo.hasVirtioGpuNext = true;
+        mFeatureInfo.hasVirtioGpuNativeSync = true;
+        mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate = true;
+        mFeatureInfo.hasVulkanAsyncQsri = true;
 
         ResourceTracker::streamFeatureBits |= VULKAN_STREAM_FEATURE_NULL_OPTIONAL_STRINGS_BIT;
         ResourceTracker::streamFeatureBits |= VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT;
@@ -1450,20 +1446,21 @@ void ResourceTracker::setupCaps(uint32_t& noRenderControlEnc) {
     noRenderControlEnc = mCaps.vulkanCapset.noRenderControlEnc;
 }
 
-void ResourceTracker::setupFeatures(const EmulatorFeatureInfo* features) {
-    if (!features || mFeatureInfo) return;
-    mFeatureInfo.reset(new EmulatorFeatureInfo);
-    *mFeatureInfo = *features;
+void ResourceTracker::setupFeatures(const struct GfxStreamVkFeatureInfo* features) {
+    if (mFeatureInfo.setupComplete) {
+        return;
+    }
 
+    mFeatureInfo = *features;
 #if defined(__ANDROID__)
-    if (mFeatureInfo->hasDirectMem) {
+    if (mFeatureInfo.hasDirectMem) {
         mGoldfishAddressSpaceBlockProvider.reset(
             new GoldfishAddressSpaceBlockProvider(GoldfishAddressSpaceSubdeviceType::NoSubdevice));
     }
 #endif  // defined(__ANDROID__)
 
 #ifdef VK_USE_PLATFORM_FUCHSIA
-    if (mFeatureInfo->hasVulkan) {
+    if (mFeatureInfo.hasVulkan) {
         fidl::ClientEnd<fuchsia_hardware_goldfish::ControlDevice> channel{zx::channel(
             GetConnectToServiceFunction()("/loader-gpu-devices/class/goldfish-control/000"))};
         if (!channel) {
@@ -1492,28 +1489,24 @@ void ResourceTracker::setupFeatures(const EmulatorFeatureInfo* features) {
     }
 #endif
 
-    if (mFeatureInfo->hasVulkanNullOptionalStrings) {
+    if (mFeatureInfo.hasVulkanNullOptionalStrings) {
         ResourceTracker::streamFeatureBits |= VULKAN_STREAM_FEATURE_NULL_OPTIONAL_STRINGS_BIT;
     }
-    if (mFeatureInfo->hasVulkanIgnoredHandles) {
+    if (mFeatureInfo.hasVulkanIgnoredHandles) {
         ResourceTracker::streamFeatureBits |= VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT;
     }
-    if (mFeatureInfo->hasVulkanShaderFloat16Int8) {
+    if (mFeatureInfo.hasVulkanShaderFloat16Int8) {
         ResourceTracker::streamFeatureBits |= VULKAN_STREAM_FEATURE_SHADER_FLOAT16_INT8_BIT;
     }
-    if (mFeatureInfo->hasVulkanQueueSubmitWithCommands) {
+    if (mFeatureInfo.hasVulkanQueueSubmitWithCommands) {
         ResourceTracker::streamFeatureBits |= VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT;
     }
+
+    mFeatureInfo.setupComplete = true;
 }
 
 void ResourceTracker::setThreadingCallbacks(const ResourceTracker::ThreadingCallbacks& callbacks) {
     ResourceTracker::threadingCallbacks = callbacks;
-}
-
-bool ResourceTracker::hostSupportsVulkan() const {
-    if (!mFeatureInfo) return false;
-
-    return mFeatureInfo->hasVulkan;
 }
 
 bool ResourceTracker::usingDirectMapping() const { return true; }
@@ -1521,18 +1514,15 @@ bool ResourceTracker::usingDirectMapping() const { return true; }
 uint32_t ResourceTracker::getStreamFeatures() const { return ResourceTracker::streamFeatureBits; }
 
 bool ResourceTracker::supportsDeferredCommands() const {
-    if (!mFeatureInfo) return false;
-    return mFeatureInfo->hasDeferredVulkanCommands;
+    return mFeatureInfo.hasDeferredVulkanCommands;
 }
 
 bool ResourceTracker::supportsAsyncQueueSubmit() const {
-    if (!mFeatureInfo) return false;
-    return mFeatureInfo->hasVulkanAsyncQueueSubmit;
+    return mFeatureInfo.hasVulkanAsyncQueueSubmit;
 }
 
 bool ResourceTracker::supportsCreateResourcesWithRequirements() const {
-    if (!mFeatureInfo) return false;
-    return mFeatureInfo->hasVulkanCreateResourcesWithRequirements;
+    return mFeatureInfo.hasVulkanCreateResourcesWithRequirements;
 }
 
 int ResourceTracker::getHostInstanceExtensionIndex(const std::string& extName) const {
@@ -2935,7 +2925,7 @@ CoherentMemoryPtr ResourceTracker::createCoherentMemory(
     CoherentMemoryPtr coherentMemory = nullptr;
 
 #if defined(__ANDROID__)
-    if (mFeatureInfo->hasDirectMem) {
+    if (mFeatureInfo.hasDirectMem) {
         uint64_t gpuAddr = 0;
         GoldfishAddressSpaceBlockPtr block = nullptr;
         res = enc->vkMapMemoryIntoAddressSpaceGOOGLE(device, mem, &gpuAddr, true);
@@ -2963,7 +2953,7 @@ CoherentMemoryPtr ResourceTracker::createCoherentMemory(
         }
     } else
 #endif  // defined(__ANDROID__)
-        if (mFeatureInfo->hasVirtioGpuNext) {
+        if (mFeatureInfo.hasVirtioGpuNext) {
             struct VirtGpuCreateBlob createBlob = {0};
             uint64_t hvaSizeId[3];
             res = enc->vkGetMemoryHostAddressInfoGOOGLE(device, mem, &hvaSizeId[0], &hvaSizeId[1],
@@ -4689,7 +4679,7 @@ VkResult ResourceTracker::on_vkCreateFence(void* context, VkResult input_result,
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
     if (exportSyncFd) {
-        if (!mFeatureInfo->hasVirtioGpuNativeSync) {
+        if (!mFeatureInfo.hasVirtioGpuNativeSync) {
             mesa_logd("%s: ensure sync device\n", __func__);
             ensureSyncDeviceFd();
         }
@@ -4865,7 +4855,7 @@ VkResult ResourceTracker::on_vkGetFenceFdKHR(void* context, VkResult, VkDevice d
             return VK_ERROR_OUT_OF_HOST_MEMORY;
         }
 
-        if (mFeatureInfo->hasVirtioGpuNativeSync) {
+        if (mFeatureInfo.hasVirtioGpuNativeSync) {
             VkResult result;
             int64_t osHandle;
             uint64_t hostFenceHandle = get_host_u64_VkFence(pGetFdInfo->fence);
@@ -4980,7 +4970,7 @@ VkResult ResourceTracker::on_vkCreateDescriptorPool(void* context, VkResult, VkD
         });
     }
 
-    if (mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate) {
+    if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate) {
         std::vector<uint64_t> poolIds(pCreateInfo->maxSets);
 
         uint32_t count = pCreateInfo->maxSets;
@@ -5026,7 +5016,7 @@ VkResult ResourceTracker::on_vkAllocateDescriptorSets(
     VkEncoder* enc = (VkEncoder*)context;
     auto ci = pAllocateInfo;
     auto sets = pDescriptorSets;
-    if (mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate) {
+    if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate) {
         // Using the pool ID's we collected earlier from the host
         VkResult poolAllocResult = validateAndApplyVirtualDescriptorSetAllocation(ci, sets);
 
@@ -5105,7 +5095,7 @@ VkResult ResourceTracker::on_vkFreeDescriptorSets(void* context, VkResult, VkDev
 
         for (auto set : existingDescriptorSets) {
             if (removeDescriptorSetFromPool(set,
-                                            mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate)) {
+                                            mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate)) {
                 toActuallyFree.push_back(set);
             }
         }
@@ -5113,7 +5103,7 @@ VkResult ResourceTracker::on_vkFreeDescriptorSets(void* context, VkResult, VkDev
         if (toActuallyFree.empty()) return VK_SUCCESS;
     }
 
-    if (mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate) {
+    if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate) {
         // In the batched set update case, decrement refcount on the set layout
         // and only free on host if we satisfied a pending allocation on the
         // host.
@@ -5210,7 +5200,7 @@ void ResourceTracker::on_vkUpdateDescriptorSets(void* context, VkDevice device,
         }
     }
 
-    if (mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate) {
+    if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate) {
         for (uint32_t i = 0; i < descriptorWriteCount; ++i) {
             VkDescriptorSet set = transformedWrites[i].dstSet;
             doEmulatedDescriptorWrite(&transformedWrites[i],
@@ -5644,7 +5634,7 @@ VkResult ResourceTracker::on_vkCreateSemaphore(void* context, VkResult input_res
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || defined(__linux__)
     if (exportSyncFd) {
-        if (mFeatureInfo->hasVirtioGpuNativeSync &&
+        if (mFeatureInfo.hasVirtioGpuNativeSync &&
             !(mCaps.params[kParamFencePassing] && mCaps.vulkanCapset.externalSync)) {
             VkResult result;
             int64_t osHandle;
@@ -5912,7 +5902,7 @@ void ResourceTracker::flushCommandBufferPendingCommandsBottomUp(
         VkEncoder* enc = (VkEncoder*)context;
         VkDeviceMemory deviceMemory = cmdBufStream->getDeviceMemory();
         VkDeviceSize dataOffset = 0;
-        if (mFeatureInfo->hasVulkanAuxCommandMemory) {
+        if (mFeatureInfo.hasVulkanAuxCommandMemory) {
             // for suballocations, deviceMemory is an alias VkDeviceMemory
             // get underling VkDeviceMemory for given alias
             deviceMemoryTransform_tohost(&deviceMemory, 1 /*memoryCount*/, &dataOffset,
@@ -6535,7 +6525,7 @@ void ResourceTracker::on_vkUpdateDescriptorSetWithTemplate(
     struct goldfish_VkDescriptorSet* ds = as_goldfish_VkDescriptorSet(descriptorSet);
     ReifiedDescriptorSet* reified = ds->reified;
 
-    bool batched = mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate;
+    bool batched = mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate;
 
     for (uint32_t i = 0; i < templateEntryCount; ++i) {
         const auto& entry = templateEntries[i];
@@ -6948,7 +6938,7 @@ void ResourceTracker::onEncoderDeleted(const VkEncoder* encoder) {
 }
 
 CommandBufferStagingStream::Alloc ResourceTracker::getAlloc() {
-    if (mFeatureInfo->hasVulkanAuxCommandMemory) {
+    if (mFeatureInfo.hasVulkanAuxCommandMemory) {
         return [this](size_t size) -> CommandBufferStagingStream::Memory {
             VkMemoryAllocateInfo info{
                 .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
@@ -6987,7 +6977,7 @@ CommandBufferStagingStream::Alloc ResourceTracker::getAlloc() {
 }
 
 CommandBufferStagingStream::Free ResourceTracker::getFree() {
-    if (mFeatureInfo->hasVulkanAuxCommandMemory) {
+    if (mFeatureInfo.hasVulkanAuxCommandMemory) {
         return [this](const CommandBufferStagingStream::Memory& memory) {
             // deviceMemory may not be the actual backing auxiliary VkDeviceMemory
             // for suballocations, deviceMemory is a alias VkDeviceMemory hand;
@@ -7113,7 +7103,7 @@ void ResourceTracker::on_vkCmdExecuteCommands(void* context, VkCommandBuffer com
                                               const VkCommandBuffer* pCommandBuffers) {
     VkEncoder* enc = (VkEncoder*)context;
 
-    if (!mFeatureInfo->hasVulkanQueueSubmitWithCommands) {
+    if (!mFeatureInfo.hasVulkanQueueSubmitWithCommands) {
         enc->vkCmdExecuteCommands(commandBuffer, commandBufferCount, pCommandBuffers,
                                   true /* do lock */);
         return;
@@ -7140,7 +7130,7 @@ void ResourceTracker::on_vkCmdBindDescriptorSets(void* context, VkCommandBuffer 
                                                  const uint32_t* pDynamicOffsets) {
     VkEncoder* enc = (VkEncoder*)context;
 
-    if (mFeatureInfo->hasVulkanBatchedDescriptorSetUpdate)
+    if (mFeatureInfo.hasVulkanBatchedDescriptorSetUpdate)
         addPendingDescriptorSets(commandBuffer, descriptorSetCount, pDescriptorSets);
 
     enc->vkCmdBindDescriptorSets(commandBuffer, pipelineBindPoint, layout, firstSet,
@@ -7222,7 +7212,7 @@ VkResult ResourceTracker::exportSyncFdForQSRILocked(VkImage image, int* fd) {
     mesa_logd("%s: call for image %p hos timage handle 0x%llx\n", __func__, (void*)image,
               (unsigned long long)get_host_u64_VkImage(image));
 
-    if (mFeatureInfo->hasVirtioGpuNativeSync) {
+    if (mFeatureInfo.hasVirtioGpuNativeSync) {
         struct VirtGpuExecBuffer exec = {};
         struct gfxstreamCreateQSRIExportVK exportQSRI = {};
         VirtGpuDevice* instance = VirtGpuDevice::getInstance();
@@ -7295,7 +7285,7 @@ VkResult ResourceTracker::on_vkQueueSignalReleaseImageANDROID(void* context, VkR
 
     VkEncoder* enc = (VkEncoder*)context;
 
-    if (!mFeatureInfo->hasVulkanAsyncQsri) {
+    if (!mFeatureInfo.hasVulkanAsyncQsri) {
         return enc->vkQueueSignalReleaseImageANDROID(queue, waitSemaphoreCount, pWaitSemaphores,
                                                      image, pNativeFenceFd, true /* lock */);
     }
