@@ -415,11 +415,6 @@ void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resour
    if (!sctx->cs_ubyte_to_ushort)
       sctx->cs_ubyte_to_ushort = si_create_ubyte_to_ushort_compute_shader(sctx);
 
-   /* Use COHERENCY_NONE to get SI_CONTEXT_WB_L2 automatically used in
-    * si_launch_grid_internal_ssbos.
-    */
-   enum si_coherency coher = SI_COHERENCY_NONE;
-
    si_improve_sync_flags(sctx, dst, src, &flags);
 
    struct pipe_grid_info info = {};
@@ -434,7 +429,7 @@ void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resour
    sb[1].buffer_offset = src_offset;
    sb[1].buffer_size = count;
 
-   si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_ubyte_to_ushort, flags, coher,
+   si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_ubyte_to_ushort, flags, SI_COHERENCY_SHADER,
                                  2, sb, 0x1);
 }
 
