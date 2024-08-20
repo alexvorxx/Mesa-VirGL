@@ -1545,12 +1545,28 @@ vk_graphics_pipeline_get_internal_representations(
       internal_representation_count, internal_representations);
 }
 
+static struct vk_shader *
+vk_graphics_pipeline_get_shader(struct vk_pipeline *pipeline,
+                                gl_shader_stage stage)
+{
+   struct vk_graphics_pipeline *gfx_pipeline =
+      container_of(pipeline, struct vk_graphics_pipeline, base);
+
+   for (uint32_t i = 0; i < gfx_pipeline->stage_count; i++) {
+      if (gfx_pipeline->stages[i].stage == stage)
+         return gfx_pipeline->stages[i].shader;
+   }
+
+   return NULL;
+}
+
 static const struct vk_pipeline_ops vk_graphics_pipeline_ops = {
    .destroy = vk_graphics_pipeline_destroy,
    .get_executable_statistics = vk_graphics_pipeline_get_executable_statistics,
    .get_executable_properties = vk_graphics_pipeline_get_executable_properties,
    .get_internal_representations = vk_graphics_pipeline_get_internal_representations,
    .cmd_bind = vk_graphics_pipeline_cmd_bind,
+   .get_shader = vk_graphics_pipeline_get_shader,
 };
 
 static VkResult
@@ -2061,12 +2077,24 @@ vk_compute_pipeline_get_internal_representations(
       internal_representation_count, internal_representations);
 }
 
+static struct vk_shader *
+vk_compute_pipeline_get_shader(struct vk_pipeline *pipeline,
+                               gl_shader_stage stage)
+{
+   struct vk_compute_pipeline *comp_pipeline =
+      container_of(pipeline, struct vk_compute_pipeline, base);
+
+   assert(stage == MESA_SHADER_COMPUTE);
+   return comp_pipeline->shader;
+}
+
 static const struct vk_pipeline_ops vk_compute_pipeline_ops = {
    .destroy = vk_compute_pipeline_destroy,
    .get_executable_statistics = vk_compute_pipeline_get_executable_statistics,
    .get_executable_properties = vk_compute_pipeline_get_executable_properties,
    .get_internal_representations = vk_compute_pipeline_get_internal_representations,
    .cmd_bind = vk_compute_pipeline_cmd_bind,
+   .get_shader = vk_compute_pipeline_get_shader,
 };
 
 static VkResult
