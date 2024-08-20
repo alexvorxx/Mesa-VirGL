@@ -308,7 +308,6 @@ lower_fb_write_logical_send(const fs_builder &bld, fs_inst *inst,
 
    if (devinfo->ver < 11 &&
       (color1.file != BAD_FILE || key->nr_color_regions > 1)) {
-      assert(devinfo->ver < 20);
 
       /* From the Sandy Bridge PRM, volume 4, page 198:
        *
