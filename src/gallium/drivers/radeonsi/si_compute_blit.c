@@ -185,8 +185,13 @@ void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_inf
                          true /* don't update bind_history to prevent unnecessary syncs later */);
    si_launch_grid_internal(sctx, info, shader, flags);
 
-   /* Do cache flushing at the end. */
-   if (flags & SI_OP_SYNC_AFTER && get_cache_policy(sctx, coher) == L2_BYPASS) {
+   /* Do additional cache flushing if needed:
+    * - CP, CB, DB don't use L2 on GFX6-8. If the coherency is not "shader", flush L2 now.
+    * - CP doesn't use L2 on GFX12.
+    *
+    * Set TC_L2_dirty if not flushing now.
+    */
+   if (flags & SI_OP_SYNC_AFTER && coher != SI_COHERENCY_SHADER && sctx->gfx_level <= GFX8) {
       sctx->flags |= SI_CONTEXT_WB_L2;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    } else {
