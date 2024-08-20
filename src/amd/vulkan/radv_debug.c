@@ -241,10 +241,29 @@ radv_add_split_disasm(const char *disasm, uint64_t start_addr, unsigned *num, st
 {
    struct radv_shader_inst *last_inst = *num ? &instructions[*num - 1] : NULL;
    char *next;
+   char *repeat = strstr(disasm, "then repeated");
 
    while ((next = strchr(disasm, '\n'))) {
       struct radv_shader_inst *inst = &instructions[*num];
       unsigned len = next - disasm;
+
+      if (repeat >= disasm && repeat < next) {
+         uint32_t repeat_count;
+         sscanf(repeat, "then repeated %u times", &repeat_count);
+
+         for (uint32_t i = 0; i < repeat_count; i++) {
+            inst = &instructions[*num];
+            memcpy(inst, last_inst, sizeof(struct radv_shader_inst));
+            inst->offset = last_inst->offset + last_inst->size * (i + 1);
+            (*num)++;
+         }
+
+         last_inst = inst;
+
+         disasm = next + 1;
+         repeat = strstr(disasm, "then repeated");
+         continue;
+      }
 
       if (!memchr(disasm, ';', len)) {
          /* Ignore everything that is not an instruction. */
