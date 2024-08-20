@@ -2780,7 +2780,3 @@ dEQP-VK.compute.pipeline.indirect_dispatch.upload_buffer.multiple_groups,Crash
 dEQP-VK.compute.pipeline.indirect_dispatch.upload_buffer.multiple_groups_multiple_invocations,Crash
 dEQP-VK.compute.pipeline.indirect_dispatch.upload_buffer.single_invocation,Crash
 dEQP-VK.compute.pipeline.indirect_dispatch.upload_buffer.small_offset,Crash
-
-# New CTS failures in 1.3.9.0
-dEQP-VK.pipeline.monolithic.empty_fs.vert_no_fs,Crash
-dEQP-VK.pipeline.fast_linked_library.empty_fs.geom_no_fs,Crash
