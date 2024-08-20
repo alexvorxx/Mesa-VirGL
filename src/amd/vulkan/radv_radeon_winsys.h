@@ -292,6 +292,9 @@ struct radeon_winsys {
    void (*cs_execute_ib)(struct radeon_cmdbuf *cs, struct radeon_winsys_bo *bo, const uint64_t va, const uint32_t cdw,
                          const bool predicate);
 
+   void (*cs_chain_dgc_ib)(struct radeon_cmdbuf *cs, uint64_t va, uint32_t cdw, uint64_t trailer_va,
+                           const bool predicate);
+
    void (*cs_dump)(struct radeon_cmdbuf *cs, FILE *file, const int *trace_ids, int trace_id_count,
                    enum radv_cs_dump_type type);
 

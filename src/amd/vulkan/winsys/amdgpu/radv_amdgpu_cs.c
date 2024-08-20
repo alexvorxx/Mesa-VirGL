@@ -831,6 +831,92 @@ radv_amdgpu_cs_execute_ib(struct radeon_cmdbuf *_cs, struct radeon_winsys_bo *bo
    }
 }
 
+static void
+radv_amdgpu_cs_chain_dgc_ib(struct radeon_cmdbuf *_cs, uint64_t va, uint32_t cdw, uint64_t trailer_va,
+                            const bool predicate)
+{
+   struct radv_amdgpu_cs *cs = radv_amdgpu_cs(_cs);
+
+   if (cs->status != VK_SUCCESS)
+      return;
+
+   assert(cs->ws->info.gfx_level >= GFX8);
+
+   if (cs->hw_ip == AMD_IP_GFX) {
+      /* Use IB2 for executing DGC CS on GFX. */
+      cs->ws->base.cs_execute_ib(_cs, NULL, va, cdw, predicate);
+   } else {
+      assert(va && va % cs->ws->info.ip[cs->hw_ip].ib_alignment == 0);
+      assert(cdw <= ~C_3F2_IB_SIZE);
+
+      /* Emit a WRITE_DATA packet to patch the DGC CS. */
+      const uint32_t chain_data[] = {
+         PKT3(PKT3_INDIRECT_BUFFER, 2, 0),
+         0,
+         0,
+         S_3F2_CHAIN(1) | S_3F2_VALID(1),
+      };
+
+      radeon_emit(&cs->base, PKT3(PKT3_WRITE_DATA, 2 + ARRAY_SIZE(chain_data), false));
+      radeon_emit(&cs->base, S_370_DST_SEL(V_370_MEM) | S_370_WR_CONFIRM(1) | S_370_ENGINE_SEL(V_370_ME));
+      radeon_emit(&cs->base, trailer_va);
+      radeon_emit(&cs->base, trailer_va >> 32);
+      radeon_emit_array(&cs->base, chain_data, ARRAY_SIZE(chain_data));
+
+      /* Keep pointers for patching later. */
+      uint64_t *ib_va_ptr = (uint64_t *)(cs->base.buf + cs->base.cdw - 3);
+      uint32_t *ib_size_ptr = cs->base.buf + cs->base.cdw - 1;
+
+      /* Writeback L2 because CP isn't coherent with L2 on GFX6-8. */
+      if (cs->ws->info.gfx_level == GFX8) {
+         radeon_emit(&cs->base, PKT3(PKT3_ACQUIRE_MEM, 5, false) | PKT3_SHADER_TYPE_S(1));
+         radeon_emit(&cs->base, S_0301F0_TC_WB_ACTION_ENA(1) | S_0301F0_TC_NC_ACTION_ENA(1));
+         radeon_emit(&cs->base, 0xffffffff);
+         radeon_emit(&cs->base, 0xff);
+         radeon_emit(&cs->base, 0);
+         radeon_emit(&cs->base, 0);
+         radeon_emit(&cs->base, 0x0000000A);
+      }
+
+      /* Finalize the current CS. */
+      cs->ws->base.cs_finalize(_cs);
+
+      /* Chain the current CS to the DGC CS. */
+      _cs->buf[_cs->cdw - 4] = PKT3(PKT3_INDIRECT_BUFFER, 2, 0);
+      _cs->buf[_cs->cdw - 3] = va;
+      _cs->buf[_cs->cdw - 2] = va >> 32;
+      _cs->buf[_cs->cdw - 1] = S_3F2_CHAIN(1) | S_3F2_VALID(1) | cdw;
+
+      /* Allocate a new CS BO with initial size. */
+      const uint64_t ib_size = radv_amdgpu_cs_get_initial_size(cs->ws, cs->hw_ip);
+
+      VkResult result = radv_amdgpu_cs_bo_create(cs, ib_size);
+      if (result != VK_SUCCESS) {
+         cs->base.cdw = 0;
+         cs->status = result;
+         return;
+      }
+
+      cs->ib_mapped = radv_buffer_map(&cs->ws->base, cs->ib_buffer);
+      if (!cs->ib_mapped) {
+         cs->base.cdw = 0;
+         cs->status = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+         return;
+      }
+
+      cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer);
+
+      /* Chain back the trailer (DGC CS) to the newly created one. */
+      *ib_va_ptr = radv_amdgpu_winsys_bo(cs->ib_buffer)->base.va;
+      cs->ib_size_ptr = ib_size_ptr;
+
+      cs->base.buf = (uint32_t *)cs->ib_mapped;
+      cs->base.cdw = 0;
+      cs->base.reserved_dw = 0;
+      cs->base.max_dw = ib_size / 4 - 4;
+   }
+}
+
 static unsigned
 radv_amdgpu_count_cs_bo(struct radv_amdgpu_cs *start_cs)
 {
@@ -1934,6 +2020,7 @@ radv_amdgpu_cs_init_functions(struct radv_amdgpu_winsys *ws)
    ws->base.cs_add_buffer = radv_amdgpu_cs_add_buffer;
    ws->base.cs_execute_secondary = radv_amdgpu_cs_execute_secondary;
    ws->base.cs_execute_ib = radv_amdgpu_cs_execute_ib;
+   ws->base.cs_chain_dgc_ib = radv_amdgpu_cs_chain_dgc_ib;
    ws->base.cs_submit = radv_amdgpu_winsys_cs_submit;
    ws->base.cs_dump = radv_amdgpu_winsys_cs_dump;
    ws->base.cs_annotate = radv_amdgpu_winsys_cs_annotate;
