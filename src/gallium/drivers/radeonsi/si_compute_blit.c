@@ -57,8 +57,7 @@ static void si_improve_sync_flags(struct si_context *sctx, struct pipe_resource 
    }
 }
 
-static void si_launch_grid_internal(struct si_context *sctx, const struct pipe_grid_info *info,
-                                    void *shader, unsigned flags)
+static void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags)
 {
    /* Wait for previous shaders to finish. */
    if (flags & SI_OP_SYNC_GE_BEFORE)
@@ -70,45 +69,16 @@ static void si_launch_grid_internal(struct si_context *sctx, const struct pipe_g
    if (flags & SI_OP_SYNC_CS_BEFORE)
       sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
 
-   /* Invalidate L0-L1 caches. */
-   /* sL0 is never invalidated, because src resources don't use it. */
+   /* Invalidate the VMEM cache only. The SMEM cache isn't used by shader buffers. */
    if (!(flags & SI_OP_SKIP_CACHE_INV_BEFORE))
       sctx->flags |= SI_CONTEXT_INV_VCACHE;
 
-   /* Set settings for driver-internal compute dispatches. */
-   sctx->flags &= ~SI_CONTEXT_START_PIPELINE_STATS;
-   if (sctx->num_hw_pipestat_streamout_queries)
-      sctx->flags |= SI_CONTEXT_STOP_PIPELINE_STATS;
-
    if (sctx->flags)
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+}
 
-   if (!(flags & SI_OP_CS_RENDER_COND_ENABLE))
-      sctx->render_cond_enabled = false;
-
-   /* Force-disable fbfetch because there are unsolvable recursion problems. */
-   si_force_disable_ps_colorbuf0_slot(sctx);
-
-   /* Skip decompression to prevent infinite recursion. */
-   sctx->blitter_running = true;
-
-   /* Dispatch compute. */
-   void *saved_cs = sctx->cs_shader_state.program;
-   sctx->b.bind_compute_state(&sctx->b, shader);
-   sctx->b.launch_grid(&sctx->b, info);
-   sctx->b.bind_compute_state(&sctx->b, saved_cs);
-
-   /* Restore default settings. */
-   sctx->flags &= ~SI_CONTEXT_STOP_PIPELINE_STATS;
-   if (sctx->num_hw_pipestat_streamout_queries)
-      sctx->flags |= SI_CONTEXT_START_PIPELINE_STATS;
-
-   sctx->render_cond_enabled = sctx->render_cond;
-   sctx->blitter_running = false;
-
-   /* We force-disabled fbfetch, so recompute the state. */
-   si_update_ps_colorbuf0_slot(sctx);
-
+static void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags)
+{
    if (flags & SI_OP_SYNC_AFTER) {
       sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
 
@@ -121,10 +91,57 @@ static void si_launch_grid_internal(struct si_context *sctx, const struct pipe_g
          /* Make sure buffer stores are visible to all CUs. */
          sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE | SI_CONTEXT_PFP_SYNC_ME;
       }
+
+      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   }
+}
+
+static void si_compute_begin_internal(struct si_context *sctx, unsigned flags)
+{
+   sctx->flags &= ~SI_CONTEXT_START_PIPELINE_STATS;
+   if (sctx->num_hw_pipestat_streamout_queries) {
+      sctx->flags |= SI_CONTEXT_STOP_PIPELINE_STATS;
+      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    }
 
-   if (sctx->flags)
+   if (!(flags & SI_OP_CS_RENDER_COND_ENABLE))
+      sctx->render_cond_enabled = false;
+
+   /* Force-disable fbfetch because there are unsolvable recursion problems. */
+   si_force_disable_ps_colorbuf0_slot(sctx);
+
+   /* Skip decompression to prevent infinite recursion. */
+   sctx->blitter_running = true;
+}
+
+static void si_compute_end_internal(struct si_context *sctx, unsigned flags)
+{
+   sctx->flags &= ~SI_CONTEXT_STOP_PIPELINE_STATS;
+   if (sctx->num_hw_pipestat_streamout_queries) {
+      sctx->flags |= SI_CONTEXT_START_PIPELINE_STATS;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   }
+
+   sctx->render_cond_enabled = sctx->render_cond;
+   sctx->blitter_running = false;
+
+   /* We force-disabled fbfetch, so recompute the state. */
+   si_update_ps_colorbuf0_slot(sctx);
+}
+
+static void si_launch_grid_internal(struct si_context *sctx, const struct pipe_grid_info *info,
+                                    void *shader, unsigned flags)
+{
+   si_barrier_before_internal_op(sctx, flags);
+   si_compute_begin_internal(sctx, flags);
+
+   void *saved_cs = sctx->cs_shader_state.program;
+   sctx->b.bind_compute_state(&sctx->b, shader);
+   sctx->b.launch_grid(&sctx->b, info);
+   sctx->b.bind_compute_state(&sctx->b, saved_cs);
+
+   si_compute_end_internal(sctx, flags);
+   si_barrier_after_internal_op(sctx, flags);
 }
 
 void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_info *info,
