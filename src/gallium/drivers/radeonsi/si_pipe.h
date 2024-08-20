@@ -272,11 +272,7 @@ enum si_cache_policy
 
 enum si_coherency
 {
-   SI_COHERENCY_NONE, /* no cache flushes needed */
    SI_COHERENCY_SHADER,
-   SI_COHERENCY_CB_META,
-   SI_COHERENCY_DB_META,
-   SI_COHERENCY_CP,
 };
 
 #define SI_BIND_CONSTANT_BUFFER_SHIFT     0

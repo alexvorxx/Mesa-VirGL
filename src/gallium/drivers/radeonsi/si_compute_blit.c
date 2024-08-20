@@ -17,16 +17,9 @@ unsigned si_get_flush_flags(struct si_context *sctx, enum si_coherency coher,
 {
    switch (coher) {
    default:
-   case SI_COHERENCY_NONE:
-   case SI_COHERENCY_CP:
-      return 0;
    case SI_COHERENCY_SHADER:
       return SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
              (cache_policy == L2_BYPASS ? SI_CONTEXT_INV_L2 : 0);
-   case SI_COHERENCY_CB_META:
-      return SI_CONTEXT_FLUSH_AND_INV_CB;
-   case SI_COHERENCY_DB_META:
-      return SI_CONTEXT_FLUSH_AND_INV_DB;
    }
 }
 

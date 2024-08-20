@@ -23,10 +23,7 @@
 
 static enum si_cache_policy get_cache_policy(struct si_context *sctx, enum si_coherency coher)
 {
-   if ((sctx->gfx_level >= GFX9 && (coher == SI_COHERENCY_CB_META ||
-                                    coher == SI_COHERENCY_DB_META ||
-                                    coher == SI_COHERENCY_CP)) ||
-       (sctx->gfx_level >= GFX7 && coher == SI_COHERENCY_SHADER))
+   if (sctx->gfx_level >= GFX7 && coher == SI_COHERENCY_SHADER)
       return L2_LRU;
 
    return L2_BYPASS;
