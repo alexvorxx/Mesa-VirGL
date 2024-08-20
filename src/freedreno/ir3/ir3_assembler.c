@@ -42,6 +42,8 @@ ir3_parse_asm(struct ir3_compiler *c, struct ir3_kernel_info *info, FILE *in)
    v->compiler = c;
    v->const_state = rzalloc_size(v, sizeof(*v->const_state));
 
+   v->shader_options.real_wavesize = IR3_SINGLE_OR_DOUBLE;
+
    if (c->gen >= 6)
       v->mergedregs = true;
 
