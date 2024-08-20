@@ -228,8 +228,7 @@ void si_test_dma_perf(struct si_screen *sscreen)
                            continue;
                         }
                         si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size,
-                                              SI_OP_SYNC_BEFORE_AFTER, SI_COHERENCY_SHADER,
-                                              sctx->gfx_level >= GFX7 ? L2_LRU : L2_BYPASS);
+                                              SI_OP_SYNC_BEFORE_AFTER, SI_COHERENCY_SHADER);
                      } else {
                         /* CP DMA clears must be aligned to 4 bytes. */
                         if (dst_offset % 4 || size % 4 ||
@@ -241,8 +240,7 @@ void si_test_dma_perf(struct si_screen *sscreen)
                         assert(clear_value_size == 4);
                         si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, dst_offset, size,
                                                clear_value[0], SI_OP_SYNC_BEFORE_AFTER,
-                                               SI_COHERENCY_SHADER,
-                                               sctx->gfx_level >= GFX7 ? L2_LRU : L2_BYPASS);
+                                               SI_COHERENCY_SHADER);
                      }
                   } else {
                      /* Compute */

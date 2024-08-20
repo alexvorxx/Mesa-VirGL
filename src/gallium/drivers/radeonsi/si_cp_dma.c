@@ -21,6 +21,17 @@
 #define CP_DMA_PFP_SYNC_ME (1 << 4)
 #define CP_DMA_SRC_IS_GDS  (1 << 5)
 
+static enum si_cache_policy get_cache_policy(struct si_context *sctx, enum si_coherency coher)
+{
+   if ((sctx->gfx_level >= GFX9 && (coher == SI_COHERENCY_CB_META ||
+                                    coher == SI_COHERENCY_DB_META ||
+                                    coher == SI_COHERENCY_CP)) ||
+       (sctx->gfx_level >= GFX7 && coher == SI_COHERENCY_SHADER))
+      return L2_LRU;
+
+   return L2_BYPASS;
+}
+
 /* The max number of bytes that can be copied per packet. */
 static inline unsigned cp_dma_max_byte_count(struct si_context *sctx)
 {
@@ -178,12 +189,12 @@ static void si_cp_dma_prepare(struct si_context *sctx, struct pipe_resource *dst
 
 void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
                             struct pipe_resource *dst, uint64_t offset, uint64_t size,
-                            unsigned value, unsigned user_flags, enum si_coherency coher,
-                            enum si_cache_policy cache_policy)
+                            unsigned value, unsigned user_flags, enum si_coherency coher)
 {
    struct si_resource *sdst = si_resource(dst);
    uint64_t va = (sdst ? sdst->gpu_address : 0) + offset;
    bool is_first = true;
+   enum si_cache_policy cache_policy = get_cache_policy(sctx, coher);
 
    assert(!sctx->screen->info.cp_sdma_ge_use_system_memory_scope);
    assert(size && size % 4 == 0);
@@ -289,14 +300,14 @@ static void si_cp_dma_realign_engine(struct si_context *sctx, unsigned size, uns
  */
 void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
                            struct pipe_resource *src, uint64_t dst_offset, uint64_t src_offset,
-                           unsigned size, unsigned user_flags, enum si_coherency coher,
-                           enum si_cache_policy cache_policy)
+                           unsigned size, unsigned user_flags, enum si_coherency coher)
 {
    uint64_t main_dst_offset, main_src_offset;
    unsigned skipped_size = 0;
    unsigned realign_size = 0;
    unsigned gds_flags = (dst ? 0 : CP_DMA_DST_IS_GDS) | (src ? 0 : CP_DMA_SRC_IS_GDS);
    bool is_first = true;
+   enum si_cache_policy cache_policy = get_cache_policy(sctx, coher);
 
    assert(!sctx->screen->info.cp_sdma_ge_use_system_memory_scope);
    assert(size);

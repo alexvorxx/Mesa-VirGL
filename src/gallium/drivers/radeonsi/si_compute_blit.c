@@ -12,18 +12,6 @@
 #include "util/u_pack_color.h"
 #include "ac_nir_meta.h"
 
-/* Determine the cache policy. */
-static enum si_cache_policy get_cache_policy(struct si_context *sctx, enum si_coherency coher)
-{
-   if ((sctx->gfx_level >= GFX9 && (coher == SI_COHERENCY_CB_META ||
-                                     coher == SI_COHERENCY_DB_META ||
-                                     coher == SI_COHERENCY_CP)) ||
-       (sctx->gfx_level >= GFX7 && coher == SI_COHERENCY_SHADER))
-      return L2_LRU; /* it's faster if L2 doesn't evict anything  */
-
-   return L2_BYPASS;
-}
-
 unsigned si_get_flush_flags(struct si_context *sctx, enum si_coherency coher,
                             enum si_cache_policy cache_policy)
 {
@@ -369,7 +357,7 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
       assert(clear_value_size == 4);
       assert(!(flags & SI_OP_CS_RENDER_COND_ENABLE));
       si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, aligned_size, *clear_value,
-                             flags, coher, get_cache_policy(sctx, coher));
+                             flags, coher);
    }
 
    offset += aligned_size;
@@ -408,7 +396,6 @@ void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct p
       return;
 
    enum si_coherency coher = SI_COHERENCY_SHADER;
-   enum si_cache_policy cache_policy = get_cache_policy(sctx, coher);
 
    si_improve_sync_flags(sctx, dst, src, &flags);
 
@@ -416,8 +403,7 @@ void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct p
                                     coher, 0, true))
       return;
 
-   si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, flags, coher,
-                         cache_policy);
+   si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, flags, coher);
 }
 
 void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
