@@ -297,6 +297,8 @@ struct radeon_winsys {
 
    void (*cs_annotate)(struct radeon_cmdbuf *cs, const char *marker);
 
+   void (*cs_pad)(struct radeon_cmdbuf *cs, unsigned leave_dw_space);
+
    void (*dump_bo_ranges)(struct radeon_winsys *ws, FILE *file);
 
    void (*dump_bo_log)(struct radeon_winsys *ws, FILE *file);

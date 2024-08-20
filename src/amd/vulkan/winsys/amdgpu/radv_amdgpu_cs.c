@@ -421,6 +421,36 @@ radv_amdgpu_cs_grow(struct radeon_cmdbuf *_cs, size_t min_size)
    cs->base.max_dw = ib_size / 4 - 4;
 }
 
+static void
+radv_amdgpu_winsys_cs_pad(struct radeon_cmdbuf *_cs, unsigned leave_dw_space)
+{
+   struct radv_amdgpu_cs *cs = radv_amdgpu_cs(_cs);
+   const enum amd_ip_type ip_type = cs->hw_ip;
+   const uint32_t pad_dw_mask = cs->ws->info.ip[ip_type].ib_pad_dw_mask;
+   const uint32_t unaligned_dw = (cs->base.cdw + leave_dw_space) & pad_dw_mask;
+
+   assert(ip_type == AMD_IP_GFX || ip_type == AMD_IP_COMPUTE);
+
+   if (unaligned_dw) {
+      const int remaining = pad_dw_mask + 1 - unaligned_dw;
+
+      /* Only pad by 1 dword with the type-2 NOP if necessary. */
+      if (remaining == 1 && cs->ws->info.gfx_ib_pad_with_type2) {
+         radeon_emit_unchecked(&cs->base, PKT2_NOP_PAD);
+      } else {
+         /* Pad with a single NOP packet to minimize CP overhead because NOP is a variable-sized
+          * packet. The size of the packet body after the header is always count + 1.
+          * If count == -1, there is no packet body. NOP is the only packet that can have
+          * count == -1, which is the definition of PKT3_NOP_PAD (count == 0x3fff means -1).
+          */
+         radeon_emit_unchecked(&cs->base, PKT3(PKT3_NOP, remaining - 2, 0));
+         cs->base.cdw += remaining - 1;
+      }
+   }
+
+   assert(((cs->base.cdw + leave_dw_space) & pad_dw_mask) == 0);
+}
+
 static VkResult
 radv_amdgpu_cs_finalize(struct radeon_cmdbuf *_cs)
 {
@@ -429,15 +459,11 @@ radv_amdgpu_cs_finalize(struct radeon_cmdbuf *_cs)
 
    assert(cs->base.cdw <= cs->base.reserved_dw);
 
-   uint32_t ib_pad_dw_mask = MAX2(3, cs->ws->info.ip[ip_type].ib_pad_dw_mask);
-   uint32_t nop_packet = get_nop_packet(cs);
-
    if (cs->use_ib) {
-      /* Ensure that with the 4 dword reservation we subtract from max_dw we always
-       * have 4 nops at the end for chaining.
-       */
-      while (!cs->base.cdw || (cs->base.cdw & ib_pad_dw_mask) != ib_pad_dw_mask - 3)
-         radeon_emit_unchecked(&cs->base, nop_packet);
+      const uint32_t nop_packet = get_nop_packet(cs);
+
+      /* Pad with NOPs but leave 4 dwords for INDIRECT_BUFFER. */
+      radv_amdgpu_winsys_cs_pad(_cs, 4);
 
       radeon_emit_unchecked(&cs->base, nop_packet);
       radeon_emit_unchecked(&cs->base, nop_packet);
@@ -458,8 +484,7 @@ radv_amdgpu_cs_finalize(struct radeon_cmdbuf *_cs)
          pad = false;
 
       if (pad) {
-         while (!cs->base.cdw || (cs->base.cdw & ib_pad_dw_mask))
-            radeon_emit_unchecked(&cs->base, nop_packet);
+         radv_amdgpu_winsys_cs_pad(_cs, 0);
       }
    }
 
@@ -1909,4 +1934,5 @@ radv_amdgpu_cs_init_functions(struct radv_amdgpu_winsys *ws)
    ws->base.cs_submit = radv_amdgpu_winsys_cs_submit;
    ws->base.cs_dump = radv_amdgpu_winsys_cs_dump;
    ws->base.cs_annotate = radv_amdgpu_winsys_cs_annotate;
+   ws->base.cs_pad = radv_amdgpu_winsys_cs_pad;
 }
