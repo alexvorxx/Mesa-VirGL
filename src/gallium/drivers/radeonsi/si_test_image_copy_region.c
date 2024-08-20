@@ -538,7 +538,7 @@ void si_test_image_copy_region(struct si_screen *sscreen)
       /* clear dst pixels */
       uint32_t zero = 0;
       si_clear_buffer(sctx, dst, 0, sdst->surface.surf_size, &zero, 4, SI_OP_SYNC_BEFORE_AFTER,
-                      SI_COHERENCY_SHADER, SI_AUTO_SELECT_CLEAR_METHOD);
+                      SI_AUTO_SELECT_CLEAR_METHOD);
 
       for (j = 0; j < num_partial_copies; j++) {
          int width, height, depth;
@@ -716,9 +716,9 @@ void si_test_blit(struct si_screen *sscreen, unsigned test_flags)
       /* clear dst pixels */
       uint32_t zero = 0;
       si_clear_buffer(sctx, gfx_dst, 0, ((struct si_texture *)gfx_dst)->surface.surf_size, &zero,
-                      4, SI_OP_SYNC_BEFORE_AFTER, SI_COHERENCY_SHADER, SI_AUTO_SELECT_CLEAR_METHOD);
+                      4, SI_OP_SYNC_BEFORE_AFTER, SI_AUTO_SELECT_CLEAR_METHOD);
       si_clear_buffer(sctx, comp_dst, 0, ((struct si_texture *)comp_dst)->surface.surf_size, &zero,
-                      4, SI_OP_SYNC_BEFORE_AFTER, SI_COHERENCY_SHADER, SI_AUTO_SELECT_CLEAR_METHOD);
+                      4, SI_OP_SYNC_BEFORE_AFTER, SI_AUTO_SELECT_CLEAR_METHOD);
 
       /* TODO: These two fix quite a lot of BCn cases. */
       /*si_clear_buffer(sctx, gfx_src, 0, ((struct si_texture *)gfx_src)->surface.surf_size, &zero,

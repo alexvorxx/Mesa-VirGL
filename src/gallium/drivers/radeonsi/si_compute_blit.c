@@ -12,15 +12,10 @@
 #include "util/u_pack_color.h"
 #include "ac_nir_meta.h"
 
-unsigned si_get_flush_flags(struct si_context *sctx, enum si_coherency coher,
-                            enum si_cache_policy cache_policy)
+unsigned si_get_flush_flags(struct si_context *sctx, enum si_cache_policy cache_policy)
 {
-   switch (coher) {
-   default:
-   case SI_COHERENCY_SHADER:
-      return SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
-             (cache_policy == L2_BYPASS ? SI_CONTEXT_INV_L2 : 0);
-   }
+   return SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
+          (cache_policy == L2_BYPASS ? SI_CONTEXT_INV_L2 : 0);
 }
 
 static bool si_is_buffer_idle(struct si_context *sctx, struct si_resource *buf,
@@ -139,12 +134,12 @@ static void si_launch_grid_internal(struct si_context *sctx, const struct pipe_g
 }
 
 void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_info *info,
-                                   void *shader, unsigned flags, enum si_coherency coher,
-                                   unsigned num_buffers, const struct pipe_shader_buffer *buffers,
+                                   void *shader, unsigned flags, unsigned num_buffers,
+                                   const struct pipe_shader_buffer *buffers,
                                    unsigned writeable_bitmask)
 {
    if (!(flags & SI_OP_SKIP_CACHE_INV_BEFORE)) {
-      sctx->flags |= si_get_flush_flags(sctx, coher, L2_LRU);
+      sctx->flags |= si_get_flush_flags(sctx, L2_LRU);
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    }
 
@@ -166,19 +161,16 @@ void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_inf
                          true /* don't update bind_history to prevent unnecessary syncs later */);
    si_launch_grid_internal(sctx, info, shader, flags);
 
-   /* Do additional cache flushing if needed:
-    * - CP, CB, DB don't use L2 on GFX6-8. If the coherency is not "shader", flush L2 now.
-    * - CP doesn't use L2 on GFX12.
+   /* We must set TC_L2_dirty because:
+    * - GFX6,12: CP DMA doesn't use L2.
+    * - GFX6-7,12: Index buffer reads don't use L2.
+    * - GFX6-8,12: CP doesn't use L2.
+    * - GFX6-8: CB/DB don't use L2.
     *
-    * Set TC_L2_dirty if not flushing now.
+    * TC_L2_dirty is checked explicitly when buffers are used in those cases to enforce coherency.
     */
-   if (flags & SI_OP_SYNC_AFTER && coher != SI_COHERENCY_SHADER && sctx->gfx_level <= GFX8) {
-      sctx->flags |= SI_CONTEXT_WB_L2;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
-   } else {
-      while (writeable_bitmask)
-         si_resource(buffers[u_bit_scan(&writeable_bitmask)].buffer)->TC_L2_dirty = true;
-   }
+   while (writeable_bitmask)
+      si_resource(buffers[u_bit_scan(&writeable_bitmask)].buffer)->TC_L2_dirty = true;
 
    /* Restore states. */
    sctx->b.set_shader_buffers(&sctx->b, PIPE_SHADER_COMPUTE, 0, num_buffers, saved_sb,
@@ -209,9 +201,8 @@ set_work_size(struct pipe_grid_info *info, unsigned block_x, unsigned block_y, u
  * The clear value has 32 bits.
  */
 void si_compute_clear_buffer_rmw(struct si_context *sctx, struct pipe_resource *dst,
-                                 unsigned dst_offset, unsigned size,
-                                 uint32_t clear_value, uint32_t writebitmask,
-                                 unsigned flags, enum si_coherency coher)
+                                 unsigned dst_offset, unsigned size, uint32_t clear_value,
+                                 uint32_t writebitmask, unsigned flags)
 {
    assert(dst_offset % 4 == 0);
    assert(size % 4 == 0);
@@ -236,8 +227,7 @@ void si_compute_clear_buffer_rmw(struct si_context *sctx, struct pipe_resource *
    if (!sctx->cs_clear_buffer_rmw)
       sctx->cs_clear_buffer_rmw = si_create_clear_buffer_rmw_cs(sctx);
 
-   si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_clear_buffer_rmw, flags, coher,
-                                 1, &sb, 0x1);
+   si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_clear_buffer_rmw, flags, 1, &sb, 0x1);
 }
 
 /**
@@ -256,8 +246,7 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
                                   unsigned dst_offset, struct pipe_resource *src,
                                   unsigned src_offset, unsigned size,
                                   const uint32_t *clear_value, unsigned clear_value_size,
-                                  unsigned flags, enum si_coherency coher,
-                                  unsigned dwords_per_thread, bool fail_if_slow)
+                                  unsigned flags, unsigned dwords_per_thread, bool fail_if_slow)
 {
    assert(dst->target != PIPE_BUFFER || dst_offset + size <= dst->width0);
    assert(!src || src_offset + size <= src->width0);
@@ -312,15 +301,14 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
    struct pipe_grid_info grid = {};
    set_work_size(&grid, dispatch.workgroup_size, 1, 1, dispatch.num_threads, 1, 1);
 
-   si_launch_grid_internal_ssbos(sctx, &grid, shader, flags, coher, dispatch.num_ssbos, sb,
+   si_launch_grid_internal_ssbos(sctx, &grid, shader, flags, dispatch.num_ssbos, sb,
                                  is_copy ? 0x2 : 0x1);
    return true;
 }
 
 void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
                      uint64_t offset, uint64_t size, uint32_t *clear_value,
-                     uint32_t clear_value_size, unsigned flags,
-                     enum si_coherency coher, enum si_clear_method method)
+                     uint32_t clear_value_size, unsigned flags, enum si_clear_method method)
 {
    if (!size)
       return;
@@ -341,7 +329,7 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
 
    if (method != SI_CP_DMA_CLEAR_METHOD &&
        si_compute_clear_copy_buffer(sctx, dst, offset, NULL, 0, size, clear_value,
-                                    clear_value_size, flags, coher, 0,
+                                    clear_value_size, flags, 0,
                                     method == SI_AUTO_SELECT_CLEAR_METHOD))
       return;
 
@@ -349,8 +337,7 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
    if (aligned_size) {
       assert(clear_value_size == 4);
       assert(!(flags & SI_OP_CS_RENDER_COND_ENABLE));
-      si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, aligned_size, *clear_value,
-                             flags, coher);
+      si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, aligned_size, *clear_value, flags);
    }
 
    offset += aligned_size;
@@ -378,8 +365,7 @@ static void si_pipe_clear_buffer(struct pipe_context *ctx, struct pipe_resource 
                                  int clear_value_size)
 {
    si_clear_buffer((struct si_context *)ctx, dst, offset, size, (uint32_t *)clear_value,
-                   clear_value_size, SI_OP_SYNC_BEFORE_AFTER, SI_COHERENCY_SHADER,
-                   SI_AUTO_SELECT_CLEAR_METHOD);
+                   clear_value_size, SI_OP_SYNC_BEFORE_AFTER, SI_AUTO_SELECT_CLEAR_METHOD);
 }
 
 void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
@@ -388,15 +374,13 @@ void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct p
    if (!size)
       return;
 
-   enum si_coherency coher = SI_COHERENCY_SHADER;
-
    si_improve_sync_flags(sctx, dst, src, &flags);
 
    if (si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, size, NULL, 0, flags,
-                                    coher, 0, true))
+                                    0, true))
       return;
 
-   si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, flags, coher);
+   si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, flags);
 }
 
 void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
@@ -422,8 +406,7 @@ void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resour
    sb[1].buffer_offset = src_offset;
    sb[1].buffer_size = count;
 
-   si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_ubyte_to_ushort, flags, SI_COHERENCY_SHADER,
-                                 2, sb, 0x1);
+   si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_ubyte_to_ushort, flags, 2, sb, 0x1);
 }
 
 static void si_launch_grid_internal_images(struct si_context *sctx,
@@ -542,14 +525,13 @@ void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
    struct pipe_grid_info info = {};
    set_work_size(&info, 8, 8, 1, width, height, 1);
 
-   si_launch_grid_internal_ssbos(sctx, &info, *shader, SI_OP_SYNC_BEFORE,
-                                 SI_COHERENCY_SHADER, 1, &sb, 0x1);
+   si_launch_grid_internal_ssbos(sctx, &info, *shader, SI_OP_SYNC_BEFORE, 1, &sb, 0x1);
 
    /* Don't flush caches. L2 will be flushed by the kernel fence. */
 }
 
 void gfx9_clear_dcc_msaa(struct si_context *sctx, struct pipe_resource *res, uint32_t clear_value,
-                         unsigned flags, enum si_coherency coher)
+                         unsigned flags)
 {
    struct si_texture *tex = (struct si_texture*)res;
 
@@ -588,7 +570,7 @@ void gfx9_clear_dcc_msaa(struct si_context *sctx, struct pipe_resource *res, uin
    struct pipe_grid_info info = {};
    set_work_size(&info, 8, 8, 1, width, height, depth);
 
-   si_launch_grid_internal_ssbos(sctx, &info, *shader, flags, coher, 1, &sb, 0x1);
+   si_launch_grid_internal_ssbos(sctx, &info, *shader, flags, 1, &sb, 0x1);
 }
 
 /* Expand FMASK to make it identity, so that image stores can ignore it. */
@@ -656,7 +638,7 @@ void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex
    si_clear_buffer(sctx, tex, stex->surface.fmask_offset, stex->surface.fmask_size,
                    (uint32_t *)&fmask_expand_values[log_fragments][log_samples - 1],
                    log_fragments >= 2 && log_samples == 4 ? 8 : 4, SI_OP_SYNC_AFTER,
-                   SI_COHERENCY_SHADER, SI_AUTO_SELECT_CLEAR_METHOD);
+                   SI_AUTO_SELECT_CLEAR_METHOD);
 }
 
 void si_compute_clear_image_dcc_single(struct si_context *sctx, struct si_texture *tex,

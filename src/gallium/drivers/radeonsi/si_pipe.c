@@ -830,8 +830,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
        */
       uint32_t clear_value = 0;
       si_clear_buffer(sctx, sctx->null_const_buf.buffer, 0, sctx->null_const_buf.buffer->width0,
-                      &clear_value, 4, SI_OP_SYNC_AFTER, SI_COHERENCY_SHADER,
-                      SI_CP_DMA_CLEAR_METHOD);
+                      &clear_value, 4, SI_OP_SYNC_AFTER, SI_CP_DMA_CLEAR_METHOD);
    }
 
    if (!(flags & SI_CONTEXT_FLAG_AUX)) {
@@ -1088,7 +1087,7 @@ static void si_test_vmfault(struct si_screen *sscreen, uint64_t test_flags)
    si_resource(buf)->gpu_address = 0; /* cause a VM fault */
 
    if (test_flags & DBG(TEST_VMFAULT_CP)) {
-      si_cp_dma_copy_buffer(sctx, buf, buf, 0, 4, 4, SI_OP_SYNC_BEFORE_AFTER, SI_COHERENCY_SHADER);
+      si_cp_dma_copy_buffer(sctx, buf, buf, 0, 4, 4, SI_OP_SYNC_BEFORE_AFTER);
       ctx->flush(ctx, NULL, 0);
       puts("VM fault test: CP - done.");
    }

@@ -195,7 +195,7 @@ bool si_alloc_resource(struct si_screen *sscreen, struct si_resource *res)
       uint32_t value = 0;
 
       si_clear_buffer(ctx, &res->b.b, 0, res->bo_size, &value, 4, SI_OP_SYNC_AFTER,
-                      SI_COHERENCY_SHADER, SI_AUTO_SELECT_CLEAR_METHOD);
+                      SI_AUTO_SELECT_CLEAR_METHOD);
       si_put_aux_context_flush(&sscreen->aux_context.general);
    }
 

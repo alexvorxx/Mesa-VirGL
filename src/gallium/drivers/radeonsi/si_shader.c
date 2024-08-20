@@ -982,7 +982,7 @@ static void post_upload_binary(struct si_screen *sscreen, struct si_shader *shad
        * them available.
        */
       si_cp_dma_copy_buffer(upload_ctx, &shader->bo->b.b, staging, 0, staging_offset,
-                            binary_size, SI_OP_SYNC_AFTER, SI_COHERENCY_SHADER);
+                            binary_size, SI_OP_SYNC_AFTER);
       upload_ctx->flags |= SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_L2;
 
 #if 0 /* debug: validate whether the copy was successful */

@@ -228,7 +228,7 @@ void si_test_dma_perf(struct si_screen *sscreen)
                            continue;
                         }
                         si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size,
-                                              SI_OP_SYNC_BEFORE_AFTER, SI_COHERENCY_SHADER);
+                                              SI_OP_SYNC_BEFORE_AFTER);
                      } else {
                         /* CP DMA clears must be aligned to 4 bytes. */
                         if (dst_offset % 4 || size % 4 ||
@@ -239,16 +239,15 @@ void si_test_dma_perf(struct si_screen *sscreen)
                         }
                         assert(clear_value_size == 4);
                         si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, dst_offset, size,
-                                               clear_value[0], SI_OP_SYNC_BEFORE_AFTER,
-                                               SI_COHERENCY_SHADER);
+                                               clear_value[0], SI_OP_SYNC_BEFORE_AFTER);
                      }
                   } else {
                      /* Compute */
                      success &=
                         si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset,
                                                      size, clear_value, clear_value_size,
-                                                     SI_OP_SYNC_BEFORE_AFTER, SI_COHERENCY_SHADER,
-                                                     dwords_per_thread, false);
+                                                     SI_OP_SYNC_BEFORE_AFTER, dwords_per_thread,
+                                                     false);
                   }
 
                   sctx->flags |= SI_CONTEXT_INV_L2;
@@ -478,8 +477,7 @@ void si_test_clear_buffer(struct si_screen *sscreen)
 
       bool done = si_compute_clear_copy_buffer(sctx, dst, dst_offset, NULL, 0, op_size,
                                                (uint32_t*)clear_value, clear_value_size,
-                                               SI_OP_SYNC_BEFORE_AFTER, SI_COHERENCY_SHADER,
-                                               dwords_per_thread, false);
+                                               SI_OP_SYNC_BEFORE_AFTER, dwords_per_thread, false);
 
       if (done) {
          pipe_buffer_read(ctx, dst, 0, buf_size, read_dst_buffer);
@@ -584,7 +582,7 @@ void si_test_copy_buffer(struct si_screen *sscreen)
 
       bool done = si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, op_size,
                                                NULL, 0, SI_OP_SYNC_BEFORE_AFTER,
-                                               SI_COHERENCY_SHADER, dwords_per_thread, false);
+                                               dwords_per_thread, false);
 
       if (done) {
          pipe_buffer_read(ctx, dst, 0, buf_size, read_dst_buffer);

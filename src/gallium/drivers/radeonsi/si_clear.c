@@ -88,8 +88,7 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
       }
 
       if (info[i].is_dcc_msaa) {
-         gfx9_clear_dcc_msaa(sctx, info[i].resource, info[i].clear_value,
-                             flags, SI_COHERENCY_SHADER);
+         gfx9_clear_dcc_msaa(sctx, info[i].resource, info[i].clear_value, flags);
          continue;
       }
 
@@ -97,13 +96,11 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
 
       if (info[i].writemask != 0xffffffff) {
          si_compute_clear_buffer_rmw(sctx, info[i].resource, info[i].offset, info[i].size,
-                                     info[i].clear_value, info[i].writemask,
-                                     flags, SI_COHERENCY_SHADER);
+                                     info[i].clear_value, info[i].writemask, flags);
       } else {
          /* Compute shaders are much faster on both dGPUs and APUs. Don't use CP DMA. */
          si_clear_buffer(sctx, info[i].resource, info[i].offset, info[i].size,
-                         &info[i].clear_value, 4, flags, SI_COHERENCY_SHADER,
-                         SI_COMPUTE_CLEAR_METHOD);
+                         &info[i].clear_value, 4, flags, SI_COMPUTE_CLEAR_METHOD);
       }
    }
 

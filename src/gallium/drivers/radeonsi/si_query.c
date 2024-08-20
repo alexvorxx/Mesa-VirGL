@@ -1645,8 +1645,7 @@ static void si_query_hw_get_result_resource(struct si_context *sctx, struct si_q
          si_cp_wait_mem(sctx, &sctx->gfx_cs, va, 0x80000000, 0x80000000, WAIT_REG_MEM_EQUAL);
       }
       si_launch_grid_internal_ssbos(sctx, &grid, sctx->query_result_shader,
-                                    SI_OP_SYNC_AFTER, SI_COHERENCY_SHADER,
-                                    3, ssbo, 0x4);
+                                    SI_OP_SYNC_AFTER, 3, ssbo, 0x4);
    }
 
    si_restore_qbo_state(sctx, &saved_state);
