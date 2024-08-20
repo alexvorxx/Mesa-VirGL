@@ -853,7 +853,7 @@ lower_sampler_logical_send(const fs_builder &bld, fs_inst *inst,
                       brw_imm_ud(INTEL_MASK(31, 5)));
          }
 
-         if (sampler.file == BRW_IMMEDIATE_VALUE) {
+         if (sampler.file == IMM) {
             assert(sampler.ud >= 16);
             const int sampler_state_size = 16; /* 16 bytes */
 
@@ -2326,7 +2326,7 @@ lower_lsc_varying_pull_constant_logical_send(const fs_builder &bld,
       surface_handle.file == BAD_FILE ?
       LSC_ADDR_SURFTYPE_BTI : LSC_ADDR_SURFTYPE_BSS;
 
-   assert(alignment_B.file == BRW_IMMEDIATE_VALUE);
+   assert(alignment_B.file == IMM);
    unsigned alignment = alignment_B.ud;
 
    inst->opcode = SHADER_OPCODE_SEND;
@@ -2408,7 +2408,7 @@ lower_varying_pull_constant_logical_send(const fs_builder &bld, fs_inst *inst)
    brw_reg ubo_offset = bld.vgrf(BRW_TYPE_UD);
    bld.MOV(ubo_offset, offset_B);
 
-   assert(inst->src[PULL_VARYING_CONSTANT_SRC_ALIGNMENT].file == BRW_IMMEDIATE_VALUE);
+   assert(inst->src[PULL_VARYING_CONSTANT_SRC_ALIGNMENT].file == IMM);
    unsigned alignment = inst->src[PULL_VARYING_CONSTANT_SRC_ALIGNMENT].ud;
 
    inst->opcode = SHADER_OPCODE_SEND;
@@ -2678,17 +2678,17 @@ lower_trace_ray_logical_send(const fs_builder &bld, fs_inst *inst)
    brw_reg globals_addr = retype(inst->src[RT_LOGICAL_SRC_GLOBALS], BRW_TYPE_UD);
    globals_addr.stride = 1;
    const brw_reg bvh_level =
-      inst->src[RT_LOGICAL_SRC_BVH_LEVEL].file == BRW_IMMEDIATE_VALUE ?
+      inst->src[RT_LOGICAL_SRC_BVH_LEVEL].file == IMM ?
       inst->src[RT_LOGICAL_SRC_BVH_LEVEL] :
       bld.move_to_vgrf(inst->src[RT_LOGICAL_SRC_BVH_LEVEL],
                        inst->components_read(RT_LOGICAL_SRC_BVH_LEVEL));
    const brw_reg trace_ray_control =
-      inst->src[RT_LOGICAL_SRC_TRACE_RAY_CONTROL].file == BRW_IMMEDIATE_VALUE ?
+      inst->src[RT_LOGICAL_SRC_TRACE_RAY_CONTROL].file == IMM ?
       inst->src[RT_LOGICAL_SRC_TRACE_RAY_CONTROL] :
       bld.move_to_vgrf(inst->src[RT_LOGICAL_SRC_TRACE_RAY_CONTROL],
                        inst->components_read(RT_LOGICAL_SRC_TRACE_RAY_CONTROL));
    const brw_reg synchronous_src = inst->src[RT_LOGICAL_SRC_SYNCHRONOUS];
-   assert(synchronous_src.file == BRW_IMMEDIATE_VALUE);
+   assert(synchronous_src.file == IMM);
    const bool synchronous = synchronous_src.ud;
 
    const unsigned unit = reg_unit(devinfo);
@@ -2702,8 +2702,8 @@ lower_trace_ray_logical_send(const fs_builder &bld, fs_inst *inst)
 
    const unsigned ex_mlen = inst->exec_size / 8;
    brw_reg payload = bld.vgrf(BRW_TYPE_UD);
-   if (bvh_level.file == BRW_IMMEDIATE_VALUE &&
-       trace_ray_control.file == BRW_IMMEDIATE_VALUE) {
+   if (bvh_level.file == IMM &&
+       trace_ray_control.file == IMM) {
       uint32_t high = devinfo->ver >= 20 ? 10 : 9;
       bld.MOV(payload, brw_imm_ud(SET_BITS(trace_ray_control.ud, high, 8) |
                                   (bvh_level.ud & 0x7)));

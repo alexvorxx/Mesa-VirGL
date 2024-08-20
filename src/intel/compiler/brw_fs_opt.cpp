@@ -501,7 +501,7 @@ brw_fs_opt_remove_extra_rounding_modes(fs_visitor &s)
 
       foreach_inst_in_block_safe (fs_inst, inst, block) {
          if (inst->opcode == SHADER_OPCODE_RND_MODE) {
-            assert(inst->src[0].file == BRW_IMMEDIATE_VALUE);
+            assert(inst->src[0].file == IMM);
             const brw_rnd_mode mode = (brw_rnd_mode) inst->src[0].d;
             if (mode == prev_mode) {
                inst->remove(block);

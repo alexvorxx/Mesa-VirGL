@@ -3447,7 +3447,7 @@ fetch_render_target_array_index(const fs_builder &bld)
 
       for (unsigned i = 0; i < v->max_polygons; i++) {
          const fs_builder hbld = bld.group(8, i);
-         const struct brw_reg g1 = brw_uw1_reg(BRW_GENERAL_REGISTER_FILE, 1, 3 + 10 * i);
+         const struct brw_reg g1 = brw_uw1_reg(FIXED_GRF, 1, 3 + 10 * i);
          hbld.AND(offset(idx, hbld, i), g1, brw_imm_uw(0x7ff));
       }
 
@@ -3457,7 +3457,7 @@ fetch_render_target_array_index(const fs_builder &bld)
        * bits 26:16 of r1.1.
        */
       const brw_reg idx = bld.vgrf(BRW_TYPE_UD);
-      bld.AND(idx, brw_uw1_reg(BRW_GENERAL_REGISTER_FILE, 1, 3),
+      bld.AND(idx, brw_uw1_reg(FIXED_GRF, 1, 3),
               brw_imm_uw(0x7ff));
       return idx;
    } else {
@@ -3465,7 +3465,7 @@ fetch_render_target_array_index(const fs_builder &bld)
        * bits 26:16 of r0.0.
        */
       const brw_reg idx = bld.vgrf(BRW_TYPE_UD);
-      bld.AND(idx, brw_uw1_reg(BRW_GENERAL_REGISTER_FILE, 0, 1),
+      bld.AND(idx, brw_uw1_reg(FIXED_GRF, 0, 1),
               brw_imm_uw(0x7ff));
       return idx;
    }
@@ -3504,8 +3504,8 @@ fetch_viewport_index(const fs_builder &bld)
       assert(bld.dispatch_width() == 16);
       const brw_reg idx = bld.vgrf(BRW_TYPE_UD);
       brw_reg vp_idx_per_poly_dw[2] = {
-         brw_ud1_reg(BRW_GENERAL_REGISTER_FILE, 1, 1), /* R1.1 bits 30:27 */
-         brw_ud1_reg(BRW_GENERAL_REGISTER_FILE, 1, 6), /* R1.6 bits 30:27 */
+         brw_ud1_reg(FIXED_GRF, 1, 1), /* R1.1 bits 30:27 */
+         brw_ud1_reg(FIXED_GRF, 1, 6), /* R1.6 bits 30:27 */
       };
 
       for (unsigned i = 0; i < v->max_polygons; i++) {
@@ -3520,7 +3520,7 @@ fetch_viewport_index(const fs_builder &bld)
        */
       const brw_reg idx = bld.vgrf(BRW_TYPE_UD);
       bld.SHR(idx,
-              bld.AND(brw_uw1_reg(BRW_GENERAL_REGISTER_FILE, 1, 3),
+              bld.AND(brw_uw1_reg(FIXED_GRF, 1, 3),
                       brw_imm_uw(0x7800)),
               brw_imm_ud(11));
       return idx;
@@ -3530,7 +3530,7 @@ fetch_viewport_index(const fs_builder &bld)
        */
       const brw_reg idx = bld.vgrf(BRW_TYPE_UD);
       bld.SHR(idx,
-              bld.AND(brw_uw1_reg(BRW_GENERAL_REGISTER_FILE, 0, 1),
+              bld.AND(brw_uw1_reg(FIXED_GRF, 0, 1),
                       brw_imm_uw(0x7800)),
               brw_imm_ud(11));
       return idx;
@@ -5356,7 +5356,7 @@ get_timestamp(const fs_builder &bld)
 {
    fs_visitor &s = *bld.shader;
 
-   brw_reg ts = brw_reg(retype(brw_vec4_reg(BRW_ARCHITECTURE_REGISTER_FILE,
+   brw_reg ts = brw_reg(retype(brw_vec4_reg(ARF,
                                           BRW_ARF_TIMESTAMP, 0), BRW_TYPE_UD));
 
    brw_reg dst = brw_vgrf(s.alloc.allocate(1), BRW_TYPE_UD);
@@ -8467,7 +8467,7 @@ fs_nir_emit_texture(nir_to_brw_state &ntb,
       /* If mcs is an immediate value, it means there is no MCS.  In that case
        * just return false.
        */
-      if (srcs[TEX_LOGICAL_SRC_MCS].file == BRW_IMMEDIATE_VALUE) {
+      if (srcs[TEX_LOGICAL_SRC_MCS].file == IMM) {
          bld.MOV(dst, brw_imm_ud(0u));
       } else {
          brw_reg tmp =

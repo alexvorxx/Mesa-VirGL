@@ -208,10 +208,10 @@ static inline uint64_t
 brw_reg_file_to_hw_reg_file(enum brw_reg_file file)
 {
    switch (file) {
-   case BRW_ARCHITECTURE_REGISTER_FILE: return 0x0;
-   case BRW_GENERAL_REGISTER_FILE:      return 0x1;
-   default:                             /* Fallthrough. */
-   case BRW_IMMEDIATE_VALUE:            return 0x3;
+   case ARF:       return 0x0;
+   case FIXED_GRF: return 0x1;
+   default:        /* Fallthrough. */
+   case IMM:       return 0x3;
    }
 }
 
@@ -219,9 +219,9 @@ static inline enum brw_reg_file
 hw_reg_file_to_brw_reg_file(uint64_t v)
 {
    switch (v) {
-   case 0x0: return BRW_ARCHITECTURE_REGISTER_FILE;
-   case 0x1: return BRW_GENERAL_REGISTER_FILE;
-   default:  return BRW_IMMEDIATE_VALUE;
+   case 0x0: return ARF;
+   case 0x1: return FIXED_GRF;
+   default:  return IMM;
    }
 }
 
@@ -249,11 +249,11 @@ brw_inst_set_##name(const struct intel_device_info *devinfo,                  \
    uint64_t value = brw_reg_file_to_hw_reg_file(file);                        \
    if (devinfo->ver < 12) {                                                   \
       if (devinfo->ver == 11 && args.grf_or_imm) {                            \
-         assert(file == BRW_GENERAL_REGISTER_FILE || file == BRW_IMMEDIATE_VALUE); \
-         value = file == BRW_GENERAL_REGISTER_FILE ? 0 : 1;                   \
+         assert(file == FIXED_GRF || file == IMM);                            \
+         value = file == FIXED_GRF ? 0 : 1;                                   \
       } else if (devinfo->ver == 11 && args.grf_or_acc) {                     \
-         assert(file == BRW_GENERAL_REGISTER_FILE || file == BRW_ARCHITECTURE_REGISTER_FILE); \
-         value = file == BRW_GENERAL_REGISTER_FILE ? 0 : 1;                   \
+         assert(file == FIXED_GRF || file == ARF);                            \
+         value = file == FIXED_GRF ? 0 : 1;                                   \
       }                                                                       \
       brw_inst_set_bits(inst, hi9, lo9, value);                               \
    } else if (hi12 == lo12) {                                                 \
@@ -277,10 +277,9 @@ brw_inst_##name(const struct intel_device_info *devinfo, const brw_inst *inst)\
    if (devinfo->ver < 12) {                                                   \
       value = brw_inst_bits(inst, hi9, lo9);                                  \
       if (devinfo->ver == 11 && args.grf_or_imm)                              \
-         return value ? BRW_IMMEDIATE_VALUE : BRW_GENERAL_REGISTER_FILE;      \
+         return value ? IMM : FIXED_GRF;                                      \
       else if (devinfo->ver == 11 && args.grf_or_acc)                         \
-         return value ? BRW_ARCHITECTURE_REGISTER_FILE                        \
-                      : BRW_GENERAL_REGISTER_FILE;                            \
+         return value ? ARF : FIXED_GRF;                                      \
    } else if (hi12 == lo12) {                                                 \
       value = brw_inst_bits(inst, hi12, lo12);                                \
    } else {                                                                   \
@@ -1052,7 +1051,7 @@ brw_inst_set_##reg##_file_type(const struct intel_device_info *devinfo,       \
                                brw_inst *inst, enum brw_reg_file file,        \
                                enum brw_reg_type type)                        \
 {                                                                             \
-   assert(file <= BRW_IMMEDIATE_VALUE);                                       \
+   assert(file <= IMM);                                       \
    unsigned hw_type = brw_type_encode(devinfo, file, type);                   \
    brw_inst_set_##reg##_reg_file(devinfo, inst, file);                        \
    brw_inst_set_##reg##_reg_hw_type(devinfo, inst, hw_type);                  \
@@ -1063,7 +1062,7 @@ brw_inst_##reg##_type(const struct intel_device_info *devinfo,                \
                       const brw_inst *inst)                                   \
 {                                                                             \
    unsigned file = __builtin_strcmp("dst", #reg) == 0 ?                       \
-                   (unsigned) BRW_GENERAL_REGISTER_FILE :                     \
+                   (unsigned) FIXED_GRF :                     \
                    brw_inst_##reg##_reg_file(devinfo, inst);                  \
    unsigned hw_type = brw_inst_##reg##_reg_hw_type(devinfo, inst);            \
    return brw_type_decode(devinfo, (enum brw_reg_file)file, hw_type);         \

@@ -145,7 +145,7 @@ inst_is_raw_move(const struct brw_isa_info *isa, const brw_inst *inst)
    unsigned dst_type = signed_type(inst_dst_type(isa, inst));
    unsigned src_type = signed_type(brw_inst_src0_type(devinfo, inst));
 
-   if (brw_inst_src0_reg_file(devinfo, inst) == BRW_IMMEDIATE_VALUE) {
+   if (brw_inst_src0_reg_file(devinfo, inst) == IMM) {
       /* FIXME: not strictly true */
       if (brw_inst_src0_type(devinfo, inst) == BRW_TYPE_VF ||
           brw_inst_src0_type(devinfo, inst) == BRW_TYPE_UV ||
@@ -165,7 +165,7 @@ inst_is_raw_move(const struct brw_isa_info *isa, const brw_inst *inst)
 static bool
 dst_is_null(const struct intel_device_info *devinfo, const brw_inst *inst)
 {
-   return brw_inst_dst_reg_file(devinfo, inst) == BRW_ARCHITECTURE_REGISTER_FILE &&
+   return brw_inst_dst_reg_file(devinfo, inst) == ARF &&
           brw_inst_dst_da_reg_nr(devinfo, inst) == BRW_ARF_NULL;
 }
 
@@ -173,28 +173,28 @@ static bool
 src0_is_null(const struct intel_device_info *devinfo, const brw_inst *inst)
 {
    return brw_inst_src0_address_mode(devinfo, inst) == BRW_ADDRESS_DIRECT &&
-          brw_inst_src0_reg_file(devinfo, inst) == BRW_ARCHITECTURE_REGISTER_FILE &&
+          brw_inst_src0_reg_file(devinfo, inst) == ARF &&
           brw_inst_src0_da_reg_nr(devinfo, inst) == BRW_ARF_NULL;
 }
 
 static bool
 src1_is_null(const struct intel_device_info *devinfo, const brw_inst *inst)
 {
-   return brw_inst_src1_reg_file(devinfo, inst) == BRW_ARCHITECTURE_REGISTER_FILE &&
+   return brw_inst_src1_reg_file(devinfo, inst) == ARF &&
           brw_inst_src1_da_reg_nr(devinfo, inst) == BRW_ARF_NULL;
 }
 
 static bool
 src0_is_acc(const struct intel_device_info *devinfo, const brw_inst *inst)
 {
-   return brw_inst_src0_reg_file(devinfo, inst) == BRW_ARCHITECTURE_REGISTER_FILE &&
+   return brw_inst_src0_reg_file(devinfo, inst) == ARF &&
           (brw_inst_src0_da_reg_nr(devinfo, inst) & 0xF0) == BRW_ARF_ACCUMULATOR;
 }
 
 static bool
 src1_is_acc(const struct intel_device_info *devinfo, const brw_inst *inst)
 {
-   return brw_inst_src1_reg_file(devinfo, inst) == BRW_ARCHITECTURE_REGISTER_FILE &&
+   return brw_inst_src1_reg_file(devinfo, inst) == ARF &&
           (brw_inst_src1_da_reg_nr(devinfo, inst) & 0xF0) == BRW_ARF_ACCUMULATOR;
 }
 
@@ -358,7 +358,7 @@ send_restrictions(const struct brw_isa_info *isa,
    struct string error_msg = { .str = NULL, .len = 0 };
 
    if (inst_is_split_send(isa, inst)) {
-      ERROR_IF(brw_inst_send_src1_reg_file(devinfo, inst) == BRW_ARCHITECTURE_REGISTER_FILE &&
+      ERROR_IF(brw_inst_send_src1_reg_file(devinfo, inst) == ARF &&
                brw_inst_send_src1_reg_nr(devinfo, inst) != BRW_ARF_NULL,
                "src1 of split send must be a GRF or NULL");
 
@@ -366,12 +366,12 @@ send_restrictions(const struct brw_isa_info *isa,
                brw_inst_src0_da_reg_nr(devinfo, inst) < 112,
                "send with EOT must use g112-g127");
       ERROR_IF(brw_inst_eot(devinfo, inst) &&
-               brw_inst_send_src1_reg_file(devinfo, inst) == BRW_GENERAL_REGISTER_FILE &&
+               brw_inst_send_src1_reg_file(devinfo, inst) == FIXED_GRF &&
                brw_inst_send_src1_reg_nr(devinfo, inst) < 112,
                "send with EOT must use g112-g127");
 
-      if (brw_inst_send_src0_reg_file(devinfo, inst) == BRW_GENERAL_REGISTER_FILE &&
-          brw_inst_send_src1_reg_file(devinfo, inst) == BRW_GENERAL_REGISTER_FILE) {
+      if (brw_inst_send_src0_reg_file(devinfo, inst) == FIXED_GRF &&
+          brw_inst_send_src1_reg_file(devinfo, inst) == FIXED_GRF) {
          /* Assume minimums if we don't know */
          unsigned mlen = 1;
          if (!brw_inst_send_sel_reg32_desc(devinfo, inst)) {
@@ -397,7 +397,7 @@ send_restrictions(const struct brw_isa_info *isa,
       ERROR_IF(brw_inst_src0_address_mode(devinfo, inst) != BRW_ADDRESS_DIRECT,
                "send must use direct addressing");
 
-      ERROR_IF(brw_inst_send_src0_reg_file(devinfo, inst) != BRW_GENERAL_REGISTER_FILE,
+      ERROR_IF(brw_inst_send_src0_reg_file(devinfo, inst) != FIXED_GRF,
                "send from non-GRF");
       ERROR_IF(brw_inst_eot(devinfo, inst) &&
                brw_inst_src0_da_reg_nr(devinfo, inst) < 112,
@@ -993,7 +993,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
                   "Destination Horizontal Stride must be 1");
 
       if (num_sources >= 1) {
-         ERROR_IF(brw_inst_src0_reg_file(devinfo, inst) != BRW_IMMEDIATE_VALUE &&
+         ERROR_IF(brw_inst_src0_reg_file(devinfo, inst) != IMM &&
                   brw_inst_src0_vstride(devinfo, inst) != BRW_VERTICAL_STRIDE_0 &&
                   brw_inst_src0_vstride(devinfo, inst) != BRW_VERTICAL_STRIDE_2 &&
                   brw_inst_src0_vstride(devinfo, inst) != BRW_VERTICAL_STRIDE_4,
@@ -1001,7 +1001,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
       }
 
       if (num_sources == 2) {
-         ERROR_IF(brw_inst_src1_reg_file(devinfo, inst) != BRW_IMMEDIATE_VALUE &&
+         ERROR_IF(brw_inst_src1_reg_file(devinfo, inst) != IMM &&
                   brw_inst_src1_vstride(devinfo, inst) != BRW_VERTICAL_STRIDE_0 &&
                   brw_inst_src1_vstride(devinfo, inst) != BRW_VERTICAL_STRIDE_2 &&
                   brw_inst_src1_vstride(devinfo, inst) != BRW_VERTICAL_STRIDE_4,
@@ -1017,7 +1017,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
 
 #define DO_SRC(n)                                                              \
       if (brw_inst_src ## n ## _reg_file(devinfo, inst) ==                     \
-          BRW_IMMEDIATE_VALUE)                                                 \
+          IMM)                                                 \
          continue;                                                             \
                                                                                \
       vstride = STRIDE(brw_inst_src ## n ## _vstride(devinfo, inst));          \
@@ -1457,7 +1457,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
          continue;                                                             \
                                                                                \
       if (brw_inst_src ## n ## _reg_file(devinfo, inst) ==                     \
-          BRW_IMMEDIATE_VALUE)                                                 \
+          IMM)                                                 \
          continue;                                                             \
                                                                                \
       vstride = STRIDE(brw_inst_src ## n ## _vstride(devinfo, inst));          \
@@ -1554,7 +1554,7 @@ vector_immediate_restrictions(const struct brw_isa_info *isa,
    unsigned file = num_sources == 1 ?
                    brw_inst_src0_reg_file(devinfo, inst) :
                    brw_inst_src1_reg_file(devinfo, inst);
-   if (file != BRW_IMMEDIATE_VALUE)
+   if (file != IMM)
       return (struct string){};
 
    enum brw_reg_type dst_type = inst_dst_type(isa, inst);
@@ -1648,7 +1648,7 @@ special_requirements_for_handling_double_precision_data_types(
 
 #define DO_SRC(n)                                                              \
       if (brw_inst_src ## n ## _reg_file(devinfo, inst) ==                     \
-          BRW_IMMEDIATE_VALUE)                                                 \
+          IMM)                                                 \
          continue;                                                             \
                                                                                \
       is_scalar_region = src ## n ## _has_scalar_region(devinfo, inst);        \
@@ -1732,9 +1732,9 @@ special_requirements_for_handling_double_precision_data_types(
           intel_device_info_is_9lp(devinfo)) {
          ERROR_IF(brw_inst_opcode(isa, inst) == BRW_OPCODE_MAC ||
                   brw_inst_acc_wr_control(devinfo, inst) ||
-                  (BRW_ARCHITECTURE_REGISTER_FILE == file &&
+                  (ARF == file &&
                    reg != BRW_ARF_NULL) ||
-                  (BRW_ARCHITECTURE_REGISTER_FILE == dst_file &&
+                  (ARF == dst_file &&
                    dst_reg != BRW_ARF_NULL),
                   "Architecture registers cannot be used when the execution "
                   "type is 64-bit");
@@ -1772,9 +1772,9 @@ special_requirements_for_handling_double_precision_data_types(
                   "source and destination are not supported except for "
                   "broadcast of a scalar.");
 
-         ERROR_IF((address_mode == BRW_ADDRESS_DIRECT && file == BRW_ARCHITECTURE_REGISTER_FILE &&
+         ERROR_IF((address_mode == BRW_ADDRESS_DIRECT && file == ARF &&
                    reg != BRW_ARF_NULL && !(reg >= BRW_ARF_ACCUMULATOR && reg < BRW_ARF_FLAG)) ||
-                  (dst_file == BRW_ARCHITECTURE_REGISTER_FILE &&
+                  (dst_file == ARF &&
                    dst_reg != BRW_ARF_NULL && (dst_reg & 0xF0) != BRW_ARF_ACCUMULATOR),
                   "Explicit ARF registers except null and accumulator must not "
                   "be used.");
@@ -1850,12 +1850,12 @@ instruction_restrictions(const struct brw_isa_info *isa,
       enum brw_reg_type exec_type = execution_type(isa, inst);
       const bool src0_valid =
          brw_type_size_bytes(brw_inst_src0_type(devinfo, inst)) == 4 ||
-         brw_inst_src0_reg_file(devinfo, inst) == BRW_IMMEDIATE_VALUE ||
+         brw_inst_src0_reg_file(devinfo, inst) == IMM ||
          !(brw_inst_src0_negate(devinfo, inst) ||
            brw_inst_src0_abs(devinfo, inst));
       const bool src1_valid =
          brw_type_size_bytes(brw_inst_src1_type(devinfo, inst)) == 4 ||
-         brw_inst_src1_reg_file(devinfo, inst) == BRW_IMMEDIATE_VALUE ||
+         brw_inst_src1_reg_file(devinfo, inst) == IMM ||
          !(brw_inst_src1_negate(devinfo, inst) ||
            brw_inst_src1_abs(devinfo, inst));
 
@@ -2029,7 +2029,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
       ERROR_IF(brw_inst_src0_abs(devinfo, inst),
                "Behavior of abs source modifier in logic ops is undefined.");
       ERROR_IF(brw_inst_opcode(isa, inst) != BRW_OPCODE_NOT &&
-               brw_inst_src1_reg_file(devinfo, inst) != BRW_IMMEDIATE_VALUE &&
+               brw_inst_src1_reg_file(devinfo, inst) != IMM &&
                brw_inst_src1_abs(devinfo, inst),
                "Behavior of abs source modifier in logic ops is undefined.");
 
@@ -2337,7 +2337,7 @@ send_descriptor_restrictions(const struct brw_isa_info *isa,
          return error_msg;
    } else if (inst_is_send(isa, inst)) {
       /* We can only validate immediate descriptors */
-      if (brw_inst_src1_reg_file(devinfo, inst) != BRW_IMMEDIATE_VALUE)
+      if (brw_inst_src1_reg_file(devinfo, inst) != IMM)
          return error_msg;
    } else {
       return error_msg;

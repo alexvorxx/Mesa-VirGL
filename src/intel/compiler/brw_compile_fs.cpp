@@ -236,7 +236,7 @@ brw_emit_interpolation_setup(fs_visitor &s)
        *
        * The coarse pixel size is delivered as 2 u8 in r1.0
        */
-      struct brw_reg r1_0 = retype(brw_vec1_reg(BRW_GENERAL_REGISTER_FILE, 1, 0), BRW_TYPE_UB);
+      struct brw_reg r1_0 = retype(brw_vec1_reg(FIXED_GRF, 1, 0), BRW_TYPE_UB);
 
       const fs_builder dbld =
          abld.exec_all().group(MIN2(16, s.dispatch_width) * 2, 0);
@@ -592,7 +592,7 @@ brw_emit_repclear_shader(fs_visitor &s)
 
    /* We pass the clear color as a flat input.  Copy it to the output. */
    brw_reg color_input =
-      brw_make_reg(BRW_GENERAL_REGISTER_FILE, 2, 3, 0, 0, BRW_TYPE_UD,
+      brw_make_reg(FIXED_GRF, 2, 3, 0, 0, BRW_TYPE_UD,
               BRW_VERTICAL_STRIDE_8, BRW_WIDTH_2, BRW_HORIZONTAL_STRIDE_4,
               BRW_SWIZZLE_XYZW, WRITEMASK_XYZW);
 

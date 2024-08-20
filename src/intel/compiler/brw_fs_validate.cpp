@@ -134,7 +134,7 @@ brw_fs_validate(const fs_visitor &s)
 
          if (devinfo->ver >= 10) {
             for (unsigned i = 0; i < 3; i++) {
-               if (inst->src[i].file == BRW_IMMEDIATE_VALUE)
+               if (inst->src[i].file == IMM)
                   continue;
 
                switch (inst->src[i].vstride) {
@@ -166,7 +166,7 @@ brw_fs_validate(const fs_visitor &s)
              * passes (e.g., combine constants) will fix them.
              */
             for (unsigned i = 0; i < 3; i++) {
-               fsv_assert_ne(inst->src[i].file, BRW_IMMEDIATE_VALUE);
+               fsv_assert_ne(inst->src[i].file, IMM);
 
                /* A stride of 1 (the usual case) or 0, with a special
                 * "repctrl" bit, is allowed. The repctrl bit doesn't work for
