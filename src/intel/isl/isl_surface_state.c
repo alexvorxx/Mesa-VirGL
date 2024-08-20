@@ -22,6 +22,7 @@
  */
 
 #include <stdint.h>
+#include <inttypes.h>
 
 #define __gen_address_type uint64_t
 #define __gen_user_data void
@@ -36,6 +37,7 @@ __gen_combine_address(__attribute__((unused)) void *data,
 
 #include "genxml/gen_macros.h"
 #include "genxml/genX_pack.h"
+#include "util/log.h"
 
 #include "isl_priv.h"
 #include "isl_genX_helpers.h"
@@ -973,8 +975,25 @@ isl_genX(buffer_fill_state_s)(const struct isl_device *dev, void *state,
        *
        *    For typed buffer and structured buffer surfaces, the number
        *    of entries in the buffer ranges from 1 to 2^27.
+       *
+       * We could assert(num_elements <= (1 << 27)) here, but some DX12 games
+       * misbehave and there's nothing either vkd3d or Anv can do about it.
+       * Therefore we just allow those cases to happen in order to avoid
+       * crashing or further breaking the applications.
+       *
+       * Applications causing this issue generally ignore
+       * PhysicalDevice::maxTexelBufferElements, leading them to disrespect
+       * restrictions such as:
+       *   VUID-VkDescriptorGetInfoEXT-type-09427
+       *   VUID-VkDescriptorGetInfoEXT-type-09428
+       *   VUID-VkBufferViewCreateInfo-range-00930
+       *   VUID-VkBufferViewCreateInfo-range-04059
        */
-      assert(num_elements <= (1ull << 27));
+      if (num_elements > (1 << 27)) {
+         mesa_logw("%s: num_elements is too big: %u (buffer size: %"PRIu64")\n",
+                   __func__, num_elements, buffer_size);
+         num_elements = 1 << 27;
+      }
    }
 
    struct GENX(RENDER_SURFACE_STATE) s = { 0, };
