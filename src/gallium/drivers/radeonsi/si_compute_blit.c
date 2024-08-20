@@ -114,7 +114,7 @@ static void si_compute_begin_internal(struct si_context *sctx, unsigned flags)
    sctx->blitter_running = true;
 }
 
-static void si_compute_end_internal(struct si_context *sctx, unsigned flags)
+static void si_compute_end_internal(struct si_context *sctx)
 {
    sctx->flags &= ~SI_CONTEXT_STOP_PIPELINE_STATS;
    if (sctx->num_hw_pipestat_streamout_queries) {
@@ -130,18 +130,12 @@ static void si_compute_end_internal(struct si_context *sctx, unsigned flags)
 }
 
 static void si_launch_grid_internal(struct si_context *sctx, const struct pipe_grid_info *info,
-                                    void *shader, unsigned flags)
+                                    void *shader)
 {
-   si_barrier_before_internal_op(sctx, flags);
-   si_compute_begin_internal(sctx, flags);
-
    void *saved_cs = sctx->cs_shader_state.program;
    sctx->b.bind_compute_state(&sctx->b, shader);
    sctx->b.launch_grid(&sctx->b, info);
    sctx->b.bind_compute_state(&sctx->b, saved_cs);
-
-   si_compute_end_internal(sctx, flags);
-   si_barrier_after_internal_op(sctx, flags);
 }
 
 void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_info *info,
@@ -165,7 +159,12 @@ void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_inf
    si_set_shader_buffers(&sctx->b, PIPE_SHADER_COMPUTE, 0, num_buffers, buffers,
                          writeable_bitmask,
                          true /* don't update bind_history to prevent unnecessary syncs later */);
-   si_launch_grid_internal(sctx, info, shader, flags);
+
+   si_barrier_before_internal_op(sctx, flags);
+   si_compute_begin_internal(sctx, flags);
+   si_launch_grid_internal(sctx, info, shader);
+   si_compute_end_internal(sctx);
+   si_barrier_after_internal_op(sctx, flags);
 
    /* We must set TC_L2_dirty because:
     * - GFX6,12: CP DMA doesn't use L2.
@@ -469,7 +468,12 @@ static void si_launch_grid_internal_images(struct si_context *sctx,
       }
    }
 
-   si_launch_grid_internal(sctx, info, shader, flags | SI_OP_CS_IMAGE);
+   flags |= SI_OP_CS_IMAGE;
+   si_barrier_before_internal_op(sctx, flags);
+   si_compute_begin_internal(sctx, flags);
+   si_launch_grid_internal(sctx, info, shader);
+   si_compute_end_internal(sctx);
+   si_barrier_after_internal_op(sctx, flags);
 
    /* Make sure RBs see our DCC stores if RBs and TCCs (L2 instances) are non-coherent. */
    if (flags & SI_OP_SYNC_AFTER && sctx->gfx_level >= GFX10 &&
@@ -622,7 +626,12 @@ void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex
    struct pipe_grid_info info = {0};
    set_work_size(&info, 8, 8, 1, tex->width0, tex->height0, is_array ? tex->array_size : 1);
 
-   si_launch_grid_internal(sctx, &info, *shader, SI_OP_SYNC_BEFORE_AFTER);
+   unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+   si_barrier_before_internal_op(sctx, flags);
+   si_compute_begin_internal(sctx, flags);
+   si_launch_grid_internal(sctx, &info, *shader);
+   si_compute_end_internal(sctx);
+   si_barrier_after_internal_op(sctx, flags);
 
    /* Restore previous states. */
    ctx->set_shader_images(ctx, PIPE_SHADER_COMPUTE, 0, 1, 0, &saved_image);
