@@ -1748,8 +1748,10 @@ vk_create_graphics_pipeline(struct vk_device *device,
    }
 
    pipeline->stage_count = stage_count;
-   for (uint32_t i = 0; i < stage_count; i++)
+   for (uint32_t i = 0; i < stage_count; i++) {
+      pipeline->base.stages |= mesa_to_vk_shader_stage(stages[i].stage);
       pipeline->stages[i] = stages[i];
+   }
 
    const int64_t pipeline_end = os_time_get_nano();
    if (feedback_info != NULL) {
@@ -2091,6 +2093,8 @@ vk_create_compute_pipeline(struct vk_device *device,
                          pipeline_flags, pAllocator, sizeof(*pipeline));
    if (pipeline == NULL)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+   pipeline->base.stages = VK_SHADER_STAGE_COMPUTE_BIT;
 
    struct vk_pipeline_stage stage = {
       .stage = MESA_SHADER_COMPUTE,

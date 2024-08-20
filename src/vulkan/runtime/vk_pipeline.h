@@ -163,6 +163,7 @@ struct vk_pipeline {
 
    VkPipelineBindPoint bind_point;
    VkPipelineCreateFlags2KHR flags;
+   VkShaderStageFlags stages;
 };
 
 VK_DEFINE_NONDISP_HANDLE_CASTS(vk_pipeline, base, VkPipeline,
