@@ -431,14 +431,6 @@ Converter::getOperation(nir_op op)
    case nir_op_u2u32:
    case nir_op_u2u64:
       return OP_CVT;
-   case nir_op_fddx:
-   case nir_op_fddx_coarse:
-   case nir_op_fddx_fine:
-      return OP_DFDX;
-   case nir_op_fddy:
-   case nir_op_fddy_coarse:
-   case nir_op_fddy_fine:
-      return OP_DFDY;
    case nir_op_fdiv:
    case nir_op_idiv:
    case nir_op_udiv:
@@ -588,6 +580,14 @@ Converter::getOperation(nir_intrinsic_op op)
    case nir_intrinsic_bindless_image_store:
    case nir_intrinsic_image_store:
       return OP_SUSTP;
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_coarse:
+   case nir_intrinsic_ddx_fine:
+      return OP_DFDX;
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_coarse:
+   case nir_intrinsic_ddy_fine:
+      return OP_DFDY;
    default:
       ERROR("couldn't get operation for nir_intrinsic_op %u\n", op);
       assert(false);
@@ -2371,6 +2371,18 @@ Converter::visit(nir_intrinsic_instr *insn)
       info_out->io.globalAccess |= 0x2;
       break;
    }
+   case nir_intrinsic_ddx:
+   case nir_intrinsic_ddx_coarse:
+   case nir_intrinsic_ddx_fine:
+   case nir_intrinsic_ddy:
+   case nir_intrinsic_ddy_coarse:
+   case nir_intrinsic_ddy_fine: {
+      assert(insn->def.num_components == 1);
+      const DataType dType = getDType(insn);
+      LValues &newDefs = convert(&insn->def);
+      mkOp1(getOperation(op), dType, newDefs[0], getSrc(&insn->src[0], 0));
+      break;
+   }
    default:
       ERROR("unknown nir_intrinsic_op %s\n", nir_intrinsic_infos[op].name);
       return false;
@@ -2461,12 +2473,6 @@ Converter::visit(nir_alu_instr *insn)
    case nir_op_iand:
    case nir_op_fceil:
    case nir_op_fcos:
-   case nir_op_fddx:
-   case nir_op_fddx_coarse:
-   case nir_op_fddx_fine:
-   case nir_op_fddy:
-   case nir_op_fddy_coarse:
-   case nir_op_fddy_fine:
    case nir_op_fdiv:
    case nir_op_idiv:
    case nir_op_udiv:
@@ -3503,6 +3509,8 @@ nvir_nir_shader_compiler_options(int chipset, uint8_t shader_type)
       ((chipset >= NVISA_GV100_CHIPSET) ? nir_lower_ddiv : 0)
    );
    op.discard_is_demote = true;
+   op.has_ddx_intrinsics = true;
+   op.scalarize_ddx = true;
    return op;
 }
 
