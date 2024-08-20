@@ -1279,6 +1279,16 @@ genX(cmd_buffer_flush_gfx_runtime_state)(struct anv_cmd_buffer *cmd_buffer)
             mesh_prog_data->map.start_dw[VARYING_SLOT_VIEWPORT] >= 0;
       }
 
+      /* From the Vulkan 1.0.45 spec:
+       *
+       *    "If the last active vertex processing stage shader entry
+       *    point's interface does not include a variable decorated with
+       *    ViewportIndex, then the first viewport is used."
+       */
+      SET(CLIP, clip.MaximumVPIndex, (last_raster_stage_write_viewport &&
+                                      dyn->vp.viewport_count > 0) ?
+                                     dyn->vp.viewport_count - 1 : 0);
+
       struct anv_instance *instance = cmd_buffer->device->physical->instance;
       const VkViewport *viewports = dyn->vp.viewports;
 
@@ -1402,16 +1412,6 @@ genX(cmd_buffer_flush_gfx_runtime_state)(struct anv_cmd_buffer *cmd_buffer)
 
          SET(VIEWPORT_CC, vp_cc.elem[i].MinimumDepth, min_depth);
          SET(VIEWPORT_CC, vp_cc.elem[i].MaximumDepth, max_depth);
-
-         /* From the Vulkan 1.0.45 spec:
-          *
-          *    "If the last active vertex processing stage shader entry
-          *    point's interface does not include a variable decorated with
-          *    ViewportIndex, then the first viewport is used."
-          */
-         SET(CLIP, clip.MaximumVPIndex, (last_raster_stage_write_viewport &&
-                                         dyn->vp.viewport_count > 0) ?
-                                        dyn->vp.viewport_count - 1 : 0);
       }
 
       /* If the HW state is already considered dirty or the previous
