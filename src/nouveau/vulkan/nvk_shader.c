@@ -7,6 +7,7 @@
 #include "nvk_cmd_buffer.h"
 #include "nvk_descriptor_set_layout.h"
 #include "nvk_device.h"
+#include "nvk_mme.h"
 #include "nvk_physical_device.h"
 #include "nvk_sampler.h"
 #include "nvk_shader.h"
@@ -29,8 +30,10 @@
 
 #include "cla097.h"
 #include "clb097.h"
-#include "clc397.h"
 #include "clc597.h"
+#include "nv_push_cl9097.h"
+#include "nv_push_clb197.h"
+#include "nv_push_clc397.h"
 
 static void
 shared_var_info(const struct glsl_type *type, unsigned *size, unsigned *align)
@@ -678,6 +681,207 @@ nvk_shader_upload(struct nvk_device *dev, struct nvk_shader *shader)
    return result;
 }
 
+uint32_t
+mesa_to_nv9097_shader_type(gl_shader_stage stage)
+{
+   static const uint32_t mesa_to_nv9097[] = {
+      [MESA_SHADER_VERTEX]    = NV9097_SET_PIPELINE_SHADER_TYPE_VERTEX,
+      [MESA_SHADER_TESS_CTRL] = NV9097_SET_PIPELINE_SHADER_TYPE_TESSELLATION_INIT,
+      [MESA_SHADER_TESS_EVAL] = NV9097_SET_PIPELINE_SHADER_TYPE_TESSELLATION,
+      [MESA_SHADER_GEOMETRY]  = NV9097_SET_PIPELINE_SHADER_TYPE_GEOMETRY,
+      [MESA_SHADER_FRAGMENT]  = NV9097_SET_PIPELINE_SHADER_TYPE_PIXEL,
+   };
+   assert(stage < ARRAY_SIZE(mesa_to_nv9097));
+   return mesa_to_nv9097[stage];
+}
+
+uint32_t
+nvk_pipeline_bind_group(gl_shader_stage stage)
+{
+   return stage;
+}
+
+uint16_t
+nvk_max_shader_push_dw(struct nvk_physical_device *pdev,
+                       gl_shader_stage stage, bool last_vtgm)
+{
+   if (stage == MESA_SHADER_COMPUTE)
+      return 0;
+
+   uint16_t max_dw_count = 8;
+
+   if (stage == MESA_SHADER_TESS_EVAL)
+      max_dw_count += 2;
+
+   if (stage == MESA_SHADER_FRAGMENT)
+      max_dw_count += 11;
+
+   if (last_vtgm) {
+      max_dw_count += 6;
+      max_dw_count += 4 * (5 + (128 / 4));
+   }
+
+   return max_dw_count;
+}
+
+static VkResult
+nvk_shader_fill_push(struct nvk_device *dev,
+                     struct nvk_shader *shader,
+                     const VkAllocationCallbacks* pAllocator)
+{
+   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+
+   ASSERTED uint16_t max_dw_count = 0;
+   uint32_t push_dw[200];
+   struct nv_push push, *p = &push;
+   nv_push_init(&push, push_dw, ARRAY_SIZE(push_dw));
+
+   const uint32_t type = mesa_to_nv9097_shader_type(shader->info.stage);
+
+   /* We always map index == type */
+   const uint32_t idx = type;
+
+   max_dw_count += 2;
+   P_IMMD(p, NV9097, SET_PIPELINE_SHADER(idx), {
+      .enable  = ENABLE_TRUE,
+      .type    = type,
+   });
+
+   max_dw_count += 3;
+   uint64_t addr = shader->hdr_addr;
+   if (pdev->info.cls_eng3d >= VOLTA_A) {
+      P_MTHD(p, NVC397, SET_PIPELINE_PROGRAM_ADDRESS_A(idx));
+      P_NVC397_SET_PIPELINE_PROGRAM_ADDRESS_A(p, idx, addr >> 32);
+      P_NVC397_SET_PIPELINE_PROGRAM_ADDRESS_B(p, idx, addr);
+   } else {
+      assert(addr < 0xffffffff);
+      P_IMMD(p, NV9097, SET_PIPELINE_PROGRAM(idx), addr);
+   }
+
+   max_dw_count += 3;
+   P_MTHD(p, NVC397, SET_PIPELINE_REGISTER_COUNT(idx));
+   P_NVC397_SET_PIPELINE_REGISTER_COUNT(p, idx, shader->info.num_gprs);
+   P_NVC397_SET_PIPELINE_BINDING(p, idx,
+      nvk_pipeline_bind_group(shader->info.stage));
+
+   if (shader->info.stage == MESA_SHADER_TESS_EVAL) {
+      max_dw_count += 2;
+      P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_TESS_PARAMS));
+      P_INLINE_DATA(p, nvk_mme_tess_params(shader->info.ts.domain,
+                                           shader->info.ts.spacing,
+                                           shader->info.ts.prims));
+   }
+
+   if (shader->info.stage == MESA_SHADER_FRAGMENT) {
+      max_dw_count += 11;
+
+      P_MTHD(p, NVC397, SET_SUBTILING_PERF_KNOB_A);
+      P_NV9097_SET_SUBTILING_PERF_KNOB_A(p, {
+         .fraction_of_spm_register_file_per_subtile         = 0x10,
+         .fraction_of_spm_pixel_output_buffer_per_subtile   = 0x40,
+         .fraction_of_spm_triangle_ram_per_subtile          = 0x16,
+         .fraction_of_max_quads_per_subtile                 = 0x20,
+      });
+      P_NV9097_SET_SUBTILING_PERF_KNOB_B(p, 0x20);
+
+      P_IMMD(p, NV9097, SET_API_MANDATED_EARLY_Z,
+             shader->info.fs.early_fragment_tests);
+
+      if (pdev->info.cls_eng3d >= MAXWELL_B) {
+         P_IMMD(p, NVB197, SET_POST_Z_PS_IMASK,
+                shader->info.fs.post_depth_coverage);
+      } else {
+         assert(!shader->info.fs.post_depth_coverage);
+      }
+
+      P_IMMD(p, NV9097, SET_ZCULL_BOUNDS, {
+         .z_min_unbounded_enable = shader->info.fs.writes_depth,
+         .z_max_unbounded_enable = shader->info.fs.writes_depth,
+      });
+
+      P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_ANTI_ALIAS));
+      P_INLINE_DATA(p,
+         nvk_mme_anti_alias_min_sample_shading(shader->min_sample_shading));
+   }
+
+   /* Stash this before we do XFB and clip/cull */
+   shader->push_dw_count = nv_push_dw_count(&push);
+   assert(max_dw_count ==
+          nvk_max_shader_push_dw(pdev, shader->info.stage, false));
+
+   if (shader->info.stage != MESA_SHADER_FRAGMENT &&
+       shader->info.stage != MESA_SHADER_TESS_CTRL) {
+      max_dw_count += 6;
+
+      P_IMMD(p, NV9097, SET_RT_LAYER, {
+         .v       = 0,
+         .control = shader->info.vtg.writes_layer ?
+                    CONTROL_GEOMETRY_SHADER_SELECTS_LAYER :
+                    CONTROL_V_SELECTS_LAYER,
+      });
+
+      const uint8_t clip_enable = shader->info.vtg.clip_enable;
+      const uint8_t cull_enable = shader->info.vtg.cull_enable;
+      P_IMMD(p, NV9097, SET_USER_CLIP_ENABLE, {
+         .plane0 = ((clip_enable | cull_enable) >> 0) & 1,
+         .plane1 = ((clip_enable | cull_enable) >> 1) & 1,
+         .plane2 = ((clip_enable | cull_enable) >> 2) & 1,
+         .plane3 = ((clip_enable | cull_enable) >> 3) & 1,
+         .plane4 = ((clip_enable | cull_enable) >> 4) & 1,
+         .plane5 = ((clip_enable | cull_enable) >> 5) & 1,
+         .plane6 = ((clip_enable | cull_enable) >> 6) & 1,
+         .plane7 = ((clip_enable | cull_enable) >> 7) & 1,
+      });
+      P_IMMD(p, NV9097, SET_USER_CLIP_OP, {
+         .plane0 = (cull_enable >> 0) & 1,
+         .plane1 = (cull_enable >> 1) & 1,
+         .plane2 = (cull_enable >> 2) & 1,
+         .plane3 = (cull_enable >> 3) & 1,
+         .plane4 = (cull_enable >> 4) & 1,
+         .plane5 = (cull_enable >> 5) & 1,
+         .plane6 = (cull_enable >> 6) & 1,
+         .plane7 = (cull_enable >> 7) & 1,
+      });
+
+      struct nak_xfb_info *xfb = &shader->info.vtg.xfb;
+      for (uint8_t b = 0; b < ARRAY_SIZE(xfb->attr_count); b++) {
+         const uint8_t attr_count = xfb->attr_count[b];
+
+         max_dw_count += 5 + (128 / 4);
+
+         P_MTHD(p, NV9097, SET_STREAM_OUT_CONTROL_STREAM(b));
+         P_NV9097_SET_STREAM_OUT_CONTROL_STREAM(p, b, xfb->stream[b]);
+         P_NV9097_SET_STREAM_OUT_CONTROL_COMPONENT_COUNT(p, b, attr_count);
+         P_NV9097_SET_STREAM_OUT_CONTROL_STRIDE(p, b, xfb->stride[b]);
+
+         if (attr_count > 0) {
+            /* upload packed varying indices in multiples of 4 bytes */
+            const uint32_t n = DIV_ROUND_UP(attr_count, 4);
+            P_MTHD(p, NV9097, SET_STREAM_OUT_LAYOUT_SELECT(b, 0));
+            P_INLINE_ARRAY(p, (const uint32_t*)xfb->attr_index[b], n);
+         }
+      }
+
+      shader->vtgm_push_dw_count = nv_push_dw_count(&push);
+      assert(max_dw_count ==
+             nvk_max_shader_push_dw(pdev, shader->info.stage, true));
+   }
+
+   assert(nv_push_dw_count(&push) <= max_dw_count);
+   assert(max_dw_count <= ARRAY_SIZE(push_dw));
+
+   uint16_t dw_count = nv_push_dw_count(&push);
+   shader->push_dw =
+      vk_zalloc2(&dev->vk.alloc, pAllocator, dw_count * sizeof(*push_dw),
+                 sizeof(*push_dw), VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+   if (shader->push_dw == NULL)
+      return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+   memcpy(shader->push_dw, push_dw, dw_count * sizeof(*push_dw));
+
+   return VK_SUCCESS;
+}
+
 static const struct vk_shader_ops nvk_shader_ops;
 
 static void
@@ -687,6 +891,8 @@ nvk_shader_destroy(struct vk_device *vk_dev,
 {
    struct nvk_device *dev = container_of(vk_dev, struct nvk_device, vk);
    struct nvk_shader *shader = container_of(vk_shader, struct nvk_shader, vk);
+
+   vk_free2(&dev->vk.alloc, pAllocator, shader->push_dw);
 
    if (shader->upload_size > 0) {
       nvk_heap_free(dev, &dev->shader_heap,
@@ -762,6 +968,14 @@ nvk_compile_shader(struct nvk_device *dev,
             CLAMP(state->ms->min_sample_shading, 0, 1);
       } else {
          shader->min_sample_shading = 0;
+      }
+   }
+
+   if (info->stage != MESA_SHADER_COMPUTE) {
+      result = nvk_shader_fill_push(dev, shader, pAllocator);
+      if (result != VK_SUCCESS) {
+         nvk_shader_destroy(&dev->vk, &shader->vk, pAllocator);
+         return result;
       }
    }
 
@@ -894,6 +1108,14 @@ nvk_deserialize_shader(struct vk_device *vk_dev,
    if (result != VK_SUCCESS) {
       nvk_shader_destroy(&dev->vk, &shader->vk, pAllocator);
       return result;
+   }
+
+   if (info.stage != MESA_SHADER_COMPUTE) {
+      result = nvk_shader_fill_push(dev, shader, pAllocator);
+      if (result != VK_SUCCESS) {
+         nvk_shader_destroy(&dev->vk, &shader->vk, pAllocator);
+         return result;
+      }
    }
 
    *shader_out = &shader->vk;

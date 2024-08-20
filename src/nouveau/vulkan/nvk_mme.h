@@ -8,6 +8,8 @@
 #include "mme_builder.h"
 #include "nvk_private.h"
 
+#include "nak.h"
+
 struct nv_device_info;
 
 enum nvk_mme {
@@ -215,6 +217,11 @@ void nvk_mme_set_write_mask(struct mme_builder *b);
 void nvk_mme_set_conservative_raster_state(struct mme_builder *b);
 void nvk_mme_set_viewport_min_max_z(struct mme_builder *b);
 void nvk_mme_set_z_clamp(struct mme_builder *b);
+
+uint32_t nvk_mme_tess_params(enum nak_ts_domain domain,
+                             enum nak_ts_spacing spacing,
+                             enum nak_ts_prims prims);
+uint32_t nvk_mme_anti_alias_min_sample_shading(float mss);
 
 struct nvk_mme_mthd_data {
    uint16_t mthd;

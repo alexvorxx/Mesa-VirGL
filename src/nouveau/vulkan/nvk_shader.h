@@ -62,6 +62,10 @@ struct nvk_cbuf_map {
    struct nvk_cbuf cbufs[16];
 };
 
+uint16_t
+nvk_max_shader_push_dw(struct nvk_physical_device *pdev,
+                       gl_shader_stage stage, bool last_vtgm);
+
 struct nvk_shader {
    struct vk_shader vk;
 
@@ -91,6 +95,10 @@ struct nvk_shader {
 
    /* Address of the start of the shader data section */
    uint64_t data_addr;
+
+   uint16_t push_dw_count;
+   uint16_t vtgm_push_dw_count;
+   uint32_t *push_dw;
 };
 
 extern const struct vk_device_shader_ops nvk_device_shader_ops;
@@ -126,6 +134,9 @@ VkResult
 nvk_compile_nir_shader(struct nvk_device *dev, nir_shader *nir,
                        const VkAllocationCallbacks *alloc,
                        struct nvk_shader **shader_out);
+
+uint32_t mesa_to_nv9097_shader_type(gl_shader_stage stage);
+uint32_t nvk_pipeline_bind_group(gl_shader_stage stage);
 
 /* Codegen wrappers.
  *

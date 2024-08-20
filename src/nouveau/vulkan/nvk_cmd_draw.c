@@ -1235,27 +1235,7 @@ nvk_cmd_bind_graphics_shader(struct nvk_cmd_buffer *cmd,
    cmd->state.gfx.shaders_dirty |= BITFIELD_BIT(stage);
 }
 
-static uint32_t
-mesa_to_nv9097_shader_type(gl_shader_stage stage)
-{
-   static const uint32_t mesa_to_nv9097[] = {
-      [MESA_SHADER_VERTEX]    = NV9097_SET_PIPELINE_SHADER_TYPE_VERTEX,
-      [MESA_SHADER_TESS_CTRL] = NV9097_SET_PIPELINE_SHADER_TYPE_TESSELLATION_INIT,
-      [MESA_SHADER_TESS_EVAL] = NV9097_SET_PIPELINE_SHADER_TYPE_TESSELLATION,
-      [MESA_SHADER_GEOMETRY]  = NV9097_SET_PIPELINE_SHADER_TYPE_GEOMETRY,
-      [MESA_SHADER_FRAGMENT]  = NV9097_SET_PIPELINE_SHADER_TYPE_PIXEL,
-   };
-   assert(stage < ARRAY_SIZE(mesa_to_nv9097));
-   return mesa_to_nv9097[stage];
-}
-
-static uint32_t
-nvk_pipeline_bind_group(gl_shader_stage stage)
-{
-   return stage;
-}
-
-static uint32_t
+uint32_t
 nvk_mme_tess_params(enum nak_ts_domain domain,
                     enum nak_ts_spacing spacing,
                     enum nak_ts_prims prims)
@@ -1363,8 +1343,6 @@ const struct nvk_mme_test_case nvk_mme_set_tess_params_tests[] = {{
    },
 }, {}};
 
-static uint32_t nvk_mme_anti_alias_min_sample_shading(float mss);
-
 static void
 nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
 {
@@ -1409,111 +1387,22 @@ nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
 
    u_foreach_bit(type, types_dirty) {
       struct nvk_shader *shader = type_shader[type];
-
-      /* We always map index == type */
-      const uint32_t idx = type;
-
-      struct nv_push *p = nvk_cmd_buffer_push(cmd, 10);
-      P_IMMD(p, NV9097, SET_PIPELINE_SHADER(idx), {
-         .enable  = shader != NULL,
-         .type    = type,
-      });
-
-      if (shader == NULL)
-         continue;
-
-      uint64_t addr = shader->hdr_addr;
-      if (nvk_cmd_buffer_3d_cls(cmd) >= VOLTA_A) {
-         P_MTHD(p, NVC397, SET_PIPELINE_PROGRAM_ADDRESS_A(idx));
-         P_NVC397_SET_PIPELINE_PROGRAM_ADDRESS_A(p, idx, addr >> 32);
-         P_NVC397_SET_PIPELINE_PROGRAM_ADDRESS_B(p, idx, addr);
+      if (shader == NULL) {
+         struct nv_push *p = nvk_cmd_buffer_push(cmd, 2);
+         P_IMMD(p, NV9097, SET_PIPELINE_SHADER(type), {
+            .enable  = ENABLE_FALSE,
+            .type    = type,
+         });
       } else {
-         assert(addr < 0xffffffff);
-         P_IMMD(p, NV9097, SET_PIPELINE_PROGRAM(idx), addr);
-      }
-
-      P_MTHD(p, NVC397, SET_PIPELINE_REGISTER_COUNT(idx));
-      P_NVC397_SET_PIPELINE_REGISTER_COUNT(p, idx, shader->info.num_gprs);
-      P_NVC397_SET_PIPELINE_BINDING(p, idx,
-         nvk_pipeline_bind_group(shader->info.stage));
-
-      if (shader->info.stage == MESA_SHADER_TESS_EVAL) {
-         P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_TESS_PARAMS));
-         P_INLINE_DATA(p, nvk_mme_tess_params(shader->info.ts.domain,
-                                              shader->info.ts.spacing,
-                                              shader->info.ts.prims));
-      }
-
-      if (shader->info.stage == MESA_SHADER_FRAGMENT) {
-         p = nvk_cmd_buffer_push(cmd, 11);
-
-         P_MTHD(p, NVC397, SET_SUBTILING_PERF_KNOB_A);
-         P_NV9097_SET_SUBTILING_PERF_KNOB_A(p, {
-            .fraction_of_spm_register_file_per_subtile         = 0x10,
-            .fraction_of_spm_pixel_output_buffer_per_subtile   = 0x40,
-            .fraction_of_spm_triangle_ram_per_subtile          = 0x16,
-            .fraction_of_max_quads_per_subtile                 = 0x20,
-         });
-         P_NV9097_SET_SUBTILING_PERF_KNOB_B(p, 0x20);
-
-         P_IMMD(p, NV9097, SET_API_MANDATED_EARLY_Z,
-                shader->info.fs.early_fragment_tests);
-
-         if (nvk_cmd_buffer_3d_cls(cmd) >= MAXWELL_B) {
-            P_IMMD(p, NVB197, SET_POST_Z_PS_IMASK,
-                   shader->info.fs.post_depth_coverage);
-         } else {
-            assert(!shader->info.fs.post_depth_coverage);
-         }
-
-         P_IMMD(p, NV9097, SET_ZCULL_BOUNDS, {
-            .z_min_unbounded_enable = shader->info.fs.writes_depth,
-            .z_max_unbounded_enable = shader->info.fs.writes_depth,
-         });
-
-         P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_ANTI_ALIAS));
-         P_INLINE_DATA(p,
-            nvk_mme_anti_alias_min_sample_shading(shader->min_sample_shading));
+         struct nv_push *p = nvk_cmd_buffer_push(cmd, shader->push_dw_count);
+         nv_push_raw(p, shader->push_dw, shader->push_dw_count);
       }
    }
 
-   const uint32_t vtg_stages = BITFIELD_BIT(MESA_SHADER_VERTEX) |
-                               BITFIELD_BIT(MESA_SHADER_TESS_EVAL) |
-                               BITFIELD_BIT(MESA_SHADER_GEOMETRY);
-   const uint32_t vtgm_stages = vtg_stages | BITFIELD_BIT(MESA_SHADER_MESH);
-
-   if (cmd->state.gfx.shaders_dirty & vtg_stages) {
-      struct nak_xfb_info *xfb = NULL;
-      u_foreach_bit(stage, vtg_stages) {
-         if (cmd->state.gfx.shaders[stage] != NULL)
-            xfb = &cmd->state.gfx.shaders[stage]->info.vtg.xfb;
-      }
-
-      if (xfb == NULL) {
-         struct nv_push *p = nvk_cmd_buffer_push(cmd, 8);
-         for (uint8_t b = 0; b < 4; b++)
-            P_IMMD(p, NV9097, SET_STREAM_OUT_CONTROL_COMPONENT_COUNT(b), 0);
-      } else {
-         for (uint8_t b = 0; b < ARRAY_SIZE(xfb->attr_count); b++) {
-            const uint8_t attr_count = xfb->attr_count[b];
-            /* upload packed varying indices in multiples of 4 bytes */
-            const uint32_t n = DIV_ROUND_UP(attr_count, 4);
-
-            struct nv_push *p = nvk_cmd_buffer_push(cmd, 5 + n);
-
-            P_MTHD(p, NV9097, SET_STREAM_OUT_CONTROL_STREAM(b));
-            P_NV9097_SET_STREAM_OUT_CONTROL_STREAM(p, b, xfb->stream[b]);
-            P_NV9097_SET_STREAM_OUT_CONTROL_COMPONENT_COUNT(p, b, attr_count);
-            P_NV9097_SET_STREAM_OUT_CONTROL_STRIDE(p, b, xfb->stride[b]);
-
-            if (n > 0) {
-               P_MTHD(p, NV9097, SET_STREAM_OUT_LAYOUT_SELECT(b, 0));
-               P_INLINE_ARRAY(p, (const uint32_t*)xfb->attr_index[b], n);
-            }
-         }
-      }
-   }
-
+   const uint32_t vtgm_stages = BITFIELD_BIT(MESA_SHADER_VERTEX) |
+                                BITFIELD_BIT(MESA_SHADER_TESS_EVAL) |
+                                BITFIELD_BIT(MESA_SHADER_GEOMETRY) |
+                                BITFIELD_BIT(MESA_SHADER_MESH);
    if (cmd->state.gfx.shaders_dirty & vtgm_stages) {
       struct nvk_shader *last_vtgm = NULL;
       u_foreach_bit(stage, vtgm_stages) {
@@ -1521,37 +1410,11 @@ nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
             last_vtgm = cmd->state.gfx.shaders[stage];
       }
 
-      struct nv_push *p = nvk_cmd_buffer_push(cmd, 6);
-
-      P_IMMD(p, NV9097, SET_RT_LAYER, {
-         .v       = 0,
-         .control = last_vtgm->info.vtg.writes_layer ?
-                    CONTROL_GEOMETRY_SHADER_SELECTS_LAYER :
-                    CONTROL_V_SELECTS_LAYER,
-      });
-
-      const uint8_t clip_enable = last_vtgm->info.vtg.clip_enable;
-      const uint8_t cull_enable = last_vtgm->info.vtg.cull_enable;
-      P_IMMD(p, NV9097, SET_USER_CLIP_ENABLE, {
-         .plane0 = ((clip_enable | cull_enable) >> 0) & 1,
-         .plane1 = ((clip_enable | cull_enable) >> 1) & 1,
-         .plane2 = ((clip_enable | cull_enable) >> 2) & 1,
-         .plane3 = ((clip_enable | cull_enable) >> 3) & 1,
-         .plane4 = ((clip_enable | cull_enable) >> 4) & 1,
-         .plane5 = ((clip_enable | cull_enable) >> 5) & 1,
-         .plane6 = ((clip_enable | cull_enable) >> 6) & 1,
-         .plane7 = ((clip_enable | cull_enable) >> 7) & 1,
-      });
-      P_IMMD(p, NV9097, SET_USER_CLIP_OP, {
-         .plane0 = (cull_enable >> 0) & 1,
-         .plane1 = (cull_enable >> 1) & 1,
-         .plane2 = (cull_enable >> 2) & 1,
-         .plane3 = (cull_enable >> 3) & 1,
-         .plane4 = (cull_enable >> 4) & 1,
-         .plane5 = (cull_enable >> 5) & 1,
-         .plane6 = (cull_enable >> 6) & 1,
-         .plane7 = (cull_enable >> 7) & 1,
-      });
+      assert(last_vtgm->vtgm_push_dw_count > last_vtgm->push_dw_count);
+      const uint16_t dw_start = last_vtgm->push_dw_count;
+      const uint16_t dw_count = last_vtgm->vtgm_push_dw_count - dw_start;
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, dw_count);
+      nv_push_raw(p, &last_vtgm->push_dw[dw_start], dw_count);
    }
 
    cmd->state.gfx.shaders_dirty = 0;
@@ -2184,7 +2047,7 @@ nvk_mme_anti_alias_init(void)
    return 0xf;
 }
 
-static uint32_t
+uint32_t
 nvk_mme_anti_alias_min_sample_shading(float mss)
 {
    /* The value we want to comput in the MME is
