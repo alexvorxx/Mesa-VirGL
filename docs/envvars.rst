@@ -856,7 +856,7 @@ Anvil(ANV) driver environment variables
 .. envvar:: ANV_ALWAYS_BINDLESS
 
    If defined to ``1`` or ``true``, this forces all descriptor sets to
-   use the internal `Bindless model`_.
+   use the internal :ref:`Bindless model`.
 
 .. envvar:: ANV_QUEUE_THREAD_DISABLE
 
