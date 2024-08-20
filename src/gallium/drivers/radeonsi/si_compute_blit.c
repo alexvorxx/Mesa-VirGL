@@ -57,14 +57,33 @@ static void si_improve_sync_flags(struct si_context *sctx, struct pipe_resource 
    }
 }
 
-static void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags)
+static void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
+                                          unsigned num_buffers,
+                                          const struct pipe_shader_buffer *buffers,
+                                          unsigned writable_buffers_mask,
+                                          unsigned num_images,
+                                          const struct pipe_image_view *images)
 {
+   for (unsigned i = 0; i < num_images; i++) {
+      /* The driver doesn't decompress resources automatically for internal blits, so do it manually. */
+      si_decompress_subresource(&sctx->b, images[i].resource, PIPE_MASK_RGBAZS,
+                                images[i].u.tex.level, images[i].u.tex.first_layer,
+                                images[i].u.tex.last_layer,
+                                images[i].access & PIPE_IMAGE_ACCESS_WRITE);
+   }
+
    /* Wait for previous shaders to finish. */
    if (flags & SI_OP_SYNC_GE_BEFORE)
       sctx->flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
 
-   if (flags & SI_OP_SYNC_PS_BEFORE)
+   if (flags & SI_OP_SYNC_PS_BEFORE) {
       sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH;
+
+      for (unsigned i = 0; i < num_images; i++) {
+         si_make_CB_shader_coherent(sctx, images[i].resource->nr_samples, true,
+               ((struct si_texture*)images[i].resource)->surface.u.gfx9.color.dcc.pipe_aligned);
+      }
+   }
 
    if (flags & SI_OP_SYNC_CS_BEFORE)
       sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
@@ -77,7 +96,12 @@ static void si_barrier_before_internal_op(struct si_context *sctx, unsigned flag
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
 }
 
-static void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags)
+static void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
+                                         unsigned num_buffers,
+                                         const struct pipe_shader_buffer *buffers,
+                                         unsigned writable_buffers_mask,
+                                         unsigned num_images,
+                                         const struct pipe_image_view *images)
 {
    if (flags & SI_OP_SYNC_AFTER) {
       sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
@@ -93,6 +117,32 @@ static void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags
       }
 
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   }
+
+   /* We must set TC_L2_dirty for buffers because:
+    * - GFX6,12: CP DMA doesn't use L2.
+    * - GFX6-7,12: Index buffer reads don't use L2.
+    * - GFX6-8,12: CP doesn't use L2.
+    * - GFX6-8: CB/DB don't use L2.
+    *
+    * TC_L2_dirty is checked explicitly when buffers are used in those cases to enforce coherency.
+    */
+   while (writable_buffers_mask)
+      si_resource(buffers[u_bit_scan(&writable_buffers_mask)].buffer)->TC_L2_dirty = true;
+
+   /* Make sure RBs see our DCC image stores if RBs and TCCs (L2 instances) are non-coherent. */
+   if (flags & SI_OP_SYNC_AFTER && sctx->gfx_level >= GFX10 &&
+       sctx->screen->info.tcc_rb_non_coherent) {
+      for (unsigned i = 0; i < num_images; i++) {
+         if (vi_dcc_enabled((struct si_texture*)images[i].resource, images[i].u.tex.level) &&
+             images[i].access & PIPE_IMAGE_ACCESS_WRITE &&
+             (sctx->screen->always_allow_dcc_stores ||
+              images[i].access & SI_IMAGE_ACCESS_ALLOW_DCC_STORE)) {
+            sctx->flags |= SI_CONTEXT_INV_L2;
+            si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+            break;
+         }
+      }
    }
 }
 
@@ -160,22 +210,11 @@ void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_inf
                          writeable_bitmask,
                          true /* don't update bind_history to prevent unnecessary syncs later */);
 
-   si_barrier_before_internal_op(sctx, flags);
+   si_barrier_before_internal_op(sctx, flags, num_buffers, buffers, writeable_bitmask, 0, NULL);
    si_compute_begin_internal(sctx, flags);
    si_launch_grid_internal(sctx, info, shader);
    si_compute_end_internal(sctx);
-   si_barrier_after_internal_op(sctx, flags);
-
-   /* We must set TC_L2_dirty because:
-    * - GFX6,12: CP DMA doesn't use L2.
-    * - GFX6-7,12: Index buffer reads don't use L2.
-    * - GFX6-8,12: CP doesn't use L2.
-    * - GFX6-8: CB/DB don't use L2.
-    *
-    * TC_L2_dirty is checked explicitly when buffers are used in those cases to enforce coherency.
-    */
-   while (writeable_bitmask)
-      si_resource(buffers[u_bit_scan(&writeable_bitmask)].buffer)->TC_L2_dirty = true;
+   si_barrier_after_internal_op(sctx, flags, num_buffers, buffers, writeable_bitmask, 0, NULL);
 
    /* Restore states. */
    sctx->b.set_shader_buffers(&sctx->b, PIPE_SHADER_COMPUTE, 0, num_buffers, saved_sb,
@@ -448,47 +487,17 @@ static void si_launch_grid_internal_images(struct si_context *sctx,
       util_copy_image_view(&saved_image[i], &sctx->images[PIPE_SHADER_COMPUTE].views[i]);
    }
 
-   /* This might invoke DCC decompression, so do it first. */
+   /* This might invoke DCC decompression, so call it before si_barrier_before_internal_compute
+    * and si_compute_begin_internal.
+    */
    sctx->b.set_shader_images(&sctx->b, PIPE_SHADER_COMPUTE, 0, num_images, 0, images);
 
-   /* This should be done after set_shader_images. */
-   for (unsigned i = 0; i < num_images; i++) {
-      /* The driver doesn't decompress resources automatically here, so do it manually. */
-      si_decompress_subresource(&sctx->b, images[i].resource, PIPE_MASK_RGBAZS,
-                                images[i].u.tex.level, images[i].u.tex.first_layer,
-                                images[i].u.tex.last_layer,
-                                images[i].access & PIPE_IMAGE_ACCESS_WRITE);
-   }
-
-   /* This must be done before the compute shader. */
-   if (flags & SI_OP_SYNC_PS_BEFORE) {
-      for (unsigned i = 0; i < num_images; i++) {
-         si_make_CB_shader_coherent(sctx, images[i].resource->nr_samples, true,
-               ((struct si_texture*)images[i].resource)->surface.u.gfx9.color.dcc.pipe_aligned);
-      }
-   }
-
    flags |= SI_OP_CS_IMAGE;
-   si_barrier_before_internal_op(sctx, flags);
+   si_barrier_before_internal_op(sctx, flags, 0, NULL, 0, num_images, images);
    si_compute_begin_internal(sctx, flags);
    si_launch_grid_internal(sctx, info, shader);
    si_compute_end_internal(sctx);
-   si_barrier_after_internal_op(sctx, flags);
-
-   /* Make sure RBs see our DCC stores if RBs and TCCs (L2 instances) are non-coherent. */
-   if (flags & SI_OP_SYNC_AFTER && sctx->gfx_level >= GFX10 &&
-       sctx->screen->info.tcc_rb_non_coherent) {
-      for (unsigned i = 0; i < num_images; i++) {
-         if (vi_dcc_enabled((struct si_texture*)images[i].resource, images[i].u.tex.level) &&
-             images[i].access & PIPE_IMAGE_ACCESS_WRITE &&
-             (sctx->screen->always_allow_dcc_stores ||
-              images[i].access & SI_IMAGE_ACCESS_ALLOW_DCC_STORE)) {
-            sctx->flags |= SI_CONTEXT_INV_L2;
-            si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
-            break;
-         }
-      }
-   }
+   si_barrier_after_internal_op(sctx, flags, 0, NULL, 0, num_images, images);
 
    /* Restore images. */
    sctx->b.set_shader_images(&sctx->b, PIPE_SHADER_COMPUTE, 0, num_images, 0, saved_image);
@@ -627,11 +636,11 @@ void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex
    set_work_size(&info, 8, 8, 1, tex->width0, tex->height0, is_array ? tex->array_size : 1);
 
    unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
-   si_barrier_before_internal_op(sctx, flags);
+   si_barrier_before_internal_op(sctx, flags, 0, NULL, 0, 1, &image);
    si_compute_begin_internal(sctx, flags);
    si_launch_grid_internal(sctx, &info, *shader);
    si_compute_end_internal(sctx);
-   si_barrier_after_internal_op(sctx, flags);
+   si_barrier_after_internal_op(sctx, flags, 0, NULL, 0, 1, &image);
 
    /* Restore previous states. */
    ctx->set_shader_images(ctx, PIPE_SHADER_COMPUTE, 0, 1, 0, &saved_image);
