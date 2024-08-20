@@ -228,6 +228,8 @@
     BOOT_METHOD: u-boot
     KERNEL_IMAGE_NAME: Image
     KERNEL_IMAGE_TYPE: "image"
+    FORCE_KERNEL_TAG: "v6.11-rc5-mesa-3831"
+    KERNEL_IMAGE_BASE: https://${S3_HOST}/${S3_KERNEL_BUCKET}/${KERNEL_REPO}/${FORCE_KERNEL_TAG}
     RUNNER_TAG: mesa-ci-x86-64-lava-rk3588-rock-5b
 
 # Status: https://lava.collabora.dev/scheduler/device_type/sun50i-h6-pine-h64
