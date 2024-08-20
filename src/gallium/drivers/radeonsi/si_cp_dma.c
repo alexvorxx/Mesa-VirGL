@@ -24,8 +24,7 @@
 enum si_cache_policy
 {
    L2_BYPASS,
-   L2_STREAM, /* same as SLC=1 */
-   L2_LRU,    /* same as SLC=0 */
+   L2_LRU,
 };
 
 static enum si_cache_policy get_cache_policy(struct si_context *sctx)
@@ -93,11 +92,7 @@ static void si_emit_cp_dma(struct si_context *sctx, struct radeon_cmdbuf *cs, ui
       /* GDS increments the address, not CP. */
       command |= S_415_DAS(V_415_REGISTER) | S_415_DAIC(V_415_NO_INCREMENT);
    } else if (sctx->gfx_level >= GFX7 && cache_policy != L2_BYPASS) {
-      /* GFX12: DST_CACHE_POLICY is changed to DST_TEMPORAL, but the behavior is the same
-       * for values of 0 and 1.
-       */
-      header |=
-         S_501_DST_SEL(V_501_DST_ADDR_TC_L2) | S_501_DST_CACHE_POLICY(cache_policy == L2_STREAM);
+      header |= S_501_DST_SEL(V_501_DST_ADDR_TC_L2);
    }
 
    if (flags & CP_DMA_CLEAR) {
@@ -107,11 +102,7 @@ static void si_emit_cp_dma(struct si_context *sctx, struct radeon_cmdbuf *cs, ui
       /* Both of these are required for GDS. It does increment the address. */
       command |= S_415_SAS(V_415_REGISTER) | S_415_SAIC(V_415_NO_INCREMENT);
    } else if (sctx->gfx_level >= GFX7 && cache_policy != L2_BYPASS) {
-      /* GFX12: SRC_CACHE_POLICY is changed to SRC_TEMPORAL, but the behavior is the same
-       * for values of 0 and 1.
-       */
-      header |=
-         S_501_SRC_SEL(V_501_SRC_ADDR_TC_L2) | S_501_SRC_CACHE_POLICY(cache_policy == L2_STREAM);
+      header |= S_501_SRC_SEL(V_501_SRC_ADDR_TC_L2);
    }
 
    radeon_begin(cs);
