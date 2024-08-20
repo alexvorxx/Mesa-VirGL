@@ -922,28 +922,13 @@ build_dgc_buffer_preamble(nir_builder *b, nir_def *cmd_buf_preamble_offset, nir_
 
       nir_def *words = nir_ushr_imm(b, cmd_buf_size, 2);
 
-      nir_def *nop_packet = dgc_get_nop_packet(b, device);
+      const uint32_t pad_size = preamble_size - 16 /* INDIRECT_BUFFER */;
+      const uint32_t pad_size_dw = pad_size >> 2;
 
-      nir_def *nop_packets[] = {
-         nop_packet,
-         nop_packet,
-         nop_packet,
-         nop_packet,
-      };
+      nir_def *len = nir_imm_int(b, pad_size_dw - 2);
+      nir_def *packet = nir_pkt3(b, PKT3_NOP, len);
 
-      const unsigned jump_size = 16;
-      unsigned offset;
-
-      /* Do vectorized store if possible */
-      for (offset = 0; offset + 16 <= preamble_size - jump_size; offset += 16) {
-         nir_build_store_global(b, nir_vec(b, nop_packets, 4), nir_iadd(b, va, nir_imm_int64(b, offset)),
-                                .access = ACCESS_NON_READABLE);
-      }
-
-      for (; offset + 4 <= preamble_size - jump_size; offset += 4) {
-         nir_build_store_global(b, nop_packet, nir_iadd(b, va, nir_imm_int64(b, offset)),
-                                .access = ACCESS_NON_READABLE);
-      }
+      nir_build_store_global(b, packet, va, .access = ACCESS_NON_READABLE);
 
       nir_def *chain_packets[] = {
          nir_imm_int(b, PKT3(PKT3_INDIRECT_BUFFER, 2, 0)),
@@ -952,8 +937,7 @@ build_dgc_buffer_preamble(nir_builder *b, nir_def *cmd_buf_preamble_offset, nir_
          nir_ior_imm(b, words, S_3F2_CHAIN(1) | S_3F2_VALID(1) | S_3F2_PRE_ENA(false)),
       };
 
-      nir_build_store_global(b, nir_vec(b, chain_packets, 4),
-                             nir_iadd(b, va, nir_imm_int64(b, preamble_size - jump_size)),
+      nir_build_store_global(b, nir_vec(b, chain_packets, 4), nir_iadd_imm(b, va, pad_size),
                              .access = ACCESS_NON_READABLE);
    }
    nir_pop_if(b, NULL);
