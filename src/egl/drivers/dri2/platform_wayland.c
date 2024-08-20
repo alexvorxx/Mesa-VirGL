@@ -2679,6 +2679,9 @@ dri2_wl_kopper_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
    if (!dri2_surf->wl_win)
       return _eglError(EGL_BAD_NATIVE_WINDOW, "dri2_swap_buffers");
 
+   if (!dri2_wl_surface_throttle(dri2_surf))
+      return EGL_FALSE;
+
    if (n_rects) {
       if (dri2_dpy->kopper)
          kopperSwapBuffersWithDamage(dri2_surf->dri_drawable, __DRI2_FLUSH_INVALIDATE_ANCILLARY, n_rects, rects);
@@ -2829,6 +2832,7 @@ static const struct dri2_egl_display_vtbl dri2_wl_swrast_display_vtbl = {
    .create_window_surface = dri2_wl_create_window_surface,
    .create_pixmap_surface = dri2_wl_create_pixmap_surface,
    .destroy_surface = dri2_wl_destroy_surface,
+   .swap_interval = dri2_wl_swap_interval,
    .create_image = dri2_create_image_khr,
    .swap_buffers = dri2_wl_swrast_swap_buffers,
    .swap_buffers_with_damage = dri2_wl_swrast_swap_buffers_with_damage,
