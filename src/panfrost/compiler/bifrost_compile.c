@@ -31,6 +31,7 @@
 #include "util/u_debug.h"
 
 #include "bifrost/disassemble.h"
+#include "panfrost/lib/pan_props.h"
 #include "valhall/disassemble.h"
 #include "valhall/va_compiler.h"
 #include "bi_builder.h"
@@ -4684,7 +4685,7 @@ bi_optimize_nir(nir_shader *nir, unsigned gpu_id, bool is_blend)
       nir_convert_to_lcssa(nir, true, true);
       NIR_PASS_V(nir, nir_divergence_analysis);
       NIR_PASS_V(nir, bi_lower_divergent_indirects,
-                 pan_subgroup_size(gpu_id >> 12));
+                 pan_subgroup_size(pan_arch(gpu_id)));
    }
 }
 
@@ -5066,6 +5067,7 @@ bifrost_preprocess_nir(nir_shader *nir, unsigned gpu_id)
               });
 
    NIR_PASS_V(nir, nir_lower_image_atomics_to_global);
+
    NIR_PASS_V(nir, nir_lower_alu_to_scalar, bi_scalarize_filter, NULL);
    NIR_PASS_V(nir, nir_lower_load_const_to_scalar);
    NIR_PASS_V(nir, nir_lower_phis_to_scalar, true);
@@ -5090,7 +5092,7 @@ bi_compile_variant_nir(nir_shader *nir,
    ctx->nir = nir;
    ctx->stage = nir->info.stage;
    ctx->quirks = bifrost_get_quirks(inputs->gpu_id);
-   ctx->arch = inputs->gpu_id >> 12;
+   ctx->arch = pan_arch(inputs->gpu_id);
    ctx->info = info;
    ctx->idvs = idvs;
    ctx->malloc_idvs = (ctx->arch >= 9) && !inputs->no_idvs;
