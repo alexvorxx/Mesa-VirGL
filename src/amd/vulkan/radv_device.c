@@ -875,7 +875,6 @@ radv_device_init_cache_key(struct radv_device *device)
 static void
 radv_create_gfx_preamble(struct radv_device *device)
 {
-   const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radeon_cmdbuf *cs = device->ws->cs_create(device->ws, AMD_IP_GFX, false);
    if (!cs)
       return;
@@ -884,12 +883,7 @@ radv_create_gfx_preamble(struct radv_device *device)
 
    radv_emit_graphics(device, cs);
 
-   while (cs->cdw & 7) {
-      if (pdev->info.gfx_ib_pad_with_type2)
-         radeon_emit(cs, PKT2_NOP_PAD);
-      else
-         radeon_emit(cs, PKT3_NOP_PAD);
-   }
+   device->ws->cs_pad(cs, 0);
 
    VkResult result = radv_bo_create(
       device, NULL, cs->cdw * 4, 4096, device->ws->cs_domain(device->ws),
