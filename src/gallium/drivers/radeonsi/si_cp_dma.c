@@ -26,12 +26,6 @@ static bool cp_dma_use_L2(struct si_context *sctx)
    return sctx->gfx_level >= GFX7;
 }
 
-static unsigned si_get_flush_flags(struct si_context *sctx)
-{
-   return SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
-          (cp_dma_use_L2(sctx) ? 0 : SI_CONTEXT_INV_L2);
-}
-
 /* The max number of bytes that can be copied per packet. */
 static inline unsigned cp_dma_max_byte_count(struct si_context *sctx)
 {
@@ -199,8 +193,10 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
    if (sdst) {
       util_range_add(dst, &sdst->valid_buffer_range, offset, offset + size);
 
-      if (!(user_flags & SI_OP_SKIP_CACHE_INV_BEFORE))
-         sctx->flags |= si_get_flush_flags(sctx);
+      if (!(user_flags & SI_OP_SKIP_CACHE_INV_BEFORE)) {
+         sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
+                        (cp_dma_use_L2(sctx) ? 0 : SI_CONTEXT_INV_L2);
+      }
    }
 
    if (sctx->flags)
@@ -348,8 +344,10 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
    if (user_flags & SI_OP_SYNC_PS_BEFORE)
       sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH;
 
-   if ((dst || src) && !(user_flags & SI_OP_SKIP_CACHE_INV_BEFORE))
-         sctx->flags |= si_get_flush_flags(sctx);
+   if ((dst || src) && !(user_flags & SI_OP_SKIP_CACHE_INV_BEFORE)) {
+      sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
+                     (cp_dma_use_L2(sctx) ? 0 : SI_CONTEXT_INV_L2);
+   }
 
    if (sctx->flags)
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
