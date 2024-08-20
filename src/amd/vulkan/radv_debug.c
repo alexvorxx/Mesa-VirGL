@@ -231,7 +231,7 @@ radv_dump_descriptors(struct radv_device *device, FILE *f)
 struct radv_shader_inst {
    char text[160];  /* one disasm line */
    unsigned offset; /* instruction offset */
-   unsigned size;   /* instruction size = 4 or 8 */
+   unsigned size;   /* instruction size >= 4 */
 };
 
 /* Split a disassembly string into lines and add them to the array pointed
@@ -259,8 +259,8 @@ radv_add_split_disasm(const char *disasm, uint64_t start_addr, unsigned *num, st
 
       const char *semicolon = strchr(disasm, ';');
       assert(semicolon);
-      /* More than 16 chars after ";" means the instruction is 8 bytes long. */
-      inst->size = next - semicolon > 16 ? 8 : 4;
+      /* 9 = 8 hex digits + a leading space */
+      inst->size = (next - semicolon) / 9 * 4;
 
       snprintf(inst->text + len, ARRAY_SIZE(inst->text) - len, " [PC=0x%" PRIx64 ", off=%u, size=%u]",
                start_addr + inst->offset, inst->offset, inst->size);
