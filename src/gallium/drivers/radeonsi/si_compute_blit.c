@@ -13,8 +13,7 @@
 #include "ac_nir_meta.h"
 
 /* Determine the cache policy. */
-static enum si_cache_policy get_cache_policy(struct si_context *sctx, enum si_coherency coher,
-                                             uint64_t size)
+static enum si_cache_policy get_cache_policy(struct si_context *sctx, enum si_coherency coher)
 {
    if ((sctx->gfx_level >= GFX9 && (coher == SI_COHERENCY_CB_META ||
                                      coher == SI_COHERENCY_DB_META ||
@@ -187,7 +186,7 @@ void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_inf
    si_launch_grid_internal(sctx, info, shader, flags);
 
    /* Do cache flushing at the end. */
-   if (flags & SI_OP_SYNC_AFTER && get_cache_policy(sctx, coher, 0) == L2_BYPASS) {
+   if (flags & SI_OP_SYNC_AFTER && get_cache_policy(sctx, coher) == L2_BYPASS) {
       sctx->flags |= SI_CONTEXT_WB_L2;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    } else {
@@ -365,7 +364,7 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
       assert(clear_value_size == 4);
       assert(!(flags & SI_OP_CS_RENDER_COND_ENABLE));
       si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, aligned_size, *clear_value,
-                             flags, coher, get_cache_policy(sctx, coher, size));
+                             flags, coher, get_cache_policy(sctx, coher));
    }
 
    offset += aligned_size;
@@ -404,7 +403,7 @@ void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct p
       return;
 
    enum si_coherency coher = SI_COHERENCY_SHADER;
-   enum si_cache_policy cache_policy = get_cache_policy(sctx, coher, size);
+   enum si_cache_policy cache_policy = get_cache_policy(sctx, coher);
 
    si_improve_sync_flags(sctx, dst, src, &flags);
 
