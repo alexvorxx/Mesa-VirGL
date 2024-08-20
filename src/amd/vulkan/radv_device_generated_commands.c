@@ -15,6 +15,33 @@
 #include "vk_common_entrypoints.h"
 #include "vk_shader_module.h"
 
+/* The DGC command buffer layout is quite complex, here's some explanations:
+ *
+ * Without the DGC preamble, the default layout looks like:
+ *
+ * +----------+---------+
+ * | commands | padding |
+ * +----------+---------+
+ *
+ * With the DGC preamble, which is used to optimize large empty indirect sequence count by removing
+ * a ton of padding, the layout looks like:
+ *
+ * +---------+-----------------+     +----------+---------+
+ * | padding | INDIRECT_BUFFER | ->  | commands | padding |
+ * +---------+-----------------+     +----------+---------+
+ *
+ * When DGC uses task shaders, the command buffer is split in two parts (GFX/COMPUTE), the
+ * default layout looks like:
+ *
+ * +--------------+---------+--------------+---------+
+ * | GFX commands | padding | ACE commands | padding |
+ * +--------------+---------+--------------+---------+
+ *
+ * The execution of this DGC command buffer is different if it's GFX or COMPUTE queue:
+ * - on GFX, the driver uses the IB2 packet which the easiest solution
+ * - on COMPUTE, IB2 isn't supported and the driver submits the DGC command buffer separately
+ *   without chaining
+ */
 static void
 radv_get_sequence_size_compute(const struct radv_indirect_command_layout *layout,
                                const struct radv_compute_pipeline *pipeline, uint32_t *cmd_size, uint32_t *upload_size)
