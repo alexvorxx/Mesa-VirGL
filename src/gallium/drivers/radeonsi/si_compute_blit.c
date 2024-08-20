@@ -118,15 +118,16 @@ void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
    if (flags & SI_OP_SYNC_AFTER) {
       sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
 
-      if (flags & SI_OP_CS_IMAGE) {
+      if (num_images) {
          /* Make sure image stores are visible to CB, which doesn't use L2 on GFX6-8. */
          sctx->flags |= sctx->gfx_level <= GFX8 ? SI_CONTEXT_WB_L2 : 0;
          /* Make sure image stores are visible to all CUs. */
          sctx->flags |= SI_CONTEXT_INV_VCACHE;
-      } else {
-         /* Make sure buffer stores are visible to all CUs. */
-         sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE | SI_CONTEXT_PFP_SYNC_ME;
       }
+
+      /* Make sure buffer stores are visible to all CUs and also as index/indirect buffers. */
+      if (num_buffers)
+         sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE | SI_CONTEXT_PFP_SYNC_ME;
 
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    }
@@ -514,7 +515,6 @@ static void si_launch_grid_internal_images(struct si_context *sctx,
     */
    si_compute_save_and_bind_images(sctx, num_images, images, saved_images);
 
-   flags |= SI_OP_CS_IMAGE;
    si_barrier_before_internal_op(sctx, flags, 0, NULL, 0, num_images, images);
    si_compute_begin_internal(sctx, flags);
    si_launch_grid_internal(sctx, info, shader);
@@ -1008,7 +1008,6 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
    /* This must be before the barrier and si_compute_begin_internal because it might invoke DCC
     * decompression.
     */
-   flags |= SI_OP_CS_IMAGE;
    si_compute_save_and_bind_images(sctx, num_images, image, saved_images);
    si_barrier_before_internal_op(sctx, flags, 0, NULL, 0, num_images, image);
    si_compute_begin_internal(sctx, flags);

@@ -1465,7 +1465,7 @@ void si_destroy_compute(struct si_compute *program);
 #define SI_OP_SYNC_AFTER                  (1 << 3)
 #define SI_OP_SYNC_BEFORE_AFTER           (SI_OP_SYNC_BEFORE | SI_OP_SYNC_AFTER)
 #define SI_OP_SKIP_CACHE_INV_BEFORE       (1 << 4) /* don't invalidate caches */
-#define SI_OP_CS_IMAGE                    (1 << 5)
+/* gap */
 #define SI_OP_CS_RENDER_COND_ENABLE       (1 << 6)
 /* gap */
 /* Only for si_compute_blit: */
