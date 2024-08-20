@@ -1914,7 +1914,7 @@ void radeon_enc_flush_headers(struct radeon_encoder *enc)
 
 void radeon_enc_code_ue(struct radeon_encoder *enc, unsigned int value)
 {
-   int x = -1;
+   unsigned int x = 0;
    unsigned int ue_code = value + 1;
    value += 1;
 
@@ -1923,8 +1923,9 @@ void radeon_enc_code_ue(struct radeon_encoder *enc, unsigned int value)
       x += 1;
    }
 
-   unsigned int ue_length = (x << 1) + 1;
-   radeon_enc_code_fixed_bits(enc, ue_code, ue_length);
+   if (x > 1)
+     radeon_enc_code_fixed_bits(enc, 0, x - 1);
+   radeon_enc_code_fixed_bits(enc, ue_code, x);
 }
 
 void radeon_enc_code_se(struct radeon_encoder *enc, int value)
