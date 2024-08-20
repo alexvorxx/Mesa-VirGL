@@ -368,6 +368,13 @@ panvk_draw_prepare_fs_rsd(struct panvk_cmd_buffer *cmdbuf,
          dev, cb, cmdbuf->state.gfx.render.color_attachments.fmts,
          cmdbuf->state.gfx.render.color_attachments.samples, fs_info, fs_code,
          bds, &blend_reads_dest, &blend_shader_loads_blend_const);
+   } else {
+      for (unsigned i = 0; i < bd_count; i++) {
+         pan_pack(&bds[i], BLEND, cfg) {
+            cfg.enable = false;
+            cfg.internal.mode = MALI_BLEND_MODE_OFF;
+         }
+      }
    }
 
    pan_pack(rsd, RENDERER_STATE, cfg) {
