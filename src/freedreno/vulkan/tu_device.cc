@@ -2166,9 +2166,9 @@ tu_init_cmdbuf_start_a725_quirk(struct tu_device *device)
    tu_cs_emit_regs(&sub_cs, HLSQ_CS_CNTL_1(A7XX,
             .linearlocalidregid = regid(63, 0),
             .threadsize = THREAD128,
-            .unk11 = true,
-            .unk22 = true,
-            .yalign = CS_YALIGN_1));
+            .workgrouprastorderzfirsten = true,
+            .wgtilewidth = 4,
+            .wgtileheight = 17));
    tu_cs_emit_regs(&sub_cs, A6XX_SP_CS_CNTL_0(
             .wgidconstid = regid(51, 3),
             .wgsizeconstid = regid(48, 0),
@@ -2177,7 +2177,7 @@ tu_init_cmdbuf_start_a725_quirk(struct tu_device *device)
    tu_cs_emit_regs(&sub_cs, SP_CS_CNTL_1(A7XX,
             .linearlocalidregid = regid(63, 0),
             .threadsize = THREAD128,
-            .unk15 = true));
+            .workitemrastorder = WORKITEMRASTORDER_TILED));
    tu_cs_emit_regs(&sub_cs, A7XX_SP_CS_UNKNOWN_A9BE(0));
 
    tu_cs_emit_regs(&sub_cs,

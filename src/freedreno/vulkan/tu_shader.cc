@@ -1430,17 +1430,15 @@ tu6_emit_cs_config(struct tu_cs *cs,
                   A6XX_SP_CS_CNTL_1_THREADSIZE(thrsz));
       }
    } else {
-      enum a7xx_cs_yalign yalign = (v->local_size[1] % 8 == 0)   ? CS_YALIGN_8
-                                   : (v->local_size[1] % 4 == 0) ? CS_YALIGN_4
-                                   : (v->local_size[1] % 2 == 0) ? CS_YALIGN_2
-                                                                 : CS_YALIGN_1;
+      unsigned tile_height = (v->local_size[1] % 8 == 0)   ? 3
+                             : (v->local_size[1] % 4 == 0) ? 5
+                             : (v->local_size[1] % 2 == 0) ? 9
+                                                           : 17;
       tu_cs_emit_regs(
          cs, HLSQ_CS_CNTL_1(CHIP,
                    .linearlocalidregid = regid(63, 0), .threadsize = thrsz_cs,
-                   /* A7XX TODO: blob either sets all of these unknowns
-                    * together or doesn't set them at all.
-                    */
-                   .unk11 = true, .unk22 = true, .yalign = yalign, ));
+                   .workgrouprastorderzfirsten = true, 
+                   .wgtilewidth = 4, .wgtileheight = tile_height));
 
       tu_cs_emit_regs(cs, HLSQ_FS_CNTL_0(CHIP, .threadsize = THREAD64));
 
@@ -1454,8 +1452,8 @@ tu6_emit_cs_config(struct tu_cs *cs,
                       SP_CS_CNTL_1(CHIP,
                         .linearlocalidregid = regid(63, 0),
                         .threadsize = thrsz_cs,
-                        /* A7XX TODO: enable UNK15 when we don't use subgroup ops. */
-                        .unk15 = false, ));
+                        /* A7XX TODO: enable WORKITEMRASTORDER_TILED when we don't use subgroup ops. */
+                        .workitemrastorder = WORKITEMRASTORDER_LINEAR, ));
 
       tu_cs_emit_regs(
          cs, A7XX_HLSQ_CS_LOCAL_SIZE(.localsizex = v->local_size[0] - 1,

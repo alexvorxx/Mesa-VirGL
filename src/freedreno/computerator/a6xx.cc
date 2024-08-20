@@ -203,18 +203,18 @@ cs_program_emit(struct fd_ringbuffer *ring, struct kernel *kernel)
       OUT_RING(ring, A6XX_HLSQ_CS_CNTL_1_LINEARLOCALIDREGID(regid(63, 0)) |
                         A6XX_HLSQ_CS_CNTL_1_THREADSIZE(thrsz));
    } else {
-      enum a7xx_cs_yalign yalign = (local_size[1] % 8 == 0)   ? CS_YALIGN_8
-                                   : (local_size[1] % 4 == 0) ? CS_YALIGN_4
-                                   : (local_size[1] % 2 == 0) ? CS_YALIGN_2
-                                                              : CS_YALIGN_1;
+      unsigned tile_height = (local_size[1] % 8 == 0)   ? 3
+                             : (local_size[1] % 4 == 0) ? 5
+                             : (local_size[1] % 2 == 0) ? 9
+                                                        : 17;
 
       OUT_REG(ring,
          HLSQ_CS_CNTL_1(CHIP,
             .linearlocalidregid = regid(63, 0),
             .threadsize = thrsz,
-            .unk11 = true,
-            .unk22 = true,
-            .yalign = yalign,
+            .workgrouprastorderzfirsten = true,
+            .wgtilewidth = 4,
+            .wgtileheight = tile_height,
          )
       );
    }
@@ -227,7 +227,7 @@ cs_program_emit(struct fd_ringbuffer *ring, struct kernel *kernel)
                         A6XX_SP_CS_CNTL_0_LOCALIDREGID(local_invocation_id));
       OUT_REG(ring,
          SP_CS_CNTL_1(CHIP, .linearlocalidregid = regid(63, 0),
-                            .threadsize = thrsz, ));
+                            .threadsize = thrsz));
    }
 
    OUT_PKT4(ring, REG_A6XX_SP_CS_OBJ_START, 2);

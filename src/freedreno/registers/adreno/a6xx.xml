@@ -5107,6 +5107,17 @@ to upconvert to 32b float internally?
 		<bitfield name="THREADSIZE_SCALAR" pos="10" type="boolean"/>
 	</reg32>
 
+	<enum name="a7xx_workitem_rast_order">
+		<value value="0x0" name="WORKITEMRASTORDER_LINEAR"/>
+		<doc>
+			This is a fixed tiling, with 4x4 invocation outer tiles
+			containing 2x2 invocation inner tiles. The intent is to
+			improve cache locality with textures and images accessed
+			using gl_LocalInvocationID.
+		</doc>
+		<value value="0x1" name="WORKITEMRASTORDER_TILED"/>
+	</enum>
+
 	<reg32 offset="0xa9c3" name="SP_CS_CNTL_1" variants="A7XX-" usage="cmd">
 		<!-- gl_LocalInvocationIndex -->
 		<bitfield name="LINEARLOCALIDREGID" low="0" high="7" type="a3xx_regid"/>
@@ -5115,10 +5126,8 @@ to upconvert to 32b float internally?
 		<!-- 1 thread per wave (would hang if THREAD128 is also set) -->
 		<bitfield name="THREADSIZE_SCALAR" pos="9" type="boolean"/>
 
-		<!-- Affects getone. If enabled, getone sometimes executed 1? less times
-		     than there are subgroups.
-		 -->
-		<bitfield name="UNK15" pos="15" type="boolean"/>
+		<doc>How invocations/fibers within a workgroup are tiled.</doc>
+		<bitfield name="WORKITEMRASTORDER" pos="15" type="a7xx_workitem_rast_order"/>
 	</reg32>
 
 	<!-- TODO: two 64kb aligned addresses at a9d0/a9d2 -->
@@ -5629,10 +5638,20 @@ to upconvert to 32b float internally?
 		<bitfield name="LINEARLOCALIDREGID" low="0" high="7" type="a3xx_regid"/>
 		<!-- Must match SP_CS_CTRL -->
 		<bitfield name="THREADSIZE" pos="9" type="a6xx_threadsize"/>
-		<bitfield name="UNK11" pos="11" type="boolean"/>
-		<bitfield name="UNK22" pos="22" type="boolean"/>
-		<bitfield name="UNK26" pos="26" type="boolean"/>
-		<bitfield name="YALIGN" low="27" high="30" type="a7xx_cs_yalign"/>
+		<doc>
+			When this bit is enabled, the dispatch order interleaves
+			the z coordinate instead of launching all workgroups
+			with z=0, then all with z=1 and so on.
+		</doc>
+		<bitfield name="WORKGROUPRASTORDERZFIRSTEN" pos="11" type="boolean"/>
+		<doc>
+			When both fields are non-0 then the dispatcher uses
+			these tile sizes to launch workgroups in a tiled manner
+			when the x and y workgroup counts are
+			both more than 1.
+		</doc>
+		<bitfield name="WGTILEWIDTH" low="20" high="25"/>
+		<bitfield name="WGTILEHEIGHT" low="26" high="31"/>
 	</reg32>
 
 	<reg32 offset="0xa9df" name="HLSQ_CS_LOCAL_SIZE" variants="A7XX-" usage="cmd">
