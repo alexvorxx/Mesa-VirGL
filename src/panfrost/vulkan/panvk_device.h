@@ -23,10 +23,16 @@
 #include "pan_blend.h"
 #include "pan_blitter.h"
 
+#include "util/vma.h"
+
 #define PANVK_MAX_QUEUE_FAMILIES 1
 
 struct panvk_device {
    struct vk_device vk;
+
+   struct {
+      struct util_vma_heap heap;
+   } as;
 
    struct {
       struct pan_kmod_vm *vm;

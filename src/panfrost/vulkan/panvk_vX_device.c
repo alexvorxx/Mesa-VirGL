@@ -269,9 +269,13 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
       device->kmod.dev, PANVK_VA_RESERVE_BOTTOM);
    uint64_t user_va_end =
       panfrost_clamp_to_usable_va_range(device->kmod.dev, 1ull << 32);
+   uint32_t vm_flags = PAN_ARCH <= 7 ? PAN_KMOD_VM_FLAG_AUTO_VA : 0;
+
+   util_vma_heap_init(&device->as.heap, user_va_start,
+                      user_va_end - user_va_start);
 
    device->kmod.vm =
-      pan_kmod_vm_create(device->kmod.dev, PAN_KMOD_VM_FLAG_AUTO_VA,
+      pan_kmod_vm_create(device->kmod.dev, vm_flags,
                          user_va_start, user_va_end - user_va_start);
 
    if (!device->kmod.vm) {
@@ -365,6 +369,7 @@ err_free_priv_bos:
    panvk_priv_bo_unref(device->tiler_heap);
    panvk_device_cleanup_mempools(device);
    pan_kmod_vm_destroy(device->kmod.vm);
+   util_vma_heap_finish(&device->as.heap);
 
 err_destroy_kdev:
    pan_kmod_dev_destroy(device->kmod.dev);
@@ -398,6 +403,7 @@ panvk_per_arch(destroy_device)(struct panvk_device *device,
    panvk_priv_bo_unref(device->sample_positions);
    panvk_device_cleanup_mempools(device);
    pan_kmod_vm_destroy(device->kmod.vm);
+   util_vma_heap_finish(&device->as.heap);
 
    if (device->debug.decode_ctx)
       pandecode_destroy_context(device->debug.decode_ctx);
