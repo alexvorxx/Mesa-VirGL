@@ -2178,8 +2178,7 @@ brw_nir_load_global_const(nir_builder *b, nir_intrinsic_instr *load_uniform,
          data[i] = nir_load_global_constant_uniform_block_intel(
             b, 16, 32, addr,
             .access = ACCESS_CAN_REORDER | ACCESS_NON_WRITEABLE,
-            .align_mul = 64,
-            .align_offset = 64);
+            .align_mul = 64);
       }
 
       sysval = nir_extract_bits(b, data, 2, suboffset * 8,

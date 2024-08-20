@@ -63,8 +63,7 @@ lower_ubo_load_instr(nir_builder *b, nir_intrinsic_instr *load,
          data[i] = nir_load_global_constant_uniform_block_intel(
             b, 16, 32, addr,
             .access = nir_intrinsic_access(load),
-            .align_mul = 64,
-            .align_offset = 64);
+            .align_mul = 64);
          if (bound) {
             data[i] = nir_bcsel(b,
                                 nir_igt_imm(b, bound, aligned_offset + i * 64 + 63),
