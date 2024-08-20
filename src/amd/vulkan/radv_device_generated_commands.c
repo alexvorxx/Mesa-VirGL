@@ -232,32 +232,39 @@ radv_dgc_use_preamble(const VkGeneratedCommandsInfoNV *cmd_info)
    return cmd_info->sequencesCountBuffer != VK_NULL_HANDLE && cmd_info->sequencesCount >= 64;
 }
 
-uint32_t
-radv_get_indirect_cmdbuf_size(const VkGeneratedCommandsInfoNV *cmd_info)
+static uint32_t
+radv_get_indirect_cmdbuf_sequence_size(const VkGeneratedCommandsInfoNV *cmd_info, enum amd_ip_type ip_type)
 {
    VK_FROM_HANDLE(radv_indirect_command_layout, layout, cmd_info->indirectCommandsLayout);
    VK_FROM_HANDLE(radv_pipeline, pipeline, cmd_info->pipeline);
    const struct radv_device *device = container_of(layout->base.device, struct radv_device, vk);
 
+   uint32_t gfx_cmd_size, ace_cmd_size, upload_size;
+   radv_get_sequence_size(layout, pipeline, &gfx_cmd_size, &ace_cmd_size, &upload_size);
+
+   const uint32_t cmd_size = ip_type == AMD_IP_GFX ? gfx_cmd_size : ace_cmd_size;
+   return radv_align_cmdbuf_size(device, cmd_size * cmd_info->sequencesCount, ip_type);
+}
+
+uint32_t
+radv_get_indirect_gfx_cmdbuf_size(const VkGeneratedCommandsInfoNV *cmd_info)
+{
+   VK_FROM_HANDLE(radv_indirect_command_layout, layout, cmd_info->indirectCommandsLayout);
+   const struct radv_device *device = container_of(layout->base.device, struct radv_device, vk);
+
    if (radv_dgc_use_preamble(cmd_info))
       return radv_dgc_preamble_cmdbuf_size(device, AMD_IP_GFX);
 
-   uint32_t cmd_size, ace_cmd_size, upload_size;
-   radv_get_sequence_size(layout, pipeline, &cmd_size, &ace_cmd_size, &upload_size);
-   return radv_align_cmdbuf_size(device, cmd_size * cmd_info->sequencesCount, AMD_IP_GFX);
+   return radv_get_indirect_cmdbuf_sequence_size(cmd_info, AMD_IP_GFX);
 }
 
 uint32_t
 radv_get_indirect_ace_cmdbuf_offset(const VkGeneratedCommandsInfoNV *cmd_info)
 {
    VK_FROM_HANDLE(radv_indirect_command_layout, layout, cmd_info->indirectCommandsLayout);
-   VK_FROM_HANDLE(radv_pipeline, pipeline, cmd_info->pipeline);
    const struct radv_device *device = container_of(layout->base.device, struct radv_device, vk);
 
-   uint32_t cmd_size, ace_cmd_size, upload_size;
-   radv_get_sequence_size(layout, pipeline, &cmd_size, &ace_cmd_size, &upload_size);
-
-   uint32_t offset = radv_align_cmdbuf_size(device, cmd_size * cmd_info->sequencesCount, AMD_IP_GFX);
+   uint32_t offset = radv_get_indirect_cmdbuf_sequence_size(cmd_info, AMD_IP_GFX);
 
    if (radv_dgc_use_preamble(cmd_info))
       offset += radv_dgc_preamble_cmdbuf_size(device, AMD_IP_GFX);
@@ -269,15 +276,12 @@ uint32_t
 radv_get_indirect_ace_cmdbuf_size(const VkGeneratedCommandsInfoNV *cmd_info)
 {
    VK_FROM_HANDLE(radv_indirect_command_layout, layout, cmd_info->indirectCommandsLayout);
-   VK_FROM_HANDLE(radv_pipeline, pipeline, cmd_info->pipeline);
    const struct radv_device *device = container_of(layout->base.device, struct radv_device, vk);
 
    if (radv_dgc_use_preamble(cmd_info))
       return radv_dgc_preamble_cmdbuf_size(device, AMD_IP_COMPUTE);
 
-   uint32_t cmd_size, ace_cmd_size, upload_size;
-   radv_get_sequence_size(layout, pipeline, &cmd_size, &ace_cmd_size, &upload_size);
-   return radv_align_cmdbuf_size(device, ace_cmd_size * cmd_info->sequencesCount, AMD_IP_COMPUTE);
+   return radv_get_indirect_cmdbuf_sequence_size(cmd_info, AMD_IP_COMPUTE);
 }
 
 struct radv_dgc_params {
@@ -2550,10 +2554,8 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
    uint32_t cmd_stride, ace_cmd_stride, upload_stride;
    radv_get_sequence_size(layout, pipeline, &cmd_stride, &ace_cmd_stride, &upload_stride);
 
-   unsigned cmd_buf_size =
-      radv_align_cmdbuf_size(device, cmd_stride * pGeneratedCommandsInfo->sequencesCount, AMD_IP_GFX);
-   unsigned ace_cmd_buf_size =
-      radv_align_cmdbuf_size(device, ace_cmd_stride * pGeneratedCommandsInfo->sequencesCount, AMD_IP_COMPUTE);
+   unsigned cmd_buf_size = radv_get_indirect_cmdbuf_sequence_size(pGeneratedCommandsInfo, AMD_IP_GFX);
+   unsigned ace_cmd_buf_size = radv_get_indirect_cmdbuf_sequence_size(pGeneratedCommandsInfo, AMD_IP_COMPUTE);
 
    uint64_t upload_addr =
       radv_buffer_get_va(prep_buffer->bo) + prep_buffer->offset + pGeneratedCommandsInfo->preprocessOffset;
