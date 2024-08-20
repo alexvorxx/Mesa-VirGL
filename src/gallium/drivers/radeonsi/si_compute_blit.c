@@ -514,6 +514,10 @@ void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
 {
    assert(sctx->gfx_level < GFX12);
 
+   /* Flush and wait for CB before retiling DCC. */
+   sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_CB;
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+
    /* Set the DCC buffer. */
    assert(tex->surface.meta_offset && tex->surface.meta_offset <= UINT_MAX);
    assert(tex->surface.display_dcc_offset && tex->surface.display_dcc_offset <= UINT_MAX);
@@ -546,7 +550,7 @@ void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
    set_work_size(&info, 8, 8, 1, width, height, 1);
 
    si_launch_grid_internal_ssbos(sctx, &info, *shader, SI_OP_SYNC_BEFORE,
-                                 SI_COHERENCY_CB_META, 1, &sb, 0x1);
+                                 SI_COHERENCY_SHADER, 1, &sb, 0x1);
 
    /* Don't flush caches. L2 will be flushed by the kernel fence. */
 }
