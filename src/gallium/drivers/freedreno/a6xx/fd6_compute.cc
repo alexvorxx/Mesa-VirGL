@@ -136,8 +136,9 @@ cs_program_emit(struct fd_context *ctx, struct fd_ringbuffer *ring,
             CHIP,
             .linearlocalidregid = INVALID_REG,
             .threadsize = thrsz_cs,
-            /* A7XX TODO: enable WORKITEMRASTORDER_TILED when we don't use subgroup ops. */
-            .workitemrastorder = WORKITEMRASTORDER_LINEAR,
+            .workitemrastorder =
+               v->cs.force_linear_dispatch ? WORKITEMRASTORDER_LINEAR
+                                           : WORKITEMRASTORDER_TILED,
          )
       );
       OUT_REG(ring,

@@ -225,9 +225,17 @@ cs_program_emit(struct fd_ringbuffer *ring, struct kernel *kernel)
                         A6XX_SP_CS_CNTL_0_WGSIZECONSTID(regid(63, 0)) |
                         A6XX_SP_CS_CNTL_0_WGOFFSETCONSTID(regid(63, 0)) |
                         A6XX_SP_CS_CNTL_0_LOCALIDREGID(local_invocation_id));
-      OUT_REG(ring,
-         SP_CS_CNTL_1(CHIP, .linearlocalidregid = regid(63, 0),
-                            .threadsize = thrsz));
+      if (CHIP == A7XX) {
+         /* TODO allow the shader to control the tiling */
+         OUT_REG(ring,
+            SP_CS_CNTL_1(A7XX, .linearlocalidregid = regid(63, 0),
+                               .threadsize = thrsz,
+                               .workitemrastorder = WORKITEMRASTORDER_LINEAR));
+      } else {
+         OUT_REG(ring,
+            SP_CS_CNTL_1(CHIP, .linearlocalidregid = regid(63, 0),
+                               .threadsize = thrsz));
+      }
    }
 
    OUT_PKT4(ring, REG_A6XX_SP_CS_OBJ_START, 2);

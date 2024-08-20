@@ -837,6 +837,7 @@ struct ir3_shader_variant {
       struct {
          unsigned req_input_mem;
          unsigned req_local_mem;
+         bool force_linear_dispatch;
       } cs;
    };
 
@@ -909,6 +910,7 @@ struct ir3_shader {
       struct {
          unsigned req_input_mem;    /* in dwords */
          unsigned req_local_mem;
+         bool force_linear_dispatch;
       } cs;
       /* For vertex shaders: */
       struct {

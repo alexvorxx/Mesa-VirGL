@@ -607,9 +607,23 @@ lower_subgroup_id_filter(const nir_instr *instr, const void *unused)
 }
 
 static nir_def *
-lower_subgroup_id(nir_builder *b, nir_instr *instr, void *unused)
+lower_subgroup_id(nir_builder *b, nir_instr *instr, void *_shader)
 {
-   (void)unused;
+   struct ir3_shader *shader = _shader;
+
+   /* Vulkan allows implementations to tile workgroup invocations even when
+    * subgroup operations are involved, which is implied by this Note:
+    *
+    *    "There is no direct relationship between SubgroupLocalInvocationId and
+    *    LocalInvocationId or LocalInvocationIndex."
+    *
+    * However there is no way to get SubgroupId directly, so we have to use
+    * LocalInvocationIndex here. This means that whenever we do this lowering we
+    * have to force linear dispatch to make sure that the relation between
+    * SubgroupId/SubgroupLocalInvocationId and LocalInvocationIndex is what we
+    * expect.
+    */
+   shader->cs.force_linear_dispatch = true;
 
    nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
    if (intr->intrinsic == nir_intrinsic_load_subgroup_invocation) {
@@ -638,10 +652,10 @@ lower_subgroup_id(nir_builder *b, nir_instr *instr, void *unused)
 }
 
 static bool
-ir3_nir_lower_subgroup_id_cs(nir_shader *shader)
+ir3_nir_lower_subgroup_id_cs(nir_shader *nir, struct ir3_shader *shader)
 {
-   return nir_shader_lower_instructions(shader, lower_subgroup_id_filter,
-                                        lower_subgroup_id, NULL);
+   return nir_shader_lower_instructions(nir, lower_subgroup_id_filter,
+                                        lower_subgroup_id, shader);
 }
 
 /**
@@ -764,7 +778,7 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
    if ((s->info.stage == MESA_SHADER_COMPUTE) ||
        (s->info.stage == MESA_SHADER_KERNEL)) {
       bool progress = false;
-      NIR_PASS(progress, s, ir3_nir_lower_subgroup_id_cs);
+      NIR_PASS(progress, s, ir3_nir_lower_subgroup_id_cs, shader);
 
       /* ir3_nir_lower_subgroup_id_cs creates extra compute intrinsics which
        * we need to lower again.

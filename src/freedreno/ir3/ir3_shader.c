@@ -410,6 +410,11 @@ create_variant(struct ir3_shader *shader, const struct ir3_shader_key *key,
       shader->nir_finalized = true;
    }
 
+   if (v->type == MESA_SHADER_COMPUTE ||
+       v->type == MESA_SHADER_KERNEL) {
+      v->cs.force_linear_dispatch = shader->cs.force_linear_dispatch;
+   }
+
    if (!compile_variant(shader, v))
       goto fail;
 

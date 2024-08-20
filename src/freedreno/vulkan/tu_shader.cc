@@ -1452,8 +1452,10 @@ tu6_emit_cs_config(struct tu_cs *cs,
                       SP_CS_CNTL_1(CHIP,
                         .linearlocalidregid = regid(63, 0),
                         .threadsize = thrsz_cs,
-                        /* A7XX TODO: enable WORKITEMRASTORDER_TILED when we don't use subgroup ops. */
-                        .workitemrastorder = WORKITEMRASTORDER_LINEAR, ));
+                        .workitemrastorder =
+                           v->cs.force_linear_dispatch ?
+                           WORKITEMRASTORDER_LINEAR :
+                           WORKITEMRASTORDER_TILED, ));
 
       tu_cs_emit_regs(
          cs, A7XX_HLSQ_CS_LOCAL_SIZE(.localsizex = v->local_size[0] - 1,
