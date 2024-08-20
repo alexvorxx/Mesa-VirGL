@@ -576,7 +576,6 @@ class BumpPool;
             envGetOrDefault("GFXSTREAM_HOST_DECODER_DIR",
                             default_host_abs_decoder_destination)
         self.host_script_destination = envGetOrDefault("GFXSTREAM_SCRIPTS_DIR")
-        assert(self.host_script_destination is not None)
 
         if self.cerealFlags & VK_CEREAL_FLAG_GUEST:
             self.addGuestEncoderModule(
