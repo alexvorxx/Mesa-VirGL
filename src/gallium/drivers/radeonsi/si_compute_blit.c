@@ -12,12 +12,6 @@
 #include "util/u_pack_color.h"
 #include "ac_nir_meta.h"
 
-unsigned si_get_flush_flags(struct si_context *sctx, enum si_cache_policy cache_policy)
-{
-   return SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
-          (cache_policy == L2_BYPASS ? SI_CONTEXT_INV_L2 : 0);
-}
-
 static bool si_is_buffer_idle(struct si_context *sctx, struct si_resource *buf,
                               unsigned usage)
 {

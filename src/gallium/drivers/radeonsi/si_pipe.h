@@ -263,13 +263,6 @@ enum
 #define DBG_ALL_SHADERS (((1 << (DBG_CS + 1)) - 1))
 #define DBG(name)       (1ull << DBG_##name)
 
-enum si_cache_policy
-{
-   L2_BYPASS,
-   L2_STREAM, /* same as SLC=1 */
-   L2_LRU,    /* same as SLC=0 */
-};
-
 #define SI_BIND_CONSTANT_BUFFER_SHIFT     0
 #define SI_BIND_SHADER_BUFFER_SHIFT       6
 #define SI_BIND_IMAGE_BUFFER_SHIFT        12
@@ -1481,7 +1474,6 @@ void si_destroy_compute(struct si_compute *program);
 #define SI_OP_FAIL_IF_SLOW                (1 << 9)
 #define SI_OP_IS_NESTED                   (1 << 10)
 
-unsigned si_get_flush_flags(struct si_context *sctx, enum si_cache_policy cache_policy);
 bool si_should_blit_clamp_to_edge(const struct pipe_blit_info *info, unsigned coord_mask);
 void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_info *info,
                                    void *shader, unsigned flags, unsigned num_buffers,

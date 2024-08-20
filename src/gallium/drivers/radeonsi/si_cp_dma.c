@@ -21,9 +21,22 @@
 #define CP_DMA_PFP_SYNC_ME (1 << 4)
 #define CP_DMA_SRC_IS_GDS  (1 << 5)
 
+enum si_cache_policy
+{
+   L2_BYPASS,
+   L2_STREAM, /* same as SLC=1 */
+   L2_LRU,    /* same as SLC=0 */
+};
+
 static enum si_cache_policy get_cache_policy(struct si_context *sctx)
 {
    return sctx->gfx_level >= GFX7 ? L2_LRU : L2_BYPASS;
+}
+
+static unsigned si_get_flush_flags(struct si_context *sctx, enum si_cache_policy cache_policy)
+{
+   return SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
+          (cache_policy == L2_BYPASS ? SI_CONTEXT_INV_L2 : 0);
 }
 
 /* The max number of bytes that can be copied per packet. */
