@@ -138,11 +138,6 @@ void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_inf
                                    const struct pipe_shader_buffer *buffers,
                                    unsigned writeable_bitmask)
 {
-   if (!(flags & SI_OP_SKIP_CACHE_INV_BEFORE)) {
-      sctx->flags |= si_get_flush_flags(sctx, L2_LRU);
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
-   }
-
    /* Save states. */
    struct pipe_shader_buffer saved_sb[3] = {};
    assert(num_buffers <= ARRAY_SIZE(saved_sb));
