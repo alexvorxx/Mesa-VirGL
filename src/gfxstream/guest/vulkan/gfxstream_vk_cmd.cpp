@@ -79,7 +79,8 @@ VkResult gfxstream_vk_ResetCommandPool(VkDevice device, VkCommandPool commandPoo
     return vkResetCommandPool_VkResult_return;
 }
 
-static VkResult vk_command_buffer_createOp(struct vk_command_pool*, struct vk_command_buffer**);
+static VkResult vk_command_buffer_createOp(struct vk_command_pool*, VkCommandBufferLevel,
+                                           struct vk_command_buffer**);
 static void vk_command_buffer_resetOp(struct vk_command_buffer*, VkCommandBufferResetFlags);
 static void vk_command_buffer_destroyOp(struct vk_command_buffer*);
 
@@ -88,7 +89,7 @@ static vk_command_buffer_ops gfxstream_vk_commandBufferOps = {
     .reset = vk_command_buffer_resetOp,
     .destroy = vk_command_buffer_destroyOp};
 
-VkResult vk_command_buffer_createOp(struct vk_command_pool* commandPool,
+VkResult vk_command_buffer_createOp(struct vk_command_pool* commandPool, VkCommandBufferLevel level,
                                     struct vk_command_buffer** pCommandBuffer) {
     VkResult result = VK_SUCCESS;
     struct gfxstream_vk_command_buffer* gfxstream_commandBuffer =
@@ -132,8 +133,9 @@ VkResult gfxstream_vk_AllocateCommandBuffers(VkDevice device,
     std::vector<gfxstream_vk_command_buffer*> gfxstream_commandBuffers(
         pAllocateInfo->commandBufferCount);
     for (uint32_t i = 0; i < pAllocateInfo->commandBufferCount; i++) {
-        result = vk_command_buffer_createOp(&gfxstream_commandPool->vk,
-                                            (vk_command_buffer**)&gfxstream_commandBuffers[i]);
+        result =
+            vk_command_buffer_createOp(&gfxstream_commandPool->vk, VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                                       (vk_command_buffer**)&gfxstream_commandBuffers[i]);
         if (VK_SUCCESS == result) {
             gfxstream_commandBuffers[i]->vk.level = pAllocateInfo->level;
         } else {
