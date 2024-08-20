@@ -2503,8 +2503,8 @@ dri2_wl_swrast_get_backbuffer_data(struct dri2_egl_surface *dri2_surf)
    return dri2_surf->back->data;
 }
 
-static void
-dri2_wl_swrast_attach_backbuffer(struct dri2_egl_surface *dri2_surf)
+static EGLBoolean
+dri2_wl_surface_throttle(struct dri2_egl_surface *dri2_surf)
 {
    struct dri2_egl_display *dri2_dpy =
       dri2_egl_display(dri2_surf->base.Resource.Display);
@@ -2512,7 +2512,7 @@ dri2_wl_swrast_attach_backbuffer(struct dri2_egl_surface *dri2_surf)
    while (dri2_surf->throttle_callback != NULL)
       if (loader_wayland_dispatch(dri2_dpy->wl_dpy, dri2_surf->wl_queue, NULL) ==
           -1)
-         return;
+         return EGL_FALSE;
 
    if (dri2_surf->base.SwapInterval > 0) {
       dri2_surf->throttle_callback =
@@ -2521,10 +2521,7 @@ dri2_wl_swrast_attach_backbuffer(struct dri2_egl_surface *dri2_surf)
                                dri2_surf);
    }
 
-   wl_surface_attach(dri2_surf->wl_surface_wrapper,
-                     /* 'back' here will be promoted to 'current' */
-                     dri2_surf->back->wl_buffer, dri2_surf->dx,
-                     dri2_surf->dy);
+   return EGL_TRUE;
 }
 
 static void
@@ -2718,7 +2715,11 @@ dri2_wl_swrast_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
 
    (void)swrast_update_buffers(dri2_surf);
 
-   dri2_wl_swrast_attach_backbuffer(dri2_surf);
+   if (dri2_wl_surface_throttle(dri2_surf))
+      wl_surface_attach(dri2_surf->wl_surface_wrapper,
+         /* 'back' here will be promoted to 'current' */
+         dri2_surf->back->wl_buffer, dri2_surf->dx,
+         dri2_surf->dy);
 
    /* guarantee full copy for partial update */
    int w = n_rects == 1 ? (rects[2] - rects[0]) : 0;
