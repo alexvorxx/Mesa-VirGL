@@ -261,7 +261,7 @@ etna_create_sampler_view_state(struct pipe_context *pctx, struct pipe_resource *
 
    /* Workaround for npot textures -- it appears that only CLAMP_TO_EDGE is
     * supported when the appropriate capability is not set. */
-   if (!screen->specs.npot_tex_any_wrap &&
+   if (!etna_core_has_feature(screen->info, ETNA_FEATURE_NON_POWER_OF_TWO) &&
        (!util_is_power_of_two_or_zero(res->base.width0) ||
         !util_is_power_of_two_or_zero(res->base.height0))) {
       sv->config0_mask = ~(VIVS_TE_SAMPLER_CONFIG0_UWRAP__MASK |

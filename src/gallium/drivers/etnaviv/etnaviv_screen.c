@@ -888,8 +888,6 @@ etna_get_specs(struct etna_screen *screen)
       screen->info->model < 0x1000 && screen->info->model != 0x880;
    screen->specs.has_shader_range_registers =
       screen->info->model >= 0x1000 || screen->info->model == 0x880;
-   screen->specs.npot_tex_any_wrap =
-      VIV_FEATURE(screen, ETNA_FEATURE_NON_POWER_OF_TWO);
    screen->specs.has_new_transcendentals =
       VIV_FEATURE(screen, ETNA_FEATURE_HAS_FAST_TRANSCENDENTALS);
    screen->specs.has_halti2_instructions =

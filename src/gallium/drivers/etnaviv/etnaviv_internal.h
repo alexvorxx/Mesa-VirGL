@@ -87,8 +87,6 @@ struct etna_specs {
    unsigned tex_astc : 1;
    /* has BLT engine instead of RS */
    unsigned use_blt : 1;
-   /* can use any kind of wrapping mode on npot textures */
-   unsigned npot_tex_any_wrap : 1;
    /* supports seamless cube map */
    unsigned seamless_cube_map : 1;
    /* number of bits per TS tile */
