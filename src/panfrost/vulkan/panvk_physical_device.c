@@ -649,13 +649,6 @@ panvk_physical_device_init(struct panvk_physical_device *device,
    int fd;
    int master_fd = -1;
 
-   if (!getenv("PAN_I_WANT_A_BROKEN_VULKAN_DRIVER")) {
-      return vk_errorf(
-         instance, VK_ERROR_INCOMPATIBLE_DRIVER,
-         "WARNING: panvk is not a conformant vulkan implementation, "
-         "pass PAN_I_WANT_A_BROKEN_VULKAN_DRIVER=1 if you know what you're doing.");
-   }
-
    fd = open(path, O_RDWR | O_CLOEXEC);
    if (fd < 0) {
       return vk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
@@ -679,6 +672,14 @@ panvk_physical_device_init(struct panvk_physical_device *device,
    }
 
    drmFreeVersion(version);
+
+   if (!getenv("PAN_I_WANT_A_BROKEN_VULKAN_DRIVER")) {
+      close(fd);
+      return vk_errorf(
+         instance, VK_ERROR_INCOMPATIBLE_DRIVER,
+         "WARNING: panvk is not a conformant vulkan implementation, "
+         "pass PAN_I_WANT_A_BROKEN_VULKAN_DRIVER=1 if you know what you're doing.");
+   }
 
    if (instance->debug_flags & PANVK_DEBUG_STARTUP)
       vk_logi(VK_LOG_NO_OBJS(instance), "Found compatible device '%s'.", path);
