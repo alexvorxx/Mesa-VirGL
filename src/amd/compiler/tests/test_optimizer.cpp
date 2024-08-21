@@ -978,38 +978,38 @@ BEGIN_TEST(optimize.dpp_prop)
    //! v1: %res0 = v_mul_f32 1, %a
    //! p_unit_test 0, %res0
    Temp one = bld.copy(bld.def(v1), Operand::c32(1));
-   writeout(0, bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), one, inputs[0], dpp_row_sl(1)));
+   writeout(0, bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), one, inputs[0], dpp_row_rr(1)));
 
-   //! v1: %res1 = v_mul_f32 %a, %one row_shl:1 bound_ctrl:1 fi
+   //! v1: %res1 = v_mul_f32 %a, %one row_ror:1 bound_ctrl:1 fi
    //! p_unit_test 1, %res1
-   writeout(1, bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), inputs[0], one, dpp_row_sl(1)));
+   writeout(1, bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), inputs[0], one, dpp_row_rr(1)));
 
    //! v1: %res2 = v_mul_f32 0x12345678, %a
    //! p_unit_test 2, %res2
    Temp literal1 = bld.copy(bld.def(v1), Operand::c32(0x12345678u));
    writeout(2,
-            bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), literal1, inputs[0], dpp_row_sl(1)));
+            bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), literal1, inputs[0], dpp_row_rr(1)));
 
    //! v1: %literal2 = p_parallelcopy 0x12345679
-   //! v1: %res3 = v_mul_f32 %a, %literal row_shl:1 bound_ctrl:1 fi
+   //! v1: %res3 = v_mul_f32 %a, %literal row_ror:1 bound_ctrl:1 fi
    //! p_unit_test 3, %res3
    Temp literal2 = bld.copy(bld.def(v1), Operand::c32(0x12345679u));
    writeout(3,
-            bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), inputs[0], literal2, dpp_row_sl(1)));
+            bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), inputs[0], literal2, dpp_row_rr(1)));
 
    //! v1: %b_v = p_parallelcopy %b
    //! v1: %res4 = v_mul_f32 %b, %a
    //! p_unit_test 4, %res4
    Temp b_v = bld.copy(bld.def(v1), inputs[1]);
-   writeout(4, bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), b_v, inputs[0], dpp_row_sl(1)));
+   writeout(4, bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), b_v, inputs[0], dpp_row_rr(1)));
 
-   //! v1: %res5 = v_mul_f32 %a, %b_v row_shl:1 bound_ctrl:1 fi
+   //! v1: %res5 = v_mul_f32 %a, %b_v row_ror:1 bound_ctrl:1 fi
    //! p_unit_test 5, %res5
-   writeout(5, bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), inputs[0], b_v, dpp_row_sl(1)));
+   writeout(5, bld.vop2_dpp(aco_opcode::v_mul_f32, bld.def(v1), inputs[0], b_v, dpp_row_rr(1)));
 
    //! v1: %res6 = v_rcp_f32 %b
    //! p_unit_test 6, %res6
-   writeout(6, bld.vop1_dpp(aco_opcode::v_rcp_f32, bld.def(v1), b_v, dpp_row_sl(1)));
+   writeout(6, bld.vop1_dpp(aco_opcode::v_rcp_f32, bld.def(v1), b_v, dpp_row_rr(1)));
 
    finish_opt_test();
 END_TEST
