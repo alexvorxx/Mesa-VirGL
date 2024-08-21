@@ -1037,6 +1037,7 @@ emit_shader(struct etna_compile *c, unsigned *num_temps, unsigned *num_consts)
 static bool
 etna_compile_check_limits(struct etna_shader_variant *v)
 {
+   const struct etna_core_info *info = v->shader->info;
    const struct etna_specs *specs = v->shader->specs;
    int max_uniforms = (v->stage == MESA_SHADER_VERTEX)
                          ? specs->max_vs_uniforms
@@ -1048,9 +1049,9 @@ etna_compile_check_limits(struct etna_shader_variant *v)
       return false;
    }
 
-   if (v->num_temps > specs->max_registers) {
+   if (v->num_temps > info->gpu.max_registers) {
       DBG("Number of registers (%d) exceeds maximum %d", v->num_temps,
-          specs->max_registers);
+          info->gpu.max_registers);
       return false;
    }
 

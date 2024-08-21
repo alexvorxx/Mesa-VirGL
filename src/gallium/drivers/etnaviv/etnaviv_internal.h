@@ -117,8 +117,6 @@ struct etna_specs {
    uint32_t max_instructions;
    /* maximum number of varyings */
    unsigned max_varyings;
-   /* maximum number of registers */
-   unsigned max_registers;
    /* maximum vertex uniforms */
    unsigned max_vs_uniforms;
    /* maximum pixel uniforms */

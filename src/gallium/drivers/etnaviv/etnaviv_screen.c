@@ -853,7 +853,6 @@ etna_get_specs(struct etna_screen *screen)
    if (info->type == ETNA_CORE_GPU) {
       instruction_count = info->gpu.max_instructions;
       screen->specs.stream_count = info->gpu.stream_count;
-      screen->specs.max_registers = info->gpu.max_registers;
       screen->specs.pixel_pipes = info->gpu.pixel_pipes;
       screen->specs.max_varyings = MIN2(info->gpu.max_varyings, ETNA_NUM_VARYINGS);
 
