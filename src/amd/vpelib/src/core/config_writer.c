@@ -51,6 +51,18 @@ void config_writer_set_callback(
     writer->callback     = callback;
 }
 
+static void config_writer_reset(struct config_writer *writer)
+{
+    uint64_t size = writer->buf->cpu_va - writer->base_cpu_va;
+
+    writer->buf->cpu_va -= size;
+    writer->buf->gpu_va -= size;
+    writer->buf->size += size;
+
+    VPE_ASSERT(writer->buf->cpu_va == writer->base_cpu_va);
+    VPE_ASSERT(writer->buf->gpu_va == writer->base_gpu_va);
+}
+
 static inline void config_writer_new(struct config_writer *writer)
 {
     if (writer->status != VPE_STATUS_OK)
@@ -91,9 +103,9 @@ void config_writer_set_type(struct config_writer *writer, enum config_type type,
     if (writer->status != VPE_STATUS_OK)
         return;
 
-    if (writer->type != type || writer->pipe_idx != pipe_idx) {
+    if (writer->type != type) {
         if (writer->type == CONFIG_TYPE_UNKNOWN) {
-            // new header. don't need to fill it yet until completion
+            // new header or only pipe change. don't need to fill it yet until completion
             writer->pipe_idx = pipe_idx;
             config_writer_new(writer);
         } else {
@@ -265,6 +277,11 @@ void config_writer_complete(struct config_writer *writer)
 {
     uint32_t *cmd_space = (uint32_t *)(uintptr_t)writer->base_cpu_va;
     uint64_t  size      = writer->buf->cpu_va - writer->base_cpu_va;
+
+    if (size <= sizeof(uint32_t)) {
+        config_writer_reset(writer);
+        return;
+    }
 
     if (writer->status != VPE_STATUS_OK)
         return;
