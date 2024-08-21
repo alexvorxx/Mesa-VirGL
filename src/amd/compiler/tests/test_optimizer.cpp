@@ -891,17 +891,17 @@ BEGIN_TEST(optimizer.dpp)
    writeout(2, res2);
 
    /* modifiers */
-   //! v1: %res3 = v_add_f32 -%a, %b row_mirror bound_ctrl:1 fi
+   //! v1: %res3 = v_max_f32 -%a, %b row_mirror bound_ctrl:1 fi
    //! p_unit_test 3, %res3
    auto tmp3 = bld.vop1_dpp(aco_opcode::v_mov_b32, bld.def(v1), a, dpp_row_mirror);
    tmp3->dpp16().neg[0] = true;
-   Temp res3 = bld.vop2(aco_opcode::v_add_f32, bld.def(v1), tmp3, b);
+   Temp res3 = bld.vop2(aco_opcode::v_max_f32, bld.def(v1), tmp3, b);
    writeout(3, res3);
 
-   //! v1: %res4 = v_add_f32 -%a, %b row_mirror bound_ctrl:1 fi
+   //! v1: %res4 = v_max_f32 -%a, %b row_mirror bound_ctrl:1 fi
    //! p_unit_test 4, %res4
    Temp tmp4 = bld.vop1_dpp(aco_opcode::v_mov_b32, bld.def(v1), a, dpp_row_mirror);
-   auto res4 = bld.vop2_e64(aco_opcode::v_add_f32, bld.def(v1), tmp4, b);
+   auto res4 = bld.vop2_e64(aco_opcode::v_max_f32, bld.def(v1), tmp4, b);
    res4->valu().neg[0] = true;
    writeout(4, res4);
 
