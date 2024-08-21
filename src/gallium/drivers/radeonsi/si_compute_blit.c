@@ -19,43 +19,6 @@ static bool si_is_buffer_idle(struct si_context *sctx, struct si_resource *buf,
           sctx->ws->buffer_wait(sctx->ws, buf->buf, 0, usage);
 }
 
-static void si_improve_sync_flags(struct si_context *sctx, struct pipe_resource *dst,
-                                  struct pipe_resource *src, unsigned *flags)
-{
-   if (dst->target != PIPE_BUFFER || (src && src->target != PIPE_BUFFER))
-      return;
-
-   if (si_is_buffer_idle(sctx, si_resource(dst), RADEON_USAGE_READWRITE) &&
-       (!src || si_is_buffer_idle(sctx, si_resource(src), RADEON_USAGE_WRITE))) {
-      /* Idle buffers don't have to sync. */
-      *flags &= ~(SI_OP_SYNC_GE_BEFORE | SI_OP_SYNC_PS_BEFORE | SI_OP_SYNC_CS_BEFORE);
-      return;
-   }
-
-   const unsigned cs_mask = SI_BIND_CONSTANT_BUFFER(PIPE_SHADER_COMPUTE) |
-                            SI_BIND_SHADER_BUFFER(PIPE_SHADER_COMPUTE) |
-                            SI_BIND_IMAGE_BUFFER(PIPE_SHADER_COMPUTE) |
-                            SI_BIND_SAMPLER_BUFFER(PIPE_SHADER_COMPUTE);
-
-   const unsigned ps_mask = SI_BIND_CONSTANT_BUFFER(PIPE_SHADER_FRAGMENT) |
-                            SI_BIND_SHADER_BUFFER(PIPE_SHADER_FRAGMENT) |
-                            SI_BIND_IMAGE_BUFFER(PIPE_SHADER_FRAGMENT) |
-                            SI_BIND_SAMPLER_BUFFER(PIPE_SHADER_FRAGMENT);
-
-   unsigned bind_history = si_resource(dst)->bind_history |
-                           (src ? si_resource(src)->bind_history : 0);
-
-   /* Clear SI_OP_SYNC_CS_BEFORE if the buffer has never been used with a CS. */
-   if (*flags & SI_OP_SYNC_CS_BEFORE && !(bind_history & cs_mask))
-      *flags &= ~SI_OP_SYNC_CS_BEFORE;
-
-   /* Clear SI_OP_SYNC_PS_BEFORE if the buffer has never been used with a PS. */
-   if (*flags & SI_OP_SYNC_PS_BEFORE && !(bind_history & ps_mask)) {
-      *flags &= ~SI_OP_SYNC_PS_BEFORE;
-      *flags |= SI_OP_SYNC_GE_BEFORE;
-   }
-}
-
 void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                                    unsigned num_buffers,
                                    const struct pipe_shader_buffer *buffers,
@@ -70,6 +33,57 @@ void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                                 images[i].u.tex.last_layer,
                                 images[i].access & PIPE_IMAGE_ACCESS_WRITE);
    }
+
+   /* If syncing PS, we are also syncing GE. */
+   if (flags & SI_OP_SYNC_PS_BEFORE)
+      flags |= SI_OP_SYNC_GE_BEFORE;
+
+   /* Don't sync if buffers are idle. */
+   const unsigned ps_mask = SI_BIND_CONSTANT_BUFFER(PIPE_SHADER_FRAGMENT) |
+                            SI_BIND_SHADER_BUFFER(PIPE_SHADER_FRAGMENT) |
+                            SI_BIND_IMAGE_BUFFER(PIPE_SHADER_FRAGMENT) |
+                            SI_BIND_SAMPLER_BUFFER(PIPE_SHADER_FRAGMENT);
+   const unsigned cs_mask = SI_BIND_CONSTANT_BUFFER(PIPE_SHADER_COMPUTE) |
+                            SI_BIND_SHADER_BUFFER(PIPE_SHADER_COMPUTE) |
+                            SI_BIND_IMAGE_BUFFER(PIPE_SHADER_COMPUTE) |
+                            SI_BIND_SAMPLER_BUFFER(PIPE_SHADER_COMPUTE);
+   /* Keep all flags except PS and CS sync. Then determine if PS and CS sync is necessary. */
+   unsigned keep_sync_flags = flags & ~(SI_OP_SYNC_GE_BEFORE | SI_OP_SYNC_PS_BEFORE |
+                                        SI_OP_SYNC_CS_BEFORE);
+
+   for (unsigned i = 0; i < num_buffers; i++) {
+      if (!buffers[i].buffer)
+         continue;
+
+      struct si_resource *buf = si_resource(buffers[i].buffer);
+
+      /* We always wait for the last write. If the buffer is used for write, also wait
+       * for the last read.
+       */
+      if (!si_is_buffer_idle(sctx, buf, RADEON_USAGE_WRITE |
+                             (writable_buffers_mask & BITFIELD_BIT(i) ? RADEON_USAGE_READ : 0))) {
+         keep_sync_flags |= SI_OP_SYNC_GE_BEFORE;
+
+         if (buf->bind_history & cs_mask)
+            keep_sync_flags |= SI_OP_SYNC_CS_BEFORE;
+         if (buf->bind_history & ps_mask)
+            keep_sync_flags |= SI_OP_SYNC_PS_BEFORE;
+      }
+   }
+
+   /* Don't sync if images are idle. */
+   for (unsigned i = 0; i < num_images; i++) {
+      struct si_resource *img = si_resource(images[i].resource);
+      bool writable = images[i].access & PIPE_IMAGE_ACCESS_WRITE;
+
+      /* We always wait for the last write. If the buffer is used for write, also wait
+       * for the last read.
+       */
+      if (!si_is_buffer_idle(sctx, img, RADEON_USAGE_WRITE | (writable ? RADEON_USAGE_READ : 0)))
+         keep_sync_flags |= SI_OP_SYNC_GE_BEFORE | SI_OP_SYNC_PS_BEFORE | SI_OP_SYNC_CS_BEFORE;
+   }
+
+   flags &= keep_sync_flags;
 
    /* Wait for previous shaders to finish. */
    if (flags & SI_OP_SYNC_PS_BEFORE) {
@@ -294,8 +308,6 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
    assert(!src || src_offset + size <= src->width0);
    bool is_copy = src != NULL;
 
-   si_improve_sync_flags(sctx, dst, src, &flags);
-
    struct ac_cs_clear_copy_buffer_options options = {
       .nir_options = sctx->screen->nir_options,
       .info = &sctx->screen->info,
@@ -354,8 +366,6 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
 {
    if (!size)
       return;
-
-   si_improve_sync_flags(sctx, dst, NULL, &flags);
 
    ASSERTED unsigned clear_alignment = MIN2(clear_value_size, 4);
 
@@ -416,8 +426,6 @@ void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct p
    if (!size)
       return;
 
-   si_improve_sync_flags(sctx, dst, src, &flags);
-
    if (si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, size, NULL, 0, flags,
                                     0, true))
       return;
@@ -433,8 +441,6 @@ void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resour
 
    if (!sctx->cs_ubyte_to_ushort)
       sctx->cs_ubyte_to_ushort = si_create_ubyte_to_ushort_compute_shader(sctx);
-
-   si_improve_sync_flags(sctx, dst, src, &flags);
 
    struct pipe_grid_info info = {};
    set_work_size(&info, 64, 1, 1, count, 1, 1);
