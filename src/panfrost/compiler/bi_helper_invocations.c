@@ -269,23 +269,12 @@ bi_analyze_helper_requirements(bi_context *ctx)
    }
 
    /* Propagate that up */
-   u_worklist worklist;
-   bi_worklist_init(ctx, &worklist);
-
-   bi_foreach_block(ctx, block) {
-      bi_worklist_push_tail(&worklist, block);
-   }
-
-   while (!u_worklist_is_empty(&worklist)) {
-      bi_block *blk = bi_worklist_pop_tail(&worklist);
-
-      if (bi_helper_block_update(deps, blk)) {
-         bi_foreach_predecessor(blk, pred)
-            bi_worklist_push_head(&worklist, *pred);
-      }
-   }
-
-   u_worklist_fini(&worklist);
+   bool progress;
+   do {
+      progress = false;
+      bi_foreach_block_rev(ctx, block)
+         progress |= bi_helper_block_update(deps, block);
+   } while (progress);
 
    /* Set the execute bits */
 
