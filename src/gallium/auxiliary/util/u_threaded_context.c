@@ -4517,9 +4517,8 @@ tc_call_blit(struct pipe_context *pipe, void *call)
 }
 
 static void
-tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
+tc_blit_enqueue(struct threaded_context *tc, const struct pipe_blit_info *info)
 {
-   struct threaded_context *tc = threaded_context(_pipe);
    struct tc_blit_call *blit = tc_add_call(tc, TC_CALL_blit, tc_blit_call);
 
    tc_set_resource_batch_usage(tc, info->dst.resource);
@@ -4527,6 +4526,13 @@ tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
    tc_set_resource_batch_usage(tc, info->src.resource);
    tc_set_resource_reference(&blit->info.src.resource, info->src.resource);
    memcpy(&blit->info, info, sizeof(*info));
+}
+
+static void
+tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
+{
+   struct threaded_context *tc = threaded_context(_pipe);
+   tc_blit_enqueue(tc, info);
 
    /* filter out untracked non-resolves */
    if (!tc->options.parse_renderpass_info ||
