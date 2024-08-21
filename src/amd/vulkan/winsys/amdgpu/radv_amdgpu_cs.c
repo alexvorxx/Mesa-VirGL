@@ -804,6 +804,8 @@ radv_amdgpu_cs_execute_ib(struct radeon_cmdbuf *_cs, struct radeon_winsys_bo *bo
    if (cs->status != VK_SUCCESS)
       return;
 
+   assert(ib_va && ib_va % cs->ws->info.ip[cs->hw_ip].ib_alignment == 0);
+
    if (cs->hw_ip == AMD_IP_GFX && cs->use_ib) {
       radeon_emit(&cs->base, PKT3(PKT3_INDIRECT_BUFFER, 2, predicate));
       radeon_emit(&cs->base, ib_va);
