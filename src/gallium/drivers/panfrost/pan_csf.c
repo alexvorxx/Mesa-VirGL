@@ -927,6 +927,22 @@ csf_emit_draw_state(struct panfrost_batch *batch,
    return flags_override;
 }
 
+static struct cs_index
+csf_emit_draw_id_register(struct panfrost_batch *batch, unsigned offset)
+{
+   struct cs_builder *b = batch->csf.cs.builder;
+   struct panfrost_context *ctx = batch->ctx;
+   struct panfrost_uncompiled_shader *vs = ctx->uncompiled[PIPE_SHADER_VERTEX];
+
+   if (!BITSET_TEST(vs->nir->info.system_values_read, SYSTEM_VALUE_DRAW_ID))
+      return cs_undef();
+
+   struct cs_index drawid = cs_reg32(b, 67);
+   cs_move32_to(b, drawid, offset);
+
+   return drawid;
+}
+
 void
 GENX(csf_launch_draw)(struct panfrost_batch *batch,
                       const struct pipe_draw_info *info, unsigned drawid_offset,
@@ -936,6 +952,7 @@ GENX(csf_launch_draw)(struct panfrost_batch *batch,
    struct cs_builder *b = batch->csf.cs.builder;
 
    uint32_t flags_override = csf_emit_draw_state(batch, info, drawid_offset);
+   struct cs_index drawid = csf_emit_draw_id_register(batch, drawid_offset);
 
    cs_move32_to(b, cs_reg32(b, 33), draw->count);
    cs_move32_to(b, cs_reg32(b, 34), info->instance_count);
@@ -953,7 +970,7 @@ GENX(csf_launch_draw)(struct panfrost_batch *batch,
    }
 
    cs_run_idvs(b, flags_override, false, true, cs_shader_res_sel(0, 0, 1, 0),
-               cs_shader_res_sel(2, 2, 2, 0), cs_undef());
+               cs_shader_res_sel(2, 2, 2, 0), drawid);
 }
 
 void
@@ -965,6 +982,7 @@ GENX(csf_launch_draw_indirect)(struct panfrost_batch *batch,
    struct cs_builder *b = batch->csf.cs.builder;
 
    uint32_t flags_override = csf_emit_draw_state(batch, info, drawid_offset);
+   struct cs_index drawid = csf_emit_draw_id_register(batch, drawid_offset);
 
    struct cs_index address = cs_reg64(b, 64);
    struct cs_index counter = cs_reg32(b, 66);
@@ -990,10 +1008,12 @@ GENX(csf_launch_draw_indirect)(struct panfrost_batch *batch,
 
       cs_wait_slot(b, 0, false);
       cs_run_idvs(b, flags_override, false, true, cs_shader_res_sel(0, 0, 1, 0),
-                  cs_shader_res_sel(2, 2, 2, 0), cs_undef());
+                  cs_shader_res_sel(2, 2, 2, 0), drawid);
 
       cs_add64(b, address, address, indirect->stride);
       cs_add32(b, counter, counter, (unsigned int)-1);
+      if (drawid.type != CS_INDEX_UNDEF)
+         cs_add32(b, drawid, drawid, 1);
    }
 }
 

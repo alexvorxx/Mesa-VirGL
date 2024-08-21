@@ -90,8 +90,10 @@ sysval_for_intrinsic(nir_intrinsic_instr *intr, unsigned *offset)
       *offset = 8;
       return PAN_SYSVAL_VERTEX_INSTANCE_OFFSETS;
 
+#if PAN_ARCH <= 7
    case nir_intrinsic_load_draw_id:
       return PAN_SYSVAL_DRAWID;
+#endif
 
    case nir_intrinsic_load_multisampled_pan:
       return PAN_SYSVAL_MULTISAMPLED;
