@@ -280,8 +280,8 @@ is_best_inexact_overload(const exec_list *actual_parameters,
 static ir_function_signature *
 choose_best_inexact_overload(_mesa_glsl_parse_state *state,
                              const exec_list *actual_parameters,
-                             ir_function_signature **matches,
-                             int num_matches)
+                             ir_function_signature **matches, int num_matches,
+                             bool has_choose_best_inexact_overload)
 {
    if (num_matches == 0)
       return NULL;
@@ -289,14 +289,7 @@ choose_best_inexact_overload(_mesa_glsl_parse_state *state,
    if (num_matches == 1)
       return *matches;
 
-   /* Without GLSL 4.0, ARB_gpu_shader5, or MESA_shader_integer_functions,
-    * there is no overload resolution among multiple inexact matches. Note
-    * that state may be NULL here if called from the linker; in that case we
-    * assume everything supported in any GLSL version is available.
-    */
-   if (!state || state->is_version(400, 0) || state->ARB_gpu_shader5_enable ||
-       state->MESA_shader_integer_functions_enable ||
-       state->EXT_shader_implicit_conversions_enable) {
+   if (has_choose_best_inexact_overload) {
       for (ir_function_signature **sig = matches; sig < matches + num_matches; sig++) {
          if (is_best_inexact_overload(actual_parameters, matches, num_matches, *sig))
             return *sig;
@@ -390,7 +383,8 @@ ir_function::matching_signature(_mesa_glsl_parse_state *state,
    *is_exact = false;
 
    match = choose_best_inexact_overload(state, actual_parameters,
-                                        inexact_matches, num_inexact_matches);
+                                        inexact_matches, num_inexact_matches,
+                                        has_implicit_int_to_uint_conversion);
 
    free(inexact_matches);
    return match;
