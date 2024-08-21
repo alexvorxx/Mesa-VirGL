@@ -1025,11 +1025,8 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->transformFeedbackDraw = true;
 
    /* VK_EXT_sample_locations */
-   props->sampleLocationSampleCounts = 0;
-   if (pdevice->vk.supported_extensions.EXT_sample_locations) {
-      props->sampleLocationSampleCounts =
-         VK_SAMPLE_COUNT_1_BIT | VK_SAMPLE_COUNT_2_BIT | VK_SAMPLE_COUNT_4_BIT;
-   }
+   props->sampleLocationSampleCounts =
+      pdevice->vk.supported_extensions.EXT_sample_locations ? sample_counts : 0;
    props->maxSampleLocationGridSize = (VkExtent2D) { 1 , 1 };
    props->sampleLocationCoordinateRange[0] = SAMPLE_LOCATION_MIN;
    props->sampleLocationCoordinateRange[1] = SAMPLE_LOCATION_MAX;
