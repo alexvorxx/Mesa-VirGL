@@ -969,3 +969,12 @@ GENX(jm_launch_draw)(struct panfrost_batch *batch,
    }
 #endif
 }
+
+void
+GENX(jm_launch_draw_indirect)(struct panfrost_batch *batch,
+                              const struct pipe_draw_info *info,
+                              unsigned drawid_offset,
+                              const struct pipe_draw_indirect_info *indirect)
+{
+   unreachable("draw indirect not implemented for jm");
+}

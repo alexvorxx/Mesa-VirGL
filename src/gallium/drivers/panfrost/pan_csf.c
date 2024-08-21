@@ -942,6 +942,15 @@ GENX(csf_launch_draw)(struct panfrost_batch *batch,
                cs_shader_res_sel(2, 2, 2, 0), cs_undef());
 }
 
+void
+GENX(csf_launch_draw_indirect)(struct panfrost_batch *batch,
+                               const struct pipe_draw_info *info,
+                               unsigned drawid_offset,
+                               const struct pipe_draw_indirect_info *indirect)
+{
+   unreachable("draw indirect not implemented yet for CSF");
+}
+
 #define POSITION_FIFO_SIZE (64 * 1024)
 
 int

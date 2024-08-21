@@ -91,6 +91,10 @@ void GENX(csf_launch_draw)(struct panfrost_batch *batch,
                            unsigned drawid_offset,
                            const struct pipe_draw_start_count_bias *draw,
                            unsigned vertex_count);
+void GENX(csf_launch_draw_indirect)(struct panfrost_batch *batch,
+                                    const struct pipe_draw_info *info,
+                                    unsigned drawid_offset,
+                                    const struct pipe_draw_indirect_info *indirect);
 
 #endif /* PAN_ARCH >= 10 */
 

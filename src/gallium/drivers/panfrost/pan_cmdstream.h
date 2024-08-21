@@ -41,6 +41,7 @@
 #include "util/u_prim.h"
 
 #define PAN_GPU_SUPPORTS_DISPATCH_INDIRECT (PAN_ARCH == 7 || PAN_ARCH >= 10)
+#define PAN_GPU_SUPPORTS_DRAW_INDIRECT     0
 
 struct panfrost_rasterizer {
    struct pipe_rasterizer_state base;
