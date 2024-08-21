@@ -215,6 +215,12 @@ void si_test_dma_perf(struct si_screen *sscreen)
                      }
                   } else if (method == METHOD_CP_DMA) {
                      /* CP DMA */
+                     if (sscreen->info.cp_sdma_ge_use_system_memory_scope) {
+                        /* The CP DMA code doesn't implement this case. */
+                        success = false;
+                        continue;
+                     }
+
                      if (is_copy) {
                         si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size,
                                               SI_OP_SYNC_BEFORE_AFTER, SI_COHERENCY_SHADER, L2_LRU);

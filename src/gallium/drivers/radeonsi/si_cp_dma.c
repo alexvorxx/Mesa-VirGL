@@ -187,6 +187,7 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
    uint64_t va = (sdst ? sdst->gpu_address : 0) + offset;
    bool is_first = true;
 
+   assert(!sctx->screen->info.cp_sdma_ge_use_system_memory_scope);
    assert(size && size % 4 == 0);
 
    if (user_flags & SI_OP_SYNC_GE_BEFORE)
@@ -197,10 +198,6 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
 
    if (user_flags & SI_OP_SYNC_PS_BEFORE)
       sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH;
-
-   /* TODO: Range-invalidate GL2 or always use compute shaders */
-   if (sctx->screen->info.cp_sdma_ge_use_system_memory_scope)
-      sctx->flags |= SI_CONTEXT_INV_L2;
 
    /* Mark the buffer range of destination as valid (initialized),
     * so that transfer_map knows it should wait for the GPU when mapping
@@ -303,6 +300,7 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
    unsigned gds_flags = (dst ? 0 : CP_DMA_DST_IS_GDS) | (src ? 0 : CP_DMA_SRC_IS_GDS);
    bool is_first = true;
 
+   assert(!sctx->screen->info.cp_sdma_ge_use_system_memory_scope);
    assert(size);
 
    if (dst) {
@@ -363,10 +361,6 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
 
    if ((dst || src) && !(user_flags & SI_OP_SKIP_CACHE_INV_BEFORE))
          sctx->flags |= si_get_flush_flags(sctx, coher, cache_policy);
-
-   /* TODO: Range-flush GL2 for src and range-invalidate GL2 for dst, or always use compute shaders */
-   if (sctx->screen->info.cp_sdma_ge_use_system_memory_scope)
-      sctx->flags |= SI_CONTEXT_INV_L2;
 
    if (sctx->flags)
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
