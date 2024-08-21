@@ -4547,15 +4547,21 @@ fs_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
 
       cs_prog_data->uses_num_work_groups = true;
 
-      brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-      srcs[SURFACE_LOGICAL_SRC_SURFACE] = brw_imm_ud(0);
-      srcs[SURFACE_LOGICAL_SRC_IMM_DIMS] = brw_imm_ud(1);
-      srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(3); /* num components */
-      srcs[SURFACE_LOGICAL_SRC_ADDRESS] = brw_imm_ud(0);
-      srcs[SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK] = brw_imm_ud(0);
+      brw_reg srcs[MEMORY_LOGICAL_NUM_SRCS];
+      srcs[MEMORY_LOGICAL_OPCODE] = brw_imm_ud(LSC_OP_LOAD);
+      srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_UNTYPED);
+      srcs[MEMORY_LOGICAL_BINDING_TYPE] = brw_imm_ud(LSC_ADDR_SURFTYPE_BTI);
+      srcs[MEMORY_LOGICAL_BINDING] = brw_imm_ud(0);
+      srcs[MEMORY_LOGICAL_ADDRESS] = brw_imm_ud(0);
+      srcs[MEMORY_LOGICAL_COORD_COMPONENTS] = brw_imm_ud(1);
+      srcs[MEMORY_LOGICAL_ALIGNMENT] = brw_imm_ud(4);
+      srcs[MEMORY_LOGICAL_DATA_SIZE] = brw_imm_ud(LSC_DATA_SIZE_D32);
+      srcs[MEMORY_LOGICAL_COMPONENTS] = brw_imm_ud(3);
+      srcs[MEMORY_LOGICAL_FLAGS] = brw_imm_ud(0);
+
       fs_inst *inst =
-         bld.emit(SHADER_OPCODE_UNTYPED_SURFACE_READ_LOGICAL,
-                  dest, srcs, SURFACE_LOGICAL_NUM_SRCS);
+         bld.emit(SHADER_OPCODE_MEMORY_LOAD_LOGICAL,
+                  dest, srcs, MEMORY_LOGICAL_NUM_SRCS);
       inst->size_written = 3 * s.dispatch_width * 4;
       break;
    }
