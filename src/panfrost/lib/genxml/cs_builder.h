@@ -29,6 +29,9 @@
 
 #include "gen_macros.h"
 
+#include "util/list.h"
+#include "util/u_dynarray.h"
+
 /*
  * cs_builder implements a builder for CSF command streams. It manages the
  * allocation and overflow behaviour of queues and provides helpers for emitting
@@ -83,6 +86,32 @@ struct cs_chunk {
    };
 };
 
+/* Monolithic sequence of instruction. Must live in a virtually contiguous
+ * portion of code.
+ */
+struct cs_block {
+   /* Used to insert the block in the block stack. */
+   struct list_head node;
+};
+
+#define CS_LABEL_INVALID_POS ~0u
+
+/* Labels can only be used inside a cs_block. They can be defined and
+ * referenced before they are set to point to a specific position
+ * in the block. */
+struct cs_label {
+   /* The last reference we have seen pointing to this block before
+    * it was set. If set to CS_LABEL_INVALID_POS, no forward reference
+    * pointing to this label exist.
+    */
+   uint32_t last_forward_ref;
+
+   /* The label target. If set to CS_LABEL_INVALID_POS, the label has
+    * not been set yet.
+    */
+   uint32_t target;
+};
+
 struct cs_builder {
    /* CS builder configuration */
    struct cs_builder_conf conf;
@@ -95,6 +124,16 @@ struct cs_builder {
 
    /* Current CS chunk. */
    struct cs_chunk cur_chunk;
+
+   /* Temporary storage for inner blocks that need to be built
+    * and copied in one monolithic sequence of instructions with no
+    * jump in the middle.
+    */
+   struct {
+      struct list_head stack;
+      struct cs_block *cur;
+      struct util_dynarray instrs;
+   } blocks;
 
    /* Move immediate instruction at the end of the last CS chunk that needs to
     * be patched with the final length of the current CS chunk in order to
@@ -122,6 +161,9 @@ cs_builder_init(struct cs_builder *b, const struct cs_builder_conf *conf,
     * at least that too.
     */
    b->conf.nr_kernel_registers = MAX2(b->conf.nr_kernel_registers, 3);
+
+   list_inithead(&b->blocks.stack);
+   util_dynarray_init(&b->blocks.instrs, NULL);
 }
 
 static bool
@@ -191,6 +233,8 @@ cs_finish(struct cs_builder *b)
 
    /* This prevents adding instructions after that point. */
    memset(&b->cur_chunk, 0, sizeof(b->cur_chunk));
+
+   util_dynarray_fini(&b->blocks.instrs);
 }
 
 enum cs_index_type {
@@ -295,13 +339,16 @@ cs_extract32(struct cs_builder *b, struct cs_index idx, unsigned word)
 #define JUMP_SEQ_INSTR_COUNT 4
 
 static inline void *
-cs_alloc_ins(struct cs_builder *b)
+cs_alloc_ins(struct cs_builder *b, uint32_t num_instrs)
 {
    /* If an allocation failure happened before, we just discard all following
     * instructions.
     */
    if (unlikely(!cs_is_valid(b)))
       return &b->discard_instr_slot;
+
+   if (b->blocks.cur)
+      return util_dynarray_grow(&b->blocks.instrs, uint64_t, num_instrs);
 
    /* Lazy root chunk allocation. */
    if (unlikely(!b->root_chunk.buffer.cpu)) {
@@ -317,7 +364,7 @@ cs_alloc_ins(struct cs_builder *b)
     * We actually do this a few instructions before running out, because the
     * sequence to jump to a new queue takes multiple instructions.
     */
-   if (unlikely((b->cur_chunk.size + JUMP_SEQ_INSTR_COUNT) >
+   if (unlikely((b->cur_chunk.size + num_instrs + JUMP_SEQ_INSTR_COUNT) >
                 b->cur_chunk.buffer.capacity)) {
       /* Now, allocate a new chunk */
       struct cs_buffer newbuf = b->conf.alloc_buffer(b->conf.cookie);
@@ -360,8 +407,10 @@ cs_alloc_ins(struct cs_builder *b)
       b->cur_chunk.pos = 0;
    }
 
-   assert(b->cur_chunk.size < b->cur_chunk.buffer.capacity);
-   return b->cur_chunk.buffer.cpu + (b->cur_chunk.pos++);
+   assert(b->cur_chunk.size + num_instrs - 1 < b->cur_chunk.buffer.capacity);
+   uint32_t pos = b->cur_chunk.pos;
+   b->cur_chunk.pos += num_instrs;
+   return b->cur_chunk.buffer.cpu + pos;
 }
 
 /*
@@ -369,7 +418,7 @@ cs_alloc_ins(struct cs_builder *b)
  * to be separated out being pan_pack can evaluate its argument multiple times,
  * yet cs_alloc has side effects.
  */
-#define cs_emit(b, T, cfg) pan_pack(cs_alloc_ins(b), CS_##T, cfg)
+#define cs_emit(b, T, cfg) pan_pack(cs_alloc_ins(b, 1), CS_##T, cfg)
 
 /* Asynchronous operations take a mask of scoreboard slots to wait on
  * before executing the instruction, and signal a scoreboard slot when
@@ -426,6 +475,137 @@ cs_move48_to(struct cs_builder *b, struct cs_index dest, uint64_t imm)
    cs_emit(b, MOVE, I) {
       I.destination = cs_to_reg64(dest);
       I.immediate = imm;
+   }
+}
+
+static inline void
+cs_block_start(struct cs_builder *b, struct cs_block *block)
+{
+   list_addtail(&block->node, &b->blocks.stack);
+   b->blocks.cur = block;
+}
+
+static inline void
+cs_block_end(struct cs_builder *b)
+{
+   assert(b->blocks.cur);
+
+   list_del(&b->blocks.cur->node);
+
+   if (!list_is_empty(&b->blocks.stack)) {
+      b->blocks.cur = list_last_entry(&b->blocks.stack, struct cs_block, node);
+      return;
+   }
+
+   b->blocks.cur = NULL;
+
+   uint32_t num_instrs =
+      util_dynarray_num_elements(&b->blocks.instrs, uint64_t);
+   void *buffer = cs_alloc_ins(b, num_instrs);
+
+   memcpy(buffer, b->blocks.instrs.data, b->blocks.instrs.size);
+   util_dynarray_clear(&b->blocks.instrs);
+}
+
+static inline uint32_t
+cs_block_next_pos(struct cs_builder *b)
+{
+   assert(b->blocks.cur);
+
+   return util_dynarray_num_elements(&b->blocks.instrs, uint64_t);
+}
+
+static inline void
+cs_branch(struct cs_builder *b, int offset, enum mali_cs_condition cond,
+          struct cs_index val)
+{
+   cs_emit(b, BRANCH, I) {
+      I.offset = offset;
+      I.condition = cond;
+      I.value = cs_to_reg32(val);
+   }
+}
+
+static inline void
+cs_branch_label(struct cs_builder *b, struct cs_label *label,
+                enum mali_cs_condition cond, struct cs_index val)
+{
+   assert(b->blocks.cur);
+
+   if (label->target == CS_LABEL_INVALID_POS) {
+      uint32_t branch_ins_pos = cs_block_next_pos(b);
+
+      /* Instead of emitting a BRANCH with the final offset, we record the
+       * diff between the current branch, and the previous branch that was
+       * referencing this unset label. This way we build a single link list
+       * that can be walked when the label is set with cs_set_label().
+       * We use -1 as the end-of-list marker.
+       */
+      int16_t offset = -1;
+      if (label->last_forward_ref != CS_LABEL_INVALID_POS) {
+         assert(label->last_forward_ref < branch_ins_pos);
+         assert(branch_ins_pos - label->last_forward_ref <= INT16_MAX);
+         offset = branch_ins_pos - label->last_forward_ref;
+      }
+
+      cs_emit(b, BRANCH, I) {
+         I.offset = offset;
+         I.condition = cond;
+         I.value = cs_to_reg32(val);
+      }
+
+      label->last_forward_ref = branch_ins_pos;
+   } else {
+      int32_t offset = label->target - cs_block_next_pos(b) - 1;
+
+      /* The branch target is encoded in a 16-bit signed integer, make sure we
+       * don't underflow.
+       */
+      assert(offset >= INT16_MIN);
+
+      /* Backward references are easy, we can emit them immediately. */
+      cs_emit(b, BRANCH, I) {
+         I.offset = offset;
+         I.condition = cond;
+         I.value = cs_to_reg32(val);
+      }
+   }
+}
+
+static inline void
+cs_label_init(struct cs_label *label)
+{
+   label->last_forward_ref = CS_LABEL_INVALID_POS;
+   label->target = CS_LABEL_INVALID_POS;
+}
+
+static inline void
+cs_set_label(struct cs_builder *b, struct cs_label *label)
+{
+   assert(label->target == CS_LABEL_INVALID_POS);
+   label->target = cs_block_next_pos(b);
+
+   for (uint32_t next_forward_ref, forward_ref = label->last_forward_ref;
+        forward_ref != CS_LABEL_INVALID_POS; forward_ref = next_forward_ref) {
+      uint64_t *ins =
+         util_dynarray_element(&b->blocks.instrs, uint64_t, forward_ref);
+
+      assert(forward_ref < label->target);
+      assert(label->target - forward_ref <= INT16_MAX);
+
+      /* Save the next forward reference to this target before overwritting
+       * it with the final offset.
+       */
+      int16_t offset = *ins & BITFIELD64_MASK(16);
+
+      next_forward_ref =
+         offset > 0 ? forward_ref - offset : CS_LABEL_INVALID_POS;
+
+      assert(next_forward_ref == CS_LABEL_INVALID_POS ||
+             next_forward_ref < forward_ref);
+
+      *ins &= ~BITFIELD64_MASK(16);
+      *ins |= label->target - forward_ref - 1;
    }
 }
 
@@ -663,17 +843,6 @@ cs_store64(struct cs_builder *b, struct cs_index data, struct cs_index address,
            int offset)
 {
    cs_store(b, data, address, BITFIELD_MASK(2), offset);
-}
-
-static inline void
-cs_branch(struct cs_builder *b, int offset, enum mali_cs_condition cond,
-          struct cs_index val)
-{
-   cs_emit(b, BRANCH, I) {
-      I.offset = offset;
-      I.condition = cond;
-      I.value = cs_to_reg32(val);
-   }
 }
 
 /*
