@@ -117,6 +117,13 @@ bi_instance_id(bi_builder *b)
    return bi_preload(b, (b->shader->arch >= 9) ? 61 : 62);
 }
 
+static inline bi_index
+bi_draw_id(bi_builder *b)
+{
+   assert(b->shader->arch >= 9);
+   return bi_preload(b, 62);
+}
+
 static void
 bi_emit_jump(bi_builder *b, nir_jump_instr *instr)
 {
@@ -1890,6 +1897,10 @@ bi_emit_intrinsic(bi_builder *b, nir_intrinsic_instr *instr)
 
    case nir_intrinsic_load_instance_id:
       bi_mov_i32_to(b, dst, bi_instance_id(b));
+      break;
+
+   case nir_intrinsic_load_draw_id:
+      bi_mov_i32_to(b, dst, bi_draw_id(b));
       break;
 
    case nir_intrinsic_load_subgroup_invocation:
