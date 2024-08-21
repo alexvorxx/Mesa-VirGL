@@ -89,6 +89,9 @@ get_device_extensions(const struct panvk_physical_device *device,
       .EXT_private_data = true,
       .EXT_shader_module_identifier = true,
       .EXT_vertex_attribute_divisor = true,
+      .GOOGLE_decorate_string = true,
+      .GOOGLE_hlsl_functionality1 = true,
+      .GOOGLE_user_type = true,
    };
 }
 
