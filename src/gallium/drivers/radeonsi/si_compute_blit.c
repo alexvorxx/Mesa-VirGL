@@ -952,6 +952,9 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
    if (!ac_prepare_compute_blit(&options, &blit, &out))
       return false;
 
+   if (!out.num_dispatches)
+      return true;
+
    /* This is needed for compute queues if DCC stores are unsupported. */
    if (sctx->gfx_level < GFX10 && !sctx->has_graphics && vi_dcc_enabled(sdst, info->dst.level))
       si_texture_disable_dcc(sctx, sdst);
