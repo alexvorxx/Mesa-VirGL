@@ -1186,12 +1186,9 @@ dri2_initialize_android(_EGLDisplay *disp)
    struct dri2_egl_display *dri2_dpy;
    const char *err;
 
-   dri2_dpy = calloc(1, sizeof(*dri2_dpy));
+   dri2_dpy = dri2_display_create();
    if (!dri2_dpy)
       return _eglError(EGL_BAD_ALLOC, "eglInitialize");
-
-   dri2_dpy->fd_render_gpu = -1;
-   dri2_dpy->fd_display_gpu = -1;
 
    dri2_dpy->gralloc = u_gralloc_create(U_GRALLOC_TYPE_AUTO);
    if (dri2_dpy->gralloc == NULL) {
