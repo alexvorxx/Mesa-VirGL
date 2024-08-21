@@ -10,9 +10,6 @@ export PAGER=cat  # FIXME: export everywhere
 INSTALL=$(realpath -s "$PWD"/install)
 S3_ARGS="--token-file ${S3_JWT_FILE}"
 
-RESULTS=$(realpath -s "$PWD"/results)
-mkdir -p "$RESULTS"
-
 export PIGLIT_REPLAY_DESCRIPTION_FILE="$INSTALL/$PIGLIT_TRACES_FILE"
 
 # FIXME: guess why /usr/local/bin is not included in all runners PATH.
@@ -51,7 +48,7 @@ export __LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$INSTALL/lib/"
 if [ -n "${VK_DRIVER}" ]; then
   # Set environment for DXVK.
   export DXVK_LOG_LEVEL="info"
-  export DXVK_LOG="$RESULTS/dxvk"
+  export DXVK_LOG="$RESULTS_DIR/dxvk"
   [ -d "$DXVK_LOG" ] || mkdir -pv "$DXVK_LOG"
   export DXVK_STATE_CACHE=0
   ARCH=$(uname -m)
@@ -98,7 +95,7 @@ if [ "$EGL_PLATFORM" = "surfaceless" ]; then
     GALLIUM_DRIVER=llvmpipe \
     VTEST_USE_EGL_SURFACELESS=1 \
     VTEST_USE_GLES=1 \
-    virgl_test_server >"$RESULTS"/vtest-log.txt 2>&1 &
+    virgl_test_server >"$RESULTS_DIR"/vtest-log.txt 2>&1 &
 
     sleep 1
     fi
@@ -132,7 +129,7 @@ fi
 
 # shellcheck disable=SC2317
 replay_s3_upload_images() {
-    find "$RESULTS/$__PREFIX" -type f -name "*.png" -printf "%P\n" \
+    find "$RESULTS_DIR/$__PREFIX" -type f -name "*.png" -printf "%P\n" \
         | while read -r line; do
 
         __TRACE="${line%-*-*}"
@@ -150,16 +147,14 @@ replay_s3_upload_images() {
             __DESTINATION_FILE_PATH="$__S3_TRACES_PREFIX/${line##*-}"
         fi
 
-        ci-fairy s3cp $S3_ARGS "$RESULTS/$__PREFIX/$line" \
+        ci-fairy s3cp $S3_ARGS "$RESULTS_DIR/$__PREFIX/$line" \
             "https://${__S3_PATH}/${__DESTINATION_FILE_PATH}"
     done
 }
 
 SANITY_MESA_VERSION_CMD="$SANITY_MESA_VERSION_CMD | tee /tmp/version.txt | grep \"Mesa $MESA_VERSION\(\s\|$\)\""
 
-if [ -d results ]; then
-    cd results && rm -rf ..?* .[!.]* *
-fi
+cd $RESULTS_DIR && rm -rf ..?* .[!.]* *
 cd /piglit
 
 if [ -n "$USE_CASELIST" ]; then
@@ -178,7 +173,7 @@ PIGLIT_OPTIONS=$(printf "%s" "$PIGLIT_OPTIONS")
 
 PIGLIT_TESTS=$(printf "%s" "$PIGLIT_TESTS")
 
-PIGLIT_CMD="./piglit run -l verbose --timeout 300 -j${FDO_CI_CONCURRENT:-4} $PIGLIT_OPTIONS $PIGLIT_TESTS replay "$(/usr/bin/printf "%q" "$RESULTS")
+PIGLIT_CMD="./piglit run -l verbose --timeout 300 -j${FDO_CI_CONCURRENT:-4} $PIGLIT_OPTIONS $PIGLIT_TESTS replay "$(/usr/bin/printf "%q" "$RESULTS_DIR")
 
 RUN_CMD="export LD_LIBRARY_PATH=$__LD_LIBRARY_PATH; $SANITY_MESA_VERSION_CMD && $HANG_DETECTION_CMD $PIGLIT_CMD"
 
@@ -203,12 +198,12 @@ then
     printf "%s\n" "Found $(cat /tmp/version.txt), expected $MESA_VERSION"
 fi
 
-./piglit summary aggregate "$RESULTS" -o junit.xml
+./piglit summary aggregate "$RESULTS_DIR" -o junit.xml
 
 PIGLIT_RESULTS="${PIGLIT_RESULTS:-replay}"
-RESULTSFILE="$RESULTS/$PIGLIT_RESULTS.txt"
+RESULTSFILE="$RESULTS_DIR/$PIGLIT_RESULTS.txt"
 mkdir -p .gitlab-ci/piglit
-./piglit summary console "$RESULTS"/results.json.bz2 \
+./piglit summary console "$RESULTS_DIR"/results.json.bz2 \
     | tee ".gitlab-ci/piglit/$PIGLIT_RESULTS.txt.orig" \
     | head -n -1 | grep -v ": pass" \
     | sed '/^summary:/Q' \
@@ -228,11 +223,11 @@ if [ ! -s $RESULTSFILE ]; then
 fi
 
 ./piglit summary html --exclude-details=pass \
-"$RESULTS"/summary "$RESULTS"/results.json.bz2
+"$RESULTS_DIR"/summary "$RESULTS_DIR"/results.json.bz2
 
-find "$RESULTS"/summary -type f -name "*.html" -print0 \
+find "$RESULTS_DIR"/summary -type f -name "*.html" -print0 \
         | xargs -0 sed -i 's%<img src="file://'"${RESULTS}"'.*-\([0-9a-f]*\)\.png%<img src="https://'"${JOB_ARTIFACTS_BASE}"'/traces/\1.png%g'
-find "$RESULTS"/summary -type f -name "*.html" -print0 \
+find "$RESULTS_DIR"/summary -type f -name "*.html" -print0 \
         | xargs -0 sed -i 's%<img src="file://%<img src="https://'"${PIGLIT_REPLAY_REFERENCE_IMAGES_BASE}"'/%g'
 
 echo "Failures in traces:"
