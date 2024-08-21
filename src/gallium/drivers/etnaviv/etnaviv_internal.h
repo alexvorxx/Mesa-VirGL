@@ -133,10 +133,6 @@ struct etna_specs {
    unsigned num_constants;
    /* architecture version of NN cores */
    unsigned nn_core_version;
-   /* number of MAD units per NN core */
-   unsigned nn_mad_per_core;
-   /* Size of SRAM behind AXI */
-   unsigned axi_sram_size;
 };
 
 /* Compiled Gallium state. All the different compiled state atoms are woven

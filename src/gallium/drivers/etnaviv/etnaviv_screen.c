@@ -863,9 +863,6 @@ etna_get_specs(struct etna_screen *screen)
    }
 
    if (info->type == ETNA_CORE_NPU) {
-      screen->specs.nn_mad_per_core = info->npu.nn_mad_per_core;
-      screen->specs.axi_sram_size = info->npu.axi_sram_size;
-
       if (etna_core_has_feature(info, ETNA_FEATURE_NN_XYDP0))
          screen->specs.nn_core_version = 8;
       else if (etna_core_has_feature(info, ETNA_FEATURE_VIP_V7))
