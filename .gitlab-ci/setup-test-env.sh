@@ -108,5 +108,13 @@ export -f uncollapsed_section_switch
 # Freedesktop requirement (needed for Wayland)
 [ -n "${XDG_RUNTIME_DIR}" ] || export XDG_RUNTIME_DIR="$(mktemp -p "$PWD" -d xdg-runtime-XXXXXX)"
 
+if [ -z "${RESULTS_DIR:-}" ]; then
+	export RESULTS_DIR="$(pwd)/results"
+	if [ -e "${RESULTS_DIR}" ]; then
+		rm -rf "${RESULTS_DIR}"
+	fi
+	mkdir -p "${RESULTS_DIR}"
+fi
+
 set -E
 trap 'trap_err $?' ERR

@@ -206,7 +206,7 @@ EXIT_CODE=$?
 set -e
 
 # Let's make sure the results are always stored in current working directory
-mv -f ${CI_PROJECT_DIR}/results ./ 2>/dev/null || true
+mv -f ${RESULTS_DIR} ./ 2>/dev/null || true
 
 [ ${EXIT_CODE} -ne 0 ] || rm -rf results/trace/"$PIGLIT_REPLAY_DEVICE_NAME"
 
