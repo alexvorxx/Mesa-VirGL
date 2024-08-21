@@ -805,18 +805,18 @@ etna_determine_uniform_limits(struct etna_screen *screen)
        (screen->info->revision == 0x5118 || screen->info->revision == 0x5140)) {
       screen->specs.max_vs_uniforms = 256;
       screen->specs.max_ps_uniforms = 64;
-   } else if (screen->specs.num_constants == 320) {
+   } else if (screen->info->gpu.num_constants == 320) {
       screen->specs.max_vs_uniforms = 256;
       screen->specs.max_ps_uniforms = 64;
-   } else if (screen->specs.num_constants > 256 &&
+   } else if (screen->info->gpu.num_constants > 256 &&
               screen->info->model == chipModel_GC1000) {
       /* All GC1000 series chips can only support 64 uniforms for ps on non-unified const mode. */
       screen->specs.max_vs_uniforms = 256;
       screen->specs.max_ps_uniforms = 64;
-   } else if (screen->specs.num_constants > 256) {
+   } else if (screen->info->gpu.num_constants > 256) {
       screen->specs.max_vs_uniforms = 256;
       screen->specs.max_ps_uniforms = 256;
-   } else if (screen->specs.num_constants == 256) {
+   } else if (screen->info->gpu.num_constants == 256) {
       screen->specs.max_vs_uniforms = 256;
       screen->specs.max_ps_uniforms = 256;
    } else {
@@ -855,7 +855,6 @@ etna_get_specs(struct etna_screen *screen)
       screen->specs.stream_count = info->gpu.stream_count;
       screen->specs.max_registers = info->gpu.max_registers;
       screen->specs.pixel_pipes = info->gpu.pixel_pipes;
-      screen->specs.num_constants = info->gpu.num_constants;
       screen->specs.max_varyings = MIN2(info->gpu.max_varyings, ETNA_NUM_VARYINGS);
 
       if (screen->npu)
