@@ -17,6 +17,7 @@
 #include "vk_shader_module.h"
 
 #define DGC_VBO_INFO_SIZE (sizeof(struct radv_vbo_info) + 4 /* vbo_offsets */)
+#define PKT3_INDIRECT_BUFFER_BYTES 16
 
 /* The DGC command buffer layout is quite complex, here's some explanations:
  *
@@ -255,7 +256,7 @@ radv_align_cmdbuf(const struct radv_device *device, uint32_t size, enum amd_ip_t
 static unsigned
 radv_dgc_preamble_cmdbuf_size(const struct radv_device *device, enum amd_ip_type ip_type)
 {
-   return radv_pad_cmdbuf(device, 16, ip_type);
+   return radv_pad_cmdbuf(device, PKT3_INDIRECT_BUFFER_BYTES, ip_type);
 }
 
 static bool
@@ -989,7 +990,7 @@ build_dgc_buffer_preamble(nir_builder *b, nir_def *cmd_buf_preamble_offset, nir_
 
       nir_def *words = nir_ushr_imm(b, cmd_buf_size, 2);
 
-      const uint32_t pad_size = preamble_size - 16 /* INDIRECT_BUFFER */;
+      const uint32_t pad_size = preamble_size - PKT3_INDIRECT_BUFFER_BYTES;
       const uint32_t pad_size_dw = pad_size >> 2;
 
       nir_def *len = nir_imm_int(b, pad_size_dw - 2);
