@@ -74,27 +74,9 @@ void
 agx_legalize_compression(struct agx_context *ctx, struct agx_resource *rsrc,
                          enum pipe_format format)
 {
-   /* If the resource isn't compressed, we can reinterpret */
-   if (rsrc->layout.tiling != AIL_TILING_TWIDDLED_COMPRESSED)
-      return;
-
-   /* The physical format */
-   enum pipe_format storage = rsrc->layout.format;
-
-   /* If the formats are compatible, we don't have to decompress. Compatible
-    * formats have the same number/size/order of channels, but may differ in
-    * data type. For example, R32_SINT is compatible with Z32_FLOAT, but not
-    * with R16G16_SINT. This is the relation given by the "channels" part of the
-    * decomposed format.
-    *
-    * This has not been exhaustively tested and might be missing some corner
-    * cases around XR formats, but is well-motivated and seems to work.
-    */
-   if (ail_pixel_format[storage].channels == ail_pixel_format[format].channels)
-      return;
-
-   /* Otherwise, decompress. */
-   agx_decompress(ctx, rsrc, "Incompatible formats");
+   if (!ail_is_view_compatible(&rsrc->layout, format)) {
+      agx_decompress(ctx, rsrc, "Incompatible formats");
+   }
 }
 
 static void

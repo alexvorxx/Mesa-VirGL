@@ -412,6 +412,28 @@ ail_tile_mode_uncompressed(enum pipe_format format)
    return ail_tile_mode_replicated(ail_subtile_uncompressed_mode(format));
 }
 
+/*
+ * For compression, compatible formats must have the same number/size/order of
+ * channels, but may differ in data type. For example, R32_SINT is compatible
+ * with Z32_FLOAT, but not with R16G16_SINT. This is the relation given by the
+ * "channels" part of the decomposed format.
+ *
+ * This has not been exhaustively tested and might be missing some corner cases
+ * around XR formats, but is well-motivated and seems to work.
+ */
+static inline bool
+ail_formats_compatible(enum pipe_format a, enum pipe_format b)
+{
+   return ail_pixel_format[a].channels == ail_pixel_format[b].channels;
+}
+
+static inline bool
+ail_is_view_compatible(struct ail_layout *layout, enum pipe_format view)
+{
+   return !ail_is_compressed(layout) ||
+          ail_formats_compatible(layout->format, view);
+}
+
 #ifdef __cplusplus
 } /* extern C */
 #endif
