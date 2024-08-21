@@ -6452,6 +6452,8 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
          surface = get_nir_buffer_intrinsic_index(ntb, bld, instr, &no_mask_handle);
 
       if (!nir_src_is_const(instr->src[1])) {
+         s.prog_data->has_ubo_pull = true;
+
          if (instr->intrinsic == nir_intrinsic_load_ubo) {
             /* load_ubo with non-uniform offset */
             brw_reg base_offset = retype(get_nir_src(ntb, instr->src[1]),
@@ -6468,57 +6470,9 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
                                               instr->def.bit_size / 8,
                                               MIN2(remaining, comps_per_load));
             }
-
-            s.prog_data->has_ubo_pull = true;
          } else {
-            /* load_ubo with uniform offset */
-            const fs_builder ubld1 = bld.exec_all().group(1, 0);
-            const fs_builder ubld8 = bld.exec_all().group(8, 0);
-            const fs_builder ubld16 = bld.exec_all().group(16, 0);
-
-            brw_reg srcs[SURFACE_LOGICAL_NUM_SRCS];
-
-            srcs[SURFACE_LOGICAL_SRC_SURFACE]        = surface;
-            srcs[SURFACE_LOGICAL_SRC_SURFACE_HANDLE] = surface_handle;
-            srcs[SURFACE_LOGICAL_SRC_ADDRESS] =
-               bld.emit_uniformize(get_nir_src(ntb, instr->src[1]));
-
-            const unsigned total_dwords =
-               ALIGN(instr->num_components, REG_SIZE * reg_unit(devinfo) / 4);
-            unsigned loaded_dwords = 0;
-
-            const brw_reg packed_consts =
-               ubld1.vgrf(BRW_TYPE_UD, total_dwords);
-
-            while (loaded_dwords < total_dwords) {
-               const unsigned block =
-                  choose_oword_block_size_dwords(devinfo,
-                                                 total_dwords - loaded_dwords);
-               const unsigned block_bytes = block * 4;
-
-               srcs[SURFACE_LOGICAL_SRC_IMM_ARG] = brw_imm_ud(block);
-
-               const fs_builder &ubld = block <= 8 ? ubld8 : ubld16;
-               fs_inst *inst =
-                  ubld.emit(SHADER_OPCODE_UNALIGNED_OWORD_BLOCK_READ_LOGICAL,
-                            retype(byte_offset(packed_consts, loaded_dwords * 4), BRW_TYPE_UD),
-                            srcs, SURFACE_LOGICAL_NUM_SRCS);
-               inst->size_written = align(block_bytes, REG_SIZE * reg_unit(devinfo));
-               inst->has_no_mask_send_params = no_mask_handle;
-
-               loaded_dwords += block;
-
-               ubld1.ADD(srcs[SURFACE_LOGICAL_SRC_ADDRESS],
-                         srcs[SURFACE_LOGICAL_SRC_ADDRESS],
-                         brw_imm_ud(block_bytes));
-            }
-
-            for (unsigned c = 0; c < instr->num_components; c++) {
-               bld.MOV(retype(offset(dest, bld, c), BRW_TYPE_UD),
-                       component(packed_consts, c));
-            }
-
-            s.prog_data->has_ubo_pull = true;
+            /* load_ubo_uniform_block_intel with non-constant offset */
+            fs_nir_emit_memory_access(ntb, bld, instr);
          }
       } else {
          /* Even if we are loading doubles, a pull constant load will load
@@ -7418,6 +7372,7 @@ fs_nir_emit_memory_access(nir_to_brw_state &ntb,
       data_src = 3;
       break;
 
+   case nir_intrinsic_load_ubo_uniform_block_intel:
    case nir_intrinsic_load_ssbo:
    case nir_intrinsic_store_ssbo:
    case nir_intrinsic_ssbo_atomic:
