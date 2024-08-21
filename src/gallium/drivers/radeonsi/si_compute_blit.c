@@ -453,15 +453,10 @@ void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resour
    si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_ubyte_to_ushort, flags, 2, sb, 0x1);
 }
 
-static void si_launch_grid_internal_images(struct si_context *sctx,
-                                           struct pipe_image_view *images,
-                                           unsigned num_images,
-                                           const struct pipe_grid_info *info,
-                                           void *shader, unsigned flags)
+static void si_compute_save_and_bind_images(struct si_context *sctx, unsigned num_images,
+                                            struct pipe_image_view *images,
+                                            struct pipe_image_view *saved_images)
 {
-   struct pipe_image_view saved_image[2] = {};
-   assert(num_images <= ARRAY_SIZE(saved_image));
-
    for (unsigned i = 0; i < num_images; i++) {
       assert(sctx->b.screen->is_format_supported(sctx->b.screen, images[i].format,
                                                  images[i].resource->target,
@@ -484,13 +479,36 @@ static void si_launch_grid_internal_images(struct si_context *sctx,
       }
 
       /* Save the image. */
-      util_copy_image_view(&saved_image[i], &sctx->images[PIPE_SHADER_COMPUTE].views[i]);
+      util_copy_image_view(&saved_images[i], &sctx->images[PIPE_SHADER_COMPUTE].views[i]);
    }
 
-   /* This might invoke DCC decompression, so call it before si_barrier_before_internal_compute
-    * and si_compute_begin_internal.
+   /* This must be before the barrier and si_compute_begin_internal because it might invoke DCC
+    * decompression.
     */
    sctx->b.set_shader_images(&sctx->b, PIPE_SHADER_COMPUTE, 0, num_images, 0, images);
+}
+
+static void si_compute_restore_images(struct si_context *sctx, unsigned num_images,
+                                      struct pipe_image_view *saved_images)
+{
+   sctx->b.set_shader_images(&sctx->b, PIPE_SHADER_COMPUTE, 0, num_images, 0, saved_images);
+   for (unsigned i = 0; i < num_images; i++)
+      pipe_resource_reference(&saved_images[i].resource, NULL);
+}
+
+static void si_launch_grid_internal_images(struct si_context *sctx,
+                                           struct pipe_image_view *images,
+                                           unsigned num_images,
+                                           const struct pipe_grid_info *info,
+                                           void *shader, unsigned flags)
+{
+   struct pipe_image_view saved_images[2] = {};
+   assert(num_images <= ARRAY_SIZE(saved_images));
+
+   /* This must be before the barrier and si_compute_begin_internal because it might invoke DCC
+    * decompression.
+    */
+   si_compute_save_and_bind_images(sctx, num_images, images, saved_images);
 
    flags |= SI_OP_CS_IMAGE;
    si_barrier_before_internal_op(sctx, flags, 0, NULL, 0, num_images, images);
@@ -498,11 +516,7 @@ static void si_launch_grid_internal_images(struct si_context *sctx,
    si_launch_grid_internal(sctx, info, shader);
    si_compute_end_internal(sctx);
    si_barrier_after_internal_op(sctx, flags, 0, NULL, 0, num_images, images);
-
-   /* Restore images. */
-   sctx->b.set_shader_images(&sctx->b, PIPE_SHADER_COMPUTE, 0, num_images, 0, saved_image);
-   for (unsigned i = 0; i < num_images; i++)
-      pipe_resource_reference(&saved_image[i].resource, NULL);
+   si_compute_restore_images(sctx, num_images, saved_images);
 }
 
 void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
