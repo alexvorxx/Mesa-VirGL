@@ -4532,24 +4532,27 @@ static void
 tc_blit(struct pipe_context *_pipe, const struct pipe_blit_info *info)
 {
    struct threaded_context *tc = threaded_context(_pipe);
-   tc_blit_enqueue(tc, info);
 
    /* filter out untracked non-resolves */
    if (!tc->options.parse_renderpass_info ||
        info->src.resource->nr_samples <= 1 ||
-       info->dst.resource->nr_samples > 1)
+       info->dst.resource->nr_samples > 1) {
+      tc_blit_enqueue(tc, info);
       return;
+   }
 
    if (tc->fb_resolve == info->dst.resource) {
+      /* optimize out this blit entirely */
       tc->renderpass_info_recording->has_resolve = true;
-   } else {
-      for (unsigned i = 0; i < PIPE_MAX_COLOR_BUFS; i++) {
-         if (tc->fb_resources[i] == info->src.resource) {
-            tc->renderpass_info_recording->has_resolve = true;
-            break;
-         }
+      return;
+   }
+   for (unsigned i = 0; i < PIPE_MAX_COLOR_BUFS; i++) {
+      if (tc->fb_resources[i] == info->src.resource) {
+         tc->renderpass_info_recording->has_resolve = true;
+         break;
       }
    }
+   tc_blit_enqueue(tc, info);
 }
 
 struct tc_generate_mipmap {
