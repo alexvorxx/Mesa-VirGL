@@ -890,8 +890,6 @@ etna_get_specs(struct etna_screen *screen)
       screen->info->model >= 0x1000 || screen->info->model == 0x880;
    screen->specs.has_new_transcendentals =
       VIV_FEATURE(screen, ETNA_FEATURE_HAS_FAST_TRANSCENDENTALS);
-   screen->specs.has_halti2_instructions =
-      VIV_FEATURE(screen, ETNA_FEATURE_HALTI2);
    screen->specs.has_no_oneconst_limit =
       VIV_FEATURE(screen, ETNA_FEATURE_SH_NO_ONECONST_LIMIT);
    screen->specs.v4_compression =

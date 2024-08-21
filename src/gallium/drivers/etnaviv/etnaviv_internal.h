@@ -71,8 +71,6 @@ struct etna_specs {
    unsigned has_shader_range_registers : 1;
    /* has the new sin/cos/log functions */
    unsigned has_new_transcendentals : 1;
-   /* has the new dp2/dpX_norm instructions, among others */
-   unsigned has_halti2_instructions : 1;
    /* has no limit on the number of constant sources per instruction */
    unsigned has_no_oneconst_limit : 1;
    /* has V4_COMPRESSION */

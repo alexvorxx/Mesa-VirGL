@@ -49,7 +49,7 @@
 static bool
 etna_alu_to_scalar_filter_cb(const nir_instr *instr, const void *data)
 {
-   const struct etna_specs *specs = data;
+   const struct etna_core_info *info = data;
 
    if (instr->type != nir_instr_type_alu)
       return false;
@@ -81,7 +81,7 @@ etna_alu_to_scalar_filter_cb(const nir_instr *instr, const void *data)
    case nir_op_b32any_inequal4:
       return true;
    case nir_op_fdot2:
-      if (!specs->has_halti2_instructions)
+      if (!etna_core_has_feature(info, ETNA_FEATURE_HALTI2))
          return true;
       break;
    default:
@@ -1175,7 +1175,7 @@ etna_compile_shader(struct etna_shader_variant *v)
    NIR_PASS_V(s, nir_lower_indirect_derefs, nir_var_all, UINT32_MAX);
    NIR_PASS_V(s, etna_nir_lower_texture, &v->key);
 
-   NIR_PASS_V(s, nir_lower_alu_to_scalar, etna_alu_to_scalar_filter_cb, specs);
+   NIR_PASS_V(s, nir_lower_alu_to_scalar, etna_alu_to_scalar_filter_cb, c->info);
    if (c->info->halti >= 2) {
       nir_lower_idiv_options idiv_options = {
          .allow_fp16 = true,
@@ -1210,7 +1210,7 @@ etna_compile_shader(struct etna_shader_variant *v)
    }
 
    while( OPT(s, nir_opt_vectorize, NULL, NULL) );
-   NIR_PASS_V(s, nir_lower_alu_to_scalar, etna_alu_to_scalar_filter_cb, specs);
+   NIR_PASS_V(s, nir_lower_alu_to_scalar, etna_alu_to_scalar_filter_cb, c->info);
 
    NIR_PASS_V(s, nir_remove_dead_variables, nir_var_function_temp, NULL);
    NIR_PASS_V(s, nir_opt_algebraic_late);
