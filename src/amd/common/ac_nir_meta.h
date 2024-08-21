@@ -108,6 +108,8 @@ struct ac_cs_blit_description
       enum pipe_format format;   /* format reinterpretation */
    } dst, src;
 
+   bool is_gfx_queue;
+   bool dst_has_dcc;
    bool sample0_only;                  /* copy sample 0 instead of resolving */
    union pipe_color_union clear_color; /* if src.surf == NULL, this is the clear color */
 };

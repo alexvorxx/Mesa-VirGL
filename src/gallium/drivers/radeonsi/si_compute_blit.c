@@ -913,10 +913,6 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
       return false;
 
    if (info->dst_sample != 0 ||
-       /* Image stores support DCC since GFX10. Return only for gfx queues because compute queues
-        * can't return false. DCC is disabled for compute queues farther below. */
-       (sctx->gfx_level < GFX10 && sctx->has_graphics && vi_dcc_enabled(sdst, info->dst.level) &&
-        !src_access && !dst_access) ||
        info->alpha_blend ||
        info->num_window_rectangles ||
        info->scissor_enable)
@@ -954,6 +950,10 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
          .box = info->src.box,
          .format = info->src.format,
       },
+      .is_gfx_queue = sctx->has_graphics,
+      /* if (src_access || dst_access), one of the images is block-compressed, which can't fall
+       * back to a pixel shader on radeonsi */
+      .dst_has_dcc = vi_dcc_enabled(sdst, info->dst.level) && !src_access && !dst_access,
       .sample0_only = info->sample0_only,
    };
 
