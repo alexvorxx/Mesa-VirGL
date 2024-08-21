@@ -123,7 +123,9 @@ nvk_lower_nir(struct nvk_device *dev, nir_shader *nir,
               struct nvk_cbuf_map *cbuf_map_out);
 
 VkResult
-nvk_shader_upload(struct nvk_device *dev, struct nvk_shader *shader);
+nvk_compile_nir_shader(struct nvk_device *dev, nir_shader *nir,
+                       const VkAllocationCallbacks *alloc,
+                       struct nvk_shader **shader_out);
 
 /* Codegen wrappers.
  *

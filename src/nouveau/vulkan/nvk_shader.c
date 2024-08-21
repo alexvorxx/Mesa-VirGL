@@ -590,7 +590,7 @@ nvk_compile_nir(struct nvk_device *dev, nir_shader *nir,
    return VK_SUCCESS;
 }
 
-VkResult
+static VkResult
 nvk_shader_upload(struct nvk_device *dev, struct nvk_shader *shader)
 {
    struct nvk_physical_device *pdev = nvk_device_physical(dev);
@@ -757,6 +757,39 @@ nvk_compile_shader(struct nvk_device *dev,
    }
 
    *shader_out = &shader->vk;
+
+   return VK_SUCCESS;
+}
+
+VkResult
+nvk_compile_nir_shader(struct nvk_device *dev, nir_shader *nir,
+                       const VkAllocationCallbacks *alloc,
+                       struct nvk_shader **shader_out)
+{
+   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+
+   const struct vk_pipeline_robustness_state rs_none = {
+      .uniform_buffers = VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT,
+      .storage_buffers = VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT,
+      .images = VK_PIPELINE_ROBUSTNESS_IMAGE_BEHAVIOR_ROBUST_IMAGE_ACCESS_2_EXT,
+   };
+
+   assert(nir->info.stage == MESA_SHADER_COMPUTE);
+   if (nir->options == NULL)
+      nir->options = nvk_get_nir_options(&pdev->vk, nir->info.stage, &rs_none);
+
+   struct vk_shader_compile_info info = {
+      .stage = nir->info.stage,
+      .nir = nir,
+      .robustness = &rs_none,
+   };
+
+   struct vk_shader *shader;
+   VkResult result = nvk_compile_shader(dev, &info, NULL, alloc, &shader);
+   if (result != VK_SUCCESS)
+      return result;
+
+   *shader_out = container_of(shader, struct nvk_shader, vk);
 
    return VK_SUCCESS;
 }
