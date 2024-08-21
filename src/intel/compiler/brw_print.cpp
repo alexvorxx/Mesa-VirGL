@@ -181,38 +181,6 @@ brw_instruction_name(const struct brw_isa_info *isa, enum opcode op)
    case SHADER_OPCODE_IMAGE_SIZE_LOGICAL:
       return "image_size_logical";
 
-   case SHADER_OPCODE_UNTYPED_ATOMIC_LOGICAL:
-      return "untyped_atomic_logical";
-   case SHADER_OPCODE_UNTYPED_SURFACE_READ_LOGICAL:
-      return "untyped_surface_read_logical";
-   case SHADER_OPCODE_UNTYPED_SURFACE_WRITE_LOGICAL:
-      return "untyped_surface_write_logical";
-   case SHADER_OPCODE_UNALIGNED_OWORD_BLOCK_READ_LOGICAL:
-      return "unaligned_oword_block_read_logical";
-   case SHADER_OPCODE_OWORD_BLOCK_WRITE_LOGICAL:
-      return "oword_block_write_logical";
-   case SHADER_OPCODE_A64_UNTYPED_READ_LOGICAL:
-      return "a64_untyped_read_logical";
-   case SHADER_OPCODE_A64_OWORD_BLOCK_READ_LOGICAL:
-      return "a64_oword_block_read_logical";
-   case SHADER_OPCODE_A64_UNALIGNED_OWORD_BLOCK_READ_LOGICAL:
-      return "a64_unaligned_oword_block_read_logical";
-   case SHADER_OPCODE_A64_OWORD_BLOCK_WRITE_LOGICAL:
-      return "a64_oword_block_write_logical";
-   case SHADER_OPCODE_A64_UNTYPED_WRITE_LOGICAL:
-      return "a64_untyped_write_logical";
-   case SHADER_OPCODE_A64_BYTE_SCATTERED_READ_LOGICAL:
-      return "a64_byte_scattered_read_logical";
-   case SHADER_OPCODE_A64_BYTE_SCATTERED_WRITE_LOGICAL:
-      return "a64_byte_scattered_write_logical";
-   case SHADER_OPCODE_A64_UNTYPED_ATOMIC_LOGICAL:
-      return "a64_untyped_atomic_logical";
-   case SHADER_OPCODE_TYPED_ATOMIC_LOGICAL:
-      return "typed_atomic_logical";
-   case SHADER_OPCODE_TYPED_SURFACE_READ_LOGICAL:
-      return "typed_surface_read_logical";
-   case SHADER_OPCODE_TYPED_SURFACE_WRITE_LOGICAL:
-      return "typed_surface_write_logical";
    case SHADER_OPCODE_MEMORY_FENCE:
       return "memory_fence";
    case FS_OPCODE_SCHEDULING_FENCE:
@@ -220,15 +188,6 @@ brw_instruction_name(const struct brw_isa_info *isa, enum opcode op)
    case SHADER_OPCODE_INTERLOCK:
       /* For an interlock we actually issue a memory fence via sendc. */
       return "interlock";
-
-   case SHADER_OPCODE_BYTE_SCATTERED_READ_LOGICAL:
-      return "byte_scattered_read_logical";
-   case SHADER_OPCODE_BYTE_SCATTERED_WRITE_LOGICAL:
-      return "byte_scattered_write_logical";
-   case SHADER_OPCODE_DWORD_SCATTERED_READ_LOGICAL:
-      return "dword_scattered_read_logical";
-   case SHADER_OPCODE_DWORD_SCATTERED_WRITE_LOGICAL:
-      return "dword_scattered_write_logical";
 
    case SHADER_OPCODE_LOAD_PAYLOAD:
       return "load_payload";

@@ -1207,14 +1207,6 @@ try_constant_propagate_value(brw_reg val, brw_reg_type dst_type,
    case SHADER_OPCODE_TG4_OFFSET_BIAS_LOGICAL:
    case SHADER_OPCODE_SAMPLEINFO_LOGICAL:
    case SHADER_OPCODE_IMAGE_SIZE_LOGICAL:
-   case SHADER_OPCODE_UNTYPED_ATOMIC_LOGICAL:
-   case SHADER_OPCODE_UNTYPED_SURFACE_READ_LOGICAL:
-   case SHADER_OPCODE_UNTYPED_SURFACE_WRITE_LOGICAL:
-   case SHADER_OPCODE_TYPED_ATOMIC_LOGICAL:
-   case SHADER_OPCODE_TYPED_SURFACE_READ_LOGICAL:
-   case SHADER_OPCODE_TYPED_SURFACE_WRITE_LOGICAL:
-   case SHADER_OPCODE_BYTE_SCATTERED_WRITE_LOGICAL:
-   case SHADER_OPCODE_BYTE_SCATTERED_READ_LOGICAL:
    case SHADER_OPCODE_MEMORY_LOAD_LOGICAL:
    case SHADER_OPCODE_MEMORY_STORE_LOGICAL:
    case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
@@ -1227,17 +1219,6 @@ try_constant_propagate_value(brw_reg val, brw_reg_type dst_type,
    case SHADER_OPCODE_SHUFFLE:
       inst->src[arg] = val;
       progress = true;
-      break;
-
-   case SHADER_OPCODE_UNALIGNED_OWORD_BLOCK_READ_LOGICAL:
-      /* The address of the send message cannot be immediate (see the
-       * assertions in brw_set_src0 in brw_eu_emit.c). There is no mechanism
-       * to legalize it later, so do not generate the invalid thing here.
-       */
-      if (arg != SURFACE_LOGICAL_SRC_ADDRESS) {
-         inst->src[arg] = val;
-         progress = true;
-      }
       break;
 
    default:

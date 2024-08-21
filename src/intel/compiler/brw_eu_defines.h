@@ -323,62 +323,8 @@ enum opcode {
     */
    FS_OPCODE_PACK,
 
-   /**
-    * Typed and untyped surface access opcodes.
-    *
-    * LOGICAL opcodes are eventually translated to the matching non-LOGICAL
-    * opcode but instead of taking a single payload blob they expect their
-    * arguments separately as individual sources:
-    *
-    * Source 0: [required] Surface coordinates.
-    * Source 1: [optional] Operation source.
-    * Source 2: [required] Surface index.
-    * Source 3: [required] Number of coordinate components (as UD immediate).
-    * Source 4: [required] Opcode-specific control immediate, same as source 2
-    *                      of the matching non-LOGICAL opcode.
-    */
-   SHADER_OPCODE_UNTYPED_ATOMIC_LOGICAL,
-   SHADER_OPCODE_UNTYPED_SURFACE_READ_LOGICAL,
-   SHADER_OPCODE_UNTYPED_SURFACE_WRITE_LOGICAL,
-
-   SHADER_OPCODE_UNALIGNED_OWORD_BLOCK_READ_LOGICAL,
-   SHADER_OPCODE_OWORD_BLOCK_WRITE_LOGICAL,
-
-   /**
-    * Untyped A64 surface access opcodes.
-    *
-    * Source 0: 64-bit address
-    * Source 1: Operational source
-    * Source 2: [required] Opcode-specific control immediate, same as source 2
-    *                      of the matching non-LOGICAL opcode.
-    */
-   SHADER_OPCODE_A64_UNTYPED_READ_LOGICAL,
-   SHADER_OPCODE_A64_UNTYPED_WRITE_LOGICAL,
-   SHADER_OPCODE_A64_BYTE_SCATTERED_READ_LOGICAL,
-   SHADER_OPCODE_A64_BYTE_SCATTERED_WRITE_LOGICAL,
-   SHADER_OPCODE_A64_OWORD_BLOCK_READ_LOGICAL,
-   SHADER_OPCODE_A64_UNALIGNED_OWORD_BLOCK_READ_LOGICAL,
-   SHADER_OPCODE_A64_OWORD_BLOCK_WRITE_LOGICAL,
-   SHADER_OPCODE_A64_UNTYPED_ATOMIC_LOGICAL,
-
-   SHADER_OPCODE_TYPED_ATOMIC_LOGICAL,
-   SHADER_OPCODE_TYPED_SURFACE_READ_LOGICAL,
-   SHADER_OPCODE_TYPED_SURFACE_WRITE_LOGICAL,
-
    SHADER_OPCODE_RND_MODE,
    SHADER_OPCODE_FLOAT_CONTROL_MODE,
-
-   /**
-    * Byte scattered write/read opcodes.
-    *
-    * LOGICAL opcodes are eventually translated to the matching non-LOGICAL
-    * opcode, but instead of taking a single payload blog they expect their
-    * arguments separately as individual sources, like untyped write/read.
-    */
-   SHADER_OPCODE_BYTE_SCATTERED_READ_LOGICAL,
-   SHADER_OPCODE_BYTE_SCATTERED_WRITE_LOGICAL,
-   SHADER_OPCODE_DWORD_SCATTERED_READ_LOGICAL,
-   SHADER_OPCODE_DWORD_SCATTERED_WRITE_LOGICAL,
 
    /**
     * Memory fence messages.
@@ -688,43 +634,6 @@ enum memory_flags {
    MEMORY_FLAG_TRANSPOSE = 1 << 0,
    /** Whether this operation should fire for helper invocations */
    MEMORY_FLAG_INCLUDE_HELPERS = 1 << 1,
-};
-
-enum surface_logical_srcs {
-   /** Surface binding table index */
-   SURFACE_LOGICAL_SRC_SURFACE,
-   /** Surface bindless handle */
-   SURFACE_LOGICAL_SRC_SURFACE_HANDLE,
-   /** Surface address; could be multi-dimensional for typed opcodes */
-   SURFACE_LOGICAL_SRC_ADDRESS,
-   /** Data to be written or used in an atomic op */
-   SURFACE_LOGICAL_SRC_DATA,
-   /** Surface number of dimensions.  Affects the size of ADDRESS */
-   SURFACE_LOGICAL_SRC_IMM_DIMS,
-   /** Per-opcode immediate argument.  For atomics, this is the atomic opcode */
-   SURFACE_LOGICAL_SRC_IMM_ARG,
-   /**
-    * Some instructions with side-effects should not be predicated on
-    * sample mask, e.g. lowered stores to scratch.
-    */
-   SURFACE_LOGICAL_SRC_ALLOW_SAMPLE_MASK,
-
-   SURFACE_LOGICAL_NUM_SRCS
-};
-
-enum a64_logical_srcs {
-   /** Address the A64 message operates on */
-   A64_LOGICAL_ADDRESS,
-   /** Source for the operation (unused of LOAD ops) */
-   A64_LOGICAL_SRC,
-   /** Per-opcode immediate argument. Number of dwords, bit size, or atomic op. */
-   A64_LOGICAL_ARG,
-   /**
-    * Some instructions do want to run on helper lanes (like ray queries).
-    */
-   A64_LOGICAL_ENABLE_HELPERS,
-
-   A64_LOGICAL_NUM_SRCS
 };
 
 enum rt_logical_srcs {
@@ -1413,11 +1322,6 @@ enum brw_message_target {
 #define GFX8_BTI_STATELESS_IA_COHERENT   255
 #define GFX8_BTI_STATELESS_NON_COHERENT  253
 #define GFX9_BTI_BINDLESS                252
-
-/* This ID doesn't map anything HW related value. It exists to inform the
- * lowering code to not use the bindless heap.
- */
-#define GFX125_NON_BINDLESS              (1u << 16)
 
 /* Dataport atomic operations for Untyped Atomic Integer Operation message
  * (and others).
