@@ -1921,6 +1921,44 @@ impl SM70Op for OpF2F {
     }
 }
 
+impl SM70Op for OpF2FP {
+    fn legalize(&mut self, b: &mut LegalizeBuilder) {
+        let gpr = op_gpr(self);
+        let [src0, src1] = &mut self.srcs;
+        swap_srcs_if_not_reg(src0, src1, gpr);
+
+        b.copy_alu_src_if_not_reg(src0, gpr, SrcType::ALU);
+    }
+
+    fn encode(&self, e: &mut SM70Encoder<'_>) {
+        if src_is_zero_or_gpr(&self.srcs[1]) {
+            e.encode_alu(
+                0x03e,
+                Some(&self.dst),
+                Some(&self.srcs[0]),
+                Some(&self.srcs[1]),
+                Some(&Src::new_zero()),
+            )
+        } else {
+            e.encode_alu(
+                0x03e,
+                Some(&self.dst),
+                None,
+                Some(&self.srcs[1]),
+                Some(&self.srcs[0]),
+            )
+        };
+
+        // .MERGE_C behavior
+        // Use src1 and src2, src0 is unused
+        // src1 get converted and packed in the lower 16 bits of dest.
+        // src2 lower or high 16 bits (decided by .H1 flag) get packed in the upper of dest.
+        e.set_bit(78, false); // TODO: .MERGE_C
+        e.set_bit(72, false); // .H1 (MERGE_C only)
+        e.set_rnd_mode(79..81, self.rnd_mode);
+    }
+}
+
 impl SM70Op for OpF2I {
     fn legalize(&mut self, _b: &mut LegalizeBuilder) {
         // Nothing to do
@@ -3397,6 +3435,7 @@ macro_rules! as_sm70_op_match {
             Op::PopC(op) => op,
             Op::Shf(op) => op,
             Op::F2F(op) => op,
+            Op::F2FP(op) => op,
             Op::F2I(op) => op,
             Op::I2F(op) => op,
             Op::FRnd(op) => op,

@@ -4059,6 +4059,29 @@ impl DisplayOp for OpF2F {
 impl_display_for_op!(OpF2F);
 
 #[repr(C)]
+#[derive(DstsAsSlice, SrcsAsSlice)]
+pub struct OpF2FP {
+    #[dst_type(GPR)]
+    pub dst: Dst,
+
+    #[src_type(ALU)]
+    pub srcs: [Src; 2],
+
+    pub rnd_mode: FRndMode,
+}
+
+impl DisplayOp for OpF2FP {
+    fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "f2fp.pack_ab")?;
+        if self.rnd_mode != FRndMode::NearestEven {
+            write!(f, "{}", self.rnd_mode)?;
+        }
+        write!(f, " {}, {}", self.srcs[0], self.srcs[1],)
+    }
+}
+impl_display_for_op!(OpF2FP);
+
+#[repr(C)]
 #[derive(DstsAsSlice)]
 pub struct OpF2I {
     #[dst_type(GPR)]
@@ -6159,6 +6182,7 @@ pub enum Op {
     Shl(OpShl),
     Shr(OpShr),
     F2F(OpF2F),
+    F2FP(OpF2FP),
     F2I(OpF2I),
     I2F(OpI2F),
     I2I(OpI2I),
@@ -6606,7 +6630,8 @@ impl Instr {
     pub fn has_fixed_latency(&self, sm: u8) -> bool {
         match &self.op {
             // Float ALU
-            Op::FAdd(_)
+            Op::F2FP(_)
+            | Op::FAdd(_)
             | Op::FFma(_)
             | Op::FMnMx(_)
             | Op::FMul(_)

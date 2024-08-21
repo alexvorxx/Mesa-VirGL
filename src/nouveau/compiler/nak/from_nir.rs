@@ -1466,8 +1466,6 @@ impl<'a> ShaderFromNir<'a> {
             nir_op_ixor => b.lop2(LogicOp2::Xor, srcs[0], srcs[1]),
             nir_op_pack_half_2x16_split | nir_op_pack_half_2x16_rtz_split => {
                 assert!(alu.get_src(0).bit_size() == 32);
-                let low = b.alloc_ssa(RegFile::GPR, 1);
-                let high = b.alloc_ssa(RegFile::GPR, 1);
 
                 let rnd_mode = match alu.op {
                     nir_op_pack_half_2x16_split => FRndMode::NearestEven,
@@ -1475,32 +1473,46 @@ impl<'a> ShaderFromNir<'a> {
                     _ => panic!("Unhandled fp16 pack op"),
                 };
 
-                b.push_op(OpF2F {
-                    dst: low.into(),
-                    src: srcs[0],
-                    src_type: FloatType::F32,
-                    dst_type: FloatType::F16,
-                    rnd_mode: rnd_mode,
-                    ftz: false,
-                    high: false,
-                    integer_rnd: false,
-                });
+                if self.sm.sm() >= 86 {
+                    let result: SSARef = b.alloc_ssa(RegFile::GPR, 1);
+                    b.push_op(OpF2FP {
+                        dst: result.into(),
+                        srcs: [srcs[1], srcs[0]],
+                        rnd_mode: rnd_mode,
+                    });
 
-                let src_bits = usize::from(alu.get_src(1).bit_size());
-                let src_type = FloatType::from_bits(src_bits);
-                assert!(matches!(src_type, FloatType::F32));
-                b.push_op(OpF2F {
-                    dst: high.into(),
-                    src: srcs[1],
-                    src_type: FloatType::F32,
-                    dst_type: FloatType::F16,
-                    rnd_mode: rnd_mode,
-                    ftz: false,
-                    high: false,
-                    integer_rnd: false,
-                });
+                    result
+                } else {
+                    let low = b.alloc_ssa(RegFile::GPR, 1);
+                    let high = b.alloc_ssa(RegFile::GPR, 1);
 
-                b.prmt(low.into(), high.into(), [0, 1, 4, 5])
+                    b.push_op(OpF2F {
+                        dst: low.into(),
+                        src: srcs[0],
+                        src_type: FloatType::F32,
+                        dst_type: FloatType::F16,
+                        rnd_mode: rnd_mode,
+                        ftz: false,
+                        high: false,
+                        integer_rnd: false,
+                    });
+
+                    let src_bits = usize::from(alu.get_src(1).bit_size());
+                    let src_type = FloatType::from_bits(src_bits);
+                    assert!(matches!(src_type, FloatType::F32));
+                    b.push_op(OpF2F {
+                        dst: high.into(),
+                        src: srcs[1],
+                        src_type: FloatType::F32,
+                        dst_type: FloatType::F16,
+                        rnd_mode: rnd_mode,
+                        ftz: false,
+                        high: false,
+                        integer_rnd: false,
+                    });
+
+                    b.prmt(low.into(), high.into(), [0, 1, 4, 5])
+                }
             }
             nir_op_prmt_nv => {
                 let dst = b.alloc_ssa(RegFile::GPR, 1);
