@@ -996,6 +996,19 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
    if (info->render_condition_enable)
       flags |= SI_OP_CS_RENDER_COND_ENABLE;
 
+   /* Bind images and execute the barrier. */
+   unsigned num_images = is_clear ? 1 : 2;
+   struct pipe_image_view saved_images[2] = {};
+   assert(num_images <= ARRAY_SIZE(saved_images));
+
+   /* This must be before the barrier and si_compute_begin_internal because it might invoke DCC
+    * decompression.
+    */
+   flags |= SI_OP_CS_IMAGE;
+   si_compute_save_and_bind_images(sctx, num_images, image, saved_images);
+   si_barrier_before_internal_op(sctx, flags, 0, NULL, 0, num_images, image);
+   si_compute_begin_internal(sctx, flags);
+
    /* Execute compute blits. */
    for (unsigned i = 0; i < out.num_dispatches; i++) {
       struct ac_cs_blit_dispatch *dispatch = &out.dispatches[i];
@@ -1026,11 +1039,11 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
          },
       };
 
-      si_launch_grid_internal_images(sctx, image, is_clear ? 1 : 2, &grid, shader,
-                                     (flags & ~SI_OP_SYNC_BEFORE_AFTER) |
-                                     (i == 0 ? flags & SI_OP_SYNC_BEFORE : 0) |
-                                     (i == out.num_dispatches - 1 ? flags & SI_OP_SYNC_AFTER : 0));
+      si_launch_grid_internal(sctx, &grid, shader);
    }
 
+   si_compute_end_internal(sctx);
+   si_barrier_after_internal_op(sctx, flags, 0, NULL, 0, num_images, image);
+   si_compute_restore_images(sctx, num_images, saved_images);
    return true;
 }
