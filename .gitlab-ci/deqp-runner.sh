@@ -26,9 +26,6 @@ if [ -n "$USE_ANGLE" ]; then
   export LD_LIBRARY_PATH=/angle:$LD_LIBRARY_PATH
 fi
 
-RESULTS="$PWD/${DEQP_RESULTS_DIR:-results}"
-mkdir -p "$RESULTS"
-
 # Ensure Mesa Shader Cache resides on tmpfs.
 SHADER_CACHE_HOME=${XDG_CACHE_HOME:-${HOME}/.cache}
 SHADER_CACHE_DIR=${MESA_SHADER_CACHE_DIR:-${SHADER_CACHE_HOME}/mesa_shader_cache}
@@ -152,7 +149,7 @@ if [ "$GALLIUM_DRIVER" = "virpipe" ]; then
     fi
 
     GALLIUM_DRIVER=llvmpipe \
-    virgl_test_server $VTEST_ARGS >$RESULTS/vtest-log.txt 2>&1 &
+    virgl_test_server $VTEST_ARGS >$RESULTS_DIR/vtest-log.txt 2>&1 &
 
     sleep 1
 fi
@@ -184,7 +181,7 @@ if [ -z "$DEQP_SUITE" ]; then
     deqp-runner \
         run \
         --deqp $DEQP \
-        --output $RESULTS \
+        --output $RESULTS_DIR \
         --caselist /tmp/case-list.txt \
         --skips $INSTALL/all-skips.txt $DEQP_SKIPS \
         --flakes $INSTALL/$GPU_VERSION-flakes.txt \
@@ -201,7 +198,7 @@ else
     deqp-runner \
         suite \
         --suite $INSTALL/deqp-$DEQP_SUITE.toml \
-        --output $RESULTS \
+        --output $RESULTS_DIR \
         --skips $INSTALL/all-skips.txt $DEQP_SKIPS \
         --flakes $INSTALL/$GPU_VERSION-flakes.txt \
         --testlog-to-xml /deqp/executor/testlog-to-xml \
@@ -223,20 +220,20 @@ set -x
 
 # Remove all but the first 50 individual XML files uploaded as artifacts, to
 # save fd.o space when you break everything.
-find $RESULTS -name \*.xml | \
+find $RESULTS_DIR -name \*.xml | \
     sort -n |
     sed -n '1,+49!p' | \
     xargs rm -f
 
 # If any QPA XMLs are there, then include the XSL/CSS in our artifacts.
-find $RESULTS -name \*.xml \
-    -exec cp /deqp/testlog.css /deqp/testlog.xsl "$RESULTS/" ";" \
+find $RESULTS_DIR -name \*.xml \
+    -exec cp /deqp/testlog.css /deqp/testlog.xsl "$RESULTS_DIR/" ";" \
     -quit
 
 deqp-runner junit \
    --testsuite dEQP \
-   --results $RESULTS/failures.csv \
-   --output $RESULTS/junit.xml \
+   --results $RESULTS_DIR/failures.csv \
+   --output $RESULTS_DIR/junit.xml \
    --limit 50 \
    --template "See $ARTIFACTS_BASE_URL/results/{{testcase}}.xml"
 
@@ -245,7 +242,7 @@ if [ -n "$FLAKES_CHANNEL" ]; then
   python3 $INSTALL/report-flakes.py \
          --host irc.oftc.net \
          --port 6667 \
-         --results $RESULTS/results.csv \
+         --results $RESULTS_DIR/results.csv \
          --known-flakes $INSTALL/$GPU_VERSION-flakes.txt \
          --channel "$FLAKES_CHANNEL" \
          --runner "$CI_RUNNER_DESCRIPTION" \
@@ -258,7 +255,7 @@ fi
 # Compress results.csv to save on bandwidth during the upload of artifacts to
 # GitLab. This reduces the size in a VKCTS run from 135 to 7.6MB, and takes
 # 0.17s on a Ryzen 5950X (16 threads, 0.95s when limited to 1 thread).
-zstd --rm -T0 -8q "$RESULTS/results.csv" -o "$RESULTS/results.csv.zst"
+zstd --rm -T0 -8q "$RESULTS_DIR/results.csv" -o "$RESULTS_DIR/results.csv.zst"
 
 section_end test_post_process
 
