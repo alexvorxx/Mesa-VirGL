@@ -494,7 +494,8 @@ static void si_set_sampler_views(struct si_context *sctx, unsigned shader,
                      }
                   }
 
-                  if (vi_dcc_enabled(tex, sview->base.u.tex.first_level) &&
+                  if (shader == PIPE_SHADER_FRAGMENT &&
+                      vi_dcc_enabled(tex, sview->base.u.tex.first_level) &&
                       p_atomic_read(&tex->framebuffers_bound))
                      sctx->need_check_render_feedback = true;
                }
@@ -810,7 +811,8 @@ static void si_set_shader_image(struct si_context *ctx, unsigned shader, unsigne
             images->display_dcc_store_mask &= ~(1u << slot);
          }
 
-         if (vi_dcc_enabled(tex, level) && p_atomic_read(&tex->framebuffers_bound))
+         if (shader == PIPE_SHADER_FRAGMENT && vi_dcc_enabled(tex, level) &&
+             p_atomic_read(&tex->framebuffers_bound))
             ctx->need_check_render_feedback = true;
       }
    }
