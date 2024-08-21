@@ -103,8 +103,6 @@ struct etna_specs {
    unsigned vertex_sampler_count;
    /* maximum number of vertex element configurations */
    unsigned vertex_max_elements;
-   /* number of vertex streams */
-   unsigned stream_count;
    /* vertex shader memory address*/
    uint32_t vs_offset;
    /* pixel shader memory address*/

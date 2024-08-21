@@ -562,7 +562,7 @@ etna_vertex_elements_state_create(struct pipe_context *pctx,
          start_offset = elements[idx].src_offset;
 
       /* guaranteed by PIPE_CAP_MAX_VERTEX_BUFFERS */
-      assert(buffer_idx < screen->specs.stream_count);
+      assert(buffer_idx < screen->info->gpu.stream_count);
 
       /* maximum vertex size is 256 bytes */
       assert(element_size != 0 && (end_offset - start_offset) < 256);

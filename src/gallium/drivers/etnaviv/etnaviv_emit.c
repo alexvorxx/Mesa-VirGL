@@ -335,7 +335,7 @@ etna_emit_state(struct etna_context *ctx)
          for (int x = 0; x < ctx->vertex_buffer.count; ++x) {
             /*14600*/ EMIT_STATE_RELOC(NFE_VERTEX_STREAMS_BASE_ADDR(x), &ctx->vertex_buffer.cvb[x].FE_VERTEX_STREAM_BASE_ADDR);
          }
-      } else if(screen->specs.stream_count > 1) { /* hw w/ multiple vertex streams */
+      } else if(screen->info->gpu.stream_count > 1) { /* hw w/ multiple vertex streams */
          for (int x = 0; x < ctx->vertex_buffer.count; ++x) {
             /*00680*/ EMIT_STATE_RELOC(FE_VERTEX_STREAMS_BASE_ADDR(x), &ctx->vertex_buffer.cvb[x].FE_VERTEX_STREAM_BASE_ADDR);
          }
@@ -349,7 +349,7 @@ etna_emit_state(struct etna_context *ctx)
          if (ctx->vertex_buffer.cvb[x].FE_VERTEX_STREAM_BASE_ADDR.bo) {
             if (screen->info->halti >= 2)
                /*14640*/ EMIT_STATE(NFE_VERTEX_STREAMS_CONTROL(x), ctx->vertex_elements->FE_VERTEX_STREAM_CONTROL[x]);
-            else if (screen->specs.stream_count > 1)
+            else if (screen->info->gpu.stream_count > 1)
                /*006A0*/ EMIT_STATE(FE_VERTEX_STREAMS_CONTROL(x), ctx->vertex_elements->FE_VERTEX_STREAM_CONTROL[x]);
             else
                /*00650*/ EMIT_STATE(FE_VERTEX_STREAM_CONTROL, ctx->vertex_elements->FE_VERTEX_STREAM_CONTROL[0]);

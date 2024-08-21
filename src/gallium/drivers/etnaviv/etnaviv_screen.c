@@ -216,7 +216,7 @@ etna_screen_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
    case PIPE_CAP_MAX_VERTEX_ELEMENT_SRC_OFFSET:
       return 255;
    case PIPE_CAP_MAX_VERTEX_BUFFERS:
-      return screen->specs.stream_count;
+      return screen->info->gpu.stream_count;
    case PIPE_CAP_VS_INSTANCEID:
    case PIPE_CAP_VERTEX_ELEMENT_INSTANCE_DIVISOR:
       return VIV_FEATURE(screen, ETNA_FEATURE_HALTI2);
@@ -852,7 +852,6 @@ etna_get_specs(struct etna_screen *screen)
    /* Copy all relevant limits from etna_core_info. */
    if (info->type == ETNA_CORE_GPU) {
       instruction_count = info->gpu.max_instructions;
-      screen->specs.stream_count = info->gpu.stream_count;
       screen->specs.pixel_pipes = info->gpu.pixel_pipes;
       screen->specs.max_varyings = MIN2(info->gpu.max_varyings, ETNA_NUM_VARYINGS);
 
