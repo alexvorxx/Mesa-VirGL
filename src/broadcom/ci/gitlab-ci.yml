@@ -64,7 +64,6 @@ v3d-rpi4-gl-full:arm64:
   parallel: 6
   timeout: 45m
   variables:
-    TEST_PHASE_TIMEOUT_MINUTES: 40
     DEQP_FRACTION: 1
 
 v3d-rpi4-rusticl:arm64:
@@ -75,7 +74,6 @@ v3d-rpi4-rusticl:arm64:
   timeout: 30m  # base run time = 17min test, 19min total
   variables:
     DEQP_SUITE: v3d-rusticl
-    TEST_PHASE_TIMEOUT_MINUTES: 25
 
 v3d-rpi4-traces:arm64:
   extends:
@@ -99,7 +97,6 @@ v3d-rpi4-gl:arm32:
     - igalia-fullrun
   timeout: 35m
   variables:
-    TEST_PHASE_TIMEOUT_MINUTES: 30
     DEQP_SUITE: broadcom-rpi4-arm32
 
 v3d-rpi4-gl-asan:arm64:
@@ -185,7 +182,6 @@ v3d-rpi5-rusticl:arm64:
   timeout: 20m  # base run time = 7min test, 9min total
   variables:
     DEQP_SUITE: v3d-rusticl
-    TEST_PHASE_TIMEOUT_MINUTES: 15
 
 v3d-rpi5-traces:arm64:
   extends:
