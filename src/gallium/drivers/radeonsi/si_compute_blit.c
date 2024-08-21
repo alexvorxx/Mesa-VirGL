@@ -73,9 +73,6 @@ static void si_barrier_before_internal_op(struct si_context *sctx, unsigned flag
    }
 
    /* Wait for previous shaders to finish. */
-   if (flags & SI_OP_SYNC_GE_BEFORE)
-      sctx->flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
-
    if (flags & SI_OP_SYNC_PS_BEFORE) {
       sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH;
 
@@ -83,6 +80,8 @@ static void si_barrier_before_internal_op(struct si_context *sctx, unsigned flag
          si_make_CB_shader_coherent(sctx, images[i].resource->nr_samples, true,
                ((struct si_texture*)images[i].resource)->surface.u.gfx9.color.dcc.pipe_aligned);
       }
+   } else if (flags & SI_OP_SYNC_GE_BEFORE) {
+       sctx->flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
    }
 
    if (flags & SI_OP_SYNC_CS_BEFORE)
