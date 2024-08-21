@@ -79,6 +79,21 @@ struct ir3_legalize_block_data {
    struct ir3_legalize_state state;
 };
 
+static inline bool
+needs_ss_war(struct ir3_legalize_state *state, struct ir3_register *dst,
+             bool is_scalar_alu)
+{
+   if (regmask_get(&state->needs_ss_war, dst))
+      return true;
+
+   if (!is_scalar_alu) {
+      if (regmask_get(&state->needs_ss_scalar_war, dst))
+         return true;
+   }
+
+   return false;
+}
+
 static inline void
 apply_ss(struct ir3_instruction *instr,
          struct ir3_legalize_state *state,
@@ -492,9 +507,7 @@ legalize_block(struct ir3_legalize_ctx *ctx, struct ir3_block *block)
       }
 
       foreach_dst (reg, n) {
-         if (regmask_get(&state->needs_ss_war, reg) ||
-             (!n_is_scalar_alu &&
-              regmask_get(&state->needs_ss_scalar_war, reg))) {
+         if (needs_ss_war(state, reg, n_is_scalar_alu)) {
             apply_ss(n, state, mergedregs);
             last_input_needs_ss = false;
          }
