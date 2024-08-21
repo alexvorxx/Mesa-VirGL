@@ -863,14 +863,8 @@ etna_get_specs(struct etna_screen *screen)
    }
 
    if (info->type == ETNA_CORE_NPU) {
-      screen->specs.nn_core_count = info->npu.nn_core_count;
       screen->specs.nn_mad_per_core = info->npu.nn_mad_per_core;
-      screen->specs.tp_core_count = info->npu.tp_core_count;
-      screen->specs.on_chip_sram_size = info->npu.on_chip_sram_size;
       screen->specs.axi_sram_size = info->npu.axi_sram_size;
-      screen->specs.nn_zrl_bits = info->npu.nn_zrl_bits;
-      screen->specs.nn_input_buffer_depth = info->npu.nn_input_buffer_depth;
-      screen->specs.nn_accum_buffer_depth = info->npu.nn_accum_buffer_depth;
 
       if (etna_core_has_feature(info, ETNA_FEATURE_NN_XYDP0))
          screen->specs.nn_core_version = 8;
