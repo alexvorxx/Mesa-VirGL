@@ -609,6 +609,106 @@ cs_set_label(struct cs_builder *b, struct cs_label *label)
    }
 }
 
+struct cs_loop {
+   struct cs_label start, end;
+   struct cs_block block;
+   enum mali_cs_condition cond;
+   struct cs_index val;
+};
+
+static inline enum mali_cs_condition
+cs_invert_cond(enum mali_cs_condition cond)
+{
+   switch (cond) {
+   case MALI_CS_CONDITION_LEQUAL:
+      return MALI_CS_CONDITION_GREATER;
+   case MALI_CS_CONDITION_EQUAL:
+      return MALI_CS_CONDITION_NEQUAL;
+   case MALI_CS_CONDITION_LESS:
+      return MALI_CS_CONDITION_GEQUAL;
+   case MALI_CS_CONDITION_GREATER:
+      return MALI_CS_CONDITION_LEQUAL;
+   case MALI_CS_CONDITION_NEQUAL:
+      return MALI_CS_CONDITION_EQUAL;
+   case MALI_CS_CONDITION_GEQUAL:
+      return MALI_CS_CONDITION_LESS;
+   case MALI_CS_CONDITION_ALWAYS:
+      unreachable("cannot invert ALWAYS");
+   default:
+      unreachable("invalid cond");
+   }
+}
+
+static inline struct cs_loop *
+cs_do_while_start(struct cs_builder *b, struct cs_loop *loop,
+                  enum mali_cs_condition cond, struct cs_index val)
+{
+   cs_block_start(b, &loop->block);
+   cs_label_init(&loop->start);
+   cs_label_init(&loop->end);
+   cs_set_label(b, &loop->start);
+   loop->cond = cond;
+   loop->val = val;
+   return loop;
+}
+
+static inline struct cs_loop *
+cs_while_start(struct cs_builder *b, struct cs_loop *loop,
+               enum mali_cs_condition cond, struct cs_index val)
+{
+   cs_do_while_start(b, loop, cond, val);
+
+   /* Do an initial check on the condition, and if it's false, jump to
+    * the end of the loop block. For 'while(true)' loops, skip the
+    * conditional branch.
+    */
+   if (cond != MALI_CS_CONDITION_ALWAYS)
+      cs_branch_label(b, &loop->end, cs_invert_cond(cond), val);
+
+   return loop;
+}
+
+static inline void
+cs_loop_continue(struct cs_builder *b, enum mali_cs_condition cond,
+                 struct cs_index val)
+{
+   assert(b->blocks.cur);
+
+   struct cs_loop *loop = container_of(b->blocks.cur, struct cs_loop, block);
+
+   cs_branch_label(b, &loop->start, cond, val);
+}
+
+static inline void
+cs_loop_break(struct cs_builder *b, enum mali_cs_condition cond,
+              struct cs_index val)
+{
+   assert(b->blocks.cur);
+
+   struct cs_loop *loop = container_of(b->blocks.cur, struct cs_loop, block);
+
+   cs_branch_label(b, &loop->end, cond, val);
+}
+
+static inline void
+cs_while_end(struct cs_builder *b)
+{
+   assert(b->blocks.cur);
+
+   struct cs_loop *loop = container_of(b->blocks.cur, struct cs_loop, block);
+
+   cs_branch_label(b, &loop->start, loop->cond, loop->val);
+   cs_set_label(b, &loop->end);
+   cs_block_end(b);
+}
+
+#define cs_while(__b, cond, val)                                               \
+   for (struct cs_loop __loop_storage,                                         \
+        *__loop = cs_while_start(__b, &__loop_storage, cond, val);             \
+        __loop != NULL; cs_while_end(__b), __loop = NULL)
+
+/* Pseudoinstructions follow */
+
 static inline void
 cs_move64_to(struct cs_builder *b, struct cs_index dest, uint64_t imm)
 {
