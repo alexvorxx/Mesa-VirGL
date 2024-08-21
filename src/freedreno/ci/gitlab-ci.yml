@@ -260,7 +260,6 @@ a630_vk_full:
   parallel: 2
   variables:
     DEQP_SUITE: freedreno-a630-vk-full
-    TEST_PHASE_TIMEOUT_MINUTES: 175
 
 a630_vk_asan:
   extends:
@@ -293,7 +292,6 @@ a630_piglit_full:
   variables:
     HWCI_START_WESTON: 1
     DEQP_SUITE: freedreno-a630-piglit-full
-    TEST_PHASE_TIMEOUT_MINUTES: 55
 
 a630-traces:
   extends:
