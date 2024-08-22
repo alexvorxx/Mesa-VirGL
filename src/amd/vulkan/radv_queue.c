@@ -879,10 +879,6 @@ radv_emit_graphics(struct radv_device *device, struct radeon_cmdbuf *cs)
          radeon_set_context_reg(cs, R_028AC8_DB_PRELOAD_CONTROL, 0x0);
    }
 
-   radeon_set_context_reg(
-      cs, R_02800C_DB_RENDER_OVERRIDE,
-      S_02800C_FORCE_HIS_ENABLE0(V_02800C_FORCE_DISABLE) | S_02800C_FORCE_HIS_ENABLE1(V_02800C_FORCE_DISABLE));
-
    if (pdev->info.gfx_level >= GFX10) {
       if (pdev->info.gfx_level >= GFX12) {
          radeon_set_context_reg(cs, R_028AA0_VGT_DRAW_PAYLOAD_CNTL, 0);
