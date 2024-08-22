@@ -19,11 +19,11 @@ BEGIN_TEST(optimize.neg)
       writeout(0, bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), inputs[0], neg_b));
 
       //~gfx9! v1: %neg_a = v_mul_f32 -1.0, %a
-      //~gfx9! v1: %res1 = v_mul_f32 0x123456, %neg_a
-      //~gfx10! v1: %res1 = v_mul_f32 0x123456, -%a
+      //~gfx9! v1: %res1 = v_max_f32 0x123456, %neg_a
+      //~gfx10! v1: %res1 = v_max_f32 0x123456, -%a
       //! p_unit_test 1, %res1
       Temp neg_a = fneg(inputs[0]);
-      writeout(1, bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), Operand::c32(0x123456u), neg_a));
+      writeout(1, bld.vop2(aco_opcode::v_max_f32, bld.def(v1), Operand::c32(0x123456u), neg_a));
 
       //! v1: %res2 = v_mul_f32 %a, %b
       //! p_unit_test 2, %res2
