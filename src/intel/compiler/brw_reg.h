@@ -988,21 +988,6 @@ brw_dmask_reg()
 }
 
 static inline struct brw_reg
-brw_mask_stack_reg(unsigned subnr)
-{
-   return suboffset(retype(brw_vec16_reg(BRW_ARCHITECTURE_REGISTER_FILE,
-                                         BRW_ARF_MASK_STACK, 0),
-                           BRW_TYPE_UB), subnr);
-}
-
-static inline struct brw_reg
-brw_mask_stack_depth_reg(unsigned subnr)
-{
-   return brw_uw1_reg(BRW_ARCHITECTURE_REGISTER_FILE,
-                      BRW_ARF_MASK_STACK_DEPTH, subnr);
-}
-
-static inline struct brw_reg
 brw_vgrf(unsigned nr, enum brw_reg_type type)
 {
    struct brw_reg reg = {};

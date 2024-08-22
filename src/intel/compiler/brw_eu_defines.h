@@ -753,8 +753,6 @@ enum ENUM_PACKED gfx10_align1_3src_exec_type {
 #define BRW_ARF_ACCUMULATOR           0x20
 #define BRW_ARF_FLAG                  0x30
 #define BRW_ARF_MASK                  0x40
-#define BRW_ARF_MASK_STACK            0x50
-#define BRW_ARF_MASK_STACK_DEPTH      0x60
 #define BRW_ARF_STATE                 0x70
 #define BRW_ARF_CONTROL               0x80
 #define BRW_ARF_NOTIFICATION_COUNT    0x90
