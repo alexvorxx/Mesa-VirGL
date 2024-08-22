@@ -1685,11 +1685,12 @@ BEGIN_TEST(optimize.vop3p_constants)
          //; allowed_literals = [0x00004242, 0x0000fffe, 0x00308030, 0x0030ffff, 0x3c00ffff,
          //;                     0x42420000, 0x42424242, 0x4242c242, 0x4242ffff, 0x7ffefffe,
          //;                     0x80300030, 0xbeefdead, 0xc2424242, 0xdeadbeef, 0xfffe0000,
-         //;                     0xfffe7ffe, 0xffff0030, 0xffff3c00, 0xffff4242]
+         //;                     0xfffe7ffe, 0xffff0030, 0xffff3c00, 0xffff4242, 0xc242c242,
+         //;                     0x80308030, 0xdeaddead, 0xbeefbeef, 0x7ffe7ffe]
          //; if opcode == 'v_pk_add_u16':
-         //;    allowed_literals.extend([0x00003c00, 0x3c000000, 0x3c003c00, 0x3c00bc00, 0xbc003c00])
+         //;    allowed_literals.extend([0x00003c00, 0x3c000000, 0x3c003c00, 0x3c00bc00, 0xbc003c00, 0xbc00bc00])
          //; else:
-         //;    allowed_literals.extend([0x00003f80, 0x3f800000])
+         //;    allowed_literals.extend([0x00003f80, 0x3f800000, 0x3f803f80])
          //;
          //; for i in range(36):
          //;    got = globals()['got%u' % i].removeprefix('neg(')
