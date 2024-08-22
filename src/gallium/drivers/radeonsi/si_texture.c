@@ -240,6 +240,7 @@ static int si_init_surface(struct si_screen *sscreen, struct radeon_surf *surfac
 
       if (surface->modifier == DRM_FORMAT_MOD_INVALID &&
           (ptex->bind & PIPE_BIND_CONST_BW ||
+           ptex->bind & PIPE_BIND_PROTECTED ||
            sscreen->debug_flags & DBG(NO_DCC) ||
            (ptex->bind & PIPE_BIND_SCANOUT && sscreen->debug_flags & DBG(NO_DISPLAY_DCC))))
          flags |= RADEON_SURF_DISABLE_DCC;
@@ -1612,6 +1613,13 @@ si_modifier_supports_resource(struct pipe_screen *screen,
 
    if (((templ->bind & PIPE_BIND_LINEAR) || sscreen->debug_flags & DBG(NO_TILING)) &&
        modifier != DRM_FORMAT_MOD_LINEAR)
+      return false;
+
+   /* Protected content doesn't support DCC on GFX12. */
+   if (sscreen->info.gfx_level >= GFX12 && templ->bind & PIPE_BIND_PROTECTED &&
+       IS_AMD_FMT_MOD(modifier) &&
+       AMD_FMT_MOD_GET(TILE_VERSION, modifier) >= AMD_FMT_MOD_TILE_VER_GFX12 &&
+       AMD_FMT_MOD_GET(DCC, modifier))
       return false;
 
    ac_modifier_max_extent(&sscreen->info, modifier, &max_width, &max_height);
