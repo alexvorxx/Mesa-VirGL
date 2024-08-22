@@ -349,21 +349,155 @@ ac_prepare_cs_clear_copy_buffer(const struct ac_cs_clear_copy_buffer_options *op
       assert(clear_value_size % 4 == 0);
    }
 
-   unsigned dwords_per_thread = info->dwords_per_thread;
-   if (!dwords_per_thread) {
-      /* Set default optimal settings. */
-      dwords_per_thread = info->size <= 64 * 1024 ? 2 : 4;
-
-      if (!is_copy) {
-         if (clear_value_size == 12) {
-            /* Clearing 4 dwords per thread with a 3-dword clear value is faster with big sizes. */
-            dwords_per_thread = info->size <= 4096 ? 3 : 4;
+   /* This doesn't fail very often because the only possible fallback is CP DMA, which doesn't
+    * support the render condition.
+    */
+   if (options->fail_if_slow && !info->render_condition_enabled && options->info->has_cp_dma &&
+       !options->info->cp_sdma_ge_use_system_memory_scope) {
+      switch (options->info->gfx_level) {
+      /* GFX6-8: CP DMA clears are so slow that we risk getting a GPU timeout. CP DMA copies
+       * are also slow but less.
+       */
+      case GFX6:
+         /* Optimal for Tahiti. */
+         if (is_copy) {
+            if (!info->dst_is_vram || !info->src_is_vram ||
+                info->size <= (info->dst_offset % 4 ||
+                               (info->dst_offset == 4 && info->src_offset % 4) ? 32 * 1024 : 16 * 1024))
+               return false;
          } else {
-            /* dwords_per_thread must be at least the size of the clear value. */
-            dwords_per_thread = MAX2(dwords_per_thread, clear_value_size / 4);
+            /* CP DMA only supports dword-aligned clears and small clear values. */
+            if (clear_value_size <= 4 && info->dst_offset % 4 == 0 && info->size % 4 == 0 &&
+                info->dst_is_vram && info->size <= 1024)
+               return false;
          }
+         break;
+
+      case GFX7:
+         /* Optimal for Hawaii. */
+         if (is_copy && info->dst_is_vram && info->src_is_vram && info->size <= 512)
+            return false;
+         break;
+
+      case GFX8:
+         /* Optimal for Tonga. */
+         break;
+
+      case GFX9:
+         /* Optimal for Vega10. */
+         if (is_copy) {
+            if (info->src_is_vram) {
+               if (info->dst_is_vram) {
+                  if (info->size < 4096)
+                     return false;
+               } else {
+                  if (info->size < (info->dst_offset % 64 ? 8192 : 2048))
+                     return false;
+               }
+            } else {
+               /* GTT->VRAM and GTT->GTT. */
+               return false;
+            }
+         } else {
+            /* CP DMA only supports dword-aligned clears and small clear values. */
+            if (clear_value_size <= 4 && info->dst_offset % 4 == 0 && info->size % 4 == 0 &&
+                !info->dst_is_vram && (info->size < 2048 || info->size >= 8 << 20 /* 8 MB */))
+               return false;
+         }
+         break;
+
+      case GFX10:
+      case GFX10_3:
+         /* Optimal for Navi21, Navi10. */
+         break;
+
+      case GFX11:
+      default:
+         /* Optimal for Navi31. */
+         if (is_copy && info->size < 1024 && info->dst_offset % 256 && info->dst_is_vram && info->src_is_vram)
+            return false;
+         break;
+
+      case GFX12:
+         unreachable("cp_sdma_ge_use_system_memory_scope should be true, so we should never get here");
       }
    }
+
+   unsigned dwords_per_thread = info->dwords_per_thread;
+
+   /* Determine optimal dwords_per_thread for performance. */
+   if (!info->dwords_per_thread) {
+      /* This is a good initial value to start with. */
+      dwords_per_thread = info->size <= 64 * 1024 ? 2 : 4;
+
+      /* Clearing 4 dwords per thread with a 3-dword clear value is faster with big sizes. */
+      if (!is_copy && clear_value_size == 12)
+         dwords_per_thread = info->size <= 4096 ? 3 : 4;
+
+      switch (options->info->gfx_level) {
+      case GFX6:
+         /* Optimal for Tahiti. */
+         if (is_copy) {
+            if (info->dst_is_vram && info->src_is_vram)
+               dwords_per_thread = 2;
+         } else {
+            if (info->dst_is_vram && clear_value_size != 12)
+               dwords_per_thread = info->size <= 128 * 1024 || info->size >= 4 << 20 /* 4MB */ ? 2 : 4;
+
+            if (clear_value_size == 12)
+               dwords_per_thread = info->size <= (info->dst_is_vram ? 256 : 128) * 1024 ? 3 : 4;
+         }
+         break;
+
+      case GFX7:
+         /* Optimal for Hawaii. */
+         if (is_copy) {
+            if (info->dst_is_vram && info->src_is_vram && info->dst_offset % 4 == 0 &&
+                info->size >= 8 << 20 /* 8MB */)
+               dwords_per_thread = 2;
+         } else {
+            if (info->dst_is_vram && clear_value_size != 12)
+               dwords_per_thread = info->size <= 32 * 1024 ? 2 : 4;
+
+            if (clear_value_size == 12)
+               dwords_per_thread = info->size <= 256 * 1024 ? 3 : 4;
+         }
+         break;
+
+      case GFX8:
+         /* Optimal for Tonga. */
+         if (is_copy) {
+            dwords_per_thread = 2;
+         } else {
+            if (clear_value_size == 12 && info->size < (2 << 20) /* 2MB */)
+               dwords_per_thread = 3;
+         }
+         break;
+
+      case GFX9:
+         /* Optimal for Vega10. */
+         if (is_copy && info->src_is_vram && info->dst_is_vram && info->size >= 8 << 20 /* 8 MB */)
+            dwords_per_thread = 2;
+
+         if (!info->dst_is_vram)
+            dwords_per_thread = 2;
+         break;
+
+      case GFX10:
+      case GFX10_3:
+      case GFX11:
+      case GFX12:
+         /* Optimal for Gfx12xx, Navi31, Navi21, Navi10. */
+         break;
+
+      default:
+         break;
+      }
+   }
+
+   /* dwords_per_thread must be at least the size of the clear value. */
+   if (!is_copy)
+      dwords_per_thread = MAX2(dwords_per_thread, clear_value_size / 4);
 
    /* Validate dwords_per_thread. */
    if (dwords_per_thread > 4) {
@@ -379,34 +513,6 @@ ac_prepare_cs_clear_copy_buffer(const struct ac_cs_clear_copy_buffer_options *op
    if (clear_value_size == 12 && info->dst_offset % 4) {
       assert(!"if clear_value_size == 12, dst_offset must be aligned to 4");
       return false; /* invalid value */
-   }
-
-   /* This doesn't fail very often because the only possible fallback is CP DMA, which doesn't
-    * support the render condition.
-    */
-   if (options->fail_if_slow && !info->render_condition_enabled && options->info->has_cp_dma &&
-       !options->info->cp_sdma_ge_use_system_memory_scope) {
-      switch (options->info->gfx_level) {
-      case GFX11:
-         /* Verified on Navi31. */
-         if (is_copy && info->size < 1024 && info->dst_offset % 256 && info->dst_is_vram && info->src_is_vram)
-            return false;
-         break;
-
-      default:
-         if (is_copy) {
-            /* Only use compute for large VRAM copies on dGPUs. */
-            if (info->size <= 8192 || !options->info->has_dedicated_vram || !info->dst_is_vram ||
-                !info->src_is_vram)
-               return false;
-         } else {
-            /* CP DMA clears are terribly slow with GTT on GFX6-8, which can be encountered with
-             * any buffer due to BO evictions, so never use CP DMA clears on GFX6-8.
-             */
-            if (options->info->gfx_level >= GFX9 && clear_value_size <= 4 && info->size <= 4096)
-               return false;
-         }
-      }
    }
 
    unsigned dst_align_offset = info->dst_offset % (dwords_per_thread * 4);

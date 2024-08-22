@@ -168,7 +168,7 @@ struct ac_cs_clear_copy_buffer_info {
    unsigned size;
    unsigned clear_value_size;
    uint32_t clear_value[4];
-   unsigned dwords_per_thread;
+   unsigned dwords_per_thread;   /* Set to 0 to let the code choose the optimal value. */
    bool render_condition_enabled;
    bool dst_is_vram;
    bool src_is_vram;
