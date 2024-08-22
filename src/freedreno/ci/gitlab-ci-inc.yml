@@ -180,7 +180,7 @@
     - !reference [.collabora-freedreno-rules, rules]
 
 .google-freedreno-rules-performance:
-  stage: freedreno
+  stage: performance
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -196,7 +196,7 @@
   dependencies: null
 
 .collabora-freedreno-rules-performance:
-  stage: freedreno
+  stage: performance
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]

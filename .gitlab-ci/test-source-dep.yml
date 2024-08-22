@@ -91,6 +91,7 @@
 # Collabora triggers the manual job after merge to main.  These "never" filters
 # need to come before any paths with "manual".
 .performance-rules:
+  stage: performance
   rules:
     - !reference [.no_scheduled_pipelines-rules, rules]
     # Run only on pre-merge pipelines from Marge

@@ -156,6 +156,7 @@ stages:
   - etnaviv
   - software-renderer
   - layered-backends
+  - performance
   - deploy
 
 include:

@@ -24,7 +24,7 @@
     - !reference [.iris-manual-rules, rules]
 
 .virgl-iris-rules-performance:
-  stage: layered-backends
+  stage: performance
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]

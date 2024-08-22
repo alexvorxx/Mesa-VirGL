@@ -101,7 +101,7 @@
 # to do duplicate the files lists to set the job to manual (see
 # .performance-rules)
 .iris-rules-performance:
-  stage: intel
+  stage: performance
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
