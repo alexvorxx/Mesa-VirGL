@@ -151,7 +151,7 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
    assert(!sctx->screen->info.cp_sdma_ge_use_system_memory_scope);
    assert(size && size % 4 == 0);
 
-   if (!(user_flags & SI_OP_SKIP_CACHE_INV_BEFORE) && !cp_dma_use_L2(sctx)) {
+   if (!cp_dma_use_L2(sctx)) {
       sctx->flags |= SI_CONTEXT_INV_L2;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    }
@@ -237,7 +237,7 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
    assert(size);
    assert(dst && src);
 
-   if (!(user_flags & SI_OP_SKIP_CACHE_INV_BEFORE) && !cp_dma_use_L2(sctx)) {
+   if (!cp_dma_use_L2(sctx)) {
       sctx->flags |= SI_CONTEXT_INV_L2;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    }

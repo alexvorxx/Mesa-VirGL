@@ -75,8 +75,7 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
 
    si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
 
-   unsigned flags = SI_OP_SKIP_CACHE_INV_BEFORE |
-                    (render_condition_enable ? SI_OP_CS_RENDER_COND_ENABLE : 0);
+   unsigned flags = render_condition_enable ? SI_OP_CS_RENDER_COND_ENABLE : 0;
 
    /* Execute clears. */
    for (unsigned i = 0; i < num_clears; i++) {

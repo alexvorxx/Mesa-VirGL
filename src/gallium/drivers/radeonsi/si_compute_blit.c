@@ -101,11 +101,8 @@ void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
       sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
 
    /* Invalidate the VMEM cache only. The SMEM cache isn't used by shader buffers. */
-   if (!(flags & SI_OP_SKIP_CACHE_INV_BEFORE))
-      sctx->flags |= SI_CONTEXT_INV_VCACHE;
-
-   if (sctx->flags)
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   sctx->flags |= SI_CONTEXT_INV_VCACHE;
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
 }
 
 void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
