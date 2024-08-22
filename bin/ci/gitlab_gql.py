@@ -325,12 +325,16 @@ def create_job_needs_dag(gl_gql: GitlabGQL, params, disable_cache: bool = True) 
     return final_dag
 
 
-def filter_dag(dag: Dag, job_name_regex: Pattern, include_stage_regex: Pattern) -> Dag:
+def filter_dag(
+    dag: Dag, job_name_regex: Pattern, include_stage_regex: Pattern, exclude_stage_regex: Pattern
+) -> Dag:
     filtered_jobs: Dag = Dag({})
     for (job, data) in dag.items():
         if not job_name_regex.fullmatch(job):
             continue
         if not include_stage_regex.fullmatch(data["stage"]):
+            continue
+        if exclude_stage_regex.fullmatch(data["stage"]):
             continue
         filtered_jobs[job] = data
     return filtered_jobs
@@ -488,6 +492,13 @@ def parse_args() -> Namespace:
         default=".*",
         help="Regex pattern for the stage name to be considered",
     )
+    parser.add_argument(
+        "--exclude-stage",
+        type=str,
+        required=False,
+        default="^$",
+        help="Regex pattern for the stage name to be excluded",
+    )
     mutex_group_print = parser.add_mutually_exclusive_group()
     mutex_group_print.add_argument(
         "--print-dag",
@@ -529,7 +540,7 @@ def main():
             gl_gql, {"projectPath": args.project_path, "iid": iid}, disable_cache=True
         )
 
-        dag = filter_dag(dag, re.compile(args.regex), re.compile(args.include_stage))
+        dag = filter_dag(dag, re.compile(args.regex), re.compile(args.include_stage), re.compile(args.exclude_stage))
 
         print_dag(dag)
 
