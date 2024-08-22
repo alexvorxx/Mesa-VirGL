@@ -501,28 +501,6 @@ static void si_compute_restore_images(struct si_context *sctx, unsigned num_imag
       pipe_resource_reference(&saved_images[i].resource, NULL);
 }
 
-static void si_launch_grid_internal_images(struct si_context *sctx,
-                                           struct pipe_image_view *images,
-                                           unsigned num_images,
-                                           const struct pipe_grid_info *info,
-                                           void *shader, unsigned flags)
-{
-   struct pipe_image_view saved_images[2] = {};
-   assert(num_images <= ARRAY_SIZE(saved_images));
-
-   /* This must be before the barrier and si_compute_begin_internal because it might invoke DCC
-    * decompression.
-    */
-   si_compute_save_and_bind_images(sctx, num_images, images, saved_images);
-
-   si_barrier_before_internal_op(sctx, flags, 0, NULL, 0, num_images, images);
-   si_compute_begin_internal(sctx, flags);
-   si_launch_grid_internal(sctx, info, shader);
-   si_compute_end_internal(sctx);
-   si_barrier_after_internal_op(sctx, flags, 0, NULL, 0, num_images, images);
-   si_compute_restore_images(sctx, num_images, saved_images);
-}
-
 void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
 {
    assert(sctx->gfx_level < GFX12);
@@ -721,7 +699,13 @@ void si_compute_clear_image_dcc_single(struct si_context *sctx, struct si_textur
    if (!*shader)
       *shader = si_clear_image_dcc_single_shader(sctx, is_msaa, wg_dim);
 
-   si_launch_grid_internal_images(sctx, &image, 1, &info, *shader, flags);
+   struct pipe_image_view saved_image = {};
+
+   si_compute_save_and_bind_images(sctx, 1, &image, &saved_image);
+   si_compute_begin_internal(sctx, flags);
+   si_launch_grid_internal(sctx, &info, *shader);
+   si_compute_end_internal(sctx);
+   si_compute_restore_images(sctx, 1, &saved_image);
 }
 
 void si_init_compute_blit_functions(struct si_context *sctx)
