@@ -20,7 +20,7 @@
       when: on_success
 
 .llvmpipe-manual-rules:
-  stage: software-renderer
+  stage: software-renderer-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
