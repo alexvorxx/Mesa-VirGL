@@ -422,10 +422,13 @@ op("stop", (0x88, 0xFFFF, 2, _), dests = 0, can_eliminate = False,
    schedule_class = "invalid")
 op("trap", (0x08, 0xFFFF, 2, _), dests = 0, can_eliminate = False,
    schedule_class = "invalid")
+
+# These are modelled as total barriers since they can guard global memory
+# access too, and even need to be properly ordered with loads.
 op("wait_pix", (0x48, 0xFF, 4, _), dests = 0, imms = [WRITEOUT],
-   can_eliminate = False, schedule_class = "coverage")
+   can_eliminate = False, schedule_class = "barrier")
 op("signal_pix", (0x58, 0xFF, 4, _), dests = 0, imms = [WRITEOUT],
-   can_eliminate = False, schedule_class = "coverage")
+   can_eliminate = False, schedule_class = "barrier")
 
 # Sources are the data vector, the coordinate vector, the LOD, the bindless
 # table if present (zero for texture state registers), and texture index.
