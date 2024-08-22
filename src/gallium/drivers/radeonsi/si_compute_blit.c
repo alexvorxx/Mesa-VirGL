@@ -382,8 +382,7 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
    if (util_lower_clearsize_to_dword(clear_value, (int*)&clear_value_size, &clamped))
       clear_value = &clamped;
 
-   if (method != SI_CP_DMA_CLEAR_METHOD &&
-       si_compute_clear_copy_buffer(sctx, dst, offset, NULL, 0, size, clear_value,
+   if (si_compute_clear_copy_buffer(sctx, dst, offset, NULL, 0, size, clear_value,
                                     clear_value_size, 0, render_condition_enable,
                                     method == SI_AUTO_SELECT_CLEAR_METHOD))
       return;

@@ -1486,7 +1486,6 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
                                   unsigned dwords_per_thread, bool render_condition_enable,
                                   bool fail_if_slow);
 enum si_clear_method {
-  SI_CP_DMA_CLEAR_METHOD,
   SI_COMPUTE_CLEAR_METHOD,
   SI_AUTO_SELECT_CLEAR_METHOD
 };
