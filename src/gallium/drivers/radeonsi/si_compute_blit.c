@@ -486,9 +486,7 @@ void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resour
    sb[1].buffer_offset = src_offset;
    sb[1].buffer_size = count;
 
-   si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
    si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_ubyte_to_ushort, flags, 2, sb, 0x1);
-   si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
 }
 
 static void si_compute_save_and_bind_images(struct si_context *sctx, unsigned num_images,
