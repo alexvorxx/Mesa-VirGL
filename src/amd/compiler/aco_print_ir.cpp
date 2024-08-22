@@ -1022,7 +1022,9 @@ aco_print_instr(enum amd_gfx_level gfx_level, const Instruction* instr, FILE* ou
             fprintf(output, " ");
 
          if (i < 3) {
-            if (neg[i])
+            if (neg[i] && instr->operands[i].isConstant())
+               fprintf(output, "neg(");
+            else if (neg[i])
                fprintf(output, "-");
             if (abs[i])
                fprintf(output, "|");
@@ -1043,6 +1045,8 @@ aco_print_instr(enum amd_gfx_level gfx_level, const Instruction* instr, FILE* ou
             if (opsel_lo[i] || !opsel_hi[i])
                fprintf(output, ".%c%c", opsel_lo[i] ? 'y' : 'x', opsel_hi[i] ? 'y' : 'x');
 
+            if (neg[i] && instr->operands[i].isConstant())
+               fprintf(output, ")");
             if (neg_lo[i])
                fprintf(output, "*[-1,1]");
             if (neg_hi[i])
