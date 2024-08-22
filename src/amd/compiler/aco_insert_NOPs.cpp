@@ -1485,7 +1485,8 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
 
          if (state.program->wave_size == 64) {
             for (Operand& op : instr->operands) {
-               if (op.isLiteral() || (!op.isConstant() && op.physReg().reg() < 128))
+               /* This should ignore exec reads */
+               if (!op.isConstant() && op.physReg().reg() < 126)
                   ctx.sgpr_read_by_valu_as_lanemask.reset();
             }
             switch (instr->opcode) {

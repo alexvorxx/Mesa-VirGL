@@ -375,4 +375,5 @@ Triggered by:
 SALU writing then reading a SGPR that was previously used as a lane mask for a VALU.
 
 Mitigated by:
-A VALU instruction reading a SGPR or with literal, or a sa_sdst=0 wait: `s_waitcnt_depctr 0xfffe`
+A VALU instruction reading a non-exec SGPR before the SALU write, or a sa_sdst=0 wait:
+`s_waitcnt_depctr 0xfffe`
