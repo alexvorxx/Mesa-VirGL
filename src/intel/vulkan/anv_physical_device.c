@@ -805,6 +805,9 @@ get_features(const struct anv_physical_device *pdevice,
 
       /* VK_KHR_maintenance7 */
       .maintenance7 = true,
+
+      /* VK_KHR_shader_relaxed_extended_instruction */
+      .shaderRelaxedExtendedInstruction = true,
    };
 
    /* The new DOOM and Wolfenstein games require depthBounds without
