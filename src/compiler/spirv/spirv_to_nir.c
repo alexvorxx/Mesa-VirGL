@@ -119,6 +119,7 @@ static const struct spirv_capabilities implemented_capabilities = {
    .IntegerFunctions2INTEL = true,
    .InterpolationFunction = true,
    .Kernel = true,
+   .Linkage = true,
    .LiteralSampler = true,
    .Matrix = true,
    .MeshShadingEXT = true,
@@ -4889,12 +4890,6 @@ vtn_handle_preamble_instruction(struct vtn_builder *b, SpvOp opcode,
    case SpvOpCapability: {
       SpvCapability cap = w[1];
       switch (cap) {
-      case SpvCapabilityLinkage:
-         if (!b->options->create_library)
-            vtn_warn("Unsupported SPIR-V capability: %s",
-                     spirv_capability_to_string(cap));
-         break;
-
       case SpvCapabilitySubgroupDispatch:
          /* Missing :
           *   - SpvOpGetKernelLocalSizeForSubgroupCount
@@ -6689,6 +6684,9 @@ vtn_create_builder(const uint32_t *words, size_t word_count,
       b->supported_capabilities = *b->options->capabilities;
    else
       b->supported_capabilities = implemented_capabilities;
+
+   spirv_capabilities_set(&b->supported_capabilities, SpvCapabilityLinkage,
+                          b->options->create_library);
 
    /* In GLSLang commit 8297936dd6eb3, their handling of barrier() was fixed
     * to provide correct memory semantics on compute shader barrier()
