@@ -1499,7 +1499,7 @@ void si_compute_clear_buffer_rmw(struct si_context *sctx, struct pipe_resource *
                                  unsigned dst_offset, unsigned size, uint32_t clear_value,
                                  uint32_t writebitmask, unsigned flags);
 void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
-                    uint64_t dst_offset, uint64_t src_offset, unsigned size, unsigned flags);
+                    uint64_t dst_offset, uint64_t src_offset, unsigned size);
 void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
                                      uint64_t dst_offset, uint64_t src_offset, unsigned size, unsigned flags);
 void si_compute_clear_image_dcc_single(struct si_context *sctx, struct si_texture *tex,
@@ -1526,10 +1526,10 @@ void si_init_compute_blit_functions(struct si_context *sctx);
 void si_cp_dma_wait_for_idle(struct si_context *sctx, struct radeon_cmdbuf *cs);
 void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
                             struct pipe_resource *dst, uint64_t offset, uint64_t size,
-                            unsigned value, unsigned user_flags);
+                            unsigned value);
 void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
                            struct pipe_resource *src, uint64_t dst_offset, uint64_t src_offset,
-                           unsigned size, unsigned user_flags);
+                           unsigned size);
 void si_cp_write_data(struct si_context *sctx, struct si_resource *buf, unsigned offset,
                       unsigned size, unsigned dst_sel, unsigned engine, const void *data);
 void si_cp_copy_data(struct si_context *sctx, struct radeon_cmdbuf *cs, unsigned dst_sel,

@@ -208,7 +208,7 @@ void si_test_dma_perf(struct si_screen *sscreen)
                   if (method == METHOD_DEFAULT) {
                      if (is_copy) {
                         si_barrier_before_simple_buffer_op(sctx, 0, dst, src);
-                        si_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, 0);
+                        si_copy_buffer(sctx, dst, src, dst_offset, src_offset, size);
                         si_barrier_after_simple_buffer_op(sctx, 0, dst, src);
                      } else {
                         sctx->b.clear_buffer(&sctx->b, dst, dst_offset, size, &clear_value,
@@ -230,7 +230,7 @@ void si_test_dma_perf(struct si_screen *sscreen)
                         }
 
                         si_barrier_before_simple_buffer_op(sctx, 0, dst, src);
-                        si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, 0);
+                        si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size);
                         si_barrier_after_simple_buffer_op(sctx, 0, dst, src);
                      } else {
                         /* CP DMA clears must be aligned to 4 bytes. */
@@ -244,7 +244,7 @@ void si_test_dma_perf(struct si_screen *sscreen)
                         assert(clear_value_size == 4);
                         si_barrier_before_simple_buffer_op(sctx, 0, dst, src);
                         si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, dst_offset, size,
-                                               clear_value[0], 0);
+                                               clear_value[0]);
                         si_barrier_after_simple_buffer_op(sctx, 0, dst, src);
                      }
                   } else {

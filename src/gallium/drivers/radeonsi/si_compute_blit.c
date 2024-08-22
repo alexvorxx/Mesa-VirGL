@@ -389,7 +389,7 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
    if (aligned_size) {
       assert(clear_value_size == 4);
       assert(!(flags & SI_OP_CS_RENDER_COND_ENABLE));
-      si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, aligned_size, *clear_value, flags);
+      si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, aligned_size, *clear_value);
    }
 
    offset += aligned_size;
@@ -425,16 +425,16 @@ static void si_pipe_clear_buffer(struct pipe_context *ctx, struct pipe_resource 
 }
 
 void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
-                    uint64_t dst_offset, uint64_t src_offset, unsigned size, unsigned flags)
+                    uint64_t dst_offset, uint64_t src_offset, unsigned size)
 {
    if (!size)
       return;
 
-   if (si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, size, NULL, 0, flags,
+   if (si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, size, NULL, 0, 0,
                                     0, true))
       return;
 
-   si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, flags);
+   si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size);
 }
 
 void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,

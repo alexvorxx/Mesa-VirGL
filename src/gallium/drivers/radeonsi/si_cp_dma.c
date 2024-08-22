@@ -110,8 +110,7 @@ void si_cp_dma_wait_for_idle(struct si_context *sctx, struct radeon_cmdbuf *cs)
 
 static void si_cp_dma_prepare(struct si_context *sctx, struct pipe_resource *dst,
                               struct pipe_resource *src, unsigned byte_count,
-                              uint64_t remaining_size, unsigned user_flags,
-                              bool *is_first, unsigned *packet_flags)
+                              uint64_t remaining_size, bool *is_first, unsigned *packet_flags)
 {
    si_need_gfx_cs_space(sctx, 0);
 
@@ -142,7 +141,7 @@ static void si_cp_dma_prepare(struct si_context *sctx, struct pipe_resource *dst
 
 void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
                             struct pipe_resource *dst, uint64_t offset, uint64_t size,
-                            unsigned value, unsigned user_flags)
+                            unsigned value)
 {
    struct si_resource *sdst = si_resource(dst);
    uint64_t va = sdst->gpu_address + offset;
@@ -176,7 +175,7 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
       if (!byte_count)
          continue;
 
-      si_cp_dma_prepare(sctx, dst, NULL, byte_count, size, user_flags, &is_first, &dma_flags);
+      si_cp_dma_prepare(sctx, dst, NULL, byte_count, size, &is_first, &dma_flags);
 
       /* Emit the clear packet. */
       si_emit_cp_dma(sctx, cs, va, value, byte_count, dma_flags);
@@ -194,8 +193,7 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
  *
  * \param size  Remaining size to the CP DMA alignment.
  */
-static void si_cp_dma_realign_engine(struct si_context *sctx, unsigned size, unsigned user_flags,
-                                     bool *is_first)
+static void si_cp_dma_realign_engine(struct si_context *sctx, unsigned size, bool *is_first)
 {
    uint64_t va;
    unsigned dma_flags = 0;
@@ -219,7 +217,7 @@ static void si_cp_dma_realign_engine(struct si_context *sctx, unsigned size, uns
    }
 
    si_cp_dma_prepare(sctx, &sctx->scratch_buffer->b.b, &sctx->scratch_buffer->b.b, size, size,
-                     user_flags, is_first, &dma_flags);
+                     is_first, &dma_flags);
 
    va = sctx->scratch_buffer->gpu_address;
    si_emit_cp_dma(sctx, &sctx->gfx_cs, va, va + SI_CPDMA_ALIGNMENT, size, dma_flags);
@@ -227,12 +225,10 @@ static void si_cp_dma_realign_engine(struct si_context *sctx, unsigned size, uns
 
 /**
  * Do memcpy between buffers using CP DMA.
- *
- * \param user_flags    bitmask of SI_CPDMA_*
  */
 void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
                            struct pipe_resource *src, uint64_t dst_offset, uint64_t src_offset,
-                           unsigned size, unsigned user_flags)
+                           unsigned size)
 {
    assert(size);
    assert(dst && src);
@@ -315,7 +311,7 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
       if (!byte_count)
          continue;
 
-      si_cp_dma_prepare(sctx, dst, src, byte_count, size + skipped_size + realign_size, user_flags,
+      si_cp_dma_prepare(sctx, dst, src, byte_count, size + skipped_size + realign_size,
                         &is_first, &dma_flags);
 
       si_emit_cp_dma(sctx, &sctx->gfx_cs, main_dst_offset, main_src_offset, byte_count, dma_flags);
@@ -329,7 +325,7 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
    if (skipped_size) {
       unsigned dma_flags = 0;
 
-      si_cp_dma_prepare(sctx, dst, src, skipped_size, skipped_size + realign_size, user_flags,
+      si_cp_dma_prepare(sctx, dst, src, skipped_size, skipped_size + realign_size,
                         &is_first, &dma_flags);
 
       si_emit_cp_dma(sctx, &sctx->gfx_cs, dst_offset, src_offset, skipped_size, dma_flags);
@@ -337,7 +333,7 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
 
    /* Finally, realign the engine if the size wasn't aligned. */
    if (realign_size)
-      si_cp_dma_realign_engine(sctx, realign_size, user_flags, &is_first);
+      si_cp_dma_realign_engine(sctx, realign_size, &is_first);
 
    sctx->num_cp_dma_calls++;
 }

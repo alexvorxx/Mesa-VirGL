@@ -966,7 +966,7 @@ void si_resource_copy_region(struct pipe_context *ctx, struct pipe_resource *dst
    /* Handle buffers first. */
    if (dst->target == PIPE_BUFFER && src->target == PIPE_BUFFER) {
       si_barrier_before_simple_buffer_op(sctx, 0, dst, src);
-      si_copy_buffer(sctx, dst, src, dstx, src_box->x, src_box->width, 0);
+      si_copy_buffer(sctx, dst, src, dstx, src_box->x, src_box->width);
       si_barrier_after_simple_buffer_op(sctx, 0, dst, src);
       return;
    }

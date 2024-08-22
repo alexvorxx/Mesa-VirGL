@@ -58,7 +58,7 @@ void si_init_cp_reg_shadowing(struct si_context *sctx)
    if (sctx->shadowing.registers) {
       /* We need to clear the shadowed reg buffer. */
       si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, &sctx->shadowing.registers->b.b,
-                             0, sctx->shadowing.registers->bo_size, 0, 0);
+                             0, sctx->shadowing.registers->bo_size, 0);
       si_barrier_after_simple_buffer_op(sctx, 0, &sctx->shadowing.registers->b.b, NULL);
 
       /* Create the shadowing preamble. (allocate enough dwords because the preamble is large) */
