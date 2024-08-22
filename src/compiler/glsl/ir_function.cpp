@@ -24,6 +24,7 @@
 #include "compiler/glsl_types.h"
 #include "ir.h"
 #include "glsl_parser_extras.h"
+#include "linker_util.h"
 #include "main/errors.h"
 
 typedef enum {

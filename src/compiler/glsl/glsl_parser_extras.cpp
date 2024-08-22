@@ -1033,56 +1033,6 @@ _mesa_glsl_process_extension(const char *name, YYLTYPE *name_locp,
    return true;
 }
 
-bool
-_mesa_glsl_can_implicitly_convert(const glsl_type *from, const glsl_type *desired,
-                                  bool has_implicit_conversions,
-                                  bool has_implicit_int_to_uint_conversion)
-{
-   if (from == desired)
-      return true;
-
-   /* GLSL 1.10 and ESSL do not allow implicit conversions. */
-   if (!has_implicit_conversions)
-      return false;
-
-   /* There is no conversion among matrix types. */
-   if (from->matrix_columns > 1 || desired->matrix_columns > 1)
-      return false;
-
-   /* Vector size must match. */
-   if (from->vector_elements != desired->vector_elements)
-      return false;
-
-   /* int and uint can be converted to float. */
-   if (glsl_type_is_float(desired) && (glsl_type_is_integer_32(from) ||
-       glsl_type_is_float_16(from)))
-      return true;
-
-   /* With GLSL 4.0, ARB_gpu_shader5, or MESA_shader_integer_functions, int
-    * can be converted to uint.  Note that state may be NULL here, when
-    * resolving function calls in the linker. By this time, all the
-    * state-dependent checks have already happened though, so allow anything
-    * that's allowed in any shader version.
-    */
-   if (has_implicit_int_to_uint_conversion &&
-       desired->base_type == GLSL_TYPE_UINT && from->base_type == GLSL_TYPE_INT)
-      return true;
-
-   /* No implicit conversions from double. */
-   if (glsl_type_is_double(from))
-      return false;
-
-   /* Conversions from different types to double. */
-   if (glsl_type_is_double(desired)) {
-      if (glsl_type_is_float_16_32(from))
-         return true;
-      if (glsl_type_is_integer_32(from))
-         return true;
-   }
-
-   return false;
-}
-
 /**
  * Recurses through <type> and <expr> if <expr> is an aggregate initializer
  * and sets <expr>'s <constructor_type> field to <type>. Gives later functions
