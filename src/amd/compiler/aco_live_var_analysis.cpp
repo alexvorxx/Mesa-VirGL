@@ -259,14 +259,15 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
          if (operand.isFixed() && operand.physReg() == vcc)
             ctx.program->needs_vcc = true;
          const Temp temp = operand.getTemp();
-         const bool inserted = live.insert(temp.id()).second;
-         if (inserted) {
+
+         if (operand.isKill())
+            continue;
+
+         if (live.insert(temp.id()).second) {
             operand.setFirstKill(true);
             for (unsigned j = i + 1; j < insn->operands.size(); ++j) {
-               if (insn->operands[j].isTemp() && insn->operands[j].tempId() == operand.tempId()) {
-                  insn->operands[j].setFirstKill(false);
+               if (insn->operands[j].isTemp() && insn->operands[j].getTemp() == temp)
                   insn->operands[j].setKill(true);
-               }
             }
             if (operand.isLateKill())
                insn->register_demand += temp;
