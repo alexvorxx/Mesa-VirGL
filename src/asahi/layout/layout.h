@@ -365,6 +365,53 @@ ail_can_compress(enum pipe_format format, unsigned w_px, unsigned h_px,
           ail_effective_height_sa(h_px, sample_count_sa) >= 16;
 }
 
+/* AGX compression mode for a solid colour for the subtile */
+#define AIL_COMP_SOLID 0x3
+
+/* AGX compression mode for an uncompessed subtile. Frustratingly, this seems to
+ * depend on the format. It is possible that modes are actual 8-bit structures
+ * with multiple fields rather than plain enumerations.
+ */
+#define AIL_COMP_UNCOMPRESSED_1    0x1f
+#define AIL_COMP_UNCOMPRESSED_2    0x3f
+#define AIL_COMP_UNCOMPRESSED_4    0x7f
+#define AIL_COMP_UNCOMPRESSED_8_16 0xff
+
+static inline uint8_t
+ail_subtile_uncompressed_mode(enum pipe_format format)
+{
+   /* clang-format off */
+   switch (util_format_get_blocksize(format)) {
+   case  1: return AIL_COMP_UNCOMPRESSED_1;
+   case  2: return AIL_COMP_UNCOMPRESSED_2;
+   case  4: return AIL_COMP_UNCOMPRESSED_4;
+   case  8:
+   case 16: return AIL_COMP_UNCOMPRESSED_8_16;
+   default: unreachable("invalid block size");
+   }
+   /* clang-format on */
+}
+
+/*
+ * Compression modes are 8-bit per 8x4 subtile, but grouped into 64-bit for all
+ * modes in a 16x16 tile. This helper replicates a subtile mode to a tile mode
+ * using a SWAR idiom.
+ */
+static inline uint64_t
+ail_tile_mode_replicated(uint8_t subtile_mode)
+{
+   return (uint64_t)subtile_mode * 0x0101010101010101ULL;
+}
+
+/*
+ * Composed convenience function.
+ */
+static inline uint64_t
+ail_tile_mode_uncompressed(enum pipe_format format)
+{
+   return ail_tile_mode_replicated(ail_subtile_uncompressed_mode(format));
+}
+
 #ifdef __cplusplus
 } /* extern C */
 #endif
