@@ -447,23 +447,18 @@ radv_amdgpu_winsys_cs_pad(struct radeon_cmdbuf *_cs, unsigned leave_dw_space)
          }
       }
    } else {
-      /* Pad the CS with NOP packets. */
-      bool pad = true;
-
       /* Don't pad on VCN encode/unified as no NOPs */
       if (ip_type == AMDGPU_HW_IP_VCN_ENC)
-         pad = false;
+         return;
 
       /* Don't add padding to 0 length UVD due to kernel */
       if (ip_type == AMDGPU_HW_IP_UVD && cs->base.cdw == 0)
-         pad = false;
+         return;
 
-      if (pad) {
-         const uint32_t nop_packet = get_nop_packet(cs);
+      const uint32_t nop_packet = get_nop_packet(cs);
 
-         while (!cs->base.cdw || (cs->base.cdw & pad_dw_mask))
-            radeon_emit_unchecked(&cs->base, nop_packet);
-      }
+      while (!cs->base.cdw || (cs->base.cdw & pad_dw_mask))
+         radeon_emit_unchecked(&cs->base, nop_packet);
    }
 
    assert(((cs->base.cdw + leave_dw_space) & pad_dw_mask) == 0);
