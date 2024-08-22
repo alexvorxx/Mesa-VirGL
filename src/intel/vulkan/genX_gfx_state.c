@@ -1073,7 +1073,7 @@ genX(cmd_buffer_flush_gfx_runtime_state)(struct anv_cmd_buffer *cmd_buffer)
       const uint8_t color_writes = dyn->cb.color_write_enables;
       bool has_writeable_rt =
          anv_pipeline_has_stage(pipeline, MESA_SHADER_FRAGMENT) &&
-         (color_writes & ((1u << gfx->color_att_count) - 1)) != 0;
+         !anv_cmd_buffer_all_color_write_masked(cmd_buffer);
 
       SET(BLEND_STATE, blend.AlphaToCoverageEnable,
                        dyn->ms.alpha_to_coverage_enable);
