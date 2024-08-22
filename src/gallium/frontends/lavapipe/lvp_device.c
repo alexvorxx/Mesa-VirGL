@@ -220,6 +220,7 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .EXT_pipeline_creation_feedback        = true,
    .EXT_pipeline_creation_cache_control   = true,
    .EXT_pipeline_library_group_handles    = true,
+   .EXT_pipeline_robustness               = true,
    .EXT_post_depth_coverage               = true,
    .EXT_private_data                      = true,
    .EXT_primitives_generated_query        = true,
@@ -572,6 +573,9 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
 
       /* VK_EXT_multi_draw */
       .multiDraw = true,
+
+      /* VK_EXT_pipeline_robustness */
+      .pipelineRobustness = true,
 
       /* VK_EXT_depth_clip_enable */
       .depthClipEnable = (pdevice->pscreen->get_param(pdevice->pscreen, PIPE_CAP_DEPTH_CLAMP_ENABLE) != 0),
@@ -1054,6 +1058,12 @@ lvp_get_properties(const struct lvp_physical_device *device, struct vk_propertie
 
       /* VK_EXT_multi_draw */
       .maxMultiDrawCount = 2048,
+
+      /* VK_EXT_pipeline_robustness */
+      .defaultRobustnessStorageBuffers = VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT,
+      .defaultRobustnessUniformBuffers = VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT,
+      .defaultRobustnessVertexInputs = VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT,
+      .defaultRobustnessImages = VK_PIPELINE_ROBUSTNESS_IMAGE_BEHAVIOR_ROBUST_IMAGE_ACCESS_2_EXT,
 
       /* VK_EXT_descriptor_buffer */
       .combinedImageSamplerDescriptorSingleArray = VK_TRUE,
