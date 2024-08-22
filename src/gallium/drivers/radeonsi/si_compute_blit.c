@@ -282,9 +282,7 @@ void si_compute_clear_buffer_rmw(struct si_context *sctx, struct pipe_resource *
    if (!sctx->cs_clear_buffer_rmw)
       sctx->cs_clear_buffer_rmw = si_create_clear_buffer_rmw_cs(sctx);
 
-   si_barrier_before_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
    si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_clear_buffer_rmw, flags, 1, &sb, 0x1);
-   si_barrier_after_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
 }
 
 /**
@@ -595,9 +593,7 @@ void gfx9_clear_dcc_msaa(struct si_context *sctx, struct pipe_resource *res, uin
    struct pipe_grid_info info = {};
    set_work_size(&info, 8, 8, 1, width, height, depth);
 
-   si_barrier_before_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
    si_launch_grid_internal_ssbos(sctx, &info, *shader, flags, 1, &sb, 0x1);
-   si_barrier_after_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
 }
 
 /* Expand FMASK to make it identity, so that image stores can ignore it. */
