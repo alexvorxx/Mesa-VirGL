@@ -1095,6 +1095,26 @@ nvk_cmd_buffer_dump(struct nvk_cmd_buffer *cmd, FILE *fp)
          const uint64_t addr = p->addr;
          fprintf(fp, "<%u B of INDIRECT DATA at 0x%" PRIx64 ">\n",
                  p->range, addr);
+
+         uint64_t mem_offset = 0;
+         struct nvkmd_mem *mem =
+            nvkmd_dev_lookup_mem_by_va(dev->nvkmd, addr, &mem_offset);
+         if (mem != NULL) {
+            void *map;
+            VkResult map_result = nvkmd_mem_map(mem, &dev->vk.base,
+                                                NVKMD_MEM_MAP_RD, NULL,
+                                                &map);
+            if (map_result == VK_SUCCESS) {
+               struct nv_push push = {
+                  .start = mem->map + mem_offset,
+                  .end = mem->map + mem_offset + p->range,
+               };
+               vk_push_print(fp, &push, &pdev->info);
+               nvkmd_mem_unmap(mem, 0);
+            }
+
+            nvkmd_mem_unref(mem);
+         }
       }
    }
 }
