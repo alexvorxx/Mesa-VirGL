@@ -408,6 +408,11 @@ def parse_args() -> argparse.Namespace:
         default="mesa",
         help="GitLab project in the format <user>/<project> or just <project>",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Exit after printing target jobs and dependencies",
+    )
 
     mutex_group1 = parser.add_mutually_exclusive_group()
     mutex_group1.add_argument(
@@ -628,6 +633,10 @@ def main() -> None:
             iid=pipe.iid,
             project_path=cur_project
         )
+
+        if args.dry_run:
+            sys.exit(0)
+
         target_job_id, ret, exec_t = monitor_pipeline(
             cur_project,
             pipe,
