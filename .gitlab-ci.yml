@@ -160,6 +160,7 @@ stages:
   - etnaviv
   - software-renderer
   - layered-backends
+  - layered-backends-postmerge
   - performance
   - deploy
 
