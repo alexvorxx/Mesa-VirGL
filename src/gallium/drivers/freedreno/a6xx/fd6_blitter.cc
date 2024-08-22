@@ -850,7 +850,25 @@ FD_GENX(fd6_clear_lrz);
 static union pipe_color_union
 convert_color(enum pipe_format format, union pipe_color_union *pcolor)
 {
+   const struct util_format_description *desc = util_format_description(format);
    union pipe_color_union color = *pcolor;
+
+   for (unsigned i = 0; i < 4; i++) {
+      unsigned channel = desc->swizzle[i];
+
+      if (desc->channel[channel].normalized)
+         continue;
+
+      switch (desc->channel[channel].type) {
+      case UTIL_FORMAT_TYPE_SIGNED:
+         color.i[i] = MAX2(color.i[i], -(1<<(desc->channel[channel].size - 1)));
+         color.i[i] = MIN2(color.i[i], (1 << (desc->channel[channel].size - 1)) - 1);
+         break;
+      case UTIL_FORMAT_TYPE_UNSIGNED:
+         color.ui[i] = MIN2(color.ui[i], BITFIELD_MASK(desc->channel[channel].size));
+         break;
+      }
+   }
 
    /* For solid-fill blits, the hw isn't going to convert from
     * linear to srgb for us:
@@ -864,8 +882,6 @@ convert_color(enum pipe_format format, union pipe_color_union *pcolor)
       for (int i = 0; i < 3; i++)
          color.f[i] = CLAMP(color.f[i], -1.0f, 1.0f);
    }
-
-   /* Note that float_to_ubyte() already clamps, for the unorm case */
 
    return color;
 }
