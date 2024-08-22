@@ -117,7 +117,6 @@ def monitor_pipeline(
     include_stage_regex: re.Pattern,
     exclude_stage_regex: re.Pattern,
     dependencies: set[str],
-    force_manual: bool,
     stress: int,
 ) -> tuple[Optional[int], Optional[int], Dict[str, Dict[int, Tuple[float, str, str]]]]:
     """Monitors pipeline and delegate canceling jobs"""
@@ -128,12 +127,7 @@ def monitor_pipeline(
     target_id: int = -1
     name_field_pad: int = len(max(dependencies, key=len))+2
     # In a running pipeline, we can skip following job traces that are in these statuses.
-    skip_follow_statuses: frozenset[str] = (
-        COMPLETED_STATUSES
-        if force_manual
-        # If the target job is marked as manual and we don't force it to run, it will be skipped.
-        else frozenset({*COMPLETED_STATUSES, "manual"})
-    )
+    skip_follow_statuses: frozenset[str] = (COMPLETED_STATUSES)
 
     # Pre-populate the stress status counter for already completed target jobs.
     if stress:
@@ -154,7 +148,6 @@ def monitor_pipeline(
         enable_job,
         project=project,
         pipeline=pipeline,
-        force_manual=force_manual,
         job_name_field_pad=name_field_pad,
         jobs_waiting=jobs_waiting,
     )
@@ -267,7 +260,6 @@ def enable_job(
     pipeline: gitlab.v4.objects.ProjectPipeline,
     job: gitlab.v4.objects.ProjectPipelineJob,
     action_type: Literal["target", "dep", "retry"],
-    force_manual: bool,
     job_name_field_pad: int = 0,
     jobs_waiting: list[str] = [],
 ) -> gitlab.v4.objects.ProjectPipelineJob:
@@ -279,7 +271,6 @@ def enable_job(
 
     if (
         (job.status in COMPLETED_STATUSES and action_type != "retry")
-        or (job.status == "manual" and not force_manual)
         or job.status in {"skipped"} | RUNNING_STATUSES
     ):
         return job
@@ -401,7 +392,8 @@ def parse_args() -> argparse.Namespace:
              f"otherwise it's read from {TOKEN_DIR / 'gitlab-token'}",
     )
     parser.add_argument(
-        "--force-manual", action="store_true", help="Force jobs marked as manual"
+        "--force-manual", action="store_true",
+        help="Deprecated argument; manual jobs are always force-enabled"
     )
     parser.add_argument(
         "--stress",
@@ -643,7 +635,6 @@ def main() -> None:
             include_stage_regex,
             exclude_stage_regex,
             deps,
-            args.force_manual,
             args.stress
         )
 
