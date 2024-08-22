@@ -60,14 +60,11 @@ struct panvk_cmd_meta_graphics_save_ctx {
    struct {
       const struct panvk_shader *shader;
       struct panvk_shader_desc_state desc;
-      mali_ptr rsd;
    } fs;
 
    struct {
       const struct panvk_shader *shader;
       struct panvk_shader_desc_state desc;
-      mali_ptr attribs;
-      mali_ptr attrib_bufs;
    } vs;
 };
 

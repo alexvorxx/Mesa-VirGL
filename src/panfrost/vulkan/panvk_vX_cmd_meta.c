@@ -77,11 +77,8 @@ panvk_per_arch(cmd_meta_gfx_start)(
    save_ctx->push_constants = cmdbuf->state.push_constants;
    save_ctx->fs.shader = cmdbuf->state.gfx.fs.shader;
    save_ctx->fs.desc = cmdbuf->state.gfx.fs.desc;
-   save_ctx->fs.rsd = cmdbuf->state.gfx.fs.rsd;
    save_ctx->vs.shader = cmdbuf->state.gfx.vs.shader;
    save_ctx->vs.desc = cmdbuf->state.gfx.vs.desc;
-   save_ctx->vs.attribs = cmdbuf->state.gfx.vs.attribs;
-   save_ctx->vs.attrib_bufs = cmdbuf->state.gfx.vs.attrib_bufs;
 
    save_ctx->dyn_state.all = cmdbuf->vk.dynamic_graphics_state;
    save_ctx->dyn_state.vi = cmdbuf->state.gfx.dynamic.vi;
@@ -113,11 +110,11 @@ panvk_per_arch(cmd_meta_gfx_end)(
 
    cmdbuf->state.gfx.fs.shader = save_ctx->fs.shader;
    cmdbuf->state.gfx.fs.desc = save_ctx->fs.desc;
-   cmdbuf->state.gfx.fs.rsd = save_ctx->fs.rsd;
+   cmdbuf->state.gfx.fs.rsd = 0;
    cmdbuf->state.gfx.vs.shader = save_ctx->vs.shader;
    cmdbuf->state.gfx.vs.desc = save_ctx->vs.desc;
-   cmdbuf->state.gfx.vs.attribs = save_ctx->vs.attribs;
-   cmdbuf->state.gfx.vs.attrib_bufs = save_ctx->vs.attrib_bufs;
+   cmdbuf->state.gfx.vs.attribs = 0;
+   cmdbuf->state.gfx.vs.attrib_bufs = 0;
 
    cmdbuf->vk.dynamic_graphics_state = save_ctx->dyn_state.all;
    cmdbuf->state.gfx.dynamic.vi = save_ctx->dyn_state.vi;
