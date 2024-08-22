@@ -1646,6 +1646,10 @@ BEGIN_TEST(optimize.vop3p_constants)
          //;    elif op.endswith('*[-1,1]'):
          //;       mods = lambda v: v ^ 0x00008000
          //;       assert(not is_int)
+         //;    elif op.startswith('neg('):
+         //;       mods = lambda v: v ^ 0x80008000
+         //;       assert(not is_int)
+         //;       op = op[4:-1]
          //;    op = op.split('*')[0]
          //;
          //;    swizzle = lambda v: v
@@ -1688,10 +1692,10 @@ BEGIN_TEST(optimize.vop3p_constants)
          //;    allowed_literals.extend([0x00003f80, 0x3f800000])
          //;
          //; for i in range(36):
-         //;    got = globals()['got%u' % i]
+         //;    got = globals()['got%u' % i].removeprefix('neg(')
          //;    if not got.startswith('0x'):
          //;       continue;
-         //;    got = int(got[2:].rstrip(',').split('*')[0].split('.')[0], 16)
+         //;    got = int(got[2:].rstrip(',)').split('*')[0].split('.')[0], 16)
          //;    if got not in allowed_literals:
          //;       raise Exception('Literal check %u failed: 0x%.8x not in allowed literals' % (i, got))
 
