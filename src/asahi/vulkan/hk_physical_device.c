@@ -112,6 +112,7 @@ hk_get_device_extensions(const struct hk_instance *instance,
       .KHR_shader_integer_dot_product = true,
       .KHR_shader_maximal_reconvergence = true,
       .KHR_shader_non_semantic_info = true,
+      .KHR_shader_relaxed_extended_instruction = true,
       .KHR_shader_subgroup_extended_types = true,
       .KHR_shader_subgroup_rotate = true,
       .KHR_shader_subgroup_uniform_control_flow = true,
@@ -585,6 +586,9 @@ hk_get_device_features(
 
       /* VK_EXT_ycbcr_image_arrays */
       .ycbcrImageArrays = false,
+
+      /* VK_KHR_shader_relaxed_extended_instruction */
+      .shaderRelaxedExtendedInstruction = true,
    };
 }
 
