@@ -1153,10 +1153,6 @@ radv_emit_graphics(struct radv_device *device, struct radeon_cmdbuf *cs)
       cs, R_028A04_PA_SU_POINT_MINMAX,
       S_028A04_MIN_SIZE(radv_pack_float_12p4(0)) | S_028A04_MAX_SIZE(radv_pack_float_12p4(8191.875 / 2)));
 
-   if (!has_clear_state) {
-      radeon_set_context_reg(cs, R_028004_DB_COUNT_CONTROL, S_028004_ZPASS_INCREMENT_DISABLE(1));
-   }
-
    /* Enable the Polaris small primitive filter control.
     * XXX: There is possibly an issue when MSAA is off (see RadeonSI
     * has_msaa_sample_loc_bug). But this doesn't seem to regress anything,
