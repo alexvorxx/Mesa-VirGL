@@ -227,8 +227,11 @@ void si_test_dma_perf(struct si_screen *sscreen)
                            success = false;
                            continue;
                         }
-                        si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size,
-                                              SI_OP_SYNC_BEFORE_AFTER);
+
+                        unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+                        si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
+                        si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, flags);
+                        si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
                      } else {
                         /* CP DMA clears must be aligned to 4 bytes. */
                         if (dst_offset % 4 || size % 4 ||
@@ -237,17 +240,25 @@ void si_test_dma_perf(struct si_screen *sscreen)
                            success = false;
                            continue;
                         }
+
                         assert(clear_value_size == 4);
+                        unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+
+                        si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
                         si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, dst_offset, size,
-                                               clear_value[0], SI_OP_SYNC_BEFORE_AFTER);
+                                               clear_value[0], flags);
+                        si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
                      }
                   } else {
                      /* Compute */
+                     unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+
+                     si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
                      success &=
                         si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset,
                                                      size, clear_value, clear_value_size,
-                                                     SI_OP_SYNC_BEFORE_AFTER, dwords_per_thread,
-                                                     false);
+                                                     flags, dwords_per_thread, false);
+                     si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
                   }
 
                   sctx->flags |= SI_CONTEXT_INV_L2;
@@ -475,9 +486,12 @@ void si_test_clear_buffer(struct si_screen *sscreen)
       printf("%s, ", COLOR_RESET);
       fflush(stdout);
 
+      unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+      si_barrier_before_simple_buffer_op(sctx, flags, dst, NULL);
       bool done = si_compute_clear_copy_buffer(sctx, dst, dst_offset, NULL, 0, op_size,
                                                (uint32_t*)clear_value, clear_value_size,
-                                               SI_OP_SYNC_BEFORE_AFTER, dwords_per_thread, false);
+                                               flags, dwords_per_thread, false);
+      si_barrier_after_simple_buffer_op(sctx, flags, dst, NULL);
 
       if (done) {
          pipe_buffer_read(ctx, dst, 0, buf_size, read_dst_buffer);
@@ -580,9 +594,11 @@ void si_test_copy_buffer(struct si_screen *sscreen)
       }
       fflush(stdout);
 
+      unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+      si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
       bool done = si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, op_size,
-                                               NULL, 0, SI_OP_SYNC_BEFORE_AFTER,
-                                               dwords_per_thread, false);
+                                               NULL, 0, flags, dwords_per_thread, false);
+      si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
 
       if (done) {
          pipe_buffer_read(ctx, dst, 0, buf_size, read_dst_buffer);

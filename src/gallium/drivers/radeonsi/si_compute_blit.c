@@ -382,10 +382,8 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
    struct pipe_grid_info grid = {};
    set_work_size(&grid, dispatch.workgroup_size, 1, 1, dispatch.num_threads, 1, 1);
 
-   si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
    si_launch_grid_internal_ssbos(sctx, &grid, shader, flags, dispatch.num_ssbos, sb,
                                  is_copy ? 0x2 : 0x1);
-   si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
    return true;
 }
 
@@ -408,11 +406,15 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
    if (util_lower_clearsize_to_dword(clear_value, (int*)&clear_value_size, &clamped))
       clear_value = &clamped;
 
+   si_barrier_before_simple_buffer_op(sctx, flags, dst, NULL);
+
    if (method != SI_CP_DMA_CLEAR_METHOD &&
        si_compute_clear_copy_buffer(sctx, dst, offset, NULL, 0, size, clear_value,
                                     clear_value_size, flags, 0,
-                                    method == SI_AUTO_SELECT_CLEAR_METHOD))
+                                    method == SI_AUTO_SELECT_CLEAR_METHOD)) {
+      si_barrier_after_simple_buffer_op(sctx, flags, dst, NULL);
       return;
+   }
 
    uint64_t aligned_size = size & ~3ull;
    if (aligned_size) {
@@ -420,6 +422,8 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
       assert(!(flags & SI_OP_CS_RENDER_COND_ENABLE));
       si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, aligned_size, *clear_value, flags);
    }
+
+   si_barrier_after_simple_buffer_op(sctx, flags, dst, NULL);
 
    offset += aligned_size;
    size -= aligned_size;
@@ -455,11 +459,16 @@ void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct p
    if (!size)
       return;
 
+   si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
+
    if (si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, size, NULL, 0, flags,
-                                    0, true))
+                                    0, true)) {
+      si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
       return;
+   }
 
    si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, flags);
+   si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
 }
 
 void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,

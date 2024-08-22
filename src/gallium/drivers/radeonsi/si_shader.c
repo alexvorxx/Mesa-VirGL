@@ -985,8 +985,10 @@ static void post_upload_binary(struct si_screen *sscreen, struct si_shader *shad
        * a compute shader, and we can't use shaders in the code that is responsible for making
        * them available.
        */
+      unsigned flags = SI_OP_SYNC_AFTER;
       si_cp_dma_copy_buffer(upload_ctx, &shader->bo->b.b, staging, 0, staging_offset,
-                            binary_size, SI_OP_SYNC_AFTER);
+                            binary_size, flags);
+      si_barrier_after_simple_buffer_op(upload_ctx, flags, &shader->bo->b.b, staging);
       upload_ctx->flags |= SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_L2;
 
 #if 0 /* debug: validate whether the copy was successful */

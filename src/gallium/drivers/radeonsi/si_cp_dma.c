@@ -156,8 +156,6 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    }
 
-   si_barrier_before_simple_buffer_op(sctx, user_flags, dst, NULL);
-
    /* Mark the buffer range of destination as valid (initialized),
     * so that transfer_map knows it should wait for the GPU when mapping
     * that range. */
@@ -187,7 +185,6 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
       va += byte_count;
    }
 
-   si_barrier_after_simple_buffer_op(sctx, user_flags, dst, NULL);
    sctx->num_cp_dma_calls++;
 }
 
@@ -244,8 +241,6 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
       sctx->flags |= SI_CONTEXT_INV_L2;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    }
-
-   si_barrier_before_simple_buffer_op(sctx, user_flags, dst, src);
 
    /* Mark the buffer range of destination as valid (initialized),
     * so that transfer_map knows it should wait for the GPU when mapping
@@ -344,7 +339,6 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
    if (realign_size)
       si_cp_dma_realign_engine(sctx, realign_size, user_flags, &is_first);
 
-   si_barrier_after_simple_buffer_op(sctx, user_flags, dst, src);
    sctx->num_cp_dma_calls++;
 }
 
