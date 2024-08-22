@@ -27,40 +27,8 @@
 #include "util/u_math.h"
 #include <sys/mman.h>
 
-static const struct spirv_capabilities spirv_caps = {
-   .Addresses = true,
-   .Float16 = true,
-   .Float64 = true,
-   .Groups = true,
-   .StorageImageWriteWithoutFormat = true,
-   .Int8 = true,
-   .Int16 = true,
-   .Int64 = true,
-   .Int64Atomics = true,
-   .Kernel = true,
-   .Linkage = true, /* We receive linked kernel from clc */
-   .DenormFlushToZero = true,
-   .DenormPreserve = true,
-   .SignedZeroInfNanPreserve = true,
-   .RoundingModeRTE = true,
-   .RoundingModeRTZ = true,
-   .GenericPointer = true,
-   .GroupNonUniform = true,
-   .GroupNonUniformArithmetic = true,
-   .GroupNonUniformClustered = true,
-   .GroupNonUniformBallot = true,
-   .GroupNonUniformQuad = true,
-   .GroupNonUniformShuffle = true,
-   .GroupNonUniformVote = true,
-   .SubgroupDispatch = true,
-
-   .SubgroupShuffleINTEL = true,
-   .SubgroupBufferBlockIOINTEL = true,
-};
-
 static const struct spirv_to_nir_options spirv_options = {
    .environment = NIR_SPIRV_OPENCL,
-   .capabilities = &spirv_caps,
    .shared_addr_format = nir_address_format_62bit_generic,
    .global_addr_format = nir_address_format_62bit_generic,
    .temp_addr_format = nir_address_format_62bit_generic,
