@@ -1269,7 +1269,7 @@ static void si_blit(struct pipe_context *ctx, const struct pipe_blit_info *info)
    if (unlikely(sctx->sqtt_enabled))
       sctx->sqtt_next_event = EventCmdCopyImage;
 
-   if (si_compute_blit(sctx, info, NULL, 0, 0, SI_OP_FAIL_IF_SLOW))
+   if (si_compute_blit(sctx, info, NULL, 0, 0, true))
       return;
 
    si_gfx_blit(ctx, info);

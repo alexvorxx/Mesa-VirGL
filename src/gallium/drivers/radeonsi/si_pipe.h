@@ -1459,7 +1459,6 @@ void si_destroy_compute(struct si_compute *program);
 
 /* si_compute_blit.c */
 #define SI_OP_CS_RENDER_COND_ENABLE       (1 << 0)
-#define SI_OP_FAIL_IF_SLOW                (1 << 1) /* only for si_compute_blit */
 
 void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                                    unsigned num_buffers,
@@ -1520,7 +1519,7 @@ bool si_compute_copy_image(struct si_context *sctx, struct pipe_resource *dst, u
                            bool fail_if_slow);
 bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
                      const union pipe_color_union *clear_color, unsigned dst_access,
-                     unsigned src_access, unsigned flags);
+                     unsigned src_access, bool fail_if_slow);
 void si_init_compute_blit_functions(struct si_context *sctx);
 
 /* si_cp_dma.c */

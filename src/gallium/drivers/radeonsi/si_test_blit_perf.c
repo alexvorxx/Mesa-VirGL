@@ -620,7 +620,7 @@ void si_test_blit_perf(struct si_screen *sscreen)
                                        si_gfx_blit(ctx, &info);
                                        break;
                                     case METHOD_COMPUTE:
-                                       success &= si_compute_blit(sctx, &info, NULL, 0, 0, 0);
+                                       success &= si_compute_blit(sctx, &info, NULL, 0, 0, false);
                                        break;
                                     case METHOD_SPECIAL:
                                        if (test_flavor == TEST_BLIT && !yflip) {

@@ -747,7 +747,7 @@ bool si_compute_clear_image(struct si_context *sctx, struct pipe_resource *tex,
       info.dst.box.x = util_format_get_nblocksx(tex->format, info.dst.box.x);
    }
 
-   return si_compute_blit(sctx, &info, color, access, 0, fail_if_slow ? SI_OP_FAIL_IF_SLOW : 0);
+   return si_compute_blit(sctx, &info, color, access, 0, fail_if_slow);
 }
 
 bool si_compute_copy_image(struct si_context *sctx, struct pipe_resource *dst, unsigned dst_level,
@@ -858,8 +858,7 @@ bool si_compute_copy_image(struct si_context *sctx, struct pipe_resource *dst, u
    /* Only the compute blit can copy compressed and subsampled images. */
    fail_if_slow &= !dst_access && !src_access;
 
-   bool success = si_compute_blit(sctx, &info, NULL, dst_access, src_access,
-                                  fail_if_slow ? SI_OP_FAIL_IF_SLOW : 0);
+   bool success = si_compute_blit(sctx, &info, NULL, dst_access, src_access, fail_if_slow);
    assert((!dst_access && !src_access) || success);
    return success;
 }
@@ -893,7 +892,7 @@ static bool get_tex_is_array(struct si_texture *tex)
 
 bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
                      const union pipe_color_union *clear_color, unsigned dst_access,
-                     unsigned src_access, unsigned flags)
+                     unsigned src_access, bool fail_if_slow)
 {
    struct si_texture *sdst = (struct si_texture *)info->dst.resource;
    struct si_texture *ssrc = (struct si_texture *)info->src.resource;
@@ -919,7 +918,7 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
       .use_aco = sctx->screen->use_aco,
       .no_fmask = sctx->screen->debug_flags & DBG(NO_FMASK),
       /* Compute queues can't fail because there is no alternative. */
-      .fail_if_slow = sctx->has_graphics && flags & SI_OP_FAIL_IF_SLOW,
+      .fail_if_slow = sctx->has_graphics && fail_if_slow,
    };
 
    struct ac_cs_blit_description blit = {
@@ -986,9 +985,6 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
    image[dst_index].u.tex.first_layer = 0;
    image[dst_index].u.tex.last_layer = util_max_layer(info->dst.resource, info->dst.level);
 
-   if (info->render_condition_enable)
-      flags |= SI_OP_CS_RENDER_COND_ENABLE;
-
    /* Bind images and execute the barrier. */
    unsigned num_images = is_clear ? 1 : 2;
    struct pipe_image_view saved_images[2] = {};
@@ -999,7 +995,7 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
     */
    si_compute_save_and_bind_images(sctx, num_images, image, saved_images);
    si_barrier_before_internal_op(sctx, 0, 0, NULL, 0, num_images, image);
-   si_compute_begin_internal(sctx, flags);
+   si_compute_begin_internal(sctx, info->render_condition_enable ? SI_OP_CS_RENDER_COND_ENABLE : 0);
 
    /* Execute compute blits. */
    for (unsigned i = 0; i < out.num_dispatches; i++) {
