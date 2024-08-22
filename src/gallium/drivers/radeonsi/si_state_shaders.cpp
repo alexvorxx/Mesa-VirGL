@@ -2199,7 +2199,7 @@ static void si_shader_ps(struct si_screen *sscreen, struct si_shader *shader)
                      S_00B01C_LDS_GROUP_SIZE_GFX12(1) |
                      S_00B01C_INST_PREF_SIZE(si_get_shader_prefetch_size(shader)));
    } else if (sscreen->info.gfx_level >= GFX11) {
-      unsigned cu_mask_ps = gfx103_get_cu_mask_ps(sscreen);
+      unsigned cu_mask_ps = ac_gfx103_get_cu_mask_ps(&sscreen->info);
 
       ac_pm4_set_reg_idx3(&pm4->base, R_00B004_SPI_SHADER_PGM_RSRC4_PS,
                           ac_apply_cu_en(S_00B004_CU_EN(cu_mask_ps >> 16) |

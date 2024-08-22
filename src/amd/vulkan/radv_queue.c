@@ -928,18 +928,7 @@ radv_emit_graphics(struct radv_device *device, struct radeon_cmdbuf *cs)
    if (pdev->info.gfx_level < GFX11)
       radeon_set_sh_reg(cs, R_00B124_SPI_SHADER_PGM_HI_VS, S_00B124_MEM_BASE(pdev->info.address32_hi >> 8));
 
-   unsigned cu_mask_ps = 0xffffffff;
-
-   /* It's wasteful to enable all CUs for PS if shader arrays have a
-    * different number of CUs. The reason is that the hardware sends the
-    * same number of PS waves to each shader array, so the slowest shader
-    * array limits the performance.  Disable the extra CUs for PS in
-    * other shader arrays to save power and thus increase clocks for busy
-    * CUs. In the future, we might disable or enable this tweak only for
-    * certain apps.
-    */
-   if (pdev->info.gfx_level >= GFX10_3)
-      cu_mask_ps = u_bit_consecutive(0, pdev->info.min_good_cu_per_sa);
+   unsigned cu_mask_ps = pdev->info.gfx_level >= GFX10_3 ? ac_gfx103_get_cu_mask_ps(&pdev->info) : ~0u;
 
    if (pdev->info.gfx_level >= GFX7) {
       if (pdev->info.gfx_level >= GFX10 && pdev->info.gfx_level < GFX11) {

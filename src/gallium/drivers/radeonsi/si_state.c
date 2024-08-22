@@ -5188,18 +5188,6 @@ static void si_set_raster_config(struct si_context *sctx, struct si_pm4_state *p
    }
 }
 
-unsigned gfx103_get_cu_mask_ps(struct si_screen *sscreen)
-{
-   /* It's wasteful to enable all CUs for PS if shader arrays have a different
-    * number of CUs. The reason is that the hardware sends the same number of PS
-    * waves to each shader array, so the slowest shader array limits the performance.
-    * Disable the extra CUs for PS in other shader arrays to save power and thus
-    * increase clocks for busy CUs. In the future, we might disable or enable this
-    * tweak only for certain apps.
-    */
-   return u_bit_consecutive(0, sscreen->info.min_good_cu_per_sa);
-}
-
 static void si_init_compute_preamble_state(struct si_context *sctx,
                                            struct si_pm4_state *pm4)
 {
@@ -5528,7 +5516,7 @@ static void gfx10_init_gfx_preamble_state(struct si_context *sctx)
       goto done;
 
    /* Shader registers - PS. */
-   unsigned cu_mask_ps = sctx->gfx_level >= GFX10_3 ? gfx103_get_cu_mask_ps(sscreen) : ~0u;
+   unsigned cu_mask_ps = sctx->gfx_level >= GFX10_3 ? ac_gfx103_get_cu_mask_ps(&sscreen->info) : ~0u;
    if (sctx->gfx_level < GFX11) {
       ac_pm4_set_reg_idx3(&pm4->base, R_00B004_SPI_SHADER_PGM_RSRC4_PS,
                           ac_apply_cu_en(S_00B004_CU_EN(cu_mask_ps >> 16), /* CUs 16-31 */
