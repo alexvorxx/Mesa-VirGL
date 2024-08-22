@@ -568,7 +568,7 @@ void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
 
    si_barrier_before_simple_buffer_op(sctx, flags, sb.buffer, NULL);
    si_launch_grid_internal_ssbos(sctx, &info, *shader, flags, 1, &sb, 0x1);
-   si_barrier_after_simple_buffer_op(sctx, flags, sb.buffer, NULL);
+   si_barrier_after_simple_buffer_op(sctx, 0, sb.buffer, NULL);
 
    /* Don't flush caches. L2 will be flushed by the kernel fence. */
 }
@@ -664,7 +664,7 @@ void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex
    si_compute_begin_internal(sctx, flags);
    si_launch_grid_internal(sctx, &info, *shader);
    si_compute_end_internal(sctx);
-   si_barrier_after_internal_op(sctx, flags, 0, NULL, 0, 1, &image);
+   si_barrier_after_internal_op(sctx, 0, 0, NULL, 0, 1, &image);
 
    /* Restore previous states. */
    ctx->set_shader_images(ctx, PIPE_SHADER_COMPUTE, 0, 1, 0, &saved_image);
@@ -1060,7 +1060,7 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
    }
 
    si_compute_end_internal(sctx);
-   si_barrier_after_internal_op(sctx, flags, 0, NULL, 0, num_images, image);
+   si_barrier_after_internal_op(sctx, 0, 0, NULL, 0, num_images, image);
    si_compute_restore_images(sctx, num_images, saved_images);
    return true;
 }

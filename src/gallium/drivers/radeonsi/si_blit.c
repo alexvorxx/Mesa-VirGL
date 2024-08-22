@@ -969,7 +969,7 @@ void si_resource_copy_region(struct pipe_context *ctx, struct pipe_resource *dst
 
       si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
       si_copy_buffer(sctx, dst, src, dstx, src_box->x, src_box->width, flags);
-      si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
+      si_barrier_after_simple_buffer_op(sctx, 0, dst, src);
       return;
    }
 

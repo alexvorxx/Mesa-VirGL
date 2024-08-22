@@ -399,7 +399,7 @@ static void gfx11_sh_query_get_result_resource(struct si_context *sctx, struct s
       si_barrier_before_internal_op(sctx, op_flags, 3, ssbo, writable_bitmask, 0, NULL);
       si_launch_grid_internal_ssbos(sctx, &grid, sctx->sh_query_result_shader, op_flags, 3, ssbo,
                                     writable_bitmask);
-      si_barrier_after_internal_op(sctx, op_flags, 3, ssbo, writable_bitmask, 0, NULL);
+      si_barrier_after_internal_op(sctx, 0, 3, ssbo, writable_bitmask, 0, NULL);
 
       if (qbuf == query->last)
          break;

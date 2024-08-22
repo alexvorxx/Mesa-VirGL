@@ -449,7 +449,7 @@ static void *si_buffer_transfer_map(struct pipe_context *ctx, struct pipe_resour
          si_barrier_before_simple_buffer_op(sctx, flags, &staging->b.b, resource);
          si_copy_buffer(sctx, &staging->b.b, resource, box->x % SI_MAP_BUFFER_ALIGNMENT,
                         box->x, box->width, flags);
-         si_barrier_after_simple_buffer_op(sctx, flags, &staging->b.b, resource);
+         si_barrier_after_simple_buffer_op(sctx, 0, &staging->b.b, resource);
 
          data = si_buffer_map(sctx, staging, usage & ~PIPE_MAP_UNSYNCHRONIZED);
          if (!data) {
@@ -489,7 +489,7 @@ static void si_buffer_do_flush_region(struct pipe_context *ctx, struct pipe_tran
       si_barrier_before_simple_buffer_op(sctx, flags, transfer->resource, &stransfer->staging->b.b);
       si_copy_buffer(sctx, transfer->resource, &stransfer->staging->b.b, box->x, src_offset,
                      box->width, flags);
-      si_barrier_after_simple_buffer_op(sctx, flags, transfer->resource, &stransfer->staging->b.b);
+      si_barrier_after_simple_buffer_op(sctx, 0, transfer->resource, &stransfer->staging->b.b);
    }
 
    util_range_add(&buf->b.b, &buf->valid_buffer_range, box->x, box->x + box->width);
