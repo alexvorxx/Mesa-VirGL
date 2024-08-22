@@ -108,6 +108,8 @@ bool si_vid_resize_buffer(struct pipe_context *context, struct radeon_cmdbuf *cs
       ws->buffer_unmap(ws, new_buf->res->buf);
       ws->buffer_unmap(ws, old_buf.res->buf);
    } else {
+      unsigned flags = SI_OP_SYNC_BEFORE;
+      si_barrier_before_simple_buffer_op(sctx, flags, &new_buf->res->b.b, &old_buf.res->b.b);
       if (buf_ofst_info) {
          uint64_t dst_offset = 0, src_offset = 0;
          for (int i = 0; i < buf_ofst_info->num_units; i++) {

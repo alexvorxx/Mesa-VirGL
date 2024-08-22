@@ -458,16 +458,11 @@ void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct p
    if (!size)
       return;
 
-   si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
-
    if (si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, size, NULL, 0, flags,
-                                    0, true)) {
-      si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
+                                    0, true))
       return;
-   }
 
    si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, flags);
-   si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
 }
 
 void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,

@@ -445,8 +445,12 @@ static void *si_buffer_transfer_map(struct pipe_context *ctx, struct pipe_resour
                                          box->width + (box->x % SI_MAP_BUFFER_ALIGNMENT), 256);
       if (staging) {
          /* Copy the VRAM buffer to the staging buffer. */
+         unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+
+         si_barrier_before_simple_buffer_op(sctx, flags, &staging->b.b, resource);
          si_copy_buffer(sctx, &staging->b.b, resource, box->x % SI_MAP_BUFFER_ALIGNMENT,
-                        box->x, box->width, SI_OP_SYNC_BEFORE_AFTER);
+                        box->x, box->width, flags);
+         si_barrier_after_simple_buffer_op(sctx, flags, &staging->b.b, resource);
 
          data = si_buffer_map(sctx, staging, usage & ~PIPE_MAP_UNSYNCHRONIZED);
          if (!data) {
@@ -480,10 +484,13 @@ static void si_buffer_do_flush_region(struct pipe_context *ctx, struct pipe_tran
    if (stransfer->staging) {
       unsigned src_offset =
          stransfer->b.b.offset + transfer->box.x % SI_MAP_BUFFER_ALIGNMENT + (box->x - transfer->box.x);
+      unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
 
       /* Copy the staging buffer into the original one. */
+      si_barrier_before_simple_buffer_op(sctx, flags, transfer->resource, &stransfer->staging->b.b);
       si_copy_buffer(sctx, transfer->resource, &stransfer->staging->b.b, box->x, src_offset,
-                     box->width, SI_OP_SYNC_BEFORE_AFTER);
+                     box->width, flags);
+      si_barrier_after_simple_buffer_op(sctx, flags, transfer->resource, &stransfer->staging->b.b);
    }
 
    util_range_add(&buf->b.b, &buf->valid_buffer_range, box->x, box->x + box->width);

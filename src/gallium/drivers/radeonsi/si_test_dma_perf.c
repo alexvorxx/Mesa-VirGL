@@ -207,8 +207,11 @@ void si_test_dma_perf(struct si_screen *sscreen)
 
                   if (method == METHOD_DEFAULT) {
                      if (is_copy) {
-                        si_copy_buffer(sctx, dst, src, dst_offset, src_offset, size,
-                                       SI_OP_SYNC_BEFORE_AFTER);
+                        unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+
+                        si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
+                        si_copy_buffer(sctx, dst, src, dst_offset, src_offset, size, flags);
+                        si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
                      } else {
                         sctx->b.clear_buffer(&sctx->b, dst, dst_offset, size, &clear_value,
                                              clear_value_size);
