@@ -114,6 +114,7 @@ def monitor_pipeline(
     project: gitlab.v4.objects.Project,
     pipeline: gitlab.v4.objects.ProjectPipeline,
     target_jobs_regex: re.Pattern,
+    include_stage_regex: re.Pattern,
     dependencies: set[str],
     force_manual: bool,
     stress: int,
@@ -137,7 +138,9 @@ def monitor_pipeline(
     if stress:
         # When stress test, it is necessary to collect this information before start.
         for job in pipeline.jobs.list(all=True, include_retried=True):
-            if target_jobs_regex.fullmatch(job.name) and job.status in COMPLETED_STATUSES:
+            if target_jobs_regex.fullmatch(job.name) and \
+               include_stage_regex.fullmatch(job.stage) and \
+               job.status in COMPLETED_STATUSES:
                 stress_status_counter[job.name][job.status] += 1
                 execution_times[job.name][job.id] = (job_duration(job), job.status, job.web_url)
 
@@ -158,7 +161,8 @@ def monitor_pipeline(
         to_cancel = []
         jobs_waiting.clear()
         for job in sorted(pipeline.jobs.list(all=True), key=lambda j: j.name):
-            if target_jobs_regex.fullmatch(job.name):
+            if target_jobs_regex.fullmatch(job.name) and \
+               include_stage_regex.fullmatch(job.stage):
                 target_id = job.id
                 target_status = job.status
 
@@ -360,8 +364,18 @@ def parse_args() -> argparse.Namespace:
         "--target",
         metavar="target-job",
         help="Target job regex. For multiple targets, pass multiple values, "
-             "eg. `--target foo bar`.",
+             "eg. `--target foo bar`. Only jobs in the target stage(s) "
+             "supplied, and their dependencies, will be considered.",
         required=True,
+        nargs=argparse.ONE_OR_MORE,
+    )
+    parser.add_argument(
+        "--include-stage",
+        metavar="include-stage",
+        help="Job stages to include when searching for target jobs. "
+             "For multiple targets, pass multiple values, eg. "
+             "`--include-stage foo bar`.",
+        default=[".*"],
         nargs=argparse.ONE_OR_MORE,
     )
     parser.add_argument(
@@ -438,6 +452,7 @@ def print_detected_jobs(
 def find_dependencies(
     token: str | None,
     target_jobs_regex: re.Pattern,
+    include_stage_regex: re.Pattern,
     project_path: str,
     iid: int
 ) -> set[str]:
@@ -466,7 +481,7 @@ def find_dependencies(
         gql_instance, {"projectPath": project_path.path_with_namespace, "iid": iid}
     )
 
-    target_dep_dag = filter_dag(dag, target_jobs_regex)
+    target_dep_dag = filter_dag(dag, target_jobs_regex, include_stage_regex)
     if not target_dep_dag:
         print(Fore.RED + "The job(s) were not found in the pipeline." + Fore.RESET)
         sys.exit(1)
@@ -584,14 +599,22 @@ def main() -> None:
 
         target_jobs_regex = re.compile(target)
 
+        include_stage = '|'.join(args.include_stage)
+        include_stage = include_stage.strip()
+
+        print("🞋 target from stages: " + Fore.BLUE + include_stage + Style.RESET_ALL)  # U+1F78B Round target
+
+        include_stage_regex = re.compile(include_stage)
+
         deps = find_dependencies(
             token=token,
             target_jobs_regex=target_jobs_regex,
+            include_stage_regex=include_stage_regex,
             iid=pipe.iid,
             project_path=cur_project
         )
         target_job_id, ret, exec_t = monitor_pipeline(
-            cur_project, pipe, target_jobs_regex, deps, args.force_manual, args.stress
+            cur_project, pipe, target_jobs_regex, include_stage_regex, deps, args.force_manual, args.stress
         )
 
         if target_job_id:
