@@ -1631,6 +1631,7 @@ resolve_all_gfx11(State& state, NOP_ctx_gfx11& ctx,
    Builder bld(state.program, &new_instructions);
 
    unsigned waitcnt_depctr = 0xffff;
+   bool valu_read_sgpr = false;
 
    /* LdsDirectVALUHazard/VALUPartialForwardingHazard/VALUTransUseHazard */
    bool has_vdst0_since_valu = true;
@@ -1651,12 +1652,15 @@ resolve_all_gfx11(State& state, NOP_ctx_gfx11& ctx,
    }
 
    /* VALUMaskWriteHazard */
-   if (state.program->gfx_level < GFX12 && state.program->wave_size == 64 &&
-       (ctx.sgpr_read_by_valu_as_lanemask.any() ||
-        ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu.any())) {
-      waitcnt_depctr &= 0xfffe;
-      ctx.sgpr_read_by_valu_as_lanemask.reset();
-      ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu.reset();
+   if (state.program->gfx_level < GFX12 && state.program->wave_size == 64) {
+      if (ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu.any()) {
+         waitcnt_depctr &= 0xfffe;
+         ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu.reset();
+      }
+      if (ctx.sgpr_read_by_valu_as_lanemask.any()) {
+         valu_read_sgpr = true;
+         ctx.sgpr_read_by_valu_as_lanemask.reset();
+      }
    }
 
    /* LdsDirectVMEMHazard */
@@ -1671,6 +1675,16 @@ resolve_all_gfx11(State& state, NOP_ctx_gfx11& ctx,
 
    if (waitcnt_depctr != 0xffff)
       bld.sopp(aco_opcode::s_waitcnt_depctr, waitcnt_depctr);
+
+   if (valu_read_sgpr) {
+      /* This has to be after the s_waitcnt_depctr so that the instruction is not involved in any
+       * other hazards. */
+      bld.vop3(aco_opcode::v_xor3_b32, Definition(PhysReg(256), v1), Operand(PhysReg(256), v1),
+               Operand(PhysReg(0), s1), Operand(PhysReg(0), s1));
+
+      /* workaround possible LdsDirectVALUHazard/VALUPartialForwardingHazard */
+      bld.sopp(aco_opcode::s_waitcnt_depctr, 0x0fff);
+   }
 }
 
 template <typename Ctx>
