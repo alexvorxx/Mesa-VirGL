@@ -1468,7 +1468,7 @@ void si_destroy_compute(struct si_compute *program);
 #define SI_OP_SKIP_CACHE_INV_BEFORE       (1 << 4) /* don't invalidate caches */
 #define SI_OP_CS_IMAGE                    (1 << 5)
 #define SI_OP_CS_RENDER_COND_ENABLE       (1 << 6)
-#define SI_OP_CPDMA_SKIP_CHECK_CS_SPACE   (1 << 7) /* don't call need_cs_space */
+/* gap */
 #define SI_OP_SYNC_GE_BEFORE              (1 << 8) /* only sync VS, TCS, TES, GS */
 /* Only for si_compute_blit: */
 #define SI_OP_FAIL_IF_SLOW                (1 << 9)
