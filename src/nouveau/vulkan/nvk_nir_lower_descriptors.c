@@ -57,6 +57,7 @@ struct lower_descriptors_ctx {
    bool use_bindless_cbuf;
    bool use_edb_buffer_views;
    bool clamp_desc_array_bounds;
+   bool indirect_bind;
    nir_address_format ubo_addr_format;
    nir_address_format ssbo_addr_format;
 
@@ -420,6 +421,9 @@ build_cbuf_map(nir_shader *nir, struct lower_descriptors_ctx *ctx)
          .type = NVK_CBUF_TYPE_SHADER_DATA,
       };
    }
+
+   if (ctx->indirect_bind)
+      return;
 
    ctx->cbufs = nvk_cbuf_table_create(NULL);
    nir_shader_instructions_pass(nir, record_cbuf_uses_instr,
@@ -1545,6 +1549,7 @@ lower_ssbo_descriptor_instr(nir_builder *b, nir_instr *instr,
 bool
 nvk_nir_lower_descriptors(nir_shader *nir,
                           const struct nvk_physical_device *pdev,
+                          VkShaderCreateFlagsEXT shader_flags,
                           const struct vk_pipeline_robustness_state *rs,
                           uint32_t set_layout_count,
                           struct vk_descriptor_set_layout * const *set_layouts,
@@ -1558,6 +1563,8 @@ nvk_nir_lower_descriptors(nir_shader *nir,
          rs->storage_buffers != VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT ||
          rs->uniform_buffers != VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT ||
          rs->images != VK_PIPELINE_ROBUSTNESS_IMAGE_BEHAVIOR_DISABLED_EXT,
+      .indirect_bind =
+         shader_flags & VK_SHADER_CREATE_INDIRECT_BINDABLE_BIT_EXT,
       .ssbo_addr_format = nvk_ssbo_addr_format(pdev, rs),
       .ubo_addr_format = nvk_ubo_addr_format(pdev, rs),
    };

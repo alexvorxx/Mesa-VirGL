@@ -392,8 +392,9 @@ nir_has_image_var(nir_shader *nir)
    return false;
 }
 
-void
+static void
 nvk_lower_nir(struct nvk_device *dev, nir_shader *nir,
+              VkShaderCreateFlagsEXT shader_flags,
               const struct vk_pipeline_robustness_state *rs,
               bool is_multiview,
               uint32_t set_layout_count,
@@ -480,7 +481,7 @@ nvk_lower_nir(struct nvk_device *dev, nir_shader *nir,
       };
    }
 
-   NIR_PASS(_, nir, nvk_nir_lower_descriptors, pdev, rs,
+   NIR_PASS(_, nir, nvk_nir_lower_descriptors, pdev, shader_flags, rs,
             set_layout_count, set_layouts, cbuf_map);
    NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_mem_global,
             nir_address_format_64bit_global);
@@ -935,7 +936,7 @@ nvk_compile_shader(struct nvk_device *dev,
    /* TODO: Multiview with ESO */
    const bool is_multiview = state && state->rp->view_mask != 0;
 
-   nvk_lower_nir(dev, nir, info->robustness, is_multiview,
+   nvk_lower_nir(dev, nir, info->flags, info->robustness, is_multiview,
                  info->set_layout_count, info->set_layouts,
                  &shader->cbuf_map);
 

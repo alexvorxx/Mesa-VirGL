@@ -135,17 +135,11 @@ nvk_ssbo_addr_format(const struct nvk_physical_device *pdev,
 bool
 nvk_nir_lower_descriptors(nir_shader *nir,
                           const struct nvk_physical_device *pdev,
+                          VkShaderCreateFlagsEXT shader_flags,
                           const struct vk_pipeline_robustness_state *rs,
                           uint32_t set_layout_count,
                           struct vk_descriptor_set_layout * const *set_layouts,
                           struct nvk_cbuf_map *cbuf_map_out);
-void
-nvk_lower_nir(struct nvk_device *dev, nir_shader *nir,
-              const struct vk_pipeline_robustness_state *rs,
-              bool is_multiview,
-              uint32_t set_layout_count,
-              struct vk_descriptor_set_layout * const *set_layouts,
-              struct nvk_cbuf_map *cbuf_map_out);
 
 VkResult
 nvk_compile_nir_shader(struct nvk_device *dev, nir_shader *nir,
