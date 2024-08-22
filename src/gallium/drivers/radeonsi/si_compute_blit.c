@@ -34,10 +34,6 @@ void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                                 images[i].access & PIPE_IMAGE_ACCESS_WRITE);
    }
 
-   /* If syncing PS, we are also syncing GE. */
-   if (flags & SI_OP_SYNC_PS_BEFORE)
-      flags |= SI_OP_SYNC_GE_BEFORE;
-
    /* Don't sync if buffers are idle. */
    const unsigned ps_mask = SI_BIND_CONSTANT_BUFFER(PIPE_SHADER_FRAGMENT) |
                             SI_BIND_SHADER_BUFFER(PIPE_SHADER_FRAGMENT) |
@@ -47,9 +43,6 @@ void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                             SI_BIND_SHADER_BUFFER(PIPE_SHADER_COMPUTE) |
                             SI_BIND_IMAGE_BUFFER(PIPE_SHADER_COMPUTE) |
                             SI_BIND_SAMPLER_BUFFER(PIPE_SHADER_COMPUTE);
-   /* Keep all flags except PS and CS sync. Then determine if PS and CS sync is necessary. */
-   unsigned keep_sync_flags = flags & ~(SI_OP_SYNC_GE_BEFORE | SI_OP_SYNC_PS_BEFORE |
-                                        SI_OP_SYNC_CS_BEFORE);
 
    for (unsigned i = 0; i < num_buffers; i++) {
       if (!buffers[i].buffer)
@@ -62,12 +55,13 @@ void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
        */
       if (!si_is_buffer_idle(sctx, buf, RADEON_USAGE_WRITE |
                              (writable_buffers_mask & BITFIELD_BIT(i) ? RADEON_USAGE_READ : 0))) {
-         keep_sync_flags |= SI_OP_SYNC_GE_BEFORE;
+         if (buf->bind_history & ps_mask)
+            sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH;
+         else
+            sctx->flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
 
          if (buf->bind_history & cs_mask)
-            keep_sync_flags |= SI_OP_SYNC_CS_BEFORE;
-         if (buf->bind_history & ps_mask)
-            keep_sync_flags |= SI_OP_SYNC_PS_BEFORE;
+            sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
       }
    }
 
@@ -79,26 +73,12 @@ void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
       /* We always wait for the last write. If the buffer is used for write, also wait
        * for the last read.
        */
-      if (!si_is_buffer_idle(sctx, img, RADEON_USAGE_WRITE | (writable ? RADEON_USAGE_READ : 0)))
-         keep_sync_flags |= SI_OP_SYNC_GE_BEFORE | SI_OP_SYNC_PS_BEFORE | SI_OP_SYNC_CS_BEFORE;
-   }
-
-   flags &= keep_sync_flags;
-
-   /* Wait for previous shaders to finish. */
-   if (flags & SI_OP_SYNC_PS_BEFORE) {
-      sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH;
-
-      for (unsigned i = 0; i < num_images; i++) {
+      if (!si_is_buffer_idle(sctx, img, RADEON_USAGE_WRITE | (writable ? RADEON_USAGE_READ : 0))) {
          si_make_CB_shader_coherent(sctx, images[i].resource->nr_samples, true,
                ((struct si_texture*)images[i].resource)->surface.u.gfx9.color.dcc.pipe_aligned);
+         sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH;
       }
-   } else if (flags & SI_OP_SYNC_GE_BEFORE) {
-       sctx->flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
    }
-
-   if (flags & SI_OP_SYNC_CS_BEFORE)
-      sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
 
    /* Invalidate the VMEM cache only. The SMEM cache isn't used by shader buffers. */
    sctx->flags |= SI_CONTEXT_INV_VCACHE;
@@ -437,12 +417,11 @@ static void si_pipe_clear_buffer(struct pipe_context *ctx, struct pipe_resource 
                                  int clear_value_size)
 {
    struct si_context *sctx = (struct si_context *)ctx;
-   unsigned flags = SI_OP_SYNC_BEFORE;
 
-   si_barrier_before_simple_buffer_op(sctx, flags, dst, NULL);
-   si_clear_buffer(sctx, dst, offset, size, (uint32_t *)clear_value, clear_value_size, flags,
+   si_barrier_before_simple_buffer_op(sctx, 0, dst, NULL);
+   si_clear_buffer(sctx, dst, offset, size, (uint32_t *)clear_value, clear_value_size, 0,
                    SI_AUTO_SELECT_CLEAR_METHOD);
-   si_barrier_after_simple_buffer_op(sctx, flags, dst, NULL);
+   si_barrier_after_simple_buffer_op(sctx, 0, dst, NULL);
 }
 
 void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
@@ -564,10 +543,8 @@ void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
    struct pipe_grid_info info = {};
    set_work_size(&info, 8, 8, 1, width, height, 1);
 
-   unsigned flags = SI_OP_SYNC_BEFORE;
-
-   si_barrier_before_simple_buffer_op(sctx, flags, sb.buffer, NULL);
-   si_launch_grid_internal_ssbos(sctx, &info, *shader, flags, 1, &sb, 0x1);
+   si_barrier_before_simple_buffer_op(sctx, 0, sb.buffer, NULL);
+   si_launch_grid_internal_ssbos(sctx, &info, *shader, 0, 1, &sb, 0x1);
    si_barrier_after_simple_buffer_op(sctx, 0, sb.buffer, NULL);
 
    /* Don't flush caches. L2 will be flushed by the kernel fence. */
@@ -659,9 +636,8 @@ void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex
    struct pipe_grid_info info = {0};
    set_work_size(&info, 8, 8, 1, tex->width0, tex->height0, is_array ? tex->array_size : 1);
 
-   unsigned flags = SI_OP_SYNC_BEFORE;
-   si_barrier_before_internal_op(sctx, flags, 0, NULL, 0, 1, &image);
-   si_compute_begin_internal(sctx, flags);
+   si_barrier_before_internal_op(sctx, 0, 0, NULL, 0, 1, &image);
+   si_compute_begin_internal(sctx, 0);
    si_launch_grid_internal(sctx, &info, *shader);
    si_compute_end_internal(sctx);
    si_barrier_after_internal_op(sctx, 0, 0, NULL, 0, 1, &image);
@@ -771,8 +747,7 @@ bool si_compute_clear_image(struct si_context *sctx, struct pipe_resource *tex,
       info.dst.box.x = util_format_get_nblocksx(tex->format, info.dst.box.x);
    }
 
-   return si_compute_blit(sctx, &info, color, access, 0,
-                          SI_OP_SYNC_BEFORE | (fail_if_slow ? SI_OP_FAIL_IF_SLOW : 0));
+   return si_compute_blit(sctx, &info, color, access, 0, fail_if_slow ? SI_OP_FAIL_IF_SLOW : 0);
 }
 
 bool si_compute_copy_image(struct si_context *sctx, struct pipe_resource *dst, unsigned dst_level,
@@ -884,7 +859,7 @@ bool si_compute_copy_image(struct si_context *sctx, struct pipe_resource *dst, u
    fail_if_slow &= !dst_access && !src_access;
 
    bool success = si_compute_blit(sctx, &info, NULL, dst_access, src_access,
-                                  SI_OP_SYNC_BEFORE | (fail_if_slow ? SI_OP_FAIL_IF_SLOW : 0));
+                                  fail_if_slow ? SI_OP_FAIL_IF_SLOW : 0);
    assert((!dst_access && !src_access) || success);
    return success;
 }
@@ -1023,7 +998,7 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
     * decompression.
     */
    si_compute_save_and_bind_images(sctx, num_images, image, saved_images);
-   si_barrier_before_internal_op(sctx, flags, 0, NULL, 0, num_images, image);
+   si_barrier_before_internal_op(sctx, 0, 0, NULL, 0, num_images, image);
    si_compute_begin_internal(sctx, flags);
 
    /* Execute compute blits. */

@@ -1088,7 +1088,7 @@ static void si_test_vmfault(struct si_screen *sscreen, uint64_t test_flags)
    si_resource(buf)->gpu_address = 0; /* cause a VM fault */
 
    if (test_flags & DBG(TEST_VMFAULT_CP)) {
-      si_cp_dma_copy_buffer(sctx, buf, buf, 0, 4, 4, SI_OP_SYNC_BEFORE);
+      si_cp_dma_copy_buffer(sctx, buf, buf, 0, 4, 4, 0);
       ctx->flush(ctx, NULL, 0);
       puts("VM fault test: CP - done.");
    }

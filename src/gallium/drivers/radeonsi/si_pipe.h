@@ -1458,14 +1458,8 @@ void si_init_clear_functions(struct si_context *sctx);
 void si_destroy_compute(struct si_compute *program);
 
 /* si_compute_blit.c */
-#define SI_OP_SYNC_CS_BEFORE              (1 << 0)
-#define SI_OP_SYNC_PS_BEFORE              (1 << 1)
-#define SI_OP_SYNC_GE_BEFORE              (1 << 2) /* only sync VS, TCS, TES, GS */
-#define SI_OP_SYNC_BEFORE                 (SI_OP_SYNC_CS_BEFORE | SI_OP_SYNC_PS_BEFORE)
-#define SI_OP_CS_RENDER_COND_ENABLE       (1 << 3)
-/* gap */
-/* Only for si_compute_blit: */
-#define SI_OP_FAIL_IF_SLOW                (1 << 9)
+#define SI_OP_CS_RENDER_COND_ENABLE       (1 << 0)
+#define SI_OP_FAIL_IF_SLOW                (1 << 1) /* only for si_compute_blit */
 
 void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                                    unsigned num_buffers,

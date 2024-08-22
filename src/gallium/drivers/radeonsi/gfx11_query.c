@@ -395,11 +395,10 @@ static void gfx11_sh_query_get_result_resource(struct si_context *sctx, struct s
       /* ssbo[2] is either tmp_buffer or resource */
       assert(ssbo[2].buffer);
 
-      unsigned op_flags = SI_OP_SYNC_BEFORE;
       unsigned writable_bitmask = (1 << 2) | (ssbo[1].buffer ? 1 << 1 : 0);
 
-      si_barrier_before_internal_op(sctx, op_flags, 3, ssbo, writable_bitmask, 0, NULL);
-      si_launch_grid_internal_ssbos(sctx, &grid, sctx->sh_query_result_shader, op_flags, 3, ssbo,
+      si_barrier_before_internal_op(sctx, 0, 3, ssbo, writable_bitmask, 0, NULL);
+      si_launch_grid_internal_ssbos(sctx, &grid, sctx->sh_query_result_shader, 0, 3, ssbo,
                                     writable_bitmask);
       si_barrier_after_internal_op(sctx, 0, 3, ssbo, writable_bitmask, 0, NULL);
 
