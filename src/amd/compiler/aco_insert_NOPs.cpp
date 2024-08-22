@@ -1449,13 +1449,14 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
 
    if (state.program->gfx_level < GFX12) {
       /* VALUMaskWriteHazard
-       * VALU reads SGPR as a lane mask and later written by SALU cannot safely be read by SALU.
+       * VALU reads SGPR as a lane mask and later written by SALU cannot safely be read by SALU or
+       * VALU.
        */
       if (state.program->wave_size == 64 && instr->isSALU() &&
           check_written_regs(instr, ctx.sgpr_read_by_valu_as_lanemask)) {
          ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu = ctx.sgpr_read_by_valu_as_lanemask;
          ctx.sgpr_read_by_valu_as_lanemask.reset();
-      } else if (state.program->wave_size == 64 && instr->isSALU() &&
+      } else if (state.program->wave_size == 64 && (instr->isSALU() || instr->isVALU()) &&
                  check_read_regs(instr, ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu)) {
          bld.sopp(aco_opcode::s_waitcnt_depctr, 0xfffe);
          sa_sdst = 0;
