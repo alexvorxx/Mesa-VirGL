@@ -1484,6 +1484,10 @@ void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
                                   unsigned writable_buffers_mask,
                                   unsigned num_images,
                                   const struct pipe_image_view *images);
+void si_barrier_before_simple_buffer_op(struct si_context *sctx, unsigned flags,
+                                        struct pipe_resource *dst, struct pipe_resource *src);
+void si_barrier_after_simple_buffer_op(struct si_context *sctx, unsigned flags,
+                                       struct pipe_resource *dst, struct pipe_resource *src);
 bool si_should_blit_clamp_to_edge(const struct pipe_blit_info *info, unsigned coord_mask);
 void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_info *info,
                                    void *shader, unsigned flags, unsigned num_buffers,

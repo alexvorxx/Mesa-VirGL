@@ -156,12 +156,7 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    }
 
-   struct pipe_shader_buffer barrier_buffer;
-   barrier_buffer.buffer = dst;
-   barrier_buffer.buffer_offset = MIN2(offset, UINT32_MAX);
-   barrier_buffer.buffer_size = MIN2(size, UINT32_MAX);
-
-   si_barrier_before_internal_op(sctx, user_flags, 1, &barrier_buffer, 0x1, 0, NULL);
+   si_barrier_before_simple_buffer_op(sctx, user_flags, dst, NULL);
 
    /* Mark the buffer range of destination as valid (initialized),
     * so that transfer_map knows it should wait for the GPU when mapping
@@ -192,7 +187,7 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
       va += byte_count;
    }
 
-   si_barrier_after_internal_op(sctx, user_flags, 1, &barrier_buffer, 0x1, 0, NULL);
+   si_barrier_after_simple_buffer_op(sctx, user_flags, dst, NULL);
    sctx->num_cp_dma_calls++;
 }
 
@@ -250,15 +245,7 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    }
 
-   struct pipe_shader_buffer barrier_buffers[2];
-   barrier_buffers[0].buffer = dst;
-   barrier_buffers[0].buffer_offset = MIN2(dst_offset, UINT32_MAX);
-   barrier_buffers[0].buffer_size = MIN2(size, UINT32_MAX);
-   barrier_buffers[1].buffer = src;
-   barrier_buffers[1].buffer_offset = MIN2(src_offset, UINT32_MAX);
-   barrier_buffers[1].buffer_size = MIN2(size, UINT32_MAX);
-
-   si_barrier_before_internal_op(sctx, user_flags, 2, barrier_buffers, 0x1, 0, NULL);
+   si_barrier_before_simple_buffer_op(sctx, user_flags, dst, src);
 
    /* Mark the buffer range of destination as valid (initialized),
     * so that transfer_map knows it should wait for the GPU when mapping
@@ -357,7 +344,7 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
    if (realign_size)
       si_cp_dma_realign_engine(sctx, realign_size, user_flags, &is_first);
 
-   si_barrier_after_internal_op(sctx, user_flags, 2, barrier_buffers, 0x1, 0, NULL);
+   si_barrier_after_simple_buffer_op(sctx, user_flags, dst, src);
    sctx->num_cp_dma_calls++;
 }
 

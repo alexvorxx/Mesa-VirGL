@@ -159,6 +159,34 @@ void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
    }
 }
 
+static void si_set_dst_src_barrier_buffers(struct pipe_shader_buffer *buffers,
+                                           struct pipe_resource *dst, struct pipe_resource *src)
+{
+   assert(dst);
+   memset(buffers, 0, sizeof(buffers[0]) * 2);
+   /* Only the "buffer" field is going to be used. */
+   buffers[0].buffer = dst;
+   buffers[1].buffer = src;
+}
+
+/* This is for simple buffer ops that have 1 dst and 0-1 src. */
+void si_barrier_before_simple_buffer_op(struct si_context *sctx, unsigned flags,
+                                        struct pipe_resource *dst, struct pipe_resource *src)
+{
+   struct pipe_shader_buffer barrier_buffers[2];
+   si_set_dst_src_barrier_buffers(barrier_buffers, dst, src);
+   si_barrier_before_internal_op(sctx, flags, src ? 2 : 1, barrier_buffers, 0x1, 0, NULL);
+}
+
+/* This is for simple buffer ops that have 1 dst and 0-1 src. */
+void si_barrier_after_simple_buffer_op(struct si_context *sctx, unsigned flags,
+                                       struct pipe_resource *dst, struct pipe_resource *src)
+{
+   struct pipe_shader_buffer barrier_buffers[2];
+   si_set_dst_src_barrier_buffers(barrier_buffers, dst, src);
+   si_barrier_after_internal_op(sctx, flags, src ? 2 : 1, barrier_buffers, 0x1, 0, NULL);
+}
+
 static void si_compute_begin_internal(struct si_context *sctx, unsigned flags)
 {
    sctx->flags &= ~SI_CONTEXT_START_PIPELINE_STATS;
@@ -354,12 +382,10 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
    struct pipe_grid_info grid = {};
    set_work_size(&grid, dispatch.workgroup_size, 1, 1, dispatch.num_threads, 1, 1);
 
-   unsigned writable_bitmask = is_copy ? 0x2 : 0x1;
-
-   si_barrier_before_internal_op(sctx, flags, dispatch.num_ssbos, sb, writable_bitmask, 0, NULL);
+   si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
    si_launch_grid_internal_ssbos(sctx, &grid, shader, flags, dispatch.num_ssbos, sb,
-                                 writable_bitmask);
-   si_barrier_after_internal_op(sctx, flags, dispatch.num_ssbos, sb, writable_bitmask, 0, NULL);
+                                 is_copy ? 0x2 : 0x1);
+   si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
    return true;
 }
 
@@ -457,9 +483,9 @@ void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resour
    sb[1].buffer_offset = src_offset;
    sb[1].buffer_size = count;
 
-   si_barrier_before_internal_op(sctx, flags, 2, sb, 0x1, 0, NULL);
+   si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
    si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_ubyte_to_ushort, flags, 2, sb, 0x1);
-   si_barrier_after_internal_op(sctx, flags, 2, sb, 0x1, 0, NULL);
+   si_barrier_after_simple_buffer_op(sctx, flags, dst, src);
 }
 
 static void si_compute_save_and_bind_images(struct si_context *sctx, unsigned num_images,
@@ -546,9 +572,9 @@ void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
 
    unsigned flags = SI_OP_SYNC_BEFORE;
 
-   si_barrier_before_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
+   si_barrier_before_simple_buffer_op(sctx, flags, sb.buffer, NULL);
    si_launch_grid_internal_ssbos(sctx, &info, *shader, flags, 1, &sb, 0x1);
-   si_barrier_after_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
+   si_barrier_after_simple_buffer_op(sctx, flags, sb.buffer, NULL);
 
    /* Don't flush caches. L2 will be flushed by the kernel fence. */
 }
