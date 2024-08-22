@@ -829,8 +829,11 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
        * for some reason when the compute codepath is used.
        */
       uint32_t clear_value = 0;
+      unsigned op_flags = SI_OP_SYNC_AFTER;
+
       si_clear_buffer(sctx, sctx->null_const_buf.buffer, 0, sctx->null_const_buf.buffer->width0,
-                      &clear_value, 4, SI_OP_SYNC_AFTER, SI_CP_DMA_CLEAR_METHOD);
+                      &clear_value, 4, op_flags, SI_CP_DMA_CLEAR_METHOD);
+      si_barrier_after_simple_buffer_op(sctx, op_flags, sctx->null_const_buf.buffer, NULL);
    }
 
    if (!(flags & SI_CONTEXT_FLAG_AUX)) {

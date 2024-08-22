@@ -537,8 +537,12 @@ void si_test_image_copy_region(struct si_screen *sscreen)
 
       /* clear dst pixels */
       uint32_t zero = 0;
-      si_clear_buffer(sctx, dst, 0, sdst->surface.surf_size, &zero, 4, SI_OP_SYNC_BEFORE_AFTER,
+      unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+
+      si_barrier_before_simple_buffer_op(sctx, flags, dst, NULL);
+      si_clear_buffer(sctx, dst, 0, sdst->surface.surf_size, &zero, 4, flags,
                       SI_AUTO_SELECT_CLEAR_METHOD);
+      si_barrier_after_simple_buffer_op(sctx, flags, dst, NULL);
 
       for (j = 0; j < num_partial_copies; j++) {
          int width, height, depth;
@@ -715,10 +719,17 @@ void si_test_blit(struct si_screen *sscreen, unsigned test_flags)
 
       /* clear dst pixels */
       uint32_t zero = 0;
+      unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+
+      /* Using 2 consecutive barriers calls results in a single merged barrier for both resources. */
+      si_barrier_before_simple_buffer_op(sctx, flags, gfx_dst, NULL);
+      si_barrier_before_simple_buffer_op(sctx, flags, comp_dst, NULL);
       si_clear_buffer(sctx, gfx_dst, 0, ((struct si_texture *)gfx_dst)->surface.surf_size, &zero,
-                      4, SI_OP_SYNC_BEFORE_AFTER, SI_AUTO_SELECT_CLEAR_METHOD);
+                      4, flags, SI_AUTO_SELECT_CLEAR_METHOD);
       si_clear_buffer(sctx, comp_dst, 0, ((struct si_texture *)comp_dst)->surface.surf_size, &zero,
-                      4, SI_OP_SYNC_BEFORE_AFTER, SI_AUTO_SELECT_CLEAR_METHOD);
+                      4, flags, SI_AUTO_SELECT_CLEAR_METHOD);
+      si_barrier_after_simple_buffer_op(sctx, flags, gfx_dst, NULL);
+      si_barrier_after_simple_buffer_op(sctx, flags, comp_dst, NULL);
 
       /* TODO: These two fix quite a lot of BCn cases. */
       /*si_clear_buffer(sctx, gfx_src, 0, ((struct si_texture *)gfx_src)->surface.surf_size, &zero,

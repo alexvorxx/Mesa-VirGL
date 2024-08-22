@@ -406,15 +406,11 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
    if (util_lower_clearsize_to_dword(clear_value, (int*)&clear_value_size, &clamped))
       clear_value = &clamped;
 
-   si_barrier_before_simple_buffer_op(sctx, flags, dst, NULL);
-
    if (method != SI_CP_DMA_CLEAR_METHOD &&
        si_compute_clear_copy_buffer(sctx, dst, offset, NULL, 0, size, clear_value,
                                     clear_value_size, flags, 0,
-                                    method == SI_AUTO_SELECT_CLEAR_METHOD)) {
-      si_barrier_after_simple_buffer_op(sctx, flags, dst, NULL);
+                                    method == SI_AUTO_SELECT_CLEAR_METHOD))
       return;
-   }
 
    uint64_t aligned_size = size & ~3ull;
    if (aligned_size) {
@@ -422,8 +418,6 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
       assert(!(flags & SI_OP_CS_RENDER_COND_ENABLE));
       si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, aligned_size, *clear_value, flags);
    }
-
-   si_barrier_after_simple_buffer_op(sctx, flags, dst, NULL);
 
    offset += aligned_size;
    size -= aligned_size;
@@ -449,8 +443,13 @@ static void si_pipe_clear_buffer(struct pipe_context *ctx, struct pipe_resource 
                                  unsigned offset, unsigned size, const void *clear_value,
                                  int clear_value_size)
 {
-   si_clear_buffer((struct si_context *)ctx, dst, offset, size, (uint32_t *)clear_value,
-                   clear_value_size, SI_OP_SYNC_BEFORE_AFTER, SI_AUTO_SELECT_CLEAR_METHOD);
+   struct si_context *sctx = (struct si_context *)ctx;
+   unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+
+   si_barrier_before_simple_buffer_op(sctx, flags, dst, NULL);
+   si_clear_buffer(sctx, dst, offset, size, (uint32_t *)clear_value, clear_value_size, flags,
+                   SI_AUTO_SELECT_CLEAR_METHOD);
+   si_barrier_after_simple_buffer_op(sctx, flags, dst, NULL);
 }
 
 void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
@@ -698,10 +697,13 @@ void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex
 
    /* Clear FMASK to identity. */
    struct si_texture *stex = (struct si_texture *)tex;
+   unsigned op_flags = SI_OP_SYNC_AFTER;
+
    si_clear_buffer(sctx, tex, stex->surface.fmask_offset, stex->surface.fmask_size,
                    (uint32_t *)&fmask_expand_values[log_fragments][log_samples - 1],
-                   log_fragments >= 2 && log_samples == 4 ? 8 : 4, SI_OP_SYNC_AFTER,
+                   log_fragments >= 2 && log_samples == 4 ? 8 : 4, op_flags,
                    SI_AUTO_SELECT_CLEAR_METHOD);
+   si_barrier_after_simple_buffer_op(sctx, op_flags, tex, NULL);
 }
 
 void si_compute_clear_image_dcc_single(struct si_context *sctx, struct si_texture *tex,
