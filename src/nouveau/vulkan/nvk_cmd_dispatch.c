@@ -278,6 +278,54 @@ nvk_CmdDispatchBase(VkCommandBuffer commandBuffer,
    }
 }
 
+void
+nvk_cmd_dispatch_shader(struct nvk_cmd_buffer *cmd,
+                        struct nvk_shader *shader,
+                        const void *push_data, size_t push_size,
+                        uint32_t groupCountX,
+                        uint32_t groupCountY,
+                        uint32_t groupCountZ)
+{
+   struct nvk_root_descriptor_table root = {
+      .cs.group_count = {
+         groupCountX,
+         groupCountY,
+         groupCountZ,
+      },
+   };
+   assert(push_size <= sizeof(root.push));
+   memcpy(root.push, push_data, push_size);
+
+   uint64_t qmd_addr;
+   VkResult result = nvk_cmd_upload_qmd(cmd, shader, NULL, &root,
+                                        root.cs.group_count,
+                                        &qmd_addr, NULL);
+   if (result != VK_SUCCESS) {
+      vk_command_buffer_set_error(&cmd->vk, result);
+      return;
+   }
+
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 8);
+
+   /* Internal shaders don't want conditional rendering */
+   P_IMMD(p, NVA0C0, SET_RENDER_ENABLE_OVERRIDE, MODE_ALWAYS_RENDER);
+
+   P_MTHD(p, NVA0C0, SEND_PCAS_A);
+   P_NVA0C0_SEND_PCAS_A(p, qmd_addr >> 8);
+
+   if (nvk_cmd_buffer_compute_cls(cmd) <= TURING_COMPUTE_A) {
+      P_IMMD(p, NVA0C0, SEND_SIGNALING_PCAS_B, {
+            .invalidate = INVALIDATE_TRUE,
+            .schedule = SCHEDULE_TRUE
+      });
+   } else {
+      P_IMMD(p, NVC6C0, SEND_SIGNALING_PCAS2_B,
+             PCAS_ACTION_INVALIDATE_COPY_SCHEDULE);
+   }
+
+   P_IMMD(p, NVA0C0, SET_RENDER_ENABLE_OVERRIDE, MODE_USE_RENDER_ENABLE);
+}
+
 static void
 mme_store_global(struct mme_builder *b,
                  struct mme_value64 addr,
