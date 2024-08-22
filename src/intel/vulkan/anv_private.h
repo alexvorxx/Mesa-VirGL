@@ -3327,6 +3327,7 @@ enum anv_cmd_dirty_bits {
    ANV_CMD_DIRTY_OCCLUSION_QUERY_ACTIVE              = 1 << 6,
    ANV_CMD_DIRTY_FS_MSAA_FLAGS                       = 1 << 7,
    ANV_CMD_DIRTY_COARSE_PIXEL_ACTIVE                 = 1 << 8,
+   ANV_CMD_DIRTY_INDIRECT_DATA_STRIDE                = 1 << 9,
 };
 typedef enum anv_cmd_dirty_bits anv_cmd_dirty_mask_t;
 
@@ -3846,6 +3847,9 @@ struct anv_cmd_graphics_state {
    uint32_t index_type; /**< 3DSTATE_INDEX_BUFFER.IndexFormat */
    uint32_t index_offset;
    uint32_t index_size;
+
+   uint32_t indirect_data_stride;
+   bool indirect_data_stride_aligned;
 
    struct vk_vertex_input_state vertex_input;
    struct vk_sample_locations_state sample_locations;

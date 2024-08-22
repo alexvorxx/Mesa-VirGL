@@ -942,6 +942,15 @@ genX(cmd_buffer_flush_gfx_state)(struct anv_cmd_buffer *cmd_buffer)
                                           dirty & VK_SHADER_STAGE_ALL_GRAPHICS);
    }
 
+#if GFX_VER >= 20
+   if (cmd_buffer->state.gfx.dirty & ANV_CMD_DIRTY_INDIRECT_DATA_STRIDE) {
+      anv_batch_emit(&cmd_buffer->batch, GENX(STATE_BYTE_STRIDE), sb_stride) {
+         sb_stride.ByteStride = cmd_buffer->state.gfx.indirect_data_stride;
+         sb_stride.ByteStrideEnable = !cmd_buffer->state.gfx.indirect_data_stride_aligned;
+      }
+   }
+#endif
+
    /* When we're done, only thing left is the possible dirty state
     * returned by cmd_buffer_flush_gfx_runtime_state.
     */
@@ -1750,25 +1759,55 @@ static inline const uint32_t xi_argument_format_for_vk_cmd(enum vk_cmd_type cmd)
 #endif
 }
 
-static inline const bool
-stride_aligned_for_vk_cmd(uint32_t stride, enum vk_cmd_type cmd)
+static inline bool
+cmd_buffer_set_indirect_stride(struct anv_cmd_buffer *cmd_buffer,
+                               uint32_t stride, enum vk_cmd_type cmd)
 {
-   if (stride == 0)
-      return true;
+   /* Should have been sanitized by the caller */
+   assert(stride != 0);
+
+   uint32_t data_stride = 0;
 
    switch (cmd) {
-      case VK_CMD_DRAW_INDIRECT:
-      case VK_CMD_DRAW_INDIRECT_COUNT:
-         return stride == sizeof(VkDrawIndirectCommand);
-      case VK_CMD_DRAW_INDEXED_INDIRECT:
-      case VK_CMD_DRAW_INDEXED_INDIRECT_COUNT:
-         return stride == sizeof(VkDrawIndexedIndirectCommand);
-      case VK_CMD_DRAW_MESH_TASKS_INDIRECT_EXT:
-      case VK_CMD_DRAW_MESH_TASKS_INDIRECT_COUNT_EXT:
-         return stride == sizeof(VkDrawMeshTasksIndirectCommandEXT);
-      default:
-         unreachable("unhandled cmd type");
+   case VK_CMD_DRAW_INDIRECT:
+   case VK_CMD_DRAW_INDIRECT_COUNT:
+      data_stride = sizeof(VkDrawIndirectCommand);
+      break;
+   case VK_CMD_DRAW_INDEXED_INDIRECT:
+   case VK_CMD_DRAW_INDEXED_INDIRECT_COUNT:
+      data_stride = sizeof(VkDrawIndexedIndirectCommand);
+      break;
+   case VK_CMD_DRAW_MESH_TASKS_INDIRECT_EXT:
+   case VK_CMD_DRAW_MESH_TASKS_INDIRECT_COUNT_EXT:
+      data_stride = sizeof(VkDrawMeshTasksIndirectCommandEXT);
+      break;
+   default:
+      unreachable("unhandled cmd type");
    }
+
+   bool aligned = stride == data_stride;
+
+#if GFX_VER >= 20
+   /* The stride can change as long as it matches the default command stride
+    * and STATE_BYTE_STRIDE::ByteStrideEnable=false, we can just do nothing.
+    *
+    * Otheriwse STATE_BYTE_STRIDE::ByteStrideEnable=true, any stride change
+    * should be signaled.
+    */
+   struct anv_cmd_graphics_state *gfx_state = &cmd_buffer->state.gfx;
+   if (gfx_state->indirect_data_stride_aligned != aligned) {
+      gfx_state->indirect_data_stride = stride;
+      gfx_state->indirect_data_stride_aligned = aligned;
+      gfx_state->dirty |= ANV_CMD_DIRTY_INDIRECT_DATA_STRIDE;
+   } else if (!gfx_state->indirect_data_stride_aligned &&
+              gfx_state->indirect_data_stride != stride) {
+      gfx_state->indirect_data_stride = stride;
+      gfx_state->indirect_data_stride_aligned = aligned;
+      gfx_state->dirty |= ANV_CMD_DIRTY_INDIRECT_DATA_STRIDE;
+   }
+#endif
+
+   return aligned;
 }
 
 static void
@@ -1780,20 +1819,14 @@ genX(cmd_buffer_emit_execute_indirect_draws)(struct anv_cmd_buffer *cmd_buffer,
                                              enum vk_cmd_type cmd)
 {
 #if GFX_VERx10 >= 125
+   bool aligned_stride =
+      cmd_buffer_set_indirect_stride(cmd_buffer, indirect_data_stride, cmd);
+
    genX(cmd_buffer_flush_gfx_state)(cmd_buffer);
 
    if (cmd_buffer->state.conditional_render_enabled)
       genX(cmd_emit_conditional_render_predicate)(cmd_buffer);
 
-   const bool aligned_stride =
-      stride_aligned_for_vk_cmd(indirect_data_stride, cmd);
-
-#if GFX_VER >= 20
-   anv_batch_emit(&cmd_buffer->batch, GENX(STATE_BYTE_STRIDE), sb_stride) {
-      sb_stride.ByteStride = indirect_data_stride;
-      sb_stride.ByteStrideEnable = !aligned_stride;
-   }
-#endif
    uint32_t offset = 0;
    for (uint32_t i = 0; i < max_draw_count; i++) {
       struct anv_address draw = anv_address_add(indirect_data_addr, offset);
