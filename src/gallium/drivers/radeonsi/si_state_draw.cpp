@@ -2113,10 +2113,9 @@ static void si_draw(struct pipe_context *ctx,
          if (unlikely(!indexbuf))
             return;
 
-         unsigned flags = SI_OP_SYNC_AFTER;
          si_compute_shorten_ubyte_buffer(sctx, indexbuf, info->index.resource, start_offset,
-                                         index_offset + start, count, flags);
-         si_barrier_after_simple_buffer_op(sctx, flags, indexbuf, info->index.resource);
+                                         index_offset + start, count, 0);
+         si_barrier_after_simple_buffer_op(sctx, 0, indexbuf, info->index.resource);
 
          index_offset = 0;
          index_size = 2;

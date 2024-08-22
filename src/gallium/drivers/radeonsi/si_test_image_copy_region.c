@@ -537,7 +537,7 @@ void si_test_image_copy_region(struct si_screen *sscreen)
 
       /* clear dst pixels */
       uint32_t zero = 0;
-      unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+      unsigned flags = SI_OP_SYNC_BEFORE;
 
       si_barrier_before_simple_buffer_op(sctx, flags, dst, NULL);
       si_clear_buffer(sctx, dst, 0, sdst->surface.surf_size, &zero, 4, flags,
@@ -719,7 +719,7 @@ void si_test_blit(struct si_screen *sscreen, unsigned test_flags)
 
       /* clear dst pixels */
       uint32_t zero = 0;
-      unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+      unsigned flags = SI_OP_SYNC_BEFORE;
 
       /* Using 2 consecutive barriers calls results in a single merged barrier for both resources. */
       si_barrier_before_simple_buffer_op(sctx, flags, gfx_dst, NULL);
@@ -940,7 +940,7 @@ void si_test_blit(struct si_screen *sscreen, unsigned test_flags)
       if (only_cb_resolve)
          success = si_msaa_resolve_blit_via_CB(ctx, &info, false);
       else
-         success = si_compute_blit(sctx, &info, NULL, 0, 0, SI_OP_SYNC_BEFORE_AFTER);
+         success = si_compute_blit(sctx, &info, NULL, 0, 0, SI_OP_SYNC_BEFORE);
 
       if (success) {
          printf(" %-7s", only_cb_resolve ? "resolve" : "comp");

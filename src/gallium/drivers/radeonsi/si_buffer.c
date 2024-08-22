@@ -194,10 +194,9 @@ bool si_alloc_resource(struct si_screen *sscreen, struct si_resource *res)
       struct si_context *ctx = si_get_aux_context(&sscreen->aux_context.general);
       uint32_t value = 0;
 
-      unsigned flags = SI_OP_SYNC_AFTER;
-      si_clear_buffer(ctx, &res->b.b, 0, res->bo_size, &value, 4, flags,
+      si_clear_buffer(ctx, &res->b.b, 0, res->bo_size, &value, 4, 0,
                       SI_AUTO_SELECT_CLEAR_METHOD);
-      si_barrier_after_simple_buffer_op(ctx, flags, &res->b.b, NULL);
+      si_barrier_after_simple_buffer_op(ctx, 0, &res->b.b, NULL);
       si_put_aux_context_flush(&sscreen->aux_context.general);
    }
 
@@ -445,7 +444,7 @@ static void *si_buffer_transfer_map(struct pipe_context *ctx, struct pipe_resour
                                          box->width + (box->x % SI_MAP_BUFFER_ALIGNMENT), 256);
       if (staging) {
          /* Copy the VRAM buffer to the staging buffer. */
-         unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+         unsigned flags = SI_OP_SYNC_BEFORE;
 
          si_barrier_before_simple_buffer_op(sctx, flags, &staging->b.b, resource);
          si_copy_buffer(sctx, &staging->b.b, resource, box->x % SI_MAP_BUFFER_ALIGNMENT,
@@ -484,7 +483,7 @@ static void si_buffer_do_flush_region(struct pipe_context *ctx, struct pipe_tran
    if (stransfer->staging) {
       unsigned src_offset =
          stransfer->b.b.offset + transfer->box.x % SI_MAP_BUFFER_ALIGNMENT + (box->x - transfer->box.x);
-      unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+      unsigned flags = SI_OP_SYNC_BEFORE;
 
       /* Copy the staging buffer into the original one. */
       si_barrier_before_simple_buffer_op(sctx, flags, transfer->resource, &stransfer->staging->b.b);

@@ -621,7 +621,7 @@ void si_test_blit_perf(struct si_screen *sscreen)
                                        break;
                                     case METHOD_COMPUTE:
                                        success &= si_compute_blit(sctx, &info, NULL, 0, 0,
-                                                                  SI_OP_SYNC_BEFORE_AFTER);
+                                                                  SI_OP_SYNC_BEFORE);
                                        break;
                                     case METHOD_SPECIAL:
                                        if (test_flavor == TEST_BLIT && !yflip) {

@@ -112,22 +112,18 @@ void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
                                   unsigned num_images,
                                   const struct pipe_image_view *images)
 {
-   if (flags & SI_OP_SYNC_AFTER) {
-      sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
+   sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
 
-      if (num_images) {
-         /* Make sure image stores are visible to CB, which doesn't use L2 on GFX6-8. */
-         sctx->flags |= sctx->gfx_level <= GFX8 ? SI_CONTEXT_WB_L2 : 0;
-         /* Make sure image stores are visible to all CUs. */
-         sctx->flags |= SI_CONTEXT_INV_VCACHE;
-      }
-
-      /* Make sure buffer stores are visible to all CUs and also as index/indirect buffers. */
-      if (num_buffers)
-         sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE | SI_CONTEXT_PFP_SYNC_ME;
-
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   if (num_images) {
+      /* Make sure image stores are visible to CB, which doesn't use L2 on GFX6-8. */
+      sctx->flags |= sctx->gfx_level <= GFX8 ? SI_CONTEXT_WB_L2 : 0;
+      /* Make sure image stores are visible to all CUs. */
+      sctx->flags |= SI_CONTEXT_INV_VCACHE;
    }
+
+   /* Make sure buffer stores are visible to all CUs and also as index/indirect buffers. */
+   if (num_buffers)
+      sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE | SI_CONTEXT_PFP_SYNC_ME;
 
    /* We must set TC_L2_dirty for buffers because:
     * - GFX6,12: CP DMA doesn't use L2.
@@ -141,19 +137,19 @@ void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
       si_resource(buffers[u_bit_scan(&writable_buffers_mask)].buffer)->TC_L2_dirty = true;
 
    /* Make sure RBs see our DCC image stores if RBs and TCCs (L2 instances) are non-coherent. */
-   if (flags & SI_OP_SYNC_AFTER && sctx->gfx_level >= GFX10 &&
-       sctx->screen->info.tcc_rb_non_coherent) {
+   if (sctx->gfx_level >= GFX10 && sctx->screen->info.tcc_rb_non_coherent) {
       for (unsigned i = 0; i < num_images; i++) {
          if (vi_dcc_enabled((struct si_texture*)images[i].resource, images[i].u.tex.level) &&
              images[i].access & PIPE_IMAGE_ACCESS_WRITE &&
              (sctx->screen->always_allow_dcc_stores ||
               images[i].access & SI_IMAGE_ACCESS_ALLOW_DCC_STORE)) {
             sctx->flags |= SI_CONTEXT_INV_L2;
-            si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
             break;
          }
       }
    }
+
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
 }
 
 static void si_set_dst_src_barrier_buffers(struct pipe_shader_buffer *buffers,
@@ -441,7 +437,7 @@ static void si_pipe_clear_buffer(struct pipe_context *ctx, struct pipe_resource 
                                  int clear_value_size)
 {
    struct si_context *sctx = (struct si_context *)ctx;
-   unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+   unsigned flags = SI_OP_SYNC_BEFORE;
 
    si_barrier_before_simple_buffer_op(sctx, flags, dst, NULL);
    si_clear_buffer(sctx, dst, offset, size, (uint32_t *)clear_value, clear_value_size, flags,
@@ -663,7 +659,7 @@ void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex
    struct pipe_grid_info info = {0};
    set_work_size(&info, 8, 8, 1, tex->width0, tex->height0, is_array ? tex->array_size : 1);
 
-   unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+   unsigned flags = SI_OP_SYNC_BEFORE;
    si_barrier_before_internal_op(sctx, flags, 0, NULL, 0, 1, &image);
    si_compute_begin_internal(sctx, flags);
    si_launch_grid_internal(sctx, &info, *shader);
@@ -687,13 +683,12 @@ void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex
 
    /* Clear FMASK to identity. */
    struct si_texture *stex = (struct si_texture *)tex;
-   unsigned op_flags = SI_OP_SYNC_AFTER;
 
    si_clear_buffer(sctx, tex, stex->surface.fmask_offset, stex->surface.fmask_size,
                    (uint32_t *)&fmask_expand_values[log_fragments][log_samples - 1],
-                   log_fragments >= 2 && log_samples == 4 ? 8 : 4, op_flags,
+                   log_fragments >= 2 && log_samples == 4 ? 8 : 4, 0,
                    SI_AUTO_SELECT_CLEAR_METHOD);
-   si_barrier_after_simple_buffer_op(sctx, op_flags, tex, NULL);
+   si_barrier_after_simple_buffer_op(sctx, 0, tex, NULL);
 }
 
 void si_compute_clear_image_dcc_single(struct si_context *sctx, struct si_texture *tex,
@@ -777,7 +772,7 @@ bool si_compute_clear_image(struct si_context *sctx, struct pipe_resource *tex,
    }
 
    return si_compute_blit(sctx, &info, color, access, 0,
-                          SI_OP_SYNC_BEFORE_AFTER | (fail_if_slow ? SI_OP_FAIL_IF_SLOW : 0));
+                          SI_OP_SYNC_BEFORE | (fail_if_slow ? SI_OP_FAIL_IF_SLOW : 0));
 }
 
 bool si_compute_copy_image(struct si_context *sctx, struct pipe_resource *dst, unsigned dst_level,
@@ -889,7 +884,7 @@ bool si_compute_copy_image(struct si_context *sctx, struct pipe_resource *dst, u
    fail_if_slow &= !dst_access && !src_access;
 
    bool success = si_compute_blit(sctx, &info, NULL, dst_access, src_access,
-                                  SI_OP_SYNC_BEFORE_AFTER | (fail_if_slow ? SI_OP_FAIL_IF_SLOW : 0));
+                                  SI_OP_SYNC_BEFORE | (fail_if_slow ? SI_OP_FAIL_IF_SLOW : 0));
    assert((!dst_access && !src_access) || success);
    return success;
 }

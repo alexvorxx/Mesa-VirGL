@@ -136,7 +136,7 @@ static void si_cp_dma_prepare(struct si_context *sctx, struct pipe_resource *dst
    /* Do the synchronization after the last dma, so that all data
     * is written to memory.
     */
-   if (user_flags & SI_OP_SYNC_AFTER && byte_count == remaining_size)
+   if (byte_count == remaining_size)
       *packet_flags |= CP_DMA_SYNC;
 }
 

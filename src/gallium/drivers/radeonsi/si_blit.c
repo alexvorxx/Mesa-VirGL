@@ -965,7 +965,7 @@ void si_resource_copy_region(struct pipe_context *ctx, struct pipe_resource *dst
 
    /* Handle buffers first. */
    if (dst->target == PIPE_BUFFER && src->target == PIPE_BUFFER) {
-      unsigned flags = SI_OP_SYNC_BEFORE_AFTER;
+      unsigned flags = SI_OP_SYNC_BEFORE;
 
       si_barrier_before_simple_buffer_op(sctx, flags, dst, src);
       si_copy_buffer(sctx, dst, src, dstx, src_box->x, src_box->width, flags);
@@ -1271,7 +1271,7 @@ static void si_blit(struct pipe_context *ctx, const struct pipe_blit_info *info)
    if (unlikely(sctx->sqtt_enabled))
       sctx->sqtt_next_event = EventCmdCopyImage;
 
-   if (si_compute_blit(sctx, info, NULL, 0, 0, SI_OP_SYNC_BEFORE_AFTER | SI_OP_FAIL_IF_SLOW))
+   if (si_compute_blit(sctx, info, NULL, 0, 0, SI_OP_SYNC_BEFORE | SI_OP_FAIL_IF_SLOW))
       return;
 
    si_gfx_blit(ctx, info);
