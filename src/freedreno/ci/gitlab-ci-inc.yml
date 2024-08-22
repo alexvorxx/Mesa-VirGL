@@ -55,7 +55,7 @@
       when: on_success
 
 .google-freedreno-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -67,7 +67,7 @@
       when: manual
 
 .collabora-freedreno-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -101,7 +101,7 @@
       when: on_success
 
 .google-turnip-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -113,7 +113,7 @@
       when: manual
 
 .collabora-turnip-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -133,7 +133,7 @@
     - !reference [.google-turnip-rules, rules]
 
 .google-freedreno-turnip-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   rules:
     - !reference [.test, rules]
     - !reference [.google-freedreno-manual-rules, rules]
@@ -147,14 +147,14 @@
     - !reference [.collabora-turnip-rules, rules]
 
 .collabora-freedreno-turnip-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   rules:
     - !reference [.test, rules]
     - !reference [.collabora-freedreno-manual-rules, rules]
     - !reference [.collabora-turnip-manual-rules, rules]
 
 .valve-freedreno-turnip-manual-rules:
-  stage: freedreno
+  stage: freedreno-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]

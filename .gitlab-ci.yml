@@ -154,7 +154,9 @@ stages:
   - nouveau
   - arm
   - broadcom
+  - broadcom-postmerge
   - freedreno
+  - freedreno-postmerge
   - etnaviv
   - software-renderer
   - layered-backends

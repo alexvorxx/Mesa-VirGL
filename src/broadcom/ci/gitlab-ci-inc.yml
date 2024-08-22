@@ -40,7 +40,7 @@
       when: on_success
 
 .vc4-manual-rules:
-  stage: broadcom
+  stage: broadcom-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -67,7 +67,7 @@
       when: on_success
 
 .v3d-manual-rules:
-  stage: broadcom
+  stage: broadcom-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -85,7 +85,7 @@
     - !reference [.rusticl-rules, rules]
 
 .v3d-rusticl-manual-rules:
-  stage: broadcom
+  stage: broadcom-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.v3d-manual-rules, rules]
@@ -105,7 +105,7 @@
       when: on_success
 
 .v3dv-manual-rules:
-  stage: broadcom
+  stage: broadcom-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
