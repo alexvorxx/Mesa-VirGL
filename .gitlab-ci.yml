@@ -148,6 +148,7 @@ stages:
   - build-misc
   - code-validation
   - amd
+  - amd-postmerge
   - intel
   - nouveau
   - arm
