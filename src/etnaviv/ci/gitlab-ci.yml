@@ -21,7 +21,7 @@
       when: on_success
 
 .etnaviv-manual-rules:
-  stage: etnaviv
+  stage: etnaviv-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]

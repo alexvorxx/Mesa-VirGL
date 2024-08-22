@@ -159,6 +159,7 @@ stages:
   - freedreno
   - freedreno-postmerge
   - etnaviv
+  - etnaviv-postmerge
   - software-renderer
   - software-renderer-postmerge
   - layered-backends
