@@ -1343,8 +1343,8 @@ const struct nvk_mme_test_case nvk_mme_set_tess_params_tests[] = {{
    },
 }, {}};
 
-static void
-nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
+void
+nvk_cmd_flush_gfx_shaders(struct nvk_cmd_buffer *cmd)
 {
    if (cmd->state.gfx.shaders_dirty == 0)
       return;
@@ -2789,8 +2789,8 @@ nvk_flush_cb_state(struct nvk_cmd_buffer *cmd)
    }
 }
 
-static void
-nvk_flush_dynamic_state(struct nvk_cmd_buffer *cmd)
+void
+nvk_cmd_flush_gfx_dynamic_state(struct nvk_cmd_buffer *cmd)
 {
    struct vk_dynamic_graphics_state *dyn =
       &cmd->vk.dynamic_graphics_state;
@@ -2890,8 +2890,8 @@ nvk_mme_bind_cbuf_desc(struct mme_builder *b)
    mme_emit(b, cb);
 }
 
-static void
-nvk_flush_descriptors(struct nvk_cmd_buffer *cmd)
+void
+nvk_cmd_flush_gfx_cbufs(struct nvk_cmd_buffer *cmd)
 {
    struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
    struct nvk_physical_device *pdev = nvk_device_physical(dev);
@@ -2992,12 +2992,12 @@ nvk_flush_descriptors(struct nvk_cmd_buffer *cmd)
 }
 
 static void
-nvk_flush_gfx_state(struct nvk_cmd_buffer *cmd)
+nvk_cmd_flush_gfx_state(struct nvk_cmd_buffer *cmd)
 {
    nvk_cmd_buffer_flush_push_descriptors(cmd, &cmd->state.gfx.descriptors);
-   nvk_flush_shaders(cmd);
-   nvk_flush_dynamic_state(cmd);
-   nvk_flush_descriptors(cmd);
+   nvk_cmd_flush_gfx_dynamic_state(cmd);
+   nvk_cmd_flush_gfx_shaders(cmd);
+   nvk_cmd_flush_gfx_cbufs(cmd);
 }
 
 void
@@ -3439,7 +3439,7 @@ nvk_CmdDraw(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
 
-   nvk_flush_gfx_state(cmd);
+   nvk_cmd_flush_gfx_state(cmd);
 
    struct nv_push *p = nvk_cmd_buffer_push(cmd, 6);
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW));
@@ -3460,7 +3460,7 @@ nvk_CmdDrawMultiEXT(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
 
-   nvk_flush_gfx_state(cmd);
+   nvk_cmd_flush_gfx_state(cmd);
 
    for (uint32_t draw_index = 0; draw_index < drawCount; draw_index++) {
       struct nv_push *p = nvk_cmd_buffer_push(cmd, 6);
@@ -3579,7 +3579,7 @@ nvk_CmdDrawIndexed(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
 
-   nvk_flush_gfx_state(cmd);
+   nvk_cmd_flush_gfx_state(cmd);
 
    struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDEXED));
@@ -3602,7 +3602,7 @@ nvk_CmdDrawMultiIndexedEXT(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
 
-   nvk_flush_gfx_state(cmd);
+   nvk_cmd_flush_gfx_state(cmd);
 
    for (uint32_t draw_index = 0; draw_index < drawCount; draw_index++) {
       const uint32_t vertex_offset =
@@ -3688,7 +3688,7 @@ nvk_CmdDrawIndirect(VkCommandBuffer commandBuffer,
       stride = sizeof(VkDrawIndirectCommand);
    }
 
-   nvk_flush_gfx_state(cmd);
+   nvk_cmd_flush_gfx_state(cmd);
 
    if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
       struct nv_push *p = nvk_cmd_buffer_push(cmd, 5);
@@ -3788,7 +3788,7 @@ nvk_CmdDrawIndexedIndirect(VkCommandBuffer commandBuffer,
       stride = sizeof(VkDrawIndexedIndirectCommand);
    }
 
-   nvk_flush_gfx_state(cmd);
+   nvk_cmd_flush_gfx_state(cmd);
 
    if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
       struct nv_push *p = nvk_cmd_buffer_push(cmd, 5);
@@ -3868,7 +3868,7 @@ nvk_CmdDrawIndirectCount(VkCommandBuffer commandBuffer,
    /* TODO: Indirect count draw pre-Turing */
    assert(nvk_cmd_buffer_3d_cls(cmd) >= TURING_A);
 
-   nvk_flush_gfx_state(cmd);
+   nvk_cmd_flush_gfx_state(cmd);
 
    struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDIRECT_COUNT));
@@ -3930,7 +3930,7 @@ nvk_CmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer,
    /* TODO: Indexed indirect count draw pre-Turing */
    assert(nvk_cmd_buffer_3d_cls(cmd) >= TURING_A);
 
-   nvk_flush_gfx_state(cmd);
+   nvk_cmd_flush_gfx_state(cmd);
 
    struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDEXED_INDIRECT_COUNT));
@@ -4031,7 +4031,7 @@ nvk_CmdDrawIndirectByteCountEXT(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(nvk_buffer, counter_buffer, counterBuffer);
 
-   nvk_flush_gfx_state(cmd);
+   nvk_cmd_flush_gfx_state(cmd);
 
    uint64_t counter_addr = nvk_buffer_address(counter_buffer,
                                               counterBufferOffset);
