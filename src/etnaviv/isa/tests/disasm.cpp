@@ -359,3 +359,14 @@ INSTANTIATE_TEST_SUITE_P(LoadStoreVariants, DisasmTest,
    )
 );
 // clang-format on
+
+// clang-format off
+INSTANTIATE_TEST_SUITE_P(ConvVariants, DisasmTest,
+   testing::Values(
+      // seen on GC7000
+      disasm_state{ {0x01001032, 0x15400800, 0x100100c0, 0x00000007}, "conv.pack         t0._y__, t0.yyyy, 1, void\n"},
+      disasm_state{ {0x01001032, 0x15600800, 0x10010040, 0x00000007}, "conv.f16.pack     t0._y__, t0.yyyy, 0, void\n"},
+      disasm_state{ {0x01001832, 0x15400800, 0x100100c0, 0x00000007}, "conv.sat.pack     t0._y__, t0.yyyy, 1, void\n"}
+   )
+);
+// clang-format on
