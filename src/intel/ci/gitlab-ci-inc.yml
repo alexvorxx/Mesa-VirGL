@@ -23,7 +23,7 @@
       when: on_success
 
 .intel-common-manual-rules:
-  stage: intel
+  stage: intel-postmerge
   rules:
     - changes:
         *intel_common_file_list
@@ -41,7 +41,7 @@
       when: on_success
 
 .i915g-manual-rules:
-  stage: intel
+  stage: intel-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -63,7 +63,7 @@
       when: on_success
 
 .crocus-manual-rules:
-  stage: intel
+  stage: intel-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -87,7 +87,7 @@
       when: on_success
 
 .iris-manual-rules:
-  stage: intel
+  stage: intel-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -132,7 +132,7 @@
       when: on_success
 
 .anv-manual-rules:
-  stage: intel
+  stage: intel-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -155,7 +155,7 @@
       when: on_success
 
 .hasvk-manual-rules:
-  stage: intel
+  stage: intel-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -175,7 +175,7 @@
     - !reference [.anv-rules, rules]
 
 .intel-manual-rules:
-  stage: intel
+  stage: intel-postmerge
   rules:
     - !reference [.test, rules]
     - !reference [.iris-manual-rules, rules]

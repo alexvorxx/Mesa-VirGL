@@ -150,6 +150,7 @@ stages:
   - amd
   - amd-postmerge
   - intel
+  - intel-postmerge
   - nouveau
   - arm
   - broadcom
