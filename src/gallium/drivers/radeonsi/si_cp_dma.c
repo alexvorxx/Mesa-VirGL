@@ -128,7 +128,7 @@ static void si_cp_dma_prepare(struct si_context *sctx, struct pipe_resource *dst
    if (*is_first && sctx->flags)
       si_emit_cache_flush_direct(sctx);
 
-   if (user_flags & SI_OP_SYNC_CPDMA_BEFORE && *is_first && !(*packet_flags & CP_DMA_CLEAR))
+   if (*is_first && !(*packet_flags & CP_DMA_CLEAR))
       *packet_flags |= CP_DMA_RAW_WAIT;
 
    *is_first = false;

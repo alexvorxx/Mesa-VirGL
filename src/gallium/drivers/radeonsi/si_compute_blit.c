@@ -28,8 +28,7 @@ static void si_improve_sync_flags(struct si_context *sctx, struct pipe_resource 
    if (si_is_buffer_idle(sctx, si_resource(dst), RADEON_USAGE_READWRITE) &&
        (!src || si_is_buffer_idle(sctx, si_resource(src), RADEON_USAGE_WRITE))) {
       /* Idle buffers don't have to sync. */
-      *flags &= ~(SI_OP_SYNC_GE_BEFORE | SI_OP_SYNC_PS_BEFORE | SI_OP_SYNC_CS_BEFORE |
-                  SI_OP_SYNC_CPDMA_BEFORE);
+      *flags &= ~(SI_OP_SYNC_GE_BEFORE | SI_OP_SYNC_PS_BEFORE | SI_OP_SYNC_CS_BEFORE);
       return;
    }
 

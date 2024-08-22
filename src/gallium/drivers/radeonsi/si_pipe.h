@@ -1461,15 +1461,14 @@ void si_destroy_compute(struct si_compute *program);
 /* si_compute_blit.c */
 #define SI_OP_SYNC_CS_BEFORE              (1 << 0)
 #define SI_OP_SYNC_PS_BEFORE              (1 << 1)
-#define SI_OP_SYNC_CPDMA_BEFORE           (1 << 2) /* only affects CP DMA calls */
-#define SI_OP_SYNC_BEFORE                 (SI_OP_SYNC_CS_BEFORE | SI_OP_SYNC_PS_BEFORE | SI_OP_SYNC_CPDMA_BEFORE)
+#define SI_OP_SYNC_GE_BEFORE              (1 << 2) /* only sync VS, TCS, TES, GS */
+#define SI_OP_SYNC_BEFORE                 (SI_OP_SYNC_CS_BEFORE | SI_OP_SYNC_PS_BEFORE)
 #define SI_OP_SYNC_AFTER                  (1 << 3)
 #define SI_OP_SYNC_BEFORE_AFTER           (SI_OP_SYNC_BEFORE | SI_OP_SYNC_AFTER)
 #define SI_OP_SKIP_CACHE_INV_BEFORE       (1 << 4) /* don't invalidate caches */
 #define SI_OP_CS_IMAGE                    (1 << 5)
 #define SI_OP_CS_RENDER_COND_ENABLE       (1 << 6)
 /* gap */
-#define SI_OP_SYNC_GE_BEFORE              (1 << 8) /* only sync VS, TCS, TES, GS */
 /* Only for si_compute_blit: */
 #define SI_OP_FAIL_IF_SLOW                (1 << 9)
 #define SI_OP_IS_NESTED                   (1 << 10)
