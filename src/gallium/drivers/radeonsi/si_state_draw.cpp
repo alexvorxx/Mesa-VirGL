@@ -2114,8 +2114,7 @@ static void si_draw(struct pipe_context *ctx,
             return;
 
          si_compute_shorten_ubyte_buffer(sctx, indexbuf, info->index.resource, start_offset,
-                                         index_offset + start, count,
-                                         sctx->render_cond_enabled ? SI_OP_CS_RENDER_COND_ENABLE : 0);
+                                         index_offset + start, count, sctx->render_cond_enabled);
          si_barrier_after_simple_buffer_op(sctx, 0, indexbuf, info->index.resource);
 
          index_offset = 0;

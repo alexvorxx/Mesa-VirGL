@@ -538,8 +538,8 @@ void si_test_image_copy_region(struct si_screen *sscreen)
       /* clear dst pixels */
       uint32_t zero = 0;
       si_barrier_before_simple_buffer_op(sctx, 0, dst, NULL);
-      si_clear_buffer(sctx, dst, 0, sdst->surface.surf_size, &zero, 4, 0,
-                      SI_AUTO_SELECT_CLEAR_METHOD);
+      si_clear_buffer(sctx, dst, 0, sdst->surface.surf_size, &zero, 4,
+                      SI_AUTO_SELECT_CLEAR_METHOD, false);
       si_barrier_after_simple_buffer_op(sctx, 0, dst, NULL);
 
       for (j = 0; j < num_partial_copies; j++) {
@@ -722,9 +722,9 @@ void si_test_blit(struct si_screen *sscreen, unsigned test_flags)
       si_barrier_before_simple_buffer_op(sctx, 0, gfx_dst, NULL);
       si_barrier_before_simple_buffer_op(sctx, 0, comp_dst, NULL);
       si_clear_buffer(sctx, gfx_dst, 0, ((struct si_texture *)gfx_dst)->surface.surf_size, &zero,
-                      4, 0, SI_AUTO_SELECT_CLEAR_METHOD);
+                      4, SI_AUTO_SELECT_CLEAR_METHOD, false);
       si_clear_buffer(sctx, comp_dst, 0, ((struct si_texture *)comp_dst)->surface.surf_size, &zero,
-                      4, 0, SI_AUTO_SELECT_CLEAR_METHOD);
+                      4, SI_AUTO_SELECT_CLEAR_METHOD, false);
       si_barrier_after_simple_buffer_op(sctx, 0, gfx_dst, NULL);
       si_barrier_after_simple_buffer_op(sctx, 0, comp_dst, NULL);
 

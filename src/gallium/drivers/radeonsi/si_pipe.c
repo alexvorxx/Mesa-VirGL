@@ -830,7 +830,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
        */
       uint32_t clear_value = 0;
       si_clear_buffer(sctx, sctx->null_const_buf.buffer, 0, sctx->null_const_buf.buffer->width0,
-                      &clear_value, 4, 0, SI_CP_DMA_CLEAR_METHOD);
+                      &clear_value, 4, SI_CP_DMA_CLEAR_METHOD, false);
       si_barrier_after_simple_buffer_op(sctx, 0, sctx->null_const_buf.buffer, NULL);
    }
 

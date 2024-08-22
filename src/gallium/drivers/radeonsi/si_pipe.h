@@ -1458,8 +1458,6 @@ void si_init_clear_functions(struct si_context *sctx);
 void si_destroy_compute(struct si_compute *program);
 
 /* si_compute_blit.c */
-#define SI_OP_CS_RENDER_COND_ENABLE       (1 << 0)
-
 void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                                    unsigned num_buffers,
                                    const struct pipe_shader_buffer *buffers,
@@ -1478,14 +1476,15 @@ void si_barrier_after_simple_buffer_op(struct si_context *sctx, unsigned flags,
                                        struct pipe_resource *dst, struct pipe_resource *src);
 bool si_should_blit_clamp_to_edge(const struct pipe_blit_info *info, unsigned coord_mask);
 void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_info *info,
-                                   void *shader, unsigned flags, unsigned num_buffers,
+                                   void *shader, unsigned num_buffers,
                                    const struct pipe_shader_buffer *buffers,
-                                   unsigned writeable_bitmask);
+                                   unsigned writeable_bitmask, bool render_condition_enable);
 bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
                                   unsigned dst_offset, struct pipe_resource *src,
                                   unsigned src_offset, unsigned size,
                                   const uint32_t *clear_value, unsigned clear_value_size,
-                                  unsigned flags, unsigned dwords_per_thread, bool fail_if_slow);
+                                  unsigned dwords_per_thread, bool render_condition_enable,
+                                  bool fail_if_slow);
 enum si_clear_method {
   SI_CP_DMA_CLEAR_METHOD,
   SI_COMPUTE_CLEAR_METHOD,
@@ -1493,21 +1492,23 @@ enum si_clear_method {
 };
 void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
                      uint64_t offset, uint64_t size, uint32_t *clear_value,
-                     uint32_t clear_value_size, unsigned flags,
-                     enum si_clear_method method);
+                     uint32_t clear_value_size, enum si_clear_method method,
+                     bool render_condition_enable);
 void si_compute_clear_buffer_rmw(struct si_context *sctx, struct pipe_resource *dst,
                                  unsigned dst_offset, unsigned size, uint32_t clear_value,
-                                 uint32_t writebitmask, unsigned flags);
+                                 uint32_t writebitmask, bool render_condition_enable);
 void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
                     uint64_t dst_offset, uint64_t src_offset, unsigned size);
 void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
-                                     uint64_t dst_offset, uint64_t src_offset, unsigned size, unsigned flags);
+                                     uint64_t dst_offset, uint64_t src_offset, unsigned size,
+                                     bool render_condition_enable);
 void si_compute_clear_image_dcc_single(struct si_context *sctx, struct si_texture *tex,
                                        unsigned level, enum pipe_format format,
-                                       const union pipe_color_union *color, unsigned flags);
+                                       const union pipe_color_union *color,
+                                       bool render_condition_enable);
 void si_retile_dcc(struct si_context *sctx, struct si_texture *tex);
 void gfx9_clear_dcc_msaa(struct si_context *sctx, struct pipe_resource *res, uint32_t clear_value,
-                         unsigned flags);
+                         bool render_condition_enable);
 void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex);
 bool si_compute_clear_image(struct si_context *sctx, struct pipe_resource *tex,
                             enum pipe_format format, unsigned level, const struct pipe_box *box,

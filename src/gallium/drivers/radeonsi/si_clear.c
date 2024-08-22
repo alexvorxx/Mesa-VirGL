@@ -75,19 +75,17 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
 
    si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
 
-   unsigned flags = render_condition_enable ? SI_OP_CS_RENDER_COND_ENABLE : 0;
-
    /* Execute clears. */
    for (unsigned i = 0; i < num_clears; i++) {
       if (info[i].format) {
          si_compute_clear_image_dcc_single(sctx, (struct si_texture*)info[i].resource,
                                            info[i].level, info[i].format, &info[i].color,
-                                           flags);
+                                           render_condition_enable);
          continue;
       }
 
       if (info[i].is_dcc_msaa) {
-         gfx9_clear_dcc_msaa(sctx, info[i].resource, info[i].clear_value, flags);
+         gfx9_clear_dcc_msaa(sctx, info[i].resource, info[i].clear_value, render_condition_enable);
          continue;
       }
 
@@ -95,11 +93,13 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
 
       if (info[i].writemask != 0xffffffff) {
          si_compute_clear_buffer_rmw(sctx, info[i].resource, info[i].offset, info[i].size,
-                                     info[i].clear_value, info[i].writemask, flags);
+                                     info[i].clear_value, info[i].writemask,
+                                     render_condition_enable);
       } else {
          /* Compute shaders are much faster on both dGPUs and APUs. Don't use CP DMA. */
          si_clear_buffer(sctx, info[i].resource, info[i].offset, info[i].size,
-                         &info[i].clear_value, 4, flags, SI_COMPUTE_CLEAR_METHOD);
+                         &info[i].clear_value, 4, SI_COMPUTE_CLEAR_METHOD,
+                         render_condition_enable);
       }
    }
 

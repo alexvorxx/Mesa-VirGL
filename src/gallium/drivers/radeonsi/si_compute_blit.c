@@ -160,7 +160,7 @@ void si_barrier_after_simple_buffer_op(struct si_context *sctx, unsigned flags,
    si_barrier_after_internal_op(sctx, flags, src ? 2 : 1, barrier_buffers, 0x1, 0, NULL);
 }
 
-static void si_compute_begin_internal(struct si_context *sctx, unsigned flags)
+static void si_compute_begin_internal(struct si_context *sctx, bool render_condition_enabled)
 {
    sctx->flags &= ~SI_CONTEXT_START_PIPELINE_STATS;
    if (sctx->num_hw_pipestat_streamout_queries) {
@@ -168,7 +168,7 @@ static void si_compute_begin_internal(struct si_context *sctx, unsigned flags)
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
    }
 
-   if (!(flags & SI_OP_CS_RENDER_COND_ENABLE))
+   if (!render_condition_enabled)
       sctx->render_cond_enabled = false;
 
    /* Force-disable fbfetch because there are unsolvable recursion problems. */
@@ -203,9 +203,9 @@ static void si_launch_grid_internal(struct si_context *sctx, const struct pipe_g
 }
 
 void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_info *info,
-                                   void *shader, unsigned flags, unsigned num_buffers,
+                                   void *shader, unsigned num_buffers,
                                    const struct pipe_shader_buffer *buffers,
-                                   unsigned writeable_bitmask)
+                                   unsigned writeable_bitmask, bool render_condition_enable)
 {
    /* Save states. */
    struct pipe_shader_buffer saved_sb[3] = {};
@@ -224,7 +224,7 @@ void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_inf
                          writeable_bitmask,
                          true /* don't update bind_history to prevent unnecessary syncs later */);
 
-   si_compute_begin_internal(sctx, flags);
+   si_compute_begin_internal(sctx, render_condition_enable);
    si_launch_grid_internal(sctx, info, shader);
    si_compute_end_internal(sctx);
 
@@ -258,7 +258,7 @@ set_work_size(struct pipe_grid_info *info, unsigned block_x, unsigned block_y, u
  */
 void si_compute_clear_buffer_rmw(struct si_context *sctx, struct pipe_resource *dst,
                                  unsigned dst_offset, unsigned size, uint32_t clear_value,
-                                 uint32_t writebitmask, unsigned flags)
+                                 uint32_t writebitmask, bool render_condition_enable)
 {
    assert(dst_offset % 4 == 0);
    assert(size % 4 == 0);
@@ -283,7 +283,8 @@ void si_compute_clear_buffer_rmw(struct si_context *sctx, struct pipe_resource *
    if (!sctx->cs_clear_buffer_rmw)
       sctx->cs_clear_buffer_rmw = si_create_clear_buffer_rmw_cs(sctx);
 
-   si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_clear_buffer_rmw, flags, 1, &sb, 0x1);
+   si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_clear_buffer_rmw, 1, &sb, 0x1,
+                                 render_condition_enable);
 }
 
 /**
@@ -302,7 +303,8 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
                                   unsigned dst_offset, struct pipe_resource *src,
                                   unsigned src_offset, unsigned size,
                                   const uint32_t *clear_value, unsigned clear_value_size,
-                                  unsigned flags, unsigned dwords_per_thread, bool fail_if_slow)
+                                  unsigned dwords_per_thread, bool render_condition_enable,
+                                  bool fail_if_slow)
 {
    assert(dst->target != PIPE_BUFFER || dst_offset + size <= dst->width0);
    assert(!src || src_offset + size <= src->width0);
@@ -321,7 +323,7 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
       .size = size,
       .clear_value_size = is_copy ? 0 : clear_value_size,
       .dwords_per_thread = dwords_per_thread,
-      .render_condition_enabled = flags & SI_OP_CS_RENDER_COND_ENABLE,
+      .render_condition_enabled = render_condition_enable,
       .dst_is_vram = si_resource(dst)->domains & RADEON_DOMAIN_VRAM,
       .src_is_vram = src && si_resource(src)->domains & RADEON_DOMAIN_VRAM,
       .src_is_sparse = src && src->flags & PIPE_RESOURCE_FLAG_SPARSE,
@@ -355,14 +357,15 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
    struct pipe_grid_info grid = {};
    set_work_size(&grid, dispatch.workgroup_size, 1, 1, dispatch.num_threads, 1, 1);
 
-   si_launch_grid_internal_ssbos(sctx, &grid, shader, flags, dispatch.num_ssbos, sb,
-                                 is_copy ? 0x2 : 0x1);
+   si_launch_grid_internal_ssbos(sctx, &grid, shader, dispatch.num_ssbos, sb,
+                                 is_copy ? 0x2 : 0x1, render_condition_enable);
    return true;
 }
 
 void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
                      uint64_t offset, uint64_t size, uint32_t *clear_value,
-                     uint32_t clear_value_size, unsigned flags, enum si_clear_method method)
+                     uint32_t clear_value_size, enum si_clear_method method,
+                     bool render_condition_enable)
 {
    if (!size)
       return;
@@ -381,14 +384,15 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
 
    if (method != SI_CP_DMA_CLEAR_METHOD &&
        si_compute_clear_copy_buffer(sctx, dst, offset, NULL, 0, size, clear_value,
-                                    clear_value_size, flags, 0,
+                                    clear_value_size, 0, render_condition_enable,
                                     method == SI_AUTO_SELECT_CLEAR_METHOD))
       return;
 
+   assert(!render_condition_enable);
    uint64_t aligned_size = size & ~3ull;
+
    if (aligned_size) {
       assert(clear_value_size == 4);
-      assert(!(flags & SI_OP_CS_RENDER_COND_ENABLE));
       si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, aligned_size, *clear_value);
    }
 
@@ -397,7 +401,6 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
 
    /* Handle non-dword alignment. */
    if (size) {
-      assert(!(flags & SI_OP_CS_RENDER_COND_ENABLE));
       assert(dst);
       assert(dst->target == PIPE_BUFFER);
       assert(size < 4);
@@ -419,8 +422,8 @@ static void si_pipe_clear_buffer(struct pipe_context *ctx, struct pipe_resource 
    struct si_context *sctx = (struct si_context *)ctx;
 
    si_barrier_before_simple_buffer_op(sctx, 0, dst, NULL);
-   si_clear_buffer(sctx, dst, offset, size, (uint32_t *)clear_value, clear_value_size, 0,
-                   SI_AUTO_SELECT_CLEAR_METHOD);
+   si_clear_buffer(sctx, dst, offset, size, (uint32_t *)clear_value, clear_value_size,
+                   SI_AUTO_SELECT_CLEAR_METHOD, false);
    si_barrier_after_simple_buffer_op(sctx, 0, dst, NULL);
 }
 
@@ -431,14 +434,15 @@ void si_copy_buffer(struct si_context *sctx, struct pipe_resource *dst, struct p
       return;
 
    if (si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, size, NULL, 0, 0,
-                                    0, true))
+                                    false, true))
       return;
 
    si_cp_dma_copy_buffer(sctx, dst, src, dst_offset, src_offset, size);
 }
 
 void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resource *dst, struct pipe_resource *src,
-                                     uint64_t dst_offset, uint64_t src_offset, unsigned count, unsigned flags)
+                                     uint64_t dst_offset, uint64_t src_offset, unsigned count,
+                                     bool render_condition_enable)
 {
    if (!count)
       return;
@@ -458,7 +462,8 @@ void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resour
    sb[1].buffer_offset = src_offset;
    sb[1].buffer_size = count;
 
-   si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_ubyte_to_ushort, flags, 2, sb, 0x1);
+   si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_ubyte_to_ushort, 2, sb, 0x1,
+                                 render_condition_enable);
 }
 
 static void si_compute_save_and_bind_images(struct si_context *sctx, unsigned num_images,
@@ -544,14 +549,14 @@ void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
    set_work_size(&info, 8, 8, 1, width, height, 1);
 
    si_barrier_before_simple_buffer_op(sctx, 0, sb.buffer, NULL);
-   si_launch_grid_internal_ssbos(sctx, &info, *shader, 0, 1, &sb, 0x1);
+   si_launch_grid_internal_ssbos(sctx, &info, *shader, 1, &sb, 0x1, false);
    si_barrier_after_simple_buffer_op(sctx, 0, sb.buffer, NULL);
 
    /* Don't flush caches. L2 will be flushed by the kernel fence. */
 }
 
 void gfx9_clear_dcc_msaa(struct si_context *sctx, struct pipe_resource *res, uint32_t clear_value,
-                         unsigned flags)
+                         bool render_condition_enable)
 {
    struct si_texture *tex = (struct si_texture*)res;
 
@@ -590,7 +595,7 @@ void gfx9_clear_dcc_msaa(struct si_context *sctx, struct pipe_resource *res, uin
    struct pipe_grid_info info = {};
    set_work_size(&info, 8, 8, 1, width, height, depth);
 
-   si_launch_grid_internal_ssbos(sctx, &info, *shader, flags, 1, &sb, 0x1);
+   si_launch_grid_internal_ssbos(sctx, &info, *shader, 1, &sb, 0x1, render_condition_enable);
 }
 
 /* Expand FMASK to make it identity, so that image stores can ignore it. */
@@ -637,7 +642,7 @@ void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex
    set_work_size(&info, 8, 8, 1, tex->width0, tex->height0, is_array ? tex->array_size : 1);
 
    si_barrier_before_internal_op(sctx, 0, 0, NULL, 0, 1, &image);
-   si_compute_begin_internal(sctx, 0);
+   si_compute_begin_internal(sctx, false);
    si_launch_grid_internal(sctx, &info, *shader);
    si_compute_end_internal(sctx);
    si_barrier_after_internal_op(sctx, 0, 0, NULL, 0, 1, &image);
@@ -662,14 +667,15 @@ void si_compute_expand_fmask(struct pipe_context *ctx, struct pipe_resource *tex
 
    si_clear_buffer(sctx, tex, stex->surface.fmask_offset, stex->surface.fmask_size,
                    (uint32_t *)&fmask_expand_values[log_fragments][log_samples - 1],
-                   log_fragments >= 2 && log_samples == 4 ? 8 : 4, 0,
-                   SI_AUTO_SELECT_CLEAR_METHOD);
+                   log_fragments >= 2 && log_samples == 4 ? 8 : 4,
+                   SI_AUTO_SELECT_CLEAR_METHOD, false);
    si_barrier_after_simple_buffer_op(sctx, 0, tex, NULL);
 }
 
 void si_compute_clear_image_dcc_single(struct si_context *sctx, struct si_texture *tex,
                                        unsigned level, enum pipe_format format,
-                                       const union pipe_color_union *color, unsigned flags)
+                                       const union pipe_color_union *color,
+                                       bool render_condition_enable)
 {
    assert(sctx->gfx_level >= GFX11); /* not believed to be useful on gfx10 */
    unsigned dcc_block_width = tex->surface.u.gfx9.color.dcc_block_width;
@@ -708,7 +714,7 @@ void si_compute_clear_image_dcc_single(struct si_context *sctx, struct si_textur
    struct pipe_image_view saved_image = {};
 
    si_compute_save_and_bind_images(sctx, 1, &image, &saved_image);
-   si_compute_begin_internal(sctx, flags);
+   si_compute_begin_internal(sctx, render_condition_enable);
    si_launch_grid_internal(sctx, &info, *shader);
    si_compute_end_internal(sctx);
    si_compute_restore_images(sctx, 1, &saved_image);
@@ -995,7 +1001,7 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
     */
    si_compute_save_and_bind_images(sctx, num_images, image, saved_images);
    si_barrier_before_internal_op(sctx, 0, 0, NULL, 0, num_images, image);
-   si_compute_begin_internal(sctx, info->render_condition_enable ? SI_OP_CS_RENDER_COND_ENABLE : 0);
+   si_compute_begin_internal(sctx, info->render_condition_enable);
 
    /* Execute compute blits. */
    for (unsigned i = 0; i < out.num_dispatches; i++) {

@@ -253,7 +253,7 @@ void si_test_dma_perf(struct si_screen *sscreen)
                      success &=
                         si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset,
                                                      size, clear_value, clear_value_size,
-                                                     0, dwords_per_thread, false);
+                                                     dwords_per_thread, false, false);
                      si_barrier_after_simple_buffer_op(sctx, 0, dst, src);
                   }
 
@@ -485,7 +485,7 @@ void si_test_clear_buffer(struct si_screen *sscreen)
       si_barrier_before_simple_buffer_op(sctx, 0, dst, NULL);
       bool done = si_compute_clear_copy_buffer(sctx, dst, dst_offset, NULL, 0, op_size,
                                                (uint32_t*)clear_value, clear_value_size,
-                                               0, dwords_per_thread, false);
+                                               dwords_per_thread, false, false);
       si_barrier_after_simple_buffer_op(sctx, 0, dst, NULL);
 
       if (done) {
@@ -591,7 +591,7 @@ void si_test_copy_buffer(struct si_screen *sscreen)
 
       si_barrier_before_simple_buffer_op(sctx, 0, dst, src);
       bool done = si_compute_clear_copy_buffer(sctx, dst, dst_offset, src, src_offset, op_size,
-                                               NULL, 0, 0, dwords_per_thread, false);
+                                               NULL, 0, dwords_per_thread, false, false);
       si_barrier_after_simple_buffer_op(sctx, 0, dst, src);
 
       if (done) {

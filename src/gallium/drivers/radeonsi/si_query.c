@@ -1649,7 +1649,7 @@ static void si_query_hw_get_result_resource(struct si_context *sctx, struct si_q
 
       si_barrier_before_internal_op(sctx, 0, 3, ssbo, writable_bitmask, 0, NULL);
       si_launch_grid_internal_ssbos(sctx, &grid, sctx->query_result_shader,
-                                    0, 3, ssbo, writable_bitmask);
+                                    3, ssbo, writable_bitmask, false);
       si_barrier_after_internal_op(sctx, 0, 3, ssbo, writable_bitmask, 0, NULL);
    }
 
