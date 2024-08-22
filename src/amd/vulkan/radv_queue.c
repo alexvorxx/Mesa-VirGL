@@ -842,9 +842,6 @@ radv_emit_graphics(struct radv_device *device, struct radeon_cmdbuf *cs)
    if (pdev->info.gfx_level < GFX7)
       radeon_set_config_reg(cs, R_008A14_PA_CL_ENHANCE, S_008A14_NUM_CLIP_SEQ(3) | S_008A14_CLIP_VTX_REORDER_ENA(1));
 
-   if (!has_clear_state)
-      radeon_set_context_reg(cs, R_02882C_PA_SU_PRIM_FILTER_CNTL, 0);
-
    /* CLEAR_STATE doesn't clear these correctly on certain generations.
     * I don't know why. Deduced by trial and error.
     */
