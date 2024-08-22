@@ -57,12 +57,12 @@ static void si_improve_sync_flags(struct si_context *sctx, struct pipe_resource 
    }
 }
 
-static void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
-                                          unsigned num_buffers,
-                                          const struct pipe_shader_buffer *buffers,
-                                          unsigned writable_buffers_mask,
-                                          unsigned num_images,
-                                          const struct pipe_image_view *images)
+void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
+                                   unsigned num_buffers,
+                                   const struct pipe_shader_buffer *buffers,
+                                   unsigned writable_buffers_mask,
+                                   unsigned num_images,
+                                   const struct pipe_image_view *images)
 {
    for (unsigned i = 0; i < num_images; i++) {
       /* The driver doesn't decompress resources automatically for internal blits, so do it manually. */
@@ -95,12 +95,12 @@ static void si_barrier_before_internal_op(struct si_context *sctx, unsigned flag
       si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
 }
 
-static void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
-                                         unsigned num_buffers,
-                                         const struct pipe_shader_buffer *buffers,
-                                         unsigned writable_buffers_mask,
-                                         unsigned num_images,
-                                         const struct pipe_image_view *images)
+void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
+                                  unsigned num_buffers,
+                                  const struct pipe_shader_buffer *buffers,
+                                  unsigned writable_buffers_mask,
+                                  unsigned num_images,
+                                  const struct pipe_image_view *images)
 {
    if (flags & SI_OP_SYNC_AFTER) {
       sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
