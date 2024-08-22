@@ -83,10 +83,9 @@ panvk_per_arch(cmd_meta_gfx_start)(
    save_ctx->vs.attribs = cmdbuf->state.gfx.vs.attribs;
    save_ctx->vs.attrib_bufs = cmdbuf->state.gfx.vs.attrib_bufs;
 
-   save_ctx->dyn_state.all.vi = &save_ctx->dyn_state.vi;
-   save_ctx->dyn_state.all.ms.sample_locations = &save_ctx->dyn_state.sl;
-   vk_dynamic_graphics_state_copy(&save_ctx->dyn_state.all,
-                                  &cmdbuf->vk.dynamic_graphics_state);
+   save_ctx->dyn_state.all = cmdbuf->vk.dynamic_graphics_state;
+   save_ctx->dyn_state.vi = cmdbuf->state.gfx.dynamic.vi;
+   save_ctx->dyn_state.sl = cmdbuf->state.gfx.dynamic.sl;
 }
 
 void
@@ -120,8 +119,12 @@ panvk_per_arch(cmd_meta_gfx_end)(
    cmdbuf->state.gfx.vs.attribs = save_ctx->vs.attribs;
    cmdbuf->state.gfx.vs.attrib_bufs = save_ctx->vs.attrib_bufs;
 
-   vk_dynamic_graphics_state_copy(&cmdbuf->vk.dynamic_graphics_state,
-                                  &save_ctx->dyn_state.all);
+   cmdbuf->vk.dynamic_graphics_state = save_ctx->dyn_state.all;
+   cmdbuf->state.gfx.dynamic.vi = save_ctx->dyn_state.vi;
+   cmdbuf->state.gfx.dynamic.sl = save_ctx->dyn_state.sl;
+   memcpy(cmdbuf->vk.dynamic_graphics_state.dirty,
+          cmdbuf->vk.dynamic_graphics_state.set,
+          sizeof(cmdbuf->vk.dynamic_graphics_state.set));
 }
 
 VKAPI_ATTR void VKAPI_CALL
