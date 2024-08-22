@@ -36,6 +36,7 @@ libasahi_decode_files = files(
 
 libagx_shader_files = files(
   'shaders/libagx.h',
+  'shaders/compression.cl',
   'shaders/draws.cl',
   'shaders/draws.h',
   'shaders/geometry.cl',

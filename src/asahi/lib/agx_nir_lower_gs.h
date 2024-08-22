@@ -97,3 +97,10 @@ struct agx_predicate_indirect_key {
 static_assert(sizeof(struct agx_predicate_indirect_key) == 1, "padded");
 
 void agx_nir_predicate_indirect(struct nir_builder *b, const void *data);
+
+struct agx_decompress_key {
+   uint8_t nr_samples;
+};
+static_assert(sizeof(struct agx_decompress_key) == 1, "padded");
+
+void agx_nir_decompress(struct nir_builder *b, const void *data);

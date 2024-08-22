@@ -1628,3 +1628,16 @@ agx_nir_predicate_indirect(nir_builder *b, const void *data)
 
    libagx_predicate_indirect(b, params, thread, indexed);
 }
+
+void
+agx_nir_decompress(nir_builder *b, const void *data)
+{
+   const struct agx_decompress_key *key = data;
+
+   nir_def *params = nir_load_preamble(b, 1, 64, .base = 0);
+   nir_def *tile = nir_load_workgroup_id(b);
+   nir_def *local = nir_channel(b, nir_load_local_invocation_id(b), 0);
+   nir_def *samples = nir_imm_int(b, key->nr_samples);
+
+   libagx_decompress(b, params, tile, local, samples);
+}
