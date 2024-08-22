@@ -1466,7 +1466,6 @@ void si_destroy_compute(struct si_compute *program);
 /* gap */
 /* Only for si_compute_blit: */
 #define SI_OP_FAIL_IF_SLOW                (1 << 9)
-#define SI_OP_IS_NESTED                   (1 << 10)
 
 void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                                    unsigned num_buffers,
