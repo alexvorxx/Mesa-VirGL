@@ -5207,11 +5207,25 @@ static void si_init_compute_preamble_state(struct si_context *sctx,
       ac_pm4_set_reg(&pm4->base, R_00B8A0_COMPUTE_PGM_RSRC3, 0);
 }
 
-static void gfx6_init_gfx_preamble_state(struct si_context *sctx)
+
+static void si_init_graphics_preamble_state(struct si_context *sctx,
+                                            struct si_pm4_state *pm4)
 {
    struct si_screen *sscreen = sctx->screen;
    uint64_t border_color_va =
       sctx->border_color_buffer ? sctx->border_color_buffer->gpu_address : 0;
+
+   const struct ac_preamble_state preamble_state = {
+      .border_color_va = border_color_va,
+      .gfx10.cache_rb_gl2 = sctx->gfx_level >= GFX10 && sscreen->options.cache_rb_gl2,
+   };
+
+   ac_init_graphics_preamble_state(&preamble_state, &pm4->base);
+}
+
+static void gfx6_init_gfx_preamble_state(struct si_context *sctx)
+{
+   struct si_screen *sscreen = sctx->screen;
    bool has_clear_state = sscreen->info.has_clear_state;
 
    /* We need more space because the preamble is large. */
@@ -5241,49 +5255,10 @@ static void gfx6_init_gfx_preamble_state(struct si_context *sctx)
       goto done;
 
    /* Graphics registers. */
-   /* CLEAR_STATE doesn't restore these correctly. */
-   ac_pm4_set_reg(&pm4->base, R_028240_PA_SC_GENERIC_SCISSOR_TL, S_028240_WINDOW_OFFSET_DISABLE(1));
-   ac_pm4_set_reg(&pm4->base, R_028244_PA_SC_GENERIC_SCISSOR_BR,
-                  S_028244_BR_X(16384) | S_028244_BR_Y(16384));
+   si_init_graphics_preamble_state(sctx, pm4);
 
-   ac_pm4_set_reg(&pm4->base, R_028A18_VGT_HOS_MAX_TESS_LEVEL, fui(64));
    if (!has_clear_state)
-      ac_pm4_set_reg(&pm4->base, R_028A1C_VGT_HOS_MIN_TESS_LEVEL, fui(0));
-
-   if (!has_clear_state) {
-      ac_pm4_set_reg(&pm4->base, R_028820_PA_CL_NANINF_CNTL, 0);
-      ac_pm4_set_reg(&pm4->base, R_028AC0_DB_SRESULTS_COMPARE_STATE0, 0x0);
-      ac_pm4_set_reg(&pm4->base, R_028AC4_DB_SRESULTS_COMPARE_STATE1, 0x0);
-      ac_pm4_set_reg(&pm4->base, R_028AC8_DB_PRELOAD_CONTROL, 0x0);
       ac_pm4_set_reg(&pm4->base, R_02800C_DB_RENDER_OVERRIDE, 0);
-      ac_pm4_set_reg(&pm4->base, R_028A8C_VGT_PRIMITIVEID_RESET, 0x0);
-
-      ac_pm4_set_reg(&pm4->base, R_028B98_VGT_STRMOUT_BUFFER_CONFIG, 0x0);
-      ac_pm4_set_reg(&pm4->base, R_028A5C_VGT_GS_PER_VS, 0x2);
-      ac_pm4_set_reg(&pm4->base, R_028AB8_VGT_VTX_CNT_EN, 0x0);
-   }
-
-   ac_pm4_set_reg(&pm4->base, R_028080_TA_BC_BASE_ADDR, border_color_va >> 8);
-   if (sctx->gfx_level >= GFX7)
-      ac_pm4_set_reg(&pm4->base, R_028084_TA_BC_BASE_ADDR_HI, S_028084_ADDRESS(border_color_va >> 40));
-
-   if (sctx->gfx_level == GFX6) {
-      ac_pm4_set_reg(&pm4->base, R_008A14_PA_CL_ENHANCE,
-                     S_008A14_NUM_CLIP_SEQ(3) | S_008A14_CLIP_VTX_REORDER_ENA(1));
-   }
-
-   if (sctx->gfx_level >= GFX7) {
-      ac_pm4_set_reg(&pm4->base, R_030A00_PA_SU_LINE_STIPPLE_VALUE, 0);
-      ac_pm4_set_reg(&pm4->base, R_030A04_PA_SC_LINE_STIPPLE_STATE, 0);
-   } else {
-      ac_pm4_set_reg(&pm4->base, R_008A60_PA_SU_LINE_STIPPLE_VALUE, 0);
-      ac_pm4_set_reg(&pm4->base, R_008B10_PA_SC_LINE_STIPPLE_STATE, 0);
-   }
-
-   /* If any sample location uses the -8 coordinate, the EXCLUSION fields should be set to 0. */
-   ac_pm4_set_reg(&pm4->base, R_02882C_PA_SU_PRIM_FILTER_CNTL,
-                  S_02882C_XMAX_RIGHT_EXCLUSION(sctx->gfx_level >= GFX7) |
-                  S_02882C_YMAX_BOTTOM_EXCLUSION(sctx->gfx_level >= GFX7));
 
    if (sctx->family >= CHIP_POLARIS10 && !sctx->screen->info.has_small_prim_filter_sample_loc_bug) {
       /* Polaris10-12 should disable small line culling, but those also have the sample loc bug,
@@ -5295,115 +5270,13 @@ static void gfx6_init_gfx_preamble_state(struct si_context *sctx)
    }
 
    if (sctx->gfx_level <= GFX7 || !has_clear_state) {
-      ac_pm4_set_reg(&pm4->base, R_028C58_VGT_VERTEX_REUSE_BLOCK_CNTL, 14);
-      ac_pm4_set_reg(&pm4->base, R_028C5C_VGT_OUT_DEALLOC_CNTL, 16);
-
-      /* CLEAR_STATE doesn't clear these correctly on certain generations.
-       * I don't know why. Deduced by trial and error.
-       */
-      ac_pm4_set_reg(&pm4->base, R_028B28_VGT_STRMOUT_DRAW_OPAQUE_OFFSET, 0);
-      ac_pm4_set_reg(&pm4->base, R_028204_PA_SC_WINDOW_SCISSOR_TL, S_028204_WINDOW_OFFSET_DISABLE(1));
-      ac_pm4_set_reg(&pm4->base, R_028030_PA_SC_SCREEN_SCISSOR_TL, 0);
       ac_pm4_set_reg(&pm4->base, R_028034_PA_SC_SCREEN_SCISSOR_BR,
                      S_028034_BR_X(16384) | S_028034_BR_Y(16384));
    }
 
-   if (sctx->gfx_level >= GFX7) {
-      ac_pm4_set_reg_idx3(&pm4->base, R_00B01C_SPI_SHADER_PGM_RSRC3_PS,
-                          ac_apply_cu_en(S_00B01C_CU_EN(0xffffffff) |
-                                         S_00B01C_WAVE_LIMIT_GFX7(0x3F),
-                                         C_00B01C_CU_EN, 0, &sscreen->info));
-   }
-
-   if (sctx->gfx_level <= GFX8) {
-      si_set_raster_config(sctx, pm4);
-
-      /* FIXME calculate these values somehow ??? */
-      ac_pm4_set_reg(&pm4->base, R_028A54_VGT_GS_PER_ES, SI_GS_PER_ES);
-      ac_pm4_set_reg(&pm4->base, R_028A58_VGT_ES_PER_GS, 0x40);
-
-      /* These registers, when written, also overwrite the CLEAR_STATE
-       * context, so we can't rely on CLEAR_STATE setting them.
-       * It would be an issue if there was another UMD changing them.
-       */
-      ac_pm4_set_reg(&pm4->base, R_028400_VGT_MAX_VTX_INDX, ~0);
-      ac_pm4_set_reg(&pm4->base, R_028404_VGT_MIN_VTX_INDX, 0);
-      ac_pm4_set_reg(&pm4->base, R_028408_VGT_INDX_OFFSET, 0);
-   }
-
    if (sctx->gfx_level == GFX9) {
-      ac_pm4_set_reg(&pm4->base, R_00B414_SPI_SHADER_PGM_HI_LS,
-                     S_00B414_MEM_BASE(sscreen->info.address32_hi >> 8));
-      ac_pm4_set_reg(&pm4->base, R_00B214_SPI_SHADER_PGM_HI_ES,
-                     S_00B214_MEM_BASE(sscreen->info.address32_hi >> 8));
-   } else {
-      ac_pm4_set_reg(&pm4->base, R_00B524_SPI_SHADER_PGM_HI_LS,
-                     S_00B524_MEM_BASE(sscreen->info.address32_hi >> 8));
-   }
-
-   if (sctx->gfx_level >= GFX7 && sctx->gfx_level <= GFX8) {
-      ac_pm4_set_reg(&pm4->base, R_00B51C_SPI_SHADER_PGM_RSRC3_LS,
-                     ac_apply_cu_en(S_00B51C_CU_EN(0xffff) | S_00B51C_WAVE_LIMIT(0x3F),
-                                    C_00B51C_CU_EN, 0, &sscreen->info));
-      ac_pm4_set_reg(&pm4->base, R_00B41C_SPI_SHADER_PGM_RSRC3_HS, S_00B41C_WAVE_LIMIT(0x3F));
-      ac_pm4_set_reg(&pm4->base, R_00B31C_SPI_SHADER_PGM_RSRC3_ES,
-                     ac_apply_cu_en(S_00B31C_CU_EN(0xffff) | S_00B31C_WAVE_LIMIT(0x3F),
-                                    C_00B31C_CU_EN, 0, &sscreen->info));
-
-      /* If this is 0, Bonaire can hang even if GS isn't being used.
-       * Other chips are unaffected. These are suboptimal values,
-       * but we don't use on-chip GS.
-       */
-      ac_pm4_set_reg(&pm4->base, R_028A44_VGT_GS_ONCHIP_CNTL,
-                     S_028A44_ES_VERTS_PER_SUBGRP(64) | S_028A44_GS_PRIMS_PER_SUBGRP(4));
-   }
-
-   if (sctx->gfx_level >= GFX8) {
-      unsigned vgt_tess_distribution;
-
-      if (sctx->gfx_level == GFX9) {
-         vgt_tess_distribution = S_028B50_ACCUM_ISOLINE(12) |
-                                 S_028B50_ACCUM_TRI(30) |
-                                 S_028B50_ACCUM_QUAD(24) |
-                                 S_028B50_DONUT_SPLIT_GFX9(24) |
-                                 S_028B50_TRAP_SPLIT(6);
-      } else {
-         vgt_tess_distribution = S_028B50_ACCUM_ISOLINE(32) |
-                                 S_028B50_ACCUM_TRI(11) |
-                                 S_028B50_ACCUM_QUAD(11) |
-                                 S_028B50_DONUT_SPLIT_GFX81(16);
-
-         /* Testing with Unigine Heaven extreme tessellation yielded best results
-          * with TRAP_SPLIT = 3.
-          */
-         if (sctx->family == CHIP_FIJI || sctx->family >= CHIP_POLARIS10)
-            vgt_tess_distribution |= S_028B50_TRAP_SPLIT(3);
-      }
-
-      ac_pm4_set_reg(&pm4->base, R_028B50_VGT_TESS_DISTRIBUTION, vgt_tess_distribution);
-   }
-
-   ac_pm4_set_reg(&pm4->base, R_028AA0_VGT_INSTANCE_STEP_RATE_0, 1);
-
-   if (sctx->gfx_level == GFX9) {
-      ac_pm4_set_reg(&pm4->base, R_030920_VGT_MAX_VTX_INDX, ~0);
-      ac_pm4_set_reg(&pm4->base, R_030924_VGT_MIN_VTX_INDX, 0);
-      ac_pm4_set_reg(&pm4->base, R_030928_VGT_INDX_OFFSET, 0);
-
-      ac_pm4_set_reg(&pm4->base, R_028060_DB_DFSM_CONTROL, S_028060_PUNCHOUT_MODE(V_028060_FORCE_OFF));
-
-      ac_pm4_set_reg_idx3(&pm4->base, R_00B41C_SPI_SHADER_PGM_RSRC3_HS,
-                          ac_apply_cu_en(S_00B41C_CU_EN(0xffff) | S_00B41C_WAVE_LIMIT(0x3F),
-                                         C_00B41C_CU_EN, 0, &sscreen->info));
-
-      ac_pm4_set_reg(&pm4->base, R_028C48_PA_SC_BINNER_CNTL_1,
-                     S_028C48_MAX_ALLOC_COUNT(sscreen->info.pbb_max_alloc_count - 1) |
-                     S_028C48_MAX_PRIM_PER_BATCH(1023));
       ac_pm4_set_reg(&pm4->base, R_028C4C_PA_SC_CONSERVATIVE_RASTERIZATION_CNTL,
                      S_028C4C_NULL_SQUAD_AA_MASK_ENABLE(1));
-
-      ac_pm4_set_reg(&pm4->base, R_028AAC_VGT_ESGS_RING_ITEMSIZE, 1);
-      ac_pm4_set_reg(&pm4->base, R_030968_VGT_INSTANCE_BASE_ID, 0);
    }
 
 done:
@@ -5461,35 +5334,6 @@ static void cdna_init_compute_preamble_state(struct si_context *sctx)
 static void gfx10_init_gfx_preamble_state(struct si_context *sctx)
 {
    struct si_screen *sscreen = sctx->screen;
-   uint64_t border_color_va =
-      sctx->border_color_buffer ? sctx->border_color_buffer->gpu_address : 0;
-   unsigned meta_write_policy, meta_read_policy, color_write_policy, color_read_policy;
-   unsigned zs_write_policy, zs_read_policy;
-   unsigned cache_no_alloc = sctx->gfx_level >= GFX11 ? V_02807C_CACHE_NOA_GFX11:
-                                                        V_02807C_CACHE_NOA_GFX10;
-
-   if (sscreen->options.cache_rb_gl2) {
-      color_write_policy = V_028410_CACHE_LRU_WR;
-      color_read_policy = V_028410_CACHE_LRU_RD;
-      zs_write_policy = V_02807C_CACHE_LRU_WR;
-      zs_read_policy = V_02807C_CACHE_LRU_RD;
-      meta_write_policy = V_02807C_CACHE_LRU_WR;
-      meta_read_policy = V_02807C_CACHE_LRU_RD;
-   } else {
-      color_write_policy = V_028410_CACHE_STREAM;
-      color_read_policy = cache_no_alloc;
-      zs_write_policy = V_02807C_CACHE_STREAM;
-      zs_read_policy = cache_no_alloc;
-
-      /* Enable CMASK/HTILE/DCC caching in L2 for small chips. */
-      if (sscreen->info.max_render_backends <= 4) {
-         meta_write_policy = V_02807C_CACHE_LRU_WR; /* cache writes */
-         meta_read_policy = V_02807C_CACHE_LRU_RD;  /* cache reads */
-      } else {
-         meta_write_policy = V_02807C_CACHE_STREAM; /* write combine */
-         meta_read_policy = cache_no_alloc; /* don't cache reads that miss */
-      }
-   }
 
    /* We need more space because the preamble is large. */
    struct si_pm4_state *pm4 = si_pm4_create_sized(sscreen, 214, sctx->has_graphics);
@@ -5515,104 +5359,12 @@ static void gfx10_init_gfx_preamble_state(struct si_context *sctx)
    if (!sctx->has_graphics)
       goto done;
 
-   /* Shader registers - PS. */
-   unsigned cu_mask_ps = sctx->gfx_level >= GFX10_3 ? ac_gfx103_get_cu_mask_ps(&sscreen->info) : ~0u;
-   if (sctx->gfx_level < GFX11) {
-      ac_pm4_set_reg_idx3(&pm4->base, R_00B004_SPI_SHADER_PGM_RSRC4_PS,
-                          ac_apply_cu_en(S_00B004_CU_EN(cu_mask_ps >> 16), /* CUs 16-31 */
-                                         C_00B004_CU_EN, 16, &sscreen->info));
-   }
-   ac_pm4_set_reg_idx3(&pm4->base, R_00B01C_SPI_SHADER_PGM_RSRC3_PS,
-                       ac_apply_cu_en(S_00B01C_CU_EN(cu_mask_ps) |
-                                      S_00B01C_WAVE_LIMIT_GFX7(0x3F) |
-                                      S_00B01C_LDS_GROUP_SIZE_GFX11(sctx->gfx_level >= GFX11),
-                                      C_00B01C_CU_EN, 0, &sscreen->info));
-   ac_pm4_set_reg(&pm4->base, R_00B0C0_SPI_SHADER_REQ_CTRL_PS,
-                  S_00B0C0_SOFT_GROUPING_EN(1) |
-                  S_00B0C0_NUMBER_OF_REQUESTS_PER_CU(4 - 1));
-   ac_pm4_set_reg(&pm4->base, R_00B0C8_SPI_SHADER_USER_ACCUM_PS_0, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B0CC_SPI_SHADER_USER_ACCUM_PS_1, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B0D0_SPI_SHADER_USER_ACCUM_PS_2, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B0D4_SPI_SHADER_USER_ACCUM_PS_3, 0);
+   /* Graphics registers. */
+   si_init_graphics_preamble_state(sctx, pm4);
 
-   /* Shader registers - VS. */
-   if (sctx->gfx_level < GFX11) {
-      ac_pm4_set_reg_idx3(&pm4->base, R_00B104_SPI_SHADER_PGM_RSRC4_VS,
-                          ac_apply_cu_en(S_00B104_CU_EN(0xffff), /* CUs 16-31 */
-                                         C_00B104_CU_EN, 16, &sscreen->info));
-      ac_pm4_set_reg(&pm4->base, R_00B1C0_SPI_SHADER_REQ_CTRL_VS, 0);
-      ac_pm4_set_reg(&pm4->base, R_00B1C8_SPI_SHADER_USER_ACCUM_VS_0, 0);
-      ac_pm4_set_reg(&pm4->base, R_00B1CC_SPI_SHADER_USER_ACCUM_VS_1, 0);
-      ac_pm4_set_reg(&pm4->base, R_00B1D0_SPI_SHADER_USER_ACCUM_VS_2, 0);
-      ac_pm4_set_reg(&pm4->base, R_00B1D4_SPI_SHADER_USER_ACCUM_VS_3, 0);
-   }
-
-   /* Shader registers - GS. */
-   ac_pm4_set_reg(&pm4->base, R_00B2C8_SPI_SHADER_USER_ACCUM_ESGS_0, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B2CC_SPI_SHADER_USER_ACCUM_ESGS_1, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B2D0_SPI_SHADER_USER_ACCUM_ESGS_2, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B2D4_SPI_SHADER_USER_ACCUM_ESGS_3, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B324_SPI_SHADER_PGM_HI_ES,
-                  S_00B324_MEM_BASE(sscreen->info.address32_hi >> 8));
-
-   /* Shader registers - HS. */
-   if (sctx->gfx_level < GFX11) {
-      ac_pm4_set_reg_idx3(&pm4->base, R_00B404_SPI_SHADER_PGM_RSRC4_HS,
-                          ac_apply_cu_en(S_00B404_CU_EN(0xffff), /* CUs 16-31 */
-                                         C_00B404_CU_EN, 16, &sscreen->info));
-   }
-   ac_pm4_set_reg_idx3(&pm4->base, R_00B41C_SPI_SHADER_PGM_RSRC3_HS,
-                       ac_apply_cu_en(S_00B41C_CU_EN(0xffff) | S_00B41C_WAVE_LIMIT(0x3F),
-                                      C_00B41C_CU_EN, 0, &sscreen->info));
-   ac_pm4_set_reg(&pm4->base, R_00B4C8_SPI_SHADER_USER_ACCUM_LSHS_0, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B4CC_SPI_SHADER_USER_ACCUM_LSHS_1, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B4D0_SPI_SHADER_USER_ACCUM_LSHS_2, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B4D4_SPI_SHADER_USER_ACCUM_LSHS_3, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B524_SPI_SHADER_PGM_HI_LS,
-                  S_00B524_MEM_BASE(sscreen->info.address32_hi >> 8));
-
-   /* Context registers. */
-   if (sctx->gfx_level < GFX11) {
-      ac_pm4_set_reg(&pm4->base, R_028038_DB_DFSM_CONTROL, S_028038_PUNCHOUT_MODE(V_028038_FORCE_OFF));
-   }
-   ac_pm4_set_reg(&pm4->base, R_02807C_DB_RMI_L2_CACHE_CONTROL,
-                  S_02807C_Z_WR_POLICY(zs_write_policy) |
-                  S_02807C_S_WR_POLICY(zs_write_policy) |
-                  S_02807C_HTILE_WR_POLICY(meta_write_policy) |
-                  S_02807C_ZPCPSD_WR_POLICY(V_02807C_CACHE_STREAM) | /* occlusion query writes */
-                  S_02807C_Z_RD_POLICY(zs_read_policy) |
-                  S_02807C_S_RD_POLICY(zs_read_policy) |
-                  S_02807C_HTILE_RD_POLICY(meta_read_policy));
-   ac_pm4_set_reg(&pm4->base, R_028080_TA_BC_BASE_ADDR, border_color_va >> 8);
-   ac_pm4_set_reg(&pm4->base, R_028084_TA_BC_BASE_ADDR_HI, S_028084_ADDRESS(border_color_va >> 40));
-
-   ac_pm4_set_reg(&pm4->base, R_028410_CB_RMI_GL2_CACHE_CONTROL,
-                  (sctx->gfx_level >= GFX11 ?
-                      S_028410_COLOR_WR_POLICY_GFX11(color_write_policy) |
-                      S_028410_COLOR_RD_POLICY(color_read_policy) |
-                      S_028410_DCC_WR_POLICY_GFX11(meta_write_policy) |
-                      S_028410_DCC_RD_POLICY(meta_read_policy)
-                    :
-                      S_028410_COLOR_WR_POLICY_GFX10(color_write_policy) |
-                      S_028410_COLOR_RD_POLICY(color_read_policy)) |
-                      S_028410_FMASK_WR_POLICY(color_write_policy) |
-                      S_028410_FMASK_RD_POLICY(color_read_policy) |
-                      S_028410_CMASK_WR_POLICY(meta_write_policy) |
-                      S_028410_CMASK_RD_POLICY(meta_read_policy) |
-                      S_028410_DCC_WR_POLICY_GFX10(meta_write_policy) |
-                      S_028410_DCC_RD_POLICY(meta_read_policy));
    ac_pm4_set_reg(&pm4->base, R_028708_SPI_SHADER_IDX_FORMAT,
                   S_028708_IDX0_EXPORT_FORMAT(V_028708_SPI_SHADER_1COMP));
 
-   if (sctx->gfx_level >= GFX10_3)
-      ac_pm4_set_reg(&pm4->base, R_028750_SX_PS_DOWNCONVERT_CONTROL, 0xff);
-
-   /* If any sample location uses the -8 coordinate, the EXCLUSION fields should be set to 0. */
-   ac_pm4_set_reg(&pm4->base, R_02882C_PA_SU_PRIM_FILTER_CNTL,
-                  S_02882C_XMAX_RIGHT_EXCLUSION(1) |
-                  S_02882C_YMAX_BOTTOM_EXCLUSION(1));
-   ac_pm4_set_reg(&pm4->base, R_028830_PA_SU_SMALL_PRIM_FILTER_CNTL,
-                  S_028830_SMALL_PRIM_FILTER_ENABLE(1));
    if (sctx->gfx_level >= GFX10_3) {
       /* The rate combiners have no effect if they are disabled like this:
        *   VERTEX_RATE:    BYPASS_VTX_RATE_COMBINER = 1
@@ -5628,75 +5380,6 @@ static void gfx10_init_gfx_preamble_state(struct si_context *sctx)
                      S_028848_SAMPLE_ITER_COMBINER_MODE(V_028848_SC_VRS_COMB_MODE_OVERRIDE));
    }
 
-   ac_pm4_set_reg(&pm4->base, R_028A18_VGT_HOS_MAX_TESS_LEVEL, fui(64));
-   ac_pm4_set_reg(&pm4->base, R_028AAC_VGT_ESGS_RING_ITEMSIZE, 1);
-   ac_pm4_set_reg(&pm4->base, R_028B50_VGT_TESS_DISTRIBUTION,
-                  sctx->gfx_level >= GFX11 ?
-                     S_028B50_ACCUM_ISOLINE(128) |
-                     S_028B50_ACCUM_TRI(128) |
-                     S_028B50_ACCUM_QUAD(128) |
-                     S_028B50_DONUT_SPLIT_GFX9(24) |
-                     S_028B50_TRAP_SPLIT(6)
-                   :
-                     S_028B50_ACCUM_ISOLINE(12) |
-                     S_028B50_ACCUM_TRI(30) |
-                     S_028B50_ACCUM_QUAD(24) |
-                     S_028B50_DONUT_SPLIT_GFX9(24) |
-                     S_028B50_TRAP_SPLIT(6));
-
-   /* GFX11+ shouldn't subtract 1 from pbb_max_alloc_count.  */
-   unsigned gfx10_one = sctx->gfx_level < GFX11;
-   ac_pm4_set_reg(&pm4->base, R_028C48_PA_SC_BINNER_CNTL_1,
-                  S_028C48_MAX_ALLOC_COUNT(sscreen->info.pbb_max_alloc_count - gfx10_one) |
-                  S_028C48_MAX_PRIM_PER_BATCH(1023));
-
-   if (sctx->gfx_level >= GFX11_5)
-      ac_pm4_set_reg(&pm4->base, R_028C54_PA_SC_BINNER_CNTL_2,
-                     S_028C54_ENABLE_PING_PONG_BIN_ORDER(1));
-
-   /* Break up a pixel wave if it contains deallocs for more than
-    * half the parameter cache.
-    *
-    * To avoid a deadlock where pixel waves aren't launched
-    * because they're waiting for more pixels while the frontend
-    * is stuck waiting for PC space, the maximum allowed value is
-    * the size of the PC minus the largest possible allocation for
-    * a single primitive shader subgroup.
-    */
-   ac_pm4_set_reg(&pm4->base, R_028C50_PA_SC_NGG_MODE_CNTL,
-                  S_028C50_MAX_DEALLOCS_IN_WAVE(sctx->gfx_level >= GFX11 ? 16 : 512));
-   if (sctx->gfx_level < GFX11)
-      ac_pm4_set_reg(&pm4->base, R_028C58_VGT_VERTEX_REUSE_BLOCK_CNTL, 14); /* Reuse for legacy (non-NGG) only. */
-
-   /* Uconfig registers. */
-   ac_pm4_set_reg(&pm4->base, R_030924_GE_MIN_VTX_INDX, 0);
-   ac_pm4_set_reg(&pm4->base, R_030928_GE_INDX_OFFSET, 0);
-   if (sctx->gfx_level >= GFX11) {
-      /* This is changed by draws for indexed draws, but we need to set DISABLE_FOR_AUTO_INDEX
-       * here, which disables primitive restart for all non-indexed draws, so that those draws
-       * won't have to set this state.
-       */
-      ac_pm4_set_reg(&pm4->base, R_03092C_GE_MULTI_PRIM_IB_RESET_EN, S_03092C_DISABLE_FOR_AUTO_INDEX(1));
-   }
-   ac_pm4_set_reg(&pm4->base, R_030964_GE_MAX_VTX_INDX, ~0);
-   ac_pm4_set_reg(&pm4->base, R_030968_VGT_INSTANCE_BASE_ID, 0);
-   ac_pm4_set_reg(&pm4->base, R_03097C_GE_STEREO_CNTL, 0);
-   ac_pm4_set_reg(&pm4->base, R_030988_GE_USER_VGPR_EN, 0);
-
-   ac_pm4_set_reg(&pm4->base, R_030A00_PA_SU_LINE_STIPPLE_VALUE, 0);
-   ac_pm4_set_reg(&pm4->base, R_030A04_PA_SC_LINE_STIPPLE_STATE, 0);
-
-   if (sctx->gfx_level >= GFX11) {
-      uint64_t rb_mask = BITFIELD64_MASK(sscreen->info.max_render_backends);
-
-      ac_pm4_cmd_add(&pm4->base, PKT3(PKT3_EVENT_WRITE, 2, 0));
-      ac_pm4_cmd_add(&pm4->base, EVENT_TYPE(V_028A90_PIXEL_PIPE_STAT_CONTROL) | EVENT_INDEX(1));
-      ac_pm4_cmd_add(&pm4->base, PIXEL_PIPE_STATE_CNTL_COUNTER_ID(0) |
-                          PIXEL_PIPE_STATE_CNTL_STRIDE(2) |
-                          PIXEL_PIPE_STATE_CNTL_INSTANCE_EN_LO(rb_mask));
-      ac_pm4_cmd_add(&pm4->base, PIXEL_PIPE_STATE_CNTL_INSTANCE_EN_HI(rb_mask));
-   }
-
 done:
    ac_pm4_finalize(&pm4->base);
    sctx->cs_preamble_state = pm4;
@@ -5706,26 +5389,6 @@ done:
 static void gfx12_init_gfx_preamble_state(struct si_context *sctx)
 {
    struct si_screen *sscreen = sctx->screen;
-   uint64_t border_color_va = sctx->border_color_buffer->gpu_address;
-   unsigned color_write_policy, color_read_policy;
-   enum gfx12_store_temporal_hint color_write_temporal_hint, zs_write_temporal_hint;
-   enum gfx12_load_temporal_hint color_read_temporal_hint, zs_read_temporal_hint;
-
-   if (sscreen->options.cache_rb_gl2) {
-      color_write_policy = V_028410_CACHE_LRU_WR;
-      color_read_policy = V_028410_CACHE_LRU_RD;
-      color_write_temporal_hint = gfx12_store_regular_temporal;
-      color_read_temporal_hint = gfx12_load_regular_temporal;
-      zs_write_temporal_hint = gfx12_store_regular_temporal;
-      zs_read_temporal_hint = gfx12_load_regular_temporal;
-   } else {
-      color_write_policy = V_028410_CACHE_STREAM;
-      color_read_policy = V_02807C_CACHE_NOA_GFX11;
-      color_write_temporal_hint = gfx12_store_near_non_temporal_far_regular_temporal;
-      color_read_temporal_hint = gfx12_load_near_non_temporal_far_regular_temporal;
-      zs_write_temporal_hint = gfx12_store_near_non_temporal_far_regular_temporal;
-      zs_read_temporal_hint = gfx12_load_near_non_temporal_far_regular_temporal;
-   }
 
    struct si_pm4_state *pm4 = si_pm4_create_sized(sscreen, 300, sctx->has_graphics);
    if (!pm4)
@@ -5748,108 +5411,10 @@ static void gfx12_init_gfx_preamble_state(struct si_context *sctx)
       goto done;
 
    /* Graphics registers. */
-   /* Shader registers - PS */
-   ac_pm4_set_reg_idx3(&pm4->base, R_00B018_SPI_SHADER_PGM_RSRC3_PS,
-                       ac_apply_cu_en(S_00B018_CU_EN(0xffff),
-                                      C_00B018_CU_EN, 0, &sscreen->info));
-   ac_pm4_set_reg(&pm4->base, R_00B0C0_SPI_SHADER_REQ_CTRL_PS,
-                  S_00B0C0_SOFT_GROUPING_EN(1) |
-                  S_00B0C0_NUMBER_OF_REQUESTS_PER_CU(4 - 1));
-   ac_pm4_set_reg(&pm4->base, R_00B0C8_SPI_SHADER_USER_ACCUM_PS_0, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B0CC_SPI_SHADER_USER_ACCUM_PS_1, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B0D0_SPI_SHADER_USER_ACCUM_PS_2, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B0D4_SPI_SHADER_USER_ACCUM_PS_3, 0);
+   si_init_graphics_preamble_state(sctx, pm4);
 
-   /* Shader registers - GS */
-   ac_pm4_set_reg(&pm4->base, R_00B218_SPI_SHADER_PGM_HI_ES,
-                  S_00B324_MEM_BASE(sscreen->info.address32_hi >> 8));
-   ac_pm4_set_reg_idx3(&pm4->base, R_00B21C_SPI_SHADER_PGM_RSRC3_GS,
-                       ac_apply_cu_en(0xfffffdfd, 0, 0, &sscreen->info));
-   ac_pm4_set_reg(&pm4->base, R_00B2C8_SPI_SHADER_USER_ACCUM_ESGS_0, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B2CC_SPI_SHADER_USER_ACCUM_ESGS_1, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B2D0_SPI_SHADER_USER_ACCUM_ESGS_2, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B2D4_SPI_SHADER_USER_ACCUM_ESGS_3, 0);
-
-   /* Shader registers - HS */
-   ac_pm4_set_reg(&pm4->base, R_00B418_SPI_SHADER_PGM_HI_LS,
-                  S_00B524_MEM_BASE(sscreen->info.address32_hi >> 8));
-   ac_pm4_set_reg_idx3(&pm4->base, R_00B41C_SPI_SHADER_PGM_RSRC3_HS,
-                       ac_apply_cu_en(0xffffffff, 0, 0, &sscreen->info));
-   ac_pm4_set_reg(&pm4->base, R_00B4C8_SPI_SHADER_USER_ACCUM_LSHS_0, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B4CC_SPI_SHADER_USER_ACCUM_LSHS_1, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B4D0_SPI_SHADER_USER_ACCUM_LSHS_2, 0);
-   ac_pm4_set_reg(&pm4->base, R_00B4D4_SPI_SHADER_USER_ACCUM_LSHS_3, 0);
-
-   /* Context registers */
-   ac_pm4_set_reg(&pm4->base, R_02800C_DB_RENDER_OVERRIDE, S_02800C_FORCE_STENCIL_READ(1));
-   ac_pm4_set_reg(&pm4->base, R_028040_DB_GL1_INTERFACE_CONTROL, 0);
-   ac_pm4_set_reg(&pm4->base, R_028048_DB_MEM_TEMPORAL,
-                  S_028048_Z_TEMPORAL_READ(zs_read_temporal_hint) |
-                  S_028048_Z_TEMPORAL_WRITE(zs_write_temporal_hint) |
-                  S_028048_STENCIL_TEMPORAL_READ(zs_read_temporal_hint) |
-                  S_028048_STENCIL_TEMPORAL_WRITE(zs_write_temporal_hint) |
-                  S_028048_OCCLUSION_TEMPORAL_WRITE(gfx12_store_regular_temporal));
-   ac_pm4_set_reg(&pm4->base, R_028064_DB_VIEWPORT_CONTROL, 0);
-   ac_pm4_set_reg(&pm4->base, R_028068_DB_SPI_VRS_CENTER_LOCATION, 0);
-   ac_pm4_set_reg(&pm4->base, R_028080_TA_BC_BASE_ADDR, border_color_va >> 8);
-   ac_pm4_set_reg(&pm4->base, R_028084_TA_BC_BASE_ADDR_HI, S_028084_ADDRESS(border_color_va >> 40));
-   ac_pm4_set_reg(&pm4->base, R_02808C_DB_STENCIL_OPVAL, S_02808C_OPVAL(1) | S_02808C_OPVAL_BF(1));
-   ac_pm4_set_reg(&pm4->base, R_0280F8_SC_MEM_TEMPORAL,
-                  S_0280F8_VRS_TEMPORAL_READ(gfx12_load_regular_temporal) |
-                  S_0280F8_VRS_TEMPORAL_WRITE(gfx12_store_regular_temporal) |
-                  S_0280F8_HIZ_TEMPORAL_READ(gfx12_load_regular_temporal) |
-                  S_0280F8_HIZ_TEMPORAL_WRITE(gfx12_store_regular_temporal) |
-                  S_0280F8_HIS_TEMPORAL_READ(gfx12_load_regular_temporal) |
-                  S_0280F8_HIS_TEMPORAL_WRITE(gfx12_store_regular_temporal));
-   ac_pm4_set_reg(&pm4->base, R_0280FC_SC_MEM_SPEC_READ,
-                  S_0280FC_VRS_SPECULATIVE_READ(gfx12_spec_read_force_on) |
-                  S_0280FC_HIZ_SPECULATIVE_READ(gfx12_spec_read_force_on) |
-                  S_0280FC_HIS_SPECULATIVE_READ(gfx12_spec_read_force_on));
-
-   /* We don't need to initialize PA_SC_VPORT_* because we don't enable
-    * IMPLICIT_VPORT_SCISSOR_ENABLE, but it might be useful for Vulkan.
-    *
-    * If you set IMPLICIT_VPORT_SCISSOR_ENABLE, PA_SC_VPORT_* will take effect and allows
-    * setting a scissor that covers the whole viewport. If you set VPORT_SCISSOR_ENABLE,
-    * PA_SC_VPORT_SCISSOR_* will take effect and allows setting a user scissor. If you set
-    * both enable bits, the hw will use the intersection of both. It allows separating implicit
-    * viewport scissors from user scissors.
-    */
-   ac_pm4_set_reg(&pm4->base, R_028180_PA_SC_SCREEN_SCISSOR_TL, 0);
-   ac_pm4_set_reg(&pm4->base, R_028184_PA_SC_SCREEN_SCISSOR_BR,
-                  S_028184_BR_X(65535) | S_028184_BR_Y(65535)); /* inclusive bounds */
-   ac_pm4_set_reg(&pm4->base, R_028204_PA_SC_WINDOW_SCISSOR_TL, 0);
-   ac_pm4_set_reg(&pm4->base, R_028240_PA_SC_GENERIC_SCISSOR_TL, 0);
-   ac_pm4_set_reg(&pm4->base, R_028244_PA_SC_GENERIC_SCISSOR_BR,
-                  S_028244_BR_X(65535) | S_028244_BR_Y(65535)); /* inclusive bounds */
-   ac_pm4_set_reg(&pm4->base, R_028358_PA_SC_SCREEN_EXTENT_CONTROL, 0);
-   ac_pm4_set_reg(&pm4->base, R_02835C_PA_SC_TILE_STEERING_OVERRIDE,
-                  sscreen->info.pa_sc_tile_steering_override);
-   ac_pm4_set_reg(&pm4->base, R_0283E0_PA_SC_VRS_INFO, 0);
-
-   ac_pm4_set_reg(&pm4->base, R_028410_CB_RMI_GL2_CACHE_CONTROL,
-                  S_028410_COLOR_WR_POLICY_GFX11(color_write_policy) |
-                  S_028410_COLOR_RD_POLICY(color_read_policy));
    ac_pm4_set_reg(&pm4->base, R_028648_SPI_SHADER_IDX_FORMAT,
                   S_028648_IDX0_EXPORT_FORMAT(V_028648_SPI_SHADER_1COMP));
-   ac_pm4_set_reg(&pm4->base, R_0286E4_SPI_BARYC_SSAA_CNTL, S_0286E4_COVERED_CENTROID_IS_CENTER(1));
-   ac_pm4_set_reg(&pm4->base, R_028750_SX_PS_DOWNCONVERT_CONTROL, 0xff);
-   ac_pm4_set_reg(&pm4->base, R_0287D4_PA_CL_POINT_X_RAD, 0);
-   ac_pm4_set_reg(&pm4->base, R_0287D8_PA_CL_POINT_Y_RAD, 0);
-   ac_pm4_set_reg(&pm4->base, R_0287DC_PA_CL_POINT_SIZE, 0);
-   ac_pm4_set_reg(&pm4->base, R_0287E0_PA_CL_POINT_CULL_RAD, 0);
-   ac_pm4_set_reg(&pm4->base, R_028820_PA_CL_NANINF_CNTL, 0);
-   ac_pm4_set_reg(&pm4->base, R_028824_PA_SU_LINE_STIPPLE_CNTL, 0);
-   ac_pm4_set_reg(&pm4->base, R_028828_PA_SU_LINE_STIPPLE_SCALE, 0);
-   /* If any sample location uses the -8 coordinate, the EXCLUSION fields should be set to 0. */
-   ac_pm4_set_reg(&pm4->base, R_02882C_PA_SU_PRIM_FILTER_CNTL,
-                  S_02882C_XMAX_RIGHT_EXCLUSION(1) |
-                  S_02882C_YMAX_BOTTOM_EXCLUSION(1));
-   ac_pm4_set_reg(&pm4->base, R_028830_PA_SU_SMALL_PRIM_FILTER_CNTL,
-                  S_028830_SMALL_PRIM_FILTER_ENABLE(1) |
-                  S_028830_SC_1XMSAA_COMPATIBLE_DISABLE(1) /* use sample locations even for MSAA 1x */);
-   ac_pm4_set_reg(&pm4->base, R_02883C_PA_SU_OVER_RASTERIZATION_CNTL, 0);
-   ac_pm4_set_reg(&pm4->base, R_028840_PA_STEREO_CNTL, S_028840_STEREO_MODE(1));
 
    /* The rate combiners have no effect if they are disabled like this:
     *   VERTEX_RATE:    BYPASS_VTX_RATE_COMBINER = 1
@@ -5864,78 +5429,8 @@ static void gfx12_init_gfx_preamble_state(struct si_context *sctx)
                   S_028848_VERTEX_RATE_COMBINER_MODE(V_028848_SC_VRS_COMB_MODE_OVERRIDE) |
                   S_028848_SAMPLE_ITER_COMBINER_MODE(V_028848_SC_VRS_COMB_MODE_OVERRIDE));
 
-   ac_pm4_set_reg(&pm4->base, R_028A18_VGT_HOS_MAX_TESS_LEVEL, fui(64));
-   ac_pm4_set_reg(&pm4->base, R_028A1C_VGT_HOS_MIN_TESS_LEVEL, fui(0));
-   ac_pm4_set_reg(&pm4->base, R_028A50_GE_SE_ENHANCE, 0);
-   ac_pm4_set_reg(&pm4->base, R_028A70_GE_IA_ENHANCE, 0);
-   ac_pm4_set_reg(&pm4->base, R_028A80_GE_WD_ENHANCE, 0);
-   ac_pm4_set_reg(&pm4->base, R_028A9C_VGT_REUSE_OFF, 0);
-   ac_pm4_set_reg(&pm4->base, R_028AA0_VGT_DRAW_PAYLOAD_CNTL, 0);
-   ac_pm4_set_reg(&pm4->base, R_028ABC_DB_HTILE_SURFACE, 0);
-
-   ac_pm4_set_reg(&pm4->base, R_028B28_VGT_STRMOUT_DRAW_OPAQUE_OFFSET, 0);
-   ac_pm4_set_reg(&pm4->base, R_028B50_VGT_TESS_DISTRIBUTION,
-                  S_028B50_ACCUM_ISOLINE(128) |
-                  S_028B50_ACCUM_TRI(128) |
-                  S_028B50_ACCUM_QUAD(128) |
-                  S_028B50_DONUT_SPLIT_GFX9(24) |
-                  S_028B50_TRAP_SPLIT(6));
-   ac_pm4_set_reg(&pm4->base, R_028BC0_PA_SC_HISZ_RENDER_OVERRIDE, 0);
-
-   ac_pm4_set_reg(&pm4->base, R_028C40_PA_SC_BINNER_OUTPUT_TIMEOUT_COUNTER, 0x800);
-   ac_pm4_set_reg(&pm4->base, R_028C48_PA_SC_BINNER_CNTL_1,
-                  S_028C48_MAX_ALLOC_COUNT(254) |
-                  S_028C48_MAX_PRIM_PER_BATCH(511));
-   ac_pm4_set_reg(&pm4->base, R_028C4C_PA_SC_BINNER_CNTL_2, S_028C4C_ENABLE_PING_PONG_BIN_ORDER(1));
-   ac_pm4_set_reg(&pm4->base, R_028C50_PA_SC_NGG_MODE_CNTL, S_028C50_MAX_DEALLOCS_IN_WAVE(64));
    ac_pm4_set_reg(&pm4->base, R_028C54_PA_SC_CONSERVATIVE_RASTERIZATION_CNTL,
                   S_028C54_NULL_SQUAD_AA_MASK_ENABLE(1));
-   ac_pm4_set_reg(&pm4->base, R_028C58_PA_SC_SHADER_CONTROL,
-                  S_028C58_REALIGN_DQUADS_AFTER_N_WAVES(1));
-
-   for (unsigned i = 0; i < 8; i++) {
-      ac_pm4_set_reg(&pm4->base, R_028F00_CB_MEM0_INFO + i * 4,
-                     S_028F00_TEMPORAL_READ(color_read_temporal_hint) |
-                     S_028F00_TEMPORAL_WRITE(color_write_temporal_hint));
-   }
-
-   /* Uconfig registers. */
-   ac_pm4_set_reg(&pm4->base, R_030924_GE_MIN_VTX_INDX, 0);
-   ac_pm4_set_reg(&pm4->base, R_030928_GE_INDX_OFFSET, 0);
-   /* This is changed by draws for indexed draws, but we need to set DISABLE_FOR_AUTO_INDEX
-    * here, which disables primitive restart for all non-indexed draws, so that those draws
-    * won't have to set this state.
-    */
-   ac_pm4_set_reg(&pm4->base, R_03092C_GE_MULTI_PRIM_IB_RESET_EN, S_03092C_DISABLE_FOR_AUTO_INDEX(1));
-   ac_pm4_set_reg(&pm4->base, R_030950_GE_GS_THROTTLE,
-                  S_030950_T0(0x1) |
-                  S_030950_T1(0x4) |
-                  S_030950_T2(0x3) |
-                  S_030950_STALL_CYCLES(0x40) |
-                  S_030950_FACTOR1(0x2) |
-                  S_030950_FACTOR2(0x3) |
-                  S_030950_ENABLE_THROTTLE(0) |
-                  S_030950_NUM_INIT_GRPS(0xff));
-   ac_pm4_set_reg(&pm4->base, R_030964_GE_MAX_VTX_INDX, ~0);
-   ac_pm4_set_reg(&pm4->base, R_030968_VGT_INSTANCE_BASE_ID, 0);
-   ac_pm4_set_reg(&pm4->base, R_03097C_GE_STEREO_CNTL, 0);
-   ac_pm4_set_reg(&pm4->base, R_030980_GE_USER_VGPR_EN, 0);
-   ac_pm4_set_reg(&pm4->base, R_0309B4_VGT_PRIMITIVEID_RESET, 0);
-   ac_pm4_set_reg(&pm4->base, R_03098C_GE_VRS_RATE, 0);
-   ac_pm4_set_reg(&pm4->base, R_030A00_PA_SU_LINE_STIPPLE_VALUE, 0);
-   ac_pm4_set_reg(&pm4->base, R_030A04_PA_SC_LINE_STIPPLE_STATE, 0);
-
-   ac_pm4_set_reg(&pm4->base, R_031128_SPI_GRP_LAUNCH_GUARANTEE_ENABLE, 0x8A4D);
-   ac_pm4_set_reg(&pm4->base, R_03112C_SPI_GRP_LAUNCH_GUARANTEE_CTRL, 0x1123);
-
-   uint64_t rb_mask = BITFIELD64_MASK(sctx->screen->info.max_render_backends);
-
-   ac_pm4_cmd_add(&pm4->base, PKT3(PKT3_EVENT_WRITE, 2, 0));
-   ac_pm4_cmd_add(&pm4->base, EVENT_TYPE(V_028A90_PIXEL_PIPE_STAT_CONTROL) | EVENT_INDEX(1));
-   ac_pm4_cmd_add(&pm4->base, PIXEL_PIPE_STATE_CNTL_COUNTER_ID(0) |
-                       PIXEL_PIPE_STATE_CNTL_STRIDE(2) |
-                       PIXEL_PIPE_STATE_CNTL_INSTANCE_EN_LO(rb_mask));
-   ac_pm4_cmd_add(&pm4->base, PIXEL_PIPE_STATE_CNTL_INSTANCE_EN_HI(rb_mask));
 
 done:
    sctx->cs_preamble_state = pm4;
