@@ -16,6 +16,7 @@ dEQP-VK.binding_model.descriptor_buffer.capture_replay.graphics_vert_sampled_ima
 dEQP-VK.drm_format_modifiers.export_import.b10g11r11_ufloat_pack32,Fail
 dEQP-VK.drm_format_modifiers.export_import_fmt_features2.b10g11r11_ufloat_pack32,Fail
 
+# CTS bug, see https://gitlab.khronos.org/Tracker/vk-gl-cts/-/issues/5268
 dEQP-VK.fragment_shading_barycentric.data.shader_combos.with_tess_geom_shader.array2.double,Fail
 dEQP-VK.fragment_shading_barycentric.data.shader_combos.with_tess_geom_shader.array2.dvec2,Fail
 dEQP-VK.fragment_shading_barycentric.data.shader_combos.with_tess_geom_shader.array2.dvec3,Fail
