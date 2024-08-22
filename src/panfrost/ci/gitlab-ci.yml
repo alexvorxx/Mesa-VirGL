@@ -27,7 +27,7 @@
       when: on_success
 
 .panfrost-midgard-manual-rules:
-  stage: arm
+  stage: arm-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -58,7 +58,7 @@
       when: on_success
 
 .panfrost-bifrost-gl-manual-rules:
-  stage: arm
+  stage: arm-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -91,7 +91,7 @@
       when: on_success
 
 .panfrost-bifrost-vk-manual-rules:
-  stage: arm
+  stage: arm-postmerge
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]

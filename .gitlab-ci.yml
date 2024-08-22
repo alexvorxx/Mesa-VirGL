@@ -154,6 +154,7 @@ stages:
   - nouveau
   - nouveau-postmerge
   - arm
+  - arm-postmerge
   - broadcom
   - broadcom-postmerge
   - freedreno
