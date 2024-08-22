@@ -668,6 +668,9 @@ agx_debug_fault(struct agx_device *dev, uint64_t addr)
 
    for (uint32_t handle = 0; handle < dev->max_handle; handle++) {
       struct agx_bo *bo = agx_lookup_bo(dev, handle);
+      if (!bo->va)
+         continue;
+
       uint64_t bo_addr = bo->va->addr;
       if (bo->flags & AGX_BO_LOW_VA)
          bo_addr += dev->shader_base;
