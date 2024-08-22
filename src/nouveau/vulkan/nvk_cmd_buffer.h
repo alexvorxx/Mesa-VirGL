@@ -198,7 +198,7 @@ struct nvk_cmd_push {
 struct nvk_cmd_buffer {
    struct vk_command_buffer vk;
 
-   struct {
+   struct nvk_cmd_state {
       uint64_t descriptor_buffers[NVK_MAX_SETS];
       struct nvk_graphics_state gfx;
       struct nvk_compute_state cs;
@@ -311,7 +311,22 @@ nvk_get_descriptors_state(struct nvk_cmd_buffer *cmd,
    default:
       unreachable("Unhandled bind point");
    }
-};
+}
+
+static inline struct nvk_descriptor_state *
+nvk_get_descriptor_state_for_stages(struct nvk_cmd_buffer *cmd,
+                                    VkShaderStageFlags stages)
+{
+   if (stages & VK_SHADER_STAGE_COMPUTE_BIT) {
+      assert(stages == VK_SHADER_STAGE_COMPUTE_BIT);
+      return &cmd->state.cs.descriptors;
+   } else if (stages & NVK_SHADER_STAGE_GRAPHICS_BITS) {
+      assert(!(stages & ~NVK_SHADER_STAGE_GRAPHICS_BITS));
+      return &cmd->state.gfx.descriptors;
+   } else {
+      unreachable("Unknown shader stage");
+   }
+}
 
 VkResult nvk_cmd_buffer_upload_alloc(struct nvk_cmd_buffer *cmd,
                                      uint32_t size, uint32_t alignment,

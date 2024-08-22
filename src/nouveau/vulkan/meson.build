@@ -13,6 +13,7 @@ nvk_files = files(
   'nvk_cmd_copy.c',
   'nvk_cmd_dispatch.c',
   'nvk_cmd_draw.c',
+  'nvk_cmd_indirect.c',
   'nvk_cmd_meta.c',
   'nvk_cmd_pool.c',
   'nvk_cmd_pool.h',
