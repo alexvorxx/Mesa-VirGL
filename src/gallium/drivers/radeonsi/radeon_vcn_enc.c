@@ -992,15 +992,15 @@ static void radeon_vcn_enc_get_param(struct radeon_encoder *enc, struct pipe_pic
       radeon_vcn_enc_av1_get_param(enc, (struct pipe_av1_enc_picture_desc *)picture);
 }
 
-static int flush(struct radeon_encoder *enc, unsigned flags)
+static int flush(struct radeon_encoder *enc, unsigned flags, struct pipe_fence_handle **fence)
 {
-   return enc->ws->cs_flush(&enc->cs, flags, NULL);
+   return enc->ws->cs_flush(&enc->cs, flags, fence);
 }
 
 static void radeon_enc_flush(struct pipe_video_codec *encoder)
 {
    struct radeon_encoder *enc = (struct radeon_encoder *)encoder;
-   flush(enc, PIPE_FLUSH_ASYNC);
+   flush(enc, PIPE_FLUSH_ASYNC, NULL);
 }
 
 static void radeon_enc_cs_flush(void *ctx, unsigned flags, struct pipe_fence_handle **fence)
@@ -1498,7 +1498,7 @@ static void radeon_enc_begin_frame(struct pipe_video_codec *encoder,
       si_vid_create_buffer(enc->screen, &fb, 4096, PIPE_USAGE_STAGING);
       enc->fb = &fb;
       enc->begin(enc);
-      flush(enc, PIPE_FLUSH_ASYNC);
+      flush(enc, PIPE_FLUSH_ASYNC, NULL);
       si_vid_destroy_buffer(&fb);
       enc->need_rate_control = false;
       enc->need_rc_per_pic = false;
@@ -1550,7 +1550,7 @@ static int radeon_enc_end_frame(struct pipe_video_codec *encoder, struct pipe_vi
                                 struct pipe_picture_desc *picture)
 {
    struct radeon_encoder *enc = (struct radeon_encoder *)encoder;
-   return flush(enc, picture->flush_flags);
+   return flush(enc, picture->flush_flags, picture->fence);
 }
 
 static void radeon_enc_destroy(struct pipe_video_codec *encoder)
@@ -1563,7 +1563,7 @@ static void radeon_enc_destroy(struct pipe_video_codec *encoder)
       si_vid_create_buffer(enc->screen, &fb, 512, PIPE_USAGE_STAGING);
       enc->fb = &fb;
       enc->destroy(enc);
-      flush(enc, PIPE_FLUSH_ASYNC);
+      flush(enc, PIPE_FLUSH_ASYNC, NULL);
       RADEON_ENC_DESTROY_VIDEO_BUFFER(enc->si);
       si_vid_destroy_buffer(&fb);
    }
@@ -1596,6 +1596,15 @@ static void radeon_enc_get_feedback(struct pipe_video_codec *encoder, void *feed
    }
 
    RADEON_ENC_DESTROY_VIDEO_BUFFER(fb);
+}
+
+static int radeon_enc_get_feedback_fence(struct pipe_video_codec *encoder,
+                                         struct pipe_fence_handle *fence,
+                                         uint64_t timeout)
+{
+   struct radeon_encoder *enc = (struct radeon_encoder *)encoder;
+
+   return enc->ws->fence_wait(enc->ws, fence, timeout);
 }
 
 static void radeon_enc_destroy_fence(struct pipe_video_codec *encoder,
@@ -1635,6 +1644,7 @@ struct pipe_video_codec *radeon_create_encoder(struct pipe_context *context,
    enc->base.end_frame = radeon_enc_end_frame;
    enc->base.flush = radeon_enc_flush;
    enc->base.get_feedback = radeon_enc_get_feedback;
+   enc->base.get_feedback_fence = radeon_enc_get_feedback_fence;
    enc->base.destroy_fence = radeon_enc_destroy_fence;
    enc->get_buffer = get_buffer;
    enc->bits_in_shifter = 0;
