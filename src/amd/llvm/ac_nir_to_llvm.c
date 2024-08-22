@@ -333,6 +333,14 @@ static LLVMValueRef emit_umul_high(struct ac_llvm_context *ctx, LLVMValueRef src
                                    LLVMValueRef src1)
 {
    LLVMValueRef dst64, result;
+
+#if LLVM_VERSION_MAJOR < 20
+   if (LLVMIsConstant(src0))
+      ac_build_optimization_barrier(ctx, &src1, false);
+   else
+      ac_build_optimization_barrier(ctx, &src0, false);
+#endif
+
    src0 = LLVMBuildZExt(ctx->builder, src0, ctx->i64, "");
    src1 = LLVMBuildZExt(ctx->builder, src1, ctx->i64, "");
 
