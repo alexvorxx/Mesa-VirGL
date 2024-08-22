@@ -207,6 +207,7 @@ get_device_extensions(const struct tu_physical_device *device,
       .KHR_shader_float_controls2 = true,
       .KHR_shader_integer_dot_product = true,
       .KHR_shader_non_semantic_info = true,
+      .KHR_shader_relaxed_extended_instruction = true,
       .KHR_shader_subgroup_extended_types = true,
       .KHR_shader_subgroup_uniform_control_flow = true,
       .KHR_shader_terminate_invocation = true,
@@ -670,6 +671,9 @@ tu_get_features(struct tu_physical_device *pdevice,
 
    /* VK_EXT_vertex_input_dynamic_state */
    features->vertexInputDynamicState = true;
+
+   /* VK_KHR_shader_relaxed_extended_instruction */
+   features->shaderRelaxedExtendedInstruction = true;
 }
 
 static void
