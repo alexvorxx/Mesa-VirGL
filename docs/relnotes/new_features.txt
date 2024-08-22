@@ -17,3 +17,4 @@ VK_KHR_shader_relaxed_extended_instruction on anv, hasvk, hk, nvk, radv, tu, v3d
 GL_OVR_multiview and GL_OVR_multiview2 on zink
 VK_KHR_shader_float_controls2 on radv
 VK_KHR_shader_float_controls2 on nvk
+VK_EXT_device_generated_commands on nvk

@@ -28,6 +28,7 @@
 
 #include <sys/sysmacros.h>
 
+#include "nv_push.h"
 #include "cl90c0.h"
 #include "cl91c0.h"
 #include "cla097.h"
@@ -191,6 +192,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .EXT_depth_range_unrestricted = info->cls_eng3d >= VOLTA_A,
       .EXT_descriptor_buffer = true,
       .EXT_descriptor_indexing = true,
+      .EXT_device_generated_commands = true,
 #ifdef VK_USE_PLATFORM_DISPLAY_KHR
       .EXT_display_control = true,
 #endif
@@ -514,6 +516,10 @@ nvk_get_device_features(const struct nv_device_info *info,
       .descriptorBufferCaptureReplay = true,
       .descriptorBufferImageLayoutIgnored = true,
       .descriptorBufferPushDescriptors = false,
+
+      /* VK_EXT_device_generated_commands */
+      .deviceGeneratedCommands = true,
+      .dynamicGeneratedPipelineLayout = true,
 
       /* VK_EXT_dynamic_rendering_unused_attachments */
       .dynamicRenderingUnusedAttachments = true,
@@ -961,6 +967,25 @@ nvk_get_device_properties(const struct nvk_instance *instance,
       .samplerDescriptorBufferAddressSpaceSize = UINT32_MAX,
       .resourceDescriptorBufferAddressSpaceSize = UINT32_MAX,
       .descriptorBufferAddressSpaceSize = UINT32_MAX,
+
+      /* VK_EXT_device_generated_commands */
+      .maxIndirectPipelineCount = UINT32_MAX,
+      .maxIndirectShaderObjectCount = UINT32_MAX,
+      .maxIndirectSequenceCount = 1 << 20,
+      .maxIndirectCommandsTokenCount = 16,
+      .maxIndirectCommandsTokenOffset = 2047,
+      .maxIndirectCommandsIndirectStride = 1 << 12,
+      .supportedIndirectCommandsInputModes =
+         VK_INDIRECT_COMMANDS_INPUT_MODE_VULKAN_INDEX_BUFFER_EXT |
+         VK_INDIRECT_COMMANDS_INPUT_MODE_DXGI_INDEX_BUFFER_EXT,
+      .supportedIndirectCommandsShaderStages =
+         NVK_SHADER_STAGE_GRAPHICS_BITS | VK_SHADER_STAGE_COMPUTE_BIT,
+      .supportedIndirectCommandsShaderStagesPipelineBinding =
+         NVK_SHADER_STAGE_GRAPHICS_BITS | VK_SHADER_STAGE_COMPUTE_BIT,
+      .supportedIndirectCommandsShaderStagesShaderBinding =
+         NVK_SHADER_STAGE_GRAPHICS_BITS | VK_SHADER_STAGE_COMPUTE_BIT,
+      .deviceGeneratedCommandsTransformFeedback = true,
+      .deviceGeneratedCommandsMultiDrawIndirectCount = true,
 
       /* VK_EXT_extended_dynamic_state3 */
       .dynamicPrimitiveTopologyUnrestricted = true,

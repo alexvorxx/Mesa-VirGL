@@ -583,6 +583,7 @@ Khronos extensions that are not part of any Vulkan version:
   VK_EXT_descriptor_buffer                              DONE (anv, lvp, nvk, radv, tu)
   VK_EXT_device_address_binding_report                  DONE (radv, tu)
   VK_EXT_device_fault                                   DONE (radv)
+  VK_EXT_device_generated_commands                      DONE (nvk/Turing+)
   VK_EXT_device_memory_report                           DONE (vn)
   VK_EXT_direct_mode_display                            DONE (anv, lvp, nvk, radv, tu, v3dv)
   VK_EXT_discard_rectangles                             DONE (radv)
