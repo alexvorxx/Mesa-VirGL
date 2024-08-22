@@ -52,6 +52,8 @@ struct nvk_device {
    struct nvk_queue queue;
 
    struct vk_meta_device meta;
+
+   struct nvk_shader *copy_queries;
 };
 
 VK_DEFINE_HANDLE_CASTS(nvk_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)

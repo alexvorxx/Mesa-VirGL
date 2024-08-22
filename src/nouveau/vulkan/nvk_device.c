@@ -291,6 +291,9 @@ nvk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    if (!dev)
       return;
 
+   if (dev->copy_queries)
+      vk_shader_destroy(&dev->vk, &dev->copy_queries->vk, &dev->vk.alloc);
+
    nvk_device_finish_meta(dev);
 
    vk_pipeline_cache_destroy(dev->vk.mem_cache, NULL);
