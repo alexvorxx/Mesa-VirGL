@@ -2579,7 +2579,7 @@ d3d12_video_encoder_extract_encode_metadata(
 /**
  * end encoding of the current frame
  */
-void
+int
 d3d12_video_encoder_end_frame(struct pipe_video_codec * codec,
                               struct pipe_video_buffer *target,
                               struct pipe_picture_desc *picture)
@@ -2592,7 +2592,7 @@ d3d12_video_encoder_end_frame(struct pipe_video_codec * codec,
    if (pD3D12Enc->m_inflightResourcesPool[d3d12_video_encoder_pool_current_index(pD3D12Enc)].encode_result != PIPE_VIDEO_FEEDBACK_METADATA_ENCODE_FLAG_OK) {
       debug_printf("WARNING: [d3d12_video_encoder] d3d12_video_encoder_end_frame - Frame submission %" PRIu64 " failed. Encoder lost, please recreate pipe_video_codec object\n", pD3D12Enc->m_fenceValue);
       assert(false);
-      return;
+      return 1;
    }
 
    // Signal finish of current frame encoding to the picture management tracker
@@ -2608,6 +2608,7 @@ d3d12_video_encoder_end_frame(struct pipe_video_codec * codec,
                  pD3D12Enc->m_fenceValue);
 
    pD3D12Enc->m_bPendingWorkNotFlushed = true;
+   return 0;
 }
 
 void

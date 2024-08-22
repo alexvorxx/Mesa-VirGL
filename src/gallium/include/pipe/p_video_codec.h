@@ -104,10 +104,11 @@ struct pipe_video_codec
 
    /**
     * end decoding of the current frame
+    * returns 0 on success
     */
-   void (*end_frame)(struct pipe_video_codec *codec,
-                     struct pipe_video_buffer *target,
-                     struct pipe_picture_desc *picture);
+   int (*end_frame)(struct pipe_video_codec *codec,
+                    struct pipe_video_buffer *target,
+                    struct pipe_picture_desc *picture);
 
    /**
     * flush any outstanding command buffers to the hardware

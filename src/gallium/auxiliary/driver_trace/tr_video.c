@@ -221,7 +221,7 @@ trace_video_codec_process_frame(struct pipe_video_codec *_codec,
     codec->process_frame(codec, source, process_properties);
 }
 
-static void
+static int
 trace_video_codec_end_frame(struct pipe_video_codec *_codec,
                     struct pipe_video_buffer *_target,
                     struct pipe_picture_desc *picture)
@@ -241,6 +241,7 @@ trace_video_codec_end_frame(struct pipe_video_codec *_codec,
     codec->end_frame(codec, target, picture);
     if (copied)
         FREE(picture);
+    return 0;
 }
 
 static void

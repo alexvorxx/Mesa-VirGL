@@ -60,7 +60,7 @@ d3d12_video_processor_process_frame(struct pipe_video_codec *codec,
 /**
  * end processing of the current frame
  */
-void
+int
 d3d12_video_processor_end_frame(struct pipe_video_codec * codec,
                               struct pipe_video_buffer *target,
                               struct pipe_picture_desc *picture);

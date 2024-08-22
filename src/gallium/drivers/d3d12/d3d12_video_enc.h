@@ -82,7 +82,7 @@ d3d12_video_encoder_get_feedback(struct pipe_video_codec *codec,
 /**
  * end encoding of the current frame
  */
-void
+int
 d3d12_video_encoder_end_frame(struct pipe_video_codec * codec,
                               struct pipe_video_buffer *target,
                               struct pipe_picture_desc *picture);

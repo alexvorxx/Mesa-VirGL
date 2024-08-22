@@ -988,7 +988,7 @@ fail:
    return;
 }
 
-static void
+static int
 si_vpe_processor_end_frame(struct pipe_video_codec *codec,
                            struct pipe_video_buffer *target,
                            struct pipe_picture_desc *picture)
@@ -1007,6 +1007,7 @@ si_vpe_processor_end_frame(struct pipe_video_codec *codec,
       SIVPE_WARN(vpeproc->log_level, "Fence may have problem!\n");
 
    SIVPE_INFO(vpeproc->log_level, "Success\n");
+   return 0;
 }
 
 static void

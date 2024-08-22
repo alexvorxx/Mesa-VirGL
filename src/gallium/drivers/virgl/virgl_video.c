@@ -1106,9 +1106,9 @@ static void virgl_video_encode_bitstream(struct pipe_video_codec *codec,
                                   virgl_resource(target));
 }
 
-static void virgl_video_end_frame(struct pipe_video_codec *codec,
-                                  struct pipe_video_buffer *target,
-                                  struct pipe_picture_desc *picture)
+static int virgl_video_end_frame(struct pipe_video_codec *codec,
+                                 struct pipe_video_buffer *target,
+                                 struct pipe_picture_desc *picture)
 {
     struct virgl_video_codec *vcdc = virgl_video_codec(codec);
     struct virgl_context *vctx = virgl_context(vcdc->base.context);
@@ -1118,6 +1118,7 @@ static void virgl_video_end_frame(struct pipe_video_codec *codec,
     virgl_flush_eq(vctx, vctx, NULL);
 
     switch_buffer(vcdc);
+    return 0;
 }
 
 static int virgl_video_get_decoder_fence(struct pipe_video_codec *decoder,

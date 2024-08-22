@@ -303,8 +303,8 @@ static void rvce_encode_bitstream(struct pipe_video_codec *encoder,
    enc->feedback(enc);
 }
 
-static void rvce_end_frame(struct pipe_video_codec *encoder, struct pipe_video_buffer *source,
-                           struct pipe_picture_desc *picture)
+static int rvce_end_frame(struct pipe_video_codec *encoder, struct pipe_video_buffer *source,
+                          struct pipe_picture_desc *picture)
 {
    struct rvce_encoder *enc = (struct rvce_encoder *)encoder;
    struct rvce_cpb_slot *slot = list_entry(enc->cpb_slots.prev, struct rvce_cpb_slot, list);
@@ -320,6 +320,7 @@ static void rvce_end_frame(struct pipe_video_codec *encoder, struct pipe_video_b
       list_del(&slot->list);
       list_add(&slot->list, &enc->cpb_slots);
    }
+   return 0;
 }
 
 static void rvce_get_feedback(struct pipe_video_codec *encoder, void *feedback, unsigned *size,

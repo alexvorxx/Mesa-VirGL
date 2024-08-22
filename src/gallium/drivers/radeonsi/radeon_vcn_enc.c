@@ -992,9 +992,9 @@ static void radeon_vcn_enc_get_param(struct radeon_encoder *enc, struct pipe_pic
       radeon_vcn_enc_av1_get_param(enc, (struct pipe_av1_enc_picture_desc *)picture);
 }
 
-static void flush(struct radeon_encoder *enc, unsigned flags)
+static int flush(struct radeon_encoder *enc, unsigned flags)
 {
-   enc->ws->cs_flush(&enc->cs, flags, NULL);
+   return enc->ws->cs_flush(&enc->cs, flags, NULL);
 }
 
 static void radeon_enc_flush(struct pipe_video_codec *encoder)
@@ -1546,11 +1546,11 @@ static void radeon_enc_encode_bitstream(struct pipe_video_codec *encoder,
    enc->encode(enc);
 }
 
-static void radeon_enc_end_frame(struct pipe_video_codec *encoder, struct pipe_video_buffer *source,
-                                 struct pipe_picture_desc *picture)
+static int radeon_enc_end_frame(struct pipe_video_codec *encoder, struct pipe_video_buffer *source,
+                                struct pipe_picture_desc *picture)
 {
    struct radeon_encoder *enc = (struct radeon_encoder *)encoder;
-   flush(enc, picture->flush_flags);
+   return flush(enc, picture->flush_flags);
 }
 
 static void radeon_enc_destroy(struct pipe_video_codec *encoder)

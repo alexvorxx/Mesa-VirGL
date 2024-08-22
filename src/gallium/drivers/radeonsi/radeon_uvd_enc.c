@@ -114,9 +114,9 @@ static void radeon_uvd_enc_get_param(struct radeon_uvd_encoder *enc,
    radeon_uvd_enc_get_vui_param(enc, pic);
 }
 
-static void flush(struct radeon_uvd_encoder *enc, unsigned flags)
+static int flush(struct radeon_uvd_encoder *enc, unsigned flags)
 {
-   enc->ws->cs_flush(&enc->cs, flags, NULL);
+   return enc->ws->cs_flush(&enc->cs, flags, NULL);
 }
 
 static void radeon_uvd_enc_flush(struct pipe_video_codec *encoder)
@@ -225,12 +225,12 @@ static void radeon_uvd_enc_encode_bitstream(struct pipe_video_codec *encoder,
    enc->encode(enc);
 }
 
-static void radeon_uvd_enc_end_frame(struct pipe_video_codec *encoder,
+static int radeon_uvd_enc_end_frame(struct pipe_video_codec *encoder,
                                      struct pipe_video_buffer *source,
                                      struct pipe_picture_desc *picture)
 {
    struct radeon_uvd_encoder *enc = (struct radeon_uvd_encoder *)encoder;
-   flush(enc, picture->flush_flags);
+   return flush(enc, picture->flush_flags);
 }
 
 static void radeon_uvd_enc_destroy(struct pipe_video_codec *encoder)
