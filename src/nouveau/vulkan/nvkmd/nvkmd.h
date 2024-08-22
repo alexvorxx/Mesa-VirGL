@@ -6,6 +6,7 @@
 #define NVKMD_H 1
 
 #include "nv_device_info.h"
+#include "util/list.h"
 #include "util/simple_mtx.h"
 #include "util/u_atomic.h"
 
@@ -194,6 +195,9 @@ struct nvkmd_dev {
     * allocated within this range.
     */
    uint64_t va_start, va_end;
+
+   struct list_head mems;
+   simple_mtx_t mems_mutex;
 };
 
 struct nvkmd_mem_ops {
@@ -225,6 +229,9 @@ struct nvkmd_mem_ops {
 struct nvkmd_mem {
    const struct nvkmd_mem_ops *ops;
    struct nvkmd_dev *dev;
+
+   /* Optional link in nvkmd_dev::mems */
+   struct list_head link;
 
    uint32_t refcnt;
 
@@ -439,6 +446,15 @@ nvkmd_dev_alloc_mapped_mem(struct nvkmd_dev *dev,
                            enum nvkmd_mem_flags flags,
                            enum nvkmd_mem_map_flags map_flags,
                            struct nvkmd_mem **mem_out);
+
+void
+nvkmd_dev_track_mem(struct nvkmd_dev *dev,
+                    struct nvkmd_mem *mem);
+
+struct nvkmd_mem *
+nvkmd_dev_lookup_mem_by_va(struct nvkmd_dev *dev,
+                           uint64_t addr,
+                           uint64_t *offset_out);
 
 static inline VkResult MUST_CHECK
 nvkmd_dev_import_dma_buf(struct nvkmd_dev *dev,
