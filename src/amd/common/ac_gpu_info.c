@@ -2342,6 +2342,10 @@ ac_get_compute_resource_limits(const struct radeon_info *info, unsigned waves_pe
                             info->max_waves_per_simd;
       }
 
+      /* On GFX12+, WAVES_PER_SH means waves per SE. */
+      if (info->gfx_level >= GFX12)
+         max_waves_per_sh *= info->max_sa_per_se;
+
       /* Force even distribution on all SIMDs in CU if the workgroup
        * size is 64. This has shown some good improvements if # of CUs
        * per SE is not a multiple of 4.
