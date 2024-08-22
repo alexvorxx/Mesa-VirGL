@@ -226,6 +226,11 @@ _vlVaSyncSurface(VADriverContextP ctx, VASurfaceID render_target, uint64_t timeo
             }
          }
       }
+      if (context->decoder->get_feedback_fence &&
+          !context->decoder->get_feedback_fence(context->decoder, surf->fence, timeout_ns)) {
+         mtx_unlock(&drv->mutex);
+         return VA_STATUS_ERROR_TIMEDOUT;
+      }
       context->decoder->get_feedback(context->decoder, surf->feedback, &(surf->coded_buf->coded_size), &(surf->coded_buf->extended_metadata));
       surf->feedback = NULL;
       surf->coded_buf->feedback = NULL;

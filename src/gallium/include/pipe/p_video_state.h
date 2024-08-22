@@ -203,7 +203,7 @@ struct pipe_picture_desc
    enum pipe_format output_format;
    /* Flush flags for pipe_video_codec::end_frame */
    unsigned flush_flags;
-   /* A fence used on PIPE_VIDEO_ENTRYPOINT_DECODE/PROCESSING to signal job completion */
+   /* A fence for pipe_video_codec::end_frame to signal job completion */
    struct pipe_fence_handle **fence;
    unsigned packed_headers;
 };

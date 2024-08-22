@@ -559,13 +559,6 @@ vlVaSyncBuffer(VADriverContextP ctx, VABufferID buf_id, uint64_t timeout_ns)
                               PIPE_VIDEO_CAP_ENC_SUPPORTS_ASYNC_OPERATION))
       return VA_STATUS_ERROR_UNIMPLEMENTED;
 
-   /* vaSyncBuffer spec states that "If timeout is zero, the function returns immediately." */
-   if (timeout_ns == 0)
-      return VA_STATUS_ERROR_TIMEDOUT;
-
-   if (timeout_ns != VA_TIMEOUT_INFINITE)
-      return VA_STATUS_ERROR_UNIMPLEMENTED;
-
    mtx_lock(&drv->mutex);
    buf = handle_table_get(drv->htab, buf_id);
 
@@ -589,6 +582,11 @@ vlVaSyncBuffer(VADriverContextP ctx, VABufferID buf_id, uint64_t timeout_ns)
    vlVaSurface* surf = handle_table_get(drv->htab, buf->associated_encode_input_surf);
 
    if ((buf->feedback) && (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE)) {
+      if (surf && context->decoder->get_feedback_fence &&
+          !context->decoder->get_feedback_fence(context->decoder, surf->fence, timeout_ns)) {
+         mtx_unlock(&drv->mutex);
+         return VA_STATUS_ERROR_TIMEDOUT;
+      }
       context->decoder->get_feedback(context->decoder, buf->feedback, &(buf->coded_size), &(buf->extended_metadata));
       buf->feedback = NULL;
       /* Also mark the associated render target (encode source texture) surface as done
