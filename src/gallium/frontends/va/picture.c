@@ -1352,7 +1352,10 @@ vlVaEndPicture(VADriverContextP ctx, VAContextID context_id)
    if (context->desc.base.fence)
       context->desc.base.flush_flags = drv->has_external_handles ? 0 : PIPE_FLUSH_ASYNC;
 
-   context->decoder->end_frame(context->decoder, context->target, &context->desc.base);
+   if (context->decoder->end_frame(context->decoder, context->target, &context->desc.base) != 0) {
+      mtx_unlock(&drv->mutex);
+      return VA_STATUS_ERROR_OPERATION_FAILED;
+   }
 
    if (drv->pipe->screen->get_video_param(drv->pipe->screen,
                            context->decoder->profile,
