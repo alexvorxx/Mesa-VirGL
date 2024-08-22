@@ -515,13 +515,6 @@ agx_blit(struct pipe_context *pipe, const struct pipe_blit_info *info)
    if (info->render_condition_enable && !agx_render_condition_check(ctx))
       return;
 
-   if (!util_blitter_is_blit_supported(ctx->blitter, info)) {
-      fprintf(stderr, "\n");
-      util_dump_blit_info(stderr, info);
-      fprintf(stderr, "\n\n");
-      unreachable("Unsupported blit");
-   }
-
    /* Legalize compression /before/ calling into u_blitter to avoid recursion.
     * u_blitter bans recursive usage.
     */
@@ -534,6 +527,13 @@ agx_blit(struct pipe_context *pipe, const struct pipe_blit_info *info)
    if (asahi_compute_blit_supported(info)) {
       asahi_compute_blit(pipe, info, &ctx->compute_blitter);
       return;
+   }
+
+   if (!util_blitter_is_blit_supported(ctx->blitter, info)) {
+      fprintf(stderr, "\n");
+      util_dump_blit_info(stderr, info);
+      fprintf(stderr, "\n\n");
+      unreachable("Unsupported blit");
    }
 
    /* Handle self-blits */
