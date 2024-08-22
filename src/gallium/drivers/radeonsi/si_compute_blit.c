@@ -223,11 +223,9 @@ void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_inf
                          writeable_bitmask,
                          true /* don't update bind_history to prevent unnecessary syncs later */);
 
-   si_barrier_before_internal_op(sctx, flags, num_buffers, buffers, writeable_bitmask, 0, NULL);
    si_compute_begin_internal(sctx, flags);
    si_launch_grid_internal(sctx, info, shader);
    si_compute_end_internal(sctx);
-   si_barrier_after_internal_op(sctx, flags, num_buffers, buffers, writeable_bitmask, 0, NULL);
 
    /* Restore states. */
    sctx->b.set_shader_buffers(&sctx->b, PIPE_SHADER_COMPUTE, 0, num_buffers, saved_sb,
@@ -284,7 +282,9 @@ void si_compute_clear_buffer_rmw(struct si_context *sctx, struct pipe_resource *
    if (!sctx->cs_clear_buffer_rmw)
       sctx->cs_clear_buffer_rmw = si_create_clear_buffer_rmw_cs(sctx);
 
+   si_barrier_before_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
    si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_clear_buffer_rmw, flags, 1, &sb, 0x1);
+   si_barrier_after_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
 }
 
 /**
@@ -356,8 +356,12 @@ bool si_compute_clear_copy_buffer(struct si_context *sctx, struct pipe_resource 
    struct pipe_grid_info grid = {};
    set_work_size(&grid, dispatch.workgroup_size, 1, 1, dispatch.num_threads, 1, 1);
 
+   unsigned writable_bitmask = is_copy ? 0x2 : 0x1;
+
+   si_barrier_before_internal_op(sctx, flags, dispatch.num_ssbos, sb, writable_bitmask, 0, NULL);
    si_launch_grid_internal_ssbos(sctx, &grid, shader, flags, dispatch.num_ssbos, sb,
-                                 is_copy ? 0x2 : 0x1);
+                                 writable_bitmask);
+   si_barrier_after_internal_op(sctx, flags, dispatch.num_ssbos, sb, writable_bitmask, 0, NULL);
    return true;
 }
 
@@ -455,7 +459,9 @@ void si_compute_shorten_ubyte_buffer(struct si_context *sctx, struct pipe_resour
    sb[1].buffer_offset = src_offset;
    sb[1].buffer_size = count;
 
+   si_barrier_before_internal_op(sctx, flags, 2, sb, 0x1, 0, NULL);
    si_launch_grid_internal_ssbos(sctx, &info, sctx->cs_ubyte_to_ushort, flags, 2, sb, 0x1);
+   si_barrier_after_internal_op(sctx, flags, 2, sb, 0x1, 0, NULL);
 }
 
 static void si_compute_save_and_bind_images(struct si_context *sctx, unsigned num_images,
@@ -540,7 +546,11 @@ void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
    struct pipe_grid_info info = {};
    set_work_size(&info, 8, 8, 1, width, height, 1);
 
-   si_launch_grid_internal_ssbos(sctx, &info, *shader, SI_OP_SYNC_BEFORE, 1, &sb, 0x1);
+   unsigned flags = SI_OP_SYNC_BEFORE;
+
+   si_barrier_before_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
+   si_launch_grid_internal_ssbos(sctx, &info, *shader, flags, 1, &sb, 0x1);
+   si_barrier_after_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
 
    /* Don't flush caches. L2 will be flushed by the kernel fence. */
 }
@@ -585,7 +595,9 @@ void gfx9_clear_dcc_msaa(struct si_context *sctx, struct pipe_resource *res, uin
    struct pipe_grid_info info = {};
    set_work_size(&info, 8, 8, 1, width, height, depth);
 
+   si_barrier_before_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
    si_launch_grid_internal_ssbos(sctx, &info, *shader, flags, 1, &sb, 0x1);
+   si_barrier_after_internal_op(sctx, flags, 1, &sb, 0x1, 0, NULL);
 }
 
 /* Expand FMASK to make it identity, so that image stores can ignore it. */
