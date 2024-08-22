@@ -387,31 +387,11 @@ void si_clear_buffer(struct si_context *sctx, struct pipe_resource *dst,
                                     method == SI_AUTO_SELECT_CLEAR_METHOD))
       return;
 
+   /* Compute handles all unaligned sizes, so this is always aligned. */
+   assert(offset % 4 == 0 && size % 4 == 0 && clear_value_size == 4);
    assert(!render_condition_enable);
-   uint64_t aligned_size = size & ~3ull;
 
-   if (aligned_size) {
-      assert(clear_value_size == 4);
-      si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, aligned_size, *clear_value);
-   }
-
-   offset += aligned_size;
-   size -= aligned_size;
-
-   /* Handle non-dword alignment. */
-   if (size) {
-      assert(dst);
-      assert(dst->target == PIPE_BUFFER);
-      assert(size < 4);
-
-      sctx->b.buffer_subdata(&sctx->b, dst,
-                             PIPE_MAP_WRITE |
-                             /* TC forbids drivers to invalidate buffers and infer unsynchronized mappings,
-                              * so suppress those optimizations. */
-                             (sctx->tc ? TC_TRANSFER_MAP_NO_INFER_UNSYNCHRONIZED |
-                                         TC_TRANSFER_MAP_NO_INVALIDATE : 0),
-                             offset, size, clear_value);
-   }
+   si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, dst, offset, size, *clear_value);
 }
 
 static void si_pipe_clear_buffer(struct pipe_context *ctx, struct pipe_resource *dst,
