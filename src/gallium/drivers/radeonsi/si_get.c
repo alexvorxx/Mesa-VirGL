@@ -733,6 +733,8 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
                                                       = PIPE_ENC_FEATURE_SUPPORTED;
             if (sscreen->info.vcn_ip_version >= VCN_2_0_0)
                pipe_features.bits.sao = PIPE_ENC_FEATURE_SUPPORTED;
+            if (sscreen->info.vcn_ip_version >= VCN_3_0_0)
+               pipe_features.bits.transform_skip = PIPE_ENC_FEATURE_SUPPORTED;
 
             return pipe_features.value;
          } else
