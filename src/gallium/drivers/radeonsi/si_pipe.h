@@ -2210,8 +2210,10 @@ si_set_rasterized_prim(struct si_context *sctx, enum mesa_prim rast_prim,
  */
 static inline void si_emit_barrier_direct(struct si_context *sctx)
 {
-   sctx->emit_barrier(sctx, &sctx->gfx_cs);
-   sctx->dirty_atoms &= ~SI_ATOM_BIT(barrier);
+   if (sctx->flags) {
+      sctx->emit_barrier(sctx, &sctx->gfx_cs);
+      sctx->dirty_atoms &= ~SI_ATOM_BIT(barrier);
+   }
 }
 
 #define PRINT_ERR(fmt, args...)                                                                    \

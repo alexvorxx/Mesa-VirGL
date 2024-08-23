@@ -124,7 +124,7 @@ static void si_cp_dma_prepare(struct si_context *sctx, struct pipe_resource *dst
    /* Flush the caches for the first copy only.
     * Also wait for the previous CP DMA operations.
     */
-   if (*is_first && sctx->flags)
+   if (*is_first)
       si_emit_barrier_direct(sctx);
 
    if (*is_first && !(*packet_flags & CP_DMA_CLEAR))
