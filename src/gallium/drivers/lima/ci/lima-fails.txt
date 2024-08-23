@@ -72,8 +72,6 @@ spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT NPOT,Fail
 spec@arb_depth_texture@texdepth,Fail
 spec@arb_draw_elements_base_vertex@arb_draw_elements_base_vertex-negative-index,Fail
 spec@arb_draw_elements_base_vertex@arb_draw_elements_base_vertex-negative-index-user_varrays,Fail
-spec@arb_es2_compatibility@fbo-blending-formats,Fail
-spec@arb_es2_compatibility@fbo-blending-formats@GL_RGB565,Fail
 spec@arb_fragment_coord_conventions@fp-arb-fragment-coord-conventions-integer,Fail
 spec@arb_fragment_program@fdo38145,Fail
 spec@arb_fragment_program@fp-abs-01,Fail
@@ -129,12 +127,6 @@ spec@arb_texture_rectangle@glsl-fs-shadow2drectproj,Fail
 spec@arb_texture_rg@execution@fs-shadow2d-red-01,Fail
 spec@arb_texture_rg@execution@fs-shadow2d-red-02,Fail
 spec@arb_texture_rg@execution@fs-shadow2d-red-03,Fail
-spec@arb_texture_rg@fbo-blending-formats,Fail
-spec@arb_texture_rg@fbo-blending-formats@GL_R16,Fail
-spec@arb_texture_rg@fbo-blending-formats@GL_R8,Fail
-spec@arb_texture_rg@fbo-blending-formats@GL_RG16,Fail
-spec@arb_texture_rg@fbo-blending-formats@GL_RG8,Fail
-spec@arb_texture_rg@fbo-blending-formats@GL_RG,Fail
 spec@arb_texture_rg@texwrap formats bordercolor,Fail
 spec@arb_texture_rg@texwrap formats bordercolor@GL_RG8- border color only,Fail
 spec@arb_texture_rg@texwrap formats bordercolor-swizzled,Fail
@@ -170,13 +162,6 @@ spec@ext_framebuffer_multisample@samples,Fail
 spec@ext_framebuffer_object@ext_framebuffer_object-error-handling,Fail
 spec@ext_framebuffer_object@fbo-blending-formats@3,Fail
 spec@ext_framebuffer_object@fbo-blending-formats,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_R3_G3_B2,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_RGB10,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_RGB12,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_RGB16,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_RGB5,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_RGB8,Fail
-spec@ext_framebuffer_object@fbo-blending-formats@GL_RGB,Fail
 spec@ext_framebuffer_object@fbo-cubemap,Fail
 spec@ext_framebuffer_object@fbo-depth-sample-compare,Fail
 spec@ext_framebuffer_object@fbo-maxsize,Fail

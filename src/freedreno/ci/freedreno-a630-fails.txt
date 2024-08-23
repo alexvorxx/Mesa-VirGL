@@ -283,7 +283,6 @@ spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_TESS_EVALUATION_SH
 spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN,Fail
 
 spec@arb_vertex_attrib_64bit@execution@unused-sub-dvec4-01,Crash
-spec@arb_vertex_attrib_64bit@execution@unused-sub-dvec4-02,Crash
 
 spec@arb_gpu_shader5@arb_gpu_shader5-interpolateatsample-dynamically-nonuniform,Fail
 spec@arb_gpu_shader5@arb_gpu_shader5-xfb-streams,Fail

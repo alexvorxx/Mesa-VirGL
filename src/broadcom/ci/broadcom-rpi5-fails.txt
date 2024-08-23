@@ -149,13 +149,6 @@ spec@arb_texture_buffer_object@texture-buffer-size-clamp,Fail
 spec@arb_texture_buffer_object@texture-buffer-size-clamp@r8ui_texture_buffer_size_via_sampler,Fail
 spec@arb_texture_buffer_object@texture-buffer-size-clamp@rg8ui_texture_buffer_size_via_sampler,Fail
 spec@arb_texture_buffer_object@texture-buffer-size-clamp@rgba8ui_texture_buffer_size_via_sampler,Fail
-spec@arb_texture_float@fbo-blending-formats,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_ALPHA32F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_INTENSITY32F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_LUMINANCE32F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_LUMINANCE_ALPHA32F_ARB,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_RGB32F,Fail
-spec@arb_texture_float@fbo-blending-formats@GL_RGBA32F,Fail
 spec@arb_texture_float@texwrap formats bordercolor,Fail
 spec@arb_texture_float@texwrap formats bordercolor-swizzled,Fail
 spec@arb_texture_float@texwrap formats bordercolor-swizzled@GL_ALPHA32F_ARB- swizzled- border color only,Fail
@@ -171,9 +164,6 @@ spec@arb_texture_float@texwrap formats bordercolor@GL_LUMINANCE_ALPHA32F_ARB- bo
 spec@arb_texture_float@texwrap formats bordercolor@GL_RGB32F- border color only,Fail
 spec@arb_texture_float@texwrap formats bordercolor@GL_RGBA32F- border color only,Fail
 spec@arb_texture_rectangle@1-1-linear-texture,Fail
-spec@arb_texture_rg@fbo-blending-formats-float,Fail
-spec@arb_texture_rg@fbo-blending-formats-float@GL_R32F,Fail
-spec@arb_texture_rg@fbo-blending-formats-float@GL_RG32F,Fail
 spec@arb_texture_rg@texwrap formats-float bordercolor,Fail
 spec@arb_texture_rg@texwrap formats-float bordercolor-swizzled,Fail
 spec@arb_texture_rg@texwrap formats-float bordercolor-swizzled@GL_R32F- swizzled- border color only,Fail

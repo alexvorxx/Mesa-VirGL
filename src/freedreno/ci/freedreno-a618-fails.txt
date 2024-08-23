@@ -302,7 +302,6 @@ spec@glsl-4.00@execution@built-in-functions@fs-op-div-dmat4-dmat4,Fail
 SRGBReadWritePixels,Fail
 
 spec@arb_vertex_attrib_64bit@execution@unused-sub-dvec4-01,Crash
-spec@arb_vertex_attrib_64bit@execution@unused-sub-dvec4-02,Crash
 
 # uprev Piglit in Mesa
 spec@glsl-1.30@execution@fs-uint-to-float-of-extract-int16,Fail
