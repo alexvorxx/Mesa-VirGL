@@ -144,6 +144,7 @@ stages:
   - sanity
   - container
   - git-archive
+  - build-for-tests
   - build-x86_64
   - build-misc
   - code-validation

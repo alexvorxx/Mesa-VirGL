@@ -64,6 +64,7 @@ debian-testing:
   extends:
     - .meson-build
     - .ci-deqp-artifacts
+  stage: build-for-tests
   variables:
     UNWIND: "enabled"
     DRI_LOADERS: >
@@ -97,6 +98,7 @@ debian-testing:
 debian-testing-asan:
   extends:
     - debian-testing
+  stage: build-for-tests
   variables:
     C_ARGS: >
       -Wno-error=stringop-truncation
@@ -442,6 +444,7 @@ debian-arm32:
   extends:
     - .meson-arm
     - .ci-deqp-artifacts
+  stage: build-for-tests
   variables:
     CROSS: armhf
     DRI_LOADERS:
@@ -463,6 +466,7 @@ debian-arm32:
 debian-arm32-asan:
   extends:
     - debian-arm32
+  stage: build-for-tests
   variables:
     DRI_LOADERS:
       -D glvnd=disabled
@@ -479,6 +483,7 @@ debian-arm64:
   extends:
     - .meson-arm
     - .ci-deqp-artifacts
+  stage: build-for-tests
   variables:
     C_ARGS: >
       -Wno-error=array-bounds
@@ -502,6 +507,7 @@ debian-arm64:
 debian-arm64-asan:
   extends:
     - debian-arm64
+  stage: build-for-tests
   variables:
     DRI_LOADERS:
       -D glvnd=disabled
@@ -527,6 +533,7 @@ debian-arm64-build-test:
 debian-arm64-release:
   extends:
     - debian-arm64
+  stage: build-misc
   variables:
     BUILDTYPE: release
     S3_ARTIFACT_NAME: mesa-arm64-default-${BUILDTYPE}
@@ -620,7 +627,7 @@ windows-msvc:
     - .build-windows
     - .use-windows_build_msvc
     - .windows-build-rules
-  stage: build-misc
+  stage: build-for-tests
   script:
     - pwsh -ExecutionPolicy RemoteSigned .\.gitlab-ci\windows\mesa_build.ps1
   artifacts:
