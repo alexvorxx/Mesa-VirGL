@@ -265,11 +265,13 @@ vk_format_to_pipe_format(enum VkFormat vkformat)
    if (vkformat >= ARRAY_SIZE(vk_format_map)) {
       switch (vkformat) {
       case VK_FORMAT_R10X6_UNORM_PACK16:
+         return PIPE_FORMAT_X6R10_UNORM;
       case VK_FORMAT_R12X4_UNORM_PACK16:
-         return PIPE_FORMAT_R16_UNORM;
+         return PIPE_FORMAT_X4R12_UNORM;
       case VK_FORMAT_R10X6G10X6_UNORM_2PACK16:
+         return PIPE_FORMAT_X6R10X6G10_UNORM;
       case VK_FORMAT_R12X4G12X4_UNORM_2PACK16:
-         return PIPE_FORMAT_R16G16_UNORM;
+         return PIPE_FORMAT_X4R12X4G12_UNORM;
       case VK_FORMAT_G8B8G8R8_422_UNORM:
          return PIPE_FORMAT_G8B8_G8R8_UNORM;
       case VK_FORMAT_B8G8R8G8_422_UNORM:
@@ -295,9 +297,9 @@ vk_format_to_pipe_format(enum VkFormat vkformat)
       case VK_FORMAT_G16_B16_R16_3PLANE_444_UNORM:
          return PIPE_FORMAT_Y16_U16_V16_444_UNORM;
       case VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16:
-         return PIPE_FORMAT_P010;
+         return PIPE_FORMAT_X6G10_X6B10X6R10_420_UNORM;
       case VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16:
-         return PIPE_FORMAT_P012;
+         return PIPE_FORMAT_X4G12_X4B12X4R12_420_UNORM;
       case VK_FORMAT_A4R4G4B4_UNORM_PACK16:
          return PIPE_FORMAT_B4G4R4A4_UNORM;
       case VK_FORMAT_A4B4G4R4_UNORM_PACK16:
@@ -699,8 +701,6 @@ static const struct vk_format_ycbcr_info ycbcr_infos[] = {
              c_plane(VK_FORMAT_R8_UNORM, YCBCR_SWIZ(B, ZERO, ZERO, ZERO), 1, 1),
              c_plane(VK_FORMAT_R8_UNORM, YCBCR_SWIZ(R, ZERO, ZERO, ZERO), 1, 1)),
 
-   fmt_unsupported(VK_FORMAT_R10X6_UNORM_PACK16),
-   fmt_unsupported(VK_FORMAT_R10X6G10X6_UNORM_2PACK16),
    fmt_unsupported(VK_FORMAT_R10X6G10X6B10X6A10X6_UNORM_4PACK16),
 
    ycbcr_fmt(VK_FORMAT_G10X6B10X6G10X6R10X6_422_UNORM_4PACK16, 1,
@@ -727,8 +727,6 @@ static const struct vk_format_ycbcr_info ycbcr_infos[] = {
              c_plane(VK_FORMAT_R10X6_UNORM_PACK16, YCBCR_SWIZ(B, ZERO, ZERO, ZERO), 1, 1),
              c_plane(VK_FORMAT_R10X6_UNORM_PACK16, YCBCR_SWIZ(R, ZERO, ZERO, ZERO), 1, 1)),
 
-   fmt_unsupported(VK_FORMAT_R12X4_UNORM_PACK16),
-   fmt_unsupported(VK_FORMAT_R12X4G12X4_UNORM_2PACK16),
    fmt_unsupported(VK_FORMAT_R12X4G12X4B12X4A12X4_UNORM_4PACK16),
 
    ycbcr_fmt(VK_FORMAT_G12X4B12X4G12X4R12X4_422_UNORM_4PACK16, 1,
