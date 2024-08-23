@@ -4601,6 +4601,40 @@ static void si_set_patch_vertices(struct pipe_context *ctx, uint8_t patch_vertic
    }
 }
 
+unsigned si_shader_lshs_vertex_stride(struct si_shader *ls)
+{
+   unsigned num_slots;
+
+   if (ls->selector->stage == MESA_SHADER_VERTEX && !ls->next_shader) {
+      assert(ls->key.ge.as_ls);
+      assert(ls->selector->screen->info.gfx_level <= GFX8 || !ls->is_monolithic);
+      num_slots = util_last_bit64(ls->selector->info.outputs_written_before_tes_gs);
+   } else {
+      struct si_shader *tcs = ls->next_shader ? ls->next_shader : ls;
+
+      assert(tcs->selector->stage == MESA_SHADER_TESS_CTRL);
+      assert(tcs->selector->screen->info.gfx_level >= GFX9);
+
+      if (tcs->is_monolithic) {
+         uint64_t lds_inputs_read = tcs->selector->info.base.inputs_read;
+
+         /* Don't allocate LDS for inputs passed via VGPRs. */
+         if (tcs->key.ge.opt.same_patch_vertices)
+            lds_inputs_read &= ~tcs->selector->info.tcs_vgpr_only_inputs;
+
+         /* NIR lowering passes pack LS outputs/HS inputs if the usage masks of both are known. */
+         num_slots = util_bitcount64(lds_inputs_read);
+      } else {
+         num_slots = util_last_bit64(tcs->previous_stage_sel->info.outputs_written_before_tes_gs);
+      }
+   }
+
+   /* Add 1 dword to reduce LDS bank conflicts, so that each vertex starts on a different LDS
+    * bank.
+    */
+   return num_slots ? num_slots * 16 + 4 : 0;
+}
+
 /**
  * This calculates the LDS size for tessellation shaders (VS, TCS, TES).
  * LS.LDS_SIZE is shared by all 3 shader stages.
@@ -4618,7 +4652,6 @@ static void si_set_patch_vertices(struct pipe_context *ctx, uint8_t patch_vertic
 void si_update_tess_io_layout_state(struct si_context *sctx)
 {
    struct si_shader *ls_current;
-   struct si_shader_selector *ls;
    struct si_shader_selector *tcs = sctx->shader.tcs.cso;
    unsigned tess_uses_primid = sctx->ia_multi_vgt_param_key.u.tess_uses_prim_id;
    bool has_primid_instancing_bug = sctx->gfx_level == GFX6 && sctx->screen->info.max_se == 1;
@@ -4630,10 +4663,8 @@ void si_update_tess_io_layout_state(struct si_context *sctx)
    /* Since GFX9 has merged LS-HS in the TCS state, set LS = TCS. */
    if (sctx->gfx_level >= GFX9) {
       ls_current = sctx->shader.tcs.current;
-      ls = ls_current->key.ge.part.tcs.ls;
    } else {
       ls_current = sctx->shader.vs.current;
-      ls = sctx->shader.vs.cso;
 
       if (!ls_current) {
          sctx->do_update_shaders = true;
@@ -4658,17 +4689,10 @@ void si_update_tess_io_layout_state(struct si_context *sctx)
    unsigned num_tcs_output_cp = tcs->info.base.tess.tcs_vertices_out;
    unsigned num_tcs_patch_outputs = util_last_bit64(tcs->info.patch_outputs_written);
 
-   unsigned input_vertex_size = ls->info.lshs_vertex_stride;
-   unsigned num_vs_outputs = (input_vertex_size - 4) / 16;
+   unsigned input_vertex_size = si_shader_lshs_vertex_stride(ls_current);
+   unsigned num_vs_outputs = input_vertex_size / 16;
    unsigned output_vertex_size = num_tcs_outputs * 16;
-   unsigned input_patch_size;
-
-   /* Allocate LDS for TCS inputs only if it's used. */
-   if (!ls_current->key.ge.opt.same_patch_vertices ||
-       tcs->info.base.inputs_read & ~tcs->info.tcs_vgpr_only_inputs)
-      input_patch_size = num_tcs_input_cp * input_vertex_size;
-   else
-      input_patch_size = 0;
+   unsigned input_patch_size = num_tcs_input_cp * input_vertex_size;
 
    unsigned pervertex_output_patch_size = num_tcs_output_cp * output_vertex_size;
    unsigned output_patch_size = pervertex_output_patch_size + num_tcs_patch_outputs * 16;

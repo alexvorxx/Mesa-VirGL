@@ -447,7 +447,6 @@ struct si_shader_info {
    uint8_t clipdist_mask;
    uint8_t culldist_mask;
 
-   uint16_t lshs_vertex_stride;
    uint16_t esgs_vertex_stride;
    uint16_t gsvs_vertex_size;
    uint8_t gs_input_verts_per_prim;
@@ -856,6 +855,7 @@ struct si_shader {
 
    struct si_shader_selector *selector;
    struct si_shader_selector *previous_stage_sel; /* for refcounting */
+   struct si_shader *next_shader; /* Only used during compilation of LS and ES when merged. */
 
    struct si_shader_part *prolog;
    struct si_shader *previous_stage; /* for GFX9 */
@@ -1034,7 +1034,7 @@ unsigned si_determine_wave_size(struct si_screen *sscreen, struct si_shader *sha
 void gfx9_get_gs_info(struct si_shader_selector *es, struct si_shader_selector *gs,
                       struct gfx9_gs_info *out);
 bool gfx10_is_ngg_passthrough(struct si_shader *shader);
-
+unsigned si_shader_lshs_vertex_stride(struct si_shader *ls);
 bool si_should_clear_lds(struct si_screen *sscreen, const struct nir_shader *shader);
 
 /* Inline helpers. */

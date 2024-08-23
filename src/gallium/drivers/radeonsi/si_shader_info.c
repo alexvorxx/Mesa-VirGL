@@ -837,13 +837,8 @@ void si_nir_scan_shader(struct si_screen *sscreen, const struct nir_shader *nir,
    if (nir->info.stage == MESA_SHADER_VERTEX ||
        nir->info.stage == MESA_SHADER_TESS_CTRL ||
        nir->info.stage == MESA_SHADER_TESS_EVAL) {
-      info->esgs_vertex_stride = info->lshs_vertex_stride =
+      info->esgs_vertex_stride =
          util_last_bit64(info->outputs_written_before_tes_gs) * 16;
-
-      /* Add 1 dword to reduce LDS bank conflicts, so that each vertex
-       * will start on a different bank. (except for the maximum 32*16).
-       */
-      info->lshs_vertex_stride += 4;
 
       /* For the ESGS ring in LDS, add 1 dword to reduce LDS bank
        * conflicts, i.e. each vertex will start on a different bank.

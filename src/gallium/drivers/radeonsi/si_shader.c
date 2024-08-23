@@ -1307,7 +1307,7 @@ void si_shader_dump_stats_for_shader_db(struct si_screen *screen, struct si_shad
        * for performance and can be optimized.
        */
       if (shader->key.ge.as_ls)
-         num_ls_outputs = shader->selector->info.lshs_vertex_stride / 16;
+         num_ls_outputs = si_shader_lshs_vertex_stride(shader) / 16;
       else if (shader->selector->stage == MESA_SHADER_TESS_CTRL)
          num_hs_outputs = util_last_bit64(shader->selector->info.outputs_written_before_tes_gs);
       else if (shader->key.ge.as_es)
@@ -1843,11 +1843,15 @@ static bool si_lower_io_to_mem(struct si_shader *shader, nir_shader *nir,
 {
    struct si_shader_selector *sel = shader->selector;
    const union si_shader_key *key = &shader->key;
+   const bool is_gfx9_mono_tcs = sel->stage == MESA_SHADER_TESS_CTRL && shader->is_monolithic &&
+                                 sel->screen->info.gfx_level >= GFX9;
 
    if (nir->info.stage == MESA_SHADER_VERTEX) {
       if (key->ge.as_ls) {
-         NIR_PASS_V(nir, ac_nir_lower_ls_outputs_to_mem, si_map_io_driver_location,
-                    key->ge.opt.same_patch_vertices, ~0ULL, tcs_vgpr_only_inputs);
+         NIR_PASS_V(nir, ac_nir_lower_ls_outputs_to_mem,
+                    is_gfx9_mono_tcs ? NULL : si_map_io_driver_location,
+                    key->ge.opt.same_patch_vertices,
+                    is_gfx9_mono_tcs ? sel->info.base.inputs_read : ~0ull, tcs_vgpr_only_inputs);
          return true;
       } else if (key->ge.as_es) {
          NIR_PASS_V(nir, ac_nir_lower_es_outputs_to_mem, si_map_io_driver_location,
@@ -1855,7 +1859,8 @@ static bool si_lower_io_to_mem(struct si_shader *shader, nir_shader *nir,
          return true;
       }
    } else if (nir->info.stage == MESA_SHADER_TESS_CTRL) {
-      NIR_PASS_V(nir, ac_nir_lower_hs_inputs_to_mem, si_map_io_driver_location,
+      NIR_PASS_V(nir, ac_nir_lower_hs_inputs_to_mem,
+                 is_gfx9_mono_tcs ? NULL : si_map_io_driver_location,
                  key->ge.opt.same_patch_vertices, sel->info.tcs_vgpr_only_inputs);
 
       /* Used by hs_emit_write_tess_factors() when monolithic shader. */
@@ -3619,6 +3624,7 @@ nir_shader *si_get_prev_stage_nir_shader(struct si_shader *shader,
       prev_shader->key.ge.as_ngg = key->ge.as_ngg;
    }
 
+   prev_shader->next_shader = shader;
    prev_shader->key.ge.mono = key->ge.mono;
    prev_shader->key.ge.opt = key->ge.opt;
    prev_shader->key.ge.opt.inline_uniforms = false; /* only TCS/GS can inline uniforms */

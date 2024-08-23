@@ -324,13 +324,14 @@ static bool lower_intrinsic(nir_builder *b, nir_instr *instr, struct lower_abi_s
       break;
    case nir_intrinsic_load_lshs_vertex_stride_amd:
       if (stage == MESA_SHADER_VERTEX) {
-         replacement = nir_imm_int(b, sel->info.lshs_vertex_stride);
+         replacement = nir_imm_int(b, si_shader_lshs_vertex_stride(shader));
       } else if (stage == MESA_SHADER_TESS_CTRL) {
          if (sel->screen->info.gfx_level >= GFX9 && shader->is_monolithic) {
-            replacement = nir_imm_int(b, key->ge.part.tcs.ls->info.lshs_vertex_stride);
+            replacement = nir_imm_int(b, si_shader_lshs_vertex_stride(shader));
          } else {
             nir_def *num_ls_out = ac_nir_unpack_arg(b, &args->ac, args->tcs_offchip_layout, 17, 6);
-            replacement = nir_iadd_imm_nuw(b, nir_ishl_imm(b, num_ls_out, 4), 4);
+            nir_def *extra_dw = nir_bcsel(b, nir_ieq_imm(b, num_ls_out, 0), nir_imm_int(b, 0), nir_imm_int(b, 4));
+            replacement = nir_iadd_nuw(b, nir_ishl_imm(b, num_ls_out, 4), extra_dw);
          }
       } else {
          unreachable("no nir_load_lshs_vertex_stride_amd");
