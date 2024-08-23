@@ -66,7 +66,7 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
                                  sctx->framebuffer.DB_has_shader_readable_metadata);
    }
 
-   /* Flush caches in case we use compute. */
+   /* Invalidate the VMEM cache because we always use compute. */
    sctx->flags |= SI_CONTEXT_INV_VCACHE;
 
    /* GFX6-8: CB and DB don't use L2. */

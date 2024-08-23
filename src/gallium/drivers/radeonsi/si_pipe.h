@@ -331,14 +331,14 @@ struct si_resource {
    struct util_range valid_buffer_range;
 
    /* For buffers only. This indicates that a write operation has been
-    * performed by TC L2, but the cache hasn't been flushed.
-    * Any hw block which doesn't use or bypasses TC L2 should check this
+    * performed by L2, but the cache hasn't been flushed.
+    * Any hw block which doesn't use or bypasses L2 should check this
     * flag and flush the cache before using the buffer.
     *
-    * For example, TC L2 must be flushed if a buffer which has been
+    * For example, L2 must be flushed if a buffer which has been
     * modified by a shader store instruction is about to be used as
     * an index buffer. The reason is that VGT DMA index fetching doesn't
-    * use TC L2.
+    * use L2.
     */
    bool TC_L2_dirty;
 

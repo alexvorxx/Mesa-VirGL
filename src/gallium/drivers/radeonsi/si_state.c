@@ -2627,20 +2627,7 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
       }
    }
 
-   /* Only flush TC when changing the framebuffer state, because
-    * the only client not using TC that can change textures is
-    * the framebuffer.
-    *
-    * Wait for compute shaders because of possible transitions:
-    * - FB write -> shader read
-    * - shader write -> FB read
-    *
-    * Wait for draws because of possible transitions:
-    * - texture -> render (eg: glBlitFramebuffer(with src=dst) then glDraw*)
-    *
-    * DB caches are flushed on demand (using si_decompress_textures).
-    *
-    * When MSAA is enabled, CB and TC caches are flushed on demand
+   /* When MSAA is enabled, CB and L2 caches are flushed on demand
     * (after FMASK decompression). Shader write -> FB read transitions
     * cannot happen for MSAA textures, because MSAA shader images are
     * not supported.
@@ -2653,9 +2640,13 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
                                  sctx->framebuffer.all_DCC_pipe_aligned);
    }
 
+   /* Wait for CS because: shader write -> FB read
+    * Wait for PS because: texture -> render (eg: glBlitFramebuffer(with src=dst) then glDraw*)
+    */
    sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH | SI_CONTEXT_PS_PARTIAL_FLUSH;
    si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
 
+   /* DB caches are flushed on demand (using si_decompress_textures) except the cases below. */
    if (sctx->gfx_level >= GFX12) {
       si_make_DB_shader_coherent(sctx, sctx->framebuffer.nr_samples, true, false);
    } else if (sctx->generate_mipmap_for_depth) {

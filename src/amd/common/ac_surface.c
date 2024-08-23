@@ -1548,7 +1548,7 @@ static int gfx6_compute_surface(ADDR_HANDLE addrlib, const struct radeon_info *i
     */
    if (!(surf->flags & RADEON_SURF_Z_OR_SBUFFER) && surf->meta_size && config->info.levels > 1) {
       /* The smallest miplevels that are never compressed by DCC
-       * still read the DCC buffer via TC if the base level uses DCC,
+       * still read the DCC buffer from memory if the base level uses DCC,
        * and for some reason the DCC buffer needs to be larger if
        * the miptree uses non-zero tile_swizzle. Otherwise there are
        * VM faults.
@@ -2192,7 +2192,7 @@ static int gfx9_compute_miptree(struct ac_addrlib *addrlib, const struct radeon_
           *
           * Alternative solutions that also work but are worse:
           * - Disable DCC entirely.
-          * - Flush TC L2 after rendering.
+          * - Flush the L2 cache after rendering.
           */
          for (unsigned i = 0; i < in->numMipLevels; i++) {
             surf->u.gfx9.meta_levels[i].offset = meta_mip_info[i].offset;

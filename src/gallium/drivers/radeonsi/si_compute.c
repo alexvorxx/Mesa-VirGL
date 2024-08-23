@@ -1213,7 +1213,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
    }
 
    if (info->indirect) {
-      /* Indirect buffers use TC L2 on GFX9-GFX11, but not other hw. */
+      /* Indirect buffers are read through L2 on GFX9-GFX11, but not other hw. */
       if ((sctx->gfx_level <= GFX8 || sctx->gfx_level == GFX12) &&
           si_resource(info->indirect)->TC_L2_dirty) {
          sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;

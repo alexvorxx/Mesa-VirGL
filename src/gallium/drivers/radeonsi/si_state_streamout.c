@@ -75,13 +75,13 @@ static void si_set_streamout_targets(struct pipe_context *ctx, unsigned num_targ
       /* Stop streamout. */
       si_emit_streamout_end(sctx);
 
-      /* Since streamout uses vector writes which go through TC L2
-       * and most other clients can use TC L2 as well, we don't need
+      /* Since streamout uses vector writes which go through L2
+       * and most other clients can use L2 as well, we don't need
        * to flush it.
        *
        * The only cases which requires flushing it is VGT DMA index
        * fetching (on <= GFX7) and indirect draw data, which are rare
-       * cases. Thus, flag the TC L2 dirtiness in the resource and
+       * cases. Thus, flag the L2 dirtiness in the resource and
        * handle it at draw call time.
        */
       for (i = 0; i < old_num_targets; i++)
@@ -387,6 +387,7 @@ void si_emit_streamout_end(struct si_context *sctx)
                          t[i]->buf_filled_size, t[i]->buf_filled_size_offset,
                          COPY_DATA_REG, NULL,
                          (R_031088_GDS_STRMOUT_DWORDS_WRITTEN_0 >> 2) + i);
+         /* For DrawTF reading buf_filled_size: */
          sctx->flags |= SI_CONTEXT_PFP_SYNC_ME;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
       } else {

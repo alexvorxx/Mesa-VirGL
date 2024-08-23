@@ -594,7 +594,7 @@ static void si_prefetch_shaders(struct si_context *sctx)
    if (GFX_VERSION < GFX7 || !mask)
       return;
 
-   /* Prefetch shaders and VBO descriptors to TC L2. */
+   /* Prefetch shaders and VBO descriptors into L2. */
    if (GFX_VERSION >= GFX11) {
       if (HAS_TESS && mask & SI_PREFETCH_HS)
          si_prefetch_shader_async<GFX_VERSION>(sctx, sctx->queued.named.hs);
@@ -2134,7 +2134,7 @@ static void si_draw(struct pipe_context *ctx,
          index_offset -= start_offset;
       } else if ((GFX_VERSION <= GFX7 || GFX_VERSION == GFX12) &&
                  si_resource(indexbuf)->TC_L2_dirty) {
-         /* GFX8-GFX11 reads index buffers through TC L2, so it doesn't
+         /* GFX8-GFX11 reads index buffers through L2, so it doesn't
           * need this. */
          sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
@@ -2146,7 +2146,7 @@ static void si_draw(struct pipe_context *ctx,
    unsigned total_direct_count = 0;
 
    if (!IS_DRAW_VERTEX_STATE && indirect) {
-      /* Indirect buffers use TC L2 on GFX9-GFX11, but not other hw. */
+      /* Indirect buffers use L2 on GFX9-GFX11, but not other hw. */
       if (GFX_VERSION <= GFX8 || GFX_VERSION == GFX12) {
          if (indirect->buffer && si_resource(indirect->buffer)->TC_L2_dirty) {
             sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
