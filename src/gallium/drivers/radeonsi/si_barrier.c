@@ -651,60 +651,69 @@ static void si_texture_barrier(struct pipe_context *ctx, unsigned flags)
    }
 }
 
-/* This only ensures coherency for shader image/buffer stores. */
+/* This enforces coherency between shader stores and any past and future access. */
 static void si_memory_barrier(struct pipe_context *ctx, unsigned flags)
 {
    struct si_context *sctx = (struct si_context *)ctx;
 
-   if (!(flags & ~PIPE_BARRIER_UPDATE))
+   /* Ignore PIPE_BARRIER_UPDATE_BUFFER - it synchronizes against updates like buffer_subdata. */
+   /* Ignore PIPE_BARRIER_UPDATE_TEXTURE - it synchronizes against updates like texture_subdata. */
+   /* Ignore PIPE_BARRIER_MAPPED_BUFFER - it synchronizes against buffer_map/unmap. */
+   /* Ignore PIPE_BARRIER_QUERY_BUFFER - the GL spec description is confusing, and the driver
+    * always inserts barriers around get_query_result_resource.
+    */
+   flags &= ~PIPE_BARRIER_UPDATE_BUFFER & ~PIPE_BARRIER_UPDATE_TEXTURE &
+            ~PIPE_BARRIER_MAPPED_BUFFER & ~PIPE_BARRIER_QUERY_BUFFER;
+
+   if (!flags)
       return;
 
-   /* Subsequent commands must wait for all shader invocations to
-    * complete. */
-   sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH |
-                  SI_CONTEXT_PFP_SYNC_ME;
+   sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH;
 
    if (flags & PIPE_BARRIER_CONSTANT_BUFFER)
       sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE;
 
+   /* VMEM cache contents are written back to L2 automatically at the end of waves, but
+    * the contents of other VMEM caches might still be stale.
+    *
+    * TEXTURE and IMAGE mean sampler buffers and image buffers, respectively.
+    */
    if (flags & (PIPE_BARRIER_VERTEX_BUFFER | PIPE_BARRIER_SHADER_BUFFER | PIPE_BARRIER_TEXTURE |
-                PIPE_BARRIER_IMAGE | PIPE_BARRIER_STREAMOUT_BUFFER | PIPE_BARRIER_GLOBAL_BUFFER)) {
-      /* As far as I can tell, L1 contents are written back to L2
-       * automatically at end of shader, but the contents of other
-       * L1 caches might still be stale. */
+                PIPE_BARRIER_IMAGE | PIPE_BARRIER_STREAMOUT_BUFFER | PIPE_BARRIER_GLOBAL_BUFFER))
       sctx->flags |= SI_CONTEXT_INV_VCACHE;
 
-      if (flags & (PIPE_BARRIER_IMAGE | PIPE_BARRIER_TEXTURE) &&
-          sctx->screen->info.tcc_rb_non_coherent)
-         sctx->flags |= SI_CONTEXT_INV_L2;
-   }
+   if (flags & (PIPE_BARRIER_INDEX_BUFFER | PIPE_BARRIER_INDIRECT_BUFFER))
+      sctx->flags |= SI_CONTEXT_PFP_SYNC_ME;
 
-   if (flags & PIPE_BARRIER_INDEX_BUFFER) {
-      /* Indices are read through L2 since GFX8.
-       * L1 isn't used.
-       */
-      if (sctx->screen->info.gfx_level <= GFX7)
-         sctx->flags |= SI_CONTEXT_WB_L2;
-   }
+   /* Index buffers use L2 since GFX8 */
+   if (flags & PIPE_BARRIER_INDEX_BUFFER &&
+       (sctx->gfx_level <= GFX7 || sctx->screen->info.cp_sdma_ge_use_system_memory_scope))
+      sctx->flags |= SI_CONTEXT_WB_L2;
 
-   /* MSAA color, any depth and any stencil are flushed in
-    * si_decompress_textures when needed.
+   /* Indirect buffers use L2 since GFX9. */
+   if (flags & PIPE_BARRIER_INDIRECT_BUFFER &&
+       (sctx->gfx_level <= GFX8 || sctx->screen->info.cp_sdma_ge_use_system_memory_scope))
+      sctx->flags |= SI_CONTEXT_WB_L2;
+
+   /* MSAA color images are flushed in si_decompress_textures when needed.
+    * Shaders never write to depth/stencil images.
     */
    if (flags & PIPE_BARRIER_FRAMEBUFFER && sctx->framebuffer.uncompressed_cb_mask) {
       sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_CB;
 
-      if (sctx->gfx_level <= GFX8)
+      if (sctx->gfx_level >= GFX10 && sctx->gfx_level < GFX12) {
+         if (sctx->screen->info.tcc_rb_non_coherent)
+            sctx->flags |= SI_CONTEXT_INV_L2;
+         else /* We don't know which shaders do image stores with DCC: */
+            sctx->flags |= SI_CONTEXT_INV_L2_METADATA;
+      } else if (sctx->gfx_level == GFX9) {
+         /* We have to invalidate L2 for MSAA and when DCC can have pipe_aligned=0. */
+         sctx->flags |= SI_CONTEXT_INV_L2;
+      } else if (sctx->gfx_level <= GFX8) {
+         /* CB doesn't use L2 on GFX6-8.  */
          sctx->flags |= SI_CONTEXT_WB_L2;
+      }
    }
-
-   /* Indirect buffers use L2 on GFX9, but not older hw. */
-   if (sctx->screen->info.gfx_level <= GFX8 && flags & PIPE_BARRIER_INDIRECT_BUFFER)
-      sctx->flags |= SI_CONTEXT_WB_L2;
-
-   /* Indices and draw indirect don't use GL2. */
-   if (sctx->screen->info.cp_sdma_ge_use_system_memory_scope &&
-       flags & (PIPE_BARRIER_INDEX_BUFFER | PIPE_BARRIER_INDIRECT_BUFFER))
-      sctx->flags |= SI_CONTEXT_WB_L2;
 
    si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 }
