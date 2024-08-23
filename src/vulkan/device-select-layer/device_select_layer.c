@@ -54,7 +54,7 @@ struct instance_info {
    PFN_vkGetPhysicalDeviceProperties2 GetPhysicalDeviceProperties2;
    bool has_pci_bus, has_vulkan11;
    bool has_wayland, has_xcb;
-   bool zink, xwayland;
+   bool zink, xwayland, xserver;
 };
 
 static struct hash_table *device_select_instance_ht = NULL;
@@ -144,6 +144,7 @@ static VkResult device_select_CreateInstance(const VkInstanceCreateInfo *pCreate
    info->GetInstanceProcAddr = GetInstanceProcAddr;
    info->zink = !strcmp(engineName, "mesa zink");
    info->xwayland = !strcmp(applicationName, "Xwayland");
+   info->xserver = !strcmp(applicationName, "Xorg") || !strcmp(applicationName, "Xephyr");
 
    for (unsigned i = 0; i < pCreateInfo->enabledExtensionCount; i++) {
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
@@ -152,7 +153,7 @@ static VkResult device_select_CreateInstance(const VkInstanceCreateInfo *pCreate
 #endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
       if (!strcmp(pCreateInfo->ppEnabledExtensionNames[i], VK_KHR_XCB_SURFACE_EXTENSION_NAME))
-         info->has_xcb = true;
+         info->has_xcb = !info->xserver || !info->zink;
 #endif
    }
 
