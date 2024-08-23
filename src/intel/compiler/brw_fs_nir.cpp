@@ -28,6 +28,7 @@
 #include "nir.h"
 #include "nir_intrinsics.h"
 #include "nir_search_helpers.h"
+#include "dev/intel_debug.h"
 #include "util/u_math.h"
 #include "util/bitscan.h"
 
@@ -59,6 +60,8 @@ struct nir_to_brw_state {
    struct brw_fs_bind_info *ssa_bind_infos;
    brw_reg *uniform_values;
    brw_reg *system_values;
+
+   bool annotate;
 };
 
 static brw_reg get_nir_src(nir_to_brw_state &ntb, const nir_src &src);
@@ -301,7 +304,7 @@ emit_system_values_block(nir_to_brw_state &ntb, nir_block *block)
          reg = &ntb.system_values[SYSTEM_VALUE_HELPER_INVOCATION];
          if (reg->file == BAD_FILE) {
             const fs_builder abld =
-               ntb.bld.annotate("gl_HelperInvocation", NULL);
+               ntb.bld.annotate("gl_HelperInvocation");
 
             /* On Gfx6+ (gl_HelperInvocation is only exposed on Gfx7+) the
              * pixel mask is in g1.7 of the thread payload.
@@ -2464,7 +2467,7 @@ set_gs_stream_control_data_bits(nir_to_brw_state &ntb, const brw_reg &vertex_cou
    if (stream_id == 0)
       return;
 
-   const fs_builder abld = ntb.bld.annotate("set stream control data bits", NULL);
+   const fs_builder abld = ntb.bld.annotate("set stream control data bits");
 
    /* reg::sid = stream_id */
    brw_reg sid = abld.MOV(brw_imm_ud(stream_id));
@@ -8725,7 +8728,12 @@ shuffle_from_32bit_read(const fs_builder &bld,
 static void
 fs_nir_emit_instr(nir_to_brw_state &ntb, nir_instr *instr)
 {
-   ntb.bld = ntb.bld.annotate(NULL, instr);
+#ifndef NDEBUG
+   if (unlikely(ntb.annotate)) {
+      /* Use shader mem_ctx since annotations outlive the NIR conversion. */
+      ntb.bld = ntb.bld.annotate(nir_instr_as_str(instr, ntb.s.mem_ctx));
+   }
+#endif
 
    switch (instr->type) {
    case nir_instr_type_alu:
@@ -8912,6 +8920,9 @@ nir_to_brw(fs_visitor *s)
       .mem_ctx = ralloc_context(NULL),
       .bld     = fs_builder(s).at_end(),
    };
+
+   if (INTEL_DEBUG(DEBUG_ANNOTATION))
+      ntb.annotate = true;
 
    if (ENABLE_FS_TEST_DISPATCH_PACKING)
       brw_fs_test_dispatch_packing(ntb.bld);

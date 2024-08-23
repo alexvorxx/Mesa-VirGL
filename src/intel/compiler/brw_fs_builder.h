@@ -63,8 +63,11 @@ namespace brw {
          _group(inst->group),
          force_writemask_all(inst->force_writemask_all)
       {
+#ifndef NDEBUG
          annotation.str = inst->annotation;
-         annotation.ir = inst->ir;
+#else
+         annotation.str = NULL;
+#endif
       }
 
       /**
@@ -152,11 +155,10 @@ namespace brw {
        * Construct a builder with the given debug annotation info.
        */
       fs_builder
-      annotate(const char *str, const void *ir = NULL) const
+      annotate(const char *str) const
       {
          fs_builder bld = *this;
          bld.annotation.str = str;
-         bld.annotation.ir = ir;
          return bld;
       }
 
@@ -334,8 +336,9 @@ namespace brw {
 
          inst->group = _group;
          inst->force_writemask_all = force_writemask_all;
+#ifndef NDEBUG
          inst->annotation = annotation.str;
-         inst->ir = annotation.ir;
+#endif
 
          if (block)
             static_cast<fs_inst *>(cursor)->insert_before(block, inst);
@@ -966,7 +969,6 @@ namespace brw {
       /** Debug annotation info. */
       struct {
          const char *str;
-         const void *ir;
       } annotation;
    };
 }

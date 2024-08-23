@@ -122,13 +122,6 @@ public:
     */
    bool has_sampler_residency() const;
 
-   /** @{
-    * Annotation for the generated IR.  One of the two can be set.
-    */
-   const void *ir;
-   const char *annotation;
-   /** @} */
-
    uint8_t sources; /**< Number of brw_reg sources. */
 
    /**
@@ -225,6 +218,14 @@ public:
    brw_reg dst;
    brw_reg *src;
    brw_reg builtin_src[4];
+
+#ifndef NDEBUG
+   /** @{
+    * Annotation for the generated IR.
+    */
+   const char *annotation;
+   /** @} */
+#endif
 };
 
 /**

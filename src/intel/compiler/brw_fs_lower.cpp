@@ -796,7 +796,7 @@ brw_fs_lower_load_subgroup_invocation(fs_visitor &s)
          continue;
 
       const fs_builder abld =
-         fs_builder(&s, block, inst).annotate("SubgroupInvocation", NULL);
+         fs_builder(&s, block, inst).annotate("SubgroupInvocation");
       const fs_builder ubld8 = abld.group(8, 0).exec_all();
       ubld8.UNDEF(inst->dst);
 
