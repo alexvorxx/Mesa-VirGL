@@ -238,6 +238,7 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
    device->vk.command_dispatch_table = &device->cmd_dispatch;
    device->vk.command_buffer_ops = &panvk_per_arch(cmd_buffer_ops);
    device->vk.shader_ops = &panvk_per_arch(device_shader_ops);
+   device->vk.submit_mode = VK_QUEUE_SUBMIT_MODE_THREADED_ON_DEMAND;
 
    device->kmod.allocator = (struct pan_kmod_allocator){
       .zalloc = panvk_kmod_zalloc,
