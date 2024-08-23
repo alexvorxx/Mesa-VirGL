@@ -31,23 +31,6 @@
 
 #include "util/vl_rbsp.h"
 
-enum HEVCNALUnitType {
-   HEVC_NAL_TRAIL_N    = 0,
-   HEVC_NAL_TRAIL_R    = 1,
-   HEVC_NAL_TSA_N      = 2,
-   HEVC_NAL_TSA_R      = 3,
-   HEVC_NAL_BLA_W_LP   = 16,
-   HEVC_NAL_IDR_W_RADL = 19,
-   HEVC_NAL_IDR_N_LP   = 20,
-   HEVC_NAL_CRA_NUT    = 21,
-   HEVC_NAL_RSV_IRAP_VCL23 = 23,
-   HEVC_NAL_VPS        = 32,
-   HEVC_NAL_SPS        = 33,
-   HEVC_NAL_PPS        = 34,
-   HEVC_NAL_AUD        = 35,
-   HEVC_NAL_PREFIX_SEI = 39,
-};
-
 enum HEVCSEIPayloadType {
    MASTERING_DISPLAY_COLOUR_VOLUME  = 137,
    CONTENT_LIGHT_LEVEL_INFO         = 144,
@@ -655,7 +638,7 @@ static void parseEncSliceParamsH265(vlVaContext *context,
    pic->nal_unit_type = nal_unit_type;
    pic->temporal_id = temporal_id;
 
-   if (nal_unit_type >= HEVC_NAL_BLA_W_LP && nal_unit_type <= HEVC_NAL_RSV_IRAP_VCL23)
+   if (nal_unit_type >= PIPE_H265_NAL_BLA_W_LP && nal_unit_type <= PIPE_H265_NAL_RSV_IRAP_VCL23)
       slice->no_output_of_prior_pics_flag = vl_rbsp_u(rbsp, 1);
 
    vl_rbsp_ue(rbsp); /* slice_pic_parameter_set_id */
@@ -671,7 +654,7 @@ static void parseEncSliceParamsH265(vlVaContext *context,
    if (pic->output_flag_present_flag)
       slice->pic_output_flag = vl_rbsp_u(rbsp, 1);
 
-   if (nal_unit_type != HEVC_NAL_IDR_W_RADL && nal_unit_type != HEVC_NAL_IDR_N_LP) {
+   if (nal_unit_type != PIPE_H265_NAL_IDR_W_RADL && nal_unit_type != PIPE_H265_NAL_IDR_N_LP) {
       slice->slice_pic_order_cnt_lsb = vl_rbsp_u(rbsp, seq->log2_max_pic_order_cnt_lsb_minus4 + 4);
       slice->short_term_ref_pic_set_sps_flag = vl_rbsp_u(rbsp, 1);
       if (!slice->short_term_ref_pic_set_sps_flag) {
@@ -1092,31 +1075,31 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeHEVC(vlVaContext *context, vlVaBuffer *
       vl_rbsp_init(&rbsp, &vlc, ~0, context->packed_header_emulation_bytes);
 
       switch (nal_unit_type) {
-      case HEVC_NAL_TRAIL_N:
-      case HEVC_NAL_TRAIL_R:
-      case HEVC_NAL_TSA_N:
-      case HEVC_NAL_TSA_R:
-      case HEVC_NAL_IDR_W_RADL:
-      case HEVC_NAL_IDR_N_LP:
-      case HEVC_NAL_CRA_NUT:
+      case PIPE_H265_NAL_TRAIL_N:
+      case PIPE_H265_NAL_TRAIL_R:
+      case PIPE_H265_NAL_TSA_N:
+      case PIPE_H265_NAL_TSA_R:
+      case PIPE_H265_NAL_IDR_W_RADL:
+      case PIPE_H265_NAL_IDR_N_LP:
+      case PIPE_H265_NAL_CRA_NUT:
          parseEncSliceParamsH265(context, &rbsp, nal_unit_type, temporal_id);
          break;
-      case HEVC_NAL_VPS:
+      case PIPE_H265_NAL_VPS:
          parseEncVpsParamsH265(context, &rbsp);
          context->desc.h265enc.header_flags.vps = 1;
          break;
-      case HEVC_NAL_SPS:
+      case PIPE_H265_NAL_SPS:
          parseEncSpsParamsH265(context, &rbsp);
          context->desc.h265enc.header_flags.sps = 1;
          break;
-      case HEVC_NAL_PPS:
+      case PIPE_H265_NAL_PPS:
          parseEncPpsParamsH265(context, &rbsp);
          context->desc.h265enc.header_flags.pps = 1;
          break;
-      case HEVC_NAL_AUD:
+      case PIPE_H265_NAL_AUD:
          context->desc.h265enc.header_flags.aud = 1;
          break;
-      case HEVC_NAL_PREFIX_SEI:
+      case PIPE_H265_NAL_PREFIX_SEI:
          parseEncSeiH265(context, &rbsp);
          break;
       default:

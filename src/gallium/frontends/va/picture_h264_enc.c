@@ -31,14 +31,6 @@
 
 #include "util/vl_rbsp.h"
 
-enum H264NALUnitType {
-   H264_NAL_SLICE      = 1,
-   H264_NAL_IDR_SLICE  = 5,
-   H264_NAL_SPS        = 7,
-   H264_NAL_PPS        = 8,
-   H264_NAL_AUD        = 9,
-};
-
 VAStatus
 vlVaHandleVAEncPictureParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *context, vlVaBuffer *buf)
 {
@@ -511,7 +503,7 @@ static void parseEncSliceParamsH264(vlVaContext *context,
    }
 
    if (nal_ref_idc != 0) {
-      if (nal_unit_type == H264_NAL_IDR_SLICE) {
+      if (nal_unit_type == PIPE_H264_NAL_IDR_SLICE) {
          slice->no_output_of_prior_pics_flag = vl_rbsp_u(rbsp, 1);
          slice->long_term_reference_flag = vl_rbsp_u(rbsp, 1);
       } else {
@@ -793,19 +785,19 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeH264(vlVaContext *context, vlVaBuffer *
       vl_rbsp_init(&rbsp, &vlc, ~0, context->packed_header_emulation_bytes);
 
       switch (nal_unit_type) {
-      case H264_NAL_SLICE:
-      case H264_NAL_IDR_SLICE:
+      case PIPE_H264_NAL_SLICE:
+      case PIPE_H264_NAL_IDR_SLICE:
          parseEncSliceParamsH264(context, &rbsp, nal_ref_idc, nal_unit_type);
          break;
-      case H264_NAL_SPS:
+      case PIPE_H264_NAL_SPS:
          parseEncSpsParamsH264(context, &rbsp);
          context->desc.h264enc.header_flags.sps = 1;
          break;
-      case H264_NAL_PPS:
+      case PIPE_H264_NAL_PPS:
          parseEncPpsParamsH264(context, &rbsp);
          context->desc.h264enc.header_flags.pps = 1;
          break;
-      case H264_NAL_AUD:
+      case PIPE_H264_NAL_AUD:
          context->desc.h264enc.header_flags.aud = 1;
          break;
       default:

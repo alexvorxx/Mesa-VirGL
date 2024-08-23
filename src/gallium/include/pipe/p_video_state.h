@@ -126,6 +126,15 @@ enum pipe_mpeg12_field_select
    PIPE_MPEG12_FS_SECOND_BACKWARD = 0x08
 };
 
+enum pipe_h264_nal_unit_type
+{
+   PIPE_H264_NAL_SLICE = 1,
+   PIPE_H264_NAL_IDR_SLICE= 5,
+   PIPE_H264_NAL_SPS = 7,
+   PIPE_H264_NAL_PPS = 8,
+   PIPE_H264_NAL_AUD = 9,
+};
+
 enum pipe_h264_slice_type
 {
    PIPE_H264_SLICE_TYPE_P = 0x0,
@@ -133,6 +142,24 @@ enum pipe_h264_slice_type
    PIPE_H264_SLICE_TYPE_I = 0x2,
    PIPE_H264_SLICE_TYPE_SP = 0x3,
    PIPE_H264_SLICE_TYPE_SI = 0x4
+};
+
+enum pipe_h265_nal_unit_type
+{
+   PIPE_H265_NAL_TRAIL_N = 0,
+   PIPE_H265_NAL_TRAIL_R = 1,
+   PIPE_H265_NAL_TSA_N = 2,
+   PIPE_H265_NAL_TSA_R = 3,
+   PIPE_H265_NAL_BLA_W_LP = 16,
+   PIPE_H265_NAL_IDR_W_RADL = 19,
+   PIPE_H265_NAL_IDR_N_LP = 20,
+   PIPE_H265_NAL_CRA_NUT = 21,
+   PIPE_H265_NAL_RSV_IRAP_VCL23 = 23,
+   PIPE_H265_NAL_VPS = 32,
+   PIPE_H265_NAL_SPS = 33,
+   PIPE_H265_NAL_PPS = 34,
+   PIPE_H265_NAL_AUD = 35,
+   PIPE_H265_NAL_PREFIX_SEI = 39,
 };
 
 enum pipe_h265_slice_type
