@@ -1850,28 +1850,33 @@ emit_image_bufs(struct panfrost_batch *batch, enum pipe_shader_type shader,
 
       pan_pack(bufs + (i * 2) + 1, ATTRIBUTE_BUFFER_CONTINUATION_3D, cfg) {
          unsigned level = image->u.tex.level;
-         unsigned r_dim;
+         unsigned samples = rsrc->image.layout.nr_samples;
 
-         if (is_3d) {
-            r_dim = u_minify(rsrc->base.depth0, level);
-         } else if (is_msaa) {
-            r_dim = u_minify(image->resource->nr_samples, level);
-         } else {
-            r_dim = image->u.tex.last_layer - image->u.tex.first_layer + 1;
-         }
          cfg.s_dimension = u_minify(rsrc->base.width0, level);
          cfg.t_dimension = u_minify(rsrc->base.height0, level);
-         cfg.r_dimension = r_dim;
+         cfg.r_dimension = is_3d ? u_minify(rsrc->image.layout.depth, level)
+            : (image->u.tex.last_layer - image->u.tex.first_layer + 1);
 
          cfg.row_stride = rsrc->image.layout.slices[level].row_stride;
-
-         if (is_msaa) {
-            unsigned samples = rsrc->base.nr_samples;
-            cfg.slice_stride =
-               panfrost_get_layer_stride(&rsrc->image.layout, level) / samples;
-         } else if (rsrc->base.target != PIPE_TEXTURE_2D) {
+         if (cfg.r_dimension > 1) {
             cfg.slice_stride =
                panfrost_get_layer_stride(&rsrc->image.layout, level);
+         }
+
+         if (is_msaa) {
+            if (cfg.r_dimension == 1) {
+               /* regular multisampled images get the sample index in
+                  the R dimension */
+               cfg.r_dimension = samples;
+               cfg.slice_stride =
+                  panfrost_get_layer_stride(&rsrc->image.layout, level) / samples;
+            } else {
+               /* multisampled image arrays are emulated by making the
+                  image "samples" times higher than the original image,
+                  and fixing up the T coordinate by the sample number
+                  to address the correct sample (on bifrost) */
+               cfg.t_dimension *= samples;
+            }
          }
       }
    }
