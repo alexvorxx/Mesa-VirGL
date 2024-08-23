@@ -168,6 +168,12 @@ typedef struct brw_reg {
       uint32_t bits;
    };
 
+   /** Offset from the start of the virtual register in bytes. */
+   uint16_t offset;
+
+   /** Register region horizontal stride of virtual registers */
+   uint8_t stride;
+
    union {
       struct {
          unsigned nr;
@@ -187,12 +193,6 @@ typedef struct brw_reg {
       int   d;
       unsigned ud;
    };
-
-   /** Offset from the start of the virtual register in bytes. */
-   uint16_t offset;
-
-   /** Register region horizontal stride of virtual registers */
-   uint8_t stride;
 
 #ifdef __cplusplus
    /* TODO: Remove this constructor to make this type a POD.  Need
