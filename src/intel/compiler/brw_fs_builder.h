@@ -315,9 +315,7 @@ namespace brw {
          /* Use the emit() methods for specific operand counts to ensure that
           * opcode-specific operand fixups occur.
           */
-         if (n == 2) {
-            return emit(opcode, dst, srcs[0], srcs[1]);
-         } else if (n == 3) {
+         if (n == 3) {
             return emit(opcode, dst, srcs[0], srcs[1], srcs[2]);
          } else {
             return emit(fs_inst(opcode, dispatch_width(), dst, srcs, n));
