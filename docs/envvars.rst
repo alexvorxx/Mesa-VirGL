@@ -1366,8 +1366,6 @@ RADV driver environment variables
       disable FMASK compression on MSAA images (GFX6-GFX10.3)
    ``nogpl``
       disable VK_EXT_graphics_pipeline_library
-   ``nogsfastlaunch2``
-      disable GS_FAST_LAUNCH=2 for Mesh shaders (GFX11 only)
    ``nohiz``
       disable HIZ for depthstencil images
    ``noibs``

@@ -165,7 +165,6 @@ radv_physical_device_init_cache_key(struct radv_physical_device *pdev)
    key->ge_wave32 = pdev->ge_wave_size == 32;
    key->invariant_geom = !!(instance->debug_flags & RADV_DEBUG_INVARIANT_GEOM);
    key->lower_discard_to_demote = !!(instance->debug_flags & RADV_DEBUG_DISCARD_TO_DEMOTE);
-   key->mesh_fast_launch_2 = pdev->mesh_fast_launch_2;
    key->no_fmask = !!(instance->debug_flags & RADV_DEBUG_NO_FMASK);
    key->no_ngg_gs = !!(instance->debug_flags & RADV_DEBUG_NO_NGG_GS);
    key->no_rt = !!(instance->debug_flags & RADV_DEBUG_NO_RT);
@@ -2098,9 +2097,7 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
 
    pdev->emulate_ngg_gs_query_pipeline_stat = pdev->use_ngg && pdev->info.gfx_level < GFX11;
 
-   pdev->mesh_fast_launch_2 =
-      (pdev->info.gfx_level >= GFX11 && !(instance->debug_flags & RADV_DEBUG_NO_GS_FAST_LAUNCH_2)) ||
-      pdev->info.gfx_level >= GFX12;
+   pdev->mesh_fast_launch_2 = pdev->info.gfx_level >= GFX11;
 
    pdev->emulate_mesh_shader_queries = pdev->info.gfx_level == GFX10_3;
 

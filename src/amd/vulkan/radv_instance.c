@@ -70,7 +70,6 @@ static const struct debug_control radv_debug_options[] = {{"nofastclears", RADV_
                                                           {"nort", RADV_DEBUG_NO_RT},
                                                           {"nomeshshader", RADV_DEBUG_NO_MESH_SHADER},
                                                           {"nongg_gs", RADV_DEBUG_NO_NGG_GS},
-                                                          {"nogsfastlaunch2", RADV_DEBUG_NO_GS_FAST_LAUNCH_2},
                                                           {"noeso", RADV_DEBUG_NO_ESO},
                                                           {"psocachestats", RADV_DEBUG_PSO_CACHE_STATS},
                                                           {NULL, 0}};
