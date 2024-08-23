@@ -908,7 +908,7 @@ static unsigned si_get_ia_multi_vgt_param(struct si_context *sctx,
          /* The cache flushes should have been emitted already. */
          assert(sctx->flags == 0);
          sctx->flags = SI_CONTEXT_VGT_FLUSH;
-         si_emit_cache_flush_direct(sctx);
+         si_emit_barrier_direct(sctx);
       }
    }
 
@@ -2122,7 +2122,7 @@ static void si_draw(struct pipe_context *ctx,
 
          /* GFX6-7 don't read index buffers through TC L2. */
          sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
          si_resource(indexbuf)->TC_L2_dirty = false;
       } else if (!IS_DRAW_VERTEX_STATE && info->has_user_indices) {
          unsigned start_offset;
@@ -2145,7 +2145,7 @@ static void si_draw(struct pipe_context *ctx,
          /* GFX8-GFX11 reads index buffers through L2, so it doesn't
           * need this. */
          sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
          si_resource(indexbuf)->TC_L2_dirty = false;
       }
    }
@@ -2158,14 +2158,14 @@ static void si_draw(struct pipe_context *ctx,
       if (GFX_VERSION <= GFX8 || GFX_VERSION == GFX12) {
          if (indirect->buffer && si_resource(indirect->buffer)->TC_L2_dirty) {
             sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
-            si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+            si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
             si_resource(indirect->buffer)->TC_L2_dirty = false;
          }
 
          if (indirect->indirect_draw_count &&
              si_resource(indirect->indirect_draw_count)->TC_L2_dirty) {
             sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
-            si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+            si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
             si_resource(indirect->indirect_draw_count)->TC_L2_dirty = false;
          }
       }
@@ -2307,7 +2307,7 @@ static void si_draw(struct pipe_context *ctx,
          (sctx, indirect, prim, index_size, instance_count, primitive_restart,
           info->restart_index, min_direct_count);
 
-   /* <-- CUs are idle here if the cache_flush state waited. */
+   /* <-- CUs are idle here if the barrier atom waited. */
 
    /* This must be done after si_emit_all_states, which can affect this. */
    si_emit_vs_state<GFX_VERSION, HAS_TESS, HAS_GS, NGG, IS_DRAW_VERTEX_STATE, HAS_SH_PAIRS_PACKED>

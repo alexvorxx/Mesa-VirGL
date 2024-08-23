@@ -3770,7 +3770,7 @@ bool si_update_ngg(struct si_context *sctx)
        */
       if (sctx->screen->info.has_vgt_flush_ngg_legacy_bug && !new_ngg) {
          sctx->flags |= SI_CONTEXT_VGT_FLUSH;
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 
          if (sctx->gfx_level == GFX10) {
             /* Workaround for https://gitlab.freedesktop.org/mesa/mesa/-/issues/2941 */

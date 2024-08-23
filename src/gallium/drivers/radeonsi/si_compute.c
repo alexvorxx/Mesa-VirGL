@@ -1176,7 +1176,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
 
    if (cs_regalloc_hang) {
       sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+      si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 
    if (program->ir_type != PIPE_SHADER_IR_NATIVE && program->shader.compilation_failed)
@@ -1216,7 +1216,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
       if ((sctx->gfx_level <= GFX8 || sctx->gfx_level == GFX12) &&
           si_resource(info->indirect)->TC_L2_dirty) {
          sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
          si_resource(info->indirect)->TC_L2_dirty = false;
       }
    }
@@ -1269,7 +1269,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
 
    /* Registers that are not read from memory should be set before this: */
    if (sctx->flags)
-      si_emit_cache_flush_direct(sctx);
+      si_emit_barrier_direct(sctx);
 
    if (sctx->has_graphics && si_is_atom_dirty(sctx, &sctx->atoms.s.render_cond)) {
       sctx->atoms.s.render_cond.emit(sctx, -1);
@@ -1312,7 +1312,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
 
    if (cs_regalloc_hang) {
       sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+      si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 }
 

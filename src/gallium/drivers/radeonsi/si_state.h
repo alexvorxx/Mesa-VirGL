@@ -236,9 +236,9 @@ union si_state_atoms {
       struct si_atom ngg_cull_state;
       struct si_atom vgt_pipeline_state;
       struct si_atom tess_io_layout;
-      struct si_atom cache_flush;
-      struct si_atom streamout_begin; /* this must be done after cache_flush */
-      struct si_atom render_cond; /* this must be after cache_flush */
+      struct si_atom barrier;
+      struct si_atom streamout_begin; /* this must be done after barrier */
+      struct si_atom render_cond; /* this must be after barrier */
       struct si_atom spi_ge_ring_state; /* this must be last because it waits for idle. */
    } s;
    struct si_atom array[sizeof(struct si_atoms_s) / sizeof(struct si_atom)];

@@ -95,7 +95,7 @@ static void si_emit_sqtt_stop(struct si_context *sctx, struct radeon_cmdbuf *cs,
        * doesn't work. */
       sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_CB | SI_CONTEXT_FLUSH_AND_INV_DB |
                      SI_CONTEXT_CS_PARTIAL_FLUSH;
-      sctx->emit_cache_flush(sctx, cs);
+      sctx->emit_barrier(sctx, cs);
    }
 
    ac_sqtt_emit_wait(&sscreen->info, pm4, sctx->sqtt, is_compute_queue);
@@ -144,7 +144,7 @@ static void si_sqtt_start(struct si_context *sctx, struct radeon_cmdbuf *cs)
                   SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE |
                   SI_CONTEXT_INV_VCACHE | SI_CONTEXT_INV_L2 |
                   SI_CONTEXT_PFP_SYNC_ME;
-   sctx->emit_cache_flush(sctx, cs);
+   sctx->emit_barrier(sctx, cs);
 
    si_inhibit_clockgating(sctx, cs, true);
 
@@ -204,7 +204,7 @@ static void si_sqtt_stop(struct si_context *sctx, struct radeon_cmdbuf *cs)
                   SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE |
                   SI_CONTEXT_INV_VCACHE | SI_CONTEXT_INV_L2 |
                   SI_CONTEXT_PFP_SYNC_ME;
-   sctx->emit_cache_flush(sctx, cs);
+   sctx->emit_barrier(sctx, cs);
 
    si_emit_sqtt_stop(sctx, cs, ip_type);
 

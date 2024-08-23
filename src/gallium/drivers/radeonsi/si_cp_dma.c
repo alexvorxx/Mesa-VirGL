@@ -125,7 +125,7 @@ static void si_cp_dma_prepare(struct si_context *sctx, struct pipe_resource *dst
     * Also wait for the previous CP DMA operations.
     */
    if (*is_first && sctx->flags)
-      si_emit_cache_flush_direct(sctx);
+      si_emit_barrier_direct(sctx);
 
    if (*is_first && !(*packet_flags & CP_DMA_CLEAR))
       *packet_flags |= CP_DMA_RAW_WAIT;
@@ -152,7 +152,7 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
 
    if (!cp_dma_use_L2(sctx)) {
       sctx->flags |= SI_CONTEXT_INV_L2;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+      si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 
    /* Mark the buffer range of destination as valid (initialized),
@@ -235,7 +235,7 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
 
    if (!cp_dma_use_L2(sctx)) {
       sctx->flags |= SI_CONTEXT_INV_L2;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+      si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 
    /* Mark the buffer range of destination as valid (initialized),

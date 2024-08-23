@@ -955,7 +955,7 @@ struct si_context {
       struct si_resource *csa;
    } shadowing;
 
-   void (*emit_cache_flush)(struct si_context *ctx, struct radeon_cmdbuf *cs);
+   void (*emit_barrier)(struct si_context *ctx, struct radeon_cmdbuf *cs);
 
    struct blitter_context *blitter;
    void *noop_blend;
@@ -1593,8 +1593,8 @@ void si_set_tracked_regs_to_clear_state(struct si_context *ctx);
 void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs);
 void si_trace_emit(struct si_context *sctx);
 void si_emit_ts(struct si_context *sctx, struct si_resource* buffer, unsigned int offset);
-void gfx10_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs);
-void gfx6_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs);
+void gfx10_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs);
+void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs);
 /* Replace the sctx->b.draw_vbo function with a wrapper. This can be use to implement
  * optimizations without affecting the normal draw_vbo functions perf.
  */
@@ -1896,7 +1896,7 @@ static inline void si_make_CB_shader_coherent(struct si_context *sctx, unsigned 
       sctx->flags |= SI_CONTEXT_INV_L2;
    }
 
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 }
 
 static inline void si_make_DB_shader_coherent(struct si_context *sctx, unsigned num_samples,
@@ -1924,7 +1924,7 @@ static inline void si_make_DB_shader_coherent(struct si_context *sctx, unsigned 
       sctx->flags |= SI_CONTEXT_INV_L2;
    }
 
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 }
 
 static inline bool si_can_sample_zs(struct si_texture *tex, bool stencil_sampler)
@@ -2199,18 +2199,18 @@ si_set_rasterized_prim(struct si_context *sctx, enum mesa_prim rast_prim,
 /* There are 3 ways to flush caches and all of them are correct.
  *
  * 1) sctx->flags |= ...;
- *    si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush); // deferred
+ *    si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier); // deferred
  *
  * 2) sctx->flags |= ...;
- *    si_emit_cache_flush_direct(sctx); // immediate
+ *    si_emit_barrier_direct(sctx); // immediate
  *
  * 3) sctx->flags |= ...;
- *    sctx->emit_cache_flush(sctx, cs); // immediate (2 is better though)
+ *    sctx->emit_barrier(sctx, cs); // immediate (2 is better though)
  */
-static inline void si_emit_cache_flush_direct(struct si_context *sctx)
+static inline void si_emit_barrier_direct(struct si_context *sctx)
 {
-   sctx->emit_cache_flush(sctx, &sctx->gfx_cs);
-   sctx->dirty_atoms &= ~SI_ATOM_BIT(cache_flush);
+   sctx->emit_barrier(sctx, &sctx->gfx_cs);
+   sctx->dirty_atoms &= ~SI_ATOM_BIT(barrier);
 }
 
 #define PRINT_ERR(fmt, args...)                                                                    \

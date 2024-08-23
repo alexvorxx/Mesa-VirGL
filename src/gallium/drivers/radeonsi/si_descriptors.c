@@ -1641,7 +1641,7 @@ static void si_mark_bindless_descriptors_dirty(struct si_context *sctx)
    /* gfx_shader_pointers uploads bindless descriptors. */
    si_mark_atom_dirty(sctx, &sctx->atoms.s.gfx_shader_pointers);
    /* gfx_shader_pointers can flag cache flags, so we need to dirty this too. */
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 }
 
 /* Update all buffer bindings where the buffer is bound, including
@@ -1898,7 +1898,7 @@ static void si_upload_bindless_descriptors(struct si_context *sctx)
     * descriptors directly in memory, in case the GPU is using them.
     */
    sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH;
-   si_emit_cache_flush_direct(sctx);
+   si_emit_barrier_direct(sctx);
 
    util_dynarray_foreach (&sctx->resident_tex_handles, struct si_texture_handle *, tex_handle) {
       unsigned desc_slot = (*tex_handle)->desc_slot;

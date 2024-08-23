@@ -635,9 +635,9 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
    /* Initialize context functions used by graphics and compute. */
    if (sctx->gfx_level >= GFX10)
-      sctx->emit_cache_flush = gfx10_emit_cache_flush;
+      sctx->emit_barrier = gfx10_emit_barrier;
    else
-      sctx->emit_cache_flush = gfx6_emit_cache_flush;
+      sctx->emit_barrier = gfx6_emit_barrier;
 
    sctx->b.emit_string_marker = si_emit_string_marker;
    sctx->b.set_debug_callback = si_set_debug_callback;

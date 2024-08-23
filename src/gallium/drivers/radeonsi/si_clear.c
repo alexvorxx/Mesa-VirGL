@@ -73,7 +73,7 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
    if (sctx->gfx_level <= GFX8)
       sctx->flags |= SI_CONTEXT_INV_L2;
 
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 
    /* Execute clears. */
    for (unsigned i = 0; i < num_clears; i++) {
@@ -110,7 +110,7 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
    if (sctx->gfx_level <= GFX8)
       sctx->flags |= SI_CONTEXT_WB_L2;
 
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 }
 
 static bool si_alloc_separate_cmask(struct si_screen *sscreen, struct si_texture *tex)
@@ -1210,7 +1210,7 @@ static void gfx6_clear(struct pipe_context *ctx, unsigned buffers,
                /* ZRANGE_PRECISION register of a bound surface will change so we
                 * must flush the DB caches. */
                sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_DB;
-               si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+               si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
             }
             /* Update DB_DEPTH_CLEAR. */
             zstex->depth_clear_value[level] = depth;
@@ -1246,7 +1246,7 @@ static void gfx6_clear(struct pipe_context *ctx, unsigned buffers,
        */
       if (sctx->gfx_level == GFX11 || sctx->gfx_level == GFX11_5) {
          sctx->flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       }
    }
 

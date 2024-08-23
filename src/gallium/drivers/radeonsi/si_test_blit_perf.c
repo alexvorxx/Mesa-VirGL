@@ -516,7 +516,7 @@ void si_test_blit_perf(struct si_screen *sscreen)
                                     fb.nr_cbufs = 1;
                                     fb.cbufs[0] = dst_surf;
                                     ctx->set_framebuffer_state(ctx, &fb);
-                                    si_emit_cache_flush_direct(sctx);
+                                    si_emit_barrier_direct(sctx);
                                  }
                               }
 
@@ -644,7 +644,7 @@ void si_test_blit_perf(struct si_screen *sscreen)
                                              SI_CONTEXT_CS_PARTIAL_FLUSH |
                                              SI_CONTEXT_INV_L2 | SI_CONTEXT_INV_SCACHE |
                                              SI_CONTEXT_INV_VCACHE;
-                              si_emit_cache_flush_direct(sctx);
+                              si_emit_barrier_direct(sctx);
 
                               ctx->end_query(ctx, q);
                               pipe_surface_reference(&dst_surf, NULL);

@@ -82,7 +82,7 @@ void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
 
    /* Invalidate the VMEM cache only. The SMEM cache isn't used by shader buffers. */
    sctx->flags |= SI_CONTEXT_INV_VCACHE;
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 }
 
 void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
@@ -129,7 +129,7 @@ void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
       }
    }
 
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 }
 
 static void si_set_dst_src_barrier_buffers(struct pipe_shader_buffer *buffers,
@@ -165,7 +165,7 @@ static void si_compute_begin_internal(struct si_context *sctx, bool render_condi
    sctx->flags &= ~SI_CONTEXT_START_PIPELINE_STATS;
    if (sctx->num_hw_pipestat_streamout_queries) {
       sctx->flags |= SI_CONTEXT_STOP_PIPELINE_STATS;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+      si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 
    if (!render_condition_enabled)
@@ -183,7 +183,7 @@ static void si_compute_end_internal(struct si_context *sctx)
    sctx->flags &= ~SI_CONTEXT_STOP_PIPELINE_STATS;
    if (sctx->num_hw_pipestat_streamout_queries) {
       sctx->flags |= SI_CONTEXT_START_PIPELINE_STATS;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+      si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 
    sctx->render_cond_enabled = sctx->render_cond;
@@ -494,7 +494,7 @@ void si_retile_dcc(struct si_context *sctx, struct si_texture *tex)
 
    /* Flush and wait for CB before retiling DCC. */
    sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_CB;
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 
    /* Set the DCC buffer. */
    assert(tex->surface.meta_offset && tex->surface.meta_offset <= UINT_MAX);

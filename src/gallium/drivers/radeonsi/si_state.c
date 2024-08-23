@@ -1758,13 +1758,13 @@ static void si_set_active_query_state(struct pipe_context *ctx, bool enable)
       if (sctx->num_hw_pipestat_streamout_queries) {
          sctx->flags &= ~SI_CONTEXT_STOP_PIPELINE_STATS;
          sctx->flags |= SI_CONTEXT_START_PIPELINE_STATS;
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       }
    } else {
       if (sctx->num_hw_pipestat_streamout_queries) {
          sctx->flags &= ~SI_CONTEXT_START_PIPELINE_STATS;
          sctx->flags |= SI_CONTEXT_STOP_PIPELINE_STATS;
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       }
    }
 
@@ -2633,7 +2633,7 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
     * Wait for PS because: texture -> render (eg: glBlitFramebuffer(with src=dst) then glDraw*)
     */
    sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH | SI_CONTEXT_PS_PARTIAL_FLUSH;
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 
    /* DB caches are flushed on demand (using si_decompress_textures) except the cases below. */
    if (sctx->gfx_level >= GFX12) {
@@ -2661,7 +2661,7 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
           * This seems to fix them:
           */
          sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_DB | SI_CONTEXT_INV_L2;
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       }
    } else if (sctx->gfx_level == GFX9) {
       /* It appears that DB metadata "leaks" in a sequence of:
@@ -2671,7 +2671,7 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
        * Flushing DB metadata works around the problem.
        */
       sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_DB_META;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+      si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 
    /* Take the maximum of the old and new count. If the new count is lower,
@@ -4990,7 +4990,7 @@ static void si_memory_barrier(struct pipe_context *ctx, unsigned flags)
        flags & (PIPE_BARRIER_INDEX_BUFFER | PIPE_BARRIER_INDIRECT_BUFFER))
       sctx->flags |= SI_CONTEXT_WB_L2;
 
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.cache_flush);
+   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 }
 
 static void *si_create_blend_custom(struct si_context *sctx, unsigned mode)
@@ -5003,9 +5003,9 @@ static void *si_create_blend_custom(struct si_context *sctx, unsigned mode)
    return si_create_blend_state_mode(&sctx->b, &blend, mode);
 }
 
-static void si_emit_cache_flush_state(struct si_context *sctx, unsigned index)
+static void si_emit_barrier_as_atom(struct si_context *sctx, unsigned index)
 {
-   sctx->emit_cache_flush(sctx, &sctx->gfx_cs);
+   sctx->emit_barrier(sctx, &sctx->gfx_cs);
 }
 
 static void si_pm4_emit_sqtt_pipeline(struct si_context *sctx, unsigned index)
@@ -5056,7 +5056,7 @@ void si_init_state_functions(struct si_context *sctx)
    sctx->atoms.s.clip_regs.emit = si_emit_clip_regs;
    sctx->atoms.s.clip_state.emit = si_emit_clip_state;
    sctx->atoms.s.stencil_ref.emit = si_emit_stencil_ref;
-   sctx->atoms.s.cache_flush.emit = si_emit_cache_flush_state;
+   sctx->atoms.s.barrier.emit = si_emit_barrier_as_atom;
 
    sctx->b.create_blend_state = si_create_blend_state;
    sctx->b.bind_blend_state = si_bind_blend_state;
