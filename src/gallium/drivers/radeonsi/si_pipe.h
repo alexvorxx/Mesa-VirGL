@@ -1364,6 +1364,8 @@ struct si_context {
 };
 
 /* si_barrier.c */
+#define SI_FB_BARRIER_SYNC_CB      BITFIELD_BIT(0)
+
 void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                                    unsigned num_buffers,
                                    const struct pipe_shader_buffer *buffers,
@@ -1380,7 +1382,7 @@ void si_barrier_before_simple_buffer_op(struct si_context *sctx, unsigned flags,
                                         struct pipe_resource *dst, struct pipe_resource *src);
 void si_barrier_after_simple_buffer_op(struct si_context *sctx, unsigned flags,
                                        struct pipe_resource *dst, struct pipe_resource *src);
-void si_fb_barrier_after_rendering(struct si_context *sctx);
+void si_fb_barrier_after_rendering(struct si_context *sctx, unsigned flags);
 void si_init_barrier_functions(struct si_context *sctx);
 
 /* si_blit.c */

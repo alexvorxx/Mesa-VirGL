@@ -639,16 +639,7 @@ void si_barrier_after_simple_buffer_op(struct si_context *sctx, unsigned flags,
 
 static void si_texture_barrier(struct pipe_context *ctx, unsigned flags)
 {
-   struct si_context *sctx = (struct si_context *)ctx;
-
-   si_fb_barrier_after_rendering(sctx);
-
-   /* Multisample surfaces are flushed in si_decompress_textures. */
-   if (sctx->framebuffer.uncompressed_cb_mask) {
-      si_make_CB_shader_coherent(sctx, sctx->framebuffer.nr_samples,
-                                 sctx->framebuffer.CB_has_shader_readable_metadata,
-                                 sctx->framebuffer.all_DCC_pipe_aligned);
-   }
+   si_fb_barrier_after_rendering((struct si_context *)ctx, SI_FB_BARRIER_SYNC_CB);
 }
 
 /* This enforces coherency between shader stores and any past and future access. */
@@ -735,9 +726,12 @@ static void si_set_sampler_depth_decompress_mask(struct si_context *sctx, struct
    }
 }
 
-void si_fb_barrier_after_rendering(struct si_context *sctx)
+void si_fb_barrier_after_rendering(struct si_context *sctx, unsigned flags)
 {
    if (sctx->gfx_level < GFX12 && !sctx->decompression_enabled) {
+      /* Setting dirty_level_mask should ignore SI_FB_BARRIER_SYNC_* because it triggers
+       * decompression, which is not syncing.
+       */
       if (sctx->framebuffer.state.zsbuf) {
          struct pipe_surface *surf = sctx->framebuffer.state.zsbuf;
          struct si_texture *tex = (struct si_texture *)surf->texture;
@@ -760,6 +754,18 @@ void si_fb_barrier_after_rendering(struct si_context *sctx)
             tex->dirty_level_mask |= 1 << surf->u.tex.level;
             tex->fmask_is_identity = false;
          }
+      }
+   }
+
+   if (flags & SI_FB_BARRIER_SYNC_CB) {
+      /* Compressed images (MSAA with FMASK) are flushed on demand in si_decompress_textures.
+       *
+       * Synchronize CB only if there is actually a bound color buffer.
+       */
+      if (sctx->framebuffer.uncompressed_cb_mask) {
+         si_make_CB_shader_coherent(sctx, sctx->framebuffer.nr_samples,
+                                    sctx->framebuffer.CB_has_shader_readable_metadata,
+                                    sctx->framebuffer.all_DCC_pipe_aligned);
       }
    }
 }

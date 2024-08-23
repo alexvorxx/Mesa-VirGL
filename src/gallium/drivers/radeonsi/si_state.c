@@ -2547,7 +2547,7 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
       return;
    }
 
-   si_fb_barrier_after_rendering(sctx);
+   si_fb_barrier_after_rendering(sctx, SI_FB_BARRIER_SYNC_CB);
 
    /* Disable DCC if the formats are incompatible. */
    if (sctx->gfx_level >= GFX8 && sctx->gfx_level < GFX11) {
@@ -2567,19 +2567,6 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
 
          surf->dcc_incompatible = false;
       }
-   }
-
-   /* When MSAA is enabled, CB and L2 caches are flushed on demand
-    * (after FMASK decompression). Shader write -> FB read transitions
-    * cannot happen for MSAA textures, because MSAA shader images are
-    * not supported.
-    *
-    * Only flush and wait for CB if there is actually a bound color buffer.
-    */
-   if (sctx->framebuffer.uncompressed_cb_mask) {
-      si_make_CB_shader_coherent(sctx, sctx->framebuffer.nr_samples,
-                                 sctx->framebuffer.CB_has_shader_readable_metadata,
-                                 sctx->framebuffer.all_DCC_pipe_aligned);
    }
 
    /* Wait for CS because: shader write -> FB read

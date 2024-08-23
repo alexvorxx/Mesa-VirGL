@@ -1193,14 +1193,10 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
                         (sctx->force_shader_coherency.with_db ||
                          si_check_needs_implicit_sync(sctx, RADEON_USAGE_DB_NEEDS_IMPLICIT_SYNC));
 
-         si_fb_barrier_after_rendering(sctx);
+         si_fb_barrier_after_rendering(sctx, sync_cb ? SI_FB_BARRIER_SYNC_CB : 0);
 
-         if (sync_cb) {
+         if (sync_cb)
             sctx->num_draw_calls_sh_coherent.with_cb = sctx->num_draw_calls;
-            si_make_CB_shader_coherent(sctx, 0,
-                                       sctx->framebuffer.CB_has_shader_readable_metadata,
-                                       sctx->framebuffer.all_DCC_pipe_aligned);
-         }
 
          if (sync_db) {
             sctx->num_draw_calls_sh_coherent.with_db = sctx->num_draw_calls;
