@@ -925,8 +925,8 @@ void gfx9_get_gs_info(struct si_shader_selector *es, struct si_shader_selector *
 static void gfx9_set_gs_sgpr_num_es_outputs(struct si_context *sctx, unsigned esgs_vertex_stride)
 {
    /* The stride must always be odd (e.g. a multiple of 4 + 1) to reduce LDS bank conflicts. */
-   assert(esgs_vertex_stride % 4 == 1);
-   unsigned num_es_outputs = (esgs_vertex_stride - 1) / 4;
+   assert(!esgs_vertex_stride || esgs_vertex_stride % 4 == 1);
+   unsigned num_es_outputs = esgs_vertex_stride / 4;
 
    /* If there are no ES outputs, GS doesn't use this SGPR field, so only set it if the number
     * is non-zero.
