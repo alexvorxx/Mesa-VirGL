@@ -401,7 +401,6 @@ struct radv_dgc_params {
    uint64_t stream_addr;
 
    /* draw info */
-   uint16_t binds_index_buffer;
    uint16_t vtx_base_sgpr;
    uint32_t max_index_count;
 
@@ -418,9 +417,6 @@ struct radv_dgc_params {
    uint32_t dispatch_initiator;
    uint16_t grid_base_sgpr;
 
-   /* bind index buffer info. Valid if binds_index_buffer == true && draw_indexed */
-   uint16_t index_buffer_offset;
-
    uint8_t vbo_cnt;
 
    uint8_t const_copy;
@@ -435,9 +431,6 @@ struct radv_dgc_params {
 
    uint16_t push_constant_stages;
    uint64_t push_constant_mask;
-
-   uint32_t ibo_type_32;
-   uint32_t ibo_type_8;
 
    uint8_t use_preamble;
 
@@ -1108,25 +1101,24 @@ dgc_emit_draw_indexed(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *sequ
 static nir_def *
 dgc_get_index_type(struct dgc_cmdbuf *cs, nir_def *user_index_type)
 {
+   const struct radv_indirect_command_layout *layout = cs->layout;
    nir_builder *b = cs->b;
 
-   nir_def *ibo_type_32 = load_param32(b, ibo_type_32);
-   nir_def *ibo_type_8 = load_param32(b, ibo_type_8);
-
-   nir_def *index_type = nir_bcsel(b, nir_ieq(b, user_index_type, ibo_type_32), nir_imm_int(b, V_028A7C_VGT_INDEX_32),
-                                   nir_imm_int(b, V_028A7C_VGT_INDEX_16));
-   return nir_bcsel(b, nir_ieq(b, user_index_type, ibo_type_8), nir_imm_int(b, V_028A7C_VGT_INDEX_8), index_type);
+   nir_def *index_type = nir_bcsel(b, nir_ieq_imm(b, user_index_type, layout->ibo_type_32),
+                                   nir_imm_int(b, V_028A7C_VGT_INDEX_32), nir_imm_int(b, V_028A7C_VGT_INDEX_16));
+   return nir_bcsel(b, nir_ieq_imm(b, user_index_type, layout->ibo_type_8), nir_imm_int(b, V_028A7C_VGT_INDEX_8),
+                    index_type);
 }
 
 static void
-dgc_emit_index_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *index_buffer_offset,
-                      nir_variable *max_index_count_var)
+dgc_emit_index_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_variable *max_index_count_var)
 {
+   const struct radv_indirect_command_layout *layout = cs->layout;
    const struct radv_device *device = cs->dev;
    const struct radv_physical_device *pdev = radv_device_physical(device);
    nir_builder *b = cs->b;
 
-   nir_def *data = nir_build_load_global(b, 4, 32, nir_iadd(b, stream_addr, nir_u2u64(b, index_buffer_offset)),
+   nir_def *data = nir_build_load_global(b, 4, 32, nir_iadd_imm(b, stream_addr, layout->index_buffer_offset),
                                          .access = ACCESS_NON_WRITEABLE);
 
    nir_def *index_type = dgc_get_index_type(cs, nir_channel(b, data, 3));
@@ -2071,23 +2063,18 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
              * indirect draws to remove the dependency on the cmdbuf state in order to enable
              * preprocessing.
              */
-            nir_def *binds_index_buffer = nir_ine_imm(&b, load_param16(&b, binds_index_buffer), 0);
-            nir_push_if(&b, binds_index_buffer);
-            {
+            if (layout->binds_index_buffer) {
                nir_variable *max_index_count_var =
                   nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "max_index_count");
 
-               dgc_emit_index_buffer(&cmd_buf, stream_addr, load_param16(&b, index_buffer_offset), max_index_count_var);
+               dgc_emit_index_buffer(&cmd_buf, stream_addr, max_index_count_var);
 
                nir_def *max_index_count = nir_load_var(&b, max_index_count_var);
 
                dgc_emit_draw_indexed(&cmd_buf, stream_addr, sequence_id, max_index_count);
-            }
-            nir_push_else(&b, NULL);
-            {
+            } else {
                dgc_emit_draw_indirect(&cmd_buf, stream_addr, sequence_id, true);
             }
-            nir_pop_if(&b, NULL);
          } else {
             if (layout->draw_mesh_tasks) {
                dgc_emit_draw_mesh_tasks_gfx(&cmd_buf, stream_addr, sequence_id);
@@ -2500,12 +2487,8 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
          vtx_base_sgpr |= DGC_USES_BASEINSTANCE;
    }
 
-   params->binds_index_buffer = layout->binds_index_buffer;
    params->vtx_base_sgpr = vtx_base_sgpr;
    params->max_index_count = cmd_buffer->state.max_index_count;
-   params->index_buffer_offset = layout->index_buffer_offset;
-   params->ibo_type_32 = layout->ibo_type_32;
-   params->ibo_type_8 = layout->ibo_type_8;
    params->dynamic_vs_input = layout->bind_vbo_mask && vs->info.vs.dynamic_inputs;
 
    if (layout->bind_vbo_mask) {
