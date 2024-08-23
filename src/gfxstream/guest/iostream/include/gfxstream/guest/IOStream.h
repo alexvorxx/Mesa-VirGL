@@ -50,6 +50,9 @@ public:
         return m_bufsize < len ? len : m_bufsize;
     }
 
+    virtual int connect(const char* serviceName = nullptr) { return 0; }
+    virtual uint64_t processPipeInit() { return 0; }
+
     virtual void *allocBuffer(size_t minSize) = 0;
     virtual int commitBuffer(size_t size) = 0;
     virtual const unsigned char *readFully( void *buf, size_t len) = 0;
