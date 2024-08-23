@@ -1406,14 +1406,17 @@ bi_promote_atom_c1(enum bi_atom_opc op, bi_index arg, enum bi_atom_opc *out)
  * Aditionally on Valhall, cube maps in the attribute pipe are treated as 2D
  * arrays.  For uniform handling, we also treat 3D textures like 2D arrays.
  *
- * Our indexing needs to reflects this.
+ * Our indexing needs to reflects this. Since Valhall and Bifrost are quite
+ * different, we provide separate functions for these.
  */
 static bi_index
 bi_emit_image_coord(bi_builder *b, bi_index coord, unsigned src_idx,
-                    unsigned coord_comps, bool is_array)
+                    unsigned coord_comps, bool is_array, bool is_msaa)
 {
    assert(coord_comps > 0 && coord_comps <= 3);
 
+   /* MSAA load store should have been lowered */
+   assert(!is_msaa);
    if (src_idx == 0) {
       if (coord_comps == 1 || (coord_comps == 2 && is_array))
          return bi_extract(b, coord, 0);
@@ -1421,19 +1424,41 @@ bi_emit_image_coord(bi_builder *b, bi_index coord, unsigned src_idx,
          return bi_mkvec_v2i16(b, bi_half(bi_extract(b, coord, 0), false),
                                bi_half(bi_extract(b, coord, 1), false));
    } else {
-      if (coord_comps == 3 && b->shader->arch >= 9)
-         return bi_mkvec_v2i16(b, bi_imm_u16(0),
-                               bi_half(bi_extract(b, coord, 2), false));
-      else if (coord_comps == 2 && is_array && b->shader->arch >= 9)
-         return bi_mkvec_v2i16(b, bi_imm_u16(0),
-                               bi_half(bi_extract(b, coord, 1), false));
-      else if (coord_comps == 3)
+      if (coord_comps == 3)
          return bi_extract(b, coord, 2);
       else if (coord_comps == 2 && is_array)
          return bi_extract(b, coord, 1);
       else
          return bi_zero();
    }
+}
+
+static bi_index
+va_emit_image_coord(bi_builder *b, bi_index coord, bi_index sample_index,
+                    unsigned src_idx, unsigned coord_comps, bool is_array,
+                    bool is_msaa)
+{
+   assert(coord_comps > 0 && coord_comps <= 3);
+   if (src_idx == 0) {
+      if (coord_comps == 1 || (coord_comps == 2 && is_array))
+         return bi_extract(b, coord, 0);
+      else
+         return bi_mkvec_v2i16(b, bi_half(bi_extract(b, coord, 0), false),
+                               bi_half(bi_extract(b, coord, 1), false));
+   } else if (is_msaa) {
+      bi_index array_idx = bi_extract(b, sample_index, 0);
+      if (coord_comps == 3)
+         return bi_mkvec_v2i16(b, bi_half(array_idx, false),
+                               bi_half(bi_extract(b, coord, 2), false));
+      else if (coord_comps == 2)
+         return array_idx;
+   } else if (coord_comps == 3)
+      return bi_mkvec_v2i16(b, bi_imm_u16(0),
+                            bi_half(bi_extract(b, coord, 2), false));
+   else if (coord_comps == 2 && is_array)
+      return bi_mkvec_v2i16(b, bi_imm_u16(0),
+                            bi_half(bi_extract(b, coord, 1), false));
+   return bi_zero();
 }
 
 static void
@@ -1444,14 +1469,22 @@ bi_emit_image_load(bi_builder *b, nir_intrinsic_instr *instr)
    bool array = nir_intrinsic_image_array(instr);
 
    bi_index coords = bi_src_index(&instr->src[1]);
-   bi_index xy = bi_emit_image_coord(b, coords, 0, coord_comps, array);
-   bi_index zw = bi_emit_image_coord(b, coords, 1, coord_comps, array);
+   bi_index indexvar = bi_src_index(&instr->src[2]);
+   bi_index xy, zw;
+   bool is_ms = (dim == GLSL_SAMPLER_DIM_MS);
+   if (b->shader->arch < 9) {
+      xy = bi_emit_image_coord(b, coords, 0, coord_comps, array, is_ms);
+      zw = bi_emit_image_coord(b, coords, 1, coord_comps, array, is_ms);
+   } else {
+      xy =
+         va_emit_image_coord(b, coords, indexvar, 0, coord_comps, array, is_ms);
+      zw =
+         va_emit_image_coord(b, coords, indexvar, 1, coord_comps, array, is_ms);
+   }
    bi_index dest = bi_def_index(&instr->def);
    enum bi_register_format regfmt =
       bi_reg_fmt_for_nir(nir_intrinsic_dest_type(instr));
    enum bi_vecsize vecsize = instr->num_components - 1;
-
-   assert(dim != GLSL_SAMPLER_DIM_MS && "MSAA'd image not lowered");
 
    if (b->shader->arch >= 9 && nir_src_is_const(instr->src[0])) {
       const unsigned raw_value = nir_src_as_uint(instr->src[0]);
@@ -1484,16 +1517,24 @@ bi_emit_lea_image_to(bi_builder *b, bi_index dest, nir_intrinsic_instr *instr)
    bool array = nir_intrinsic_image_array(instr);
    unsigned coord_comps = nir_image_intrinsic_coord_components(instr);
 
-   assert(dim != GLSL_SAMPLER_DIM_MS && "MSAA'd image not lowered");
-
    enum bi_register_format type =
       (instr->intrinsic == nir_intrinsic_image_store)
          ? bi_reg_fmt_for_nir(nir_intrinsic_src_type(instr))
          : BI_REGISTER_FORMAT_AUTO;
 
    bi_index coords = bi_src_index(&instr->src[1]);
-   bi_index xy = bi_emit_image_coord(b, coords, 0, coord_comps, array);
-   bi_index zw = bi_emit_image_coord(b, coords, 1, coord_comps, array);
+   bi_index indices = bi_src_index(&instr->src[2]);
+   bi_index xy, zw;
+   bool is_ms = dim == GLSL_SAMPLER_DIM_MS;
+   if (b->shader->arch < 9) {
+      xy = bi_emit_image_coord(b, coords, 0, coord_comps, array, is_ms);
+      zw = bi_emit_image_coord(b, coords, 1, coord_comps, array, is_ms);
+   } else {
+      xy =
+         va_emit_image_coord(b, coords, indices, 0, coord_comps, array, is_ms);
+      zw =
+         va_emit_image_coord(b, coords, indices, 1, coord_comps, array, is_ms);
+   }
 
    if (b->shader->arch >= 9 && nir_src_is_const(instr->src[0])) {
       const unsigned raw_value = nir_src_as_uint(instr->src[0]);
