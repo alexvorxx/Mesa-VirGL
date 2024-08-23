@@ -633,12 +633,6 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    sctx->ngg = sscreen->use_ngg;
    si_shader_change_notify(sctx);
 
-   /* Initialize context functions used by graphics and compute. */
-   if (sctx->gfx_level >= GFX10)
-      sctx->emit_barrier = gfx10_emit_barrier;
-   else
-      sctx->emit_barrier = gfx6_emit_barrier;
-
    sctx->b.emit_string_marker = si_emit_string_marker;
    sctx->b.set_debug_callback = si_set_debug_callback;
    sctx->b.set_log_context = si_set_log_context;
@@ -648,6 +642,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    sctx->b.set_frontend_noop = si_set_frontend_noop;
 
    si_init_all_descriptors(sctx);
+   si_init_barrier_functions(sctx);
    si_init_buffer_functions(sctx);
    si_init_clear_functions(sctx);
    si_init_blit_functions(sctx);

@@ -4921,78 +4921,6 @@ static void si_set_tess_state(struct pipe_context *ctx, const float default_oute
    si_set_internal_const_buffer(sctx, SI_HS_CONST_DEFAULT_TESS_LEVELS, &cb);
 }
 
-static void si_texture_barrier(struct pipe_context *ctx, unsigned flags)
-{
-   struct si_context *sctx = (struct si_context *)ctx;
-
-   si_update_fb_dirtiness_after_rendering(sctx);
-
-   /* Multisample surfaces are flushed in si_decompress_textures. */
-   if (sctx->framebuffer.uncompressed_cb_mask) {
-      si_make_CB_shader_coherent(sctx, sctx->framebuffer.nr_samples,
-                                 sctx->framebuffer.CB_has_shader_readable_metadata,
-                                 sctx->framebuffer.all_DCC_pipe_aligned);
-   }
-}
-
-/* This only ensures coherency for shader image/buffer stores. */
-static void si_memory_barrier(struct pipe_context *ctx, unsigned flags)
-{
-   struct si_context *sctx = (struct si_context *)ctx;
-
-   if (!(flags & ~PIPE_BARRIER_UPDATE))
-      return;
-
-   /* Subsequent commands must wait for all shader invocations to
-    * complete. */
-   sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH |
-                  SI_CONTEXT_PFP_SYNC_ME;
-
-   if (flags & PIPE_BARRIER_CONSTANT_BUFFER)
-      sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE;
-
-   if (flags & (PIPE_BARRIER_VERTEX_BUFFER | PIPE_BARRIER_SHADER_BUFFER | PIPE_BARRIER_TEXTURE |
-                PIPE_BARRIER_IMAGE | PIPE_BARRIER_STREAMOUT_BUFFER | PIPE_BARRIER_GLOBAL_BUFFER)) {
-      /* As far as I can tell, L1 contents are written back to L2
-       * automatically at end of shader, but the contents of other
-       * L1 caches might still be stale. */
-      sctx->flags |= SI_CONTEXT_INV_VCACHE;
-
-      if (flags & (PIPE_BARRIER_IMAGE | PIPE_BARRIER_TEXTURE) &&
-          sctx->screen->info.tcc_rb_non_coherent)
-         sctx->flags |= SI_CONTEXT_INV_L2;
-   }
-
-   if (flags & PIPE_BARRIER_INDEX_BUFFER) {
-      /* Indices are read through TC L2 since GFX8.
-       * L1 isn't used.
-       */
-      if (sctx->screen->info.gfx_level <= GFX7)
-         sctx->flags |= SI_CONTEXT_WB_L2;
-   }
-
-   /* MSAA color, any depth and any stencil are flushed in
-    * si_decompress_textures when needed.
-    */
-   if (flags & PIPE_BARRIER_FRAMEBUFFER && sctx->framebuffer.uncompressed_cb_mask) {
-      sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_CB;
-
-      if (sctx->gfx_level <= GFX8)
-         sctx->flags |= SI_CONTEXT_WB_L2;
-   }
-
-   /* Indirect buffers use TC L2 on GFX9, but not older hw. */
-   if (sctx->screen->info.gfx_level <= GFX8 && flags & PIPE_BARRIER_INDIRECT_BUFFER)
-      sctx->flags |= SI_CONTEXT_WB_L2;
-
-   /* Indices and draw indirect don't use GL2. */
-   if (sctx->screen->info.cp_sdma_ge_use_system_memory_scope &&
-       flags & (PIPE_BARRIER_INDEX_BUFFER | PIPE_BARRIER_INDIRECT_BUFFER))
-      sctx->flags |= SI_CONTEXT_WB_L2;
-
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
-}
-
 static void *si_create_blend_custom(struct si_context *sctx, unsigned mode)
 {
    struct pipe_blend_state blend;
@@ -5001,11 +4929,6 @@ static void *si_create_blend_custom(struct si_context *sctx, unsigned mode)
    blend.independent_blend_enable = true;
    blend.rt[0].colormask = 0xf;
    return si_create_blend_state_mode(&sctx->b, &blend, mode);
-}
-
-static void si_emit_barrier_as_atom(struct si_context *sctx, unsigned index)
-{
-   sctx->emit_barrier(sctx, &sctx->gfx_cs);
 }
 
 static void si_pm4_emit_sqtt_pipeline(struct si_context *sctx, unsigned index)
@@ -5024,7 +4947,6 @@ void si_init_state_compute_functions(struct si_context *sctx)
    sctx->b.delete_sampler_state = si_delete_sampler_state;
    sctx->b.create_sampler_view = si_create_sampler_view;
    sctx->b.sampler_view_destroy = si_sampler_view_destroy;
-   sctx->b.memory_barrier = si_memory_barrier;
 }
 
 void si_init_state_functions(struct si_context *sctx)
@@ -5056,7 +4978,6 @@ void si_init_state_functions(struct si_context *sctx)
    sctx->atoms.s.clip_regs.emit = si_emit_clip_regs;
    sctx->atoms.s.clip_state.emit = si_emit_clip_state;
    sctx->atoms.s.stencil_ref.emit = si_emit_stencil_ref;
-   sctx->atoms.s.barrier.emit = si_emit_barrier_as_atom;
 
    sctx->b.create_blend_state = si_create_blend_state;
    sctx->b.bind_blend_state = si_bind_blend_state;
@@ -5098,7 +5019,6 @@ void si_init_state_functions(struct si_context *sctx)
    sctx->b.delete_vertex_elements_state = si_delete_vertex_element;
    sctx->b.set_vertex_buffers = si_set_vertex_buffers;
 
-   sctx->b.texture_barrier = si_texture_barrier;
    sctx->b.set_min_samples = si_set_min_samples;
    sctx->b.set_tess_state = si_set_tess_state;
 

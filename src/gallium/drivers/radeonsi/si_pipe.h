@@ -1363,6 +1363,25 @@ struct si_context {
    unsigned int last_timestamp_cmd_cdw;
 };
 
+/* si_barrier.c */
+void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
+                                   unsigned num_buffers,
+                                   const struct pipe_shader_buffer *buffers,
+                                   unsigned writable_buffers_mask,
+                                   unsigned num_images,
+                                   const struct pipe_image_view *images);
+void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
+                                  unsigned num_buffers,
+                                  const struct pipe_shader_buffer *buffers,
+                                  unsigned writable_buffers_mask,
+                                  unsigned num_images,
+                                  const struct pipe_image_view *images);
+void si_barrier_before_simple_buffer_op(struct si_context *sctx, unsigned flags,
+                                        struct pipe_resource *dst, struct pipe_resource *src);
+void si_barrier_after_simple_buffer_op(struct si_context *sctx, unsigned flags,
+                                       struct pipe_resource *dst, struct pipe_resource *src);
+void si_init_barrier_functions(struct si_context *sctx);
+
 /* si_blit.c */
 enum si_blitter_op /* bitmask */
 {
@@ -1458,22 +1477,6 @@ void si_init_clear_functions(struct si_context *sctx);
 void si_destroy_compute(struct si_compute *program);
 
 /* si_compute_blit.c */
-void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
-                                   unsigned num_buffers,
-                                   const struct pipe_shader_buffer *buffers,
-                                   unsigned writable_buffers_mask,
-                                   unsigned num_images,
-                                   const struct pipe_image_view *images);
-void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
-                                  unsigned num_buffers,
-                                  const struct pipe_shader_buffer *buffers,
-                                  unsigned writable_buffers_mask,
-                                  unsigned num_images,
-                                  const struct pipe_image_view *images);
-void si_barrier_before_simple_buffer_op(struct si_context *sctx, unsigned flags,
-                                        struct pipe_resource *dst, struct pipe_resource *src);
-void si_barrier_after_simple_buffer_op(struct si_context *sctx, unsigned flags,
-                                       struct pipe_resource *dst, struct pipe_resource *src);
 bool si_should_blit_clamp_to_edge(const struct pipe_blit_info *info, unsigned coord_mask);
 void si_launch_grid_internal_ssbos(struct si_context *sctx, struct pipe_grid_info *info,
                                    void *shader, unsigned num_buffers,
@@ -1593,8 +1596,6 @@ void si_set_tracked_regs_to_clear_state(struct si_context *ctx);
 void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs);
 void si_trace_emit(struct si_context *sctx);
 void si_emit_ts(struct si_context *sctx, struct si_resource* buffer, unsigned int offset);
-void gfx10_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs);
-void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs);
 /* Replace the sctx->b.draw_vbo function with a wrapper. This can be use to implement
  * optimizations without affecting the normal draw_vbo functions perf.
  */
