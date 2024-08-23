@@ -3070,6 +3070,12 @@ nvk_mme_bind_ib(struct mme_builder *b)
    struct mme_value64 addr = mme_load_addr64(b);
    struct mme_value size_B = mme_load(b);
 
+   struct mme_value addr_or = mme_or(b, addr.lo, addr.hi);
+   mme_if(b, ieq, addr_or, mme_zero()) {
+      mme_mov_to(b, size_B, mme_zero());
+   }
+   mme_free_reg(b, addr_or);
+
    if (b->devinfo->cls_eng3d < TURING_A) {
       mme_if(b, ieq, size_B, mme_zero()) {
          nvk_mme_load_scratch_to(b, addr.hi, ZERO_ADDR_HI);
@@ -3168,6 +3174,12 @@ nvk_mme_bind_vb(struct mme_builder *b)
    struct mme_value64 addr = mme_load_addr64(b);
    struct mme_value size_B = mme_load(b);
 
+   struct mme_value addr_or = mme_or(b, addr.lo, addr.hi);
+   mme_if(b, ieq, addr_or, mme_zero()) {
+      mme_mov_to(b, size_B, mme_zero());
+   }
+   mme_free_reg(b, addr_or);
+
    if (b->devinfo->cls_eng3d < TURING_A) {
       mme_if(b, ieq, size_B, mme_zero()) {
          nvk_mme_load_scratch_to(b, addr.hi, ZERO_ADDR_HI);
@@ -3203,27 +3215,34 @@ nvk_mme_bind_vb_test_check(const struct nv_device_info *devinfo,
                            const struct nvk_mme_test_case *test,
                            const struct nvk_mme_mthd_data *results)
 {
-   assert(results[0].mthd == NV9097_SET_VERTEX_STREAM_A_LOCATION_A(3));
-   assert(results[1].mthd == NV9097_SET_VERTEX_STREAM_A_LOCATION_B(3));
+   const uint32_t vb_idx = test->params[0];
+   const uint32_t addr_hi = test->params[1];
+   const uint32_t addr_lo = test->params[2];
+
+   uint32_t size_B = test->params[3];
+   if (addr_hi == 0 && addr_lo == 0)
+      size_B = 0;
+
+   assert(results[0].mthd == NV9097_SET_VERTEX_STREAM_A_LOCATION_A(vb_idx));
+   assert(results[1].mthd == NV9097_SET_VERTEX_STREAM_A_LOCATION_B(vb_idx));
 
    if (devinfo->cls_eng3d >= TURING_A) {
-      assert(results[0].data == test->params[1]);
-      assert(results[1].data == test->params[2]);
+      assert(results[0].data == addr_hi);
+      assert(results[1].data == addr_lo);
 
       assert(results[2].mthd == NVC597_SET_VERTEX_STREAM_SIZE_A(3));
       assert(results[3].mthd == NVC597_SET_VERTEX_STREAM_SIZE_B(3));
       assert(results[2].data == 0);
-      assert(results[3].data == test->params[3]);
+      assert(results[3].data == size_B);
    } else {
-      uint64_t vb_addr = ((uint64_t)test->params[1] << 32) | test->params[2];
-      const uint32_t size = test->params[3];
-      if (size == 0)
-         vb_addr = ((uint64_t)test->init[0].data << 32) | test->init[1].data;
+      uint64_t addr = ((uint64_t)addr_hi << 32) | addr_lo;
+      if (size_B == 0)
+         addr = ((uint64_t)test->init[0].data << 32) | test->init[1].data;
 
-      assert(results[0].data == vb_addr >> 32);
-      assert(results[1].data == (uint32_t)vb_addr);
+      assert(results[0].data == addr >> 32);
+      assert(results[1].data == (uint32_t)addr);
 
-      const uint64_t limit = (vb_addr + size) - 1;
+      const uint64_t limit = (addr + size_B) - 1;
       assert(results[2].mthd == NV9097_SET_VERTEX_STREAM_LIMIT_A_A(3));
       assert(results[3].mthd == NV9097_SET_VERTEX_STREAM_LIMIT_A_B(3));
       assert(results[2].data == limit >> 32);
@@ -3241,6 +3260,14 @@ const struct nvk_mme_test_case nvk_mme_bind_vb_tests[] = {{
       { }
    },
    .params = (uint32_t[]) { 3, 0xff3, 0xff4ab000, 0 },
+   .check = nvk_mme_bind_vb_test_check,
+}, {
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(ZERO_ADDR_HI), 0xff3 },
+      { NVK_SET_MME_SCRATCH(ZERO_ADDR_LO), 0xff356000 },
+      { }
+   },
+   .params = (uint32_t[]) { 3, 0, 0, 0x800 },
    .check = nvk_mme_bind_vb_test_check,
 }, {}};
 
