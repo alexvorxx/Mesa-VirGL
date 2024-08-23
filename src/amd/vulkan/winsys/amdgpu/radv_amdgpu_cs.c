@@ -195,12 +195,8 @@ radv_amdgpu_cs_destroy(struct radeon_cmdbuf *rcs)
    if (cs->ib_buffer)
       cs->ws->base.buffer_destroy(&cs->ws->base, cs->ib_buffer);
 
-   for (unsigned i = 0; i < cs->num_ib_buffers; ++i) {
-      if (!cs->ib_buffers[i].bo)
-         continue;
-
+   for (unsigned i = 0; i < cs->num_ib_buffers; ++i)
       cs->ws->base.buffer_destroy(&cs->ws->base, cs->ib_buffers[i].bo);
-   }
 
    free(cs->ib_buffers);
    free(cs->virtual_buffers);
@@ -529,12 +525,8 @@ radv_amdgpu_cs_reset(struct radeon_cmdbuf *_cs)
 
    cs->ws->base.cs_add_buffer(&cs->base, cs->ib_buffer);
 
-   for (unsigned i = 0; i < cs->num_ib_buffers; ++i) {
-      if (!cs->ib_buffers[i].bo)
-         continue;
-
+   for (unsigned i = 0; i < cs->num_ib_buffers; ++i)
       cs->ws->base.buffer_destroy(&cs->ws->base, cs->ib_buffers[i].bo);
-   }
 
    cs->num_ib_buffers = 0;
    cs->ib.ib_mc_address = radv_amdgpu_winsys_bo(cs->ib_buffer)->base.va;
@@ -546,17 +538,6 @@ radv_amdgpu_cs_reset(struct radeon_cmdbuf *_cs)
 
    _mesa_hash_table_destroy(cs->annotations, radv_amdgpu_cs_free_annotation);
    cs->annotations = NULL;
-}
-
-static bool
-radv_amdgpu_cs_has_external_ib(const struct radv_amdgpu_cs *cs)
-{
-   for (unsigned i = 0; i < cs->num_ib_buffers; i++) {
-      if (!cs->ib_buffers[i].bo)
-         return true;
-   }
-
-   return false;
 }
 
 static void
@@ -593,12 +574,6 @@ radv_amdgpu_cs_chain(struct radeon_cmdbuf *cs, struct radeon_cmdbuf *next_cs, bo
 
    /* Only some HW IP types have packets that we can use for chaining. */
    if (!acs->use_ib)
-      return false;
-
-   /* Do not chain if the next CS has external IBs because it will chain to newly created IB instead
-    * of the first one.
-    */
-   if (radv_amdgpu_cs_has_external_ib(next_acs))
       return false;
 
    assert(cs->cdw <= cs->max_dw + 4);
@@ -1068,14 +1043,7 @@ radv_amdgpu_get_num_ibs_per_cs(const struct radv_amdgpu_cs *cs)
    unsigned num_ibs = 0;
 
    if (cs->use_ib) {
-      unsigned num_external_ibs = 0;
-
-      for (unsigned i = 0; i < cs->num_ib_buffers; i++) {
-         if (!cs->ib_buffers[i].bo)
-            num_external_ibs++;
-      }
-
-      num_ibs = num_external_ibs * 2 + 1;
+      num_ibs = 1; /* Everything is chained. */
    } else {
       num_ibs = cs->num_ib_buffers;
    }
@@ -1187,28 +1155,12 @@ radv_amdgpu_winsys_cs_submit_internal(struct radv_amdgpu_ctx *ctx, int queue_idx
          }
 
          /* When IBs are used, we only need to submit the main IB of this CS, because everything
-          * else is chained to the first IB. Except when the CS has external IBs because they need
-          * to be submitted separately. Otherwise we must submit all IBs in the ib_buffers array.
+          * else is chained to the first IB. Otherwise we must submit all IBs in the ib_buffers
+          * array.
           */
          if (cs->use_ib) {
-            if (radv_amdgpu_cs_has_external_ib(cs)) {
-               const unsigned cur_ib_idx = cs_ib_idx;
-
-               ib = radv_amdgpu_cs_ib_to_info(cs, cs->ib_buffers[cs_ib_idx++]);
-
-               /* Loop until the next external IB is found. */
-               while (cs->ib_buffers[cur_ib_idx].bo && cs->ib_buffers[cs_ib_idx].bo && cs_ib_idx < cs->num_ib_buffers) {
-                  cs_ib_idx++;
-               }
-
-               if (cs_ib_idx == cs->num_ib_buffers) {
-                  cs_idx++;
-                  cs_ib_idx = 0;
-               }
-            } else {
-               ib = radv_amdgpu_cs_ib_to_info(cs, cs->ib_buffers[0]);
-               cs_idx++;
-            }
+            ib = radv_amdgpu_cs_ib_to_info(cs, cs->ib_buffers[0]);
+            cs_idx++;
          } else {
             assert(cs_ib_idx < cs->num_ib_buffers);
             ib = radv_amdgpu_cs_ib_to_info(cs, cs->ib_buffers[cs_ib_idx++]);
@@ -1494,7 +1446,7 @@ radv_amdgpu_winsys_cs_dump(struct radeon_cmdbuf *_cs, FILE *file, const int *tra
    struct radv_amdgpu_cs *cs = (struct radv_amdgpu_cs *)_cs;
    struct radv_amdgpu_winsys *ws = cs->ws;
 
-   if (cs->use_ib && !radv_amdgpu_cs_has_external_ib(cs)) {
+   if (cs->use_ib) {
       struct radv_amdgpu_cs_ib_info ib_info = radv_amdgpu_cs_ib_to_info(cs, cs->ib_buffers[0]);
 
       struct ac_addr_info addr_info;
@@ -1530,11 +1482,6 @@ radv_amdgpu_winsys_cs_dump(struct radeon_cmdbuf *_cs, FILE *file, const int *tra
          struct radv_amdgpu_ib *ib = &cs->ib_buffers[i];
          char name[64];
          void *mapped;
-
-         if (!ib->bo) {
-            fprintf(file, "Chunk %d isn't owned by this CS.\n\n", i);
-            continue;
-         }
 
          mapped = radv_buffer_map(&ws->base, ib->bo);
          if (!mapped)
