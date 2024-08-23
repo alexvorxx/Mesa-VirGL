@@ -558,10 +558,6 @@ static VkResult device_select_EnumeratePhysicalDevices(VkInstance instance,
    if (info->zink && info->xwayland)
       return info->EnumeratePhysicalDevices(instance, pPhysicalDeviceCount, pPhysicalDevices);
    VkResult result = info->EnumeratePhysicalDevices(instance, &physical_device_count, NULL);
-   if (!pPhysicalDevices) {
-      *pPhysicalDeviceCount = physical_device_count;
-      return result;
-   }
    VK_OUTARRAY_MAKE_TYPED(VkPhysicalDevice, out, pPhysicalDevices, pPhysicalDeviceCount);
    if (result != VK_SUCCESS)
       return result;
@@ -647,10 +643,6 @@ static VkResult device_select_EnumeratePhysicalDeviceGroups(VkInstance instance,
    if (info->zink && info->xwayland)
       return info->EnumeratePhysicalDeviceGroups(instance, pPhysicalDeviceGroupCount, pPhysicalDeviceGroups);
    VkResult result = info->EnumeratePhysicalDeviceGroups(instance, &physical_device_group_count, NULL);
-   if (!pPhysicalDeviceGroups) {
-      *pPhysicalDeviceGroupCount = physical_device_group_count;
-      return result;
-   }
    VK_OUTARRAY_MAKE_TYPED(VkPhysicalDeviceGroupProperties, out, pPhysicalDeviceGroups, pPhysicalDeviceGroupCount);
 
    if (result != VK_SUCCESS)
