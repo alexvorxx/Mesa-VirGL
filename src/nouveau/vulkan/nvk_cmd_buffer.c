@@ -22,6 +22,7 @@
 #include "nv_push_cl90b5.h"
 #include "nv_push_cla097.h"
 #include "nv_push_cla0c0.h"
+#include "nv_push_clb1c0.h"
 #include "nv_push_clc597.h"
 
 static void
@@ -378,6 +379,7 @@ enum nvk_barrier {
    NVK_BARRIER_INVALIDATE_TEX_DATA     = 1 << 4,
    NVK_BARRIER_INVALIDATE_CONSTANT     = 1 << 5,
    NVK_BARRIER_INVALIDATE_MME_DATA     = 1 << 6,
+   NVK_BARRIER_INVALIDATE_QMD_DATA     = 1 << 7,
 };
 
 static enum nvk_barrier
@@ -410,6 +412,10 @@ nvk_barrier_flushes_waits(VkPipelineStageFlags2 stages,
                   VK_PIPELINE_STAGE_2_CLEAR_BIT)))
       barriers |= NVK_BARRIER_RENDER_WFI;
 
+   if (access & VK_ACCESS_2_COMMAND_PREPROCESS_WRITE_BIT_EXT)
+      barriers |= NVK_BARRIER_FLUSH_SHADER_DATA |
+                  NVK_BARRIER_COMPUTE_WFI;
+
    return barriers;
 }
 
@@ -427,6 +433,10 @@ nvk_barrier_invalidates(VkPipelineStageFlags2 stages,
                  VK_ACCESS_2_CONDITIONAL_RENDERING_READ_BIT_EXT |
                  VK_ACCESS_2_DESCRIPTOR_BUFFER_READ_BIT_EXT))
       barriers |= NVK_BARRIER_INVALIDATE_MME_DATA;
+
+   if (access & VK_ACCESS_2_INDIRECT_COMMAND_READ_BIT)
+      barriers |= NVK_BARRIER_INVALIDATE_CONSTANT |
+                  NVK_BARRIER_INVALIDATE_QMD_DATA;
 
    if (access & (VK_ACCESS_2_UNIFORM_READ_BIT |
                  VK_ACCESS_2_DESCRIPTOR_BUFFER_READ_BIT_EXT))
@@ -538,7 +548,7 @@ nvk_cmd_invalidate_deps(struct nvk_cmd_buffer *cmd,
    if (!barriers)
       return;
 
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 8);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 10);
 
    if (barriers & NVK_BARRIER_INVALIDATE_TEX_DATA) {
       P_IMMD(p, NVA097, INVALIDATE_TEXTURE_DATA_CACHE_NO_WFI, {
@@ -560,6 +570,10 @@ nvk_cmd_invalidate_deps(struct nvk_cmd_buffer *cmd,
       if (pdev->info.cls_eng3d >= TURING_A)
          P_IMMD(p, NVC597, MME_DMA_SYSMEMBAR, 0);
    }
+
+   if ((barriers & NVK_BARRIER_INVALIDATE_QMD_DATA) &&
+       pdev->info.cls_eng3d >= MAXWELL_COMPUTE_B)
+      P_IMMD(p, NVB1C0, INVALIDATE_SKED_CACHES, 0);
 }
 
 VKAPI_ATTR void VKAPI_CALL
