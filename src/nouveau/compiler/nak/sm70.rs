@@ -1931,23 +1931,13 @@ impl SM70Op for OpF2FP {
     }
 
     fn encode(&self, e: &mut SM70Encoder<'_>) {
-        if src_is_zero_or_gpr(&self.srcs[1]) {
-            e.encode_alu(
-                0x03e,
-                Some(&self.dst),
-                Some(&self.srcs[0]),
-                Some(&self.srcs[1]),
-                Some(&Src::new_zero()),
-            )
-        } else {
-            e.encode_alu(
-                0x03e,
-                Some(&self.dst),
-                None,
-                Some(&self.srcs[1]),
-                Some(&self.srcs[0]),
-            )
-        };
+        e.encode_alu(
+            0x03e,
+            Some(&self.dst),
+            Some(&self.srcs[0]),
+            Some(&self.srcs[1]),
+            Some(&Src::new_zero()),
+        );
 
         // .MERGE_C behavior
         // Use src1 and src2, src0 is unused
