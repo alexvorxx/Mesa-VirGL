@@ -276,6 +276,7 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
 
    panvk_device_init_mempools(device);
 
+#if PAN_ARCH <= 9
    device->tiler_heap = panvk_priv_bo_create(
       device, 128 * 1024 * 1024,
       PAN_KMOD_BO_FLAG_NO_MMAP | PAN_KMOD_BO_FLAG_ALLOC_ON_FAULT,
@@ -285,6 +286,7 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
       result = vk_error(physical_device, VK_ERROR_OUT_OF_HOST_MEMORY);
       goto err_free_priv_bos;
    }
+#endif
 
    device->sample_positions =
       panvk_priv_bo_create(device, panfrost_sample_positions_buffer_size(), 0,
