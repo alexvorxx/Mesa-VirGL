@@ -1187,19 +1187,22 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
    if (sctx->has_graphics) {
       if (sctx->num_draw_calls_sh_coherent.with_cb != sctx->num_draw_calls ||
           sctx->num_draw_calls_sh_coherent.with_db != sctx->num_draw_calls) {
+         bool sync_cb = sctx->force_shader_coherency.with_cb ||
+                        si_check_needs_implicit_sync(sctx, RADEON_USAGE_CB_NEEDS_IMPLICIT_SYNC);
+         bool sync_db = sctx->gfx_level == GFX12 &&
+                        (sctx->force_shader_coherency.with_db ||
+                         si_check_needs_implicit_sync(sctx, RADEON_USAGE_DB_NEEDS_IMPLICIT_SYNC));
+
          si_fb_barrier_after_rendering(sctx);
 
-         if (sctx->force_shader_coherency.with_cb ||
-             si_check_needs_implicit_sync(sctx, RADEON_USAGE_CB_NEEDS_IMPLICIT_SYNC)) {
+         if (sync_cb) {
             sctx->num_draw_calls_sh_coherent.with_cb = sctx->num_draw_calls;
             si_make_CB_shader_coherent(sctx, 0,
                                        sctx->framebuffer.CB_has_shader_readable_metadata,
                                        sctx->framebuffer.all_DCC_pipe_aligned);
          }
 
-         if (sctx->gfx_level == GFX12 &&
-             (sctx->force_shader_coherency.with_db ||
-              si_check_needs_implicit_sync(sctx, RADEON_USAGE_DB_NEEDS_IMPLICIT_SYNC))) {
+         if (sync_db) {
             sctx->num_draw_calls_sh_coherent.with_db = sctx->num_draw_calls;
             si_make_DB_shader_coherent(sctx, 0, false, false);
          }
