@@ -419,7 +419,6 @@ struct radv_dgc_params {
 
    /* dispatch info */
    uint32_t dispatch_initiator;
-   uint16_t dispatch_params_offset;
    uint16_t grid_base_sgpr;
 
    /* bind index buffer info. Valid if binds_index_buffer == true && draw_indexed */
@@ -443,7 +442,6 @@ struct radv_dgc_params {
    uint32_t ibo_type_32;
    uint32_t ibo_type_8;
 
-   uint8_t is_dispatch;
    uint8_t use_preamble;
 
    /* For conditional rendering on ACE. */
@@ -787,12 +785,12 @@ dgc_emit_grid_size_user_sgpr(struct dgc_cmdbuf *cs, nir_def *grid_base_sgpr, nir
 }
 
 static void
-dgc_emit_grid_size_pointer(struct dgc_cmdbuf *cs, nir_def *grid_base_sgpr, nir_def *stream_addr,
-                           nir_def *dispatch_params_offset)
+dgc_emit_grid_size_pointer(struct dgc_cmdbuf *cs, nir_def *grid_base_sgpr, nir_def *stream_addr)
 {
+   const struct radv_indirect_command_layout *layout = cs->layout;
    nir_builder *b = cs->b;
 
-   nir_def *va = nir_iadd(b, stream_addr, nir_u2u64(b, dispatch_params_offset));
+   nir_def *va = nir_iadd_imm(b, stream_addr, layout->dispatch_params_offset);
 
    nir_def *va_lo = nir_unpack_64_2x32_split_x(b, va);
    nir_def *va_hi = nir_unpack_64_2x32_split_y(b, va);
@@ -1675,13 +1673,14 @@ dgc_get_dispatch_initiator(struct dgc_cmdbuf *cs, nir_def *stream_addr)
 }
 
 static void
-dgc_emit_dispatch(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *dispatch_params_offset, nir_def *sequence_id)
+dgc_emit_dispatch(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *sequence_id)
 {
+   const struct radv_indirect_command_layout *layout = cs->layout;
    const struct radv_device *device = cs->dev;
    nir_builder *b = cs->b;
 
    nir_def *dispatch_data = nir_build_load_global(
-      b, 3, 32, nir_iadd(b, stream_addr, nir_u2u64(b, dispatch_params_offset)), .access = ACCESS_NON_WRITEABLE);
+      b, 3, 32, nir_iadd_imm(b, stream_addr, layout->dispatch_params_offset), .access = ACCESS_NON_WRITEABLE);
    nir_def *wg_x = nir_channel(b, dispatch_data, 0);
    nir_def *wg_y = nir_channel(b, dispatch_data, 1);
    nir_def *wg_z = nir_channel(b, dispatch_data, 2);
@@ -1694,7 +1693,7 @@ dgc_emit_dispatch(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *dispatch
          if (device->load_grid_size_from_user_sgpr) {
             dgc_emit_grid_size_user_sgpr(cs, grid_sgpr, wg_x, wg_y, wg_z);
          } else {
-            dgc_emit_grid_size_pointer(cs, grid_sgpr, stream_addr, dispatch_params_offset);
+            dgc_emit_grid_size_pointer(cs, grid_sgpr, stream_addr);
          }
       }
       nir_pop_if(b, 0);
@@ -2067,8 +2066,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
       }
       nir_pop_if(&b, 0);
 
-      nir_push_if(&b, nir_ieq_imm(&b, load_param8(&b, is_dispatch), 0));
-      {
+      if (layout->pipeline_bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS) {
          nir_push_if(&b, nir_ieq_imm(&b, load_param16(&b, draw_indexed), 0));
          {
             nir_def *draw_mesh_tasks = load_param8(&b, draw_mesh_tasks);
@@ -2109,12 +2107,9 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
             nir_pop_if(&b, NULL);
          }
          nir_pop_if(&b, NULL);
+      } else {
+         dgc_emit_dispatch(&cmd_buf, stream_addr, sequence_id);
       }
-      nir_push_else(&b, NULL);
-      {
-         dgc_emit_dispatch(&cmd_buf, stream_addr, load_param16(&b, dispatch_params_offset), sequence_id);
-      }
-      nir_pop_if(&b, NULL);
 
       /* Pad the cmdbuffer if we did not use the whole stride */
       dgc_pad_cmdbuf(&cmd_buf, cmd_buf_end);
@@ -2577,9 +2572,7 @@ radv_prepare_dgc_compute(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCo
       return;
    }
 
-   params->dispatch_params_offset = layout->dispatch_params_offset;
    params->dispatch_initiator = device->dispatch_initiator | S_00B800_FORCE_START_AT_000(1);
-   params->is_dispatch = 1;
 
    if (cond_render_enabled) {
       params->predicating = true;
