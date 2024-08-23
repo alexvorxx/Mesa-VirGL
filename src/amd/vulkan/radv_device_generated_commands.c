@@ -470,6 +470,7 @@ enum {
 
 struct dgc_cmdbuf {
    const struct radv_device *dev;
+   const struct radv_indirect_command_layout *layout;
 
    nir_builder *b;
    nir_def *va;
@@ -2029,6 +2030,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
          .dev = dev,
          .va = nir_pack_64_2x32_split(&b, load_param32(&b, upload_addr), nir_imm_int(&b, pdev->info.address32_hi)),
          .offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "cmd_buf_offset"),
+         .layout = layout,
       };
       nir_store_var(&b, cmd_buf.offset, nir_iadd(&b, nir_imul(&b, global_id, cmd_buf_stride), cmd_buf_base_offset), 1);
       nir_def *cmd_buf_end = nir_iadd(&b, nir_load_var(&b, cmd_buf.offset), cmd_buf_stride);
@@ -2135,6 +2137,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
             .dev = dev,
             .va = nir_pack_64_2x32_split(&b, load_param32(&b, upload_addr), nir_imm_int(&b, pdev->info.address32_hi)),
             .offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "cmd_buf_offset"),
+            .layout = layout,
          };
          nir_store_var(&b, cmd_buf.offset,
                        nir_iadd(&b, nir_imul(&b, global_id, ace_cmd_buf_stride), ace_cmd_buf_base_offset), 1);
