@@ -93,8 +93,8 @@ static void si_emit_sqtt_stop(struct si_context *sctx, struct radeon_cmdbuf *cs,
    if (sctx->screen->info.has_sqtt_rb_harvest_bug) {
       /* Some chips with disabled RBs should wait for idle because FINISH_DONE
        * doesn't work. */
-      sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_CB | SI_CONTEXT_FLUSH_AND_INV_DB |
-                     SI_CONTEXT_CS_PARTIAL_FLUSH;
+      sctx->barrier_flags |= SI_CONTEXT_FLUSH_AND_INV_CB | SI_CONTEXT_FLUSH_AND_INV_DB |
+                             SI_CONTEXT_CS_PARTIAL_FLUSH;
       sctx->emit_barrier(sctx, cs);
    }
 
@@ -140,10 +140,10 @@ static void si_sqtt_start(struct si_context *sctx, struct radeon_cmdbuf *cs)
    si_cp_dma_wait_for_idle(sctx, cs);
 
    /* Make sure to wait-for-idle before starting SQTT. */
-   sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH |
-                  SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE |
-                  SI_CONTEXT_INV_VCACHE | SI_CONTEXT_INV_L2 |
-                  SI_CONTEXT_PFP_SYNC_ME;
+   sctx->barrier_flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH |
+                          SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE |
+                          SI_CONTEXT_INV_VCACHE | SI_CONTEXT_INV_L2 |
+                          SI_CONTEXT_PFP_SYNC_ME;
    sctx->emit_barrier(sctx, cs);
 
    si_inhibit_clockgating(sctx, cs, true);
@@ -200,10 +200,10 @@ static void si_sqtt_stop(struct si_context *sctx, struct radeon_cmdbuf *cs)
                           sctx->screen->info.never_send_perfcounter_stop);
 
    /* Make sure to wait-for-idle before stopping SQTT. */
-   sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH |
-                  SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE |
-                  SI_CONTEXT_INV_VCACHE | SI_CONTEXT_INV_L2 |
-                  SI_CONTEXT_PFP_SYNC_ME;
+   sctx->barrier_flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH |
+                          SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE |
+                          SI_CONTEXT_INV_VCACHE | SI_CONTEXT_INV_L2 |
+                          SI_CONTEXT_PFP_SYNC_ME;
    sctx->emit_barrier(sctx, cs);
 
    si_emit_sqtt_stop(sctx, cs, ip_type);

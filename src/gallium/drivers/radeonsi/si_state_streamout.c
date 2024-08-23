@@ -98,12 +98,12 @@ static void si_set_streamout_targets(struct pipe_context *ctx, unsigned num_targ
        * VS_PARTIAL_FLUSH is required if the buffers are going to be
        * used as an input immediately.
        */
-      sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
-                     SI_CONTEXT_VS_PARTIAL_FLUSH | SI_CONTEXT_PFP_SYNC_ME;
+      sctx->barrier_flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
+                             SI_CONTEXT_VS_PARTIAL_FLUSH | SI_CONTEXT_PFP_SYNC_ME;
 
       /* Make the streamout state buffer available to the CP for resuming and DrawTF. */
       if (sctx->screen->info.cp_sdma_ge_use_system_memory_scope)
-         sctx->flags |= SI_CONTEXT_WB_L2;
+         sctx->barrier_flags |= SI_CONTEXT_WB_L2;
 
       si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
@@ -227,8 +227,8 @@ static void si_set_streamout_targets(struct pipe_context *ctx, unsigned num_targ
       /* All readers of the streamout targets need to be finished before we can
        * start writing to them.
        */
-      sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH |
-                     SI_CONTEXT_PFP_SYNC_ME;
+      sctx->barrier_flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH |
+                             SI_CONTEXT_PFP_SYNC_ME;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    } else {
       si_set_atom_dirty(sctx, &sctx->atoms.s.streamout_begin, false);
@@ -371,7 +371,7 @@ void si_emit_streamout_end(struct si_context *sctx)
 
    if (sctx->gfx_level >= GFX11) {
       /* Wait for streamout to finish before reading GDS_STRMOUT registers. */
-      sctx->flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
+      sctx->barrier_flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
       si_emit_barrier_direct(sctx);
    } else {
       si_flush_vgt_streamout(sctx);
@@ -387,7 +387,7 @@ void si_emit_streamout_end(struct si_context *sctx)
                          COPY_DATA_REG, NULL,
                          (R_031088_GDS_STRMOUT_DWORDS_WRITTEN_0 >> 2) + i);
          /* For DrawTF reading buf_filled_size: */
-         sctx->flags |= SI_CONTEXT_PFP_SYNC_ME;
+         sctx->barrier_flags |= SI_CONTEXT_PFP_SYNC_ME;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       } else {
          uint64_t va = t[i]->buf_filled_size->gpu_address + t[i]->buf_filled_size_offset;

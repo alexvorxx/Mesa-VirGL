@@ -1897,7 +1897,7 @@ static void si_upload_bindless_descriptors(struct si_context *sctx)
    /* Wait for graphics/compute to be idle before updating the resident
     * descriptors directly in memory, in case the GPU is using them.
     */
-   sctx->flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH;
+   sctx->barrier_flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH;
    si_emit_barrier_direct(sctx);
 
    util_dynarray_foreach (&sctx->resident_tex_handles, struct si_texture_handle *, tex_handle) {
@@ -1921,11 +1921,11 @@ static void si_upload_bindless_descriptors(struct si_context *sctx)
    }
 
    /* Invalidate scalar L0 because the cache doesn't know that L2 changed. */
-   sctx->flags |= SI_CONTEXT_INV_SCACHE;
+   sctx->barrier_flags |= SI_CONTEXT_INV_SCACHE;
 
    /* TODO: Range-invalidate GL2 */
    if (sctx->screen->info.cp_sdma_ge_use_system_memory_scope)
-      sctx->flags |= SI_CONTEXT_INV_L2;
+      sctx->barrier_flags |= SI_CONTEXT_INV_L2;
 
    sctx->bindless_descriptors_dirty = false;
 }

@@ -537,7 +537,7 @@ void si_test_blit_perf(struct si_screen *sscreen)
                                     case METHOD_DEFAULT:
                                        if (test_flavor == TEST_FB_CLEAR) {
                                           ctx->clear(ctx, PIPE_CLEAR_COLOR, NULL, clear_color, 0, 0);
-                                          sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_CB | SI_CONTEXT_INV_L2;
+                                          sctx->barrier_flags |= SI_CONTEXT_FLUSH_AND_INV_CB | SI_CONTEXT_INV_L2;
                                        } else {
                                           ctx->clear_render_target(ctx, dst_surf, clear_color,
                                                                    dst_box.x, dst_box.y,
@@ -640,10 +640,10 @@ void si_test_blit_perf(struct si_screen *sscreen)
                               }
 
                               /* Wait for idle after all tests. */
-                              sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_CB |
-                                             SI_CONTEXT_CS_PARTIAL_FLUSH |
-                                             SI_CONTEXT_INV_L2 | SI_CONTEXT_INV_SCACHE |
-                                             SI_CONTEXT_INV_VCACHE;
+                              sctx->barrier_flags |= SI_CONTEXT_FLUSH_AND_INV_CB |
+                                                     SI_CONTEXT_CS_PARTIAL_FLUSH |
+                                                     SI_CONTEXT_INV_L2 | SI_CONTEXT_INV_SCACHE |
+                                                     SI_CONTEXT_INV_VCACHE;
                               si_emit_barrier_direct(sctx);
 
                               ctx->end_query(ctx, q);

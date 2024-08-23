@@ -1756,14 +1756,14 @@ static void si_set_active_query_state(struct pipe_context *ctx, bool enable)
    if (enable) {
       /* Disable pipeline stats if there are no active queries. */
       if (sctx->num_hw_pipestat_streamout_queries) {
-         sctx->flags &= ~SI_CONTEXT_STOP_PIPELINE_STATS;
-         sctx->flags |= SI_CONTEXT_START_PIPELINE_STATS;
+         sctx->barrier_flags &= ~SI_CONTEXT_STOP_PIPELINE_STATS;
+         sctx->barrier_flags |= SI_CONTEXT_START_PIPELINE_STATS;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       }
    } else {
       if (sctx->num_hw_pipestat_streamout_queries) {
-         sctx->flags &= ~SI_CONTEXT_START_PIPELINE_STATS;
-         sctx->flags |= SI_CONTEXT_STOP_PIPELINE_STATS;
+         sctx->barrier_flags &= ~SI_CONTEXT_START_PIPELINE_STATS;
+         sctx->barrier_flags |= SI_CONTEXT_STOP_PIPELINE_STATS;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       }
    }
@@ -2632,7 +2632,7 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
    /* Wait for CS because: shader write -> FB read
     * Wait for PS because: texture -> render (eg: glBlitFramebuffer(with src=dst) then glDraw*)
     */
-   sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH | SI_CONTEXT_PS_PARTIAL_FLUSH;
+   sctx->barrier_flags |= SI_CONTEXT_CS_PARTIAL_FLUSH | SI_CONTEXT_PS_PARTIAL_FLUSH;
    si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 
    /* DB caches are flushed on demand (using si_decompress_textures) except the cases below. */
@@ -2660,7 +2660,7 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
           *
           * This seems to fix them:
           */
-         sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_DB | SI_CONTEXT_INV_L2;
+         sctx->barrier_flags |= SI_CONTEXT_FLUSH_AND_INV_DB | SI_CONTEXT_INV_L2;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       }
    } else if (sctx->gfx_level == GFX9) {
@@ -2670,7 +2670,7 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
        *  - render with DEPTH_BEFORE_SHADER=1
        * Flushing DB metadata works around the problem.
        */
-      sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_DB_META;
+      sctx->barrier_flags |= SI_CONTEXT_FLUSH_AND_INV_DB_META;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 

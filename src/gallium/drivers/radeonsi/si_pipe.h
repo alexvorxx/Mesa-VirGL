@@ -1007,7 +1007,7 @@ struct si_context {
       unsigned with_cb;
       unsigned with_db;
    } num_draw_calls_sh_coherent;
-   unsigned flags; /* flush flags */
+   unsigned barrier_flags;
 
    /* Atoms (state emit functions). */
    union si_state_atoms atoms;
@@ -1875,26 +1875,26 @@ static inline void si_saved_cs_reference(struct si_saved_cs **dst, struct si_sav
 static inline void si_make_CB_shader_coherent(struct si_context *sctx, unsigned num_samples,
                                               bool shaders_read_metadata, bool dcc_pipe_aligned)
 {
-   sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_CB | SI_CONTEXT_INV_VCACHE;
+   sctx->barrier_flags |= SI_CONTEXT_FLUSH_AND_INV_CB | SI_CONTEXT_INV_VCACHE;
    sctx->force_shader_coherency.with_cb = false;
 
    if (sctx->gfx_level >= GFX10 && sctx->gfx_level < GFX12) {
       if (sctx->screen->info.tcc_rb_non_coherent)
-         sctx->flags |= SI_CONTEXT_INV_L2;
+         sctx->barrier_flags |= SI_CONTEXT_INV_L2;
       else if (shaders_read_metadata)
-         sctx->flags |= SI_CONTEXT_INV_L2_METADATA;
+         sctx->barrier_flags |= SI_CONTEXT_INV_L2_METADATA;
    } else if (sctx->gfx_level == GFX9) {
       /* Single-sample color is coherent with shaders on GFX9, but
        * L2 metadata must be flushed if shaders read metadata.
        * (DCC, CMASK).
        */
       if (num_samples >= 2 || (shaders_read_metadata && !dcc_pipe_aligned))
-         sctx->flags |= SI_CONTEXT_INV_L2;
+         sctx->barrier_flags |= SI_CONTEXT_INV_L2;
       else if (shaders_read_metadata)
-         sctx->flags |= SI_CONTEXT_INV_L2_METADATA;
+         sctx->barrier_flags |= SI_CONTEXT_INV_L2_METADATA;
    } else if (sctx->gfx_level <= GFX8) {
       /* GFX6-GFX8 */
-      sctx->flags |= SI_CONTEXT_INV_L2;
+      sctx->barrier_flags |= SI_CONTEXT_INV_L2;
    }
 
    si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
@@ -1903,26 +1903,26 @@ static inline void si_make_CB_shader_coherent(struct si_context *sctx, unsigned 
 static inline void si_make_DB_shader_coherent(struct si_context *sctx, unsigned num_samples,
                                               bool include_stencil, bool shaders_read_metadata)
 {
-   sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_DB | SI_CONTEXT_INV_VCACHE;
+   sctx->barrier_flags |= SI_CONTEXT_FLUSH_AND_INV_DB | SI_CONTEXT_INV_VCACHE;
    sctx->force_shader_coherency.with_db = false;
 
    if (sctx->gfx_level >= GFX10 && sctx->gfx_level < GFX12) {
       if (sctx->screen->info.tcc_rb_non_coherent)
-         sctx->flags |= SI_CONTEXT_INV_L2;
+         sctx->barrier_flags |= SI_CONTEXT_INV_L2;
       else if (shaders_read_metadata)
-         sctx->flags |= SI_CONTEXT_INV_L2_METADATA;
+         sctx->barrier_flags |= SI_CONTEXT_INV_L2_METADATA;
    } else if (sctx->gfx_level == GFX9) {
       /* Single-sample depth (not stencil) is coherent with shaders
        * on GFX9, but L2 metadata must be flushed if shaders read
        * metadata.
        */
       if (num_samples >= 2 || include_stencil)
-         sctx->flags |= SI_CONTEXT_INV_L2;
+         sctx->barrier_flags |= SI_CONTEXT_INV_L2;
       else if (shaders_read_metadata)
-         sctx->flags |= SI_CONTEXT_INV_L2_METADATA;
+         sctx->barrier_flags |= SI_CONTEXT_INV_L2_METADATA;
    } else if (sctx->gfx_level <= GFX8) {
       /* GFX6-GFX8 */
-      sctx->flags |= SI_CONTEXT_INV_L2;
+      sctx->barrier_flags |= SI_CONTEXT_INV_L2;
    }
 
    si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
@@ -2210,7 +2210,7 @@ si_set_rasterized_prim(struct si_context *sctx, enum mesa_prim rast_prim,
  */
 static inline void si_emit_barrier_direct(struct si_context *sctx)
 {
-   if (sctx->flags) {
+   if (sctx->barrier_flags) {
       sctx->emit_barrier(sctx, &sctx->gfx_cs);
       sctx->dirty_atoms &= ~SI_ATOM_BIT(barrier);
    }

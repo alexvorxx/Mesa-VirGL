@@ -166,7 +166,7 @@ void si_flush_gfx_cs(struct si_context *ctx, unsigned flags, struct pipe_fence_h
 
    /* Wait for draw calls to finish if needed. */
    if (wait_flags) {
-      ctx->flags |= wait_flags;
+      ctx->barrier_flags |= wait_flags;
       si_emit_barrier_direct(ctx);
    }
    ctx->gfx_last_ib_is_busy = (wait_flags & wait_ps_cs) != wait_ps_cs;
@@ -462,16 +462,16 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
     *
     * TODO: Do we also need to invalidate CB & DB caches?
     */
-   ctx->flags |= SI_CONTEXT_INV_L2;
+   ctx->barrier_flags |= SI_CONTEXT_INV_L2;
    if (ctx->gfx_level < GFX10)
-      ctx->flags |= SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE;
+      ctx->barrier_flags |= SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE;
 
    /* Disable pipeline stats if there are no active queries. */
-   ctx->flags &= ~SI_CONTEXT_START_PIPELINE_STATS & ~SI_CONTEXT_STOP_PIPELINE_STATS;
+   ctx->barrier_flags &= ~SI_CONTEXT_START_PIPELINE_STATS & ~SI_CONTEXT_STOP_PIPELINE_STATS;
    if (ctx->num_hw_pipestat_streamout_queries)
-      ctx->flags |= SI_CONTEXT_START_PIPELINE_STATS;
+      ctx->barrier_flags |= SI_CONTEXT_START_PIPELINE_STATS;
    else
-      ctx->flags |= SI_CONTEXT_STOP_PIPELINE_STATS;
+      ctx->barrier_flags |= SI_CONTEXT_STOP_PIPELINE_STATS;
 
    ctx->pipeline_stats_enabled = -1; /* indicate that the current hw state is unknown */
 
@@ -479,7 +479,7 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
     * When switching NGG->legacy, we need to flush VGT for certain hw generations.
     */
    if (ctx->screen->info.has_vgt_flush_ngg_legacy_bug && !ctx->ngg)
-      ctx->flags |= SI_CONTEXT_VGT_FLUSH;
+      ctx->barrier_flags |= SI_CONTEXT_VGT_FLUSH;
 
    si_mark_atom_dirty(ctx, &ctx->atoms.s.barrier);
    si_mark_atom_dirty(ctx, &ctx->atoms.s.spi_ge_ring_state);

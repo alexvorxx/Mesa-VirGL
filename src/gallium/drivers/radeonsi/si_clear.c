@@ -67,11 +67,11 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
    }
 
    /* Invalidate the VMEM cache because we always use compute. */
-   sctx->flags |= SI_CONTEXT_INV_VCACHE;
+   sctx->barrier_flags |= SI_CONTEXT_INV_VCACHE;
 
    /* GFX6-8: CB and DB don't use L2. */
    if (sctx->gfx_level <= GFX8)
-      sctx->flags |= SI_CONTEXT_INV_L2;
+      sctx->barrier_flags |= SI_CONTEXT_INV_L2;
 
    si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 
@@ -104,11 +104,11 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
    }
 
    /* Wait for idle. */
-   sctx->flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
+   sctx->barrier_flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
 
    /* GFX6-8: CB and DB don't use L2. */
    if (sctx->gfx_level <= GFX8)
-      sctx->flags |= SI_CONTEXT_WB_L2;
+      sctx->barrier_flags |= SI_CONTEXT_WB_L2;
 
    si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 }
@@ -1209,7 +1209,7 @@ static void gfx6_clear(struct pipe_context *ctx, unsigned buffers,
             if ((zstex->depth_clear_value[level] != 0) != (depth != 0)) {
                /* ZRANGE_PRECISION register of a bound surface will change so we
                 * must flush the DB caches. */
-               sctx->flags |= SI_CONTEXT_FLUSH_AND_INV_DB;
+               sctx->barrier_flags |= SI_CONTEXT_FLUSH_AND_INV_DB;
                si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
             }
             /* Update DB_DEPTH_CLEAR. */
@@ -1245,7 +1245,7 @@ static void gfx6_clear(struct pipe_context *ctx, unsigned buffers,
        * The root cause is unknown.
        */
       if (sctx->gfx_level == GFX11 || sctx->gfx_level == GFX11_5) {
-         sctx->flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
+         sctx->barrier_flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       }
    }
