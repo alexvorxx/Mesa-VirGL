@@ -401,12 +401,9 @@ struct radv_dgc_params {
    uint64_t stream_addr;
 
    /* draw info */
-   uint16_t draw_indexed;
-   uint16_t draw_params_offset;
    uint16_t binds_index_buffer;
    uint16_t vtx_base_sgpr;
    uint32_t max_index_count;
-   uint8_t draw_mesh_tasks;
 
    /* task/mesh info */
    uint8_t has_task_shader;
@@ -874,12 +871,12 @@ dgc_emit_pkt3_draw_indirect(struct dgc_cmdbuf *cs, bool indexed)
 }
 
 static void
-dgc_emit_draw_indirect(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *draw_params_offset, nir_def *sequence_id,
-                       bool indexed)
+dgc_emit_draw_indirect(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *sequence_id, bool indexed)
 {
+   const struct radv_indirect_command_layout *layout = cs->layout;
    nir_builder *b = cs->b;
 
-   nir_def *va = nir_iadd(b, stream_addr, nir_u2u64(b, draw_params_offset));
+   nir_def *va = nir_iadd_imm(b, stream_addr, layout->draw_params_offset);
 
    dgc_emit_sqtt_begin_api_marker(cs, indexed ? ApiCmdDrawIndexedIndirect : ApiCmdDrawIndirect);
    dgc_emit_sqtt_marker_event(cs, sequence_id, indexed ? EventCmdDrawIndexedIndirect : EventCmdDrawIndirect);
@@ -1043,11 +1040,12 @@ build_dgc_buffer_preamble_ace(nir_builder *b, nir_def *sequence_count, const str
  * Emit VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_NV.
  */
 static void
-dgc_emit_draw(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *draw_params_offset, nir_def *sequence_id)
+dgc_emit_draw(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *sequence_id)
 {
+   const struct radv_indirect_command_layout *layout = cs->layout;
    nir_builder *b = cs->b;
 
-   nir_def *draw_data0 = nir_build_load_global(b, 4, 32, nir_iadd(b, stream_addr, nir_u2u64(b, draw_params_offset)),
+   nir_def *draw_data0 = nir_build_load_global(b, 4, 32, nir_iadd_imm(b, stream_addr, layout->draw_params_offset),
                                                .access = ACCESS_NON_WRITEABLE);
    nir_def *vertex_count = nir_channel(b, draw_data0, 0);
    nir_def *instance_count = nir_channel(b, draw_data0, 1);
@@ -1073,15 +1071,15 @@ dgc_emit_draw(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *draw_params_
  * Emit VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_INDEXED_NV.
  */
 static void
-dgc_emit_draw_indexed(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *draw_params_offset, nir_def *sequence_id,
-                      nir_def *max_index_count)
+dgc_emit_draw_indexed(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *sequence_id, nir_def *max_index_count)
 {
+   const struct radv_indirect_command_layout *layout = cs->layout;
    nir_builder *b = cs->b;
 
-   nir_def *draw_data0 = nir_build_load_global(b, 4, 32, nir_iadd(b, stream_addr, nir_u2u64(b, draw_params_offset)),
+   nir_def *draw_data0 = nir_build_load_global(b, 4, 32, nir_iadd_imm(b, stream_addr, layout->draw_params_offset),
                                                .access = ACCESS_NON_WRITEABLE);
    nir_def *draw_data1 =
-      nir_build_load_global(b, 1, 32, nir_iadd_imm(b, nir_iadd(b, stream_addr, nir_u2u64(b, draw_params_offset)), 16),
+      nir_build_load_global(b, 1, 32, nir_iadd_imm(b, nir_iadd_imm(b, stream_addr, layout->draw_params_offset), 16),
                             .access = ACCESS_NON_WRITEABLE);
    nir_def *index_count = nir_channel(b, draw_data0, 0);
    nir_def *instance_count = nir_channel(b, draw_data0, 1);
@@ -1748,14 +1746,14 @@ dgc_emit_dispatch_taskmesh_gfx(struct dgc_cmdbuf *cs)
 }
 
 static void
-dgc_emit_draw_mesh_tasks_gfx(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *draw_params_offset,
-                             nir_def *sequence_id)
+dgc_emit_draw_mesh_tasks_gfx(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *sequence_id)
 {
+   const struct radv_indirect_command_layout *layout = cs->layout;
    const struct radv_device *device = cs->dev;
    const struct radv_physical_device *pdev = radv_device_physical(device);
    nir_builder *b = cs->b;
 
-   nir_def *draw_data = nir_build_load_global(b, 3, 32, nir_iadd(b, stream_addr, nir_u2u64(b, draw_params_offset)),
+   nir_def *draw_data = nir_build_load_global(b, 3, 32, nir_iadd_imm(b, stream_addr, layout->draw_params_offset),
                                               .access = ACCESS_NON_WRITEABLE);
    nir_def *x = nir_channel(b, draw_data, 0);
    nir_def *y = nir_channel(b, draw_data, 1);
@@ -1836,11 +1834,12 @@ dgc_emit_dispatch_taskmesh_direct_ace(struct dgc_cmdbuf *ace_cs, nir_def *x, nir
 }
 
 static void
-dgc_emit_draw_mesh_tasks_ace(struct dgc_cmdbuf *ace_cs, nir_def *stream_addr, nir_def *draw_params_offset)
+dgc_emit_draw_mesh_tasks_ace(struct dgc_cmdbuf *ace_cs, nir_def *stream_addr)
 {
+   const struct radv_indirect_command_layout *layout = ace_cs->layout;
    nir_builder *b = ace_cs->b;
 
-   nir_def *draw_data = nir_build_load_global(b, 3, 32, nir_iadd(b, stream_addr, nir_u2u64(b, draw_params_offset)),
+   nir_def *draw_data = nir_build_load_global(b, 3, 32, nir_iadd_imm(b, stream_addr, layout->draw_params_offset),
                                               .access = ACCESS_NON_WRITEABLE);
    nir_def *x = nir_channel(b, draw_data, 0);
    nir_def *y = nir_channel(b, draw_data, 1);
@@ -2067,21 +2066,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
       nir_pop_if(&b, 0);
 
       if (layout->pipeline_bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS) {
-         nir_push_if(&b, nir_ieq_imm(&b, load_param16(&b, draw_indexed), 0));
-         {
-            nir_def *draw_mesh_tasks = load_param8(&b, draw_mesh_tasks);
-            nir_push_if(&b, nir_ieq_imm(&b, draw_mesh_tasks, 0));
-            {
-               dgc_emit_draw(&cmd_buf, stream_addr, load_param16(&b, draw_params_offset), sequence_id);
-            }
-            nir_push_else(&b, NULL);
-            {
-               dgc_emit_draw_mesh_tasks_gfx(&cmd_buf, stream_addr, load_param16(&b, draw_params_offset), sequence_id);
-            }
-            nir_pop_if(&b, NULL);
-         }
-         nir_push_else(&b, NULL);
-         {
+         if (layout->indexed) {
             /* Emit direct draws when index buffers are also updated by DGC. Otherwise, emit
              * indirect draws to remove the dependency on the cmdbuf state in order to enable
              * preprocessing.
@@ -2096,17 +2081,20 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
 
                nir_def *max_index_count = nir_load_var(&b, max_index_count_var);
 
-               dgc_emit_draw_indexed(&cmd_buf, stream_addr, load_param16(&b, draw_params_offset), sequence_id,
-                                     max_index_count);
+               dgc_emit_draw_indexed(&cmd_buf, stream_addr, sequence_id, max_index_count);
             }
             nir_push_else(&b, NULL);
             {
-               dgc_emit_draw_indirect(&cmd_buf, stream_addr, load_param16(&b, draw_params_offset), sequence_id, true);
+               dgc_emit_draw_indirect(&cmd_buf, stream_addr, sequence_id, true);
             }
-
             nir_pop_if(&b, NULL);
+         } else {
+            if (layout->draw_mesh_tasks) {
+               dgc_emit_draw_mesh_tasks_gfx(&cmd_buf, stream_addr, sequence_id);
+            } else {
+               dgc_emit_draw(&cmd_buf, stream_addr, sequence_id);
+            }
          }
-         nir_pop_if(&b, NULL);
       } else {
          dgc_emit_dispatch(&cmd_buf, stream_addr, sequence_id);
       }
@@ -2162,7 +2150,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
          }
          nir_pop_if(&b, 0);
 
-         dgc_emit_draw_mesh_tasks_ace(&cmd_buf, stream_addr, load_param16(&b, draw_params_offset));
+         dgc_emit_draw_mesh_tasks_ace(&cmd_buf, stream_addr);
 
          /* Pad the cmdbuffer if we did not use the whole stride */
          dgc_pad_cmdbuf(&cmd_buf, cmd_buf_end);
@@ -2512,15 +2500,12 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
          vtx_base_sgpr |= DGC_USES_BASEINSTANCE;
    }
 
-   params->draw_indexed = layout->indexed;
-   params->draw_params_offset = layout->draw_params_offset;
    params->binds_index_buffer = layout->binds_index_buffer;
    params->vtx_base_sgpr = vtx_base_sgpr;
    params->max_index_count = cmd_buffer->state.max_index_count;
    params->index_buffer_offset = layout->index_buffer_offset;
    params->ibo_type_32 = layout->ibo_type_32;
    params->ibo_type_8 = layout->ibo_type_8;
-   params->draw_mesh_tasks = layout->draw_mesh_tasks;
    params->dynamic_vs_input = layout->bind_vbo_mask && vs->info.vs.dynamic_inputs;
 
    if (layout->bind_vbo_mask) {
