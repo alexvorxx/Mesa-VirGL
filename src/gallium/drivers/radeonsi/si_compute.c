@@ -1187,7 +1187,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
    if (sctx->has_graphics) {
       if (sctx->num_draw_calls_sh_coherent.with_cb != sctx->num_draw_calls ||
           sctx->num_draw_calls_sh_coherent.with_db != sctx->num_draw_calls) {
-         si_update_fb_dirtiness_after_rendering(sctx);
+         si_fb_barrier_after_rendering(sctx);
 
          if (sctx->force_shader_coherency.with_cb ||
              si_check_needs_implicit_sync(sctx, RADEON_USAGE_CB_NEEDS_IMPLICIT_SYNC)) {

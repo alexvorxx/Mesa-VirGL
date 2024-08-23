@@ -933,7 +933,7 @@ void si_decompress_subresource(struct pipe_context *ctx, struct pipe_resource *t
        */
       if (sctx->framebuffer.state.zsbuf && sctx->framebuffer.state.zsbuf->u.tex.level == level &&
           sctx->framebuffer.state.zsbuf->texture == tex)
-         si_update_fb_dirtiness_after_rendering(sctx);
+         si_fb_barrier_after_rendering(sctx);
 
       si_decompress_depth(sctx, stex, planes, level, level, first_layer, last_layer);
    } else if (stex->surface.fmask_size || stex->cmask_buffer ||
@@ -946,7 +946,7 @@ void si_decompress_subresource(struct pipe_context *ctx, struct pipe_resource *t
          if (sctx->framebuffer.state.cbufs[i] &&
              sctx->framebuffer.state.cbufs[i]->u.tex.level == level &&
              sctx->framebuffer.state.cbufs[i]->texture == tex) {
-            si_update_fb_dirtiness_after_rendering(sctx);
+            si_fb_barrier_after_rendering(sctx);
             break;
          }
       }

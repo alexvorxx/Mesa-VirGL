@@ -2476,53 +2476,6 @@ static void si_init_depth_surface(struct si_context *sctx, struct si_surface *su
    surf->depth_initialized = true;
 }
 
-void si_set_sampler_depth_decompress_mask(struct si_context *sctx, struct si_texture *tex)
-{
-   assert(sctx->gfx_level < GFX12);
-
-   /* Check all sampler bindings in all shaders where depth textures are bound, and update
-    * which samplers should be decompressed.
-    */
-   u_foreach_bit(sh, sctx->shader_has_depth_tex) {
-      u_foreach_bit(i, sctx->samplers[sh].has_depth_tex_mask) {
-         if (sctx->samplers[sh].views[i]->texture == &tex->buffer.b.b) {
-            sctx->samplers[sh].needs_depth_decompress_mask |= 1 << i;
-            sctx->shader_needs_decompress_mask |= 1 << sh;
-         }
-      }
-   }
-}
-
-void si_update_fb_dirtiness_after_rendering(struct si_context *sctx)
-{
-   if (sctx->gfx_level >= GFX12 || sctx->decompression_enabled)
-      return;
-
-   if (sctx->framebuffer.state.zsbuf) {
-      struct pipe_surface *surf = sctx->framebuffer.state.zsbuf;
-      struct si_texture *tex = (struct si_texture *)surf->texture;
-
-      tex->dirty_level_mask |= 1 << surf->u.tex.level;
-
-      if (tex->surface.has_stencil)
-         tex->stencil_dirty_level_mask |= 1 << surf->u.tex.level;
-
-      si_set_sampler_depth_decompress_mask(sctx, tex);
-   }
-
-   unsigned compressed_cb_mask = sctx->framebuffer.compressed_cb_mask;
-   while (compressed_cb_mask) {
-      unsigned i = u_bit_scan(&compressed_cb_mask);
-      struct pipe_surface *surf = sctx->framebuffer.state.cbufs[i];
-      struct si_texture *tex = (struct si_texture *)surf->texture;
-
-      if (tex->surface.fmask_offset) {
-         tex->dirty_level_mask |= 1 << surf->u.tex.level;
-         tex->fmask_is_identity = false;
-      }
-   }
-}
-
 static void si_dec_framebuffer_counters(const struct pipe_framebuffer_state *state)
 {
    for (int i = 0; i < state->nr_cbufs; ++i) {
@@ -2594,7 +2547,7 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
       return;
    }
 
-   si_update_fb_dirtiness_after_rendering(sctx);
+   si_fb_barrier_after_rendering(sctx);
 
    /* Disable DCC if the formats are incompatible. */
    if (sctx->gfx_level >= GFX8 && sctx->gfx_level < GFX11) {

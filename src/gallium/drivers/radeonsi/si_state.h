@@ -628,8 +628,6 @@ void si_init_gfx_preamble_state(struct si_context *sctx);
 void si_make_buffer_descriptor(struct si_screen *screen, struct si_resource *buf,
                                enum pipe_format format, unsigned offset, unsigned num_elements,
                                uint32_t *state);
-void si_set_sampler_depth_decompress_mask(struct si_context *sctx, struct si_texture *tex);
-void si_update_fb_dirtiness_after_rendering(struct si_context *sctx);
 void si_mark_display_dcc_dirty(struct si_context *sctx, struct si_texture *tex);
 void si_update_ps_iter_samples(struct si_context *sctx);
 void si_save_qbo_state(struct si_context *sctx, struct si_qbo_state *st);
