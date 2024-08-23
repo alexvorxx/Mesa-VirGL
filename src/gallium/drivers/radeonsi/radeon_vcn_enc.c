@@ -247,6 +247,8 @@ static void radeon_vcn_enc_h264_get_spec_misc_param(struct radeon_encoder *enc,
    enc->enc_pic.spec_misc.redundant_pic_cnt_present_flag =
       pic->pic_ctrl.redundant_pic_cnt_present_flag;
    enc->enc_pic.spec_misc.b_picture_enabled = !!pic->seq.max_num_reorder_frames;
+   enc->enc_pic.spec_misc.constrained_intra_pred_flag =
+      pic->pic_ctrl.constrained_intra_pred_flag;
 }
 
 static void radeon_vcn_enc_h264_get_rc_param(struct radeon_encoder *enc,

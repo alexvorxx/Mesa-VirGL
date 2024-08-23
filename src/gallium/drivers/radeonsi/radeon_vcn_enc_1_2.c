@@ -146,7 +146,6 @@ static void radeon_enc_slice_control_hevc(struct radeon_encoder *enc)
 
 static void radeon_enc_spec_misc(struct radeon_encoder *enc)
 {
-   enc->enc_pic.spec_misc.constrained_intra_pred_flag = 0;
    enc->enc_pic.spec_misc.half_pel_enabled = 1;
    enc->enc_pic.spec_misc.quarter_pel_enabled = 1;
    enc->enc_pic.spec_misc.level_idc = enc->base.level;
@@ -745,7 +744,7 @@ static void radeon_enc_nalu_pps(struct radeon_encoder *enc)
    radeon_enc_code_se(enc, 0x0); /* pic_init_qs_minus26 */
    radeon_enc_code_se(enc, enc->enc_pic.h264_deblock.cb_qp_offset); /* chroma_qp_index_offset */
    radeon_enc_code_fixed_bits(enc, (enc->enc_pic.spec_misc.deblocking_filter_control_present_flag), 1);
-   radeon_enc_code_fixed_bits(enc, 0x0, 1); /* constrained_intra_pred_flag */
+   radeon_enc_code_fixed_bits(enc, (enc->enc_pic.spec_misc.constrained_intra_pred_flag), 1);
    radeon_enc_code_fixed_bits(enc, (enc->enc_pic.spec_misc.redundant_pic_cnt_present_flag), 1);
    if (enc->enc_pic.spec_misc.redundant_pic_cnt_present_flag) {
       radeon_enc_code_fixed_bits(enc, 0x0, 1); /* transform_8x8_mode_flag */

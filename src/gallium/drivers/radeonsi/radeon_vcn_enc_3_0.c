@@ -30,7 +30,6 @@ static void radeon_enc_session_info(struct radeon_encoder *enc)
 
 static void radeon_enc_spec_misc(struct radeon_encoder *enc)
 {
-   enc->enc_pic.spec_misc.constrained_intra_pred_flag = 0;
    enc->enc_pic.spec_misc.half_pel_enabled = 1;
    enc->enc_pic.spec_misc.quarter_pel_enabled = 1;
    enc->enc_pic.spec_misc.level_idc = enc->base.level;
