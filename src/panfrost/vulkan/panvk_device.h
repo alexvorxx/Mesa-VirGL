@@ -56,12 +56,10 @@ struct panvk_device {
    struct panvk_blend_shader_cache blend_shader_cache;
    struct vk_meta_device meta;
 
-#if PAN_ARCH <= 7
    struct {
       struct panvk_priv_mem shader;
       struct panvk_priv_mem rsd;
    } desc_copy;
-#endif
 
    struct {
       struct panvk_pool rw;
