@@ -2569,12 +2569,6 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
       }
    }
 
-   /* Wait for CS because: shader write -> FB read
-    * Wait for PS because: texture -> render (eg: glBlitFramebuffer(with src=dst) then glDraw*)
-    */
-   sctx->barrier_flags |= SI_CONTEXT_CS_PARTIAL_FLUSH | SI_CONTEXT_PS_PARTIAL_FLUSH;
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
-
    /* Take the maximum of the old and new count. If the new count is lower,
     * dirtying is needed to disable the unbound colorbuffers.
     */
@@ -2584,6 +2578,10 @@ static void si_set_framebuffer_state(struct pipe_context *ctx,
 
    si_dec_framebuffer_counters(&sctx->framebuffer.state);
    util_copy_framebuffer_state(&sctx->framebuffer.state, state);
+
+   /* The framebuffer state must be set before the barrier. */
+   si_fb_barrier_before_rendering(sctx);
+
    /* Recompute layers because frontends and utils might not set it. */
    sctx->framebuffer.state.layers = util_framebuffer_get_num_layers(state);
 
