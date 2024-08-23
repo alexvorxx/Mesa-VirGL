@@ -1613,6 +1613,7 @@ agx_compile_variant(struct agx_device *dev, struct pipe_context *pctx,
               _mesa_hash_table_num_entries(so->variants));
 
    struct agx_unlinked_uvs_layout uvs = {0};
+   bool translucent = false;
 
    if (nir->info.stage == MESA_SHADER_VERTEX) {
       struct asahi_vs_shader_key *key = &key_->vs;
@@ -1665,7 +1666,7 @@ agx_compile_variant(struct agx_device *dev, struct pipe_context *pctx,
                                   (2 * BITSET_LAST_BIT(nir->info.images_used));
          unsigned rt_spill = rt_spill_base;
          NIR_PASS(_, nir, agx_nir_lower_tilebuffer, &tib, NULL, &rt_spill, NULL,
-                  NULL);
+                  &translucent);
       }
 
       if (nir->info.fs.uses_sample_shading) {
@@ -1694,6 +1695,7 @@ agx_compile_variant(struct agx_device *dev, struct pipe_context *pctx,
                                  (2 * BITSET_LAST_BIT(nir->info.images_used));
 
       compiled->epilog_key = epilog_key;
+      compiled->b.info.reads_tib |= translucent;
    }
 
    compiled->so = so;
