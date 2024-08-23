@@ -171,7 +171,7 @@ bool si_alloc_resource(struct si_screen *sscreen, struct si_resource *res)
    radeon_bo_reference(sscreen->ws, &old_buf, NULL);
 
    util_range_set_empty(&res->valid_buffer_range);
-   res->TC_L2_dirty = false;
+   res->L2_cache_dirty = false;
 
    if (res->b.b.target != PIPE_BUFFER && !(res->b.b.flags & SI_RESOURCE_AUX_PLANE)) {
       /* The buffer is shared with other planes. */
@@ -567,7 +567,7 @@ static struct si_resource *si_alloc_buffer_struct(struct pipe_screen *screen,
 
    buf->buf = NULL;
    buf->bind_history = 0;
-   buf->TC_L2_dirty = false;
+   buf->L2_cache_dirty = false;
    util_range_init(&buf->valid_buffer_range);
    return buf;
 }

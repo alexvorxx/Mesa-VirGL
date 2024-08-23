@@ -2123,7 +2123,7 @@ static void si_draw(struct pipe_context *ctx,
          /* GFX6-7 don't read index buffers through L2. */
          sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
-         si_resource(indexbuf)->TC_L2_dirty = false;
+         si_resource(indexbuf)->L2_cache_dirty = false;
       } else if (!IS_DRAW_VERTEX_STATE && info->has_user_indices) {
          unsigned start_offset;
 
@@ -2141,12 +2141,12 @@ static void si_draw(struct pipe_context *ctx,
          /* info->start will be added by the drawing code */
          index_offset -= start_offset;
       } else if ((GFX_VERSION <= GFX7 || GFX_VERSION == GFX12) &&
-                 si_resource(indexbuf)->TC_L2_dirty) {
+                 si_resource(indexbuf)->L2_cache_dirty) {
          /* GFX8-GFX11 reads index buffers through L2, so it doesn't
           * need this. */
          sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
-         si_resource(indexbuf)->TC_L2_dirty = false;
+         si_resource(indexbuf)->L2_cache_dirty = false;
       }
    }
 
@@ -2156,17 +2156,17 @@ static void si_draw(struct pipe_context *ctx,
    if (!IS_DRAW_VERTEX_STATE && indirect) {
       /* Indirect buffers use L2 on GFX9-GFX11, but not other hw. */
       if (GFX_VERSION <= GFX8 || GFX_VERSION == GFX12) {
-         if (indirect->buffer && si_resource(indirect->buffer)->TC_L2_dirty) {
+         if (indirect->buffer && si_resource(indirect->buffer)->L2_cache_dirty) {
             sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
             si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
-            si_resource(indirect->buffer)->TC_L2_dirty = false;
+            si_resource(indirect->buffer)->L2_cache_dirty = false;
          }
 
          if (indirect->indirect_draw_count &&
-             si_resource(indirect->indirect_draw_count)->TC_L2_dirty) {
+             si_resource(indirect->indirect_draw_count)->L2_cache_dirty) {
             sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
             si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
-            si_resource(indirect->indirect_draw_count)->TC_L2_dirty = false;
+            si_resource(indirect->indirect_draw_count)->L2_cache_dirty = false;
          }
       }
       total_direct_count = INT_MAX; /* just set something other than 0 to enable shader culling */

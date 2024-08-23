@@ -86,7 +86,7 @@ static void si_set_streamout_targets(struct pipe_context *ctx, unsigned num_targ
        */
       for (i = 0; i < old_num_targets; i++)
          if (sctx->streamout.targets[i])
-            si_resource(sctx->streamout.targets[i]->b.buffer)->TC_L2_dirty = true;
+            si_resource(sctx->streamout.targets[i]->b.buffer)->L2_cache_dirty = true;
 
       /* Invalidate the scalar cache in case a streamout buffer is
        * going to be used as a constant buffer.

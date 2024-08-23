@@ -582,16 +582,16 @@ void si_barrier_after_internal_op(struct si_context *sctx, unsigned flags,
    if (num_buffers)
       sctx->flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE | SI_CONTEXT_PFP_SYNC_ME;
 
-   /* We must set TC_L2_dirty for buffers because:
+   /* We must set L2_cache_dirty for buffers because:
     * - GFX6,12: CP DMA doesn't use L2.
     * - GFX6-7,12: Index buffer reads don't use L2.
     * - GFX6-8,12: CP doesn't use L2.
     * - GFX6-8: CB/DB don't use L2.
     *
-    * TC_L2_dirty is checked explicitly when buffers are used in those cases to enforce coherency.
+    * L2_cache_dirty is checked explicitly when buffers are used in those cases to enforce coherency.
     */
    while (writable_buffers_mask)
-      si_resource(buffers[u_bit_scan(&writable_buffers_mask)].buffer)->TC_L2_dirty = true;
+      si_resource(buffers[u_bit_scan(&writable_buffers_mask)].buffer)->L2_cache_dirty = true;
 
    /* Make sure RBs see our DCC image stores if RBs and TCCs (L2 instances) are non-coherent. */
    if (sctx->gfx_level >= GFX10 && sctx->screen->info.tcc_rb_non_coherent) {

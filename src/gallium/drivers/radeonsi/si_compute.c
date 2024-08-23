@@ -1214,10 +1214,10 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
    if (info->indirect) {
       /* Indirect buffers are read through L2 on GFX9-GFX11, but not other hw. */
       if ((sctx->gfx_level <= GFX8 || sctx->gfx_level == GFX12) &&
-          si_resource(info->indirect)->TC_L2_dirty) {
+          si_resource(info->indirect)->L2_cache_dirty) {
          sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
-         si_resource(info->indirect)->TC_L2_dirty = false;
+         si_resource(info->indirect)->L2_cache_dirty = false;
       }
    }
 

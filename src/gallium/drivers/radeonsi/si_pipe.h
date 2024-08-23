@@ -324,7 +324,7 @@ struct si_resource {
     * an index buffer. The reason is that VGT DMA index fetching doesn't
     * use L2.
     */
-   bool TC_L2_dirty;
+   bool L2_cache_dirty;
 
    /* Whether this resource is referenced by bindless handles. */
    bool texture_handle_allocated;
