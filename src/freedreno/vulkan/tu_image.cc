@@ -474,7 +474,9 @@ tu_image_update_layout(struct tu_device *device, struct tu_image *image,
                        uint64_t modifier, const VkSubresourceLayout *plane_layouts)
 {
    enum a6xx_tile_mode tile_mode = TILE6_3;
+#if DETECT_OS_LINUX || DETECT_OS_BSD
    image->vk.drm_format_mod = modifier;
+#endif
 
    if (modifier == DRM_FORMAT_MOD_LINEAR) {
       image->force_linear_tile = true;
