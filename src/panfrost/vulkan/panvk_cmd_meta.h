@@ -48,7 +48,6 @@ struct panvk_cmd_meta_graphics_save_ctx {
       uint32_t desc_count;
    } push_set0;
    struct panvk_push_constant_state push_constants;
-   struct vk_vertex_input_state vi;
    struct panvk_attrib_buf vb0;
 
    struct {
