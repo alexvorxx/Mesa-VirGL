@@ -697,7 +697,6 @@ debian-s390x:
   extends:
     - debian-ppc64el
     - .use-debian/s390x_build
-    - .s390x-rules
   tags:
     - kvm
   variables:
@@ -712,7 +711,6 @@ debian-ppc64el:
   extends:
     - .meson-cross
     - .use-debian/ppc64el_build
-    - .ppc64el-rules
   variables:
     BUILDTYPE: debug
     CROSS: ppc64el
