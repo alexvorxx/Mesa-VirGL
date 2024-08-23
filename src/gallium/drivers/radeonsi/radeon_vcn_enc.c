@@ -464,6 +464,7 @@ static void radeon_vcn_enc_h264_get_param(struct radeon_encoder *enc,
 {
    bool use_filter;
 
+   enc->enc_pic.h264.desc = pic;
    enc->enc_pic.picture_type = pic->picture_type;
    enc->enc_pic.bit_depth_luma_minus8 = 0;
    enc->enc_pic.bit_depth_chroma_minus8 = 0;
@@ -478,12 +479,9 @@ static void radeon_vcn_enc_h264_get_param(struct radeon_encoder *enc,
    enc->enc_pic.h264_enc_params.is_reference = !pic->not_referenced;
    enc->enc_pic.h264_enc_params.is_long_term = pic->is_ltr;
    enc->enc_pic.not_referenced = pic->not_referenced;
-   enc->enc_pic.header_flags.sps = pic->header_flags.sps;
-   enc->enc_pic.header_flags.pps = pic->header_flags.pps;
-   enc->enc_pic.header_flags.aud = pic->header_flags.aud;
-   if (enc->enc_pic.header_flags.sps)
+   if (pic->header_flags.sps)
       enc->enc_pic.h264.seq = pic->seq;
-   if (enc->enc_pic.header_flags.pps)
+   if (pic->header_flags.pps)
       enc->enc_pic.h264.pic = pic->pic_ctrl;
    enc->enc_pic.h264.slice = pic->slice;
 
@@ -667,41 +665,10 @@ static void radeon_vcn_enc_hevc_get_slice_ctrl_param(struct radeon_encoder *enc,
       num_ctbs_in_slice;
 }
 
-static void radeon_vcn_enc_hevc_get_metadata(struct radeon_encoder *enc,
-                                          struct pipe_h265_enc_picture_desc *pic)
-{
-   memset (&enc->enc_pic.enc_sei, 0, sizeof(rvcn_enc_seidata_t));
-
-   if (pic->header_flags.hdr_cll) {
-      enc->enc_pic.enc_sei.flags.hdr_cll = 1;
-      enc->enc_pic.enc_sei.hdr_cll = (rvcn_enc_sei_hdr_cll_t) {
-         .max_cll = pic->metadata_hdr_cll.max_cll,
-         .max_fall = pic->metadata_hdr_cll.max_fall
-      };
-   }
-
-   if (pic->header_flags.hdr_mdcv) {
-      enc->enc_pic.enc_sei.flags.hdr_mdcv = 1;
-      for (int32_t i = 0; i < 3; i++) {
-         enc->enc_pic.enc_sei.hdr_mdcv.primary_chromaticity_x[i]
-            = pic->metadata_hdr_mdcv.primary_chromaticity_x[i];
-         enc->enc_pic.enc_sei.hdr_mdcv.primary_chromaticity_y[i]
-            = pic->metadata_hdr_mdcv.primary_chromaticity_y[i];
-      }
-      enc->enc_pic.enc_sei.hdr_mdcv.white_point_chromaticity_x =
-                  pic->metadata_hdr_mdcv.white_point_chromaticity_x;
-      enc->enc_pic.enc_sei.hdr_mdcv.white_point_chromaticity_y =
-                  pic->metadata_hdr_mdcv.white_point_chromaticity_y;
-      enc->enc_pic.enc_sei.hdr_mdcv.luminance_max =
-                  pic->metadata_hdr_mdcv.luminance_max;
-      enc->enc_pic.enc_sei.hdr_mdcv.luminance_min =
-                  pic->metadata_hdr_mdcv.luminance_min;
-   }
-}
-
 static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
                                           struct pipe_h265_enc_picture_desc *pic)
 {
+   enc->enc_pic.hevc.desc = pic;
    enc->enc_pic.picture_type = pic->picture_type;
    enc->enc_pic.enc_params.reference_picture_index =
       pic->ref_list0[0] == PIPE_H2645_LIST_REF_INVALID_ENTRY ? 0xffffffff : pic->ref_list0[0];
@@ -711,13 +678,9 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
    enc->enc_pic.bit_depth_chroma_minus8 = pic->seq.bit_depth_chroma_minus8;
    enc->enc_pic.nal_unit_type = pic->pic.nal_unit_type;
    enc->enc_pic.temporal_id = pic->pic.temporal_id;
-   enc->enc_pic.header_flags.vps = pic->header_flags.vps;
-   enc->enc_pic.header_flags.sps = pic->header_flags.sps;
-   enc->enc_pic.header_flags.pps = pic->header_flags.pps;
-   enc->enc_pic.header_flags.aud = pic->header_flags.aud;
-   if (enc->enc_pic.header_flags.vps)
+   if (pic->header_flags.vps)
       enc->enc_pic.hevc.vid = pic->vid;
-   if (enc->enc_pic.header_flags.sps) {
+   if (pic->header_flags.sps) {
       enc->enc_pic.hevc.seq = pic->seq;
       enc->enc_pic.hevc.seq.log2_diff_max_min_luma_coding_block_size =
          6 - (enc->enc_pic.hevc_spec_misc.log2_min_luma_coding_block_size_minus3 + 3);
@@ -730,7 +693,7 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
       enc->enc_pic.hevc.seq.max_transform_hierarchy_depth_intra =
          enc->enc_pic.hevc.seq.max_transform_hierarchy_depth_inter;
    }
-   if (enc->enc_pic.header_flags.pps)
+   if (pic->header_flags.pps)
       enc->enc_pic.hevc.pic = pic->pic;
    enc->enc_pic.hevc.slice = pic->slice;
 
@@ -746,7 +709,6 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
    radeon_vcn_enc_get_roi_param(enc, &pic->roi);
    radeon_vcn_enc_hevc_get_spec_misc_param(enc, pic);
    radeon_vcn_enc_get_latency_param(enc);
-   radeon_vcn_enc_hevc_get_metadata(enc, pic);
    radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
 }
 
@@ -1010,6 +972,8 @@ static void radeon_vcn_enc_av1_get_param(struct radeon_encoder *enc,
 
 static void radeon_vcn_enc_get_param(struct radeon_encoder *enc, struct pipe_picture_desc *picture)
 {
+   enc->enc_pic.enc_params.allowed_max_bitstream_size = enc->bs_size - enc->bs_offset;
+
    if (u_reduce_video_profile(picture->profile) == PIPE_VIDEO_FORMAT_MPEG4_AVC)
       radeon_vcn_enc_h264_get_param(enc, (struct pipe_h264_enc_picture_desc *)picture);
    else if (u_reduce_video_profile(picture->profile) == PIPE_VIDEO_FORMAT_HEVC)
@@ -1540,6 +1504,110 @@ error:
    RADEON_ENC_DESTROY_VIDEO_BUFFER(enc->meta);
 }
 
+static uint32_t radeon_vcn_enc_encode_h264_header(struct radeon_encoder *enc,
+                                                  struct pipe_enc_raw_header *header,
+                                                  uint8_t *out)
+{
+   switch (header->type) {
+   case PIPE_H264_NAL_SPS:
+      return radeon_enc_write_sps(enc, out);
+   case PIPE_H264_NAL_PPS:
+      return radeon_enc_write_pps(enc, out);
+   default:
+      assert(header->buffer);
+      memcpy(out, header->buffer, header->size);
+      return header->size;
+   }
+}
+
+static uint32_t radeon_vcn_enc_encode_hevc_header(struct radeon_encoder *enc,
+                                                  struct pipe_enc_raw_header *header,
+                                                  uint8_t *out)
+{
+   switch (header->type) {
+   case PIPE_H265_NAL_VPS:
+      return radeon_enc_write_vps(enc, out);
+   case PIPE_H265_NAL_SPS:
+      return radeon_enc_write_sps_hevc(enc, out);
+   case PIPE_H265_NAL_PPS:
+      return radeon_enc_write_pps_hevc(enc, out);
+   default:
+      assert(header->buffer);
+      memcpy(out, header->buffer, header->size);
+      return header->size;
+   }
+}
+
+static void *radeon_vcn_enc_encode_headers(struct radeon_encoder *enc)
+{
+   const bool is_h264 = u_reduce_video_profile(enc->base.profile) == PIPE_VIDEO_FORMAT_MPEG4_AVC;
+   const bool is_hevc = u_reduce_video_profile(enc->base.profile) == PIPE_VIDEO_FORMAT_HEVC;
+   struct util_dynarray *headers;
+   unsigned num_slices = 0, num_headers = 0;
+
+   if (is_h264)
+      headers = &enc->enc_pic.h264.desc->raw_headers;
+   else if (is_hevc)
+      headers = &enc->enc_pic.hevc.desc->raw_headers;
+   else
+      return NULL;
+
+   util_dynarray_foreach(headers, struct pipe_enc_raw_header, header) {
+      if (header->is_slice)
+         num_slices++;
+      num_headers++;
+   }
+
+   if (!num_headers || !num_slices || num_headers == num_slices)
+      return NULL;
+
+   size_t segments_size =
+      sizeof(struct rvcn_enc_output_unit_segment) * (num_headers - num_slices + 1);
+   struct rvcn_enc_feedback_data *data =
+      CALLOC_VARIANT_LENGTH_STRUCT(rvcn_enc_feedback_data, segments_size);
+   if (!data)
+      return NULL;
+
+   uint8_t *ptr = enc->ws->buffer_map(enc->ws, enc->bs_handle, &enc->cs,
+                                      PIPE_MAP_WRITE | RADEON_MAP_TEMPORARY);
+   if (!ptr) {
+      RVID_ERR("Can't map bs buffer.\n");
+      return NULL;
+   }
+
+   unsigned offset = 0;
+   struct rvcn_enc_output_unit_segment *slice_segment = NULL;
+
+   util_dynarray_foreach(headers, struct pipe_enc_raw_header, header) {
+      if (header->is_slice) {
+         if (slice_segment)
+            continue;
+         slice_segment = &data->segments[data->num_segments];
+         slice_segment->is_slice = true;
+      } else {
+         unsigned size = 0;
+         if (is_h264)
+            size = radeon_vcn_enc_encode_h264_header(enc, header, ptr + offset);
+         else if (is_hevc)
+            size = radeon_vcn_enc_encode_hevc_header(enc, header, ptr + offset);
+         data->segments[data->num_segments].size = size;
+         data->segments[data->num_segments].offset = offset;
+         offset += size;
+      }
+      data->num_segments++;
+   }
+
+   enc->bs_offset = align(offset, 16);
+   assert(enc->bs_offset < enc->bs_size);
+
+   assert(slice_segment);
+   slice_segment->offset = enc->bs_offset;
+
+   enc->ws->buffer_unmap(enc->ws, enc->bs_handle);
+
+   return data;
+}
+
 static void radeon_enc_encode_bitstream(struct pipe_video_codec *encoder,
                                         struct pipe_video_buffer *source,
                                         struct pipe_resource *destination, void **fb)
@@ -1549,6 +1617,7 @@ static void radeon_enc_encode_bitstream(struct pipe_video_codec *encoder,
 
    enc->get_buffer(destination, &enc->bs_handle, NULL);
    enc->bs_size = destination->width0;
+   enc->bs_offset = 0;
 
    *fb = enc->fb = CALLOC_STRUCT(rvid_buffer);
 
@@ -1556,6 +1625,8 @@ static void radeon_enc_encode_bitstream(struct pipe_video_codec *encoder,
       RVID_ERR("Can't create feedback buffer.\n");
       return;
    }
+
+   enc->fb->user_data = radeon_vcn_enc_encode_headers(enc);
 
    if (vid_buf->base.statistics_data) {
       enc->get_buffer(vid_buf->base.statistics_data, &enc->stats, NULL);
@@ -1606,7 +1677,7 @@ static void radeon_enc_destroy(struct pipe_video_codec *encoder)
 }
 
 static void radeon_enc_get_feedback(struct pipe_video_codec *encoder, void *feedback,
-                                    unsigned *size, struct pipe_enc_feedback_metadata* metadata)
+                                    unsigned *size, struct pipe_enc_feedback_metadata *metadata)
 {
    struct radeon_encoder *enc = (struct radeon_encoder *)encoder;
    struct rvid_buffer *fb = feedback;
@@ -1619,6 +1690,30 @@ static void radeon_enc_get_feedback(struct pipe_video_codec *encoder, void *feed
       else
          *size = 0;
       enc->ws->buffer_unmap(enc->ws, fb->res->buf);
+   }
+
+   metadata->present_metadata = PIPE_VIDEO_FEEDBACK_METADATA_TYPE_CODEC_UNIT_LOCATION;
+
+   if (fb->user_data) {
+      struct rvcn_enc_feedback_data *data = fb->user_data;
+      metadata->codec_unit_metadata_count = data->num_segments;
+      for (unsigned i = 0; i < data->num_segments; i++) {
+         metadata->codec_unit_metadata[i].offset = data->segments[i].offset;
+         if (data->segments[i].is_slice) {
+            metadata->codec_unit_metadata[i].size = *size;
+            metadata->codec_unit_metadata[i].flags = 0;
+         } else {
+            metadata->codec_unit_metadata[i].size = data->segments[i].size;
+            metadata->codec_unit_metadata[i].flags = PIPE_VIDEO_CODEC_UNIT_LOCATION_FLAG_SINGLE_NALU;
+         }
+      }
+      FREE(fb->user_data);
+      fb->user_data = NULL;
+   } else {
+      metadata->codec_unit_metadata_count = 1;
+      metadata->codec_unit_metadata[0].offset = 0;
+      metadata->codec_unit_metadata[0].size = *size;
+      metadata->codec_unit_metadata[0].flags = 0;
    }
 
    RADEON_ENC_DESTROY_VIDEO_BUFFER(fb);
@@ -1741,8 +1836,19 @@ void radeon_enc_set_emulation_prevention(struct radeon_encoder *enc, bool set)
    }
 }
 
+void radeon_enc_set_output_buffer(struct radeon_encoder *enc, uint8_t *buffer)
+{
+   enc->bits_buf = buffer;
+   enc->bits_buf_pos = 0;
+}
+
 void radeon_enc_output_one_byte(struct radeon_encoder *enc, unsigned char byte)
 {
+   if (enc->bits_buf) {
+      enc->bits_buf[enc->bits_buf_pos++] = byte;
+      return;
+   }
+
    if (enc->byte_index == 0)
       enc->cs.current.buf[enc->cs.current.cdw] = 0;
    enc->cs.current.buf[enc->cs.current.cdw] |=
@@ -1839,6 +1945,8 @@ void radeon_enc_reset(struct radeon_encoder *enc)
    enc->num_zeros = 0;
    enc->byte_index = 0;
    enc->bits_size = 0;
+   enc->bits_buf = NULL;
+   enc->bits_buf_pos = 0;
 }
 
 void radeon_enc_byte_align(struct radeon_encoder *enc)

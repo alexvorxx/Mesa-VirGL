@@ -1105,7 +1105,6 @@ static void radeon_enc_av1_encode_params(struct radeon_encoder *enc)
       assert(false);
    }
 
-   enc->enc_pic.enc_params.allowed_max_bitstream_size = enc->bs_size;
    enc->enc_pic.enc_params.input_pic_luma_pitch = enc->luma->u.gfx9.surf_pitch;
    enc->enc_pic.enc_params.input_pic_chroma_pitch = enc->chroma ?
       enc->chroma->u.gfx9.surf_pitch : enc->luma->u.gfx9.surf_pitch;

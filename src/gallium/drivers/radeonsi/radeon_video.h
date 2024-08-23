@@ -21,6 +21,7 @@
 struct rvid_buffer {
    unsigned usage;
    struct si_resource *res;
+   void *user_data;
 };
 
 /* video buffer offset info representation */
