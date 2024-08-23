@@ -1119,6 +1119,13 @@ static bool vlVaQueryApplyFilmGrainAV1(vlVaContext *context,
    return true;
 }
 
+static void vlVaClearRawHeaders(struct util_dynarray *headers)
+{
+   util_dynarray_foreach(headers, struct pipe_enc_raw_header, header)
+      FREE(header->buffer);
+   util_dynarray_clear(headers);
+}
+
 VAStatus
 vlVaEndPicture(VADriverContextP ctx, VAContextID context_id)
 {
@@ -1388,17 +1395,55 @@ vlVaEndPicture(VADriverContextP ctx, VAContextID context_id)
       }
    }
 
-   /* Update frame_num disregarding PIPE_VIDEO_CAP_REQUIRES_FLUSH_ON_END_FRAME check above */
    if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE) {
-      if ((u_reduce_video_profile(context->templat.profile) == PIPE_VIDEO_FORMAT_MPEG4_AVC)
-         && (!context->desc.h264enc.not_referenced))
-         context->desc.h264enc.frame_num++;
-      else if (u_reduce_video_profile(context->templat.profile) == PIPE_VIDEO_FORMAT_HEVC)
-         context->desc.h265enc.frame_num++;
-      else if (u_reduce_video_profile(context->templat.profile) == PIPE_VIDEO_FORMAT_AV1)
+      switch (u_reduce_video_profile(context->templat.profile)) {
+      case PIPE_VIDEO_FORMAT_AV1:
          context->desc.av1enc.frame_num++;
+         break;
+      case PIPE_VIDEO_FORMAT_HEVC:
+         context->desc.h265enc.frame_num++;
+         vlVaClearRawHeaders(&context->desc.h265enc.raw_headers);
+         break;
+      case PIPE_VIDEO_FORMAT_MPEG4_AVC:
+         if (!context->desc.h264enc.not_referenced)
+            context->desc.h264enc.frame_num++;
+         vlVaClearRawHeaders(&context->desc.h264enc.raw_headers);
+         break;
+      default:
+         break;
+      }
    }
 
    mtx_unlock(&drv->mutex);
    return VA_STATUS_SUCCESS;
+}
+
+void
+vlVaAddRawHeader(struct util_dynarray *headers, uint8_t type, uint32_t size,
+                 uint8_t *buf, bool is_slice, uint32_t emulation_bytes_start)
+{
+   struct pipe_enc_raw_header header = {
+      .type = type,
+      .is_slice = is_slice,
+   };
+   if (emulation_bytes_start) {
+      uint32_t pos = emulation_bytes_start, num_zeros = 0;
+      header.buffer = MALLOC(size * 3 / 2);
+      memcpy(header.buffer, buf, emulation_bytes_start);
+      for (uint32_t i = emulation_bytes_start; i < size; i++) {
+         uint8_t byte = buf[i];
+         if (num_zeros >= 2 && byte >= 0x00 && byte <= 0x03) {
+            header.buffer[pos++] = 0x03;
+            num_zeros = 0;
+         }
+         header.buffer[pos++] = byte;
+         num_zeros = byte == 0x00 ? num_zeros + 1 : 0;
+      }
+      header.size = pos;
+   } else {
+      header.size = size;
+      header.buffer = MALLOC(header.size);
+      memcpy(header.buffer, buf, size);
+   }
+   util_dynarray_append(headers, struct pipe_enc_raw_header, header);
 }

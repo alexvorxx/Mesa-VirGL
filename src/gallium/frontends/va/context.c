@@ -372,10 +372,12 @@ vlVaCreateContext(VADriverContextP ctx, VAConfigID config_id, int picture_width,
       case PIPE_VIDEO_FORMAT_MPEG4_AVC:
          context->desc.h264enc.rate_ctrl[0].rate_ctrl_method = config->rc;
          context->desc.h264enc.frame_idx = util_hash_table_create_ptr_keys();
+         util_dynarray_init(&context->desc.h264enc.raw_headers, NULL);
          break;
       case PIPE_VIDEO_FORMAT_HEVC:
          context->desc.h265enc.rc[0].rate_ctrl_method = config->rc;
          context->desc.h265enc.frame_idx = util_hash_table_create_ptr_keys();
+         util_dynarray_init(&context->desc.h265enc.raw_headers, NULL);
          break;
       case PIPE_VIDEO_FORMAT_AV1:
          context->desc.av1enc.rc[0].rate_ctrl_method = config->rc;
@@ -432,11 +434,13 @@ vlVaDestroyContext(VADriverContextP ctx, VAContextID context_id)
              PIPE_VIDEO_FORMAT_MPEG4_AVC) {
             if (context->desc.h264enc.frame_idx)
                _mesa_hash_table_destroy(context->desc.h264enc.frame_idx, NULL);
+            util_dynarray_fini(&context->desc.h264enc.raw_headers);
          }
          if (u_reduce_video_profile(context->decoder->profile) ==
              PIPE_VIDEO_FORMAT_HEVC) {
             if (context->desc.h265enc.frame_idx)
                _mesa_hash_table_destroy(context->desc.h265enc.frame_idx, NULL);
+            util_dynarray_fini(&context->desc.h265enc.raw_headers);
          }
       } else {
          if (u_reduce_video_profile(context->decoder->profile) ==

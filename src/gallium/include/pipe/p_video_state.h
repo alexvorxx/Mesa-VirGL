@@ -35,6 +35,7 @@
 #include "util/u_hash_table.h"
 #include "util/u_inlines.h"
 #include "util/u_rect.h"
+#include "util/u_dynarray.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -518,6 +519,14 @@ struct pipe_enc_roi
    struct pipe_enc_region_in_roi region[PIPE_ENC_ROI_REGION_NUM_MAX];
 };
 
+struct pipe_enc_raw_header
+{
+   uint8_t type; /* nal_unit_type or obu_type */
+   bool is_slice; /* slice or frame header */
+   uint32_t size;
+   uint8_t *buffer;
+};
+
 struct pipe_h264_enc_rate_control
 {
    enum pipe_h2645_enc_rate_control_method rate_ctrl_method;
@@ -825,6 +834,8 @@ struct pipe_h264_enc_picture_desc
    uint8_t dpb_curr_pic; /* index in dpb */
    uint8_t ref_list0[PIPE_H264_MAX_NUM_LIST_REF]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
    uint8_t ref_list1[PIPE_H264_MAX_NUM_LIST_REF]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
+
+   struct util_dynarray raw_headers; /* struct pipe_enc_raw_header */
 };
 
 struct pipe_h265_st_ref_pic_set
@@ -1198,6 +1209,8 @@ struct pipe_h265_enc_picture_desc
    uint8_t dpb_curr_pic; /* index in dpb */
    uint8_t ref_list0[PIPE_H265_MAX_NUM_LIST_REF]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
    uint8_t ref_list1[PIPE_H265_MAX_NUM_LIST_REF]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
+
+   struct util_dynarray raw_headers; /* struct pipe_enc_raw_header */
 };
 
 struct pipe_av1_enc_rate_control

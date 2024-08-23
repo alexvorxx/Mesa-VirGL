@@ -88,6 +88,7 @@
 #define ENC_PACKED_HEADERS_H264 (VA_ENC_PACKED_HEADER_SEQUENCE | \
                                  VA_ENC_PACKED_HEADER_PICTURE | \
                                  VA_ENC_PACKED_HEADER_SLICE | \
+                                 VA_ENC_PACKED_HEADER_MISC | \
                                  VA_ENC_PACKED_HEADER_RAW_DATA)
 #define ENC_PACKED_HEADERS_HEVC (VA_ENC_PACKED_HEADER_SEQUENCE | \
                                  VA_ENC_PACKED_HEADER_PICTURE | \
@@ -565,6 +566,8 @@ VAStatus vlVaHandleVAProcPipelineParameterBufferType(vlVaDriver *drv, vlVaContex
 VAStatus vlVaHandleSurfaceAllocate(vlVaDriver *drv, vlVaSurface *surface, struct pipe_video_buffer *templat,
                                    const uint64_t *modifiers, unsigned int modifiers_count);
 struct pipe_video_buffer *vlVaGetSurfaceBuffer(vlVaDriver *drv, vlVaSurface *surface);
+void vlVaAddRawHeader(struct util_dynarray *headers, uint8_t type, uint32_t size, uint8_t *buf,
+                      bool is_slice, uint32_t emulation_bytes_start);
 void vlVaSetSurfaceContext(vlVaDriver *drv, vlVaSurface *surf, vlVaContext *context);
 void vlVaGetReferenceFrame(vlVaDriver *drv, VASurfaceID surface_id, struct pipe_video_buffer **ref_frame);
 void vlVaHandlePictureParameterBufferMPEG12(vlVaDriver *drv, vlVaContext *context, vlVaBuffer *buf);
