@@ -57,6 +57,15 @@ jm_files = [
   'jm/panvk_vX_queue.c',
 ]
 
+csf_archs = [10]
+csf_inc_dir = ['csf']
+csf_files = [
+  'csf/panvk_vX_cmd_buffer.c',
+  'csf/panvk_vX_cmd_dispatch.c',
+  'csf/panvk_vX_cmd_draw.c',
+  'csf/panvk_vX_queue.c',
+]
+
 common_per_arch_files = [
   panvk_entrypoints[0],
   'panvk_vX_blend.c',
@@ -74,21 +83,7 @@ common_per_arch_files = [
 ]
 
 foreach arch : [6, 7, 10]
-  if arch in valhall_archs
-    # We're lacking key components to compile common source files for v9/v10.
-    # Just add the v10 entrypoints for now.
-    per_arch_files = [
-      panvk_entrypoints[0],
-      'panvk_vX_blend.c',
-      'panvk_vX_descriptor_set.c',
-      'panvk_vX_descriptor_set_layout.c',
-      'panvk_vX_nir_lower_descriptors.c',
-      'panvk_vX_shader.c',
-    ]
-  else
-    per_arch_files = common_per_arch_files
-  endif
-
+  per_arch_files = common_per_arch_files
   inc_panvk_per_arch = []
 
   if arch in bifrost_archs
@@ -102,6 +97,9 @@ foreach arch : [6, 7, 10]
   if arch in jm_archs
     inc_panvk_per_arch += jm_inc_dir
     per_arch_files += jm_files
+  elif arch in csf_archs
+    inc_panvk_per_arch += csf_inc_dir
+    per_arch_files += csf_files
   endif
 
   panvk_per_arch_libs += static_library(

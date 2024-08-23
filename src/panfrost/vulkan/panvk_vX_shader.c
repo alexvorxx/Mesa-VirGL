@@ -29,11 +29,7 @@
 
 #include "genxml/gen_macros.h"
 
-/* FIXME: make the include statement unconditional when the CSF command buffer
- * logic is implemented. */
-#if PAN_ARCH <= 7
 #include "panvk_cmd_buffer.h"
-#endif
 #include "panvk_device.h"
 #include "panvk_instance.h"
 #include "panvk_mempool.h"
@@ -1333,9 +1329,6 @@ static const struct vk_shader_ops panvk_shader_ops = {
       panvk_shader_get_executable_internal_representations,
 };
 
-/* FIXME: make this unconditional when the CSF command buffer logic is
- * implemented. */
-#if PAN_ARCH <= 7
 static void
 panvk_cmd_bind_shader(struct panvk_cmd_buffer *cmd, const gl_shader_stage stage,
                       struct panvk_shader *shader)
@@ -1380,7 +1373,6 @@ panvk_cmd_bind_shaders(struct vk_command_buffer *vk_cmd, uint32_t stage_count,
       panvk_cmd_bind_shader(cmd, stages[i], shader);
    }
 }
-#endif
 
 const struct vk_device_shader_ops panvk_per_arch(device_shader_ops) = {
    .get_nir_options = panvk_get_nir_options,
@@ -1390,10 +1382,5 @@ const struct vk_device_shader_ops panvk_per_arch(device_shader_ops) = {
    .compile = panvk_compile_shaders,
    .deserialize = panvk_deserialize_shader,
    .cmd_set_dynamic_graphics_state = vk_cmd_set_dynamic_graphics_state,
-
-/* FIXME: make the assignment unconditional when the CSF command buffer logic is
- * implemented. */
-#if PAN_ARCH <= 7
    .cmd_bind_shaders = panvk_cmd_bind_shaders,
-#endif
 };
