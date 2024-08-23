@@ -397,7 +397,6 @@ struct radv_dgc_params {
    uint32_t upload_addr;
    uint32_t sequence_count;
    uint64_t sequence_count_addr;
-   uint32_t stream_stride;
    uint64_t stream_addr;
 
    /* draw info */
@@ -1866,7 +1865,6 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
 
    nir_def *cmd_buf_stride = load_param32(&b, cmd_buf_stride);
    nir_def *sequence_count = load_param32(&b, sequence_count);
-   nir_def *stream_stride = load_param32(&b, stream_stride);
 
    nir_def *use_count = nir_iand_imm(&b, sequence_count, 1u << 31);
    sequence_count = nir_iand_imm(&b, sequence_count, UINT32_MAX >> 1);
@@ -1915,7 +1913,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
       nir_def *cmd_buf_end = nir_iadd(&b, nir_load_var(&b, cmd_buf.offset), cmd_buf_stride);
 
       nir_def *stream_addr = load_param64(&b, stream_addr);
-      stream_addr = nir_iadd(&b, stream_addr, nir_u2u64(&b, nir_imul(&b, sequence_id, stream_stride)));
+      stream_addr = nir_iadd(&b, stream_addr, nir_u2u64(&b, nir_imul_imm(&b, sequence_id, layout->input_stride)));
 
       nir_variable *upload_offset =
          nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "upload_offset");
@@ -1998,7 +1996,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
          nir_def *cmd_buf_end = nir_iadd(&b, nir_load_var(&b, cmd_buf.offset), ace_cmd_buf_stride);
 
          nir_def *stream_addr = load_param64(&b, stream_addr);
-         stream_addr = nir_iadd(&b, stream_addr, nir_u2u64(&b, nir_imul(&b, sequence_id, stream_stride)));
+         stream_addr = nir_iadd(&b, stream_addr, nir_u2u64(&b, nir_imul_imm(&b, sequence_id, layout->input_stride)));
 
          nir_variable *upload_offset =
             nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "upload_offset");
@@ -2504,7 +2502,6 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
       .upload_stride = cmdbuf_layout.upload_stride,
       .sequence_count = sequences_count | (sequence_count_addr ? 1u << 31 : 0),
       .sequence_count_addr = sequence_count_addr,
-      .stream_stride = layout->input_stride,
       .use_preamble = use_preamble,
       .stream_addr = stream_addr,
    };
