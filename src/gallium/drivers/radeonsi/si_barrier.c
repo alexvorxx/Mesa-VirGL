@@ -377,7 +377,7 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
          tc_flags = EVENT_TC_ACTION_ENA | EVENT_TC_MD_ACTION_ENA;
       }
 
-      /* Ideally flush TC together with CB/DB. */
+      /* Ideally flush L2 together with CB/DB. */
       if (flags & SI_CONTEXT_INV_L2) {
          /* Writeback and invalidate everything in L2 & L1. */
          tc_flags = EVENT_TC_ACTION_ENA | EVENT_TC_WB_ACTION_ENA;
@@ -680,7 +680,7 @@ static void si_memory_barrier(struct pipe_context *ctx, unsigned flags)
    }
 
    if (flags & PIPE_BARRIER_INDEX_BUFFER) {
-      /* Indices are read through TC L2 since GFX8.
+      /* Indices are read through L2 since GFX8.
        * L1 isn't used.
        */
       if (sctx->screen->info.gfx_level <= GFX7)
@@ -697,7 +697,7 @@ static void si_memory_barrier(struct pipe_context *ctx, unsigned flags)
          sctx->flags |= SI_CONTEXT_WB_L2;
    }
 
-   /* Indirect buffers use TC L2 on GFX9, but not older hw. */
+   /* Indirect buffers use L2 on GFX9, but not older hw. */
    if (sctx->screen->info.gfx_level <= GFX8 && flags & PIPE_BARRIER_INDIRECT_BUFFER)
       sctx->flags |= SI_CONTEXT_WB_L2;
 

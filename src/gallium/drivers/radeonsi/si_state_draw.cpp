@@ -2120,7 +2120,7 @@ static void si_draw(struct pipe_context *ctx,
          index_offset = 0;
          index_size = 2;
 
-         /* GFX6-7 don't read index buffers through TC L2. */
+         /* GFX6-7 don't read index buffers through L2. */
          sctx->flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
          si_resource(indexbuf)->TC_L2_dirty = false;
