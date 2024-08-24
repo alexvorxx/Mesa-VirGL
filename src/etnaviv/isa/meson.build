@@ -46,7 +46,7 @@ idep_libetnaviv_decode = declare_dependency(
 )
 
 prog_enums_h = files('enums.h.py')
-enums_h = custom_target(
+etnaviv_enums_h = custom_target(
   'enums.h',
   input: 'etnaviv.xml',
   output: 'enums.h',
@@ -65,7 +65,7 @@ encode_h = custom_target(
 )
 
 encode_files = [
-  enums_h,
+  etnaviv_enums_h,
   encode_h,
   'encode.c',
 ]
