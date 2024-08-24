@@ -379,6 +379,7 @@ Converter::getFile(nir_intrinsic_op op) const
    switch (op) {
    case nir_intrinsic_load_uniform:
    case nir_intrinsic_load_ubo:
+   case nir_intrinsic_ldc_nv:
       return FILE_MEMORY_CONST;
    case nir_intrinsic_load_ssbo:
    case nir_intrinsic_store_ssbo:
