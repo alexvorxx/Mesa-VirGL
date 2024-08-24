@@ -988,7 +988,7 @@ static void post_upload_binary(struct si_screen *sscreen, struct si_shader *shad
       si_cp_dma_copy_buffer(upload_ctx, &shader->bo->b.b, staging, 0, staging_offset,
                             binary_size);
       si_barrier_after_simple_buffer_op(upload_ctx, 0, &shader->bo->b.b, staging);
-      upload_ctx->barrier_flags |= SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_L2;
+      upload_ctx->barrier_flags |= SI_BARRIER_INV_ICACHE | SI_BARRIER_INV_L2;
 
 #if 0 /* debug: validate whether the copy was successful */
       uint32_t *dst_binary = malloc(binary_size);

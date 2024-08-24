@@ -78,7 +78,7 @@ void si_flush_gfx_cs(struct si_context *ctx, unsigned flags, struct pipe_fence_h
    struct radeon_cmdbuf *cs = &ctx->gfx_cs;
    struct radeon_winsys *ws = ctx->ws;
    struct si_screen *sscreen = ctx->screen;
-   const unsigned wait_ps_cs = SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH;
+   const unsigned wait_ps_cs = SI_BARRIER_SYNC_PS | SI_BARRIER_SYNC_CS;
    unsigned wait_flags = 0;
 
    if (ctx->gfx_flush_in_progress)
@@ -146,7 +146,7 @@ void si_flush_gfx_cs(struct si_context *ctx, unsigned flags, struct pipe_fence_h
           * and make this process guilty of hanging.
           */
          if (ctx->gfx_level >= GFX12)
-            wait_flags |= SI_CONTEXT_VS_PARTIAL_FLUSH;
+            wait_flags |= SI_BARRIER_SYNC_VS;
       }
    }
 
@@ -462,16 +462,16 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
     *
     * TODO: Do we also need to invalidate CB & DB caches?
     */
-   ctx->barrier_flags |= SI_CONTEXT_INV_L2;
+   ctx->barrier_flags |= SI_BARRIER_INV_L2;
    if (ctx->gfx_level < GFX10)
-      ctx->barrier_flags |= SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE;
+      ctx->barrier_flags |= SI_BARRIER_INV_ICACHE | SI_BARRIER_INV_SMEM | SI_BARRIER_INV_VMEM;
 
    /* Disable pipeline stats if there are no active queries. */
-   ctx->barrier_flags &= ~SI_CONTEXT_START_PIPELINE_STATS & ~SI_CONTEXT_STOP_PIPELINE_STATS;
+   ctx->barrier_flags &= ~SI_BARRIER_EVENT_PIPELINESTAT_START & ~SI_BARRIER_EVENT_PIPELINESTAT_STOP;
    if (ctx->num_hw_pipestat_streamout_queries)
-      ctx->barrier_flags |= SI_CONTEXT_START_PIPELINE_STATS;
+      ctx->barrier_flags |= SI_BARRIER_EVENT_PIPELINESTAT_START;
    else
-      ctx->barrier_flags |= SI_CONTEXT_STOP_PIPELINE_STATS;
+      ctx->barrier_flags |= SI_BARRIER_EVENT_PIPELINESTAT_STOP;
 
    ctx->pipeline_stats_enabled = -1; /* indicate that the current hw state is unknown */
 
@@ -479,7 +479,7 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
     * When switching NGG->legacy, we need to flush VGT for certain hw generations.
     */
    if (ctx->screen->info.has_vgt_flush_ngg_legacy_bug && !ctx->ngg)
-      ctx->barrier_flags |= SI_CONTEXT_VGT_FLUSH;
+      ctx->barrier_flags |= SI_BARRIER_EVENT_VGT_FLUSH;
 
    si_mark_atom_dirty(ctx, &ctx->atoms.s.barrier);
    si_mark_atom_dirty(ctx, &ctx->atoms.s.spi_ge_ring_state);

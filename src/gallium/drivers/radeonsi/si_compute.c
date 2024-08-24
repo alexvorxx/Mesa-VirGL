@@ -1175,7 +1175,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
                            info->block[0] * info->block[1] * info->block[2] > 256;
 
    if (cs_regalloc_hang) {
-      sctx->barrier_flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH;
+      sctx->barrier_flags |= SI_BARRIER_SYNC_PS | SI_BARRIER_SYNC_CS;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 
@@ -1214,7 +1214,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
       /* Indirect buffers are read through L2 on GFX9-GFX11, but not other hw. */
       if ((sctx->gfx_level <= GFX8 || sctx->gfx_level == GFX12) &&
           si_resource(info->indirect)->L2_cache_dirty) {
-         sctx->barrier_flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
+         sctx->barrier_flags |= SI_BARRIER_WB_L2 | SI_BARRIER_PFP_SYNC_ME;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
          si_resource(info->indirect)->L2_cache_dirty = false;
       }
@@ -1309,7 +1309,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
       trace_si_end_compute(&sctx->trace, info->grid[0], info->grid[1], info->grid[2]);
 
    if (cs_regalloc_hang) {
-      sctx->barrier_flags |= SI_CONTEXT_CS_PARTIAL_FLUSH;
+      sctx->barrier_flags |= SI_BARRIER_SYNC_CS;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 }

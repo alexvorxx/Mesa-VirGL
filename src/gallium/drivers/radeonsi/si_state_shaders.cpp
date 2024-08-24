@@ -3769,7 +3769,7 @@ bool si_update_ngg(struct si_context *sctx)
        * pointers are set.
        */
       if (sctx->screen->info.has_vgt_flush_ngg_legacy_bug && !new_ngg) {
-         sctx->barrier_flags |= SI_CONTEXT_VGT_FLUSH;
+         sctx->barrier_flags |= SI_BARRIER_EVENT_VGT_FLUSH;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 
          if (sctx->gfx_level == GFX10) {

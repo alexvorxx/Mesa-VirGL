@@ -888,12 +888,12 @@ static void si_update_hw_pipeline_stats(struct si_context *sctx, unsigned type, 
 
       /* Enable/disable pipeline stats if we have any queries. */
       if (diff == 1 && sctx->num_hw_pipestat_streamout_queries == 1) {
-         sctx->barrier_flags &= ~SI_CONTEXT_STOP_PIPELINE_STATS;
-         sctx->barrier_flags |= SI_CONTEXT_START_PIPELINE_STATS;
+         sctx->barrier_flags &= ~SI_BARRIER_EVENT_PIPELINESTAT_STOP;
+         sctx->barrier_flags |= SI_BARRIER_EVENT_PIPELINESTAT_START;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       } else if (diff == -1 && sctx->num_hw_pipestat_streamout_queries == 0) {
-         sctx->barrier_flags &= ~SI_CONTEXT_START_PIPELINE_STATS;
-         sctx->barrier_flags |= SI_CONTEXT_STOP_PIPELINE_STATS;
+         sctx->barrier_flags &= ~SI_BARRIER_EVENT_PIPELINESTAT_START;
+         sctx->barrier_flags |= SI_BARRIER_EVENT_PIPELINESTAT_STOP;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
       }
    }
@@ -1599,8 +1599,8 @@ static void si_query_hw_get_result_resource(struct si_context *sctx, struct si_q
       break;
    }
 
-   sctx->barrier_flags |= SI_CONTEXT_INV_SCACHE | SI_CONTEXT_INV_VCACHE |
-                          (sctx->gfx_level <= GFX8 ? SI_CONTEXT_INV_L2 : 0);
+   sctx->barrier_flags |= SI_BARRIER_INV_SMEM | SI_BARRIER_INV_VMEM |
+                          (sctx->gfx_level <= GFX8 ? SI_BARRIER_INV_L2 : 0);
    si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
 
    for (qbuf = &query->buffer; qbuf; qbuf = qbuf_prev) {
@@ -1698,7 +1698,7 @@ static void si_render_condition(struct pipe_context *ctx, struct pipe_query *que
          /* Settings this in the render cond atom is too late,
           * so set it here. */
          if (sctx->gfx_level <= GFX8) {
-            sctx->barrier_flags |= SI_CONTEXT_WB_L2 | SI_CONTEXT_PFP_SYNC_ME;
+            sctx->barrier_flags |= SI_BARRIER_WB_L2 | SI_BARRIER_PFP_SYNC_ME;
             si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
          }
 

@@ -93,8 +93,8 @@ static void si_emit_sqtt_stop(struct si_context *sctx, struct radeon_cmdbuf *cs,
    if (sctx->screen->info.has_sqtt_rb_harvest_bug) {
       /* Some chips with disabled RBs should wait for idle because FINISH_DONE
        * doesn't work. */
-      sctx->barrier_flags |= SI_CONTEXT_FLUSH_AND_INV_CB | SI_CONTEXT_FLUSH_AND_INV_DB |
-                             SI_CONTEXT_CS_PARTIAL_FLUSH;
+      sctx->barrier_flags |= SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB |
+                             SI_BARRIER_SYNC_CS;
       sctx->emit_barrier(sctx, cs);
    }
 
@@ -140,10 +140,10 @@ static void si_sqtt_start(struct si_context *sctx, struct radeon_cmdbuf *cs)
    si_cp_dma_wait_for_idle(sctx, cs);
 
    /* Make sure to wait-for-idle before starting SQTT. */
-   sctx->barrier_flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH |
-                          SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE |
-                          SI_CONTEXT_INV_VCACHE | SI_CONTEXT_INV_L2 |
-                          SI_CONTEXT_PFP_SYNC_ME;
+   sctx->barrier_flags |= SI_BARRIER_SYNC_PS | SI_BARRIER_SYNC_CS |
+                          SI_BARRIER_INV_ICACHE | SI_BARRIER_INV_SMEM |
+                          SI_BARRIER_INV_VMEM | SI_BARRIER_INV_L2 |
+                          SI_BARRIER_PFP_SYNC_ME;
    sctx->emit_barrier(sctx, cs);
 
    si_inhibit_clockgating(sctx, cs, true);
@@ -200,10 +200,10 @@ static void si_sqtt_stop(struct si_context *sctx, struct radeon_cmdbuf *cs)
                           sctx->screen->info.never_send_perfcounter_stop);
 
    /* Make sure to wait-for-idle before stopping SQTT. */
-   sctx->barrier_flags |= SI_CONTEXT_PS_PARTIAL_FLUSH | SI_CONTEXT_CS_PARTIAL_FLUSH |
-                          SI_CONTEXT_INV_ICACHE | SI_CONTEXT_INV_SCACHE |
-                          SI_CONTEXT_INV_VCACHE | SI_CONTEXT_INV_L2 |
-                          SI_CONTEXT_PFP_SYNC_ME;
+   sctx->barrier_flags |= SI_BARRIER_SYNC_PS | SI_BARRIER_SYNC_CS |
+                          SI_BARRIER_INV_ICACHE | SI_BARRIER_INV_SMEM |
+                          SI_BARRIER_INV_VMEM | SI_BARRIER_INV_L2 |
+                          SI_BARRIER_PFP_SYNC_ME;
    sctx->emit_barrier(sctx, cs);
 
    si_emit_sqtt_stop(sctx, cs, ip_type);
@@ -620,30 +620,30 @@ void si_sqtt_describe_barrier_end(struct si_context *sctx, struct radeon_cmdbuf 
    marker.identifier = RGP_SQTT_MARKER_IDENTIFIER_BARRIER_END;
    marker.cb_id = 0;
 
-   if (flags & SI_CONTEXT_VS_PARTIAL_FLUSH)
+   if (flags & SI_BARRIER_SYNC_VS)
       marker.vs_partial_flush = true;
-   if (flags & SI_CONTEXT_PS_PARTIAL_FLUSH)
+   if (flags & SI_BARRIER_SYNC_PS)
       marker.ps_partial_flush = true;
-   if (flags & SI_CONTEXT_CS_PARTIAL_FLUSH)
+   if (flags & SI_BARRIER_SYNC_CS)
       marker.cs_partial_flush = true;
 
-   if (flags & SI_CONTEXT_PFP_SYNC_ME)
+   if (flags & SI_BARRIER_PFP_SYNC_ME)
       marker.pfp_sync_me = true;
 
-   if (flags & SI_CONTEXT_INV_VCACHE)
+   if (flags & SI_BARRIER_INV_VMEM)
       marker.inval_tcp = true;
-   if (flags & SI_CONTEXT_INV_ICACHE)
+   if (flags & SI_BARRIER_INV_ICACHE)
       marker.inval_sqI = true;
-   if (flags & SI_CONTEXT_INV_SCACHE)
+   if (flags & SI_BARRIER_INV_SMEM)
       marker.inval_sqK = true;
-   if (flags & SI_CONTEXT_INV_L2)
+   if (flags & SI_BARRIER_INV_L2)
       marker.inval_tcc = true;
 
-   if (flags & SI_CONTEXT_FLUSH_AND_INV_CB) {
+   if (flags & SI_BARRIER_SYNC_AND_INV_CB) {
       marker.inval_cb = true;
       marker.flush_cb = true;
    }
-   if (flags & SI_CONTEXT_FLUSH_AND_INV_DB) {
+   if (flags & SI_BARRIER_SYNC_AND_INV_DB) {
       marker.inval_db = true;
       marker.flush_db = true;
    }

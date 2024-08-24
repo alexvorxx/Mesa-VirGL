@@ -348,7 +348,7 @@ static void gfx11_sh_query_get_result_resource(struct si_context *sctx, struct s
 
    /* TODO: Range-invalidate GL2 */
    if (sctx->screen->info.cp_sdma_ge_use_system_memory_scope) {
-      sctx->barrier_flags |= SI_CONTEXT_INV_L2;
+      sctx->barrier_flags |= SI_BARRIER_INV_L2;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 

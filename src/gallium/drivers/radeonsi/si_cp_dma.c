@@ -151,7 +151,7 @@ void si_cp_dma_clear_buffer(struct si_context *sctx, struct radeon_cmdbuf *cs,
    assert(size && size % 4 == 0);
 
    if (!cp_dma_use_L2(sctx)) {
-      sctx->barrier_flags |= SI_CONTEXT_INV_L2;
+      sctx->barrier_flags |= SI_BARRIER_INV_L2;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 
@@ -234,7 +234,7 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
    assert(dst && src);
 
    if (!cp_dma_use_L2(sctx)) {
-      sctx->barrier_flags |= SI_CONTEXT_INV_L2;
+      sctx->barrier_flags |= SI_BARRIER_INV_L2;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
 
