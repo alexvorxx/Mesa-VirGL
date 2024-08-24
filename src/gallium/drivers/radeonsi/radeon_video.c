@@ -108,9 +108,20 @@ bool si_vid_resize_buffer(struct pipe_context *context, struct radeon_cmdbuf *cs
       ws->buffer_unmap(ws, new_buf->res->buf);
       ws->buffer_unmap(ws, old_buf.res->buf);
    } else {
-      bytes = MIN2(new_buf->res->b.b.width0, old_buf.res->b.b.width0);
-      si_copy_buffer(sctx, &new_buf->res->b.b, &old_buf.res->b.b,
-                     0, 0, bytes, SI_OP_SYNC_BEFORE);
+      if (buf_ofst_info) {
+         uint64_t dst_offset = 0, src_offset = 0;
+         for (int i = 0; i < buf_ofst_info->num_units; i++) {
+            si_copy_buffer(sctx, &new_buf->res->b.b, &old_buf.res->b.b,
+                           dst_offset, src_offset, buf_ofst_info->old_offset,
+                           i == 0 ? SI_OP_SYNC_BEFORE : 0);
+            dst_offset += buf_ofst_info->new_offset;
+            src_offset += buf_ofst_info->old_offset;
+         }
+      } else {
+         bytes = MIN2(new_buf->res->b.b.width0, old_buf.res->b.b.width0);
+         si_copy_buffer(sctx, &new_buf->res->b.b, &old_buf.res->b.b,
+                        0, 0, bytes, SI_OP_SYNC_BEFORE);
+      }
       context->flush(context, NULL, 0);
    }
 
