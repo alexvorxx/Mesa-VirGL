@@ -282,8 +282,6 @@ spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_TESS_CONTROL_SHADE
 spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_TESS_EVALUATION_SHADER_INVOCATIONS,Fail
 spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN,Fail
 
-spec@arb_vertex_attrib_64bit@execution@unused-sub-dvec4-01,Crash
-
 spec@arb_gpu_shader5@arb_gpu_shader5-interpolateatsample-dynamically-nonuniform,Fail
 spec@arb_gpu_shader5@arb_gpu_shader5-xfb-streams,Fail
 spec@arb_gpu_shader5@arb_gpu_shader5-xfb-streams-without-invocations,Fail
