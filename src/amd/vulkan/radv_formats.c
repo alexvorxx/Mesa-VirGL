@@ -269,7 +269,6 @@ static void
 radv_physical_device_get_format_properties(struct radv_physical_device *pdev, VkFormat format,
                                            VkFormatProperties3 *out_properties)
 {
-   const struct radv_instance *instance = radv_physical_device_instance(pdev);
    VkFormatFeatureFlags2 linear = 0, tiled = 0, buffer = 0;
    const struct util_format_description *desc = vk_format_description(format);
    bool scaled = false;
@@ -315,7 +314,7 @@ radv_physical_device_get_format_properties(struct radv_physical_device *pdev, Vk
             tiling |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT;
       }
 
-      if (instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE) {
+      if (pdev->video_decode_enabled) {
          if (format == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ||
              format == VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 ||
              format == VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16)

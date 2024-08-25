@@ -182,7 +182,7 @@ struct radv_physical_device {
    enum radv_video_enc_hw_ver enc_hw_ver;
    uint32_t encoder_interface_version;
    bool video_encode_enabled;
-
+   bool video_decode_enabled;
    struct radv_physical_device_cache_key cache_key;
 
    uint32_t tess_distribution_mode;

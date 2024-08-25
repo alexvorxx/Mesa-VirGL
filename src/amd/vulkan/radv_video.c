@@ -247,6 +247,17 @@ radv_init_physical_device_decoder(struct radv_physical_device *pdev)
       init_vcn_decoder(pdev);
 }
 
+void
+radv_probe_video_decode(struct radv_physical_device *pdev)
+{
+   const struct radv_instance *instance = radv_physical_device_instance(pdev);
+
+   pdev->video_decode_enabled = false;
+   if (instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE) {
+      pdev->video_decode_enabled = true;
+   }
+}
+
 static bool
 have_it(struct radv_video_session *vid)
 {

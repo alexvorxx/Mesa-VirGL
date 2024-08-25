@@ -240,7 +240,7 @@ radv_physical_device_init_queue_table(struct radv_physical_device *pdev)
       idx++;
    }
 
-   if (instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE) {
+   if (pdev->video_decode_enabled) {
       if (pdev->info.ip[pdev->vid_decode_ip].num_queues > 0) {
          pdev->vk_queue_to_radv[idx] = RADV_QUEUE_VIDEO_DEC;
          idx++;
@@ -574,12 +574,12 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_variable_pointers = true,
       .KHR_vertex_attribute_divisor = true,
       .KHR_video_maintenance1 = true,
-      .KHR_video_queue = !!(instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE) || pdev->video_encode_enabled,
+      .KHR_video_queue = pdev->video_decode_enabled || pdev->video_encode_enabled,
       .KHR_video_decode_av1 = (pdev->info.vcn_ip_version >= VCN_3_0_0 && pdev->info.vcn_ip_version != VCN_3_0_33 &&
-                               VIDEO_CODEC_AV1DEC && !!(instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE)),
-      .KHR_video_decode_queue = !!(instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE),
-      .KHR_video_decode_h264 = VIDEO_CODEC_H264DEC && !!(instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE),
-      .KHR_video_decode_h265 = VIDEO_CODEC_H265DEC && !!(instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE),
+                               VIDEO_CODEC_AV1DEC && pdev->video_decode_enabled),
+      .KHR_video_decode_queue = pdev->video_decode_enabled,
+      .KHR_video_decode_h264 = VIDEO_CODEC_H264DEC && pdev->video_decode_enabled,
+      .KHR_video_decode_h265 = VIDEO_CODEC_H265DEC && pdev->video_decode_enabled,
       .KHR_video_encode_h264 = VIDEO_CODEC_H264ENC && pdev->video_encode_enabled,
       .KHR_video_encode_h265 = VIDEO_CODEC_H265ENC && pdev->video_encode_enabled,
       .KHR_video_encode_queue = pdev->video_encode_enabled,
@@ -2133,6 +2133,7 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
          pdev->rt_wave_size = 64;
    }
 
+   radv_probe_video_decode(pdev);
    radv_probe_video_encode(pdev);
 
    pdev->max_shared_size = pdev->info.gfx_level >= GFX7 ? 65536 : 32768;
@@ -2299,7 +2300,7 @@ radv_get_physical_device_queue_family_properties(struct radv_physical_device *pd
    if (pdev->info.ip[AMD_IP_COMPUTE].num_queues > 0 && !(instance->debug_flags & RADV_DEBUG_NO_COMPUTE_QUEUE))
       num_queue_families++;
 
-   if (instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE) {
+   if (pdev->video_decode_enabled) {
       if (pdev->info.ip[pdev->vid_decode_ip].num_queues > 0)
          num_queue_families++;
    }
@@ -2354,7 +2355,7 @@ radv_get_physical_device_queue_family_properties(struct radv_physical_device *pd
       }
    }
 
-   if (instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE) {
+   if (pdev->video_decode_enabled) {
       if (pdev->info.ip[pdev->vid_decode_ip].num_queues > 0) {
          if (*pCount > idx) {
             *pQueueFamilyProperties[idx] = (VkQueueFamilyProperties){
