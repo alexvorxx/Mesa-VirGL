@@ -118,6 +118,12 @@ radv_probe_video_encode(struct radv_physical_device *pdev)
          return;
       if (pdev->info.vcn_enc_minor_version < RENCODE_V4_FW_INTERFACE_MINOR_VERSION)
          return;
+
+      /* VCN 4 FW 1.22 has all the necessary pieces to pass CTS */
+      if (pdev->info.vcn_enc_minor_version >= 22) {
+         pdev->video_encode_enabled = true;
+         return;
+      }
    } else if (pdev->info.vcn_ip_version >= VCN_3_0_0) {
       if (pdev->info.vcn_enc_major_version != RENCODE_V3_FW_INTERFACE_MAJOR_VERSION)
          return;

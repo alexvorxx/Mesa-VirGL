@@ -253,6 +253,15 @@ radv_probe_video_decode(struct radv_physical_device *pdev)
    const struct radv_instance *instance = radv_physical_device_instance(pdev);
 
    pdev->video_decode_enabled = false;
+
+   if (pdev->info.vcn_ip_version >= VCN_4_0_0) {
+      if (pdev->info.vcn_enc_major_version > 1)
+         pdev->video_decode_enabled = true;
+      /* VCN 4 FW 1.22 has all the necessary pieces to pass CTS */
+      /* VCN 4 has unified fw so use the enc versions */
+      if (pdev->info.vcn_enc_major_version == 1 && pdev->info.vcn_enc_minor_version >= 22)
+         pdev->video_decode_enabled = true;
+   }
    if (instance->perftest_flags & RADV_PERFTEST_VIDEO_DECODE) {
       pdev->video_decode_enabled = true;
    }
