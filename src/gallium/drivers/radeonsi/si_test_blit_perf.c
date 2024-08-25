@@ -639,15 +639,15 @@ void si_test_blit_perf(struct si_screen *sscreen)
                                  }
                               }
 
+                              ctx->end_query(ctx, q);
+                              pipe_surface_reference(&dst_surf, NULL);
+
                               /* Wait for idle after all tests. */
                               sctx->barrier_flags |= SI_BARRIER_SYNC_AND_INV_CB |
                                                      SI_BARRIER_SYNC_CS |
                                                      SI_BARRIER_INV_L2 | SI_BARRIER_INV_SMEM |
                                                      SI_BARRIER_INV_VMEM;
                               si_emit_barrier_direct(sctx);
-
-                              ctx->end_query(ctx, q);
-                              pipe_surface_reference(&dst_surf, NULL);
 
                               /* Unbind the colorbuffer. */
                               if ((test_flavor == TEST_FB_CLEAR || test_flavor == TEST_CLEAR) &&
