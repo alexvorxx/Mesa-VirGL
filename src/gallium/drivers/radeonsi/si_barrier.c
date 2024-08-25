@@ -33,38 +33,12 @@ static struct si_resource *si_get_wait_mem_scratch_bo(struct si_context *ctx,
    }
 }
 
-static void prepare_cb_db_flushes(struct si_context *ctx, unsigned *flags)
+static unsigned get_reduced_barrier_flags(struct si_context *ctx)
 {
-   /* Don't flush CB and DB if there have been no draw calls. */
-   if (ctx->num_draw_calls == ctx->last_cb_flush_num_draw_calls &&
-       ctx->num_decompress_calls == ctx->last_cb_flush_num_decompress_calls)
-      *flags &= ~SI_BARRIER_SYNC_AND_INV_CB;
-
-   if (ctx->num_draw_calls == ctx->last_db_flush_num_draw_calls &&
-       ctx->num_decompress_calls == ctx->last_db_flush_num_decompress_calls)
-      *flags &= ~SI_BARRIER_SYNC_AND_INV_DB;
-
-   /* Track the last flush. */
-   if (*flags & SI_BARRIER_SYNC_AND_INV_CB) {
-      ctx->num_cb_cache_flushes++;
-      ctx->last_cb_flush_num_draw_calls = ctx->num_draw_calls;
-      ctx->last_cb_flush_num_decompress_calls = ctx->num_decompress_calls;
-   }
-   if (*flags & SI_BARRIER_SYNC_AND_INV_DB) {
-      ctx->num_db_cache_flushes++;
-      ctx->last_db_flush_num_draw_calls = ctx->num_draw_calls;
-      ctx->last_db_flush_num_decompress_calls = ctx->num_decompress_calls;
-   }
-}
-
-static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
-{
-   uint32_t gcr_cntl = 0;
-   unsigned cb_db_event = 0;
    unsigned flags = ctx->barrier_flags;
 
    if (!flags)
-      return;
+      return 0;
 
    if (!ctx->has_graphics) {
       /* Only process compute flags. */
@@ -73,10 +47,43 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
                SI_BARRIER_SYNC_CS;
    }
 
+   /* Don't flush CB and DB if there have been no draw calls. */
+   if (ctx->num_draw_calls == ctx->last_cb_flush_num_draw_calls &&
+       ctx->num_decompress_calls == ctx->last_cb_flush_num_decompress_calls)
+      flags &= ~SI_BARRIER_SYNC_AND_INV_CB;
+
+   if (ctx->num_draw_calls == ctx->last_db_flush_num_draw_calls &&
+       ctx->num_decompress_calls == ctx->last_db_flush_num_decompress_calls)
+      flags &= ~SI_BARRIER_SYNC_AND_INV_DB;
+
+   /* Track the last flush. */
+   if (flags & SI_BARRIER_SYNC_AND_INV_CB) {
+      ctx->num_cb_cache_flushes++;
+      ctx->last_cb_flush_num_draw_calls = ctx->num_draw_calls;
+      ctx->last_cb_flush_num_decompress_calls = ctx->num_decompress_calls;
+   }
+   if (flags & SI_BARRIER_SYNC_AND_INV_DB) {
+      ctx->num_db_cache_flushes++;
+      ctx->last_db_flush_num_draw_calls = ctx->num_draw_calls;
+      ctx->last_db_flush_num_decompress_calls = ctx->num_decompress_calls;
+   }
+
+   ctx->barrier_flags = 0;
+   return flags;
+}
+
+static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
+{
+   assert(ctx->gfx_level >= GFX10);
+   uint32_t gcr_cntl = 0;
+   unsigned cb_db_event = 0;
+   unsigned flags = get_reduced_barrier_flags(ctx);
+
+   if (!flags)
+      return;
+
    /* We don't need these. */
    assert(!(flags & SI_BARRIER_EVENT_FLUSH_AND_INV_DB_META));
-
-   prepare_cb_db_flushes(ctx, &flags);
 
    radeon_begin(cs);
 
@@ -240,30 +247,18 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
       ctx->pipeline_stats_enabled = 0;
    }
    radeon_end();
-
-   ctx->barrier_flags = 0;
 }
 
 static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
 {
-   uint32_t flags = sctx->barrier_flags;
+   assert(sctx->gfx_level <= GFX9);
+   unsigned flags = get_reduced_barrier_flags(sctx);
 
    if (!flags)
       return;
 
-   if (!sctx->has_graphics) {
-      /* Only process compute flags. */
-      flags &= SI_BARRIER_INV_ICACHE | SI_BARRIER_INV_SMEM | SI_BARRIER_INV_VMEM |
-               SI_BARRIER_INV_L2 | SI_BARRIER_WB_L2 | SI_BARRIER_INV_L2_METADATA |
-               SI_BARRIER_SYNC_CS;
-   }
-
    uint32_t cp_coher_cntl = 0;
    const uint32_t flush_cb_db = flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB);
-
-   assert(sctx->gfx_level <= GFX9);
-
-   prepare_cb_db_flushes(sctx, &flags);
 
    /* GFX6 has a bug that it always flushes ICACHE and KCACHE if either
     * bit is set. An alternative way is to write SQC_CACHES, but that
@@ -480,8 +475,6 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
       radeon_end();
       sctx->pipeline_stats_enabled = 0;
    }
-
-   sctx->barrier_flags = 0;
 }
 
 static void si_emit_barrier_as_atom(struct si_context *sctx, unsigned index)
