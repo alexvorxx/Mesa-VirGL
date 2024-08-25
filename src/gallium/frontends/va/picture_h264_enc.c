@@ -72,6 +72,12 @@ vlVaHandleVAEncPictureParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *cont
       if (!context->desc.h264enc.dpb[i].id) {
          assert(!surf->is_dpb);
          surf->is_dpb = true;
+         if (surf->buffer) {
+            surf->buffer->destroy(surf->buffer);
+            surf->buffer = NULL;
+         }
+         if (context->decoder && context->decoder->create_dpb_buffer)
+            surf->buffer = context->decoder->create_dpb_buffer(context->decoder, &context->desc.base, &surf->templat);
          vlVaSetSurfaceContext(drv, surf, context);
          context->desc.h264enc.dpb_size++;
          break;
@@ -84,6 +90,7 @@ vlVaHandleVAEncPictureParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *cont
    context->desc.h264enc.dpb[i].frame_idx = h264->CurrPic.frame_idx;
    context->desc.h264enc.dpb[i].pic_order_cnt = h264->CurrPic.TopFieldOrderCnt;
    context->desc.h264enc.dpb[i].is_ltr = h264->CurrPic.flags & VA_PICTURE_H264_LONG_TERM_REFERENCE;
+   context->desc.h264enc.dpb[i].buffer = surf->buffer;
 
    context->desc.h264enc.p_remain = context->desc.h264enc.gop_size - context->desc.h264enc.gop_cnt - context->desc.h264enc.i_remain;
 
@@ -239,6 +246,16 @@ vlVaHandleVAEncSequenceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *con
       context->decoder = drv->pipe->create_video_codec(drv->pipe, &context->templat);
       if (!context->decoder)
          return VA_STATUS_ERROR_ALLOCATION_FAILED;
+
+      struct pipe_h264_enc_dpb_entry *dpb =
+         &context->desc.h264enc.dpb[context->desc.h264enc.dpb_curr_pic];
+      if (dpb->id && !dpb->buffer && context->decoder->create_dpb_buffer) {
+         vlVaSurface *surf = handle_table_get(drv->htab, dpb->id);
+         if (!surf)
+            return VA_STATUS_ERROR_INVALID_PARAMETER;
+         surf->buffer = context->decoder->create_dpb_buffer(context->decoder, &context->desc.base, &surf->templat);
+         dpb->buffer = surf->buffer;
+      }
 
       getEncParamPresetH264(context);
       context->desc.h264enc.rate_ctrl[0].vbv_buffer_size = 20000000;

@@ -201,6 +201,13 @@ struct pipe_video_codec
                               struct pipe_picture_desc *picture,
                               void* bitstream_buf,
                               unsigned *size);
+
+   /**
+    * Creates a DPB buffer used for a single reconstructed picture.
+    */
+   struct pipe_video_buffer *(*create_dpb_buffer)(struct pipe_video_codec *codec,
+                                                  struct pipe_picture_desc *picture,
+                                                  const struct pipe_video_buffer *templat);
 };
 
 /**

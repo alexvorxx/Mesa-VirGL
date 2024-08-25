@@ -719,6 +719,7 @@ struct pipe_h264_enc_dpb_entry
    uint32_t frame_idx;
    uint32_t pic_order_cnt;
    bool is_ltr;
+   struct pipe_video_buffer *buffer;
 };
 
 struct pipe_h264_enc_picture_desc
@@ -1106,6 +1107,7 @@ struct pipe_h265_enc_dpb_entry
    uint32_t id;
    uint32_t pic_order_cnt;
    bool is_ltr;
+   struct pipe_video_buffer *buffer;
 };
 
 struct pipe_h265_enc_picture_desc

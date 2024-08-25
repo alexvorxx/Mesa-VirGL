@@ -80,6 +80,12 @@ vlVaHandleVAEncPictureParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *cont
       if (!context->desc.h265enc.dpb[i].id) {
          assert(!surf->is_dpb);
          surf->is_dpb = true;
+         if (surf->buffer) {
+            surf->buffer->destroy(surf->buffer);
+            surf->buffer = NULL;
+         }
+         if (context->decoder && context->decoder->create_dpb_buffer)
+            surf->buffer = context->decoder->create_dpb_buffer(context->decoder, &context->desc.base, &surf->templat);
          vlVaSetSurfaceContext(drv, surf, context);
          context->desc.h265enc.dpb_size++;
          break;
@@ -91,6 +97,7 @@ vlVaHandleVAEncPictureParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *cont
    context->desc.h265enc.dpb[i].id = h265->decoded_curr_pic.picture_id;
    context->desc.h265enc.dpb[i].pic_order_cnt = h265->decoded_curr_pic.pic_order_cnt;
    context->desc.h265enc.dpb[i].is_ltr = h265->decoded_curr_pic.flags & VA_PICTURE_HEVC_LONG_TERM_REFERENCE;
+   context->desc.h265enc.dpb[i].buffer = surf->buffer;
 
    context->desc.h265enc.pic_order_cnt = h265->decoded_curr_pic.pic_order_cnt;
    coded_buf = handle_table_get(drv->htab, h265->coded_buf);
@@ -250,6 +257,16 @@ vlVaHandleVAEncSequenceParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *con
 
       if (!context->decoder)
          return VA_STATUS_ERROR_ALLOCATION_FAILED;
+
+      struct pipe_h265_enc_dpb_entry *dpb =
+         &context->desc.h265enc.dpb[context->desc.h265enc.dpb_curr_pic];
+      if (dpb->id && !dpb->buffer && context->decoder->create_dpb_buffer) {
+         vlVaSurface *surf = handle_table_get(drv->htab, dpb->id);
+         if (!surf)
+            return VA_STATUS_ERROR_INVALID_PARAMETER;
+         surf->buffer = context->decoder->create_dpb_buffer(context->decoder, &context->desc.base, &surf->templat);
+         dpb->buffer = surf->buffer;
+      }
 
       getEncParamPresetH265(context);
       context->desc.h265enc.rc[0].vbv_buffer_size = 20000000;
