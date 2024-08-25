@@ -140,9 +140,8 @@ __glXWireToEvent(Display *dpy, XEvent *event, xEvent *wire)
    {
       GLXPbufferClobberEvent *aevent = (GLXPbufferClobberEvent *)event;
       xGLXPbufferClobberEvent *awire = (xGLXPbufferClobberEvent *)wire;
-      aevent->event_type = awire->type;
-      aevent->serial = awire->sequenceNumber;
       aevent->event_type = awire->event_type;
+      aevent->serial = awire->sequenceNumber;
       aevent->draw_type = awire->draw_type;
       aevent->drawable = awire->drawable;
       aevent->buffer_mask = awire->buffer_mask;
