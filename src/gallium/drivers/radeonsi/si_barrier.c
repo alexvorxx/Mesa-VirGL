@@ -727,8 +727,10 @@ static void si_set_sampler_depth_decompress_mask(struct si_context *sctx, struct
 void si_fb_barrier_before_rendering(struct si_context *sctx)
 {
    /* Wait for all shaders because all image loads must finish before CB/DB can write there. */
-   sctx->barrier_flags |= SI_BARRIER_SYNC_CS | SI_BARRIER_SYNC_PS;
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
+   if (sctx->framebuffer.state.nr_cbufs || sctx->framebuffer.state.zsbuf) {
+      sctx->barrier_flags |= SI_BARRIER_SYNC_CS | SI_BARRIER_SYNC_PS;
+      si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
+   }
 }
 
 void si_fb_barrier_after_rendering(struct si_context *sctx, unsigned flags)
