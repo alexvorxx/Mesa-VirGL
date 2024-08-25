@@ -92,12 +92,8 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
 
    if (flags & SI_BARRIER_INV_ICACHE)
       gcr_cntl |= S_586_GLI_INV(V_586_GLI_ALL);
-   if (flags & SI_BARRIER_INV_SMEM) {
-      /* TODO: When writing to the SMEM L1 cache, we need to set SEQ
-       * to FORWARD when both L1 and L2 are written out (WB or INV).
-       */
+   if (flags & SI_BARRIER_INV_SMEM)
       gcr_cntl |= S_586_GL1_INV(1) | S_586_GLK_INV(1);
-   }
    if (flags & SI_BARRIER_INV_VMEM)
       gcr_cntl |= S_586_GL1_INV(1) | S_586_GLV_INV(1);
 
