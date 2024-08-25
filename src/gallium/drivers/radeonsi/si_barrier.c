@@ -91,6 +91,18 @@ static unsigned get_reduced_barrier_flags(struct si_context *ctx)
         flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB)))
       ctx->compute_is_busy = false;
 
+   if (flags & SI_BARRIER_SYNC_VS)
+      ctx->num_vs_flushes++;
+   if (flags & SI_BARRIER_SYNC_PS)
+      ctx->num_ps_flushes++;
+   if (flags & SI_BARRIER_SYNC_CS)
+      ctx->num_cs_flushes++;
+
+   if (flags & SI_BARRIER_INV_L2)
+      ctx->num_L2_invalidates++;
+   else if (flags & SI_BARRIER_WB_L2)
+      ctx->num_L2_writebacks++;
+
    ctx->barrier_flags = 0;
    return flags;
 }
@@ -130,13 +142,10 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
     *
     * GLM doesn't support WB alone. If WB is set, INV must be set too.
     */
-   if (flags & SI_BARRIER_INV_L2) {
-      /* Writeback and invalidate everything in L2. */
-      gcr_cntl |= S_586_GL2_INV(1) | S_586_GL2_WB(1);
-      ctx->num_L2_invalidates++;
-   } else if (flags & SI_BARRIER_WB_L2) {
+   if (flags & SI_BARRIER_INV_L2)
+      gcr_cntl |= S_586_GL2_INV(1) | S_586_GL2_WB(1); /* Writeback and invalidate everything in L2. */
+   else if (flags & SI_BARRIER_WB_L2)
       gcr_cntl |= S_586_GL2_WB(1);
-   }
 
    /* Invalidate the metadata cache. */
    if (ctx->gfx_level < GFX12 &&
@@ -232,20 +241,14 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
       /* The TS event above also makes sure that PS and CS are idle, so we have to do this only
        * if we are not flushing CB or DB.
        */
-      if (flags & SI_BARRIER_SYNC_PS) {
+      if (flags & SI_BARRIER_SYNC_PS)
          radeon_event_write(V_028A90_PS_PARTIAL_FLUSH);
-         /* Only count explicit shader flushes, not implicit ones. */
-         ctx->num_vs_flushes++;
-         ctx->num_ps_flushes++;
-      } else if (flags & SI_BARRIER_SYNC_VS) {
+      else if (flags & SI_BARRIER_SYNC_VS)
          radeon_event_write(V_028A90_VS_PARTIAL_FLUSH);
-         ctx->num_vs_flushes++;
-      }
 
-      if (flags & SI_BARRIER_SYNC_CS) {
+      if (flags & SI_BARRIER_SYNC_CS)
          radeon_event_write(V_028A90_CS_PARTIAL_FLUSH);
-         ctx->num_cs_flushes++;
-      }
+
       radeon_end();
    }
 
@@ -330,21 +333,14 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
     * bindings.
     */
    if (sctx->gfx_level <= GFX8 || !flush_cb_db) {
-      if (flags & SI_BARRIER_SYNC_PS) {
+      if (flags & SI_BARRIER_SYNC_PS)
          radeon_event_write(V_028A90_PS_PARTIAL_FLUSH);
-         /* Only count explicit shader flushes, not implicit ones done by SURFACE_SYNC. */
-         sctx->num_vs_flushes++;
-         sctx->num_ps_flushes++;
-      } else if (flags & SI_BARRIER_SYNC_VS) {
+      else if (flags & SI_BARRIER_SYNC_VS)
          radeon_event_write(V_028A90_VS_PARTIAL_FLUSH);
-         sctx->num_vs_flushes++;
-      }
    }
 
-   if (flags & SI_BARRIER_SYNC_CS) {
+   if (flags & SI_BARRIER_SYNC_CS)
       radeon_event_write(V_028A90_CS_PARTIAL_FLUSH);
-      sctx->num_cs_flushes++;
-   }
 
    /* VGT state synchronization. */
    if (flags & SI_BARRIER_EVENT_VGT_FLUSH)
@@ -397,7 +393,6 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
 
          /* Clear the flags. */
          flags &= ~(SI_BARRIER_INV_L2 | SI_BARRIER_WB_L2);
-         sctx->num_L2_invalidates++;
       }
 
       /* Do the flush (enqueue the event and wait for it). */
@@ -436,7 +431,6 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
       si_cp_acquire_mem(sctx, cs,
                         cp_coher_cntl | S_0085F0_TC_ACTION_ENA(1) | S_0085F0_TCL1_ACTION_ENA(1) |
                         S_0301F0_TC_WB_ACTION_ENA(sctx->gfx_level >= GFX8), engine);
-      sctx->num_L2_invalidates++;
    } else {
       /* L1 invalidation and L2 writeback must be done separately, because both operations can't
        * be done together.
@@ -463,7 +457,6 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
          if (last_acquire_mem)
             flags &= ~SI_BARRIER_PFP_SYNC_ME;
          cp_coher_cntl = 0;
-         sctx->num_L2_writebacks++;
       }
 
       if (flags & SI_BARRIER_INV_VMEM)
