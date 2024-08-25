@@ -66,16 +66,9 @@ struct radeon_enc_pic {
    union {
       struct {
          struct pipe_h264_enc_picture_desc *desc;
-         struct pipe_h264_enc_seq_param seq;
-         struct pipe_h264_enc_pic_control pic;
-         struct pipe_h264_enc_slice_param slice;
       } h264;
       struct {
          struct pipe_h265_enc_picture_desc *desc;
-         struct pipe_h265_enc_vid_param vid;
-         struct pipe_h265_enc_seq_param seq;
-         struct pipe_h265_enc_pic_param pic;
-         struct pipe_h265_enc_slice_param slice;
       } hevc;
    };
 

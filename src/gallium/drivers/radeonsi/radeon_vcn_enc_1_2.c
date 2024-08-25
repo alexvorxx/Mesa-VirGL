@@ -226,7 +226,8 @@ static void radeon_enc_quality_params(struct radeon_encoder *enc)
 unsigned int radeon_enc_write_sps(struct radeon_encoder *enc, uint8_t *out)
 {
    struct radeon_enc_pic *pic = &enc->enc_pic;
-   struct pipe_h264_enc_seq_param *sps = &pic->h264.seq;
+   struct pipe_h264_enc_seq_param *sps = &pic->h264.desc->seq;
+
    radeon_enc_reset(enc);
    radeon_enc_set_output_buffer(enc, out);
    radeon_enc_set_emulation_prevention(enc, false);
@@ -343,7 +344,7 @@ unsigned int radeon_enc_write_sps(struct radeon_encoder *enc, uint8_t *out)
 unsigned int radeon_enc_write_sps_hevc(struct radeon_encoder *enc, uint8_t *out)
 {
    struct radeon_enc_pic *pic = &enc->enc_pic;
-   struct pipe_h265_enc_seq_param *sps = &pic->hevc.seq;
+   struct pipe_h265_enc_seq_param *sps = &pic->hevc.desc->seq;
    int i;
 
    radeon_enc_reset(enc);
@@ -388,12 +389,21 @@ unsigned int radeon_enc_write_sps_hevc(struct radeon_encoder *enc, uint8_t *out)
       radeon_enc_code_ue(enc, sps->sps_max_num_reorder_pics[i]);
       radeon_enc_code_ue(enc, sps->sps_max_latency_increase_plus1[i]);
    }
+
+   unsigned log2_diff_max_min_luma_coding_block_size =
+      6 - (enc->enc_pic.hevc_spec_misc.log2_min_luma_coding_block_size_minus3 + 3);
+   unsigned log2_min_transform_block_size_minus2 =
+      enc->enc_pic.hevc_spec_misc.log2_min_luma_coding_block_size_minus3;
+   unsigned log2_diff_max_min_transform_block_size = log2_diff_max_min_luma_coding_block_size;
+   unsigned max_transform_hierarchy_depth_inter = log2_diff_max_min_luma_coding_block_size + 1;
+   unsigned max_transform_hierarchy_depth_intra = max_transform_hierarchy_depth_inter;
+
    radeon_enc_code_ue(enc, pic->hevc_spec_misc.log2_min_luma_coding_block_size_minus3);
-   radeon_enc_code_ue(enc, sps->log2_diff_max_min_luma_coding_block_size);
-   radeon_enc_code_ue(enc, sps->log2_min_transform_block_size_minus2);
-   radeon_enc_code_ue(enc, sps->log2_diff_max_min_transform_block_size);
-   radeon_enc_code_ue(enc, sps->max_transform_hierarchy_depth_inter);
-   radeon_enc_code_ue(enc, sps->max_transform_hierarchy_depth_intra);
+   radeon_enc_code_ue(enc, log2_diff_max_min_luma_coding_block_size);
+   radeon_enc_code_ue(enc, log2_min_transform_block_size_minus2);
+   radeon_enc_code_ue(enc, log2_diff_max_min_transform_block_size);
+   radeon_enc_code_ue(enc, max_transform_hierarchy_depth_inter);
+   radeon_enc_code_ue(enc, max_transform_hierarchy_depth_intra);
 
    radeon_enc_code_fixed_bits(enc, 0x0, 1); /* scaling_list_enabled_flag */
    radeon_enc_code_fixed_bits(enc, !pic->hevc_spec_misc.amp_disabled, 1);
@@ -490,8 +500,8 @@ unsigned int radeon_enc_write_pps(struct radeon_encoder *enc, uint8_t *out)
    radeon_enc_code_fixed_bits(enc, (enc->enc_pic.spec_misc.cabac_enable ? 0x1 : 0x0), 1);
    radeon_enc_code_fixed_bits(enc, 0x0, 1); /* bottom_field_pic_order_in_frame_present_flag */
    radeon_enc_code_ue(enc, 0x0); /* num_slice_groups_minus_1 */
-   radeon_enc_code_ue(enc, enc->enc_pic.h264.pic.num_ref_idx_l0_default_active_minus1);
-   radeon_enc_code_ue(enc, enc->enc_pic.h264.pic.num_ref_idx_l1_default_active_minus1);
+   radeon_enc_code_ue(enc, enc->enc_pic.h264.desc->pic_ctrl.num_ref_idx_l0_default_active_minus1);
+   radeon_enc_code_ue(enc, enc->enc_pic.h264.desc->pic_ctrl.num_ref_idx_l1_default_active_minus1);
    radeon_enc_code_fixed_bits(enc, 0x0, 1); /* weighted_pred_flag */
    radeon_enc_code_fixed_bits(enc, 0x0, 2); /* weighted_bipred_idc */
    radeon_enc_code_se(enc, 0x0); /* pic_init_qp_minus26 */
@@ -513,7 +523,8 @@ unsigned int radeon_enc_write_pps(struct radeon_encoder *enc, uint8_t *out)
 
 unsigned int radeon_enc_write_pps_hevc(struct radeon_encoder *enc, uint8_t *out)
 {
-   struct pipe_h265_enc_pic_param *pps = &enc->enc_pic.hevc.pic;
+   struct pipe_h265_enc_pic_param *pps = &enc->enc_pic.hevc.desc->pic;
+
    radeon_enc_reset(enc);
    radeon_enc_set_output_buffer(enc, out);
    radeon_enc_set_emulation_prevention(enc, false);
@@ -567,7 +578,7 @@ unsigned int radeon_enc_write_pps_hevc(struct radeon_encoder *enc, uint8_t *out)
 
 unsigned int radeon_enc_write_vps(struct radeon_encoder *enc, uint8_t *out)
 {
-   struct pipe_h265_enc_vid_param *vps = &enc->enc_pic.hevc.vid;
+   struct pipe_h265_enc_vid_param *vps = &enc->enc_pic.hevc.desc->vid;
    int i;
 
    radeon_enc_reset(enc);
@@ -615,9 +626,9 @@ unsigned int radeon_enc_write_vps(struct radeon_encoder *enc, uint8_t *out)
 
 static void radeon_enc_slice_header(struct radeon_encoder *enc)
 {
-   struct pipe_h264_enc_seq_param *sps = &enc->enc_pic.h264.seq;
-   struct pipe_h264_enc_pic_control *pps = &enc->enc_pic.h264.pic;
-   struct pipe_h264_enc_slice_param *slice = &enc->enc_pic.h264.slice;
+   struct pipe_h264_enc_seq_param *sps = &enc->enc_pic.h264.desc->seq;
+   struct pipe_h264_enc_pic_control *pps = &enc->enc_pic.h264.desc->pic_ctrl;
+   struct pipe_h264_enc_slice_param *slice = &enc->enc_pic.h264.desc->slice;
    uint32_t instruction[RENCODE_SLICE_HEADER_TEMPLATE_MAX_NUM_INSTRUCTIONS] = {0};
    uint32_t num_bits[RENCODE_SLICE_HEADER_TEMPLATE_MAX_NUM_INSTRUCTIONS] = {0};
    unsigned int inst_index = 0;
@@ -798,9 +809,9 @@ static void radeon_enc_slice_header(struct radeon_encoder *enc)
 
 static void radeon_enc_slice_header_hevc(struct radeon_encoder *enc)
 {
-   struct pipe_h265_enc_pic_param *pps = &enc->enc_pic.hevc.pic;
-   struct pipe_h265_enc_seq_param *sps = &enc->enc_pic.hevc.seq;
-   struct pipe_h265_enc_slice_param *slice = &enc->enc_pic.hevc.slice;
+   struct pipe_h265_enc_seq_param *sps = &enc->enc_pic.hevc.desc->seq;
+   struct pipe_h265_enc_pic_param *pps = &enc->enc_pic.hevc.desc->pic;
+   struct pipe_h265_enc_slice_param *slice = &enc->enc_pic.hevc.desc->slice;
    uint32_t instruction[RENCODE_SLICE_HEADER_TEMPLATE_MAX_NUM_INSTRUCTIONS] = {0};
    uint32_t num_bits[RENCODE_SLICE_HEADER_TEMPLATE_MAX_NUM_INSTRUCTIONS] = {0};
    unsigned int inst_index = 0;
@@ -914,7 +925,7 @@ static void radeon_enc_slice_header_hevc(struct radeon_encoder *enc)
          if (enc->enc_pic.picture_type == PIPE_H2645_ENC_PICTURE_TYPE_B)
             radeon_enc_code_ue(enc, slice->num_ref_idx_l1_active_minus1);
       }
-      if (enc->enc_pic.hevc.pic.lists_modification_present_flag && num_pic_total_curr > 1) {
+      if (pps->lists_modification_present_flag && num_pic_total_curr > 1) {
          unsigned num_bits = util_logbase2_ceil(num_pic_total_curr);
          unsigned num_ref_l0_minus1 = slice->num_ref_idx_active_override_flag ?
             slice->num_ref_idx_l0_active_minus1 : pps->num_ref_idx_l0_default_active_minus1;

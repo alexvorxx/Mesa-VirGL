@@ -479,11 +479,6 @@ static void radeon_vcn_enc_h264_get_param(struct radeon_encoder *enc,
    enc->enc_pic.h264_enc_params.is_reference = !pic->not_referenced;
    enc->enc_pic.h264_enc_params.is_long_term = pic->is_ltr;
    enc->enc_pic.not_referenced = pic->not_referenced;
-   if (pic->header_flags.sps)
-      enc->enc_pic.h264.seq = pic->seq;
-   if (pic->header_flags.pps)
-      enc->enc_pic.h264.pic = pic->pic_ctrl;
-   enc->enc_pic.h264.slice = pic->slice;
 
    radeon_vcn_enc_h264_get_cropping_param(enc, pic);
    radeon_vcn_enc_h264_get_dbk_param(enc, pic);
@@ -678,24 +673,6 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
    enc->enc_pic.bit_depth_chroma_minus8 = pic->seq.bit_depth_chroma_minus8;
    enc->enc_pic.nal_unit_type = pic->pic.nal_unit_type;
    enc->enc_pic.temporal_id = pic->pic.temporal_id;
-   if (pic->header_flags.vps)
-      enc->enc_pic.hevc.vid = pic->vid;
-   if (pic->header_flags.sps) {
-      enc->enc_pic.hevc.seq = pic->seq;
-      enc->enc_pic.hevc.seq.log2_diff_max_min_luma_coding_block_size =
-         6 - (enc->enc_pic.hevc_spec_misc.log2_min_luma_coding_block_size_minus3 + 3);
-      enc->enc_pic.hevc.seq.log2_min_transform_block_size_minus2 =
-         enc->enc_pic.hevc.seq.log2_min_luma_coding_block_size_minus3;
-      enc->enc_pic.hevc.seq.log2_diff_max_min_transform_block_size =
-         enc->enc_pic.hevc.seq.log2_diff_max_min_luma_coding_block_size;
-      enc->enc_pic.hevc.seq.max_transform_hierarchy_depth_inter =
-         enc->enc_pic.hevc.seq.log2_diff_max_min_luma_coding_block_size + 1;
-      enc->enc_pic.hevc.seq.max_transform_hierarchy_depth_intra =
-         enc->enc_pic.hevc.seq.max_transform_hierarchy_depth_inter;
-   }
-   if (pic->header_flags.pps)
-      enc->enc_pic.hevc.pic = pic->pic;
-   enc->enc_pic.hevc.slice = pic->slice;
 
    radeon_vcn_enc_hevc_get_cropping_param(enc, pic);
    radeon_vcn_enc_hevc_get_dbk_param(enc, pic);
