@@ -1365,6 +1365,8 @@ struct si_context {
 
 /* si_barrier.c */
 #define SI_FB_BARRIER_SYNC_CB      BITFIELD_BIT(0)
+#define SI_FB_BARRIER_SYNC_DB      BITFIELD_BIT(1)
+#define SI_FB_BARRIER_SYNC_ALL     BITFIELD_RANGE(0, 2)
 
 void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                                    unsigned num_buffers,
