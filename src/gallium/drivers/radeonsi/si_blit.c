@@ -515,12 +515,6 @@ static void si_blit_decompress_color(struct si_context *sctx, struct si_texture 
          util_blitter_custom_color(sctx->blitter, cbsurf, custom_blend);
          si_blitter_end(sctx);
 
-         if (custom_blend == sctx->custom_blend_fmask_decompress ||
-             custom_blend == sctx->custom_blend_dcc_decompress) {
-            sctx->barrier_flags |= SI_BARRIER_SYNC_AND_INV_CB;
-            si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
-         }
-
          /* When running FMASK decompression with DCC, we need to run the "eliminate fast clear" pass
           * separately because FMASK decompression doesn't eliminate DCC fast clear. This makes
           * render->texture transitions more expensive. It can be disabled by
