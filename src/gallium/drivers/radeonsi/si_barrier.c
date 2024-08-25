@@ -121,32 +121,27 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
    }
 
    if (flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB)) {
-      /* Flush CMASK/FMASK/DCC. Will wait for idle later. */
-      if (ctx->gfx_level < GFX12 && flags & SI_BARRIER_SYNC_AND_INV_CB)
+      if ((flags & SI_BARRIER_SYNC_AND_INV_CB && flags & SI_BARRIER_SYNC_AND_INV_DB) ||
+          /* Gfx11 can't use the DB_META event and must use a full flush to flush DB_META. */
+          (ctx->gfx_level == GFX11 && flags & SI_BARRIER_SYNC_AND_INV_DB)) {
+         cb_db_event = V_028A90_CACHE_FLUSH_AND_INV_TS_EVENT;
+      } else if (flags & SI_BARRIER_SYNC_AND_INV_CB) {
+         cb_db_event = V_028A90_FLUSH_AND_INV_CB_DATA_TS;
+      } else {
+         assert(flags & SI_BARRIER_SYNC_AND_INV_DB);
+         cb_db_event = V_028A90_FLUSH_AND_INV_DB_DATA_TS;
+      }
+
+      /* Flush CMASK/FMASK/DCC separately if the main event only flushes CB_DATA. */
+      if (ctx->gfx_level < GFX12 && cb_db_event == V_028A90_FLUSH_AND_INV_CB_DATA_TS)
          radeon_event_write(V_028A90_FLUSH_AND_INV_CB_META);
 
-      /* Gfx11 can't flush DB_META and should use a TS event instead. */
-      /* Flush HTILE. Will wait for idle later. */
-      if (ctx->gfx_level < GFX12 && ctx->gfx_level != GFX11 &&
-          flags & SI_BARRIER_SYNC_AND_INV_DB)
+      /* Flush HTILE separately if the main event only flushes DB_DATA. */
+      if (ctx->gfx_level < GFX12 && cb_db_event == V_028A90_FLUSH_AND_INV_DB_DATA_TS)
          radeon_event_write(V_028A90_FLUSH_AND_INV_DB_META);
 
       /* First flush CB/DB, then L1/L2. */
       gcr_cntl |= S_586_SEQ(V_586_SEQ_FORWARD);
-
-      if ((flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB)) ==
-          (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB)) {
-         cb_db_event = V_028A90_CACHE_FLUSH_AND_INV_TS_EVENT;
-      } else if (flags & SI_BARRIER_SYNC_AND_INV_CB) {
-         cb_db_event = V_028A90_FLUSH_AND_INV_CB_DATA_TS;
-      } else if (flags & SI_BARRIER_SYNC_AND_INV_DB) {
-         if (ctx->gfx_level == GFX11)
-            cb_db_event = V_028A90_CACHE_FLUSH_AND_INV_TS_EVENT;
-         else
-            cb_db_event = V_028A90_FLUSH_AND_INV_DB_DATA_TS;
-      } else {
-         assert(0);
-      }
    } else {
       /* Wait for graphics shaders to go idle if requested. */
       if (flags & SI_BARRIER_SYNC_PS) {
