@@ -1277,6 +1277,8 @@ struct si_context {
    unsigned num_decompress_calls;
    unsigned last_cb_flush_num_draw_calls;
    unsigned last_db_flush_num_draw_calls;
+   unsigned last_ps_sync_num_draw_calls;
+   unsigned last_vs_sync_num_draw_calls;
    unsigned last_cb_flush_num_decompress_calls;
    unsigned last_db_flush_num_decompress_calls;
    unsigned num_compute_calls;

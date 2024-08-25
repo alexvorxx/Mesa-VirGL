@@ -59,7 +59,7 @@ static unsigned get_reduced_barrier_flags(struct si_context *ctx)
    if (!ctx->compute_is_busy)
       flags &= ~SI_BARRIER_SYNC_CS;
 
-   /* Track the last flush. */
+   /* Track the last CB/DB flush. */
    if (flags & SI_BARRIER_SYNC_AND_INV_CB) {
       ctx->num_cb_cache_flushes++;
       ctx->last_cb_flush_num_draw_calls = ctx->num_draw_calls;
@@ -69,6 +69,20 @@ static unsigned get_reduced_barrier_flags(struct si_context *ctx)
       ctx->num_db_cache_flushes++;
       ctx->last_db_flush_num_draw_calls = ctx->num_draw_calls;
       ctx->last_db_flush_num_decompress_calls = ctx->num_decompress_calls;
+   }
+
+   /* Skip VS and PS synchronization if they are idle. */
+   if (ctx->num_draw_calls == ctx->last_ps_sync_num_draw_calls)
+      flags &= ~SI_BARRIER_SYNC_VS & ~SI_BARRIER_SYNC_PS;
+   else if (ctx->num_draw_calls == ctx->last_vs_sync_num_draw_calls)
+      flags &= ~SI_BARRIER_SYNC_VS;
+
+   /* Track the last VS/PS flush. Flushing CB or DB also waits for PS (obviously). */
+   if (flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB | SI_BARRIER_SYNC_PS)) {
+      ctx->last_ps_sync_num_draw_calls = ctx->num_draw_calls;
+      ctx->last_vs_sync_num_draw_calls = ctx->num_draw_calls;
+   } else if (SI_BARRIER_SYNC_VS) {
+      ctx->last_vs_sync_num_draw_calls = ctx->num_draw_calls;
    }
 
    /* We use a TS event to flush CB/DB on GFX9+, which also waits for compute shaders. */
