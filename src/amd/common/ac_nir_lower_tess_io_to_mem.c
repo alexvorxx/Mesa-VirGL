@@ -286,7 +286,8 @@ lower_ls_output_store(nir_builder *b,
    nir_def *vertex_idx = nir_load_local_invocation_index(b);
    nir_def *base_off_var = nir_imul(b, vertex_idx, nir_load_lshs_vertex_stride_amd(b));
 
-   unsigned mapped = ac_nir_map_io_location(io_sem.location, st->tcs_inputs_read, st->map_io);
+   unsigned mapped = ac_nir_map_io_location(io_sem.location, st->tcs_inputs_read & ~st->tcs_temp_only_inputs,
+                                            st->map_io);
    nir_def *io_off = ac_nir_calc_io_off(b, intrin, nir_imm_int(b, 16u), 4u, mapped);
    unsigned write_mask = nir_intrinsic_write_mask(intrin);
 
@@ -325,11 +326,21 @@ filter_load_tcs_per_vertex_input(const nir_instr *instr,
    nir_src *vertex_index_src = nir_get_io_arrayed_index_src(intrin);
    nir_instr *vertex_index_instr = vertex_index_src->ssa->parent_instr;
 
-   bool can_use_temps = nir_src_is_const(*off_src) &&
-                        vertex_index_instr->type == nir_instr_type_intrinsic &&
-                        nir_instr_as_intrinsic(vertex_index_instr)->intrinsic == nir_intrinsic_load_invocation_id;
 
-   return !can_use_temps;
+   const nir_io_semantics io_sem = nir_intrinsic_io_semantics(intrin);
+
+   /* If this is a temp-only TCS input, we don't need to use shared memory at all. */
+   if (st->tcs_temp_only_inputs & BITFIELD64_BIT(io_sem.location)) {
+      ASSERTED bool can_use_temps =
+         nir_src_is_const(*off_src) &&
+         vertex_index_instr->type == nir_instr_type_intrinsic &&
+         nir_instr_as_intrinsic(vertex_index_instr)->intrinsic == nir_intrinsic_load_invocation_id;
+
+      assert(can_use_temps);
+      return false;
+   }
+
+   return true;
 }
 
 static nir_def *
@@ -348,7 +359,8 @@ hs_per_vertex_input_lds_offset(nir_builder *b,
    nir_def *tcs_in_current_patch_offset = nir_imul(b, rel_patch_id, tcs_in_patch_stride);
 
    const nir_io_semantics io_sem = nir_intrinsic_io_semantics(instr);
-   const unsigned mapped = ac_nir_map_io_location(io_sem.location, st->tcs_inputs_read, st->map_io);
+   const unsigned mapped = ac_nir_map_io_location(io_sem.location, st->tcs_inputs_read & ~st->tcs_temp_only_inputs,
+                                                  st->map_io);
    nir_def *io_offset = ac_nir_calc_io_off(b, instr, nir_imm_int(b, 16u), 4u, mapped);
 
    return nir_iadd_nuw(b, nir_iadd_nuw(b, tcs_in_current_patch_offset, vertex_index_off), io_offset);
@@ -986,13 +998,15 @@ ac_nir_lower_ls_outputs_to_mem(nir_shader *shader,
 void
 ac_nir_lower_hs_inputs_to_mem(nir_shader *shader,
                               ac_nir_map_io_driver_location map,
-                              bool tcs_in_out_eq)
+                              bool tcs_in_out_eq,
+                              uint64_t tcs_temp_only_inputs)
 {
    assert(shader->info.stage == MESA_SHADER_TESS_CTRL);
 
    lower_tess_io_state state = {
       .tcs_inputs_read = shader->info.inputs_read,
       .tcs_in_out_eq = tcs_in_out_eq,
+      .tcs_temp_only_inputs = tcs_in_out_eq ? tcs_temp_only_inputs : 0,
       .map_io = map,
    };
 

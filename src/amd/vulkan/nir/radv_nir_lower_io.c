@@ -141,7 +141,7 @@ radv_nir_lower_io_to_mem(struct radv_device *device, struct radv_shader_stage *s
          return true;
       }
    } else if (nir->info.stage == MESA_SHADER_TESS_CTRL) {
-      NIR_PASS_V(nir, ac_nir_lower_hs_inputs_to_mem, map_input, info->vs.tcs_in_out_eq);
+      NIR_PASS_V(nir, ac_nir_lower_hs_inputs_to_mem, map_input, info->vs.tcs_in_out_eq, info->vs.tcs_temp_only_input_mask);
       NIR_PASS_V(nir, ac_nir_lower_hs_outputs_to_mem, map_output, pdev->info.gfx_level,
                  info->tcs.tes_inputs_read, info->tcs.tes_patch_inputs_read, info->wave_size, false, false);
 
