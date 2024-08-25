@@ -107,6 +107,25 @@ static unsigned get_reduced_barrier_flags(struct si_context *ctx)
    return flags;
 }
 
+static void si_handle_common_barrier_events(struct si_context *ctx, struct radeon_cmdbuf *cs,
+                                            unsigned flags)
+{
+   radeon_begin(cs);
+
+   if (flags & SI_BARRIER_EVENT_PIPELINESTAT_START && ctx->pipeline_stats_enabled != 1) {
+      radeon_event_write(V_028A90_PIPELINESTAT_START);
+      ctx->pipeline_stats_enabled = 1;
+   } else if (flags & SI_BARRIER_EVENT_PIPELINESTAT_STOP && ctx->pipeline_stats_enabled != 0) {
+      radeon_event_write(V_028A90_PIPELINESTAT_STOP);
+      ctx->pipeline_stats_enabled = 0;
+   }
+
+   if (flags & SI_BARRIER_EVENT_VGT_FLUSH)
+      radeon_event_write(V_028A90_VGT_FLUSH);
+
+   radeon_end();
+}
+
 static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
 {
    assert(ctx->gfx_level >= GFX10);
@@ -116,14 +135,11 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
    if (!flags)
       return;
 
+   si_handle_common_barrier_events(ctx, cs, flags);
+
    /* We don't need these. */
    assert(!(flags & SI_BARRIER_EVENT_FLUSH_AND_INV_DB_META));
    assert(ctx->gfx_level < GFX12 || !(flags & SI_BARRIER_INV_L2_METADATA));
-
-   radeon_begin(cs);
-
-   if (flags & SI_BARRIER_EVENT_VGT_FLUSH)
-      radeon_event_write(V_028A90_VGT_FLUSH);
 
    if (flags & SI_BARRIER_INV_ICACHE)
       gcr_cntl |= S_586_GLI_INV(V_586_GLI_ALL);
@@ -169,6 +185,7 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
       }
 
       /* We must flush CMASK/FMASK/DCC separately if the main event only flushes CB_DATA. */
+      radeon_begin(cs);
       if (ctx->gfx_level < GFX12 && cb_db_event == V_028A90_FLUSH_AND_INV_CB_DATA_TS)
          radeon_event_write(V_028A90_FLUSH_AND_INV_CB_META);
 
@@ -241,6 +258,7 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
       /* The TS event above also makes sure that PS and CS are idle, so we have to do this only
        * if we are not flushing CB or DB.
        */
+      radeon_begin(cs);
       if (flags & SI_BARRIER_SYNC_PS)
          radeon_event_write(V_028A90_PS_PARTIAL_FLUSH);
       else if (flags & SI_BARRIER_SYNC_VS)
@@ -259,16 +277,6 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
    } else if (flags & SI_BARRIER_PFP_SYNC_ME) {
       si_cp_pfp_sync_me(cs);
    }
-
-   radeon_begin_again(cs);
-   if (flags & SI_BARRIER_EVENT_PIPELINESTAT_START && ctx->pipeline_stats_enabled != 1) {
-      radeon_event_write(V_028A90_PIPELINESTAT_START);
-      ctx->pipeline_stats_enabled = 1;
-   } else if (flags & SI_BARRIER_EVENT_PIPELINESTAT_STOP && ctx->pipeline_stats_enabled != 0) {
-      radeon_event_write(V_028A90_PIPELINESTAT_STOP);
-      ctx->pipeline_stats_enabled = 0;
-   }
-   radeon_end();
 }
 
 static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
@@ -278,6 +286,8 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
 
    if (!flags)
       return;
+
+   si_handle_common_barrier_events(sctx, cs, flags);
 
    uint32_t cp_coher_cntl = 0;
    const uint32_t flush_cb_db = flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB);
@@ -341,10 +351,6 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
 
    if (flags & SI_BARRIER_SYNC_CS)
       radeon_event_write(V_028A90_CS_PARTIAL_FLUSH);
-
-   /* VGT state synchronization. */
-   if (flags & SI_BARRIER_EVENT_VGT_FLUSH)
-      radeon_event_write(V_028A90_VGT_FLUSH);
 
    radeon_end();
 
@@ -473,18 +479,6 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
        */
       if (flags & SI_BARRIER_PFP_SYNC_ME)
          si_cp_pfp_sync_me(cs);
-   }
-
-   if (flags & SI_BARRIER_EVENT_PIPELINESTAT_START && sctx->pipeline_stats_enabled != 1) {
-      radeon_begin(cs);
-      radeon_event_write(V_028A90_PIPELINESTAT_START);
-      radeon_end();
-      sctx->pipeline_stats_enabled = 1;
-   } else if (flags & SI_BARRIER_EVENT_PIPELINESTAT_STOP && sctx->pipeline_stats_enabled != 0) {
-      radeon_begin(cs);
-      radeon_event_write(V_028A90_PIPELINESTAT_STOP);
-      radeon_end();
-      sctx->pipeline_stats_enabled = 0;
    }
 }
 
