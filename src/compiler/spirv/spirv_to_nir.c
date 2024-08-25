@@ -103,6 +103,7 @@ static const struct spirv_capabilities implemented_capabilities = {
    .ImageCubeArray = true,
    .ImageGatherBiasLodAMD = true,
    .ImageGatherExtended = true,
+   .ImageMipmap = true,
    .ImageMSArray = true,
    .ImageQuery = true,
    .ImageReadWrite = true,
