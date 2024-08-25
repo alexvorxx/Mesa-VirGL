@@ -84,6 +84,7 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
 
    /* We don't need these. */
    assert(!(flags & SI_BARRIER_EVENT_FLUSH_AND_INV_DB_META));
+   assert(ctx->gfx_level < GFX12 || !(flags & SI_BARRIER_INV_L2_METADATA));
 
    radeon_begin(cs);
 
@@ -109,16 +110,16 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
     */
    if (flags & SI_BARRIER_INV_L2) {
       /* Writeback and invalidate everything in L2. */
-      gcr_cntl |= S_586_GL2_INV(1) | S_586_GL2_WB(1) |
-                  (ctx->gfx_level < GFX12 ? S_586_GLM_INV(1) | S_586_GLM_WB(1) : 0);
+      gcr_cntl |= S_586_GL2_INV(1) | S_586_GL2_WB(1);
       ctx->num_L2_invalidates++;
    } else if (flags & SI_BARRIER_WB_L2) {
-      gcr_cntl |= S_586_GL2_WB(1) |
-                  (ctx->gfx_level < GFX12 ? S_586_GLM_WB(1) | S_586_GLM_INV(1) : 0);
-   } else if (flags & SI_BARRIER_INV_L2_METADATA) {
-      assert(ctx->gfx_level < GFX12);
-      gcr_cntl |= S_586_GLM_INV(1) | S_586_GLM_WB(1);
+      gcr_cntl |= S_586_GL2_WB(1);
    }
+
+   /* Invalidate the metadata cache. */
+   if (ctx->gfx_level < GFX12 &&
+       flags & (SI_BARRIER_INV_L2 | SI_BARRIER_WB_L2 | SI_BARRIER_INV_L2_METADATA))
+      gcr_cntl |= S_586_GLM_INV(1) | S_586_GLM_WB(1);
 
    if (flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB)) {
       if ((flags & SI_BARRIER_SYNC_AND_INV_CB && flags & SI_BARRIER_SYNC_AND_INV_DB) ||
