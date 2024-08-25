@@ -559,6 +559,9 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_task_payload:
    case nir_intrinsic_load_buffer_amd:
    case nir_intrinsic_load_typed_buffer_amd:
+   case nir_intrinsic_image_levels:
+   case nir_intrinsic_image_deref_levels:
+   case nir_intrinsic_bindless_image_levels:
    case nir_intrinsic_image_samples:
    case nir_intrinsic_image_deref_samples:
    case nir_intrinsic_bindless_image_samples:

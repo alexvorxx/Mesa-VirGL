@@ -859,10 +859,13 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
       if (nir_intrinsic_writes_external_memory(instr))
          shader->info.writes_memory = true;
 
-      if (instr->intrinsic == nir_intrinsic_image_size ||
+      if (instr->intrinsic == nir_intrinsic_image_levels ||
+          instr->intrinsic == nir_intrinsic_image_size ||
           instr->intrinsic == nir_intrinsic_image_samples ||
+          instr->intrinsic == nir_intrinsic_image_deref_levels ||
           instr->intrinsic == nir_intrinsic_image_deref_size ||
           instr->intrinsic == nir_intrinsic_image_deref_samples ||
+          instr->intrinsic == nir_intrinsic_bindless_image_levels ||
           instr->intrinsic == nir_intrinsic_bindless_image_size ||
           instr->intrinsic == nir_intrinsic_bindless_image_samples)
          shader->info.uses_resource_info_query = true;

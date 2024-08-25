@@ -747,6 +747,7 @@ image("store", src_comp=[4, 1, 0, 1], extra_indices=[SRC_TYPE])
 image("atomic",  src_comp=[4, 1, 1], dest_comp=1, extra_indices=[ATOMIC_OP])
 image("atomic_swap", src_comp=[4, 1, 1, 1], dest_comp=1, extra_indices=[ATOMIC_OP])
 image("size",    dest_comp=0, src_comp=[1], flags=[CAN_ELIMINATE, CAN_REORDER])
+image("levels",  dest_comp=1, flags=[CAN_ELIMINATE, CAN_REORDER])
 image("samples", dest_comp=1, flags=[CAN_ELIMINATE, CAN_REORDER])
 image("texel_address", dest_comp=1, src_comp=[4, 1],
       flags=[CAN_ELIMINATE, CAN_REORDER])

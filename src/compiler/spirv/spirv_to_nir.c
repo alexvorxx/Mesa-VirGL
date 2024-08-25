@@ -3768,17 +3768,11 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
       image.lod = vtn_ssa_value(b, w[4])->def;
       break;
 
-   case SpvOpImageQuerySize:
-   case SpvOpImageQuerySamples:
-      res_val = vtn_untyped_value(b, w[3]);
-      image.image = vtn_get_image(b, w[3], &access);
-      image.coord = NULL;
-      image.sample = NULL;
-      image.lod = NULL;
-      break;
-
    case SpvOpImageQueryFormat:
+   case SpvOpImageQueryLevels:
    case SpvOpImageQueryOrder:
+   case SpvOpImageQuerySamples:
+   case SpvOpImageQuerySize:
       res_val = vtn_untyped_value(b, w[3]);
       image.image = vtn_get_image(b, w[3], &access);
       image.coord = NULL;
@@ -3904,6 +3898,7 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
    OP(AtomicFMinEXT,             atomic)
    OP(AtomicFMaxEXT,             atomic)
    OP(ImageQueryFormat,          format)
+   OP(ImageQueryLevels,          levels)
    OP(ImageQueryOrder,           order)
    OP(ImageQuerySamples,         samples)
 #undef OP
@@ -3921,6 +3916,7 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
       glsl_sampler_type_is_array(image.image->type));
 
    switch (opcode) {
+   case SpvOpImageQueryLevels:
    case SpvOpImageQuerySamples:
    case SpvOpImageQuerySize:
    case SpvOpImageQuerySizeLod:
@@ -3953,6 +3949,7 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
    nir_intrinsic_set_access(intrin, access);
 
    switch (opcode) {
+   case SpvOpImageQueryLevels:
    case SpvOpImageQuerySamples:
    case SpvOpImageQueryFormat:
    case SpvOpImageQueryOrder:
@@ -6176,7 +6173,6 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
    case SpvOpImageDrefGather:
    case SpvOpImageSparseDrefGather:
    case SpvOpImageQueryLod:
-   case SpvOpImageQueryLevels:
       vtn_handle_texture(b, opcode, w, count);
       break;
 
@@ -6189,6 +6185,7 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
       vtn_handle_image(b, opcode, w, count);
       break;
 
+   case SpvOpImageQueryLevels:
    case SpvOpImageQuerySamples:
    case SpvOpImageQuerySizeLod:
    case SpvOpImageQuerySize: {

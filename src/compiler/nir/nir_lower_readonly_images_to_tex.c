@@ -76,6 +76,7 @@ lower_readonly_image_instr_intrinsic(nir_builder *b, nir_intrinsic_instr *intrin
 {
    if (intrin->intrinsic != nir_intrinsic_image_deref_load &&
        intrin->intrinsic != nir_intrinsic_image_deref_size &&
+       intrin->intrinsic != nir_intrinsic_image_deref_levels &&
        intrin->intrinsic != nir_intrinsic_image_deref_samples)
       return false;
 
@@ -114,6 +115,10 @@ lower_readonly_image_instr_intrinsic(nir_builder *b, nir_intrinsic_instr *intrin
    case nir_intrinsic_image_deref_size:
       texop = nir_texop_txs;
       num_srcs = 2;
+      break;
+   case nir_intrinsic_image_deref_levels:
+      texop = nir_texop_query_levels;
+      num_srcs = 1;
       break;
    case nir_intrinsic_image_deref_samples:
       texop = nir_texop_texture_samples;
@@ -179,6 +184,7 @@ lower_readonly_image_instr_intrinsic(nir_builder *b, nir_intrinsic_instr *intrin
       break;
    }
 
+   case nir_intrinsic_image_deref_levels:
    case nir_intrinsic_image_deref_samples:
       assert(num_srcs == 1);
       tex->dest_type = nir_type_uint32;
