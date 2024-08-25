@@ -56,6 +56,9 @@ static unsigned get_reduced_barrier_flags(struct si_context *ctx)
        ctx->num_decompress_calls == ctx->last_db_flush_num_decompress_calls)
       flags &= ~SI_BARRIER_SYNC_AND_INV_DB;
 
+   if (!ctx->compute_is_busy)
+      flags &= ~SI_BARRIER_SYNC_CS;
+
    /* Track the last flush. */
    if (flags & SI_BARRIER_SYNC_AND_INV_CB) {
       ctx->num_cb_cache_flushes++;
@@ -67,6 +70,12 @@ static unsigned get_reduced_barrier_flags(struct si_context *ctx)
       ctx->last_db_flush_num_draw_calls = ctx->num_draw_calls;
       ctx->last_db_flush_num_decompress_calls = ctx->num_decompress_calls;
    }
+
+   /* We use a TS event to flush CB/DB on GFX9+, which also waits for compute shaders. */
+   if (flags & SI_BARRIER_SYNC_CS ||
+       (ctx->gfx_level >= GFX9 &&
+        flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB)))
+      ctx->compute_is_busy = false;
 
    ctx->barrier_flags = 0;
    return flags;
@@ -205,8 +214,6 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
             si_sqtt_describe_barrier_end(ctx, &ctx->gfx_cs, flags);
          }
       }
-
-      ctx->compute_is_busy = false;
    } else {
       /* The TS event above also makes sure that PS and CS are idle, so we have to do this only
        * if we are not flushing CB or DB.
@@ -221,10 +228,9 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
          ctx->num_vs_flushes++;
       }
 
-      if (flags & SI_BARRIER_SYNC_CS && ctx->compute_is_busy) {
+      if (flags & SI_BARRIER_SYNC_CS) {
          radeon_event_write(V_028A90_CS_PARTIAL_FLUSH);
          ctx->num_cs_flushes++;
-         ctx->compute_is_busy = false;
       }
       radeon_end();
    }
@@ -321,10 +327,9 @@ static void gfx6_emit_barrier(struct si_context *sctx, struct radeon_cmdbuf *cs)
       }
    }
 
-   if (flags & SI_BARRIER_SYNC_CS && sctx->compute_is_busy) {
+   if (flags & SI_BARRIER_SYNC_CS) {
       radeon_event_write(V_028A90_CS_PARTIAL_FLUSH);
       sctx->num_cs_flushes++;
-      sctx->compute_is_busy = false;
    }
 
    /* VGT state synchronization. */
