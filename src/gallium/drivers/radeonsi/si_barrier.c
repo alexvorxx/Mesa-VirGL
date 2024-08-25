@@ -76,7 +76,6 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
 {
    assert(ctx->gfx_level >= GFX10);
    uint32_t gcr_cntl = 0;
-   unsigned cb_db_event = 0;
    unsigned flags = get_reduced_barrier_flags(ctx);
 
    if (!flags)
@@ -121,7 +120,11 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
        flags & (SI_BARRIER_INV_L2 | SI_BARRIER_WB_L2 | SI_BARRIER_INV_L2_METADATA))
       gcr_cntl |= S_586_GLM_INV(1) | S_586_GLM_WB(1);
 
+   /* Flush CB/DB. Note that this also idles all shaders, including compute shaders. */
    if (flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB)) {
+      unsigned cb_db_event = 0;
+
+      /* Determine the TS event that we'll use to flush CB/DB. */
       if ((flags & SI_BARRIER_SYNC_AND_INV_CB && flags & SI_BARRIER_SYNC_AND_INV_DB) ||
           /* Gfx11 can't use the DB_META event and must use a full flush to flush DB_META. */
           (ctx->gfx_level == GFX11 && flags & SI_BARRIER_SYNC_AND_INV_DB)) {
@@ -133,37 +136,19 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
          cb_db_event = V_028A90_FLUSH_AND_INV_DB_DATA_TS;
       }
 
-      /* Flush CMASK/FMASK/DCC separately if the main event only flushes CB_DATA. */
+      /* We must flush CMASK/FMASK/DCC separately if the main event only flushes CB_DATA. */
       if (ctx->gfx_level < GFX12 && cb_db_event == V_028A90_FLUSH_AND_INV_CB_DATA_TS)
          radeon_event_write(V_028A90_FLUSH_AND_INV_CB_META);
 
-      /* Flush HTILE separately if the main event only flushes DB_DATA. */
+      /* We must flush HTILE separately if the main event only flushes DB_DATA. */
       if (ctx->gfx_level < GFX12 && cb_db_event == V_028A90_FLUSH_AND_INV_DB_DATA_TS)
          radeon_event_write(V_028A90_FLUSH_AND_INV_DB_META);
 
+      radeon_end();
+
       /* First flush CB/DB, then L1/L2. */
       gcr_cntl |= S_586_SEQ(V_586_SEQ_FORWARD);
-   } else {
-      /* Wait for graphics shaders to go idle if requested. */
-      if (flags & SI_BARRIER_SYNC_PS) {
-         radeon_event_write(V_028A90_PS_PARTIAL_FLUSH);
-         /* Only count explicit shader flushes, not implicit ones. */
-         ctx->num_vs_flushes++;
-         ctx->num_ps_flushes++;
-      } else if (flags & SI_BARRIER_SYNC_VS) {
-         radeon_event_write(V_028A90_VS_PARTIAL_FLUSH);
-         ctx->num_vs_flushes++;
-      }
-   }
 
-   if (flags & SI_BARRIER_SYNC_CS && ctx->compute_is_busy) {
-      radeon_event_write(V_028A90_CS_PARTIAL_FLUSH);
-      ctx->num_cs_flushes++;
-      ctx->compute_is_busy = false;
-   }
-   radeon_end();
-
-   if (cb_db_event) {
       if (ctx->gfx_level >= GFX11) {
          si_cp_release_mem_pws(ctx, cs, cb_db_event, gcr_cntl & C_586_GLI_INV);
 
@@ -220,6 +205,28 @@ static void gfx10_emit_barrier(struct si_context *ctx, struct radeon_cmdbuf *cs)
             si_sqtt_describe_barrier_end(ctx, &ctx->gfx_cs, flags);
          }
       }
+
+      ctx->compute_is_busy = false;
+   } else {
+      /* The TS event above also makes sure that PS and CS are idle, so we have to do this only
+       * if we are not flushing CB or DB.
+       */
+      if (flags & SI_BARRIER_SYNC_PS) {
+         radeon_event_write(V_028A90_PS_PARTIAL_FLUSH);
+         /* Only count explicit shader flushes, not implicit ones. */
+         ctx->num_vs_flushes++;
+         ctx->num_ps_flushes++;
+      } else if (flags & SI_BARRIER_SYNC_VS) {
+         radeon_event_write(V_028A90_VS_PARTIAL_FLUSH);
+         ctx->num_vs_flushes++;
+      }
+
+      if (flags & SI_BARRIER_SYNC_CS && ctx->compute_is_busy) {
+         radeon_event_write(V_028A90_CS_PARTIAL_FLUSH);
+         ctx->num_cs_flushes++;
+         ctx->compute_is_busy = false;
+      }
+      radeon_end();
    }
 
    /* Ignore fields that only modify the behavior of other fields. */
