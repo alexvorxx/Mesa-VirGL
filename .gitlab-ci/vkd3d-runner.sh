@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -ex
+set -e
 
 comma_separated() {
   local IFS=,
@@ -8,6 +8,7 @@ comma_separated() {
 }
 
 if [[ -z "$VK_DRIVER" ]]; then
+    printf "VK_DRIVER is not defined\n"
     exit 1
 fi
 
@@ -37,6 +38,7 @@ export WINEESYNC=1
 if [ -f "$INSTALL/$GPU_VERSION-vkd3d-skips.txt" ]; then
   mapfile -t skips < <(grep -vE '^#|^$' "$INSTALL/$GPU_VERSION-vkd3d-skips.txt")
   VKD3D_TEST_EXCLUDE=$(comma_separated "${skips[@]}")
+  printf 'VKD3D_TEST_EXCLUDE=%s\n' "$VKD3D_TEST_EXCLUDE"
   export VKD3D_TEST_EXCLUDE
 fi
 
