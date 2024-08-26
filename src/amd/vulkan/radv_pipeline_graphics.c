@@ -2228,7 +2228,8 @@ radv_pipeline_import_retained_shaders(const struct radv_device *device, struct r
       const VkPipelineShaderStageCreateInfo *sinfo = &lib->stages[i];
       gl_shader_stage s = vk_to_mesa_shader_stage(sinfo->stage);
 
-      radv_pipeline_stage_init(sinfo, &lib->layout, &lib->stage_keys[s], &stages[s]);
+      radv_pipeline_stage_init(lib->base.base.create_flags, sinfo,
+                               &lib->layout, &lib->stage_keys[s], &stages[s]);
    }
 
    /* Import the NIR shaders (after SPIRV->NIR). */
@@ -2661,7 +2662,7 @@ radv_generate_graphics_pipeline_state(struct radv_device *device, const VkGraphi
          const VkPipelineShaderStageCreateInfo *sinfo = &pCreateInfo->pStages[i];
          gl_shader_stage stage = vk_to_mesa_shader_stage(sinfo->stage);
 
-         radv_pipeline_stage_init(sinfo, &gfx_state->layout, &gfx_state->key.stage_info[stage],
+         radv_pipeline_stage_init(create_flags, sinfo, &gfx_state->layout, &gfx_state->key.stage_info[stage],
                                   &gfx_state->stages[stage]);
       }
 

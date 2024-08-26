@@ -1441,6 +1441,7 @@ tu_append_executable(struct tu_pipeline *pipeline,
 
 static void
 tu_hash_stage(struct mesa_sha1 *ctx,
+              VkPipelineCreateFlags2KHR pipeline_flags,
               const VkPipelineShaderStageCreateInfo *stage,
               const nir_shader *nir,
               const struct tu_shader_key *key)
@@ -1454,7 +1455,7 @@ tu_hash_stage(struct mesa_sha1 *ctx,
       blob_finish(&blob);
    } else {
       unsigned char stage_hash[SHA1_DIGEST_LENGTH];
-      vk_pipeline_hash_shader_stage(stage, NULL, stage_hash);
+      vk_pipeline_hash_shader_stage(pipeline_flags, stage, NULL, stage_hash);
       _mesa_sha1_update(ctx, stage_hash, sizeof(stage_hash));
    }
    _mesa_sha1_update(ctx, key, sizeof(*key));
@@ -1473,6 +1474,7 @@ tu_hash_compiler(struct mesa_sha1 *ctx, const struct ir3_compiler *compiler)
 
 static void
 tu_hash_shaders(unsigned char *hash,
+                VkPipelineCreateFlags2KHR pipeline_flags,
                 const VkPipelineShaderStageCreateInfo **stages,
                 nir_shader *const *nir,
                 const struct tu_pipeline_layout *layout,
@@ -1489,7 +1491,7 @@ tu_hash_shaders(unsigned char *hash,
 
    for (int i = 0; i < MESA_SHADER_STAGES; ++i) {
       if (stages[i] || nir[i]) {
-         tu_hash_stage(&ctx, stages[i], nir[i], &keys[i]);
+         tu_hash_stage(&ctx, pipeline_flags, stages[i], nir[i], &keys[i]);
       }
    }
    _mesa_sha1_update(&ctx, &state, sizeof(state));
@@ -1499,6 +1501,7 @@ tu_hash_shaders(unsigned char *hash,
 
 static void
 tu_hash_compute(unsigned char *hash,
+                VkPipelineCreateFlags2KHR pipeline_flags,
                 const VkPipelineShaderStageCreateInfo *stage,
                 const struct tu_pipeline_layout *layout,
                 const struct tu_shader_key *key,
@@ -1511,7 +1514,7 @@ tu_hash_compute(unsigned char *hash,
    if (layout)
       _mesa_sha1_update(&ctx, layout->sha1, sizeof(layout->sha1));
 
-   tu_hash_stage(&ctx, stage, NULL, key);
+   tu_hash_stage(&ctx, pipeline_flags, stage, NULL, key);
 
    tu_hash_compiler(&ctx, compiler);
    _mesa_sha1_final(&ctx, hash);
@@ -1786,8 +1789,8 @@ tu_pipeline_builder_compile_shaders(struct tu_pipeline_builder *builder,
    }
 
    unsigned char pipeline_sha1[20];
-   tu_hash_shaders(pipeline_sha1, stage_infos, nir, &builder->layout, keys,
-                   builder->state, compiler);
+   tu_hash_shaders(pipeline_sha1, builder->create_flags, stage_infos, nir,
+                   &builder->layout, keys, builder->state, compiler);
 
    unsigned char nir_sha1[21];
    memcpy(nir_sha1, pipeline_sha1, sizeof(pipeline_sha1));
@@ -1847,6 +1850,7 @@ tu_pipeline_builder_compile_shaders(struct tu_pipeline_builder *builder,
       }
 
       result = tu_compile_shaders(builder->device,
+                                  builder->create_flags,
                                   stage_infos,
                                   nir,
                                   keys,
@@ -4254,7 +4258,7 @@ tu_compute_pipeline_create(VkDevice device,
    void *pipeline_mem_ctx = ralloc_context(NULL);
 
    unsigned char pipeline_sha1[20];
-   tu_hash_compute(pipeline_sha1, stage_info, layout, &key, dev->compiler);
+   tu_hash_compute(pipeline_sha1, flags, stage_info, layout, &key, dev->compiler);
 
    struct tu_shader *shader = NULL;
 
@@ -4285,8 +4289,8 @@ tu_compute_pipeline_create(VkDevice device,
 
       struct ir3_shader_key ir3_key = {};
 
-      nir_shader *nir = tu_spirv_to_nir(dev, pipeline_mem_ctx, stage_info,
-                                        MESA_SHADER_COMPUTE);
+      nir_shader *nir = tu_spirv_to_nir(dev, pipeline_mem_ctx, flags,
+                                        stage_info, MESA_SHADER_COMPUTE);
 
       nir_initial_disasm = executable_info ?
          nir_shader_as_str(nir, pipeline->base.executables_mem_ctx) : NULL;

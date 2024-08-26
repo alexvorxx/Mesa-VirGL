@@ -69,7 +69,7 @@ pipeline_compute_sha1_from_nir(struct v3dv_pipeline_stage *p_stage)
       .stage = mesa_to_vk_shader_stage(p_stage->nir->info.stage),
    };
 
-   vk_pipeline_hash_shader_stage(&info, NULL, p_stage->shader_sha1);
+   vk_pipeline_hash_shader_stage(0, &info, NULL, p_stage->shader_sha1);
 }
 
 void
@@ -367,6 +367,7 @@ shader_module_compile_to_nir(struct v3dv_device *device,
     * so we don't have to call it here.
     */
    VkResult result = vk_pipeline_shader_stage_to_nir(&device->vk,
+                                                     stage->pipeline->flags,
                                                      &stage_info,
                                                      &default_spirv_options,
                                                      nir_options,
@@ -2413,7 +2414,8 @@ pipeline_compile_graphics(struct v3dv_pipeline *pipeline,
       vk_pipeline_robustness_state_fill(&device->vk, &p_stage->robustness,
                                         pCreateInfo->pNext, sinfo->pNext);
 
-      vk_pipeline_hash_shader_stage(&pCreateInfo->pStages[i],
+      vk_pipeline_hash_shader_stage(pipeline->flags,
+                                    &pCreateInfo->pStages[i],
                                     &p_stage->robustness,
                                     p_stage->shader_sha1);
 
@@ -3156,7 +3158,8 @@ pipeline_compile_compute(struct v3dv_pipeline *pipeline,
    vk_pipeline_robustness_state_fill(&device->vk, &p_stage->robustness,
                                      info->pNext, sinfo->pNext);
 
-   vk_pipeline_hash_shader_stage(&info->stage,
+   vk_pipeline_hash_shader_stage(pipeline->flags,
+                                 &info->stage,
                                  &p_stage->robustness,
                                  p_stage->shader_sha1);
 

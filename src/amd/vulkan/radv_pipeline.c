@@ -171,7 +171,8 @@ radv_pipeline_get_shader_key(const struct radv_device *device, const VkPipelineS
 }
 
 void
-radv_pipeline_stage_init(const VkPipelineShaderStageCreateInfo *sinfo,
+radv_pipeline_stage_init(VkPipelineCreateFlags2KHR pipeline_flags,
+                         const VkPipelineShaderStageCreateInfo *sinfo,
                          const struct radv_pipeline_layout *pipeline_layout,
                          const struct radv_shader_stage_key *stage_key, struct radv_shader_stage *out_stage)
 {
@@ -207,7 +208,7 @@ radv_pipeline_stage_init(const VkPipelineShaderStageCreateInfo *sinfo,
 
    radv_shader_layout_init(pipeline_layout, out_stage->stage, &out_stage->layout);
 
-   vk_pipeline_hash_shader_stage(sinfo, NULL, out_stage->shader_sha1);
+   vk_pipeline_hash_shader_stage(pipeline_flags, sinfo, NULL, out_stage->shader_sha1);
 }
 
 void
@@ -1273,12 +1274,13 @@ radv_pipeline_hash(const struct radv_device *device, const struct radv_pipeline_
 }
 
 void
-radv_pipeline_hash_shader_stage(const VkPipelineShaderStageCreateInfo *sinfo,
+radv_pipeline_hash_shader_stage(VkPipelineCreateFlags2KHR pipeline_flags,
+                                const VkPipelineShaderStageCreateInfo *sinfo,
                                 const struct radv_shader_stage_key *stage_key, struct mesa_sha1 *ctx)
 {
    unsigned char shader_sha1[SHA1_DIGEST_LENGTH];
 
-   vk_pipeline_hash_shader_stage(sinfo, NULL, shader_sha1);
+   vk_pipeline_hash_shader_stage(pipeline_flags, sinfo, NULL, shader_sha1);
 
    _mesa_sha1_update(ctx, shader_sha1, sizeof(shader_sha1));
    _mesa_sha1_update(ctx, stage_key, sizeof(*stage_key));

@@ -27,6 +27,7 @@
 nir_shader *
 tu_spirv_to_nir(struct tu_device *dev,
                 void *mem_ctx,
+                VkPipelineCreateFlags2KHR pipeline_flags,
                 const VkPipelineShaderStageCreateInfo *stage_info,
                 gl_shader_stage stage)
 {
@@ -59,8 +60,9 @@ tu_spirv_to_nir(struct tu_device *dev,
 
    nir_shader *nir;
    VkResult result =
-      vk_pipeline_shader_stage_to_nir(&dev->vk, stage_info, &spirv_options,
-                                      nir_options, mem_ctx, &nir);
+      vk_pipeline_shader_stage_to_nir(&dev->vk, pipeline_flags, stage_info,
+                                      &spirv_options, nir_options,
+                                      mem_ctx, &nir);
    if (result != VK_SUCCESS)
       return NULL;
 
@@ -2637,6 +2639,7 @@ tu6_get_tessmode(const struct nir_shader *shader)
 
 VkResult
 tu_compile_shaders(struct tu_device *device,
+                   VkPipelineCreateFlags2KHR pipeline_flags,
                    const VkPipelineShaderStageCreateInfo **stage_infos,
                    nir_shader **nir,
                    const struct tu_shader_key *keys,
@@ -2660,7 +2663,8 @@ tu_compile_shaders(struct tu_device *device,
 
       int64_t stage_start = os_time_get_nano();
 
-      nir[stage] = tu_spirv_to_nir(device, mem_ctx, stage_info, stage);
+      nir[stage] = tu_spirv_to_nir(device, mem_ctx, pipeline_flags,
+                                   stage_info, stage);
       if (!nir[stage]) {
          result = VK_ERROR_OUT_OF_HOST_MEMORY;
          goto fail;

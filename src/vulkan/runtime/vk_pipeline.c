@@ -125,6 +125,7 @@ vk_get_subgroup_size(uint32_t spirv_version,
 
 VkResult
 vk_pipeline_shader_stage_to_nir(struct vk_device *device,
+                                VkPipelineCreateFlags2KHR pipeline_flags,
                                 const VkPipelineShaderStageCreateInfo *info,
                                 const struct spirv_to_nir_options *spirv_options,
                                 const struct nir_shader_compiler_options *nir_options,
@@ -187,7 +188,8 @@ vk_pipeline_shader_stage_to_nir(struct vk_device *device,
 }
 
 void
-vk_pipeline_hash_shader_stage(const VkPipelineShaderStageCreateInfo *info,
+vk_pipeline_hash_shader_stage(VkPipelineCreateFlags2KHR pipeline_flags,
+                              const VkPipelineShaderStageCreateInfo *info,
                               const struct vk_pipeline_robustness_state *rstate,
                               unsigned char *stage_sha1)
 {
@@ -818,7 +820,7 @@ vk_pipeline_precompile_shader(struct vk_device *device,
                                      info->pNext);
 
    uint8_t stage_sha1[SHA1_DIGEST_LENGTH];
-   vk_pipeline_hash_shader_stage(info, &rs, stage_sha1);
+   vk_pipeline_hash_shader_stage(pipeline_flags, info, &rs, stage_sha1);
 
    /* This bit affects shader compilation but isn't taken into account in
     * vk_pipeline_hash_shader_stage().  Re-hash the SHA1 if it's set.
@@ -852,8 +854,9 @@ vk_pipeline_precompile_shader(struct vk_device *device,
       ops->get_spirv_options(device->physical, stage, &rs);
 
    nir_shader *nir;
-   result = vk_pipeline_shader_stage_to_nir(device, info, &spirv_options,
-                                            nir_options, NULL, &nir);
+   result = vk_pipeline_shader_stage_to_nir(device, pipeline_flags, info,
+                                            &spirv_options, nir_options,
+                                            NULL, &nir);
    if (result != VK_SUCCESS)
       return result;
 

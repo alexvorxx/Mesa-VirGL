@@ -216,6 +216,7 @@ dzn_pipeline_get_nir_shader(struct dzn_device *device,
                             const struct dzn_pipeline_layout *layout,
                             struct vk_pipeline_cache *cache,
                             const uint8_t *hash,
+                            VkPipelineCreateFlags2KHR pipeline_flags,
                             const VkPipelineShaderStageCreateInfo *stage_info,
                             gl_shader_stage stage,
                             const struct dzn_nir_options *options,
@@ -240,7 +241,7 @@ dzn_pipeline_get_nir_shader(struct dzn_device *device,
    const struct spirv_to_nir_options *spirv_opts = dxil_spirv_nir_get_spirv_options();
 
    VkResult result =
-      vk_pipeline_shader_stage_to_nir(&device->vk, stage_info,
+      vk_pipeline_shader_stage_to_nir(&device->vk, pipeline_flags, stage_info,
                                       spirv_opts, options->nir_opts, NULL, nir);
    if (result != VK_SUCCESS)
       return result;
@@ -862,7 +863,7 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
          enum gl_subgroup_size subgroup_enum = subgroup_size && subgroup_size->requiredSubgroupSize >= 8 ?
             subgroup_size->requiredSubgroupSize : SUBGROUP_SIZE_FULL_SUBGROUPS;
 
-         vk_pipeline_hash_shader_stage(stages[stage].info, NULL, stages[stage].spirv_hash);
+         vk_pipeline_hash_shader_stage(pipeline->base.flags, stages[stage].info, NULL, stages[stage].spirv_hash);
          _mesa_sha1_update(&pipeline_hash_ctx, &subgroup_enum, sizeof(subgroup_enum));
          _mesa_sha1_update(&pipeline_hash_ctx, stages[stage].spirv_hash, sizeof(stages[stage].spirv_hash));
          _mesa_sha1_update(&pipeline_hash_ctx, layout->stages[stage].hash, sizeof(layout->stages[stage].hash));
@@ -920,6 +921,7 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
       struct dxil_spirv_metadata metadata = { 0 };
       ret = dzn_pipeline_get_nir_shader(device, layout,
                                         cache, stages[stage].nir_hash,
+                                        pipeline->base.flags,
                                         stages[stage].info, stage,
                                         &options, &metadata,
                                         &pipeline->templates.shaders[stage].nir);
@@ -1753,10 +1755,12 @@ static void
 dzn_pipeline_init(struct dzn_pipeline *pipeline,
                   struct dzn_device *device,
                   VkPipelineBindPoint type,
+                  VkPipelineCreateFlags2KHR flags,
                   struct dzn_pipeline_layout *layout,
                   D3D12_PIPELINE_STATE_STREAM_DESC *stream_desc)
 {
    pipeline->type = type;
+   pipeline->flags = flags;
    pipeline->root.sets_param_count = layout->root.sets_param_count;
    pipeline->root.sysval_cbv_param_idx = layout->root.sysval_cbv_param_idx;
    pipeline->root.push_constant_cbv_param_idx = layout->root.push_constant_cbv_param_idx;
@@ -1885,6 +1889,7 @@ dzn_graphics_pipeline_create(struct dzn_device *device,
 
    dzn_pipeline_init(&pipeline->base, device,
                      VK_PIPELINE_BIND_POINT_GRAPHICS,
+                     vk_graphics_pipeline_create_flags(pCreateInfo),
                      layout, stream_desc);
    D3D12_INPUT_ELEMENT_DESC attribs[MAX_VERTEX_GENERIC_ATTRIBS] = { 0 };
    enum pipe_format vi_conversions[MAX_VERTEX_GENERIC_ATTRIBS] = { 0 };
@@ -2494,7 +2499,7 @@ dzn_compute_pipeline_compile_shader(struct dzn_device *device,
       struct mesa_sha1 pipeline_hash_ctx;
 
       _mesa_sha1_init(&pipeline_hash_ctx);
-      vk_pipeline_hash_shader_stage(&info->stage, NULL, spirv_hash);
+      vk_pipeline_hash_shader_stage(pipeline->base.flags, &info->stage, NULL, spirv_hash);
       _mesa_sha1_update(&pipeline_hash_ctx, &device->bindless, sizeof(device->bindless));
       _mesa_sha1_update(&pipeline_hash_ctx, spirv_hash, sizeof(spirv_hash));
       _mesa_sha1_update(&pipeline_hash_ctx, layout->stages[MESA_SHADER_COMPUTE].hash,
@@ -2524,7 +2529,8 @@ dzn_compute_pipeline_compile_shader(struct dzn_device *device,
    };
    struct dxil_spirv_metadata metadata = { 0 };
    ret = dzn_pipeline_get_nir_shader(device, layout, cache, nir_hash,
-                                     &info->stage, MESA_SHADER_COMPUTE,
+                                     pipeline->base.flags, &info->stage,
+                                     MESA_SHADER_COMPUTE,
                                      &options, &metadata, &nir);
    if (ret != VK_SUCCESS)
       return ret;
@@ -2597,6 +2603,7 @@ dzn_compute_pipeline_create(struct dzn_device *device,
 
    dzn_pipeline_init(&pipeline->base, device,
                      VK_PIPELINE_BIND_POINT_COMPUTE,
+                     vk_compute_pipeline_create_flags(pCreateInfo),
                      layout, &stream_desc);
 
    D3D12_SHADER_BYTECODE shader = { 0 };

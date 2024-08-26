@@ -59,6 +59,7 @@ vk_pipeline_shader_stage_has_identifier(const VkPipelineShaderStageCreateInfo *i
 
 VkResult
 vk_pipeline_shader_stage_to_nir(struct vk_device *device,
+                                VkPipelineCreateFlags2KHR pipeline_flags,
                                 const VkPipelineShaderStageCreateInfo *info,
                                 const struct spirv_to_nir_options *spirv_options,
                                 const struct nir_shader_compiler_options *nir_options,
@@ -92,7 +93,8 @@ struct vk_pipeline_robustness_state {
  * vk_shader_module object.
  */
 void
-vk_pipeline_hash_shader_stage(const VkPipelineShaderStageCreateInfo *info,
+vk_pipeline_hash_shader_stage(VkPipelineCreateFlags2KHR pipeline_flags,
+                              const VkPipelineShaderStageCreateInfo *info,
                               const struct vk_pipeline_robustness_state *rstate,
                               unsigned char *stage_sha1);
 

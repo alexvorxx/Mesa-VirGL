@@ -168,7 +168,7 @@ radv_compute_pipeline_hash(const struct radv_device *device, const VkComputePipe
 
    _mesa_sha1_init(&ctx);
    radv_pipeline_hash(device, pipeline_layout, &ctx);
-   radv_pipeline_hash_shader_stage(sinfo, &stage_key, &ctx);
+   radv_pipeline_hash_shader_stage(create_flags, sinfo, &stage_key, &ctx);
    _mesa_sha1_final(&ctx, hash);
 }
 
@@ -218,7 +218,7 @@ radv_compute_pipeline_compile(const VkComputePipelineCreateInfo *pCreateInfo, st
    const struct radv_shader_stage_key stage_key =
       radv_pipeline_get_shader_key(device, &pCreateInfo->stage, pipeline->base.create_flags, pCreateInfo->pNext);
 
-   radv_pipeline_stage_init(pStage, pipeline_layout, &stage_key, &cs_stage);
+   radv_pipeline_stage_init(pipeline->base.create_flags, pStage, pipeline_layout, &stage_key, &cs_stage);
 
    pipeline->base.shaders[MESA_SHADER_COMPUTE] = radv_compile_cs(
       device, cache, &cs_stage, keep_executable_info, keep_statistic_info, pipeline->base.is_internal, &cs_binary);

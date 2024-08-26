@@ -289,7 +289,10 @@ lvp_create_pipeline_nir(nir_shader *nir)
 }
 
 static VkResult
-compile_spirv(struct lvp_device *pdevice, const VkPipelineShaderStageCreateInfo *sinfo, nir_shader **nir)
+compile_spirv(struct lvp_device *pdevice,
+              VkPipelineCreateFlags2KHR pipeline_flags,
+              const VkPipelineShaderStageCreateInfo *sinfo,
+              nir_shader **nir)
 {
    gl_shader_stage stage = vk_to_mesa_shader_stage(sinfo->stage);
    assert(stage <= LVP_SHADER_STAGES && stage != MESA_SHADER_NONE);
@@ -313,7 +316,7 @@ compile_spirv(struct lvp_device *pdevice, const VkPipelineShaderStageCreateInfo 
 #endif
    };
 
-   result = vk_pipeline_shader_stage_to_nir(&pdevice->vk, sinfo,
+   result = vk_pipeline_shader_stage_to_nir(&pdevice->vk, pipeline_flags, sinfo,
                                             &spirv_options, pdevice->physical_device->drv_options[stage],
                                             NULL, nir);
    return result;
@@ -472,7 +475,7 @@ VkResult
 lvp_spirv_to_nir(struct lvp_pipeline *pipeline, const VkPipelineShaderStageCreateInfo *sinfo,
                  nir_shader **out_nir)
 {
-   VkResult result = compile_spirv(pipeline->device, sinfo, out_nir);
+   VkResult result = compile_spirv(pipeline->device, pipeline->flags, sinfo, out_nir);
    if (result == VK_SUCCESS)
       lvp_shader_lower(pipeline->device, pipeline, *out_nir, pipeline->layout);
 
@@ -1201,7 +1204,7 @@ create_shader_object(struct lvp_device *device, const VkShaderCreateInfoEXT *pCr
          pCreateInfo->pName,
          pCreateInfo->pSpecializationInfo,
       };
-      VkResult result = compile_spirv(device, &sinfo, &nir);
+      VkResult result = compile_spirv(device, 0, &sinfo, &nir);
       if (result != VK_SUCCESS)
          goto fail;
       nir->info.separate_shader = true;
