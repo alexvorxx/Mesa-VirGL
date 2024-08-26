@@ -54,7 +54,7 @@
   extends:
     - .build-linux
     - .use-debian/x86_64_build
-  stage: build-x86_64
+  stage: build-only
   variables:
     LLVM_VERSION: 15
   script:
@@ -261,7 +261,6 @@ alpine-build-testing:
   extends:
     - .meson-build
     - .use-alpine/x86_64_build
-  stage: build-x86_64
   variables:
     BUILDTYPE: "release"
     C_ARGS: >
@@ -410,7 +409,6 @@ debian-android:
 .meson-cross:
   extends:
     - .meson-build
-  stage: build-misc
   variables:
     UNWIND: "disabled"
     DRI_LOADERS: >
@@ -533,7 +531,7 @@ debian-arm64-build-test:
 debian-arm64-release:
   extends:
     - debian-arm64
-  stage: build-misc
+  stage: build-only
   variables:
     BUILDTYPE: release
     S3_ARTIFACT_NAME: mesa-arm64-default-${BUILDTYPE}

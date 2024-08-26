@@ -145,8 +145,7 @@ stages:
   - container
   - git-archive
   - build-for-tests
-  - build-x86_64
-  - build-misc
+  - build-only
   - code-validation
   - amd
   - amd-postmerge
