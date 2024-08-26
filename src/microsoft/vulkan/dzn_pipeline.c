@@ -238,13 +238,11 @@ dzn_pipeline_get_nir_shader(struct dzn_device *device,
 
    struct dzn_physical_device *pdev =
       container_of(device->vk.physical, struct dzn_physical_device, vk);
-   VK_FROM_HANDLE(vk_shader_module, module, stage_info->module);
    const struct spirv_to_nir_options *spirv_opts = dxil_spirv_nir_get_spirv_options();
 
    VkResult result =
-      vk_shader_module_to_nir(&device->vk, module, stage,
-                              stage_info->pName, stage_info->pSpecializationInfo,
-                              spirv_opts, options->nir_opts, NULL, nir);
+      vk_pipeline_shader_stage_to_nir(&device->vk, stage_info,
+                                      spirv_opts, options->nir_opts, NULL, nir);
    if (result != VK_SUCCESS)
       return result;
 
