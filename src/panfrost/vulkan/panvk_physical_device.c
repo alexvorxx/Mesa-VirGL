@@ -994,16 +994,20 @@ get_format_properties(struct panvk_physical_device *physical_device,
       tex |= VK_FORMAT_FEATURE_BLIT_SRC_BIT;
    }
 
-   /* SNORM rendering isn't working yet, disable */
-   if (fmt.bind & PAN_BIND_RENDER_TARGET && !util_format_is_snorm(pfmt)) {
-      tex |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
-             VK_FORMAT_FEATURE_BLIT_DST_BIT;
-
+   if (fmt.bind & PAN_BIND_RENDER_TARGET) {
+      tex |= VK_FORMAT_FEATURE_BLIT_DST_BIT;
       tex |= VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT;
       buffer |= VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT;
 
-      /* Can always blend via blend shaders */
-      tex |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
+      /* SNORM rendering isn't working yet (nir_lower_blend bugs), disable for
+       * now.
+       *
+       * XXX: Enable once fixed.
+       */
+      if (!util_format_is_snorm(pfmt)) {
+         tex |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT;
+         tex |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
+      }
    }
 
    if (pfmt == PIPE_FORMAT_R32_UINT || pfmt == PIPE_FORMAT_R32_SINT) {
