@@ -1763,8 +1763,6 @@ brw_postprocess_nir(nir_shader *nir, const struct brw_compiler *compiler,
       }
    }
 
-   OPT(intel_nir_lower_conversions);
-
    OPT(nir_lower_alu_to_scalar, NULL, NULL);
 
    while (OPT(nir_opt_algebraic_distribute_src_mods)) {
@@ -1813,6 +1811,12 @@ brw_postprocess_nir(nir_shader *nir, const struct brw_compiler *compiler,
 
       OPT(nir_lower_subgroups, &subgroups_options);
    }
+
+   /* Run intel_nir_lower_conversions only after the last tiem
+    * brw_nir_optimize is called. Various optimizations invoked there can
+    * rematerialize the conversions that the lowering pass eliminates.
+    */
+   OPT(intel_nir_lower_conversions);
 
    /* Do this only after the last opt_gcm. GCM will undo this lowering. */
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
