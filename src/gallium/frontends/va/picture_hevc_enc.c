@@ -348,9 +348,6 @@ vlVaHandleVAEncSequenceParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *con
    if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SEQUENCE)) {
       struct pipe_h265_profile_tier_level *ptl =
          &context->desc.h265enc.vid.profile_tier_level;
-      context->desc.h265enc.header_flags.vps = 1;
-      context->desc.h265enc.header_flags.sps = 1;
-      context->desc.h265enc.header_flags.pps = 1;
       util_dynarray_append(&context->desc.h264enc.raw_headers,
                            struct pipe_enc_raw_header,
                            (struct pipe_enc_raw_header){.type = PIPE_H265_NAL_VPS});
@@ -1013,7 +1010,6 @@ static void parseEncSeiPayloadH265(vlVaContext *context, struct vl_rbsp *rbsp, i
 {
    switch (payloadType) {
    case MASTERING_DISPLAY_COLOUR_VOLUME:
-      context->desc.h265enc.header_flags.hdr_mdcv = 1;
       for (int32_t i = 0; i < 3; i++) {
          context->desc.h265enc.metadata_hdr_mdcv.primary_chromaticity_x[i] = vl_rbsp_u(rbsp, 16);
          context->desc.h265enc.metadata_hdr_mdcv.primary_chromaticity_y[i] = vl_rbsp_u(rbsp, 16);
@@ -1024,7 +1020,6 @@ static void parseEncSeiPayloadH265(vlVaContext *context, struct vl_rbsp *rbsp, i
       context->desc.h265enc.metadata_hdr_mdcv.luminance_min = vl_rbsp_u(rbsp, 32);
       break;
    case CONTENT_LIGHT_LEVEL_INFO:
-      context->desc.h265enc.header_flags.hdr_cll = 1;
       context->desc.h265enc.metadata_hdr_cll.max_cll= vl_rbsp_u(rbsp, 16);
       context->desc.h265enc.metadata_hdr_cll.max_fall= vl_rbsp_u(rbsp, 16);
       break;
@@ -1116,18 +1111,12 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeHEVC(vlVaContext *context, vlVaBuffer *
          break;
       case PIPE_H265_NAL_VPS:
          parseEncVpsParamsH265(context, &rbsp);
-         context->desc.h265enc.header_flags.vps = 1;
          break;
       case PIPE_H265_NAL_SPS:
          parseEncSpsParamsH265(context, &rbsp);
-         context->desc.h265enc.header_flags.sps = 1;
          break;
       case PIPE_H265_NAL_PPS:
          parseEncPpsParamsH265(context, &rbsp);
-         context->desc.h265enc.header_flags.pps = 1;
-         break;
-      case PIPE_H265_NAL_AUD:
-         context->desc.h265enc.header_flags.aud = 1;
          break;
       case PIPE_H265_NAL_PREFIX_SEI:
          parseEncSeiH265(context, &rbsp);

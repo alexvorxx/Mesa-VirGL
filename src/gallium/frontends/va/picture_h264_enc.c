@@ -331,8 +331,6 @@ vlVaHandleVAEncSequenceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *con
    }
 
    if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SEQUENCE)) {
-      context->desc.h264enc.header_flags.sps = 1;
-      context->desc.h264enc.header_flags.pps = 1;
       util_dynarray_append(&context->desc.h264enc.raw_headers,
                            struct pipe_enc_raw_header,
                            (struct pipe_enc_raw_header){.type = PIPE_H264_NAL_SPS});
@@ -818,14 +816,9 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeH264(vlVaContext *context, vlVaBuffer *
          break;
       case PIPE_H264_NAL_SPS:
          parseEncSpsParamsH264(context, &rbsp);
-         context->desc.h264enc.header_flags.sps = 1;
          break;
       case PIPE_H264_NAL_PPS:
          parseEncPpsParamsH264(context, &rbsp);
-         context->desc.h264enc.header_flags.pps = 1;
-         break;
-      case PIPE_H264_NAL_AUD:
-         context->desc.h264enc.header_flags.aud = 1;
          break;
       default:
          break;
