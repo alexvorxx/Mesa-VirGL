@@ -596,6 +596,13 @@ anv_address_add(struct anv_address addr, uint64_t offset)
    return addr;
 }
 
+static inline struct anv_address
+anv_address_add_aligned(struct anv_address addr, uint64_t offset, uint32_t alignment)
+{
+   addr.offset = align(addr.offset + offset, alignment);
+   return addr;
+}
+
 static inline void *
 anv_address_map(struct anv_address addr)
 {

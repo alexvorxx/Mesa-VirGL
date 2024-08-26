@@ -707,19 +707,39 @@ VkResult anv_CreateDevice(
       device->isl_dev.dummy_aux_address = device->dummy_aux_bo->offset;
    }
 
-   device->workaround_address = (struct anv_address) {
+   struct anv_address wa_addr = (struct anv_address) {
       .bo = device->workaround_bo,
-      .offset = align(intel_debug_write_identifiers(device->workaround_bo->map,
-                                                    device->workaround_bo->size,
-                                                    "Anv"), 32),
    };
 
-   device->workarounds.doom64_images = NULL;
+   wa_addr = anv_address_add_aligned(wa_addr,
+                                     intel_debug_write_identifiers(
+                                        device->workaround_bo->map,
+                                        device->workaround_bo->size,
+                                        "Anv"), 32);
 
-   device->rt_uuid_addr = anv_address_add(device->workaround_address, 8);
+   device->rt_uuid_addr = wa_addr;
    memcpy(device->rt_uuid_addr.bo->map + device->rt_uuid_addr.offset,
           physical_device->rt_uuid,
           sizeof(physical_device->rt_uuid));
+
+   /* Make sure the workaround address is the last one in the workaround BO,
+    * so that writes never overwrite other bits of data stored in the
+    * workaround BO.
+    */
+   wa_addr = anv_address_add_aligned(device->workaround_address,
+                                     sizeof(physical_device->rt_uuid), 64);
+   device->workaround_address = wa_addr;
+
+   /* Make sure we don't over the allocated BO. */
+   assert(device->workaround_address.offset < device->workaround_bo->size);
+   /* We also need 64B (maximum GRF size) from the workaround address (see
+    * TBIMR workaround)
+    */
+   assert((device->workaround_bo->size -
+           device->workaround_address.offset) >= 64);
+
+   device->workarounds.doom64_images = NULL;
+
 
    device->debug_frame_desc =
       intel_debug_get_identifier_block(device->workaround_bo->map,
