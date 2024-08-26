@@ -112,6 +112,8 @@ bool getVirtioGpuResourceInfo(int fd, native_handle_t const* handle,
 
 }  // namespace
 
+GrallocType MinigbmGralloc::getGrallocType() { return GRALLOC_TYPE_MINIGBM; }
+
 uint32_t MinigbmGralloc::createColorBuffer(void*, int width, int height, uint32_t glformat) {
     // Only supported format for pbuffers in gfxstream should be RGBA8
     const uint32_t kVirglFormatRGBA = 67;  // VIRGL_FORMAT_R8G8B8A8_UNORM;

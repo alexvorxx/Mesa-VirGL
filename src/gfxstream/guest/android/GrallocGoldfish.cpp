@@ -26,6 +26,8 @@ uint32_t GoldfishGralloc::createColorBuffer(void* rcEnc, int width, int height, 
     return rc->rcCreateColorBuffer(rc, width, height, glformat);
 }
 
+GrallocType GoldfishGralloc::getGrallocType() { return GRALLOC_TYPE_GOLDFISH; }
+
 int GoldfishGralloc::allocate(uint32_t width, uint32_t height, uint32_t format, uint64_t usage,
                               AHardwareBuffer** outputAhb) {
     struct AHardwareBuffer_Desc desc = {

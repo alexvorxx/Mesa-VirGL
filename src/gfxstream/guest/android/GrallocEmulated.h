@@ -67,6 +67,8 @@ class EmulatedGralloc : public Gralloc {
    public:
     EmulatedGralloc(VirtGpuDevice* device);
     ~EmulatedGralloc();
+
+    GrallocType getGrallocType() override;
     uint32_t createColorBuffer(void*, int width, int height, uint32_t glFormat) override;
 
     int allocate(uint32_t width, uint32_t height, uint32_t format, uint64_t usage,
