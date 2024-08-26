@@ -94,24 +94,6 @@ struct pan_blit_context {
    float z_scale;
 };
 
-static inline bool
-pan_blit_next_surface(struct pan_blit_context *ctx)
-{
-   if (ctx->dst.last_layer < ctx->dst.layer_offset) {
-      if (ctx->dst.cur_layer <= ctx->dst.last_layer)
-         return false;
-
-      ctx->dst.cur_layer--;
-   } else {
-      if (ctx->dst.cur_layer >= ctx->dst.last_layer)
-         return false;
-
-      ctx->dst.cur_layer++;
-   }
-
-   return true;
-}
-
 #ifdef PAN_ARCH
 void GENX(pan_blitter_cache_init)(struct pan_blitter_cache *cache,
                                   unsigned gpu_id,
@@ -125,15 +107,6 @@ unsigned GENX(pan_preload_fb)(struct pan_blitter_cache *cache,
                               struct pan_pool *desc_pool,
                               struct pan_fb_info *fb, unsigned layer_idx,
                               mali_ptr tsd, struct panfrost_ptr *jobs);
-
-void GENX(pan_blit_ctx_init)(struct pan_blitter_cache *cache,
-                             const struct pan_blit_info *info,
-                             struct pan_pool *blit_pool,
-                             struct pan_blit_context *ctx);
-
-struct panfrost_ptr GENX(pan_blit)(struct pan_blit_context *ctx,
-                                   struct pan_pool *pool, struct pan_jc *jc,
-                                   mali_ptr tsd, mali_ptr tiler);
 #endif
 
 #endif
