@@ -28,3 +28,5 @@ dEQP-VK.binding_model.shader_access.primary_cmd_buf.bind.with_push.combined_imag
 dEQP-VK.renderpass2.fragment_density_map.2_views.render.divisible_density_size.2_samples.static_subsampled_1_2_multiviewport
 dEQP-VK.reconvergence.workgroup_uniform_control_flow_ballot.compute.nesting4.7.38
 dEQP-VK.query_pool.statistics_query.host_query_reset.geometry_shader_primitives.secondary.64bits_cmdcopyquerypoolresults_triangle_list_clear_depth
+
+KHR-GL46.shader_image_load_store.basic-allTargets-loadStoreVS
