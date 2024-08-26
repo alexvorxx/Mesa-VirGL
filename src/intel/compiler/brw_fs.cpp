@@ -617,26 +617,13 @@ fs_inst::is_partial_write() const
        this->opcode != BRW_OPCODE_SEL)
       return true;
 
+   if (!this->dst.is_contiguous())
+      return true;
+
    if (this->dst.offset % REG_SIZE != 0)
       return true;
 
-   /* SEND instructions always write whole registers */
-   if (this->opcode == SHADER_OPCODE_SEND)
-      return false;
-
-   /* Special case UNDEF since a lot of places in the backend do things like this :
-    *
-    *  fs_builder ubld = bld.exec_all().group(1, 0);
-    *  brw_reg tmp = ubld.vgrf(BRW_TYPE_UD);
-    *  ubld.UNDEF(tmp); <- partial write, even if the whole register is concerned
-    */
-   if (this->opcode == SHADER_OPCODE_UNDEF) {
-      assert(this->dst.is_contiguous());
-      return this->size_written < 32;
-   }
-
-   return this->exec_size * brw_type_size_bytes(this->dst.type) < 32 ||
-          !this->dst.is_contiguous();
+   return this->size_written % REG_SIZE != 0;
 }
 
 unsigned
