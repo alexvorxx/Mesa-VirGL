@@ -1268,10 +1268,8 @@ dgc_alloc_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *pu
 {
    nir_builder *b = cs->b;
 
-   nir_def *const_copy = dgc_push_constant_needs_copy(cs, stream_addr);
    nir_def *const_copy_size = load_param16(b, const_copy_size);
    nir_def *const_copy_words = nir_ushr_imm(b, const_copy_size, 2);
-   const_copy_words = nir_bcsel(b, const_copy, const_copy_words, nir_imm_int(b, 0));
 
    nir_variable *idx = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "const_copy_idx");
    nir_store_var(b, idx, nir_imm_int(b, 0), 0x1);
@@ -1416,7 +1414,12 @@ dgc_emit_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *pus
    const struct dgc_pc_params params = dgc_get_pc_params(cs);
    nir_builder *b = cs->b;
 
-   dgc_alloc_push_constant(cs, stream_addr, push_const_mask, &params, upload_offset);
+   nir_def *const_copy = dgc_push_constant_needs_copy(cs, stream_addr);
+   nir_push_if(b, const_copy);
+   {
+      dgc_alloc_push_constant(cs, stream_addr, push_const_mask, &params, upload_offset);
+   }
+   nir_pop_if(b, NULL);
 
    nir_def *push_constant_stages = dgc_get_push_constant_stages(cs, stream_addr);
    radv_foreach_stage(s, stages)
