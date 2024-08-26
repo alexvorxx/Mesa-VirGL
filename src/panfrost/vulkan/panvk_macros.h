@@ -29,6 +29,9 @@
       case 7:                                                                  \
          panvk_arch_name(name, v7)(__VA_ARGS__);                               \
          break;                                                                \
+      case 10:                                                                 \
+         panvk_arch_name(name, v10)(__VA_ARGS__);                              \
+         break;                                                                \
       default:                                                                 \
          unreachable("Unsupported architecture");                              \
       }                                                                        \
@@ -42,6 +45,9 @@
          break;                                                                \
       case 7:                                                                  \
          ret = panvk_arch_name(name, v7)(__VA_ARGS__);                         \
+         break;                                                                \
+      case 10:                                                                 \
+         ret = panvk_arch_name(name, v10)(__VA_ARGS__);                        \
          break;                                                                \
       default:                                                                 \
          unreachable("Unsupported architecture");                              \
