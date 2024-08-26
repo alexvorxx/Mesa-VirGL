@@ -52,14 +52,6 @@ struct panvk_descriptor_state {
    uint32_t dyn_buf_offsets[MAX_SETS][MAX_DYNAMIC_BUFFERS];
 };
 
-void panvk_per_arch(cmd_desc_state_bind_sets)(
-   struct panvk_descriptor_state *desc_state,
-   const VkBindDescriptorSetsInfoKHR *info);
-
-struct panvk_descriptor_set *panvk_per_arch(cmd_push_descriptors)(
-   struct vk_command_buffer *cmdbuf, struct panvk_descriptor_state *desc_state,
-   uint32_t set);
-
 #if PAN_ARCH <= 7
 void panvk_per_arch(cmd_prepare_dyn_ssbos)(
    struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
