@@ -28,3 +28,4 @@ dEQP-VK.api.copy_and_blit.sparse.image_to_image.simple_tests.whole_image
 dEQP-VK.draw.dynamic_rendering.partial_secondary_cmd_buff.scissor.dynamic_scissor_updates_between_draws
 dEQP-VK.subgroups.clustered.framebuffer.subgroupclusteredmin_int8_t_tess_control
 dEQP-VK.texture.filtering.cube.sizes.64x64.nearest
+dEQP-VK.synchronization.global_priority_transition.low.semaphore.no_modifiers.from_compute_to_graphics
