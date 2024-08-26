@@ -34,6 +34,10 @@ LinuxVirtGpuResource::LinuxVirtGpuResource(int64_t deviceHandle, uint32_t blobHa
       mSize(size) {}
 
 LinuxVirtGpuResource::~LinuxVirtGpuResource() {
+    if (mBlobHandle == INVALID_DESCRIPTOR) {
+        return;
+    }
+
     struct drm_gem_close gem_close {
         .handle = mBlobHandle, .pad = 0,
     };
@@ -45,9 +49,16 @@ LinuxVirtGpuResource::~LinuxVirtGpuResource() {
     }
 }
 
+void LinuxVirtGpuResource::intoRaw() {
+    mBlobHandle = INVALID_DESCRIPTOR;
+    mResourceHandle = INVALID_DESCRIPTOR;
+}
+
 uint32_t LinuxVirtGpuResource::getBlobHandle() const { return mBlobHandle; }
 
 uint32_t LinuxVirtGpuResource::getResourceHandle() const { return mResourceHandle; }
+
+uint64_t LinuxVirtGpuResource::getSize() const { return mSize; }
 
 VirtGpuResourceMappingPtr LinuxVirtGpuResource::createMapping() {
     int ret;

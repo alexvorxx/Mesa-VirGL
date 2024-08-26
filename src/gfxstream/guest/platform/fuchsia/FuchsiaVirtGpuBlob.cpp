@@ -32,6 +32,11 @@ uint32_t FuchsiaVirtGpuResource::getResourceHandle() const {
     return 0;
 }
 
+uint64_t FuchsiaVirtGpuResource::getSize() const {
+    mesa_loge("%s: unimplemented", __func__);
+    return 0;
+}
+
 VirtGpuResourceMappingPtr FuchsiaVirtGpuResource::createMapping(void) {
     mesa_loge("%s: unimplemented", __func__);
     return nullptr;

@@ -152,8 +152,15 @@ class VirtGpuResource {
    public:
     virtual ~VirtGpuResource() {}
 
+    // The `intoRaw()` function drops ownerships of the OS-handle underlying
+    // the resource.  It is the responsibility of the caller to manage lifetimes
+    // of the virtio-gpu resource.  This function is mostly for gfxstream EGL
+    // compatibility and shouldn't be used elsewhere.
+    virtual void intoRaw(){};
+
     virtual uint32_t getResourceHandle() const = 0;
     virtual uint32_t getBlobHandle() const = 0;
+    virtual uint64_t getSize() const = 0;
     virtual int wait() = 0;
 
     virtual VirtGpuResourceMappingPtr createMapping(void) = 0;

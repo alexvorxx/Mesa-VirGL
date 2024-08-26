@@ -65,7 +65,7 @@ class EmulatedAHardwareBuffer {
 
 class EmulatedGralloc : public Gralloc {
    public:
-    EmulatedGralloc(VirtGpuDevice* device);
+    EmulatedGralloc(int32_t descriptor);
     ~EmulatedGralloc();
 
     GrallocType getGrallocType() override;
@@ -102,7 +102,7 @@ class EmulatedGralloc : public Gralloc {
     int getId(const AHardwareBuffer* ahb, uint64_t* id) override;
 
    private:
-    VirtGpuDevice* mDevice;
+    std::unique_ptr<VirtGpuDevice> mDevice;
     std::vector<std::unique_ptr<EmulatedAHardwareBuffer>> mOwned;
 };
 

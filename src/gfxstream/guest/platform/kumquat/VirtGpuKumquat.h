@@ -34,6 +34,8 @@ class VirtGpuKumquatResource : public std::enable_shared_from_this<VirtGpuKumqua
 
     uint32_t getResourceHandle() const override;
     uint32_t getBlobHandle() const override;
+    uint64_t getSize() const override;
+
     int wait() override;
 
     VirtGpuResourceMappingPtr createMapping(void) override;

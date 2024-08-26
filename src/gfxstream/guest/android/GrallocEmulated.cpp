@@ -407,12 +407,11 @@ int EmulatedAHardwareBuffer::unlock() {
     return 0;
 }
 
-EmulatedGralloc::EmulatedGralloc(VirtGpuDevice* device) : mDevice(device) {}
-
-EmulatedGralloc::~EmulatedGralloc() {
-    mOwned.clear();
-    delete mDevice;
+EmulatedGralloc::EmulatedGralloc(int32_t descriptor) {
+    mDevice.reset(createPlatformVirtGpuDevice(kCapsetNone, descriptor));
 }
+
+EmulatedGralloc::~EmulatedGralloc() { mOwned.clear(); }
 
 GrallocType EmulatedGralloc::getGrallocType() { return GRALLOC_TYPE_EMULATED; }
 
@@ -577,14 +576,6 @@ int EmulatedGralloc::getId(const AHardwareBuffer* ahb, uint64_t* id) {
     return 0;
 }
 
-Gralloc* createPlatformGralloc(int32_t descriptor) {
-    auto device = createPlatformVirtGpuDevice(kCapsetNone, descriptor);
-    if (!device) {
-        ALOGE("no virtio gpu device.");
-        return nullptr;
-    }
-
-    return new EmulatedGralloc(device);
-}
+Gralloc* createPlatformGralloc(int32_t descriptor) { return new EmulatedGralloc(descriptor); }
 
 }  // namespace gfxstream

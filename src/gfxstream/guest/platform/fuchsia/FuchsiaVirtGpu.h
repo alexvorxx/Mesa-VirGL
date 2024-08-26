@@ -29,6 +29,7 @@ class FuchsiaVirtGpuResource : public std::enable_shared_from_this<FuchsiaVirtGp
 
     uint32_t getResourceHandle() const override;
     uint32_t getBlobHandle() const override;
+    uint64_t getSize() const override;
     int wait() override;
 
     int exportBlob(struct VirtGpuExternalHandle& handle) override;

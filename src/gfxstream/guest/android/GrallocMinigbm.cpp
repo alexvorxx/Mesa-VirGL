@@ -15,102 +15,22 @@
 #include "GrallocMinigbm.h"
 
 #include <cros_gralloc/cros_gralloc_handle.h>
-#include <errno.h>
 #include <log/log.h>
 #include <stdlib.h>
 #include <sys/user.h>
+#include <unistd.h>
 #include <vndk/hardware_buffer.h>
-#include <xf86drm.h>
 
 #include <cinttypes>
 #include <cstring>
 
-#include "virtgpu_drm.h"
-
-#if defined(PAGE_SIZE)
-constexpr size_t kPageSize = PAGE_SIZE;
-#else
-#include <unistd.h>
-static const size_t kPageSize = getpagesize();
-#endif
+#include "VirtGpu.h"
 
 namespace gfxstream {
-namespace {
 
-static inline uint32_t align_up(uint32_t n, uint32_t a) { return ((n + a - 1) / a) * a; }
-
-bool getVirtioGpuResourceInfo(int fd, native_handle_t const* handle,
-                              struct drm_virtgpu_resource_info* info) {
-    memset(info, 0x0, sizeof(*info));
-    if (fd < 0) {
-        ALOGE("%s: Error, rendernode fd missing\n", __func__);
-        return false;
-    }
-
-    struct drm_gem_close gem_close;
-    memset(&gem_close, 0x0, sizeof(gem_close));
-
-    cros_gralloc_handle const* cros_handle = reinterpret_cast<cros_gralloc_handle const*>(handle);
-
-    uint32_t prime_handle;
-    int ret = drmPrimeFDToHandle(fd, cros_handle->fds[0], &prime_handle);
-    if (ret) {
-        ALOGE("%s: DRM_IOCTL_PRIME_FD_TO_HANDLE failed: %s (errno %d)\n", __func__, strerror(errno),
-              errno);
-        return false;
-    }
-    struct ManagedDrmGem {
-        ManagedDrmGem(int fd, uint32_t handle) : m_fd(fd), m_prime_handle(handle) {}
-        ManagedDrmGem(const ManagedDrmGem&) = delete;
-        ~ManagedDrmGem() {
-            struct drm_gem_close gem_close {
-                .handle = m_prime_handle, .pad = 0,
-            };
-            int ret = drmIoctl(m_fd, DRM_IOCTL_GEM_CLOSE, &gem_close);
-            if (ret) {
-                ALOGE("%s: DRM_IOCTL_GEM_CLOSE failed on handle %" PRIu32 ": %s(%d).", __func__,
-                      m_prime_handle, strerror(errno), errno);
-            }
-        }
-
-        int m_fd;
-        uint32_t m_prime_handle;
-    } managed_prime_handle(fd, prime_handle);
-
-    info->bo_handle = managed_prime_handle.m_prime_handle;
-
-    struct drm_virtgpu_3d_wait virtgpuWait {
-        .handle = managed_prime_handle.m_prime_handle, .flags = 0,
-    };
-    // This only works for host resources by VIRTGPU_RESOURCE_CREATE ioctl.
-    // We need to use a different mechanism to synchronize with the host if
-    // the minigbm gralloc swiches to virtio-gpu blobs or cross-domain
-    // backend.
-    int retry = 0;
-    do {
-        if (retry > 10) {
-            ALOGE("%s DRM_IOCTL_VIRTGPU_WAIT failed with EBUSY %d times.", __func__, retry);
-            return false;
-        }
-        ret = drmIoctl(fd, DRM_IOCTL_VIRTGPU_WAIT, &virtgpuWait);
-        ++retry;
-    } while (ret < 0 && errno == EBUSY);
-    if (ret) {
-        ALOGE("%s: DRM_IOCTL_VIRTGPU_WAIT failed: %s(%d)", __func__, strerror(errno), errno);
-        return false;
-    }
-
-    ret = drmIoctl(fd, DRM_IOCTL_VIRTGPU_RESOURCE_INFO, info);
-    if (ret) {
-        ALOGE("%s: DRM_IOCTL_VIRTGPU_RESOURCE_INFO failed: %s (errno %d)\n", __func__,
-              strerror(errno), errno);
-        return false;
-    }
-
-    return true;
+MinigbmGralloc::MinigbmGralloc(int32_t descriptor) {
+    mDevice.reset(createPlatformVirtGpuDevice(kCapsetNone, descriptor));
 }
-
-}  // namespace
 
 GrallocType MinigbmGralloc::getGrallocType() { return GRALLOC_TYPE_MINIGBM; }
 
@@ -135,30 +55,14 @@ uint32_t MinigbmGralloc::createColorBuffer(int width, int height, uint32_t glfor
             bpp = 4;
             break;
     }
-    const uint32_t kPipeTexture2D = 2;          // PIPE_TEXTURE_2D
-    const uint32_t kBindRenderTarget = 1 << 1;  // VIRGL_BIND_RENDER_TARGET
-    struct drm_virtgpu_resource_create res_create;
-    memset(&res_create, 0, sizeof(res_create));
-    res_create.target = kPipeTexture2D;
-    res_create.format = virtgpu_format;
-    res_create.bind = kBindRenderTarget;
-    res_create.width = width;
-    res_create.height = height;
-    res_create.depth = 1;
-    res_create.array_size = 1;
-    res_create.last_level = 0;
-    res_create.nr_samples = 0;
-    res_create.stride = bpp * width;
-    res_create.size = align_up(bpp * width * height, kPageSize);
 
-    int ret = drmIoctl(m_fd, DRM_IOCTL_VIRTGPU_RESOURCE_CREATE, &res_create);
-    if (ret) {
-        ALOGE("%s: DRM_IOCTL_VIRTGPU_RESOURCE_CREATE failed with %s (%d)\n", __func__,
-              strerror(errno), errno);
-        abort();
-    }
+    uint32_t stride = bpp * width;
+    auto resource = mDevice->createResource(width, height, stride, stride * height, virtgpu_format,
+                                            PIPE_TEXTURE_2D, VIRGL_BIND_RENDER_TARGET);
 
-    return res_create.res_handle;
+    uint32_t handle = resource->getResourceHandle();
+    resource->intoRaw();
+    return handle;
 }
 
 int MinigbmGralloc::allocate(uint32_t width, uint32_t height, uint32_t format, uint64_t usage,
@@ -191,13 +95,22 @@ int MinigbmGralloc::lockPlanes(AHardwareBuffer* ahb, std::vector<LockedPlane>* a
 int MinigbmGralloc::unlock(AHardwareBuffer* ahb) { return AHardwareBuffer_unlock(ahb, nullptr); }
 
 uint32_t MinigbmGralloc::getHostHandle(const native_handle_t* handle) {
-    struct drm_virtgpu_resource_info info;
-    if (!getVirtioGpuResourceInfo(m_fd, handle, &info)) {
-        ALOGE("%s: failed to get resource info", __func__);
+    cros_gralloc_handle const* cros_handle = reinterpret_cast<cros_gralloc_handle const*>(handle);
+    struct VirtGpuExternalHandle hnd = {
+        .osHandle = dup(cros_handle->fds[0]),
+        .type = kMemHandleDmabuf,
+    };
+
+    auto resource = mDevice->importBlob(hnd);
+    if (!resource) {
         return 0;
     }
 
-    return info.res_handle;
+    if (resource->wait()) {
+        return 0;
+    }
+
+    return resource->getResourceHandle();
 }
 
 uint32_t MinigbmGralloc::getHostHandle(const AHardwareBuffer* ahb) {
@@ -241,12 +154,22 @@ uint32_t MinigbmGralloc::getHeight(const AHardwareBuffer* ahb) {
 }
 
 size_t MinigbmGralloc::getAllocatedSize(const native_handle_t* handle) {
-    struct drm_virtgpu_resource_info info;
-    if (!getVirtioGpuResourceInfo(m_fd, handle, &info)) {
-        ALOGE("%s: failed to get resource info\n", __func__);
+    cros_gralloc_handle const* cros_handle = reinterpret_cast<cros_gralloc_handle const*>(handle);
+    struct VirtGpuExternalHandle hnd = {
+        .osHandle = dup(cros_handle->fds[0]),
+        .type = kMemHandleDmabuf,
+    };
+
+    auto resource = mDevice->importBlob(hnd);
+    if (!resource) {
         return 0;
     }
-    return info.size;
+
+    if (resource->wait()) {
+        return 0;
+    }
+
+    return resource->getSize();
 }
 
 size_t MinigbmGralloc::getAllocatedSize(const AHardwareBuffer* ahb) {

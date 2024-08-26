@@ -44,6 +44,8 @@ uint32_t VirtGpuKumquatResource::getBlobHandle() const { return mBlobHandle; }
 
 uint32_t VirtGpuKumquatResource::getResourceHandle() const { return mResourceHandle; }
 
+uint64_t VirtGpuKumquatResource::getSize() const { return mSize; }
+
 VirtGpuResourceMappingPtr VirtGpuKumquatResource::createMapping() {
     int ret;
     struct drm_kumquat_map map {
