@@ -224,10 +224,7 @@ get_push_range_address(struct anv_cmd_buffer *cmd_buffer,
        * bytes should be all zeros.
        */
       assert(range->length * 32 <= 2048);
-      return (struct anv_address) {
-         .bo = cmd_buffer->device->workaround_bo,
-         .offset = 1024,
-      };
+      return cmd_buffer->device->workaround_address;
    }
    }
 }
@@ -387,10 +384,7 @@ emit_null_push_constant_tbimr_workaround(struct anv_cmd_buffer *cmd_buffer)
     * XXX - Use workaround infrastructure and final workaround
     *       when provided by hardware team.
     */
-   const struct anv_address null_addr = {
-      .bo = cmd_buffer->device->workaround_bo,
-      .offset = 1024,
-   };
+   const struct anv_address null_addr = cmd_buffer->device->workaround_address;
    uint32_t *dw = anv_batch_emitn(
       &cmd_buffer->batch, 4,
       GENX(3DSTATE_CONSTANT_ALL),
