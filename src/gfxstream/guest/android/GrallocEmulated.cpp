@@ -416,7 +416,7 @@ EmulatedGralloc::~EmulatedGralloc() {
 
 GrallocType EmulatedGralloc::getGrallocType() { return GRALLOC_TYPE_EMULATED; }
 
-uint32_t EmulatedGralloc::createColorBuffer(void*, int width, int height, uint32_t glFormat) {
+uint32_t EmulatedGralloc::createColorBuffer(int width, int height, uint32_t glFormat) {
     auto drmFormat = GlFormatToDrmFormat(glFormat);
     if (!drmFormat) {
         ALOGE("Unhandled format");

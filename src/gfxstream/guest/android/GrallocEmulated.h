@@ -69,7 +69,7 @@ class EmulatedGralloc : public Gralloc {
     ~EmulatedGralloc();
 
     GrallocType getGrallocType() override;
-    uint32_t createColorBuffer(void*, int width, int height, uint32_t glFormat) override;
+    uint32_t createColorBuffer(int width, int height, uint32_t glFormat) override;
 
     int allocate(uint32_t width, uint32_t height, uint32_t format, uint64_t usage,
                  AHardwareBuffer** outputAhb) override;
