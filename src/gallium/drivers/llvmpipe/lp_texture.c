@@ -765,6 +765,7 @@ llvmpipe_resource_from_handle(struct pipe_screen *_screen,
       assert(llvmpipe_resource_is_texture(&lpr->base));
    } else {
       whandle->size = lpr->size_required;
+      lpr->row_stride[0] = whandle->stride;
       lpr->backable = true;
    }
 
