@@ -526,6 +526,7 @@ struct lvp_pipeline {
    struct lvp_pipeline_layout *                 layout;
 
    enum lvp_pipeline_type type;
+   VkPipelineCreateFlags2KHR flags;
 
    void *state_data;
    bool force_min_sample;

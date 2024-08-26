@@ -768,6 +768,7 @@ lvp_graphics_pipeline_init(struct lvp_pipeline *pipeline,
                            VkPipelineCreateFlagBits2KHR flags)
 {
    pipeline->type = LVP_PIPELINE_GRAPHICS;
+   pipeline->flags = flags;
 
    VkResult result;
 
@@ -1054,8 +1055,10 @@ static VkResult
 lvp_compute_pipeline_init(struct lvp_pipeline *pipeline,
                           struct lvp_device *device,
                           struct lvp_pipeline_cache *cache,
-                          const VkComputePipelineCreateInfo *pCreateInfo)
+                          const VkComputePipelineCreateInfo *pCreateInfo,
+                          VkPipelineCreateFlagBits2KHR flags)
 {
+   pipeline->flags = flags;
    pipeline->device = device;
    pipeline->layout = lvp_pipeline_layout_from_handle(pCreateInfo->layout);
    vk_pipeline_layout_ref(&pipeline->layout->vk);
@@ -1097,7 +1100,7 @@ lvp_compute_pipeline_create(
    vk_object_base_init(&device->vk, &pipeline->base,
                        VK_OBJECT_TYPE_PIPELINE);
    uint64_t t0 = os_time_get_nano();
-   result = lvp_compute_pipeline_init(pipeline, device, cache, pCreateInfo);
+   result = lvp_compute_pipeline_init(pipeline, device, cache, pCreateInfo, flags);
    if (result != VK_SUCCESS) {
       vk_free(&device->vk.alloc, pipeline);
       return result;
@@ -1357,6 +1360,7 @@ lvp_exec_graph_pipeline_create(VkDevice _device, VkPipelineCache _cache,
    uint64_t t0 = os_time_get_nano();
 
    pipeline->type = LVP_PIPELINE_EXEC_GRAPH;
+   pipeline->flags = vk_graph_pipeline_create_flags(create_info);
    pipeline->layout = lvp_pipeline_layout_from_handle(create_info->layout);
 
    pipeline->exec_graph.scratch_size = 0;
