@@ -28,7 +28,7 @@ protected:
    nir_opt_loop_test();
 
    nir_deref_instr *add_loop_terminators(nir_if **term1, nir_if **term2,
-                                         bool deref_array);
+                                         bool break_in_else, bool deref_array);
    void create_loop_phis(nir_loop *loop, nir_if *term1, nir_if *term2,
                          nir_def *def1, nir_def *def2);
 
@@ -52,12 +52,16 @@ nir_opt_loop_test::nir_opt_loop_test()
 
 nir_deref_instr *
 nir_opt_loop_test::add_loop_terminators(nir_if **term1, nir_if **term2,
-                                        bool deref_array)
+                                        bool break_in_else, bool deref_array)
 {
    /* Add first terminator */
    nir_def *one = nir_imm_int(b, 1);
    nir_def *cmp_result = nir_ieq(b, in_def, one);
    nir_if *nif = nir_push_if(b, cmp_result);
+
+   if (break_in_else)
+      nir_push_else(b, nif);
+
    nir_jump(b, nir_jump_break);
    nir_pop_if(b, nif);
 
@@ -77,6 +81,10 @@ nir_opt_loop_test::add_loop_terminators(nir_if **term1, nir_if **term2,
    nir_def *two = nir_imm_int(b, 2);
    nir_def *cmp_result2 = nir_ieq(b, ubo_def, two);
    nir_if *nif2 = nir_push_if(b, cmp_result2);
+
+   if (break_in_else)
+      nir_push_else(b, nif2);
+
    nir_jump(b, nir_jump_break);
    nir_pop_if(b, nif2);
 
@@ -107,7 +115,7 @@ TEST_F(nir_opt_loop_test, opt_loop_merge_terminators_deref_after_first_if)
     */
    nir_loop *loop = nir_push_loop(b);
 
-   nir_deref_instr *deref = add_loop_terminators(NULL, NULL, false);
+   nir_deref_instr *deref = add_loop_terminators(NULL, NULL, false, false);
 
    /* Load from deref that will be moved inside the continue branch of the
     * first if-statements continue block. If not handled correctly during
@@ -131,7 +139,7 @@ TEST_F(nir_opt_loop_test, opt_loop_merge_terminators_deref_phi_index)
     */
    nir_loop *loop = nir_push_loop(b);
 
-   nir_deref_instr *deref = add_loop_terminators(NULL, NULL, true);
+   nir_deref_instr *deref = add_loop_terminators(NULL, NULL, false, true);
 
    /* Load from deref that will be moved inside the continue branch of the
     * first if-statements continue block. If not handled correctly during
@@ -160,7 +168,7 @@ TEST_F(nir_opt_loop_test, opt_loop_merge_terminators_skip_merge_if_phis)
 
    nir_if *term1;
    nir_if *term2;
-   add_loop_terminators(&term1, &term2, false);
+   add_loop_terminators(&term1, &term2, false, false);
 
    nir_pop_loop(b, loop);
 
@@ -188,7 +196,7 @@ TEST_F(nir_opt_loop_test, opt_loop_merge_terminators_skip_merge_if_phis_nested_l
 
    nir_if *term1;
    nir_if *term2;
-   add_loop_terminators(&term1, &term2, false);
+   add_loop_terminators(&term1, &term2, false, false);
 
    nir_pop_loop(b, loop);
 
