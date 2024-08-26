@@ -73,10 +73,10 @@ common_per_arch_files = [
   'panvk_vX_shader.c',
 ]
 
-foreach arch : [6, 7, 9, 10]
+foreach arch : [6, 7, 10]
   if arch in valhall_archs
     # We're lacking key components to compile common source files for v9/v10.
-    # Just add the v9/v10 entrypoints for now.
+    # Just add the v10 entrypoints for now.
     per_arch_files = [
       panvk_entrypoints[0],
       'panvk_vX_blend.c',
