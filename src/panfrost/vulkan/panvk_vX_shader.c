@@ -1323,6 +1323,55 @@ static const struct vk_shader_ops panvk_shader_ops = {
       panvk_shader_get_executable_internal_representations,
 };
 
+/* FIXME: make this unconditional when the CSF command buffer logic is
+ * implemented. */
+#if PAN_ARCH <= 7
+static void
+panvk_cmd_bind_shader(struct panvk_cmd_buffer *cmd, const gl_shader_stage stage,
+                      struct panvk_shader *shader)
+{
+   switch (stage) {
+   case MESA_SHADER_COMPUTE:
+      cmd->state.compute.shader = shader;
+      memset(&cmd->state.compute.cs.desc, 0,
+             sizeof(cmd->state.compute.cs.desc));
+      break;
+   case MESA_SHADER_VERTEX:
+      cmd->state.gfx.vs.shader = shader;
+      cmd->state.gfx.linked = false;
+      memset(&cmd->state.gfx.vs.desc, 0, sizeof(cmd->state.gfx.vs.desc));
+      break;
+   case MESA_SHADER_FRAGMENT:
+      cmd->state.gfx.fs.shader = shader;
+      cmd->state.gfx.linked = false;
+#if PAN_ARCH <= 7
+      cmd->state.gfx.fs.rsd = 0;
+#endif
+      memset(&cmd->state.gfx.fs.desc, 0, sizeof(cmd->state.gfx.fs.desc));
+      break;
+   default:
+      assert(!"Unsupported stage");
+      break;
+   }
+}
+
+static void
+panvk_cmd_bind_shaders(struct vk_command_buffer *vk_cmd, uint32_t stage_count,
+                       const gl_shader_stage *stages,
+                       struct vk_shader **const shaders)
+{
+   struct panvk_cmd_buffer *cmd =
+      container_of(vk_cmd, struct panvk_cmd_buffer, vk);
+
+   for (uint32_t i = 0; i < stage_count; i++) {
+      struct panvk_shader *shader =
+         container_of(shaders[i], struct panvk_shader, vk);
+
+      panvk_cmd_bind_shader(cmd, stages[i], shader);
+   }
+}
+#endif
+
 const struct vk_device_shader_ops panvk_per_arch(device_shader_ops) = {
    .get_nir_options = panvk_get_nir_options,
    .get_spirv_options = panvk_get_spirv_options,
@@ -1335,6 +1384,6 @@ const struct vk_device_shader_ops panvk_per_arch(device_shader_ops) = {
 /* FIXME: make the assignment unconditional when the CSF command buffer logic is
  * implemented. */
 #if PAN_ARCH <= 7
-   .cmd_bind_shaders = panvk_per_arch(cmd_bind_shaders),
+   .cmd_bind_shaders = panvk_cmd_bind_shaders,
 #endif
 };
