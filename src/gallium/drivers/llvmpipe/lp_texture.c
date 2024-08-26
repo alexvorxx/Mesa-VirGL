@@ -822,8 +822,9 @@ llvmpipe_resource_get_handle(struct pipe_screen *_screen,
             lpr->data = lpr->dmabuf_alloc->cpu_addr;
          /* reuse lavapipe codepath to handle destruction */
          lpr->backable = true;
+      } else {
+         whandle->handle = os_dupfd_cloexec(lpr->dmabuf_alloc->dmabuf_fd);
       }
-      whandle->handle = lpr->dmabuf_alloc->dmabuf_fd;
       whandle->modifier = DRM_FORMAT_MOD_LINEAR;
       whandle->stride = lpr->row_stride[0];
       return true;
