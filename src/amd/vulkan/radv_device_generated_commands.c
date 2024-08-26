@@ -116,16 +116,14 @@ radv_get_sequence_size_graphics(const struct radv_indirect_command_layout *layou
       *cmd_size += 3 * 4;
    }
 
-   if (layout->binds_index_buffer) {
-      /* Index type write (normal reg write) + index buffer base write (64-bits, but special packet
-       * so only 1 word overhead) + index buffer size (again, special packet so only 1 word
-       * overhead)
-       */
-      *cmd_size += (3 + 3 + 2) * 4;
-   }
-
    if (layout->indexed) {
       if (layout->binds_index_buffer) {
+         /* Index type write (normal reg write) + index buffer base write (64-bits, but special packet
+          * so only 1 word overhead) + index buffer size (again, special packet so only 1 word
+          * overhead)
+          */
+         *cmd_size += (3 + 3 + 2) * 4;
+
          /* userdata writes + instance count + indexed draw */
          *cmd_size += (5 + 2 + 5) * 4;
       } else {
@@ -2188,8 +2186,6 @@ radv_CreateIndirectCommandsLayoutNV(VkDevice _device, const VkIndirectCommandsLa
          unreachable("Unhandled token type");
       }
    }
-   if (!layout->indexed)
-      layout->binds_index_buffer = false;
 
    result = radv_create_dgc_pipeline(device, layout);
    if (result != VK_SUCCESS) {
