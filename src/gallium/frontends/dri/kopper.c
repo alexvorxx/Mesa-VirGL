@@ -38,7 +38,6 @@
 #include "dri_context.h"
 #include "dri_drawable.h"
 #include "dri_helpers.h"
-#include "loader_dri3_helper.h"
 
 #include <vulkan/vulkan.h>
 
@@ -50,6 +49,7 @@
 #include "util/libsync.h"
 #include <X11/Xlib-xcb.h>
 #include "drm-uapi/drm_fourcc.h"
+#include "loader_dri3_helper.h"
 #endif
 
 static struct dri_drawable *
