@@ -450,14 +450,51 @@ cs_now(void)
 {
    return (struct cs_async_op){
       .wait_mask = 0,
-      .signal_slot = 0,
+      .signal_slot = ~0,
    };
+}
+
+static inline bool
+cs_instr_is_asynchronous(enum mali_cs_opcode opcode, uint16_t wait_mask)
+{
+   switch (opcode) {
+   case MALI_CS_OPCODE_FLUSH_CACHE2:
+   case MALI_CS_OPCODE_FINISH_TILING:
+   case MALI_CS_OPCODE_LOAD_MULTIPLE:
+   case MALI_CS_OPCODE_STORE_MULTIPLE:
+   case MALI_CS_OPCODE_RUN_COMPUTE:
+   case MALI_CS_OPCODE_RUN_COMPUTE_INDIRECT:
+   case MALI_CS_OPCODE_RUN_FRAGMENT:
+   case MALI_CS_OPCODE_RUN_FULLSCREEN:
+   case MALI_CS_OPCODE_RUN_IDVS:
+   case MALI_CS_OPCODE_RUN_TILING:
+      /* Always asynchronous. */
+      return true;
+
+   case MALI_CS_OPCODE_FINISH_FRAGMENT:
+   case MALI_CS_OPCODE_SYNC_ADD32:
+   case MALI_CS_OPCODE_SYNC_SET32:
+   case MALI_CS_OPCODE_SYNC_ADD64:
+   case MALI_CS_OPCODE_SYNC_SET64:
+   case MALI_CS_OPCODE_STORE_STATE:
+   case MALI_CS_OPCODE_TRACE_POINT:
+   case MALI_CS_OPCODE_HEAP_OPERATION:
+      /* Asynchronous only if wait_mask != 0. */
+      return wait_mask != 0;
+
+   default:
+      return false;
+   }
 }
 
 #define cs_apply_async(I, async)                                               \
    do {                                                                        \
       I.wait_mask = async.wait_mask;                                           \
-      I.signal_slot = async.signal_slot;                                       \
+      I.signal_slot = cs_instr_is_asynchronous(I.opcode, I.wait_mask)          \
+                         ? async.signal_slot                                   \
+                         : 0;                                                  \
+      assert(I.signal_slot != ~0 ||                                            \
+             !"Can't use cs_now() on pure async instructions");                \
    } while (0)
 
 static inline void

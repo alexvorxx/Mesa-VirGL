@@ -167,7 +167,7 @@ csf_emit_batch_end(struct panfrost_batch *batch)
    struct cs_index flush_id = cs_reg32(b, 74);
    cs_move32_to(b, flush_id, 0);
    cs_flush_caches(b, MALI_CS_FLUSH_MODE_CLEAN, MALI_CS_FLUSH_MODE_CLEAN, true,
-                   flush_id, cs_now());
+                   flush_id, cs_defer(0, 0));
    cs_wait_slot(b, 0, false);
 
    /* Finish the command stream */
