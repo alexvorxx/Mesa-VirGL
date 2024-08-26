@@ -449,10 +449,6 @@ enum {
    DGC_USES_GRID_SIZE = DGC_USES_BASEINSTANCE, /* Mesh shader only */
 };
 
-enum {
-   DGC_DYNAMIC_STRIDE = 1u << 15,
-};
-
 struct dgc_cmdbuf {
    const struct radv_device *dev;
    const struct radv_indirect_command_layout *layout;
@@ -1439,6 +1435,7 @@ dgc_emit_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *pus
 static void
 dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo_bind_mask, nir_variable *upload_offset)
 {
+   const struct radv_indirect_command_layout *layout = cs->layout;
    const struct radv_device *device = cs->dev;
    const struct radv_physical_device *pdev = radv_device_physical(device);
    nir_builder *b = cs->b;
@@ -1470,11 +1467,13 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo
 
          nir_def *va = nir_pack_64_2x32(b, nir_trim_vector(b, stream_data, 2));
          nir_def *size = nir_channel(b, stream_data, 2);
-         nir_def *stride = nir_channel(b, stream_data, 3);
 
-         nir_def *dyn_stride = nir_test_mask(b, nir_channel(b, vbo_over_data, 0), DGC_DYNAMIC_STRIDE);
-         nir_def *old_stride = nir_ubfe_imm(b, nir_channel(b, nir_load_var(b, vbo_data), 1), 16, 14);
-         stride = nir_bcsel(b, dyn_stride, stride, old_stride);
+         nir_def *stride;
+         if (layout->vertex_dynamic_stride) {
+            stride = nir_channel(b, stream_data, 3);
+         } else {
+            stride = nir_ubfe_imm(b, nir_channel(b, nir_load_var(b, vbo_data), 1), 16, 14);
+         }
 
          nir_def *use_per_attribute_vb_descs = nir_test_mask(b, nir_channel(b, vbo_over_data, 0), 1u << 31);
          nir_variable *num_records =
@@ -2239,8 +2238,7 @@ radv_CreateIndirectCommandsLayoutNV(VkDevice _device, const VkIndirectCommandsLa
       case VK_INDIRECT_COMMANDS_TOKEN_TYPE_VERTEX_BUFFER_NV:
          layout->bind_vbo_mask |= 1u << pCreateInfo->pTokens[i].vertexBindingUnit;
          layout->vbo_offsets[pCreateInfo->pTokens[i].vertexBindingUnit] = pCreateInfo->pTokens[i].offset;
-         if (pCreateInfo->pTokens[i].vertexDynamicStride)
-            layout->vbo_offsets[pCreateInfo->pTokens[i].vertexBindingUnit] |= DGC_DYNAMIC_STRIDE;
+         layout->vertex_dynamic_stride = pCreateInfo->pTokens[i].vertexDynamicStride;
          break;
       case VK_INDIRECT_COMMANDS_TOKEN_TYPE_PUSH_CONSTANT_NV: {
          VK_FROM_HANDLE(radv_pipeline_layout, pipeline_layout, pCreateInfo->pTokens[i].pushconstantPipelineLayout);
