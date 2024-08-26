@@ -211,6 +211,7 @@ dEQP-VK.ubo.2_level_array.scalar.column_major_mat3.fragment
 dEQP-VK.ubo.3_level_array.std430.mat4x2.both_comp_access
 
 
+dynamic-dEQP-VK.renderpass2.fragment_density_map.2_views.render.non_divisible_density_size.2_samples.static_subsampled_1_2_multiviewport
 dynamic-dEQP-VK.renderpass2.fragment_density_map.2_views.render.non_divisible_density_size.2_samples.static_subsampled_2_1_multiviewport
 dynamic-dEQP-VK.renderpass2.fragment_density_map.2_views.render.non_divisible_density_size.2_samples.static_subsampled_2_2_multiviewport
 
