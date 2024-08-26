@@ -15,7 +15,6 @@
 #include "GrallocMinigbm.h"
 
 #include <cros_gralloc/cros_gralloc_handle.h>
-#include <log/log.h>
 #include <stdlib.h>
 #include <sys/user.h>
 #include <unistd.h>
@@ -25,6 +24,7 @@
 #include <cstring>
 
 #include "VirtGpu.h"
+#include "util/log.h"
 
 namespace gfxstream {
 
@@ -41,7 +41,7 @@ uint32_t MinigbmGralloc::createColorBuffer(int width, int height, uint32_t glfor
     uint32_t bpp = 0;
     switch (glformat) {
         case kGlRGB:
-            ALOGV("Note: egl wanted GL_RGB, still using RGBA");
+            mesa_logi("Note: egl wanted GL_RGB, still using RGBA");
             virtgpu_format = kVirglFormatRGBA;
             bpp = 4;
             break;
@@ -50,7 +50,7 @@ uint32_t MinigbmGralloc::createColorBuffer(int width, int height, uint32_t glfor
             bpp = 4;
             break;
         default:
-            ALOGV("Note: egl wanted 0x%x, still using RGBA", glformat);
+            mesa_logi("Note: egl wanted 0x%x, still using RGBA", glformat);
             virtgpu_format = kVirglFormatRGBA;
             bpp = 4;
             break;
@@ -88,7 +88,7 @@ int MinigbmGralloc::lock(AHardwareBuffer* ahb, uint8_t** ptr) {
 }
 
 int MinigbmGralloc::lockPlanes(AHardwareBuffer* ahb, std::vector<LockedPlane>* ahbPlanes) {
-    ALOGE("%s: unimplemented", __func__);
+    mesa_loge("%s: unimplemented", __func__);
     return -1;
 }
 

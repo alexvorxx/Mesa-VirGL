@@ -14,7 +14,7 @@
 
 #include "ANativeWindowEmulated.h"
 
-#include <log/log.h>
+#include "util/log.h"
 
 namespace gfxstream {
 
@@ -147,7 +147,7 @@ int EmulatedANativeWindowHelper::getFormat(EGLClientBuffer buffer, Gralloc* help
 }
 
 void EmulatedANativeWindowHelper::setSwapInterval(EGLNativeWindowType window, int interval) {
-    ALOGE("Unimplemented");
+    mesa_loge("Unimplemented");
     (void)window;
     (void)interval;
 }
@@ -181,7 +181,7 @@ EGLNativeWindowType EmulatedANativeWindowHelper::createNativeWindowForTesting(Gr
     for (int i = 0; i < 3; i++) {
         AHardwareBuffer* ahb = nullptr;
         if (gralloc->allocate(width, height, GFXSTREAM_AHB_FORMAT_R8G8B8A8_UNORM, -1, &ahb) != 0) {
-            ALOGE("Failed to allocate gralloc buffer.");
+            mesa_loge("Failed to allocate gralloc buffer.");
             return nullptr;
         }
         buffers.emplace_back(reinterpret_cast<EmulatedAHardwareBuffer*>(ahb));

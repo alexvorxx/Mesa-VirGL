@@ -54,7 +54,7 @@ FuchsiaVirtGpuDevice::FuchsiaVirtGpuDevice(enum VirtGpuCapset capset, magma_devi
             zx::vmo capset_info(buffer);
             zx_status_t status =
                 capset_info.read(&mCaps.vulkanCapset, /*offset=*/0, sizeof(struct vulkanCapset));
-            ALOGD("Got capset result, read status %d", status);
+            mesa_logi("Got capset result, read status %d", status);
         } else {
             mesa_loge("Query(%lu) failed: status %d, expected buffer result", query_id, status);
         }
@@ -112,12 +112,12 @@ VirtGpuDevice* osCreateVirtGpuDevice(enum VirtGpuCapset capset, int32_t descript
         return nullptr;
     }
 
-    ALOGD("Opened dir %s", kDevGpu);
+    mesa_logi("Opened dir %s", kDevGpu);
 
     VirtGpuDevice* gpu_device = nullptr;
 
     while ((de = os_readdir(dir)) != NULL) {
-        ALOGD("Got name %s", de->d_name);
+        mesa_logi("Got name %s", de->d_name);
 
         if (strcmp(de->d_name, ".") == 0) {
             continue;

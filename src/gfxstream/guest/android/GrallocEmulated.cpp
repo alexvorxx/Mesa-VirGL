@@ -14,12 +14,11 @@
 
 #include "GrallocEmulated.h"
 
-#include <cutils/log.h>
-
 #include <optional>
 #include <unordered_map>
 
 #include "drm_fourcc.h"
+#include "util/log.h"
 
 namespace gfxstream {
 namespace {
@@ -302,7 +301,7 @@ int EmulatedAHardwareBuffer::getAndroidFormat() const {
     const auto& formatInfosMap = GetDrmFormatInfoMap();
     auto formatInfoIt = formatInfosMap.find(mDrmFormat);
     if (formatInfoIt == formatInfosMap.end()) {
-        ALOGE("Unhandled DRM format:%u", mDrmFormat);
+        mesa_loge("Unhandled DRM format:%u", mDrmFormat);
         return -1;
     }
     const auto& formatInfo = formatInfoIt->second;
@@ -336,7 +335,7 @@ int EmulatedAHardwareBuffer::lock(uint8_t** ptr) {
     if (!mMapped) {
         mMapped = mResource->createMapping();
         if (!mMapped) {
-            ALOGE("Failed to lock EmulatedAHardwareBuffer: failed to create mapping.");
+            mesa_loge("Failed to lock EmulatedAHardwareBuffer: failed to create mapping.");
             return -1;
         }
 
@@ -358,7 +357,7 @@ int EmulatedAHardwareBuffer::lockPlanes(std::vector<Gralloc::LockedPlane>* ahbPl
     const auto& formatInfosMap = GetDrmFormatInfoMap();
     auto formatInfoIt = formatInfosMap.find(mDrmFormat);
     if (formatInfoIt == formatInfosMap.end()) {
-        ALOGE("Failed to lock: failed to find format info for drm format:%u", mDrmFormat);
+        mesa_loge("Failed to lock: failed to find format info for drm format:%u", mDrmFormat);
         return -1;
     }
     const auto& formatInfo = formatInfoIt->second;
@@ -398,7 +397,7 @@ int EmulatedAHardwareBuffer::lockPlanes(std::vector<Gralloc::LockedPlane>* ahbPl
 
 int EmulatedAHardwareBuffer::unlock() {
     if (!mMapped) {
-        ALOGE("Failed to unlock EmulatedAHardwareBuffer: never locked?");
+        mesa_loge("Failed to unlock EmulatedAHardwareBuffer: never locked?");
         return -1;
     }
     mResource->transferToHost(0, 0, mWidth, mHeight);
@@ -418,7 +417,7 @@ GrallocType EmulatedGralloc::getGrallocType() { return GRALLOC_TYPE_EMULATED; }
 uint32_t EmulatedGralloc::createColorBuffer(int width, int height, uint32_t glFormat) {
     auto drmFormat = GlFormatToDrmFormat(glFormat);
     if (!drmFormat) {
-        ALOGE("Unhandled format");
+        mesa_loge("Unhandled format");
         return -1;
     }
 
@@ -440,7 +439,7 @@ int EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint32_t ahbForma
 
     auto drmFormat = AhbToDrmFormat(ahbFormat);
     if (!drmFormat) {
-        ALOGE("Unhandled AHB format:%u", ahbFormat);
+        mesa_loge("Unhandled AHB format:%u", ahbFormat);
         return -1;
     }
 
@@ -453,12 +452,12 @@ int EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint32_t ahbForma
 }
 
 AHardwareBuffer* EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint32_t drmFormat) {
-    ALOGE("Allocating AHB w:%u, h:%u, format %u", width, height, drmFormat);
+    mesa_loge("Allocating AHB w:%u, h:%u, format %u", width, height, drmFormat);
 
     const auto& formatInfosMap = GetDrmFormatInfoMap();
     auto formatInfoIt = formatInfosMap.find(drmFormat);
     if (formatInfoIt == formatInfosMap.end()) {
-        ALOGE("Failed to allocate: failed to find format info for drm format:%u", drmFormat);
+        mesa_loge("Failed to allocate: failed to find format info for drm format:%u", drmFormat);
         return nullptr;
     }
     const auto& formatInfo = formatInfoIt->second;
@@ -486,7 +485,7 @@ AHardwareBuffer* EmulatedGralloc::allocate(uint32_t width, uint32_t height, uint
     auto resource = mDevice->createResource(width, height, stride, size, formatInfo.virglFormat,
                                             PIPE_TEXTURE_2D, bind);
     if (!resource) {
-        ALOGE("Failed to allocate: failed to create virtio resource.");
+        mesa_loge("Failed to allocate: failed to create virtio resource.");
         return nullptr;
     }
 
@@ -561,12 +560,12 @@ uint32_t EmulatedGralloc::getHeight(const AHardwareBuffer* handle) {
 }
 
 size_t EmulatedGralloc::getAllocatedSize(const native_handle_t*) {
-    ALOGE("Unimplemented.");
+    mesa_loge("Unimplemented.");
     return 0;
 }
 
 size_t EmulatedGralloc::getAllocatedSize(const AHardwareBuffer*) {
-    ALOGE("Unimplemented.");
+    mesa_loge("Unimplemented.");
     return 0;
 }
 
