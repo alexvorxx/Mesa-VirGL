@@ -35,11 +35,4 @@ panvk_cmd_prepare_push_uniforms(struct pan_pool *desc_pool_base,
    return push_uniforms.gpu;
 }
 
-static inline void
-panvk_cmd_push_constants(struct panvk_push_constant_state *push,
-                         const VkPushConstantsInfoKHR *info)
-{
-   memcpy(push->data + info->offset, info->pValues, info->size);
-}
-
 #endif
