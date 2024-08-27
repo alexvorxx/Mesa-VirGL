@@ -200,34 +200,7 @@ get_preferred_block(nir_def *def, bool sink_out_of_loops)
    nir_block *lca = NULL;
 
    nir_foreach_use_including_if(use, def) {
-      nir_block *use_block;
-
-      if (nir_src_is_if(use)) {
-         use_block =
-            nir_cf_node_as_block(nir_cf_node_prev(&nir_src_parent_if(use)->cf_node));
-      } else {
-         nir_instr *instr = nir_src_parent_instr(use);
-         use_block = instr->block;
-
-         /*
-          * Kind of an ugly special-case, but phi instructions
-          * need to appear first in the block, so by definition
-          * we can't move an instruction into a block where it is
-          * consumed by a phi instruction.  We could conceivably
-          * move it into a dominator block.
-          */
-         if (instr->type == nir_instr_type_phi) {
-            nir_phi_instr *phi = nir_instr_as_phi(instr);
-            nir_block *phi_lca = NULL;
-            nir_foreach_phi_src(src, phi) {
-               if (&src->src == use)
-                  phi_lca = nir_dominance_lca(phi_lca, src->pred);
-            }
-            use_block = phi_lca;
-         }
-      }
-
-      lca = nir_dominance_lca(lca, use_block);
+      lca = nir_dominance_lca(lca, nir_src_get_block(use));
    }
 
    /* return in case, we didn't find a reachable user */

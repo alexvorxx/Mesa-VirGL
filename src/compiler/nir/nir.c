@@ -1480,6 +1480,17 @@ nir_src_is_always_uniform(nir_src src)
    return false;
 }
 
+nir_block *
+nir_src_get_block(nir_src *src)
+{
+   if (nir_src_is_if(src))
+      return nir_cf_node_cf_tree_prev(&nir_src_parent_if(src)->cf_node);
+   else if (nir_src_parent_instr(src)->type == nir_instr_type_phi)
+      return list_entry(src, nir_phi_src, src)->pred;
+   else
+      return nir_src_parent_instr(src)->block;
+}
+
 static void
 src_remove_all_uses(nir_src *src)
 {
