@@ -195,7 +195,6 @@ debian-build-testing:
     GALLIUM_ST: >
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
-      -D gallium-omx=bellagio
       -D gallium-va=enabled
       -D gallium-xa=enabled
       -D gallium-nine=false
@@ -251,7 +250,6 @@ debian-release:
     GALLIUM_ST: >
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
-      -D gallium-omx=disabled
       -D gallium-va=enabled
       -D gallium-xa=enabled
       -D gallium-nine=false
@@ -295,7 +293,6 @@ alpine-build-testing:
     GALLIUM_ST: >
       -D gallium-extra-hud=true
       -D gallium-vdpau=disabled
-      -D gallium-omx=disabled
       -D gallium-va=enabled
       -D gallium-xa=disabled
       -D gallium-nine=true
@@ -346,7 +343,6 @@ fedora-release:
     GALLIUM_ST: >
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
-      -D gallium-omx=disabled
       -D gallium-va=enabled
       -D gallium-xa=enabled
       -D gallium-nine=false
@@ -397,7 +393,6 @@ debian-android:
       -D intel-clc=system
     GALLIUM_ST: >
       -D gallium-vdpau=disabled
-      -D gallium-omx=disabled
       -D gallium-va=disabled
       -D gallium-xa=disabled
       -D gallium-nine=false
@@ -440,7 +435,6 @@ debian-android:
       -D osmesa=false
     GALLIUM_ST: >
       -D gallium-vdpau=disabled
-      -D gallium-omx=disabled
       -D gallium-va=disabled
       -D gallium-xa=disabled
       -D gallium-nine=false
@@ -598,7 +592,6 @@ debian-clang:
     GALLIUM_ST: >
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
-      -D gallium-omx=bellagio
       -D gallium-va=enabled
       -D gallium-xa=enabled
       -D gallium-nine=true
@@ -636,7 +629,6 @@ debian-clang-release:
     GALLIUM_ST: >
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
-      -D gallium-omx=bellagio
       -D gallium-va=enabled
       -D gallium-xa=enabled
       -D gallium-nine=true
@@ -682,7 +674,6 @@ debian-vulkan:
       -D osmesa=false
     GALLIUM_ST: >
       -D gallium-vdpau=disabled
-      -D gallium-omx=disabled
       -D gallium-va=disabled
       -D gallium-xa=disabled
       -D gallium-nine=false
