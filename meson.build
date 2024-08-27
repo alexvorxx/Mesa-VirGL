@@ -642,85 +642,6 @@ if prog_glslang.found()
   endif
 endif
 
-dep_xv = null_dep
-_omx = get_option('gallium-omx')
-if not system_has_kms_drm
-  if ['auto', 'disabled'].contains(_omx)
-    _omx = 'disabled'
-  else
-    error('OMX state tracker can only be built on unix-like OSes.')
-  endif
-elif not (with_gallium_r600 or with_gallium_radeonsi or with_gallium_nouveau)
-  if ['auto', 'disabled'].contains(_omx)
-    _omx = 'disabled'
-  else
-    error('OMX state tracker requires at least one of the following gallium drivers: r600, radeonsi, nouveau.')
-  endif
-endif
-with_gallium_omx = _omx
-dep_omx = null_dep
-dep_omx_other = []
-if ['auto', 'bellagio'].contains(_omx)
-  dep_omx = dependency(
-    'libomxil-bellagio', required : _omx == 'bellagio'
-  )
-  if dep_omx.found()
-    with_gallium_omx = 'bellagio'
-  endif
-endif
-if ['auto', 'tizonia'].contains(_omx)
-  if with_dri and with_egl
-    dep_omx = dependency(
-      'libtizonia', version : '>= 0.10.0',
-      required : _omx == 'tizonia',
-    )
-    dep_omx_other = [
-      dependency('libtizplatform', required : _omx == 'tizonia'),
-      dependency('tizilheaders', required : _omx == 'tizonia'),
-    ]
-    if dep_omx.found() and dep_omx_other[0].found() and dep_omx_other[1].found()
-      with_gallium_omx = 'tizonia'
-    endif
-  elif _omx == 'tizonia'
-    error('OMX-Tizonia state tracker requires dri and egl')
-  endif
-endif
-if _omx == 'auto'
-  with_gallium_omx = 'disabled'
-else
-  with_gallium_omx = _omx
-endif
-
-pre_args += '-DENABLE_ST_OMX_BELLAGIO=@0@'.format((with_gallium_omx == 'bellagio').to_int())
-pre_args += '-DENABLE_ST_OMX_TIZONIA=@0@'.format((with_gallium_omx == 'tizonia').to_int())
-
-
-omx_drivers_path = get_option('omx-libs-path')
-
-if with_gallium_omx != 'disabled'
-  # Figure out where to put the omx driver.
-  # FIXME: this could all be vastly simplified by adding a 'defined_variable'
-  # argument to meson's get_variable method.
-  if omx_drivers_path == ''
-    _omx_libdir = dep_omx.get_variable(pkgconfig : 'libdir')
-    _omx_drivers_dir = dep_omx.get_variable(pkgconfig : 'pluginsdir')
-    if _omx_libdir == get_option('libdir')
-      omx_drivers_path = _omx_drivers_dir
-    else
-      _omx_base_dir = []
-      # This will fail on windows. Does OMX run on windows?
-      _omx_libdir = _omx_libdir.split('/')
-      _omx_drivers_dir = _omx_drivers_dir.split('/')
-      foreach o : _omx_drivers_dir
-        if not _omx_libdir.contains(o)
-          _omx_base_dir += o
-        endif
-      endforeach
-      omx_drivers_path = join_paths(get_option('libdir'), _omx_base_dir)
-    endif
-  endif
-endif
-
 _va_drivers = [
   with_gallium_d3d12_video,
   with_gallium_nouveau,
@@ -2164,8 +2085,7 @@ if with_platform_x11
     dep_x11 = dependency('x11')
   endif
   if (with_any_vk or with_glx == 'dri' or with_egl or
-       (with_gallium_vdpau or with_gallium_va or
-        with_gallium_omx != 'disabled'))
+       (with_gallium_vdpau or with_gallium_va))
     dep_xcb = dependency('xcb')
     dep_xcb_keysyms = dependency('xcb-keysyms', required : false)
     with_xcb_keysyms = dep_xcb_keysyms.found()
@@ -2205,8 +2125,7 @@ if with_platform_x11
   endif
   if (with_egl or
       with_any_vk or
-      with_gallium_vdpau or with_gallium_xa or
-      with_gallium_omx != 'disabled')
+      with_gallium_vdpau or with_gallium_xa)
     dep_xcb_xfixes = dependency('xcb-xfixes')
   endif
   if with_xlib_lease or with_any_vk
@@ -2437,9 +2356,6 @@ endif
 if with_gallium_xa
   video_apis += 'xa'
 endif
-if with_gallium_omx != 'disabled'
-  video_apis += 'omx'
-endif
 video_summary += {'APIs': video_apis.length() != 0 ? video_apis : false}
 summary(video_summary, section: 'Video', bool_yn: true, list_sep: ' ')
 
@@ -2460,9 +2376,6 @@ if with_gallium
   endif
   if with_gallium_vdpau
     gallium_frontends += 'vdpau'
-  endif
-  if with_gallium_omx != 'disabled'
-    gallium_frontends += 'omx' + with_gallium_omx
   endif
   if with_gallium_va
     gallium_frontends += 'va'
