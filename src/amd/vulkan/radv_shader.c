@@ -331,7 +331,7 @@ radv_shader_spirv_to_nir(struct radv_device *device, const struct radv_shader_st
 
       bool dump_meta = instance->debug_flags & RADV_DEBUG_DUMP_META_SHADERS;
       if ((instance->debug_flags & RADV_DEBUG_DUMP_SPIRV) && (!is_internal || dump_meta))
-         radv_print_spirv(stage->spirv.data, stage->spirv.size, stderr);
+         spirv_print_asm(stderr, (const uint32_t *)stage->spirv.data, stage->spirv.size / 4);
 
       uint32_t num_spec_entries = 0;
       struct nir_spirv_specialization *spec_entries = vk_spec_info_to_nir_spirv(stage->spec_info, &num_spec_entries);

@@ -27,6 +27,7 @@
 #include "radv_pipeline_rt.h"
 #include "radv_shader.h"
 #include "sid.h"
+#include "spirv/nir_spirv.h"
 
 #define TMA_BO_SIZE 4096
 
@@ -389,7 +390,7 @@ radv_dump_shader(struct radv_device *device, struct radv_pipeline *pipeline, str
       _mesa_sha1_format(sha1buf, sha1);
 
       if (device->vk.enabled_features.deviceFaultVendorBinary) {
-         radv_print_spirv(shader->spirv, shader->spirv_size, f);
+         spirv_print_asm(f, (const uint32_t *)shader->spirv, shader->spirv_size / 4);
       } else {
          fprintf(f, "SPIRV (see %s.spv)\n\n", sha1buf);
          radv_dump_spirv(shader, sha1buf, dump_dir);
@@ -869,32 +870,6 @@ radv_check_gpu_hangs(struct radv_queue *queue, const struct radv_winsys_submit_i
 
 #endif
    return VK_ERROR_DEVICE_LOST;
-}
-
-void
-radv_print_spirv(const char *data, uint32_t size, FILE *fp)
-{
-#ifndef _WIN32
-   char path[] = "/tmp/fileXXXXXX";
-   char command[128];
-   int fd;
-
-   /* Dump the binary into a temporary file. */
-   fd = mkstemp(path);
-   if (fd < 0)
-      return;
-
-   if (write(fd, data, size) == -1)
-      goto fail;
-
-   /* Disassemble using spirv-dis if installed. */
-   sprintf(command, "spirv-dis %s", path);
-   radv_dump_cmd(command, fp);
-
-fail:
-   close(fd);
-   unlink(path);
-#endif
 }
 
 bool
