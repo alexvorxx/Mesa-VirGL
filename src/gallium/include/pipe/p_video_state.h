@@ -538,9 +538,6 @@ struct pipe_h264_enc_rate_control
    unsigned vbv_buf_lv;
    unsigned vbv_buf_initial_size;
    bool app_requested_hrd_buffer;
-   unsigned target_bits_picture;
-   unsigned peak_bits_picture_integer;
-   unsigned peak_bits_picture_fraction;
    unsigned fill_data_enable;
    unsigned skip_frame_enable;
    unsigned enforce_hrd;
@@ -1143,9 +1140,6 @@ struct pipe_h265_enc_rate_control
    unsigned vbv_buf_lv;
    unsigned vbv_buf_initial_size;
    bool app_requested_hrd_buffer;
-   unsigned target_bits_picture;
-   unsigned peak_bits_picture_integer;
-   unsigned peak_bits_picture_fraction;
    unsigned fill_data_enable;
    unsigned skip_frame_enable;
    unsigned enforce_hrd;
@@ -1225,9 +1219,6 @@ struct pipe_av1_enc_rate_control
    unsigned vbv_buf_lv;
    unsigned vbv_buf_initial_size;
    bool app_requested_hrd_buffer;
-   unsigned target_bits_picture;
-   unsigned peak_bits_picture_integer;
-   unsigned peak_bits_picture_fraction;
    unsigned fill_data_enable;
    unsigned skip_frame_enable;
    unsigned enforce_hrd;

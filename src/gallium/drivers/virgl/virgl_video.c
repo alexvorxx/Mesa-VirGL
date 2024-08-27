@@ -229,9 +229,6 @@ static int fill_h264_enc_picture_desc(const struct pipe_picture_desc *desc,
         ITEM_SET(vh264, h264, rate_ctrl[i].frame_rate_den);
         ITEM_SET(vh264, h264, rate_ctrl[i].vbv_buffer_size);
         ITEM_SET(vh264, h264, rate_ctrl[i].vbv_buf_lv);
-        ITEM_SET(vh264, h264, rate_ctrl[i].target_bits_picture);
-        ITEM_SET(vh264, h264, rate_ctrl[i].peak_bits_picture_integer);
-        ITEM_SET(vh264, h264, rate_ctrl[i].peak_bits_picture_fraction);
         ITEM_SET(vh264, h264, rate_ctrl[i].fill_data_enable);
         ITEM_SET(vh264, h264, rate_ctrl[i].skip_frame_enable);
         ITEM_SET(vh264, h264, rate_ctrl[i].enforce_hrd);
@@ -479,9 +476,6 @@ static int fill_h265_enc_picture_desc(const struct pipe_picture_desc *desc,
     vh265->rc.quant_b_frames = h265->rc[0].quant_b_frames;
     vh265->rc.vbv_buffer_size = h265->rc[0].vbv_buffer_size;
     vh265->rc.vbv_buf_lv = h265->rc[0].vbv_buf_lv;
-    vh265->rc.target_bits_picture = h265->rc[0].target_bits_picture;
-    vh265->rc.peak_bits_picture_integer = h265->rc[0].peak_bits_picture_integer;
-    vh265->rc.peak_bits_picture_fraction = h265->rc[0].peak_bits_picture_fraction;
     vh265->rc.fill_data_enable = h265->rc[0].fill_data_enable;
     vh265->rc.skip_frame_enable = h265->rc[0].skip_frame_enable;
     vh265->rc.enforce_hrd = h265->rc[0].enforce_hrd;
