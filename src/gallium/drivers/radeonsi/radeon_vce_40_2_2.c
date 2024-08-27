@@ -59,7 +59,7 @@ static void create(struct rvce_encoder *enc)
    RVCE_BEGIN(0x01000001);                                            // create cmd
    RVCE_CS(0x00000000);                                               // encUseCircularBuffer
    RVCE_CS(u_get_h264_profile_idc(enc->base.profile));                // encProfile
-   RVCE_CS(enc->base.level);                                          // encLevel
+   RVCE_CS(enc->pic.seq.level_idc);                                   // encLevel
    RVCE_CS(0x00000000);                                               // encPicStructRestriction
    RVCE_CS(enc->base.width);                                          // encImageWidth
    RVCE_CS(enc->base.height);                                         // encImageHeight
