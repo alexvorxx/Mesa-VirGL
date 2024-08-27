@@ -786,6 +786,8 @@ anv_sparse_bind_trtt(struct anv_device *device,
          result = anv_trtt_bind_add(device, trtt_addr, dest_addr,
                                     l3l2_binds, &n_l3l2_binds,
                                     l1_binds, &n_l1_binds);
+         if (result != VK_SUCCESS)
+            goto error_stack_arrays;
       }
    }
 
@@ -795,14 +797,12 @@ anv_sparse_bind_trtt(struct anv_device *device,
    /* Convert the L3/L2/L1 TRTT page table updates in anv_trtt_bind elements
     * into MI commands.
     */
-   if (result == VK_SUCCESS) {
-      sparse_debug("trtt_binds: num_vm_binds:%02d l3l2:%04d l1:%04d\n",
-                   sparse_submit->binds_len, n_l3l2_binds, n_l1_binds);
+   sparse_debug("trtt_binds: num_vm_binds:%02d l3l2:%04d l1:%04d\n",
+                sparse_submit->binds_len, n_l3l2_binds, n_l1_binds);
 
-      if (n_l3l2_binds || n_l1_binds) {
-         anv_genX(device->info, write_trtt_entries)(
-            &submit->base, l3l2_binds, n_l3l2_binds, l1_binds, n_l1_binds);
-      }
+   if (n_l3l2_binds || n_l1_binds) {
+      anv_genX(device->info, write_trtt_entries)(
+         &submit->base, l3l2_binds, n_l3l2_binds, l1_binds, n_l1_binds);
    }
 
    STACK_ARRAY_FINISH(l1_binds);
@@ -847,6 +847,9 @@ anv_sparse_bind_trtt(struct anv_device *device,
 
    return VK_SUCCESS;
 
+ error_stack_arrays:
+   STACK_ARRAY_FINISH(l1_binds);
+   STACK_ARRAY_FINISH(l3l2_binds);
  error_add_bind:
    simple_mtx_unlock(&trtt->mutex);
    anv_async_submit_fini(&submit->base);
