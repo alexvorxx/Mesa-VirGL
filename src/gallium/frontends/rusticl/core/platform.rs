@@ -33,6 +33,7 @@ pub struct PlatformDebug {
     pub perf: PerfDebugLevel,
     pub program: bool,
     pub max_grid_size: u64,
+    pub reuse_context: bool,
     pub sync_every_event: bool,
     pub validate_spirv: bool,
 }
@@ -80,6 +81,7 @@ static mut PLATFORM_DBG: PlatformDebug = PlatformDebug {
     perf: PerfDebugLevel::None,
     program: false,
     max_grid_size: 0,
+    reuse_context: true,
     sync_every_event: false,
     validate_spirv: false,
 };
@@ -96,6 +98,7 @@ fn load_env() {
             match flag {
                 "allow_invalid_spirv" => debug.allow_invalid_spirv = true,
                 "clc" => debug.clc = true,
+                "no_reuse_context" => debug.reuse_context = false,
                 "perf" => debug.perf = PerfDebugLevel::Once,
                 "perfspam" => debug.perf = PerfDebugLevel::Spam,
                 "program" => debug.program = true,

@@ -46,6 +46,7 @@ pub struct Device {
     pub lib_clc: NirShader,
     pub caps: DeviceCaps,
     helper_ctx: Mutex<PipeContext>,
+    reusable_ctx: Mutex<Vec<PipeContext>>,
 }
 
 #[derive(Default)]
@@ -216,6 +217,7 @@ impl Device {
             clc_features: Vec::new(),
             formats: HashMap::new(),
             lib_clc: lib_clc?,
+            reusable_ctx: Mutex::new(Vec::new()),
         };
 
         // check if we are embedded or full profile first
@@ -984,8 +986,24 @@ impl Device {
         })
     }
 
+    fn reusable_ctx(&self) -> MutexGuard<Vec<PipeContext>> {
+        self.reusable_ctx.lock().unwrap()
+    }
+
     pub fn screen(&self) -> &Arc<PipeScreen> {
         &self.screen
+    }
+
+    pub fn create_context(&self) -> Option<PipeContext> {
+        self.reusable_ctx()
+            .pop()
+            .or_else(|| self.screen.create_context())
+    }
+
+    pub fn recycle_context(&self, ctx: PipeContext) {
+        if Platform::dbg().reuse_context {
+            self.reusable_ctx().push(ctx);
+        }
     }
 
     pub fn subgroup_sizes(&self) -> Vec<usize> {
