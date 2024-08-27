@@ -397,6 +397,7 @@ fedora/x86_64_build:
 .firmware:
   variables:
     FIRMWARE_FILES: |
+      src/intel/ci/mtl-fw.json
 
 .kernel+rootfs:
   extends:
