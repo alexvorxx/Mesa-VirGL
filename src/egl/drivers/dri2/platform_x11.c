@@ -1840,7 +1840,7 @@ dri2_initialize_x11_swrast(_EGLDisplay *disp)
    if (!dri2_create_screen(disp))
       goto cleanup;
 
-   if (!dri2_setup_device(disp, disp->Options.ForceSoftware)) {
+   if (!dri2_setup_device(disp, disp->Options.ForceSoftware || dri2_dpy->kopper_without_modifiers)) {
       _eglError(EGL_NOT_INITIALIZED, "DRI2: failed to setup EGLDevice");
       goto cleanup;
    }
