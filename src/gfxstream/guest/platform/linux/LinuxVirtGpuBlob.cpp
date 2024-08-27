@@ -22,9 +22,9 @@
 #include <cerrno>
 #include <cstring>
 
-#include "util/log.h"
 #include "LinuxVirtGpu.h"
-#include "virtgpu_drm.h"
+#include "drm-uapi/virtgpu_drm.h"
+#include "util/log.h"
 
 LinuxVirtGpuResource::LinuxVirtGpuResource(int64_t deviceHandle, uint32_t blobHandle,
                                            uint32_t resourceHandle, uint64_t size)

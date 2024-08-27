@@ -17,6 +17,7 @@
 #include <sys/mman.h>
 
 #include "LinuxVirtGpu.h"
+#include "drm-uapi/virtgpu_drm.h"
 
 LinuxVirtGpuResourceMapping::LinuxVirtGpuResourceMapping(VirtGpuResourcePtr blob, uint8_t* ptr,
                                                          uint64_t size)
