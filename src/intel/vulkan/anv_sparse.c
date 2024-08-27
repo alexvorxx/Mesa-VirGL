@@ -742,11 +742,6 @@ anv_sparse_bind_trtt(struct anv_device *device,
 
    anv_sparse_trtt_garbage_collect_batches(device, false);
 
-   submit->base.signal = (struct vk_sync_signal) {
-      .sync = trtt->timeline,
-      .signal_value = ++trtt->timeline_val,
-   };
-
    /* These capacities are conservative estimations. For L1 binds the
     * number will match exactly unless we skip NULL binds due to L2 already
     * being NULL. For L3/L2 things are harder to estimate, but the resulting
@@ -832,15 +827,21 @@ anv_sparse_bind_trtt(struct anv_device *device,
       }
    }
 
+   submit->base.signal = (struct vk_sync_signal) {
+      .sync = trtt->timeline,
+      .signal_value = ++trtt->timeline_val,
+   };
+
    result =
       device->kmd_backend->queue_exec_async(&submit->base,
                                             sparse_submit->wait_count,
                                             sparse_submit->waits,
                                             sparse_submit->signal_count,
                                             sparse_submit->signals);
-   if (result != VK_SUCCESS)
+   if (result != VK_SUCCESS) {
+      trtt->timeline_val--;
       goto out_add_bind;
-
+   }
 
    list_addtail(&submit->link, &trtt->in_flight_batches);
 
