@@ -470,6 +470,8 @@ fs_visitor::init()
 
    this->grf_used = 0;
    this->spilled_any_registers = false;
+
+   this->phase = BRW_SHADER_PHASE_INITIAL;
 }
 
 fs_visitor::~fs_visitor()

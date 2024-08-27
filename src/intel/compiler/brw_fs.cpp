@@ -1691,6 +1691,8 @@ brw_allocate_registers(fs_visitor &s, bool allow_spilling)
 
    s.debug_optimizer(nir, "lowered_vgrfs_to_fixed_grfs", 96, 3);
 
+   brw_shader_phase_update(s, BRW_SHADER_PHASE_AFTER_REGALLOC);
+
    if (s.last_scratch > 0) {
       /* We currently only support up to 2MB of scratch space.  If we
        * need to support more eventually, the documentation suggests
@@ -1874,6 +1876,14 @@ brw_cs_get_dispatch_info(const struct intel_device_info *devinfo,
       info.right_mask = ~0u >> (32 - info.simd_size);
 
    return info;
+}
+
+void
+brw_shader_phase_update(fs_visitor &s, enum brw_shader_phase phase)
+{
+   assert(phase == s.phase + 1);
+   s.phase = phase;
+   brw_fs_validate(s);
 }
 
 bool brw_should_print_shader(const nir_shader *shader, uint64_t debug_flag)

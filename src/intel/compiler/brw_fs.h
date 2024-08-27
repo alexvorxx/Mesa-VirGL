@@ -257,6 +257,16 @@ enum instruction_scheduler_mode {
 
 class instruction_scheduler;
 
+enum brw_shader_phase {
+   BRW_SHADER_PHASE_INITIAL = 0,
+   BRW_SHADER_PHASE_AFTER_NIR,
+   BRW_SHADER_PHASE_AFTER_OPT_LOOP,
+   BRW_SHADER_PHASE_AFTER_EARLY_LOWERING,
+   BRW_SHADER_PHASE_AFTER_MIDDLE_LOWERING,
+   BRW_SHADER_PHASE_AFTER_LATE_LOWERING,
+   BRW_SHADER_PHASE_AFTER_REGALLOC,
+};
+
 /**
  * The fragment shader front-end.
  *
@@ -364,6 +374,8 @@ public:
    brw_reg outputs[VARYING_SLOT_MAX];
    brw_reg dual_src_output;
    int first_non_payload_grf;
+
+   enum brw_shader_phase phase;
 
    bool failed;
    char *fail_msg;
@@ -593,6 +605,8 @@ int brw_get_subgroup_id_param_index(const intel_device_info *devinfo,
                                     const brw_stage_prog_data *prog_data);
 
 void nir_to_brw(fs_visitor *s);
+
+void brw_shader_phase_update(fs_visitor &s, enum brw_shader_phase phase);
 
 #ifndef NDEBUG
 void brw_fs_validate(const fs_visitor &s);

@@ -8432,4 +8432,6 @@ nir_to_brw(fs_visitor *s)
    ntb.bld.emit(SHADER_OPCODE_HALT_TARGET);
 
    ralloc_free(ntb.mem_ctx);
+
+   brw_shader_phase_update(*s, BRW_SHADER_PHASE_AFTER_NIR);
 }

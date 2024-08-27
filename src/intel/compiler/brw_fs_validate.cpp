@@ -179,6 +179,9 @@ brw_fs_validate(const fs_visitor &s)
 {
    const intel_device_info *devinfo = s.devinfo;
 
+   if (s.phase <= BRW_SHADER_PHASE_AFTER_NIR)
+      return;
+
    s.cfg->validate(_mesa_shader_stage_to_abbrev(s.stage));
 
    foreach_block_and_inst (block, fs_inst, inst, s.cfg) {
