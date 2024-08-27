@@ -4917,26 +4917,49 @@ VkResult ResourceTracker::on_vkWaitForFences(void* context, VkResult, VkDevice d
     } else {
         // Depending on wait any or wait all,
         // schedule a wait group with waitAny/waitAll
+        std::vector<WorkPool::Task> tasks;
+
         mesa_logd("%s: scheduling ext waits\n", __func__);
 
         for (auto fd : fencesExternalWaitFds) {
             mesa_logd("%s: wait on %d\n", __func__, fd);
-            auto* syncHelper =
-                ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
-            syncHelper->wait(fd, 3000);
-            mesa_logd("done waiting on fd %d\n", fd);
+            tasks.push_back([fd] {
+                auto* syncHelper =
+                    ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
+                syncHelper->wait(fd, 3000);
+                mesa_logd("done waiting on fd %d\n", fd);
+            });
         }
 
         if (!fencesNonExternal.empty()) {
-            auto hostConn = ResourceTracker::threadingCallbacks.hostConnectionGetFunc();
-            auto vkEncoder = ResourceTracker::threadingCallbacks.vkEncoderGetFunc(hostConn);
-            mesa_logd("%s: vkWaitForFences to host\n", __func__);
-            return vkEncoder->vkWaitForFences(device, fencesNonExternal.size(),
-                                              fencesNonExternal.data(), waitAll, timeout,
-                                              true /* do lock */);
+            tasks.push_back(
+                [this, fencesNonExternal /* copy of vector */, device, waitAll, timeout] {
+                    auto hostConn = ResourceTracker::threadingCallbacks.hostConnectionGetFunc();
+                    auto vkEncoder = ResourceTracker::threadingCallbacks.vkEncoderGetFunc(hostConn);
+                    mesa_logd("%s: vkWaitForFences to host\n", __func__);
+                    vkEncoder->vkWaitForFences(device, fencesNonExternal.size(),
+                                               fencesNonExternal.data(), waitAll, timeout,
+                                               true /* do lock */);
+                });
         }
 
-        return VK_SUCCESS;
+        auto waitGroupHandle = mWorkPool.schedule(tasks);
+
+        // Convert timeout to microseconds from nanoseconds
+        bool waitRes = false;
+        if (waitAll) {
+            waitRes = mWorkPool.waitAll(waitGroupHandle, timeout / 1000);
+        } else {
+            waitRes = mWorkPool.waitAny(waitGroupHandle, timeout / 1000);
+        }
+
+        if (waitRes) {
+            mesa_logd("%s: VK_SUCCESS\n", __func__);
+            return VK_SUCCESS;
+        } else {
+            mesa_loge("%s: VK_TIMEOUT\n", __func__);
+            return VK_TIMEOUT;
+        }
     }
 #else
     return enc->vkWaitForFences(device, fenceCount, pFences, waitAll, timeout, true /* do lock */);
@@ -6119,6 +6142,9 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
         // Schedule waits on the OS external objects and
         // signal the wait semaphores
         // in a separate thread.
+        std::vector<WorkPool::Task> preSignalTasks;
+        std::vector<WorkPool::Task> preSignalQueueSubmitTasks;
+        ;
 #ifdef VK_USE_PLATFORM_FUCHSIA
         for (auto event : pre_signal_events) {
             preSignalTasks.push_back([event] {
@@ -6131,12 +6157,19 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
             // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkImportSemaphoreFdInfoKHR.html
             // fd == -1 is treated as already signaled
             if (fd != -1) {
-                auto* syncHelper =
-                    ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
-                syncHelper->wait(fd, 3000);
+                preSignalTasks.push_back([fd] {
+                    auto* syncHelper =
+                        ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
+                    syncHelper->wait(fd, 3000);
+                });
             }
         }
 #endif
+        if (!preSignalTasks.empty()) {
+            auto waitGroupHandle = mWorkPool.schedule(preSignalTasks);
+            mWorkPool.waitAll(waitGroupHandle);
+        }
+
         // Use the old version of VkSubmitInfo
         VkSubmitInfo submit_info = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -6164,9 +6197,13 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
     }
 #endif
     if (externalFenceFdToSignal >= 0 || !post_wait_events.empty() || !post_wait_sync_fds.empty()) {
-        auto hostConn = ResourceTracker::threadingCallbacks.hostConnectionGetFunc();
-        auto vkEncoder = ResourceTracker::threadingCallbacks.vkEncoderGetFunc(hostConn);
-        auto waitIdleRes = vkEncoder->vkQueueWaitIdle(queue, true /* do lock */);
+        std::vector<WorkPool::Task> tasks;
+
+        tasks.push_back([queue, externalFenceFdToSignal, post_wait_events /* copy of zx handles */,
+                         post_wait_sync_fds /* copy of sync fds */] {
+            auto hostConn = ResourceTracker::threadingCallbacks.hostConnectionGetFunc();
+            auto vkEncoder = ResourceTracker::threadingCallbacks.vkEncoderGetFunc(hostConn);
+            auto waitIdleRes = vkEncoder->vkQueueWaitIdle(queue, true /* do lock */);
 #ifdef VK_USE_PLATFORM_FUCHSIA
             MESA_TRACE_SCOPE("on_vkQueueSubmit::SignalSemaphores");
             (void)externalFenceFdToSignal;
@@ -6191,12 +6228,31 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
                 goldfish_sync_signal(externalFenceFdToSignal);
             }
 #endif
+        });
+        auto queueAsyncWaitHandle = mWorkPool.schedule(tasks);
+        auto& queueWorkItems = mQueueSensitiveWorkPoolItems[queue];
+        queueWorkItems.push_back(queueAsyncWaitHandle);
     }
     return VK_SUCCESS;
 }
 
 VkResult ResourceTracker::on_vkQueueWaitIdle(void* context, VkResult, VkQueue queue) {
     VkEncoder* enc = (VkEncoder*)context;
+
+    std::unique_lock<std::recursive_mutex> lock(mLock);
+    std::vector<WorkPool::WaitGroupHandle> toWait = mQueueSensitiveWorkPoolItems[queue];
+    mQueueSensitiveWorkPoolItems[queue].clear();
+    lock.unlock();
+
+    if (toWait.empty()) {
+        mesa_logd("%s: No queue-specific work pool items\n", __func__);
+        return enc->vkQueueWaitIdle(queue, true /* do lock */);
+    }
+
+    for (auto handle : toWait) {
+        mesa_logd("%s: waiting on work group item: %llu\n", __func__, (unsigned long long)handle);
+        mWorkPool.waitAll(handle);
+    }
 
     // now done waiting, get the host's opinion
     return enc->vkQueueWaitIdle(queue, true /* do lock */);
