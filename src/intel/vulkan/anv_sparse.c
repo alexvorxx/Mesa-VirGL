@@ -404,67 +404,6 @@ trtt_get_page_table_bo(struct anv_device *device, struct anv_bo **bo,
    return VK_SUCCESS;
 }
 
-static VkResult
-anv_trtt_init_queues_state(struct anv_device *device)
-{
-   struct anv_trtt *trtt = &device->trtt;
-
-   struct anv_bo *l3_bo;
-   VkResult result = trtt_get_page_table_bo(device, &l3_bo, &trtt->l3_addr);
-   if (result != VK_SUCCESS)
-      return result;
-
-   trtt->l3_mirror = vk_zalloc(&device->vk.alloc, 4096, 8,
-                                VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
-   if (!trtt->l3_mirror)
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
-
-   /* L3 has 512 entries, so we can have up to 512 L2 tables. */
-   trtt->l2_mirror = vk_zalloc(&device->vk.alloc, 512 * 4096, 8,
-                               VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
-   if (!trtt->l2_mirror) {
-      vk_free(&device->vk.alloc, trtt->l3_mirror);
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
-   }
-
-   struct anv_async_submit submits[device->queue_count];
-   int submits_used = 0;
-   for (uint32_t i = 0; i < device->queue_count; i++) {
-      struct anv_queue *q = &device->queues[i];
-
-      result = anv_async_submit_init(&submits[submits_used], q,
-                                     &device->batch_bo_pool, false, true);
-      if (result != VK_SUCCESS)
-         break;
-
-      struct anv_async_submit *submit = &submits[submits_used++];
-
-      result = anv_genX(device->info, init_trtt_context_state)(submit);
-      if (result != VK_SUCCESS) {
-         anv_async_submit_fini(submit);
-         submits_used--;
-         break;
-      }
-
-      anv_genX(device->info, async_submit_end)(submit);
-
-      result = device->kmd_backend->queue_exec_async(submit, 0, NULL, 1,
-                                                     &submit->signal);
-      if (result != VK_SUCCESS) {
-         anv_async_submit_fini(submit);
-         submits_used--;
-         break;
-      }
-   }
-
-   for (uint32_t i = 0; i < submits_used; i++) {
-      anv_async_submit_wait(&submits[i]);
-      anv_async_submit_fini(&submits[i]);
-   }
-
-   return result;
-}
-
 /* For L3 and L2 pages, null and invalid entries are indicated by bits 1 and 0
  * respectively. For L1 entries, the hardware compares the addresses against
  * what we program to the GFX_TRTT_NULL and GFX_TRTT_INVAL registers.
@@ -678,13 +617,67 @@ anv_trtt_first_bind_init(struct anv_device *device)
    simple_mtx_lock(&trtt->mutex);
 
    /* This means we have already initialized the first bind. */
-   if (likely(trtt->l3_addr))
-      goto out;
+   if (likely(trtt->l3_addr)) {
+      simple_mtx_unlock(&trtt->mutex);
+      return VK_SUCCESS;
+   }
 
-   result = anv_trtt_init_queues_state(device);
+   struct anv_async_submit submits[device->queue_count];
+
+   struct anv_bo *l3_bo;
+   result = trtt_get_page_table_bo(device, &l3_bo, &trtt->l3_addr);
    if (result != VK_SUCCESS)
       goto out;
-   assert(trtt->l3_addr);
+
+   trtt->l3_mirror = vk_zalloc(&device->vk.alloc, 4096, 8,
+                                VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+   if (!trtt->l3_mirror) {
+      result = vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      goto out;
+   }
+
+   /* L3 has 512 entries, so we can have up to 512 L2 tables. */
+   trtt->l2_mirror = vk_zalloc(&device->vk.alloc, 512 * 4096, 8,
+                               VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+   if (!trtt->l2_mirror) {
+      vk_free(&device->vk.alloc, trtt->l3_mirror);
+      result = vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      goto out;
+   }
+
+   int submits_used = 0;
+   for (uint32_t i = 0; i < device->queue_count; i++) {
+      struct anv_queue *q = &device->queues[i];
+
+      result = anv_async_submit_init(&submits[submits_used], q,
+                                     &device->batch_bo_pool, false, true);
+      if (result != VK_SUCCESS)
+         break;
+
+      struct anv_async_submit *submit = &submits[submits_used++];
+
+      result = anv_genX(device->info, init_trtt_context_state)(submit);
+      if (result != VK_SUCCESS) {
+         anv_async_submit_fini(submit);
+         submits_used--;
+         break;
+      }
+
+      anv_genX(device->info, async_submit_end)(submit);
+
+      result = device->kmd_backend->queue_exec_async(submit, 0, NULL, 1,
+                                                     &submit->signal);
+      if (result != VK_SUCCESS) {
+         anv_async_submit_fini(submit);
+         submits_used--;
+         break;
+      }
+   }
+
+   for (uint32_t i = 0; i < submits_used; i++) {
+      anv_async_submit_wait(&submits[i]);
+      anv_async_submit_fini(&submits[i]);
+   }
 
 out:
    simple_mtx_unlock(&trtt->mutex);
