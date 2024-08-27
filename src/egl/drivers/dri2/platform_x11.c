@@ -1795,7 +1795,7 @@ dri2_x11_check_multibuffers(_EGLDisplay *disp)
 
    if (disp->Options.Zink && !disp->Options.ForceSoftware &&
        !dri2_dpy->multibuffers_available &&
-       !debug_get_bool_option("LIBGL_KOPPER_DRI2", false))
+       !dri2_dpy->kopper_without_modifiers)
       return EGL_FALSE;
 #endif
 
@@ -1820,7 +1820,7 @@ dri2_initialize_x11_swrast(_EGLDisplay *disp)
 #ifdef HAVE_DRI3
    if (disp->Options.Zink &&
        !debug_get_bool_option("LIBGL_DRI3_DISABLE", false) &&
-       !debug_get_bool_option("LIBGL_KOPPER_DRI2", false))
+       !dri2_dpy->kopper_without_modifiers)
       dri3_x11_connect(dri2_dpy, disp->Options.Zink, disp->Options.ForceSoftware);
 #endif
    if (!dri2_load_driver(disp))

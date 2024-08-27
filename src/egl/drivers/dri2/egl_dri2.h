@@ -258,6 +258,7 @@ struct dri2_egl_display {
    bool own_device;
    bool invalidate_available;
    bool kopper;
+   bool kopper_without_modifiers;
    bool swrast;
    bool swrast_not_kms;
    int min_swap_interval;
