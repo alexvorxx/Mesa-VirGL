@@ -353,21 +353,6 @@ shader_module_compile_to_nir(struct v3dv_device *device,
 
    gl_shader_stage gl_stage = broadcom_shader_stage_to_gl(stage->stage);
 
-   if (V3D_DBG(DUMP_SPIRV)) {
-      char *spirv_data = NULL;
-      uint32_t spirv_size = 0;
-      if (stage->module != NULL && !stage->module->nir) {
-         spirv_data = (char *) stage->module->data;
-         spirv_size = stage->module->size;
-      } else if (stage->module_info) {
-         spirv_data = (char *) stage->module_info->pCode;
-         spirv_size = stage->module_info->codeSize;
-      }
-
-      if (spirv_data)
-         v3dv_print_spirv(spirv_data, spirv_size, stderr);
-   }
-
    const VkPipelineShaderStageCreateInfo stage_info = {
       .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
       .pNext = !stage->module ? stage->module_info : NULL,
