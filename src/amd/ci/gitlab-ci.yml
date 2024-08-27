@@ -331,6 +331,8 @@ vkd3d-tahiti-valve:
     - .radv-valve-manual-rules
   variables:
     GPU_VERSION: radv-tahiti
+    # Random tests fail/crash when trying to run them in parallel
+    FDO_CI_CONCURRENT: 1
 
 vkd3d-polaris10-valve:
   extends:
@@ -340,6 +342,8 @@ vkd3d-polaris10-valve:
     - .radv-valve-manual-rules
   variables:
     GPU_VERSION: radv-polaris10
+    # Random tests fail/crash when trying to run them in parallel
+    FDO_CI_CONCURRENT: 1
 
 vkd3d-vega10-valve:
   extends:
@@ -349,6 +353,8 @@ vkd3d-vega10-valve:
     - .radv-valve-manual-rules
   variables:
     GPU_VERSION: radv-vega10
+    # Random tests fail/crash when trying to run them in parallel
+    FDO_CI_CONCURRENT: 1
 
 vkd3d-renoir-valve:
   extends:
@@ -358,6 +364,8 @@ vkd3d-renoir-valve:
     - .radv-valve-manual-rules
   variables:
     GPU_VERSION: radv-renoir
+    # Random tests fail/crash when trying to run them in parallel
+    FDO_CI_CONCURRENT: 1
 
 vkd3d-navi10-valve:
   extends:
@@ -367,6 +375,8 @@ vkd3d-navi10-valve:
     - .radv-valve-manual-rules
   variables:
     GPU_VERSION: radv-navi10
+    # Random tests fail/crash when trying to run them in parallel
+    FDO_CI_CONCURRENT: 1
 
 vkd3d-navi21-valve:
   extends:
@@ -376,6 +386,8 @@ vkd3d-navi21-valve:
     - .radv-valve-manual-rules
   variables:
     GPU_VERSION: radv-navi21
+    # Random tests fail/crash when trying to run them in parallel
+    FDO_CI_CONCURRENT: 1
 
 vkd3d-vangogh-valve:
   extends:
@@ -385,6 +397,8 @@ vkd3d-vangogh-valve:
     - .radv-valve-manual-rules
   variables:
     GPU_VERSION: radv-vangogh
+    # Random tests fail/crash when trying to run them in parallel
+    FDO_CI_CONCURRENT: 1
 
 vkd3d-navi31-valve:
   extends:
@@ -394,3 +408,5 @@ vkd3d-navi31-valve:
     - .radv-valve-manual-rules
   variables:
     GPU_VERSION: radv-navi31
+    # Random tests fail/crash when trying to run them in parallel
+    FDO_CI_CONCURRENT: 1

@@ -23,3 +23,5 @@ nvk-ga106-vkd3d-valve:
     HWCI_TEST_SCRIPT: install/vkd3d-runner.sh
     B2C_TIMEOUT_BOOT_MINUTES: 10
     B2C_TIMEOUT_OVERALL_MINUTES: 12
+    # Random tests fail/crash when trying to run them in parallel
+    FDO_CI_CONCURRENT: 1
