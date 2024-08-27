@@ -635,12 +635,15 @@ anv_sparse_trtt_garbage_collect_batches(struct anv_device *device,
    return VK_SUCCESS;
 }
 
+/* There are lots of applications that request for sparse binding to be
+ * enabled but never use it, so we choose to delay the initialization of TR-TT
+ * until the moment we know we're going to need it.
+ */
 static VkResult
-anv_sparse_bind_trtt(struct anv_device *device,
-                     struct anv_sparse_submission *sparse_submit)
+anv_trtt_first_bind_init(struct anv_device *device)
 {
    struct anv_trtt *trtt = &device->trtt;
-   VkResult result;
+   VkResult result = VK_SUCCESS;
 
    /* TR-TT submission needs a queue even when the API entry point doesn't
     * provide one, such as resource creation. We pick this queue from the user
@@ -660,7 +663,7 @@ anv_sparse_bind_trtt(struct anv_device *device,
     * TODO: be fully spec-compliant here. Maybe have a device-internal queue
     * independent of the application's queues for the TR-TT operations.
     */
-   if (!trtt->queue) {
+   if (unlikely(!trtt->queue)) {
       static bool warned = false;
       if (unlikely(!warned)) {
          fprintf(stderr, "FIXME: application has created a sparse resource "
@@ -671,6 +674,38 @@ anv_sparse_bind_trtt(struct anv_device *device,
       }
       return VK_SUCCESS;
    }
+
+   simple_mtx_lock(&trtt->mutex);
+
+   /* This means we have already initialized the first bind. */
+   if (likely(trtt->l3_addr))
+      goto out;
+
+   result = anv_trtt_init_queues_state(device);
+   if (result != VK_SUCCESS)
+      goto out;
+   assert(trtt->l3_addr);
+
+out:
+   simple_mtx_unlock(&trtt->mutex);
+   return result;
+}
+
+static VkResult
+anv_sparse_bind_trtt(struct anv_device *device,
+                     struct anv_sparse_submission *sparse_submit)
+{
+   struct anv_trtt *trtt = &device->trtt;
+   VkResult result;
+
+   result = anv_trtt_first_bind_init(device);
+   if (result != VK_SUCCESS)
+      return result;
+
+   /* See the same check at anv_trtt_first_bind_init(). */
+   if (unlikely(!trtt->queue))
+      return VK_SUCCESS;
+
    if (!sparse_submit->queue)
       sparse_submit->queue = trtt->queue;
 
@@ -694,16 +729,6 @@ anv_sparse_bind_trtt(struct anv_device *device,
       .sync = trtt->timeline,
       .signal_value = ++trtt->timeline_val,
    };
-
-   /* If the TRTT L3 table was never set, initialize it as part of this
-    * submission.
-    */
-   if (!trtt->l3_addr) {
-      result = anv_trtt_init_queues_state(device);
-      if (result != VK_SUCCESS)
-         goto error_add_bind;
-   }
-   assert(trtt->l3_addr);
 
    /* These capacities are conservative estimations. For L1 binds the
     * number will match exactly unless we skip NULL binds due to L2 already
