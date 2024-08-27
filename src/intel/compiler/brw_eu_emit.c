@@ -1817,6 +1817,10 @@ gfx12_set_memory_fence_message(struct brw_codegen *p,
 
    brw_inst_set_sfid(p->devinfo, insn, sfid);
 
+   /* On Gfx12.5 URB is not listed as port usable for fences with the LSC (see
+    * BSpec 53578 for Gfx12.5, BSpec 57330 for Gfx20), so we completely ignore
+    * the descriptor value and rebuild a legacy URB fence descriptor.
+    */
    if (sfid == BRW_SFID_URB && p->devinfo->ver < 20) {
       brw_set_desc(p, insn, brw_urb_fence_desc(p->devinfo) |
                             brw_message_desc(p->devinfo, mlen, rlen, true));
