@@ -713,7 +713,7 @@ struct pipe_h264_enc_slice_param
    int32_t slice_beta_offset_div2;
 };
 
-struct pipe_h265_enc_dpb_entry
+struct pipe_h264_enc_dpb_entry
 {
    uint32_t id;
    uint32_t frame_idx;
@@ -788,7 +788,7 @@ struct pipe_h264_enc_picture_desc
       uint32_t value;
    } header_flags;
 
-   struct pipe_h265_enc_dpb_entry dpb[PIPE_H264_MAX_DPB_SIZE];
+   struct pipe_h264_enc_dpb_entry dpb[PIPE_H264_MAX_DPB_SIZE];
    uint8_t dpb_size;
    uint8_t dpb_curr_pic; /* index in dpb */
    uint8_t ref_list0[PIPE_H264_MAX_NUM_LIST_REF]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
@@ -1101,7 +1101,7 @@ struct pipe_h265_enc_rate_control
    unsigned vbr_quality_factor;
 };
 
-struct pipe_h264_enc_dpb_entry
+struct pipe_h265_enc_dpb_entry
 {
    uint32_t id;
    uint32_t pic_order_cnt;
@@ -1160,7 +1160,7 @@ struct pipe_h265_enc_picture_desc
    struct pipe_enc_hdr_cll metadata_hdr_cll;
    struct pipe_enc_hdr_mdcv metadata_hdr_mdcv;
 
-   struct pipe_h264_enc_dpb_entry dpb[PIPE_H265_MAX_DPB_SIZE];
+   struct pipe_h265_enc_dpb_entry dpb[PIPE_H265_MAX_DPB_SIZE];
    uint8_t dpb_size;
    uint8_t dpb_curr_pic; /* index in dpb */
    uint8_t ref_list0[PIPE_H265_MAX_NUM_LIST_REF]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
