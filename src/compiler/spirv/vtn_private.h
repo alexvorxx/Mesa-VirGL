@@ -36,11 +36,7 @@
 
 extern uint32_t mesa_spirv_debug;
 
-#ifndef NDEBUG
 #define MESA_SPIRV_DEBUG(flag) unlikely(mesa_spirv_debug & (MESA_SPIRV_DEBUG_ ## flag))
-#else
-#define MESA_SPIRV_DEBUG(flag) false
-#endif
 
 #define MESA_SPIRV_DEBUG_STRUCTURED     (1u << 0)
 #define MESA_SPIRV_DEBUG_VALUES         (1u << 1)

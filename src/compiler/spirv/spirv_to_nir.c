@@ -199,7 +199,6 @@ static const struct spirv_capabilities implemented_capabilities = {
    .WorkgroupMemoryExplicitLayout16BitAccessKHR = true,
 };
 
-#ifndef NDEBUG
 uint32_t mesa_spirv_debug = 0;
 
 static const struct debug_named_value mesa_spirv_debug_control[] = {
@@ -226,6 +225,7 @@ mesa_spirv_debug_init(void)
    call_once(&initialized_debug_flag, initialize_mesa_spirv_debug);
 }
 
+#ifndef NDEBUG
 static enum nir_spirv_debug_level
 vtn_default_log_level(void)
 {
@@ -6845,9 +6845,7 @@ spirv_to_nir(const uint32_t *words, size_t word_count,
              const nir_shader_compiler_options *nir_options)
 
 {
-#ifndef NDEBUG
    mesa_spirv_debug_init();
-#endif
 
    const uint32_t *word_end = words + word_count;
 
