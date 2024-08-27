@@ -1893,10 +1893,6 @@ optimizations.extend([
    (('bfi', 0xffff0000, ('pack_half_2x16_split', a, b), ('pack_half_2x16_split', c, d)),
     ('pack_half_2x16_split', c, a)),
 
-   # Part of the BFI operation is src2&~src0. This expands to (b & 3) & ~0xc
-   # which is (b & 3) & 3.
-   (('bfi', 0x0000000c, a, ('iand', b, 3)), ('bfi', 0x0000000c, a, b)),
-
    # The important part here is that ~0xf & 0xfffffffc = ~0xf.
    (('iand', ('bfi', 0x0000000f, '#a', b), 0xfffffffc),
     ('bfi', 0x0000000f, ('iand', a, 0xfffffffc), b)),
