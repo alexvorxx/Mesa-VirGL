@@ -391,11 +391,18 @@ fedora/x86_64_build:
   needs:
     - fedora/x86_64_build
 
+# Get firmware directly rather than using package versions.
+# Change KERNEL_ROOTFS_TAG to add firmware changes.
+# FIRMWARE_FILES is a list of json files arranged by vendor in src/**/ci/
+.firmware:
+  variables:
+    FIRMWARE_FILES: |
 
 .kernel+rootfs:
   extends:
     - .container+build-rules
     - .debian-container-version
+    - .firmware
   stage: container
   timeout: 90m
   variables:

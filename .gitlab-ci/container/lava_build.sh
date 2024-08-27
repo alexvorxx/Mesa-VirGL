@@ -11,6 +11,7 @@ set -o xtrace
 
 export DEBIAN_FRONTEND=noninteractive
 export LLVM_VERSION="${LLVM_VERSION:=15}"
+export FIRMWARE_FILES="${FIRMWARE_FILES}"
 
 check_minio()
 {
@@ -120,6 +121,7 @@ CONTAINER_EPHEMERAL=(
     mmdebstrap
     git
     glslang-tools
+    jq
     libdrm-dev
     libegl1-mesa-dev
     libxext-dev
@@ -168,7 +170,7 @@ apt-get install -y --no-remove \
                    "${CONTAINER_ARCH_PACKAGES[@]}" \
                    ${EXTRA_LOCAL_PACKAGES}
 
-ROOTFS=/lava-files/rootfs-${DEBIAN_ARCH}
+export ROOTFS=/lava-files/rootfs-${DEBIAN_ARCH}
 mkdir -p "$ROOTFS"
 
 # rootfs packages
@@ -236,6 +238,7 @@ mmdebstrap \
     --variant=apt \
     --arch="${DEBIAN_ARCH}" \
     --components main,contrib,non-free-firmware \
+    --customize-hook='.gitlab-ci/container/get-firmware-from-source.sh "$ROOTFS" "$FIRMWARE_FILES"' \
     --include "${PKG_BASE[*]} ${PKG_CI[*]} ${PKG_DEP[*]} ${PKG_MESA_DEP[*]} ${PKG_ARCH[*]}" \
     bookworm \
     "$ROOTFS/" \
