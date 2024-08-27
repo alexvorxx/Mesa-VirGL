@@ -265,6 +265,9 @@ enum brw_shader_phase {
    BRW_SHADER_PHASE_AFTER_MIDDLE_LOWERING,
    BRW_SHADER_PHASE_AFTER_LATE_LOWERING,
    BRW_SHADER_PHASE_AFTER_REGALLOC,
+
+   /* Larger value than any other phase. */
+   BRW_SHADER_PHASE_INVALID,
 };
 
 /**

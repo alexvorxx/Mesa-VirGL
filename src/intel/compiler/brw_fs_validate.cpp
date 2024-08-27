@@ -174,6 +174,84 @@ validate_memory_logical(const fs_visitor &s, const fs_inst *inst)
    }
 }
 
+static const char *
+brw_shader_phase_to_string(enum brw_shader_phase phase)
+{
+   switch (phase) {
+   case BRW_SHADER_PHASE_INITIAL:               return "INITIAL";
+   case BRW_SHADER_PHASE_AFTER_NIR:             return "AFTER_NIR";
+   case BRW_SHADER_PHASE_AFTER_OPT_LOOP:        return "AFTER_OPT_LOOP";
+   case BRW_SHADER_PHASE_AFTER_EARLY_LOWERING:  return "AFTER_EARLY_LOWERING";
+   case BRW_SHADER_PHASE_AFTER_MIDDLE_LOWERING: return "AFTER_MIDDLE_LOWERING";
+   case BRW_SHADER_PHASE_AFTER_LATE_LOWERING:   return "AFTER_LATE_LOWERING";
+   case BRW_SHADER_PHASE_AFTER_REGALLOC:        return "AFTER_REGALLOC";
+   case BRW_SHADER_PHASE_INVALID:               break;
+   }
+   unreachable("invalid_phase");
+   return NULL;
+}
+
+static void
+brw_validate_instruction_phase(const fs_visitor &s, fs_inst *inst)
+{
+   enum brw_shader_phase invalid_from = BRW_SHADER_PHASE_INVALID;
+
+   switch (inst->opcode) {
+   case FS_OPCODE_FB_WRITE_LOGICAL:
+   case FS_OPCODE_FB_READ_LOGICAL:
+   case SHADER_OPCODE_TEX_LOGICAL:
+   case SHADER_OPCODE_TXD_LOGICAL:
+   case SHADER_OPCODE_TXF_LOGICAL:
+   case SHADER_OPCODE_TXL_LOGICAL:
+   case SHADER_OPCODE_TXS_LOGICAL:
+   case SHADER_OPCODE_IMAGE_SIZE_LOGICAL:
+   case FS_OPCODE_TXB_LOGICAL:
+   case SHADER_OPCODE_TXF_CMS_W_LOGICAL:
+   case SHADER_OPCODE_TXF_CMS_W_GFX12_LOGICAL:
+   case SHADER_OPCODE_TXF_MCS_LOGICAL:
+   case SHADER_OPCODE_LOD_LOGICAL:
+   case SHADER_OPCODE_TG4_LOGICAL:
+   case SHADER_OPCODE_TG4_BIAS_LOGICAL:
+   case SHADER_OPCODE_TG4_EXPLICIT_LOD_LOGICAL:
+   case SHADER_OPCODE_TG4_IMPLICIT_LOD_LOGICAL:
+   case SHADER_OPCODE_TG4_OFFSET_LOGICAL:
+   case SHADER_OPCODE_TG4_OFFSET_LOD_LOGICAL:
+   case SHADER_OPCODE_TG4_OFFSET_BIAS_LOGICAL:
+   case SHADER_OPCODE_SAMPLEINFO_LOGICAL:
+   case SHADER_OPCODE_GET_BUFFER_SIZE:
+   case SHADER_OPCODE_MEMORY_LOAD_LOGICAL:
+   case SHADER_OPCODE_MEMORY_STORE_LOGICAL:
+   case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
+   case FS_OPCODE_VARYING_PULL_CONSTANT_LOAD_LOGICAL:
+   case FS_OPCODE_INTERPOLATE_AT_SAMPLE:
+   case FS_OPCODE_INTERPOLATE_AT_SHARED_OFFSET:
+   case FS_OPCODE_INTERPOLATE_AT_PER_SLOT_OFFSET:
+   case SHADER_OPCODE_BTD_SPAWN_LOGICAL:
+   case SHADER_OPCODE_BTD_RETIRE_LOGICAL:
+   case RT_OPCODE_TRACE_RAY_LOGICAL:
+   case SHADER_OPCODE_URB_READ_LOGICAL:
+   case SHADER_OPCODE_URB_WRITE_LOGICAL:
+      invalid_from = BRW_SHADER_PHASE_AFTER_EARLY_LOWERING;
+      break;
+
+   case SHADER_OPCODE_LOAD_PAYLOAD:
+      invalid_from = BRW_SHADER_PHASE_AFTER_MIDDLE_LOWERING;
+      break;
+
+   default:
+      /* Nothing to do. */
+      break;
+   }
+
+   assert(s.phase < BRW_SHADER_PHASE_INVALID);
+   if (s.phase >= invalid_from) {
+      fprintf(stderr, "INVALID INSTRUCTION IN PHASE: %s\n",
+              brw_shader_phase_to_string(s.phase));
+      brw_print_instruction(s, inst, stderr);
+      abort();
+   }
+}
+
 void
 brw_fs_validate(const fs_visitor &s)
 {
@@ -185,6 +263,8 @@ brw_fs_validate(const fs_visitor &s)
    s.cfg->validate(_mesa_shader_stage_to_abbrev(s.stage));
 
    foreach_block_and_inst (block, fs_inst, inst, s.cfg) {
+      brw_validate_instruction_phase(s, inst);
+
       switch (inst->opcode) {
       case SHADER_OPCODE_SEND:
          fsv_assert(is_uniform(inst->src[0]) && is_uniform(inst->src[1]));
