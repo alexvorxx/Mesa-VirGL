@@ -705,6 +705,9 @@ anv_trtt_first_bind_init(struct anv_device *device)
    }
 
 out:
+   if (result != VK_SUCCESS)
+      trtt->l3_addr = 0;
+
    simple_mtx_unlock(&trtt->mutex);
    return result;
 }
