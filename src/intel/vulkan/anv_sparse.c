@@ -663,6 +663,31 @@ anv_trtt_first_bind_init(struct anv_device *device)
          break;
       }
 
+      /* We only need to do this once, so pick the first queue. */
+      if (i == 0) {
+         struct anv_trtt_bind entries[512];
+         uint32_t entries_added = 0;
+
+         for (int entry = 0; entry < 512; entry++) {
+            trtt->l3_mirror[entry] = ANV_TRTT_L3L2_NULL_ENTRY;
+            anv_trtt_bind_list_add_entry(entries, &entries_added,
+                                         trtt->l3_addr +
+                                         entry * sizeof(uint64_t),
+                                         ANV_TRTT_L3L2_NULL_ENTRY);
+         }
+
+         assert(entries_added == 512);
+         anv_genX(device->info, write_trtt_entries)(submit, entries, 512,
+                                                    NULL, 0);
+
+         result = anv_reloc_list_add_bo(&submit->relocs, l3_bo);
+         if (result != VK_SUCCESS) {
+            anv_async_submit_fini(submit);
+            submits_used--;
+            break;
+         }
+      }
+
       anv_genX(device->info, async_submit_end)(submit);
 
       result = device->kmd_backend->queue_exec_async(submit, 0, NULL, 1,
@@ -690,10 +715,6 @@ anv_sparse_bind_trtt(struct anv_device *device,
 {
    struct anv_trtt *trtt = &device->trtt;
    VkResult result;
-
-   result = anv_trtt_first_bind_init(device);
-   if (result != VK_SUCCESS)
-      return result;
 
    /* See the same check at anv_trtt_first_bind_init(). */
    if (unlikely(!trtt->queue))
@@ -936,6 +957,7 @@ anv_init_sparse_bindings(struct anv_device *device,
                          uint64_t client_address,
                          struct anv_address *out_address)
 {
+   VkResult result;
    uint64_t size = align64(size_, ANV_SPARSE_BLOCK_SIZE);
 
    if (device->physical->sparse_type == ANV_SPARSE_TYPE_TRTT)
@@ -950,29 +972,38 @@ anv_init_sparse_bindings(struct anv_device *device,
    out_address->bo = NULL;
    out_address->offset = sparse->address;
 
-   struct anv_vm_bind bind = {
-      .bo = NULL, /* That's a NULL binding. */
-      .address = sparse->address,
-      .bo_offset = 0,
-      .size = size,
-      .op = ANV_VM_BIND,
-   };
-   struct anv_sparse_submission submit = {
-      .queue = NULL,
-      .binds = &bind,
-      .binds_len = 1,
-      .binds_capacity = 1,
-      .wait_count = 0,
-      .signal_count = 0,
-   };
-   VkResult res = anv_sparse_bind(device, &submit);
-   if (res != VK_SUCCESS) {
-      anv_vma_free(device, sparse->vma_heap, sparse->address, sparse->size);
-      return res;
+   if (device->physical->sparse_type == ANV_SPARSE_TYPE_TRTT) {
+      result = anv_trtt_first_bind_init(device);
+      if (result != VK_SUCCESS)
+         goto out_vma_free;
+   } else {
+      struct anv_vm_bind bind = {
+         .bo = NULL, /* That's a NULL binding. */
+         .address = sparse->address,
+         .bo_offset = 0,
+         .size = size,
+         .op = ANV_VM_BIND,
+      };
+      struct anv_sparse_submission submit = {
+         .queue = NULL,
+         .binds = &bind,
+         .binds_len = 1,
+         .binds_capacity = 1,
+         .wait_count = 0,
+         .signal_count = 0,
+      };
+      result = anv_sparse_bind(device, &submit);
+      if (result != VK_SUCCESS)
+         goto out_vma_free;
    }
 
    p_atomic_inc(&device->num_sparse_resources);
    return VK_SUCCESS;
+
+out_vma_free:
+   anv_vma_free(device, sparse->vma_heap, sparse->address, sparse->size);
+   return result;
+
 }
 
 void
