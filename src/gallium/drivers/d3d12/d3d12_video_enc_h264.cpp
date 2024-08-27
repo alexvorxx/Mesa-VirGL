@@ -984,7 +984,7 @@ d3d12_video_encoder_update_current_encoder_config_state_h264(struct d3d12_video_
    pD3D12Enc->m_currentEncodeConfig.m_encoderProfileDesc.m_H264Profile = targetProfile;
 
    // Set level
-   auto targetLevel = d3d12_video_encoder_convert_level_h264(pD3D12Enc->base.level);
+   auto targetLevel = d3d12_video_encoder_convert_level_h264(h264Pic->seq.level_idc);
    if (pD3D12Enc->m_currentEncodeConfig.m_encoderLevelDesc.m_H264LevelSetting != targetLevel) {
       pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_level;
    }
