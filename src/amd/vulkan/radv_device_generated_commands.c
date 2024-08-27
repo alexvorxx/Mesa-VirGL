@@ -260,14 +260,6 @@ radv_dgc_preamble_cmdbuf_size(const struct radv_device *device, enum amd_ip_type
    return radv_pad_cmdbuf(device, 16, ip_type);
 }
 
-static unsigned
-radv_dgc_main_cmdbuf_offset(const struct radv_device *device, enum amd_ip_type ip_type)
-{
-   const uint32_t preamble_size = radv_dgc_preamble_cmdbuf_size(device, ip_type);
-
-   return radv_align_cmdbuf(device, preamble_size, ip_type);
-}
-
 static bool
 radv_dgc_use_preamble(const VkGeneratedCommandsInfoNV *cmd_info)
 {
@@ -276,58 +268,120 @@ radv_dgc_use_preamble(const VkGeneratedCommandsInfoNV *cmd_info)
    return cmd_info->sequencesCountBuffer != VK_NULL_HANDLE && cmd_info->sequencesCount >= 64;
 }
 
+struct dgc_cmdbuf_layout {
+   bool use_preamble;
+   uint32_t alloc_size;
+
+   uint32_t main_offset;
+   uint32_t main_cmd_stride;
+   uint32_t main_preamble_size;
+   uint32_t main_size;
+
+   uint32_t ace_preamble_offset;
+   uint32_t ace_main_offset;
+   uint32_t ace_cmd_stride;
+   uint32_t ace_preamble_size;
+   uint32_t ace_size;
+
+   uint32_t upload_offset;
+   uint32_t upload_stride;
+   uint32_t upload_size;
+};
+
+static void
+get_dgc_cmdbuf_layout(const struct radv_device *device, const struct radv_indirect_command_layout *dgc_layout,
+                      struct radv_pipeline *pipeline, uint32_t sequences_count, bool use_preamble,
+                      struct dgc_cmdbuf_layout *layout)
+{
+   uint32_t offset = 0;
+
+   memset(layout, 0, sizeof(*layout));
+
+   radv_get_sequence_size(dgc_layout, pipeline, &layout->main_cmd_stride, &layout->ace_cmd_stride,
+                          &layout->upload_stride);
+
+   layout->use_preamble = use_preamble;
+   if (layout->use_preamble) {
+      layout->main_preamble_size = radv_dgc_preamble_cmdbuf_size(device, AMD_IP_GFX);
+      layout->ace_preamble_size = radv_dgc_preamble_cmdbuf_size(device, AMD_IP_COMPUTE);
+   }
+
+   layout->main_size = radv_pad_cmdbuf(device, layout->main_cmd_stride * sequences_count, AMD_IP_GFX);
+   layout->ace_size = radv_pad_cmdbuf(device, layout->ace_cmd_stride * sequences_count, AMD_IP_COMPUTE);
+   layout->upload_size = layout->upload_stride * sequences_count;
+
+   /* Main */
+   if (layout->use_preamble)
+      offset += layout->main_preamble_size;
+   offset = radv_align_cmdbuf(device, offset, AMD_IP_GFX);
+
+   layout->main_offset = offset;
+   offset += layout->main_size;
+
+   /* ACE */
+   if (layout->ace_cmd_stride) {
+      offset = radv_align_cmdbuf(device, offset, AMD_IP_COMPUTE);
+
+      layout->ace_preamble_offset = offset;
+
+      if (layout->use_preamble)
+         offset += layout->ace_preamble_size;
+      offset = radv_align_cmdbuf(device, offset, AMD_IP_COMPUTE);
+
+      layout->ace_main_offset = offset;
+      offset += layout->ace_size;
+   }
+
+   /* Upload */
+   layout->upload_offset = offset;
+   offset += layout->upload_size;
+
+   layout->alloc_size = offset;
+}
+
 static uint32_t
-radv_get_indirect_cmdbuf_sequence_size(const VkGeneratedCommandsInfoNV *cmd_info, enum amd_ip_type ip_type)
+radv_get_indirect_cmdbuf_size(const VkGeneratedCommandsInfoNV *cmd_info, enum amd_ip_type ip_type)
 {
    VK_FROM_HANDLE(radv_indirect_command_layout, layout, cmd_info->indirectCommandsLayout);
    VK_FROM_HANDLE(radv_pipeline, pipeline, cmd_info->pipeline);
    const struct radv_device *device = container_of(layout->base.device, struct radv_device, vk);
+   const bool use_preamble = radv_dgc_use_preamble(cmd_info);
+   const uint32_t sequences_count = cmd_info->sequencesCount;
+   struct dgc_cmdbuf_layout cmdbuf_layout;
 
-   uint32_t gfx_cmd_size, ace_cmd_size, upload_size;
-   radv_get_sequence_size(layout, pipeline, &gfx_cmd_size, &ace_cmd_size, &upload_size);
+   get_dgc_cmdbuf_layout(device, layout, pipeline, sequences_count, use_preamble, &cmdbuf_layout);
 
-   const uint32_t cmd_size = ip_type == AMD_IP_GFX ? gfx_cmd_size : ace_cmd_size;
-   return radv_pad_cmdbuf(device, cmd_size * cmd_info->sequencesCount, ip_type);
+   if (use_preamble)
+      return ip_type == AMD_IP_GFX ? cmdbuf_layout.main_preamble_size : cmdbuf_layout.ace_preamble_size;
+
+   return ip_type == AMD_IP_GFX ? cmdbuf_layout.main_size : cmdbuf_layout.ace_size;
 }
 
 uint32_t
 radv_get_indirect_gfx_cmdbuf_size(const VkGeneratedCommandsInfoNV *cmd_info)
 {
-   VK_FROM_HANDLE(radv_indirect_command_layout, layout, cmd_info->indirectCommandsLayout);
-   const struct radv_device *device = container_of(layout->base.device, struct radv_device, vk);
-
-   if (radv_dgc_use_preamble(cmd_info))
-      return radv_dgc_preamble_cmdbuf_size(device, AMD_IP_GFX);
-
-   return radv_get_indirect_cmdbuf_sequence_size(cmd_info, AMD_IP_GFX);
+   return radv_get_indirect_cmdbuf_size(cmd_info, AMD_IP_GFX);
 }
 
 uint32_t
 radv_get_indirect_ace_cmdbuf_offset(const VkGeneratedCommandsInfoNV *cmd_info)
 {
    VK_FROM_HANDLE(radv_indirect_command_layout, layout, cmd_info->indirectCommandsLayout);
+   VK_FROM_HANDLE(radv_pipeline, pipeline, cmd_info->pipeline);
    const struct radv_device *device = container_of(layout->base.device, struct radv_device, vk);
-   uint32_t offset = 0;
+   const bool use_preamble = radv_dgc_use_preamble(cmd_info);
+   const uint32_t sequences_count = cmd_info->sequencesCount;
+   struct dgc_cmdbuf_layout cmdbuf_layout;
 
-   if (radv_dgc_use_preamble(cmd_info))
-      offset += radv_dgc_main_cmdbuf_offset(device, AMD_IP_GFX);
-   offset += radv_get_indirect_cmdbuf_sequence_size(cmd_info, AMD_IP_GFX);
+   get_dgc_cmdbuf_layout(device, layout, pipeline, sequences_count, use_preamble, &cmdbuf_layout);
 
-   offset = radv_align_cmdbuf(device, offset, AMD_IP_GFX);
-
-   return offset;
+   return cmdbuf_layout.ace_preamble_offset;
 }
 
 uint32_t
 radv_get_indirect_ace_cmdbuf_size(const VkGeneratedCommandsInfoNV *cmd_info)
 {
-   VK_FROM_HANDLE(radv_indirect_command_layout, layout, cmd_info->indirectCommandsLayout);
-   const struct radv_device *device = container_of(layout->base.device, struct radv_device, vk);
-
-   if (radv_dgc_use_preamble(cmd_info))
-      return radv_dgc_preamble_cmdbuf_size(device, AMD_IP_COMPUTE);
-
-   return radv_get_indirect_cmdbuf_sequence_size(cmd_info, AMD_IP_COMPUTE);
+   return radv_get_indirect_cmdbuf_size(cmd_info, AMD_IP_COMPUTE);
 }
 
 struct radv_dgc_params {
@@ -2311,27 +2365,15 @@ radv_GetGeneratedCommandsMemoryRequirementsNV(VkDevice _device,
    const struct radv_physical_device *pdev = radv_device_physical(device);
    VK_FROM_HANDLE(radv_indirect_command_layout, layout, pInfo->indirectCommandsLayout);
    VK_FROM_HANDLE(radv_pipeline, pipeline, pInfo->pipeline);
+   struct dgc_cmdbuf_layout cmdbuf_layout;
 
-   uint32_t cmd_stride, ace_cmd_stride, upload_stride;
-   radv_get_sequence_size(layout, pipeline, &cmd_stride, &ace_cmd_stride, &upload_stride);
-
-   VkDeviceSize cmd_buf_size = radv_dgc_main_cmdbuf_offset(device, AMD_IP_GFX) +
-                               radv_pad_cmdbuf(device, cmd_stride * pInfo->maxSequencesCount, AMD_IP_GFX);
-
-   if (ace_cmd_stride) {
-      cmd_buf_size = radv_align_cmdbuf(device, cmd_buf_size, AMD_IP_GFX);
-
-      cmd_buf_size += radv_dgc_main_cmdbuf_offset(device, AMD_IP_COMPUTE) +
-                      radv_pad_cmdbuf(device, ace_cmd_stride * pInfo->maxSequencesCount, AMD_IP_COMPUTE);
-   }
-
-   VkDeviceSize upload_buf_size = upload_stride * pInfo->maxSequencesCount;
+   get_dgc_cmdbuf_layout(device, layout, pipeline, pInfo->maxSequencesCount, true, &cmdbuf_layout);
 
    pMemoryRequirements->memoryRequirements.memoryTypeBits = pdev->memory_types_32bit;
    pMemoryRequirements->memoryRequirements.alignment =
       MAX2(pdev->info.ip[AMD_IP_GFX].ib_alignment, pdev->info.ip[AMD_IP_COMPUTE].ib_alignment);
    pMemoryRequirements->memoryRequirements.size =
-      align(cmd_buf_size + upload_buf_size, pMemoryRequirements->memoryRequirements.alignment);
+      align(cmdbuf_layout.alloc_size, pMemoryRequirements->memoryRequirements.alignment);
 }
 
 bool
@@ -2584,12 +2626,6 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
    void *upload_data;
    VkResult result;
 
-   uint32_t cmd_stride, ace_cmd_stride, upload_stride;
-   radv_get_sequence_size(layout, pipeline, &cmd_stride, &ace_cmd_stride, &upload_stride);
-
-   unsigned cmd_buf_size = radv_get_indirect_cmdbuf_sequence_size(pGeneratedCommandsInfo, AMD_IP_GFX);
-   unsigned ace_cmd_buf_size = radv_get_indirect_cmdbuf_sequence_size(pGeneratedCommandsInfo, AMD_IP_COMPUTE);
-
    uint64_t upload_addr =
       radv_buffer_get_va(prep_buffer->bo) + prep_buffer->offset + pGeneratedCommandsInfo->preprocessOffset;
 
@@ -2601,44 +2637,27 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
       sequence_count_addr = radv_buffer_get_va(sequence_count_buffer->bo) + sequence_count_buffer->offset +
                             pGeneratedCommandsInfo->sequencesCountOffset;
 
-   /* Determine cmdbuf offsets. */
    const bool use_preamble = radv_dgc_use_preamble(pGeneratedCommandsInfo);
-   uint32_t cmd_buf_main_offset, ace_cmd_buf_preamble_offset, ace_cmd_buf_main_offset;
-   uint32_t offset = 0;
+   const uint32_t sequences_count = pGeneratedCommandsInfo->sequencesCount;
 
-   if (use_preamble)
-      offset += radv_dgc_main_cmdbuf_offset(device, AMD_IP_GFX);
-   cmd_buf_main_offset = offset;
+   struct dgc_cmdbuf_layout cmdbuf_layout;
+   get_dgc_cmdbuf_layout(device, layout, pipeline, sequences_count, use_preamble, &cmdbuf_layout);
 
-   offset += cmd_buf_size;
-
-   offset = radv_align_cmdbuf(device, offset, AMD_IP_GFX);
-
-   ace_cmd_buf_preamble_offset = offset;
-
-   if (use_preamble)
-      offset += radv_dgc_main_cmdbuf_offset(device, AMD_IP_COMPUTE);
-   ace_cmd_buf_main_offset = offset;
-
-   uint32_t upload_main_offset = cmd_buf_main_offset + cmd_buf_size;
-   if (radv_dgc_with_task_shader(pGeneratedCommandsInfo))
-      upload_main_offset = ace_cmd_buf_main_offset + ace_cmd_buf_size;
-
-   assert((cmd_buf_main_offset + upload_addr) % pdev->info.ip[AMD_IP_GFX].ib_alignment == 0);
-   assert((ace_cmd_buf_main_offset + upload_addr) % pdev->info.ip[AMD_IP_COMPUTE].ib_alignment == 0);
+   assert((cmdbuf_layout.main_offset + upload_addr) % pdev->info.ip[AMD_IP_GFX].ib_alignment == 0);
+   assert((cmdbuf_layout.ace_main_offset + upload_addr) % pdev->info.ip[AMD_IP_COMPUTE].ib_alignment == 0);
 
    struct radv_dgc_params params = {
-      .cmd_buf_main_offset = cmd_buf_main_offset,
-      .cmd_buf_stride = cmd_stride,
-      .cmd_buf_size = cmd_buf_size,
-      .ace_cmd_buf_preamble_offset = ace_cmd_buf_preamble_offset,
-      .ace_cmd_buf_main_offset = ace_cmd_buf_main_offset,
-      .ace_cmd_buf_stride = ace_cmd_stride,
-      .ace_cmd_buf_size = ace_cmd_buf_size,
-      .upload_main_offset = upload_main_offset,
+      .cmd_buf_main_offset = cmdbuf_layout.main_offset,
+      .cmd_buf_stride = cmdbuf_layout.main_cmd_stride,
+      .cmd_buf_size = cmdbuf_layout.main_size,
+      .ace_cmd_buf_preamble_offset = cmdbuf_layout.ace_preamble_offset,
+      .ace_cmd_buf_main_offset = cmdbuf_layout.ace_main_offset,
+      .ace_cmd_buf_stride = cmdbuf_layout.ace_cmd_stride,
+      .ace_cmd_buf_size = cmdbuf_layout.ace_size,
+      .upload_main_offset = cmdbuf_layout.upload_offset,
       .upload_addr = (uint32_t)upload_addr,
-      .upload_stride = upload_stride,
-      .sequence_count = pGeneratedCommandsInfo->sequencesCount | (sequence_count_addr ? 1u << 31 : 0),
+      .upload_stride = cmdbuf_layout.upload_stride,
+      .sequence_count = sequences_count | (sequence_count_addr ? 1u << 31 : 0),
       .sequence_count_addr = sequence_count_addr,
       .stream_stride = layout->input_stride,
       .use_preamble = use_preamble,
