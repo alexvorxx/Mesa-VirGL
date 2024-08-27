@@ -563,8 +563,8 @@ The integer capabilities:
 
 * ``PIPE_CAP_CL_GL_SHARING``: True if driver supports everything required by a frontend implementing the CL extension, and
   also supports importing/exporting all of pipe_texture_target via dma buffers.
-* ``PIPE_CAP_PREFER_COMPUTE_FOR_MULTIMEDIA``: Whether VDPAU, VAAPI, and
-  OpenMAX should use a compute-based blit instead of pipe_context::blit and compute pipeline for compositing images.
+* ``PIPE_CAP_PREFER_COMPUTE_FOR_MULTIMEDIA``: Whether VDPAU and VAAPI
+  should use a compute-based blit instead of pipe_context::blit and compute pipeline for compositing images.
 * ``PIPE_CAP_FRAGMENT_SHADER_INTERLOCK``: True if fragment shader interlock
   functionality is supported.
 * ``PIPE_CAP_ATOMIC_FLOAT_MINMAX``: Atomic float point minimum,
