@@ -31,6 +31,7 @@ protected:
                                          bool break_in_else, bool deref_array);
    void create_loop_phis(nir_loop *loop, nir_if *term1, nir_if *term2,
                          nir_def *def1, nir_def *def2);
+   void test_merged_if(bool break_in_else);
 
    nir_def *in_def;
    nir_variable *out_var;
@@ -106,6 +107,38 @@ nir_opt_loop_test::create_loop_phis(nir_loop *loop,
 
    nir_instr_insert(nir_after_cf_node(&loop->cf_node),
                     &phi_instr->instr);
+}
+
+void
+nir_opt_loop_test::test_merged_if(bool break_in_else)
+{
+   /* Tests that opt_loop_merge_terminators results in valid nir and that
+    * the test condition is correct based on the location of the break in
+    * the terminators.
+    */
+   nir_loop *loop = nir_push_loop(b);
+
+   nir_if *term1;
+   nir_if *term2;
+   add_loop_terminators(&term1, &term2, break_in_else, false);
+
+   nir_pop_loop(b, loop);
+
+   ASSERT_TRUE(nir_opt_loop(b->shader));
+
+   nir_validate_shader(b->shader, NULL);
+
+   nir_alu_instr *alu = nir_instr_as_alu(term2->condition.ssa->parent_instr);
+   if (break_in_else)
+      ASSERT_TRUE(alu->op == nir_op_iand);
+   else
+      ASSERT_TRUE(alu->op == nir_op_ior);
+}
+
+TEST_F(nir_opt_loop_test, opt_loop_merge_terminators_basic)
+{
+   test_merged_if(false);
+   test_merged_if(true);
 }
 
 TEST_F(nir_opt_loop_test, opt_loop_merge_terminators_deref_after_first_if)
