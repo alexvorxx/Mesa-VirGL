@@ -811,11 +811,7 @@ anv_sparse_bind_trtt(struct anv_device *device,
       goto out_add_bind;
    }
 
-   /* Add all the BOs backing TRTT page tables to the reloc list.
-    *
-    * TODO: we could narrow down the list by using anv_address structures in
-    *       anv_trtt_bind for the pte_addr.
-    */
+   /* Add all the BOs backing TRTT page tables to the reloc list. */
    if (device->physical->uses_relocs) {
       for (int i = 0; i < trtt->num_page_table_bos; i++) {
          result = anv_reloc_list_add_bo(&submit->base.relocs,
