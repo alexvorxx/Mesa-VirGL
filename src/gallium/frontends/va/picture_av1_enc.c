@@ -107,15 +107,6 @@ VAStatus vlVaHandleVAEncSequenceParameterBufferTypeAV1(vlVaDriver *drv, vlVaCont
 {
    VAEncSequenceParameterBufferAV1 *av1 = buf->data;
 
-   if (!context->decoder) {
-      context->templat.max_references = PIPE_AV1_MAX_REFERENCES;
-      context->templat.level = av1->seq_level_idx;
-      context->decoder = drv->pipe->create_video_codec(drv->pipe, &context->templat);
-
-      if (!context->decoder)
-         return VA_STATUS_ERROR_ALLOCATION_FAILED;
-   }
-
    context->desc.av1enc.seq.tier = av1->seq_tier;
    context->desc.av1enc.seq.level = av1->seq_level_idx;
    context->desc.av1enc.seq.intra_period = av1->intra_period;

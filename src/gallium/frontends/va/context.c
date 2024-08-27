@@ -378,6 +378,7 @@ vlVaCreateContext(VADriverContextP ctx, VAConfigID config_id, int picture_width,
    if (config->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE) {
       switch (u_reduce_video_profile(context->templat.profile)) {
       case PIPE_VIDEO_FORMAT_MPEG4_AVC:
+         context->templat.max_references = PIPE_H264_MAX_REFERENCES;
          for (unsigned i = 0; i < ARRAY_SIZE(context->desc.h264enc.rate_ctrl); i++) {
             context->desc.h264enc.rate_ctrl[i].rate_ctrl_method = config->rc;
             context->desc.h264enc.rate_ctrl[i].vbv_buffer_size = 20000000;
@@ -392,6 +393,7 @@ vlVaCreateContext(VADriverContextP ctx, VAConfigID config_id, int picture_width,
          util_dynarray_init(&context->desc.h264enc.raw_headers, NULL);
          break;
       case PIPE_VIDEO_FORMAT_HEVC:
+         context->templat.max_references = PIPE_H265_MAX_REFERENCES;
          for (unsigned i = 0; i < ARRAY_SIZE(context->desc.h265enc.rc); i++) {
             context->desc.h265enc.rc[i].rate_ctrl_method = config->rc;
             context->desc.h265enc.rc[i].vbv_buffer_size = 20000000;
@@ -406,6 +408,7 @@ vlVaCreateContext(VADriverContextP ctx, VAConfigID config_id, int picture_width,
          util_dynarray_init(&context->desc.h265enc.raw_headers, NULL);
          break;
       case PIPE_VIDEO_FORMAT_AV1:
+         context->templat.max_references = PIPE_AV1_MAX_REFERENCES;
          for (unsigned i = 0; i < ARRAY_SIZE(context->desc.av1enc.rc); i++) {
             context->desc.av1enc.rc[i].rate_ctrl_method = config->rc;
             context->desc.av1enc.rc[i].vbv_buffer_size = 20000000;
@@ -422,6 +425,12 @@ vlVaCreateContext(VADriverContextP ctx, VAConfigID config_id, int picture_width,
          break;
       }
       context->desc.base.packed_headers = config->packed_headers;
+
+      mtx_lock(&drv->mutex);
+      context->decoder = drv->pipe->create_video_codec(drv->pipe, &context->templat);
+      mtx_unlock(&drv->mutex);
+      if (!context->decoder)
+         return VA_STATUS_ERROR_ALLOCATION_FAILED;
    }
 
    context->surfaces = _mesa_set_create(NULL, _mesa_hash_pointer, _mesa_key_pointer_equal);

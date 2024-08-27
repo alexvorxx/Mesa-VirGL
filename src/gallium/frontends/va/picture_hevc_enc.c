@@ -232,27 +232,8 @@ vlVaHandleVAEncSliceParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *contex
 VAStatus
 vlVaHandleVAEncSequenceParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *context, vlVaBuffer *buf)
 {
-   VAEncSequenceParameterBufferHEVC *h265 = (VAEncSequenceParameterBufferHEVC *)buf->data;
+   VAEncSequenceParameterBufferHEVC *h265 = buf->data;
    uint32_t num_units_in_tick = 0, time_scale = 0;
-
-   if (!context->decoder) {
-      context->templat.max_references = PIPE_H265_MAX_NUM_LIST_REF;
-      context->templat.level = h265->general_level_idc;
-      context->decoder = drv->pipe->create_video_codec(drv->pipe, &context->templat);
-
-      if (!context->decoder)
-         return VA_STATUS_ERROR_ALLOCATION_FAILED;
-
-      struct pipe_h265_enc_dpb_entry *dpb =
-         &context->desc.h265enc.dpb[context->desc.h265enc.dpb_curr_pic];
-      if (dpb->id && !dpb->buffer && context->decoder->create_dpb_buffer) {
-         vlVaSurface *surf = handle_table_get(drv->htab, dpb->id);
-         if (!surf)
-            return VA_STATUS_ERROR_INVALID_PARAMETER;
-         surf->buffer = context->decoder->create_dpb_buffer(context->decoder, &context->desc.base, &surf->templat);
-         dpb->buffer = surf->buffer;
-      }
-   }
 
    context->desc.h265enc.seq.general_profile_idc = h265->general_profile_idc;
    context->desc.h265enc.seq.general_level_idc = h265->general_level_idc;

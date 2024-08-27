@@ -233,26 +233,8 @@ vlVaHandleVAEncSliceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *contex
 VAStatus
 vlVaHandleVAEncSequenceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *context, vlVaBuffer *buf)
 {
+   VAEncSequenceParameterBufferH264 *h264 = buf->data;
    uint32_t num_units_in_tick = 0, time_scale  = 0;
-
-   VAEncSequenceParameterBufferH264 *h264 = (VAEncSequenceParameterBufferH264 *)buf->data;
-   if (!context->decoder) {
-      context->templat.max_references = h264->max_num_ref_frames;
-      context->templat.level = h264->level_idc;
-      context->decoder = drv->pipe->create_video_codec(drv->pipe, &context->templat);
-      if (!context->decoder)
-         return VA_STATUS_ERROR_ALLOCATION_FAILED;
-
-      struct pipe_h264_enc_dpb_entry *dpb =
-         &context->desc.h264enc.dpb[context->desc.h264enc.dpb_curr_pic];
-      if (dpb->id && !dpb->buffer && context->decoder->create_dpb_buffer) {
-         vlVaSurface *surf = handle_table_get(drv->htab, dpb->id);
-         if (!surf)
-            return VA_STATUS_ERROR_INVALID_PARAMETER;
-         surf->buffer = context->decoder->create_dpb_buffer(context->decoder, &context->desc.base, &surf->templat);
-         dpb->buffer = surf->buffer;
-      }
-   }
 
    context->desc.h264enc.ip_period = h264->ip_period;
    context->desc.h264enc.intra_idr_period =
