@@ -206,6 +206,8 @@ static const struct debug_named_value mesa_spirv_debug_control[] = {
      "Print information of the SPIR-V structured control flow parsing" },
    { "values", MESA_SPIRV_DEBUG_VALUES,
      "Print information of the SPIR-V values" },
+   { "asm", MESA_SPIRV_DEBUG_ASM, "Print the SPIR-V assembly" },
+   { "color", MESA_SPIRV_DEBUG_COLOR, "Debug in color, if available" },
    DEBUG_NAMED_VALUE_END,
 };
 
@@ -6846,6 +6848,9 @@ spirv_to_nir(const uint32_t *words, size_t word_count,
 
 {
    mesa_spirv_debug_init();
+
+   if (MESA_SPIRV_DEBUG(ASM))
+      spirv_print_asm(stderr, words, word_count);
 
    const uint32_t *word_end = words + word_count;
 

@@ -166,6 +166,8 @@ bool
 spirv_library_to_nir_builder(FILE *fp, const uint32_t *words, size_t word_count,
                              const struct spirv_to_nir_options *options);
 
+void spirv_print_asm(FILE *fp, const uint32_t *words, size_t word_count);
+
 #ifdef __cplusplus
 }
 #endif

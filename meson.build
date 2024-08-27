@@ -1916,12 +1916,19 @@ if with_clover_spirv or with_clc
     '>= @0@.@1@'.format(chosen_llvm_version_major, chosen_llvm_version_minor),
     '< @0@.@1@'.format(chosen_llvm_version_major, chosen_llvm_version_minor + 1) ]
 
-  dep_spirv_tools = dependency('SPIRV-Tools', required : true, version : '>= 2018.0')
   # LLVMSPIRVLib is available at https://github.com/KhronosGroup/SPIRV-LLVM-Translator
   dep_llvmspirvlib = dependency('LLVMSPIRVLib', required : true, version : _llvmspirvlib_version)
 else
-  dep_spirv_tools = null_dep
   dep_llvmspirvlib = null_dep
+endif
+
+dep_spirv_tools = dependency(
+  'SPIRV-Tools',
+  required : with_clover_spirv or with_clc,
+  version : '>= 2018.0'
+)
+if dep_spirv_tools.found()
+  pre_args += '-DHAVE_SPIRV_TOOLS'
 endif
 
 dep_clang = null_dep
