@@ -378,17 +378,45 @@ vlVaCreateContext(VADriverContextP ctx, VAConfigID config_id, int picture_width,
    if (config->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE) {
       switch (u_reduce_video_profile(context->templat.profile)) {
       case PIPE_VIDEO_FORMAT_MPEG4_AVC:
-         context->desc.h264enc.rate_ctrl[0].rate_ctrl_method = config->rc;
+         for (unsigned i = 0; i < ARRAY_SIZE(context->desc.h264enc.rate_ctrl); i++) {
+            context->desc.h264enc.rate_ctrl[i].rate_ctrl_method = config->rc;
+            context->desc.h264enc.rate_ctrl[i].vbv_buffer_size = 20000000;
+            context->desc.h264enc.rate_ctrl[i].vbv_buf_lv = 64;
+            context->desc.h264enc.rate_ctrl[i].fill_data_enable = 1;
+            context->desc.h264enc.rate_ctrl[i].enforce_hrd = 1;
+            context->desc.h264enc.rate_ctrl[i].max_qp = 51;
+            context->desc.h264enc.rate_ctrl[i].frame_rate_num = 30;
+            context->desc.h264enc.rate_ctrl[i].frame_rate_den = 1;
+         }
          context->desc.h264enc.frame_idx = util_hash_table_create_ptr_keys();
          util_dynarray_init(&context->desc.h264enc.raw_headers, NULL);
          break;
       case PIPE_VIDEO_FORMAT_HEVC:
-         context->desc.h265enc.rc[0].rate_ctrl_method = config->rc;
+         for (unsigned i = 0; i < ARRAY_SIZE(context->desc.h265enc.rc); i++) {
+            context->desc.h265enc.rc[i].rate_ctrl_method = config->rc;
+            context->desc.h265enc.rc[i].vbv_buffer_size = 20000000;
+            context->desc.h265enc.rc[i].vbv_buf_lv = 64;
+            context->desc.h265enc.rc[i].fill_data_enable = 1;
+            context->desc.h265enc.rc[i].enforce_hrd = 1;
+            context->desc.h265enc.rc[i].max_qp = 51;
+            context->desc.h265enc.rc[i].frame_rate_num = 30;
+            context->desc.h265enc.rc[i].frame_rate_den = 1;
+         }
          context->desc.h265enc.frame_idx = util_hash_table_create_ptr_keys();
          util_dynarray_init(&context->desc.h265enc.raw_headers, NULL);
          break;
       case PIPE_VIDEO_FORMAT_AV1:
-         context->desc.av1enc.rc[0].rate_ctrl_method = config->rc;
+         for (unsigned i = 0; i < ARRAY_SIZE(context->desc.av1enc.rc); i++) {
+            context->desc.av1enc.rc[i].rate_ctrl_method = config->rc;
+            context->desc.av1enc.rc[i].vbv_buffer_size = 20000000;
+            context->desc.av1enc.rc[i].vbv_buf_lv = 64;
+            context->desc.av1enc.rc[i].fill_data_enable = 1;
+            context->desc.av1enc.rc[i].enforce_hrd = 1;
+            context->desc.av1enc.rc[i].max_qp = 255;
+            context->desc.av1enc.rc[i].min_qp = 1;
+            context->desc.av1enc.rc[i].frame_rate_num = 30;
+            context->desc.av1enc.rc[i].frame_rate_den = 1;
+         }
          break;
       default:
          break;

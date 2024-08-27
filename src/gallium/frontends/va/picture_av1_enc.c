@@ -114,12 +114,6 @@ VAStatus vlVaHandleVAEncSequenceParameterBufferTypeAV1(vlVaDriver *drv, vlVaCont
 
       if (!context->decoder)
          return VA_STATUS_ERROR_ALLOCATION_FAILED;
-
-      getEncParamPresetAV1(context);
-      context->desc.av1enc.intra_refresh.mode = INTRA_REFRESH_MODE_NONE;
-      context->desc.av1enc.intra_refresh.offset = 0;
-      context->desc.av1enc.intra_refresh.region_size = 0;
-      context->desc.av1enc.intra_refresh.need_sequence_header = 0;
    }
 
    context->desc.av1enc.seq.tier = av1->seq_tier;
@@ -863,40 +857,6 @@ vlVaHandleVAEncMiscParameterTypeFrameRateAV1(vlVaContext *context, VAEncMiscPara
    }
 
    return VA_STATUS_SUCCESS;
-}
-
-void getEncParamPresetAV1(vlVaContext *context)
-{
-   for (int i = 0; i < ARRAY_SIZE(context->desc.av1enc.rc); i++)  {
-      struct pipe_av1_enc_rate_control *rc = &context->desc.av1enc.rc[i];
-
-      rc->vbv_buffer_size = 20000000;
-      rc->vbv_buf_lv = 48;
-      rc->fill_data_enable = 1;
-      rc->enforce_hrd = 1;
-      rc->max_qp = 255;
-      rc->min_qp = 1;
-
-      if (rc->frame_rate_num == 0 ||
-          rc->frame_rate_den == 0) {
-         rc->frame_rate_num = 30;
-         rc->frame_rate_den = 1;
-      }
-
-      if (rc->target_bitrate == 0)
-         rc->target_bitrate = 20 * 1000000;
-
-      if (rc->peak_bitrate == 0)
-         rc->peak_bitrate = rc->target_bitrate * 3 / 2;
-
-      rc->target_bits_picture = rc->target_bitrate * rc->frame_rate_den /
-                                rc->frame_rate_num;
-
-      rc->peak_bits_picture_integer = rc->peak_bitrate * rc->frame_rate_den /
-                                rc->frame_rate_num;
-
-      rc->peak_bits_picture_fraction = 0;
-   }
 }
 
 VAStatus vlVaHandleVAEncSliceParameterBufferTypeAV1(vlVaDriver *drv, vlVaContext *context, vlVaBuffer *buf)
