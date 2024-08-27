@@ -740,8 +740,6 @@ anv_sparse_bind_trtt(struct anv_device *device,
 
    simple_mtx_lock(&trtt->mutex);
 
-   anv_sparse_trtt_garbage_collect_batches(device, false);
-
    /* These capacities are conservative estimations. For L1 binds the
     * number will match exactly unless we skip NULL binds due to L2 already
     * being NULL. For L3/L2 things are harder to estimate, but the resulting
@@ -826,6 +824,8 @@ anv_sparse_bind_trtt(struct anv_device *device,
             goto out_add_bind;
       }
    }
+
+   anv_sparse_trtt_garbage_collect_batches(device, false);
 
    submit->base.signal = (struct vk_sync_signal) {
       .sync = trtt->timeline,
