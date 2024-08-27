@@ -182,6 +182,9 @@ vk_pipeline_shader_stage_to_nir(struct vk_device *device,
    if (nir == NULL)
       return vk_errorf(device, VK_ERROR_UNKNOWN, "spirv_to_nir failed");
 
+   if (pipeline_flags & VK_PIPELINE_CREATE_2_VIEW_INDEX_FROM_DEVICE_INDEX_BIT_KHR)
+      NIR_PASS(_, nir, nir_lower_view_index_to_device_index);
+
    *nir_out = nir;
 
    return VK_SUCCESS;
@@ -219,6 +222,10 @@ vk_pipeline_hash_shader_stage(VkPipelineCreateFlags2KHR pipeline_flags,
    struct mesa_sha1 ctx;
 
    _mesa_sha1_init(&ctx);
+
+   /* We only care about one of the pipeline flags */
+   pipeline_flags &= VK_PIPELINE_CREATE_2_VIEW_INDEX_FROM_DEVICE_INDEX_BIT_KHR;
+   _mesa_sha1_update(&ctx, &pipeline_flags, sizeof(pipeline_flags));
 
    _mesa_sha1_update(&ctx, &info->flags, sizeof(info->flags));
 
@@ -822,16 +829,6 @@ vk_pipeline_precompile_shader(struct vk_device *device,
    uint8_t stage_sha1[SHA1_DIGEST_LENGTH];
    vk_pipeline_hash_shader_stage(pipeline_flags, info, &rs, stage_sha1);
 
-   /* This bit affects shader compilation but isn't taken into account in
-    * vk_pipeline_hash_shader_stage().  Re-hash the SHA1 if it's set.
-    */
-   if (pipeline_flags & VK_PIPELINE_CREATE_2_VIEW_INDEX_FROM_DEVICE_INDEX_BIT_KHR) {
-      struct mesa_sha1 ctx;
-      _mesa_sha1_init(&ctx);
-      _mesa_sha1_update(&ctx, stage_sha1, sizeof(stage_sha1));
-      _mesa_sha1_final(&ctx, stage_sha1);
-   }
-
    if (cache != NULL) {
       struct vk_pipeline_cache_object *cache_obj =
          vk_pipeline_cache_lookup_object(cache, stage_sha1, sizeof(stage_sha1),
@@ -859,9 +856,6 @@ vk_pipeline_precompile_shader(struct vk_device *device,
                                             NULL, &nir);
    if (result != VK_SUCCESS)
       return result;
-
-   if (pipeline_flags & VK_PIPELINE_CREATE_2_VIEW_INDEX_FROM_DEVICE_INDEX_BIT_KHR)
-      NIR_PASS(_, nir, nir_lower_view_index_to_device_index);
 
    if (ops->preprocess_nir != NULL)
       ops->preprocess_nir(device->physical, nir);
