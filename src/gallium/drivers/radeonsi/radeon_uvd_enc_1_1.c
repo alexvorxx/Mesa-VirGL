@@ -316,9 +316,13 @@ static void radeon_uvd_enc_rc_layer_init(struct radeon_uvd_encoder *enc,
    enc->enc_pic.rc_layer_init.frame_rate_num = pic->rc[0].frame_rate_num;
    enc->enc_pic.rc_layer_init.frame_rate_den = pic->rc[0].frame_rate_den;
    enc->enc_pic.rc_layer_init.vbv_buffer_size = pic->rc[0].vbv_buffer_size;
-   enc->enc_pic.rc_layer_init.avg_target_bits_per_picture = pic->rc[0].target_bits_picture;
-   enc->enc_pic.rc_layer_init.peak_bits_per_picture_integer = pic->rc[0].peak_bits_picture_integer;
-   enc->enc_pic.rc_layer_init.peak_bits_per_picture_fractional = pic->rc[0].peak_bits_picture_fraction;
+   enc->enc_pic.rc_layer_init.avg_target_bits_per_picture =
+      pic->rc[0].target_bitrate * ((float)pic->rc[0].frame_rate_den / pic->rc[0].frame_rate_num);
+   enc->enc_pic.rc_layer_init.peak_bits_per_picture_integer =
+      pic->rc[0].peak_bitrate * ((float)pic->rc[0].frame_rate_den / pic->rc[0].frame_rate_num);
+   enc->enc_pic.rc_layer_init.peak_bits_per_picture_fractional =
+      (((pic->rc[0].peak_bitrate * (uint64_t)pic->rc[0].frame_rate_den) % pic->rc[0].frame_rate_num) << 32) /
+      pic->rc[0].frame_rate_num;
 
    RADEON_ENC_BEGIN(RENC_UVD_IB_PARAM_RATE_CONTROL_LAYER_INIT);
    RADEON_ENC_CS(enc->enc_pic.rc_layer_init.target_bit_rate);
