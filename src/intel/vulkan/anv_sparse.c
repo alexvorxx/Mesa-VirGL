@@ -736,7 +736,7 @@ anv_sparse_bind_trtt(struct anv_device *device,
                                   &device->batch_bo_pool,
                                   false, false);
    if (result != VK_SUCCESS)
-      goto error_async;
+      goto out_async;
 
    simple_mtx_lock(&trtt->mutex);
 
@@ -787,7 +787,7 @@ anv_sparse_bind_trtt(struct anv_device *device,
                                     l3l2_binds, &n_l3l2_binds,
                                     l1_binds, &n_l1_binds);
          if (result != VK_SUCCESS)
-            goto error_stack_arrays;
+            goto out_stack_arrays;
       }
    }
 
@@ -800,10 +800,13 @@ anv_sparse_bind_trtt(struct anv_device *device,
    sparse_debug("trtt_binds: num_vm_binds:%02d l3l2:%04d l1:%04d\n",
                 sparse_submit->binds_len, n_l3l2_binds, n_l1_binds);
 
-   if (n_l3l2_binds || n_l1_binds) {
-      anv_genX(device->info, write_trtt_entries)(
-         &submit->base, l3l2_binds, n_l3l2_binds, l1_binds, n_l1_binds);
-   }
+   /* This is not an error, the application is simply trying to reset state
+    * that was already there. */
+   if (n_l3l2_binds == 0 && n_l1_binds == 0)
+      goto out_stack_arrays;
+
+   anv_genX(device->info, write_trtt_entries)(
+      &submit->base, l3l2_binds, n_l3l2_binds, l1_binds, n_l1_binds);
 
    STACK_ARRAY_FINISH(l1_binds);
    STACK_ARRAY_FINISH(l3l2_binds);
@@ -812,7 +815,7 @@ anv_sparse_bind_trtt(struct anv_device *device,
 
    if (submit->base.batch.status != VK_SUCCESS) {
       result = submit->base.batch.status;
-      goto error_add_bind;
+      goto out_add_bind;
    }
 
    /* Add all the BOs backing TRTT page tables to the reloc list.
@@ -825,7 +828,7 @@ anv_sparse_bind_trtt(struct anv_device *device,
          result = anv_reloc_list_add_bo(&submit->base.relocs,
                                         trtt->page_table_bos[i]);
          if (result != VK_SUCCESS)
-            goto error_add_bind;
+            goto out_add_bind;
       }
    }
 
@@ -836,7 +839,7 @@ anv_sparse_bind_trtt(struct anv_device *device,
                                             sparse_submit->signal_count,
                                             sparse_submit->signals);
    if (result != VK_SUCCESS)
-      goto error_add_bind;
+      goto out_add_bind;
 
 
    list_addtail(&submit->link, &trtt->in_flight_batches);
@@ -847,13 +850,13 @@ anv_sparse_bind_trtt(struct anv_device *device,
 
    return VK_SUCCESS;
 
- error_stack_arrays:
+ out_stack_arrays:
    STACK_ARRAY_FINISH(l1_binds);
    STACK_ARRAY_FINISH(l3l2_binds);
- error_add_bind:
+ out_add_bind:
    simple_mtx_unlock(&trtt->mutex);
    anv_async_submit_fini(&submit->base);
- error_async:
+ out_async:
    vk_free(&device->vk.alloc, submit);
    return result;
 }
