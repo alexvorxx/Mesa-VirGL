@@ -20,13 +20,12 @@ namespace aco {
 namespace {
 
 struct ra_ctx;
+struct DefInfo;
 
 unsigned get_subdword_operand_stride(amd_gfx_level gfx_level, const aco_ptr<Instruction>& instr,
                                      unsigned idx, RegClass rc);
 void add_subdword_operand(ra_ctx& ctx, aco_ptr<Instruction>& instr, unsigned idx, unsigned byte,
                           RegClass rc);
-std::pair<unsigned, unsigned>
-get_subdword_definition_info(Program* program, const aco_ptr<Instruction>& instr, RegClass rc);
 void add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg reg,
                              bool allow_16bit_write);
 
@@ -225,18 +224,7 @@ struct DefInfo {
          /* stride in bytes */
          stride = get_subdword_operand_stride(ctx.program->gfx_level, instr, operand, rc);
       } else if (rc.is_subdword()) {
-         std::pair<unsigned, unsigned> info = get_subdword_definition_info(ctx.program, instr, rc);
-         stride = info.first;
-         if (info.second > rc.bytes()) {
-            rc = RegClass::get(rc.type(), info.second);
-            size = rc.size();
-            if (info.second > stride)
-               data_stride = stride;
-            stride = align(stride, info.second);
-            if (!rc.is_subdword())
-               stride = DIV_ROUND_UP(stride, 4);
-         }
-         assert(stride > 0);
+         get_subdword_definition_info(ctx.program, instr);
       } else if (instr->isMIMG() && instr->mimg().d16 && ctx.program->gfx_level <= GFX9) {
          /* Workaround GFX9 hardware bug for D16 image instructions: FeatureImageGather4D16Bug
           *
@@ -256,6 +244,9 @@ struct DefInfo {
       if (!data_stride)
          data_stride = rc.is_subdword() ? stride : (stride * 4);
    }
+
+private:
+   void get_subdword_definition_info(Program* program, const aco_ptr<Instruction>& instr);
 };
 
 class RegisterFile {
@@ -610,41 +601,40 @@ add_subdword_operand(ra_ctx& ctx, aco_ptr<Instruction>& instr, unsigned idx, uns
    return;
 }
 
-/* minimum_stride, bytes_written */
-std::pair<unsigned, unsigned>
-get_subdword_definition_info(Program* program, const aco_ptr<Instruction>& instr, RegClass rc)
+void
+DefInfo::get_subdword_definition_info(Program* program, const aco_ptr<Instruction>& instr)
 {
    amd_gfx_level gfx_level = program->gfx_level;
-
    assert(gfx_level >= GFX8);
 
+   stride = rc.bytes() % 2 == 0 ? 2 : 1;
+
    if (instr->isPseudo()) {
-      if (instr->opcode == aco_opcode::p_interp_gfx11)
-         return std::make_pair(4u, 4u);
-      else
-         return std::make_pair(rc.bytes() % 2 == 0 ? 2 : 1, rc.bytes());
+      if (instr->opcode == aco_opcode::p_interp_gfx11) {
+         rc = RegClass(RegType::vgpr, rc.size());
+         stride = 1;
+      }
+      return;
    }
 
    if (instr->isVALU()) {
       assert(rc.bytes() <= 2);
 
       if (can_use_SDWA(gfx_level, instr, false) || instr->opcode == aco_opcode::p_v_cvt_pk_u8_f32)
-         return std::make_pair(rc.bytes(), rc.bytes());
+         return;
 
-      unsigned bytes_written = 4u;
-      if (instr_is_16bit(gfx_level, instr->opcode))
-         bytes_written = 2u;
-
-      unsigned stride = 4u;
+      rc = instr_is_16bit(gfx_level, instr->opcode) ? v2b : v1;
+      stride = rc == v2b ? 4 : 1;
       if (instr->opcode == aco_opcode::v_fma_mixlo_f16 ||
-          can_use_opsel(gfx_level, instr->opcode, -1))
-         stride = 2u;
-
-      return std::make_pair(stride, bytes_written);
+          can_use_opsel(gfx_level, instr->opcode, -1)) {
+         data_stride = 2;
+         stride = rc == v2b ? 2 : stride;
+      }
+      return;
    }
 
    switch (instr->opcode) {
-   case aco_opcode::v_interp_p2_f16: return std::make_pair(2u, 2u);
+   case aco_opcode::v_interp_p2_f16: return;
    /* D16 loads with _hi version */
    case aco_opcode::ds_read_u8_d16:
    case aco_opcode::ds_read_i8_d16:
@@ -663,28 +653,37 @@ get_subdword_definition_info(Program* program, const aco_ptr<Instruction>& instr
    case aco_opcode::buffer_load_short_d16:
    case aco_opcode::buffer_load_format_d16_x: {
       assert(gfx_level >= GFX9);
-      if (!program->dev.sram_ecc_enabled)
-         return std::make_pair(2u, 2u);
-      else
-         return std::make_pair(2u, 4u);
+      if (program->dev.sram_ecc_enabled) {
+         rc = v1;
+         stride = 1;
+         data_stride = 2;
+      } else {
+         stride = 2;
+      }
+      return;
    }
    /* 3-component D16 loads */
    case aco_opcode::buffer_load_format_d16_xyz:
    case aco_opcode::tbuffer_load_format_d16_xyz: {
       assert(gfx_level >= GFX9);
-      if (!program->dev.sram_ecc_enabled)
-         return std::make_pair(4u, 6u);
-      break;
+      if (program->dev.sram_ecc_enabled) {
+         rc = v2;
+         stride = 1;
+      } else {
+         stride = 4;
+      }
+      return;
    }
    default: break;
    }
 
    if (instr->isMIMG() && instr->mimg().d16 && !program->dev.sram_ecc_enabled) {
       assert(gfx_level >= GFX9);
-      return std::make_pair(4u, rc.bytes());
+      stride = 4;
+   } else {
+      rc = RegClass(RegType::vgpr, rc.size());
+      stride = 1;
    }
-
-   return std::make_pair(4, rc.size() * 4u);
 }
 
 void
