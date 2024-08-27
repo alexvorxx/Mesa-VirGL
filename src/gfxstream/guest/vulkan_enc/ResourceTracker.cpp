@@ -25,6 +25,7 @@
 #include "goldfish_address_space.h"
 #include "goldfish_vk_private_defs.h"
 #include "util.h"
+#include "util/macros.h"
 #include "virtgpu_gfxstream_protocol.h"
 #include "vulkan/vulkan_core.h"
 
@@ -35,6 +36,7 @@
 #include <stdlib.h>
 
 #include <algorithm>
+#include <chrono>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -51,7 +53,6 @@
 
 #include <sys/mman.h>
 #include <sys/syscall.h>
-
 
 static inline int inline_memfd_create(const char* name, unsigned int flags) {
 #if defined(__ANDROID__)
@@ -4915,22 +4916,31 @@ VkResult ResourceTracker::on_vkWaitForFences(void* context, VkResult, VkDevice d
         return enc->vkWaitForFences(device, fenceCount, pFences, waitAll, timeout,
                                     true /* do lock */);
     } else {
-        // Depending on wait any or wait all,
-        // schedule a wait group with waitAny/waitAll
-        mesa_logd("%s: scheduling ext waits\n", __func__);
+        auto* syncHelper =
+            ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
 
         for (auto fd : fencesExternalWaitFds) {
-            mesa_logd("%s: wait on %d\n", __func__, fd);
-            auto* syncHelper =
-                ResourceTracker::threadingCallbacks.hostConnectionGetFunc()->syncHelper();
-            syncHelper->wait(fd, 3000);
-            mesa_logd("done waiting on fd %d\n", fd);
+            mesa_logd("Waiting on sync fd: %d", fd);
+
+            std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+            // syncHelper works in milliseconds
+            syncHelper->wait(fd, DIV_ROUND_UP(timeout, 1000));
+            std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+
+            uint64_t timeTaken =
+                std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count();
+            if (timeTaken >= timeout) {
+                return VK_TIMEOUT;
+            }
+
+            timeout -= timeTaken;
+            mesa_logd("Done waiting on sync fd: %d", fd);
         }
 
         if (!fencesNonExternal.empty()) {
             auto hostConn = ResourceTracker::threadingCallbacks.hostConnectionGetFunc();
             auto vkEncoder = ResourceTracker::threadingCallbacks.vkEncoderGetFunc(hostConn);
-            mesa_logd("%s: vkWaitForFences to host\n", __func__);
+            mesa_logd("vkWaitForFences to host");
             return vkEncoder->vkWaitForFences(device, fencesNonExternal.size(),
                                               fencesNonExternal.data(), waitAll, timeout,
                                               true /* do lock */);
