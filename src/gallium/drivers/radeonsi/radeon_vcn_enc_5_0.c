@@ -58,8 +58,6 @@ static void radeon_enc_cdf_default_table(struct radeon_encoder *enc)
 
 static void radeon_enc_spec_misc(struct radeon_encoder *enc)
 {
-   enc->enc_pic.spec_misc.level_idc = enc->base.level;
-
    RADEON_ENC_BEGIN(enc->cmd.spec_misc_h264);
    RADEON_ENC_CS(enc->enc_pic.spec_misc.constrained_intra_pred_flag);
    RADEON_ENC_CS(enc->enc_pic.spec_misc.cabac_enable);
