@@ -695,11 +695,12 @@ debian-x86_32:
 # In case of issues with this job, contact @ajax
 debian-s390x:
   extends:
-    - debian-ppc64el
+    - .meson-cross
     - .use-debian/s390x_build
   tags:
     - kvm
   variables:
+    BUILDTYPE: debug
     CROSS: s390x
     GALLIUM_DRIVERS: "llvmpipe,zink"
     LLVM_VERSION: 15
