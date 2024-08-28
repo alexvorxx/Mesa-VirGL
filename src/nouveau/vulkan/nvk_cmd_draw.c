@@ -2203,9 +2203,9 @@ nvk_mme_set_anti_alias(struct mme_builder *b)
       nvk_mme_store_scratch(b, ANTI_ALIAS, anti_alias);
 
       struct mme_value rcp_mss_log2 =
-         mme_merge(b, mme_zero(), anti_alias, 0, 3, 0);
+         mme_merge(b, mme_zero(), anti_alias, 0, 4, 0);
       struct mme_value samples_log2 =
-         mme_merge(b, mme_zero(), anti_alias, 0, 3, 4);
+         mme_merge(b, mme_zero(), anti_alias, 0, 4, 4);
       mme_free_reg(b, anti_alias);
 
       /* We've already done all the hard work on the CPU in
