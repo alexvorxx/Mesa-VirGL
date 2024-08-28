@@ -3803,6 +3803,18 @@ typedef enum {
    nir_io_glsl_opt_varyings = BITFIELD_BIT(17),
 } nir_io_options;
 
+typedef enum {
+   nir_lower_packing_op_pack_64_2x32,
+   nir_lower_packing_op_unpack_64_2x32,
+   nir_lower_packing_op_pack_64_4x16,
+   nir_lower_packing_op_unpack_64_4x16,
+   nir_lower_packing_op_pack_32_2x16,
+   nir_lower_packing_op_unpack_32_2x16,
+   nir_lower_packing_op_pack_32_4x8,
+   nir_lower_packing_op_unpack_32_4x8,
+   nir_lower_packing_num_ops,
+} nir_lower_packing_op;
+
 /** An instruction filtering callback
  *
  * Returns true if the instruction should be processed and false otherwise.
@@ -4329,6 +4341,12 @@ typedef struct nir_shader_compiler_options {
 
    /** Options determining lowering and behavior of inputs and outputs. */
    nir_io_options io_options;
+
+   /**
+    * Bit mask of nir_lower_packing_op to skip lowering some nir ops in
+    * nir_lower_packing().
+    */
+   unsigned skip_lower_packing_ops;
 
    /** Driver callback where drivers can define how to lower mediump.
     *  Used by nir_lower_io_passes.
