@@ -1452,6 +1452,13 @@ struct IDAndInfo {
    DefInfo info;
 };
 
+void
+add_rename(ra_ctx& ctx, Temp orig_val, Temp new_val)
+{
+   ctx.renames[ctx.block->index][orig_val.id()] = new_val;
+   ctx.orig_names.emplace(new_val.id(), orig_val);
+}
+
 /* Reallocates vars by sorting them and placing each variable after the previous
  * one. If one of the variables has 0xffffffff as an ID, the register assigned
  * for that variable will be returned.
@@ -2179,8 +2186,7 @@ get_reg_phi(ra_ctx& ctx, IDSet& live_in, RegisterFile& register_file,
       /* rename */
       std::unordered_map<unsigned, Temp>::iterator orig_it = ctx.orig_names.find(pc.first.tempId());
       Temp orig = orig_it != ctx.orig_names.end() ? orig_it->second : pc.first.getTemp();
-      ctx.orig_names[pc.second.tempId()] = orig;
-      ctx.renames[block.index][orig.id()] = pc.second.getTemp();
+      add_rename(ctx, orig, pc.second.getTemp());
 
       /* otherwise, this is a live-in and we need to create a new phi
        * to move it in this block's predecessors */
@@ -2474,7 +2480,7 @@ init_reg_file(ra_ctx& ctx, const std::vector<IDSet>& live_out_per_block, Block& 
          Temp val = Temp(t, ctx.program->temp_rc[t]);
          Temp renamed = read_variable(ctx, val, block.index - 1);
          if (renamed != val)
-            ctx.renames[block.index][val.id()] = renamed;
+            add_rename(ctx, val, renamed);
          assignment& var = ctx.assignments[renamed.id()];
          assert(var.assigned);
          register_file.fill(Definition(renamed.id(), var.reg, var.rc));
@@ -2504,8 +2510,7 @@ init_reg_file(ra_ctx& ctx, const std::vector<IDSet>& live_out_per_block, Block& 
             register_file.fill(Definition(renamed.id(), var.reg, var.rc));
          }
          if (renamed != val) {
-            ctx.renames[block.index].emplace(t, renamed);
-            ctx.orig_names[renamed.id()] = val;
+            add_rename(ctx, val, renamed);
          }
       }
    }
@@ -2892,8 +2897,7 @@ emit_parallel_copy_internal(ra_ctx& ctx, std::vector<std::pair<Operand, Definiti
       std::unordered_map<unsigned, Temp>::iterator it =
          ctx.orig_names.find(pc->operands[i].tempId());
       Temp orig = it != ctx.orig_names.end() ? it->second : pc->operands[i].getTemp();
-      ctx.orig_names[pc->definitions[i].tempId()] = orig;
-      ctx.renames[ctx.block->index][orig.id()] = pc->definitions[i].getTemp();
+      add_rename(ctx, orig, pc->definitions[i].getTemp());
    }
 
    if (temp_in_scc && (sgpr_operands_alias_defs || linear_vgpr)) {
