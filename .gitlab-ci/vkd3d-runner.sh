@@ -143,6 +143,20 @@ for failed_test in "${fails[@]}"; do
   printf '%s,%s\n' "$failed_test" "$test_status"
 done > "$RESULTSFILE"
 
+# Catch tests listed but not executed or not failing
+mapfile -t expected_fail_lines < "$EXPECTATIONFILE"
+for expected_fail_line in "${expected_fail_lines[@]}"; do
+  test_name=$(cut -d, -f1 <<< "$expected_fail_line")
+  if [ ! -f "$TEST_LOGS/$test_name.log" ]; then
+    test_status='UnexpectedImprovement(Skip)'
+  elif [ ! -f "$RESULTS/$test_name.log" ]; then
+    test_status='UnexpectedImprovement(Pass)'
+  else
+    continue
+  fi
+  printf '%s,%s\n' "$test_name" "$test_status"
+done >> "$RESULTSFILE"
+
 mapfile -t unexpected_results < <(comm -23 "$RESULTSFILE" "$EXPECTATIONFILE")
 if [ ${#unexpected_results[@]} -gt 0 ]; then
   printf >&2 '\nUnexpected results:\n'
