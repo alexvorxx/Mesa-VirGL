@@ -1,24 +1,18 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC1091  # the path is created in build-kdl and
 # here is check if exist
+# shellcheck disable=SC2086 # we want the arguments to be expanded
 
-terminate() {
-  echo "ci-kdl.sh caught SIGTERM signal! propagating to child processes"
-  for job in $(jobs -p)
-  do
-    kill -15 "$job"
-  done
-}
-
-trap terminate SIGTERM
-
-if [ -f /ci-kdl/bin/activate ]; then
-  source /ci-kdl/bin/activate
-  /ci-kdl/bin/python /ci-kdl/bin/ci-kdl | tee -a "$RESULTS_DIR/kdl.log" &
-  child=$!
-  wait $child
-  mv kdl_*.json "$RESULTS_DIR/kdl.json"
-else
-  echo -e "Not possible to activate ci-kdl virtual environment"
+if ! [ -f /ci-kdl/bin/activate ]; then
+  echo -e "ci-kdl not installed; not monitoring temperature"
+  exit 0
 fi
 
+KDL_ARGS="
+	--output-file=${RESULTS_DIR}/kdl.json
+	--log-level=WARNING
+	--num-samples=-1
+"
+
+source /ci-kdl/bin/activate
+exec /ci-kdl/bin/ci-kdl ${KDL_ARGS}
