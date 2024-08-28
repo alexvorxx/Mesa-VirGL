@@ -1597,6 +1597,7 @@ d3d12_video_encoder_create_encoder(struct pipe_context *context, const struct pi
    pD3D12Enc->base.flush            = d3d12_video_encoder_flush;
    pD3D12Enc->base.get_encode_headers = d3d12_video_encoder_get_encode_headers;
    pD3D12Enc->base.get_feedback     = d3d12_video_encoder_get_feedback;
+   pD3D12Enc->base.create_dpb_buffer = d3d12_video_create_dpb_buffer;
 
    struct d3d12_context *pD3D12Ctx = (struct d3d12_context *) context;
    pD3D12Enc->m_pD3D12Screen       = d3d12_screen(pD3D12Ctx->base.screen);

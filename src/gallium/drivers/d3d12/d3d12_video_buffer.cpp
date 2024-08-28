@@ -22,6 +22,7 @@
  */
 
 #include "d3d12_video_buffer.h"
+#include "d3d12_video_enc.h"
 #include "d3d12_resource.h"
 #include "d3d12_video_dec.h"
 #include "d3d12_residency.h"
@@ -63,10 +64,13 @@ d3d12_video_buffer_create_impl(struct pipe_context *pipe,
    pD3D12VideoBuffer->base.contiguous_planes = true;
    pD3D12VideoBuffer->base.associated_data = nullptr;
 
-   pD3D12VideoBuffer->base.bind =  PIPE_BIND_CUSTOM;
+   // Used to signal the rest of the d3d12 driver this is a video (dpb or not) texture
+   pD3D12VideoBuffer->base.bind |=  PIPE_BIND_CUSTOM;
 #ifdef HAVE_GALLIUM_D3D12_GRAPHICS
    struct d3d12_screen *dscreen = (struct d3d12_screen*) pipe->screen;
-   if (dscreen->max_feature_level >= D3D_FEATURE_LEVEL_11_0)
+   if ((dscreen->max_feature_level >= D3D_FEATURE_LEVEL_11_0) &&
+      ((pD3D12VideoBuffer->base.bind & PIPE_BIND_VIDEO_DECODE_DPB) == 0) &&
+      ((pD3D12VideoBuffer->base.bind & PIPE_BIND_VIDEO_ENCODE_DPB) == 0))
       pD3D12VideoBuffer->base.bind |= (PIPE_BIND_RENDER_TARGET | PIPE_BIND_SAMPLER_VIEW);
 #endif // HAVE_GALLIUM_D3D12_GRAPHICS
 
@@ -239,6 +243,11 @@ d3d12_video_buffer_get_surfaces(struct pipe_video_buffer *buffer)
    struct pipe_context *      pipe              = pD3D12VideoBuffer->base.context;
    struct pipe_surface        surface_template  = {};
 
+   // DPB buffers don't support views
+   if ((pD3D12VideoBuffer->base.bind & PIPE_BIND_VIDEO_DECODE_DPB) ||
+       (pD3D12VideoBuffer->base.bind & PIPE_BIND_VIDEO_ENCODE_DPB))
+      return nullptr;
+
    if (!pipe->create_surface)
       return nullptr;
 
@@ -316,6 +325,11 @@ d3d12_video_buffer_get_sampler_view_planes(struct pipe_video_buffer *buffer)
    struct pipe_context *      pipe              = pD3D12VideoBuffer->base.context;
    struct pipe_sampler_view   samplerViewTemplate;
 
+   // DPB buffers don't support views
+   if ((pD3D12VideoBuffer->base.bind & PIPE_BIND_VIDEO_DECODE_DPB) ||
+       (pD3D12VideoBuffer->base.bind & PIPE_BIND_VIDEO_ENCODE_DPB))
+      return nullptr;
+
    // Some video frameworks iterate over [0..VL_MAX_SURFACES) and ignore the nullptr entries
    // So we have to null initialize the other surfaces not used from [num_planes..VL_MAX_SURFACES)
    // Like in src/gallium/frontends/vdpau/surface.c
@@ -367,6 +381,11 @@ d3d12_video_buffer_get_sampler_view_components(struct pipe_video_buffer *buffer)
    struct pipe_context *      pipe              = pD3D12VideoBuffer->base.context;
    struct pipe_sampler_view   samplerViewTemplate;
 
+   // DPB buffers don't support views
+   if ((pD3D12VideoBuffer->base.bind & PIPE_BIND_VIDEO_DECODE_DPB) ||
+       (pD3D12VideoBuffer->base.bind & PIPE_BIND_VIDEO_ENCODE_DPB))
+      return nullptr;
+
    // pCurPlaneResource refers to the planar resource, not the overall resource.
    // in d3d12_resource this is handled by having a linked list of planes with
    // d3dRes->base.next ptr to next plane resource
@@ -415,4 +434,25 @@ error:
    }
 
    return nullptr;
+}
+
+struct pipe_video_buffer*
+d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,
+                              struct pipe_picture_desc *picture,
+                              const struct pipe_video_buffer *templat)
+{
+   struct d3d12_video_encoder *pD3D12Enc = (struct d3d12_video_encoder *) codec;
+   assert(pD3D12Enc);
+   bool bSupportsAOT = ((pD3D12Enc->m_currentEncodeCapabilities.m_SupportFlags &
+                        D3D12_VIDEO_ENCODER_SUPPORT_FLAG_RECONSTRUCTED_FRAMES_REQUIRE_TEXTURE_ARRAYS) == 0);
+   assert(bSupportsAOT); // Do not support texture array (for now)
+
+   // Indicate to the d3d12 resource creation path this needs decode/encode reference only resource flags
+   pipe_video_buffer tmpl = *templat;
+   if (codec->entrypoint == PIPE_VIDEO_ENTRYPOINT_BITSTREAM)
+      tmpl.bind |= PIPE_BIND_VIDEO_DECODE_DPB;
+   else if (codec->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE)
+      tmpl.bind |= PIPE_BIND_VIDEO_ENCODE_DPB;
+
+   return d3d12_video_buffer_create_impl(codec->context, &tmpl, NULL, 0);
 }

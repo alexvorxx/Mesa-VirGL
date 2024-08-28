@@ -102,4 +102,13 @@ struct d3d12_video_buffer
 /// Pipe video buffer interface ends
 ///
 
+/**
+ * creates a video dpb buffer
+ */
+
+struct pipe_video_buffer*
+d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,
+                              struct pipe_picture_desc *picture,
+                              const struct pipe_video_buffer *templat);
+
 #endif
