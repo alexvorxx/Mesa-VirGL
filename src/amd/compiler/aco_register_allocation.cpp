@@ -14,8 +14,6 @@
 #include <bitset>
 #include <map>
 #include <optional>
-#include <set>
-#include <unordered_map>
 #include <vector>
 
 namespace aco {
@@ -90,12 +88,13 @@ struct ra_ctx {
 
    Program* program;
    Block* block = NULL;
+   aco::monotonic_buffer_resource memory;
    std::vector<assignment> assignments;
-   std::vector<std::unordered_map<unsigned, Temp>> renames;
+   std::vector<aco::unordered_map<uint32_t, Temp>> renames;
    std::vector<uint32_t> loop_header;
-   std::unordered_map<unsigned, Temp> orig_names;
-   std::unordered_map<unsigned, Instruction*> vectors;
-   std::unordered_map<unsigned, Instruction*> split_vectors;
+   aco::unordered_map<uint32_t, Temp> orig_names;
+   aco::unordered_map<uint32_t, Instruction*> vectors;
+   aco::unordered_map<uint32_t, Instruction*> split_vectors;
    aco_ptr<Instruction> pseudo_dummy;
    aco_ptr<Instruction> phi_dummy;
    uint16_t max_used_sgpr = 0;
@@ -114,7 +113,8 @@ struct ra_ctx {
 
    ra_ctx(Program* program_, ra_test_policy policy_)
        : program(program_), assignments(program->peekAllocationId()),
-         renames(program->blocks.size()), policy(policy_)
+         renames(program->blocks.size(), aco::unordered_map<uint32_t, Temp>(memory)),
+         orig_names(memory), vectors(memory), split_vectors(memory), policy(policy_)
    {
       pseudo_dummy.reset(create_instruction(aco_opcode::p_parallelcopy, Format::PSEUDO, 0, 0));
       phi_dummy.reset(create_instruction(aco_opcode::p_linear_phi, Format::PSEUDO, 0, 0));
@@ -2370,7 +2370,7 @@ handle_loop_phis(ra_ctx& ctx, const IDSet& live_in, uint32_t loop_header_idx,
                  uint32_t loop_exit_idx)
 {
    Block& loop_header = ctx.program->blocks[loop_header_idx];
-   std::unordered_map<unsigned, Temp> renames;
+   aco::unordered_map<uint32_t, Temp> renames(ctx.memory);
 
    /* create phis for variables renamed during the loop */
    for (unsigned t : live_in) {
@@ -2625,7 +2625,7 @@ void
 get_affinities(ra_ctx& ctx)
 {
    std::vector<std::vector<Temp>> phi_resources;
-   std::unordered_map<unsigned, unsigned> temp_to_phi_resources;
+   aco::unordered_map<uint32_t, uint32_t> temp_to_phi_resources(ctx.memory);
 
    for (auto block_rit = ctx.program->blocks.rbegin(); block_rit != ctx.program->blocks.rend();
         block_rit++) {
