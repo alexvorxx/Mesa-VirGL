@@ -146,10 +146,13 @@ vc4_bo_free(struct vc4_bo *bo)
         struct vc4_screen *screen = bo->screen;
 
         if (bo->map) {
-                if (using_vc4_simulator && bo->name &&
+#ifdef USE_VC4_SIMULATOR
+                if (bo->name &&
                     strcmp(bo->name, "winsys") == 0) {
                         free(bo->map);
-                } else {
+                } else
+#endif
+                {
                         munmap(bo->map, bo->size);
                         VG(VALGRIND_FREELIKE_BLOCK(bo->map, 0));
                 }
