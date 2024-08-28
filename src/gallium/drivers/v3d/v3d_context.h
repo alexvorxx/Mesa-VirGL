@@ -745,10 +745,11 @@ void v3d_query_init(struct pipe_context *pctx);
 static inline int
 v3d_ioctl(int fd, unsigned long request, void *arg)
 {
-        if (USE_V3D_SIMULATOR)
-                return v3d_simulator_ioctl(fd, request, arg);
-        else
-                return drmIoctl(fd, request, arg);
+#if USE_V3D_SIMULATOR
+        return v3d_simulator_ioctl(fd, request, arg);
+#else
+        return drmIoctl(fd, request, arg);
+#endif
 }
 
 static inline bool

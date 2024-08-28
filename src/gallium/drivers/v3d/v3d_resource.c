@@ -812,9 +812,10 @@ v3d_resource_create_with_modifiers(struct pipe_screen *pscreen,
         /* Scanout BOs for simulator need to be linear for interaction with
          * i965.
          */
-        if (USE_V3D_SIMULATOR &&
-            tmpl->bind & (PIPE_BIND_SHARED | PIPE_BIND_SCANOUT))
+#if USE_V3D_SIMULATOR
+        if (tmpl->bind & PIPE_BIND_SHARED)
                 should_tile = false;
+#endif
 
         /* If using the old-school SCANOUT flag, we don't know what the screen
          * might support other than linear. Just force linear.

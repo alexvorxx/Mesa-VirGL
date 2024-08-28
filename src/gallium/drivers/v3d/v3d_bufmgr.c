@@ -201,10 +201,13 @@ v3d_bo_free(struct v3d_bo *bo)
         struct v3d_screen *screen = bo->screen;
 
         if (bo->map) {
-                if (USE_V3D_SIMULATOR && bo->name &&
+#if USE_V3D_SIMULATOR
+                if (bo->name &&
                     strcmp(bo->name, "winsys") == 0) {
                         free(bo->map);
-                } else {
+                } else
+#endif
+                {
                         munmap(bo->map, bo->size);
                         VG(VALGRIND_FREELIKE_BLOCK(bo->map, 0));
                 }
