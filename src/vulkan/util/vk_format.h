@@ -260,6 +260,26 @@ vk_format_get_plane_count(VkFormat format)
    return ycbcr_info ? ycbcr_info->n_planes : 1;
 }
 
+static inline unsigned
+vk_format_get_plane_width(VkFormat format, unsigned plane, unsigned width)
+{
+   const struct vk_format_ycbcr_info *ycbcr_info =
+      vk_format_get_ycbcr_info(format);
+   const uint8_t width_scale = ycbcr_info ?
+         ycbcr_info->planes[plane].denominator_scales[0] : 1;
+   return width / width_scale;
+}
+
+static inline unsigned
+vk_format_get_plane_height(VkFormat format, unsigned plane, unsigned height)
+{
+   const struct vk_format_ycbcr_info *ycbcr_info =
+      vk_format_get_ycbcr_info(format);
+   const uint8_t height_scale = ycbcr_info ?
+         ycbcr_info->planes[plane].denominator_scales[1] : 1;
+   return height / height_scale;
+}
+
 VkClearColorValue
 vk_swizzle_color_value(VkClearColorValue color,
                        VkComponentMapping swizzle, bool is_int);

@@ -104,18 +104,6 @@ vk_format_no_srgb(VkFormat format)
    }
 }
 
-static inline unsigned
-vk_format_get_plane_width(VkFormat format, unsigned plane, unsigned width)
-{
-   return util_format_get_plane_width(vk_format_to_pipe_format(format), plane, width);
-}
-
-static inline unsigned
-vk_format_get_plane_height(VkFormat format, unsigned plane, unsigned height)
-{
-   return util_format_get_plane_height(vk_format_to_pipe_format(format), plane, height);
-}
-
 struct radv_physical_device;
 
 uint32_t radv_translate_buffer_numformat(const struct util_format_description *desc, int first_non_void);
