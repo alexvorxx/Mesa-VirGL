@@ -56,8 +56,8 @@ cat "${SKQP_PATCH_DIR}"/build-skqp_*.patch |
 
 # hack for skqp see the clang
 pushd /usr/bin/
-ln -s ../lib/llvm-15/bin/clang clang
-ln -s ../lib/llvm-15/bin/clang++ clang++
+ln -s "../lib/llvm-${LLVM_VERSION:-15}/bin/clang" clang
+ln -s "../lib/llvm-${LLVM_VERSION:-15}/bin/clang++" clang++
 popd
 
 # Fetch some needed build tools needed to build skia/skqp.
