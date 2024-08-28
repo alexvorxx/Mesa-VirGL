@@ -98,8 +98,16 @@ d3d12_video_encoder_flush(struct pipe_video_codec *codec);
  * Waits until the async work from the fenceValue has been completed in the device
  * and releases the in-flight resources
  */
-void
-d3d12_video_encoder_sync_completion(struct pipe_video_codec *codec, uint64_t fenceValueToWaitOn, uint64_t timeout_ns);
+bool
+d3d12_video_encoder_sync_completion(struct pipe_video_codec *codec, ID3D12Fence *fence, uint64_t fenceValueToWaitOn, uint64_t timeout_ns);
+
+/**
+ * Get feedback fence.
+ */
+int
+d3d12_video_encoder_get_feedback_fence(struct pipe_video_codec *codec,
+                                       struct pipe_fence_handle *fence,
+                                       uint64_t timeout);
 
 struct pipe_video_buffer*
 d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,
