@@ -365,7 +365,7 @@ fi
 ############### Build ci-kdl
 section_start kdl "Prepare a venv for kdl"
 . .gitlab-ci/container/build-kdl.sh
-mv ci-kdl.venv $ROOTFS
+mv /ci-kdl $ROOTFS/
 section_end kdl
 
 ############### Build local stuff for use by igt and kernel testing, which

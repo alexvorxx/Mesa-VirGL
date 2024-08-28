@@ -12,9 +12,9 @@ terminate() {
 
 trap terminate SIGTERM
 
-if [ -f /ci-kdl.venv/bin/activate ]; then
-  source /ci-kdl.venv/bin/activate
-  /ci-kdl.venv/bin/python /ci-kdl.venv/bin/ci-kdl | tee -a "$RESULTS_DIR/kdl.log" &
+if [ -f /ci-kdl/bin/activate ]; then
+  source /ci-kdl/bin/activate
+  /ci-kdl/bin/python /ci-kdl/bin/ci-kdl | tee -a "$RESULTS_DIR/kdl.log" &
   child=$!
   wait $child
   mv kdl_*.json "$RESULTS_DIR/kdl.json"
