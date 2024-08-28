@@ -2150,7 +2150,7 @@ static uint32_t
 nvk_mme_anti_alias_init(void)
 {
    /* This is a valid value but we never set it so it ensures that the macro
-    * will actuallryn the first time we set anything.
+    * will actually run the first time we set anything.
     */
    return 0xf;
 }
