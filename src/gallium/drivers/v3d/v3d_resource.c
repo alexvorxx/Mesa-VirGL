@@ -842,6 +842,7 @@ v3d_resource_create_with_modifiers(struct pipe_screen *pscreen,
         v3d_setup_slices(rsc, 0, tmpl->bind & PIPE_BIND_SHARED);
 
         if (screen->ro && (tmpl->bind & PIPE_BIND_SCANOUT)) {
+                assert(!rsc->tiled);
                 struct winsys_handle handle;
                 struct pipe_resource scanout_tmpl = {
                         .target = prsc->target,
@@ -912,7 +913,7 @@ v3d_resource_from_handle(struct pipe_screen *pscreen,
                 rsc->tiled = true;
                 break;
         case DRM_FORMAT_MOD_INVALID:
-                rsc->tiled = screen->ro == NULL;
+                rsc->tiled = false;
                 break;
         default:
                 switch(fourcc_mod_broadcom_mod(whandle->modifier)) {
