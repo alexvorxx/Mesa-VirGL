@@ -1769,6 +1769,8 @@ get_reg(ra_ctx& ctx, const RegisterFile& reg_file, Temp temp,
       for (const Operand& op : instr->operands) {
          if (op.isTemp() && op.isFirstKillBeforeDef() && op.regClass() == temp.regClass()) {
             assert(op.isFixed());
+            if (op.physReg() == vcc || op.physReg() == vcc_hi)
+               continue;
             if (get_reg_specified(ctx, reg_file, temp.regClass(), instr, op.physReg(),
                                   operand_index))
                return op.physReg();
