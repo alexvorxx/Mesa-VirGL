@@ -412,14 +412,14 @@ trtt_get_page_table_bo(struct anv_device *device, struct anv_bo **bo,
 #define ANV_TRTT_L3L2_INVALID_ENTRY (1 << 0)
 
 static void
-anv_trtt_bind_list_add_entry(struct anv_trtt_bind *binds, uint32_t *binds_len,
-                             uint64_t pte_addr, uint64_t entry_addr)
+anv_trtt_bind_list_add_entry(struct util_dynarray *binds, uint64_t pte_addr,
+                             uint64_t entry_addr)
 {
-   binds[*binds_len] = (struct anv_trtt_bind) {
+   struct anv_trtt_bind b = {
       .pte_addr = pte_addr,
       .entry_addr = entry_addr,
    };
-   (*binds_len)++;
+   util_dynarray_append(binds, struct anv_trtt_bind, b);
 }
 
 /* Adds elements to the anv_trtt_bind structs passed. This doesn't write the
@@ -428,10 +428,8 @@ anv_trtt_bind_list_add_entry(struct anv_trtt_bind *binds, uint32_t *binds_len,
 static VkResult
 anv_trtt_bind_add(struct anv_device *device,
                   uint64_t trtt_addr, uint64_t dest_addr,
-                  struct anv_trtt_bind *l3l2_binds,
-                  uint32_t *n_l3l2_binds,
-                  struct anv_trtt_bind *l1_binds,
-                  uint32_t *n_l1_binds)
+                  struct util_dynarray *l3l2_binds,
+                  struct util_dynarray *l1_binds)
 {
    VkResult result = VK_SUCCESS;
    struct anv_trtt *trtt = &device->trtt;
@@ -448,9 +446,8 @@ anv_trtt_bind_add(struct anv_device *device,
       if (is_null_bind) {
          trtt->l3_mirror[l3_index] = ANV_TRTT_L3L2_NULL_ENTRY;
 
-         anv_trtt_bind_list_add_entry(l3l2_binds, n_l3l2_binds,
-                                      trtt->l3_addr + l3_index *
-                                      sizeof(uint64_t),
+         anv_trtt_bind_list_add_entry(l3l2_binds, trtt->l3_addr +
+                                      l3_index * sizeof(uint64_t),
                                       ANV_TRTT_L3L2_NULL_ENTRY);
 
          return VK_SUCCESS;
@@ -463,19 +460,22 @@ anv_trtt_bind_add(struct anv_device *device,
 
       trtt->l3_mirror[l3_index] = l2_addr;
 
-      anv_trtt_bind_list_add_entry(l3l2_binds, n_l3l2_binds,
-                                   trtt->l3_addr + l3_index *
-                                   sizeof(uint64_t), l2_addr);
+      anv_trtt_bind_list_add_entry(l3l2_binds, trtt->l3_addr +
+                                   l3_index * sizeof(uint64_t), l2_addr);
 
       /* We have just created a new L2 table. Other resources may already have
        * been pointing to this L2 table relying on the fact that it was marked
        * as NULL, so now we need to mark every one of its entries as NULL in
        * order to preserve behavior for those entries.
        */
+      if (!util_dynarray_ensure_cap(l3l2_binds,
+            l3l2_binds->capacity + 512 * sizeof(struct anv_trtt_bind)))
+         return VK_ERROR_OUT_OF_HOST_MEMORY;
+
       for (int i = 0; i < 512; i++) {
          if (i != l2_index) {
             trtt->l2_mirror[l3_index * 512 + i] = ANV_TRTT_L3L2_NULL_ENTRY;
-            anv_trtt_bind_list_add_entry(l3l2_binds, n_l3l2_binds,
+            anv_trtt_bind_list_add_entry(l3l2_binds,
                                          l2_addr + i * sizeof(uint64_t),
                                          ANV_TRTT_L3L2_NULL_ENTRY);
          }
@@ -492,7 +492,7 @@ anv_trtt_bind_add(struct anv_device *device,
          trtt->l2_mirror[l3_index * 512 + l2_index] =
             ANV_TRTT_L3L2_NULL_ENTRY;
 
-         anv_trtt_bind_list_add_entry(l3l2_binds, n_l3l2_binds,
+         anv_trtt_bind_list_add_entry(l3l2_binds,
                                       l2_addr + l2_index * sizeof(uint64_t),
                                       ANV_TRTT_L3L2_NULL_ENTRY);
 
@@ -506,13 +506,13 @@ anv_trtt_bind_add(struct anv_device *device,
 
       trtt->l2_mirror[l3_index * 512 + l2_index] = l1_addr;
 
-      anv_trtt_bind_list_add_entry(l3l2_binds, n_l3l2_binds,
+      anv_trtt_bind_list_add_entry(l3l2_binds,
                                    l2_addr + l2_index * sizeof(uint64_t),
                                    l1_addr);
    }
    assert(l1_addr != 0 && l1_addr != ANV_TRTT_L3L2_NULL_ENTRY);
 
-   anv_trtt_bind_list_add_entry(l1_binds, n_l1_binds,
+   anv_trtt_bind_list_add_entry(l1_binds,
                                 l1_addr + l1_index * sizeof(uint32_t),
                                 dest_addr);
 
@@ -665,20 +665,23 @@ anv_trtt_first_bind_init(struct anv_device *device)
 
       /* We only need to do this once, so pick the first queue. */
       if (i == 0) {
-         struct anv_trtt_bind entries[512];
-         uint32_t entries_added = 0;
+         struct anv_trtt_bind l3l2_binds_data[512];
+         struct util_dynarray l3l2_binds;
+         util_dynarray_init_from_stack(&l3l2_binds, l3l2_binds_data,
+                                       sizeof(l3l2_binds_data));
 
          for (int entry = 0; entry < 512; entry++) {
             trtt->l3_mirror[entry] = ANV_TRTT_L3L2_NULL_ENTRY;
-            anv_trtt_bind_list_add_entry(entries, &entries_added,
+            anv_trtt_bind_list_add_entry(&l3l2_binds,
                                          trtt->l3_addr +
                                          entry * sizeof(uint64_t),
                                          ANV_TRTT_L3L2_NULL_ENTRY);
          }
 
-         assert(entries_added == 512);
-         anv_genX(device->info, write_trtt_entries)(submit, entries, 512,
-                                                    NULL, 0);
+         anv_genX(device->info, write_trtt_entries)(
+            submit, l3l2_binds.data,
+            util_dynarray_num_elements(&l3l2_binds, struct anv_trtt_bind),
+            NULL, 0);
 
          result = anv_reloc_list_add_bo(&submit->relocs, l3_bo);
          if (result != VK_SUCCESS) {
@@ -740,33 +743,33 @@ anv_sparse_bind_trtt(struct anv_device *device,
 
    simple_mtx_lock(&trtt->mutex);
 
-   /* These capacities are conservative estimations. For L1 binds the
-    * number will match exactly unless we skip NULL binds due to L2 already
-    * being NULL. For L3/L2 things are harder to estimate, but the resulting
-    * numbers are so small that a little overestimation won't hurt.
-    *
-    * We have assertions below to catch estimation errors.
-    *
-    * TODO: a bug fix caused us to put that "+ 1024" in the l3l2 capacity so
-    * now our estimations are super overestimating things in most cases, as
-    * most cases are still using a total capacity of just 1 or 2. We should
-    * replace this whole thing with something more efficient.
-    */
-   int l3l2_binds_capacity = 1;
+   /* Do this so we can avoid reallocs later. */
    int l1_binds_capacity = 0;
    for (int b = 0; b < sparse_submit->binds_len; b++) {
       assert(sparse_submit->binds[b].size % (64 * 1024) == 0);
       int pages = sparse_submit->binds[b].size / (64 * 1024);
       l1_binds_capacity += pages;
-      l3l2_binds_capacity += (pages / 1024 + 1) * 2 + 1024;
    }
 
    /* Turn a series of virtual address maps, into a list of L3/L2/L1 TRTT page
     * table updates.
     */
-   STACK_ARRAY(struct anv_trtt_bind, l3l2_binds, l3l2_binds_capacity);
-   STACK_ARRAY(struct anv_trtt_bind, l1_binds, l1_binds_capacity);
-   uint32_t n_l3l2_binds = 0, n_l1_binds = 0;
+
+   /* These are arrays of struct anv_trtt_bind. */
+   struct util_dynarray l3l2_binds = {};
+   struct util_dynarray l1_binds;
+
+   if (l1_binds_capacity <= 32) {
+      size_t alloc_size = l1_binds_capacity * sizeof(struct anv_trtt_bind);
+      struct anv_trtt_bind *ptr = alloca(alloc_size);
+      util_dynarray_init_from_stack(&l1_binds, ptr, alloc_size);
+   } else {
+      util_dynarray_init(&l1_binds, NULL);
+      if (!util_dynarray_ensure_cap(&l1_binds,
+            l1_binds_capacity * sizeof(struct anv_trtt_bind)))
+         goto out_dynarrays;
+   }
+
    for (int b = 0; b < sparse_submit->binds_len && result == VK_SUCCESS; b++) {
       struct anv_vm_bind *vm_bind = &sparse_submit->binds[b];
       for (size_t i = 0; i < vm_bind->size && result == VK_SUCCESS; i += 64 * 1024) {
@@ -777,32 +780,33 @@ anv_sparse_bind_trtt(struct anv_device *device,
                ANV_TRTT_L1_NULL_TILE_VAL;
 
          result = anv_trtt_bind_add(device, trtt_addr, dest_addr,
-                                    l3l2_binds, &n_l3l2_binds,
-                                    l1_binds, &n_l1_binds);
+                                    &l3l2_binds, &l1_binds);
          if (result != VK_SUCCESS)
-            goto out_stack_arrays;
+            goto out_dynarrays;
       }
    }
-
-   assert(n_l3l2_binds <= l3l2_binds_capacity);
-   assert(n_l1_binds <= l1_binds_capacity);
 
    /* Convert the L3/L2/L1 TRTT page table updates in anv_trtt_bind elements
     * into MI commands.
     */
+   uint32_t n_l3l2_binds =
+      util_dynarray_num_elements(&l3l2_binds, struct anv_trtt_bind);
+   uint32_t n_l1_binds =
+      util_dynarray_num_elements(&l1_binds, struct anv_trtt_bind);
    sparse_debug("trtt_binds: num_vm_binds:%02d l3l2:%04d l1:%04d\n",
                 sparse_submit->binds_len, n_l3l2_binds, n_l1_binds);
 
    /* This is not an error, the application is simply trying to reset state
     * that was already there. */
    if (n_l3l2_binds == 0 && n_l1_binds == 0)
-      goto out_stack_arrays;
+      goto out_dynarrays;
 
-   anv_genX(device->info, write_trtt_entries)(
-      &submit->base, l3l2_binds, n_l3l2_binds, l1_binds, n_l1_binds);
+   anv_genX(device->info, write_trtt_entries)(&submit->base,
+                                              l3l2_binds.data, n_l3l2_binds,
+                                              l1_binds.data, n_l1_binds);
 
-   STACK_ARRAY_FINISH(l1_binds);
-   STACK_ARRAY_FINISH(l3l2_binds);
+   util_dynarray_fini(&l1_binds);
+   util_dynarray_fini(&l3l2_binds);
 
    anv_genX(device->info, async_submit_end)(&submit->base);
 
@@ -847,9 +851,9 @@ anv_sparse_bind_trtt(struct anv_device *device,
 
    return VK_SUCCESS;
 
- out_stack_arrays:
-   STACK_ARRAY_FINISH(l1_binds);
-   STACK_ARRAY_FINISH(l3l2_binds);
+ out_dynarrays:
+   util_dynarray_fini(&l1_binds);
+   util_dynarray_fini(&l3l2_binds);
  out_add_bind:
    simple_mtx_unlock(&trtt->mutex);
    anv_async_submit_fini(&submit->base);
