@@ -2171,8 +2171,7 @@ get_reg_phi(ra_ctx& ctx, IDSet& live_in, RegisterFile& register_file,
       // TODO: somehow prevent phis fixed before the RA from being updated (shouldn't be a
       // problem in practice since they can only be fixed to exec)
       Instruction* prev_phi = NULL;
-      std::vector<aco_ptr<Instruction>>::iterator phi_it;
-      for (phi_it = instructions.begin(); phi_it != instructions.end(); ++phi_it) {
+      for (auto phi_it = instructions.begin(); phi_it != instructions.end(); ++phi_it) {
          if ((*phi_it)->definitions[0].tempId() == pc.first.tempId())
             prev_phi = phi_it->get();
       }
@@ -2186,7 +2185,7 @@ get_reg_phi(ra_ctx& ctx, IDSet& live_in, RegisterFile& register_file,
       }
 
       /* rename */
-      std::unordered_map<unsigned, Temp>::iterator orig_it = ctx.orig_names.find(pc.first.tempId());
+      auto orig_it = ctx.orig_names.find(pc.first.tempId());
       Temp orig = orig_it != ctx.orig_names.end() ? orig_it->second : pc.first.getTemp();
       add_rename(ctx, orig, pc.second.getTemp());
 
@@ -2306,7 +2305,7 @@ read_variable(ra_ctx& ctx, Temp val, unsigned block_idx)
    if (!ctx.assignments[val.id()].renamed)
       return val;
 
-   std::unordered_map<unsigned, Temp>::iterator it = ctx.renames[block_idx].find(val.id());
+   auto it = ctx.renames[block_idx].find(val.id());
    if (it == ctx.renames[block_idx].end())
       return val;
    else
@@ -2422,7 +2421,7 @@ handle_loop_phis(ra_ctx& ctx, const IDSet& live_in, uint32_t loop_header_idx,
          /* Find the original name, since this operand might not use the original name if the phi
           * was created after init_reg_file().
           */
-         std::unordered_map<unsigned, Temp>::iterator it = ctx.orig_names.find(op.tempId());
+         auto it = ctx.orig_names.find(op.tempId());
          Temp orig = it != ctx.orig_names.end() ? it->second : op.getTemp();
 
          op.setTemp(read_variable(ctx, orig, preds[j]));
@@ -2679,8 +2678,7 @@ get_affinities(ra_ctx& ctx)
             if (!def.isTemp())
                continue;
             /* mark last-seen phi operand */
-            std::unordered_map<unsigned, unsigned>::iterator it =
-               temp_to_phi_resources.find(def.tempId());
+            auto it = temp_to_phi_resources.find(def.tempId());
             if (it != temp_to_phi_resources.end() &&
                 def.regClass() == phi_resources[it->second][0].regClass()) {
                phi_resources[it->second][0] = def.getTemp();
@@ -2715,8 +2713,7 @@ get_affinities(ra_ctx& ctx)
             continue;
 
          assert(instr->definitions[0].isTemp());
-         std::unordered_map<unsigned, unsigned>::iterator it =
-            temp_to_phi_resources.find(instr->definitions[0].tempId());
+         auto it = temp_to_phi_resources.find(instr->definitions[0].tempId());
          unsigned index = phi_resources.size();
          std::vector<Temp>* affinity_related;
          if (it != temp_to_phi_resources.end()) {
@@ -2907,8 +2904,7 @@ emit_parallel_copy_internal(ra_ctx& ctx, std::vector<std::pair<Operand, Definiti
 
       /* it might happen that the operand is already renamed. we have to restore the
        * original name. */
-      std::unordered_map<unsigned, Temp>::iterator it =
-         ctx.orig_names.find(pc->operands[i].tempId());
+      auto it = ctx.orig_names.find(pc->operands[i].tempId());
       Temp orig = it != ctx.orig_names.end() ? it->second : pc->operands[i].getTemp();
       add_rename(ctx, orig, pc->definitions[i].getTemp());
    }
@@ -3015,8 +3011,7 @@ register_allocation(Program* program, ra_test_policy policy)
 
       /* Handle all other instructions of the block */
       auto NonPhi = [](aco_ptr<Instruction>& instr) -> bool { return instr && !is_phi(instr); };
-      std::vector<aco_ptr<Instruction>>::iterator instr_it =
-         std::find_if(block.instructions.begin(), block.instructions.end(), NonPhi);
+      auto instr_it = std::find_if(block.instructions.begin(), block.instructions.end(), NonPhi);
       for (; instr_it != block.instructions.end(); ++instr_it) {
          aco_ptr<Instruction>& instr = *instr_it;
          std::vector<std::pair<Operand, Definition>> parallelcopy;
