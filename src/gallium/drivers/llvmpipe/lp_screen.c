@@ -123,17 +123,23 @@ llvmpipe_get_name(struct pipe_screen *screen)
 static int
 llvmpipe_get_param(struct pipe_screen *screen, enum pipe_cap param)
 {
-#if defined(HAVE_LIBDRM) && defined(HAVE_LINUX_UDMABUF_H)
+#ifdef HAVE_LIBDRM
    struct llvmpipe_screen *lscreen = llvmpipe_screen(screen);
 #endif
-
    switch (param) {
-#if defined(HAVE_LIBDRM) && defined(HAVE_LINUX_UDMABUF_H)
    case PIPE_CAP_DMABUF:
+#ifdef HAVE_LIBDRM
+      if (lscreen->winsys->get_fd)
+         return DRM_PRIME_CAP_IMPORT | DRM_PRIME_CAP_EXPORT;
+#ifdef HAVE_LINUX_UDMABUF_H
       if (lscreen->udmabuf_fd != -1)
          return DRM_PRIME_CAP_IMPORT | DRM_PRIME_CAP_EXPORT;
       else
          return DRM_PRIME_CAP_IMPORT;
+#endif
+#endif
+      return 0;
+#if defined(HAVE_LIBDRM) && defined(HAVE_LINUX_UDMABUF_H)
    case PIPE_CAP_NATIVE_FENCE_FD:
       return lscreen->dummy_sync_fd != -1;
 #endif
