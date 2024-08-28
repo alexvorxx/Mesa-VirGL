@@ -209,7 +209,6 @@ struct dzn_nir_options {
    bool lower_view_index_to_rt_layer;
    enum pipe_format *vi_conversions;
    const nir_shader_compiler_options *nir_opts;
-   enum gl_subgroup_size subgroup_size;
 };
 
 static VkResult
@@ -283,7 +282,6 @@ dzn_pipeline_get_nir_shader(struct dzn_device *device,
       if (needs_conv)
          NIR_PASS_V(*nir, dxil_nir_lower_vs_vertex_conversion, options->vi_conversions);
    }
-   (*nir)->info.subgroup_size = options->subgroup_size;
 
    if (cache) {
       /* Cache this additional metadata */
@@ -889,12 +887,6 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
    u_foreach_bit(stage, active_stage_mask) {
       struct mesa_sha1 nir_hash_ctx;
 
-      const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo *subgroup_size =
-         (const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo *)
-         vk_find_struct_const(stages[stage].info->pNext, PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO);
-      enum gl_subgroup_size subgroup_enum = subgroup_size && subgroup_size->requiredSubgroupSize >= 8 ?
-         subgroup_size->requiredSubgroupSize : SUBGROUP_SIZE_FULL_SUBGROUPS;
-
       if (cache) {
          _mesa_sha1_init(&nir_hash_ctx);
          _mesa_sha1_update(&nir_hash_ctx, &device->bindless, sizeof(device->bindless));
@@ -910,7 +902,6 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
             _mesa_sha1_update(&nir_hash_ctx, &z_flip_mask, sizeof(z_flip_mask));
             _mesa_sha1_update(&nir_hash_ctx, &lower_view_index, sizeof(lower_view_index));
          }
-         _mesa_sha1_update(&nir_hash_ctx, &subgroup_enum, sizeof(subgroup_enum));
          _mesa_sha1_update(&nir_hash_ctx, stages[stage].spirv_hash, sizeof(stages[stage].spirv_hash));
          _mesa_sha1_final(&nir_hash_ctx, stages[stage].nir_hash);
       }
@@ -924,7 +915,6 @@ dzn_graphics_pipeline_compile_shaders(struct dzn_device *device,
          .lower_view_index_to_rt_layer = stage == last_raster_stage ? lower_view_index : false,
          .vi_conversions = vi_conversions,
          .nir_opts = &nir_opts,
-         .subgroup_size = subgroup_enum,
       };
 
       struct dxil_spirv_metadata metadata = { 0 };
@@ -2500,19 +2490,12 @@ dzn_compute_pipeline_compile_shader(struct dzn_device *device,
    VkResult ret = VK_SUCCESS;
    nir_shader *nir = NULL;
 
-   const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo *subgroup_size =
-      (const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo *)
-      vk_find_struct_const(info->stage.pNext, PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO);
-   enum gl_subgroup_size subgroup_enum = subgroup_size && subgroup_size->requiredSubgroupSize >= 8 ?
-      subgroup_size->requiredSubgroupSize : SUBGROUP_SIZE_FULL_SUBGROUPS;
-
    if (cache) {
       struct mesa_sha1 pipeline_hash_ctx;
 
       _mesa_sha1_init(&pipeline_hash_ctx);
       vk_pipeline_hash_shader_stage(&info->stage, NULL, spirv_hash);
       _mesa_sha1_update(&pipeline_hash_ctx, &device->bindless, sizeof(device->bindless));
-      _mesa_sha1_update(&pipeline_hash_ctx, &subgroup_enum, sizeof(subgroup_enum));
       _mesa_sha1_update(&pipeline_hash_ctx, spirv_hash, sizeof(spirv_hash));
       _mesa_sha1_update(&pipeline_hash_ctx, layout->stages[MESA_SHADER_COMPUTE].hash,
                         sizeof(layout->stages[MESA_SHADER_COMPUTE].hash));
@@ -2530,7 +2513,6 @@ dzn_compute_pipeline_compile_shader(struct dzn_device *device,
       struct mesa_sha1 nir_hash_ctx;
       _mesa_sha1_init(&nir_hash_ctx);
       _mesa_sha1_update(&nir_hash_ctx, &device->bindless, sizeof(device->bindless));
-      _mesa_sha1_update(&nir_hash_ctx, &subgroup_enum, sizeof(subgroup_enum));
       _mesa_sha1_update(&nir_hash_ctx, spirv_hash, sizeof(spirv_hash));
       _mesa_sha1_final(&nir_hash_ctx, nir_hash);
    }
@@ -2539,7 +2521,6 @@ dzn_compute_pipeline_compile_shader(struct dzn_device *device,
    dxil_get_nir_compiler_options(&nir_opts, dzn_get_shader_model(pdev), supported_bit_sizes, supported_bit_sizes);
    struct dzn_nir_options options = {
       .nir_opts = &nir_opts,
-      .subgroup_size = subgroup_enum,
    };
    struct dxil_spirv_metadata metadata = { 0 };
    ret = dzn_pipeline_get_nir_shader(device, layout, cache, nir_hash,
