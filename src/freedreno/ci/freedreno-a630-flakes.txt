@@ -210,6 +210,7 @@ gmem-unaligned-dEQP-VK.renderpass.suballocation.load_store_op_none.depthstencil_
 KHR-GL46.buffer_storage.map_persistent_dispatch
 KHR-GL46.buffer_storage.map_persistent_flush
 KHR-GL46.compute_shader.atomic-case1
+KHR-GL46.compute_shader.pipeline-gen-draw-commands
 KHR-GL46.compute_shader.resource-uniform
 KHR-GL46.direct_state_access.framebuffers_texture_layer_attachment
 KHR-GL46.sepshaderobjs.StateInteraction
