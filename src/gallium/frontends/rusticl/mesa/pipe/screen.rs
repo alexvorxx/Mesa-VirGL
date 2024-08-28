@@ -7,7 +7,6 @@ use crate::util::disk_cache::*;
 use mesa_rust_gen::*;
 use mesa_rust_util::has_required_feature;
 use mesa_rust_util::ptr::ThreadSafeCPtr;
-use mesa_rust_util::string::*;
 
 use std::convert::TryInto;
 use std::ffi::CStr;
@@ -300,8 +299,8 @@ impl PipeScreen {
         self.ldev.driver_name()
     }
 
-    pub fn name(&self) -> String {
-        unsafe { c_string_to_string(self.screen().get_name.unwrap()(self.screen.as_ptr())) }
+    pub fn name(&self) -> &CStr {
+        unsafe { CStr::from_ptr(self.screen().get_name.unwrap()(self.screen.as_ptr())) }
     }
 
     pub fn device_node_mask(&self) -> Option<u32> {
@@ -326,9 +325,9 @@ impl PipeScreen {
         Some(luid)
     }
 
-    pub fn device_vendor(&self) -> String {
+    pub fn device_vendor(&self) -> &CStr {
         unsafe {
-            c_string_to_string(self.screen().get_device_vendor.unwrap()(
+            CStr::from_ptr(self.screen().get_device_vendor.unwrap()(
                 self.screen.as_ptr(),
             ))
         }

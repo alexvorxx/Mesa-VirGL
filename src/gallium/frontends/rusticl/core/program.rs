@@ -357,7 +357,7 @@ impl Program {
                     }
 
                     let name: &[u8] = slice::from_raw_parts(name.cast(), name_length);
-                    if dev.screen().name().as_bytes() != name {
+                    if dev.screen().name().to_bytes() != name {
                         return Err(CL_INVALID_BINARY);
                     }
 
@@ -472,7 +472,7 @@ impl Program {
             let info = lock.dev_build(d);
 
             res.push(info.spirv.as_ref().map_or(0, |s| {
-                s.to_bin().len() + d.screen().name().as_bytes().len() + BIN_HEADER_SIZE
+                s.to_bin().len() + d.screen().name().to_bytes().len() + BIN_HEADER_SIZE
             }));
         }
         res
@@ -519,7 +519,7 @@ impl Program {
                 blob_write_uint32(&mut blob, 1_u32.to_le());
 
                 let device_name = d.screen().name();
-                let device_name = device_name.as_bytes();
+                let device_name = device_name.to_bytes();
 
                 blob_write_uint32(&mut blob, (device_name.len() as u32).to_le());
                 blob_write_uint32(&mut blob, (spirv.len() as u32).to_le());

@@ -198,7 +198,7 @@ impl CLInfo<cl_device_info> for cl_device_id {
             CL_DEVICE_MIN_DATA_TYPE_ALIGN_SIZE => {
                 cl_prop::<cl_uint>(16 * size_of::<cl_ulong>() as cl_uint)
             }
-            CL_DEVICE_NAME => cl_prop::<&str>(&dev.screen().name()),
+            CL_DEVICE_NAME => cl_prop::<&CStr>(dev.screen().name()),
             CL_DEVICE_NATIVE_VECTOR_WIDTH_CHAR => cl_prop::<cl_uint>(1),
             CL_DEVICE_NATIVE_VECTOR_WIDTH_DOUBLE => cl_prop::<cl_uint>(dev.fp64_supported().into()),
             CL_DEVICE_NATIVE_VECTOR_WIDTH_FLOAT => cl_prop::<cl_uint>(1),
@@ -299,7 +299,7 @@ impl CLInfo<cl_device_info> for cl_device_id {
             CL_DEVICE_UUID_KHR => cl_prop::<[cl_uchar; CL_UUID_SIZE_KHR as usize]>(
                 dev.screen().device_uuid().unwrap_or_default(),
             ),
-            CL_DEVICE_VENDOR => cl_prop::<&str>(&dev.screen().device_vendor()),
+            CL_DEVICE_VENDOR => cl_prop::<&CStr>(dev.screen().device_vendor()),
             CL_DEVICE_VENDOR_ID => cl_prop::<cl_uint>(dev.vendor_id()),
             CL_DEVICE_VERSION => cl_prop::<&str>(&format!("OpenCL {} ", dev.cl_version.api_str())),
             CL_DRIVER_UUID_KHR => cl_prop::<[cl_char; CL_UUID_SIZE_KHR as usize]>(
