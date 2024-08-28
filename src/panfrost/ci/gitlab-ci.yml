@@ -271,6 +271,19 @@ panfrost-t760-traces:arm32:
     - .lava-rk3288-veyron-jaq:arm32
     - .panfrost-traces
 
+panfrost-t860-cl:arm64:
+  extends:
+    - .lava-test-deqp:arm64
+    - .panfrost-midgard-manual-rules
+    - .panfrost-test
+    - .lava-rk3399-gru-kevin:arm64
+  rules:
+    - !reference [.panfrost-midgard-manual-rules, rules]
+    - !reference [.rusticl-manual-rules, rules]
+  variables:
+    HWCI_START_WESTON: 1
+    DEQP_SUITE: panfrost-t860-cl
+
 panfrost-t860-gl:arm64:
   parallel: 3
   extends:
