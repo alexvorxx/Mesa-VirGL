@@ -270,10 +270,13 @@ brw_fs_validate(const fs_visitor &s)
                 *    This is applicable to 32b datatypes and 16b datatype. 64b
                 *    datatypes cannot use the replicate control.
                 */
-               fsv_assert_lte(inst->src[i].vstride, 1);
-
-               if (brw_type_size_bytes(inst->src[i].type) > 4)
-                  fsv_assert_eq(inst->src[i].vstride, 1);
+               const unsigned stride_in_bytes = byte_stride(inst->src[i]);
+               const unsigned size_in_bytes = brw_type_size_bytes(inst->src[i].type);
+               if (stride_in_bytes == 0) {
+                  fsv_assert_lte(size_in_bytes, 4);
+               } else {
+                  fsv_assert_eq(stride_in_bytes, size_in_bytes);
+               }
             }
          }
       }
