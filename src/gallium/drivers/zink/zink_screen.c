@@ -148,25 +148,37 @@ zink_get_vendor(struct pipe_screen *pscreen)
 static const char *
 zink_get_device_vendor(struct pipe_screen *pscreen)
 {
-   struct zink_screen *screen = zink_screen(pscreen);
-   static char buf[1000];
-   snprintf(buf, sizeof(buf), "Unknown (vendor-id: 0x%04x)", screen->info.props.vendorID);
-   return buf;
+   return zink_screen(pscreen)->vendor_name;
 }
 
 static const char *
 zink_get_name(struct pipe_screen *pscreen)
 {
-   struct zink_screen *screen = zink_screen(pscreen);
+   return zink_screen(pscreen)->device_name;
+}
+
+static int
+zink_set_driver_strings(struct zink_screen *screen)
+{
+   char buf[1000];
    const char *driver_name = vk_DriverId_to_str(zink_driverid(screen)) + strlen("VK_DRIVER_ID_");
-   static char buf[1000];
-   snprintf(buf, sizeof(buf), "zink Vulkan %d.%d(%s (%s))",
-            VK_VERSION_MAJOR(screen->info.device_version),
-            VK_VERSION_MINOR(screen->info.device_version),
-            screen->info.props.deviceName,
-            strstr(vk_DriverId_to_str(zink_driverid(screen)), "VK_DRIVER_ID_") ? driver_name : "Driver Unknown"
-            );
-   return buf;
+   int written = snprintf(buf, sizeof(buf), "zink Vulkan %d.%d(%s (%s))",
+      VK_VERSION_MAJOR(screen->info.device_version),
+      VK_VERSION_MINOR(screen->info.device_version),
+      screen->info.props.deviceName,
+      strstr(vk_DriverId_to_str(zink_driverid(screen)), "VK_DRIVER_ID_") ? driver_name : "Driver Unknown"
+   );
+   if (written < 0)
+      return written;
+   assert(written < sizeof(buf));
+   screen->device_name = ralloc_strdup(screen, buf);
+
+   written = snprintf(buf, sizeof(buf), "Unknown (vendor-id: 0x%04x)", screen->info.props.vendorID);
+   if (written < 0)
+      return written;
+   assert(written < sizeof(buf));
+   screen->vendor_name = ralloc_strdup(screen, buf);
+   return 0;
 }
 
 static void
@@ -3378,6 +3390,11 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
    if (!zink_get_physical_device_info(screen)) {
       if (!screen->driver_name_is_inferred)
          debug_printf("ZINK: failed to detect features\n");
+      goto fail;
+   }
+
+   if (zink_set_driver_strings(screen)) {
+      mesa_loge("ZINK: failed to set driver strings\n");
       goto fail;
    }
 

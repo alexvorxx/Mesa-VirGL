@@ -1384,6 +1384,9 @@ struct zink_format_props {
 struct zink_screen {
    struct pipe_screen base;
 
+   const char *vendor_name;
+   const char *device_name;
+
    struct util_dl_library *loader_lib;
    PFN_vkGetInstanceProcAddr vk_GetInstanceProcAddr;
    PFN_vkGetDeviceProcAddr vk_GetDeviceProcAddr;
