@@ -219,6 +219,7 @@ fi
 
 
 if [ ! -s $RESULTSFILE ]; then
+    rm -rf "${RESULTS_DIR:?}/${__PREFIX}"
     exit 0
 fi
 
