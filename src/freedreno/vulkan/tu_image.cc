@@ -34,13 +34,13 @@ uint32_t
 tu6_plane_count(VkFormat format)
 {
    switch (format) {
-   default:
-      return 1;
-   case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM:
    case VK_FORMAT_D32_SFLOAT_S8_UINT:
+      /* We do not support interleaved depth/stencil. Instead, we decompose to
+       * a depth plane and a stencil plane.
+       */
       return 2;
-   case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM:
-      return 3;
+   default:
+      return vk_format_get_plane_count(format);
    }
 }
 
@@ -349,7 +349,7 @@ ubwc_possible(struct tu_device *device,
 
    if (!info->a6xx.has_8bpp_ubwc &&
        vk_format_get_blocksizebits(format) == 8 &&
-       tu6_plane_count(format) == 1)
+       vk_format_get_plane_count(format) == 1)
       return false;
 
    if (type == VK_IMAGE_TYPE_3D) {
