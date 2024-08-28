@@ -131,3 +131,24 @@ files=(
 for files in "${files[@]}"; do
   find /usr /etc -name "$files" -prune -exec rm -r {} \;
 done
+
+# We purge apt and dpkg to save on space, which is great for runtime and
+# bandwidth use etc, but less great for cbuild which wants to run apt-get clean
+# when we're done. Install a stub which works for that and is apologetic for
+# anyone else.
+cat >/usr/bin/apt-get <<EOF
+#!/bin/bash
+
+if [ "\${1:-}" != "clean" ]; then
+    echo "Couldn't run '\$0 \$*', because apt has been cleaned from this container."
+    echo ""
+    echo "After .gitlab-ci/container/strip-rootfs.sh has run, you cannot install"
+    echo "new packages."
+    echo ""
+    echo "Sorry."
+    exit 1
+fi
+EOF
+
+chmod +x /usr/bin/apt-get
+ln -s /usr/bin/apt-get /usr/bin/apt
