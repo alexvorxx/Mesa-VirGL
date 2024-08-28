@@ -206,7 +206,7 @@ _vlVaSyncSurface(VADriverContextP ctx, VASurfaceID render_target, uint64_t timeo
       mtx_unlock(&drv->mutex);
       // Assume that the GPU has hung otherwise.
       return ret ? VA_STATUS_SUCCESS : VA_STATUS_ERROR_TIMEDOUT;
-   } else if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE) {
+   } else if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE && surf->feedback) {
       if (!drv->pipe->screen->get_video_param(drv->pipe->screen,
                               context->decoder->profile,
                               context->decoder->entrypoint,
