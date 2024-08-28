@@ -26,6 +26,7 @@
 
 #include "CommandBufferStagingStream.h"
 #include "HostVisibleMemoryVirtualization.h"
+#include "Sync.h"
 #include "VirtGpu.h"
 #include "VulkanHandleMapping.h"
 #include "VulkanHandles.h"
@@ -78,6 +79,7 @@ typedef uint64_t zx_koid_t;
 /// Use installed headers or locally defined Android-specific bits
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #include "AndroidHardwareBuffer.h"
+#include "gfxstream/guest/Gralloc.h"
 #endif
 
 #if defined(__linux__) || defined(__Fuchsia__)
@@ -547,6 +549,7 @@ class ResourceTracker {
 
     void setupFeatures(const struct GfxStreamVkFeatureInfo* features);
     void setupCaps(uint32_t& noRenderControlEnc);
+    void setupPlatformHelpers();
 
     void setThreadingCallbacks(const ThreadingCallbacks& callbacks);
     bool hostSupportsVulkan() const;
@@ -716,6 +719,8 @@ class ResourceTracker {
         fidl::WireSyncClient<fuchsia_sysmem::BufferCollection>* collection,
         const VkImageCreateInfo* pImageInfo);
 #endif
+
+    uint64_t getAHardwareBufferId(AHardwareBuffer* ahw);
 
     void unregister_VkDescriptorSet_locked(VkDescriptorSet set);
 
@@ -898,6 +903,12 @@ class ResourceTracker {
 #if defined(__ANDROID__)
     std::unique_ptr<GoldfishAddressSpaceBlockProvider> mGoldfishAddressSpaceBlockProvider;
 #endif  // defined(__ANDROID__)
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    std::unique_ptr<gfxstream::Gralloc> mGralloc = nullptr;
+#endif
+
+    std::unique_ptr<gfxstream::SyncHelper> mSyncHelper = nullptr;
 
     struct VirtGpuCaps mCaps;
     std::vector<VkExtensionProperties> mHostInstanceExtensions;

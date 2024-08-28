@@ -74,6 +74,7 @@ static VkResult SetupInstanceForProcess(void) {
     }
 
     gfxstream::vk::ResourceTracker::get()->setupCaps(noRenderControlEnc);
+    gfxstream::vk::ResourceTracker::get()->setupPlatformHelpers();
     // Legacy goldfish path: could be deleted once goldfish not used guest-side.
     if (!noRenderControlEnc) {
         // Implicitly sets up sequence number
