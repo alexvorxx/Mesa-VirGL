@@ -2042,7 +2042,7 @@ emit_metadata(struct ntd_context *ctx)
       if (!emit_tag(ctx, DXIL_SHADER_TAG_NUM_THREADS, emit_threads(ctx)))
          return false;
       if (ctx->mod.minor_version >= 6 &&
-          ctx->shader->info.subgroup_size >= SUBGROUP_SIZE_REQUIRE_8) {
+          ctx->shader->info.subgroup_size >= SUBGROUP_SIZE_REQUIRE_4) {
          if (ctx->mod.minor_version < 8) {
             if (!emit_tag(ctx, DXIL_SHADER_TAG_WAVE_SIZE, emit_wave_size(ctx)))
                return false;
@@ -6353,7 +6353,7 @@ void dxil_fill_validation_state(struct ntd_context *ctx,
       sizeof(struct dxil_resource_v1) : sizeof(struct dxil_resource_v0);
    state->num_resources = ctx->resources.size / resource_element_size;
    state->resources.v0 = (struct dxil_resource_v0*)ctx->resources.data;
-   if (ctx->shader->info.subgroup_size >= SUBGROUP_SIZE_REQUIRE_8) {
+   if (ctx->shader->info.subgroup_size >= SUBGROUP_SIZE_REQUIRE_4) {
       state->state.psv1.psv0.max_expected_wave_lane_count = ctx->shader->info.subgroup_size;
       state->state.psv1.psv0.min_expected_wave_lane_count = ctx->shader->info.subgroup_size;
    } else {
