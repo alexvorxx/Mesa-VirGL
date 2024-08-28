@@ -103,6 +103,12 @@ void ac_set_nir_options(struct radeon_info *info, bool use_llvm,
                          nir_io_vectorizer_ignores_types;
    options->has_ddx_intrinsics = true;
    options->scalarize_ddx = true;
+   options->skip_lower_packing_ops =
+      BITFIELD_BIT(nir_lower_packing_op_unpack_64_2x32) |
+      BITFIELD_BIT(nir_lower_packing_op_unpack_64_4x16) |
+      BITFIELD_BIT(nir_lower_packing_op_unpack_32_2x16) |
+      BITFIELD_BIT(nir_lower_packing_op_pack_32_4x8) |
+      BITFIELD_BIT(nir_lower_packing_op_unpack_32_4x8);
 }
 
 bool
