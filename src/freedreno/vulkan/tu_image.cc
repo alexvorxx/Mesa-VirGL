@@ -499,25 +499,12 @@ tu_image_update_layout(struct tu_device *device, struct tu_image *image,
    for (uint32_t i = 0; i < tu6_plane_count(image->vk.format); i++) {
       struct fdl_layout *layout = &image->layout[i];
       enum pipe_format format = tu6_plane_format(image->vk.format, i);
-      uint32_t width0 = image->vk.extent.width;
-      uint32_t height0 = image->vk.extent.height;
+      uint32_t width0 = vk_format_get_plane_width(image->vk.format, i, image->vk.extent.width);
+      uint32_t height0 = vk_format_get_plane_height(image->vk.format, i, image->vk.extent.height);
 
-      if (i > 0) {
-         switch (image->vk.format) {
-         case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM:
-         case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM:
-            /* half width/height on chroma planes */
-            width0 = (width0 + 1) >> 1;
-            height0 = (height0 + 1) >> 1;
-            break;
-         case VK_FORMAT_D32_SFLOAT_S8_UINT:
-            /* no UBWC for separate stencil */
-            image->ubwc_enabled = false;
-            break;
-         default:
-            break;
-         }
-      }
+      if (i == 1 && image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+         /* no UBWC for separate stencil */
+         image->ubwc_enabled = false;
 
       struct fdl_explicit_layout plane_layout;
 
