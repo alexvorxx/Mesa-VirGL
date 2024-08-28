@@ -530,10 +530,10 @@ class BumpPool;
 
 #include "{self.baseLibDirPrefix}/BumpPool.h"
 #include "{self.baseLibDirPrefix}/system/System.h"
-#include "{self.baseLibDirPrefix}/Tracing.h"
 #include "{self.baseLibDirPrefix}/Metrics.h"
 #include "render-utils/IOStream.h"
 #include "FrameBuffer.h"
+#include "gfxstream/host/Tracing.h"
 #include "host-common/feature_control.h"
 #include "host-common/GfxstreamFatalError.h"
 #include "host-common/logging.h"
