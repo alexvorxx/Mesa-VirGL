@@ -55,9 +55,13 @@ is_constant_like(nir_src *src)
            nir_intrinsic_load_preamble);
 }
 
-bool
-nir_can_move_instr(nir_instr *instr, nir_move_options options)
+static bool
+can_sink_instr(nir_instr *instr, nir_move_options options, bool *can_mov_out_of_loop)
 {
+   /* Some intrinsic might require uniform sources and
+    * moving out of loops can add divergence.
+    */
+   *can_mov_out_of_loop = true;
    switch (instr->type) {
    case nir_instr_type_load_const:
    case nir_instr_type_undef: {
@@ -101,8 +105,10 @@ nir_can_move_instr(nir_instr *instr, nir_move_options options)
       switch (intrin->intrinsic) {
       case nir_intrinsic_load_ubo:
       case nir_intrinsic_load_ubo_vec4:
+         *can_mov_out_of_loop = false;
          return options & nir_move_load_ubo;
       case nir_intrinsic_load_ssbo:
+         *can_mov_out_of_loop = false;
          return (options & nir_move_load_ssbo) && nir_intrinsic_can_reorder(intrin);
       case nir_intrinsic_load_input:
       case nir_intrinsic_load_per_primitive_input:
@@ -116,6 +122,7 @@ nir_can_move_instr(nir_instr *instr, nir_move_options options)
       case nir_intrinsic_load_kernel_input:
          return options & nir_move_load_uniform;
       case nir_intrinsic_inverse_ballot:
+         *can_mov_out_of_loop = false;
          return options & nir_move_copies;
       case nir_intrinsic_load_constant_agx:
       case nir_intrinsic_load_local_pixel_agx:
@@ -127,6 +134,13 @@ nir_can_move_instr(nir_instr *instr, nir_move_options options)
    default:
       return false;
    }
+}
+
+bool
+nir_can_move_instr(nir_instr *instr, nir_move_options options)
+{
+   bool out_of_loop;
+   return can_sink_instr(instr, options, &out_of_loop);
 }
 
 static nir_loop *
@@ -218,19 +232,6 @@ get_preferred_block(nir_def *def, bool sink_out_of_loops)
    return lca;
 }
 
-static bool
-can_sink_out_of_loop(nir_intrinsic_instr *intrin)
-{
-   /* Don't sink buffer loads out of loops because that can make its
-    * resource divergent and break code like that which is generated
-    * by nir_lower_non_uniform_access.
-    */
-   return intrin->intrinsic != nir_intrinsic_load_ubo &&
-          intrin->intrinsic != nir_intrinsic_load_ubo_vec4 &&
-          intrin->intrinsic != nir_intrinsic_inverse_ballot &&
-          intrin->intrinsic != nir_intrinsic_load_ssbo;
-}
-
 bool
 nir_opt_sink(nir_shader *shader, nir_move_options options)
 {
@@ -242,14 +243,12 @@ nir_opt_sink(nir_shader *shader, nir_move_options options)
 
       nir_foreach_block_reverse(block, impl) {
          nir_foreach_instr_reverse_safe(instr, block) {
-            if (!nir_can_move_instr(instr, options))
+            bool sink_out_of_loops;
+            if (!can_sink_instr(instr, options, &sink_out_of_loops))
                continue;
 
             nir_def *def = nir_instr_def(instr);
 
-            bool sink_out_of_loops =
-               instr->type != nir_instr_type_intrinsic ||
-               can_sink_out_of_loop(nir_instr_as_intrinsic(instr));
             nir_block *use_block =
                get_preferred_block(def, sink_out_of_loops);
 
