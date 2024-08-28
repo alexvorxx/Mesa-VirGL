@@ -150,7 +150,7 @@ anv_xe_create_engine(struct anv_device *device,
  * Wait for all previous DRM_IOCTL_XE_EXEC calls over the
  * drm_xe_exec_queue to complete.
  **/
-static void
+int
 anv_xe_wait_exec_queue_idle(struct anv_device *device, uint32_t exec_queue_id)
 {
    struct drm_syncobj_wait syncobj_wait = {
@@ -162,7 +162,7 @@ anv_xe_wait_exec_queue_idle(struct anv_device *device, uint32_t exec_queue_id)
 
    if (ret) {
       assert(ret == -ECANCELED);
-      return;
+      return ret;
    }
 
    syncobj_wait.handles = (uintptr_t)&syncobj;
@@ -174,6 +174,8 @@ anv_xe_wait_exec_queue_idle(struct anv_device *device, uint32_t exec_queue_id)
    };
    ret = intel_ioctl(device->fd, DRM_IOCTL_SYNCOBJ_DESTROY, &syncobj_destroy);
    assert(ret == 0);
+
+   return ret;
 }
 
 static void
