@@ -16,7 +16,9 @@
 #include <string.h>
 
 #include "../vulkan_enc/vk_util.h"
-#include "HostConnection.h"
+#include "GfxStreamConnectionManager.h"
+#include "GfxStreamRenderControl.h"
+#include "GfxStreamVulkanConnection.h"
 #include "ResourceTracker.h"
 #include "VkEncoder.h"
 #include "gfxstream_vk_entrypoints.h"
@@ -27,15 +29,47 @@
 #include "vk_instance.h"
 #include "vk_sync_dummy.h"
 
-#define VK_HOST_CONNECTION(ret)                                                    \
-    HostConnection* hostCon = HostConnection::getOrCreate(kCapsetGfxStreamVulkan); \
-    gfxstream::vk::VkEncoder* vkEnc = hostCon->vkEncoder();                        \
-    if (!vkEnc) {                                                                  \
-        mesa_loge("vulkan: Failed to get Vulkan encoder\n");                       \
-        return ret;                                                                \
+uint32_t gSeqno = 0;
+uint32_t gNoRenderControlEnc = 0;
+
+static gfxstream::vk::VkEncoder* getVulkanEncoder(GfxStreamConnectionManager* mgr) {
+    if (!gNoRenderControlEnc) {
+        int32_t ret = renderControlInit(mgr, nullptr);
+        if (ret) {
+            mesa_loge("Failed to initialize renderControl when getting VK encoder");
+            return nullptr;
+        }
     }
 
-uint32_t gSeqno = 0;
+    gfxstream::vk::VkEncoder* vkEncoder =
+        (gfxstream::vk::VkEncoder*)mgr->getEncoder(GFXSTREAM_CONNECTION_VULKAN);
+
+    if (vkEncoder == nullptr) {
+        auto stream = mgr->getStream();
+        int32_t ret = mgr->addConnection(GFXSTREAM_CONNECTION_VULKAN,
+                                         std::make_unique<GfxStreamVulkanConnection>(stream));
+        if (ret) {
+            return nullptr;
+        }
+
+        vkEncoder = (gfxstream::vk::VkEncoder*)mgr->getEncoder(GFXSTREAM_CONNECTION_VULKAN);
+    }
+
+    return vkEncoder;
+}
+
+static GfxStreamConnectionManager* getConnectionManager(void) {
+    auto transport = renderControlGetTransport();
+    return GfxStreamConnectionManager::getThreadLocalInstance(transport, kCapsetGfxStreamVulkan);
+}
+
+#define VK_HOST_CONNECTION(ret)                               \
+    GfxStreamConnectionManager* mgr = getConnectionManager(); \
+    gfxstream::vk::VkEncoder* vkEnc = getVulkanEncoder(mgr);  \
+    if (!vkEnc) {                                             \
+        mesa_loge("vulkan: Failed to get Vulkan encoder\n");  \
+        return ret;                                           \
+    }
 
 namespace {
 
@@ -58,43 +92,33 @@ static const char* const kMesaOnlyDeviceExtensions[] = {
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 };
 
-static HostConnection* getConnection(void) {
-    auto hostCon = HostConnection::getOrCreate(kCapsetGfxStreamVulkan);
-    return hostCon;
-}
-
-static gfxstream::vk::VkEncoder* getVkEncoder(HostConnection* con) { return con->vkEncoder(); }
-
 static VkResult SetupInstanceForProcess(void) {
-    uint32_t noRenderControlEnc = 0;
-    HostConnection* hostCon = getConnection();
-    if (!hostCon) {
+    auto mgr = getConnectionManager();
+    if (!mgr) {
         mesa_loge("vulkan: Failed to get host connection\n");
         return VK_ERROR_DEVICE_LOST;
     }
 
-    gfxstream::vk::ResourceTracker::get()->setupCaps(noRenderControlEnc);
+    gfxstream::vk::ResourceTracker::get()->setupCaps(gNoRenderControlEnc);
     gfxstream::vk::ResourceTracker::get()->setupPlatformHelpers();
     // Legacy goldfish path: could be deleted once goldfish not used guest-side.
-    if (!noRenderControlEnc) {
-        // Implicitly sets up sequence number
-        ExtendedRCEncoderContext* rcEnc = hostCon->rcEncoder();
-        if (!rcEnc) {
-            mesa_loge("vulkan: Failed to get renderControl encoder context\n");
+    if (!gNoRenderControlEnc) {
+        struct GfxStreamVkFeatureInfo features = {};
+        int32_t ret = renderControlInit(mgr, &features);
+        if (ret) {
+            mesa_loge("Failed to initialize renderControl ");
             return VK_ERROR_DEVICE_LOST;
         }
 
-        struct GfxStreamVkFeatureInfo features = {};
-        hostCon->setVulkanFeatureInfo(&features);
         gfxstream::vk::ResourceTracker::get()->setupFeatures(&features);
     }
 
     gfxstream::vk::ResourceTracker::get()->setThreadingCallbacks({
-        .hostConnectionGetFunc = getConnection,
-        .vkEncoderGetFunc = getVkEncoder,
+        .hostConnectionGetFunc = getConnectionManager,
+        .vkEncoderGetFunc = getVulkanEncoder,
     });
     gfxstream::vk::ResourceTracker::get()->setSeqnoPtr(&gSeqno);
-    gfxstream::vk::VkEncoder* vkEnc = getVkEncoder(hostCon);
+    gfxstream::vk::VkEncoder* vkEnc = getVulkanEncoder(mgr);
     if (!vkEnc) {
         mesa_loge("vulkan: Failed to get Vulkan encoder\n");
         return VK_ERROR_DEVICE_LOST;
@@ -321,7 +345,6 @@ VkResult gfxstream_vk_CreateInstance(const VkInstanceCreateInfo* pCreateInfo,
     VkResult result = VK_SUCCESS;
     /* Encoder call */
     {
-        ALOGV("calling setup instance internally");
         result = SetupInstanceForProcess();
         if (VK_SUCCESS != result) {
             return vk_error(NULL, result);
@@ -385,7 +408,7 @@ void gfxstream_vk_DestroyInstance(VkInstance _instance, const VkAllocationCallba
     // To make End2EndTests happy, since now the host connection is statically linked to
     // libvulkan_ranchu.so [separate HostConnections now].
 #if defined(END2END_TESTS)
-    hostCon->exit();
+    mgr->threadLocalExit();
     VirtGpuDevice::resetInstance();
     gSeqno = 0;
 #endif

@@ -350,7 +350,6 @@ class IOStream;
 
         functableImplInclude = """
 #include "VkEncoder.h"
-#include "../OpenglSystemCommon/HostConnection.h"
 #include "ResourceTracker.h"
 #include "gfxstream_vk_entrypoints.h"
 #include "gfxstream_vk_private.h"

@@ -25,6 +25,7 @@
 #include <unordered_map>
 
 #include "CommandBufferStagingStream.h"
+#include "GfxStreamConnectionManager.h"
 #include "HostVisibleMemoryVirtualization.h"
 #include "Sync.h"
 #include "VirtGpu.h"
@@ -127,8 +128,8 @@ class ResourceTracker {
     VulkanHandleMapping* createMapping();
     VulkanHandleMapping* destroyMapping();
 
-    using HostConnectionGetFunc = HostConnection* (*)();
-    using VkEncoderGetFunc = VkEncoder* (*)(HostConnection*);
+    using HostConnectionGetFunc = GfxStreamConnectionManager* (*)();
+    using VkEncoderGetFunc = VkEncoder* (*)(GfxStreamConnectionManager*);
     using CleanupCallback = std::function<void()>;
 
     struct ThreadingCallbacks {
