@@ -6144,6 +6144,41 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer, VkShaderStageFlags stag
    cmd_buffer->push_constant_stages |= dirty_stages;
 }
 
+uint32_t
+radv_get_rsrc3_vbo_desc(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs, uint32_t vbo_idx)
+{
+   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+   const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
+   uint32_t rsrc_word3;
+
+   if (vs->info.vs.dynamic_inputs && !(vi_state->nontrivial_formats & BITFIELD_BIT(vbo_idx))) {
+      const struct ac_vtx_format_info *vtx_info_table =
+         ac_get_vtx_format_info_table(pdev->info.gfx_level, pdev->info.family);
+      const struct ac_vtx_format_info *vtx_info = &vtx_info_table[vi_state->formats[vbo_idx]];
+      unsigned hw_format = vtx_info->hw_format[vtx_info->num_channels - 1];
+
+      if (pdev->info.gfx_level >= GFX10) {
+         rsrc_word3 = vtx_info->dst_sel | S_008F0C_FORMAT_GFX10(hw_format);
+      } else {
+         rsrc_word3 =
+            vtx_info->dst_sel | S_008F0C_NUM_FORMAT((hw_format >> 4) & 0x7) | S_008F0C_DATA_FORMAT(hw_format & 0xf);
+      }
+   } else {
+      rsrc_word3 = S_008F0C_DST_SEL_X(V_008F0C_SQ_SEL_X) | S_008F0C_DST_SEL_Y(V_008F0C_SQ_SEL_Y) |
+                   S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) | S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W);
+
+      if (pdev->info.gfx_level >= GFX10) {
+         rsrc_word3 |= S_008F0C_FORMAT_GFX10(V_008F0C_GFX10_FORMAT_32_UINT);
+      } else {
+         rsrc_word3 |=
+            S_008F0C_NUM_FORMAT(V_008F0C_BUF_NUM_FORMAT_UINT) | S_008F0C_DATA_FORMAT(V_008F0C_BUF_DATA_FORMAT_32);
+      }
+   }
+
+   return rsrc_word3;
+}
+
 void
 radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs,
                               bool full_null_descriptors, void *vb_ptr)
@@ -6151,20 +6186,16 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
    enum amd_gfx_level chip = pdev->info.gfx_level;
-   enum radeon_family family = pdev->info.family;
    unsigned desc_index = 0;
    uint32_t mask = vs->info.vs.vb_desc_usage_mask;
    uint64_t va;
    const bool uses_dynamic_inputs = vs->info.vs.dynamic_inputs;
    const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
 
-   const struct ac_vtx_format_info *vtx_info_table =
-      uses_dynamic_inputs ? ac_get_vtx_format_info_table(chip, family) : NULL;
-
    while (mask) {
       unsigned i = u_bit_scan(&mask);
       uint32_t *desc = &((uint32_t *)vb_ptr)[desc_index++ * 4];
-      uint32_t offset, rsrc_word3;
+      uint32_t offset;
 
       if (uses_dynamic_inputs && !(vi_state->attribute_mask & BITFIELD_BIT(i))) {
          /* No vertex attribute description given: assume that the shader doesn't use this
@@ -6179,26 +6210,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
       struct radv_buffer *buffer = cmd_buffer->vertex_binding_buffers[binding];
       unsigned num_records;
       const unsigned stride = cmd_buffer->vertex_bindings[binding].stride;
-
-      if (uses_dynamic_inputs && !(vi_state->nontrivial_formats & BITFIELD_BIT(i))) {
-         const struct ac_vtx_format_info *vtx_info = &vtx_info_table[vi_state->formats[i]];
-         unsigned hw_format = vtx_info->hw_format[vtx_info->num_channels - 1];
-
-         if (chip >= GFX10) {
-            rsrc_word3 = vtx_info->dst_sel | S_008F0C_FORMAT_GFX10(hw_format);
-         } else {
-            rsrc_word3 =
-               vtx_info->dst_sel | S_008F0C_NUM_FORMAT((hw_format >> 4) & 0x7) | S_008F0C_DATA_FORMAT(hw_format & 0xf);
-         }
-      } else {
-         rsrc_word3 = S_008F0C_DST_SEL_X(V_008F0C_SQ_SEL_X) | S_008F0C_DST_SEL_Y(V_008F0C_SQ_SEL_Y) |
-                      S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) | S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W);
-         if (chip >= GFX10)
-            rsrc_word3 |= S_008F0C_FORMAT_GFX10(V_008F0C_GFX10_FORMAT_32_UINT);
-         else
-            rsrc_word3 |=
-               S_008F0C_NUM_FORMAT(V_008F0C_BUF_NUM_FORMAT_UINT) | S_008F0C_DATA_FORMAT(V_008F0C_BUF_DATA_FORMAT_32);
-      }
+      uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, vs, i);
 
       if (!buffer) {
          if (full_null_descriptors) {

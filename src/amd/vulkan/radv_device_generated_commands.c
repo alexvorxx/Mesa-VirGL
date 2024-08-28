@@ -15,6 +15,8 @@
 #include "vk_common_entrypoints.h"
 #include "vk_shader_module.h"
 
+#define DGC_VBO_SIZE 32
+
 /* The DGC command buffer layout is quite complex, here's some explanations:
  *
  * Without the DGC preamble, the default layout looks like:
@@ -1239,7 +1241,7 @@ dgc_get_pc_params(struct dgc_cmdbuf *cs)
    nir_builder *b = cs->b;
 
    nir_def *vbo_cnt = load_param8(b, vbo_cnt);
-   nir_def *param_offset = nir_imul_imm(b, vbo_cnt, 24);
+   nir_def *param_offset = nir_imul_imm(b, vbo_cnt, DGC_VBO_SIZE);
 
    params.buf = radv_meta_load_descriptor(b, 0, 0);
    params.offset = nir_iadd_imm(b, param_offset, layout->bind_pipeline ? MAX_SETS * 4 : 0);
@@ -1382,8 +1384,8 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo
       nir_push_if(b, vbo_override);
       {
          nir_def *vbo_offset_offset =
-            nir_iadd(b, nir_imul_imm(b, vbo_cnt, 16), nir_imul_imm(b, nir_load_var(b, vbo_idx), 8));
-         nir_def *vbo_over_data = nir_load_ssbo(b, 2, 32, param_buf, vbo_offset_offset);
+            nir_iadd(b, nir_imul_imm(b, vbo_cnt, 16), nir_imul_imm(b, nir_load_var(b, vbo_idx), DGC_VBO_SIZE - 16));
+         nir_def *vbo_over_data = nir_load_ssbo(b, 4, 32, param_buf, vbo_offset_offset);
          nir_def *stream_offset = nir_iand_imm(b, nir_channel(b, vbo_over_data, 0), 0x7FFF);
          nir_def *stream_data = nir_build_load_global(b, 4, 32, nir_iadd(b, stream_addr, nir_u2u64(b, stream_offset)),
                                                       .access = ACCESS_NON_WRITEABLE);
@@ -1395,7 +1397,7 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo
          if (layout->vertex_dynamic_stride) {
             stride = nir_channel(b, stream_data, 3);
          } else {
-            stride = nir_ubfe_imm(b, nir_channel(b, nir_load_var(b, vbo_data), 1), 16, 14);
+            stride = nir_channel(b, vbo_over_data, 2);
          }
 
          nir_def *use_per_attribute_vb_descs = nir_test_mask(b, nir_channel(b, vbo_over_data, 0), 1u << 31);
@@ -1451,7 +1453,7 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo
          }
          nir_pop_if(b, NULL);
 
-         nir_def *rsrc_word3 = nir_channel(b, nir_load_var(b, vbo_data), 3);
+         nir_def *rsrc_word3 = nir_channel(b, vbo_over_data, 3);
          if (pdev->info.gfx_level >= GFX10) {
             nir_def *oob_select = nir_bcsel(b, nir_ieq_imm(b, stride, 0), nir_imm_int(b, V_008F0C_OOB_SELECT_RAW),
                                             nir_imm_int(b, V_008F0C_OOB_SELECT_STRUCTURED));
@@ -2295,7 +2297,7 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
    const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    struct radv_graphics_pipeline *graphics_pipeline = radv_pipeline_to_graphics(pipeline);
    struct radv_shader *vs = radv_get_shader(graphics_pipeline->base.shaders, MESA_SHADER_VERTEX);
-   unsigned vb_size = layout->bind_vbo_mask ? util_bitcount(vs->info.vs.vb_desc_usage_mask) * 24 : 0;
+   unsigned vb_size = layout->bind_vbo_mask ? util_bitcount(vs->info.vs.vb_desc_usage_mask) * DGC_VBO_SIZE : 0;
 
    *upload_size = MAX2(*upload_size + vb_size, 16);
 
@@ -2353,10 +2355,14 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
          const unsigned binding = vi_state->bindings[i];
          const uint32_t attrib_end = vi_state->offsets[i] + vi_state->format_sizes[i];
          const uint32_t attrib_index_offset = vi_state->attrib_index_offset[i];
+         const uint32_t stride = cmd_buffer->vertex_bindings[binding].stride;
+         const uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, vs, i);
 
          params->vbo_bind_mask |= ((layout->bind_vbo_mask >> binding) & 1u) << idx;
-         vbo_info[2 * idx] = ((vs->info.vs.use_per_attribute_vb_descs ? 1u : 0u) << 31) | layout->vbo_offsets[binding];
-         vbo_info[2 * idx + 1] = attrib_index_offset | (attrib_end << 16);
+         vbo_info[4 * idx] = ((vs->info.vs.use_per_attribute_vb_descs ? 1u : 0u) << 31) | layout->vbo_offsets[binding];
+         vbo_info[4 * idx + 1] = attrib_index_offset | (attrib_end << 16);
+         vbo_info[4 * idx + 2] = stride;
+         vbo_info[4 * idx + 3] = rsrc_word3;
          ++idx;
       }
       params->vbo_cnt = idx;

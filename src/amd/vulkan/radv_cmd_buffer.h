@@ -784,4 +784,7 @@ void radv_end_conditional_rendering(struct radv_cmd_buffer *cmd_buffer);
 
 uint64_t radv_descriptor_get_va(const struct radv_descriptor_state *descriptors_state, unsigned set_idx);
 
+uint32_t radv_get_rsrc3_vbo_desc(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs,
+                                 uint32_t vbo_idx);
+
 #endif /* RADV_CMD_BUFFER_H */
