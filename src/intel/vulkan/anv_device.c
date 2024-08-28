@@ -726,7 +726,7 @@ VkResult anv_CreateDevice(
     * so that writes never overwrite other bits of data stored in the
     * workaround BO.
     */
-   wa_addr = anv_address_add_aligned(device->workaround_address,
+   wa_addr = anv_address_add_aligned(wa_addr,
                                      sizeof(physical_device->rt_uuid), 64);
    device->workaround_address = wa_addr;
 
