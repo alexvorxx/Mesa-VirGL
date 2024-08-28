@@ -30,7 +30,7 @@ variables:
    DEBIAN_TEST_ANDROID_TAG: "20240906-deqp"
    DEBIAN_TEST_GL_TAG: "20240906-deqp"
    DEBIAN_TEST_VK_TAG: "20240909-deqp-oom"
-   KERNEL_ROOTFS_TAG: "20240909-pytest-deqp"
+   KERNEL_ROOTFS_TAG: "20240913-2kdl2quote"
 
    DEBIAN_PYUTILS_IMAGE: "debian/x86_64_pyutils"
    DEBIAN_PYUTILS_TAG: "20240912-hello-to-you"

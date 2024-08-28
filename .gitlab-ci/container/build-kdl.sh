@@ -3,7 +3,7 @@
 
 set -ex
 
-KDL_REVISION="5056f71b100a68b72b285c6fc845a66a2ed25985"
+KDL_REVISION="cbbe5fd54505fd03ee34f35bfd16794f0c30074f"
 KDL_CHECKOUT_DIR="/tmp/ci-kdl.git"
 
 mkdir -p ${KDL_CHECKOUT_DIR}
