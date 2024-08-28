@@ -40,6 +40,7 @@ struct assignment {
          bool assigned : 1;
          bool vcc : 1;
          bool m0 : 1;
+         bool renamed : 1;
       };
       uint8_t _ = 0;
    };
@@ -1457,6 +1458,7 @@ add_rename(ra_ctx& ctx, Temp orig_val, Temp new_val)
 {
    ctx.renames[ctx.block->index][orig_val.id()] = new_val;
    ctx.orig_names.emplace(new_val.id(), orig_val);
+   ctx.assignments[orig_val.id()].renamed = true;
 }
 
 /* Reallocates vars by sorting them and placing each variable after the previous
@@ -2297,9 +2299,13 @@ get_regs_for_phis(ra_ctx& ctx, Block& block, RegisterFile& register_file,
    }
 }
 
-Temp
+inline Temp
 read_variable(ra_ctx& ctx, Temp val, unsigned block_idx)
 {
+   /* This variable didn't get renamed, yet. */
+   if (!ctx.assignments[val.id()].renamed)
+      return val;
+
    std::unordered_map<unsigned, Temp>::iterator it = ctx.renames[block_idx].find(val.id());
    if (it == ctx.renames[block_idx].end())
       return val;
@@ -2310,6 +2316,10 @@ read_variable(ra_ctx& ctx, Temp val, unsigned block_idx)
 Temp
 handle_live_in(ra_ctx& ctx, Temp val, Block* block)
 {
+   /* This variable didn't get renamed, yet. */
+   if (!ctx.assignments[val.id()].renamed)
+      return val;
+
    Block::edge_vec& preds = val.is_linear() ? block->linear_preds : block->logical_preds;
    if (preds.size() == 0)
       return val;
@@ -2365,6 +2375,9 @@ handle_loop_phis(ra_ctx& ctx, const IDSet& live_in, uint32_t loop_header_idx,
 
    /* create phis for variables renamed during the loop */
    for (unsigned t : live_in) {
+      if (!ctx.assignments[t].renamed)
+         continue;
+
       Temp val = Temp(t, ctx.program->temp_rc[t]);
       Temp prev = read_variable(ctx, val, loop_header_idx - 1);
       Temp renamed = handle_live_in(ctx, val, &loop_header);
