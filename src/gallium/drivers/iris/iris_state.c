@@ -9980,7 +9980,7 @@ iris_emit_raw_pipe_control(struct iris_batch *batch,
 
    if (INTEL_DEBUG(DEBUG_PIPE_CONTROL)) {
       fprintf(stderr,
-              "  PC [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%"PRIx64"]: %s\n",
+              "  PC [%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%"PRIx64"]: %s\n",
               (flags & PIPE_CONTROL_FLUSH_ENABLE) ? "PipeCon " : "",
               (flags & PIPE_CONTROL_CS_STALL) ? "CS " : "",
               (flags & PIPE_CONTROL_STALL_AT_SCOREBOARD) ? "Scoreboard " : "",
@@ -9991,6 +9991,7 @@ iris_emit_raw_pipe_control(struct iris_batch *batch,
               (flags & PIPE_CONTROL_DATA_CACHE_FLUSH) ? "DC " : "",
               (flags & PIPE_CONTROL_DEPTH_CACHE_FLUSH) ? "ZFlush " : "",
               (flags & PIPE_CONTROL_TILE_CACHE_FLUSH) ? "Tile " : "",
+              (flags & PIPE_CONTROL_L3_FABRIC_FLUSH) ? "L3Fabric " : "",
               (flags & PIPE_CONTROL_CCS_CACHE_FLUSH) ? "CCS " : "",
               (flags & PIPE_CONTROL_DEPTH_STALL) ? "ZStall " : "",
               (flags & PIPE_CONTROL_STATE_CACHE_INVALIDATE) ? "State " : "",
@@ -10025,6 +10026,7 @@ iris_emit_raw_pipe_control(struct iris_batch *batch,
 #endif
 #if GFX_VER == 12
       pc.TileCacheFlushEnable = flags & PIPE_CONTROL_TILE_CACHE_FLUSH;
+      pc.L3FabricFlush = flags & PIPE_CONTROL_L3_FABRIC_FLUSH;
 #endif
 #if GFX_VER > 11
       pc.HDCPipelineFlushEnable = flags & PIPE_CONTROL_FLUSH_HDC;
