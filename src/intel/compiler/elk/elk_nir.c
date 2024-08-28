@@ -1616,6 +1616,9 @@ get_subgroup_size(const struct shader_info *info, unsigned max_subgroup_size)
        */
       return info->stage == MESA_SHADER_FRAGMENT ? 0 : max_subgroup_size;
 
+   case SUBGROUP_SIZE_REQUIRE_4:
+      unreachable("Unsupported subgroup size type");
+
    case SUBGROUP_SIZE_REQUIRE_8:
    case SUBGROUP_SIZE_REQUIRE_16:
    case SUBGROUP_SIZE_REQUIRE_32:

@@ -110,7 +110,7 @@ vk_get_subgroup_size(uint32_t spirv_version,
    uint32_t req_subgroup_size = get_required_subgroup_size(info_pNext);
    if (req_subgroup_size > 0) {
       assert(util_is_power_of_two_nonzero(req_subgroup_size));
-      assert(req_subgroup_size >= 8 && req_subgroup_size <= 128);
+      assert(req_subgroup_size >= 4 && req_subgroup_size <= 128);
       return req_subgroup_size;
    } else if (allow_varying || spirv_version >= 0x10600) {
       /* Starting with SPIR-V 1.6, varying subgroup size the default */

@@ -1586,6 +1586,7 @@ enum ENUM_PACKED gl_subgroup_size
     * also the subgroup size.  If any new values are added, they must respect
     * this invariant.
     */
+   SUBGROUP_SIZE_REQUIRE_4   = 4,   /**< VK_EXT_subgroup_size_control */
    SUBGROUP_SIZE_REQUIRE_8   = 8,   /**< VK_EXT_subgroup_size_control */
    SUBGROUP_SIZE_REQUIRE_16  = 16,  /**< VK_EXT_subgroup_size_control */
    SUBGROUP_SIZE_REQUIRE_32  = 32,  /**< VK_EXT_subgroup_size_control */
