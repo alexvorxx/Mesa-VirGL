@@ -338,41 +338,59 @@ d3d12_video_encoder_references_manager_h264::begin_frame(D3D12_VIDEO_ENCODER_PIC
    /// Set MMCO info
    ///
 
-   // If these static asserts do not pass anymore, change below ALL OCCURRENCES OF reinterpret_casts between
-   // pipe_h264_ref_pic_marking_entry and
-   // D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_REFERENCE_PICTURE_MARKING_OPERATION
-   static_assert(sizeof(struct pipe_h264_ref_pic_marking_entry) ==
-                 sizeof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_REFERENCE_PICTURE_MARKING_OPERATION));
-   static_assert(offsetof(struct pipe_h264_ref_pic_marking_entry, memory_management_control_operation) ==
-                 offsetof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_REFERENCE_PICTURE_MARKING_OPERATION,
-                          memory_management_control_operation));
-   static_assert(offsetof(struct pipe_h264_ref_pic_marking_entry, difference_of_pic_nums_minus1) ==
-                 offsetof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_REFERENCE_PICTURE_MARKING_OPERATION,
-                          difference_of_pic_nums_minus1));
-   static_assert(offsetof(struct pipe_h264_ref_pic_marking_entry, long_term_pic_num) ==
-                 offsetof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_REFERENCE_PICTURE_MARKING_OPERATION,
-                          long_term_pic_num));
-   static_assert(offsetof(struct pipe_h264_ref_pic_marking_entry, long_term_frame_idx) ==
-                 offsetof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_REFERENCE_PICTURE_MARKING_OPERATION,
-                          long_term_frame_idx));
-   static_assert(offsetof(struct pipe_h264_ref_pic_marking_entry, max_long_term_frame_idx_plus1) ==
-                 offsetof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_REFERENCE_PICTURE_MARKING_OPERATION,
-                          max_long_term_frame_idx_plus1));
-
-   // Shallow Copy MMCO list
+   // Deep Copy MMCO list
    m_curFrameState.pRefPicMarkingOperationsCommands = nullptr;
    m_curFrameState.RefPicMarkingOperationsCommandsCount = 0u;
-   // m_curFrameState.adaptive_ref_pic_marking_mode_flag = h264Pic->slice.adaptive_ref_pic_marking_mode_flag; // TODO:
-   // Uncomment setting adaptive_ref_pic_marking_mode_flag
-   if (m_curFrameState.adaptive_ref_pic_marking_mode_flag) {
-      m_curFrameState.RefPicMarkingOperationsCommandsCount = h264Pic->slice.num_ref_pic_marking_operations;
-      m_curFrameState.pRefPicMarkingOperationsCommands =
-         reinterpret_cast<D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_REFERENCE_PICTURE_MARKING_OPERATION *>(
-            &h264Pic->slice.ref_pic_marking_operations[0]);
+   m_curFrameState.adaptive_ref_pic_marking_mode_flag = 0u;
 
-      assert((m_curFrameState.RefPicMarkingOperationsCommandsCount == 0) ||
-             m_curFrameState.pRefPicMarkingOperationsCommands[m_curFrameState.RefPicMarkingOperationsCommandsCount - 1]
-                   .memory_management_control_operation == 3);
+   if (m_curFrameState.FrameType != D3D12_VIDEO_ENCODER_FRAME_TYPE_H264_IDR_FRAME) {
+
+      // Only send mmco ops to IHV driver on non-idr frames since dec_ref_pic_marking() in the IDR slice headers doesn't
+      // have the memory operation list coded in the bitstream
+      m_curFrameState.adaptive_ref_pic_marking_mode_flag = h264Pic->slice.adaptive_ref_pic_marking_mode_flag;
+      if (m_curFrameState.adaptive_ref_pic_marking_mode_flag) {
+         m_curFrameState.RefPicMarkingOperationsCommandsCount = h264Pic->slice.num_ref_pic_marking_operations;
+         m_CurrentFrameReferencesData.pMemoryOps.resize(m_curFrameState.RefPicMarkingOperationsCommandsCount);
+         for (unsigned i = 0; i < m_curFrameState.RefPicMarkingOperationsCommandsCount; i++) {
+            m_CurrentFrameReferencesData.pMemoryOps[i].difference_of_pic_nums_minus1 =
+               h264Pic->slice.ref_pic_marking_operations[i].difference_of_pic_nums_minus1;
+            m_CurrentFrameReferencesData.pMemoryOps[i].long_term_frame_idx =
+               h264Pic->slice.ref_pic_marking_operations[i].long_term_frame_idx;
+            m_CurrentFrameReferencesData.pMemoryOps[i].long_term_pic_num =
+               h264Pic->slice.ref_pic_marking_operations[i].long_term_pic_num;
+            m_CurrentFrameReferencesData.pMemoryOps[i].max_long_term_frame_idx_plus1 =
+               h264Pic->slice.ref_pic_marking_operations[i].max_long_term_frame_idx_plus1;
+            m_CurrentFrameReferencesData.pMemoryOps[i].memory_management_control_operation =
+               h264Pic->slice.ref_pic_marking_operations[i].memory_management_control_operation;
+         }
+
+         // DX12 driver requires "End memory_management_control_operation syntax element loop" to be
+         // sent at the end of the list for coding the slice header when sending down mmco commands
+         if ((m_curFrameState.RefPicMarkingOperationsCommandsCount > 0) &&
+             m_CurrentFrameReferencesData.pMemoryOps[m_curFrameState.RefPicMarkingOperationsCommandsCount - 1]
+                   .memory_management_control_operation != 0) {
+
+            // Add it if the frontend didn't send it
+            m_curFrameState.RefPicMarkingOperationsCommandsCount++;
+            D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_REFERENCE_PICTURE_MARKING_OPERATION endMMCOOperation = {};
+            endMMCOOperation.memory_management_control_operation = 0u;
+            m_CurrentFrameReferencesData.pMemoryOps.push_back(endMMCOOperation);
+         }
+
+         m_curFrameState.pRefPicMarkingOperationsCommands = m_CurrentFrameReferencesData.pMemoryOps.data();
+      }
+   } else if (h264Pic->slice.long_term_reference_flag) {
+      assert(m_curFrameState.FrameType == D3D12_VIDEO_ENCODER_FRAME_TYPE_H264_IDR_FRAME);
+      // See https://microsoft.github.io/DirectX-Specs/d3d/D3D12VideoEncoding.html
+      // Note that for marking an IDR frame as long term reference, the proposed explicit mechanism is to mark it as
+      // short term reference first, by setting D3D12_VIDEO_ENCODER_PICTURE_CONTROL_FLAG_USED_AS_REFERENCE_PICTURE when
+      // calling EncodeFrame for such IDR frame, and later promoting it to be a long term reference frame using memory
+      // management operation '3' Mark a short-term reference picture as "used for long-term reference" and assign a
+      // long-term frame index to it.
+      // Alternatively, if encoding an IDR frame and setting adaptive_ref_pic_marking_mode_flag = 1, the driver will
+      // assume that the client is attempting to set the H264 slice header long_term_reference_flag and will do so in
+      // the output bitstream for such EncodeFrame call.
+      m_curFrameState.adaptive_ref_pic_marking_mode_flag = 1;
    }
 
    ///

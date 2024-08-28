@@ -72,6 +72,7 @@ class d3d12_video_encoder_references_manager_h264 : public d3d12_video_encoder_r
       d3d12_video_dpb ReferenceTextures;
       std::vector<UINT> pList0ReferenceFrames;
       std::vector<UINT> pList1ReferenceFrames;
+      std::vector<D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_REFERENCE_PICTURE_MARKING_OPERATION> pMemoryOps;
    };
    current_frame_references_data m_CurrentFrameReferencesData;
 
