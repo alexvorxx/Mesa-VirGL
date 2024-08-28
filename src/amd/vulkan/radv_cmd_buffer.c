@@ -6181,7 +6181,7 @@ radv_get_rsrc3_vbo_desc(const struct radv_cmd_buffer *cmd_buffer, const struct r
 
 void
 radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs,
-                              bool full_null_descriptors, void *vb_ptr)
+                              void *vb_ptr)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -6213,13 +6213,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
       uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, vs, i);
 
       if (!buffer) {
-         if (full_null_descriptors) {
-            /* Put all the info in for the DGC generation shader in case the VBO gets overridden. */
-            desc[0] = 0;
-            desc[1] = S_008F04_STRIDE(stride);
-            desc[2] = 0;
-            desc[3] = rsrc_word3;
-         } else if (uses_dynamic_inputs) {
+         if (uses_dynamic_inputs) {
             /* Stride needs to be non-zero on GFX9, or else bounds checking is disabled. We need
              * to include the format/word3 so that the alpha channel is 1 for formats without an
              * alpha channel.
@@ -6274,14 +6268,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
              * num_records and stride are zero. This doesn't seem necessary on GFX8, GFX10 and
              * GFX10.3 but it doesn't hurt.
              */
-            if (full_null_descriptors) {
-               /* Put all the info in for the DGC generation shader in case the VBO gets overridden.
-                */
-               desc[0] = 0;
-               desc[1] = S_008F04_STRIDE(stride);
-               desc[2] = 0;
-               desc[3] = rsrc_word3;
-            } else if (uses_dynamic_inputs) {
+            if (uses_dynamic_inputs) {
                desc[0] = 0;
                desc[1] = S_008F04_STRIDE(16);
                desc[2] = 0;
@@ -6334,7 +6321,7 @@ radv_flush_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
    if (!radv_cmd_buffer_upload_alloc(cmd_buffer, vb_desc_alloc_size, &vb_offset, &vb_ptr))
       return;
 
-   radv_write_vertex_descriptors(cmd_buffer, vs, false, vb_ptr);
+   radv_write_vertex_descriptors(cmd_buffer, vs, vb_ptr);
 
    va = radv_buffer_get_va(cmd_buffer->upload.upload_bo);
    va += vb_offset;

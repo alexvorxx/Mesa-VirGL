@@ -1466,28 +1466,27 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo
          nir_def *new_vbo_data[4] = {nir_unpack_64_2x32_split_x(b, va), nir_ior(b, nir_ishl_imm(b, stride, 16), va_hi),
                                      nir_load_var(b, num_records), rsrc_word3};
          nir_store_var(b, vbo_data, nir_vec(b, new_vbo_data, 4), 0xf);
-      }
-      nir_pop_if(b, NULL);
 
-      /* On GFX9, it seems bounds checking is disabled if both
-       * num_records and stride are zero. This doesn't seem necessary on GFX8, GFX10 and
-       * GFX10.3 but it doesn't hurt.
-       */
-      nir_def *num_records = nir_channel(b, nir_load_var(b, vbo_data), 2);
-      nir_def *buf_va =
-         nir_iand_imm(b, nir_pack_64_2x32(b, nir_trim_vector(b, nir_load_var(b, vbo_data), 2)), (1ull << 48) - 1ull);
-      nir_push_if(b, nir_ior(b, nir_ieq_imm(b, num_records, 0), nir_ieq_imm(b, buf_va, 0)));
-      {
-         nir_def *has_dynamic_vs_input = nir_ieq_imm(b, load_param8(b, dynamic_vs_input), 1);
-         nir_def *new_vbo_data[4];
+         /* On GFX9, it seems bounds checking is disabled if both
+          * num_records and stride are zero. This doesn't seem necessary on GFX8, GFX10 and
+          * GFX10.3 but it doesn't hurt.
+          */
+         nir_def *buf_va =
+            nir_iand_imm(b, nir_pack_64_2x32(b, nir_trim_vector(b, nir_load_var(b, vbo_data), 2)), (1ull << 48) - 1ull);
+         nir_push_if(b, nir_ior(b, nir_ieq_imm(b, nir_load_var(b, num_records), 0), nir_ieq_imm(b, buf_va, 0)));
+         {
+            nir_def *has_dynamic_vs_input = nir_ieq_imm(b, load_param8(b, dynamic_vs_input), 1);
 
-         new_vbo_data[0] = nir_imm_int(b, 0);
-         new_vbo_data[1] = nir_bcsel(b, has_dynamic_vs_input, nir_imm_int(b, S_008F04_STRIDE(16)), nir_imm_int(b, 0));
-         new_vbo_data[2] = nir_imm_int(b, 0);
-         new_vbo_data[3] =
-            nir_bcsel(b, has_dynamic_vs_input, nir_channel(b, nir_load_var(b, vbo_data), 3), nir_imm_int(b, 0));
+            new_vbo_data[0] = nir_imm_int(b, 0);
+            new_vbo_data[1] =
+               nir_bcsel(b, has_dynamic_vs_input, nir_imm_int(b, S_008F04_STRIDE(16)), nir_imm_int(b, 0));
+            new_vbo_data[2] = nir_imm_int(b, 0);
+            new_vbo_data[3] =
+               nir_bcsel(b, has_dynamic_vs_input, nir_channel(b, nir_load_var(b, vbo_data), 3), nir_imm_int(b, 0));
 
-         nir_store_var(b, vbo_data, nir_vec(b, new_vbo_data, 4), 0xf);
+            nir_store_var(b, vbo_data, nir_vec(b, new_vbo_data, 4), 0xf);
+         }
+         nir_pop_if(b, NULL);
       }
       nir_pop_if(b, NULL);
 
@@ -2345,7 +2344,7 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
       uint32_t mask = vs->info.vs.vb_desc_usage_mask;
       unsigned vb_desc_alloc_size = util_bitcount(mask) * 16;
 
-      radv_write_vertex_descriptors(cmd_buffer, vs, true, *upload_data);
+      radv_write_vertex_descriptors(cmd_buffer, vs, *upload_data);
 
       uint32_t *vbo_info = (uint32_t *)((char *)*upload_data + vb_desc_alloc_size);
 
