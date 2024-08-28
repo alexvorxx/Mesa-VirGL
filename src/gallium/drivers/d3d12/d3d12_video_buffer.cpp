@@ -65,6 +65,8 @@ d3d12_video_buffer_create_impl(struct pipe_context *pipe,
    pD3D12VideoBuffer->base.interlaced    = tmpl->interlaced;
    pD3D12VideoBuffer->base.contiguous_planes = true;
    pD3D12VideoBuffer->base.associated_data = nullptr;
+   pD3D12VideoBuffer->idx_texarray_slots = 0;
+   pD3D12VideoBuffer->m_spVideoTexArrayDPBPoolInUse.reset();
 
    // Used to signal the rest of the d3d12 driver this is a video (dpb or not) texture
    pD3D12VideoBuffer->base.bind |=  PIPE_BIND_CUSTOM;
@@ -208,8 +210,19 @@ d3d12_video_buffer_destroy(struct pipe_video_buffer *buffer)
 {
    struct d3d12_video_buffer *pD3D12VideoBuffer = (struct d3d12_video_buffer *) buffer;
 
-   // Destroy pD3D12VideoBuffer->texture (if any)
-   if (pD3D12VideoBuffer->texture) {
+   // For texture arrays, only delete the underlying resource allocation when
+   // there are no more in use slots into it
+   bool bKeepUnderlyingAlloc = false;
+   if (pD3D12VideoBuffer->texture->base.b.array_size > 1)
+   {
+      // Mark slot used by the video buffer being destroyed as unused
+      (*pD3D12VideoBuffer->m_spVideoTexArrayDPBPoolInUse) &= ~(1 << pD3D12VideoBuffer->idx_texarray_slots); // mark bit idx_texarray_slots as zero
+      // Keep underlying pD3D12VideoBuffer->texture alloc if any other slots are in use.
+      bKeepUnderlyingAlloc = (*pD3D12VideoBuffer->m_spVideoTexArrayDPBPoolInUse != 0); // check for any non-zero bit
+   }
+
+   // Destroy pD3D12VideoBuffer->texture underlying aloc
+   if (pD3D12VideoBuffer->texture && !bKeepUnderlyingAlloc) {
       pipe_resource *pBaseResource = &pD3D12VideoBuffer->texture->base.b;
       pipe_resource_reference(&pBaseResource, NULL);
    }
@@ -458,12 +471,6 @@ d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,
                               struct pipe_picture_desc *picture,
                               const struct pipe_video_buffer *templat)
 {
-   struct d3d12_video_encoder *pD3D12Enc = (struct d3d12_video_encoder *) codec;
-   assert(pD3D12Enc);
-   bool bSupportsAOT = ((pD3D12Enc->m_currentEncodeCapabilities.m_SupportFlags &
-                        D3D12_VIDEO_ENCODER_SUPPORT_FLAG_RECONSTRUCTED_FRAMES_REQUIRE_TEXTURE_ARRAYS) == 0);
-   assert(bSupportsAOT); // Do not support texture array (for now)
-
    // Indicate to the d3d12 resource creation path this needs decode/encode reference only resource flags
    pipe_video_buffer tmpl = *templat;
    if (codec->entrypoint == PIPE_VIDEO_ENTRYPOINT_BITSTREAM)
@@ -471,6 +478,75 @@ d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,
    else if (codec->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE)
       tmpl.bind |= PIPE_BIND_VIDEO_ENCODE_DPB;
 
+   struct d3d12_video_encoder *pD3D12Enc = (struct d3d12_video_encoder *) codec;
+   assert(pD3D12Enc);
+
+   if (pD3D12Enc->m_currentEncodeCapabilities.m_SupportFlags &
+      D3D12_VIDEO_ENCODER_SUPPORT_FLAG_RECONSTRUCTED_FRAMES_REQUIRE_TEXTURE_ARRAYS)
+   {
+      return d3d12_video_create_dpb_buffer_texarray(codec, picture, &tmpl);
+   }
+   else
+   {
+      return d3d12_video_create_dpb_buffer_aot(codec, picture, &tmpl);
+   }
+}
+
+struct pipe_video_buffer*
+d3d12_video_create_dpb_buffer_aot(struct pipe_video_codec *codec,
+                                  struct pipe_picture_desc *picture,
+                                  const struct pipe_video_buffer *templat)
+{
+   // For AOT, just return a new buffer with a new underlying pipe_resource
    pipe_resource resource_creation_info = {};
-   return d3d12_video_buffer_create_impl(codec->context, &tmpl, &resource_creation_info, d3d12_video_buffer_creation_mode::create_resource, NULL, 0);
+   return d3d12_video_buffer_create_impl(codec->context, templat, &resource_creation_info, d3d12_video_buffer_creation_mode::create_resource, NULL, 0);
+}
+
+struct pipe_video_buffer*
+d3d12_video_create_dpb_buffer_texarray(struct pipe_video_codec *codec,
+                                       struct pipe_picture_desc *picture,
+                                       const struct pipe_video_buffer *templat)
+{
+   d3d12_video_buffer* buf = NULL;
+   struct d3d12_video_encoder *pD3D12Enc = (struct d3d12_video_encoder *) codec;
+
+   // For texture array, keep a texture array pool of d3d12_video_encoder_get_current_max_dpb_capacity
+   // and keep track of used/unused subresource indices to return from the pool
+   if (!pD3D12Enc->m_pVideoTexArrayDPBPool)
+   {
+      pipe_resource resource_creation_info = {};
+      // In theory, d3d12_video_encoder_get_current_max_dpb_capacity(pD3D12Enc) should give upfront the max DPB size
+      // but in some frontends like VA, this is not always accurate. To avoid reallocating/copying the texture array
+      // and also keeping a balance of not allocating ARRAY_SIZE(pipe_h264_enc_picture_desc::dpb) slots
+      // let's use the max possible elements in the DPB based on d3d12 capabilities (e.g no interlaced support)
+      // We cannot use the max number of references reported by the IHV, since the DPB may hold references not used
+      // by the current pic but used by future pics (e.g mmco in H264, LTR in HEVC/AV1)
+      resource_creation_info.array_size = D3D12_VIDEO_TEXTURE_ARRAY_DPB_POOL_SIZE;
+      static_assert(D3D12_VIDEO_TEXTURE_ARRAY_DPB_POOL_SIZE <= 16); // uint16_t used as a usage bitmap into m_pVideoTexArrayDPBPool
+      buf = (d3d12_video_buffer*) d3d12_video_buffer_create_impl(codec->context, templat, &resource_creation_info, d3d12_video_buffer_creation_mode::create_resource, NULL, 0);
+      pD3D12Enc->m_pVideoTexArrayDPBPool = &buf->texture->base.b;
+      pD3D12Enc->m_spVideoTexArrayDPBPoolInUse = std::make_shared<uint16_t>();
+   }
+   else
+   {
+      buf = (d3d12_video_buffer*) d3d12_video_buffer_create_impl(codec->context, templat, pD3D12Enc->m_pVideoTexArrayDPBPool, d3d12_video_buffer_creation_mode::place_on_resource, NULL, 0);
+   }
+
+   // Set and increase refcount in buf object for usage in d3d12_video_buffer_destroy()
+   buf->m_spVideoTexArrayDPBPoolInUse = pD3D12Enc->m_spVideoTexArrayDPBPoolInUse;
+
+   ASSERTED bool bFoundEmptySlot = false;
+   for (unsigned i = 0; i < pD3D12Enc->m_pVideoTexArrayDPBPool->array_size; i++)
+   {
+      if (((*pD3D12Enc->m_spVideoTexArrayDPBPoolInUse) & (1 << i)) == 0)
+      {
+         buf->idx_texarray_slots = i;
+         (*pD3D12Enc->m_spVideoTexArrayDPBPoolInUse) |= (1 << buf->idx_texarray_slots); // Mark i-th bit as used
+         bFoundEmptySlot = true;
+         break;
+      }
+   }
+
+   assert(bFoundEmptySlot); // Possibly ran out of slots because the frontend is using more slots than we allocated in array_size when initializing m_pVideoTexArrayDPBPool
+   return &buf->base;
 }

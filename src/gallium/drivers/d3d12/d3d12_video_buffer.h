@@ -28,6 +28,7 @@
 #include "pipe/p_context.h"
 #include "pipe/p_video_codec.h"
 #include <vector>
+#include "d3d12_video_types.h"
 
 ///
 /// Pipe video buffer interface starts
@@ -96,6 +97,16 @@ struct d3d12_video_buffer
    std::vector<pipe_surface *>      surfaces;
    std::vector<pipe_sampler_view *> sampler_view_planes;
    std::vector<pipe_sampler_view *> sampler_view_components;
+
+   // Indicates the subresource index into the texture.array_size
+   // that corresponds to this video buffer object
+   uint                             idx_texarray_slots;
+
+   // Used by d3d12_video_buffer_destroy() when using texture array mode
+   // in the function d3d12_video_enc::d3d12_video_create_dpb_buffer()
+   // Points to the same address as d3d12_video_encoder::m_spVideoTexArrayDPBPoolInUse
+   static_assert(D3D12_VIDEO_TEXTURE_ARRAY_DPB_POOL_SIZE <= 16); // uint16_t used as a bitmap into m_pVideoTexArrayDPBPool
+   std::shared_ptr<uint16_t> m_spVideoTexArrayDPBPoolInUse;
 };
 
 ///
@@ -117,5 +128,15 @@ struct pipe_video_buffer*
 d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,
                               struct pipe_picture_desc *picture,
                               const struct pipe_video_buffer *templat);
+
+struct pipe_video_buffer*
+d3d12_video_create_dpb_buffer_aot(struct pipe_video_codec *codec,
+                                  struct pipe_picture_desc *picture,
+                                  const struct pipe_video_buffer *templat);
+
+struct pipe_video_buffer*
+d3d12_video_create_dpb_buffer_texarray(struct pipe_video_codec *codec,
+                                       struct pipe_picture_desc *picture,
+                                       const struct pipe_video_buffer *templat);
 
 #endif

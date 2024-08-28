@@ -101,6 +101,11 @@ d3d12_video_encoder_flush(struct pipe_video_codec *codec);
 void
 d3d12_video_encoder_sync_completion(struct pipe_video_codec *codec, uint64_t fenceValueToWaitOn, uint64_t timeout_ns);
 
+struct pipe_video_buffer*
+d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,
+                              struct pipe_picture_desc *picture,
+                              const struct pipe_video_buffer *templat);
+
 ///
 /// Pipe video interface ends
 ///
@@ -415,6 +420,20 @@ struct d3d12_video_encoder
    };
 
    std::vector<InFlightEncodeResources> m_inflightResourcesPool;
+
+   // Used to track texture array allocations given by d3d12_video_create_dpb_buffer
+   // The visibility of these members must be at encoder level, so multiple
+   // encoder objects use their own tracking and allocation pool
+   // Some apps will destroy the encoder before d3d12_video_buffer_destroy(),
+   // so the lifetime of these can't be tied to d3d12_video_encoder_destroy()
+   // This is how these are managed:
+   // 1. Created on demand at d3d12_video_create_dpb_buffer
+   //    and the pointer is stored on each d3d12_video_buffer
+   // 2. On d3d12_video_buffer::destroy(), when all the slots
+   //    of the allocation pool are unused, the memory is released.
+   pipe_resource *m_pVideoTexArrayDPBPool;
+   static_assert(D3D12_VIDEO_TEXTURE_ARRAY_DPB_POOL_SIZE <= 16); // uint16_t used as a bitmap into m_pVideoTexArrayDPBPool
+   std::shared_ptr<uint16_t> m_spVideoTexArrayDPBPoolInUse;
 };
 
 bool
