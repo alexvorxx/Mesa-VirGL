@@ -106,6 +106,13 @@ struct d3d12_video_buffer
  * creates a video dpb buffer
  */
 
+enum class d3d12_video_buffer_creation_mode
+{
+   create_resource = 0,
+   place_on_resource = 1,
+   open_shared_resource = 2,
+};
+
 struct pipe_video_buffer*
 d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,
                               struct pipe_picture_desc *picture,

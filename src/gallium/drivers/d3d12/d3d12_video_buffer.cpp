@@ -41,6 +41,8 @@
 static struct pipe_video_buffer *
 d3d12_video_buffer_create_impl(struct pipe_context *pipe,
                               const struct pipe_video_buffer *tmpl,
+                              struct pipe_resource* resource_creation_info,
+                              d3d12_video_buffer_creation_mode resource_creation_mode,
                               struct winsys_handle *handle,
                               unsigned usage)
 {
@@ -82,43 +84,56 @@ d3d12_video_buffer_create_impl(struct pipe_context *pipe,
    pD3D12VideoBuffer->base.get_surfaces                = d3d12_video_buffer_get_surfaces;
    pD3D12VideoBuffer->base.destroy_associated_data     = d3d12_video_buffer_destroy_associated_data;
 
-   struct pipe_resource templ;
-   memset(&templ, 0, sizeof(templ));
-   templ.target     = PIPE_TEXTURE_2D;
-   templ.bind       = pD3D12VideoBuffer->base.bind;
-   templ.format     = pD3D12VideoBuffer->base.buffer_format;
-   if (handle)
-   {
-      // YUV 4:2:0 formats in D3D12 always require multiple of 2 dimensions
-      // We must respect the input dimensions of the imported resource handle (e.g no extra aligning)
-      templ.width0     = align(pD3D12VideoBuffer->base.width, 2);
-      templ.height0    = align(pD3D12VideoBuffer->base.height, 2);
-   }
-   else
-   {
-      // When creating (e.g not importing) resources we allocate
-      // with a higher alignment to maximize HW compatibility
-      templ.width0     = align(pD3D12VideoBuffer->base.width, 2);
-      templ.height0    = align(pD3D12VideoBuffer->base.height, 16);
-   }
-   templ.depth0     = 1;
-   templ.array_size = 1;
-   templ.flags      = 0;
+   ///
+   /// Create, open or place underlying pipe_resource allocation
+   ///
 
    // This calls d3d12_create_resource as the function ptr is set in d3d12_screen.resource_create
-   if(handle)
+   if (resource_creation_mode == d3d12_video_buffer_creation_mode::open_shared_resource)
    {
+      assert(handle);
+      resource_creation_info->target     = PIPE_TEXTURE_2D;
+      resource_creation_info->bind       = pD3D12VideoBuffer->base.bind;
+      resource_creation_info->format     = pD3D12VideoBuffer->base.buffer_format;
+      resource_creation_info->flags      = 0;
+      resource_creation_info->depth0     = 1;
+      if (resource_creation_info->array_size == 0) // If caller did not pass it, set as 1 default
+         resource_creation_info->array_size = 1;
+
+      // YUV 4:2:0 formats in D3D12 always require multiple of 2 dimensions
+      // We must respect the input dimensions of the imported resource handle (e.g no extra aligning)
+      resource_creation_info->width0     = align(pD3D12VideoBuffer->base.width, 2);
+      resource_creation_info->height0    = align(pD3D12VideoBuffer->base.height, 2);
+
       // WINSYS_HANDLE_TYPE_D3D12_RES implies taking ownership of the reference
       if(handle->type == WINSYS_HANDLE_TYPE_D3D12_RES)
          ((IUnknown *)handle->com_obj)->AddRef();
-      pD3D12VideoBuffer->texture = (struct d3d12_resource *) pipe->screen->resource_from_handle(pipe->screen, &templ, handle, usage);
+      pD3D12VideoBuffer->texture = (struct d3d12_resource *) pipe->screen->resource_from_handle(pipe->screen, resource_creation_info, handle, usage);
    }
-   else
-      pD3D12VideoBuffer->texture = (struct d3d12_resource *) pipe->screen->resource_create(pipe->screen, &templ);
+   else if(resource_creation_mode == d3d12_video_buffer_creation_mode::create_resource)
+   {
+      resource_creation_info->target     = PIPE_TEXTURE_2D;
+      resource_creation_info->bind       = pD3D12VideoBuffer->base.bind;
+      resource_creation_info->format     = pD3D12VideoBuffer->base.buffer_format;
+      resource_creation_info->flags      = 0;
+      resource_creation_info->depth0     = 1;
+      if (resource_creation_info->array_size == 0) // If caller did not pass it, set as 1 default
+         resource_creation_info->array_size = 1;
+
+      // When creating (e.g not importing) resources we allocate
+      // with a higher alignment to maximize HW compatibility
+      resource_creation_info->width0     = align(pD3D12VideoBuffer->base.width, 2);
+      resource_creation_info->height0    = align(pD3D12VideoBuffer->base.height, 16);
+
+      pD3D12VideoBuffer->texture = (struct d3d12_resource *) pipe->screen->resource_create(pipe->screen, resource_creation_info);
+   }
+   else if(resource_creation_mode == d3d12_video_buffer_creation_mode::place_on_resource)
+   {
+      pD3D12VideoBuffer->texture = (struct d3d12_resource*) resource_creation_info; // Set directly the resource as underlying texture
+   }
 
    if (pD3D12VideoBuffer->texture == nullptr) {
-      debug_printf("[d3d12_video_buffer] d3d12_video_buffer_create - Call to resource_create() to create "
-                      "d3d12_resource failed\n");
+      debug_printf("[d3d12_video_buffer] d3d12_video_buffer_create_impl - failed to set a valid pD3D12VideoBuffer->texture.");
       goto failed;
    }
 
@@ -171,7 +186,8 @@ d3d12_video_buffer_from_handle(struct pipe_context *pipe,
       updated_template = *tmpl;
    }
 
-   return d3d12_video_buffer_create_impl(pipe, &updated_template, handle, usage);
+   pipe_resource resource_creation_info = {};
+   return d3d12_video_buffer_create_impl(pipe, &updated_template, &resource_creation_info, d3d12_video_buffer_creation_mode::open_shared_resource, handle, usage);
 }
 
 /**
@@ -180,7 +196,8 @@ d3d12_video_buffer_from_handle(struct pipe_context *pipe,
 struct pipe_video_buffer *
 d3d12_video_buffer_create(struct pipe_context *pipe, const struct pipe_video_buffer *tmpl)
 {
-   return d3d12_video_buffer_create_impl(pipe, tmpl, NULL, 0);
+   pipe_resource resource_creation_info = {};
+   return d3d12_video_buffer_create_impl(pipe, tmpl, &resource_creation_info, d3d12_video_buffer_creation_mode::create_resource, NULL, 0);
 }
 
 /**
@@ -454,5 +471,6 @@ d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,
    else if (codec->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE)
       tmpl.bind |= PIPE_BIND_VIDEO_ENCODE_DPB;
 
-   return d3d12_video_buffer_create_impl(codec->context, &tmpl, NULL, 0);
+   pipe_resource resource_creation_info = {};
+   return d3d12_video_buffer_create_impl(codec->context, &tmpl, &resource_creation_info, d3d12_video_buffer_creation_mode::create_resource, NULL, 0);
 }
