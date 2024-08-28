@@ -553,7 +553,7 @@ radv_build_ray_traversal(struct radv_device *device, nir_builder *b, const struc
       nir_def *global_bvh_node = nir_iadd(b, nir_load_deref(b, args->vars.bvh_base), nir_u2u64(b, bvh_node));
 
       nir_def *intrinsic_result = NULL;
-      if (!radv_emulate_rt(pdev)) {
+      if (pdev->info.gfx_level >= GFX10_3 && !radv_emulate_rt(pdev)) {
          intrinsic_result =
             nir_bvh64_intersect_ray_amd(b, 32, desc, nir_unpack_64_2x32(b, global_bvh_node),
                                         nir_load_deref(b, args->vars.tmax), nir_load_deref(b, args->vars.origin),
