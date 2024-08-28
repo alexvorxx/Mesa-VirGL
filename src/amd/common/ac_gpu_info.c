@@ -1188,6 +1188,9 @@ bool ac_query_gpu_info(int fd, void *dev_p, struct radeon_info *info,
    info->mc_arb_ramcfg = amdinfo.mc_arb_ramcfg;
    info->gb_addr_config = amdinfo.gb_addr_cfg;
    if (info->gfx_level >= GFX9) {
+      if (!info->has_graphics && info->family >= CHIP_GFX940)
+         info->gb_addr_config = 0;
+
       info->num_tile_pipes = 1 << G_0098F8_NUM_PIPES(info->gb_addr_config);
       info->pipe_interleave_bytes = 256 << G_0098F8_PIPE_INTERLEAVE_SIZE_GFX9(info->gb_addr_config);
    } else {
