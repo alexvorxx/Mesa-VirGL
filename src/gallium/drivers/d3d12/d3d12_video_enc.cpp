@@ -340,6 +340,35 @@ d3d12_video_encoder_update_picparams_tracking(struct d3d12_video_encoder *pD3D12
 }
 
 bool
+d3d12_video_encoder_uses_direct_dpb(enum pipe_video_format codec)
+{
+   switch (codec) {
+#if VIDEO_CODEC_H264ENC
+      case PIPE_VIDEO_FORMAT_MPEG4_AVC:
+      {
+         return true;
+      } break;
+#endif
+#if VIDEO_CODEC_H265ENC
+      case PIPE_VIDEO_FORMAT_HEVC:
+      {
+         return false;
+      } break;
+#endif
+#if VIDEO_CODEC_AV1ENC
+      case PIPE_VIDEO_FORMAT_AV1:
+      {
+        return false;
+      } break;
+#endif
+      default:
+      {
+         unreachable("Unsupported pipe_video_format");
+      } break;
+   }
+}
+
+bool
 d3d12_video_encoder_reconfigure_encoder_objects(struct d3d12_video_encoder *pD3D12Enc,
                                                 struct pipe_video_buffer *  srcTexture,
                                                 struct pipe_picture_desc *  picture)
@@ -388,35 +417,40 @@ d3d12_video_encoder_reconfigure_encoder_objects(struct d3d12_video_encoder *pD3D
          debug_printf("[d3d12_video_encoder] Reconfiguration triggered -> Re-creating Reference Pictures Manager\n");
       }
 
-      D3D12_RESOURCE_FLAGS resourceAllocFlags =
-         D3D12_RESOURCE_FLAG_VIDEO_ENCODE_REFERENCE_ONLY | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
-      bool     fArrayOfTextures = ((pD3D12Enc->m_currentEncodeCapabilities.m_SupportFlags &
-                                D3D12_VIDEO_ENCODER_SUPPORT_FLAG_RECONSTRUCTED_FRAMES_REQUIRE_TEXTURE_ARRAYS) == 0);
-      uint32_t texturePoolSize  = d3d12_video_encoder_get_current_max_dpb_capacity(pD3D12Enc) +
-                                 1u;   // adding an extra slot as we also need to count the current frame output recon
-                                       // allocation along max reference frame allocations
-      assert(texturePoolSize < UINT16_MAX);
-      pD3D12Enc->m_upDPBStorageManager.reset();
-      if (fArrayOfTextures) {
-         pD3D12Enc->m_upDPBStorageManager = std::make_unique<d3d12_array_of_textures_dpb_manager>(
-            static_cast<uint16_t>(texturePoolSize),
-            pD3D12Enc->m_pD3D12Screen->dev,
-            pD3D12Enc->m_currentEncodeConfig.m_encodeFormatInfo.Format,
-            pD3D12Enc->m_currentEncodeConfig.m_currentResolution,
-            (D3D12_RESOURCE_FLAG_VIDEO_ENCODE_REFERENCE_ONLY | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE),
-            true,   // setNullSubresourcesOnAllZero - D3D12 Video Encode expects nullptr pSubresources if AoT,
-            pD3D12Enc->m_NodeMask,
-            /*use underlying pool, we can't reuse upper level allocations, need D3D12_RESOURCE_FLAG_VIDEO_ENCODE_REFERENCE_ONLY*/
-            true);
-      } else {
-         pD3D12Enc->m_upDPBStorageManager = std::make_unique<d3d12_texture_array_dpb_manager>(
-            static_cast<uint16_t>(texturePoolSize),
-            pD3D12Enc->m_pD3D12Screen->dev,
-            pD3D12Enc->m_currentEncodeConfig.m_encodeFormatInfo.Format,
-            pD3D12Enc->m_currentEncodeConfig.m_currentResolution,
-            resourceAllocFlags,
-            pD3D12Enc->m_NodeMask);
+      enum pipe_video_format codec = u_reduce_video_profile(pD3D12Enc->base.profile);
+      if (!d3d12_video_encoder_uses_direct_dpb(codec))
+      {
+         D3D12_RESOURCE_FLAGS resourceAllocFlags =
+            D3D12_RESOURCE_FLAG_VIDEO_ENCODE_REFERENCE_ONLY | D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
+         bool     fArrayOfTextures = ((pD3D12Enc->m_currentEncodeCapabilities.m_SupportFlags &
+                                 D3D12_VIDEO_ENCODER_SUPPORT_FLAG_RECONSTRUCTED_FRAMES_REQUIRE_TEXTURE_ARRAYS) == 0);
+         uint32_t texturePoolSize  = d3d12_video_encoder_get_current_max_dpb_capacity(pD3D12Enc) +
+                                    1u;   // adding an extra slot as we also need to count the current frame output recon
+                                          // allocation along max reference frame allocations
+         assert(texturePoolSize < UINT16_MAX);
+         pD3D12Enc->m_upDPBStorageManager.reset();
+         if (fArrayOfTextures) {
+            pD3D12Enc->m_upDPBStorageManager = std::make_unique<d3d12_array_of_textures_dpb_manager>(
+               static_cast<uint16_t>(texturePoolSize),
+               pD3D12Enc->m_pD3D12Screen->dev,
+               pD3D12Enc->m_currentEncodeConfig.m_encodeFormatInfo.Format,
+               pD3D12Enc->m_currentEncodeConfig.m_currentResolution,
+               resourceAllocFlags,
+               true,   // setNullSubresourcesOnAllZero - D3D12 Video Encode expects nullptr pSubresources if AoT,
+               pD3D12Enc->m_NodeMask,
+               /*use underlying pool, we can't reuse upper level allocations, need D3D12_RESOURCE_FLAG_VIDEO_ENCODE_REFERENCE_ONLY*/
+               true);
+         } else {
+            pD3D12Enc->m_upDPBStorageManager = std::make_unique<d3d12_texture_array_dpb_manager>(
+               static_cast<uint16_t>(texturePoolSize),
+               pD3D12Enc->m_pD3D12Screen->dev,
+               pD3D12Enc->m_currentEncodeConfig.m_encodeFormatInfo.Format,
+               pD3D12Enc->m_currentEncodeConfig.m_currentResolution,
+               resourceAllocFlags,
+               pD3D12Enc->m_NodeMask);
+         }
       }
+
       d3d12_video_encoder_create_reference_picture_manager(pD3D12Enc, picture);
    }
 
@@ -564,19 +598,7 @@ d3d12_video_encoder_create_reference_picture_manager(struct d3d12_video_encoder 
 #if VIDEO_CODEC_H264ENC
       case PIPE_VIDEO_FORMAT_MPEG4_AVC:
       {
-         bool gopHasPFrames =
-            (pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_H264GroupOfPictures.PPicturePeriod > 0) &&
-            ((pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_H264GroupOfPictures.GOPLength == 0) ||
-             (pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_H264GroupOfPictures.PPicturePeriod <
-              pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_H264GroupOfPictures.GOPLength));
-
-         pD3D12Enc->m_upDPBManager = std::make_unique<d3d12_video_encoder_references_manager_h264>(
-            gopHasPFrames,
-            *pD3D12Enc->m_upDPBStorageManager,
-            // Max number of frames to be used as a reference, without counting the current recon picture
-            d3d12_video_encoder_get_current_max_dpb_capacity(pD3D12Enc)
-         );
-
+         pD3D12Enc->m_upDPBManager = std::make_unique<d3d12_video_encoder_references_manager_h264>();
          struct pipe_h264_enc_picture_desc *pH264Pic = (struct pipe_h264_enc_picture_desc *) picture;
          pD3D12Enc->m_upBitstreamBuilder = std::make_unique<d3d12_video_bitstream_builder_h264>(pH264Pic->insert_aud_nalu);
       } break;

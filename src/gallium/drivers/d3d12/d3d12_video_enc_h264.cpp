@@ -358,25 +358,6 @@ d3d12_video_encoder_update_current_frame_pic_params_info_h264(struct d3d12_video
    }
 
    picParams.pH264PicData->pic_parameter_set_id = pH264BitstreamBuilder->get_active_pps().pic_parameter_set_id;
-   picParams.pH264PicData->idr_pic_id = h264Pic->idr_pic_id;
-   picParams.pH264PicData->FrameType = d3d12_video_encoder_convert_frame_type_h264(h264Pic->picture_type);
-   picParams.pH264PicData->PictureOrderCountNumber = h264Pic->pic_order_cnt;
-   picParams.pH264PicData->FrameDecodingOrderNumber = h264Pic->frame_num;
-
-   picParams.pH264PicData->List0ReferenceFramesCount = 0;
-   picParams.pH264PicData->pList0ReferenceFrames = nullptr;
-   picParams.pH264PicData->List1ReferenceFramesCount = 0;
-   picParams.pH264PicData->pList1ReferenceFrames = nullptr;
-
-   if (picParams.pH264PicData->FrameType == D3D12_VIDEO_ENCODER_FRAME_TYPE_H264_P_FRAME) {
-      picParams.pH264PicData->List0ReferenceFramesCount = h264Pic->num_ref_idx_l0_active_minus1 + 1;
-      picParams.pH264PicData->pList0ReferenceFrames = h264Pic->ref_idx_l0_list;
-   } else if (picParams.pH264PicData->FrameType == D3D12_VIDEO_ENCODER_FRAME_TYPE_H264_B_FRAME) {
-      picParams.pH264PicData->List0ReferenceFramesCount = h264Pic->num_ref_idx_l0_active_minus1 + 1;
-      picParams.pH264PicData->pList0ReferenceFrames = h264Pic->ref_idx_l0_list;
-      picParams.pH264PicData->List1ReferenceFramesCount = h264Pic->num_ref_idx_l1_active_minus1 + 1;
-      picParams.pH264PicData->pList1ReferenceFrames = h264Pic->ref_idx_l1_list;
-   }
 
    if ((pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc.m_Flags & D3D12_VIDEO_ENCODER_RATE_CONTROL_FLAG_ENABLE_DELTA_QP) != 0)
    {
@@ -391,33 +372,6 @@ d3d12_video_encoder_update_current_frame_pic_params_info_h264(struct d3d12_video
          pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc.m_pRateControlQPMap8Bit);
       picParams.pH264PicData->pRateControlQPMap = pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc.m_pRateControlQPMap8Bit.data();
       picParams.pH264PicData->QPMapValuesCount = pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc.m_pRateControlQPMap8Bit.size();
-   }
-}
-
-D3D12_VIDEO_ENCODER_FRAME_TYPE_H264
-d3d12_video_encoder_convert_frame_type_h264(enum pipe_h2645_enc_picture_type picType)
-{
-   switch (picType) {
-      case PIPE_H2645_ENC_PICTURE_TYPE_P:
-      {
-         return D3D12_VIDEO_ENCODER_FRAME_TYPE_H264_P_FRAME;
-      } break;
-      case PIPE_H2645_ENC_PICTURE_TYPE_B:
-      {
-         return D3D12_VIDEO_ENCODER_FRAME_TYPE_H264_B_FRAME;
-      } break;
-      case PIPE_H2645_ENC_PICTURE_TYPE_I:
-      {
-         return D3D12_VIDEO_ENCODER_FRAME_TYPE_H264_I_FRAME;
-      } break;
-      case PIPE_H2645_ENC_PICTURE_TYPE_IDR:
-      {
-         return D3D12_VIDEO_ENCODER_FRAME_TYPE_H264_IDR_FRAME;
-      } break;
-      default:
-      {
-         unreachable("Unsupported pipe_h2645_enc_picture_type");
-      } break;
    }
 }
 

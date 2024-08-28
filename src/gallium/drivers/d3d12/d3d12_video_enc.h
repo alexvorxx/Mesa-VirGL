@@ -539,6 +539,9 @@ d3d12_video_encoder_update_picparams_region_of_interest_qpmap(struct d3d12_video
                                                               int32_t min_delta_qp,
                                                               int32_t max_delta_qp,
                                                               std::vector<T>& pQPMap);
+bool
+d3d12_video_encoder_uses_direct_dpb(enum pipe_video_format codec);
+
 ///
 /// d3d12_video_encoder functions ends
 ///
