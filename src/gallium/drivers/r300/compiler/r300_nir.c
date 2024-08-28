@@ -108,31 +108,6 @@ static bool have_too_many_ubos(nir_shader *s, bool is_r500)
    return false;
 }
 
-
-static bool
-r300_should_vectorize_io(unsigned align, unsigned bit_size,
-                        unsigned num_components, unsigned high_offset,
-                        nir_intrinsic_instr *low, nir_intrinsic_instr *high,
-                        void *data)
-{
-   if (bit_size != 32)
-      return false;
-
-   /* Our offset alignment should always be at least 4 bytes */
-   if (align < 4)
-      return false;
-
-   /* No wrapping off the end of a TGSI reg.  We could do a bit better by
-    * looking at low's actual offset.  XXX: With LOAD_CONSTBUF maybe we don't
-    * need this restriction.
-    */
-   unsigned worst_start_component = align == 4 ? 3 : align / 4;
-   if (worst_start_component + num_components > 4)
-      return false;
-
-   return true;
-}
-
 static bool
 set_speculate(nir_builder *b, nir_intrinsic_instr *intr, UNUSED void *_)
 {
@@ -204,12 +179,6 @@ r300_optimize_nir(struct nir_shader *s, struct pipe_screen *screen)
       }
       NIR_PASS(progress, s, nir_opt_algebraic);
       NIR_PASS(progress, s, nir_opt_constant_folding);
-      nir_load_store_vectorize_options vectorize_opts = {
-         .modes = nir_var_mem_ubo,
-         .callback = r300_should_vectorize_io,
-         .robust_modes = 0,
-      };
-      NIR_PASS(progress, s, nir_opt_load_store_vectorize, &vectorize_opts);
       NIR_PASS(progress, s, nir_opt_shrink_stores, true);
       NIR_PASS(progress, s, nir_opt_shrink_vectors, false);
       NIR_PASS(progress, s, nir_opt_loop);
