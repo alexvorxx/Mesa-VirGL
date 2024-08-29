@@ -88,6 +88,7 @@ spec@glsl-1.10@execution@derivatives@glsl-derivs-abs
 spec@glsl-1.10@execution@glsl-1.10-linear-fog
 spec@glsl-1.10@execution@interpolation@interpolation-none-gl_frontsecondarycolor-smooth-none
 spec@glsl-1.10@execution@varying-packing@simple uvec3 separate
+spec@glsl-1.20@execution@clipping@vs-clip-vertex-homogeneity
 spec@glsl-1.30@execution@built-in-functions@vs-op-bitxor-abs-not-ivec3-int
 spec@glsl-1.30@execution@fs-texture-sampler2dshadow-03
 spec@glsl-1.30@execution@interpolation@interpolation-none-gl_backcolor-flat-distance
