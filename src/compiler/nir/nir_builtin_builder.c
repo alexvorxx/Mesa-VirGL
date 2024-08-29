@@ -203,7 +203,7 @@ nir_atan(nir_builder *b, nir_def *y_over_x)
 
    /* range-reduction fixup */
    tmp = nir_bcsel(b, nir_flt(b, one, abs_y_over_x),
-                   nir_fsub_imm(b, M_PI_2, tmp), tmp);
+                   nir_fadd_imm(b, tmp, -M_PI_2), tmp);
 
    /* sign fixup */
    nir_def *result = nir_copysign(b, tmp, y_over_x);
