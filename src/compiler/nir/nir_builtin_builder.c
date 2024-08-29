@@ -202,10 +202,8 @@ nir_atan(nir_builder *b, nir_def *y_over_x)
    nir_def *tmp = nir_fmul(b, nir_fabs(b, u), res);
 
    /* range-reduction fixup */
-   tmp = nir_ffma(b,
-                  nir_b2fN(b, nir_flt(b, one, abs_y_over_x), bit_size),
-                  nir_ffma_imm12(b, tmp, -2.0f, M_PI_2),
-                  tmp);
+   tmp = nir_bcsel(b, nir_flt(b, one, abs_y_over_x),
+                   nir_fsub_imm(b, M_PI_2, tmp), tmp);
 
    /* sign fixup */
    nir_def *result = nir_copysign(b, tmp, y_over_x);
