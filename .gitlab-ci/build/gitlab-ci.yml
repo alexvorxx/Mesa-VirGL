@@ -66,13 +66,20 @@
 # Make sure this list stays the same as all the jobs with
 # `stage: build-for-tests`
 .build-for-tests-jobs:
-  - debian-testing
-  - debian-testing-asan
-  - debian-arm32
-  - debian-arm32-asan
-  - debian-arm64
-  - debian-arm64-asan
-  - windows-msvc
+  - job: debian-testing
+    optional: true
+  - job: debian-testing-asan
+    optional: true
+  - job: debian-arm32
+    optional: true
+  - job: debian-arm32-asan
+    optional: true
+  - job: debian-arm64
+    optional: true
+  - job: debian-arm64-asan
+    optional: true
+  - job: windows-msvc
+    optional: true
 
 
 debian-testing:
