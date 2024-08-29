@@ -2,6 +2,8 @@ static ResourceTracker* sResourceTracker = nullptr;
 static uint32_t sFeatureBits = 0;
 static constexpr uint32_t kWatchdogBufferMax = 1'000;
 
+#include <cutils/properties.h>
+
 class VkEncoder::Impl {
    public:
     Impl(gfxstream::guest::IOStream* stream) : m_stream(stream), m_logEncodes(false) {

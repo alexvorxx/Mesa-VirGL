@@ -321,7 +321,6 @@ class IOStream;
 }}  // namespace gfxstream
 """
         encoderImplInclude = f"""
-#include "EncoderDebug.h"
 #include "Resources.h"
 #include "ResourceTracker.h"
 #include "Validation.h"
@@ -330,8 +329,6 @@ class IOStream;
 
 #include "{self.guestBaseLibDirPrefix}/AlignedBuf.h"
 #include "{self.guestBaseLibDirPrefix}/BumpPool.h"
-
-#include <cutils/properties.h>
 
 #include "goldfish_vk_marshaling_guest.h"
 #include "goldfish_vk_reserved_marshaling_guest.h"
@@ -356,7 +353,6 @@ class IOStream;
 
 #include "goldfish_vk_private_defs.h"
 
-#include <log/log.h>
 #include <cstring>
 
 // Stuff we are not going to use but if included,
