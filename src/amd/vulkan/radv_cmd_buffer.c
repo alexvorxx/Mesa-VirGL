@@ -6145,17 +6145,17 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer, VkShaderStageFlags stag
 }
 
 void
-radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, bool full_null_descriptors, void *vb_ptr)
+radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs,
+                              bool full_null_descriptors, void *vb_ptr)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   struct radv_shader *vs_shader = radv_get_shader(cmd_buffer->state.shaders, MESA_SHADER_VERTEX);
    enum amd_gfx_level chip = pdev->info.gfx_level;
    enum radeon_family family = pdev->info.family;
    unsigned desc_index = 0;
-   uint32_t mask = vs_shader->info.vs.vb_desc_usage_mask;
+   uint32_t mask = vs->info.vs.vb_desc_usage_mask;
    uint64_t va;
-   const bool uses_dynamic_inputs = vs_shader->info.vs.dynamic_inputs;
+   const bool uses_dynamic_inputs = vs->info.vs.dynamic_inputs;
    const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
 
    const struct ac_vtx_format_info *vtx_info_table =
@@ -6236,7 +6236,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, bool ful
          num_records = vk_buffer_range(&buffer->vk, offset, VK_WHOLE_SIZE);
       }
 
-      if (vs_shader->info.vs.use_per_attribute_vb_descs) {
+      if (vs->info.vs.use_per_attribute_vb_descs) {
          const uint32_t attrib_end = vi_state->offsets[i] + vi_state->format_sizes[i];
 
          if (num_records < attrib_end) {
@@ -6322,7 +6322,7 @@ radv_flush_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
    if (!radv_cmd_buffer_upload_alloc(cmd_buffer, vb_desc_alloc_size, &vb_offset, &vb_ptr))
       return;
 
-   radv_write_vertex_descriptors(cmd_buffer, false, vb_ptr);
+   radv_write_vertex_descriptors(cmd_buffer, vs, false, vb_ptr);
 
    va = radv_buffer_get_va(cmd_buffer->upload.upload_bo);
    va += vb_offset;

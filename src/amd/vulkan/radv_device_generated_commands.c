@@ -2343,7 +2343,7 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
       uint32_t mask = vs->info.vs.vb_desc_usage_mask;
       unsigned vb_desc_alloc_size = util_bitcount(mask) * 16;
 
-      radv_write_vertex_descriptors(cmd_buffer, true, *upload_data);
+      radv_write_vertex_descriptors(cmd_buffer, vs, true, *upload_data);
 
       uint32_t *vbo_info = (uint32_t *)((char *)*upload_data + vb_desc_alloc_size);
 
