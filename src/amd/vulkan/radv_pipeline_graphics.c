@@ -2927,19 +2927,6 @@ radv_pipeline_init_vertex_input_state(const struct radv_device *device, struct r
    }
 
    if (vs->info.vs.use_per_attribute_vb_descs) {
-      u_foreach_bit (i, state->vi->attributes_valid) {
-         uint32_t binding = state->vi->attributes[i].binding;
-         uint32_t offset = state->vi->attributes[i].offset;
-         VkFormat format = state->vi->attributes[i].format;
-
-         pipeline->attrib_ends[i] = offset + vk_format_get_blocksize(format);
-         pipeline->attrib_bindings[i] = binding;
-
-         if (state->vi->bindings[binding].stride) {
-            pipeline->attrib_index_offset[i] = offset / state->vi->bindings[binding].stride;
-         }
-      }
-
       const enum amd_gfx_level gfx_level = pdev->info.gfx_level;
       const enum radeon_family family = pdev->info.family;
       const struct ac_vtx_format_info *vtx_info_table = ac_get_vtx_format_info_table(gfx_level, family);
@@ -2990,6 +2977,10 @@ radv_pipeline_init_vertex_input_state(const struct radv_device *device, struct r
          if (!(vtx_info->has_hw_format & BITFIELD_BIT(vtx_info->num_channels - 1))) {
             pipeline->vs_input_state.nontrivial_formats |= BITFIELD_BIT(i);
          }
+      }
+   } else {
+      u_foreach_bit (i, vs->info.vs.vb_desc_usage_mask) {
+         pipeline->vs_input_state.bindings[i] = i;
       }
    }
 }

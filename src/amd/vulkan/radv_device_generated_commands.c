@@ -2339,27 +2339,24 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
    params->dynamic_vs_input = layout->bind_vbo_mask && vs->info.vs.dynamic_inputs;
 
    if (layout->bind_vbo_mask) {
-      const struct radv_vs_input_state *vs_state =
-         vs->info.vs.dynamic_inputs ? &cmd_buffer->state.dynamic_vs_input : NULL;
+      const struct radv_vs_input_state *vs_state = &cmd_buffer->state.dynamic_vs_input;
       uint32_t mask = vs->info.vs.vb_desc_usage_mask;
       unsigned vb_desc_alloc_size = util_bitcount(mask) * 16;
 
-      radv_write_vertex_descriptors(cmd_buffer, graphics_pipeline, true, *upload_data);
+      radv_write_vertex_descriptors(cmd_buffer, true, *upload_data);
 
       uint32_t *vbo_info = (uint32_t *)((char *)*upload_data + vb_desc_alloc_size);
 
       unsigned idx = 0;
       while (mask) {
          unsigned i = u_bit_scan(&mask);
-         const unsigned binding =
-            vs_state ? cmd_buffer->state.dynamic_vs_input.bindings[i]
-                     : (vs->info.vs.use_per_attribute_vb_descs ? graphics_pipeline->attrib_bindings[i] : i);
-         const uint32_t attrib_end =
-            vs_state ? vs_state->offsets[i] + vs_state->format_sizes[i] : graphics_pipeline->attrib_ends[i];
+         const unsigned binding = vs_state->bindings[i];
+         const uint32_t attrib_end = vs_state->offsets[i] + vs_state->format_sizes[i];
+         const uint32_t attrib_index_offset = vs_state->attrib_index_offset[i];
 
          params->vbo_bind_mask |= ((layout->bind_vbo_mask >> binding) & 1u) << idx;
          vbo_info[2 * idx] = ((vs->info.vs.use_per_attribute_vb_descs ? 1u : 0u) << 31) | layout->vbo_offsets[binding];
-         vbo_info[2 * idx + 1] = graphics_pipeline->attrib_index_offset[i] | (attrib_end << 16);
+         vbo_info[2 * idx + 1] = attrib_index_offset | (attrib_end << 16);
          ++idx;
       }
       params->vbo_cnt = idx;

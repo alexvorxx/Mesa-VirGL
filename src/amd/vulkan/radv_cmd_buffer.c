@@ -5149,13 +5149,7 @@ lookup_vs_prolog(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *v
          uint8_t format_req = state->format_align_req_minus_1[index];
          uint8_t component_req = state->component_align_req_minus_1[index];
          uint64_t vb_offset = cmd_buffer->vertex_bindings[binding].offset;
-         uint64_t vb_stride;
-
-         if (cmd_buffer->state.uses_dynamic_vertex_binding_stride) {
-            vb_stride = cmd_buffer->vertex_bindings[binding].stride;
-         } else {
-            vb_stride = cmd_buffer->state.graphics_pipeline->binding_stride[binding];
-         }
+         uint64_t vb_stride = cmd_buffer->vertex_bindings[binding].stride;
 
          VkDeviceSize offset = vb_offset + state->offsets[index];
 
@@ -6151,8 +6145,7 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer, VkShaderStageFlags stag
 }
 
 void
-radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const struct radv_graphics_pipeline *pipeline,
-                              bool full_null_descriptors, void *vb_ptr)
+radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, bool full_null_descriptors, void *vb_ptr)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -6162,18 +6155,18 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
    unsigned desc_index = 0;
    uint32_t mask = vs_shader->info.vs.vb_desc_usage_mask;
    uint64_t va;
-   const struct radv_vs_input_state *vs_state =
-      vs_shader->info.vs.dynamic_inputs ? &cmd_buffer->state.dynamic_vs_input : NULL;
-   assert(!vs_state || vs_shader->info.vs.use_per_attribute_vb_descs);
+   const bool uses_dynamic_inputs = vs_shader->info.vs.dynamic_inputs;
+   const struct radv_vs_input_state *vs_state = &cmd_buffer->state.dynamic_vs_input;
 
-   const struct ac_vtx_format_info *vtx_info_table = vs_state ? ac_get_vtx_format_info_table(chip, family) : NULL;
+   const struct ac_vtx_format_info *vtx_info_table =
+      uses_dynamic_inputs ? ac_get_vtx_format_info_table(chip, family) : NULL;
 
    while (mask) {
       unsigned i = u_bit_scan(&mask);
       uint32_t *desc = &((uint32_t *)vb_ptr)[desc_index++ * 4];
       uint32_t offset, rsrc_word3;
 
-      if (vs_state && !(vs_state->attribute_mask & BITFIELD_BIT(i))) {
+      if (uses_dynamic_inputs && !(vs_state->attribute_mask & BITFIELD_BIT(i))) {
          /* No vertex attribute description given: assume that the shader doesn't use this
           * location (vb_desc_usage_mask can be larger than attribute usage) and use a null
           * descriptor to avoid hangs (prologs load all attributes, even if there are holes).
@@ -6182,13 +6175,12 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
          continue;
       }
 
-      unsigned binding = vs_state ? cmd_buffer->state.dynamic_vs_input.bindings[i]
-                                  : (vs_shader->info.vs.use_per_attribute_vb_descs ? pipeline->attrib_bindings[i] : i);
+      const unsigned binding = vs_state->bindings[i];
       struct radv_buffer *buffer = cmd_buffer->vertex_binding_buffers[binding];
       unsigned num_records;
-      unsigned stride;
+      const unsigned stride = cmd_buffer->vertex_bindings[binding].stride;
 
-      if (vs_state && !(vs_state->nontrivial_formats & BITFIELD_BIT(i))) {
+      if (uses_dynamic_inputs && !(vs_state->nontrivial_formats & BITFIELD_BIT(i))) {
          const struct ac_vtx_format_info *vtx_info = &vtx_info_table[vs_state->formats[i]];
          unsigned hw_format = vtx_info->hw_format[vtx_info->num_channels - 1];
 
@@ -6208,12 +6200,6 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
                S_008F0C_NUM_FORMAT(V_008F0C_BUF_NUM_FORMAT_UINT) | S_008F0C_DATA_FORMAT(V_008F0C_BUF_DATA_FORMAT_32);
       }
 
-      if (cmd_buffer->state.uses_dynamic_vertex_binding_stride) {
-         stride = cmd_buffer->vertex_bindings[binding].stride;
-      } else {
-         stride = pipeline->binding_stride[binding];
-      }
-
       if (!buffer) {
          if (full_null_descriptors) {
             /* Put all the info in for the DGC generation shader in case the VBO gets overridden. */
@@ -6221,7 +6207,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
             desc[1] = S_008F04_STRIDE(stride);
             desc[2] = 0;
             desc[3] = rsrc_word3;
-         } else if (vs_state) {
+         } else if (uses_dynamic_inputs) {
             /* Stride needs to be non-zero on GFX9, or else bounds checking is disabled. We need
              * to include the format/word3 so that the alpha channel is 1 for formats without an
              * alpha channel.
@@ -6241,7 +6227,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
 
       offset = cmd_buffer->vertex_bindings[binding].offset;
       va += offset + buffer->offset;
-      if (vs_state)
+      if (uses_dynamic_inputs)
          va += vs_state->offsets[i];
 
       if (cmd_buffer->vertex_bindings[binding].size) {
@@ -6251,7 +6237,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
       }
 
       if (vs_shader->info.vs.use_per_attribute_vb_descs) {
-         uint32_t attrib_end = vs_state ? vs_state->offsets[i] + vs_state->format_sizes[i] : pipeline->attrib_ends[i];
+         const uint32_t attrib_end = vs_state->offsets[i] + vs_state->format_sizes[i];
 
          if (num_records < attrib_end) {
             num_records = 0; /* not enough space for one vertex */
@@ -6263,7 +6249,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
              * attrib_offset/stride and decrease the offset by attrib_offset%stride. This is
              * only allowed with static strides.
              */
-            num_records += pipeline ? pipeline->attrib_index_offset[i] : 0;
+            num_records += vs_state->attrib_index_offset[i];
          }
 
          /* GFX10 uses OOB_SELECT_RAW if stride==0, so convert num_records from elements into
@@ -6283,7 +6269,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
                desc[1] = S_008F04_STRIDE(stride);
                desc[2] = 0;
                desc[3] = rsrc_word3;
-            } else if (vs_state) {
+            } else if (uses_dynamic_inputs) {
                desc[0] = 0;
                desc[1] = S_008F04_STRIDE(16);
                desc[2] = 0;
@@ -6327,7 +6313,6 @@ radv_flush_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
    /* Mesh shaders don't have vertex descriptors. */
    assert(!cmd_buffer->state.mesh_shading);
 
-   struct radv_graphics_pipeline *pipeline = cmd_buffer->state.graphics_pipeline;
    unsigned vb_desc_alloc_size = util_bitcount(vs->info.vs.vb_desc_usage_mask) * 16;
    unsigned vb_offset;
    void *vb_ptr;
@@ -6337,7 +6322,7 @@ radv_flush_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
    if (!radv_cmd_buffer_upload_alloc(cmd_buffer, vb_desc_alloc_size, &vb_offset, &vb_ptr))
       return;
 
-   radv_write_vertex_descriptors(cmd_buffer, pipeline, false, vb_ptr);
+   radv_write_vertex_descriptors(cmd_buffer, false, vb_ptr);
 
    va = radv_buffer_get_va(cmd_buffer->upload.upload_bo);
    va += vb_offset;
@@ -7868,15 +7853,22 @@ radv_bind_vs_input_state(struct radv_cmd_buffer *cmd_buffer, const struct radv_g
    const struct radv_shader *vs_shader = radv_get_shader(cmd_buffer->state.shaders, MESA_SHADER_VERTEX);
    const struct radv_vs_input_state *src = &pipeline->vs_input_state;
 
-   /* Bind the vertex input state from the pipeline when the VS has a prolog and the state isn't
-    * dynamic. This can happen when the pre-rasterization stages and the vertex input state are from
-    * two different libraries. Otherwise, if the VS has a prolog, the state is dynamic and there is
-    * nothing to bind.
-    */
-   if (!vs_shader || !vs_shader->info.vs.has_prolog || (pipeline->dynamic_states & RADV_DYNAMIC_VERTEX_INPUT))
+   /* Bind the vertex input state from the pipeline when it's static. */
+   if (!vs_shader || !vs_shader->info.vs.vb_desc_usage_mask || (pipeline->dynamic_states & RADV_DYNAMIC_VERTEX_INPUT))
       return;
 
    cmd_buffer->state.dynamic_vs_input = *src;
+
+   if (!(pipeline->dynamic_states & RADV_DYNAMIC_VERTEX_INPUT_BINDING_STRIDE)) {
+      for (uint32_t i = 0; i < MAX_VBS; i++)
+         cmd_buffer->vertex_bindings[i].stride = pipeline->binding_stride[i];
+   }
+
+   /* When the vertex input state is static but the VS has been compiled without it (GPL), the
+    * driver needs to compile a VS prolog.
+    */
+   if (!vs_shader->info.vs.has_prolog)
+      return;
 
    cmd_buffer->state.vbo_misaligned_mask = 0;
    cmd_buffer->state.vbo_unaligned_mask = 0;
@@ -8384,8 +8376,6 @@ radv_CmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipeline
       cmd_buffer->state.uses_vrs = graphics_pipeline->uses_vrs;
       cmd_buffer->state.uses_vrs_attachment = graphics_pipeline->uses_vrs_attachment;
       cmd_buffer->state.uses_vrs_coarse_shading = graphics_pipeline->uses_vrs_coarse_shading;
-      cmd_buffer->state.uses_dynamic_vertex_binding_stride =
-         !!(graphics_pipeline->dynamic_states & (RADV_DYNAMIC_VERTEX_INPUT_BINDING_STRIDE | RADV_DYNAMIC_VERTEX_INPUT));
       break;
    }
    default:
@@ -11122,8 +11112,6 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
        (VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT)) {
       cmd_buffer->state.uses_dynamic_patch_control_points = true;
    }
-
-   cmd_buffer->state.uses_dynamic_vertex_binding_stride = true;
 }
 
 /* MUST inline this function to avoid massive perf loss in drawoverhead */
@@ -13854,7 +13842,6 @@ radv_reset_pipeline_state(struct radv_cmd_buffer *cmd_buffer, VkPipelineBindPoin
          cmd_buffer->state.rast_prim = 0;
          cmd_buffer->state.uses_out_of_order_rast = false;
          cmd_buffer->state.uses_vrs_attachment = false;
-         cmd_buffer->state.uses_dynamic_vertex_binding_stride = false;
       }
       if (cmd_buffer->state.emitted_graphics_pipeline) {
          radv_bind_custom_blend_mode(cmd_buffer, 0);
