@@ -304,7 +304,7 @@ typedef struct rvcn_enc_hevc_spec_misc_s {
    uint32_t cabac_init_flag;
    uint32_t half_pel_enabled;
    uint32_t quarter_pel_enabled;
-   uint32_t transform_skip_discarded;
+   uint32_t transform_skip_disabled;
    uint32_t cu_qp_delta_enabled_flag;
 } rvcn_enc_hevc_spec_misc_t;
 

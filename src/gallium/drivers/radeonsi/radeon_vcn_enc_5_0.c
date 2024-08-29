@@ -414,7 +414,6 @@ static void radeon_enc_encode_params_av1(struct radeon_encoder *enc)
 
 static void radeon_enc_spec_misc_hevc(struct radeon_encoder *enc)
 {
-   enc->enc_pic.hevc_spec_misc.transform_skip_discarded = 0;
    enc->enc_pic.hevc_spec_misc.cu_qp_delta_enabled_flag = 0;
 
    RADEON_ENC_BEGIN(enc->cmd.spec_misc_hevc);
@@ -425,7 +424,7 @@ static void radeon_enc_spec_misc_hevc(struct radeon_encoder *enc)
    RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.cabac_init_flag);
    RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.half_pel_enabled);
    RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.quarter_pel_enabled);
-   RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.transform_skip_discarded);
+   RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.transform_skip_disabled);
    RADEON_ENC_CS(0);
    RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.cu_qp_delta_enabled_flag);
    RADEON_ENC_END();

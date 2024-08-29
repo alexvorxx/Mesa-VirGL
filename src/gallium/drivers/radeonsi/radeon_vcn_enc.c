@@ -526,7 +526,7 @@ static void radeon_vcn_enc_hevc_get_spec_misc_param(struct radeon_encoder *enc,
    enc->enc_pic.hevc_spec_misc.cabac_init_flag = pic->slice.cabac_init_flag;
    enc->enc_pic.hevc_spec_misc.half_pel_enabled = 1;
    enc->enc_pic.hevc_spec_misc.quarter_pel_enabled = 1;
-   enc->enc_pic.hevc_spec_misc.transform_skip_discarded =
+   enc->enc_pic.hevc_spec_misc.transform_skip_disabled =
       sscreen->info.vcn_ip_version < VCN_3_0_0 ||
       !pic->pic.transform_skip_enabled_flag;
 }
