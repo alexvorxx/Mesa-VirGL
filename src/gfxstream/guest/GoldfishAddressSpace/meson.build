@@ -18,8 +18,6 @@ lib_goldfish_address_space = static_library(
                          inc_android_emu,
                          inc_goldfish_address_space,
                          inc_guest_iostream,
-                         inc_system,
-                         inc_opengl_codec,
                          inc_platform_virtgpu,
                          inc_include,
                          inc_src],

@@ -1,6 +1,8 @@
 # Copyright 2022 Android Open Source Project
 # SPDX-License-Identifier: MIT
 
+subdir('stubs')
+
 files_lib_vulkan_gfxstream = files(
   'gfxstream_vk_device.cpp',
   'gfxstream_vk_cmd.cpp',
@@ -20,12 +22,13 @@ lib_vulkan_gfxstream = shared_library(
    'vulkan_gfxstream',
    files_lib_vulkan_gfxstream + files_lib_vulkan_enc + gfxstream_vk_entrypoints,
    cpp_args: gfxstream_guest_args + gfxstream_vk_wsi_args,
-   include_directories: [inc_vulkan_headers, inc_opengl_headers, inc_android_emu,
-                         inc_android_compat, inc_opengl_system, inc_guest_iostream,
-                         inc_opengl_codec, inc_render_enc, inc_vulkan_enc, inc_platform_virtgpu,
-                         inc_goldfish_address_space, inc_system, inc_include, inc_src,
-                         inc_platform_virtgpu, inc_codec_common, inc_connection_manager],
-   link_with: [lib_android_compat, lib_emu_android_base, lib_stream,
+   include_directories: [inc_vulkan_headers, inc_android_emu,
+                         inc_android_compat, inc_guest_iostream,
+                         inc_vulkan_enc, inc_platform_virtgpu,
+                         inc_gfxstream_vk_stubs, inc_goldfish_address_space,
+                         inc_include, inc_src, inc_platform_virtgpu,
+                         inc_connection_manager],
+   link_with: [lib_android_compat, lib_emu_android_base, libgfxstream_vk_stubs,
                libvulkan_wsi, libplatform_virtgpu, libconnection_manager],
    link_args: [vulkan_icd_link_args, ld_args_bsymbolic, ld_args_gc_sections],
    link_depends: vulkan_icd_link_depends,
