@@ -8,7 +8,7 @@
 # DEBIAN_TEST_VK_TAG
 # KERNEL_ROOTFS_TAG
 
-set -ex -o pipefail
+set -uex -o pipefail
 
 # See `deqp_build_targets` below for which release is used to produce which
 # binary. Unless this comment has bitrotten:
@@ -144,7 +144,7 @@ if [ "${DEQP_API}" = 'GLES' ]; then
     cmake -S /VK-GL-CTS -B . -G Ninja \
         -DDEQP_TARGET=android \
         -DCMAKE_BUILD_TYPE=Release \
-        $EXTRA_CMAKE_ARGS
+        ${EXTRA_CMAKE_ARGS:-}
     mold --run ninja modules/egl/deqp-egl
     mv /deqp/modules/egl/deqp-egl /deqp/modules/egl/deqp-egl-android
   else
@@ -153,14 +153,14 @@ if [ "${DEQP_API}" = 'GLES' ]; then
     cmake -S /VK-GL-CTS -B . -G Ninja \
         -DDEQP_TARGET=x11_egl_glx \
         -DCMAKE_BUILD_TYPE=Release \
-        $EXTRA_CMAKE_ARGS
+        ${EXTRA_CMAKE_ARGS:-}
     mold --run ninja modules/egl/deqp-egl
     mv /deqp/modules/egl/deqp-egl /deqp/modules/egl/deqp-egl-x11
 
     cmake -S /VK-GL-CTS -B . -G Ninja \
         -DDEQP_TARGET=wayland \
         -DCMAKE_BUILD_TYPE=Release \
-        $EXTRA_CMAKE_ARGS
+        ${EXTRA_CMAKE_ARGS:-}
     mold --run ninja modules/egl/deqp-egl
     mv /deqp/modules/egl/deqp-egl /deqp/modules/egl/deqp-egl-wayland
   fi
@@ -169,7 +169,7 @@ fi
 cmake -S /VK-GL-CTS -B . -G Ninja \
       -DDEQP_TARGET=${DEQP_TARGET} \
       -DCMAKE_BUILD_TYPE=Release \
-      $EXTRA_CMAKE_ARGS
+      ${EXTRA_CMAKE_ARGS:-}
 
 # Make sure `default` doesn't silently stop detecting one of the platforms we care about
 if [ "${DEQP_TARGET}" = 'default' ]; then
