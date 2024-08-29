@@ -1157,16 +1157,14 @@ emit_3dstate_streamout(struct anv_graphics_pipeline *pipeline,
    }
 }
 
-static uint32_t
+static inline uint32_t
 get_sampler_count(const struct anv_shader_bin *bin)
 {
-   uint32_t count_by_4 = DIV_ROUND_UP(bin->bind_map.sampler_count, 4);
-
    /* We can potentially have way more than 32 samplers and that's ok.
     * However, the 3DSTATE_XS packets only have 3 bits to specify how
     * many to pre-fetch and all values above 4 are marked reserved.
     */
-   return MIN2(count_by_4, 4);
+   return DIV_ROUND_UP(CLAMP(bin->bind_map.sampler_count, 0, 16), 4);
 }
 
 static UNUSED struct anv_address
