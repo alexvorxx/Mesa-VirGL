@@ -2954,6 +2954,10 @@ radv_pipeline_init_vertex_input_state(const struct radv_device *device, struct r
          pipeline->vs_input_state.bindings[i] = binding;
          pipeline->vs_input_state.bindings_match_attrib &= binding == i;
 
+         if (state->vi->bindings[binding].stride) {
+            pipeline->vs_input_state.attrib_index_offset[i] = offset / state->vi->bindings[binding].stride;
+         }
+
          if (state->vi->bindings[binding].input_rate) {
             pipeline->vs_input_state.instance_rate_inputs |= BITFIELD_BIT(i);
             pipeline->vs_input_state.divisors[i] = state->vi->bindings[binding].divisor;

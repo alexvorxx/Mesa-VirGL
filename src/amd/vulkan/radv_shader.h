@@ -297,6 +297,7 @@ struct radv_vs_input_state {
    uint8_t format_align_req_minus_1[MAX_VERTEX_ATTRIBS];
    uint8_t component_align_req_minus_1[MAX_VERTEX_ATTRIBS];
    uint8_t format_sizes[MAX_VERTEX_ATTRIBS];
+   uint32_t attrib_index_offset[MAX_VERTEX_ATTRIBS]; /* Only used with static strides. */
 
    bool bindings_match_attrib;
 };
