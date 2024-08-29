@@ -3235,17 +3235,13 @@ register_allocation(Program* program, ra_test_policy policy)
               instr->operands[2].physReg() != vcc));
          if (instr_needs_vop3) {
 
-            /* if the first operand is a literal, we have to move it to a reg */
+            /* If the first operand is a literal, we have to move it to an sgpr
+             * for generations without VOP3+literal support.
+             * Both literals and sgprs count towards the constant bus limit,
+             * so this is always valid.
+             */
             if (instr->operands.size() && instr->operands[0].isLiteral() &&
                 program->gfx_level < GFX10) {
-               bool can_sgpr = true;
-               /* check, if we have to move to vgpr */
-               for (const Operand& op : instr->operands) {
-                  if (op.isTemp() && op.getTemp().type() == RegType::sgpr) {
-                     can_sgpr = false;
-                     break;
-                  }
-               }
                /* disable definitions and re-enable operands */
                RegisterFile tmp_file(register_file);
                for (const Definition& def : instr->definitions)
@@ -3254,16 +3250,12 @@ register_allocation(Program* program, ra_test_policy policy)
                   if (op.isTemp() && op.isFirstKill())
                      tmp_file.block(op.physReg(), op.regClass());
                }
-               Temp tmp = program->allocateTmp(can_sgpr ? s1 : v1);
+               Temp tmp = program->allocateTmp(s1);
                ctx.assignments.emplace_back();
                PhysReg reg = get_reg(ctx, tmp_file, tmp, parallelcopy, instr);
                update_renames(ctx, register_file, parallelcopy, instr, rename_not_killed_ops);
 
-               aco_ptr<Instruction> mov;
-               if (can_sgpr)
-                  mov.reset(create_instruction(aco_opcode::s_mov_b32, Format::SOP1, 1, 1));
-               else
-                  mov.reset(create_instruction(aco_opcode::v_mov_b32, Format::VOP1, 1, 1));
+               Instruction* mov = create_instruction(aco_opcode::s_mov_b32, Format::SOP1, 1, 1);
                mov->operands[0] = instr->operands[0];
                mov->definitions[0] = Definition(tmp);
                mov->definitions[0].setFixed(reg);
@@ -3272,7 +3264,7 @@ register_allocation(Program* program, ra_test_policy policy)
                instr->operands[0].setFixed(reg);
                instr->operands[0].setFirstKill(true);
 
-               instructions.emplace_back(std::move(mov));
+               instructions.emplace_back(mov);
             }
 
             /* change the instruction to VOP3 to enable an arbitrary register pair as dst */
