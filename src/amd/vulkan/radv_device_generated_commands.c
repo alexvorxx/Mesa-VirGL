@@ -1933,10 +1933,6 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
          dgc_emit_push_constant(&cmd_buf, stream_addr, upload_offset, stages);
       }
 
-      if (layout->bind_pipeline) {
-         dgc_emit_bind_pipeline(&cmd_buf, stream_addr, upload_offset);
-      }
-
       if (layout->pipeline_bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS) {
          if (layout->indexed) {
             /* Emit direct draws when index buffers are also updated by DGC. Otherwise, emit
@@ -1963,6 +1959,10 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
             }
          }
       } else {
+         if (layout->bind_pipeline) {
+            dgc_emit_bind_pipeline(&cmd_buf, stream_addr, upload_offset);
+         }
+
          dgc_emit_dispatch(&cmd_buf, stream_addr, sequence_id);
       }
 
