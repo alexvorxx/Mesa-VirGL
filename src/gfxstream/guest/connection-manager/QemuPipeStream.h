@@ -20,7 +20,6 @@
  * to communicate with the emulator's 'opengles' service. See
  * <hardware/qemu_pipe.h> for more details.
  */
-#include <qemu_pipe_bp.h>
 #include <stdlib.h>
 
 #include <memory>
@@ -43,20 +42,18 @@ class QemuPipeStream : public gfxstream::guest::IOStream {
     virtual const unsigned char* commitBufferAndReadFully(size_t size, void* buf, size_t len);
     virtual const unsigned char* read(void* buf, size_t* inout_len);
 
-    bool valid() { return qemu_pipe_valid(m_sock); }
+    bool valid();
     int recv(void* buf, size_t len);
 
     virtual int writeFully(const void* buf, size_t len);
 
-    QEMU_PIPE_HANDLE getSocket() const;
-
    private:
-    QEMU_PIPE_HANDLE m_sock;
+    int m_sock;
     size_t m_bufsize;
     unsigned char* m_buf;
     size_t m_read;
     size_t m_readLeft;
-    QemuPipeStream(QEMU_PIPE_HANDLE sock, size_t bufSize);
+    QemuPipeStream(int sock, size_t bufSize);
 };
 
 #endif

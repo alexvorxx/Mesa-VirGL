@@ -28,12 +28,7 @@ static const size_t kReadSize = 512 * 1024;
 static const size_t kWriteOffset = kReadSize;
 
 QemuPipeStream::QemuPipeStream(size_t bufSize)
-    : IOStream(bufSize),
-      m_sock((QEMU_PIPE_HANDLE)(-1)),
-      m_bufsize(bufSize),
-      m_buf(NULL),
-      m_read(0),
-      m_readLeft(0) {}
+    : IOStream(bufSize), m_sock(-1), m_bufsize(bufSize), m_buf(NULL), m_read(0), m_readLeft(0) {}
 
 QemuPipeStream::QemuPipeStream(QEMU_PIPE_HANDLE sock, size_t bufSize)
     : IOStream(bufSize), m_sock(sock), m_bufsize(bufSize), m_buf(NULL), m_read(0), m_readLeft(0) {}
@@ -41,7 +36,7 @@ QemuPipeStream::QemuPipeStream(QEMU_PIPE_HANDLE sock, size_t bufSize)
 QemuPipeStream::~QemuPipeStream() {
     if (valid()) {
         flush();
-        qemu_pipe_close(m_sock);
+        qemu_pipe_close((QEMU_PIPE_HANDLE)m_sock);
     }
     if (m_buf != NULL) {
         free(m_buf);
@@ -49,7 +44,7 @@ QemuPipeStream::~QemuPipeStream() {
 }
 
 int QemuPipeStream::connect(const char* serviceName) {
-    m_sock = qemu_pipe_open("opengles");
+    m_sock = (int)qemu_pipe_open("opengles");
     if (!valid()) {
         mesa_loge("%s: failed to connect to opengles pipe", __FUNCTION__);
         qemu_pipe_print_error(m_sock);
@@ -120,8 +115,6 @@ int QemuPipeStream::commitBuffer(size_t size) {
 int QemuPipeStream::writeFully(const void* buf, size_t len) {
     return qemu_pipe_write_fully(m_sock, buf, len);
 }
-
-QEMU_PIPE_HANDLE QemuPipeStream::getSocket() const { return m_sock; }
 
 const unsigned char* QemuPipeStream::readFully(void* buf, size_t len) {
     return commitBufferAndReadFully(0, buf, len);
@@ -235,6 +228,8 @@ const unsigned char* QemuPipeStream::read(void* buf, size_t* inout_len) {
 
     return NULL;
 }
+
+bool QemuPipeStream::valid() { return qemu_pipe_valid(m_sock); }
 
 int QemuPipeStream::recv(void* buf, size_t len) {
     if (!valid()) return int(ERR_INVALID_SOCKET);
