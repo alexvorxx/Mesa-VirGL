@@ -272,7 +272,7 @@ glcts-vangogh-valve:
     - .b2c-deqp-test
     - .vangogh-test-valve
     - .radeonsi-valve-manual-rules
-  timeout: 40m
+  timeout: 60m
   variables:
     GPU_VERSION: radeonsi-vangogh
     DEQP_SUITE: radeonsi-vangogh
