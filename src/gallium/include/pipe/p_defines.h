@@ -464,6 +464,8 @@ enum pipe_flush_flags
 #define PIPE_BIND_COMPUTE_RESOURCE     (1 << 16) /* set_compute_resources */
 #define PIPE_BIND_COMMAND_ARGS_BUFFER  (1 << 17) /* pipe_draw_info.indirect */
 #define PIPE_BIND_QUERY_BUFFER         (1 << 18) /* get_query_result_resource */
+#define PIPE_BIND_VIDEO_DECODE_DPB     (1 << 19) /* video engine DPB decode reconstructed picture */
+#define PIPE_BIND_VIDEO_ENCODE_DPB     (1 << 20) /* video engine DPB encode reconstructed picture */
 
 /**
  * The first two flags above were previously part of the amorphous
