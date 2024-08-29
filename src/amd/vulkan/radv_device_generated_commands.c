@@ -1920,13 +1920,6 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
          nir_iadd(&b, load_param32(&b, upload_main_offset), nir_imul(&b, load_param32(&b, upload_stride), sequence_id));
       nir_store_var(&b, cmd_buf.upload_offset, upload_offset_init, 0x1);
 
-      nir_def *vbo_bind_mask = load_param32(&b, vbo_bind_mask);
-      nir_push_if(&b, nir_ine_imm(&b, vbo_bind_mask, 0));
-      {
-         dgc_emit_vertex_buffer(&cmd_buf, stream_addr, vbo_bind_mask);
-      }
-      nir_pop_if(&b, NULL);
-
       if (layout->push_constant_mask) {
          const VkShaderStageFlags stages =
             VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_MESH_BIT_EXT;
@@ -1935,6 +1928,13 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
       }
 
       if (layout->pipeline_bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS) {
+         nir_def *vbo_bind_mask = load_param32(&b, vbo_bind_mask);
+         nir_push_if(&b, nir_ine_imm(&b, vbo_bind_mask, 0));
+         {
+            dgc_emit_vertex_buffer(&cmd_buf, stream_addr, vbo_bind_mask);
+         }
+         nir_pop_if(&b, NULL);
+
          if (layout->indexed) {
             /* Emit direct draws when index buffers are also updated by DGC. Otherwise, emit
              * indirect draws to remove the dependency on the cmdbuf state in order to enable
