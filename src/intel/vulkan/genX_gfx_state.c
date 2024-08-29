@@ -2338,7 +2338,7 @@ genX(cmd_buffer_flush_gfx_hw_state)(struct anv_cmd_buffer *cmd_buffer)
     * https://gitlab.freedesktop.org/mesa/mesa/-/issues/9781
     */
 #if GFX_VER == 11
-   if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_WM))
+   if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_BLEND_STATE))
       BITSET_SET(hw_state->dirty, ANV_GFX_STATE_MULTISAMPLE);
 #endif
 
