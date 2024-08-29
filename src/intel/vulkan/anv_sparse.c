@@ -578,6 +578,11 @@ anv_sparse_trtt_garbage_collect_batches(struct anv_device *device,
          vk_sync_get_value(&device->vk, trtt->timeline, &last_value);
       if (result != VK_SUCCESS)
          return result;
+
+      /* Valgrind doesn't know that drmSyncobjQuery writes to 'last_value' on
+       * success.
+       */
+      VG(VALGRIND_MAKE_MEM_DEFINED(&last_value, sizeof(last_value)));
    } else {
       last_value = trtt->timeline_val;
    }
