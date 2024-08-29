@@ -120,6 +120,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .KHR_maintenance4 = true,
       .KHR_maintenance5 = true,
       .KHR_maintenance6 = true,
+      .KHR_maintenance7 = true,
       .KHR_map_memory2 = true,
       .KHR_multiview = true,
       .KHR_pipeline_executable_properties = true,
@@ -419,6 +420,9 @@ nvk_get_device_features(const struct nv_device_info *info,
 
       /* VK_KHR_maintenance6 */
       .maintenance6 = true,
+
+      /* VK_KHR_maintenance7 */
+      .maintenance7 = true,
 
       /* VK_KHR_pipeline_executable_properties */
       .pipelineExecutableInfo = true,
@@ -959,6 +963,16 @@ nvk_get_device_properties(const struct nvk_instance *instance,
       .blockTexelViewCompatibleMultipleLayers = true,
       .maxCombinedImageSamplerDescriptorCount = 3,
       .fragmentShadingRateClampCombinerInputs = false, /* TODO */
+
+      /* VK_KHR_maintenance7 */
+      .robustFragmentShadingRateAttachmentAccess = false,
+      .separateDepthStencilAttachmentAccess = false,
+      .maxDescriptorSetTotalUniformBuffersDynamic = NVK_MAX_DYNAMIC_BUFFERS / 2,
+      .maxDescriptorSetTotalStorageBuffersDynamic = NVK_MAX_DYNAMIC_BUFFERS / 2,
+      .maxDescriptorSetTotalBuffersDynamic = NVK_MAX_DYNAMIC_BUFFERS,
+      .maxDescriptorSetUpdateAfterBindTotalUniformBuffersDynamic = NVK_MAX_DYNAMIC_BUFFERS / 2,
+      .maxDescriptorSetUpdateAfterBindTotalStorageBuffersDynamic = NVK_MAX_DYNAMIC_BUFFERS / 2,
+      .maxDescriptorSetUpdateAfterBindTotalBuffersDynamic = NVK_MAX_DYNAMIC_BUFFERS,
 
       /* VK_EXT_legacy_vertex_attributes */
       .nativeUnalignedPerformance = true,
