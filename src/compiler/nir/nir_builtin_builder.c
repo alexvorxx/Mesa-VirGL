@@ -25,6 +25,7 @@
 #include <math.h>
 
 #include "nir.h"
+#include "nir_builder.h"
 #include "nir_builtin_builder.h"
 
 nir_def *
@@ -158,20 +159,6 @@ nir_upsample(nir_builder *b, nir_def *hi, nir_def *lo)
    return nir_vec(b, res, lo->num_components);
 }
 
-/**
- * Compute xs[0] + xs[1] + xs[2] + ... using fadd.
- */
-static nir_def *
-build_fsum(nir_builder *b, nir_def **xs, int terms)
-{
-   nir_def *accum = xs[0];
-
-   for (int i = 1; i < terms; i++)
-      accum = nir_fadd(b, accum, xs[i]);
-
-   return accum;
-}
-
 nir_def *
 nir_atan(nir_builder *b, nir_def *y_over_x)
 {
@@ -191,30 +178,26 @@ nir_atan(nir_builder *b, nir_def *y_over_x)
                          nir_fmax(b, abs_y_over_x, one));
 
    /*
-    * approximate atan by evaluating polynomial:
+    * approximate atan by evaluating polynomial using Horner's method:
     *
     * x   * 0.9999793128310355 - x^3  * 0.3326756418091246 +
     * x^5 * 0.1938924977115610 - x^7  * 0.1173503194786851 +
     * x^9 * 0.0536813784310406 - x^11 * 0.0121323213173444
     */
-   nir_def *x_2 = nir_fmul(b, x, x);
-   nir_def *x_3 = nir_fmul(b, x_2, x);
-   nir_def *x_5 = nir_fmul(b, x_3, x_2);
-   nir_def *x_7 = nir_fmul(b, x_5, x_2);
-   nir_def *x_9 = nir_fmul(b, x_7, x_2);
-   nir_def *x_11 = nir_fmul(b, x_9, x_2);
-
-   nir_def *polynomial_terms[] = {
-      nir_fmul_imm(b, x, 0.9999793128310355f),
-      nir_fmul_imm(b, x_3, -0.3326756418091246f),
-      nir_fmul_imm(b, x_5, 0.1938924977115610f),
-      nir_fmul_imm(b, x_7, -0.1173503194786851f),
-      nir_fmul_imm(b, x_9, 0.0536813784310406f),
-      nir_fmul_imm(b, x_11, -0.0121323213173444f),
+   float coeffs[] = {
+      -0.0121323213173444f, 0.0536813784310406f,
+      -0.1173503194786851f, 0.1938924977115610f,
+      -0.3326756418091246f, 0.9999793128310355f
    };
 
-   nir_def *tmp =
-      build_fsum(b, polynomial_terms, ARRAY_SIZE(polynomial_terms));
+   nir_def *x_2 = nir_fmul(b, x, x);
+   nir_def *res = nir_imm_floatN_t(b, coeffs[0], bit_size);
+
+   for (unsigned i = 1; i < ARRAY_SIZE(coeffs); ++i) {
+      res = nir_ffma_imm2(b, res, x_2, coeffs[i]);
+   }
+
+   nir_def *tmp = nir_fmul(b, x, res);
 
    /* range-reduction fixup */
    tmp = nir_ffma(b,
