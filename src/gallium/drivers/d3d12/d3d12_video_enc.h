@@ -133,6 +133,7 @@ enum d3d12_video_encoder_config_dirty_flags
    d3d12_video_encoder_config_dirty_flag_motion_precision_limit = 0x200,
    d3d12_video_encoder_config_dirty_flag_sequence_info          = 0x400,
    d3d12_video_encoder_config_dirty_flag_intra_refresh          = 0x800,
+   d3d12_video_encoder_config_dirty_flag_video_header           = 0x1000,
 };
 DEFINE_ENUM_FLAG_OPERATORS(d3d12_video_encoder_config_dirty_flags);
 
@@ -280,6 +281,7 @@ struct D3D12EncodeConfiguration
 
    struct pipe_h264_enc_seq_param m_encoderCodecSpecificSequenceStateDescH264;
    struct pipe_h265_enc_seq_param m_encoderCodecSpecificSequenceStateDescH265;
+   struct pipe_h265_enc_vid_param m_encoderCodecSpecificVideoStateDescH265;
 };
 
 struct EncodedBitstreamResolvedMetadata

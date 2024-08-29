@@ -779,6 +779,14 @@ d3d12_video_encoder_update_current_encoder_config_state_hevc(struct d3d12_video_
    }
    pD3D12Enc->m_currentEncodeConfig.m_encoderCodecDesc = D3D12_VIDEO_ENCODER_CODEC_HEVC;
 
+   // Set VPS information
+   if (memcmp(&pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificVideoStateDescH265,
+              &hevcPic->vid,
+              sizeof(hevcPic->vid)) != 0) {
+      pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_video_header;
+   }
+   pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificVideoStateDescH265 = hevcPic->vid;
+
    // Set Sequence information
    if (memcmp(&pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificSequenceStateDescH265,
               &hevcPic->seq,
@@ -1031,7 +1039,6 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
    auto profDesc = d3d12_video_encoder_get_current_profile_desc(pD3D12Enc);
    auto levelDesc = d3d12_video_encoder_get_current_level_desc(pD3D12Enc);
    auto codecConfigDesc = d3d12_video_encoder_get_current_codec_config_desc(pD3D12Enc);
-   auto MaxDPBCapacity = d3d12_video_encoder_get_current_max_dpb_capacity(pD3D12Enc);
 
    pWrittenCodecUnitsSizes.clear();
    bool isFirstFrame = (pD3D12Enc->m_fenceValue == 1);
@@ -1048,10 +1055,10 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
    size_t writtenVPSBytesCount = 0;
    if (writeNewVPS) {
       bool gopHasBFrames = (pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_HEVCGroupOfPictures.PPicturePeriod > 1);
-      HevcVideoParameterSet vps = pHEVCBitstreamBuilder->build_vps(*profDesc.pHEVCProfile,
+      HevcVideoParameterSet vps = pHEVCBitstreamBuilder->build_vps(pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificVideoStateDescH265,
+                                                                  *profDesc.pHEVCProfile,
                                                                    *levelDesc.pHEVCLevelSetting,
                                                                    pD3D12Enc->m_currentEncodeConfig.m_encodeFormatInfo.Format,
-                                                                   MaxDPBCapacity,   // max_num_ref_frames
                                                                    gopHasBFrames,
                                                                    active_video_parameter_set_id,
                                                                    pD3D12Enc->m_BitstreamHeadersBuffer,

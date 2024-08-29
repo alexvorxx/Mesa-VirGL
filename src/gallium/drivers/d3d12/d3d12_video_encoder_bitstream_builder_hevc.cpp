@@ -298,10 +298,10 @@ d3d12_video_encoder_convert_pixel_size_hevc_to_12tusize(const uint32_t& TUSize)
 }
 
 HevcVideoParameterSet
-d3d12_video_bitstream_builder_hevc::build_vps(const D3D12_VIDEO_ENCODER_PROFILE_HEVC& profile,
+d3d12_video_bitstream_builder_hevc::build_vps(const struct pipe_h265_enc_vid_param & vidData,
+         const D3D12_VIDEO_ENCODER_PROFILE_HEVC& profile,
          const D3D12_VIDEO_ENCODER_LEVEL_TIER_CONSTRAINTS_HEVC& level,
          const DXGI_FORMAT inputFmt,
-         uint8_t maxRefFrames,
          bool gopHasBFrames,
          uint8_t vps_video_parameter_set_id,
          std::vector<BYTE> &headerBitstream,
@@ -334,7 +334,7 @@ d3d12_video_bitstream_builder_hevc::build_vps(const D3D12_VIDEO_ENCODER_PROFILE_
    init_profile_tier_level(&m_latest_vps.ptl, HEVCProfileIdc, HEVCLevelIdc, isHighTier);
    m_latest_vps.vps_sub_layer_ordering_info_present_flag = 0u;
    for (int i = (m_latest_vps.vps_sub_layer_ordering_info_present_flag ? 0 : m_latest_vps.vps_max_sub_layers_minus1); i <= m_latest_vps.vps_max_sub_layers_minus1; i++) {
-      m_latest_vps.vps_max_dec_pic_buffering_minus1[i] = (maxRefFrames/*previous reference frames*/ + 1 /*additional current frame recon pic*/) - 1/**minus1 for header*/;        
+      m_latest_vps.vps_max_dec_pic_buffering_minus1[i] = vidData.vps_max_dec_pic_buffering_minus1[i];
       m_latest_vps.vps_max_num_reorder_pics[i] = gopHasBFrames ? m_latest_vps.vps_max_dec_pic_buffering_minus1[i] : 0;
       m_latest_vps.vps_max_latency_increase_plus1[i] = 0; // When vps_max_latency_increase_plus1[ i ] is equal to 0, no corresponding limit is expressed.
    }

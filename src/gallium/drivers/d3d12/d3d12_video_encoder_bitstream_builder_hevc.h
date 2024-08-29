@@ -34,10 +34,10 @@ class d3d12_video_bitstream_builder_hevc : public d3d12_video_bitstream_builder_
    d3d12_video_bitstream_builder_hevc() {};
    ~d3d12_video_bitstream_builder_hevc() {};
 
-   HevcVideoParameterSet build_vps(const D3D12_VIDEO_ENCODER_PROFILE_HEVC& profile,
+   HevcVideoParameterSet build_vps(const struct pipe_h265_enc_vid_param & vidData,
+                                   const D3D12_VIDEO_ENCODER_PROFILE_HEVC& profile,
                                    const D3D12_VIDEO_ENCODER_LEVEL_TIER_CONSTRAINTS_HEVC& level,
                                    const DXGI_FORMAT inputFmt,
-                                   uint8_t maxRefFrames,
                                    bool gopHasBFrames,
                                    uint8_t vps_video_parameter_set_id,
                                    std::vector<BYTE> &headerBitstream,
