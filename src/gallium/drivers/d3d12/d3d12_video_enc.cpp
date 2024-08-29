@@ -352,7 +352,7 @@ d3d12_video_encoder_uses_direct_dpb(enum pipe_video_format codec)
 #if VIDEO_CODEC_H265ENC
       case PIPE_VIDEO_FORMAT_HEVC:
       {
-         return false;
+         return true;
       } break;
 #endif
 #if VIDEO_CODEC_AV1ENC
@@ -606,19 +606,7 @@ d3d12_video_encoder_create_reference_picture_manager(struct d3d12_video_encoder 
 #if VIDEO_CODEC_H265ENC
       case PIPE_VIDEO_FORMAT_HEVC:
       {
-         bool gopHasPFrames =
-            (pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_HEVCGroupOfPictures.PPicturePeriod > 0) &&
-            ((pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_HEVCGroupOfPictures.GOPLength == 0) ||
-             (pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_HEVCGroupOfPictures.PPicturePeriod <
-              pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_HEVCGroupOfPictures.GOPLength));
-
-         pD3D12Enc->m_upDPBManager = std::make_unique<d3d12_video_encoder_references_manager_hevc>(
-            gopHasPFrames,
-            *pD3D12Enc->m_upDPBStorageManager,
-            // Max number of frames to be used as a reference, without counting the current recon picture
-            d3d12_video_encoder_get_current_max_dpb_capacity(pD3D12Enc)
-         );
-
+         pD3D12Enc->m_upDPBManager = std::make_unique<d3d12_video_encoder_references_manager_hevc>();
          pD3D12Enc->m_upBitstreamBuilder = std::make_unique<d3d12_video_bitstream_builder_hevc>();
       } break;
 #endif
