@@ -98,6 +98,7 @@
   stage: layered-backends-postmerge
   extends: .no-auto-retry
   rules:
+    - !reference [.test, rules]
     - !reference [.valve-freedreno-turnip-manual-rules, rules]
     - !reference [.zink-common-manual-rules, rules]
 
