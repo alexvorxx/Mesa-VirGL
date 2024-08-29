@@ -170,9 +170,9 @@ nir_atan(nir_builder *b, nir_def *y_over_x)
    /*
     * range-reduction, first step:
     *
-    *      / y_over_x         if |y_over_x| <= 1.0;
+    *      / |y_over_x|         if |y_over_x| <= 1.0;
     * x = <
-    *      \ 1.0 / y_over_x   otherwise
+    *      \ 1.0 / |y_over_x|   otherwise
     */
    nir_def *x = nir_fdiv(b, nir_fmin(b, abs_y_over_x, one),
                          nir_fmax(b, abs_y_over_x, one));
