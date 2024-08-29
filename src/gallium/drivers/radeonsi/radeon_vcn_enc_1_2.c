@@ -1438,6 +1438,9 @@ static void encode(struct radeon_encoder *enc)
       } while (++i < enc->enc_pic.num_temporal_layers);
    }
 
+   enc->enc_pic.layer_sel.temporal_layer_index = enc->enc_pic.temporal_id;
+   enc->layer_select(enc);
+
    enc->encode_headers(enc);
    enc->ctx(enc);
    enc->bitstream(enc);
