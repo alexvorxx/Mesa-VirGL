@@ -29,7 +29,7 @@ struct radv_device;
 struct radv_pipeline;
 struct radv_ray_tracing_pipeline;
 struct radv_shader_args;
-struct radv_vs_input_state;
+struct radv_vertex_input_state;
 struct radv_shader_args;
 struct radv_serialized_shader_arena_block;
 struct vk_pipeline_robustness_state;
@@ -276,7 +276,7 @@ radv_is_last_vgt_stage(const struct radv_shader_stage *stage)
           (stage->info.next_stage == MESA_SHADER_FRAGMENT || stage->info.next_stage == MESA_SHADER_NONE);
 }
 
-struct radv_vs_input_state {
+struct radv_vertex_input_state {
    uint32_t attribute_mask;
 
    uint32_t instance_rate_inputs;

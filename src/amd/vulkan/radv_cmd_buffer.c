@@ -5129,29 +5129,29 @@ lookup_vs_prolog(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *v
 
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   const struct radv_vs_input_state *state = &cmd_buffer->state.dynamic_vs_input;
+   const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
 
    unsigned num_attributes = util_last_bit(vs_shader->info.vs.vb_desc_usage_mask);
    uint32_t attribute_mask = BITFIELD_MASK(num_attributes);
 
-   uint32_t instance_rate_inputs = state->instance_rate_inputs & attribute_mask;
-   uint32_t zero_divisors = state->zero_divisors & attribute_mask;
-   *nontrivial_divisors = state->nontrivial_divisors & attribute_mask;
+   uint32_t instance_rate_inputs = vi_state->instance_rate_inputs & attribute_mask;
+   uint32_t zero_divisors = vi_state->zero_divisors & attribute_mask;
+   *nontrivial_divisors = vi_state->nontrivial_divisors & attribute_mask;
    uint32_t misaligned_mask = cmd_buffer->state.vbo_misaligned_mask;
    uint32_t unaligned_mask = cmd_buffer->state.vbo_unaligned_mask;
    if (cmd_buffer->state.vbo_misaligned_mask_invalid) {
       bool misalignment_possible = pdev->info.gfx_level == GFX6 || pdev->info.gfx_level >= GFX10;
       u_foreach_bit (index, cmd_buffer->state.vbo_misaligned_mask_invalid & attribute_mask) {
-         uint8_t binding = state->bindings[index];
+         uint8_t binding = vi_state->bindings[index];
          if (!(cmd_buffer->state.vbo_bound_mask & BITFIELD_BIT(binding)))
             continue;
 
-         uint8_t format_req = state->format_align_req_minus_1[index];
-         uint8_t component_req = state->component_align_req_minus_1[index];
+         uint8_t format_req = vi_state->format_align_req_minus_1[index];
+         uint8_t component_req = vi_state->component_align_req_minus_1[index];
          uint64_t vb_offset = cmd_buffer->vertex_bindings[binding].offset;
          uint64_t vb_stride = cmd_buffer->vertex_bindings[binding].stride;
 
-         VkDeviceSize offset = vb_offset + state->offsets[index];
+         VkDeviceSize offset = vb_offset + vi_state->offsets[index];
 
          if (misalignment_possible && ((offset | vb_stride) & format_req))
             misaligned_mask |= BITFIELD_BIT(index);
@@ -5162,7 +5162,7 @@ lookup_vs_prolog(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *v
       cmd_buffer->state.vbo_unaligned_mask = unaligned_mask;
       cmd_buffer->state.vbo_misaligned_mask_invalid &= ~attribute_mask;
    }
-   misaligned_mask |= state->nontrivial_formats | unaligned_mask;
+   misaligned_mask |= vi_state->nontrivial_formats | unaligned_mask;
    misaligned_mask &= attribute_mask;
    unaligned_mask &= attribute_mask;
 
@@ -5179,7 +5179,7 @@ lookup_vs_prolog(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *v
 
    /* try to use a pre-compiled prolog first */
    struct radv_shader_part *prolog = NULL;
-   if (can_use_simple_input && !as_ls && !misaligned_mask && !state->alpha_adjust_lo && !state->alpha_adjust_hi) {
+   if (can_use_simple_input && !as_ls && !misaligned_mask && !vi_state->alpha_adjust_lo && !vi_state->alpha_adjust_hi) {
       if (!instance_rate_inputs) {
          prolog = device->simple_vs_prologs[num_attributes - 1];
       } else if (num_attributes <= 16 && !*nontrivial_divisors && !zero_divisors &&
@@ -5198,11 +5198,11 @@ lookup_vs_prolog(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *v
    key.nontrivial_divisors = *nontrivial_divisors;
    key.zero_divisors = zero_divisors;
    /* If the attribute is aligned, post shuffle is implemented using DST_SEL instead. */
-   key.post_shuffle = state->post_shuffle & misaligned_mask;
-   key.alpha_adjust_hi = state->alpha_adjust_hi & attribute_mask & ~unaligned_mask;
-   key.alpha_adjust_lo = state->alpha_adjust_lo & attribute_mask & ~unaligned_mask;
+   key.post_shuffle = vi_state->post_shuffle & misaligned_mask;
+   key.alpha_adjust_hi = vi_state->alpha_adjust_hi & attribute_mask & ~unaligned_mask;
+   key.alpha_adjust_lo = vi_state->alpha_adjust_lo & attribute_mask & ~unaligned_mask;
    u_foreach_bit (index, misaligned_mask)
-      key.formats[index] = state->formats[index];
+      key.formats[index] = vi_state->formats[index];
    key.num_attributes = num_attributes;
    key.misaligned_mask = misaligned_mask;
    key.unaligned_mask = unaligned_mask;
@@ -5311,7 +5311,7 @@ emit_prolog_inputs(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader 
       return;
 
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
-   const struct radv_vs_input_state *state = &cmd_buffer->state.dynamic_vs_input;
+   const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
    uint64_t input_va = radv_shader_get_va(vs_shader);
 
    if (nontrivial_divisors) {
@@ -5325,7 +5325,7 @@ emit_prolog_inputs(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader 
       *(inputs++) = input_va >> 32;
 
       u_foreach_bit (index, nontrivial_divisors) {
-         uint32_t div = state->divisors[index];
+         uint32_t div = vi_state->divisors[index];
          if (div == 0) {
             *(inputs++) = 0;
             *(inputs++) = 1;
@@ -6156,7 +6156,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, bool ful
    uint32_t mask = vs_shader->info.vs.vb_desc_usage_mask;
    uint64_t va;
    const bool uses_dynamic_inputs = vs_shader->info.vs.dynamic_inputs;
-   const struct radv_vs_input_state *vs_state = &cmd_buffer->state.dynamic_vs_input;
+   const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
 
    const struct ac_vtx_format_info *vtx_info_table =
       uses_dynamic_inputs ? ac_get_vtx_format_info_table(chip, family) : NULL;
@@ -6166,7 +6166,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, bool ful
       uint32_t *desc = &((uint32_t *)vb_ptr)[desc_index++ * 4];
       uint32_t offset, rsrc_word3;
 
-      if (uses_dynamic_inputs && !(vs_state->attribute_mask & BITFIELD_BIT(i))) {
+      if (uses_dynamic_inputs && !(vi_state->attribute_mask & BITFIELD_BIT(i))) {
          /* No vertex attribute description given: assume that the shader doesn't use this
           * location (vb_desc_usage_mask can be larger than attribute usage) and use a null
           * descriptor to avoid hangs (prologs load all attributes, even if there are holes).
@@ -6175,13 +6175,13 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, bool ful
          continue;
       }
 
-      const unsigned binding = vs_state->bindings[i];
+      const unsigned binding = vi_state->bindings[i];
       struct radv_buffer *buffer = cmd_buffer->vertex_binding_buffers[binding];
       unsigned num_records;
       const unsigned stride = cmd_buffer->vertex_bindings[binding].stride;
 
-      if (uses_dynamic_inputs && !(vs_state->nontrivial_formats & BITFIELD_BIT(i))) {
-         const struct ac_vtx_format_info *vtx_info = &vtx_info_table[vs_state->formats[i]];
+      if (uses_dynamic_inputs && !(vi_state->nontrivial_formats & BITFIELD_BIT(i))) {
+         const struct ac_vtx_format_info *vtx_info = &vtx_info_table[vi_state->formats[i]];
          unsigned hw_format = vtx_info->hw_format[vtx_info->num_channels - 1];
 
          if (chip >= GFX10) {
@@ -6228,7 +6228,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, bool ful
       offset = cmd_buffer->vertex_bindings[binding].offset;
       va += offset + buffer->offset;
       if (uses_dynamic_inputs)
-         va += vs_state->offsets[i];
+         va += vi_state->offsets[i];
 
       if (cmd_buffer->vertex_bindings[binding].size) {
          num_records = cmd_buffer->vertex_bindings[binding].size;
@@ -6237,7 +6237,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, bool ful
       }
 
       if (vs_shader->info.vs.use_per_attribute_vb_descs) {
-         const uint32_t attrib_end = vs_state->offsets[i] + vs_state->format_sizes[i];
+         const uint32_t attrib_end = vi_state->offsets[i] + vi_state->format_sizes[i];
 
          if (num_records < attrib_end) {
             num_records = 0; /* not enough space for one vertex */
@@ -6249,7 +6249,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, bool ful
              * attrib_offset/stride and decrease the offset by attrib_offset%stride. This is
              * only allowed with static strides.
              */
-            num_records += vs_state->attrib_index_offset[i];
+            num_records += vi_state->attrib_index_offset[i];
          }
 
          /* GFX10 uses OOB_SELECT_RAW if stride==0, so convert num_records from elements into
@@ -7401,7 +7401,7 @@ radv_CmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t firstBinding,
    VK_FROM_HANDLE(radv_cmd_buffer, cmd_buffer, commandBuffer);
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    struct radv_vertex_binding *vb = cmd_buffer->vertex_bindings;
-   const struct radv_vs_input_state *state = &cmd_buffer->state.dynamic_vs_input;
+   const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
 
    /* We have to defer setting up vertex buffer since we need the buffer
     * stride from the pipeline. */
@@ -7422,7 +7422,7 @@ radv_CmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t firstBinding,
 
       if (!!cmd_buffer->vertex_binding_buffers[idx] != !!buffer ||
           (buffer && ((vb[idx].offset & 0x3) != (pOffsets[i] & 0x3) || (vb[idx].stride & 0x3) != (stride & 0x3)))) {
-         misaligned_mask_invalid |= state->bindings_match_attrib ? BITFIELD_BIT(idx) : 0xffffffff;
+         misaligned_mask_invalid |= vi_state->bindings_match_attrib ? BITFIELD_BIT(idx) : 0xffffffff;
       }
 
       cmd_buffer->vertex_binding_buffers[idx] = buffer;
@@ -7851,13 +7851,13 @@ static void
 radv_bind_vs_input_state(struct radv_cmd_buffer *cmd_buffer, const struct radv_graphics_pipeline *pipeline)
 {
    const struct radv_shader *vs_shader = radv_get_shader(cmd_buffer->state.shaders, MESA_SHADER_VERTEX);
-   const struct radv_vs_input_state *src = &pipeline->vs_input_state;
+   const struct radv_vertex_input_state *src = &pipeline->vertex_input;
 
    /* Bind the vertex input state from the pipeline when it's static. */
    if (!vs_shader || !vs_shader->info.vs.vb_desc_usage_mask || (pipeline->dynamic_states & RADV_DYNAMIC_VERTEX_INPUT))
       return;
 
-   cmd_buffer->state.dynamic_vs_input = *src;
+   cmd_buffer->state.vertex_input = *src;
 
    if (!(pipeline->dynamic_states & RADV_DYNAMIC_VERTEX_INPUT_BINDING_STRIDE)) {
       for (uint32_t i = 0; i < MAX_VBS; i++)
@@ -8790,7 +8790,7 @@ radv_CmdSetVertexInputEXT(VkCommandBuffer commandBuffer, uint32_t vertexBindingD
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_cmd_state *state = &cmd_buffer->state;
-   struct radv_vs_input_state *vs_state = &state->dynamic_vs_input;
+   struct radv_vertex_input_state *vi_state = &state->vertex_input;
 
    const VkVertexInputBindingDescription2EXT *bindings[MAX_VBS];
    for (unsigned i = 0; i < vertexBindingDescriptionCount; i++)
@@ -8800,15 +8800,15 @@ radv_CmdSetVertexInputEXT(VkCommandBuffer commandBuffer, uint32_t vertexBindingD
    state->vbo_unaligned_mask = 0;
    state->vbo_misaligned_mask_invalid = 0;
 
-   vs_state->attribute_mask = 0;
-   vs_state->instance_rate_inputs = 0;
-   vs_state->nontrivial_divisors = 0;
-   vs_state->zero_divisors = 0;
-   vs_state->post_shuffle = 0;
-   vs_state->alpha_adjust_lo = 0;
-   vs_state->alpha_adjust_hi = 0;
-   vs_state->nontrivial_formats = 0;
-   vs_state->bindings_match_attrib = true;
+   vi_state->attribute_mask = 0;
+   vi_state->instance_rate_inputs = 0;
+   vi_state->nontrivial_divisors = 0;
+   vi_state->zero_divisors = 0;
+   vi_state->post_shuffle = 0;
+   vi_state->alpha_adjust_lo = 0;
+   vi_state->alpha_adjust_hi = 0;
+   vi_state->nontrivial_formats = 0;
+   vi_state->bindings_match_attrib = true;
 
    enum amd_gfx_level chip = pdev->info.gfx_level;
    enum radeon_family family = pdev->info.family;
@@ -8819,43 +8819,43 @@ radv_CmdSetVertexInputEXT(VkCommandBuffer commandBuffer, uint32_t vertexBindingD
       const VkVertexInputBindingDescription2EXT *binding = bindings[attrib->binding];
       unsigned loc = attrib->location;
 
-      vs_state->attribute_mask |= 1u << loc;
-      vs_state->bindings[loc] = attrib->binding;
+      vi_state->attribute_mask |= 1u << loc;
+      vi_state->bindings[loc] = attrib->binding;
       if (attrib->binding != loc)
-         vs_state->bindings_match_attrib = false;
+         vi_state->bindings_match_attrib = false;
       if (binding->inputRate == VK_VERTEX_INPUT_RATE_INSTANCE) {
-         vs_state->instance_rate_inputs |= 1u << loc;
-         vs_state->divisors[loc] = binding->divisor;
+         vi_state->instance_rate_inputs |= 1u << loc;
+         vi_state->divisors[loc] = binding->divisor;
          if (binding->divisor == 0) {
-            vs_state->zero_divisors |= 1u << loc;
+            vi_state->zero_divisors |= 1u << loc;
          } else if (binding->divisor > 1) {
-            vs_state->nontrivial_divisors |= 1u << loc;
+            vi_state->nontrivial_divisors |= 1u << loc;
          }
       }
       cmd_buffer->vertex_bindings[attrib->binding].stride = binding->stride;
-      vs_state->offsets[loc] = attrib->offset;
+      vi_state->offsets[loc] = attrib->offset;
 
       enum pipe_format format = vk_format_map[attrib->format];
       const struct ac_vtx_format_info *vtx_info = &vtx_info_table[format];
 
-      vs_state->formats[loc] = format;
+      vi_state->formats[loc] = format;
       uint8_t format_align_req_minus_1 = vtx_info->chan_byte_size >= 4 ? 3 : (vtx_info->element_size - 1);
-      vs_state->format_align_req_minus_1[loc] = format_align_req_minus_1;
+      vi_state->format_align_req_minus_1[loc] = format_align_req_minus_1;
       uint8_t component_align_req_minus_1 =
          MIN2(vtx_info->chan_byte_size ? vtx_info->chan_byte_size : vtx_info->element_size, 4) - 1;
-      vs_state->component_align_req_minus_1[loc] = component_align_req_minus_1;
-      vs_state->format_sizes[loc] = vtx_info->element_size;
-      vs_state->alpha_adjust_lo |= (vtx_info->alpha_adjust & 0x1) << loc;
-      vs_state->alpha_adjust_hi |= (vtx_info->alpha_adjust >> 1) << loc;
+      vi_state->component_align_req_minus_1[loc] = component_align_req_minus_1;
+      vi_state->format_sizes[loc] = vtx_info->element_size;
+      vi_state->alpha_adjust_lo |= (vtx_info->alpha_adjust & 0x1) << loc;
+      vi_state->alpha_adjust_hi |= (vtx_info->alpha_adjust >> 1) << loc;
       if (G_008F0C_DST_SEL_X(vtx_info->dst_sel) == V_008F0C_SQ_SEL_Z)
-         vs_state->post_shuffle |= BITFIELD_BIT(loc);
+         vi_state->post_shuffle |= BITFIELD_BIT(loc);
 
       if (!(vtx_info->has_hw_format & BITFIELD_BIT(vtx_info->num_channels - 1)))
-         vs_state->nontrivial_formats |= BITFIELD_BIT(loc);
+         vi_state->nontrivial_formats |= BITFIELD_BIT(loc);
 
       if (state->vbo_bound_mask & BITFIELD_BIT(attrib->binding)) {
          uint32_t stride = binding->stride;
-         uint64_t offset = cmd_buffer->vertex_bindings[attrib->binding].offset + vs_state->offsets[loc];
+         uint64_t offset = cmd_buffer->vertex_bindings[attrib->binding].offset + vi_state->offsets[loc];
          if ((chip == GFX6 || chip >= GFX10) && ((stride | offset) & format_align_req_minus_1))
             state->vbo_misaligned_mask |= BITFIELD_BIT(loc);
          if ((stride | offset) & component_align_req_minus_1)
