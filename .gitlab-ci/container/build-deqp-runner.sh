@@ -8,7 +8,7 @@
 # DEBIAN_TEST_VK_TAG
 # KERNEL_ROOTFS_TAG
 
-set -ex
+set -uex
 
 DEQP_RUNNER_VERSION=0.20.0
 
@@ -20,9 +20,9 @@ patch_files=(
 
 DEQP_RUNNER_GIT_URL="${DEQP_RUNNER_GIT_URL:-https://gitlab.freedesktop.org/mesa/deqp-runner.git}"
 
-if [ -n "$DEQP_RUNNER_GIT_TAG" ]; then
+if [ -n "${DEQP_RUNNER_GIT_TAG:-}" ]; then
     DEQP_RUNNER_GIT_CHECKOUT="$DEQP_RUNNER_GIT_TAG"
-elif [ -n "$DEQP_RUNNER_GIT_REV" ]; then
+elif [ -n "${DEQP_RUNNER_GIT_REV:-}" ]; then
     DEQP_RUNNER_GIT_CHECKOUT="$DEQP_RUNNER_GIT_REV"
 else
     DEQP_RUNNER_GIT_CHECKOUT="v$DEQP_RUNNER_VERSION"
@@ -48,18 +48,22 @@ do
   git am "$BASE_PWD/.gitlab-ci/container/patches/$patch"
 done
 
+if [ -z "${RUST_TARGET:-}" ]; then
+    RUST_TARGET=""
+fi
+
 if [[ "$RUST_TARGET" != *-android ]]; then
     # When CC (/usr/lib/ccache/gcc) variable is set, the rust compiler uses
     # this variable when cross-compiling arm32 and build fails for zsys-sys.
     # So unset the CC variable when cross-compiling for arm32.
-    SAVEDCC=$CC
+    SAVEDCC=${CC:-}
     if [ "$RUST_TARGET" = "armv7-unknown-linux-gnueabihf" ]; then
         unset CC
     fi
     cargo install --locked  \
         -j ${FDO_CI_CONCURRENT:-4} \
         --root /usr/local \
-        ${EXTRA_CARGO_ARGS} \
+        ${EXTRA_CARGO_ARGS:-} \
         --path .
     CC=$SAVEDCC
 else
@@ -84,6 +88,6 @@ popd
 
 # remove unused test runners to shrink images for the Mesa CI build (not kernel,
 # which chooses its own deqp branch)
-if [ -z "${DEQP_RUNNER_GIT_TAG}${DEQP_RUNNER_GIT_REV}" ]; then
+if [ -z "${DEQP_RUNNER_GIT_TAG:-}${DEQP_RUNNER_GIT_REV:-}" ]; then
     rm -f /usr/local/bin/igt-runner
 fi
