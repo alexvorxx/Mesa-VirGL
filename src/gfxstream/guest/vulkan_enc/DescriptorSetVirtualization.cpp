@@ -197,7 +197,7 @@ void doEmulatedDescriptorWrite(const VkWriteDescriptorSet* write, ReifiedDescrip
         // TODO
         // Look for pNext inline uniform block or acceleration structure.
         // Append new DescriptorWrite entry that holds the buffer
-        ALOGW("%s: Ignoring emulated write for descriptor type 0x%x\n", __func__, descType);
+        mesa_logw("%s: Ignoring emulated write for descriptor type 0x%x\n", __func__, descType);
     }
 }
 
@@ -339,7 +339,7 @@ static bool isBindingFeasibleForAlloc(
     uint32_t availDescriptorCount = countInfo.descriptorCount - countInfo.used;
 
     if (availDescriptorCount < binding.descriptorCount) {
-        ALOGV(
+        mesa_logi(
             "%s: Ran out of descriptors of type 0x%x. "
             "Wanted %u from layout but "
             "we only have %u free (total in pool: %u)\n",
@@ -356,7 +356,7 @@ static bool isBindingFeasibleForFree(
     const VkDescriptorSetLayoutBinding& binding) {
     if (countInfo.type != binding.descriptorType) return false;
     if (countInfo.used < binding.descriptorCount) {
-        ALOGV(
+        mesa_logi(
             "%s: Was a descriptor set double freed? "
             "Ran out of descriptors of type 0x%x. "
             "Wanted to free %u from layout but "
@@ -386,7 +386,7 @@ static VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInf
     auto setsAvailable = poolInfo->maxSets - poolInfo->usedSets;
 
     if (setsAvailable < pAllocateInfo->descriptorSetCount) {
-        ALOGV(
+        mesa_logi(
             "%s: Error: VkDescriptorSetAllocateInfo wants %u sets "
             "but we only have %u available. "
             "Bailing with VK_ERROR_OUT_OF_POOL_MEMORY.\n",
@@ -401,7 +401,7 @@ static VkResult validateDescriptorSetAllocation(const VkDescriptorSetAllocateInf
 
     for (uint32_t i = 0; i < pAllocateInfo->descriptorSetCount; ++i) {
         if (!pAllocateInfo->pSetLayouts[i]) {
-            ALOGV("%s: Error: Tried to allocate a descriptor set with null set layout.\n",
+            mesa_logi("%s: Error: Tried to allocate a descriptor set with null set layout.\n",
                   __func__);
             return VK_ERROR_INITIALIZATION_FAILED;
         }
@@ -450,7 +450,7 @@ void removeDescriptorSetAllocation(VkDescriptorPool pool,
     auto allocInfo = as_goldfish_VkDescriptorPool(pool)->allocInfo;
 
     if (0 == allocInfo->usedSets) {
-        ALOGV("%s: Warning: a descriptor set was double freed.\n", __func__);
+        mesa_logi("%s: Warning: a descriptor set was double freed.\n", __func__);
         return;
     }
 

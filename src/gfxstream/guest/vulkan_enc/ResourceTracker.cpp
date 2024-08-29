@@ -5688,13 +5688,13 @@ VkResult ResourceTracker::on_vkGetSemaphoreFdKHR(void* context, VkResult, VkDevi
             VkResult result = enc->vkGetSemaphoreGOOGLE(device, pGetFdInfo->semaphore, syncId,
                                                         true /* do lock */);
             if (result != VK_SUCCESS) {
-                ALOGE("unable to get the semaphore");
+                mesa_loge("unable to get the semaphore");
                 return result;
             }
 
             result = acquireSync(syncId, osHandle);
             if (result != VK_SUCCESS) {
-                ALOGE("unable to create host sync object");
+                mesa_loge("unable to create host sync object");
                 return result;
             }
 
