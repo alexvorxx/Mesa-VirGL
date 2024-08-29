@@ -10,6 +10,13 @@ KHR-GL46.sparse_texture2_tests.UncommittedRegionsAccess,Fail
 KHR-GL46.sparse_texture_clamp_tests.SparseTextureClampLookupColor,Fail
 KHR-GL46.sparse_texture_clamp_tests.SparseTextureClampLookupResidency,Fail
 
+KHR-Single-GL46.subgroups.builtin_var.compute.subgroupsize_compute,Fail
+KHR-Single-GL46.subgroups.builtin_var.framebuffer.subgroupsize_geometry,Fail
+KHR-Single-GL46.subgroups.builtin_var.framebuffer.subgroupsize_tess_control,Fail
+KHR-Single-GL46.subgroups.builtin_var.framebuffer.subgroupsize_tess_eval,Fail
+KHR-Single-GL46.subgroups.builtin_var.framebuffer.subgroupsize_vertex,Fail
+KHR-Single-GL46.subgroups.builtin_var.graphics.subgroupsize,Fail
+
 # Regression in the commit range 0549649b..1b8cf06f
 # src/compiler/nir/nir_opt_varyings.c:1255: gather_outputs: Assertion `!nir_src_is_const(offset) || nir_src_as_uint(offset) == 0' failed.
 KHR-GL46.tessellation_shader.tessellation_shader_tessellation.max_in_out_attributes,Crash
