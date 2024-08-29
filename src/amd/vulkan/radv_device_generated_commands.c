@@ -450,6 +450,7 @@ struct dgc_cmdbuf {
    nir_builder *b;
    nir_def *va;
    nir_variable *offset;
+   nir_variable *upload_offset;
 };
 
 static void
@@ -464,6 +465,16 @@ dgc_emit(struct dgc_cmdbuf *cs, unsigned count, nir_def **values)
       nir_build_store_global(b, store_val, nir_iadd(b, cs->va, nir_u2u64(b, offset)), .access = ACCESS_NON_READABLE);
       nir_store_var(b, cs->offset, nir_iadd_imm(b, offset, store_val->num_components * store_val->bit_size / 8), 0x1);
    }
+}
+
+static void
+dgc_upload(struct dgc_cmdbuf *cs, nir_def *data)
+{
+   nir_builder *b = cs->b;
+
+   nir_def *upload_offset = nir_load_var(b, cs->upload_offset);
+   nir_build_store_global(b, data, nir_iadd(b, cs->va, nir_u2u64(b, upload_offset)), .access = ACCESS_NON_READABLE);
+   nir_store_var(b, cs->upload_offset, nir_iadd_imm(b, upload_offset, data->num_components * data->bit_size / 8), 0x1);
 }
 
 #define load_param32(b, field)                                                                                         \
@@ -1255,8 +1266,7 @@ dgc_get_pc_params(struct dgc_cmdbuf *cs)
 }
 
 static void
-dgc_alloc_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, const struct dgc_pc_params *params,
-                        nir_variable *upload_offset)
+dgc_alloc_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, const struct dgc_pc_params *params)
 {
    const struct radv_indirect_command_layout *layout = cs->layout;
    nir_builder *b = cs->b;
@@ -1271,15 +1281,13 @@ dgc_alloc_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, const struc
          data = nir_load_ssbo(b, 1, 32, params->buf, nir_iadd_imm(b, params->const_offset, i * 4));
       }
 
-      nir_def *offset = nir_iadd_imm(b, nir_load_var(b, upload_offset), i * 4);
-
-      nir_build_store_global(b, data, nir_iadd(b, cs->va, nir_u2u64(b, offset)), .access = ACCESS_NON_READABLE);
+      dgc_upload(cs, data);
    }
 }
 
 static void
 dgc_emit_push_constant_for_stage(struct dgc_cmdbuf *cs, nir_def *stream_addr, const struct dgc_pc_params *params,
-                                 gl_shader_stage stage, nir_variable *upload_offset)
+                                 gl_shader_stage stage)
 {
    const struct radv_indirect_command_layout *layout = cs->layout;
    nir_builder *b = cs->b;
@@ -1293,7 +1301,7 @@ dgc_emit_push_constant_for_stage(struct dgc_cmdbuf *cs, nir_def *stream_addr, co
       dgc_cs_begin(cs);
       dgc_cs_emit_imm(PKT3(PKT3_SET_SH_REG, 1, 0));
       dgc_cs_emit(upload_sgpr);
-      dgc_cs_emit(nir_iadd(b, load_param32(b, upload_addr), nir_load_var(b, upload_offset)));
+      dgc_cs_emit(nir_iadd(b, load_param32(b, upload_addr), nir_load_var(b, cs->upload_offset)));
       dgc_cs_end();
    }
    nir_pop_if(b, NULL);
@@ -1336,40 +1344,45 @@ dgc_emit_push_constant_for_stage(struct dgc_cmdbuf *cs, nir_def *stream_addr, co
 }
 
 static void
-dgc_emit_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_variable *upload_offset,
-                       VkShaderStageFlags stages)
+dgc_emit_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, VkShaderStageFlags stages)
 {
    const struct dgc_pc_params params = dgc_get_pc_params(cs);
    nir_builder *b = cs->b;
-
-   nir_def *const_copy = dgc_push_constant_needs_copy(cs, stream_addr);
-   nir_push_if(b, const_copy);
-   {
-      dgc_alloc_push_constant(cs, stream_addr, &params, upload_offset);
-   }
-   nir_pop_if(b, NULL);
 
    nir_def *push_constant_stages = dgc_get_push_constant_stages(cs, stream_addr);
    radv_foreach_stage(s, stages)
    {
       nir_push_if(b, nir_test_mask(b, push_constant_stages, mesa_to_vk_shader_stage(s)));
       {
-         dgc_emit_push_constant_for_stage(cs, stream_addr, &params, s, upload_offset);
+         dgc_emit_push_constant_for_stage(cs, stream_addr, &params, s);
       }
       nir_pop_if(b, NULL);
    }
+
+   nir_def *const_copy = dgc_push_constant_needs_copy(cs, stream_addr);
+   nir_push_if(b, const_copy);
+   {
+      dgc_alloc_push_constant(cs, stream_addr, &params);
+   }
+   nir_pop_if(b, NULL);
 }
 
 /**
  * For emitting VK_INDIRECT_COMMANDS_TOKEN_TYPE_VERTEX_BUFFER_NV.
  */
 static void
-dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo_bind_mask, nir_variable *upload_offset)
+dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo_bind_mask)
 {
    const struct radv_indirect_command_layout *layout = cs->layout;
    const struct radv_device *device = cs->dev;
    const struct radv_physical_device *pdev = radv_device_physical(device);
    nir_builder *b = cs->b;
+
+   dgc_cs_begin(cs);
+   dgc_cs_emit_imm(PKT3(PKT3_SET_SH_REG, 1, 0));
+   dgc_cs_emit(load_param16(b, vbo_reg));
+   dgc_cs_emit(nir_iadd(b, load_param32(b, upload_addr), nir_load_var(b, cs->upload_offset)));
+   dgc_cs_end();
 
    nir_def *vbo_cnt = load_param8(b, vbo_cnt);
    nir_variable *vbo_idx = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "vbo_idx");
@@ -1497,20 +1510,11 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo
       }
       nir_pop_if(b, NULL);
 
-      nir_def *upload_off = nir_iadd(b, nir_load_var(b, upload_offset), vbo_offset);
-      nir_build_store_global(b, nir_load_var(b, vbo_data), nir_iadd(b, cs->va, nir_u2u64(b, upload_off)),
-                             .access = ACCESS_NON_READABLE);
+      dgc_upload(cs, nir_load_var(b, vbo_data));
+
       nir_store_var(b, vbo_idx, nir_iadd_imm(b, nir_load_var(b, vbo_idx), 1), 0x1);
    }
    nir_pop_loop(b, NULL);
-
-   dgc_cs_begin(cs);
-   dgc_cs_emit_imm(PKT3(PKT3_SET_SH_REG, 1, 0));
-   dgc_cs_emit(load_param16(b, vbo_reg));
-   dgc_cs_emit(nir_iadd(b, load_param32(b, upload_addr), nir_load_var(b, upload_offset)));
-   dgc_cs_end();
-
-   nir_store_var(b, upload_offset, nir_iadd(b, nir_load_var(b, upload_offset), nir_imul_imm(b, vbo_cnt, 16)), 0x1);
 }
 
 /**
@@ -1903,6 +1907,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
          .dev = dev,
          .va = nir_pack_64_2x32_split(&b, load_param32(&b, upload_addr), nir_imm_int(&b, pdev->info.address32_hi)),
          .offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "cmd_buf_offset"),
+         .upload_offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "upload_offset"),
          .layout = layout,
       };
       nir_store_var(&b, cmd_buf.offset, nir_iadd(&b, nir_imul(&b, global_id, cmd_buf_stride), cmd_buf_base_offset), 1);
@@ -1911,16 +1916,14 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
       nir_def *stream_addr = load_param64(&b, stream_addr);
       stream_addr = nir_iadd(&b, stream_addr, nir_u2u64(&b, nir_imul_imm(&b, sequence_id, layout->input_stride)));
 
-      nir_variable *upload_offset =
-         nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "upload_offset");
       nir_def *upload_offset_init =
          nir_iadd(&b, load_param32(&b, upload_main_offset), nir_imul(&b, load_param32(&b, upload_stride), sequence_id));
-      nir_store_var(&b, upload_offset, upload_offset_init, 0x1);
+      nir_store_var(&b, cmd_buf.upload_offset, upload_offset_init, 0x1);
 
       nir_def *vbo_bind_mask = load_param32(&b, vbo_bind_mask);
       nir_push_if(&b, nir_ine_imm(&b, vbo_bind_mask, 0));
       {
-         dgc_emit_vertex_buffer(&cmd_buf, stream_addr, vbo_bind_mask, upload_offset);
+         dgc_emit_vertex_buffer(&cmd_buf, stream_addr, vbo_bind_mask);
       }
       nir_pop_if(&b, NULL);
 
@@ -1928,7 +1931,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
          const VkShaderStageFlags stages =
             VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_MESH_BIT_EXT;
 
-         dgc_emit_push_constant(&cmd_buf, stream_addr, upload_offset, stages);
+         dgc_emit_push_constant(&cmd_buf, stream_addr, stages);
       }
 
       if (layout->pipeline_bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS) {
@@ -1985,6 +1988,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
             .dev = dev,
             .va = nir_pack_64_2x32_split(&b, load_param32(&b, upload_addr), nir_imm_int(&b, pdev->info.address32_hi)),
             .offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "cmd_buf_offset"),
+            .upload_offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "upload_offset"),
             .layout = layout,
          };
          nir_store_var(&b, cmd_buf.offset,
@@ -1994,11 +1998,9 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
          nir_def *stream_addr = load_param64(&b, stream_addr);
          stream_addr = nir_iadd(&b, stream_addr, nir_u2u64(&b, nir_imul_imm(&b, sequence_id, layout->input_stride)));
 
-         nir_variable *upload_offset =
-            nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "upload_offset");
          nir_def *upload_offset_init = nir_iadd(&b, load_param32(&b, upload_main_offset),
                                                 nir_imul(&b, load_param32(&b, upload_stride), sequence_id));
-         nir_store_var(&b, upload_offset, upload_offset_init, 0x1);
+         nir_store_var(&b, cmd_buf.upload_offset, upload_offset_init, 0x1);
 
          if (layout->push_constant_mask) {
             nir_def *push_constant_stages = dgc_get_push_constant_stages(&cmd_buf, stream_addr);
@@ -2006,7 +2008,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
             nir_push_if(&b, nir_test_mask(&b, push_constant_stages, VK_SHADER_STAGE_TASK_BIT_EXT));
             {
                const struct dgc_pc_params params = dgc_get_pc_params(&cmd_buf);
-               dgc_emit_push_constant_for_stage(&cmd_buf, stream_addr, &params, MESA_SHADER_TASK, upload_offset);
+               dgc_emit_push_constant_for_stage(&cmd_buf, stream_addr, &params, MESA_SHADER_TASK);
             }
             nir_pop_if(&b, NULL);
          }
