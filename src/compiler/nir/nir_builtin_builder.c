@@ -199,11 +199,13 @@ nir_atan(nir_builder *b, nir_def *y_over_x)
       res = nir_ffma_imm2(b, res, x_2, coeffs[i]);
    }
 
-   nir_def *tmp = nir_fmul(b, nir_fabs(b, u), res);
+   /* range-reduction fixup value */
+   nir_def *bias = nir_bcsel(b, nir_flt(b, one, abs_y_over_x),
+                             nir_imm_floatN_t(b, -M_PI_2, bit_size),
+                             nir_imm_floatN_t(b, 0, bit_size));
 
-   /* range-reduction fixup */
-   tmp = nir_bcsel(b, nir_flt(b, one, abs_y_over_x),
-                   nir_fadd_imm(b, tmp, -M_PI_2), tmp);
+   /* multiply through by x while fixing up the range reduction */
+   nir_def *tmp = nir_ffma(b, nir_fabs(b, u), res, bias);
 
    /* sign fixup */
    nir_def *result = nir_copysign(b, tmp, y_over_x);
