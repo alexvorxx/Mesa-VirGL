@@ -574,6 +574,76 @@ anv_sparse_trtt_garbage_collect_batches(struct anv_device *device,
    return VK_SUCCESS;
 }
 
+/* On success, this function initializes 'submit' and submits it, but doesn't
+ * wait or free it. This allows the caller to submit multiple queues at the
+ * same time before starting to wait for anything to complete.
+ * If the function fails, the caller doesn't need to wait or fini anything,
+ * just whatever other submissions may have succeeded in the past.
+ */
+static VkResult
+anv_trtt_first_bind_init_queue(struct anv_queue *queue,
+                               struct anv_async_submit *submit,
+                               bool init_l3_table, struct anv_bo *l3_bo)
+{
+   struct anv_device *device = queue->device;
+   struct anv_trtt *trtt = &device->trtt;
+   VkResult result;
+
+   result = anv_async_submit_init(submit, queue, &device->batch_bo_pool,
+                                  false, true);
+   if (result != VK_SUCCESS)
+      return result;
+
+   result = anv_genX(device->info, init_trtt_context_state)(submit);
+   if (result != VK_SUCCESS)
+      goto out_submit_fini;
+
+   /* We only need to do this once, so pick the first queue. */
+   if (init_l3_table) {
+      struct anv_trtt_bind l3l2_binds_data[512];
+      struct util_dynarray l3l2_binds;
+      util_dynarray_init_from_stack(&l3l2_binds, l3l2_binds_data,
+                                    sizeof(l3l2_binds_data));
+
+      for (int entry = 0; entry < 512; entry++) {
+         trtt->l3_mirror[entry] = ANV_TRTT_L3L2_NULL_ENTRY;
+         anv_trtt_bind_list_add_entry(&l3l2_binds,
+                                      trtt->l3_addr +
+                                      entry * sizeof(uint64_t),
+                                      ANV_TRTT_L3L2_NULL_ENTRY);
+      }
+
+      anv_genX(device->info, write_trtt_entries)(
+         submit, l3l2_binds.data,
+         util_dynarray_num_elements(&l3l2_binds, struct anv_trtt_bind),
+         NULL, 0);
+
+      result = anv_reloc_list_add_bo(&submit->relocs, l3_bo);
+      if (result != VK_SUCCESS)
+         goto out_submit_fini;
+   }
+
+   anv_genX(device->info, async_submit_end)(submit);
+
+   result = device->kmd_backend->queue_exec_async(submit, 0, NULL, 1,
+                                                  &submit->signal);
+   if (result != VK_SUCCESS)
+      goto out_submit_fini;
+
+   /* If we succeed, it's our caller that's going to call
+    * anv_async_submit_fini(). We do this so we can start waiting for the
+    * submissions only after all the submissions are submitted.
+    */
+   return VK_SUCCESS;
+
+out_submit_fini:
+   /* If we fail, undo everything this function has done so the caller has
+    * nothing to free.
+    */
+   anv_async_submit_fini(submit);
+   return result;
+}
+
 /* There are lots of applications that request for sparse binding to be
  * enabled but never use it, so we choose to delay the initialization of TR-TT
  * until the moment we know we're going to need it.
@@ -645,64 +715,16 @@ anv_trtt_first_bind_init(struct anv_device *device)
       goto out;
    }
 
-   int submits_used = 0;
-   for (uint32_t i = 0; i < device->queue_count; i++) {
-      struct anv_queue *q = &device->queues[i];
-
-      result = anv_async_submit_init(&submits[submits_used], q,
-                                     &device->batch_bo_pool, false, true);
+   int n_submits;
+   for (n_submits = 0; n_submits < device->queue_count; n_submits++) {
+      result = anv_trtt_first_bind_init_queue(&device->queues[n_submits],
+                                              &submits[n_submits],
+                                              n_submits == 0, l3_bo);
       if (result != VK_SUCCESS)
          break;
-
-      struct anv_async_submit *submit = &submits[submits_used++];
-
-      result = anv_genX(device->info, init_trtt_context_state)(submit);
-      if (result != VK_SUCCESS) {
-         anv_async_submit_fini(submit);
-         submits_used--;
-         break;
-      }
-
-      /* We only need to do this once, so pick the first queue. */
-      if (i == 0) {
-         struct anv_trtt_bind l3l2_binds_data[512];
-         struct util_dynarray l3l2_binds;
-         util_dynarray_init_from_stack(&l3l2_binds, l3l2_binds_data,
-                                       sizeof(l3l2_binds_data));
-
-         for (int entry = 0; entry < 512; entry++) {
-            trtt->l3_mirror[entry] = ANV_TRTT_L3L2_NULL_ENTRY;
-            anv_trtt_bind_list_add_entry(&l3l2_binds,
-                                         trtt->l3_addr +
-                                         entry * sizeof(uint64_t),
-                                         ANV_TRTT_L3L2_NULL_ENTRY);
-         }
-
-         anv_genX(device->info, write_trtt_entries)(
-            submit, l3l2_binds.data,
-            util_dynarray_num_elements(&l3l2_binds, struct anv_trtt_bind),
-            NULL, 0);
-
-         result = anv_reloc_list_add_bo(&submit->relocs, l3_bo);
-         if (result != VK_SUCCESS) {
-            anv_async_submit_fini(submit);
-            submits_used--;
-            break;
-         }
-      }
-
-      anv_genX(device->info, async_submit_end)(submit);
-
-      result = device->kmd_backend->queue_exec_async(submit, 0, NULL, 1,
-                                                     &submit->signal);
-      if (result != VK_SUCCESS) {
-         anv_async_submit_fini(submit);
-         submits_used--;
-         break;
-      }
    }
 
-   for (uint32_t i = 0; i < submits_used; i++) {
+   for (uint32_t i = 0; i < n_submits; i++) {
       anv_async_submit_wait(&submits[i]);
       anv_async_submit_fini(&submits[i]);
    }
