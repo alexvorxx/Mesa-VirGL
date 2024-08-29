@@ -1752,7 +1752,7 @@ dgc_emit_indirect_sets(struct dgc_cmdbuf *cs, nir_def *pipeline_va)
 }
 
 static void
-dgc_emit_bind_pipeline(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_variable *upload_offset)
+dgc_emit_bind_pipeline(struct dgc_cmdbuf *cs, nir_def *stream_addr)
 {
    const struct radv_device *device = cs->dev;
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -1783,8 +1783,6 @@ dgc_emit_bind_pipeline(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_variable
    dgc_cs_end();
 
    dgc_emit_indirect_sets(cs, pipeline_va);
-
-   nir_store_var(b, upload_offset, nir_iadd_imm(b, nir_load_var(b, upload_offset), MAX_SETS * 4), 0x1);
 }
 
 static nir_def *
@@ -1960,7 +1958,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
          }
       } else {
          if (layout->bind_pipeline) {
-            dgc_emit_bind_pipeline(&cmd_buf, stream_addr, upload_offset);
+            dgc_emit_bind_pipeline(&cmd_buf, stream_addr);
          }
 
          dgc_emit_dispatch(&cmd_buf, stream_addr, sequence_id);
