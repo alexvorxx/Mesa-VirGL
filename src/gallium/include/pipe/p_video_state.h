@@ -136,6 +136,7 @@ enum pipe_h264_nal_unit_type
    PIPE_H264_NAL_SPS = 7,
    PIPE_H264_NAL_PPS = 8,
    PIPE_H264_NAL_AUD = 9,
+   PIPE_H264_NAL_PREFIX = 14,
 };
 
 enum pipe_h264_slice_type

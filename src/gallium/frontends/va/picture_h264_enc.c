@@ -716,6 +716,19 @@ static void parseEncPpsParamsH264(vlVaContext *context, struct vl_rbsp *rbsp)
    }
 }
 
+static void parseEncPrefixH264(vlVaContext *context, struct vl_rbsp *rbsp)
+{
+   if (!vl_rbsp_u(rbsp, 1)) /* svc_extension_flag */
+      return;
+
+   vl_rbsp_u(rbsp, 1); /* idr_flag */
+   vl_rbsp_u(rbsp, 6); /* priority_id */
+   vl_rbsp_u(rbsp, 1); /* no_inter_layer_pred_flag */
+   vl_rbsp_u(rbsp, 3); /* dependency_id */
+   vl_rbsp_u(rbsp, 4); /* quality_id */
+   context->desc.h264enc.pic_ctrl.temporal_id = vl_rbsp_u(rbsp, 3);
+}
+
 VAStatus
 vlVaHandleVAEncPackedHeaderDataBufferTypeH264(vlVaContext *context, vlVaBuffer *buf)
 {
@@ -773,6 +786,9 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeH264(vlVaContext *context, vlVaBuffer *
          break;
       case PIPE_H264_NAL_PPS:
          parseEncPpsParamsH264(context, &rbsp);
+         break;
+      case PIPE_H264_NAL_PREFIX:
+         parseEncPrefixH264(context, &rbsp);
          break;
       default:
          break;
