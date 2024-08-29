@@ -3255,16 +3255,17 @@ register_allocation(Program* program, ra_test_policy policy)
                PhysReg reg = get_reg(ctx, tmp_file, tmp, parallelcopy, instr);
                update_renames(ctx, register_file, parallelcopy, instr, rename_not_killed_ops);
 
-               Instruction* mov = create_instruction(aco_opcode::s_mov_b32, Format::SOP1, 1, 1);
-               mov->operands[0] = instr->operands[0];
-               mov->definitions[0] = Definition(tmp);
-               mov->definitions[0].setFixed(reg);
+               Instruction* copy =
+                  create_instruction(aco_opcode::p_parallelcopy, Format::PSEUDO, 1, 1);
+               copy->operands[0] = Operand::c32(instr->operands[0].constantValue());
+               copy->definitions[0] = Definition(tmp);
+               copy->definitions[0].setFixed(reg);
 
                instr->operands[0] = Operand(tmp);
                instr->operands[0].setFixed(reg);
                instr->operands[0].setFirstKill(true);
 
-               instructions.emplace_back(mov);
+               instructions.emplace_back(copy);
             }
 
             /* change the instruction to VOP3 to enable an arbitrary register pair as dst */
