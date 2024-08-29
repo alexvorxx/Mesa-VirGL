@@ -8,6 +8,8 @@
 # .gitlab-ci/image-tags.yml tags:
 # KERNEL_ROOTFS_TAG
 
+set -uex
+
 SKQP_BRANCH=android-cts-12.1_r5
 
 # hack for skqp see the clang
@@ -37,8 +39,6 @@ download_skia_source() {
 
     git clone --branch "${SKQP_BRANCH}" --depth 1 "${SKQP_REPO}" "${SKIA_DIR}"
 }
-
-set -ex
 
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
 SKQP_PATCH_DIR="${SCRIPT_DIR}/patches"
