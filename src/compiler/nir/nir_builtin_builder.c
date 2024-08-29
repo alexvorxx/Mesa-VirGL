@@ -273,7 +273,8 @@ nir_atan2(nir_builder *b, nir_def *y, nir_def *x)
    nir_def *scale = nir_bcsel(b, nir_fge_imm(b, nir_fabs(b, t), huge_val),
                               nir_imm_floatN_t(b, 0.25, bit_size), one);
    nir_def *rcp_scaled_t = nir_frcp(b, nir_fmul(b, t, scale));
-   nir_def *s_over_t = nir_fmul(b, nir_fmul(b, s, scale), rcp_scaled_t);
+   nir_def *abs_s_over_t = nir_fmul(b, nir_fabs(b, nir_fmul(b, s, scale)),
+                                    nir_fabs(b, rcp_scaled_t));
 
    /* For |x| = |y| assume tan = 1 even if infinite (i.e. pretend momentarily
     * that ∞/∞ = 1) in order to comply with the rather artificial rules
@@ -293,7 +294,7 @@ nir_atan2(nir_builder *b, nir_def *y, nir_def *x)
     * well).
     */
    nir_def *tan = nir_bcsel(b, nir_feq(b, nir_fabs(b, x), nir_fabs(b, y)),
-                            one, nir_fabs(b, s_over_t));
+                            one, abs_s_over_t);
 
    /* Calculate the arctangent and fix up the result if we had flipped the
     * coordinate system.
