@@ -2919,27 +2919,28 @@ radv_pipeline_init_vertex_input_state(const struct radv_device *device, struct r
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const struct radv_shader_info *vs_info = &radv_get_shader(pipeline->base.shaders, MESA_SHADER_VERTEX)->info;
 
-   if (state->vi) {
-      u_foreach_bit (i, state->vi->attributes_valid) {
-         uint32_t binding = state->vi->attributes[i].binding;
-         uint32_t offset = state->vi->attributes[i].offset;
-         VkFormat format = state->vi->attributes[i].format;
+   if (!state->vi)
+      return;
 
-         pipeline->attrib_ends[i] = offset + vk_format_get_blocksize(format);
-         pipeline->attrib_bindings[i] = binding;
+   u_foreach_bit (i, state->vi->attributes_valid) {
+      uint32_t binding = state->vi->attributes[i].binding;
+      uint32_t offset = state->vi->attributes[i].offset;
+      VkFormat format = state->vi->attributes[i].format;
 
-         if (state->vi->bindings[binding].stride) {
-            pipeline->attrib_index_offset[i] = offset / state->vi->bindings[binding].stride;
-         }
-      }
+      pipeline->attrib_ends[i] = offset + vk_format_get_blocksize(format);
+      pipeline->attrib_bindings[i] = binding;
 
-      u_foreach_bit (i, state->vi->bindings_valid) {
-         pipeline->binding_stride[i] = state->vi->bindings[i].stride;
+      if (state->vi->bindings[binding].stride) {
+         pipeline->attrib_index_offset[i] = offset / state->vi->bindings[binding].stride;
       }
    }
 
+   u_foreach_bit (i, state->vi->bindings_valid) {
+      pipeline->binding_stride[i] = state->vi->bindings[i].stride;
+   }
+
    /* Prepare the VS input state for prologs created inside a library. */
-   if (vs_info->vs.has_prolog && !(pipeline->dynamic_states & RADV_DYNAMIC_VERTEX_INPUT)) {
+   if (vs_info->vs.has_prolog) {
       const enum amd_gfx_level gfx_level = pdev->info.gfx_level;
       const enum radeon_family family = pdev->info.family;
       const struct ac_vtx_format_info *vtx_info_table = ac_get_vtx_format_info_table(gfx_level, family);
