@@ -4,7 +4,7 @@
 # .gitlab-ci/image-tags.yml tags:
 # KERNEL_ROOTFS_TAG
 
-set -ex
+set -uex
 
 ANGLE_REV="1409a05a81e3ccb279142433a2b987bc330f555b"
 
