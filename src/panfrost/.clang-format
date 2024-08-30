@@ -6,4 +6,9 @@ AlignConsecutiveBitFields: true
 ColumnLimit: 80
 BreakStringLiterals: false
 SpaceBeforeParens: ControlStatementsExceptControlMacros
-ForEachMacros: ['cs_while']
+ForEachMacros: [
+  'cs_case',
+  'cs_default',
+  'cs_match',
+  'cs_while',
+]

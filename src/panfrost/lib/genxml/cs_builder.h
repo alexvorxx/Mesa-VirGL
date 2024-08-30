@@ -1216,3 +1216,89 @@ cs_trace_point(struct cs_builder *b, struct cs_index regs,
       cs_apply_async(I, async);
    }
 }
+
+struct cs_match {
+   struct cs_block block;
+   struct cs_label break_label;
+   struct cs_label next_case_label;
+   struct cs_index val;
+   struct cs_index scratch_reg;
+   bool default_emitted;
+};
+
+static inline struct cs_match *
+cs_match_start(struct cs_builder *b, struct cs_match *match,
+               struct cs_index val, struct cs_index scratch_reg)
+{
+   *match = (struct cs_match){
+      .val = val,
+      .scratch_reg = scratch_reg,
+   };
+
+   cs_block_start(b, &match->block);
+   cs_label_init(&match->break_label);
+   cs_label_init(&match->next_case_label);
+
+   return match;
+}
+
+static inline void
+cs_match_case(struct cs_builder *b, struct cs_match *match, uint32_t id)
+{
+   assert(b->blocks.cur && b->blocks.cur == &match->block);
+   assert(!match->default_emitted || !"default case must be last");
+   if (match->next_case_label.last_forward_ref != CS_LABEL_INVALID_POS) {
+      cs_branch_label(b, &match->break_label, MALI_CS_CONDITION_ALWAYS,
+                      cs_undef());
+      cs_set_label(b, &match->next_case_label);
+      cs_label_init(&match->next_case_label);
+   }
+
+   if (id)
+      cs_add32(b, match->scratch_reg, match->val, -id);
+
+   cs_branch_label(b, &match->next_case_label, MALI_CS_CONDITION_NEQUAL,
+                   id ? match->scratch_reg : match->val);
+}
+
+static inline void
+cs_match_default(struct cs_builder *b, struct cs_match *match)
+{
+   assert(b->blocks.cur && b->blocks.cur == &match->block);
+   assert(match->next_case_label.last_forward_ref != CS_LABEL_INVALID_POS ||
+          !"default case requires at least one other case");
+   cs_branch_label(b, &match->break_label, MALI_CS_CONDITION_ALWAYS,
+                   cs_undef());
+   cs_set_label(b, &match->next_case_label);
+   cs_label_init(&match->next_case_label);
+   match->default_emitted = true;
+}
+
+static inline void
+cs_match_end(struct cs_builder *b, struct cs_match *match)
+{
+   assert(b->blocks.cur && b->blocks.cur == &match->block);
+
+   cs_set_label(b, &match->next_case_label);
+   cs_set_label(b, &match->break_label);
+   cs_block_end(b);
+}
+
+#define cs_match(__b, __val, __scratch)                                        \
+   for (struct cs_match __match_storage,                                       \
+        *__match = cs_match_start(__b, &__match_storage, __val, __scratch);    \
+        __match != NULL; cs_match_end(__b, &__match_storage), __match = NULL)
+
+#define cs_case(__b, __ref)                                                    \
+   for (bool __case_defined = ({                                               \
+           cs_match_case(__b, __match, __ref);                                 \
+           false;                                                              \
+        });                                                                    \
+        !__case_defined; __case_defined = true)
+
+#define cs_default(__b)                                                        \
+   for (bool __default_defined = ({                                            \
+           cs_match_default(__b, __match);                                     \
+           false;                                                              \
+        });                                                                    \
+        !__default_defined; __default_defined = true)
