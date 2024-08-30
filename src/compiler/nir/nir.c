@@ -2198,7 +2198,7 @@ bool
 nir_shader_supports_implicit_lod(nir_shader *shader)
 {
    return (shader->info.stage == MESA_SHADER_FRAGMENT ||
-           (shader->info.stage == MESA_SHADER_COMPUTE &&
+           (gl_shader_stage_uses_workgroup(shader->info.stage) &&
             shader->info.derivative_group != DERIVATIVE_GROUP_NONE));
 }
 
