@@ -702,15 +702,13 @@ SetBufferCollectionBufferConstraintsResult setBufferCollectionBufferConstraintsI
 }
 #endif
 
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
 uint64_t ResourceTracker::getAHardwareBufferId(AHardwareBuffer* ahw) {
     uint64_t id = 0;
-#if defined(ANDROID)
     mGralloc->getId(ahw, &id);
-#else
-    (void)ahw;
-#endif
     return id;
 }
+#endif
 
 void transformExternalResourceMemoryDedicatedRequirementsForGuest(
     VkMemoryDedicatedRequirements* dedicatedReqs) {
@@ -1343,9 +1341,8 @@ void ResourceTracker::setDeviceInfo(VkDevice device, VkPhysicalDevice physdev,
 
 void ResourceTracker::setDeviceMemoryInfo(VkDevice device, VkDeviceMemory memory,
                                           VkDeviceSize allocationSize, uint8_t* ptr,
-                                          uint32_t memoryTypeIndex, AHardwareBuffer* ahw,
-                                          bool imported, zx_handle_t vmoHandle,
-                                          VirtGpuResourcePtr blobPtr) {
+                                          uint32_t memoryTypeIndex, void* ahw, bool imported,
+                                          zx_handle_t vmoHandle, VirtGpuResourcePtr blobPtr) {
     std::lock_guard<std::recursive_mutex> lock(mLock);
     auto& info = info_VkDeviceMemory[memory];
 
@@ -1354,7 +1351,7 @@ void ResourceTracker::setDeviceMemoryInfo(VkDevice device, VkDeviceMemory memory
     info.ptr = ptr;
     info.memoryTypeIndex = memoryTypeIndex;
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-    info.ahw = ahw;
+    info.ahw = (AHardwareBuffer*)ahw;
 #endif
     info.imported = imported;
     info.vmoHandle = vmoHandle;
@@ -3236,21 +3233,6 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         return result;                                                                         \
     }
 
-#define _RETURN_SCUCCESS_WITH_DEVICE_MEMORY_REPORT                                         \
-    {                                                                                      \
-        uint64_t memoryObjectId = (uint64_t)(void*)*pMemory;                               \
-        if (ahw) {                                                                         \
-            memoryObjectId = getAHardwareBufferId(ahw);                                    \
-        }                                                                                  \
-        emitDeviceMemoryReport(info_VkDevice[device],                                      \
-                               isImport ? VK_DEVICE_MEMORY_REPORT_EVENT_TYPE_IMPORT_EXT    \
-                                        : VK_DEVICE_MEMORY_REPORT_EVENT_TYPE_ALLOCATE_EXT, \
-                               memoryObjectId, pAllocateInfo->allocationSize,              \
-                               VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)(void*)*pMemory,    \
-                               pAllocateInfo->memoryTypeIndex);                            \
-        return VK_SUCCESS;                                                                 \
-    }
-
     if (input_result != VK_SUCCESS) _RETURN_FAILURE_WITH_DEVICE_MEMORY_REPORT(input_result);
 
     VkEncoder* enc = (VkEncoder*)context;
@@ -3301,8 +3283,19 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
     const VkImportAndroidHardwareBufferInfoANDROID* importAhbInfoPtr =
         vk_find_struct<VkImportAndroidHardwareBufferInfoANDROID>(pAllocateInfo);
+    // Even if we export allocate, the underlying operation
+    // for the host is always going to be an import operation.
+    // This is also how Intel's implementation works,
+    // and is generally simpler;
+    // even in an export allocation,
+    // we perform AHardwareBuffer allocation
+    // on the guest side, at this layer,
+    // and then we attach a new VkDeviceMemory
+    // to the AHardwareBuffer on the host via an "import" operation.
+    AHardwareBuffer* ahw = nullptr;
 #else
     const void* importAhbInfoPtr = nullptr;
+    void* ahw = nullptr;
 #endif
 
 #if defined(__linux__) && !defined(VK_USE_PLATFORM_ANDROID_KHR)
@@ -3365,17 +3358,6 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
     bool importVmo = false;
     bool importDmabuf = false;
     (void)exportVmo;
-
-    // Even if we export allocate, the underlying operation
-    // for the host is always going to be an import operation.
-    // This is also how Intel's implementation works,
-    // and is generally simpler;
-    // even in an export allocation,
-    // we perform AHardwareBuffer allocation
-    // on the guest side, at this layer,
-    // and then we attach a new VkDeviceMemory
-    // to the AHardwareBuffer on the host via an "import" operation.
-    AHardwareBuffer* ahw = nullptr;
 
     if (exportAllocateInfoPtr) {
         exportAhb = exportAllocateInfoPtr->handleTypes &
@@ -3975,7 +3957,19 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         setDeviceMemoryInfo(device, *pMemory, 0, nullptr, finalAllocInfo.memoryTypeIndex, ahw,
                             isImport, vmo_handle, bufferBlob);
 
-        _RETURN_SCUCCESS_WITH_DEVICE_MEMORY_REPORT;
+        uint64_t memoryObjectId = (uint64_t)(void*)*pMemory;
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
+        if (ahw) {
+            memoryObjectId = getAHardwareBufferId(ahw);
+        }
+#endif
+        emitDeviceMemoryReport(info_VkDevice[device],
+                               isImport ? VK_DEVICE_MEMORY_REPORT_EVENT_TYPE_IMPORT_EXT
+                                        : VK_DEVICE_MEMORY_REPORT_EVENT_TYPE_ALLOCATE_EXT,
+                               memoryObjectId, pAllocateInfo->allocationSize,
+                               VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)(void*)*pMemory,
+                               pAllocateInfo->memoryTypeIndex);
+        return VK_SUCCESS;
     }
 
 #ifdef VK_USE_PLATFORM_FUCHSIA
@@ -4017,7 +4011,21 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
     VkResult result = getCoherentMemory(&finalAllocInfo, enc, device, pMemory);
     if (result != VK_SUCCESS) return result;
 
-    _RETURN_SCUCCESS_WITH_DEVICE_MEMORY_REPORT;
+    uint64_t memoryObjectId = (uint64_t)(void*)*pMemory;
+
+#ifdef VK_USE_PLATFORM_ANDROID_KHR
+    if (ahw) {
+        memoryObjectId = getAHardwareBufferId(ahw);
+    }
+#endif
+
+    emitDeviceMemoryReport(info_VkDevice[device],
+                           isImport ? VK_DEVICE_MEMORY_REPORT_EVENT_TYPE_IMPORT_EXT
+                                    : VK_DEVICE_MEMORY_REPORT_EVENT_TYPE_ALLOCATE_EXT,
+                           memoryObjectId, pAllocateInfo->allocationSize,
+                           VK_OBJECT_TYPE_DEVICE_MEMORY, (uint64_t)(void*)*pMemory,
+                           pAllocateInfo->memoryTypeIndex);
+    return VK_SUCCESS;
 }
 
 void ResourceTracker::on_vkFreeMemory(void* context, VkDevice device, VkDeviceMemory memory,
