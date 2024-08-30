@@ -408,13 +408,12 @@ struct radv_dgc_params {
    uint16_t mesh_ring_entry_sgpr;
    uint8_t linear_dispatch_en;
    uint16_t task_ring_entry_sgpr;
-   uint32_t dispatch_initiator_task;
    uint16_t task_xyz_sgpr;
    uint16_t task_draw_id_sgpr;
 
    /* dispatch info */
-   uint32_t dispatch_initiator;
    uint16_t grid_base_sgpr;
+   uint8_t wave32;
 
    uint8_t vbo_cnt;
 
@@ -1519,17 +1518,21 @@ static nir_def *
 dgc_get_dispatch_initiator(struct dgc_cmdbuf *cs, nir_def *stream_addr)
 {
    const struct radv_indirect_command_layout *layout = cs->layout;
+   const struct radv_device *device = cs->dev;
    nir_builder *b = cs->b;
+   nir_def *is_wave32;
 
    if (layout->bind_pipeline) {
       nir_def *pipeline_va = dgc_get_pipeline_va(cs, stream_addr);
 
-      nir_def *dispatch_initiator = load_param32(b, dispatch_initiator);
-      nir_def *wave32 = nir_ieq_imm(b, load_metadata32(b, wave32), 1);
-      return nir_bcsel(b, wave32, nir_ior_imm(b, dispatch_initiator, S_00B800_CS_W32_EN(1)), dispatch_initiator);
+      is_wave32 = nir_ieq_imm(b, load_metadata32(b, wave32), 1);
    } else {
-      return load_param32(b, dispatch_initiator);
+      is_wave32 = nir_ieq_imm(b, load_param8(b, wave32), 1);
    }
+
+   const uint32_t dispatch_initiator = device->dispatch_initiator | S_00B800_FORCE_START_AT_000(1);
+   return nir_bcsel(b, is_wave32, nir_imm_int(b, dispatch_initiator | S_00B800_CS_W32_EN(1)),
+                    nir_imm_int(b, dispatch_initiator));
 }
 
 static void
@@ -1683,14 +1686,21 @@ dgc_emit_userdata_task(struct dgc_cmdbuf *ace_cs, nir_def *x, nir_def *y, nir_de
 static void
 dgc_emit_dispatch_taskmesh_direct_ace(struct dgc_cmdbuf *ace_cs, nir_def *x, nir_def *y, nir_def *z)
 {
+   const struct radv_device *device = ace_cs->dev;
    nir_builder *b = ace_cs->b;
+
+   const uint32_t dispatch_initiator_task = device->dispatch_initiator_task;
+   nir_def *is_wave32 = nir_ieq_imm(b, load_param8(b, wave32), 1);
+   nir_def *dispatch_initiator =
+      nir_bcsel(b, is_wave32, nir_imm_int(b, dispatch_initiator_task | S_00B800_CS_W32_EN(1)),
+                nir_imm_int(b, dispatch_initiator_task));
 
    dgc_cs_begin(ace_cs);
    dgc_cs_emit_imm(PKT3(PKT3_DISPATCH_TASKMESH_DIRECT_ACE, 4, 0) | PKT3_SHADER_TYPE_S(1));
    dgc_cs_emit(x);
    dgc_cs_emit(y);
    dgc_cs_emit(z);
-   dgc_cs_emit(load_param32(b, dispatch_initiator_task));
+   dgc_cs_emit(dispatch_initiator);
    dgc_cs_emit(load_param16(b, task_ring_entry_sgpr));
    dgc_cs_end();
 }
@@ -2293,7 +2303,6 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
 {
    VK_FROM_HANDLE(radv_indirect_command_layout, layout, pGeneratedCommandsInfo->indirectCommandsLayout);
    VK_FROM_HANDLE(radv_pipeline, pipeline, pGeneratedCommandsInfo->pipeline);
-   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    struct radv_graphics_pipeline *graphics_pipeline = radv_pipeline_to_graphics(pipeline);
    struct radv_shader *vs = radv_get_shader(graphics_pipeline->base.shaders, MESA_SHADER_VERTEX);
    unsigned vb_size = layout->bind_vbo_mask ? util_bitcount(vs->info.vs.vb_desc_usage_mask) * DGC_VBO_SIZE : 0;
@@ -2323,10 +2332,9 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
       if (task_shader) {
          params->has_task_shader = 1;
          params->mesh_ring_entry_sgpr = radv_get_user_sgpr(mesh_shader, AC_UD_TASK_RING_ENTRY);
+         params->wave32 = task_shader->info.wave_size == 32;
          params->linear_dispatch_en = task_shader->info.cs.linear_taskmesh_dispatch;
          params->task_ring_entry_sgpr = radv_get_user_sgpr(task_shader, AC_UD_TASK_RING_ENTRY);
-         params->dispatch_initiator_task =
-            device->dispatch_initiator_task | S_00B800_CS_W32_EN(task_shader->info.wave_size == 32);
          params->task_xyz_sgpr = radv_get_user_sgpr(task_shader, AC_UD_CS_GRID_SIZE);
          params->task_draw_id_sgpr = radv_get_user_sgpr(task_shader, AC_UD_CS_TASK_DRAW_ID);
       }
@@ -2377,8 +2385,6 @@ radv_prepare_dgc_compute(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCo
                          struct radv_dgc_params *params, bool cond_render_enabled)
 {
    VK_FROM_HANDLE(radv_pipeline, pipeline, pGeneratedCommandsInfo->pipeline);
-   struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
-   const struct radv_physical_device *pdev = radv_device_physical(device);
    const uint32_t desc_size = pipeline ? 0 : MAX_SETS * 4;
 
    *upload_size = MAX2(*upload_size + desc_size, 16);
@@ -2387,8 +2393,6 @@ radv_prepare_dgc_compute(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCo
       vk_command_buffer_set_error(&cmd_buffer->vk, VK_ERROR_OUT_OF_HOST_MEMORY);
       return;
    }
-
-   params->dispatch_initiator = device->dispatch_initiator | S_00B800_FORCE_START_AT_000(1);
 
    if (cond_render_enabled) {
       params->predicating = true;
@@ -2400,11 +2404,7 @@ radv_prepare_dgc_compute(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCo
       struct radv_compute_pipeline *compute_pipeline = radv_pipeline_to_compute(pipeline);
       struct radv_shader *cs = radv_get_shader(compute_pipeline->base.shaders, MESA_SHADER_COMPUTE);
 
-      if (cs->info.wave_size == 32) {
-         assert(pdev->info.gfx_level >= GFX10);
-         params->dispatch_initiator |= S_00B800_CS_W32_EN(1);
-      }
-
+      params->wave32 = cs->info.wave_size == 32;
       params->grid_base_sgpr = radv_get_user_sgpr(cs, AC_UD_CS_GRID_SIZE);
    } else {
       struct radv_descriptor_state *descriptors_state =
