@@ -764,9 +764,9 @@ debian-s390x:
   variables:
     BUILDTYPE: debug
     CROSS: s390x
-    GALLIUM_DRIVERS: "llvmpipe,zink"
+    GALLIUM_DRIVERS: "llvmpipe,virgl,zink"
     LLVM_VERSION: 15
-    VULKAN_DRIVERS: "swrast"
+    VULKAN_DRIVERS: "swrast,virtio"
     DRI_LOADERS:
       -D glvnd=disabled
 
