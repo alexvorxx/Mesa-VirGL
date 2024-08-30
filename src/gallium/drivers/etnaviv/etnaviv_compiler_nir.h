@@ -296,7 +296,9 @@ def_for_instr(nir_instr *instr)
           intr->intrinsic == nir_intrinsic_load_instance_id ||
           intr->intrinsic == nir_intrinsic_load_vertex_id ||
           intr->intrinsic == nir_intrinsic_load_texture_scale ||
-          intr->intrinsic == nir_intrinsic_load_texture_size_etna)
+          intr->intrinsic == nir_intrinsic_load_texture_size_etna ||
+          intr->intrinsic == nir_intrinsic_ddx ||
+          intr->intrinsic == nir_intrinsic_ddy)
          def = &intr->def;
    } break;
    case nir_instr_type_deref:
