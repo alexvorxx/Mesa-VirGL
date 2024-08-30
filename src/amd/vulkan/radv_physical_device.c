@@ -629,7 +629,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .EXT_image_view_min_lod = true,
       .EXT_index_type_uint8 = pdev->info.gfx_level >= GFX8,
       .EXT_inline_uniform_block = true,
-      .EXT_legacy_vertex_attributes = !pdev->use_llvm && !instance->drirc.enable_dgc,
+      .EXT_legacy_vertex_attributes = !pdev->use_llvm,
       .EXT_line_rasterization = true,
       .EXT_load_store_op_none = true,
       .EXT_map_memory_placed = true,
