@@ -546,6 +546,7 @@ struct pipe_h264_enc_pic_control
    int8_t pic_init_qs_minus26;
    int8_t chroma_qp_index_offset;
    int8_t second_chroma_qp_index_offset;
+   uint8_t temporal_id;
 };
 
 struct pipe_h264_enc_dbk_param
