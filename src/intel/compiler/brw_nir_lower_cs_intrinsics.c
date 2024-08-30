@@ -362,6 +362,7 @@ brw_nir_lower_cs_intrinsics(nir_shader *nir,
 
       /* TODO: more heuristics about 1D/SLM access vs. 2D access */
       bool linear =
+         state.derivative_group == DERIVATIVE_GROUP_LINEAR ||
          BITSET_TEST(nir->info.system_values_read,
                      SYSTEM_VALUE_LOCAL_INVOCATION_INDEX) ||
          (nir->info.workgroup_size[1] == 1 &&
