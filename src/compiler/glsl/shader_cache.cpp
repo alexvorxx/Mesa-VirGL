@@ -53,7 +53,6 @@
 #include "ir_optimization.h"
 #include "ir_rvalue_visitor.h"
 #include "ir_uniform.h"
-#include "linker.h"
 #include "nir.h"
 #include "program.h"
 #include "serialize.h"

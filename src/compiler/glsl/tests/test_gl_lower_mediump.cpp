@@ -87,14 +87,6 @@ namespace
          return alu->def.bit_size;
       }
 
-      char *get_fs_ir(void) {
-         char temp[4096];
-         FILE *ftemp = fmemopen(temp, sizeof(temp), "w");
-         _mesa_print_ir(ftemp, whole_program->_LinkedShaders[MESA_SHADER_FRAGMENT]->ir, NULL);
-         fclose(ftemp);
-         return strdup(temp);
-      }
-
       /* Returns the common bit size of all src operands (failing if not matching). */
       uint32_t op_src_bits(nir_op op)
       {

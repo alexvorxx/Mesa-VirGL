@@ -2000,23 +2000,6 @@ nir_tex_src_for_ssa(nir_tex_src_type src_type, nir_def *def)
 static inline nir_def *
 nir_build_deriv(nir_builder *b, nir_def *x, nir_op alu, nir_intrinsic_op intrin)
 {
-   /* For derivatives in compute shaders, GLSL_NV_compute_shader_derivatives
-    * states:
-    *
-    *    If neither layout qualifier is specified, derivatives in compute
-    *    shaders return zero, which is consistent with the handling of built-in
-    *    texture functions like texture() in GLSL 4.50 compute shaders.
-    *
-    * We handle that here so the rest of the stack doesn't have to worry about
-    * it and for consistency with previous behaviour. In the future, we might
-    * move this to glsl-to-nir.
-    */
-   if (b->shader->info.stage == MESA_SHADER_COMPUTE &&
-       b->shader->info.derivative_group == DERIVATIVE_GROUP_NONE) {
-
-      return nir_imm_zero(b, x->num_components, x->bit_size);
-   }
-
    /* Otherwise, build the derivative instruction: either intrinsic or ALU. */
    if (b->shader->options->has_ddx_intrinsics) {
       if (b->shader->options->scalarize_ddx && x->num_components > 1) {

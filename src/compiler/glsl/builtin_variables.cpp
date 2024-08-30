@@ -38,7 +38,6 @@
 
 #include "ir.h"
 #include "ir_builder.h"
-#include "linker.h"
 #include "glsl_parser_extras.h"
 #include "glsl_symbol_table.h"
 #include "main/consts_exts.h"

@@ -270,9 +270,6 @@ struct gl_linked_shader
     */
    unsigned num_combined_uniform_components;
 
-   struct exec_list *ir;
-   struct glsl_symbol_table *symbols;
-
    /**
     * ARB_gl_spirv related data.
     *
