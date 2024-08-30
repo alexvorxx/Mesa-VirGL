@@ -2141,8 +2141,6 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
       if (can_use_non_render_engines) {
          c_count = pdevice->info.engine_class_supported_count[INTEL_ENGINE_CLASS_COMPUTE];
       }
-      enum intel_engine_class compute_class =
-         c_count < 1 ? INTEL_ENGINE_CLASS_RENDER : INTEL_ENGINE_CLASS_COMPUTE;
 
       int blit_count = 0;
       if (pdevice->info.verx10 >= 125 && can_use_non_render_engines) {
@@ -2150,6 +2148,11 @@ anv_physical_device_init_queue_families(struct anv_physical_device *pdevice)
       }
 
       anv_override_engine_counts(&gc_count, &g_count, &c_count, &v_count, &blit_count);
+
+      enum intel_engine_class compute_class =
+         pdevice->info.engine_class_supported_count[INTEL_ENGINE_CLASS_COMPUTE] &&
+         c_count >= 1 ? INTEL_ENGINE_CLASS_COMPUTE :
+                        INTEL_ENGINE_CLASS_RENDER;
 
       if (gc_count > 0) {
          pdevice->queue.families[family_count++] = (struct anv_queue_family) {
