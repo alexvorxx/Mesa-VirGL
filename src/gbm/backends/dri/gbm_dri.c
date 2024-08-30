@@ -1207,7 +1207,7 @@ dri_device_create(int fd, uint32_t gbm_backend_version)
 
    struct dri_screen *screen = dri_screen(dri->screen);
    struct pipe_screen *pscreen = screen->base.screen;
-#ifdef HAVE_DRI3
+#ifdef HAVE_LIBDRM
    if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_IMPORT)
       dri->has_dmabuf_import = true;
    if (pscreen->get_param(pscreen, PIPE_CAP_DMABUF) & DRM_PRIME_CAP_EXPORT)

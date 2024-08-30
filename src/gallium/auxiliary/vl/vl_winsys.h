@@ -92,7 +92,7 @@ static inline struct vl_screen *
 vl_dri2_screen_create(void *display, int screen) { return NULL; };
 #endif
 
-#if defined(HAVE_X11_PLATFORM) && defined(HAVE_DRI3)
+#if defined(HAVE_X11_PLATFORM) && defined(HAVE_LIBDRM)
 struct vl_screen *
 vl_dri3_screen_create(Display *display, int screen);
 #else

@@ -52,13 +52,6 @@ option(
 )
 
 option(
-  'dri3',
-  type : 'feature',
-  deprecated: {'true': 'enabled', 'false': 'disabled'},
-  description : 'enable support for dri3'
-)
-
-option(
   'dri-drivers-path',
   type : 'string',
   value : '',

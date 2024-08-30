@@ -26,11 +26,6 @@
 #include "glxclient.h"
 #include "glx_error.h"
 #include "mesa_interface.h"
-#include "dri2_priv.h"
-#if defined(HAVE_DRI3)
-#include "dri3_priv.h"
-#endif
-#include "drisw_priv.h"
 #include "dri_util.h"
 #include "dri_common.h"
 

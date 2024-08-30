@@ -41,7 +41,7 @@
 #include <xcb/xfixes.h>
 
 #include "loader_dri_helper.h"
-#ifdef HAVE_DRI3
+#ifdef HAVE_LIBDRM
 #include "loader_dri3_helper.h"
 #endif
 #endif
@@ -280,7 +280,7 @@ struct dri2_egl_display {
    xcb_connection_t *conn;
    xcb_screen_t *screen;
    bool swap_available;
-#ifdef HAVE_DRI3
+#ifdef HAVE_LIBDRM
    struct loader_screen_resources screen_resources;
 #endif
 #endif

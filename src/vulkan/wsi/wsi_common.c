@@ -210,7 +210,7 @@ wsi_device_init(struct wsi_device *wsi,
       WSI_GET_CB(WaitSemaphores);
 #undef WSI_GET_CB
 
-#ifdef VK_USE_PLATFORM_XCB_KHR
+#if defined(VK_USE_PLATFORM_XCB_KHR)
    result = wsi_x11_init_wsi(wsi, alloc, dri_options);
    if (result != VK_SUCCESS)
       goto fail;
@@ -311,7 +311,7 @@ wsi_device_finish(struct wsi_device *wsi,
 #ifdef VK_USE_PLATFORM_WIN32_KHR
    wsi_win32_finish_wsi(wsi, alloc);
 #endif
-#ifdef VK_USE_PLATFORM_XCB_KHR
+#if defined(VK_USE_PLATFORM_XCB_KHR)
    wsi_x11_finish_wsi(wsi, alloc);
 #endif
 }

@@ -33,7 +33,7 @@
 #endif
 
 #include "loader_x11.h"
-#ifdef HAVE_DRI3
+#ifdef HAVE_LIBDRM
 #include "loader_dri3_helper.h"
 #endif
 
@@ -870,7 +870,6 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
       psc = NULL;
 #if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
 #if defined(GLX_USE_DRM)
-#if defined(HAVE_DRI3)
       if (glx_driver & GLX_DRIVER_DRI3) {
          bool use_zink;
          psc = dri3_create_screen(i, priv, driver_name_is_inferred, &use_zink);
@@ -880,7 +879,6 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
             driver_name_is_inferred = false;
          }
       }
-#endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
       if (psc == NULL && glx_driver & GLX_DRIVER_DRI2 && dri2CheckSupport(dpy)) {
 	      psc = dri2CreateScreen(i, priv, driver_name_is_inferred);
@@ -1015,7 +1013,6 @@ __glXInitialize(Display * dpy)
       dpyPriv->has_multibuffer = x11_dri3_check_multibuffer(XGetXCBConnection(dpy), &dri3_err, &dpyPriv->has_explicit_modifiers);
    if (glx_direct && glx_accel &&
        (!(glx_driver & GLX_DRIVER_ZINK_YES) || !kopper)) {
-#if defined(HAVE_DRI3)
       if (dri3) {
          /* dri3 is tried as long as this doesn't error; whether modifiers work is not relevant */
          if (!dri3_err) {
@@ -1025,7 +1022,6 @@ __glXInitialize(Display * dpy)
                glx_driver |= GLX_DRIVER_ZINK_INFER;
          }
       }
-#endif /* HAVE_DRI3 */
 #if defined(HAVE_X11_DRI2)
       if (!debug_get_bool_option("LIBGL_DRI2_DISABLE", false))
          glx_driver |= GLX_DRIVER_DRI2;

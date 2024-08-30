@@ -143,7 +143,7 @@ extern __GLXDRIdisplay *driwindowsCreateDisplay(Display * dpy);
 
 
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
-#ifdef HAVE_DRI3
+#ifdef HAVE_LIBDRM
 struct glx_screen *dri3_create_screen(int screen, struct glx_display * priv, bool driver_name_is_inferred, bool *return_zink);
 void dri3_destroy_display(__GLXDRIdisplay * dpy);
 #endif

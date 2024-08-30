@@ -437,9 +437,9 @@ if host_machine.system() == 'windows'
 else
   files_libgalliumvlwinsys += files('vl/vl_winsys_drm.c')
 endif
-if with_dri2 and with_platform_x11
+if with_platform_x11
   files_libgalliumvlwinsys += files('vl/vl_winsys_dri.c')
-  if with_dri3
+  if with_dri_platform == 'drm'
     vlwinsys_deps += [
       dep_xcb_sync, dep_xcb_present, dep_xshmfence, dep_xcb_xfixes,
       dep_xcb_dri3,

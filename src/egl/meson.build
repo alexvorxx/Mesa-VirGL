@@ -98,7 +98,7 @@ if with_dri
 
   if with_platform_x11
     files_egl += files('drivers/dri2/platform_x11.c')
-    if with_dri3
+    if with_dri_platform == 'drm'
       files_egl += files('drivers/dri2/platform_x11_dri3.c')
       link_for_egl += [libloader_x11]
     endif

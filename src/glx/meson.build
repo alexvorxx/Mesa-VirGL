@@ -69,7 +69,7 @@ if with_x11_dri2
   )
 endif
 
-if with_dri3
+if with_dri_platform == 'drm'
   files_libglx += files('dri3_glx.c', 'dri3_priv.h')
 endif
 

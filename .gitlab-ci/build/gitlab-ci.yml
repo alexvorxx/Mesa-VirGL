@@ -96,7 +96,6 @@ debian-testing:
       -D glvnd=disabled
       -D platforms=x11,wayland
     GALLIUM_ST: >
-      -D dri3=enabled
       -D gallium-nine=true
       -D gallium-va=enabled
       -D gallium-rusticl=true
@@ -196,7 +195,6 @@ debian-testing-msan:
       -D glvnd=disabled
       -D platforms=x11,wayland
     GALLIUM_ST: >
-      -D dri3=enabled
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
       -D gallium-omx=bellagio
@@ -262,7 +260,6 @@ debian-release:
       -D glvnd=disabled
       -D platforms=x11,wayland
     GALLIUM_ST: >
-      -D dri3=enabled
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
       -D gallium-omx=disabled
@@ -307,7 +304,6 @@ alpine-build-testing:
       -D platforms=wayland
     GALLIUM_DRIVERS: "crocus,etnaviv,freedreno,iris,lima,nouveau,panfrost,r300,r600,radeonsi,svga,llvmpipe,softpipe,tegra,v3d,vc4,virgl,zink"
     GALLIUM_ST: >
-      -D dri3=enabled
       -D gallium-extra-hud=true
       -D gallium-vdpau=disabled
       -D gallium-omx=disabled
@@ -359,7 +355,6 @@ fedora-release:
       -D teflon=true
     GALLIUM_DRIVERS: "crocus,etnaviv,freedreno,i915,iris,lima,nouveau,panfrost,r300,r600,radeonsi,svga,llvmpipe,softpipe,tegra,v3d,vc4,virgl,zink"
     GALLIUM_ST: >
-      -D dri3=enabled
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
       -D gallium-omx=disabled
@@ -412,7 +407,6 @@ debian-android:
       -D android-libbacktrace=disabled
       -D intel-clc=system
     GALLIUM_ST: >
-      -D dri3=disabled
       -D gallium-vdpau=disabled
       -D gallium-omx=disabled
       -D gallium-va=disabled
@@ -456,7 +450,6 @@ debian-android:
       -D platforms=x11,wayland
       -D osmesa=false
     GALLIUM_ST: >
-      -D dri3=enabled
       -D gallium-vdpau=disabled
       -D gallium-omx=disabled
       -D gallium-va=disabled
@@ -614,7 +607,6 @@ debian-clang:
       -D glvnd=enabled
       -D platforms=x11,wayland
     GALLIUM_ST: >
-      -D dri3=enabled
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
       -D gallium-omx=bellagio
@@ -653,7 +645,6 @@ debian-clang-release:
       -D glx=xlib
       -D platforms=x11,wayland
     GALLIUM_ST: >
-      -D dri3=enabled
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
       -D gallium-omx=bellagio
@@ -701,7 +692,6 @@ debian-vulkan:
       -D platforms=x11,wayland
       -D osmesa=false
     GALLIUM_ST: >
-      -D dri3=enabled
       -D gallium-vdpau=disabled
       -D gallium-omx=disabled
       -D gallium-va=disabled
