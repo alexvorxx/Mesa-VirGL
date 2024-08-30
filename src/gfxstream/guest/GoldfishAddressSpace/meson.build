@@ -15,7 +15,6 @@ lib_goldfish_address_space = static_library(
    files_lib_goldfish_address_space,
    cpp_args: gfxstream_guest_args,
    include_directories: [inc_android_compat,
-                         inc_android_emu,
                          inc_goldfish_address_space,
                          inc_guest_iostream,
                          inc_platform_virtgpu,

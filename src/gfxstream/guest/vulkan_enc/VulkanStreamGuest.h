@@ -29,7 +29,7 @@
 namespace gfxstream {
 namespace vk {
 
-class VulkanStreamGuest : public gfxstream::guest::Stream {
+class VulkanStreamGuest : public android::base::Stream {
    public:
     VulkanStreamGuest(gfxstream::guest::IOStream* stream);
     ~VulkanStreamGuest();
@@ -71,7 +71,7 @@ class VulkanStreamGuest : public gfxstream::guest::Stream {
     uint8_t* reserve(size_t size);
 
    private:
-    gfxstream::guest::BumpPool mPool;
+    android::base::BumpPool mPool;
     std::vector<uint8_t> mWriteBuffer;
     gfxstream::guest::IOStream* mStream = nullptr;
     DefaultHandleMapping mDefaultHandleMapping;

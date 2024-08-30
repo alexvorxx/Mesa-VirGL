@@ -17,7 +17,7 @@
 #include <vulkan/vulkan.h>
 
 #include "VirtGpu.h"
-#include "aemu/base/AndroidSubAllocator.h"
+#include "aemu/base/SubAllocator.h"
 #include "goldfish_address_space.h"
 
 constexpr uint64_t kMegaByte = 1048576;
@@ -37,7 +37,7 @@ namespace vk {
 bool isHostVisible(const VkPhysicalDeviceMemoryProperties* memoryProps, uint32_t index);
 
 using GoldfishAddressSpaceBlockPtr = std::shared_ptr<GoldfishAddressSpaceBlock>;
-using SubAllocatorPtr = std::unique_ptr<gfxstream::guest::SubAllocator>;
+using SubAllocatorPtr = std::unique_ptr<android::base::SubAllocator>;
 
 class CoherentMemory {
    public:

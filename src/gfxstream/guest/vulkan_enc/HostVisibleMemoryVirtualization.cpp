@@ -19,9 +19,9 @@
 #include "ResourceTracker.h"
 #include "Resources.h"
 #include "VkEncoder.h"
-#include "aemu/base/AndroidSubAllocator.h"
+#include "aemu/base/SubAllocator.h"
 
-using gfxstream::guest::SubAllocator;
+using android::base::SubAllocator;
 
 namespace gfxstream {
 namespace vk {
@@ -34,7 +34,7 @@ CoherentMemory::CoherentMemory(VirtGpuResourceMappingPtr blobMapping, uint64_t s
                                VkDevice device, VkDeviceMemory memory)
     : mSize(size), mBlobMapping(blobMapping), mDevice(device), mMemory(memory) {
     mAllocator =
-        std::make_unique<gfxstream::guest::SubAllocator>(blobMapping->asRawPtr(), mSize, 4096);
+        std::make_unique<android::base::SubAllocator>(blobMapping->asRawPtr(), mSize, 4096);
 }
 
 #if defined(__ANDROID__)
@@ -42,7 +42,7 @@ CoherentMemory::CoherentMemory(GoldfishAddressSpaceBlockPtr block, uint64_t gpuA
                                VkDevice device, VkDeviceMemory memory)
     : mSize(size), mBlock(block), mDevice(device), mMemory(memory) {
     void* address = block->mmap(gpuAddr);
-    mAllocator = std::make_unique<gfxstream::guest::SubAllocator>(address, mSize, kLargestPageSize);
+    mAllocator = std::make_unique<android::base::SubAllocator>(address, mSize, kLargestPageSize);
 }
 #endif  // defined(__ANDROID__)
 

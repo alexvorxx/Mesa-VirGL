@@ -38,7 +38,7 @@ encoder_impl_preamble ="""
 
 using namespace gfxstream::vk;
 
-using gfxstream::guest::BumpPool;
+using android::base::BumpPool;
 
 #include "VkEncoder.cpp.inl"
 

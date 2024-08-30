@@ -812,7 +812,7 @@ class CodeGen(object):
 
         ptrCast = "(uintptr_t)" if needPtrCast else ""
 
-        streamNamespace = "gfxstream::guest" if variant == "guest" else "android::base"
+        streamNamespace = "android::base"
 
         if direction == "read":
             self.stmt("memcpy((%s*)&%s, %s, %s)" %

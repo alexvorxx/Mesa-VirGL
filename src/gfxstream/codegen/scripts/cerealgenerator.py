@@ -429,8 +429,8 @@ using android::base::BumpPool;
         poolIncludeGuest = f"""
 #include "goldfish_vk_private_defs.h"
 #include "{self.guestBaseLibDirPrefix}/BumpPool.h"
-using gfxstream::guest::Allocator;
-using gfxstream::guest::BumpPool;
+using android::base::Allocator;
+using android::base::BumpPool;
 // Stuff we are not going to use but if included,
 // will cause compile errors. These are Android Vulkan
 // required extensions, but the approach will be to
