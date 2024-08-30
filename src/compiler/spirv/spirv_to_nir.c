@@ -5273,12 +5273,12 @@ vtn_handle_execution_mode(struct vtn_builder *b, struct vtn_value *entry_point,
       break;
 
    case SpvExecutionModeDerivativeGroupQuadsKHR:
-      vtn_assert(b->shader->info.stage == MESA_SHADER_COMPUTE);
+      vtn_assert(gl_shader_stage_uses_workgroup(b->shader->info.stage));
       b->shader->info.derivative_group = DERIVATIVE_GROUP_QUADS;
       break;
 
    case SpvExecutionModeDerivativeGroupLinearKHR:
-      vtn_assert(b->shader->info.stage == MESA_SHADER_COMPUTE);
+      vtn_assert(gl_shader_stage_uses_workgroup(b->shader->info.stage));
       b->shader->info.derivative_group = DERIVATIVE_GROUP_LINEAR;
       break;
 
