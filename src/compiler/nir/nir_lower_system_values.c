@@ -539,7 +539,7 @@ lower_compute_system_value_instr(nir_builder *b,
          return lower_id_to_index(b, local_index, local_size, bit_size);
       }
       if (options && options->shuffle_local_ids_for_quad_derivatives &&
-          b->shader->info.cs.derivative_group == DERIVATIVE_GROUP_QUADS &&
+          b->shader->info.derivative_group == DERIVATIVE_GROUP_QUADS &&
           _mesa_set_search(state->lower_once_list, instr) == NULL) {
          nir_def *ids = nir_load_local_invocation_id(b);
          _mesa_set_add(state->lower_once_list, ids->parent_instr);
@@ -803,8 +803,8 @@ nir_lower_compute_system_values(nir_shader *shader,
 
    /* Update this so as not to lower it again. */
    if (options && options->shuffle_local_ids_for_quad_derivatives &&
-       shader->info.cs.derivative_group == DERIVATIVE_GROUP_QUADS)
-      shader->info.cs.derivative_group = DERIVATIVE_GROUP_LINEAR;
+       shader->info.derivative_group == DERIVATIVE_GROUP_QUADS)
+      shader->info.derivative_group = DERIVATIVE_GROUP_LINEAR;
 
    return progress;
 }

@@ -1479,7 +1479,7 @@ static LLVMValueRef build_tex_intrinsic(struct ac_nir_context *ctx, const nir_te
    case nir_texop_tex:
       if (ctx->stage != MESA_SHADER_FRAGMENT &&
           (!gl_shader_stage_is_compute(ctx->stage) ||
-           ctx->info->cs.derivative_group == DERIVATIVE_GROUP_NONE)) {
+           ctx->info->derivative_group == DERIVATIVE_GROUP_NONE)) {
          assert(!args->lod);
          args->level_zero = true;
       }
@@ -1514,7 +1514,7 @@ static LLVMValueRef build_tex_intrinsic(struct ac_nir_context *ctx, const nir_te
 
    args->attributes = AC_ATTR_INVARIANT_LOAD;
    bool cs_derivs =
-      gl_shader_stage_is_compute(ctx->stage) && ctx->info->cs.derivative_group != DERIVATIVE_GROUP_NONE;
+      gl_shader_stage_is_compute(ctx->stage) && ctx->info->derivative_group != DERIVATIVE_GROUP_NONE;
    if (ctx->stage == MESA_SHADER_FRAGMENT || cs_derivs) {
       /* Prevent texture instructions with implicit derivatives from being
        * sinked into branches. */

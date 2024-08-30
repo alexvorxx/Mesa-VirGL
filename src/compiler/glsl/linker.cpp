@@ -1394,7 +1394,7 @@ link_cs_input_layout_qualifiers(struct gl_shader_program *prog,
 
    gl_prog->info.workgroup_size_variable = false;
 
-   gl_prog->info.cs.derivative_group = DERIVATIVE_GROUP_NONE;
+   gl_prog->info.derivative_group = DERIVATIVE_GROUP_NONE;
 
    /* From the ARB_compute_shader spec, in the section describing local size
     * declarations:
@@ -1442,13 +1442,13 @@ link_cs_input_layout_qualifiers(struct gl_shader_program *prog,
 
       enum gl_derivative_group group = shader->info.Comp.DerivativeGroup;
       if (group != DERIVATIVE_GROUP_NONE) {
-         if (gl_prog->info.cs.derivative_group != DERIVATIVE_GROUP_NONE &&
-             gl_prog->info.cs.derivative_group != group) {
+         if (gl_prog->info.derivative_group != DERIVATIVE_GROUP_NONE &&
+             gl_prog->info.derivative_group != group) {
             linker_error(prog, "compute shader defined with conflicting "
                          "derivative groups\n");
             return;
          }
-         gl_prog->info.cs.derivative_group = group;
+         gl_prog->info.derivative_group = group;
       }
    }
 
@@ -1463,7 +1463,7 @@ link_cs_input_layout_qualifiers(struct gl_shader_program *prog,
       return;
    }
 
-   if (gl_prog->info.cs.derivative_group == DERIVATIVE_GROUP_QUADS) {
+   if (gl_prog->info.derivative_group == DERIVATIVE_GROUP_QUADS) {
       if (gl_prog->info.workgroup_size[0] % 2 != 0) {
          linker_error(prog, "derivative_group_quadsNV must be used with a "
                       "local group size whose first dimension "
@@ -1476,7 +1476,7 @@ link_cs_input_layout_qualifiers(struct gl_shader_program *prog,
                       "is a multiple of 2\n");
          return;
       }
-   } else if (gl_prog->info.cs.derivative_group == DERIVATIVE_GROUP_LINEAR) {
+   } else if (gl_prog->info.derivative_group == DERIVATIVE_GROUP_LINEAR) {
       if ((gl_prog->info.workgroup_size[0] *
            gl_prog->info.workgroup_size[1] *
            gl_prog->info.workgroup_size[2]) % 4 != 0) {

@@ -2887,7 +2887,7 @@ for op in ['fadd', 'fmul', 'fmulz', 'iadd', 'imul']:
 for op in ['fddx', 'fddx_fine', 'fddx_coarse',
            'fddy', 'fddy_fine', 'fddy_coarse']:
    optimizations += [
-      ((op, 'a'), 0.0, 'info->stage == MESA_SHADER_COMPUTE && info->cs.derivative_group == DERIVATIVE_GROUP_NONE')
+      ((op, 'a'), 0.0, 'info->stage == MESA_SHADER_COMPUTE && info->derivative_group == DERIVATIVE_GROUP_NONE')
 ]
 
 # Some optimizations for ir3-specific instructions.

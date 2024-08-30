@@ -306,7 +306,7 @@ nak_nir_lower_subgroup_id_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
       if (nak_nir_workgroup_has_one_subgroup(b->shader)) {
          num_subgroups = nir_imm_int(b, 1);
       } else {
-         assert(b->shader->info.cs.derivative_group == DERIVATIVE_GROUP_NONE);
+         assert(b->shader->info.derivative_group == DERIVATIVE_GROUP_NONE);
 
          nir_def *workgroup_size = nir_load_workgroup_size(b);
          workgroup_size =
@@ -327,7 +327,7 @@ nak_nir_lower_subgroup_id_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
       if (nak_nir_workgroup_has_one_subgroup(b->shader)) {
          subgroup_id = nir_imm_int(b, 0);
       } else {
-         assert(b->shader->info.cs.derivative_group == DERIVATIVE_GROUP_NONE);
+         assert(b->shader->info.derivative_group == DERIVATIVE_GROUP_NONE);
 
          nir_def *invocation_index = nir_load_local_invocation_index(b);
          nir_def *subgroup_size = nir_load_subgroup_size(b);

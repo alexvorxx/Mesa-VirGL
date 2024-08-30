@@ -1648,7 +1648,7 @@ print_intrinsic_instr(nir_intrinsic_instr *instr, print_state *state)
    nir_foreach_variable_with_modes(var, state->shader, var_mode) {
       if (!var->name)
          continue;
-      
+
       bool match;
       if (instr->intrinsic == nir_intrinsic_load_uniform) {
          match = var->data.driver_location == nir_intrinsic_base(instr);
@@ -2570,6 +2570,7 @@ print_shader_info(const struct shader_info *info, FILE *fp)
    print_nz_bool(fp, "flrp_lowered", info->flrp_lowered);
    print_nz_bool(fp, "io_lowered", info->io_lowered);
    print_nz_bool(fp, "writes_memory", info->writes_memory);
+   print_nz_unsigned(fp, "derivative_group", info->derivative_group);
 
    switch (info->stage) {
    case MESA_SHADER_VERTEX:
@@ -2649,7 +2650,6 @@ print_shader_info(const struct shader_info *info, FILE *fp)
                  info->cs.workgroup_size_hint[1],
                  info->cs.workgroup_size_hint[2]);
       print_nz_unsigned(fp, "user_data_components_amd", info->cs.user_data_components_amd);
-      print_nz_unsigned(fp, "derivative_group", info->cs.derivative_group);
       fprintf(fp, "ptr_size: %u\n", info->cs.ptr_size);
       break;
 

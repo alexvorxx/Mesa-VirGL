@@ -285,6 +285,12 @@ typedef struct shader_info {
      */
    bool use_legacy_math_rules;
 
+   /*
+    * Arrangement of invocations used to calculate derivatives in
+    * compute/task/mesh shaders.  From KHR_compute_shader_derivatives.
+    */
+   enum gl_derivative_group derivative_group:2;
+
    union {
       struct {
          /* Which inputs are doubles */
@@ -440,12 +446,6 @@ typedef struct shader_info {
          uint16_t workgroup_size_hint[3];
 
          uint8_t user_data_components_amd:4;
-
-         /*
-          * Arrangement of invocations used to calculate derivatives in a compute
-          * shader.  From NV_compute_shader_derivatives.
-          */
-         enum gl_derivative_group derivative_group:2;
 
          /*
           * If the shader might run with shared mem on top of `shared_size`.

@@ -4763,12 +4763,12 @@ nir_to_spirv(struct nir_shader *s, const struct zink_shader_info *sinfo, const s
          spirv_builder_emit_specid(&ctx.builder, ctx.shared_mem_size, ZINK_VARIABLE_SHARED_MEM);
          spirv_builder_emit_name(&ctx.builder, ctx.shared_mem_size, "variable_shared_mem");
       }
-      if (s->info.cs.derivative_group) {
+      if (s->info.derivative_group) {
          SpvCapability caps[] = { 0, SpvCapabilityComputeDerivativeGroupQuadsNV, SpvCapabilityComputeDerivativeGroupLinearNV };
          SpvExecutionMode modes[] = { 0, SpvExecutionModeDerivativeGroupQuadsNV, SpvExecutionModeDerivativeGroupLinearNV };
          spirv_builder_emit_extension(&ctx.builder, "SPV_NV_compute_shader_derivatives");
-         spirv_builder_emit_cap(&ctx.builder, caps[s->info.cs.derivative_group]);
-         spirv_builder_emit_exec_mode(&ctx.builder, entry_point, modes[s->info.cs.derivative_group]);
+         spirv_builder_emit_cap(&ctx.builder, caps[s->info.derivative_group]);
+         spirv_builder_emit_exec_mode(&ctx.builder, entry_point, modes[s->info.derivative_group]);
          ctx.explicit_lod = false;
       }
       break;

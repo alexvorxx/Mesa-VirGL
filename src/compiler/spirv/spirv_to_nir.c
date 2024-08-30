@@ -5274,12 +5274,12 @@ vtn_handle_execution_mode(struct vtn_builder *b, struct vtn_value *entry_point,
 
    case SpvExecutionModeDerivativeGroupQuadsNV:
       vtn_assert(b->shader->info.stage == MESA_SHADER_COMPUTE);
-      b->shader->info.cs.derivative_group = DERIVATIVE_GROUP_QUADS;
+      b->shader->info.derivative_group = DERIVATIVE_GROUP_QUADS;
       break;
 
    case SpvExecutionModeDerivativeGroupLinearNV:
       vtn_assert(b->shader->info.stage == MESA_SHADER_COMPUTE);
-      b->shader->info.cs.derivative_group = DERIVATIVE_GROUP_LINEAR;
+      b->shader->info.derivative_group = DERIVATIVE_GROUP_LINEAR;
       break;
 
    case SpvExecutionModePixelInterlockOrderedEXT:

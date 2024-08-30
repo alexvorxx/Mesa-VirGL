@@ -2012,7 +2012,7 @@ nir_build_deriv(nir_builder *b, nir_def *x, nir_op alu, nir_intrinsic_op intrin)
     * move this to glsl-to-nir.
     */
    if (b->shader->info.stage == MESA_SHADER_COMPUTE &&
-       b->shader->info.cs.derivative_group == DERIVATIVE_GROUP_NONE) {
+       b->shader->info.derivative_group == DERIVATIVE_GROUP_NONE) {
 
       return nir_imm_zero(b, x->num_components, x->bit_size);
    }
