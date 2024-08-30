@@ -57,8 +57,8 @@ static const struct spirv_capabilities implemented_capabilities = {
    .AtomicFloat64MinMaxEXT = true,
    .AtomicStorage = true,
    .ClipDistance = true,
-   .ComputeDerivativeGroupLinearNV = true,
-   .ComputeDerivativeGroupQuadsNV = true,
+   .ComputeDerivativeGroupLinearKHR = true,
+   .ComputeDerivativeGroupQuadsKHR = true,
    .CooperativeMatrixKHR = true,
    .CullDistance = true,
    .DemoteToHelperInvocation = true,
@@ -5272,12 +5272,12 @@ vtn_handle_execution_mode(struct vtn_builder *b, struct vtn_value *entry_point,
       vtn_assert(b->shader->info.stage == MESA_SHADER_FRAGMENT);
       break;
 
-   case SpvExecutionModeDerivativeGroupQuadsNV:
+   case SpvExecutionModeDerivativeGroupQuadsKHR:
       vtn_assert(b->shader->info.stage == MESA_SHADER_COMPUTE);
       b->shader->info.derivative_group = DERIVATIVE_GROUP_QUADS;
       break;
 
-   case SpvExecutionModeDerivativeGroupLinearNV:
+   case SpvExecutionModeDerivativeGroupLinearKHR:
       vtn_assert(b->shader->info.stage == MESA_SHADER_COMPUTE);
       b->shader->info.derivative_group = DERIVATIVE_GROUP_LINEAR;
       break;
