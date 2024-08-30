@@ -317,7 +317,6 @@
 .anv-angle-test:
   extends:
     - .anv-test
-    - .intel-rules # Note: Xorg uses iris, so depend on both GL and vulkan
   variables:
     VK_DRIVER: intel
     USE_ANGLE: 1

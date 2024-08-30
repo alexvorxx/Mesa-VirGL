@@ -14,7 +14,6 @@ radv-stoney-angle:
   extends:
     - .lava-test-deqp:x86_64
     - .radv-stoney-test:x86_64
-    - .radeonsi+radv-rules # Note: Xorg uses radeonsi, so depend on both gl and vulkan
   variables:
     DEQP_SUITE: radv-stoney-angle
     USE_ANGLE: 1
