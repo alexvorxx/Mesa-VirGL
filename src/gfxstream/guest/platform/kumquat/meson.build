@@ -16,6 +16,6 @@ libplatform_virtgpu_kumquat = static_library(
    'platform_virtgpu_kumquat',
    files_libplatform_virtgpu_kumquat,
    cpp_args: gfxstream_guest_args,
-   include_directories: [inc_platform_virtgpu, inc_src, inc_android_compat],
+   include_directories: [inc_platform_virtgpu, inc_src],
    dependencies: virtgpu_kumquat_dep,
 )
