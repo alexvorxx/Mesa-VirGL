@@ -588,7 +588,7 @@ cs_branch_label(struct cs_builder *b, struct cs_label *label,
       cs_emit(b, BRANCH, I) {
          I.offset = offset;
          I.condition = cond;
-         I.value = cs_to_reg32(val);
+         I.value = cond != MALI_CS_CONDITION_ALWAYS ? cs_to_reg32(val) : 0;
       }
 
       label->last_forward_ref = branch_ins_pos;
