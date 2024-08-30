@@ -73,6 +73,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_bind_memory2                      = true,
       .KHR_buffer_device_address             = true,
       .KHR_calibrated_timestamps             = device->has_reg_timestamp,
+      .KHR_compute_shader_derivatives        = true,
       .KHR_copy_commands2                    = true,
       .KHR_cooperative_matrix                = anv_has_cooperative_matrix(device),
       .KHR_create_renderpass2                = true,
@@ -477,7 +478,7 @@ get_features(const struct anv_physical_device *pdevice,
       /* VK_EXT_image_sliced_view_of_3d */
       .imageSlicedViewOf3D = true,
 
-      /* VK_NV_compute_shader_derivatives */
+      /* VK_KHR_compute_shader_derivatives */
       .computeDerivativeGroupQuads = true,
       .computeDerivativeGroupLinear = true,
 
@@ -1298,6 +1299,11 @@ get_properties(const struct anv_physical_device *pdevice,
       props->maxDescriptorSetAccelerationStructures = UINT16_MAX;
       props->maxDescriptorSetUpdateAfterBindAccelerationStructures = UINT16_MAX;
       props->minAccelerationStructureScratchOffsetAlignment = 64;
+   }
+
+   /* VK_KHR_compute_shader_derivatives */
+   {
+      props->meshAndTaskShaderDerivatives = pdevice->info.has_mesh_shading;
    }
 
    /* VK_KHR_fragment_shading_rate */

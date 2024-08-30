@@ -9,3 +9,4 @@ VK_KHR_dynamic_rendering_local_read on nvk
 GL_ARB_timer_query on Panfrost
 GL_EXT_disjoint_timer_query on Panfrost
 VK_KHR_pipeline_binary on RADV
+VK_KHR_compute_shader_derivatives on anv
