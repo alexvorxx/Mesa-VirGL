@@ -3250,14 +3250,16 @@ register_allocation(Program* program, ra_test_policy policy)
                   if (op.isTemp() && op.isFirstKill())
                      tmp_file.block(op.physReg(), op.regClass());
                }
-               Temp tmp = program->allocateTmp(s1);
+               Temp tmp = program->allocateTmp(instr->operands[0].size() == 2 ? s2 : s1);
                ctx.assignments.emplace_back();
                PhysReg reg = get_reg(ctx, tmp_file, tmp, parallelcopy, instr);
                update_renames(ctx, register_file, parallelcopy, instr, rename_not_killed_ops);
 
                Instruction* copy =
                   create_instruction(aco_opcode::p_parallelcopy, Format::PSEUDO, 1, 1);
-               copy->operands[0] = Operand::c32(instr->operands[0].constantValue());
+               copy->operands[0] = instr->operands[0];
+               if (copy->operands[0].bytes() < 4)
+                  copy->operands[0] = Operand::c32(copy->operands[0].constantValue());
                copy->definitions[0] = Definition(tmp);
                copy->definitions[0].setFixed(reg);
 
