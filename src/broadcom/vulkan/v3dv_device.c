@@ -223,6 +223,7 @@ get_device_extensions(const struct v3dv_physical_device *device,
       .EXT_primitive_topology_list_restart  = true,
       .EXT_private_data                     = true,
       .EXT_provoking_vertex                 = true,
+      .EXT_queue_family_foreign             = true,
       .EXT_separate_stencil_usage           = true,
       .EXT_shader_demote_to_helper_invocation = true,
       .EXT_shader_module_identifier         = true,
@@ -238,7 +239,6 @@ get_device_extensions(const struct v3dv_physical_device *device,
    if (vk_android_get_ugralloc() != NULL) {
       ext->ANDROID_external_memory_android_hardware_buffer = true;
       ext->ANDROID_native_buffer = true;
-      ext->EXT_queue_family_foreign = true;
    }
 #endif
 }
