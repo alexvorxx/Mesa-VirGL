@@ -40,12 +40,8 @@ create_mem_or_close_bo(struct nvkmd_nouveau_dev *dev,
       goto fail_bo;
    }
 
-   mem->base.ops = &nvkmd_nouveau_mem_ops;
-   mem->base.dev = &dev->base;
-   mem->base.refcnt = 1;
-   mem->base.flags = mem_flags;
-   mem->base.bind_align_B = dev->base.pdev->bind_align_B;
-   mem->base.size_B = size_B;
+   nvkmd_mem_init(&dev->base, &mem->base, &nvkmd_nouveau_mem_ops,
+                  mem_flags, size_B, dev->base.pdev->bind_align_B);
    mem->bo = bo;
 
    result = nvkmd_dev_alloc_va(&dev->base, log_obj,

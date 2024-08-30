@@ -219,6 +219,13 @@ struct nvkmd_mem {
    void *map;
 };
 
+void nvkmd_mem_init(struct nvkmd_dev *dev,
+                    struct nvkmd_mem *mem,
+                    const struct nvkmd_mem_ops *ops,
+                    enum nvkmd_mem_flags flags,
+                    uint64_t size_B,
+                    uint32_t bind_align_B);
+
 struct nvkmd_va_ops {
    void (*free)(struct nvkmd_va *va);
 

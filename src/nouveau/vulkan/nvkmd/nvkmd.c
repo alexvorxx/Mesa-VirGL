@@ -8,6 +8,24 @@
 
 #include <inttypes.h>
 
+void
+nvkmd_mem_init(struct nvkmd_dev *dev,
+               struct nvkmd_mem *mem,
+               const struct nvkmd_mem_ops *ops,
+               enum nvkmd_mem_flags flags,
+               uint64_t size_B,
+               uint32_t bind_align_B)
+{
+   *mem = (struct nvkmd_mem) {
+      .ops = ops,
+      .dev = dev,
+      .refcnt = 1,
+      .flags = flags,
+      .bind_align_B = bind_align_B,
+      .size_B = size_B,
+   };
+}
+
 VkResult
 nvkmd_try_create_pdev_for_drm(struct _drmDevice *drm_device,
                               struct vk_object_base *log_obj,
