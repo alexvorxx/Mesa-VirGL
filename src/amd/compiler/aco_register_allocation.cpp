@@ -3242,18 +3242,14 @@ register_allocation(Program* program, ra_test_policy policy)
              */
             if (instr->operands.size() && instr->operands[0].isLiteral() &&
                 program->gfx_level < GFX10) {
-               /* disable definitions and re-enable operands */
-               RegisterFile tmp_file(register_file);
-               for (const Definition& def : instr->definitions)
-                  tmp_file.clear(def);
-               for (const Operand& op : instr->operands) {
-                  if (op.isTemp() && op.isFirstKill())
-                     tmp_file.block(op.physReg(), op.regClass());
-               }
+               /* Re-use the register we already allocated for the definition.
+                * This works because the instruction cannot have any other SGPR operand.
+                */
                Temp tmp = program->allocateTmp(instr->operands[0].size() == 2 ? s2 : s1);
-               ctx.assignments.emplace_back();
-               PhysReg reg = get_reg(ctx, tmp_file, tmp, parallelcopy, instr);
-               update_renames(ctx, register_file, parallelcopy, instr, rename_not_killed_ops);
+               const Definition& def =
+                  instr->isVOPC() ? instr->definitions[0] : instr->definitions.back();
+               assert(def.regClass() == s2);
+               ctx.assignments.emplace_back(def.physReg(), tmp.regClass());
 
                Instruction* copy =
                   create_instruction(aco_opcode::p_parallelcopy, Format::PSEUDO, 1, 1);
@@ -3261,10 +3257,10 @@ register_allocation(Program* program, ra_test_policy policy)
                if (copy->operands[0].bytes() < 4)
                   copy->operands[0] = Operand::c32(copy->operands[0].constantValue());
                copy->definitions[0] = Definition(tmp);
-               copy->definitions[0].setFixed(reg);
+               copy->definitions[0].setFixed(def.physReg());
 
                instr->operands[0] = Operand(tmp);
-               instr->operands[0].setFixed(reg);
+               instr->operands[0].setFixed(def.physReg());
                instr->operands[0].setFirstKill(true);
 
                instructions.emplace_back(copy);
