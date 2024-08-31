@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2086 # we want word splitting
+
 set -e
 
 # Instead of starting one dEQP instance per available CPU core, pour our

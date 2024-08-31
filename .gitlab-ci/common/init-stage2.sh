@@ -201,7 +201,7 @@ if [ -n "$HWCI_START_WESTON" ]; then
 fi
 
 set +e
-bash -c ". $SCRIPTS_DIR/setup-test-env.sh && $HWCI_TEST_SCRIPT"
+$HWCI_TEST_SCRIPT ${HWCI_TEST_ARGS:-}
 EXIT_CODE=$?
 set -e
 
