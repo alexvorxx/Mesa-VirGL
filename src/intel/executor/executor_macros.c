@@ -122,13 +122,13 @@ executor_macro_syncnop(executor_context *ec, char **src, char *line)
    }
 
    case 120: {
-      ralloc_strcat(src, "sync nop(8)  null<0,1,0>UD  { align1 WE_all 1H @1 $1 };\n");
+      ralloc_strcat(src, "sync nop(8)  null<0,1,0>UD  { align1 WE_all 1H @1 $1.dst };\n");
       break;
    }
 
    case 125:
    case 200: {
-      ralloc_strcat(src, "sync nop(8)  null<0,1,0>UD  { align1 WE_all 1H A@1 $1 };\n");
+      ralloc_strcat(src, "sync nop(8)  null<0,1,0>UD  { align1 WE_all 1H A@1 $1.dst };\n");
       break;
    }
 
