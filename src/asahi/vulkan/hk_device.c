@@ -7,6 +7,7 @@
 #include "hk_device.h"
 
 #include "agx_bg_eot.h"
+#include "agx_helpers.h"
 #include "agx_opcodes.h"
 #include "agx_scratch.h"
 #include "hk_cmd_buffer.h"
@@ -58,16 +59,7 @@ hk_upload_rodata(struct hk_device *dev)
       cfg.buffer = dev->rodata.bo->va->addr + offs;
    }
 
-   agx_pack(map + offs, SAMPLER, cfg) {
-      /* Allow mipmapping. This is respected by txf, weirdly. */
-      cfg.mip_filter = AGX_MIP_FILTER_NEAREST;
-
-      /* Out-of-bounds reads must return 0 */
-      cfg.wrap_s = AGX_WRAP_CLAMP_TO_BORDER;
-      cfg.wrap_t = AGX_WRAP_CLAMP_TO_BORDER;
-      cfg.wrap_r = AGX_WRAP_CLAMP_TO_BORDER;
-      cfg.border_colour = AGX_BORDER_COLOUR_TRANSPARENT_BLACK;
-   }
+   agx_pack_txf_sampler((struct agx_sampler_packed *)(map + offs));
    offs += AGX_SAMPLER_LENGTH;
 
    /* The image heap is allocated on the device prior to the rodata. The heap

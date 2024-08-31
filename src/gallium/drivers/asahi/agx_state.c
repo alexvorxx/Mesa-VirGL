@@ -2814,16 +2814,7 @@ agx_upload_samplers(struct agx_batch *batch, struct agx_compiled_shader *cs,
       agx_pool_alloc_aligned(&batch->pool, sampler_length * nr_samplers, 64);
 
    /* Sampler #0 is reserved for txf */
-   agx_pack(T.cpu, SAMPLER, cfg) {
-      /* Allow mipmapping. This is respected by txf, weirdly. */
-      cfg.mip_filter = AGX_MIP_FILTER_NEAREST;
-
-      /* Out-of-bounds reads must return 0 */
-      cfg.wrap_s = AGX_WRAP_CLAMP_TO_BORDER;
-      cfg.wrap_t = AGX_WRAP_CLAMP_TO_BORDER;
-      cfg.wrap_r = AGX_WRAP_CLAMP_TO_BORDER;
-      cfg.border_colour = AGX_BORDER_COLOUR_TRANSPARENT_BLACK;
-   }
+   agx_pack_txf_sampler(T.cpu);
 
    /* Remaining samplers are API samplers */
    uint8_t *out_sampler = (uint8_t *)T.cpu + sampler_length;

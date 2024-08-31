@@ -48,6 +48,21 @@ agx_translate_sampler_state_count(unsigned count, bool extended)
    }
 }
 
+static void
+agx_pack_txf_sampler(struct agx_sampler_packed *out)
+{
+   agx_pack(out, SAMPLER, cfg) {
+      /* Allow mipmapping. This is respected by txf, weirdly. */
+      cfg.mip_filter = AGX_MIP_FILTER_NEAREST;
+
+      /* Out-of-bounds reads must return 0 */
+      cfg.wrap_s = AGX_WRAP_CLAMP_TO_BORDER;
+      cfg.wrap_t = AGX_WRAP_CLAMP_TO_BORDER;
+      cfg.wrap_r = AGX_WRAP_CLAMP_TO_BORDER;
+      cfg.border_colour = AGX_BORDER_COLOUR_TRANSPARENT_BLACK;
+   }
+}
+
 /* Channels agree for RGBA but are weird for force 0/1 */
 
 static inline enum agx_channel
