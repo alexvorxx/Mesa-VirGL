@@ -61,13 +61,24 @@ panvk_device_init_mempools(struct panvk_device *dev)
    struct panvk_pool_properties rw_pool_props = {
       .create_flags = 0,
       .slab_size = 16 * 1024,
-      .label = "Device RW memory pool",
+      .label = "Device RW cached memory pool",
       .owns_bos = false,
       .needs_locking = true,
       .prealloc = false,
    };
 
    panvk_pool_init(&dev->mempools.rw, dev, NULL, &rw_pool_props);
+
+   struct panvk_pool_properties rw_nc_pool_props = {
+      .create_flags = PAN_KMOD_BO_FLAG_GPU_UNCACHED,
+      .slab_size = 16 * 1024,
+      .label = "Device RW uncached memory pool",
+      .owns_bos = false,
+      .needs_locking = true,
+      .prealloc = false,
+   };
+
+   panvk_pool_init(&dev->mempools.rw_nc, dev, NULL, &rw_nc_pool_props);
 
    struct panvk_pool_properties exec_pool_props = {
       .create_flags = PAN_KMOD_BO_FLAG_EXECUTABLE,

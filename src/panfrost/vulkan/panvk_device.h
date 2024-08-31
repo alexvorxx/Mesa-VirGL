@@ -69,6 +69,7 @@ struct panvk_device {
 
    struct {
       struct panvk_pool rw;
+      struct panvk_pool rw_nc;
       struct panvk_pool exec;
    } mempools;
 
