@@ -227,6 +227,22 @@ ail_effective_height_sa(unsigned height_px, unsigned sample_count_sa)
    return height_px * (sample_count_sa >= 2 ? 2 : 1);
 }
 
+static inline unsigned
+ail_metadata_width_tl(struct ail_layout *layout, unsigned level)
+{
+   unsigned px = u_minify(layout->width_px, level);
+   uint32_t sa = ail_effective_width_sa(px, layout->sample_count_sa);
+   return DIV_ROUND_UP(sa, 16);
+}
+
+static inline unsigned
+ail_metadata_height_tl(struct ail_layout *layout, unsigned level)
+{
+   unsigned px = u_minify(layout->height_px, level);
+   uint32_t sa = ail_effective_height_sa(px, layout->sample_count_sa);
+   return DIV_ROUND_UP(sa, 16);
+}
+
 static inline bool
 ail_is_compressed(const struct ail_layout *layout)
 {
