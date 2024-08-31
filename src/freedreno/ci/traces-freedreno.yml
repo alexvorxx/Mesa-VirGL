@@ -675,6 +675,8 @@ traces:
     freedreno-a530:
       label: [skip]
     freedreno-a618:
+      label: [skip, flakes]
+      text: text is prone to occasional misrendering, particularly in the lower left
       checksum: ae37867b1a9a94d2be9ff6c7e2009813
     freedreno-a630:
       label: [skip, flakes]

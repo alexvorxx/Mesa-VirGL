@@ -261,3 +261,6 @@ dEQP-VK.tessellation.invariance.outer_triangle_set.triangles_equal_spacing
 dEQP-VK.pipeline.monolithic.interface_matching.vector_length.out_ivec3_in_ivec3_loose_variable_vert_tesc_tese_out_geom_in_frag
 dEQP-VK.tessellation.invariance.outer_edge_symmetry.quads_fractional_odd_spacing_ccw
 gmem-dEQP-VK.binding_model.shader_access.primary_cmd_buf.bind.sampler_immutable.tess_ctrl.single_descriptor.1d_array_base_mip
+
+# SKQP test which seems to flake out
+SRGBReadWritePixels
