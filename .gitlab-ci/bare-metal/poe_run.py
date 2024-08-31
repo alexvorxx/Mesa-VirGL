@@ -115,7 +115,7 @@ def main():
         '--test-timeout-minutes', type=int, help='Test phase timeout (minutes)', required=True)
     args = parser.parse_args()
 
-    logger = CustomLogger("job_detail.json")
+    logger = CustomLogger("results/job_detail.json")
     logger.update_dut_time("start", None)
     poe = PoERun(args, args.boot_timeout_seconds, args.test_timeout_minutes * 60, logger)
     retval = poe.run()

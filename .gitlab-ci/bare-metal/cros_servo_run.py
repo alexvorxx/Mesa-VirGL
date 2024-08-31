@@ -151,7 +151,7 @@ def main():
         '--test-timeout', type=int, help='Test phase timeout (minutes)', required=True)
     args = parser.parse_args()
 
-    logger = CustomLogger("job_detail.json")
+    logger = CustomLogger("results/job_detail.json")
     logger.update_dut_time("start", None)
     servo = CrosServoRun(args.cpu, args.ec, args.test_timeout * 60, logger)
     retval = servo.run()
