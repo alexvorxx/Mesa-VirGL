@@ -323,6 +323,60 @@ midgard_vectorize_filter(const nir_instr *instr, const void *data)
    return 4;
 }
 
+static nir_mem_access_size_align
+mem_access_size_align_cb(nir_intrinsic_op intrin, uint8_t bytes,
+                         uint8_t bit_size, uint32_t align_mul,
+                         uint32_t align_offset, bool offset_is_const,
+                         const void *cb_data)
+{
+   uint32_t align = nir_combined_align(align_mul, align_offset);
+   assert(util_is_power_of_two_nonzero(align));
+
+   /* No more than 16 bytes at a time. */
+   bytes = MIN2(bytes, 16);
+
+   /* If the number of bytes is a multiple of 4, use 32-bit loads. Else if it's
+    * a multiple of 2, use 16-bit loads. Else use 8-bit loads.
+    *
+    * But if we're only aligned to 1 byte, use 8-bit loads. If we're only
+    * aligned to 2 bytes, use 16-bit loads, unless we needed 8-bit loads due to
+    * the size.
+    */
+   if ((bytes & 1) || (align == 1))
+      bit_size = 8;
+   else if ((bytes & 2) || (align == 2))
+      bit_size = 16;
+   else if (bit_size >= 32)
+      bit_size = 32;
+
+   unsigned num_comps = MIN2(bytes / (bit_size / 8), 4);
+
+   /* Push constants require 32-bit loads. */
+   if (intrin == nir_intrinsic_load_push_constant) {
+      if (align_mul >= 4) {
+         /* If align_mul is bigger than 4 we can use align_offset to find
+          * the exact number of words we need to read.
+          */
+         num_comps = DIV_ROUND_UP((align_offset % 4) + bytes, 4);
+      } else {
+         /* If bytes is aligned on 32-bit, the access might still cross one
+          * word at the beginning, and one word at the end. If bytes is not
+          * aligned on 32-bit, the extra two words should cover for both the
+          * size and offset mis-alignment.
+          */
+         num_comps = (bytes / 4) + 2;
+      }
+
+      bit_size = MIN2(bit_size, 32);
+   }
+
+   return (nir_mem_access_size_align){
+      .num_components = num_comps,
+      .bit_size = bit_size,
+      .align = bit_size / 8,
+   };
+}
+
 void
 midgard_preprocess_nir(nir_shader *nir, unsigned gpu_id)
 {
@@ -357,6 +411,20 @@ midgard_preprocess_nir(nir_shader *nir, unsigned gpu_id)
        */
       NIR_PASS_V(nir, nir_opt_constant_folding);
       NIR_PASS_V(nir, pan_nir_lower_store_component);
+   }
+
+   /* Could be eventually useful for Vulkan, but we don't expect it to have
+    * the support, so limit it to compute */
+   if (gl_shader_stage_is_compute(nir->info.stage)) {
+      nir_lower_mem_access_bit_sizes_options mem_size_options = {
+         .modes = nir_var_mem_ubo | nir_var_mem_push_const | nir_var_mem_ssbo |
+                  nir_var_mem_constant | nir_var_mem_task_payload |
+                  nir_var_shader_temp | nir_var_function_temp |
+                  nir_var_mem_global | nir_var_mem_shared,
+         .callback = mem_access_size_align_cb,
+      };
+
+      NIR_PASS_V(nir, nir_lower_mem_access_bit_sizes, &mem_size_options);
    }
 
    NIR_PASS_V(nir, nir_lower_ssbo, NULL);
