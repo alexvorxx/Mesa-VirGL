@@ -297,7 +297,8 @@ hk_build_bg_eot(struct hk_cmd_buffer *cmd, const VkRenderingInfo *info,
          /* Partial renders always need to flush to memory. */
          store |= partial_render;
 
-         key.op[i] = store ? AGX_EOT_STORE : AGX_BG_EOT_NONE;
+         if (store)
+            key.op[i] = AGX_EOT_STORE;
       } else {
          bool load = att_info->loadOp == VK_ATTACHMENT_LOAD_OP_LOAD;
          bool clear = att_info->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -315,9 +316,16 @@ hk_build_bg_eot(struct hk_cmd_buffer *cmd, const VkRenderingInfo *info,
          /* Don't read back spilled render targets, they're already in memory */
          load &= !key.tib.spilled[i];
 
-         key.op[i] = load    ? AGX_BG_LOAD
-                     : clear ? AGX_BG_CLEAR
-                             : AGX_BG_EOT_NONE;
+         /* Don't apply clears for spilled render targets when we clear the
+          * render area explicitly after.
+          */
+         if (key.tib.spilled[i] && incomplete_render_area)
+            continue;
+
+         if (load)
+            key.op[i] = AGX_BG_LOAD;
+         else if (clear)
+            key.op[i] = AGX_BG_CLEAR;
       }
    }
 
