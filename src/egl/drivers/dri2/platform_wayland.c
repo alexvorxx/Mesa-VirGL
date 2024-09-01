@@ -1703,17 +1703,13 @@ dri2_wl_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *draw,
    if (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu) {
       _EGLContext *ctx = _eglGetCurrentContext();
       struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
+      __DRIdrawable *dri_drawable = dri2_dpy->vtbl->get_dri_drawable(draw);
       dri2_blit_image(
          dri2_ctx->dri_context, dri2_surf->current->linear_copy,
          dri2_surf->current->dri_image, 0, 0, dri2_surf->base.Width,
          dri2_surf->base.Height, 0, 0, dri2_surf->base.Width,
          dri2_surf->base.Height, 0);
-
-      if (dri2_dpy->swrast_not_kms) {
-         __DRIdrawable *dri_drawable = dri2_dpy->vtbl->get_dri_drawable(draw);
-
-         dri_flush_drawable(dri_drawable);
-      }
+      dri_flush_drawable(dri_drawable);
    }
 
    wl_surface_commit(dri2_surf->wl_surface_wrapper);
