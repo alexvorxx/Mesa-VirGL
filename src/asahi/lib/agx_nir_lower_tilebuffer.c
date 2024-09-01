@@ -224,7 +224,7 @@ store_memory(nir_builder *b, unsigned bindless_base, unsigned nr_samples,
       nir_def *coverage = nir_load_sample_mask(b);
 
       if (samples != NULL)
-         coverage = nir_iand(b, coverage, samples);
+         coverage = nir_iand(b, coverage, nir_u2u32(b, samples));
 
       nir_def *covered = nir_ubitfield_extract(
          b, coverage, nir_u2u32(b, sample), nir_imm_int(b, 1));
