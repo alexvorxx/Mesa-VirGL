@@ -46,8 +46,10 @@ static void print_omod_op(FILE * f, rc_omod_op op)
 
 	switch(op) {
 	case RC_OMOD_MUL_1:
-	case RC_OMOD_DISABLE:
 		return;
+	case RC_OMOD_DISABLE:
+		omod_str = "(OMOD DISABLE)";
+		break;
 	case RC_OMOD_MUL_2:
 		omod_str = "* 2";
 		break;

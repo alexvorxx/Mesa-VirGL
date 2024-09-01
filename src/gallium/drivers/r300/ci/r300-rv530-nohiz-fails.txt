@@ -438,7 +438,6 @@ spec@!opengl 2.1@pbo@test_draw_pixels,Fail
 spec@!opengl 2.1@pbo@test_polygon_stip,Fail
 spec@!opengl 2.1@polygon-stipple-fs,Fail
 
-spec@arb_clear_texture@arb_clear_texture-float,Fail
 spec@arb_clear_texture@arb_clear_texture-supported-formats,Fail
 
 spec@arb_color_buffer_float@gl_rgba32f-render,Fail
@@ -746,9 +745,6 @@ spec@glsl-1.20@execution@clipping@vs-clip-vertex-const-accept,Fail
 spec@glsl-1.20@execution@clipping@vs-clip-vertex-different-from-position,Fail
 spec@glsl-1.20@execution@clipping@vs-clip-vertex-homogeneity,Fail
 spec@glsl-1.20@execution@clipping@vs-clip-vertex-primitives,Fail
-
-# We write -nan to output, end don't end with zero
-spec@glsl-1.20@execution@const-builtin@glsl-const-builtin-normalize,Fail
 
 # https://gitlab.freedesktop.org/mesa/mesa/-/issues/8618
 spec@glsl-1.20@execution@fs-nan-builtin-max,Fail

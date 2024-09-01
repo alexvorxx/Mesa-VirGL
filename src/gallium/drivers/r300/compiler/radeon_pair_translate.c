@@ -33,21 +33,8 @@ static void final_rewrite(struct rc_sub_instruction *inst)
 		inst->SrcReg[0] = tmp;
 		break;
 	case RC_OPCODE_MOV:
-		/* AMD say we should use CMP.
-		 * However, when we transform
-		 *  KIL -r0;
-		 * into
-		 *  CMP tmp, -r0, -r0, 0;
-		 *  KIL tmp;
-		 * we get incorrect behaviour on R500 when r0 == 0.0.
-		 * It appears that the R500 KIL hardware treats -0.0 as less
-		 * than zero.
-		 */
-		inst->SrcReg[1].File = RC_FILE_NONE;
-		inst->SrcReg[1].Swizzle = RC_SWIZZLE_1111;
-		inst->SrcReg[2].File = RC_FILE_NONE;
-		inst->SrcReg[2].Swizzle = RC_SWIZZLE_0000;
-		inst->Opcode = RC_OPCODE_MAD;
+		inst->SrcReg[1] = inst->SrcReg[0];
+		inst->Opcode = RC_OPCODE_MAX;
 		break;
 	case RC_OPCODE_MUL:
 		inst->SrcReg[2].File = RC_FILE_NONE;
@@ -60,6 +47,23 @@ static void final_rewrite(struct rc_sub_instruction *inst)
 	}
 }
 
+/**
+ * ALU operations usually enable the output modifier, which in turn standardizes
+ * NaN values and flushes denormal results to zero. A MOV instruction which
+ * preserves the source bits is implemented by setting US_OMOD_DISABLED
+ * for the instruction and using the MAX(src, src) instruction.
+ * The output modifier cannot be disabled for a saturated MOV (MOV with clamping enabled).
+ * RC_OMOD_DISABLE is only available on R5xx and is only valid with MIN/MAX/CMP/CND.
+ */
+static unsigned translate_omod(struct r300_fragment_program_compiler *c,
+	struct rc_sub_instruction *inst)
+{
+	if (c->Base.is_r500 && inst->Omod == RC_OMOD_MUL_1 && !inst->SaturateMode &&
+		(inst->Opcode == RC_OPCODE_MAX || inst->Opcode == RC_OPCODE_MIN ||
+		inst->Opcode == RC_OPCODE_CMP || inst->Opcode == RC_OPCODE_CND))
+		return RC_OMOD_DISABLE;
+	return inst->Omod;
+}
 
 /**
  * Classify an instruction according to which ALUs etc. it needs
@@ -308,10 +312,10 @@ static void set_pair_instruction(struct r300_fragment_program_compiler *c,
 	}
 
 	if (needrgb) {
-		pair->RGB.Omod = inst->Omod;
+		pair->RGB.Omod = translate_omod(c, inst);
 	}
 	if (needalpha) {
-		pair->Alpha.Omod = inst->Omod;
+		pair->Alpha.Omod = translate_omod(c, inst);
 	}
 
 	if (inst->WriteALUResult) {
