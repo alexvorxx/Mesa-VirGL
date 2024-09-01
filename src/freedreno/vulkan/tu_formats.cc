@@ -171,8 +171,8 @@ tu_physical_device_get_format_properties(
        * to use, which means two channels and not something weird like
        * luminance-alpha.
        */
-      if (util_format_is_float(format) &&
-          desc->nr_channels == 2 && desc->swizzle[0] == PIPE_SWIZZLE_X &&
+      if (vk_format_is_float(vk_format) && desc->nr_channels == 2 &&
+          desc->swizzle[0] == PIPE_SWIZZLE_X &&
           desc->swizzle[1] == PIPE_SWIZZLE_Y) {
          optimal |= VK_FORMAT_FEATURE_FRAGMENT_DENSITY_MAP_BIT_EXT;
       }
@@ -198,7 +198,7 @@ tu_physical_device_get_format_properties(
          buffer |= VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT;
       }
 
-      if (!util_format_is_pure_integer(format))
+      if (!vk_format_is_int(vk_format))
          optimal |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
    }
 
