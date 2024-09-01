@@ -377,6 +377,12 @@ mem_access_size_align_cb(nir_intrinsic_op intrin, uint8_t bytes,
    };
 }
 
+static uint8_t
+lower_vec816_alu(const nir_instr *instr, const void *cb_data)
+{
+  return 4;
+}
+
 void
 midgard_preprocess_nir(nir_shader *nir, unsigned gpu_id)
 {
@@ -425,6 +431,8 @@ midgard_preprocess_nir(nir_shader *nir, unsigned gpu_id)
       };
 
       NIR_PASS_V(nir, nir_lower_mem_access_bit_sizes, &mem_size_options);
+      NIR_PASS_V(nir, nir_lower_alu_width, lower_vec816_alu, NULL);
+      NIR_PASS_V(nir, nir_lower_alu_vec8_16_srcs);
    }
 
    NIR_PASS_V(nir, nir_lower_ssbo, NULL);
@@ -889,6 +897,14 @@ emit_alu(compiler_context *ctx, nir_alu_instr *instr)
    case nir_op_unpack_32_4x8:
    case nir_op_pack_32_2x16:
    case nir_op_pack_32_4x8: {
+      op = midgard_alu_op_imov;
+      break;
+   }
+
+   case nir_op_unpack_64_2x32:
+   case nir_op_unpack_64_4x16:
+   case nir_op_pack_64_2x32:
+   case nir_op_pack_64_4x16: {
       op = midgard_alu_op_imov;
       break;
    }
