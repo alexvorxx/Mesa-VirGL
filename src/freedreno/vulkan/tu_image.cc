@@ -227,8 +227,7 @@ tu_image_view_init(struct tu_device *device,
    }
 
    if (aspect_mask == VK_IMAGE_ASPECT_COLOR_BIT &&
-       (vk_format == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ||
-        vk_format == VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM)) {
+       vk_format_get_plane_count(vk_format) > 1) {
       layouts[1] = &image->layout[1];
       layouts[2] = &image->layout[2];
    }
