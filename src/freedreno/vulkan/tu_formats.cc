@@ -112,6 +112,7 @@ tu_physical_device_get_format_properties(
    VkFormatFeatureFlags2 linear = 0, optimal = 0, buffer = 0;
    enum pipe_format format = vk_format_to_pipe_format(vk_format);
    const struct util_format_description *desc = util_format_description(format);
+   const struct vk_format_ycbcr_info *ycbcr_info = vk_format_get_ycbcr_info(vk_format);
 
    bool supported_vtx = tu6_format_vtx_supported(format);
    bool supported_color = tu6_format_color_supported(format);
@@ -143,20 +144,19 @@ tu_physical_device_get_format_properties(
                  VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
                  VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT;
 
-      /* no blit src bit for YUYV/NV12/I420 formats */
-      if (desc->layout != UTIL_FORMAT_LAYOUT_SUBSAMPLED &&
-          desc->layout != UTIL_FORMAT_LAYOUT_PLANAR2 &&
-          desc->layout != UTIL_FORMAT_LAYOUT_PLANAR3) {
-         optimal |= VK_FORMAT_FEATURE_BLIT_SRC_BIT;
-      } else {
+      if (ycbcr_info) {
+         /* This is supported on all YCbCr formats */
          optimal |= VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT;
 
-         if (desc->layout != UTIL_FORMAT_LAYOUT_SUBSAMPLED) {
+         if (ycbcr_info->n_planes > 1) {
             optimal |= VK_FORMAT_FEATURE_COSITED_CHROMA_SAMPLES_BIT |
                        VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT;
             if (physical_device->info->a6xx.has_separate_chroma_filter)
                optimal |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_SEPARATE_RECONSTRUCTION_FILTER_BIT;
          }
+      } else {
+         /* BLIT_SRC_BIT isn't allowed for YCbCr formats */
+         optimal |= VK_FORMAT_FEATURE_BLIT_SRC_BIT;
       }
 
       if (!vk_format_is_int(vk_format)) {
@@ -223,10 +223,7 @@ tu_physical_device_get_format_properties(
       optimal = 0;
    }
 
-   if (vk_format == VK_FORMAT_G8B8G8R8_422_UNORM ||
-       vk_format == VK_FORMAT_B8G8R8G8_422_UNORM ||
-       vk_format == VK_FORMAT_G8_B8R8_2PLANE_420_UNORM ||
-       vk_format == VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM) {
+   if (ycbcr_info) {
       /* Disable buffer texturing of subsampled (422) and planar YUV textures.
        * The subsampling requirement comes from "If format is a block-compressed
        * format, then bufferFeatures must not support any features for the

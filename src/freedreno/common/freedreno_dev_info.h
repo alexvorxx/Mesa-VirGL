@@ -94,6 +94,11 @@ struct fd_dev_info {
       bool depth_bounds_require_depth_test_quirk;
 
       bool has_tex_filter_cubic;
+
+      /* The blob driver does not support SEPARATE_RECONSTRUCTION_FILTER_BIT
+       * before a6xx_gen3.  It still sets CHROMA_LINEAR bit according to
+       * chromaFilter, but the bit has no effect before a6xx_gen3.
+       */
       bool has_separate_chroma_filter;
 
       bool has_sample_locations;
