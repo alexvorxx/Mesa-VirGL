@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include "asahi/compiler/agx_compile.h"
 #include "asahi/layout/layout.h"
+#include "shaders/compression.h"
 #include "agx_device.h"
 #include "agx_pack.h"
 #include "agx_ppp.h"
@@ -260,6 +261,22 @@ agx_gather_device_key(struct agx_device *dev)
                                dev->params.num_clusters_total > 1) ||
                               dev->params.num_dies > 1,
       .soft_fault = agx_has_soft_fault(dev),
+   };
+}
+
+static void
+agx_fill_decompress_push(struct libagx_decompress_push *push,
+                         struct ail_layout *layout, unsigned layer,
+                         unsigned level, uint64_t ptr)
+{
+   *push = (struct libagx_decompress_push){
+      .tile_uncompressed = ail_tile_mode_uncompressed(layout->format),
+      .metadata = ptr + layout->metadata_offset_B +
+                  layout->level_offsets_compressed_B[level] +
+                  (layer * layout->compression_layer_stride_B),
+      .metadata_layer_stride_tl = layout->compression_layer_stride_B / 8,
+      .metadata_width_tl = ail_metadata_width_tl(layout, level),
+      .metadata_height_tl = ail_metadata_height_tl(layout, level),
    };
 }
 
