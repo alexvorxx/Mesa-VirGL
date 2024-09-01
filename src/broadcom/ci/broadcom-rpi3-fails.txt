@@ -1228,7 +1228,3 @@ asan-KHR-GLES2.core.internalformat.texture2d.depth_component_unsigned_int_depth_
 asan-dEQP-GLES2.functional.texture.mipmap.2d.basic.nearest_linear_clamp_non_square,Fail
 asan-dEQP-GLES2.functional.texture.wrap.clamp_clamp_nearest_npot_etc1,Fail
 
-# Bisected to e8226bda60d ("mesa/main: validate desktop gl format/types")
-spec@ext_texture_compression_s3tc@s3tc-errors_gles2,Fail
-spec@ext_texture_compression_s3tc@s3tc-teximage_gles2,Fail
-spec@ext_texture_compression_s3tc@s3tc-texsubimage_gles2,Fail
