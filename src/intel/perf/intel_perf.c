@@ -471,6 +471,8 @@ get_register_queries_function(const struct intel_device_info *devinfo)
       return NULL;
    case INTEL_PLATFORM_LNL:
       return intel_oa_register_queries_lnl;
+   case INTEL_PLATFORM_BMG:
+      return intel_oa_register_queries_bmg;
    default:
       return NULL;
    }
