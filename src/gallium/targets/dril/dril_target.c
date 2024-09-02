@@ -435,8 +435,13 @@ drilCreateNewScreen(int scrn, int fd,
                     const __DRIconfig ***driver_configs, void *data)
 {
    const __DRIconfig **configs = init_dri2_configs(fd);
-   if (!configs)
-      return NULL;
+   if (!configs && fd == -1) {
+      // otherwise set configs to point to our config list
+      configs = calloc(ARRAY_SIZE(drilConfigs) + 1, sizeof(void *));
+      for (int i = 0; i < ARRAY_SIZE(drilConfigs); i++) {
+         configs[i] = mem_dup(&drilConfigs[i], sizeof(drilConfigs[i]));
+      }
+   }
 
    // outpointer it
    *driver_configs = configs;
