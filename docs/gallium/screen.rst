@@ -649,10 +649,10 @@ The integer capabilities:
 * ``PIPE_CAP_HAS_CONST_BW``: Whether the driver only supports non-data-dependent layouts (ie. not bandwidth compressed formats like AFBC, UBWC, etc), or supports ``PIPE_BIND_CONST_BW`` to disable data-dependent layouts on requested resources.
 * ``PIPE_CAP_PERFORMANCE_MONITOR``: Whether GL_AMD_performance_monitor should be exposed.
 * ``PIPE_CAP_TEXTURE_SAMPLER_INDEPENDENT``: Whether sampler views and sampler states are independent objects, meaning both can be freely mixed and matched by the frontend. This isn't required for OpenGL where on the shader level those are the same object. However for proper gallium nine and OpenCL support this is required.
-* ``PIPE_CAP_ASTC_DECODE_MODE``: Whether the driver supports ASTC decode precision. The :ext:`GL_KHR_texture_compression_astc_decode_mode` extension will only get exposed if :ext:`GL_KHR_texture_compression_astc_ldr` is also supported.
+* ``PIPE_CAP_ASTC_DECODE_MODE``: Whether the driver supports ASTC decode precision. The :ext:`GL_EXT_texture_compression_astc_decode_mode` extension will only get exposed if :ext:`GL_KHR_texture_compression_astc_ldr` is also supported.
 * ``PIPE_CAP_SHADER_SUBGROUP_SIZE``: A fixed subgroup size shader runs on GPU when GLSL GL_KHR_shader_subgroup_* extensions are enabled.
-* ``PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_STAGES``: Bitmask of Shader stages which support GL_KHR_shader_subgroup_* intrinsics.
-* ``PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_FEATURES``: Bitmask of shader subgroup features listed in GL_KHR_shader_subgroup.
+* ``PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_STAGES``: Bitmask of shader stages which support GL_KHR_shader_subgroup_* intrinsics.
+* ``PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_FEATURES``: Bitmask of shader subgroup features listed in :ext:`GL_KHR_shader_subgroup`.
 * ``PIPE_CAP_SHADER_SUBGROUP_QUAD_ALL_STAGES``: Whether shader subgroup quad operations are supported by shader stages other than fragment shader.
 
 

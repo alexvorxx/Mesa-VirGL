@@ -139,6 +139,7 @@ linkcheck_ignore = [
   r'https://gitlab.com/.*#.*', # needs JS eval
   r'https://gitlab.freedesktop.org/.*#.*', # needs JS eval
   r'https://github.com/.*#.*', # needs JS eval
+  r'https://www.intel.com/.*', # intel.com is blocking the linkcheck user-agent; maybe it can be customized to look like a browser?
 ]
 linkcheck_exclude_documents = [r'relnotes/.*']
 
