@@ -6,6 +6,7 @@
 #include "nir/nir_builder.h"
 #include "nir.h"
 #include "nir_control_flow.h"
+#include "nir_loop_analyze.h"
 
 static bool
 is_block_empty(nir_block *block)
@@ -376,7 +377,8 @@ opt_loop_peel_initial_break(nir_loop *loop)
    nir_if *nif = nir_cf_node_as_if(if_node);
    nir_block *last_then = nir_if_last_then_block(nif);
    if (!nir_block_ends_in_break(last_then) ||
-       !is_block_empty(nir_if_first_else_block(nif)))
+       !is_block_empty(nir_if_first_else_block(nif)) ||
+       !nir_is_trivial_loop_if(nif, last_then))
       return false;
 
    /* If do_work_2() ends in a break (presumably with a continue somewhere)
