@@ -1749,27 +1749,16 @@ copy_format(VkFormat vk_format, VkImageAspectFlags aspect_mask)
     */
    format = util_format_snorm_to_unorm(format);
 
-   switch (format) {
-   case PIPE_FORMAT_R9G9B9E5_FLOAT:
+   if (vk_format == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32)
       return PIPE_FORMAT_R32_UINT;
 
-   case PIPE_FORMAT_G8_B8R8_420_UNORM:
-      if (aspect_mask == VK_IMAGE_ASPECT_PLANE_1_BIT)
-         return PIPE_FORMAT_R8G8_UNORM;
-      else
-         return PIPE_FORMAT_Y8_UNORM;
-   case PIPE_FORMAT_G8_B8_R8_420_UNORM:
-      return PIPE_FORMAT_R8_UNORM;
+   /* For VK_FORMAT_D32_SFLOAT_S8_UINT and YCbCr formats use our existing helpers */
+   if (vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
+       vk_format_get_ycbcr_info(vk_format))
+      return tu6_plane_format(vk_format, tu6_plane_index(vk_format, aspect_mask));
 
-   case PIPE_FORMAT_Z32_FLOAT_S8X24_UINT:
-      if (aspect_mask == VK_IMAGE_ASPECT_STENCIL_BIT)
-         return PIPE_FORMAT_S8_UINT;
-      assert(aspect_mask == VK_IMAGE_ASPECT_DEPTH_BIT);
-      return PIPE_FORMAT_Z32_FLOAT;
-
-   default:
-      return format;
-   }
+   /* Otherwise, simply return the pipe_format */
+   return format;
 }
 
 static void
