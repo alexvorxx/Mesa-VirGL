@@ -914,13 +914,13 @@ panvk_emit_tiler_primitive(struct panvk_cmd_buffer *cmdbuf,
          cfg.base_vertex_offset = draw->vertex_offset - draw->offset_start;
 
          switch (draw->index_size) {
-         case 32:
+         case 4:
             cfg.index_type = MALI_INDEX_TYPE_UINT32;
             break;
-         case 16:
+         case 2:
             cfg.index_type = MALI_INDEX_TYPE_UINT16;
             break;
-         case 8:
+         case 1:
             cfg.index_type = MALI_INDEX_TYPE_UINT8;
             break;
          default:
@@ -1350,7 +1350,7 @@ panvk_index_minmax_search(struct panvk_cmd_buffer *cmdbuf, uint32_t start,
    /* TODO: Read full cacheline of data to mitigate the uncached
     * mapping slowness.
     */
-   switch (cmdbuf->state.gfx.ib.index_size) {
+   switch (cmdbuf->state.gfx.ib.index_size * 8) {
 #define MINMAX_SEARCH_CASE(sz)                                                 \
    case sz: {                                                                  \
       uint##sz##_t *indices = ptr;                                             \
@@ -1406,7 +1406,7 @@ panvk_per_arch(CmdDrawIndexed)(VkCommandBuffer commandBuffer,
       .offset_start = min_vertex + vertexOffset,
       .indices = panvk_buffer_gpu_ptr(cmdbuf->state.gfx.ib.buffer,
                                       cmdbuf->state.gfx.ib.offset) +
-                 (firstIndex * (cmdbuf->state.gfx.ib.index_size / 8)),
+                 (firstIndex * cmdbuf->state.gfx.ib.index_size),
    };
 
    panvk_cmd_draw(cmdbuf, &draw);
@@ -1912,20 +1912,5 @@ panvk_per_arch(CmdBindIndexBuffer)(VkCommandBuffer commandBuffer,
 
    cmdbuf->state.gfx.ib.buffer = buf;
    cmdbuf->state.gfx.ib.offset = offset;
-   switch (indexType) {
-   case VK_INDEX_TYPE_UINT16:
-      cmdbuf->state.gfx.ib.index_size = 16;
-      break;
-   case VK_INDEX_TYPE_UINT32:
-      cmdbuf->state.gfx.ib.index_size = 32;
-      break;
-   case VK_INDEX_TYPE_NONE_KHR:
-      cmdbuf->state.gfx.ib.index_size = 0;
-      break;
-   case VK_INDEX_TYPE_UINT8_EXT:
-      cmdbuf->state.gfx.ib.index_size = 8;
-      break;
-   default:
-      unreachable("Invalid index type\n");
-   }
+   cmdbuf->state.gfx.ib.index_size = vk_index_type_to_bytes(indexType);
 }
