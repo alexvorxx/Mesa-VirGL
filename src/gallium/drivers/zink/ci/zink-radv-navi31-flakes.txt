@@ -48,3 +48,5 @@ spec@!opengl 1.1@depthstencil-default_fb-copypixels samples=6
 
 # First seen on navi10 in https://gitlab.freedesktop.org/mesa/mesa/-/jobs/58636780
 KHR-GL46.sparse_buffer_tests.BufferStorageTest
+
+spec@arb_compute_shader@local-id-explosion

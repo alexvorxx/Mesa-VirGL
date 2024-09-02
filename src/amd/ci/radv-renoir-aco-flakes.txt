@@ -10,3 +10,7 @@ dEQP-VK.api.copy_and_blit.sparse.image_to_image.simple_tests.partial_image_pot_s
 dEQP-VK.api.copy_and_blit.sparse.image_to_image.simple_tests.whole_image
 dEQP-VK.api.copy_and_blit.sparse.image_to_image.simple_tests.whole_image_diff_format
 dEQP-VK.api.copy_and_blit.sparse.image_to_image.array.array_to_array_layers
+
+# RADV_PERFTEST=transfer_queue
+dEQP-VK.api.copy_and_blit.copy_commands2.image_to_image_transfer_sparse.simple_tests.whole_image_diff_format
+dEQP-VK.api.copy_and_blit.copy_commands2.image_to_image_transfer_sparse.simple_tests.whole_image
