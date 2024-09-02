@@ -239,3 +239,49 @@ TEST_F(nir_opt_loop_test, opt_loop_merge_terminators_skip_merge_if_phis_nested_l
 
    nir_validate_shader(b->shader, NULL);
 }
+
+TEST_F(nir_opt_loop_test, opt_loop_peel_initial_break_ends_with_jump)
+{
+   nir_loop *loop = nir_push_loop(b);
+
+   /* the break we want to move down: */
+   nir_break_if(b, nir_imm_true(b));
+
+   /* do_work_2: */
+   nir_push_if(b, nir_imm_true(b));
+   nir_jump(b, nir_jump_continue);
+   nir_pop_if(b, NULL);
+   nir_jump(b, nir_jump_return);
+
+   nir_pop_loop(b, loop);
+
+   ASSERT_FALSE(nir_opt_loop(b->shader));
+
+   nir_validate_shader(b->shader, NULL);
+}
+
+TEST_F(nir_opt_loop_test, opt_loop_peel_initial_break_nontrivial_break)
+{
+   nir_loop *loop = nir_push_loop(b);
+
+   nir_push_if(b, nir_imm_true(b));
+
+   nir_push_if(b, nir_imm_true(b));
+   nir_push_if(b, nir_imm_true(b));
+   nir_jump(b, nir_jump_break);
+   nir_pop_if(b, NULL);
+   nir_pop_if(b, NULL);
+   nir_nop(b);
+
+   nir_jump(b, nir_jump_break);
+   nir_pop_if(b, NULL);
+
+   /* do_work_2: */
+   nir_nop(b);
+
+   nir_pop_loop(b, loop);
+
+   ASSERT_FALSE(nir_opt_loop(b->shader));
+
+   nir_validate_shader(b->shader, NULL);
+}
