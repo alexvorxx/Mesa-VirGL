@@ -381,10 +381,10 @@ opt_loop_peel_initial_break(nir_loop *loop)
        !nir_is_trivial_loop_if(nif, last_then))
       return false;
 
-   /* If do_work_2() ends in a break (presumably with a continue somewhere)
-    * then we can't move it to the top of the loop ahead of do_work_1()
+   /* If do_work_2() ends in a break or other kind of jump then we can't move
+    * it to the top of the loop ahead of do_work_1().
     */
-   if (nir_block_ends_in_break(nir_loop_last_block(loop)))
+   if (nir_block_ends_in_jump(nir_loop_last_block(loop)))
       return false;
 
    /* Check that there is actual work to be done after the initial break. */
@@ -422,14 +422,7 @@ opt_loop_peel_initial_break(nir_loop *loop)
    header_block = nir_loop_first_block(loop);
 
    /* Clone and re-insert at the continue block. */
-   nir_block *cont_block = NULL;
-   set_foreach(header_block->predecessors, pred_entry) {
-      if (pred_entry->key != prev_block) {
-         cont_block = (nir_block *)pred_entry->key;
-         break;
-      }
-   }
-   assert(cont_block);
+   nir_block *cont_block = nir_loop_last_block(loop);
    struct hash_table *remap_table = _mesa_pointer_hash_table_create(NULL);
    nir_cf_list_clone_and_reinsert(&tmp, &loop->cf_node, nir_after_block(cont_block), remap_table);
    _mesa_hash_table_destroy(remap_table, NULL);
