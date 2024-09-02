@@ -187,6 +187,19 @@ vk_device_init(struct vk_device *device,
 
    simple_mtx_init(&device->trace_mtx, mtx_plain);
 
+   vk_foreach_struct_const (ext, pCreateInfo->pNext) {
+      switch (ext->sType) {
+      case VK_STRUCTURE_TYPE_DEVICE_PIPELINE_BINARY_INTERNAL_CACHE_CONTROL_KHR: {
+         const VkDevicePipelineBinaryInternalCacheControlKHR *cache_control = (const void *)ext;
+         if (cache_control->disableInternalCache)
+            device->disable_internal_cache = true;
+         break;
+      }
+      default:
+         break;
+      }
+   }
+
    return VK_SUCCESS;
 }
 
