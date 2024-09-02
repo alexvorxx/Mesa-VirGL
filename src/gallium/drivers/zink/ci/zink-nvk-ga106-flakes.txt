@@ -3,6 +3,7 @@ KHR-GL46.geometry_shader.limits.max_output_vertices
 KHR-GL46.limits.max_fragment_atomic_counter_buffers
 KHR-GL46.packed_pixels.rectangle.r8
 KHR-GL46.packed_pixels.rectangle.rgba32ui
+KHR-GL46.packed_pixels.rectangle.rgba8_snorm
 KHR-GL46.packed_pixels.varied_rectangle.*
 KHR-GL46.packed_pixels.varied_rectangle.rgb4
 KHR-GL46.packed_pixels.varied_rectangle.rgba12
@@ -65,6 +66,7 @@ spec@arb_texture_view@rendering-formats
 spec@arb_vertex_attrib_64bit@execution@vs_in@vs-input-double_dvec4-double_dmat3-position
 spec@arb_vertex_attrib_64bit@execution@vs_in@vs-input-position-float_vec4_array3-double_dvec4
 spec@ext_external_objects@vk-image-display-muliple-textures
+spec@ext_external_objects@vk-image-overwrite@RGBA 4 UNORM linear
 spec@ext_framebuffer_multisample@clip-and-scissor-blit 2 msaa
 spec@ext_framebuffer_multisample@clip-and-scissor-blit 2 upsample
 spec@ext_framebuffer_multisample@clip-and-scissor-blit 4 upsample
