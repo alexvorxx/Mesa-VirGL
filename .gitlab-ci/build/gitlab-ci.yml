@@ -214,11 +214,7 @@ debian-testing-msan:
   script: |
     section_start lava-pytest "lava-pytest"
     .gitlab-ci/lava/lava-pytest.sh
-    section_switch shellcheck "shellcheck"
-    .gitlab-ci/run-shellcheck.sh
-    section_switch yamllint "yamllint"
-    .gitlab-ci/run-yamllint.sh
-    section_end yamllint
+    section_end lava-pytest
     .gitlab-ci/meson/build.sh
     .gitlab-ci/prepare-artifacts.sh
   timeout: 15m

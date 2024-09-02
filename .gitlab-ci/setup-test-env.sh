@@ -57,6 +57,12 @@ function section_start {
     [ "$state_x" -eq 0 ] || set -x
 }
 
+function uncollapsed_section_start {
+    x_off 2>/dev/null
+    build_section_start "" $*
+    [ "$state_x" -eq 0 ] || set -x
+}
+
 function build_section_end {
     echo -e "\e[0Ksection_end:$(date +%s):$1\r\e[0K"
     CURRENT_SECTION=""
