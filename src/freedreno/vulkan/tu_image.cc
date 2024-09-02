@@ -208,7 +208,7 @@ tu_image_view_init(struct tu_device *device,
    layouts[0] = &image->layout[tu6_plane_index(image->vk.format, aspect_mask)];
 
    enum pipe_format format;
-   if (aspect_mask != VK_IMAGE_ASPECT_COLOR_BIT)
+   if (vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT)
       format = tu6_plane_format(vk_format, tu6_plane_index(vk_format, aspect_mask));
    else
       format = vk_format_to_pipe_format(vk_format);
