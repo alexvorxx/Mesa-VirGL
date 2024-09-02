@@ -212,9 +212,6 @@ debian-testing-msan:
     LLVM_VERSION: 15
     S3_ARTIFACT_NAME: debian-build-testing
   script: |
-    section_start lava-pytest "lava-pytest"
-    .gitlab-ci/lava/lava-pytest.sh
-    section_end lava-pytest
     .gitlab-ci/meson/build.sh
     .gitlab-ci/prepare-artifacts.sh
   timeout: 15m

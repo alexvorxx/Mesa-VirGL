@@ -52,9 +52,7 @@ python-test:
     GIT_STRATEGY: fetch
   timeout: 10m
   script:
-    - cd bin/ci
-    - pip install --break-system-packages -r test/requirements.txt
-    - PYTHONPATH=. pytest -v
+    - .gitlab-ci/run-pytest.sh
   rules:
     - !reference [.disable-farm-mr-rules, rules]
     - !reference [.never-post-merge-rules, rules]
