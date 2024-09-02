@@ -73,6 +73,7 @@ tar -cf artifacts/install.tar install
 cp -Rp .gitlab-ci/common artifacts/ci-common
 cp -Rp .gitlab-ci/lava artifacts/
 cp -Rp .gitlab-ci/b2c artifacts/
+cp bin/ci/structured_logger.py artifacts/
 
 if [ -n "$S3_ARTIFACT_NAME" ]; then
     # Pass needed files to the test stage

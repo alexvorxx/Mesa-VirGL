@@ -1,5 +1,6 @@
 colorama==0.4.*
 filecache==0.81
+filelock==3.*
 gql==3.*
 kaleido==0.2.*
 python-dateutil==2.*

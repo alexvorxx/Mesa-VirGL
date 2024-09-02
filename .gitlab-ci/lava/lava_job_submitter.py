@@ -51,7 +51,7 @@ from lava.utils import DEFAULT_GITLAB_SECTION_TIMEOUTS as GL_SECTION_TIMEOUTS
 STRUCTURAL_LOG = defaultdict(list)
 
 try:
-    from ci.structured_logger import StructuredLogger
+    from structured_logger import StructuredLogger
 except ImportError as e:
     print_log(
         f"Could not import StructuredLogger library: {e}. "
