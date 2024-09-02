@@ -200,8 +200,6 @@ asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
 
    c->ppp_multisamplectl = cs->ppp_multisamplectl;
    c->sample_size = cs->tib.sample_size_B;
-
-   /* XXX OR 0x80 with eMRT? */
    c->tib_blocks = ALIGN_POT(agx_tilebuffer_total_size(&cs->tib), 2048) / 2048;
 
    float tan_60 = 1.732051f;

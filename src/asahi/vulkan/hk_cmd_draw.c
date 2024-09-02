@@ -1575,7 +1575,6 @@ hk_launch_tess(struct hk_cmd_buffer *cmd, struct hk_cs *cs, struct hk_draw draw)
    hk_reserve_scratch(cmd, cs, vs);
    hk_reserve_scratch(cmd, cs, tcs);
 
-   /* XXX perf: grid size */
    hk_dispatch_with_usc(
       dev, cs, vs,
       hk_upload_usc_words(cmd, vs, gfx->linked[MESA_SHADER_VERTEX]), grid_vs,
