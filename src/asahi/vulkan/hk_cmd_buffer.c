@@ -583,21 +583,19 @@ hk_reserve_scratch(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
 
    unsigned preamble_size = (s->b.info.preamble_scratch_size > 0) ? 1 : 0;
 
-   /* XXX: need to lock around agx_scratch_alloc... */
    /* Note: this uses the hardware stage, not the software stage */
+   hk_device_alloc_scratch(dev, s->b.info.stage, max_scratch_size);
+
    switch (s->b.info.stage) {
    case PIPE_SHADER_FRAGMENT:
-      agx_scratch_alloc(&dev->scratch.fs, max_scratch_size, 0);
       cs->scratch.fs.main = true;
       cs->scratch.fs.preamble = MAX2(cs->scratch.fs.preamble, preamble_size);
       break;
    case PIPE_SHADER_VERTEX:
-      agx_scratch_alloc(&dev->scratch.vs, max_scratch_size, 0);
       cs->scratch.vs.main = true;
       cs->scratch.vs.preamble = MAX2(cs->scratch.vs.preamble, preamble_size);
       break;
    default:
-      agx_scratch_alloc(&dev->scratch.cs, max_scratch_size, 0);
       cs->scratch.cs.main = true;
       cs->scratch.cs.preamble = MAX2(cs->scratch.cs.preamble, preamble_size);
       break;

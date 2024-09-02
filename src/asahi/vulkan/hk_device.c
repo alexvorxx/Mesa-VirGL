@@ -421,6 +421,7 @@ hk_CreateDevice(VkPhysicalDevice physicalDevice,
 
    *pDevice = hk_device_to_handle(dev);
 
+   simple_mtx_init(&dev->scratch.lock, mtx_plain);
    agx_scratch_init(&dev->dev, &dev->scratch.vs);
    agx_scratch_init(&dev->dev, &dev->scratch.fs);
    agx_scratch_init(&dev->dev, &dev->scratch.cs);
@@ -475,6 +476,7 @@ hk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    agx_scratch_fini(&dev->scratch.vs);
    agx_scratch_fini(&dev->scratch.fs);
    agx_scratch_fini(&dev->scratch.cs);
+   simple_mtx_destroy(&dev->scratch.lock);
 
    hk_destroy_sampler_heap(dev, &dev->samplers);
    hk_descriptor_table_finish(dev, &dev->images);

@@ -8,6 +8,7 @@
 #pragma once
 
 #include "asahi/lib/agx_device.h"
+#include "util/simple_mtx.h"
 #include "agx_bg_eot.h"
 #include "agx_pack.h"
 #include "agx_scratch.h"
@@ -102,6 +103,7 @@ struct hk_device {
 
    struct {
       struct agx_scratch vs, fs, cs;
+      simple_mtx_t lock;
    } scratch;
 };
 
@@ -121,3 +123,27 @@ VkResult hk_sampler_heap_add(struct hk_device *dev,
                              struct hk_rc_sampler **out);
 
 void hk_sampler_heap_remove(struct hk_device *dev, struct hk_rc_sampler *rc);
+
+static inline struct agx_scratch *
+hk_device_scratch_locked(struct hk_device *dev, enum pipe_shader_type stage)
+{
+   simple_mtx_assert_locked(&dev->scratch.lock);
+
+   switch (stage) {
+   case PIPE_SHADER_FRAGMENT:
+      return &dev->scratch.fs;
+   case PIPE_SHADER_VERTEX:
+      return &dev->scratch.vs;
+   default:
+      return &dev->scratch.cs;
+   }
+}
+
+static inline void
+hk_device_alloc_scratch(struct hk_device *dev, enum pipe_shader_type stage,
+                        unsigned size)
+{
+   simple_mtx_lock(&dev->scratch.lock);
+   agx_scratch_alloc(hk_device_scratch_locked(dev, stage), size, 0);
+   simple_mtx_unlock(&dev->scratch.lock);
+}
