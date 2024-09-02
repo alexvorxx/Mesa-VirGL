@@ -46,21 +46,34 @@ is_not_used_in_single_if(const nir_alu_instr *instr)
 }
 
 static inline bool
-is_only_used_by_load_ubo_vec4(const nir_alu_instr *instr)
+is_only_used_by_intrinsic(const nir_alu_instr *instr, nir_intrinsic_op op)
 {
+   bool is_used = false;
    nir_foreach_use(src, &instr->def) {
-      if (nir_src_is_if(src))
-         return false;
+      is_used = true;
+
       nir_instr *user_instr = nir_src_parent_instr(src);
       if (user_instr->type != nir_instr_type_intrinsic)
          return false;
 
       const nir_intrinsic_instr *const user_intrinsic = nir_instr_as_intrinsic(user_instr);
 
-      if (user_intrinsic->intrinsic != nir_intrinsic_load_ubo_vec4)
+      if (user_intrinsic->intrinsic != op)
             return false;
    }
-   return true;
+   return is_used;
+}
+
+static inline bool
+is_only_used_by_load_ubo_vec4(const nir_alu_instr *instr)
+{
+   return is_only_used_by_intrinsic(instr, nir_intrinsic_load_ubo_vec4);
+}
+
+static inline bool
+is_only_used_by_terminate_if(const nir_alu_instr *instr)
+{
+   return is_only_used_by_intrinsic(instr, nir_intrinsic_terminate_if);
 }
 
 static inline bool
