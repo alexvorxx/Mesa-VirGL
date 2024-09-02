@@ -298,23 +298,6 @@ opt_loop_last_block(nir_block *block, bool is_trivial_continue, bool is_trivial_
 }
 
 static bool
-block_contains_work(nir_block *block)
-{
-   if (!nir_cf_node_is_last(&block->cf_node))
-      return true;
-   if (exec_list_is_empty(&block->instr_list))
-      return false;
-
-   /* Return false if the block contains only move-instructions. */
-   nir_foreach_instr(instr, block) {
-      if (instr->type != nir_instr_type_alu ||
-          !nir_op_is_vec_or_mov(nir_instr_as_alu(instr)->op))
-         return true;
-   }
-   return false;
-}
-
-static bool
 can_constant_fold(nir_scalar scalar, nir_block *loop_header)
 {
    if (nir_scalar_is_const(scalar))
@@ -403,7 +386,7 @@ opt_loop_peel_initial_break(nir_loop *loop)
       return false;
 
    /* Check that there is actual work to be done after the initial break. */
-   if (!block_contains_work(nir_cf_node_cf_tree_next(if_node)))
+   if (!nir_block_contains_work(nir_cf_node_cf_tree_next(if_node)))
       return false;
 
    /* For now, we restrict this optimization to cases where the outer IF
