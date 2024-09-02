@@ -6,7 +6,11 @@
 # This script runs unit/integration tests related with LAVA CI tools
 # shellcheck disable=SC1091 # The relative paths in this file only become valid at runtime.
 
-set -ex
+set -exu
+
+if [ -z "${CI_PROJECT_DIR:-}" ]; then
+    CI_PROJECT_DIR="$(dirname "${0}")/../../"
+fi
 
 # Use this script in a python virtualenv for isolation
 python3 -m venv .venv
