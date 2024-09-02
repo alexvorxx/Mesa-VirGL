@@ -5,6 +5,7 @@
 
 # This script runs unit/integration tests related with LAVA CI tools
 # shellcheck disable=SC1091 # The relative paths in this file only become valid at runtime.
+# shellcheck disable=SC2086 # quoting PYTEST_VERBOSE makes us pass an empty path
 
 set -exu
 
@@ -27,4 +28,5 @@ PYTHONPATH="${TEST_DIR}:${PYTHONPATH}" python3 -m \
     pytest "${TEST_DIR}" \
             -W ignore::DeprecationWarning \
             --junitxml=artifacts/ci_scripts_report.xml \
-            -m 'not slow'
+            -m 'not slow' \
+	    ${PYTEST_VERBOSE:-}
