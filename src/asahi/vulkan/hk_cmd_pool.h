@@ -11,8 +11,7 @@
 
 #include "vk_command_pool.h"
 
-/* XXX: FIXME */
-#define HK_CMD_BO_SIZE 1024 * 1024
+#define HK_CMD_BO_SIZE 1024 * 128
 
 /* Recyclable command buffer BO, used for both push buffers and upload */
 struct hk_cmd_bo {
