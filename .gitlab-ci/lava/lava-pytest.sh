@@ -12,9 +12,13 @@ if [ -z "${CI_PROJECT_DIR:-}" ]; then
     CI_PROJECT_DIR="$(dirname "${0}")/../../"
 fi
 
+if [ -z "${LAVA_PYTEST_VENV:-}" ]; then
+    LAVA_PYTEST_VENV="${CI_PROJECT_DIR}/.gitlab-ci/lava/.venv-pytest"
+fi
+
 # Use this script in a python virtualenv for isolation
-python3 -m venv .venv
-. .venv/bin/activate
+python3 -m venv "${LAVA_PYTEST_VENV}"
+. "${LAVA_PYTEST_VENV}"/bin/activate
 python3 -m pip install --break-system-packages -r "${CI_PROJECT_DIR}/.gitlab-ci/lava/requirements-test.txt"
 
 TEST_DIR=${CI_PROJECT_DIR}/.gitlab-ci/tests
