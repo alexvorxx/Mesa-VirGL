@@ -76,12 +76,20 @@ VK_DEFINE_NONDISP_HANDLE_CASTS(tu_image_view, vk.base, VkImageView,
                                VK_OBJECT_TYPE_IMAGE_VIEW);
 
 uint32_t tu6_plane_count(VkFormat format);
+
 enum pipe_format tu6_plane_format(VkFormat format, uint32_t plane);
 
 uint32_t tu6_plane_index(VkFormat format, VkImageAspectFlags aspect_mask);
 
 enum pipe_format tu_format_for_aspect(enum pipe_format format,
                                       VkImageAspectFlags aspect_mask);
+
+static inline enum pipe_format
+tu_aspects_to_plane(VkFormat format, VkImageAspectFlags aspect_mask)
+{
+   uint32_t plane = tu6_plane_index(format, aspect_mask);
+   return tu6_plane_format(format, plane);
+}
 
 uint64_t
 tu_layer_address(const struct fdl6_view *iview, uint32_t layer);

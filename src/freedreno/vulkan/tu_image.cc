@@ -212,7 +212,7 @@ tu_image_view_init(struct tu_device *device,
 
    enum pipe_format format;
    if (vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT)
-      format = tu6_plane_format(vk_format, tu6_plane_index(vk_format, aspect_mask));
+      format = tu_aspects_to_plane(vk_format, aspect_mask);
    else
       format = vk_format_to_pipe_format(vk_format);
 

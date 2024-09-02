@@ -1755,7 +1755,7 @@ copy_format(VkFormat vk_format, VkImageAspectFlags aspect_mask)
    /* For VK_FORMAT_D32_SFLOAT_S8_UINT and YCbCr formats use our existing helpers */
    if (vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
        vk_format_get_ycbcr_info(vk_format))
-      return tu6_plane_format(vk_format, tu6_plane_index(vk_format, aspect_mask));
+      return tu_aspects_to_plane(vk_format, aspect_mask);
 
    /* Otherwise, simply return the pipe_format */
    return format;
@@ -2151,9 +2151,7 @@ tu_image_view_blit(struct fdl6_view *iview,
                    const VkImageSubresourceLayers *subres,
                    uint32_t layer)
 {
-   enum pipe_format format =
-      tu6_plane_format(image->vk.format, tu6_plane_index(image->vk.format,
-                                                         subres->aspectMask));
+   enum pipe_format format = tu_aspects_to_plane(image->vk.format, subres->aspectMask);
    tu_image_view_copy_blit<CHIP>(iview, image, format, subres, layer, false);
 }
 
@@ -2220,17 +2218,11 @@ tu6_blit_image(struct tu_cmd_buffer *cmd,
       blit_param = z_scale ? R3D_Z_SCALE : 0;
    }
 
-   /* use the right format in setup() for D32_S8
-    * TODO: this probably should use a helper
-    */
-   enum pipe_format src_format =
-      tu6_plane_format(src_image->vk.format,
-                       tu6_plane_index(src_image->vk.format,
-                                       info->srcSubresource.aspectMask));
-   enum pipe_format dst_format =
-      tu6_plane_format(dst_image->vk.format,
-                       tu6_plane_index(src_image->vk.format,
-                                       info->srcSubresource.aspectMask));
+   /* use the right format in setup() for D32_S8 */
+   enum pipe_format src_format = tu_aspects_to_plane(
+      src_image->vk.format, info->srcSubresource.aspectMask);
+   enum pipe_format dst_format = tu_aspects_to_plane(
+      dst_image->vk.format, info->dstSubresource.aspectMask);
    trace_start_blit(&cmd->trace, cs,
                   ops == &r3d_ops<CHIP>,
                   src_image->vk.format,
@@ -3080,9 +3072,7 @@ clear_image_cp_blit(struct tu_cmd_buffer *cmd,
    if (image->vk.format == VK_FORMAT_E5B9G9R9_UFLOAT_PACK32) {
       format = PIPE_FORMAT_R32_UINT;
    } else {
-      format = tu6_plane_format(image->vk.format,
-                                tu6_plane_index(image->vk.format,
-                                                aspect_mask));
+      format = tu_aspects_to_plane(image->vk.format, aspect_mask);
    }
 
    if (image->layout[0].depth0 > 1) {
