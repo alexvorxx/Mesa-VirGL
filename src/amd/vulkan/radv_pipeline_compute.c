@@ -196,8 +196,9 @@ radv_compute_pipeline_compile(const VkComputePipelineCreateInfo *pCreateInfo, st
 
    /* Skip the shaders cache when any of the below are true:
     * - shaders are captured because it's for debugging purposes
+    * - binaries are captured for later uses
     */
-   if (keep_executable_info) {
+   if (keep_executable_info || (pipeline->base.create_flags & VK_PIPELINE_CREATE_2_CAPTURE_DATA_BIT_KHR)) {
       skip_shaders_cache = true;
    }
 

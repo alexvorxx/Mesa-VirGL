@@ -2908,10 +2908,12 @@ radv_graphics_pipeline_compile(struct radv_graphics_pipeline *pipeline, const Vk
    /* Skip the shaders cache when any of the below are true:
     * - fast-linking is enabled because it's useless to cache unoptimized pipelines
     * - shaders are captured because it's for debugging purposes
+    * - binaries are captured for later uses
     * - graphics pipeline libraries are created with the RETAIN_LINK_TIME_OPTIMIZATION flag and
     *   module identifiers are used (ie. no SPIR-V provided).
     */
-   if (fast_linking_enabled || keep_executable_info) {
+   if (fast_linking_enabled || keep_executable_info ||
+       (pipeline->base.create_flags & VK_PIPELINE_CREATE_2_CAPTURE_DATA_BIT_KHR)) {
       skip_shaders_cache = true;
    } else if (retain_shaders) {
       assert(pipeline->base.create_flags & VK_PIPELINE_CREATE_2_LIBRARY_BIT_KHR);

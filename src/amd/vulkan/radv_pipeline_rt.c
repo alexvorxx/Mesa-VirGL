@@ -622,9 +622,10 @@ radv_rt_compile_shaders(struct radv_device *device, struct vk_pipeline_cache *ca
          (library && !has_callable) || always_inlined || (monolithic && rt_stages[idx].stage != MESA_SHADER_RAYGEN);
       nir_needed &= !rt_stages[idx].nir;
       if (nir_needed) {
+         const bool cached = !stage->key.optimisations_disabled &&
+                             !(pipeline->base.base.create_flags & VK_PIPELINE_CREATE_2_CAPTURE_DATA_BIT_KHR);
          rt_stages[idx].stack_size = stage->nir->scratch_size;
-         rt_stages[idx].nir = radv_pipeline_cache_nir_to_handle(device, cache, stage->nir, rt_stages[idx].sha1,
-                                                                !stage->key.optimisations_disabled);
+         rt_stages[idx].nir = radv_pipeline_cache_nir_to_handle(device, cache, stage->nir, rt_stages[idx].sha1, cached);
       }
 
       stage->feedback.duration += os_time_get_nano() - stage_start;
@@ -890,9 +891,11 @@ radv_rt_pipeline_compile(struct radv_device *device, const VkRayTracingPipelineC
 
    /* Skip the shaders cache when any of the below are true:
     * - shaders are captured because it's for debugging purposes
+    * - binaries are captured for later uses
     * - ray history is enabled
     */
-   if (keep_executable_info || emit_ray_history) {
+   if (keep_executable_info || emit_ray_history ||
+       (pipeline->base.base.create_flags & VK_PIPELINE_CREATE_2_CAPTURE_DATA_BIT_KHR)) {
       skip_shaders_cache = true;
    }
 
