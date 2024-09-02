@@ -48,6 +48,21 @@ static void rewrite_source(struct radeon_compiler * c,
 		mov->U.I.SrcReg[0] = inst->U.I.SrcReg[src];
 		mov->U.I.PreSub = inst->U.I.PreSub;
 
+		/* RC_OPCODE_KIL will trigger if the value is -0 and TEX srcs don't have negate
+		 * so considering something like this pattern
+		 *  0: ADD temp[1].x, input[0].w___, const[0].-x___;
+		 *  1: CMP temp[2].x, temp[1].x___, none.1___, none.0___;
+		 *  2: KIL -temp[2].xxxx;
+		 *  we don't want to insert MOV, because HW docs advise we tranlate MOV to MAX
+		 *  (with RC_OPCODE_DISABLE) and this in turn will mean the KIL will always
+		 *  trigger (as it will have either -1 or -0). So emit here ADD src0 + 0 instead.
+		 */
+		if (inst->U.I.Opcode == RC_OPCODE_KIL) {
+			assert(!phase);
+			mov->U.I.Opcode = RC_OPCODE_ADD;
+			mov->U.I.SrcReg[1].Swizzle = RC_SWIZZLE_0000;
+		}
+
 		for(unsigned int chan = 0; chan < 4; ++chan) {
 			if (!GET_BIT(split.Phase[phase], chan))
 				SET_SWZ(mov->U.I.SrcReg[0].Swizzle, chan, RC_SWIZZLE_UNUSED);
