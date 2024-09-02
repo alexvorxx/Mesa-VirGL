@@ -75,6 +75,7 @@ def lava_job_submitter(
             boot_method="test_boot",
             ci_project_dir="test_dir",
             device_type="test_device",
+            farm="test_farm",
             job_timeout_min=1,
             structured_log_file=tmp_file,
         )
