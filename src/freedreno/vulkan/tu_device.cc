@@ -1394,6 +1394,8 @@ tu_init_dri_options(struct tu_instance *instance)
          driQueryOptionb(&instance->dri_options, "tu_disable_d24s8_border_color_workaround");
 }
 
+static uint32_t instance_count = 0;
+
 VKAPI_ATTR VkResult VKAPI_CALL
 tu_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                   const VkAllocationCallbacks *pAllocator,
@@ -1435,6 +1437,7 @@ tu_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
    instance->vk.physical_devices.enumerate = tu_enumerate_devices;
    instance->vk.physical_devices.destroy = tu_destroy_physical_device;
 
+   instance->instance_idx = p_atomic_fetch_add(&instance_count, 1);
    if (TU_DEBUG(STARTUP))
       mesa_logi("Created an instance");
 
@@ -2583,8 +2586,9 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       snprintf(engine_name, sizeof(engine_name), "%s", engine_name_str);
 
       char output_name[128];
-      snprintf(output_name, sizeof(output_name), "tu_%s.%s_device%u",
-               app_name, engine_name, device->device_idx);
+      snprintf(output_name, sizeof(output_name), "tu_%s.%s_instance%u_device%u",
+               app_name, engine_name, device->instance->instance_idx,
+               device->device_idx);
 
       fd_rd_output_init(&device->rd_output, output_name);
    }
