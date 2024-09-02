@@ -178,9 +178,7 @@ debian-testing-msan:
       -D intel-clc=enabled
       -D install-intel-clc=true
 
-# Disabled because it is unacceptably slow and blocks too many MRs
-# Should be re-enabled once this problem has been fixed.
-.debian-build-testing:
+debian-build-testing:
   extends: .meson-build
   needs:
     - !reference [.meson-build, needs]
@@ -208,7 +206,6 @@ debian-testing-msan:
       -D spirv-to-dxil=true
       -D osmesa=true
       -D tools=drm-shim,etnaviv,freedreno,glsl,intel,intel-ui,nir,nouveau,lima,panfrost,asahi
-      -D b_lto=true
     LLVM_VERSION: 15
     S3_ARTIFACT_NAME: debian-build-testing
   script: |
@@ -216,14 +213,13 @@ debian-testing-msan:
     .gitlab-ci/prepare-artifacts.sh
   timeout: 15m
 
-# Disabled because it currently needs debian-build-testing
-.shader-db:
+shader-db:
   stage: code-validation
   extends:
     - .use-debian/x86_64_build
     - .container+build-rules
   needs:
-    - .debian-build-testing
+    - debian-build-testing
   variables:
     S3_ARTIFACT_NAME: debian-build-testing
   before_script:
