@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2046 # we want to arg-split FIRMWARE_FILES
+# shellcheck disable=SC2086 # as above
+# shellcheck disable=SC2116 # as above
 
 set -e
 
 ROOTFS=$1
 FIRMWARE_FILES=$2
-FIRMWARE=$(jq -s '.' $FIRMWARE_FILES)
+FIRMWARE=$(jq -s '.' $(echo "$FIRMWARE_FILES"))
 
 if [ -z "$FIRMWARE" ] || [ "$(echo "$FIRMWARE" | jq '. | length')" -eq 0 ]; then
   echo "FIRMWARE is not set or is empty."

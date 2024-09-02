@@ -2,6 +2,7 @@
 # shellcheck disable=SC1091 # The relative paths in this file only become valid at runtime.
 # shellcheck disable=SC2034 # Variables are used in scripts called from here
 # shellcheck disable=SC2086 # we want word splitting
+# shellcheck disable=SC2016 # non-expanded variables are intentional
 # When changing this file, you need to bump the following
 # .gitlab-ci/image-tags.yml tags:
 # KERNEL_ROOTFS_TAG
