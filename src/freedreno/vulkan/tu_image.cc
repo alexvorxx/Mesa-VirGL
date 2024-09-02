@@ -39,6 +39,7 @@ tu6_plane_count(VkFormat format)
        * a depth plane and a stencil plane.
        */
       return 2;
+
    default:
       return vk_format_get_plane_count(format);
    }
@@ -48,14 +49,16 @@ enum pipe_format
 tu6_plane_format(VkFormat format, uint32_t plane)
 {
    switch (format) {
-   case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM:
-      return plane ? PIPE_FORMAT_R8G8_UNORM : PIPE_FORMAT_Y8_UNORM;
-   case VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM:
-      return PIPE_FORMAT_R8_UNORM;
    case VK_FORMAT_D32_SFLOAT_S8_UINT:
-      return plane ? PIPE_FORMAT_S8_UINT : PIPE_FORMAT_Z32_FLOAT;
+      /* See tu6_plane_count above */
+      return !plane ? PIPE_FORMAT_Z32_FLOAT : PIPE_FORMAT_S8_UINT;
+
+   case VK_FORMAT_G8_B8R8_2PLANE_420_UNORM:
+      /* The 0'th plane of this format has a different UBWC compression */
+      return !plane ? PIPE_FORMAT_Y8_UNORM : PIPE_FORMAT_R8G8_UNORM;
+
    default:
-      return vk_format_to_pipe_format(format);
+      return vk_format_to_pipe_format(vk_format_get_plane_format(format, plane));
    }
 }
 
