@@ -208,7 +208,7 @@ nir_atan(nir_builder *b, nir_def *y_over_x)
                   tmp);
 
    /* sign fixup */
-   nir_def *result = nir_fmul(b, tmp, nir_fsign(b, y_over_x));
+   nir_def *result = nir_copysign(b, tmp, y_over_x);
 
    /* The fmin and fmax above will filter out NaN values.  This leads to
     * non-NaN results for NaN inputs.  Work around this by doing
