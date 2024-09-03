@@ -136,6 +136,10 @@ vlVaHandleVAEncPictureParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *cont
    context->desc.h264enc.pic_ctrl.chroma_qp_index_offset = h264->chroma_qp_index_offset;
    context->desc.h264enc.pic_ctrl.second_chroma_qp_index_offset
       = h264->second_chroma_qp_index_offset;
+   context->desc.h264enc.pic_ctrl.constrained_intra_pred_flag =
+      h264->pic_fields.bits.constrained_intra_pred_flag;
+   context->desc.h264enc.pic_ctrl.transform_8x8_mode_flag =
+      h264->pic_fields.bits.transform_8x8_mode_flag;
 
    if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SLICE)) {
       unsigned max_poc = 1 << (context->desc.h264enc.seq.log2_max_pic_order_cnt_lsb_minus4 + 4);
@@ -749,6 +753,17 @@ static void parseEncPpsParamsH264(vlVaContext *context, struct vl_rbsp *rbsp)
    pic->deblocking_filter_control_present_flag = vl_rbsp_u(rbsp, 1);
    pic->constrained_intra_pred_flag = vl_rbsp_u(rbsp, 1);
    pic->redundant_pic_cnt_present_flag = vl_rbsp_u(rbsp, 1);
+   if (vl_rbsp_more_data(rbsp)) {
+      pic->transform_8x8_mode_flag = vl_rbsp_u(rbsp, 1);
+      if (vl_rbsp_u(rbsp, 1)) { /* pic_scaling_matrix_present_flag */
+         debug_error("PPS scaling matrix not supported");
+         return;
+      }
+      pic->second_chroma_qp_index_offset = vl_rbsp_se(rbsp);
+   } else {
+      pic->transform_8x8_mode_flag = 0;
+      pic->second_chroma_qp_index_offset = pic->chroma_qp_index_offset;
+   }
 }
 
 VAStatus
