@@ -193,10 +193,11 @@ struct nvkmd_mem_ops {
                    void *fixed_addr,
                    void **map_out);
 
-   void (*unmap)(struct nvkmd_mem *mem);
+   void (*unmap)(struct nvkmd_mem *mem, void *map);
 
    VkResult (*overmap)(struct nvkmd_mem *mem,
-                       struct vk_object_base *log_obj);
+                       struct vk_object_base *log_obj,
+                       void *map);
 
    VkResult (*export_dma_buf)(struct nvkmd_mem *mem,
                               struct vk_object_base *log_obj,
@@ -475,16 +476,17 @@ static inline void
 nvkmd_mem_unmap(struct nvkmd_mem *mem)
 {
    assert(mem->map != NULL);
-   mem->ops->unmap(mem);
-   assert(mem->map == NULL);
+   mem->ops->unmap(mem, mem->map);
+   mem->map = NULL;
 }
 
 static inline VkResult MUST_CHECK
 nvkmd_mem_overmap(struct nvkmd_mem *mem, struct vk_object_base *log_obj)
 {
    assert(mem->map != NULL);
-   VkResult result = mem->ops->overmap(mem, log_obj);
-   assert(mem->map == NULL);
+   VkResult result = mem->ops->overmap(mem, log_obj, mem->map);
+   if (result == VK_SUCCESS)
+      mem->map = NULL;
    return result;
 }
 

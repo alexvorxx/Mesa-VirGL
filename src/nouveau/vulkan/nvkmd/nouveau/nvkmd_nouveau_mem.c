@@ -208,29 +208,28 @@ nvkmd_nouveau_mem_map(struct nvkmd_mem *_mem,
 }
 
 static void
-nvkmd_nouveau_mem_unmap(struct nvkmd_mem *_mem)
+nvkmd_nouveau_mem_unmap(struct nvkmd_mem *_mem, void *map)
 {
    struct nvkmd_nouveau_mem *mem = nvkmd_nouveau_mem(_mem);
 
-   munmap(mem->base.map, mem->base.size_B);
-   mem->base.map = NULL;
+   munmap(map, mem->base.size_B);
 }
 
 static VkResult
 nvkmd_nouveau_mem_overmap(struct nvkmd_mem *_mem,
-                          struct vk_object_base *log_obj)
+                          struct vk_object_base *log_obj,
+                          void *map)
 {
    struct nvkmd_nouveau_mem *mem = nvkmd_nouveau_mem(_mem);
 
-   void *map = mmap(mem->base.map, mem->base.size_B, PROT_NONE,
-                    MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
-   if (map == MAP_FAILED) {
+   void *new_map = mmap(map, mem->base.size_B, PROT_NONE,
+                        MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+   if (new_map == MAP_FAILED) {
       return vk_errorf(log_obj, VK_ERROR_MEMORY_MAP_FAILED,
                        "Failed to map over original mapping");
    }
 
-   assert(map == mem->base.map);
-   mem->base.map = NULL;
+   assert(new_map == map);
 
    return VK_SUCCESS;
 }
