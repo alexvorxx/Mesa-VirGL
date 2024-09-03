@@ -208,7 +208,9 @@ nvkmd_nouveau_mem_map(struct nvkmd_mem *_mem,
 }
 
 static void
-nvkmd_nouveau_mem_unmap(struct nvkmd_mem *_mem, void *map)
+nvkmd_nouveau_mem_unmap(struct nvkmd_mem *_mem,
+                        enum nvkmd_mem_map_flags flags,
+                        void *map)
 {
    struct nvkmd_nouveau_mem *mem = nvkmd_nouveau_mem(_mem);
 
@@ -218,6 +220,7 @@ nvkmd_nouveau_mem_unmap(struct nvkmd_mem *_mem, void *map)
 static VkResult
 nvkmd_nouveau_mem_overmap(struct nvkmd_mem *_mem,
                           struct vk_object_base *log_obj,
+                          enum nvkmd_mem_map_flags flags,
                           void *map)
 {
    struct nvkmd_nouveau_mem *mem = nvkmd_nouveau_mem(_mem);

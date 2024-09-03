@@ -208,7 +208,7 @@ nvkmd_mem_unref(struct nvkmd_mem *mem)
       return;
 
    if (mem->map != NULL)
-      mem->ops->unmap(mem, mem->map);
+      mem->ops->unmap(mem, 0, mem->map);
 
    mem->ops->free(mem);
 }
