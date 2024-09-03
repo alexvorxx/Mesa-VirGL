@@ -24,6 +24,8 @@ nvkmd_mem_init(struct nvkmd_dev *dev,
       .bind_align_B = bind_align_B,
       .size_B = size_B,
    };
+
+   simple_mtx_init(&mem->map_mutex, mtx_plain);
 }
 
 VkResult
@@ -223,6 +225,8 @@ nvkmd_mem_map(struct nvkmd_mem *mem, struct vk_object_base *log_obj,
 {
    void *map = NULL;
 
+   assert((fixed_addr == NULL) == !(flags & NVKMD_MEM_MAP_FIXED));
+
    if (flags & NVKMD_MEM_MAP_CLIENT) {
       assert(mem->client_map == NULL);
 
@@ -233,13 +237,25 @@ nvkmd_mem_map(struct nvkmd_mem *mem, struct vk_object_base *log_obj,
       mem->client_map = map;
    } else {
       assert(!(flags & NVKMD_MEM_MAP_FIXED));
-      assert(mem->map == NULL);
 
-      VkResult result = mem->ops->map(mem, log_obj, flags, fixed_addr, &map);
+      simple_mtx_lock(&mem->map_mutex);
+
+      assert((mem->map_cnt == 0) == (mem->map == NULL));
+      mem->map_cnt++;
+
+      VkResult result = VK_SUCCESS;
+      if (mem->map == NULL) {
+         result = mem->ops->map(mem, log_obj, flags, NULL, &map);
+         if (result == VK_SUCCESS)
+            mem->map = map;
+      } else {
+         map = mem->map;
+      }
+
+      simple_mtx_unlock(&mem->map_mutex);
+
       if (result != VK_SUCCESS)
          return result;
-
-      mem->map = map;
    }
 
    if (map_out != NULL)
@@ -257,7 +273,11 @@ nvkmd_mem_unmap(struct nvkmd_mem *mem, enum nvkmd_mem_map_flags flags)
       mem->client_map = NULL;
    } else {
       assert(mem->map != NULL);
-      mem->ops->unmap(mem, flags, mem->map);
-      mem->map = NULL;
+      simple_mtx_lock(&mem->map_mutex);
+      if (--mem->map_cnt == 0) {
+         mem->ops->unmap(mem, flags, mem->map);
+         mem->map = NULL;
+      }
+      simple_mtx_unlock(&mem->map_mutex);
    }
 }

@@ -6,6 +6,7 @@
 #define NVKMD_H 1
 
 #include "nv_device_info.h"
+#include "util/simple_mtx.h"
 #include "util/u_atomic.h"
 
 #include "../nvk_debug.h"
@@ -61,8 +62,10 @@ enum nvkmd_mem_map_flags {
    /** Create a client mapping
     *
     * This sets nvkmd_mem::client_map instead of nvkmd_mem::map.  These
-    * mappings may be different from internal mappings.  Only client mappings
-    * can be used with MAP_FIXED or unmapped with nvkmd_mem_overmap().
+    * mappings may be different from internal mappings and have different
+    * rules.  Only one client mapping may exist at a time but internal
+    * mappings are reference counted.  Only client mappings can be used with
+    * MAP_FIXED or unmapped with nvkmd_mem_overmap().
     */
    NVKMD_MEM_MAP_CLIENT = 1 << 2,
 
@@ -230,7 +233,11 @@ struct nvkmd_mem {
 
    uint64_t size_B;
    struct nvkmd_va *va;
+
+   simple_mtx_t map_mutex;
+   uint32_t map_cnt;
    void *map;
+
    void *client_map;
 };
 

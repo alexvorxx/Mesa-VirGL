@@ -185,8 +185,6 @@ nvkmd_nouveau_mem_map(struct nvkmd_mem *_mem,
    struct nvkmd_nouveau_mem *mem = nvkmd_nouveau_mem(_mem);
    struct nvkmd_nouveau_dev *dev = nvkmd_nouveau_dev(_mem->dev);
 
-   assert((fixed_addr == NULL) == !(map_flags & NVKMD_MEM_MAP_FIXED));
-
    int prot = 0;
    if (map_flags & NVKMD_MEM_MAP_RD)
       prot |= PROT_READ;
