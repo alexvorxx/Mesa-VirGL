@@ -1683,59 +1683,15 @@ hk_cmd_bind_graphics_shader(struct hk_cmd_buffer *cmd,
    }
 }
 
-static uint32_t
-hk_pipeline_bind_group(gl_shader_stage stage)
-{
-   return stage;
-}
-
 static void
 hk_flush_shaders(struct hk_cmd_buffer *cmd)
 {
    if (cmd->state.gfx.shaders_dirty == 0)
       return;
 
-   /* Map shader types to shaders */
-   struct hk_api_shader *type_shader[6] = {
-      NULL,
-   };
-   uint32_t types_dirty = 0;
-
-   const uint32_t gfx_stages =
-      BITFIELD_BIT(MESA_SHADER_VERTEX) | BITFIELD_BIT(MESA_SHADER_TESS_CTRL) |
-      BITFIELD_BIT(MESA_SHADER_TESS_EVAL) | BITFIELD_BIT(MESA_SHADER_GEOMETRY) |
-      BITFIELD_BIT(MESA_SHADER_FRAGMENT);
-
    /* Geometry shading overrides the restart index, reemit on rebind */
    if (IS_SHADER_DIRTY(GEOMETRY)) {
       cmd->state.gfx.dirty |= HK_DIRTY_INDEX;
-   }
-
-   u_foreach_bit(stage, cmd->state.gfx.shaders_dirty & gfx_stages) {
-      /* TODO: compact? */
-      uint32_t type = stage;
-      types_dirty |= BITFIELD_BIT(type);
-
-      /* Only copy non-NULL shaders because mesh/task alias with vertex and
-       * tessellation stages.
-       */
-      if (cmd->state.gfx.shaders[stage] != NULL) {
-         assert(type < ARRAY_SIZE(type_shader));
-         assert(type_shader[type] == NULL);
-         type_shader[type] = cmd->state.gfx.shaders[stage];
-      }
-   }
-
-   u_foreach_bit(type, types_dirty) {
-      struct hk_api_shader *shader = type_shader[type];
-
-      /* We always map index == type */
-      // const uint32_t idx = type;
-
-      if (shader == NULL)
-         continue;
-
-      /* TODO */
    }
 
    struct hk_graphics_state *gfx = &cmd->state.gfx;
