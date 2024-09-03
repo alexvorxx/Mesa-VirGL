@@ -627,30 +627,6 @@ vk_icdGetInstanceProcAddr(VkInstance instance, const char* pName) {
     return gfxstream_vk_GetInstanceProcAddr(instance, pName);
 }
 
-/* vk_icd.h does not declare this function, so we declare it here to
- * suppress Wmissing-prototypes.
- */
-extern "C" PUBLIC VKAPI_ATTR VkResult VKAPI_CALL
-vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t* pSupportedVersion);
-
-extern "C" PUBLIC VKAPI_ATTR VkResult VKAPI_CALL
-vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t* pSupportedVersion) {
-    *pSupportedVersion = std::min(*pSupportedVersion, 3u);
-    return VK_SUCCESS;
-}
-
-/* With version 4+ of the loader interface the ICD should expose
- * vk_icdGetPhysicalDeviceProcAddr()
- */
-extern "C" PUBLIC VKAPI_ATTR PFN_vkVoidFunction VKAPI_CALL
-vk_icdGetPhysicalDeviceProcAddr(VkInstance _instance, const char* pName);
-
-PFN_vkVoidFunction vk_icdGetPhysicalDeviceProcAddr(VkInstance _instance, const char* pName) {
-    VK_FROM_HANDLE(gfxstream_vk_instance, instance, _instance);
-
-    return vk_instance_get_physical_device_proc_addr(&instance->vk, pName);
-}
-
 PFN_vkVoidFunction gfxstream_vk_GetInstanceProcAddr(VkInstance _instance, const char* pName) {
     VK_FROM_HANDLE(gfxstream_vk_instance, instance, _instance);
     return vk_instance_get_proc_addr(&instance->vk, &gfxstream_vk_instance_entrypoints, pName);
