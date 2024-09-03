@@ -659,43 +659,18 @@ copy_buffer_to_image(struct anv_cmd_buffer *cmd_buffer,
    const enum isl_format linear_format =
       anv_get_isl_format(cmd_buffer->device->info, anv_image->vk.format,
                          aspect, VK_IMAGE_TILING_LINEAR);
-   const struct isl_format_layout *linear_fmtl =
-      isl_format_get_layout(linear_format);
 
    const struct vk_image_buffer_layout buffer_layout =
       vk_image_buffer_copy_layout(&anv_image->vk, region);
 
-   /* Some formats have additional restrictions which may cause ISL to
-    * fail to create a surface for us.  For example, YCbCr formats
-    * have to have 2-pixel aligned strides.
-    *
-    * To avoid these issues, we always bind the buffer as if it's a
-    * "normal" format like RGBA32_UINT.  Since we're using blorp_copy,
-    * the format doesn't matter as long as it has the right bpb.
-    */
-   const VkExtent2D buffer_extent = {
-      .width = DIV_ROUND_UP(extent.width, linear_fmtl->bw),
-      .height = DIV_ROUND_UP(extent.height, linear_fmtl->bh),
-   };
-   const enum isl_format buffer_format =
-      isl_format_for_size(linear_fmtl->bpb / 8);
-
    struct isl_surf buffer_isl_surf;
    get_blorp_surf_for_anv_buffer(cmd_buffer,
                                  anv_buffer, region->bufferOffset,
-                                 buffer_extent.width, buffer_extent.height,
-                                 buffer_layout.row_stride_B, buffer_format,
+                                 extent.width, extent.height,
+                                 buffer_layout.row_stride_B, linear_format,
                                  false, &buffer.surf, &buffer_isl_surf);
 
    if (&image == dst) {
-      /* In this case, the source is the buffer and, since blorp takes its
-       * copy dimensions in terms of the source format, we have to use the
-       * scaled down version for compressed textures because the source
-       * format is an RGB format.
-       */
-      extent.width = buffer_extent.width;
-      extent.height = buffer_extent.height;
-
       anv_cmd_buffer_mark_image_written(cmd_buffer, anv_image,
                                         aspect, dst->surf.aux_usage,
                                         dst->level,
