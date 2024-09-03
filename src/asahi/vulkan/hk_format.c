@@ -18,7 +18,7 @@
 #include "vk_format.h"
 
 uint64_t agx_best_modifiers[] = {
-   // DRM_FORMAT_MOD_APPLE_TWIDDLED_COMPRESSED,
+   DRM_FORMAT_MOD_APPLE_TWIDDLED_COMPRESSED,
    DRM_FORMAT_MOD_APPLE_TWIDDLED,
    DRM_FORMAT_MOD_LINEAR,
 };
@@ -29,11 +29,8 @@ hk_modifier_features(uint64_t mod, VkFormat vk_format,
 {
    if (mod == DRM_FORMAT_MOD_LINEAR)
       return props->linearTilingFeatures;
-
-   if (mod == DRM_FORMAT_MOD_APPLE_TWIDDLED_COMPRESSED /* TODO */)
-      return 0;
-
-   return props->optimalTilingFeatures;
+   else
+      return props->optimalTilingFeatures;
 }
 
 static void

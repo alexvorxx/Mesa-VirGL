@@ -643,7 +643,7 @@ hk_GetPhysicalDeviceSparseImageFormatProperties2(
 
 static enum ail_tiling
 hk_map_tiling(struct hk_device *dev, const VkImageCreateInfo *info,
-              unsigned plane)
+              unsigned plane, uint64_t modifier)
 {
    switch (info->tiling) {
    case VK_IMAGE_TILING_LINEAR:
@@ -659,8 +659,8 @@ hk_map_tiling(struct hk_device *dev, const VkImageCreateInfo *info,
       }
 
    case VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT:
-      /* TODO */
-      return AIL_TILING_TWIDDLED;
+      return ail_drm_modifier_to_tiling(modifier);
+
    default:
       unreachable("invalid tiling");
    }
@@ -783,7 +783,8 @@ hk_image_init(struct hk_device *dev, struct hk_image *image,
       const uint8_t height_scale =
          ycbcr_info ? ycbcr_info->planes[plane].denominator_scales[1] : 1;
 
-      enum ail_tiling tiling = hk_map_tiling(dev, pCreateInfo, plane);
+      enum ail_tiling tiling =
+         hk_map_tiling(dev, pCreateInfo, plane, image->vk.drm_format_mod);
 
       image->planes[plane].layout = (struct ail_layout){
          .tiling = tiling,
