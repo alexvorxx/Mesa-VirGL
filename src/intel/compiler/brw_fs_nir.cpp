@@ -4782,6 +4782,7 @@ try_rebuild_source(nir_to_brw_state &ntb, const brw::fs_builder &bld,
 {
    /* Create a build at the location of the resource_intel intrinsic */
    fs_builder ubld = bld.exec_all().group(8 * reg_unit(ntb.devinfo), 0);
+   const unsigned grf_size = REG_SIZE * reg_unit(ntb.devinfo);
 
    struct rebuild_resource resources = {};
    resources.idx = 0;
@@ -4960,10 +4961,18 @@ try_rebuild_source(nir_to_brw_state &ntb, const brw::fs_builder &bld,
 
             unsigned base_offset = nir_intrinsic_base(intrin);
             unsigned load_offset = nir_src_as_uint(intrin->src[0]);
-            brw_reg src = brw_uniform_reg(base_offset / 4,
-                                          brw_type_with_size(BRW_TYPE_D, intrin->def.bit_size));
-            src.offset = load_offset + base_offset % 4;
-            ubld.MOV(src, &ntb.resource_insts[def->index]);
+
+            enum brw_reg_type type =
+               brw_type_with_size(BRW_TYPE_D, intrin->def.bit_size);
+            brw_reg dst_data = ubld.vgrf(type, intrin->def.num_components);
+
+            for (unsigned i = 0; i < intrin->def.num_components; i++) {
+               brw_reg src = brw_uniform_reg(base_offset / 4, type);
+               src.offset = load_offset + base_offset % 4 + i * intrin->def.bit_size / 8;
+               fs_inst *inst = ubld.MOV(byte_offset(dst_data, i * grf_size), src);
+               if (i == 0)
+                  ntb.resource_insts[def->index] = inst;
+            }
             break;
          }
 
@@ -4971,11 +4980,19 @@ try_rebuild_source(nir_to_brw_state &ntb, const brw::fs_builder &bld,
             assert(ntb.s.stage == MESA_SHADER_MESH ||
                    ntb.s.stage == MESA_SHADER_TASK);
             const task_mesh_thread_payload &payload = ntb.s.task_mesh_payload();
-            brw_reg data = retype(
-               offset(payload.inline_parameter, 1,
-                      nir_intrinsic_align_offset(intrin)),
-               brw_type_with_size(BRW_TYPE_D, intrin->def.bit_size));
-            ubld.MOV(data, &ntb.resource_insts[def->index]);
+            enum brw_reg_type type =
+               brw_type_with_size(BRW_TYPE_D, intrin->def.bit_size);
+            brw_reg dst_data = ubld.vgrf(type, intrin->def.num_components);
+
+            for (unsigned i = 0; i < intrin->def.num_components; i++) {
+               brw_reg src = retype(
+                  offset(payload.inline_parameter, 1,
+                         nir_intrinsic_align_offset(intrin) + i * intrin->def.bit_size / 8),
+                  brw_type_with_size(BRW_TYPE_D, intrin->def.bit_size));
+               fs_inst *inst = ubld.MOV(byte_offset(dst_data, i * grf_size), src);
+               if (i == 0)
+                  ntb.resource_insts[def->index] = inst;
+            }
             break;
          }
 
