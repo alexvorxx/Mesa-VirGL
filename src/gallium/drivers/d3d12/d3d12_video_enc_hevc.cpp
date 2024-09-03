@@ -364,6 +364,17 @@ d3d12_video_encoder_update_current_frame_pic_params_info_hevc(struct d3d12_video
 
    picParams.pHEVCPicData->slice_pic_parameter_set_id = pHEVCBitstreamBuilder->get_active_pps().pps_pic_parameter_set_id;
 
+   //
+   // These need to be set here so they're available for SPS/PPS header building (reference manager updates after that, for slice header params)
+   //
+   picParams.pHEVCPicData->List0ReferenceFramesCount = 0;
+   picParams.pHEVCPicData->List1ReferenceFramesCount = 0;
+   if ((hevcPic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_P) ||
+       (hevcPic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_B))
+      picParams.pHEVCPicData->List0ReferenceFramesCount = hevcPic->num_ref_idx_l0_active_minus1 + 1;
+   if (hevcPic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_B)
+      picParams.pHEVCPicData->List1ReferenceFramesCount = hevcPic->num_ref_idx_l1_active_minus1 + 1;
+
    if ((pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificConfigDesc.m_HEVCConfig.ConfigurationFlags 
       & D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_HEVC_FLAG_ALLOW_REQUEST_INTRA_CONSTRAINED_SLICES) != 0)
       picParams.pHEVCPicData->Flags |= D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC_FLAG_REQUEST_INTRA_CONSTRAINED_SLICES;
