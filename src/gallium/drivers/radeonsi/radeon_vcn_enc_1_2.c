@@ -732,12 +732,9 @@ static void radeon_enc_nalu_pps(struct radeon_encoder *enc)
    radeon_enc_code_fixed_bits(enc, (enc->enc_pic.spec_misc.deblocking_filter_control_present_flag), 1);
    radeon_enc_code_fixed_bits(enc, (enc->enc_pic.spec_misc.constrained_intra_pred_flag), 1);
    radeon_enc_code_fixed_bits(enc, (enc->enc_pic.spec_misc.redundant_pic_cnt_present_flag), 1);
-   if (enc->enc_pic.spec_misc.redundant_pic_cnt_present_flag) {
-      radeon_enc_code_fixed_bits(enc, 0x0, 1); /* transform_8x8_mode_flag */
-      radeon_enc_code_fixed_bits(enc, 0x0, 1); /* pic_scaling_matrix_present_flag */
-      /* second_chroma_qp_index_offset */
-      radeon_enc_code_se(enc, enc->enc_pic.h264_deblock.cr_qp_offset);
-   }
+   radeon_enc_code_fixed_bits(enc, (enc->enc_pic.spec_misc.transform_8x8_mode), 1);
+   radeon_enc_code_fixed_bits(enc, 0x0, 1); /* pic_scaling_matrix_present_flag */
+   radeon_enc_code_se(enc, enc->enc_pic.h264_deblock.cr_qp_offset); /* second_chroma_qp_index_offset */
 
    radeon_enc_code_fixed_bits(enc, 0x1, 1);
 

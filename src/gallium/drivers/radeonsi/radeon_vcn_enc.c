@@ -248,6 +248,8 @@ static void radeon_vcn_enc_h264_get_dbk_param(struct radeon_encoder *enc,
 static void radeon_vcn_enc_h264_get_spec_misc_param(struct radeon_encoder *enc,
                                                     struct pipe_h264_enc_picture_desc *pic)
 {
+   struct si_screen *sscreen = (struct si_screen *)enc->screen;
+
    enc->enc_pic.spec_misc.profile_idc = u_get_h264_profile_idc(enc->base.profile);
    if (enc->enc_pic.spec_misc.profile_idc >= PIPE_VIDEO_PROFILE_MPEG4_AVC_MAIN &&
          enc->enc_pic.spec_misc.profile_idc != PIPE_VIDEO_PROFILE_MPEG4_AVC_EXTENDED)
@@ -267,7 +269,9 @@ static void radeon_vcn_enc_h264_get_spec_misc_param(struct radeon_encoder *enc,
    enc->enc_pic.spec_misc.half_pel_enabled = 1;
    enc->enc_pic.spec_misc.quarter_pel_enabled = 1;
    enc->enc_pic.spec_misc.weighted_bipred_idc = 0;
-   enc->enc_pic.spec_misc.transform_8x8_mode = 0;
+   enc->enc_pic.spec_misc.transform_8x8_mode =
+      sscreen->info.vcn_ip_version >= VCN_5_0_0 &&
+      pic->pic_ctrl.transform_8x8_mode_flag;
 }
 
 static void radeon_vcn_enc_h264_get_rc_param(struct radeon_encoder *enc,
