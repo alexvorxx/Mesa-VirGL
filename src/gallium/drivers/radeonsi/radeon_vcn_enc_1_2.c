@@ -125,8 +125,6 @@ static void radeon_enc_layer_select(struct radeon_encoder *enc)
 
 static void radeon_enc_slice_control(struct radeon_encoder *enc)
 {
-   enc->enc_pic.slice_ctrl.slice_control_mode = RENCODE_H264_SLICE_CONTROL_MODE_FIXED_MBS;
-
    RADEON_ENC_BEGIN(enc->cmd.slice_control_h264);
    RADEON_ENC_CS(enc->enc_pic.slice_ctrl.slice_control_mode);
    RADEON_ENC_CS(enc->enc_pic.slice_ctrl.num_mbs_per_slice);
@@ -135,8 +133,6 @@ static void radeon_enc_slice_control(struct radeon_encoder *enc)
 
 static void radeon_enc_slice_control_hevc(struct radeon_encoder *enc)
 {
-   enc->enc_pic.hevc_slice_ctrl.slice_control_mode = RENCODE_HEVC_SLICE_CONTROL_MODE_FIXED_CTBS;
-
    RADEON_ENC_BEGIN(enc->cmd.slice_control_hevc);
    RADEON_ENC_CS(enc->enc_pic.hevc_slice_ctrl.slice_control_mode);
    RADEON_ENC_CS(enc->enc_pic.hevc_slice_ctrl.fixed_ctbs_per_slice.num_ctbs_per_slice);
@@ -146,8 +142,6 @@ static void radeon_enc_slice_control_hevc(struct radeon_encoder *enc)
 
 static void radeon_enc_spec_misc(struct radeon_encoder *enc)
 {
-   enc->enc_pic.spec_misc.half_pel_enabled = 1;
-   enc->enc_pic.spec_misc.quarter_pel_enabled = 1;
    enc->enc_pic.spec_misc.level_idc = enc->base.level;
 
    RADEON_ENC_BEGIN(enc->cmd.spec_misc_h264);
@@ -222,14 +216,6 @@ static void radeon_enc_deblocking_filter_hevc(struct radeon_encoder *enc)
 
 static void radeon_enc_quality_params(struct radeon_encoder *enc)
 {
-   enc->enc_pic.quality_params.vbaq_mode =
-      enc->enc_pic.rc_session_init.rate_control_method != RENCODE_RATE_CONTROL_METHOD_NONE ?
-      enc->enc_pic.quality_modes.vbaq_mode : 0;
-   enc->enc_pic.quality_params.scene_change_sensitivity = 0;
-   enc->enc_pic.quality_params.scene_change_min_idr_interval = 0;
-   enc->enc_pic.quality_params.two_pass_search_center_map_mode =
-                    (enc->enc_pic.quality_modes.pre_encode_mode) ? 1 : 0;
-
    RADEON_ENC_BEGIN(enc->cmd.quality_params);
    RADEON_ENC_CS(enc->enc_pic.quality_params.vbaq_mode);
    RADEON_ENC_CS(enc->enc_pic.quality_params.scene_change_sensitivity);

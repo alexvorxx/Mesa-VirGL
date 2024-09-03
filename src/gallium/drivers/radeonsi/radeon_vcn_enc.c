@@ -34,7 +34,22 @@ static void radeon_vcn_enc_quality_modes(struct radeon_encoder *enc,
 
    p->pre_encode_mode = in->pre_encode_mode ? RENCODE_PREENCODE_MODE_4X
                                             : RENCODE_PREENCODE_MODE_NONE;
+
+   if (enc->enc_pic.rc_session_init.rate_control_method == RENCODE_RATE_CONTROL_METHOD_QUALITY_VBR)
+      p->pre_encode_mode = RENCODE_PREENCODE_MODE_4X;
+
    p->vbaq_mode = in->vbaq_mode ? RENCODE_VBAQ_AUTO : RENCODE_VBAQ_NONE;
+
+   if (enc->enc_pic.rc_session_init.rate_control_method == RENCODE_RATE_CONTROL_METHOD_NONE)
+      p->vbaq_mode = RENCODE_VBAQ_NONE;
+
+   enc->enc_pic.quality_params.vbaq_mode = p->vbaq_mode;
+   enc->enc_pic.quality_params.scene_change_sensitivity = 0;
+   enc->enc_pic.quality_params.scene_change_min_idr_interval = 0;
+   enc->enc_pic.quality_params.two_pass_search_center_map_mode =
+      (enc->enc_pic.quality_modes.pre_encode_mode &&
+       !enc->enc_pic.spec_misc.b_picture_enabled) ? 1 : 0;
+   enc->enc_pic.quality_params.vbaq_strength = 0;
 }
 
 /* to process invalid frame rate */
@@ -249,6 +264,10 @@ static void radeon_vcn_enc_h264_get_spec_misc_param(struct radeon_encoder *enc,
    enc->enc_pic.spec_misc.b_picture_enabled = !!pic->seq.max_num_reorder_frames;
    enc->enc_pic.spec_misc.constrained_intra_pred_flag =
       pic->pic_ctrl.constrained_intra_pred_flag;
+   enc->enc_pic.spec_misc.half_pel_enabled = 1;
+   enc->enc_pic.spec_misc.quarter_pel_enabled = 1;
+   enc->enc_pic.spec_misc.weighted_bipred_idc = 0;
+   enc->enc_pic.spec_misc.transform_8x8_mode = 0;
 }
 
 static void radeon_vcn_enc_h264_get_rc_param(struct radeon_encoder *enc,
@@ -316,8 +335,6 @@ static void radeon_vcn_enc_h264_get_rc_param(struct radeon_encoder *enc,
       case PIPE_H2645_ENC_RATE_CONTROL_METHOD_QUALITY_VARIABLE:
          enc->enc_pic.rc_session_init.rate_control_method =
             RENCODE_RATE_CONTROL_METHOD_QUALITY_VBR;
-         /* QVBR requires pre-encode enabled. */
-         enc->enc_pic.quality_modes.pre_encode_mode = RENCODE_PREENCODE_MODE_4X;
          break;
       default:
          enc->enc_pic.rc_session_init.rate_control_method = RENCODE_RATE_CONTROL_METHOD_NONE;
@@ -361,6 +378,7 @@ static void radeon_vcn_enc_h264_get_slice_ctrl_param(struct radeon_encoder *enc,
 
    num_mbs_in_slice = MAX2(4, num_mbs_in_slice);
 
+   enc->enc_pic.slice_ctrl.slice_control_mode = RENCODE_H264_SLICE_CONTROL_MODE_FIXED_MBS;
    enc->enc_pic.slice_ctrl.num_mbs_per_slice = num_mbs_in_slice;
 }
 
@@ -449,6 +467,9 @@ static void radeon_vcn_enc_h264_get_param(struct radeon_encoder *enc,
       pic->ref_list0[0] == PIPE_H2645_LIST_REF_INVALID_ENTRY ? 0xffffffff : pic->ref_list0[0];
    enc->enc_pic.h264_enc_params.l1_reference_picture0_index =
       pic->ref_list1[0] == PIPE_H2645_LIST_REF_INVALID_ENTRY ? 0xffffffff : pic->ref_list1[0];
+   enc->enc_pic.h264_enc_params.input_picture_structure = RENCODE_H264_PICTURE_STRUCTURE_FRAME;
+   enc->enc_pic.h264_enc_params.interlaced_mode = RENCODE_H264_INTERLACING_MODE_PROGRESSIVE;
+   enc->enc_pic.h264_enc_params.l0_reference_picture1_index = 0xffffffff;
    enc->enc_pic.enc_params.reconstructed_picture_index = pic->dpb_curr_pic;
    enc->enc_pic.h264_enc_params.is_reference = !pic->not_referenced;
    enc->enc_pic.h264_enc_params.is_long_term = pic->is_ltr;
@@ -462,7 +483,6 @@ static void radeon_vcn_enc_h264_get_param(struct radeon_encoder *enc,
       enc->enc_pic.h264.pic = pic->pic_ctrl;
    enc->enc_pic.h264.slice = pic->slice;
 
-   radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
    radeon_vcn_enc_h264_get_cropping_param(enc, pic);
    radeon_vcn_enc_h264_get_dbk_param(enc, pic);
    radeon_vcn_enc_h264_get_rc_param(enc, pic);
@@ -475,6 +495,7 @@ static void radeon_vcn_enc_h264_get_param(struct radeon_encoder *enc,
    radeon_vcn_enc_get_intra_refresh_param(enc, use_filter, &pic->intra_refresh);
    radeon_vcn_enc_get_roi_param(enc, &pic->roi);
    radeon_vcn_enc_get_latency_param(enc);
+   radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
 }
 
 static void radeon_vcn_enc_hevc_get_cropping_param(struct radeon_encoder *enc,
@@ -593,8 +614,6 @@ static void radeon_vcn_enc_hevc_get_rc_param(struct radeon_encoder *enc,
       case PIPE_H2645_ENC_RATE_CONTROL_METHOD_QUALITY_VARIABLE:
          enc->enc_pic.rc_session_init.rate_control_method =
             RENCODE_RATE_CONTROL_METHOD_QUALITY_VBR;
-         /* QVBR requires pre-encode enabled. */
-         enc->enc_pic.quality_modes.pre_encode_mode = RENCODE_PREENCODE_MODE_4X;
          break;
       default:
          enc->enc_pic.rc_session_init.rate_control_method = RENCODE_RATE_CONTROL_METHOD_NONE;
@@ -637,9 +656,9 @@ static void radeon_vcn_enc_hevc_get_slice_ctrl_param(struct radeon_encoder *enc,
 
    num_ctbs_in_slice = MAX2(4, num_ctbs_in_slice);
 
+   enc->enc_pic.hevc_slice_ctrl.slice_control_mode = RENCODE_HEVC_SLICE_CONTROL_MODE_FIXED_CTBS;
    enc->enc_pic.hevc_slice_ctrl.fixed_ctbs_per_slice.num_ctbs_per_slice =
       num_ctbs_in_slice;
-
    enc->enc_pic.hevc_slice_ctrl.fixed_ctbs_per_slice.num_ctbs_per_slice_segment =
       num_ctbs_in_slice;
 }
@@ -711,7 +730,6 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
       enc->enc_pic.hevc.pic = pic->pic;
    enc->enc_pic.hevc.slice = pic->slice;
 
-   radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
    radeon_vcn_enc_hevc_get_cropping_param(enc, pic);
    radeon_vcn_enc_hevc_get_dbk_param(enc, pic);
    radeon_vcn_enc_hevc_get_rc_param(enc, pic);
@@ -725,6 +743,7 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
    radeon_vcn_enc_hevc_get_spec_misc_param(enc, pic);
    radeon_vcn_enc_get_latency_param(enc);
    radeon_vcn_enc_hevc_get_metadata(enc, pic);
+   radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
 }
 
 static void radeon_vcn_enc_av1_get_spec_misc_param(struct radeon_encoder *enc,
@@ -851,8 +870,6 @@ static void radeon_vcn_enc_av1_get_rc_param(struct radeon_encoder *enc,
       case PIPE_H2645_ENC_RATE_CONTROL_METHOD_QUALITY_VARIABLE:
          enc->enc_pic.rc_session_init.rate_control_method =
             RENCODE_RATE_CONTROL_METHOD_QUALITY_VBR;
-         /* QVBR requires pre-encode enabled. */
-         enc->enc_pic.quality_modes.pre_encode_mode = RENCODE_PREENCODE_MODE_4X;
          break;
       default:
          enc->enc_pic.rc_session_init.rate_control_method = RENCODE_RATE_CONTROL_METHOD_NONE;
@@ -954,7 +971,6 @@ static void radeon_vcn_enc_av1_get_param(struct radeon_encoder *enc,
    enc_pic->av1_recon_frame = pic->recon_frame;
    enc_pic->av1_ref_frame_ctrl_l0 = pic->ref_frame_ctrl_l0;
 
-   radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
    enc_pic->frame_id_numbers_present = pic->seq.seq_bits.frame_id_number_present_flag;
    enc_pic->enable_error_resilient_mode = pic->error_resilient_mode;
    enc_pic->force_integer_mv = pic->force_integer_mv;
@@ -985,6 +1001,7 @@ static void radeon_vcn_enc_av1_get_param(struct radeon_encoder *enc,
    radeon_vcn_enc_get_roi_param(enc, &pic->roi);
    radeon_vcn_enc_get_latency_param(enc);
    radeon_vcn_enc_av1_get_meta_param(enc, pic);
+   radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
 }
 
 static void radeon_vcn_enc_get_param(struct radeon_encoder *enc, struct pipe_picture_desc *picture)

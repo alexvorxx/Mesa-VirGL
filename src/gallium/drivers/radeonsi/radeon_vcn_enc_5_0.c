@@ -58,12 +58,7 @@ static void radeon_enc_cdf_default_table(struct radeon_encoder *enc)
 
 static void radeon_enc_spec_misc(struct radeon_encoder *enc)
 {
-   enc->enc_pic.spec_misc.constrained_intra_pred_flag = 0;
-   enc->enc_pic.spec_misc.transform_8x8_mode = 0;
-   enc->enc_pic.spec_misc.half_pel_enabled = 1;
-   enc->enc_pic.spec_misc.quarter_pel_enabled = 1;
    enc->enc_pic.spec_misc.level_idc = enc->base.level;
-   enc->enc_pic.spec_misc.weighted_bipred_idc = 0;
 
    RADEON_ENC_BEGIN(enc->cmd.spec_misc_h264);
    RADEON_ENC_CS(enc->enc_pic.spec_misc.constrained_intra_pred_flag);
@@ -146,10 +141,6 @@ static void radeon_enc_encode_params(struct radeon_encoder *enc)
 
 static void radeon_enc_encode_params_h264(struct radeon_encoder *enc)
 {
-   enc->enc_pic.h264_enc_params.input_picture_structure = RENCODE_H264_PICTURE_STRUCTURE_FRAME;
-   enc->enc_pic.h264_enc_params.input_pic_order_cnt = 0;
-   enc->enc_pic.h264_enc_params.interlaced_mode = RENCODE_H264_INTERLACING_MODE_PROGRESSIVE;
-
    if (enc->enc_pic.enc_params.reference_picture_index != 0xFFFFFFFF){
       enc->enc_pic.h264_enc_params.lsm_reference_pictures[0].list = 0;
       enc->enc_pic.h264_enc_params.lsm_reference_pictures[0].list_index = 0;

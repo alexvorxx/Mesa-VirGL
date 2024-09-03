@@ -30,10 +30,7 @@ static void radeon_enc_session_info(struct radeon_encoder *enc)
 
 static void radeon_enc_spec_misc(struct radeon_encoder *enc)
 {
-   enc->enc_pic.spec_misc.half_pel_enabled = 1;
-   enc->enc_pic.spec_misc.quarter_pel_enabled = 1;
    enc->enc_pic.spec_misc.level_idc = enc->base.level;
-   enc->enc_pic.spec_misc.weighted_bipred_idc = 0;
 
    RADEON_ENC_BEGIN(enc->cmd.spec_misc_h264);
    RADEON_ENC_CS(enc->enc_pic.spec_misc.constrained_intra_pred_flag);
@@ -65,11 +62,6 @@ static void radeon_enc_spec_misc_hevc(struct radeon_encoder *enc)
 
 static void radeon_enc_encode_params_h264(struct radeon_encoder *enc)
 {
-   enc->enc_pic.h264_enc_params.input_picture_structure = RENCODE_H264_PICTURE_STRUCTURE_FRAME;
-   enc->enc_pic.h264_enc_params.input_pic_order_cnt = 0;
-   enc->enc_pic.h264_enc_params.interlaced_mode = RENCODE_H264_INTERLACING_MODE_PROGRESSIVE;
-   enc->enc_pic.h264_enc_params.l0_reference_picture1_index = 0xFFFFFFFF;
-
    RADEON_ENC_BEGIN(enc->cmd.enc_params_h264);
    RADEON_ENC_CS(enc->enc_pic.h264_enc_params.input_picture_structure);
    RADEON_ENC_CS(enc->enc_pic.h264_enc_params.input_pic_order_cnt);
@@ -94,16 +86,6 @@ static void radeon_enc_encode_params_h264(struct radeon_encoder *enc)
 
 static void radeon_enc_quality_params(struct radeon_encoder *enc)
 {
-   enc->enc_pic.quality_params.vbaq_mode =
-      enc->enc_pic.rc_session_init.rate_control_method != RENCODE_RATE_CONTROL_METHOD_NONE ?
-      enc->enc_pic.quality_modes.vbaq_mode : 0;
-   enc->enc_pic.quality_params.scene_change_sensitivity = 0;
-   enc->enc_pic.quality_params.scene_change_min_idr_interval = 0;
-   enc->enc_pic.quality_params.two_pass_search_center_map_mode =
-      (enc->enc_pic.quality_modes.pre_encode_mode &&
-       !enc->enc_pic.spec_misc.b_picture_enabled) ? 1 : 0;
-   enc->enc_pic.quality_params.vbaq_strength = 0;
-
    RADEON_ENC_BEGIN(enc->cmd.quality_params);
    RADEON_ENC_CS(enc->enc_pic.quality_params.vbaq_mode);
    RADEON_ENC_CS(enc->enc_pic.quality_params.scene_change_sensitivity);
