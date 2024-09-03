@@ -364,7 +364,18 @@ d3d12_video_encoder_update_current_frame_pic_params_info_h264(struct d3d12_video
       picParams.pH264PicData->Flags |= D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_FLAG_REQUEST_NUM_REF_IDX_ACTIVE_OVERRIDE_FLAG_SLICE;
    }
 
+   //
+   // These need to be set here so they're available for SPS/PPS header building (reference manager updates after that, for slice header params)
+   //
    picParams.pH264PicData->pic_parameter_set_id = pH264BitstreamBuilder->get_active_pps().pic_parameter_set_id;
+   picParams.pH264PicData->List0ReferenceFramesCount = 0;
+   picParams.pH264PicData->List1ReferenceFramesCount = 0;
+   if ((h264Pic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_P) ||
+       (h264Pic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_B))
+      picParams.pH264PicData->List0ReferenceFramesCount = h264Pic->num_ref_idx_l0_active_minus1 + 1;
+
+   if (h264Pic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_B)
+      picParams.pH264PicData->List1ReferenceFramesCount = h264Pic->num_ref_idx_l1_active_minus1 + 1;
 
    if ((pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_Flags & D3D12_VIDEO_ENCODER_RATE_CONTROL_FLAG_ENABLE_DELTA_QP) != 0)
    {
