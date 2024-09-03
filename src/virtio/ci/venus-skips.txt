@@ -24,3 +24,6 @@ dEQP-VK.texture.explicit_lod.2d.sizes.128x128_nearest_linear_mipmap_linear_repea
 
 # Can crash since host lvp can return VK_ERROR_OUT_OF_DEVICE_MEMORY during those tests
 dEQP-VK.binding_model.mutable_descriptor.multiple_arrays_mixed.*
+
+# Trying to allocate all the memory we can is not a great idea on shared runners.
+dEQP-VK.api.device_init.create_instance_device_intentional_alloc_fail.*
