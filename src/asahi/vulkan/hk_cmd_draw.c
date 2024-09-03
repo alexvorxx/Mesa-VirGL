@@ -2014,9 +2014,6 @@ hk_flush_vp_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs, uint8_t **out)
    /* Additionally clamp to the framebuffer so we don't rasterize
     * off-screen pixels. TODO: Is this necessary? the GL driver does this but
     * it might be cargoculted at this point.
-    *
-    * which is software-visible and can cause faults with
-    * eMRT when the framebuffer is not a multiple of the tile size.
     */
    for (unsigned i = 0; i < count; ++i) {
       minx[i] = MIN2(minx[i], cmd->state.gfx.render.cr.width);
