@@ -785,13 +785,9 @@ static void radeon_enc_nalu_pps_hevc(struct radeon_encoder *enc)
    radeon_enc_code_se(enc, 0x0); /* init_qp_minus26 */
    radeon_enc_code_fixed_bits(enc, enc->enc_pic.hevc_spec_misc.constrained_intra_pred_flag, 1);
    radeon_enc_code_fixed_bits(enc, !enc->enc_pic.hevc_spec_misc.transform_skip_disabled, 1);
-   if (enc->enc_pic.rc_session_init.rate_control_method == RENCODE_RATE_CONTROL_METHOD_NONE &&
-       enc->enc_pic.enc_qp_map.qp_map_type == RENCODE_QP_MAP_TYPE_NONE)
-      radeon_enc_code_fixed_bits(enc, 0x0, 1); /* cu_qp_delta_enabled_flag */
-   else {
-      radeon_enc_code_fixed_bits(enc, 0x1, 1); /* cu_qp_delta_enabled_flag */
-      radeon_enc_code_ue(enc, 0x0); /* diff_cu_qp_delta_depth */
-   }
+   radeon_enc_code_fixed_bits(enc, enc->enc_pic.hevc_spec_misc.cu_qp_delta_enabled_flag, 1);
+   if (enc->enc_pic.hevc_spec_misc.cu_qp_delta_enabled_flag)
+      radeon_enc_code_ue(enc, 0); /* diff_cu_qp_delta_depth */
    radeon_enc_code_se(enc, enc->enc_pic.hevc_deblock.cb_qp_offset);
    radeon_enc_code_se(enc, enc->enc_pic.hevc_deblock.cr_qp_offset);
    radeon_enc_code_fixed_bits(enc, 0x0, 1); /* pps_slice_chroma_qp_offsets_present_flag */

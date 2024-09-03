@@ -731,8 +731,10 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
             pipe_features.bits.constrained_intra_pred = PIPE_ENC_FEATURE_SUPPORTED;
             pipe_features.bits.deblocking_filter_disable
                                                       = PIPE_ENC_FEATURE_SUPPORTED;
-            if (sscreen->info.vcn_ip_version >= VCN_2_0_0)
+            if (sscreen->info.vcn_ip_version >= VCN_2_0_0) {
                pipe_features.bits.sao = PIPE_ENC_FEATURE_SUPPORTED;
+               pipe_features.bits.cu_qp_delta = PIPE_ENC_FEATURE_SUPPORTED;
+            }
             if (sscreen->info.vcn_ip_version >= VCN_3_0_0)
                pipe_features.bits.transform_skip = PIPE_ENC_FEATURE_SUPPORTED;
 

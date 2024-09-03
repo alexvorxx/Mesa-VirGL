@@ -414,8 +414,6 @@ static void radeon_enc_encode_params_av1(struct radeon_encoder *enc)
 
 static void radeon_enc_spec_misc_hevc(struct radeon_encoder *enc)
 {
-   enc->enc_pic.hevc_spec_misc.cu_qp_delta_enabled_flag = 0;
-
    RADEON_ENC_BEGIN(enc->cmd.spec_misc_hevc);
    RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.log2_min_luma_coding_block_size_minus3);
    RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.amp_disabled);

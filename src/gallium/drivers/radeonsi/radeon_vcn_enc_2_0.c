@@ -165,6 +165,21 @@ static void radeon_enc_ctx(struct radeon_encoder *enc)
 
    RADEON_ENC_END();
 }
+
+static void radeon_enc_spec_misc_hevc(struct radeon_encoder *enc)
+{
+   RADEON_ENC_BEGIN(enc->cmd.spec_misc_hevc);
+   RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.log2_min_luma_coding_block_size_minus3);
+   RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.amp_disabled);
+   RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.strong_intra_smoothing_enabled);
+   RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.constrained_intra_pred_flag);
+   RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.cabac_init_flag);
+   RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.half_pel_enabled);
+   RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.quarter_pel_enabled);
+   RADEON_ENC_CS(enc->enc_pic.hevc_spec_misc.cu_qp_delta_enabled_flag);
+   RADEON_ENC_END();
+}
+
 static void encode(struct radeon_encoder *enc)
 {
    unsigned i;
@@ -220,6 +235,7 @@ void radeon_enc_2_0_init(struct radeon_encoder *enc)
 
    if (u_reduce_video_profile(enc->base.profile) == PIPE_VIDEO_FORMAT_HEVC) {
       enc->deblocking_filter = radeon_enc_loop_filter_hevc;
+      enc->spec_misc = radeon_enc_spec_misc_hevc;
    }
 
    enc->cmd.session_info = RENCODE_IB_PARAM_SESSION_INFO;

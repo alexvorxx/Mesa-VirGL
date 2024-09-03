@@ -529,6 +529,11 @@ static void radeon_vcn_enc_hevc_get_spec_misc_param(struct radeon_encoder *enc,
    enc->enc_pic.hevc_spec_misc.transform_skip_disabled =
       sscreen->info.vcn_ip_version < VCN_3_0_0 ||
       !pic->pic.transform_skip_enabled_flag;
+   enc->enc_pic.hevc_spec_misc.cu_qp_delta_enabled_flag =
+      (sscreen->info.vcn_ip_version >= VCN_2_0_0 &&
+      pic->pic.cu_qp_delta_enabled_flag) ||
+      enc->enc_pic.enc_qp_map.qp_map_type ||
+      enc->enc_pic.rc_session_init.rate_control_method;
 }
 
 static void radeon_vcn_enc_hevc_get_rc_param(struct radeon_encoder *enc,
@@ -708,7 +713,6 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
 
    radeon_vcn_enc_quality_modes(enc, &pic->quality_modes);
    radeon_vcn_enc_hevc_get_cropping_param(enc, pic);
-   radeon_vcn_enc_hevc_get_spec_misc_param(enc, pic);
    radeon_vcn_enc_hevc_get_dbk_param(enc, pic);
    radeon_vcn_enc_hevc_get_rc_param(enc, pic);
    radeon_vcn_enc_hevc_get_slice_ctrl_param(enc, pic);
@@ -718,6 +722,7 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
                                         !(enc->enc_pic.hevc_deblock.deblocking_filter_disabled),
                                          &pic->intra_refresh);
    radeon_vcn_enc_get_roi_param(enc, &pic->roi);
+   radeon_vcn_enc_hevc_get_spec_misc_param(enc, pic);
    radeon_vcn_enc_get_latency_param(enc);
    radeon_vcn_enc_hevc_get_metadata(enc, pic);
 }
