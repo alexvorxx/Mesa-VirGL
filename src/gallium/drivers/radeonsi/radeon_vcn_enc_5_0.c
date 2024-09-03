@@ -12,8 +12,8 @@
 #include "si_pipe.h"
 #include "radeon_vcn_enc.h"
 
-#define RENCODE_FW_INTERFACE_MAJOR_VERSION   0
-#define RENCODE_FW_INTERFACE_MINOR_VERSION   0
+#define RENCODE_FW_INTERFACE_MAJOR_VERSION   1
+#define RENCODE_FW_INTERFACE_MINOR_VERSION   3
 
 #define RENCODE_REC_SWIZZLE_MODE_256B_D_VCN5                        1
 
@@ -365,6 +365,7 @@ static void radeon_enc_rc_per_pic(struct radeon_encoder *enc)
    RADEON_ENC_CS(enc->enc_pic.rc_per_pic.enabled_filler_data);
    RADEON_ENC_CS(enc->enc_pic.rc_per_pic.skip_frame_enable);
    RADEON_ENC_CS(enc->enc_pic.rc_per_pic.enforce_hrd);
+   RADEON_ENC_CS(enc->enc_pic.rc_per_pic.qvbr_quality_level);
    RADEON_ENC_END();
 }
 

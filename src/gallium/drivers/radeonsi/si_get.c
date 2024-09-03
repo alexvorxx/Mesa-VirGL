@@ -893,6 +893,9 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
              sscreen->info.vcn_ip_version < VCN_5_0_0)
             return sscreen->info.vcn_enc_minor_version >= 15;
 
+         if (sscreen->info.vcn_ip_version >= VCN_5_0_0)
+            return sscreen->info.vcn_enc_minor_version >= 3;
+
          return 0;
 
       default:
