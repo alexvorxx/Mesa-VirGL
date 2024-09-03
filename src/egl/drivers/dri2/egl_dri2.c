@@ -674,6 +674,18 @@ dri2_setup_screen(_EGLDisplay *disp)
    disp->Extensions.IMG_context_priority =
       dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_CONTEXT_PRIORITY_MASK);
 
+   /**
+    * FIXME: Some drivers currently misreport what context priorities the user
+    * can use and fail context creation. This cause issues on Android where the
+    * display process would try to use realtime priority. This is also a spec
+    * violation for IMG_context_priority.
+    */
+#ifndef HAVE_ANDROID_PLATFORM
+   disp->Extensions.NV_context_priority_realtime =
+      disp->Extensions.IMG_context_priority &
+      (1 << __EGL_CONTEXT_PRIORITY_REALTIME_BIT);
+#endif
+
    disp->Extensions.EXT_pixel_format_float = EGL_TRUE;
 
    if (pscreen->is_format_supported(pscreen, PIPE_FORMAT_B8G8R8A8_SRGB,
@@ -1145,6 +1157,9 @@ dri2_fill_context_attribs(struct dri2_egl_context *dri2_ctx,
       unsigned val;
 
       switch (dri2_ctx->base.ContextPriority) {
+      case EGL_CONTEXT_PRIORITY_REALTIME_NV:
+         val = __DRI_CTX_PRIORITY_REALTIME;
+         break;
       case EGL_CONTEXT_PRIORITY_HIGH_IMG:
          val = __DRI_CTX_PRIORITY_HIGH;
          break;

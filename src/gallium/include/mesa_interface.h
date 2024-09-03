@@ -1076,6 +1076,7 @@ struct __DRIdri2LoaderExtensionRec {
 #define __DRI_CTX_PRIORITY_LOW			0
 #define __DRI_CTX_PRIORITY_MEDIUM		1
 #define __DRI_CTX_PRIORITY_HIGH			2
+#define __DRI_CTX_PRIORITY_REALTIME		3
 
 #define __DRI_CTX_ATTRIB_RELEASE_BEHAVIOR	5
 #define __DRI_CTX_RELEASE_BEHAVIOR_NONE         0

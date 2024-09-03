@@ -413,6 +413,12 @@ _eglParseContextAttribList(_EGLContext *ctx, _EGLDisplay *disp,
             int bit;
 
             switch (val) {
+            case EGL_CONTEXT_PRIORITY_REALTIME_NV:
+               if (disp->Extensions.NV_context_priority_realtime)
+                  bit = __EGL_CONTEXT_PRIORITY_REALTIME_BIT;
+               else
+                  bit = -1;
+               break;
             case EGL_CONTEXT_PRIORITY_HIGH_IMG:
                bit = __EGL_CONTEXT_PRIORITY_HIGH_BIT;
                break;
