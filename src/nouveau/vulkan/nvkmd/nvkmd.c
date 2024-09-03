@@ -212,3 +212,30 @@ nvkmd_mem_unref(struct nvkmd_mem *mem)
 
    mem->ops->free(mem);
 }
+
+VkResult
+nvkmd_mem_map(struct nvkmd_mem *mem, struct vk_object_base *log_obj,
+              enum nvkmd_mem_map_flags flags, void *fixed_addr,
+              void **map_out)
+{
+   assert(mem->map == NULL);
+
+   void *map = NULL;
+   VkResult result = mem->ops->map(mem, log_obj, flags, fixed_addr, &map);
+   if (result != VK_SUCCESS)
+      return result;
+
+   mem->map = map;
+   if (map_out != NULL)
+      *map_out = map;
+
+   return VK_SUCCESS;
+}
+
+void
+nvkmd_mem_unmap(struct nvkmd_mem *mem, enum nvkmd_mem_map_flags flags)
+{
+   assert(mem->map != NULL);
+   mem->ops->unmap(mem, flags, mem->map);
+   mem->map = NULL;
+}
