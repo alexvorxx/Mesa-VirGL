@@ -165,7 +165,6 @@ nir_atan(nir_builder *b, nir_def *y_over_x)
    const uint32_t bit_size = y_over_x->bit_size;
 
    nir_def *abs_y_over_x = nir_fabs(b, y_over_x);
-   nir_def *one = nir_imm_floatN_t(b, 1.0f, bit_size);
 
    /*
     * range-reduction, first step:
@@ -176,8 +175,8 @@ nir_atan(nir_builder *b, nir_def *y_over_x)
     *
     * x = |u| for the corrected sign.
     */
-   nir_def *u = nir_bcsel(b, nir_fle_imm(b, abs_y_over_x, 1.0),
-                          y_over_x, nir_frcp(b, y_over_x));
+   nir_def *le_1 = nir_fle_imm(b, abs_y_over_x, 1.0);
+   nir_def *u = nir_bcsel(b, le_1, y_over_x, nir_frcp(b, y_over_x));
 
    /*
     * approximate atan by evaluating polynomial using Horner's method:
@@ -200,9 +199,8 @@ nir_atan(nir_builder *b, nir_def *y_over_x)
    }
 
    /* range-reduction fixup value */
-   nir_def *bias = nir_bcsel(b, nir_flt(b, one, abs_y_over_x),
-                             nir_imm_floatN_t(b, -M_PI_2, bit_size),
-                             nir_imm_floatN_t(b, 0, bit_size));
+   nir_def *bias = nir_bcsel(b, le_1, nir_imm_floatN_t(b, 0, bit_size),
+                             nir_imm_floatN_t(b, -M_PI_2, bit_size));
 
    /* multiply through by x while fixing up the range reduction */
    nir_def *tmp = nir_ffma(b, nir_fabs(b, u), res, bias);
