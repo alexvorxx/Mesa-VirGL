@@ -963,7 +963,7 @@ genX(set_fast_clear_state)(struct anv_cmd_buffer *cmd_buffer,
                            const enum isl_format format,
                            union isl_color_value clear_color)
 {
-   uint32_t pixel[4];
+   uint32_t pixel[4] = {};
    isl_color_value_pack(&clear_color, format, pixel);
    set_image_clear_color(cmd_buffer, image, VK_IMAGE_ASPECT_COLOR_BIT, pixel);
 
