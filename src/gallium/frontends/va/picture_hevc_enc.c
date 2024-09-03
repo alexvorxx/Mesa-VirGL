@@ -133,6 +133,8 @@ vlVaHandleVAEncPictureParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *cont
    context->desc.h265enc.pic.constrained_intra_pred_flag = h265->pic_fields.bits.constrained_intra_pred_flag;
    context->desc.h265enc.pic.pps_loop_filter_across_slices_enabled_flag = h265->pic_fields.bits.pps_loop_filter_across_slices_enabled_flag;
    context->desc.h265enc.pic.transform_skip_enabled_flag = h265->pic_fields.bits.transform_skip_enabled_flag;
+   context->desc.h265enc.pic.cu_qp_delta_enabled_flag = h265->pic_fields.bits.cu_qp_delta_enabled_flag;
+   context->desc.h265enc.pic.diff_cu_qp_delta_depth = h265->diff_cu_qp_delta_depth;
 
    _mesa_hash_table_insert(context->desc.h265enc.frame_idx,
                        UINT_TO_PTR(h265->decoded_curr_pic.picture_id + 1),
