@@ -803,6 +803,7 @@ brw_nir_optimize(nir_shader *nir,
       LOOP_OPT(nir_opt_idiv_const, 32);
       LOOP_OPT_NOT_IDEMPOTENT(nir_opt_algebraic);
 
+      LOOP_OPT(nir_opt_generate_bfi);
       LOOP_OPT(nir_opt_reassociate_bfi);
 
       LOOP_OPT(nir_lower_constant_convert_alu_types);
