@@ -545,12 +545,11 @@ isl_genX(surf_fill_state_s)(const struct isl_device *dev, void *state,
 #endif
 
 #if GFX_VER >= 11 && GFX_VERx10 < 125
-   /* We've seen dEQP failures when enabling this bit with UINT formats,
-    * which particularly affects blorp_copy() operations.  It shouldn't
-    * have any effect on UINT textures anyway, so disable it for them.
+   /* From the TGL PRM,
+    *
+    *    This bit should never be programmed to 0
     */
-   s.EnableUnormPathInColorPipe =
-      !isl_format_has_int_channel(info->view->format);
+   s.EnableUnormPathInColorPipe = true;
 #endif
 
    s.CubeFaceEnablePositiveZ = 1;
