@@ -164,7 +164,7 @@ struct cs_builder {
    uint64_t discard_instr_slot;
 };
 
-static void
+static inline void
 cs_builder_init(struct cs_builder *b, const struct cs_builder_conf *conf,
                 struct cs_buffer root_buffer)
 {
@@ -183,26 +183,26 @@ cs_builder_init(struct cs_builder *b, const struct cs_builder_conf *conf,
    util_dynarray_init(&b->blocks.instrs, NULL);
 }
 
-static bool
+static inline bool
 cs_is_valid(struct cs_builder *b)
 {
    return !b->invalid;
 }
 
-static bool
+static inline bool
 cs_is_empty(struct cs_builder *b)
 {
    return b->cur_chunk.pos == 0 &&
           b->root_chunk.buffer.gpu == b->cur_chunk.buffer.gpu;
 }
 
-static uint64_t
+static inline uint64_t
 cs_root_chunk_gpu_addr(struct cs_builder *b)
 {
    return b->root_chunk.buffer.gpu;
 }
 
-static uint32_t
+static inline uint32_t
 cs_root_chunk_size(struct cs_builder *b)
 {
    /* Make sure cs_finish() was called. */
@@ -222,7 +222,7 @@ cs_root_chunk_size(struct cs_builder *b)
  * This notably requires patching the previous chunk with the length
  * we ended up emitting for this chunk.
  */
-static void
+static inline void
 cs_wrap_chunk(struct cs_builder *b)
 {
    if (!cs_is_valid(b))
@@ -240,7 +240,7 @@ cs_wrap_chunk(struct cs_builder *b)
 /* Call this when you are done building a command stream and want to prepare
  * it for submission.
  */
-static void
+static inline void
 cs_finish(struct cs_builder *b)
 {
    if (!cs_is_valid(b))
