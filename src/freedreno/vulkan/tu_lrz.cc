@@ -393,6 +393,32 @@ tu_lrz_tiling_begin(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
 }
 TU_GENX(tu_lrz_tiling_begin);
 
+/* We need to re-emit LRZ state before each tile due to skipsaverestore.
+ */
+template <chip CHIP>
+void
+tu_lrz_before_tile(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
+{
+   struct tu_lrz_state *lrz = &cmd->state.lrz;
+
+   if (!lrz->image_view) {
+      tu6_emit_lrz_buffer<CHIP>(cs, NULL);
+   } else {
+      tu6_emit_lrz_buffer<CHIP>(cs, lrz->image_view->image);
+
+      if (lrz->gpu_dir_tracking) {
+         if (!lrz->valid) {
+            /* Make sure we fail the comparison of depth views */
+            tu6_write_lrz_reg(cmd, cs, A6XX_GRAS_LRZ_DEPTH_VIEW(.dword = 0));
+         } else {
+            tu6_write_lrz_reg(cmd, cs,
+               A6XX_GRAS_LRZ_DEPTH_VIEW(.dword = lrz->image_view->view.GRAS_LRZ_DEPTH_VIEW));
+         }
+      }
+   }
+}
+TU_GENX(tu_lrz_before_tile);
+
 template <chip CHIP>
 void
 tu_lrz_tiling_end(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
