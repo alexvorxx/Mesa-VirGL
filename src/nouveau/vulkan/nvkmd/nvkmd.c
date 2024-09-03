@@ -207,6 +207,9 @@ nvkmd_mem_unref(struct nvkmd_mem *mem)
    if (!p_atomic_dec_zero(&mem->refcnt))
       return;
 
+   if (mem->client_map != NULL)
+      mem->ops->unmap(mem, NVKMD_MEM_MAP_CLIENT, mem->client_map);
+
    if (mem->map != NULL)
       mem->ops->unmap(mem, 0, mem->map);
 
@@ -218,14 +221,27 @@ nvkmd_mem_map(struct nvkmd_mem *mem, struct vk_object_base *log_obj,
               enum nvkmd_mem_map_flags flags, void *fixed_addr,
               void **map_out)
 {
-   assert(mem->map == NULL);
-
    void *map = NULL;
-   VkResult result = mem->ops->map(mem, log_obj, flags, fixed_addr, &map);
-   if (result != VK_SUCCESS)
-      return result;
 
-   mem->map = map;
+   if (flags & NVKMD_MEM_MAP_CLIENT) {
+      assert(mem->client_map == NULL);
+
+      VkResult result = mem->ops->map(mem, log_obj, flags, fixed_addr, &map);
+      if (result != VK_SUCCESS)
+         return result;
+
+      mem->client_map = map;
+   } else {
+      assert(!(flags & NVKMD_MEM_MAP_FIXED));
+      assert(mem->map == NULL);
+
+      VkResult result = mem->ops->map(mem, log_obj, flags, fixed_addr, &map);
+      if (result != VK_SUCCESS)
+         return result;
+
+      mem->map = map;
+   }
+
    if (map_out != NULL)
       *map_out = map;
 
@@ -235,7 +251,13 @@ nvkmd_mem_map(struct nvkmd_mem *mem, struct vk_object_base *log_obj,
 void
 nvkmd_mem_unmap(struct nvkmd_mem *mem, enum nvkmd_mem_map_flags flags)
 {
-   assert(mem->map != NULL);
-   mem->ops->unmap(mem, flags, mem->map);
-   mem->map = NULL;
+   if (flags & NVKMD_MEM_MAP_CLIENT) {
+      assert(mem->client_map != NULL);
+      mem->ops->unmap(mem, flags, mem->client_map);
+      mem->client_map = NULL;
+   } else {
+      assert(mem->map != NULL);
+      mem->ops->unmap(mem, flags, mem->map);
+      mem->map = NULL;
+   }
 }

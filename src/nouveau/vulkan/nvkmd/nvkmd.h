@@ -57,7 +57,16 @@ enum nvkmd_mem_map_flags {
    NVKMD_MEM_MAP_RD     = 1 << 0,
    NVKMD_MEM_MAP_WR     = 1 << 1,
    NVKMD_MEM_MAP_RDWR   = NVKMD_MEM_MAP_RD | NVKMD_MEM_MAP_WR,
-   NVKMD_MEM_MAP_FIXED  = 1 << 2,
+
+   /** Create a client mapping
+    *
+    * This sets nvkmd_mem::client_map instead of nvkmd_mem::map.  These
+    * mappings may be different from internal mappings.  Only client mappings
+    * can be used with MAP_FIXED or unmapped with nvkmd_mem_overmap().
+    */
+   NVKMD_MEM_MAP_CLIENT = 1 << 2,
+
+   NVKMD_MEM_MAP_FIXED  = 1 << 3,
 };
 
 enum nvkmd_va_flags {
@@ -222,6 +231,7 @@ struct nvkmd_mem {
    uint64_t size_B;
    struct nvkmd_va *va;
    void *map;
+   void *client_map;
 };
 
 void nvkmd_mem_init(struct nvkmd_dev *dev,
@@ -467,10 +477,13 @@ static inline VkResult MUST_CHECK
 nvkmd_mem_overmap(struct nvkmd_mem *mem, struct vk_object_base *log_obj,
                   enum nvkmd_mem_map_flags flags)
 {
-   assert(mem->map != NULL);
-   VkResult result = mem->ops->overmap(mem, log_obj, flags, mem->map);
+   assert(flags & NVKMD_MEM_MAP_CLIENT);
+   assert(mem->client_map != NULL);
+
+   VkResult result = mem->ops->overmap(mem, log_obj, flags, mem->client_map);
    if (result == VK_SUCCESS)
-      mem->map = NULL;
+      mem->client_map = NULL;
+
    return result;
 }
 
