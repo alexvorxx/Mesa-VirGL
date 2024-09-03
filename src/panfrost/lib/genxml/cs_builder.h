@@ -68,6 +68,17 @@ struct cs_load_store_tracker {
    uint8_t sb_slot;
 };
 
+enum cs_reg_perm {
+   CS_REG_NO_ACCESS = 0,
+   CS_REG_RD = BITFIELD_BIT(1),
+   CS_REG_WR = BITFIELD_BIT(2),
+   CS_REG_RW = CS_REG_RD | CS_REG_WR,
+};
+
+struct cs_builder;
+
+typedef enum cs_reg_perm (*reg_perm_cb_t)(struct cs_builder *b, unsigned reg);
+
 struct cs_builder_conf {
    /* Number of 32-bit registers in the hardware register file */
    uint8_t nr_registers;
@@ -80,6 +91,9 @@ struct cs_builder_conf {
 
    /* Optional load/store tracker. */
    struct cs_load_store_tracker *ls_tracker;
+
+   /* Optional register access checker. */
+   reg_perm_cb_t reg_perm;
 
    /* Cookie passed back to alloc_buffer() */
    void *cookie;
@@ -291,15 +305,22 @@ cs_to_reg_tuple(struct cs_index idx, ASSERTED unsigned expected_size)
 static inline unsigned
 cs_src_tuple(struct cs_builder *b, struct cs_index src, ASSERTED unsigned count)
 {
-   struct cs_load_store_tracker *ls_tracker = b->conf.ls_tracker;
    unsigned reg = cs_to_reg_tuple(src, count);
 
-   if (likely(!ls_tracker))
-      return reg;
+   if (unlikely(b->conf.reg_perm)) {
+      for (unsigned i = reg; i < reg + count; i++) {
+         assert((b->conf.reg_perm(b, i) & CS_REG_RD) ||
+                !"Trying to read a restricted register");
+      }
+   }
 
-   for (unsigned i = reg; i < reg + count; i++) {
-      if (BITSET_TEST(ls_tracker->pending_loads, i))
-         assert(!"register used as a source before flushing loads\n");
+   struct cs_load_store_tracker *ls_tracker = b->conf.ls_tracker;
+
+   if (unlikely(ls_tracker)) {
+      for (unsigned i = reg; i < reg + count; i++) {
+         if (BITSET_TEST(ls_tracker->pending_loads, i))
+            assert(!"register used as a source before flushing loads\n");
+      }
    }
 
    return reg;
@@ -320,15 +341,23 @@ cs_src64(struct cs_builder *b, struct cs_index src)
 static inline unsigned
 cs_dst_tuple(struct cs_builder *b, struct cs_index dst, ASSERTED unsigned count)
 {
-   struct cs_load_store_tracker *ls_tracker = b->conf.ls_tracker;
    unsigned reg = cs_to_reg_tuple(dst, count);
 
-   if (likely(!ls_tracker))
-      return reg;
+   if (unlikely(b->conf.reg_perm)) {
+      for (unsigned i = reg; i < reg + count; i++) {
+         assert((b->conf.reg_perm(b, i) & CS_REG_WR) ||
+                !"Trying to write a restricted register");
+      }
+   }
 
-   for (unsigned i = reg; i < reg + count; i++) {
-      if (BITSET_TEST(ls_tracker->pending_stores, i))
-         assert(!"register reused as a destination before flushing stores\n");
+   struct cs_load_store_tracker *ls_tracker = b->conf.ls_tracker;
+
+   if (unlikely(ls_tracker)) {
+      for (unsigned i = reg; i < reg + count; i++) {
+         if (BITSET_TEST(ls_tracker->pending_stores, i))
+            assert(
+               !"register reused as a destination before flushing stores\n");
+      }
    }
 
    return reg;
