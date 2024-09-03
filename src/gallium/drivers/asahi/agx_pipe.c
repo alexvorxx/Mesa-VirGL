@@ -87,21 +87,6 @@ void agx_init_state_functions(struct pipe_context *ctx);
  * resource
  */
 
-static enum ail_tiling
-ail_modifier_to_tiling(uint64_t modifier)
-{
-   switch (modifier) {
-   case DRM_FORMAT_MOD_LINEAR:
-      return AIL_TILING_LINEAR;
-   case DRM_FORMAT_MOD_APPLE_TWIDDLED:
-      return AIL_TILING_TWIDDLED;
-   case DRM_FORMAT_MOD_APPLE_TWIDDLED_COMPRESSED:
-      return AIL_TILING_TWIDDLED_COMPRESSED;
-   default:
-      unreachable("Unsupported modifier");
-   }
-}
-
 const static char *s_tiling[] = {
    [AIL_TILING_LINEAR] = "LINR",
    [AIL_TILING_TWIDDLED] = "TWID",
@@ -159,7 +144,7 @@ agx_resource_setup(struct agx_device *dev, struct agx_resource *nresource)
    struct pipe_resource *templ = &nresource->base;
 
    nresource->layout = (struct ail_layout){
-      .tiling = ail_modifier_to_tiling(nresource->modifier),
+      .tiling = ail_drm_modifier_to_tiling(nresource->modifier),
       .mipmapped_z = templ->target == PIPE_TEXTURE_3D,
       .format = templ->format,
       .width_px = templ->width0,

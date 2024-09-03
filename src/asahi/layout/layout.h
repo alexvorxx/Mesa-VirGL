@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "drm-uapi/drm_fourcc.h"
 #include "util/format/u_format.h"
 #include "util/macros.h"
 #include "util/u_math.h"
@@ -432,6 +433,33 @@ ail_is_view_compatible(struct ail_layout *layout, enum pipe_format view)
 {
    return !ail_is_compressed(layout) ||
           ail_formats_compatible(layout->format, view);
+}
+
+/* Fake values, pending UAPI upstreaming */
+#ifndef DRM_FORMAT_MOD_APPLE_TWIDDLED
+#define DRM_FORMAT_MOD_APPLE_TWIDDLED (2)
+#endif
+#ifndef DRM_FORMAT_MOD_APPLE_TWIDDLED_COMPRESSED
+#define DRM_FORMAT_MOD_APPLE_TWIDDLED_COMPRESSED (3)
+#endif
+
+/*
+ * We generally use ail enums instead of DRM format modifiers. This helper
+ * bridges the gap.
+ */
+static inline enum ail_tiling
+ail_drm_modifier_to_tiling(uint64_t modifier)
+{
+   switch (modifier) {
+   case DRM_FORMAT_MOD_LINEAR:
+      return AIL_TILING_LINEAR;
+   case DRM_FORMAT_MOD_APPLE_TWIDDLED:
+      return AIL_TILING_TWIDDLED;
+   case DRM_FORMAT_MOD_APPLE_TWIDDLED_COMPRESSED:
+      return AIL_TILING_TWIDDLED_COMPRESSED;
+   default:
+      unreachable("Unsupported modifier");
+   }
 }
 
 #ifdef __cplusplus
