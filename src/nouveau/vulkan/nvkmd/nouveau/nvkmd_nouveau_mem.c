@@ -179,7 +179,8 @@ static VkResult
 nvkmd_nouveau_mem_map(struct nvkmd_mem *_mem,
                       struct vk_object_base *log_obj,
                       enum nvkmd_mem_map_flags map_flags,
-                      void *fixed_addr)
+                      void *fixed_addr,
+                      void **map_out)
 {
    struct nvkmd_nouveau_mem *mem = nvkmd_nouveau_mem(_mem);
    struct nvkmd_nouveau_dev *dev = nvkmd_nouveau_dev(_mem->dev);
@@ -201,7 +202,7 @@ nvkmd_nouveau_mem_map(struct nvkmd_mem *_mem,
    if (map == MAP_FAILED)
       return vk_error(log_obj, VK_ERROR_MEMORY_MAP_FAILED);
 
-   mem->base.map = map;
+   *map_out = map;
 
    return VK_SUCCESS;
 }

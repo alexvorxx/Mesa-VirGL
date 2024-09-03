@@ -190,7 +190,8 @@ struct nvkmd_mem_ops {
    VkResult (*map)(struct nvkmd_mem *mem,
                    struct vk_object_base *log_obj,
                    enum nvkmd_mem_map_flags flags,
-                   void *fixed_addr);
+                   void *fixed_addr,
+                   void **map_out);
 
    void (*unmap)(struct nvkmd_mem *mem);
 
@@ -458,11 +459,14 @@ nvkmd_mem_map(struct nvkmd_mem *mem, struct vk_object_base *log_obj,
 {
    assert(mem->map == NULL);
 
-   VkResult result = mem->ops->map(mem, log_obj, flags, fixed_addr);
+   void *map = NULL;
+   VkResult result = mem->ops->map(mem, log_obj, flags, fixed_addr, &map);
    if (result != VK_SUCCESS)
       return result;
 
-   *map_out = mem->map;
+   mem->map = map;
+   if (map_out != NULL)
+      *map_out = map;
 
    return VK_SUCCESS;
 }
