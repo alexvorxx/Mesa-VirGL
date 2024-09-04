@@ -779,40 +779,6 @@ init_ici(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe_r
       ici->arrayLayers *= 6;
 }
 
-static inline bool
-create_sampler_conversion(VkImageCreateInfo ici, struct zink_screen *screen,
-                          struct zink_resource_object *obj)
-{
-   if (obj->vkfeats & VK_FORMAT_FEATURE_DISJOINT_BIT)
-      ici.flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
-   VkSamplerYcbcrConversionCreateInfo sycci = {0};
-   sycci.sType = VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_CREATE_INFO;
-   sycci.pNext = NULL;
-   sycci.format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
-   sycci.ycbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709;
-   sycci.ycbcrRange = VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
-   sycci.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-   sycci.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-   sycci.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-   sycci.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-   if (!obj->vkfeats || (obj->vkfeats & VK_FORMAT_FEATURE_COSITED_CHROMA_SAMPLES_BIT)) {
-      sycci.xChromaOffset = VK_CHROMA_LOCATION_COSITED_EVEN;
-      sycci.yChromaOffset = VK_CHROMA_LOCATION_COSITED_EVEN;
-   } else {
-      assert(obj->vkfeats & VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT);
-      sycci.xChromaOffset = VK_CHROMA_LOCATION_MIDPOINT;
-      sycci.yChromaOffset = VK_CHROMA_LOCATION_MIDPOINT;
-   }
-   sycci.chromaFilter = VK_FILTER_LINEAR;
-   sycci.forceExplicitReconstruction = VK_FALSE;
-   VkResult res = VKSCR(CreateSamplerYcbcrConversion)(screen->dev, &sycci, NULL, &obj->sampler_conversion);
-   if (res != VK_SUCCESS) {
-      mesa_loge("ZINK: vkCreateSamplerYcbcrConversion failed");
-      return false;
-   }
-   return true;
-}
-
 static const VkImageAspectFlags plane_aspects[] = {
    VK_IMAGE_ASPECT_PLANE_0_BIT,
    VK_IMAGE_ASPECT_PLANE_1_BIT,
@@ -1424,8 +1390,6 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
          ici.flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
    }
    if (util_format_is_yuv(templ->format)) {
-      if (!create_sampler_conversion(ici, screen, obj))
-         return roc_fail_and_free_object;
    } else if (alloc_info->whandle) {
       obj->plane_strides[alloc_info->whandle->plane] = alloc_info->whandle->stride;
    }
