@@ -6,6 +6,7 @@
 
 #include "radv_device_generated_commands.h"
 #include "meta/radv_meta.h"
+#include "radv_cmd_buffer.h"
 #include "radv_entrypoints.h"
 
 #include "ac_rgp.h"
@@ -2367,29 +2368,30 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
    params->use_per_attribute_vb_descs = layout->bind_vbo_mask && vs->info.vs.use_per_attribute_vb_descs;
 
    if (layout->bind_vbo_mask) {
-      const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
       uint32_t mask = vs->info.vs.vb_desc_usage_mask;
       unsigned vb_desc_alloc_size = util_bitcount(mask) * 16;
 
       radv_write_vertex_descriptors(cmd_buffer, vs, *upload_data);
 
-      uint32_t *vbo_info = (uint32_t *)((char *)*upload_data + vb_desc_alloc_size);
+      uint32_t *ptr = (uint32_t *)((char *)*upload_data + vb_desc_alloc_size);
 
       unsigned idx = 0;
       while (mask) {
          unsigned i = u_bit_scan(&mask);
-         const unsigned binding = vi_state->bindings[i];
-         const uint32_t attrib_end = vi_state->offsets[i] + vi_state->format_sizes[i];
-         const uint32_t attrib_index_offset = vi_state->attrib_index_offset[i];
-         const uint32_t stride = cmd_buffer->vertex_bindings[binding].stride;
-         const uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, vs, i);
+
+         struct radv_vbo_info vbo_info;
+         radv_get_vbo_info(cmd_buffer, i, &vbo_info);
+
+         const unsigned binding = vbo_info.binding;
+         const uint32_t attrib_end = vbo_info.attrib_offset + vbo_info.attrib_format_size;
+         const uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, &vbo_info, vs->info.vs.dynamic_inputs);
 
          params->vbo_bind_mask |= ((layout->bind_vbo_mask >> binding) & 1u) << idx;
-         vbo_info[5 * idx] = layout->vbo_offsets[binding];
-         vbo_info[5 * idx + 1] = attrib_index_offset | (attrib_end << 16);
-         vbo_info[5 * idx + 2] = stride;
-         vbo_info[5 * idx + 3] = rsrc_word3;
-         vbo_info[5 * idx + 4] = vi_state->offsets[i];
+         ptr[5 * idx] = layout->vbo_offsets[binding];
+         ptr[5 * idx + 1] = vbo_info.attrib_index_offset | (attrib_end << 16);
+         ptr[5 * idx + 2] = vbo_info.stride;
+         ptr[5 * idx + 3] = rsrc_word3;
+         ptr[5 * idx + 4] = vbo_info.attrib_offset;
          ++idx;
       }
       params->vbo_cnt = idx;

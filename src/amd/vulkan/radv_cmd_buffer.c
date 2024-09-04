@@ -6145,25 +6145,15 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer, VkShaderStageFlags stag
 }
 
 uint32_t
-radv_get_rsrc3_vbo_desc(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs, uint32_t vbo_idx)
+radv_get_rsrc3_vbo_desc(const struct radv_cmd_buffer *cmd_buffer, const struct radv_vbo_info *vbo_info,
+                        bool uses_dynamic_inputs)
 {
    const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
    uint32_t rsrc_word3;
 
-   if (vs->info.vs.dynamic_inputs && !(vi_state->nontrivial_formats & BITFIELD_BIT(vbo_idx))) {
-      const struct ac_vtx_format_info *vtx_info_table =
-         ac_get_vtx_format_info_table(pdev->info.gfx_level, pdev->info.family);
-      const struct ac_vtx_format_info *vtx_info = &vtx_info_table[vi_state->formats[vbo_idx]];
-      unsigned hw_format = vtx_info->hw_format[vtx_info->num_channels - 1];
-
-      if (pdev->info.gfx_level >= GFX10) {
-         rsrc_word3 = vtx_info->dst_sel | S_008F0C_FORMAT_GFX10(hw_format);
-      } else {
-         rsrc_word3 =
-            vtx_info->dst_sel | S_008F0C_NUM_FORMAT((hw_format >> 4) & 0x7) | S_008F0C_DATA_FORMAT(hw_format & 0xf);
-      }
+   if (uses_dynamic_inputs && vbo_info->non_trivial_format) {
+      rsrc_word3 = vbo_info->non_trivial_format;
    } else {
       rsrc_word3 = S_008F0C_DST_SEL_X(V_008F0C_SQ_SEL_X) | S_008F0C_DST_SEL_Y(V_008F0C_SQ_SEL_Y) |
                    S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) | S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W);
@@ -6180,6 +6170,53 @@ radv_get_rsrc3_vbo_desc(const struct radv_cmd_buffer *cmd_buffer, const struct r
 }
 
 void
+radv_get_vbo_info(const struct radv_cmd_buffer *cmd_buffer, uint32_t idx, struct radv_vbo_info *vbo_info)
+{
+   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+   const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
+   const uint32_t binding = vi_state->bindings[idx];
+
+   memset(vbo_info, 0, sizeof(*vbo_info));
+
+   vbo_info->binding = binding;
+   vbo_info->stride = cmd_buffer->vertex_bindings[binding].stride;
+
+   vbo_info->attrib_offset = vi_state->offsets[idx];
+   vbo_info->attrib_index_offset = vi_state->attrib_index_offset[idx];
+   vbo_info->attrib_format_size = vi_state->format_sizes[idx];
+
+   if (!(vi_state->nontrivial_formats & BITFIELD_BIT(idx))) {
+      const struct ac_vtx_format_info *vtx_info_table =
+         ac_get_vtx_format_info_table(pdev->info.gfx_level, pdev->info.family);
+      const struct ac_vtx_format_info *vtx_info = &vtx_info_table[vi_state->formats[idx]];
+      const uint32_t hw_format = vtx_info->hw_format[vtx_info->num_channels - 1];
+
+      if (pdev->info.gfx_level >= GFX10) {
+         vbo_info->non_trivial_format |= vtx_info->dst_sel | S_008F0C_FORMAT_GFX10(hw_format);
+      } else {
+         vbo_info->non_trivial_format |=
+            vtx_info->dst_sel | S_008F0C_NUM_FORMAT((hw_format >> 4) & 0x7) | S_008F0C_DATA_FORMAT(hw_format & 0xf);
+      }
+   }
+
+   const struct radv_buffer *buffer = cmd_buffer->vertex_binding_buffers[binding];
+
+   if (!buffer)
+      return;
+
+   const uint32_t offset = cmd_buffer->vertex_bindings[binding].offset;
+
+   vbo_info->va = radv_buffer_get_va(buffer->bo) + buffer->offset + offset;
+
+   if (cmd_buffer->vertex_bindings[binding].size) {
+      vbo_info->size = cmd_buffer->vertex_bindings[binding].size;
+   } else {
+      vbo_info->size = vk_buffer_range(&buffer->vk, offset, VK_WHOLE_SIZE);
+   }
+}
+
+void
 radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs,
                               void *vb_ptr)
 {
@@ -6188,14 +6225,12 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
    enum amd_gfx_level chip = pdev->info.gfx_level;
    unsigned desc_index = 0;
    uint32_t mask = vs->info.vs.vb_desc_usage_mask;
-   uint64_t va;
    const bool uses_dynamic_inputs = vs->info.vs.dynamic_inputs;
    const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
 
    while (mask) {
       unsigned i = u_bit_scan(&mask);
       uint32_t *desc = &((uint32_t *)vb_ptr)[desc_index++ * 4];
-      uint32_t offset;
 
       if (uses_dynamic_inputs && !(vi_state->attribute_mask & BITFIELD_BIT(i))) {
          /* No vertex attribute description given: assume that the shader doesn't use this
@@ -6206,13 +6241,12 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
          continue;
       }
 
-      const unsigned binding = vi_state->bindings[i];
-      struct radv_buffer *buffer = cmd_buffer->vertex_binding_buffers[binding];
-      unsigned num_records;
-      const unsigned stride = cmd_buffer->vertex_bindings[binding].stride;
-      uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, vs, i);
+      struct radv_vbo_info vbo_info;
+      radv_get_vbo_info(cmd_buffer, i, &vbo_info);
 
-      if (!buffer) {
+      uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, &vbo_info, uses_dynamic_inputs);
+
+      if (!vbo_info.va) {
          if (uses_dynamic_inputs) {
             /* Stride needs to be non-zero on GFX9, or else bounds checking is disabled. We need
              * to include the format/word3 so that the alpha channel is 1 for formats without an
@@ -6229,21 +6263,11 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
          continue;
       }
 
-      va = radv_buffer_get_va(buffer->bo);
-
-      offset = cmd_buffer->vertex_bindings[binding].offset;
-      va += offset + buffer->offset;
-      if (uses_dynamic_inputs)
-         va += vi_state->offsets[i];
-
-      if (cmd_buffer->vertex_bindings[binding].size) {
-         num_records = cmd_buffer->vertex_bindings[binding].size;
-      } else {
-         num_records = vk_buffer_range(&buffer->vk, offset, VK_WHOLE_SIZE);
-      }
+      const unsigned stride = vbo_info.stride;
+      uint32_t num_records = vbo_info.size;
 
       if (vs->info.vs.use_per_attribute_vb_descs) {
-         const uint32_t attrib_end = vi_state->offsets[i] + vi_state->format_sizes[i];
+         const uint32_t attrib_end = vbo_info.attrib_offset + vbo_info.attrib_format_size;
 
          if (num_records < attrib_end) {
             num_records = 0; /* not enough space for one vertex */
@@ -6255,7 +6279,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
              * attrib_offset/stride and decrease the offset by attrib_offset%stride. This is
              * only allowed with static strides.
              */
-            num_records += vi_state->attrib_index_offset[i];
+            num_records += vbo_info.attrib_index_offset;
          }
 
          /* GFX10 uses OOB_SELECT_RAW if stride==0, so convert num_records from elements into
@@ -6292,6 +6316,10 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
          int oob_select = stride ? V_008F0C_OOB_SELECT_STRUCTURED : V_008F0C_OOB_SELECT_RAW;
          rsrc_word3 |= S_008F0C_OOB_SELECT(oob_select) | S_008F0C_RESOURCE_LEVEL(chip < GFX11);
       }
+
+      uint64_t va = vbo_info.va;
+      if (uses_dynamic_inputs)
+         va += vbo_info.attrib_offset;
 
       desc[0] = va;
       desc[1] = S_008F04_BASE_ADDRESS_HI(va >> 32) | S_008F04_STRIDE(stride);
