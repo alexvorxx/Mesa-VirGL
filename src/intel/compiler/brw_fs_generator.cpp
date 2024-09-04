@@ -1430,6 +1430,7 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
               "%d:%d spills:fills, %u sends, "
               "scheduled with mode %s. "
               "Promoted %u constants. "
+              "Non-SSA regs (after NIR): %u. "
               "Compacted %d to %d bytes (%.0f%%)\n",
               shader_name, params->source_hash, sha1buf,
               dispatch_width,
@@ -1440,6 +1441,7 @@ fs_generator::generate_code(const cfg_t *cfg, int dispatch_width,
               send_count,
               shader_stats.scheduler_mode,
               shader_stats.promoted_constants,
+              shader_stats.non_ssa_registers_after_nir,
               before_size, after_size,
               100.0f * (before_size - after_size) / before_size);
 
