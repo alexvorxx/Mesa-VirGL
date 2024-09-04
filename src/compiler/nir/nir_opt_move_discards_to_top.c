@@ -133,13 +133,7 @@ opt_move_discards_to_top_impl(nir_function_impl *impl)
          instr->pass_flags = 0;
 
          switch (instr->type) {
-         case nir_instr_type_alu: {
-            nir_alu_instr *alu = nir_instr_as_alu(instr);
-            if (nir_op_is_derivative(alu->op))
-               consider_discards = false;
-            continue;
-         }
-
+         case nir_instr_type_alu:
          case nir_instr_type_deref:
          case nir_instr_type_load_const:
          case nir_instr_type_undef:

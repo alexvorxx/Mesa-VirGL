@@ -908,12 +908,6 @@ gather_tex_info(nir_tex_instr *instr, nir_shader *shader)
 static void
 gather_alu_info(nir_alu_instr *instr, nir_shader *shader)
 {
-   if (nir_op_is_derivative(instr->op) &&
-       shader->info.stage == MESA_SHADER_FRAGMENT) {
-
-      shader->info.fs.needs_quad_helper_invocations = true;
-   }
-
    const nir_op_info *info = &nir_op_infos[instr->op];
 
    for (unsigned i = 0; i < info->num_inputs; i++) {

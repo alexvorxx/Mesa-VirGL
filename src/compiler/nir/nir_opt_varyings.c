@@ -2879,12 +2879,6 @@ update_movable_flags(struct linkage_info *linkage, nir_instr *instr)
       unsigned num_srcs = nir_op_infos[alu->op].num_inputs;
       unsigned alu_interp;
 
-      /* These are shader-dependent and thus unmovable. */
-      if (nir_op_is_derivative(alu->op)) {
-         instr->pass_flags |= FLAG_UNMOVABLE;
-         return;
-      }
-
       /* Make vector ops unmovable. They are technically movable but more
        * complicated, and NIR should be scalarized for this pass anyway.
        * The only remaining vector ops should be vecN for intrinsic sources.

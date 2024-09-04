@@ -150,7 +150,6 @@ def type_base_type(type_):
 _2src_commutative = "2src_commutative "
 associative = "associative "
 selection = "selection "
-derivative = "derivative "
 
 # global dictionary of opcodes
 opcodes = {}

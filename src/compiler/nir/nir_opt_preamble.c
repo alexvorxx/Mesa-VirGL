@@ -277,17 +277,9 @@ can_move_instr(nir_instr *instr, opt_preamble_ctx *ctx)
       }
       return can_move_srcs(instr, ctx);
    }
-   case nir_instr_type_alu: {
-      /* The preamble is presumably run with only one thread, so we can't run
-       * derivatives in it.
-       * TODO: Replace derivatives with 0 instead, if real apps hit this.
-       */
-      nir_alu_instr *alu = nir_instr_as_alu(instr);
-      if (nir_op_is_derivative(alu->op))
-         return false;
-      else
-         return can_move_srcs(instr, ctx);
-   }
+   case nir_instr_type_alu:
+      return can_move_srcs(instr, ctx);
+
    case nir_instr_type_intrinsic:
       return can_move_intrinsic(nir_instr_as_intrinsic(instr), ctx);
 

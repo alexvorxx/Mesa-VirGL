@@ -70,14 +70,6 @@ can_sink_instr(nir_instr *instr, nir_move_options options, bool *can_mov_out_of_
    case nir_instr_type_alu: {
       nir_alu_instr *alu = nir_instr_as_alu(instr);
 
-      /* Derivatives cannot be moved into non-uniform control flow, including
-       * past a discard_if in the same block. Even if they could, sinking
-       * derivatives extends the lifetime of helper invocations which may be
-       * worse than the register pressure decrease. Bail on derivatives.
-       */
-      if (nir_op_is_derivative(alu->op))
-         return false;
-
       if (nir_op_is_vec_or_mov(alu->op) || alu->op == nir_op_b2i32)
          return options & nir_move_copies;
       if (nir_alu_instr_is_comparison(alu))
