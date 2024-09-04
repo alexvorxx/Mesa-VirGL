@@ -116,7 +116,9 @@ vk_get_subgroup_size(uint32_t spirv_version,
       /* Starting with SPIR-V 1.6, varying subgroup size the default */
       return SUBGROUP_SIZE_VARYING;
    } else if (require_full) {
-      assert(stage == MESA_SHADER_COMPUTE);
+      assert(stage == MESA_SHADER_COMPUTE ||
+             stage == MESA_SHADER_MESH ||
+             stage == MESA_SHADER_TASK);
       return SUBGROUP_SIZE_FULL_SUBGROUPS;
    } else {
       return SUBGROUP_SIZE_API_CONSTANT;
