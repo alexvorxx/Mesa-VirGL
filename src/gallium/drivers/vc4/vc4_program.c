@@ -2184,7 +2184,6 @@ static const nir_shader_compiler_options nir_options = {
         .lower_mul_high = true,
         .max_unroll_iterations = 32,
         .force_indirect_unrolling = (nir_var_shader_in | nir_var_shader_out | nir_var_function_temp),
-        .has_ddx_intrinsics = true,
         .scalarize_ddx = true,
 };
 

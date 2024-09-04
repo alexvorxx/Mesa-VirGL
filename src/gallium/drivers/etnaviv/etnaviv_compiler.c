@@ -78,7 +78,6 @@ etna_compiler_create(const char *renderer, const struct etna_core_info *info)
       .lower_ufind_msb = true,
       .has_uclz = true,
       .no_integers = info->halti < 2,
-      .has_ddx_intrinsics = true,
    };
 
    compiler->regs = etna_ra_setup(compiler);

@@ -4087,7 +4087,6 @@ static const nir_shader_compiler_options nir_to_tgsi_compiler_options = {
     * workgroup id.
     */
    .lower_cs_local_index_to_id = true,
-   .has_ddx_intrinsics = true,
 };
 
 /* Returns a default compiler options for drivers with only nir-to-tgsi-based

@@ -100,7 +100,6 @@ void bifrost_compile_shader_nir(nir_shader *nir,
       .force_indirect_unrolling =                                              \
          (nir_var_shader_in | nir_var_shader_out | nir_var_function_temp),     \
       .force_indirect_unrolling_sampler = true,                                \
-      .has_ddx_intrinsics = true,                                              \
       .scalarize_ddx = true,                                                   \
    };
 

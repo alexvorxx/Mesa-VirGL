@@ -161,7 +161,6 @@ nir_options = {
    .support_16bit_alu = true,
    .preserve_mediump = true,
    .discard_is_demote = true,
-   .has_ddx_intrinsics = true,
    .scalarize_ddx = true,
 };
 

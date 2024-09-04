@@ -87,7 +87,6 @@ static const nir_shader_compiler_options fs_nir_options = {
    .force_indirect_unrolling_sampler = true,
    .lower_varying_from_uniform = true,
    .max_unroll_iterations = 32,
-   .has_ddx_intrinsics = true,
    .no_integers = true,
 };
 

@@ -79,7 +79,6 @@ const struct nir_shader_compiler_options brw_scalar_nir_options = {
    .vectorize_io = true,
    .vectorize_tess_levels = true,
    .vertex_id_zero_based = true,
-   .has_ddx_intrinsics = true,
    .scalarize_ddx = true,
 };
 

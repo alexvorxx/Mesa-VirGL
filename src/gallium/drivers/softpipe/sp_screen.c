@@ -95,7 +95,6 @@ static const nir_shader_compiler_options sp_compiler_options = {
     * workgroup id.
     */
    .lower_cs_local_index_to_id = true,
-   .has_ddx_intrinsics = true,
 };
 
 static const void *

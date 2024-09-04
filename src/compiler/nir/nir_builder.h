@@ -1998,26 +1998,21 @@ nir_tex_src_for_ssa(nir_tex_src_type src_type, nir_def *def)
 #undef nir_ddy_coarse
 
 static inline nir_def *
-nir_build_deriv(nir_builder *b, nir_def *x, nir_op alu, nir_intrinsic_op intrin)
+nir_build_deriv(nir_builder *b, nir_def *x, nir_intrinsic_op intrin)
 {
-   /* Otherwise, build the derivative instruction: either intrinsic or ALU. */
-   if (b->shader->options->has_ddx_intrinsics) {
-      if (b->shader->options->scalarize_ddx && x->num_components > 1) {
-         nir_def *res[NIR_MAX_VEC_COMPONENTS] = { NULL };
+   if (b->shader->options->scalarize_ddx && x->num_components > 1) {
+      nir_def *res[NIR_MAX_VEC_COMPONENTS] = { NULL };
 
-         for (unsigned i = 0; i < x->num_components; ++i) {
-            res[i] = _nir_build_ddx(b, x->bit_size, nir_channel(b, x, i));
-            nir_instr_as_intrinsic(res[i]->parent_instr)->intrinsic = intrin;
-         }
-
-         return nir_vec(b, res, x->num_components);
-      } else {
-         nir_def *res = _nir_build_ddx(b, x->bit_size, x);
-         nir_instr_as_intrinsic(res->parent_instr)->intrinsic = intrin;
-         return res;
+      for (unsigned i = 0; i < x->num_components; ++i) {
+         res[i] = _nir_build_ddx(b, x->bit_size, nir_channel(b, x, i));
+         nir_instr_as_intrinsic(res[i]->parent_instr)->intrinsic = intrin;
       }
+
+      return nir_vec(b, res, x->num_components);
    } else {
-      return nir_build_alu1(b, alu, x);
+      nir_def *res = _nir_build_ddx(b, x->bit_size, x);
+      nir_instr_as_intrinsic(res->parent_instr)->intrinsic = intrin;
+      return res;
    }
 }
 
@@ -2025,7 +2020,7 @@ nir_build_deriv(nir_builder *b, nir_def *x, nir_op alu, nir_intrinsic_op intrin)
    static inline nir_def *                                                   \
       nir_##op(nir_builder *build, nir_def *src0)                            \
    {                                                                         \
-      return nir_build_deriv(build, src0, nir_op_f##op, nir_intrinsic_##op); \
+      return nir_build_deriv(build, src0, nir_intrinsic_##op);               \
    }
 
 DEF_DERIV(ddx)

@@ -1384,7 +1384,6 @@ zink_screen_init_compiler(struct zink_screen *screen)
       .support_indirect_outputs = BITFIELD_MASK(MESA_SHADER_COMPUTE),
       .max_unroll_iterations = 0,
       .use_interpolated_input_intrinsics = true,
-      .has_ddx_intrinsics = true,
    };
 
    screen->nir_options = default_options;
