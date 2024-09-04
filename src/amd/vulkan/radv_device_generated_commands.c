@@ -15,7 +15,7 @@
 #include "vk_common_entrypoints.h"
 #include "vk_shader_module.h"
 
-#define DGC_VBO_SIZE 32
+#define DGC_VBO_SIZE 36
 
 /* The DGC command buffer layout is quite complex, here's some explanations:
  *
@@ -1392,12 +1392,17 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo
       {
          nir_def *vbo_offset_offset =
             nir_iadd(b, nir_imul_imm(b, vbo_cnt, 16), nir_imul_imm(b, nir_load_var(b, vbo_idx), DGC_VBO_SIZE - 16));
-         nir_def *vbo_over_data = nir_load_ssbo(b, 4, 32, param_buf, vbo_offset_offset);
+         nir_def *vbo_over_data = nir_load_ssbo(b, 5, 32, param_buf, vbo_offset_offset);
          nir_def *stream_offset = nir_iand_imm(b, nir_channel(b, vbo_over_data, 0), 0x7FFF);
          nir_def *stream_data = nir_build_load_global(b, 4, 32, nir_iadd(b, stream_addr, nir_u2u64(b, stream_offset)),
                                                       .access = ACCESS_NON_WRITEABLE);
 
+         nir_def *has_dynamic_vs_input = nir_ieq_imm(b, load_param8(b, dynamic_vs_input), 1);
+         nir_def *attrib_offset = nir_channel(b, vbo_over_data, 4);
+
          nir_def *va = nir_pack_64_2x32(b, nir_trim_vector(b, stream_data, 2));
+         va = nir_iadd(b, va, nir_bcsel(b, has_dynamic_vs_input, nir_u2u64(b, attrib_offset), nir_imm_int64(b, 0)));
+
          nir_def *size = nir_channel(b, stream_data, 2);
 
          nir_def *stride;
@@ -1482,8 +1487,6 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo
             nir_iand_imm(b, nir_pack_64_2x32(b, nir_trim_vector(b, nir_load_var(b, vbo_data), 2)), (1ull << 48) - 1ull);
          nir_push_if(b, nir_ior(b, nir_ieq_imm(b, nir_load_var(b, num_records), 0), nir_ieq_imm(b, buf_va, 0)));
          {
-            nir_def *has_dynamic_vs_input = nir_ieq_imm(b, load_param8(b, dynamic_vs_input), 1);
-
             new_vbo_data[0] = nir_imm_int(b, 0);
             new_vbo_data[1] =
                nir_bcsel(b, has_dynamic_vs_input, nir_imm_int(b, S_008F04_STRIDE(16)), nir_imm_int(b, 0));
@@ -2350,10 +2353,11 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
          const uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, vs, i);
 
          params->vbo_bind_mask |= ((layout->bind_vbo_mask >> binding) & 1u) << idx;
-         vbo_info[4 * idx] = ((vs->info.vs.use_per_attribute_vb_descs ? 1u : 0u) << 31) | layout->vbo_offsets[binding];
-         vbo_info[4 * idx + 1] = attrib_index_offset | (attrib_end << 16);
-         vbo_info[4 * idx + 2] = stride;
-         vbo_info[4 * idx + 3] = rsrc_word3;
+         vbo_info[5 * idx] = ((vs->info.vs.use_per_attribute_vb_descs ? 1u : 0u) << 31) | layout->vbo_offsets[binding];
+         vbo_info[5 * idx + 1] = attrib_index_offset | (attrib_end << 16);
+         vbo_info[5 * idx + 2] = stride;
+         vbo_info[5 * idx + 3] = rsrc_word3;
+         vbo_info[5 * idx + 4] = vi_state->offsets[i];
          ++idx;
       }
       params->vbo_cnt = idx;
