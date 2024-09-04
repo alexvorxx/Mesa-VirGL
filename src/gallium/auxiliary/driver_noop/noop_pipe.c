@@ -683,18 +683,6 @@ static void noop_query_compression_modifiers(struct pipe_screen *screen,
       oscreen->query_compression_modifiers(oscreen, fmt, rate, max, mods, count);
 }
 
-static bool noop_is_compression_modifier(struct pipe_screen *screen,
-                                         enum pipe_format format, uint64_t modifier,
-                                         uint32_t *rate)
-{
-   struct noop_pipe_screen *noop_screen = (struct noop_pipe_screen*)screen;
-   struct pipe_screen *oscreen = noop_screen->oscreen;
-
-   if (oscreen->is_compression_modifier)
-      return oscreen->is_compression_modifier(oscreen, format, modifier, rate);
-   return false;
-}
-
 static void noop_get_driver_uuid(struct pipe_screen *screen, char *uuid)
 {
    struct noop_pipe_screen *noop_screen = (struct noop_pipe_screen*)screen;
@@ -858,7 +846,6 @@ struct pipe_screen *noop_screen_create(struct pipe_screen *oscreen)
       screen->set_fence_timeline_value = noop_set_fence_timeline_value;
    screen->query_compression_rates = noop_query_compression_rates;
    screen->query_compression_modifiers = noop_query_compression_modifiers;
-   screen->is_compression_modifier = noop_is_compression_modifier;
    screen->get_driver_pipe_screen = noop_get_driver_pipe_screen;
 
    slab_create_parent(&noop_screen->pool_transfers,

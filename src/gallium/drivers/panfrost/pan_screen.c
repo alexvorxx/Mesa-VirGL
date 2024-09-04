@@ -651,23 +651,6 @@ panfrost_query_compression_modifiers(struct pipe_screen *screen,
    *count = panfrost_afrc_get_modifiers(format, rate, max, modifiers);
 }
 
-static bool
-panfrost_is_compression_modifier(struct pipe_screen *screen,
-                                 enum pipe_format format, uint64_t modifier,
-                                 uint32_t *rate)
-{
-   struct panfrost_device *dev = pan_device(screen);
-   uint32_t compression_rate = panfrost_afrc_get_rate(format, modifier);
-
-   if (!dev->has_afrc)
-      return false;
-
-   if (rate)
-      *rate = compression_rate;
-
-   return (compression_rate != 0);
-}
-
 /* We always support linear and tiled operations, both external and internal.
  * We support AFBC for a subset of formats, and colourspace transform for a
  * subset of those. */
@@ -1008,7 +991,6 @@ panfrost_create_screen(int fd, const struct pipe_screen_config *config,
    screen->base.query_compression_rates = panfrost_query_compression_rates;
    screen->base.query_compression_modifiers =
       panfrost_query_compression_modifiers;
-   screen->base.is_compression_modifier = panfrost_is_compression_modifier;
 
    panfrost_resource_screen_init(&screen->base);
    pan_blend_shader_cache_init(&dev->blend_shaders,
