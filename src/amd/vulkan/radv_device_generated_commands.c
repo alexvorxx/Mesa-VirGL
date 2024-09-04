@@ -1359,20 +1359,27 @@ dgc_emit_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, VkShaderStag
  * For emitting VK_INDIRECT_COMMANDS_TOKEN_TYPE_VERTEX_BUFFER_NV.
  */
 static void
-dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_def *vbo_bind_mask)
+dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
 {
    const struct radv_indirect_command_layout *layout = cs->layout;
    const struct radv_device *device = cs->dev;
    const struct radv_physical_device *pdev = radv_device_physical(device);
    nir_builder *b = cs->b;
 
-   dgc_cs_begin(cs);
-   dgc_cs_emit_imm(PKT3(PKT3_SET_SH_REG, 1, 0));
-   dgc_cs_emit(load_param16(b, vbo_reg));
-   dgc_cs_emit(nir_iadd(b, load_param32(b, upload_addr), nir_load_var(b, cs->upload_offset)));
-   dgc_cs_end();
-
    nir_def *vbo_cnt = load_param8(b, vbo_cnt);
+
+   nir_push_if(b, nir_ine_imm(b, vbo_cnt, 0));
+   {
+      dgc_cs_begin(cs);
+      dgc_cs_emit_imm(PKT3(PKT3_SET_SH_REG, 1, 0));
+      dgc_cs_emit(load_param16(b, vbo_reg));
+      dgc_cs_emit(nir_iadd(b, load_param32(b, upload_addr), nir_load_var(b, cs->upload_offset)));
+      dgc_cs_end();
+   }
+   nir_pop_if(b, NULL);
+
+   nir_def *vbo_bind_mask = load_param32(b, vbo_bind_mask);
+
    nir_variable *vbo_idx = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "vbo_idx");
    nir_store_var(b, vbo_idx, nir_imm_int(b, 0), 0x1);
 
@@ -1905,12 +1912,9 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
       }
 
       if (layout->pipeline_bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS) {
-         nir_def *vbo_bind_mask = load_param32(&b, vbo_bind_mask);
-         nir_push_if(&b, nir_ine_imm(&b, vbo_bind_mask, 0));
-         {
-            dgc_emit_vertex_buffer(&cmd_buf, stream_addr, vbo_bind_mask);
+         if (layout->bind_vbo_mask) {
+            dgc_emit_vertex_buffer(&cmd_buf, stream_addr);
          }
-         nir_pop_if(&b, NULL);
 
          if (layout->indexed) {
             /* Emit direct draws when index buffers are also updated by DGC. Otherwise, emit
