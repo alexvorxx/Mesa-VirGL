@@ -86,7 +86,7 @@ typedef uint64_t zx_koid_t;
 
 #if GFXSTREAM_ENABLE_GUEST_GOLDFISH
 /// Goldfish sync only used for AEMU -- should replace in virtio-gpu when possibe
-#include "../egl/goldfish_sync.h"
+#include "gfxstream/guest/goldfish_sync.h"
 #endif
 
 // This should be ABI identical with the variant in ResourceTracker.h
