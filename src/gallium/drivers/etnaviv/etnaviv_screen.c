@@ -394,7 +394,7 @@ etna_screen_get_shader_param(struct pipe_screen *pscreen,
       return shader == PIPE_SHADER_FRAGMENT ? screen->specs.max_varyings
                                             : screen->specs.vertex_max_elements;
    case PIPE_SHADER_CAP_MAX_OUTPUTS:
-      return 16; /* see VIVS_VS_OUTPUT */
+      return screen->specs.max_vs_outputs;
    case PIPE_SHADER_CAP_MAX_TEMPS:
       return 64; /* Max native temporaries. */
    case PIPE_SHADER_CAP_MAX_CONST_BUFFERS:
@@ -963,6 +963,8 @@ etna_get_specs(struct etna_screen *screen)
       screen->specs.vs_uniforms_offset = VIVS_VS_UNIFORMS(0);
       screen->specs.ps_uniforms_offset = VIVS_PS_UNIFORMS(0);
    }
+
+   screen->specs.max_vs_outputs = screen->info->halti >= 5 ? 32 : 16;
 
    screen->specs.max_texture_size =
       VIV_FEATURE(screen, ETNA_FEATURE_TEXTURE_8K) ? 8192 : 2048;

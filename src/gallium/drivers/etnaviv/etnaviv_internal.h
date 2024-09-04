@@ -109,6 +109,8 @@ struct etna_specs {
    uint32_t ps_uniforms_offset;
    /* vertex/fragment shader max instructions */
    uint32_t max_instructions;
+   /* maximum number of VS outputs */
+   unsigned max_vs_outputs;
    /* maximum number of varyings */
    unsigned max_varyings;
    /* maximum vertex uniforms */
@@ -218,7 +220,7 @@ struct compiled_shader_state {
    uint32_t VS_OUTPUT_COUNT_PSIZE; /* number of outputs of point size per vertex enabled */
    uint32_t VS_INPUT_COUNT;
    uint32_t VS_TEMP_REGISTER_CONTROL;
-   uint32_t VS_OUTPUT[4];
+   uint32_t VS_OUTPUT[8];
    uint32_t VS_INPUT[4];
    uint32_t VS_LOAD_BALANCING;
    uint32_t VS_START_PC;
