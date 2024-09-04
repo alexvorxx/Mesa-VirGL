@@ -250,6 +250,7 @@ zink_resource_destroy(struct pipe_screen *pscreen,
    }
    /* no need to do anything for the caches, these objects own the resource lifetimes */
 
+   free(res->modifiers);
    zink_resource_object_reference(screen, &res->obj, NULL);
    threaded_resource_deinit(pres);
    FREE_CL(res);
