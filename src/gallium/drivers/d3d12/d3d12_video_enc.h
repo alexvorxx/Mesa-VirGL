@@ -443,8 +443,7 @@ struct d3d12_video_encoder
    // 2. On d3d12_video_buffer::destroy(), when all the slots
    //    of the allocation pool are unused, the memory is released.
    pipe_resource *m_pVideoTexArrayDPBPool;
-   static_assert(D3D12_VIDEO_TEXTURE_ARRAY_DPB_POOL_SIZE <= 16); // uint16_t used as a bitmap into m_pVideoTexArrayDPBPool
-   std::shared_ptr<uint16_t> m_spVideoTexArrayDPBPoolInUse;
+   std::shared_ptr<uint32_t> m_spVideoTexArrayDPBPoolInUse;
 };
 
 bool

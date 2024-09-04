@@ -105,8 +105,7 @@ struct d3d12_video_buffer
    // Used by d3d12_video_buffer_destroy() when using texture array mode
    // in the function d3d12_video_enc::d3d12_video_create_dpb_buffer()
    // Points to the same address as d3d12_video_encoder::m_spVideoTexArrayDPBPoolInUse
-   static_assert(D3D12_VIDEO_TEXTURE_ARRAY_DPB_POOL_SIZE <= 16); // uint16_t used as a bitmap into m_pVideoTexArrayDPBPool
-   std::shared_ptr<uint16_t> m_spVideoTexArrayDPBPoolInUse;
+   std::shared_ptr<uint32_t> m_spVideoTexArrayDPBPoolInUse;
 };
 
 ///

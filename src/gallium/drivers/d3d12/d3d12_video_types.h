@@ -75,8 +75,6 @@ const uint64_t D3D12_VIDEO_ENC_METADATA_BUFFERS_COUNT = debug_get_num_option("D3
 
 constexpr unsigned int D3D12_VIDEO_H264_MB_IN_PIXELS = 16;
 
-constexpr unsigned int D3D12_VIDEO_TEXTURE_ARRAY_DPB_POOL_SIZE = 16;
-
 constexpr size_t D3D12_DEFAULT_COMPBIT_STAGING_SIZE = (1024 /*1K*/ * 1024/*1MB*/) * 8/*8 MB*/; // 8MB 
 
 /* If enabled, the D3D12 AV1 encoder will use always ...CONFIGURABLE_GRID_PARTITION mode */
