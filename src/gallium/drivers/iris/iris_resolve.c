@@ -1221,7 +1221,7 @@ iris_resource_update_indirect_color(struct iris_batch *batch,
 {
    assert(res->aux.clear_color_bo);
 
-   uint32_t pixel[4];
+   uint32_t pixel[4] = {};
    isl_color_value_pack(&res->aux.clear_color, res->surf.format, pixel);
 
    iris_emit_pipe_control_write(batch, "update fast clear color (RG____)",
