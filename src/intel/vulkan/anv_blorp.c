@@ -316,12 +316,6 @@ get_blorp_surf_for_anv_image(const struct anv_cmd_buffer *cmd_buffer,
          };
       }
 
-      /* If we're doing a partial resolve, then we need the indirect clear
-       * color.  If we are doing a fast clear and want to store/update the
-       * clear color, we also pass the address to blorp, otherwise it will only
-       * stomp the CCS to a particular value and won't care about format or
-       * clear value
-       */
       if (aspect & VK_IMAGE_ASPECT_ANY_COLOR_BIT_ANV) {
          const struct anv_address clear_color_addr =
             anv_image_get_clear_color_addr(device, image, aspect);
