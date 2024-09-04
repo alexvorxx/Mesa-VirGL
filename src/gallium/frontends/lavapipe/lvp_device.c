@@ -627,7 +627,7 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
       .nullDescriptor = true,
 
       /* VK_NV_device_generated_commands */
-      .deviceGeneratedCommands = true,
+      .deviceGeneratedCommandsNV = true,
 
       /* VK_EXT_primitive_topology_list_restart */
       .primitiveTopologyListRestart = true,

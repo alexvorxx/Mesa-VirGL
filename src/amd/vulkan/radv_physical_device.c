@@ -1089,7 +1089,7 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
       .performanceCounterMultipleQueryPools = has_perf_query,
 
       /* VK_NV_device_generated_commands */
-      .deviceGeneratedCommands = true,
+      .deviceGeneratedCommandsNV = true,
 
       /* VK_EXT_attachment_feedback_loop_layout */
       .attachmentFeedbackLoopLayout = true,
