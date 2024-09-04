@@ -476,8 +476,8 @@ static const nir_op op_trans[MAX_OPCODE] = {
    [OPCODE_ARL] = 0,
    [OPCODE_CMP] = 0,
    [OPCODE_COS] = 0,
-   [OPCODE_DDX] = nir_op_fddx,
-   [OPCODE_DDY] = nir_op_fddy,
+   [OPCODE_DDX] = 0,
+   [OPCODE_DDY] = 0,
    [OPCODE_DP2] = 0,
    [OPCODE_DP3] = 0,
    [OPCODE_DP4] = 0,
@@ -536,6 +536,14 @@ ptn_emit_instruction(struct ptn_compile *c, struct prog_instruction *prog_inst)
       return;
 
    switch (op) {
+   case OPCODE_DDX:
+      dst = nir_ddx(b, src[0]);
+      break;
+
+   case OPCODE_DDY:
+      dst = nir_ddy(b, src[0]);
+      break;
+
    case OPCODE_RSQ:
       dst = nir_frsq(b, nir_fabs(b, ptn_channel(b, src[0], X)));
       break;
