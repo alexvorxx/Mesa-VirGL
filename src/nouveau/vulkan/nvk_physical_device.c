@@ -96,6 +96,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .KHR_draw_indirect_count = info->cls_eng3d >= TURING_A,
       .KHR_driver_properties = true,
       .KHR_dynamic_rendering = true,
+      .KHR_dynamic_rendering_local_read = true,
       .KHR_external_fence = true,
       .KHR_external_fence_fd = true,
       .KHR_external_memory = true,
@@ -399,6 +400,9 @@ nvk_get_device_features(const struct nv_device_info *info,
       .dynamicRendering = true,
       .shaderIntegerDotProduct = true,
       .maintenance4 = true,
+
+      /* VK_KHR_dynamic_rendering_local_read */
+      .dynamicRenderingLocalRead = true,
 
       /* VK_KHR_fragment_shader_barycentric */
       .fragmentShaderBarycentric = info->cls_eng3d >= TURING_A &&

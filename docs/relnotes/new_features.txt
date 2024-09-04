@@ -5,3 +5,4 @@ VK_KHR_video_maintenance1 on radv
 VK_EXT_legacy_vertex_attributes on nvk
 GL_KHR_shader_subgroup on radeonsi
 VK_KHR_maintenance7 on nvk
+VK_KHR_dynamic_rendering_local_read on nvk
