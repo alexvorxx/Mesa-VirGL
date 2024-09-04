@@ -421,6 +421,22 @@ enum opcode {
    SHADER_OPCODE_INCLUSIVE_SCAN,
    SHADER_OPCODE_EXCLUSIVE_SCAN,
 
+   /* Check if any or all values in each subset (cluster) of channels are set,
+    * and broadcast the result to all channels in the subset.
+    *
+    * Source 0: Boolean value.
+    * Source 1: Immediate with cluster size.
+    */
+   SHADER_OPCODE_VOTE_ANY,
+   SHADER_OPCODE_VOTE_ALL,
+
+   /* Check if the values of all channels are equal, and broadcast the result
+    * to all channels.
+    *
+    * Source 0: Value.
+    */
+   SHADER_OPCODE_VOTE_EQUAL,
+
    /* Select between src0 and src1 based on channel enables.
     *
     * This instruction copies src0 into the enabled channels of the

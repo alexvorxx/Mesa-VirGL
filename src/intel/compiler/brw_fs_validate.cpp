@@ -234,6 +234,9 @@ brw_validate_instruction_phase(const fs_visitor &s, fs_inst *inst)
    case SHADER_OPCODE_REDUCE:
    case SHADER_OPCODE_INCLUSIVE_SCAN:
    case SHADER_OPCODE_EXCLUSIVE_SCAN:
+   case SHADER_OPCODE_VOTE_ANY:
+   case SHADER_OPCODE_VOTE_ALL:
+   case SHADER_OPCODE_VOTE_EQUAL:
       invalid_from = BRW_SHADER_PHASE_AFTER_EARLY_LOWERING;
       break;
 

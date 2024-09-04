@@ -321,6 +321,9 @@ fs_inst::can_do_source_mods(const struct intel_device_info *devinfo) const
    case SHADER_OPCODE_REDUCE:
    case SHADER_OPCODE_INCLUSIVE_SCAN:
    case SHADER_OPCODE_EXCLUSIVE_SCAN:
+   case SHADER_OPCODE_VOTE_ANY:
+   case SHADER_OPCODE_VOTE_ALL:
+   case SHADER_OPCODE_VOTE_EQUAL:
       return false;
    default:
       return true;

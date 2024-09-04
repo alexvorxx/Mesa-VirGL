@@ -345,6 +345,172 @@ brw_lower_scan(fs_visitor &s, bblock_t *block, fs_inst *inst)
    return true;
 }
 
+static brw_reg
+brw_fill_flag(const fs_builder &bld, unsigned v)
+{
+   const fs_builder ubld1 = bld.exec_all().group(1, 0);
+   brw_reg flag = brw_flag_reg(0, 0);
+
+   if (bld.shader->dispatch_width == 32) {
+      /* For SIMD32, we use a UD type so we fill both f0.0 and f0.1. */
+      flag = retype(flag, BRW_TYPE_UD);
+      ubld1.MOV(flag, brw_imm_ud(v));
+   } else {
+      ubld1.MOV(flag, brw_imm_uw(v & 0xFFFF));
+   }
+
+   return flag;
+}
+
+static void
+brw_lower_dispatch_width_vote(const fs_builder &bld, enum opcode opcode, brw_reg dst, brw_reg src)
+{
+   const intel_device_info *devinfo = bld.shader->devinfo;
+   const unsigned dispatch_width = bld.shader->dispatch_width;
+
+   assert(opcode == SHADER_OPCODE_VOTE_ANY ||
+          opcode == SHADER_OPCODE_VOTE_ALL ||
+          opcode == SHADER_OPCODE_VOTE_EQUAL);
+
+   const bool any   = opcode == SHADER_OPCODE_VOTE_ANY;
+   const bool equal = opcode == SHADER_OPCODE_VOTE_EQUAL;
+
+   const brw_reg ref = equal ? bld.emit_uniformize(src) : brw_imm_d(0);
+
+   /* The any/all predicates do not consider channel enables. To prevent
+    * dead channels from affecting the result, we initialize the flag with
+    * with the identity value for the logical operation.
+    */
+   brw_fill_flag(bld, any ? 0 : 0xFFFFFFFF);
+   bld.CMP(bld.null_reg_d(), src, ref, equal ? BRW_CONDITIONAL_Z
+                                             : BRW_CONDITIONAL_NZ);
+
+   /* For some reason, the any/all predicates don't work properly with
+    * SIMD32.  In particular, it appears that a SEL with a QtrCtrl of 2H
+    * doesn't read the correct subset of the flag register and you end up
+    * getting garbage in the second half.  Work around this by using a pair
+    * of 1-wide MOVs and scattering the result.
+    *
+    * TODO: Check if we still need this for newer platforms.
+    */
+   const fs_builder ubld = devinfo->ver >= 20 ? bld.exec_all()
+                                              : bld.exec_all().group(1, 0);
+   brw_reg res1 = ubld.MOV(brw_imm_d(0));
+
+   enum brw_predicate pred;
+   if (any) {
+      pred = devinfo->ver >= 20   ? XE2_PREDICATE_ANY :
+             dispatch_width == 8  ? BRW_PREDICATE_ALIGN1_ANY8H :
+             dispatch_width == 16 ? BRW_PREDICATE_ALIGN1_ANY16H :
+                                    BRW_PREDICATE_ALIGN1_ANY32H;
+   } else {
+      pred = devinfo->ver >= 20   ? XE2_PREDICATE_ALL :
+             dispatch_width == 8  ? BRW_PREDICATE_ALIGN1_ALL8H :
+             dispatch_width == 16 ? BRW_PREDICATE_ALIGN1_ALL16H :
+                                    BRW_PREDICATE_ALIGN1_ALL32H;
+   }
+   set_predicate(pred, ubld.MOV(res1, brw_imm_d(-1)));
+
+   bld.MOV(retype(dst, BRW_TYPE_D), component(res1, 0));
+}
+
+static void
+brw_lower_quad_vote_gfx9(const fs_builder &bld, enum opcode opcode, brw_reg dst, brw_reg src)
+{
+   assert(opcode == SHADER_OPCODE_VOTE_ANY || opcode == SHADER_OPCODE_VOTE_ALL);
+   const bool any = opcode == SHADER_OPCODE_VOTE_ANY;
+
+   /* The any/all predicates do not consider channel enables. To prevent
+    * dead channels from affecting the result, we initialize the flag with
+    * with the identity value for the logical operation.
+    */
+   brw_fill_flag(bld, any ? 0 : 0xFFFFFFFF);
+   bld.CMP(bld.null_reg_ud(), src, brw_imm_ud(0u), BRW_CONDITIONAL_NZ);
+   bld.exec_all().MOV(retype(dst, BRW_TYPE_UD), brw_imm_ud(0));
+
+   /* Before Xe2, we can use specialized predicates. */
+   const enum brw_predicate pred = any ? BRW_PREDICATE_ALIGN1_ANY4H
+                                       : BRW_PREDICATE_ALIGN1_ALL4H;
+
+   fs_inst *mov = bld.MOV(retype(dst, BRW_TYPE_D), brw_imm_d(-1));
+   set_predicate(pred, mov);
+}
+
+static void
+brw_lower_quad_vote_gfx20(const fs_builder &bld, enum opcode opcode, brw_reg dst, brw_reg src)
+{
+   assert(opcode == SHADER_OPCODE_VOTE_ANY || opcode == SHADER_OPCODE_VOTE_ALL);
+   const bool any = opcode == SHADER_OPCODE_VOTE_ANY;
+
+   /* This code is going to manipulate the results of flag mask, so clear it to
+    * avoid any residual value from disabled channels.
+    */
+   brw_reg flag = brw_fill_flag(bld, 0);
+
+   /* Mask of invocations where condition is true, note that mask is
+    * replicated to each invocation.
+    */
+   bld.CMP(bld.null_reg_ud(), src, brw_imm_ud(0u), BRW_CONDITIONAL_NZ);
+   brw_reg cond_mask = bld.vgrf(BRW_TYPE_UD);
+   bld.MOV(cond_mask, flag);
+
+   /* Mask of invocations in the quad, each invocation will get
+    * all the bits set for their quad, i.e. invocations 0-3 will have
+    * 0b...1111, invocations 4-7 will have 0b...11110000 and so on.
+    */
+   brw_reg invoc_ud = bld.vgrf(BRW_TYPE_UD);
+   bld.MOV(invoc_ud, bld.LOAD_SUBGROUP_INVOCATION());
+   brw_reg quad_mask =
+      bld.SHL(brw_imm_ud(0xF), bld.AND(invoc_ud, brw_imm_ud(0xFFFFFFFC)));
+
+   /* An invocation will have bits set for each quad that passes the
+    * condition.  This is uniform among each quad.
+    */
+   brw_reg tmp = bld.AND(cond_mask, quad_mask);
+
+   if (any) {
+      bld.CMP(retype(dst, BRW_TYPE_UD), tmp, brw_imm_ud(0), BRW_CONDITIONAL_NZ);
+   } else {
+      /* Filter out quad_mask to include only active channels. */
+      brw_reg active = bld.vgrf(BRW_TYPE_UD);
+      bld.exec_all().emit(SHADER_OPCODE_LOAD_LIVE_CHANNELS, active);
+      bld.MOV(active, brw_reg(component(active, 0)));
+      bld.AND(quad_mask, quad_mask, active);
+
+      bld.CMP(retype(dst, BRW_TYPE_UD), tmp, quad_mask, BRW_CONDITIONAL_Z);
+   }
+}
+
+static bool
+brw_lower_vote(fs_visitor &s, bblock_t *block, fs_inst *inst)
+{
+   const fs_builder bld(&s, block, inst);
+
+   brw_reg dst = inst->dst;
+   brw_reg src = inst->src[0];
+
+   unsigned cluster_size;
+   if (inst->sources > 1) {
+      assert(inst->src[1].file == IMM);
+      cluster_size = inst->src[1].ud;
+   } else {
+      cluster_size = s.dispatch_width;
+   }
+
+   if (cluster_size == s.dispatch_width) {
+      brw_lower_dispatch_width_vote(bld, inst->opcode, dst, src);
+   } else {
+      assert(cluster_size == 4);
+      if (s.devinfo->ver < 20)
+         brw_lower_quad_vote_gfx9(bld, inst->opcode, dst, src);
+      else
+         brw_lower_quad_vote_gfx20(bld, inst->opcode, dst, src);
+   }
+
+   inst->remove(block);
+   return true;
+}
+
 bool
 brw_fs_lower_subgroup_ops(fs_visitor &s)
 {
@@ -359,6 +525,12 @@ brw_fs_lower_subgroup_ops(fs_visitor &s)
       case SHADER_OPCODE_INCLUSIVE_SCAN:
       case SHADER_OPCODE_EXCLUSIVE_SCAN:
          progress |= brw_lower_scan(s, block, inst);
+         break;
+
+      case SHADER_OPCODE_VOTE_ANY:
+      case SHADER_OPCODE_VOTE_ALL:
+      case SHADER_OPCODE_VOTE_EQUAL:
+         progress |= brw_lower_vote(s, block, inst);
          break;
 
       default:

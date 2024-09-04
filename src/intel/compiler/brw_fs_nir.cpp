@@ -6590,145 +6590,24 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
                retype(get_nir_src(ntb, instr->src[0]), BRW_TYPE_F));
       break;
 
+   case nir_intrinsic_vote_any:
+   case nir_intrinsic_vote_all:
    case nir_intrinsic_quad_vote_any:
    case nir_intrinsic_quad_vote_all: {
-      struct brw_reg flag = brw_flag_reg(0, 0);
-      if (s.dispatch_width == 32)
-         flag.type = BRW_TYPE_UD;
+      const bool any = instr->intrinsic == nir_intrinsic_vote_any ||
+                       instr->intrinsic == nir_intrinsic_quad_vote_any;
+      const bool quad = instr->intrinsic == nir_intrinsic_quad_vote_any ||
+                        instr->intrinsic == nir_intrinsic_quad_vote_all;
 
       brw_reg cond = get_nir_src(ntb, instr->src[0]);
+      const unsigned cluster_size = quad ? 4 : s.dispatch_width;
 
-      /* Before Xe2, we can use specialized predicates. */
-      if (devinfo->ver < 20) {
-         const bool any = instr->intrinsic == nir_intrinsic_quad_vote_any;
-
-         /* The any/all predicates do not consider channel enables. To prevent
-          * dead channels from affecting the result, we initialize the flag with
-          * with the identity value for the logical operation.
-          */
-         const unsigned identity = any ? 0 : 0xFFFFFFFF;
-         bld.exec_all().group(1, 0).MOV(flag, retype(brw_imm_ud(identity), flag.type));
-
-         bld.CMP(bld.null_reg_ud(), cond, brw_imm_ud(0u), BRW_CONDITIONAL_NZ);
-         bld.exec_all().MOV(retype(dest, BRW_TYPE_UD), brw_imm_ud(0));
-
-         const enum brw_predicate pred = any ? BRW_PREDICATE_ALIGN1_ANY4H
-                                             : BRW_PREDICATE_ALIGN1_ALL4H;
-
-         fs_inst *mov = bld.MOV(retype(dest, BRW_TYPE_D), brw_imm_d(-1));
-         set_predicate(pred, mov);
-         break;
-      }
-
-      /* This code is going to manipulate the results of flag mask, so clear it to
-       * avoid any residual value from disabled channels.
-       */
-      bld.exec_all().group(1, 0).MOV(flag, retype(brw_imm_ud(0), flag.type));
-
-      /* Mask of invocations where condition is true, note that mask is
-       * replicated to each invocation.
-       */
-      bld.CMP(bld.null_reg_ud(), cond, brw_imm_ud(0u), BRW_CONDITIONAL_NZ);
-      brw_reg cond_mask = bld.vgrf(BRW_TYPE_UD);
-      bld.MOV(cond_mask, flag);
-
-      /* Mask of invocations in the quad, each invocation will get
-       * all the bits set for their quad, i.e. invocations 0-3 will have
-       * 0b...1111, invocations 4-7 will have 0b...11110000 and so on.
-       */
-      brw_reg invoc_ud = bld.vgrf(BRW_TYPE_UD);
-      bld.MOV(invoc_ud, bld.LOAD_SUBGROUP_INVOCATION());
-      brw_reg quad_mask =
-         bld.SHL(brw_imm_ud(0xF), bld.AND(invoc_ud, brw_imm_ud(0xFFFFFFFC)));
-
-      /* An invocation will have bits set for each quad that passes the
-       * condition.  This is uniform among each quad.
-       */
-      brw_reg tmp = bld.AND(cond_mask, quad_mask);
-
-      if (instr->intrinsic == nir_intrinsic_quad_vote_any) {
-         bld.CMP(retype(dest, BRW_TYPE_UD), tmp, brw_imm_ud(0), BRW_CONDITIONAL_NZ);
-      } else {
-         assert(instr->intrinsic == nir_intrinsic_quad_vote_all);
-
-         /* Filter out quad_mask to include only active channels. */
-         brw_reg active = bld.vgrf(BRW_TYPE_UD);
-         bld.exec_all().emit(SHADER_OPCODE_LOAD_LIVE_CHANNELS, active);
-         bld.MOV(active, brw_reg(component(active, 0)));
-         bld.AND(quad_mask, quad_mask, active);
-
-         bld.CMP(retype(dest, BRW_TYPE_UD), tmp, quad_mask, BRW_CONDITIONAL_Z);
-      }
+      bld.emit(any ? SHADER_OPCODE_VOTE_ANY : SHADER_OPCODE_VOTE_ALL,
+               retype(dest, BRW_TYPE_UD), cond, brw_imm_ud(cluster_size));
 
       break;
    }
 
-   case nir_intrinsic_vote_any: {
-      const fs_builder ubld1 = bld.exec_all().group(1, 0);
-
-      /* The any/all predicates do not consider channel enables. To prevent
-       * dead channels from affecting the result, we initialize the flag with
-       * with the identity value for the logical operation.
-       */
-      if (s.dispatch_width == 32) {
-         /* For SIMD32, we use a UD type so we fill both f0.0 and f0.1. */
-         ubld1.MOV(retype(brw_flag_reg(0, 0), BRW_TYPE_UD),
-                   brw_imm_ud(0));
-      } else {
-         ubld1.MOV(brw_flag_reg(0, 0), brw_imm_uw(0));
-      }
-      bld.CMP(bld.null_reg_d(), get_nir_src(ntb, instr->src[0]), brw_imm_d(0), BRW_CONDITIONAL_NZ);
-
-      /* For some reason, the any/all predicates don't work properly with
-       * SIMD32.  In particular, it appears that a SEL with a QtrCtrl of 2H
-       * doesn't read the correct subset of the flag register and you end up
-       * getting garbage in the second half.  Work around this by using a pair
-       * of 1-wide MOVs and scattering the result.
-       */
-      const fs_builder ubld = devinfo->ver >= 20 ? bld.exec_all() : ubld1;
-      brw_reg res1 = ubld.MOV(brw_imm_d(0));
-      set_predicate(devinfo->ver >= 20 ? XE2_PREDICATE_ANY :
-                    s.dispatch_width == 8  ? BRW_PREDICATE_ALIGN1_ANY8H :
-                    s.dispatch_width == 16 ? BRW_PREDICATE_ALIGN1_ANY16H :
-                                             BRW_PREDICATE_ALIGN1_ANY32H,
-                    ubld.MOV(res1, brw_imm_d(-1)));
-
-      bld.MOV(retype(dest, BRW_TYPE_D), component(res1, 0));
-      break;
-   }
-   case nir_intrinsic_vote_all: {
-      const fs_builder ubld1 = bld.exec_all().group(1, 0);
-
-      /* The any/all predicates do not consider channel enables. To prevent
-       * dead channels from affecting the result, we initialize the flag with
-       * with the identity value for the logical operation.
-       */
-      if (s.dispatch_width == 32) {
-         /* For SIMD32, we use a UD type so we fill both f0.0 and f0.1. */
-         ubld1.MOV(retype(brw_flag_reg(0, 0), BRW_TYPE_UD),
-                   brw_imm_ud(0xffffffff));
-      } else {
-         ubld1.MOV(brw_flag_reg(0, 0), brw_imm_uw(0xffff));
-      }
-      bld.CMP(bld.null_reg_d(), get_nir_src(ntb, instr->src[0]), brw_imm_d(0), BRW_CONDITIONAL_NZ);
-
-      /* For some reason, the any/all predicates don't work properly with
-       * SIMD32.  In particular, it appears that a SEL with a QtrCtrl of 2H
-       * doesn't read the correct subset of the flag register and you end up
-       * getting garbage in the second half.  Work around this by using a pair
-       * of 1-wide MOVs and scattering the result.
-       */
-      const fs_builder ubld = devinfo->ver >= 20 ? bld.exec_all() : ubld1;
-      brw_reg res1 = ubld.MOV(brw_imm_d(0));
-      set_predicate(devinfo->ver >= 20 ? XE2_PREDICATE_ALL :
-                    s.dispatch_width == 8  ? BRW_PREDICATE_ALIGN1_ALL8H :
-                    s.dispatch_width == 16 ? BRW_PREDICATE_ALIGN1_ALL16H :
-                                             BRW_PREDICATE_ALIGN1_ALL32H,
-                    ubld.MOV(res1, brw_imm_d(-1)));
-
-      bld.MOV(retype(dest, BRW_TYPE_D), component(res1, 0));
-      break;
-   }
    case nir_intrinsic_vote_feq:
    case nir_intrinsic_vote_ieq: {
       brw_reg value = get_nir_src(ntb, instr->src[0]);
@@ -6737,38 +6616,7 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
          value.type = bit_size == 8 ? BRW_TYPE_B :
             brw_type_with_size(BRW_TYPE_F, bit_size);
       }
-
-      brw_reg uniformized = bld.emit_uniformize(value);
-      const fs_builder ubld1 = bld.exec_all().group(1, 0);
-
-      /* The any/all predicates do not consider channel enables. To prevent
-       * dead channels from affecting the result, we initialize the flag with
-       * with the identity value for the logical operation.
-       */
-      if (s.dispatch_width == 32) {
-         /* For SIMD32, we use a UD type so we fill both f0.0 and f0.1. */
-         ubld1.MOV(retype(brw_flag_reg(0, 0), BRW_TYPE_UD),
-                         brw_imm_ud(0xffffffff));
-      } else {
-         ubld1.MOV(brw_flag_reg(0, 0), brw_imm_uw(0xffff));
-      }
-      bld.CMP(bld.null_reg_d(), value, uniformized, BRW_CONDITIONAL_Z);
-
-      /* For some reason, the any/all predicates don't work properly with
-       * SIMD32.  In particular, it appears that a SEL with a QtrCtrl of 2H
-       * doesn't read the correct subset of the flag register and you end up
-       * getting garbage in the second half.  Work around this by using a pair
-       * of 1-wide MOVs and scattering the result.
-       */
-      const fs_builder ubld = devinfo->ver >= 20 ? bld.exec_all() : ubld1;
-      brw_reg res1 = ubld.MOV(brw_imm_d(0));
-      set_predicate(devinfo->ver >= 20 ? XE2_PREDICATE_ALL :
-                    s.dispatch_width == 8  ? BRW_PREDICATE_ALIGN1_ALL8H :
-                    s.dispatch_width == 16 ? BRW_PREDICATE_ALIGN1_ALL16H :
-                                             BRW_PREDICATE_ALIGN1_ALL32H,
-                    ubld.MOV(res1, brw_imm_d(-1)));
-
-      bld.MOV(retype(dest, BRW_TYPE_D), component(res1, 0));
+      bld.emit(SHADER_OPCODE_VOTE_EQUAL, retype(dest, BRW_TYPE_D), value);
       break;
    }
 
