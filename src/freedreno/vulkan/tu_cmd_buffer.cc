@@ -4637,8 +4637,11 @@ tu_CmdBeginRenderPass2(VkCommandBuffer commandBuffer,
       cmd->state.cache.pending_flush_bits;
    cmd->state.renderpass_cache.flush_bits = 0;
 
-   if (pass->subpasses[0].feedback_invalidate)
-      cmd->state.renderpass_cache.flush_bits |= TU_CMD_FLAG_CACHE_INVALIDATE;
+   if (pass->subpasses[0].feedback_invalidate) {
+      cmd->state.renderpass_cache.flush_bits |=
+         TU_CMD_FLAG_CACHE_INVALIDATE | TU_CMD_FLAG_BLIT_CACHE_CLEAN |
+         TU_CMD_FLAG_WAIT_FOR_IDLE;
+   }
 
    tu_lrz_begin_renderpass<CHIP>(cmd);
 
@@ -4973,8 +4976,11 @@ tu_CmdNextSubpass2(VkCommandBuffer commandBuffer,
    /* Handle dependencies for the next subpass */
    tu_subpass_barrier(cmd, &cmd->state.subpass->start_barrier, false);
 
-   if (cmd->state.subpass->feedback_invalidate)
-      cmd->state.renderpass_cache.flush_bits |= TU_CMD_FLAG_CACHE_INVALIDATE;
+   if (cmd->state.subpass->feedback_invalidate) {
+      cmd->state.renderpass_cache.flush_bits |=
+         TU_CMD_FLAG_CACHE_INVALIDATE | TU_CMD_FLAG_BLIT_CACHE_CLEAN |
+         TU_CMD_FLAG_WAIT_FOR_IDLE;
+   }
 
    tu_emit_subpass_begin<CHIP>(cmd);
 }
