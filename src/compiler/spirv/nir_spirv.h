@@ -76,7 +76,7 @@ struct spirv_to_nir_options {
     */
    bool mediump_16bit_alu;
 
-   /* When mediump_16bit_alu is set, determines whether nir_op_fddx/fddy can be
+   /* When mediump_16bit_alu is set, determines whether ddx/ddy can be
     * performed in 16-bit math.
     */
    bool mediump_16bit_derivatives;
