@@ -159,6 +159,8 @@ struct nvk_rendering_state {
    struct nvk_attachment color_att[NVK_MAX_RTS];
    struct nvk_attachment depth_att;
    struct nvk_attachment stencil_att;
+
+   bool all_linear;
 };
 
 struct nvk_graphics_state {

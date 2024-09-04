@@ -782,6 +782,8 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
    nvk_attachment_init(&render->stencil_att,
                        pRenderingInfo->pStencilAttachment);
 
+   render->all_linear = nvk_rendering_all_linear(render);
+
    nvk_cmd_buffer_dirty_render_pass(cmd);
 
    /* Always emit at least one color attachment, even if it's just a dummy. */
@@ -801,8 +803,6 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
       .height  = render->area.extent.height,
    });
 
-   const bool all_linear = nvk_rendering_all_linear(render);
-
    enum nil_sample_layout sample_layout = NIL_SAMPLE_LAYOUT_INVALID;
    for (uint32_t i = 0; i < color_att_count; i++) {
       if (render->color_att[i].iview) {
@@ -816,7 +816,7 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
          const uint8_t ip = iview->planes[0].image_plane;
          const struct nvk_image_plane *plane = &image->planes[ip];
 
-         if (!all_linear && !plane->nil.levels[0].tiling.is_tiled)
+         if (!render->all_linear && !plane->nil.levels[0].tiling.is_tiled)
             plane = &image->linear_tiled_shadow;
 
          const struct nil_image *nil_image = &plane->nil;
@@ -1059,7 +1059,7 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
 
       const VkAttachmentLoadOp load_op =
          pRenderingInfo->pColorAttachments[i].loadOp;
-      if (!all_linear && !plane->nil.levels[0].tiling.is_tiled &&
+      if (!render->all_linear && !plane->nil.levels[0].tiling.is_tiled &&
           load_op == VK_ATTACHMENT_LOAD_OP_LOAD)
          nvk_linear_render_copy(cmd, iview, render->area, true);
    }
@@ -1125,7 +1125,6 @@ nvk_CmdEndRendering(VkCommandBuffer commandBuffer)
    struct nvk_rendering_state *render = &cmd->state.gfx.render;
 
    if (!(render->flags & VK_RENDERING_SUSPENDING_BIT)) {
-      const bool all_linear = nvk_rendering_all_linear(render);
       for (uint32_t i = 0; i < render->color_att_count; i++) {
          struct nvk_image_view *iview = render->color_att[i].iview;
          if (iview == NULL)
@@ -1134,7 +1133,7 @@ nvk_CmdEndRendering(VkCommandBuffer commandBuffer)
          struct nvk_image *image = (struct nvk_image *)iview->vk.image;
          const uint8_t ip = iview->planes[0].image_plane;
          const struct nvk_image_plane *plane = &image->planes[ip];
-         if (!all_linear && !plane->nil.levels[0].tiling.is_tiled &&
+         if (!render->all_linear && !plane->nil.levels[0].tiling.is_tiled &&
              render->color_att[i].store_op == VK_ATTACHMENT_STORE_OP_STORE)
             nvk_linear_render_copy(cmd, iview, render->area, false);
       }
