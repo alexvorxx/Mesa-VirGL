@@ -575,6 +575,9 @@ nvk_cmd_buffer_dirty_render_pass(struct nvk_cmd_buffer *cmd)
 
    /* This may depend on render targets for ESO */
    BITSET_SET(dyn->dirty, MESA_VK_DYNAMIC_MS_RASTERIZATION_SAMPLES);
+
+   /* This may depend on render targets */
+   BITSET_SET(dyn->dirty, MESA_VK_DYNAMIC_COLOR_ATTACHMENT_MAP);
 }
 
 static void
@@ -804,9 +807,7 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
 
    nvk_cmd_buffer_dirty_render_pass(cmd);
 
-   /* Always emit at least one color attachment, even if it's just a dummy. */
-   uint32_t color_att_count = MAX2(1, render->color_att_count);
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, color_att_count * 12 + 29);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, NVK_MAX_RTS * 12 + 29);
 
    P_IMMD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_VIEW_MASK),
           render->view_mask);
@@ -822,7 +823,14 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
    });
 
    enum nil_sample_layout sample_layout = NIL_SAMPLE_LAYOUT_INVALID;
-   for (uint32_t i = 0; i < color_att_count; i++) {
+
+   /* We always emit SET_COLOR_TARGET_A(i) for every color target, regardless
+    * of the number of targets in the render pass.  This ensures that we have
+    * no left over pointers from previous render passes in the hardware.  This
+    * also allows us to point at any render target with SET_CT_SELECT and know
+    * that it's either a valid render target or NULL.
+    */
+   for (uint32_t i = 0; i < NVK_MAX_RTS; i++) {
       if (render->color_att[i].iview) {
          const struct nvk_image_view *iview = render->color_att[i].iview;
          const struct nvk_image *image = (struct nvk_image *)iview->vk.image;
@@ -943,18 +951,6 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
          P_IMMD(p, NV9097, SET_COLOR_COMPRESSION(i), ENABLE_TRUE);
       }
    }
-
-   P_IMMD(p, NV9097, SET_CT_SELECT, {
-      .target_count = color_att_count,
-      .target0 = 0,
-      .target1 = 1,
-      .target2 = 2,
-      .target3 = 3,
-      .target4 = 4,
-      .target5 = 5,
-      .target6 = 6,
-      .target7 = 7,
-   });
 
    if (render->depth_att.iview || render->stencil_att.iview) {
       struct nvk_image_view *iview = render->depth_att.iview ?
@@ -2813,7 +2809,7 @@ nvk_flush_cb_state(struct nvk_cmd_buffer *cmd)
       &cmd->vk.dynamic_graphics_state;
 
    struct nv_push *p =
-      nvk_cmd_buffer_push(cmd, 13 + 10 * render->color_att_count);
+      nvk_cmd_buffer_push(cmd, 15 + 10 * render->color_att_count);
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_CB_LOGIC_OP_ENABLE))
       P_IMMD(p, NV9097, SET_LOGIC_OP, dyn->cb.logic_op_enable);
@@ -2852,7 +2848,8 @@ nvk_flush_cb_state(struct nvk_cmd_buffer *cmd)
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_CB_WRITE_MASKS) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_CB_COLOR_WRITE_ENABLES) ||
-       BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RP_ATTACHMENTS)) {
+       BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RP_ATTACHMENTS) ||
+       BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_COLOR_ATTACHMENT_MAP)) {
       uint32_t color_write_enables = 0x0;
       for (uint8_t a = 0; a < render->color_att_count; a++) {
          if (dyn->cb.color_write_enables & BITFIELD_BIT(a))
@@ -2869,11 +2866,62 @@ nvk_flush_cb_state(struct nvk_cmd_buffer *cmd)
             rp_att_write_mask |= 0xf << (4 * a);
       }
 
+      uint32_t att_has_loc_mask = 0x0;
+      for (uint8_t a = 0; a < MESA_VK_MAX_COLOR_ATTACHMENTS; a++) {
+         if (dyn->cal.color_map[a] != MESA_VK_ATTACHMENT_UNUSED)
+            att_has_loc_mask |= 0xf << (4 * a);
+      }
+
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SET_WRITE_MASK));
       P_INLINE_DATA(p, render->color_att_count);
       P_INLINE_DATA(p, color_write_enables &
                        cb_att_write_mask &
-                       rp_att_write_mask);
+                       rp_att_write_mask &
+                       att_has_loc_mask);
+   }
+
+   if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_COLOR_ATTACHMENT_MAP)) {
+      int8_t loc_att[NVK_MAX_RTS] = { -1, -1, -1, -1, -1, -1, -1, -1};
+      uint8_t max_loc = 0;
+      uint32_t att_used = 0;
+      for (uint8_t a = 0; a < MESA_VK_MAX_COLOR_ATTACHMENTS; a++) {
+         if (dyn->cal.color_map[a] == MESA_VK_ATTACHMENT_UNUSED)
+            continue;
+
+         att_used |= BITFIELD_BIT(a);
+
+         assert(dyn->cal.color_map[a] < NVK_MAX_RTS);
+         loc_att[dyn->cal.color_map[a]] = a;
+         max_loc = MAX2(max_loc, dyn->cal.color_map[a]);
+      }
+
+      for (uint8_t l = 0; l < NVK_MAX_RTS; l++) {
+         if (loc_att[l] >= 0)
+            continue;
+
+         /* Just grab any color attachment.  The way we set up color targets
+          * in BeginRenderPass ensures that every color target is either the
+          * valid color target referenced by this render pass or a valid NULL
+          * target.  If we end up mapping to some other target in this render
+          * pass, the handling of att_has_loc_mask above will ensure that no
+          * color writes actually happen.
+          */
+         uint8_t a = ffs(~att_used) - 1;
+         att_used |= BITFIELD_BIT(a);
+         loc_att[l] = a;
+      }
+
+      P_IMMD(p, NV9097, SET_CT_SELECT, {
+         .target_count = max_loc + 1,
+         .target0 = loc_att[0],
+         .target1 = loc_att[1],
+         .target2 = loc_att[2],
+         .target3 = loc_att[3],
+         .target4 = loc_att[4],
+         .target5 = loc_att[5],
+         .target6 = loc_att[6],
+         .target7 = loc_att[7],
+      });
    }
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_CB_BLEND_CONSTANTS)) {
