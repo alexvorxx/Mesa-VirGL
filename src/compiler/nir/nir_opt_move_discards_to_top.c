@@ -174,6 +174,12 @@ opt_move_discards_to_top_impl(nir_function_impl *impl)
             case nir_intrinsic_quad_vote_all:
             case nir_intrinsic_quad_vote_any:
             case nir_intrinsic_quad_swizzle_amd:
+            case nir_intrinsic_ddx:
+            case nir_intrinsic_ddx_fine:
+            case nir_intrinsic_ddx_coarse:
+            case nir_intrinsic_ddy:
+            case nir_intrinsic_ddy_fine:
+            case nir_intrinsic_ddy_coarse:
                consider_discards = false;
                break;
             case nir_intrinsic_vote_any:
