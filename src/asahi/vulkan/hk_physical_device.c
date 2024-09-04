@@ -152,10 +152,8 @@ hk_get_device_extensions(const struct hk_instance *instance,
       .EXT_extended_dynamic_state2 = true,
       .EXT_extended_dynamic_state3 = true,
       .EXT_external_memory_dma_buf = true,
-      // TODO
-      .EXT_global_priority = false,
-      // TODO
-      .EXT_global_priority_query = false,
+      .EXT_global_priority = true,
+      .EXT_global_priority_query = true,
       .EXT_graphics_pipeline_library = true,
       .EXT_host_query_reset = true,
       .EXT_host_image_copy = true,
@@ -1347,6 +1345,13 @@ hk_GetPhysicalDeviceMemoryProperties2(
    }
 }
 
+static const VkQueueGlobalPriorityKHR hk_global_queue_priorities[] = {
+   VK_QUEUE_GLOBAL_PRIORITY_LOW_KHR,
+   VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR,
+   VK_QUEUE_GLOBAL_PRIORITY_HIGH_KHR,
+   VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR,
+};
+
 VKAPI_ATTR void VKAPI_CALL
 hk_GetPhysicalDeviceQueueFamilyProperties2(
    VkPhysicalDevice physicalDevice, uint32_t *pQueueFamilyPropertyCount,
@@ -1367,19 +1372,14 @@ hk_GetPhysicalDeviceQueueFamilyProperties2(
          p->queueFamilyProperties.minImageTransferGranularity =
             (VkExtent3D){1, 1, 1};
 
-         vk_foreach_struct(ext, p->pNext) {
-            switch (ext->sType) {
-            case VK_STRUCTURE_TYPE_QUEUE_FAMILY_GLOBAL_PRIORITY_PROPERTIES_KHR: {
-               VkQueueFamilyGlobalPriorityPropertiesKHR *props = (void *)ext;
-
-               /* TODO: support multiple priorities */
-               props->priorityCount = 1;
-               props->priorities[0] = VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_EXT;
-               break;
-            }
-            default:
-               break;
-            }
+         VkQueueFamilyGlobalPriorityPropertiesKHR *prio = vk_find_struct(
+            p->pNext, QUEUE_FAMILY_GLOBAL_PRIORITY_PROPERTIES_KHR);
+         if (prio) {
+            STATIC_ASSERT(ARRAY_SIZE(hk_global_queue_priorities) <=
+                          VK_MAX_GLOBAL_PRIORITY_SIZE_KHR);
+            prio->priorityCount = ARRAY_SIZE(hk_global_queue_priorities);
+            memcpy(&prio->priorities, hk_global_queue_priorities,
+                   sizeof(hk_global_queue_priorities));
          }
       }
    }

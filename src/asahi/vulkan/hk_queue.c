@@ -539,6 +539,20 @@ hk_queue_submit(struct vk_queue *vk_queue, struct vk_queue_submit *submit)
    return VK_SUCCESS;
 }
 
+static uint32_t
+translate_priority(enum VkQueueGlobalPriorityKHR prio)
+{
+   /* clang-format off */
+   switch (prio) {
+   case VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR: return 0;
+   case VK_QUEUE_GLOBAL_PRIORITY_HIGH_KHR:     return 1;
+   case VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR:   return 2;
+   case VK_QUEUE_GLOBAL_PRIORITY_LOW_KHR:      return 3;
+   default: unreachable("Invalid VkQueueGlobalPriorityKHR");
+   }
+   /* clang-format on */
+}
+
 VkResult
 hk_queue_init(struct hk_device *dev, struct hk_queue *queue,
               const VkDeviceQueueCreateInfo *pCreateInfo,
@@ -552,13 +566,9 @@ hk_queue_init(struct hk_device *dev, struct hk_queue *queue,
    const VkDeviceQueueGlobalPriorityCreateInfoKHR *priority_info =
       vk_find_struct_const(pCreateInfo->pNext,
                            DEVICE_QUEUE_GLOBAL_PRIORITY_CREATE_INFO_KHR);
-   const enum VkQueueGlobalPriorityKHR global_priority =
+   const enum VkQueueGlobalPriorityKHR priority =
       priority_info ? priority_info->globalPriority
                     : VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR;
-
-   if (global_priority != VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR) {
-      return VK_ERROR_INITIALIZATION_FAILED;
-   }
 
    result = vk_queue_init(&queue->vk, &dev->vk, pCreateInfo, index_in_family);
    if (result != VK_SUCCESS)
@@ -570,7 +580,7 @@ hk_queue_init(struct hk_device *dev, struct hk_queue *queue,
                                             DRM_ASAHI_QUEUE_CAP_RENDER |
                                                DRM_ASAHI_QUEUE_CAP_BLIT |
                                                DRM_ASAHI_QUEUE_CAP_COMPUTE,
-                                            2);
+                                            translate_priority(priority));
 
    if (drmSyncobjCreate(dev->dev.fd, 0, &queue->drm.syncobj)) {
       mesa_loge("drmSyncobjCreate() failed %d\n", errno);
