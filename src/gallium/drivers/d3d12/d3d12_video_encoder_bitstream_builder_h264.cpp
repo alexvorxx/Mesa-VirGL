@@ -61,7 +61,6 @@ d3d12_video_bitstream_builder_h264::build_sps(const struct pipe_h264_enc_seq_par
                                               const D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264 &   codecConfig,
                                               const D3D12_VIDEO_ENCODER_SEQUENCE_GOP_STRUCTURE_H264 &gopConfig,
                                               uint32_t                                    seq_parameter_set_id,
-                                              uint32_t                                    max_num_ref_frames,
                                               D3D12_VIDEO_ENCODER_PICTURE_RESOLUTION_DESC sequenceTargetResolution,
                                               D3D12_BOX                                   frame_cropping_codec_config,
                                               std::vector<uint8_t> &                      headerBitstream,
@@ -110,7 +109,7 @@ d3d12_video_bitstream_builder_h264::build_sps(const struct pipe_h264_enc_seq_par
                              gopConfig.log2_max_frame_num_minus4,
                              gopConfig.pic_order_cnt_type,
                              gopConfig.log2_max_pic_order_cnt_lsb_minus4,
-                             max_num_ref_frames,
+                             seqData.max_num_ref_frames,
                              0,   // gaps_in_frame_num_value_allowed_flag
                              pic_width_in_mbs_minus1,
                              pic_height_in_map_units_minus1,

@@ -1130,7 +1130,6 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
 
    auto levelDesc = d3d12_video_encoder_get_current_level_desc(pD3D12Enc);
    auto codecConfigDesc = d3d12_video_encoder_get_current_codec_config_desc(pD3D12Enc);
-   auto MaxDPBCapacity = d3d12_video_encoder_get_current_max_dpb_capacity(pD3D12Enc);
 
    d3d12_video_bitstream_builder_h264 *pH264BitstreamBuilder =
       static_cast<d3d12_video_bitstream_builder_h264 *>(pD3D12Enc->m_upBitstreamBuilder.get());
@@ -1164,7 +1163,6 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
                                                       *codecConfigDesc.pH264Config,
                                                       pD3D12Enc->m_currentEncodeConfig.m_encoderGOPConfigDesc.m_H264GroupOfPictures,
                                                       active_seq_parameter_set_id,
-                                                      MaxDPBCapacity,   // max_num_ref_frames
                                                       pD3D12Enc->m_currentEncodeConfig.m_currentResolution,
                                                       pD3D12Enc->m_currentEncodeConfig.m_FrameCroppingCodecConfig,
                                                       pD3D12Enc->m_BitstreamHeadersBuffer,
