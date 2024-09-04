@@ -124,6 +124,9 @@ struct panfrost_context {
    /* Gallium context */
    struct pipe_context base;
 
+   /* Context flags */
+   unsigned flags;
+
    /* Dirty global state */
    enum pan_dirty_3d dirty;
 

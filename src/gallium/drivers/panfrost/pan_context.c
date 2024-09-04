@@ -989,6 +989,8 @@ panfrost_create_context(struct pipe_screen *screen, void *priv, unsigned flags)
    if (!ctx)
       return NULL;
 
+   ctx->flags = flags;
+
    struct pipe_context *gallium = (struct pipe_context *)ctx;
    struct panfrost_device *dev = pan_device(screen);
 
