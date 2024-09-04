@@ -1847,7 +1847,7 @@ zink_resource_get_param(struct pipe_screen *pscreen, struct pipe_context *pctx,
       default:
          unreachable("how many planes you got in this thing?");
       }
-   } else if (res->obj->sampler_conversion) {
+   } else if (util_format_is_yuv(pres->format)) {
       aspect = VK_IMAGE_ASPECT_PLANE_0_BIT;
    } else {
       aspect = res->aspect;
