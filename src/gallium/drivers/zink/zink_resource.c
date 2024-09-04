@@ -691,6 +691,14 @@ static void
 init_ici(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe_resource *templ, unsigned bind, unsigned modifiers_count)
 {
    ici->sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+   ici->format = zink_get_format(screen, templ->format);
+   ici->extent.width = templ->width0;
+   ici->extent.height = templ->height0;
+   ici->extent.depth = templ->depth0;
+   ici->mipLevels = templ->last_level + 1;
+   ici->arrayLayers = MAX2(templ->array_size, 1);
+   ici->samples = templ->nr_samples ? templ->nr_samples : VK_SAMPLE_COUNT_1_BIT;
+
    /* pNext may already be set */
    if (bind & ZINK_BIND_MUTABLE)
       ici->flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
@@ -754,13 +762,6 @@ init_ici(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe_r
        util_format_has_depth(util_format_description(templ->format)))
       ici->flags |= VK_IMAGE_CREATE_SAMPLE_LOCATIONS_COMPATIBLE_DEPTH_BIT_EXT;
 
-   ici->format = zink_get_format(screen, templ->format);
-   ici->extent.width = templ->width0;
-   ici->extent.height = templ->height0;
-   ici->extent.depth = templ->depth0;
-   ici->mipLevels = templ->last_level + 1;
-   ici->arrayLayers = MAX2(templ->array_size, 1);
-   ici->samples = templ->nr_samples ? templ->nr_samples : VK_SAMPLE_COUNT_1_BIT;
    if (screen->info.have_EXT_image_drm_format_modifier && modifiers_count)
       ici->tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
    else if (bind & (PIPE_BIND_LINEAR | ZINK_BIND_DMABUF))
