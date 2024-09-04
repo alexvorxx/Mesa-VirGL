@@ -1070,6 +1070,7 @@ vk_input_attachment_location_state_init(struct vk_input_attachment_location_stat
 {
    *ial = (struct vk_input_attachment_location_state) {
       .color_map = { 0, 1, 2, 3, 4, 5, 6, 7 },
+      .color_attachment_count = MESA_VK_COLOR_ATTACHMENT_COUNT_UNKNOWN,
       .depth_att = MESA_VK_ATTACHMENT_UNUSED,
       .stencil_att = MESA_VK_ATTACHMENT_UNUSED,
    };
@@ -1086,6 +1087,8 @@ vk_input_attachment_location_state_init(struct vk_input_attachment_location_stat
          ial->color_map[a] = ial_info->pColorAttachmentInputIndices[a];
       }
    }
+
+   ial->color_attachment_count = ial_info->colorAttachmentCount;
 
    ial->depth_att =
       map_ds_input_attachment_index(ial_info->pDepthInputAttachmentIndex);
