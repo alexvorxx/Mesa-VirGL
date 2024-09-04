@@ -2069,6 +2069,36 @@ check_have_device_time(struct zink_screen *screen)
 }
 
 static void
+zink_query_compression_rates(struct pipe_screen *pscreen, enum pipe_format pformat, int max, uint32_t *rates, int *count)
+{
+   struct zink_screen *screen = zink_screen(pscreen);
+
+   if (!screen->format_props[pformat].compressionRates) {
+      *count = 1;
+      if (max)
+         *rates = PIPE_COMPRESSION_FIXED_RATE_NONE;
+      return;
+   }
+   if (screen->format_props[pformat].compressionRates == UINT32_MAX) {
+      *count = 1;
+      if (max)
+         *rates = PIPE_COMPRESSION_FIXED_RATE_DEFAULT;
+      return;
+   }
+
+   *count = util_bitcount(screen->format_props[pformat].compressionRates);
+   if (!max)
+      return;
+
+   unsigned c = 0;
+   u_foreach_bit(r, screen->format_props[pformat].compressionRates) {
+      rates[c] = r + 1;
+      if (++c == max)
+         break;
+   }
+}
+
+static void
 zink_error(const char *msg)
 {
 }
@@ -3612,6 +3642,8 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
          }
       }
    }
+   if (screen->info.have_EXT_image_compression_control && screen->info.have_EXT_image_compression_control_swapchain)
+      screen->base.query_compression_rates = zink_query_compression_rates;
 
    if (!zink_screen_resource_init(&screen->base))
       goto fail;

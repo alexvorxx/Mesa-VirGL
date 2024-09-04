@@ -60,6 +60,8 @@ struct kopper_swapchain {
    uint32_t last_present_prune;
    struct hash_table *presents;
    VkSwapchainCreateInfoKHR scci;
+   VkImageCompressionFixedRateFlagsEXT comp_rate;
+   VkImageCompressionControlEXT comp;
    unsigned num_acquires;
    unsigned max_acquires;
    unsigned async_presents;
