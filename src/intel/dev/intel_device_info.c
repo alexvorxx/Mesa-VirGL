@@ -1541,6 +1541,7 @@ intel_device_info_init_common(int pci_id, bool building,
       force_on = true;
    else
       scan_for_force_probe(pci_id, &force_on, &force_off);
+   devinfo->probe_forced = force_on;
    if (force_off) {
       mesa_logw("%s (0x%x) disabled with INTEL_FORCE_PROBE", devinfo->name,
                 pci_id);
