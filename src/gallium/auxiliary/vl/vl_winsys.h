@@ -106,7 +106,7 @@ struct vl_screen *vl_win32_screen_create_from_d3d12_device(IUnknown* d3d12_devic
 #else
 /* Always enable the DRM vl winsys */
 struct vl_screen *
-vl_drm_screen_create(int fd);
+vl_drm_screen_create(int fd, bool honor_dri_prime);
 
 #ifdef USE_XSHM
 struct vl_screen *

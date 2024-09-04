@@ -169,8 +169,16 @@ VA_DRIVER_INIT_FUNC(VADriverContextP ctx)
          FREE(drm_driver_name);
       }
 #endif
-      if(!drv->vscreen)
-         drv->vscreen = vl_drm_screen_create(drm_info->fd);
+      if(!drv->vscreen) {
+         /* VA_DISPLAY_WAYLAND uses the compositor's fd, like VA_DISPLAY_X11 does.
+          * In this case, tell vl_drm_screen_create to consider the DRI_PRIME env
+          * variable to let the user select a different device.
+          * The other display types receive a fd explicitely picked by the application,
+          * so don't try to override them.
+          */
+         bool honor_dri_prime = ctx->display_type == VA_DISPLAY_WAYLAND;
+         drv->vscreen = vl_drm_screen_create(drm_info->fd, honor_dri_prime);
+      }
       break;
    }
 #endif
