@@ -421,6 +421,7 @@ struct radv_dgc_params {
 
    uint16_t vbo_reg;
    uint8_t dynamic_vs_input;
+   uint8_t use_per_attribute_vb_descs;
 
    uint8_t use_preamble;
 
@@ -1383,6 +1384,8 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
    nir_variable *vbo_idx = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "vbo_idx");
    nir_store_var(b, vbo_idx, nir_imm_int(b, 0), 0x1);
 
+   nir_def *use_per_attribute_vb_descs = nir_ieq_imm(b, load_param8(b, use_per_attribute_vb_descs), 1);
+
    nir_push_loop(b);
    {
       nir_break_if(b, nir_uge(b, nir_load_var(b, vbo_idx), vbo_cnt));
@@ -1419,7 +1422,6 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
             stride = nir_channel(b, vbo_over_data, 2);
          }
 
-         nir_def *use_per_attribute_vb_descs = nir_test_mask(b, nir_channel(b, vbo_over_data, 0), 1u << 31);
          nir_variable *num_records =
             nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "num_records");
          nir_store_var(b, num_records, size, 0x1);
@@ -2337,6 +2339,7 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
    params->vtx_base_sgpr = vtx_base_sgpr;
    params->max_index_count = cmd_buffer->state.max_index_count;
    params->dynamic_vs_input = layout->bind_vbo_mask && vs->info.vs.dynamic_inputs;
+   params->use_per_attribute_vb_descs = layout->bind_vbo_mask && vs->info.vs.use_per_attribute_vb_descs;
 
    if (layout->bind_vbo_mask) {
       const struct radv_vertex_input_state *vi_state = &cmd_buffer->state.vertex_input;
@@ -2357,7 +2360,7 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
          const uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, vs, i);
 
          params->vbo_bind_mask |= ((layout->bind_vbo_mask >> binding) & 1u) << idx;
-         vbo_info[5 * idx] = ((vs->info.vs.use_per_attribute_vb_descs ? 1u : 0u) << 31) | layout->vbo_offsets[binding];
+         vbo_info[5 * idx] = layout->vbo_offsets[binding];
          vbo_info[5 * idx + 1] = attrib_index_offset | (attrib_end << 16);
          vbo_info[5 * idx + 2] = stride;
          vbo_info[5 * idx + 3] = rsrc_word3;
