@@ -2003,6 +2003,7 @@ optimizations.extend([
    (('iand', '#a', ('iand', 'b(is_not_const)', '#c')), ('iand', ('iand', a, c), b)),
    (('ior',  '#a', ('ior',  'b(is_not_const)', '#c')), ('ior',  ('ior',  a, c), b)),
    (('ixor', '#a', ('ixor', 'b(is_not_const)', '#c')), ('ixor', ('ixor', a, c), b)),
+   (('ior', ('iand', a, '#c'), ('ior', b, ('iand', a, '#d'))), ('ior', b, ('iand', a, ('ior', c, d)))),
 
    # Reassociate add chains for more MAD/FMA-friendly code
    (('~fadd', ('fadd(is_used_once)', 'a(is_fmul)', 'b(is_fmul)'), 'c(is_not_fmul)'), ('fadd', ('fadd', a, c), b)),
