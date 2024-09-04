@@ -387,8 +387,14 @@ valhall_pack_buf_idx(nir_builder *b, nir_instr *instr, UNUSED void *data)
        intrin->intrinsic != nir_intrinsic_load_ssbo)
       return false;
 
-   b->cursor = nir_before_instr(&intrin->instr);
    nir_def *index = intrin->src[0].ssa;
+
+   /* The descriptor lowering pass can add UBO loads, and those already have the
+    * right index format. */
+   if (index->num_components == 1)
+      return false;
+
+   b->cursor = nir_before_instr(&intrin->instr);
 
    /* The valhall backend expects nir_address_format_32bit_index_offset,
     * but address mode is nir_address_format_vec2_index_32bit_offset to allow
