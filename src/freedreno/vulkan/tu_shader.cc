@@ -398,6 +398,10 @@ build_bindless(struct tu_device *dev, nir_builder *b,
          idx = var->data.index * 2;
       }
 
+      /* Record which input attachments are used for tracking feedback loops */
+      if (dynamic_renderpass)
+         shader->fs.dynamic_input_attachments_used |= (1u << (idx / 2));
+
       BITSET_SET_RANGE_INSIDE_WORD(b->shader->info.textures_used, idx, (idx + bind_layout->array_size * 2) - 1);
 
       /* D24S8 workaround: stencil of D24S8 will be sampled as uint */

@@ -92,6 +92,8 @@ struct tu_shader
          bool per_samp;
          bool has_fdm;
 
+         uint16_t dynamic_input_attachments_used;
+
          struct {
             uint32_t status;
             bool force_late_z;

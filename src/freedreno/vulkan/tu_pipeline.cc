@@ -3288,6 +3288,7 @@ static const enum mesa_vk_dynamic_graphics_state tu_prim_mode_sysmem_state[] = {
 template <chip CHIP>
 static unsigned
 tu6_prim_mode_sysmem_size(struct tu_device *dev,
+                          struct tu_shader *fs,
                           bool raster_order_attachment_access,
                           VkImageAspectFlags feedback_loops,
                           bool *sysmem_single_prim_mode)
@@ -3298,6 +3299,7 @@ tu6_prim_mode_sysmem_size(struct tu_device *dev,
 template <chip CHIP>
 static void
 tu6_emit_prim_mode_sysmem(struct tu_cs *cs,
+                          struct tu_shader *fs,
                           bool raster_order_attachment_access,
                           VkImageAspectFlags feedback_loops,
                           bool *sysmem_single_prim_mode)
@@ -3319,7 +3321,8 @@ tu6_emit_prim_mode_sysmem(struct tu_cs *cs,
     * for advanced_blend in sysmem mode if a feedback loop is detected.
     */
    enum a6xx_single_prim_mode sysmem_prim_mode =
-      (raster_order_attachment_access || feedback_loops) ?
+      (raster_order_attachment_access || feedback_loops ||
+       fs->fs.dynamic_input_attachments_used) ?
       FLUSH_PER_OVERLAP_AND_OVERWRITE : NO_FLUSH;
 
    if (sysmem_prim_mode == FLUSH_PER_OVERLAP_AND_OVERWRITE)
@@ -3507,6 +3510,7 @@ tu_pipeline_builder_emit_state(struct tu_pipeline_builder *builder,
       DRAW_STATE_COND(prim_mode_sysmem,
                       TU_DYNAMIC_STATE_PRIM_MODE_SYSMEM,
                       has_raster_order_state,
+                      pipeline->shaders[MESA_SHADER_FRAGMENT],
                       pipeline->output.raster_order_attachment_access ||
                       pipeline->ds.raster_order_attachment_access,
                       vk_pipeline_flags_feedback_loops(builder->graphics_state.pipeline_flags),
@@ -3706,7 +3710,9 @@ tu_emit_draw_state(struct tu_cmd_buffer *cmd)
       DRAW_STATE_COND(prim_mode_sysmem,
                       TU_DYNAMIC_STATE_PRIM_MODE_SYSMEM,
                       cmd->state.dirty & (TU_CMD_DIRTY_RAST_ORDER |
-                                          TU_CMD_DIRTY_FEEDBACK_LOOPS),
+                                          TU_CMD_DIRTY_FEEDBACK_LOOPS |
+                                          TU_CMD_DIRTY_FS),
+                      cmd->state.shaders[MESA_SHADER_FRAGMENT],
                       cmd->state.raster_order_attachment_access,
                       cmd->vk.dynamic_graphics_state.feedback_loops |
                       cmd->state.pipeline_feedback_loops,

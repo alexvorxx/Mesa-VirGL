@@ -236,6 +236,10 @@ tu_emit_cache_flush_renderpass(struct tu_cmd_buffer *cmd_buffer)
       return;
    tu6_emit_flushes<CHIP>(cmd_buffer, &cmd_buffer->draw_cs,
                     &cmd_buffer->state.renderpass_cache);
+   if (cmd_buffer->state.renderpass_cache.flush_bits &
+       TU_CMD_FLAG_BLIT_CACHE_CLEAN) {
+      cmd_buffer->state.blit_cache_cleaned = true;
+   }
 }
 TU_GENX(tu_emit_cache_flush_renderpass);
 
@@ -3522,7 +3526,7 @@ tu_bind_fs(struct tu_cmd_buffer *cmd, struct tu_shader *fs)
 {
    if (cmd->state.shaders[MESA_SHADER_FRAGMENT] != fs) {
       cmd->state.shaders[MESA_SHADER_FRAGMENT] = fs;
-      cmd->state.dirty |= TU_CMD_DIRTY_LRZ;
+      cmd->state.dirty |= TU_CMD_DIRTY_LRZ | TU_CMD_DIRTY_FS;
    }
 }
 
@@ -4669,6 +4673,7 @@ tu_CmdBeginRendering(VkCommandBuffer commandBuffer,
    cmd->state.subpass = &cmd->dynamic_subpass;
    cmd->state.framebuffer = &cmd->dynamic_framebuffer;
    cmd->state.render_area = pRenderingInfo->renderArea;
+   cmd->state.blit_cache_cleaned = false;
 
    cmd->state.attachments = cmd->dynamic_attachments;
    cmd->state.clear_values = cmd->dynamic_clear_values;
@@ -5303,6 +5308,18 @@ tu6_writes_stencil(struct tu_cmd_buffer *cmd)
    return cmd->state.stencil_front_write || cmd->state.stencil_back_write;
 }
 
+static bool
+tu_fs_reads_dynamic_ds_input_attachment(struct tu_cmd_buffer *cmd,
+                                        const struct tu_shader *fs)
+{
+   uint8_t depth_att = cmd->vk.dynamic_graphics_state.ial.depth_att;
+   if (depth_att == MESA_VK_ATTACHMENT_UNUSED)
+      return false;
+   unsigned depth_idx =
+      (depth_att == MESA_VK_ATTACHMENT_NO_INDEX) ? 0 : depth_att + 1;
+   return fs->fs.dynamic_input_attachments_used & (1u << depth_idx);
+}
+
 static void
 tu6_build_depth_plane_z_mode(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
 {
@@ -5317,7 +5334,8 @@ tu6_build_depth_plane_z_mode(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
    if ((fs->variant->has_kill ||
         (cmd->state.pipeline_feedback_loops & VK_IMAGE_ASPECT_DEPTH_BIT) ||
         (cmd->vk.dynamic_graphics_state.feedback_loops &
-         VK_IMAGE_ASPECT_DEPTH_BIT)) &&
+         VK_IMAGE_ASPECT_DEPTH_BIT) ||
+        tu_fs_reads_dynamic_ds_input_attachment(cmd, fs)) &&
        (depth_write || stencil_write)) {
       zmode = (cmd->state.lrz.valid && cmd->state.lrz.enabled)
                  ? A6XX_EARLY_LRZ_LATE_Z
@@ -5537,6 +5555,26 @@ tu_emit_fs_params(struct tu_cmd_buffer *cmd)
       tu6_emit_fs_params(cmd);
 }
 
+static void
+tu_flush_dynamic_input_attachments(struct tu_cmd_buffer *cmd)
+{
+   struct tu_shader *fs = cmd->state.shaders[MESA_SHADER_FRAGMENT];
+
+   if (!fs->fs.dynamic_input_attachments_used)
+      return;
+
+   /* Input attachments may read data from a load op, so we have to invalidate
+    * UCHE and force pending blits to complete unless we know it's already
+    * been invalidated. This is the same as tu_subpass::feedback_invalidate
+    * but for dynamic renderpasses.
+    */
+   if (!cmd->state.blit_cache_cleaned) {
+      cmd->state.renderpass_cache.flush_bits |=
+         TU_CMD_FLAG_CACHE_INVALIDATE | TU_CMD_FLAG_BLIT_CACHE_CLEAN |
+         TU_CMD_FLAG_WAIT_FOR_IDLE;
+   }
+}
+
 template <chip CHIP>
 static VkResult
 tu6_draw_common(struct tu_cmd_buffer *cmd,
@@ -5582,6 +5620,9 @@ tu6_draw_common(struct tu_cmd_buffer *cmd,
       cmd->state.bandwidth.stencil_cpp_per_sample;
    if (cmd->vk.dynamic_graphics_state.ds.stencil.test_enable)
       rp->drawcall_bandwidth_per_sample_sum += stencil_bandwidth * 2;
+
+   if (cmd->state.dirty & TU_CMD_DIRTY_FS)
+      tu_flush_dynamic_input_attachments(cmd);
 
    tu_emit_cache_flush_renderpass<CHIP>(cmd);
 

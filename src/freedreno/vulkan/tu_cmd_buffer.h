@@ -72,8 +72,9 @@ enum tu_cmd_dirty_bits
    TU_CMD_DIRTY_PROGRAM = BIT(11),
    TU_CMD_DIRTY_RAST_ORDER = BIT(12),
    TU_CMD_DIRTY_FEEDBACK_LOOPS = BIT(13),
+   TU_CMD_DIRTY_FS = BIT(14),
    /* all draw states were disabled and need to be re-enabled: */
-   TU_CMD_DIRTY_DRAW_STATE = BIT(14)
+   TU_CMD_DIRTY_DRAW_STATE = BIT(15)
 };
 
 /* There are only three cache domains we have to care about: the CCU, or
@@ -511,6 +512,7 @@ struct tu_cmd_state
    bool pipeline_disable_gmem;
    bool raster_order_attachment_access;
    bool raster_order_attachment_access_valid;
+   bool blit_cache_cleaned;
    VkImageAspectFlags pipeline_feedback_loops;
 
    bool pipeline_blend_lrz, pipeline_bandwidth;
