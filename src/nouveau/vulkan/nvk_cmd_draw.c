@@ -836,9 +836,11 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
             addr += nil_image_level_z_offset_B(nil_image,
                                                iview->vk.base_mip_level,
                                                iview->vk.base_array_layer);
+            assert(layer_count <= iview->vk.extent.depth);
          } else {
             addr += iview->vk.base_array_layer *
                     (uint64_t)nil_image->array_stride_B;
+            assert(layer_count <= iview->vk.layer_count);
          }
 
          P_MTHD(p, NV9097, SET_COLOR_TARGET_A(i));
@@ -949,7 +951,6 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
       uint64_t addr = nvk_image_base_address(image, ip);
       uint32_t mip_level = iview->vk.base_mip_level;
       uint32_t base_array_layer = iview->vk.base_array_layer;
-      uint32_t layer_count = iview->vk.layer_count;
 
       if (nil_image.dim == NIL_IMAGE_DIM_3D) {
          uint64_t level_offset_B;
@@ -958,7 +959,9 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
          addr += level_offset_B;
          mip_level = 0;
          base_array_layer = 0;
-         layer_count = iview->vk.extent.depth;
+         assert(layer_count <= iview->vk.extent.depth);
+      } else {
+         assert(layer_count <= iview->vk.layer_count);
       }
 
       const struct nil_image_level *level = &nil_image.levels[mip_level];
