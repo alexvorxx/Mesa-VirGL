@@ -98,6 +98,8 @@ EXTENSIONS = [
     Extension("VK_EXT_queue_family_foreign"),
     Extension("VK_KHR_swapchain_mutable_format"),
     Extension("VK_KHR_incremental_present"),
+    Extension("VK_EXT_image_compression_control", alias="compctrl", features=True),
+    Extension("VK_EXT_image_compression_control_swapchain", alias="swapchaincompctrl", features=True),
     Extension("VK_EXT_provoking_vertex",
               alias="pv",
               features=True,
