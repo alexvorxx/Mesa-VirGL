@@ -1248,6 +1248,13 @@ void
 vk_cmd_set_rp_attachments(struct vk_command_buffer *cmd,
                           enum vk_rp_attachment_flags attachments);
 
+/* This is equivalent to CmdSetRenderingAttachmentLocationsKHR() but easier to
+ * invoke from inside drivers.
+ */
+void
+vk_cmd_set_rendering_attachment_locations(struct vk_command_buffer *cmd,
+                                          const VkRenderingAttachmentLocationInfoKHR *info);
+
 const char *
 vk_dynamic_graphic_state_to_str(enum mesa_vk_dynamic_graphics_state state);
 
