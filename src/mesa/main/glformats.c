@@ -1352,7 +1352,7 @@ _mesa_is_compressed_format(const struct gl_context *ctx, GLenum format)
    case MESA_FORMAT_LAYOUT_ETC1:
       return _mesa_has_OES_compressed_ETC1_RGB8_texture(ctx);
    case MESA_FORMAT_LAYOUT_ETC2:
-      return _mesa_is_gles3(ctx) || _mesa_has_ARB_ES3_compatibility(ctx);
+      return _mesa_is_gles3_compatible(ctx);
    case MESA_FORMAT_LAYOUT_BPTC:
       return _mesa_has_ARB_texture_compression_bptc(ctx) ||
              _mesa_has_EXT_texture_compression_bptc(ctx);
@@ -2419,9 +2419,8 @@ _mesa_base_tex_format(const struct gl_context *ctx, GLint internalFormat)
       ; /* fallthrough */
    }
 
-   if (_mesa_has_ARB_ES2_compatibility(ctx) ||
-       _mesa_has_OES_framebuffer_object(ctx) ||
-       _mesa_is_gles2(ctx)) {
+   if (_mesa_has_OES_framebuffer_object(ctx) ||
+       _mesa_is_gles2_compatible(ctx)) {
       switch (internalFormat) {
       case GL_RGB565:
          return GL_RGB;
