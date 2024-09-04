@@ -97,6 +97,21 @@ enum pan_kmod_bo_flags {
    PAN_KMOD_BO_FLAG_GPU_UNCACHED = BITFIELD_BIT(5),
 };
 
+/* Allowed group priority flags. */
+enum pan_kmod_group_allow_priority_flags {
+   /* Allow low priority group. */
+   PAN_KMOD_GROUP_ALLOW_PRIORITY_LOW = BITFIELD_BIT(0),
+
+   /* Allow medium priority group. */
+   PAN_KMOD_GROUP_ALLOW_PRIORITY_MEDIUM = BITFIELD_BIT(1),
+
+   /* Allow high priority group. */
+   PAN_KMOD_GROUP_ALLOW_PRIORITY_HIGH = BITFIELD_BIT(2),
+
+   /* Allow realtime priority group. */
+   PAN_KMOD_GROUP_ALLOW_PRIORITY_REALTIME = BITFIELD_BIT(3),
+};
+
 /* Buffer object. */
 struct pan_kmod_bo {
    /* Atomic reference count. The only reason we need to refcnt BOs at this
@@ -185,6 +200,9 @@ struct pan_kmod_dev_props {
 
    /* GPU Timestamp frequency */
    uint64_t timestamp_frequency;
+
+   /* A mask of flags containing the allowed group priorities. */
+   enum pan_kmod_group_allow_priority_flags allowed_group_priorities_mask;
 };
 
 /* Memory allocator for kmod internal allocations. */
