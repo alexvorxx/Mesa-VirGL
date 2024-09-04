@@ -14,14 +14,6 @@ ir3_supports_vectorized_nir_op(nir_op op)
        */
    case nir_op_b2b1:
 
-      /* dsx/dsy don't seem to support repeat. */
-   case nir_op_fddx:
-   case nir_op_fddx_coarse:
-   case nir_op_fddx_fine:
-   case nir_op_fddy:
-   case nir_op_fddy_coarse:
-   case nir_op_fddy_fine:
-
       /* dp2acc/dp4acc don't seem to support repeat. */
    case nir_op_udot_4x8_uadd:
    case nir_op_udot_4x8_uadd_sat:
