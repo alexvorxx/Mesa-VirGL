@@ -2902,6 +2902,34 @@ kopperSetSurfaceCreateInfo(void *_draw, struct kopper_loader_info *out)
    wlsci->display = dri2_dpy->wl_dpy;
    wlsci->surface = dri2_surf->wl_surface_wrapper;
    out->present_opaque = dri2_surf->base.PresentOpaque;
+   /* convert to vulkan constants */
+   switch (dri2_surf->base.CompressionRate) {
+   case EGL_SURFACE_COMPRESSION_FIXED_RATE_NONE_EXT:
+      out->compression = 0;
+      break;
+   case EGL_SURFACE_COMPRESSION_FIXED_RATE_DEFAULT_EXT:
+      out->compression = UINT32_MAX;
+      break;
+#define EGL_VK_COMP(NUM) \
+   case EGL_SURFACE_COMPRESSION_FIXED_RATE_##NUM##BPC_EXT: \
+      out->compression = VK_IMAGE_COMPRESSION_FIXED_RATE_##NUM##BPC_BIT_EXT; \
+      break
+   EGL_VK_COMP(1);
+   EGL_VK_COMP(2);
+   EGL_VK_COMP(3);
+   EGL_VK_COMP(4);
+   EGL_VK_COMP(5);
+   EGL_VK_COMP(6);
+   EGL_VK_COMP(7);
+   EGL_VK_COMP(8);
+   EGL_VK_COMP(9);
+   EGL_VK_COMP(10);
+   EGL_VK_COMP(11);
+   EGL_VK_COMP(12);
+#undef EGL_VK_COMP
+   default:
+      unreachable("unknown compression rate");
+   }
 }
 
 static const __DRIkopperLoaderExtension kopper_loader_extension = {

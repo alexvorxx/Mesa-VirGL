@@ -636,7 +636,8 @@ dri2_setup_screen(_EGLDisplay *disp)
 #ifdef HAVE_ANDROID_PLATFORM
    dri2_dpy->has_native_fence_fd = dri_get_screen_param(dri2_dpy->dri_screen_render_gpu, PIPE_CAP_NATIVE_FENCE_FD);
 #endif
-   dri2_dpy->has_compression_modifiers = pscreen->query_compression_rates && pscreen->query_compression_modifiers;
+   dri2_dpy->has_compression_modifiers = pscreen->query_compression_rates &&
+                                         (pscreen->query_compression_modifiers || dri2_dpy->kopper);
 
    /*
     * EGL 1.5 specification defines the default value to 1. Moreover,
