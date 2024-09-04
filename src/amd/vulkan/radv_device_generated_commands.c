@@ -1359,12 +1359,113 @@ dgc_emit_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, VkShaderStag
 /**
  * For emitting VK_INDIRECT_COMMANDS_TOKEN_TYPE_VERTEX_BUFFER_NV.
  */
+struct dgc_vbo_info {
+   nir_def *va;
+   nir_def *size;
+   nir_def *stride;
+
+   nir_def *attrib_end;
+   nir_def *attrib_index_offset;
+   nir_def *rsrc_word3;
+};
+
+static void
+dgc_write_vertex_descriptor(struct dgc_cmdbuf *cs, const struct dgc_vbo_info *vbo_info, nir_variable *desc)
+{
+   const struct radv_device *device = cs->dev;
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+   nir_builder *b = cs->b;
+
+   nir_variable *num_records = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "num_records");
+   nir_store_var(b, num_records, vbo_info->size, 0x1);
+
+   nir_def *use_per_attribute_vb_descs = nir_ieq_imm(b, load_param8(b, use_per_attribute_vb_descs), 1);
+   nir_push_if(b, use_per_attribute_vb_descs);
+   {
+      nir_push_if(b, nir_ult(b, nir_load_var(b, num_records), vbo_info->attrib_end));
+      {
+         nir_store_var(b, num_records, nir_imm_int(b, 0), 0x1);
+      }
+      nir_push_else(b, NULL);
+      nir_push_if(b, nir_ieq_imm(b, vbo_info->stride, 0));
+      {
+         nir_store_var(b, num_records, nir_imm_int(b, 1), 0x1);
+      }
+      nir_push_else(b, NULL);
+      {
+         nir_def *r = nir_iadd(
+            b,
+            nir_iadd_imm(
+               b, nir_udiv(b, nir_isub(b, nir_load_var(b, num_records), vbo_info->attrib_end), vbo_info->stride), 1),
+            vbo_info->attrib_index_offset);
+         nir_store_var(b, num_records, r, 0x1);
+      }
+      nir_pop_if(b, NULL);
+      nir_pop_if(b, NULL);
+
+      nir_def *convert_cond = nir_ine_imm(b, nir_load_var(b, num_records), 0);
+      if (pdev->info.gfx_level == GFX9)
+         convert_cond = nir_imm_false(b);
+      else if (pdev->info.gfx_level != GFX8)
+         convert_cond = nir_iand(b, convert_cond, nir_ieq_imm(b, vbo_info->stride, 0));
+
+      nir_def *new_records = nir_iadd(
+         b, nir_imul(b, nir_iadd_imm(b, nir_load_var(b, num_records), -1), vbo_info->stride), vbo_info->attrib_end);
+      new_records = nir_bcsel(b, convert_cond, new_records, nir_load_var(b, num_records));
+      nir_store_var(b, num_records, new_records, 0x1);
+   }
+   nir_push_else(b, NULL);
+   {
+      if (pdev->info.gfx_level != GFX8) {
+         nir_push_if(b, nir_ine_imm(b, vbo_info->stride, 0));
+         {
+            nir_def *r = nir_iadd(b, nir_load_var(b, num_records), nir_iadd_imm(b, vbo_info->stride, -1));
+            nir_store_var(b, num_records, nir_udiv(b, r, vbo_info->stride), 0x1);
+         }
+         nir_pop_if(b, NULL);
+      }
+   }
+   nir_pop_if(b, NULL);
+
+   nir_def *rsrc_word3 = vbo_info->rsrc_word3;
+   if (pdev->info.gfx_level >= GFX10) {
+      nir_def *oob_select = nir_bcsel(b, nir_ieq_imm(b, vbo_info->stride, 0), nir_imm_int(b, V_008F0C_OOB_SELECT_RAW),
+                                      nir_imm_int(b, V_008F0C_OOB_SELECT_STRUCTURED));
+      rsrc_word3 = nir_iand_imm(b, rsrc_word3, C_008F0C_OOB_SELECT);
+      rsrc_word3 = nir_ior(b, rsrc_word3, nir_ishl_imm(b, oob_select, 28));
+   }
+
+   nir_def *va_hi = nir_iand_imm(b, nir_unpack_64_2x32_split_y(b, vbo_info->va), 0xFFFF);
+   nir_def *stride = nir_iand_imm(b, vbo_info->stride, 0x3FFF);
+   nir_def *new_vbo_data[4] = {nir_unpack_64_2x32_split_x(b, vbo_info->va),
+                               nir_ior(b, nir_ishl_imm(b, stride, 16), va_hi), nir_load_var(b, num_records),
+                               rsrc_word3};
+   nir_store_var(b, desc, nir_vec(b, new_vbo_data, 4), 0xf);
+
+   /* On GFX9, it seems bounds checking is disabled if both
+    * num_records and stride are zero. This doesn't seem necessary on GFX8, GFX10 and
+    * GFX10.3 but it doesn't hurt.
+    */
+   nir_def *buf_va =
+      nir_iand_imm(b, nir_pack_64_2x32(b, nir_trim_vector(b, nir_load_var(b, desc), 2)), (1ull << 48) - 1ull);
+   nir_push_if(b, nir_ior(b, nir_ieq_imm(b, nir_load_var(b, num_records), 0), nir_ieq_imm(b, buf_va, 0)));
+   {
+      nir_def *has_dynamic_vs_input = nir_ieq_imm(b, load_param8(b, dynamic_vs_input), 1);
+
+      new_vbo_data[0] = nir_imm_int(b, 0);
+      new_vbo_data[1] = nir_bcsel(b, has_dynamic_vs_input, nir_imm_int(b, S_008F04_STRIDE(16)), nir_imm_int(b, 0));
+      new_vbo_data[2] = nir_imm_int(b, 0);
+      new_vbo_data[3] = nir_bcsel(b, has_dynamic_vs_input, nir_channel(b, nir_load_var(b, desc), 3), nir_imm_int(b, 0));
+
+      nir_store_var(b, desc, nir_vec(b, new_vbo_data, 4), 0xf);
+   }
+   nir_pop_if(b, NULL);
+}
+
 static void
 dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
 {
    const struct radv_indirect_command_layout *layout = cs->layout;
-   const struct radv_device *device = cs->dev;
-   const struct radv_physical_device *pdev = radv_device_physical(device);
    nir_builder *b = cs->b;
 
    nir_def *vbo_cnt = load_param8(b, vbo_cnt);
@@ -1383,8 +1484,6 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
 
    nir_variable *vbo_idx = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "vbo_idx");
    nir_store_var(b, vbo_idx, nir_imm_int(b, 0), 0x1);
-
-   nir_def *use_per_attribute_vb_descs = nir_ieq_imm(b, load_param8(b, use_per_attribute_vb_descs), 1);
 
    nir_push_loop(b);
    {
@@ -1422,90 +1521,16 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
             stride = nir_channel(b, vbo_over_data, 2);
          }
 
-         nir_variable *num_records =
-            nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "num_records");
-         nir_store_var(b, num_records, size, 0x1);
+         struct dgc_vbo_info vbo_info = {
+            .va = va,
+            .size = size,
+            .stride = stride,
+            .attrib_end = nir_ubfe_imm(b, nir_channel(b, vbo_over_data, 1), 16, 16),
+            .attrib_index_offset = nir_ubfe_imm(b, nir_channel(b, vbo_over_data, 1), 0, 16),
+            .rsrc_word3 = nir_channel(b, vbo_over_data, 3),
+         };
 
-         nir_push_if(b, use_per_attribute_vb_descs);
-         {
-            nir_def *attrib_end = nir_ubfe_imm(b, nir_channel(b, vbo_over_data, 1), 16, 16);
-            nir_def *attrib_index_offset = nir_ubfe_imm(b, nir_channel(b, vbo_over_data, 1), 0, 16);
-
-            nir_push_if(b, nir_ult(b, nir_load_var(b, num_records), attrib_end));
-            {
-               nir_store_var(b, num_records, nir_imm_int(b, 0), 0x1);
-            }
-            nir_push_else(b, NULL);
-            nir_push_if(b, nir_ieq_imm(b, stride, 0));
-            {
-               nir_store_var(b, num_records, nir_imm_int(b, 1), 0x1);
-            }
-            nir_push_else(b, NULL);
-            {
-               nir_def *r = nir_iadd(
-                  b, nir_iadd_imm(b, nir_udiv(b, nir_isub(b, nir_load_var(b, num_records), attrib_end), stride), 1),
-                  attrib_index_offset);
-               nir_store_var(b, num_records, r, 0x1);
-            }
-            nir_pop_if(b, NULL);
-            nir_pop_if(b, NULL);
-
-            nir_def *convert_cond = nir_ine_imm(b, nir_load_var(b, num_records), 0);
-            if (pdev->info.gfx_level == GFX9)
-               convert_cond = nir_imm_false(b);
-            else if (pdev->info.gfx_level != GFX8)
-               convert_cond = nir_iand(b, convert_cond, nir_ieq_imm(b, stride, 0));
-
-            nir_def *new_records =
-               nir_iadd(b, nir_imul(b, nir_iadd_imm(b, nir_load_var(b, num_records), -1), stride), attrib_end);
-            new_records = nir_bcsel(b, convert_cond, new_records, nir_load_var(b, num_records));
-            nir_store_var(b, num_records, new_records, 0x1);
-         }
-         nir_push_else(b, NULL);
-         {
-            if (pdev->info.gfx_level != GFX8) {
-               nir_push_if(b, nir_ine_imm(b, stride, 0));
-               {
-                  nir_def *r = nir_iadd(b, nir_load_var(b, num_records), nir_iadd_imm(b, stride, -1));
-                  nir_store_var(b, num_records, nir_udiv(b, r, stride), 0x1);
-               }
-               nir_pop_if(b, NULL);
-            }
-         }
-         nir_pop_if(b, NULL);
-
-         nir_def *rsrc_word3 = nir_channel(b, vbo_over_data, 3);
-         if (pdev->info.gfx_level >= GFX10) {
-            nir_def *oob_select = nir_bcsel(b, nir_ieq_imm(b, stride, 0), nir_imm_int(b, V_008F0C_OOB_SELECT_RAW),
-                                            nir_imm_int(b, V_008F0C_OOB_SELECT_STRUCTURED));
-            rsrc_word3 = nir_iand_imm(b, rsrc_word3, C_008F0C_OOB_SELECT);
-            rsrc_word3 = nir_ior(b, rsrc_word3, nir_ishl_imm(b, oob_select, 28));
-         }
-
-         nir_def *va_hi = nir_iand_imm(b, nir_unpack_64_2x32_split_y(b, va), 0xFFFF);
-         stride = nir_iand_imm(b, stride, 0x3FFF);
-         nir_def *new_vbo_data[4] = {nir_unpack_64_2x32_split_x(b, va), nir_ior(b, nir_ishl_imm(b, stride, 16), va_hi),
-                                     nir_load_var(b, num_records), rsrc_word3};
-         nir_store_var(b, vbo_data, nir_vec(b, new_vbo_data, 4), 0xf);
-
-         /* On GFX9, it seems bounds checking is disabled if both
-          * num_records and stride are zero. This doesn't seem necessary on GFX8, GFX10 and
-          * GFX10.3 but it doesn't hurt.
-          */
-         nir_def *buf_va =
-            nir_iand_imm(b, nir_pack_64_2x32(b, nir_trim_vector(b, nir_load_var(b, vbo_data), 2)), (1ull << 48) - 1ull);
-         nir_push_if(b, nir_ior(b, nir_ieq_imm(b, nir_load_var(b, num_records), 0), nir_ieq_imm(b, buf_va, 0)));
-         {
-            new_vbo_data[0] = nir_imm_int(b, 0);
-            new_vbo_data[1] =
-               nir_bcsel(b, has_dynamic_vs_input, nir_imm_int(b, S_008F04_STRIDE(16)), nir_imm_int(b, 0));
-            new_vbo_data[2] = nir_imm_int(b, 0);
-            new_vbo_data[3] =
-               nir_bcsel(b, has_dynamic_vs_input, nir_channel(b, nir_load_var(b, vbo_data), 3), nir_imm_int(b, 0));
-
-            nir_store_var(b, vbo_data, nir_vec(b, new_vbo_data, 4), 0xf);
-         }
-         nir_pop_if(b, NULL);
+         dgc_write_vertex_descriptor(cs, &vbo_info, vbo_data);
       }
       nir_pop_if(b, NULL);
 
