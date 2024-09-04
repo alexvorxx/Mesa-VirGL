@@ -6144,31 +6144,6 @@ radv_flush_constants(struct radv_cmd_buffer *cmd_buffer, VkShaderStageFlags stag
    cmd_buffer->push_constant_stages |= dirty_stages;
 }
 
-uint32_t
-radv_get_rsrc3_vbo_desc(const struct radv_cmd_buffer *cmd_buffer, const struct radv_vbo_info *vbo_info,
-                        bool uses_dynamic_inputs)
-{
-   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
-   const struct radv_physical_device *pdev = radv_device_physical(device);
-   uint32_t rsrc_word3;
-
-   if (uses_dynamic_inputs && vbo_info->non_trivial_format) {
-      rsrc_word3 = vbo_info->non_trivial_format;
-   } else {
-      rsrc_word3 = S_008F0C_DST_SEL_X(V_008F0C_SQ_SEL_X) | S_008F0C_DST_SEL_Y(V_008F0C_SQ_SEL_Y) |
-                   S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) | S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W);
-
-      if (pdev->info.gfx_level >= GFX10) {
-         rsrc_word3 |= S_008F0C_FORMAT_GFX10(V_008F0C_GFX10_FORMAT_32_UINT);
-      } else {
-         rsrc_word3 |=
-            S_008F0C_NUM_FORMAT(V_008F0C_BUF_NUM_FORMAT_UINT) | S_008F0C_DATA_FORMAT(V_008F0C_BUF_DATA_FORMAT_32);
-      }
-   }
-
-   return rsrc_word3;
-}
-
 void
 radv_get_vbo_info(const struct radv_cmd_buffer *cmd_buffer, uint32_t idx, struct radv_vbo_info *vbo_info)
 {
@@ -6244,7 +6219,21 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
       struct radv_vbo_info vbo_info;
       radv_get_vbo_info(cmd_buffer, i, &vbo_info);
 
-      uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, &vbo_info, uses_dynamic_inputs);
+      uint32_t rsrc_word3;
+
+      if (uses_dynamic_inputs && vbo_info.non_trivial_format) {
+         rsrc_word3 = vbo_info.non_trivial_format;
+      } else {
+         rsrc_word3 = S_008F0C_DST_SEL_X(V_008F0C_SQ_SEL_X) | S_008F0C_DST_SEL_Y(V_008F0C_SQ_SEL_Y) |
+                      S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) | S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W);
+
+         if (pdev->info.gfx_level >= GFX10) {
+            rsrc_word3 |= S_008F0C_FORMAT_GFX10(V_008F0C_GFX10_FORMAT_32_UINT);
+         } else {
+            rsrc_word3 |=
+               S_008F0C_NUM_FORMAT(V_008F0C_BUF_NUM_FORMAT_UINT) | S_008F0C_DATA_FORMAT(V_008F0C_BUF_DATA_FORMAT_32);
+         }
+      }
 
       if (!vbo_info.va) {
          if (uses_dynamic_inputs) {

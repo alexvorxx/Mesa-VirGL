@@ -800,7 +800,4 @@ struct radv_vbo_info {
 
 void radv_get_vbo_info(const struct radv_cmd_buffer *cmd_buffer, uint32_t vbo_idx, struct radv_vbo_info *vbo_info);
 
-uint32_t radv_get_rsrc3_vbo_desc(const struct radv_cmd_buffer *cmd_buffer, const struct radv_vbo_info *vbo_info,
-                                 bool uses_dynamic_inputs);
-
 #endif /* RADV_CMD_BUFFER_H */

@@ -1367,8 +1367,32 @@ struct dgc_vbo_info {
 
    nir_def *attrib_end;
    nir_def *attrib_index_offset;
-   nir_def *rsrc_word3;
+
+   nir_def *non_trivial_format;
 };
+
+static nir_def *
+dgc_get_rsrc3_vbo_desc(struct dgc_cmdbuf *cs, const struct dgc_vbo_info *vbo_info)
+{
+   const struct radv_device *device = cs->dev;
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+   nir_builder *b = cs->b;
+
+   uint32_t rsrc_word3 = S_008F0C_DST_SEL_X(V_008F0C_SQ_SEL_X) | S_008F0C_DST_SEL_Y(V_008F0C_SQ_SEL_Y) |
+                         S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) | S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W);
+
+   if (pdev->info.gfx_level >= GFX10) {
+      rsrc_word3 |= S_008F0C_FORMAT_GFX10(V_008F0C_GFX10_FORMAT_32_UINT);
+   } else {
+      rsrc_word3 |=
+         S_008F0C_NUM_FORMAT(V_008F0C_BUF_NUM_FORMAT_UINT) | S_008F0C_DATA_FORMAT(V_008F0C_BUF_DATA_FORMAT_32);
+   }
+
+   nir_def *uses_dynamic_inputs = nir_ieq_imm(b, load_param8(b, dynamic_vs_input), 1);
+   nir_def *uses_non_trivial_format = nir_iand(b, uses_dynamic_inputs, nir_ine_imm(b, vbo_info->non_trivial_format, 0));
+
+   return nir_bcsel(b, uses_non_trivial_format, vbo_info->non_trivial_format, nir_imm_int(b, rsrc_word3));
+}
 
 static void
 dgc_write_vertex_descriptor(struct dgc_cmdbuf *cs, const struct dgc_vbo_info *vbo_info, nir_variable *desc)
@@ -1428,7 +1452,7 @@ dgc_write_vertex_descriptor(struct dgc_cmdbuf *cs, const struct dgc_vbo_info *vb
    }
    nir_pop_if(b, NULL);
 
-   nir_def *rsrc_word3 = vbo_info->rsrc_word3;
+   nir_def *rsrc_word3 = dgc_get_rsrc3_vbo_desc(cs, vbo_info);
    if (pdev->info.gfx_level >= GFX10) {
       nir_def *oob_select = nir_bcsel(b, nir_ieq_imm(b, vbo_info->stride, 0), nir_imm_int(b, V_008F0C_OOB_SELECT_RAW),
                                       nir_imm_int(b, V_008F0C_OOB_SELECT_STRUCTURED));
@@ -1528,7 +1552,7 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
             .stride = stride,
             .attrib_end = nir_ubfe_imm(b, nir_channel(b, vbo_over_data, 1), 16, 16),
             .attrib_index_offset = nir_ubfe_imm(b, nir_channel(b, vbo_over_data, 1), 0, 16),
-            .rsrc_word3 = nir_channel(b, vbo_over_data, 3),
+            .non_trivial_format = nir_channel(b, vbo_over_data, 3),
          };
 
          dgc_write_vertex_descriptor(cs, &vbo_info, vbo_data);
@@ -2384,13 +2408,12 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
 
          const unsigned binding = vbo_info.binding;
          const uint32_t attrib_end = vbo_info.attrib_offset + vbo_info.attrib_format_size;
-         const uint32_t rsrc_word3 = radv_get_rsrc3_vbo_desc(cmd_buffer, &vbo_info, vs->info.vs.dynamic_inputs);
 
          params->vbo_bind_mask |= ((layout->bind_vbo_mask >> binding) & 1u) << idx;
          ptr[5 * idx] = layout->vbo_offsets[binding];
          ptr[5 * idx + 1] = vbo_info.attrib_index_offset | (attrib_end << 16);
          ptr[5 * idx + 2] = vbo_info.stride;
-         ptr[5 * idx + 3] = rsrc_word3;
+         ptr[5 * idx + 3] = vbo_info.non_trivial_format;
          ptr[5 * idx + 4] = vbo_info.attrib_offset;
          ++idx;
       }
