@@ -1063,6 +1063,18 @@ etna_compile_check_limits(struct etna_shader_variant *v)
       return false;
    }
 
+   if (v->stage == MESA_SHADER_VERTEX) {
+      int num_outputs = v->vs_pointsize_out_reg >= 0 ? 2 : 1;
+
+      num_outputs += v->outfile.num_reg;
+
+      if (num_outputs > specs->max_vs_outputs) {
+         DBG("Number of VS outputs (%zu) exceeds maximum %d",
+             v->outfile.num_reg, specs->max_vs_outputs);
+         return false;
+      }
+   }
+
    return true;
 }
 
