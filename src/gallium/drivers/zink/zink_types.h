@@ -1380,6 +1380,7 @@ struct zink_format_props {
    VkFormatFeatureFlags2 linearTilingFeatures;
    VkFormatFeatureFlags2 optimalTilingFeatures;
    VkFormatFeatureFlags2 bufferFeatures;
+   VkImageCompressionFixedRateFlagsEXT compressionRates;
 };
 
 struct zink_screen {

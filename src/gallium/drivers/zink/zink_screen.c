@@ -2287,6 +2287,14 @@ retry:
             mod_props.pDrmFormatModifierProperties = mods;
             props.pNext = &mod_props;
          }
+         VkImageCompressionPropertiesEXT comp;
+         if (screen->info.have_EXT_image_compression_control) {
+            comp.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_PROPERTIES_EXT;
+            comp.pNext = props.pNext;
+            comp.imageCompressionFlags = 0;
+            comp.imageCompressionFixedRateFlags = 0;
+            props.pNext = &comp;
+         }
          VkFormatProperties3 props3 = {0};
          if (screen->info.have_KHR_format_feature_flags2 || screen->info.have_vulkan13) {
            props3.sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_3;
@@ -2308,6 +2316,17 @@ retry:
            screen->format_props[i].linearTilingFeatures = props.formatProperties.linearTilingFeatures;
            screen->format_props[i].optimalTilingFeatures = props.formatProperties.optimalTilingFeatures;
            screen->format_props[i].bufferFeatures = props.formatProperties.bufferFeatures;
+         }
+
+         if (screen->info.have_EXT_image_compression_control) {
+            switch (comp.imageCompressionFlags) {
+            case VK_IMAGE_COMPRESSION_DISABLED_EXT:
+               screen->format_props[i].compressionRates = 0;
+               break;
+            default:
+               screen->format_props[i].compressionRates = comp.imageCompressionFixedRateFlags;
+               break;
+            }
          }
 
          if (screen->info.have_EXT_image_drm_format_modifier && mod_props.drmFormatModifierCount) {
