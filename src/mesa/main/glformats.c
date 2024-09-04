@@ -1788,7 +1788,9 @@ valid_texture_format_enum(const struct gl_context *ctx, GLenum format)
    case GL_LUMINANCE_ALPHA:
    case GL_LUMINANCE:
    case GL_ALPHA:
-      return _mesa_is_desktop_gl_compat(ctx) || _mesa_is_gles(ctx);
+      return _mesa_is_desktop_gl_compat(ctx) ||
+             _mesa_has_ARB_ES3_compatibility(ctx) ||
+             _mesa_is_gles(ctx);
 
    case GL_ABGR_EXT:
       return _mesa_has_EXT_abgr(ctx);
