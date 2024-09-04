@@ -16,7 +16,7 @@
 #include "vk_common_entrypoints.h"
 #include "vk_shader_module.h"
 
-#define DGC_VBO_SIZE 36
+#define DGC_VBO_INFO_SIZE (16 /* written VBOs */ + sizeof(struct radv_vbo_info) + 4 /* vbo_offsets */)
 
 /* The DGC command buffer layout is quite complex, here's some explanations:
  *
@@ -528,6 +528,22 @@ dgc_load_shader_metadata(struct dgc_cmdbuf *cs, uint32_t bitsize, uint32_t field
    dgc_load_shader_metadata(cs, 32, offsetof(struct radv_compute_pipeline_metadata, field))
 #define load_shader_metadata64(cs, field)                                                                              \
    dgc_load_shader_metadata(cs, 64, offsetof(struct radv_compute_pipeline_metadata, field))
+
+static nir_def *
+dgc_load_vbo_metadata(struct dgc_cmdbuf *cs, uint32_t bitsize, nir_def *idx, uint32_t field_offset)
+{
+   nir_builder *b = cs->b;
+
+   nir_def *param_buf = radv_meta_load_descriptor(b, 0, 0);
+
+   nir_def *vbo_cnt = load_param8(b, vbo_cnt);
+   nir_def *offset = nir_iadd(b, nir_imul_imm(b, vbo_cnt, 16), nir_imul_imm(b, idx, sizeof(struct radv_vbo_info) + 4));
+
+   return nir_load_ssbo(b, 1, bitsize, param_buf, nir_iadd_imm(b, offset, field_offset));
+}
+
+#define load_vbo_metadata32(cs, idx, field) dgc_load_vbo_metadata(cs, 32, idx, offsetof(struct radv_vbo_info, field))
+#define load_vbo_offset(cs, idx)            dgc_load_vbo_metadata(cs, 32, idx, sizeof(struct radv_vbo_info))
 
 /* DGC cs emit macros */
 #define dgc_cs_begin(cs)                                                                                               \
@@ -1244,7 +1260,7 @@ dgc_get_pc_params(struct dgc_cmdbuf *cs)
    nir_builder *b = cs->b;
 
    nir_def *vbo_cnt = load_param8(b, vbo_cnt);
-   nir_def *param_offset = nir_imul_imm(b, vbo_cnt, DGC_VBO_SIZE);
+   nir_def *param_offset = nir_imul_imm(b, vbo_cnt, DGC_VBO_INFO_SIZE);
 
    params.buf = radv_meta_load_descriptor(b, 0, 0);
 
@@ -1524,15 +1540,19 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
          nir_ine_imm(b, nir_iand(b, vbo_bind_mask, nir_ishl(b, nir_imm_int(b, 1), nir_load_var(b, vbo_idx))), 0);
       nir_push_if(b, vbo_override);
       {
-         nir_def *vbo_offset_offset =
-            nir_iadd(b, nir_imul_imm(b, vbo_cnt, 16), nir_imul_imm(b, nir_load_var(b, vbo_idx), DGC_VBO_SIZE - 16));
-         nir_def *vbo_over_data = nir_load_ssbo(b, 5, 32, param_buf, vbo_offset_offset);
-         nir_def *stream_offset = nir_iand_imm(b, nir_channel(b, vbo_over_data, 0), 0x7FFF);
+         nir_def *cur_idx = nir_load_var(b, vbo_idx);
+
+         nir_def *attrib_index_offset = load_vbo_metadata32(cs, cur_idx, attrib_index_offset);
+         nir_def *non_trivial_format = load_vbo_metadata32(cs, cur_idx, non_trivial_format);
+         nir_def *attrib_offset = load_vbo_metadata32(cs, cur_idx, attrib_offset);
+         nir_def *attrib_format_size = load_vbo_metadata32(cs, cur_idx, attrib_format_size);
+         nir_def *attrib_end = nir_iadd(b, attrib_offset, attrib_format_size);
+
+         nir_def *stream_offset = load_vbo_offset(cs, cur_idx);
          nir_def *stream_data = nir_build_load_global(b, 4, 32, nir_iadd(b, stream_addr, nir_u2u64(b, stream_offset)),
                                                       .access = ACCESS_NON_WRITEABLE);
 
          nir_def *has_dynamic_vs_input = nir_ieq_imm(b, load_param8(b, dynamic_vs_input), 1);
-         nir_def *attrib_offset = nir_channel(b, vbo_over_data, 4);
 
          nir_def *va = nir_pack_64_2x32(b, nir_trim_vector(b, stream_data, 2));
          va = nir_iadd(b, va, nir_bcsel(b, has_dynamic_vs_input, nir_u2u64(b, attrib_offset), nir_imm_int64(b, 0)));
@@ -1543,16 +1563,16 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
          if (layout->vertex_dynamic_stride) {
             stride = nir_channel(b, stream_data, 3);
          } else {
-            stride = nir_channel(b, vbo_over_data, 2);
+            stride = load_vbo_metadata32(cs, cur_idx, stride);
          }
 
          struct dgc_vbo_info vbo_info = {
             .va = va,
             .size = size,
             .stride = stride,
-            .attrib_end = nir_ubfe_imm(b, nir_channel(b, vbo_over_data, 1), 16, 16),
-            .attrib_index_offset = nir_ubfe_imm(b, nir_channel(b, vbo_over_data, 1), 0, 16),
-            .non_trivial_format = nir_channel(b, vbo_over_data, 3),
+            .attrib_end = attrib_end,
+            .attrib_index_offset = attrib_index_offset,
+            .non_trivial_format = non_trivial_format,
          };
 
          dgc_write_vertex_descriptor(cs, &vbo_info, vbo_data);
@@ -2348,7 +2368,7 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
    VK_FROM_HANDLE(radv_pipeline, pipeline, pGeneratedCommandsInfo->pipeline);
    struct radv_graphics_pipeline *graphics_pipeline = radv_pipeline_to_graphics(pipeline);
    struct radv_shader *vs = radv_get_shader(graphics_pipeline->base.shaders, MESA_SHADER_VERTEX);
-   unsigned vb_size = layout->bind_vbo_mask ? util_bitcount(vs->info.vs.vb_desc_usage_mask) * DGC_VBO_SIZE : 0;
+   unsigned vb_size = layout->bind_vbo_mask ? util_bitcount(vs->info.vs.vb_desc_usage_mask) * DGC_VBO_INFO_SIZE : 0;
 
    *upload_size = MAX2(*upload_size + vb_size, 16);
 
@@ -2397,7 +2417,7 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
 
       radv_write_vertex_descriptors(cmd_buffer, vs, *upload_data);
 
-      uint32_t *ptr = (uint32_t *)((char *)*upload_data + vb_desc_alloc_size);
+      uint8_t *ptr = (uint8_t *)((char *)*upload_data + vb_desc_alloc_size);
 
       unsigned idx = 0;
       while (mask) {
@@ -2406,15 +2426,13 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
          struct radv_vbo_info vbo_info;
          radv_get_vbo_info(cmd_buffer, i, &vbo_info);
 
-         const unsigned binding = vbo_info.binding;
-         const uint32_t attrib_end = vbo_info.attrib_offset + vbo_info.attrib_format_size;
+         memcpy(ptr, &vbo_info, sizeof(vbo_info));
+         ptr += sizeof(struct radv_vbo_info);
 
-         params->vbo_bind_mask |= ((layout->bind_vbo_mask >> binding) & 1u) << idx;
-         ptr[5 * idx] = layout->vbo_offsets[binding];
-         ptr[5 * idx + 1] = vbo_info.attrib_index_offset | (attrib_end << 16);
-         ptr[5 * idx + 2] = vbo_info.stride;
-         ptr[5 * idx + 3] = vbo_info.non_trivial_format;
-         ptr[5 * idx + 4] = vbo_info.attrib_offset;
+         memcpy(ptr, &layout->vbo_offsets[vbo_info.binding], sizeof(uint32_t));
+         ptr += sizeof(uint32_t);
+
+         params->vbo_bind_mask |= ((layout->bind_vbo_mask >> vbo_info.binding) & 1u) << idx;
          ++idx;
       }
       params->vbo_cnt = idx;
