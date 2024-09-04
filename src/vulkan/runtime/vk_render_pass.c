@@ -1041,6 +1041,55 @@ vk_get_command_buffer_inheritance_as_rendering_resume(
    return &data->rendering;
 }
 
+const VkRenderingAttachmentLocationInfoKHR *
+vk_get_command_buffer_rendering_attachment_location_info(
+   VkCommandBufferLevel level,
+   const VkCommandBufferBeginInfo *pBeginInfo)
+{
+   /* From the Vulkan 1.3.295 spec:
+    *
+    *    "VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT specifies that a
+    *    secondary command buffer is considered to be entirely inside a render
+    *    pass. If this is a primary command buffer, then this bit is ignored."
+    *
+    * Since we're only concerned with the continue case here, we can ignore
+    * any primary command buffers.
+    */
+   if (level == VK_COMMAND_BUFFER_LEVEL_PRIMARY)
+      return NULL;
+
+   /* From the Vulkan 1.3.295 spec:
+    *
+    *    "This structure can be included in the pNext chain of a
+    *    VkCommandBufferInheritanceInfo structure to specify inherited state
+    *    from the primary command buffer. If
+    *    VkCommandBufferInheritanceInfo::renderPass is not VK_NULL_HANDLE, or
+    *    VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT is not specified in
+    *    VkCommandBufferBeginInfo::flags, members of this structure are
+    *    ignored."
+    *
+    * For the case where a render pass is provided and we're emulating it on
+    * behalf of the driver, the default NULL behavior is sufficient:
+    *
+    *    "If this structure is not included in the pNext chain of
+    *    VkCommandBufferInheritanceInfo, it is equivalent to specifying this
+    *    structure with the following properties:
+    *
+    *     - colorAttachmentCount set to
+    *       VkCommandBufferInheritanceRenderingInfo::colorAttachmentCount.
+    *
+    *     - pColorAttachmentLocations set to NULL."
+    */
+   if (!(pBeginInfo->flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT))
+      return NULL;
+
+   if (pBeginInfo->pInheritanceInfo->renderPass != VK_NULL_HANDLE)
+      return NULL;
+
+   return vk_find_struct_const(pBeginInfo,
+                               RENDERING_ATTACHMENT_LOCATION_INFO_KHR);
+}
+
 VKAPI_ATTR void VKAPI_CALL
 vk_common_DestroyRenderPass(VkDevice _device,
                             VkRenderPass renderPass,

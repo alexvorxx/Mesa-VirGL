@@ -415,6 +415,10 @@ vk_get_command_buffer_inheritance_as_rendering_resume(
    const VkCommandBufferBeginInfo *pBeginInfo,
    void *stack_data);
 
+const VkRenderingAttachmentLocationInfoKHR *
+vk_get_command_buffer_rendering_attachment_location_info(
+   VkCommandBufferLevel level,
+   const VkCommandBufferBeginInfo *pBeginInfo);
 /**
  * Return true if the subpass dependency is framebuffer-local.
  */
