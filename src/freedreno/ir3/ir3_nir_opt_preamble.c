@@ -288,7 +288,7 @@ ir3_nir_opt_preamble(nir_shader *nir, struct ir3_shader_variant *v)
    } else {
       struct ir3_const_state worst_case_const_state = {};
       ir3_setup_const_state(nir, v, &worst_case_const_state);
-      max_size = (ir3_max_const(v) - worst_case_const_state.offsets.immediate) * 4;
+      max_size = ir3_const_state_get_free_space(v, &worst_case_const_state) * 4;
    }
 
    if (max_size == 0)

@@ -560,7 +560,8 @@ ir3_nir_lower_const_global_loads(nir_shader *nir, struct ir3_shader_variant *v)
          .preamble_size = const_state->preamble_size,
       };
       ir3_setup_const_state(nir, v, &worst_case_const_state);
-      max_upload = (ir3_max_const(v) - worst_case_const_state.offsets.immediate) * 16;
+      max_upload =
+         ir3_const_state_get_free_space(v, &worst_case_const_state) * 16;
    }
 
    struct ir3_ubo_analysis_state state = {};
@@ -636,7 +637,7 @@ ir3_nir_analyze_ubo_ranges(nir_shader *nir, struct ir3_shader_variant *v)
    };
    ir3_setup_const_state(nir, v, &worst_case_const_state);
    const uint32_t max_upload =
-      (ir3_max_const(v) - worst_case_const_state.offsets.immediate) * 16;
+      ir3_const_state_get_free_space(v, &worst_case_const_state) * 16;
 
    memset(state, 0, sizeof(*state));
 

@@ -1209,6 +1209,16 @@ ir3_nir_scan_driver_consts(struct ir3_compiler *compiler, nir_shader *shader, st
    }
 }
 
+static unsigned
+ir3_align_constoff(struct ir3_const_state *const_state, unsigned constoff,
+                   unsigned aligment)
+{
+   constoff = align(constoff, aligment);
+   const_state->required_consts_aligment_vec4 =
+      MAX2(const_state->required_consts_aligment_vec4, aligment);
+   return constoff;
+}
+
 /* Sets up the variant-dependent constant state for the ir3_shader.  Note
  * that it is also used from ir3_nir_analyze_ubo_ranges() to figure out the
  * maximum number of driver params that would eventually be used, to leave
@@ -1221,6 +1231,7 @@ ir3_setup_const_state(nir_shader *nir, struct ir3_shader_variant *v,
    struct ir3_compiler *compiler = v->compiler;
 
    memset(&const_state->offsets, ~0, sizeof(const_state->offsets));
+   const_state->required_consts_aligment_vec4 = 1;
 
    ir3_nir_scan_driver_consts(compiler, nir, const_state);
 
@@ -1270,7 +1281,8 @@ ir3_setup_const_state(nir_shader *nir, struct ir3_shader_variant *v,
       /* offset cannot be 0 for vs params loaded by CP_DRAW_INDIRECT_MULTI */
       if (v->type == MESA_SHADER_VERTEX && compiler->gen >= 6)
          constoff = MAX2(constoff, 1);
-      constoff = align(constoff, upload_unit);
+      constoff = ir3_align_constoff(const_state, constoff, upload_unit);
+
       const_state->offsets.driver_param = constoff;
 
       constoff += align(const_state->num_driver_params / 4, upload_unit);
@@ -1321,4 +1333,15 @@ ir3_setup_const_state(nir_shader *nir, struct ir3_shader_variant *v,
    const_state->offsets.immediate = constoff;
 
    assert(constoff <= ir3_max_const(v));
+}
+
+uint32_t
+ir3_const_state_get_free_space(const struct ir3_shader_variant *v,
+                               const struct ir3_const_state *const_state)
+{
+   uint32_t free_space_vec4 = ir3_max_const(v) - const_state->offsets.immediate;
+   free_space_vec4 =
+      (free_space_vec4 / const_state->required_consts_aligment_vec4) *
+      const_state->required_consts_aligment_vec4;
+   return free_space_vec4;
 }
