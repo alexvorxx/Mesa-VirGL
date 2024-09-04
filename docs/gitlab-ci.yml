@@ -8,7 +8,7 @@
       - public/
   script:
     - meson setup _build -D prefix=$(pwd) --auto-features=disabled
-      -D vulkan-drivers="" -D gallium-drivers="" -D glx=disabled
+      -D vulkan-drivers="" -D gallium-drivers="" -D platforms=[] -D glx=disabled
       -D video-codecs="" -D html-docs=enabled -D html-docs-path=public
     - meson compile -C _build
     - meson install -C _build
