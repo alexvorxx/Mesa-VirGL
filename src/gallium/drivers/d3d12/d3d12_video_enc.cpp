@@ -2089,12 +2089,9 @@ d3d12_video_encoder_encode_bitstream(struct pipe_video_codec * codec,
    D3D12_VIDEO_ENCODER_PICTURE_CONTROL_FLAGS picCtrlFlags = D3D12_VIDEO_ENCODER_PICTURE_CONTROL_FLAG_NONE;
 
    // Transition DPB reference pictures to read mode
-   uint32_t                            maxReferences = d3d12_video_encoder_get_current_max_dpb_capacity(pD3D12Enc);
-   std::vector<D3D12_RESOURCE_BARRIER> rgReferenceTransitions(maxReferences);
+   std::vector<D3D12_RESOURCE_BARRIER> rgReferenceTransitions;
    if ((referenceFramesDescriptor.NumTexture2Ds > 0) ||
        (pD3D12Enc->m_upDPBManager->is_current_frame_used_as_reference())) {
-      rgReferenceTransitions.clear();
-      rgReferenceTransitions.reserve(maxReferences);
 
       if (reconPicOutputTextureDesc.pReconstructedPicture != nullptr)
          picCtrlFlags |= D3D12_VIDEO_ENCODER_PICTURE_CONTROL_FLAG_USED_AS_REFERENCE_PICTURE;
@@ -2102,6 +2099,10 @@ d3d12_video_encoder_encode_bitstream(struct pipe_video_codec * codec,
       // Check if array of textures vs texture array
 
       if (referenceFramesDescriptor.pSubresources == nullptr) {
+
+         // Reserve allocation for AoT transitions count
+         rgReferenceTransitions.reserve(static_cast<size_t>(referenceFramesDescriptor.NumTexture2Ds +
+            ((reconPicOutputTextureDesc.pReconstructedPicture != nullptr) ? 1u : 0u)));
 
          // Array of resources mode for reference pictures
 
@@ -2141,6 +2142,10 @@ d3d12_video_encoder_encode_bitstream(struct pipe_video_codec * codec,
                    referenceFramesDescriptor.ppTexture2Ds[refIndex]);
    }
 #endif
+
+         // Reserve allocation for texture array transitions count
+         rgReferenceTransitions.reserve(
+            static_cast<size_t>(pD3D12Enc->m_currentEncodeConfig.m_encodeFormatInfo.PlaneCount * referencesTexArrayDesc.DepthOrArraySize));
 
          for (uint32_t referenceSubresource = 0; referenceSubresource < referencesTexArrayDesc.DepthOrArraySize;
               referenceSubresource++) {
