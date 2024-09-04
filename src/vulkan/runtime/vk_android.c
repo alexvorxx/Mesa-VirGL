@@ -32,7 +32,7 @@
 #include "vk_queue.h"
 #include "vk_util.h"
 
-#include "vulkan/util/vk_enum_defines.h"
+#include "vk_enum_defines.h"
 
 #include "drm-uapi/drm_fourcc.h"
 #include "util/libsync.h"
