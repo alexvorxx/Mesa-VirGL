@@ -2558,7 +2558,6 @@ print_shader_info(const struct shader_info *info, FILE *fp)
 
    print_nz_bool(fp, "uses_texture_gather", info->uses_texture_gather);
    print_nz_bool(fp, "uses_resource_info_query", info->uses_resource_info_query);
-   print_nz_bool(fp, "uses_fddx_fddy", info->uses_fddx_fddy);
    print_nz_bool(fp, "divergence_analysis_run", info->divergence_analysis_run);
 
    print_nz_x8(fp, "bit_sizes_float", info->bit_sizes_float);

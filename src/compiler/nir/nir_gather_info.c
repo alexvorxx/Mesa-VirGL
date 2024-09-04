@@ -769,8 +769,6 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
    case nir_intrinsic_ddy:
    case nir_intrinsic_ddy_fine:
    case nir_intrinsic_ddy_coarse:
-      shader->info.uses_fddx_fddy = true;
-
       if (shader->info.stage == MESA_SHADER_FRAGMENT)
          shader->info.fs.needs_quad_helper_invocations = true;
       break;
@@ -915,9 +913,6 @@ gather_alu_info(nir_alu_instr *instr, nir_shader *shader)
 
       shader->info.fs.needs_quad_helper_invocations = true;
    }
-
-   if (instr->op == nir_op_fddx || instr->op == nir_op_fddy)
-      shader->info.uses_fddx_fddy = true;
 
    const nir_op_info *info = &nir_op_infos[instr->op];
 

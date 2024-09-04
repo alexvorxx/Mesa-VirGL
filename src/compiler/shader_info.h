@@ -183,13 +183,6 @@ typedef struct shader_info {
    /* Whether texture size, levels, or samples is queried. */
    bool uses_resource_info_query:1;
 
-   /**
-    * True if this shader uses the fddx/fddy opcodes.
-    *
-    * Note that this does not include the "fine" and "coarse" variants.
-    */
-   bool uses_fddx_fddy:1;
-
    /** Has divergence analysis ever been run? */
    bool divergence_analysis_run:1;
 
