@@ -1317,7 +1317,7 @@ etna_link_shader(struct etna_shader_link_info *info,
     * binary search could be used because the vs outputs are sorted by their
     * semantic index and grouped by semantic type by fill_in_vs_outputs.
     */
-   assert(fs->infile.num_reg < ETNA_NUM_INPUTS);
+   assert(fs->infile.num_reg <= ETNA_NUM_INPUTS);
    info->pcoord_varying_comp_ofs = -1;
 
    for (int idx = 0; idx < fs->infile.num_reg; ++idx) {
