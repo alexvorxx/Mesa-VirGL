@@ -29,7 +29,7 @@
 
 #include <assert.h>
 
-#include "gfxstream/guest/Gralloc.h"
+#include "gfxstream/guest/GfxStreamGralloc.h"
 #include "vk_format_info.h"
 #include "vk_util.h"
 #include "util/log.h"

@@ -17,7 +17,7 @@
 #include <memory>
 
 #include "VirtGpu.h"
-#include "gfxstream/guest/Gralloc.h"
+#include "gfxstream/guest/GfxStreamGralloc.h"
 
 namespace gfxstream {
 

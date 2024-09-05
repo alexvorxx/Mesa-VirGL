@@ -80,7 +80,7 @@ typedef uint64_t zx_koid_t;
 /// Use installed headers or locally defined Android-specific bits
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #include "AndroidHardwareBuffer.h"
-#include "gfxstream/guest/Gralloc.h"
+#include "gfxstream/guest/GfxStreamGralloc.h"
 #include <android/hardware_buffer.h>
 #endif
 

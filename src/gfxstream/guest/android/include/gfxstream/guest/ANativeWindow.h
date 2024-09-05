@@ -19,7 +19,7 @@
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 
-#include "Gralloc.h"
+#include "GfxStreamGralloc.h"
 
 using EGLClientBuffer = void*;
 
