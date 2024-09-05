@@ -805,6 +805,9 @@ panfrost_emit_depth_stencil(struct panfrost_batch *batch)
 
       assert(rast->base.depth_clip_near == rast->base.depth_clip_far);
       cfg.depth_cull_enable = rast->base.depth_clip_near;
+      cfg.depth_clamp_mode = rast->base.depth_clamp
+                                ? MALI_DEPTH_CLAMP_MODE_BOUNDS
+                                : MALI_DEPTH_CLAMP_MODE_0_1;
    }
 
    pan_merge(dynamic, zsa->desc, DEPTH_STENCIL);
@@ -3323,6 +3326,7 @@ panfrost_create_rasterizer_state(struct pipe_context *pctx,
       cfg.multisample_enable = cso->multisample;
       cfg.fixed_function_near_discard = cso->depth_clip_near;
       cfg.fixed_function_far_discard = cso->depth_clip_far;
+      cfg.fixed_function_depth_range_fixed = !cso->depth_clamp;
       cfg.shader_depth_range_fixed = true;
    }
 
