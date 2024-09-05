@@ -68,6 +68,7 @@ RESOURCE_TRACKER_ENTRIES = [
     "vkResetFences",
     "vkImportFenceFdKHR",
     "vkGetFenceFdKHR",
+    "vkGetFenceStatus",
     "vkWaitForFences",
     "vkCreateDescriptorPool",
     "vkDestroyDescriptorPool",
@@ -323,7 +324,7 @@ class VulkanFuncTable(VulkanWrapperGenerator):
             if retVar:
                 retTypeName = api.getRetTypeExpr()
                 # ex: vkCreateBuffer_VkResult_return = gfxstream_buffer ? VK_SUCCESS : VK_ERROR_OUT_OF_HOST_MEMORY;
-                cgen.stmt("%s = %s ? %s : %s" % 
+                cgen.stmt("%s = %s ? %s : %s" %
                           (retVar, paramNameToObjectName(createParam.paramName), SUCCESS_VAL[retTypeName][0], "VK_ERROR_OUT_OF_HOST_MEMORY"))
             return True
 
@@ -541,7 +542,7 @@ class VulkanFuncTable(VulkanWrapperGenerator):
             if retVar and createdObject:
                 cgen.beginIf("%s == %s" % (SUCCESS_VAL[retTypeName][0], retVar))
             else:
-                cgen.beginBlock()            
+                cgen.beginBlock()
             genEncoderOrResourceTrackerCall()
             cgen.endBlock()
             # Destroy gfxstream objects
