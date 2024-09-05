@@ -541,7 +541,7 @@ build_image_copy_shader(const struct vk_meta_image_copy_key *key)
 
    for (unsigned s = 0; s < key->nr_samples; ++s) {
       nir_def *ms_index = nir_imm_int(b, s);
-      nir_def *value1, *value2;
+      nir_def *value1 = NULL, *value2 = NULL;
 
       nir_push_if(b, nir_ball(b, in_bounds));
       {
