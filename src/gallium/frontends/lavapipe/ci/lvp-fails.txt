@@ -645,7 +645,6 @@ dEQP-VK.dynamic_rendering.primary_cmd_buff.suballocation.formats.r8_sint.input.d
 dEQP-VK.dynamic_rendering.primary_cmd_buff.suballocation.formats.r32g32_sint.input.load.dont_care.clear_draw,Fail
 dEQP-VK.dynamic_rendering.graphics_pipeline_library.dedicated_allocation.formats.r16_sint.input.dont_care.dont_care.clear_draw,Fail
 dEQP-VK.dynamic_rendering.graphics_pipeline_library.dedicated_allocation.formats.a8_unorm_khr.input.dont_care.dont_care.clear_draw,Fail
-dEQP-VK.sparse_resources.image_block_shapes.2d_array.g8b8g8r8_422_unorm.samples_1,Fail
 dEQP-VK.dynamic_rendering.primary_cmd_buff.dedicated_allocation.formats.r16g16b16a16_sfloat.input.clear.dont_care.draw,Fail
 dEQP-VK.dynamic_rendering.primary_cmd_buff.suballocation.formats.a2b10g10r10_unorm_pack32.input.clear.dont_care.clear_draw,Fail
 dEQP-VK.dynamic_rendering.graphics_pipeline_library.suballocation.attachment_allocation.input_output_chain.21,Fail
