@@ -415,9 +415,6 @@ struct radv_dgc_params {
 
    uint8_t const_copy;
 
-   /* Which VBOs are set in this indirect layout. */
-   uint32_t vbo_bind_mask;
-
    uint16_t vbo_reg;
    uint32_t vb_desc_usage_mask;
    uint8_t dynamic_vs_input;
@@ -1258,17 +1255,19 @@ dgc_get_pc_params(struct dgc_cmdbuf *cs)
    struct dgc_pc_params params = {0};
    nir_builder *b = cs->b;
 
-   nir_def *vbo_cnt = nir_bit_count(b, load_param32(b, vb_desc_usage_mask));
-   nir_def *param_offset = nir_imul_imm(b, vbo_cnt, DGC_VBO_INFO_SIZE);
-
    params.buf = radv_meta_load_descriptor(b, 0, 0);
 
    uint32_t offset = 0;
+
    if (layout->pipeline_bind_point == VK_PIPELINE_BIND_POINT_COMPUTE) {
       offset = layout->bind_pipeline ? MAX_SETS * 4 : sizeof(struct radv_compute_pipeline_metadata);
+   } else {
+      if (layout->bind_vbo_mask) {
+         offset += MAX_VBS * DGC_VBO_INFO_SIZE;
+      }
    }
 
-   params.offset = nir_iadd_imm(b, param_offset, offset);
+   params.offset = nir_imm_int(b, offset);
    params.const_offset = nir_iadd_imm(b, params.offset, MESA_VULKAN_SHADER_STAGES * 12);
 
    return params;
@@ -1508,7 +1507,8 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
    const struct radv_indirect_command_layout *layout = cs->layout;
    nir_builder *b = cs->b;
 
-   nir_def *vbo_cnt = nir_bit_count(b, load_param32(b, vb_desc_usage_mask));
+   nir_def *vb_desc_usage_mask = load_param32(b, vb_desc_usage_mask);
+   nir_def *vbo_cnt = nir_bit_count(b, vb_desc_usage_mask);
 
    nir_push_if(b, nir_ine_imm(b, vbo_cnt, 0));
    {
@@ -1520,8 +1520,6 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
    }
    nir_pop_if(b, NULL);
 
-   nir_def *vbo_bind_mask = load_param32(b, vbo_bind_mask);
-
    nir_variable *vbo_idx = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "vbo_idx");
    nir_store_var(b, vbo_idx, nir_imm_int(b, 0), 0x1);
 
@@ -1529,13 +1527,24 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
    {
       nir_def *cur_idx = nir_load_var(b, vbo_idx);
 
-      nir_break_if(b, nir_uge(b, cur_idx, vbo_cnt));
+      nir_break_if(b, nir_uge_imm(b, cur_idx, 32 /* bits in vb_desc_usage_mask */));
+
+      nir_def *l = nir_ishl(b, nir_imm_int(b, 1), cur_idx);
+      nir_push_if(b, nir_ieq_imm(b, nir_iand(b, l, vb_desc_usage_mask), 0));
+      {
+         nir_store_var(b, vbo_idx, nir_iadd_imm(b, cur_idx, 1), 0x1);
+         nir_jump(b, nir_jump_continue);
+      }
+      nir_pop_if(b, NULL);
 
       nir_variable *va_var = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint64_t_type(), "va_var");
       nir_variable *size_var = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "size_var");
       nir_variable *stride_var = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "stride_var");
 
-      nir_def *vbo_override = nir_ine_imm(b, nir_iand(b, vbo_bind_mask, nir_ishl(b, nir_imm_int(b, 1), cur_idx)), 0);
+      nir_def *binding = load_vbo_metadata32(cs, cur_idx, binding);
+
+      nir_def *vbo_override =
+         nir_ine_imm(b, nir_iand(b, nir_imm_int(b, layout->bind_vbo_mask), nir_ishl(b, nir_imm_int(b, 1), binding)), 0);
       nir_push_if(b, vbo_override);
       {
          nir_def *stream_offset = load_vbo_offset(cs, cur_idx);
@@ -2376,7 +2385,7 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
    VK_FROM_HANDLE(radv_pipeline, pipeline, pGeneratedCommandsInfo->pipeline);
    struct radv_graphics_pipeline *graphics_pipeline = radv_pipeline_to_graphics(pipeline);
    struct radv_shader *vs = radv_get_shader(graphics_pipeline->base.shaders, MESA_SHADER_VERTEX);
-   unsigned vb_size = layout->bind_vbo_mask ? util_bitcount(vs->info.vs.vb_desc_usage_mask) * DGC_VBO_INFO_SIZE : 0;
+   unsigned vb_size = layout->bind_vbo_mask ? MAX_VBS * DGC_VBO_INFO_SIZE : 0;
 
    *upload_size = MAX2(*upload_size + vb_size, 16);
 
@@ -2420,14 +2429,9 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
    params->use_per_attribute_vb_descs = layout->bind_vbo_mask && vs->info.vs.use_per_attribute_vb_descs;
 
    if (layout->bind_vbo_mask) {
-      uint32_t mask = vs->info.vs.vb_desc_usage_mask;
-
       uint8_t *ptr = (uint8_t *)((char *)*upload_data);
 
-      unsigned idx = 0;
-      while (mask) {
-         unsigned i = u_bit_scan(&mask);
-
+      for (uint32_t i = 0; i < MAX_VBS; i++) {
          struct radv_vbo_info vbo_info;
          radv_get_vbo_info(cmd_buffer, i, &vbo_info);
 
@@ -2436,9 +2440,6 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
 
          memcpy(ptr, &layout->vbo_offsets[vbo_info.binding], sizeof(uint32_t));
          ptr += sizeof(uint32_t);
-
-         params->vbo_bind_mask |= ((layout->bind_vbo_mask >> vbo_info.binding) & 1u) << idx;
-         ++idx;
       }
       params->vb_desc_usage_mask = vs->info.vs.vb_desc_usage_mask;
       params->vbo_reg = radv_get_user_sgpr(vs, AC_UD_VS_VERTEX_BUFFERS);
