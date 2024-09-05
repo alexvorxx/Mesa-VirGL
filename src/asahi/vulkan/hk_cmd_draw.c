@@ -2849,11 +2849,8 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
    if (dyn->ms.rasterization_samples &&
        gfx->render.tilebuffer.nr_samples != dyn->ms.rasterization_samples) {
 
-      assert(gfx->render.tilebuffer.nr_samples == 0);
-
       unsigned nr_samples = MAX2(dyn->ms.rasterization_samples, 1);
-      gfx->render.tilebuffer.nr_samples = nr_samples;
-      agx_tilebuffer_pack_usc(&gfx->render.tilebuffer);
+      agx_tilebuffer_set_samples(&gfx->render.tilebuffer, nr_samples);
       cs->tib = gfx->render.tilebuffer;
    }
 
