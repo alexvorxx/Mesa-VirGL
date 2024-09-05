@@ -935,7 +935,7 @@ cs_load_to(struct cs_builder *b, struct cs_index dest, struct cs_index address,
            unsigned mask, int offset)
 {
    cs_emit(b, LOAD_MULTIPLE, I) {
-      I.base_register = cs_to_reg_tuple(dest, util_bitcount(mask));
+      I.base_register = cs_to_reg_tuple(dest, util_last_bit(mask));
       I.address = cs_to_reg64(address);
       I.mask = mask;
       I.offset = offset;
@@ -961,7 +961,7 @@ cs_store(struct cs_builder *b, struct cs_index data, struct cs_index address,
          unsigned mask, int offset)
 {
    cs_emit(b, STORE_MULTIPLE, I) {
-      I.base_register = cs_to_reg_tuple(data, util_bitcount(mask));
+      I.base_register = cs_to_reg_tuple(data, util_last_bit(mask));
       I.address = cs_to_reg64(address);
       I.mask = mask;
       I.offset = offset;
