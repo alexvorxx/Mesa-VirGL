@@ -169,21 +169,15 @@ asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
 
    c->iogpu_unk_214 = cs->cr.iogpu_unk_214;
 
-#if 0
-   if (clear_pipeline_textures)
-      c->flags |= ASAHI_RENDER_SET_WHEN_RELOADING_Z_OR_S;
-   else
-      c->flags |= ASAHI_RENDER_NO_CLEAR_PIPELINE_TEXTURES;
-
-   if (zres && !(batch->clear & PIPE_CLEAR_DEPTH))
-      c->flags |= ASAHI_RENDER_SET_WHEN_RELOADING_Z_OR_S;
-
-   if (sres && !(batch->clear & PIPE_CLEAR_STENCIL))
-      c->flags |= ASAHI_RENDER_SET_WHEN_RELOADING_Z_OR_S;
-#endif
-
-   if (dev->dev.debug & AGX_DBG_NOCLUSTER)
+   if (dev->dev.debug & AGX_DBG_NOCLUSTER) {
       c->flags |= ASAHI_RENDER_NO_VERTEX_CLUSTERING;
+   } else {
+      /* XXX: We don't know what this does exactly, and the name is
+       * surely wrong. But it fixes dEQP-VK.memory.pipeline_barrier.* tests on
+       * G14C when clustering is enabled...
+       */
+      c->flags |= ASAHI_RENDER_NO_CLEAR_PIPELINE_TEXTURES;
+   }
 
 #if 0
    /* XXX is this for just MSAA+Z+S or MSAA+(Z|S)? */
