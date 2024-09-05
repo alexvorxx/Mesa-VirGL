@@ -884,6 +884,12 @@ d3d12_video_encoder_update_current_encoder_config_state_hevc(struct d3d12_video_
    // Set rate control
    d3d12_video_encoder_update_current_rate_control_hevc(pD3D12Enc, hevcPic);
 
+   // Set GOP config
+   if(!d3d12_video_encoder_update_hevc_gop_configuration(pD3D12Enc, hevcPic)) {
+      debug_printf("d3d12_video_encoder_update_hevc_gop_configuration failed!\n");
+      return false;
+   }
+
    ///
    /// Check for video encode support detailed capabilities
    ///
@@ -924,12 +930,6 @@ d3d12_video_encoder_update_current_encoder_config_state_hevc(struct d3d12_video_
          pD3D12Enc->m_currentEncodeCapabilities.m_currentResolutionSupportCaps.MaxSubregionsNumber,
          pD3D12Enc->m_currentEncodeConfig.m_currentResolution,
          pD3D12Enc->m_currentEncodeCapabilities.m_currentResolutionSupportCaps.SubregionBlockPixelsSize);
-
-   // Set GOP config
-   if(!d3d12_video_encoder_update_hevc_gop_configuration(pD3D12Enc, hevcPic)) {
-      debug_printf("d3d12_video_encoder_update_hevc_gop_configuration failed!\n");
-      return false;
-   }
 
    // Set intra-refresh config
    if(!d3d12_video_encoder_update_intra_refresh_hevc(pD3D12Enc, srcTextureDesc, hevcPic)) {
