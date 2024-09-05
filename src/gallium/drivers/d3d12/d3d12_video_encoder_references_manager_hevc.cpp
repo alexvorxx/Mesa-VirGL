@@ -34,13 +34,10 @@ bool
 d3d12_video_encoder_references_manager_hevc::get_current_frame_picture_control_data(
    D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA &codecAllocation)
 {
-   assert(codecAllocation.DataSize == sizeof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC));
-
-   if (codecAllocation.DataSize != sizeof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC))
-      return false;
-
-   *codecAllocation.pHEVCPicData = m_curFrameState;
-
+   assert((codecAllocation.DataSize == sizeof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC)) ||
+          (codecAllocation.DataSize == sizeof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC1)));
+   memcpy(codecAllocation.pHEVCPicData1, &m_curFrameState, codecAllocation.DataSize);
+   memset(codecAllocation.pHEVCPicData1 + codecAllocation.DataSize, 0, sizeof(m_curFrameState) - codecAllocation.DataSize);
    return true;
 }
 
@@ -254,7 +251,11 @@ d3d12_video_encoder_references_manager_hevc::begin_frame(D3D12_VIDEO_ENCODER_PIC
                                                          bool bUsedAsReference,
                                                          struct pipe_picture_desc *picture)
 {
-   m_curFrameState = *curFrameData.pHEVCPicData;
+   assert((curFrameData.DataSize == sizeof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC)) ||
+          (curFrameData.DataSize == sizeof(D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC1)));
+   memcpy(&m_curFrameState, curFrameData.pHEVCPicData1, curFrameData.DataSize);
+   memset(&m_curFrameState + curFrameData.DataSize, 0, sizeof(m_curFrameState) - curFrameData.DataSize);
+
    m_isCurrentFrameUsedAsReference = bUsedAsReference;
 
    struct pipe_h265_enc_picture_desc *hevcPic = (struct pipe_h265_enc_picture_desc *) picture;

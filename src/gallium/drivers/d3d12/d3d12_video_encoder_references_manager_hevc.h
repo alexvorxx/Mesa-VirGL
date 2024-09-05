@@ -80,7 +80,7 @@ class d3d12_video_encoder_references_manager_hevc : public d3d12_video_encoder_r
    current_frame_references_data m_CurrentFrameReferencesData;
 
    bool m_isCurrentFrameUsedAsReference = false;
-   D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC m_curFrameState = {};
+   D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC1 m_curFrameState = {};
 };
 
 #endif

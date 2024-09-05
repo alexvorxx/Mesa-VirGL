@@ -700,10 +700,8 @@ d3d12_video_encoder_get_current_picture_param_settings(struct d3d12_video_encode
 #if VIDEO_CODEC_H265ENC
       case PIPE_VIDEO_FORMAT_HEVC:
       {
-         D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA curPicParamsData = {};
-         curPicParamsData.pHEVCPicData = &pD3D12Enc->m_currentEncodeConfig.m_encoderPicParamsDesc.m_HEVCPicData;
-         curPicParamsData.DataSize     = sizeof(pD3D12Enc->m_currentEncodeConfig.m_encoderPicParamsDesc.m_HEVCPicData);
-         return curPicParamsData;
+         return ConvertHEVCPicParamsFromProfile(pD3D12Enc->m_currentEncodeConfig.m_encoderProfileDesc.m_HEVCProfile,
+                                                &pD3D12Enc->m_currentEncodeConfig.m_encoderPicParamsDesc.m_HEVCPicData);
       } break;
 #endif
 #if VIDEO_CODEC_AV1ENC
