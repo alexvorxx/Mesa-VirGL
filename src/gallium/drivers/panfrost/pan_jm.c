@@ -694,6 +694,9 @@ jm_emit_primitive(struct panfrost_batch *batch,
       assert(!cfg.primitive_restart || panfrost_is_implicit_prim_restart(info));
 #endif
 
+      cfg.low_depth_cull = rast->depth_clip_near;
+      cfg.high_depth_cull = rast->depth_clip_far;
+
       cfg.index_count = draw->count;
       cfg.index_type = panfrost_translate_index_size(info->index_size);
 

@@ -115,7 +115,6 @@ panfrost_get_param(struct pipe_screen *screen, enum pipe_cap param)
    case PIPE_CAP_FRAGMENT_SHADER_TEXTURE_LOD:
    case PIPE_CAP_VERTEX_COLOR_UNCLAMPED:
    case PIPE_CAP_DEPTH_CLIP_DISABLE:
-   case PIPE_CAP_DEPTH_CLIP_DISABLE_SEPARATE:
    case PIPE_CAP_MIXED_FRAMEBUFFER_SIZES:
    case PIPE_CAP_FRONTEND_NOOP:
    case PIPE_CAP_SAMPLE_SHADING:
@@ -125,6 +124,10 @@ panfrost_get_param(struct pipe_screen *screen, enum pipe_cap param)
    case PIPE_CAP_SHADER_PACK_HALF_FLOAT:
    case PIPE_CAP_HAS_CONST_BW:
       return 1;
+
+   /* Removed in v9 (Valhall) */
+   case PIPE_CAP_DEPTH_CLIP_DISABLE_SEPARATE:
+      return dev->arch < 9;
 
    case PIPE_CAP_MAX_RENDER_TARGETS:
    case PIPE_CAP_FBFETCH:
