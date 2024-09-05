@@ -137,6 +137,25 @@ agx_build_tilebuffer_layout(const enum pipe_format *formats, uint8_t nr_cbufs,
    return tib;
 }
 
+/*
+ * With attachmentless rendering in Vulkan, the sample count may not known until
+ * draw-time. It's convenient to construct an agx_tilebuffer_layout anyway when
+ * beginning rendering, updating the sample count later. This helper allows the
+ * driver to set the sample count in a partial agx_tilebuffer_layout.
+ *
+ * When doing so, we need to rebuild entirely since e.g. tile size might change.
+ */
+void
+agx_tilebuffer_set_samples(struct agx_tilebuffer_layout *tib,
+                           unsigned nr_samples)
+{
+   assert(tib->nr_samples == 0 && "must not be initialized");
+
+   *tib = agx_build_tilebuffer_layout(tib->logical_format,
+                                      ARRAY_SIZE(tib->logical_format),
+                                      nr_samples, tib->layered);
+}
+
 enum pipe_format
 agx_tilebuffer_physical_format(struct agx_tilebuffer_layout *tib, unsigned rt)
 {
