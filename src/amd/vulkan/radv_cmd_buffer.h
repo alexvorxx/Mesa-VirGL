@@ -704,9 +704,6 @@ void radv_update_color_clear_metadata(struct radv_cmd_buffer *cmd_buffer, const 
 
 unsigned radv_instance_rate_prolog_index(unsigned num_attributes, uint32_t instance_rate_inputs);
 
-void radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs,
-                                   void *vb_ptr);
-
 enum radv_cmd_flush_bits radv_src_access_flush(struct radv_cmd_buffer *cmd_buffer, VkPipelineStageFlags2 src_stages,
                                                VkAccessFlags2 src_flags, const struct radv_image *image);
 

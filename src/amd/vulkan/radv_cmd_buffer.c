@@ -6191,9 +6191,8 @@ radv_get_vbo_info(const struct radv_cmd_buffer *cmd_buffer, uint32_t idx, struct
    }
 }
 
-void
-radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs,
-                              void *vb_ptr)
+static void
+radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs, void *vb_ptr)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
