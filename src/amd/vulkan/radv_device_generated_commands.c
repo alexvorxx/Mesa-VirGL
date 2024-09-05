@@ -413,14 +413,13 @@ struct radv_dgc_params {
    uint16_t task_draw_id_sgpr;
    uint8_t wave32;
 
-   uint8_t vbo_cnt;
-
    uint8_t const_copy;
 
    /* Which VBOs are set in this indirect layout. */
    uint32_t vbo_bind_mask;
 
    uint16_t vbo_reg;
+   uint32_t vb_desc_usage_mask;
    uint8_t dynamic_vs_input;
    uint8_t use_per_attribute_vb_descs;
 
@@ -1259,7 +1258,7 @@ dgc_get_pc_params(struct dgc_cmdbuf *cs)
    struct dgc_pc_params params = {0};
    nir_builder *b = cs->b;
 
-   nir_def *vbo_cnt = load_param8(b, vbo_cnt);
+   nir_def *vbo_cnt = nir_bit_count(b, load_param32(b, vb_desc_usage_mask));
    nir_def *param_offset = nir_imul_imm(b, vbo_cnt, DGC_VBO_INFO_SIZE);
 
    params.buf = radv_meta_load_descriptor(b, 0, 0);
@@ -1509,7 +1508,7 @@ dgc_emit_vertex_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr)
    const struct radv_indirect_command_layout *layout = cs->layout;
    nir_builder *b = cs->b;
 
-   nir_def *vbo_cnt = load_param8(b, vbo_cnt);
+   nir_def *vbo_cnt = nir_bit_count(b, load_param32(b, vb_desc_usage_mask));
 
    nir_push_if(b, nir_ine_imm(b, vbo_cnt, 0));
    {
@@ -2441,7 +2440,7 @@ radv_prepare_dgc_graphics(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedC
          params->vbo_bind_mask |= ((layout->bind_vbo_mask >> vbo_info.binding) & 1u) << idx;
          ++idx;
       }
-      params->vbo_cnt = idx;
+      params->vb_desc_usage_mask = vs->info.vs.vb_desc_usage_mask;
       params->vbo_reg = radv_get_user_sgpr(vs, AC_UD_VS_VERTEX_BUFFERS);
 
       *upload_data = (char *)*upload_data + vb_size;
