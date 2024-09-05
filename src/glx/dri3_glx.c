@@ -189,7 +189,7 @@ dri3_create_drawable(struct glx_screen *base, XID xDrawable,
    pdraw->base.drawable = drawable;
    pdraw->base.psc = &psc->base;
 
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
    has_multibuffer = base->display->has_multibuffer;
 #endif
 

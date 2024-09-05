@@ -2145,7 +2145,6 @@ if host_machine.cpu_family() == 'x86_64' and cc.get_id() == 'gcc'
   endif
 endif
 
-with_dri3_modifiers = false
 with_dri3_explicit_sync = false
 with_xcb_keysyms = false
 if with_platform_x11
@@ -2182,13 +2181,8 @@ if with_platform_x11
   if with_dri_platform == 'drm'
     dep_xcb_dri2 = dependency('xcb-dri2', version : '>= 1.8', required : with_x11_dri2)
 
-    dep_xcb_dri3 = dependency('xcb-dri3')
-    dep_xcb_present = dependency('xcb-present')
-    # until xcb-dri3 has been around long enough to make a hard-dependency:
-    if (dep_xcb_dri3.version().version_compare('>= 1.13') and
-        dep_xcb_present.version().version_compare('>= 1.13'))
-      with_dri3_modifiers = true
-    endif
+    dep_xcb_dri3 = dependency('xcb-dri3', version : '>= 1.13')
+    dep_xcb_present = dependency('xcb-present', version : '>= 1.13')
     if (dep_xcb_dri3.version().version_compare('>= 1.17') and
         dep_xcb_present.version().version_compare('>= 1.17'))
       with_dri3_explicit_sync = true
@@ -2231,9 +2225,6 @@ if with_dri2
 endif
 if with_x11_dri2
   pre_args += '-DHAVE_X11_DRI2'
-endif
-if with_dri3_modifiers
-  pre_args += '-DHAVE_DRI3_MODIFIERS'
 endif
 if with_dri3_explicit_sync
   pre_args += '-DHAVE_DRI3_EXPLICIT_SYNC'

@@ -512,7 +512,7 @@ dri3_handle_present_event(struct loader_dri3_drawable *draw,
          /* If the server tells us that our allocation is suboptimal, we
           * reallocate once.
           */
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
          if (ce->mode == XCB_PRESENT_COMPLETE_MODE_SUBOPTIMAL_COPY &&
              draw->last_present_mode != ce->mode) {
             for (int b = 0; b < ARRAY_SIZE(draw->buffers); b++) {
@@ -1113,7 +1113,7 @@ loader_dri3_swap_buffers_msc(struct loader_dri3_drawable *draw,
        */
       if (draw->cur_blit_source != -1)
          options |= XCB_PRESENT_OPTION_COPY;
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
       if (draw->multiplanes_available)
          options |= XCB_PRESENT_OPTION_SUBOPTIMAL;
 #endif
@@ -1316,7 +1316,7 @@ dri3_linear_format_for_format(struct loader_dri3_drawable *draw, uint32_t format
    }
 }
 
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
 static bool
 has_supported_modifier(struct loader_dri3_drawable *draw, unsigned int format,
                        uint64_t *modifiers, uint32_t count)
@@ -1400,7 +1400,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
       goto no_image;
 
    if (draw->dri_screen_render_gpu == draw->dri_screen_display_gpu) {
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
       if (draw->multiplanes_available) {
          xcb_dri3_get_supported_modifiers_cookie_t mod_cookie;
          xcb_dri3_get_supported_modifiers_reply_t *mod_reply;
@@ -1573,7 +1573,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
    }
 
    pixmap = xcb_generate_id(draw->conn);
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
    if (draw->multiplanes_available &&
        buffer->modifier != DRM_FORMAT_MOD_INVALID) {
       xcb_dri3_pixmap_from_buffers(draw->conn,
@@ -1805,7 +1805,7 @@ loader_dri3_create_image(xcb_connection_t *c,
    return ret;
 }
 
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
 __DRIimage *
 loader_dri3_create_image_from_buffers(xcb_connection_t *c,
                                       xcb_dri3_buffers_from_pixmap_reply_t *bp_reply,
@@ -1854,7 +1854,7 @@ loader_dri3_get_pixmap_buffer(xcb_connection_t *conn, xcb_drawable_t pixmap, __D
                               int *width, int *height, void *loader_data)
 {
    __DRIimage *image;
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
    if (multiplanes_available) {
       xcb_dri3_buffers_from_pixmap_cookie_t bps_cookie;
       xcb_dri3_buffers_from_pixmap_reply_t *bps_reply;

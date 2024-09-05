@@ -293,7 +293,7 @@ wsi_x11_connection_create(struct wsi_device *wsi_dev,
    }
 
    wsi_conn->has_dri3 = dri3_reply->present != 0;
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
    if (wsi_conn->has_dri3) {
       xcb_dri3_query_version_cookie_t ver_cookie;
       xcb_dri3_query_version_reply_t *ver_reply;
@@ -309,7 +309,7 @@ wsi_x11_connection_create(struct wsi_device *wsi_dev,
 #endif
 
    wsi_conn->has_present = pres_reply->present != 0;
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
    if (wsi_conn->has_present) {
       xcb_present_query_version_cookie_t ver_cookie;
       xcb_present_query_version_reply_t *ver_reply;
@@ -1236,7 +1236,7 @@ x11_get_wsi_image(struct wsi_swapchain *wsi_chain, uint32_t image_index)
    struct x11_swapchain *chain = (struct x11_swapchain *)wsi_chain;
    return &chain->images[image_index].base;
 }
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
 static bool
 wsi_x11_swapchain_query_dri3_modifiers_changed(struct x11_swapchain *chain);
 #endif
@@ -1339,7 +1339,7 @@ x11_handle_dri3_present_event(struct x11_swapchain *chain,
           */
          chain->copy_is_suboptimal = true;
          break;
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
       case XCB_PRESENT_COMPLETE_MODE_SUBOPTIMAL_COPY:
          /* The winsys is now trying to flip directly and cannot due to our
           * configuration. Request the user reallocate.
@@ -1399,10 +1399,8 @@ x11_present_to_x11_dri3(struct x11_swapchain *chain, uint32_t image_index,
       && chain->has_async_may_tear)
       options |= XCB_PRESENT_OPTION_ASYNC_MAY_TEAR;
 
-#ifdef HAVE_DRI3_MODIFIERS
    if (chain->has_dri3_modifiers)
       options |= XCB_PRESENT_OPTION_SUBOPTIMAL;
-#endif
 
    xshmfence_reset(image->shm_fence);
 
@@ -2101,7 +2099,6 @@ x11_image_init(VkDevice device_h, struct x11_swapchain *chain,
    }
    image->pixmap = xcb_generate_id(chain->conn);
 
-#ifdef HAVE_DRI3_MODIFIERS
    if (image->base.drm_modifier != DRM_FORMAT_MOD_INVALID) {
       /* If the image has a modifier, we must have DRI3 v1.2. */
       assert(chain->has_dri3_modifiers);
@@ -2136,9 +2133,7 @@ x11_image_init(VkDevice device_h, struct x11_swapchain *chain,
                                               chain->depth, bpp,
                                               image->base.drm_modifier,
                                               fds);
-   } else
-#endif
-   {
+   } else {
       /* Without passing modifiers, we can't have multi-plane RGB images. */
       assert(image->base.num_planes == 1);
 
@@ -2282,7 +2277,7 @@ wsi_x11_get_dri3_modifiers(struct wsi_x11_connection *wsi_conn,
    if (!wsi_conn->has_dri3_modifiers)
       goto out;
 
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
    xcb_generic_error_t *error = NULL;
    xcb_dri3_get_supported_modifiers_cookie_t mod_cookie =
       xcb_dri3_get_supported_modifiers(conn, window, depth, bpp);
@@ -2346,7 +2341,7 @@ wsi_x11_get_dri3_modifiers(struct wsi_x11_connection *wsi_conn,
 out:
    *num_tranches_in = 0;
 }
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
 static bool
 wsi_x11_swapchain_query_dri3_modifiers_changed(struct x11_swapchain *chain)
 {

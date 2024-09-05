@@ -1787,7 +1787,7 @@ dri2_x11_check_multibuffers(_EGLDisplay *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
    bool err;
    dri2_dpy->multibuffers_available = x11_dri3_check_multibuffer(dri2_dpy->conn, &err, &dri2_dpy->explicit_modifiers);
 

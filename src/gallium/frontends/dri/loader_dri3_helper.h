@@ -256,7 +256,7 @@ loader_dri3_create_image(xcb_connection_t *c,
                          __DRIscreen *dri_screen,
                          void *loaderPrivate);
 
-#ifdef HAVE_DRI3_MODIFIERS
+#ifdef HAVE_X11_DRM
 PUBLIC __DRIimage *
 loader_dri3_create_image_from_buffers(xcb_connection_t *c,
                                       xcb_dri3_buffers_from_pixmap_reply_t *bp_reply,
