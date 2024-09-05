@@ -2620,6 +2620,10 @@ x11_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
    }
 #endif
 
+#ifdef HAVE_X11_DRM
+   struct wsi_drm_image_params drm_image_params;
+   uint32_t num_modifiers[2] = {0, 0};
+#endif
    struct wsi_base_image_params *image_params = NULL;
    struct wsi_cpu_image_params cpu_image_params;
    uint64_t *modifiers[2] = {NULL, NULL};
@@ -2631,8 +2635,7 @@ x11_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
       image_params = &cpu_image_params.base;
    } else {
 #ifdef HAVE_X11_DRM
-      uint32_t num_modifiers[2] = {0, 0};
-      struct wsi_drm_image_params drm_image_params = {
+      drm_image_params = (struct wsi_drm_image_params) {
          .base.image_type = WSI_IMAGE_TYPE_DRM,
          .same_gpu = wsi_x11_check_dri3_compatible(wsi_device, conn),
          .explicit_sync =
