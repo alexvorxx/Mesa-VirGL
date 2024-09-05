@@ -245,7 +245,11 @@ nvkmd_mem_map(struct nvkmd_mem *mem, struct vk_object_base *log_obj,
 
       VkResult result = VK_SUCCESS;
       if (mem->map == NULL) {
-         result = mem->ops->map(mem, log_obj, flags, NULL, &map);
+         /* We always map read/write for internal maps since they're reference
+          * counted and otherwise we don't have a good way to add permissions
+          * after the fact.
+          */
+         result = mem->ops->map(mem, log_obj, NVKMD_MEM_MAP_RDWR, NULL, &map);
          if (result == VK_SUCCESS)
             mem->map = map;
       } else {
