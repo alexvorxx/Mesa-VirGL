@@ -673,6 +673,12 @@ agx_emit_local_load_pixel(agx_builder *b, agx_index dest,
    agx_emit_cached_split(b, dest, nr_comps);
 }
 
+static bool
+nir_is_coherent(nir_intrinsic_instr *instr)
+{
+   return nir_intrinsic_access(instr) & (ACCESS_COHERENT | ACCESS_VOLATILE);
+}
+
 static void
 agx_emit_load(agx_builder *b, agx_index dest, nir_intrinsic_instr *instr)
 {
@@ -686,7 +692,8 @@ agx_emit_load(agx_builder *b, agx_index dest, nir_intrinsic_instr *instr)
       offset = agx_abs(offset);
 
    agx_device_load_to(b, dest, addr, offset, fmt,
-                      BITFIELD_MASK(instr->def.num_components), shift);
+                      BITFIELD_MASK(instr->def.num_components), shift,
+                      nir_is_coherent(instr));
    agx_emit_cached_split(b, dest, instr->def.num_components);
 }
 
@@ -704,7 +711,7 @@ agx_emit_store(agx_builder *b, nir_intrinsic_instr *instr)
 
    agx_device_store(b, agx_recollect_vector(b, instr->src[0]), addr, offset,
                     fmt, BITFIELD_MASK(nir_src_num_components(instr->src[0])),
-                    shift);
+                    shift, nir_is_coherent(instr));
 }
 
 /* Preambles write directly to uniform registers, so move from uniform to GPR */
@@ -1092,7 +1099,7 @@ agx_emit_image_load(agx_builder *b, agx_index dst, nir_intrinsic_instr *intr)
 
    agx_instr *I = agx_image_load_to(
       b, tmp, coords, lod, bindless, texture, agx_immediate(0), agx_null(),
-      agx_tex_dim(dim, is_array), lod_mode, 0, false);
+      agx_tex_dim(dim, is_array), lod_mode, 0, false, nir_is_coherent(intr));
    I->mask = agx_expand_tex_to(b, &intr->def, tmp, true);
 
    b->shader->out->uses_txf = true;
@@ -1195,7 +1202,8 @@ agx_emit_image_store(agx_builder *b, nir_intrinsic_instr *instr)
    /* Image stores act like tilebuffer stores when used for tib spilling */
    b->shader->out->tag_write_disable = false;
 
-   return agx_image_write(b, data, coords, lod, base, index, dim);
+   return agx_image_write(b, data, coords, lod, base, index, dim,
+                          nir_is_coherent(instr));
 }
 
 static enum agx_simd_op

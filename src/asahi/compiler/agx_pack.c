@@ -731,7 +731,7 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
       unsigned O = agx_pack_memory_index(I, I->src[offset_src], &Ot);
       unsigned u1 = is_uniform_store ? 0 : 1; // XXX
       unsigned u3 = 0;
-      unsigned u4 = is_uniform_store ? 0 : 4; // XXX
+      unsigned u4 = is_uniform_store ? 0 : I->coherent ? 7 : 4;
       unsigned u5 = 0;
       bool L = true; /* TODO: when would you want short? */
 
@@ -856,7 +856,7 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
 
       unsigned q1 = I->shadow;
       unsigned q2 = I->query_lod ? 2 : 0;
-      unsigned q3 = 12;  // XXX
+      unsigned q3 = 0xc; // XXX
       unsigned kill = 0; // helper invocation kill bit
 
       /* Set bit 43 for image loads. This seems to makes sure that image loads
@@ -868,8 +868,14 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
        * Apple seems to set this bit unconditionally for read/write image loads
        * and never for readonly image loads. Some sort of cache control.
        */
-      if (I->op == AGX_OPCODE_IMAGE_LOAD)
+      if (I->op == AGX_OPCODE_IMAGE_LOAD) {
          q3 |= 1;
+
+         /* Cache bypass for multidie coherency */
+         if (I->coherent) {
+            q3 |= 2;
+         }
+      }
 
       uint32_t extend = ((U & BITFIELD_MASK(5)) << 0) | (kill << 5) |
                         ((I->dim >> 3) << 7) | ((R >> 6) << 8) |
@@ -917,6 +923,8 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
       pack_assert(I, T < (1 << 8));
       pack_assert(I, Tt < (1 << 2));
 
+      unsigned coherency = I->coherent ? 0xf : 0x9;
+
       uint64_t raw = agx_opcodes_info[I->op].encoding.exact |
                      (Rt ? (1 << 8) : 0) | ((R & BITFIELD_MASK(6)) << 9) |
                      ((C & BITFIELD_MASK(6)) << 16) | (Ct ? (1 << 22) : 0) |
@@ -924,8 +932,8 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
                      (((uint64_t)(T & BITFIELD_MASK(6))) << 32) |
                      (((uint64_t)Tt) << 38) |
                      (((uint64_t)I->dim & BITFIELD_MASK(3)) << 40) |
-                     (Cs ? (1ull << 47) : 0) | (((uint64_t)U) << 48) |
-                     (rtz ? (1ull << 53) : 0) |
+                     (((uint64_t)coherency) << 43) | (Cs ? (1ull << 47) : 0) |
+                     (((uint64_t)U) << 48) | (rtz ? (1ull << 53) : 0) |
                      ((I->dim & BITFIELD_BIT(4)) ? (1ull << 55) : 0) |
                      (((uint64_t)R >> 6) << 56) | (((uint64_t)C >> 6) << 58) |
                      (((uint64_t)D >> 6) << 60) | (((uint64_t)T >> 6) << 62);

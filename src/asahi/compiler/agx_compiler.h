@@ -373,6 +373,9 @@ typedef struct {
    /* TODO: Handle iter ops more efficient */
    enum agx_interpolation interpolation : 2;
 
+   /* TODO: Handle loads more efficiently */
+   bool coherent : 1;
+
    /* Final st_vary op */
    bool last : 1;
 

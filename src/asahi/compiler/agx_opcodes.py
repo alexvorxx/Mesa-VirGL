@@ -106,6 +106,7 @@ GATHER = enum("gather", {
 OFFSET = immediate("offset", "bool")
 SHADOW = immediate("shadow", "bool")
 QUERY_LOD = immediate("query_lod", "bool")
+COHERENT = immediate("coherent", "bool")
 SCOREBOARD = immediate("scoreboard")
 ICOND = immediate("icond", "enum agx_icond")
 FCOND = immediate("fcond", "enum agx_fcond")
@@ -310,15 +311,16 @@ op("texture_sample",
       srcs = 6, imms = [DIM, LOD_MODE, MASK, SCOREBOARD, OFFSET, SHADOW,
                         QUERY_LOD, GATHER])
 for memory, can_reorder in [("texture", True), ("image", False)]:
+    coherency = [COHERENT] if not can_reorder else []
     op(f"{memory}_load", encoding_32 = (0x71, 0x7F, 8, 10), # XXX WRONG SIZE
-       srcs = 6, imms = [DIM, LOD_MODE, MASK, SCOREBOARD, OFFSET],
+       srcs = 6, imms = [DIM, LOD_MODE, MASK, SCOREBOARD, OFFSET] + coherency,
        can_reorder = can_reorder,
        schedule_class = "none" if can_reorder else "load")
 
 # sources are base, index
 op("device_load",
       encoding_32 = (0x05, 0x7F, 6, 8),
-      srcs = 2, imms = [FORMAT, MASK, SHIFT, SCOREBOARD], can_reorder = False,
+      srcs = 2, imms = [FORMAT, MASK, SHIFT, SCOREBOARD, COHERENT], can_reorder = False,
       schedule_class = "load")
 
 # sources are base (relative to workgroup memory), index
@@ -331,7 +333,7 @@ op("local_load",
 # TODO: Consider permitting the short form
 op("device_store",
       encoding_32 = (0x45 | (1 << 47), 0, 8, _),
-      dests = 0, srcs = 3, imms = [FORMAT, MASK, SHIFT, SCOREBOARD], can_eliminate = False,
+      dests = 0, srcs = 3, imms = [FORMAT, MASK, SHIFT, SCOREBOARD, COHERENT], can_eliminate = False,
       schedule_class = "store")
 
 # sources are value, base, index
@@ -432,8 +434,8 @@ op("signal_pix", (0x58, 0xFF, 4, _), dests = 0, imms = [WRITEOUT],
 
 # Sources are the data vector, the coordinate vector, the LOD, the bindless
 # table if present (zero for texture state registers), and texture index.
-op("image_write", (0xF1 | (1 << 23) | (9 << 43), 0xFF, 6, 8), dests = 0, srcs = 5, imms
-   = [DIM], can_eliminate = False, schedule_class = "store")
+op("image_write", (0xF1 | (1 << 23), 0xFF, 6, 8), dests = 0, srcs = 5, imms
+   = [DIM, COHERENT], can_eliminate = False, schedule_class = "store")
 
 # Sources are the image base, image index, the offset within shared memory, and
 # the coordinates (or just the layer if implicit).
