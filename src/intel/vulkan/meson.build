@@ -333,5 +333,7 @@ if with_tests
     ),
     suite : ['intel'],
     protocol : 'gtest',
+    is_parallel : false,
+    timeout : 60,
   )
 endif
