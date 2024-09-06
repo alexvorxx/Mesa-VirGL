@@ -471,25 +471,37 @@ d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,
                               struct pipe_picture_desc *picture,
                               const struct pipe_video_buffer *templat)
 {
-   // Indicate to the d3d12 resource creation path this needs decode/encode reference only resource flags
    pipe_video_buffer tmpl = *templat;
-   if (codec->entrypoint == PIPE_VIDEO_ENTRYPOINT_BITSTREAM)
-      tmpl.bind |= PIPE_BIND_VIDEO_DECODE_DPB;
-   else if (codec->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE)
-      tmpl.bind |= PIPE_BIND_VIDEO_ENCODE_DPB;
 
-   struct d3d12_video_encoder *pD3D12Enc = (struct d3d12_video_encoder *) codec;
-   assert(pD3D12Enc);
+   //
+   // Check if the IHV requires texture array or opaque reference only allocations
+   //
+   bool bTextureArray = false;
+   if (codec->entrypoint == PIPE_VIDEO_ENTRYPOINT_BITSTREAM) {
+      struct d3d12_video_decoder *pD3D12Dec = (struct d3d12_video_decoder *) codec;
 
-   if (pD3D12Enc->m_currentEncodeCapabilities.m_SupportFlags &
-      D3D12_VIDEO_ENCODER_SUPPORT_FLAG_RECONSTRUCTED_FRAMES_REQUIRE_TEXTURE_ARRAYS)
-   {
+      if (pD3D12Dec->m_ConfigDecoderSpecificFlags &
+         d3d12_video_decode_config_specific_flag_reference_only_textures_required)
+         tmpl.bind |= PIPE_BIND_VIDEO_DECODE_DPB;
+
+      bTextureArray = ((pD3D12Dec->m_ConfigDecoderSpecificFlags &
+         d3d12_video_decode_config_specific_flag_array_of_textures) == 0);
+
+   } else if (codec->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE) {
+      struct d3d12_video_encoder *pD3D12Enc = (struct d3d12_video_encoder *) codec;
+
+      if ((pD3D12Enc->m_currentEncodeCapabilities.m_SupportFlags &
+           D3D12_VIDEO_ENCODER_SUPPORT_FLAG_READABLE_RECONSTRUCTED_PICTURE_LAYOUT_AVAILABLE) == 0)
+         tmpl.bind |= PIPE_BIND_VIDEO_ENCODE_DPB;
+
+      bTextureArray = (pD3D12Enc->m_currentEncodeCapabilities.m_SupportFlags &
+         D3D12_VIDEO_ENCODER_SUPPORT_FLAG_RECONSTRUCTED_FRAMES_REQUIRE_TEXTURE_ARRAYS);
+   }
+
+   if (bTextureArray)
       return d3d12_video_create_dpb_buffer_texarray(codec, picture, &tmpl);
-   }
    else
-   {
       return d3d12_video_create_dpb_buffer_aot(codec, picture, &tmpl);
-   }
 }
 
 struct pipe_video_buffer*
