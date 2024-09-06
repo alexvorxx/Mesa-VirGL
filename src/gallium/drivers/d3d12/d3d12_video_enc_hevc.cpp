@@ -1136,6 +1136,7 @@ d3d12_video_encoder_update_current_encoder_config_state_hevc(struct d3d12_video_
       pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_sequence_header;
    }
    pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificSequenceStateDescH265 = hevcPic->seq;
+   pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificPictureStateDescH265 = hevcPic->pic;
 
    // Iterate over the headers the app requested and set flags to emit those for this frame
    util_dynarray_foreach(&hevcPic->raw_headers, struct pipe_enc_raw_header, header) {
@@ -1458,7 +1459,8 @@ d3d12_video_encoder_build_codec_headers_hevc(struct d3d12_video_encoder *pD3D12E
    }
 
    size_t writtenPPSBytesCount = 0;
-   HevcPicParameterSet tentative_pps = pHEVCBitstreamBuilder->build_pps(pHEVCBitstreamBuilder->get_active_sps(),
+   HevcPicParameterSet tentative_pps = pHEVCBitstreamBuilder->build_pps(pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificPictureStateDescH265,
+                                                                        pHEVCBitstreamBuilder->get_active_sps(),
                                                                         currentPicParams.pHEVCPicData->slice_pic_parameter_set_id,
                                                                         *codecConfigDesc.pHEVCConfig,
                                                                         *currentPicParams.pHEVCPicData1,

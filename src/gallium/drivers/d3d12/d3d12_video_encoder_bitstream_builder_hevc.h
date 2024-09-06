@@ -57,7 +57,8 @@ class d3d12_video_bitstream_builder_hevc : public d3d12_video_bitstream_builder_
                                  std::vector<BYTE>::iterator placingPositionStart,
                                  size_t &writtenBytes);
 
-   HevcPicParameterSet build_pps(const HevcSeqParameterSet& parentSPS,
+   HevcPicParameterSet build_pps(const struct pipe_h265_enc_pic_param & picData,
+                                 const HevcSeqParameterSet& parentSPS,
                                  uint8_t pic_parameter_set_id,
                                  const D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_HEVC& codecConfig,
                                  const D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC1& pictureControl,

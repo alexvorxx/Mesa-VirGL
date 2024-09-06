@@ -416,8 +416,32 @@ d3d12_video_nalu_writer_hevc::write_sps_bytes(d3d12_video_encoder_bitstream *pBi
         pBitstream->exp_Golomb_ue(pSPS->vui.log2_max_mv_length_vertical);
     }
 
-    //  pSps_extension_flag
-    pBitstream->put_bits(1, 0);
+    // Set sps_extension_present_flag if sps_range_extension_flag present
+    pSPS->sps_extension_present_flag = pSPS->sps_range_extension.sps_range_extension_flag ? 1u : 0u;
+
+    pBitstream->put_bits(1, pSPS->sps_extension_present_flag);
+    if (pSPS->sps_extension_present_flag)
+    {
+        pBitstream->put_bits(1, pSPS->sps_range_extension.sps_range_extension_flag);
+        pBitstream->put_bits(1, 0);// sps_multilayer_extension_flag u(1)
+        pBitstream->put_bits(1, 0);// sps_3d_extension_flag u(1)
+        pBitstream->put_bits(1, 0);// sps_scc_extension_flag u(1)
+        pBitstream->put_bits(4, 0);// sps_extension_4bits u(4)
+    }
+
+    if (pSPS->sps_range_extension.sps_range_extension_flag)
+    {
+        // sps_range_extension( )
+        pBitstream->put_bits(1, pSPS->sps_range_extension.transform_skip_rotation_enabled_flag);
+        pBitstream->put_bits(1, pSPS->sps_range_extension.transform_skip_context_enabled_flag);
+        pBitstream->put_bits(1, pSPS->sps_range_extension.implicit_rdpcm_enabled_flag);
+        pBitstream->put_bits(1, pSPS->sps_range_extension.explicit_rdpcm_enabled_flag);
+        pBitstream->put_bits(1, pSPS->sps_range_extension.extended_precision_processing_flag);
+        pBitstream->put_bits(1, pSPS->sps_range_extension.intra_smoothing_disabled_flag);
+        pBitstream->put_bits(1, pSPS->sps_range_extension.high_precision_offsets_enabled_flag);
+        pBitstream->put_bits(1, pSPS->sps_range_extension.persistent_rice_adaptation_enabled_flag);
+        pBitstream->put_bits(1, pSPS->sps_range_extension.cabac_bypass_alignment_enabled_flag);
+    }
 
     rbsp_trailing(pBitstream);
     pBitstream->flush();
@@ -503,8 +527,37 @@ d3d12_video_nalu_writer_hevc::write_pps_bytes(d3d12_video_encoder_bitstream *pBi
     pBitstream->exp_Golomb_ue(pPPS->log2_parallel_merge_level_minus2);
     pBitstream->put_bits(1, pPPS->slice_segment_header_extension_present_flag);
 
-    //pps_extension_flag
-    pBitstream->put_bits(1, 0);
+    // Set pps_extension_present_flag if sps_range_extension_flag present
+    pPPS->pps_extension_present_flag = pPPS->pps_range_extension.pps_range_extension_flag ? 1u : 0u;
+
+    pBitstream->put_bits(1, pPPS->pps_extension_present_flag);
+    if (pPPS->pps_extension_present_flag)
+    {
+        pBitstream->put_bits(1, pPPS->pps_range_extension.pps_range_extension_flag);
+        pBitstream->put_bits(1, 0);// pps_multilayer_extension_flag u(1)
+        pBitstream->put_bits(1, 0);// pps_3d_extension_flag u(1)
+        pBitstream->put_bits(1, 0);// pps_scc_extension_flag u(1)
+        pBitstream->put_bits(4, 0);// pps_extension_4bits u(4)
+    }
+
+    if (pPPS->pps_range_extension.pps_range_extension_flag)
+    {
+        // pps_range_extension( )
+        if( pPPS->transform_skip_enabled_flag )
+            pBitstream->exp_Golomb_ue(pPPS->pps_range_extension.log2_max_transform_skip_block_size_minus2);
+        pBitstream->put_bits(1, pPPS->pps_range_extension.cross_component_prediction_enabled_flag);
+        pBitstream->put_bits(1, pPPS->pps_range_extension.chroma_qp_offset_list_enabled_flag);
+        if(pPPS->pps_range_extension.chroma_qp_offset_list_enabled_flag) {
+            pBitstream->exp_Golomb_ue(pPPS->pps_range_extension.diff_cu_chroma_qp_offset_depth);
+            pBitstream->exp_Golomb_ue(pPPS->pps_range_extension.chroma_qp_offset_list_len_minus1);
+            for( unsigned i = 0; i <= pPPS->pps_range_extension.chroma_qp_offset_list_len_minus1; i++ ) {
+                pBitstream->exp_Golomb_se(pPPS->pps_range_extension.cb_qp_offset_list[i]);
+                pBitstream->exp_Golomb_se(pPPS->pps_range_extension.cr_qp_offset_list[i]);
+            }
+        }
+        pBitstream->exp_Golomb_ue(pPPS->pps_range_extension.log2_sao_offset_scale_luma);
+        pBitstream->exp_Golomb_ue(pPPS->pps_range_extension.log2_sao_offset_scale_chroma);
+    }
 
     rbsp_trailing(pBitstream);
     pBitstream->flush();
@@ -605,8 +658,67 @@ d3d12_video_nalu_writer_hevc::write_profile_tier_level(d3d12_video_encoder_bitst
     rbsp->put_bits(1, ptl->general_interlaced_source_flag);
     rbsp->put_bits(1, ptl->general_non_packed_constraint_flag);
     rbsp->put_bits(1, ptl->general_frame_only_constraint_flag);
-    rbsp->put_bits(31, 0); //first 31 bits of general_reserved_zero_44bits
-    rbsp->put_bits(13, 0); //last 13 bits of general_reserved_zero_44bits
+    if( (ptl->general_profile_idc == 4) || ptl->general_profile_compatibility_flag[4]  ||
+        (ptl->general_profile_idc == 5) || ptl->general_profile_compatibility_flag[5]  ||
+        (ptl->general_profile_idc == 6) || ptl->general_profile_compatibility_flag[6]  ||
+        (ptl->general_profile_idc == 7) || ptl->general_profile_compatibility_flag[7]  ||
+        (ptl->general_profile_idc == 8) || ptl->general_profile_compatibility_flag[8]  ||
+        (ptl->general_profile_idc == 9) || ptl->general_profile_compatibility_flag[9]  ||
+        (ptl->general_profile_idc == 10) || ptl->general_profile_compatibility_flag[10] ||
+        (ptl->general_profile_idc == 11) || ptl->general_profile_compatibility_flag[11])
+    {
+        rbsp->put_bits(1, ptl->general_max_12bit_constraint_flag);
+        rbsp->put_bits(1, ptl->general_max_10bit_constraint_flag);
+        rbsp->put_bits(1, ptl->general_max_8bit_constraint_flag);
+        rbsp->put_bits(1, ptl->general_max_422chroma_constraint_flag);
+        rbsp->put_bits(1, ptl->general_max_420chroma_constraint_flag);
+        rbsp->put_bits(1, ptl->general_max_monochrome_constraint_flag);
+        rbsp->put_bits(1, ptl->general_intra_constraint_flag);
+        rbsp->put_bits(1, ptl->general_one_picture_only_constraint_flag);
+        rbsp->put_bits(1, ptl->general_lower_bit_rate_constraint_flag);
+        if( (ptl->general_profile_idc == 5) || ptl->general_profile_compatibility_flag[5] ||
+            (ptl->general_profile_idc == 9) || ptl->general_profile_compatibility_flag[9] ||
+            (ptl->general_profile_idc == 10) || ptl->general_profile_compatibility_flag[10] ||
+            (ptl->general_profile_idc == 11) || ptl->general_profile_compatibility_flag[11])
+            {
+                rbsp->put_bits(1, ptl->general_max_14bit_constraint_flag);
+                rbsp->put_bits(33, 0); // general_reserved_zero_33bits u(33)
+            }
+            else
+            {
+                rbsp->put_bits(32, 0); // general_reserved_zero_34bits u(34)
+                rbsp->put_bits(2, 0); // general_reserved_zero_34bits u(34)
+            }
+
+    }
+    else if( (ptl->general_profile_idc == 2) || ptl->general_profile_compatibility_flag[2])
+    {
+        rbsp->put_bits(7, 0); // general_reserved_zero_7bits
+        rbsp->put_bits(1, ptl->general_one_picture_only_constraint_flag);
+        rbsp->put_bits(32, 0); // general_reserved_zero_35bits u(35)
+        rbsp->put_bits(3, 0); // general_reserved_zero_35bits u(35)
+    }
+    else
+    {
+        rbsp->put_bits(32, 0); // general_reserved_zero_43bits u(43)
+        rbsp->put_bits(11, 0); // general_reserved_zero_43bits u(43)
+    }
+
+    if( (ptl->general_profile_idc == 1) || ptl->general_profile_compatibility_flag[ 1 ] ||
+        (ptl->general_profile_idc == 2) || ptl->general_profile_compatibility_flag[ 2 ] ||
+        (ptl->general_profile_idc == 3) || ptl->general_profile_compatibility_flag[ 3 ] ||
+        (ptl->general_profile_idc == 4) || ptl->general_profile_compatibility_flag[ 4 ] ||
+        (ptl->general_profile_idc == 5) || ptl->general_profile_compatibility_flag[ 5 ] ||
+        (ptl->general_profile_idc == 9) || ptl->general_profile_compatibility_flag[ 9 ] ||
+        (ptl->general_profile_idc == 11) || ptl->general_profile_compatibility_flag[ 11 ] )
+    {
+        rbsp->put_bits(1, ptl->general_inbld_flag);
+    }
+    else
+    {
+        rbsp->put_bits(1, 0); // general_reserved_zero_bit u(1)
+    }
+
     rbsp->put_bits(8, ptl->general_level_idc);
 }
 
