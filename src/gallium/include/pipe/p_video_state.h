@@ -1023,6 +1023,19 @@ struct pipe_h265_enc_seq_param
    struct pipe_h265_profile_tier_level profile_tier_level;
    struct pipe_h265_enc_hrd_params hrd_parameters;
    struct pipe_h265_st_ref_pic_set st_ref_pic_set[PIPE_H265_MAX_ST_REF_PIC_SETS];
+   struct {
+      uint32_t sps_range_extension_flag;
+      uint32_t transform_skip_rotation_enabled_flag: 1;
+      uint32_t transform_skip_context_enabled_flag: 1;
+      uint32_t implicit_rdpcm_enabled_flag: 1;
+      uint32_t explicit_rdpcm_enabled_flag: 1;
+      uint32_t extended_precision_processing_flag: 1;
+      uint32_t intra_smoothing_disabled_flag: 1;
+      uint32_t high_precision_offsets_enabled_flag: 1;
+      uint32_t persistent_rice_adaptation_enabled_flag: 1;
+      uint32_t cabac_bypass_alignment_enabled_flag: 1;
+   } sps_range_extension;
+   uint8_t separate_colour_plane_flag;
 };
 
 struct pipe_h265_enc_pic_param
@@ -1058,6 +1071,18 @@ struct pipe_h265_enc_pic_param
    int8_t pps_cr_qp_offset;
    int8_t pps_beta_offset_div2;
    int8_t pps_tc_offset_div2;
+   struct {
+      uint8_t pps_range_extension_flag;
+      uint32_t log2_max_transform_skip_block_size_minus2;
+      uint32_t cross_component_prediction_enabled_flag: 1;
+      uint32_t chroma_qp_offset_list_enabled_flag: 1;
+      uint32_t diff_cu_chroma_qp_offset_depth;
+      uint32_t chroma_qp_offset_list_len_minus1;
+      int32_t cb_qp_offset_list[6];
+      int32_t cr_qp_offset_list[6];
+      uint32_t log2_sao_offset_scale_luma;
+      uint32_t log2_sao_offset_scale_chroma;
+   } pps_range_extension;
 };
 
 struct pipe_h265_enc_slice_param
@@ -2354,6 +2379,95 @@ union pipe_enc_cap_surface_alignment {
       uint32_t reserved                             : 24;
    } bits;
    uint32_t value;
+};
+
+/* To be used with PIPE_VIDEO_CAP_ENC_HEVC_RANGE_EXTENSION_SUPPORT */
+union pipe_h265_enc_cap_range_extension {
+   struct {
+      /* Driver output. A bitmask indicating which values are allowed to be configured when encoding with diff_cu_chroma_qp_offset_depth.
+      * Codec valid range for support for diff_cu_chroma_qp_offset_depth is [0, 3].
+      * For driver to indicate that value is supported, it must set the following in the reported bitmask.
+      * supported_diff_cu_chroma_qp_offset_depth_values |= (1 << value)
+      */
+      uint32_t supported_diff_cu_chroma_qp_offset_depth_values: 4;
+      /* Driver output. A bitmask indicating which values are allowed to be configured when encoding with log2_sao_offset_scale_luma.
+      * Codec valid range for support for log2_sao_offset_scale_luma is [0, 6].
+      * For driver to indicate that value is supported, it must set the following in the reported bitmask.
+      * supported_log2_sao_offset_scale_luma_values |= (1 << value)
+      */
+      uint32_t supported_log2_sao_offset_scale_luma_values: 7;
+      /* Driver output. A bitmask indicating which values are allowed to be configured when encoding with log2_sao_offset_scale_chroma.
+      * Codec valid range for support for log2_sao_offset_scale_chroma is [0, 6].
+      * For driver to indicate that value is supported, it must set the following in the reported bitmask.
+      * supported_log2_sao_offset_scale_chroma_values |= (1 << value)
+      */
+      uint32_t supported_log2_sao_offset_scale_chroma_values: 7;
+      /* Driver output. A bitmask indicating which values are allowed to be configured when encoding with log2_max_transform_skip_block_size_minus2.
+      * Codec valid range for support for log2_max_transform_skip_block_size_minus2 is [0, 3].
+      * For driver to indicate that value is supported, it must set the following in the reported bitmask.
+      * supported_log2_max_transform_skip_block_size_minus2_values |= (1 << value)
+      */
+      uint32_t supported_log2_max_transform_skip_block_size_minus2_values: 6;
+      /* Driver output.The minimum value allowed to be configured when encoding with chroma_qp_offset_list_len_minus1.
+      * Codec valid range for support for chroma_qp_offset_list_len_minus1 is [0, 5].
+      */
+      uint32_t min_chroma_qp_offset_list_len_minus1_values: 3;
+      /* Driver output.The maximum value allowed to be configured when encoding with chroma_qp_offset_list_len_minus1.
+      * Codec valid range for support for chroma_qp_offset_list_len_minus1 is [0, 5].
+      */
+      uint32_t max_chroma_qp_offset_list_len_minus1_values: 3;
+   } bits;
+  uint32_t value;
+};
+
+union pipe_h265_enc_cap_range_extension_flags {
+   struct {
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting transform_skip_rotation_enabled_flag
+       */
+      uint32_t supports_transform_skip_rotation_enabled_flag: 2;
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting transform_skip_context_enabled_flag
+       */
+      uint32_t supports_transform_skip_context_enabled_flag: 2;
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting implicit_rdpcm_enabled_flag
+       */
+      uint32_t supports_implicit_rdpcm_enabled_flag: 2;
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting explicit_rdpcm_enabled_flag
+       */
+      uint32_t supports_explicit_rdpcm_enabled_flag: 2;
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting extended_precision_processing_flag
+       */
+      uint32_t supports_extended_precision_processing_flag: 2;
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting intra_smoothing_disabled_flag
+       */
+      uint32_t supports_intra_smoothing_disabled_flag: 2;
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting high_precision_offsets_enabled_flag
+       */
+      uint32_t supports_high_precision_offsets_enabled_flag: 2;
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting persistent_rice_adaptation_enabled_flag
+       */
+      uint32_t supports_persistent_rice_adaptation_enabled_flag: 2;
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting cabac_bypass_alignment_enabled_flag
+       */
+      uint32_t supports_cabac_bypass_alignment_enabled_flag: 2;
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting cross_component_prediction_enabled_flag
+       */
+      uint32_t supports_cross_component_prediction_enabled_flag: 2;
+      /*
+       * Driver Output. Indicates pipe_enc_feature values for setting chroma_qp_offset_list_enabled_flag
+       */
+      uint32_t supports_chroma_qp_offset_list_enabled_flag: 2;
+   } bits;
+  uint32_t value;
 };
 
 #ifdef __cplusplus
