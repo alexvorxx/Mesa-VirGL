@@ -1189,7 +1189,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
           sctx->num_draw_calls_sh_coherent.with_db != sctx->num_draw_calls) {
          bool sync_cb = sctx->force_shader_coherency.with_cb ||
                         si_check_needs_implicit_sync(sctx, RADEON_USAGE_CB_NEEDS_IMPLICIT_SYNC);
-         bool sync_db = sctx->gfx_level == GFX12 &&
+         bool sync_db = sctx->gfx_level >= GFX12 &&
                         (sctx->force_shader_coherency.with_db ||
                          si_check_needs_implicit_sync(sctx, RADEON_USAGE_DB_NEEDS_IMPLICIT_SYNC));
 
@@ -1212,7 +1212,7 @@ static void si_launch_grid(struct pipe_context *ctx, const struct pipe_grid_info
 
    if (info->indirect) {
       /* Indirect buffers are read through L2 on GFX9-GFX11, but not other hw. */
-      if ((sctx->gfx_level <= GFX8 || sctx->gfx_level == GFX12) &&
+      if ((sctx->gfx_level <= GFX8 || sscreen->info.cp_sdma_ge_use_system_memory_scope) &&
           si_resource(info->indirect)->L2_cache_dirty) {
          sctx->barrier_flags |= SI_BARRIER_WB_L2 | SI_BARRIER_PFP_SYNC_ME;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
