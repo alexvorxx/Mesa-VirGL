@@ -657,7 +657,7 @@ _handle_v_load_store(struct vtn_builder *b, enum OpenCLstd_Entrypoints opcode,
    unsigned alignment = vec_aligned ? glsl_get_cl_alignment(type->type) :
                                       glsl_get_bit_size(type->type) / 8;
    enum glsl_base_type ptr_base_type =
-      glsl_get_base_type(p->pointer->type->type);
+      glsl_get_base_type(p->pointer->ptr_type->pointed->type);
    if (base_type != ptr_base_type) {
       vtn_fail_if(ptr_base_type != GLSL_TYPE_FLOAT16 ||
                   (base_type != GLSL_TYPE_FLOAT &&

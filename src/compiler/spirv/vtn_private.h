@@ -483,15 +483,7 @@ struct vtn_pointer {
    /** The variable mode for the referenced data */
    enum vtn_variable_mode mode;
 
-   /** The dereferenced type of this pointer */
-   struct vtn_type *type;
-
-   /** The pointer type of this pointer
-    *
-    * This may be NULL for some temporary pointers constructed as part of a
-    * large load, store, or copy.  It MUST be valid for all pointers which are
-    * stored as SPIR-V SSA values.
-    */
+   /** The pointer type of this pointer */
    struct vtn_type *ptr_type;
 
    /** The referenced variable, if known

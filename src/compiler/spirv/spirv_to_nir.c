@@ -7314,7 +7314,7 @@ vtn_print_value(struct vtn_builder *b, struct vtn_value *val, FILE *f)
    case vtn_value_type_pointer: {
       struct vtn_pointer *pointer = val->pointer;
       fprintf(f, " ptr_type=%u", vtn_id_for_type(b, pointer->ptr_type));
-      fprintf(f, " (pointed-)type=%u", vtn_id_for_type(b, val->pointer->type));
+      fprintf(f, " (pointed-)type=%u", vtn_id_for_type(b, val->pointer->ptr_type->pointed));
 
       if (pointer->deref) {
          fprintf(f, "\n           NIR: ");
