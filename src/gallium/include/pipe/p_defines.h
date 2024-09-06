@@ -464,8 +464,6 @@ enum pipe_flush_flags
 #define PIPE_BIND_COMPUTE_RESOURCE     (1 << 16) /* set_compute_resources */
 #define PIPE_BIND_COMMAND_ARGS_BUFFER  (1 << 17) /* pipe_draw_info.indirect */
 #define PIPE_BIND_QUERY_BUFFER         (1 << 18) /* get_query_result_resource */
-#define PIPE_BIND_VIDEO_DECODE_DPB     (1 << 19) /* video engine DPB decode reconstructed picture */
-#define PIPE_BIND_VIDEO_ENCODE_DPB     (1 << 20) /* video engine DPB encode reconstructed picture */
 
 /**
  * The first two flags above were previously part of the amorphous
@@ -494,6 +492,8 @@ enum pipe_flush_flags
 #define PIPE_BIND_PRIME_BLIT_DST (1 << 24)
 #define PIPE_BIND_USE_FRONT_RENDERING (1 << 25) /* Resource may be used for frontbuffer rendering */
 #define PIPE_BIND_CONST_BW    (1 << 26) /* Avoid using a data dependent layout (AFBC, UBWC, etc) */
+#define PIPE_BIND_VIDEO_DECODE_DPB     (1 << 27) /* video engine DPB decode reconstructed picture */
+#define PIPE_BIND_VIDEO_ENCODE_DPB     (1 << 28) /* video engine DPB encode reconstructed picture */
 
 /**
  * Flags for the driver about resource behaviour:
