@@ -75,6 +75,7 @@ hk_destroy_cmd_buffer(struct vk_command_buffer *vk_cmd_buffer)
       container_of(vk_cmd_buffer, struct hk_cmd_buffer, vk);
    struct hk_cmd_pool *pool = hk_cmd_buffer_pool(cmd);
 
+   util_dynarray_fini(&cmd->large_bos);
    hk_free_resettable_cmd_buffer(cmd);
    vk_command_buffer_finish(&cmd->vk);
    vk_free(&pool->vk.alloc, cmd);
