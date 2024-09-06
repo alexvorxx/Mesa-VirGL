@@ -364,8 +364,8 @@ struct vtn_type {
 
       /* Members for pointer types */
       struct {
-         /* For pointers, the vtn_type for dereferenced type */
-         struct vtn_type *deref;
+         /* For pointers, the vtn_type of the object pointed to. */
+         struct vtn_type *pointed;
 
          /* Storage class for pointers */
          SpvStorageClass storage_class;

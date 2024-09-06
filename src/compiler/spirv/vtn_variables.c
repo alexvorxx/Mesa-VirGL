@@ -1956,16 +1956,16 @@ vtn_pointer_from_ssa(struct vtn_builder *b, nir_def *ssa,
 
    struct vtn_pointer *ptr = vtn_zalloc(b, struct vtn_pointer);
    struct vtn_type *without_array =
-      vtn_type_without_array(ptr_type->deref);
+      vtn_type_without_array(ptr_type->pointed);
 
    nir_variable_mode nir_mode;
    ptr->mode = vtn_storage_class_to_mode(b, ptr_type->storage_class,
                                          without_array, &nir_mode);
-   ptr->type = ptr_type->deref;
+   ptr->type = ptr_type->pointed;
    ptr->ptr_type = ptr_type;
 
    const struct glsl_type *deref_type =
-      vtn_type_get_nir_type(b, ptr_type->deref, ptr->mode);
+      vtn_type_get_nir_type(b, ptr_type->pointed, ptr->mode);
    if (!vtn_pointer_is_external_block(b, ptr) &&
        ptr->mode != vtn_variable_mode_accel_struct) {
       ptr->deref = nir_build_deref_cast(&b->nb, ssa, nir_mode,
@@ -2088,9 +2088,9 @@ vtn_create_variable(struct vtn_builder *b, struct vtn_value *val,
                     struct vtn_value *initializer)
 {
    vtn_assert(ptr_type->base_type == vtn_base_type_pointer);
-   struct vtn_type *type = ptr_type->deref;
+   struct vtn_type *type = ptr_type->pointed;
 
-   struct vtn_type *without_array = vtn_type_without_array(ptr_type->deref);
+   struct vtn_type *without_array = vtn_type_without_array(ptr_type->pointed);
 
    enum vtn_variable_mode mode;
    nir_variable_mode nir_mode;
@@ -2669,7 +2669,7 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
 
       struct vtn_type *ptr_type = vtn_zalloc(b, struct vtn_type);
       ptr_type->base_type = vtn_base_type_pointer;
-      ptr_type->deref = sampler_type;
+      ptr_type->pointed = sampler_type;
       ptr_type->storage_class = SpvStorageClassUniform;
 
       ptr_type->type = nir_address_format_to_glsl_type(
@@ -2736,8 +2736,8 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
       struct vtn_pointer *dest = vtn_value_to_pointer(b, dest_val);
       struct vtn_pointer *src = vtn_value_to_pointer(b, src_val);
 
-      vtn_assert_types_equal(b, opcode, dest_val->type->deref,
-                                        src_val->type->deref);
+      vtn_assert_types_equal(b, opcode, dest_val->type->pointed,
+                                        src_val->type->pointed);
 
       unsigned idx = 3, dest_alignment, src_alignment;
       SpvMemoryAccessMask dest_access, src_access;
@@ -2800,7 +2800,7 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
       struct vtn_value *src_val = vtn_value(b, w[3], vtn_value_type_pointer);
       struct vtn_pointer *src = vtn_value_to_pointer(b, src_val);
 
-      vtn_assert_types_equal(b, opcode, res_type, src_val->type->deref);
+      vtn_assert_types_equal(b, opcode, res_type, src_val->type->pointed);
 
       unsigned idx = 4, alignment;
       SpvMemoryAccessMask access;
@@ -2842,7 +2842,7 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
          break;
       }
 
-      vtn_assert_types_equal(b, opcode, dest_val->type->deref, src_val->type);
+      vtn_assert_types_equal(b, opcode, dest_val->type->pointed, src_val->type);
 
       unsigned idx = 3, alignment;
       SpvMemoryAccessMask access;
@@ -2936,7 +2936,7 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
                   "storage class specified in the instruction");
 
       vtn_fail_if(src_type->base_type != vtn_base_type_pointer ||
-                  src_type->deref->id != dst_type->deref->id,
+                  src_type->pointed->id != dst_type->pointed->id,
                   "Source pointer of an SpvOpGenericCastToPtrExplicit must "
                   "have a type of OpTypePointer whose Type is the same as "
                   "the Type of Result Type");
@@ -2955,7 +2955,7 @@ vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
 
       nir_variable_mode nir_mode;
       enum vtn_variable_mode mode =
-         vtn_storage_class_to_mode(b, storage_class, dst_type->deref, &nir_mode);
+         vtn_storage_class_to_mode(b, storage_class, dst_type->pointed, &nir_mode);
       nir_address_format addr_format = vtn_mode_to_address_format(b, mode);
 
       nir_def *null_value =

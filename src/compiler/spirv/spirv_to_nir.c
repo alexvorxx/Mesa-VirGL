@@ -1081,7 +1081,7 @@ vtn_types_compatible(struct vtn_builder *b,
              vtn_types_compatible(b, t1->array_element, t2->array_element);
 
    case vtn_base_type_pointer:
-      return vtn_types_compatible(b, t1->deref, t2->deref);
+      return vtn_types_compatible(b, t1->pointed, t2->pointed);
 
    case vtn_base_type_struct:
       if (t1->length != t2->length)
@@ -1945,9 +1945,9 @@ vtn_handle_type(struct vtn_builder *b, SpvOp opcode,
                   "OpTypeForwardPointer is only allowed in Vulkan with "
                   "the PhysicalStorageBuffer storage class");
 
-      struct vtn_type *deref_type = NULL;
+      struct vtn_type *pointed_type = NULL;
       if (opcode == SpvOpTypePointer)
-         deref_type = vtn_get_type(b, w[3]);
+         pointed_type = vtn_get_type(b, w[3]);
 
       bool has_forward_pointer = false;
       if (val->value_type == vtn_value_type_invalid) {
@@ -1961,7 +1961,7 @@ vtn_handle_type(struct vtn_builder *b, SpvOp opcode,
           * values so they need a real glsl_type.
           */
          enum vtn_variable_mode mode = vtn_storage_class_to_mode(
-            b, storage_class, deref_type, NULL);
+            b, storage_class, pointed_type, NULL);
 
          /* The deref type should only matter for the UniformConstant storage
           * class.  In particular, it should never matter for any storage
@@ -1984,17 +1984,17 @@ vtn_handle_type(struct vtn_builder *b, SpvOp opcode,
       }
 
       if (opcode == SpvOpTypePointer) {
-         vtn_fail_if(val->type->deref != NULL,
+         vtn_fail_if(val->type->pointed != NULL,
                      "While OpTypeForwardPointer can be used to provide a "
                      "forward declaration of a pointer, OpTypePointer can "
                      "only be used once for a given id.");
 
          vtn_fail_if(has_forward_pointer &&
-                     deref_type->base_type != vtn_base_type_struct,
+                     pointed_type->base_type != vtn_base_type_struct,
                      "An OpTypePointer instruction must declare "
                      "Pointer Type to be a pointer to an OpTypeStruct.");
 
-         val->type->deref = deref_type;
+         val->type->pointed = pointed_type;
 
          /* Only certain storage classes use ArrayStride. */
          switch (storage_class) {
@@ -2222,7 +2222,7 @@ vtn_null_constant(struct vtn_builder *b, struct vtn_type *type)
 
    case vtn_base_type_pointer: {
       enum vtn_variable_mode mode = vtn_storage_class_to_mode(
-         b, type->storage_class, type->deref, NULL);
+         b, type->storage_class, type->pointed, NULL);
       nir_address_format addr_format = vtn_mode_to_address_format(b, mode);
 
       const nir_const_value *null_value = nir_address_format_null_value(addr_format);
@@ -5767,7 +5767,7 @@ vtn_handle_ptr(struct vtn_builder *b, SpvOp opcode,
    case SpvOpPtrDiff: {
       /* OpPtrDiff returns the difference in number of elements (not byte offset). */
       unsigned elem_size, elem_align;
-      glsl_get_natural_size_align_bytes(type1->deref->type,
+      glsl_get_natural_size_align_bytes(type1->pointed->type,
                                         &elem_size, &elem_align);
 
       def = nir_build_addr_isub(&b->nb,
@@ -6792,7 +6792,7 @@ vtn_emit_kernel_entry_point_wrapper(struct vtn_builder *b,
 
       if (is_by_val) {
          in_var->data.mode = nir_var_uniform;
-         in_var->type = param_type->deref->type;
+         in_var->type = param_type->pointed->type;
       } else if (param_type->base_type == vtn_base_type_image) {
          in_var->data.mode = nir_var_image;
          in_var->type = param_type->glsl_image;
@@ -7328,7 +7328,7 @@ vtn_print_value(struct vtn_builder *b, struct vtn_value *val, FILE *f)
       fprintf(f, " %s", vtn_base_type_to_string(type->base_type));
       switch (type->base_type) {
       case vtn_base_type_pointer:
-         fprintf(f, " deref=%d", vtn_id_for_type(b, type->deref));
+         fprintf(f, " deref=%d", vtn_id_for_type(b, type->pointed));
          fprintf(f, " %s", spirv_storageclass_to_string(val->type->storage_class));
          break;
       default:
