@@ -1028,7 +1028,14 @@ hk_compile_shader(struct hk_device *dev, struct vk_shader_compile_info *info,
                                        variants[v].out, sw_stage, true, NULL);
                if (result != VK_SUCCESS) {
                   hk_api_shader_destroy(&dev->vk, &obj->vk, pAllocator);
-                  ralloc_free(nir);
+                  if (clone != nir) {
+                     ralloc_free(nir);
+                  }
+
+                  ralloc_free(clone);
+                  ralloc_free(pre_gs);
+                  ralloc_free(count);
+                  ralloc_free(rast);
                   return result;
                }
             }
