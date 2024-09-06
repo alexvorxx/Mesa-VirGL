@@ -409,6 +409,7 @@ if with_tests
     ),
     suite : ['util'],
     protocol : 'gtest',
+    is_parallel : false,
     timeout : 180,
   )
 
