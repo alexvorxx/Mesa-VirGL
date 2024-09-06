@@ -1227,6 +1227,7 @@ virgl_create_screen(struct virgl_winsys *vws, const struct pipe_screen_config *c
       screen->compiler_options.lower_ffloor = true;
       screen->compiler_options.lower_fneg = true;
    }
+   screen->compiler_options.no_integers = screen->caps.caps.v1.glsl_level < 130;
    screen->compiler_options.lower_ffma32 = true;
    screen->compiler_options.fuse_ffma32 = false;
    screen->compiler_options.lower_ldexp = true;
