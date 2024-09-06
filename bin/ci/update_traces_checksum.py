@@ -20,7 +20,7 @@ from ruamel.yaml import YAML
 
 import gitlab
 from colorama import Fore, Style
-from gitlab_common import get_gitlab_project, read_token, wait_for_pipeline
+from gitlab_common import get_gitlab_project, read_token, wait_for_pipeline, get_gitlab_pipeline_from_url
 
 
 DESCRIPTION_FILE = "export PIGLIT_REPLAY_DESCRIPTION_FILE=.*/install/(.*)$"
@@ -113,12 +113,17 @@ def parse_args() -> None:
         epilog="Example: update_traces_checksum.py --rev $(git rev-parse HEAD) "
     )
     parser.add_argument(
-        "--rev", metavar="revision", help="repository git revision", required=True
+        "--rev", metavar="revision", help="repository git revision",
     )
     parser.add_argument(
         "--token",
         metavar="token",
         help="force GitLab token, otherwise it's read from ~/.config/gitlab-token",
+    )
+    parser.add_argument(
+        "--pipeline-url",
+        metavar="pipeline_url",
+        help="specify a pipeline url",
     )
     return parser.parse_args()
 
@@ -133,8 +138,15 @@ if __name__ == "__main__":
 
         cur_project = get_gitlab_project(gl, "mesa")
 
-        print(f"Revision: {args.rev}")
-        (pipe, cur_project) = wait_for_pipeline([cur_project], args.rev)
+        if args.pipeline_url:
+            pipe, cur_project = get_gitlab_pipeline_from_url(gl, args.pipeline_url)
+            REV = pipe.sha
+        else:
+            if not args.rev:
+                print('error: the following arguments are required: --rev')
+                sys.exit(1)
+            print(f"Revision: {args.rev}")
+            (pipe, cur_project) = wait_for_pipeline([cur_project], args.rev)
         print(f"Pipeline: {pipe.web_url}")
         gather_results(cur_project, pipe)
 
