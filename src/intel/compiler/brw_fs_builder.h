@@ -773,6 +773,13 @@ namespace brw {
       BROADCAST(brw_reg value, brw_reg index) const
       {
          const brw_reg dst = vgrf(value.type);
+
+         /* Ensure that the source of a broadcast is always register aligned.
+          * See brw_broadcast() non-scalar case for more details.
+          */
+         if (reg_offset(value) % (REG_SIZE * reg_unit(shader->devinfo)) != 0)
+            value = MOV(value);
+
          exec_all().emit(SHADER_OPCODE_BROADCAST, dst, value, index);
          return component(dst, 0);
       }
