@@ -50,6 +50,8 @@ initialize_context(struct gl_context *ctx, gl_api api)
    initialize_context_to_defaults(ctx, api);
    _mesa_glsl_builtin_functions_init_or_ref();
 
+   ctx->Version = 450;
+
    /* The standalone compiler needs to claim support for almost
     * everything in order to compile the built-in functions.
     */
