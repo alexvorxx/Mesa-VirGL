@@ -6811,7 +6811,6 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
          break;
       }
 
-      brw_reg tmp = bld.vgrf(value.type);
 
       /* When for some reason the subgroup_size picked by NIR is larger than
        * the dispatch size picked by the backend (this could happen in RT,
@@ -6823,10 +6822,10 @@ fs_nir_emit_intrinsic(nir_to_brw_state &ntb,
          bound_invocation =
             bld.AND(bound_invocation, brw_imm_ud(s.dispatch_width - 1));
       }
-      bld.exec_all().emit(SHADER_OPCODE_BROADCAST, tmp, value,
-                          bld.emit_uniformize(bound_invocation));
 
-      bld.MOV(retype(dest, value.type), brw_reg(component(tmp, 0)));
+      brw_reg tmp = bld.BROADCAST(value, bld.emit_uniformize(bound_invocation));
+
+      bld.MOV(retype(dest, value.type), tmp);
       break;
    }
 
