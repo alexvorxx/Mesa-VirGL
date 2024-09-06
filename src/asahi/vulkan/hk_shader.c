@@ -1033,6 +1033,14 @@ hk_compile_shader(struct hk_device *dev, struct vk_shader_compile_info *info,
                }
             }
          }
+
+         /* Nothing consumes this otherwise throw it away.
+          *
+          * TODO: We should just not generate it.
+          */
+         if (rast_disc) {
+            ralloc_free(rast);
+         }
       }
    } else if (sw_stage == MESA_SHADER_VERTEX ||
               sw_stage == MESA_SHADER_TESS_EVAL) {
