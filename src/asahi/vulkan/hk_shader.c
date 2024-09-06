@@ -990,7 +990,12 @@ hk_compile_shader(struct hk_device *dev, struct vk_shader_compile_info *info,
    if (sw_stage == MESA_SHADER_GEOMETRY) {
       for (unsigned rast_disc = 0; rast_disc < 2; ++rast_disc) {
          struct hk_shader *count_variant = hk_count_gs_variant(obj, rast_disc);
-         nir_shader *clone = nir_shader_clone(NULL, nir);
+         bool last = (rast_disc + 1) == 2;
+
+         /* Each variant gets its own NIR. To save an extra clone, we use the
+          * original NIR for the last stage.
+          */
+         nir_shader *clone = last ? nir : nir_shader_clone(NULL, nir);
 
          enum mesa_prim out_prim = MESA_PRIM_MAX;
          nir_shader *count = NULL, *rast = NULL, *pre_gs = NULL;
@@ -1044,12 +1049,16 @@ hk_compile_shader(struct hk_device *dev, struct vk_shader_compile_info *info,
       NIR_PASS(_, nir, nir_io_add_const_offset_to_base,
                nir_var_shader_in | nir_var_shader_out);
 
+      /* TODO: Optimize single variant when we know nextStage */
       for (enum hk_vs_variant v = 0; v < HK_VS_VARIANTS; ++v) {
          struct hk_shader *shader = &obj->variants[v];
          bool hw = v == HK_VS_VARIANT_HW;
+         bool last = (v + 1) == HK_VS_VARIANTS;
 
-         /* TODO: Optimize single variant when we know nextStage */
-         nir_shader *clone = nir_shader_clone(NULL, nir);
+         /* Each variant gets its own NIR. To save an extra clone, we use the
+          * original NIR for the last stage.
+          */
+         nir_shader *clone = last ? nir : nir_shader_clone(NULL, nir);
 
          if (sw_stage == MESA_SHADER_VERTEX) {
             NIR_PASS(_, clone, agx_nir_lower_vs_input_to_prolog,
@@ -1065,6 +1074,7 @@ hk_compile_shader(struct hk_device *dev, struct vk_shader_compile_info *info,
             NIR_PASS(_, clone, agx_nir_lower_vs_before_gs, dev->dev.libagx);
          }
 
+         /* hk_compile_nir takes ownership of the clone */
          result = hk_compile_nir(dev, pAllocator, clone, info->flags,
                                  info->robustness, fs_key, shader, sw_stage, hw,
                                  nir->xfb_info);
