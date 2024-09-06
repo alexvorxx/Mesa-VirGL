@@ -499,7 +499,7 @@ static void radeon_vcn_enc_hevc_get_dbk_param(struct radeon_encoder *enc,
    struct si_screen *sscreen = (struct si_screen *)enc->screen;
 
    enc->enc_pic.hevc_deblock.loop_filter_across_slices_enabled =
-      pic->slice.slice_loop_filter_across_slices_enabled_flag;
+      pic->pic.pps_loop_filter_across_slices_enabled_flag;
    enc->enc_pic.hevc_deblock.deblocking_filter_disabled =
       pic->slice.slice_deblocking_filter_disabled_flag;
    enc->enc_pic.hevc_deblock.beta_offset_div2 = pic->slice.slice_beta_offset_div2;
