@@ -736,6 +736,7 @@ static const nir_shader_compiler_options svga_vgpu9_fragment_compiler_options = 
    .lower_bitops = true,
    .force_indirect_unrolling = nir_var_all,
    .force_indirect_unrolling_sampler = true,
+   .no_integers = true,
 };
 
 static const nir_shader_compiler_options svga_vgpu9_vertex_compiler_options = {
@@ -743,6 +744,7 @@ static const nir_shader_compiler_options svga_vgpu9_vertex_compiler_options = {
    .lower_bitops = true,
    .force_indirect_unrolling = nir_var_function_temp,
    .force_indirect_unrolling_sampler = true,
+   .no_integers = true,
 };
 
 static const nir_shader_compiler_options svga_vgpu10_compiler_options = {
