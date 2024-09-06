@@ -484,7 +484,7 @@ struct vtn_pointer {
    enum vtn_variable_mode mode;
 
    /** The pointer type of this pointer */
-   struct vtn_type *ptr_type;
+   struct vtn_type *type;
 
    /** The referenced variable, if known
     *

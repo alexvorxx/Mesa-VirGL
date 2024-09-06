@@ -555,9 +555,9 @@ vtn_ssa_value(struct vtn_builder *b, uint32_t value_id)
       return val->ssa;
 
    case vtn_value_type_pointer:
-      vtn_assert(val->pointer->ptr_type && val->pointer->ptr_type->type);
+      vtn_assert(val->pointer->type && val->pointer->type->type);
       struct vtn_ssa_value *ssa =
-         vtn_create_ssa_value(b, val->pointer->ptr_type->type);
+         vtn_create_ssa_value(b, val->pointer->type->type);
       ssa->def = vtn_pointer_to_ssa(b, val->pointer);
       return ssa;
 
@@ -7313,8 +7313,8 @@ vtn_print_value(struct vtn_builder *b, struct vtn_value *val, FILE *f)
 
    case vtn_value_type_pointer: {
       struct vtn_pointer *pointer = val->pointer;
-      fprintf(f, " ptr_type=%u", vtn_id_for_type(b, pointer->ptr_type));
-      fprintf(f, " (pointed-)type=%u", vtn_id_for_type(b, val->pointer->ptr_type->pointed));
+      fprintf(f, " ptr_type=%u", vtn_id_for_type(b, pointer->type));
+      fprintf(f, " (pointed-)type=%u", vtn_id_for_type(b, val->pointer->type->pointed));
 
       if (pointer->deref) {
          fprintf(f, "\n           NIR: ");
