@@ -30,6 +30,23 @@ struct vk_shader_module;
 #define TU102_SHADER_HEADER_SIZE (32 * 4)
 #define NVC0_MAX_SHADER_HEADER_SIZE TU102_SHADER_HEADER_SIZE
 
+#define NVK_SHADER_STAGE_VTGM_BITS \
+   (VK_SHADER_STAGE_VERTEX_BIT | \
+    VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT | \
+    VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT | \
+    VK_SHADER_STAGE_GEOMETRY_BIT)
+
+#define NVK_SHADER_STAGE_GRAPHICS_BITS \
+   (NVK_SHADER_STAGE_VTGM_BITS | VK_SHADER_STAGE_FRAGMENT_BIT)
+
+static inline gl_shader_stage
+nvk_last_vtgm_shader_stage(VkShaderStageFlags stages)
+{
+   stages &= ~VK_SHADER_STAGE_FRAGMENT_BIT;
+   stages = 1 << (util_last_bit(stages) - 1);
+   return vk_to_mesa_shader_stage(stages);
+}
+
 static inline uint32_t
 nvk_cbuf_binding_for_stage(gl_shader_stage stage)
 {

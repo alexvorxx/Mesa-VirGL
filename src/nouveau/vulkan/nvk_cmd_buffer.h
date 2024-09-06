@@ -167,7 +167,7 @@ struct nvk_graphics_state {
    struct nvk_rendering_state render;
    struct nvk_descriptor_state descriptors;
 
-   uint32_t shaders_dirty;
+   VkShaderStageFlags shaders_dirty;
    struct nvk_shader *shaders[MESA_SHADER_MESH + 1];
 
    struct nvk_cbuf_group {

@@ -1232,7 +1232,7 @@ nvk_cmd_bind_graphics_shader(struct nvk_cmd_buffer *cmd,
       return;
 
    cmd->state.gfx.shaders[stage] = shader;
-   cmd->state.gfx.shaders_dirty |= BITFIELD_BIT(stage);
+   cmd->state.gfx.shaders_dirty |= mesa_to_vk_shader_stage(stage);
 }
 
 uint32_t
@@ -1353,13 +1353,9 @@ nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
    struct nvk_shader *type_shader[6] = { NULL, };
    uint32_t types_dirty = 0;
 
-   const uint32_t gfx_stages = BITFIELD_BIT(MESA_SHADER_VERTEX) |
-                               BITFIELD_BIT(MESA_SHADER_TESS_CTRL) |
-                               BITFIELD_BIT(MESA_SHADER_TESS_EVAL) |
-                               BITFIELD_BIT(MESA_SHADER_GEOMETRY) |
-                               BITFIELD_BIT(MESA_SHADER_FRAGMENT);
-
-   u_foreach_bit(stage, cmd->state.gfx.shaders_dirty & gfx_stages) {
+   u_foreach_bit(s, cmd->state.gfx.shaders_dirty &
+                    NVK_SHADER_STAGE_GRAPHICS_BITS) {
+      gl_shader_stage stage = vk_to_mesa_shader_stage(1 << s);
       uint32_t type = mesa_to_nv9097_shader_type(stage);
       types_dirty |= BITFIELD_BIT(type);
 
@@ -1399,13 +1395,10 @@ nvk_flush_shaders(struct nvk_cmd_buffer *cmd)
       }
    }
 
-   const uint32_t vtgm_stages = BITFIELD_BIT(MESA_SHADER_VERTEX) |
-                                BITFIELD_BIT(MESA_SHADER_TESS_EVAL) |
-                                BITFIELD_BIT(MESA_SHADER_GEOMETRY) |
-                                BITFIELD_BIT(MESA_SHADER_MESH);
-   if (cmd->state.gfx.shaders_dirty & vtgm_stages) {
+   if (cmd->state.gfx.shaders_dirty & NVK_SHADER_STAGE_VTGM_BITS) {
       struct nvk_shader *last_vtgm = NULL;
-      u_foreach_bit(stage, vtgm_stages) {
+      u_foreach_bit(s, NVK_SHADER_STAGE_VTGM_BITS) {
+         gl_shader_stage stage = vk_to_mesa_shader_stage(1 << s);
          if (cmd->state.gfx.shaders[stage] != NULL)
             last_vtgm = cmd->state.gfx.shaders[stage];
       }
