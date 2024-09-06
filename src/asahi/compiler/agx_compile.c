@@ -1406,14 +1406,19 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
             agx_memory_barrier(b);
 
             /* Pull out all the big hammers to make cross-workgroup memory
-             * barriers work. Found experimentally, seems to work on G13G at
-             * least.
-             *
-             * TODO: check on other models, we may need more barriers for G13D.
+             * barriers work.
              */
             if (nir_intrinsic_memory_scope(instr) >= SCOPE_QUEUE_FAMILY) {
-               agx_memory_barrier_2(b);
                agx_unknown_barrier_1(b);
+               agx_memory_barrier_2(b);
+
+               /* These are observed on G13D. At some point we should figure out
+                * what the individual opcodes do.
+                */
+               agx_device_barrier_2(b);
+               agx_unknown_barrier_2(b);
+               agx_memory_barrier_3(b);
+               agx_device_barrier_1(b);
             }
          }
 
