@@ -577,6 +577,9 @@ hk_lower_nir(struct hk_device *dev, nir_shader *nir,
 
    // NIR_PASS(_, nir, nir_opt_large_constants, NULL, 32);
 
+   /* Turn cache flushes into image coherency bits while we still have derefs */
+   NIR_PASS(_, nir, nir_lower_memory_model);
+
    /* Images accessed through the texture or PBE hardware are robust, so we
     * don't set lower_image. (There are some sticky details around txf but
     * they're handled by agx_nir_lower_texture). However, image atomics are
