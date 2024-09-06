@@ -59,6 +59,7 @@ if [[ "$RUST_TARGET" != *-android ]]; then
     cargo install --locked  \
         -j ${FDO_CI_CONCURRENT:-4} \
         --root /usr/local \
+        ${EXTRA_CARGO_ARGS} \
         --path .
     CC=$SAVEDCC
 else
