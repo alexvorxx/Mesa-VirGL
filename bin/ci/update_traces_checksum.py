@@ -23,7 +23,7 @@ from colorama import Fore, Style
 from gitlab_common import get_gitlab_project, read_token, wait_for_pipeline
 
 
-DESCRIPTION_FILE = "export PIGLIT_REPLAY_DESCRIPTION_FILE='.*/install/(.*)'$"
+DESCRIPTION_FILE = "export PIGLIT_REPLAY_DESCRIPTION_FILE=.*/install/(.*)$"
 DEVICE_NAME = "export PIGLIT_REPLAY_DEVICE_NAME='(.*)'$"
 
 
@@ -40,7 +40,7 @@ def gather_results(
             cur_job = project.jobs.get(job.id)
             # get variables
             print(f"👁  {job.name}...")
-            log: list[str] = cur_job.trace().decode("unicode_escape").splitlines()
+            log: list[str] = cur_job.trace().decode("unicode_escape", "ignore").splitlines()
             filename: str = ''
             dev_name: str = ''
             for logline in log:
@@ -69,7 +69,7 @@ def gather_results(
                 target = yaml.load(target_file)
 
                 # parse artifact
-                results_json_bz2 = cur_job.artifacts.raw(artifact_path="results/results.json.bz2")
+                results_json_bz2 = cur_job.artifact("results/results.json.bz2")
                 results_json = bz2.decompress(results_json_bz2).decode("utf-8", errors="replace")
                 results = json.loads(results_json)
 
