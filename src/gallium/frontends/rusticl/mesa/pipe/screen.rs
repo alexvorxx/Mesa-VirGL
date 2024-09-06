@@ -414,11 +414,15 @@ impl PipeScreen {
         DiskCacheBorrowed::from_ptr(ptr)
     }
 
-    pub fn finalize_nir(&self, nir: &NirShader) {
+    /// returns true if finalize_nir was called
+    pub fn finalize_nir(&self, nir: &NirShader) -> bool {
         if let Some(func) = self.screen().finalize_nir {
             unsafe {
                 func(self.screen.as_ptr(), nir.get_nir().cast());
             }
+            true
+        } else {
+            false
         }
     }
 

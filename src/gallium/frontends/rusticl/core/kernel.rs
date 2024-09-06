@@ -22,6 +22,8 @@ use spirv::SpirvKernelInfo;
 use std::cmp;
 use std::collections::HashMap;
 use std::convert::TryInto;
+use std::fmt::Debug;
+use std::fmt::Display;
 use std::ops::Index;
 use std::os::raw::c_void;
 use std::ptr;
@@ -367,6 +369,13 @@ enum NirKernelVariant {
     ///  - workgroup_offsets are 0
     ///  - local_size is info.local_size_hint
     Optimized,
+}
+
+impl Display for NirKernelVariant {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // this simply prints the enum name, so that's fine
+        Debug::fmt(self, f)
+    }
 }
 
 pub struct NirKernelBuilds {
@@ -723,6 +732,7 @@ fn compile_nir_variant(
     dev: &Device,
     variant: NirKernelVariant,
     args: &[KernelArg],
+    name: &str,
 ) {
     let mut lower_state = rusticl_lower_state::default();
     let compiled_args = &mut res.compiled_args;
@@ -954,7 +964,20 @@ fn compile_nir_variant(
             false
         }
     }));
-    dev.screen.finalize_nir(nir);
+
+    if Platform::dbg().nir {
+        eprintln!("=== Printing nir variant '{variant}' for '{name}' before driver finalization");
+        nir.print();
+    }
+
+    if dev.screen.finalize_nir(nir) {
+        if Platform::dbg().nir {
+            eprintln!(
+                "=== Printing nir variant '{variant}' for '{name}' after driver finalization"
+            );
+            nir.print();
+        }
+    }
 
     nir_pass!(nir, nir_opt_dce);
     nir.sweep_mem();
@@ -964,6 +987,7 @@ fn compile_nir_remaining(
     dev: &Device,
     mut nir: NirShader,
     args: &[KernelArg],
+    name: &str,
 ) -> (CompilationResult, Option<CompilationResult>) {
     // add all API kernel args
     let mut compiled_args: Vec<_> = (0..args.len())
@@ -975,6 +999,11 @@ fn compile_nir_remaining(
         .collect();
 
     compile_nir_prepare_for_variants(dev, &mut nir, &mut compiled_args);
+    if Platform::dbg().nir {
+        eprintln!("=== Printing nir for '{name}' before specialization");
+        nir.print();
+    }
+
     let mut default_build = CompilationResult {
         nir: nir,
         compiled_args: compiled_args,
@@ -990,9 +1019,15 @@ fn compile_nir_remaining(
     let mut optimized = (!Platform::dbg().no_variants && (has_offsets || has_wgs_hint))
         .then(|| default_build.clone());
 
-    compile_nir_variant(&mut default_build, dev, NirKernelVariant::Default, args);
+    compile_nir_variant(
+        &mut default_build,
+        dev,
+        NirKernelVariant::Default,
+        args,
+        name,
+    );
     if let Some(optimized) = &mut optimized {
-        compile_nir_variant(optimized, dev, NirKernelVariant::Optimized, args);
+        compile_nir_variant(optimized, dev, NirKernelVariant::Optimized, args, name);
     }
 
     (default_build, optimized)
@@ -1097,8 +1132,14 @@ pub(super) fn convert_spirv_to_nir(
         .and_then(|entry| SPIRVToNirResult::deserialize(&entry, dev, spirv_info))
         .unwrap_or_else(|| {
             let nir = build.to_nir(name, dev);
+
+            if Platform::dbg().nir {
+                eprintln!("=== Printing nir for '{name}' after spirv_to_nir");
+                nir.print();
+            }
+
             let (mut args, nir) = compile_nir_to_args(dev, nir, args, &dev.lib_clc);
-            let (default_build, optimized) = compile_nir_remaining(dev, nir, &args);
+            let (default_build, optimized) = compile_nir_remaining(dev, nir, &args, name);
 
             for build in [Some(&default_build), optimized.as_ref()].into_iter() {
                 let Some(build) = build else {

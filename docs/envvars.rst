@@ -1153,6 +1153,8 @@ Rusticl environment variables
 
    - ``allow_invalid_spirv`` disables validation of any input SPIR-V
    - ``clc`` dumps all OpenCL C source being compiled
+   - ``nir`` dumps nirs in various compilation stages. Might print nothing if shader caching is
+             enabled.
    - ``no_reuse_context`` pipe_contexts are not recycled
    - ``no_variants`` disable kernel variants (e.g. specialized binaries for offsets == 0)
    - ``perf`` prints a warning when hitting slow paths once
