@@ -243,9 +243,6 @@ struct lvp_device_memory {
    void *                                       map;
    enum lvp_device_memory_type memory_type;
    int                                          backed_fd;
-#ifdef PIPE_MEMORY_FD
-   struct llvmpipe_memory_allocation            *alloc;
-#endif
 #if DETECT_OS_ANDROID
    struct AHardwareBuffer *android_hardware_buffer;
 #endif
