@@ -108,7 +108,7 @@ traces:
       checksum: f8eba0fec6e3e0af9cb09844bc73bdc8
   gputest/furmark-v2.trace:
     gl-vmware-llvmpipe:
-      checksum: 58a6a276abc0e28fcb2a8acea3342712
+      checksum: 51d0b7fdab31307f5fc631f6d6663336
   gputest/triangle-v2.trace:
     gl-vmware-llvmpipe:
       checksum: 7812de00011a3a059892e36cea19c696
