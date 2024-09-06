@@ -245,9 +245,14 @@ hk_can_compress(struct agx_device *dev, VkFormat format, unsigned plane,
     * although the vendor driver does support something similar if I recall.
     * Compression is not supported in hardware for storage images or mutable
     * formats in general.
+    *
+    * Feedback loops are problematic with compression. The GL driver bans them.
+    * Interestingly, the relevant CTS tests pass on G13G and G14C, but not on
+    * G13D. For now, conservatively ban compression with feedback loops.
     */
    if (usage &
-       (VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT | VK_IMAGE_USAGE_STORAGE_BIT))
+       (VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT | VK_IMAGE_USAGE_STORAGE_BIT |
+        VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT))
       return false;
 
    enum pipe_format p_format = vk_format_to_pipe_format(format);
