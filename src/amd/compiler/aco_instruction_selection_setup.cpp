@@ -281,6 +281,8 @@ init_context(isel_context* ctx, nir_shader* shader)
    ctx->ub_config.max_workgroup_size[1] = 2048;
    ctx->ub_config.max_workgroup_size[2] = 2048;
 
+   ac_nir_opt_shared_append(shader);
+
    nir_divergence_analysis(shader);
    if (nir_opt_uniform_atomics(shader, false) && nir_lower_int64(shader))
       nir_divergence_analysis(shader);
