@@ -739,7 +739,10 @@ glx_screen_cleanup(struct glx_screen *psc)
       psc->visuals = NULL;   /* NOTE: just for paranoia */
    }
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
-   driDestroyConfigs(psc->driver_configs);
+   if (psc->driver_configs) {
+      driDestroyConfigs(psc->driver_configs);
+      psc->driver_configs = NULL;
+   }
    /* Free the direct rendering per screen data */
    driDestroyScreen(psc->frontend_screen);
 #endif
