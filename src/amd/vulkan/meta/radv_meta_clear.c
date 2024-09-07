@@ -1438,7 +1438,7 @@ gfx8_get_fast_clear_parameters(struct radv_device *device, const struct radv_ima
        iview->vk.format == VK_FORMAT_B5G6R5_UNORM_PACK16)
       extra_channel = -1;
    else if (desc->layout == UTIL_FORMAT_LAYOUT_PLAIN) {
-      if (ac_alpha_is_on_msb(&pdev->info, vk_format_to_pipe_format(iview->vk.format)))
+      if (ac_alpha_is_on_msb(&pdev->info, radv_format_to_pipe_format(iview->vk.format)))
          extra_channel = desc->nr_channels - 1;
       else
          extra_channel = 0;
@@ -1538,7 +1538,7 @@ gfx11_get_fast_clear_parameters(struct radv_device *device, const struct radv_im
       uint32_t ui[4];
    } value;
    memset(&value, 0, sizeof(value));
-   util_format_pack_rgba(vk_format_to_pipe_format(iview->vk.format), &value, clear_value, 1);
+   util_format_pack_rgba(radv_format_to_pipe_format(iview->vk.format), &value, clear_value, 1);
 
    /* Check the cases where all components or bits are either all 0 or all 1. */
    bool all_bits_are_0 = true;

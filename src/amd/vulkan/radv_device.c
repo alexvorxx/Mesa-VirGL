@@ -1523,7 +1523,7 @@ radv_initialise_color_surface(struct radv_device *device, struct radv_color_buff
 
    const struct ac_cb_state cb_state = {
       .surf = surf,
-      .format = vk_format_to_pipe_format(iview->vk.format),
+      .format = radv_format_to_pipe_format(iview->vk.format),
       .width = vk_format_get_plane_width(iview->image->vk.format, iview->plane_id, iview->extent.width),
       .height = vk_format_get_plane_height(iview->image->vk.format, iview->plane_id, iview->extent.height),
       .first_layer = iview->vk.base_array_layer,
@@ -1605,7 +1605,7 @@ radv_initialise_ds_surface(const struct radv_device *device, struct radv_ds_buff
    const struct ac_ds_state ds_state = {
       .surf = &iview->image->planes[0].surface,
       .va = radv_image_get_va(iview->image, 0),
-      .format = vk_format_to_pipe_format(iview->image->vk.format),
+      .format = radv_format_to_pipe_format(iview->image->vk.format),
       .width = iview->image->vk.extent.width,
       .height = iview->image->vk.extent.height,
       .level = level,
@@ -1625,7 +1625,7 @@ radv_initialise_ds_surface(const struct radv_device *device, struct radv_ds_buff
 
    const struct ac_mutable_ds_state mutable_ds_state = {
       .ds = &ds->ac,
-      .format = vk_format_to_pipe_format(iview->image->vk.format),
+      .format = radv_format_to_pipe_format(iview->image->vk.format),
       .tc_compat_htile_enabled = radv_htile_enabled(iview->image, level) && radv_image_is_tc_compat_htile(iview->image),
       .zrange_precision = true,
       .no_d16_compression = true,

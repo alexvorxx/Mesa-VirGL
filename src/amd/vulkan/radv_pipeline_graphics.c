@@ -1848,7 +1848,7 @@ radv_generate_graphics_state_key(const struct radv_device *device, const struct 
       u_foreach_bit (i, state->vi->attributes_valid) {
          uint32_t binding = state->vi->attributes[i].binding;
          uint32_t offset = state->vi->attributes[i].offset;
-         enum pipe_format format = vk_format_to_pipe_format(state->vi->attributes[i].format);
+         enum pipe_format format = radv_format_to_pipe_format(state->vi->attributes[i].format);
 
          key.vi.vertex_attribute_formats[i] = format;
          key.vi.vertex_attribute_bindings[i] = binding;
@@ -3122,7 +3122,7 @@ radv_pipeline_init_vertex_input_state(const struct radv_device *device, struct r
 
          pipeline->vertex_input.offsets[i] = offset;
 
-         enum pipe_format format = vk_format_to_pipe_format(state->vi->attributes[i].format);
+         enum pipe_format format = radv_format_to_pipe_format(state->vi->attributes[i].format);
          const struct ac_vtx_format_info *vtx_info = &vtx_info_table[format];
 
          pipeline->vertex_input.formats[i] = format;

@@ -102,7 +102,7 @@ gfx10_make_texture_descriptor(struct radv_device *device, struct radv_image *ima
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const bool create_2d_view_of_3d =
       (image->vk.create_flags & VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT) && view_type == VK_IMAGE_VIEW_TYPE_2D;
-   enum pipe_format format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format format = radv_format_to_pipe_format(vk_format);
    const struct util_format_description *desc;
    enum pipe_swizzle swizzle[4];
    unsigned array_pitch = 0;
@@ -153,7 +153,7 @@ gfx10_make_texture_descriptor(struct radv_device *device, struct radv_image *ima
    const struct ac_texture_state tex_state = {
       .surf = &image->planes[0].surface,
       .format = format,
-      .img_format = vk_format_to_pipe_format(image->vk.format),
+      .img_format = radv_format_to_pipe_format(image->vk.format),
       .width = width,
       .height = height,
       .depth = type == V_008F1C_SQ_RSRC_IMG_3D ? depth - 1 : last_layer,
@@ -224,7 +224,7 @@ gfx6_make_texture_descriptor(struct radv_device *device, struct radv_image *imag
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const struct radv_instance *instance = radv_physical_device_instance(pdev);
-   enum pipe_format format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format format = radv_format_to_pipe_format(vk_format);
    const struct util_format_description *desc;
    enum pipe_swizzle swizzle[4];
    unsigned type;
@@ -257,7 +257,7 @@ gfx6_make_texture_descriptor(struct radv_device *device, struct radv_image *imag
    const struct ac_texture_state tex_state = {
       .surf = &image->planes[0].surface,
       .format = format,
-      .img_format = vk_format_to_pipe_format(image->vk.format),
+      .img_format = radv_format_to_pipe_format(image->vk.format),
       .width = width,
       .height = height,
       .depth = depth,
