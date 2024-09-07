@@ -100,6 +100,7 @@ amd_common_files = files(
   'ac_nir_meta_cs_blit.c',
   'ac_nir_meta_cs_clear_copy_buffer.c',
   'ac_nir_meta_ps_resolve.c',
+  'ac_nir_opt_shared_append.c',
   'amd_family.c',
   'ac_parse_ib.c',
   'ac_perfcounter.c',
