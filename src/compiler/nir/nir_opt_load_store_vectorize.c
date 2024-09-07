@@ -109,6 +109,8 @@ get_info(nir_intrinsic_op op)
       INFO(nir_var_mem_ubo, ldcx_nv, false, 0, 1, -1, -1, 1)
       LOAD(nir_var_uniform, const_ir3, -1, 0, -1, 4)
       STORE(nir_var_uniform, const_ir3, -1, -1, -1, 0, 4)
+      INFO(nir_var_mem_shared, shared_append_amd, true, -1, -1, -1, -1, 1)
+      INFO(nir_var_mem_shared, shared_consume_amd, true, -1, -1, -1, -1, 1)
    default:
       break;
 #undef ATOMIC

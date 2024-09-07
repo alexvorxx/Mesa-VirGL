@@ -1535,6 +1535,11 @@ store("global_amd", [1, 1], indices=[BASE, ACCESS, ALIGN_MUL, ALIGN_OFFSET, WRIT
 # Same as shared_atomic_add, but with GDS. src[] = {store_val, gds_addr, m0}
 intrinsic("gds_atomic_add_amd",  src_comp=[1, 1, 1], dest_comp=1, indices=[BASE])
 
+# Optimized shared_atomic_add (1/-1) with constant address
+# returning the uniform pre-op value for all invocations.
+intrinsic("shared_append_amd",  src_comp=[], dest_comp=1, bit_sizes=[32], indices=[BASE])
+intrinsic("shared_consume_amd",  src_comp=[], dest_comp=1, bit_sizes=[32], indices=[BASE])
+
 # src[] = { sample_id, num_samples }
 intrinsic("load_sample_positions_amd", src_comp=[1, 1], dest_comp=2, flags=[CAN_ELIMINATE, CAN_REORDER])
 
