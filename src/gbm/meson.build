@@ -22,12 +22,13 @@ incs_gbm = [
 # TODO: fix includes to delete this
 incs_gbm += inc_mesa
 
-if with_dri2
-  files_gbm += files('backends/dri/gbm_dri.c', 'backends/dri/gbm_driint.h')
-endif
 if with_platform_wayland
   deps_gbm += dep_wayland_server
   incs_gbm += inc_wayland_drm
+endif
+
+if with_dri2
+  subdir('backends/dri')
 endif
 
 libgbm_name = 'gbm'
@@ -42,7 +43,7 @@ libgbm = shared_library(
   include_directories : incs_gbm,
   c_args : [args_gbm],
   link_args : [ld_args_gc_sections],
-  link_with : [libloader, libgallium_dri],
+  link_with : [libloader],
   dependencies : [deps_gbm, dep_dl, dep_thread, dep_libdrm, idep_mesautil, idep_xmlconfig],
   gnu_symbol_visibility : 'hidden',
   version : '1.0.0',

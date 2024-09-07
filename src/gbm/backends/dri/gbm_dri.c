@@ -53,10 +53,14 @@
 #include "pipe/p_screen.h"
 #include "dri_screen.h"
 
+#include "gbm_backend_abi.h"
+
 /* For importing wl_buffer */
 #if HAVE_WAYLAND_PLATFORM
 #include "wayland-drm.h"
 #endif
+
+static const struct gbm_core *core;
 
 static GLboolean
 dri_validate_egl_image(void *image, void *data)
@@ -324,7 +328,7 @@ static const struct gbm_dri_visual gbm_dri_visuals_table[] = {
 static int
 gbm_format_to_dri_format(uint32_t gbm_format)
 {
-   gbm_format = gbm_core.v0.format_canonicalize(gbm_format);
+   gbm_format = core->v0.format_canonicalize(gbm_format);
    for (size_t i = 0; i < ARRAY_SIZE(gbm_dri_visuals_table); i++) {
       if (gbm_dri_visuals_table[i].gbm_format == gbm_format)
          return gbm_dri_visuals_table[i].dri_image_format;
@@ -344,7 +348,7 @@ gbm_dri_is_format_supported(struct gbm_device *gbm,
    if ((usage & GBM_BO_USE_CURSOR) && (usage & GBM_BO_USE_RENDERING))
       return 0;
 
-   format = gbm_core.v0.format_canonicalize(format);
+   format = core->v0.format_canonicalize(format);
    if (gbm_format_to_dri_format(format) == 0)
       return 0;
 
@@ -380,7 +384,7 @@ gbm_dri_get_format_modifier_plane_count(struct gbm_device *gbm,
    if (!dri->has_dmabuf_import)
       return -1;
 
-   format = gbm_core.v0.format_canonicalize(format);
+   format = core->v0.format_canonicalize(format);
    if (gbm_format_to_dri_format(format) == 0)
       return -1;
 
@@ -702,7 +706,7 @@ gbm_dri_bo_import(struct gbm_device *gbm,
       /* GBM's GBM_FORMAT_* tokens are a strict superset of the DRI FourCC
        * tokens accepted by createImageFromDmaBufs, except for not supporting
        * the sARGB format. */
-      fourcc = gbm_core.v0.format_canonicalize(fd_data->format);
+      fourcc = core->v0.format_canonicalize(fd_data->format);
 
       image = dri2_from_dma_bufs(dri->screen,
                                  fd_data->width,
@@ -730,7 +734,7 @@ gbm_dri_bo_import(struct gbm_device *gbm,
       /* GBM's GBM_FORMAT_* tokens are a strict superset of the DRI FourCC
        * tokens accepted by createImageFromDmaBufs, except for not supporting
        * the sARGB format. */
-      fourcc = gbm_core.v0.format_canonicalize(fd_data->format);
+      fourcc = core->v0.format_canonicalize(fd_data->format);
 
       image = dri2_from_dma_bufs(dri->screen, fd_data->width,
                                                  fd_data->height, fourcc,
@@ -863,7 +867,7 @@ gbm_dri_bo_create(struct gbm_device *gbm,
    uint64_t *mods_filtered = NULL;
    unsigned int count_filtered = 0;
 
-   format = gbm_core.v0.format_canonicalize(format);
+   format = core->v0.format_canonicalize(format);
 
    if (usage & GBM_BO_USE_WRITE || !dri->has_dmabuf_export)
       return create_dumb(gbm, width, height, format, usage);
@@ -1095,7 +1099,7 @@ gbm_dri_surface_create(struct gbm_device *gbm,
    surf->base.gbm = gbm;
    surf->base.v0.width = width;
    surf->base.v0.height = height;
-   surf->base.v0.format = gbm_core.v0.format_canonicalize(format);
+   surf->base.v0.format = core->v0.format_canonicalize(format);
    surf->base.v0.flags = flags;
    if (!modifiers) {
       assert(!count);
@@ -1152,13 +1156,6 @@ dri_device_create(int fd, uint32_t gbm_backend_version)
    struct gbm_dri_device *dri;
    int ret;
    bool force_sw;
-
-   /*
-    * Since the DRI backend is built-in to the loader, the loader ABI version is
-    * guaranteed to match this backend's ABI version
-    */
-   assert(gbm_core.v0.core_version == GBM_BACKEND_ABI_VERSION);
-   assert(gbm_core.v0.core_version == gbm_backend_version);
 
    dri = calloc(1, sizeof *dri);
    if (!dri)
@@ -1228,4 +1225,12 @@ struct gbm_backend gbm_dri_backend = {
    .v0.backend_version = GBM_BACKEND_ABI_VERSION,
    .v0.backend_name = "dri",
    .v0.create_device = dri_device_create,
+};
+
+struct gbm_backend * gbmint_get_backend(const struct gbm_core *gbm_core);
+
+PUBLIC struct gbm_backend *
+gbmint_get_backend(const struct gbm_core *gbm_core) {
+   core = gbm_core;
+   return &gbm_dri_backend;
 };
