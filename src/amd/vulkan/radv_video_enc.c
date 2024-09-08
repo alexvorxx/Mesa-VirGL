@@ -1610,12 +1610,8 @@ radv_enc_headers_hevc(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInf
 static void
 begin(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInfoKHR *enc_info)
 {
-   struct radv_enc_state *enc = &cmd_buffer->video.enc;
    struct radv_video_session *vid = cmd_buffer->video.vid;
 
-   radv_enc_session_info(cmd_buffer);
-   cmd_buffer->video.enc.total_task_size = 0;
-   radv_enc_task_info(cmd_buffer, false);
    radv_enc_op_init(cmd_buffer);
    radv_enc_session_init(cmd_buffer, enc_info);
    if (vid->vk.op == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR) {
@@ -1640,7 +1636,6 @@ begin(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInfoKHR *enc_info)
    } while (++i < vid->rc_layer_control.num_temporal_layers);
    radv_enc_op_init_rc(cmd_buffer);
    radv_enc_op_init_rc_vbv(cmd_buffer);
-   radeon_emit_direct(cmd_buffer->cs, enc->task_size_offset, enc->total_task_size);
 }
 
 static void
@@ -1675,29 +1670,31 @@ radv_vcn_encode_video(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInf
    if (!inline_queries)
       feedback_query_va = cmd_buffer->video.feedback_query_va;
 
-   if (vid->enc_need_begin) {
-      begin(cmd_buffer, enc_info);
-      vid->enc_need_begin = false;
-   }
    // before encode
    // session info
    radv_enc_session_info(cmd_buffer);
 
    cmd_buffer->video.enc.total_task_size = 0;
+
    // task info
    radv_enc_task_info(cmd_buffer, true);
 
-   // temporal layers init
-   unsigned i = 0;
-   do {
-      if (vid->enc_need_rate_control) {
+   if (vid->enc_need_begin) {
+      begin(cmd_buffer, enc_info);
+      vid->enc_need_begin = false;
+   } else {
+      // temporal layers init
+      unsigned i = 0;
+      do {
+         if (vid->enc_need_rate_control) {
+            radv_enc_layer_select(cmd_buffer, i);
+            radv_enc_rc_layer_init(cmd_buffer, &vid->rc_layer_init[i]);
+            vid->enc_need_rate_control = false;
+         }
          radv_enc_layer_select(cmd_buffer, i);
-         radv_enc_rc_layer_init(cmd_buffer, &vid->rc_layer_init[i]);
-         vid->enc_need_rate_control = false;
-      }
-      radv_enc_layer_select(cmd_buffer, i);
-      radv_enc_rc_per_pic(cmd_buffer, enc_info, &vid->rc_per_pic[i]);
-   } while (++i < vid->rc_layer_control.num_temporal_layers);
+         radv_enc_rc_per_pic(cmd_buffer, enc_info, &vid->rc_per_pic[i]);
+      } while (++i < vid->rc_layer_control.num_temporal_layers);
+   }
 
    // encode headers
    // ctx
