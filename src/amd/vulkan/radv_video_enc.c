@@ -1462,15 +1462,6 @@ radv_enc_op_init(struct radv_cmd_buffer *cmd_buffer)
 }
 
 static void
-radv_enc_op_close(struct radv_cmd_buffer *cmd_buffer)
-{
-   struct radeon_cmdbuf *cs = cmd_buffer->cs;
-   ENC_BEGIN;
-   radeon_emit(cs, RENCODE_IB_OP_CLOSE_SESSION);
-   ENC_END;
-}
-
-static void
 radv_enc_op_enc(struct radv_cmd_buffer *cmd_buffer)
 {
    struct radeon_cmdbuf *cs = cmd_buffer->cs;
@@ -1653,17 +1644,6 @@ begin(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInfoKHR *enc_info)
 }
 
 static void
-destroy(struct radv_cmd_buffer *cmd_buffer)
-{
-   struct radv_enc_state *enc = &cmd_buffer->video.enc;
-   radv_enc_session_info(cmd_buffer);
-   cmd_buffer->video.enc.total_task_size = 0;
-   radv_enc_task_info(cmd_buffer, false);
-   radv_enc_op_close(cmd_buffer);
-   radeon_emit_direct(cmd_buffer->cs, enc->task_size_offset, enc->total_task_size);
-}
-
-static void
 radv_vcn_encode_video(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInfoKHR *enc_info)
 {
    VK_FROM_HANDLE(radv_buffer, dst_buffer, enc_info->dstBuffer);
@@ -1752,8 +1732,6 @@ radv_vcn_encode_video(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInf
    radv_enc_op_enc(cmd_buffer);
 
    radeon_emit_direct(cmd_buffer->cs, enc->task_size_offset, enc->total_task_size);
-
-   destroy(cmd_buffer);
 }
 
 static void
