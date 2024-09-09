@@ -786,6 +786,14 @@ d3d12_video_encoder_convert_h264_codec_configuration(struct d3d12_video_encoder 
       config.ConfigurationFlags |= D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_ENABLE_CABAC_ENCODING;
    }
 
+   if (picture->pic_ctrl.constrained_intra_pred_flag) {
+      config.ConfigurationFlags |= D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_USE_CONSTRAINED_INTRAPREDICTION;
+   }
+
+   if (picture->pic_ctrl.transform_8x8_mode_flag) {
+      config.ConfigurationFlags |= D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_USE_ADAPTIVE_8x8_TRANSFORM;
+   }
+
    pD3D12Enc->m_currentEncodeCapabilities.m_encoderCodecSpecificConfigCaps.m_H264CodecCaps =
    {
       D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_SUPPORT_H264_FLAG_NONE,
@@ -826,6 +834,24 @@ d3d12_video_encoder_convert_h264_codec_configuration(struct d3d12_video_encoder 
          " Ignoring the request for this feature flag on this encode session");
          // Disable it and keep going with a warning
          config.ConfigurationFlags &= ~D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_ENABLE_CABAC_ENCODING;
+   }
+
+   if(((config.ConfigurationFlags & D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_USE_CONSTRAINED_INTRAPREDICTION) != 0)
+      && ((capCodecConfigData.CodecSupportLimits.pH264Support->SupportFlags & D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_SUPPORT_H264_FLAG_CONSTRAINED_INTRAPREDICTION_SUPPORT) == 0))
+   {
+      debug_printf("D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION arguments are not supported - constrained_intra_pred_flag not supported."
+         " Ignoring the request for this feature flag on this encode session");
+         // Disable it and keep going with a warning
+         config.ConfigurationFlags &= ~D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_USE_CONSTRAINED_INTRAPREDICTION;
+   }
+
+   if(((config.ConfigurationFlags & D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_USE_ADAPTIVE_8x8_TRANSFORM) != 0)
+      && ((capCodecConfigData.CodecSupportLimits.pH264Support->SupportFlags & D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_SUPPORT_H264_FLAG_ADAPTIVE_8x8_TRANSFORM_ENCODING_SUPPORT) == 0))
+   {
+      debug_printf("D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION arguments are not supported - transform_8x8_mode_flag not supported."
+         " Ignoring the request for this feature flag on this encode session");
+         // Disable it and keep going with a warning
+         config.ConfigurationFlags &= ~D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_USE_ADAPTIVE_8x8_TRANSFORM;
    }
 
    return config;
