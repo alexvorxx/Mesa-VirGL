@@ -47,7 +47,7 @@ nak_nir_workgroup_has_one_subgroup(const nir_shader *nir)
                        nir->info.workgroup_size[1] *
                        nir->info.workgroup_size[2];
 
-      return wg_sz <= 32;
+      return wg_sz <= NAK_SUBGROUP_SIZE;
    }
 
    default:
@@ -893,7 +893,7 @@ nak_postprocess_nir(nir_shader *nir,
    nak_optimize_nir(nir, nak);
 
    const nir_lower_subgroups_options subgroups_options = {
-      .subgroup_size = 32,
+      .subgroup_size = NAK_SUBGROUP_SIZE,
       .ballot_bit_size = 32,
       .ballot_components = 1,
       .lower_to_scalar = true,

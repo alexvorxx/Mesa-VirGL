@@ -17,6 +17,8 @@
 extern "C" {
 #endif
 
+#define NAK_SUBGROUP_SIZE 32
+
 struct nak_compiler;
 struct nir_shader_compiler_options;
 struct nv_device_info;
