@@ -420,6 +420,8 @@ struct radv_dgc_params {
    uint8_t dynamic_vs_input;
    uint8_t use_per_attribute_vb_descs;
 
+   uint16_t push_constant_stages;
+
    uint8_t use_preamble;
 
    /* For conditional rendering on ACE. */
@@ -1184,6 +1186,20 @@ dgc_emit_index_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_variable 
  * Emit VK_INDIRECT_COMMANDS_TOKEN_TYPE_PUSH_CONSTANT_NV.
  */
 static nir_def *
+dgc_get_push_constant_stages(struct dgc_cmdbuf *cs, nir_def *stream_addr)
+{
+   const struct radv_indirect_command_layout *layout = cs->layout;
+   nir_builder *b = cs->b;
+
+   if (layout->pipeline_bind_point == VK_PIPELINE_BIND_POINT_COMPUTE) {
+      nir_def *has_push_constant = nir_ine_imm(b, load_shader_metadata32(cs, push_const_sgpr), 0);
+      return nir_bcsel(b, has_push_constant, nir_imm_int(b, VK_SHADER_STAGE_COMPUTE_BIT), nir_imm_int(b, 0));
+   } else {
+      return load_param16(b, push_constant_stages);
+   }
+}
+
+static nir_def *
 dgc_get_upload_sgpr(struct dgc_cmdbuf *cs, nir_def *param_buf, nir_def *param_offset, gl_shader_stage stage)
 {
    const struct radv_indirect_command_layout *layout = cs->layout;
@@ -1354,13 +1370,17 @@ dgc_emit_push_constant_for_stage(struct dgc_cmdbuf *cs, nir_def *stream_addr, co
 static void
 dgc_emit_push_constant(struct dgc_cmdbuf *cs, nir_def *stream_addr, VkShaderStageFlags stages)
 {
-   const struct radv_indirect_command_layout *layout = cs->layout;
    const struct dgc_pc_params params = dgc_get_pc_params(cs);
    nir_builder *b = cs->b;
 
-   radv_foreach_stage(s, stages & layout->push_constant_stages)
+   nir_def *push_constant_stages = dgc_get_push_constant_stages(cs, stream_addr);
+   radv_foreach_stage(s, stages)
    {
-      dgc_emit_push_constant_for_stage(cs, stream_addr, &params, s);
+      nir_push_if(b, nir_test_mask(b, push_constant_stages, mesa_to_vk_shader_stage(s)));
+      {
+         dgc_emit_push_constant_for_stage(cs, stream_addr, &params, s);
+      }
+      nir_pop_if(b, NULL);
    }
 
    nir_def *const_copy = dgc_push_constant_needs_copy(cs);
@@ -2068,13 +2088,22 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
          nir_def *stream_addr = load_param64(&b, stream_addr);
          stream_addr = nir_iadd(&b, stream_addr, nir_u2u64(&b, nir_imul_imm(&b, sequence_id, layout->input_stride)));
 
+         if (layout->bind_pipeline)
+            cmd_buf.pipeline_va = dgc_get_pipeline_va(&cmd_buf, stream_addr);
+
          nir_def *upload_offset_init = nir_iadd(&b, load_param32(&b, upload_main_offset),
                                                 nir_imul(&b, load_param32(&b, upload_stride), sequence_id));
          nir_store_var(&b, cmd_buf.upload_offset, upload_offset_init, 0x1);
 
-         if (layout->push_constant_mask && (layout->push_constant_stages & VK_SHADER_STAGE_TASK_BIT_EXT)) {
-            const struct dgc_pc_params params = dgc_get_pc_params(&cmd_buf);
-            dgc_emit_push_constant_for_stage(&cmd_buf, stream_addr, &params, MESA_SHADER_TASK);
+         if (layout->push_constant_mask) {
+            nir_def *push_constant_stages = dgc_get_push_constant_stages(&cmd_buf, stream_addr);
+
+            nir_push_if(&b, nir_test_mask(&b, push_constant_stages, VK_SHADER_STAGE_TASK_BIT_EXT));
+            {
+               const struct dgc_pc_params params = dgc_get_pc_params(&cmd_buf);
+               dgc_emit_push_constant_for_stage(&cmd_buf, stream_addr, &params, MESA_SHADER_TASK);
+            }
+            nir_pop_if(&b, NULL);
          }
 
          dgc_emit_draw_mesh_tasks_ace(&cmd_buf, stream_addr);
@@ -2235,7 +2264,6 @@ radv_CreateIndirectCommandsLayoutNV(VkDevice _device, const VkIndirectCommandsLa
             layout->push_constant_offsets[j] = pCreateInfo->pTokens[i].offset + k * 4;
          }
          layout->push_constant_size = pipeline_layout->push_constant_size;
-         layout->push_constant_stages = pCreateInfo->pTokens[i].pushconstantShaderStageFlags;
          assert(!pipeline_layout->dynamic_offset_count);
          break;
       }
@@ -2564,10 +2592,9 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
    }
 
    if (layout->push_constant_mask) {
+      VkShaderStageFlags pc_stages = 0;
       uint32_t *desc = upload_data;
       upload_data = (char *)upload_data + ARRAY_SIZE(pipeline->shaders) * 12;
-
-      memset(desc, 0, ARRAY_SIZE(pipeline->shaders) * 12);
 
       if (pipeline) {
          for (unsigned i = 0; i < ARRAY_SIZE(pipeline->shaders); ++i) {
@@ -2594,9 +2621,13 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
                   desc[i * 3 + 2] = pipeline->shaders[i]->info.inline_push_constant_mask >> 32;
                }
                desc[i * 3] = upload_sgpr | (inline_sgpr << 16);
+
+               pc_stages |= mesa_to_vk_shader_stage(i);
             }
          }
       }
+
+      params.push_constant_stages = pc_stages;
 
       memcpy(upload_data, cmd_buffer->push_constants, layout->push_constant_size);
       upload_data = (char *)upload_data + layout->push_constant_size;

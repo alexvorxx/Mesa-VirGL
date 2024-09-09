@@ -42,7 +42,6 @@ struct radv_indirect_command_layout {
    uint32_t bind_vbo_mask;
    uint32_t vbo_offsets[MAX_VBS];
 
-   VkShaderStageFlags push_constant_stages;
    uint64_t push_constant_mask;
    uint32_t push_constant_offsets[MAX_PUSH_CONSTANTS_SIZE / 4];
    uint32_t push_constant_size;
