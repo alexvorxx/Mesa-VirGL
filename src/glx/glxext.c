@@ -241,6 +241,8 @@ FreeScreenConfigs(struct glx_display * priv)
 #if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
       if (psc->driScreen.deinitScreen)
          psc->driScreen.deinitScreen(psc);
+      /* Free the direct rendering per screen data */
+      driDestroyScreen(psc->frontend_screen);
 #endif
       free(psc);
    }
@@ -743,8 +745,6 @@ glx_screen_cleanup(struct glx_screen *psc)
       driDestroyConfigs(psc->driver_configs);
       psc->driver_configs = NULL;
    }
-   /* Free the direct rendering per screen data */
-   driDestroyScreen(psc->frontend_screen);
 #endif
    free((char *) psc->serverGLXexts);
    free((char *) psc->serverGLXvendor);
