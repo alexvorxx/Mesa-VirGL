@@ -748,19 +748,27 @@ static inline enum pipe_format
 lvp_vk_format_to_pipe_format(VkFormat format)
 {
    /* Some formats cause problems with CTS right now.*/
-   if (format == VK_FORMAT_R4G4B4A4_UNORM_PACK16 ||
-       format == VK_FORMAT_R8_SRGB ||
-       format == VK_FORMAT_R8G8_SRGB ||
-       format == VK_FORMAT_R64G64B64A64_SFLOAT ||
-       format == VK_FORMAT_R64_SFLOAT ||
-       format == VK_FORMAT_R64G64_SFLOAT ||
-       format == VK_FORMAT_R64G64B64_SFLOAT ||
-       format == VK_FORMAT_A2R10G10B10_SINT_PACK32 ||
-       format == VK_FORMAT_A2B10G10R10_SINT_PACK32 ||
-       format == VK_FORMAT_D16_UNORM_S8_UINT)
+   switch (format) {
+   case VK_FORMAT_R4G4B4A4_UNORM_PACK16:
+   case VK_FORMAT_R8_SRGB:
+   case VK_FORMAT_R8G8_SRGB:
+   case VK_FORMAT_R64G64B64A64_SFLOAT:
+   case VK_FORMAT_R64_SFLOAT:
+   case VK_FORMAT_R64G64_SFLOAT:
+   case VK_FORMAT_R64G64B64_SFLOAT:
+   case VK_FORMAT_A2R10G10B10_SINT_PACK32:
+   case VK_FORMAT_A2B10G10R10_SINT_PACK32:
+   case VK_FORMAT_D16_UNORM_S8_UINT:
       return PIPE_FORMAT_NONE;
-
-   return vk_format_to_pipe_format(format);
+   case VK_FORMAT_R10X6_UNORM_PACK16:
+   case VK_FORMAT_R12X4_UNORM_PACK16:
+      return PIPE_FORMAT_R16_UNORM;
+   case VK_FORMAT_R10X6G10X6_UNORM_2PACK16:
+   case VK_FORMAT_R12X4G12X4_UNORM_2PACK16:
+      return PIPE_FORMAT_R16G16_UNORM;
+   default:
+      return vk_format_to_pipe_format(format);
+   }
 }
 
 static inline uint8_t
