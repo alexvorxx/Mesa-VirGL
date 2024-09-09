@@ -58,6 +58,7 @@ issues:
         'nvc0': ['nouveau', 'nvc0']
         'nvk': 'NVK'
         'panfrost': 'panfrost'
+        'panvk': 'panvk'
         'pan/midgard': 'panfrost'
         'pvr': 'powervr'
         'r100': 'r100'
@@ -289,6 +290,7 @@ merge_requests:
         '^src/nouveau/vulkan/': ['NVK']
         '^src/nouveau/winsys/': ['NVK']
         '^src/panfrost/': ['panfrost']
+        '^src/panfrost/vulkan/': ['panvk']
         '^src/virtio/vulkan/': ['venus']
         '^src/virtio/venus-protocol/': ['venus']
         '^src/virtio/ci/': ['venus']
