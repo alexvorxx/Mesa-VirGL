@@ -3266,6 +3266,10 @@ anv_can_fast_clear_color(const struct anv_cmd_buffer *cmd_buffer,
    if (INTEL_DEBUG(DEBUG_NO_FAST_CLEAR))
       return false;
 
+   /* We only have fast-clears implemented for the render engine. */
+   if (cmd_buffer->queue_family->engine_class != INTEL_ENGINE_CLASS_RENDER)
+      return false;
+
    /* Start by getting the fast clear type.  We use the first subpass
     * layout here because we don't want to fast-clear if the first subpass
     * to use the attachment can't handle fast-clears.

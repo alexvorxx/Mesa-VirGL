@@ -1423,33 +1423,69 @@ void anv_CmdClearColorImage(
       struct anv_format_plane src_format =
          anv_get_format_aspect(cmd_buffer->device->info, image->vk.format,
                                VK_IMAGE_ASPECT_COLOR_BIT, image->vk.tiling);
+      union isl_color_value clear_color = vk_to_isl_color(*pColor);
 
-      unsigned base_layer = pRanges[r].baseArrayLayer;
-      uint32_t layer_count =
-         vk_image_subresource_layer_count(&image->vk, &pRanges[r]);
       uint32_t level_count =
          vk_image_subresource_level_count(&image->vk, &pRanges[r]);
 
       for (uint32_t i = 0; i < level_count; i++) {
          const unsigned level = pRanges[r].baseMipLevel + i;
-         const unsigned level_width = u_minify(image->vk.extent.width, level);
-         const unsigned level_height = u_minify(image->vk.extent.height, level);
+         const VkExtent3D level_extent =
+            vk_image_mip_level_extent(&image->vk, level);
 
+         VkClearRect clear_rect = {};
+         clear_rect.rect.extent.width = level_extent.width;
+         clear_rect.rect.extent.height = level_extent.height;
          if (image->vk.image_type == VK_IMAGE_TYPE_3D) {
-            base_layer = 0;
-            layer_count = u_minify(image->vk.extent.depth, level);
+            clear_rect.baseArrayLayer = 0;
+            clear_rect.layerCount = level_extent.depth;
+         } else {
+            clear_rect.baseArrayLayer = pRanges[r].baseArrayLayer;
+            clear_rect.layerCount =
+               vk_image_subresource_layer_count(&image->vk, &pRanges[r]);
+         }
+
+         if (anv_can_fast_clear_color(cmd_buffer, image, level, &clear_rect,
+                                      imageLayout, src_format.isl_format,
+                                      src_format.swizzle, clear_color)) {
+            assert(level == 0);
+            assert(clear_rect.baseArrayLayer == 0);
+            if (image->vk.samples == 1) {
+               exec_ccs_op(cmd_buffer, &batch, image, src_format.isl_format,
+                           src_format.swizzle, VK_IMAGE_ASPECT_COLOR_BIT,
+                           0, 0, 1, ISL_AUX_OP_FAST_CLEAR, &clear_color);
+            } else {
+               exec_mcs_op(cmd_buffer, &batch, image, src_format.isl_format,
+                           src_format.swizzle, VK_IMAGE_ASPECT_COLOR_BIT,
+                           0, 1, ISL_AUX_OP_FAST_CLEAR, &clear_color);
+            }
+
+            if (cmd_buffer->device->info->ver < 20) {
+               anv_cmd_buffer_mark_image_fast_cleared(cmd_buffer, image,
+                                                      src_format.isl_format,
+                                                      clear_color);
+            }
+
+            clear_rect.baseArrayLayer++;
+            if (--clear_rect.layerCount == 0)
+               continue;
          }
 
          anv_cmd_buffer_mark_image_written(cmd_buffer, image,
                                            pRanges[r].aspectMask,
                                            surf.aux_usage, level,
-                                           base_layer, layer_count);
+                                           clear_rect.baseArrayLayer,
+                                           clear_rect.layerCount);
 
          blorp_clear(&batch, &surf,
-                     src_format.isl_format, src_format.swizzle,
-                     level, base_layer, layer_count,
-                     0, 0, level_width, level_height,
-                     vk_to_isl_color(*pColor), 0 /* color_write_disable */);
+                     src_format.isl_format, src_format.swizzle, level,
+                     clear_rect.baseArrayLayer,
+                     clear_rect.layerCount,
+                     clear_rect.rect.offset.x,
+                     clear_rect.rect.offset.y,
+                     clear_rect.rect.extent.width,
+                     clear_rect.rect.extent.height,
+                     clear_color, 0 /* color_write_disable */);
       }
    }
 
