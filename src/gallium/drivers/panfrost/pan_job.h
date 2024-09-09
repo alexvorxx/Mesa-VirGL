@@ -152,6 +152,9 @@ struct panfrost_batch {
    /* Thread local storage descriptor. */
    struct panfrost_ptr tls;
 
+   /* Vertex count */
+   uint32_t vertex_count;
+
    /* Tiler context */
    struct pan_tiler_context tiler_ctx;
 

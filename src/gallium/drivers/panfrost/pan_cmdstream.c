@@ -2839,12 +2839,16 @@ panfrost_launch_xfb(struct panfrost_batch *batch,
 static inline void
 panfrost_increase_vertex_count(struct panfrost_batch *batch, uint32_t increment)
 {
-   uint32_t sum = batch->tiler_ctx.vertex_count + increment;
+   uint32_t sum = batch->vertex_count + increment;
 
-   if (sum >= batch->tiler_ctx.vertex_count)
-      batch->tiler_ctx.vertex_count = sum;
+   if (sum >= batch->vertex_count)
+      batch->vertex_count = sum;
    else
-      batch->tiler_ctx.vertex_count = UINT32_MAX;
+      batch->vertex_count = UINT32_MAX;
+
+#if PAN_ARCH <= 5
+   batch->tiler_ctx.midgard.vertex_count = batch->vertex_count;
+#endif
 }
 
 /*
@@ -3832,7 +3836,7 @@ batch_get_polygon_list(struct panfrost_batch *batch)
    if (!batch->tiler_ctx.midgard.polygon_list) {
       bool has_draws = batch->draw_count > 0;
       unsigned size = panfrost_tiler_get_polygon_list_size(
-         batch->key.width, batch->key.height, batch->tiler_ctx.vertex_count,
+         batch->key.width, batch->key.height, batch->vertex_count,
          !dev->model->quirks.no_hierarchical_tiling);
 
       /* Create the BO as invisible if we can. If there are no draws,

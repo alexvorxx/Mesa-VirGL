@@ -623,7 +623,7 @@ pan_emit_midgard_tiler(const struct pan_fb_info *fb,
          cfg.heap_end = tiler_ctx->midgard.polygon_list;
       } else {
          cfg.hierarchy_mask = panfrost_choose_hierarchy_mask(
-            fb->width, fb->height, tiler_ctx->vertex_count, hierarchy);
+            fb->width, fb->height, tiler_ctx->midgard.vertex_count, hierarchy);
          header_size = panfrost_tiler_header_size(
             fb->width, fb->height, cfg.hierarchy_mask, hierarchy);
          cfg.polygon_list_size = panfrost_tiler_full_size(
