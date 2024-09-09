@@ -893,6 +893,7 @@ a7xx_750 = A7XXProps(
         ubwc_all_formats_compatible = True,
         has_compliant_dp4acc = True,
         ubwc_coherency_quirk = True,
+        has_persistent_counter = True,
     )
 
 a730_magic_regs = dict(

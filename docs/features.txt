@@ -509,7 +509,7 @@ Khronos extensions that are not part of any Vulkan version:
 
   VK_KHR_acceleration_structure                         DONE (anv/gfx12.5+, lvp, radv/gfx10.3+)
   VK_KHR_android_surface                                not started
-  VK_KHR_calibrated_timestamps                          DONE (anv, nvk, radv)
+  VK_KHR_calibrated_timestamps                          DONE (anv, nvk, radv, tu/a750+)
   VK_KHR_compute_shader_derivatives                     DONE (anv, nvk, radv)
   VK_KHR_cooperative_matrix                             DONE (anv, radv/gfx11+)
   VK_KHR_deferred_host_operations                       DONE (anv, hasvk, lvp, radv)
@@ -568,7 +568,7 @@ Khronos extensions that are not part of any Vulkan version:
   VK_EXT_attachment_feedback_loop_layout                DONE (anv, lvp, nvk, radv, tu, v3dv, vn)
   VK_EXT_border_color_swizzle                           DONE (anv, hasvk, lvp, nvk, radv/gfx10+, tu, v3dv, vn)
   VK_EXT_buffer_device_address                          DONE (anv, hasvk, nvk, panvk, radv)
-  VK_EXT_calibrated_timestamps                          DONE (anv, hasvk, nvk, lvp, radv, vn)
+  VK_EXT_calibrated_timestamps                          DONE (anv, hasvk, nvk, lvp, radv, vn, tu/a750+)
   VK_EXT_color_write_enable                             DONE (anv, hasvk, lvp, nvk, radv, tu, v3dv, vn)
   VK_EXT_conditional_rendering                          DONE (anv, hasvk, lvp, nvk, radv, tu, vn)
   VK_EXT_conservative_rasterization                     DONE (anv, nvk, radv, vn)
