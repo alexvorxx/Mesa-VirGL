@@ -751,7 +751,8 @@ GENX(pan_emit_fbd)(const struct pan_fb_info *fb, unsigned layer_idx,
       cfg.post_frame = pan_fix_frame_shader_mode(fb->bifrost.pre_post.modes[2],
                                                  force_clean_write);
       cfg.frame_shader_dcds = fb->bifrost.pre_post.dcds.gpu;
-      cfg.tiler = tiler_ctx->bifrost;
+      cfg.tiler =
+         PAN_ARCH >= 9 ? tiler_ctx->valhall.desc : tiler_ctx->bifrost.desc;
 #endif
       cfg.width = fb->width;
       cfg.height = fb->height;

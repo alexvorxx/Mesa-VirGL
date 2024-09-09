@@ -1038,7 +1038,8 @@ panvk_draw_prepare_tiler_job(struct panvk_cmd_buffer *cmdbuf,
                         pan_section_ptr(ptr.cpu, TILER_JOB, DRAW));
 
    pan_section_pack(ptr.cpu, TILER_JOB, TILER, cfg) {
-      cfg.address = draw->tiler_ctx->bifrost;
+      cfg.address = PAN_ARCH >= 9 ? draw->tiler_ctx->valhall.desc
+                                  : draw->tiler_ctx->bifrost.desc;
    }
 
    pan_section_pack(ptr.cpu, TILER_JOB, PADDING, padding)
@@ -1067,7 +1068,8 @@ panvk_draw_prepare_idvs_job(struct panvk_cmd_buffer *cmdbuf,
       pan_section_ptr(ptr.cpu, INDEXED_VERTEX_JOB, PRIMITIVE_SIZE));
 
    pan_section_pack(ptr.cpu, INDEXED_VERTEX_JOB, TILER, cfg) {
-      cfg.address = draw->tiler_ctx->bifrost;
+      cfg.address = PAN_ARCH >= 9 ? draw->tiler_ctx->valhall.desc
+                                  : draw->tiler_ctx->bifrost.desc;
    }
 
    pan_section_pack(ptr.cpu, INDEXED_VERTEX_JOB, PADDING, _) {

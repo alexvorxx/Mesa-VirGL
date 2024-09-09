@@ -213,9 +213,13 @@ panvk_per_arch(cmd_prepare_tiler_context)(struct panvk_cmd_buffer *cmdbuf,
 {
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    struct panvk_batch *batch = cmdbuf->cur_batch;
+   mali_ptr tiler_desc;
 
-   if (batch->tiler.ctx_descs.cpu)
+   if (batch->tiler.ctx_descs.gpu) {
+      tiler_desc =
+         batch->tiler.ctx_descs.gpu + (pan_size(TILER_CONTEXT) * layer_idx);
       goto out_set_layer_ctx;
+   }
 
    const struct pan_fb_info *fbinfo = &cmdbuf->state.gfx.render.fb.info;
    uint32_t layer_count = cmdbuf->state.gfx.render.layer_count;
@@ -224,6 +228,9 @@ panvk_per_arch(cmd_prepare_tiler_context)(struct panvk_cmd_buffer *cmdbuf,
 
    batch->tiler.ctx_descs = pan_pool_alloc_desc_array(
       &cmdbuf->desc_pool.base, layer_count, TILER_CONTEXT);
+
+   tiler_desc =
+      batch->tiler.ctx_descs.gpu + (pan_size(TILER_CONTEXT) * layer_idx);
 
    pan_pack(&batch->tiler.heap_templ, TILER_HEAP, cfg) {
       cfg.size = pan_kmod_bo_size(dev->tiler_heap->bo);
@@ -254,8 +261,10 @@ panvk_per_arch(cmd_prepare_tiler_context)(struct panvk_cmd_buffer *cmdbuf,
    }
 
 out_set_layer_ctx:
-   batch->tiler.ctx.bifrost =
-      batch->tiler.ctx_descs.gpu + (pan_size(TILER_CONTEXT) * layer_idx);
+   if (PAN_ARCH >= 9)
+      batch->tiler.ctx.valhall.desc = tiler_desc;
+   else
+      batch->tiler.ctx.bifrost.desc = tiler_desc;
 }
 
 struct panvk_batch *

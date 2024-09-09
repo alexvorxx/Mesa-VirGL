@@ -494,8 +494,8 @@ GENX(csf_emit_fragment_job)(struct panfrost_batch *batch,
     * chunks is in the tiler context descriptor
     * (completed_{top,bottom fields}). */
    if (batch->draw_count > 0) {
-      assert(batch->tiler_ctx.bifrost);
-      cs_move64_to(b, cs_reg64(b, 90), batch->tiler_ctx.bifrost);
+      assert(batch->tiler_ctx.valhall.desc);
+      cs_move64_to(b, cs_reg64(b, 90), batch->tiler_ctx.valhall.desc);
       cs_load_to(b, cs_reg_tuple(b, 86, 4), cs_reg64(b, 90), BITFIELD_MASK(4),
                  40);
       cs_wait_slot(b, 0, false);
@@ -683,8 +683,8 @@ csf_get_tiler_desc(struct panfrost_batch *batch)
    struct panfrost_context *ctx = batch->ctx;
    struct panfrost_device *dev = pan_device(ctx->base.screen);
 
-   if (batch->tiler_ctx.bifrost)
-      return batch->tiler_ctx.bifrost;
+   if (batch->tiler_ctx.valhall.desc)
+      return batch->tiler_ctx.valhall.desc;
 
    struct panfrost_ptr t =
       pan_pool_alloc_desc(&batch->pool.base, TILER_CONTEXT);
@@ -714,8 +714,8 @@ csf_get_tiler_desc(struct panfrost_batch *batch)
       tiler.geometry_buffer_size = ctx->csf.tmp_geom_bo->kmod_bo->size;
    }
 
-   batch->tiler_ctx.bifrost = t.gpu;
-   return batch->tiler_ctx.bifrost;
+   batch->tiler_ctx.valhall.desc = t.gpu;
+   return batch->tiler_ctx.valhall.desc;
 }
 
 static uint32_t

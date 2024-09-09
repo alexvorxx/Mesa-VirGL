@@ -76,7 +76,12 @@ struct pan_tiler_context {
    uint32_t vertex_count;
 
    union {
-      mali_ptr bifrost;
+      struct {
+         mali_ptr desc;
+      } valhall;
+      struct {
+         mali_ptr desc;
+      } bifrost;
       struct {
          bool disable;
          bool no_hierarchical_tiling;

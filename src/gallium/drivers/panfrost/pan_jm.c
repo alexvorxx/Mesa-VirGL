@@ -387,9 +387,11 @@ static mali_ptr
 jm_emit_tiler_desc(struct panfrost_batch *batch)
 {
    struct panfrost_device *dev = pan_device(batch->ctx->base.screen);
+   mali_ptr tiler_desc = PAN_ARCH >= 9 ? batch->tiler_ctx.bifrost.desc
+                                       : batch->tiler_ctx.valhall.desc;
 
-   if (batch->tiler_ctx.bifrost)
-      return batch->tiler_ctx.bifrost;
+   if (tiler_desc)
+      return tiler_desc;
 
    struct panfrost_ptr t = pan_pool_alloc_desc(&batch->pool.base, TILER_HEAP);
 
@@ -428,8 +430,12 @@ jm_emit_tiler_desc(struct panfrost_batch *batch)
 #endif
    }
 
-   batch->tiler_ctx.bifrost = t.gpu;
-   return batch->tiler_ctx.bifrost;
+   if (PAN_ARCH >= 9)
+      batch->tiler_ctx.valhall.desc = t.gpu;
+   else
+      batch->tiler_ctx.bifrost.desc = t.gpu;
+
+   return t.gpu;
 }
 #endif
 
