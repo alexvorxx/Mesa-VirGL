@@ -1144,6 +1144,13 @@ build_buffer_to_image_cs(const struct vk_meta_device *meta,
 
    texel = convert_texel(b, buf_fmt, img_fmt, texel);
 
+   /* If the image view format matches buf_fmt, convert_texel() does nothing,
+    * but we still need to promote the texel to a 32-bit unsigned integer,
+    * because write_img() wants a 32-bit value.
+    */
+   if (texel->bit_size < 32)
+      texel = nir_u2u32(b, texel);
+
    write_img(b, &key->img.view, key->img.aspect, VK_SAMPLE_COUNT_1_BIT,
              image_deref, img_coords, NULL, texel);
 
