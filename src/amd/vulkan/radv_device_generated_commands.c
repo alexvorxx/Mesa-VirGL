@@ -92,9 +92,6 @@ radv_get_sequence_size_compute(const struct radv_indirect_command_layout *layout
 
       /* PKT3_SET_SH_REG for indirect descriptor sets pointer */
       *cmd_size += 3 * 4;
-
-      /* Reserve space for indirect pipelines because they might use indirect descriptor sets. */
-      *upload_size += MAX_SETS * 4;
    }
 
    if (device->sqtt.bo) {
