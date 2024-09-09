@@ -87,6 +87,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .KHR_bind_memory2 = true,
       .KHR_buffer_device_address = true,
       .KHR_calibrated_timestamps = true,
+      .KHR_compute_shader_derivatives = true,
       .KHR_copy_commands2 = true,
       .KHR_create_renderpass2 = true,
       .KHR_dedicated_allocation = true,
@@ -253,6 +254,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .GOOGLE_decorate_string = true,
       .GOOGLE_hlsl_functionality1 = true,
       .GOOGLE_user_type = true,
+      .NV_compute_shader_derivatives = true,
       .NV_shader_sm_builtins = true,
       .VALVE_mutable_descriptor_type = true,
    };
@@ -400,6 +402,10 @@ nvk_get_device_features(const struct nv_device_info *info,
       .dynamicRendering = true,
       .shaderIntegerDotProduct = true,
       .maintenance4 = true,
+
+      /* VK_KHR_compute_shader_derivatives */
+      .computeDerivativeGroupQuads = true,
+      .computeDerivativeGroupLinear = true,
 
       /* VK_KHR_dynamic_rendering_local_read */
       .dynamicRenderingLocalRead = true,
@@ -890,6 +896,9 @@ nvk_get_device_properties(const struct nvk_instance *instance,
       .uniformTexelBufferOffsetAlignmentBytes = NVK_MIN_TEXEL_BUFFER_ALIGNMENT,
       .uniformTexelBufferOffsetSingleTexelAlignment = true,
       .maxBufferSize = NVK_MAX_BUFFER_SIZE,
+
+      /* VK_KHR_compute_shader_derivatives */
+      .meshAndTaskShaderDerivatives = false,
 
       /* VK_KHR_push_descriptor */
       .maxPushDescriptors = NVK_MAX_PUSH_DESCRIPTORS,
