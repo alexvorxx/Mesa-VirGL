@@ -1273,7 +1273,7 @@ dgc_get_pc_params(struct dgc_cmdbuf *cs)
    uint32_t offset = 0;
 
    if (layout->pipeline_bind_point == VK_PIPELINE_BIND_POINT_COMPUTE) {
-      offset = layout->bind_pipeline ? MAX_SETS * 4 : sizeof(struct radv_compute_pipeline_metadata);
+      offset = layout->bind_pipeline ? 0 : sizeof(struct radv_compute_pipeline_metadata);
    } else {
       if (layout->bind_vbo_mask) {
          offset += MAX_VBS * DGC_VBO_INFO_SIZE;
@@ -2481,7 +2481,7 @@ radv_prepare_dgc_compute(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCo
 {
    VK_FROM_HANDLE(radv_pipeline, pipeline, pGeneratedCommandsInfo->pipeline);
    const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
-   const uint32_t alloc_size = pipeline ? sizeof(struct radv_compute_pipeline_metadata) : MAX_SETS * 4;
+   const uint32_t alloc_size = pipeline ? sizeof(struct radv_compute_pipeline_metadata) : 0;
 
    *upload_size = MAX2(*upload_size + alloc_size, 16);
 
@@ -2508,18 +2508,9 @@ radv_prepare_dgc_compute(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCo
       struct radv_descriptor_state *descriptors_state =
          radv_get_descriptors_state(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE);
 
-      for (unsigned i = 0; i < MAX_SETS; i++) {
-         uint32_t *uptr = ((uint32_t *)*upload_data) + i;
-         uint64_t set_va = 0;
-         if (descriptors_state->valid & (1u << i))
-            set_va = radv_descriptor_get_va(descriptors_state, i);
+      radv_upload_indirect_descriptor_sets(cmd_buffer, descriptors_state);
 
-         uptr[0] = set_va & 0xffffffff;
-      }
-
-      params->indirect_desc_sets_va = radv_buffer_get_va(cmd_buffer->upload.upload_bo) + *upload_offset;
-
-      *upload_data = (char *)*upload_data + alloc_size;
+      params->indirect_desc_sets_va = descriptors_state->indirect_descriptor_sets_va;
    }
 }
 
