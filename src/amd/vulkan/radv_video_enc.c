@@ -1940,41 +1940,48 @@ radv_GetEncodedVideoSessionParametersKHR(VkDevice device,
    case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR: {
       const struct VkVideoEncodeH264SessionParametersGetInfoKHR *h264_get_info =
          vk_find_struct_const(pVideoSessionParametersInfo->pNext, VIDEO_ENCODE_H264_SESSION_PARAMETERS_GET_INFO_KHR);
+      size_t sps_size = 0, pps_size = 0;
       if (h264_get_info->writeStdSPS) {
          const StdVideoH264SequenceParameterSet *sps =
             vk_video_find_h264_enc_std_sps(&templ->vk, h264_get_info->stdSPSId);
          assert(sps);
-         vk_video_encode_h264_sps(sps, size_limit, &total_size, pData);
+         vk_video_encode_h264_sps(sps, size_limit, &sps_size, pData);
       }
       if (h264_get_info->writeStdPPS) {
          const StdVideoH264PictureParameterSet *pps =
             vk_video_find_h264_enc_std_pps(&templ->vk, h264_get_info->stdPPSId);
          assert(pps);
+         char *data_ptr = pData ? (char *)pData + sps_size : NULL;
          vk_video_encode_h264_pps(pps, templ->vk.h264_enc.profile_idc == STD_VIDEO_H264_PROFILE_IDC_HIGH, size_limit,
-                                  &total_size, pData);
+                                  &pps_size, data_ptr);
       }
+      total_size = sps_size + pps_size;
       break;
    }
    case VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR: {
       const struct VkVideoEncodeH265SessionParametersGetInfoKHR *h265_get_info =
          vk_find_struct_const(pVideoSessionParametersInfo->pNext, VIDEO_ENCODE_H265_SESSION_PARAMETERS_GET_INFO_KHR);
+      size_t sps_size = 0, pps_size = 0, vps_size = 0;
       if (h265_get_info->writeStdVPS) {
          const StdVideoH265VideoParameterSet *vps = vk_video_find_h265_enc_std_vps(&templ->vk, h265_get_info->stdVPSId);
          assert(vps);
-         vk_video_encode_h265_vps(vps, size_limit, &total_size, pData);
+         vk_video_encode_h265_vps(vps, size_limit, &vps_size, pData);
       }
       if (h265_get_info->writeStdSPS) {
          const StdVideoH265SequenceParameterSet *sps =
             vk_video_find_h265_enc_std_sps(&templ->vk, h265_get_info->stdSPSId);
          assert(sps);
-         vk_video_encode_h265_sps(sps, size_limit, &total_size, pData);
+         char *data_ptr = pData ? (char *)pData + vps_size : NULL;
+         vk_video_encode_h265_sps(sps, size_limit, &sps_size, data_ptr);
       }
       if (h265_get_info->writeStdPPS) {
          const StdVideoH265PictureParameterSet *pps =
             vk_video_find_h265_enc_std_pps(&templ->vk, h265_get_info->stdPPSId);
          assert(pps);
-         vk_video_encode_h265_pps(pps, size_limit, &total_size, pData);
+         char *data_ptr = pData ? (char *)pData + vps_size + sps_size : NULL;
+         vk_video_encode_h265_pps(pps, size_limit, &pps_size, data_ptr);
       }
+      total_size = sps_size + pps_size + vps_size;
       break;
    }
    default:

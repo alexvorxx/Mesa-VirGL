@@ -575,40 +575,47 @@ anv_GetEncodedVideoSessionParametersKHR(VkDevice device,
    case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR: {
       const struct VkVideoEncodeH264SessionParametersGetInfoKHR *h264_get_info =
          vk_find_struct_const(pVideoSessionParametersInfo->pNext, VIDEO_ENCODE_H264_SESSION_PARAMETERS_GET_INFO_KHR);
+      size_t sps_size = 0, pps_size = 0;
       if (h264_get_info->writeStdSPS) {
          for (unsigned i = 0; i < params->vk.h264_enc.h264_sps_count; i++)
             if (params->vk.h264_enc.h264_sps[i].base.seq_parameter_set_id == h264_get_info->stdSPSId)
-               vk_video_encode_h264_sps(&params->vk.h264_enc.h264_sps[i].base, size_limit, &total_size, pData);
+               vk_video_encode_h264_sps(&params->vk.h264_enc.h264_sps[i].base, size_limit, &sps_size, pData);
       }
       if (h264_get_info->writeStdPPS) {
+         char *data_ptr = pData ? (char *)pData + sps_size : NULL;
          for (unsigned i = 0; i < params->vk.h264_enc.h264_pps_count; i++)
             if (params->vk.h264_enc.h264_pps[i].base.pic_parameter_set_id == h264_get_info->stdPPSId) {
-               vk_video_encode_h264_pps(&params->vk.h264_enc.h264_pps[i].base, false, size_limit, &total_size, pData);
+               vk_video_encode_h264_pps(&params->vk.h264_enc.h264_pps[i].base, false, size_limit, &pps_size, data_ptr);
             }
       }
+      total_size = sps_size + pps_size;
       break;
    }
    case VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR: {
       const struct VkVideoEncodeH265SessionParametersGetInfoKHR *h265_get_info =
          vk_find_struct_const(pVideoSessionParametersInfo->pNext, VIDEO_ENCODE_H265_SESSION_PARAMETERS_GET_INFO_KHR);
+      size_t sps_size = 0, pps_size = 0, vps_size = 0;
       if (h265_get_info->writeStdVPS) {
          for (unsigned i = 0; i < params->vk.h265_enc.h265_vps_count; i++)
             if (params->vk.h265_enc.h265_vps[i].base.vps_video_parameter_set_id == h265_get_info->stdVPSId)
-               vk_video_encode_h265_vps(&params->vk.h265_enc.h265_vps[i].base, size_limit, &total_size, pData);
+               vk_video_encode_h265_vps(&params->vk.h265_enc.h265_vps[i].base, size_limit, &vps_size, pData);
       }
       if (h265_get_info->writeStdSPS) {
+         char *data_ptr = pData ? (char *)pData + vps_size : NULL;
          for (unsigned i = 0; i < params->vk.h265_enc.h265_sps_count; i++)
             if (params->vk.h265_enc.h265_sps[i].base.sps_seq_parameter_set_id == h265_get_info->stdSPSId) {
-               vk_video_encode_h265_sps(&params->vk.h265_enc.h265_sps[i].base, size_limit, &total_size, pData);
+               vk_video_encode_h265_sps(&params->vk.h265_enc.h265_sps[i].base, size_limit, &sps_size, data_ptr);
             }
       }
       if (h265_get_info->writeStdPPS) {
+         char *data_ptr = pData ? (char *)pData + vps_size + sps_size : NULL;
          for (unsigned i = 0; i < params->vk.h265_enc.h265_pps_count; i++)
             if (params->vk.h265_enc.h265_pps[i].base.pps_seq_parameter_set_id == h265_get_info->stdPPSId) {
                params->vk.h265_enc.h265_pps[i].base.flags.cu_qp_delta_enabled_flag = 0;
-               vk_video_encode_h265_pps(&params->vk.h265_enc.h265_pps[i].base, size_limit, &total_size, pData);
+               vk_video_encode_h265_pps(&params->vk.h265_enc.h265_pps[i].base, size_limit, &pps_size, data_ptr);
             }
       }
+      total_size = sps_size + pps_size + vps_size;
       break;
    }
    default:
