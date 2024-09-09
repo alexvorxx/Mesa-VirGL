@@ -2898,8 +2898,6 @@ nvk_flush_descriptors(struct nvk_cmd_buffer *cmd)
    const uint32_t min_cbuf_alignment = nvk_min_cbuf_alignment(&pdev->info);
    struct nvk_descriptor_state *desc = &cmd->state.gfx.descriptors;
 
-   nvk_cmd_buffer_flush_push_descriptors(cmd, desc);
-
    /* Find cbuf maps for the 5 cbuf groups */
    const struct nvk_shader *cbuf_shaders[5] = { NULL, };
    for (gl_shader_stage stage = 0; stage < MESA_SHADER_STAGES; stage++) {
@@ -2996,6 +2994,7 @@ nvk_flush_descriptors(struct nvk_cmd_buffer *cmd)
 static void
 nvk_flush_gfx_state(struct nvk_cmd_buffer *cmd)
 {
+   nvk_cmd_buffer_flush_push_descriptors(cmd, &cmd->state.gfx.descriptors);
    nvk_flush_shaders(cmd);
    nvk_flush_dynamic_state(cmd);
    nvk_flush_descriptors(cmd);
