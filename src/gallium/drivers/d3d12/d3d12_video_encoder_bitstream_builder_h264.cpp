@@ -113,10 +113,7 @@ d3d12_video_bitstream_builder_h264::build_sps(const struct pipe_h264_enc_seq_par
                              0,   // gaps_in_frame_num_value_allowed_flag
                              pic_width_in_mbs_minus1,
                              pic_height_in_map_units_minus1,
-                             ((codecConfig.ConfigurationFlags &
-                               D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_H264_FLAG_USE_ADAPTIVE_8x8_TRANSFORM) != 0) ?
-                                1u :
-                                0u,   // direct_8x8_inference_flag
+                             1u, // direct_8x8_inference_flag as per DX12 spec
                              frame_cropping_flag,
                              frame_cropping_codec_config.left,
                              frame_cropping_codec_config.right,
