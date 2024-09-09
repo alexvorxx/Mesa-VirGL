@@ -5215,6 +5215,12 @@ void genX(CmdBeginRendering)(
 
       if (att->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR &&
           !(gfx->rendering_flags & VK_RENDERING_RESUMING_BIT)) {
+         uint32_t clear_view_mask = pRenderingInfo->viewMask;
+         VkClearRect clear_rect = {
+            .rect = render_area,
+            .baseArrayLayer = iview->vk.base_array_layer,
+            .layerCount = layers,
+         };
          const union isl_color_value clear_color =
             vk_to_isl_color_with_format(att->clearValue.color,
                                         iview->planes[0].isl.format);
@@ -5222,10 +5228,12 @@ void genX(CmdBeginRendering)(
          /* We only support fast-clears on the first layer */
          const bool fast_clear =
             (!is_multiview || (gfx->view_mask & 1)) &&
-            anv_can_fast_clear_color_view(cmd_buffer->device, iview,
-                                          att->imageLayout, clear_color,
-                                          layers, render_area,
-                                          cmd_buffer->queue_family->queueFlags);
+            anv_can_fast_clear_color_view(cmd_buffer, iview->image,
+                                          iview->vk.base_mip_level,
+                                          &clear_rect, att->imageLayout,
+                                          iview->planes[0].isl.format,
+                                          iview->planes[0].isl.swizzle,
+                                          clear_color);
 
          if (att->imageLayout != initial_layout) {
             assert(render_area.offset.x == 0 && render_area.offset.y == 0 &&
@@ -5256,9 +5264,6 @@ void genX(CmdBeginRendering)(
             }
          }
 
-         uint32_t clear_view_mask = pRenderingInfo->viewMask;
-         uint32_t base_clear_layer = iview->vk.base_array_layer;
-         uint32_t clear_layer_count = gfx->layer_count;
          if (fast_clear) {
             /* We only support fast-clears on the first layer */
             assert(iview->vk.base_mip_level == 0 &&
@@ -5284,8 +5289,8 @@ void genX(CmdBeginRendering)(
                                 false);
             }
             clear_view_mask &= ~1u;
-            base_clear_layer++;
-            clear_layer_count--;
+            clear_rect.baseArrayLayer++;
+            clear_rect.layerCount--;
 #if GFX_VER < 20
             genX(set_fast_clear_state)(cmd_buffer, iview->image,
                                        iview->planes[0].isl.format,
@@ -5311,7 +5316,8 @@ void genX(CmdBeginRendering)(
                                   iview->planes[0].isl.format,
                                   iview->planes[0].isl.swizzle,
                                   iview->vk.base_mip_level,
-                                  base_clear_layer, clear_layer_count,
+                                  clear_rect.baseArrayLayer,
+                                  clear_rect.layerCount,
                                   render_area, clear_color);
          }
       } else {

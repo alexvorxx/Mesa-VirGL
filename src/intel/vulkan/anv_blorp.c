@@ -1485,21 +1485,20 @@ can_fast_clear_color_att(struct anv_cmd_buffer *cmd_buffer,
       return false;
    }
 
-   /* We only support fast-clears on the first layer */
-   if (pRects[0].layerCount > 1 || pRects[0].baseArrayLayer > 0)
+   /* We only support fast-clearing a single layer */
+   if (pRects[0].layerCount > 1)
       return false;
 
    bool is_multiview = cmd_buffer->state.gfx.view_mask != 0;
    if (is_multiview && (cmd_buffer->state.gfx.view_mask != 1))
       return false;
 
-   return anv_can_fast_clear_color_view(cmd_buffer->device,
-                                        (struct anv_image_view *)att->iview,
-                                        att->layout,
-                                        clear_color,
-                                        pRects->layerCount,
-                                        pRects->rect,
-                                        cmd_buffer->queue_family->queueFlags);
+   return anv_can_fast_clear_color_view(cmd_buffer, att->iview->image,
+                                        att->iview->vk.base_mip_level,
+                                        pRects, att->layout,
+                                        att->iview->planes[0].isl.format,
+                                        att->iview->planes[0].isl.swizzle,
+                                        clear_color);
 }
 
 static void
