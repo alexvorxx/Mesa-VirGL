@@ -382,7 +382,7 @@ radv_enc_flush_headers(struct radv_cmd_buffer *cmd_buffer)
 static void
 radv_enc_code_ue(struct radv_cmd_buffer *cmd_buffer, unsigned int value)
 {
-   int x = -1;
+   unsigned int x = 0;
    unsigned int ue_code = value + 1;
    value += 1;
 
@@ -390,9 +390,9 @@ radv_enc_code_ue(struct radv_cmd_buffer *cmd_buffer, unsigned int value)
       value = (value >> 1);
       x += 1;
    }
-
-   unsigned int ue_length = (x << 1) + 1;
-   radv_enc_code_fixed_bits(cmd_buffer, ue_code, ue_length);
+   if (x > 1)
+     radv_enc_code_fixed_bits(cmd_buffer, 0, x - 1);
+   radv_enc_code_fixed_bits(cmd_buffer, ue_code, x);
 }
 
 static void
