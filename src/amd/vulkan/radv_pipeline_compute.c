@@ -60,19 +60,10 @@ void
 radv_get_compute_shader_metadata(const struct radv_device *device, const struct radv_shader *cs,
                                  struct radv_compute_pipeline_metadata *metadata)
 {
-   const struct radv_physical_device *pdev = radv_device_physical(device);
    uint32_t upload_sgpr = 0, inline_sgpr = 0;
 
    memset(metadata, 0, sizeof(*metadata));
 
-   metadata->shader_va = radv_shader_get_va(cs) >> 8;
-   metadata->rsrc1 = cs->config.rsrc1;
-   metadata->rsrc2 = cs->config.rsrc2;
-   metadata->rsrc3 = cs->config.rsrc3;
-   metadata->compute_resource_limits = radv_get_compute_resource_limits(pdev, &cs->info);
-   metadata->block_size_x = cs->info.cs.block_size[0];
-   metadata->block_size_y = cs->info.cs.block_size[1];
-   metadata->block_size_z = cs->info.cs.block_size[2];
    metadata->wave32 = cs->info.wave_size == 32;
 
    metadata->grid_base_sgpr = radv_get_user_sgpr(cs, AC_UD_CS_GRID_SIZE);
@@ -317,7 +308,18 @@ radv_compute_pipeline_create(VkDevice _device, VkPipelineCache _cache, const VkC
    if (pipeline->base.create_flags & VK_PIPELINE_CREATE_INDIRECT_BINDABLE_BIT_NV) {
       const VkComputePipelineIndirectBufferInfoNV *indirect_buffer =
          vk_find_struct_const(pCreateInfo->pNext, COMPUTE_PIPELINE_INDIRECT_BUFFER_INFO_NV);
-      struct radv_shader *cs = pipeline->base.shaders[MESA_SHADER_COMPUTE];
+      struct radv_shader *shader = pipeline->base.shaders[MESA_SHADER_COMPUTE];
+      const struct radv_physical_device *pdev = radv_device_physical(device);
+      struct radeon_cmdbuf *cs = &pipeline->indirect.cs;
+
+      cs->reserved_dw = cs->max_dw = 32;
+      cs->buf = malloc(cs->max_dw * 4);
+      if (!cs->buf) {
+         radv_pipeline_destroy(device, &pipeline->base, pAllocator);
+         return result;
+      }
+
+      radv_emit_compute_shader(pdev, cs, shader);
 
       pipeline->indirect.va = indirect_buffer->deviceAddress;
       pipeline->indirect.size = indirect_buffer->size;
@@ -329,8 +331,8 @@ radv_compute_pipeline_create(VkDevice _device, VkPipelineCache _cache, const VkC
        */
       simple_mtx_lock(&device->compute_scratch_mtx);
       device->compute_scratch_size_per_wave =
-         MAX2(device->compute_scratch_size_per_wave, cs->config.scratch_bytes_per_wave);
-      device->compute_scratch_waves = MAX2(device->compute_scratch_waves, radv_get_max_scratch_waves(device, cs));
+         MAX2(device->compute_scratch_size_per_wave, shader->config.scratch_bytes_per_wave);
+      device->compute_scratch_waves = MAX2(device->compute_scratch_waves, radv_get_max_scratch_waves(device, shader));
       simple_mtx_unlock(&device->compute_scratch_mtx);
    }
 
@@ -369,8 +371,12 @@ radv_create_compute_pipelines(VkDevice _device, VkPipelineCache pipelineCache, u
 void
 radv_destroy_compute_pipeline(struct radv_device *device, struct radv_compute_pipeline *pipeline)
 {
+   struct radeon_cmdbuf *cs = &pipeline->indirect.cs;
+
    if (pipeline->base.shaders[MESA_SHADER_COMPUTE])
       radv_shader_unref(device, pipeline->base.shaders[MESA_SHADER_COMPUTE]);
+
+   free(cs->buf);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL

@@ -1953,7 +1953,7 @@ radv_emit_ps_epilog_state(struct radv_cmd_buffer *cmd_buffer, struct radv_shader
    cmd_buffer->state.emitted_ps_epilog = ps_epilog;
 }
 
-static void
+void
 radv_emit_compute_shader(const struct radv_physical_device *pdev, struct radeon_cmdbuf *cs,
                          const struct radv_shader *shader)
 {
@@ -13757,13 +13757,23 @@ radv_CmdUpdatePipelineIndirectBufferNV(VkCommandBuffer commandBuffer, VkPipeline
    VK_FROM_HANDLE(radv_pipeline, pipeline, _pipeline);
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_compute_pipeline *compute_pipeline = radv_pipeline_to_compute(pipeline);
+   const struct radeon_cmdbuf *cs = &compute_pipeline->indirect.cs;
    const uint64_t va = compute_pipeline->indirect.va;
    struct radv_compute_pipeline_metadata metadata;
+   uint32_t offset = 0;
 
    radv_get_compute_shader_metadata(device, compute_pipeline->base.shaders[MESA_SHADER_COMPUTE], &metadata);
 
-   assert(sizeof(metadata) <= compute_pipeline->indirect.size);
-   radv_write_data(cmd_buffer, V_370_ME, va, sizeof(metadata) / 4, (const uint32_t *)&metadata, false);
+   radv_write_data(cmd_buffer, V_370_ME, va + offset, sizeof(metadata) / 4, (const uint32_t *)&metadata, false);
+   offset += sizeof(metadata);
+
+   radv_write_data(cmd_buffer, V_370_ME, va + offset, 1, (const uint32_t *)&cs->cdw, false);
+   offset += sizeof(uint32_t);
+
+   radv_write_data(cmd_buffer, V_370_ME, va + offset, cs->cdw, (const uint32_t *)cs->buf, false);
+   offset += cs->cdw * sizeof(uint32_t);
+
+   assert(offset < compute_pipeline->indirect.size);
 }
 
 /* VK_EXT_descriptor_buffer */

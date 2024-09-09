@@ -1851,30 +1851,31 @@ dgc_emit_indirect_sets(struct dgc_cmdbuf *cs)
 static void
 dgc_emit_bind_pipeline(struct dgc_cmdbuf *cs)
 {
-   const struct radv_device *device = cs->dev;
-   const struct radv_physical_device *pdev = radv_device_physical(device);
+   nir_builder *b = cs->b;
 
-   dgc_cs_begin(cs);
-   dgc_cs_set_sh_reg_seq(R_00B830_COMPUTE_PGM_LO, 1);
-   dgc_cs_emit(load_shader_metadata32(cs, shader_va));
+   nir_def *va = nir_iadd_imm(b, cs->pipeline_va, sizeof(struct radv_compute_pipeline_metadata));
+   nir_def *num_dw = nir_build_load_global(b, 1, 32, va, .access = ACCESS_NON_WRITEABLE);
+   nir_def *cs_va = nir_iadd_imm(b, va, 4);
 
-   dgc_cs_set_sh_reg_seq(R_00B848_COMPUTE_PGM_RSRC1, 2);
-   dgc_cs_emit(load_shader_metadata32(cs, rsrc1));
-   dgc_cs_emit(load_shader_metadata32(cs, rsrc2));
+   nir_variable *offset = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "offset");
+   nir_store_var(b, offset, nir_imm_int(b, 0), 0x1);
 
-   if (pdev->info.gfx_level >= GFX10) {
-      dgc_cs_set_sh_reg_seq(R_00B8A0_COMPUTE_PGM_RSRC3, 1);
-      dgc_cs_emit(load_shader_metadata32(cs, rsrc3));
+   nir_push_loop(b);
+   {
+      nir_def *cur_offset = nir_load_var(b, offset);
+
+      nir_break_if(b, nir_uge(b, cur_offset, num_dw));
+
+      nir_def *data = nir_build_load_global(b, 1, 32, nir_iadd(b, cs_va, nir_u2u64(b, nir_imul_imm(b, cur_offset, 4))),
+                                            .access = ACCESS_NON_WRITEABLE);
+
+      dgc_cs_begin(cs);
+      dgc_cs_emit(data);
+      dgc_cs_end();
+
+      nir_store_var(b, offset, nir_iadd_imm(b, cur_offset, 1), 0x1);
    }
-
-   dgc_cs_set_sh_reg_seq(R_00B854_COMPUTE_RESOURCE_LIMITS, 1);
-   dgc_cs_emit(load_shader_metadata32(cs, compute_resource_limits));
-
-   dgc_cs_set_sh_reg_seq(R_00B81C_COMPUTE_NUM_THREAD_X, 3);
-   dgc_cs_emit(load_shader_metadata32(cs, block_size_x));
-   dgc_cs_emit(load_shader_metadata32(cs, block_size_y));
-   dgc_cs_emit(load_shader_metadata32(cs, block_size_z));
-   dgc_cs_end();
+   nir_pop_loop(b, NULL);
 
    dgc_emit_indirect_sets(cs);
 }
@@ -2667,9 +2668,13 @@ radv_GetPipelineIndirectMemoryRequirementsNV(VkDevice _device, const VkComputePi
                                              VkMemoryRequirements2 *pMemoryRequirements)
 {
    VkMemoryRequirements *reqs = &pMemoryRequirements->memoryRequirements;
-   const uint32_t size = sizeof(struct radv_compute_pipeline_metadata);
    VK_FROM_HANDLE(radv_device, device, _device);
    const struct radv_physical_device *pdev = radv_device_physical(device);
+   uint32_t size;
+
+   size = sizeof(struct radv_compute_pipeline_metadata);
+   size += 4 /* num CS DW */;
+   size += (pdev->info.gfx_level >= GFX10 ? 19 : 16) * 4;
 
    reqs->memoryTypeBits = ((1u << pdev->memory_properties.memoryTypeCount) - 1u) & ~pdev->memory_types_32bit;
    reqs->alignment = 4;

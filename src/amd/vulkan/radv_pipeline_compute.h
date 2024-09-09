@@ -21,6 +21,7 @@ struct radv_compute_pipeline {
    struct radv_pipeline base;
 
    struct {
+      struct radeon_cmdbuf cs;
       uint64_t va;
       uint64_t size;
    } indirect;
@@ -29,14 +30,6 @@ struct radv_compute_pipeline {
 RADV_DECL_PIPELINE_DOWNCAST(compute, RADV_PIPELINE_COMPUTE)
 
 struct radv_compute_pipeline_metadata {
-   uint32_t shader_va;
-   uint32_t rsrc1;
-   uint32_t rsrc2;
-   uint32_t rsrc3;
-   uint32_t compute_resource_limits;
-   uint32_t block_size_x;
-   uint32_t block_size_y;
-   uint32_t block_size_z;
    uint32_t wave32;
    uint32_t grid_base_sgpr;
    uint32_t push_const_sgpr;
