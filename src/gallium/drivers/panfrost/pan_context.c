@@ -174,6 +174,7 @@ panfrost_get_blend(struct panfrost_batch *batch, unsigned rti,
    /* Use fixed-function if the equation permits, the format is blendable,
     * and no more than one unique constant is accessed */
    if (info.fixed_function && dev->blendable_formats[fmt].internal &&
+       !blend->base.alpha_to_one &&
        pan_blend_is_homogenous_constant(info.constant_mask,
                                         ctx->blend_color.color)) {
       return 0;
@@ -190,7 +191,7 @@ panfrost_get_blend(struct panfrost_batch *batch, unsigned rti,
     * conversion descriptor in the internal blend descriptor. (Midgard
     * requires a blend shader even for this case.)
     */
-   if (dev->arch >= 6 && info.opaque)
+   if (dev->arch >= 6 && info.opaque && !blend->base.alpha_to_one)
       return 0;
 
    /* Otherwise, we need to grab a shader */

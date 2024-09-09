@@ -3644,6 +3644,7 @@ panfrost_create_blend_state(struct pipe_context *pipe,
    so->pan.logicop_enable = blend->logicop_enable;
    so->pan.logicop_func = blend->logicop_func;
    so->pan.rt_count = blend->max_rt + 1;
+   so->pan.alpha_to_one = blend->alpha_to_one;
 
    for (unsigned c = 0; c < so->pan.rt_count; ++c) {
       unsigned g = blend->independent_blend_enable ? c : 0;
