@@ -686,7 +686,7 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
       case PIPE_VIDEO_CAP_NPOT_TEXTURES:
          return 1;
       case PIPE_VIDEO_CAP_MIN_WIDTH:
-         return 256;
+         return (codec == PIPE_VIDEO_FORMAT_HEVC) ? 130 : 128;
       case PIPE_VIDEO_CAP_MIN_HEIGHT:
          return 128;
       case PIPE_VIDEO_CAP_MAX_WIDTH:
