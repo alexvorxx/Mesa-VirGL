@@ -168,7 +168,7 @@ export VK_DRIVER_FILES="/install/share/vulkan/icd.d/${VK_DRIVER}_icd.$ARCH.json"
 if [ -n "$HWCI_START_XORG" ]; then
   echo "touch /xorg-started; sleep 100000" > /xorg-script
   env \
-    xinit /bin/sh /xorg-script -- /usr/bin/Xorg -noreset -s 0 -dpms -logfile /Xorg.0.log &
+    xinit /bin/sh /xorg-script -- /usr/bin/Xorg -noreset -s 0 -dpms -logfile "$RESULTS_DIR/Xorg.0.log" &
   BACKGROUND_PIDS="$! $BACKGROUND_PIDS"
 
   # Wait for xorg to be ready for connections.
