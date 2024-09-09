@@ -679,6 +679,8 @@ UNUSED static const char *${basename}_names[] = {
 % endfor
 };
 
+typedef void (*trace_payload_as_extra_func)(perfetto::protos::pbzero::GpuRenderStageEvent *, const void*, const void*);
+
 % for trace_name, trace in TRACEPOINTS.items():
 static void UNUSED
 trace_payload_as_extra_${trace_name}(perfetto::protos::pbzero::GpuRenderStageEvent *event,

@@ -154,9 +154,6 @@ static void send_descriptors(SIRenderpassDataSource::TraceContext &ctx,
    sync_timestamp(ctx, device);
 }
 
-typedef void (*trace_payload_as_extra_func)(perfetto::protos::pbzero::GpuRenderStageEvent *, 
-                                            const void*);
-
 static void begin_event(struct si_ds_queue *queue, uint64_t ts_ns, enum si_ds_queue_stage stage_id)
 {
    PERFETTO_LOG("begin event called - ts_ns=%" PRIu64, ts_ns);
@@ -237,7 +234,7 @@ static void end_event(struct si_ds_queue *queue, uint64_t ts_ns, enum si_ds_queu
       event->set_submission_id(submission_id);
 
       if (payload && payload_as_extra) {
-         payload_as_extra(event, payload);
+         payload_as_extra(event, payload, nullptr);
       }
    });
 

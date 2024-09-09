@@ -229,8 +229,6 @@ send_descriptors(IntelRenderpassDataSource::TraceContext &ctx,
    sync_timestamp(ctx, device);
 }
 
-typedef void (*trace_payload_as_extra_func)(perfetto::protos::pbzero::GpuRenderStageEvent *, const void*, const void *);
-
 static void
 begin_event(struct intel_ds_queue *queue, uint64_t ts_ns,
             enum intel_ds_queue_stage stage_id)

@@ -182,8 +182,6 @@ stage_push(struct tu_device *dev)
    return &p->stages[p->stage_depth++];
 }
 
-typedef void (*trace_payload_as_extra_func)(perfetto::protos::pbzero::GpuRenderStageEvent *, const void*);
-
 static struct tu_perfetto_stage *
 stage_pop(struct tu_device *dev)
 {
@@ -207,6 +205,7 @@ stage_start(struct tu_device *dev,
             const char *app_event,
             const void *payload = nullptr,
             size_t payload_size = 0,
+            const void *indirect = nullptr,
             trace_payload_as_extra_func payload_as_extra = nullptr)
 {
    struct tu_perfetto_stage *stage = stage_push(dev);
@@ -245,6 +244,7 @@ static void
 stage_end(struct tu_device *dev, uint64_t ts_ns, enum tu_stage_id stage_id,
           const void *flush_data,
           const void* payload = nullptr,
+          const void *indirect = nullptr,
           trace_payload_as_extra_func payload_as_extra = nullptr)
 {
    struct tu_perfetto_stage *stage = stage_pop(dev);
@@ -296,12 +296,12 @@ stage_end(struct tu_device *dev, uint64_t ts_ns, enum tu_stage_id stage_id,
       if (stage->payload) {
          if (stage->start_payload_function)
             ((trace_payload_as_extra_func) stage->start_payload_function)(
-               event, stage->payload);
+               event, stage->payload, nullptr);
          free((void *)stage->payload);
       }
 
       if (payload && payload_as_extra)
-         payload_as_extra(event, payload);
+         payload_as_extra(event, payload, indirect);
    });
 }
 
@@ -480,7 +480,7 @@ tu_perfetto_submit(struct tu_device *dev,
       const void *indirect_data)                                                    \
    {                                                                                \
       stage_start(                                                                  \
-         dev, ts_ns, stage_id, NULL, payload, sizeof(*payload),                     \
+         dev, ts_ns, stage_id, NULL, payload, sizeof(*payload), indirect_data,      \
          (trace_payload_as_extra_func) &trace_payload_as_extra_start_##event_name); \
    }                                                                                \
                                                                                     \
@@ -490,7 +490,7 @@ tu_perfetto_submit(struct tu_device *dev,
       const void *indirect_data)                                                    \
    {                                                                                \
       stage_end(                                                                    \
-         dev, ts_ns, stage_id, flush_data, payload,                                 \
+         dev, ts_ns, stage_id, flush_data, payload, indirect_data,                  \
          (trace_payload_as_extra_func) &trace_payload_as_extra_end_##event_name);   \
    }
 
