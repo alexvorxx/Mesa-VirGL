@@ -260,7 +260,7 @@ FlameGraph support
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Outside Linux, it is possible to generate a
-`FlameGraph https://github.com/brendangregg/FlameGraph`__:
+`FlameGraph <https://github.com/brendangregg/FlameGraph>`__
 with resolved JIT symbols.
 
 Set the environment variable ``JIT_SYMBOL_MAP_DIR`` to a directory path,
