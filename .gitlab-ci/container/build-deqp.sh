@@ -33,6 +33,9 @@ vk_cts_commits_to_backport=(
 
   # Allow extra invocations in the pipeline stats
   78f6618e147c0a745754b9e73ae10113a1ebde29
+
+  # Reduce the memory usage of the compute reconvergence tests
+  85b965dbb675d1fdb4ff367a342b9ee189394e95
 )
 
 # shellcheck disable=SC2034
