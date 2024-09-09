@@ -5309,7 +5309,7 @@ void genX(CmdBeginRendering)(
                                      iview->vk.base_array_layer + view, 1,
                                      render_area, clear_color);
             }
-         } else {
+         } else if (clear_rect.layerCount > 0) {
             anv_image_clear_color(cmd_buffer, iview->image,
                                   VK_IMAGE_ASPECT_COLOR_BIT,
                                   aux_usage,

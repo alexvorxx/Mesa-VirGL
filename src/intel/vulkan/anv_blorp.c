@@ -2310,6 +2310,7 @@ anv_image_clear_depth_stencil(struct anv_cmd_buffer *cmd_buffer,
 {
    assert(image->vk.aspects & (VK_IMAGE_ASPECT_DEPTH_BIT |
                                VK_IMAGE_ASPECT_STENCIL_BIT));
+   assert(layer_count > 0);
 
    struct blorp_batch batch;
    anv_blorp_batch_init(cmd_buffer, &batch, 0);
