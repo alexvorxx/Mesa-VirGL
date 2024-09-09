@@ -288,68 +288,6 @@ lower_bit_size_cb(const nir_instr *instr, void *data)
    }
 }
 
-static nir_def *
-nir_udiv_round_up(nir_builder *b, nir_def *n, nir_def *d)
-{
-   return nir_udiv(b, nir_iadd(b, n, nir_iadd_imm(b, d, -1)), d);
-}
-
-static bool
-nak_nir_lower_subgroup_id_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
-                                 void *data)
-{
-   switch (intrin->intrinsic) {
-   case nir_intrinsic_load_num_subgroups: {
-      b->cursor = nir_instr_remove(&intrin->instr);
-
-      nir_def *num_subgroups;
-      if (nak_nir_workgroup_has_one_subgroup(b->shader)) {
-         num_subgroups = nir_imm_int(b, 1);
-      } else {
-         assert(b->shader->info.derivative_group == DERIVATIVE_GROUP_NONE);
-
-         nir_def *workgroup_size = nir_load_workgroup_size(b);
-         workgroup_size =
-            nir_imul(b, nir_imul(b, nir_channel(b, workgroup_size, 0),
-                                    nir_channel(b, workgroup_size, 1)),
-                        nir_channel(b, workgroup_size, 2));
-         nir_def *subgroup_size = nir_load_subgroup_size(b);
-         num_subgroups = nir_udiv_round_up(b, workgroup_size, subgroup_size);
-      }
-      nir_def_rewrite_uses(&intrin->def, num_subgroups);
-
-      return true;
-   }
-   case nir_intrinsic_load_subgroup_id: {
-      b->cursor = nir_instr_remove(&intrin->instr);
-
-      nir_def *subgroup_id;
-      if (nak_nir_workgroup_has_one_subgroup(b->shader)) {
-         subgroup_id = nir_imm_int(b, 0);
-      } else {
-         assert(b->shader->info.derivative_group == DERIVATIVE_GROUP_NONE);
-
-         nir_def *invocation_index = nir_load_local_invocation_index(b);
-         nir_def *subgroup_size = nir_load_subgroup_size(b);
-         subgroup_id = nir_udiv(b, invocation_index, subgroup_size);
-      }
-      nir_def_rewrite_uses(&intrin->def, subgroup_id);
-
-      return true;
-   }
-   default:
-      return false;
-   }
-}
-
-static bool
-nak_nir_lower_subgroup_id(nir_shader *nir)
-{
-   return nir_shader_intrinsics_pass(nir, nak_nir_lower_subgroup_id_intrin,
-                                     nir_metadata_control_flow,
-                                     NULL);
-}
-
 void
 nak_preprocess_nir(nir_shader *nir, const struct nak_compiler *nak)
 {
@@ -389,7 +327,6 @@ nak_preprocess_nir(nir_shader *nir, const struct nak_compiler *nak)
    OPT(nir, nir_lower_load_const_to_scalar);
    OPT(nir, nir_lower_var_copies);
    OPT(nir, nir_lower_system_values);
-   OPT(nir, nak_nir_lower_subgroup_id);
    OPT(nir, nir_lower_compute_system_values, NULL);
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT)
@@ -548,6 +485,38 @@ nak_nir_lower_system_value_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
                                        .access = ACCESS_CAN_REORDER);
       }
       val = nir_vec(b, comps, intrin->def.num_components);
+      break;
+   }
+
+   case nir_intrinsic_load_num_subgroups: {
+      assert(!b->shader->info.workgroup_size_variable);
+      uint16_t wg_size = b->shader->info.workgroup_size[0] *
+                         b->shader->info.workgroup_size[1] *
+                         b->shader->info.workgroup_size[2];
+      val = nir_imm_int(b, DIV_ROUND_UP(wg_size, 32));
+      break;
+   }
+
+   case nir_intrinsic_load_subgroup_id:
+      if (nak_nir_workgroup_has_one_subgroup(b->shader)) {
+         val = nir_imm_int(b, 0);
+      } else {
+         assert(!b->shader->info.workgroup_size_variable);
+         nir_def *tid_x = nir_load_sysval_nv(b, 32, .base = NAK_SV_TID_X,
+                                             .access = ACCESS_CAN_REORDER);
+         nir_def *tid_y = nir_load_sysval_nv(b, 32, .base = NAK_SV_TID_Y,
+                                             .access = ACCESS_CAN_REORDER);
+         nir_def *tid_z = nir_load_sysval_nv(b, 32, .base = NAK_SV_TID_Z,
+                                             .access = ACCESS_CAN_REORDER);
+
+         const uint16_t *wg_size = nir->info.workgroup_size;
+         nir_def *tid =
+            nir_iadd(b, tid_x,
+            nir_iadd(b, nir_imul_imm(b, tid_y, wg_size[0]),
+                        nir_imul_imm(b, tid_y, wg_size[0] * wg_size[1])));
+
+         val = nir_udiv_imm(b, tid, 32);
+      }
       break;
    }
 
