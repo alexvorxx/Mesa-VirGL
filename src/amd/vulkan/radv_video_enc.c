@@ -1142,11 +1142,21 @@ radv_enc_ctx(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInfoKHR *inf
    struct radv_image_plane *dpb_chroma = NULL;
    uint64_t va = 0;
    uint32_t luma_pitch = 0;
+   int max_ref_slot_idx = 0;
 
-   if (info->pSetupReferenceSlot)
+   if (info->pSetupReferenceSlot) {
       dpb_iv = radv_image_view_from_handle(info->pSetupReferenceSlot->pPictureResource->imageViewBinding);
-   else if (info->referenceSlotCount > 0)
+      if (info->pSetupReferenceSlot->slotIndex > max_ref_slot_idx)
+         max_ref_slot_idx = info->pSetupReferenceSlot->slotIndex;
+   }
+
+   if (info->referenceSlotCount > 0) {
       dpb_iv = radv_image_view_from_handle(info->pReferenceSlots[0].pPictureResource->imageViewBinding);
+      for (unsigned i = 0; i < info->referenceSlotCount; i++) {
+         if (info->pReferenceSlots[i].slotIndex > max_ref_slot_idx)
+            max_ref_slot_idx = info->pReferenceSlots[i].slotIndex;
+      }
+   }
 
    if (dpb_iv) {
       dpb = dpb_iv->image;
@@ -1170,10 +1180,10 @@ radv_enc_ctx(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInfoKHR *inf
    radeon_emit(cs, swizzle_mode);
    radeon_emit(cs, luma_pitch);                   // rec_luma_pitch
    radeon_emit(cs, luma_pitch);                   // rec_luma_pitch0); //rec_chromma_pitch
-   radeon_emit(cs, info->referenceSlotCount + 1); // num_reconstructed_pictures
+   radeon_emit(cs, max_ref_slot_idx + 1); // num_reconstructed_pictures
 
    int i;
-   for (i = 0; i < info->referenceSlotCount + 1; i++) {
+   for (i = 0; i < max_ref_slot_idx + 1; i++) {
       radeon_emit(cs, dpb_luma ? dpb_luma->surface.u.gfx9.surf_offset + i * dpb_luma->surface.u.gfx9.surf_slice_size
                                : 0); // luma offset
       radeon_emit(cs, dpb_chroma
