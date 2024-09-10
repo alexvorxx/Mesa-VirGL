@@ -68,6 +68,7 @@ ForEachMacros: [
   'pan_foreach_predecessor',
   'pan_foreach_successor',
   'pan_pack',
+  'pan_pack_nodefaults',
   'pan_section_pack',
   'panvk_cs_reg_upd_ctx',
 ]
