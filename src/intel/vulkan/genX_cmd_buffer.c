@@ -476,8 +476,8 @@ transition_depth_buffer(struct anv_cmd_buffer *cmd_buffer,
       const union isl_color_value clear_value =
          anv_image_hiz_clear_value(image);
 
-      uint32_t depth_value;
-      isl_color_value_pack(&clear_value, depth_format, &depth_value);
+      uint32_t depth_value[4] = {};
+      isl_color_value_pack(&clear_value, depth_format, depth_value);
 
       const uint32_t clear_pixel_offset = clear_color_addr.offset +
          isl_get_sampler_clear_field_offset(cmd_buffer->device->info,
@@ -490,7 +490,7 @@ transition_depth_buffer(struct anv_cmd_buffer *cmd_buffer,
       struct mi_builder b;
       mi_builder_init(&b, cmd_buffer->device->info, &cmd_buffer->batch);
       mi_builder_set_write_check(&b, true);
-      mi_store(&b, mi_mem32(clear_pixel_addr), mi_imm(depth_value));
+      mi_store(&b, mi_mem32(clear_pixel_addr), mi_imm(depth_value[0]));
    }
 
    /* If will_full_fast_clear is set, the caller promises to fast-clear the
