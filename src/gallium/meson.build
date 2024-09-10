@@ -212,6 +212,12 @@ if with_gallium_va
     subdir('targets/va')
   endif
 endif
+if with_gallium_vdpau
+  subdir('frontends/vdpau')
+  if not with_dri
+    subdir('targets/vdpau')
+  endif
+endif
 if with_dri
   subdir('frontends/dri')
   subdir('targets/dri')
@@ -219,10 +225,6 @@ endif
 if with_osmesa
   subdir('frontends/osmesa')
   subdir('targets/osmesa')
-endif
-if with_gallium_vdpau
-  subdir('frontends/vdpau')
-  subdir('targets/vdpau')
 endif
 if with_gallium_xa
   subdir('frontends/xa')
