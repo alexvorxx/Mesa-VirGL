@@ -257,6 +257,11 @@ struct radv_shader_info {
 
    /* Precomputed register values. */
    struct {
+      uint32_t pgm_lo;
+      uint32_t pgm_rsrc1;
+      uint32_t pgm_rsrc2;
+      uint32_t pgm_rsrc3;
+
       struct {
          uint32_t spi_shader_late_alloc_vs;
          uint32_t spi_shader_pgm_rsrc3_vs;
