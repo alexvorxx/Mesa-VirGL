@@ -2318,7 +2318,13 @@ radv_emit_tess_eval_shader(struct radv_cmd_buffer *cmd_buffer)
 
       radv_shader_combine_cfg_tes_gs(tes, gs, &rsrc1, &rsrc2);
 
-      radeon_set_sh_reg(cmd_buffer->cs, R_00B210_SPI_SHADER_PGM_LO_ES, tes->va >> 8);
+      if (pdev->info.gfx_level >= GFX12) {
+         radeon_set_sh_reg(cmd_buffer->cs, R_00B224_SPI_SHADER_PGM_LO_ES, tes->va >> 8);
+      } else if (pdev->info.gfx_level >= GFX10) {
+         radeon_set_sh_reg(cmd_buffer->cs, R_00B320_SPI_SHADER_PGM_LO_ES, tes->va >> 8);
+      } else {
+         radeon_set_sh_reg(cmd_buffer->cs, R_00B210_SPI_SHADER_PGM_LO_ES, tes->va >> 8);
+      }
 
       unsigned lds_size;
       if (gs->info.is_ngg) {
