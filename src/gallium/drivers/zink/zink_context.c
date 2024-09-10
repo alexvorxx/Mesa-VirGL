@@ -3880,6 +3880,9 @@ zink_set_framebuffer_state(struct pipe_context *pctx,
          zink_screen_lock_context(screen);
          res->surface = screen->copy_context->base.create_surface(&screen->copy_context->base, &res->base.b, &tmpl);
          zink_screen_unlock_context(screen);
+         /* delete extra ref: the resource controls the surface lifetime, not the other way around */
+         struct pipe_resource *pres = ctx->fb_state.resolve;
+         pipe_resource_reference(&pres, NULL);
       }
    }
    if (depth_bias_scale_factor != ctx->depth_bias_scale_factor &&

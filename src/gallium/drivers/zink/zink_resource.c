@@ -234,6 +234,8 @@ zink_resource_destroy(struct pipe_screen *pscreen,
 {
    struct zink_screen *screen = zink_screen(pscreen);
    struct zink_resource *res = zink_resource(pres);
+   /* prevent double-free when unrefing internal surfaces */
+   res->base.b.reference.count = 999;
    if (pres->target == PIPE_BUFFER) {
       util_range_destroy(&res->valid_buffer_range);
       util_idalloc_mt_free(&screen->buffer_ids, res->base.buffer_id_unique);
@@ -241,10 +243,10 @@ zink_resource_destroy(struct pipe_screen *pscreen,
       simple_mtx_destroy(&res->bufferview_mtx);
       ralloc_free(res->bufferview_cache.table);
    } else {
+      pipe_surface_reference(&res->surface, NULL);
       assert(!_mesa_hash_table_num_entries(&res->surface_cache));
       simple_mtx_destroy(&res->surface_mtx);
       ralloc_free(res->surface_cache.table);
-      pipe_surface_reference(&res->surface, NULL);
    }
    /* no need to do anything for the caches, these objects own the resource lifetimes */
 
