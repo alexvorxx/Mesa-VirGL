@@ -206,7 +206,7 @@ aspect_format(VkFormat fmt, VkImageAspectFlags aspect)
    bool depth = (aspect & VK_IMAGE_ASPECT_DEPTH_BIT);
    bool stencil = (aspect & VK_IMAGE_ASPECT_STENCIL_BIT);
 
-   enum pipe_format p_format = vk_format_to_pipe_format(fmt);
+   enum pipe_format p_format = hk_format_to_pipe_format(fmt);
 
    if (util_format_is_depth_or_stencil(p_format)) {
       assert(depth ^ stencil);
@@ -308,7 +308,7 @@ static VkFormat
 canonical_format(VkFormat fmt)
 {
    return vk_format_from_pipe_format(
-      canonical_format_pipe(vk_format_to_pipe_format(fmt), false));
+      canonical_format_pipe(hk_format_to_pipe_format(fmt), false));
 }
 
 enum copy_type {
@@ -759,7 +759,7 @@ hk_meta_copy_image_to_buffer2(struct vk_command_buffer *cmd,
    }
 
    bool per_layer =
-      util_format_is_compressed(vk_format_to_pipe_format(image->format));
+      util_format_is_compressed(hk_format_to_pipe_format(image->format));
 
    for (unsigned i = 0; i < pCopyBufferInfo->regionCount; ++i) {
       const VkBufferImageCopy2 *region = &pCopyBufferInfo->pRegions[i];
@@ -776,9 +776,9 @@ hk_meta_copy_image_to_buffer2(struct vk_command_buffer *cmd,
          VkFormat canonical = canonical_format(aspect_fmt);
 
          uint32_t blocksize_B =
-            util_format_get_blocksize(vk_format_to_pipe_format(canonical));
+            util_format_get_blocksize(hk_format_to_pipe_format(canonical));
 
-         enum pipe_format p_format = vk_format_to_pipe_format(image->format);
+         enum pipe_format p_format = hk_format_to_pipe_format(image->format);
 
          unsigned row_extent = util_format_get_nblocksx(
                                   p_format, MAX2(region->bufferRowLength,
@@ -800,8 +800,8 @@ hk_meta_copy_image_to_buffer2(struct vk_command_buffer *cmd,
             .type = IMG2BUF,
             .block_size = blocksize_B,
             .nr_samples = image->samples,
-            .src_format = vk_format_to_pipe_format(canonical),
-            .dst_format = vk_format_to_pipe_format(canonical),
+            .src_format = hk_format_to_pipe_format(canonical),
+            .dst_format = hk_format_to_pipe_format(canonical),
          };
 
          VkPipelineLayout pipeline_layout;
@@ -874,7 +874,7 @@ hk_meta_copy_image_to_buffer2(struct vk_command_buffer *cmd,
                                VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 
          enum pipe_format p_src_fmt =
-            vk_format_to_pipe_format(src_image->format);
+            hk_format_to_pipe_format(src_image->format);
 
          struct vk_meta_push_data push = {
             .buffer = hk_buffer_address(buffer, region->bufferOffset),
@@ -962,7 +962,7 @@ hk_meta_copy_buffer_to_image2(struct vk_command_buffer *cmd,
    }
 
    bool per_layer =
-      util_format_is_compressed(vk_format_to_pipe_format(image->format));
+      util_format_is_compressed(hk_format_to_pipe_format(image->format));
 
    for (unsigned r = 0; r < info->regionCount; ++r) {
       const VkBufferImageCopy2 *region = &info->pRegions[r];
@@ -976,7 +976,7 @@ hk_meta_copy_buffer_to_image2(struct vk_command_buffer *cmd,
          VkImageAspectFlags aspect = region->imageSubresource.aspectMask;
          VkFormat aspect_fmt = aspect_format(image->format, aspect);
          VkFormat canonical = canonical_format(aspect_fmt);
-         enum pipe_format p_format = vk_format_to_pipe_format(aspect_fmt);
+         enum pipe_format p_format = hk_format_to_pipe_format(aspect_fmt);
          uint32_t blocksize_B = util_format_get_blocksize(p_format);
          bool is_3d = region->imageExtent.depth > 1;
 
@@ -985,9 +985,9 @@ hk_meta_copy_buffer_to_image2(struct vk_command_buffer *cmd,
             .type = BUF2IMG,
             .block_size = blocksize_B,
             .nr_samples = image->samples,
-            .src_format = vk_format_to_pipe_format(canonical),
+            .src_format = hk_format_to_pipe_format(canonical),
             .dst_format = canonical_format_pipe(
-               vk_format_to_pipe_format(aspect_format(image->format, aspect)),
+               hk_format_to_pipe_format(aspect_format(image->format, aspect)),
                false),
 
             /* TODO: MSAA path */
@@ -1111,8 +1111,8 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
    }
 
    bool per_layer =
-      util_format_is_compressed(vk_format_to_pipe_format(src_image->format)) ||
-      util_format_is_compressed(vk_format_to_pipe_format(dst_image->format));
+      util_format_is_compressed(hk_format_to_pipe_format(src_image->format)) ||
+      util_format_is_compressed(hk_format_to_pipe_format(dst_image->format));
 
    for (unsigned r = 0; r < info->regionCount; ++r) {
       const VkImageCopy2 *region = &info->pRegions[r];
@@ -1131,7 +1131,7 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
             VkFormat aspect_fmt = aspect_format(src_image->format, 1 << aspect);
             VkFormat canonical = canonical_format(aspect_fmt);
             uint32_t blocksize_B =
-               util_format_get_blocksize(vk_format_to_pipe_format(canonical));
+               util_format_get_blocksize(hk_format_to_pipe_format(canonical));
 
             VkImageAspectFlagBits dst_aspect_mask =
                vk_format_get_ycbcr_info(dst_image->format) ||
@@ -1144,9 +1144,9 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
                .type = IMG2IMG,
                .block_size = blocksize_B,
                .nr_samples = dst_image->samples,
-               .src_format = vk_format_to_pipe_format(canonical),
+               .src_format = hk_format_to_pipe_format(canonical),
                .dst_format =
-                  canonical_format_pipe(vk_format_to_pipe_format(aspect_format(
+                  canonical_format_pipe(hk_format_to_pipe_format(aspect_format(
                                            dst_image->format, dst_aspect_mask)),
                                         false),
 
@@ -1276,10 +1276,10 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
                                   VK_PIPELINE_BIND_POINT_COMPUTE, pipeline);
 
             enum pipe_format p_src_fmt =
-               vk_format_to_pipe_format(src_image->format);
+               hk_format_to_pipe_format(src_image->format);
             enum pipe_format p_dst_fmt =
-               vk_format_to_pipe_format(dst_image->format);
-            enum pipe_format p_format = vk_format_to_pipe_format(aspect_fmt);
+               hk_format_to_pipe_format(dst_image->format);
+            enum pipe_format p_format = hk_format_to_pipe_format(aspect_fmt);
 
             struct vk_meta_push_data push = {
                .src_offset_el[0] =

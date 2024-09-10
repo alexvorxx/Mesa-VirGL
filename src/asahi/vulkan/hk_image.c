@@ -44,7 +44,7 @@ hk_get_image_plane_format_features(struct hk_physical_device *pdev,
       break;
    }
 
-   enum pipe_format p_format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format p_format = hk_format_to_pipe_format(vk_format);
    if (p_format == PIPE_FORMAT_NONE)
       return 0;
 
@@ -264,7 +264,7 @@ hk_can_compress(struct agx_device *dev, VkFormat format, unsigned plane,
       return false;
    }
 
-   enum pipe_format p_format = vk_format_to_pipe_format(format);
+   enum pipe_format p_format = hk_format_to_pipe_format(format);
 
    /* Check for format compatibility if mutability is enabled. */
    if (flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) {
@@ -279,7 +279,7 @@ hk_can_compress(struct agx_device *dev, VkFormat format, unsigned plane,
             continue;
 
          enum pipe_format view_format =
-            vk_format_to_pipe_format(format_list->pViewFormats[i]);
+            hk_format_to_pipe_format(format_list->pViewFormats[i]);
 
          if (!ail_formats_compatible(p_format, view_format)) {
             perf_debug_dev(dev, "No compression: incompatible image view");
@@ -807,7 +807,7 @@ hk_image_init(struct hk_device *dev, struct hk_image *image,
       image->planes[plane].layout = (struct ail_layout){
          .tiling = tiling,
          .mipmapped_z = pCreateInfo->imageType == VK_IMAGE_TYPE_3D,
-         .format = vk_format_to_pipe_format(format),
+         .format = hk_format_to_pipe_format(format),
 
          .width_px = pCreateInfo->extent.width / width_scale,
          .height_px = pCreateInfo->extent.height / height_scale,

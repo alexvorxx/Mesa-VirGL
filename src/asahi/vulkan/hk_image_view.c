@@ -142,9 +142,9 @@ struct hk_3d {
 static struct hk_3d
 view_denominator(struct hk_image_view *view)
 {
-   enum pipe_format view_format = vk_format_to_pipe_format(view->vk.format);
+   enum pipe_format view_format = hk_format_to_pipe_format(view->vk.format);
    enum pipe_format img_format =
-      vk_format_to_pipe_format(view->vk.image->format);
+      hk_format_to_pipe_format(view->vk.image->format);
 
    if (util_format_is_compressed(view_format)) {
       /*
@@ -185,7 +185,7 @@ format_for_plane(struct hk_image_view *view, unsigned view_plane)
    VkFormat plane_format =
       ycbcr_info ? ycbcr_info->planes[view_plane].format : view->vk.format;
 
-   enum pipe_format p_format = vk_format_to_pipe_format(plane_format);
+   enum pipe_format p_format = hk_format_to_pipe_format(plane_format);
    if (view->vk.aspects == VK_IMAGE_ASPECT_STENCIL_BIT)
       p_format = get_stencil_format(p_format);
 

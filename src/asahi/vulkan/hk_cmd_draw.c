@@ -658,7 +658,7 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
    /* Choose a tilebuffer layout given the framebuffer key */
    enum pipe_format formats[HK_MAX_RTS] = {0};
    for (unsigned i = 0; i < render->color_att_count; ++i) {
-      formats[i] = vk_format_to_pipe_format(render->color_att[i].vk_format);
+      formats[i] = hk_format_to_pipe_format(render->color_att[i].vk_format);
    }
 
    /* For now, we force layered=true since it makes compatibility problems way
@@ -725,7 +725,7 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
       unsigned first_layer = view->vk.base_array_layer;
 
       const struct util_format_description *desc =
-         util_format_description(vk_format_to_pipe_format(view->vk.format));
+         util_format_description(hk_format_to_pipe_format(view->vk.format));
 
       assert(desc->format == PIPE_FORMAT_Z32_FLOAT ||
              desc->format == PIPE_FORMAT_Z16_UNORM ||
@@ -2757,7 +2757,7 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
             util_bitcount64(sw_vs->info.vs.attribs_read & BITFIELD_MASK(a));
 
          key.prolog.attribs[slot] = (struct agx_velem_key){
-            .format = vk_format_to_pipe_format(attr.format),
+            .format = hk_format_to_pipe_format(attr.format),
             .stride = dyn->vi_binding_strides[attr.binding],
             .divisor = binding.divisor,
             .instanced = binding.input_rate == VK_VERTEX_INPUT_RATE_INSTANCE,
@@ -2779,7 +2779,7 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
             struct hk_addr_range vb = gfx->vb[attr.binding];
 
             desc->root.draw.attrib_clamps[slot] = agx_calculate_vbo_clamp(
-               vb.addr, sink, vk_format_to_pipe_format(attr.format), vb.range,
+               vb.addr, sink, hk_format_to_pipe_format(attr.format), vb.range,
                dyn->vi_binding_strides[attr.binding], attr.offset,
                &desc->root.draw.attrib_base[slot]);
          } else {
@@ -2887,7 +2887,7 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
          struct hk_rendering_state *render = &cmd->state.gfx.render;
          for (uint32_t i = 0; i < render->color_att_count; i++) {
             key.epilog.rt_formats[i] =
-               vk_format_to_pipe_format(render->color_att[i].vk_format);
+               hk_format_to_pipe_format(render->color_att[i].vk_format);
 
             const struct vk_color_blend_attachment_state *cb =
                &dyn->cb.attachments[i];

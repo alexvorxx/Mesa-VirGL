@@ -165,7 +165,7 @@ hk_CmdClearColorImage(VkCommandBuffer commandBuffer, VkImage _image,
    if (vk_format == VK_FORMAT_R64_UINT || vk_format == VK_FORMAT_R64_SINT)
       vk_format = VK_FORMAT_R32G32_UINT;
 
-   enum pipe_format p_format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format p_format = hk_format_to_pipe_format(vk_format);
    assert(p_format != PIPE_FORMAT_NONE);
 
    if (!ail_pixel_format[p_format].renderable) {
