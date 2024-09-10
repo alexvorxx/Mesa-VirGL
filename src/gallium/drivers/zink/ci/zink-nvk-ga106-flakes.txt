@@ -25,6 +25,7 @@ spec@!opengl 1.1@draw-sync
 spec@!opengl 1.1@polygon-mode
 spec@!opengl 1.1@texsubimage
 spec@!opengl 1.2@tex3d
+spec@!opengl 2.0@attribs
 spec@!opengl 2.0@tex3d-npot
 spec@arb_bindless_texture@execution@images@uniform-struct
 spec@arb_color_buffer_float@gl_rgba16f-render
