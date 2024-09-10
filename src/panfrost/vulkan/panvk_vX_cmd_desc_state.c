@@ -12,6 +12,7 @@
 #include "genxml/gen_macros.h"
 
 #include "panvk_buffer.h"
+#include "panvk_cmd_alloc.h"
 #include "panvk_cmd_buffer.h"
 #include "panvk_cmd_desc_state.h"
 #include "panvk_entrypoints.h"
@@ -107,19 +108,22 @@ cmd_get_push_desc_set(struct vk_command_buffer *vk_cmdbuf,
 }
 
 #if PAN_ARCH <= 7
-void
+VkResult
 panvk_per_arch(cmd_prepare_dyn_ssbos)(
-   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+   struct panvk_cmd_buffer *cmdbuf,
+   const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader *shader,
    struct panvk_shader_desc_state *shader_desc_state)
 {
    if (!shader || !shader->desc_info.dyn_ssbos.count ||
        shader_desc_state->dyn_ssbos)
-      return;
+      return VK_SUCCESS;
 
-   struct panfrost_ptr ptr = pan_pool_alloc_aligned(
-      desc_pool, shader->desc_info.dyn_ssbos.count * PANVK_DESCRIPTOR_SIZE,
+   struct panfrost_ptr ptr = panvk_cmd_alloc_dev_mem(
+      cmdbuf, desc, shader->desc_info.dyn_ssbos.count * PANVK_DESCRIPTOR_SIZE,
       PANVK_DESCRIPTOR_SIZE);
+   if (!ptr.gpu)
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
    struct panvk_ssbo_addr *ssbos = ptr.cpu;
    for (uint32_t i = 0; i < shader->desc_info.dyn_ssbos.count; i++) {
@@ -140,6 +144,7 @@ panvk_per_arch(cmd_prepare_dyn_ssbos)(
    }
 
    shader_desc_state->dyn_ssbos = ptr.gpu;
+   return VK_SUCCESS;
 }
 
 static void
@@ -169,14 +174,15 @@ panvk_cmd_fill_dyn_ubos(const struct panvk_descriptor_state *desc_state,
    }
 }
 
-void
+VkResult
 panvk_per_arch(cmd_prepare_shader_desc_tables)(
-   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+   struct panvk_cmd_buffer *cmdbuf,
+   const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader *shader,
    struct panvk_shader_desc_state *shader_desc_state)
 {
    if (!shader)
-      return;
+      return VK_SUCCESS;
 
    for (uint32_t i = 0; i < ARRAY_SIZE(shader->desc_info.others.count); i++) {
       uint32_t desc_count =
@@ -189,8 +195,10 @@ panvk_per_arch(cmd_prepare_shader_desc_tables)(
       if (!desc_count || shader_desc_state->tables[i])
          continue;
 
-      struct panfrost_ptr ptr = pan_pool_alloc_aligned(
-         desc_pool, desc_count * desc_size, PANVK_DESCRIPTOR_SIZE);
+      struct panfrost_ptr ptr = panvk_cmd_alloc_dev_mem(
+         cmdbuf, desc, desc_count * desc_size, PANVK_DESCRIPTOR_SIZE);
+      if (!ptr.gpu)
+         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
       shader_desc_state->tables[i] = ptr.gpu;
 
@@ -203,7 +211,10 @@ panvk_per_arch(cmd_prepare_shader_desc_tables)(
           shader->info.stage != MESA_SHADER_VERTEX) {
          assert(!shader_desc_state->img_attrib_table);
 
-         ptr = pan_pool_alloc_desc_array(desc_pool, desc_count, ATTRIBUTE);
+         ptr = panvk_cmd_alloc_desc_array(cmdbuf, desc_count, ATTRIBUTE);
+         if (!ptr.gpu)
+            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
          shader_desc_state->img_attrib_table = ptr.gpu;
       }
    }
@@ -214,7 +225,9 @@ panvk_per_arch(cmd_prepare_shader_desc_tables)(
       shader->desc_info.others.count[PANVK_BIFROST_DESC_TABLE_SAMPLER];
 
    if (tex_count && !sampler_count) {
-      struct panfrost_ptr sampler = pan_pool_alloc_desc(desc_pool, SAMPLER);
+      struct panfrost_ptr sampler = panvk_cmd_alloc_desc(cmdbuf, SAMPLER);
+      if (!sampler.gpu)
+         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
       /* Emit a dummy sampler if we have to. */
       pan_pack(sampler.cpu, SAMPLER, _) {
@@ -222,11 +235,13 @@ panvk_per_arch(cmd_prepare_shader_desc_tables)(
 
       shader_desc_state->tables[PANVK_BIFROST_DESC_TABLE_SAMPLER] = sampler.gpu;
    }
+
+   return VK_SUCCESS;
 }
 #else
 void
 panvk_per_arch(cmd_fill_dyn_bufs)(
-   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+   const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader *shader, struct mali_buffer_packed *buffers)
 {
    if (!shader)
@@ -250,19 +265,23 @@ panvk_per_arch(cmd_fill_dyn_bufs)(
    }
 }
 
-void
+VkResult
 panvk_per_arch(cmd_prepare_shader_res_table)(
-   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+   struct panvk_cmd_buffer *cmdbuf,
+   const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader *shader,
    struct panvk_shader_desc_state *shader_desc_state)
 {
    if (!shader || shader_desc_state->res_table)
-      return;
+      return VK_SUCCESS;
 
    uint32_t first_unused_set = util_last_bit(shader->desc_info.used_set_mask);
    uint32_t res_count = 1 + first_unused_set;
    struct panfrost_ptr ptr =
-      pan_pool_alloc_desc_array(desc_pool, res_count, RESOURCE);
+      panvk_cmd_alloc_desc_array(cmdbuf, res_count, RESOURCE);
+   if (!ptr.gpu)
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
    struct mali_resource_packed *res_table = ptr.cpu;
 
    /* First entry is the driver set table, where we store the vertex attributes,
@@ -290,11 +309,12 @@ panvk_per_arch(cmd_prepare_shader_res_table)(
    }
 
    shader_desc_state->res_table = ptr.gpu | res_count;
+   return VK_SUCCESS;
 }
 #endif
 
-void
-panvk_per_arch(cmd_prepare_push_descs)(struct pan_pool *desc_pool,
+VkResult
+panvk_per_arch(cmd_prepare_push_descs)(struct panvk_cmd_buffer *cmdbuf,
                                        struct panvk_descriptor_state *desc_state,
                                        uint32_t used_set_mask)
 {
@@ -305,10 +325,18 @@ panvk_per_arch(cmd_prepare_push_descs)(struct pan_pool *desc_pool,
           desc_state->sets[i] != push_set || push_set->descs.dev)
          continue;
 
-      push_set->descs.dev = pan_pool_upload_aligned(
-         desc_pool, push_set->descs.host,
-         push_set->desc_count * PANVK_DESCRIPTOR_SIZE, PANVK_DESCRIPTOR_SIZE);
+      struct panfrost_ptr ptr = panvk_cmd_alloc_dev_mem(
+         cmdbuf, desc, push_set->desc_count * PANVK_DESCRIPTOR_SIZE,
+         PANVK_DESCRIPTOR_SIZE);
+      if (!ptr.gpu)
+         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+      memcpy(ptr.cpu, push_set->descs.host,
+             push_set->desc_count * PANVK_DESCRIPTOR_SIZE);
+      push_set->descs.dev = ptr.gpu;
    }
+
+   return VK_SUCCESS;
 }
 
 VKAPI_ATTR void VKAPI_CALL

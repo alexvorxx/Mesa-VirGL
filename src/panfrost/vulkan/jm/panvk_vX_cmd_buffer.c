@@ -29,6 +29,7 @@
 #include "genxml/gen_macros.h"
 
 #include "panvk_buffer.h"
+#include "panvk_cmd_alloc.h"
 #include "panvk_cmd_buffer.h"
 #include "panvk_cmd_desc_state.h"
 #include "panvk_cmd_pool.h"
@@ -48,13 +49,15 @@
 #include "vk_descriptor_update_template.h"
 #include "vk_format.h"
 
-static void
+static VkResult
 panvk_cmd_prepare_fragment_job(struct panvk_cmd_buffer *cmdbuf, mali_ptr fbd)
 {
    const struct pan_fb_info *fbinfo = &cmdbuf->state.gfx.render.fb.info;
    struct panvk_batch *batch = cmdbuf->cur_batch;
-   struct panfrost_ptr job_ptr =
-      pan_pool_alloc_desc(&cmdbuf->desc_pool.base, FRAGMENT_JOB);
+   struct panfrost_ptr job_ptr = panvk_cmd_alloc_desc(cmdbuf, FRAGMENT_JOB);
+
+   if (!job_ptr.gpu)
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
    GENX(pan_emit_fragment_job_payload)(fbinfo, fbd, job_ptr.cpu);
 
@@ -66,6 +69,7 @@ panvk_cmd_prepare_fragment_job(struct panvk_cmd_buffer *cmdbuf, mali_ptr fbd)
    pan_jc_add_job(&batch->frag_jc, MALI_JOB_TYPE_FRAGMENT, false, false, 0, 0,
                   &job_ptr, false);
    util_dynarray_append(&batch->jobs, void *, job_ptr.cpu);
+   return VK_SUCCESS;
 }
 
 void
@@ -89,11 +93,14 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
          /* Batch has no jobs but is needed for synchronization, let's add a
           * NULL job so the SUBMIT ioctl doesn't choke on it.
           */
-         struct panfrost_ptr ptr =
-            pan_pool_alloc_desc(&cmdbuf->desc_pool.base, JOB_HEADER);
-         util_dynarray_append(&batch->jobs, void *, ptr.cpu);
-         pan_jc_add_job(&batch->vtc_jc, MALI_JOB_TYPE_NULL, false, false, 0, 0,
-                        &ptr, false);
+         struct panfrost_ptr ptr = panvk_cmd_alloc_desc(cmdbuf, JOB_HEADER);
+
+         if (ptr.gpu) {
+            util_dynarray_append(&batch->jobs, void *, ptr.cpu);
+            pan_jc_add_job(&batch->vtc_jc, MALI_JOB_TYPE_NULL, false, false, 0,
+                           0, &ptr, false);
+         }
+
          list_addtail(&batch->node, &cmdbuf->batches);
       }
       cmdbuf->cur_batch = NULL;
@@ -116,15 +123,13 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
       unsigned size = panfrost_get_total_stack_size(
          batch->tlsinfo.tls.size, thread_tls_alloc, core_id_range);
       batch->tlsinfo.tls.ptr =
-         pan_pool_alloc_aligned(&cmdbuf->tls_pool.base, size, 4096).gpu;
+         panvk_cmd_alloc_dev_mem(cmdbuf, tls, size, 4096).gpu;
    }
 
    if (batch->tlsinfo.wls.size) {
       assert(batch->wls_total_size);
       batch->tlsinfo.wls.ptr =
-         pan_pool_alloc_aligned(&cmdbuf->tls_pool.base, batch->wls_total_size,
-                                4096)
-            .gpu;
+         panvk_cmd_alloc_dev_mem(cmdbuf, tls, batch->wls_total_size, 4096).gpu;
    }
 
    if (batch->tls.cpu)
@@ -136,6 +141,8 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
                                     pan_sample_pattern(fbinfo->nr_samples));
 
       for (uint32_t i = 0; i < batch->fb.layer_count; i++) {
+         VkResult result;
+
          mali_ptr fbd = batch->fb.desc.gpu + (batch->fb.desc_stride * i);
          if (batch->vtc_jc.first_tiler) {
             cmdbuf->state.gfx.render.fb.info.bifrost.pre_post.dcds.gpu = 0;
@@ -150,26 +157,31 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
             assert(!num_preload_jobs);
          }
 
-         panvk_per_arch(cmd_prepare_tiler_context)(cmdbuf, i);
+         result = panvk_per_arch(cmd_prepare_tiler_context)(cmdbuf, i);
+         if (result != VK_SUCCESS)
+            break;
+
          fbd |= GENX(pan_emit_fbd)(
             &cmdbuf->state.gfx.render.fb.info, i, &batch->tlsinfo,
             &batch->tiler.ctx,
             batch->fb.desc.cpu + (batch->fb.desc_stride * i));
 
-         panvk_cmd_prepare_fragment_job(cmdbuf, fbd);
+         result = panvk_cmd_prepare_fragment_job(cmdbuf, fbd);
+         if (result != VK_SUCCESS)
+            break;
       }
    }
 
    cmdbuf->cur_batch = NULL;
 }
 
-void
+VkResult
 panvk_per_arch(cmd_alloc_fb_desc)(struct panvk_cmd_buffer *cmdbuf)
 {
    struct panvk_batch *batch = cmdbuf->cur_batch;
 
    if (batch->fb.desc.gpu)
-      return;
+      return VK_SUCCESS;
 
    const struct pan_fb_info *fbinfo = &cmdbuf->state.gfx.render.fb.info;
    bool has_zs_ext = fbinfo->zs.view.zs || fbinfo->zs.view.s;
@@ -187,27 +199,33 @@ panvk_per_arch(cmd_alloc_fb_desc)(struct panvk_cmd_buffer *cmdbuf)
    memcpy(batch->fb.bos, cmdbuf->state.gfx.render.fb.bos,
           batch->fb.bo_count * sizeof(batch->fb.bos[0]));
 
-   batch->fb.desc = pan_pool_alloc_aligned(&cmdbuf->desc_pool.base,
-                                           fbd_size * batch->fb.layer_count,
-                                           pan_alignment(FRAMEBUFFER));
+   batch->fb.desc =
+      panvk_cmd_alloc_dev_mem(cmdbuf, desc, fbd_size * batch->fb.layer_count,
+                              pan_alignment(FRAMEBUFFER));
    batch->fb.desc_stride = fbd_size;
 
    memset(&cmdbuf->state.gfx.render.fb.info.bifrost.pre_post.dcds, 0,
           sizeof(cmdbuf->state.gfx.render.fb.info.bifrost.pre_post.dcds));
+
+   return batch->fb.desc.gpu ? VK_SUCCESS : VK_ERROR_OUT_OF_DEVICE_MEMORY;
 }
 
-void
+VkResult
 panvk_per_arch(cmd_alloc_tls_desc)(struct panvk_cmd_buffer *cmdbuf, bool gfx)
 {
    struct panvk_batch *batch = cmdbuf->cur_batch;
 
    assert(batch);
    if (!batch->tls.gpu) {
-      batch->tls = pan_pool_alloc_desc(&cmdbuf->desc_pool.base, LOCAL_STORAGE);
+      batch->tls = panvk_cmd_alloc_desc(cmdbuf, LOCAL_STORAGE);
+      if (!batch->tls.gpu)
+         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
    }
+
+   return VK_SUCCESS;
 }
 
-void
+VkResult
 panvk_per_arch(cmd_prepare_tiler_context)(struct panvk_cmd_buffer *cmdbuf,
                                           uint32_t layer_idx)
 {
@@ -223,11 +241,11 @@ panvk_per_arch(cmd_prepare_tiler_context)(struct panvk_cmd_buffer *cmdbuf,
 
    const struct pan_fb_info *fbinfo = &cmdbuf->state.gfx.render.fb.info;
    uint32_t layer_count = cmdbuf->state.gfx.render.layer_count;
-   batch->tiler.heap_desc =
-      pan_pool_alloc_desc(&cmdbuf->desc_pool.base, TILER_HEAP);
-
-   batch->tiler.ctx_descs = pan_pool_alloc_desc_array(
-      &cmdbuf->desc_pool.base, layer_count, TILER_CONTEXT);
+   batch->tiler.heap_desc = panvk_cmd_alloc_desc(cmdbuf, TILER_HEAP);
+   batch->tiler.ctx_descs =
+      panvk_cmd_alloc_desc_array(cmdbuf, layer_count, TILER_CONTEXT);
+   if (!batch->tiler.heap_desc.gpu || !batch->tiler.ctx_descs.gpu)
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
    tiler_desc =
       batch->tiler.ctx_descs.gpu + (pan_size(TILER_CONTEXT) * layer_idx);
@@ -265,6 +283,8 @@ out_set_layer_ctx:
       batch->tiler.ctx.valhall.desc = tiler_desc;
    else
       batch->tiler.ctx.bifrost.desc = tiler_desc;
+
+   return VK_SUCCESS;
 }
 
 struct panvk_batch *

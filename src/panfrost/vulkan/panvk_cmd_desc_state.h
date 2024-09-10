@@ -25,6 +25,8 @@
 
 #include "pan_pool.h"
 
+struct panvk_cmd_buffer;
+
 struct panvk_shader_desc_state {
 #if PAN_ARCH <= 7
    mali_ptr tables[PANVK_BIFROST_DESC_TABLE_COUNT];
@@ -53,28 +55,31 @@ struct panvk_descriptor_state {
 };
 
 #if PAN_ARCH <= 7
-void panvk_per_arch(cmd_prepare_dyn_ssbos)(
-   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+VkResult panvk_per_arch(cmd_prepare_dyn_ssbos)(
+   struct panvk_cmd_buffer *cmdbuf,
+   const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader *shader,
    struct panvk_shader_desc_state *shader_desc_state);
 
-void panvk_per_arch(cmd_prepare_shader_desc_tables)(
-   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+VkResult panvk_per_arch(cmd_prepare_shader_desc_tables)(
+   struct panvk_cmd_buffer *cmdbuf,
+   const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader *shader,
    struct panvk_shader_desc_state *shader_desc_state);
 #else
 void panvk_per_arch(cmd_fill_dyn_bufs)(
-   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+   const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader *shader, struct mali_buffer_packed *buffers);
 
-void panvk_per_arch(cmd_prepare_shader_res_table)(
-   struct pan_pool *desc_pool, const struct panvk_descriptor_state *desc_state,
+VkResult panvk_per_arch(cmd_prepare_shader_res_table)(
+   struct panvk_cmd_buffer *cmdbuf,
+   const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader *shader,
    struct panvk_shader_desc_state *shader_desc_state);
 #endif
 
-void panvk_per_arch(cmd_prepare_push_descs)(
-   struct pan_pool *desc_pool, struct panvk_descriptor_state *desc_state,
+VkResult panvk_per_arch(cmd_prepare_push_descs)(
+   struct panvk_cmd_buffer *cmdbuf, struct panvk_descriptor_state *desc_state,
    uint32_t used_set_mask);
 
 #endif

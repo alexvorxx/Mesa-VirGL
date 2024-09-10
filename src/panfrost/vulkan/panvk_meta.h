@@ -138,17 +138,17 @@ void panvk_per_arch(meta_desc_copy_init)(struct panvk_device *dev);
 
 void panvk_per_arch(meta_desc_copy_cleanup)(struct panvk_device *dev);
 
+struct panvk_cmd_buffer;
 struct panvk_descriptor_state;
 struct panvk_device;
 struct panvk_shader;
 struct panvk_shader_desc_state;
 
-struct panfrost_ptr panvk_per_arch(meta_get_copy_desc_job)(
-   struct panvk_device *dev, struct pan_pool *desc_pool,
-   const struct panvk_shader *shader,
+VkResult panvk_per_arch(meta_get_copy_desc_job)(
+   struct panvk_cmd_buffer *cmdbuf, const struct panvk_shader *shader,
    const struct panvk_descriptor_state *desc_state,
    const struct panvk_shader_desc_state *shader_desc_state,
-   uint32_t attrib_buf_idx_offset);
+   uint32_t attrib_buf_idx_offset, struct panfrost_ptr *job_desc);
 #endif
 
 #endif

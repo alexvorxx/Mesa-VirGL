@@ -1185,16 +1185,20 @@ varying_format(gl_varying_slot loc, enum pipe_format pfmt)
    }
 }
 
-static struct panvk_priv_mem
+static VkResult
 emit_varying_attrs(struct panvk_pool *desc_pool,
                    const struct pan_shader_varying *varyings,
                    unsigned varying_count, const struct varyings_info *info,
-                   unsigned *buf_offsets)
+                   unsigned *buf_offsets, struct panvk_priv_mem *mem)
 {
    unsigned attr_count = BITSET_COUNT(info->active);
-   struct panvk_priv_mem mem =
-      panvk_pool_alloc_desc_array(desc_pool, attr_count, ATTRIBUTE);
-   struct mali_attribute_packed *attrs = panvk_priv_mem_host_addr(mem);
+
+   *mem = panvk_pool_alloc_desc_array(desc_pool, attr_count, ATTRIBUTE);
+
+   if (attr_count && !panvk_priv_mem_dev_addr(*mem))
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+   struct mali_attribute_packed *attrs = panvk_priv_mem_host_addr(*mem);
    unsigned attr_idx = 0;
 
    for (unsigned i = 0; i < varying_count; i++) {
@@ -1219,10 +1223,10 @@ emit_varying_attrs(struct panvk_pool *desc_pool,
       }
    }
 
-   return mem;
+   return VK_SUCCESS;
 }
 
-void
+VkResult
 panvk_per_arch(link_shaders)(struct panvk_pool *desc_pool,
                              const struct panvk_shader *vs,
                              const struct panvk_shader *fs,
@@ -1241,7 +1245,7 @@ panvk_per_arch(link_shaders)(struct panvk_pool *desc_pool,
    if (PAN_ARCH >= 9) {
       link->buf_strides[PANVK_VARY_BUF_GENERAL] =
          MAX2(fs->info.varyings.input_count, vs->info.varyings.output_count);
-      return;
+      return VK_SUCCESS;
    }
 
    collect_varyings_info(vs->info.varyings.output,
@@ -1302,16 +1306,22 @@ panvk_per_arch(link_shaders)(struct panvk_pool *desc_pool,
       buf_strides[buf_idx] += ALIGN_POT(out_size, 4);
    }
 
-   link->vs.attribs = emit_varying_attrs(desc_pool, vs->info.varyings.output,
-                                         vs->info.varyings.output_count,
-                                         &out_vars, buf_offsets);
+   VkResult result = emit_varying_attrs(
+      desc_pool, vs->info.varyings.output, vs->info.varyings.output_count,
+      &out_vars, buf_offsets, &link->vs.attribs);
+   if (result != VK_SUCCESS)
+      return result;
 
-   if (fs)
-      link->fs.attribs = emit_varying_attrs(desc_pool, fs->info.varyings.input,
-                                            fs->info.varyings.input_count,
-                                            &in_vars, buf_offsets);
+   if (fs) {
+      result = emit_varying_attrs(desc_pool, fs->info.varyings.input,
+                                  fs->info.varyings.input_count, &in_vars,
+                                  buf_offsets, &link->fs.attribs);
+      if (result != VK_SUCCESS)
+         return result;
+   }
 
    memcpy(link->buf_strides, buf_strides, sizeof(link->buf_strides));
+   return VK_SUCCESS;
 }
 
 static const struct vk_shader_ops panvk_shader_ops = {

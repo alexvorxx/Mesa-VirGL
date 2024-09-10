@@ -13,6 +13,7 @@
 #include "vk_common_entrypoints.h"
 
 #include "panvk_buffer.h"
+#include "panvk_cmd_alloc.h"
 #include "panvk_cmd_buffer.h"
 #include "panvk_device.h"
 #include "panvk_entrypoints.h"
@@ -96,7 +97,10 @@ panvk_meta_cmd_bind_map_buffer(struct vk_command_buffer *cmd,
    struct panvk_cmd_buffer *cmdbuf =
       container_of(cmd, struct panvk_cmd_buffer, vk);
    struct panfrost_ptr mem =
-      pan_pool_alloc_aligned(&cmdbuf->desc_pool.base, buffer->vk.size, 64);
+      panvk_cmd_alloc_dev_mem(cmdbuf, desc, buffer->vk.size, 64);
+
+   if (!mem.gpu)
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
    buffer->dev_addr = mem.gpu;
    *map_out = mem.cpu;

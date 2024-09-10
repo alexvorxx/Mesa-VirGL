@@ -180,10 +180,10 @@ panvk_shader_get_dev_addr(const struct panvk_shader *shader)
    return shader != NULL ? panvk_priv_mem_dev_addr(shader->code_mem) : 0;
 }
 
-void panvk_per_arch(link_shaders)(struct panvk_pool *desc_pool,
-                                  const struct panvk_shader *vs,
-                                  const struct panvk_shader *fs,
-                                  struct panvk_shader_link *link);
+VkResult panvk_per_arch(link_shaders)(struct panvk_pool *desc_pool,
+                                      const struct panvk_shader *vs,
+                                      const struct panvk_shader *fs,
+                                      struct panvk_shader_link *link);
 
 static inline void
 panvk_shader_link_cleanup(struct panvk_pool *desc_pool,
