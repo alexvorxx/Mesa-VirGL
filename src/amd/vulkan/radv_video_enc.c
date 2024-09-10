@@ -1990,6 +1990,13 @@ radv_GetEncodedVideoSessionParametersKHR(VkDevice device,
          assert(pps);
          char *data_ptr = pData ? (char *)pData + vps_size + sps_size : NULL;
          vk_video_encode_h265_pps(pps, size_limit, &pps_size, data_ptr);
+
+         if (pFeedbackInfo) {
+            struct VkVideoEncodeH265SessionParametersFeedbackInfoKHR *h265_feedback_info =
+               vk_find_struct(pFeedbackInfo->pNext, VIDEO_ENCODE_H265_SESSION_PARAMETERS_FEEDBACK_INFO_KHR);
+            pFeedbackInfo->hasOverrides = VK_TRUE;
+            h265_feedback_info->hasStdPPSOverrides = VK_TRUE;
+         }
       }
       total_size = sps_size + pps_size + vps_size;
       break;
