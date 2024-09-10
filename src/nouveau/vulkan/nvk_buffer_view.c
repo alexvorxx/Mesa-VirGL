@@ -24,7 +24,7 @@ nvk_get_buffer_format_features(struct nvk_physical_device *pdev,
    if (nvk_get_va_format(pdev, vk_format))
       features |= VK_FORMAT_FEATURE_2_VERTEX_BUFFER_BIT;
 
-   enum pipe_format p_format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format p_format = nvk_format_to_pipe_format(vk_format);
    if (nil_format_supports_buffer(&pdev->info, p_format)) {
       features |= VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT;
 
@@ -60,7 +60,7 @@ nvk_CreateBufferView(VkDevice _device,
       return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    const uint64_t addr = nvk_buffer_address(buffer, view->vk.offset);
-   enum pipe_format format = vk_format_to_pipe_format(view->vk.format);
+   enum pipe_format format = nvk_format_to_pipe_format(view->vk.format);
 
    if (nvk_use_edb_buffer_views(pdev)) {
       view->edb_desc =

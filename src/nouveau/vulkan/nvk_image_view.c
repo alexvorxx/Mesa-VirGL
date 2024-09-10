@@ -152,7 +152,7 @@ nvk_image_view_init(struct nvk_device *dev,
       assert(ycbcr_info || view_plane == 0);
       VkFormat plane_format = ycbcr_info ?
          ycbcr_info->planes[view_plane].format : view->vk.format;
-      enum pipe_format p_format = vk_format_to_pipe_format(plane_format);
+      enum pipe_format p_format = nvk_format_to_pipe_format(plane_format);
       if (view->vk.aspects == VK_IMAGE_ASPECT_STENCIL_BIT)
          p_format = get_stencil_format(p_format);
 

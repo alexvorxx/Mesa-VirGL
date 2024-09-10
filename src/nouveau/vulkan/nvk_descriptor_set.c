@@ -9,6 +9,7 @@
 #include "nvk_descriptor_set_layout.h"
 #include "nvk_device.h"
 #include "nvk_entrypoints.h"
+#include "nvk_format.h"
 #include "nvk_image_view.h"
 #include "nvk_physical_device.h"
 #include "nvk_sampler.h"
@@ -256,7 +257,7 @@ get_edb_buffer_view_desc(struct nvk_device *dev,
 {
    struct nvk_edb_buffer_view_descriptor desc = { };
    if (info != NULL && info->address != 0) {
-      enum pipe_format format = vk_format_to_pipe_format(info->format);
+      enum pipe_format format = nvk_format_to_pipe_format(info->format);
       desc = nvk_edb_bview_cache_get_descriptor(dev, &dev->edb_bview_cache,
                                                 info->address, info->range,
                                                 format);

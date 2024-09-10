@@ -34,7 +34,7 @@ nvk_get_image_plane_format_features(struct nvk_physical_device *pdev,
        !fourcc_mod_is_vendor(drm_format_mod, NVIDIA))
       return 0;
 
-   enum pipe_format p_format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format p_format = nvk_format_to_pipe_format(vk_format);
    if (p_format == PIPE_FORMAT_NONE)
       return 0;
 
@@ -195,7 +195,7 @@ nvk_get_drm_format_modifier_properties_list(struct nvk_physical_device *pdev,
 
    uint64_t mods[NIL_MAX_DRM_FORMAT_MODS];
    size_t mod_count = NIL_MAX_DRM_FORMAT_MODS;
-   enum pipe_format p_format = vk_format_to_pipe_format(vk_format);
+   enum pipe_format p_format = nvk_format_to_pipe_format(vk_format);
    nil_drm_format_mods_for_format(&pdev->info, nil_format(p_format),
                                   &mod_count, &mods);
    if (mod_count == 0) {
@@ -695,7 +695,7 @@ nvk_GetPhysicalDeviceSparseImageFormatProperties2(
 
    VkImageAspectFlags aspects = vk_format_aspects(pFormatInfo->format);
    const enum pipe_format pipe_format =
-      vk_format_to_pipe_format(pFormatInfo->format);
+      nvk_format_to_pipe_format(pFormatInfo->format);
    const enum nil_image_dim dim = vk_image_type_to_nil_dim(pFormatInfo->type);
    const enum nil_sample_layout sample_layout =
       nil_choose_sample_layout(pFormatInfo->samples);
@@ -775,7 +775,7 @@ nvk_image_init(struct nvk_device *dev,
                                  IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT);
 
          enum pipe_format p_format =
-            vk_format_to_pipe_format(pCreateInfo->format);
+            nvk_format_to_pipe_format(pCreateInfo->format);
          image->vk.drm_format_mod =
             nil_select_best_drm_format_mod(&pdev->info, nil_format(p_format),
                                            mod_list_info->drmFormatModifierCount,
@@ -789,7 +789,7 @@ nvk_image_init(struct nvk_device *dev,
 
          struct nil_image_init_info tiled_shadow_nil_info = {
             .dim = vk_image_type_to_nil_dim(pCreateInfo->imageType),
-            .format = nil_format(vk_format_to_pipe_format(image->vk.format)),
+            .format = nil_format(nvk_format_to_pipe_format(image->vk.format)),
             .modifier = DRM_FORMAT_MOD_INVALID,
             .extent_px = {
                .width = pCreateInfo->extent.width,
@@ -818,7 +818,7 @@ nvk_image_init(struct nvk_device *dev,
          ycbcr_info->planes[plane].denominator_scales[1] : 1;
       struct nil_image_init_info nil_info = {
          .dim = vk_image_type_to_nil_dim(pCreateInfo->imageType),
-         .format = nil_format(vk_format_to_pipe_format(format)),
+         .format = nil_format(nvk_format_to_pipe_format(format)),
          .modifier = image->vk.drm_format_mod,
          .extent_px = {
             .width = pCreateInfo->extent.width / width_scale,
