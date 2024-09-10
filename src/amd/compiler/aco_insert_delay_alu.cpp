@@ -108,21 +108,6 @@ struct delay_ctx {
    delay_ctx() {}
    delay_ctx(Program* program_) : program(program_) {}
 
-   bool join(const delay_ctx* other)
-   {
-      bool changed = false;
-      for (const auto& entry : other->gpr_map) {
-         using iterator = std::map<PhysReg, alu_delay_info>::iterator;
-         const std::pair<iterator, bool> insert_pair = gpr_map.insert(entry);
-         if (insert_pair.second)
-            changed = true;
-         else
-            changed |= insert_pair.first->second.combine(entry.second);
-      }
-
-      return changed;
-   }
-
    UNUSED void print(FILE* output) const
    {
       for (const auto& entry : gpr_map) {
@@ -149,29 +134,6 @@ check_alu(delay_ctx& ctx, alu_delay_info& delay, Instruction* instr)
             delay.combine(it->second);
       }
    }
-}
-
-bool
-parse_delay_alu(delay_ctx& ctx, alu_delay_info& delay, Instruction* instr)
-{
-   if (instr->opcode != aco_opcode::s_delay_alu)
-      return false;
-
-   unsigned imm[2] = {instr->salu().imm & 0xf, (instr->salu().imm >> 7) & 0xf};
-   for (unsigned i = 0; i < 2; ++i) {
-      alu_delay_wait wait = (alu_delay_wait)imm[i];
-      if (wait >= alu_delay_wait::VALU_DEP_1 && wait <= alu_delay_wait::VALU_DEP_4)
-         delay.valu_instrs = imm[i] - (uint32_t)alu_delay_wait::VALU_DEP_1 + 1;
-      else if (wait >= alu_delay_wait::TRANS32_DEP_1 && wait <= alu_delay_wait::TRANS32_DEP_3)
-         delay.trans_instrs = imm[i] - (uint32_t)alu_delay_wait::TRANS32_DEP_1 + 1;
-      else if (wait >= alu_delay_wait::SALU_CYCLE_1)
-         delay.salu_cycles = imm[i] - (uint32_t)alu_delay_wait::SALU_CYCLE_1 + 1;
-   }
-
-   delay.valu_cycles = instr->pass_flags & 0xffff;
-   delay.trans_cycles = instr->pass_flags >> 16;
-
-   return true;
 }
 
 void
@@ -275,7 +237,6 @@ emit_delay_alu(delay_ctx& ctx, std::vector<aco_ptr<Instruction>>& instructions,
 
    Instruction* inst = create_instruction(aco_opcode::s_delay_alu, Format::SOPP, 0, 0);
    inst->salu().imm = imm;
-   inst->pass_flags = (delay.valu_cycles | (delay.trans_cycles << 16));
    instructions.emplace_back(inst);
    delay = alu_delay_info();
 }
@@ -288,20 +249,16 @@ handle_block(Program* program, Block& block, delay_ctx& ctx)
 
    for (size_t i = 0; i < block.instructions.size(); i++) {
       aco_ptr<Instruction>& instr = block.instructions[i];
-      bool is_delay_alu = parse_delay_alu(ctx, queued_delay, instr.get());
+      assert(instr->opcode != aco_opcode::s_delay_alu);
 
       kill_alu(queued_delay, instr.get(), ctx);
       gen_alu(instr.get(), ctx);
 
-      if (!is_delay_alu) {
-         if (!queued_delay.empty())
-            emit_delay_alu(ctx, new_instructions, queued_delay);
-         new_instructions.emplace_back(std::move(instr));
-      }
+      if (!queued_delay.empty())
+         emit_delay_alu(ctx, new_instructions, queued_delay);
+      new_instructions.emplace_back(std::move(instr));
    }
 
-   if (!queued_delay.empty())
-      emit_delay_alu(ctx, new_instructions, queued_delay);
    block.instructions.swap(new_instructions);
 }
 
@@ -311,56 +268,23 @@ void
 insert_delay_alu(Program* program)
 {
    /* per BB ctx */
-   std::vector<bool> done(program->blocks.size());
-   std::vector<delay_ctx> in_ctx(program->blocks.size(), delay_ctx(program));
-   std::vector<delay_ctx> out_ctx(program->blocks.size(), delay_ctx(program));
+   delay_ctx ctx(program);
 
-   std::stack<unsigned, std::vector<unsigned>> loop_header_indices;
-   unsigned loop_progress = 0;
+   for (unsigned i = 0; i < program->blocks.size(); i++) {
+      Block& current = program->blocks[i];
 
-   for (unsigned i = 0; i < program->blocks.size();) {
-      Block& current = program->blocks[i++];
-
-      if (current.kind & block_kind_discard_early_exit) {
-         /* Because the jump to the discard early exit block may happen anywhere in a block, it's
-          * not possible to join it with its predecessors this way.
-          */
+      if (current.instructions.empty())
          continue;
-      }
-
-      delay_ctx ctx = in_ctx[current.index];
-
-      if (current.kind & block_kind_loop_header) {
-         loop_header_indices.push(current.index);
-      } else if (current.kind & block_kind_loop_exit) {
-         bool repeat = false;
-         if (loop_progress == loop_header_indices.size()) {
-            i = loop_header_indices.top();
-            repeat = true;
-         }
-         loop_header_indices.pop();
-         loop_progress = std::min<unsigned>(loop_progress, loop_header_indices.size());
-         if (repeat)
-            continue;
-      }
-
-      bool changed = false;
-      for (unsigned b : current.linear_preds)
-         changed |= ctx.join(&out_ctx[b]);
-
-      if (done[current.index] && !changed) {
-         in_ctx[current.index] = std::move(ctx);
-         continue;
-      } else {
-         in_ctx[current.index] = ctx;
-      }
-
-      loop_progress = std::max<unsigned>(loop_progress, current.loop_nest_depth);
-      done[current.index] = true;
 
       handle_block(program, current, ctx);
 
-      out_ctx[current.index] = std::move(ctx);
+      /* Reset ctx if there is a jump, assuming ALU will be done
+       * because branch latency is pretty high.
+       */
+      if (current.linear_succs.empty() ||
+          current.instructions.back()->opcode == aco_opcode::s_branch) {
+         ctx = delay_ctx(program);
+      }
    }
 }
 
