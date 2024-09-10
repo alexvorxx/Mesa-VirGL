@@ -411,7 +411,7 @@ panvk_create_cmdbuf(struct vk_command_pool *vk_pool, VkCommandBufferLevel level,
       .create_flags =
          panvk_device_adjust_bo_flags(device, PAN_KMOD_BO_FLAG_NO_MMAP),
       .slab_size = 64 * 1024,
-      .label = "TLS pool",
+      .label = "Varying pool",
       .prealloc = false,
       .owns_bos = true,
       .needs_locking = false,
