@@ -310,6 +310,7 @@ get_drm_device(struct intel_device_info *devinfo)
          break;
       }
    }
+   drmFreeDevices(devices, max_devices);
 
    return fd;
 }
@@ -436,6 +437,7 @@ executor_context_setup(executor_context *ec)
          }
       }
       assert(found_engine);
+      free(engines_info);
 
       struct drm_xe_exec_queue_create queue_create = {
          .vm_id          = ec->xe.vm_id,
