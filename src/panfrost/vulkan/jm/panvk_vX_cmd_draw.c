@@ -88,10 +88,6 @@ struct panvk_draw_info {
    BITSET_TEST((__cmdbuf)->vk.dynamic_graphics_state.dirty,                    \
                MESA_VK_DYNAMIC_##__name)
 
-#define set_dirty(__cmdbuf, __nm)                                              \
-   BITSET_SET((__cmdbuf)->vk.dynamic_graphics_state.dirty,                     \
-              MESA_VK_DYNAMIC_##__name)
-
 static void
 panvk_cmd_prepare_draw_sysvals(struct panvk_cmd_buffer *cmdbuf,
                                struct panvk_draw_info *draw)
