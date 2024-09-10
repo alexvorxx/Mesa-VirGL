@@ -49,6 +49,9 @@ struct alu_delay_info {
    /* Cycles until the writing SALU instruction is finished*/
    int8_t salu_cycles = 0;
 
+   /* VALU wrote this as lane mask. */
+   bool lane_mask_forwarding = true;
+
    bool combine(const alu_delay_info& other)
    {
       bool changed = other.valu_instrs < valu_instrs || other.trans_instrs < trans_instrs ||
@@ -59,6 +62,7 @@ struct alu_delay_info {
       salu_cycles = std::max(salu_cycles, other.salu_cycles);
       valu_cycles = std::max(valu_cycles, other.valu_cycles);
       trans_cycles = std::max(trans_cycles, other.trans_cycles);
+      lane_mask_forwarding &= other.lane_mask_forwarding;
       return changed;
    }
 
@@ -122,7 +126,9 @@ struct delay_ctx {
 void
 check_alu(delay_ctx& ctx, alu_delay_info& delay, Instruction* instr)
 {
-   for (const Operand op : instr->operands) {
+   for (unsigned i = 0; i < instr->operands.size(); i++) {
+      const Operand op = instr->operands[i];
+      alu_delay_info op_delay;
       if (op.isConstant() || op.isUndefined())
          continue;
 
@@ -131,8 +137,17 @@ check_alu(delay_ctx& ctx, alu_delay_info& delay, Instruction* instr)
          std::map<PhysReg, alu_delay_info>::iterator it =
             ctx.gpr_map.find(PhysReg{op.physReg() + j});
          if (it != ctx.gpr_map.end())
-            delay.combine(it->second);
+            op_delay.combine(it->second);
       }
+
+      bool fast_forward = (instr->opcode == aco_opcode::v_cndmask_b32 ||
+                           instr->opcode == aco_opcode::v_cndmask_b16 ||
+                           instr->opcode == aco_opcode::v_dual_cndmask_b32) &&
+                          i == 2;
+      fast_forward |= instr->isVOPD() && instr->vopd().opy == aco_opcode::v_dual_cndmask_b32 &&
+                      i + 1 == instr->operands.size();
+      if (!op_delay.lane_mask_forwarding || !fast_forward)
+         delay.combine(op_delay);
    }
 }
 
@@ -216,6 +231,7 @@ gen_alu(Instruction* instr, delay_ctx& ctx)
 
    if (is_trans || is_valu || instr->isSALU()) {
       alu_delay_info delay;
+      delay.lane_mask_forwarding = false;
       if (is_trans) {
          delay.trans_instrs = 0;
          delay.trans_cycles = cycle_info.latency;
@@ -226,9 +242,14 @@ gen_alu(Instruction* instr, delay_ctx& ctx)
          delay.salu_cycles = cycle_info.latency;
       }
 
-      for (const Definition& def : instr->definitions) {
-         for (unsigned i = 0; i < def.size(); i++) {
-            auto it = ctx.gpr_map.emplace(PhysReg{def.physReg().reg() + i}, delay);
+      for (Definition& def : instr->definitions) {
+         if (is_valu && def.regClass() == ctx.program->lane_mask) {
+            delay.lane_mask_forwarding = instr->opcode != aco_opcode::v_readlane_b32_e64 &&
+                                         instr->opcode != aco_opcode::v_readfirstlane_b32;
+         }
+
+         for (unsigned j = 0; j < def.size(); j++) {
+            auto it = ctx.gpr_map.emplace(PhysReg{def.physReg().reg() + j}, delay);
             if (!it.second)
                it.first->second.combine(delay);
          }
