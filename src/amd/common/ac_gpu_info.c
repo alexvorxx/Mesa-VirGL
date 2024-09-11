@@ -21,7 +21,7 @@
 #include <ctype.h>
 
 #define AMDGPU_MI100_RANGE       0x32, 0x3C
-#define AMDGPU_MI200_RANGE       0x3C, 0xFF
+#define AMDGPU_MI200_RANGE       0x3C, 0x46
 #define AMDGPU_GFX940_RANGE      0x46, 0xFF
 
 #define ASICREV_IS_MI100(r)      ASICREV_IS(r, MI100)
