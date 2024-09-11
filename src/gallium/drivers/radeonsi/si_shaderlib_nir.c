@@ -256,29 +256,31 @@ void *si_create_fmask_expand_cs(struct si_context *sctx, unsigned num_samples, b
       z = nir_channel(&b, nir_load_workgroup_id(&b), 2);
    }
 
-   nir_def *zero = nir_imm_int(&b, 0);
+   nir_def *zero_lod = nir_imm_int(&b, 0);
    nir_def *address = ac_get_global_ids(&b, 2, 32);
 
-   nir_def *sample[8], *addresses[8];
-   assert(num_samples <= ARRAY_SIZE(sample));
+   nir_def *coord[8], *values[8];
+   assert(num_samples <= ARRAY_SIZE(coord));
 
-   nir_def *img_def = &nir_build_deref_var(&b, img)->def;
+   nir_def *img_deref = &nir_build_deref_var(&b, img)->def;
 
    /* Load samples, resolving FMASK. */
    for (unsigned i = 0; i < num_samples; i++) {
-      nir_def *it = nir_imm_int(&b, i);
-      sample[i] = nir_vec4(&b, nir_channel(&b, address, 0), nir_channel(&b, address, 1), z, it);
-      addresses[i] = nir_image_deref_load(&b, 4, 32, img_def, sample[i], it, zero,
+      nir_def *sample = nir_imm_int(&b, i);
+      coord[i] = nir_vec4(&b, nir_channel(&b, address, 0), nir_channel(&b, address, 1), z,
+                          nir_undef(&b, 1, 32));
+      values[i] = nir_image_deref_load(&b, 4, 32, img_deref, coord[i], sample, zero_lod,
                                           .access = ACCESS_RESTRICT,
-                                          .image_dim = GLSL_SAMPLER_DIM_2D,
+                                          .image_dim = GLSL_SAMPLER_DIM_MS,
                                           .image_array = is_array);
    }
 
    /* Store samples, ignoring FMASK. */
    for (unsigned i = 0; i < num_samples; i++) {
-      nir_image_deref_store(&b, img_def, sample[i], nir_imm_int(&b, i), addresses[i], zero,
+      nir_def *sample = nir_imm_int(&b, i);
+      nir_image_deref_store(&b, img_deref, coord[i], sample, values[i], zero_lod,
                             .access = ACCESS_RESTRICT,
-                            .image_dim = GLSL_SAMPLER_DIM_2D,
+                            .image_dim = GLSL_SAMPLER_DIM_MS,
                             .image_array = is_array);
    }
 
