@@ -3507,6 +3507,8 @@ nir_block_contains_work(nir_block *block)
       return true;
 
    nir_foreach_instr(instr, block) {
+      if (instr->type == nir_instr_type_phi)
+         continue;
       if (instr->type != nir_instr_type_alu ||
           !nir_op_is_vec_or_mov(nir_instr_as_alu(instr)->op))
          return true;
