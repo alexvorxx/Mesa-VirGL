@@ -953,15 +953,12 @@ static void
 radv_emit_userdata_address(const struct radv_device *device, struct radeon_cmdbuf *cs, const struct radv_shader *shader,
                            int idx, uint64_t va)
 {
-   const struct radv_userdata_info *loc = &shader->info.user_sgprs_locs.shader_data[idx];
-   const uint32_t base_reg = shader->info.user_data_0;
+   const uint32_t offset = radv_get_user_sgpr_loc(shader, idx);
 
-   if (loc->sgpr_idx == -1)
+   if (!offset)
       return;
 
-   assert(loc->num_sgprs == 1);
-
-   radv_emit_shader_pointer(device, cs, base_reg + loc->sgpr_idx * 4, va, false);
+   radv_emit_shader_pointer(device, cs, offset, va, false);
 }
 
 uint64_t
@@ -983,16 +980,14 @@ static void
 radv_emit_descriptors_per_stage(const struct radv_device *device, struct radeon_cmdbuf *cs,
                                 const struct radv_shader *shader, const struct radv_descriptor_state *descriptors_state)
 {
-   const struct radv_userdata_locations *locs = &shader->info.user_sgprs_locs;
-   const struct radv_userdata_info *indirect_loc = &locs->shader_data[AC_UD_INDIRECT_DESCRIPTOR_SETS];
-   const uint32_t sh_base = shader->info.user_data_0;
+   const uint32_t indirect_descriptor_sets_offset = radv_get_user_sgpr_loc(shader, AC_UD_INDIRECT_DESCRIPTOR_SETS);
 
-   if (indirect_loc->sgpr_idx != -1) {
-      assert(indirect_loc->num_sgprs == 1);
-
-      radv_emit_shader_pointer(device, cs, sh_base + indirect_loc->sgpr_idx * 4,
+   if (indirect_descriptor_sets_offset) {
+      radv_emit_shader_pointer(device, cs, indirect_descriptor_sets_offset,
                                descriptors_state->indirect_descriptor_sets_va, false);
    } else {
+      const struct radv_userdata_locations *locs = &shader->info.user_sgprs_locs;
+      const uint32_t sh_base = shader->info.user_data_0;
       unsigned mask = locs->descriptor_sets_enabled;
 
       mask &= descriptors_state->dirty & descriptors_state->valid;
@@ -1927,10 +1922,8 @@ radv_emit_epilog(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *s
 
    assert((epilog->va >> 32) == pdev->info.address32_hi);
 
-   const struct radv_userdata_info *loc = &shader->info.user_sgprs_locs.shader_data[AC_UD_EPILOG_PC];
-   const uint32_t base_reg = shader->info.user_data_0;
-   assert(loc->sgpr_idx != -1 && loc->num_sgprs == 1);
-   radv_emit_shader_pointer(device, cs, base_reg + loc->sgpr_idx * 4, epilog->va, false);
+   const uint32_t epilog_pc_offset = radv_get_user_sgpr_loc(shader, AC_UD_EPILOG_PC);
+   radv_emit_shader_pointer(device, cs, epilog_pc_offset, epilog->va, false);
 
    cmd_buffer->shader_upload_seq = MAX2(cmd_buffer->shader_upload_seq, epilog->upload_seq);
 }
@@ -2214,11 +2207,7 @@ radv_emit_vertex_shader(struct radv_cmd_buffer *cmd_buffer)
    if (vs->info.merged_shader_compiled_separately) {
       assert(vs->info.next_stage == MESA_SHADER_TESS_CTRL || vs->info.next_stage == MESA_SHADER_GEOMETRY);
 
-      const struct radv_userdata_info *loc = &vs->info.user_sgprs_locs.shader_data[AC_UD_NEXT_STAGE_PC];
       const struct radv_shader *next_stage = cmd_buffer->state.shaders[vs->info.next_stage];
-      const uint32_t base_reg = vs->info.user_data_0;
-
-      assert(loc->sgpr_idx != -1 && loc->num_sgprs == 1);
 
       if (!vs->info.vs.has_prolog) {
          uint32_t rsrc1, rsrc2;
@@ -2245,7 +2234,8 @@ radv_emit_vertex_shader(struct radv_cmd_buffer *cmd_buffer)
          }
       }
 
-      radv_emit_shader_pointer(device, cmd_buffer->cs, base_reg + loc->sgpr_idx * 4, next_stage->va, false);
+      const uint32_t next_stage_pc_offset = radv_get_user_sgpr_loc(vs, AC_UD_NEXT_STAGE_PC);
+      radv_emit_shader_pointer(device, cmd_buffer->cs, next_stage_pc_offset, next_stage->va, false);
       return;
    }
 
@@ -2284,12 +2274,8 @@ radv_emit_tess_eval_shader(struct radv_cmd_buffer *cmd_buffer)
    if (tes->info.merged_shader_compiled_separately) {
       assert(tes->info.next_stage == MESA_SHADER_GEOMETRY);
 
-      const struct radv_userdata_info *loc = &tes->info.user_sgprs_locs.shader_data[AC_UD_NEXT_STAGE_PC];
       const struct radv_shader *gs = cmd_buffer->state.shaders[MESA_SHADER_GEOMETRY];
-      const uint32_t base_reg = tes->info.user_data_0;
       uint32_t rsrc1, rsrc2;
-
-      assert(loc->sgpr_idx != -1 && loc->num_sgprs == 1);
 
       radv_shader_combine_cfg_tes_gs(tes, gs, &rsrc1, &rsrc2);
 
@@ -2306,7 +2292,8 @@ radv_emit_tess_eval_shader(struct radv_cmd_buffer *cmd_buffer)
       radeon_emit(cmd_buffer->cs, rsrc1);
       radeon_emit(cmd_buffer->cs, rsrc2 | S_00B22C_LDS_SIZE(lds_size));
 
-      radv_emit_shader_pointer(device, cmd_buffer->cs, base_reg + loc->sgpr_idx * 4, gs->va, false);
+      const uint32_t next_stage_pc_offset = radv_get_user_sgpr_loc(tes, AC_UD_NEXT_STAGE_PC);
+      radv_emit_shader_pointer(device, cmd_buffer->cs, next_stage_pc_offset, gs->va, false);
       return;
    }
 
@@ -5300,11 +5287,8 @@ emit_prolog_inputs(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader 
       input_va = radv_buffer_get_va(cmd_buffer->upload.upload_bo) + inputs_offset;
    }
 
-   const struct radv_userdata_info *loc = &vs_shader->info.user_sgprs_locs.shader_data[AC_UD_VS_PROLOG_INPUTS];
-   uint32_t base_reg = vs_shader->info.user_data_0;
-   assert(loc->sgpr_idx != -1);
-   assert(loc->num_sgprs == 2);
-   radv_emit_shader_pointer(device, cmd_buffer->cs, base_reg + loc->sgpr_idx * 4, input_va, true);
+   const uint32_t vs_prolog_inputs_offset = radv_get_user_sgpr_loc(vs_shader, AC_UD_VS_PROLOG_INPUTS);
+   radv_emit_shader_pointer(device, cmd_buffer->cs, vs_prolog_inputs_offset, input_va, true);
 }
 
 static void
@@ -6470,25 +6454,19 @@ radv_flush_force_vrs_state(struct radv_cmd_buffer *cmd_buffer)
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const struct radv_shader *last_vgt_shader = cmd_buffer->state.last_vgt_shader;
+   uint32_t force_vrs_rates_offset;
 
    if (!last_vgt_shader->info.force_vrs_per_vertex) {
       /* Un-set the SGPR index so we know to re-emit it later. */
-      cmd_buffer->state.last_vrs_rates_sgpr_idx = -1;
+      cmd_buffer->state.last_force_vrs_rates_offset = -1;
       return;
    }
 
-   const struct radv_userdata_info *loc;
-   uint32_t base_reg;
-
    if (cmd_buffer->state.gs_copy_shader) {
-      loc = &cmd_buffer->state.gs_copy_shader->info.user_sgprs_locs.shader_data[AC_UD_FORCE_VRS_RATES];
-      base_reg = R_00B130_SPI_SHADER_USER_DATA_VS_0;
+      force_vrs_rates_offset = radv_get_user_sgpr_loc(cmd_buffer->state.gs_copy_shader, AC_UD_FORCE_VRS_RATES);
    } else {
-      loc = radv_get_user_sgpr_info(last_vgt_shader, AC_UD_FORCE_VRS_RATES);
-      base_reg = last_vgt_shader->info.user_data_0;
+      force_vrs_rates_offset = radv_get_user_sgpr_loc(last_vgt_shader, AC_UD_FORCE_VRS_RATES);
    }
-
-   assert(loc->sgpr_idx != -1);
 
    enum amd_gfx_level gfx_level = pdev->info.gfx_level;
    uint32_t vrs_rates = 0;
@@ -6507,12 +6485,13 @@ radv_flush_force_vrs_state(struct radv_cmd_buffer *cmd_buffer)
       break;
    }
 
-   if (cmd_buffer->state.last_vrs_rates != vrs_rates || cmd_buffer->state.last_vrs_rates_sgpr_idx != loc->sgpr_idx) {
-      radeon_set_sh_reg(cmd_buffer->cs, base_reg + loc->sgpr_idx * 4, vrs_rates);
+   if (cmd_buffer->state.last_vrs_rates != vrs_rates ||
+       cmd_buffer->state.last_force_vrs_rates_offset != force_vrs_rates_offset) {
+      radeon_set_sh_reg(cmd_buffer->cs, force_vrs_rates_offset, vrs_rates);
    }
 
    cmd_buffer->state.last_vrs_rates = vrs_rates;
-   cmd_buffer->state.last_vrs_rates_sgpr_idx = loc->sgpr_idx;
+   cmd_buffer->state.last_force_vrs_rates_offset = force_vrs_rates_offset;
 }
 
 static void
@@ -7221,7 +7200,7 @@ radv_BeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBegi
    cmd_buffer->state.predication_type = -1;
    cmd_buffer->state.mesh_shading = false;
    cmd_buffer->state.last_vrs_rates = -1;
-   cmd_buffer->state.last_vrs_rates_sgpr_idx = -1;
+   cmd_buffer->state.last_force_vrs_rates_offset = -1;
 
    radv_reset_tracked_regs(cmd_buffer);
 
@@ -9386,7 +9365,7 @@ radv_CmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t commandBufferCou
       }
 
       primary->state.last_vrs_rates = secondary->state.last_vrs_rates;
-      primary->state.last_vrs_rates_sgpr_idx = secondary->state.last_vrs_rates_sgpr_idx;
+      primary->state.last_force_vrs_rates_offset = secondary->state.last_force_vrs_rates_offset;
 
       primary->state.rb_noncoherent_dirty |= secondary->state.rb_noncoherent_dirty;
 

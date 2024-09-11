@@ -414,7 +414,7 @@ struct radv_cmd_state {
 
    /* Per-vertex VRS state. */
    uint32_t last_vrs_rates;
-   int8_t last_vrs_rates_sgpr_idx;
+   int32_t last_force_vrs_rates_offset;
 
    /* Whether to suspend streamout for internal driver operations. */
    bool suspend_streamout;
