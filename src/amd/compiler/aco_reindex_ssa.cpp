@@ -91,8 +91,6 @@ reindex_ssa(Program* program)
          new_set.insert(ctx.renames[id]);
       set = std::move(new_set);
    }
-
-   program->allocationID = program->temp_rc.size();
 }
 
 } // namespace aco

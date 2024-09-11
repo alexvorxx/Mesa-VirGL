@@ -2115,25 +2115,15 @@ public:
       void* private_data;
    } debug;
 
-   uint32_t allocateId(RegClass rc)
-   {
-      assert(allocationID <= 16777215);
-      temp_rc.push_back(rc);
-      return allocationID++;
-   }
-
    void allocateRange(unsigned amount)
    {
-      assert(allocationID + amount <= 16777216);
+      assert(temp_rc.size() + amount <= 16777216);
       temp_rc.resize(temp_rc.size() + amount);
-      allocationID += amount;
    }
 
    Temp allocateTmp(RegClass rc) { return Temp(allocateId(rc), rc); }
 
-   uint32_t peekAllocationId() { return allocationID; }
-
-   friend void reindex_ssa(Program* program);
+   uint32_t peekAllocationId() { return temp_rc.size(); }
 
    Block* create_and_insert_block()
    {
@@ -2153,7 +2143,12 @@ public:
    }
 
 private:
-   uint32_t allocationID = 1;
+   uint32_t allocateId(RegClass rc)
+   {
+      assert(temp_rc.size() <= 16777215);
+      temp_rc.push_back(rc);
+      return temp_rc.size() - 1;
+   }
 };
 
 struct ra_test_policy {
@@ -2205,6 +2200,7 @@ void optimize_postRA(Program* program);
 void setup_reduce_temp(Program* program);
 void lower_to_cssa(Program* program);
 void register_allocation(Program* program, ra_test_policy = {});
+void reindex_ssa(Program* program);
 void ssa_elimination(Program* program);
 void lower_to_hw_instr(Program* program);
 void schedule_program(Program* program);
