@@ -339,6 +339,43 @@ validate_geometry_shader_emissions(const struct gl_constants *consts,
    }
 }
 
+/* For derivatives in compute shaders, GLSL_NV_compute_shader_derivatives
+ * states:
+ *
+ *    If neither layout qualifier is specified, derivatives in compute
+ *    shaders return zero, which is consistent with the handling of built-in
+ *    texture functions like texture() in GLSL 4.50 compute shaders.
+ */
+static void
+lower_derivatives_without_layout(nir_builder *b)
+{
+   if (b->shader->info.stage != MESA_SHADER_COMPUTE ||
+       b->shader->info.derivative_group != DERIVATIVE_GROUP_NONE)
+      return;
+
+   nir_foreach_function_impl(impl, b->shader) {
+      nir_foreach_block(block, impl) {
+         nir_foreach_instr_safe(instr, block) {
+            if (instr->type == nir_instr_type_intrinsic) {
+               nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+               nir_intrinsic_op op = intrin->intrinsic;
+               if (op != nir_intrinsic_ddx && op != nir_intrinsic_ddx_fine && op != nir_intrinsic_ddx_coarse &&
+                   op != nir_intrinsic_ddy && op != nir_intrinsic_ddy_fine && op != nir_intrinsic_ddy_coarse)
+                  continue;
+
+               nir_def *def = &intrin->def;
+               b->cursor = nir_before_instr(instr);
+               nir_def *zero = nir_imm_zero(b, def->num_components,
+                                            def->bit_size);
+               nir_def_replace(def, zero);
+            } else {
+               continue;
+            }
+         }
+      }
+   }
+}
+
 /**
  * Generate a string describing the mode of a variable
  */
@@ -2843,6 +2880,8 @@ link_intrastage_shaders(void *mem_ctx,
     * validate it to make sure nothing went wrong.
     */
    nir_validate_shader(linked->Program->nir, "post shader stage combine");
+
+   lower_derivatives_without_layout(&b);
 
    /* Set the linked source BLAKE3. */
    if (num_shaders == 1) {
