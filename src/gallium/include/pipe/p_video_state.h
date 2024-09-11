@@ -235,7 +235,6 @@ struct pipe_picture_desc
    unsigned flush_flags;
    /* A fence for pipe_video_codec::end_frame to signal job completion */
    struct pipe_fence_handle **fence;
-   unsigned packed_headers;
 };
 
 struct pipe_quant_matrix

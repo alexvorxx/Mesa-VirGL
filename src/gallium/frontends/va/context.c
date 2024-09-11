@@ -424,7 +424,6 @@ vlVaCreateContext(VADriverContextP ctx, VAConfigID config_id, int picture_width,
       default:
          break;
       }
-      context->desc.base.packed_headers = config->packed_headers;
 
       mtx_lock(&drv->mutex);
       context->decoder = drv->pipe->create_video_codec(drv->pipe, &context->templat);

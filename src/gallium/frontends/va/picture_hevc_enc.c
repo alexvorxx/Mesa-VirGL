@@ -130,15 +130,6 @@ vlVaHandleVAEncPictureParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *cont
    context->desc.h265enc.num_ref_idx_l0_active_minus1 = h265->num_ref_idx_l0_default_active_minus1;
    context->desc.h265enc.num_ref_idx_l1_active_minus1 = h265->num_ref_idx_l1_default_active_minus1;
 
-   if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SLICE)) {
-      unsigned max_poc = 1 << (context->desc.h265enc.seq.log2_max_pic_order_cnt_lsb_minus4 + 4);
-      context->desc.h265enc.slice.slice_pic_order_cnt_lsb = h265->decoded_curr_pic.pic_order_cnt % max_poc;
-      if (context->desc.h265enc.picture_type == PIPE_H2645_ENC_PICTURE_TYPE_P) {
-         context->desc.h265enc.slice.st_ref_pic_set.num_negative_pics = 1;
-         context->desc.h265enc.slice.st_ref_pic_set.used_by_curr_pic_s0_flag[0] = 1;
-      }
-   }
-
    return VA_STATUS_SUCCESS;
 }
 
@@ -313,28 +304,6 @@ vlVaHandleVAEncSequenceParameterBufferTypeHEVC(vlVaDriver *drv, vlVaContext *con
    context->desc.h265enc.seq.time_scale = time_scale;
    context->desc.h265enc.rc[0].frame_rate_num = time_scale;
    context->desc.h265enc.rc[0].frame_rate_den = num_units_in_tick;
-
-   if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SEQUENCE)) {
-      struct pipe_h265_profile_tier_level *ptl =
-         &context->desc.h265enc.vid.profile_tier_level;
-      util_dynarray_append(&context->desc.h264enc.raw_headers,
-                           struct pipe_enc_raw_header,
-                           (struct pipe_enc_raw_header){.type = PIPE_H265_NAL_VPS});
-      util_dynarray_append(&context->desc.h264enc.raw_headers,
-                           struct pipe_enc_raw_header,
-                           (struct pipe_enc_raw_header){.type = PIPE_H265_NAL_SPS});
-      util_dynarray_append(&context->desc.h264enc.raw_headers,
-                           struct pipe_enc_raw_header,
-                           (struct pipe_enc_raw_header){.type = PIPE_H265_NAL_PPS});
-      context->desc.h265enc.vid.vps_base_layer_internal_flag = 1;
-      context->desc.h265enc.vid.vps_base_layer_available_flag = 1;
-      ptl->profile_tier.general_tier_flag = h265->general_tier_flag;
-      ptl->profile_tier.general_profile_idc = h265->general_profile_idc;
-      ptl->profile_tier.general_progressive_source_flag = 1;
-      ptl->profile_tier.general_frame_only_constraint_flag = 1;
-      ptl->general_level_idc = h265->general_level_idc;
-      context->desc.h265enc.seq.profile_tier_level = *ptl;
-   }
 
    return VA_STATUS_SUCCESS;
 }

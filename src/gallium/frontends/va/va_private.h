@@ -432,7 +432,6 @@ typedef struct {
    enum pipe_video_entrypoint entrypoint;
    enum pipe_h2645_enc_rate_control_method rc;
    unsigned int rt_format;
-   unsigned int packed_headers;
 } vlVaConfig;
 
 typedef struct vlVaSurface {

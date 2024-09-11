@@ -133,12 +133,6 @@ vlVaHandleVAEncPictureParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *cont
    context->desc.h264enc.pic_ctrl.transform_8x8_mode_flag =
       h264->pic_fields.bits.transform_8x8_mode_flag;
 
-   if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SLICE)) {
-      unsigned max_poc = 1 << (context->desc.h264enc.seq.log2_max_pic_order_cnt_lsb_minus4 + 4);
-      context->desc.h264enc.slice.frame_num = h264->frame_num;
-      context->desc.h264enc.slice.pic_order_cnt_lsb = h264->CurrPic.TopFieldOrderCnt % max_poc;
-   }
-
    return VA_STATUS_SUCCESS;
 }
 
@@ -297,15 +291,6 @@ vlVaHandleVAEncSequenceParameterBufferTypeH264(vlVaDriver *drv, vlVaContext *con
       context->desc.h264enc.seq.enc_frame_crop_right_offset = h264->frame_crop_right_offset;
       context->desc.h264enc.seq.enc_frame_crop_top_offset = h264->frame_crop_top_offset;
       context->desc.h264enc.seq.enc_frame_crop_bottom_offset = h264->frame_crop_bottom_offset;
-   }
-
-   if (!(context->desc.base.packed_headers & VA_ENC_PACKED_HEADER_SEQUENCE)) {
-      util_dynarray_append(&context->desc.h264enc.raw_headers,
-                           struct pipe_enc_raw_header,
-                           (struct pipe_enc_raw_header){.type = PIPE_H264_NAL_SPS});
-      util_dynarray_append(&context->desc.h264enc.raw_headers,
-                           struct pipe_enc_raw_header,
-                           (struct pipe_enc_raw_header){.type = PIPE_H264_NAL_PPS});
    }
 
    return VA_STATUS_SUCCESS;
