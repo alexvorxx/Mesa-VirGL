@@ -1915,12 +1915,12 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
    p->defaultRobustnessImages = VK_PIPELINE_ROBUSTNESS_IMAGE_BEHAVIOR_ROBUST_IMAGE_ACCESS_2_EXT;
 
    /* VK_KHR_maintenance5 */
-   p->earlyFragmentMultisampleCoverageAfterSampleCounting = false;
-   p->earlyFragmentSampleMaskTestBeforeSampleCounting = false;
-   p->depthStencilSwizzleOneSupport = false;
+   p->earlyFragmentMultisampleCoverageAfterSampleCounting = true;
+   p->earlyFragmentSampleMaskTestBeforeSampleCounting = true;
+   p->depthStencilSwizzleOneSupport = true;
    p->polygonModePointSize = true;
-   p->nonStrictSinglePixelWideLinesUseParallelogram = false;
-   p->nonStrictWideLinesUseParallelogram = false;
+   p->nonStrictSinglePixelWideLinesUseParallelogram = true;
+   p->nonStrictWideLinesUseParallelogram = true;
 
    /* VK_KHR_cooperative_matrix */
    p->cooperativeMatrixSupportedStages = VK_SHADER_STAGE_COMPUTE_BIT;
