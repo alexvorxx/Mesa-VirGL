@@ -908,13 +908,9 @@ public:
        : temp(Temp(0, s1)), reg_(0), isFixed_(0), isKill_(0), isPrecise_(0), isInfPreserve_(0),
          isNaNPreserve_(0), isSZPreserve_(0), isNUW_(0), isNoCSE_(0)
    {}
-   Definition(uint32_t index, RegClass type) noexcept : temp(index, type) {}
    explicit Definition(Temp tmp) noexcept : temp(tmp) {}
-   Definition(PhysReg reg, RegClass type) noexcept : temp(Temp(0, type)) { setFixed(reg); }
-   Definition(uint32_t tmpId, PhysReg reg, RegClass type) noexcept : temp(Temp(tmpId, type))
-   {
-      setFixed(reg);
-   }
+   explicit Definition(PhysReg reg, RegClass type) noexcept : temp(Temp(0, type)) { setFixed(reg); }
+   explicit Definition(Temp tmp, PhysReg reg) noexcept : temp(tmp) { setFixed(reg); }
 
    constexpr bool isTemp() const noexcept { return tempId() > 0; }
 

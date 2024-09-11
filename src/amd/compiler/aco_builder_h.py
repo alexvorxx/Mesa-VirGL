@@ -309,7 +309,7 @@ public:
    }
 
    Definition def(RegClass rc, PhysReg reg) {
-      return Definition(program->allocateId(rc), reg, rc);
+      return Definition(tmp(rc), reg);
    }
 
    inline aco_opcode w64or32(WaveSpecificOpcode opcode) const {

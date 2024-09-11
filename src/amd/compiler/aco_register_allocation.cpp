@@ -2515,7 +2515,7 @@ init_reg_file(ra_ctx& ctx, const std::vector<IDSet>& live_out_per_block, Block& 
             add_rename(ctx, val, renamed);
          assignment& var = ctx.assignments[renamed.id()];
          assert(var.assigned);
-         register_file.fill(Definition(renamed.id(), var.reg, var.rc));
+         register_file.fill(Definition(renamed, var.reg));
       }
    } else {
       /* rename phi operands */
@@ -2539,7 +2539,7 @@ init_reg_file(ra_ctx& ctx, const std::vector<IDSet>& live_out_per_block, Block& 
          assignment& var = ctx.assignments[renamed.id()];
          /* due to live-range splits, the live-in might be a phi, now */
          if (var.assigned) {
-            register_file.fill(Definition(renamed.id(), var.reg, var.rc));
+            register_file.fill(Definition(renamed, var.reg));
          }
          if (renamed != val) {
             add_rename(ctx, val, renamed);

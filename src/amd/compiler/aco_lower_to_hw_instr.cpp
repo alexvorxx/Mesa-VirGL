@@ -1206,7 +1206,7 @@ split_copy(lower_context* ctx, unsigned offset, Definition* def, Operand* op,
          break;
    }
 
-   *def = Definition(src.def.tempId(), def_reg, src.def.regClass().resize(bytes));
+   *def = Definition(def_reg, src.def.regClass().resize(bytes));
    if (src.op.isConstant()) {
       assert(bytes >= 1 && bytes <= 8);
       uint64_t val = src.op.constantValue64() >> (offset * 8u);

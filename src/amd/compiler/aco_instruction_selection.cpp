@@ -11434,7 +11434,7 @@ add_startpgm(struct isel_context* ctx)
          Temp elems[16];
          for (unsigned j = 0; j < size; j++) {
             elems[j] = ctx->program->allocateTmp(s1);
-            startpgm->definitions[arg++] = Definition(elems[j].id(), PhysReg{reg + j}, s1);
+            startpgm->definitions[arg++] = Definition(elems[j], PhysReg{reg + j});
          }
          ctx->arg_temps[i] = create_vec_from_array(ctx, elems, size, RegType::sgpr, 4);
       } else {
