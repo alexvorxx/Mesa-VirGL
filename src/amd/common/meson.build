@@ -126,7 +126,7 @@ libamd_common = static_library(
   include_directories : [
     inc_include, inc_src, inc_amd,
   ],
-  dependencies : [
+  dependencies : [dep_llvm.partial_dependency(compile_args: true, includes: true)] + [
     dep_thread, dep_elf, dep_libdrm_amdgpu, dep_valgrind,
     idep_mesautil, idep_nir_headers, idep_nir
   ],
