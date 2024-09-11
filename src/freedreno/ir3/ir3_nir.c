@@ -602,16 +602,58 @@ lower_subgroup_id(nir_builder *b, nir_instr *instr, void *_shader)
     * LocalInvocationIndex here. This means that whenever we do this lowering we
     * have to force linear dispatch to make sure that the relation between
     * SubgroupId/SubgroupLocalInvocationId and LocalInvocationIndex is what we
-    * expect.
+    * expect, unless the shader forces us to do the quad layout in which case we
+    * have to use the tiled layout.
     */
-   shader->cs.force_linear_dispatch = true;
-
    nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+   if (intr->intrinsic == nir_intrinsic_load_subgroup_id &&
+       shader->nir->info.derivative_group == DERIVATIVE_GROUP_QUADS) {
+      /* We have to manually figure out which subgroup we're in using the
+       * tiling. The tiling is 4x4, unless one of the dimensions is not a
+       * multiple of 4 in which case it drops to 2.
+       */
+      nir_def *local_size = nir_load_workgroup_size(b);
+      nir_def *local_size_x = nir_channel(b, local_size, 0);
+      nir_def *local_size_y = nir_channel(b, local_size, 1);
+      /* Calculate the shift from invocation to tile index for x and y */
+      nir_def *x_shift = nir_bcsel(b,
+                                   nir_ieq_imm(b,
+                                               nir_iand_imm(b, local_size_x, 3),
+                                               0),
+                                   nir_imm_int(b, 2), nir_imm_int(b, 1));
+      nir_def *y_shift = nir_bcsel(b,
+                                   nir_ieq_imm(b,
+                                               nir_iand_imm(b, local_size_y, 3),
+                                               0),
+                                   nir_imm_int(b, 2), nir_imm_int(b, 1));
+      nir_def *id = nir_load_local_invocation_id(b);
+      nir_def *id_x = nir_channel(b, id, 0);
+      nir_def *id_y = nir_channel(b, id, 1);
+      /* Calculate which tile we're in */
+      nir_def *tile_id =
+         nir_iadd(b, nir_imul24(b, nir_ishr(b, id_y, y_shift),
+                                nir_ishr(b, local_size_x, x_shift)),
+                  nir_ishr(b, id_x, x_shift));
+      /* Finally calculate the subgroup id */
+      return nir_ishr(b, tile_id, nir_isub(b,
+                                           nir_load_subgroup_id_shift_ir3(b),
+                                           nir_iadd(b, x_shift, y_shift)));
+   }
+
+   /* Just use getfiberid if we have to use tiling */
+   if (intr->intrinsic == nir_intrinsic_load_subgroup_invocation &&
+       shader->nir->info.derivative_group == DERIVATIVE_GROUP_QUADS) {
+      return NULL;
+   }
+
+
    if (intr->intrinsic == nir_intrinsic_load_subgroup_invocation) {
+      shader->cs.force_linear_dispatch = true;
       return nir_iand(
          b, nir_load_local_invocation_index(b),
          nir_iadd_imm(b, nir_load_subgroup_size(b), -1));
    } else if (intr->intrinsic == nir_intrinsic_load_subgroup_id) {
+      shader->cs.force_linear_dispatch = true;
       return nir_ishr(b, nir_load_local_invocation_index(b),
                       nir_load_subgroup_id_shift_ir3(b));
    } else {
@@ -770,6 +812,9 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
        (s->info.stage == MESA_SHADER_KERNEL)) {
       bool progress = false;
       NIR_PASS(progress, s, ir3_nir_lower_subgroup_id_cs, shader);
+
+      if (s->info.derivative_group == DERIVATIVE_GROUP_LINEAR)
+         shader->cs.force_linear_dispatch = true;
 
       /* ir3_nir_lower_subgroup_id_cs creates extra compute intrinsics which
        * we need to lower again.

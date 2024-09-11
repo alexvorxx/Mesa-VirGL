@@ -148,6 +148,7 @@ get_device_extensions(const struct tu_physical_device *device,
       .KHR_bind_memory2 = true,
       .KHR_buffer_device_address = true,
       .KHR_calibrated_timestamps = device->info->a7xx.has_persistent_counter,
+      .KHR_compute_shader_derivatives = device->info->chip >= 7,
       .KHR_copy_commands2 = true,
       .KHR_create_renderpass2 = true,
       .KHR_dedicated_allocation = true,
@@ -308,6 +309,7 @@ get_device_extensions(const struct tu_physical_device *device,
       .GOOGLE_hlsl_functionality1 = true,
       .GOOGLE_user_type = true,
       .IMG_filter_cubic = device->info->a6xx.has_tex_filter_cubic,
+      .NV_compute_shader_derivatives = device->info->chip >= 7,
       .VALVE_mutable_descriptor_type = true,
    } };
 
@@ -454,6 +456,10 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->dynamicRendering                    = true;
    features->shaderIntegerDotProduct             = true;
    features->maintenance4                        = true;
+
+   /* VK_KHR_compute_shader_derivatives */
+   features->computeDerivativeGroupQuads = pdevice->info->chip >= 7;
+   features->computeDerivativeGroupLinear = pdevice->info->chip >= 7;
 
    /* VK_KHR_index_type_uint8 */
    features->indexTypeUint8 = true;
@@ -1022,6 +1028,9 @@ tu_get_properties(struct tu_physical_device *pdevice,
    tu_get_physical_device_properties_1_1(pdevice, props);
    tu_get_physical_device_properties_1_2(pdevice, props);
    tu_get_physical_device_properties_1_3(pdevice, props);
+
+   /* VK_KHR_compute_shader_derivatives */
+   props->meshAndTaskShaderDerivatives = false;
 
    /* VK_KHR_push_descriptor */
    props->maxPushDescriptors = MAX_PUSH_DESCRIPTORS;
