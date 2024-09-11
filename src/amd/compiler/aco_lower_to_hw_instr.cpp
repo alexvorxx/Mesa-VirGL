@@ -368,12 +368,13 @@ emit_int64_dpp_op(lower_context* ctx, PhysReg dst_reg, PhysReg src0_reg, PhysReg
             bld.vop1(aco_opcode::v_mov_b32, vtmp_def[0], identity[0]);
          bld.vop1_dpp(aco_opcode::v_mov_b32, vtmp_def[0], src0[0], dpp_ctrl, row_mask, bank_mask,
                       bound_ctrl);
-         bld.vop3(aco_opcode::v_add_co_u32_e64, dst[0], bld.def(bld.lm, vcc), vtmp_op[0], src1[0]);
+         bld.vop3(aco_opcode::v_add_co_u32_e64, dst[0], Definition(vcc, bld.lm), vtmp_op[0],
+                  src1[0]);
       } else {
-         bld.vop2_dpp(aco_opcode::v_add_co_u32, dst[0], bld.def(bld.lm, vcc), src0[0], src1[0],
+         bld.vop2_dpp(aco_opcode::v_add_co_u32, dst[0], Definition(vcc, bld.lm), src0[0], src1[0],
                       dpp_ctrl, row_mask, bank_mask, bound_ctrl);
       }
-      bld.vop2_dpp(aco_opcode::v_addc_co_u32, dst[1], bld.def(bld.lm, vcc), src0[1], src1[1],
+      bld.vop2_dpp(aco_opcode::v_addc_co_u32, dst[1], Definition(vcc, bld.lm), src0[1], src1[1],
                    Operand(vcc, bld.lm), dpp_ctrl, row_mask, bank_mask, bound_ctrl);
    } else if (op == iand64) {
       bld.vop2_dpp(aco_opcode::v_and_b32, dst[0], src0[0], src1[0], dpp_ctrl, row_mask, bank_mask,
@@ -409,7 +410,7 @@ emit_int64_dpp_op(lower_context* ctx, PhysReg dst_reg, PhysReg src0_reg, PhysReg
       bld.vop1_dpp(aco_opcode::v_mov_b32, vtmp_def[1], src0[1], dpp_ctrl, row_mask, bank_mask,
                    bound_ctrl);
 
-      bld.vopc(cmp, bld.def(bld.lm, vcc), vtmp_op64, src1_64);
+      bld.vopc(cmp, Definition(vcc, bld.lm), vtmp_op64, src1_64);
       bld.vop2(aco_opcode::v_cndmask_b32, dst[0], vtmp_op[0], src1[0], Operand(vcc, bld.lm));
       bld.vop2(aco_opcode::v_cndmask_b32, dst[1], vtmp_op[1], src1[1], Operand(vcc, bld.lm));
    } else if (op == imul64) {
@@ -478,11 +479,11 @@ emit_int64_op(lower_context* ctx, PhysReg dst_reg, PhysReg src0_reg, PhysReg src
 
    if (op == iadd64) {
       if (ctx->program->gfx_level >= GFX10) {
-         bld.vop3(aco_opcode::v_add_co_u32_e64, dst[0], bld.def(bld.lm, vcc), src0[0], src1[0]);
+         bld.vop3(aco_opcode::v_add_co_u32_e64, dst[0], Definition(vcc, bld.lm), src0[0], src1[0]);
       } else {
-         bld.vop2(aco_opcode::v_add_co_u32, dst[0], bld.def(bld.lm, vcc), src0[0], src1[0]);
+         bld.vop2(aco_opcode::v_add_co_u32, dst[0], Definition(vcc, bld.lm), src0[0], src1[0]);
       }
-      bld.vop2(aco_opcode::v_addc_co_u32, dst[1], bld.def(bld.lm, vcc), src0[1], src1[1],
+      bld.vop2(aco_opcode::v_addc_co_u32, dst[1], Definition(vcc, bld.lm), src0[1], src1[1],
                Operand(vcc, bld.lm));
    } else if (op == iand64) {
       bld.vop2(aco_opcode::v_and_b32, dst[0], src0[0], src1[0]);
@@ -503,7 +504,7 @@ emit_int64_op(lower_context* ctx, PhysReg dst_reg, PhysReg src0_reg, PhysReg src
       default: break;
       }
 
-      bld.vopc(cmp, bld.def(bld.lm, vcc), src0_64, src1_64);
+      bld.vopc(cmp, Definition(vcc, bld.lm), src0_64, src1_64);
       bld.vop2(aco_opcode::v_cndmask_b32, dst[0], src0[0], src1[0], Operand(vcc, bld.lm));
       bld.vop2(aco_opcode::v_cndmask_b32, dst[1], src0[1], src1[1], Operand(vcc, bld.lm));
    } else if (op == imul64) {
@@ -552,8 +553,8 @@ emit_dpp_op(lower_context* ctx, PhysReg dst_reg, PhysReg src0_reg, PhysReg src1_
 
    if (!vop3) {
       if (opcode == aco_opcode::v_add_co_u32)
-         bld.vop2_dpp(opcode, dst, bld.def(bld.lm, vcc), src0, src1, dpp_ctrl, row_mask, bank_mask,
-                      bound_ctrl);
+         bld.vop2_dpp(opcode, dst, Definition(vcc, bld.lm), src0, src1, dpp_ctrl, row_mask,
+                      bank_mask, bound_ctrl);
       else
          bld.vop2_dpp(opcode, dst, src0, src1, dpp_ctrl, row_mask, bank_mask, bound_ctrl);
       return;
@@ -598,7 +599,7 @@ emit_op(lower_context* ctx, PhysReg dst_reg, PhysReg src0_reg, PhysReg src1_reg,
    if (vop3) {
       bld.vop3(opcode, dst, src0, src1);
    } else if (opcode == aco_opcode::v_add_co_u32) {
-      bld.vop2(opcode, dst, bld.def(bld.lm, vcc), src0, src1);
+      bld.vop2(opcode, dst, Definition(vcc, bld.lm), src0, src1);
    } else {
       bld.vop2(opcode, dst, src0, src1);
    }
@@ -2419,7 +2420,7 @@ lower_to_hw_instr(Program* program)
                      instr->operands[2].isConstant()
                         ? Operand::c32(uint32_t(instr->operands[2].constantValue64() >> (32 * i)))
                         : Operand(PhysReg{instr->operands[2].physReg() + i}, s1);
-                  bld.writelane(bld.def(v1, instr->operands[0].physReg()), src,
+                  bld.writelane(Definition(instr->operands[0].physReg(), v1), src,
                                 Operand::c32(instr->operands[1].constantValue() + i),
                                 instr->operands[0]);
                }
@@ -2428,7 +2429,7 @@ lower_to_hw_instr(Program* program)
             case aco_opcode::p_reload: {
                assert(instr->operands[0].regClass() == v1.as_linear());
                for (unsigned i = 0; i < instr->definitions[0].size(); i++)
-                  bld.readlane(bld.def(s1, PhysReg{instr->definitions[0].physReg() + i}),
+                  bld.readlane(Definition(PhysReg{instr->definitions[0].physReg() + i}, s1),
                                instr->operands[0],
                                Operand::c32(instr->operands[1].constantValue() + i));
                break;
@@ -2446,7 +2447,7 @@ lower_to_hw_instr(Program* program)
                   assert(instr->operands[0].size() == instr->definitions[0].size());
                   for (unsigned i = 0; i < instr->definitions[0].size(); i++) {
                      bld.vop1(aco_opcode::v_readfirstlane_b32,
-                              bld.def(s1, PhysReg{instr->definitions[0].physReg() + i}),
+                              Definition(PhysReg{instr->definitions[0].physReg() + i}, s1),
                               Operand(PhysReg{instr->operands[0].physReg() + i}, v1));
                   }
                }
@@ -2475,7 +2476,7 @@ lower_to_hw_instr(Program* program)
                bld.sop1(aco_opcode::p_constaddr_getpc, instr->definitions[0], Operand::c32(id));
                if (ctx.program->gfx_level >= GFX12)
                   bld.sop1(aco_opcode::s_sext_i32_i16, Definition(reg.advance(4), s1), Operand(reg.advance(4), s1));
-               bld.sop2(aco_opcode::p_constaddr_addlo, Definition(reg, s1), bld.def(s1, scc),
+               bld.sop2(aco_opcode::p_constaddr_addlo, Definition(reg, s1), instr->definitions[1],
                         Operand(reg, s1), instr->operands[0], Operand::c32(id));
                /* s_addc_u32 not needed because the program is in a 32-bit VA range */
                break;
@@ -2499,7 +2500,7 @@ lower_to_hw_instr(Program* program)
                bld.sop1(aco_opcode::p_resumeaddr_getpc, instr->definitions[0], Operand::c32(id));
                if (ctx.program->gfx_level >= GFX12)
                   bld.sop1(aco_opcode::s_sext_i32_i16, Definition(reg.advance(4), s1), Operand(reg.advance(4), s1));
-               bld.sop2(aco_opcode::p_resumeaddr_addlo, Definition(reg, s1), bld.def(s1, scc),
+               bld.sop2(aco_opcode::p_resumeaddr_addlo, Definition(reg, s1), instr->definitions[1],
                         Operand(reg, s1), Operand::c32(resume_block_idx), Operand::c32(id));
                /* s_addc_u32 not needed because the program is in a 32-bit VA range */
                break;
@@ -2528,10 +2529,10 @@ lower_to_hw_instr(Program* program)
                      bld.sop2(aco_opcode::s_pack_hh_b32_b16, dst, op, Operand::zero());
                   } else if (offset == (32 - bits)) {
                      bld.sop2(signext ? aco_opcode::s_ashr_i32 : aco_opcode::s_lshr_b32, dst,
-                              bld.def(s1, scc), op, Operand::c32(offset));
+                              instr->definitions[1], op, Operand::c32(offset));
                   } else {
                      bld.sop2(signext ? aco_opcode::s_bfe_i32 : aco_opcode::s_bfe_u32, dst,
-                              bld.def(s1, scc), op, Operand::c32((bits << 16) | offset));
+                              instr->definitions[1], op, Operand::c32((bits << 16) | offset));
                   }
                } else if (dst.regClass() == v1 && op.physReg().byte() == 0) {
                   assert(op.physReg().byte() == 0 && dst.physReg().byte() == 0);
@@ -2603,15 +2604,15 @@ lower_to_hw_instr(Program* program)
                   } else if (ctx.program->gfx_level >= GFX9 && offset == 16 && bits == 16) {
                      bld.sop2(aco_opcode::s_pack_ll_b32_b16, dst, Operand::zero(), op);
                   } else if (offset == (32 - bits)) {
-                     bld.sop2(aco_opcode::s_lshl_b32, dst, bld.def(s1, scc), op,
+                     bld.sop2(aco_opcode::s_lshl_b32, dst, instr->definitions[1], op,
                               Operand::c32(offset));
                   } else if (offset == 0) {
-                     bld.sop2(aco_opcode::s_bfe_u32, dst, bld.def(s1, scc), op,
+                     bld.sop2(aco_opcode::s_bfe_u32, dst, instr->definitions[1], op,
                               Operand::c32(bits << 16));
                   } else {
-                     bld.sop2(aco_opcode::s_bfe_u32, dst, bld.def(s1, scc), op,
+                     bld.sop2(aco_opcode::s_bfe_u32, dst, instr->definitions[1], op,
                               Operand::c32(bits << 16));
-                     bld.sop2(aco_opcode::s_lshl_b32, dst, bld.def(s1, scc),
+                     bld.sop2(aco_opcode::s_lshl_b32, dst, instr->definitions[1],
                               Operand(dst.physReg(), s1), Operand::c32(offset));
                   }
                } else if (dst.regClass() == v1 || !has_sdwa) {
