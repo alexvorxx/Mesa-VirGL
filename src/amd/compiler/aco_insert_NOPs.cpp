@@ -1175,7 +1175,7 @@ handle_lds_direct_valu_hazard_instr(LdsDirectVALUHazardGlobalState& global_state
       block_state.num_valu++;
    }
 
-   if (parse_vdst_wait(instr.get()) == 0)
+   if (parse_depctr_wait(instr.get()).va_vdst == 0)
       return true;
 
    block_state.num_instrs++;
@@ -1297,7 +1297,7 @@ handle_valu_partial_forwarding_hazard_instr(VALUPartialForwardingHazardGlobalSta
       }
 
       block_state.num_valu_since_read++;
-   } else if (parse_vdst_wait(instr.get()) == 0) {
+   } else if (parse_depctr_wait(instr.get()).va_vdst == 0) {
       return true;
    }
 
@@ -1394,7 +1394,7 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
       ctx.has_Vcmpx = false;
    }
 
-   unsigned va_vdst = parse_vdst_wait(instr.get());
+   unsigned va_vdst = parse_depctr_wait(instr.get()).va_vdst;
    unsigned vm_vsrc = 7;
    unsigned sa_sdst = 1;
 
@@ -1404,7 +1404,7 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
       vm_vsrc = 0;
       sa_sdst = 0;
    } else if (instr->opcode == aco_opcode::s_waitcnt_depctr) {
-      /* va_vdst already obtained through parse_vdst_wait(). */
+      /* va_vdst already obtained through parse_depctr_wait(). */
       vm_vsrc = (instr->salu().imm >> 2) & 0x7;
       sa_sdst = instr->salu().imm & 0x1;
    } else if (instr->isLDSDIR() && state.program->gfx_level >= GFX12) {
@@ -1600,7 +1600,7 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
 bool
 has_vdst0_since_valu_instr(bool& global_state, unsigned& block_state, aco_ptr<Instruction>& pred)
 {
-   if (parse_vdst_wait(pred.get()) == 0)
+   if (parse_depctr_wait(pred.get()).va_vdst == 0)
       return true;
 
    if (--block_state == 0) {

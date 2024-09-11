@@ -1878,7 +1878,37 @@ enum vmem_type : uint8_t {
  */
 uint8_t get_vmem_type(enum amd_gfx_level gfx_level, Instruction* instr);
 
-unsigned parse_vdst_wait(Instruction* instr);
+/* For all of the counters, the maximum value means no wait.
+ * Some of the counters are larger than their bit field,
+ * but there is no wait mechanism that allows waiting only for higher values.
+ */
+struct depctr_wait {
+   union {
+      struct {
+         /* VALU completion, apparently even used for VALU without vgpr writes. */
+         unsigned va_vdst : 4;
+         /* VALU sgpr write (not including vcc/vcc_hi). */
+         unsigned va_sdst : 3;
+         /* VALU sgpr read. */
+         unsigned va_ssrc : 1;
+         /* unknown. */
+         unsigned hold_cnt : 1;
+         /* VMEM/DS vgpr read. */
+         unsigned vm_vsrc : 3;
+         /* VALU vcc/vcc_hi write. */
+         unsigned va_vcc : 1;
+         /* SALU sgpr, vcc/vcc_hi or scc write. */
+         unsigned sa_sdst : 1;
+         /* VALU exec/exec_hi write. */
+         unsigned va_exec : 1;
+         /* SALU exec/exec_hi write. */
+         unsigned sa_exec : 1;
+      };
+      unsigned packed = -1;
+   };
+};
+
+depctr_wait parse_depctr_wait(const Instruction* instr);
 
 enum block_kind {
    /* uniform indicates that leaving this block,

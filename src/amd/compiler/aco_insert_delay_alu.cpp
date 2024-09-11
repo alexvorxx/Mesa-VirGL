@@ -192,7 +192,7 @@ update_alu(delay_ctx& ctx, bool is_valu, bool is_trans, int cycles)
 void
 kill_alu(alu_delay_info& delay, Instruction* instr, delay_ctx& ctx)
 {
-   if (parse_vdst_wait(instr) == 0) {
+   if (parse_depctr_wait(instr).va_vdst == 0) {
       std::map<PhysReg, alu_delay_info>::iterator it = ctx.gpr_map.begin();
       while (it != ctx.gpr_map.end()) {
          alu_delay_info& entry = it->second;
