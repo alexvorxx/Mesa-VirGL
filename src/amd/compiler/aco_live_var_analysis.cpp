@@ -312,8 +312,6 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
          continue;
       }
       Definition& definition = insn->definitions[0];
-      if (definition.isFixed() && definition.physReg() == vcc)
-         ctx.program->needs_vcc = true;
       const size_t n = live.erase(definition.tempId());
       if (n && (definition.isKill() || ctx.handled_once > block->index)) {
          Block::edge_vec& preds =
@@ -336,8 +334,6 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
       for (Operand& operand : insn->operands) {
          if (!operand.isTemp())
             continue;
-         if (operand.isFixed() && operand.physReg() == vcc)
-            ctx.program->needs_vcc = true;
 
          /* set if the operand is killed by this (or another) phi instruction */
          operand.setKill(!live.count(operand.tempId()));
