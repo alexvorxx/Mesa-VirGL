@@ -214,10 +214,8 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
                  insn->opcode == aco_opcode::v_mqsad_u32_u8) {
          for (Operand& op : insn->operands)
             op.setLateKill(true);
-      } else if (insn->opcode == aco_opcode::p_interp_gfx11) {
-         insn->operands.back().setLateKill(true); /* we don't want the bld.lm def to use m0 */
-         if (insn->operands.size() == 7)
-            insn->operands[5].setLateKill(true); /* we re-use the destination reg in the middle */
+      } else if (insn->opcode == aco_opcode::p_interp_gfx11 && insn->operands.size() == 7) {
+         insn->operands[5].setLateKill(true); /* we re-use the destination reg in the middle */
       } else if (insn->opcode == aco_opcode::v_interp_p1_f32 && ctx.program->dev.has_16bank_lds) {
          insn->operands[0].setLateKill(true);
       } else if (insn->opcode == aco_opcode::p_init_scratch) {
