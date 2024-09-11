@@ -392,7 +392,10 @@ ac_create_blit_cs(const struct ac_cs_blit_options *options, const union ac_cs_bl
    /* We need to load the descriptor here, otherwise the load would be after optimization
     * barriers waiting for image loads, i.e. after s_waitcnt vmcnt(0).
     */
-   nir_def *img_dst_desc = nir_image_deref_descriptor_amd(&b, 8, 32, deref_ssa(&b, img_dst));
+   nir_def *img_dst_desc =
+      nir_image_deref_descriptor_amd(&b, 8, 32, deref_ssa(&b, img_dst),
+                                     .image_dim = img_dst->type->sampler_dimensionality,
+                                     .image_array = img_dst->type->sampler_array);
    if (lane_size > 1 && !b.shader->info.use_aco_amd)
       img_dst_desc = nir_optimization_barrier_sgpr_amd(&b, 32, img_dst_desc);
 

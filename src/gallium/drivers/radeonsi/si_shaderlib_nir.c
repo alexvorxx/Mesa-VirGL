@@ -202,7 +202,9 @@ void *si_clear_image_dcc_single_shader(struct si_context *sctx, bool is_msaa, un
 
    /* Store the clear color. */
    nir_image_deref_store(&b, &nir_build_deref_var(&b, output_img)->def, coord, nir_imm_int(&b, 0),
-                         clear_color, nir_imm_int(&b, 0));
+                         clear_color, nir_imm_int(&b, 0),
+                         .image_dim = img_type->sampler_dimensionality,
+                         .image_array = img_type->sampler_array);
 
    return si_create_shader_state(sctx, b.shader);
 }
