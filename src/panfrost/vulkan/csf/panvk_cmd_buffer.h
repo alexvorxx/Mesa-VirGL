@@ -399,6 +399,7 @@ struct panvk_cmd_graphics_state {
    } render;
 
    mali_ptr push_uniforms;
+   mali_ptr tsd;
 };
 
 struct panvk_cmd_buffer {

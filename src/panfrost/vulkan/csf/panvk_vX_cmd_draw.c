@@ -446,10 +446,14 @@ update_tls(struct panvk_cmd_buffer *cmdbuf)
    struct cs_builder *b =
       panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
 
-   if (!state->desc.gpu) {
-      state->desc = panvk_cmd_alloc_desc(cmdbuf, LOCAL_STORAGE);
-      if (!state->desc.gpu)
-         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+   if (!cmdbuf->state.gfx.tsd) {
+      if (!state->desc.gpu) {
+         state->desc = panvk_cmd_alloc_desc(cmdbuf, LOCAL_STORAGE);
+         if (!state->desc.gpu)
+            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+      }
+
+      cmdbuf->state.gfx.tsd = state->desc.gpu;
 
       cs_update_vt_ctx(b)
          cs_move64_to(b, cs_sr_reg64(b, 24), state->desc.gpu);
