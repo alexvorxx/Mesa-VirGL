@@ -33,7 +33,7 @@ SCRIPT_TEST_DIR=${CI_PROJECT_DIR}/bin/ci
 
 uncollapsed_section_switch pytest "Running pytest"
 
-PYTHONPATH="${LIB_TEST_DIR}:${SCRIPT_TEST_DIR}:${PYTHONPATH}" python3 -m \
+PYTHONPATH="${LIB_TEST_DIR}:${SCRIPT_TEST_DIR}:${PYTHONPATH:-}" python3 -m \
     pytest "${LIB_TEST_DIR}" "${SCRIPT_TEST_DIR}" \
             -W ignore::DeprecationWarning \
             --junitxml=artifacts/ci_scripts_report.xml \
