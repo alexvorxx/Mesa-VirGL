@@ -223,17 +223,6 @@ tu_physical_device_get_format_properties(
       optimal = 0;
    }
 
-   if (ycbcr_info) {
-      /* Disable buffer texturing of subsampled (422) and planar YUV textures.
-       * The subsampling requirement comes from "If format is a block-compressed
-       * format, then bufferFeatures must not support any features for the
-       * format" plus the specification of subsampled as 2x1 compressed block
-       * format.  I couldn't find the citation for planar, but 1D access of
-       * planar YUV would be really silly.
-       */
-      buffer = 0;
-   }
-
    /* We don't support writing into VK_FORMAT_*_PACK16 images/buffers  */
    if (desc->nr_channels > 2 && desc->block.bits == 16) {
       buffer &= VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT;
@@ -249,14 +238,21 @@ tu_physical_device_get_format_properties(
       linear |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_DEPTH_COMPARISON_BIT;
    }
 
-   /* From the Vulkan 1.3.205 spec, section 19.3 "43.3. Required Format Support":
+   /* Disable buffer texturing of subsampled (422) and planar YUV textures,
+    * as well as for depth/stencil formats. The subsampling requirement comes
+    * from "If format is a block-compressed format, then bufferFeatures must
+    * not support any features for the format" plus the specification of
+    * subsampled as 2x1 compressed block format.  I couldn't find the citation
+    * for planar, but 1D access of planar YUV would be really silly.
+    *
+    * From the Vulkan 1.3.205 spec, section 19.3 "43.3. Required Format Support":
     *
     *    Mandatory format support: depth/stencil with VkImageType
     *    VK_IMAGE_TYPE_2D
     *    [...]
     *    bufferFeatures must not support any features for these formats
     */
-   if (vk_format_is_depth_or_stencil(vk_format))
+   if (ycbcr_info || vk_format_is_depth_or_stencil(vk_format))
       buffer = 0;
 
    /* D32_SFLOAT_S8_UINT is tiled as two images, so no linear format
