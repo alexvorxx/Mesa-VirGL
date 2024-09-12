@@ -1024,7 +1024,7 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
       .descriptorBindingAccelerationStructureUpdateAfterBind = true,
 
       /* VK_EXT_buffer_device_address */
-      .bufferDeviceAddressCaptureReplayEXT = true,
+      .bufferDeviceAddressCaptureReplayEXT = false,
 
       /* VK_KHR_shader_subgroup_uniform_control_flow */
       .shaderSubgroupUniformControlFlow = true,
