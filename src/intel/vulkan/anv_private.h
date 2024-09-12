@@ -6064,7 +6064,7 @@ struct anv_sampler {
 struct anv_query_pool {
    struct vk_query_pool                         vk;
 
-   /** Stride between slots, in bytes */
+   /** Stride between queries, in bytes */
    uint32_t                                     stride;
    /** Number of slots in this query pool */
    struct anv_bo *                              bo;
@@ -6078,8 +6078,11 @@ struct anv_query_pool {
    uint32_t                                     khr_perf_preamble_stride;
 
    /* KHR perf queries : */
+   /** Query pass size in bytes(availability + padding + query data) */
    uint32_t                                     pass_size;
+   /** Offset of the query data within a pass */
    uint32_t                                     data_offset;
+   /** query data / 2 */
    uint32_t                                     snapshot_size;
    uint32_t                                     n_counters;
    struct intel_perf_counter_pass                *counter_pass;
