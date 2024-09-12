@@ -908,7 +908,6 @@ void st_init_extensions(struct pipe_screen *screen,
       { o(INTEL_blackhole_render),           PIPE_CAP_FRONTEND_NOOP                    },
       { o(ARM_shader_framebuffer_fetch_depth_stencil), PIPE_CAP_FBFETCH_ZS             },
       { o(MESA_texture_const_bandwidth),     PIPE_CAP_HAS_CONST_BW                     },
-      { o(OVR_multiview)               ,     PIPE_CAP_MULTIVIEW                        },
    };
 
    /* Required: render target and sampler support */
@@ -1287,6 +1286,16 @@ void st_init_extensions(struct pipe_screen *screen,
       extensions->EXT_shader_integer_mix = GL_TRUE;
       extensions->ARB_arrays_of_arrays = GL_TRUE;
       extensions->MESA_shader_integer_functions = GL_TRUE;
+
+      switch (screen->get_param(screen, PIPE_CAP_MULTIVIEW)) {
+      case 1:
+         extensions->OVR_multiview = GL_TRUE;
+         break;
+      case 2:
+         extensions->OVR_multiview = GL_TRUE;
+         extensions->OVR_multiview2 = GL_TRUE;
+         break;
+      }
 
       if (screen->get_param(screen, PIPE_CAP_OPENCL_INTEGER_FUNCTIONS) &&
           screen->get_param(screen, PIPE_CAP_INTEGER_MULTIPLY_32X16)) {

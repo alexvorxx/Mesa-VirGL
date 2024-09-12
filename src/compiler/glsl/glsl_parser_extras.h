@@ -936,6 +936,8 @@ struct _mesa_glsl_parse_state {
    bool NV_viewport_array2_warn;
    bool OVR_multiview_enable;
    bool OVR_multiview_warn;
+   bool OVR_multiview2_enable;
+   bool OVR_multiview2_warn;
    /*@}*/
 
    /** Extensions supported by the OpenGL implementation. */
