@@ -413,6 +413,7 @@ zink_can_use_pipeline_libs(const struct zink_context *ctx)
           !zink_get_fs_base_key(ctx)->fbfetch_ms &&
           !ctx->gfx_pipeline_state.force_persample_interp &&
           !ctx->gfx_pipeline_state.min_samples &&
+          !ctx->fb_state.viewmask &&
           !ctx->is_generated_gs_bound;
 }
 

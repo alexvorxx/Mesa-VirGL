@@ -2771,6 +2771,7 @@ zink_update_rendering_info(struct zink_context *ctx)
       struct zink_surface *surf = zink_csurface(ctx->fb_state.cbufs[i]);
       ctx->gfx_pipeline_state.rendering_formats[i] = surf ? surf->info.format[0] : VK_FORMAT_UNDEFINED;
    }
+   ctx->gfx_pipeline_state.rendering_info.viewMask = ctx->fb_state.viewmask;
    ctx->gfx_pipeline_state.rendering_info.depthAttachmentFormat = VK_FORMAT_UNDEFINED;
    ctx->gfx_pipeline_state.rendering_info.stencilAttachmentFormat = VK_FORMAT_UNDEFINED;
    if (ctx->fb_state.zsbuf && zink_is_zsbuf_used(ctx)) {
@@ -3296,6 +3297,7 @@ hash_rendering_state(const void *key)
    const VkPipelineRenderingCreateInfo *info = key;
    uint32_t hash = 0;
    /*
+    uint32_t           viewMask;
     uint32_t           colorAttachmentCount;
     const VkFormat*    pColorAttachmentFormats;
     VkFormat           depthAttachmentFormat;
@@ -3303,6 +3305,7 @@ hash_rendering_state(const void *key)
     * this data is not optimally arranged, so it must be manually hashed
     */
    hash = XXH32(&info->colorAttachmentCount, sizeof(uint32_t), hash);
+   hash = XXH32(&info->viewMask, sizeof(uint32_t), hash);
    hash = XXH32(&info->depthAttachmentFormat, sizeof(uint32_t), hash);
    hash = XXH32(&info->stencilAttachmentFormat, sizeof(VkFormat), hash);
    return XXH32(info->pColorAttachmentFormats, sizeof(VkFormat) * info->colorAttachmentCount, hash);
@@ -3315,6 +3318,7 @@ equals_rendering_state(const void *a, const void *b)
    const VkPipelineRenderingCreateInfo *bi = b;
    return ai->colorAttachmentCount == bi->colorAttachmentCount &&
           ai->depthAttachmentFormat == bi->depthAttachmentFormat &&
+          ai->viewMask == bi->viewMask &&
           ai->stencilAttachmentFormat == bi->stencilAttachmentFormat &&
           !memcmp(ai->pColorAttachmentFormats, bi->pColorAttachmentFormats, sizeof(VkFormat) * ai->colorAttachmentCount);
 }
@@ -3800,6 +3804,8 @@ zink_set_framebuffer_state(struct pipe_context *pctx,
    ctx->dynamic_fb.info.colorAttachmentCount = ctx->fb_state.nr_cbufs;
    ctx->rp_changed |= ctx->dynamic_fb.info.layerCount != layers;
    ctx->dynamic_fb.info.layerCount = layers;
+   ctx->rp_changed |= ctx->dynamic_fb.info.viewMask != state->viewmask;
+   ctx->dynamic_fb.info.viewMask = state->viewmask;
    ctx->gfx_pipeline_state.rendering_info.colorAttachmentCount = ctx->fb_state.nr_cbufs;
 
    ctx->void_clears = 0;

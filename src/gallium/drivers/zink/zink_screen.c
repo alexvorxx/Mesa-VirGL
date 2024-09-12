@@ -555,6 +555,8 @@ zink_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
    switch (param) {
    case PIPE_CAP_NULL_TEXTURES:
       return screen->info.rb_image_feats.robustImageAccess;
+   case PIPE_CAP_MULTIVIEW:
+      return screen->info.have_vulkan13 ? screen->info.feats11.multiview : 0;
    case PIPE_CAP_TEXRECT:
    case PIPE_CAP_MULTI_DRAW_INDIRECT_PARTIAL_STRIDE:
       return 0;
