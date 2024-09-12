@@ -1,3 +1,4 @@
+-r ../requirements.txt
 filelock==3.12.4
 fire==0.5.0
 freezegun==1.1.0
