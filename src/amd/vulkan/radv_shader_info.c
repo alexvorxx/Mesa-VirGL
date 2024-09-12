@@ -445,6 +445,9 @@ radv_compute_esgs_itemsize(const struct radv_device *device, uint32_t num_varyin
 static void
 gather_shader_info_ngg_query(struct radv_device *device, struct radv_shader_info *info)
 {
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+
+   info->gs.has_pipeline_stat_query = pdev->emulate_ngg_gs_query_pipeline_stat && info->stage == MESA_SHADER_GEOMETRY;
    info->has_xfb_query = info->so.num_outputs > 0;
    info->has_prim_query = device->cache_key.primitives_generated_query || info->has_xfb_query;
 }
@@ -745,7 +748,6 @@ radv_get_legacy_gs_info(const struct radv_device *device, struct radv_shader_inf
 static void
 gather_shader_info_gs(struct radv_device *device, const nir_shader *nir, struct radv_shader_info *info)
 {
-   const struct radv_physical_device *pdev = radv_device_physical(device);
    unsigned add_clip = nir->info.clip_distance_array_size + nir->info.cull_distance_array_size > 4;
    info->gs.gsvs_vertex_size = (util_bitcount64(nir->info.outputs_written) + add_clip) * 16;
    info->gs.max_gsvs_emit_size = info->gs.gsvs_vertex_size * nir->info.gs.vertices_out;
@@ -756,7 +758,6 @@ gather_shader_info_gs(struct radv_device *device, const nir_shader *nir, struct 
    info->gs.output_prim = nir->info.gs.output_primitive;
    info->gs.invocations = nir->info.gs.invocations;
    info->gs.max_stream = nir->info.gs.active_stream_mask ? util_last_bit(nir->info.gs.active_stream_mask) - 1 : 0;
-   info->gs.has_pipeline_stat_query = pdev->emulate_ngg_gs_query_pipeline_stat;
 
    for (unsigned slot = 0; slot < VARYING_SLOT_MAX; ++slot) {
       const uint8_t usage_mask = info->gs.output_usage_mask[slot];
