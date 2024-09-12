@@ -1998,7 +1998,8 @@ radv_GetEncodedVideoSessionParametersKHR(VkDevice device,
             struct VkVideoEncodeH265SessionParametersFeedbackInfoKHR *h265_feedback_info =
                vk_find_struct(pFeedbackInfo->pNext, VIDEO_ENCODE_H265_SESSION_PARAMETERS_FEEDBACK_INFO_KHR);
             pFeedbackInfo->hasOverrides = VK_TRUE;
-            h265_feedback_info->hasStdPPSOverrides = VK_TRUE;
+            if (h265_feedback_info)
+               h265_feedback_info->hasStdPPSOverrides = VK_TRUE;
          }
       }
       total_size = sps_size + pps_size + vps_size;
