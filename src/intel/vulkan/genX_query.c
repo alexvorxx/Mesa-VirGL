@@ -264,7 +264,7 @@ VkResult genX(CreateQueryPool)(
          struct mi_builder b;
          struct anv_batch batch = {
             .start = pool->bo->map + khr_perf_query_preamble_offset(pool, p),
-            .end = pool->bo->map + khr_perf_query_preamble_offset(pool, p) + pool->data_offset,
+            .end = pool->bo->map + khr_perf_query_preamble_offset(pool, p) + pool->khr_perf_preamble_stride,
          };
          batch.next = batch.start;
 
