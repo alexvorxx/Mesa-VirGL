@@ -202,6 +202,18 @@ tu_physical_device_get_format_properties(
          optimal |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
    }
 
+   /* All our depth formats support shadow comparisons. */
+   if (vk_format_has_depth(vk_format) && (optimal & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+      optimal |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_DEPTH_COMPARISON_BIT;
+   }
+
+   /* We don't support writing into VK_FORMAT_*_PACK16 images/buffers  */
+   if (desc->nr_channels > 2 && desc->block.bits == 16) {
+      buffer &= VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT;
+      optimal &= ~(VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT |
+                   VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT);
+   }
+
    /* For the most part, we can do anything with a linear image that we could
     * do with a tiled image. However, we can't support sysmem rendering with a
     * linear depth texture, because we don't know if there's a bit to control
@@ -221,21 +233,6 @@ tu_physical_device_get_format_properties(
         */
        vk_format != VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM) {
       optimal = 0;
-   }
-
-   /* We don't support writing into VK_FORMAT_*_PACK16 images/buffers  */
-   if (desc->nr_channels > 2 && desc->block.bits == 16) {
-      buffer &= VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT;
-      linear &= ~(VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT |
-                  VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT);
-      optimal &= ~(VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT |
-                   VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT);
-   }
-
-   /* All our depth formats support shadow comparisons. */
-   if (vk_format_has_depth(vk_format) && (optimal & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
-      optimal |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_DEPTH_COMPARISON_BIT;
-      linear |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_DEPTH_COMPARISON_BIT;
    }
 
    /* Disable buffer texturing of subsampled (422) and planar YUV textures,
