@@ -17,10 +17,11 @@
 #ifndef __VK_ANDROID_NATIVE_BUFFER_H__
 #define __VK_ANDROID_NATIVE_BUFFER_H__
 
+#include <vulkan/vulkan.h>
+
 /* MESA: A hack to avoid #ifdefs in driver code. */
 #if defined(ANDROID)
 #include <cutils/native_handle.h>
-#include <vulkan/vulkan.h>
 
 #if ANDROID_API_LEVEL < 28
 /* buffer_handle_t was defined in the deprecated system/window.h */
