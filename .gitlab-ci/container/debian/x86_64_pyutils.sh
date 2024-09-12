@@ -24,6 +24,7 @@ EPHEMERAL=(
     g++
     gcc
     libc6-dev
+    perl
     python3-dev
 )
 
@@ -33,7 +34,6 @@ DEPS=(
     file
     findutils
     git
-    python3-mako
     python3-pil
     python3-pip
     python3-ply
