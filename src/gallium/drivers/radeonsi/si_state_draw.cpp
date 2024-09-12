@@ -327,6 +327,9 @@ static bool si_update_shaders(struct si_context *sctx)
       for (int i = 0; i < SI_NUM_GRAPHICS_SHADERS; i++) {
          struct si_shader *shader = sctx->shaders[i].current;
          if (sctx->shaders[i].cso && shader) {
+            /* Hash the key. */
+            pipeline_code_hash = XXH64(&shader->key, sizeof(shader->key), pipeline_code_hash);
+            /* Hash the main part binary. */
             pipeline_code_hash = XXH64(
                shader->binary.code_buffer,
                shader->binary.code_size,
