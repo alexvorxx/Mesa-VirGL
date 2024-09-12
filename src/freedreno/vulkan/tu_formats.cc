@@ -126,44 +126,44 @@ tu_physical_device_get_format_properties(
 
    /* We don't support BufferToImage/ImageToBuffer for npot formats */
    if (!is_npot)
-      buffer |= VK_FORMAT_FEATURE_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_TRANSFER_DST_BIT;
+      buffer |= VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT | VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
 
    if (supported_vtx)
-      buffer |= VK_FORMAT_FEATURE_VERTEX_BUFFER_BIT;
+      buffer |= VK_FORMAT_FEATURE_2_VERTEX_BUFFER_BIT;
 
    if (supported_tex)
-      buffer |= VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT;
+      buffer |= VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT;
 
    /* Don't support anything but texel buffers for non-power-of-two formats
     * with 3 components. We'd need several workarounds for copying and
     * clearing them because they're not renderable.
     */
    if (supported_tex && !is_npot) {
-      optimal |= VK_FORMAT_FEATURE_TRANSFER_SRC_BIT |
-                 VK_FORMAT_FEATURE_TRANSFER_DST_BIT |
-                 VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
-                 VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_MINMAX_BIT;
+      optimal |= VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT |
+                 VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT |
+                 VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT |
+                 VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_MINMAX_BIT;
 
       if (ycbcr_info) {
          /* This is supported on all YCbCr formats */
-         optimal |= VK_FORMAT_FEATURE_MIDPOINT_CHROMA_SAMPLES_BIT;
+         optimal |= VK_FORMAT_FEATURE_2_MIDPOINT_CHROMA_SAMPLES_BIT;
 
          if (ycbcr_info->n_planes > 1) {
-            optimal |= VK_FORMAT_FEATURE_COSITED_CHROMA_SAMPLES_BIT |
-                       VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT;
+            optimal |= VK_FORMAT_FEATURE_2_COSITED_CHROMA_SAMPLES_BIT |
+                       VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_YCBCR_CONVERSION_LINEAR_FILTER_BIT;
             if (physical_device->info->a6xx.has_separate_chroma_filter)
-               optimal |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_YCBCR_CONVERSION_SEPARATE_RECONSTRUCTION_FILTER_BIT;
+               optimal |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_YCBCR_CONVERSION_SEPARATE_RECONSTRUCTION_FILTER_BIT;
          }
       } else {
          /* BLIT_SRC_BIT isn't allowed for YCbCr formats */
-         optimal |= VK_FORMAT_FEATURE_BLIT_SRC_BIT;
+         optimal |= VK_FORMAT_FEATURE_2_BLIT_SRC_BIT;
       }
 
       if (!vk_format_is_int(vk_format)) {
-         optimal |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
+         optimal |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
 
          if (physical_device->vk.supported_extensions.EXT_filter_cubic)
-            optimal |= VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_CUBIC_BIT_EXT;
+            optimal |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_CUBIC_BIT_EXT;
       }
 
       /* We sample on the CPU so we can technically support anything as long
@@ -174,19 +174,19 @@ tu_physical_device_get_format_properties(
       if (vk_format_is_float(vk_format) && desc->nr_channels == 2 &&
           desc->swizzle[0] == PIPE_SWIZZLE_X &&
           desc->swizzle[1] == PIPE_SWIZZLE_Y) {
-         optimal |= VK_FORMAT_FEATURE_FRAGMENT_DENSITY_MAP_BIT_EXT;
+         optimal |= VK_FORMAT_FEATURE_2_FRAGMENT_DENSITY_MAP_BIT_EXT;
       }
    }
 
    if (supported_color) {
       assert(supported_tex);
-      optimal |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
-                 VK_FORMAT_FEATURE_BLIT_DST_BIT |
-                 VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT |
+      optimal |= VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT |
+                 VK_FORMAT_FEATURE_2_BLIT_DST_BIT |
+                 VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT |
                  VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT |
                  VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT;
 
-      buffer |= VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_BIT |
+      buffer |= VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_BIT |
                 VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT |
                 VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT;
 
@@ -194,24 +194,24 @@ tu_physical_device_get_format_properties(
        * don't have any tests for those.
        */
       if (vk_format == VK_FORMAT_R32_UINT || vk_format == VK_FORMAT_R32_SINT) {
-         optimal |= VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT;
-         buffer |= VK_FORMAT_FEATURE_STORAGE_TEXEL_BUFFER_ATOMIC_BIT;
+         optimal |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_ATOMIC_BIT;
+         buffer |= VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_ATOMIC_BIT;
       }
 
       if (!vk_format_is_int(vk_format))
-         optimal |= VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT;
+         optimal |= VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BLEND_BIT;
    }
 
    /* All our depth formats support shadow comparisons. */
-   if (vk_format_has_depth(vk_format) && (optimal & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+   if (vk_format_has_depth(vk_format) && (optimal & VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT)) {
       optimal |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_DEPTH_COMPARISON_BIT;
    }
 
    /* We don't support writing into VK_FORMAT_*_PACK16 images/buffers  */
    if (desc->nr_channels > 2 && desc->block.bits == 16) {
-      buffer &= VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT;
-      optimal &= ~(VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT |
-                   VK_FORMAT_FEATURE_STORAGE_IMAGE_ATOMIC_BIT);
+      buffer &= VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT;
+      optimal &= ~(VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT |
+                   VK_FORMAT_FEATURE_2_STORAGE_IMAGE_ATOMIC_BIT);
    }
 
    /* For the most part, we can do anything with a linear image that we could
@@ -225,7 +225,7 @@ tu_physical_device_get_format_properties(
     */
    linear = optimal;
    if (tu6_pipe2depth(vk_format) != DEPTH6_NONE)
-      optimal |= VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
+      optimal |= VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT;
 
    if (!tiling_possible(vk_format) &&
        /* We don't actually support tiling for this format, but we need to
@@ -444,8 +444,8 @@ tu_get_image_format_properties(
    if (info->tiling == VK_IMAGE_TILING_OPTIMAL &&
        info->type == VK_IMAGE_TYPE_2D &&
        (format_feature_flags &
-        (VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
-         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) &&
+        (VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT |
+         VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT)) &&
        !(info->flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) &&
        !(info->usage & VK_IMAGE_USAGE_STORAGE_BIT)) {
       sampleCounts |= VK_SAMPLE_COUNT_2_BIT | VK_SAMPLE_COUNT_4_BIT;
@@ -474,34 +474,34 @@ tu_get_image_format_properties(
       image_usage = 0;
 
    if (image_usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
-      if (!(format_feature_flags & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+      if (!(format_feature_flags & VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT)) {
          return tu_image_unsupported_format(pImageFormatProperties);
       }
    }
 
    if (image_usage & VK_IMAGE_USAGE_STORAGE_BIT) {
-      if (!(format_feature_flags & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT)) {
+      if (!(format_feature_flags & VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT)) {
          return tu_image_unsupported_format(pImageFormatProperties);
       }
    }
 
    if (image_usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
-      if (!(format_feature_flags & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT)) {
+      if (!(format_feature_flags & VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT)) {
          return tu_image_unsupported_format(pImageFormatProperties);
       }
    }
 
    if (image_usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
       if (!(format_feature_flags &
-            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) {
+            VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT)) {
          return tu_image_unsupported_format(pImageFormatProperties);
       }
    }
 
    if (image_usage & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) {
       if (!(format_feature_flags &
-            (VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT |
-             VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT))) {
+            (VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT |
+             VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT))) {
          return tu_image_unsupported_format(pImageFormatProperties);
       }
    }
@@ -668,7 +668,7 @@ tu_GetPhysicalDeviceImageFormatProperties2(
        */
       if ((image_view_info->imageViewType == VK_IMAGE_VIEW_TYPE_2D ||
            image_view_info->imageViewType == VK_IMAGE_VIEW_TYPE_2D_ARRAY) &&
-          (format_feature_flags & VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_CUBIC_BIT_EXT)) {
+          (format_feature_flags & VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_CUBIC_BIT_EXT)) {
          cubic_props->filterCubic = true;
          cubic_props->filterCubicMinmax = true;
       } else {

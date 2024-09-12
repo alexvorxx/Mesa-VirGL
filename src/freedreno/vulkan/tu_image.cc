@@ -86,7 +86,7 @@ tu_format_for_aspect(enum pipe_format format, VkImageAspectFlags aspect_mask)
    switch (format) {
    case PIPE_FORMAT_Z24_UNORM_S8_UINT:
       /* VK_IMAGE_ASPECT_COLOR_BIT is used internally for blits (despite we
-       * also incorrectly advertise VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT for
+       * also incorrectly advertise VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT for
        * depth formats).  Return PIPE_FORMAT_Z24_UNORM_S8_UINT_AS_R8G8B8A8 in
        * this case.
        *
