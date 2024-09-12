@@ -36,8 +36,7 @@
 static void
 genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
 {
-   assert(state->cmd_buffer == NULL ||
-          state->cmd_buffer->state.current_pipeline == _3D);
+   assert(state->cmd_buffer && state->cmd_buffer->state.current_pipeline == _3D);
 
    struct anv_batch *batch = state->batch;
    struct anv_device *device = state->device;
@@ -109,9 +108,7 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
    };
 
    genX(emit_l3_config)(batch, device, state->l3_config);
-
-   if (state->cmd_buffer)
-      state->cmd_buffer->state.current_l3_config = state->l3_config;
+   state->cmd_buffer->state.current_l3_config = state->l3_config;
 
    enum intel_urb_deref_block_size deref_block_size;
    genX(emit_urb_setup)(device, batch, state->l3_config,
@@ -216,7 +213,6 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
 
 #if INTEL_WA_18038825448_GFX_VER
    const bool needs_ps_dependency =
-      state->cmd_buffer != NULL &&
       genX(cmd_buffer_set_coarse_pixel_active)
          (state->cmd_buffer, ANV_COARSE_PIXEL_STATE_DISABLED);
 #endif
