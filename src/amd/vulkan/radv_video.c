@@ -283,14 +283,14 @@ static unsigned
 calc_ctx_size_h264_perf(struct radv_video_session *vid)
 {
    unsigned width_in_mb, height_in_mb, ctx_size;
-   unsigned width = align(vid->vk.max_coded.width, VL_MACROBLOCK_WIDTH);
-   unsigned height = align(vid->vk.max_coded.height, VL_MACROBLOCK_HEIGHT);
+   unsigned width = align(vid->vk.max_coded.width, VK_VIDEO_H264_MACROBLOCK_WIDTH);
+   unsigned height = align(vid->vk.max_coded.height, VK_VIDEO_H264_MACROBLOCK_HEIGHT);
 
    unsigned max_references = vid->vk.max_dpb_slots + 1;
 
    /* picture width & height in 16 pixel units */
-   width_in_mb = width / VL_MACROBLOCK_WIDTH;
-   height_in_mb = align(height / VL_MACROBLOCK_HEIGHT, 2);
+   width_in_mb = width / VK_VIDEO_H264_MACROBLOCK_WIDTH;
+   height_in_mb = align(height / VK_VIDEO_H264_MACROBLOCK_HEIGHT, 2);
 
    ctx_size = max_references * align(width_in_mb * height_in_mb * 192, 256);
 
@@ -300,8 +300,9 @@ calc_ctx_size_h264_perf(struct radv_video_session *vid)
 static unsigned
 calc_ctx_size_h265_main(struct radv_video_session *vid)
 {
-   unsigned width = align(vid->vk.max_coded.width, VL_MACROBLOCK_WIDTH);
-   unsigned height = align(vid->vk.max_coded.height, VL_MACROBLOCK_HEIGHT);
+   /* this is taken from radeonsi and seems correct for h265 */
+   unsigned width = align(vid->vk.max_coded.width, VK_VIDEO_H264_MACROBLOCK_WIDTH);
+   unsigned height = align(vid->vk.max_coded.height, VK_VIDEO_H264_MACROBLOCK_HEIGHT);
 
    unsigned max_references = vid->vk.max_dpb_slots + 1;
 
@@ -322,8 +323,9 @@ calc_ctx_size_h265_main10(struct radv_video_session *vid)
    unsigned context_buffer_size_per_ctb_row, cm_buffer_size, max_mb_address, db_left_tile_pxl_size;
    unsigned db_left_tile_ctx_size = 4096 / 16 * (32 + 16 * 4);
 
-   unsigned width = align(vid->vk.max_coded.width, VL_MACROBLOCK_WIDTH);
-   unsigned height = align(vid->vk.max_coded.height, VL_MACROBLOCK_HEIGHT);
+   /* this is taken from radeonsi and seems correct for h265 */
+   unsigned width = align(vid->vk.max_coded.width, VK_VIDEO_H264_MACROBLOCK_WIDTH);
+   unsigned height = align(vid->vk.max_coded.height, VK_VIDEO_H264_MACROBLOCK_HEIGHT);
    unsigned coeff_10bit = 2;
 
    unsigned max_references = vid->vk.max_dpb_slots + 1;
@@ -562,10 +564,10 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
       cap = NULL;
 
    pCapabilities->flags = 0;
-   pCapabilities->pictureAccessGranularity.width = VL_MACROBLOCK_WIDTH;
-   pCapabilities->pictureAccessGranularity.height = VL_MACROBLOCK_HEIGHT;
-   pCapabilities->minCodedExtent.width = VL_MACROBLOCK_WIDTH;
-   pCapabilities->minCodedExtent.height = VL_MACROBLOCK_HEIGHT;
+   pCapabilities->pictureAccessGranularity.width = VK_VIDEO_H264_MACROBLOCK_WIDTH;
+   pCapabilities->pictureAccessGranularity.height = VK_VIDEO_H264_MACROBLOCK_HEIGHT;
+   pCapabilities->minCodedExtent.width = VK_VIDEO_H264_MACROBLOCK_WIDTH;
+   pCapabilities->minCodedExtent.height = VK_VIDEO_H264_MACROBLOCK_HEIGHT;
 
    struct VkVideoDecodeCapabilitiesKHR *dec_caps = NULL;
    struct VkVideoEncodeCapabilitiesKHR *enc_caps = NULL;
