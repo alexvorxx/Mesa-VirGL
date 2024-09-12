@@ -88,7 +88,6 @@ si_fill_aco_shader_info(struct si_shader *shader, struct aco_shader_info *info,
    case MESA_SHADER_TESS_CTRL:
       info->vs.tcs_in_out_eq = key->ge.opt.same_patch_vertices;
       info->vs.tcs_temp_only_input_mask = sel->info.tcs_vgpr_only_inputs;
-      info->has_epilog = !shader->is_monolithic;
       info->tcs.pass_tessfactors_by_reg = sel->info.tessfactors_are_def_in_all_invocs;
       info->tcs.patch_stride = si_get_tcs_out_patch_stride(&sel->info);
       info->tcs.tcs_offchip_layout = args->tcs_offchip_layout;

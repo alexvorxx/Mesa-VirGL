@@ -683,10 +683,6 @@ declare_shader_args(const struct radv_device *device, const struct radv_graphics
                add_ud_arg(args, 1, AC_ARG_INT, &args->tcs_offchip_layout, AC_UD_TCS_OFFCHIP_LAYOUT);
             }
 
-            if (info->has_epilog) {
-               add_ud_arg(args, 1, AC_ARG_INT, &args->epilog_pc, AC_UD_EPILOG_PC);
-            }
-
             ac_add_arg(&args->ac, AC_ARG_VGPR, 1, AC_ARG_INT, &args->ac.tcs_patch_id);
             ac_add_arg(&args->ac, AC_ARG_VGPR, 1, AC_ARG_INT, &args->ac.tcs_rel_ids);
 
@@ -701,10 +697,6 @@ declare_shader_args(const struct radv_device *device, const struct radv_graphics
 
          if (radv_tcs_needs_state_sgpr(info, gfx_state)) {
             add_ud_arg(args, 1, AC_ARG_INT, &args->tcs_offchip_layout, AC_UD_TCS_OFFCHIP_LAYOUT);
-         }
-
-         if (info->has_epilog) {
-            add_ud_arg(args, 1, AC_ARG_INT, &args->epilog_pc, AC_UD_EPILOG_PC);
          }
 
          ac_add_arg(&args->ac, AC_ARG_SGPR, 1, AC_ARG_INT, &args->ac.tess_offchip_offset);
