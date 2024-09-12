@@ -288,10 +288,10 @@ intel-adl-cl:
   extends:
     - .lava-acer-cbv514-1h-34uz-brya:x86_64
     - .intel-adl-test
-    - .intel-manual-rules
+    - .intel-rules
   rules:
     - !reference [.intel-adl-test, rules]
-    - !reference [.intel-manual-rules, rules]
+    - !reference [.intel-rules, rules]
     - !reference [.rusticl-rules, rules]
   variables:
     DEQP_SUITE: intel-adl-cl
