@@ -369,7 +369,6 @@
 # CI-tron
 
 .b2c-freedreno-vk-test:
-  stage: freedreno
   extends:
     - .b2c-arm64-test-vk
   variables:
