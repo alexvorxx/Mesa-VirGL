@@ -97,6 +97,7 @@ static void
 panvk_device_cleanup_mempools(struct panvk_device *dev)
 {
    panvk_pool_cleanup(&dev->mempools.rw);
+   panvk_pool_cleanup(&dev->mempools.rw_nc);
    panvk_pool_cleanup(&dev->mempools.exec);
 }
 
