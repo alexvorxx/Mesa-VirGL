@@ -187,9 +187,11 @@ class Module(object):
                 file.write(modified_content)
 
         clang_format_command = shutil.which('clang-format')
-        assert (clang_format_command is not None)
 
         def formatFile(filename: Path):
+            if "GFXSTREAM_NO_CLANG_FMT" in os.environ:
+                return
+            assert (clang_format_command is not None)
             assert (subprocess.call([clang_format_command, "-i",
                     "--style=file", str(filename.resolve())]) == 0)
 
