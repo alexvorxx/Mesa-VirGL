@@ -339,14 +339,14 @@ void genX(DestroyQueryPool)(
 static uint64_t
 khr_perf_query_availability_offset(struct anv_query_pool *pool, uint32_t query, uint32_t pass)
 {
-   return query * (uint64_t)pool->stride + pass * (uint64_t)pool->pass_size;
+   return (query * (uint64_t)pool->stride) + (pass * (uint64_t)pool->pass_size);
 }
 
 static uint64_t
 khr_perf_query_data_offset(struct anv_query_pool *pool, uint32_t query, uint32_t pass, bool end)
 {
-   return query * (uint64_t)pool->stride + pass * (uint64_t)pool->pass_size +
-      pool->data_offset + (end ? pool->snapshot_size : 0);
+   return khr_perf_query_availability_offset(pool, query, pass) +
+          pool->data_offset + (end ? pool->snapshot_size : 0);
 }
 
 static struct anv_address
