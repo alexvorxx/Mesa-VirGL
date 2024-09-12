@@ -79,7 +79,7 @@ panvk_per_arch(CmdSetEvent2)(VkCommandBuffer commandBuffer, VkEvent _event,
       cs_move64_to(b, sync_addr,
                    panvk_priv_mem_dev_addr(event->syncobjs) +
                       (i * sizeof(struct panvk_cs_sync32)));
-      cs_load32_to(b, sync_addr, seqno,
+      cs_load32_to(b, seqno, sync_addr,
                    offsetof(struct panvk_cs_sync32, seqno));
       cs_wait_slot(b, SB_ID(LS), false);
 
