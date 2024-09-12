@@ -173,6 +173,10 @@ rebind_sampler_views(struct v3d_context *v3d,
 
                         struct v3d_sampler_view *sview =
                                 v3d_sampler_view(psview);
+
+                        if (sview->serial_id == rsc->serial_id)
+                                continue;
+
                         struct v3d_device_info *devinfo =
                                 &v3d->screen->devinfo;
 
