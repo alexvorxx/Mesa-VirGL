@@ -34,7 +34,6 @@
 
 #define AV1_SELECT_SCREEN_CONTENT_TOOLS (2)
 #define AV1_SELECT_INTEGER_MV           (2)
-#define AV1_PRIMARY_REF_NON             (7)
 #define AV1_MAXNUM_OPERATING_POINT      (32)
 #define AV1_SUPERRES_DENOM_BITS  (8)
 #define AV1_MAXNUM_REF_FRAMES    (8)
@@ -120,12 +119,24 @@ VAStatus vlVaHandleVAEncSequenceParameterBufferTypeAV1(vlVaDriver *drv, vlVaCont
 
    return VA_STATUS_SUCCESS;
 }
+
+static uint8_t
+vlVaDpbIndex(vlVaContext *context, VASurfaceID id)
+{
+   for (uint8_t i = 0; i < context->desc.av1enc.dpb_size; i++) {
+      if (context->desc.av1enc.dpb[i].id == id)
+         return i;
+   }
+   return PIPE_H2645_LIST_REF_INVALID_ENTRY;
+}
+
 VAStatus vlVaHandleVAEncPictureParameterBufferTypeAV1(vlVaDriver *drv, vlVaContext *context, vlVaBuffer *buf)
 {
    VAEncPictureParameterBufferAV1 *av1 = buf->data;
    struct pipe_video_buffer *video_buf = NULL;
    vlVaBuffer *coded_buf;
-   int i;
+   vlVaSurface *surf;
+   int i, j;
 
    context->desc.av1enc.disable_frame_end_update_cdf = av1->picture_flags.bits.disable_frame_end_update_cdf;
    context->desc.av1enc.error_resilient_mode = av1->picture_flags.bits.error_resilient_mode;
@@ -200,6 +211,88 @@ VAStatus vlVaHandleVAEncPictureParameterBufferTypeAV1(vlVaDriver *drv, vlVaConte
    context->desc.av1enc.tg_obu_header.obu_has_size_field = av1->tile_group_obu_hdr_info.bits.obu_has_size_field;
    context->desc.av1enc.tg_obu_header.temporal_id = av1->tile_group_obu_hdr_info.bits.temporal_id;
    context->desc.av1enc.tg_obu_header.spatial_id = av1->tile_group_obu_hdr_info.bits.spatial_id;
+
+   /* Evict unused surfaces */
+   for (i = 0; i < context->desc.av1enc.dpb_size; i++) {
+      struct pipe_av1_enc_dpb_entry *dpb = &context->desc.av1enc.dpb[i];
+      if (!dpb->id || dpb->id == av1->reconstructed_frame)
+         continue;
+      for (j = 0; j < ARRAY_SIZE(av1->reference_frames); j++) {
+         if (av1->reference_frames[j] == dpb->id)
+            break;
+      }
+      if (j == ARRAY_SIZE(av1->reference_frames)) {
+         surf = handle_table_get(drv->htab, dpb->id);
+         assert(surf);
+         surf->is_dpb = false;
+         surf->buffer = NULL;
+         /* Keep the buffer for reuse later */
+         dpb->id = 0;
+      }
+   }
+
+   surf = handle_table_get(drv->htab, av1->reconstructed_frame);
+   if (!surf)
+      return VA_STATUS_ERROR_INVALID_PARAMETER;
+
+   for (i = 0; i < ARRAY_SIZE(context->desc.av1enc.dpb); i++) {
+      if (context->desc.av1enc.dpb[i].id == av1->reconstructed_frame) {
+         assert(surf->is_dpb);
+         break;
+      }
+      if (!surf->is_dpb && !context->desc.av1enc.dpb[i].id) {
+         surf->is_dpb = true;
+         if (surf->buffer) {
+            surf->buffer->destroy(surf->buffer);
+            surf->buffer = NULL;
+         }
+         if (context->decoder->create_dpb_buffer) {
+            struct pipe_video_buffer *buffer = context->desc.av1enc.dpb[i].buffer;
+            if (!buffer) {
+               /* Find unused buffer */
+               for (j = 0; j < context->desc.av1enc.dpb_size; j++) {
+                  struct pipe_av1_enc_dpb_entry *dpb = &context->desc.av1enc.dpb[j];
+                  if (!dpb->id && dpb->buffer) {
+                     buffer = dpb->buffer;
+                     dpb->buffer = NULL;
+                     break;
+                  }
+               }
+            }
+            if (!buffer)
+               buffer = context->decoder->create_dpb_buffer(context->decoder, &context->desc.base, &surf->templat);
+            surf->buffer = buffer;
+         }
+         vlVaSetSurfaceContext(drv, surf, context);
+         if (i == context->desc.av1enc.dpb_size)
+            context->desc.av1enc.dpb_size++;
+         break;
+      }
+   }
+   if (i == ARRAY_SIZE(context->desc.av1enc.dpb))
+      return VA_STATUS_ERROR_INVALID_PARAMETER;
+   context->desc.av1enc.dpb_curr_pic = i;
+   context->desc.av1enc.dpb[i].id = av1->reconstructed_frame;
+   context->desc.av1enc.dpb[i].order_hint = av1->order_hint;
+   context->desc.av1enc.dpb[i].buffer = surf->buffer;
+
+   for (i = 0; i < ARRAY_SIZE(av1->ref_frame_idx); i++) {
+      if (av1->ref_frame_idx[i] > 7)
+         context->desc.av1enc.dpb_ref_frame_idx[i] = PIPE_H2645_LIST_REF_INVALID_ENTRY;
+      else
+         context->desc.av1enc.dpb_ref_frame_idx[i] =
+            vlVaDpbIndex(context, av1->reference_frames[av1->ref_frame_idx[i]]);
+   }
+
+   for (i = 0; i < PIPE_AV1_REFS_PER_FRAME; i++) {
+      uint8_t l0 = (av1->ref_frame_ctrl_l0.value >> (3 * i)) & 0x7;
+      uint8_t l1 = (av1->ref_frame_ctrl_l1.value >> (3 * i)) & 0x7;
+      context->desc.av1enc.ref_list0[i] = l0 ? l0 - 1 : PIPE_H2645_LIST_REF_INVALID_ENTRY;
+      context->desc.av1enc.ref_list1[i] = l1 ? l1 - 1 : PIPE_H2645_LIST_REF_INVALID_ENTRY;
+      if ((l0 && context->desc.av1enc.dpb_ref_frame_idx[l0 - 1] == PIPE_H2645_LIST_REF_INVALID_ENTRY) ||
+          (l1 && context->desc.av1enc.dpb_ref_frame_idx[l1 - 1] == PIPE_H2645_LIST_REF_INVALID_ENTRY))
+         return VA_STATUS_ERROR_INVALID_PARAMETER;
+   }
 
    coded_buf = handle_table_get(drv->htab, av1->coded_buf);
    if (!coded_buf)

@@ -89,6 +89,14 @@ vlVaRemoveDpbSurface(vlVaSurface *surf, VASurfaceID id)
          }
       }
       break;
+   case PIPE_VIDEO_FORMAT_AV1:
+      for (unsigned i = 0; i < surf->ctx->desc.av1enc.dpb_size; i++) {
+         if (surf->ctx->desc.av1enc.dpb[i].id == id) {
+            memset(&surf->ctx->desc.av1enc.dpb[i], 0, sizeof(surf->ctx->desc.av1enc.dpb[i]));
+            break;
+         }
+      }
+      break;
    default:
       assert(false);
       break;

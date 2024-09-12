@@ -500,6 +500,14 @@ vlVaDestroyContext(VADriverContextP ctx, VAContextID context_id)
                _mesa_hash_table_destroy(context->desc.h265enc.frame_idx, NULL);
             util_dynarray_fini(&context->desc.h265enc.raw_headers);
          }
+         if (u_reduce_video_profile(context->decoder->profile) ==
+             PIPE_VIDEO_FORMAT_AV1) {
+            for (uint32_t i = 0; i < ARRAY_SIZE(context->desc.av1enc.dpb); i++) {
+               struct pipe_video_buffer *buf = context->desc.av1enc.dpb[i].buffer;
+               if (buf && !context->desc.av1enc.dpb[i].id)
+                  buf->destroy(buf);
+            }
+         }
       } else {
          if (u_reduce_video_profile(context->decoder->profile) ==
                PIPE_VIDEO_FORMAT_MPEG4_AVC) {

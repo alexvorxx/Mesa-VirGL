@@ -63,6 +63,8 @@ extern "C" {
 #define PIPE_H265_MAX_NUM_LIST_REF 15
 #define PIPE_H265_MAX_ST_REF_PIC_SETS 64
 #define PIPE_H265_MAX_SUB_LAYERS 7
+#define PIPE_AV1_MAX_DPB_SIZE 8
+#define PIPE_AV1_REFS_PER_FRAME 7
 
 /*
  * see table 6-12 in the spec
@@ -1309,6 +1311,13 @@ struct pipe_av1_tile_group {
    uint8_t tile_group_end;
 };
 
+struct pipe_av1_enc_dpb_entry
+{
+   uint32_t id;
+   uint32_t order_hint;
+   struct pipe_video_buffer *buffer;
+};
+
 struct pipe_av1_enc_picture_desc
 {
    struct pipe_picture_desc base;
@@ -1434,6 +1443,13 @@ struct pipe_av1_enc_picture_desc
 
    struct pipe_enc_hdr_cll metadata_hdr_cll;
    struct pipe_enc_hdr_mdcv metadata_hdr_mdcv;
+
+   struct pipe_av1_enc_dpb_entry dpb[PIPE_AV1_MAX_DPB_SIZE + 1];
+   uint8_t dpb_size;
+   uint8_t dpb_curr_pic; /* index in dpb */
+   uint8_t dpb_ref_frame_idx[PIPE_AV1_REFS_PER_FRAME]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
+   uint8_t ref_list0[PIPE_AV1_REFS_PER_FRAME]; /* index in dpb_ref_frame_idx, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
+   uint8_t ref_list1[PIPE_AV1_REFS_PER_FRAME]; /* index in dpb_ref_frame_idx, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
 };
 
 struct pipe_h265_sps
