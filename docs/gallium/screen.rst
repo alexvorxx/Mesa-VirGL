@@ -654,6 +654,7 @@ The integer capabilities:
 * ``PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_STAGES``: Bitmask of shader stages which support GL_KHR_shader_subgroup_* intrinsics.
 * ``PIPE_CAP_SHADER_SUBGROUP_SUPPORTED_FEATURES``: Bitmask of shader subgroup features listed in :ext:`GL_KHR_shader_subgroup`.
 * ``PIPE_CAP_SHADER_SUBGROUP_QUAD_ALL_STAGES``: Whether shader subgroup quad operations are supported by shader stages other than fragment shader.
+* ``PIPE_CAP_MULTIVIEW``: Whether multiview rendering of array textures is supported.
 
 
 .. _pipe_capf:
