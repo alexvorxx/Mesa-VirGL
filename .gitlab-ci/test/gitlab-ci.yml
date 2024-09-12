@@ -42,33 +42,6 @@ rustfmt:
     - rustfmt --version
     - rustfmt --verbose src/**/lib.rs
 
-python-test:
-  # Cancel job if a newer commit is pushed to the same branch
-  interruptible: true
-  stage: code-validation
-  extends:
-    - .use-debian/x86_64_build
-  variables:
-    GIT_STRATEGY: fetch
-  timeout: 10m
-  script:
-    - .gitlab-ci/run-pytest.sh
-  rules:
-    - !reference [.disable-farm-mr-rules, rules]
-    - !reference [.never-post-merge-rules, rules]
-    - if: $CI_PIPELINE_SOURCE == "schedule"
-      when: on_success
-    - if: $CI_PIPELINE_SOURCE == "push" && $CI_PROJECT_NAMESPACE == "mesa" && $GITLAB_USER_LOGIN != "marge-bot"
-      when: on_success
-    - if: $GITLAB_USER_LOGIN == "marge-bot"
-      changes: &bin_ci_files
-        - .gitlab-ci.yml
-        - .gitlab-ci/**/*
-        - bin/ci/**/*
-      when: on_success
-    - changes: *bin_ci_files
-      when: manual
-
 yaml-toml-shell-test:
   extends:
     - python-test

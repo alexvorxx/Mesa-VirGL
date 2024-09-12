@@ -72,10 +72,6 @@ debian/x86_64_build-base:
     - .debian-container
   variables:
     MESA_IMAGE_TAG: &debian-x86_64_build-base "${DEBIAN_BASE_TAG}--${PKG_REPO_REV}"
-  rules:
-    # python-test requires debian/x86_64_build, which requires this job
-    - !reference [python-test, rules]
-    - !reference [.container, rules]
 
 .use-debian/x86_64_build-base:
   extends:
@@ -95,10 +91,6 @@ debian/x86_64_build:
     - .use-debian/x86_64_build-base
   variables:
     MESA_IMAGE_TAG: &debian-x86_64_build ${DEBIAN_BUILD_TAG}
-  rules:
-    # python-test requires this job
-    - !reference [python-test, rules]
-    - !reference [.use-debian/x86_64_build-base, rules]
 
 .use-debian/x86_64_build:
   extends:
@@ -268,6 +260,28 @@ debian/x86_64_test-vk:
     MESA_IMAGE_TAG: *debian-x86_64_test-android
   needs:
     - debian/x86_64_test-android
+
+# Debian-based x86_64 image to run Python utilities
+debian/x86_64_pyutils:
+  extends:
+    - .debian-container
+  variables:
+    MESA_IMAGE_TAG: &debian-x86_64_pyutils "${DEBIAN_PYUTILS_TAG}"
+  rules:
+    # python-test requires this job
+    - !reference [python-test, rules]
+    - !reference [.container, rules]
+
+.use-debian/x86_64_pyutils:
+  extends:
+    - .fdo.container-build@debian
+    - .debian-container-version
+    - .set-image
+  variables:
+    MESA_IMAGE_PATH: ${DEBIAN_PYUTILS_IMAGE}
+    MESA_IMAGE_TAG: *debian-x86_64_pyutils
+  needs:
+    - debian/x86_64_pyutils
 
 # Debian based aarch64 test image for GL
 debian/arm64_test-gl:
