@@ -55,6 +55,7 @@ struct d3d12_wgl_framebuffer {
    HWND window;
    ComPtr<IDXGISwapChain3> swapchain;
    HANDLE waitable_object;
+   int latency = 2;
    struct pipe_resource *buffers[num_buffers];
    bool single_buffered;
    struct pipe_resource *offscreen_buffer;
@@ -139,6 +140,8 @@ d3d12_wgl_framebuffer_resize(stw_winsys_framebuffer *fb,
 
       framebuffer->waitable_object = framebuffer->swapchain->GetFrameLatencyWaitableObject();
       WaitForSingleObject(framebuffer->waitable_object, INFINITE);
+
+      framebuffer->swapchain->SetMaximumFrameLatency(framebuffer->latency);
    }
    else {
       struct pipe_fence_handle *fence = NULL;
@@ -276,6 +279,24 @@ d3d12_wgl_framebuffer_flush_frontbuffer(struct stw_winsys_framebuffer *pframebuf
    pipe->flush(pipe, NULL, 0);
 }
 
+static void
+d3d12_wgl_framebuffer_set_latency(struct stw_winsys_framebuffer *pframebuffer,
+                                  int latency)
+{
+   if (latency < 1)
+      return;
+
+   auto framebuffer = d3d12_wgl_framebuffer(pframebuffer);
+   int delta = latency - framebuffer->latency;
+   while (delta < 0 && framebuffer->waitable_object) {
+      WaitForSingleObject(framebuffer->waitable_object, INFINITE);
+      ++delta;
+   }
+   framebuffer->latency = latency;
+   if (framebuffer->swapchain)
+      framebuffer->swapchain->SetMaximumFrameLatency(latency);
+}
+
 struct stw_winsys_framebuffer *
 d3d12_wgl_create_framebuffer(struct pipe_screen *screen,
                              HWND hWnd,
@@ -306,6 +327,7 @@ d3d12_wgl_create_framebuffer(struct pipe_screen *screen,
    fb->base.present = d3d12_wgl_framebuffer_present;
    fb->base.get_resource = d3d12_wgl_framebuffer_get_resource;
    fb->base.flush_frontbuffer = d3d12_wgl_framebuffer_flush_frontbuffer;
+   fb->base.set_latency = d3d12_wgl_framebuffer_set_latency;
 
    return &fb->base;
 }
