@@ -1709,7 +1709,8 @@ emit_program(Program* program, std::vector<uint32_t>& code, std::vector<struct a
       program->info.merged_shader_compiled_separately;
 
    /* Prolog has no exports. */
-   if (!program->is_prolog && !program->info.has_epilog && !is_separately_compiled_ngg_vs_or_es &&
+   if (!program->is_prolog && !program->info.ps.has_epilog &&
+       !is_separately_compiled_ngg_vs_or_es &&
        (program->stage.hw == AC_HW_VERTEX_SHADER || program->stage.hw == AC_HW_PIXEL_SHADER ||
         program->stage.hw == AC_HW_NEXT_GEN_GEOMETRY_SHADER))
       fix_exports(ctx, code, program);

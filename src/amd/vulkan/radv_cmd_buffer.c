@@ -8012,7 +8012,7 @@ radv_bind_fragment_shader(struct radv_cmd_buffer *cmd_buffer, const struct radv_
    }
 
    /* Re-emit the PS epilog when a new fragment shader is bound. */
-   if (ps->info.has_epilog)
+   if (ps->info.ps.has_epilog)
       cmd_buffer->state.emitted_ps_epilog = NULL;
 }
 
@@ -10774,7 +10774,7 @@ radv_emit_all_graphics_states(struct radv_cmd_buffer *cmd_buffer, const struct r
    struct radv_shader_part *ps_epilog = NULL;
 
    if (cmd_buffer->state.shaders[MESA_SHADER_FRAGMENT] &&
-       cmd_buffer->state.shaders[MESA_SHADER_FRAGMENT]->info.has_epilog) {
+       cmd_buffer->state.shaders[MESA_SHADER_FRAGMENT]->info.ps.has_epilog) {
       if ((cmd_buffer->state.emitted_graphics_pipeline != cmd_buffer->state.graphics_pipeline ||
            ((cmd_buffer->state.dirty & (RADV_CMD_DIRTY_GRAPHICS_SHADERS | RADV_CMD_DIRTY_FRAMEBUFFER)) ||
             (cmd_buffer->state.dirty_dynamic &
@@ -10990,7 +10990,7 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
    }
 
    const struct radv_shader *ps = cmd_buffer->state.shaders[MESA_SHADER_FRAGMENT];
-   if (ps && !ps->info.has_epilog) {
+   if (ps && !ps->info.ps.has_epilog) {
       uint32_t col_format = 0, cb_shader_mask = 0;
       if (radv_needs_null_export_workaround(device, ps, 0))
          col_format = V_028714_SPI_SHADER_32_R;

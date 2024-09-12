@@ -281,7 +281,7 @@ aco_compile_shader(const struct aco_compiler_options* options, const struct aco_
    /* OpenGL combine multi shader parts into one continous code block,
     * so only last part need the s_endpgm instruction.
     */
-   bool append_endpgm = !(options->is_opengl && info->has_epilog);
+   bool append_endpgm = !(options->is_opengl && info->ps.has_epilog);
    unsigned exec_size = emit_program(program.get(), code, &symbols, append_endpgm);
 
    if (program->collect_statistics)

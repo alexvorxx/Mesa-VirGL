@@ -3390,7 +3390,7 @@ radv_graphics_pipeline_init(struct radv_graphics_pipeline *pipeline, struct radv
    radv_pipeline_init_dynamic_state(device, pipeline, &gfx_state.vk, pCreateInfo);
 
    const struct radv_shader *ps = pipeline->base.shaders[MESA_SHADER_FRAGMENT];
-   if (ps && !ps->info.has_epilog) {
+   if (ps && !ps->info.ps.has_epilog) {
       pipeline->spi_shader_col_format = ps->info.ps.spi_shader_col_format;
       pipeline->cb_shader_mask = ps->info.ps.cb_shader_mask;
    }

@@ -518,7 +518,7 @@ radv_postprocess_nir(struct radv_device *device, const struct radv_graphics_stat
          .use_aco = !radv_use_llvm_for_stage(pdev, stage->stage),
          .uses_discard = true,
          .alpha_func = COMPARE_FUNC_ALWAYS,
-         .no_color_export = stage->info.has_epilog,
+         .no_color_export = stage->info.ps.has_epilog,
          .no_depth_export = stage->info.ps.exports_mrtz_via_epilog,
 
          .bc_optimize_for_persp = G_0286CC_PERSP_CENTER_ENA(stage->info.ps.spi_ps_input_ena) &&

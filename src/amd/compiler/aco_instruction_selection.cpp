@@ -175,7 +175,7 @@ emit_bpermute(isel_context* ctx, Builder& bld, Temp index, Temp data)
    const bool avoid_shared_vgprs =
       ctx->options->gfx_level >= GFX10 && ctx->options->gfx_level < GFX11 &&
       ctx->program->wave_size == 64 &&
-      (ctx->program->info.has_epilog || ctx->program->info.merged_shader_compiled_separately ||
+      (ctx->program->info.ps.has_epilog || ctx->program->info.merged_shader_compiled_separately ||
        ctx->program->info.vs.has_prolog || ctx->stage == raytracing_cs);
 
    if (ctx->options->gfx_level <= GFX7 || avoid_shared_vgprs) {
@@ -5521,7 +5521,7 @@ store_output_to_temps(isel_context* ctx, nir_intrinsic_instr* instr)
       idx++;
    }
 
-   if (ctx->stage == fragment_fs && ctx->program->info.has_epilog && base >= FRAG_RESULT_DATA0) {
+   if (ctx->stage == fragment_fs && ctx->program->info.ps.has_epilog && base >= FRAG_RESULT_DATA0) {
       unsigned index = base - FRAG_RESULT_DATA0;
 
       if (nir_intrinsic_src_type(instr) == nir_type_float16) {
@@ -11931,7 +11931,7 @@ select_shader(isel_context& ctx, nir_shader* nir, const bool need_startpgm, cons
    nir_function_impl* func = nir_shader_get_entrypoint(nir);
    visit_cf_list(&ctx, &func->body);
 
-   if (ctx.program->info.has_epilog) {
+   if (ctx.program->info.ps.has_epilog) {
       if (ctx.stage == fragment_fs) {
          if (ctx.options->is_opengl)
             create_fs_end_for_epilog(&ctx);
@@ -11969,7 +11969,7 @@ select_shader(isel_context& ctx, nir_shader* nir, const bool need_startpgm, cons
       append_logical_end(ctx.block);
       ctx.block->kind |= block_kind_uniform;
 
-      if ((!program->info.has_epilog && !is_first_stage_of_merged_shader) ||
+      if ((!program->info.ps.has_epilog && !is_first_stage_of_merged_shader) ||
           (nir->info.stage == MESA_SHADER_TESS_CTRL && program->gfx_level >= GFX9)) {
          Builder(program, ctx.block).sopp(aco_opcode::s_endpgm);
       }
