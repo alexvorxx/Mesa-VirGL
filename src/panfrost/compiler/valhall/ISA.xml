@@ -1378,6 +1378,17 @@
     <imm name="offset" start="8" size="16" signed="true"/>
   </group>
 
+  <ins name="LEA_BUFFER" title="Load buffer effective address" message="attribute" opcode="0x6B" unit="LS">
+    <desc>
+      Load effective address of a simple buffer with an offset added.
+    </desc>
+    <sr write="true"/>
+    <sr_count count="2"/>
+    <slot/>
+    <src>Offset</src>
+    <src>Index</src>
+  </ins>
+
   <ins name="ST_CVT" title="Store with conversion" opcode="0x71" unused="true" unit="LS">
     <desc>
       Store to memory with data conversion. The address to store to is given in
