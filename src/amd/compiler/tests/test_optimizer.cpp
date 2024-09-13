@@ -222,8 +222,6 @@ BEGIN_TEST(optimize.output_modifiers)
    //! /* logical preds: BB2, / linear preds: BB2, / kind: uniform, */
    program->next_fp_mode.denorm32 = fp_denorm_keep;
    program->next_fp_mode.denorm16_64 = fp_denorm_keep;
-   program->next_fp_mode.preserve_signed_zero_inf_nan32 = true;
-   program->next_fp_mode.preserve_signed_zero_inf_nan16_64 = true;
    bld.reset(program->create_and_insert_block());
    bld.is_sz_preserve = true;
    program->blocks[2].linear_succs.push_back(3);

@@ -3658,7 +3658,7 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
             tmp0->valu().abs[0] = true;
             denorm_zero = tmp0->definitions[0].getTemp();
          }
-         if (ctx->block->fp_mode.preserve_signed_zero_inf_nan32) {
+         if (nir_alu_instr_is_signed_zero_preserve(instr)) {
             Temp copysign_0 =
                bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), Operand::zero(), as_vgpr(ctx, src));
             bld.vop2(aco_opcode::v_cndmask_b32, Definition(dst), f32, copysign_0, denorm_zero);
@@ -3681,7 +3681,7 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
             Temp abs =
                bld.sop2(aco_opcode::s_and_b32, bld.def(s1), bld.def(s1, scc), f32, abs_mask);
             Operand sign;
-            if (ctx->block->fp_mode.preserve_signed_zero_inf_nan32) {
+            if (nir_alu_instr_is_signed_zero_preserve(instr)) {
                sign =
                   bld.sop2(aco_opcode::s_andn2_b32, bld.def(s1), bld.def(s1, scc), f32, abs_mask);
             } else {
@@ -11494,12 +11494,6 @@ setup_fp_mode(isel_context* ctx, nir_shader* shader)
    Program* program = ctx->program;
 
    unsigned float_controls = shader->info.float_controls_execution_mode;
-
-   program->next_fp_mode.preserve_signed_zero_inf_nan32 =
-      float_controls & FLOAT_CONTROLS_SIGNED_ZERO_INF_NAN_PRESERVE_FP32;
-   program->next_fp_mode.preserve_signed_zero_inf_nan16_64 =
-      float_controls & (FLOAT_CONTROLS_SIGNED_ZERO_INF_NAN_PRESERVE_FP16 |
-                        FLOAT_CONTROLS_SIGNED_ZERO_INF_NAN_PRESERVE_FP64);
 
    program->next_fp_mode.must_flush_denorms32 =
       float_controls & FLOAT_CONTROLS_DENORM_FLUSH_TO_ZERO_FP32;

@@ -199,8 +199,6 @@ init_program(Program* program, Stage stage, const struct aco_shader_info* info,
 
    program->progress = CompilationProgress::after_isel;
 
-   program->next_fp_mode.preserve_signed_zero_inf_nan32 = false;
-   program->next_fp_mode.preserve_signed_zero_inf_nan16_64 = false;
    program->next_fp_mode.must_flush_denorms32 = false;
    program->next_fp_mode.must_flush_denorms16_64 = false;
    program->next_fp_mode.care_about_round32 = false;
