@@ -339,7 +339,7 @@ static void si_bind_compute_state(struct pipe_context *ctx, void *state)
          pipeline.code_hash = pipeline_code_hash;
          pipeline.bo = program->shader.bo;
 
-         si_sqtt_register_pipeline(sctx, &pipeline, true);
+         si_sqtt_register_pipeline(sctx, &pipeline, NULL);
       }
 
       si_sqtt_describe_pipeline_bind(sctx, pipeline_code_hash, 1);

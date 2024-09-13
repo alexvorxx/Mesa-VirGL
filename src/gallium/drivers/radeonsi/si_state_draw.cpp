@@ -367,13 +367,15 @@ static bool si_update_shaders(struct si_context *sctx)
             /* Re-upload all gfx shaders and init PM4. */
             si_pm4_clear_state(&pipeline->pm4, sctx->screen, false);
 
+            uint32_t gfx_sh_offsets[SI_NUM_GRAPHICS_SHADERS] = { 0 };
             for (int i = 0; i < SI_NUM_GRAPHICS_SHADERS; i++) {
                struct si_shader *shader = sctx->shaders[i].current;
                if (sctx->shaders[i].cso && shader) {
                   si_resource_reference(&shader->bo, bo);
 
                   int size = si_shader_binary_upload_at(sctx->screen, shader, scratch_va, offset);
-                  pipeline->offset[i] = offset;
+
+                  gfx_sh_offsets[i] = offset;
                   offset += align(size, 256);
 
                   struct si_pm4_state *pm4 = &shader->pm4;
@@ -389,7 +391,7 @@ static bool si_update_shaders(struct si_context *sctx)
             _mesa_hash_table_u64_insert(sctx->sqtt->pipeline_bos,
                                         pipeline_code_hash, pipeline);
 
-            si_sqtt_register_pipeline(sctx, pipeline, false);
+            si_sqtt_register_pipeline(sctx, pipeline, gfx_sh_offsets);
          } else {
             if (bo)
                si_resource_reference(&bo, NULL);

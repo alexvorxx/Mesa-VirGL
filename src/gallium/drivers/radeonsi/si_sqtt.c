@@ -732,10 +732,11 @@ si_sqtt_pipe_to_rgp_shader_stage(union si_shader_key *key, enum pipe_shader_type
 static bool
 si_sqtt_add_code_object(struct si_context *sctx,
                         struct si_sqtt_fake_pipeline *pipeline,
-                        bool is_compute)
+                        uint32_t *gfx_sh_offsets)
 {
    struct rgp_code_object *code_object = &sctx->sqtt->rgp_code_object;
    struct rgp_code_object_record *record;
+   bool is_compute = gfx_sh_offsets == NULL;
 
    record = calloc(1, sizeof(struct rgp_code_object_record));
    if (!record)
@@ -771,7 +772,7 @@ si_sqtt_add_code_object(struct si_context *sctx,
       }
       memcpy(code, shader->binary.uploaded_code, shader->binary.uploaded_code_size);
 
-      uint64_t va = pipeline->bo->gpu_address + pipeline->offset[i];
+      uint64_t va = pipeline->bo->gpu_address + (is_compute ? 0 : gfx_sh_offsets[i]);
       unsigned lds_increment = sctx->gfx_level >= GFX11 && i == MESA_SHADER_FRAGMENT ?
          1024 : sctx->screen->info.lds_encode_granularity;
 
@@ -802,7 +803,8 @@ si_sqtt_add_code_object(struct si_context *sctx,
    return true;
 }
 
-bool si_sqtt_register_pipeline(struct si_context *sctx, struct si_sqtt_fake_pipeline *pipeline, bool is_compute)
+bool si_sqtt_register_pipeline(struct si_context *sctx, struct si_sqtt_fake_pipeline *pipeline,
+                               uint32_t *gfx_sh_offsets)
 {
    assert(!si_sqtt_pipeline_is_registered(sctx->sqtt, pipeline->code_hash));
 
@@ -815,7 +817,7 @@ bool si_sqtt_register_pipeline(struct si_context *sctx, struct si_sqtt_fake_pipe
    if (!result)
       return false;
 
-   return si_sqtt_add_code_object(sctx, pipeline, is_compute);
+   return si_sqtt_add_code_object(sctx, pipeline, gfx_sh_offsets);
 }
 
 void si_sqtt_describe_pipeline_bind(struct si_context *sctx,
