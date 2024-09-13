@@ -320,24 +320,26 @@ static bool si_update_shaders(struct si_context *sctx)
        * changes.
        */
       uint64_t scratch_bo_size = sctx->scratch_buffer ? sctx->scratch_buffer->bo_size : 0;
-      uint64_t pipeline_code_hash = scratch_bo_size;
       uint32_t total_size = 0;
 
       /* Compute pipeline code hash. */
+      XXH64_state_t* xh = XXH64_createState();
+      XXH64_reset(xh, scratch_bo_size);
+
       for (int i = 0; i < SI_NUM_GRAPHICS_SHADERS; i++) {
          struct si_shader *shader = sctx->shaders[i].current;
          if (sctx->shaders[i].cso && shader) {
             /* Hash the key. */
-            pipeline_code_hash = XXH64(&shader->key, sizeof(shader->key), pipeline_code_hash);
+            XXH64_update(xh, &shader->key, sizeof(shader->key));
             /* Hash the main part binary. */
-            pipeline_code_hash = XXH64(
-               shader->binary.code_buffer,
-               shader->binary.code_size,
-               pipeline_code_hash);
+            XXH64_update(xh, shader->binary.code_buffer, shader->binary.code_size);
 
             total_size += (uint32_t)align_uintptr(shader->binary.uploaded_code_size, 256);
          }
       }
+
+      XXH64_hash_t pipeline_code_hash = XXH64_digest(xh);
+      XXH64_freeState(xh);
 
       struct si_sqtt_fake_pipeline *pipeline = NULL;
       if (!si_sqtt_pipeline_is_registered(sctx->sqtt, pipeline_code_hash)) {
@@ -402,10 +404,8 @@ static bool si_update_shaders(struct si_context *sctx)
       }
       assert(pipeline);
 
-      pipeline->code_hash = pipeline_code_hash;
       radeon_add_to_buffer_list(sctx, &sctx->gfx_cs, pipeline->bo,
                                 RADEON_USAGE_READ | RADEON_PRIO_SHADER_BINARY);
-
       si_sqtt_describe_pipeline_bind(sctx, pipeline_code_hash, 0);
       si_pm4_bind_state(sctx, sqtt_pipeline, pipeline);
    }
