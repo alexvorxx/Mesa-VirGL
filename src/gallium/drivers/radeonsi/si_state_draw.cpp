@@ -363,8 +363,9 @@ static bool si_update_shaders(struct si_context *sctx)
          if (ptr) {
             pipeline = (struct si_sqtt_fake_pipeline *)
                CALLOC(1, sizeof(struct si_sqtt_fake_pipeline));
+
             pipeline->code_hash = pipeline_code_hash;
-            si_resource_reference(&pipeline->bo, bo);
+            pipeline->bo = bo;
 
             /* Re-upload all gfx shaders and init PM4. */
             si_pm4_clear_state(&pipeline->pm4, sctx->screen, false);
