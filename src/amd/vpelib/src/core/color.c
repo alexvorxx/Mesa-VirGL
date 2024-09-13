@@ -691,7 +691,8 @@ enum vpe_status vpe_color_update_3dlut(
 
         if (update) {
             vpe_convert_to_tetrahedral(
-                vpe_priv, stream_ctx->stream.tm_params.lut_data, stream_ctx->lut3d_func);
+                vpe_priv, stream_ctx->stream.tm_params.lut_data,
+                stream_ctx->stream.tm_params.lut_dim, stream_ctx->lut3d_func);
             for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
                 stream_ctx->lut3d_func->dirty[i]                = true;
                 stream_ctx->lut3d_func->config_cache[i].cached  = false;

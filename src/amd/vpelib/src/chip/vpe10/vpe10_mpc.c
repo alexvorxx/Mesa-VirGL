@@ -856,7 +856,7 @@ void vpe10_mpc_program_3dlut(struct mpc *mpc, const struct tetrahedral_params *p
     // always use LUT_RAM_A except for bypass mode which is not the case here
     mode = LUT_RAM_A;
 
-    is_17x17x17             = !params->use_tetrahedral_9;
+    is_17x17x17             = (params->lut_dim == LUT_DIM_17);
     is_12bits_color_channel = params->use_12bits;
     if (is_17x17x17) {
         lut0      = params->tetrahedral_17.lut0;
