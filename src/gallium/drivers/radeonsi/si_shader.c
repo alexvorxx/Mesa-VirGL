@@ -954,9 +954,13 @@ static void *pre_upload_binary(struct si_screen *sscreen, struct si_shader *shad
 
       return ret;
    } else {
-      return sscreen->ws->buffer_map(sscreen->ws,
+      void *ptr = sscreen->ws->buffer_map(sscreen->ws,
          shader->bo->buf, NULL,
-         PIPE_MAP_READ_WRITE | PIPE_MAP_UNSYNCHRONIZED | RADEON_MAP_TEMPORARY) + bo_offset;
+         PIPE_MAP_READ_WRITE | PIPE_MAP_UNSYNCHRONIZED | RADEON_MAP_TEMPORARY);
+      if (!ptr)
+         return NULL;
+
+      return ptr + bo_offset;
    }
 }
 
