@@ -213,6 +213,9 @@ public:
    std::vector<aco_ptr<Instruction>> *instructions;
    std::vector<aco_ptr<Instruction>>::iterator it;
    bool is_precise = false;
+   bool is_sz_preserve = false;
+   bool is_inf_preserve = false;
+   bool is_nan_preserve = false;
    bool is_nuw = false;
 
    Builder(Program *pgm) : program(pgm), use_iterator(false), start(false), lm(pgm ? pgm->lane_mask : s2), instructions(NULL) {}
@@ -617,6 +620,9 @@ formats = [(f if len(f) == 5 else f + ('',)) for f in formats]
         % for i in range(num_definitions):
             instr->definitions[${i}] = def${i};
             instr->definitions[${i}].setPrecise(is_precise);
+            instr->definitions[${i}].setSZPreserve(is_sz_preserve);
+            instr->definitions[${i}].setInfPreserve(is_inf_preserve);
+            instr->definitions[${i}].setNaNPreserve(is_nan_preserve);
             instr->definitions[${i}].setNUW(is_nuw);
         % endfor
         % for i in range(num_operands):
