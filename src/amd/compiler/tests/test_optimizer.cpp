@@ -219,44 +219,35 @@ BEGIN_TEST(optimize.output_modifiers)
    /* omod flushes -0.0 to +0.0 */
 
    //>> BB3
-   //! /* logical preds: BB2, / linear preds: BB2, / kind: */
+   //! /* logical preds: BB2, / linear preds: BB2, / kind: uniform, */
    program->next_fp_mode.denorm32 = fp_denorm_keep;
    program->next_fp_mode.denorm16_64 = fp_denorm_keep;
    program->next_fp_mode.preserve_signed_zero_inf_nan32 = true;
-   program->next_fp_mode.preserve_signed_zero_inf_nan16_64 = false;
+   program->next_fp_mode.preserve_signed_zero_inf_nan16_64 = true;
    bld.reset(program->create_and_insert_block());
+   bld.is_sz_preserve = true;
    program->blocks[2].linear_succs.push_back(3);
    program->blocks[2].logical_succs.push_back(3);
    program->blocks[3].linear_preds.push_back(2);
    program->blocks[3].logical_preds.push_back(2);
 
-   //! v1: %res18_tmp = v_add_f32 %a, %b
-   //! v1: %res18 = v_mul_f32 2.0, %res18_tmp
+   //! v1: (SzPreserve)%res18_tmp = v_add_f32 %a, %b
+   //! v1: (SzPreserve)%res18 = v_mul_f32 2.0, %res18_tmp
    //! p_unit_test 18, %res18
    tmp = bld.vop2(aco_opcode::v_add_f32, bld.def(v1), inputs[0], inputs[1]);
    writeout(18, bld.vop2(aco_opcode::v_mul_f32, bld.def(v1), Operand::c32(0x40000000u), tmp));
-   //! v1: %res19 = v_add_f32 %a, %b clamp
+   //! v1: (SzPreserve)%res19 = v_add_f32 %a, %b clamp
    //! p_unit_test 19, %res19
    tmp = bld.vop2(aco_opcode::v_add_f32, bld.def(v1), inputs[0], inputs[1]);
    writeout(19, bld.vop3(aco_opcode::v_med3_f32, bld.def(v1), Operand::zero(),
                          Operand::c32(0x3f800000u), tmp));
 
-   //>> BB4
-   //! /* logical preds: BB3, / linear preds: BB3, / kind: uniform, */
-   program->next_fp_mode.preserve_signed_zero_inf_nan32 = false;
-   program->next_fp_mode.preserve_signed_zero_inf_nan16_64 = true;
-   bld.reset(program->create_and_insert_block());
-   program->blocks[3].linear_succs.push_back(4);
-   program->blocks[3].logical_succs.push_back(4);
-   program->blocks[4].linear_preds.push_back(3);
-   program->blocks[4].logical_preds.push_back(3);
-
-   //! v2b: %res20_tmp = v_add_f16 %a, %b
-   //! v2b: %res20 = v_mul_f16 2.0, %res20_tmp
+   //! v2b: (SzPreserve)%res20_tmp = v_add_f16 %a, %b
+   //! v2b: (SzPreserve)%res20 = v_mul_f16 2.0, %res20_tmp
    //! p_unit_test 20, %res20
    tmp = bld.vop2(aco_opcode::v_add_f16, bld.def(v2b), inputs[0], inputs[1]);
    writeout(20, bld.vop2(aco_opcode::v_mul_f16, bld.def(v2b), Operand::c16(0x4000u), tmp));
-   //! v2b: %res21 = v_add_f16 %a, %b clamp
+   //! v2b: (SzPreserve)%res21 = v_add_f16 %a, %b clamp
    //! p_unit_test 21, %res21
    tmp = bld.vop2(aco_opcode::v_add_f16, bld.def(v2b), inputs[0], inputs[1]);
    writeout(21, bld.vop3(aco_opcode::v_med3_f16, bld.def(v2b), Operand::c16(0u),
