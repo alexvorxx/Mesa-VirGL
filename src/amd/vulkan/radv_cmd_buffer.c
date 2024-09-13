@@ -7904,6 +7904,11 @@ radv_bind_task_shader(struct radv_cmd_buffer *cmd_buffer, const struct radv_shad
    if (!radv_gang_init(cmd_buffer))
       return;
 
+   if (radv_get_user_sgpr_info(ts, AC_UD_SHADER_QUERY_STATE)->sgpr_idx != -1) {
+      /* Re-emit shader query state when SGPR exists but location potentially changed. */
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_SHADER_QUERY;
+   }
+
    cmd_buffer->task_rings_needed = true;
 }
 
