@@ -1493,12 +1493,12 @@ can_fast_clear_color_att(struct anv_cmd_buffer *cmd_buffer,
    if (is_multiview && (cmd_buffer->state.gfx.view_mask != 1))
       return false;
 
-   return anv_can_fast_clear_color_view(cmd_buffer, att->iview->image,
-                                        att->iview->vk.base_mip_level,
-                                        pRects, att->layout,
-                                        att->iview->planes[0].isl.format,
-                                        att->iview->planes[0].isl.swizzle,
-                                        clear_color);
+   return anv_can_fast_clear_color(cmd_buffer, att->iview->image,
+                                   att->iview->vk.base_mip_level,
+                                   pRects, att->layout,
+                                   att->iview->planes[0].isl.format,
+                                   att->iview->planes[0].isl.swizzle,
+                                   clear_color);
 }
 
 static void

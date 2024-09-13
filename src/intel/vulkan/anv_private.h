@@ -5780,14 +5780,14 @@ anv_can_hiz_clear_ds_view(struct anv_device *device,
                           const VkQueueFlagBits queue_flags);
 
 bool
-anv_can_fast_clear_color_view(const struct anv_cmd_buffer *cmd_buffer,
-                              const struct anv_image *image,
-                              unsigned level,
-                              const struct VkClearRect *clear_rect,
-                              VkImageLayout layout,
-                              enum isl_format view_format,
-                              struct isl_swizzle view_swizzle,
-                              union isl_color_value clear_color);
+anv_can_fast_clear_color(const struct anv_cmd_buffer *cmd_buffer,
+                         const struct anv_image *image,
+                         unsigned level,
+                         const struct VkClearRect *clear_rect,
+                         VkImageLayout layout,
+                         enum isl_format view_format,
+                         struct isl_swizzle view_swizzle,
+                         union isl_color_value clear_color);
 
 enum isl_aux_state ATTRIBUTE_PURE
 anv_layout_to_aux_state(const struct intel_device_info * const devinfo,

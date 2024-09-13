@@ -5228,12 +5228,12 @@ void genX(CmdBeginRendering)(
          /* We only support fast-clears on the first layer */
          const bool fast_clear =
             (!is_multiview || (gfx->view_mask & 1)) &&
-            anv_can_fast_clear_color_view(cmd_buffer, iview->image,
-                                          iview->vk.base_mip_level,
-                                          &clear_rect, att->imageLayout,
-                                          iview->planes[0].isl.format,
-                                          iview->planes[0].isl.swizzle,
-                                          clear_color);
+            anv_can_fast_clear_color(cmd_buffer, iview->image,
+                                     iview->vk.base_mip_level,
+                                     &clear_rect, att->imageLayout,
+                                     iview->planes[0].isl.format,
+                                     iview->planes[0].isl.swizzle,
+                                     clear_color);
 
          if (att->imageLayout != initial_layout) {
             assert(render_area.offset.x == 0 && render_area.offset.y == 0 &&

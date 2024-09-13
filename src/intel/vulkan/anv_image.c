@@ -3233,6 +3233,150 @@ anv_layout_to_fast_clear_type(const struct intel_device_info * const devinfo,
    unreachable("Invalid isl_aux_state");
 }
 
+static bool
+isl_color_value_requires_conversion(union isl_color_value color,
+                                    const struct isl_surf *surf,
+                                    enum isl_format view_format,
+                                    struct isl_swizzle view_swizzle)
+{
+   if (surf->format == view_format && isl_swizzle_is_identity(view_swizzle))
+      return false;
+
+   uint32_t surf_pack[4] = { 0, 0, 0, 0 };
+   isl_color_value_pack(&color, surf->format, surf_pack);
+
+   uint32_t view_pack[4] = { 0, 0, 0, 0 };
+   union isl_color_value swiz_color =
+      isl_color_value_swizzle_inv(color, view_swizzle);
+   isl_color_value_pack(&swiz_color, view_format, view_pack);
+
+   return memcmp(surf_pack, view_pack, sizeof(surf_pack)) != 0;
+}
+
+bool
+anv_can_fast_clear_color(const struct anv_cmd_buffer *cmd_buffer,
+                         const struct anv_image *image,
+                         unsigned level,
+                         const struct VkClearRect *clear_rect,
+                         VkImageLayout layout,
+                         enum isl_format view_format,
+                         struct isl_swizzle view_swizzle,
+                         union isl_color_value clear_color)
+{
+   if (INTEL_DEBUG(DEBUG_NO_FAST_CLEAR))
+      return false;
+
+   /* Start by getting the fast clear type.  We use the first subpass
+    * layout here because we don't want to fast-clear if the first subpass
+    * to use the attachment can't handle fast-clears.
+    */
+   enum anv_fast_clear_type fast_clear_type =
+      anv_layout_to_fast_clear_type(cmd_buffer->device->info, image,
+                                    VK_IMAGE_ASPECT_COLOR_BIT, layout,
+                                    cmd_buffer->queue_family->queueFlags);
+   switch (fast_clear_type) {
+   case ANV_FAST_CLEAR_NONE:
+      return false;
+   case ANV_FAST_CLEAR_DEFAULT_VALUE:
+      if (!isl_color_value_is_zero(clear_color, view_format))
+         return false;
+      break;
+   case ANV_FAST_CLEAR_ANY:
+      break;
+   }
+
+   /* Potentially, we could do partial fast-clears but doing so has crazy
+    * alignment restrictions.  It's easier to just restrict to full size
+    * fast clears for now.
+    */
+   if (clear_rect->rect.offset.x != 0 ||
+       clear_rect->rect.offset.y != 0 ||
+       clear_rect->rect.extent.width != image->vk.extent.width ||
+       clear_rect->rect.extent.height != image->vk.extent.height)
+      return false;
+
+   /* If the clear color is one that would require non-trivial format
+    * conversion on resolve, we don't bother with the fast clear.  This
+    * shouldn't be common as most clear colors are 0/1 and the most common
+    * format re-interpretation is for sRGB.
+    */
+   if (isl_color_value_requires_conversion(clear_color,
+                                           &image->planes[0].primary_surface.isl,
+                                           view_format, view_swizzle)) {
+      anv_perf_warn(VK_LOG_OBJS(&image->vk.base),
+                    "Cannot fast-clear to colors which would require "
+                    "format conversion on resolve");
+      return false;
+   }
+
+   /* We only allow fast clears to the first slice of an image (level 0,
+    * layer 0) and only for the entire slice.  This guarantees us that, at
+    * any given time, there is only one clear color on any given image at
+    * any given time.  At the time of our testing (Jan 17, 2018), there
+    * were no known applications which would benefit from fast-clearing
+    * more than just the first slice.
+    */
+   if (level > 0) {
+      anv_perf_warn(VK_LOG_OBJS(&image->vk.base),
+                    "level > 0.  Not fast clearing.");
+      return false;
+   }
+
+   if (clear_rect->baseArrayLayer > 0) {
+      anv_perf_warn(VK_LOG_OBJS(&image->vk.base),
+                    "baseArrayLayer > 0.  Not fast clearing.");
+      return false;
+   }
+
+
+   if (clear_rect->layerCount > 1) {
+      anv_perf_warn(VK_LOG_OBJS(&image->vk.base),
+                    "layerCount > 1.  Only fast-clearing the first slice");
+   }
+
+   /* Wa_18020603990 - slow clear surfaces up to 256x256, 32bpp. */
+   if (intel_needs_workaround(cmd_buffer->device->info, 18020603990)) {
+      const struct anv_surface *anv_surf = &image->planes->primary_surface;
+      if (isl_format_get_layout(anv_surf->isl.format)->bpb <= 32 &&
+          anv_surf->isl.logical_level0_px.w <= 256 &&
+          anv_surf->isl.logical_level0_px.h <= 256)
+         return false;
+   }
+
+   /* On gfx12.0, CCS fast clears don't seem to cover the correct portion of
+    * the aux buffer when the pitch is not 512B-aligned.
+    */
+   if (cmd_buffer->device->info->verx10 == 120 &&
+       image->planes->primary_surface.isl.samples == 1 &&
+       image->planes->primary_surface.isl.row_pitch_B % 512) {
+      anv_perf_warn(VK_LOG_OBJS(&image->vk.base),
+                    "Pitch not 512B-aligned. Slow clearing surface.");
+      return false;
+   }
+
+   /* Disable sRGB fast-clears for non-0/1 color values on Gfx9. For texturing
+    * and draw calls, HW expects the clear color to be in two different color
+    * spaces after sRGB fast-clears - sRGB in the former and linear in the
+    * latter. By limiting the allowable values to 0/1, both color space
+    * requirements are satisfied.
+    *
+    * Gfx11+ is fine as the fast clear generate 2 colors at the clear color
+    * address, raw & converted such that all fixed functions can find the
+    * value they need.
+    */
+   if (cmd_buffer->device->info->ver == 9 &&
+       isl_format_is_srgb(view_format) &&
+       !isl_color_value_is_zero_one(clear_color, view_format))
+      return false;
+
+   /* Wa_16021232440: Disable fast clear when height is 16k */
+   if (intel_needs_workaround(cmd_buffer->device->info, 16021232440) &&
+       image->vk.extent.height == 16 * 1024) {
+      return false;
+   }
+
+   return true;
+}
 
 /**
  * This function determines if the layout & usage of an image can have
