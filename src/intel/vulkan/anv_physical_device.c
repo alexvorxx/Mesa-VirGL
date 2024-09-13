@@ -1887,6 +1887,7 @@ anv_physical_device_init_heaps(struct anv_physical_device *device, int fd)
                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT))
             continue;
 
+         assert(device->memory.type_count < ARRAY_SIZE(device->memory.types));
          struct anv_memory_type *new_type =
             &device->memory.types[device->memory.type_count++];
          *new_type = device->memory.types[i];
@@ -1929,6 +1930,7 @@ anv_physical_device_init_heaps(struct anv_physical_device *device, int fd)
       device->memory.dynamic_visible_mem_types |=
          BITFIELD_BIT(device->memory.type_count);
 
+      assert(device->memory.type_count < ARRAY_SIZE(device->memory.types));
       struct anv_memory_type *new_type =
          &device->memory.types[device->memory.type_count++];
       *new_type = device->memory.types[i];
