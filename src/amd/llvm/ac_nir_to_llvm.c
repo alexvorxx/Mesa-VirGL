@@ -334,7 +334,8 @@ static LLVMValueRef emit_umul_high(struct ac_llvm_context *ctx, LLVMValueRef src
 {
    LLVMValueRef dst64, result;
 
-#if LLVM_VERSION_MAJOR < 20
+/* 64-bit multiplication by a constant is broken in old LLVM. Fixed in LLVM 19.1 and LLVM 20. */
+#if LLVM_VERSION_MAJOR < 19 || (LLVM_VERSION_MAJOR == 19 && LLVM_VERSION_MINOR == 0)
    if (LLVMIsConstant(src0))
       ac_build_optimization_barrier(ctx, &src1, false);
    else
