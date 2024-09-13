@@ -1,3 +1,7 @@
+/*
+ * Copyright 2018 Google
+ * SPDX-License-Identifier: MIT
+ */
     void flush();
     void lock();
     void unlock();

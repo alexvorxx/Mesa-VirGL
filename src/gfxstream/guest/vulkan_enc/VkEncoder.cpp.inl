@@ -1,3 +1,8 @@
+/*
+ * Copyright 2018 Google
+ * SPDX-License-Identifier: MIT
+ */
+
 static ResourceTracker* sResourceTracker = nullptr;
 static uint32_t sFeatureBits = 0;
 static constexpr uint32_t kWatchdogBufferMax = 1'000;

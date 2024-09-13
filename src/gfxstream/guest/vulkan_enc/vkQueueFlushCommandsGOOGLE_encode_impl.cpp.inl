@@ -1,7 +1,7 @@
-// Manual inline for
-// void VkEncoder::vkQueueFlushCommandsGOOGLE( VkQueue queue, VkCommandBuffer commandBuffer, VkDeviceSize dataSize, const void* pData, uint32_t doLock);
-
-// We won't use the lock if this command is used (VulkanQueueSubmitWithCommands is enabled)
+/*
+ * Copyright 2018 Google LLC
+ * SPDX-License-Identifier: MIT
+ */
 (void)doLock;
 
 auto stream = mImpl->stream();

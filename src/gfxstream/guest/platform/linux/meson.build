@@ -1,4 +1,4 @@
-# Copyright 2022 Android Open Source Project
+# Copyright 2022 Google
 # SPDX-License-Identifier: MIT
 
 files_libplatform_virtgpu_linux = files(

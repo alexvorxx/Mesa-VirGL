@@ -1,4 +1,4 @@
-# Copyright 2022 Android Open Source Project
+# Copyright 2022 Google LLC
 # SPDX-License-Identifier: MIT
 
 inc_platform_virtgpu = include_directories('include')
