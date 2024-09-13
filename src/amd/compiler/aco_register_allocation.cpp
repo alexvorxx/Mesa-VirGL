@@ -799,7 +799,6 @@ adjust_max_used_regs(ra_ctx& ctx, RegClass rc, unsigned reg)
 
 enum UpdateRenames {
    rename_not_killed_ops = 0x1,
-   fill_killed_ops = 0x2,
    rename_precolored_ops = 0x4,
 };
 MESA_DEFINE_CPP_ENUM_BITFIELD_OPERATORS(UpdateRenames);
@@ -856,7 +855,7 @@ update_renames(ra_ctx& ctx, RegisterFile& reg_file,
                if (op.isTemp() && op.tempId() == other.second.tempId()) {
                   // FIXME: ensure that the operand can use this reg
                   op.setFixed(other.second.physReg());
-                  fill = (flags & fill_killed_ops) || !op.isKillBeforeDef();
+                  fill = !op.isKillBeforeDef();
                }
             }
             if (fill)
@@ -909,10 +908,11 @@ update_renames(ra_ctx& ctx, RegisterFile& reg_file,
             op.setTemp(copy.second.getTemp());
             op.setFixed(copy.second.physReg());
 
-            fill = (flags & fill_killed_ops) || !op.isKillBeforeDef();
+            fill = !op.isKillBeforeDef() || (flags & rename_precolored_ops);
          }
       }
 
+      /* Apply changes to register file. */
       if (fill)
          reg_file.fill(copy.second);
 
@@ -2088,6 +2088,7 @@ handle_fixed_operands(ra_ctx& ctx, RegisterFile& register_file,
                       aco_ptr<Instruction>& instr)
 {
    assert(instr->operands.size() <= 128);
+   assert(parallelcopy.empty());
 
    RegisterFile tmp_file(register_file);
 
@@ -2146,7 +2147,7 @@ handle_fixed_operands(ra_ctx& ctx, RegisterFile& register_file,
 
    get_regs_for_copies(ctx, tmp_file, parallelcopy, blocking_vars, instr, PhysRegInterval());
    update_renames(ctx, register_file, parallelcopy, instr,
-                  rename_not_killed_ops | fill_killed_ops | rename_precolored_ops);
+                  rename_not_killed_ops | rename_precolored_ops);
 }
 
 void
@@ -2163,7 +2164,8 @@ get_reg_for_operand(ra_ctx& ctx, RegisterFile& register_file,
    pc_op.setFixed(src);
    Definition pc_def = Definition(dst, pc_op.regClass());
    parallelcopy.emplace_back(pc_op, pc_def);
-   update_renames(ctx, register_file, parallelcopy, instr, rename_not_killed_ops | fill_killed_ops);
+   update_renames(ctx, register_file, parallelcopy, instr, rename_not_killed_ops);
+   register_file.fill(Definition(operand.getTemp(), dst));
 }
 
 PhysReg
