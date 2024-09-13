@@ -1855,11 +1855,13 @@ label_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
                   ctx.info[instr->definitions[0].tempId()].set_neg(other);
                else if (!abs && !neg)
                   ctx.info[instr->definitions[0].tempId()].set_fcanonicalize(other);
-            } else if (uses_mods || ((fp16 ? ctx.fp_mode.preserve_signed_zero_inf_nan16_64
-                                           : ctx.fp_mode.preserve_signed_zero_inf_nan32) &&
+            } else if (uses_mods || (instr->definitions[0].isSZPreserve() &&
                                      instr->opcode != aco_opcode::v_mul_legacy_f32)) {
                continue; /* omod uses a legacy multiplication. */
-            } else if (instr->operands[!i].constantValue() == 0u) { /* 0.0 */
+            } else if (instr->operands[!i].constantValue() == 0u &&
+                       ((!instr->definitions[0].isNaNPreserve() &&
+                         !instr->definitions[0].isInfPreserve()) ||
+                        instr->opcode == aco_opcode::v_mul_legacy_f32)) { /* 0.0 */
                ctx.info[instr->definitions[0].tempId()].set_constant(ctx.program->gfx_level, 0u);
             } else if ((fp16 ? ctx.fp_mode.denorm16_64 : ctx.fp_mode.denorm32) != fp_denorm_flush) {
                /* omod has no effect if denormals are enabled. */
@@ -3797,7 +3799,7 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
       if (mul_instr->isSDWA() || mul_instr->isDPP())
          return;
       if (mul_instr->opcode == aco_opcode::v_mul_legacy_f32 &&
-          ctx.fp_mode.preserve_signed_zero_inf_nan32)
+          mul_instr->definitions[0].isSZPreserve())
          return;
       if (mul_instr->definitions[0].bytes() != instr->definitions[0].bytes())
          return;
@@ -4026,9 +4028,10 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
       }
    }
    /* v_mul_f32(v_cndmask_b32(0, 1.0, cond), a) -> v_cndmask_b32(0, a, cond) */
-   else if (((instr->opcode == aco_opcode::v_mul_f32 &&
-              !ctx.fp_mode.preserve_signed_zero_inf_nan32) ||
-             instr->opcode == aco_opcode::v_mul_legacy_f32) &&
+   else if (((instr->opcode == aco_opcode::v_mul_f32 && !instr->definitions[0].isNaNPreserve() &&
+              !instr->definitions[0].isInfPreserve()) ||
+             (instr->opcode == aco_opcode::v_mul_legacy_f32 &&
+              !instr->definitions[0].isSZPreserve())) &&
             !instr->usesModifiers() && !ctx.fp_mode.must_flush_denorms32) {
       for (unsigned i = 0; i < 2; i++) {
          if (instr->operands[i].isTemp() && ctx.info[instr->operands[i].tempId()].is_b2f() &&
