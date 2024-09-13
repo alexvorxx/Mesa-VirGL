@@ -59,6 +59,9 @@ sysval_for_intrinsic(unsigned arch, nir_intrinsic_instr *intr, unsigned *offset)
 {
    switch (intr->intrinsic) {
    case nir_intrinsic_load_ssbo_address:
+      if (arch >= 9)
+         return ~0;
+
       assert(nir_src_as_uint(intr->src[1]) == 0);
       return PAN_SYSVAL(SSBO, nir_src_as_uint(intr->src[0]));
    case nir_intrinsic_get_ssbo_size:

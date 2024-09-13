@@ -1991,6 +1991,22 @@ bi_emit_intrinsic(bi_builder *b, nir_intrinsic_instr *instr)
       bi_mov_i32_to(b, dst, bi_u8_to_u32(b, bi_byte(bi_preload(b, 62), 0)));
       break;
 
+   case nir_intrinsic_load_ssbo_address:
+      assert(b->shader->arch >= 9);
+      bi_lea_buffer_to(b, dst, bi_src_index(&instr->src[1]),
+                       bi_src_index(&instr->src[0]));
+      bi_emit_cached_split(b, dst, 64);
+      break;
+
+   case nir_intrinsic_load_ssbo: {
+      assert(b->shader->arch >= 9);
+      unsigned dst_bits = instr->num_components * instr->def.bit_size;
+      bi_ld_buffer_to(b, dst_bits, dst, bi_src_index(&instr->src[1]),
+                      bi_src_index(&instr->src[0]));
+      bi_emit_cached_split(b, dst, dst_bits);
+      break;
+   }
+
    default:
       fprintf(stderr, "Unhandled intrinsic %s\n",
               nir_intrinsic_infos[instr->intrinsic].name);
@@ -5085,7 +5101,12 @@ bifrost_preprocess_nir(nir_shader *nir, unsigned gpu_id)
               bi_lower_load_push_const_with_dyn_offset,
               nir_metadata_control_flow, NULL);
 
-   NIR_PASS_V(nir, nir_lower_ssbo, NULL);
+   nir_lower_ssbo_options ssbo_opts = {
+      .native_loads = pan_arch(gpu_id) >= 9,
+      .native_offset = pan_arch(gpu_id) >= 9,
+   };
+   NIR_PASS_V(nir, nir_lower_ssbo, &ssbo_opts);
+
    NIR_PASS_V(nir, pan_lower_sample_pos);
    NIR_PASS_V(nir, nir_lower_bit_size, bi_lower_bit_size, NULL);
    NIR_PASS_V(nir, nir_lower_64bit_phis);
