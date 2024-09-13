@@ -343,12 +343,16 @@ public:
          fill(start, rc.size(), 0);
    }
 
-   void fill(Operand op)
+   void fill_killed_operands(Instruction* instr)
    {
-      if (op.regClass().is_subdword())
-         fill_subdword(op.physReg(), op.bytes(), op.tempId());
-      else
-         fill(op.physReg(), op.size(), op.tempId());
+      for (Operand& op : instr->operands) {
+         if (op.isFixed() && op.isFirstKillBeforeDef()) {
+            if (op.regClass().is_subdword())
+               fill_subdword(op.physReg(), op.bytes(), op.tempId());
+            else
+               fill(op.physReg(), op.size(), op.tempId());
+         }
+      }
    }
 
    void clear(Operand op) { clear(op.physReg(), op.regClass()); }
@@ -1368,22 +1372,14 @@ get_reg_impl(ra_ctx& ctx, const RegisterFile& reg_file,
    RegisterFile tmp_file(reg_file);
 
    /* p_create_vector: also re-place killed operands in the definition space */
-   if (instr->opcode == aco_opcode::p_create_vector) {
-      for (Operand& op : instr->operands) {
-         if (op.isTemp() && op.isFirstKillBeforeDef())
-            tmp_file.fill(op);
-      }
-   }
+   if (instr->opcode == aco_opcode::p_create_vector)
+      tmp_file.fill_killed_operands(instr.get());
 
    std::vector<unsigned> vars = collect_vars(ctx, tmp_file, best_win);
 
    /* re-enable killed operands */
-   if (!is_phi(instr) && instr->opcode != aco_opcode::p_create_vector) {
-      for (Operand& op : instr->operands) {
-         if (op.isTemp() && op.isFirstKillBeforeDef())
-            tmp_file.fill(op);
-      }
-   }
+   if (!is_phi(instr) && instr->opcode != aco_opcode::p_create_vector)
+      tmp_file.fill_killed_operands(instr.get());
 
    std::vector<std::pair<Operand, Definition>> pc;
    if (!get_regs_for_copies(ctx, tmp_file, pc, vars, instr, best_win))
@@ -1684,10 +1680,7 @@ alloc_linear_vgpr(ra_ctx& ctx, const RegisterFile& reg_file, aco_ptr<Instruction
    std::vector<unsigned> blocking_vars = collect_vars(ctx, tmp_file, new_win);
 
    /* Re-enable killed operands */
-   for (Operand& op : instr->operands) {
-      if (op.isTemp() && op.isFirstKillBeforeDef())
-         tmp_file.fill(op);
-   }
+   tmp_file.fill_killed_operands(instr.get());
 
    /* Find new assignments for blocking vars. */
    std::vector<std::pair<Operand, Definition>> pc;
@@ -1989,10 +1982,8 @@ get_reg_create_vector(ra_ctx& ctx, const RegisterFile& reg_file, Temp temp,
 
    /* re-enable killed operands which are in the wrong position */
    RegisterFile tmp_file(reg_file);
-   for (Operand& op : instr->operands) {
-      if (op.isTemp() && op.isFirstKillBeforeDef())
-         tmp_file.fill(op);
-   }
+   tmp_file.fill_killed_operands(instr.get());
+
    for (unsigned i = 0; i < instr->operands.size(); i++) {
       if ((correct_pos_mask >> i) & 1u && instr->operands[i].isKill())
          tmp_file.clear(instr->operands[i]);
@@ -3170,10 +3161,7 @@ register_allocation(Program* program, ra_test_policy policy)
 
                RegisterFile tmp_file(register_file);
                /* re-enable the killed operands, so that we don't move the blocking vars there */
-               for (const Operand& op : instr->operands) {
-                  if (op.isTemp() && op.isFirstKillBeforeDef())
-                     tmp_file.fill(op);
-               }
+               tmp_file.fill_killed_operands(instr.get());
 
                ASSERTED bool success = false;
                success = get_regs_for_copies(ctx, tmp_file, parallelcopy, vars, instr, def_regs);
