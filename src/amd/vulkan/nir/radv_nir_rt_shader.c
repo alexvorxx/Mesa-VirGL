@@ -835,23 +835,6 @@ insert_rt_case(nir_builder *b, nir_shader *shader, struct rt_variables *vars, ni
    ralloc_free(var_remap);
 }
 
-static bool
-radv_lower_payload_arg_to_offset(nir_builder *b, nir_intrinsic_instr *instr, void *data)
-{
-   if (instr->intrinsic != nir_intrinsic_trace_ray)
-      return false;
-
-   nir_deref_instr *payload = nir_src_as_deref(instr->src[10]);
-   assert(payload->deref_type == nir_deref_type_var);
-
-   b->cursor = nir_before_instr(&instr->instr);
-   nir_def *offset = nir_imm_int(b, payload->var->data.driver_location);
-
-   nir_src_rewrite(&instr->src[10], offset);
-
-   return true;
-}
-
 void
 radv_nir_lower_rt_io(nir_shader *nir, bool monolithic, uint32_t payload_offset)
 {
@@ -863,17 +846,6 @@ radv_nir_lower_rt_io(nir_shader *nir, bool monolithic, uint32_t payload_offset)
 
       NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_function_temp, nir_address_format_32bit_offset);
    } else {
-      if (nir->info.stage == MESA_SHADER_RAYGEN) {
-         /* Use nir_lower_vars_to_explicit_types to assign the payload locations. We call
-          * nir_lower_vars_to_explicit_types later after splitting the payloads.
-          */
-         uint32_t scratch_size = nir->scratch_size;
-         nir_lower_vars_to_explicit_types(nir, nir_var_function_temp, glsl_get_natural_size_align_bytes);
-         nir->scratch_size = scratch_size;
-
-         nir_shader_intrinsics_pass(nir, radv_lower_payload_arg_to_offset, nir_metadata_control_flow, NULL);
-      }
-
       NIR_PASS(_, nir, radv_nir_lower_ray_payload_derefs, payload_offset);
    }
 }
