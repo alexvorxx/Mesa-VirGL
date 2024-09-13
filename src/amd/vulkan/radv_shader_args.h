@@ -22,7 +22,7 @@ enum radv_ud_index {
    AC_UD_VIEW_INDEX = 4,
    AC_UD_STREAMOUT_BUFFERS = 5,
    AC_UD_STREAMOUT_STATE = 6,
-   AC_UD_SHADER_QUERY_STATE = 7,
+   AC_UD_TASK_STATE = 7,
    AC_UD_NGG_CULLING_SETTINGS = 8,
    AC_UD_NGG_VIEWPORT = 9,
    AC_UD_NGG_LDS_LAYOUT = 10,
@@ -73,15 +73,15 @@ struct radv_shader_args {
    struct ac_shader_args ac;
 
    struct ac_arg descriptor_sets[MAX_SETS];
-   /* User data 2/3. same as ring_offsets but for task shaders. */
-   struct ac_arg task_ring_offsets;
 
    /* Streamout */
    struct ac_arg streamout_buffers;
    struct ac_arg streamout_state; /* GFX12+ */
 
-   /* Emulated query */
-   struct ac_arg shader_query_state;
+   /* Task */
+   struct ac_arg task_state;
+   /* User data 2/3. same as ring_offsets but for task shaders. */
+   struct ac_arg task_ring_offsets;
 
    /* NGG */
    struct ac_arg ngg_state;

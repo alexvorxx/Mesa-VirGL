@@ -7895,7 +7895,7 @@ radv_bind_task_shader(struct radv_cmd_buffer *cmd_buffer, const struct radv_shad
    if (!radv_gang_init(cmd_buffer))
       return;
 
-   if (radv_get_user_sgpr_info(ts, AC_UD_SHADER_QUERY_STATE)->sgpr_idx != -1) {
+   if (radv_get_user_sgpr_info(ts, AC_UD_TASK_STATE)->sgpr_idx != -1) {
       /* Re-emit shader query state when SGPR exists but location potentially changed. */
       cmd_buffer->state.dirty |= RADV_CMD_DIRTY_SHADER_QUERY;
    }
@@ -10610,10 +10610,10 @@ radv_emit_task_state(struct radv_cmd_buffer *cmd_buffer)
    if (!task_shader || !pdev->emulate_mesh_shader_queries)
       return;
 
-   const uint32_t shader_query_state_offset = radv_get_user_sgpr_loc(task_shader, AC_UD_SHADER_QUERY_STATE);
+   const uint32_t task_state_offset = radv_get_user_sgpr_loc(task_shader, AC_UD_TASK_STATE);
    enum radv_shader_query_state shader_query_state = radv_shader_query_none;
 
-   if (!shader_query_state_offset)
+   if (!task_state_offset)
       return;
 
    /* By default shader queries are disabled but they are enabled if the command buffer has active ACE
@@ -10624,7 +10624,7 @@ radv_emit_task_state(struct radv_cmd_buffer *cmd_buffer)
        (cmd_buffer->state.inherited_pipeline_statistics & VK_QUERY_PIPELINE_STATISTIC_TASK_SHADER_INVOCATIONS_BIT_EXT))
       shader_query_state |= radv_shader_query_pipeline_stat;
 
-   radeon_set_sh_reg(cmd_buffer->gang.cs, shader_query_state_offset, shader_query_state);
+   radeon_set_sh_reg(cmd_buffer->gang.cs, task_state_offset, shader_query_state);
 }
 
 static void

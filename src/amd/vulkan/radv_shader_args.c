@@ -595,7 +595,7 @@ declare_shader_args(const struct radv_device *device, const struct radv_graphics
          add_ud_arg(args, 1, AC_ARG_INT, &args->ac.task_ring_entry, AC_UD_TASK_RING_ENTRY);
 
          if (has_shader_query) {
-            add_ud_arg(args, 1, AC_ARG_INT, &args->shader_query_state, AC_UD_SHADER_QUERY_STATE);
+            add_ud_arg(args, 1, AC_ARG_INT, &args->task_state, AC_UD_TASK_STATE);
          }
       }
 
