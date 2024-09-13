@@ -963,6 +963,18 @@ get_format_properties(struct panvk_physical_device *physical_device,
 {
    VkFormatFeatureFlags tex = 0, buffer = 0;
    enum pipe_format pfmt = vk_format_to_pipe_format(format);
+   unsigned arch = pan_arch(physical_device->kmod.props.gpu_prod_id);
+
+   /* FIXME: Valhall doesn't support interleaved D32_S8X24. Implement it as
+    * a multi-plane format, and we probably want to switch Bifrost to this
+    * layout too, since:
+    * - it's more cache-friendly (you load more samples on a cache-line if you don't
+    *   have those 24 dummy bits)
+    * - it takes less memory (you don't lose those 24bits per texel)
+    * - we can use AFBC
+    */
+   if (arch >= 9 && format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+      goto end;
 
    if (pfmt == PIPE_FORMAT_NONE)
       goto end;
