@@ -2578,6 +2578,8 @@ radv_shader_create_uncached(struct radv_device *device, const struct radv_shader
    }
    simple_mtx_init(&shader->replay_mtx, mtx_plain);
 
+   _mesa_blake3_compute(binary, binary->total_size, shader->hash);
+
    vk_pipeline_cache_object_init(&device->vk, &shader->base, &radv_shader_ops, shader->hash, sizeof(shader->hash));
 
    shader->info = binary->info;
