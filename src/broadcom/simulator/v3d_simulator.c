@@ -61,6 +61,7 @@
 #include "util/u_math.h"
 
 #include <xf86drm.h>
+#include "asahi/lib/unstable_asahi_drm.h"
 #include "drm-uapi/amdgpu_drm.h"
 #include "drm-uapi/i915_drm.h"
 #include "drm-uapi/v3d_drm.h"
@@ -102,6 +103,7 @@ static struct v3d_simulator_state {
 enum gem_type {
         GEM_I915,
         GEM_AMDGPU,
+        GEM_ASAHI,
         GEM_DUMB
 };
 
@@ -275,6 +277,16 @@ v3d_create_simulator_bo_for_gem(int fd, int handle, unsigned size)
 
                 ret = drmIoctl(fd, DRM_IOCTL_AMDGPU_GEM_MMAP, &map);
                 sim_bo->mmap_offset = map.out.addr_ptr;
+                break;
+        }
+        case GEM_ASAHI:
+        {
+                struct drm_asahi_gem_mmap_offset gem_mmap_offset = {
+                        .handle = handle
+                };
+
+                ret = drmIoctl(fd, DRM_IOCTL_ASAHI_GEM_MMAP_OFFSET, &gem_mmap_offset);
+                sim_bo->mmap_offset = gem_mmap_offset.offset;
                 break;
         }
         default:
@@ -562,6 +574,17 @@ v3d_simulator_create_bo_ioctl(int fd, struct drm_v3d_create_bo *args)
                 ret = drmIoctl(fd, DRM_IOCTL_AMDGPU_GEM_CREATE, &create);
 
                 args->handle = create.out.handle;
+                break;
+        }
+        case GEM_ASAHI:
+        {
+                struct drm_asahi_gem_create create = {
+                        .size = args->size,
+                };
+
+                ret = drmIoctl(fd, DRM_IOCTL_ASAHI_GEM_CREATE, &create);
+
+                args->handle = create.handle;
                 break;
         }
         default:
@@ -1180,6 +1203,8 @@ v3d_simulator_init(int fd)
                 sim_file->gem_type = GEM_I915;
         else if (version && strncmp(version->name, "amdgpu", version->name_len) == 0)
                 sim_file->gem_type = GEM_AMDGPU;
+        else if (version && strncmp(version->name, "asahi", version->name_len) == 0)
+                sim_file->gem_type = GEM_ASAHI;
         else
                 sim_file->gem_type = GEM_DUMB;
         drmFreeVersion(version);
