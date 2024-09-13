@@ -5008,6 +5008,16 @@ static void si_emit_cache_flush_state(struct si_context *sctx, unsigned index)
    sctx->emit_cache_flush(sctx, &sctx->gfx_cs);
 }
 
+static void si_pm4_emit_sqtt_pipeline(struct si_context *sctx, unsigned index)
+{
+   struct si_pm4_state *state = sctx->queued.array[index];
+
+   si_pm4_emit_state(sctx, index);
+
+   radeon_add_to_buffer_list(sctx, &sctx->gfx_cs, ((struct si_sqtt_fake_pipeline*)state)->bo,
+                             RADEON_USAGE_READ | RADEON_PRIO_SHADER_BINARY);
+}
+
 void si_init_state_compute_functions(struct si_context *sctx)
 {
    sctx->b.create_sampler_state = si_create_sampler_state;
@@ -5022,7 +5032,7 @@ void si_init_state_functions(struct si_context *sctx)
    sctx->atoms.s.pm4_states[SI_STATE_IDX(blend)].emit = si_pm4_emit_state;
    sctx->atoms.s.pm4_states[SI_STATE_IDX(rasterizer)].emit = si_pm4_emit_rasterizer;
    sctx->atoms.s.pm4_states[SI_STATE_IDX(dsa)].emit = si_pm4_emit_dsa;
-   sctx->atoms.s.pm4_states[SI_STATE_IDX(sqtt_pipeline)].emit = si_pm4_emit_state;
+   sctx->atoms.s.pm4_states[SI_STATE_IDX(sqtt_pipeline)].emit = si_pm4_emit_sqtt_pipeline;
    sctx->atoms.s.pm4_states[SI_STATE_IDX(ls)].emit = si_pm4_emit_shader;
    sctx->atoms.s.pm4_states[SI_STATE_IDX(hs)].emit = si_pm4_emit_shader;
    sctx->atoms.s.pm4_states[SI_STATE_IDX(es)].emit = si_pm4_emit_shader;

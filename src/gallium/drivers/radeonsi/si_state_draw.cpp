@@ -374,15 +374,25 @@ static bool si_update_shaders(struct si_context *sctx)
             for (int i = 0; i < SI_NUM_GRAPHICS_SHADERS; i++) {
                struct si_shader *shader = sctx->shaders[i].current;
                if (sctx->shaders[i].cso && shader) {
-                  si_resource_reference(&shader->bo, bo);
+                  struct si_resource *original_bo = shader->bo;
+
+                  /* Temp override for si_shader_binary_upload_at to work. */
+                  shader->bo = pipeline->bo;
 
                   int size = si_shader_binary_upload_at(sctx->screen, shader, scratch_va, offset);
+
+                  shader->bo = original_bo;
+
+                  assert(size == (int)shader->binary.uploaded_code_size);
 
                   gfx_sh_offsets[i] = offset;
                   offset += align(size, 256);
 
                   struct si_pm4_state *pm4 = &shader->pm4;
 
+                  /* Patch the SPI_SHADER_PGM_LO_* register to point to the new bo address,
+                   * with the proper offset.
+                   */
                   uint64_t va_low = shader->gpu_address >> 8;
                   uint32_t reg = pm4->base.spi_shader_pgm_lo_reg;
                   ac_pm4_set_reg(&pipeline->pm4.base, reg, va_low);
@@ -405,8 +415,6 @@ static bool si_update_shaders(struct si_context *sctx)
       }
       assert(pipeline);
 
-      radeon_add_to_buffer_list(sctx, &sctx->gfx_cs, pipeline->bo,
-                                RADEON_USAGE_READ | RADEON_PRIO_SHADER_BINARY);
       si_sqtt_describe_pipeline_bind(sctx, pipeline_code_hash, 0);
       si_pm4_bind_state(sctx, sqtt_pipeline, pipeline);
    }
