@@ -378,12 +378,25 @@ valhall_pack_buf_idx(nir_builder *b, nir_instr *instr, UNUSED void *data)
       return false;
 
    nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+   unsigned index_src;
 
-   if (intrin->intrinsic != nir_intrinsic_load_ubo &&
-       intrin->intrinsic != nir_intrinsic_load_ssbo)
+   switch (intrin->intrinsic) {
+   case nir_intrinsic_load_ubo:
+   case nir_intrinsic_load_ssbo:
+   case nir_intrinsic_ssbo_atomic:
+   case nir_intrinsic_ssbo_atomic_swap:
+      index_src = 0;
+      break;
+
+   case nir_intrinsic_store_ssbo:
+      index_src = 1;
+      break;
+
+   default:
       return false;
+   }
 
-   nir_def *index = intrin->src[0].ssa;
+   nir_def *index = intrin->src[index_src].ssa;
 
    /* The descriptor lowering pass can add UBO loads, and those already have the
     * right index format. */
@@ -401,7 +414,7 @@ valhall_pack_buf_idx(nir_builder *b, nir_instr *instr, UNUSED void *data)
     * have been lowered. */
    nir_def *packed_index =
       nir_iadd(b, nir_channel(b, index, 0), nir_channel(b, index, 1));
-   nir_src_rewrite(&intrin->src[0], packed_index);
+   nir_src_rewrite(&intrin->src[index_src], packed_index);
    return true;
 }
 #endif
