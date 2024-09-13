@@ -114,7 +114,7 @@ radv_create_pipeline_binary(struct radv_device *device, const VkAllocationCallba
    pipeline_binary->data = (void *)data;
    pipeline_binary->size = data_size;
 
-   memcpy(pipeline_binary->key, key, sizeof(*key));
+   memcpy(pipeline_binary->key, key, BLAKE3_OUT_LEN);
 
    *pipeline_binary_out = pipeline_binary;
    return VK_SUCCESS;
