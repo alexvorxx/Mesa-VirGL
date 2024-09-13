@@ -16,7 +16,6 @@ spec@!opengl 1.0@rasterpos,Fail
 spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked,Fail
 spec@!opengl 1.0@rasterpos@glsl_vs_tes_linked,Fail
 spec@!opengl 1.1@depthstencil-default_fb-blit samples=16,Fail
-spec@!opengl 1.1@depthstencil-default_fb-blit samples=2,Fail
 spec@!opengl 1.1@line-smooth-stipple,Fail
 spec@!opengl 1.1@linestipple,Fail
 spec@!opengl 1.1@linestipple@Factor 2x,Fail
@@ -481,13 +480,11 @@ spec@ext_framebuffer_multisample@interpolation 16 centroid-deriv-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 16 centroid-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 16 non-centroid-deriv-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 16 non-centroid-disabled,Fail
-spec@ext_framebuffer_multisample@interpolation 2 centroid-deriv-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 2 centroid-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 2 non-centroid-deriv-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 2 non-centroid-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 4 centroid-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 4 non-centroid-disabled,Fail
-spec@ext_framebuffer_multisample@interpolation 6 centroid-deriv-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 6 centroid-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 6 non-centroid-disabled,Fail
 spec@ext_framebuffer_multisample@interpolation 8 centroid-disabled,Fail
@@ -523,4 +520,8 @@ spec@ext_transform_feedback@tessellation quads wireframe,Fail
 spec@ext_transform_feedback@tessellation triangle_fan flat_first,Fail
 spec@khr_texture_compression_astc@miptree-gles srgb-fp,Fail
 spec@khr_texture_compression_astc@miptree-gles srgb-fp@sRGB decode full precision,Fail
+
+# uprev Piglit in Mesa
+spec@ext_framebuffer_multisample@interpolation 4 non-centroid-deriv-disabled,Fail
+spec@ext_framebuffer_multisample@interpolation 4 centroid-deriv-disabled,Fail
 

@@ -5,16 +5,6 @@ api@clbuildprogram,Fail
 # Failed (error code: CL_INVALID_OPERATION): CL_SUCCESS when compiling an empty string..
 api@clcompileprogram,Fail
 
-# Failed (error code: CL_INVALID_COMMAND_QUEUE): Get size of CL_QUEUE_SIZE.
-api@clgetcommandqueueinfo,Fail
-
-# CL_DEVICE_VERSION: failed, 'OpenCL 3.0' should contains 'OpenCL 1.1'
-# CL_DEVICE_OPENCL_C_VERSION: failed, 'OpenCL C 1.2 ' should contains 'OpenCL C 1.1'
-# CL_DEVICE_DOUBLE_FP_CONFIG: failed, expected CL_FP_FMA|CL_FP_ROUND_TO_NEAREST|CL_
-#
-# I think the test needs to be updated for CL 3.0, and we need to set PIGLIT_CL_VERSION=3.0 in the environment.
-api@clgetdeviceinfo,Fail
-
 # Failed: return NULL if platform is not a valid platform
 api@clgetextensionfunctionaddressforplatform,Fail
 

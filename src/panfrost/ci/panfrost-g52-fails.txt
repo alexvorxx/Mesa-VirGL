@@ -4,8 +4,6 @@ glx@glx_arb_sync_control@swapbuffersmsc-divisor-zero,Fail
 glx@glx-make-current,Fail
 glx@glx-multi-window-single-context,Fail
 glx@glx-swap-pixmap-bad,Fail
-glx@glx-visuals-depth -pixmap,Crash
-glx@glx-visuals-stencil -pixmap,Crash
 shaders@point-vertex-id divisor,Fail
 shaders@point-vertex-id gl_instanceid divisor,Fail
 shaders@point-vertex-id gl_instanceid,Fail
@@ -119,8 +117,6 @@ spec@ext_transform_feedback@change-size base-shrink,Fail
 spec@ext_transform_feedback@change-size offset-shrink,Fail
 spec@ext_transform_feedback@change-size range-grow,Fail
 spec@ext_transform_feedback@change-size range-shrink,Fail
-spec@ext_transform_feedback@immediate-reuse-index-buffer,Crash
-spec@ext_transform_feedback@immediate-reuse-uniform-buffer,Crash
 spec@ext_transform_feedback@interleaved-attribs,Fail
 spec@ext_transform_feedback@intervening-read output,Fail
 spec@ext_transform_feedback@intervening-read prims_written,Fail
@@ -230,24 +226,6 @@ spec@glsl-1.10@execution@varying-packing@simple vec4 array,Fail
 spec@glsl-1.10@execution@varying-packing@simple vec4 arrays_of_arrays,Fail
 spec@glsl-1.30@execution@tex-miplevel-selection texture() 2drect,Crash
 spec@glsl-1.30@execution@tex-miplevel-selection texture() 2drectshadow,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection texturegrad 2drect,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection texturegrad 2drectshadow,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection texturegradoffset 2drect,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection texturegradoffset 2drectshadow,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureoffset 2drect,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureoffset 2drectshadow,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureproj 2drect,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureproj 2drect_projvec4,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureproj 2drectshadow,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureprojgrad 2drect,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureprojgrad 2drect_projvec4,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureprojgrad 2drectshadow,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureprojgradoffset 2drect,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureprojgradoffset 2drect_projvec4,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureprojgradoffset 2drectshadow,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureprojoffset 2drect,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureprojoffset 2drect_projvec4,Crash
-spec@glsl-1.30@execution@tex-miplevel-selection textureprojoffset 2drectshadow,Crash
 spec@glsl-es-3.00@execution@varying-struct-centroid_gles3,Fail
 spec@khr_texture_compression_astc@miptree-gles hdr,Fail
 spec@khr_texture_compression_astc@miptree-gles hdr@HDR Profile,Fail

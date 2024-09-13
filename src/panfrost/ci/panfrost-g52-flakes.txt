@@ -27,3 +27,7 @@ dEQP-VK.api.command_buffers.render_pass_continue
 dEQP-VK.api.copy_and_blit.core.image_to_image.simple_tests.partial_image_.*
 
 dEQP-VK.api.buffer_view.access.suballocation.buffer_view_memory_test_partial_offset1
+
+# uprev Piglit in Mesa
+glx@glx-multithread-clearbuffer
+
