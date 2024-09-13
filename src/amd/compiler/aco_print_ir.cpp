@@ -150,6 +150,16 @@ print_definition(const Definition* definition, FILE* output, unsigned flags)
       print_reg_class(definition->regClass(), output);
    if (definition->isPrecise())
       fprintf(output, "(precise)");
+   if (definition->isInfPreserve() || definition->isNaNPreserve() || definition->isSZPreserve()) {
+      fprintf(output, "(");
+      if (definition->isSZPreserve())
+         fprintf(output, "Sz");
+      if (definition->isInfPreserve())
+         fprintf(output, "Inf");
+      if (definition->isNaNPreserve())
+         fprintf(output, "NaN");
+      fprintf(output, "Preserve)");
+   }
    if (definition->isNUW())
       fprintf(output, "(nuw)");
    if (definition->isNoCSE())
