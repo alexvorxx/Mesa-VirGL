@@ -151,6 +151,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .KHR_shader_draw_parameters = true,
       .KHR_shader_expect_assume = true,
       .KHR_shader_float_controls = true,
+      .KHR_shader_float_controls2 = true,
       .KHR_shader_float16_int8 = true,
       .KHR_shader_integer_dot_product = true,
       .KHR_shader_maximal_reconvergence = true,
@@ -450,6 +451,9 @@ nvk_get_device_features(const struct nv_device_info *info,
 
       /* VK_KHR_shader_expect_assume */
       .shaderExpectAssume = true,
+
+      /* VK_KHR_shader_float_controls2 */
+      .shaderFloatControls2 = true,
 
       /* VK_KHR_shader_maximal_reconvergence */
       .shaderMaximalReconvergence = true,
