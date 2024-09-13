@@ -234,6 +234,12 @@ wsi_device_init(struct wsi_device *wsi,
       goto fail;
 #endif
 
+#ifdef VK_USE_PLATFORM_METAL_EXT
+   result = wsi_metal_init_wsi(wsi, alloc, pdevice);
+   if (result != VK_SUCCESS)
+      goto fail;
+#endif
+
 #ifndef VK_USE_PLATFORM_WIN32_KHR
    result = wsi_headless_init_wsi(wsi, alloc, pdevice);
    if (result != VK_SUCCESS)
@@ -313,6 +319,9 @@ wsi_device_finish(struct wsi_device *wsi,
 #endif
 #if defined(VK_USE_PLATFORM_XCB_KHR)
    wsi_x11_finish_wsi(wsi, alloc);
+#endif
+#if defined(VK_USE_PLATFORM_METAL_EXT)
+   wsi_metal_finish_wsi(wsi, alloc);
 #endif
 }
 

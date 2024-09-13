@@ -17,6 +17,11 @@ project(
   ],
 )
 
+if host_machine.system() == 'darwin'
+  add_languages('objc', native : false)
+  add_global_arguments('-fobjc-arc', language : 'objc')
+endif
+
 cc = meson.get_compiler('c')
 cpp = meson.get_compiler('cpp')
 
@@ -382,12 +387,14 @@ _platforms = get_option('platforms')
 if _platforms.contains('auto')
   if system_has_kms_drm
     _platforms = ['x11', 'wayland']
-  elif ['darwin', 'cygwin'].contains(host_machine.system())
+  elif host_machine.system() == 'cygwin'
     _platforms = ['x11']
-  elif ['haiku'].contains(host_machine.system())
+  elif host_machine.system() == 'haiku'
     _platforms = ['haiku']
   elif host_machine.system() == 'windows'
     _platforms = ['windows']
+  elif host_machine.system() == 'darwin'
+    _platforms = ['x11', 'macos']
   else
     error('Unknown OS @0@. Please pass -Dplatforms to set platforms. Patches gladly accepted to fix this.'.format(
           host_machine.system()))
@@ -400,6 +407,7 @@ with_platform_xcb = _platforms.contains('xcb')
 with_platform_wayland = _platforms.contains('wayland')
 with_platform_haiku = _platforms.contains('haiku')
 with_platform_windows = _platforms.contains('windows')
+with_platform_macos = _platforms.contains('macos')
 
 with_glx = get_option('glx')
 if with_glx == 'auto'

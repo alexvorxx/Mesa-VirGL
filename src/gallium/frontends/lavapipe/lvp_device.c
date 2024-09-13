@@ -57,7 +57,8 @@
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR) || \
     defined(VK_USE_PLATFORM_WIN32_KHR) || \
     defined(VK_USE_PLATFORM_XCB_KHR) || \
-    defined(VK_USE_PLATFORM_XLIB_KHR)
+    defined(VK_USE_PLATFORM_XLIB_KHR) || \
+    defined(VK_USE_PLATFORM_METAL_EXT)
 #define LVP_USE_WSI_PLATFORM
 #endif
 #define LVP_API_VERSION VK_MAKE_VERSION(1, 3, VK_HEADER_VERSION)
@@ -94,6 +95,9 @@ static const struct vk_instance_extension_table lvp_instance_extensions_supporte
 #endif
 #ifdef VK_USE_PLATFORM_XLIB_KHR
    .KHR_xlib_surface                         = true,
+#endif
+#ifdef VK_USE_PLATFORM_METAL_EXT
+   .EXT_metal_surface                        = true,
 #endif
 #ifndef VK_USE_PLATFORM_WIN32_KHR
    .EXT_headless_surface                     = true,
