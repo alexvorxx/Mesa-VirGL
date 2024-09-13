@@ -201,6 +201,9 @@ struct panfrost_batch {
     */
    mali_ptr images[PIPE_SHADER_TYPES];
 
+   /* SSBOs. */
+   mali_ptr ssbos[PIPE_SHADER_TYPES];
+
    /* On Valhall, these are properties of the batch. On Bifrost, they are
     * per draw.
     */

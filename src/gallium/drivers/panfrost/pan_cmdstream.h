@@ -306,6 +306,9 @@ panfrost_emit_resources(struct panfrost_batch *batch,
                                    util_last_bit(ctx->vb_mask));
    }
 
+   panfrost_make_resource_table(T, PAN_TABLE_SSBO, batch->ssbos[stage],
+                                util_last_bit(ctx->ssbo_mask[stage]));
+
    return T.gpu | nr_tables;
 }
 #endif /* PAN_ARCH >= 9 */

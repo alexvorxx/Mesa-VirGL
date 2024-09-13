@@ -322,6 +322,7 @@ enum panfrost_resource_table {
    PAN_TABLE_SAMPLER,
    PAN_TABLE_TEXTURE,
    PAN_TABLE_IMAGE,
+   PAN_TABLE_SSBO,
 
    PAN_NUM_RESOURCE_TABLES
 };

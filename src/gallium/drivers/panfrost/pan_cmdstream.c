@@ -1354,6 +1354,41 @@ panfrost_emit_ubo(void *base, unsigned index, mali_ptr address, size_t size)
 #endif
 }
 
+#if PAN_ARCH >= 9
+static mali_ptr
+panfrost_emit_ssbos(struct panfrost_batch *batch, enum pipe_shader_type st)
+{
+   struct panfrost_context *ctx = batch->ctx;
+   unsigned ssbo_count = util_last_bit(ctx->ssbo_mask[st]);
+
+   if (!ssbo_count)
+      return 0;
+
+   struct panfrost_ptr ssbos =
+      pan_pool_alloc_desc_array(&batch->pool.base, ssbo_count, BUFFER);
+   struct mali_buffer_packed *bufs = ssbos.cpu;
+
+   memset(bufs, 0, sizeof(bufs[0]) * ssbo_count);
+
+   u_foreach_bit(ssbo_id, ctx->ssbo_mask[st]) {
+      struct pipe_shader_buffer sb = ctx->ssbo[st][ssbo_id];
+      struct panfrost_resource *rsrc = pan_resource(sb.buffer);
+      struct panfrost_bo *bo = rsrc->bo;
+
+      panfrost_batch_write_rsrc(batch, rsrc, st);
+
+      util_range_add(&rsrc->base, &rsrc->valid_buffer_range, sb.buffer_offset,
+                     sb.buffer_size);
+      pan_pack(&bufs[ssbo_id], BUFFER, cfg) {
+         cfg.size = sb.buffer_size;
+         cfg.address = bo->ptr.gpu + sb.buffer_offset;
+      }
+   }
+
+   return ssbos.gpu;
+}
+#endif
+
 static mali_ptr
 panfrost_emit_const_buf(struct panfrost_batch *batch,
                         enum pipe_shader_type stage, unsigned *buffer_count,
@@ -2715,6 +2750,9 @@ panfrost_update_shader_state(struct panfrost_batch *batch,
       batch->images[st] =
          ctx->image_mask[st] ? panfrost_emit_images(batch, st) : 0;
    }
+
+   if (dirty & PAN_DIRTY_STAGE_SSBO)
+      batch->ssbos[st] = panfrost_emit_ssbos(batch, st);
 #endif
 
    if ((dirty & ss->dirty_shader) || (dirty_3d & ss->dirty_3d)) {
