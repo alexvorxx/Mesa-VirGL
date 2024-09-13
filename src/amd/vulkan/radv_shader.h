@@ -219,6 +219,13 @@ struct radv_nir_compiler_options {
 #define NGG_LDS_LAYOUT_SCRATCH_BASE__SHIFT       16
 #define NGG_LDS_LAYOUT_SCRATCH_BASE__MASK        0xffff
 
+#define NGG_STATE_NUM_VERTS_PER_PRIM__SHIFT 0
+#define NGG_STATE_NUM_VERTS_PER_PRIM__MASK  0x7
+#define NGG_STATE_PROVOKING_VTX__SHIFT      3
+#define NGG_STATE_PROVOKING_VTX__MASK       0x7
+#define NGG_STATE_QUERY__SHIFT              6
+#define NGG_STATE_QUERY__MASK               0x7
+
 #define PS_STATE_NUM_SAMPLES__SHIFT    0
 #define PS_STATE_NUM_SAMPLES__MASK     0xf
 #define PS_STATE_LINE_RAST_MODE__SHIFT 4
