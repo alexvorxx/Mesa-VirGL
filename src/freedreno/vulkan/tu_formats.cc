@@ -190,8 +190,10 @@ tu_physical_device_get_format_properties(
                 VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT |
                 VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT;
 
-      /* TODO: The blob also exposes these for R16G16_UINT/R16G16_SINT, but we
-       * don't have any tests for those.
+      /* TODO: The blob also exposes these for R16G16_UINT/R16G16_SINT/
+       * R32G32_SFLOAT/R32G32B32A32_SFLOAT, but we don't have any tests for those.
+       * R32_SFLOAT is also included here by the blob, but that requires
+       * implementing VK_EXT_shader_atomic_float.
        */
       if (vk_format == VK_FORMAT_R32_UINT || vk_format == VK_FORMAT_R32_SINT) {
          optimal |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_ATOMIC_BIT;
@@ -252,9 +254,7 @@ tu_physical_device_get_format_properties(
    if (ycbcr_info || vk_format_is_depth_or_stencil(vk_format))
       buffer = 0;
 
-   /* D32_SFLOAT_S8_UINT is tiled as two images, so no linear format
-    * blob enables some linear features, but its not useful, so don't bother.
-    */
+   /* D32_SFLOAT_S8_UINT is tiled as two images, so no linear format */
    if (vk_format == VK_FORMAT_D32_SFLOAT_S8_UINT)
       linear = 0;
 
