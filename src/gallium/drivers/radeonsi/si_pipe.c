@@ -1472,6 +1472,7 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
       (void)mtx_init(&sscreen->aux_contexts[i].lock, mtx_plain | mtx_recursive);
 
       bool compute = !sscreen->info.has_graphics ||
+                     &sscreen->aux_contexts[i] == &sscreen->aux_context.compute_resource_init ||
                      &sscreen->aux_contexts[i] == &sscreen->aux_context.shader_upload;
       sscreen->aux_contexts[i].ctx =
          si_create_context(&sscreen->b,

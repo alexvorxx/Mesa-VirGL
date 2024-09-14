@@ -559,13 +559,16 @@ struct si_screen {
       struct {
          struct si_aux_context general;
 
+         /* Used by resource_create to clear/initialize memory. */
+         struct si_aux_context compute_resource_init;
+
          /* Second auxiliary context for uploading shaders. When the first auxiliary context is
           * locked and wants to compile and upload shaders, we need to use a second auxiliary
           * context because the first one is locked.
           */
          struct si_aux_context shader_upload;
       } aux_context;
-      struct si_aux_context aux_contexts[2];
+      struct si_aux_context aux_contexts[3];
    };
 
    /* Async compute context for DRI_PRIME copies. */
