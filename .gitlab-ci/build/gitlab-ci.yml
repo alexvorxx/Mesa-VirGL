@@ -567,6 +567,27 @@ debian-arm64-release:
     - .gitlab-ci/meson/build.sh
     - 'if [ -n "$MESA_CI_PERFORMANCE_ENABLED" ]; then .gitlab-ci/prepare-artifacts.sh; fi'
 
+debian-no-libdrm:
+  extends:
+    - .meson-arm
+  stage: build-only
+  needs:
+    - !reference [.meson-arm, needs]
+    - !reference [.build-for-tests-jobs]
+  variables:
+    VULKAN_DRIVERS: freedreno
+    GALLIUM_DRIVERS: ""
+    BUILDTYPE: release
+    C_ARGS: >
+      -Wno-error=array-bounds
+      -Wno-error=stringop-truncation
+      -Wno-error=stringop-overread
+    EXTRA_OPTION: >
+      -D freedreno-kmds=kgsl
+      -D glx=disabled
+      -D gbm=disabled
+      -D egl=disabled
+
 debian-clang:
   extends: .meson-build
   needs:
