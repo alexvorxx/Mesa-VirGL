@@ -108,6 +108,16 @@ radeonsi-raven-piglit-quick_shader:x86_64:
     PIGLIT_PROFILES: quick_shader
     PIGLIT_FRACTION: 2
 
+# lower image opcodes to emulate CDNA compute devices
+radeonsi-raven-cdna-lower-image:x86_64:
+  extends:
+    - .lava-test-deqp:x86_64
+    - .radeonsi-raven-test:x86_64
+    - .lava-lenovo-TPad-C13-Yoga-zork:x86_64
+  variables:
+    DEQP_SUITE: radeonsi-raven-cdna
+    GPU_VERSION: radeonsi-raven-cdna
+
 radeonsi-raven-va:x86_64:
   extends:
     - .lava-test-deqp:x86_64
