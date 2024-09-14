@@ -69,29 +69,19 @@ a530-traces:
     PIGLIT_REPLAY_DEVICE_NAME: "freedreno-a530"
     PIGLIT_RESULTS: "freedreno-a530-replay"
 
-# piglit and piglit_gl since it takes a bit under 20 minutes and has a lot of flakes, so
-# leave it as manual.  The shader_tests are in the main a530_gl suite.
-#
-# Disabled for now because something reliably takes out the board 19-20 minutes in,
-# and then it reboots and tries again until the job timeout.
-# TODO: re-enable with 6.11 kernel + db9dec2db76146d65e1cfbb6afb2e2bd5dab67f8
-# https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/commit/?id=db9dec2db76146d65e1cfbb6afb2e2bd5dab67f8
-.a530_piglit:
+a530_piglit:
   extends:
     - .baremetal-deqp-test
     - .a530-test
+  rules:
+    - !reference [.google-freedreno-manual-rules, rules]
   parallel: 2
   variables:
     DEQP_SUITE: freedreno-a530-piglit
     HWCI_START_WESTON: 1
-
-.a530_piglit_gl:
-  extends:
-    - .a530_piglit
-    - .google-freedreno-manual-rules
-  parallel: null
-  variables:
-    PIGLIT_PROFILES: quick_gl
+    # force fixed kernel until 6.11 is switched officially
+    FORCE_KERNEL_TAG: "v6.11-rc7-mesa-73f2"
+    KERNEL_IMAGE_BASE: https://${S3_HOST}/${S3_KERNEL_BUCKET}/${KERNEL_REPO}/${FORCE_KERNEL_TAG}
 
 a618_vk:
   extends:
