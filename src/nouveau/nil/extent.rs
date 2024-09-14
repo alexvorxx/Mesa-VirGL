@@ -6,6 +6,8 @@ use crate::image::SampleLayout;
 use crate::tiling::{GOBType, Tiling};
 use crate::Minify;
 
+use std::ops::Add;
+
 pub mod units {
     #[derive(Clone, Debug, Copy, PartialEq)]
     pub struct Elements {}
@@ -37,7 +39,7 @@ pub struct Extent4D<U> {
 }
 
 impl<U> Extent4D<U> {
-    pub fn new(
+    pub const fn new(
         width: u32,
         height: u32,
         depth: u32,
@@ -60,6 +62,14 @@ impl<U> Extent4D<U> {
             array_len: self.array_len.next_multiple_of(alignment.array_len),
             phantom: std::marker::PhantomData,
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn is_aligned_to(&self, alignment: Extent4D<U>) -> bool {
+        (self.width % alignment.width) == 0
+            && (self.height % alignment.height) == 0
+            && (self.depth % alignment.depth) == 0
+            && (self.array_len % alignment.array_len) == 0
     }
 
     fn mul<V>(self, other: Extent4D<V>) -> Extent4D<V> {
@@ -190,6 +200,24 @@ pub struct Offset4D<U> {
 }
 
 impl<U> Offset4D<U> {
+    pub const fn new(x: u32, y: u32, z: u32, a: u32) -> Offset4D<U> {
+        Offset4D {
+            x,
+            y,
+            z,
+            a,
+            phantom: std::marker::PhantomData,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn is_aligned_to(&self, alignment: Extent4D<U>) -> bool {
+        (self.x % alignment.width) == 0
+            && (self.y % alignment.height) == 0
+            && (self.z % alignment.depth) == 0
+            && (self.a % alignment.array_len) == 0
+    }
+
     fn div_floor<V>(self, other: Extent4D<U>) -> Offset4D<V> {
         Offset4D {
             x: self.x / other.width,
@@ -216,6 +244,20 @@ impl<U> Offset4D<U> {
             y: self.y,
             z: self.z,
             a: self.a,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<U> Add<Extent4D<U>> for Offset4D<U> {
+    type Output = Offset4D<U>;
+
+    fn add(self, rhs: Extent4D<U>) -> Offset4D<U> {
+        Self {
+            x: self.x + rhs.width,
+            y: self.y + rhs.height,
+            z: self.z + rhs.depth,
+            a: self.a + rhs.array_len,
             phantom: std::marker::PhantomData,
         }
     }
