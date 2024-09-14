@@ -12,6 +12,7 @@
 #include "winsys/radeon_winsys.h"
 #include "util/u_blitter.h"
 #include "util/u_idalloc.h"
+#include "util/u_log.h"
 #include "util/u_suballoc.h"
 #include "util/u_threaded_context.h"
 #include "util/u_vertex_state_cache.h"
@@ -498,6 +499,7 @@ struct radeon_saved_cs {
 
 struct si_aux_context {
    struct pipe_context *ctx;
+   struct u_log_context log;
    mtx_t lock;
 };
 

@@ -17,7 +17,6 @@
 #include "util/disk_cache.h"
 #include "util/hex.h"
 #include "util/u_cpu_detect.h"
-#include "util/u_log.h"
 #include "util/u_memory.h"
 #include "util/u_suballoc.h"
 #include "util/u_tests.h"
@@ -841,12 +840,10 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
          if (status != PIPE_NO_RESET) {
             /* We lost the aux_context, create a new one */
             unsigned context_flags = saux->context_flags;
-            struct u_log_context *aux_log = saux->log;
-            saux->b.set_log_context(&saux->b, NULL);
             saux->b.destroy(&saux->b);
 
             saux = (struct si_context *)si_create_context(&sscreen->b, context_flags);
-            saux->b.set_log_context(&saux->b, aux_log);
+            saux->b.set_log_context(&saux->b, &sscreen->aux_contexts[i].log);
 
             sscreen->aux_contexts[i].ctx = &saux->b;
          }
@@ -1481,12 +1478,10 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
                            (compute ? PIPE_CONTEXT_COMPUTE_ONLY : 0));
 
       if (sscreen->options.aux_debug) {
-         struct u_log_context *log = CALLOC_STRUCT(u_log_context);
-         u_log_context_init(log);
+         u_log_context_init(&sscreen->aux_contexts[i].log);
 
-         struct si_context *sctx = si_get_aux_context(&sscreen->aux_context.general);
-         sctx->b.set_log_context(&sctx->b, log);
-         si_put_aux_context_flush(&sscreen->aux_context.general);
+         struct pipe_context *ctx = sscreen->aux_contexts[i].ctx;
+         ctx->set_log_context(ctx, &sscreen->aux_contexts[i].log);
       }
    }
 
