@@ -74,6 +74,8 @@ a530-traces:
 #
 # Disabled for now because something reliably takes out the board 19-20 minutes in,
 # and then it reboots and tries again until the job timeout.
+# TODO: re-enable with 6.11 kernel + db9dec2db76146d65e1cfbb6afb2e2bd5dab67f8
+# https://git.kernel.org/pub/scm/linux/kernel/git/next/linux-next.git/commit/?id=db9dec2db76146d65e1cfbb6afb2e2bd5dab67f8
 .a530_piglit:
   extends:
     - .baremetal-deqp-test
