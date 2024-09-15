@@ -11640,27 +11640,39 @@ lanecount_to_mask(isel_context* ctx, Temp count, unsigned bit_offset)
 
    Builder bld(ctx->program, ctx->block);
 
-   if (bit_offset) {
+   /* We could optimize other cases, but they are unused at the moment. */
+   if (bit_offset != 0 && bit_offset != 8) {
+      assert(bit_offset < 32);
       count = bld.sop2(aco_opcode::s_lshr_b32, bld.def(s1), bld.def(s1, scc), count,
                        Operand::c32(bit_offset));
+      bit_offset = 0;
    }
 
-   Temp mask = bld.sop2(aco_opcode::s_bfm_b64, bld.def(s2), count, Operand::zero());
-   Temp cond;
-
-   if (ctx->program->wave_size == 64) {
-      /* Special case for 64 active invocations, because 64 doesn't work with s_bfm */
-      Temp active_64 = bld.sopc(aco_opcode::s_bitcmp1_b32, bld.def(s1, scc), count,
-                                Operand::c32(6u /* log2(64) */));
-      cond =
-         bld.sop2(Builder::s_cselect, bld.def(bld.lm), Operand::c32(-1u), mask, bld.scc(active_64));
-   } else {
+   if (ctx->program->wave_size == 32 && bit_offset == 0) {
       /* We use s_bfm_b64 (not _b32) which works with 32, but we need to extract the lower half of
-       * the register */
-      cond = emit_extract_vector(ctx, mask, 0, bld.lm);
-   }
+       * the register. It doesn't work for 64 because it only uses 6 bits. */
+      Temp mask = bld.sop2(aco_opcode::s_bfm_b64, bld.def(s2), count, Operand::zero());
+      return emit_extract_vector(ctx, mask, 0, bld.lm);
+   } else {
+      /* s_bfe (both u32 and u64) uses 7 bits for the size, but it needs them in the high word.
+       * The low word is used for the offset, which has to be zero for our use case.
+       */
+      if (bit_offset == 0 && ctx->program->gfx_level >= GFX9) {
+         /* Avoid writing scc for better scheduling. */
+         count = bld.sop2(aco_opcode::s_pack_ll_b32_b16, bld.def(s1), Operand::c32(0), count);
+      } else {
+         count = bld.sop2(aco_opcode::s_lshl_b32, bld.def(s1), bld.def(s1, scc), count,
+                          Operand::c32(16 - bit_offset));
+      }
 
-   return cond;
+      if (ctx->program->wave_size == 32) {
+         return bld.sop2(aco_opcode::s_bfe_u32, bld.def(bld.lm), bld.def(s1, scc), Operand::c32(-1),
+                         count);
+      } else {
+         return bld.sop2(aco_opcode::s_bfe_u64, bld.def(bld.lm), bld.def(s1, scc),
+                         Operand::c64(-1ll), count);
+      }
+   }
 }
 
 Temp
