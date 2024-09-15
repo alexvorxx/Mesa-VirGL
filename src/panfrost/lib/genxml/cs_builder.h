@@ -833,35 +833,27 @@ cs_while_start(struct cs_builder *b, struct cs_loop *loop,
 }
 
 static inline void
-cs_loop_continue(struct cs_builder *b, enum mali_cs_condition cond,
-                 struct cs_index val)
+cs_loop_conditional_continue(struct cs_builder *b, struct cs_loop *loop,
+                             enum mali_cs_condition cond, struct cs_index val)
 {
-   assert(b->blocks.cur);
-
-   struct cs_loop *loop = container_of(b->blocks.cur, struct cs_loop, block);
-
+   assert(b->blocks.cur == &loop->block);
    cs_branch_label(b, &loop->start, cond, val);
    cs_loop_diverge_ls_update(b, loop);
 }
 
 static inline void
-cs_loop_break(struct cs_builder *b, enum mali_cs_condition cond,
-              struct cs_index val)
+cs_loop_conditional_break(struct cs_builder *b, struct cs_loop *loop,
+                          enum mali_cs_condition cond, struct cs_index val)
 {
-   assert(b->blocks.cur);
-
-   struct cs_loop *loop = container_of(b->blocks.cur, struct cs_loop, block);
-
+   assert(b->blocks.cur == &loop->block);
    cs_branch_label(b, &loop->end, cond, val);
    cs_loop_diverge_ls_update(b, loop);
 }
 
 static inline void
-cs_while_end(struct cs_builder *b)
+cs_while_end(struct cs_builder *b, struct cs_loop *loop)
 {
-   assert(b->blocks.cur);
-
-   struct cs_loop *loop = container_of(b->blocks.cur, struct cs_loop, block);
+   assert(b->blocks.cur == &loop->block);
 
    cs_branch_label(b, &loop->start, loop->cond, loop->val);
    cs_set_label(b, &loop->end);
@@ -878,10 +870,17 @@ cs_while_end(struct cs_builder *b)
    }
 }
 
-#define cs_while(__b, cond, val)                                               \
+#define cs_while(__b, __cond, __val)                                           \
    for (struct cs_loop __loop_storage,                                         \
-        *__loop = cs_while_start(__b, &__loop_storage, cond, val);             \
-        __loop != NULL; cs_while_end(__b), __loop = NULL)
+        *__loop = cs_while_start(__b, &__loop_storage, __cond, __val);         \
+        __loop != NULL; cs_while_end(__b, __loop), __loop = NULL)
+
+#define cs_continue(__b)                                                       \
+   cs_loop_conditional_continue(__b, __loop, MALI_CS_CONDITION_ALWAYS,         \
+                                cs_undef())
+
+#define cs_break(__b)                                                          \
+   cs_loop_conditional_break(__b, __loop, MALI_CS_CONDITION_ALWAYS, cs_undef())
 
 /* Pseudoinstructions follow */
 
