@@ -632,7 +632,9 @@ cs_block_end(struct cs_builder *b)
       util_dynarray_num_elements(&b->blocks.instrs, uint64_t);
    void *buffer = cs_alloc_ins(b, num_instrs);
 
-   memcpy(buffer, b->blocks.instrs.data, b->blocks.instrs.size);
+   if (likely(cs_is_valid(b)))
+      memcpy(buffer, b->blocks.instrs.data, b->blocks.instrs.size);
+
    util_dynarray_clear(&b->blocks.instrs);
 }
 
