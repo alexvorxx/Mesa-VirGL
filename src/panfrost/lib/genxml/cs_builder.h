@@ -452,6 +452,9 @@ cs_alloc_ins(struct cs_builder *b, uint32_t num_instrs)
       }
    }
 
+   /* Make sure the instruction sequence fits in a single chunk. */
+   assert(b->cur_chunk.buffer.capacity >= num_instrs);
+
    /* If the current chunk runs out of space, allocate a new one and jump to it.
     * We actually do this a few instructions before running out, because the
     * sequence to jump to a new queue takes multiple instructions.
