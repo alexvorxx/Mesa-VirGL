@@ -8178,7 +8178,7 @@ emit_interp_center(isel_context* ctx, Temp dst, Temp bary, Temp pos1, Temp pos2)
 }
 
 Temp merged_wave_info_to_mask(isel_context* ctx, unsigned i);
-Temp lanecount_to_mask(isel_context* ctx, Temp count);
+Temp lanecount_to_mask(isel_context* ctx, Temp count, unsigned bit_offset);
 void pops_await_overlapped_waves(isel_context* ctx);
 
 Temp
@@ -9316,7 +9316,8 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
    }
    case nir_intrinsic_is_subgroup_invocation_lt_amd: {
       Temp src = bld.as_uniform(get_ssa_temp(ctx, instr->src[0].ssa));
-      bld.copy(Definition(get_ssa_temp(ctx, &instr->def)), lanecount_to_mask(ctx, src));
+      unsigned offset = nir_intrinsic_base(instr);
+      bld.copy(Definition(get_ssa_temp(ctx, &instr->def)), lanecount_to_mask(ctx, src, offset));
       break;
    }
    case nir_intrinsic_gds_atomic_add_amd: {
@@ -11633,11 +11634,17 @@ finish_program(isel_context* ctx)
 }
 
 Temp
-lanecount_to_mask(isel_context* ctx, Temp count)
+lanecount_to_mask(isel_context* ctx, Temp count, unsigned bit_offset)
 {
    assert(count.regClass() == s1);
 
    Builder bld(ctx->program, ctx->block);
+
+   if (bit_offset) {
+      count = bld.sop2(aco_opcode::s_lshr_b32, bld.def(s1), bld.def(s1, scc), count,
+                       Operand::c32(bit_offset));
+   }
+
    Temp mask = bld.sop2(aco_opcode::s_bfm_b64, bld.def(s2), count, Operand::zero());
    Temp cond;
 
@@ -11659,14 +11666,12 @@ lanecount_to_mask(isel_context* ctx, Temp count)
 Temp
 merged_wave_info_to_mask(isel_context* ctx, unsigned i)
 {
-   Builder bld(ctx->program, ctx->block);
+   /* lanecount_to_mask() only cares about s0.byte[i].[6:0]
+    * so we don't need either s_bfe nor s_and here.
+    */
+   Temp count = get_arg(ctx, ctx->args->merged_wave_info);
 
-   /* lanecount_to_mask() only cares about s0.u[6:0] so we don't need either s_bfe nor s_and here */
-   Temp count = i == 0 ? get_arg(ctx, ctx->args->merged_wave_info)
-                       : bld.sop2(aco_opcode::s_lshr_b32, bld.def(s1), bld.def(s1, scc),
-                                  get_arg(ctx, ctx->args->merged_wave_info), Operand::c32(i * 8u));
-
-   return lanecount_to_mask(ctx, count);
+   return lanecount_to_mask(ctx, count, i * 8u);
 }
 
 static void

@@ -1603,8 +1603,8 @@ system_value("streamout_offset_amd", 1, indices=[BASE])
 # AMD merged shader intrinsics
 
 # Whether the current invocation index in the subgroup is less than the source. The source must be
-# subgroup uniform and bits 0-7 must be less than or equal to the wave size.
-intrinsic("is_subgroup_invocation_lt_amd", src_comp=[1], dest_comp=1, bit_sizes=[1], flags=[CAN_ELIMINATE])
+# subgroup uniform and the 8 bits starting at the base bit must be less than or equal to the wave size.
+intrinsic("is_subgroup_invocation_lt_amd", src_comp=[1], dest_comp=1, bit_sizes=[1], indices=[BASE], flags=[CAN_ELIMINATE])
 
 # AMD NGG intrinsics
 
