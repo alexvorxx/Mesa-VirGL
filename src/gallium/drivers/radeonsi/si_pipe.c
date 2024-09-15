@@ -1185,7 +1185,13 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
       sscreen->info.register_shadowing_required = true;
 
 #if AMD_LLVM_AVAILABLE
-   sscreen->use_aco = (sscreen->debug_flags & DBG(USE_ACO));
+   /* For GFX11.5, LLVM < 19 is missing a workaround that can cause GPU hangs. ACO is the only
+    * alternative that has the workaround and is always available.
+    */
+   if (sscreen->info.gfx_level == GFX11_5 && LLVM_VERSION_MAJOR < 19)
+      sscreen->use_aco = true;
+   else
+      sscreen->use_aco = (sscreen->debug_flags & DBG(USE_ACO));
 #else
    sscreen->use_aco = true;
 #endif
