@@ -640,10 +640,9 @@ cs_render_desc_ringbuf_move_ptr(struct cs_builder *b, uint32_t size)
    cs_add32(b, scratch_reg, pos, -RENDER_DESC_RINGBUF_SIZE);
 
    /* Wrap-around. */
-   cs_while(b, MALI_CS_CONDITION_GEQUAL, scratch_reg) {
+   cs_if(b, MALI_CS_CONDITION_GEQUAL, scratch_reg) {
       cs_add32(b, ptr_lo, ptr_lo, -RENDER_DESC_RINGBUF_SIZE);
       cs_add32(b, pos, pos, -RENDER_DESC_RINGBUF_SIZE);
-      cs_break(b);
    }
 
    cs_store(
