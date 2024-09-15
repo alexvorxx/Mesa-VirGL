@@ -340,7 +340,8 @@ try_optimize_branching_sequence(ssa_elimination_ctx& ctx, Block& block, const in
    if (exec_copy->opcode != and_saveexec && exec_copy->opcode != aco_opcode::p_parallelcopy)
       return;
 
-   if (exec_val->definitions.size() > 1)
+   /* Only allow SALU with multiple definitions. */
+   if (!exec_val->isSALU() && exec_val->definitions.size() > 1)
       return;
 
    const bool vcmpx_exec_only = ctx.program->gfx_level >= GFX10;
