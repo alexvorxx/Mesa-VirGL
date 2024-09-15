@@ -54,26 +54,7 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
    if (!num_clears)
       return;
 
-   /* Flush caches and wait for idle. */
-   if (types & (SI_CLEAR_TYPE_CMASK | SI_CLEAR_TYPE_DCC)) {
-      si_make_CB_shader_coherent(sctx, sctx->framebuffer.nr_samples,
-                                 sctx->framebuffer.CB_has_shader_readable_metadata,
-                                 sctx->framebuffer.all_DCC_pipe_aligned);
-   }
-
-   if (types & SI_CLEAR_TYPE_HTILE) {
-      si_make_DB_shader_coherent(sctx, sctx->framebuffer.nr_samples, sctx->framebuffer.has_stencil,
-                                 sctx->framebuffer.DB_has_shader_readable_metadata);
-   }
-
-   /* Invalidate the VMEM cache because we always use compute. */
-   sctx->barrier_flags |= SI_BARRIER_INV_VMEM;
-
-   /* GFX6-8: CB and DB don't use L2. */
-   if (sctx->gfx_level <= GFX8)
-      sctx->barrier_flags |= SI_BARRIER_INV_L2;
-
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
+   si_barrier_before_image_fast_clear(sctx, types);
 
    /* Execute clears. */
    for (unsigned i = 0; i < num_clears; i++) {
@@ -103,14 +84,7 @@ void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
       }
    }
 
-   /* Wait for idle. */
-   sctx->barrier_flags |= SI_BARRIER_SYNC_CS;
-
-   /* GFX6-8: CB and DB don't use L2. */
-   if (sctx->gfx_level <= GFX8)
-      sctx->barrier_flags |= SI_BARRIER_WB_L2;
-
-   si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
+   si_barrier_after_image_fast_clear(sctx);
 }
 
 static bool si_alloc_separate_cmask(struct si_screen *sscreen, struct si_texture *tex)
