@@ -1845,8 +1845,9 @@ static bool si_lower_io_to_mem(struct si_shader *shader, nir_shader *nir,
                                uint64_t tcs_vgpr_only_inputs)
 {
    struct si_shader_selector *sel = shader->selector;
+   struct si_shader_selector *next_sel = shader->next_shader ? shader->next_shader->selector : sel;
    const union si_shader_key *key = &shader->key;
-   const bool is_gfx9_mono_tcs = sel->stage == MESA_SHADER_TESS_CTRL && shader->is_monolithic &&
+   const bool is_gfx9_mono_tcs = shader->is_monolithic && next_sel->stage == MESA_SHADER_TESS_CTRL &&
                                  sel->screen->info.gfx_level >= GFX9;
 
    if (nir->info.stage == MESA_SHADER_VERTEX) {
@@ -1854,7 +1855,8 @@ static bool si_lower_io_to_mem(struct si_shader *shader, nir_shader *nir,
          NIR_PASS_V(nir, ac_nir_lower_ls_outputs_to_mem,
                     is_gfx9_mono_tcs ? NULL : si_map_io_driver_location,
                     key->ge.opt.same_patch_vertices,
-                    is_gfx9_mono_tcs ? sel->info.base.inputs_read : ~0ull, tcs_vgpr_only_inputs);
+                    is_gfx9_mono_tcs ? next_sel->info.base.inputs_read : ~0ull,
+                    tcs_vgpr_only_inputs);
          return true;
       } else if (key->ge.as_es) {
          NIR_PASS_V(nir, ac_nir_lower_es_outputs_to_mem, si_map_io_driver_location,
