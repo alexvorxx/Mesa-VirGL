@@ -528,8 +528,7 @@ has_input_vertex(nir_builder *b)
 static nir_def *
 has_input_primitive(nir_builder *b)
 {
-   return nir_is_subgroup_invocation_lt_amd(b,
-                                            nir_ushr_imm(b, nir_load_merged_wave_info_amd(b), 8));
+   return nir_is_subgroup_invocation_lt_amd(b, nir_load_merged_wave_info_amd(b), .base = 8);
 }
 
 static void
