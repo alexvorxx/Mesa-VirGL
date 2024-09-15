@@ -196,7 +196,6 @@ bool si_alloc_resource(struct si_screen *sscreen, struct si_resource *res)
 
       si_clear_buffer(ctx, &res->b.b, 0, res->bo_size, &value, 4, SI_AUTO_SELECT_CLEAR_METHOD,
                       false);
-      si_barrier_after_simple_buffer_op(ctx, 0, &res->b.b, NULL);
       si_put_aux_context_flush(&sscreen->aux_context.compute_resource_init);
    }
 

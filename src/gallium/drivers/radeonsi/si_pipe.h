@@ -559,7 +559,12 @@ struct si_screen {
       struct {
          struct si_aux_context general;
 
-         /* Used by resource_create to clear/initialize memory. */
+         /* Used by resource_create to clear/initialize memory.
+          *
+          * Note that there are no barriers around the clears, which enables parallelism between
+          * individual clears. If anything else uses this context, it should wait for idle before
+          * using any buffer/texture.
+          */
          struct si_aux_context compute_resource_init;
 
          /* Second auxiliary context for uploading shaders. When the first auxiliary context is
