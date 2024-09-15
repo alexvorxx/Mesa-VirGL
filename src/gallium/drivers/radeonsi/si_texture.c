@@ -1280,8 +1280,11 @@ static struct si_texture *si_texture_create_object(struct pipe_screen *screen,
 
    /* Execute the clears. */
    if (num_clears) {
-      si_execute_clears(si_get_aux_context(&sscreen->aux_context.general), clears, num_clears, 0,
-                        false);
+      struct si_context *sctx = si_get_aux_context(&sscreen->aux_context.general);
+
+      si_barrier_before_image_fast_clear(sctx, 0);
+      si_execute_clears(sctx, clears, num_clears, false);
+      si_barrier_after_image_fast_clear(sctx);
       si_put_aux_context_flush(&sscreen->aux_context.general);
    }
 

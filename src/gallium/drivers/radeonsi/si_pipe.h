@@ -1469,7 +1469,7 @@ void si_init_buffer_clear(struct si_clear_info *info,
                           struct pipe_resource *resource, uint64_t offset,
                           uint32_t size, uint32_t clear_value);
 void si_execute_clears(struct si_context *sctx, struct si_clear_info *info,
-                       unsigned num_clears, unsigned types, bool render_condition_enabled);
+                       unsigned num_clears, bool render_condition_enabled);
 bool si_compute_fast_clear_image(struct si_context *sctx, struct pipe_resource *tex,
                                  enum pipe_format format, unsigned level, const struct pipe_box *box,
                                  const union pipe_color_union *color, bool render_condition_enable,

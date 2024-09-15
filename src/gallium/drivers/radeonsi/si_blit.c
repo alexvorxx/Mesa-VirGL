@@ -1202,7 +1202,9 @@ bool si_msaa_resolve_blit_via_CB(struct pipe_context *ctx, const struct pipe_bli
          if (!vi_dcc_get_clear_info(sctx, dst, info->dst.level, DCC_UNCOMPRESSED, &clear_info))
             return false;
 
-         si_execute_clears(sctx, &clear_info, 1, SI_CLEAR_TYPE_DCC, info->render_condition_enable);
+         si_barrier_before_image_fast_clear(sctx, SI_CLEAR_TYPE_DCC);
+         si_execute_clears(sctx, &clear_info, 1, info->render_condition_enable);
+         si_barrier_after_image_fast_clear(sctx);
          dst->dirty_level_mask &= ~(1 << info->dst.level);
       }
 
