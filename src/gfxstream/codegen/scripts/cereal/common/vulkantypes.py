@@ -661,14 +661,11 @@ def parse_func_expr(parsed_sexp):
 
 def parseFilterFuncExpr(expr):
     res = parse_func_expr(parse_sexp(expr))
-    print("parseFilterFuncExpr: parsed %s" % res)
     return res
 
 def parseLetBodyExpr(expr):
     res = parse_func_expr(parse_sexp(expr))
-    print("parseLetBodyExpr: parsed %s" % res)
     return res
-
 
 def makeVulkanTypeFromXMLTag(typeInfo, parentName: str, tag: Element) -> VulkanType:
     res = VulkanType()

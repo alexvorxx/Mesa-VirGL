@@ -1,16 +1,14 @@
 #!/usr/bin/python3
 #
 # Copyright 2013-2023 The Khronos Group Inc.
+# Copyright 2023-2024 Google Inc.
 #
 # SPDX-License-Identifier: Apache-2.0
 
 import argparse
 import os
-import pdb
 import re
 import sys
-import copy
-import time
 import xml.etree.ElementTree as etree
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
@@ -19,27 +17,11 @@ from cgenerator import CGeneratorOptions, COutputGenerator
 
 from generator import write
 from reg import Registry
-from apiconventions import APIConventions
 
 # gfxstream + cereal modules
 from cerealgenerator import CerealGenerator
 
-# Simple timer functions
-startTime = None
 from typing import Optional
-
-def startTimer(timeit):
-    global startTime
-    if timeit:
-        startTime = time.process_time()
-
-
-def endTimer(timeit, msg):
-    global startTime
-    if timeit and startTime is not None:
-        endTime = time.process_time()
-        startTime = None
-
 
 def makeREstring(strings, default=None, strings_are_regex=False):
     """Turn a list of strings into a regexp string matching exactly those strings."""
@@ -59,53 +41,17 @@ def makeGenOpts(args):
     global genOpts
     genOpts = {}
 
-    # Default class of extensions to include, or None
-    defaultExtensions = args.defaultExtensions
-
-    # Additional extensions to include (list of extensions)
-    extensions = args.extension
-
-    # Extensions to remove (list of extensions)
-    removeExtensions = args.removeExtensions
-
-    # Extensions to emit (list of extensions)
-    emitExtensions = args.emitExtensions
-
-    # SPIR-V capabilities / features to emit (list of extensions & capabilities)
-    emitSpirv = args.emitSpirv
-
-    # Vulkan Formats to emit
-    emitFormats = args.emitFormats
-
-    # Features to include (list of features)
-    features = args.feature
-
-    # Whether to disable inclusion protect in headers
-    protect = args.protect
-
     # Output target directory
     directory = args.directory
 
-    # Path to generated files, particularly apimap.py
-    genpath = args.genpath
-
-    # Generate MISRA C-friendly headers
-    misracstyle = args.misracstyle;
-
-    # Generate MISRA C++-friendly headers
-    misracppstyle = args.misracppstyle;
-
     # Descriptive names for various regexp patterns used to select
     # versions and extensions
-    allFormats = allSpirv = allFeatures = allExtensions = r'.*'
+    allFormats = allFeatures = allExtensions = r'.*'
 
     # Turn lists of names/patterns into matching regular expressions
-    addExtensionsPat     = makeREstring(extensions, None)
-    removeExtensionsPat  = makeREstring(removeExtensions, None)
-    emitExtensionsPat    = makeREstring(emitExtensions, allExtensions)
-    emitSpirvPat         = makeREstring(emitSpirv, allSpirv)
-    emitFormatsPat       = makeREstring(emitFormats, allFormats)
-    featuresPat          = makeREstring(features, allFeatures)
+    emitExtensionsPat    = makeREstring([], allExtensions)
+    emitFormatsPat       = makeREstring([], allFormats)
+    featuresPat          = makeREstring([], allFeatures)
 
     # Copyright text prefixing all headers (list of strings).
     # The SPDX formatting below works around constraints of the 'reuse' tool
@@ -127,200 +73,15 @@ def makeGenOpts(args):
         ''
     ]
 
-    vulkanLayer = args.vulkanLayer
-
-    # Defaults for generating re-inclusion protection wrappers (or not)
-    protectFile = protect
-
-    # An API style conventions object
-    conventions = APIConventions()
-
-    if args.apiname is not None:
-        defaultAPIName = args.apiname
-    else:
-        defaultAPIName = conventions.xml_api_name
-
-    # APIs to merge
-    mergeApiNames = args.mergeApiNames
-
-    isCTS = args.isCTS
-
-    # Platform extensions, in their own header files
-    # Each element of the platforms[] array defines information for
-    # generating a single platform:
-    #   [0] is the generated header file name
-    #   [1] is the set of platform extensions to generate
-    #   [2] is additional extensions whose interfaces should be considered,
-    #   but suppressed in the output, to avoid duplicate definitions of
-    #   dependent types like VkDisplayKHR and VkSurfaceKHR which come from
-    #   non-platform extensions.
-
-    # Track all platform extensions, for exclusion from vulkan_core.h
-    allPlatformExtensions = []
-
-    # Extensions suppressed for all WSI platforms (WSI extensions required
-    # by all platforms)
-    commonSuppressExtensions = [ 'VK_KHR_display', 'VK_KHR_swapchain' ]
-
-    # Extensions required and suppressed for beta "platform". This can
-    # probably eventually be derived from the requires= attributes of
-    # the extension blocks.
-    betaRequireExtensions = [
-        'VK_KHR_portability_subset',
-        'VK_KHR_video_encode_queue',
-        'VK_EXT_video_encode_h264',
-        'VK_EXT_video_encode_h265',
-        'VK_NV_displacement_micromap',
-        'VK_AMDX_shader_enqueue',
-    ]
-
-    betaSuppressExtensions = [
-        'VK_KHR_video_queue',
-        'VK_EXT_opacity_micromap',
-        'VK_KHR_pipeline_library',
-    ]
-
-    platforms = [
-        [ 'vulkan_android.h',     [ 'VK_KHR_android_surface',
-                                    'VK_ANDROID_external_memory_android_hardware_buffer',
-                                    'VK_ANDROID_external_format_resolve'
-                                                                  ], commonSuppressExtensions +
-                                                                     [ 'VK_KHR_format_feature_flags2',
-                                                                     ] ],
-        [ 'vulkan_fuchsia.h',     [ 'VK_FUCHSIA_imagepipe_surface',
-                                    'VK_FUCHSIA_external_memory',
-                                    'VK_FUCHSIA_external_semaphore',
-                                    'VK_FUCHSIA_buffer_collection' ], commonSuppressExtensions ],
-        [ 'vulkan_ggp.h',         [ 'VK_GGP_stream_descriptor_surface',
-                                    'VK_GGP_frame_token'          ], commonSuppressExtensions ],
-        [ 'vulkan_ios.h',         [ 'VK_MVK_ios_surface'          ], commonSuppressExtensions ],
-        [ 'vulkan_macos.h',       [ 'VK_MVK_macos_surface'        ], commonSuppressExtensions ],
-        [ 'vulkan_vi.h',          [ 'VK_NN_vi_surface'            ], commonSuppressExtensions ],
-        [ 'vulkan_wayland.h',     [ 'VK_KHR_wayland_surface'      ], commonSuppressExtensions ],
-        [ 'vulkan_win32.h',       [ 'VK_.*_win32(|_.*)', 'VK_.*_winrt(|_.*)', 'VK_EXT_full_screen_exclusive' ],
-                                                                     commonSuppressExtensions +
-                                                                     [ 'VK_KHR_external_semaphore',
-                                                                       'VK_KHR_external_memory_capabilities',
-                                                                       'VK_KHR_external_fence',
-                                                                       'VK_KHR_external_fence_capabilities',
-                                                                       'VK_KHR_get_surface_capabilities2',
-                                                                       'VK_NV_external_memory_capabilities',
-                                                                     ] ],
-        [ 'vulkan_xcb.h',         [ 'VK_KHR_xcb_surface'          ], commonSuppressExtensions ],
-        [ 'vulkan_xlib.h',        [ 'VK_KHR_xlib_surface'         ], commonSuppressExtensions ],
-        [ 'vulkan_directfb.h',    [ 'VK_EXT_directfb_surface'     ], commonSuppressExtensions ],
-        [ 'vulkan_xlib_xrandr.h', [ 'VK_EXT_acquire_xlib_display' ], commonSuppressExtensions ],
-        [ 'vulkan_metal.h',       [ 'VK_EXT_metal_surface',
-                                    'VK_EXT_metal_objects'        ], commonSuppressExtensions ],
-        [ 'vulkan_screen.h',      [ 'VK_QNX_screen_surface',
-                                    'VK_QNX_external_memory_screen_buffer' ], commonSuppressExtensions ],
-        [ 'vulkan_sci.h',         [ 'VK_NV_external_sci_sync',
-                                    'VK_NV_external_sci_sync2',
-                                    'VK_NV_external_memory_sci_buf'], commonSuppressExtensions ],
-        [ 'vulkan_beta.h',        betaRequireExtensions,             betaSuppressExtensions ],
-    ]
-
-    for platform in platforms:
-        headername = platform[0]
-
-        allPlatformExtensions += platform[1]
-
-        addPlatformExtensionsRE = makeREstring(
-            platform[1] + platform[2], strings_are_regex=True)
-        emitPlatformExtensionsRE = makeREstring(
-            platform[1], strings_are_regex=True)
-
-        opts = CGeneratorOptions(
-            conventions       = conventions,
-            filename          = headername,
-            directory         = directory,
-            genpath           = None,
-            apiname           = defaultAPIName,
-            mergeApiNames     = mergeApiNames,
-            profile           = None,
-            versions          = featuresPat,
-            emitversions      = None,
-            defaultExtensions = None,
-            addExtensions     = addPlatformExtensionsRE,
-            removeExtensions  = None,
-            emitExtensions    = emitPlatformExtensionsRE,
-            prefixText        = prefixStrings + vkPrefixStrings,
-            genFuncPointers   = True,
-            protectFile       = protectFile,
-            protectFeature    = False,
-            protectProto      = '#ifndef',
-            protectProtoStr   = 'VK_NO_PROTOTYPES',
-            apicall           = 'VKAPI_ATTR ',
-            apientry          = 'VKAPI_CALL ',
-            apientryp         = 'VKAPI_PTR *',
-            alignFuncParam    = 48,
-            misracstyle       = misracstyle,
-            misracppstyle     = misracppstyle)
-
-        genOpts[headername] = [ COutputGenerator, opts ]
-
-    # Header for core API + extensions.
-    # To generate just the core API,
-    # change to 'defaultExtensions = None' below.
-    #
-    # By default this adds all enabled, non-platform extensions.
-    # It removes all platform extensions (from the platform headers options
-    # constructed above) as well as any explicitly specified removals.
-
-    removeExtensionsPat = makeREstring(
-        allPlatformExtensions + removeExtensions, None, strings_are_regex=True)
-
-    genOpts['vulkan_core.h'] = [
-          COutputGenerator,
-          CGeneratorOptions(
-            conventions       = conventions,
-            filename          = 'vulkan_core.h',
-            directory         = directory,
-            genpath           = None,
-            apiname           = defaultAPIName,
-            mergeApiNames     = mergeApiNames,
-            profile           = None,
-            versions          = featuresPat,
-            emitversions      = featuresPat,
-            defaultExtensions = defaultExtensions,
-            addExtensions     = addExtensionsPat,
-            removeExtensions  = removeExtensionsPat,
-            emitExtensions    = emitExtensionsPat,
-            prefixText        = prefixStrings + vkPrefixStrings,
-            genFuncPointers   = True,
-            protectFile       = protectFile,
-            protectFeature    = False,
-            protectProto      = '#ifndef',
-            protectProtoStr   = 'VK_NO_PROTOTYPES',
-            apicall           = 'VKAPI_ATTR ',
-            apientry          = 'VKAPI_CALL ',
-            apientryp         = 'VKAPI_PTR *',
-            alignFuncParam    = 48,
-            misracstyle       = misracstyle,
-            misracppstyle     = misracppstyle)
-        ]
-
-    # Serializer for spec
     genOpts['cereal'] = [
             CerealGenerator,
             CGeneratorOptions(
-                conventions       = conventions,
                 directory         = directory,
-                apiname           = 'vulkan',
-                profile           = None,
                 versions          = featuresPat,
                 emitversions      = featuresPat,
-                defaultExtensions = defaultExtensions,
                 addExtensions     = None,
-                removeExtensions  = None,
                 emitExtensions    = emitExtensionsPat,
                 prefixText        = prefixStrings + vkPrefixStrings,
-                genFuncPointers   = True,
-                protectFile       = protectFile,
-                protectFeature    = False,
-                protectProto      = '#ifndef',
-                protectProtoStr   = 'VK_NO_PROTOTYPES',
-                apicall           = 'VKAPI_ATTR ',
                 apientry          = 'VKAPI_CALL ',
                 apientryp         = 'VKAPI_PTR *',
                 alignFuncParam    = 48)
@@ -337,32 +98,18 @@ def makeGenOpts(args):
     genOpts['vulkan_gfxstream.h'] = [
           COutputGenerator,
           CGeneratorOptions(
-            conventions       = conventions,
             filename          = 'vulkan_gfxstream.h',
             directory         = directory,
-            genpath           = None,
-            apiname           = 'vulkan',
-            profile           = None,
             versions          = featuresPat,
             emitversions      = None,
-            defaultExtensions = None,
             addExtensions     = makeREstring(['VK_GOOGLE_gfxstream'], None),
-            removeExtensions  = None,
             emitExtensions    = makeREstring(['VK_GOOGLE_gfxstream'], None),
             prefixText        = prefixStrings + vkPrefixStrings + gfxstreamPrefixStrings,
-            genFuncPointers   = True,
             # Use #pragma once in the prefixText instead, so that we can put the copyright comments
             # at the beginning of the file.
-            protectFile       = False,
-            protectFeature    = False,
-            protectProto      = '#ifndef',
-            protectProtoStr   = 'VK_NO_PROTOTYPES',
-            apicall           = 'VKAPI_ATTR ',
             apientry          = 'VKAPI_CALL ',
             apientryp         = 'VKAPI_PTR *',
-            alignFuncParam    = 48,
-            misracstyle       = misracstyle,
-            misracppstyle     = misracppstyle)
+            alignFuncParam    = 48)
         ]
 
 def genTarget(args):
@@ -375,7 +122,6 @@ def genTarget(args):
 
     - target - target to generate
     - directory - directory to generate it in
-    - protect - True if re-inclusion wrappers should be created
     - extensions - list of additional extensions to include in generated interfaces"""
 
     # Create generator options with parameters specified on command line
@@ -400,92 +146,22 @@ def genTarget(args):
 # of names, or a regular expression.
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-
-    parser.add_argument('-apiname', action='store',
-                        default=None,
-                        help='Specify API to generate (defaults to repository-specific conventions object value)')
-    parser.add_argument('-mergeApiNames', action='store',
-                        default=None,
-                        help='Specify a comma separated list of APIs to merge into the target API')
-    parser.add_argument('-defaultExtensions', action='store',
-                        default=APIConventions().xml_api_name,
-                        help='Specify a single class of extensions to add to targets')
-    parser.add_argument('-extension', action='append',
-                        default=[],
-                        help='Specify an extension or extensions to add to targets')
-    parser.add_argument('-removeExtensions', action='append',
-                        default=[],
-                        help='Specify an extension or extensions to remove from targets')
-    parser.add_argument('-emitExtensions', action='append',
-                        default=[],
-                        help='Specify an extension or extensions to emit in targets')
-    parser.add_argument('-emitSpirv', action='append',
-                        default=[],
-                        help='Specify a SPIR-V extension or capability to emit in targets')
-    parser.add_argument('-emitFormats', action='append',
-                        default=[],
-                        help='Specify Vulkan Formats to emit in targets')
-    parser.add_argument('-feature', action='append',
-                        default=[],
-                        help='Specify a core API feature name or names to add to targets')
-    parser.add_argument('-debug', action='store_true',
-                        help='Enable debugging')
-    parser.add_argument('-dump', action='store_true',
-                        help='Enable dump to stderr')
-    parser.add_argument('-diagfile', action='store',
-                        default=None,
-                        help='Write diagnostics to specified file')
-    parser.add_argument('-errfile', action='store',
-                        default=None,
-                        help='Write errors and warnings to specified file instead of stderr')
-    parser.add_argument('-noprotect', dest='protect', action='store_false',
-                        help='Disable inclusion protection in output headers')
-    parser.add_argument('-profile', action='store_true',
-                        help='Enable profiling')
     parser.add_argument('-registry', action='store',
                         default='vk.xml',
                         help='Use specified registry file instead of vk.xml')
     parser.add_argument('-registryGfxstream', action='store',
                         default=None,
                         help='Use specified gfxstream registry file')
-    parser.add_argument('-time', action='store_true',
-                        help='Enable timing')
-    parser.add_argument('-genpath', action='store', default='gen',
-                        help='Path to generated files')
     parser.add_argument('-o', action='store', dest='directory',
                         default='.',
                         help='Create target and related files in specified directory')
     parser.add_argument('target', metavar='target', nargs='?',
                         help='Specify target')
-    parser.add_argument('-quiet', action='store_true', default=True,
-                        help='Suppress script output during normal execution.')
-    parser.add_argument('-verbose', action='store_false', dest='quiet', default=True,
-                        help='Enable script output during normal execution.')
-    parser.add_argument('--vulkanLayer', action='store_true', dest='vulkanLayer',
-                        help='Enable scripts to generate VK specific vulkan_json_data.hpp for json_gen_layer.')
-    parser.add_argument('-misracstyle', dest='misracstyle', action='store_true',
-                        help='generate MISRA C-friendly headers')
-    parser.add_argument('-misracppstyle', dest='misracppstyle', action='store_true',
-                        help='generate MISRA C++-friendly headers')
-    parser.add_argument('--iscts', action='store_true', dest='isCTS',
-                        help='Specify if this should generate CTS compatible code')
 
     args = parser.parse_args()
 
-    # This splits arguments which are space-separated lists
-    args.feature = [name for arg in args.feature for name in arg.split()]
-    args.extension = [name for arg in args.extension for name in arg.split()]
-
-    # create error/warning & diagnostic files
-    if args.errfile:
-        errWarn = open(args.errfile, 'w', encoding='utf-8')
-    else:
-        errWarn = sys.stderr
-
-    if args.diagfile:
-        diag = open(args.diagfile, 'w', encoding='utf-8')
-    else:
-        diag = None
+    errWarn = sys.stderr
+    diag = None
 
     # Create the API generator & generator options
     (gen, options) = genTarget(args)
@@ -495,9 +171,7 @@ if __name__ == '__main__':
     reg = Registry(gen, options)
 
     # Parse the specified registry XML into an ElementTree object
-    startTimer(args.time)
     tree = etree.parse(args.registry)
-    endTimer(args.time, '* Time to make ElementTree =')
 
     # Merge the gfxstream registry with the official Vulkan registry if the
     # target is the cereal generator
@@ -530,7 +204,6 @@ if __name__ == '__main__':
                 if name not in originalEntryDict.keys():
                     treeEntries.append(entry)
                     continue
-                print(f'Entry {entriesName}:{name}')
 
                 originalEntry = originalEntryDict[name]
 
@@ -553,17 +226,5 @@ if __name__ == '__main__':
                         originalEntry.append(child)
 
     # Load the XML tree into the registry object
-    startTimer(args.time)
     reg.loadElementTree(tree)
-    endTimer(args.time, '* Time to parse ElementTree =')
-
-    if args.dump:
-        reg.dumpReg(filehandle=open('regdump.txt', 'w', encoding='utf-8'))
-
-    # Finally, use the output generator to create the requested target
-    if args.debug:
-        pdb.run('reg.apiGen()')
-    else:
-        startTimer(args.time)
-        reg.apiGen()
-        endTimer(args.time, '* Time to generate ' + args.target + ' =')
+    reg.apiGen()

@@ -241,7 +241,6 @@ def banner_command(argv):
 def envGetOrDefault(key, default=None):
     if key in os.environ:
         return os.environ[key]
-    print("envGetOrDefault: notfound: %s" % key)
     return default
 
 # ---- methods overriding base class ----

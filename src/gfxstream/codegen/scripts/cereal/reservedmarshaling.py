@@ -638,9 +638,6 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
         self.beginFilterGuard(vulkanType)
         self.doAllocSpace(vulkanType)
 
-        if vulkanType.filterVar != None:
-            print("onPointer Needs filter: %s filterVar %s" % (access, vulkanType.filterVar))
-
         if vulkanType.isHandleType() and self.mapHandles:
             self.genHandleMappingCall(
                 vulkanType, access, lenAccess, lenAccessGuard)
@@ -675,8 +672,6 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
 
         if vulkanType.isHandleType() and self.mapHandles:
             access = self.exprAccessor(vulkanType)
-            if vulkanType.filterVar != None:
-                print("onValue Needs filter: %s filterVar %s" % (access, vulkanType.filterVar))
             self.genHandleMappingCall(
                 vulkanType.getForAddressAccess(), access, "1", None)
         elif self.typeInfo.isNonAbiPortableType(vulkanType.typeName):
