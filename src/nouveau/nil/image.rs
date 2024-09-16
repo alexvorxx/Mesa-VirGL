@@ -388,11 +388,17 @@ impl Image {
 
         if level.tiling.is_tiled {
             let lvl_tiling_ext_B = level.tiling.extent_B();
-            lvl_ext_B.align(&lvl_tiling_ext_B).size_B().into()
+            let mut lvl_ext_B = lvl_ext_B.align(&lvl_tiling_ext_B);
+
+            let array_len = lvl_ext_B.array_len;
+            lvl_ext_B.array_len = 1;
+
+            self.array_stride_B * u64::from(array_len - 1) + lvl_ext_B.size_B()
         } else {
             assert!(lvl_ext_B.depth == 1);
-            let row_stride = level.row_stride_B * lvl_ext_B.height;
-            row_stride.into()
+            assert!(lvl_ext_B.array_len == 1);
+            u64::from(level.row_stride_B) * u64::from(lvl_ext_B.height - 1)
+                + u64::from(lvl_ext_B.width)
         }
     }
 
