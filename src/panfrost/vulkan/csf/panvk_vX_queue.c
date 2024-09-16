@@ -202,7 +202,7 @@ init_subqueue(struct panvk_queue *queue, enum panvk_subqueue_id subqueue)
    assert(panvk_priv_mem_dev_addr(queue->tiler_heap.desc) != 0);
 
    cs_builder_init(&b, &conf, root_cs);
-   /* Pass the context to through r62. */
+   /* Pass the context. */
    cs_move64_to(&b, cs_subqueue_ctx_reg(&b),
                 panvk_priv_mem_dev_addr(subq->context));
 
