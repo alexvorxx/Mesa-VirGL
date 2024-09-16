@@ -75,6 +75,13 @@ rusticl_args = [
   '-Aclippy::type_complexity',
 ]
 
+rusticl_drivers_enable = get_option('gallium-rusticl-enable-drivers')
+foreach driver : rusticl_drivers_enable
+  rusticl_args += [
+    '--cfg', 'rusticl_enable_' + driver,
+  ]
+endforeach
+
 if with_platform_x11
   rusticl_args += [
     '--cfg', 'glx',
