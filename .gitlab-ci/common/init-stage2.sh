@@ -229,6 +229,6 @@ set +x
 # the result of our run, so try really hard to get it out rather than losing
 # the run. The device gets shut down right at this point, and a630 seems to
 # enjoy corrupting the last line of serial output before shutdown.
-for _ in $(seq 0 3); do echo "hwci: mesa: $RESULT"; sleep 1; echo; done
+for _ in $(seq 0 3); do echo "hwci: mesa: $RESULT, exit_code: $EXIT_CODE"; sleep 1; echo; done
 
 exit $EXIT_CODE
