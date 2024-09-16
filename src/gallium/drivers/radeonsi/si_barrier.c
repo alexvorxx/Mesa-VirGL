@@ -85,10 +85,16 @@ static unsigned get_reduced_barrier_flags(struct si_context *ctx)
       ctx->last_vs_sync_num_draw_calls = ctx->num_draw_calls;
    }
 
-   /* We use a TS event to flush CB/DB on GFX9+, which also waits for compute shaders. */
-   if (flags & SI_BARRIER_SYNC_CS ||
-       (ctx->gfx_level >= GFX9 &&
-        flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB)))
+   /* We use a TS event to flush CB/DB on GFX9+. */
+   bool uses_ts_event = ctx->gfx_level >= GFX9 &&
+                        flags & (SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_SYNC_AND_INV_DB);
+
+   /* TS events wait for everything. */
+   if (uses_ts_event)
+      flags &= ~SI_BARRIER_SYNC_VS & ~SI_BARRIER_SYNC_PS & ~SI_BARRIER_SYNC_CS;
+
+   /* TS events wait for compute too. */
+   if (flags & SI_BARRIER_SYNC_CS || uses_ts_event)
       ctx->compute_is_busy = false;
 
    if (flags & SI_BARRIER_SYNC_VS)
