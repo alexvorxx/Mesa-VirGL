@@ -505,9 +505,10 @@ class LAVAJobSubmitter(PathResolver):
             raise SystemExit(1)
 
         STRUCTURAL_LOG["job_combined_status"] = last_attempt_job.status
+        STRUCTURAL_LOG["job_exit_code"] = last_attempt_job.exit_code
 
         if last_attempt_job.status != "pass":
-            raise SystemExit(1)
+            raise SystemExit(last_attempt_job.exit_code)
 
 
 class StructuredLoggerWrapper:
@@ -520,6 +521,7 @@ class StructuredLoggerWrapper:
         STRUCTURAL_LOG["farm"] = self.__submitter.farm
         STRUCTURAL_LOG["job_combined_fail_reason"] = None
         STRUCTURAL_LOG["job_combined_status"] = "not_submitted"
+        STRUCTURAL_LOG["job_exit_code"] = None
         STRUCTURAL_LOG["dut_attempt_counter"] = 0
 
         # Initialize dut_jobs list to enable appends
