@@ -167,8 +167,11 @@ impl Extent4D<units::Elements> {
 }
 
 impl Extent4D<units::Bytes> {
-    pub fn size_B(&self) -> u32 {
-        self.width * self.height * self.depth
+    pub fn size_B(&self) -> u64 {
+        // size_B of something with layers doesn't make sense because we can't
+        // know the array stride based only on the other dimensions.
+        assert!(self.array_len == 1);
+        u64::from(self.width) * u64::from(self.height) * u64::from(self.depth)
     }
 
     pub fn to_GOB(self, gob_height_is_8: bool) -> Extent4D<units::GOBs> {
