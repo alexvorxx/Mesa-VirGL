@@ -913,9 +913,12 @@ radv_rt_pipeline_compile(struct radv_device *device, const VkRayTracingPipelineC
     * - shaders are captured because it's for debugging purposes
     * - binaries are captured for later uses
     * - ray history is enabled
+    * - group handles are saved and reused on a subsequent run (ie. capture/replay)
     */
    if (keep_executable_info || emit_ray_history ||
-       (pipeline->base.base.create_flags & VK_PIPELINE_CREATE_2_CAPTURE_DATA_BIT_KHR)) {
+       (pipeline->base.base.create_flags &
+        (VK_PIPELINE_CREATE_2_CAPTURE_DATA_BIT_KHR |
+         VK_PIPELINE_CREATE_2_RAY_TRACING_SHADER_GROUP_HANDLE_CAPTURE_REPLAY_BIT_KHR))) {
       skip_shaders_cache = true;
    }
 
