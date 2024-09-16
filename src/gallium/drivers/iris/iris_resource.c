@@ -2537,6 +2537,15 @@ iris_transfer_map(struct pipe_context *ctx,
       usage |= PIPE_MAP_UNSYNCHRONIZED;
    }
 
+   /* We are dealing with external memory object PIPE_BUFFER, disable
+    * async mapping because of sync issues.
+    */
+   if (!res->mod_info &&
+       res->external_format != PIPE_FORMAT_NONE &&
+       resource->target == PIPE_BUFFER) {
+      usage &= ~PIPE_MAP_UNSYNCHRONIZED;
+   }
+
    /* Avoid using GPU copies for persistent/coherent buffers, as the idea
     * there is to access them simultaneously on the CPU & GPU.  This also
     * avoids trying to use GPU copies for our u_upload_mgr buffers which
