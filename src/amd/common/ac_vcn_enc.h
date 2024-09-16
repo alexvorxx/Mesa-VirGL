@@ -135,8 +135,8 @@
 #define RENCODE_AV1_DELTA_FRAME_ID_LENGTH                                           15
 #define RENCODE_AV1_ADDITIONAL_FRAME_ID_LENGTH                                      1
 
-#define RENCDOE_AV1_NUM_REF_FRAMES                                                  8
-#define RENCDOE_AV1_REFS_PER_FRAME                                                  7
+#define RENCODE_AV1_NUM_REF_FRAMES                                                  8
+#define RENCODE_AV1_REFS_PER_FRAME                                                  7
 #define RENCODE_AV1_SDB_FRAME_CONTEXT_SIZE                                          947200
 #define RENCODE_AV1_FRAME_CONTEXT_CDF_TABLE_SIZE                                    22528
 #define RENCODE_AV1_CDEF_ALGORITHM_FRAME_CONTEXT_SIZE                               (64 * 8 * 3)
@@ -475,7 +475,7 @@ typedef struct rvcn_enc_hevc_encode_params_s {
 } rvcn_enc_hevc_encode_params_t;
 
 typedef struct rvcn_enc_av1_encode_params_s {
-   uint32_t ref_frames[RENCDOE_AV1_REFS_PER_FRAME];
+   uint32_t ref_frames[RENCODE_AV1_REFS_PER_FRAME];
    uint32_t lsm_reference_frame_index[2];
 } rvcn_enc_av1_encode_params_t;
 

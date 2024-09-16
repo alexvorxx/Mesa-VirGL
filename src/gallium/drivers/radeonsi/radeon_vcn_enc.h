@@ -125,7 +125,7 @@ struct radeon_enc_pic {
          uint32_t refresh_frame_flags;
          uint32_t reference_delta_frame_id;
          uint32_t reference_frame_index;
-         uint32_t reference_order_hint[RENCDOE_AV1_NUM_REF_FRAMES];
+         uint32_t reference_order_hint[RENCODE_AV1_NUM_REF_FRAMES];
          uint32_t *copy_start;
       };
       rvcn_enc_av1_spec_misc_t av1_spec_misc;
@@ -133,10 +133,10 @@ struct radeon_enc_pic {
       rvcn_enc_av1_timing_info_t av1_timing_info;
       rvcn_enc_av1_color_description_t av1_color_description;
       uint32_t count_last_layer;
-      rvcn_enc_av1_ref_frame_t frames[RENCDOE_AV1_NUM_REF_FRAMES];
-      rvcn_enc_av1_recon_slot_t recon_slots[RENCDOE_AV1_NUM_REF_FRAMES + 1];
-      uint8_t av1_ref_frame_idx[RENCDOE_AV1_REFS_PER_FRAME];
-      void *av1_ref_list[RENCDOE_AV1_NUM_REF_FRAMES];
+      rvcn_enc_av1_ref_frame_t frames[RENCODE_AV1_NUM_REF_FRAMES];
+      rvcn_enc_av1_recon_slot_t recon_slots[RENCODE_AV1_NUM_REF_FRAMES + 1];
+      uint8_t av1_ref_frame_idx[RENCODE_AV1_REFS_PER_FRAME];
+      void *av1_ref_list[RENCODE_AV1_NUM_REF_FRAMES];
       void *av1_recon_frame;
       uint32_t av1_ref_frame_ctrl_l0;
       uint32_t av1_ref_frame_ctrl_l1;

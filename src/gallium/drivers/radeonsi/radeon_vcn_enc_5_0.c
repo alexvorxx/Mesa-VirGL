@@ -394,7 +394,7 @@ static void radeon_enc_encode_params_av1(struct radeon_encoder *enc)
 
    RADEON_ENC_BEGIN(enc->cmd.enc_params_av1);
    RADEON_ENC_CS(enc->enc_pic.av1_enc_params.ref_frames[0]);
-   for (int i = 1; i < RENCDOE_AV1_REFS_PER_FRAME; i++)
+   for (int i = 1; i < RENCODE_AV1_REFS_PER_FRAME; i++)
       RADEON_ENC_CS(0xFFFFFFFF);
    RADEON_ENC_CS(enc->enc_pic.av1_enc_params.lsm_reference_frame_index[0]);
    RADEON_ENC_CS(0xFFFFFFFF);
@@ -841,7 +841,7 @@ static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_h
 
       if ((!frame_is_intra || enc->enc_pic.refresh_frame_flags != 0xff) &&
                      error_resilient_mode && enc->enc_pic.enable_order_hint)
-         for (i = 0; i < RENCDOE_AV1_NUM_REF_FRAMES; i++)
+         for (i = 0; i < RENCODE_AV1_NUM_REF_FRAMES; i++)
             /*  ref_order_hint  */
             radeon_enc_code_fixed_bits(enc, enc->enc_pic.reference_order_hint[i], enc->enc_pic.order_hint_bits);
 
@@ -862,7 +862,7 @@ static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_h
          if (enc->enc_pic.enable_order_hint)
             /*  frame_refs_short_signaling  */
             radeon_enc_code_fixed_bits(enc, 0, 1);
-         for (i = 0; i < RENCDOE_AV1_REFS_PER_FRAME; i++) {
+         for (i = 0; i < RENCODE_AV1_REFS_PER_FRAME; i++) {
             /*  ref_frame_idx  */
             radeon_enc_code_fixed_bits(enc, enc->enc_pic.reference_frame_index, 3);
             if (enc->enc_pic.frame_id_numbers_present)

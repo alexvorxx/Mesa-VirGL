@@ -320,7 +320,7 @@ static bool radeon_enc_av1_search_requested_reference(
                      enc->enc_pic.av1_ref_frame_idx[marked_ref_frame_idx - 1];
       void *request_signature = NULL;
 
-      if (requested_frame_idx >= RENCDOE_AV1_NUM_REF_FRAMES)
+      if (requested_frame_idx >= RENCODE_AV1_NUM_REF_FRAMES)
          goto end;
 
       request_signature = enc->enc_pic.av1_ref_list[requested_frame_idx];
@@ -828,7 +828,7 @@ static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_h
 
       if ((!frame_is_intra || enc->enc_pic.refresh_frame_flags != 0xff) &&
                      error_resilient_mode && enc->enc_pic.enable_order_hint)
-         for (i = 0; i < RENCDOE_AV1_NUM_REF_FRAMES; i++)
+         for (i = 0; i < RENCODE_AV1_NUM_REF_FRAMES; i++)
             /*  ref_order_hint  */
             radeon_enc_code_fixed_bits(enc, enc->enc_pic.reference_order_hint[i], enc->enc_pic.order_hint_bits);
 
@@ -849,7 +849,7 @@ static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_h
          if (enc->enc_pic.enable_order_hint)
             /*  frame_refs_short_signaling  */
             radeon_enc_code_fixed_bits(enc, 0, 1);
-         for (i = 0; i < RENCDOE_AV1_REFS_PER_FRAME; i++) {
+         for (i = 0; i < RENCODE_AV1_REFS_PER_FRAME; i++) {
             /*  ref_frame_idx  */
             radeon_enc_code_fixed_bits(enc, enc->enc_pic.reference_frame_index, 3);
             if (enc->enc_pic.frame_id_numbers_present)
