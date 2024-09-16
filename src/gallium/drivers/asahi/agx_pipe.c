@@ -2636,6 +2636,18 @@ agx_screen_get_driver_uuid(struct pipe_screen *pscreen, char *uuid)
    agx_get_driver_uuid(uuid);
 }
 
+static const char *
+agx_get_cl_cts_version(struct pipe_screen *pscreen)
+{
+   struct agx_device *dev = agx_device(pscreen);
+
+   /* https://www.khronos.org/conformance/adopters/conformant-products/opencl#submission_433 */
+   if (dev->params.gpu_generation < 15)
+      return "v2024-08-08-00";
+
+   return NULL;
+}
+
 struct pipe_screen *
 agx_screen_create(int fd, struct renderonly *ro,
                   const struct pipe_screen_config *config)
@@ -2706,6 +2718,7 @@ agx_screen_create(int fd, struct renderonly *ro,
    screen->fence_get_fd = agx_fence_get_fd;
    screen->get_compiler_options = agx_get_compiler_options;
    screen->get_disk_shader_cache = agx_get_disk_shader_cache;
+   screen->get_cl_cts_version = agx_get_cl_cts_version;
 
    screen->resource_create = u_transfer_helper_resource_create;
    screen->resource_destroy = u_transfer_helper_resource_destroy;
