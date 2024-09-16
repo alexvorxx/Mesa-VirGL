@@ -1168,7 +1168,9 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
       if (result != VK_SUCCESS)
          return;
 
-      get_fb_descs(cmdbuf);
+      result = get_fb_descs(cmdbuf);
+      if (result != VK_SUCCESS)
+         return;
    }
 
    struct cs_builder *b =
@@ -2075,8 +2077,11 @@ panvk_per_arch(CmdEndRendering)(VkCommandBuffer commandBuffer)
       for (unsigned i = 0; i < fbinfo->rt_count; i++)
          clear |= fbinfo->rts[i].clear;
 
-      if (clear)
-         get_fb_descs(cmdbuf);
+      if (clear) {
+         VkResult result = get_fb_descs(cmdbuf);
+         if (result != VK_SUCCESS)
+            return;
+      }
 
       flush_tiling(cmdbuf);
       issue_fragment_jobs(cmdbuf);
