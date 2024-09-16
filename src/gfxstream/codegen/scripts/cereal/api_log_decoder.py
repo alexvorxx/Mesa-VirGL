@@ -1,3 +1,6 @@
+# Copyright 2023 Google LLC
+# SPDX-License-Identifier: MIT
+
 import os
 from typing import List, Set, Dict, Optional
 

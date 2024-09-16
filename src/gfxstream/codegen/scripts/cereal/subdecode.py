@@ -1,3 +1,5 @@
+# Copyright 2018 Google LLC
+# SPDX-License-Identifier: MIT
 from .common.codegen import CodeGen, VulkanWrapperGenerator
 from .common.vulkantypes import VulkanAPI, iterateVulkanType, VulkanType
 

@@ -1,3 +1,5 @@
+# Copyright 2018 Google LLC
+# SPDX-License-Identifier: MIT
 import copy
 
 from .common.codegen import CodeGen, VulkanWrapperGenerator
