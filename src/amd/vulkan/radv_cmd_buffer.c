@@ -9202,6 +9202,7 @@ radv_handle_depth_fbfetch_output(struct radv_cmd_buffer *cmd_buffer)
                                 RADV_QUEUE_GENERAL, &range, NULL);
 
    att->layout = VK_IMAGE_LAYOUT_ATTACHMENT_FEEDBACK_LOOP_OPTIMAL_EXT;
+   att->stencil_layout = VK_IMAGE_LAYOUT_ATTACHMENT_FEEDBACK_LOOP_OPTIMAL_EXT;
 
    cmd_buffer->state.flush_bits |= radv_dst_access_flush(
       cmd_buffer, VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
