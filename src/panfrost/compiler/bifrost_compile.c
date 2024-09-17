@@ -1452,12 +1452,16 @@ va_emit_image_coord(bi_builder *b, bi_index coord, bi_index sample_index,
                                bi_half(bi_extract(b, coord, 2), false));
       else if (coord_comps == 2)
          return array_idx;
-   } else if (coord_comps == 3)
+   } else if (coord_comps == 3 && is_array) {
       return bi_mkvec_v2i16(b, bi_imm_u16(0),
                             bi_half(bi_extract(b, coord, 2), false));
-   else if (coord_comps == 2 && is_array)
+   } else if (coord_comps == 3 && !is_array) {
+      return bi_mkvec_v2i16(b, bi_half(bi_extract(b, coord, 2), false),
+                            bi_imm_u16(0));
+   } else if (coord_comps == 2 && is_array) {
       return bi_mkvec_v2i16(b, bi_imm_u16(0),
                             bi_half(bi_extract(b, coord, 1), false));
+   }
    return bi_zero();
 }
 
@@ -1466,7 +1470,8 @@ bi_emit_image_load(bi_builder *b, nir_intrinsic_instr *instr)
 {
    enum glsl_sampler_dim dim = nir_intrinsic_image_dim(instr);
    unsigned coord_comps = nir_image_intrinsic_coord_components(instr);
-   bool array = nir_intrinsic_image_array(instr);
+   bool array =
+      nir_intrinsic_image_array(instr) || dim == GLSL_SAMPLER_DIM_CUBE;
 
    bi_index coords = bi_src_index(&instr->src[1]);
    bi_index indexvar = bi_src_index(&instr->src[2]);
@@ -1514,7 +1519,8 @@ static void
 bi_emit_lea_image_to(bi_builder *b, bi_index dest, nir_intrinsic_instr *instr)
 {
    enum glsl_sampler_dim dim = nir_intrinsic_image_dim(instr);
-   bool array = nir_intrinsic_image_array(instr);
+   bool array =
+      nir_intrinsic_image_array(instr) || dim == GLSL_SAMPLER_DIM_CUBE;
    unsigned coord_comps = nir_image_intrinsic_coord_components(instr);
 
    enum bi_register_format type =

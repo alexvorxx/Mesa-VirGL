@@ -918,17 +918,6 @@ panfrost_emit_images(struct panfrost_batch *batch, enum pipe_shader_type stage)
          .pool = &batch->pool,
       };
 
-      /* If we specify a cube map, the hardware internally treat it as
-       * a 2D array. Since cube maps as images can confuse our common
-       * texturing code, explicitly use a 2D array.
-       *
-       * Similar concerns apply to 3D textures.
-       */
-      if (view.base.target == PIPE_BUFFER)
-         view.base.target = PIPE_BUFFER;
-      else
-         view.base.target = PIPE_TEXTURE_2D_ARRAY;
-
       panfrost_update_sampler_view(&view, &ctx->base);
       out[i] = view.bifrost_descriptor;
 
