@@ -82,6 +82,17 @@ brw_do_emit_fb_writes(fs_visitor &s, int nr_color_regions, bool replicate_alpha)
    }
 
    if (inst == NULL) {
+      struct brw_wm_prog_key *key = (brw_wm_prog_key*) s.key;
+      struct brw_wm_prog_data *prog_data = brw_wm_prog_data(s.prog_data);
+      /* Disable null_rt if any non color output is written or if
+       * alpha_to_coverage can be enabled. Since the alpha_to_coverage bit is
+       * coming from the BLEND_STATE structure and the HW will avoid reading
+       * it if null_rt is enabled.
+       */
+      const bool use_null_rt =
+         key->alpha_to_coverage == BRW_NEVER &&
+         !prog_data->uses_omask;
+
       /* Even if there's no color buffers enabled, we still need to send
        * alpha out the pipeline to our null renderbuffer to support
        * alpha-testing, alpha-to-coverage, and so on.
@@ -95,7 +106,7 @@ brw_do_emit_fb_writes(fs_visitor &s, int nr_color_regions, bool replicate_alpha)
       bld.LOAD_PAYLOAD(tmp, srcs, 4, 0);
 
       inst = brw_emit_single_fb_write(s, bld, tmp, reg_undef, reg_undef, 4,
-                                      true);
+                                      use_null_rt);
       inst->target = 0;
    }
 
