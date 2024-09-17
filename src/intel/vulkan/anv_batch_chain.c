@@ -1257,8 +1257,7 @@ anv_cmd_buffer_exec_batch_debug(struct anv_queue *queue,
       return;
 
    struct anv_device *device = queue->device;
-   const bool has_perf_query = perf_query_pool && perf_query_pass >= 0 &&
-                               cmd_buffer_count;
+   const bool has_perf_query = perf_query_pool && cmd_buffer_count;
    uint64_t frame_id = device->debug_frame_desc->frame_id;
 
    if (!intel_debug_batch_in_range(device->debug_frame_desc->frame_id))
