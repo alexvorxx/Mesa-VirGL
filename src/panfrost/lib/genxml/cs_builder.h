@@ -433,6 +433,9 @@ cs_extract32(struct cs_builder *b, struct cs_index idx, unsigned word)
 static inline void *
 cs_alloc_ins(struct cs_builder *b, uint32_t num_instrs)
 {
+   /* Don't call this function with num_instrs=0. */
+   assert(num_instrs > 0);
+
    /* If an allocation failure happened before, we just discard all following
     * instructions.
     */
