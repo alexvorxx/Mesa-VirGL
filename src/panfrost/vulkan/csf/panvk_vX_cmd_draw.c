@@ -974,7 +974,8 @@ prepare_ds(struct panvk_cmd_buffer *cmdbuf)
       if (rs->depth_clamp_enable)
          cfg.depth_clamp_mode = MALI_DEPTH_CLAMP_MODE_BOUNDS;
 
-      cfg.depth_source = pan_depth_source(&fs->info);
+      if (fs)
+         cfg.depth_source = pan_depth_source(&fs->info);
       cfg.depth_write_enable = ds->depth.write_enable;
       cfg.depth_bias_enable = rs->depth_bias.enable;
       cfg.depth_function = test_z ? translate_compare_func(ds->depth.compare_op)
@@ -997,7 +998,7 @@ prepare_dcd(struct panvk_cmd_buffer *cmdbuf)
       panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
    const struct panvk_shader *fs = cmdbuf->state.gfx.fs.shader;
    bool fs_is_dirty =
-      cmdbuf->state.gfx.fs.spd != panvk_priv_mem_dev_addr(fs->spd);
+      cmdbuf->state.gfx.fs.spd != (fs ? panvk_priv_mem_dev_addr(fs->spd) : 0);
    bool dcd0_dirty = is_dirty(cmdbuf, RS_RASTERIZER_DISCARD_ENABLE) ||
                      is_dirty(cmdbuf, RS_CULL_MODE) ||
                      is_dirty(cmdbuf, RS_FRONT_FACE) ||
@@ -1117,8 +1118,7 @@ clear_dirty(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
       cmdbuf->state.gfx.vs.spds.var = panvk_priv_mem_dev_addr(vs->spds.var);
    }
 
-   if (fs)
-      cmdbuf->state.gfx.fs.spd = panvk_priv_mem_dev_addr(fs->spd);
+   cmdbuf->state.gfx.fs.spd = fs ? panvk_priv_mem_dev_addr(fs->spd) : 0;
 
    if (draw->index.size)
       cmdbuf->state.gfx.ib.dirty = false;

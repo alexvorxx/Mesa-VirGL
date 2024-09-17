@@ -1239,8 +1239,10 @@ panvk_per_arch(link_shaders)(struct panvk_pool *desc_pool,
    assert(vs->info.stage == MESA_SHADER_VERTEX);
 
    if (PAN_ARCH >= 9) {
-      link->buf_strides[PANVK_VARY_BUF_GENERAL] =
-         MAX2(fs->info.varyings.input_count, vs->info.varyings.output_count);
+      /* No need to calculate varying stride if there's no fragment shader. */
+      if (fs)
+         link->buf_strides[PANVK_VARY_BUF_GENERAL] =
+            MAX2(fs->info.varyings.input_count, vs->info.varyings.output_count);
       return VK_SUCCESS;
    }
 
