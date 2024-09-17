@@ -34,7 +34,6 @@
 #include "genxml/gen_macros.h"
 
 #define ARM_VENDOR_ID        0x13b5
-#define MAX_VIEWPORTS        1
 #define MAX_PUSH_DESCRIPTORS 32
 /* We reserve one ubo for push constant, one for sysvals and one per-set for the
  * descriptor metadata  */
