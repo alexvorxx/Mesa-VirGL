@@ -494,9 +494,8 @@ build_image_copy_shader(const struct vk_meta_image_copy_key *key)
    /* The destination format is already canonical, convert to an ISA format */
    enum pipe_format isa_format;
    if (key->block_based) {
-      isa_format =
-         ail_pixel_format[canonical_format_pipe(key->dst_format, true)]
-            .renderable;
+      enum pipe_format pipe = canonical_format_pipe(key->dst_format, true);
+      isa_format = ail_pixel_format[pipe].renderable;
       assert(isa_format != PIPE_FORMAT_NONE);
    }
 
