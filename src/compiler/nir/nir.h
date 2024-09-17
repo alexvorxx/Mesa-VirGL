@@ -6640,6 +6640,7 @@ bool nir_dedup_inline_samplers(nir_shader *shader);
 
 typedef struct nir_lower_ssbo_options {
    bool native_loads;
+   bool native_offset;
 } nir_lower_ssbo_options;
 
 bool nir_lower_ssbo(nir_shader *shader, const nir_lower_ssbo_options *opts);

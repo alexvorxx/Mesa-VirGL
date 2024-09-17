@@ -58,6 +58,7 @@ sysval_for_intrinsic(nir_intrinsic_instr *intr, unsigned *offset)
 {
    switch (intr->intrinsic) {
    case nir_intrinsic_load_ssbo_address:
+      assert(nir_src_as_uint(intr->src[1]) == 0);
       return PAN_SYSVAL(SSBO, nir_src_as_uint(intr->src[0]));
    case nir_intrinsic_get_ssbo_size:
       *offset = 8;
