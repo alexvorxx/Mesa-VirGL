@@ -986,8 +986,14 @@ void gfx6_emit_cache_flush(struct si_context *sctx, struct radeon_cmdbuf *cs)
    /* Wait for shader engines to go idle.
     * VS and PS waits are unnecessary if SURFACE_SYNC is going to wait
     * for everything including CB/DB cache flushes.
+    *
+    * GFX6-8: SURFACE_SYNC with CB_ACTION_ENA doesn't do anything if there are no CB/DB bindings.
+    * Reproducible with: piglit/arb_framebuffer_no_attachments-atomic
+    *
+    * GFX9: The TS event is always written after full pipeline completion regardless of CB/DB
+    * bindings.
     */
-   if (!flush_cb_db) {
+   if (sctx->gfx_level <= GFX8 || !flush_cb_db) {
       if (flags & SI_CONTEXT_PS_PARTIAL_FLUSH) {
          radeon_event_write(V_028A90_PS_PARTIAL_FLUSH);
          /* Only count explicit shader flushes, not implicit ones done by SURFACE_SYNC. */
