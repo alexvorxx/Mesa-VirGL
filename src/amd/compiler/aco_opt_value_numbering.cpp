@@ -385,6 +385,12 @@ process_block(vn_ctx& ctx, Block& block)
                ctx.renames[instr->definitions[i].tempId()] = orig_instr->definitions[i].getTemp();
                if (instr->definitions[i].isPrecise())
                   orig_instr->definitions[i].setPrecise(true);
+               if (instr->definitions[i].isSZPreserve())
+                  orig_instr->definitions[i].setSZPreserve(true);
+               if (instr->definitions[i].isInfPreserve())
+                  orig_instr->definitions[i].setInfPreserve(true);
+               if (instr->definitions[i].isNaNPreserve())
+                  orig_instr->definitions[i].setNaNPreserve(true);
                /* SPIR_V spec says that an instruction marked with NUW wrapping
                 * around is undefined behaviour, so we can break additions in
                 * other contexts.
