@@ -30,7 +30,6 @@
 #include "gen_macros.h"
 
 #include "util/bitset.h"
-#include "util/list.h"
 #include "util/u_dynarray.h"
 
 /*
@@ -122,7 +121,7 @@ struct cs_chunk {
  */
 struct cs_block {
    /* Used to insert the block in the block stack. */
-   struct list_head node;
+   struct cs_block *next;
 };
 
 #define CS_LABEL_INVALID_POS ~0u
@@ -161,7 +160,7 @@ struct cs_builder {
     * jump in the middle.
     */
    struct {
-      struct list_head stack;
+      struct cs_block *stack;
       struct util_dynarray instrs;
    } blocks;
 
@@ -192,7 +191,6 @@ cs_builder_init(struct cs_builder *b, const struct cs_builder_conf *conf,
     */
    b->conf.nr_kernel_registers = MAX2(b->conf.nr_kernel_registers, 3);
 
-   list_inithead(&b->blocks.stack);
    util_dynarray_init(&b->blocks.instrs, NULL);
 }
 
@@ -430,9 +428,7 @@ cs_extract32(struct cs_builder *b, struct cs_index idx, unsigned word)
 static inline struct cs_block *
 cs_cur_block(struct cs_builder *b)
 {
-   return list_is_empty(&b->blocks.stack)
-             ? NULL
-             : list_last_entry(&b->blocks.stack, struct cs_block, node);
+   return b->blocks.stack;
 }
 
 #define JUMP_SEQ_INSTR_COUNT 4
@@ -623,7 +619,8 @@ cs_move48_to(struct cs_builder *b, struct cs_index dest, uint64_t imm)
 static inline void
 cs_block_start(struct cs_builder *b, struct cs_block *block)
 {
-   list_addtail(&block->node, &b->blocks.stack);
+   block->next = b->blocks.stack;
+   b->blocks.stack = block;
 }
 
 static inline void
@@ -631,9 +628,9 @@ cs_block_end(struct cs_builder *b, struct cs_block *block)
 {
    assert(cs_cur_block(b) == block);
 
-   list_del(&block->node);
+   b->blocks.stack = block->next;
 
-   if (!list_is_empty(&b->blocks.stack))
+   if (cs_cur_block(b) != NULL)
       return;
 
    uint32_t num_instrs =
