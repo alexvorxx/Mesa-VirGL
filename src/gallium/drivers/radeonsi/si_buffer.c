@@ -446,7 +446,9 @@ static void *si_buffer_transfer_map(struct pipe_context *ctx, struct pipe_resour
          si_barrier_before_simple_buffer_op(sctx, 0, &staging->b.b, resource);
          si_copy_buffer(sctx, &staging->b.b, resource, box->x % SI_MAP_BUFFER_ALIGNMENT,
                         box->x, box->width);
-         si_barrier_after_simple_buffer_op(sctx, 0, &staging->b.b, resource);
+         /* Since the CPU will wait for the copy to finish, we don't have to insert any GPU barrier
+          * after the copy because there is no GPU reader.
+          */
 
          data = si_buffer_map(sctx, staging, usage & ~PIPE_MAP_UNSYNCHRONIZED);
          if (!data) {
