@@ -163,7 +163,7 @@ option(
 option(
   'gallium-rusticl-enable-drivers',
   type : 'array',
-  value : ['auto'],
+  value : ['auto', 'asahi'],
   description : 'List of gallium drivers for which rusticl will be enabled ' +
                 'by default',
 )

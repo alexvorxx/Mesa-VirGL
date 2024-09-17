@@ -56,7 +56,10 @@ fn get_enabled_devs() -> HashMap<String, u32> {
     let mut res = HashMap::new();
 
     // we require the type here as this list can be empty depending on the build options
-    let default_devs: &[&str] = &[];
+    let default_devs: &[&str] = &[
+        #[cfg(any(rusticl_enable_asahi, rusticl_enable_auto))]
+        "asahi",
+    ];
 
     // I wished we could use different iterators, but that's not really working out.
     let enabled_devs = env::var("RUSTICL_ENABLE").unwrap_or(default_devs.join(","));
