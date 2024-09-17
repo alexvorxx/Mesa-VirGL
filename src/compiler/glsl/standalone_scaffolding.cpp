@@ -330,10 +330,14 @@ standalone_destroy_shader_program(struct gl_shader_program *whole_program)
 struct gl_shader *
 standalone_add_shader_source(struct gl_context *ctx, struct gl_shader_program *whole_program, GLenum type, const char *source)
 {
+   blake3_hash source_blake3;
+   _mesa_blake3_compute(source, strlen(source), source_blake3);
+
    struct gl_shader *shader = rzalloc(whole_program, gl_shader);
    shader->Type = type;
    shader->Stage = _mesa_shader_enum_to_shader_stage(type);
    shader->Source = source;
+   memcpy(shader->source_blake3, source_blake3, BLAKE3_OUT_LEN);
 
    whole_program->Shaders = reralloc(whole_program, whole_program->Shaders,
                                      struct gl_shader *, whole_program->NumShaders + 1);
