@@ -132,7 +132,7 @@ cmd_wait_event(struct panvk_cmd_buffer *cmdbuf, struct panvk_event *event,
                          (j * sizeof(struct panvk_cs_sync32)));
 
          cs_move32_to(b, seqno, 0);
-         cs_sync64_wait(b, false, MALI_CS_CONDITION_GREATER, seqno, sync_addr);
+         cs_sync32_wait(b, false, MALI_CS_CONDITION_GREATER, seqno, sync_addr);
       }
    }
 }
