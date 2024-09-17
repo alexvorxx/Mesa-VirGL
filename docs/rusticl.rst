@@ -11,6 +11,23 @@ In order to use Rusticl on any platform the environment variable
 for any driver by default yet as doing so can impact system stability until
 remaining core issues are ironed out.
 
+Enabling drivers by default
+---------------------------
+
+Distributions and everybody building rusticl themselves can opt-in or opt-out
+certain drivers from being enabled by default. The
+``gallium-rusticl-enable-drivers`` takes a list of drivers to enable by
+default. The environment variable :envvar:`RUSTICL_ENABLE` will overwrite this
+list at runtime.
+
+Not all drivers are supported to be enabled by default, because that should
+require opt-in by the driver maintainers. Check out the meson option
+documentation to see for which drivers this option is supported.
+
+The ``auto`` option might not enable all drivers supported by this flag, but
+for distribution it's recommended to use that one unless they get an ack from
+driver maintainers to expand the list.
+
 Building
 --------
 
