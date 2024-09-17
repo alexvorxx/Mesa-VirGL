@@ -1067,11 +1067,11 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
       struct agx_opcode_info info = agx_opcodes_info[I->op];
       uint64_t raw =
          info.encoding.exact | (q1 << 8) | ((value.value & 0x3F) << 10) |
-         ((I->imm & 0xF) << 20) | (1UL << 24) | // XXX
-         (1UL << 26) |                          // XXX
+         ((I->imm & 0xF) << 20) | (1ull << 24) | // XXX
+         (1ull << 26) |                          // XXX
          (q2 << 30) | ((uint64_t)((I->imm >> 4) & 0xF) << 32) |
          ((uint64_t)q3 << 37) | ((uint64_t)(value.value >> 6) << 40) |
-         ((uint64_t)q4 << 42) | (1UL << 47) | // XXX
+         ((uint64_t)q4 << 42) | (1ull << 47) | // XXX
          ((uint64_t)q5 << 48) | ((uint64_t)(I->imm >> 8) << 56);
 
       memcpy(util_dynarray_grow_bytes(emission, 1, 8), &raw, 8);
@@ -1107,7 +1107,7 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
          (((uint64_t)((O >> 4) & BITFIELD_MASK(4))) << 32) |
          ((uint64_t)i2 << 36) |
          (((uint64_t)((R >> 6) & BITFIELD_MASK(2))) << 40) |
-         ((uint64_t)i5 << 44) | (L ? (1UL << 47) : 0) |
+         ((uint64_t)i5 << 44) | (L ? (1ull << 47) : 0) |
          (((uint64_t)(format >> 2)) << 50) | (((uint64_t)Rt) << 49) |
          (((uint64_t)mask) << 52) | (((uint64_t)(O >> 8)) << 56);
 
@@ -1128,7 +1128,7 @@ agx_pack_instr(struct util_dynarray *emission, struct util_dynarray *fixups,
          info.encoding.exact | ((uint64_t)i0 << 8) | ((uint64_t)i1 << 26) |
          ((uint64_t)i2 << 36) | ((uint64_t)i3 << 44) | ((uint64_t)i4 << 50) |
          ((I->stack_size & 0xF) << 20) |
-         ((uint64_t)((I->stack_size >> 4) & 0xF) << 32) | (1UL << 47) | // XXX
+         ((uint64_t)((I->stack_size >> 4) & 0xF) << 32) | (1ull << 47) | // XXX
          ((uint64_t)(I->stack_size >> 8) << 56);
 
       memcpy(util_dynarray_grow_bytes(emission, 1, 8), &raw, 8);
