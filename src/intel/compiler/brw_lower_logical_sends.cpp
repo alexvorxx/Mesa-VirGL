@@ -1545,8 +1545,10 @@ lower_lsc_memory_logical_send(const fs_builder &bld, fs_inst *inst)
    }
    assert(inst->sfid);
 
-   inst->desc = lsc_msg_desc(devinfo, op, binding_type, addr_size,
-                             data_size, components, transpose, cache_mode);
+   inst->desc = lsc_msg_desc(devinfo, op, binding_type, addr_size, data_size,
+                             lsc_opcode_has_cmask(op) ?
+                             (1 << components) - 1 : components,
+                             transpose, cache_mode);
 
    /* Set up extended descriptors, fills src[0] and src[1]. */
    setup_lsc_surface_descriptors(bld, inst, inst->desc, binding);

@@ -2042,8 +2042,6 @@ enum lsc_opcode
 lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin)
 {
    switch (intrin->intrinsic) {
-   case nir_intrinsic_image_load:
-   case nir_intrinsic_bindless_image_load:
    case nir_intrinsic_load_ssbo:
    case nir_intrinsic_load_shared:
    case nir_intrinsic_load_global:
@@ -2058,8 +2056,6 @@ lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin)
    case nir_intrinsic_load_scratch:
       return LSC_OP_LOAD;
 
-   case nir_intrinsic_image_store:
-   case nir_intrinsic_bindless_image_store:
    case nir_intrinsic_store_ssbo:
    case nir_intrinsic_store_shared:
    case nir_intrinsic_store_global:
@@ -2068,6 +2064,14 @@ lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin)
    case nir_intrinsic_store_ssbo_block_intel:
    case nir_intrinsic_store_scratch:
       return LSC_OP_STORE;
+
+   case nir_intrinsic_image_load:
+   case nir_intrinsic_bindless_image_load:
+      return LSC_OP_LOAD_CMASK;
+
+   case nir_intrinsic_image_store:
+   case nir_intrinsic_bindless_image_store:
+      return LSC_OP_STORE_CMASK;
 
    default:
       assert(nir_intrinsic_has_atomic_op(intrin));
