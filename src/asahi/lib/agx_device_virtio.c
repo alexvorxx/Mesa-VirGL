@@ -197,10 +197,11 @@ agx_virtio_submit(struct agx_device *dev, struct drm_asahi_submit *submit,
                   struct agx_submit_virt *virt)
 {
    struct drm_asahi_command *commands =
-      (struct drm_asahi_command *)submit->commands;
-   struct drm_asahi_sync *in_syncs = (struct drm_asahi_sync *)submit->in_syncs;
+      (struct drm_asahi_command *)(uintptr_t)submit->commands;
+   struct drm_asahi_sync *in_syncs =
+      (struct drm_asahi_sync *)(uintptr_t)submit->in_syncs;
    struct drm_asahi_sync *out_syncs =
-      (struct drm_asahi_sync *)submit->out_syncs;
+      (struct drm_asahi_sync *)(uintptr_t)submit->out_syncs;
    size_t req_len = sizeof(struct asahi_ccmd_submit_req);
 
    for (int i = 0; i < submit->command_count; i++) {
@@ -213,7 +214,7 @@ agx_virtio_submit(struct agx_device *dev, struct drm_asahi_submit *submit,
 
       case DRM_ASAHI_CMD_RENDER: {
          struct drm_asahi_cmd_render *render =
-            (struct drm_asahi_cmd_render *)commands[i].cmd_buffer;
+            (struct drm_asahi_cmd_render *)(uintptr_t)commands[i].cmd_buffer;
          req_len += sizeof(struct drm_asahi_command) +
                     sizeof(struct drm_asahi_cmd_render);
          req_len += render->fragment_attachment_count *
@@ -244,15 +245,17 @@ agx_virtio_submit(struct agx_device *dev, struct drm_asahi_submit *submit,
       memcpy(ptr, &commands[i], sizeof(struct drm_asahi_command));
       ptr += sizeof(struct drm_asahi_command);
 
-      memcpy(ptr, (char *)commands[i].cmd_buffer, commands[i].cmd_buffer_size);
+      memcpy(ptr, (char *)(uintptr_t)commands[i].cmd_buffer,
+             commands[i].cmd_buffer_size);
       ptr += commands[i].cmd_buffer_size;
 
       if (commands[i].cmd_type == DRM_ASAHI_CMD_RENDER) {
          struct drm_asahi_cmd_render *render =
-            (struct drm_asahi_cmd_render *)commands[i].cmd_buffer;
+            (struct drm_asahi_cmd_render *)(uintptr_t)commands[i].cmd_buffer;
          size_t fragments_size = sizeof(struct drm_asahi_attachment) *
                                  render->fragment_attachment_count;
-         memcpy(ptr, (char *)render->fragment_attachments, fragments_size);
+         memcpy(ptr, (char *)(uintptr_t)render->fragment_attachments,
+                fragments_size);
          ptr += fragments_size;
       }
    }
