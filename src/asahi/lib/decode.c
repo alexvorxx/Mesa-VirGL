@@ -910,7 +910,7 @@ agxdecode_drm_cmd_render(struct agxdecode_ctx *ctx,
 
    DUMP_FIELD(c, "%d", vertex_attachment_count);
    struct drm_asahi_attachment *vertex_attachments =
-      (void *)c->vertex_attachments;
+      (void *)(uintptr_t)c->vertex_attachments;
    for (unsigned i = 0; i < c->vertex_attachment_count; i++) {
       DUMP_FIELD((&vertex_attachments[i]), "0x%x", order);
       DUMP_FIELD((&vertex_attachments[i]), "0x%llx", size);
@@ -918,7 +918,7 @@ agxdecode_drm_cmd_render(struct agxdecode_ctx *ctx,
    }
    DUMP_FIELD(c, "%d", fragment_attachment_count);
    struct drm_asahi_attachment *fragment_attachments =
-      (void *)c->fragment_attachments;
+      (void *)(uintptr_t)c->fragment_attachments;
    for (unsigned i = 0; i < c->fragment_attachment_count; i++) {
       DUMP_FIELD((&fragment_attachments[i]), "0x%x", order);
       DUMP_FIELD((&fragment_attachments[i]), "0x%llx", size);
