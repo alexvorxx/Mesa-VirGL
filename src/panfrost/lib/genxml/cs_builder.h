@@ -621,9 +621,9 @@ cs_block_start(struct cs_builder *b, struct cs_block *block)
 }
 
 static inline void
-cs_block_end(struct cs_builder *b)
+cs_block_end(struct cs_builder *b, struct cs_block *block)
 {
-   assert(b->blocks.cur);
+   assert(b->blocks.cur == block);
 
    list_del(&b->blocks.cur->node);
 
@@ -853,11 +853,9 @@ cs_loop_conditional_break(struct cs_builder *b, struct cs_loop *loop,
 static inline void
 cs_while_end(struct cs_builder *b, struct cs_loop *loop)
 {
-   assert(b->blocks.cur == &loop->block);
-
    cs_branch_label(b, &loop->start, loop->cond, loop->val);
    cs_set_label(b, &loop->end);
-   cs_block_end(b);
+   cs_block_end(b, &loop->block);
 
    if (unlikely(loop->orig_ls_state)) {
       BITSET_OR(loop->orig_ls_state->pending_loads,
@@ -1446,14 +1444,11 @@ cs_match_case_ls_get(struct cs_match *match)
 static inline void
 cs_match_case(struct cs_builder *b, struct cs_match *match, uint32_t id)
 {
-   assert(b->blocks.cur && (b->blocks.cur == &match->block ||
-                            b->blocks.cur == &match->case_block));
    assert(!match->default_emitted || !"default case must be last");
    if (match->next_case_label.last_forward_ref != CS_LABEL_INVALID_POS) {
       cs_branch_label(b, &match->break_label, MALI_CS_CONDITION_ALWAYS,
                       cs_undef());
-      assert(b->blocks.cur == &match->case_block);
-      cs_block_end(b);
+      cs_block_end(b, &match->case_block);
       cs_match_case_ls_get(match);
       cs_set_label(b, &match->next_case_label);
       cs_label_init(&match->next_case_label);
@@ -1472,15 +1467,13 @@ cs_match_case(struct cs_builder *b, struct cs_match *match, uint32_t id)
 static inline void
 cs_match_default(struct cs_builder *b, struct cs_match *match)
 {
-   assert(b->blocks.cur && (b->blocks.cur == &match->block ||
-                            b->blocks.cur == &match->case_block));
    assert(match->next_case_label.last_forward_ref != CS_LABEL_INVALID_POS ||
           !"default case requires at least one other case");
    cs_branch_label(b, &match->break_label, MALI_CS_CONDITION_ALWAYS,
                    cs_undef());
 
    if (b->blocks.cur == &match->case_block) {
-      cs_block_end(b);
+      cs_block_end(b, &match->case_block);
       cs_match_case_ls_get(match);
    }
 
@@ -1494,12 +1487,9 @@ cs_match_default(struct cs_builder *b, struct cs_match *match)
 static inline void
 cs_match_end(struct cs_builder *b, struct cs_match *match)
 {
-   assert(b->blocks.cur && (b->blocks.cur == &match->block ||
-                            b->blocks.cur == &match->case_block));
-
    if (b->blocks.cur == &match->case_block) {
       cs_match_case_ls_get(match);
-      cs_block_end(b);
+      cs_block_end(b, &match->case_block);
    }
 
    if (unlikely(match->orig_ls_state)) {
@@ -1523,7 +1513,7 @@ cs_match_end(struct cs_builder *b, struct cs_match *match)
    cs_set_label(b, &match->next_case_label);
    cs_set_label(b, &match->break_label);
 
-   cs_block_end(b);
+   cs_block_end(b, &match->block);
 }
 
 #define cs_match(__b, __val, __scratch)                                        \
