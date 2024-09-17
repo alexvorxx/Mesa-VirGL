@@ -22,27 +22,30 @@ using namespace brw;
 static fs_inst *
 brw_emit_single_fb_write(fs_visitor &s, const fs_builder &bld,
                          brw_reg color0, brw_reg color1,
-                         brw_reg src0_alpha, unsigned components)
+                         brw_reg src0_alpha, unsigned components,
+                         bool null_rt)
 {
    assert(s.stage == MESA_SHADER_FRAGMENT);
    struct brw_wm_prog_data *prog_data = brw_wm_prog_data(s.prog_data);
 
    /* Hand over gl_FragDepth or the payload depth. */
    const brw_reg dst_depth = fetch_payload_reg(bld, s.fs_payload().dest_depth_reg);
-   brw_reg src_depth, src_stencil;
 
+   brw_reg sources[FB_WRITE_LOGICAL_NUM_SRCS];
+   sources[FB_WRITE_LOGICAL_SRC_COLOR0]     = color0;
+   sources[FB_WRITE_LOGICAL_SRC_COLOR1]     = color1;
+   sources[FB_WRITE_LOGICAL_SRC_SRC0_ALPHA] = src0_alpha;
+   sources[FB_WRITE_LOGICAL_SRC_DST_DEPTH]  = dst_depth;
+   sources[FB_WRITE_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(components);
+   sources[FB_WRITE_LOGICAL_SRC_NULL_RT]    = brw_imm_ud(null_rt);
+
+   if (prog_data->uses_omask)
+      sources[FB_WRITE_LOGICAL_SRC_OMASK] = s.sample_mask;
    if (s.nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_DEPTH))
-      src_depth = s.frag_depth;
-
+      sources[FB_WRITE_LOGICAL_SRC_SRC_DEPTH] = s.frag_depth;
    if (s.nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_STENCIL))
-      src_stencil = s.frag_stencil;
+      sources[FB_WRITE_LOGICAL_SRC_SRC_STENCIL] = s.frag_stencil;
 
-   const brw_reg sources[] = {
-      color0, color1, src0_alpha, src_depth, dst_depth, src_stencil,
-      (prog_data->uses_omask ? s.sample_mask : brw_reg()),
-      brw_imm_ud(components)
-   };
-   assert(ARRAY_SIZE(sources) - 1 == FB_WRITE_LOGICAL_SRC_COMPONENTS);
    fs_inst *write = bld.emit(FS_OPCODE_FB_WRITE_LOGICAL, brw_reg(),
                              sources, ARRAY_SIZE(sources));
 
@@ -73,7 +76,8 @@ brw_do_emit_fb_writes(fs_visitor &s, int nr_color_regions, bool replicate_alpha)
          src0_alpha = offset(s.outputs[0], bld, 3);
 
       inst = brw_emit_single_fb_write(s, abld, s.outputs[target],
-                                      s.dual_src_output, src0_alpha, 4);
+                                      s.dual_src_output, src0_alpha, 4,
+                                      false);
       inst->target = target;
    }
 
@@ -90,7 +94,8 @@ brw_do_emit_fb_writes(fs_visitor &s, int nr_color_regions, bool replicate_alpha)
       const brw_reg tmp = bld.vgrf(BRW_TYPE_UD, 4);
       bld.LOAD_PAYLOAD(tmp, srcs, 4, 0);
 
-      inst = brw_emit_single_fb_write(s, bld, tmp, reg_undef, reg_undef, 4);
+      inst = brw_emit_single_fb_write(s, bld, tmp, reg_undef, reg_undef, 4,
+                                      true);
       inst->target = 0;
    }
 
