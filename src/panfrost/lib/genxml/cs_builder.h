@@ -162,7 +162,6 @@ struct cs_builder {
     */
    struct {
       struct list_head stack;
-      struct cs_block *cur;
       struct util_dynarray instrs;
    } blocks;
 
@@ -428,6 +427,14 @@ cs_extract32(struct cs_builder *b, struct cs_index idx, unsigned word)
    return cs_reg32(b, idx.reg + word);
 }
 
+static inline struct cs_block *
+cs_cur_block(struct cs_builder *b)
+{
+   return list_is_empty(&b->blocks.stack)
+             ? NULL
+             : list_last_entry(&b->blocks.stack, struct cs_block, node);
+}
+
 #define JUMP_SEQ_INSTR_COUNT 4
 
 static inline void *
@@ -442,7 +449,7 @@ cs_alloc_ins(struct cs_builder *b, uint32_t num_instrs)
    if (unlikely(!cs_is_valid(b)))
       return &b->discard_instr_slot;
 
-   if (b->blocks.cur)
+   if (cs_cur_block(b))
       return util_dynarray_grow(&b->blocks.instrs, uint64_t, num_instrs);
 
    /* Lazy root chunk allocation. */
@@ -617,22 +624,17 @@ static inline void
 cs_block_start(struct cs_builder *b, struct cs_block *block)
 {
    list_addtail(&block->node, &b->blocks.stack);
-   b->blocks.cur = block;
 }
 
 static inline void
 cs_block_end(struct cs_builder *b, struct cs_block *block)
 {
-   assert(b->blocks.cur == block);
+   assert(cs_cur_block(b) == block);
 
-   list_del(&b->blocks.cur->node);
+   list_del(&block->node);
 
-   if (!list_is_empty(&b->blocks.stack)) {
-      b->blocks.cur = list_last_entry(&b->blocks.stack, struct cs_block, node);
+   if (!list_is_empty(&b->blocks.stack))
       return;
-   }
-
-   b->blocks.cur = NULL;
 
    uint32_t num_instrs =
       util_dynarray_num_elements(&b->blocks.instrs, uint64_t);
@@ -647,7 +649,7 @@ cs_block_end(struct cs_builder *b, struct cs_block *block)
 static inline uint32_t
 cs_block_next_pos(struct cs_builder *b)
 {
-   assert(b->blocks.cur);
+   assert(cs_cur_block(b) != NULL);
 
    return util_dynarray_num_elements(&b->blocks.instrs, uint64_t);
 }
@@ -667,7 +669,7 @@ static inline void
 cs_branch_label(struct cs_builder *b, struct cs_label *label,
                 enum mali_cs_condition cond, struct cs_index val)
 {
-   assert(b->blocks.cur);
+   assert(cs_cur_block(b) != NULL);
 
    if (label->target == CS_LABEL_INVALID_POS) {
       uint32_t branch_ins_pos = cs_block_next_pos(b);
@@ -836,7 +838,7 @@ static inline void
 cs_loop_conditional_continue(struct cs_builder *b, struct cs_loop *loop,
                              enum mali_cs_condition cond, struct cs_index val)
 {
-   assert(b->blocks.cur == &loop->block);
+   assert(cs_cur_block(b) == &loop->block);
    cs_branch_label(b, &loop->start, cond, val);
    cs_loop_diverge_ls_update(b, loop);
 }
@@ -845,7 +847,7 @@ static inline void
 cs_loop_conditional_break(struct cs_builder *b, struct cs_loop *loop,
                           enum mali_cs_condition cond, struct cs_index val)
 {
-   assert(b->blocks.cur == &loop->block);
+   assert(cs_cur_block(b) == &loop->block);
    cs_branch_label(b, &loop->end, cond, val);
    cs_loop_diverge_ls_update(b, loop);
 }
@@ -1472,7 +1474,7 @@ cs_match_default(struct cs_builder *b, struct cs_match *match)
    cs_branch_label(b, &match->break_label, MALI_CS_CONDITION_ALWAYS,
                    cs_undef());
 
-   if (b->blocks.cur == &match->case_block) {
+   if (cs_cur_block(b) == &match->case_block) {
       cs_block_end(b, &match->case_block);
       cs_match_case_ls_get(match);
    }
@@ -1487,7 +1489,7 @@ cs_match_default(struct cs_builder *b, struct cs_match *match)
 static inline void
 cs_match_end(struct cs_builder *b, struct cs_match *match)
 {
-   if (b->blocks.cur == &match->case_block) {
+   if (cs_cur_block(b) == &match->case_block) {
       cs_match_case_ls_get(match);
       cs_block_end(b, &match->case_block);
    }
