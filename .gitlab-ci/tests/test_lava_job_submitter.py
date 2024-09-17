@@ -94,8 +94,8 @@ NETWORK_EXCEPTION = xmlrpc.client.ProtocolError("", 0, "test", {})
 XMLRPC_FAULT = xmlrpc.client.Fault(0, "test")
 
 PROXY_SCENARIOS = {
-    "simple pass case": (mock_logs(result="pass"), does_not_raise(), "pass", {}),
-    "simple fail case": (mock_logs(result="fail"), does_not_raise(), "fail", {}),
+    "simple pass case": (mock_logs(result="pass", exit_code=0), does_not_raise(), "pass", 0, {}),
+    "simple fail case": (mock_logs(result="fail", exit_code=1), does_not_raise(), "fail", 1, {}),
     "simple hung case": (
         mock_logs(
             messages={
@@ -105,18 +105,21 @@ PROXY_SCENARIOS = {
                 * 1000
             },
             result="fail",
+            exit_code=1,
         ),
         pytest.raises(MesaCIRetryError),
         "hung",
+        1,
         {},
     ),
     "leftover dump from last job in boot section": (
         (
             mock_lava_signal(LogSectionType.LAVA_BOOT),
-            jobs_logs_response(finished=False, msg=None, result="fail"),
+            jobs_logs_response(finished=False, msg=None, result="fail", exit_code=1),
         ),
         pytest.raises(MesaCIRetryError),
         "hung",
+        1,
         {},
     ),
     "boot works at last retry": (
@@ -129,9 +132,11 @@ PROXY_SCENARIOS = {
                 + [1]
             },
             result="pass",
+            exit_code=0,
         ),
         does_not_raise(),
         "pass",
+        0,
         {},
     ),
     "test case took too long": pytest.param(
@@ -143,46 +148,54 @@ PROXY_SCENARIOS = {
                 * (NUMBER_OF_MAX_ATTEMPTS + 1)
             },
             result="pass",
+            exit_code=0,
         ),
         pytest.raises(MesaCIRetryError),
         "pass",
+        0,
         {},
     ),
     "timed out more times than retry attempts": (
         generate_n_logs(n=4, tick_fn=9999999),
         pytest.raises(MesaCIRetryError),
         "fail",
+        1,
         {},
     ),
     "long log case, no silence": (
         mock_logs(
             messages={LogSectionType.TEST_CASE: [1] * (1000)},
             result="pass",
+            exit_code=0,
         ),
         does_not_raise(),
         "pass",
+        0,
         {},
     ),
     "no retries, testsuite succeed": (
-        mock_logs(result="pass"),
+        mock_logs(result="pass", exit_code=0),
         does_not_raise(),
         "pass",
-        {"testsuite_results": [generate_testsuite_result(result="pass")]},
+        0,
+        {"testsuite_results": [generate_testsuite_result(result="pass", exit_code=0)]},
     ),
     "no retries, but testsuite fails": (
-        mock_logs(result="fail"),
+        mock_logs(result="fail", exit_code=1),
         does_not_raise(),
         "fail",
-        {"testsuite_results": [generate_testsuite_result(result="fail")]},
+        1,
+        {"testsuite_results": [generate_testsuite_result(result="fail", exit_code=1)]},
     ),
     "no retries, one testsuite fails": (
-        generate_n_logs(n=1, tick_fn=0, result="fail"),
+        mock_logs(result="fail", exit_code=1),
         does_not_raise(),
         "fail",
+        1,
         {
             "testsuite_results": [
-                generate_testsuite_result(result="fail"),
-                generate_testsuite_result(result="pass"),
+                generate_testsuite_result(result="fail", exit_code=1),
+                generate_testsuite_result(result="pass", exit_code=0),
             ]
         },
     ),
@@ -190,13 +203,15 @@ PROXY_SCENARIOS = {
         generate_n_logs(n=NUMBER_OF_MAX_ATTEMPTS + 1, tick_fn=100000),
         pytest.raises(MesaCIRetryError),
         "fail",
+        1,
         {},
     ),
     # If a protocol error happens, _call_proxy will retry without affecting timeouts
     "unstable connection, ProtocolError followed by final message": (
-        (NETWORK_EXCEPTION, *list(mock_logs(result="pass"))),
+        (NETWORK_EXCEPTION, *list(mock_logs(result="pass", exit_code=0))),
         does_not_raise(),
         "pass",
+        0,
         {},
     ),
     # After an arbitrary number of retries, _call_proxy should call sys.exit
@@ -204,14 +219,15 @@ PROXY_SCENARIOS = {
         repeat(NETWORK_EXCEPTION),
         pytest.raises(SystemExit),
         "fail",
+        1,
         {},
     ),
-    "XMLRPC Fault": ([XMLRPC_FAULT], pytest.raises(MesaCIRetryError), False, {}),
+    "XMLRPC Fault": ([XMLRPC_FAULT], pytest.raises(MesaCIRetryError), False, 1, {}),
 }
 
 
 @pytest.mark.parametrize(
-    "test_log, expectation, job_result, proxy_args",
+    "test_log, expectation, job_result, exit_code, proxy_args",
     PROXY_SCENARIOS.values(),
     ids=PROXY_SCENARIOS.keys(),
 )
@@ -220,6 +236,7 @@ def test_retriable_follow_job(
     test_log,
     expectation,
     job_result,
+    exit_code,
     proxy_args,
     mock_proxy,
 ):
@@ -227,10 +244,11 @@ def test_retriable_follow_job(
         proxy = mock_proxy(side_effect=test_log, **proxy_args)
         job: LAVAJob = retriable_follow_job(proxy, "")
         assert job_result == job.status
+        assert exit_code == job.exit_code
 
 
-WAIT_FOR_JOB_SCENARIOS = {"one log run taking (sec):": (mock_logs(result="pass"))}
 
+WAIT_FOR_JOB_SCENARIOS = {"one log run taking (sec):": (mock_logs(result="pass", exit_code=0))}
 
 @pytest.mark.parametrize("wait_time", (DEVICE_HANGING_TIMEOUT_SEC * 2,))
 @pytest.mark.parametrize(
@@ -256,6 +274,7 @@ def test_simulate_a_long_wait_to_start_a_job(
     delta_time = end_time - start_time
 
     assert job.status == "pass"
+    assert job.exit_code == 0
     assert delta_time.total_seconds() >= wait_time
 
 
@@ -309,37 +328,43 @@ def test_log_corruption(mock_sleep, data_sequence, expected_exception, mock_prox
 LAVA_RESULT_LOG_SCENARIOS = {
     # the submitter should accept xtrace logs
     "Bash xtrace echo with kmsg interleaving": (
-        "echo hwci: mesa: pass[  737.673352] <LAVA_SIGNAL_ENDTC mesa-ci>",
-        "pass",
+        "echo hwci: mesa: pass, exit_code: 0[  737.673352] <LAVA_SIGNAL_ENDTC mesa-ci>",
+        "pass", 0,
     ),
     # the submitter should accept xtrace logs
     "kmsg result print": (
-        "[  737.673352] hwci: mesa: pass",
-        "pass",
+        "[  737.673352] hwci: mesa: pass, exit_code: 0",
+        "pass", 0,
     ),
     # if the job result echo has a very bad luck, it still can be interleaved
     # with kmsg
     "echo output with kmsg interleaving": (
-        "hwci: mesa: pass[  737.673352] <LAVA_SIGNAL_ENDTC mesa-ci>",
-        "pass",
+        "hwci: mesa: pass, exit_code: 0[  737.673352] <LAVA_SIGNAL_ENDTC mesa-ci>",
+        "pass", 0,
     ),
     "fail case": (
-        "hwci: mesa: fail",
-        "fail",
+        "hwci: mesa: fail, exit_code: 1",
+        "fail", 1,
+    ),
+    # fail case with different exit code
+    "fail case (exit code 101)": (
+        "hwci: mesa: fail, exit_code: 101",
+        "fail", 101,
     ),
 }
 
 
 @pytest.mark.parametrize(
-    "message, expectation",
+    "message, expected_status, expected_exit_code",
     LAVA_RESULT_LOG_SCENARIOS.values(),
     ids=LAVA_RESULT_LOG_SCENARIOS.keys(),
 )
-def test_parse_job_result_from_log(message, expectation, mock_proxy):
+def test_parse_job_result_from_log(message, expected_status, expected_exit_code, mock_proxy):
     job = LAVAJob(mock_proxy(), "")
     job.parse_job_result_from_log([message])
 
-    assert job.status == expectation
+    assert job.status == expected_status
+    assert job.exit_code == expected_exit_code
 
 
 @pytest.mark.slow(
@@ -428,11 +453,11 @@ def test_full_yaml_log(mock_proxy, frozen_time, lava_job_submitter):
 
 
 @pytest.mark.parametrize(
-    "validate_only,finished_job_status,expected_combined_status,expected_exit_code",
+    "validate_only,finished_job_status,job_exit_code,expected_combined_status",
     [
-        (True, "pass", None, None),
-        (False, "pass", "pass", 0),
-        (False, "fail", "fail", 1),
+        (True, "pass", None, None,),
+        (False, "pass", 0, "pass",),
+        (False, "fail", 1, "fail",),
     ],
     ids=[
         "validate_only_no_job_submission",
@@ -441,11 +466,12 @@ def test_full_yaml_log(mock_proxy, frozen_time, lava_job_submitter):
     ],
 )
 def test_job_combined_status(
+    mock_proxy,
     lava_job_submitter,
     validate_only,
     finished_job_status,
+    job_exit_code,
     expected_combined_status,
-    expected_exit_code,
 ):
     lava_job_submitter.validate_only = validate_only
 
@@ -456,22 +482,27 @@ def test_job_combined_status(
     ) as mock_prepare_submission, patch("sys.exit"):
         from lava.lava_job_submitter import STRUCTURAL_LOG
 
-        mock_retriable_follow_job.return_value = MagicMock(status=finished_job_status)
+        mock_retriable_follow_job.return_value = MagicMock(
+            status=finished_job_status, exit_code=job_exit_code
+        )
 
         mock_job_definition = MagicMock(spec=str)
         mock_prepare_submission.return_value = mock_job_definition
         original_status: str = STRUCTURAL_LOG.get("job_combined_status")
+        original_exit_code: int = STRUCTURAL_LOG.get("job_exit_code")
 
         if validate_only:
             lava_job_submitter.submit()
             mock_retriable_follow_job.assert_not_called()
             assert STRUCTURAL_LOG.get("job_combined_status") == original_status
+            assert STRUCTURAL_LOG.get("job_exit_code") == original_exit_code
             return
 
         try:
             lava_job_submitter.submit()
 
         except SystemExit as e:
-            assert e.code == expected_exit_code
+            assert e.code == job_exit_code
 
         assert STRUCTURAL_LOG["job_combined_status"] == expected_combined_status
+        assert STRUCTURAL_LOG["job_exit_code"] == job_exit_code
