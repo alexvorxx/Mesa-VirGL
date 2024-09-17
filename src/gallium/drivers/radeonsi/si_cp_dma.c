@@ -20,7 +20,7 @@
 
 static bool cp_dma_use_L2(struct si_context *sctx)
 {
-   return sctx->gfx_level >= GFX7;
+   return sctx->gfx_level >= GFX7 && !sctx->screen->info.cp_sdma_ge_use_system_memory_scope;
 }
 
 /* The max number of bytes that can be copied per packet. */
@@ -242,7 +242,6 @@ void si_cp_dma_copy_buffer(struct si_context *sctx, struct pipe_resource *dst,
                            struct pipe_resource *src, uint64_t dst_offset, uint64_t src_offset,
                            unsigned size, unsigned user_flags)
 {
-   assert(!sctx->screen->info.cp_sdma_ge_use_system_memory_scope);
    assert(size);
    assert(dst && src);
 
