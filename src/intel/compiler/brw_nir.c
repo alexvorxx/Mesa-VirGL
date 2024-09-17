@@ -2043,7 +2043,6 @@ lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin)
 {
    switch (intrin->intrinsic) {
    case nir_intrinsic_image_load:
-   case nir_intrinsic_image_load_raw_intel:
    case nir_intrinsic_bindless_image_load:
    case nir_intrinsic_load_ssbo:
    case nir_intrinsic_load_shared:
@@ -2060,7 +2059,6 @@ lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin)
       return LSC_OP_LOAD;
 
    case nir_intrinsic_image_store:
-   case nir_intrinsic_image_store_raw_intel:
    case nir_intrinsic_bindless_image_store:
    case nir_intrinsic_store_ssbo:
    case nir_intrinsic_store_shared:
