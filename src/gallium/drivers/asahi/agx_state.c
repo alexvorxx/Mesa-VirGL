@@ -1862,7 +1862,7 @@ agx_shader_initialize(struct agx_device *dev, struct agx_uncompiled_shader *so,
    }
 
    NIR_PASS(_, nir, agx_nir_lower_texture);
-   NIR_PASS(_, nir, nir_lower_ssbo);
+   NIR_PASS(_, nir, nir_lower_ssbo, NULL);
 
    agx_preprocess_nir(nir, dev->libagx);
 

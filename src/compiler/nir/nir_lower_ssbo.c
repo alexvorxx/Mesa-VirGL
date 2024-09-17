@@ -22,13 +22,18 @@ calc_address(nir_builder *b, nir_intrinsic_instr *intr)
 }
 
 static bool
-pass(nir_builder *b, nir_intrinsic_instr *intr, UNUSED void *data)
+pass(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
+   const nir_lower_ssbo_options *opts = data;
+
    b->cursor = nir_before_instr(&intr->instr);
 
    nir_def *def = NULL;
    switch (intr->intrinsic) {
    case nir_intrinsic_load_ssbo:
+      if (opts && opts->native_loads)
+         return false;
+
       def = nir_build_load_global(b, intr->def.num_components,
                                   intr->def.bit_size, calc_address(b, intr),
                                   .align_mul = nir_intrinsic_align_mul(intr),
@@ -66,9 +71,9 @@ pass(nir_builder *b, nir_intrinsic_instr *intr, UNUSED void *data)
 }
 
 bool
-nir_lower_ssbo(nir_shader *shader)
+nir_lower_ssbo(nir_shader *shader, const nir_lower_ssbo_options *opts)
 {
    return nir_shader_intrinsics_pass(shader, pass,
                                      nir_metadata_control_flow,
-                                     NULL);
+                                     (void *)opts);
 }

@@ -5085,7 +5085,7 @@ bifrost_preprocess_nir(nir_shader *nir, unsigned gpu_id)
               bi_lower_load_push_const_with_dyn_offset,
               nir_metadata_control_flow, NULL);
 
-   NIR_PASS_V(nir, nir_lower_ssbo);
+   NIR_PASS_V(nir, nir_lower_ssbo, NULL);
    NIR_PASS_V(nir, pan_lower_sample_pos);
    NIR_PASS_V(nir, nir_lower_bit_size, bi_lower_bit_size, NULL);
    NIR_PASS_V(nir, nir_lower_64bit_phis);

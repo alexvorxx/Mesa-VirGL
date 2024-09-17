@@ -359,7 +359,7 @@ midgard_preprocess_nir(nir_shader *nir, unsigned gpu_id)
       NIR_PASS_V(nir, pan_nir_lower_store_component);
    }
 
-   NIR_PASS_V(nir, nir_lower_ssbo);
+   NIR_PASS_V(nir, nir_lower_ssbo, NULL);
    NIR_PASS_V(nir, pan_nir_lower_zs_store);
 
    NIR_PASS_V(nir, nir_lower_frexp);
