@@ -91,10 +91,6 @@ dri_drivers_path = get_option('dri-drivers-path')
 if dri_drivers_path == ''
   dri_drivers_path = join_paths(get_option('prefix'), get_option('libdir'), 'dri')
 endif
-dri_search_path = get_option('dri-search-path')
-if dri_search_path == ''
-  dri_search_path = dri_drivers_path
-endif
 
 gbm_backends_path = get_option('gbm-backends-path')
 if gbm_backends_path == ''

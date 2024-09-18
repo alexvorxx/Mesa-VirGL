@@ -67,14 +67,6 @@ option(
 )
 
 option(
-  'dri-search-path',
-  type : 'string',
-  value : '',
-  description : 'Locations to search for dri drivers, passed as colon ' +
-                'separated list. Default: dri-drivers-path.'
-)
-
-option(
   'expat',
   type : 'feature',
   value : 'auto',
