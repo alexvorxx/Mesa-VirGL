@@ -252,7 +252,7 @@ wsi_metal_surface_get_present_rectangles(VkIcdSurfaceBase *surface,
 
 struct wsi_metal_image {
    struct wsi_image base;
-   CAMetalDrawable *drawable;
+   CAMetalDrawableBridged *drawable;
 };
 
 struct wsi_metal_swapchain {
@@ -302,7 +302,7 @@ wsi_metal_swapchain_acquire_next_image(struct wsi_swapchain *wsi_chain,
 
    while (1) {
       /* Try to acquire an drawable. Unfortunately we might block for up to 1 second. */
-      CAMetalDrawable *drawable = wsi_metal_layer_acquire_drawable(chain->surface->pLayer);
+      CAMetalDrawableBridged *drawable = wsi_metal_layer_acquire_drawable(chain->surface->pLayer);
       if (drawable) {
          uint32_t i = (chain->current_image_index++) % chain->base.image_count;
          *image_index = i;

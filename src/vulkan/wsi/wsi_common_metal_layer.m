@@ -45,12 +45,12 @@ wsi_metal_layer_configure(const CAMetalLayer *metal_layer,
    }
 }
 
-CAMetalDrawable *
+CAMetalDrawableBridged *
 wsi_metal_layer_acquire_drawable(const CAMetalLayer *metal_layer)
 {
    @autoreleasepool {
       id<CAMetalDrawable> drawable = [metal_layer nextDrawable];
-      return (CAMetalDrawable *)drawable;
+      return (__bridge_retained CAMetalDrawableBridged *)drawable;
    }
 }
 
@@ -84,11 +84,12 @@ wsi_destroy_metal_layer_blit_context(struct wsi_metal_layer_blit_context *contex
 }
 
 void
-wsi_metal_layer_blit_and_present(struct wsi_metal_layer_blit_context *context, CAMetalDrawable **drawable_ptr,
-   void *buffer, uint32_t width, uint32_t height, uint32_t row_pitch)
+wsi_metal_layer_blit_and_present(struct wsi_metal_layer_blit_context *context,
+   CAMetalDrawableBridged **drawable_ptr, void *buffer,
+   uint32_t width, uint32_t height, uint32_t row_pitch)
 {
    @autoreleasepool {
-      id<CAMetalDrawable> drawable = (id<CAMetalDrawable>)*drawable_ptr;
+      id<CAMetalDrawable> drawable = (__bridge_transfer id<CAMetalDrawable>)*drawable_ptr;
 
       id<MTLCommandBuffer> commandBuffer = [context->commandQueue commandBuffer];
       id<MTLBlitCommandEncoder> commandEncoder = [commandBuffer blitCommandEncoder];
@@ -117,10 +118,11 @@ wsi_metal_layer_blit_and_present(struct wsi_metal_layer_blit_context *context, C
 }
 
 void
-wsi_metal_layer_cancel_present(struct wsi_metal_layer_blit_context *context, CAMetalDrawable **drawable_ptr)
+wsi_metal_layer_cancel_present(struct wsi_metal_layer_blit_context *context,
+   CAMetalDrawableBridged **drawable_ptr)
 {
    @autoreleasepool {
-      id<CAMetalDrawable> drawable = (id<CAMetalDrawable>)*drawable_ptr;
+      id<CAMetalDrawable> drawable = (__bridge_transfer id<CAMetalDrawable>)*drawable_ptr;
       if (drawable == nil)
          return;
 

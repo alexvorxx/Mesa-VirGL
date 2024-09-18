@@ -12,12 +12,10 @@
 
 #ifdef __OBJC__
 @class CAMetalLayer;
-@class CAMetalDrawable;
 typedef unsigned long NSUInteger;
 typedef enum MTLPixelFormat : NSUInteger MTLPixelFormat;
 #else
 typedef void CAMetalLayer;
-typedef void CAMetalDrawable;
 typedef enum MTLPixelFormat : unsigned long
 {
    MTLPixelFormatBGRA8Unorm = 80,
@@ -28,6 +26,8 @@ typedef enum MTLPixelFormat : unsigned long
 } MTLPixelFormat;
 #endif
 
+typedef void CAMetalDrawableBridged;
+
 void
 wsi_metal_layer_size(const CAMetalLayer *metal_layer,
    uint32_t *width, uint32_t *height);
@@ -37,7 +37,7 @@ wsi_metal_layer_configure(const CAMetalLayer *metal_layer,
    uint32_t width, uint32_t height, uint32_t image_count,
    MTLPixelFormat format, bool enable_opaque, bool enable_immediate);
 
-CAMetalDrawable *
+CAMetalDrawableBridged *
 wsi_metal_layer_acquire_drawable(const CAMetalLayer *metal_layer);
 
 struct wsi_metal_layer_blit_context;
@@ -49,10 +49,12 @@ void
 wsi_destroy_metal_layer_blit_context(struct wsi_metal_layer_blit_context *context);
 
 void
-wsi_metal_layer_blit_and_present(struct wsi_metal_layer_blit_context *context, CAMetalDrawable **drawable_ptr,
-   void *buffer, uint32_t width, uint32_t height, uint32_t row_pitch);
+wsi_metal_layer_blit_and_present(struct wsi_metal_layer_blit_context *context,
+   CAMetalDrawableBridged **drawable_ptr, void *buffer,
+   uint32_t width, uint32_t height, uint32_t row_pitch);
 
 void
-wsi_metal_layer_cancel_present(struct wsi_metal_layer_blit_context *context, CAMetalDrawable **drawable_ptr);
+wsi_metal_layer_cancel_present(struct wsi_metal_layer_blit_context *context,
+   CAMetalDrawableBridged **drawable_ptr);
 
 #endif // WSI_COMMON_METAL_LAYER_H
