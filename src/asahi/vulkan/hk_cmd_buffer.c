@@ -271,6 +271,19 @@ hk_EndCommandBuffer(VkCommandBuffer commandBuffer)
    hk_cmd_buffer_end_compute(cmd);
    hk_cmd_buffer_end_compute_internal(&cmd->current_cs.post_gfx);
 
+   /* With rasterizer discard, we might end up with empty VDM batches.
+    * It is difficult to avoid creating these empty batches, but it's easy to
+    * optimize them out at record-time. Do so now.
+    */
+   list_for_each_entry_safe(struct hk_cs, cs, &cmd->control_streams, node) {
+      if (cs->type == HK_CS_VDM && cs->stats.cmds == 0 &&
+          !cs->cr.process_empty_tiles) {
+
+         list_del(&cs->node);
+         hk_cs_destroy(cs);
+      }
+   }
+
    return vk_command_buffer_get_record_result(&cmd->vk);
 }
 
