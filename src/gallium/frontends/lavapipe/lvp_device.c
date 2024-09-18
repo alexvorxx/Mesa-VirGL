@@ -130,6 +130,7 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .KHR_external_semaphore                = true,
    .KHR_shader_float_controls             = true,
    .KHR_get_memory_requirements2          = true,
+   .KHR_global_priority                   = true,
 #ifdef LVP_USE_WSI_PLATFORM
    .KHR_incremental_present               = true,
 #endif
@@ -472,6 +473,9 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
 
       /* VK_EXT_non_seamless_cube_map */
       .nonSeamlessCubeMap = true,
+
+      /* VK_KHR_global_priority */
+      .globalPriorityQuery = true,
 
       /* VK_EXT_attachment_feedback_loop_layout */
       .attachmentFeedbackLoopLayout = true,
@@ -1483,6 +1487,15 @@ VKAPI_ATTR void VKAPI_CALL lvp_GetPhysicalDeviceQueueFamilyProperties2(
    VkQueueFamilyProperties2                   *pQueueFamilyProperties)
 {
    VK_OUTARRAY_MAKE_TYPED(VkQueueFamilyProperties2, out, pQueueFamilyProperties, pCount);
+
+   VkQueueFamilyGlobalPriorityPropertiesKHR *prio = vk_find_struct(pQueueFamilyProperties, QUEUE_FAMILY_GLOBAL_PRIORITY_PROPERTIES_KHR);
+   if (prio) {
+      prio->priorityCount = 4;
+      prio->priorities[0] = VK_QUEUE_GLOBAL_PRIORITY_LOW_KHR;
+      prio->priorities[1] = VK_QUEUE_GLOBAL_PRIORITY_MEDIUM_KHR;
+      prio->priorities[2] = VK_QUEUE_GLOBAL_PRIORITY_HIGH_KHR;
+      prio->priorities[3] = VK_QUEUE_GLOBAL_PRIORITY_REALTIME_KHR;
+   }
 
    vk_outarray_append_typed(VkQueueFamilyProperties2, &out, p) {
       p->queueFamilyProperties = (VkQueueFamilyProperties) {
