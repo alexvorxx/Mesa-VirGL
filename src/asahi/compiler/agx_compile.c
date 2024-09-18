@@ -3598,7 +3598,7 @@ agx_preprocess_nir(nir_shader *nir, const nir_shader *libagx)
    NIR_PASS(_, nir, nir_lower_vars_to_ssa);
 
    /* Lower large arrays to scratch and small arrays to csel */
-   NIR_PASS(_, nir, nir_lower_vars_to_scratch, nir_var_function_temp, 16,
+   NIR_PASS(_, nir, nir_lower_vars_to_scratch, nir_var_function_temp, 256,
             glsl_get_natural_size_align_bytes,
             glsl_get_natural_size_align_bytes);
    NIR_PASS(_, nir, nir_lower_indirect_derefs, nir_var_function_temp, ~0);
