@@ -688,6 +688,60 @@ genX(emit_ds)(struct anv_cmd_buffer *cmd_buffer)
 }
 
 ALWAYS_INLINE static void
+cmd_buffer_maybe_flush_rt_writes(struct anv_cmd_buffer *cmd_buffer,
+                                 struct anv_graphics_pipeline *pipeline)
+{
+#if GFX_VER >= 11
+   if (!anv_pipeline_has_stage(pipeline, MESA_SHADER_FRAGMENT))
+      return;
+
+   const struct anv_shader_bin *shader =
+      pipeline->base.shaders[MESA_SHADER_FRAGMENT];
+   const struct anv_pipeline_bind_map *bind_map = &shader->bind_map;
+
+   unsigned s;
+   uint8_t disabled_mask = 0;
+   for (s = 0; s < bind_map->surface_count; s++) {
+      const struct anv_pipeline_binding *binding =
+         &bind_map->surface_to_descriptor[s];
+
+      if (binding->set != ANV_DESCRIPTOR_SET_COLOR_ATTACHMENTS)
+         break;
+
+      if (binding->index >= cmd_buffer->state.gfx.color_att_count)
+         disabled_mask |= BITFIELD_BIT(s);
+   }
+
+   const uint8_t diff_mask = (1u << s) - 1;
+
+   if ((cmd_buffer->state.gfx.disabled_color_atts & diff_mask) != disabled_mask) {
+      cmd_buffer->state.gfx.disabled_color_atts = disabled_mask |
+         (cmd_buffer->state.gfx.disabled_color_atts & ~diff_mask);
+
+      /* The PIPE_CONTROL command description says:
+       *
+       *    "Whenever a Binding Table Index (BTI) used by a Render Target Message
+       *     points to a different RENDER_SURFACE_STATE, SW must issue a Render
+       *     Target Cache Flush by enabling this bit. When render target flush
+       *     is set due to new association of BTI, PS Scoreboard Stall bit must
+       *     be set in this packet."
+       *
+       * Within a renderpass, the render target entries in the binding tables
+       * remain the same as what was setup at CmdBeginRendering() with one
+       * exception where have to setup a null render target because a fragment
+       * writes only depth/stencil yet the renderpass has been setup with at
+       * least one color attachment. This is because our render target messages
+       * in the shader always send the color.
+       */
+      anv_add_pending_pipe_bits(cmd_buffer,
+                                ANV_PIPE_RENDER_TARGET_CACHE_FLUSH_BIT |
+                                ANV_PIPE_STALL_AT_SCOREBOARD_BIT,
+                                "change RT due to shader outputs");
+   }
+#endif
+}
+
+ALWAYS_INLINE static void
 genX(cmd_buffer_flush_gfx_state)(struct anv_cmd_buffer *cmd_buffer)
 {
    struct anv_graphics_pipeline *pipeline =
@@ -708,16 +762,18 @@ genX(cmd_buffer_flush_gfx_state)(struct anv_cmd_buffer *cmd_buffer)
 
    genX(flush_pipeline_select_3d)(cmd_buffer);
 
-   /* Wa_14015814527
-    *
-    * Apply task URB workaround when switching from task to primitive.
-    */
    if (cmd_buffer->state.gfx.dirty & ANV_CMD_DIRTY_PIPELINE) {
+      /* Wa_14015814527
+       *
+       * Apply task URB workaround when switching from task to primitive.
+       */
       if (anv_pipeline_is_primitive(pipeline)) {
          genX(apply_task_urb_workaround)(cmd_buffer);
       } else if (anv_pipeline_has_stage(pipeline, MESA_SHADER_TASK)) {
          cmd_buffer->state.gfx.used_task_shader = true;
       }
+
+      cmd_buffer_maybe_flush_rt_writes(cmd_buffer, pipeline);
    }
 
    /* Apply any pending pipeline flushes we may have.  We want to apply them

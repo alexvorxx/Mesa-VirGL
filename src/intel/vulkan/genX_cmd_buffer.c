@@ -5176,15 +5176,24 @@ void genX(CmdBeginRendering)(
    };
 
    const uint32_t color_att_count = pRenderingInfo->colorAttachmentCount;
+
    result = anv_cmd_buffer_init_attachments(cmd_buffer, color_att_count);
    if (result != VK_SUCCESS)
       return;
 
    genX(flush_pipeline_select_3d)(cmd_buffer);
 
+   UNUSED bool render_target_change = false;
    for (uint32_t i = 0; i < gfx->color_att_count; i++) {
-      if (pRenderingInfo->pColorAttachments[i].imageView == VK_NULL_HANDLE)
+      if (pRenderingInfo->pColorAttachments[i].imageView == VK_NULL_HANDLE) {
+         render_target_change |= gfx->color_att[i].iview != NULL;
+
+         gfx->color_att[i].vk_format = VK_FORMAT_UNDEFINED;
+         gfx->color_att[i].iview = NULL;
+         gfx->color_att[i].layout = VK_IMAGE_LAYOUT_UNDEFINED;
+         gfx->color_att[i].aux_usage = ISL_AUX_USAGE_NONE;
          continue;
+      }
 
       const VkRenderingAttachmentInfo *att =
          &pRenderingInfo->pColorAttachments[i];
@@ -5210,6 +5219,13 @@ void genX(CmdBeginRendering)(
                                  VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
                                  att->imageLayout,
                                  cmd_buffer->queue_family->queueFlags);
+
+      render_target_change |= gfx->color_att[i].iview != iview;
+
+      gfx->color_att[i].vk_format = iview->vk.format;
+      gfx->color_att[i].iview = iview;
+      gfx->color_att[i].layout = att->imageLayout;
+      gfx->color_att[i].aux_usage = aux_usage;
 
       union isl_color_value fast_clear_color = { .u32 = { 0, } };
 
@@ -5324,11 +5340,6 @@ void genX(CmdBeginRendering)(
          /* If not LOAD_OP_CLEAR, we shouldn't have a layout transition. */
          assert(att->imageLayout == initial_layout);
       }
-
-      gfx->color_att[i].vk_format = iview->vk.format;
-      gfx->color_att[i].iview = iview;
-      gfx->color_att[i].layout = att->imageLayout;
-      gfx->color_att[i].aux_usage = aux_usage;
 
       struct isl_view isl_view = iview->planes[0].isl;
       if (pRenderingInfo->viewMask) {
@@ -5606,14 +5617,7 @@ void genX(CmdBeginRendering)(
    gfx->dirty |= ANV_CMD_DIRTY_PIPELINE;
 
 #if GFX_VER >= 11
-   bool has_color_att = false;
-   for (uint32_t i = 0; i < gfx->color_att_count; i++) {
-      if (pRenderingInfo->pColorAttachments[i].imageView != VK_NULL_HANDLE) {
-         has_color_att = true;
-         break;
-      }
-   }
-   if (has_color_att) {
+   if (render_target_change) {
       /* The PIPE_CONTROL command description says:
       *
       *    "Whenever a Binding Table Index (BTI) used by a Render Target Message

@@ -3822,6 +3822,12 @@ struct anv_cmd_graphics_state {
    struct anv_attachment stencil_att;
    struct anv_state null_surface_state;
 
+   /* Bitfield of color attachments disabled by a pipeline (pointing a null
+    * surface state in the last emitted binding table for the fragment
+    * stage)
+    */
+   uint8_t disabled_color_atts;
+
    anv_cmd_dirty_mask_t dirty;
    uint32_t vb_dirty;
 
