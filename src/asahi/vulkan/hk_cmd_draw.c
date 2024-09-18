@@ -2361,8 +2361,8 @@ hk_flush_ppp_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs, uint8_t **out)
       }
    }
 
-   struct agx_fragment_face_packed fragment_face;
-   struct agx_fragment_face_2_packed fragment_face_2;
+   struct agx_fragment_face_packed fragment_face = {};
+   struct agx_fragment_face_2_packed fragment_face_2 = {};
 
    if (dirty.fragment_front_face) {
       bool has_z = render->depth_att.vk_format != VK_FORMAT_UNDEFINED;
