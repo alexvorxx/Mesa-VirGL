@@ -897,6 +897,7 @@ a7xx_750 = A7XXProps(
         ubwc_unorm_snorm_int_compatible = True,
         supports_ibo_ubwc = True,
         has_generic_clear = True,
+        r8g8_faulty_fast_clear_quirk = True,
         gs_vpc_adjacency_quirk = True,
         storage_8bit = True,
         ubwc_all_formats_compatible = True,

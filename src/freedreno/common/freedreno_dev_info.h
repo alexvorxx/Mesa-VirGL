@@ -276,6 +276,9 @@ struct fd_dev_info {
       /* Whether a single clear blit could be used for both sysmem and gmem.*/
       bool has_generic_clear;
 
+      /* Whether r8g8 UBWC fast-clear work correctly. */
+      bool r8g8_faulty_fast_clear_quirk;
+
       /* a750 has a bug where writing and then reading a UBWC-compressed IBO
        * requires flushing UCHE. This is reproducible in many CTS tests, for
        * example dEQP-VK.image.load_store.with_format.2d.*.
