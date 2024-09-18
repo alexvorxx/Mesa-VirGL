@@ -1667,7 +1667,7 @@ with_gallium_drisw_kms = false
 if system_has_kms_drm
   dep_libdrm = dependency(
     'libdrm', version : '>=' + _drm_ver,
-    required : with_dri2 or with_dri
+    required : with_dri2 or with_dri or with_gbm
   )
 else
   # We should prevent libdrm from being available when the target doesn't have it to avoid transitive
