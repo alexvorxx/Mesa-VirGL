@@ -327,7 +327,7 @@ queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
 {
    struct drm_asahi_command *cmds = (void *)(uintptr_t)submit->commands;
    unsigned commands_remaining = submit->command_count;
-   unsigned submitted_vdm = 0, submitted_cdm = 0;
+   unsigned submitted[DRM_ASAHI_SUBQUEUE_COUNT] = {0};
 
    while (commands_remaining) {
       bool first = commands_remaining == submit->command_count;
@@ -341,11 +341,12 @@ queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
 
       /* We need to fix up the barriers since barriers are ioctl-relative */
       for (unsigned i = 0; i < count; ++i) {
-         assert(cmds[i].barriers[0] >= submitted_vdm);
-         assert(cmds[i].barriers[1] >= submitted_cdm);
-
-         cmds[i].barriers[0] -= submitted_vdm;
-         cmds[i].barriers[1] -= submitted_cdm;
+         for (unsigned q = 0; q < DRM_ASAHI_SUBQUEUE_COUNT; ++q) {
+            if (cmds[i].barriers[q] != DRM_ASAHI_BARRIER_NONE) {
+               assert(cmds[i].barriers[q] >= submitted[q]);
+               cmds[i].barriers[q] -= submitted[q];
+            }
+         }
       }
 
       /* We can't signal the out-syncobjs until all prior work finishes. Since
@@ -354,11 +355,10 @@ queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
        * TODO: there might be a more performant way to do this.
        */
       if (last && !first) {
-         if (cmds[0].barriers[0] == DRM_ASAHI_BARRIER_NONE)
-            cmds[0].barriers[0] = 0;
-
-         if (cmds[0].barriers[1] == DRM_ASAHI_BARRIER_NONE)
-            cmds[0].barriers[1] = 0;
+         for (unsigned q = 0; q < DRM_ASAHI_SUBQUEUE_COUNT; ++q) {
+            if (cmds[0].barriers[q] == DRM_ASAHI_BARRIER_NONE)
+               cmds[0].barriers[q] = 0;
+         }
       }
 
       struct drm_asahi_submit submit_ioctl = {
@@ -379,9 +379,9 @@ queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
 
       for (unsigned i = 0; i < count; ++i) {
          if (cmds[i].cmd_type == DRM_ASAHI_CMD_COMPUTE)
-            submitted_cdm++;
+            submitted[DRM_ASAHI_SUBQUEUE_COMPUTE]++;
          else if (cmds[i].cmd_type == DRM_ASAHI_CMD_RENDER)
-            submitted_vdm++;
+            submitted[DRM_ASAHI_SUBQUEUE_RENDER]++;
          else
             unreachable("unknown subqueue");
       }
