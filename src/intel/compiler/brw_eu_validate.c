@@ -66,6 +66,8 @@ typedef struct brw_hw_decoded_inst {
       enum brw_reg_file file;
       enum brw_reg_type type;
       unsigned address_mode;
+      bool negate;
+      bool abs;
    } src[3];
 } brw_hw_decoded_inst;
 
@@ -156,10 +158,8 @@ signed_type(unsigned type)
 }
 
 static bool
-inst_is_raw_move(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
+inst_is_raw_move(const brw_hw_decoded_inst *inst)
 {
-   const struct intel_device_info *devinfo = isa->devinfo;
-
    unsigned dst_type = signed_type(inst->dst.type);
    unsigned src_type = signed_type(inst->src[0].type);
 
@@ -167,8 +167,7 @@ inst_is_raw_move(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst
       /* FIXME: not strictly true */
       if (brw_type_is_vector_imm(inst->src[0].type))
          return false;
-   } else if (brw_inst_src0_negate(devinfo, inst->raw) ||
-              brw_inst_src0_abs(devinfo, inst->raw)) {
+   } else if (inst->src[0].negate || inst->src[0].abs) {
       return false;
    }
 
@@ -721,7 +720,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
 
    if (dst_type_is_byte) {
       if (is_packed(inst->exec_size * dst_stride, inst->exec_size, dst_stride)) {
-         if (!inst_is_raw_move(isa, inst))
+         if (!inst_is_raw_move(inst))
             ERROR("Only raw MOV supports a packed-byte destination");
          return error_msg;
       }
@@ -847,7 +846,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
 
    if (validate_dst_size_and_exec_size_ratio &&
        exec_type_size > dst_type_size) {
-      if (!(dst_type_is_byte && inst_is_raw_move(isa, inst))) {
+      if (!(dst_type_is_byte && inst_is_raw_move(inst))) {
          ERROR_IF(dst_stride * dst_type_size != exec_type_size,
                   "Destination stride must be equal to the ratio of the sizes "
                   "of the execution data type to the destination type");
@@ -1746,13 +1745,11 @@ instruction_restrictions(const struct brw_isa_info *isa,
       const bool src0_valid =
          brw_type_size_bytes(inst->src[0].type) == 4 ||
          inst->src[0].file == IMM ||
-         !(brw_inst_src0_negate(devinfo, inst->raw) ||
-           brw_inst_src0_abs(devinfo, inst->raw));
+         !(inst->src[0].negate || inst->src[0].abs);
       const bool src1_valid =
          brw_type_size_bytes(inst->src[1].type) == 4 ||
          inst->src[1].file == IMM ||
-         !(brw_inst_src1_negate(devinfo, inst->raw) ||
-           brw_inst_src1_abs(devinfo, inst->raw));
+         !(inst->src[1].negate || inst->src[1].abs);
 
       ERROR_IF(!brw_type_is_float(exec_type) &&
                brw_type_size_bytes(exec_type) == 4 &&
@@ -1846,10 +1843,8 @@ instruction_restrictions(const struct brw_isa_info *isa,
           *    INT DIV function does not support source modifiers.
           * Bspec 6647 extends it back to Ivy Bridge.
           */
-         bool src0_valid = !brw_inst_src0_negate(devinfo, inst->raw) &&
-                           !brw_inst_src0_abs(devinfo, inst->raw);
-         bool src1_valid = !brw_inst_src1_negate(devinfo, inst->raw) &&
-                           !brw_inst_src1_abs(devinfo, inst->raw);
+         bool src0_valid = !inst->src[0].negate && !inst->src[0].abs;
+         bool src1_valid = !inst->src[1].negate && !inst->src[1].abs;
          ERROR_IF(!src0_valid || !src1_valid,
                   "INT DIV function does not support source modifiers.");
          break;
@@ -1904,11 +1899,11 @@ instruction_restrictions(const struct brw_isa_info *isa,
        * logical not, the behavior of abs source modifier is not
        * defined. Disallow it to be safe.
        */
-      ERROR_IF(brw_inst_src0_abs(devinfo, inst->raw),
+      ERROR_IF(inst->src[0].abs,
                "Behavior of abs source modifier in logic ops is undefined.");
       ERROR_IF(inst->opcode != BRW_OPCODE_NOT &&
                inst->src[1].file != IMM &&
-               brw_inst_src1_abs(devinfo, inst->raw),
+               inst->src[1].abs,
                "Behavior of abs source modifier in logic ops is undefined.");
 
       /* Page 479 (page 495 of the PDF) of the Broadwell PRM volume 2a says:
@@ -1917,13 +1912,11 @@ instruction_restrictions(const struct brw_isa_info *isa,
        *
        * The same text also appears for OR, NOT, and XOR instructions.
        */
-      ERROR_IF((brw_inst_src0_abs(devinfo, inst->raw) ||
-                brw_inst_src0_negate(devinfo, inst->raw)) &&
+      ERROR_IF((inst->src[0].abs || inst->src[0].negate) &&
                src0_is_acc(devinfo, inst->raw),
                "Source modifier is not allowed if source is an accumulator.");
       ERROR_IF(inst->num_sources > 1 &&
-               (brw_inst_src1_abs(devinfo, inst->raw) ||
-                brw_inst_src1_negate(devinfo, inst->raw)) &&
+               (inst->src[1].abs || inst->src[1].negate) &&
                src1_is_acc(devinfo, inst->raw),
                "Source modifier is not allowed if source is an accumulator.");
 
@@ -2348,10 +2341,14 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
       inst->src[0].file = brw_inst_src0_reg_file(devinfo, raw);
       inst->src[0].type = brw_inst_src0_type(devinfo, raw);
       inst->src[0].address_mode = brw_inst_src0_address_mode(devinfo, raw);
+      inst->src[0].negate = brw_inst_src0_negate(devinfo, raw);
+      inst->src[0].abs = brw_inst_src0_abs(devinfo, raw);
 
       if (inst->num_sources > 1) {
          inst->src[1].file = brw_inst_src1_reg_file(devinfo, raw);
          inst->src[1].type = brw_inst_src1_type(devinfo, raw);
+         inst->src[1].negate = brw_inst_src1_negate(devinfo, raw);
+         inst->src[1].abs = brw_inst_src1_abs(devinfo, raw);
       }
 
       break;
@@ -2367,12 +2364,18 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
 
          inst->src[0].file = brw_inst_3src_a1_src0_reg_file(devinfo, raw);
          inst->src[0].type = brw_inst_3src_a1_src0_type(devinfo, raw);
+         inst->src[0].negate = brw_inst_3src_src0_negate(devinfo, raw);
+         inst->src[0].abs = brw_inst_3src_src0_abs(devinfo, raw);
 
          inst->src[1].file = brw_inst_3src_a1_src1_reg_file(devinfo, raw);
          inst->src[1].type = brw_inst_3src_a1_src1_type(devinfo, raw);
+         inst->src[1].negate = brw_inst_3src_src1_negate(devinfo, raw);
+         inst->src[1].abs = brw_inst_3src_src1_abs(devinfo, raw);
 
          inst->src[2].file = brw_inst_3src_a1_src2_reg_file(devinfo, raw);
          inst->src[2].type = brw_inst_3src_a1_src2_type(devinfo, raw);
+         inst->src[2].negate = brw_inst_3src_src2_negate(devinfo, raw);
+         inst->src[2].abs = brw_inst_3src_src2_abs(devinfo, raw);
 
       } else {
          inst->dst.file = FIXED_GRF;
