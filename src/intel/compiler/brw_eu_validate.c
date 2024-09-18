@@ -78,6 +78,15 @@ contains(const struct string haystack, const struct string needle)
       }                                                 \
    } while(0)
 
+#define RETURN_ERROR(msg) RETURN_ERROR_IF(true, msg)
+#define RETURN_ERROR_IF(cond, msg)                      \
+   do {                                                 \
+      if ((cond) && !CONTAINS(error_msg, error(msg))) { \
+         CAT(error_msg, error(msg));                    \
+         return error_msg;                              \
+      }                                                 \
+   } while(0)
+
 #define CHECK(func, args...)                             \
    do {                                                  \
       struct string __msg = func(isa, inst, ##args); \
