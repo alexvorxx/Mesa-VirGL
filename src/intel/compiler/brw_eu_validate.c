@@ -47,6 +47,8 @@ typedef struct brw_hw_decoded_inst {
 
    enum opcode opcode;
 
+   unsigned exec_size;
+
    bool has_dst;
    unsigned num_sources;
 } brw_hw_decoded_inst;
@@ -232,30 +234,13 @@ invalid_values(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
 
    struct string error_msg = { .str = NULL, .len = 0 };
 
-   switch ((enum brw_execution_size) brw_inst_exec_size(devinfo, inst->raw)) {
-   case BRW_EXECUTE_1:
-   case BRW_EXECUTE_2:
-   case BRW_EXECUTE_4:
-   case BRW_EXECUTE_8:
-   case BRW_EXECUTE_16:
-   case BRW_EXECUTE_32:
-      break;
-   default:
-      ERROR("invalid execution size");
-      break;
-   }
-
-   if (error_msg.str)
-      return error_msg;
-
    if (devinfo->ver >= 12) {
-      unsigned group_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
       unsigned qtr_ctrl = brw_inst_qtr_control(devinfo, inst->raw);
       unsigned nib_ctrl =
          devinfo->ver == 12 ? brw_inst_nib_control(devinfo, inst->raw) : 0;
 
       unsigned chan_off = (qtr_ctrl * 2 + nib_ctrl) << 2;
-      ERROR_IF(chan_off % group_size != 0,
+      ERROR_IF(chan_off % inst->exec_size != 0,
                "The execution size must be a factor of the chosen offset");
    }
 
@@ -651,7 +636,6 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
-   unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
    struct string error_msg = { .str = NULL, .len = 0 };
 
    if (inst_is_send(inst))
@@ -751,7 +735,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
    if (inst->num_sources == 3)
       return error_msg;
 
-   if (exec_size == 1)
+   if (inst->exec_size == 1)
       return error_msg;
 
    if (!inst->has_dst)
@@ -800,7 +784,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
       inst_dst_type(isa, inst) == BRW_TYPE_UB;
 
    if (dst_type_is_byte) {
-      if (is_packed(exec_size * dst_stride, exec_size, dst_stride)) {
+      if (is_packed(inst->exec_size * dst_stride, inst->exec_size, dst_stride)) {
          if (!inst_is_raw_move(isa, inst))
             ERROR("Only raw MOV supports a packed-byte destination");
          return error_msg;
@@ -969,7 +953,6 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
-   unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
    struct string error_msg = { .str = NULL, .len = 0 };
 
    if (inst->num_sources == 3)
@@ -1030,13 +1013,13 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
 #undef DO_SRC
 
       /* ExecSize must be greater than or equal to Width. */
-      ERROR_IF(exec_size < width, "ExecSize must be greater than or equal "
-                                  "to Width");
+      ERROR_IF(inst->exec_size < width, "ExecSize must be greater than or equal "
+                                        "to Width");
 
       /* If ExecSize = Width and HorzStride ≠ 0,
        * VertStride must be set to Width * HorzStride.
        */
-      if (exec_size == width && hstride != 0) {
+      if (inst->exec_size == width && hstride != 0) {
          ERROR_IF(vstride != width * hstride,
                   "If ExecSize = Width and HorzStride ≠ 0, "
                   "VertStride must be set to Width * HorzStride");
@@ -1052,7 +1035,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
       }
 
       /* If ExecSize = Width = 1, both VertStride and HorzStride must be 0. */
-      if (exec_size == 1 && width == 1) {
+      if (inst->exec_size == 1 && width == 1) {
          ERROR_IF(vstride != 0 || hstride != 0,
                   "If ExecSize = Width = 1, both VertStride "
                   "and HorzStride must be 0");
@@ -1075,7 +1058,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
          assert(util_is_power_of_two_nonzero(reg_unit(devinfo)));
          unsigned grf_size_shift = ffs(REG_SIZE * reg_unit(devinfo)) - 1;
 
-         for (int y = 0; y < exec_size / width; y++) {
+         for (int y = 0; y < inst->exec_size / width; y++) {
             bool spans_grfs = false;
             unsigned offset = rowbase;
             unsigned first_grf = offset >> grf_size_shift;
@@ -1123,7 +1106,6 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
    if (!is_mixed_float(isa, inst))
       return error_msg;
 
-   unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
    bool is_align16 = brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16;
 
    enum brw_reg_type src0_type = brw_inst_src0_type(devinfo, inst->raw);
@@ -1132,7 +1114,7 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
    enum brw_reg_type dst_type = brw_inst_dst_type(devinfo, inst->raw);
 
    unsigned dst_stride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
-   bool dst_is_packed = is_packed(exec_size * dst_stride, exec_size, dst_stride);
+   bool dst_is_packed = is_packed(inst->exec_size * dst_stride, inst->exec_size, dst_stride);
 
    /* From the SKL PRM, Special Restrictions for Handling Mixed Mode
     * Float Operations:
@@ -1152,7 +1134,7 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
     *    "No SIMD16 in mixed mode when destination is f32. Instruction
     *     execution size must be no more than 8."
     */
-   ERROR_IF(exec_size > 8 && devinfo->ver < 20 &&
+   ERROR_IF(inst->exec_size > 8 && devinfo->ver < 20 &&
             dst_type == BRW_TYPE_F &&
             opcode != BRW_OPCODE_MOV,
             "Mixed float mode with 32-bit float destination is limited "
@@ -1210,7 +1192,7 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
        * Since oword-aligned packed f16 data would cross oword boundaries when
        * the execution size is larger than 8.
        */
-      ERROR_IF(exec_size > 8, "Align16 mixed float mode is limited to SIMD8");
+      ERROR_IF(inst->exec_size > 8, "Align16 mixed float mode is limited to SIMD8");
 
       /* From the SKL PRM, Special Restrictions for Handling Mixed Mode
        * Float Operations:
@@ -1228,7 +1210,7 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
        *    "No SIMD16 in mixed mode when destination is packed f16 for both
        *     Align1 and Align16."
        */
-      ERROR_IF(exec_size > 8 && dst_is_packed &&
+      ERROR_IF(inst->exec_size > 8 && dst_is_packed &&
                dst_type == BRW_TYPE_HF &&
                opcode != BRW_OPCODE_MOV,
                "Align1 mixed float mode is limited to SIMD8 when destination "
@@ -1272,7 +1254,7 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
          ERROR_IF(subreg % 16 != 0,
                   "Align1 mixed mode packed half-float output must be "
                   "oword aligned");
-         ERROR_IF(exec_size > 8,
+         ERROR_IF(inst->exec_size > 8,
                   "Align1 mixed mode packed half-float output must not "
                   "cross oword boundaries (max exec size is 8)");
 
@@ -1419,7 +1401,6 @@ region_alignment_rules(const struct brw_isa_info *isa,
                        const brw_hw_decoded_inst *inst)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
-   unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
    uint8_t dst_access_mask[32], src0_access_mask[32], src1_access_mask[32];
    struct string error_msg = { .str = NULL, .len = 0 };
 
@@ -1460,7 +1441,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
       element_size = brw_type_size_bytes(type);                                \
       subreg = brw_inst_src ## n ## _da1_subreg_nr(devinfo, inst->raw);        \
       grfs_accessed(devinfo, src ## n ## _access_mask,                         \
-                    exec_size, element_size, subreg,                           \
+                    inst->exec_size, element_size, subreg,                     \
                     vstride, width, hstride)
 
       if (i == 0) {
@@ -1470,7 +1451,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
       }
 #undef DO_SRC
 
-      unsigned num_vstride = exec_size / width;
+      unsigned num_vstride = inst->exec_size / width;
       unsigned num_hstride = width;
       unsigned vstride_elements = (num_vstride - 1) * vstride;
       unsigned hstride_elements = (num_hstride - 1) * hstride;
@@ -1487,17 +1468,17 @@ region_alignment_rules(const struct brw_isa_info *isa,
    enum brw_reg_type dst_type = inst_dst_type(isa, inst);
    unsigned element_size = brw_type_size_bytes(dst_type);
    unsigned subreg = brw_inst_dst_da1_subreg_nr(devinfo, inst->raw);
-   unsigned offset = ((exec_size - 1) * stride * element_size) + subreg;
+   unsigned offset = ((inst->exec_size - 1) * stride * element_size) + subreg;
    ERROR_IF(offset >= 64 * reg_unit(devinfo),
             "A destination cannot span more than 2 adjacent GRF registers");
 
    if (error_msg.str)
       return error_msg;
 
-   grfs_accessed(devinfo, dst_access_mask, exec_size, element_size, subreg,
-                 exec_size == 1 ? 0 : exec_size * stride,
-                 exec_size == 1 ? 1 : exec_size,
-                 exec_size == 1 ? 0 : stride);
+   grfs_accessed(devinfo, dst_access_mask, inst->exec_size, element_size, subreg,
+                 inst->exec_size == 1 ? 0 : inst->exec_size * stride,
+                 inst->exec_size == 1 ? 1 : inst->exec_size,
+                 inst->exec_size == 1 ? 0 : stride);
 
    unsigned dst_regs = registers_read(dst_access_mask);
 
@@ -1513,7 +1494,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
       if (dst_regs == 2) {
          unsigned upper_reg_writes = 0, lower_reg_writes = 0;
 
-         for (unsigned i = 0; i < exec_size; i++) {
+         for (unsigned i = 0; i < inst->exec_size; i++) {
             if (dst_access_mask[i] == 2) {
                upper_reg_writes++;
             } else {
@@ -1802,7 +1783,7 @@ special_requirements_for_handling_double_precision_data_types(
       ERROR_IF(brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16 &&
                dst_type_size == 8 &&
                (src0_type_size != 8 || src1_type_size != 8) &&
-               brw_inst_exec_size(devinfo, inst->raw) > BRW_EXECUTE_2,
+               inst->exec_size > 2,
                "In Align16 exec size cannot exceed 2 with a QWord destination "
                "and a non-QWord source");
    }
@@ -2214,14 +2195,10 @@ instruction_restrictions(const struct brw_isa_info *isa,
          MAX2(1, 32 / MAX2(src1_bits_per_element, src2_bits_per_element));
 
       if (devinfo->ver < 20) {
-         ERROR_IF(brw_inst_exec_size(devinfo, inst->raw) != BRW_EXECUTE_8,
-                  "DPAS execution size must be 8.");
+         ERROR_IF(inst->exec_size != 8, "DPAS execution size must be 8.");
       } else {
-         ERROR_IF(brw_inst_exec_size(devinfo, inst->raw) != BRW_EXECUTE_16,
-                  "DPAS execution size must be 16.");
+         ERROR_IF(inst->exec_size != 16, "DPAS execution size must be 16.");
       }
-
-      const unsigned exec_size = devinfo->ver < 20 ? 8 : 16;
 
       const unsigned dst_subnr  = brw_inst_dpas_3src_dst_subreg_nr(devinfo, inst->raw);
       const unsigned src0_subnr = brw_inst_dpas_3src_src0_subreg_nr(devinfo, inst->raw);
@@ -2229,11 +2206,11 @@ instruction_restrictions(const struct brw_isa_info *isa,
       const unsigned src2_subnr = brw_inst_dpas_3src_src2_subreg_nr(devinfo, inst->raw);
 
       /* Until HF is supported as dst type, this is effectively subnr == 0. */
-      ERROR_IF(dst_subnr % exec_size != 0,
+      ERROR_IF(dst_subnr % inst->exec_size != 0,
                "Destination subregister offset must be a multiple of ExecSize.");
 
       /* Until HF is supported as src0 type, this is effectively subnr == 0. */
-      ERROR_IF(src0_subnr % exec_size != 0,
+      ERROR_IF(src0_subnr % inst->exec_size != 0,
                "Src0 subregister offset must be a multiple of ExecSize.");
 
       ERROR_IF(src1_subnr != 0,
@@ -2348,7 +2325,7 @@ send_descriptor_restrictions(const struct brw_isa_info *isa,
 
       ERROR_IF(lsc_opcode_has_transpose(lsc_msg_desc_opcode(devinfo, desc)) &&
                lsc_msg_desc_transpose(devinfo, desc) &&
-               brw_inst_exec_size(devinfo, inst->raw) != BRW_EXECUTE_1,
+               inst->exec_size != 1,
                "Transposed vectors are restricted to Exec_Mask = 1.");
       break;
 
@@ -2386,11 +2363,14 @@ send_descriptor_restrictions(const struct brw_isa_info *isa,
    return error_msg;
 }
 
-static void
+static struct string
 brw_hw_decode_inst(const struct brw_isa_info *isa,
                    brw_hw_decoded_inst *inst,
                    const brw_inst *raw)
 {
+   const struct intel_device_info *devinfo = isa->devinfo;
+   struct string error_msg = { .str = NULL, .len = 0 };
+
    inst->raw = raw;
    inst->opcode = brw_inst_opcode(isa, raw);
    inst->num_sources = brw_num_sources_from_inst(isa, raw);
@@ -2398,6 +2378,23 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
    const struct opcode_desc *desc = brw_opcode_desc(isa, inst->opcode);
    assert(desc->ndst == 0 || desc->ndst == 1);
    inst->has_dst = desc->ndst == 1;
+
+   enum brw_execution_size exec_size = brw_inst_exec_size(devinfo, raw);
+   switch (exec_size) {
+   case BRW_EXECUTE_1:
+   case BRW_EXECUTE_2:
+   case BRW_EXECUTE_4:
+   case BRW_EXECUTE_8:
+   case BRW_EXECUTE_16:
+   case BRW_EXECUTE_32:
+      inst->exec_size = 1 << exec_size;
+      break;
+   default:
+      RETURN_ERROR("invalid execution size");
+      break;
+   }
+
+   return error_msg;
 }
 
 bool
@@ -2412,7 +2409,7 @@ brw_validate_instruction(const struct brw_isa_info *isa,
       ERROR("Instruction not supported on this Gen");
    } else {
       brw_hw_decoded_inst decoded = {};
-      brw_hw_decode_inst(isa, &decoded, inst);
+      error_msg = brw_hw_decode_inst(isa, &decoded, inst);
 
 #define CHECK(func, args...)                             \
    do {                                                  \
@@ -2423,7 +2420,8 @@ brw_validate_instruction(const struct brw_isa_info *isa,
       }                                                  \
    } while (0)
 
-      CHECK(invalid_values);
+      if (error_msg.str == NULL)
+         CHECK(invalid_values);
 
       if (error_msg.str == NULL) {
          CHECK(sources_not_null);
