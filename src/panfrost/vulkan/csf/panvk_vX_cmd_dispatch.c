@@ -160,12 +160,14 @@ panvk_per_arch(CmdDispatchBase)(VkCommandBuffer commandBuffer,
    unsigned task_increment = 0;
 
    /* Copy the global TLS pointer to the per-job TSD. */
-   cs_move64_to(b, cs_scratch_reg64(b, 0), tsd.gpu);
-   cs_load64_to(b, cs_scratch_reg64(b, 2), cs_scratch_reg64(b, 0), 8);
-   cs_wait_slot(b, SB_ID(LS), false);
-   cs_move64_to(b, cs_scratch_reg64(b, 0), cmdbuf->state.tls.desc.gpu);
-   cs_store64(b, cs_scratch_reg64(b, 2), cs_scratch_reg64(b, 0), 8);
-   cs_wait_slot(b, SB_ID(LS), false);
+   if (tlsinfo.tls.size) {
+      cs_move64_to(b, cs_scratch_reg64(b, 0), cmdbuf->state.tls.desc.gpu);
+      cs_load64_to(b, cs_scratch_reg64(b, 2), cs_scratch_reg64(b, 0), 8);
+      cs_wait_slot(b, SB_ID(LS), false);
+      cs_move64_to(b, cs_scratch_reg64(b, 0), tsd.gpu);
+      cs_store64(b, cs_scratch_reg64(b, 2), cs_scratch_reg64(b, 0), 8);
+      cs_wait_slot(b, SB_ID(LS), false);
+   }
 
    cs_update_compute_ctx(b) {
       cs_move64_to(b, cs_sr_reg64(b, 0), cs_desc_state->res_table);
