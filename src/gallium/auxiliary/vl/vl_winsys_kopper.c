@@ -33,10 +33,11 @@
 #include "vl/vl_compositor.h"
 #if defined(HAVE_X11_PLATFORM) && defined(HAVE_LIBDRM)
 #include <X11/Xlib-xcb.h>
+#include "gallium/drivers/zink/zink_kopper.h"
 #include <vulkan/vulkan_xcb.h>
 #include "x11/loader_x11.h"
-#include "gallium/drivers/zink/zink_kopper.h"
 #endif
+#include "zink_public.h"
 
 struct vl_kopper_screen
 {
@@ -76,7 +77,8 @@ vl_kopper_screen_destroy(struct vl_screen *vscreen)
    struct vl_kopper_screen *scrn = (struct vl_kopper_screen *) vscreen;
 
 #if defined(HAVE_X11_PLATFORM) && defined(HAVE_LIBDRM)
-   close(scrn->fd);
+   if (scrn->fd != -1)
+      close(scrn->fd);
    if (scrn->drawable_texture)
       pipe_resource_reference(&scrn->drawable_texture, NULL);
 #endif
@@ -221,6 +223,32 @@ vl_kopper_screen_create_x11(Display *display, int screen)
    scrn->pipe = scrn->base.pscreen->context_create(scrn->base.pscreen, NULL, 0);
 
    vl_compositor_reset_dirty_area(&scrn->dirty_area);
+
+   return &scrn->base;
+
+error:
+   vl_kopper_screen_destroy(&scrn->base);
+
+   return NULL;
+}
+#endif
+
+#ifdef _WIN32
+struct vl_screen *
+vl_kopper_screen_create_win32(LUID *luid)
+{
+   struct vl_kopper_screen *scrn = CALLOC_STRUCT(vl_kopper_screen);
+   uint64_t adapter_luid = 0;
+
+   if (luid)
+      memcpy(&adapter_luid, luid, sizeof(adapter_luid));
+   scrn->base.pscreen = zink_win32_create_screen(adapter_luid);
+   if (!scrn->base.pscreen)
+      goto error;
+
+   scrn->base.destroy = vl_kopper_screen_destroy;
+
+   scrn->pipe = scrn->base.pscreen->context_create(scrn->base.pscreen, NULL, 0);
 
    return &scrn->base;
 

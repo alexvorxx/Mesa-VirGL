@@ -447,7 +447,7 @@ if with_platform_x11
     files_libgalliumvlwinsys += files('vl/vl_winsys_dri3.c')
   endif
 endif
-if with_platform_x11 and with_gallium_zink
+if with_gallium_zink
   files_libgalliumvlwinsys += files('vl/vl_winsys_kopper.c')
 endif
 
@@ -575,7 +575,7 @@ endif
 libgalliumvlwinsys = static_library(
   'galliumvlwinsys',
   files_libgalliumvlwinsys,
-  include_directories : [inc_gallium, inc_include, inc_loader, inc_src],
+  include_directories : [inc_gallium, inc_include, inc_loader, inc_src, include_directories('../drivers/zink')],
   dependencies : [dep_libdrm, vlwinsys_deps, idep_mesautil],
   link_with : [libloader_x11],
   build_by_default : false,

@@ -110,6 +110,7 @@ vl_kopper_screen_create_x11(void *display, int screen) { return NULL; };
 #ifdef _WIN32
 struct vl_screen *vl_win32_screen_create(LUID *adapter);
 struct vl_screen *vl_win32_screen_create_from_d3d12_device(IUnknown* d3d12_device, struct sw_winsys* winsys);
+struct vl_screen *vl_kopper_screen_create_win32(LUID *adapter);
 #else
 /* Always enable the DRM vl winsys */
 struct vl_screen *
