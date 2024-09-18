@@ -50,7 +50,6 @@ spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked,Fail
 spec@!opengl 1.0@rasterpos@glsl_vs_tes_linked,Fail
 spec@!opengl 1.1@line-smooth-coverage,Fail
 spec@!opengl 1.1@line-smooth-stipple,Fail
-spec@!opengl 1.1@max-texture-size,Crash
 spec@!opengl 1.1@polygon-mode,Fail
 spec@!opengl 1.1@polygon-mode-facing,Fail
 spec@!opengl 1.1@polygon-mode-offset,Fail
