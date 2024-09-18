@@ -258,6 +258,16 @@ hk_GetRenderingAreaGranularityKHR(
    *pGranularity = (VkExtent2D){.width = 1, .height = 1};
 }
 
+static bool
+is_attachment_stored(const VkRenderingAttachmentInfo *att)
+{
+   /* When resolving, we store the intermediate multisampled image as the
+    * resolve is a separate control stream. This could be optimized.
+    */
+   return att->storeOp == VK_ATTACHMENT_STORE_OP_STORE ||
+          att->resolveMode != VK_RESOLVE_MODE_NONE;
+}
+
 static struct hk_bg_eot
 hk_build_bg_eot(struct hk_cmd_buffer *cmd, const VkRenderingInfo *info,
                 bool store, bool partial_render, bool incomplete_render_area)
@@ -287,12 +297,7 @@ hk_build_bg_eot(struct hk_cmd_buffer *cmd, const VkRenderingInfo *info,
          continue;
 
       if (store) {
-         bool store = att_info->storeOp == VK_ATTACHMENT_STORE_OP_STORE;
-
-         /* When resolving, we store the intermediate multisampled image as the
-          * resolve is a separate control stream. This could be optimized.
-          */
-         store |= att_info->resolveMode != VK_RESOLVE_MODE_NONE;
+         bool store = is_attachment_stored(att_info);
 
          /* Partial renders always need to flush to memory. */
          store |= partial_render;
@@ -814,54 +819,69 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
       }
    }
 
-   if (incomplete_render_area) {
-      uint32_t clear_count = 0;
-      VkClearAttachment clear_att[HK_MAX_RTS + 1];
-      for (uint32_t i = 0; i < pRenderingInfo->colorAttachmentCount; i++) {
-         const VkRenderingAttachmentInfo *att_info =
-            &pRenderingInfo->pColorAttachments[i];
-         if (att_info->imageView == VK_NULL_HANDLE ||
-             att_info->loadOp != VK_ATTACHMENT_LOAD_OP_CLEAR)
-            continue;
+   uint32_t clear_count = 0;
+   VkClearAttachment clear_att[HK_MAX_RTS + 1];
+   bool resolved_clear = false;
 
-         clear_att[clear_count++] = (VkClearAttachment){
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .colorAttachment = i,
-            .clearValue = att_info->clearValue,
-         };
-      }
+   for (uint32_t i = 0; i < pRenderingInfo->colorAttachmentCount; i++) {
+      const VkRenderingAttachmentInfo *att_info =
+         &pRenderingInfo->pColorAttachments[i];
+      if (att_info->imageView == VK_NULL_HANDLE ||
+          att_info->loadOp != VK_ATTACHMENT_LOAD_OP_CLEAR)
+         continue;
 
-      clear_att[clear_count] = (VkClearAttachment){
-         .aspectMask = 0,
+      clear_att[clear_count++] = (VkClearAttachment){
+         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+         .colorAttachment = i,
+         .clearValue = att_info->clearValue,
       };
 
-      if (attach_z && attach_z->imageView != VK_NULL_HANDLE &&
-          attach_z->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
-         clear_att[clear_count].aspectMask |= VK_IMAGE_ASPECT_DEPTH_BIT;
-         clear_att[clear_count].clearValue.depthStencil.depth =
-            attach_z->clearValue.depthStencil.depth;
-      }
+      resolved_clear |= is_attachment_stored(att_info);
+   }
 
-      if (attach_s != NULL && attach_s->imageView != VK_NULL_HANDLE &&
-          attach_s->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
-         clear_att[clear_count].aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
-         clear_att[clear_count].clearValue.depthStencil.stencil =
-            attach_s->clearValue.depthStencil.stencil;
-      }
+   clear_att[clear_count] = (VkClearAttachment){
+      .aspectMask = 0,
+   };
 
-      if (clear_att[clear_count].aspectMask != 0)
-         clear_count++;
+   if (attach_z && attach_z->imageView != VK_NULL_HANDLE &&
+       attach_z->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+      clear_att[clear_count].aspectMask |= VK_IMAGE_ASPECT_DEPTH_BIT;
+      clear_att[clear_count].clearValue.depthStencil.depth =
+         attach_z->clearValue.depthStencil.depth;
 
-      if (clear_count > 0) {
-         const VkClearRect clear_rect = {
-            .rect = render->area,
-            .baseArrayLayer = 0,
-            .layerCount = render->view_mask ? 1 : render->layer_count,
-         };
+      resolved_clear |= is_attachment_stored(attach_z);
+   }
 
-         hk_CmdClearAttachments(hk_cmd_buffer_to_handle(cmd), clear_count,
-                                clear_att, 1, &clear_rect);
-      }
+   if (attach_s != NULL && attach_s->imageView != VK_NULL_HANDLE &&
+       attach_s->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
+      clear_att[clear_count].aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+      clear_att[clear_count].clearValue.depthStencil.stencil =
+         attach_s->clearValue.depthStencil.stencil;
+
+      resolved_clear |= is_attachment_stored(attach_s);
+   }
+
+   if (clear_att[clear_count].aspectMask != 0)
+      clear_count++;
+
+   if (clear_count > 0 && incomplete_render_area) {
+      const VkClearRect clear_rect = {
+         .rect = render->area,
+         .baseArrayLayer = 0,
+         .layerCount = render->view_mask ? 1 : render->layer_count,
+      };
+
+      hk_CmdClearAttachments(hk_cmd_buffer_to_handle(cmd), clear_count,
+                             clear_att, 1, &clear_rect);
+   } else {
+      /* If a tile is empty, we do not want to process it, as the redundant
+       * roundtrip of memory-->tilebuffer-->memory wastes a tremendous amount of
+       * memory bandwidth. Any draw marks a tile as non-empty, so we only need
+       * to process empty tiles if the background+EOT programs have a side
+       * effect. This is the case exactly when there is an attachment we are
+       * fast clearing and then storing.
+       */
+      cs->cr.process_empty_tiles = resolved_clear;
    }
 }
 

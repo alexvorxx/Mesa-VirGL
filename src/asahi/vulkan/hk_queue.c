@@ -218,16 +218,7 @@ asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
 
    c->visibility_result_buffer = dev->occlusion_queries.bo->va->addr;
 
-   /* If a tile is empty, we do not want to process it, as the redundant
-    * roundtrip of memory-->tilebuffer-->memory wastes a tremendous amount of
-    * memory bandwidth. Any draw marks a tile as non-empty, so we only need to
-    * process empty tiles if the background+EOT programs have a side effect.
-    * This is the case exactly when there is an attachment we are clearing (some
-    * attachment A in clear and in resolve <==> non-empty intersection).
-    *
-    * This case matters a LOT for performance in workloads that split batches.
-    */
-   if (true /* TODO */)
+   if (cs->cr.process_empty_tiles)
       c->flags |= ASAHI_RENDER_PROCESS_EMPTY_TILES;
 
    if (cs->scratch.vs.main || cs->scratch.vs.preamble) {

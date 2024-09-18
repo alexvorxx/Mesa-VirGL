@@ -144,6 +144,7 @@ struct hk_render_registers {
    struct agx_zls_control_packed zls_control, zls_control_partial;
    uint32_t iogpu_unk_214;
    uint32_t depth_dimensions;
+   bool process_empty_tiles;
 
    struct {
       uint32_t dimensions;
