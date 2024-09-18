@@ -58,12 +58,14 @@ typedef struct brw_hw_decoded_inst {
    struct {
       enum brw_reg_file file;
       enum brw_reg_type type;
+      unsigned address_mode;
    } dst;
 
    unsigned num_sources;
    struct {
       enum brw_reg_file file;
       enum brw_reg_type type;
+      unsigned address_mode;
    } src[3];
 } brw_hw_decoded_inst;
 
@@ -355,7 +357,7 @@ send_restrictions(const struct brw_isa_info *isa,
                    "split send payloads must not overlap");
       }
    } else if (inst_is_send(inst)) {
-      ERROR_IF(brw_inst_src0_address_mode(devinfo, inst->raw) != BRW_ADDRESS_DIRECT,
+      ERROR_IF(inst->src[0].address_mode != BRW_ADDRESS_DIRECT,
                "send must use direct addressing");
 
       ERROR_IF(inst->src[0].file != FIXED_GRF,
@@ -854,7 +856,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
       unsigned subreg = brw_inst_dst_da1_subreg_nr(devinfo, inst->raw);
 
       if (inst->access_mode == BRW_ALIGN_1 &&
-          brw_inst_dst_address_mode(devinfo, inst->raw) == BRW_ADDRESS_DIRECT) {
+          inst->dst.address_mode == BRW_ADDRESS_DIRECT) {
          /* The i965 PRM says:
           *
           *    Implementation Restriction: The relaxed alignment rule for byte
@@ -1054,9 +1056,9 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
     *    "Indirect addressing on source is not supported when source and
     *     destination data types are mixed float."
     */
-   ERROR_IF(brw_inst_src0_address_mode(devinfo, inst->raw) != BRW_ADDRESS_DIRECT ||
+   ERROR_IF(inst->src[0].address_mode != BRW_ADDRESS_DIRECT ||
             (inst->num_sources > 1 &&
-             brw_inst_src1_address_mode(devinfo, inst->raw) != BRW_ADDRESS_DIRECT),
+             inst->src[1].address_mode != BRW_ADDRESS_DIRECT),
             "Indirect addressing on source is not supported when source and "
             "destination data types are mixed float");
 
@@ -1179,7 +1181,7 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
           * aligned data means that execution size is limited to 8.
           */
          unsigned subreg;
-         if (brw_inst_dst_address_mode(devinfo, inst->raw) == BRW_ADDRESS_DIRECT)
+         if (inst->dst.address_mode == BRW_ADDRESS_DIRECT)
             subreg = brw_inst_dst_da1_subreg_nr(devinfo, inst->raw);
          else
             subreg = brw_inst_dst_ia_subreg_nr(devinfo, inst->raw);
@@ -1359,14 +1361,13 @@ region_alignment_rules(const struct brw_isa_info *isa,
       if (inst->src[i].file == IMM)
          continue;
 
+      if (inst->src[i].address_mode != BRW_ADDRESS_DIRECT)
+         continue;
+
       enum brw_reg_type type = inst->src[i].type;
       unsigned element_size = brw_type_size_bytes(type);
 
 #define DO_SRC(n)                                                              \
-      if (brw_inst_src ## n ## _address_mode(devinfo, inst->raw) !=            \
-          BRW_ADDRESS_DIRECT)                                                  \
-         continue;                                                             \
-                                                                               \
       vstride = STRIDE(brw_inst_src ## n ## _vstride(devinfo, inst->raw));     \
       width = WIDTH(brw_inst_src ## n ## _width(devinfo, inst->raw));          \
       hstride = STRIDE(brw_inst_src ## n ## _hstride(devinfo, inst->raw));     \
@@ -1526,7 +1527,7 @@ special_requirements_for_handling_double_precision_data_types(
    unsigned dst_hstride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
    unsigned dst_reg = brw_inst_dst_da_reg_nr(devinfo, inst->raw);
    unsigned dst_subreg = brw_inst_dst_da1_subreg_nr(devinfo, inst->raw);
-   unsigned dst_address_mode = brw_inst_dst_address_mode(devinfo, inst->raw);
+   unsigned dst_address_mode = inst->dst.address_mode;
 
    bool is_integer_dword_multiply =
       inst->opcode == BRW_OPCODE_MUL &&
@@ -1537,7 +1538,7 @@ special_requirements_for_handling_double_precision_data_types(
       dst_type_size == 8 || exec_type_size == 8 || is_integer_dword_multiply;
 
    for (unsigned i = 0; i < inst->num_sources; i++) {
-      unsigned vstride, width, hstride, reg, subreg, address_mode;
+      unsigned vstride, width, hstride, reg, subreg;
       bool is_scalar_region;
 
       enum brw_reg_file file = inst->src[i].file;
@@ -1546,6 +1547,7 @@ special_requirements_for_handling_double_precision_data_types(
 
       enum brw_reg_type type = inst->src[i].type;
       unsigned type_size = brw_type_size_bytes(type);
+      unsigned address_mode = inst->src[i].address_mode;
 
 #define DO_SRC(n)                                                              \
       is_scalar_region = src ## n ## _has_scalar_region(devinfo, inst->raw);   \
@@ -1553,8 +1555,7 @@ special_requirements_for_handling_double_precision_data_types(
       width = WIDTH(brw_inst_src ## n ## _width(devinfo, inst->raw));          \
       hstride = STRIDE(brw_inst_src ## n ## _hstride(devinfo, inst->raw));     \
       reg = brw_inst_src ## n ## _da_reg_nr(devinfo, inst->raw);               \
-      subreg = brw_inst_src ## n ## _da1_subreg_nr(devinfo, inst->raw);        \
-      address_mode = brw_inst_src ## n ## _address_mode(devinfo, inst->raw)
+      subreg = brw_inst_src ## n ## _da1_subreg_nr(devinfo, inst->raw);
 
       if (i == 0) {
          DO_SRC(0);
@@ -2341,10 +2342,12 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
       if (inst->has_dst) {
          inst->dst.file = brw_inst_dst_reg_file(devinfo, raw);
          inst->dst.type = brw_inst_dst_type(devinfo, raw);
+         inst->dst.address_mode = brw_inst_dst_address_mode(devinfo, raw);
       }
 
       inst->src[0].file = brw_inst_src0_reg_file(devinfo, raw);
       inst->src[0].type = brw_inst_src0_type(devinfo, raw);
+      inst->src[0].address_mode = brw_inst_src0_address_mode(devinfo, raw);
 
       if (inst->num_sources > 1) {
          inst->src[1].file = brw_inst_src1_reg_file(devinfo, raw);
