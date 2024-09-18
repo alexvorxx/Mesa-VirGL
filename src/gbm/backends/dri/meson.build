@@ -20,3 +20,5 @@ libgbm_dri = shared_library(
   install_dir: join_paths(get_option('libdir'), 'gbm'),
   name_prefix : '',
 )
+
+devenv.set('GBM_BACKENDS_PATH', meson.current_build_dir())
