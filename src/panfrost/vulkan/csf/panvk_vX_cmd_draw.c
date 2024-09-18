@@ -587,11 +587,17 @@ calc_fbd_size(struct panvk_cmd_buffer *cmdbuf)
    return fbd_size;
 }
 
+#define MAX_LAYERS_PER_TILER_DESC 8
+
 static uint32_t
 calc_render_descs_size(struct panvk_cmd_buffer *cmdbuf)
 {
-   return (calc_fbd_size(cmdbuf) * cmdbuf->state.gfx.render.layer_count) +
-          pan_size(TILER_CONTEXT);
+   uint32_t fbd_count = cmdbuf->state.gfx.render.layer_count;
+   uint32_t td_count = DIV_ROUND_UP(cmdbuf->state.gfx.render.layer_count,
+                                    MAX_LAYERS_PER_TILER_DESC);
+
+   return (calc_fbd_size(cmdbuf) * fbd_count) +
+          (td_count * pan_size(TILER_CONTEXT));
 }
 
 static void
@@ -668,19 +674,16 @@ get_tiler_desc(struct panvk_cmd_buffer *cmdbuf)
       cmdbuf->flags & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
    struct panfrost_ptr tiler_desc = {0};
    struct mali_tiler_context_packed tiler_tmpl;
+   uint32_t td_count = DIV_ROUND_UP(cmdbuf->state.gfx.render.layer_count,
+                                    MAX_LAYERS_PER_TILER_DESC);
 
    if (!simul_use) {
-      tiler_desc = panvk_cmd_alloc_desc(cmdbuf, TILER_CONTEXT);
+      tiler_desc = panvk_cmd_alloc_desc_array(cmdbuf, td_count, TILER_CONTEXT);
       if (!tiler_desc.gpu)
          return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-   } else {
-      /* If the tiler descriptor is allocated from the ring buffer, we set a
-       * dumb non-zero address to allow the is-tiler-acquired test to pass. */
-      tiler_desc.cpu = &tiler_tmpl;
-      tiler_desc.gpu = 0xdeadbeefdeadbeefull;
    }
 
-   pan_pack(tiler_desc.cpu, TILER_CONTEXT, cfg) {
+   pan_pack(&tiler_tmpl, TILER_CONTEXT, cfg) {
       unsigned max_levels = tiler_features.max_levels;
       assert(max_levels >= 2);
 
@@ -701,11 +704,13 @@ get_tiler_desc(struct panvk_cmd_buffer *cmdbuf)
       /* TODO: revisit for VK_EXT_provoking_vertex. */
       cfg.first_provoking_vertex = true;
 
-      cfg.layer_count = cmdbuf->state.gfx.render.layer_count;
+      /* This will be overloaded. */
+      cfg.layer_count = 1;
       cfg.layer_offset = 0;
    }
 
-   cmdbuf->state.gfx.render.tiler = tiler_desc.gpu;
+   cmdbuf->state.gfx.render.tiler =
+      simul_use ? 0xdeadbeefdeadbeefull : tiler_desc.gpu;
 
    struct cs_index tiler_ctx_addr = cs_sr_reg64(b, 40);
 
@@ -722,12 +727,6 @@ get_tiler_desc(struct panvk_cmd_buffer *cmdbuf)
       }
 
       cs_render_desc_ringbuf_move_ptr(b, descs_sz);
-
-      /* Lay out words 2:5, so they can be stored along the other updates. */
-      cs_move64_to(b, cs_scratch_reg64(b, 2),
-                   tiler_tmpl.opaque[2] | (uint64_t)tiler_tmpl.opaque[3] << 32);
-      cs_move64_to(b, cs_scratch_reg64(b, 4),
-                   tiler_tmpl.opaque[4] | (uint64_t)tiler_tmpl.opaque[5] << 32);
    } else {
       cs_update_vt_ctx(b) {
          cs_move64_to(b, tiler_ctx_addr, tiler_desc.gpu);
@@ -737,39 +736,113 @@ get_tiler_desc(struct panvk_cmd_buffer *cmdbuf)
    /* Reset the polygon list. */
    cs_move64_to(b, cs_scratch_reg64(b, 0), 0);
 
+   /* Lay out words 2, 3 and 5, so they can be stored along the other updates.
+    * Word 4 contains layer information and will be updated in the loop. */
+   cs_move64_to(b, cs_scratch_reg64(b, 2),
+                tiler_tmpl.opaque[2] | (uint64_t)tiler_tmpl.opaque[3] << 32);
+   cs_move32_to(b, cs_scratch_reg32(b, 5), tiler_tmpl.opaque[5]);
+
    /* Load the tiler_heap and geom_buf from the context. */
    cs_load_to(b, cs_scratch_reg_tuple(b, 6, 4), cs_subqueue_ctx_reg(b),
               BITFIELD_MASK(4),
               offsetof(struct panvk_cs_subqueue_context, render.tiler_heap));
 
-   /* Reset the completed chain. */
+   /* Fill extra fields with zeroes so we can reset the completed
+    * top/bottom and private states. */
    cs_move64_to(b, cs_scratch_reg64(b, 10), 0);
    cs_move64_to(b, cs_scratch_reg64(b, 12), 0);
-
-   cs_wait_slot(b, SB_ID(LS), false);
-
-   /* Update the first half of the tiler desc. */
-   if (simul_use) {
-      cs_store(b, cs_scratch_reg_tuple(b, 0, 14), tiler_ctx_addr,
-               BITFIELD_MASK(14), 0);
-   } else {
-      cs_store(b, cs_scratch_reg_tuple(b, 0, 2), tiler_ctx_addr,
-               BITFIELD_MASK(2), 0);
-      cs_store(b, cs_scratch_reg_tuple(b, 6, 8), tiler_ctx_addr,
-               BITFIELD_MASK(8), 24);
-   }
-
-   cs_wait_slot(b, SB_ID(LS), false);
-
-   /* r10:13 are already zero, fill r8:9 and r14:15 with zeros so we can reset
-    * the private state in one store. */
-   cs_move64_to(b, cs_scratch_reg64(b, 8), 0);
    cs_move64_to(b, cs_scratch_reg64(b, 14), 0);
 
-   /* Update the second half of the tiler descriptor. */
-   cs_store(b, cs_scratch_reg_tuple(b, 8, 8), tiler_ctx_addr, BITFIELD_MASK(8),
-            96);
    cs_wait_slot(b, SB_ID(LS), false);
+
+   /* Take care of the tiler desc with layer_offset=0 outside of the loop. */
+   cs_move32_to(b, cs_scratch_reg32(b, 4),
+                MIN2(cmdbuf->state.gfx.render.layer_count - 1,
+                     MAX_LAYERS_PER_TILER_DESC - 1));
+
+   /* Replace words 0:13 and 24:31. */
+   cs_store(b, cs_scratch_reg_tuple(b, 0, 16), tiler_ctx_addr,
+            BITFIELD_MASK(16), 0);
+   cs_store(b, cs_scratch_reg_tuple(b, 0, 16), tiler_ctx_addr,
+            BITFIELD_RANGE(0, 2) | BITFIELD_RANGE(10, 6), 64);
+   cs_store(b, cs_scratch_reg_tuple(b, 0, 16), tiler_ctx_addr,
+            BITFIELD_RANGE(0, 2) | BITFIELD_RANGE(10, 6), 96);
+
+   cs_wait_slot(b, SB_ID(LS), false);
+
+   uint32_t remaining_layers =
+      td_count > 1
+         ? cmdbuf->state.gfx.render.layer_count % MAX_LAYERS_PER_TILER_DESC
+         : 0;
+   uint32_t full_td_count =
+      cmdbuf->state.gfx.render.layer_count / MAX_LAYERS_PER_TILER_DESC;
+
+   if (remaining_layers) {
+      int32_t layer_offset =
+         -(cmdbuf->state.gfx.render.layer_count - remaining_layers) &
+         BITFIELD_MASK(9);
+
+      /* If the last tiler descriptor is not full, we emit it outside of the
+       * loop to pass the right layer count. All this would be a lot simpler
+       * if we had OR/AND instructions, but here we are. */
+      cs_update_vt_ctx(b)
+         cs_add64(b, tiler_ctx_addr, tiler_ctx_addr,
+                  pan_size(TILER_CONTEXT) * full_td_count);
+      cs_move32_to(b, cs_scratch_reg32(b, 4),
+                   (layer_offset << 8) | (remaining_layers - 1));
+      cs_store(b, cs_scratch_reg_tuple(b, 0, 16), tiler_ctx_addr,
+               BITFIELD_MASK(16), 0);
+      cs_store(b, cs_scratch_reg_tuple(b, 0, 16), tiler_ctx_addr,
+               BITFIELD_RANGE(0, 2) | BITFIELD_RANGE(10, 6), 64);
+      cs_store(b, cs_scratch_reg_tuple(b, 0, 16), tiler_ctx_addr,
+               BITFIELD_RANGE(0, 2) | BITFIELD_RANGE(10, 6), 96);
+      cs_wait_slot(b, SB_ID(LS), false);
+
+      cs_update_vt_ctx(b)
+         cs_add64(b, tiler_ctx_addr, tiler_ctx_addr,
+                  -pan_size(TILER_CONTEXT));
+   } else if (full_td_count > 1) {
+      cs_update_vt_ctx(b)
+         cs_add64(b, tiler_ctx_addr, tiler_ctx_addr,
+                  pan_size(TILER_CONTEXT) * (full_td_count - 1));
+   }
+
+   if (full_td_count > 1) {
+      struct cs_index counter_reg = cs_scratch_reg32(b, 17);
+      uint32_t layer_offset =
+         (-MAX_LAYERS_PER_TILER_DESC * (full_td_count - 1)) & BITFIELD_MASK(9);
+
+      cs_move32_to(b, counter_reg, full_td_count - 1);
+      cs_move32_to(b, cs_scratch_reg32(b, 4),
+                   (layer_offset << 8) | (MAX_LAYERS_PER_TILER_DESC - 1));
+
+      /* We iterate the remaining full tiler descriptors in reverse order, so we
+       * can start from the smallest layer offset, and increment it by
+       * MAX_LAYERS_PER_TILER_DESC << 8 at each iteration. Again, the split is
+       * mostly due to the lack of AND instructions, and the fact layer_offset
+       * is a 9-bit signed integer inside a 32-bit word, which ADD32 can't deal
+       * with unless the number we add is positive.
+       */
+      cs_while(b, MALI_CS_CONDITION_GREATER, counter_reg) {
+         /* Replace words 0:13 and 24:31. */
+         cs_store(b, cs_scratch_reg_tuple(b, 0, 16), tiler_ctx_addr,
+                  BITFIELD_MASK(16), 0);
+         cs_store(b, cs_scratch_reg_tuple(b, 0, 16), tiler_ctx_addr,
+                  BITFIELD_RANGE(0, 2) | BITFIELD_RANGE(10, 6), 64);
+         cs_store(b, cs_scratch_reg_tuple(b, 0, 16), tiler_ctx_addr,
+                  BITFIELD_RANGE(0, 2) | BITFIELD_RANGE(10, 6), 96);
+
+         cs_wait_slot(b, SB_ID(LS), false);
+
+         cs_add32(b, cs_scratch_reg32(b, 4), cs_scratch_reg32(b, 4),
+                  MAX_LAYERS_PER_TILER_DESC << 8);
+
+         cs_add32(b, counter_reg, counter_reg, -1);
+         cs_update_vt_ctx(b)
+            cs_add64(b, tiler_ctx_addr, tiler_ctx_addr,
+                     -pan_size(TILER_CONTEXT));
+      }
+   }
 
    /* Then we change the scoreboard slot used for iterators. */
    panvk_per_arch(cs_pick_iter_sb)(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
@@ -787,9 +860,6 @@ get_fb_descs(struct panvk_cmd_buffer *cmdbuf)
 
    uint32_t fbds_sz =
       calc_fbd_size(cmdbuf) * cmdbuf->state.gfx.render.layer_count;
-
-   memset(&cmdbuf->state.gfx.render.fb.info.bifrost.pre_post.dcds, 0,
-          sizeof(cmdbuf->state.gfx.render.fb.info.bifrost.pre_post.dcds));
 
    cmdbuf->state.gfx.render.fbds = panvk_cmd_alloc_dev_mem(
       cmdbuf, desc, fbds_sz, pan_alignment(FRAMEBUFFER));
@@ -1244,12 +1314,7 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
       cs_move32_to(b, cs_sr_reg32(b, 34), draw->instance.count);
       cs_move32_to(b, cs_sr_reg32(b, 35), draw->index.offset);
       cs_move32_to(b, cs_sr_reg32(b, 36), draw->index.vertex_offset);
-
-      /* Instance ID is assumed to be zero-based for now. See if we can
-       * extend nir_lower_system_values() and the lower options to make
-       * instance-ID non-zero based, or if it's fine to always return
-       * zero for the instance base. */
-      cs_move32_to(b, cs_sr_reg32(b, 37), 0);
+      cs_move32_to(b, cs_sr_reg32(b, 37), draw->instance.base);
 
       /* We don't use the resource dep system yet. */
       cs_move32_to(b, cs_sr_reg32(b, 38), 0);
@@ -1284,10 +1349,37 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
 
    clear_dirty(cmdbuf, draw);
 
+   uint32_t idvs_count = DIV_ROUND_UP(cmdbuf->state.gfx.render.layer_count,
+                                      MAX_LAYERS_PER_TILER_DESC);
+
    cs_req_res(b, CS_IDVS_RES);
-   cs_run_idvs(b, tiler_idvs_flags.opaque[0], false, true,
-               cs_shader_res_sel(0, 0, 1, 0), cs_shader_res_sel(2, 2, 2, 0),
-               cs_undef());
+   if (idvs_count > 1) {
+      struct cs_index counter_reg = cs_scratch_reg32(b, 17);
+      struct cs_index tiler_ctx_addr = cs_sr_reg64(b, 40);
+
+      cs_move32_to(b, counter_reg, idvs_count);
+
+      cs_while(b, MALI_CS_CONDITION_GREATER, counter_reg) {
+         cs_run_idvs(b, tiler_idvs_flags.opaque[0], false, true,
+                     cs_shader_res_sel(0, 0, 1, 0),
+                     cs_shader_res_sel(2, 2, 2, 0), cs_undef());
+
+	 cs_add32(b, counter_reg, counter_reg, -1);
+         cs_update_vt_ctx(b) {
+            cs_add64(b, tiler_ctx_addr, tiler_ctx_addr,
+                     pan_size(TILER_CONTEXT));
+         }
+      }
+
+      cs_update_vt_ctx(b) {
+         cs_add64(b, tiler_ctx_addr, tiler_ctx_addr,
+                  -(idvs_count * pan_size(TILER_CONTEXT)));
+      }
+   } else {
+      cs_run_idvs(b, tiler_idvs_flags.opaque[0], false, true,
+                  cs_shader_res_sel(0, 0, 1, 0), cs_shader_res_sel(2, 2, 2, 0),
+                  cs_undef());
+   }
    cs_req_res(b, 0);
 }
 
@@ -1763,8 +1855,9 @@ static uint8_t
 prepare_fb_desc(struct panvk_cmd_buffer *cmdbuf, uint32_t layer, void *fbd)
 {
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
-   bool simul_use =
-      !(cmdbuf->flags & VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT);
+
+   memset(&cmdbuf->state.gfx.render.fb.info.bifrost.pre_post.dcds, 0,
+          sizeof(cmdbuf->state.gfx.render.fb.info.bifrost.pre_post.dcds));
 
    if (cmdbuf->state.tls.desc.gpu) {
       ASSERTED unsigned num_preload_jobs =
@@ -1779,7 +1872,7 @@ prepare_fb_desc(struct panvk_cmd_buffer *cmdbuf, uint32_t layer, void *fbd)
    }
 
    struct pan_tiler_context tiler_ctx = {
-      .valhall.desc = !simul_use ? cmdbuf->state.gfx.render.tiler : 0,
+      .valhall.layer_offset = layer - (layer % MAX_LAYERS_PER_TILER_DESC),
    };
 
    return GENX(pan_emit_fbd)(&cmdbuf->state.gfx.render.fb.info, layer, NULL,
@@ -1929,25 +2022,31 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
    struct cs_index layer_count = cs_sr_reg32(b, 47);
    struct cs_index fbd_ptr = cs_sr_reg64(b, 48);
    struct cs_index tiler_ptr = cs_sr_reg64(b, 50);
-   struct cs_index src_fbd_ptr = cs_undef();
+   struct cs_index cur_tiler = cs_sr_reg64(b, 52);
+   struct cs_index remaining_layers_in_td = cs_sr_reg32(b, 54);
+   struct cs_index src_fbd_ptr = cs_sr_reg64(b, 56);
+   uint32_t td_count = DIV_ROUND_UP(cmdbuf->state.gfx.render.layer_count,
+                                    MAX_LAYERS_PER_TILER_DESC);
 
    if (copy_fbds) {
-      src_fbd_ptr = cs_sr_reg64(b, 52);
-
-      cs_move32_to(b, layer_count, cmdbuf->state.gfx.render.layer_count);
       cs_load64_to(
          b, tiler_ptr, cs_subqueue_ctx_reg(b),
          offsetof(struct panvk_cs_subqueue_context, render.desc_ringbuf.ptr));
       cs_wait_slot(b, SB_ID(LS), false);
 
-      cs_add64(b, fbd_ptr, tiler_ptr, pan_size(TILER_CONTEXT));
+      cs_add64(b, fbd_ptr, tiler_ptr, pan_size(TILER_CONTEXT) * td_count);
       cs_move64_to(b, src_fbd_ptr, fbds.gpu);
    } else if (cmdbuf->state.gfx.render.tiler) {
       cs_move64_to(b, fbd_ptr, fbds.gpu);
       cs_move64_to(b, tiler_ptr, cmdbuf->state.gfx.render.tiler);
    }
 
+
+   cs_add64(b, cur_tiler, tiler_ptr, 0);
    cs_move32_to(b, layer_count, cmdbuf->state.gfx.render.layer_count);
+   cs_move32_to(b, remaining_layers_in_td, MAX_LAYERS_PER_TILER_DESC);
+
+   cs_req_res(b, CS_FRAG_RES);
    cs_while(b, MALI_CS_CONDITION_GREATER, layer_count) {
       if (copy_fbds) {
          for (uint32_t fbd_off = 0; fbd_off < fbd_sz; fbd_off += 64) {
@@ -1963,19 +2062,23 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
       }
 
       if (cmdbuf->state.gfx.render.tiler) {
-         cs_store64(b, tiler_ptr, fbd_ptr, 56);
+         cs_store64(b, cur_tiler, fbd_ptr, 56);
          cs_wait_slot(b, SB_ID(LS), false);
       }
 
       cs_update_frag_ctx(b)
          cs_add64(b, cs_sr_reg64(b, 40), fbd_ptr, fbd_flags);
 
-      cs_req_res(b, CS_FRAG_RES);
       cs_run_fragment(b, false, MALI_TILE_RENDER_ORDER_Z_ORDER, false);
-      cs_req_res(b, 0);
       cs_add64(b, fbd_ptr, fbd_ptr, fbd_sz);
       cs_add32(b, layer_count, layer_count, -1);
+      cs_add32(b, remaining_layers_in_td, remaining_layers_in_td, -1);
+      cs_if(b, MALI_CS_CONDITION_LEQUAL, remaining_layers_in_td) {
+         cs_add64(b, cur_tiler, cur_tiler, pan_size(TILER_CONTEXT));
+         cs_move32_to(b, remaining_layers_in_td, MAX_LAYERS_PER_TILER_DESC);
+      }
    }
+   cs_req_res(b, 0);
 
    struct cs_index sync_addr = cs_scratch_reg64(b, 0);
    struct cs_index iter_sb = cs_scratch_reg32(b, 2);
@@ -1986,6 +2089,7 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
    struct cs_index completed = cs_scratch_reg_tuple(b, 10, 4);
    struct cs_index completed_top = cs_scratch_reg64(b, 10);
    struct cs_index completed_bottom = cs_scratch_reg64(b, 12);
+   struct cs_index tiler_count = cs_sr_reg32(b, 47);
 
    cs_move64_to(b, add_val, 1);
    cs_load_to(b, cs_scratch_reg_tuple(b, 0, 3), cs_subqueue_ctx_reg(b),
@@ -1999,21 +2103,26 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
                             render.desc_ringbuf.syncobj));
    }
 
-   if (cmdbuf->state.gfx.render.tiler)
-      cs_load_to(b, completed, tiler_ptr, BITFIELD_MASK(4), 40);
-
    cs_wait_slot(b, SB_ID(LS), false);
 
    cs_add64(b, sync_addr, sync_addr,
             PANVK_SUBQUEUE_FRAGMENT * sizeof(struct panvk_cs_sync64));
+   cs_move32_to(b, tiler_count, td_count);
+   cs_add64(b, cur_tiler, tiler_ptr, 0);
 
    cs_match(b, iter_sb, cmp_scratch) {
 #define CASE(x)                                                                \
       cs_case(b, x) {                                                          \
          if (cmdbuf->state.gfx.render.tiler) {                                 \
-            cs_finish_fragment(b, true, completed_top, completed_bottom,       \
-                               cs_defer(SB_WAIT_ITER(x),                       \
-                                        SB_ID(DEFERRED_SYNC)));                \
+            cs_while(b, MALI_CS_CONDITION_GREATER, tiler_count) {              \
+               cs_load_to(b, completed, cur_tiler, BITFIELD_MASK(4), 40);      \
+               cs_wait_slot(b, SB_ID(LS), false);                              \
+               cs_finish_fragment(b, true, completed_top, completed_bottom,    \
+                                  cs_defer(SB_WAIT_ITER(x),                    \
+                                           SB_ID(DEFERRED_SYNC)));             \
+               cs_add64(b, cur_tiler, cur_tiler, pan_size(TILER_CONTEXT));     \
+               cs_add32(b, tiler_count, tiler_count, -1);                      \
+            }                                                                  \
          }                                                                     \
          if (copy_fbds) {                                                      \
             cs_sync32_add(b, true, MALI_CS_SYNC_SCOPE_CSG,                     \
