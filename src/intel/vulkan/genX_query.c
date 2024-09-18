@@ -834,7 +834,7 @@ void genX(CmdResetQueryPool)(
     * mode.
     */
    if (anv_cmd_buffer_is_render_or_compute_queue(cmd_buffer) &&
-       (cmd_buffer->vk.pool->flags & VK_COMMAND_POOL_CREATE_PROTECTED_BIT) != 0 &&
+       (cmd_buffer->vk.pool->flags & VK_COMMAND_POOL_CREATE_PROTECTED_BIT) == 0 &&
        queryCount >= pdevice->instance->query_clear_with_blorp_threshold) {
       trace_intel_begin_query_clear_blorp(&cmd_buffer->trace);
 
