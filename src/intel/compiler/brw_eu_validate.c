@@ -44,6 +44,8 @@
 
 typedef struct brw_hw_decoded_inst {
    const brw_inst *raw;
+
+   enum opcode opcode;
 } brw_hw_decoded_inst;
 
 /* We're going to do lots of string concatenation, so this should help. */
@@ -95,9 +97,9 @@ contains(const struct string haystack, const struct string needle)
 #define WIDTH(width)   (1 << (width))
 
 static bool
-inst_is_send(const struct brw_isa_info *isa, const brw_inst *inst)
+inst_is_send(const brw_hw_decoded_inst *inst)
 {
-   switch (brw_inst_opcode(isa, inst)) {
+   switch (inst->opcode) {
    case BRW_OPCODE_SEND:
    case BRW_OPCODE_SENDC:
    case BRW_OPCODE_SENDS:
@@ -109,14 +111,14 @@ inst_is_send(const struct brw_isa_info *isa, const brw_inst *inst)
 }
 
 static bool
-inst_is_split_send(const struct brw_isa_info *isa, const brw_inst *inst)
+inst_is_split_send(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
    if (devinfo->ver >= 12) {
-      return inst_is_send(isa, inst);
+      return inst_is_send(inst);
    } else {
-      switch (brw_inst_opcode(isa, inst)) {
+      switch (inst->opcode) {
       case BRW_OPCODE_SENDS:
       case BRW_OPCODE_SENDSC:
          return true;
@@ -133,36 +135,36 @@ signed_type(unsigned type)
 }
 
 static enum brw_reg_type
-inst_dst_type(const struct brw_isa_info *isa, const brw_inst *inst)
+inst_dst_type(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
-   return (devinfo->ver < 12 || !inst_is_send(isa, inst)) ?
-      brw_inst_dst_type(devinfo, inst) : BRW_TYPE_D;
+   return (devinfo->ver < 12 || !inst_is_send(inst)) ?
+      brw_inst_dst_type(devinfo, inst->raw) : BRW_TYPE_D;
 }
 
 static bool
-inst_is_raw_move(const struct brw_isa_info *isa, const brw_inst *inst)
+inst_is_raw_move(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
    unsigned dst_type = signed_type(inst_dst_type(isa, inst));
-   unsigned src_type = signed_type(brw_inst_src0_type(devinfo, inst));
+   unsigned src_type = signed_type(brw_inst_src0_type(devinfo, inst->raw));
 
-   if (brw_inst_src0_reg_file(devinfo, inst) == IMM) {
+   if (brw_inst_src0_reg_file(devinfo, inst->raw) == IMM) {
       /* FIXME: not strictly true */
-      if (brw_inst_src0_type(devinfo, inst) == BRW_TYPE_VF ||
-          brw_inst_src0_type(devinfo, inst) == BRW_TYPE_UV ||
-          brw_inst_src0_type(devinfo, inst) == BRW_TYPE_V) {
+      if (brw_inst_src0_type(devinfo, inst->raw) == BRW_TYPE_VF ||
+          brw_inst_src0_type(devinfo, inst->raw) == BRW_TYPE_UV ||
+          brw_inst_src0_type(devinfo, inst->raw) == BRW_TYPE_V) {
          return false;
       }
-   } else if (brw_inst_src0_negate(devinfo, inst) ||
-              brw_inst_src0_abs(devinfo, inst)) {
+   } else if (brw_inst_src0_negate(devinfo, inst->raw) ||
+              brw_inst_src0_abs(devinfo, inst->raw)) {
       return false;
    }
 
-   return brw_inst_opcode(isa, inst) == BRW_OPCODE_MOV &&
-          brw_inst_saturate(devinfo, inst) == 0 &&
+   return inst->opcode == BRW_OPCODE_MOV &&
+          brw_inst_saturate(devinfo, inst->raw) == 0 &&
           dst_type == src_type;
 }
 
@@ -255,7 +257,7 @@ invalid_values(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
                "The execution size must be a factor of the chosen offset");
    }
 
-   if (inst_is_send(isa, inst->raw))
+   if (inst_is_send(inst))
       return error_msg;
 
    if (error_msg.str)
@@ -306,10 +308,10 @@ sources_not_null(const struct brw_isa_info *isa,
    /* Nothing to test.  Split sends can only encode a file in sources that are
     * allowed to be NULL.
     */
-   if (inst_is_split_send(isa, inst->raw))
+   if (inst_is_split_send(isa, inst))
       return (struct string){};
 
-   if (num_sources >= 1 && brw_inst_opcode(isa, inst->raw) != BRW_OPCODE_SYNC)
+   if (num_sources >= 1 && inst->opcode != BRW_OPCODE_SYNC)
       ERROR_IF(src0_is_null(devinfo, inst->raw), "src0 is null");
 
    if (num_sources == 2)
@@ -333,12 +335,12 @@ alignment_supported(const struct brw_isa_info *isa,
 
 static bool
 inst_uses_src_acc(const struct brw_isa_info *isa,
-                  const brw_inst *inst)
+                  const brw_hw_decoded_inst *inst)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
    /* Check instructions that use implicit accumulator sources */
-   switch (brw_inst_opcode(isa, inst)) {
+   switch (inst->opcode) {
    case BRW_OPCODE_MAC:
    case BRW_OPCODE_MACH:
       return true;
@@ -347,10 +349,10 @@ inst_uses_src_acc(const struct brw_isa_info *isa,
    }
 
    /* FIXME: support 3-src instructions */
-   unsigned num_sources = brw_num_sources_from_inst(isa, inst);
+   unsigned num_sources = brw_num_sources_from_inst(isa, inst->raw);
    assert(num_sources < 3);
 
-   return src0_is_acc(devinfo, inst) || (num_sources > 1 && src1_is_acc(devinfo, inst));
+   return src0_is_acc(devinfo, inst->raw) || (num_sources > 1 && src1_is_acc(devinfo, inst->raw));
 }
 
 static struct string
@@ -361,7 +363,7 @@ send_restrictions(const struct brw_isa_info *isa,
 
    struct string error_msg = { .str = NULL, .len = 0 };
 
-   if (inst_is_split_send(isa, inst->raw)) {
+   if (inst_is_split_send(isa, inst)) {
       ERROR_IF(brw_inst_send_src1_reg_file(devinfo, inst->raw) == ARF &&
                brw_inst_send_src1_reg_nr(devinfo, inst->raw) != BRW_ARF_NULL,
                "src1 of split send must be a GRF or NULL");
@@ -397,7 +399,7 @@ send_restrictions(const struct brw_isa_info *isa,
                    src0_reg_nr < src1_reg_nr + ex_mlen),
                    "split send payloads must not overlap");
       }
-   } else if (inst_is_send(isa, inst->raw)) {
+   } else if (inst_is_send(inst)) {
       ERROR_IF(brw_inst_src0_address_mode(devinfo, inst->raw) != BRW_ADDRESS_DIRECT,
                "send must use direct addressing");
 
@@ -474,11 +476,11 @@ execution_type_for_type(enum brw_reg_type type)
  * Returns the execution type of an instruction \p inst
  */
 static enum brw_reg_type
-execution_type(const struct brw_isa_info *isa, const brw_inst *inst)
+execution_type(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
-   unsigned num_sources = brw_num_sources_from_inst(isa, inst);
+   unsigned num_sources = brw_num_sources_from_inst(isa, inst->raw);
    enum brw_reg_type src0_exec_type, src1_exec_type;
 
    /* Execution data type is independent of destination data type, except in
@@ -486,14 +488,14 @@ execution_type(const struct brw_isa_info *isa, const brw_inst *inst)
     */
    enum brw_reg_type dst_exec_type = inst_dst_type(isa, inst);
 
-   src0_exec_type = execution_type_for_type(brw_inst_src0_type(devinfo, inst));
+   src0_exec_type = execution_type_for_type(brw_inst_src0_type(devinfo, inst->raw));
    if (num_sources == 1) {
       if (src0_exec_type == BRW_TYPE_HF)
          return dst_exec_type;
       return src0_exec_type;
    }
 
-   src1_exec_type = execution_type_for_type(brw_inst_src1_type(devinfo, inst));
+   src1_exec_type = execution_type_for_type(brw_inst_src1_type(devinfo, inst->raw));
    if (types_are_mixed_float(src0_exec_type, src1_exec_type) ||
        types_are_mixed_float(src0_exec_type, dst_exec_type) ||
        types_are_mixed_float(src1_exec_type, dst_exec_type)) {
@@ -587,29 +589,28 @@ is_half_float_conversion(const struct brw_isa_info *isa,
  * Returns whether an instruction is using mixed float operation mode
  */
 static bool
-is_mixed_float(const struct brw_isa_info *isa, const brw_inst *inst)
+is_mixed_float(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
-   if (inst_is_send(isa, inst))
+   if (inst_is_send(inst))
       return false;
 
-   unsigned opcode = brw_inst_opcode(isa, inst);
-   const struct opcode_desc *desc = brw_opcode_desc(isa, opcode);
+   const struct opcode_desc *desc = brw_opcode_desc(isa, inst->opcode);
    if (desc->ndst == 0)
       return false;
 
    /* FIXME: support 3-src instructions */
-   unsigned num_sources = brw_num_sources_from_inst(isa, inst);
+   unsigned num_sources = brw_num_sources_from_inst(isa, inst->raw);
    assert(num_sources < 3);
 
-   enum brw_reg_type dst_type = brw_inst_dst_type(devinfo, inst);
-   enum brw_reg_type src0_type = brw_inst_src0_type(devinfo, inst);
+   enum brw_reg_type dst_type = brw_inst_dst_type(devinfo, inst->raw);
+   enum brw_reg_type src0_type = brw_inst_src0_type(devinfo, inst->raw);
 
    if (num_sources == 1)
       return types_are_mixed_float(src0_type, dst_type);
 
-   enum brw_reg_type src1_type = brw_inst_src1_type(devinfo, inst);
+   enum brw_reg_type src1_type = brw_inst_src1_type(devinfo, inst->raw);
 
    return types_are_mixed_float(src0_type, src1_type) ||
           types_are_mixed_float(src0_type, dst_type) ||
@@ -655,20 +656,19 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
-   const struct opcode_desc *desc =
-      brw_opcode_desc(isa, brw_inst_opcode(isa, inst->raw));
+   const struct opcode_desc *desc = brw_opcode_desc(isa, inst->opcode);
    unsigned num_sources = brw_num_sources_from_inst(isa, inst->raw);
    unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
    struct string error_msg = { .str = NULL, .len = 0 };
 
-   if (inst_is_send(isa, inst->raw))
+   if (inst_is_send(inst))
       return error_msg;
 
    if (devinfo->ver >= 11) {
       /* A register type of B or UB for DPAS actually means 4 bytes packed into
        * a D or UD, so it is allowed.
        */
-      if (num_sources == 3 && brw_inst_opcode(isa, inst->raw) != BRW_OPCODE_DPAS) {
+      if (num_sources == 3 && inst->opcode != BRW_OPCODE_DPAS) {
          ERROR_IF(brw_type_size_bytes(brw_inst_3src_a1_src1_type(devinfo, inst->raw)) == 1 ||
                   brw_type_size_bytes(brw_inst_3src_a1_src2_type(devinfo, inst->raw)) == 1,
                   "Byte data type is not supported for src1/2 register regioning. This includes "
@@ -689,7 +689,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
       else
          dst_type = brw_inst_3src_a16_dst_type(devinfo, inst->raw);
    } else {
-      dst_type = inst_dst_type(isa, inst->raw);
+      dst_type = inst_dst_type(isa, inst);
    }
 
    ERROR_IF(dst_type == BRW_TYPE_DF &&
@@ -764,7 +764,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
    if (desc->ndst == 0)
       return error_msg;
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_MATH &&
+   if (inst->opcode == BRW_OPCODE_MATH &&
        intel_needs_workaround(devinfo, 22016140776)) {
       /* Wa_22016140776:
        *
@@ -803,18 +803,18 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
 
    unsigned dst_stride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
    bool dst_type_is_byte =
-      inst_dst_type(isa, inst->raw) == BRW_TYPE_B ||
-      inst_dst_type(isa, inst->raw) == BRW_TYPE_UB;
+      inst_dst_type(isa, inst) == BRW_TYPE_B ||
+      inst_dst_type(isa, inst) == BRW_TYPE_UB;
 
    if (dst_type_is_byte) {
       if (is_packed(exec_size * dst_stride, exec_size, dst_stride)) {
-         if (!inst_is_raw_move(isa, inst->raw))
+         if (!inst_is_raw_move(isa, inst))
             ERROR("Only raw MOV supports a packed-byte destination");
          return error_msg;
       }
    }
 
-   unsigned exec_type = execution_type(isa, inst->raw);
+   unsigned exec_type = execution_type(isa, inst);
    unsigned exec_type_size = brw_type_size_bytes(exec_type);
    unsigned dst_type_size = brw_type_size_bytes(dst_type);
 
@@ -917,7 +917,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
          } else if (dst_type == BRW_TYPE_HF) {
             unsigned subreg = brw_inst_dst_da1_subreg_nr(devinfo, inst->raw);
             ERROR_IF(dst_stride != 2 &&
-                     !(is_mixed_float(isa, inst->raw) &&
+                     !(is_mixed_float(isa, inst) &&
                        dst_stride == 1 && subreg % 16 == 0),
                      "Conversions to HF must have either all words in even "
                      "word locations or all words in odd word locations or "
@@ -930,11 +930,11 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
     * override the general rule for the ratio of sizes of the destination type
     * and the execution type. We will add validation for those in a later patch.
     */
-   bool validate_dst_size_and_exec_size_ratio = !is_mixed_float(isa, inst->raw);
+   bool validate_dst_size_and_exec_size_ratio = !is_mixed_float(isa, inst);
 
    if (validate_dst_size_and_exec_size_ratio &&
        exec_type_size > dst_type_size) {
-      if (!(dst_type_is_byte && inst_is_raw_move(isa, inst->raw))) {
+      if (!(dst_type_is_byte && inst_is_raw_move(isa, inst))) {
          ERROR_IF(dst_stride * dst_type_size != exec_type_size,
                   "Destination stride must be equal to the ratio of the sizes "
                   "of the execution data type to the destination type");
@@ -976,8 +976,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
-   const struct opcode_desc *desc =
-      brw_opcode_desc(isa, brw_inst_opcode(isa, inst->raw));
+   const struct opcode_desc *desc = brw_opcode_desc(isa, inst->opcode);
    unsigned num_sources = brw_num_sources_from_inst(isa, inst->raw);
    unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
    struct string error_msg = { .str = NULL, .len = 0 };
@@ -988,7 +987,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
    /* Split sends don't have the bits in the instruction to encode regions so
     * there's nothing to check.
     */
-   if (inst_is_split_send(isa, inst->raw))
+   if (inst_is_split_send(isa, inst))
       return (struct string){};
 
    if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16) {
@@ -1126,12 +1125,12 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
 
    struct string error_msg = { .str = NULL, .len = 0 };
 
-   const unsigned opcode = brw_inst_opcode(isa, inst->raw);
+   const unsigned opcode = inst->opcode;
    const unsigned num_sources = brw_num_sources_from_inst(isa, inst->raw);
    if (num_sources >= 3)
       return error_msg;
 
-   if (!is_mixed_float(isa, inst->raw))
+   if (!is_mixed_float(isa, inst))
       return error_msg;
 
    unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
@@ -1228,7 +1227,7 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
        *
        *    "No accumulator read access for Align16 mixed float."
        */
-      ERROR_IF(inst_uses_src_acc(isa, inst->raw),
+      ERROR_IF(inst_uses_src_acc(isa, inst),
                "No accumulator read access for Align16 mixed float");
    } else {
       assert(!is_align16);
@@ -1329,7 +1328,7 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
        *        validate the explicit implication, which is clearly described.
        */
       if (dst_type == BRW_TYPE_HF &&
-          inst_uses_src_acc(isa, inst->raw)) {
+          inst_uses_src_acc(isa, inst)) {
          ERROR_IF(dst_stride != 2,
                   "Mixed float mode with implicit/explicit accumulator "
                   "source and half-float destination requires a stride "
@@ -1430,8 +1429,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
                        const brw_hw_decoded_inst *inst)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
-   const struct opcode_desc *desc =
-      brw_opcode_desc(isa, brw_inst_opcode(isa, inst->raw));
+   const struct opcode_desc *desc = brw_opcode_desc(isa, inst->opcode);
    unsigned num_sources = brw_num_sources_from_inst(isa, inst->raw);
    unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
    uint8_t dst_access_mask[32], src0_access_mask[32], src1_access_mask[32];
@@ -1443,7 +1441,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
    if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16)
       return (struct string){};
 
-   if (inst_is_send(isa, inst->raw))
+   if (inst_is_send(inst))
       return (struct string){};
 
    memset(dst_access_mask, 0, sizeof(dst_access_mask));
@@ -1498,7 +1496,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
       return error_msg;
 
    unsigned stride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
-   enum brw_reg_type dst_type = inst_dst_type(isa, inst->raw);
+   enum brw_reg_type dst_type = inst_dst_type(isa, inst);
    unsigned element_size = brw_type_size_bytes(dst_type);
    unsigned subreg = brw_inst_dst_da1_subreg_nr(devinfo, inst->raw);
    unsigned offset = ((exec_size - 1) * stride * element_size) + subreg;
@@ -1523,7 +1521,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
     * It is not known whether this restriction applies to KBL other Gens after
     * SKL.
     */
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_MATH) {
+   if (inst->opcode == BRW_OPCODE_MATH) {
       if (dst_regs == 2) {
          unsigned upper_reg_writes = 0, lower_reg_writes = 0;
 
@@ -1555,7 +1553,7 @@ vector_immediate_restrictions(const struct brw_isa_info *isa,
    struct string error_msg = { .str = NULL, .len = 0 };
 
    if (num_sources == 3 || num_sources == 0 ||
-       (devinfo->ver >= 12 && inst_is_send(isa, inst->raw)))
+       (devinfo->ver >= 12 && inst_is_send(inst)))
       return (struct string){};
 
    unsigned file = num_sources == 1 ?
@@ -1564,7 +1562,7 @@ vector_immediate_restrictions(const struct brw_isa_info *isa,
    if (file != IMM)
       return (struct string){};
 
-   enum brw_reg_type dst_type = inst_dst_type(isa, inst->raw);
+   enum brw_reg_type dst_type = inst_dst_type(isa, inst);
    unsigned dst_type_size = brw_type_size_bytes(dst_type);
    unsigned dst_subreg = brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1 ?
                          brw_inst_dst_da1_subreg_nr(devinfo, inst->raw) : 0;
@@ -1623,14 +1621,14 @@ special_requirements_for_handling_double_precision_data_types(
       return (struct string){};
 
    /* Split sends don't have types so there's no doubles there. */
-   if (inst_is_split_send(isa, inst->raw))
+   if (inst_is_split_send(isa, inst))
       return (struct string){};
 
-   enum brw_reg_type exec_type = execution_type(isa, inst->raw);
+   enum brw_reg_type exec_type = execution_type(isa, inst);
    unsigned exec_type_size = brw_type_size_bytes(exec_type);
 
    enum brw_reg_file dst_file = brw_inst_dst_reg_file(devinfo, inst->raw);
-   enum brw_reg_type dst_type = inst_dst_type(isa, inst->raw);
+   enum brw_reg_type dst_type = inst_dst_type(isa, inst);
    unsigned dst_type_size = brw_type_size_bytes(dst_type);
    unsigned dst_hstride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
    unsigned dst_reg = brw_inst_dst_da_reg_nr(devinfo, inst->raw);
@@ -1638,7 +1636,7 @@ special_requirements_for_handling_double_precision_data_types(
    unsigned dst_address_mode = brw_inst_dst_address_mode(devinfo, inst->raw);
 
    bool is_integer_dword_multiply =
-      brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_MUL &&
+      inst->opcode == BRW_OPCODE_MUL &&
       (brw_inst_src0_type(devinfo, inst->raw) == BRW_TYPE_D ||
        brw_inst_src0_type(devinfo, inst->raw) == BRW_TYPE_UD) &&
       (brw_inst_src1_type(devinfo, inst->raw) == BRW_TYPE_D ||
@@ -1737,7 +1735,7 @@ special_requirements_for_handling_double_precision_data_types(
        */
       if (is_double_precision &&
           intel_device_info_is_9lp(devinfo)) {
-         ERROR_IF(brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_MAC ||
+         ERROR_IF(inst->opcode == BRW_OPCODE_MAC ||
                   brw_inst_acc_wr_control(devinfo, inst->raw) ||
                   (ARF == file &&
                    reg != BRW_ARF_NULL) ||
@@ -1853,8 +1851,8 @@ instruction_restrictions(const struct brw_isa_info *isa,
     *  is not supported."
     */
    if (devinfo->ver >= 12 &&
-       brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_MUL) {
-      enum brw_reg_type exec_type = execution_type(isa, inst->raw);
+       inst->opcode == BRW_OPCODE_MUL) {
+      enum brw_reg_type exec_type = execution_type(isa, inst);
       const bool src0_valid =
          brw_type_size_bytes(brw_inst_src0_type(devinfo, inst->raw)) == 4 ||
          brw_inst_src0_reg_file(devinfo, inst->raw) == IMM ||
@@ -1873,22 +1871,22 @@ instruction_restrictions(const struct brw_isa_info *isa,
                "modifier is not supported.");
    }
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_CMP ||
-       brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_CMPN) {
+   if (inst->opcode == BRW_OPCODE_CMP ||
+       inst->opcode == BRW_OPCODE_CMPN) {
       ERROR_IF(brw_inst_cond_modifier(devinfo, inst->raw) == BRW_CONDITIONAL_NONE,
                "CMP (or CMPN) must have a condition.");
    }
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_SEL) {
+   if (inst->opcode == BRW_OPCODE_SEL) {
       ERROR_IF((brw_inst_cond_modifier(devinfo, inst->raw) != BRW_CONDITIONAL_NONE) ==
                (brw_inst_pred_control(devinfo, inst->raw) != BRW_PREDICATE_NONE),
                "SEL must either be predicated or have a condition modifiers");
    }
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_MUL) {
+   if (inst->opcode == BRW_OPCODE_MUL) {
       const enum brw_reg_type src0_type = brw_inst_src0_type(devinfo, inst->raw);
       const enum brw_reg_type src1_type = brw_inst_src1_type(devinfo, inst->raw);
-      const enum brw_reg_type dst_type = inst_dst_type(isa, inst->raw);
+      const enum brw_reg_type dst_type = inst_dst_type(isa, inst);
 
       /* Page 966 (page 982 of the PDF) of Broadwell PRM volume 2a says:
        *
@@ -1949,7 +1947,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
                "integer multiply.");
    }
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_MATH) {
+   if (inst->opcode == BRW_OPCODE_MATH) {
       unsigned math_function = brw_inst_math_function(devinfo, inst->raw);
       switch (math_function) {
       case BRW_MATH_FUNCTION_INT_DIV_QUOTIENT_AND_REMAINDER:
@@ -1972,7 +1970,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
       }
    }
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_DP4A) {
+   if (inst->opcode == BRW_OPCODE_DP4A) {
       /* Page 396 (page 412 of the PDF) of the DG1 PRM volume 2a says:
        *
        *    Only one of src0 or src1 operand may be an the (sic) accumulator
@@ -1984,8 +1982,8 @@ instruction_restrictions(const struct brw_isa_info *isa,
 
    }
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_ADD3) {
-      const enum brw_reg_type dst_type = inst_dst_type(isa, inst->raw);
+   if (inst->opcode == BRW_OPCODE_ADD3) {
+      const enum brw_reg_type dst_type = inst_dst_type(isa, inst);
 
       ERROR_IF(dst_type != BRW_TYPE_D &&
                dst_type != BRW_TYPE_UD &&
@@ -2025,17 +2023,17 @@ instruction_restrictions(const struct brw_isa_info *isa,
       }
    }
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_OR ||
-       brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_AND ||
-       brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_XOR ||
-       brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_NOT) {
+   if (inst->opcode == BRW_OPCODE_OR ||
+       inst->opcode == BRW_OPCODE_AND ||
+       inst->opcode == BRW_OPCODE_XOR ||
+       inst->opcode == BRW_OPCODE_NOT) {
       /* While the behavior of the negate source modifier is defined as
        * logical not, the behavior of abs source modifier is not
        * defined. Disallow it to be safe.
        */
       ERROR_IF(brw_inst_src0_abs(devinfo, inst->raw),
                "Behavior of abs source modifier in logic ops is undefined.");
-      ERROR_IF(brw_inst_opcode(isa, inst->raw) != BRW_OPCODE_NOT &&
+      ERROR_IF(inst->opcode != BRW_OPCODE_NOT &&
                brw_inst_src1_reg_file(devinfo, inst->raw) != IMM &&
                brw_inst_src1_abs(devinfo, inst->raw),
                "Behavior of abs source modifier in logic ops is undefined.");
@@ -2076,7 +2074,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
                "O, R, and U conditional modifiers should not be used.");
    }
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_BFI2) {
+   if (inst->opcode == BRW_OPCODE_BFI2) {
       ERROR_IF(brw_inst_cond_modifier(devinfo, inst->raw) != BRW_CONDITIONAL_NONE,
                "BFI2 cannot have conditional modifier");
 
@@ -2113,7 +2111,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
       }
    }
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_CSEL) {
+   if (inst->opcode == BRW_OPCODE_CSEL) {
       ERROR_IF(brw_inst_pred_control(devinfo, inst->raw) != BRW_PREDICATE_NONE,
                "CSEL cannot be predicated");
 
@@ -2176,7 +2174,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
       }
    }
 
-   if (brw_inst_opcode(isa, inst->raw) == BRW_OPCODE_DPAS) {
+   if (inst->opcode == BRW_OPCODE_DPAS) {
       ERROR_IF(brw_inst_dpas_3src_sdepth(devinfo, inst->raw) != BRW_SYSTOLIC_DEPTH_8,
                "Systolic depth must be 8.");
 
@@ -2338,11 +2336,11 @@ send_descriptor_restrictions(const struct brw_isa_info *isa,
    const struct intel_device_info *devinfo = isa->devinfo;
    struct string error_msg = { .str = NULL, .len = 0 };
 
-   if (inst_is_split_send(isa, inst->raw)) {
+   if (inst_is_split_send(isa, inst)) {
       /* We can only validate immediate descriptors */
       if (brw_inst_send_sel_reg32_desc(devinfo, inst->raw))
          return error_msg;
-   } else if (inst_is_send(isa, inst->raw)) {
+   } else if (inst_is_send(inst)) {
       /* We can only validate immediate descriptors */
       if (brw_inst_src1_reg_file(devinfo, inst->raw) != IMM)
          return error_msg;
@@ -2408,6 +2406,7 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
                    const brw_inst *raw)
 {
    inst->raw = raw;
+   inst->opcode = brw_inst_opcode(isa, raw);
 }
 
 bool
