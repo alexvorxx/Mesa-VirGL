@@ -225,6 +225,7 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .EXT_pipeline_creation_feedback        = true,
    .EXT_pipeline_creation_cache_control   = true,
    .EXT_pipeline_library_group_handles    = true,
+   .EXT_pipeline_protected_access         = true,
    .EXT_pipeline_robustness               = true,
    .EXT_post_depth_coverage               = true,
    .EXT_private_data                      = true,
@@ -474,6 +475,9 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
 
       /* VK_EXT_attachment_feedback_loop_layout */
       .attachmentFeedbackLoopLayout = true,
+
+      /* VK_EXT_pipeline_protected_access */
+      .pipelineProtectedAccess = true,
 
       /* VK_EXT_rasterization_order_attachment_access */
       .rasterizationOrderColorAttachmentAccess = true,
