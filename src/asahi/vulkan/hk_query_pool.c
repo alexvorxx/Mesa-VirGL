@@ -230,6 +230,8 @@ hk_queue_write(struct hk_cmd_buffer *cmd, uint64_t address, uint32_t value,
    struct hk_device *dev = hk_cmd_buffer_device(cmd);
    hk_cdm_cache_flush(dev, cs);
 
+   perf_debug(dev, "Queued write");
+
    struct hk_shader *s = hk_meta_kernel(dev, hk_nir_write_u32, NULL, 0);
    struct hk_write_params params = {.address = address, .value = value};
    uint32_t usc = hk_upload_usc_words_kernel(cmd, s, &params, sizeof(params));
@@ -281,7 +283,9 @@ hk_CmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(hk_query_pool, pool, queryPool);
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
+   perf_debug(dev, "Reset query pool");
    emit_zero_queries(cmd, pool, firstQuery, queryCount, false);
 }
 
@@ -399,6 +403,7 @@ hk_cmd_begin_end_query(struct hk_cmd_buffer *cmd, struct hk_query_pool *pool,
 
    /* We need to set available=1 after the graphics work finishes. */
    if (end) {
+      perf_debug(dev, "Query ending, type %u", pool->vk.query_type);
       hk_queue_write(cmd, hk_query_available_addr(pool, query), 1, graphics);
    }
 }
@@ -420,6 +425,7 @@ hk_CmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(hk_query_pool, pool, queryPool);
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
    hk_cmd_begin_end_query(cmd, pool, query, index, 0, true);
 
@@ -438,8 +444,10 @@ hk_CmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
    if (cmd->state.gfx.render.view_mask != 0) {
       const uint32_t num_queries =
          util_bitcount(cmd->state.gfx.render.view_mask);
-      if (num_queries > 1)
+      if (num_queries > 1) {
+         perf_debug(dev, "Multiview query zeroing");
          emit_zero_queries(cmd, pool, query + 1, num_queries - 1, true);
+      }
    }
 }
 
@@ -554,6 +562,7 @@ hk_CmdCopyQueryPoolResults(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
    if (!cs)
       return;
 
+   perf_debug(dev, "Query pool copy");
    hk_ensure_cs_has_space(cmd, cs, 0x2000 /* TODO */);
 
    const struct libagx_copy_query_push info = {

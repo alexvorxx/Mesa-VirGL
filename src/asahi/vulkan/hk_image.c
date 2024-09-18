@@ -252,8 +252,17 @@ hk_can_compress(struct agx_device *dev, VkFormat format, unsigned plane,
     */
    if (usage &
        (VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT | VK_IMAGE_USAGE_STORAGE_BIT |
-        VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT))
+        VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT)) {
+
+      perf_debug_dev(
+         dev, "No compression: incompatible usage -%s%s%s",
+         (usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) ? " host-transfer" : "",
+         (usage & VK_IMAGE_USAGE_STORAGE_BIT) ? " storage" : "",
+         (usage & VK_IMAGE_USAGE_ATTACHMENT_FEEDBACK_LOOP_BIT_EXT)
+            ? " feedback-loop"
+            : "");
       return false;
+   }
 
    enum pipe_format p_format = vk_format_to_pipe_format(format);
 
@@ -272,16 +281,26 @@ hk_can_compress(struct agx_device *dev, VkFormat format, unsigned plane,
          enum pipe_format view_format =
             vk_format_to_pipe_format(format_list->pViewFormats[i]);
 
-         if (!ail_formats_compatible(p_format, view_format))
+         if (!ail_formats_compatible(p_format, view_format)) {
+            perf_debug_dev(dev, "No compression: incompatible image view");
             return false;
+         }
       }
    }
 
    /* TODO: Need to smarten up the blitter */
-   if (samples > 1)
+   if (samples > 1) {
+      perf_debug_dev(dev, "No compression: multisampling");
       return false;
+   }
 
-   return ail_can_compress(p_format, width, height, samples);
+   if (!ail_can_compress(p_format, width, height, samples)) {
+      perf_debug_dev(dev, "No compression: invalid layout %s %ux%ux%u",
+                     util_format_short_name(p_format), width, height, samples);
+      return false;
+   }
+
+   return true;
 }
 
 static bool

@@ -324,6 +324,11 @@ struct hk_cs {
       struct hk_scratch_req fs;
    } scratch;
 
+   /* Statistics */
+   struct {
+      uint32_t calls, cmds, flushes;
+   } stats;
+
    /* Remaining state is for graphics only, ignored for compute */
    struct agx_tilebuffer_layout tib;
 

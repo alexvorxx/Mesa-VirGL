@@ -90,7 +90,9 @@ hk_CmdSetEvent2(VkCommandBuffer commandBuffer, VkEvent _event,
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(hk_event, event, _event);
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
+   perf_debug(dev, "Set event");
    hk_queue_write(cmd, event->bo->va->addr, VK_EVENT_SET, false);
 }
 
@@ -100,7 +102,9 @@ hk_CmdResetEvent2(VkCommandBuffer commandBuffer, VkEvent _event,
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(hk_event, event, _event);
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
+   perf_debug(dev, "Reset event");
    hk_queue_write(cmd, event->bo->va->addr, VK_EVENT_RESET, false);
 }
 

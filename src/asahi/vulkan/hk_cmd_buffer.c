@@ -247,9 +247,11 @@ hk_BeginCommandBuffer(VkCommandBuffer commandBuffer,
                       const VkCommandBufferBeginInfo *pBeginInfo)
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
    hk_reset_cmd_buffer(&cmd->vk, 0);
 
+   perf_debug(dev, "Begin command buffer");
    hk_cmd_buffer_begin_compute(cmd, pBeginInfo);
    hk_cmd_buffer_begin_graphics(cmd, pBeginInfo);
 
@@ -260,10 +262,12 @@ VKAPI_ATTR VkResult VKAPI_CALL
 hk_EndCommandBuffer(VkCommandBuffer commandBuffer)
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
    assert(cmd->current_cs.gfx == NULL && cmd->current_cs.pre_gfx == NULL &&
           "must end rendering before ending the command buffer");
 
+   perf_debug(dev, "End command buffer");
    hk_cmd_buffer_end_compute(cmd);
    hk_cmd_buffer_end_compute_internal(&cmd->current_cs.post_gfx);
 
@@ -275,6 +279,9 @@ hk_CmdPipelineBarrier2(VkCommandBuffer commandBuffer,
                        const VkDependencyInfo *pDependencyInfo)
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
+
+   perf_debug(dev, "Pipeline barrier");
 
    /* The big hammer. We end both compute and graphics batches. Ending compute
     * here is necessary to properly handle graphics->compute dependencies.
@@ -586,6 +593,9 @@ hk_reserve_scratch(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
 
    /* Note: this uses the hardware stage, not the software stage */
    hk_device_alloc_scratch(dev, s->b.info.stage, max_scratch_size);
+   perf_debug(dev, "Reserving %u (%u) bytes of scratch for stage %s",
+              s->b.info.scratch_size, s->b.info.preamble_scratch_size,
+              _mesa_shader_stage_to_abbrev(s->b.info.stage));
 
    switch (s->b.info.stage) {
    case PIPE_SHADER_FRAGMENT:

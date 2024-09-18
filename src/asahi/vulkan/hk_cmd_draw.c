@@ -528,6 +528,7 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    struct hk_rendering_state *render = &cmd->state.gfx.render;
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
    memset(render, 0, sizeof(*render));
 
@@ -592,6 +593,12 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
       render->area.extent.height < render->cr.height ||
       (render->view_mask &&
        render->view_mask != BITFIELD64_MASK(render->cr.layers));
+
+   perf_debug(dev, "Rendering %ux%ux%u@%u %s%s", render->cr.width,
+              render->cr.height, render->cr.layers,
+              render->tilebuffer.nr_samples,
+              render->view_mask ? " multiview" : "",
+              incomplete_render_area ? " incomplete" : "");
 
    render->cr.bg.main = hk_build_bg_eot(cmd, pRenderingInfo, false, false,
                                         incomplete_render_area);
@@ -755,8 +762,6 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
     * we're not that clever yet.
     */
    if (agx_tilebuffer_spills(&render->tilebuffer)) {
-      struct hk_device *dev = hk_cmd_buffer_device(cmd);
-
       perf_debug(dev, "eMRT render pass");
 
       for (unsigned i = 0; i < render->color_att_count; ++i) {
@@ -865,7 +870,9 @@ hk_CmdEndRendering(VkCommandBuffer commandBuffer)
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    struct hk_rendering_state *render = &cmd->state.gfx.render;
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
+   perf_debug(dev, "End rendering");
    hk_cmd_buffer_end_graphics(cmd);
 
    bool need_resolve = false;
@@ -939,6 +946,8 @@ hk_geometry_state(struct hk_cmd_buffer *cmd)
 
    /* We tie heap allocation to geometry state allocation, so allocate now. */
    if (unlikely(!dev->heap)) {
+      perf_debug(dev, "Allocating heap");
+
       size_t size = 128 * 1024 * 1024;
       dev->heap = agx_bo_create(&dev->dev, size, 0, 0, "Geometry heap");
 
@@ -956,6 +965,7 @@ hk_geometry_state(struct hk_cmd_buffer *cmd)
 
    /* We need to free all allocations after each command buffer execution */
    if (!cmd->uses_heap) {
+      perf_debug(dev, "Freeing heap");
       uint64_t addr = dev->rodata.geometry_state;
 
       /* Zeroing the allocated index frees everything */
@@ -1524,6 +1534,7 @@ hk_launch_tess(struct hk_cmd_buffer *cmd, struct hk_cs *cs, struct hk_draw draw)
 
    /* Setup grids */
    if (draw.b.indirect) {
+      perf_debug(dev, "Indirect tessellation");
       unreachable("todo: indirect tess");
 #if 0
       struct agx_gs_setup_indirect_key key = {.prim = mode};
@@ -2669,15 +2680,25 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
        IS_DIRTY(CB_BLEND_CONSTANTS) ||
        desc->root_dirty /* for pipeline stats */ || true) {
 
+      unsigned tib_sample_mask = BITFIELD_MASK(dyn->ms.rasterization_samples);
+      unsigned api_sample_mask = dyn->ms.sample_mask & tib_sample_mask;
+      bool has_sample_mask = api_sample_mask != tib_sample_mask;
+
+      if (hw_vs->info.vs.cull_distance_array_size) {
+         perf_debug(dev, "Emulating cull distance (size %u, %s a frag shader)",
+                    hw_vs->info.vs.cull_distance_array_size,
+                    fs ? "with" : "without");
+      }
+
+      if (has_sample_mask) {
+         perf_debug(dev, "Emulating sample mask (%s a frag shader)",
+                    fs ? "with" : "without");
+      }
+
       if (fs) {
          unsigned samples_shaded = 0;
          if (fs->info.fs.epilog_key.sample_shading)
             samples_shaded = dyn->ms.rasterization_samples;
-
-         unsigned tib_sample_mask =
-            BITFIELD_MASK(dyn->ms.rasterization_samples);
-         unsigned api_sample_mask = dyn->ms.sample_mask & tib_sample_mask;
-         bool has_sample_mask = api_sample_mask != tib_sample_mask;
 
          struct hk_fast_link_key_fs key = {
             .prolog.statistics = hk_pipeline_stat_addr(
@@ -2722,6 +2743,16 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
                                      ? vk_logic_op_to_pipe(dyn->cb.logic_op)
                                      : PIPE_LOGICOP_COPY,
          };
+
+         if (dyn->ms.alpha_to_one_enable || dyn->ms.alpha_to_coverage_enable ||
+             dyn->cb.logic_op_enable) {
+
+            perf_debug(
+               dev, "Epilog with%s%s%s",
+               dyn->ms.alpha_to_one_enable ? " alpha-to-one" : "",
+               dyn->ms.alpha_to_coverage_enable ? " alpha-to-coverage" : "",
+               dyn->cb.logic_op_enable ? " logic-op" : "");
+         }
 
          key.epilog.link.already_ran_zs |= nontrivial_force_early;
 
@@ -3341,6 +3372,8 @@ hk_draw(struct hk_cmd_buffer *cmd, uint16_t draw_id, struct hk_draw draw_)
       if (!cs)
          return;
 
+      cs->stats.calls++;
+
       bool geom = cmd->state.gfx.shaders[MESA_SHADER_GEOMETRY];
       bool tess = cmd->state.gfx.shaders[MESA_SHADER_TESS_EVAL];
       struct hk_cs *ccs = NULL;
@@ -3377,6 +3410,7 @@ hk_draw(struct hk_cmd_buffer *cmd, uint16_t draw_id, struct hk_draw draw_)
             }
 
             cs->current = out;
+            cs->stats.cmds++;
             continue;
          }
       }
@@ -3450,6 +3484,7 @@ hk_draw(struct hk_cmd_buffer *cmd, uint16_t draw_id, struct hk_draw draw_)
       }
 
       cs->current = out;
+      cs->stats.cmds++;
    }
 }
 

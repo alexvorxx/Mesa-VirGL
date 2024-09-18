@@ -388,6 +388,9 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
       command_count += list_length(&cmdbuf->control_streams);
    }
 
+   perf_debug(dev, "Submitting %u control streams (%u command buffers)",
+              command_count, submit->command_buffer_count);
+
    if (command_count == 0)
       return queue_submit_empty(dev, queue, submit);
 
@@ -462,6 +465,11 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
          };
 
          if (cs->type == HK_CS_CDM) {
+            perf_debug(
+               dev,
+               "%u: Submitting CDM with %u API calls, %u dispatches, %u flushes",
+               i, cs->stats.calls, cs->stats.cmds, cs->stats.flushes);
+
             cmd.cmd_type = DRM_ASAHI_CMD_COMPUTE;
             cmd.cmd_buffer_size = sizeof(struct drm_asahi_cmd_compute);
             nr_cdm++;
@@ -469,6 +477,9 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
             asahi_fill_cdm_command(dev, cs, &cmds_inner[cmd_it].compute);
          } else {
             assert(cs->type == HK_CS_VDM);
+            perf_debug(dev, "%u: Submitting VDM with %u API draws, %u draws", i,
+                       cs->stats.calls, cs->stats.cmds);
+
             cmd.cmd_type = DRM_ASAHI_CMD_RENDER;
             cmd.cmd_buffer_size = sizeof(struct drm_asahi_cmd_render);
             nr_vdm++;
