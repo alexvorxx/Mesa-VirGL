@@ -1297,10 +1297,18 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
                                version->name);
    }
 
+   /* Try to connect. If this doesn't work, it's probably because we're running
+    * in a non-Adreno VM. Unless startup debug info is specifically requested,
+    * we should silently exit and let another Vulkan driver try probing instead.
+    */
    vdrm = vdrm_device_connect(fd, VIRTGPU_DRM_CONTEXT_MSM);
    if (!vdrm) {
-      return vk_startup_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
-                               "could not get connect vdrm: %s", strerror(errno));
+      if (TU_DEBUG(STARTUP)) {
+         return vk_startup_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
+                                  "could not get connect vdrm: %s", strerror(errno));
+      } else {
+         return VK_ERROR_INCOMPATIBLE_DRIVER;
+      }
    }
 
    caps = vdrm->caps;
