@@ -461,6 +461,8 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
                "%u: Submitting CDM with %u API calls, %u dispatches, %u flushes",
                i, cs->stats.calls, cs->stats.cmds, cs->stats.flushes);
 
+            assert(cs->stats.cmds > 0 || cs->stats.flushes > 0);
+
             cmd.cmd_type = DRM_ASAHI_CMD_COMPUTE;
             cmd.cmd_buffer_size = sizeof(struct drm_asahi_cmd_compute);
             nr_cdm++;
@@ -470,6 +472,7 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
             assert(cs->type == HK_CS_VDM);
             perf_debug(dev, "%u: Submitting VDM with %u API draws, %u draws", i,
                        cs->stats.calls, cs->stats.cmds);
+            assert(cs->stats.cmds > 0 || cs->cr.process_empty_tiles);
 
             cmd.cmd_type = DRM_ASAHI_CMD_RENDER;
             cmd.cmd_buffer_size = sizeof(struct drm_asahi_cmd_render);
