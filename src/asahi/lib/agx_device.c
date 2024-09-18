@@ -64,6 +64,7 @@ static const struct debug_named_value agx_debug_options[] = {
    {"feedback",  AGX_DBG_FEEDBACK, "Debug feedback loops"},
    {"nomsaa",    AGX_DBG_NOMSAA,   "Force disable MSAA"},
    {"noshadow",  AGX_DBG_NOSHADOW, "Force disable resource shadowing"},
+   {"noborder",  AGX_DBG_NOBORDER, "Disable custom border colour emulation"},
    {"scratch",   AGX_DBG_SCRATCH,  "Debug scratch memory usage"},
    {"1queue",    AGX_DBG_1QUEUE,   "Force usage of a single queue for multiple contexts"},
    DEBUG_NAMED_VALUE_END

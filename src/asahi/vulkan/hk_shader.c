@@ -597,7 +597,10 @@ hk_lower_nir(struct hk_device *dev, nir_shader *nir,
     * create lod_bias_agx instructions.
     */
    NIR_PASS(_, nir, agx_nir_lower_texture_early, true /* support_lod_bias */);
-   NIR_PASS(_, nir, agx_nir_lower_custom_border);
+
+   if (!(dev->dev.debug & AGX_DBG_NOBORDER)) {
+      NIR_PASS(_, nir, agx_nir_lower_custom_border);
+   }
 
    NIR_PASS(_, nir, hk_nir_lower_descriptors, rs, set_layout_count,
             set_layouts);
