@@ -47,6 +47,7 @@ typedef struct brw_hw_decoded_inst {
 
    enum opcode opcode;
 
+   bool has_dst;
    unsigned num_sources;
 } brw_hw_decoded_inst;
 
@@ -593,8 +594,7 @@ is_mixed_float(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
    if (inst_is_send(inst))
       return false;
 
-   const struct opcode_desc *desc = brw_opcode_desc(isa, inst->opcode);
-   if (desc->ndst == 0)
+   if (!inst->has_dst)
       return false;
 
    /* FIXME: support 3-src instructions */
@@ -651,7 +651,6 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
-   const struct opcode_desc *desc = brw_opcode_desc(isa, inst->opcode);
    unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
    struct string error_msg = { .str = NULL, .len = 0 };
 
@@ -755,7 +754,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
    if (exec_size == 1)
       return error_msg;
 
-   if (desc->ndst == 0)
+   if (!inst->has_dst)
       return error_msg;
 
    if (inst->opcode == BRW_OPCODE_MATH &&
@@ -970,7 +969,6 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
-   const struct opcode_desc *desc = brw_opcode_desc(isa, inst->opcode);
    unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
    struct string error_msg = { .str = NULL, .len = 0 };
 
@@ -984,7 +982,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
       return (struct string){};
 
    if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16) {
-      if (desc->ndst != 0 && !dst_is_null(devinfo, inst->raw))
+      if (inst->has_dst && !dst_is_null(devinfo, inst->raw))
          ERROR_IF(brw_inst_dst_hstride(devinfo, inst->raw) != BRW_HORIZONTAL_STRIDE_1,
                   "Destination Horizontal Stride must be 1");
 
@@ -1102,7 +1100,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
    }
 
    /* Dst.HorzStride must not be 0. */
-   if (desc->ndst != 0 && !dst_is_null(devinfo, inst->raw)) {
+   if (inst->has_dst && !dst_is_null(devinfo, inst->raw)) {
       ERROR_IF(brw_inst_dst_hstride(devinfo, inst->raw) == BRW_HORIZONTAL_STRIDE_0,
                "Destination Horizontal Stride must not be 0");
    }
@@ -1421,7 +1419,6 @@ region_alignment_rules(const struct brw_isa_info *isa,
                        const brw_hw_decoded_inst *inst)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
-   const struct opcode_desc *desc = brw_opcode_desc(isa, inst->opcode);
    unsigned exec_size = 1 << brw_inst_exec_size(devinfo, inst->raw);
    uint8_t dst_access_mask[32], src0_access_mask[32], src1_access_mask[32];
    struct string error_msg = { .str = NULL, .len = 0 };
@@ -1483,7 +1480,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
                "A source cannot span more than 2 adjacent GRF registers");
    }
 
-   if (desc->ndst == 0 || dst_is_null(devinfo, inst->raw))
+   if (!inst->has_dst || dst_is_null(devinfo, inst->raw))
       return error_msg;
 
    unsigned stride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
@@ -2397,6 +2394,10 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
    inst->raw = raw;
    inst->opcode = brw_inst_opcode(isa, raw);
    inst->num_sources = brw_num_sources_from_inst(isa, raw);
+
+   const struct opcode_desc *desc = brw_opcode_desc(isa, inst->opcode);
+   assert(desc->ndst == 0 || desc->ndst == 1);
+   inst->has_dst = desc->ndst == 1;
 }
 
 bool
