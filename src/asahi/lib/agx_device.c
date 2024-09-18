@@ -124,9 +124,6 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    struct agx_bo *bo;
    unsigned handle = 0;
 
-   assert(size > 0);
-   size = ALIGN_POT(size, dev->params.vm_page_size);
-
    /* executable implies low va */
    assert(!(flags & AGX_BO_EXEC) || (flags & AGX_BO_LOW_VA));
 
@@ -157,7 +154,7 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    assert(!memcmp(bo, &((struct agx_bo){}), sizeof(*bo)));
 
    bo->size = gem_create.size;
-   bo->align = MAX2(dev->params.vm_page_size, align);
+   bo->align = align;
    bo->flags = flags;
    bo->handle = handle;
    bo->prime_fd = -1;

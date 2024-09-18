@@ -203,8 +203,9 @@ agx_bo_create(struct agx_device *dev, unsigned size, unsigned align,
    struct agx_bo *bo;
    assert(size > 0);
 
-   /* To maximize BO cache usage, don't allocate tiny BOs */
-   size = ALIGN_POT(size, 16384);
+   /* BOs are allocated in pages */
+   size = ALIGN_POT(size, dev->params.vm_page_size);
+   align = MAX2(align, dev->params.vm_page_size);
 
    /* See if we have a BO already in the cache */
    bo = agx_bo_cache_fetch(dev, size, align, flags, true);

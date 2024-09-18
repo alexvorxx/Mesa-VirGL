@@ -60,8 +60,6 @@ agx_virtio_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    struct agx_bo *bo;
    unsigned handle = 0;
 
-   size = ALIGN_POT(size, dev->params.vm_page_size);
-
    /* executable implies low va */
    assert(!(flags & AGX_BO_EXEC) || (flags & AGX_BO_LOW_VA));
 
@@ -84,8 +82,7 @@ agx_virtio_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    uint32_t blob_id = p_atomic_inc_return(&dev->next_blob_id);
 
    enum agx_va_flags va_flags = flags & AGX_BO_LOW_VA ? AGX_VA_USC : 0;
-   struct agx_va *va =
-      agx_va_alloc(dev, size, dev->params.vm_page_size, va_flags, 0);
+   struct agx_va *va = agx_va_alloc(dev, size, align, va_flags, 0);
    if (!va) {
       fprintf(stderr, "Failed to allocate BO VMA\n");
       return NULL;
@@ -110,7 +107,7 @@ agx_virtio_bo_alloc(struct agx_device *dev, size_t size, size_t align,
    assert(!memcmp(bo, &((struct agx_bo){}), sizeof(*bo)));
 
    bo->size = size;
-   bo->align = MAX2(dev->params.vm_page_size, align);
+   bo->align = align;
    bo->flags = flags;
    bo->handle = handle;
    bo->prime_fd = -1;
