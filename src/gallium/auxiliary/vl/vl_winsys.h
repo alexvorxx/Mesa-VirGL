@@ -99,12 +99,12 @@ vl_dri2_screen_create(void *display, int screen) { return NULL; };
 struct vl_screen *
 vl_dri3_screen_create(Display *display, int screen);
 struct vl_screen *
-vl_kopper_screen_create(Display *display, int screen);
+vl_kopper_screen_create_x11(Display *display, int screen);
 #else
 static inline struct vl_screen *
 vl_dri3_screen_create(void *display, int screen) { return NULL; };
 static inline struct vl_screen *
-vl_kopper_screen_create(void *display, int screen) { return NULL; };
+vl_kopper_screen_create_x11(void *display, int screen) { return NULL; };
 #endif
 
 #ifdef _WIN32

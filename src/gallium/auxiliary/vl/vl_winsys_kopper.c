@@ -26,26 +26,30 @@
 
 #include "pipe-loader/pipe_loader.h"
 #include "pipe/p_screen.h"
-#include <X11/Xlib-xcb.h>
 #include "util/u_memory.h"
 #include "vl/vl_winsys.h"
 #include "loader.h"
-#include "x11/loader_x11.h"
 #include "pipe-loader/pipe_loader.h"
 #include "vl/vl_compositor.h"
-#include "gallium/drivers/zink/zink_kopper.h"
+#if defined(HAVE_X11_PLATFORM) && defined(HAVE_LIBDRM)
+#include <X11/Xlib-xcb.h>
 #include <vulkan/vulkan_xcb.h>
+#include "x11/loader_x11.h"
+#include "gallium/drivers/zink/zink_kopper.h"
+#endif
 
 struct vl_kopper_screen
 {
    struct vl_screen base;
    struct pipe_context *pipe;
+#if defined(HAVE_X11_PLATFORM) && defined(HAVE_LIBDRM)
    xcb_connection_t *conn;
    bool is_different_gpu;
-   int screen;
    int fd;
    struct u_rect dirty_area;
    struct pipe_resource *drawable_texture;
+#endif
+   int screen;
 };
 
 static void
@@ -63,6 +67,27 @@ vl_screen_destroy(struct vl_screen *vscreen)
    FREE(vscreen);
 }
 
+static void
+vl_kopper_screen_destroy(struct vl_screen *vscreen)
+{
+   if (vscreen == NULL)
+      return;
+
+   struct vl_kopper_screen *scrn = (struct vl_kopper_screen *) vscreen;
+
+#if defined(HAVE_X11_PLATFORM) && defined(HAVE_LIBDRM)
+   close(scrn->fd);
+   if (scrn->drawable_texture)
+      pipe_resource_reference(&scrn->drawable_texture, NULL);
+#endif
+
+   if (scrn->pipe)
+      scrn->pipe->destroy(scrn->pipe);
+
+   vl_screen_destroy(&scrn->base);
+}
+
+#if defined(HAVE_X11_PLATFORM) && defined(HAVE_LIBDRM)
 static void *
 vl_kopper_get_private(struct vl_screen *vscreen)
 {
@@ -74,24 +99,6 @@ vl_kopper_get_dirty_area(struct vl_screen *vscreen)
 {
    struct vl_kopper_screen *scrn = (struct vl_kopper_screen *) vscreen;
    return &scrn->dirty_area;
-}
-
-static void
-vl_kopper_screen_destroy(struct vl_screen *vscreen)
-{
-   if (vscreen == NULL)
-      return;
-
-   struct vl_kopper_screen *scrn = (struct vl_kopper_screen *) vscreen;
-
-   close(scrn->fd);
-   if (scrn->drawable_texture)
-      pipe_resource_reference(&scrn->drawable_texture, NULL);
-
-   if (scrn->pipe)
-      scrn->pipe->destroy(scrn->pipe);
-
-   vl_screen_destroy(&scrn->base);
 }
 
 static struct pipe_resource *
@@ -154,7 +161,7 @@ vl_kopper_texture_from_drawable(struct vl_screen *vscreen, void *d)
 }
 
 struct vl_screen *
-vl_kopper_screen_create(Display *display, int screen)
+vl_kopper_screen_create_x11(Display *display, int screen)
 {
    xcb_get_geometry_cookie_t geom_cookie;
    xcb_get_geometry_reply_t *geom_reply;
@@ -222,3 +229,4 @@ error:
 
    return NULL;
 }
+#endif
