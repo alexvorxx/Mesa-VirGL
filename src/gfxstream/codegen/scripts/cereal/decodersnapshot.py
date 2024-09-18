@@ -138,6 +138,8 @@ def extract_deps_vkCreateGraphicsPipelines(param, access, lenExpr, api, cgen):
     cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(%s + i), %s, (uint64_t)(uintptr_t)%s)" % \
               (access, 1, "unboxed_to_boxed_non_dispatchable_VkShaderModule(pCreateInfos[i].pStages[j].module)"))
     cgen.endFor()
+    cgen.stmt("mReconstruction.addHandleDependency((const uint64_t*)(%s + i), %s, (uint64_t)(uintptr_t)%s)" % \
+              (access, 1, "unboxed_to_boxed_non_dispatchable_VkRenderPass(pCreateInfos[i].renderPass)"))
     cgen.endFor()
 
 def extract_deps_vkCreateFramebuffer(param, access, lenExpr, api, cgen):
