@@ -823,7 +823,8 @@ GENX(pan_emit_fbd)(const struct pan_fb_info *fb, unsigned layer_idx,
        * layer_idx only takes 8-bits, we might use the extra 56-bits we have
        * in frame_argument to pass other information to the fragment shader at
        * some point. */
-      cfg.internal_layer_index = layer_idx;
+      assert(layer_idx >= tiler_ctx->valhall.layer_offset);
+      cfg.internal_layer_index = layer_idx - tiler_ctx->valhall.layer_offset;
       cfg.frame_argument = layer_idx;
 #endif
    }

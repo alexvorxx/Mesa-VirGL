@@ -72,6 +72,11 @@ struct pan_tiler_context {
    union {
       struct {
          mali_ptr desc;
+         /* A tiler descriptor can only handle a limited amount of layers.
+          * If the number of layers is bigger than this, several tiler
+          * descriptors will be issued, each with a different layer_offset.
+          */
+         uint8_t layer_offset;
       } valhall;
       struct {
          mali_ptr desc;
