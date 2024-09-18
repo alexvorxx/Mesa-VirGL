@@ -51,7 +51,14 @@ typedef struct brw_hw_decoded_inst {
    unsigned access_mode;
 
    bool has_dst;
+   struct {
+      enum brw_reg_file file;
+   } dst;
+
    unsigned num_sources;
+   struct {
+      enum brw_reg_file file;
+   } src[3];
 } brw_hw_decoded_inst;
 
 /* We're going to do lots of string concatenation, so this should help. */
@@ -157,7 +164,7 @@ inst_is_raw_move(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst
    unsigned dst_type = signed_type(inst_dst_type(isa, inst));
    unsigned src_type = signed_type(brw_inst_src0_type(devinfo, inst->raw));
 
-   if (brw_inst_src0_reg_file(devinfo, inst->raw) == IMM) {
+   if (inst->src[0].file == IMM) {
       /* FIXME: not strictly true */
       if (brw_inst_src0_type(devinfo, inst->raw) == BRW_TYPE_VF ||
           brw_inst_src0_type(devinfo, inst->raw) == BRW_TYPE_UV ||
@@ -253,15 +260,12 @@ invalid_values(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
 
    if (inst->num_sources == 3) {
       if (inst->access_mode == BRW_ALIGN_1) {
-         if (devinfo->ver >= 10) {
-            ERROR_IF(brw_inst_3src_a1_dst_type (devinfo, inst->raw) == BRW_TYPE_INVALID ||
-                     brw_inst_3src_a1_src0_type(devinfo, inst->raw) == BRW_TYPE_INVALID ||
-                     brw_inst_3src_a1_src1_type(devinfo, inst->raw) == BRW_TYPE_INVALID ||
-                     brw_inst_3src_a1_src2_type(devinfo, inst->raw) == BRW_TYPE_INVALID,
-                     "invalid register type encoding");
-         } else {
-            ERROR("Align1 mode not allowed on Gen < 10");
-         }
+         assert(devinfo->ver > 9);
+         ERROR_IF(brw_inst_3src_a1_dst_type (devinfo, inst->raw) == BRW_TYPE_INVALID ||
+                  brw_inst_3src_a1_src0_type(devinfo, inst->raw) == BRW_TYPE_INVALID ||
+                  brw_inst_3src_a1_src1_type(devinfo, inst->raw) == BRW_TYPE_INVALID ||
+                  brw_inst_3src_a1_src2_type(devinfo, inst->raw) == BRW_TYPE_INVALID,
+                  "invalid register type encoding");
       } else {
          ERROR_IF(brw_inst_3src_a16_dst_type(devinfo, inst->raw) == BRW_TYPE_INVALID ||
                   brw_inst_3src_a16_src_type(devinfo, inst->raw) == BRW_TYPE_INVALID,
@@ -350,7 +354,7 @@ send_restrictions(const struct brw_isa_info *isa,
    struct string error_msg = { .str = NULL, .len = 0 };
 
    if (inst_is_split_send(isa, inst)) {
-      ERROR_IF(brw_inst_send_src1_reg_file(devinfo, inst->raw) == ARF &&
+      ERROR_IF(inst->src[1].file == ARF &&
                brw_inst_send_src1_reg_nr(devinfo, inst->raw) != BRW_ARF_NULL,
                "src1 of split send must be a GRF or NULL");
 
@@ -358,12 +362,11 @@ send_restrictions(const struct brw_isa_info *isa,
                brw_inst_src0_da_reg_nr(devinfo, inst->raw) < 112,
                "send with EOT must use g112-g127");
       ERROR_IF(brw_inst_eot(devinfo, inst->raw) &&
-               brw_inst_send_src1_reg_file(devinfo, inst->raw) == FIXED_GRF &&
+               inst->src[1].file == FIXED_GRF &&
                brw_inst_send_src1_reg_nr(devinfo, inst->raw) < 112,
                "send with EOT must use g112-g127");
 
-      if (brw_inst_send_src0_reg_file(devinfo, inst->raw) == FIXED_GRF &&
-          brw_inst_send_src1_reg_file(devinfo, inst->raw) == FIXED_GRF) {
+      if (inst->src[0].file == FIXED_GRF && inst->src[1].file == FIXED_GRF) {
          /* Assume minimums if we don't know */
          unsigned mlen = 1;
          if (!brw_inst_send_sel_reg32_desc(devinfo, inst->raw)) {
@@ -389,7 +392,7 @@ send_restrictions(const struct brw_isa_info *isa,
       ERROR_IF(brw_inst_src0_address_mode(devinfo, inst->raw) != BRW_ADDRESS_DIRECT,
                "send must use direct addressing");
 
-      ERROR_IF(brw_inst_send_src0_reg_file(devinfo, inst->raw) != FIXED_GRF,
+      ERROR_IF(inst->src[0].file != FIXED_GRF,
                "send from non-GRF");
       ERROR_IF(brw_inst_eot(devinfo, inst->raw) &&
                brw_inst_src0_da_reg_nr(devinfo, inst->raw) < 112,
@@ -971,7 +974,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
                   "Destination Horizontal Stride must be 1");
 
       if (inst->num_sources >= 1) {
-         ERROR_IF(brw_inst_src0_reg_file(devinfo, inst->raw) != IMM &&
+         ERROR_IF(inst->src[0].file != IMM &&
                   brw_inst_src0_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_0 &&
                   brw_inst_src0_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_2 &&
                   brw_inst_src0_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_4,
@@ -979,7 +982,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
       }
 
       if (inst->num_sources == 2) {
-         ERROR_IF(brw_inst_src1_reg_file(devinfo, inst->raw) != IMM &&
+         ERROR_IF(inst->src[1].file != IMM &&
                   brw_inst_src1_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_0 &&
                   brw_inst_src1_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_2 &&
                   brw_inst_src1_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_4,
@@ -992,13 +995,11 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
    for (unsigned i = 0; i < inst->num_sources; i++) {
       unsigned vstride, width, hstride, element_size, subreg;
       enum brw_reg_type type;
-      enum brw_reg_file file;
+
+      if (inst->src[i].file == IMM)
+         continue;
 
 #define DO_SRC(n)                                                              \
-      file = brw_inst_src ## n ## _reg_file(devinfo, inst->raw);               \
-      if (file == IMM)                                                         \
-         continue;                                                             \
-                                                                               \
       vstride = STRIDE(brw_inst_src ## n ## _vstride(devinfo, inst->raw));     \
       width = WIDTH(brw_inst_src ## n ## _width(devinfo, inst->raw));          \
       hstride = STRIDE(brw_inst_src ## n ## _hstride(devinfo, inst->raw));     \
@@ -1054,7 +1055,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
       /* VertStride must be used to cross GRF register boundaries. This rule
        * implies that elements within a 'Width' cannot cross GRF boundaries.
        */
-      if (file == FIXED_GRF) {
+      if (inst->src[i].file == FIXED_GRF) {
          unsigned rowbase = subreg;
          assert(util_is_power_of_two_nonzero(reg_unit(devinfo)));
          unsigned grf_size_shift = ffs(REG_SIZE * reg_unit(devinfo)) - 1;
@@ -1426,13 +1427,12 @@ region_alignment_rules(const struct brw_isa_info *isa,
        * GRF registers.
        */
 
+      if (inst->src[i].file == IMM)
+         continue;
+
 #define DO_SRC(n)                                                              \
       if (brw_inst_src ## n ## _address_mode(devinfo, inst->raw) !=            \
           BRW_ADDRESS_DIRECT)                                                  \
-         continue;                                                             \
-                                                                               \
-      if (brw_inst_src ## n ## _reg_file(devinfo, inst->raw) ==                \
-          IMM)                                                 \
          continue;                                                             \
                                                                                \
       vstride = STRIDE(brw_inst_src ## n ## _vstride(devinfo, inst->raw));     \
@@ -1525,9 +1525,7 @@ vector_immediate_restrictions(const struct brw_isa_info *isa,
        (devinfo->ver >= 12 && inst_is_send(inst)))
       return (struct string){};
 
-   unsigned file = inst->num_sources == 1 ?
-                   brw_inst_src0_reg_file(devinfo, inst->raw) :
-                   brw_inst_src1_reg_file(devinfo, inst->raw);
+   unsigned file = inst->src[inst->num_sources == 1 ? 0 : 1].file;
    if (file != IMM)
       return (struct string){};
 
@@ -1595,7 +1593,6 @@ special_requirements_for_handling_double_precision_data_types(
    enum brw_reg_type exec_type = execution_type(isa, inst);
    unsigned exec_type_size = brw_type_size_bytes(exec_type);
 
-   enum brw_reg_file dst_file = brw_inst_dst_reg_file(devinfo, inst->raw);
    enum brw_reg_type dst_type = inst_dst_type(isa, inst);
    unsigned dst_type_size = brw_type_size_bytes(dst_type);
    unsigned dst_hstride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
@@ -1616,19 +1613,17 @@ special_requirements_for_handling_double_precision_data_types(
    for (unsigned i = 0; i < inst->num_sources; i++) {
       unsigned vstride, width, hstride, type_size, reg, subreg, address_mode;
       bool is_scalar_region;
-      enum brw_reg_file file;
       enum brw_reg_type type;
 
+      enum brw_reg_file file = inst->src[i].file;
+      if (file == IMM)
+         continue;
+
 #define DO_SRC(n)                                                              \
-      if (brw_inst_src ## n ## _reg_file(devinfo, inst->raw) ==                \
-          IMM)                                                 \
-         continue;                                                             \
-                                                                               \
       is_scalar_region = src ## n ## _has_scalar_region(devinfo, inst->raw);   \
       vstride = STRIDE(brw_inst_src ## n ## _vstride(devinfo, inst->raw));     \
       width = WIDTH(brw_inst_src ## n ## _width(devinfo, inst->raw));          \
       hstride = STRIDE(brw_inst_src ## n ## _hstride(devinfo, inst->raw));     \
-      file = brw_inst_src ## n ## _reg_file(devinfo, inst->raw);               \
       type = brw_inst_src ## n ## _type(devinfo, inst->raw);                   \
       type_size = brw_type_size_bytes(type);                                   \
       reg = brw_inst_src ## n ## _da_reg_nr(devinfo, inst->raw);               \
@@ -1707,7 +1702,7 @@ special_requirements_for_handling_double_precision_data_types(
                   brw_inst_acc_wr_control(devinfo, inst->raw) ||
                   (ARF == file &&
                    reg != BRW_ARF_NULL) ||
-                  (ARF == dst_file &&
+                  (ARF == inst->dst.file &&
                    dst_reg != BRW_ARF_NULL),
                   "Architecture registers cannot be used when the execution "
                   "type is 64-bit");
@@ -1747,7 +1742,7 @@ special_requirements_for_handling_double_precision_data_types(
 
          ERROR_IF((address_mode == BRW_ADDRESS_DIRECT && file == ARF &&
                    reg != BRW_ARF_NULL && !(reg >= BRW_ARF_ACCUMULATOR && reg < BRW_ARF_FLAG)) ||
-                  (dst_file == ARF &&
+                  (inst->dst.file == ARF &&
                    dst_reg != BRW_ARF_NULL && (dst_reg & 0xF0) != BRW_ARF_ACCUMULATOR),
                   "Explicit ARF registers except null and accumulator must not "
                   "be used.");
@@ -1823,12 +1818,12 @@ instruction_restrictions(const struct brw_isa_info *isa,
       enum brw_reg_type exec_type = execution_type(isa, inst);
       const bool src0_valid =
          brw_type_size_bytes(brw_inst_src0_type(devinfo, inst->raw)) == 4 ||
-         brw_inst_src0_reg_file(devinfo, inst->raw) == IMM ||
+         inst->src[0].file == IMM ||
          !(brw_inst_src0_negate(devinfo, inst->raw) ||
            brw_inst_src0_abs(devinfo, inst->raw));
       const bool src1_valid =
          brw_type_size_bytes(brw_inst_src1_type(devinfo, inst->raw)) == 4 ||
-         brw_inst_src1_reg_file(devinfo, inst->raw) == IMM ||
+         inst->src[1].file == IMM ||
          !(brw_inst_src1_negate(devinfo, inst->raw) ||
            brw_inst_src1_abs(devinfo, inst->raw));
 
@@ -1975,19 +1970,10 @@ instruction_restrictions(const struct brw_isa_info *isa,
                   src_type != BRW_TYPE_UW,
                   "Source must be integer D, UD, W, or UW type.");
 
-         if (i == 0) {
-            if (brw_inst_3src_a1_src0_is_imm(devinfo, inst->raw)) {
-               ERROR_IF(src_type != BRW_TYPE_W &&
-                        src_type != BRW_TYPE_UW,
-                        "Immediate source must be integer W or UW type.");
-            }
-         } else if (i == 2) {
-            if (brw_inst_3src_a1_src2_is_imm(devinfo, inst->raw)) {
-               ERROR_IF(src_type != BRW_TYPE_W &&
-                        src_type != BRW_TYPE_UW,
-                        "Immediate source must be integer W or UW type.");
-            }
-         }
+         ERROR_IF(inst->src[i].file == IMM &&
+                  src_type != BRW_TYPE_W &&
+                  src_type != BRW_TYPE_UW,
+                  "Immediate source must be integer W or UW type.");
       }
    }
 
@@ -2002,7 +1988,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
       ERROR_IF(brw_inst_src0_abs(devinfo, inst->raw),
                "Behavior of abs source modifier in logic ops is undefined.");
       ERROR_IF(inst->opcode != BRW_OPCODE_NOT &&
-               brw_inst_src1_reg_file(devinfo, inst->raw) != IMM &&
+               inst->src[1].file != IMM &&
                brw_inst_src1_abs(devinfo, inst->raw),
                "Behavior of abs source modifier in logic ops is undefined.");
 
@@ -2306,7 +2292,7 @@ send_descriptor_restrictions(const struct brw_isa_info *isa,
          return error_msg;
    } else if (inst_is_send(inst)) {
       /* We can only validate immediate descriptors */
-      if (brw_inst_src1_reg_file(devinfo, inst->raw) != IMM)
+      if (inst->src[1].file != IMM)
          return error_msg;
    } else {
       return error_msg;
@@ -2396,6 +2382,150 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
    }
 
    inst->access_mode = brw_inst_access_mode(devinfo, raw);
+
+   RETURN_ERROR_IF(inst->num_sources == 3 && inst->access_mode == BRW_ALIGN_1 && devinfo->ver == 9,
+                   "Align1 mode not allowed on Gfx9 for 3-src instructions");
+
+   enum instr_format {
+      FORMAT_BASIC,
+      FORMAT_BASIC_THREE_SRC,
+      FORMAT_DPAS_THREE_SRC,
+      FORMAT_SEND,
+      FORMAT_BRANCH,
+      FORMAT_ILLEGAL,
+      FORMAT_NOP,
+   };
+
+   enum instr_format format;
+   switch (inst->opcode) {
+   case BRW_OPCODE_DPAS:
+      format = FORMAT_DPAS_THREE_SRC;
+      break;
+
+   case BRW_OPCODE_SEND:
+   case BRW_OPCODE_SENDC:
+      format = devinfo->ver >= 12 ? FORMAT_SEND : FORMAT_BASIC;
+      break;
+
+   case BRW_OPCODE_SENDS:
+   case BRW_OPCODE_SENDSC:
+      format = FORMAT_SEND;
+      break;
+
+   case BRW_OPCODE_DO:
+   case BRW_OPCODE_WHILE:
+   case BRW_OPCODE_IF:
+   case BRW_OPCODE_ELSE:
+   case BRW_OPCODE_ENDIF:
+   case BRW_OPCODE_BREAK:
+   case BRW_OPCODE_CONTINUE:
+   case BRW_OPCODE_JMPI:
+   case BRW_OPCODE_BRD:
+   case BRW_OPCODE_BRC:
+   case BRW_OPCODE_HALT:
+   case BRW_OPCODE_CALLA:
+   case BRW_OPCODE_CALL:
+   case BRW_OPCODE_GOTO:
+      format = FORMAT_BRANCH;
+      break;
+
+   case BRW_OPCODE_NOP:
+      format = FORMAT_NOP;
+      break;
+
+   case BRW_OPCODE_ILLEGAL:
+      format = FORMAT_ILLEGAL;
+      break;
+
+   default:
+      if (inst->num_sources == 3) {
+         format = FORMAT_BASIC_THREE_SRC;
+      } else {
+         format = FORMAT_BASIC;
+      }
+      break;
+   }
+
+   switch (format) {
+   case FORMAT_BASIC: {
+      assert(inst->num_sources == 1 ||
+             inst->num_sources == 2 ||
+             inst->opcode == BRW_OPCODE_WAIT);
+      assert(inst->has_dst ||
+             inst->opcode == BRW_OPCODE_SYNC);
+
+      if (inst->has_dst) {
+         inst->dst.file = brw_inst_dst_reg_file(devinfo, raw);
+      }
+
+      inst->src[0].file = brw_inst_src0_reg_file(devinfo, raw);
+
+      if (inst->num_sources > 1) {
+         inst->src[1].file = brw_inst_src1_reg_file(devinfo, raw);
+      }
+
+      break;
+   }
+
+   case FORMAT_BASIC_THREE_SRC: {
+      assert(inst->num_sources == 3);
+      assert(inst->has_dst);
+
+      if (inst->access_mode == BRW_ALIGN_1) {
+         inst->dst.file = brw_inst_3src_a1_dst_reg_file(devinfo, raw);
+         inst->src[0].file = brw_inst_3src_a1_src0_reg_file(devinfo, raw);
+         inst->src[1].file = brw_inst_3src_a1_src1_reg_file(devinfo, raw);
+         inst->src[2].file = brw_inst_3src_a1_src2_reg_file(devinfo, raw);
+      } else {
+         inst->dst.file = FIXED_GRF;
+         inst->src[0].file = FIXED_GRF;
+         inst->src[1].file = FIXED_GRF;
+         inst->src[2].file = FIXED_GRF;
+      }
+      break;
+   }
+
+   case FORMAT_DPAS_THREE_SRC: {
+      assert(inst->num_sources == 3);
+      assert(inst->has_dst);
+      inst->dst.file = brw_inst_dpas_3src_dst_reg_file(devinfo, raw);
+      inst->src[0].file = brw_inst_dpas_3src_src0_reg_file(devinfo, raw);
+      inst->src[1].file = brw_inst_dpas_3src_src1_reg_file(devinfo, raw);
+      inst->src[2].file = brw_inst_dpas_3src_src2_reg_file(devinfo, raw);
+      break;
+   }
+
+   case FORMAT_SEND: {
+      if (inst->opcode == BRW_OPCODE_SENDS || inst->opcode == BRW_OPCODE_SENDSC) {
+         assert(devinfo->ver < 12);
+         inst->dst.file = brw_inst_send_dst_reg_file(devinfo, raw);
+         inst->src[0].file = FIXED_GRF;
+         if (inst->num_sources > 1) {
+            inst->src[1].file = brw_inst_send_src1_reg_file(devinfo, raw);
+         }
+      } else {
+         assert(devinfo->ver >= 12);
+         inst->dst.file = brw_inst_dst_reg_file(devinfo, raw);
+         inst->src[0].file = brw_inst_send_src0_reg_file(devinfo, raw);
+         if (inst->num_sources > 1) {
+            inst->src[1].file = brw_inst_send_src1_reg_file(devinfo, raw);
+         }
+      }
+      break;
+   }
+
+   case FORMAT_BRANCH: {
+      assert(!inst->has_dst);
+      break;
+   }
+
+   case FORMAT_ILLEGAL:
+   case FORMAT_NOP: {
+      assert(!inst->has_dst);
+      assert(inst->num_sources == 0);
+      break;
+   }
+   }
 
    return error_msg;
 }
