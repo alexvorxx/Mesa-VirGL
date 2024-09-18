@@ -368,6 +368,7 @@ hk_cmd_begin_end_query(struct hk_cmd_buffer *cmd, struct hk_query_pool *pool,
       uint16_t *oq_index = hk_pool_oq_index_ptr(pool);
       cmd->state.gfx.occlusion.index = oq_index[query];
       cmd->state.gfx.dirty |= HK_DIRTY_OCCLUSION;
+      graphics = true;
       break;
    }
 
