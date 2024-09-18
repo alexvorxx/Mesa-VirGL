@@ -222,7 +222,6 @@ void vpe_destroy(struct vpe **vpe)
     *vpe = NULL;
 }
 
-
 /*****************************************************************************************
  * populate_bg_stream
  * populate virtual stream for background output only
@@ -346,14 +345,14 @@ static enum vpe_status populate_input_streams(struct vpe_priv *vpe_priv, const s
         stream_ctx = &stream_ctx_base[i];
         stream_ctx->stream_type = VPE_STREAM_TYPE_INPUT;
         stream_ctx->stream_idx = (int32_t)i;
-        
+
         stream_ctx->per_pixel_alpha =
             vpe_has_per_pixel_alpha(param->streams[i].surface_info.format);
 
         if (vpe_priv->init.debug.bypass_per_pixel_alpha) {
             stream_ctx->per_pixel_alpha = false;
         } else if (param->streams[i].enable_luma_key) {
-            stream_ctx->per_pixel_alpha = true; 
+            stream_ctx->per_pixel_alpha = true;
         }
         if (param->streams[i].horizontal_mirror && !input_h_mirror && output_h_mirror)
             stream_ctx->flip_horizonal_output = true;
@@ -385,18 +384,19 @@ static enum vpe_status populate_virtual_streams(struct vpe_priv* vpe_priv, const
 
     vpe_priv->resource.check_h_mirror_support(&input_h_mirror, &output_h_mirror);
 
+    // Background generation stream
     if (param->num_streams == 0 || vpe_priv->init.debug.bg_color_fill_only) {
         if (num_virtual_streams != 1)
             result = VPE_STATUS_ERROR;
         else
-            result = populate_bg_stream(vpe_priv, param, &vpe_priv->stream_ctx[virtual_stream_idx++]);
+            result = populate_bg_stream(vpe_priv, param, &stream_ctx_base[virtual_stream_idx++]);
     }
 
     if (result != VPE_STATUS_OK)
         return result;
 
     for (virtual_stream_idx = 0; virtual_stream_idx < num_virtual_streams; virtual_stream_idx++) {
-        stream_ctx = &stream_ctx_base[virtual_stream_idx];
+        stream_ctx             = &stream_ctx_base[virtual_stream_idx];
         stream_ctx->stream_idx = virtual_stream_idx + vpe_priv->num_input_streams;
         stream_ctx->per_pixel_alpha =
             vpe_has_per_pixel_alpha(stream_ctx->stream.surface_info.format);
