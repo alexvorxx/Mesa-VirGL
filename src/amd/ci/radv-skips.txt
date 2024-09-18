@@ -38,14 +38,6 @@ dEQP-VK.ray_tracing_pipeline.misc.recursiveTraces_tri_13
 dEQP-VK.ray_tracing_pipeline.misc.recursiveTraces_tri_14
 dEQP-VK.ray_tracing_pipeline.misc.recursiveTraces_tri_15
 
-# LLVM (soft hangs)
-dEQP-VK.graphicsfuzz.while-inside-switch
-
-# LLVM (timeouts)
-dEQP-VK.graphicsfuzz.spv-stable-maze-O-dead-code
-dEQP-VK.graphicsfuzz.spv-stable-maze-O-memory-accesses
-dEQP-VK.spirv_assembly.instruction.graphics.16bit_storage.uniform_32struct_to_16struct.uniform_buffer_block_geom
-
 # Those cases seem to usually timeout.
 dEQP-VK.binding_model.descriptor_buffer.multiple.*buffers32_sets1
 
