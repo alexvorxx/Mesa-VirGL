@@ -103,7 +103,7 @@ void config_writer_set_type(struct config_writer *writer, enum config_type type,
     if (writer->status != VPE_STATUS_OK)
         return;
 
-    if (writer->type != type) {
+    if ((writer->type != type) || (writer->pipe_idx != pipe_idx)) {
         if (writer->type == CONFIG_TYPE_UNKNOWN) {
             // new header or only pipe change. don't need to fill it yet until completion
             writer->pipe_idx = pipe_idx;
@@ -280,6 +280,9 @@ void config_writer_complete(struct config_writer *writer)
 
     if (size <= sizeof(uint32_t)) {
         config_writer_reset(writer);
+        return;
+    } else if (writer->completed == true) {
+        // completed has already been called for this packet
         return;
     }
 
