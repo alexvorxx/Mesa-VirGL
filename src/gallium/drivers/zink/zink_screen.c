@@ -1715,13 +1715,36 @@ zink_get_cpu_device_type(const struct zink_screen *screen, uint32_t pdev_count,
    return -1;
 }
 
+static int
+zink_match_adapter_luid(const struct zink_screen *screen, uint32_t pdev_count, const VkPhysicalDevice *pdevs, uint64_t adapter_luid)
+{
+   VkPhysicalDeviceVulkan11Properties props11 = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES
+   };
+   VkPhysicalDeviceProperties2 props = {
+      VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+      &props11
+   };
+
+   for (uint32_t i = 0; i < pdev_count; ++i) {
+      VKSCR(GetPhysicalDeviceProperties2)(pdevs[i], &props);
+
+      if (!memcmp(props11.deviceLUID, &adapter_luid, sizeof(adapter_luid)))
+         return i;
+   }
+
+   mesa_loge("ZINK: matching LUID not found!");
+
+   return -1;
+}
+
 static void
-choose_pdev(struct zink_screen *screen, int64_t dev_major, int64_t dev_minor)
+choose_pdev(struct zink_screen *screen, int64_t dev_major, int64_t dev_minor, uint64_t adapter_luid)
 {
    bool cpu = debug_get_bool_option("LIBGL_ALWAYS_SOFTWARE", false) ||
               debug_get_bool_option("D3D_ALWAYS_SOFTWARE", false);
 
-   if (cpu || (dev_major > 0 && dev_major < 255)) {
+   if (cpu || (dev_major > 0 && dev_major < 255) || adapter_luid) {
       uint32_t pdev_count;
       int idx;
       VkPhysicalDevice *pdevs;
@@ -1745,7 +1768,9 @@ choose_pdev(struct zink_screen *screen, int64_t dev_major, int64_t dev_minor)
       assert(result == VK_SUCCESS);
       assert(pdev_count > 0);
 
-      if (cpu)
+      if (adapter_luid)
+         idx = zink_match_adapter_luid(screen, pdev_count, pdevs, adapter_luid);
+      else if (cpu)
          idx = zink_get_cpu_device_type(screen, pdev_count, pdevs);
       else
          idx = zink_get_display_device(screen, pdev_count, pdevs, dev_major,
@@ -3288,7 +3313,7 @@ zink_screen_get_fd(struct pipe_screen *pscreen)
 }
 
 static struct zink_screen *
-zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev_major, int64_t dev_minor)
+zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev_major, int64_t dev_minor, uint64_t adapter_luid)
 {
    if (getenv("ZINK_USE_LAVAPIPE")) {
       mesa_loge("ZINK_USE_LAVAPIPE is obsolete. Use LIBGL_ALWAYS_SOFTWARE\n");
@@ -3373,7 +3398,7 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
          debug_printf("ZINK: failed to setup debug utils\n");
    }
 
-   choose_pdev(screen, dev_major, dev_minor);
+   choose_pdev(screen, dev_major, dev_minor, adapter_luid);
    if (screen->pdev == VK_NULL_HANDLE) {
       if (!screen->driver_name_is_inferred)
          mesa_loge("ZINK: failed to choose pdev");
@@ -3736,7 +3761,7 @@ fail:
 struct pipe_screen *
 zink_create_screen(struct sw_winsys *winsys, const struct pipe_screen_config *config)
 {
-   struct zink_screen *ret = zink_internal_create_screen(config, -1, -1);
+   struct zink_screen *ret = zink_internal_create_screen(config, -1, -1, 0);
    if (ret) {
       ret->drm_fd = -1;
    }
@@ -3788,7 +3813,7 @@ zink_drm_create_screen(int fd, const struct pipe_screen_config *config)
    if (zink_render_rdev(fd, &dev_major, &dev_minor))
       return NULL;
 
-   ret = zink_internal_create_screen(config, dev_major, dev_minor);
+   ret = zink_internal_create_screen(config, dev_major, dev_minor, 0);
 
    if (ret)
       ret->drm_fd = os_dupfd_cloexec(fd);
@@ -3799,6 +3824,13 @@ zink_drm_create_screen(int fd, const struct pipe_screen_config *config)
    }
 
    return &ret->base;
+}
+
+struct pipe_screen *
+zink_win32_create_screen(uint64_t adapter_luid)
+{
+   struct zink_screen *ret = zink_internal_create_screen(NULL, -1, -1, adapter_luid);
+   return ret ? &ret->base : NULL;
 }
 
 void VKAPI_PTR zink_stub_function_not_loaded()
