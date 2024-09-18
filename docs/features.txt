@@ -353,6 +353,7 @@ Khronos, ARB, and OES extensions that are not part of any OpenGL or OpenGL ES ve
   GL_OES_viewport_array                                 DONE (freedreno/a6xx, nvc0, r600, radeonsi, softpipe, zink, iris, crocus/gen7.5+, asahi)
   GL_OVR_multiview                                      DONE (zink)
   GL_OVR_multiview2                                     DONE (zink)
+  GL_OVR_multiview_multisampled_render_to_texture       DONE (zink)
   GLX_ARB_context_flush_control                         DONE (all drivers)
   GLX_ARB_robustness_application_isolation              not started
   GLX_ARB_robustness_share_group_isolation              not started

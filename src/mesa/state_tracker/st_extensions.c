@@ -1297,6 +1297,9 @@ void st_init_extensions(struct pipe_screen *screen,
          break;
       }
 
+      extensions->OVR_multiview_multisampled_render_to_texture = extensions->EXT_multisampled_render_to_texture &&
+                                                                 extensions->OVR_multiview;
+
       if (screen->get_param(screen, PIPE_CAP_OPENCL_INTEGER_FUNCTIONS) &&
           screen->get_param(screen, PIPE_CAP_INTEGER_MULTIPLY_32X16)) {
          extensions->INTEL_shader_integer_functions2 = GL_TRUE;
