@@ -325,7 +325,7 @@ queue_submit_single(struct agx_device *dev, struct drm_asahi_submit *submit)
 static VkResult
 queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
 {
-   struct drm_asahi_command *cmds = (void *)submit->commands;
+   struct drm_asahi_command *cmds = (void *)(uintptr_t)submit->commands;
    unsigned commands_remaining = submit->command_count;
    unsigned submitted_vdm = 0, submitted_cdm = 0;
 
