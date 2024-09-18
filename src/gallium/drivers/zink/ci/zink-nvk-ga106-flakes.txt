@@ -100,6 +100,7 @@ spec@glsl-1.30@execution@built-in-functions@vs-op-bitxor-abs-not-ivec3-int
 spec@glsl-1.30@execution@fs-texture-sampler2dshadow-03
 spec@glsl-1.30@execution@interpolation@interpolation-none-gl_backcolor-flat-distance
 spec@glsl-1.30@execution@interpolation@interpolation-noperspective-gl_backsecondarycolor-flat-vertex
+spec@glsl-1.30@execution@interpolation@interpolation-noperspective-gl_backsecondarycolor-smooth-none
 spec@glsl-1.30@execution@interpolation@interpolation-smooth-gl_backsecondarycolor-smooth-fixed
 spec@glsl-1.30@execution@interpolation@interpolation-smooth-gl_frontsecondarycolor-flat-fixed
 spec@glsl-1.30@execution@interpolation@interpolation-smooth-gl_frontsecondarycolor-smooth-vertex
