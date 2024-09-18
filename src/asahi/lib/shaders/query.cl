@@ -109,3 +109,9 @@ libagx_increment_ia_counters(constant struct libagx_increment_ia_counters *p,
       *(p->vs_invocations) += count;
    }
 }
+
+void
+libagx_write_u32s(constant struct libagx_imm_write *p, uint id)
+{
+   *(p[id].address) = p[id].value;
+}

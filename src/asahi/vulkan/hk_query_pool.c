@@ -28,6 +28,7 @@
 #include "compiler/nir/nir_builder.h"
 
 #include "util/os_time.h"
+#include "util/u_dynarray.h"
 #include "vulkan/vulkan_core.h"
 
 struct hk_query_report {
@@ -209,6 +210,45 @@ hk_nir_write_u32(nir_builder *b, UNUSED const void *key)
    nir_store_global(b, addr, 4, value, nir_component_mask(1));
 }
 
+static void
+hk_nir_write_u32s(nir_builder *b, const void *data)
+{
+   nir_def *params = nir_load_preamble(b, 1, 64, .base = 0);
+   nir_def *id = nir_channel(b, nir_load_global_invocation_id(b, 32), 0);
+
+   libagx_write_u32s(b, params, id);
+}
+
+void
+hk_dispatch_imm_writes(struct hk_cmd_buffer *cmd, struct hk_cs *cs)
+{
+   hk_ensure_cs_has_space(cmd, cs, 0x2000 /* TODO */);
+
+   /* As soon as we mark a query available, it needs to be available system
+    * wide, otherwise a CPU-side get result can query. As such, we cache flush
+    * before and then let coherency works its magic. Without this barrier, we
+    * get flakes in
+    *
+    * dEQP-VK.query_pool.occlusion_query.get_results_conservative_size_64_wait_query_without_availability_draw_triangles_discard
+    */
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
+   hk_cdm_cache_flush(dev, cs);
+
+   perf_debug(dev, "Queued writes");
+
+   struct hk_shader *s = hk_meta_kernel(dev, hk_nir_write_u32s, NULL, 0);
+   uint64_t params =
+      hk_pool_upload(cmd, cs->imm_writes.data, cs->imm_writes.size, 16);
+   uint32_t usc = hk_upload_usc_words_kernel(cmd, s, &params, sizeof(params));
+
+   uint32_t count =
+      util_dynarray_num_elements(&cs->imm_writes, struct libagx_imm_write);
+   assert(count > 0);
+
+   hk_dispatch_with_usc(dev, cs, s, usc, hk_grid(count, 1, 1),
+                        hk_grid(32, 1, 1));
+}
+
 void
 hk_queue_write(struct hk_cmd_buffer *cmd, uint64_t address, uint32_t value,
                bool after_gfx)
@@ -217,6 +257,18 @@ hk_queue_write(struct hk_cmd_buffer *cmd, uint64_t address, uint32_t value,
       cmd, after_gfx ? &cmd->current_cs.post_gfx : &cmd->current_cs.cs, true);
    if (!cs)
       return;
+
+   /* TODO: Generalize this mechanism suitably */
+   if (after_gfx) {
+      struct libagx_imm_write imm = {.address = address, .value = value};
+
+      if (!cs->imm_writes.data) {
+         util_dynarray_init(&cs->imm_writes, NULL);
+      }
+
+      util_dynarray_append(&cs->imm_writes, struct libagx_imm_write, imm);
+      return;
+   }
 
    hk_ensure_cs_has_space(cmd, cs, 0x2000 /* TODO */);
 

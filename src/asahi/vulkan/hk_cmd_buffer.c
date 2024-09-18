@@ -269,7 +269,7 @@ hk_EndCommandBuffer(VkCommandBuffer commandBuffer)
 
    perf_debug(dev, "End command buffer");
    hk_cmd_buffer_end_compute(cmd);
-   hk_cmd_buffer_end_compute_internal(&cmd->current_cs.post_gfx);
+   hk_cmd_buffer_end_compute_internal(cmd, &cmd->current_cs.post_gfx);
 
    /* With rasterizer discard, we might end up with empty VDM batches.
     * It is difficult to avoid creating these empty batches, but it's easy to

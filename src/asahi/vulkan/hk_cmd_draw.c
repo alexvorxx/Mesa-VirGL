@@ -752,7 +752,7 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
    cs->cr.zls_control = render->cr.zls_control;
 
    /* Reordering barrier for post-gfx, in case we had any. */
-   hk_cmd_buffer_end_compute_internal(&cmd->current_cs.post_gfx);
+   hk_cmd_buffer_end_compute_internal(cmd, &cmd->current_cs.post_gfx);
 
    /* Don't reorder compute across render passes.
     *

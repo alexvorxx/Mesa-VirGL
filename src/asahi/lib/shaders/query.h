@@ -67,3 +67,8 @@ struct libagx_increment_ia_counters {
    uint32_t index_buffer_range_el;
    uint32_t restart_index;
 };
+
+struct libagx_imm_write {
+   GLOBAL(uint32_t) address;
+   uint32_t value;
+};
