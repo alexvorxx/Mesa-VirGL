@@ -50,6 +50,10 @@ typedef struct brw_hw_decoded_inst {
    unsigned exec_size;
    unsigned access_mode;
 
+   enum brw_conditional_mod cond_modifier;
+   enum brw_predicate pred_control;
+   bool saturate;
+
    bool has_dst;
    struct {
       enum brw_reg_file file;
@@ -167,7 +171,7 @@ inst_is_raw_move(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst
    }
 
    return inst->opcode == BRW_OPCODE_MOV &&
-          brw_inst_saturate(devinfo, inst->raw) == 0 &&
+          !inst->saturate &&
           dst_type == src_type;
 }
 
@@ -1758,13 +1762,13 @@ instruction_restrictions(const struct brw_isa_info *isa,
 
    if (inst->opcode == BRW_OPCODE_CMP ||
        inst->opcode == BRW_OPCODE_CMPN) {
-      ERROR_IF(brw_inst_cond_modifier(devinfo, inst->raw) == BRW_CONDITIONAL_NONE,
+      ERROR_IF(inst->cond_modifier == BRW_CONDITIONAL_NONE,
                "CMP (or CMPN) must have a condition.");
    }
 
    if (inst->opcode == BRW_OPCODE_SEL) {
-      ERROR_IF((brw_inst_cond_modifier(devinfo, inst->raw) != BRW_CONDITIONAL_NONE) ==
-               (brw_inst_pred_control(devinfo, inst->raw) != BRW_PREDICATE_NONE),
+      ERROR_IF((inst->cond_modifier != BRW_CONDITIONAL_NONE) ==
+               (inst->pred_control != BRW_PREDICATE_NONE),
                "SEL must either be predicated or have a condition modifiers");
    }
 
@@ -1826,8 +1830,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
                 dst_type == BRW_TYPE_D ||
                 dst_type == BRW_TYPE_UW ||
                 dst_type == BRW_TYPE_W) &&
-               (brw_inst_saturate(devinfo, inst->raw) != 0 ||
-                brw_inst_cond_modifier(devinfo, inst->raw) != BRW_CONDITIONAL_NONE),
+               (inst->saturate || inst->cond_modifier != BRW_CONDITIONAL_NONE),
                "Neither Saturate nor conditional modifier allowed with DW "
                "integer multiply.");
    }
@@ -1935,8 +1938,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
        * absolutely sketchy are O, R, and U.  Some OpenGL shaders from Doom
        * 2016 have been observed to generate and.g and operate correctly.
        */
-      const enum brw_conditional_mod cmod =
-         brw_inst_cond_modifier(devinfo, inst->raw);
+      const enum brw_conditional_mod cmod = inst->cond_modifier;
       ERROR_IF(cmod == BRW_CONDITIONAL_O ||
                cmod == BRW_CONDITIONAL_R ||
                cmod == BRW_CONDITIONAL_U,
@@ -1944,10 +1946,10 @@ instruction_restrictions(const struct brw_isa_info *isa,
    }
 
    if (inst->opcode == BRW_OPCODE_BFI2) {
-      ERROR_IF(brw_inst_cond_modifier(devinfo, inst->raw) != BRW_CONDITIONAL_NONE,
+      ERROR_IF(inst->cond_modifier != BRW_CONDITIONAL_NONE,
                "BFI2 cannot have conditional modifier");
 
-      ERROR_IF(brw_inst_saturate(devinfo, inst->raw),
+      ERROR_IF(inst->saturate,
                "BFI2 cannot have saturate modifier");
 
       enum brw_reg_type dst_type = inst->dst.type;
@@ -1965,13 +1967,13 @@ instruction_restrictions(const struct brw_isa_info *isa,
    }
 
    if (inst->opcode == BRW_OPCODE_CSEL) {
-      ERROR_IF(brw_inst_pred_control(devinfo, inst->raw) != BRW_PREDICATE_NONE,
+      ERROR_IF(inst->pred_control != BRW_PREDICATE_NONE,
                "CSEL cannot be predicated");
 
       /* CSEL is CMP and SEL fused into one. The condition modifier, which
        * does not actually modify the flags, controls the built-in comparison.
        */
-      ERROR_IF(brw_inst_cond_modifier(devinfo, inst->raw) == BRW_CONDITIONAL_NONE,
+      ERROR_IF(inst->cond_modifier == BRW_CONDITIONAL_NONE,
                "CSEL must have a condition.");
 
       enum brw_reg_type dst_type = inst->dst.type;
@@ -2261,6 +2263,9 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
    }
 
    inst->access_mode = brw_inst_access_mode(devinfo, raw);
+   inst->cond_modifier = brw_inst_cond_modifier(devinfo, raw);
+   inst->pred_control = brw_inst_pred_control(devinfo, raw);
+   inst->saturate = brw_inst_saturate(devinfo, raw);
 
    RETURN_ERROR_IF(inst->num_sources == 3 && inst->access_mode == BRW_ALIGN_1 && devinfo->ver == 9,
                    "Align1 mode not allowed on Gfx9 for 3-src instructions");
