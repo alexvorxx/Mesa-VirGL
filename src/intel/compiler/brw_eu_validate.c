@@ -48,6 +48,7 @@ typedef struct brw_hw_decoded_inst {
    enum opcode opcode;
 
    unsigned exec_size;
+   unsigned access_mode;
 
    bool has_dst;
    unsigned num_sources;
@@ -251,7 +252,7 @@ invalid_values(const struct brw_isa_info *isa, const brw_hw_decoded_inst *inst)
       return error_msg;
 
    if (inst->num_sources == 3) {
-      if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1) {
+      if (inst->access_mode == BRW_ALIGN_1) {
          if (devinfo->ver >= 10) {
             ERROR_IF(brw_inst_3src_a1_dst_type (devinfo, inst->raw) == BRW_TYPE_INVALID ||
                      brw_inst_3src_a1_src0_type(devinfo, inst->raw) == BRW_TYPE_INVALID ||
@@ -313,7 +314,7 @@ alignment_supported(const struct brw_isa_info *isa,
    const struct intel_device_info *devinfo = isa->devinfo;
    struct string error_msg = { .str = NULL, .len = 0 };
 
-   ERROR_IF(devinfo->ver >= 11 && brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16,
+   ERROR_IF(devinfo->ver >= 11 && inst->access_mode == BRW_ALIGN_16,
             "Align16 not supported");
 
    return error_msg;
@@ -661,7 +662,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
    enum brw_reg_type dst_type;
 
    if (inst->num_sources == 3) {
-      if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1)
+      if (inst->access_mode == BRW_ALIGN_1)
          dst_type = brw_inst_3src_a1_dst_type(devinfo, inst->raw);
       else
          dst_type = brw_inst_3src_a16_dst_type(devinfo, inst->raw);
@@ -681,7 +682,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
    for (unsigned s = 0; s < inst->num_sources; s++) {
       enum brw_reg_type src_type;
       if (inst->num_sources == 3) {
-         if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1) {
+         if (inst->access_mode == BRW_ALIGN_1) {
             switch (s) {
             case 0: src_type = brw_inst_3src_a1_src0_type(devinfo, inst->raw); break;
             case 1: src_type = brw_inst_3src_a1_src1_type(devinfo, inst->raw); break;
@@ -707,7 +708,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
                 src_type == BRW_TYPE_UQ) &&
                !devinfo->has_64bit_int,
                "64-bit int source, but platform does not support it");
-      if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16 &&
+      if (inst->access_mode == BRW_ALIGN_16 &&
           inst->num_sources == 3 && brw_type_size_bytes(src_type) > 4) {
          /* From the Broadwell PRM, Volume 7 "3D Media GPGPU", page 944:
           *
@@ -876,7 +877,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
        * requires packed destinations, so these restrictions can't possibly
        * apply to Align16 mode.
        */
-      if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1) {
+      if (inst->access_mode == BRW_ALIGN_1) {
          if ((dst_type == BRW_TYPE_HF &&
               (brw_type_is_int(src0_type) ||
                (inst->num_sources > 1 && brw_type_is_int(src1_type)))) ||
@@ -919,7 +920,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
 
       unsigned subreg = brw_inst_dst_da1_subreg_nr(devinfo, inst->raw);
 
-      if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1 &&
+      if (inst->access_mode == BRW_ALIGN_1 &&
           brw_inst_dst_address_mode(devinfo, inst->raw) == BRW_ADDRESS_DIRECT) {
          /* The i965 PRM says:
           *
@@ -964,7 +965,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
    if (inst_is_split_send(isa, inst))
       return (struct string){};
 
-   if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16) {
+   if (inst->access_mode == BRW_ALIGN_16) {
       if (inst->has_dst && !dst_is_null(devinfo, inst->raw))
          ERROR_IF(brw_inst_dst_hstride(devinfo, inst->raw) != BRW_HORIZONTAL_STRIDE_1,
                   "Destination Horizontal Stride must be 1");
@@ -1106,7 +1107,7 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
    if (!is_mixed_float(isa, inst))
       return error_msg;
 
-   bool is_align16 = brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16;
+   bool is_align16 = inst->access_mode == BRW_ALIGN_16;
 
    enum brw_reg_type src0_type = brw_inst_src0_type(devinfo, inst->raw);
    enum brw_reg_type src1_type = inst->num_sources > 1 ?
@@ -1407,7 +1408,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
    if (inst->num_sources == 3)
       return (struct string){};
 
-   if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16)
+   if (inst->access_mode == BRW_ALIGN_16)
       return (struct string){};
 
    if (inst_is_send(inst))
@@ -1532,7 +1533,7 @@ vector_immediate_restrictions(const struct brw_isa_info *isa,
 
    enum brw_reg_type dst_type = inst_dst_type(isa, inst);
    unsigned dst_type_size = brw_type_size_bytes(dst_type);
-   unsigned dst_subreg = brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1 ?
+   unsigned dst_subreg = inst->access_mode == BRW_ALIGN_1 ?
                          brw_inst_dst_da1_subreg_nr(devinfo, inst->raw) : 0;
    unsigned dst_stride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
    enum brw_reg_type type = inst->num_sources == 1 ?
@@ -1658,7 +1659,7 @@ special_requirements_for_handling_double_precision_data_types(
        * We assume that the restriction applies to GLK as well.
        */
       if (is_double_precision &&
-          brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1 &&
+          inst->access_mode == BRW_ALIGN_1 &&
           intel_device_info_is_9lp(devinfo)) {
          ERROR_IF(!is_scalar_region &&
                   (src_stride % 8 != 0 ||
@@ -1780,7 +1781,7 @@ special_requirements_for_handling_double_precision_data_types(
       unsigned src0_type_size = brw_type_size_bytes(src0_type);
       unsigned src1_type_size = brw_type_size_bytes(src1_type);
 
-      ERROR_IF(brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_16 &&
+      ERROR_IF(inst->access_mode == BRW_ALIGN_16 &&
                dst_type_size == 8 &&
                (src0_type_size != 8 || src1_type_size != 8) &&
                inst->exec_size > 2,
@@ -2050,7 +2051,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
 
       enum brw_reg_type dst_type;
 
-      if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1)
+      if (inst->access_mode == BRW_ALIGN_1)
          dst_type = brw_inst_3src_a1_dst_type(devinfo, inst->raw);
       else
          dst_type = brw_inst_3src_a16_dst_type(devinfo, inst->raw);
@@ -2062,7 +2063,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
       for (unsigned s = 0; s < 3; s++) {
          enum brw_reg_type src_type;
 
-         if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1) {
+         if (inst->access_mode == BRW_ALIGN_1) {
             switch (s) {
             case 0: src_type = brw_inst_3src_a1_src0_type(devinfo, inst->raw); break;
             case 1: src_type = brw_inst_3src_a1_src1_type(devinfo, inst->raw); break;
@@ -2090,7 +2091,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
 
       enum brw_reg_type dst_type;
 
-      if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1)
+      if (inst->access_mode == BRW_ALIGN_1)
          dst_type = brw_inst_3src_a1_dst_type(devinfo, inst->raw);
       else
          dst_type = brw_inst_3src_a16_dst_type(devinfo, inst->raw);
@@ -2111,7 +2112,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
       for (unsigned s = 0; s < 3; s++) {
          enum brw_reg_type src_type;
 
-         if (brw_inst_access_mode(devinfo, inst->raw) == BRW_ALIGN_1) {
+         if (inst->access_mode == BRW_ALIGN_1) {
             switch (s) {
             case 0: src_type = brw_inst_3src_a1_src0_type(devinfo, inst->raw); break;
             case 1: src_type = brw_inst_3src_a1_src1_type(devinfo, inst->raw); break;
@@ -2393,6 +2394,8 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
       RETURN_ERROR("invalid execution size");
       break;
    }
+
+   inst->access_mode = brw_inst_access_mode(devinfo, raw);
 
    return error_msg;
 }
