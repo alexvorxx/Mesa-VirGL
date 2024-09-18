@@ -97,18 +97,6 @@ static void
 asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
                        struct drm_asahi_cmd_render *c)
 {
-#if 0
-   bool clear_pipeline_textures =
-      agx_tilebuffer_spills(&batch->tilebuffer_layout);
-
-   for (unsigned i = 0; i < batch->key.nr_cbufs; ++i) {
-      struct pipe_surface *surf = batch->key.cbufs[i];
-
-      clear_pipeline_textures |=
-         surf && surf->texture && !(batch->clear & (PIPE_CLEAR_COLOR0 << i));
-   }
-
-#endif
    unsigned cmd_ta_id = agx_get_global_id(&dev->dev);
    unsigned cmd_3d_id = agx_get_global_id(&dev->dev);
    unsigned encoder_id = agx_get_global_id(&dev->dev);
