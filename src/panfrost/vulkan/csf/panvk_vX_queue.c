@@ -251,7 +251,7 @@ init_subqueue(struct panvk_queue *queue, enum panvk_subqueue_id subqueue)
       .queue_index = subqueue,
       .stream_size = cs_root_chunk_size(&b),
       .stream_addr = cs_root_chunk_gpu_addr(&b),
-      .latest_flush = 0,
+      .latest_flush = panthor_kmod_get_flush_id(dev->kmod.dev),
       .syncs = DRM_PANTHOR_OBJ_ARRAY(1, &syncop),
    };
    struct drm_panthor_group_submit gsubmit = {
@@ -568,7 +568,7 @@ panvk_queue_submit(struct vk_queue *vk_queue, struct vk_queue_submit *submit)
             .queue_index = j,
             .stream_size = cs_root_chunk_size(&cmdbuf->state.cs[j].builder),
             .stream_addr = cs_root_chunk_gpu_addr(&cmdbuf->state.cs[j].builder),
-            .latest_flush = 0,
+            .latest_flush = cmdbuf->flush_id,
          };
       }
    }
