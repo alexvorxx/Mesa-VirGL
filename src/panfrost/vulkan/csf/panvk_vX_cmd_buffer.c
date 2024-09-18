@@ -96,17 +96,17 @@ finish_cs(struct panvk_cmd_buffer *cmdbuf, uint32_t subqueue)
       }
    }
 
-   /* If we're decoding the CS or dumping memory mappings, we need a flush
-    * to make sure all data have been pushed to memory. */
-   if (instance->debug_flags & (PANVK_DEBUG_DUMP | PANVK_DEBUG_TRACE)) {
-      struct cs_index flush_id = cs_scratch_reg32(b, 0);
+   /* We need a clean because descriptor/CS memory can be returned to the
+    * command pool where they get recycled. If we don't clean dirty cache lines,
+    * those cache lines might get evicted asynchronously and their content
+    * pushed back to main memory after the CPU has written new stuff there. */
+   struct cs_index flush_id = cs_scratch_reg32(b, 0);
 
-      cs_move32_to(b, flush_id, 0);
-      cs_wait_slots(b, SB_ALL_MASK, false);
-      cs_flush_caches(b, MALI_CS_FLUSH_MODE_CLEAN, MALI_CS_FLUSH_MODE_CLEAN,
-                      false, flush_id, cs_defer(SB_IMM_MASK, SB_ID(IMM_FLUSH)));
-      cs_wait_slot(b, SB_ID(IMM_FLUSH), false);
-   }
+   cs_move32_to(b, flush_id, 0);
+   cs_wait_slots(b, SB_ALL_MASK, false);
+   cs_flush_caches(b, MALI_CS_FLUSH_MODE_CLEAN, MALI_CS_FLUSH_MODE_CLEAN,
+                   false, flush_id, cs_defer(SB_IMM_MASK, SB_ID(IMM_FLUSH)));
+   cs_wait_slot(b, SB_ID(IMM_FLUSH), false);
 
    /* If we're in sync/trace more, we signal the debug object. */
    if (instance->debug_flags & (PANVK_DEBUG_SYNC | PANVK_DEBUG_TRACE)) {
