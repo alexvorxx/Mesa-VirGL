@@ -3359,6 +3359,11 @@ hk_draw(struct hk_cmd_buffer *cmd, uint16_t draw_id, struct hk_draw draw_)
       }
 
       if (tess) {
+         struct hk_device *dev = hk_cmd_buffer_device(cmd);
+         if (unlikely(dev->dev.debug & AGX_DBG_NOTESS)) {
+            continue;
+         }
+
          draw = hk_launch_tess(cmd, ccs, draw);
 
          if (draw.raw) {

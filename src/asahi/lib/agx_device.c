@@ -45,6 +45,7 @@ asahi_simple_ioctl(struct agx_device *dev, unsigned cmd, void *req)
 /* clang-format off */
 static const struct debug_named_value agx_debug_options[] = {
    {"trace",     AGX_DBG_TRACE,    "Trace the command stream"},
+   {"notess",    AGX_DBG_NOTESS,   "Skip draws with tessellation"},
    {"no16",      AGX_DBG_NO16,     "Disable 16-bit support"},
    {"perf",      AGX_DBG_PERF,     "Print performance warnings"},
 #ifndef NDEBUG
