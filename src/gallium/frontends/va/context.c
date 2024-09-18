@@ -124,8 +124,7 @@ VA_PUBLIC_API VAStatus
 VA_DRIVER_INIT_FUNC(VADriverContextP ctx)
 {
    vlVaDriver *drv;
-#if !defined(_WIN32) && defined(GALLIUM_ZINK)
-   /* TODO: this should work on Windows too */
+#if defined(GALLIUM_ZINK)
    const char *drivername = os_get_option_cached("LIBVA_DRIVER_NAME");
    bool zink = drivername && !strcmp(drivername, "zink");
 #endif
@@ -140,7 +139,12 @@ VA_DRIVER_INIT_FUNC(VADriverContextP ctx)
    switch (ctx->display_type) {
 #ifdef _WIN32
    case VA_DISPLAY_WIN32: {
-      drv->vscreen = vl_win32_screen_create(ctx->native_dpy);
+#ifdef GALLIUM_ZINK
+      if (zink)
+         drv->vscreen = vl_kopper_screen_create_win32(ctx->native_dpy);
+#endif
+      if (!drv->vscreen)
+         drv->vscreen = vl_win32_screen_create(ctx->native_dpy);
       break;
    }
 #else
@@ -151,7 +155,7 @@ VA_DRIVER_INIT_FUNC(VADriverContextP ctx)
    case VA_DISPLAY_X11:
 #ifdef GALLIUM_ZINK
       if (zink)
-         drv->vscreen = vl_kopper_screen_create(ctx->native_dpy, ctx->x11_screen);
+         drv->vscreen = vl_kopper_screen_create_x11(ctx->native_dpy, ctx->x11_screen);
 #endif
       if (!drv->vscreen)
          drv->vscreen = vl_dri3_screen_create(ctx->native_dpy, ctx->x11_screen);
