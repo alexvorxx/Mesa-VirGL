@@ -274,6 +274,9 @@ a630_vk_full:
   variables:
     DEQP_SUITE: freedreno-a630-vk-full
     TEST_PHASE_TIMEOUT_MINUTES: 175
+    # force fixed kernel until 6.11 is switched officially
+    FORCE_KERNEL_TAG: "v6.11-rc7-mesa-73f2"
+    KERNEL_IMAGE_BASE: https://${S3_HOST}/${S3_KERNEL_BUCKET}/${KERNEL_REPO}/${FORCE_KERNEL_TAG}
 
 a630_vk_asan:
   extends:
