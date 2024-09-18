@@ -477,7 +477,7 @@ dri2_x11_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
       goto cleanup_pixmap;
 
 #ifdef HAVE_X11_DRI2
-   if (disp->Options.fd > 0) {
+   if (!dri2_dpy->swrast) {
       xcb_void_cookie_t cookie;
       int conn_error;
 
@@ -572,7 +572,7 @@ dri2_x11_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 
    driDestroyDrawable(dri2_surf->dri_drawable);
 
-   if (disp->Options.fd > 0) {
+   if (!dri2_dpy->swrast) {
 #ifdef HAVE_X11_DRI2
       xcb_dri2_destroy_drawable(dri2_dpy->conn, dri2_surf->drawable);
 #endif
