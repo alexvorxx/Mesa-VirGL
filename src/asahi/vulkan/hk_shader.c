@@ -6,6 +6,7 @@
  */
 #include "hk_shader.h"
 
+#include "agx_device.h"
 #include "agx_helpers.h"
 #include "agx_nir_lower_gs.h"
 #include "glsl_types.h"
@@ -73,8 +74,8 @@ shared_var_info(const struct glsl_type *type, unsigned *size, unsigned *align)
 uint64_t
 hk_physical_device_compiler_flags(const struct hk_physical_device *pdev)
 {
-   /* TODO compiler flags */
-   return 0;
+   /* This could be optimized but it doesn't matter */
+   return pdev->dev.debug;
 }
 
 const nir_shader_compiler_options *
