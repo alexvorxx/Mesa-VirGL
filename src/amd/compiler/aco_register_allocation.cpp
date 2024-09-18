@@ -83,6 +83,20 @@ struct PhysRegIterator {
    bool operator<(PhysRegIterator oth) const { return reg < oth.reg; }
 };
 
+struct vector_info {
+   vector_info() : is_weak(false), num_parts(0), parts(NULL) {}
+   vector_info(Instruction* instr, unsigned start = 0, bool weak = false)
+       : is_weak(weak), num_parts(instr->operands.size() - start),
+         parts(instr->operands.begin() + start)
+   {}
+
+   /* If true, then we should stop trying to form a vector if anything goes wrong. Useful for when
+    * the cost of failing does not introduce copies. */
+   bool is_weak;
+   uint32_t num_parts;
+   Operand* parts;
+};
+
 struct ra_ctx {
 
    Program* program;
@@ -92,7 +106,7 @@ struct ra_ctx {
    std::vector<aco::unordered_map<uint32_t, Temp>> renames;
    std::vector<uint32_t> loop_header;
    aco::unordered_map<uint32_t, Temp> orig_names;
-   aco::unordered_map<uint32_t, Instruction*> vectors;
+   aco::unordered_map<uint32_t, vector_info> vectors;
    aco::unordered_map<uint32_t, Instruction*> split_vectors;
    aco_ptr<Instruction> pseudo_dummy;
    aco_ptr<Instruction> phi_dummy;
@@ -1522,11 +1536,11 @@ compact_relocate_vars(ra_ctx& ctx, const std::vector<IDAndRegClass>& vars,
 }
 
 bool
-is_mimg_vaddr_intact(ra_ctx& ctx, const RegisterFile& reg_file, Instruction* instr)
+is_vector_intact(ra_ctx& ctx, const RegisterFile& reg_file, const vector_info& vec_info)
 {
    PhysReg first{512};
-   for (unsigned i = 0; i < instr->operands.size() - 3u; i++) {
-      Operand op = instr->operands[i + 3];
+   for (unsigned i = 0; i < vec_info.num_parts; i++) {
+      Operand op = vec_info.parts[i];
 
       if (ctx.assignments[op.tempId()].assigned) {
          PhysReg reg = ctx.assignments[op.tempId()].reg;
@@ -1534,7 +1548,7 @@ is_mimg_vaddr_intact(ra_ctx& ctx, const RegisterFile& reg_file, Instruction* ins
          if (first.reg() == 512) {
             PhysRegInterval bounds = get_reg_bounds(ctx, RegType::vgpr, false);
             first = reg.advance(i * -4);
-            PhysRegInterval vec = PhysRegInterval{first, instr->operands.size() - 3u};
+            PhysRegInterval vec = PhysRegInterval{first, vec_info.num_parts};
             if (!bounds.contains(vec)) /* not enough space for other operands */
                return false;
          } else {
@@ -1557,25 +1571,24 @@ std::optional<PhysReg>
 get_reg_vector(ra_ctx& ctx, const RegisterFile& reg_file, Temp temp, aco_ptr<Instruction>& instr,
                int operand)
 {
-   Instruction* vec = ctx.vectors[temp.id()];
-   unsigned first_operand = vec->format == Format::MIMG ? 3 : 0;
-   unsigned our_offset = 0;
-   for (unsigned i = first_operand; i < vec->operands.size(); i++) {
-      Operand& op = vec->operands[i];
-      if (op.isTemp() && op.tempId() == temp.id())
-         break;
-      else
-         our_offset += op.bytes();
-   }
+   const vector_info& vec = ctx.vectors[temp.id()];
+   if (!vec.is_weak || is_vector_intact(ctx, reg_file, vec)) {
+      unsigned our_offset = 0;
+      for (unsigned i = 0; i < vec.num_parts; i++) {
+         const Operand& op = vec.parts[i];
+         if (op.isTemp() && op.tempId() == temp.id())
+            break;
+         else
+            our_offset += op.bytes();
+      }
 
-   if (vec->format != Format::MIMG || is_mimg_vaddr_intact(ctx, reg_file, vec)) {
       unsigned their_offset = 0;
       /* check for every operand of the vector
        * - whether the operand is assigned and
        * - we can use the register relative to that operand
        */
-      for (unsigned i = first_operand; i < vec->operands.size(); i++) {
-         Operand& op = vec->operands[i];
+      for (unsigned i = 0; i < vec.num_parts; i++) {
+         const Operand& op = vec.parts[i];
          if (op.isTemp() && op.tempId() != temp.id() && op.getTemp().type() == temp.type() &&
              ctx.assignments[op.tempId()].assigned) {
             PhysReg reg = ctx.assignments[op.tempId()].reg;
@@ -1584,7 +1597,7 @@ get_reg_vector(ra_ctx& ctx, const RegisterFile& reg_file, Temp temp, aco_ptr<Ins
                return reg;
 
             /* return if MIMG vaddr components don't remain vector-aligned */
-            if (vec->format == Format::MIMG)
+            if (vec.is_weak)
                return {};
          }
          their_offset += op.bytes();
@@ -2642,12 +2655,12 @@ get_affinities(ra_ctx& ctx)
             for (const Operand& op : instr->operands) {
                if (op.isTemp() && op.isFirstKill() &&
                    op.getTemp().type() == instr->definitions[0].getTemp().type())
-                  ctx.vectors[op.tempId()] = instr.get();
+                  ctx.vectors[op.tempId()] = vector_info(instr.get());
             }
          } else if (instr->format == Format::MIMG && instr->operands.size() > 4 &&
                     !instr->mimg().strict_wqm && ctx.program->gfx_level < GFX12) {
             for (unsigned i = 3; i < instr->operands.size(); i++)
-               ctx.vectors[instr->operands[i].tempId()] = instr.get();
+               ctx.vectors[instr->operands[i].tempId()] = vector_info(instr.get(), 3, true);
          } else if (instr->opcode == aco_opcode::p_split_vector &&
                     instr->operands[0].isFirstKillBeforeDef()) {
             ctx.split_vectors[instr->operands[0].tempId()] = instr.get();
