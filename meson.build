@@ -2128,6 +2128,7 @@ if with_platform_x11
     endif
   endif
   if (with_egl or
+      with_dri or
       with_any_vk or
       with_gallium_vdpau or with_gallium_xa)
     dep_xcb_xfixes = dependency('xcb-xfixes')
