@@ -8,6 +8,9 @@
         - src/broadcom/ci/$GPU_VERSION-fails.txt
         - src/broadcom/ci/$GPU_VERSION-flakes.txt
         - src/broadcom/ci/$GPU_VERSION-skips.txt
+        - src/broadcom/ci/$VK_DRIVER-skips.txt
+        - src/broadcom/ci/$GALLIUM_DRIVER-skips.txt
+        - src/broadcom/ci/$DRIVER_NAME-skips.txt
         - src/broadcom/ci/$PIGLIT_TRACES_FILE
         - src/broadcom/cle/**/*
         - src/broadcom/clif/**/*
