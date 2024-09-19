@@ -965,6 +965,26 @@ a730_raw_magic_regs = [
         [A6XXRegs.REG_A7XX_GRAS_UNKNOWN_80F4, 0x00000000],
     ]
 
+a740_magic_regs = dict(
+        # PC_POWER_CNTL = 7,
+        TPL1_DBG_ECO_CNTL = 0x11100000,
+        GRAS_DBG_ECO_CNTL = 0x00004800,
+        SP_CHICKEN_BITS = 0x10001400,
+        UCHE_CLIENT_PF = 0x00000084,
+        # Blob uses 0x1f or 0x1f1f, however these values cause vertices
+        # corruption in some tests.
+        PC_MODE_CNTL = 0x0000003f,
+        SP_DBG_ECO_CNTL = 0x10000000,
+        RB_DBG_ECO_CNTL = 0x00000000,
+        RB_DBG_ECO_CNTL_blit = 0x00000000,  # is it even needed?
+        # HLSQ_DBG_ECO_CNTL = 0x0,
+        RB_UNKNOWN_8E01 = 0x0,
+        VPC_DBG_ECO_CNTL = 0x02000000,
+        UCHE_UNKNOWN_0E12 = 0x00000000,
+
+        RB_UNKNOWN_8E06 = 0x02080000,
+    )
+
 a740_raw_magic_regs = [
         [A6XXRegs.REG_A6XX_UCHE_CACHE_WAYS, 0x00040004],
         [A6XXRegs.REG_A6XX_TPL1_DBG_ECO_CNTL1, 0x00040724],
@@ -1146,25 +1166,7 @@ add_gpus([
         cs_shared_mem_size = 32 * 1024,
         wave_granularity = 2,
         fibers_per_sp = 128 * 2 * 16,
-        magic_regs = dict(
-            # PC_POWER_CNTL = 7,
-            TPL1_DBG_ECO_CNTL = 0x11100000,
-            GRAS_DBG_ECO_CNTL = 0x00004800,
-            SP_CHICKEN_BITS = 0x10001400,
-            UCHE_CLIENT_PF = 0x00000084,
-            # Blob uses 0x1f or 0x1f1f, however these values cause vertices
-            # corruption in some tests.
-            PC_MODE_CNTL = 0x0000003f,
-            SP_DBG_ECO_CNTL = 0x10000000,
-            RB_DBG_ECO_CNTL = 0x00000000,
-            RB_DBG_ECO_CNTL_blit = 0x00000000,  # is it even needed?
-            # HLSQ_DBG_ECO_CNTL = 0x0,
-            RB_UNKNOWN_8E01 = 0x0,
-            VPC_DBG_ECO_CNTL = 0x02000000,
-            UCHE_UNKNOWN_0E12 = 0x00000000,
-
-            RB_UNKNOWN_8E06 = 0x02080000,
-        ),
+        magic_regs = a740_magic_regs,
         raw_magic_regs = a740_raw_magic_regs,
     ))
 
@@ -1182,25 +1184,7 @@ add_gpus([
         cs_shared_mem_size = 32 * 1024,
         wave_granularity = 2,
         fibers_per_sp = 128 * 2 * 16,
-        magic_regs = dict(
-            # PC_POWER_CNTL = 7,
-            TPL1_DBG_ECO_CNTL = 0x11100000,
-            GRAS_DBG_ECO_CNTL = 0x00004800,
-            SP_CHICKEN_BITS = 0x10001400,
-            UCHE_CLIENT_PF = 0x00000084,
-            # Blob uses 0x1f or 0x1f1f, however these values cause vertices
-            # corruption in some tests.
-            PC_MODE_CNTL = 0x0000003f,
-            SP_DBG_ECO_CNTL = 0x10000000,
-            RB_DBG_ECO_CNTL = 0x00000000,
-            RB_DBG_ECO_CNTL_blit = 0x00000000,  # is it even needed?
-            # HLSQ_DBG_ECO_CNTL = 0x0,
-            RB_UNKNOWN_8E01 = 0x00000000,
-            VPC_DBG_ECO_CNTL = 0x02000000,
-            UCHE_UNKNOWN_0E12 = 0x00000000,
-
-            RB_UNKNOWN_8E06 = 0x02080000,
-        ),
+        magic_regs = a740_magic_regs,
         raw_magic_regs = [
             [A6XXRegs.REG_A6XX_UCHE_CACHE_WAYS, 0x00040004],
             [A6XXRegs.REG_A6XX_TPL1_DBG_ECO_CNTL1, 0x00000700],
