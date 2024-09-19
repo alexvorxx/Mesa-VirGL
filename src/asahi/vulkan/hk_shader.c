@@ -234,6 +234,18 @@ hk_hash_graphics_state(struct vk_physical_device *device,
    _mesa_blake3_final(&blake3_ctx, blake3_out);
 }
 
+static nir_def *
+bounds_check(nir_builder *b, nir_def *data, nir_def *offs, nir_def *bound)
+{
+   if (data->bit_size == 32 && data->num_components == 1) {
+      return nir_bounds_agx(b, data, offs, bound);
+   } else {
+      /* TODO: Optimize */
+      return nir_bcsel(b, nir_uge(b, bound, offs), data,
+                       nir_imm_zero(b, data->num_components, data->bit_size));
+   }
+}
+
 static bool
 lower_load_global_constant_offset_instr(nir_builder *b,
                                         nir_intrinsic_instr *intrin, void *data)
@@ -247,23 +259,22 @@ lower_load_global_constant_offset_instr(nir_builder *b,
 
    nir_def *base_addr = intrin->src[0].ssa;
    nir_def *offset = intrin->src[1].ssa;
-
+   nir_def *bound = NULL;
    nir_def *zero = NULL;
-   nir_def *in_bounds = NULL;
+
+   unsigned bit_size = intrin->def.bit_size;
+   assert(bit_size >= 8 && bit_size % 8 == 0);
+   unsigned byte_size = bit_size / 8;
+   unsigned load_size = byte_size * intrin->num_components;
+
    if (intrin->intrinsic == nir_intrinsic_load_global_constant_bounded) {
-      nir_def *bound = intrin->src[2].ssa;
-
-      unsigned bit_size = intrin->def.bit_size;
-      assert(bit_size >= 8 && bit_size % 8 == 0);
-      unsigned byte_size = bit_size / 8;
-
+      bound = intrin->src[2].ssa;
       zero = nir_imm_zero(b, intrin->num_components, bit_size);
-
-      unsigned load_size = byte_size * intrin->num_components;
 
       nir_def *sat_offset =
          nir_umin(b, offset, nir_imm_int(b, UINT32_MAX - (load_size - 1)));
-      in_bounds = nir_ilt(b, nir_iadd_imm(b, sat_offset, load_size - 1), bound);
+      nir_def *in_bounds =
+         nir_ilt(b, nir_iadd_imm(b, sat_offset, load_size - 1), bound);
 
       /* If we do not have soft fault, we branch to bounds check. This is slow,
        * fortunately we always have soft fault for release drivers.
@@ -274,16 +285,43 @@ lower_load_global_constant_offset_instr(nir_builder *b,
          nir_push_if(b, in_bounds);
    }
 
+   unsigned align_mul = nir_intrinsic_align_mul(intrin);
+   unsigned align_offset = nir_intrinsic_align_offset(intrin);
+
    nir_def *val = nir_build_load_global_constant(
       b, intrin->def.num_components, intrin->def.bit_size,
-      nir_iadd(b, base_addr, nir_u2u64(b, offset)),
-      .align_mul = nir_intrinsic_align_mul(intrin),
-      .align_offset = nir_intrinsic_align_offset(intrin),
-      .access = nir_intrinsic_access(intrin));
+      nir_iadd(b, base_addr, nir_u2u64(b, offset)), .align_mul = align_mul,
+      .align_offset = align_offset, .access = nir_intrinsic_access(intrin));
 
    if (intrin->intrinsic == nir_intrinsic_load_global_constant_bounded) {
       if (*has_soft_fault) {
-         val = nir_bcsel(b, in_bounds, val, zero);
+         nir_scalar offs = nir_scalar_resolved(offset, 0);
+         if (nir_scalar_is_const(offs)) {
+            unsigned offs_imm = nir_scalar_as_uint(offs);
+            /* Simplify the bounds check */
+            offs_imm &= ~(align_mul - 1);
+
+            /* In hk_buffer_addr_range, we ensure that zero-sized buffers get
+             * address 0. Why? Suppose offs_imm == 0.
+             *
+             * If the buffer is zero-sized, this is out-of-bounds. The above
+             * driver ABI ensures the calculated address is 0 + 0 == 0,
+             * returning zero
+             *
+             * Otherwise, the buffer is not zero-sized. For sufficiently large
+             * robustness granularity, that means the address is necessarily
+             * in-bounds.
+             *
+             * In both cases, the bounds check is unnecessary.
+             */
+            if (offs_imm) {
+               val = bounds_check(b, val, nir_imm_int(b, offs_imm), bound);
+            }
+         } else {
+            offset = nir_iadd_imm(b, offset, load_size);
+            val = bounds_check(b, val, offset, bound);
+         }
+
       } else {
          nir_pop_if(b, NULL);
          val = nir_if_phi(b, val, zero);
