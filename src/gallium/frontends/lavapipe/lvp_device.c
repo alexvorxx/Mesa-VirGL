@@ -1204,7 +1204,8 @@ lvp_get_properties(const struct lvp_physical_device *device, struct vk_propertie
    memset(p->deviceLUID, 0, VK_LUID_SIZE);
 
 #if LLVM_VERSION_MAJOR >= 10
-   p->subgroupSupportedOperations |= VK_SUBGROUP_FEATURE_SHUFFLE_BIT | VK_SUBGROUP_FEATURE_SHUFFLE_RELATIVE_BIT | VK_SUBGROUP_FEATURE_QUAD_BIT;
+   p->subgroupSupportedOperations |= VK_SUBGROUP_FEATURE_SHUFFLE_BIT | VK_SUBGROUP_FEATURE_SHUFFLE_RELATIVE_BIT | VK_SUBGROUP_FEATURE_QUAD_BIT |
+      VK_SUBGROUP_FEATURE_CLUSTERED_BIT;
 #endif
 
    /* Vulkan 1.2 */
