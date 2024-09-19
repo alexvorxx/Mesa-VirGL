@@ -1361,6 +1361,13 @@ opcode("imadshl_agx", 0, tint, [0, 0, 0, 0], [tint, tint, tint, tint], False,
 opcode("imsubshl_agx", 0, tint, [0, 0, 0, 0], [tint, tint, tint, tint], False,
        "", f"(src0 * src1) - (src2 << src3)")
 
+# Bounds check instruction.
+#
+# Sources: <data, end offset, bounds>
+opcode("bounds_agx", 0, tint, [0, 0, 0],
+       [tint, tint, tint], False,
+       "", "src1 <= src2 ? src0 : 0")
+
 binop_convert("interleave_agx", tuint32, tuint16, "", """
       dst = 0;
       for (unsigned bit = 0; bit < 16; bit++) {
