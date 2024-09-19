@@ -542,6 +542,11 @@ hk_lower_nir(struct hk_device *dev, nir_shader *nir,
              uint32_t set_layout_count,
              struct vk_descriptor_set_layout *const *set_layouts)
 {
+   const nir_opt_access_options access_options = {
+      .is_vulkan = true,
+   };
+   NIR_PASS_V(nir, nir_opt_access, &access_options);
+
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       NIR_PASS(_, nir, nir_lower_input_attachments,
                &(nir_input_attachment_options){
