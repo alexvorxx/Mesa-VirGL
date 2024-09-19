@@ -153,10 +153,7 @@ file like this would work ``subprojects/llvm/meson.build`` where
 
 Afterwards you can continue following the instructors to build mesa
 on :doc:`Android <../android>` and follow the steps to add the driver
-directly to an Android OS image. Please note that you'll need to set
-``-Ddri-search-path`` when building the driver, so that the loader
-will be able to find the driver libraries in the vendor partition
-``/vendor/lib(64)/egl``.
+directly to an Android OS image.
 
 Using
 -----
