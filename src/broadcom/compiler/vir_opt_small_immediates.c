@@ -32,13 +32,36 @@
 
 static bool debug;
 
+static bool
+skip_inst(struct qinst *inst)
+{
+        if (inst->qpu.type != V3D_QPU_INSTR_TYPE_ALU)
+                return true;
+
+        if (!vir_is_add(inst))
+                return false;
+
+        switch (inst->qpu.alu.add.op) {
+        case V3D_QPU_A_LDVPMV_IN:
+        case V3D_QPU_A_LDVPMG_IN:
+        case V3D_QPU_A_LDVPMD_IN:
+        case V3D_QPU_A_LDVPMP:
+        case V3D_QPU_A_STVPMV:
+        case V3D_QPU_A_STVPMD:
+        case V3D_QPU_A_STVPMP:
+                return true;
+        default:
+                return false;
+        }
+}
+
 bool
 vir_opt_small_immediates(struct v3d_compile *c)
 {
         bool progress = false;
 
         vir_for_each_inst_inorder(inst, c) {
-                if (inst->qpu.type != V3D_QPU_INSTR_TYPE_ALU)
+                if (skip_inst(inst))
                         continue;
 
                 /* The small immediate value sits in the raddr B field, so we
