@@ -660,6 +660,7 @@ typedef struct rvcn_enc_cmd_s {
    uint32_t rc_session_init;
    uint32_t rc_layer_init;
    uint32_t rc_per_pic;
+   uint32_t rc_per_pic_ex;
    uint32_t quality_params;
    uint32_t slice_header;
    uint32_t enc_params;

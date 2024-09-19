@@ -1078,7 +1078,6 @@ void radeon_enc_5_0_init(struct radeon_encoder *enc)
       enc->cmd.enc_params_av1 = RENCODE_IB_PARAM_AV1_ENCODE_PARAMS;
    }
 
-   enc->cmd.rc_per_pic = RENCODE_IB_PARAM_RATE_CONTROL_PER_PICTURE;
    enc->cmd.metadata = RENCODE_IB_PARAM_METADATA_BUFFER;
    enc->cmd.ctx_override = RENCODE_IB_PARAM_ENCODE_CONTEXT_BUFFER_OVERRIDE;
 

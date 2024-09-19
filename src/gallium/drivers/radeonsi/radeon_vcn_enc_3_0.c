@@ -95,7 +95,7 @@ static void radeon_enc_quality_params(struct radeon_encoder *enc)
 
 static void radeon_enc_rc_per_pic_ex(struct radeon_encoder *enc)
 {
-   RADEON_ENC_BEGIN(enc->cmd.rc_per_pic);
+   RADEON_ENC_BEGIN(enc->cmd.rc_per_pic_ex);
    RADEON_ENC_CS(enc->enc_pic.rc_per_pic.qp_i);
    RADEON_ENC_CS(enc->enc_pic.rc_per_pic.qp_p);
    RADEON_ENC_CS(enc->enc_pic.rc_per_pic.qp_b);
