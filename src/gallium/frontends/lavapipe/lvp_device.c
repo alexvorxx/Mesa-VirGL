@@ -168,6 +168,7 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .KHR_shader_non_semantic_info          = true,
    .KHR_shader_relaxed_extended_instruction = true,
    .KHR_shader_subgroup_extended_types    = true,
+   .KHR_shader_subgroup_rotate            = true,
    .KHR_shader_terminate_invocation       = true,
    .KHR_spirv_1_4                         = true,
    .KHR_storage_buffer_storage_class      = true,
@@ -736,6 +737,10 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
 
       /* VK_KHR_shader_relaxed_extended_instruction */
       .shaderRelaxedExtendedInstruction = true,
+
+      /* VK_KHR_shader_subgroup_rotate */
+      .shaderSubgroupRotate = true,
+      .shaderSubgroupRotateClustered = true,
    };
 }
 
@@ -1205,7 +1210,7 @@ lvp_get_properties(const struct lvp_physical_device *device, struct vk_propertie
 
 #if LLVM_VERSION_MAJOR >= 10
    p->subgroupSupportedOperations |= VK_SUBGROUP_FEATURE_SHUFFLE_BIT | VK_SUBGROUP_FEATURE_SHUFFLE_RELATIVE_BIT | VK_SUBGROUP_FEATURE_QUAD_BIT |
-      VK_SUBGROUP_FEATURE_CLUSTERED_BIT;
+      VK_SUBGROUP_FEATURE_CLUSTERED_BIT | VK_SUBGROUP_FEATURE_ROTATE_BIT_KHR | VK_SUBGROUP_FEATURE_ROTATE_CLUSTERED_BIT_KHR;
 #endif
 
    /* Vulkan 1.2 */
