@@ -1849,6 +1849,9 @@ agx_emit_alu(agx_builder *b, nir_alu_instr *instr)
       return agx_icmpsel_to(b, dst, s0, s1, s0, s1, AGX_ICOND_ULT);
    case nir_op_umax:
       return agx_icmpsel_to(b, dst, s0, s1, s0, s1, AGX_ICOND_UGT);
+   case nir_op_bounds_agx:
+      /* end offset > bound ? 0 : data */
+      return agx_icmpsel_to(b, dst, s1, s2, agx_zero(), s0, AGX_ICOND_UGT);
 
    case nir_op_iadd:
       return agx_iadd_to(b, dst, s0, s1, 0);
