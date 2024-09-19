@@ -70,6 +70,7 @@ get_device_extensions(const struct panvk_physical_device *device,
       .KHR_driver_properties = true,
       .KHR_get_memory_requirements2 = true,
       .KHR_maintenance1 = true,
+      .KHR_maintenance2 = true,
       .KHR_maintenance3 = true,
       .KHR_pipeline_executable_properties = true,
       .KHR_pipeline_library = true,
@@ -1150,28 +1151,41 @@ get_image_format_properties(struct panvk_physical_device *physical_device,
       sampleCounts |= VK_SAMPLE_COUNT_4_BIT;
    }
 
-   if (info->usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
-      if (!(format_feature_flags & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
-         goto unsupported;
+   /* From the Vulkan 1.2.199 spec:
+   *
+   *    "VK_IMAGE_CREATE_EXTENDED_USAGE_BIT specifies that the image can be
+   *    created with usage flags that are not supported for the format the
+   *    image is created with but are supported for at least one format a
+   *    VkImageView created from the image can have."
+   *
+   * If VK_IMAGE_CREATE_EXTENDED_USAGE_BIT is set, views can be created with
+   * different usage than the image so we can't always filter on usage.
+   * There is one exception to this below for storage.
+   */
+   if (!(info->flags & VK_IMAGE_CREATE_EXTENDED_USAGE_BIT)) {
+      if (info->usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
+         if (!(format_feature_flags & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+            goto unsupported;
+         }
       }
-   }
 
-   if (info->usage & VK_IMAGE_USAGE_STORAGE_BIT) {
-      if (!(format_feature_flags & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT)) {
-         goto unsupported;
+      if (info->usage & VK_IMAGE_USAGE_STORAGE_BIT) {
+         if (!(format_feature_flags & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT)) {
+            goto unsupported;
+         }
       }
-   }
 
-   if (info->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
-      if (!(format_feature_flags & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT)) {
-         goto unsupported;
+      if (info->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) {
+         if (!(format_feature_flags & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT)) {
+            goto unsupported;
+         }
       }
-   }
 
-   if (info->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
-      if (!(format_feature_flags &
-            VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) {
-         goto unsupported;
+      if (info->usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
+         if (!(format_feature_flags &
+               VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) {
+            goto unsupported;
+         }
       }
    }
 
