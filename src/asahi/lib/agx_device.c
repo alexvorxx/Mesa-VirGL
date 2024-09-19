@@ -494,12 +494,30 @@ agx_open_device(void *memctx, struct agx_device *dev)
             dev->params.gpu_generation, dev->params.gpu_variant,
             dev->params.gpu_revision + 0xA0);
 
+   /* We need a large chunk of VA space carved out for robustness. Hardware
+    * loads can shift an i32 by up to 2, for a total shift of 4. If the base
+    * address is zero, 36-bits is therefore enough to trap any zero-extended
+    * 32-bit index. For more generality we would need a larger carveout, but
+    * this is already optimal for VBOs.
+    *
+    * TODO: Maybe this should be on top instead? Might be ok.
+    */
+   uint64_t reservation = (1ull << 36);
+
    dev->guard_size = dev->params.vm_page_size;
    if (dev->params.vm_usc_start) {
       dev->shader_base = dev->params.vm_usc_start;
    } else {
       // Put the USC heap at the bottom of the user address space, 4GiB aligned
-      dev->shader_base = ALIGN_POT(dev->params.vm_user_start, 0x100000000ull);
+      dev->shader_base = ALIGN_POT(MAX2(dev->params.vm_user_start, reservation),
+                                   0x100000000ull);
+   }
+
+   if (dev->shader_base < reservation) {
+      /* Our robustness implementation requires the bottom unmapped */
+      fprintf(stderr, "Unexpected address layout, can't cope\n");
+      assert(0);
+      return false;
    }
 
    uint64_t shader_size = 0x100000000ull;
