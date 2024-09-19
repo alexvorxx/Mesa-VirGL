@@ -1042,16 +1042,6 @@ end:
 }
 
 VKAPI_ATTR void VKAPI_CALL
-panvk_GetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDevice,
-                                        VkFormat format,
-                                        VkFormatProperties *pFormatProperties)
-{
-   VK_FROM_HANDLE(panvk_physical_device, physical_device, physicalDevice);
-
-   get_format_properties(physical_device, format, pFormatProperties);
-}
-
-VKAPI_ATTR void VKAPI_CALL
 panvk_GetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDevice,
                                          VkFormat format,
                                          VkFormatProperties2 *pFormatProperties)
