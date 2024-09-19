@@ -35,7 +35,11 @@ static inline struct hk_addr_range
 hk_buffer_addr_range(const struct hk_buffer *buffer, uint64_t offset,
                      uint64_t range)
 {
-   if (buffer == NULL)
+   /* If range == 0, return a NULL pointer. Thanks to soft fault, that allows
+    * eliding robustness2 bounds checks for index = 0, as the bottom of VA space
+    * is reserved.
+    */
+   if (buffer == NULL || range == 0)
       return (struct hk_addr_range){.range = 0};
 
    return (struct hk_addr_range){
