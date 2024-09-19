@@ -1229,7 +1229,7 @@
     <field name="FB Width" size="16" start="3:0" type="uint" modifier="minus(1)"/>
     <field name="FB Height" size="16" start="3:16" type="uint" modifier="minus(1)"/>
     <field name="Layer count" size="8" start="4:0" type="uint" default="1" modifier="minus(1)"/>
-    <field name="Layer offset" size="8" start="4:8" type="uint"/>
+    <field name="Layer offset" size="9" start="4:8" type="int"/>
     <field name="Heap" size="64" start="6:0" type="address"/>
     <field name="Weights" size="256" start="8:0" type="Tiler Weights"/>
     <field name="State" size="512" start="32:0" type="Tiler State"/>
