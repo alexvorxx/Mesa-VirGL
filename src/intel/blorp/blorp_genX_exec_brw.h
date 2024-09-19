@@ -2073,6 +2073,10 @@ blorp_xy_fast_color_blit(struct blorp_batch *batch,
    struct isl_extent3d dst_align = isl_get_image_alignment(dst_surf);
 #endif
 
+#if INTEL_NEEDS_WA_16021021469
+   assert(fmtl->bpb != 96);
+#endif
+
    blorp_emit(batch, GENX(XY_FAST_COLOR_BLT), blt) {
       blt.ColorDepth = xy_color_depth(fmtl);
 
