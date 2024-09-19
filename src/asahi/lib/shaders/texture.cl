@@ -217,7 +217,7 @@ libagx_texture_load_rgb32(constant struct agx_texture_packed *ptr, uint coord,
                           bool is_float)
 {
    agx_unpack(NULL, ptr, TEXTURE, d);
-   global uint3 *data = (global uint3 *)(d.address + 12 * coord);
+   constant uint3 *data = (constant uint3 *)(d.address + 12 * coord);
 
    return (uint4)(*data, is_float ? as_uint(1.0f) : 1);
 }
