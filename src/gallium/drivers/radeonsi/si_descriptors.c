@@ -723,7 +723,7 @@ static void si_set_shader_image_desc(struct si_context *ctx, const struct pipe_i
       unsigned width = res->b.b.width0;
       unsigned height = res->b.b.height0;
       unsigned depth = res->b.b.depth0;
-      unsigned hw_level = level;
+      unsigned view_level = level;
 
       if (ctx->gfx_level <= GFX8) {
          /* Always force the base level to the selected level.
@@ -735,7 +735,7 @@ static void si_set_shader_image_desc(struct si_context *ctx, const struct pipe_i
          width = u_minify(width, level);
          height = u_minify(height, level);
          depth = u_minify(depth, level);
-         hw_level = 0;
+         view_level = 0;
       }
 
       if (access & SI_IMAGE_ACCESS_BLOCK_FORMAT_AS_UINT) {
@@ -753,7 +753,7 @@ static void si_set_shader_image_desc(struct si_context *ctx, const struct pipe_i
       }
 
       screen->make_texture_descriptor(
-         screen, tex, false, res->b.b.target, view->format, swizzle, hw_level, hw_level,
+         screen, tex, false, res->b.b.target, view->format, swizzle, view_level, view_level,
          view->u.tex.first_layer, view->u.tex.last_layer, width, height, depth, false,
          desc, fmask_desc);
       si_set_mutable_tex_desc_fields(screen, tex, &tex->surface.u.legacy.level[level], level, level,
