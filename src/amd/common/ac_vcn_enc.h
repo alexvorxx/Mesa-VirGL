@@ -28,6 +28,8 @@
 #ifndef AC_VCN_ENC_H
 #define AC_VCN_ENC_H
 
+#include "amd_family.h"
+
 #define RENCODE_IB_OP_INITIALIZE                                                    0x01000001
 #define RENCODE_IB_OP_CLOSE_SESSION                                                 0x01000002
 #define RENCODE_IB_OP_ENCODE                                                        0x01000003
@@ -797,5 +799,7 @@ typedef struct rvcn_enc_latency_s
 {
    uint32_t encode_latency;
 } rvcn_enc_latency_t;
+
+void ac_vcn_enc_init_cmds(rvcn_enc_cmd_t *cmd, enum vcn_version version);
 
 #endif
