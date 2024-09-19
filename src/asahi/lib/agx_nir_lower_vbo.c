@@ -232,13 +232,23 @@ pass(struct nir_builder *b, nir_intrinsic_instr *intr, void *data)
    nir_def *stride_offset_el =
       nir_iadd_imm(b, nir_imul_imm(b, el, stride_el), offset_el);
 
+   /* Fixing up the address is expected to be profitable for vec3 and above, as
+    * it requires 2 instructions. It is implemented with a 64GiB carveout at the
+    * bottom of memory, using soft fault to return zeroes.
+    */
+   bool rs_address_fixup = interchange_comps > 2 && ctx->rs.soft_fault;
+
+   if (ctx->rs.level >= AGX_ROBUSTNESS_D3D && rs_address_fixup) {
+      base = nir_bcsel(b, oob, nir_imm_int64(b, 0), base);
+   }
+
    /* Load the raw vector */
    nir_def *memory = nir_load_constant_agx(
       b, interchange_comps, interchange_register_size, base, stride_offset_el,
       .format = interchange_format, .base = shift);
 
-   /* TODO: Optimize per above */
-   if (ctx->rs.level >= AGX_ROBUSTNESS_D3D) {
+   /* For scalar loads, it's faster to fix up the output than the address. */
+   if (ctx->rs.level >= AGX_ROBUSTNESS_D3D && !rs_address_fixup) {
       nir_def *zero = nir_imm_zero(b, memory->num_components, memory->bit_size);
       memory = nir_bcsel(b, oob, zero, memory);
    }
