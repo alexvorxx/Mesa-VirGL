@@ -117,7 +117,10 @@ lower_tcs_impl(nir_builder *b, nir_intrinsic_instr *intr)
       return tcs_instance_id(b);
 
    case nir_intrinsic_load_invocation_id:
-      return nir_channel(b, nir_load_local_invocation_id(b), 0);
+      if (b->shader->info.tess.tcs_vertices_out == 1)
+         return nir_imm_int(b, 0);
+      else
+         return nir_channel(b, nir_load_local_invocation_id(b), 0);
 
    case nir_intrinsic_load_per_vertex_input:
       return tcs_load_input(b, intr);
