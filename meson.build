@@ -19,7 +19,7 @@ project(
 
 if host_machine.system() == 'darwin'
   add_languages('objc', native : false)
-  add_global_arguments('-fobjc-arc', language : 'objc')
+  add_project_arguments('-fobjc-arc', language : 'objc')
 endif
 
 cc = meson.get_compiler('c')
