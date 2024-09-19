@@ -212,9 +212,9 @@ lower_layer_writes(nir_shader *nir)
 
    assert(temp_layer_var);
 
-   return nir_shader_instructions_pass(
-      nir, lower_gl_pos_layer_writes,
-      nir_metadata_block_index | nir_metadata_dominance, temp_layer_var);
+   return nir_shader_instructions_pass(nir, lower_gl_pos_layer_writes,
+                                       nir_metadata_control_flow,
+                                       temp_layer_var);
 }
 #endif
 
@@ -448,7 +448,7 @@ panvk_lower_nir(struct panvk_device *dev, nir_shader *nir,
 
 #if PAN_ARCH >= 9
    NIR_PASS_V(nir, nir_shader_instructions_pass, valhall_pack_buf_idx,
-              nir_metadata_block_index | nir_metadata_dominance, NULL);
+              nir_metadata_control_flow, NULL);
 #endif
 
    if (gl_shader_stage_uses_workgroup(stage)) {
