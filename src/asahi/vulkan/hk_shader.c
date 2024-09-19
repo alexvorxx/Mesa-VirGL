@@ -616,6 +616,19 @@ hk_lower_nir(struct hk_device *dev, nir_shader *nir,
    NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_mem_ubo,
             hk_buffer_addr_format(rs->uniform_buffers));
 
+   /* Before inserting bounds checks, we want to do a fair bit of optimization.
+    * lower_load_global_constant_offset_instr has special optimizations for
+    * constant offsets, so we want as many offsets to be constant as possible.
+    */
+   bool progress;
+   do {
+      progress = false;
+      NIR_PASS(progress, nir, nir_opt_constant_folding);
+      NIR_PASS(progress, nir, nir_opt_algebraic);
+      NIR_PASS(progress, nir, nir_copy_prop);
+      NIR_PASS(progress, nir, nir_opt_dce);
+   } while (progress);
+
    bool soft_fault = agx_has_soft_fault(&dev->dev);
    NIR_PASS(_, nir, nir_shader_intrinsics_pass,
             lower_load_global_constant_offset_instr, nir_metadata_none,
