@@ -419,6 +419,28 @@ valhall_pack_buf_idx(nir_builder *b, nir_instr *instr, UNUSED void *data)
 }
 #endif
 
+static bool
+valhall_lower_get_ssbo_size(struct nir_builder *b,
+                            nir_intrinsic_instr *intr, void *data)
+{
+   if (intr->intrinsic != nir_intrinsic_get_ssbo_size)
+      return false;
+
+   b->cursor = nir_before_instr(&intr->instr);
+
+   nir_def *table_idx =
+      nir_ushr_imm(b, nir_channel(b, intr->src[0].ssa, 0), 24);
+   nir_def *res_table = nir_ior_imm(b, table_idx, pan_res_handle(62, 0));
+   nir_def *buf_idx = nir_channel(b, intr->src[0].ssa, 1);
+   nir_def *desc_offset = nir_imul_imm(b, buf_idx, PANVK_DESCRIPTOR_SIZE);
+   nir_def *size = nir_load_ubo(
+      b, 1, 32, res_table, nir_iadd_imm(b, desc_offset, 4), .range = ~0u,
+      .align_mul = PANVK_DESCRIPTOR_SIZE, .align_offset = 4);
+
+   nir_def_replace(&intr->def, size);
+   return true;
+}
+
 static void
 panvk_lower_nir(struct panvk_device *dev, nir_shader *nir,
                 uint32_t set_layout_count,
@@ -447,6 +469,9 @@ panvk_lower_nir(struct panvk_device *dev, nir_shader *nir,
               nir_address_format_64bit_global);
 
 #if PAN_ARCH >= 9
+   NIR_PASS_V(nir, nir_shader_intrinsics_pass,
+              valhall_lower_get_ssbo_size,
+              nir_metadata_control_flow, NULL);
    NIR_PASS_V(nir, nir_shader_instructions_pass, valhall_pack_buf_idx,
               nir_metadata_control_flow, NULL);
 #endif
