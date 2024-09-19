@@ -383,7 +383,8 @@ panvk_GetImageSparseMemoryRequirements2(
    uint32_t *pSparseMemoryRequirementCount,
    VkSparseImageMemoryRequirements2 *pSparseMemoryRequirements)
 {
-   panvk_stub();
+   /* Sparse images are not yet supported. */
+   *pSparseMemoryRequirementCount = 0;
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
