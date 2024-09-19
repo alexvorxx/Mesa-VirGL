@@ -73,8 +73,7 @@ a530_piglit:
   extends:
     - .baremetal-deqp-test
     - .a530-test
-  rules:
-    - !reference [.google-freedreno-manual-rules, rules]
+    - .google-freedreno-manual-rules
   parallel: 2
   variables:
     DEQP_SUITE: freedreno-a530-piglit
