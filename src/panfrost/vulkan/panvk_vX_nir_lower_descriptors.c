@@ -1179,7 +1179,14 @@ panvk_per_arch(nir_lower_descriptors)(
    struct vk_descriptor_set_layout *const *set_layouts,
    struct panvk_shader *shader)
 {
-   struct lower_desc_ctx ctx = {0};
+   struct lower_desc_ctx ctx = {
+      .add_bounds_checks =
+         rs->storage_buffers !=
+            VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT ||
+         rs->uniform_buffers !=
+            VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT ||
+         rs->images != VK_PIPELINE_ROBUSTNESS_IMAGE_BEHAVIOR_DISABLED_EXT,
+   };
    bool progress;
 
 #if PAN_ARCH <= 7
