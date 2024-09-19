@@ -752,13 +752,12 @@ static void si_set_shader_image_desc(struct si_context *ctx, const struct pipe_i
          }
       }
 
-      screen->make_texture_descriptor(
-         screen, tex, false, res->b.b.target, view->format, swizzle, view_level, view_level,
-         view->u.tex.first_layer, view->u.tex.last_layer, width, height, depth, false,
-         desc, fmask_desc);
+      si_make_texture_descriptor(screen, tex, false, res->b.b.target, view->format, swizzle,
+                                 view_level, view_level, view->u.tex.first_layer,
+                                 view->u.tex.last_layer, width, height, depth, false, desc,
+                                 fmask_desc);
       si_set_mutable_tex_desc_fields(screen, tex, &tex->surface.u.legacy.level[level], level, level,
-                                     util_format_get_blockwidth(view->format),
-                                     false, access, desc);
+                                     util_format_get_blockwidth(view->format), false, access, desc);
    }
 }
 

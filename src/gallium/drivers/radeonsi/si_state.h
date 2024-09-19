@@ -621,6 +621,14 @@ struct pb_slab *si_bindless_descriptor_slab_alloc(void *priv, unsigned heap, uns
 void si_bindless_descriptor_slab_free(void *priv, struct pb_slab *pslab);
 void si_rebind_buffer(struct si_context *sctx, struct pipe_resource *buf);
 /* si_state.c */
+void si_make_texture_descriptor(struct si_screen *screen, struct si_texture *tex,
+                                bool sampler, enum pipe_texture_target target,
+                                enum pipe_format pipe_format,
+                                const unsigned char state_swizzle[4], unsigned first_level,
+                                unsigned last_level, unsigned first_layer,
+                                unsigned last_layer, unsigned width, unsigned height,
+                                unsigned depth, bool get_bo_metadata,
+                                uint32_t *state, uint32_t *fmask_state);
 void si_init_state_compute_functions(struct si_context *sctx);
 void si_init_state_functions(struct si_context *sctx);
 void si_init_screen_state_functions(struct si_screen *sscreen);

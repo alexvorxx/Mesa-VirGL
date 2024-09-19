@@ -618,10 +618,10 @@ static void si_set_tex_bo_metadata(struct si_screen *sscreen, struct si_texture 
    bool is_array = util_texture_is_array(res->target);
    uint32_t desc[8];
 
-   sscreen->make_texture_descriptor(sscreen, tex, true, res->target,
-                                    tex->is_depth ? tex->db_render_format : res->format, swizzle, 0,
-                                    res->last_level, 0, is_array ? res->array_size - 1 : 0,
-                                    res->width0, res->height0, res->depth0, true, desc, NULL);
+   si_make_texture_descriptor(sscreen, tex, true, res->target,
+                              tex->is_depth ? tex->db_render_format : res->format, swizzle, 0,
+                              res->last_level, 0, is_array ? res->array_size - 1 : 0, res->width0,
+                              res->height0, res->depth0, true, desc, NULL);
    si_set_mutable_tex_desc_fields(sscreen, tex, &tex->surface.u.legacy.level[0], 0, 0,
                                   tex->surface.blk_w, false, 0, desc);
 

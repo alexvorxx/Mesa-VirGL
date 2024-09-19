@@ -3779,13 +3779,6 @@ static void gfx10_make_texture_descriptor(
    unsigned last_level, unsigned first_layer, unsigned last_layer, unsigned width, unsigned height,
    unsigned depth, bool get_bo_metadata, uint32_t *state, uint32_t *fmask_state)
 {
-   if (!screen->info.has_image_opcodes && !get_bo_metadata) {
-      cdna_emu_make_image_descriptor(screen, tex, sampler, target, pipe_format, state_swizzle,
-                                     first_level, last_level, first_layer, last_layer, width,
-                                     height, depth, state, fmask_state);
-      return;
-   }
-
    struct pipe_resource *res = &tex->buffer.b.b;
    const struct util_format_description *desc;
    unsigned char swizzle[4];
@@ -3890,19 +3883,26 @@ static void gfx10_make_texture_descriptor(
 /**
  * Build the sampler view descriptor for a texture (SI-GFX9).
  */
-static void si_make_texture_descriptor(struct si_screen *screen, struct si_texture *tex,
-                                       bool sampler, enum pipe_texture_target target,
-                                       enum pipe_format pipe_format,
-                                       const unsigned char state_swizzle[4], unsigned first_level,
-                                       unsigned last_level, unsigned first_layer,
-                                       unsigned last_layer, unsigned width, unsigned height,
-                                       unsigned depth, bool get_bo_metadata,
-                                       uint32_t *state, uint32_t *fmask_state)
+void si_make_texture_descriptor(struct si_screen *screen, struct si_texture *tex,
+                                bool sampler, enum pipe_texture_target target,
+                                enum pipe_format pipe_format,
+                                const unsigned char state_swizzle[4], unsigned first_level,
+                                unsigned last_level, unsigned first_layer,
+                                unsigned last_layer, unsigned width, unsigned height,
+                                unsigned depth, bool get_bo_metadata,
+                                uint32_t *state, uint32_t *fmask_state)
 {
    if (!screen->info.has_image_opcodes && !get_bo_metadata) {
       cdna_emu_make_image_descriptor(screen, tex, sampler, target, pipe_format, state_swizzle,
                                      first_level, last_level, first_layer, last_layer, width,
                                      height, depth, state, fmask_state);
+      return;
+   }
+
+   if (screen->info.gfx_level >= GFX10) {
+      gfx10_make_texture_descriptor(screen, tex, sampler, target, pipe_format, state_swizzle,
+                                    first_level, last_level, first_layer, last_layer, width,
+                                    height, depth, get_bo_metadata, state, fmask_state);
       return;
    }
 
@@ -4122,11 +4122,11 @@ static struct pipe_sampler_view *si_create_sampler_view(struct pipe_context *ctx
    view->dcc_incompatible =
       vi_dcc_formats_are_incompatible(texture, state->u.tex.first_level, state->format);
 
-   sctx->screen->make_texture_descriptor(
-      sctx->screen, tex, true, state->target, pipe_format, state_swizzle,
-      state->u.tex.first_level, state->u.tex.last_level,
-      state->u.tex.first_layer, last_layer, texture->width0, texture->height0, texture->depth0,
-      false, view->state, view->fmask_state);
+   si_make_texture_descriptor(sctx->screen, tex, true, state->target, pipe_format, state_swizzle,
+                              state->u.tex.first_level, state->u.tex.last_level,
+                              state->u.tex.first_layer, last_layer, texture->width0,
+                              texture->height0, texture->depth0, false, view->state,
+                              view->fmask_state);
 
    view->base_level_info = &surflevel[0];
    view->block_width = util_format_get_blockwidth(pipe_format);
@@ -4929,11 +4929,6 @@ void si_init_screen_state_functions(struct si_screen *sscreen)
    sscreen->b.is_format_supported = si_is_format_supported;
    sscreen->b.create_vertex_state = si_pipe_create_vertex_state;
    sscreen->b.vertex_state_destroy = si_pipe_vertex_state_destroy;
-
-   if (sscreen->info.gfx_level >= GFX10)
-      sscreen->make_texture_descriptor = gfx10_make_texture_descriptor;
-   else
-      sscreen->make_texture_descriptor = si_make_texture_descriptor;
 
    util_vertex_state_cache_init(&sscreen->vertex_state_cache,
                                 si_create_vertex_state, si_vertex_state_destroy);
