@@ -285,3 +285,22 @@ TEST_F(nir_opt_loop_test, opt_loop_peel_initial_break_nontrivial_break)
 
    nir_validate_shader(b->shader, NULL);
 }
+
+TEST_F(nir_opt_loop_test, opt_loop_peel_initial_break_deref)
+{
+   nir_loop *loop = nir_push_loop(b);
+
+   nir_deref_instr *var_deref = nir_build_deref_var(b, out_var);
+
+   nir_push_if(b, nir_imm_true(b));
+   nir_jump(b, nir_jump_break);
+   nir_pop_if(b, NULL);
+
+   nir_store_deref(b, var_deref, nir_imm_int(b, 42), 0x1);
+
+   nir_pop_loop(b, loop);
+
+   ASSERT_TRUE(nir_opt_loop(b->shader));
+
+   nir_validate_shader(b->shader, NULL);
+}
