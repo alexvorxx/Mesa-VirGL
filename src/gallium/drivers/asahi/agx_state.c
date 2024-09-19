@@ -1861,7 +1861,7 @@ agx_shader_initialize(struct agx_device *dev, struct agx_uncompiled_shader *so,
       so->info.cull_distance_size = nir->info.cull_distance_array_size;
    }
 
-   NIR_PASS(_, nir, agx_nir_lower_texture);
+   NIR_PASS(_, nir, agx_nir_lower_texture, true);
    NIR_PASS(_, nir, nir_lower_ssbo, NULL);
 
    agx_preprocess_nir(nir, dev->libagx);
@@ -2589,7 +2589,7 @@ agx_build_meta_shader_internal(struct agx_context *ctx,
                nir_address_format_62bit_generic);
 
       agx_preprocess_nir(b.shader, NULL);
-      NIR_PASS(_, b.shader, agx_nir_lower_texture);
+      NIR_PASS(_, b.shader, agx_nir_lower_texture, true);
       NIR_PASS(_, b.shader, agx_nir_lower_multisampled_image_store);
    }
 

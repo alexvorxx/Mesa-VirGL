@@ -37,11 +37,13 @@ hk_get_buffer_format_features(struct hk_physical_device *pdev,
    if (ail_pixel_format[p_format].texturable &&
        !util_format_is_depth_or_stencil(p_format)) {
 
-      features |= VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT;
-
-      /* RGB32 specially supported for uniform texel buffers only. */
+      /* Only power-of-two supported by hardware. We have common RGB32 emulation
+       * code for GL, but we don't want to use it for VK as it has a performance
+       * cost on every buffer view load.
+       */
       if (util_is_power_of_two_nonzero(util_format_get_blocksize(p_format))) {
-         features |= VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_BIT |
+         features |= VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT |
+                     VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_BIT |
                      VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT;
       }
 

@@ -130,7 +130,7 @@ coords_for_buffer_texture(nir_builder *b, nir_def *coord)
  *       return txf(texture_as_2d, vec2(x % 1024, x / 1024));
  */
 static bool
-lower_buffer_texture(nir_builder *b, nir_tex_instr *tex)
+lower_buffer_texture(nir_builder *b, nir_tex_instr *tex, bool support_rgb32)
 {
    nir_def *coord = nir_steal_tex_src(tex, nir_tex_src_coord);
    nir_def *size = nir_get_texture_size(b, tex);
@@ -150,14 +150,19 @@ lower_buffer_texture(nir_builder *b, nir_tex_instr *tex)
    /* Lower RGB32 reads if the format requires. If we are out-of-bounds, we use
     * the hardware path so we get a zero texel.
     */
-   nir_if *nif = nir_push_if(
-      b, nir_iand(b, libagx_texture_is_rgb32(b, desc), nir_inot(b, oob)));
+   nir_if *nif = NULL;
+   nir_def *rgb32 = NULL;
+   if (support_rgb32) {
+      nif = nir_push_if(
+         b, nir_iand(b, libagx_texture_is_rgb32(b, desc), nir_inot(b, oob)));
 
-   nir_def *rgb32 = nir_trim_vector(
-      b, libagx_texture_load_rgb32(b, desc, coord, nir_imm_bool(b, is_float)),
-      nir_tex_instr_dest_size(tex));
+      rgb32 = nir_trim_vector(
+         b,
+         libagx_texture_load_rgb32(b, desc, coord, nir_imm_bool(b, is_float)),
+         nir_tex_instr_dest_size(tex));
 
-   nir_push_else(b, nif);
+      nir_push_else(b, nif);
+   }
 
    /* Otherwise, lower the texture instruction to read from 2D */
    assert(coord->num_components == 1 && "buffer textures are 1D");
@@ -169,15 +174,19 @@ lower_buffer_texture(nir_builder *b, nir_tex_instr *tex)
    nir_tex_instr_add_src(tex, nir_tex_src_backend1, coord2d);
    nir_steal_tex_src(tex, nir_tex_src_sampler_handle);
    nir_steal_tex_src(tex, nir_tex_src_sampler_offset);
-   nir_block *else_block = nir_cursor_current_block(b->cursor);
-   nir_pop_if(b, nif);
 
-   /* Put it together with a phi */
-   nir_def *phi = nir_if_phi(b, rgb32, &tex->def);
-   nir_def_rewrite_uses(&tex->def, phi);
-   nir_phi_instr *phi_instr = nir_instr_as_phi(phi->parent_instr);
-   nir_phi_src *else_src = nir_phi_get_src_from_block(phi_instr, else_block);
-   nir_src_rewrite(&else_src->src, &tex->def);
+   if (support_rgb32) {
+      nir_block *else_block = nir_cursor_current_block(b->cursor);
+      nir_pop_if(b, nif);
+
+      /* Put it together with a phi */
+      nir_def *phi = nir_if_phi(b, rgb32, &tex->def);
+      nir_def_rewrite_uses(&tex->def, phi);
+      nir_phi_instr *phi_instr = nir_instr_as_phi(phi->parent_instr);
+      nir_phi_src *else_src = nir_phi_get_src_from_block(phi_instr, else_block);
+      nir_src_rewrite(&else_src->src, &tex->def);
+   }
+
    return true;
 }
 
@@ -189,6 +198,7 @@ lower_buffer_texture(nir_builder *b, nir_tex_instr *tex)
 static bool
 lower_regular_texture(nir_builder *b, nir_instr *instr, UNUSED void *data)
 {
+   bool *support_rgb32 = data;
    if (instr->type != nir_instr_type_tex)
       return false;
 
@@ -199,7 +209,7 @@ lower_regular_texture(nir_builder *b, nir_instr *instr, UNUSED void *data)
       return false;
 
    if (tex->sampler_dim == GLSL_SAMPLER_DIM_BUF)
-      return lower_buffer_texture(b, tex);
+      return lower_buffer_texture(b, tex, *support_rgb32);
 
    /* Don't lower twice */
    if (nir_tex_instr_src_index(tex, nir_tex_src_backend1) >= 0)
@@ -745,7 +755,7 @@ agx_nir_lower_texture_early(nir_shader *s, bool support_lod_bias)
 }
 
 bool
-agx_nir_lower_texture(nir_shader *s)
+agx_nir_lower_texture(nir_shader *s, bool support_rgb32)
 {
    bool progress = false;
 
@@ -782,7 +792,7 @@ agx_nir_lower_texture(nir_shader *s)
     * generates txs for array textures).
     */
    NIR_PASS(progress, s, nir_shader_instructions_pass, lower_regular_texture,
-            nir_metadata_none, NULL);
+            nir_metadata_none, &support_rgb32);
    NIR_PASS(progress, s, nir_shader_instructions_pass, lower_tex_crawl,
             nir_metadata_control_flow, NULL);
 

@@ -716,7 +716,7 @@ hk_lower_nir(struct hk_device *dev, nir_shader *nir,
                nir_metadata_control_flow, NULL);
    }
 
-   NIR_PASS(_, nir, agx_nir_lower_texture);
+   NIR_PASS(_, nir, agx_nir_lower_texture, false);
    NIR_PASS(_, nir, agx_nir_lower_multisampled_image_store);
 
    agx_preprocess_nir(nir, dev->dev.libagx);
