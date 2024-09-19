@@ -52,6 +52,8 @@ struct hk_physical_device {
 
    struct vk_sync_type syncobj_sync_type;
    const struct vk_sync_type *sync_types[2];
+
+   simple_mtx_t debug_compile_lock;
 };
 
 VK_DEFINE_HANDLE_CASTS(hk_physical_device, vk.base, VkPhysicalDevice,

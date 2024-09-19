@@ -6,6 +6,7 @@
  */
 #include "hk_shader.h"
 
+#include "agx_debug.h"
 #include "agx_device.h"
 #include "agx_helpers.h"
 #include "agx_nir_lower_gs.h"
@@ -817,7 +818,17 @@ hk_compile_nir(struct hk_device *dev, const VkAllocationCallbacks *pAllocator,
        nir->info.fs.uses_sample_shading)
       backend_key.fs.inside_sample_loop = true;
 
+   simple_mtx_t *lock = NULL;
+   if (agx_get_compiler_debug())
+      lock = &hk_device_physical(dev)->debug_compile_lock;
+
+   if (lock)
+      simple_mtx_lock(lock);
+
    agx_compile_shader_nir(nir, &backend_key, NULL, &shader->b);
+
+   if (lock)
+      simple_mtx_unlock(lock);
 
    shader->code_ptr = shader->b.binary;
    shader->code_size = shader->b.binary_size;
