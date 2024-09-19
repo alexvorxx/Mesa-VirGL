@@ -453,8 +453,8 @@ panvk_lower_nir(struct panvk_device *dev, nir_shader *nir,
       to_panvk_instance(dev->vk.physical->instance);
    gl_shader_stage stage = nir->info.stage;
 
-   NIR_PASS_V(nir, panvk_per_arch(nir_lower_descriptors), dev, set_layout_count,
-              set_layouts, shader);
+   NIR_PASS_V(nir, panvk_per_arch(nir_lower_descriptors), dev, rs,
+              set_layout_count, set_layouts, shader);
 
    NIR_PASS_V(nir, nir_split_var_copies);
    NIR_PASS_V(nir, nir_lower_var_copies);

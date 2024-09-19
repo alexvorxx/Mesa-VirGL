@@ -30,6 +30,7 @@
 #include "panvk_device.h"
 #include "panvk_shader.h"
 
+#include "vk_pipeline.h"
 #include "vk_pipeline_layout.h"
 
 #include "util/bitset.h"
@@ -1173,7 +1174,8 @@ upload_shader_desc_info(struct panvk_device *dev, struct panvk_shader *shader,
 
 bool
 panvk_per_arch(nir_lower_descriptors)(
-   nir_shader *nir, struct panvk_device *dev, uint32_t set_layout_count,
+   nir_shader *nir, struct panvk_device *dev,
+   const struct vk_pipeline_robustness_state *rs, uint32_t set_layout_count,
    struct vk_descriptor_set_layout *const *set_layouts,
    struct panvk_shader *shader)
 {
@@ -1182,9 +1184,10 @@ panvk_per_arch(nir_lower_descriptors)(
 
 #if PAN_ARCH <= 7
    ctx.ubo_addr_format = nir_address_format_32bit_index_offset;
-   ctx.ssbo_addr_format = dev->vk.enabled_features.robustBufferAccess
-                             ? nir_address_format_64bit_bounded_global
-                             : nir_address_format_64bit_global_32bit_offset;
+   ctx.ssbo_addr_format =
+      rs->storage_buffers != VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT
+         ? nir_address_format_64bit_bounded_global
+         : nir_address_format_64bit_global_32bit_offset;
 #else
    ctx.ubo_addr_format = nir_address_format_vec2_index_32bit_offset;
    ctx.ssbo_addr_format = nir_address_format_vec2_index_32bit_offset;
