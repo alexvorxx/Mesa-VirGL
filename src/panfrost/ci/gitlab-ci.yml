@@ -312,6 +312,11 @@ panfrost-t860-traces:arm64:
     - .panfrost-test
     - .lava-rk3399-gru-kevin:arm64
     - .panfrost-traces
+  variables:
+    # force fixed kernel until 6.11 is switched officially
+    FORCE_KERNEL_TAG: "v6.11-rc7-mesa-3fb8"
+    KERNEL_IMAGE_BASE: https://${S3_HOST}/${S3_KERNEL_BUCKET}/${KERNEL_REPO}/${FORCE_KERNEL_TAG}
+
 
 panfrost-g52-gl:arm64:
   parallel: 3
