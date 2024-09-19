@@ -16,25 +16,6 @@
 #define RENCODE_FW_INTERFACE_MAJOR_VERSION   1
 #define RENCODE_FW_INTERFACE_MINOR_VERSION   15
 
-#define RENCODE_IB_PARAM_CDF_DEFAULT_TABLE_BUFFER  0x00000019
-#define RENCODE_IB_PARAM_ENCODE_STATISTICS         0x0000001a
-
-#define RENCODE_AV1_IB_PARAM_SPEC_MISC             0x00300001
-#define RENCODE_AV1_IB_PARAM_BITSTREAM_INSTRUCTION 0x00300002
-
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_END   RENCODE_HEADER_INSTRUCTION_END
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY  RENCODE_HEADER_INSTRUCTION_COPY
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_ALLOW_HIGH_PRECISION_MV                   0x00000005
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_DELTA_LF_PARAMS                           0x00000006
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_READ_INTERPOLATION_FILTER                 0x00000007
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_LOOP_FILTER_PARAMS                        0x00000008
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_TILE_INFO                                 0x00000009
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_QUANTIZATION_PARAMS                       0x0000000a
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_DELTA_Q_PARAMS                            0x0000000b
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_CDEF_PARAMS                               0x0000000c
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_READ_TX_MODE                              0x0000000d
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_TILE_GROUP_OBU                            0x0000000e
-
 static void radeon_enc_sq_begin(struct radeon_encoder *enc)
 {
    rvcn_sq_header(&enc->cs, &enc->sq, true);
@@ -900,9 +881,9 @@ static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_h
          radeon_enc_code_fixed_bits(enc, enc->enc_pic.av1_spec_misc.disable_frame_end_update_cdf ? 1 : 0, 1);
 
       /*  tile_info  */
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_TILE_INFO, 0);
+      radeon_enc_av1_bs_instruction_type(enc, RENCODE_V4_AV1_BITSTREAM_INSTRUCTION_TILE_INFO, 0);
       /*  quantization_params  */
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_QUANTIZATION_PARAMS, 0);
+      radeon_enc_av1_bs_instruction_type(enc, RENCODE_V4_AV1_BITSTREAM_INSTRUCTION_QUANTIZATION_PARAMS, 0);
       /*  segmentation_enable  */
       radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
       radeon_enc_code_fixed_bits(enc, 0, 1);
@@ -1235,17 +1216,12 @@ void radeon_enc_4_0_init(struct radeon_encoder *enc)
       enc->deblocking_filter = radeon_enc_dummy;
       enc->tile_config = radeon_enc_dummy;
       enc->encode_params_codec_spec = radeon_enc_dummy;
-      enc->cmd.cdf_default_table_av1 = RENCODE_IB_PARAM_CDF_DEFAULT_TABLE_BUFFER;
-      enc->cmd.bitstream_instruction_av1 = RENCODE_AV1_IB_PARAM_BITSTREAM_INSTRUCTION;
-      enc->cmd.spec_misc_av1 = RENCODE_AV1_IB_PARAM_SPEC_MISC;
       enc->spec_misc = radeon_enc_spec_misc_av1;
       enc->encode_headers = radeon_enc_header_av1;
       enc->obu_instructions = radeon_enc_obu_instruction;
       enc->cdf_default_table = radeon_enc_cdf_default_table;
       enc->encode_params = radeon_enc_av1_encode_params;
    }
-
-   enc->cmd.enc_statistics = RENCODE_IB_PARAM_ENCODE_STATISTICS;
 
    enc->enc_pic.session_info.interface_version =
       ((RENCODE_FW_INTERFACE_MAJOR_VERSION << RENCODE_IF_MAJOR_VERSION_SHIFT) |

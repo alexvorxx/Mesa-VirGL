@@ -15,30 +15,6 @@
 #define RENCODE_FW_INTERFACE_MAJOR_VERSION   1
 #define RENCODE_FW_INTERFACE_MINOR_VERSION   3
 
-#define RENCODE_REC_SWIZZLE_MODE_256B_D_VCN5                        1
-
-#define RENCODE_IB_PARAM_RATE_CONTROL_PER_PICTURE          0x00000008
-#define RENCODE_IB_PARAM_METADATA_BUFFER                   0x0000001c
-#define RENCODE_IB_PARAM_ENCODE_CONTEXT_BUFFER_OVERRIDE    0x0000001d
-#define RENCODE_IB_PARAM_HEVC_ENCODE_PARAMS                0x00100004
-
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_END   RENCODE_HEADER_INSTRUCTION_END
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY  RENCODE_HEADER_INSTRUCTION_COPY
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_ALLOW_HIGH_PRECISION_MV                   0x00000005
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_DELTA_LF_PARAMS                           0x00000006
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_READ_INTERPOLATION_FILTER                 0x00000007
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_LOOP_FILTER_PARAMS                        0x00000008
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_CONTEXT_UPDATE_TILE_ID                    0x00000009
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_BASE_Q_IDX                                0x0000000a
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_DELTA_Q_PARAMS                            0x0000000b
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_CDEF_PARAMS                               0x0000000c
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_READ_TX_MODE                              0x0000000d
-#define RENCODE_AV1_BITSTREAM_INSTRUCTION_TILE_GROUP_OBU                            0x0000000e
-
-#define RENCODE_AV1_IB_PARAM_TILE_CONFIG                   0x00300002
-#define RENCODE_AV1_IB_PARAM_BITSTREAM_INSTRUCTION         0x00300003
-#define RENCODE_IB_PARAM_AV1_ENCODE_PARAMS                 0x00300004
-
 #define RENCODE_AV1_MIN_TILE_WIDTH                         256
 
 static void radeon_enc_cdf_default_table(struct radeon_encoder *enc)
@@ -712,7 +688,7 @@ static void radeon_enc_av1_tile_info(struct radeon_encoder *enc)
    }
 
    if (TileColsLog2 > 0 || TileRowsLog2 > 0) {
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_CONTEXT_UPDATE_TILE_ID, 0);
+      radeon_enc_av1_bs_instruction_type(enc, RENCODE_V5_AV1_BITSTREAM_INSTRUCTION_CONTEXT_UPDATE_TILE_ID, 0);
 
       radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
 
@@ -732,7 +708,7 @@ static void radeon_enc_av1_quantization_params(struct radeon_encoder *enc)
 {
    rvcn_enc_av1_spec_misc_t *p = &enc->enc_pic.av1_spec_misc;
 
-   radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_BASE_Q_IDX, 0);
+   radeon_enc_av1_bs_instruction_type(enc, RENCODE_V5_AV1_BITSTREAM_INSTRUCTION_BASE_Q_IDX, 0);
 
    radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
 
@@ -1066,20 +1042,13 @@ void radeon_enc_5_0_init(struct radeon_encoder *enc)
    } else if (u_reduce_video_profile(enc->base.profile) == PIPE_VIDEO_FORMAT_HEVC) {
       enc->encode_params_codec_spec = radeon_enc_encode_params_hevc;
       enc->spec_misc = radeon_enc_spec_misc_hevc;
-      enc->cmd.enc_params_hevc = RENCODE_IB_PARAM_HEVC_ENCODE_PARAMS;
    } else if (u_reduce_video_profile(enc->base.profile) == PIPE_VIDEO_FORMAT_AV1) {
       enc->cdf_default_table = radeon_enc_cdf_default_table;
       enc->spec_misc = radeon_enc_spec_misc_av1;
       enc->tile_config = radeon_enc_tile_config_av1;
       enc->obu_instructions = radeon_enc_obu_instruction;
       enc->encode_params_codec_spec = radeon_enc_encode_params_av1;
-      enc->cmd.tile_config_av1 = RENCODE_AV1_IB_PARAM_TILE_CONFIG;
-      enc->cmd.bitstream_instruction_av1 = RENCODE_AV1_IB_PARAM_BITSTREAM_INSTRUCTION;
-      enc->cmd.enc_params_av1 = RENCODE_IB_PARAM_AV1_ENCODE_PARAMS;
    }
-
-   enc->cmd.metadata = RENCODE_IB_PARAM_METADATA_BUFFER;
-   enc->cmd.ctx_override = RENCODE_IB_PARAM_ENCODE_CONTEXT_BUFFER_OVERRIDE;
 
    enc->enc_pic.session_info.interface_version =
       ((RENCODE_FW_INTERFACE_MAJOR_VERSION << RENCODE_IF_MAJOR_VERSION_SHIFT) |

@@ -1759,6 +1759,8 @@ struct pipe_video_codec *radeon_create_encoder(struct pipe_context *context,
 
    enc->enc_pic.use_rc_per_pic_ex = false;
 
+   ac_vcn_enc_init_cmds(&enc->cmd, sscreen->info.vcn_ip_version);
+
    if (sscreen->info.vcn_ip_version >= VCN_5_0_0) {
       radeon_enc_5_0_init(enc);
       if (sscreen->info.vcn_ip_version == VCN_5_0_0) {
