@@ -21,6 +21,7 @@
 
 #include "ac_vcn_av1_default.h"
 #include "ac_drm_fourcc.h"
+#include "ac_debug.h"
 
 #define FB_BUFFER_OFFSET             0x2000
 #define FB_BUFFER_SIZE               2048
@@ -2014,8 +2015,25 @@ static void rvcn_dec_sq_tail(struct radeon_decoder *dec)
 }
 /* flush IB to the hardware */
 static int flush(struct radeon_decoder *dec, unsigned flags,
-                 struct pipe_fence_handle **fence) {
+                 struct pipe_fence_handle **fence)
+{
+   struct si_screen *sscreen = (struct si_screen *)dec->screen;
+
    rvcn_dec_sq_tail(dec);
+
+   if (sscreen->debug_flags & DBG(IB)) {
+      struct ac_ib_parser ib_parser = {
+         .f = stderr,
+         .ib = dec->cs.current.buf,
+         .num_dw = dec->cs.current.cdw,
+         .gfx_level = sscreen->info.gfx_level,
+         .vcn_version = sscreen->info.vcn_ip_version,
+         .family = sscreen->info.family,
+         .ip_type = dec->stream_type == RDECODE_CODEC_JPEG ? AMD_IP_VCN_JPEG :
+                    dec->vcn_dec_sw_ring ? AMD_IP_VCN_ENC : AMD_IP_VCN_DEC,
+      };
+      ac_parse_ib(&ib_parser, "IB");
+   }
 
    return dec->ws->cs_flush(&dec->cs, flags, fence);
 }

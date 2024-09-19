@@ -8,6 +8,7 @@
 
 #include "radeon_vcn_enc.h"
 #include "ac_vcn_enc_av1_default_cdf.h"
+#include "ac_debug.h"
 
 #include "pipe/p_video_codec.h"
 #include "radeon_video.h"
@@ -962,6 +963,21 @@ static void radeon_vcn_enc_get_param(struct radeon_encoder *enc, struct pipe_pic
 
 static int flush(struct radeon_encoder *enc, unsigned flags, struct pipe_fence_handle **fence)
 {
+   struct si_screen *sscreen = (struct si_screen *)enc->screen;
+
+   if (sscreen->debug_flags & DBG(IB)) {
+      struct ac_ib_parser ib_parser = {
+         .f = stderr,
+         .ib = enc->cs.current.buf,
+         .num_dw = enc->cs.current.cdw,
+         .gfx_level = sscreen->info.gfx_level,
+         .vcn_version = sscreen->info.vcn_ip_version,
+         .family = sscreen->info.family,
+         .ip_type = AMD_IP_VCN_ENC,
+      };
+      ac_parse_ib(&ib_parser, "IB");
+   }
+
    return enc->ws->cs_flush(&enc->cs, flags, fence);
 }
 
