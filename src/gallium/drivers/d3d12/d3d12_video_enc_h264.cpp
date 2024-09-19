@@ -368,6 +368,7 @@ d3d12_video_encoder_update_current_frame_pic_params_info_h264(struct d3d12_video
    //
    // These need to be set here so they're available for SPS/PPS header building (reference manager updates after that, for slice header params)
    //
+   picParams.pH264PicData->TemporalLayerIndex = h264Pic->pic_ctrl.temporal_id;
    picParams.pH264PicData->pic_parameter_set_id = pH264BitstreamBuilder->get_active_pps().pic_parameter_set_id;
    picParams.pH264PicData->List0ReferenceFramesCount = 0;
    picParams.pH264PicData->List1ReferenceFramesCount = 0;

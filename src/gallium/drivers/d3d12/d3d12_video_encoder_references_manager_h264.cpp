@@ -306,7 +306,7 @@ d3d12_video_encoder_references_manager_h264::begin_frame(D3D12_VIDEO_ENCODER_PIC
       // mirror indices between DPB entries and allocation arrays
       m_CurrentFrameReferencesData.pReferenceFramesReconPictureDescriptors[i].ReconstructedPictureResourceIndex = i;
       m_CurrentFrameReferencesData.pReferenceFramesReconPictureDescriptors[i].TemporalLayerIndex =
-         0u;   // h264Pic->dpb[i].temporal_id;
+         h264Pic->dpb[i].temporal_id;
 
       //
       // Set texture allocations
@@ -332,7 +332,6 @@ d3d12_video_encoder_references_manager_h264::begin_frame(D3D12_VIDEO_ENCODER_PIC
    m_curFrameState.FrameType = d3d12_video_encoder_convert_frame_type_h264(h264Pic->picture_type);
    m_curFrameState.PictureOrderCountNumber = h264Pic->pic_order_cnt;
    m_curFrameState.FrameDecodingOrderNumber = h264Pic->slice.frame_num;
-   m_curFrameState.TemporalLayerIndex = 0u;   // h264Pic->temporal_id;
 
    ///
    /// Set MMCO info

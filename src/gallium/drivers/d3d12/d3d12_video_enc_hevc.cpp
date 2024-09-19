@@ -467,6 +467,7 @@ d3d12_video_encoder_update_current_frame_pic_params_info_hevc(struct d3d12_video
    //
    // These need to be set here so they're available for SPS/PPS header building (reference manager updates after that, for slice header params)
    //
+   picParams.pHEVCPicData->TemporalLayerIndex = hevcPic->pic.temporal_id;
    picParams.pHEVCPicData->List0ReferenceFramesCount = 0;
    picParams.pHEVCPicData->List1ReferenceFramesCount = 0;
    if ((hevcPic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_P) ||
