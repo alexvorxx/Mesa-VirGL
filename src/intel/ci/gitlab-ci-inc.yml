@@ -19,6 +19,9 @@
         - src/intel/ci/$GPU_VERSION-fails.txt
         - src/intel/ci/$GPU_VERSION-flakes.txt
         - src/intel/ci/$GPU_VERSION-skips.txt
+        - src/intel/ci/$VK_DRIVER-skips.txt
+        - src/intel/ci/$GALLIUM_DRIVER-skips.txt
+        - src/intel/ci/$DRIVER_NAME-skips.txt
         - src/intel/ci/$PIGLIT_TRACES_FILE
       when: on_success
 
