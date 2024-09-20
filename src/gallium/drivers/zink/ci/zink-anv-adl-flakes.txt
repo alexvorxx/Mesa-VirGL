@@ -833,3 +833,4 @@ wayland-dEQP-EGL.functional.wide_color.window_fp16_colorspace_bt2020_pq
 wayland-dEQP-EGL.functional.wide_color.window_fp16_colorspace_scrgb_linear
 wayland-dEQP-EGL.functional.wide_color.window_fp16_default_colorspace
 
+glx@glx-visuals-stencil -pixmap
