@@ -476,3 +476,6 @@ dEQP-VK.query_pool.performance_query.query_compute,Fail
 dEQP-VK.query_pool.performance_query.query_compute_copy,Fail
 dEQP-VK.query_pool.performance_query.query_graphic,Fail
 dEQP-VK.query_pool.performance_query.query_graphic_copy,Fail
+KHR-GL31.transform_feedback3.multiple_streams,Fail
+KHR-GL31.transform_feedback3.skip_components,Fail
+KHR-GL31.transform_feedback3.skip_multiple_buffers,Fail

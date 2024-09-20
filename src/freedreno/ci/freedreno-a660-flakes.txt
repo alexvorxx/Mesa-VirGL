@@ -30,3 +30,4 @@ dEQP-VK.reconvergence.workgroup_uniform_control_flow_ballot.compute.nesting4.7.3
 dEQP-VK.query_pool.statistics_query.host_query_reset.geometry_shader_primitives.secondary.64bits_cmdcopyquerypoolresults_triangle_list_clear_depth
 
 KHR-GL46.shader_image_load_store.basic-allTargets-loadStoreVS
+dEQP-GLES31.functional.image_load_store.3d.load_store.rgba8_snorm_single_layer

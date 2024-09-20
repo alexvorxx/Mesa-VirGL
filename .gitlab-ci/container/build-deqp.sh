@@ -17,8 +17,8 @@ set -ex -o pipefail
 # - the GLES release produces `deqp-gles*` and `deqp-egl`
 
 DEQP_VK_VERSION=1.3.9.0
-DEQP_GL_VERSION=4.6.4.1
-DEQP_GLES_VERSION=3.2.10.1
+DEQP_GL_VERSION=4.6.5.0
+DEQP_GLES_VERSION=3.2.11.0
 
 # Patches to VulkanCTS may come from commits in their repo (listed in
 # cts_commits_to_backport) or patch files stored in our repo (in the patch
@@ -212,22 +212,22 @@ if [ "${DEQP_TARGET}" != 'android' ]; then
 
     if [ "${DEQP_API}" = 'GL' ]; then
         cp \
-            /VK-GL-CTS/external/openglcts/data/mustpass/gl/khronos_mustpass/4.6.1.x/*-main.txt \
+            /VK-GL-CTS/external/openglcts/data/gl_cts/data/mustpass/gl/khronos_mustpass/main/*-main.txt \
             /deqp/mustpass/
         cp \
-            /VK-GL-CTS/external/openglcts/data/mustpass/gl/khronos_mustpass_single/4.6.1.x/*-single.txt \
+            /VK-GL-CTS/external/openglcts/data/gl_cts/data/mustpass/gl/khronos_mustpass_single/main/*-single.txt \
             /deqp/mustpass/
     fi
 
     if [ "${DEQP_API}" = 'GLES' ]; then
         cp \
-            /VK-GL-CTS/external/openglcts/data/mustpass/gles/aosp_mustpass/3.2.6.x/*.txt \
+            /VK-GL-CTS/external/openglcts/data/gl_cts/data/mustpass/gles/aosp_mustpass/main/*.txt \
             /deqp/mustpass/
         cp \
-            /VK-GL-CTS/external/openglcts/data/mustpass/egl/aosp_mustpass/3.2.6.x/egl-main.txt \
+            /VK-GL-CTS/external/openglcts/data/gl_cts/data/mustpass/egl/aosp_mustpass/main/egl-main.txt \
             /deqp/mustpass/
         cp \
-            /VK-GL-CTS/external/openglcts/data/mustpass/gles/khronos_mustpass/3.2.6.x/*-main.txt \
+            /VK-GL-CTS/external/openglcts/data/gl_cts/data/mustpass/gles/khronos_mustpass/main/*-main.txt \
             /deqp/mustpass/
     fi
 

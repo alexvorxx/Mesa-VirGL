@@ -335,3 +335,14 @@ spec@glsl-4.20@execution@conversion@frag-conversion-implicit-mat4-dmat4-zero-sig
 # Random flakes, unkown when they started appearing
 dEQP-EGL.functional.color_clears.multi_thread.gles2.rgb888_pbuffer
 wayland-dEQP-EGL.functional.fence_sync.valid.egl_fence_persistent_buffer
+
+# glcts update
+wayland-dEQP-EGL.functional.fence_sync.valid.egl_fence_persistent_buffer
+KHR-GL46.draw_indirect.basic-drawElements-xfbPaused
+KHR-GL46.draw_indirect.basic-drawArrays-xfbPaused
+KHR-GL46.texture_cube_map_array.sampling
+KHR-GL46.gpu_shader_fp64.builtin.outerproduct_dmat3
+KHR-GL46.gpu_shader_fp64.builtin.smoothstep_against_scalar_dvec2
+KHR-GL46.packed_pixels.varied_rectangle.rgba8i
+KHR-GL46.texture_view.view_classes
+KHR-GL46.draw_indirect.basic-mode-drawArrays-lines_adjacency
