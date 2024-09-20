@@ -184,7 +184,6 @@ extern "C" {
 
 #define MPC_FIELD_LIST_VPE10_COMMON(post_fix)                                                      \
     SFRB(VPECLK_R_GATE_DISABLE, VPMPC_CLOCK_CONTROL, post_fix),                                    \
-        SFRB(VPMPC_TEST_CLK_SEL, VPMPC_CLOCK_CONTROL, post_fix),                                   \
         SFRB(VPMPCC0_SOFT_RESET, VPMPC_SOFT_RESET, post_fix),                                      \
         SFRB(VPMPC_SFR0_SOFT_RESET, VPMPC_SOFT_RESET, post_fix),                                   \
         SFRB(VPMPC_SFT0_SOFT_RESET, VPMPC_SOFT_RESET, post_fix),                                   \
@@ -579,6 +578,7 @@ extern "C" {
 
 #define MPC_FIELD_LIST_VPE10(post_fix)                                                             \
     MPC_FIELD_LIST_VPE10_COMMON(post_fix),                                                         \
+        SFRB(VPMPC_TEST_CLK_SEL, VPMPC_CLOCK_CONTROL, post_fix),                                   \
         SFRB(VPMPCC_BG_BPC, VPMPCC_CONTROL, post_fix),                                             \
         SFRB(VPMPCC_GLOBAL_ALPHA, VPMPCC_CONTROL, post_fix),                                       \
         SFRB(VPMPCC_GLOBAL_GAIN, VPMPCC_CONTROL, post_fix),                                        \

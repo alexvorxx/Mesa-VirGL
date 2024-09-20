@@ -234,7 +234,6 @@ extern "C" {
         SFRB(RECOUT_HEIGHT, VPDSCL_RECOUT_SIZE, post_fix),                                         \
         SFRB(VPMPC_WIDTH, VPMPC_SIZE, post_fix), SFRB(VPMPC_HEIGHT, VPMPC_SIZE, post_fix),         \
         SFRB(ALPHA_EN, VPLB_DATA_FORMAT, post_fix),                                                \
-        SFRB(MEMORY_CONFIG, VPLB_MEMORY_CTRL, post_fix),                                           \
         SFRB(LB_MAX_PARTITIONS, VPLB_MEMORY_CTRL, post_fix),                                       \
         SFRB(LB_NUM_PARTITIONS, VPLB_MEMORY_CTRL, post_fix),                                       \
         SFRB(LB_NUM_PARTITIONS_C, VPLB_MEMORY_CTRL, post_fix),                                     \
@@ -388,15 +387,9 @@ extern "C" {
         SFRB(VPCM_DEALPHA_ABLND, VPCM_DEALPHA, post_fix),                                          \
         SFRB(VPCM_BIAS_FORMAT, VPCM_COEF_FORMAT, post_fix),                                        \
         SFRB(VPCM_POST_CSC_COEF_FORMAT, VPCM_COEF_FORMAT, post_fix),                               \
-        SFRB(VPDPP_CLOCK_ENABLE, VPDPP_CONTROL, post_fix),                                         \
         SFRB(VPECLK_G_GATE_DISABLE, VPDPP_CONTROL, post_fix),                                      \
-        SFRB(VPECLK_G_DYN_GATE_DISABLE, VPDPP_CONTROL, post_fix),                                  \
         SFRB(VPECLK_G_VPDSCL_GATE_DISABLE, VPDPP_CONTROL, post_fix),                               \
-        SFRB(VPECLK_R_GATE_DISABLE, VPDPP_CONTROL, post_fix),                                      \
-        SFRB(DISPCLK_R_GATE_DISABLE, VPDPP_CONTROL, post_fix),                                     \
-        SFRB(DISPCLK_G_GATE_DISABLE, VPDPP_CONTROL, post_fix),                                     \
         SFRB(VPDPP_FGCG_REP_DIS, VPDPP_CONTROL, post_fix),                                         \
-        SFRB(VPDPP_TEST_CLK_SEL, VPDPP_CONTROL, post_fix),                                         \
         SFRB(VPDPP_CRC_EN, VPDPP_CRC_CTRL, post_fix),                                              \
         SFRB(VPDPP_CRC_CONT_EN, VPDPP_CRC_CTRL, post_fix),                                         \
         SFRB(VPDPP_CRC_420_COMP_SEL, VPDPP_CRC_CTRL, post_fix),                                    \
@@ -424,7 +417,15 @@ extern "C" {
         SFRB(VPCM_GAMUT_REMAP_C32, VPCM_GAMUT_REMAP_C31_C32, post_fix),                            \
         SFRB(VPCM_GAMUT_REMAP_C33, VPCM_GAMUT_REMAP_C33_C34, post_fix),                            \
         SFRB(VPCM_GAMUT_REMAP_C34, VPCM_GAMUT_REMAP_C33_C34, post_fix),                            \
-        SFRB(VPCM_GAMUT_REMAP_COEF_FORMAT, VPCM_COEF_FORMAT, post_fix)
+        SFRB(VPCM_GAMUT_REMAP_COEF_FORMAT, VPCM_COEF_FORMAT, post_fix),                            \
+        SFRB(MEMORY_CONFIG, VPLB_MEMORY_CTRL, post_fix),                                           \
+        SFRB(VPECLK_G_DYN_GATE_DISABLE, VPDPP_CONTROL, post_fix),                                  \
+        SFRB(VPECLK_R_GATE_DISABLE, VPDPP_CONTROL, post_fix),                                      \
+        SFRB(DISPCLK_R_GATE_DISABLE, VPDPP_CONTROL, post_fix),                                     \
+        SFRB(DISPCLK_G_GATE_DISABLE, VPDPP_CONTROL, post_fix),                                     \
+        SFRB(VPDPP_TEST_CLK_SEL, VPDPP_CONTROL, post_fix),                                         \
+        SFRB(VPDPP_CLOCK_ENABLE, VPDPP_CONTROL, post_fix)
+
 
 #define DPP_REG_VARIABLE_LIST_VPE10_COMMON                                                         \
     reg_id_val VPCNVC_SURFACE_PIXEL_FORMAT;                                                        \
