@@ -17,6 +17,7 @@
     paths:
       - results/
   rules:
+    - !reference [.common-rules, rules]
     - !reference [.never-post-merge-rules, rules]
 
 .formatting-check:
