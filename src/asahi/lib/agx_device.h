@@ -17,6 +17,11 @@
 #include "layout.h"
 #include "unstable_asahi_drm.h"
 
+#include "vdrm.h"
+#include "virglrenderer_hw.h"
+
+#include "asahi_proto.h"
+
 // TODO: this is a lie right now
 static const uint64_t AGX_SUPPORTED_INCOMPAT_FEATURES =
    DRM_ASAHI_FEAT_MANDATORY_ZS_COMPRESSION;
@@ -61,6 +66,12 @@ struct nir_shader;
 #define BARRIER_RENDER  (1 << DRM_ASAHI_SUBQUEUE_RENDER)
 #define BARRIER_COMPUTE (1 << DRM_ASAHI_SUBQUEUE_COMPUTE)
 
+struct agx_submit_virt {
+   uint32_t vbo_res_id;
+   uint32_t extres_count;
+   struct asahi_ccmd_submit_res *extres;
+};
+
 typedef struct {
    struct agx_bo *(*bo_alloc)(struct agx_device *dev, size_t size, size_t align,
                               enum agx_bo_flags flags);
@@ -70,7 +81,7 @@ typedef struct {
    void (*bo_mmap)(struct agx_device *dev, struct agx_bo *bo);
    ssize_t (*get_params)(struct agx_device *dev, void *buf, size_t size);
    int (*submit)(struct agx_device *dev, struct drm_asahi_submit *submit,
-                 uint32_t vbo_res_id);
+                 struct agx_submit_virt *virt);
 } agx_device_ops_t;
 
 struct agx_device {

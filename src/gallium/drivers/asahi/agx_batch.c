@@ -764,6 +764,10 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
 
    uint64_t wait_seqid = p_atomic_read(&screen->flush_wait_seqid);
 
+   struct agx_submit_virt virt = {
+      .vbo_res_id = ctx->result_buf->vbo_res_id,
+   };
+
    /* Elide syncing against our own queue */
    if (wait_seqid && wait_seqid == ctx->flush_my_seqid) {
       batch_debug(batch,
@@ -859,6 +863,8 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
 
          /* And keep track of the BO for cloning the out_sync */
          shared_bos[shared_bo_count++] = bo;
+         if (dev->is_virtio)
+            virt.extres_count++;
       } else {
          /* Deal with BOs which are not externally shared, but which have been
           * written from another context within the same screen. We also need to
@@ -875,6 +881,20 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
                          agx_bo_writer_syncobj(writer));
             shared_bos[shared_bo_count++] = NULL;
          }
+      }
+   }
+
+   if (dev->is_virtio && virt.extres_count) {
+      struct agx_bo **p = shared_bos;
+      virt.extres =
+         malloc(virt.extres_count * sizeof(struct asahi_ccmd_submit_res));
+
+      for (unsigned i = 0; i < virt.extres_count; i++) {
+         while (!*p)
+            p++; // Skip inter-context slots which are not recorded here
+         virt.extres[i].res_id = (*p)->vbo_res_id;
+         virt.extres[i].flags = ASAHI_EXTRES_READ | ASAHI_EXTRES_WRITE;
+         p++;
       }
    }
 
@@ -944,7 +964,7 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
       .commands = (uint64_t)(uintptr_t)(&commands[0]),
    };
 
-   int ret = dev->ops.submit(dev, &submit, ctx->result_buf->vbo_res_id);
+   int ret = dev->ops.submit(dev, &submit, &virt);
 
    u_rwlock_rdunlock(&screen->destroy_lock);
 
@@ -1053,6 +1073,9 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
    }
 
    agx_batch_mark_submitted(batch);
+
+   if (virt.extres)
+      free(virt.extres);
 
    /* Record the last syncobj for fence creation */
    ctx->syncobj = batch->syncobj;

@@ -382,7 +382,7 @@ agx_get_params(struct agx_device *dev, void *buf, size_t size)
 
 static int
 agx_submit(struct agx_device *dev, struct drm_asahi_submit *submit,
-           uint32_t vbo_res_id)
+           struct agx_submit_virt *virt)
 {
    return drmIoctl(dev->fd, DRM_IOCTL_ASAHI_SUBMIT, submit);
 }

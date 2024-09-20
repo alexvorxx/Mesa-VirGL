@@ -194,7 +194,7 @@ out:
 
 static int
 agx_virtio_submit(struct agx_device *dev, struct drm_asahi_submit *submit,
-                  uint32_t vbo_res_id)
+                  struct agx_submit_virt *virt)
 {
    struct drm_asahi_command *commands =
       (struct drm_asahi_command *)submit->commands;
@@ -226,12 +226,17 @@ agx_virtio_submit(struct agx_device *dev, struct drm_asahi_submit *submit,
       }
    }
 
+   size_t extres_size =
+      sizeof(struct asahi_ccmd_submit_res) * virt->extres_count;
+   req_len += extres_size;
+
    struct asahi_ccmd_submit_req *req =
       (struct asahi_ccmd_submit_req *)calloc(1, req_len);
 
    req->queue_id = submit->queue_id;
-   req->result_res_id = vbo_res_id;
+   req->result_res_id = virt->vbo_res_id;
    req->command_count = submit->command_count;
+   req->extres_count = virt->extres_count;
 
    char *ptr = (char *)&req->payload;
 
@@ -251,6 +256,9 @@ agx_virtio_submit(struct agx_device *dev, struct drm_asahi_submit *submit,
          ptr += fragments_size;
       }
    }
+
+   memcpy(ptr, virt->extres, extres_size);
+   ptr += extres_size;
 
    req->hdr.cmd = ASAHI_CCMD_SUBMIT;
    req->hdr.len = req_len;

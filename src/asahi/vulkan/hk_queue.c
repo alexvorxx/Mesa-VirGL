@@ -299,7 +299,13 @@ union drm_asahi_cmd {
 static VkResult
 queue_submit_single(struct agx_device *dev, struct drm_asahi_submit *submit)
 {
-   int ret = dev->ops.submit(dev, submit, 0);
+   /* Currently we don't use the result buffer or implicit sync */
+   struct agx_submit_virt virt = {
+      .vbo_res_id = 0,
+      .extres_count = 0,
+   };
+
+   int ret = dev->ops.submit(dev, submit, &virt);
 
    /* XXX: don't trap */
    if (ret) {
