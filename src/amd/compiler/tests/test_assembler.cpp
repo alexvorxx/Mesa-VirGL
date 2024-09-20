@@ -60,6 +60,7 @@ BEGIN_TEST(assembler.long_jump.unconditional_forwards)
       return;
 
    //!BB0:
+   //! s_waitcnt_depctr 0xffe3                                     ; bfa3ffe3
    //! s_getpc_b64 s[0:1]                                          ; be801f00
    //! s_addc_u32 s0, s0, 0x20014                                  ; 8200ff00 00020014
    //! s_bitcmp1_b32 s0, 0                                         ; bf0d8000
@@ -91,12 +92,17 @@ BEGIN_TEST(assembler.long_jump.conditional_forwards)
 
       //! BB0:
       //! s_cbranch_scc1 BB1                                          ; $_
+      //~gfx10! s_waitcnt_depctr 0xffe3                               ; $_
       //! s_getpc_b64 s[0:1]                                          ; $_
+      //~gfx12! s_wait_alu 0xfffe                                     ; $_
       //~gfx12! s_sext_i32_i16 s1, s1                                 ; $_
+      //~gfx12! s_wait_alu 0xfffe                                     ; $_
       //~gfx10! s_addc_u32 s0, s0, 0x20014                            ; $_ $_
-      //~gfx12! s_add_co_ci_u32 s0, s0, 0x20014                       ; $_ $_
+      //~gfx12! s_add_co_ci_u32 s0, s0, 0x20028                       ; $_ $_
+      //~gfx12! s_wait_alu 0xfffe                                     ; $_
       //! s_bitcmp1_b32 s0, 0                                         ; $_
       //! s_bitset0_b32 s0, 0                                         ; $_
+      //~gfx12! s_wait_alu 0xfffe                                     ; $_
       //! s_setpc_b64 s[0:1]                                          ; $_
       bld.sopp(aco_opcode::s_cbranch_scc0, Definition(PhysReg(0), s2), 2);
 
@@ -130,8 +136,9 @@ BEGIN_TEST(assembler.long_jump.unconditional_backwards)
    for (unsigned i = 0; i < INT16_MAX + 1; i++)
       bld.sopp(aco_opcode::s_nop, 0);
 
+   //! s_waitcnt_depctr 0xffe3                                     ; bfa3ffe3
    //! s_getpc_b64 s[0:1]                                          ; be801f00
-   //! s_addc_u32 s0, s0, 0xfffdfffc                               ; 8200ff00 fffdfffc
+   //! s_addc_u32 s0, s0, 0xfffdfff8                               ; 8200ff00 fffdfff8
    //! s_bitcmp1_b32 s0, 0                                         ; bf0d8000
    //! s_bitset0_b32 s0, 0                                         ; be801b80
    //! s_setpc_b64 s[0:1]                                          ; be802000
@@ -157,9 +164,10 @@ BEGIN_TEST(assembler.long_jump.conditional_backwards)
    for (unsigned i = 0; i < INT16_MAX + 1; i++)
       bld.sopp(aco_opcode::s_nop, 0);
 
-   //! s_cbranch_execz BB1                                         ; bf880006
+   //! s_cbranch_execz BB1                                         ; bf880007
+   //! s_waitcnt_depctr 0xffe3                                     ; bfa3ffe3
    //! s_getpc_b64 s[0:1]                                          ; be801f00
-   //! s_addc_u32 s0, s0, 0xfffdfff8                               ; 8200ff00 fffdfff8
+   //! s_addc_u32 s0, s0, 0xfffdfff4                               ; 8200ff00 fffdfff4
    //! s_bitcmp1_b32 s0, 0                                         ; bf0d8000
    //! s_bitset0_b32 s0, 0                                         ; be801b80
    //! s_setpc_b64 s[0:1]                                          ; be802000
@@ -175,7 +183,7 @@ BEGIN_TEST(assembler.long_jump.conditional_backwards)
    finish_assembler_test();
 END_TEST
 
-BEGIN_TEST(assembler.long_jump .3f)
+BEGIN_TEST(assembler.long_jump._3f)
    if (!setup_cs(NULL, (amd_gfx_level)GFX10))
       return;
 
@@ -184,7 +192,7 @@ BEGIN_TEST(assembler.long_jump .3f)
    //! s_nop 0                                                     ; bf800000
    bld.sopp(aco_opcode::s_branch, Definition(PhysReg(0), s2), 1);
 
-   for (unsigned i = 0; i < 0x3f - 6; i++) // a unconditional long jump is 6 dwords
+   for (unsigned i = 0; i < 0x3f - 7; i++) // an unconditional long jump is 7 dwords
       bld.vop1(aco_opcode::v_nop);
    bld.sopp(aco_opcode::s_branch, Definition(PhysReg(0), s2), 2);
 
@@ -231,7 +239,8 @@ BEGIN_TEST(assembler.long_jump.discard_early_exit)
       return;
 
    //! BB0:
-   //! s_cbranch_scc1 BB1                                          ; bf850006
+   //! s_cbranch_scc1 BB1                                          ; bf850007
+   //! s_waitcnt_depctr 0xffe3                                     ; bfa3ffe3
    //! s_getpc_b64 s[0:1]                                          ; be801f00
    //! s_addc_u32 s0, s0, 0x20014                                  ; 8200ff00 00020014
    //! s_bitcmp1_b32 s0, 0                                         ; bf0d8000
