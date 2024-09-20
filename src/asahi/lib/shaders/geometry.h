@@ -274,8 +274,8 @@ static inline uint
 libagx_tcs_out_stride(uint nr_patch_out, uint out_patch_size,
                       uint64_t vtx_out_mask)
 {
-   return libagx_tcs_out_offs(out_patch_size, VARYING_SLOT_VAR0, nr_patch_out,
-                              out_patch_size, vtx_out_mask);
+   return libagx_tcs_out_offs(out_patch_size, 0, nr_patch_out, out_patch_size,
+                              vtx_out_mask);
 }
 
 /* In a tess eval shader, stride for hw vertex ID */
