@@ -32,6 +32,9 @@ enum nvk_debug {
 
    /* Use the EXT_descriptor_buffer path for all buffer views */
    NVK_DEBUG_FORCE_EDB_BVIEW = 1ull << 6,
+
+   /* Force all memory allocations to go to GART */
+   NVK_DEBUG_FORCE_GART = 1ull << 7,
 };
 
 #endif /* NVK_DEBUG_H */

@@ -86,6 +86,7 @@ nvk_init_debug_flags(struct nvk_instance *instance)
       { "vm", NVK_DEBUG_VM },
       { "no_cbuf", NVK_DEBUG_NO_CBUF },
       { "edb_bview", NVK_DEBUG_FORCE_EDB_BVIEW },
+      { "gart", NVK_DEBUG_FORCE_GART },
       { NULL, 0 },
    };
 

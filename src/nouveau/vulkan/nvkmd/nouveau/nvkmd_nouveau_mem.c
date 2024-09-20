@@ -97,6 +97,9 @@ nvkmd_nouveau_alloc_tiled_mem(struct nvkmd_dev *_dev,
       domains |= NOUVEAU_WS_BO_VRAM;
    }
 
+   if (dev->base.pdev->debug_flags & NVK_DEBUG_FORCE_GART)
+      domains = NOUVEAU_WS_BO_GART;
+
    /* TODO:
     *
     * VRAM maps on Kepler appear to be broken and we don't really know why.
