@@ -10,7 +10,7 @@ VKD3D_PROTON_COMMIT="3d46c082906c77544385d10801e4c0184f0385d9"
 
 VKD3D_PROTON_DST_DIR="/vkd3d-proton-tests"
 VKD3D_PROTON_SRC_DIR="/vkd3d-proton-src"
-VKD3D_PROTON_BUILD_DIR="/vkd3d-proton-$VKD3D_PROTON_VERSION"
+VKD3D_PROTON_BUILD_DIR="/vkd3d-proton-build"
 
 function build_arch {
   local arch="$1"
