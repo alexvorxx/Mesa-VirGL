@@ -157,6 +157,15 @@ pub extern "C" fn nil_extent4d_px_to_tl(
     extent_px.to_tl(tiling, format, sample_layout)
 }
 
+#[no_mangle]
+pub extern "C" fn nil_extent4d_px_to_B(
+    extent_px: Extent4D<units::Pixels>,
+    format: Format,
+    sample_layout: SampleLayout,
+) -> Extent4D<units::Bytes> {
+    extent_px.to_B(format, sample_layout)
+}
+
 impl Extent4D<units::Samples> {
     pub fn to_px(self, sample_layout: SampleLayout) -> Extent4D<units::Pixels> {
         self.div_ceil(sample_layout.px_extent_sa())
@@ -309,6 +318,15 @@ pub extern "C" fn nil_offset4d_px_to_tl(
     sample_layout: SampleLayout,
 ) -> Offset4D<units::Tiles> {
     offset.to_tl(tiling, format, sample_layout)
+}
+
+#[no_mangle]
+pub extern "C" fn nil_offset4d_px_to_B(
+    offset: Offset4D<units::Pixels>,
+    format: Format,
+    sample_layout: SampleLayout,
+) -> Offset4D<units::Bytes> {
+    offset.to_B(format, sample_layout)
 }
 
 impl Offset4D<units::Elements> {
