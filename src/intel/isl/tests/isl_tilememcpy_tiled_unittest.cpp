@@ -30,16 +30,25 @@
 
 #define LIN_OFF(y, tw, x) ((y * tw) + x)
 #define IMAGE_FORMAT ISL_FORMAT_R32G32B32_UINT
+#define TILEW_IMAGE_FORMAT ISL_FORMAT_R8_UINT
 
 enum TILE_CONV {LIN_TO_TILE, TILE_TO_LIN};
 
 typedef uint8_t *(*swizzle_func_t)(const uint8_t *base_addr, uint32_t pitch, uint32_t x_B, uint32_t y_px);
 
-#define TILE_COORDINATES  std::make_tuple(0, 128, 0, 32), \
-                          std::make_tuple(19, 20, 25, 32), \
-                          std::make_tuple(59, 83, 13, 32), \
-                          std::make_tuple(10, 12, 5, 8), \
-                          std::make_tuple(245, 521, 5, 8)
+#define TILE_COORDINATES                 \
+                 /* x1,  x2, y1, y2 */   \
+   std::make_tuple(  0,   1,  0,  1),    \
+   std::make_tuple(  0,   2,  0,  1),    \
+   std::make_tuple(  0,   4,  0,  1),    \
+   std::make_tuple(  0,   8,  0,  8),    \
+   std::make_tuple(  0, 128,  0, 32),    \
+   std::make_tuple( 19,  20, 25, 32),    \
+   std::make_tuple( 59,  83, 13, 32),    \
+   std::make_tuple( 10,  12,  5,  8),    \
+   std::make_tuple( 64,  65, 16, 17),    \
+   std::make_tuple(128, 129,  0, 32),    \
+   std::make_tuple(245, 521,  5,  8)
 
 struct tile_swizzle_ops {
    enum isl_tiling tiling;
@@ -250,7 +259,7 @@ void tileTFixture::compare_conv_result(uint32_t x1, uint32_t x2,
    for(uint32_t y = 0; y < y_max; y++) {
       for (uint32_t x = 0; x < x_max; x++) {
 
-         if (x < x1 || x > x2 || y < y1 || y > y2) {
+         if (x < x1 || x >= x2 || y < y1 || y >= y2) {
             if (conv == LIN_TO_TILE) {
                EXPECT_EQ(*(buf_src + LIN_OFF(y, tile_width, x)), 0xcc)
                   << "Not matching for x:" << x << " and y:" << y << std::endl;
