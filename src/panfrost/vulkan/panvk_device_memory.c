@@ -90,9 +90,11 @@ panvk_AllocateMemory(VkDevice _device,
    };
 
    if (!(device->kmod.vm->flags & PAN_KMOD_VM_FLAG_AUTO_VA)) {
+      simple_mtx_lock(&device->as.lock);
       op.va.start =
          util_vma_heap_alloc(&device->as.heap, op.va.size,
                              op.va.size > 0x200000 ? 0x200000 : 0x1000);
+      simple_mtx_unlock(&device->as.lock);
       if (!op.va.start) {
          result = vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
          goto err_put_bo;
@@ -103,7 +105,7 @@ panvk_AllocateMemory(VkDevice _device,
       pan_kmod_vm_bind(device->kmod.vm, PAN_KMOD_VM_OP_MODE_IMMEDIATE, &op, 1);
    if (ret) {
       result = vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
-      goto err_put_bo;
+      goto err_return_va;
    }
 
    mem->addr.dev = op.va.start;
@@ -136,6 +138,13 @@ panvk_AllocateMemory(VkDevice _device,
    *pMem = panvk_device_memory_to_handle(mem);
 
    return VK_SUCCESS;
+
+err_return_va:
+   if (!(device->kmod.vm->flags & PAN_KMOD_VM_FLAG_AUTO_VA)) {
+      simple_mtx_lock(&device->as.lock);
+      util_vma_heap_free(&device->as.heap, op.va.start, op.va.size);
+      simple_mtx_unlock(&device->as.lock);
+   }
 
 err_put_bo:
    pan_kmod_bo_put(mem->bo);
@@ -175,8 +184,11 @@ panvk_FreeMemory(VkDevice _device, VkDeviceMemory _mem,
       pan_kmod_vm_bind(device->kmod.vm, PAN_KMOD_VM_OP_MODE_IMMEDIATE, &op, 1);
    assert(!ret);
 
-   if (!(device->kmod.vm->flags & PAN_KMOD_VM_FLAG_AUTO_VA))
+   if (!(device->kmod.vm->flags & PAN_KMOD_VM_FLAG_AUTO_VA)) {
+      simple_mtx_lock(&device->as.lock);
       util_vma_heap_free(&device->as.heap, op.va.start, op.va.size);
+      simple_mtx_unlock(&device->as.lock);
+   }
 
    pan_kmod_bo_put(mem->bo);
    vk_device_memory_destroy(&device->vk, pAllocator, &mem->vk);

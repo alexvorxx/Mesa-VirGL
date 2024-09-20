@@ -53,15 +53,17 @@ panvk_priv_bo_create(struct panvk_device *dev, size_t size, uint32_t flags,
    };
 
    if (!(dev->kmod.vm->flags & PAN_KMOD_VM_FLAG_AUTO_VA)) {
+      simple_mtx_lock(&dev->as.lock);
       op.va.start = util_vma_heap_alloc(
          &dev->as.heap, op.va.size, op.va.size > 0x200000 ? 0x200000 : 0x1000);
+      simple_mtx_unlock(&dev->as.lock);
       if (!op.va.start)
          goto err_munmap_bo;
    }
 
    ret = pan_kmod_vm_bind(dev->kmod.vm, PAN_KMOD_VM_OP_MODE_IMMEDIATE, &op, 1);
    if (ret)
-      goto err_munmap_bo;
+      goto err_return_va;
 
    priv_bo->addr.dev = op.va.start;
 
@@ -74,6 +76,13 @@ panvk_priv_bo_create(struct panvk_device *dev, size_t size, uint32_t flags,
    p_atomic_set(&priv_bo->refcnt, 1);
 
    return priv_bo;
+
+err_return_va:
+   if (!(dev->kmod.vm->flags & PAN_KMOD_VM_FLAG_AUTO_VA)) {
+      simple_mtx_lock(&dev->as.lock);
+      util_vma_heap_free(&dev->as.heap, op.va.start, op.va.size);
+      simple_mtx_unlock(&dev->as.lock);
+   }
 
 err_munmap_bo:
    if (priv_bo->addr.host) {
@@ -110,8 +119,11 @@ panvk_priv_bo_destroy(struct panvk_priv_bo *priv_bo)
       pan_kmod_vm_bind(dev->kmod.vm, PAN_KMOD_VM_OP_MODE_IMMEDIATE, &op, 1);
    assert(!ret);
 
-   if (!(dev->kmod.vm->flags & PAN_KMOD_VM_FLAG_AUTO_VA))
+   if (!(dev->kmod.vm->flags & PAN_KMOD_VM_FLAG_AUTO_VA)) {
+      simple_mtx_lock(&dev->as.lock);
       util_vma_heap_free(&dev->as.heap, op.va.start, op.va.size);
+      simple_mtx_unlock(&dev->as.lock);
+   }
 
    if (priv_bo->addr.host) {
       ret = os_munmap(priv_bo->addr.host, pan_kmod_bo_size(priv_bo->bo));

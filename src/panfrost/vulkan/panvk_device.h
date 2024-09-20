@@ -31,6 +31,7 @@ struct panvk_device {
    struct vk_device vk;
 
    struct {
+      simple_mtx_t lock;
       struct util_vma_heap heap;
    } as;
 
