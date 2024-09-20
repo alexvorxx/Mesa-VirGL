@@ -4290,6 +4290,25 @@ frame_buffer_texture(GLuint framebuffer, GLenum target,
       }
 
       if (!no_error) {
+         /* EXT_multisampled_render_to_texture:
+
+            If samples is greater than the 
+            value of MAX_SAMPLES_EXT, then the error INVALID_VALUE is generated. 
+            An INVALID_OPERATION error is generated if samples is greater than
+            the maximum number of samples supported for target and its
+            internalformat. If samples is zero, then TEXTURE_SAMPLES_EXT is set
+            to zero, and FramebufferTexture2DMultisampleEXT behaves like
+            FramebufferTexture2D.
+          */
+         if (samples > ctx->Const.MaxSamples) {
+            _mesa_error(ctx, GL_INVALID_VALUE, "%s(invalid sample count %u)",
+                        func, samples);
+         }
+         if (samples > ctx->Const.MaxFramebufferSamples) {
+            _mesa_error(ctx, GL_INVALID_OPERATION, "%s(invalid sample count %u)",
+                        func, samples);
+         }
+
          if (!check_layered) {
             if (!check_texture_target(ctx, texObj->Target, func))
                return;
