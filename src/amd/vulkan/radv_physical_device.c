@@ -576,7 +576,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_uniform_buffer_standard_layout = true,
       .KHR_variable_pointers = true,
       .KHR_vertex_attribute_divisor = true,
-      .KHR_video_maintenance1 = true,
+      .KHR_video_maintenance1 = pdev->video_decode_enabled || pdev->video_encode_enabled,
       .KHR_video_queue = pdev->video_decode_enabled || pdev->video_encode_enabled,
       .KHR_video_decode_av1 = (pdev->info.vcn_ip_version >= VCN_3_0_0 && pdev->info.vcn_ip_version != VCN_3_0_33 &&
                                VIDEO_CODEC_AV1DEC && pdev->video_decode_enabled),
