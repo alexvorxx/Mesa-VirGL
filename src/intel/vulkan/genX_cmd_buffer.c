@@ -2098,9 +2098,12 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
       case ANV_DESCRIPTOR_SET_COLOR_ATTACHMENTS:
          /* Color attachment binding */
          assert(shader->stage == MESA_SHADER_FRAGMENT);
-         if (binding->index < cmd_buffer->state.gfx.color_att_count) {
+         uint32_t index = binding->index < MAX_RTS ?
+            cmd_buffer->state.gfx.color_output_mapping[binding->index] :
+            binding->index;
+         if (index < cmd_buffer->state.gfx.color_att_count) {
             const struct anv_attachment *att =
-               &cmd_buffer->state.gfx.color_att[binding->index];
+               &cmd_buffer->state.gfx.color_att[index];
             surface_state = att->surface_state.state;
          } else {
             surface_state = cmd_buffer->state.gfx.null_surface_state;

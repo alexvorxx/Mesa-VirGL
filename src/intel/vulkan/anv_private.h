@@ -3822,11 +3822,10 @@ struct anv_cmd_graphics_state {
    struct anv_attachment stencil_att;
    struct anv_state null_surface_state;
 
-   /* Bitfield of color attachments disabled by a pipeline (pointing a null
-    * surface state in the last emitted binding table for the fragment
-    * stage)
+   /* Map of color output from the last dispatched fragment shader to color
+    * attachments in the render pass.
     */
-   uint8_t disabled_color_atts;
+   uint8_t color_output_mapping[MAX_RTS];
 
    anv_cmd_dirty_mask_t dirty;
    uint32_t vb_dirty;
@@ -4780,6 +4779,13 @@ struct anv_graphics_pipeline {
     */
    uint32_t                                     vertex_input_elems;
    uint32_t                                     vertex_input_data[2 * 31 /* MAX_VES + 2 internal */];
+
+   /* Number of color outputs used by the fragment shader. */
+   uint8_t                                      num_color_outputs;
+   /* Map of color output of the fragment shader to color attachments in the
+    * render pass.
+    */
+   uint8_t                                      color_output_mapping[MAX_RTS];
 
    /* Pre computed CS instructions that can directly be copied into
     * anv_cmd_buffer.
@@ -5901,7 +5907,8 @@ static inline const struct anv_surface_state *
 anv_image_view_texture_surface_state(const struct anv_image_view *iview,
                                      uint32_t plane, VkImageLayout layout)
 {
-   return layout == VK_IMAGE_LAYOUT_GENERAL ?
+   return (layout == VK_IMAGE_LAYOUT_GENERAL ||
+           layout == VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR) ?
           &iview->planes[plane].general_sampler :
           &iview->planes[plane].optimal_sampler;
 }

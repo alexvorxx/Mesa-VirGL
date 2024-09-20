@@ -689,35 +689,24 @@ genX(emit_ds)(struct anv_cmd_buffer *cmd_buffer)
 
 ALWAYS_INLINE static void
 cmd_buffer_maybe_flush_rt_writes(struct anv_cmd_buffer *cmd_buffer,
-                                 struct anv_graphics_pipeline *pipeline)
+                                 const struct anv_graphics_pipeline *pipeline)
 {
-#if GFX_VER >= 11
    if (!anv_pipeline_has_stage(pipeline, MESA_SHADER_FRAGMENT))
       return;
 
-   const struct anv_shader_bin *shader =
-      pipeline->base.shaders[MESA_SHADER_FRAGMENT];
-   const struct anv_pipeline_bind_map *bind_map = &shader->bind_map;
-
-   unsigned s;
-   uint8_t disabled_mask = 0;
-   for (s = 0; s < bind_map->surface_count; s++) {
-      const struct anv_pipeline_binding *binding =
-         &bind_map->surface_to_descriptor[s];
-
-      if (binding->set != ANV_DESCRIPTOR_SET_COLOR_ATTACHMENTS)
-         break;
-
-      if (binding->index >= cmd_buffer->state.gfx.color_att_count)
-         disabled_mask |= BITFIELD_BIT(s);
+   UNUSED bool need_rt_flush = false;
+   if (memcmp(cmd_buffer->state.gfx.color_output_mapping,
+              pipeline->color_output_mapping,
+              pipeline->num_color_outputs)) {
+      memcpy(cmd_buffer->state.gfx.color_output_mapping,
+             pipeline->color_output_mapping,
+             pipeline->num_color_outputs);
+      need_rt_flush = true;
+      cmd_buffer->state.descriptors_dirty |= VK_SHADER_STAGE_FRAGMENT_BIT;
    }
 
-   const uint8_t diff_mask = (1u << s) - 1;
-
-   if ((cmd_buffer->state.gfx.disabled_color_atts & diff_mask) != disabled_mask) {
-      cmd_buffer->state.gfx.disabled_color_atts = disabled_mask |
-         (cmd_buffer->state.gfx.disabled_color_atts & ~diff_mask);
-
+#if GFX_VER >= 11
+   if (need_rt_flush) {
       /* The PIPE_CONTROL command description says:
        *
        *    "Whenever a Binding Table Index (BTI) used by a Render Target Message

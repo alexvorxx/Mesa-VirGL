@@ -2113,7 +2113,8 @@ anv_image_view_surface_data_for_plane_layout(struct anv_image_view *image_view,
    if (desc_type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
        desc_type == VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE ||
        desc_type == VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT) {
-      return layout == VK_IMAGE_LAYOUT_GENERAL ?
+      return (layout == VK_IMAGE_LAYOUT_GENERAL ||
+              layout == VK_IMAGE_LAYOUT_RENDERING_LOCAL_READ_KHR) ?
          &image_view->planes[plane].general_sampler.state_data :
          &image_view->planes[plane].optimal_sampler.state_data;
    }

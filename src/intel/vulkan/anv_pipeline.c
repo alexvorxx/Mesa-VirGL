@@ -2969,6 +2969,36 @@ anv_graphics_pipeline_emit(struct anv_graphics_pipeline *pipeline,
       pipeline->min_sample_shading = state->ms->min_sample_shading;
    }
 
+   if (anv_pipeline_has_stage(pipeline, MESA_SHADER_FRAGMENT)) {
+      /* Count the number of color attachments in the binding table */
+      const struct anv_pipeline_bind_map *bind_map =
+         &pipeline->base.shaders[MESA_SHADER_FRAGMENT]->bind_map;
+
+      memset(pipeline->color_output_mapping,
+             MESA_VK_ATTACHMENT_UNUSED,
+             sizeof(pipeline->color_output_mapping));
+
+      if (state->cal != NULL) {
+         for (uint32_t i = 0; i < MAX_RTS; i++) {
+            if (state->cal->color_map[i] != MESA_VK_ATTACHMENT_UNUSED)
+               pipeline->color_output_mapping[state->cal->color_map[i]] = i;
+         }
+
+         unsigned i;
+         for (i = 0; i < MIN2(bind_map->surface_count, MAX_RTS); i++) {
+            if (bind_map->surface_to_descriptor[i].set !=
+                ANV_DESCRIPTOR_SET_COLOR_ATTACHMENTS)
+               break;
+
+            /* Helping Alpine builders... */
+            assert(i < MAX_RTS);
+            if (bind_map->surface_to_descriptor[i].index >= MAX_RTS)
+               pipeline->color_output_mapping[i] = MESA_VK_ATTACHMENT_UNUSED;
+         }
+         pipeline->num_color_outputs = i;
+      }
+   }
+
    const struct anv_device *device = pipeline->base.base.device;
    const struct intel_device_info *devinfo = device->info;
    anv_genX(devinfo, graphics_pipeline_emit)(pipeline, state);
