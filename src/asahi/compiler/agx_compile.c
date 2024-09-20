@@ -70,6 +70,18 @@ agx_cached_preload(agx_context *ctx, unsigned base, enum agx_size size)
 }
 
 static agx_index
+agx_tess_coord_x(agx_builder *b)
+{
+   return agx_cached_preload(b->shader, 4, AGX_SIZE_32);
+}
+
+static agx_index
+agx_tess_coord_y(agx_builder *b)
+{
+   return agx_cached_preload(b->shader, 6, AGX_SIZE_32);
+}
+
+static agx_index
 agx_vertex_id(agx_builder *b)
 {
    return agx_cached_preload(b->shader, 10, AGX_SIZE_32);
@@ -1264,7 +1276,7 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
       return NULL;
 
    case nir_intrinsic_store_uvs_agx:
-      assert(stage == MESA_SHADER_VERTEX);
+      assert(stage == MESA_SHADER_VERTEX || stage == MESA_SHADER_TESS_EVAL);
       return agx_st_vary(b, agx_src_index(&instr->src[1]),
                          agx_src_index(&instr->src[0]));
 
@@ -1359,8 +1371,19 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
       /* We don't assert the HW stage since we use this same ABI with SW VS */
       return agx_mov_to(b, dst, agx_abs(agx_vertex_id(b)));
 
+   case nir_intrinsic_load_primitive_id:
+      assert(stage == MESA_SHADER_TESS_EVAL);
+      return agx_mov_to(b, dst, agx_abs(agx_vertex_id(b)));
+
    case nir_intrinsic_load_instance_id:
       return agx_mov_to(b, dst, agx_abs(agx_instance_id(b)));
+
+   case nir_intrinsic_load_tess_coord_xy: {
+      assert(stage == MESA_SHADER_TESS_EVAL);
+
+      agx_index coords[] = {agx_tess_coord_x(b), agx_tess_coord_y(b)};
+      return agx_emit_collect_to(b, dst, 2, coords);
+   }
 
    case nir_intrinsic_load_preamble:
       return agx_emit_load_preamble(b, dst, instr);
@@ -3441,8 +3464,9 @@ agx_compile_function_nir(nir_shader *nir, nir_function_impl *impl,
          out->scratch_size = stack_size;
    }
 
-   if (ctx->stage == MESA_SHADER_VERTEX && !impl->function->is_preamble &&
-       !ctx->key->secondary)
+   if ((ctx->stage == MESA_SHADER_VERTEX ||
+        ctx->stage == MESA_SHADER_TESS_EVAL) &&
+       !impl->function->is_preamble && !ctx->key->secondary)
       agx_set_st_vary_final(ctx);
 
    agx_insert_waits(ctx);
@@ -3748,7 +3772,8 @@ agx_compile_shader_nir(nir_shader *nir, struct agx_shader_key *key,
       BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_BASE_VERTEX) ||
       BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_BASE_INSTANCE);
 
-   if (nir->info.stage == MESA_SHADER_VERTEX) {
+   if (nir->info.stage == MESA_SHADER_VERTEX ||
+       nir->info.stage == MESA_SHADER_TESS_EVAL) {
       info->nonzero_viewport = nir->info.outputs_written & VARYING_BIT_VIEWPORT;
 
       info->writes_layer_viewport =

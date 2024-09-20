@@ -1503,8 +1503,10 @@ agx_ra(agx_context *ctx)
 
    /* Vertex shaders preload the vertex/instance IDs (r5, r6) even if the shader
     * don't use them. Account for that so the preload doesn't clobber GPRs.
+    * Hardware tessellation eval shaders preload patch/instance IDs there.
     */
-   if (ctx->nir->info.stage == MESA_SHADER_VERTEX)
+   if (ctx->nir->info.stage == MESA_SHADER_VERTEX ||
+       ctx->nir->info.stage == MESA_SHADER_TESS_EVAL)
       ctx->max_reg = MAX2(ctx->max_reg, 6 * 2);
 
    assert(ctx->max_reg <= max_regs);
