@@ -313,12 +313,12 @@ __vk_errorv(const void *_obj, VkResult error,
       char *message = ralloc_vasprintf(NULL, format, va);
 
       if (object) {
-         __vk_log(VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+         __vk_log(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
                   VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT,
                   VK_LOG_OBJS(object), file, line,
                   "%s (%s)", message, error_str);
       } else {
-         __vk_log(VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+         __vk_log(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
                   VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT,
                   VK_LOG_NO_OBJS(instance), file, line,
                   "%s (%s)", message, error_str);
@@ -327,12 +327,12 @@ __vk_errorv(const void *_obj, VkResult error,
       ralloc_free(message);
    } else {
       if (object) {
-         __vk_log(VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+         __vk_log(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
                   VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT,
                   VK_LOG_OBJS(object), file, line,
                   "%s", error_str);
       } else {
-         __vk_log(VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+         __vk_log(VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT,
                   VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT,
                   VK_LOG_NO_OBJS(instance), file, line,
                   "%s", error_str);
