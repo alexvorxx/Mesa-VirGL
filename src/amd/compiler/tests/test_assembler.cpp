@@ -694,11 +694,19 @@ BEGIN_TEST(assembler.mtbuf)
          ->mtbuf()
          .cache = cache_sys_coherent;
 
-      //; if llvm_ver >= 16 and variant == 'gfx11':
+      //; if llvm_ver >= 19 and variant == 'gfx11':
+      //;    insert_pattern('(invalid instruction) ; e9900000')
+      //;    insert_pattern('s_add_u32 s40, 0, s42 ; 80282a80')
+      //; elif llvm_ver >= 19 and variant == 'gfx12':
+      //;    insert_pattern('(invalid instruction) ; c460007c')
+      //;    insert_pattern('v_mul_hi_u32_u24_e32 v128, s42, v32 ; 1900402a')
+      //;    insert_pattern('(invalid instruction) ; 00000080')
+      //; elif llvm_ver >= 16 and variant == 'gfx11':
       //;    insert_pattern('tbuffer_load_format_x v42, off, s[32:35], 0 format:[BUF_FMT_32_32_FLOAT] ; e9900000 80282a80')
       //; elif variant == 'gfx11':
       //;    insert_pattern('tbuffer_load_format_x v42, off, s[32:35], 0 format:[BUF_FMT_32_32_FLOAT] tfe ; e9900000 80282a80')
-      //~gfx12! tbuffer_load_format_x v42, off, s[32:35], null format:[BUF_FMT_32_32_FLOAT] ; c460007c 1900402a 00000080
+      //; elif variant == 'gfx12':
+      //;    insert_pattern('tbuffer_load_format_x v42, off, s[32:35], null format:[BUF_FMT_32_32_FLOAT] ; c460007c 1900402a 00000080')
       bld.mtbuf(aco_opcode::tbuffer_load_format_x, dst, op_s4, Operand(v1), Operand::zero(), dfmt,
                 nfmt, 0, false)
          ->mtbuf()
@@ -847,18 +855,18 @@ BEGIN_TEST(assembler.mimg)
       //~gfx12! image_store v[30:33], v10, s[64:71] dmask:0xf dim:SQ_RSRC_IMG_1D ; d3c18000 0000801e 0000000a
       bld.mimg(aco_opcode::image_store, op_s8, Operand(s4), op_v4, op_v1);
 
-      //~gfx11! image_atomic_add v10, v20, s[64:71] dmask:0xf dim:SQ_RSRC_IMG_2D ; f0300f04 00100a14
-      //~gfx12! image_atomic_add_uint v10, [v20, v21, v0, v0], s[64:71] dmask:0xf dim:SQ_RSRC_IMG_2D ; d3c30001 0000800a 00001514
+      //~gfx11! image_atomic_add v10, v[20:21], s[64:71] dmask:0x1 dim:SQ_RSRC_IMG_2D ; f0300104 00100a14
+      //~gfx12! image_atomic_add_uint v10, [v20, v21], s[64:71] dmask:0x1 dim:SQ_RSRC_IMG_2D ; d0430001 0000800a 00001514
       bld.mimg(aco_opcode::image_atomic_add, Definition(op_v1.physReg(), v1), op_s8, Operand(s4),
-               op_v1, op_v2)
+               op_v1, op_v2, 0x1)
          ->mimg()
          .dim = ac_image_2d;
 
       /* Atomic with return */
-      //~gfx11! image_atomic_add v10, v20, s[64:71] dmask:0xf dim:SQ_RSRC_IMG_2D glc ; f0304f04 00100a14
-      //~gfx12! image_atomic_add_uint v10, [v20, v21, v0, v0], s[64:71] dmask:0xf dim:SQ_RSRC_IMG_2D th:TH_ATOMIC_RETURN ; d3c30001 0010800a 00001514
+      //~gfx11! image_atomic_add v10, v[20:21], s[64:71] dmask:0x1 dim:SQ_RSRC_IMG_2D glc ; f0304104 00100a14
+      //~gfx12! image_atomic_add_uint v10, [v20, v21], s[64:71] dmask:0x1 dim:SQ_RSRC_IMG_2D th:TH_ATOMIC_RETURN ; d0430001 0010800a 00001514
       bld.mimg(aco_opcode::image_atomic_add, Definition(op_v1.physReg(), v1), op_s8, Operand(s4),
-               op_v1, op_v2, 0xf, false, false, false, cache_atomic_rtn)
+               op_v1, op_v2, 0x1, false, false, false, cache_atomic_rtn)
          ->mimg()
          .dim = ac_image_2d;
 
@@ -1303,6 +1311,8 @@ BEGIN_TEST(assembler.vopd)
    for (amd_gfx_level gfx : filter_gfx_levels({GFX11, GFX12})) {
       if (!setup_cs(NULL, gfx))
          continue;
+
+      program->wave_size = 32;
 
       Definition dst_v0 = bld.def(v1);
       dst_v0.setFixed(PhysReg(256));
