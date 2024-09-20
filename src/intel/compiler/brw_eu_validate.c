@@ -63,6 +63,8 @@ typedef struct brw_hw_decoded_inst {
       /* These are already physical register numbers. */
       unsigned nr;
       unsigned subnr;
+
+      unsigned hstride;
    } dst;
 
    unsigned num_sources;
@@ -76,6 +78,10 @@ typedef struct brw_hw_decoded_inst {
       /* These are already physical register numbers. */
       unsigned nr;
       unsigned subnr;
+
+      unsigned vstride;
+      unsigned width;
+      unsigned hstride;
    } src[3];
 } brw_hw_decoded_inst;
 
@@ -223,21 +229,11 @@ src1_is_acc(const brw_hw_decoded_inst *inst)
 }
 
 static bool
-src0_has_scalar_region(const struct intel_device_info *devinfo,
-                       const brw_inst *inst)
+src_has_scalar_region(const brw_hw_decoded_inst *inst, int src)
 {
-   return brw_inst_src0_vstride(devinfo, inst) == BRW_VERTICAL_STRIDE_0 &&
-          brw_inst_src0_width(devinfo, inst) == BRW_WIDTH_1 &&
-          brw_inst_src0_hstride(devinfo, inst) == BRW_HORIZONTAL_STRIDE_0;
-}
-
-static bool
-src1_has_scalar_region(const struct intel_device_info *devinfo,
-                       const brw_inst *inst)
-{
-   return brw_inst_src1_vstride(devinfo, inst) == BRW_VERTICAL_STRIDE_0 &&
-          brw_inst_src1_width(devinfo, inst) == BRW_WIDTH_1 &&
-          brw_inst_src1_hstride(devinfo, inst) == BRW_HORIZONTAL_STRIDE_0;
+   return inst->src[src].vstride == 0 &&
+          inst->src[src].width == 1 &&
+          inst->src[src].hstride == 0;
 }
 
 static struct string
@@ -690,13 +686,13 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
        *    math operation.
        */
       ERROR_IF(inst->src[0].type == BRW_TYPE_HF &&
-               src0_has_scalar_region(devinfo, inst->raw),
+               src_has_scalar_region(inst, 0),
                "Scalar broadcast on HF math (packed or unpacked) must not "
                "be used.");
 
       if (inst->num_sources > 1) {
          ERROR_IF(inst->src[1].type == BRW_TYPE_HF &&
-                  src1_has_scalar_region(devinfo, inst->raw),
+                  src_has_scalar_region(inst, 1),
                   "Scalar broadcast on HF math (packed or unpacked) must not "
                   "be used.");
       }
@@ -717,7 +713,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
     * In fact, checking it would weaken testing of the other rules.
     */
 
-   unsigned dst_stride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
+   unsigned dst_stride = inst->dst.hstride;
    bool dst_type_is_byte =
       inst->dst.type == BRW_TYPE_B ||
       inst->dst.type == BRW_TYPE_UB;
@@ -903,22 +899,22 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
 
    if (inst->access_mode == BRW_ALIGN_16) {
       if (inst->has_dst && !dst_is_null(inst))
-         ERROR_IF(brw_inst_dst_hstride(devinfo, inst->raw) != BRW_HORIZONTAL_STRIDE_1,
+         ERROR_IF(inst->dst.hstride != 1,
                   "Destination Horizontal Stride must be 1");
 
       if (inst->num_sources >= 1) {
          ERROR_IF(inst->src[0].file != IMM &&
-                  brw_inst_src0_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_0 &&
-                  brw_inst_src0_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_2 &&
-                  brw_inst_src0_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_4,
+                  inst->src[0].vstride != 0 &&
+                  inst->src[0].vstride != 2 &&
+                  inst->src[0].vstride != 4,
                   "In Align16 mode, only VertStride of 0, 2, or 4 is allowed");
       }
 
       if (inst->num_sources == 2) {
          ERROR_IF(inst->src[1].file != IMM &&
-                  brw_inst_src1_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_0 &&
-                  brw_inst_src1_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_2 &&
-                  brw_inst_src1_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_4,
+                  inst->src[1].vstride != 0 &&
+                  inst->src[1].vstride != 2 &&
+                  inst->src[1].vstride != 4,
                   "In Align16 mode, only VertStride of 0, 2, or 4 is allowed");
       }
 
@@ -926,26 +922,15 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
    }
 
    for (unsigned i = 0; i < inst->num_sources; i++) {
-      unsigned vstride, width, hstride;
-
       if (inst->src[i].file == IMM)
          continue;
 
       enum brw_reg_type type = inst->src[i].type;
       unsigned element_size = brw_type_size_bytes(type);
       unsigned subreg = inst->src[i].subnr;
-
-#define DO_SRC(n)                                                              \
-      vstride = STRIDE(brw_inst_src ## n ## _vstride(devinfo, inst->raw));     \
-      width = WIDTH(brw_inst_src ## n ## _width(devinfo, inst->raw));          \
-      hstride = STRIDE(brw_inst_src ## n ## _hstride(devinfo, inst->raw));     \
-
-      if (i == 0) {
-         DO_SRC(0);
-      } else {
-         DO_SRC(1);
-      }
-#undef DO_SRC
+      unsigned vstride = inst->src[i].vstride;
+      unsigned width = inst->src[i].width;
+      unsigned hstride = inst->src[i].hstride;
 
       /* ExecSize must be greater than or equal to Width. */
       ERROR_IF(inst->exec_size < width, "ExecSize must be greater than or equal "
@@ -1019,7 +1004,7 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
 
    /* Dst.HorzStride must not be 0. */
    if (inst->has_dst && !dst_is_null(inst)) {
-      ERROR_IF(brw_inst_dst_hstride(devinfo, inst->raw) == BRW_HORIZONTAL_STRIDE_0,
+      ERROR_IF(inst->dst.hstride == 0,
                "Destination Horizontal Stride must not be 0");
    }
 
@@ -1048,7 +1033,7 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
                                  inst->src[1].type : 0;
    enum brw_reg_type dst_type = inst->dst.type;
 
-   unsigned dst_stride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
+   unsigned dst_stride = inst->dst.hstride;
    bool dst_is_packed = is_packed(inst->exec_size * dst_stride, inst->exec_size, dst_stride);
 
    /* From the SKL PRM, Special Restrictions for Handling Mixed Mode
@@ -1087,11 +1072,11 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
        * it means that vertical stride must always be 4, since 0 and 2 would
        * lead to replicated data, and any other value is disallowed in Align16.
        */
-      ERROR_IF(brw_inst_src0_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_4,
+      ERROR_IF(inst->src[0].vstride != 4,
                "Align16 mixed float mode assumes packed data (vstride must be 4");
 
       ERROR_IF(inst->num_sources >= 2 &&
-               brw_inst_src1_vstride(devinfo, inst->raw) != BRW_VERTICAL_STRIDE_4,
+               inst->src[1].vstride != 4,
                "Align16 mixed float mode assumes packed data (vstride must be 4");
 
       /* From the SKL PRM, Special Restrictions for Handling Mixed Mode
@@ -1159,12 +1144,12 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
        */
       if (opcode == BRW_OPCODE_MATH) {
          if (src0_type == BRW_TYPE_HF) {
-            ERROR_IF(STRIDE(brw_inst_src0_hstride(devinfo, inst->raw)) <= 1,
+            ERROR_IF(inst->src[0].hstride <= 1,
                      "Align1 mixed mode math needs strided half-float inputs");
          }
 
          if (inst->num_sources >= 2 && src1_type == BRW_TYPE_HF) {
-            ERROR_IF(STRIDE(brw_inst_src1_hstride(devinfo, inst->raw)) <= 1,
+            ERROR_IF(inst->src[1].hstride <= 1,
                      "Align1 mixed mode math needs strided half-float inputs");
          }
       }
@@ -1348,8 +1333,6 @@ region_alignment_rules(const struct brw_isa_info *isa,
    memset(src1_access_mask, 0, sizeof(src1_access_mask));
 
    for (unsigned i = 0; i < inst->num_sources; i++) {
-      unsigned vstride, width, hstride;
-
       /* In Direct Addressing mode, a source cannot span more than 2 adjacent
        * GRF registers.
        */
@@ -1363,11 +1346,11 @@ region_alignment_rules(const struct brw_isa_info *isa,
       enum brw_reg_type type = inst->src[i].type;
       unsigned element_size = brw_type_size_bytes(type);
       unsigned subreg = inst->src[i].subnr;
+      unsigned vstride = inst->src[i].vstride;
+      unsigned width = inst->src[i].width;
+      unsigned hstride = inst->src[i].hstride;
 
 #define DO_SRC(n)                                                              \
-      vstride = STRIDE(brw_inst_src ## n ## _vstride(devinfo, inst->raw));     \
-      width = WIDTH(brw_inst_src ## n ## _width(devinfo, inst->raw));          \
-      hstride = STRIDE(brw_inst_src ## n ## _hstride(devinfo, inst->raw));     \
       grfs_accessed(devinfo, src ## n ## _access_mask,                         \
                     inst->exec_size, element_size, subreg,                     \
                     vstride, width, hstride)
@@ -1392,7 +1375,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
    if (!inst->has_dst || dst_is_null(inst))
       return error_msg;
 
-   unsigned stride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
+   unsigned stride = inst->dst.hstride;
    enum brw_reg_type dst_type = inst->dst.type;
    unsigned element_size = brw_type_size_bytes(dst_type);
    unsigned subreg = inst->dst.subnr;
@@ -1459,7 +1442,7 @@ vector_immediate_restrictions(const struct brw_isa_info *isa,
    enum brw_reg_type dst_type = inst->dst.type;
    unsigned dst_type_size = brw_type_size_bytes(dst_type);
    unsigned dst_subreg = inst->dst.subnr;
-   unsigned dst_stride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
+   unsigned dst_stride = inst->dst.hstride;
    enum brw_reg_type type = inst->src[inst->num_sources == 1 ? 0 : 1].type;
 
    /* The PRMs say:
@@ -1519,7 +1502,7 @@ special_requirements_for_handling_double_precision_data_types(
 
    enum brw_reg_type dst_type = inst->dst.type;
    unsigned dst_type_size = brw_type_size_bytes(dst_type);
-   unsigned dst_hstride = STRIDE(brw_inst_dst_hstride(devinfo, inst->raw));
+   unsigned dst_hstride = inst->dst.hstride;
    unsigned dst_reg = inst->dst.nr;
    unsigned dst_subreg = inst->dst.subnr;
    unsigned dst_address_mode = inst->dst.address_mode;
@@ -1533,9 +1516,6 @@ special_requirements_for_handling_double_precision_data_types(
       dst_type_size == 8 || exec_type_size == 8 || is_integer_dword_multiply;
 
    for (unsigned i = 0; i < inst->num_sources; i++) {
-      unsigned vstride, width, hstride;
-      bool is_scalar_region;
-
       enum brw_reg_file file = inst->src[i].file;
       if (file == IMM)
          continue;
@@ -1545,19 +1525,10 @@ special_requirements_for_handling_double_precision_data_types(
       unsigned address_mode = inst->src[i].address_mode;
       unsigned reg = inst->src[i].nr;
       unsigned subreg = inst->src[i].subnr;
-
-#define DO_SRC(n)                                                              \
-      is_scalar_region = src ## n ## _has_scalar_region(devinfo, inst->raw);   \
-      vstride = STRIDE(brw_inst_src ## n ## _vstride(devinfo, inst->raw));     \
-      width = WIDTH(brw_inst_src ## n ## _width(devinfo, inst->raw));          \
-      hstride = STRIDE(brw_inst_src ## n ## _hstride(devinfo, inst->raw));     \
-
-      if (i == 0) {
-         DO_SRC(0);
-      } else {
-         DO_SRC(1);
-      }
-#undef DO_SRC
+      bool is_scalar_region = src_has_scalar_region(inst, i);
+      unsigned vstride = inst->src[i].vstride;
+      unsigned width = inst->src[i].width;
+      unsigned hstride = inst->src[i].hstride;
 
       const unsigned src_stride = (hstride ? hstride : vstride) * type_size;
       const unsigned dst_stride = dst_hstride * dst_type_size;
@@ -2221,6 +2192,18 @@ send_descriptor_restrictions(const struct brw_isa_info *isa,
    return error_msg;
 }
 
+static unsigned
+VSTRIDE_3SRC(unsigned vstride)
+{
+   switch (vstride) {
+   case BRW_ALIGN1_3SRC_VERTICAL_STRIDE_0: return 0;
+   case BRW_ALIGN1_3SRC_VERTICAL_STRIDE_1: return 1;
+   case BRW_ALIGN1_3SRC_VERTICAL_STRIDE_4: return 4;
+   case BRW_ALIGN1_3SRC_VERTICAL_STRIDE_8: return 8;
+   }
+   unreachable("invalid vstride");
+}
+
 static struct string
 brw_hw_decode_inst(const struct brw_isa_info *isa,
                    brw_hw_decoded_inst *inst,
@@ -2342,6 +2325,7 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
          } else {
             inst->dst.subnr = brw_inst_dst_ia_subreg_nr(devinfo, raw);
          }
+         inst->dst.hstride = STRIDE(brw_inst_dst_hstride(devinfo, raw));
       }
 
       inst->src[0].file = brw_inst_src0_reg_file(devinfo, raw);
@@ -2359,6 +2343,12 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
             }
          } else {
             inst->src[0].subnr = brw_inst_src0_ia_subreg_nr(devinfo, raw);
+         }
+
+         inst->src[0].vstride = STRIDE(brw_inst_src0_vstride(devinfo, raw));
+         if (inst->access_mode == BRW_ALIGN_1) {
+            inst->src[0].width = WIDTH(brw_inst_src0_width(devinfo, raw));
+            inst->src[0].hstride = STRIDE(brw_inst_src0_hstride(devinfo, raw));
          }
       }
 
@@ -2378,6 +2368,12 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
             } else {
                inst->src[1].subnr = brw_inst_src1_ia_subreg_nr(devinfo, raw);
             }
+
+            inst->src[1].vstride = STRIDE(brw_inst_src1_vstride(devinfo, raw));
+            if (inst->access_mode == BRW_ALIGN_1) {
+               inst->src[1].width = WIDTH(brw_inst_src1_width(devinfo, raw));
+               inst->src[1].hstride = STRIDE(brw_inst_src1_hstride(devinfo, raw));
+            }
          }
       }
 
@@ -2393,6 +2389,7 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
          inst->dst.type = brw_inst_3src_a1_dst_type(devinfo, raw);
          inst->dst.nr = brw_inst_3src_dst_reg_nr(devinfo, raw);
          inst->dst.subnr = brw_inst_3src_a1_dst_subreg_nr(devinfo, raw) * 8;
+         inst->dst.hstride = STRIDE(brw_inst_3src_a1_dst_hstride(devinfo, raw));
 
          inst->src[0].file = brw_inst_3src_a1_src0_reg_file(devinfo, raw);
          inst->src[0].type = brw_inst_3src_a1_src0_type(devinfo, raw);
@@ -2401,6 +2398,8 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
          if (inst->src[0].file != IMM) {
             inst->src[0].nr = brw_inst_3src_src0_reg_nr(devinfo, raw);
             inst->src[0].subnr = brw_inst_3src_a1_src0_subreg_nr(devinfo, raw);
+            inst->src[0].vstride = VSTRIDE_3SRC(brw_inst_3src_a1_src0_vstride(devinfo, raw));
+            inst->src[0].hstride = STRIDE(brw_inst_3src_a1_src0_hstride(devinfo, raw));
          }
 
          inst->src[1].file = brw_inst_3src_a1_src1_reg_file(devinfo, raw);
@@ -2409,6 +2408,8 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
          inst->src[1].abs = brw_inst_3src_src1_abs(devinfo, raw);
          inst->src[1].nr = brw_inst_3src_src1_reg_nr(devinfo, raw);
          inst->src[1].subnr = brw_inst_3src_a1_src1_subreg_nr(devinfo, raw);
+         inst->src[1].vstride = VSTRIDE_3SRC(brw_inst_3src_a1_src1_vstride(devinfo, raw));
+         inst->src[1].hstride = STRIDE(brw_inst_3src_a1_src1_hstride(devinfo, raw));
 
          inst->src[2].file = brw_inst_3src_a1_src2_reg_file(devinfo, raw);
          inst->src[2].type = brw_inst_3src_a1_src2_type(devinfo, raw);
@@ -2417,6 +2418,7 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
          if (inst->src[2].file != IMM) {
             inst->src[2].nr = brw_inst_3src_src2_reg_nr(devinfo, raw);
             inst->src[2].subnr = brw_inst_3src_a1_src2_subreg_nr(devinfo, raw);
+            inst->src[2].hstride = STRIDE(brw_inst_3src_a1_src2_hstride(devinfo, raw));
          }
 
       } else {
