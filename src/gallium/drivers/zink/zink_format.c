@@ -214,6 +214,11 @@ zink_format_emulate_x8(enum pipe_format format)
    case PIPE_FORMAT_B10G10R10X2_UNORM:
       return PIPE_FORMAT_B10G10R10A2_UNORM;
 
+   case PIPE_FORMAT_R5G5B5X1_UNORM:
+      return PIPE_FORMAT_R5G5B5A1_UNORM;
+   case PIPE_FORMAT_B5G5R5X1_UNORM:
+      return PIPE_FORMAT_B5G5R5A1_UNORM;
+
    default:
       return format;
    }
