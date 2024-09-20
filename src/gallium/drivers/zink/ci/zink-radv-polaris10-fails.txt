@@ -600,3 +600,6 @@ spec@ext_texture_array@copyteximage 1d_array samples=2,Fail
 spec@ext_texture_array@copyteximage 1d_array samples=4,Fail
 spec@ext_texture_array@copyteximage 1d_array samples=6,Fail
 spec@ext_texture_array@copyteximage 1d_array samples=8,Fail
+
+# uprev Piglit in Mesa
+spec@egl_ext_surface_compression@create,Crash
