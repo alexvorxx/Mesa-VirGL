@@ -149,6 +149,11 @@ lower_tcs_impl(nir_builder *b, nir_intrinsic_instr *intr)
    }
 
    case nir_intrinsic_store_output: {
+      /* Only vec2, make sure we can't overwrite */
+      assert(intr->src[0].ssa->num_components <= 2 ||
+             nir_intrinsic_io_semantics(intr).location !=
+                VARYING_SLOT_TESS_LEVEL_INNER);
+
       nir_store_global(b, tcs_out_addr(b, intr, nir_undef(b, 1, 32)), 4,
                        intr->src[0].ssa, nir_intrinsic_write_mask(intr));
       return NIR_LOWER_INSTR_PROGRESS_REPLACE;
