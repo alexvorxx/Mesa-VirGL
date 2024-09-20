@@ -725,7 +725,7 @@ agxdecode_vdm(struct agxdecode_ctx *ctx, const uint8_t *map, uint64_t *link,
       TESS_PRINT(base_instance, BASE_INSTANCE, "Base instance");
       TESS_PRINT(instance_stride, INSTANCE_STRIDE, "Instance stride");
       TESS_PRINT(indirect, INDIRECT, "Indirect");
-      TESS_PRINT(unknown, UNKNOWN, "Unknown");
+      TESS_PRINT(factor_buffer_size, FACTOR_BUFFER_SIZE, "Factor buffer size");
 
 #undef TESS_PRINT
       return length;
