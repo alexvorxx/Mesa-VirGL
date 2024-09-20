@@ -409,13 +409,23 @@ vlVaHandleVAEncMiscParameterTypeHRDAV1(vlVaContext *context, VAEncMiscParameterB
 {
    VAEncMiscParameterHRD *ms = (VAEncMiscParameterHRD *)misc->data;
 
-   if (ms->buffer_size) {
-      context->desc.av1enc.rc[0].vbv_buffer_size = ms->buffer_size;
-      context->desc.av1enc.rc[0].vbv_buf_lv = (ms->initial_buffer_fullness << 6 ) / ms->buffer_size;
-      context->desc.av1enc.rc[0].vbv_buf_initial_size = ms->initial_buffer_fullness;
-      /* Distinguishes from the default params set for these values in other
-       * functions and app specific params passed down via HRD buffer */
-      context->desc.av1enc.rc[0].app_requested_hrd_buffer = true;
+   if (ms->buffer_size == 0)
+      return VA_STATUS_ERROR_INVALID_PARAMETER;
+
+   /* Distinguishes from the default params set for these values in other
+      functions and app specific params passed down via HRD buffer */
+   context->desc.av1enc.rc[0].app_requested_hrd_buffer = true;
+   context->desc.av1enc.rc[0].vbv_buffer_size = ms->buffer_size;
+   context->desc.av1enc.rc[0].vbv_buf_lv = (ms->initial_buffer_fullness << 6) / ms->buffer_size;
+   context->desc.av1enc.rc[0].vbv_buf_initial_size = ms->initial_buffer_fullness;
+
+   for (unsigned i = 1; i < context->desc.av1enc.seq.num_temporal_layers; i++) {
+      context->desc.av1enc.rc[i].vbv_buffer_size =
+         (float)ms->buffer_size / context->desc.av1enc.rc[0].peak_bitrate *
+         context->desc.av1enc.rc[i].peak_bitrate;
+      context->desc.av1enc.rc[i].vbv_buf_lv = context->desc.av1enc.rc[0].vbv_buf_lv;
+      context->desc.av1enc.rc[i].vbv_buf_initial_size =
+         (context->desc.av1enc.rc[i].vbv_buffer_size * context->desc.av1enc.rc[i].vbv_buf_lv) >> 6;
    }
 
    return VA_STATUS_SUCCESS;

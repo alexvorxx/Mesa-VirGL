@@ -840,13 +840,23 @@ vlVaHandleVAEncMiscParameterTypeHRDH264(vlVaContext *context, VAEncMiscParameter
 {
    VAEncMiscParameterHRD *ms = (VAEncMiscParameterHRD *)misc->data;
 
-   if (ms->buffer_size) {
-      context->desc.h264enc.rate_ctrl[0].vbv_buffer_size = ms->buffer_size;
-      context->desc.h264enc.rate_ctrl[0].vbv_buf_lv = (ms->initial_buffer_fullness << 6 ) / ms->buffer_size;
-      context->desc.h264enc.rate_ctrl[0].vbv_buf_initial_size = ms->initial_buffer_fullness;
-      /* Distinguishes from the default params set for these values in other
+   if (ms->buffer_size == 0)
+      return VA_STATUS_ERROR_INVALID_PARAMETER;
+
+   /* Distinguishes from the default params set for these values in other
       functions and app specific params passed down via HRD buffer */
-      context->desc.h264enc.rate_ctrl[0].app_requested_hrd_buffer = true;
+   context->desc.h264enc.rate_ctrl[0].app_requested_hrd_buffer = true;
+   context->desc.h264enc.rate_ctrl[0].vbv_buffer_size = ms->buffer_size;
+   context->desc.h264enc.rate_ctrl[0].vbv_buf_lv = (ms->initial_buffer_fullness << 6) / ms->buffer_size;
+   context->desc.h264enc.rate_ctrl[0].vbv_buf_initial_size = ms->initial_buffer_fullness;
+
+   for (unsigned i = 1; i < context->desc.h264enc.seq.num_temporal_layers; i++) {
+      context->desc.h264enc.rate_ctrl[i].vbv_buffer_size =
+         (float)ms->buffer_size / context->desc.h264enc.rate_ctrl[0].peak_bitrate *
+         context->desc.h264enc.rate_ctrl[i].peak_bitrate;
+      context->desc.h264enc.rate_ctrl[i].vbv_buf_lv = context->desc.h264enc.rate_ctrl[0].vbv_buf_lv;
+      context->desc.h264enc.rate_ctrl[i].vbv_buf_initial_size =
+         (context->desc.h264enc.rate_ctrl[i].vbv_buffer_size * context->desc.h264enc.rate_ctrl[i].vbv_buf_lv) >> 6;
    }
 
    return VA_STATUS_SUCCESS;
