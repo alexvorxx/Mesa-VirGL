@@ -1,5 +1,6 @@
 /*
  * Copyright © 2024 Collabora Ltd.
+ * Copyright © 2024 Arm Ltd.
  *
  * Derived from tu_cmd_buffer.c which is:
  * Copyright © 2016 Red Hat.
@@ -53,6 +54,13 @@ struct panvk_draw_info {
       uint32_t base;
       uint32_t count;
    } instance;
+
+   struct {
+      struct panvk_buffer *buffer;
+      uint64_t offset;
+      uint32_t draw_count;
+      uint32_t stride;
+   } indirect;
 };
 
 #define is_dirty(__cmdbuf, __name)                                             \
@@ -1467,12 +1475,74 @@ panvk_per_arch(CmdDrawIndexed)(VkCommandBuffer commandBuffer,
    panvk_cmd_draw(cmdbuf, &draw);
 }
 
+static void
+panvk_cmd_draw_indirect(struct panvk_cmd_buffer *cmdbuf,
+                        struct panvk_draw_info *draw)
+{
+   const struct panvk_shader *vs = cmdbuf->state.gfx.vs.shader;
+   struct cs_builder *b =
+      panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
+   VkResult result;
+
+   /* If there's no vertex shader, we can skip the draw. */
+   if (!panvk_priv_mem_dev_addr(vs->spds.pos_points))
+      return;
+
+   /* Layered indirect draw (VK_EXT_shader_viewport_index_layer) needs
+    * additional changes. */
+   assert(cmdbuf->state.gfx.render.layer_count == 1);
+
+   /* MultiDrawIndirect (.maxDrawIndirectCount) needs additional changes. */
+   assert(draw->indirect.draw_count == 1);
+
+   result = prepare_draw(cmdbuf, draw);
+   if (result != VK_SUCCESS)
+      return;
+
+   struct cs_index draw_params_addr = cs_scratch_reg64(b, 0);
+   cs_move64_to(
+      b, draw_params_addr,
+      panvk_buffer_gpu_ptr(draw->indirect.buffer, draw->indirect.offset));
+
+   cs_update_vt_ctx(b) {
+      cs_move32_to(b, cs_sr_reg32(b, 32), 0);
+      /* Load SR33-37 from indirect buffer. */
+      unsigned reg_mask = draw->index.size ? 0b11111 : 0b11011;
+      cs_load_to(b, cs_sr_reg_tuple(b, 33, 5), draw_params_addr, reg_mask, 0);
+   }
+
+   struct mali_primitive_flags_packed tiler_idvs_flags =
+      get_tiler_idvs_flags(cmdbuf, draw);
+
+   /* Wait for the SR33-37 indirect buffer load. */
+   cs_wait_slot(b, SB_ID(LS), false);
+
+   cs_req_res(b, CS_IDVS_RES);
+   cs_run_idvs(b, tiler_idvs_flags.opaque[0], false, true,
+               cs_shader_res_sel(0, 0, 1, 0), cs_shader_res_sel(2, 2, 2, 0),
+               cs_undef());
+   cs_req_res(b, 0);
+}
+
 VKAPI_ATTR void VKAPI_CALL
 panvk_per_arch(CmdDrawIndirect)(VkCommandBuffer commandBuffer, VkBuffer _buffer,
                                 VkDeviceSize offset, uint32_t drawCount,
                                 uint32_t stride)
 {
-   panvk_stub();
+   VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
+   VK_FROM_HANDLE(panvk_buffer, buffer, _buffer);
+
+   if (drawCount == 0)
+      return;
+
+   struct panvk_draw_info draw = {
+      .indirect.buffer = buffer,
+      .indirect.offset = offset,
+      .indirect.draw_count = drawCount,
+      .indirect.stride = stride,
+   };
+
+   panvk_cmd_draw_indirect(cmdbuf, &draw);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -1480,7 +1550,21 @@ panvk_per_arch(CmdDrawIndexedIndirect)(VkCommandBuffer commandBuffer,
                                        VkBuffer _buffer, VkDeviceSize offset,
                                        uint32_t drawCount, uint32_t stride)
 {
-   panvk_stub();
+   VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
+   VK_FROM_HANDLE(panvk_buffer, buffer, _buffer);
+
+   if (drawCount == 0)
+      return;
+
+   struct panvk_draw_info draw = {
+      .index.size = cmdbuf->state.gfx.ib.index_size,
+      .indirect.buffer = buffer,
+      .indirect.offset = offset,
+      .indirect.draw_count = drawCount,
+      .indirect.stride = stride,
+   };
+
+   panvk_cmd_draw_indirect(cmdbuf, &draw);
 }
 
 static void
