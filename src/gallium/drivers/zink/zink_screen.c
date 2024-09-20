@@ -1921,45 +1921,6 @@ zink_is_depth_format_supported(struct zink_screen *screen, VkFormat format)
           VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT;
 }
 
-static enum pipe_format
-emulate_x8(enum pipe_format format)
-{
-   /* convert missing Xn variants to An */
-   switch (format) {
-   case PIPE_FORMAT_B8G8R8X8_UNORM:
-      return PIPE_FORMAT_B8G8R8A8_UNORM;
-
-   case PIPE_FORMAT_B8G8R8X8_SRGB:
-      return PIPE_FORMAT_B8G8R8A8_SRGB;
-   case PIPE_FORMAT_R8G8B8X8_SRGB:
-      return PIPE_FORMAT_R8G8B8A8_SRGB;
-
-   case PIPE_FORMAT_R8G8B8X8_SINT:
-      return PIPE_FORMAT_R8G8B8A8_SINT;
-   case PIPE_FORMAT_R8G8B8X8_SNORM:
-      return PIPE_FORMAT_R8G8B8A8_SNORM;
-   case PIPE_FORMAT_R8G8B8X8_UNORM:
-      return PIPE_FORMAT_R8G8B8A8_UNORM;
-
-   case PIPE_FORMAT_R16G16B16X16_FLOAT:
-      return PIPE_FORMAT_R16G16B16A16_FLOAT;
-   case PIPE_FORMAT_R16G16B16X16_SINT:
-      return PIPE_FORMAT_R16G16B16A16_SINT;
-   case PIPE_FORMAT_R16G16B16X16_SNORM:
-      return PIPE_FORMAT_R16G16B16A16_SNORM;
-   case PIPE_FORMAT_R16G16B16X16_UNORM:
-      return PIPE_FORMAT_R16G16B16A16_UNORM;
-
-   case PIPE_FORMAT_R32G32B32X32_FLOAT:
-      return PIPE_FORMAT_R32G32B32A32_FLOAT;
-   case PIPE_FORMAT_R32G32B32X32_SINT:
-      return PIPE_FORMAT_R32G32B32A32_SINT;
-
-   default:
-      return format;
-   }
-}
-
 VkFormat
 zink_get_format(struct zink_screen *screen, enum pipe_format format)
 {
@@ -1968,7 +1929,7 @@ zink_get_format(struct zink_screen *screen, enum pipe_format format)
    else if (!screen->driver_workarounds.broken_l4a4 || format != PIPE_FORMAT_L4A4_UNORM)
       format = zink_format_get_emulated_alpha(format);
 
-   VkFormat ret = vk_format_from_pipe_format(emulate_x8(format));
+   VkFormat ret = vk_format_from_pipe_format(zink_format_emulate_x8(format));
 
    if (format == PIPE_FORMAT_X32_S8X24_UINT &&
        screen->have_D32_SFLOAT_S8_UINT)
