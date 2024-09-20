@@ -60,8 +60,7 @@ struct panvk_draw_info {
                MESA_VK_DYNAMIC_##__name)
 
 static void
-emit_vs_attrib(const struct panvk_draw_info *draw,
-               const struct vk_vertex_attribute_state *attrib_info,
+emit_vs_attrib(const struct vk_vertex_attribute_state *attrib_info,
                const struct vk_vertex_binding_state *buf_info,
                const struct panvk_attrib_buf *buf, uint32_t vb_desc_offset,
                struct mali_attribute_packed *desc)
@@ -69,7 +68,6 @@ emit_vs_attrib(const struct panvk_draw_info *draw,
    bool per_instance = buf_info->input_rate == VK_VERTEX_INPUT_RATE_INSTANCE;
    enum pipe_format f = vk_format_to_pipe_format(attrib_info->format);
    unsigned buf_idx = vb_desc_offset + attrib_info->binding;
-   unsigned divisor = draw->vertex.count * buf_info->divisor;
 
    pan_pack(desc, ATTRIBUTE, cfg) {
       cfg.offset = attrib_info->offset;
@@ -82,24 +80,26 @@ emit_vs_attrib(const struct panvk_draw_info *draw,
          cfg.attribute_type = MALI_ATTRIBUTE_TYPE_1D;
          cfg.frequency = MALI_ATTRIBUTE_FREQUENCY_VERTEX;
          cfg.offset_enable = true;
-      } else if (util_is_power_of_two_or_zero(divisor)) {
+      } else if (buf_info->divisor == 1) {
+         cfg.attribute_type = MALI_ATTRIBUTE_TYPE_1D;
+         cfg.frequency = MALI_ATTRIBUTE_FREQUENCY_INSTANCE;
+      } else if (util_is_power_of_two_or_zero(buf_info->divisor)) {
          /* Per-instance, POT divisor */
          cfg.attribute_type = MALI_ATTRIBUTE_TYPE_1D_POT_DIVISOR;
          cfg.frequency = MALI_ATTRIBUTE_FREQUENCY_INSTANCE;
-         cfg.divisor_r = __builtin_ctz(divisor);
+         cfg.divisor_r = __builtin_ctz(buf_info->divisor);
       } else {
          /* Per-instance, NPOT divisor */
          cfg.attribute_type = MALI_ATTRIBUTE_TYPE_1D_NPOT_DIVISOR;
          cfg.frequency = MALI_ATTRIBUTE_FREQUENCY_INSTANCE;
-         cfg.divisor_d = panfrost_compute_magic_divisor(divisor, &cfg.divisor_r,
-                                                        &cfg.divisor_e);
+         cfg.divisor_d = panfrost_compute_magic_divisor(
+            buf_info->divisor, &cfg.divisor_r, &cfg.divisor_e);
       }
    }
 }
 
 static VkResult
-prepare_vs_driver_set(struct panvk_cmd_buffer *cmdbuf,
-                      struct panvk_draw_info *draw)
+prepare_vs_driver_set(struct panvk_cmd_buffer *cmdbuf)
 {
    struct panvk_shader_desc_state *vs_desc_state = &cmdbuf->state.gfx.vs.desc;
    bool dirty = is_dirty(cmdbuf, VI) || is_dirty(cmdbuf, VI_BINDINGS_VALID) ||
@@ -136,7 +136,7 @@ prepare_vs_driver_set(struct panvk_cmd_buffer *cmdbuf,
       if (vi->attributes_valid & BITFIELD_BIT(i)) {
          unsigned binding = vi->attributes[i].binding;
 
-         emit_vs_attrib(draw, &vi->attributes[i], &vi->bindings[binding],
+         emit_vs_attrib(&vi->attributes[i], &vi->bindings[binding],
                         &cmdbuf->state.gfx.vb.bufs[binding], vb_offset,
                         (struct mali_attribute_packed *)(&descs[i]));
       } else {
@@ -870,7 +870,7 @@ get_fb_descs(struct panvk_cmd_buffer *cmdbuf)
 }
 
 static VkResult
-prepare_vs(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
+prepare_vs(struct panvk_cmd_buffer *cmdbuf)
 {
    struct panvk_descriptor_state *desc_state = &cmdbuf->state.gfx.desc_state;
    struct panvk_shader_desc_state *vs_desc_state = &cmdbuf->state.gfx.vs.desc;
@@ -886,7 +886,7 @@ prepare_vs(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    bool upd_res_table = false;
 
    if (!vs_desc_state->res_table) {
-      VkResult result = prepare_vs_driver_set(cmdbuf, draw);
+      VkResult result = prepare_vs_driver_set(cmdbuf);
       if (result != VK_SUCCESS)
          return result;
 
@@ -1259,7 +1259,7 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    if (result != VK_SUCCESS)
       return;
 
-   result = prepare_vs(cmdbuf, draw);
+   result = prepare_vs(cmdbuf);
    if (result != VK_SUCCESS)
       return;
 
