@@ -1171,6 +1171,26 @@ prepare_dcd(struct panvk_cmd_buffer *cmdbuf)
 }
 
 static void
+prepare_index_buffer(struct panvk_cmd_buffer *cmdbuf,
+                     struct panvk_draw_info *draw)
+{
+   struct cs_builder *b =
+      panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
+
+   if (draw->index.size && cmdbuf->state.gfx.ib.dirty) {
+      uint64_t ib_size =
+         panvk_buffer_range(cmdbuf->state.gfx.ib.buffer,
+                            cmdbuf->state.gfx.ib.offset, VK_WHOLE_SIZE);
+      assert(ib_size <= UINT32_MAX);
+      cs_move32_to(b, cs_sr_reg32(b, 39), ib_size);
+
+      cs_move64_to(b, cs_sr_reg64(b, 54),
+                   panvk_buffer_gpu_ptr(cmdbuf->state.gfx.ib.buffer,
+                                        cmdbuf->state.gfx.ib.offset));
+   }
+}
+
+static void
 clear_dirty(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
 {
    const struct panvk_shader *vs = cmdbuf->state.gfx.vs.shader;
@@ -1319,15 +1339,7 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
       /* We don't use the resource dep system yet. */
       cs_move32_to(b, cs_sr_reg32(b, 38), 0);
 
-      cs_move32_to(
-         b, cs_sr_reg32(b, 39),
-         (draw->index.offset + draw->vertex.count) * draw->index.size);
-
-      if (draw->index.size && cmdbuf->state.gfx.ib.dirty) {
-         cs_move64_to(b, cs_sr_reg64(b, 54),
-                      panvk_buffer_gpu_ptr(cmdbuf->state.gfx.ib.buffer,
-                                           cmdbuf->state.gfx.ib.offset));
-      }
+      prepare_index_buffer(cmdbuf, draw);
 
       /* TODO: Revisit to avoid passing everything through the override flags
        * (likely needed for state preservation in secondary command buffers). */
