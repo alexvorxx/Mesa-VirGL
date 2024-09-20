@@ -793,7 +793,7 @@ nvk_compile_nir_shader(struct nvk_device *dev, nir_shader *nir,
       .robustness = &rs_none,
    };
 
-   struct vk_shader *shader;
+   struct vk_shader *shader = NULL;
    VkResult result = nvk_compile_shader(dev, &info, NULL, alloc, &shader);
    if (result != VK_SUCCESS)
       return result;
