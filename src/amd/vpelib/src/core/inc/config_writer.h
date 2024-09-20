@@ -75,7 +75,7 @@ struct vpep_direct_config_packet {
 struct config_writer {
     struct vpe_buf *buf; /**< store the current buf pointer */
 
-    /* store the base addr of the currnet config
+    /* store the base addr of the current config
      * i.e. config header
      * it is always constructed in emb_buf
      */

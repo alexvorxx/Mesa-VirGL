@@ -165,6 +165,7 @@ enum vpe_status vpe10_build_vpe_cmd(
     if (vpe_desc_writer->status != VPE_STATUS_OK) {
         return vpe_desc_writer->status;
     }
+
     vpe_desc_writer->complete(vpe_desc_writer);
 
     return VPE_STATUS_OK;

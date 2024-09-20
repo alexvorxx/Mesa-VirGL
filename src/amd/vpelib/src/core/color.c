@@ -832,7 +832,7 @@ enum vpe_status vpe_color_update_shaper(const struct vpe_priv *vpe_priv, uint16_
     // right now shaper is always programmed with linear, once cached, it is always reused.
     for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
         if (vpe_priv->init.debug.disable_lut_caching ||
-            (shaper_func && shaper_func->cache_info[i].tf != tf)) {
+            (shaper_func && (shaper_func->cache_info[i].tf != tf))) {
             // if the caching has the required data cached, skip the update
             update = true;
         }
