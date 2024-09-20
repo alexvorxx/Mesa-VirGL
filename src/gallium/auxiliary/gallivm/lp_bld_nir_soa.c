@@ -568,12 +568,19 @@ static void emit_load_var(struct lp_build_nir_context *bld_base,
       }
       break;
    case nir_var_shader_out:
-      if (bld->fs_iface && bld->fs_iface->fb_fetch) {
+      if (var->data.fb_fetch_output && bld->fs_iface && bld->fs_iface->fb_fetch) {
          bld->fs_iface->fb_fetch(bld->fs_iface, &bld_base->base, var->data.location, result);
-         return;
+         break;
       }
+
       for (unsigned i = 0; i < num_components; i++) {
          int idx = (i * dmul) + location_frac;
+         int comp_loc = location;
+         if (bit_size == 64 && idx >= 4) {
+            comp_loc++;
+            idx = idx % 4;
+         }
+
          if (bld->tcs_iface) {
             LLVMValueRef vertex_index_val = lp_build_const_int32(gallivm, vertex_index);
             LLVMValueRef attrib_index_val;
@@ -582,7 +589,7 @@ static void emit_load_var(struct lp_build_nir_context *bld_base,
             if (indir_index)
                attrib_index_val = lp_build_add(&bld_base->uint_bld, indir_index, lp_build_const_int_vec(gallivm, bld_base->uint_bld.type, var->data.driver_location));
             else
-               attrib_index_val = lp_build_const_int32(gallivm, location);
+               attrib_index_val = lp_build_const_int32(gallivm, comp_loc);
 
             result[i] = bld->tcs_iface->emit_fetch_output(bld->tcs_iface, &bld_base->base,
                                                           indir_vertex_index ? true : false, indir_vertex_index ? indir_vertex_index : vertex_index_val,
@@ -595,6 +602,17 @@ static void emit_load_var(struct lp_build_nir_context *bld_base,
                                                                         indir_index ? true : false, attrib_index_val,
                                                                         false, swizzle_index_val, 0);
                result[i] = emit_fetch_64bit(bld_base, result[i], result2);
+            }
+         } else {
+            /* Output variable behave like private variables during the shader execution.
+               GLSL 4.60 spec, section 4.3.6.
+               Vulkan 1.3 spec, Helper Invocations */
+            if (bit_size == 64) {
+               result[i] = emit_fetch_64bit(bld_base,
+                     LLVMBuildLoad2(gallivm->builder, bld_base->base.vec_type, bld->outputs[comp_loc][idx], "output0_ptr"),
+                     LLVMBuildLoad2(gallivm->builder, bld_base->base.vec_type, bld->outputs[comp_loc][idx + 1], "output1_ptr"));
+            } else {
+               result[i] = LLVMBuildLoad2(gallivm->builder, bld_base->base.vec_type, bld->outputs[comp_loc][idx], "output_ptr");
             }
          }
       }
