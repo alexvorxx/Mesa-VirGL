@@ -1014,10 +1014,11 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
    for (unsigned i = 0; i < num_sources; i++) {
       unsigned vstride, width, hstride, element_size, subreg;
       enum brw_reg_type type;
+      enum brw_reg_file file;
 
 #define DO_SRC(n)                                                              \
-      if (brw_inst_src ## n ## _reg_file(devinfo, inst) ==                     \
-          IMM)                                                 \
+      file = brw_inst_src ## n ## _reg_file(devinfo, inst);                    \
+      if (file == IMM)                                                         \
          continue;                                                             \
                                                                                \
       vstride = STRIDE(brw_inst_src ## n ## _vstride(devinfo, inst));          \
@@ -1075,29 +1076,31 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
       /* VertStride must be used to cross GRF register boundaries. This rule
        * implies that elements within a 'Width' cannot cross GRF boundaries.
        */
-      unsigned rowbase = subreg;
-      assert(util_is_power_of_two_nonzero(reg_unit(devinfo)));
-      unsigned grf_size_shift = ffs(REG_SIZE * reg_unit(devinfo)) - 1;
+      if (file == FIXED_GRF) {
+         unsigned rowbase = subreg;
+         assert(util_is_power_of_two_nonzero(reg_unit(devinfo)));
+         unsigned grf_size_shift = ffs(REG_SIZE * reg_unit(devinfo)) - 1;
 
-      for (int y = 0; y < exec_size / width; y++) {
-         bool spans_grfs = false;
-         unsigned offset = rowbase;
-         unsigned first_grf = offset >> grf_size_shift;
+         for (int y = 0; y < exec_size / width; y++) {
+            bool spans_grfs = false;
+            unsigned offset = rowbase;
+            unsigned first_grf = offset >> grf_size_shift;
 
-         for (int x = 0; x < width; x++) {
-            const unsigned end_byte = offset + (element_size - 1);
-            const unsigned end_grf = end_byte >> grf_size_shift;
-            spans_grfs = end_grf != first_grf;
-            if (spans_grfs)
+            for (int x = 0; x < width; x++) {
+               const unsigned end_byte = offset + (element_size - 1);
+               const unsigned end_grf = end_byte >> grf_size_shift;
+               spans_grfs = end_grf != first_grf;
+               if (spans_grfs)
+                  break;
+               offset += hstride * element_size;
+            }
+
+            rowbase += vstride * element_size;
+
+            if (spans_grfs) {
+               ERROR("VertStride must be used to cross GRF register boundaries");
                break;
-            offset += hstride * element_size;
-         }
-
-         rowbase += vstride * element_size;
-
-         if (spans_grfs) {
-            ERROR("VertStride must be used to cross GRF register boundaries");
-            break;
+            }
          }
       }
    }
