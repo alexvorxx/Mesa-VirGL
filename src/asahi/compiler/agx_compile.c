@@ -2672,7 +2672,7 @@ agx_dump_stats(agx_context *ctx, unsigned size, char **out)
       "%u uniforms, %u scratch, %u threads, %u loops, "
       "%u:%u spills:fills",
       gl_shader_stage_name(ctx->stage), nr_ins, cycles.alu, cycles.f_scib,
-      cycles.ic, size, ctx->max_reg, ctx->out->push_count, ctx->scratch_size,
+      cycles.ic, size, ctx->max_reg, ctx->out->push_count, ctx->scratch_size_B,
       nr_threads, ctx->loop_count, spills, fills);
 }
 
@@ -3225,7 +3225,7 @@ agx_compile_function_nir(nir_shader *nir, nir_function_impl *impl,
     */
    if (ctx->any_scratch) {
       assert(!ctx->is_preamble && "preambles don't use scratch");
-      ctx->scratch_size = ALIGN(nir->scratch_size, 16);
+      ctx->scratch_size_B = ALIGN(nir->scratch_size, 16);
    }
 
    /* Stop the main shader or preamble shader after the exit block. For real
@@ -3284,9 +3284,9 @@ agx_compile_function_nir(nir_shader *nir, nir_function_impl *impl,
    agx_validate(ctx, "RA");
    agx_lower_64bit_postra(ctx);
 
-   if (ctx->scratch_size > 0) {
+   if (ctx->scratch_size_B > 0) {
       /* Apple always allocate 40 more bytes in the entrypoint and align to 4. */
-      uint64_t stack_size = ALIGN(DIV_ROUND_UP(ctx->scratch_size, 4) + 10, 4);
+      uint64_t stack_size = ALIGN(DIV_ROUND_UP(ctx->scratch_size_B, 4) + 10, 4);
 
       assert(stack_size < INT16_MAX);
 
@@ -3344,7 +3344,7 @@ agx_compile_function_nir(nir_shader *nir, nir_function_impl *impl,
     * GPRs. Do it here so the driver doesn't have to worry about it.
     */
    if (impl->function->is_preamble)
-      out->nr_preamble_gprs = ctx->scratch_size ? 256 : nr_gprs;
+      out->nr_preamble_gprs = ctx->scratch_size_B ? 256 : nr_gprs;
    else
       out->nr_gprs = nr_gprs;
 

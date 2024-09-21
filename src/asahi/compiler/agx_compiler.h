@@ -442,7 +442,7 @@ typedef struct {
    nir_shader *nir;
    gl_shader_stage stage;
    bool is_preamble;
-   unsigned scratch_size;
+   unsigned scratch_size_B;
 
    struct list_head blocks; /* list of agx_block */
    struct agx_shader_info *out;
@@ -498,7 +498,7 @@ typedef struct {
    /* Beginning of our stack allocation used for spilling, below that is
     * NIR-level scratch.
     */
-   unsigned spill_base;
+   unsigned spill_base_B;
 
    /* Beginning of stack allocation used for parallel copy lowering */
    bool has_spill_pcopy_reserved;

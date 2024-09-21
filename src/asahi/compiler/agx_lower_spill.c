@@ -39,7 +39,7 @@ spill_fill(agx_builder *b, agx_instr *I, enum agx_size size, unsigned channels,
    }
 
    /* Calculate stack offset in bytes. IR registers are 2-bytes each. */
-   unsigned stack_offs_B = b->shader->spill_base + (mem.value * 2) + offset_B;
+   unsigned stack_offs_B = b->shader->spill_base_B + (mem.value * 2) + offset_B;
 
    /* Emit the spill/fill */
    if (I->dest[0].memory) {

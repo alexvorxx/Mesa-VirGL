@@ -1497,8 +1497,8 @@ agx_ra(agx_context *ctx)
    }
 
    if (spilling) {
-      ctx->spill_base = ctx->scratch_size;
-      ctx->scratch_size += (max_mem_slot + 1) * 2;
+      ctx->spill_base_B = ctx->scratch_size_B;
+      ctx->scratch_size_B += (max_mem_slot + 1) * 2;
    }
 
    /* Vertex shaders preload the vertex/instance IDs (r5, r6) even if the shader
