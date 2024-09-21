@@ -7595,7 +7595,19 @@ visit_shared_append(isel_context* ctx, nir_intrinsic_instr* instr)
       ds = bld.ds(op, Definition(tmp), m, address);
    ds->ds().sync = memory_sync_info(storage_shared, semantic_atomicrmw);
 
-   bld.pseudo(aco_opcode::p_as_uniform, Definition(get_ssa_temp(ctx, &instr->def)), tmp);
+   /* In wave64 for hw with native wave32, ds_append seems to be split in a load for the low half
+    * and an atomic for the high half, and other LDS instructions can be scheduled between the two.
+    * Which means the result of the low half is unusable because it might be out of date.
+    */
+   if (ctx->program->gfx_level >= GFX10 && ctx->program->wave_size == 64 &&
+       ctx->program->workgroup_size > 64) {
+      Temp last_lane = bld.sop1(aco_opcode::s_flbit_i32_b64, bld.def(s1), Operand(exec, s2));
+      last_lane = bld.sop2(aco_opcode::s_sub_u32, bld.def(s1), bld.def(s1, scc), Operand::c32(63),
+                           last_lane);
+      bld.readlane(Definition(get_ssa_temp(ctx, &instr->def)), tmp, last_lane);
+   } else {
+      bld.pseudo(aco_opcode::p_as_uniform, Definition(get_ssa_temp(ctx, &instr->def)), tmp);
+   }
 }
 
 void
