@@ -263,19 +263,6 @@ spec@!opengl 1.0@depth-clear-precision-check@depth24,Fail
 spec@!opengl 1.0@depth-clear-precision-check@depth24_stencil8,Fail
 spec@!opengl 1.0@depth-clear-precision-check@depth32,Fail
 
-# These seem to fail with zink as well (and on various other drivers
-# from what I can tell from expectations files, so maybe test issue?)
-spec@arb_query_buffer_object@coherency,Fail
-spec@arb_query_buffer_object@coherency@index-buffer-GL_TESS_CONTROL_SHADER_PATCHES,Fail
-spec@arb_query_buffer_object@coherency@indirect-dispatch-GL_TESS_CONTROL_SHADER_PATCHES,Fail
-spec@arb_query_buffer_object@coherency@indirect-draw-GL_TESS_CONTROL_SHADER_PATCHES,Fail
-spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_COMPUTE_SHADER_INVOCATIONS,Fail
-spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_GEOMETRY_SHADER_INVOCATIONS,Fail
-spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_GEOMETRY_SHADER_PRIMITIVES_EMITTED,Fail
-spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_TESS_CONTROL_SHADER_PATCHES,Fail
-spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_TESS_EVALUATION_SHADER_INVOCATIONS,Fail
-spec@arb_query_buffer_object@coherency@indirect-draw-count-GL_TRANSFORM_FEEDBACK_PRIMITIVES_WRITTEN,Fail
-
 spec@arb_gpu_shader5@arb_gpu_shader5-interpolateatsample-dynamically-nonuniform,Fail
 spec@arb_gpu_shader5@arb_gpu_shader5-xfb-streams,Fail
 spec@arb_gpu_shader5@arb_gpu_shader5-xfb-streams-without-invocations,Fail
@@ -293,6 +280,10 @@ spec@glsl-4.00@execution@built-in-functions@fs-op-div-double-dmat4,Fail
 # uprev Piglit in Mesa
 spec@glsl-1.30@execution@fs-uint-to-float-of-extract-int16,Fail
 spec@glsl-1.30@execution@fs-uint-to-float-of-extract-int8,Fail
+glx@glx-swap-pixmap-bad,Fail
+spec@arb_occlusion_query@occlusion_query_order,Fail
+spec@khr_texture_compression_astc@miptree-gles srgb-fp,Fail
+spec@khr_texture_compression_astc@miptree-gles srgb-fp@sRGB decode full precision,Fail
 
 
 # GL tests above, Vulkan tests below

@@ -328,3 +328,6 @@ dEQP-VK.draw.renderpass.shader_layer.tessellation_shader_6
 dEQP-VK.synchronization.timeline_semaphore.one_to_n.write_copy_image_read_image_geometry.image_128_r32_uint
 dEQP-VK.spirv_assembly.instruction.graphics.image_sampler.imagesample.combined_image_sampler_separate_variables.optypeimage_mismatch.rgba16i.depth_property.depth.shader_geom
 dEQP-VK.api.copy_and_blit.core.image_to_image.all_formats.color.2d_to_1d.a8b8g8r8_snorm_pack32.r32_uint.general_optimal
+
+# uprev Piglit in Mesa
+spec@glsl-4.20@execution@conversion@frag-conversion-implicit-mat4-dmat4-zero-sign

@@ -264,3 +264,9 @@ gmem-dEQP-VK.binding_model.shader_access.primary_cmd_buf.bind.sampler_immutable.
 
 # SKQP test which seems to flake out
 SRGBReadWritePixels
+
+# uprev Piglit in Mesa
+spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-fs-getuniformdv
+spec@arb_gpu_shader_fp64@execution@built-in-functions@fs-op-div-dmat4-dmat4
+spec@arb_gpu_shader_fp64@execution@built-in-functions@fs-op-div-double-dmat4
+spec@glsl-4.00@execution@built-in-functions@fs-inverse-dmat4
