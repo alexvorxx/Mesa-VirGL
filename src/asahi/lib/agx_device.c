@@ -67,6 +67,7 @@ static const struct debug_named_value agx_debug_options[] = {
    {"noborder",  AGX_DBG_NOBORDER, "Disable custom border colour emulation"},
    {"scratch",   AGX_DBG_SCRATCH,  "Debug scratch memory usage"},
    {"1queue",    AGX_DBG_1QUEUE,   "Force usage of a single queue for multiple contexts"},
+   {"nosoft",    AGX_DBG_NOSOFT,   "Disable soft fault optimizations"},
    DEBUG_NAMED_VALUE_END
 };
 /* clang-format on */

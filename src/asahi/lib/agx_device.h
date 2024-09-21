@@ -46,7 +46,7 @@ enum agx_dbg {
    AGX_DBG_NOSHADOW = BITFIELD_BIT(16),
    AGX_DBG_NOBORDER = BITFIELD_BIT(17),
    AGX_DBG_SCRATCH = BITFIELD_BIT(18),
-   /* bit 19 unused */
+   AGX_DBG_NOSOFT = BITFIELD_BIT(19),
    AGX_DBG_FEEDBACK = BITFIELD_BIT(20),
    AGX_DBG_1QUEUE = BITFIELD_BIT(21),
 };
@@ -150,7 +150,8 @@ struct agx_device {
 static inline bool
 agx_has_soft_fault(struct agx_device *dev)
 {
-   return dev->params.feat_compat & DRM_ASAHI_FEAT_SOFT_FAULTS;
+   return (dev->params.feat_compat & DRM_ASAHI_FEAT_SOFT_FAULTS) &&
+          !(dev->debug & AGX_DBG_NOSOFT);
 }
 
 static uint32_t
