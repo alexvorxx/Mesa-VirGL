@@ -6,6 +6,7 @@
 #include "util/bitset.h"
 #include "util/macros.h"
 #include "util/u_dynarray.h"
+#include "util/u_math.h"
 #include "util/u_memory.h"
 #include "util/u_qsort.h"
 #include "agx_builder.h"
@@ -1343,11 +1344,40 @@ agx_ra(agx_context *ctx)
          agx_max_registers_for_occupancy(threads_per_workgroup);
    }
 
-   /* The helper program is unspillable and has a limited register file */
-   if (force_spilling)
+   if (force_spilling) {
+      /* Even when testing spilling, we need enough room for preloaded/exported
+       * regs.
+       */
+      unsigned d = 24;
+      unsigned max_ncomps = 8;
+
+      agx_foreach_instr_global(ctx, I) {
+         if (I->op == AGX_OPCODE_PRELOAD) {
+            unsigned size = agx_size_align_16(I->src[0].size);
+            d = MAX2(d, I->src[0].value + size);
+         } else if (I->op == AGX_OPCODE_EXPORT) {
+            unsigned size = agx_size_align_16(I->src[0].size);
+            d = MAX2(d, I->imm + size);
+         } else if (I->op == AGX_OPCODE_IMAGE_WRITE) {
+            /* vec4 source + vec4 coordinates + bindless handle + reserved */
+            d = MAX2(d, 26);
+         } else if (I->op == AGX_OPCODE_TEXTURE_SAMPLE &&
+                    (I->lod_mode == AGX_LOD_MODE_LOD_GRAD ||
+                     I->lod_mode == AGX_LOD_MODE_LOD_GRAD_MIN)) {
+            /* as above but with big gradient */
+            d = MAX2(d, 36);
+         }
+
+         agx_foreach_ssa_dest(I, v) {
+            max_ncomps = MAX2(max_ncomps, agx_index_size_16(I->dest[v]));
+         }
+      }
+
+      max_possible_regs = ALIGN_POT(d, util_next_power_of_two(max_ncomps));
+   } else if (ctx->key->is_helper) {
+      /* The helper program is unspillable and has a limited register file */
       max_possible_regs = 32;
-   else if (ctx->key->is_helper)
-      max_possible_regs = 32;
+   }
 
    /* Calculate the demand. We'll use it to determine if we need to spill and to
     * bound register assignment.
