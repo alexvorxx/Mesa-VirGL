@@ -9,5 +9,3 @@ dEQP-GLES31.functional.texture.border_clamp.range_clamp.linear_float_color,Fail
 # GL tests above, Vulkan tests below
 
 
-# Can be fixed by https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/26154
-dEQP-VK.dynamic_rendering.primary_cmd_buff.basic.partial_binding_depth_stencil,Fail
