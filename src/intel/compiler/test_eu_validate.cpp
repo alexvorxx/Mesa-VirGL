@@ -50,6 +50,8 @@ static const struct intel_gfx_info {
    { "rpl", },
    { "dg2", },
    { "mtl", },
+   { "lnl", },
+   { "bmg", },
 };
 
 class validation_test: public ::testing::TestWithParam<struct intel_gfx_info> {
@@ -434,6 +436,8 @@ TEST_P(validation_test, invalid_type_encoding_3src_a1)
       { BRW_TYPE_DF, E(FLOAT), devinfo.has_64bit_float },
       { BRW_TYPE_F,  E(FLOAT), true  },
       { BRW_TYPE_HF, E(FLOAT), true  },
+      { BRW_TYPE_Q,  E(INT),   devinfo.has_64bit_int },
+      { BRW_TYPE_UQ, E(INT),   devinfo.has_64bit_int },
       { BRW_TYPE_D,  E(INT),   true  },
       { BRW_TYPE_UD, E(INT),   true  },
       { BRW_TYPE_W,  E(INT),   true  },
@@ -822,11 +826,13 @@ TEST_P(validation_test, vstride_on_align16_must_be_0_or_4)
  */
 TEST_P(validation_test, source_cannot_span_more_than_2_registers)
 {
+   enum brw_reg_type type = devinfo.ver >= 20 ? BRW_TYPE_D : BRW_TYPE_W;
+
    brw_ADD(p, g0, g0, g0);
    brw_inst_set_exec_size(&devinfo, last_inst, BRW_EXECUTE_32);
-   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
+   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, type);
    brw_inst_set_src1_vstride(&devinfo, last_inst, BRW_VERTICAL_STRIDE_16);
    brw_inst_set_src1_width(&devinfo, last_inst, BRW_WIDTH_8);
    brw_inst_set_src1_hstride(&devinfo, last_inst, BRW_HORIZONTAL_STRIDE_2);
@@ -837,9 +843,9 @@ TEST_P(validation_test, source_cannot_span_more_than_2_registers)
 
    brw_ADD(p, g0, g0, g0);
    brw_inst_set_exec_size(&devinfo, last_inst, BRW_EXECUTE_16);
-   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
+   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, type);
    brw_inst_set_src1_vstride(&devinfo, last_inst, BRW_VERTICAL_STRIDE_16);
    brw_inst_set_src1_width(&devinfo, last_inst, BRW_WIDTH_8);
    brw_inst_set_src1_hstride(&devinfo, last_inst, BRW_HORIZONTAL_STRIDE_2);
@@ -858,9 +864,11 @@ TEST_P(validation_test, source_cannot_span_more_than_2_registers)
 /* A destination cannot span more than 2 adjacent FIXED_GRF registers. */
 TEST_P(validation_test, destination_cannot_span_more_than_2_registers)
 {
+   unsigned invalid_stride = devinfo.ver >= 20 ? 4 : 2;
+
    brw_ADD(p, g0, g0, g0);
    brw_inst_set_exec_size(&devinfo, last_inst, BRW_EXECUTE_32);
-   brw_inst_set_dst_hstride(&devinfo, last_inst, BRW_HORIZONTAL_STRIDE_2);
+   brw_inst_set_dst_hstride(&devinfo, last_inst, cvt(invalid_stride));
    brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
    brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
    brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
@@ -888,11 +896,13 @@ TEST_P(validation_test, destination_cannot_span_more_than_2_registers)
 
 TEST_P(validation_test, src_region_spans_two_regs_dst_region_spans_one)
 {
+   const enum brw_reg_type type = devinfo.ver >= 20 ? BRW_TYPE_D : BRW_TYPE_W;
+
    /* Writes to dest are to the lower OWord */
    brw_ADD(p, g0, g0, g0);
-   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
+   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, type);
    brw_inst_set_src1_vstride(&devinfo, last_inst, BRW_VERTICAL_STRIDE_16);
    brw_inst_set_src1_width(&devinfo, last_inst, BRW_WIDTH_4);
    brw_inst_set_src1_hstride(&devinfo, last_inst, BRW_HORIZONTAL_STRIDE_2);
@@ -904,9 +914,9 @@ TEST_P(validation_test, src_region_spans_two_regs_dst_region_spans_one)
    /* Writes to dest are to the upper OWord */
    brw_ADD(p, g0, g0, g0);
    brw_inst_set_dst_da1_subreg_nr(&devinfo, last_inst, 16);
-   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
+   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, type);
    brw_inst_set_src1_vstride(&devinfo, last_inst, BRW_VERTICAL_STRIDE_16);
    brw_inst_set_src1_width(&devinfo, last_inst, BRW_WIDTH_4);
    brw_inst_set_src1_hstride(&devinfo, last_inst, BRW_HORIZONTAL_STRIDE_2);
@@ -918,9 +928,9 @@ TEST_P(validation_test, src_region_spans_two_regs_dst_region_spans_one)
    /* Writes to dest are evenly split between OWords */
    brw_ADD(p, g0, g0, g0);
    brw_inst_set_exec_size(&devinfo, last_inst, BRW_EXECUTE_16);
-   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
+   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, type);
    brw_inst_set_src1_vstride(&devinfo, last_inst, BRW_VERTICAL_STRIDE_16);
    brw_inst_set_src1_width(&devinfo, last_inst, BRW_WIDTH_8);
    brw_inst_set_src1_hstride(&devinfo, last_inst, BRW_HORIZONTAL_STRIDE_2);
@@ -933,12 +943,12 @@ TEST_P(validation_test, src_region_spans_two_regs_dst_region_spans_one)
    brw_ADD(p, g0, g0, g0);
    brw_inst_set_exec_size(&devinfo, last_inst, BRW_EXECUTE_4);
    brw_inst_set_dst_da1_subreg_nr(&devinfo, last_inst, 10);
-   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
-   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
+   brw_inst_set_dst_file_type(&devinfo, last_inst, FIXED_GRF, type);
+   brw_inst_set_src0_file_type(&devinfo, last_inst, FIXED_GRF, type);
    brw_inst_set_src0_vstride(&devinfo, last_inst, BRW_VERTICAL_STRIDE_4);
    brw_inst_set_src0_width(&devinfo, last_inst, BRW_WIDTH_4);
    brw_inst_set_src0_hstride(&devinfo, last_inst, BRW_HORIZONTAL_STRIDE_1);
-   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, BRW_TYPE_W);
+   brw_inst_set_src1_file_type(&devinfo, last_inst, FIXED_GRF, type);
    brw_inst_set_src1_vstride(&devinfo, last_inst, BRW_VERTICAL_STRIDE_16);
    brw_inst_set_src1_width(&devinfo, last_inst, BRW_WIDTH_2);
    brw_inst_set_src1_hstride(&devinfo, last_inst, BRW_HORIZONTAL_STRIDE_1);
@@ -2505,7 +2515,8 @@ TEST_P(validation_test, qword_low_power_no_64bit_arf)
          brw_inst_set_opcode(&isa, last_inst, inst[i].opcode);
       }
       brw_inst_set_exec_size(&devinfo, last_inst, inst[i].exec_size);
-      brw_inst_set_acc_wr_control(&devinfo, last_inst, inst[i].acc_wr);
+      if (devinfo.ver < 20)
+         brw_inst_set_acc_wr_control(&devinfo, last_inst, inst[i].acc_wr);
 
       brw_inst_set_dst_hstride(&devinfo, last_inst, inst[i].dst_stride);
 
