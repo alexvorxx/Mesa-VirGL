@@ -1316,7 +1316,7 @@ region_alignment_rules(const struct brw_isa_info *isa,
                        const brw_hw_decoded_inst *inst)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
-   uint8_t dst_access_mask[32], src0_access_mask[32], src1_access_mask[32];
+   uint8_t dst_access_mask[32] = {}, src_access_mask[2][32] = {};
    struct string error_msg = { .str = NULL, .len = 0 };
 
    if (inst->num_sources == 3)
@@ -1328,19 +1328,12 @@ region_alignment_rules(const struct brw_isa_info *isa,
    if (inst_is_send(inst))
       return (struct string){};
 
-   memset(dst_access_mask, 0, sizeof(dst_access_mask));
-   memset(src0_access_mask, 0, sizeof(src0_access_mask));
-   memset(src1_access_mask, 0, sizeof(src1_access_mask));
-
    for (unsigned i = 0; i < inst->num_sources; i++) {
       /* In Direct Addressing mode, a source cannot span more than 2 adjacent
        * GRF registers.
        */
-
-      if (inst->src[i].file == IMM)
-         continue;
-
-      if (inst->src[i].address_mode != BRW_ADDRESS_DIRECT)
+      if (inst->src[i].file != FIXED_GRF ||
+          inst->src[i].address_mode != BRW_ADDRESS_DIRECT)
          continue;
 
       enum brw_reg_type type = inst->src[i].type;
@@ -1350,17 +1343,9 @@ region_alignment_rules(const struct brw_isa_info *isa,
       unsigned width = inst->src[i].width;
       unsigned hstride = inst->src[i].hstride;
 
-#define DO_SRC(n)                                                              \
-      grfs_accessed(devinfo, src ## n ## _access_mask,                         \
-                    inst->exec_size, element_size, subreg,                     \
-                    vstride, width, hstride)
-
-      if (i == 0) {
-         DO_SRC(0);
-      } else {
-         DO_SRC(1);
-      }
-#undef DO_SRC
+      grfs_accessed(devinfo, src_access_mask[i],
+                    inst->exec_size, element_size, subreg,
+                    vstride, width, hstride);
 
       unsigned num_vstride = inst->exec_size / width;
       unsigned num_hstride = width;
