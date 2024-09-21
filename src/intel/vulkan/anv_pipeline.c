@@ -4106,9 +4106,11 @@ anv_ray_tracing_pipeline_create(
    result = anv_pipeline_compile_ray_tracing(pipeline, tmp_ctx, stages,
                                              cache, pCreateInfo);
    if (result != VK_SUCCESS) {
+      for (uint32_t i = 0; i < pCreateInfo->stageCount; i++) {
+         if (stages[i].bin != NULL)
+            anv_shader_bin_unref(device, stages[i].bin);
+      }
       ralloc_free(tmp_ctx);
-      util_dynarray_foreach(&pipeline->shaders, struct anv_shader_bin *, shader)
-         anv_shader_bin_unref(device, *shader);
       anv_pipeline_finish(&pipeline->base, device);
       vk_free2(&device->vk.alloc, pAllocator, pipeline);
       return result;
