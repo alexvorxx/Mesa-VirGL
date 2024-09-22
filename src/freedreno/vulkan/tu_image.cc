@@ -65,16 +65,24 @@ tu6_plane_format(VkFormat format, uint32_t plane)
 uint32_t
 tu6_plane_index(VkFormat format, VkImageAspectFlags aspect_mask)
 {
+   /* Must only be one aspect unless it's depth/stencil */
+   assert(aspect_mask ==
+             (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT) ||
+          util_bitcount(aspect_mask) == 1);
+
    switch (aspect_mask) {
    default:
       assert(aspect_mask != VK_IMAGE_ASPECT_MEMORY_PLANE_3_BIT_EXT);
       return 0;
+
    case VK_IMAGE_ASPECT_PLANE_1_BIT:
    case VK_IMAGE_ASPECT_MEMORY_PLANE_1_BIT_EXT:
       return 1;
+
    case VK_IMAGE_ASPECT_PLANE_2_BIT:
    case VK_IMAGE_ASPECT_MEMORY_PLANE_2_BIT_EXT:
       return 2;
+
    case VK_IMAGE_ASPECT_STENCIL_BIT:
       return format == VK_FORMAT_D32_SFLOAT_S8_UINT;
    }
