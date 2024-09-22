@@ -656,6 +656,26 @@ calculate_local_next_use(struct spill_ctx *ctx, struct util_dynarray *out)
    destroy_next_uses(&nu);
 }
 
+static agx_cursor
+agx_before_instr_logical(agx_block *block, agx_instr *I)
+{
+   if (I->op == AGX_OPCODE_EXPORT) {
+      agx_instr *first = agx_first_instr(block);
+
+      while (I != first && I->op == AGX_OPCODE_EXPORT) {
+         I = agx_prev_op(I);
+      }
+
+      if (I == first && first->op == AGX_OPCODE_EXPORT) {
+         return agx_before_block(block);
+      } else {
+         return agx_after_instr(I);
+      }
+   } else {
+      return agx_before_instr(I);
+   }
+}
+
 /*
  * Insert spills/fills for a single basic block, following Belady's algorithm.
  * Corresponds to minAlgorithm from the paper.
@@ -770,9 +790,17 @@ min_algorithm(struct spill_ctx *ctx)
          insert_W(ctx, I->dest[d].value);
       }
 
-      /* Add reloads for the sources in front of the instruction */
+      /* Add reloads for the sources in front of the instruction. We need to be
+       * careful around exports, hoisting the reloads to before all exports.
+       *
+       * This is legal since all exports happen in parallel and all registers
+       * are dead after the exports. The register file
+       * must be big enough for everything exported, so it must be big enough
+       * for all the reloaded values right before the parallel exports.
+       */
       for (unsigned i = 0; i < nR; ++i) {
-         insert_reload(ctx, ctx->block, agx_before_instr(I), R[i]);
+         insert_reload(ctx, ctx->block, agx_before_instr_logical(ctx->block, I),
+                       R[i]);
       }
 
       ctx->ip += instr_cycles(I);
