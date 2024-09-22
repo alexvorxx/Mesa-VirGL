@@ -683,6 +683,12 @@ min_algorithm(struct spill_ctx *ctx)
    agx_foreach_instr_in_block(ctx->block, I) {
       assert(ctx->nW <= ctx->k && "invariant");
 
+      /* Debug to check against our RA demand calculations */
+      if (0) {
+         printf("%u: ", ctx->nW);
+         agx_print_instr(I, stdout);
+      }
+
       /* Phis are special since they happen along the edge. When we initialized
        * W and S, we implicitly chose which phis are spilled. So, here we just
        * need to rewrite the phis to write into memory.

@@ -151,6 +151,13 @@ agx_split_width(const agx_instr *I)
 static unsigned
 agx_calc_register_demand(agx_context *ctx)
 {
+   /* Print detailed demand calculation, helpful to debug spilling */
+   bool debug = false;
+
+   if (debug) {
+      agx_print_shader(ctx, stdout);
+   }
+
    uint8_t *widths = calloc(ctx->alloc, sizeof(uint8_t));
    enum ra_class *classes = calloc(ctx->alloc, sizeof(enum ra_class));
 
@@ -201,12 +208,21 @@ agx_calc_register_demand(agx_context *ctx)
        */
       unsigned late_kill_count = 0;
 
+      if (debug) {
+         printf("\n");
+      }
+
       agx_foreach_instr_in_block(block, I) {
          /* Phis happen in parallel and are already accounted for in the live-in
           * set, just skip them so we don't double count.
           */
          if (I->op == AGX_OPCODE_PHI)
             continue;
+
+         if (debug) {
+            printf("%u: ", demand);
+            agx_print_instr(I, stdout);
+         }
 
          if (I->op == AGX_OPCODE_PRELOAD) {
             unsigned size = agx_size_align_16(I->src[0].size);
