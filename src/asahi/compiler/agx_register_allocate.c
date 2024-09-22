@@ -125,6 +125,25 @@ struct ra_ctx {
    unsigned bound[RA_CLASSES];
 };
 
+/*
+ * RA treats the nesting counter, the divergent shuffle temporary, and the
+ * spiller temporaries as alive throughout if used anywhere. This could be
+ * optimized. Using a single power-of-two reserved region at the start ensures
+ * these registers are never shuffled.
+ */
+static unsigned
+reserved_size(agx_context *ctx)
+{
+   if (ctx->has_spill_pcopy_reserved)
+      return 8;
+   else if (ctx->any_quad_divergent_shuffle)
+      return 2;
+   else if (ctx->any_cf)
+      return 1;
+   else
+      return 0;
+}
+
 enum agx_size
 agx_split_width(const agx_instr *I)
 {
@@ -177,19 +196,7 @@ agx_calc_register_demand(agx_context *ctx)
    unsigned max_demand = 0;
 
    agx_foreach_block(ctx, block) {
-      unsigned demand = 0;
-
-      /* RA treats the nesting counter as alive throughout if control flow is
-       * used anywhere. This could be optimized.
-       */
-      if (ctx->any_cf)
-         demand++;
-
-      if (ctx->any_quad_divergent_shuffle)
-         demand++;
-
-      if (ctx->has_spill_pcopy_reserved)
-         demand = 8;
+      unsigned demand = reserved_size(ctx);
 
       /* Everything live-in */
       {
