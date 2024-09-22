@@ -869,7 +869,7 @@ hk_compile_nir(struct hk_device *dev, const VkAllocationCallbacks *pAllocator,
       .reserved_preamble = 128 /* TODO */,
       .libagx = dev->dev.libagx,
       .no_stop = nir->info.stage == MESA_SHADER_FRAGMENT,
-      .has_scratch = true,
+      .has_scratch = !nir->info.internal,
    };
 
    /* For now, sample shading is always dynamic. Indicate that. */
