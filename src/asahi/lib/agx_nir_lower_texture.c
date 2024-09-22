@@ -240,8 +240,15 @@ lower_regular_texture(nir_builder *b, nir_instr *instr, UNUSED void *data)
       coord = nir_trim_vector(b, coord, lidx);
 
       /* Round layer to nearest even */
-      if (!is_txf)
-         unclamped_layer = nir_f2u32(b, nir_fround_even(b, unclamped_layer));
+      if (!is_txf) {
+         unclamped_layer = nir_fround_even(b, unclamped_layer);
+
+         /* Explicitly round negative to avoid undefined behaviour when constant
+          * folding. This is load bearing on x86 builds.
+          */
+         unclamped_layer =
+            nir_f2u32(b, nir_fmax(b, unclamped_layer, nir_imm_float(b, 0.0f)));
+      }
 
       /* For a cube array, the layer is zero-indexed component 3 of the
        * coordinate but the number of layers is component 2 of the txs result.
