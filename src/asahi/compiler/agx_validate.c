@@ -359,6 +359,7 @@ static bool
 agx_validate_width(agx_context *ctx)
 {
    bool succ = true;
+   enum agx_size *sizes = calloc(ctx->alloc, sizeof(*sizes));
 
    agx_foreach_instr_global(ctx, I) {
       agx_foreach_dest(I, d) {
@@ -373,6 +374,9 @@ agx_validate_width(agx_context *ctx)
             agx_print_instr(I, stderr);
             fprintf(stderr, "\n");
          }
+
+         if (I->dest[d].type == AGX_INDEX_NORMAL)
+            sizes[I->dest[d].value] = I->dest[d].size;
       }
 
       agx_foreach_src(I, s) {
@@ -393,6 +397,21 @@ agx_validate_width(agx_context *ctx)
       }
    }
 
+   /* Check sources after all defs processed for proper backedge handling */
+   agx_foreach_instr_global(ctx, I) {
+      agx_foreach_ssa_src(I, s) {
+         if (sizes[I->src[s].value] != I->src[s].size) {
+            succ = false;
+            fprintf(stderr, "source %u, expected el size %u, got el size %u\n",
+                    s, agx_size_align_16(sizes[I->src[s].value]),
+                    agx_size_align_16(I->src[s].size));
+            agx_print_instr(I, stderr);
+            fprintf(stderr, "\n");
+         }
+      }
+   }
+
+   free(sizes);
    return succ;
 }
 
