@@ -118,7 +118,8 @@ print_help()
       "\n"
       " - bat             Dumps the batch buffer.\n"
       " - color           Uses colors for the batch buffer dump.\n"
-      " - cs              Dumps the assembly after macro processing.\n"
+      " - cs              Dumps the source after macro processing\n"
+      "                   the final assembly.\n"
       "\n"
       "EXAMPLE\n"
       "\n"
@@ -652,14 +653,18 @@ l_execute(lua_State *L)
       const char *src = executor_apply_macros(&ec, params.original_src);
 
       FILE *f = fmemopen((void *)src, strlen(src), "r");
-      brw_assemble_result asm = brw_assemble(ec.mem_ctx, ec.devinfo, f, "", 0);
-      fclose(f);
 
-      if (INTEL_DEBUG(DEBUG_CS) || !asm.bin) {
+      brw_assemble_flags flags = 0;
+
+      if (INTEL_DEBUG(DEBUG_CS)) {
          printf("=== Processed assembly source ===\n"
                 "%s"
                 "=================================\n\n", src);
+         flags = BRW_ASSEMBLE_DUMP;
       }
+
+      brw_assemble_result asm = brw_assemble(ec.mem_ctx, ec.devinfo, f, "", flags);
+      fclose(f);
 
       if (!asm.bin)
          failf("assembler failure");
