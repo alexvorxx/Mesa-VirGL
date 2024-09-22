@@ -842,9 +842,7 @@ agx_emit_block_image_store(agx_builder *b, nir_intrinsic_instr *instr)
    /* 32-bit source physically, 16-bit in NIR, top half ignored but needed
     * logically to ensure alignment.
     */
-   offset = agx_vec2(b, offset, agx_undef(AGX_SIZE_16));
-   offset.channels_m1--;
-   offset.size = AGX_SIZE_32;
+   offset = agx_pad_to_32(b, offset);
 
    /* Modified coordinate descriptor */
    if (!explicit) {
@@ -2200,9 +2198,7 @@ agx_emit_tex(agx_builder *b, nir_tex_instr *instr)
             min = agx_src_index(&instr->src[min_idx].src);
 
             /* Undef extend to 32-bit since our IR is iffy */
-            min = agx_vec2(b, min, agx_undef(AGX_SIZE_16));
-            min.channels_m1--;
-            min.size = AGX_SIZE_32;
+            min = agx_pad_to_32(b, min);
          }
 
          /* We explicitly don't cache about the split cache for this */
