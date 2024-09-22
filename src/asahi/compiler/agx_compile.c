@@ -379,6 +379,18 @@ agx_vec2(agx_builder *b, agx_index s0, agx_index s1)
 }
 
 static agx_index
+agx_pad_to_32(agx_builder *b, agx_index s)
+{
+   assert(s.size == AGX_SIZE_16);
+   assert(agx_channels(s) == 1);
+
+   agx_index srcs[2] = {s, agx_undef(AGX_SIZE_16)};
+   agx_index dst = agx_vec_temp(b->shader, AGX_SIZE_32, 1);
+   agx_emit_collect_to(b, dst, 2, srcs);
+   return dst;
+}
+
+static agx_index
 agx_recollect_vector(agx_builder *b, nir_src vec)
 {
    agx_index comps[4];
