@@ -7937,37 +7937,37 @@ fs_nir_emit_texture(nir_to_brw_state &ntb,
 
    brw_reg nir_def_reg = get_nir_def(ntb, instr->def);
 
-   bool is_simd8_16bit = nir_alu_type_get_type_size(instr->dest_type) == 16
-      && bld.dispatch_width() == 8;
-
-   brw_reg dst = bld.vgrf(brw_type_for_nir_type(devinfo, instr->dest_type),
-      (is_simd8_16bit ? 8 : 4) + instr->is_sparse);
-
-   fs_inst *inst = bld.emit(opcode, dst, srcs, ARRAY_SIZE(srcs));
-   inst->offset = header_bits;
-
    const unsigned dest_size = nir_tex_instr_dest_size(instr);
-   unsigned read_size = dest_size;
+   unsigned dest_comp;
    if (instr->op != nir_texop_tg4 && instr->op != nir_texop_query_levels) {
       unsigned write_mask = nir_def_components_read(&instr->def);
       assert(write_mask != 0); /* dead code should have been eliminated */
-      if (instr->is_sparse) {
-         read_size = util_last_bit(write_mask) - 1;
-         inst->size_written =
-            (is_simd8_16bit ? 2 : 1) * read_size *
-            inst->dst.component_size(inst->exec_size) +
-            (reg_unit(devinfo) * REG_SIZE);
-      } else {
-         read_size = util_last_bit(write_mask);
-         inst->size_written =
-            (is_simd8_16bit ? 2 : 1) * read_size *
-            inst->dst.component_size(inst->exec_size);
-      }
+
+      dest_comp = util_last_bit(write_mask) - instr->is_sparse;
    } else {
-      inst->size_written = (is_simd8_16bit ? 2 : 1) * 4 *
-                           inst->dst.component_size(inst->exec_size) +
-                           (instr->is_sparse ? (reg_unit(devinfo) * REG_SIZE) : 0);
+      dest_comp = 4;
    }
+
+   /* Compute the number of physical registers needed to hold a single
+    * component and round it up to a physical register count.
+    */
+   brw_reg_type dst_type = brw_type_for_nir_type(devinfo, instr->dest_type);
+   const unsigned grf_size = reg_unit(devinfo) * REG_SIZE;
+   const unsigned per_component_regs =
+      DIV_ROUND_UP(brw_type_size_bytes(dst_type) * bld.dispatch_width(),
+                   grf_size);
+   const unsigned total_regs =
+      dest_comp * per_component_regs + instr->is_sparse;
+   /* Allocate enough space for the components + one physical register for the
+    * residency data.
+    */
+   brw_reg dst = brw_vgrf(
+      bld.shader->alloc.allocate(total_regs * reg_unit(devinfo)),
+      dst_type);
+
+   fs_inst *inst = bld.emit(opcode, dst, srcs, ARRAY_SIZE(srcs));
+   inst->offset = header_bits;
+   inst->size_written = total_regs * grf_size;
 
    if (srcs[TEX_LOGICAL_SRC_SHADOW_C].file != BAD_FILE)
       inst->shadow_compare = true;
@@ -7988,8 +7988,25 @@ fs_nir_emit_texture(nir_to_brw_state &ntb,
       inst->keep_payload_trailing_zeros = true;
    }
 
-   if (instr->op != nir_texop_query_levels && !instr->is_sparse
-      && !is_simd8_16bit) {
+   /* With half-floats returns, the stride into a GRF allocation for each
+    * component might be different than where the sampler is storing each
+    * component. For example in SIMD8 on DG2 the layout of the data returned
+    * by the sampler is as follow for 2 components load:
+    *
+    *           _______________________________________________________________
+    *   g0 : |           unused              |hf7|hf6|hf5|hf4|hf3|hf2|hf1|hf0|
+    *   g1 : |           unused              |hf7|hf6|hf5|hf4|hf3|hf2|hf1|hf0|
+    *
+    * The same issue also happens in SIMD16 on Xe2 because the physical
+    * register size has doubled but we're still loading data only on half the
+    * register.
+    *
+    * In those cases we need the special remapping case below.
+    */
+   const bool non_aligned_component_stride =
+      (brw_type_size_bytes(dst_type) * bld.dispatch_width()) % grf_size != 0;
+   if (instr->op != nir_texop_query_levels && !instr->is_sparse &&
+       !non_aligned_component_stride) {
       /* In most cases we can write directly to the result. */
       inst->dst = nir_def_reg;
    } else {
@@ -7997,10 +8014,10 @@ fs_nir_emit_texture(nir_to_brw_state &ntb,
        * a bit to match the NIR intrinsic's expectations.
        */
       brw_reg nir_dest[5];
-      for (unsigned i = 0; i < read_size; i++)
-         nir_dest[i] = offset(dst, bld, (is_simd8_16bit ? 2 : 1) * i);
+      for (unsigned i = 0; i < dest_comp; i++)
+         nir_dest[i] = byte_offset(dst, i * per_component_regs * grf_size);
 
-      for (unsigned i = read_size; i < dest_size; i++)
+      for (unsigned i = dest_comp; i < dest_size; i++)
          nir_dest[i].type = dst.type;
 
       if (instr->op == nir_texop_query_levels) {
