@@ -19,6 +19,7 @@ typedef struct {
 
 typedef enum {
    BRW_ASSEMBLE_COMPACT = 1 << 0,
+   BRW_ASSEMBLE_DUMP    = 1 << 1,
 } brw_assemble_flags;
 
 brw_assemble_result brw_assemble(

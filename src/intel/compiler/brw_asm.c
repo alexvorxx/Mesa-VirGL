@@ -145,6 +145,12 @@ brw_assemble(void *mem_ctx, const struct intel_device_info *devinfo,
       result.bin_size -= compacted * 8;
    }
 
+   if ((flags & BRW_ASSEMBLE_DUMP) != 0) {
+      disasm_new_inst_group(disasm_info, 0);
+      disasm_new_inst_group(disasm_info, p->next_insn_offset);
+      dump_assembly(p->store, 0, p->next_insn_offset, disasm_info, NULL);
+   }
+
    ralloc_free(disasm_info);
 
 end:
