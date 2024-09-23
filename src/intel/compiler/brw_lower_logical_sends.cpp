@@ -759,7 +759,6 @@ lower_sampler_logical_send(const fs_builder &bld, fs_inst *inst,
       brw_type_with_size(BRW_TYPE_UD, payload_type_bit_size);
    const enum brw_reg_type payload_signed_type =
       brw_type_with_size(BRW_TYPE_D, payload_type_bit_size);
-   unsigned reg_width = bld.dispatch_width() / 8;
    unsigned header_size = 0, length = 0;
    opcode op = inst->opcode;
    brw_reg sources[1 + MAX_SAMPLER_MESSAGE_SIZE];
@@ -790,10 +789,15 @@ lower_sampler_logical_send(const fs_builder &bld, fs_inst *inst,
        * and we have an explicit header, we need to set up the sampler
        * writemask.  It's reversed from normal: 1 means "don't write".
        */
-      unsigned reg_count = regs_written(inst) - reg_unit(devinfo) * residency;
-      if (!inst->eot && reg_count < 4 * reg_width) {
-         assert(reg_count % reg_width == 0);
-         unsigned mask = ~((1 << (reg_count / reg_width)) - 1) & 0xf;
+      unsigned comps_regs =
+         DIV_ROUND_UP(regs_written(inst) - reg_unit(devinfo) * residency,
+                      reg_unit(devinfo));
+      unsigned comp_regs =
+         DIV_ROUND_UP(inst->dst.component_size(inst->exec_size),
+                      reg_unit(devinfo) * REG_SIZE);
+      if (!inst->eot && comps_regs < 4 * comp_regs) {
+         assert(comps_regs % comp_regs == 0);
+         unsigned mask = ~((1 << (comps_regs / comp_regs)) - 1) & 0xf;
          inst->offset |= mask << 12;
       }
 
@@ -1088,7 +1092,7 @@ lower_sampler_logical_send(const fs_builder &bld, fs_inst *inst,
    }
 
    const brw_reg src_payload =
-      brw_vgrf(bld.shader->alloc.allocate(length * reg_width),
+      brw_vgrf(bld.shader->alloc.allocate(length * bld.dispatch_width() / 8),
                BRW_TYPE_F);
    /* In case of 16-bit payload each component takes one full register in
     * both SIMD8H and SIMD16H modes. In both cases one reg can hold 16
