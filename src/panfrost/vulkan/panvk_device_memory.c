@@ -124,7 +124,7 @@ panvk_AllocateMemory(VkDevice _device,
    }
 
    if (device->debug.decode_ctx) {
-      if (instance->debug_flags & PANVK_DEBUG_DUMP) {
+      if (instance->debug_flags & (PANVK_DEBUG_DUMP | PANVK_DEBUG_TRACE)) {
          mem->debug.host_mapping =
             pan_kmod_bo_mmap(mem->bo, 0, pan_kmod_bo_size(mem->bo),
                              PROT_READ | PROT_WRITE, MAP_SHARED, NULL);
