@@ -408,84 +408,93 @@ set_ssa_to_reg(struct ra_ctx *rctx, unsigned ssa, unsigned reg)
 }
 
 static unsigned
-assign_regs_by_copying(struct ra_ctx *rctx, unsigned npot_count, unsigned align,
-                       const agx_instr *I, struct util_dynarray *copies,
-                       BITSET_WORD *clobbered, BITSET_WORD *killed,
-                       enum ra_class cls)
+assign_regs_by_copying(struct ra_ctx *rctx, agx_index dest, const agx_instr *I,
+                       struct util_dynarray *copies, BITSET_WORD *clobbered,
+                       BITSET_WORD *killed)
 {
-   assert(cls == RA_GPR);
+   assert(dest.type == AGX_INDEX_NORMAL);
 
-   /* Expand the destination to the next power-of-two size. This simplifies
-    * splitting and is accounted for by the demand calculation, so is legal.
-    */
-   unsigned count = util_next_power_of_two(npot_count);
-   assert(align <= count && "still aligned");
-   align = count;
+   /* Initialize the worklist with the variable we're assigning */
+   unsigned blocked_vars[16] = {dest.value};
+   size_t nr_blocked = 1;
 
-   /* There's not enough contiguous room in the register file. We need to
-    * shuffle some variables around. Look for a range of the register file
-    * that is partially blocked.
-    */
-   unsigned base =
-      find_best_region_to_evict(rctx, cls, count, clobbered, killed);
+   while (nr_blocked > 0) {
+      /* Grab the largest var. TODO: Consider not writing O(N^2) code. */
+      uint32_t ssa = ~0, nr = 0, chosen_idx = ~0;
+      for (unsigned i = 0; i < nr_blocked; ++i) {
+         uint32_t this_ssa = blocked_vars[i];
+         uint32_t this_nr = rctx->ncomps[this_ssa];
 
-   assert(count <= 16 && "max allocation size (conservative)");
-   BITSET_DECLARE(evict_set, 16) = {0};
-
-   /* Store the set of blocking registers that need to be evicted */
-   for (unsigned i = 0; i < count; ++i) {
-      if (BITSET_TEST(rctx->used_regs[cls], base + i)) {
-         BITSET_SET(evict_set, i);
-      }
-   }
-
-   /* We are going to allocate the destination to this range, so it is now fully
-    * used. Mark it as such so we don't reassign here later.
-    */
-   BITSET_SET_RANGE(rctx->used_regs[cls], base, base + count - 1);
-
-   /* Before overwriting the range, we need to evict blocked variables */
-   for (unsigned i = 0; i < 16; ++i) {
-      /* Look for subranges that needs eviction */
-      if (!BITSET_TEST(evict_set, i))
-         continue;
-
-      unsigned reg = base + i;
-      uint32_t ssa = rctx->reg_to_ssa[reg];
-      uint32_t nr = rctx->ncomps[ssa];
-      unsigned align = agx_size_align_16(rctx->sizes[ssa]);
-
-      assert(nr >= 1 && "must be assigned");
-      assert(rctx->ssa_to_reg[ssa] == reg &&
-             "variable must start within the range, since vectors are limited");
-
-      for (unsigned j = 0; j < nr; ++j) {
-         assert(BITSET_TEST(evict_set, i + j) &&
-                "variable is allocated contiguous and vectors are limited, "
-                "so evicted in full");
+         if (this_nr > nr) {
+            nr = this_nr;
+            ssa = this_ssa;
+            chosen_idx = i;
+         }
       }
 
-      /* Assign a new location for the variable. This terminates with finite
-       * recursion because nr is decreasing because of the gap.
+      assert(ssa != ~0 && nr > 0 && "must have found something");
+      assert(chosen_idx < nr_blocked && "must have found something");
+
+      /* Pop it from the work list by swapping in the last element */
+      blocked_vars[chosen_idx] = blocked_vars[--nr_blocked];
+
+      enum agx_size size = rctx->sizes[ssa];
+      unsigned align = agx_size_align_16(size);
+
+      /* We need to shuffle some variables to make room. Look for a range of
+       * the register file that is partially blocked.
        */
-      assert(nr < count && "fully contained in range that's not full");
-      unsigned new_reg = assign_regs_by_copying(rctx, nr, align, I, copies,
-                                                clobbered, killed, cls);
+      unsigned new_reg =
+         find_best_region_to_evict(rctx, RA_GPR, nr, clobbered, killed);
 
-      /* Copy the variable over, register by register */
-      for (unsigned i = 0; i < nr; i += align) {
-         assert(cls == RA_GPR);
+      /* Blocked registers need to get reassigned. Add them to the worklist. */
+      for (unsigned i = 0; i < nr; ++i) {
+         if (BITSET_TEST(rctx->used_regs[RA_GPR], new_reg + i)) {
+            unsigned blocked_reg = new_reg + i;
+            uint32_t blocked_ssa = rctx->reg_to_ssa[blocked_reg];
+            uint32_t blocked_nr = rctx->ncomps[blocked_ssa];
 
-         struct agx_copy copy = {
-            .dest = new_reg + i,
-            .src = agx_register(reg + i, rctx->sizes[ssa]),
-         };
+            assert(blocked_nr >= 1 && "must be assigned");
 
-         assert((copy.dest % agx_size_align_16(rctx->sizes[ssa])) == 0 &&
-                "new dest must be aligned");
-         assert((copy.src.value % agx_size_align_16(rctx->sizes[ssa])) == 0 &&
-                "src must be aligned");
-         util_dynarray_append(copies, struct agx_copy, copy);
+            blocked_vars[nr_blocked++] = blocked_ssa;
+            assert(
+               rctx->ssa_to_reg[blocked_ssa] == blocked_reg &&
+               "variable must start within the range, since vectors are limited");
+
+            for (unsigned j = 0; j < blocked_nr; ++j) {
+               assert(
+                  BITSET_TEST(rctx->used_regs[RA_GPR], new_reg + i + j) &&
+                  "variable is allocated contiguous and vectors are limited, "
+                  "so evicted in full");
+            }
+
+            /* Skip to the next variable */
+            i += blocked_nr - 1;
+         }
+      }
+
+      /* We are going to allocate to this range, so it is now fully used. Mark
+       * it as such so we don't reassign here later.
+       */
+      BITSET_SET_RANGE(rctx->used_regs[RA_GPR], new_reg, new_reg + nr - 1);
+
+      /* The first iteration is special: it is the original allocation of a
+       * variable. All subsequent iterations pick a new register for a blocked
+       * variable. For those, copy the blocked variable to its new register.
+       */
+      if (ssa != dest.value) {
+         unsigned old_reg = rctx->ssa_to_reg[ssa];
+
+         for (unsigned i = 0; i < nr; i += align) {
+            struct agx_copy copy = {
+               .dest = new_reg + i,
+               .src = agx_register(old_reg + i, size),
+            };
+
+            assert((copy.dest % align) == 0 && "new dest must be aligned");
+            assert((copy.src.value % align) == 0 && "src must be aligned");
+            util_dynarray_append(copies, struct agx_copy, copy);
+         }
       }
 
       /* Mark down the set of clobbered registers, so that killed sources may be
@@ -494,23 +503,11 @@ assign_regs_by_copying(struct ra_ctx *rctx, unsigned npot_count, unsigned align,
       BITSET_SET_RANGE(clobbered, new_reg, new_reg + nr - 1);
 
       /* Update bookkeeping for this variable */
-      assert(cls == rctx->classes[cls]);
       set_ssa_to_reg(rctx, ssa, new_reg);
       rctx->reg_to_ssa[new_reg] = ssa;
-
-      /* Skip to the next variable */
-      i += nr - 1;
    }
 
-   /* We overallocated for non-power-of-two vectors. Free up the excess now.
-    * This is modelled as late kill in demand calculation.
-    */
-   if (npot_count != count) {
-      BITSET_CLEAR_RANGE(rctx->used_regs[cls], base + npot_count,
-                         base + count - 1);
-   }
-
-   return base;
+   return rctx->ssa_to_reg[dest.value];
 }
 
 static int
@@ -695,8 +692,8 @@ find_regs(struct ra_ctx *rctx, agx_instr *I, unsigned dest_idx, unsigned count,
          }
       }
 
-      reg = assign_regs_by_copying(rctx, count, align, I, &copies, clobbered,
-                                   killed, cls);
+      reg = assign_regs_by_copying(rctx, I->dest[dest_idx], I, &copies,
+                                   clobbered, killed);
       insert_copies_for_clobbered_killed(rctx, reg, count, I, &copies,
                                          clobbered);
 
