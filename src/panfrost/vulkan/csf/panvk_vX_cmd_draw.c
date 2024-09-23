@@ -1216,6 +1216,44 @@ clear_dirty(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    vk_dynamic_graphics_state_clear_dirty(&cmdbuf->vk.dynamic_graphics_state);
 }
 
+static struct mali_primitive_flags_packed
+get_tiler_idvs_flags(struct panvk_cmd_buffer *cmdbuf,
+                     struct panvk_draw_info *draw)
+{
+   const struct panvk_shader *vs = cmdbuf->state.gfx.vs.shader;
+   const struct vk_input_assembly_state *ia =
+      &cmdbuf->vk.dynamic_graphics_state.ia;
+
+   struct mali_primitive_flags_packed tiler_idvs_flags;
+   bool writes_point_size =
+      vs->info.vs.writes_point_size &&
+      ia->primitive_topology == VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
+
+   pan_pack(&tiler_idvs_flags, PRIMITIVE_FLAGS, cfg) {
+      cfg.draw_mode = translate_prim_topology(ia->primitive_topology);
+      cfg.index_type = index_size_to_index_type(draw->index.size);
+
+      if (writes_point_size) {
+         cfg.point_size_array_format = MALI_POINT_SIZE_ARRAY_FORMAT_FP16;
+         cfg.position_fifo_format = MALI_FIFO_FORMAT_EXTENDED;
+      } else {
+         cfg.point_size_array_format = MALI_POINT_SIZE_ARRAY_FORMAT_NONE;
+         cfg.position_fifo_format = MALI_FIFO_FORMAT_BASIC;
+      }
+
+      if (vs->info.outputs_written & VARYING_BIT_LAYER) {
+         cfg.layer_index_enable = true;
+         cfg.position_fifo_format = MALI_FIFO_FORMAT_EXTENDED;
+      }
+
+      cfg.secondary_shader =
+         vs->info.vs.secondary_enable && fs_required(cmdbuf);
+      cfg.primitive_restart = ia->primitive_restart_enable;
+   }
+
+   return tiler_idvs_flags;
+}
+
 static void
 panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
 {
@@ -1224,8 +1262,6 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    struct panvk_descriptor_state *desc_state = &cmdbuf->state.gfx.desc_state;
    const struct vk_rasterization_state *rs =
       &cmdbuf->vk.dynamic_graphics_state.rs;
-   const struct vk_input_assembly_state *ia =
-      &cmdbuf->vk.dynamic_graphics_state.ia;
    bool idvs = vs->info.vs.idvs;
    VkResult result;
 
@@ -1290,33 +1326,6 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
          return;
    }
 
-   struct mali_primitive_flags_packed tiler_idvs_flags;
-   bool writes_point_size =
-      vs->info.vs.writes_point_size &&
-      ia->primitive_topology == VK_PRIMITIVE_TOPOLOGY_POINT_LIST;
-
-   pan_pack(&tiler_idvs_flags, PRIMITIVE_FLAGS, cfg) {
-      cfg.draw_mode = translate_prim_topology(ia->primitive_topology);
-      cfg.index_type = index_size_to_index_type(draw->index.size);
-
-      if (writes_point_size) {
-         cfg.point_size_array_format = MALI_POINT_SIZE_ARRAY_FORMAT_FP16;
-         cfg.position_fifo_format = MALI_FIFO_FORMAT_EXTENDED;
-      } else {
-         cfg.point_size_array_format = MALI_POINT_SIZE_ARRAY_FORMAT_NONE;
-         cfg.position_fifo_format = MALI_FIFO_FORMAT_BASIC;
-      }
-
-      if (vs->info.outputs_written & VARYING_BIT_LAYER) {
-         cfg.layer_index_enable = true;
-         cfg.position_fifo_format = MALI_FIFO_FORMAT_EXTENDED;
-      }
-
-      cfg.secondary_shader =
-         vs->info.vs.secondary_enable && fs_required(cmdbuf);
-      cfg.primitive_restart = ia->primitive_restart_enable;
-   }
-
    uint32_t varying_size = 0;
 
    if (vs && fs) {
@@ -1360,6 +1369,9 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    }
 
    clear_dirty(cmdbuf, draw);
+
+   struct mali_primitive_flags_packed tiler_idvs_flags =
+      get_tiler_idvs_flags(cmdbuf, draw);
 
    uint32_t idvs_count = DIV_ROUND_UP(cmdbuf->state.gfx.render.layer_count,
                                       MAX_LAYERS_PER_TILER_DESC);
