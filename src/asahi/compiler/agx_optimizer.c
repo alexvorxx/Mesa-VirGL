@@ -453,7 +453,7 @@ agx_optimizer_bitop(agx_instr **defs, agx_instr *I)
    }
 }
 
-static void
+void
 agx_optimizer_forward(agx_context *ctx)
 {
    agx_instr **defs = calloc(ctx->alloc, sizeof(*defs));
@@ -496,7 +496,7 @@ agx_optimizer_forward(agx_context *ctx)
    free(defs);
 }
 
-static void
+void
 agx_optimizer_backward(agx_context *ctx)
 {
    agx_instr **uses = calloc(ctx->alloc, sizeof(*uses));
@@ -541,11 +541,4 @@ agx_optimizer_backward(agx_context *ctx)
 
    free(uses);
    free(multiple);
-}
-
-void
-agx_optimizer(agx_context *ctx)
-{
-   agx_optimizer_backward(ctx);
-   agx_optimizer_forward(ctx);
 }

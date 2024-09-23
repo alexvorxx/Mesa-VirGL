@@ -12,7 +12,8 @@
 static void
 agx_optimize_and_dce(agx_context *ctx)
 {
-   agx_optimizer(ctx);
+   agx_optimizer_backward(ctx);
+   agx_optimizer_forward(ctx);
    agx_dce(ctx, true);
 }
 

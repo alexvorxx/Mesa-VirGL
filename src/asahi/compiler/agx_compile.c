@@ -3417,7 +3417,8 @@ agx_compile_function_nir(nir_shader *nir, nir_function_impl *impl,
       AGX_PASS(ctx, agx_opt_cse);
 
       /* After DCE, use counts are right so we can run the optimizer. */
-      AGX_PASS(ctx, agx_optimizer);
+      AGX_PASS(ctx, agx_optimizer_backward);
+      AGX_PASS(ctx, agx_optimizer_forward);
       AGX_PASS(ctx, agx_opt_compact_constants);
 
       /* After inlining constants, promote what's left */
