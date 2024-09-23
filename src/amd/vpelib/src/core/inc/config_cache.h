@@ -42,17 +42,17 @@
  * The upper layer has to indicate this object is dirty or not for the hw programming layer to
  * determine i.  re-use the config cache? ii. cache the new settings?
  *
- * Before using the CONFIG_CACHE(), make sure the function has these local variables visiable in the
+ * Before using the CONFIG_CACHE(), make sure the function has these local variables visible in the
  * same code block:
  * 1. struct config_writer *config_writer
  *    - usually been declared with PROGRAM_ENTRY()
  * 2. a debug option that want to disable caching or not
  * 3. an input object that has the config_cache member
  * 4. the hw programming function that would generate command buffer content
- * 5. the object that has num_configs which stores the generated configs
+ * 5. the input/output context that has configs vector which stores the generated configs
  *
  * Inside this CONFIG_CACHE macro it will clear the dirty bit after consuming the settings
- * 
+ *
  * Make sure to free up this cache object when the parent object is destroyed using
  * CONFIG_CACHE_FREE()
  *
@@ -63,6 +63,7 @@ extern "C" {
 #endif
 
 struct vpe_priv;
+struct vpe_vector;
 
 /* a common config cache structure to be included in the object that is for program hardware API
  * layer
@@ -77,21 +78,21 @@ struct config_cache {
  * as bypass mode is not heavy lifting programming.
  *
  * /param   obj_cache           an object that has the config cache member
- * /param   obj_cfg_array       an object that contains the configs and num_configs member
+ * /param   ctx                 an input/output context that contains the configs vector
  * /param   disable_cache       a flag that controls a caching is needed
  * /param   is_bypass           if it is in bypass, it doesn't cache the bypass config
  * /param   program_func_call   the program call that generate config packet content
  * /param   inst                index to address the config_cache array
  */
-#define CONFIG_CACHE(obj_cache, obj_cfg_array, disable_cache, is_bypass, program_func_call, inst)  \
+#define CONFIG_CACHE(obj_cache, ctx, disable_cache, is_bypass, program_func_call, inst)            \
     {                                                                                              \
         bool use_cache = false;                                                                    \
                                                                                                    \
-        /* make sure it opens a new config packet */                                               \
-        config_writer_force_new_with_type(config_writer, CONFIG_TYPE_DIRECT);                      \
-                                                                                                   \
         if ((obj_cache) && !disable_cache && (obj_cache)->config_cache[inst].p_buffer &&           \
             (obj_cache)->config_cache[inst].cached && !((obj_cache)->dirty[inst]) && !is_bypass) { \
+            /* make sure it opens a new config packet */                                           \
+            config_writer_force_new_with_type(config_writer, CONFIG_TYPE_DIRECT);                  \
+                                                                                                   \
             /* reuse the cache */                                                                  \
             if (config_writer->buf->size >= (obj_cache)->config_cache[inst].size) {                \
                 memcpy((void *)(uintptr_t)config_writer->base_cpu_va,                              \
@@ -109,7 +110,13 @@ struct config_cache {
                                                                                                    \
         if (!use_cache) {                                                                          \
             uint64_t start, end;                                                                   \
-            uint16_t config_num = (uint16_t)(obj_cfg_array)->num_configs[inst];                    \
+            uint16_t num_config = (uint16_t)(ctx)->configs[inst]->num_elements;                    \
+                                                                                                   \
+            if (!is_bypass) {                                                                      \
+                /* make sure it opens a new config packet so we can cache a complete new config */ \
+                /* for bypass we don't do caching, so no need to open a new desc */                \
+                config_writer_force_new_with_type(config_writer, CONFIG_TYPE_DIRECT);              \
+            }                                                                                      \
                                                                                                    \
             start = config_writer->base_cpu_va;                                                    \
             program_func_call;                                                                     \
@@ -117,7 +124,7 @@ struct config_cache {
                                                                                                    \
             if (!disable_cache && !is_bypass) {                                                    \
                 /* only cache when it is not crossing config packets */                            \
-                if (config_num == (obj_cfg_array)->num_configs[inst]) {                            \
+                if (num_config == (ctx)->configs[inst]->num_elements) {                            \
                     if ((obj_cache)->dirty[inst]) {                                                \
                         uint64_t size = end - start;                                               \
                                                                                                    \

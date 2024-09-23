@@ -181,7 +181,7 @@ static bool color_update_regamma_tf(struct vpe_priv *vpe_priv,
         break;
     }
 
-    for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
+    for (uint32_t i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
         if (vpe_priv->init.debug.disable_lut_caching ||
             (output_tf->cache_info[i].cm_gamma_type != output_tf->cm_gamma_type) ||
             (output_tf->cache_info[i].tf != output_tf->tf) ||
@@ -198,7 +198,7 @@ static bool color_update_regamma_tf(struct vpe_priv *vpe_priv,
         ret = vpe_color_calculate_regamma_params(
             vpe_priv, x_scale, y_scale, &vpe_priv->cal_buffer, output_tf);
         if (ret) {
-            for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
+            for (uint32_t i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
                 // reset the cache status and mark as dirty to let hw layer to re-cache
                 output_tf->dirty[i]                    = true;
                 output_tf->config_cache[i].cached      = false;
@@ -244,7 +244,7 @@ static bool color_update_degamma_tf(struct vpe_priv *vpe_priv,
         break;
     }
 
-    for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
+    for (uint32_t i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
         if (vpe_priv->init.debug.disable_lut_caching ||
             (input_tf->cache_info[i].cm_gamma_type != input_tf->cm_gamma_type) ||
             (input_tf->cache_info[i].tf != input_tf->tf) ||
@@ -260,7 +260,7 @@ static bool color_update_degamma_tf(struct vpe_priv *vpe_priv,
     if (update) {
         ret = vpe_color_calculate_degamma_params(vpe_priv, x_scale, y_scale, input_tf);
         if (ret) {
-            for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
+            for (uint32_t i = 0; i < vpe_priv->pub.caps->resource_caps.num_dpp; i++) {
                 // reset the cache status and mark as dirty to let hw layer to re-cache
                 input_tf->dirty[i]                    = true;
                 input_tf->config_cache[i].cached      = false;
@@ -683,7 +683,7 @@ enum vpe_status vpe_color_update_3dlut(
     } else {
         bool update = false;
 
-        for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++)
+        for (uint32_t i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++)
             if (vpe_priv->init.debug.disable_lut_caching ||
                 (stream_ctx->lut3d_func->cache_info[i].uid_3dlut !=
                     stream_ctx->stream.tm_params.UID))
@@ -693,7 +693,7 @@ enum vpe_status vpe_color_update_3dlut(
             vpe_convert_to_tetrahedral(
                 vpe_priv, stream_ctx->stream.tm_params.lut_data,
                 stream_ctx->stream.tm_params.lut_dim, stream_ctx->lut3d_func);
-            for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
+            for (uint32_t i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
                 stream_ctx->lut3d_func->dirty[i]                = true;
                 stream_ctx->lut3d_func->config_cache[i].cached  = false;
                 stream_ctx->lut3d_func->cache_info[i].uid_3dlut = stream_ctx->stream.tm_params.UID;
@@ -830,7 +830,7 @@ enum vpe_status vpe_color_update_shaper(const struct vpe_priv *vpe_priv, uint16_
     }
 
     // right now shaper is always programmed with linear, once cached, it is always reused.
-    for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
+    for (uint32_t i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
         if (vpe_priv->init.debug.disable_lut_caching ||
             (shaper_func && (shaper_func->cache_info[i].tf != tf))) {
             // if the caching has the required data cached, skip the update
@@ -849,7 +849,7 @@ enum vpe_status vpe_color_update_shaper(const struct vpe_priv *vpe_priv, uint16_
 
         ret = vpe_build_shaper(&shaper_in, &shaper_func->pwl);
         if (ret == VPE_STATUS_OK) {
-            for (int i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
+            for (uint32_t i = 0; i < vpe_priv->pub.caps->resource_caps.num_mpc_3dlut; i++) {
                 shaper_func->dirty[i]               = true;
                 shaper_func->config_cache[i].cached = false;
                 shaper_func->cache_info[i].tf       = tf;

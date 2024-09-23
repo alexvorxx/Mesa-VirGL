@@ -118,7 +118,7 @@ void vpe_create_bg_segments(
         cmd_info.ops        = ops;
         cmd_info.cd         = (uint8_t)(gaps_cnt - gap_index - 1);
         cmd_info.tm_enabled = false; // currently only support frontend tm
-        vpe_vector_push(vpe_priv, vpe_priv->vpe_cmd_vector, &cmd_info);
+        vpe_vector_push(vpe_priv->vpe_cmd_vector, &cmd_info);
     }
 }
 

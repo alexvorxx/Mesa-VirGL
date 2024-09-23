@@ -164,42 +164,75 @@ struct segment_ctx *vpe_alloc_segment_ctx(struct vpe_priv *vpe_priv, uint16_t nu
     return segment_ctx_base;
 }
 
-struct stream_ctx *vpe_alloc_stream_ctx(struct vpe_priv *vpe_priv, uint32_t num_streams)
+static enum vpe_status create_input_config_vector(struct stream_ctx *stream_ctx)
 {
-    struct stream_ctx *ctx_base, *ctx;
-    uint32_t           i;
+    enum vpe_status  res = VPE_STATUS_OK;
+    uint32_t         pipe_idx, type_idx;
+    struct vpe_priv *vpe_priv;
 
-    ctx_base = (struct stream_ctx *)vpe_zalloc(sizeof(struct stream_ctx) * num_streams);
-    if (!ctx_base)
-        return NULL;
+    vpe_priv = stream_ctx->vpe_priv;
 
-    for (i = 0; i < num_streams; i++) {
-        ctx           = &ctx_base[i];
-        ctx->cs       = COLOR_SPACE_UNKNOWN;
-        ctx->tf       = TRANSFER_FUNC_UNKNOWN;
-        ctx->vpe_priv = vpe_priv;
-        vpe_color_set_adjustments_to_default(&ctx->color_adjustments);
-        ctx->tf_scaling_factor = vpe_fixpt_one;
-        ctx->stream.flags.geometric_scaling = 0;
-        ctx->stream.tm_params.UID = 0;
-        ctx->uid_3dlut = 0;
+    for (pipe_idx = 0; pipe_idx < vpe_priv->pub.caps->resource_caps.num_dpp; pipe_idx++) {
+        stream_ctx->configs[pipe_idx] =
+            vpe_vector_create(vpe_priv, sizeof(struct config_record), MIN_NUM_CONFIG);
+        if (!stream_ctx->configs[pipe_idx]) {
+            res = VPE_STATUS_NO_MEMORY;
+            break;
+        }
+
+        for (type_idx = 0; type_idx < VPE_CMD_TYPE_COUNT; type_idx++) {
+            stream_ctx->stream_op_configs[pipe_idx][type_idx] =
+                vpe_vector_create(vpe_priv, sizeof(struct config_record), MIN_NUM_CONFIG);
+            if (!stream_ctx->stream_op_configs[pipe_idx][type_idx]) {
+                res = VPE_STATUS_NO_MEMORY;
+                break;
+            }
+        }
+
+        if (res != VPE_STATUS_OK)
+            break;
     }
 
-    return ctx_base;
+    return res;
 }
 
-void vpe_free_stream_ctx(struct vpe_priv *vpe_priv)
+static void destroy_input_config_vector(struct stream_ctx *stream_ctx)
 {
-    uint16_t           i;
-    struct stream_ctx *ctx;
+    uint32_t         pipe_idx, type_idx;
+    struct vpe_priv *vpe_priv;
 
-    if (!vpe_priv->stream_ctx || !vpe_priv->num_streams)
+    vpe_priv = stream_ctx->vpe_priv;
+
+    for (pipe_idx = 0; pipe_idx < vpe_priv->pub.caps->resource_caps.num_dpp; pipe_idx++) {
+        if (stream_ctx->configs[pipe_idx]) {
+            vpe_vector_free(stream_ctx->configs[pipe_idx]);
+            stream_ctx->configs[pipe_idx] = NULL;
+        }
+
+        for (type_idx = 0; type_idx < VPE_CMD_TYPE_COUNT; type_idx++) {
+            if (stream_ctx->stream_op_configs[pipe_idx][type_idx]) {
+                vpe_vector_free(stream_ctx->stream_op_configs[pipe_idx][type_idx]);
+                stream_ctx->stream_op_configs[pipe_idx][type_idx] = NULL;
+            }
+        }
+    }
+}
+
+static void free_stream_ctx(uint32_t num_streams, struct stream_ctx *stream_ctx)
+{
+    struct vpe_priv *vpe_priv;
+    uint32_t         stream_idx;
+
+    if (!stream_ctx || !num_streams)
         return;
 
-    for (i = 0; i < vpe_priv->num_streams; i++) {
-        ctx = &vpe_priv->stream_ctx[i];
+    vpe_priv = stream_ctx[0].vpe_priv;
+
+    for (stream_idx = 0; stream_idx < num_streams; stream_idx++) {
+        struct stream_ctx *ctx = &stream_ctx[stream_idx];
+
         if (ctx->input_tf) {
-            for (int j = 0; j < MAX_INPUT_PIPE; j++)
+            for (uint32_t j = 0; j < MAX_INPUT_PIPE; j++)
                 CONFIG_CACHE_FREE(ctx->input_tf->config_cache[j]);
             vpe_free(ctx->input_tf);
             ctx->input_tf = NULL;
@@ -221,21 +254,21 @@ void vpe_free_stream_ctx(struct vpe_priv *vpe_priv)
         }
 
         if (ctx->in_shaper_func) {
-            for (int j = 0; j < MAX_INPUT_PIPE; j++)
+            for (uint32_t j = 0; j < MAX_INPUT_PIPE; j++)
                 CONFIG_CACHE_FREE(ctx->in_shaper_func->config_cache[j]);
             vpe_free(ctx->in_shaper_func);
             ctx->in_shaper_func = NULL;
         }
 
         if (ctx->blend_tf) {
-            for (int j = 0; j < MAX_INPUT_PIPE; j++)
+            for (uint32_t j = 0; j < MAX_INPUT_PIPE; j++)
                 CONFIG_CACHE_FREE(ctx->blend_tf->config_cache[j]);
             vpe_free(ctx->blend_tf);
             ctx->blend_tf = NULL;
         }
 
         if (ctx->lut3d_func) {
-            for (int j = 0; j < MAX_3DLUT; j++)
+            for (uint32_t j = 0; j < MAX_3DLUT; j++)
                 CONFIG_CACHE_FREE(ctx->lut3d_func->config_cache[j]);
             vpe_free(ctx->lut3d_func);
             ctx->lut3d_func = NULL;
@@ -245,20 +278,53 @@ void vpe_free_stream_ctx(struct vpe_priv *vpe_priv)
             vpe_free(ctx->segment_ctx);
             ctx->segment_ctx = NULL;
         }
+
+        destroy_input_config_vector(ctx);
     }
-    vpe_free(vpe_priv->stream_ctx);
-    vpe_priv->stream_ctx  = NULL;
-    vpe_priv->num_streams = 0;
-    vpe_priv->num_virtual_streams = 0;
 }
 
-void vpe_free_output_ctx(struct vpe_priv *vpe_priv)
+struct stream_ctx *vpe_alloc_stream_ctx(struct vpe_priv *vpe_priv, uint32_t num_streams)
 {
-    if (vpe_priv->output_ctx.gamut_remap)
-        vpe_free(vpe_priv->output_ctx.gamut_remap);
+    struct stream_ctx *ctx_base, *ctx;
+    uint32_t           stream_idx;
+    enum vpe_status    res = VPE_STATUS_OK;
 
-    if (vpe_priv->output_ctx.output_tf)
-        vpe_free(vpe_priv->output_ctx.output_tf);
+    ctx_base = (struct stream_ctx *)vpe_zalloc(sizeof(struct stream_ctx) * num_streams);
+    if (!ctx_base)
+        return NULL;
+
+    for (stream_idx = 0; stream_idx < num_streams; stream_idx++) {
+        ctx           = &ctx_base[stream_idx];
+        ctx->cs       = COLOR_SPACE_UNKNOWN;
+        ctx->tf       = TRANSFER_FUNC_UNKNOWN;
+        ctx->vpe_priv = vpe_priv;
+        vpe_color_set_adjustments_to_default(&ctx->color_adjustments);
+        ctx->tf_scaling_factor              = vpe_fixpt_one;
+        ctx->stream.flags.geometric_scaling = 0;
+        ctx->stream.tm_params.UID           = 0;
+        ctx->uid_3dlut                      = 0;
+
+        if ((res = create_input_config_vector(ctx)) != VPE_STATUS_OK)
+            break;
+    }
+
+    if (res != VPE_STATUS_OK) {
+        free_stream_ctx(num_streams, ctx_base);
+        ctx_base = NULL;
+    }
+    return ctx_base;
+}
+
+void vpe_free_stream_ctx(struct vpe_priv *vpe_priv)
+{
+    if (vpe_priv->num_streams && vpe_priv->stream_ctx) {
+        free_stream_ctx(vpe_priv->num_streams, vpe_priv->stream_ctx);
+        vpe_free(vpe_priv->stream_ctx);
+    }
+
+    vpe_priv->stream_ctx          = NULL;
+    vpe_priv->num_streams         = 0;
+    vpe_priv->num_virtual_streams = 0;
 }
 
 void vpe_pipe_reset(struct vpe_priv *vpe_priv)
@@ -697,35 +763,24 @@ void vpe_resource_build_bit_depth_reduction_params(
 void vpe_frontend_config_callback(
     void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size, uint32_t pipe_idx)
 {
-    struct config_frontend_cb_ctx *cb_ctx = (struct config_frontend_cb_ctx*)ctx;
-    struct vpe_priv *vpe_priv             = cb_ctx->vpe_priv;
-    struct stream_ctx *stream_ctx         = &vpe_priv->stream_ctx[cb_ctx->stream_idx];
-    enum vpe_cmd_type  cmd_type;
+    struct config_frontend_cb_ctx *cb_ctx     = (struct config_frontend_cb_ctx *)ctx;
+    struct vpe_priv               *vpe_priv   = cb_ctx->vpe_priv;
+    struct stream_ctx             *stream_ctx = &vpe_priv->stream_ctx[cb_ctx->stream_idx];
+    enum vpe_cmd_type              cmd_type;
+    struct config_record           record;
 
     if (cb_ctx->stream_sharing) {
-        VPE_ASSERT(stream_ctx->num_configs[pipe_idx] <
-                   (int)(sizeof(stream_ctx->configs[pipe_idx]) / sizeof(struct config_record)));
+        record.config_base_addr = cfg_base_gpu;
+        record.config_size      = size;
 
-        stream_ctx->configs[pipe_idx][stream_ctx->num_configs[pipe_idx]].config_base_addr =
-            cfg_base_gpu;
-        stream_ctx->configs[pipe_idx][stream_ctx->num_configs[pipe_idx]].config_size = size;
-        stream_ctx->num_configs[pipe_idx]++;
+        vpe_vector_push(stream_ctx->configs[pipe_idx], &record);
     } else if (cb_ctx->stream_op_sharing) {
         cmd_type = cb_ctx->cmd_type;
 
-        VPE_ASSERT(stream_ctx->num_stream_op_configs[pipe_idx][cmd_type] <
-                   (int)(sizeof(stream_ctx->stream_op_configs[pipe_idx][cmd_type]) /
-                         sizeof(struct config_record)));
+        record.config_base_addr = cfg_base_gpu;
+        record.config_size      = size;
 
-        stream_ctx
-            ->stream_op_configs[pipe_idx][cmd_type]
-                               [stream_ctx->num_stream_op_configs[pipe_idx][cmd_type]]
-            .config_base_addr = cfg_base_gpu;
-        stream_ctx
-            ->stream_op_configs[pipe_idx][cmd_type]
-                               [stream_ctx->num_stream_op_configs[pipe_idx][cmd_type]]
-            .config_size = size;
-        stream_ctx->num_stream_op_configs[pipe_idx][cmd_type]++;
+        vpe_vector_push(stream_ctx->stream_op_configs[pipe_idx][cmd_type], &record);
     }
 
     vpe_priv->vpe_desc_writer.add_config_desc(
@@ -735,18 +790,16 @@ void vpe_frontend_config_callback(
 void vpe_backend_config_callback(
     void *ctx, uint64_t cfg_base_gpu, uint64_t cfg_base_cpu, uint64_t size, uint32_t pipe_idx)
 {
-    struct config_backend_cb_ctx *cb_ctx = (struct config_backend_cb_ctx*)ctx;
-    struct vpe_priv *vpe_priv            = cb_ctx->vpe_priv;
-    struct output_ctx *output_ctx        = &vpe_priv->output_ctx;
+    struct config_backend_cb_ctx *cb_ctx     = (struct config_backend_cb_ctx *)ctx;
+    struct vpe_priv              *vpe_priv   = cb_ctx->vpe_priv;
+    struct output_ctx            *output_ctx = &vpe_priv->output_ctx;
+    struct config_record          record;
 
     if (cb_ctx->share) {
-        VPE_ASSERT(output_ctx->num_configs[pipe_idx] <
-                   (sizeof(output_ctx->configs[pipe_idx]) / sizeof(struct config_record)));
+        record.config_base_addr = cfg_base_gpu;
+        record.config_size      = size;
 
-        output_ctx->configs[pipe_idx][output_ctx->num_configs[pipe_idx]].config_base_addr =
-            cfg_base_gpu;
-        output_ctx->configs[pipe_idx][output_ctx->num_configs[pipe_idx]].config_size = size;
-        output_ctx->num_configs[pipe_idx]++;
+        vpe_vector_push(output_ctx->configs[pipe_idx], &record);
     }
 
     vpe_priv->vpe_desc_writer.add_config_desc(

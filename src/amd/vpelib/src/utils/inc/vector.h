@@ -31,7 +31,11 @@
 extern "C" {
 #endif
 
+struct vpe_priv;
+
 struct vpe_vector {
+    struct vpe_priv *vpe_priv; /*< store the vpe_priv for alloc/free memory */
+
     void  *element;      /*< the internal vector memory storage */
     size_t num_elements; /*< number of stored elements */
     size_t capacity;
@@ -57,11 +61,10 @@ void *vpe_vector_get(struct vpe_vector *vector, size_t idx);
 
 /**
  * Push the element to end of the vector.
- * @param[in]  vpe_priv  vpe instance created by vpe_create()
  * @param[in]  vector    vector that we want to push to the end.
  * @param[in]  p_element pointer of the element
  */
-void vpe_vector_push(struct vpe_priv *vpe_priv, struct vpe_vector *vector, void *p_element);
+void vpe_vector_push(struct vpe_vector *vector, void *p_element);
 
 /**
  * Clear the vector.
@@ -71,10 +74,9 @@ void vpe_vector_clear(struct vpe_vector *vector);
 
 /**
  * Free the vector.
- * @param[in]  vpe_priv vpe instance created by vpe_create()
  * @param[in]  vector   vector that we want to free.
  */
-void vpe_vector_free(struct vpe_priv *vpe_priv, struct vpe_vector *vpe_vector);
+void vpe_vector_free(struct vpe_vector *vpe_vector);
 
 #ifdef __cplusplus
 }

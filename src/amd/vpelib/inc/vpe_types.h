@@ -211,12 +211,12 @@ struct vpe_caps {
     uint32_t is_apu                 : 1;
     uint32_t bg_color_check_support : 1;
     struct {
-        int num_dpp;
-        int num_opp;
-        int num_mpc_3dlut;
-        int num_cdc_be;
+        uint32_t num_dpp;
+        uint32_t num_opp;
+        uint32_t num_mpc_3dlut;
+        uint32_t num_cdc_be;
 
-        int num_queue; /**< num of hw queue */
+        uint32_t num_queue; /**< num of hw queue */
     } resource_caps;
 
     struct vpe_color_caps color_caps;

@@ -39,6 +39,7 @@ struct vpe_vector *vpe_vector_create(
         return NULL;
     }
 
+    vector->vpe_priv     = vpe_priv;
     vector->num_elements = 0;
     vector->capacity     = initial_capacity;
     vector->element_size = element_size;
@@ -46,9 +47,10 @@ struct vpe_vector *vpe_vector_create(
     return vector;
 }
 
-static struct vpe_vector *vector_realloc(
-    struct vpe_priv *vpe_priv, struct vpe_vector *vector, size_t new_size)
+static struct vpe_vector *vector_realloc(struct vpe_vector *vector, size_t new_size)
 {
+    struct vpe_priv *vpe_priv = vector->vpe_priv;
+
     void *new_element = vpe_zalloc(new_size);
     if (!new_element)
         return NULL;
@@ -70,14 +72,14 @@ void *vpe_vector_get(struct vpe_vector *vector, size_t idx)
     return (void *)((char *)(vector->element) + (idx * vector->element_size));
 }
 
-void vpe_vector_push(struct vpe_priv *vpe_priv, struct vpe_vector *vector, void *p_element)
+void vpe_vector_push(struct vpe_vector *vector, void *p_element)
 {
     if (!p_element || !vector)
         return;
 
     if (vector->num_elements >= vector->capacity) {
         vector->capacity *= 2;
-        vector = vector_realloc(vpe_priv, vector, vector->capacity * vector->element_size);
+        vector = vector_realloc(vector, vector->capacity * vector->element_size);
     }
 
     if (!vector)
@@ -97,10 +99,11 @@ void vpe_vector_clear(struct vpe_vector *vector)
     memset(vector->element, 0, vector->capacity * vector->element_size);
 }
 
-void vpe_vector_free(struct vpe_priv *vpe_priv, struct vpe_vector *vector)
+void vpe_vector_free(struct vpe_vector *vector)
 {
+    struct vpe_priv *vpe_priv = vector->vpe_priv;
+
     vpe_free(vector->element);
     vector->element = NULL;
     vpe_free(vector);
-    vector = NULL;
 }

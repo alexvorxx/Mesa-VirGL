@@ -42,7 +42,8 @@ struct vpe_priv;
 struct vpe_cmd_info;
 struct segment_ctx;
 
-#define MIN_VPE_CMD     1024
+#define MIN_VPE_CMD    (1024)
+#define MIN_NUM_CONFIG (16)
 
 enum vpe_cmd_ops;
 
@@ -131,9 +132,6 @@ struct segment_ctx *vpe_alloc_segment_ctx(struct vpe_priv *vpe_priv, uint16_t nu
 struct stream_ctx *vpe_alloc_stream_ctx(struct vpe_priv *vpe_priv, uint32_t num_streams);
 
 void vpe_free_stream_ctx(struct vpe_priv *vpe_priv);
-
-/** output ctx */
-void vpe_free_output_ctx(struct vpe_priv *vpe_priv);
 
 /** pipe resource management */
 void vpe_pipe_reset(struct vpe_priv *vpe_priv);
