@@ -50,6 +50,8 @@ class MinigbmGralloc : public Gralloc {
 
     int getId(const AHardwareBuffer* ahb, uint64_t* id) override;
 
+    int32_t getDataspace(const AHardwareBuffer* ahb) override;
+
    private:
     std::unique_ptr<VirtGpuDevice> mDevice;
 };

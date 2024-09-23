@@ -178,4 +178,13 @@ int MinigbmGralloc::getId(const AHardwareBuffer* ahb, uint64_t* id) {
 #endif
 }
 
+int32_t MinigbmGralloc::getDataspace(const AHardwareBuffer* ahb) {
+#if ANDROID_API_LEVEL >= 34
+    return AHardwareBuffer_getDataSpace(ahb);
+#else
+    (void)ahb;
+    return GFXSTREAM_AHB_DATASPACE_UNKNOWN;
+#endif
+}
+
 }  // namespace gfxstream

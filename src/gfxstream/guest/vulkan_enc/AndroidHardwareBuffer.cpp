@@ -155,6 +155,11 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
         ahbFormatProps->samplerYcbcrConversionComponents.b = VK_COMPONENT_SWIZZLE_IDENTITY;
         ahbFormatProps->samplerYcbcrConversionComponents.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 
+        ahbFormatProps->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_RGB_IDENTITY;
+        ahbFormatProps->suggestedYcbcrRange = VK_SAMPLER_YCBCR_RANGE_ITU_NARROW;
+        ahbFormatProps->suggestedXChromaOffset = VK_CHROMA_LOCATION_MIDPOINT;
+        ahbFormatProps->suggestedYChromaOffset = VK_CHROMA_LOCATION_MIDPOINT;
+
 #if defined(__ANDROID__) || defined(__linux__)
         if (android_format_is_yuv(format)) {
             uint32_t drmFormat = grallocHelper->getFormatDrmFourcc(buffer);
@@ -215,15 +220,86 @@ VkResult getAndroidHardwareBufferPropertiesANDROID(
                         break;
                 }
             }
+
+            int32_t dataspace = grallocHelper->getDataspace(buffer);
+
+            // Some of the dataspace enums are not composites built from the bitwise-or of the model,
+            // transfer, and range. Replace those enums with their corresponding composite enums:
+            switch (dataspace) {
+                case GFXSTREAM_AHB_DATASPACE_UNKNOWN: {
+                    dataspace = GFXSTREAM_AHB_DATASPACE_V0_JFIF;
+                    break;
+                }
+                case GFXSTREAM_AHB_DATASPACE_BT601_525: {
+                    dataspace = GFXSTREAM_AHB_DATASPACE_V0_BT601_525;
+                    break;
+                }
+                case GFXSTREAM_AHB_DATASPACE_BT601_625: {
+                    dataspace = GFXSTREAM_AHB_DATASPACE_V0_BT601_625;
+                    break;
+                }
+                case GFXSTREAM_AHB_DATASPACE_BT709: {
+                    dataspace = GFXSTREAM_AHB_DATASPACE_V0_BT709;
+                    break;
+                }
+                case GFXSTREAM_AHB_DATASPACE_JFIF: {
+                    dataspace = GFXSTREAM_AHB_DATASPACE_V0_JFIF;
+                    break;
+                }
+                case GFXSTREAM_AHB_DATASPACE_SRGB: {
+                    dataspace = GFXSTREAM_AHB_DATASPACE_V0_SRGB;
+                    break;
+                }
+                case GFXSTREAM_AHB_DATASPACE_SRGB_LINEAR: {
+                    dataspace = GFXSTREAM_AHB_DATASPACE_V0_SRGB_LINEAR;
+                    break;
+                }
+            }
+
+            const int32_t model = dataspace & GFXSTREAM_AHB_DATASPACE_STANDARD_MASK;
+            switch (model) {
+                case GFXSTREAM_AHB_DATASPACE_STANDARD_BT601_525:
+                case GFXSTREAM_AHB_DATASPACE_STANDARD_BT601_525_UNADJUSTED:
+                case GFXSTREAM_AHB_DATASPACE_STANDARD_BT601_625:
+                case GFXSTREAM_AHB_DATASPACE_STANDARD_BT601_625_UNADJUSTED: {
+                    ahbFormatProps->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601;
+                    break;
+                }
+                case GFXSTREAM_AHB_DATASPACE_STANDARD_BT709: {
+                    ahbFormatProps->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709;
+                    break;
+                }
+                case GFXSTREAM_AHB_DATASPACE_STANDARD_BT2020:
+                case GFXSTREAM_AHB_DATASPACE_STANDARD_BT2020_CONSTANT_LUMINANCE: {
+                    ahbFormatProps->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_2020;
+                    break;
+                }
+                default: {
+                    mesa_logw("Unhandled AHB dataspace model: %d. Assuming YCBCR_601", model);
+                    ahbFormatProps->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601;
+                    break;
+                }
+            }
+
+            const int32_t range = dataspace & GFXSTREAM_AHB_DATASPACE_RANGE_MASK;
+            switch (range) {
+                case GFXSTREAM_AHB_DATASPACE_RANGE_FULL: {
+                    ahbFormatProps->suggestedYcbcrRange = VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
+                    break;
+                }
+                case GFXSTREAM_AHB_DATASPACE_RANGE_LIMITED: {
+                    ahbFormatProps->suggestedYcbcrRange = VK_SAMPLER_YCBCR_RANGE_ITU_NARROW;
+                    break;
+                }
+                default: {
+                    mesa_logw("Unhandled AHB dataspace range: %d. Assuming full.", range);
+                    ahbFormatProps->suggestedYcbcrRange = VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
+                    break;
+                }
+            }
         }
 #endif
-        ahbFormatProps->suggestedYcbcrModel = android_format_is_yuv(format)
-                                                  ? VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601
-                                                  : VK_SAMPLER_YCBCR_MODEL_CONVERSION_RGB_IDENTITY;
-        ahbFormatProps->suggestedYcbcrRange = VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
 
-        ahbFormatProps->suggestedXChromaOffset = VK_CHROMA_LOCATION_MIDPOINT;
-        ahbFormatProps->suggestedYChromaOffset = VK_CHROMA_LOCATION_MIDPOINT;
     }
 
     uint32_t colorBufferHandle = grallocHelper->getHostHandle(buffer);
