@@ -589,7 +589,7 @@ build_image_copy_shader(const struct vk_meta_image_copy_key *key)
       if (key->block_based) {
          /* Must define the phi first so we validate. */
          nir_def *phi = nir_if_phi(b, value1, value2);
-         nir_def *mask = nir_imm_int(b, 1 << s);
+         nir_def *mask = nir_imm_intN_t(b, 1 << s, 16);
 
          nir_store_local_pixel_agx(b, phi, mask, lid, .base = 0,
                                    .write_mask = 0xf, .format = isa_format,

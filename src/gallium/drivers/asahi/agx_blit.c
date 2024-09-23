@@ -208,7 +208,7 @@ asahi_blit_compute_shader(struct pipe_context *ctx, struct asahi_blit_key *key)
    enum pipe_format tib_format =
       ail_pixel_format[effective_format(key->dst_format)].renderable;
 
-   nir_store_local_pixel_agx(b, color, nir_imm_int(b, 1), lid, .base = 0,
+   nir_store_local_pixel_agx(b, color, nir_imm_intN_t(b, 1, 16), lid, .base = 0,
                              .write_mask = 0xf, .format = tib_format,
                              .explicit_coord = true);
 
