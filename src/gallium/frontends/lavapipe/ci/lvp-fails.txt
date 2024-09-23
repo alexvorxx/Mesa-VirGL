@@ -689,3 +689,8 @@ dEQP-VK.dynamic_rendering.graphics_pipeline_library.suballocation.formats.a8b8g8
 dEQP-VK.dynamic_rendering.graphics_pipeline_library.dedicated_allocation.formats.a8b8g8r8_uint_pack32.input.dont_care.dont_care.clear_draw,Fail
 dEQP-VK.dynamic_rendering.primary_cmd_buff.dedicated_allocation.attachment_allocation.input_output_chain.20,Fail
 dEQP-VK.dynamic_rendering.primary_cmd_buff.suballocation.formats.r32g32_uint.input.load.dont_care.clear_draw,Fail
+
+# Regression from a commit in ed64ecca...e1a53d41
+dEQP-VK.glsl.texture_functions.query.texturequerylod.isampler1d_fragment,Fail
+dEQP-VK.glsl.texture_functions.query.texturequerylod.sampler1d_float_fragment,Fail
+dEQP-VK.glsl.texture_functions.query.texturequerylod.usampler1d_fragment,Fail
