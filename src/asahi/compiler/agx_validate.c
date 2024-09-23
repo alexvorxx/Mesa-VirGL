@@ -500,6 +500,20 @@ agx_validate(agx_context *ctx, const char *after)
          }
       }
 
+      /* agx_validate_defs skips phi sources, so validate them now */
+      agx_foreach_block(ctx, block) {
+         agx_foreach_phi_in_block(block, phi) {
+            agx_foreach_ssa_src(phi, s) {
+               if (!BITSET_TEST(defs, phi->src[s].value)) {
+                  fprintf(stderr, "Undefined phi source %u after %s\n",
+                          phi->src[s].value, after);
+                  agx_print_instr(phi, stderr);
+                  fail = true;
+               }
+            }
+         }
+      }
+
       free(defs);
    }
 
