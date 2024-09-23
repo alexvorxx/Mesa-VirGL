@@ -506,12 +506,6 @@ double_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, VkImageUsag
    usage_fail fail = check_ici(screen, ici, *mod);
    if (!fail)
       return true;
-   if (fail == USAGE_FAIL_SUBOPTIMAL) {
-      ici->usage &= ~VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT;
-      fail = check_ici(screen, ici, *mod);
-      if (!fail)
-         return true;
-   }
    const void *pNext = ici->pNext;
    if (pNext) {
       VkBaseOutStructure *prev = NULL;
