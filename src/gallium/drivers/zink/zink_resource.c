@@ -486,6 +486,7 @@ suboptimal_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, uint64_
       fail = check_ici(screen, ici, *mod);
       if (!fail)
          return true;
+      ici->usage |= VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT;
    }
    return false;
 }
