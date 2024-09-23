@@ -1254,8 +1254,8 @@ get_tiler_idvs_flags(struct panvk_cmd_buffer *cmdbuf,
    return tiler_idvs_flags;
 }
 
-static void
-panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
+static VkResult
+prepare_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
 {
    const struct panvk_shader *vs = cmdbuf->state.gfx.vs.shader;
    const struct panvk_shader *fs = cmdbuf->state.gfx.fs.shader;
@@ -1265,10 +1265,6 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    bool idvs = vs->info.vs.idvs;
    VkResult result;
 
-   /* If there's no vertex shader, we can skip the draw. */
-   if (!panvk_priv_mem_dev_addr(vs->spds.pos_points))
-      return;
-
    /* FIXME: support non-IDVS. */
    assert(idvs);
 
@@ -1277,25 +1273,25 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
                                             &cmdbuf->state.gfx.link);
       if (result != VK_SUCCESS) {
          vk_command_buffer_set_error(&cmdbuf->vk, result);
-         return;
+         return result;
       }
       cmdbuf->state.gfx.linked = true;
    }
 
    result = update_tls(cmdbuf);
    if (result != VK_SUCCESS)
-      return;
+      return result;
 
    bool needs_tiling = !rs->rasterizer_discard_enable;
 
    if (needs_tiling) {
       result = get_tiler_desc(cmdbuf);
       if (result != VK_SUCCESS)
-         return;
+         return result;
 
       result = get_fb_descs(cmdbuf);
       if (result != VK_SUCCESS)
-         return;
+         return result;
    }
 
    struct cs_builder *b =
@@ -1307,23 +1303,23 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    result =
       panvk_per_arch(cmd_prepare_push_descs)(cmdbuf, desc_state, used_set_mask);
    if (result != VK_SUCCESS)
-      return;
+      return result;
 
    prepare_sysvals(cmdbuf);
 
    result = prepare_push_uniforms(cmdbuf);
    if (result != VK_SUCCESS)
-      return;
+      return result;
 
    result = prepare_vs(cmdbuf);
    if (result != VK_SUCCESS)
-      return;
+      return result;
 
    /* No need to setup the FS desc tables if the FS is not executed. */
    if (needs_tiling && fs_required(cmdbuf)) {
       result = prepare_fs(cmdbuf);
       if (result != VK_SUCCESS)
-         return;
+         return result;
    }
 
    uint32_t varying_size = 0;
@@ -1338,13 +1334,6 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    }
 
    cs_update_vt_ctx(b) {
-      cs_move32_to(b, cs_sr_reg32(b, 32), draw->vertex.base);
-      cs_move32_to(b, cs_sr_reg32(b, 33), draw->vertex.count);
-      cs_move32_to(b, cs_sr_reg32(b, 34), draw->instance.count);
-      cs_move32_to(b, cs_sr_reg32(b, 35), draw->index.offset);
-      cs_move32_to(b, cs_sr_reg32(b, 36), draw->index.vertex_offset);
-      cs_move32_to(b, cs_sr_reg32(b, 37), draw->instance.base);
-
       /* We don't use the resource dep system yet. */
       cs_move32_to(b, cs_sr_reg32(b, 38), 0);
 
@@ -1358,17 +1347,45 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
 
       result = prepare_blend(cmdbuf);
       if (result != VK_SUCCESS)
-         return;
+         return result;
 
       result = prepare_ds(cmdbuf);
       if (result != VK_SUCCESS)
-         return;
+         return result;
 
       prepare_dcd(cmdbuf);
       prepare_vp(cmdbuf);
    }
 
    clear_dirty(cmdbuf, draw);
+
+   return VK_SUCCESS;
+}
+
+static void
+panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
+{
+   const struct panvk_shader *vs = cmdbuf->state.gfx.vs.shader;
+   struct cs_builder *b =
+      panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
+   VkResult result;
+
+   /* If there's no vertex shader, we can skip the draw. */
+   if (!panvk_priv_mem_dev_addr(vs->spds.pos_points))
+      return;
+
+   result = prepare_draw(cmdbuf, draw);
+   if (result != VK_SUCCESS)
+      return;
+
+   cs_update_vt_ctx(b) {
+      cs_move32_to(b, cs_sr_reg32(b, 32), draw->vertex.base);
+      cs_move32_to(b, cs_sr_reg32(b, 33), draw->vertex.count);
+      cs_move32_to(b, cs_sr_reg32(b, 34), draw->instance.count);
+      cs_move32_to(b, cs_sr_reg32(b, 35), draw->index.offset);
+      cs_move32_to(b, cs_sr_reg32(b, 36), draw->index.vertex_offset);
+      cs_move32_to(b, cs_sr_reg32(b, 37), draw->instance.base);
+   }
 
    struct mali_primitive_flags_packed tiler_idvs_flags =
       get_tiler_idvs_flags(cmdbuf, draw);
