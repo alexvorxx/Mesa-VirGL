@@ -1445,3 +1445,63 @@ const struct vk_device_shader_ops panvk_per_arch(device_shader_ops) = {
    .cmd_set_dynamic_graphics_state = vk_cmd_set_dynamic_graphics_state,
    .cmd_bind_shaders = panvk_cmd_bind_shaders,
 };
+
+static void
+panvk_internal_shader_destroy(struct vk_device *vk_dev,
+                              struct vk_shader *vk_shader,
+                              const VkAllocationCallbacks *pAllocator)
+{
+   struct panvk_device *dev = to_panvk_device(vk_dev);
+   struct panvk_internal_shader *shader =
+      container_of(vk_shader, struct panvk_internal_shader, vk);
+
+   panvk_pool_free_mem(&dev->mempools.exec, shader->code_mem);
+
+#if PAN_ARCH <= 7
+   panvk_pool_free_mem(&dev->mempools.exec, shader->rsd);
+#else
+   panvk_pool_free_mem(&dev->mempools.exec, shader->spd);
+#endif
+
+   vk_shader_free(&dev->vk, pAllocator, &shader->vk);
+}
+
+static const struct vk_shader_ops panvk_internal_shader_ops = {
+   .destroy = panvk_internal_shader_destroy,
+};
+
+VkResult
+panvk_per_arch(create_internal_shader)(
+   struct panvk_device *dev, nir_shader *nir,
+   struct panfrost_compile_inputs *compiler_inputs,
+   struct panvk_internal_shader **shader_out)
+{
+   struct panvk_internal_shader *shader =
+      vk_shader_zalloc(&dev->vk, &panvk_internal_shader_ops, nir->info.stage,
+                       NULL, sizeof(*shader));
+   if (shader == NULL)
+      return panvk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
+
+   VkResult result;
+   struct util_dynarray binary;
+
+   util_dynarray_init(&binary, nir);
+   GENX(pan_shader_compile)(nir, compiler_inputs, &binary, &shader->info);
+
+   unsigned bin_size = util_dynarray_num_elements(&binary, uint8_t);
+   if (bin_size) {
+      shader->code_mem = panvk_pool_upload_aligned(&dev->mempools.exec,
+                                                   binary.data, bin_size, 128);
+      if (!panvk_priv_mem_dev_addr(shader->code_mem)) {
+         result = panvk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+         goto err_free_shader;
+      }
+   }
+
+   *shader_out = shader;
+   return VK_SUCCESS;
+
+err_free_shader:
+   vk_shader_free(&dev->vk, NULL, &shader->vk);
+   return result;
+}
