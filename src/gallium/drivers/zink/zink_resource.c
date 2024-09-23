@@ -494,7 +494,7 @@ suboptimal_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, uint64_
  * thus also the list of formats we might might mutate to)
  */
 static bool
-double_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, VkImageUsageFlags usage, uint64_t mod)
+double_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, VkImageUsageFlags usage, uint64_t mod, bool require_mutable)
 {
    if (!usage)
       return false;
@@ -506,6 +506,8 @@ double_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, VkImageUsag
    usage_fail fail = check_ici(screen, ici, mod);
    if (!fail)
       return true;
+   if (require_mutable)
+      return false;
    const void *pNext = ici->pNext;
    if (pNext) {
       VkBaseOutStructure *prev = NULL;
@@ -535,6 +537,35 @@ double_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, VkImageUsag
    return false;
 }
 
+static bool
+find_good_mod(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe_resource *templ, unsigned bind, unsigned modifiers_count, uint64_t *modifiers, uint64_t *good_mod, VkImageUsageFlags *good_usage)
+{
+   bool found = false;
+   const struct zink_modifier_props *prop = zink_get_modifier_props(screen, templ->format);
+   for (unsigned i = 0; i < modifiers_count; i++) {
+      bool need_extended = false;
+
+      if (modifiers[i] == DRM_FORMAT_MOD_LINEAR)
+         continue;
+
+      VkFormatFeatureFlags feats = find_modifier_feats(prop, modifiers[i]);
+      if (!feats)
+         continue;
+
+      if (feats & VK_FORMAT_FEATURE_DISJOINT_BIT && util_format_get_num_planes(templ->format))
+         ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
+      VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
+      assert(!need_extended);
+      if (double_check_ici(screen, ici, usage, modifiers[i], true)) {
+         /* assume "best" modifiers are last in array; just return last good modifier */
+         found = true;
+         *good_mod = modifiers[i];
+         *good_usage = usage;
+      }
+   }
+   return found;
+}
+
 static VkImageUsageFlags
 get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe_resource *templ, unsigned bind, unsigned modifiers_count, uint64_t *modifiers, uint64_t *mod)
 {
@@ -542,58 +573,31 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
    bool need_extended = false;
    *mod = DRM_FORMAT_MOD_INVALID;
    if (modifiers_count) {
-      bool have_linear = false;
-      const struct zink_modifier_props *prop = zink_get_modifier_props(screen, templ->format);
       assert(tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT);
-      bool found = false;
       uint64_t good_mod = 0;
       VkImageUsageFlags good_usage = 0;
-      for (unsigned i = 0; i < modifiers_count; i++) {
-         if (modifiers[i] == DRM_FORMAT_MOD_LINEAR) {
-            have_linear = true;
-            if (!screen->info.have_EXT_image_drm_format_modifier)
-               break;
-            continue;
-         }
-         VkFormatFeatureFlags feats = find_modifier_feats(prop, modifiers[i]);
-         if (feats) {
-            if (feats & VK_FORMAT_FEATURE_DISJOINT_BIT && util_format_get_num_planes(templ->format) > 1)
-               ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
-            VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
-            assert(!need_extended);
-            if (double_check_ici(screen, ici, usage, modifiers[i])) {
-               if (!found) {
-                  found = true;
-                  good_mod = modifiers[i];
-                  good_usage = usage;
-               }
-            } else {
-               modifiers[i] = DRM_FORMAT_MOD_LINEAR;
-            }
-         }
-      }
-      if (found) {
+      if (screen->info.have_EXT_image_drm_format_modifier &&
+          find_good_mod(screen, ici, templ, bind, modifiers_count, modifiers, &good_mod, &good_usage)) {
          *mod = good_mod;
          return good_usage;
       }
       /* only try linear if no other options available */
-      if (have_linear) {
-         VkFormatFeatureFlags feats = find_modifier_feats(prop, DRM_FORMAT_MOD_LINEAR);
-         if (feats) {
-            if (feats & VK_FORMAT_FEATURE_DISJOINT_BIT && util_format_get_num_planes(templ->format) > 1)
-               ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
-            VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
-            assert(!need_extended);
-            if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_LINEAR)) {
-               *mod = DRM_FORMAT_MOD_LINEAR;
-               return usage;
-            }
+      const struct zink_modifier_props *prop = zink_get_modifier_props(screen, templ->format);
+      VkFormatFeatureFlags feats = find_modifier_feats(prop, DRM_FORMAT_MOD_LINEAR);
+      if (feats) {
+         if (feats & VK_FORMAT_FEATURE_DISJOINT_BIT && util_format_get_num_planes(templ->format) > 1)
+            ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
+         VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
+         assert(!need_extended);
+         if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_LINEAR, true)) {
+            *mod = DRM_FORMAT_MOD_LINEAR;
+            return usage;
          }
       }
    } else {
       const struct zink_format_props *props = zink_get_format_props(screen, templ->format);
       VkFormatFeatureFlags2 feats = tiling == VK_IMAGE_TILING_LINEAR ? props->linearTilingFeatures : props->optimalTilingFeatures;
-      if (feats & VK_FORMAT_FEATURE_2_DISJOINT_BIT && util_format_get_num_planes(templ->format))
+      if (feats & VK_FORMAT_FEATURE_DISJOINT_BIT && util_format_get_num_planes(templ->format) > 1)
          ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
       if (ici->flags & VK_IMAGE_CREATE_EXTENDED_USAGE_BIT)
          feats = UINT32_MAX;
@@ -603,17 +607,27 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
          feats = UINT32_MAX;
          usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
       }
-      if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID))
+      if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID, true))
          return usage;
       if (util_format_is_depth_or_stencil(templ->format)) {
          if (!(templ->bind & PIPE_BIND_DEPTH_STENCIL)) {
             usage &= ~VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-            if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID))
+            /* mutable doesn't apply to depth/stencil formats */
+            if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID, true))
                return usage;
          }
       } else if (!(templ->bind & PIPE_BIND_RENDER_TARGET)) {
          usage &= ~VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-         if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID))
+         if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID, true))
+            return usage;
+         usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+         if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID, false))
+            return usage;
+         usage &= ~VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+         if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID, false))
+            return usage;
+      } else {
+         if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID, false))
             return usage;
       }
    }
