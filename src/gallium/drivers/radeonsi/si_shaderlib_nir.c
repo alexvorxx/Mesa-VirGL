@@ -271,7 +271,7 @@ void *si_create_fmask_expand_cs(struct si_context *sctx, unsigned num_samples, b
                           nir_undef(&b, 1, 32));
       values[i] = nir_image_deref_load(&b, 4, 32, img_deref, coord[i], sample, zero_lod,
                                           .access = ACCESS_RESTRICT,
-                                          .image_dim = GLSL_SAMPLER_DIM_MS,
+                                          .image_dim = GLSL_SAMPLER_DIM_2D,
                                           .image_array = is_array);
    }
 
@@ -280,7 +280,7 @@ void *si_create_fmask_expand_cs(struct si_context *sctx, unsigned num_samples, b
       nir_def *sample = nir_imm_int(&b, i);
       nir_image_deref_store(&b, img_deref, coord[i], sample, values[i], zero_lod,
                             .access = ACCESS_RESTRICT,
-                            .image_dim = GLSL_SAMPLER_DIM_MS,
+                            .image_dim = GLSL_SAMPLER_DIM_2D,
                             .image_array = is_array);
    }
 
