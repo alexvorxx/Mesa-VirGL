@@ -346,6 +346,11 @@ static intptr_t readlink(const char *path, char *buf, size_t bufsiz)
 {
    return -1;
 }
+extern char *
+drmGetFormatModifierName(uint64_t modifier)
+{
+   return NULL;
+}
 #else
 #include "drm-uapi/amdgpu_drm.h"
 #include <amdgpu.h>
@@ -2109,6 +2114,27 @@ void ac_print_gpu_info(const struct radeon_info *info, FILE *f)
               G_0098F8_MULTI_GPU_TILE_SIZE(info->gb_addr_config));
       fprintf(f, "    row_size = %u\n", 1024 << G_0098F8_ROW_SIZE(info->gb_addr_config));
       fprintf(f, "    num_lower_pipes = %u (raw)\n", G_0098F8_NUM_LOWER_PIPES(info->gb_addr_config));
+   }
+
+   struct ac_modifier_options modifier_options = {
+      .dcc = true,
+      .dcc_retile = true,
+   };
+   uint64_t modifiers[256];
+   unsigned modifier_count = ARRAY_SIZE(modifiers);
+
+   /* Get the number of modifiers. */
+   if (ac_get_supported_modifiers(info, &modifier_options, PIPE_FORMAT_R8G8B8A8_UNORM,
+                                  &modifier_count, modifiers)) {
+      if (modifier_count)
+         fprintf(f, "Modifiers (32bpp):\n");
+
+      for (unsigned i = 0; i < modifier_count; i++) {
+         char *name = drmGetFormatModifierName(modifiers[i]);
+
+         fprintf(f, "    %s\n", name);
+         free(name);
+      }
    }
 }
 
