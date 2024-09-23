@@ -13,7 +13,7 @@
 #include "agx_pack.h"
 #include "agx_ppp.h"
 
-#define AGX_MAX_OCCLUSION_QUERIES (65536)
+#define AGX_MAX_OCCLUSION_QUERIES (32768)
 #define AGX_MAX_VIEWPORTS         (16)
 
 #define agx_push(ptr, T, cfg)                                                  \
