@@ -377,28 +377,43 @@ impl Image {
     }
 
     #[no_mangle]
-    pub extern "C" fn nil_image_level_size_B(&self, level: u32) -> u64 {
-        self.level_size_B(level)
+    pub extern "C" fn nil_image_level_layer_size_B(&self, level: u32) -> u64 {
+        self.level_layer_size_B(level)
     }
 
-    pub fn level_size_B(&self, level: u32) -> u64 {
+    pub fn level_layer_size_B(&self, level: u32) -> u64 {
         assert!(level < self.num_levels);
-        let lvl_ext_B = self.level_extent_B(level);
+        let mut lvl_ext_B = self.level_extent_B(level);
+        // We only care about a single array layer here
+        lvl_ext_B.array_len = 1;
         let level = &self.levels[level as usize];
 
         if level.tiling.is_tiled() {
-            let lvl_tiling_ext_B = level.tiling.extent_B();
-            let mut lvl_ext_B = lvl_ext_B.align(&lvl_tiling_ext_B);
-
-            let array_len = lvl_ext_B.array_len;
-            lvl_ext_B.array_len = 1;
-
-            self.array_stride_B * u64::from(array_len - 1) + lvl_ext_B.size_B()
+            lvl_ext_B.align(&level.tiling.extent_B()).size_B()
         } else {
             assert!(lvl_ext_B.depth == 1);
             assert!(lvl_ext_B.array_len == 1);
             u64::from(level.row_stride_B) * u64::from(lvl_ext_B.height - 1)
                 + u64::from(lvl_ext_B.width)
+        }
+    }
+
+    #[no_mangle]
+    pub extern "C" fn nil_image_level_size_B(&self, level: u32) -> u64 {
+        self.level_size_B(level)
+    }
+
+    pub fn level_size_B(&self, level: u32) -> u64 {
+        let lvl_ext_B = self.level_extent_B(level);
+        let lvl = &self.levels[level as usize];
+
+        if lvl.tiling.is_tiled() {
+            let lvl_layer_size_B = self.level_layer_size_B(level);
+            self.array_stride_B * u64::from(lvl_ext_B.array_len - 1)
+                + lvl_layer_size_B
+        } else {
+            assert!(self.extent_px.array_len == 1);
+            self.level_layer_size_B(level)
         }
     }
 
