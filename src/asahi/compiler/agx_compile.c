@@ -3344,6 +3344,12 @@ agx_should_dump(nir_shader *nir, unsigned agx_dbg_bit)
           !(nir->info.internal && !(agx_compiler_debug & AGX_DBG_INTERNAL));
 }
 
+#define AGX_PASS(shader, pass, ...)                                            \
+   do {                                                                        \
+      pass(shader, ##__VA_ARGS__);                                             \
+      agx_validate(ctx, #pass);                                                \
+   } while (0)
+
 static unsigned
 agx_compile_function_nir(nir_shader *nir, nir_function_impl *impl,
                          struct agx_shader_key *key,
@@ -3403,21 +3409,21 @@ agx_compile_function_nir(nir_shader *nir, nir_function_impl *impl,
 
    if (likely(!(agx_compiler_debug & AGX_DBG_NOOPT))) {
       /* Eliminate dead instructions before CSE to avoid silly scheduling */
-      agx_dce(ctx, false);
+      AGX_PASS(ctx, agx_dce, false);
 
       /* CSE before eliminating dead destinations so that subdivision is
        * optimized properly.
        */
-      agx_opt_cse(ctx);
+      AGX_PASS(ctx, agx_opt_cse);
 
       /* After DCE, use counts are right so we can run the optimizer. */
-      agx_optimizer(ctx);
-      agx_opt_compact_constants(ctx);
+      AGX_PASS(ctx, agx_optimizer);
+      AGX_PASS(ctx, agx_opt_compact_constants);
 
       /* After inlining constants, promote what's left */
       if (key->promote_constants && !key->secondary &&
           !(agx_compiler_debug & AGX_DBG_NOPROMOTE)) {
-         agx_opt_promote_constants(ctx);
+         AGX_PASS(ctx, agx_opt_promote_constants);
       }
    }
 
@@ -3425,25 +3431,22 @@ agx_compile_function_nir(nir_shader *nir, nir_function_impl *impl,
     * as copyprop creates uniform sources). To keep register pressure in
     * check, lower after CSE, since moves are cheaper than registers.
     */
-   agx_lower_uniform_sources(ctx);
+   AGX_PASS(ctx, agx_lower_uniform_sources);
 
    /* RA correctness depends on DCE */
-   agx_dce(ctx, true);
-   agx_validate(ctx, "Pre-RA passes");
+   AGX_PASS(ctx, agx_dce, true);
 
    if (agx_should_dump(nir, AGX_DBG_SHADERS))
       agx_print_shader(ctx, stdout);
 
    if (likely(!(agx_compiler_debug & AGX_DBG_NOSCHED))) {
-      agx_pressure_schedule(ctx);
-      agx_validate(ctx, "Pre-RA scheduler");
+      AGX_PASS(ctx, agx_pressure_schedule);
    }
 
    if (agx_should_dump(nir, AGX_DBG_SHADERS))
       agx_print_shader(ctx, stdout);
 
-   agx_ra(ctx);
-   agx_validate(ctx, "RA");
+   AGX_PASS(ctx, agx_ra);
    agx_lower_64bit_postra(ctx);
 
    if (ctx->scratch_size_B > 0) {
