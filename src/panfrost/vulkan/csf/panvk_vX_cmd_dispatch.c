@@ -69,13 +69,20 @@ prepare_push_uniforms(struct panvk_cmd_buffer *cmdbuf)
                                               : VK_ERROR_OUT_OF_DEVICE_MEMORY;
 }
 
-VKAPI_ATTR void VKAPI_CALL
-panvk_per_arch(CmdDispatchBase)(VkCommandBuffer commandBuffer,
-                                uint32_t baseGroupX, uint32_t baseGroupY,
-                                uint32_t baseGroupZ, uint32_t groupCountX,
-                                uint32_t groupCountY, uint32_t groupCountZ)
+struct panvk_dispatch_info {
+   uint32_t baseGroupX;
+   uint32_t baseGroupY;
+   uint32_t baseGroupZ;
+   struct {
+      uint32_t groupCountX;
+      uint32_t groupCountY;
+      uint32_t groupCountZ;
+   } direct;
+};
+
+static void
+cmd_dispatch(struct panvk_cmd_buffer *cmdbuf, struct panvk_dispatch_info *info)
 {
-   VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    const struct panvk_shader *shader = cmdbuf->state.compute.shader;
    VkResult result;
 
@@ -104,7 +111,11 @@ panvk_per_arch(CmdDispatchBase)(VkCommandBuffer commandBuffer,
 
    if (tlsinfo.wls.size) {
       /* TODO: Clamp WLS instance to some maximum WLS budget. */
-      struct pan_compute_dim dim = {groupCountX, groupCountY, groupCountZ};
+      struct pan_compute_dim dim = {
+         info->direct.groupCountX,
+         info->direct.groupCountY,
+         info->direct.groupCountZ,
+      };
 
       tlsinfo.wls.instances = pan_wls_instances(&dim);
 
@@ -134,9 +145,9 @@ panvk_per_arch(CmdDispatchBase)(VkCommandBuffer commandBuffer,
       return;
 
    struct panvk_compute_sysvals *sysvals = &cmdbuf->state.compute.sysvals;
-   sysvals->num_work_groups.x = groupCountX;
-   sysvals->num_work_groups.y = groupCountY;
-   sysvals->num_work_groups.z = groupCountZ;
+   sysvals->num_work_groups.x = info->direct.groupCountX;
+   sysvals->num_work_groups.y = info->direct.groupCountY;
+   sysvals->num_work_groups.z = info->direct.groupCountZ;
    sysvals->local_group_size.x = shader->local_size.x;
    sysvals->local_group_size.y = shader->local_size.y;
    sysvals->local_group_size.z = shader->local_size.z;
@@ -190,12 +201,15 @@ panvk_per_arch(CmdDispatchBase)(VkCommandBuffer commandBuffer,
          cfg.allow_merging_workgroups = false;
       }
       cs_move32_to(b, cs_sr_reg32(b, 33), wg_size.opaque[0]);
-      cs_move32_to(b, cs_sr_reg32(b, 34), baseGroupX * shader->local_size.x);
-      cs_move32_to(b, cs_sr_reg32(b, 35), baseGroupY * shader->local_size.y);
-      cs_move32_to(b, cs_sr_reg32(b, 36), baseGroupZ * shader->local_size.z);
-      cs_move32_to(b, cs_sr_reg32(b, 37), groupCountX);
-      cs_move32_to(b, cs_sr_reg32(b, 38), groupCountY);
-      cs_move32_to(b, cs_sr_reg32(b, 39), groupCountZ);
+      cs_move32_to(b, cs_sr_reg32(b, 34),
+                   info->baseGroupX * shader->local_size.x);
+      cs_move32_to(b, cs_sr_reg32(b, 35),
+                   info->baseGroupY * shader->local_size.y);
+      cs_move32_to(b, cs_sr_reg32(b, 36),
+                   info->baseGroupZ * shader->local_size.z);
+      cs_move32_to(b, cs_sr_reg32(b, 37), info->direct.groupCountX);
+      cs_move32_to(b, cs_sr_reg32(b, 38), info->direct.groupCountY);
+      cs_move32_to(b, cs_sr_reg32(b, 39), info->direct.groupCountZ);
 
       /* Pick the task_axis and task_increment to maximize thread utilization. */
       unsigned threads_per_wg =
@@ -257,12 +271,11 @@ panvk_per_arch(CmdDispatchBase)(VkCommandBuffer commandBuffer,
 
    cs_match(b, iter_sb, cmp_scratch) {
 #define CASE(x)                                                                \
-      cs_case(b, x) {                                                          \
-         cs_sync64_add(b, true, MALI_CS_SYNC_SCOPE_CSG,                        \
-                       add_val, sync_addr,                                     \
-                       cs_defer(SB_WAIT_ITER(x), SB_ID(DEFERRED_SYNC)));       \
-         cs_move32_to(b, iter_sb, next_iter_sb(x));                            \
-      }
+   cs_case(b, x) {                                                             \
+      cs_sync64_add(b, true, MALI_CS_SYNC_SCOPE_CSG, add_val, sync_addr,       \
+                    cs_defer(SB_WAIT_ITER(x), SB_ID(DEFERRED_SYNC)));          \
+      cs_move32_to(b, iter_sb, next_iter_sb(x));                               \
+   }
 
       CASE(0)
       CASE(1)
@@ -277,6 +290,22 @@ panvk_per_arch(CmdDispatchBase)(VkCommandBuffer commandBuffer,
    cs_wait_slot(b, SB_ID(LS), false);
 
    ++cmdbuf->state.cs[PANVK_SUBQUEUE_COMPUTE].relative_sync_point;
+}
+
+VKAPI_ATTR void VKAPI_CALL
+panvk_per_arch(CmdDispatchBase)(VkCommandBuffer commandBuffer,
+                                uint32_t baseGroupX, uint32_t baseGroupY,
+                                uint32_t baseGroupZ, uint32_t groupCountX,
+                                uint32_t groupCountY, uint32_t groupCountZ)
+{
+   VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
+   struct panvk_dispatch_info info = {
+      baseGroupX,
+      baseGroupY,
+      baseGroupZ,
+      .direct = {groupCountX, groupCountY, groupCountZ},
+   };
+   cmd_dispatch(cmdbuf, &info);
 }
 
 VKAPI_ATTR void VKAPI_CALL
