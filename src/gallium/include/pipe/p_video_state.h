@@ -61,7 +61,7 @@ extern "C" {
 #define PIPE_H265_MAX_DELTA_POC 48
 #define PIPE_H265_MAX_DPB_SIZE 16
 #define PIPE_H265_MAX_NUM_LIST_REF 15
-#define PIPE_H265_MAX_ST_REF_PIC_SETS 64
+#define PIPE_H265_MAX_ST_REF_PIC_SETS 65
 #define PIPE_H265_MAX_SUB_LAYERS 7
 #define PIPE_AV1_MAX_DPB_SIZE 8
 #define PIPE_AV1_REFS_PER_FRAME 7
@@ -1125,7 +1125,6 @@ struct pipe_h265_enc_slice_param
    int8_t slice_cr_qp_offset;
    int8_t slice_beta_offset_div2;
    int8_t slice_tc_offset_div2;
-   struct pipe_h265_st_ref_pic_set st_ref_pic_set;
    struct pipe_h265_ref_pic_lists_modification ref_pic_lists_modification;
 };
 

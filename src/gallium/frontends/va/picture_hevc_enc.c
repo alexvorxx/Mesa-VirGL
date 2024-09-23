@@ -603,7 +603,7 @@ static void parseEncSliceParamsH265(vlVaContext *context,
       slice->short_term_ref_pic_set_sps_flag = vl_rbsp_u(rbsp, 1);
       if (!slice->short_term_ref_pic_set_sps_flag) {
          num_pic_total_curr = st_ref_pic_set(seq->num_short_term_ref_pic_sets, seq->num_short_term_ref_pic_sets,
-                                             &slice->st_ref_pic_set, rbsp);
+                                             seq->st_ref_pic_set, rbsp);
       }
       else if (seq->num_short_term_ref_pic_sets > 1)
          slice->short_term_ref_pic_set_idx = vl_rbsp_u(rbsp, util_logbase2_ceil(seq->num_short_term_ref_pic_sets));

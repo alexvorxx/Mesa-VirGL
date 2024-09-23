@@ -375,7 +375,7 @@ unsigned int radeon_enc_write_sps_hevc(struct radeon_encoder *enc, uint8_t *out)
 
    radeon_enc_code_ue(enc, sps->num_short_term_ref_pic_sets);
    for (i = 0; i < sps->num_short_term_ref_pic_sets; i++)
-      radeon_enc_hevc_st_ref_pic_set(enc, i, sps->num_short_term_ref_pic_sets, &sps->st_ref_pic_set[i]);
+      radeon_enc_hevc_st_ref_pic_set(enc, i, sps->num_short_term_ref_pic_sets, sps->st_ref_pic_set);
 
    radeon_enc_code_fixed_bits(enc, sps->long_term_ref_pics_present_flag, 1);
    if (sps->long_term_ref_pics_present_flag) {
@@ -840,7 +840,7 @@ static void radeon_enc_slice_header_hevc(struct radeon_encoder *enc)
       if (!slice->short_term_ref_pic_set_sps_flag) {
          num_pic_total_curr =
             radeon_enc_hevc_st_ref_pic_set(enc, sps->num_short_term_ref_pic_sets,
-                                           sps->num_short_term_ref_pic_sets, &slice->st_ref_pic_set);
+                                           sps->num_short_term_ref_pic_sets, sps->st_ref_pic_set);
       } else if (sps->num_short_term_ref_pic_sets > 1) {
          radeon_enc_code_fixed_bits(enc, slice->short_term_ref_pic_set_idx,
                                     util_logbase2_ceil(sps->num_short_term_ref_pic_sets));
