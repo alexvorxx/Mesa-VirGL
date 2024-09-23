@@ -80,6 +80,8 @@
     optional: true
   - job: windows-msvc
     optional: true
+  - job: debian-clang-release
+    optional: true
   - job: python-test
     optional: true
 
@@ -622,7 +624,11 @@ debian-clang:
 
 debian-clang-release:
   extends: debian-clang
-  # `needs:` inherited from debian-clang
+  stage: build-for-tests
+  # `needs:` inherited from debian-clang, so we have to override it back to
+  # its original value
+  needs:
+    - !reference [.meson-build, needs]
   variables:
     BUILDTYPE: "release"
     DRI_LOADERS: >
@@ -760,7 +766,7 @@ debian-ppc64el:
 # This job tests our Python scripts, and also emits our scripts into
 # artifacts, so they can be reused for job submission to hardware devices.
 python-test:
-  stage: build-for-tests 
+  stage: build-for-tests
   extends:
     - .use-debian/x86_64_pyutils
     - .build-common
