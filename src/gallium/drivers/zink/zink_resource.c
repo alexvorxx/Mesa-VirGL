@@ -475,14 +475,14 @@ find_modifier_feats(const struct zink_modifier_props *prop, uint64_t modifier)
 
 /* check HIC optimalness */
 static bool
-suboptimal_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, uint64_t *mod)
+suboptimal_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, uint64_t mod)
 {
-   usage_fail fail = check_ici(screen, ici, *mod);
+   usage_fail fail = check_ici(screen, ici, mod);
    if (!fail)
       return true;
    if (fail == USAGE_FAIL_SUBOPTIMAL) {
       ici->usage &= ~VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT;
-      fail = check_ici(screen, ici, *mod);
+      fail = check_ici(screen, ici, mod);
       if (!fail)
          return true;
       ici->usage |= VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT;
@@ -494,7 +494,7 @@ suboptimal_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, uint64_
  * thus also the list of formats we might might mutate to)
  */
 static bool
-double_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, VkImageUsageFlags usage, uint64_t *mod)
+double_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, VkImageUsageFlags usage, uint64_t mod)
 {
    if (!usage)
       return false;
@@ -503,7 +503,7 @@ double_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, VkImageUsag
 
    if (suboptimal_check_ici(screen, ici, mod))
       return true;
-   usage_fail fail = check_ici(screen, ici, *mod);
+   usage_fail fail = check_ici(screen, ici, mod);
    if (!fail)
       return true;
    const void *pNext = ici->pNext;
@@ -561,7 +561,7 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
                ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
             VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
             assert(!need_extended);
-            if (double_check_ici(screen, ici, usage, &modifiers[i])) {
+            if (double_check_ici(screen, ici, usage, modifiers[i])) {
                if (!found) {
                   found = true;
                   good_mod = modifiers[i];
@@ -584,8 +584,8 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
                ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
             VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
             assert(!need_extended);
-            *mod = DRM_FORMAT_MOD_LINEAR;
-            if (double_check_ici(screen, ici, usage, mod)) {
+            if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_LINEAR)) {
+               *mod = DRM_FORMAT_MOD_LINEAR;
                return usage;
             }
          }
@@ -603,17 +603,17 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
          feats = UINT32_MAX;
          usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
       }
-      if (double_check_ici(screen, ici, usage, mod))
+      if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID))
          return usage;
       if (util_format_is_depth_or_stencil(templ->format)) {
          if (!(templ->bind & PIPE_BIND_DEPTH_STENCIL)) {
             usage &= ~VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-            if (double_check_ici(screen, ici, usage, mod))
+            if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID))
                return usage;
          }
       } else if (!(templ->bind & PIPE_BIND_RENDER_TARGET)) {
          usage &= ~VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-         if (double_check_ici(screen, ici, usage, mod))
+         if (double_check_ici(screen, ici, usage, DRM_FORMAT_MOD_INVALID))
             return usage;
       }
    }
