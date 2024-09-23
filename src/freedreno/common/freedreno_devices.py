@@ -729,7 +729,7 @@ add_gpus([
     ))
 
 add_gpus([
-        GPUId(chip_id=0x6060201, name="FD644"),
+        GPUId(chip_id=0x6060201, name="FD644"), # Called A662 in kgsl
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen4],
