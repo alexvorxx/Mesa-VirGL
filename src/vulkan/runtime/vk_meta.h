@@ -162,6 +162,9 @@ enum vk_meta_object_key_type {
    VK_META_OBJECT_KEY_COPY_BUFFER_TO_IMAGE_PIPELINE,
    VK_META_OBJECT_KEY_COPY_IMAGE_PIPELINE,
    VK_META_OBJECT_KEY_FILL_BUFFER_PIPELINE,
+
+   /* Should be used as an offset for driver-specific object types. */
+   VK_META_OBJECT_KEY_DRIVER_OFFSET = 0x80000000,
 };
 
 uint64_t vk_meta_lookup_object(struct vk_meta_device *meta,
