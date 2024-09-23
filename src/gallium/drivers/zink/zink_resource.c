@@ -463,11 +463,10 @@ get_image_usage_for_feats(struct zink_screen *screen, VkFormatFeatureFlags2 feat
 }
 
 static VkFormatFeatureFlags
-find_modifier_feats(const struct zink_modifier_props *prop, uint64_t modifier, uint64_t *mod)
+find_modifier_feats(const struct zink_modifier_props *prop, uint64_t modifier)
 {
    for (unsigned j = 0; j < prop->drmFormatModifierCount; j++) {
       if (prop->pDrmFormatModifierProperties[j].drmFormatModifier == modifier) {
-         *mod = modifier;
          return prop->pDrmFormatModifierProperties[j].drmFormatModifierTilingFeatures;
       }
    }
@@ -556,13 +555,13 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
                break;
             continue;
          }
-         VkFormatFeatureFlags feats = find_modifier_feats(prop, modifiers[i], mod);
+         VkFormatFeatureFlags feats = find_modifier_feats(prop, modifiers[i]);
          if (feats) {
             if (feats & VK_FORMAT_FEATURE_DISJOINT_BIT && util_format_get_num_planes(templ->format) > 1)
                ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
             VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
             assert(!need_extended);
-            if (double_check_ici(screen, ici, usage, mod)) {
+            if (double_check_ici(screen, ici, usage, &modifiers[i])) {
                if (!found) {
                   found = true;
                   good_mod = modifiers[i];
@@ -579,14 +578,16 @@ get_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
       }
       /* only try linear if no other options available */
       if (have_linear) {
-         VkFormatFeatureFlags feats = find_modifier_feats(prop, DRM_FORMAT_MOD_LINEAR, mod);
+         VkFormatFeatureFlags feats = find_modifier_feats(prop, DRM_FORMAT_MOD_LINEAR);
          if (feats) {
             if (feats & VK_FORMAT_FEATURE_DISJOINT_BIT && util_format_get_num_planes(templ->format) > 1)
                ici->flags |= VK_IMAGE_CREATE_DISJOINT_BIT;
             VkImageUsageFlags usage = get_image_usage_for_feats(screen, feats, templ, bind, &need_extended);
             assert(!need_extended);
-            if (double_check_ici(screen, ici, usage, mod))
+            *mod = DRM_FORMAT_MOD_LINEAR;
+            if (double_check_ici(screen, ici, usage, mod)) {
                return usage;
+            }
          }
       }
    } else {
