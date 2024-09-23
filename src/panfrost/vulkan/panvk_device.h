@@ -59,7 +59,6 @@ struct panvk_device {
       struct pan_blend_shader_cache blend_shader_cache;
    } blitter;
 
-   struct panvk_blend_shader_cache blend_shader_cache;
    struct vk_meta_device meta;
 
    struct {

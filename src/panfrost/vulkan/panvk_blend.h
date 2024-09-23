@@ -20,21 +20,7 @@ struct vk_color_blend_state;
 struct vk_dynamic_graphics_state;
 struct panvk_device;
 
-struct panvk_blend_shader {
-   struct pan_blend_shader_key key;
-   mali_ptr binary;
-};
-
-struct panvk_blend_shader_cache {
-   struct panvk_pool bin_pool;
-   struct hash_table *ht;
-   simple_mtx_t lock;
-};
-
 #ifdef PAN_ARCH
-VkResult panvk_per_arch(blend_shader_cache_init)(struct panvk_device *dev);
-
-void panvk_per_arch(blend_shader_cache_cleanup)(struct panvk_device *dev);
 
 struct panvk_blend_info {
    bool any_dest_read;

@@ -12,6 +12,10 @@
 #include "vk_format.h"
 #include "vk_meta.h"
 
+enum panvk_meta_object_key_type {
+   PANVK_META_OBJECT_KEY_BLEND_SHADER = VK_META_OBJECT_KEY_DRIVER_OFFSET,
+};
+
 static inline VkFormat
 panvk_meta_get_uint_format_for_blk_size(unsigned blk_sz)
 {

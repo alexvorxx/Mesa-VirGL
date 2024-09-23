@@ -319,11 +319,6 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
 
    vk_device_set_drm_fd(&device->vk, device->kmod.dev->fd);
 
-   result = panvk_per_arch(blend_shader_cache_init)(device);
-
-   if (result != VK_SUCCESS)
-      goto err_free_priv_bos;
-
    panvk_preload_blitter_init(device);
 
    result = panvk_meta_init(device);
@@ -371,7 +366,6 @@ err_finish_queues:
 
 err_cleanup_blitter:
    panvk_preload_blitter_cleanup(device);
-   panvk_per_arch(blend_shader_cache_cleanup)(device);
 
 err_free_priv_bos:
    panvk_priv_bo_unref(device->sample_positions);
@@ -408,7 +402,6 @@ panvk_per_arch(destroy_device)(struct panvk_device *device,
 
    panvk_meta_cleanup(device);
    panvk_preload_blitter_cleanup(device);
-   panvk_per_arch(blend_shader_cache_cleanup)(device);
    panvk_priv_bo_unref(device->tiler_heap);
    panvk_priv_bo_unref(device->sample_positions);
    panvk_device_cleanup_mempools(device);

@@ -199,11 +199,6 @@ bool panvk_per_arch(nir_lower_descriptors)(
    struct vk_descriptor_set_layout *const *set_layouts,
    struct panvk_shader *shader);
 
-enum panvk_internal_shader_type {
-   PANVK_INTERNAL_SHADER_BLEND,
-   PANVK_INTERNAL_SHADER_FB_PRELOAD,
-};
-
 /* This a stripped-down version of panvk_shader for internal shaders that
  * are managed by vk_meta (blend and preload shaders). Those don't need the
  * complexity inherent to user provided shaders as they're not exposed. */
