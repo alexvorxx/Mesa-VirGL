@@ -580,6 +580,9 @@ const struct panfrost_format GENX(panfrost_pipe_format)[PIPE_FORMAT_COUNT] = {
    FMT(X24S8_UINT,              S8,              GRBA, L, _T_Z),
    FMT(S8_UINT,                 S8,              GRBA, L, _T__),
 
+   /* similarly, the interchange format is RGBA8, but we only
+      actually store 1 component in memory here */
+   FMT(A8_UNORM,                RGBA8_UNORM,     000A, L, VTR_),
 #else
    /* Specify real formats on Bifrost */
    FMT(Z32_FLOAT_S8X24_UINT,    Z32_X32,         RGBA, L, _T_Z),
