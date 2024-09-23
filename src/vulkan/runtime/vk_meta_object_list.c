@@ -35,6 +35,9 @@ vk_meta_destroy_object(struct vk_device *device, struct vk_object_base *obj)
    case VK_OBJECT_TYPE_SAMPLER:
       disp->DestroySampler(_device, (VkSampler)(uintptr_t)obj, NULL);
       break;
+   case VK_OBJECT_TYPE_SHADER_EXT:
+      disp->DestroyShaderEXT(_device, (VkShaderEXT)(uintptr_t)obj, NULL);
+      break;
    default:
       unreachable("Unsupported object type");
    }
