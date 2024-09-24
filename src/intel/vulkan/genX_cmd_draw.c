@@ -1193,7 +1193,8 @@ void genX(CmdDrawMultiEXT)(
          prim.VertexAccessType         = SEQUENTIAL;
          prim.VertexCountPerInstance   = draw->vertexCount;
          prim.StartVertexLocation      = draw->firstVertex;
-         prim.InstanceCount            = instanceCount;
+         prim.InstanceCount            = instanceCount *
+                                         pipeline->instance_multiplier;
          prim.StartInstanceLocation    = firstInstance;
          prim.BaseVertexLocation       = 0;
          prim.ExtendedParametersPresent = true;
