@@ -372,12 +372,6 @@ find_best_region_to_evict(struct ra_ctx *rctx, enum ra_class cls, unsigned size,
    unsigned best_base = ~0;
    unsigned best_moves = ~0;
 
-   /* Beginning region evictability condition */
-   bool r0_evictable =
-      !rctx->shader->any_cf && !rctx->shader->has_spill_pcopy_reserved;
-
-   assert(!(r0_evictable && rctx->shader->any_quad_divergent_shuffle));
-
    for (unsigned base = 0; base + size <= rctx->bound[cls]; base += size) {
       /* The first k registers are preallocated and unevictable, so must be
        * skipped. By itself, this does not pose a problem. We are allocating n
@@ -393,7 +387,7 @@ find_best_region_to_evict(struct ra_ctx *rctx, enum ra_class cls, unsigned size,
        * descending. So, we do not need extra registers to handle "single
        * region" unevictability.
        */
-      if (base == 0 && !r0_evictable)
+      if (base == 0 && reserved_size(rctx->shader) > 0)
          continue;
 
       /* Do not evict the same register multiple times. It's not necessary since
