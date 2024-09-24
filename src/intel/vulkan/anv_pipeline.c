@@ -1560,13 +1560,18 @@ anv_pipeline_link_fs(const struct brw_compiler *compiler,
          }
       }
       num_rt_bindings = stage->key.wm.nr_color_regions;
-   } else {
+   } else if (brw_nir_fs_needs_null_rt(
+                 compiler->devinfo, stage->nir,
+                 stage->key.wm.multisample_fbo != BRW_NEVER,
+                 stage->key.wm.alpha_to_coverage != BRW_NEVER)) {
       /* Setup a null render target */
       rt_bindings[0] = (struct anv_pipeline_binding) {
          .set = ANV_DESCRIPTOR_SET_COLOR_ATTACHMENTS,
          .index = UINT32_MAX,
       };
       num_rt_bindings = 1;
+   } else {
+      num_rt_bindings = 0;
    }
 
    assert(num_rt_bindings <= MAX_RTS);
