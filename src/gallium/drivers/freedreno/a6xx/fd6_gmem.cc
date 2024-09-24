@@ -886,6 +886,25 @@ set_scissor(struct fd_ringbuffer *ring, uint32_t x1, uint32_t y1, uint32_t x2,
            A6XX_GRAS_2D_RESOLVE_CNTL_2(.x = x2, .y = y2));
 }
 
+template <chip CHIP>
+static void
+set_tessfactor_bo(struct fd_ringbuffer *ring, struct fd_batch *batch)
+{
+   /* This happens after all drawing has been emitted to the draw CS, so we know
+    * whether we need the tess BO pointers.
+    */
+   if (!batch->tessellation)
+      return;
+
+   struct fd_screen *screen = batch->ctx->screen;
+
+   assert(screen->tess_bo);
+   fd_ringbuffer_attach_bo(ring, screen->tess_bo);
+   OUT_REG(ring, PC_TESSFACTOR_ADDR(CHIP, screen->tess_bo));
+   /* Updating PC_TESSFACTOR_ADDR could race with the next draw which uses it. */
+   OUT_WFI5(ring);
+}
+
 struct bin_size_params {
    enum a6xx_render_mode render_mode;
    bool force_lrz_write_dis;
@@ -1196,6 +1215,7 @@ fd6_emit_tile_prep(struct fd_batch *batch, const struct fd_tile *tile)
    uint32_t y2 = tile->yoff + tile->bin_h - 1;
 
    set_scissor(ring, x1, y1, x2, y2);
+   set_tessfactor_bo<CHIP>(ring, batch);
 
    if (use_hw_binning(batch)) {
       const struct fd_vsc_pipe *pipe = &gmem->vsc_pipe[tile->p];
@@ -1908,6 +1928,7 @@ fd6_emit_sysmem_prep(struct fd_batch *batch) assert_dt
    else
       set_scissor(ring, 0, 0, 0, 0);
 
+   set_tessfactor_bo<CHIP>(ring, batch);
    set_window_offset<CHIP>(ring, 0, 0);
 
    set_bin_size<CHIP>(ring, NULL, {

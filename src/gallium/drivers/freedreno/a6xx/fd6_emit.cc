@@ -1078,17 +1078,6 @@ fd6_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
       OUT_RING(ring, 0);
    }
 
-   /* This happens after all drawing has been emitted to the draw CS, so we know
-    * whether we need the tess BO pointers.
-    */
-   if (batch->tessellation) {
-      assert(screen->tess_bo);
-      fd_ringbuffer_attach_bo(ring, screen->tess_bo);
-      OUT_REG(ring, PC_TESSFACTOR_ADDR(CHIP, screen->tess_bo));
-      /* Updating PC_TESSFACTOR_ADDR could race with the next draw which uses it. */
-      OUT_WFI5(ring);
-   }
-
    struct fd6_context *fd6_ctx = fd6_context(ctx);
    struct fd_bo *bcolor_mem = fd6_ctx->bcolor_mem;
 
