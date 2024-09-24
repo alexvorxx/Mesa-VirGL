@@ -617,10 +617,6 @@
     <field name="Thread Storage" size="64" start="28:0" type="address"/>
   </struct>
 
-  <struct name="Surface" align="8">
-    <field name="Pointer" size="64" start="0:0" type="address"/>
-  </struct>
-
   <struct name="Surface With Stride" align="8">
     <field name="Pointer" size="64" start="0:0" type="address"/>
     <field name="Row stride" size="32" start="2:0" type="int"/>
