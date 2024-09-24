@@ -81,6 +81,49 @@ struct panvk_dispatch_info {
 };
 
 static void
+calculate_task_axis_and_increment(const struct panvk_shader *shader,
+                                  struct panvk_physical_device *phys_dev,
+                                  unsigned *task_axis, unsigned *task_increment)
+{
+   /* Pick the task_axis and task_increment to maximize thread
+    * utilization. */
+   unsigned threads_per_wg =
+      shader->local_size.x * shader->local_size.y * shader->local_size.z;
+   unsigned max_thread_cnt = panfrost_compute_max_thread_count(
+      &phys_dev->kmod.props, shader->info.work_reg_count);
+   unsigned threads_per_task = threads_per_wg;
+   unsigned local_size[3] = {
+      shader->local_size.x,
+      shader->local_size.y,
+      shader->local_size.z,
+   };
+
+   for (unsigned i = 0; i < 3; i++) {
+      if (threads_per_task * local_size[i] >= max_thread_cnt) {
+         /* We reached out thread limit, stop at the current axis and
+          * calculate the increment so it doesn't exceed the per-core
+          * thread capacity.
+          */
+         *task_increment = max_thread_cnt / threads_per_task;
+         break;
+      } else if (*task_axis == MALI_TASK_AXIS_Z) {
+         /* We reached the Z axis, and there's still room to stuff more
+          * threads. Pick the current axis grid size as our increment
+          * as there's no point using something bigger.
+          */
+         *task_increment = local_size[i];
+         break;
+      }
+
+      threads_per_task *= local_size[i];
+      (*task_axis)++;
+   }
+
+   assert(*task_axis <= MALI_TASK_AXIS_Z);
+   assert(*task_increment > 0);
+}
+
+static void
 cmd_dispatch(struct panvk_cmd_buffer *cmdbuf, struct panvk_dispatch_info *info)
 {
    const struct panvk_shader *shader = cmdbuf->state.compute.shader;
@@ -167,8 +210,6 @@ cmd_dispatch(struct panvk_cmd_buffer *cmdbuf, struct panvk_dispatch_info *info)
       return;
 
    struct cs_builder *b = panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_COMPUTE);
-   unsigned task_axis = MALI_TASK_AXIS_X;
-   unsigned task_increment = 0;
 
    /* Copy the global TLS pointer to the per-job TSD. */
    if (tlsinfo.tls.size) {
@@ -210,47 +251,15 @@ cmd_dispatch(struct panvk_cmd_buffer *cmdbuf, struct panvk_dispatch_info *info)
       cs_move32_to(b, cs_sr_reg32(b, 37), info->direct.groupCountX);
       cs_move32_to(b, cs_sr_reg32(b, 38), info->direct.groupCountY);
       cs_move32_to(b, cs_sr_reg32(b, 39), info->direct.groupCountZ);
-
-      /* Pick the task_axis and task_increment to maximize thread utilization. */
-      unsigned threads_per_wg =
-         shader->local_size.x * shader->local_size.y * shader->local_size.z;
-      unsigned max_thread_cnt = panfrost_compute_max_thread_count(
-         &phys_dev->kmod.props, shader->info.work_reg_count);
-      unsigned threads_per_task = threads_per_wg;
-      unsigned local_size[3] = {
-         shader->local_size.x,
-         shader->local_size.y,
-         shader->local_size.z,
-      };
-
-      for (unsigned i = 0; i < 3; i++) {
-         if (threads_per_task * local_size[i] >= max_thread_cnt) {
-            /* We reached out thread limit, stop at the current axis and
-             * calculate the increment so it doesn't exceed the per-core
-             * thread capacity.
-             */
-            task_increment = max_thread_cnt / threads_per_task;
-            break;
-         } else if (task_axis == MALI_TASK_AXIS_Z) {
-            /* We reached the Z axis, and there's still room to stuff more
-             * threads. Pick the current axis grid size as our increment
-             * as there's no point using something bigger.
-             */
-            task_increment = local_size[i];
-            break;
-         }
-
-         threads_per_task *= local_size[i];
-         task_axis++;
-      }
    }
-
-   assert(task_axis <= MALI_TASK_AXIS_Z);
-   assert(task_increment > 0);
 
    panvk_per_arch(cs_pick_iter_sb)(cmdbuf, PANVK_SUBQUEUE_COMPUTE);
 
    cs_req_res(b, CS_COMPUTE_RES);
+   unsigned task_axis = MALI_TASK_AXIS_X;
+   unsigned task_increment = 0;
+   calculate_task_axis_and_increment(shader, phys_dev, &task_axis,
+                                     &task_increment);
    cs_run_compute(b, task_increment, task_axis, false,
                   cs_shader_res_sel(0, 0, 0, 0));
    cs_req_res(b, 0);
