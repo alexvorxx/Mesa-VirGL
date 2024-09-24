@@ -266,21 +266,22 @@ traces:
     zink-a630:
       checksum: fe317b1f69f9a2f3e20bf51f63753d2a
 
-  gputest/gimark-v2.trace:
-    freedreno-a306:
-      label: [unsupported]
-      text: requires GL 3.3
-    freedreno-a530:
-      label: [unsupported]
-      text: requires GL 3.3
-    freedreno-a618:
-      checksum: e58167bd8eeb8952facbc00ff0449135
-    freedreno-a630:
-      checksum: e58167bd8eeb8952facbc00ff0449135
-    zink-a618:
-      checksum: e58167bd8eeb8952facbc00ff0449135
-    zink-a630:
-      checksum: e58167bd8eeb8952facbc00ff0449135
+# gimark requires an environment var to work around a bug, disable for now
+#  gputest/gimark-v2.trace:
+#    freedreno-a306:
+#      label: [unsupported]
+#      text: requires GL 3.3
+#    freedreno-a530:
+#      label: [unsupported]
+#      text: requires GL 3.3
+#    freedreno-a618:
+#      checksum: e58167bd8eeb8952facbc00ff0449135
+#    freedreno-a630:
+#      checksum: e58167bd8eeb8952facbc00ff0449135
+#    zink-a618:
+#      checksum: e58167bd8eeb8952facbc00ff0449135
+#    zink-a630:
+#      checksum: e58167bd8eeb8952facbc00ff0449135
 
   gputest/pixmark-julia-fp32-v2.trace:
     freedreno-a306:

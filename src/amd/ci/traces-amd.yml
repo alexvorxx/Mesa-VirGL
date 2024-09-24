@@ -50,9 +50,10 @@ traces:
       label: [skip]
       text: Nothing wrong with it, proxy issues. Revert ASAP.
       checksum: 0e7441a7f2c86c75eeac72269786e7a1
-  gputest/gimark-v2.trace:
-    gl-radeonsi-stoney:
-      checksum: 942a9334e5e830cdfb950a72d77c48f5
+# gimark requires an environment var to work around a bug, disable for now
+#  gputest/gimark-v2.trace:
+#    gl-radeonsi-stoney:
+#      checksum: 942a9334e5e830cdfb950a72d77c48f5
   gputest/pixmark-julia-fp32-v2.trace:
     gl-radeonsi-stoney:
       checksum: 832d5f8268e953d6aa754c0aaf4b65d3
