@@ -619,7 +619,7 @@ struct v3d_ra_node_info {
                 bool payload_conflict;
 
                 /* V3D 7.x */
-                bool is_ldunif_dst;
+                bool try_rf0;
         } *info;
         uint32_t alloc_count;
 };

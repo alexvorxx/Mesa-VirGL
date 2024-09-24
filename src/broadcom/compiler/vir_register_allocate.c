@@ -409,7 +409,7 @@ add_node(struct v3d_compile *c, uint32_t temp, uint8_t class_bits)
         /* We fill the node priority after we are done inserting spills */
         c->nodes.info[node].class_bits = class_bits;
         c->nodes.info[node].priority = 0;
-        c->nodes.info[node].is_ldunif_dst = false;
+        c->nodes.info[node].try_rf0 = false;
         c->nodes.info[node].is_program_end = false;
         c->nodes.info[node].unused = false;
         c->nodes.info[node].payload_conflict = false;
@@ -965,7 +965,7 @@ v3d_ra_select_rf(struct v3d_ra_select_callback_data *v3d_ra,
          * cond field to encode the dst and would prevent merge with
          * instructions that use cond flags).
          */
-        if (v3d_ra->nodes->info[node].is_ldunif_dst &&
+        if (v3d_ra->nodes->info[node].try_rf0 &&
             BITSET_TEST(regs, v3d_ra->phys_index)) {
                 assert(v3d_ra->devinfo->ver >= 71);
                 *out = v3d_ra->phys_index;
@@ -1320,7 +1320,7 @@ update_graph_and_reg_classes_for_inst(struct v3d_compile *c,
                         if (inst->qpu.sig.ldunif || inst->qpu.sig.ldunifa) {
                                 const uint32_t dst_n =
                                         temp_to_node(c, inst->dst.index);
-                                c->nodes.info[dst_n].is_ldunif_dst = true;
+                                c->nodes.info[dst_n].try_rf0 = true;
                         }
                 }
         }
@@ -1433,7 +1433,7 @@ v3d_register_allocate(struct v3d_compile *c)
          * without accumulators that can have implicit writes to phys regs.
          */
         for (uint32_t i = 0; i < num_ra_nodes; i++) {
-                c->nodes.info[i].is_ldunif_dst = false;
+                c->nodes.info[i].try_rf0 = false;
                 c->nodes.info[i].is_program_end = false;
                 c->nodes.info[i].unused = false;
                 c->nodes.info[i].priority = 0;
