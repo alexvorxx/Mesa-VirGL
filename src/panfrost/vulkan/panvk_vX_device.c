@@ -141,20 +141,12 @@ panvk_meta_init(struct panvk_device *device)
          MIN2(1024 >> i, pdev->properties.maxComputeWorkGroupSize[0]);
    }
 
-#if PAN_ARCH <= 7
-   panvk_per_arch(meta_desc_copy_init)(device);
-#endif
-
    return VK_SUCCESS;
 }
 
 static void
 panvk_meta_cleanup(struct panvk_device *device)
 {
-#if PAN_ARCH <= 7
-   panvk_per_arch(meta_desc_copy_cleanup)(device);
-#endif
-
    vk_meta_device_finish(&device->vk, &device->meta);
 }
 

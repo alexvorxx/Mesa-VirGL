@@ -62,11 +62,6 @@ struct panvk_device {
    struct vk_meta_device meta;
 
    struct {
-      struct panvk_priv_mem shader;
-      struct panvk_priv_mem rsd;
-   } desc_copy;
-
-   struct {
       struct panvk_pool rw;
       struct panvk_pool rw_nc;
       struct panvk_pool exec;

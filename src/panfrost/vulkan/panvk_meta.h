@@ -14,6 +14,7 @@
 
 enum panvk_meta_object_key_type {
    PANVK_META_OBJECT_KEY_BLEND_SHADER = VK_META_OBJECT_KEY_DRIVER_OFFSET,
+   PANVK_META_OBJECT_KEY_COPY_DESC_SHADER,
 };
 
 static inline VkFormat
@@ -128,10 +129,6 @@ panvk_meta_copy_get_image_properties(struct panvk_image *img)
 }
 
 #if defined(PAN_ARCH) && PAN_ARCH <= 7
-void panvk_per_arch(meta_desc_copy_init)(struct panvk_device *dev);
-
-void panvk_per_arch(meta_desc_copy_cleanup)(struct panvk_device *dev);
-
 struct panvk_cmd_buffer;
 struct panvk_descriptor_state;
 struct panvk_device;
