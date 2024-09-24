@@ -139,7 +139,7 @@ class tileTFixture: public ::testing::Test {
 protected:
    uint8_t *buf_dst;
    uint8_t *buf_src;
-   uint32_t tile_width, tile_height;
+   uint32_t tiled_pitch_B, tiled_height;
    uint32_t tile_sz;
    TILE_CONV conv;
    struct tile_swizzle_ops ops;
@@ -190,11 +190,11 @@ void tileTFixture::test_setup(TILE_CONV convert,
    isl_tiling_get_info(tiling_fmt, ISL_SURF_DIM_2D, ISL_MSAA_LAYOUT_NONE,
 		       fmtl->bpb, 1 , &tile_info);
 
-   tile_width = DIV_ROUND_UP(max_width, tile_info.logical_extent_el.w) *
-                tile_info.phys_extent_B.w;
-   tile_height = DIV_ROUND_UP(max_height, tile_info.logical_extent_el.h) *
-                 tile_info.phys_extent_B.h;
-   tile_sz = tile_width * tile_height;
+   tiled_pitch_B = DIV_ROUND_UP(max_width, tile_info.logical_extent_el.w) *
+                   tile_info.phys_extent_B.w;
+   tiled_height = DIV_ROUND_UP(max_height, tile_info.logical_extent_el.h) *
+                  tile_info.phys_extent_B.h;
+   tile_sz = tiled_pitch_B * tiled_height;
 
    buf_src = (uint8_t *) calloc(tile_sz, sizeof(uint8_t));
    ASSERT_TRUE(buf_src != nullptr);
@@ -226,10 +226,10 @@ void tileTFixture::bounded_byte_fill(uint32_t x1, uint32_t x2, uint32_t y1, uint
    for(auto y = y1; y < y2; y++)
       for (auto x = x1; x < x2; x++)
          if (conv == LIN_TO_TILE) {
-            *(itr + LIN_OFF(y, tile_width, x)) = LIN_OFF(y, tile_width, x)%16;
+            *(itr + LIN_OFF(y, tiled_pitch_B, x)) = LIN_OFF(y, tiled_pitch_B, x)%16;
          } else {
-            *(ops.linear_to_tile_swizzle(buf_src, tile_width, x, y)) =
-               LIN_OFF(y, tile_width, x)%16;
+            *(ops.linear_to_tile_swizzle(buf_src, tiled_pitch_B, x, y)) =
+               LIN_OFF(y, tiled_pitch_B, x)%16;
          }
 }
 
@@ -260,14 +260,14 @@ void tileTFixture::convert_texture(uint32_t x1, uint32_t x2, uint32_t y1, uint32
    if (conv == LIN_TO_TILE)
       isl_memcpy_linear_to_tiled(x1, x2, y1, y2,
                                  (char *)buf_dst,
-                                 (const char *)buf_src + LIN_OFF(y1, tile_width, x1),
-                                 tile_width, tile_width,
+                                 (const char *)buf_src + LIN_OFF(y1, tiled_pitch_B, x1),
+                                 tiled_pitch_B, tiled_pitch_B,
                                  0, ops.tiling, ISL_MEMCPY);
    else
       isl_memcpy_tiled_to_linear(x1, x2, y1, y2,
-                                 (char *)buf_dst + LIN_OFF(y1, tile_width, x1),
+                                 (char *)buf_dst + LIN_OFF(y1, tiled_pitch_B, x1),
                                  (const char *)buf_src,
-                                 tile_width, tile_width,
+                                 tiled_pitch_B, tiled_pitch_B,
                                  0, ops.tiling, ISL_MEMCPY);
 
    if (print_results) {
@@ -279,7 +279,7 @@ void tileTFixture::convert_texture(uint32_t x1, uint32_t x2, uint32_t y1, uint32
 void tileTFixture::compare_conv_result(uint32_t x1, uint32_t x2,
                                        uint32_t y1, uint32_t y2)
 {
-   uint32_t x_max = tile_width;
+   uint32_t x_max = tiled_pitch_B;
    uint32_t y_max = (uint32_t) align(y2, tile_info.logical_extent_el.h);
 
    for(uint32_t y = 0; y < y_max; y++) {
@@ -287,20 +287,20 @@ void tileTFixture::compare_conv_result(uint32_t x1, uint32_t x2,
 
          if (x < x1 || x >= x2 || y < y1 || y >= y2) {
             if (conv == LIN_TO_TILE) {
-               EXPECT_EQ(*(buf_src + LIN_OFF(y, tile_width, x)), 0xcc)
+               EXPECT_EQ(*(buf_src + LIN_OFF(y, tiled_pitch_B, x)), 0xcc)
                   << "Not matching for x:" << x << " and y:" << y << std::endl;
             } else {
-               EXPECT_EQ(*(buf_dst + LIN_OFF(y, tile_width, x)), 0xcc)
+               EXPECT_EQ(*(buf_dst + LIN_OFF(y, tiled_pitch_B, x)), 0xcc)
                   << "Not matching for x:" << x << " and y:" << y << std::endl;
             }
          } else {
             if (conv == LIN_TO_TILE) {
-               EXPECT_EQ(*(buf_src + LIN_OFF(y, tile_width, x)),
-                         *(ops.linear_to_tile_swizzle(buf_dst, tile_width, x, y)))
+               EXPECT_EQ(*(buf_src + LIN_OFF(y, tiled_pitch_B, x)),
+                         *(ops.linear_to_tile_swizzle(buf_dst, tiled_pitch_B, x, y)))
                   << "Not matching for x:" << x << " and y:" << y << std::endl;
             } else {
-               EXPECT_EQ(*(buf_dst + LIN_OFF(y, tile_width, x)),
-                         *(ops.linear_to_tile_swizzle(buf_src, tile_width, x, y)))
+               EXPECT_EQ(*(buf_dst + LIN_OFF(y, tiled_pitch_B, x)),
+                         *(ops.linear_to_tile_swizzle(buf_src, tiled_pitch_B, x, y)))
                   << "Not matching for x:" << x << " and y:" << y << std::endl;
             }
          }
