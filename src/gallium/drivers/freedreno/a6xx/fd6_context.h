@@ -92,6 +92,9 @@ struct fd6_context {
    /* pre-baked stateobj for sample-locations disable: */
    struct fd_ringbuffer *sample_locations_disable_stateobj;
 
+   /* pre-baked stateobj for preamble: */
+   struct fd_ringbuffer *preamble, *restore;
+
    /* storage for ctx->last.key: */
    struct ir3_shader_key last_key;
 
@@ -154,6 +157,8 @@ struct fd6_control {
       uint32_t offset;
       uint32_t pad[7];
    } flush_base[4];
+
+   uint32_t vsc_state[32];
 };
 
 #define control_ptr(fd6_ctx, member)                                           \

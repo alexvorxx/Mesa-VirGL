@@ -44,6 +44,12 @@ fd6_context_destroy(struct pipe_context *pctx) in_dt
    if (fd6_ctx->sample_locations_disable_stateobj)
       fd_ringbuffer_del(fd6_ctx->sample_locations_disable_stateobj);
 
+   if (fd6_ctx->preamble)
+      fd_ringbuffer_del(fd6_ctx->preamble);
+
+   if (fd6_ctx->restore)
+      fd_ringbuffer_del(fd6_ctx->restore);
+
    fd_context_destroy(pctx);
 
    if (fd6_ctx->vsc_draw_strm)
@@ -310,6 +316,12 @@ fd6_context_create(struct pipe_screen *pscreen, void *priv,
    OUT_REG(ring, A6XX_SP_TP_SAMPLE_CONFIG());
 
    fd6_ctx->sample_locations_disable_stateobj = ring;
+
+   fd6_ctx->preamble = fd6_build_preemption_preamble<CHIP>(&fd6_ctx->base);
+
+   ring = fd_ringbuffer_new_object(fd6_ctx->base.pipe, 0x1000);
+   fd6_emit_static_regs<CHIP>(&fd6_ctx->base, ring);
+   fd6_ctx->restore = ring;
 
    return fd_context_init_tc(pctx, flags);
 }
