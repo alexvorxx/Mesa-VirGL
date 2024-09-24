@@ -1286,8 +1286,10 @@ update_graph_and_reg_classes_for_inst(struct v3d_compile *c,
         }
 
         if (inst->dst.file == QFILE_TEMP) {
-                /* Only a ldunif gets to write to R5, which only has a
-                 * single 32-bit channel of storage.
+                /* Only a ldunif gets to write to R5, which only has a single
+                 * 32-bit channel of storage. Disallow R5 if we are around
+                 * ldvary sequences, since ldvary writes that register too and
+                 * that would disallow pairing.
                  *
                  * NOTE: ldunifa is subject to the same, however, going by
                  * shader-db it is best to keep r5 exclusive to ldunif, probably
@@ -1295,7 +1297,9 @@ update_graph_and_reg_classes_for_inst(struct v3d_compile *c,
                  * more accumulator reuse and QPU merges.
                  */
                 if (c->devinfo->has_accumulators) {
-                        if (!inst->qpu.sig.ldunif) {
+                        if (!inst->qpu.sig.ldunif ||
+                            (c->s->info.stage == MESA_SHADER_FRAGMENT &&
+                             ip <= last_ldvary_ip + 4)) {
                                 uint8_t class_bits =
                                         get_temp_class_bits(c, inst->dst.index) &
                                         ~CLASS_BITS_R5;
@@ -1313,11 +1317,16 @@ update_graph_and_reg_classes_for_inst(struct v3d_compile *c,
                                                          temp_to_node(c, inst->dst.index),
                                                          implicit_rf_nodes[0]);
                         }
-                        /* Flag dst temps from ldunif(a) instructions
-                         * so we can try to assign rf0 to them and avoid
-                         * converting these to ldunif(a)rf.
+                        /* Flag dst temps from ldunif(a) instructions so we can
+                         * try to assign rf0 to them and avoid converting these
+                         * to ldunif(a)rf, however, we don't want to do this
+                         * when these instructions are nearby ldvary since these
+                         * have implicit writes to rf0 and that would hurt
+                         * pairing.
                          */
-                        if (inst->qpu.sig.ldunif || inst->qpu.sig.ldunifa) {
+                        if ((inst->qpu.sig.ldunif || inst->qpu.sig.ldunifa) &&
+                            (c->s->info.stage != MESA_SHADER_FRAGMENT ||
+                             ip > last_ldvary_ip + 4)) {
                                 const uint32_t dst_n =
                                         temp_to_node(c, inst->dst.index);
                                 c->nodes.info[dst_n].try_rf0 = true;
