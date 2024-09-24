@@ -149,7 +149,13 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
       }
 
       struct panvk_pool_alloc_info alloc_info = {
-         .alignment = pan_alignment(TEXTURE),
+#if PAN_ARCH == 6
+         .alignment = pan_alignment(SURFACE_WITH_STRIDE),
+#elif PAN_ARCH == 7
+         .alignment = pan_alignment(MULTIPLANAR_SURFACE),
+#else
+         .alignment = pan_alignment(PLANE),
+#endif
          .size = GENX(panfrost_estimate_texture_payload_size)(&pview),
       };
 
