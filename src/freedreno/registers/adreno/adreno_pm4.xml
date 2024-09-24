@@ -1680,6 +1680,7 @@ opcode: CP_LOAD_STATE4 (30) (4 dwords)
 		<bitfield name="WRITE_DST" pos="24" type="event_write_dst" addvariant="yes"/>
 		<!-- Writes into WRITE_DST from WRITE_SRC. RB_DONE_TS requires WRITE_ENABLED. -->
 		<bitfield name="WRITE_ENABLED" pos="27" type="boolean"/>
+		<bitfield name="IRQ" pos="31" type="boolean"/>
 	</reg32>
 
 	<stripe varset="event_write_dst" variants="EV_DST_RAM">
@@ -2261,6 +2262,7 @@ opcode: CP_LOAD_STATE4 (30) (4 dwords)
 		<bitfield name="CLEAR_ON_CHIP_TS" pos="0" type="boolean"/>
 		<bitfield name="CLEAR_RESOURCE_TABLE" pos="1" type="boolean"/>
 		<bitfield name="CLEAR_GLOBAL_LOCAL_TS" pos="2" type="boolean"/>
+		<bitfield name="RESET_CONTEXT_STATE" pos="3" type="boolean"/>
 	</reg32>
 </domain>
 
