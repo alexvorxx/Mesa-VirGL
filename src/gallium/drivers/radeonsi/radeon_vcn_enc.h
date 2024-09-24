@@ -346,9 +346,9 @@ void radeon_enc_4_0_init(struct radeon_encoder *enc);
 
 void radeon_enc_5_0_init(struct radeon_encoder *enc);
 
-unsigned int radeon_enc_write_sps(struct radeon_encoder *enc, uint8_t *out);
+unsigned int radeon_enc_write_sps(struct radeon_encoder *enc, uint8_t nal_byte, uint8_t *out);
 
-unsigned int radeon_enc_write_pps(struct radeon_encoder *enc, uint8_t *out);
+unsigned int radeon_enc_write_pps(struct radeon_encoder *enc, uint8_t nal_byte, uint8_t *out);
 
 unsigned int radeon_enc_write_vps(struct radeon_encoder *enc, uint8_t *out);
 

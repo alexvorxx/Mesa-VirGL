@@ -191,7 +191,7 @@ static void radeon_enc_quality_params(struct radeon_encoder *enc)
    RADEON_ENC_END();
 }
 
-unsigned int radeon_enc_write_sps(struct radeon_encoder *enc, uint8_t *out)
+unsigned int radeon_enc_write_sps(struct radeon_encoder *enc, uint8_t nal_byte, uint8_t *out)
 {
    struct radeon_enc_pic *pic = &enc->enc_pic;
    struct pipe_h264_enc_seq_param *sps = &pic->h264.desc->seq;
@@ -200,7 +200,7 @@ unsigned int radeon_enc_write_sps(struct radeon_encoder *enc, uint8_t *out)
    radeon_enc_set_output_buffer(enc, out);
    radeon_enc_set_emulation_prevention(enc, false);
    radeon_enc_code_fixed_bits(enc, 0x00000001, 32);
-   radeon_enc_code_fixed_bits(enc, 0x67, 8);
+   radeon_enc_code_fixed_bits(enc, nal_byte, 8);
    radeon_enc_byte_align(enc);
    radeon_enc_set_emulation_prevention(enc, true);
    radeon_enc_code_fixed_bits(enc, pic->spec_misc.profile_idc, 8);
@@ -454,13 +454,13 @@ unsigned int radeon_enc_write_sps_hevc(struct radeon_encoder *enc, uint8_t *out)
    return enc->bits_buf_pos;
 }
 
-unsigned int radeon_enc_write_pps(struct radeon_encoder *enc, uint8_t *out)
+unsigned int radeon_enc_write_pps(struct radeon_encoder *enc, uint8_t nal_byte, uint8_t *out)
 {
    radeon_enc_reset(enc);
    radeon_enc_set_output_buffer(enc, out);
    radeon_enc_set_emulation_prevention(enc, false);
    radeon_enc_code_fixed_bits(enc, 0x00000001, 32);
-   radeon_enc_code_fixed_bits(enc, 0x68, 8);
+   radeon_enc_code_fixed_bits(enc, nal_byte, 8);
    radeon_enc_byte_align(enc);
    radeon_enc_set_emulation_prevention(enc, true);
    radeon_enc_code_ue(enc, 0x0); /* pic_parameter_set_id */
@@ -608,12 +608,9 @@ static void radeon_enc_slice_header(struct radeon_encoder *enc)
    radeon_enc_set_emulation_prevention(enc, false);
 
    cdw_start = enc->cs.current.cdw;
-   if (enc->enc_pic.picture_type == PIPE_H2645_ENC_PICTURE_TYPE_IDR)
-      radeon_enc_code_fixed_bits(enc, 0x65, 8);
-   else if (enc->enc_pic.not_referenced)
-      radeon_enc_code_fixed_bits(enc, 0x01, 8);
-   else
-      radeon_enc_code_fixed_bits(enc, 0x41, 8);
+   radeon_enc_code_fixed_bits(enc, 0x0, 1); /* forbidden_zero_bit */
+   radeon_enc_code_fixed_bits(enc, pps->nal_ref_idc, 2);
+   radeon_enc_code_fixed_bits(enc, pps->nal_unit_type, 5);
 
    radeon_enc_flush_headers(enc);
    instruction[inst_index] = RENCODE_HEADER_INSTRUCTION_COPY;

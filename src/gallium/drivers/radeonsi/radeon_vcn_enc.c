@@ -1490,11 +1490,14 @@ static uint32_t radeon_vcn_enc_encode_h264_header(struct radeon_encoder *enc,
                                                   struct pipe_enc_raw_header *header,
                                                   uint8_t *out)
 {
+   /* Startcode may be 3 or 4 bytes. */
+   const uint8_t nal_byte = header->buffer[header->buffer[2] == 0x1 ? 3 : 4];
+
    switch (header->type) {
    case PIPE_H264_NAL_SPS:
-      return radeon_enc_write_sps(enc, out);
+      return radeon_enc_write_sps(enc, nal_byte, out);
    case PIPE_H264_NAL_PPS:
-      return radeon_enc_write_pps(enc, out);
+      return radeon_enc_write_pps(enc, nal_byte, out);
    default:
       assert(header->buffer);
       memcpy(out, header->buffer, header->size);
