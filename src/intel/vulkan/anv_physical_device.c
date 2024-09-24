@@ -244,6 +244,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_pipeline_creation_cache_control   = true,
       .EXT_pipeline_creation_feedback        = true,
       .EXT_pipeline_library_group_handles    = rt_enabled,
+      .EXT_pipeline_protected_access         = device->has_protected_contexts,
       .EXT_pipeline_robustness               = true,
       .EXT_post_depth_coverage               = true,
       .EXT_primitives_generated_query        = true,
@@ -813,6 +814,9 @@ get_features(const struct anv_physical_device *pdevice,
 
       /* VK_KHR_dynamic_rendering_local_read */
       .dynamicRenderingLocalRead = true,
+
+      /* VK_EXT_pipeline_protected_access */
+      .pipelineProtectedAccess = true,
    };
 
    /* The new DOOM and Wolfenstein games require depthBounds without
