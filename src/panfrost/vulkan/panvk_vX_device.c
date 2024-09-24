@@ -150,49 +150,6 @@ panvk_meta_cleanup(struct panvk_device *device)
    vk_meta_device_finish(&device->vk, &device->meta);
 }
 
-static void
-panvk_preload_blitter_init(struct panvk_device *device)
-{
-   const struct panvk_physical_device *physical_device =
-      to_panvk_physical_device(device->vk.physical);
-
-   struct panvk_pool_properties bin_pool_props = {
-      .create_flags = PAN_KMOD_BO_FLAG_EXECUTABLE,
-      .slab_size = 16 * 1024,
-      .label = "panvk_meta blitter binary pool",
-      .owns_bos = true,
-      .needs_locking = false,
-      .prealloc = false,
-   };
-   panvk_pool_init(&device->blitter.bin_pool, device, NULL, &bin_pool_props);
-
-   struct panvk_pool_properties desc_pool_props = {
-      .create_flags = 0,
-      .slab_size = 16 * 1024,
-      .label = "panvk_meta blitter descriptor pool",
-      .owns_bos = true,
-      .needs_locking = false,
-      .prealloc = false,
-   };
-   panvk_pool_init(&device->blitter.desc_pool, device, NULL, &desc_pool_props);
-
-   pan_blend_shader_cache_init(&device->blitter.blend_shader_cache,
-                               physical_device->kmod.props.gpu_prod_id);
-   GENX(pan_blitter_cache_init)
-   (&device->blitter.cache, physical_device->kmod.props.gpu_prod_id,
-    &device->blitter.blend_shader_cache, &device->blitter.bin_pool.base,
-    &device->blitter.desc_pool.base);
-}
-
-static void
-panvk_preload_blitter_cleanup(struct panvk_device *device)
-{
-   GENX(pan_blitter_cache_cleanup)(&device->blitter.cache);
-   pan_blend_shader_cache_cleanup(&device->blitter.blend_shader_cache);
-   panvk_pool_cleanup(&device->blitter.desc_pool);
-   panvk_pool_cleanup(&device->blitter.bin_pool);
-}
-
 /* Always reserve the lower 32MB. */
 #define PANVK_VA_RESERVE_BOTTOM 0x2000000ull
 
@@ -311,11 +268,9 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
 
    vk_device_set_drm_fd(&device->vk, device->kmod.dev->fd);
 
-   panvk_preload_blitter_init(device);
-
    result = panvk_meta_init(device);
    if (result != VK_SUCCESS)
-      goto err_cleanup_blitter;
+      goto err_free_priv_bos;
 
    for (unsigned i = 0; i < pCreateInfo->queueCreateInfoCount; i++) {
       const VkDeviceQueueCreateInfo *queue_create =
@@ -356,9 +311,6 @@ err_finish_queues:
 
    panvk_meta_cleanup(device);
 
-err_cleanup_blitter:
-   panvk_preload_blitter_cleanup(device);
-
 err_free_priv_bos:
    panvk_priv_bo_unref(device->sample_positions);
    panvk_priv_bo_unref(device->tiler_heap);
@@ -393,7 +345,6 @@ panvk_per_arch(destroy_device)(struct panvk_device *device,
    }
 
    panvk_meta_cleanup(device);
-   panvk_preload_blitter_cleanup(device);
    panvk_priv_bo_unref(device->tiler_heap);
    panvk_priv_bo_unref(device->sample_positions);
    panvk_device_cleanup_mempools(device);

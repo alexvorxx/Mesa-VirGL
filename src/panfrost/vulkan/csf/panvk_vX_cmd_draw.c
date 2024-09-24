@@ -16,6 +16,7 @@
 #include "panvk_cmd_alloc.h"
 #include "panvk_cmd_buffer.h"
 #include "panvk_cmd_desc_state.h"
+#include "panvk_cmd_fb_preload.h"
 #include "panvk_cmd_meta.h"
 #include "panvk_device.h"
 #include "panvk_entrypoints.h"
@@ -1977,23 +1978,6 @@ resolve_attachments(struct panvk_cmd_buffer *cmdbuf)
 static uint8_t
 prepare_fb_desc(struct panvk_cmd_buffer *cmdbuf, uint32_t layer, void *fbd)
 {
-   struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
-
-   memset(&cmdbuf->state.gfx.render.fb.info.bifrost.pre_post.dcds, 0,
-          sizeof(cmdbuf->state.gfx.render.fb.info.bifrost.pre_post.dcds));
-
-   if (cmdbuf->state.tls.desc.gpu) {
-      ASSERTED unsigned num_preload_jobs =
-         GENX(pan_preload_fb)(&dev->blitter.cache, &cmdbuf->desc_pool.base,
-                              &cmdbuf->state.gfx.render.fb.info, layer,
-                              cmdbuf->state.tls.desc.gpu, NULL);
-
-      /* Valhall GPUs use pre frame DCDs to preload the FB content. We
-       * thus expect num_preload_jobs to be zero.
-       */
-      assert(!num_preload_jobs);
-   }
-
    struct pan_tiler_context tiler_ctx = {
       .valhall.layer_offset = layer - (layer % MAX_LAYERS_PER_TILER_DESC),
    };
@@ -2092,11 +2076,11 @@ wait_finish_tiling(struct panvk_cmd_buffer *cmdbuf)
                   vt_sync_addr);
 }
 
-static void
+static VkResult
 issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
 {
    if (!cmdbuf->state.gfx.render.fbds.gpu)
-      return;
+      return VK_SUCCESS;
 
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    struct pan_fb_info *fbinfo = &cmdbuf->state.gfx.render.fb.info;
@@ -2131,6 +2115,10 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
    uint32_t fbd_sz = calc_fbd_size(cmdbuf);
    struct panfrost_ptr fbds = cmdbuf->state.gfx.render.fbds;
    uint8_t fbd_flags = 0;
+
+   VkResult result = panvk_per_arch(cmd_fb_preload)(cmdbuf);
+   if (result != VK_SUCCESS)
+      return result;
 
    /* We prepare all FB descriptors upfront. */
    for (uint32_t i = 0; i < cmdbuf->state.gfx.render.layer_count; i++) {
@@ -2280,6 +2268,8 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
    memset(&cmdbuf->state.gfx.render.fbds, 0,
           sizeof(cmdbuf->state.gfx.render.fbds));
    cmdbuf->state.gfx.render.tiler = 0;
+
+   return VK_SUCCESS;
 }
 
 void

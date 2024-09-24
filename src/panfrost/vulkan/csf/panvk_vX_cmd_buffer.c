@@ -40,7 +40,6 @@
 #include "panvk_physical_device.h"
 #include "panvk_priv_bo.h"
 
-#include "pan_blitter.h"
 #include "pan_desc.h"
 #include "pan_encoder.h"
 #include "pan_props.h"

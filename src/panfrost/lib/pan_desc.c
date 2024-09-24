@@ -750,7 +750,17 @@ GENX(pan_emit_fbd)(const struct pan_fb_info *fb, unsigned layer_idx,
                                                   force_clean_write);
       cfg.post_frame = pan_fix_frame_shader_mode(fb->bifrost.pre_post.modes[2],
                                                  force_clean_write);
+#if PAN_ARCH <= 7
+      /* On Bifrost, the layer_id is passed through a push_uniform, which forces
+       * us to have one pre/post DCD array per layer. */
+      cfg.frame_shader_dcds =
+         fb->bifrost.pre_post.dcds.gpu + (layer_idx * 3 * pan_size(DRAW));
+#else
+      /* On Valhall, layer_id is passed through the framebuffer frame_arg, which
+       * is preloaded in r62, so we can use the same pre/post DCD array for all
+       * layers. */
       cfg.frame_shader_dcds = fb->bifrost.pre_post.dcds.gpu;
+#endif
       cfg.tiler =
          PAN_ARCH >= 9 ? tiler_ctx->valhall.desc : tiler_ctx->bifrost.desc;
 #endif
