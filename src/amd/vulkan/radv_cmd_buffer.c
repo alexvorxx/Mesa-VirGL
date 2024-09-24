@@ -7620,12 +7620,29 @@ radv_emit_compute_pipeline(struct radv_cmd_buffer *cmd_buffer, struct radv_compu
    if (pipeline == cmd_buffer->state.emitted_compute_pipeline)
       return;
 
-   radeon_check_space(device->ws, cmd_buffer->cs, pdev->info.gfx_level >= GFX10 ? 19 : 16);
+   radeon_check_space(device->ws, cmd_buffer->cs, pdev->info.gfx_level >= GFX10 ? 25 : 22);
 
    if (pipeline->base.type == RADV_PIPELINE_COMPUTE) {
       radv_emit_compute_shader(pdev, cmd_buffer->cs, cmd_buffer->state.shaders[MESA_SHADER_COMPUTE]);
    } else {
-      radv_emit_compute_shader(pdev, cmd_buffer->cs, cmd_buffer->state.rt_prolog);
+      const struct radv_shader *rt_prolog = cmd_buffer->state.rt_prolog;
+
+      radv_emit_compute_shader(pdev, cmd_buffer->cs, rt_prolog);
+
+      const uint32_t ray_dynamic_callback_stack_base_offset =
+         radv_get_user_sgpr_loc(rt_prolog, AC_UD_CS_RAY_DYNAMIC_CALLABLE_STACK_BASE);
+      if (ray_dynamic_callback_stack_base_offset) {
+         const struct radv_shader_info *cs_info = &rt_prolog->info;
+         radeon_set_sh_reg(cmd_buffer->cs, ray_dynamic_callback_stack_base_offset,
+                           rt_prolog->config.scratch_bytes_per_wave / cs_info->wave_size);
+      }
+
+      const uint32_t traversal_shader_addr_offset = radv_get_user_sgpr_loc(rt_prolog, AC_UD_CS_TRAVERSAL_SHADER_ADDR);
+      struct radv_shader *traversal_shader = cmd_buffer->state.shaders[MESA_SHADER_INTERSECTION];
+      if (traversal_shader_addr_offset && traversal_shader) {
+         uint64_t traversal_va = traversal_shader->va | radv_rt_priority_traversal;
+         radv_emit_shader_pointer(device, cmd_buffer->cs, traversal_shader_addr_offset, traversal_va, true);
+      }
    }
 
    cmd_buffer->state.emitted_compute_pipeline = pipeline;
@@ -12331,21 +12348,6 @@ radv_trace_rays(struct radv_cmd_buffer *cmd_buffer, VkTraceRaysIndirectCommand2K
    const uint32_t ray_launch_size_addr_offset = radv_get_user_sgpr_loc(rt_prolog, AC_UD_CS_RAY_LAUNCH_SIZE_ADDR);
    if (ray_launch_size_addr_offset) {
       radv_emit_shader_pointer(device, cmd_buffer->cs, ray_launch_size_addr_offset, launch_size_va, true);
-   }
-
-   const uint32_t ray_dynamic_callback_stack_base_offset =
-      radv_get_user_sgpr_loc(rt_prolog, AC_UD_CS_RAY_DYNAMIC_CALLABLE_STACK_BASE);
-   if (ray_dynamic_callback_stack_base_offset) {
-      const struct radv_shader_info *cs_info = &rt_prolog->info;
-      radeon_set_sh_reg(cmd_buffer->cs, ray_dynamic_callback_stack_base_offset,
-                        rt_prolog->config.scratch_bytes_per_wave / cs_info->wave_size);
-   }
-
-   const uint32_t traversal_shader_addr_offset = radv_get_user_sgpr_loc(rt_prolog, AC_UD_CS_TRAVERSAL_SHADER_ADDR);
-   struct radv_shader *traversal_shader = cmd_buffer->state.shaders[MESA_SHADER_INTERSECTION];
-   if (traversal_shader_addr_offset && traversal_shader) {
-      uint64_t traversal_va = traversal_shader->va | radv_rt_priority_traversal;
-      radv_emit_shader_pointer(device, cmd_buffer->cs, traversal_shader_addr_offset, traversal_va, true);
    }
 
    assert(cmd_buffer->cs->cdw <= cdw_max);
