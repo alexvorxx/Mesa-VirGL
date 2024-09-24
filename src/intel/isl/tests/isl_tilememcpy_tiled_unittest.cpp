@@ -137,10 +137,19 @@ struct tile_swizzle_ops swizzle_opers[] = {
 class tileTFixture: public ::testing::Test {
 
 protected:
+   uint32_t x_max_el;
+   uint32_t y_max_el;
+
    uint8_t *buf_dst;
    uint8_t *buf_src;
+   uint32_t buf_dst_size_B;
+   uint32_t buf_src_size_B;
+
    uint32_t tiled_pitch_B, tiled_height;
-   uint32_t tile_sz;
+   uint32_t tiled_size_B;
+   uint32_t linear_pitch_B;
+   uint32_t linear_sz;
+   uint32_t fmt_bs; /* format bytes per block */
    TILE_CONV conv;
    struct tile_swizzle_ops ops;
    bool print_results;
@@ -185,29 +194,40 @@ void tileTFixture::test_setup(TILE_CONV convert,
 
    const struct isl_format_layout *fmtl = isl_format_get_layout(format);
    conv = convert;
+   fmt_bs = fmtl->bpb / 8;
    ops.tiling = tiling_fmt;
 
    isl_tiling_get_info(tiling_fmt, ISL_SURF_DIM_2D, ISL_MSAA_LAYOUT_NONE,
 		       fmtl->bpb, 1 , &tile_info);
 
-   tiled_pitch_B = DIV_ROUND_UP(max_width, tile_info.logical_extent_el.w) *
-                   tile_info.phys_extent_B.w;
-   tiled_height = DIV_ROUND_UP(max_height, tile_info.logical_extent_el.h) *
-                  tile_info.phys_extent_B.h;
-   tile_sz = tiled_pitch_B * tiled_height;
+   x_max_el = align(max_width, tile_info.logical_extent_el.w);
+   y_max_el = align(max_height, tile_info.logical_extent_el.h);
 
-   buf_src = (uint8_t *) calloc(tile_sz, sizeof(uint8_t));
+   tiled_pitch_B = (x_max_el * (fmt_bs / (tile_info.format_bpb / 8)) /
+                    tile_info.logical_extent_el.w) *
+                   tile_info.phys_extent_B.w;
+   tiled_height = y_max_el / tile_info.logical_extent_el.h *
+                  tile_info.phys_extent_B.h;
+   tiled_size_B = tiled_pitch_B * tiled_height;
+
+   linear_pitch_B = x_max_el * fmt_bs;
+   linear_sz = linear_pitch_B * y_max_el;
+
+   buf_dst_size_B = convert == LIN_TO_TILE ? tiled_size_B : linear_sz;
+   buf_src_size_B = convert == LIN_TO_TILE ? linear_sz : tiled_size_B;
+
+   buf_src = (uint8_t *) calloc(buf_src_size_B, sizeof(uint8_t));
    ASSERT_TRUE(buf_src != nullptr);
 
-   buf_dst = (uint8_t *) calloc(tile_sz, sizeof(uint8_t));
+   buf_dst = (uint8_t *) calloc(buf_dst_size_B, sizeof(uint8_t));
    ASSERT_TRUE(buf_src != nullptr);
 
    for (uint8_t i = 0; i < ARRAY_SIZE(swizzle_opers); i++)
       if (ops.tiling == swizzle_opers[i].tiling)
          ops.linear_to_tile_swizzle = swizzle_opers[i].linear_to_tile_swizzle;
 
-   memset(buf_src, 0xcc, tile_sz);
-   memset(buf_dst, 0xcc, tile_sz);
+   memset(buf_src, 0xcc, buf_src_size_B);
+   memset(buf_dst, 0xcc, buf_dst_size_B);
 }
 
 void tileTFixture::TearDown()
@@ -219,17 +239,16 @@ void tileTFixture::TearDown()
    buf_dst = nullptr;
 }
 
-void tileTFixture::bounded_byte_fill(uint32_t x1, uint32_t x2, uint32_t y1, uint32_t y2)
+void tileTFixture::bounded_byte_fill(uint32_t x1_el, uint32_t x2_el,
+                                     uint32_t y1_el, uint32_t y2_el)
 {
-   uint8_t *itr = (uint8_t *) buf_src;
-
-   for(auto y = y1; y < y2; y++)
-      for (auto x = x1; x < x2; x++)
+   for(auto y_el = y1_el; y_el < y2_el; y_el++)
+      for (auto x_b = x1_el * fmt_bs; x_b < x2_el * fmt_bs; x_b++)
          if (conv == LIN_TO_TILE) {
-            *(itr + LIN_OFF(y, tiled_pitch_B, x)) = LIN_OFF(y, tiled_pitch_B, x)%16;
+            *(buf_src + LIN_OFF(y_el, linear_pitch_B, x_b)) = LIN_OFF(y_el, linear_pitch_B, x_b)%16;
          } else {
-            *(ops.linear_to_tile_swizzle(buf_src, tiled_pitch_B, x, y)) =
-               LIN_OFF(y, tiled_pitch_B, x)%16;
+            *(ops.linear_to_tile_swizzle(buf_src, tiled_pitch_B, x_b, y_el)) =
+               LIN_OFF(y_el, linear_pitch_B, x_b)%16;
          }
 }
 
@@ -250,58 +269,60 @@ void tileTFixture::hex_oword_print(const uint8_t *buf, uint32_t size)
    }
 }
 
-void tileTFixture::convert_texture(uint32_t x1, uint32_t x2, uint32_t y1, uint32_t y2)
+void tileTFixture::convert_texture(uint32_t x1_el, uint32_t x2_el, uint32_t y1_el, uint32_t y2_el)
 {
    if (print_results) {
       printf("/************** Printing src ***************/\n");
-      hex_oword_print((const uint8_t *)buf_src, tile_sz);
+      hex_oword_print((const uint8_t *)buf_src, buf_src_size_B);
    }
 
+   uint32_t linear_offset_B = LIN_OFF(y1_el, linear_pitch_B, x1_el * fmt_bs);
+
    if (conv == LIN_TO_TILE)
-      isl_memcpy_linear_to_tiled(x1, x2, y1, y2,
+      isl_memcpy_linear_to_tiled(x1_el * fmt_bs, x2_el * fmt_bs, y1_el, y2_el,
                                  (char *)buf_dst,
-                                 (const char *)buf_src + LIN_OFF(y1, tiled_pitch_B, x1),
-                                 tiled_pitch_B, tiled_pitch_B,
+                                 (const char *)buf_src + linear_offset_B,
+                                 tiled_pitch_B, linear_pitch_B,
                                  0, ops.tiling, ISL_MEMCPY);
    else
-      isl_memcpy_tiled_to_linear(x1, x2, y1, y2,
-                                 (char *)buf_dst + LIN_OFF(y1, tiled_pitch_B, x1),
+      isl_memcpy_tiled_to_linear(x1_el * fmt_bs, x2_el * fmt_bs, y1_el, y2_el,
+                                 (char *)buf_dst + linear_offset_B,
                                  (const char *)buf_src,
-                                 tiled_pitch_B, tiled_pitch_B,
+                                 linear_pitch_B, tiled_pitch_B,
                                  0, ops.tiling, ISL_MEMCPY);
 
    if (print_results) {
       printf("/************** Printing dest **************/\n");
-      hex_oword_print((const uint8_t *) buf_dst, tile_sz);
+      hex_oword_print((const uint8_t *) buf_dst, buf_dst_size_B);
    }
 }
 
-void tileTFixture::compare_conv_result(uint32_t x1, uint32_t x2,
-                                       uint32_t y1, uint32_t y2)
+void tileTFixture::compare_conv_result(uint32_t x1_el, uint32_t x2_el,
+                                       uint32_t y1_el, uint32_t y2_el)
 {
-   uint32_t x_max = tiled_pitch_B;
-   uint32_t y_max = (uint32_t) align(y2, tile_info.logical_extent_el.h);
+   for (uint32_t y_el = 0; y_el < y_max_el; y_el++) {
+      for (uint32_t x_el = 0; x_el < x_max_el; x_el++) {
+         for (uint32_t b = 0; b < fmt_bs; b++) {
+            uint32_t x_b = x_el * fmt_bs + b;
 
-   for(uint32_t y = 0; y < y_max; y++) {
-      for (uint32_t x = 0; x < x_max; x++) {
-
-         if (x < x1 || x >= x2 || y < y1 || y >= y2) {
-            if (conv == LIN_TO_TILE) {
-               EXPECT_EQ(*(buf_src + LIN_OFF(y, tiled_pitch_B, x)), 0xcc)
-                  << "Not matching for x:" << x << " and y:" << y << std::endl;
+            if (x_el < x1_el || x_el >= x2_el || y_el < y1_el || y_el >= y2_el) {
+               if (conv == LIN_TO_TILE) {
+                  EXPECT_EQ(*(buf_src + LIN_OFF(y_el, linear_pitch_B, x_b)), 0xcc)
+                     << "Not matching for x:" << x_el << " and y:" << y_el << std::endl;
+               } else {
+                  EXPECT_EQ(*(buf_dst + LIN_OFF(y_el, linear_pitch_B, x_b)), 0xcc)
+                     << "Not matching for x:" << x_el << " and y:" << y_el << std::endl;
+               }
             } else {
-               EXPECT_EQ(*(buf_dst + LIN_OFF(y, tiled_pitch_B, x)), 0xcc)
-                  << "Not matching for x:" << x << " and y:" << y << std::endl;
-            }
-         } else {
-            if (conv == LIN_TO_TILE) {
-               EXPECT_EQ(*(buf_src + LIN_OFF(y, tiled_pitch_B, x)),
-                         *(ops.linear_to_tile_swizzle(buf_dst, tiled_pitch_B, x, y)))
-                  << "Not matching for x:" << x << " and y:" << y << std::endl;
-            } else {
-               EXPECT_EQ(*(buf_dst + LIN_OFF(y, tiled_pitch_B, x)),
-                         *(ops.linear_to_tile_swizzle(buf_src, tiled_pitch_B, x, y)))
-                  << "Not matching for x:" << x << " and y:" << y << std::endl;
+               if (conv == LIN_TO_TILE) {
+                  EXPECT_EQ(*(buf_src + LIN_OFF(y_el, linear_pitch_B, x_b)),
+                            *(ops.linear_to_tile_swizzle(buf_dst, tiled_pitch_B, x_b, y_el)))
+                     << "Not matching for x:" << x_el << " and y:" << y_el << std::endl;
+               } else {
+                  EXPECT_EQ(*(buf_dst + LIN_OFF(y_el, linear_pitch_B, x_b)),
+                            *(ops.linear_to_tile_swizzle(buf_src, tiled_pitch_B, x_b, y_el)))
+                     << "Not matching for x:" << x_el << " and y:" << y_el << std::endl;
+               }
             }
          }
       }
