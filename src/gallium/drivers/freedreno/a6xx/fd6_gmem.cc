@@ -1220,30 +1220,24 @@ fd6_emit_tile_prep(struct fd_batch *batch, const struct fd_tile *tile)
 
       OUT_PKT7(ring, CP_SET_VISIBILITY_OVERRIDE, 1);
       OUT_RING(ring, 0x0);
-
-      set_window_offset<CHIP>(ring, x1, y1);
-
-      const struct fd_gmem_stateobj *gmem = batch->gmem_state;
-      set_bin_size<CHIP>(ring, gmem, {
-            .render_mode = RENDERING_PASS,
-            .force_lrz_write_dis = !ctx->screen->info->a6xx.has_lrz_feedback,
-            .buffers_location = BUFFERS_IN_GMEM,
-            .lrz_feedback_zmode_mask = ctx->screen->info->a6xx.has_lrz_feedback
-                                          ? LRZ_FEEDBACK_EARLY_LRZ_LATE_Z
-                                          : LRZ_FEEDBACK_NONE,
-      });
-
-      OUT_PKT7(ring, CP_SET_MODE, 1);
-      OUT_RING(ring, 0x0);
    } else {
-      set_window_offset<CHIP>(ring, x1, y1);
-
       OUT_PKT7(ring, CP_SET_VISIBILITY_OVERRIDE, 1);
       OUT_RING(ring, 0x1);
-
-      OUT_PKT7(ring, CP_SET_MODE, 1);
-      OUT_RING(ring, 0x0);
    }
+
+   set_window_offset<CHIP>(ring, x1, y1);
+
+   set_bin_size<CHIP>(ring, gmem, {
+         .render_mode = RENDERING_PASS,
+         .force_lrz_write_dis = !ctx->screen->info->a6xx.has_lrz_feedback,
+         .buffers_location = BUFFERS_IN_GMEM,
+         .lrz_feedback_zmode_mask = ctx->screen->info->a6xx.has_lrz_feedback
+                                       ? LRZ_FEEDBACK_EARLY_LRZ_LATE_Z
+                                       : LRZ_FEEDBACK_NONE,
+   });
+
+   OUT_PKT7(ring, CP_SET_MODE, 1);
+   OUT_RING(ring, 0x0);
 }
 
 static void
