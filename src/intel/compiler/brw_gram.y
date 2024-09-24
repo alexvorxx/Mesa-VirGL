@@ -540,6 +540,7 @@ add_label(struct brw_codegen *p, const char* label_name, enum instr_label_type t
 %token <integer> REG_DIST_INT
 %token <integer> REG_DIST_LONG
 %token <integer> REG_DIST_ALL
+%token <integer> REG_DIST_MATH
 %token <integer> SBID_ALLOC
 %token <integer> SBID_WAIT_SRC
 %token <integer> SBID_WAIT_DST
@@ -2047,6 +2048,12 @@ depinfo:
 		memset(&$$, 0, sizeof($$));
 		$$.regdist = $1;
 		$$.pipe = TGL_PIPE_ALL;
+	}
+	| REG_DIST_MATH
+	{
+		memset(&$$, 0, sizeof($$));
+		$$.regdist = $1;
+		$$.pipe = TGL_PIPE_MATH;
 	}
 	| SBID_ALLOC
 	{
