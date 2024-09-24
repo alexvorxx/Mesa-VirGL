@@ -120,8 +120,11 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
          view->pview.format = PIPE_FORMAT_X32_S8X24_UINT;
    }
 
+   /* Attachments need a texture for the FB preload logic. */
    VkImageUsageFlags tex_usage_mask =
-      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+      VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+      VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
 #if PAN_ARCH >= 9
    /* Valhall passes a texture descriptor to LEA_TEX. */
@@ -133,6 +136,10 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
        * descriptor emission without changing the original definition.
        */
       struct pan_image_view pview = view->pview;
+      bool can_preload_other_aspect =
+         (view->vk.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) &&
+         (image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT ||
+          image->vk.format == VK_FORMAT_D24_UNORM_S8_UINT);
 
       if (util_format_is_depth_or_stencil(view->pview.format)) {
          /* Vulkan wants R001, where the depth/stencil is stored in the red
@@ -157,7 +164,9 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
 #else
          .alignment = pan_alignment(PLANE),
 #endif
-         .size = GENX(panfrost_estimate_texture_payload_size)(&pview),
+
+         .size = GENX(panfrost_estimate_texture_payload_size)(&pview) *
+                 (can_preload_other_aspect ? 2 : 1),
       };
 
       view->mem = panvk_pool_alloc_mem(&device->mempools.rw, alloc_info);
@@ -172,6 +181,33 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
       };
 
       GENX(panfrost_new_texture)(&pview, view->descs.tex.opaque, &ptr);
+
+      if (can_preload_other_aspect) {
+         switch (pview.format) {
+         case PIPE_FORMAT_Z32_FLOAT:
+         case PIPE_FORMAT_Z32_FLOAT_S8X24_UINT:
+            pview.format = PIPE_FORMAT_X32_S8X24_UINT;
+            break;
+         case PIPE_FORMAT_X32_S8X24_UINT:
+            pview.format = PIPE_FORMAT_Z32_FLOAT_S8X24_UINT;
+            break;
+         case PIPE_FORMAT_Z24X8_UNORM:
+         case PIPE_FORMAT_Z24_UNORM_S8_UINT:
+            pview.format = PIPE_FORMAT_X24S8_UINT;
+            break;
+         case PIPE_FORMAT_X24S8_UINT:
+            pview.format = PIPE_FORMAT_Z24X8_UNORM;
+            break;
+         default:
+            assert(!"Invalid format");
+         }
+
+         ptr.cpu += alloc_info.size / 2;
+         ptr.gpu += alloc_info.size / 2;
+
+         GENX(panfrost_new_texture)(&pview, view->descs.other_aspect_tex.opaque,
+                                    &ptr);
+      }
    }
 
 #if PAN_ARCH <= 7
