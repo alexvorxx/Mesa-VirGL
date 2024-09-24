@@ -1777,6 +1777,13 @@ add_resource_bind(struct zink_context *ctx, struct zink_resource *res, unsigned 
 }
 
 static bool
+zink_resource_is_aux_plane(struct pipe_resource *pres)
+{
+   struct zink_resource *rsc = zink_resource(pres);
+   return rsc->obj->is_aux;
+}
+
+static bool
 zink_resource_get_param(struct pipe_screen *pscreen, struct pipe_context *pctx,
                         struct pipe_resource *pres,
                         unsigned plane,
@@ -1786,6 +1793,11 @@ zink_resource_get_param(struct pipe_screen *pscreen, struct pipe_context *pctx,
                         unsigned handle_usage,
                         uint64_t *value)
 {
+   while (plane && pres->next && !zink_resource_is_aux_plane(pres->next)) {
+      --plane;
+      pres = pres->next;
+   }
+
    struct zink_screen *screen = zink_screen(pscreen);
    struct zink_resource *res = zink_resource(pres);
    struct zink_resource_object *obj = res->obj;
@@ -1907,6 +1919,10 @@ zink_resource_get_handle(struct pipe_screen *pscreen,
       tc_buffer_disable_cpu_storage(tex);
    if (whandle->type == WINSYS_HANDLE_TYPE_FD || whandle->type == WINSYS_HANDLE_TYPE_KMS) {
 #ifdef ZINK_USE_DMABUF
+      while (whandle->plane && tex->next && !zink_resource_is_aux_plane(tex->next)) {
+         tex = tex->next;
+      }
+
       struct zink_resource *res = zink_resource(tex);
       struct zink_screen *screen = zink_screen(pscreen);
       struct zink_resource_object *obj = res->obj;
