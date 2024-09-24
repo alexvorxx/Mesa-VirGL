@@ -452,6 +452,9 @@ decode_fault_info(void)
       if (startswith(line, "  - far:")) {
          parseline(line, "  - far: %" PRIx64, &fault_iova);
          has_fault_iova = true;
+      } else if (startswith(line, "  - iova=")) {
+         parseline(line, "  - iova=%" PRIx64, &fault_iova);
+         has_fault_iova = true;
       }
 
       printf("%s", line);
