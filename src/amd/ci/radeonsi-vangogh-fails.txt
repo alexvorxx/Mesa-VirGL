@@ -1,7 +1,6 @@
 KHR-GLES31.core.shader_image_load_store.basic-allTargets-loadStoreCS,Fail
 KHR-GLES31.core.shader_image_load_store.basic-allTargets-loadStoreVS,Fail
 
-KHR-GL46.shader_image_load_store.basic-allTargets-atomic,Fail
 KHR-GL46.sparse_texture2_tests.SparseTexture2Allocation,Fail
 KHR-GL46.sparse_texture2_tests.SparseTexture2Commitment,Fail
 KHR-GL46.sparse_texture2_tests.SparseTexture2Lookup,Fail
