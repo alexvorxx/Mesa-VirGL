@@ -2635,6 +2635,46 @@ sop2_can_use_sopk(ra_ctx& ctx, Instruction* instr)
 }
 
 void
+create_phi_vector_affinities(ra_ctx& ctx, aco_ptr<Instruction>& instr,
+                             std::map<Operand*, std::vector<vector_info>>& vector_phis)
+{
+   auto it = ctx.vectors.find(instr->definitions[0].tempId());
+   if (it == ctx.vectors.end())
+      return;
+   vector_info& dest_vector = it->second;
+
+   auto pair = vector_phis.try_emplace(dest_vector.parts, instr->operands.size(), dest_vector);
+   std::vector<vector_info>& src_vectors = pair.first->second;
+   if (pair.second) {
+      RegType type = instr->definitions[0].regClass().type();
+
+      for (vector_info& src_vector : src_vectors) {
+         src_vector.parts =
+            (Operand*)ctx.memory.allocate(sizeof(Operand) * src_vector.num_parts, alignof(Operand));
+         for (unsigned j = 0; j < src_vector.num_parts; j++)
+            src_vector.parts[j] = Operand(RegClass::get(type, dest_vector.parts[j].bytes()));
+      }
+   }
+
+   unsigned index = 0;
+   for (; index < dest_vector.num_parts; index++) {
+      if (dest_vector.parts[index].isTemp() &&
+          dest_vector.parts[index].tempId() == instr->definitions[0].tempId())
+         break;
+   }
+   assert(index != dest_vector.num_parts);
+
+   for (int i = instr->operands.size() - 1; i >= 0; i--) {
+      const Operand& op = instr->operands[i];
+      if (!op.isTemp() || op.regClass() != instr->definitions[0].regClass())
+         continue;
+
+      src_vectors[i].parts[index] = op;
+      ctx.vectors[op.tempId()] = src_vectors[i];
+   }
+}
+
+void
 get_affinities(ra_ctx& ctx)
 {
    std::vector<std::vector<Temp>> phi_resources;
@@ -2718,6 +2758,7 @@ get_affinities(ra_ctx& ctx)
       }
 
       /* collect phi affinities */
+      std::map<Operand*, std::vector<vector_info>> vector_phis;
       for (; rit != block.instructions.rend(); ++rit) {
          aco_ptr<Instruction>& instr = *rit;
          assert(is_phi(instr));
@@ -2746,6 +2787,8 @@ get_affinities(ra_ctx& ctx)
                temp_to_phi_resources[op.tempId()] = index;
             }
          }
+
+         create_phi_vector_affinities(ctx, instr, vector_phis);
       }
 
       /* visit the loop header phis first in order to create nested affinities */
