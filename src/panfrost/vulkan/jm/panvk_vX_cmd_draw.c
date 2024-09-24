@@ -1898,6 +1898,8 @@ resolve_attachments(struct panvk_cmd_buffer *cmdbuf)
    if (resolve_info->mode != VK_RESOLVE_MODE_NONE)
       needs_resolve = true;
 
+   resolve_info = &cmdbuf->state.gfx.render.s_attachment.resolve;
+
    VkRenderingAttachmentInfo s_att = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
       .imageView = panvk_image_view_to_handle(resolve_info->src_iview),
