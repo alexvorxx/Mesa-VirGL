@@ -17,6 +17,7 @@
 #include "panvk_mempool.h"
 
 struct vk_color_blend_state;
+struct vk_dynamic_graphics_state;
 struct panvk_device;
 
 struct panvk_blend_shader {
@@ -42,7 +43,7 @@ struct panvk_blend_info {
 };
 
 VkResult panvk_per_arch(blend_emit_descs)(
-   struct panvk_device *dev, const struct vk_color_blend_state *cb,
+   struct panvk_device *dev, const struct vk_dynamic_graphics_state *dy,
    const VkFormat *color_attachment_formats, uint8_t *color_attachment_samples,
    const struct pan_shader_info *fs_info, mali_ptr fs_code,
    struct mali_blend_packed *bds, struct panvk_blend_info *blend_info);

@@ -375,7 +375,7 @@ panvk_draw_prepare_fs_rsd(struct panvk_cmd_buffer *cmdbuf,
 
    if (fs_info != NULL) {
       panvk_per_arch(blend_emit_descs)(
-         dev, cb, cmdbuf->state.gfx.render.color_attachments.fmts,
+         dev, dyns, cmdbuf->state.gfx.render.color_attachments.fmts,
          cmdbuf->state.gfx.render.color_attachments.samples, fs_info, fs_code,
          bds, &binfo);
    } else {

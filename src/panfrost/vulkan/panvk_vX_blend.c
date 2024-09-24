@@ -104,9 +104,10 @@ get_blend_shader_locked(struct panvk_device *dev,
       .logicop_func = state->logicop_func,
       .nr_samples = state->rts[rt].nr_samples,
       .equation = state->rts[rt].equation,
+      .alpha_to_one = state->alpha_to_one,
    };
 
-   assert(state->logicop_enable ||
+   assert(state->logicop_enable || state->alpha_to_one ||
           !pan_blend_is_opaque(state->rts[rt].equation));
    assert(state->rts[rt].equation.color_mask != 0);
    simple_mtx_assert_locked(&dev->blend_shader_cache.lock);
@@ -308,6 +309,10 @@ blend_needs_shader(const struct pan_blend_state *state, unsigned rt_idx,
    if (state->logicop_enable)
       return state->logicop_func != PIPE_LOGICOP_NOOP;
 
+   /* alpha-to-one always requires a blend shader */
+   if (state->alpha_to_one)
+      return true;
+
    /* If the output is opaque, we don't need a blend shader, no matter the
     * format.
     */
@@ -353,12 +358,14 @@ blend_needs_shader(const struct pan_blend_state *state, unsigned rt_idx,
 
 VkResult
 panvk_per_arch(blend_emit_descs)(
-   struct panvk_device *dev, const struct vk_color_blend_state *cb,
+   struct panvk_device *dev, const struct vk_dynamic_graphics_state *dyns,
    const VkFormat *color_attachment_formats, uint8_t *color_attachment_samples,
    const struct pan_shader_info *fs_info, mali_ptr fs_code,
    struct mali_blend_packed *bds, struct panvk_blend_info *blend_info)
 {
+   const struct vk_color_blend_state *cb = &dyns->cb;
    struct pan_blend_state bs = {
+      .alpha_to_one = dyns->ms.alpha_to_one_enable,
       .logicop_enable = cb->logic_op_enable,
       .logicop_func = vk_logic_op_to_pipe(cb->logic_op),
       .rt_count = cb->attachment_count,

@@ -495,6 +495,7 @@ prepare_blend(struct panvk_cmd_buffer *cmdbuf)
 {
    bool dirty =
       is_dirty(cmdbuf, CB_LOGIC_OP_ENABLE) || is_dirty(cmdbuf, CB_LOGIC_OP) ||
+      is_dirty(cmdbuf, MS_ALPHA_TO_ONE_ENABLE) ||
       is_dirty(cmdbuf, CB_ATTACHMENT_COUNT) ||
       is_dirty(cmdbuf, CB_COLOR_WRITE_ENABLES) ||
       is_dirty(cmdbuf, CB_BLEND_ENABLES) ||
@@ -522,7 +523,7 @@ prepare_blend(struct panvk_cmd_buffer *cmdbuf)
       return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
    panvk_per_arch(blend_emit_descs)(
-      dev, cb, cmdbuf->state.gfx.render.color_attachments.fmts,
+      dev, dyns, cmdbuf->state.gfx.render.color_attachments.fmts,
       cmdbuf->state.gfx.render.color_attachments.samples, fs_info, fs_code, bds,
       &cmdbuf->state.gfx.cb.info);
 
