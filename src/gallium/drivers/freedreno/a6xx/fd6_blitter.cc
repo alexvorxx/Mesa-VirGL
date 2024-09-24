@@ -257,7 +257,6 @@ emit_setup(struct fd_batch *batch)
                           FD6_INVALIDATE_CCU_DEPTH);
 
    /* normal BLIT_OP_SCALE operation needs bypass RB_CCU_CNTL */
-   OUT_WFI5(ring);
    fd6_emit_ccu_cntl<CHIP>(ring, screen, false);
 }
 

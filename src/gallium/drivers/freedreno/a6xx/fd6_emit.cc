@@ -824,6 +824,8 @@ fd6_emit_ccu_cntl(struct fd_ringbuffer *ring, struct fd_screen *screen, bool gme
          );
       }
    } else {
+      OUT_WFI5(ring);   /* early a6xx (a630?) needed this */
+
       OUT_REG(ring,
          RB_CCU_CNTL(
             CHIP,
@@ -922,7 +924,6 @@ fd6_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
             .concurrent_resolve = screen->info->a6xx.concurrent_resolve,
          )
       );
-      OUT_WFI5(ring);
    }
 
    fd6_emit_ccu_cntl<CHIP>(ring, screen, false);

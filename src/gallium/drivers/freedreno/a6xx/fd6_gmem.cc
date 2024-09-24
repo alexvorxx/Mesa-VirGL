@@ -1014,8 +1014,6 @@ emit_binning_pass(struct fd_batch *batch) assert_dt
    OUT_PKT7(ring, CP_SET_MODE, 1);
    OUT_RING(ring, 0x0);
 
-   OUT_WFI5(ring);
-
    fd6_emit_ccu_cntl<CHIP>(ring, screen, true);
 }
 
@@ -1085,7 +1083,6 @@ fd6_emit_tile_init(struct fd_batch *batch) assert_dt
    OUT_PKT7(ring, CP_SKIP_IB2_ENABLE_LOCAL, 1);
    OUT_RING(ring, 0x1);
 
-   OUT_WFI5(ring);
    fd6_emit_ccu_cntl<CHIP>(ring, screen, true);
 
    emit_zs<CHIP>(batch->ctx, ring, pfb->zsbuf, batch->gmem_state);
@@ -1978,7 +1975,6 @@ fd6_emit_sysmem(struct fd_batch *batch)
          emit_sysmem_clears<CHIP>(batch, subpass);
       }
 
-      OUT_WFI5(ring);
       fd6_emit_ccu_cntl<CHIP>(ring, screen, false);
 
       struct pipe_framebuffer_state *pfb = &batch->framebuffer;
