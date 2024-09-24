@@ -81,6 +81,7 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
    bool driver_internal =
       (pCreateInfo->flags & VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA) != 0;
    struct panvk_image_view *view;
+   VkResult result;
 
    view = vk_image_view_create(&device->vk, driver_internal, pCreateInfo,
                                pAllocator, sizeof(*view));
@@ -160,6 +161,10 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
       };
 
       view->mem = panvk_pool_alloc_mem(&device->mempools.rw, alloc_info);
+      if (!panvk_priv_mem_host_addr(view->mem)) {
+         result = vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+	 goto err_destroy_iview;
+      }
 
       struct panfrost_ptr ptr = {
          .gpu = panvk_priv_mem_dev_addr(view->mem),
@@ -222,6 +227,10 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
 
    *pView = panvk_image_view_to_handle(view);
    return VK_SUCCESS;
+
+err_destroy_iview:
+   vk_image_view_destroy(&device->vk, pAllocator, &view->vk);
+   return result;
 }
 
 VKAPI_ATTR void VKAPI_CALL
