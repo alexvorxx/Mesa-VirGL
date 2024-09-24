@@ -1613,6 +1613,7 @@ panvk_cmd_begin_rendering_init_state(struct panvk_cmd_buffer *cmdbuf,
 
       cmdbuf->state.gfx.render.bound_attachments |=
          MESA_VK_RP_ATTACHMENT_COLOR_BIT(i);
+      cmdbuf->state.gfx.render.color_attachments.iviews[i] = iview;
       cmdbuf->state.gfx.render.color_attachments.fmts[i] = iview->vk.format;
       cmdbuf->state.gfx.render.color_attachments.samples[i] = img->vk.samples;
       att_width = MAX2(iview_size.width, att_width);
@@ -1641,7 +1642,6 @@ panvk_cmd_begin_rendering_init_state(struct panvk_cmd_buffer *cmdbuf,
          VK_FROM_HANDLE(panvk_image_view, resolve_iview, att->resolveImageView);
 
          resolve_info->mode = att->resolveMode;
-         resolve_info->src_iview = iview;
          resolve_info->dst_iview = resolve_iview;
       }
    }
@@ -1663,6 +1663,7 @@ panvk_cmd_begin_rendering_init_state(struct panvk_cmd_buffer *cmdbuf,
          fbinfo->zs.view.zs = &iview->pview;
          fbinfo->nr_samples = MAX2(
             fbinfo->nr_samples, pan_image_view_get_nr_samples(&iview->pview));
+         cmdbuf->state.gfx.render.z_attachment.iview = iview;
 
          if (vk_format_has_stencil(img->vk.format))
             fbinfo->zs.preload.s = true;
@@ -1681,7 +1682,6 @@ panvk_cmd_begin_rendering_init_state(struct panvk_cmd_buffer *cmdbuf,
                            att->resolveImageView);
 
             resolve_info->mode = att->resolveMode;
-            resolve_info->src_iview = iview;
             resolve_info->dst_iview = resolve_iview;
          }
       }
@@ -1713,6 +1713,7 @@ panvk_cmd_begin_rendering_init_state(struct panvk_cmd_buffer *cmdbuf,
             &iview->pview != fbinfo->zs.view.zs ? &iview->pview : NULL;
          fbinfo->nr_samples = MAX2(
             fbinfo->nr_samples, pan_image_view_get_nr_samples(&iview->pview));
+         cmdbuf->state.gfx.render.s_attachment.iview = iview;
 
          if (vk_format_has_depth(img->vk.format)) {
             assert(fbinfo->zs.view.zs == NULL ||
@@ -1740,7 +1741,6 @@ panvk_cmd_begin_rendering_init_state(struct panvk_cmd_buffer *cmdbuf,
                            att->resolveImageView);
 
             resolve_info->mode = att->resolveMode;
-            resolve_info->src_iview = iview;
             resolve_info->dst_iview = resolve_iview;
          }
       }
@@ -1898,10 +1898,12 @@ resolve_attachments(struct panvk_cmd_buffer *cmdbuf)
    for (uint32_t i = 0; i < color_att_count; i++) {
       const struct panvk_resolve_attachment *resolve_info =
          &cmdbuf->state.gfx.render.color_attachments.resolve[i];
+      struct panvk_image_view *src_iview =
+         cmdbuf->state.gfx.render.color_attachments.iviews[i];
 
       color_atts[i] = (VkRenderingAttachmentInfo){
          .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-         .imageView = panvk_image_view_to_handle(resolve_info->src_iview),
+         .imageView = panvk_image_view_to_handle(src_iview),
          .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
          .resolveMode = resolve_info->mode,
          .resolveImageView =
@@ -1915,9 +1917,11 @@ resolve_attachments(struct panvk_cmd_buffer *cmdbuf)
 
    const struct panvk_resolve_attachment *resolve_info =
       &cmdbuf->state.gfx.render.z_attachment.resolve;
+   struct panvk_image_view *src_iview =
+      cmdbuf->state.gfx.render.z_attachment.iview;
    VkRenderingAttachmentInfo z_att = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-      .imageView = panvk_image_view_to_handle(resolve_info->src_iview),
+      .imageView = panvk_image_view_to_handle(src_iview),
       .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
       .resolveMode = resolve_info->mode,
       .resolveImageView = panvk_image_view_to_handle(resolve_info->dst_iview),
@@ -1928,10 +1932,11 @@ resolve_attachments(struct panvk_cmd_buffer *cmdbuf)
       needs_resolve = true;
 
    resolve_info = &cmdbuf->state.gfx.render.s_attachment.resolve;
+   src_iview = cmdbuf->state.gfx.render.s_attachment.iview;
 
    VkRenderingAttachmentInfo s_att = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
-      .imageView = panvk_image_view_to_handle(resolve_info->src_iview),
+      .imageView = panvk_image_view_to_handle(src_iview),
       .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
       .resolveMode = resolve_info->mode,
       .resolveImageView = panvk_image_view_to_handle(resolve_info->dst_iview),

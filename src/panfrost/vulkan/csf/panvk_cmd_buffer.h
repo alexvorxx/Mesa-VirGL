@@ -321,7 +321,6 @@ struct panvk_attrib_buf {
 
 struct panvk_resolve_attachment {
    VkResolveModeFlagBits mode;
-   struct panvk_image_view *src_iview;
    struct panvk_image_view *dst_iview;
 };
 
@@ -377,6 +376,7 @@ struct panvk_cmd_graphics_state {
 
       enum vk_rp_attachment_flags bound_attachments;
       struct {
+         struct panvk_image_view *iviews[MAX_RTS];
          VkFormat fmts[MAX_RTS];
          uint8_t samples[MAX_RTS];
          struct panvk_resolve_attachment resolve[MAX_RTS];
@@ -385,6 +385,7 @@ struct panvk_cmd_graphics_state {
       struct pan_image_view zs_pview;
 
       struct {
+         struct panvk_image_view *iview;
          struct panvk_resolve_attachment resolve;
       } z_attachment, s_attachment;
 
