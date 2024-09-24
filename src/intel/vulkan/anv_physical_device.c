@@ -275,6 +275,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .EXT_transform_feedback                = true,
       .EXT_vertex_attribute_divisor          = true,
       .EXT_vertex_input_dynamic_state        = true,
+      .EXT_ycbcr_2plane_444_formats          = true,
       .EXT_ycbcr_image_arrays                = true,
       .AMD_buffer_marker                     = true,
       .AMD_texture_gather_bias_lod           = device->info.ver >= 20,
@@ -662,6 +663,9 @@ get_features(const struct anv_physical_device *pdevice,
 
       /* VK_EXT_ycbcr_image_arrays */
       .ycbcrImageArrays = true,
+
+      /* VK_EXT_ycbcr_2plane_444_formats */
+      .ycbcr2plane444Formats = true,
 
       /* VK_EXT_extended_dynamic_state */
       .extendedDynamicState = true,

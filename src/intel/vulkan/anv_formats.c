@@ -324,6 +324,17 @@ static const struct anv_format _4444_formats[] = {
    fmt_unsupported(VK_FORMAT_A4B4G4R4_UNORM_PACK16),
 };
 
+static const struct anv_format _2plane_444_formats[] = {
+   ycbcr_fmt(VK_FORMAT_G8_B8R8_2PLANE_444_UNORM, 2, true, false,
+             ycbcr_plane(0, ISL_FORMAT_R8_UNORM, RGBA),
+             ycbcr_plane(0, ISL_FORMAT_R8G8_UNORM, RGBA)),
+   fmt_unsupported(VK_FORMAT_G10X6_B10X6R10X6_2PLANE_444_UNORM_3PACK16),
+   fmt_unsupported(VK_FORMAT_G12X4_B12X4R12X4_2PLANE_444_UNORM_3PACK16),
+   ycbcr_fmt(VK_FORMAT_G16_B16R16_2PLANE_444_UNORM, 2, true, false,
+             ycbcr_plane(0, ISL_FORMAT_R16_UNORM, RGBA),
+             ycbcr_plane(1, ISL_FORMAT_R16G16_UNORM, RGBA)),
+};
+
 static const struct anv_format ycbcr_formats[] = {
    ycbcr_fmt(VK_FORMAT_G8B8G8R8_422_UNORM, 1, true, false,
              ycbcr_plane(0, ISL_FORMAT_YCRCB_NORMAL, RGBA)),
@@ -418,6 +429,8 @@ static const struct {
                                                  .n_formats = ARRAY_SIZE(ycbcr_formats), },
    [_VK_KHR_maintenance5_number]             = { .formats = maintenance5_formats,
                                                  .n_formats = ARRAY_SIZE(maintenance5_formats), },
+   [_VK_EXT_ycbcr_2plane_444_formats_number] = { .formats = _2plane_444_formats,
+                                                 .n_formats = ARRAY_SIZE(_2plane_444_formats), },
 };
 
 const struct anv_format *
