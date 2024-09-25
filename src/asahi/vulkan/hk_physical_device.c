@@ -644,7 +644,11 @@ hk_get_device_properties(const struct agx_device *dev,
       .maxVertexInputBindings = AGX_MAX_ATTRIBS,
       .maxVertexInputAttributeOffset = 65535,
       .maxVertexInputBindingStride = 2048,
-      .maxVertexOutputComponents = 64,
+
+      /* Hardware limit is 128 but we need to reserve some for internal purposes
+       * (like cull distance emulation). Set 96 to be safe.
+       */
+      .maxVertexOutputComponents = 96,
       .maxGeometryShaderInvocations = 32,
       .maxGeometryInputComponents = 128,
       .maxGeometryOutputComponents = 128,
@@ -658,7 +662,9 @@ hk_get_device_properties(const struct agx_device *dev,
       .maxTessellationControlTotalOutputComponents = 4216,
       .maxTessellationEvaluationInputComponents = 128,
       .maxTessellationEvaluationOutputComponents = 128,
-      .maxFragmentInputComponents = 64,
+
+      /* Set to match maxVertexOutputComponents, hardware limit is higher. */
+      .maxFragmentInputComponents = 96,
       .maxFragmentOutputAttachments = HK_MAX_RTS,
       .maxFragmentDualSrcAttachments = 1,
       .maxFragmentCombinedOutputResources = 16,
