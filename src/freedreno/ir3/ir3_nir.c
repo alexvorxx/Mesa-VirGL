@@ -744,6 +744,7 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
             .lower_read_invocation_to_cond = true,
             .lower_shuffle = true,
             .lower_relative_shuffle = true,
+            .lower_rotate_to_shuffle = !compiler->has_shfl,
             .lower_inverse_ballot = true,
       };
 

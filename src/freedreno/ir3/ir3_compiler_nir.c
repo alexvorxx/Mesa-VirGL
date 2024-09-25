@@ -2477,6 +2477,32 @@ emit_intrinsic_brcst_active(struct ir3_context *ctx, nir_intrinsic_instr *intr)
                            brcst_val, default_src);
 }
 
+static ir3_shfl_mode
+shfl_mode(nir_intrinsic_instr *intr)
+{
+   switch (intr->intrinsic) {
+   case nir_intrinsic_rotate:
+      return SHFL_RDOWN;
+   default:
+      unreachable("unsupported shfl");
+   }
+}
+
+static struct ir3_instruction *
+emit_shfl(struct ir3_context *ctx, nir_intrinsic_instr *intr)
+{
+   assert(ctx->compiler->has_shfl);
+
+   struct ir3_instruction *val = ir3_get_src(ctx, &intr->src[0])[0];
+   struct ir3_instruction *idx = ir3_get_src(ctx, &intr->src[1])[0];
+
+   struct ir3_instruction *shfl = ir3_SHFL(ctx->block, val, 0, idx, 0);
+   shfl->cat6.shfl_mode = shfl_mode(intr);
+   shfl->cat6.type = is_half(val) ? TYPE_U16 : TYPE_U32;
+
+   return shfl;
+}
+
 static void setup_input(struct ir3_context *ctx, nir_intrinsic_instr *intr);
 static void setup_output(struct ir3_context *ctx, nir_intrinsic_instr *intr);
 
@@ -3258,6 +3284,9 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       array_insert(ctx->block, ctx->block->keeps, ldc);
       break;
    }
+   case nir_intrinsic_rotate:
+      dst[0] = emit_shfl(ctx, intr);
+      break;
    default:
       ir3_context_error(ctx, "Unhandled intrinsic type: %s\n",
                         nir_intrinsic_infos[intr->intrinsic].name);
