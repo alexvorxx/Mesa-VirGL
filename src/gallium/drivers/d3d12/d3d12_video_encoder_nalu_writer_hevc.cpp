@@ -281,6 +281,9 @@ d3d12_video_nalu_writer_hevc::write_sps_bytes(d3d12_video_encoder_bitstream *pBi
     pBitstream->exp_Golomb_ue(pSPS->sps_seq_parameter_set_id);
 
     pBitstream->exp_Golomb_ue(pSPS->chroma_format_idc);
+    if (pSPS->chroma_format_idc == 3) {
+        pBitstream->put_bits(1, pSPS->separate_colour_plane_flag);
+    }
 
     pBitstream->exp_Golomb_ue(pSPS->pic_width_in_luma_samples);
     pBitstream->exp_Golomb_ue(pSPS->pic_height_in_luma_samples);

@@ -389,11 +389,29 @@ d3d12_video_bitstream_builder_hevc::build_sps(const HevcVideoParameterSet& paren
 {
    HevcSeqParameterSet m_latest_sps = {};
 
-   // In case is 420 10 bits
-   if(inputFmt == DXGI_FORMAT_P010)
-   {
-      m_latest_sps.bit_depth_luma_minus8 = 2;
-      m_latest_sps.bit_depth_chroma_minus8 = 2;
+   UINT SubWidthC = 1u;
+   UINT SubHeightC = 1u;
+   if (inputFmt == DXGI_FORMAT_NV12) {
+      // 420 8 bits
+      m_latest_sps.bit_depth_luma_minus8 = 0u;
+      m_latest_sps.bit_depth_chroma_minus8 = 0u;
+      SubWidthC = 2u;
+      SubHeightC = 2u;
+      m_latest_sps.chroma_format_idc = 1u;
+   } else if (inputFmt == DXGI_FORMAT_P010) {
+      // 420 10 bits
+      m_latest_sps.bit_depth_luma_minus8 = 2u;
+      m_latest_sps.bit_depth_chroma_minus8 = 2u;
+      SubWidthC = 2u;
+      SubHeightC = 2u;
+      m_latest_sps.chroma_format_idc = 1u;
+   } else if (inputFmt == DXGI_FORMAT_AYUV) {
+      // 444 8 bits
+      m_latest_sps.bit_depth_luma_minus8 = 0u;
+      m_latest_sps.bit_depth_chroma_minus8 = 0u;
+      SubWidthC = 1u;
+      SubHeightC = 1u;
+      m_latest_sps.chroma_format_idc = 3u;
    }
 
    uint8_t minCuSize = d3d12_video_encoder_convert_12cusize_to_pixel_size_hevc(codecConfig.MinLumaCodingUnitSize);
@@ -411,20 +429,19 @@ d3d12_video_bitstream_builder_hevc::build_sps(const HevcVideoParameterSet& paren
    // inherit PTL from parentVPS fully
    m_latest_sps.ptl = parentVPS.ptl;
 
-   m_latest_sps.chroma_format_idc = 1; // 420
-
    // Codec spec dictates pic_width/height_in_luma_samples must be divisible by minCuSize but HW might have higher req pow 2 multiples
    assert((picDimensionMultipleRequirement % minCuSize) == 0u);
 
    // upper layer passes the viewport, can calculate the difference between it and pic_width_in_luma_samples
    D3D12_VIDEO_ENCODER_PICTURE_RESOLUTION_DESC viewport = { };
-   viewport.Width = crop_window_upper_layer.front /* passes height */ - ((crop_window_upper_layer.left + crop_window_upper_layer.right) << 1);
-   viewport.Height = crop_window_upper_layer.back /* passes width */- ((crop_window_upper_layer.top + crop_window_upper_layer.bottom) << 1);
+   viewport.Width = crop_window_upper_layer.front /* passes width */ - ((crop_window_upper_layer.left + crop_window_upper_layer.right) * SubWidthC);
+   viewport.Height = crop_window_upper_layer.back /* passes height */- ((crop_window_upper_layer.top + crop_window_upper_layer.bottom) * SubHeightC);
 
    m_latest_sps.pic_width_in_luma_samples = ALIGN(encodeResolution.Width, picDimensionMultipleRequirement);
    m_latest_sps.pic_height_in_luma_samples = ALIGN(encodeResolution.Height, picDimensionMultipleRequirement);
-   m_latest_sps.conf_win_right_offset = (m_latest_sps.pic_width_in_luma_samples - viewport.Width) >> 1;
-   m_latest_sps.conf_win_bottom_offset = (m_latest_sps.pic_height_in_luma_samples - viewport.Height) >> 1;
+   m_latest_sps.conf_win_right_offset = (m_latest_sps.pic_width_in_luma_samples - viewport.Width) / SubWidthC;
+   m_latest_sps.conf_win_bottom_offset = (m_latest_sps.pic_height_in_luma_samples - viewport.Height) / SubHeightC;
+
    m_latest_sps.conformance_window_flag = m_latest_sps.conf_win_left_offset || m_latest_sps.conf_win_right_offset || m_latest_sps.conf_win_top_offset || m_latest_sps.conf_win_bottom_offset;
 
    m_latest_sps.log2_max_pic_order_cnt_lsb_minus4 = hevcGOP.log2_max_pic_order_cnt_lsb_minus4;
