@@ -1538,7 +1538,12 @@ compact_relocate_vars(ra_ctx& ctx, const std::vector<IDAndRegClass>& vars,
 bool
 is_vector_intact(ra_ctx& ctx, const RegisterFile& reg_file, const vector_info& vec_info)
 {
+   unsigned size = 0;
+   for (unsigned i = 0; i < vec_info.num_parts; i++)
+      size += vec_info.parts[i].bytes();
+
    PhysReg first{512};
+   int offset = 0;
    for (unsigned i = 0; i < vec_info.num_parts; i++) {
       Operand op = vec_info.parts[i];
 
@@ -1547,21 +1552,23 @@ is_vector_intact(ra_ctx& ctx, const RegisterFile& reg_file, const vector_info& v
 
          if (first.reg() == 512) {
             PhysRegInterval bounds = get_reg_bounds(ctx, RegType::vgpr, false);
-            first = reg.advance(i * -4);
-            PhysRegInterval vec = PhysRegInterval{first, vec_info.num_parts};
+            first = reg.advance(-offset);
+            PhysRegInterval vec = PhysRegInterval{first, DIV_ROUND_UP(size, 4)};
             if (!bounds.contains(vec)) /* not enough space for other operands */
                return false;
          } else {
-            if (reg != first.advance(i * 4)) /* not at the best position */
+            if (reg != first.advance(offset)) /* not at the best position */
                return false;
          }
       } else {
          /* If there's an unexpected temporary, this operand is unlikely to be
           * placed in the best position.
           */
-         if (first.reg() != 512 && reg_file.test(first.advance(i * 4), 4))
+         if (first.reg() != 512 && reg_file.test(first.advance(offset), op.bytes()))
             return false;
       }
+
+      offset += op.bytes();
    }
 
    return true;
