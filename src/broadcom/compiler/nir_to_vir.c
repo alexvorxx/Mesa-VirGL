@@ -3261,8 +3261,12 @@ ntq_emit_load_unifa(struct v3d_compile *c, nir_intrinsic_instr *instr)
                                    vir_MOV_dest(c, unifa, base_offset);
                                 }
                         } else {
-                                vir_ADD_dest(c, unifa, base_offset,
-                                             vir_uniform_ui(c, const_offset));
+                               if (const_offset != 0) {
+                                        vir_ADD_dest(c, unifa, base_offset,
+                                                     vir_uniform_ui(c, const_offset));
+                               } else {
+                                        vir_MOV_dest(c, unifa, base_offset);
+                               }
                         }
                 } else {
                         vir_ADD_dest(c, unifa, base_offset,
