@@ -1243,6 +1243,8 @@ template <chip CHIP>
 static void
 fd6_emit_tile_prep(struct fd_batch *batch, const struct fd_tile *tile)
 {
+   struct pipe_framebuffer_state *pfb = &batch->framebuffer;
+   struct fd_screen *screen = batch->ctx->screen;
    struct fd_context *ctx = batch->ctx;
    const struct fd_gmem_stateobj *gmem = batch->gmem_state;
    struct fd6_context *fd6_ctx = fd6_context(ctx);
@@ -1261,6 +1263,12 @@ fd6_emit_tile_prep(struct fd_batch *batch, const struct fd_tile *tile)
 
    set_scissor(ring, x1, y1, x2, y2);
    set_tessfactor_bo<CHIP>(ring, batch);
+
+   fd6_emit_ccu_cntl<CHIP>(ring, screen, true);
+
+   emit_zs<CHIP>(batch->ctx, ring, pfb->zsbuf, batch->gmem_state);
+   emit_mrt<CHIP>(ring, pfb, batch->gmem_state);
+   emit_msaa(ring, pfb->samples);
 
    if (use_hw_binning(batch)) {
       const struct fd_vsc_pipe *pipe = &gmem->vsc_pipe[tile->p];
@@ -1285,9 +1293,51 @@ fd6_emit_tile_prep(struct fd_batch *batch, const struct fd_tile *tile)
 
       OUT_PKT7(ring, CP_SET_VISIBILITY_OVERRIDE, 1);
       OUT_RING(ring, 0x0);
+
+      /* and disable stream-out for draw pass: */
+      OUT_REG(ring, A6XX_VPC_SO_DISABLE(true));
+
+      /*
+       * NOTE: even if we detect VSC overflow and disable use of
+       * visibility stream in draw pass, it is still safe to execute
+       * the reset of these cmds:
+       */
+
+      set_bin_size<CHIP>(ring, gmem, {
+            .render_mode = RENDERING_PASS,
+            .force_lrz_write_dis = !screen->info->a6xx.has_lrz_feedback,
+            .buffers_location = BUFFERS_IN_GMEM,
+            .lrz_feedback_zmode_mask = screen->info->a6xx.has_lrz_feedback
+                                          ? LRZ_FEEDBACK_EARLY_LRZ_LATE_Z
+                                          : LRZ_FEEDBACK_NONE,
+      });
+
+      OUT_REG(ring, A6XX_VFD_MODE_CNTL(RENDERING_PASS));
+
+      if (CHIP == A6XX) {
+         OUT_REG(ring, A6XX_PC_POWER_CNTL(screen->info->a6xx.magic.PC_POWER_CNTL));
+         OUT_REG(ring, A6XX_VFD_POWER_CNTL(screen->info->a6xx.magic.PC_POWER_CNTL));
+      }
+
+      OUT_PKT7(ring, CP_SKIP_IB2_ENABLE_GLOBAL, 1);
+      OUT_RING(ring, 0x1);
+
    } else {
       OUT_PKT7(ring, CP_SET_VISIBILITY_OVERRIDE, 1);
       OUT_RING(ring, 0x1);
+
+      /* no binning pass, so enable stream-out for draw pass:: */
+      OUT_REG(ring, A6XX_VPC_SO_DISABLE(false));
+
+      set_bin_size<CHIP>(ring, gmem, {
+            .render_mode = RENDERING_PASS,
+            .force_lrz_write_dis = !screen->info->a6xx.has_lrz_feedback,
+            .buffers_location = BUFFERS_IN_GMEM,
+            .lrz_feedback_zmode_mask =
+               screen->info->a6xx.has_lrz_feedback
+                  ? LRZ_FEEDBACK_EARLY_Z_OR_EARLY_LRZ_LATE_Z
+                  : LRZ_FEEDBACK_NONE,
+      });
    }
 
    set_window_offset<CHIP>(ring, x1, y1);
