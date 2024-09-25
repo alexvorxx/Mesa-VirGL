@@ -1197,7 +1197,7 @@ lvp_get_properties(const struct lvp_physical_device *device, struct vk_propertie
       .maxPerStageDescriptorUpdateAfterBindAccelerationStructures = MAX_DESCRIPTORS,
       .maxDescriptorSetAccelerationStructures = MAX_DESCRIPTORS,
       .maxDescriptorSetUpdateAfterBindAccelerationStructures = MAX_DESCRIPTORS,
-      .minAccelerationStructureScratchOffsetAlignment = 128,
+      .minAccelerationStructureScratchOffsetAlignment = 8,
 
       /* VK_EXT_legacy_vertex_attributes */
       .nativeUnalignedPerformance = true,
