@@ -42,11 +42,11 @@
 
 #include "pan_afbc_cso.h"
 #include "pan_blend.h"
-#include "pan_blitter.h"
 #include "pan_bo.h"
 #include "pan_cmdstream.h"
 #include "pan_context.h"
 #include "pan_csf.h"
+#include "pan_fb_preload.h"
 #include "pan_format.h"
 #include "pan_indirect_dispatch.h"
 #include "pan_jm.h"
@@ -3818,7 +3818,7 @@ static void
 screen_destroy(struct pipe_screen *pscreen)
 {
    struct panfrost_device *dev = pan_device(pscreen);
-   GENX(pan_blitter_cache_cleanup)(&dev->blitter);
+   GENX(pan_fb_preload_cache_cleanup)(&dev->fb_preload_cache);
 }
 
 static void
@@ -3972,13 +3972,13 @@ GENX(panfrost_cmdstream_screen_init)(struct panfrost_screen *screen)
    screen->vtbl.afbc_pack = panfrost_afbc_pack;
    screen->vtbl.emit_write_timestamp = emit_write_timestamp;
 
-   GENX(pan_blitter_cache_init)
-   (&dev->blitter, panfrost_device_gpu_id(dev), &dev->blend_shaders,
-    &screen->blitter.bin_pool.base, &screen->blitter.desc_pool.base);
+   GENX(pan_fb_preload_cache_init)
+   (&dev->fb_preload_cache, panfrost_device_gpu_id(dev), &dev->blend_shaders,
+    &screen->mempools.bin.base, &screen->mempools.desc.base);
 
 #if PAN_GPU_SUPPORTS_DISPATCH_INDIRECT
    pan_indirect_dispatch_meta_init(
       &dev->indirect_dispatch, panfrost_device_gpu_id(dev),
-      &screen->blitter.bin_pool.base, &screen->blitter.desc_pool.base);
+      &screen->mempools.bin.base, &screen->mempools.desc.base);
 #endif
 }

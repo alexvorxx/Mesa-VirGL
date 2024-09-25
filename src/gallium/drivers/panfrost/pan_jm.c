@@ -27,9 +27,9 @@
 
 #include "drm-uapi/panfrost_drm.h"
 
-#include "pan_blitter.h"
 #include "pan_cmdstream.h"
 #include "pan_context.h"
+#include "pan_fb_preload.h"
 #include "pan_indirect_dispatch.h"
 #include "pan_jm.h"
 #include "pan_job.h"
@@ -241,8 +241,9 @@ GENX(jm_preload_fb)(struct panfrost_batch *batch, struct pan_fb_info *fb)
    struct panfrost_device *dev = pan_device(batch->ctx->base.screen);
    struct panfrost_ptr preload_jobs[2];
 
-   unsigned preload_job_count = GENX(pan_preload_fb)(
-      &dev->blitter, &batch->pool.base, fb, 0, batch->tls.gpu, preload_jobs);
+   unsigned preload_job_count =
+      GENX(pan_preload_fb)(&dev->fb_preload_cache, &batch->pool.base, fb,
+                           batch->tls.gpu, preload_jobs);
 
    assert(PAN_ARCH < 6 || !preload_job_count);
 

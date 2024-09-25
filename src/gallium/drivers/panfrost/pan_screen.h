@@ -113,9 +113,9 @@ struct panfrost_screen {
    struct pipe_screen base;
    struct panfrost_device dev;
    struct {
-      struct panfrost_pool bin_pool;
-      struct panfrost_pool desc_pool;
-   } blitter;
+      struct panfrost_pool bin;
+      struct panfrost_pool desc;
+   } mempools;
 
    struct panfrost_vtable vtbl;
    struct disk_cache *disk_cache;
