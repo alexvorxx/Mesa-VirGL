@@ -2062,7 +2062,7 @@ is_ss_producer(struct ir3_instruction *instr)
    if (instr->block->in_early_preamble && writes_addr1(instr))
       return true;
 
-   return is_sfu(instr) || is_local_mem_load(instr);
+   return is_sfu(instr) || is_local_mem_load(instr) || instr->opc == OPC_SHFL;
 }
 
 static inline bool

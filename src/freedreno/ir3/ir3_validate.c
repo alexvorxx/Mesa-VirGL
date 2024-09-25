@@ -434,6 +434,11 @@ validate_instr(struct ir3_validate_ctx *ctx, struct ir3_instruction *instr)
          validate_assert(ctx, !(instr->srcs[2]->flags & IR3_REG_HALF));
          validate_reg_size(ctx, instr->dsts[0], instr->cat6.type);
          break;
+      case OPC_SHFL:
+         validate_reg_size(ctx, instr->srcs[0], instr->cat6.type);
+         validate_assert(ctx, !(instr->srcs[1]->flags & IR3_REG_HALF));
+         validate_reg_size(ctx, instr->dsts[0], instr->cat6.type);
+         break;
       default:
          validate_reg_size(ctx, instr->dsts[0], instr->cat6.type);
          validate_assert(ctx, !(instr->srcs[0]->flags & IR3_REG_HALF));
