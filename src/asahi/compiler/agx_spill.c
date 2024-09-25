@@ -306,6 +306,11 @@ insert_spill(agx_builder *b, struct spill_ctx *ctx, unsigned node)
    if (!ctx->remat[node]) {
       agx_index idx = reconstruct_index(ctx, node);
       agx_mov_to(b, agx_index_as_mem(idx, ctx->spill_base), idx);
+
+      /* We only need the extra registers reserved if we actually spilled
+       * instead of just remat.
+       */
+      b->shader->has_spill_pcopy_reserved = true;
    }
 }
 
@@ -1153,8 +1158,7 @@ agx_spill(agx_context *ctx, unsigned k)
 {
    void *memctx = ralloc_context(NULL);
 
-   /* Reserve the bottom registers as temporaries for memory-memory swaps */
-   ctx->has_spill_pcopy_reserved = true;
+   /* We need extra registers for memory-memory swaps */
    k -= 8;
 
    uint8_t *channels = rzalloc_array(memctx, uint8_t, ctx->alloc);
