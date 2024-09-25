@@ -958,11 +958,10 @@ emit_binning_pass(struct fd_batch *batch) assert_dt
 
    update_vsc_pipe(batch);
 
-   OUT_PKT4(ring, REG_A6XX_PC_POWER_CNTL, 1);
-   OUT_RING(ring, screen->info->a6xx.magic.PC_POWER_CNTL);
-
-   OUT_PKT4(ring, REG_A6XX_VFD_POWER_CNTL, 1);
-   OUT_RING(ring, screen->info->a6xx.magic.PC_POWER_CNTL);
+   if (CHIP == A6XX) {
+      OUT_REG(ring, A6XX_PC_POWER_CNTL(screen->info->a6xx.magic.PC_POWER_CNTL));
+      OUT_REG(ring, A6XX_VFD_POWER_CNTL(screen->info->a6xx.magic.PC_POWER_CNTL));
+   }
 
    OUT_PKT7(ring, CP_EVENT_WRITE, 1);
    OUT_RING(ring, UNK_2C);
@@ -1135,11 +1134,10 @@ fd6_emit_tile_init(struct fd_batch *batch) assert_dt
       OUT_PKT4(ring, REG_A6XX_VFD_MODE_CNTL, 1);
       OUT_RING(ring, 0x0);
 
-      OUT_PKT4(ring, REG_A6XX_PC_POWER_CNTL, 1);
-      OUT_RING(ring, screen->info->a6xx.magic.PC_POWER_CNTL);
-
-      OUT_PKT4(ring, REG_A6XX_VFD_POWER_CNTL, 1);
-      OUT_RING(ring, screen->info->a6xx.magic.PC_POWER_CNTL);
+      if (CHIP == A6XX) {
+         OUT_REG(ring, A6XX_PC_POWER_CNTL(screen->info->a6xx.magic.PC_POWER_CNTL));
+         OUT_REG(ring, A6XX_VFD_POWER_CNTL(screen->info->a6xx.magic.PC_POWER_CNTL));
+      }
 
       OUT_PKT7(ring, CP_SKIP_IB2_ENABLE_GLOBAL, 1);
       OUT_RING(ring, 0x1);
