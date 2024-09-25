@@ -372,8 +372,6 @@ radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_devic
    if (pdev->info.gfx_level >= GFX9) {
       if (iview->nbc_view.valid) {
          hw_level = iview->nbc_view.level;
-         iview->extent.width = iview->nbc_view.width;
-         iview->extent.height = iview->nbc_view.height;
 
          /* Clear the base array layer because addrlib adds it as part of the base addr offset. */
          first_layer = 0;
@@ -576,6 +574,11 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
                  u_minify(iview->extent.height, iview->vk.base_mip_level) < lvl_height) &&
                 iview->vk.layer_count == 1) {
                compute_non_block_compressed_view(device, iview, &iview->nbc_view);
+
+               if (iview->nbc_view.valid) {
+                  iview->extent.width = iview->nbc_view.width;
+                  iview->extent.height = iview->nbc_view.height;
+               }
             }
          }
       }
