@@ -20,7 +20,6 @@
 
 #include "kmod/pan_kmod.h"
 #include "util/pan_ir.h"
-#include "pan_blend.h"
 #include "pan_blitter.h"
 
 #include "util/vma.h"
