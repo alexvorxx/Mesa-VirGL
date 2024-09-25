@@ -1036,8 +1036,7 @@ fd6_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
 
    emit_marker6(ring, 7);
 
-   OUT_PKT4(ring, REG_A6XX_VFD_MODE_CNTL, 1);
-   OUT_RING(ring, 0x00000000); /* VFD_MODE_CNTL */
+   OUT_REG(ring, A6XX_VFD_MODE_CNTL(RENDERING_PASS));
 
    WRITE(REG_A6XX_VFD_MULTIVIEW_CNTL, 0);
 

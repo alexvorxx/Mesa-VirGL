@@ -1131,8 +1131,7 @@ fd6_emit_tile_init(struct fd_batch *batch) assert_dt
                                           : LRZ_FEEDBACK_NONE,
       });
 
-      OUT_PKT4(ring, REG_A6XX_VFD_MODE_CNTL, 1);
-      OUT_RING(ring, 0x0);
+      OUT_REG(ring, A6XX_VFD_MODE_CNTL(RENDERING_PASS));
 
       if (CHIP == A6XX) {
          OUT_REG(ring, A6XX_PC_POWER_CNTL(screen->info->a6xx.magic.PC_POWER_CNTL));
