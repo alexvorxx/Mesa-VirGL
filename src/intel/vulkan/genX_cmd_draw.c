@@ -695,12 +695,19 @@ cmd_buffer_maybe_flush_rt_writes(struct anv_cmd_buffer *cmd_buffer,
       return;
 
    UNUSED bool need_rt_flush = false;
-   if (memcmp(cmd_buffer->state.gfx.color_output_mapping,
-              pipeline->color_output_mapping,
-              pipeline->num_color_outputs)) {
-      memcpy(cmd_buffer->state.gfx.color_output_mapping,
-             pipeline->color_output_mapping,
-             pipeline->num_color_outputs);
+   for (uint32_t rt = 0; rt < pipeline->num_color_outputs; rt++) {
+      /* No writes going to this render target so it won't affect the RT cache
+       */
+      if (pipeline->color_output_mapping[rt] == ANV_COLOR_OUTPUT_UNUSED)
+         continue;
+
+      /* No change */
+      if (cmd_buffer->state.gfx.color_output_mapping[rt] ==
+          pipeline->color_output_mapping[rt])
+         continue;
+
+      cmd_buffer->state.gfx.color_output_mapping[rt] =
+         pipeline->color_output_mapping[rt];
       need_rt_flush = true;
       cmd_buffer->state.descriptors_dirty |= VK_SHADER_STAGE_FRAGMENT_BIT;
    }

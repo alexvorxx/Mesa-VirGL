@@ -1554,7 +1554,7 @@ anv_pipeline_link_fs(const struct brw_compiler *compiler,
             /* Setup a null render target */
             rt_bindings[rt] = (struct anv_pipeline_binding) {
                .set = ANV_DESCRIPTOR_SET_COLOR_ATTACHMENTS,
-               .index = UINT32_MAX,
+               .index = ANV_COLOR_OUTPUT_UNUSED,
                .binding = UINT32_MAX,
             };
          }
@@ -1567,7 +1567,8 @@ anv_pipeline_link_fs(const struct brw_compiler *compiler,
       /* Setup a null render target */
       rt_bindings[0] = (struct anv_pipeline_binding) {
          .set = ANV_DESCRIPTOR_SET_COLOR_ATTACHMENTS,
-         .index = UINT32_MAX,
+         .index = ANV_COLOR_OUTPUT_DISABLED,
+         .binding = UINT32_MAX,
       };
       num_rt_bindings = 1;
    } else {
@@ -2969,31 +2970,41 @@ anv_graphics_pipeline_emit(struct anv_graphics_pipeline *pipeline,
       pipeline->min_sample_shading = state->ms->min_sample_shading;
    }
 
+   /* Mark all color output as unused by default */
+   memset(pipeline->color_output_mapping,
+          ANV_COLOR_OUTPUT_UNUSED,
+          sizeof(pipeline->color_output_mapping));
+
    if (anv_pipeline_has_stage(pipeline, MESA_SHADER_FRAGMENT)) {
       /* Count the number of color attachments in the binding table */
       const struct anv_pipeline_bind_map *bind_map =
          &pipeline->base.shaders[MESA_SHADER_FRAGMENT]->bind_map;
 
-      memset(pipeline->color_output_mapping,
-             MESA_VK_ATTACHMENT_UNUSED,
-             sizeof(pipeline->color_output_mapping));
-
       if (state->cal != NULL) {
+         /* Build a map of fragment color output to attachment */
+         uint8_t rt_to_att[MAX_RTS];
+         memset(rt_to_att, ANV_COLOR_OUTPUT_DISABLED, MAX_RTS);
          for (uint32_t i = 0; i < MAX_RTS; i++) {
             if (state->cal->color_map[i] != MESA_VK_ATTACHMENT_UNUSED)
-               pipeline->color_output_mapping[state->cal->color_map[i]] = i;
+               rt_to_att[state->cal->color_map[i]] = i;
          }
 
+         /* For each fragment shader output if not unused apply the remapping
+          * to pipeline->color_output_mapping
+          */
          unsigned i;
          for (i = 0; i < MIN2(bind_map->surface_count, MAX_RTS); i++) {
             if (bind_map->surface_to_descriptor[i].set !=
                 ANV_DESCRIPTOR_SET_COLOR_ATTACHMENTS)
                break;
 
-            /* Helping Alpine builders... */
-            assert(i < MAX_RTS);
-            if (bind_map->surface_to_descriptor[i].index >= MAX_RTS)
-               pipeline->color_output_mapping[i] = MESA_VK_ATTACHMENT_UNUSED;
+            uint32_t index = bind_map->surface_to_descriptor[i].index;
+            if (index >= MAX_RTS) {
+               assert(index <= 0xff);
+               pipeline->color_output_mapping[i] = index;
+            } else {
+               pipeline->color_output_mapping[i] = rt_to_att[i];
+            }
          }
          pipeline->num_color_outputs = i;
       }

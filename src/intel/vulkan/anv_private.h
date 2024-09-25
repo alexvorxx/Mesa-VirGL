@@ -255,6 +255,9 @@ struct intel_perf_query_result;
 #define ANV_TRTT_L1_NULL_TILE_VAL 0
 #define ANV_TRTT_L1_INVALID_TILE_VAL 1
 
+#define ANV_COLOR_OUTPUT_DISABLED (0xff)
+#define ANV_COLOR_OUTPUT_UNUSED   (0xfe)
+
 static inline uint32_t
 align_down_npot_u32(uint32_t v, uint32_t a)
 {
