@@ -106,8 +106,10 @@ struct ra_ctx {
    BITSET_WORD *visited;
    BITSET_WORD *used_regs[RA_CLASSES];
 
-   /* Maintained while assigning registers */
-   unsigned *max_reg[RA_CLASSES];
+   /* Maintained while assigning registers. Count of registers required, i.e.
+    * the maximum register assigned + 1.
+    */
+   unsigned *count[RA_CLASSES];
 
    /* For affinities */
    agx_instr **src_to_collect_phi;
@@ -437,9 +439,7 @@ static void
 set_ssa_to_reg(struct ra_ctx *rctx, unsigned ssa, unsigned reg)
 {
    enum ra_class cls = rctx->classes[ssa];
-
-   *(rctx->max_reg[cls]) =
-      MAX2(*(rctx->max_reg[cls]), reg + rctx->ncomps[ssa] - 1);
+   *(rctx->count[cls]) = MAX2(*(rctx->count[cls]), reg + rctx->ncomps[ssa]);
 
    rctx->ssa_to_reg[ssa] = reg;
 }
@@ -1540,7 +1540,7 @@ agx_ra(agx_context *ctx)
    assert(max_regs >= (6 * 2) && "space for vertex shader preloading");
    assert(max_regs <= max_possible_regs);
 
-   unsigned max_mem_slot = 0;
+   unsigned reg_count = 0, mem_slot_count = 0;
 
    /* Assign registers in dominance-order. This coincides with source-order due
     * to a NIR invariant, so we do not need special handling for this.
@@ -1557,15 +1557,14 @@ agx_ra(agx_context *ctx)
          .visited = visited,
          .bound[RA_GPR] = max_regs,
          .bound[RA_MEM] = AGX_NUM_MODELED_REGS,
-         .max_reg[RA_GPR] = &ctx->max_reg,
-         .max_reg[RA_MEM] = &max_mem_slot,
+         .count[RA_GPR] = &reg_count,
+         .count[RA_MEM] = &mem_slot_count,
       });
    }
 
-   if (spilling) {
-      ctx->spill_base_B = ctx->scratch_size_B;
-      ctx->scratch_size_B += (max_mem_slot + 1) * 2;
-   }
+   ctx->max_reg = reg_count ? (reg_count - 1) : 0;
+   ctx->spill_base_B = ctx->scratch_size_B;
+   ctx->scratch_size_B += mem_slot_count * 2;
 
    /* Vertex shaders preload the vertex/instance IDs (r5, r6) even if the shader
     * don't use them. Account for that so the preload doesn't clobber GPRs.
