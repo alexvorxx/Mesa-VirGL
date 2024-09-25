@@ -127,10 +127,44 @@ radv_emulate_rt(const struct radv_physical_device *pdev)
    return instance->perftest_flags & RADV_PERFTEST_EMULATE_RT;
 }
 
+static VkConformanceVersion
+radv_get_conformance_version(const struct radv_physical_device *pdev)
+{
+   VkConformanceVersion conformance_version;
+
+   if (pdev->info.gfx_level == GFX10_3) {
+      conformance_version = (VkConformanceVersion){
+         .major = 1,
+         .minor = 3,
+         .subminor = 0,
+         .patch = 0,
+      };
+   } else if (pdev->info.gfx_level >= GFX8) {
+      conformance_version = (VkConformanceVersion){
+         .major = 1,
+         .minor = 2,
+         .subminor = 7,
+         .patch = 1,
+      };
+   } else {
+      /* Non-conformat products. */
+      conformance_version = (VkConformanceVersion){
+         .major = 0,
+         .minor = 0,
+         .subminor = 0,
+         .patch = 0,
+      };
+   }
+
+   return conformance_version;
+}
+
 static bool
 radv_is_conformant(const struct radv_physical_device *pdev)
 {
-   return pdev->info.gfx_level >= GFX8 && pdev->info.gfx_level <= GFX10_3;
+   VkConformanceVersion conformance_version = radv_get_conformance_version(pdev);
+
+   return conformance_version.major != 0;
 }
 
 static void
@@ -1479,30 +1513,7 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
    snprintf(p->driverInfo, VK_MAX_DRIVER_INFO_SIZE, "Mesa " PACKAGE_VERSION MESA_GIT_SHA1 "%s",
             radv_get_compiler_string(pdev));
 
-   if (radv_is_conformant(pdev)) {
-      if (pdev->info.gfx_level >= GFX10_3) {
-         p->conformanceVersion = (VkConformanceVersion){
-            .major = 1,
-            .minor = 3,
-            .subminor = 0,
-            .patch = 0,
-         };
-      } else {
-         p->conformanceVersion = (VkConformanceVersion){
-            .major = 1,
-            .minor = 2,
-            .subminor = 7,
-            .patch = 1,
-         };
-      }
-   } else {
-      p->conformanceVersion = (VkConformanceVersion){
-         .major = 0,
-         .minor = 0,
-         .subminor = 0,
-         .patch = 0,
-      };
-   }
+   p->conformanceVersion = radv_get_conformance_version(pdev);
 
    /* On AMD hardware, denormals and rounding modes for fp16/fp64 are
     * controlled by the same config register.
