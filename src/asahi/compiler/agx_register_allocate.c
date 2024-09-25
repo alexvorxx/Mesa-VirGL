@@ -389,7 +389,7 @@ find_best_region_to_evict(struct ra_ctx *rctx, enum ra_class cls, unsigned size,
        * descending. So, we do not need extra registers to handle "single
        * region" unevictability.
        */
-      if (base == 0 && reserved_size(rctx->shader) > 0)
+      if (base < reserved_size(rctx->shader))
          continue;
 
       /* Do not evict the same register multiple times. It's not necessary since
