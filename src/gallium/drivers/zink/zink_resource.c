@@ -316,13 +316,7 @@ create_bci(struct zink_screen *screen, const struct pipe_resource *templ, unsign
    return bci;
 }
 
-typedef enum {
-   USAGE_FAIL_NONE,
-   USAGE_FAIL_ERROR,
-   USAGE_FAIL_SUBOPTIMAL,
-} usage_fail;
-
-static usage_fail
+static bool
 check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, uint64_t modifier)
 {
    VkImageFormatProperties image_props;
@@ -374,20 +368,20 @@ check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, uint64_t modifier)
       ret = VKSCR(GetPhysicalDeviceImageFormatProperties)(screen->pdev, ici->format, ici->imageType,
                                                    ici->tiling, ici->usage, ici->flags, &image_props);
    if (ret != VK_SUCCESS)
-      return USAGE_FAIL_ERROR;
+      return false;
    if (ici->extent.depth > image_props.maxExtent.depth ||
        ici->extent.height > image_props.maxExtent.height ||
        ici->extent.width > image_props.maxExtent.width)
-      return USAGE_FAIL_ERROR;
+      return false;
    if (ici->mipLevels > image_props.maxMipLevels)
-      return USAGE_FAIL_ERROR;
+      return false;
    if (ici->arrayLayers > image_props.maxArrayLayers)
-      return USAGE_FAIL_ERROR;
+      return false;
    if (!(ici->samples & image_props.sampleCounts))
-      return USAGE_FAIL_ERROR;
+      return false;
    if (!optimalDeviceAccess)
-      return USAGE_FAIL_SUBOPTIMAL;
-   return USAGE_FAIL_NONE;
+      return false;
+   return true;
 }
 
 static VkImageUsageFlags
@@ -477,16 +471,14 @@ find_modifier_feats(const struct zink_modifier_props *prop, uint64_t modifier)
 static bool
 suboptimal_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, uint64_t mod)
 {
-   usage_fail fail = check_ici(screen, ici, mod);
-   if (!fail)
+   if (check_ici(screen, ici, mod))
       return true;
-   if (fail == USAGE_FAIL_SUBOPTIMAL) {
-      ici->usage &= ~VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT;
-      fail = check_ici(screen, ici, mod);
-      if (!fail)
-         return true;
-      ici->usage |= VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT;
-   }
+
+   ici->usage &= ~VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT;
+   if (check_ici(screen, ici, mod))
+      return true;
+
+   ici->usage |= VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT;
    return false;
 }
 
@@ -503,8 +495,7 @@ double_check_ici(struct zink_screen *screen, VkImageCreateInfo *ici, VkImageUsag
 
    if (suboptimal_check_ici(screen, ici, mod))
       return true;
-   usage_fail fail = check_ici(screen, ici, mod);
-   if (!fail)
+   if (check_ici(screen, ici, mod))
       return true;
    if (require_mutable)
       return false;
