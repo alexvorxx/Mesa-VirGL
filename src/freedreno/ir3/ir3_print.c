@@ -219,6 +219,30 @@ print_instr_name(struct log_stream *stream, struct ir3_instruction *instr,
       case OPC_BRAC:
          mesa_log_stream_printf(stream, ".%u", instr->cat0.idx);
          break;
+      case OPC_SHFL:
+         switch (instr->cat6.shfl_mode) {
+         case SHFL_XOR:
+            mesa_log_stream_printf(stream, ".xor");
+            break;
+         case SHFL_UP:
+            mesa_log_stream_printf(stream, ".up");
+            break;
+         case SHFL_DOWN:
+            mesa_log_stream_printf(stream, ".down");
+            break;
+         case SHFL_RUP:
+            mesa_log_stream_printf(stream, ".rup");
+            break;
+         case SHFL_RDOWN:
+            mesa_log_stream_printf(stream, ".rdown");
+            break;
+         default:
+            mesa_log_stream_printf(stream, ".%u", instr->cat6.shfl_mode);
+            break;
+         }
+
+         mesa_log_stream_printf(stream, ".%s", type_name(instr->cat6.type));
+         break;
       default:
          break;
       }
