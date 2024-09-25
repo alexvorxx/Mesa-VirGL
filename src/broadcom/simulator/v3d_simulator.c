@@ -46,8 +46,6 @@
  * BOs).
  */
 
-#if USE_V3D_SIMULATOR
-
 #include <stdio.h>
 #include <sys/mman.h>
 #include "c11/threads.h"
@@ -1240,5 +1238,3 @@ v3d_simulator_destroy(struct v3d_simulator_file *sim_file)
         ralloc_free(sim_file);
         simple_mtx_unlock(&sim_state.mutex);
 }
-
-#endif /* USE_V3D_SIMULATOR */

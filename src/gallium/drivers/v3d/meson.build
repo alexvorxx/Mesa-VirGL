@@ -63,7 +63,7 @@ libv3d = static_library(
   ],
   include_directories : [
     inc_src, inc_include, inc_gallium, inc_gallium_aux, inc_broadcom,
-    inc_simulator, inc_gallium_drivers,
+    inc_gallium_drivers,
   ],
   c_args : [v3d_args],
   cpp_args : [v3d_args],
