@@ -1002,8 +1002,10 @@ static void handle_graphics_pipeline(struct lvp_pipeline *pipeline,
          state->sample_mask = ps->ms->sample_mask;
          state->sample_mask_dirty = true;
       }
-      if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_MS_ALPHA_TO_COVERAGE_ENABLE))
+      if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_MS_ALPHA_TO_COVERAGE_ENABLE)) {
          state->blend_state.alpha_to_coverage = ps->ms->alpha_to_coverage_enable;
+         state->blend_state.alpha_to_coverage_dither = state->blend_state.alpha_to_coverage;
+      }
       if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_MS_ALPHA_TO_ONE_ENABLE))
          state->blend_state.alpha_to_one = ps->ms->alpha_to_one_enable;
       state->force_min_sample = pipeline->force_min_sample;
@@ -1026,8 +1028,10 @@ static void handle_graphics_pipeline(struct lvp_pipeline *pipeline,
          state->min_samples = 0;
       }
       state->blend_dirty |= state->blend_state.alpha_to_coverage || state->blend_state.alpha_to_one;
-      if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_MS_ALPHA_TO_COVERAGE_ENABLE))
+      if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_MS_ALPHA_TO_COVERAGE_ENABLE)) {
          state->blend_state.alpha_to_coverage = false;
+         state->blend_state.alpha_to_coverage_dither = false;
+      }
       if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_MS_ALPHA_TO_ONE_ENABLE))
          state->blend_state.alpha_to_one = false;
       state->rs_dirty = true;
@@ -3698,6 +3702,7 @@ static void handle_set_alpha_to_coverage(struct vk_cmd_queue_entry *cmd,
    state->blend_dirty |=
       state->blend_state.alpha_to_coverage != !!cmd->u.set_alpha_to_coverage_enable_ext.alpha_to_coverage_enable;
    state->blend_state.alpha_to_coverage = !!cmd->u.set_alpha_to_coverage_enable_ext.alpha_to_coverage_enable;
+   state->blend_state.alpha_to_coverage_dither = state->blend_state.alpha_to_coverage;
 }
 
 static void handle_set_alpha_to_one(struct vk_cmd_queue_entry *cmd,
@@ -4819,7 +4824,7 @@ handle_trace_rays(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
 
    VkTraceRaysIndirectCommand2KHR *command = lvp_push_internal_buffer(
       state, MESA_SHADER_COMPUTE, sizeof(VkTraceRaysIndirectCommand2KHR));
-   
+
    *command = (VkTraceRaysIndirectCommand2KHR) {
       .raygenShaderRecordAddress = trace->raygen_shader_binding_table->deviceAddress,
       .raygenShaderRecordSize = trace->raygen_shader_binding_table->size,
@@ -4862,7 +4867,7 @@ handle_trace_rays_indirect(struct vk_cmd_queue_entry *cmd, struct rendering_stat
 
    VkTraceRaysIndirectCommand2KHR *command = lvp_push_internal_buffer(
       state, MESA_SHADER_COMPUTE, sizeof(VkTraceRaysIndirectCommand2KHR));
-   
+
    *command = (VkTraceRaysIndirectCommand2KHR) {
       .raygenShaderRecordAddress = trace->raygen_shader_binding_table->deviceAddress,
       .raygenShaderRecordSize = trace->raygen_shader_binding_table->size,
