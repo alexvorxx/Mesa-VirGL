@@ -12,9 +12,9 @@
 #define AGX_ABI_VIN_VERTEX_ID   (2 * 5)
 #define AGX_ABI_VIN_INSTANCE_ID (2 * 6)
 
-#define AGX_ABI_FIN_SAMPLE_MASK (1)
+#define AGX_ABI_FIN_SAMPLE_MASK (2)
 
-#define AGX_ABI_FOUT_SAMPLE_MASK   (1)
+#define AGX_ABI_FOUT_SAMPLE_MASK   (2)
 #define AGX_ABI_FOUT_Z             (4)
 #define AGX_ABI_FOUT_S             (6)
 #define AGX_ABI_FOUT_WRITE_SAMPLES (7)
