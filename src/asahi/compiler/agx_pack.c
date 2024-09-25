@@ -22,9 +22,9 @@ static void
 pack_assert_internal(const agx_instr *I, bool condition, const char *msg)
 {
    if (!condition) {
-      printf("Packing assertion failed for instruction:\n\n");
-      agx_print_instr(I, stdout);
-      printf("\n%s\n", msg);
+      fprintf(stderr, "Packing assertion failed for instruction:\n\n");
+      agx_print_instr(I, stderr);
+      fprintf(stderr, "\n%s\n", msg);
       abort();
    }
 }
