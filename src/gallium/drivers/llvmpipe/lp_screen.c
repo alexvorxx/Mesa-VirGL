@@ -390,6 +390,8 @@ llvmpipe_get_param(struct pipe_screen *screen, enum pipe_cap param)
       return LLVM_VERSION_MAJOR >= 15;
    case PIPE_CAP_NIR_IMAGES_AS_DEREF:
       return 0;
+   case PIPE_CAP_ALPHA_TO_COVERAGE_DITHER_CONTROL:
+      return 1;
    default:
       return u_pipe_screen_get_param_defaults(screen, param);
    }
