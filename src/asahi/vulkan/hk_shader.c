@@ -35,6 +35,7 @@
 #include "vk_ycbcr_conversion.h"
 
 #include "asahi/compiler/agx_compile.h"
+#include "asahi/lib/agx_abi.h"
 #include "asahi/lib/agx_linker.h"
 #include "asahi/lib/agx_nir_passes.h"
 #include "asahi/lib/agx_tilebuffer.h"
@@ -809,11 +810,14 @@ hk_compile_nir(struct hk_device *dev, const VkAllocationCallbacks *pAllocator,
       NIR_PASS(_, nir, agx_nir_lower_sample_mask);
 
       if (nir->info.fs.uses_sample_shading) {
-         /* Ensure the sample ID is preserved in register */
+         /* Ensure the sample mask is preserved in register */
          nir_builder b =
             nir_builder_at(nir_after_impl(nir_shader_get_entrypoint(nir)));
-         nir_export_agx(&b, nir_load_exported_agx(&b, 1, 16, .base = 1),
-                        .base = 1);
+
+         nir_def *mask =
+            nir_load_exported_agx(&b, 1, 16, .base = AGX_ABI_FIN_SAMPLE_MASK);
+
+         nir_export_agx(&b, mask, .base = AGX_ABI_FOUT_SAMPLE_MASK);
 
          NIR_PASS(_, nir, agx_nir_lower_to_per_sample);
       }

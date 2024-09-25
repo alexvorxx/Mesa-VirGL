@@ -5,6 +5,7 @@
  */
 
 #include "gallium/include/pipe/p_defines.h"
+#include "agx_abi.h"
 #include "agx_linker.h"
 #include "agx_nir_lower_gs.h"
 #include "agx_nir_lower_vbo.h"
@@ -158,12 +159,11 @@ agx_nir_vs_prolog(nir_builder *b, const void *key_)
          vec_idx = a;
       }
 
-      /* ABI: attributes passed starting at r8 */
-      nir_export_agx(b, nir_channel(b, vec, c), .base = 2 * (8 + i));
+      nir_export_agx(b, nir_channel(b, vec, c), .base = AGX_ABI_VIN_ATTRIB(i));
    }
 
-   nir_export_agx(b, nir_load_vertex_id(b), .base = 5 * 2);
-   nir_export_agx(b, nir_load_instance_id(b), .base = 6 * 2);
+   nir_export_agx(b, nir_load_vertex_id(b), .base = AGX_ABI_VIN_VERTEX_ID);
+   nir_export_agx(b, nir_load_instance_id(b), .base = AGX_ABI_VIN_INSTANCE_ID);
 
    /* Now lower the resulting program using the key */
    lower_vbo(b->shader, key->attribs, key->robustness);
@@ -192,8 +192,9 @@ lower_input_to_prolog(nir_builder *b, nir_intrinsic_instr *intr, void *data)
    unsigned base = 4 * idx + comp;
 
    b->cursor = nir_before_instr(&intr->instr);
-   nir_def *val = nir_load_exported_agx(
-      b, intr->def.num_components, intr->def.bit_size, .base = 16 + 2 * base);
+   nir_def *val =
+      nir_load_exported_agx(b, intr->def.num_components, intr->def.bit_size,
+                            .base = AGX_ABI_VIN_ATTRIB(base));
 
    BITSET_WORD *comps_read = data;
    nir_component_mask_t mask = nir_def_components_read(&intr->def);
@@ -222,11 +223,11 @@ lower_active_samples_to_register(nir_builder *b, nir_intrinsic_instr *intr,
    if (intr->intrinsic != nir_intrinsic_load_active_samples_agx)
       return false;
 
-   b->cursor = nir_instr_remove(&intr->instr);
+   b->cursor = nir_before_instr(&intr->instr);
+   nir_def *id =
+      nir_load_exported_agx(b, 1, 16, .base = AGX_ABI_FIN_SAMPLE_MASK);
 
-   /* ABI: r0h contains the active sample mask */
-   nir_def *id = nir_load_exported_agx(b, 1, 16, .base = 1);
-   nir_def_rewrite_uses(&intr->def, id);
+   nir_def_replace(&intr->def, id);
    return true;
 }
 
@@ -293,7 +294,7 @@ agx_nir_fs_epilog(nir_builder *b, const void *key_)
       unsigned size = (key->link.size_32 & BITFIELD_BIT(read_rt)) ? 32 : 16;
 
       nir_def *value =
-         nir_load_exported_agx(b, 4, size, .base = 2 * (4 + (4 * read_rt)));
+         nir_load_exported_agx(b, 4, size, .base = AGX_ABI_FOUT_COLOUR(rt));
 
       if (key->link.rt0_w_1 && read_rt == 0) {
          value =
@@ -310,11 +311,13 @@ agx_nir_fs_epilog(nir_builder *b, const void *key_)
    /* Grab registers early, this has to happen in the first block. */
    nir_def *sample_id = NULL, *write_samples = NULL;
    if (key->link.sample_shading) {
-      sample_id = nir_load_exported_agx(b, 1, 16, .base = 1);
+      sample_id =
+         nir_load_exported_agx(b, 1, 16, .base = AGX_ABI_FOUT_SAMPLE_MASK);
    }
 
    if (key->link.sample_mask_after_force_early) {
-      write_samples = nir_load_exported_agx(b, 1, 16, .base = 7);
+      write_samples =
+         nir_load_exported_agx(b, 1, 16, .base = AGX_ABI_FOUT_WRITE_SAMPLES);
    }
 
    /* Now lower the resulting program using the key */
@@ -390,8 +393,8 @@ agx_nir_fs_epilog(nir_builder *b, const void *key_)
    if (key->link.write_z || key->link.write_s) {
       nir_store_zs_agx(
          b, nir_imm_intN_t(b, 0xFF, 16),
-         nir_load_exported_agx(b, 1, 32, .base = 4),
-         nir_load_exported_agx(b, 1, 16, .base = 6),
+         nir_load_exported_agx(b, 1, 32, .base = AGX_ABI_FOUT_Z),
+         nir_load_exported_agx(b, 1, 16, .base = AGX_ABI_FOUT_S),
          .base = (key->link.write_z ? 1 : 0) | (key->link.write_s ? 2 : 0));
 
       if (key->link.write_z)
@@ -430,7 +433,7 @@ agx_nir_fs_epilog(nir_builder *b, const void *key_)
        * flow when lowering.
        */
       b->cursor = nir_after_impl(b->impl);
-      nir_export_agx(b, sample_id, .base = 1);
+      nir_export_agx(b, sample_id, .base = AGX_ABI_FIN_SAMPLE_MASK);
    } else {
       NIR_PASS(_, b->shader, agx_nir_lower_monolithic_msaa, key->nr_samples);
    }
@@ -468,13 +471,11 @@ lower_output_to_epilog(nir_builder *b, nir_intrinsic_instr *intr, void *data)
       info->write_z = !!(base & 1);
       info->write_s = !!(base & 2);
 
-      /* ABI: r2 contains the written depth */
       if (info->write_z)
-         nir_export_agx(b, intr->src[1].ssa, .base = 4);
+         nir_export_agx(b, intr->src[1].ssa, .base = AGX_ABI_FOUT_Z);
 
-      /* ABI: r3l contains the written stencil */
       if (info->write_s)
-         nir_export_agx(b, intr->src[2].ssa, .base = 6);
+         nir_export_agx(b, intr->src[2].ssa, .base = AGX_ABI_FOUT_S);
 
       return true;
    }
@@ -575,7 +576,8 @@ agx_nir_lower_fs_output_to_epilog(nir_shader *s,
       nir_builder b =
          nir_builder_at(nir_after_impl(nir_shader_get_entrypoint(s)));
 
-      nir_export_agx(&b, nir_load_var(&b, ctx.masked_samples), .base = 7);
+      nir_export_agx(&b, nir_load_var(&b, ctx.masked_samples),
+                     .base = AGX_ABI_FOUT_WRITE_SAMPLES);
       out->sample_mask_after_force_early = true;
 
       bool progress;

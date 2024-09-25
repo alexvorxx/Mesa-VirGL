@@ -11,6 +11,7 @@
 #include "asahi/compiler/agx_compile.h"
 #include "asahi/genxml/agx_pack.h"
 #include "asahi/layout/layout.h"
+#include "asahi/lib/agx_abi.h"
 #include "asahi/lib/agx_helpers.h"
 #include "asahi/lib/agx_nir_passes.h"
 #include "asahi/lib/agx_ppp.h"
@@ -1674,8 +1675,10 @@ agx_compile_variant(struct agx_device *dev, struct pipe_context *pctx,
          /* Ensure the sample ID is preserved in register */
          nir_builder b =
             nir_builder_at(nir_after_impl(nir_shader_get_entrypoint(nir)));
-         nir_export_agx(&b, nir_load_exported_agx(&b, 1, 16, .base = 1),
-                        .base = 1);
+         nir_export_agx(
+            &b,
+            nir_load_exported_agx(&b, 1, 16, .base = AGX_ABI_FIN_SAMPLE_MASK),
+            .base = AGX_ABI_FOUT_SAMPLE_MASK);
 
          NIR_PASS(_, nir, agx_nir_lower_to_per_sample);
       }
