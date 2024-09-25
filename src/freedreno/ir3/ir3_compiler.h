@@ -204,6 +204,11 @@ struct ir3_compiler {
     */
    bool has_getfiberid;
 
+   /* True if the shfl instruction is supported. Needed for subgroup rotate and
+    * (more efficient) shuffle.
+    */
+   bool has_shfl;
+
    /* Number of available predicate registers (p0.c) */
    uint32_t num_predicates;
 
