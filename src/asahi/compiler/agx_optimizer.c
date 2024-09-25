@@ -496,6 +496,17 @@ agx_optimizer_forward(agx_context *ctx)
    free(defs);
 }
 
+static void
+record_use(agx_instr **uses, BITSET_WORD *multiple, agx_instr *I, unsigned src)
+{
+   unsigned v = I->src[src].value;
+
+   if (uses[v])
+      BITSET_SET(multiple, v);
+   else
+      uses[v] = I;
+}
+
 void
 agx_optimizer_backward(agx_context *ctx)
 {
@@ -503,18 +514,28 @@ agx_optimizer_backward(agx_context *ctx)
    BITSET_WORD *multiple = calloc(BITSET_WORDS(ctx->alloc), sizeof(*multiple));
 
    agx_foreach_block_rev(ctx, block) {
+      /* Phi sources are logically read at the end of predecessor, so process
+       * our source in our successors' phis firsts. This ensures we set
+       * `multiple` correctly with phi sources.
+       */
+      agx_foreach_successor(block, succ) {
+         unsigned s = agx_predecessor_index(succ, block);
+
+         agx_foreach_phi_in_block(succ, phi) {
+            record_use(uses, multiple, phi, s);
+         }
+      }
+
       agx_foreach_instr_in_block_rev(block, I) {
          struct agx_opcode_info info = agx_opcodes_info[I->op];
 
-         agx_foreach_ssa_src(I, s) {
-            if (I->src[s].type == AGX_INDEX_NORMAL) {
-               unsigned v = I->src[s].value;
+         /* Skip phis, they're handled specially */
+         if (I->op == AGX_OPCODE_PHI) {
+            continue;
+         }
 
-               if (uses[v])
-                  BITSET_SET(multiple, v);
-               else
-                  uses[v] = I;
-            }
+         agx_foreach_ssa_src(I, s) {
+            record_use(uses, multiple, I, s);
          }
 
          if (info.nr_dests != 1)
