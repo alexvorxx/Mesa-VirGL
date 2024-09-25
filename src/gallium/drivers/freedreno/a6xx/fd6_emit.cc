@@ -1136,6 +1136,21 @@ fd6_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
    fd6_emit_ib(ring, fd6_context(ctx)->restore);
    fd6_emit_ccu_cntl<CHIP>(ring, screen, false);
 
+   OUT_PKT7(ring, CP_SET_AMBLE, 3);
+   uint32_t dwords = fd_ringbuffer_emit_reloc_ring_full(ring, fd6_context(ctx)->preamble, 0) / 4;
+   OUT_RING(ring, CP_SET_AMBLE_2_DWORDS(dwords) |
+                  CP_SET_AMBLE_2_TYPE(BIN_PREAMBLE_AMBLE_TYPE));
+
+   OUT_PKT7(ring, CP_SET_AMBLE, 3);
+   OUT_RING(ring, 0x00000000);
+   OUT_RING(ring, 0x00000000);
+   OUT_RING(ring, CP_SET_AMBLE_2_TYPE(PREAMBLE_AMBLE_TYPE));
+
+   OUT_PKT7(ring, CP_SET_AMBLE, 3);
+   OUT_RING(ring, 0x00000000);
+   OUT_RING(ring, 0x00000000);
+   OUT_RING(ring, CP_SET_AMBLE_2_TYPE(POSTAMBLE_AMBLE_TYPE));
+
    if (!batch->nondraw) {
       trace_end_state_restore(&batch->trace, ring);
    }
