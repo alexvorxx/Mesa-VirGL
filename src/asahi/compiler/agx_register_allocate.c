@@ -1195,6 +1195,15 @@ agx_ra_assign_local(struct ra_ctx *rctx)
          assert(I->dest[0].size == I->src[0].size);
          assert(I->src[0].type == AGX_INDEX_REGISTER);
 
+         /* r1l specifically is a preloaded register. It is reserved during
+          * demand calculations to ensure we don't need live range shuffling of
+          * spilling temporaries. But we can still preload to it. So if it's
+          * reserved, just free it. It'll be fine.
+          */
+         if (I->src[0].value == 2) {
+            BITSET_CLEAR(rctx->used_regs[RA_GPR], 2);
+         }
+
          assign_regs(rctx, I->dest[0], I->src[0].value);
          agx_set_dests(rctx, I);
          continue;
