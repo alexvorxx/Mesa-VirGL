@@ -751,6 +751,9 @@ lower_sampler_logical_send(const fs_builder &bld, fs_inst *inst,
                            unsigned grad_components,
                            bool residency)
 {
+   /* We never generate EOT sampler messages */
+   assert(!inst->eot);
+
    const brw_compiler *compiler = bld.shader->compiler;
    const intel_device_info *devinfo = bld.shader->devinfo;
    const enum brw_reg_type payload_type =
@@ -769,7 +772,7 @@ lower_sampler_logical_send(const fs_builder &bld, fs_inst *inst,
    assert((surface.file == BAD_FILE) != (surface_handle.file == BAD_FILE));
    assert((sampler.file == BAD_FILE) != (sampler_handle.file == BAD_FILE));
 
-   if (shader_opcode_needs_header(op) || inst->offset != 0 || inst->eot ||
+   if (shader_opcode_needs_header(op) || inst->offset != 0 ||
        sampler_handle.file != BAD_FILE ||
        is_high_sampler(devinfo, sampler) ||
        residency) {
@@ -795,7 +798,7 @@ lower_sampler_logical_send(const fs_builder &bld, fs_inst *inst,
       unsigned comp_regs =
          DIV_ROUND_UP(inst->dst.component_size(inst->exec_size),
                       reg_unit(devinfo) * REG_SIZE);
-      if (!inst->eot && comps_regs < 4 * comp_regs) {
+      if (comps_regs < 4 * comp_regs) {
          assert(comps_regs % comp_regs == 0);
          unsigned mask = ~((1 << (comps_regs / comp_regs)) - 1) & 0xf;
          inst->offset |= mask << 12;
@@ -1199,16 +1202,6 @@ lower_sampler_logical_send(const fs_builder &bld, fs_inst *inst,
 
    inst->src[2] = src_payload;
    inst->resize_sources(3);
-
-   if (inst->eot) {
-      /* EOT sampler messages don't make sense to split because it would
-       * involve ending half of the thread early.
-       */
-      assert(inst->group == 0);
-      /* We need to use SENDC for EOT sampler messages */
-      inst->check_tdr = true;
-      inst->send_has_side_effects = true;
-   }
 
    /* Message length > MAX_SAMPLER_MESSAGE_SIZE disallowed by hardware. */
    assert(inst->mlen <= MAX_SAMPLER_MESSAGE_SIZE * reg_unit(devinfo));
