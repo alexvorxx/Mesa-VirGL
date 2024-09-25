@@ -382,6 +382,7 @@ static int parse_reg(const char *str)
 "getfiberid"                      return TOKEN(T_OP_GETFIBERID);
 "stc"                             return TOKEN(T_OP_STC);
 "stsc"                            return TOKEN(T_OP_STSC);
+"shfl"                            return TOKEN(T_OP_SHFL);
 
 ("b16"|"b32"){1} ir3_yylval.str = yytext; return T_INSTR_TYPE;
 
@@ -446,6 +447,12 @@ static int parse_reg(const char *str)
 "tex"                             return T_MOD_TEX;
 "mem"                             return T_MOD_MEM;
 "rt"                              return T_MOD_RT;
+
+"xor"                             return T_MOD_XOR;
+"up"                              return T_MOD_UP;
+"down"                            return T_MOD_DOWN;
+"rup"                             return T_MOD_RUP;
+"rdown"                           return T_MOD_RDOWN;
 
 "h"                               return 'h';
 "="                               return '=';

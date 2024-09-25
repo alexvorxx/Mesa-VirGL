@@ -437,6 +437,21 @@ static const struct test {
    /* dEQP-VK.subgroups.quad.graphics.subgroupquadbroadcast_int */
    INSTR_6XX(c0260001_00c98000, "getfiberid.u32 r0.y"),
 
+   /* dEQP-VK.subgroups.shuffle.compute.subgroupshuffleup_bvec4_constant */
+   INSTR_6XX(c6e4400d_05800002, "shfl.up.u16 hr3.y, hr0.y, 5"),
+   /* dEQP-VK.subgroups.shuffle.compute.subgroupshuffleup_f16vec3 */
+   INSTR_6XX(c6e44017_c0000018, "shfl.up.u16 hr5.w, hr3.x, r48.x"),
+   /* dEQP-VK.subgroups.shuffle.compute.subgroupshuffleup_uvec3_constant */
+   INSTR_6XX(c6e64006_05800000, "shfl.up.u32 r1.z, r0.x, 5"),
+   /* dEQP-VK.subgroups.shuffle.compute.subgroupshuffleup_ivec3_dynamically_uniform */
+   INSTR_6XX(c6e64007_05000004, "shfl.up.u32 r1.w, r0.z, r1.y"),
+   /* dEQP-VK.subgroups.shuffle.graphics.subgroupshuffledown_i8vec3 */
+   INSTR_6XX(c6e46011_c1000014, "shfl.down.u16 hr4.y, hr2.z, r48.y"),
+   /* dEQP-VK.memory_model.write_after_read.ext.u32.coherent.fence_atomic.atomicwrite.subgroup.payload_local.image.guard_local.image.frag */
+   INSTR_6XX(c6e62005_3f800008, "shfl.xor.u32 r1.y, r1.x, 63"),
+   /* dEQP-VK.subgroups.shuffle.graphics.subgroupshuffle_bvec4 */
+   INSTR_6XX(c6e4c012_c0000020, "shfl.rup.u16 hr4.z, hr4.x, r48.x"),
+
    /* Custom test since we've never seen the blob emit these. */
    INSTR_6XX(c0260004_00490000, "getspid.u32 r1.x"),
    INSTR_6XX(c0260005_00494000, "getwid.u32 r1.y"),

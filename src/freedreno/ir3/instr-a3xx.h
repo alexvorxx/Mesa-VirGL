@@ -287,6 +287,7 @@ typedef enum {
    OPC_GETSPID         = _OPC(6, 36), /* SP ID */
    OPC_GETWID          = _OPC(6, 37), /* wavefront ID */
    OPC_GETFIBERID      = _OPC(6, 38), /* fiber ID */
+   OPC_SHFL            = _OPC(6, 39),
 
    /* Logical opcodes for things that differ in a6xx+ */
    OPC_STC             = _OPC(6, 40),

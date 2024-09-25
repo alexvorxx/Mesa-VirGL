@@ -645,6 +645,7 @@ static void print_token(FILE *file, int type, YYSTYPE value)
 %token <tok> T_OP_GETFIBERID
 %token <tok> T_OP_STC
 %token <tok> T_OP_STSC
+%token <tok> T_OP_SHFL
 
 /* category 7: */
 %token <tok> T_OP_BAR
@@ -715,6 +716,12 @@ static void print_token(FILE *file, int type, YYSTYPE value)
 %token <tok> T_MOD_TEX
 %token <tok> T_MOD_MEM
 %token <tok> T_MOD_RT
+
+%token <tok> T_MOD_XOR
+%token <tok> T_MOD_UP
+%token <tok> T_MOD_DOWN
+%token <tok> T_MOD_RUP
+%token <tok> T_MOD_RDOWN
 
 %type <num> integer offset uoffset
 %type <num> flut_immed
@@ -1332,6 +1339,20 @@ cat6_stc:
               T_OP_STC  { new_instr(OPC_STC); }  cat6_type 'c' '[' const_dst ']' ',' src_reg ',' cat6_immed
 |             T_OP_STSC { new_instr(OPC_STSC); } cat6_type 'c' '[' const_dst ']' ',' immediate ',' cat6_immed
 
+cat6_shfl_mode: T_MOD_XOR   { instr->cat6.shfl_mode = SHFL_XOR;   }
+|               T_MOD_UP    { instr->cat6.shfl_mode = SHFL_UP;    }
+|               T_MOD_DOWN  { instr->cat6.shfl_mode = SHFL_DOWN;  }
+|               T_MOD_RUP   { instr->cat6.shfl_mode = SHFL_RUP;   }
+|               T_MOD_RDOWN { instr->cat6.shfl_mode = SHFL_RDOWN; }
+                /* This is added to make it easy to experiment with the
+                 * unknown modes.
+                 */
+|               integer     { instr->cat6.shfl_mode = $1; }
+
+cat6_shfl:
+         T_OP_SHFL { new_instr(OPC_SHFL); } '.' cat6_shfl_mode cat6_type dst ',' src ',' cat6_reg_or_immed
+
+
 cat6_todo:         T_OP_G2L                 { new_instr(OPC_G2L); }
 |                  T_OP_L2G                 { new_instr(OPC_L2G); }
 |                  T_OP_RESFMT              { new_instr(OPC_RESFMT); }
@@ -1347,6 +1368,7 @@ cat6_instr:        cat6_load
 |                  cat6_bindless_ldc
 |                  cat6_bindless_ibo
 |                  cat6_stc
+|                  cat6_shfl
 |                  cat6_todo
 
 cat7_scope:        '.' 'w'  { instr->cat7.w = true; }
