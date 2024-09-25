@@ -148,12 +148,12 @@ out:
 }
 
 static int
-open_submitqueue(struct fd_pipe *pipe, uint32_t prio)
+__open_submitqueue(struct fd_pipe *pipe, uint32_t prio, uint32_t flags)
 {
    struct virtio_pipe *virtio_pipe = to_virtio_pipe(pipe);
 
    struct drm_msm_submitqueue req = {
-      .flags = 0,
+      .flags = flags,
       .prio = prio,
    };
    uint64_t nr_prio = 1;
@@ -171,6 +171,27 @@ open_submitqueue(struct fd_pipe *pipe, uint32_t prio)
 
    virtio_pipe->queue_id = req.id;
    virtio_pipe->ring_idx = req.prio + 1;
+
+   return 0;
+}
+
+static int
+open_submitqueue(struct fd_pipe *pipe, uint32_t prio)
+{
+   const struct fd_dev_info *info = fd_dev_info_raw(&pipe->dev_id);
+   int ret = -1;
+
+   if (info && info->chip >= A7XX)
+      ret = __open_submitqueue(pipe, prio, MSM_SUBMITQUEUE_ALLOW_PREEMPT);
+
+   /* If kernel doesn't support preemption, try again without: */
+   if (ret)
+      ret = __open_submitqueue(pipe, prio, 0);
+
+   if (ret) {
+      ERROR_MSG("could not create submitqueue! %d (%s)", ret, strerror(errno));
+      return ret;
+   }
 
    return 0;
 }
