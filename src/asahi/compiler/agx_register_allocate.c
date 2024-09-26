@@ -579,12 +579,8 @@ insert_copies_for_clobbered_killed(struct ra_ctx *rctx, unsigned reg,
    unsigned vars[16] = {0};
    unsigned nr_vars = 0;
 
-   /* Precondition: the nesting counter is not overwritten. Therefore we do not
-    * have to move it.  find_best_region_to_evict knows better than to try.
-    */
-   assert(!(reg == 0 && rctx->shader->any_cf) && "r0l is never moved");
-   assert(!(reg == 1 && rctx->shader->any_quad_divergent_shuffle) &&
-          "r0h is never moved");
+   /* Precondition: the reserved region is not shuffled. */
+   assert(reg >= reserved_size(rctx->shader) && "reserved is never moved");
 
    /* Consider the destination clobbered for the purpose of source collection.
     * This way, killed sources already in the destination will be preserved
