@@ -234,7 +234,8 @@ def banner_command(argv):
        paths removed."""
 
     def makePosixRelative(someArg):
-        if os.path.exists(someArg):
+        # Do not use relative for /tmp/ to avoid effects of checkout location
+        if os.path.exists(someArg) and someArg != "/tmp/":
             return str(PurePosixPath(Path(os.path.relpath(someArg))))
         return someArg
 
