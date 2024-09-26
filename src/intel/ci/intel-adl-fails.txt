@@ -1,5 +1,6 @@
 api@clbuildprogram,Fail
 api@clcompileprogram,Fail
+api@clgetcommandqueueinfo,Fail
 api@clgetextensionfunctionaddressforplatform,Fail
 api@clgetkernelarginfo,Fail
 api@cllinkprogram,Fail

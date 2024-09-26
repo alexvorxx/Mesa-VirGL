@@ -173,5 +173,3 @@ spec@ext_framebuffer_multisample@interpolation 8 non-centroid-disabled,Fail
 # Regression noticed in https://gitlab.freedesktop.org/mesa/mesa/-/pipelines/891104
 spec@arb_viewport_array@display-list,Fail
 
-# uprev Piglit in Mesa
-spec@egl_ext_surface_compression@create,Crash

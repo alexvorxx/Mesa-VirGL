@@ -40,3 +40,9 @@ program@execute@global-offset@3d- input dependent,Fail
 
 # Debian bookworm fails
 program@build@vector-data-types,Fail
+
+# fails to query queue size with CL_INVALID_COMMAND_QUEUE
+api@clgetcommandqueueinfo,Fail
+
+# demands at least 1/4 system RAM be allocatable, which we can't guarantee
+api@clgetdeviceinfo,Fail
