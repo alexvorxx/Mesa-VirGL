@@ -1614,8 +1614,7 @@ panvk_cmd_begin_rendering_init_state(struct panvk_cmd_buffer *cmdbuf,
 
       struct panvk_image *img =
          container_of(iview->vk.image, struct panvk_image, vk);
-      const VkExtent3D iview_size =
-         vk_image_mip_level_extent(&img->vk, iview->vk.base_mip_level);
+      const VkExtent3D iview_size = iview->vk.extent;
 
       cmdbuf->state.gfx.render.bound_attachments |=
          MESA_VK_RP_ATTACHMENT_COLOR_BIT(i);
@@ -1658,8 +1657,7 @@ panvk_cmd_begin_rendering_init_state(struct panvk_cmd_buffer *cmdbuf,
       VK_FROM_HANDLE(panvk_image_view, iview, att->imageView);
       struct panvk_image *img =
          container_of(iview->vk.image, struct panvk_image, vk);
-      const VkExtent3D iview_size =
-         vk_image_mip_level_extent(&img->vk, iview->vk.base_mip_level);
+      const VkExtent3D iview_size = iview->vk.extent;
 
       if (iview->vk.aspects & VK_IMAGE_ASPECT_DEPTH_BIT) {
          cmdbuf->state.gfx.render.bound_attachments |=
@@ -1700,8 +1698,7 @@ panvk_cmd_begin_rendering_init_state(struct panvk_cmd_buffer *cmdbuf,
       VK_FROM_HANDLE(panvk_image_view, iview, att->imageView);
       struct panvk_image *img =
          container_of(iview->vk.image, struct panvk_image, vk);
-      const VkExtent3D iview_size =
-         vk_image_mip_level_extent(&img->vk, iview->vk.base_mip_level);
+      const VkExtent3D iview_size = iview->vk.extent;
 
       if (iview->vk.aspects & VK_IMAGE_ASPECT_STENCIL_BIT) {
          cmdbuf->state.gfx.render.bound_attachments |=
