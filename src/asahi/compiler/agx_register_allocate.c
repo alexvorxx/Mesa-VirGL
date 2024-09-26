@@ -606,9 +606,10 @@ insert_copies_for_clobbered_killed(struct ra_ctx *rctx, unsigned reg,
    /* Collect killed clobbered sources, if any */
    agx_foreach_ssa_src(I, s) {
       unsigned reg = rctx->ssa_to_reg[I->src[s].value];
+      unsigned nr = rctx->ncomps[I->src[s].value];
 
       if (I->src[s].kill && ra_class_for_index(I->src[s]) == RA_GPR &&
-          BITSET_TEST(clobbered, reg)) {
+          BITSET_TEST_RANGE(clobbered, reg, reg + nr - 1)) {
 
          assert(nr_vars < ARRAY_SIZE(vars) &&
                 "cannot clobber more than max variable size");
