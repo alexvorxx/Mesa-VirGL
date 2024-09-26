@@ -506,7 +506,8 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
          .depth = image->vk.extent.depth,
       };
    } else {
-      iview->extent = iview->vk.extent;
+      iview->extent =
+         vk_image_mip_level_extent(&image->vk, iview->vk.base_mip_level);
    }
 
    if (iview->vk.format != image->planes[iview->plane_id].format) {

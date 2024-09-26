@@ -543,7 +543,7 @@ vk_image_view_init(struct vk_device *device,
    if (vk_format_is_compressed(image->format) &&
        !vk_format_is_compressed(image_view->format)) {
       const struct util_format_description *fmt =
-         vk_format_description(image_view->format);
+         vk_format_description(image->format);
 
       /* Non-compressed view of compressed image only works for single MIP
        * views.
