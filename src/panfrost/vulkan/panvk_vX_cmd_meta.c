@@ -6,6 +6,23 @@
 #include "panvk_cmd_meta.h"
 #include "panvk_entrypoints.h"
 
+static bool
+copy_to_image_use_gfx_pipeline(struct panvk_device *dev,
+                               struct panvk_image *dst_img)
+{
+   struct panvk_instance *instance =
+      to_panvk_instance(dev->vk.physical->instance);
+
+   if (instance->debug_flags & PANVK_DEBUG_COPY_GFX)
+      return true;
+
+   /* Writes to AFBC images must go through the graphics pipeline. */
+   if (drm_is_afbc(dst_img->pimage.layout.modifier))
+      return true;
+
+   return false;
+}
+
 void
 panvk_per_arch(cmd_meta_compute_start)(
    struct panvk_cmd_buffer *cmdbuf,
@@ -260,7 +277,7 @@ panvk_per_arch(CmdCopyBufferToImage2)(
    VK_FROM_HANDLE(panvk_image, img, pCopyBufferToImageInfo->dstImage);
    struct vk_meta_copy_image_properties img_props =
       panvk_meta_copy_get_image_properties(img);
-   bool use_gfx_pipeline = panvk_meta_copy_to_image_use_gfx_pipeline(img);
+   bool use_gfx_pipeline = copy_to_image_use_gfx_pipeline(dev, img);
 
    if (use_gfx_pipeline) {
       struct panvk_cmd_meta_graphics_save_ctx save = {0};
@@ -341,7 +358,7 @@ panvk_per_arch(CmdCopyImage2)(VkCommandBuffer commandBuffer,
       panvk_meta_copy_get_image_properties(src_img);
    struct vk_meta_copy_image_properties dst_img_props =
       panvk_meta_copy_get_image_properties(dst_img);
-   bool use_gfx_pipeline = panvk_meta_copy_to_image_use_gfx_pipeline(dst_img);
+   bool use_gfx_pipeline = copy_to_image_use_gfx_pipeline(dev, dst_img);
 
    if (use_gfx_pipeline) {
       struct panvk_cmd_meta_graphics_save_ctx save = {0};

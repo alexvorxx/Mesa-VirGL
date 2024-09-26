@@ -12,16 +12,6 @@
 #include "vk_format.h"
 #include "vk_meta.h"
 
-static inline bool
-panvk_meta_copy_to_image_use_gfx_pipeline(struct panvk_image *dst_img)
-{
-   /* Writes to AFBC images must go through the graphics pipeline. */
-   if (drm_is_afbc(dst_img->pimage.layout.modifier))
-      return true;
-
-   return false;
-}
-
 static inline VkFormat
 panvk_meta_get_uint_format_for_blk_size(unsigned blk_sz)
 {
