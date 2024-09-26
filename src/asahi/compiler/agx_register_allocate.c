@@ -442,6 +442,10 @@ set_ssa_to_reg(struct ra_ctx *rctx, unsigned ssa, unsigned reg)
    *(rctx->count[cls]) = MAX2(*(rctx->count[cls]), reg + rctx->ncomps[ssa]);
 
    rctx->ssa_to_reg[ssa] = reg;
+
+   if (cls == RA_GPR) {
+      rctx->reg_to_ssa[reg] = ssa;
+   }
 }
 
 static unsigned
@@ -541,7 +545,6 @@ assign_regs_by_copying(struct ra_ctx *rctx, agx_index dest, const agx_instr *I,
 
       /* Update bookkeeping for this variable */
       set_ssa_to_reg(rctx, ssa, new_reg);
-      rctx->reg_to_ssa[new_reg] = ssa;
    }
 
    return rctx->ssa_to_reg[dest.value];
@@ -642,8 +645,6 @@ insert_copies_for_clobbered_killed(struct ra_ctx *rctx, unsigned reg,
       }
 
       set_ssa_to_reg(rctx, var, base);
-      rctx->reg_to_ssa[base] = var;
-
       base += var_count;
    }
 
@@ -844,9 +845,6 @@ reserve_live_in(struct ra_ctx *rctx)
 
       for (unsigned j = 0; j < rctx->ncomps[i]; ++j) {
          BITSET_SET(rctx->used_regs[cls], base + j);
-
-         if (cls == RA_GPR)
-            rctx->reg_to_ssa[base + j] = i;
       }
    }
 }
@@ -868,9 +866,6 @@ assign_regs(struct ra_ctx *rctx, agx_index v, unsigned reg)
    assert(!BITSET_TEST_RANGE(rctx->used_regs[cls], reg, end) &&
           "no interference");
    BITSET_SET_RANGE(rctx->used_regs[cls], reg, end);
-
-   if (cls == RA_GPR)
-      rctx->reg_to_ssa[reg] = v.value;
 
    /* Phi webs need to remember which register they're assigned to */
    struct phi_web_node *node =
