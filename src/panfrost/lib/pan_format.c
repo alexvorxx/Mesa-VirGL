@@ -149,6 +149,7 @@ const struct pan_blendable_format
    [PIPE_FORMAT_##pipe] = {                                                    \
       .hw = MALI_PACK_FMT(texfeat, swizzle, srgb),                             \
       .bind = PAN_BIND_SAMPLER_VIEW,                                           \
+      .texfeat_bit = MALI_##texfeat,                                           \
    }
 #else
    /* Map to interchange format, as compression is specified in the plane
@@ -158,6 +159,7 @@ const struct pan_blendable_format
    [PIPE_FORMAT_##pipe] = {                                                    \
       .hw = MALI_PACK_FMT(interchange, swizzle, srgb),                         \
       .bind = PAN_BIND_SAMPLER_VIEW,                                           \
+      .texfeat_bit = MALI_##texfeat,                                           \
    }
 #endif
 
