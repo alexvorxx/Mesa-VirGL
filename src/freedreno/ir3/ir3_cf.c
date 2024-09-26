@@ -52,9 +52,11 @@ is_safe_conv(struct ir3_instruction *instr, type_t src_type, opc_t *src_opc)
       return true;
 
    /* We can handle mismatches with integer types by converting the opcode
-    * but not when an integer is reinterpreted as a float or vice-versa.
+    * but not when an integer is reinterpreted as a float or vice-versa. We
+    * can't handle types with different sizes.
     */
-   if (type_float(src_type) != type_float(instr->cat1.src_type))
+   if (type_float(src_type) != type_float(instr->cat1.src_type) ||
+       type_size(src_type) != type_size(instr->cat1.src_type))
       return false;
 
    /* We have types with mismatched signedness. Mismatches on the signedness
