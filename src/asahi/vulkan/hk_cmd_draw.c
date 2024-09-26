@@ -3382,6 +3382,7 @@ hk_draw(struct hk_cmd_buffer *cmd, uint16_t draw_id, struct hk_draw draw_)
       cmd, VK_QUERY_PIPELINE_STATISTIC_VERTEX_SHADER_INVOCATIONS_BIT);
 
    bool ia_stats = stat_ia_verts || stat_vs_inv;
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
    hk_foreach_view(cmd) {
       struct hk_draw draw = draw_;
@@ -3392,13 +3393,16 @@ hk_draw(struct hk_cmd_buffer *cmd, uint16_t draw_id, struct hk_draw draw_)
       if (!cs)
          return;
 
-      cs->stats.calls++;
-
       bool geom = cmd->state.gfx.shaders[MESA_SHADER_GEOMETRY];
       bool tess = cmd->state.gfx.shaders[MESA_SHADER_TESS_EVAL];
       struct hk_cs *ccs = NULL;
       uint8_t *out = cs->current;
       assert(cs->current + 0x1000 < cs->end);
+
+      if (unlikely(tess && (dev->dev.debug & AGX_DBG_NOTESS)))
+         continue;
+
+      cs->stats.calls++;
 
       if (geom || tess || ia_stats) {
          ccs =
@@ -3412,11 +3416,6 @@ hk_draw(struct hk_cmd_buffer *cmd, uint16_t draw_id, struct hk_draw draw_)
       }
 
       if (tess) {
-         struct hk_device *dev = hk_cmd_buffer_device(cmd);
-         if (unlikely(dev->dev.debug & AGX_DBG_NOTESS)) {
-            continue;
-         }
-
          draw = hk_launch_tess(cmd, ccs, draw);
 
          if (draw.raw) {
