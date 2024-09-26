@@ -371,8 +371,11 @@ find_best_region_to_evict(struct ra_ctx *rctx, enum ra_class cls, unsigned size,
           "register file size must be aligned to the maximum vector size");
    assert(cls == RA_GPR);
 
+   /* Useful for testing RA */
+   bool invert = false;
+
    unsigned best_base = ~0;
-   unsigned best_moves = ~0;
+   unsigned best_moves = invert ? 0 : ~0;
 
    for (unsigned base = 0; base + size <= rctx->bound[cls]; base += size) {
       /* The first k registers are preallocated and unevictable, so must be
@@ -424,7 +427,7 @@ find_best_region_to_evict(struct ra_ctx *rctx, enum ra_class cls, unsigned size,
        * (due to killed sources), since the recursive splitting algorithm
        * requires at least one free register.
        */
-      if (any_free && moves < best_moves) {
+      if (any_free && ((moves < best_moves) ^ invert)) {
          best_moves = moves;
          best_base = base;
       }
