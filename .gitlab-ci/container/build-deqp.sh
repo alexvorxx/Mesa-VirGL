@@ -112,14 +112,14 @@ do
   PATCH_URL="https://github.com/KhronosGroup/VK-GL-CTS/commit/$commit.patch"
   echo "Apply patch to ${DEQP_API} CTS from $PATCH_URL"
   curl -L --retry 4 -f --retry-all-errors --retry-delay 60 $PATCH_URL | \
-    git am -
+    GIT_COMMITTER_DATE=$(date -d@0) git am -
 done
 
 cts_patch_files="${deqp_api}_cts_patch_files[@]"
 for patch in "${!cts_patch_files}"
 do
   echo "Apply patch to ${DEQP_API} CTS from $patch"
-  git am < $OLDPWD/.gitlab-ci/container/patches/$patch
+  GIT_COMMITTER_DATE=$(date -d@0) git am < $OLDPWD/.gitlab-ci/container/patches/$patch
 done
 
 {
