@@ -120,7 +120,7 @@ ir3_shared_fold(struct ir3 *ir)
     * reverse to try and convert an entire phi-web in one go.
     */
    foreach_block_rev (block, &ir->block_list) {
-      foreach_instr (instr, &block->instr_list) {
+      foreach_instr_safe (instr, &block->instr_list) {
          progress |= try_shared_folding(instr, mem_ctx);
       }
    }
