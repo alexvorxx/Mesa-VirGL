@@ -12,6 +12,7 @@ use crate::legalize::LegalizeBuilder;
 use crate::sph::{OutputTopology, PixelImap};
 use compiler::as_slice::*;
 use compiler::cfg::CFG;
+use compiler::smallvec::SmallVec;
 use nak_ir_proc::*;
 use std::cmp::{max, min};
 use std::fmt;
@@ -6783,41 +6784,7 @@ impl<T: Into<Op>> From<T> for Instr {
     }
 }
 
-/// The result of map() done on a Box<Instr>. A Vec is only allocated if the
-/// mapping results in multiple instructions. This helps to reduce the amount of
-/// Vec's allocated in the optimization passes.
-pub enum MappedInstrs {
-    None,
-    One(Box<Instr>),
-    Many(Vec<Box<Instr>>),
-}
-
-impl MappedInstrs {
-    pub fn push(&mut self, i: Box<Instr>) {
-        match self {
-            MappedInstrs::None => {
-                *self = MappedInstrs::One(i);
-            }
-            MappedInstrs::One(_) => {
-                *self = match std::mem::replace(self, MappedInstrs::None) {
-                    MappedInstrs::One(o) => MappedInstrs::Many(vec![o, i]),
-                    _ => panic!("Not a One"),
-                };
-            }
-            MappedInstrs::Many(v) => {
-                v.push(i);
-            }
-        }
-    }
-
-    pub fn last_mut(&mut self) -> Option<&mut Box<Instr>> {
-        match self {
-            MappedInstrs::None => None,
-            MappedInstrs::One(instr) => Some(instr),
-            MappedInstrs::Many(v) => v.last_mut(),
-        }
-    }
-}
+pub type MappedInstrs = SmallVec<Box<Instr>>;
 
 pub struct BasicBlock {
     pub label: Label,

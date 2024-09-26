@@ -6,3 +6,4 @@ pub mod bindings;
 pub mod bitset;
 pub mod cfg;
 pub mod nir;
+pub mod smallvec;

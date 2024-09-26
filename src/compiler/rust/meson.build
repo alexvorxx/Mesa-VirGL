@@ -6,6 +6,7 @@ _compiler_rs_sources = [
   'bitset.rs',
   'cfg.rs',
   'nir.rs',
+  'smallvec.rs',
 ]
 
 bindgen_version = find_program('bindgen').version()
