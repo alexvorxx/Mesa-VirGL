@@ -702,12 +702,6 @@ hk_get_descriptors_state(struct hk_cmd_buffer *cmd,
    }
 };
 
-void hk_cmd_flush_wait_dep(struct hk_cmd_buffer *cmd,
-                           const VkDependencyInfo *dep, bool wait);
-
-void hk_cmd_invalidate_deps(struct hk_cmd_buffer *cmd, uint32_t dep_count,
-                            const VkDependencyInfo *deps);
-
 void hk_cmd_buffer_flush_push_descriptors(struct hk_cmd_buffer *cmd,
                                           struct hk_descriptor_state *desc);
 
