@@ -554,6 +554,7 @@ debian/baremetal_arm64_test:
     - .windows-docker-msvc
     - .windows-shell-tags
   rules:
+    - !reference [.common-rules, rules]
     - !reference [.microsoft-farm-container-rules, rules]
     - !reference [.container+build-rules, rules]
   variables:
@@ -579,6 +580,7 @@ windows_build_msvc:
   extends:
     - .windows_container_build
   rules:
+    - !reference [.common-rules, rules]
     - !reference [.microsoft-farm-rules, rules]
     - !reference [.container+build-rules, rules]
   variables:
@@ -597,6 +599,7 @@ windows_test_msvc:
   extends:
     - .windows_container_build
   rules:
+    - !reference [.common-rules, rules]
     - !reference [.microsoft-farm-rules, rules]
     - !reference [.container+build-rules, rules]
   variables:
