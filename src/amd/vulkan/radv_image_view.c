@@ -121,13 +121,8 @@ gfx10_make_texture_descriptor(struct radv_device *device, struct radv_image *ima
 
    radv_compose_swizzle(desc, mapping, swizzle);
 
-   if (create_2d_view_of_3d) {
-      assert(image->vk.image_type == VK_IMAGE_TYPE_3D);
-      type = V_008F1C_SQ_RSRC_IMG_3D;
-   } else {
-      type = radv_tex_dim(image->vk.image_type, view_type, image->vk.array_layers, image->vk.samples, is_storage_image,
-                          pdev->info.gfx_level == GFX9);
-   }
+   type = radv_tex_dim(image->vk.image_type, view_type, image->vk.array_layers, image->vk.samples, is_storage_image,
+                       pdev->info.gfx_level == GFX9);
 
    if (type == V_008F1C_SQ_RSRC_IMG_1D_ARRAY) {
       height = 1;
@@ -139,9 +134,8 @@ gfx10_make_texture_descriptor(struct radv_device *device, struct radv_image *ima
       depth = image->vk.array_layers / 6;
 
    if (create_2d_view_of_3d) {
-      assert(type == V_008F1C_SQ_RSRC_IMG_3D);
+      assert(image->vk.image_type == VK_IMAGE_TYPE_3D && type == V_008F1C_SQ_RSRC_IMG_2D_ARRAY);
 
-      depth = !is_storage_image ? depth : u_minify(depth, first_level);
       array_pitch = is_storage_image;
    } else if (sliced_3d) {
       assert(type == V_008F1C_SQ_RSRC_IMG_3D && is_storage_image);
@@ -226,12 +220,10 @@ gfx6_make_texture_descriptor(struct radv_device *device, struct radv_image *imag
                              VkImageViewType view_type, VkFormat vk_format, const VkComponentMapping *mapping,
                              unsigned first_level, unsigned last_level, unsigned first_layer, unsigned last_layer,
                              unsigned width, unsigned height, unsigned depth, float min_lod, uint32_t *state,
-                             uint32_t *fmask_state, VkImageCreateFlags img_create_flags)
+                             uint32_t *fmask_state)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const struct radv_instance *instance = radv_physical_device_instance(pdev);
-   const bool create_2d_view_of_3d =
-      (img_create_flags & VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT) && view_type == VK_IMAGE_VIEW_TYPE_2D;
    enum pipe_format format = vk_format_to_pipe_format(vk_format);
    const struct util_format_description *desc;
    enum pipe_swizzle swizzle[4];
@@ -250,13 +242,8 @@ gfx6_make_texture_descriptor(struct radv_device *device, struct radv_image *imag
 
    radv_compose_swizzle(desc, mapping, swizzle);
 
-   if (pdev->info.gfx_level == GFX9 && create_2d_view_of_3d) {
-      assert(image->vk.image_type == VK_IMAGE_TYPE_3D);
-      type = V_008F1C_SQ_RSRC_IMG_3D;
-   } else {
-      type = radv_tex_dim(image->vk.image_type, view_type, image->vk.array_layers, image->vk.samples, is_storage_image,
-                          pdev->info.gfx_level == GFX9);
-   }
+   type = radv_tex_dim(image->vk.image_type, view_type, image->vk.array_layers, image->vk.samples, is_storage_image,
+                       pdev->info.gfx_level == GFX9);
 
    if (type == V_008F1C_SQ_RSRC_IMG_1D_ARRAY) {
       height = 1;
@@ -339,7 +326,7 @@ radv_make_texture_descriptor(struct radv_device *device, struct radv_image *imag
    } else {
       gfx6_make_texture_descriptor(device, image, is_storage_image, view_type, vk_format, mapping, first_level,
                                    last_level, first_layer, last_layer, width, height, depth, min_lod, state,
-                                   fmask_state, img_create_flags);
+                                   fmask_state);
    }
 }
 

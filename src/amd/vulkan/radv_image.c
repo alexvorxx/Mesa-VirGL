@@ -640,6 +640,9 @@ radv_get_surface_flags(struct radv_device *device, struct radv_image *image, uns
       unreachable("unhandled image type");
    }
 
+   if (image->vk.create_flags & (VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT | VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT))
+      flags |= RADEON_SURF_VIEW_3D_AS_2D_ARRAY;
+
    /* Required for clearing/initializing a specific layer on GFX8. */
    flags |= RADEON_SURF_CONTIGUOUS_DCC_LAYERS;
 

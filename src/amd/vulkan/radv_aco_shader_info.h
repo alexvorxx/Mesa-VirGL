@@ -24,8 +24,7 @@ static inline void radv_aco_convert_ps_epilog_key(struct aco_ps_epilog_info *aco
 
 static inline void
 radv_aco_convert_shader_info(struct aco_shader_info *aco_info, const struct radv_shader_info *radv,
-                             const struct radv_shader_args *radv_args, const struct radv_device_cache_key *radv_key,
-                             const enum amd_gfx_level gfx_level)
+                             const struct radv_shader_args *radv_args, const enum amd_gfx_level gfx_level)
 {
    ASSIGN_FIELD(wave_size);
    ASSIGN_FIELD(has_ngg_culling);
@@ -43,7 +42,7 @@ radv_aco_convert_shader_info(struct aco_shader_info *aco_info, const struct radv
    aco_info->ps.spi_ps_input_addr = radv->ps.spi_ps_input_addr;
    aco_info->gfx9_gs_ring_lds_size = radv->gs_ring_info.lds_size;
    aco_info->is_trap_handler_shader = radv->type == RADV_SHADER_TYPE_TRAP_HANDLER;
-   aco_info->image_2d_view_of_3d = radv_key->image_2d_view_of_3d;
+   aco_info->image_2d_view_of_3d = false;
    aco_info->epilog_pc = radv_args->epilog_pc;
    aco_info->hw_stage = radv_select_hw_stage(radv, gfx_level);
    aco_info->tcs.tcs_offchip_layout = radv_args->tcs_offchip_layout;

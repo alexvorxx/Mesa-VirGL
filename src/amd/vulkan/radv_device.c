@@ -847,11 +847,9 @@ capture_trace(VkQueue _queue)
 static void
 radv_device_init_cache_key(struct radv_device *device)
 {
-   const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_device_cache_key *key = &device->cache_key;
 
    key->disable_trunc_coord = device->disable_trunc_coord;
-   key->image_2d_view_of_3d = device->vk.enabled_features.image2DViewOf3D && pdev->info.gfx_level == GFX9;
    key->mesh_shader_queries = device->vk.enabled_features.meshShaderQueries;
    key->primitives_generated_query = radv_uses_primitives_generated_query(device);
 
@@ -864,7 +862,6 @@ radv_device_init_cache_key(struct radv_device *device)
     * enabled, regardless of what features are actually enabled on the logical device.
     */
    if (device->vk.enabled_features.shaderObject) {
-      key->image_2d_view_of_3d = pdev->info.gfx_level == GFX9;
       key->primitives_generated_query = true;
    }
 
