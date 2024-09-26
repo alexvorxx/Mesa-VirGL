@@ -448,6 +448,29 @@ set_ssa_to_reg(struct ra_ctx *rctx, unsigned ssa, unsigned reg)
    }
 }
 
+/*
+ * Insert parallel copies to move an SSA variable `var` to a new register
+ * `new_reg`. This may require scalarizing.
+ */
+static void
+insert_copy(struct ra_ctx *rctx, struct util_dynarray *copies, unsigned new_reg,
+            unsigned var)
+{
+   enum agx_size size = rctx->sizes[var];
+   unsigned align = agx_size_align_16(size);
+
+   for (unsigned i = 0; i < rctx->ncomps[var]; i += align) {
+      struct agx_copy copy = {
+         .dest = new_reg + i,
+         .src = agx_register(rctx->ssa_to_reg[var] + i, size),
+      };
+
+      assert((copy.dest % align) == 0 && "new dest must be aligned");
+      assert((copy.src.value % align) == 0 && "src must be aligned");
+      util_dynarray_append(copies, struct agx_copy, copy);
+   }
+}
+
 static unsigned
 assign_regs_by_copying(struct ra_ctx *rctx, agx_index dest, const agx_instr *I,
                        struct util_dynarray *copies, BITSET_WORD *clobbered,
@@ -478,9 +501,6 @@ assign_regs_by_copying(struct ra_ctx *rctx, agx_index dest, const agx_instr *I,
 
       /* Pop it from the work list by swapping in the last element */
       blocked_vars[chosen_idx] = blocked_vars[--nr_blocked];
-
-      enum agx_size size = rctx->sizes[ssa];
-      unsigned align = agx_size_align_16(size);
 
       /* We need to shuffle some variables to make room. Look for a range of
        * the register file that is partially blocked.
@@ -524,18 +544,7 @@ assign_regs_by_copying(struct ra_ctx *rctx, agx_index dest, const agx_instr *I,
        * variable. For those, copy the blocked variable to its new register.
        */
       if (ssa != dest.value) {
-         unsigned old_reg = rctx->ssa_to_reg[ssa];
-
-         for (unsigned i = 0; i < nr; i += align) {
-            struct agx_copy copy = {
-               .dest = new_reg + i,
-               .src = agx_register(old_reg + i, size),
-            };
-
-            assert((copy.dest % align) == 0 && "new dest must be aligned");
-            assert((copy.src.value % align) == 0 && "src must be aligned");
-            util_dynarray_append(copies, struct agx_copy, copy);
-         }
+         insert_copy(rctx, copies, new_reg, ssa);
       }
 
       /* Mark down the set of clobbered registers, so that killed sources may be
@@ -627,7 +636,6 @@ insert_copies_for_clobbered_killed(struct ra_ctx *rctx, unsigned reg,
 
    for (unsigned i = 0; i < nr_vars; ++i) {
       unsigned var = vars[i];
-      unsigned var_base = rctx->ssa_to_reg[var];
       unsigned var_count = rctx->ncomps[var];
       unsigned var_align = agx_size_align_16(rctx->sizes[var]);
 
@@ -635,15 +643,7 @@ insert_copies_for_clobbered_killed(struct ra_ctx *rctx, unsigned reg,
       assert((base % var_align) == 0 && "induction");
       assert((var_count % var_align) == 0 && "no partial variables");
 
-      for (unsigned j = 0; j < var_count; j += var_align) {
-         struct agx_copy copy = {
-            .dest = base + j,
-            .src = agx_register(var_base + j, rctx->sizes[var]),
-         };
-
-         util_dynarray_append(copies, struct agx_copy, copy);
-      }
-
+      insert_copy(rctx, copies, base, var);
       set_ssa_to_reg(rctx, var, base);
       base += var_count;
    }
