@@ -46,6 +46,7 @@ dEQP-VK.renderpass2.suballocation.load_store_op_none.depthstencil_d24_unorm_s8_u
 spec@ext_framebuffer_blit@fbo-sys-blit
 spec@ext_framebuffer_blit@fbo-sys-sub-blit
 
+dEQP-VK.draw.dynamic_rendering.primary_cmd_buff.multiple_interpolation.structured.no_sample_decoration.4_samples
 dEQP-VK.fragment_operations.occlusion_query.precise_test_scissors_depth_write_stencil_clear_stencil_write
 dEQP-VK.memory.pipeline_barrier.transfer_dst_uniform_texel_buffer.1024
 dEQP-VK.memory.pipeline_barrier.transfer_dst_uniform_texel_buffer.1048576

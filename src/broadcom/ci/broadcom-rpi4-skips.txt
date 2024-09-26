@@ -1,9 +1,13 @@
 # Slow tests (> 1 minute to run)
 spec@!opengl 1.1@streaming-texture-leak
 spec@!opengl 1.2@tex3d-maxsize
+spec@arb_shader_texture_lod@execution@tex-miplevel-selection \*gradarb 2dshadow
 spec@arb_texture_multisample@texelfetch fs sampler2dms 4 1x130-501x130
 spec@arb_texture_multisample@texelfetch fs sampler2dms 4 1x71-501x71
 spec@arb_texture_multisample@texelfetch fs sampler2dmsarray 4 98x1x9-98x129x9
+spec@glsl-1.30@execution@tex-miplevel-selection texture() 1darray
+spec@glsl-1.30@execution@tex-miplevel-selection texture() 2darrayshadow
+spec@glsl-1.30@execution@tex-miplevel-selection texturelod 2darray
 spec@glsl-1.30@execution@texelfetch fs sampler2d 1x281-501x281
 
 # Slow CL tests (> 5 minute to run)
