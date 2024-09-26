@@ -988,25 +988,11 @@ void st_init_extensions(struct pipe_screen *screen,
           PIPE_FORMAT_RGTC2_UNORM,
           PIPE_FORMAT_RGTC2_SNORM } },
 
-      /* RGTC software fallback support. */
-      { { o(ARB_texture_compression_rgtc) },
-        { PIPE_FORMAT_R8_UNORM,
-          PIPE_FORMAT_R8_SNORM,
-          PIPE_FORMAT_R8G8_UNORM,
-          PIPE_FORMAT_R8G8_SNORM } },
-
       { { o(EXT_texture_compression_latc) },
         { PIPE_FORMAT_LATC1_UNORM,
           PIPE_FORMAT_LATC1_SNORM,
           PIPE_FORMAT_LATC2_UNORM,
           PIPE_FORMAT_LATC2_SNORM } },
-
-      /* LATC software fallback support. */
-      { { o(EXT_texture_compression_latc) },
-        { PIPE_FORMAT_L8_UNORM,
-          PIPE_FORMAT_L8_SNORM,
-          PIPE_FORMAT_L8A8_UNORM,
-          PIPE_FORMAT_L8A8_SNORM } },
 
       { { o(EXT_texture_compression_s3tc),
           o(ANGLE_texture_compression_dxt) },
@@ -1015,32 +1001,17 @@ void st_init_extensions(struct pipe_screen *screen,
           PIPE_FORMAT_DXT3_RGBA,
           PIPE_FORMAT_DXT5_RGBA } },
 
-      /* S3TC software fallback support. */
-      { { o(EXT_texture_compression_s3tc),
-          o(ANGLE_texture_compression_dxt) },
-        { PIPE_FORMAT_R8G8B8A8_UNORM } },
-
       { { o(EXT_texture_compression_s3tc_srgb) },
         { PIPE_FORMAT_DXT1_SRGB,
           PIPE_FORMAT_DXT1_SRGBA,
           PIPE_FORMAT_DXT3_SRGBA,
           PIPE_FORMAT_DXT5_SRGBA } },
 
-      /* S3TC SRGB software fallback support. */
-      { { o(EXT_texture_compression_s3tc_srgb) },
-        { PIPE_FORMAT_R8G8B8A8_SRGB } },
-
       { { o(ARB_texture_compression_bptc) },
         { PIPE_FORMAT_BPTC_RGBA_UNORM,
           PIPE_FORMAT_BPTC_SRGBA,
           PIPE_FORMAT_BPTC_RGB_FLOAT,
           PIPE_FORMAT_BPTC_RGB_UFLOAT } },
-
-      /* BPTC software fallback support. */
-      { { o(ARB_texture_compression_bptc) },
-        { PIPE_FORMAT_R8G8B8A8_UNORM,
-          PIPE_FORMAT_R8G8B8A8_SRGB,
-          PIPE_FORMAT_R16G16B16X16_FLOAT } },
 
       { { o(TDFX_texture_compression_FXT1) },
         { PIPE_FORMAT_FXT1_RGB,
@@ -1077,12 +1048,6 @@ void st_init_extensions(struct pipe_screen *screen,
           PIPE_FORMAT_ASTC_12x10_SRGB,
           PIPE_FORMAT_ASTC_12x12_SRGB } },
 
-      /* ASTC software fallback support. */
-      { { o(KHR_texture_compression_astc_ldr),
-          o(KHR_texture_compression_astc_sliced_3d) },
-        { PIPE_FORMAT_R8G8B8A8_UNORM,
-          PIPE_FORMAT_R8G8B8A8_SRGB } },
-
       { { o(EXT_texture_shared_exponent) },
         { PIPE_FORMAT_R9G9B9E5_FLOAT } },
 
@@ -1111,9 +1076,6 @@ void st_init_extensions(struct pipe_screen *screen,
       { { o(ATI_texture_compression_3dc) },
         { PIPE_FORMAT_LATC2_UNORM } },
 
-      { { o(ATI_texture_compression_3dc) },
-        { PIPE_FORMAT_L8A8_UNORM } },
-
       { { o(MESA_ycbcr_texture) },
         { PIPE_FORMAT_UYVY,
           PIPE_FORMAT_YUYV },
@@ -1134,6 +1096,41 @@ void st_init_extensions(struct pipe_screen *screen,
         { PIPE_FORMAT_ATC_RGB,
           PIPE_FORMAT_ATC_RGBA_EXPLICIT,
           PIPE_FORMAT_ATC_RGBA_INTERPOLATED } },
+   };
+
+   /* Required: sampler support */
+   static const struct st_extension_format_mapping texture_mapping_compressed_fallback[] = {
+      { { o(KHR_texture_compression_astc_ldr),
+          o(KHR_texture_compression_astc_sliced_3d) },
+        { PIPE_FORMAT_R8G8B8A8_UNORM,
+          PIPE_FORMAT_R8G8B8A8_SRGB } },
+
+      { { o(ARB_texture_compression_rgtc) },
+        { PIPE_FORMAT_R8_UNORM,
+          PIPE_FORMAT_R8_SNORM,
+          PIPE_FORMAT_R8G8_UNORM,
+          PIPE_FORMAT_R8G8_SNORM } },
+
+      { { o(EXT_texture_compression_latc) },
+        { PIPE_FORMAT_L8_UNORM,
+          PIPE_FORMAT_L8_SNORM,
+          PIPE_FORMAT_L8A8_UNORM,
+          PIPE_FORMAT_L8A8_SNORM } },
+
+      { { o(EXT_texture_compression_s3tc),
+          o(ANGLE_texture_compression_dxt) },
+        { PIPE_FORMAT_R8G8B8A8_UNORM } },
+
+      { { o(EXT_texture_compression_s3tc_srgb) },
+        { PIPE_FORMAT_R8G8B8A8_SRGB } },
+
+      { { o(ARB_texture_compression_bptc) },
+        { PIPE_FORMAT_R8G8B8A8_UNORM,
+          PIPE_FORMAT_R8G8B8A8_SRGB,
+          PIPE_FORMAT_R16G16B16X16_FLOAT } },
+
+      { { o(ATI_texture_compression_3dc) },
+        { PIPE_FORMAT_L8A8_UNORM } },
    };
 
    /* Required: vertex fetch support. */
@@ -1186,6 +1183,11 @@ void st_init_extensions(struct pipe_screen *screen,
    init_format_extensions(screen, extensions, texture_mapping,
                           ARRAY_SIZE(texture_mapping), PIPE_TEXTURE_2D,
                           PIPE_BIND_SAMPLER_VIEW);
+   if (options->allow_compressed_fallback)
+      init_format_extensions(screen, extensions,
+                             texture_mapping_compressed_fallback,
+                             ARRAY_SIZE(texture_mapping_compressed_fallback),
+                             PIPE_TEXTURE_2D, PIPE_BIND_SAMPLER_VIEW);
    init_format_extensions(screen, extensions, vertex_mapping,
                           ARRAY_SIZE(vertex_mapping), PIPE_BUFFER,
                           PIPE_BIND_VERTEX_BUFFER);

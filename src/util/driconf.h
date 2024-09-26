@@ -281,6 +281,9 @@
 #define DRI_CONF_TRANSCODE_ASTC(def) \
    DRI_CONF_OPT_B(transcode_astc, def, "Transcode ASTC formats to DXTC if unsupported")
 
+#define DRI_CONF_ALLOW_COMPRESSED_FALLBACK(def) \
+   DRI_CONF_OPT_B(allow_compressed_fallback, def, "Allow fallback to uncompressed formats for unsupported compressed formats")
+
 #define DRI_CONF_MESA_EXTENSION_OVERRIDE() \
    DRI_CONF_OPT_S_NODEF(mesa_extension_override, \
                   "Allow enabling/disabling a list of extensions")
