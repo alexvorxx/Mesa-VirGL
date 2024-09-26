@@ -523,6 +523,10 @@ lvp_lower_isec_intrinsic(nir_builder *b, nir_intrinsic_instr *instr, void *data)
 
          nir_def *terminate = nir_load_var(b, state->terminate);
          nir_store_var(b, state->terminate, nir_ior(b, terminate, prev_terminate), 0x1);
+
+         nir_push_if(b, terminate);
+         nir_jump(b, nir_jump_return);
+         nir_pop_if(b, NULL);
       }
 
       nir_push_if(b, nir_load_var(b, state->accept));
