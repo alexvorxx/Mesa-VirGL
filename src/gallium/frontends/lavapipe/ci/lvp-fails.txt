@@ -694,3 +694,6 @@ dEQP-VK.dynamic_rendering.primary_cmd_buff.suballocation.formats.r32g32_uint.inp
 dEQP-VK.glsl.texture_functions.query.texturequerylod.isampler1d_fragment,Fail
 dEQP-VK.glsl.texture_functions.query.texturequerylod.sampler1d_float_fragment,Fail
 dEQP-VK.glsl.texture_functions.query.texturequerylod.usampler1d_fragment,Fail
+
+# Regression from a commit in 878ae970...e0efab52
+dEQP-VK.ray_tracing_pipeline.misc.OpTerminateRayKHR_IntersectionDynamically,Fail
