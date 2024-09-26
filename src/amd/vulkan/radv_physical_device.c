@@ -1103,7 +1103,7 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
 
       /* VK_EXT_image_2d_view_of_3d  */
       .image2DViewOf3D = true,
-      .sampler2DViewOf3D = false,
+      .sampler2DViewOf3D = true,
 
       /* VK_INTEL_shader_integer_functions2 */
       .shaderIntegerFunctions2 = true,
