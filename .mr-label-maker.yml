@@ -28,6 +28,7 @@ issues:
         'freedreno/ir3': ['freedreno', 'ir3']
         'gallium': 'gallium'
         'gbm': 'gbm'
+        'gfxstream': 'gfxstream'
         'gitlab-ci': 'CI'
         'glsl': 'GLSL'
         'glvnd': 'GLVND'
@@ -247,6 +248,7 @@ merge_requests:
         '^src/gallium/winsys/vc4/': ['vc4']
         '^src/gallium/winsys/virgl/': ['virgl']
         '^src/gbm/': ['gbm']
+        '^src/gfxstream/': ['gfxstream']
         '^src/glx/': ['GLX']
         '^src/imagination/': ['powervr']
         '^src/intel/blorp/': ['blorp']
