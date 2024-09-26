@@ -69,6 +69,7 @@ NON_DISPATCHABLE_HANDLE_TYPES = [
     "VkAccelerationStructureNV",
     "VkIndirectCommandsLayoutNV",
     "VkAccelerationStructureKHR",
+    "VkPrivateDataSlot",
 ]
 
 CUSTOM_HANDLE_CREATE_TYPES = [
