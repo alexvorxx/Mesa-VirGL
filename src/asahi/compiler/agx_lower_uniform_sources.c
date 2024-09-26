@@ -61,6 +61,10 @@ agx_instr_accepts_uniform(enum agx_opcode op, unsigned src_index,
    case AGX_OPCODE_FCMP_QUAD_BALLOT:
    case AGX_OPCODE_ICMP_QUAD_BALLOT:
       return false;
+   case AGX_OPCODE_EXPORT:
+   case AGX_OPCODE_PHI:
+      /* We would fail validation otherwise */
+      return true;
    default:
       return !is_64;
    }
