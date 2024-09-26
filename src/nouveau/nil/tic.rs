@@ -25,6 +25,7 @@ use crate::image::ImageDim;
 use crate::image::SampleLayout;
 use crate::image::View;
 use crate::image::ViewType;
+use crate::tiling::GOBType;
 
 macro_rules! set_enum {
     ($th:expr, $cls:ident, $field:ident, $enum:ident) => {
@@ -269,10 +270,10 @@ fn nv9097_fill_tic(
 
     let tiling = &image.levels[0].tiling;
 
-    if tiling.is_tiled {
+    if tiling.is_tiled() {
         set_enum!(th, cl9097, TEXHEADV2_MEMORY_LAYOUT, BLOCKLINEAR);
 
-        assert!(tiling.gob_height_is_8);
+        assert!(tiling.gob_type == GOBType::Fermi8);
         assert!(tiling.x_log2 == 0);
         set_enum!(th, cl9097, TEXHEADV2_GOBS_PER_BLOCK_WIDTH, ONE_GOB);
         th.set_field(cl9097::TEXHEADV2_GOBS_PER_BLOCK_HEIGHT, tiling.y_log2);
@@ -386,7 +387,7 @@ fn nvb097_fill_tic(
             u64::from(view.base_array_layer) * u64::from(image.array_stride_B);
     }
 
-    if tiling.is_tiled {
+    if tiling.is_tiled() {
         set_enum!(th, clb097, TEXHEAD_BL_HEADER_VERSION, SELECT_BLOCKLINEAR);
 
         let addr = BitView::new(&layer_address);
@@ -401,7 +402,7 @@ fn nvb097_fill_tic(
         );
         assert!(addr.get_bit_range_u64(48..64) == 0);
 
-        assert!(tiling.gob_height_is_8);
+        assert!(tiling.gob_type == GOBType::Fermi8);
 
         set_enum!(th, clb097, TEXHEAD_BL_GOBS_PER_BLOCK_WIDTH, ONE_GOB);
         th.set_field(clb097::TEXHEAD_BL_GOBS_PER_BLOCK_HEIGHT, tiling.y_log2);

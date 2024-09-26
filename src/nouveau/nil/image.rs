@@ -199,7 +199,7 @@ impl Image {
             // the size of a miplevel, we don't care about arrays.
             lvl_ext_B.array_len = 1;
 
-            if tiling.is_tiled {
+            if tiling.is_tiled() {
                 let lvl_tiling = tiling.clamp(lvl_ext_B);
 
                 if tiling != lvl_tiling {
@@ -275,7 +275,7 @@ impl Image {
             image.align_B = std::cmp::max(image.align_B, 1 << 16);
         }
 
-        if image.levels[0].tiling.is_tiled {
+        if image.levels[0].tiling.is_tiled() {
             image.pte_kind = Self::choose_pte_kind(
                 dev,
                 info.format,
@@ -290,7 +290,7 @@ impl Image {
             }
         }
 
-        if image.levels[0].tiling.is_tiled {
+        if image.levels[0].tiling.is_tiled() {
             image.tile_mode = u16::from(image.levels[0].tiling.y_log2) << 4
                 | u16::from(image.levels[0].tiling.z_log2) << 8;
 
@@ -386,7 +386,7 @@ impl Image {
         let lvl_ext_B = self.level_extent_B(level);
         let level = &self.levels[level as usize];
 
-        if level.tiling.is_tiled {
+        if level.tiling.is_tiled() {
             let lvl_tiling_ext_B = level.tiling.extent_B();
             let mut lvl_ext_B = lvl_ext_B.align(&lvl_tiling_ext_B);
 
@@ -527,7 +527,7 @@ impl Image {
         let lvl0 = &image_2d_out.levels[0];
 
         assert!(image_2d_out.num_levels == 1);
-        assert!(!lvl0.tiling.is_tiled || lvl0.tiling.z_log2 == 0);
+        assert!(!lvl0.tiling.is_tiled() || lvl0.tiling.z_log2 == 0);
 
         let lvl_tiling_ext_B = lvl0.tiling.extent_B();
         let lvl_ext_B = image_2d_out.level_extent_B(0);

@@ -3,7 +3,7 @@
 
 use crate::format::Format;
 use crate::image::SampleLayout;
-use crate::tiling::{gob_height, Tiling, GOB_DEPTH, GOB_WIDTH_B};
+use crate::tiling::{GOBType, Tiling};
 use crate::Minify;
 
 pub mod units {
@@ -174,16 +174,8 @@ impl Extent4D<units::Bytes> {
         u64::from(self.width) * u64::from(self.height) * u64::from(self.depth)
     }
 
-    pub fn to_GOB(self, gob_height_is_8: bool) -> Extent4D<units::GOBs> {
-        let gob_extent_B = Extent4D {
-            width: GOB_WIDTH_B,
-            height: gob_height(gob_height_is_8),
-            depth: GOB_DEPTH,
-            array_len: 1,
-            phantom: std::marker::PhantomData,
-        };
-
-        self.div_ceil(gob_extent_B)
+    pub fn to_GOB(self, gob_type: GOBType) -> Extent4D<units::GOBs> {
+        self.div_ceil(gob_type.extent_B())
     }
 }
 
