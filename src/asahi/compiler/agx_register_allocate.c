@@ -835,6 +835,7 @@ reserve_live_in(struct ra_ctx *rctx)
           * particular predecessor. That means that such a register allocation
           * is valid here, because it was valid in the predecessor.
           */
+         assert(phi->src[0].type == AGX_INDEX_REGISTER && "not loop source");
          phi->dest[0] = phi->src[0];
          base = phi->dest[0].value;
       } else {
