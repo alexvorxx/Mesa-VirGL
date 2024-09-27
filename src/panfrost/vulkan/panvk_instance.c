@@ -118,7 +118,8 @@ panvk_kmod_zalloc(const struct pan_kmod_allocator *allocator, size_t size,
 
    /* We force errno to -ENOMEM on host allocation failures so we can properly
     * report it back as VK_ERROR_OUT_OF_HOST_MEMORY. */
-   errno = obj ? 0 : -ENOMEM;
+   if (!obj)
+      errno = -ENOMEM;
 
    return obj;
 }
