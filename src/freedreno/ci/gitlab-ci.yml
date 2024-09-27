@@ -116,6 +116,13 @@ a618_gl:
     FLAKES_CHANNEL: "#freedreno-ci"
     DEQP_FRACTION: 2
 
+a618_gl_full:
+  extends:
+    - a618_gl
+    - .collabora-freedreno-manual-rules
+  variables:
+    DEQP_FRACTION: 1
+
 # Run dEQP EGL window system tests separately with the window systems available.
 # X11 takes over the screen, wayland is run headless.
 a618_egl:
