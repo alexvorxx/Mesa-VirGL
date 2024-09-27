@@ -83,6 +83,7 @@ struct ra_ctx {
    agx_instr *instr;
    uint16_t *ssa_to_reg;
    uint8_t *ncomps;
+   uint8_t *ncomps_unrounded;
    enum agx_size *sizes;
    enum ra_class *classes;
    BITSET_WORD *visited;
@@ -783,6 +784,12 @@ reserve_live_in(struct ra_ctx *rctx)
 
       unsigned base;
       enum ra_class cls = rctx->classes[i];
+      enum agx_size size = rctx->sizes[i];
+
+      /* We need to use the unrounded channel count, since the extra padding
+       * will be uninitialized and would fail RA validation.
+       */
+      unsigned channels = rctx->ncomps_unrounded[i] / agx_size_align_16(size);
 
       /* If we split live ranges, the variable might be defined differently at
        * the end of each predecessor. Join them together with a phi inserted at
@@ -791,12 +798,11 @@ reserve_live_in(struct ra_ctx *rctx)
       if (nr_preds > 1) {
          /* We'll fill in the destination after, to coalesce one of the moves */
          agx_instr *phi = agx_phi_to(&b, agx_null(), nr_preds);
-         enum agx_size size = rctx->sizes[i];
 
          agx_foreach_predecessor(rctx->block, pred) {
             unsigned pred_idx = agx_predecessor_index(rctx->block, *pred);
 
-            phi->src[pred_idx] = agx_get_index(i, size);
+            phi->src[pred_idx] = agx_get_vec_index(i, size, channels);
             phi->src[pred_idx].memory = cls == RA_MEM;
 
             if ((*pred)->reg_to_ssa_out[cls] == NULL) {
@@ -1464,6 +1470,7 @@ agx_ra(agx_context *ctx)
    }
 
    uint8_t *ncomps = calloc(ctx->alloc, sizeof(uint8_t));
+   uint8_t *ncomps_unrounded = calloc(ctx->alloc, sizeof(uint8_t));
    enum ra_class *classes = calloc(ctx->alloc, sizeof(enum ra_class));
    agx_instr **src_to_collect_phi = calloc(ctx->alloc, sizeof(agx_instr *));
    enum agx_size *sizes = calloc(ctx->alloc, sizeof(enum agx_size));
@@ -1483,7 +1490,8 @@ agx_ra(agx_context *ctx)
          unsigned v = I->dest[d].value;
          assert(ncomps[v] == 0 && "broken SSA");
          /* Round up vectors for easier live range splitting */
-         ncomps[v] = util_next_power_of_two(agx_index_size_16(I->dest[d]));
+         ncomps_unrounded[v] = agx_index_size_16(I->dest[d]);
+         ncomps[v] = util_next_power_of_two(ncomps_unrounded[v]);
          sizes[v] = I->dest[d].size;
          classes[v] = ra_class_for_index(I->dest[d]);
 
@@ -1534,6 +1542,7 @@ agx_ra(agx_context *ctx)
          .src_to_collect_phi = src_to_collect_phi,
          .phi_web = phi_web,
          .ncomps = ncomps,
+         .ncomps_unrounded = ncomps_unrounded,
          .sizes = sizes,
          .classes = classes,
          .visited = visited,
@@ -1680,6 +1689,7 @@ agx_ra(agx_context *ctx)
    free(phi_web);
    free(src_to_collect_phi);
    free(ncomps);
+   free(ncomps_unrounded);
    free(sizes);
    free(classes);
    free(visited);
