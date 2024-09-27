@@ -26,7 +26,8 @@ extern "C" {
 #define AGX_NUM_UNIFORMS (512)
 
 /* Semi-arbitrary limit for spill slot allocation */
-#define AGX_NUM_MODELED_REGS (2048)
+#define AGX_NUM_MODELED_REGS_LOG2 (11)
+#define AGX_NUM_MODELED_REGS      (1 << AGX_NUM_MODELED_REGS_LOG2)
 
 /* Limit on number of sources for non-phi instructions */
 #define AGX_MAX_NORMAL_SOURCES (16)
@@ -82,8 +83,18 @@ typedef struct {
    unsigned channels_m1     : 3;
    enum agx_size size       : 2;
    enum agx_index_type type : 3;
-   unsigned padding         : 18;
+
+   /* If has_reg is set (during register allocation), the register assigned to
+    * this SSA value This is used with NORMAL. Contrast REGISTER which uses
+    * value instead.
+    *
+    * TODO: Unify.
+    */
+   unsigned reg : AGX_NUM_MODELED_REGS_LOG2;
+   bool has_reg     : 1;
+   unsigned padding : 6;
 } agx_index;
+static_assert(sizeof(agx_index) == 8, "packed");
 
 static inline unsigned
 agx_channels(agx_index idx)
