@@ -338,18 +338,6 @@ genX(cmd_buffer_emit_state_base_address)(struct anv_cmd_buffer *cmd_buffer)
       (intel_needs_workaround(device->info, 16013000631) ?
        ANV_PIPE_INSTRUCTION_CACHE_INVALIDATE_BIT : 0);
 
-#if GFX_VER >= 9 && GFX_VER <= 11
-      /* From the SKL PRM, Vol. 2a, "PIPE_CONTROL",
-       *
-       *    "Workaround : “CS Stall” bit in PIPE_CONTROL command must be
-       *     always set for GPGPU workloads when “Texture Cache Invalidation
-       *     Enable” bit is set".
-       *
-       * Workaround stopped appearing in TGL PRMs.
-       */
-      if (cmd_buffer->state.current_pipeline == GPGPU)
-         bits |= ANV_PIPE_CS_STALL_BIT;
-#endif
    genx_batch_emit_pipe_control(&cmd_buffer->batch, device->info,
                                 cmd_buffer->state.current_pipeline,
                                 bits);
