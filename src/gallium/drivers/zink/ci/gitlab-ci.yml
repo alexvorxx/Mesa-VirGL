@@ -111,7 +111,7 @@ zink-tu-a618:
     - .zink-test
     - .lava-sc7180-trogdor-lazor-limozeen:arm64
   variables:
-    DEQP_FRACTION: 2
+    DEQP_FRACTION: 3
     DEQP_SUITE: zink-freedreno-a618
     FLAKES_CHANNEL: "#freedreno-ci"
     HWCI_START_WESTON: 1

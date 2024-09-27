@@ -152,6 +152,7 @@ a618_piglit:
     DEQP_SUITE: freedreno-a618-piglit
     FLAKES_CHANNEL: "#freedreno-ci"
     HWCI_START_WESTON: 1
+    DEQP_FRACTION: 2
 
 a618_piglit_full:
   extends:
@@ -203,7 +204,7 @@ a660_gl:
     - .lava-test-deqp:arm64
     - .collabora-freedreno-rules
     - .lava-sm8350-hdk:arm64
-  parallel: 2
+  parallel: 4
   variables:
     DEQP_SUITE: freedreno-a660
 
@@ -215,7 +216,7 @@ a660_vk:
   parallel: 5
   variables:
     DEQP_SUITE: freedreno-a660-vk
-    DEQP_FRACTION: 4
+    DEQP_FRACTION: 5
 
 a660_vk_full:
   extends:
