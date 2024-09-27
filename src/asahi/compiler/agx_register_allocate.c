@@ -1567,6 +1567,9 @@ agx_ra(agx_context *ctx)
 
    assert(ctx->max_reg <= max_regs);
 
+   /* Validate RA after assigning registers just before lowering SSA */
+   agx_validate_ra(ctx);
+
    agx_foreach_instr_global_safe(ctx, ins) {
       /* Lower away SSA */
       agx_foreach_ssa_dest(ins, d) {

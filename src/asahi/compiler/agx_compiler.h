@@ -1029,11 +1029,16 @@ void agx_pack_binary(agx_context *ctx, struct util_dynarray *emission);
 
 #ifndef NDEBUG
 void agx_validate(agx_context *ctx, const char *after_str);
+void agx_validate_ra(agx_context *ctx);
 #else
 static inline void
 agx_validate(UNUSED agx_context *ctx, UNUSED const char *after_str)
 {
-   return;
+}
+
+static inline void
+agx_validate_ra(UNUSED agx_context *ctx)
+{
 }
 #endif
 

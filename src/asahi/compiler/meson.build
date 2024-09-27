@@ -39,6 +39,7 @@ libasahi_agx_files = files(
   'agx_spill.c',
   'agx_register_allocate.c',
   'agx_validate.c',
+  'agx_validate_ra.c',
 )
 
 agx_nir_algebraic_c = custom_target(
