@@ -37,6 +37,14 @@ radeonsi-stoney-gl:x86_64:
   variables:
     DEQP_SUITE: radeonsi-stoney
     HWCI_START_WESTON: 1
+    DEQP_FRACTION: 2
+
+radeonsi-stoney-gl:x86_64_full:
+  extends:
+    - radeonsi-stoney-gl:x86_64
+    - .radeonsi-manual-rules
+  variables:
+    DEQP_FRACTION: 1
 
 radeonsi-stoney-traces:x86_64:
   extends:

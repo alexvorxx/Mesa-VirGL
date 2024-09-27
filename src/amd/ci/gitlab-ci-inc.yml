@@ -31,6 +31,20 @@
         - src/amd/vpelib/**/*
       when: on_success
 
+.radeonsi-manual-rules:
+  stage: amd-postmerge
+  extends: .no-auto-retry
+  rules:
+    - !reference [.test, rules]
+    - !reference [.collabora-farm-manual-rules, rules]
+    - !reference [.gl-manual-rules, rules]
+    - changes:
+        *amd_common_file_list
+      when: manual
+    - changes:
+        *radeonsi_file_list
+      when: manual
+
 .radv-rules:
   stage: amd
   rules:
