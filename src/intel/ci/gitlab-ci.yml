@@ -9,7 +9,7 @@ anv-jsl:
     DEQP_SUITE: anv-jsl
     VK_DRIVER: intel
     DEQP_FRACTION: 2
-  parallel: 4
+  parallel: 5
 
 # We don't enable a full run of anv-jsl nightly because it's about 8 hours of
 # runtime, which would take too many boards at once.
@@ -92,6 +92,7 @@ anv-jsl-angle:
   variables:
     DEQP_SUITE: anv-jsl-angle
     GPU_VERSION: angle-anv-jsl
+  parallel: 2
 
 anv-jsl-angle-full:
   extends:
@@ -198,7 +199,7 @@ iris-jsl-deqp:
     - .iris-test
   variables:
     DEQP_SUITE: iris-jsl
-    DEQP_FRACTION: 4
+    DEQP_FRACTION: 8
   parallel: 2
 
 iris-amly-egl:
