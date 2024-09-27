@@ -350,13 +350,13 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
       memset(device->queues[qfi], 0,
              queue_create->queueCount * sizeof(struct panvk_queue));
 
-      device->queue_count[qfi] = queue_create->queueCount;
-
       for (unsigned q = 0; q < queue_create->queueCount; q++) {
          result = panvk_per_arch(queue_init)(device, &device->queues[qfi][q], q,
                                              queue_create);
          if (result != VK_SUCCESS)
             goto err_finish_queues;
+
+         device->queue_count[qfi]++;
       }
    }
 
@@ -367,7 +367,7 @@ err_finish_queues:
    for (unsigned i = 0; i < PANVK_MAX_QUEUE_FAMILIES; i++) {
       for (unsigned q = 0; q < device->queue_count[i]; q++)
          panvk_per_arch(queue_finish)(&device->queues[i][q]);
-      if (device->queue_count[i])
+      if (device->queues[i])
          vk_object_free(&device->vk, NULL, device->queues[i]);
    }
 
