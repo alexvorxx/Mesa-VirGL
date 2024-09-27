@@ -17,24 +17,6 @@
 #include "shader_enums.h"
 
 /* SSA-based register allocator */
-
-enum ra_class {
-   /* General purpose register */
-   RA_GPR,
-
-   /* Memory, used to assign stack slots */
-   RA_MEM,
-
-   /* Keep last */
-   RA_CLASSES,
-};
-
-static inline enum ra_class
-ra_class_for_index(agx_index idx)
-{
-   return idx.memory ? RA_MEM : RA_GPR;
-}
-
 struct phi_web_node {
    /* Parent index, or circular for root */
    uint32_t parent;

@@ -269,6 +269,23 @@ agx_is_equiv(agx_index left, agx_index right)
    return (left.type == right.type) && (left.value == right.value);
 }
 
+enum ra_class {
+   /* General purpose register */
+   RA_GPR,
+
+   /* Memory, used to assign stack slots */
+   RA_MEM,
+
+   /* Keep last */
+   RA_CLASSES,
+};
+
+static inline enum ra_class
+ra_class_for_index(agx_index idx)
+{
+   return idx.memory ? RA_MEM : RA_GPR;
+}
+
 enum agx_icond {
    AGX_ICOND_UEQ = 0,
    AGX_ICOND_ULT = 1,
