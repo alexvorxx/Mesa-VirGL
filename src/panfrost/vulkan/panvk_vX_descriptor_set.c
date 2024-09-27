@@ -262,11 +262,12 @@ panvk_per_arch(CreateDescriptorPool)(
       desc_count += pool->max_sets;
 
       uint64_t pool_size = desc_count * PANVK_DESCRIPTOR_SIZE;
-      pool->desc_bo = panvk_priv_bo_create(device, pool_size, 0,
-                                           VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
-      if (!pool->desc_bo) {
+      VkResult result = panvk_priv_bo_create(device, pool_size, 0,
+                                             VK_SYSTEM_ALLOCATION_SCOPE_OBJECT,
+                                             &pool->desc_bo);
+      if (result != VK_SUCCESS) {
          panvk_destroy_descriptor_pool(device, pAllocator, pool);
-         return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+         return result;
       }
       uint64_t bo_size = pool->desc_bo->bo->size;
       assert(pool_size <= bo_size);

@@ -6,6 +6,7 @@
 #include <assert.h>
 
 #include "vk_alloc.h"
+#include "vk_log.h"
 
 #include "panvk_device.h"
 #include "panvk_priv_bo.h"
@@ -14,21 +15,24 @@
 
 #include "genxml/decode.h"
 
-struct panvk_priv_bo *
+VkResult
 panvk_priv_bo_create(struct panvk_device *dev, size_t size, uint32_t flags,
-                     VkSystemAllocationScope scope)
+                     VkSystemAllocationScope scope, struct panvk_priv_bo **out)
 {
+   VkResult result;
    int ret;
    struct panvk_priv_bo *priv_bo =
       vk_zalloc(&dev->vk.alloc, sizeof(*priv_bo), 8, scope);
 
    if (!priv_bo)
-      return NULL;
+      return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    struct pan_kmod_bo *bo =
       pan_kmod_bo_alloc(dev->kmod.dev, dev->kmod.vm, size, flags);
-   if (!bo)
+   if (!bo) {
+      result = vk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);
       goto err_free_priv_bo;
+   }
 
    priv_bo->bo = bo;
    priv_bo->dev = dev;
@@ -36,8 +40,10 @@ panvk_priv_bo_create(struct panvk_device *dev, size_t size, uint32_t flags,
    if (!(flags & PAN_KMOD_BO_FLAG_NO_MMAP)) {
       priv_bo->addr.host = pan_kmod_bo_mmap(
          bo, 0, pan_kmod_bo_size(bo), PROT_READ | PROT_WRITE, MAP_SHARED, NULL);
-      if (priv_bo->addr.host == MAP_FAILED)
+      if (priv_bo->addr.host == MAP_FAILED) {
+         result = vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
          goto err_put_bo;
+      }
    }
 
    struct pan_kmod_vm_op op = {
@@ -57,13 +63,17 @@ panvk_priv_bo_create(struct panvk_device *dev, size_t size, uint32_t flags,
       op.va.start = util_vma_heap_alloc(
          &dev->as.heap, op.va.size, op.va.size > 0x200000 ? 0x200000 : 0x1000);
       simple_mtx_unlock(&dev->as.lock);
-      if (!op.va.start)
+      if (!op.va.start) {
+         result = vk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);
          goto err_munmap_bo;
+      }
    }
 
    ret = pan_kmod_vm_bind(dev->kmod.vm, PAN_KMOD_VM_OP_MODE_IMMEDIATE, &op, 1);
-   if (ret)
+   if (ret) {
+      result = vk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);
       goto err_return_va;
+   }
 
    priv_bo->addr.dev = op.va.start;
 
@@ -75,7 +85,8 @@ panvk_priv_bo_create(struct panvk_device *dev, size_t size, uint32_t flags,
 
    p_atomic_set(&priv_bo->refcnt, 1);
 
-   return priv_bo;
+   *out = priv_bo;
+   return VK_SUCCESS;
 
 err_return_va:
    if (!(dev->kmod.vm->flags & PAN_KMOD_VM_FLAG_AUTO_VA)) {
@@ -95,7 +106,7 @@ err_put_bo:
 
 err_free_priv_bo:
    vk_free(&dev->vk.alloc, priv_bo);
-   return NULL;
+   return result;
 }
 
 static void

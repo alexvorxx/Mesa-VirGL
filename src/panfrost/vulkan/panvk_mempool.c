@@ -56,7 +56,7 @@ static struct panvk_priv_bo *
 panvk_pool_alloc_backing(struct panvk_pool *pool, size_t sz)
 {
    size_t bo_sz = ALIGN_POT(MAX2(pool->base.slab_size, sz), 4096);
-   struct panvk_priv_bo *bo;
+   struct panvk_priv_bo *bo = NULL;
 
    /* If there's a free BO in our BO pool, let's pick it. */
    if (pool->bo_pool && bo_sz == pool->base.slab_size &&
@@ -71,8 +71,8 @@ panvk_pool_alloc_backing(struct panvk_pool *pool, size_t sz)
        * flags to this function and keep the read/write,
        * fragment/vertex+tiler pools separate.
        */
-      bo = panvk_priv_bo_create(pool->dev, bo_sz, pool->props.create_flags,
-                                VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+      panvk_priv_bo_create(pool->dev, bo_sz, pool->props.create_flags,
+                           VK_SYSTEM_ALLOCATION_SCOPE_DEVICE, &bo);
    }
 
    if (bo == NULL)

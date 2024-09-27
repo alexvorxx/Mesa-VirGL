@@ -300,25 +300,19 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
    panvk_device_init_mempools(device);
 
 #if PAN_ARCH <= 9
-   device->tiler_heap = panvk_priv_bo_create(
+   result = panvk_priv_bo_create(
       device, 128 * 1024 * 1024,
       PAN_KMOD_BO_FLAG_NO_MMAP | PAN_KMOD_BO_FLAG_ALLOC_ON_FAULT,
-      VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
-
-   if (!device->tiler_heap) {
-      result = vk_error(physical_device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      VK_SYSTEM_ALLOCATION_SCOPE_DEVICE, &device->tiler_heap);
+   if (result != VK_SUCCESS)
       goto err_free_priv_bos;
-   }
 #endif
 
-   device->sample_positions =
-      panvk_priv_bo_create(device, panfrost_sample_positions_buffer_size(), 0,
-                           VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
-
-   if (!device->sample_positions) {
-      result = vk_error(physical_device, VK_ERROR_OUT_OF_HOST_MEMORY);
+   result = panvk_priv_bo_create(
+      device, panfrost_sample_positions_buffer_size(), 0,
+      VK_SYSTEM_ALLOCATION_SCOPE_DEVICE, &device->sample_positions);
+   if (result != VK_SUCCESS)
       goto err_free_priv_bos;
-   }
 
    panfrost_upload_sample_positions(device->sample_positions->addr.host);
 
