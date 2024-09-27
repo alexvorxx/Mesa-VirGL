@@ -181,6 +181,13 @@ agx_register_like(uint32_t imm, agx_index like)
 }
 
 static inline agx_index
+agx_as_register(agx_index x)
+{
+   assert(x.has_reg);
+   return agx_register_like(x.reg, x);
+}
+
+static inline agx_index
 agx_undef(enum agx_size size)
 {
    return (agx_index){

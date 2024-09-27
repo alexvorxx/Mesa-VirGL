@@ -681,8 +681,10 @@ agx_emit_move_before_phi(agx_context *ctx, agx_block *block,
 
    /* Look for the phi writing the destination */
    agx_foreach_phi_in_block(block, phi) {
-      if (agx_is_equiv(phi->dest[0], copy->src) && !phi->dest[0].memory) {
-         phi->dest[0].value = copy->dest;
+      if (agx_is_equiv(agx_as_register(phi->dest[0]), copy->src) &&
+          !phi->dest[0].memory) {
+
+         phi->dest[0].reg = copy->dest;
          return;
       }
    }
@@ -812,6 +814,9 @@ reserve_live_in(struct ra_ctx *rctx)
          agx_foreach_predecessor(rctx->block, pred) {
             unsigned pred_idx = agx_predecessor_index(rctx->block, *pred);
 
+            phi->src[pred_idx] = agx_get_index(i, size);
+            phi->src[pred_idx].memory = cls == RA_MEM;
+
             if ((*pred)->reg_to_ssa_out[cls] == NULL) {
                /* If this is a loop header, we don't know where the register
                 * will end up. So, we create a phi conservatively but don't fill
@@ -819,14 +824,11 @@ reserve_live_in(struct ra_ctx *rctx)
                 * we'll need to fill in the real register later.
                 */
                assert(rctx->block->loop_header);
-               phi->src[pred_idx] = agx_get_index(i, size);
-               phi->src[pred_idx].memory = rctx->classes[i] == RA_MEM;
             } else {
                /* Otherwise, we can build the phi now */
-               unsigned reg = search_ssa_to_reg_out(rctx, *pred, cls, i);
-               phi->src[pred_idx] = cls == RA_MEM
-                                       ? agx_memory_register(reg, size)
-                                       : agx_register(reg, size);
+               phi->src[pred_idx].reg =
+                  search_ssa_to_reg_out(rctx, *pred, cls, i);
+               phi->src[pred_idx].has_reg = true;
             }
          }
 
@@ -835,9 +837,9 @@ reserve_live_in(struct ra_ctx *rctx)
           * particular predecessor. That means that such a register allocation
           * is valid here, because it was valid in the predecessor.
           */
-         assert(phi->src[0].type == AGX_INDEX_REGISTER && "not loop source");
+         assert(phi->src[0].has_reg && "not loop source");
          phi->dest[0] = phi->src[0];
-         base = phi->dest[0].value;
+         base = phi->dest[0].reg;
       } else {
          /* If we don't emit a phi, there is already a unique register */
          assert(nr_preds == 1);
@@ -891,8 +893,8 @@ agx_set_sources(struct ra_ctx *rctx, agx_instr *I)
    agx_foreach_ssa_src(I, s) {
       assert(BITSET_TEST(rctx->visited, I->src[s].value) && "no phis");
 
-      unsigned v = rctx->ssa_to_reg[I->src[s].value];
-      agx_replace_src(I, s, agx_register_like(v, I->src[s]));
+      I->src[s].reg = rctx->ssa_to_reg[I->src[s].value];
+      I->src[s].has_reg = true;
    }
 }
 
@@ -900,9 +902,8 @@ static void
 agx_set_dests(struct ra_ctx *rctx, agx_instr *I)
 {
    agx_foreach_ssa_dest(I, s) {
-      unsigned v = rctx->ssa_to_reg[I->dest[s].value];
-      I->dest[s] =
-         agx_replace_index(I->dest[s], agx_register_like(v, I->dest[s]));
+      I->dest[s].reg = rctx->ssa_to_reg[I->dest[s].value];
+      I->dest[s].has_reg = true;
    }
 }
 
@@ -1106,8 +1107,8 @@ pick_regs(struct ra_ctx *rctx, agx_instr *I, unsigned d)
       }
 
       /* If we're in a loop, we may have already allocated the phi. Try that. */
-      if (phi->dest[0].type == AGX_INDEX_REGISTER) {
-         unsigned base = phi->dest[0].value;
+      if (phi->dest[0].has_reg) {
+         unsigned base = phi->dest[0].reg;
 
          if (base + count <= rctx->bound[cls] &&
              !BITSET_TEST_RANGE(rctx->used_regs[cls], base, base + count - 1))
@@ -1224,6 +1225,9 @@ agx_ra_assign_local(struct ra_ctx *rctx)
        * because of the SSA form.
        */
       agx_foreach_ssa_dest(I, d) {
+         if (I->op == AGX_OPCODE_PHI && I->dest[d].has_reg)
+            continue;
+
          assign_regs(rctx, I->dest[d], pick_regs(rctx, I, d));
       }
 
@@ -1255,13 +1259,12 @@ agx_ra_assign_local(struct ra_ctx *rctx)
       unsigned pred_idx = agx_predecessor_index(succ, block);
 
       agx_foreach_phi_in_block(succ, phi) {
-         if (phi->src[pred_idx].type == AGX_INDEX_NORMAL) {
+         if (phi->src[pred_idx].type == AGX_INDEX_NORMAL &&
+             !phi->src[pred_idx].has_reg) {
             /* This source needs a fixup */
             unsigned value = phi->src[pred_idx].value;
-
-            agx_replace_src(
-               phi, pred_idx,
-               agx_register_like(rctx->ssa_to_reg[value], phi->src[pred_idx]));
+            phi->src[pred_idx].reg = rctx->ssa_to_reg[value];
+            phi->src[pred_idx].has_reg = true;
          }
       }
    }
@@ -1574,6 +1577,16 @@ agx_ra(agx_context *ctx)
    assert(ctx->max_reg <= max_regs);
 
    agx_foreach_instr_global_safe(ctx, ins) {
+      /* Lower away SSA */
+      agx_foreach_ssa_dest(ins, d) {
+         ins->dest[d] =
+            agx_replace_index(ins->dest[d], agx_as_register(ins->dest[d]));
+      }
+
+      agx_foreach_ssa_src(ins, s) {
+         agx_replace_src(ins, s, agx_as_register(ins->src[s]));
+      }
+
       /* Lower away RA pseudo-instructions */
       agx_builder b = agx_init_builder(ctx, agx_after_instr(ins));
 
