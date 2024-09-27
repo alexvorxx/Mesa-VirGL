@@ -31,3 +31,7 @@ spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-vec3-i
 
 # First seen in https://gitlab.freedesktop.org/mesa/mesa/-/jobs/58636780
 KHR-GL46.sparse_buffer_tests.BufferStorageTest
+
+# Low occurrence flakes
+dEQP-GLES3.functional.fbo.multiview.samples_4
+spec@glsl-1.50@execution@redeclare-pervertex-out-subset-gs

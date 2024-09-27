@@ -1,3 +1,4 @@
+dEQP-GLES31.functional.copy_image.mixed.viewclass_64_bits_mixed.rg32ui_signed_r11_eac.cubemap_to_cubemap
 dEQP-GLES31.functional.tessellation.invariance.primitive_set.triangles_equal_spacing_ccw_point_mode
 dEQP-GLES31.functional.tessellation.invariance.primitive_set.triangles_equal_spacing_cw_point_mode
 dEQP-GLES31.functional.tessellation.invariance.primitive_set.triangles_fractional_even_spacing_ccw_point_mode
