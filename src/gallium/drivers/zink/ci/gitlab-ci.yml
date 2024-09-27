@@ -179,9 +179,11 @@ zink-radv-polaris10-valve:
     - .radv-zink-test-valve
     - .polaris10-test-valve-kws
     - .zink-radv-manual-rules
+  timeout: 40m
   variables:
     GPU_VERSION: zink-radv-polaris10
     ZINK_DEBUG: quiet
+    B2C_TIMEOUT_OVERALL_MINUTES: 30
 
 zink-radv-navi10-valve:
   extends:
