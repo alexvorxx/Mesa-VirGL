@@ -775,7 +775,13 @@ panvk_shader_destroy(struct vk_device *vk_dev, struct vk_shader *vk_shader,
    panvk_pool_free_mem(&dev->mempools.exec, shader->rsd);
    panvk_pool_free_mem(&dev->mempools.exec, shader->desc_info.others.map);
 #else
-   panvk_pool_free_mem(&dev->mempools.exec, shader->spd);
+   if (shader->info.stage != MESA_SHADER_VERTEX) {
+      panvk_pool_free_mem(&dev->mempools.exec, shader->spd);
+   } else {
+      panvk_pool_free_mem(&dev->mempools.exec, shader->spds.var);
+      panvk_pool_free_mem(&dev->mempools.exec, shader->spds.pos_points);
+      panvk_pool_free_mem(&dev->mempools.exec, shader->spds.pos_triangles);
+   }
 #endif
 
    free((void *)shader->bin_ptr);
