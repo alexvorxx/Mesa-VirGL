@@ -835,7 +835,9 @@ panthor_kmod_vm_bind(struct pan_kmod_vm *vm, enum pan_kmod_vm_op_mode mode,
 {
    struct panthor_kmod_vm *panthor_vm =
       container_of(vm, struct panthor_kmod_vm, base);
+   struct drm_panthor_vm_bind_op bind_ops_storage[16];
    struct drm_panthor_vm_bind_op *bind_ops = NULL;
+   struct drm_panthor_sync_op sync_ops_storage[16];
    struct drm_panthor_sync_op *sync_ops = NULL;
    uint32_t syncop_cnt = 0, syncop_ptr = 0;
    bool async = mode == PAN_KMOD_VM_OP_MODE_ASYNC ||
@@ -910,7 +912,7 @@ panthor_kmod_vm_bind(struct pan_kmod_vm *vm, enum pan_kmod_vm_op_mode mode,
       list_addtail(&va_collect->node, &va_collect_list);
    }
 
-   if (syncop_cnt) {
+   if (syncop_cnt && syncop_cnt > ARRAY_SIZE(sync_ops_storage)) {
       sync_ops =
          pan_kmod_dev_alloc_transient(vm->dev, sizeof(*sync_ops) * syncop_cnt);
       if (!sync_ops) {
@@ -918,13 +920,22 @@ panthor_kmod_vm_bind(struct pan_kmod_vm *vm, enum pan_kmod_vm_op_mode mode,
                    syncop_cnt);
          goto out_free_va_collect;
       }
+   } else if (syncop_cnt) {
+      sync_ops = sync_ops_storage;
+      memset(sync_ops, 0, sizeof(*sync_ops) * syncop_cnt);
    }
 
-   bind_ops =
-      pan_kmod_dev_alloc_transient(vm->dev, sizeof(*bind_ops) * op_count);
-   if (!bind_ops) {
-      mesa_loge("drm_panthor_vm_bind_op[%d] array allocation failed", op_count);
-      goto out_free_sync_ops;
+   if (op_count > ARRAY_SIZE(bind_ops_storage)) {
+      bind_ops =
+         pan_kmod_dev_alloc_transient(vm->dev, sizeof(*bind_ops) * op_count);
+      if (!bind_ops) {
+         mesa_loge("drm_panthor_vm_bind_op[%d] array allocation failed",
+                   op_count);
+         goto out_free_sync_ops;
+      }
+   } else {
+      bind_ops = bind_ops_storage;
+      memset(bind_ops, 0, sizeof(*bind_ops) * op_count);
    }
 
    struct drm_panthor_vm_bind req = {
@@ -1064,10 +1075,12 @@ out_update_vas:
       }
    }
 
-   pan_kmod_dev_free(vm->dev, bind_ops);
+   if (bind_ops != bind_ops_storage)
+      pan_kmod_dev_free(vm->dev, bind_ops);
 
 out_free_sync_ops:
-   pan_kmod_dev_free(vm->dev, sync_ops);
+   if (sync_ops != sync_ops_storage)
+      pan_kmod_dev_free(vm->dev, sync_ops);
 
 out_free_va_collect:
    list_for_each_entry_safe(struct panthor_kmod_va_collect, va_collect,
