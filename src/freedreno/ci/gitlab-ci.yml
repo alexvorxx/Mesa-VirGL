@@ -84,12 +84,12 @@ a618_vk:
     - .lava-test-deqp:arm64
     - .lava-sc7180-trogdor-kingoftown:arm64
     - .collabora-turnip-rules
-  parallel: 12
+  parallel: 10
   variables:
     DEQP_SUITE: freedreno-a618-vk
     FLAKES_CHANNEL: "#freedreno-ci"
     MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
-    DEQP_FRACTION: 2
+    DEQP_FRACTION: 3
 
 a618_vk_full:
   extends:
@@ -133,7 +133,7 @@ a618_egl:
 a618_skqp:
   extends:
     - .lava-test-deqp:arm64
-    - .lava-sc7180-trogdor-lazor-limozeen:arm64
+    - .lava-sc7180-trogdor-kingoftown:arm64
     - .collabora-freedreno-rules
     # SKQP tests both the GL and VK drivers.
     - .collabora-freedreno-turnip-rules
@@ -169,7 +169,7 @@ a618_piglit_full:
 a618-traces:
   extends:
     - .lava-piglit-traces:arm64
-    - .lava-sc7180-trogdor-lazor-limozeen:arm64
+    - .lava-sc7180-trogdor-kingoftown:arm64
     - .collabora-freedreno-rules
   variables:
     HWCI_START_WESTON: 1
