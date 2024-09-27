@@ -110,10 +110,11 @@ a618_gl:
     - .lava-test-deqp:arm64
     - .lava-sc7180-trogdor-lazor-limozeen:arm64
     - .collabora-freedreno-rules
-  parallel: 4
+  parallel: 2
   variables:
     DEQP_SUITE: freedreno-a618
     FLAKES_CHANNEL: "#freedreno-ci"
+    DEQP_FRACTION: 2
 
 # Run dEQP EGL window system tests separately with the window systems available.
 # X11 takes over the screen, wayland is run headless.
