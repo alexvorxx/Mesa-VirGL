@@ -758,6 +758,7 @@ panvk_per_arch(queue_finish)(struct panvk_queue *queue)
 {
    struct panvk_device *dev = to_panvk_device(queue->vk.base.device);
 
+   cleanup_queue(queue);
    destroy_group(queue);
    cleanup_tiler(queue);
    drmSyncobjDestroy(dev->vk.drm_fd, queue->syncobj_handle);
