@@ -86,7 +86,7 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
    view = vk_image_view_create(&device->vk, driver_internal, pCreateInfo,
                                pAllocator, sizeof(*view));
    if (view == NULL)
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    view->pview = (struct pan_image_view){
       .planes[0] = &image->pimage,
@@ -162,7 +162,7 @@ panvk_per_arch(CreateImageView)(VkDevice _device,
 
       view->mem = panvk_pool_alloc_mem(&device->mempools.rw, alloc_info);
       if (!panvk_priv_mem_host_addr(view->mem)) {
-         result = vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+         result = panvk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
 	 goto err_destroy_iview;
       }
 

@@ -28,7 +28,7 @@ panvk_CreateCommandPool(VkDevice _device,
    pool = vk_alloc2(&device->vk.alloc, pAllocator, sizeof(*pool), 8,
                     VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
    if (pool == NULL)
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    VkResult result =
       vk_command_pool_init(&device->vk, &pool->vk, pCreateInfo, pAllocator);

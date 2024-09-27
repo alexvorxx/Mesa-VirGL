@@ -64,8 +64,6 @@ static VkResult
 init_render_desc_ringbuf(struct panvk_queue *queue)
 {
    struct panvk_device *dev = to_panvk_device(queue->vk.base.device);
-   const struct panvk_physical_device *phys_dev =
-      to_panvk_physical_device(queue->vk.base.device->physical);
    uint32_t flags = panvk_device_adjust_bo_flags(dev, PAN_KMOD_BO_FLAG_NO_MMAP);
    struct panvk_desc_ringbuf *ringbuf = &queue->render_desc_ringbuf;
    const size_t size = RENDER_DESC_RINGBUF_SIZE;
@@ -75,15 +73,15 @@ init_render_desc_ringbuf(struct panvk_queue *queue)
 
    ringbuf->bo = pan_kmod_bo_alloc(dev->kmod.dev, dev->kmod.vm, size, flags);
    if (!ringbuf->bo)
-      return vk_errorf(phys_dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                       "Failed to create a descriptor ring buffer context");
+      return panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                          "Failed to create a descriptor ring buffer context");
 
    if (!(flags & PAN_KMOD_BO_FLAG_NO_MMAP)) {
       ringbuf->addr.host = pan_kmod_bo_mmap(
          ringbuf->bo, 0, size, PROT_READ | PROT_WRITE, MAP_SHARED, NULL);
       if (ringbuf->addr.host == MAP_FAILED) {
-         result = vk_errorf(phys_dev, VK_ERROR_OUT_OF_HOST_MEMORY,
-                            "Failed to CPU map ringbuf BO");
+         result = panvk_errorf(dev, VK_ERROR_OUT_OF_HOST_MEMORY,
+                               "Failed to CPU map ringbuf BO");
          goto err_finish_ringbuf;
       }
    }
@@ -96,8 +94,9 @@ init_render_desc_ringbuf(struct panvk_queue *queue)
    simple_mtx_unlock(&dev->as.lock);
 
    if (!dev_addr) {
-      result = vk_errorf(phys_dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                         "Failed to allocate virtual address for ringbuf BO");
+      result =
+         panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                      "Failed to allocate virtual address for ringbuf BO");
       goto err_finish_ringbuf;
    }
 
@@ -129,8 +128,8 @@ init_render_desc_ringbuf(struct panvk_queue *queue)
    ret = pan_kmod_vm_bind(dev->kmod.vm, PAN_KMOD_VM_OP_MODE_IMMEDIATE, vm_ops,
                           ARRAY_SIZE(vm_ops));
    if (ret) {
-      result = vk_errorf(phys_dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                         "Failed to GPU map ringbuf BO");
+      result = panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                            "Failed to GPU map ringbuf BO");
       goto err_finish_ringbuf;
    }
 
@@ -154,8 +153,8 @@ init_render_desc_ringbuf(struct panvk_queue *queue)
    struct panvk_cs_sync32 *syncobj = panvk_priv_mem_host_addr(ringbuf->syncobj);
 
    if (!syncobj) {
-      result = vk_errorf(phys_dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                         "Failed to create the render desc ringbuf context");
+      result = panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                            "Failed to create the render desc ringbuf context");
       goto err_finish_ringbuf;
    }
 
@@ -195,8 +194,8 @@ init_subqueue(struct panvk_queue *queue, enum panvk_subqueue_id subqueue)
 
    subq->context = panvk_pool_alloc_mem(&dev->mempools.rw, alloc_info);
    if (!panvk_priv_mem_host_addr(subq->context))
-      return vk_errorf(phys_dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                       "Failed to create a queue context");
+      return panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                          "Failed to create a queue context");
 
    struct panvk_cs_subqueue_context *cs_ctx =
       panvk_priv_mem_host_addr(subq->context);
@@ -281,14 +280,14 @@ init_subqueue(struct panvk_queue *queue, enum panvk_subqueue_id subqueue)
 
    int ret = drmIoctl(dev->vk.drm_fd, DRM_IOCTL_PANTHOR_GROUP_SUBMIT, &gsubmit);
    if (ret)
-      return vk_errorf(dev->vk.physical, VK_ERROR_INITIALIZATION_FAILED,
-                       "Failed to initialized subqueue: %m");
+      return panvk_errorf(dev->vk.physical, VK_ERROR_INITIALIZATION_FAILED,
+                          "Failed to initialized subqueue: %m");
 
    ret = drmSyncobjWait(dev->vk.drm_fd, &queue->syncobj_handle, 1, INT64_MAX, 0,
                         NULL);
    if (ret)
-      return vk_errorf(dev->vk.physical, VK_ERROR_INITIALIZATION_FAILED,
-                       "SyncobjWait failed: %m");
+      return panvk_errorf(dev->vk.physical, VK_ERROR_INITIALIZATION_FAILED,
+                          "SyncobjWait failed: %m");
 
    if (debug & PANVK_DEBUG_TRACE) {
       uint32_t regs[256] = {0};
@@ -319,8 +318,6 @@ static VkResult
 init_queue(struct panvk_queue *queue)
 {
    struct panvk_device *dev = to_panvk_device(queue->vk.base.device);
-   const struct panvk_physical_device *phys_dev =
-      to_panvk_physical_device(queue->vk.base.device->physical);
    struct panvk_instance *instance =
       to_panvk_instance(dev->vk.physical->instance);
    VkResult result;
@@ -333,8 +330,8 @@ init_queue(struct panvk_queue *queue)
 
    queue->syncobjs = panvk_pool_alloc_mem(&dev->mempools.rw, alloc_info);
    if (!panvk_priv_mem_host_addr(queue->syncobjs))
-      return vk_errorf(phys_dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                       "Failed to allocate subqueue sync objects");
+      return panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                          "Failed to allocate subqueue sync objects");
 
    if (instance->debug_flags & (PANVK_DEBUG_SYNC | PANVK_DEBUG_TRACE)) {
       alloc_info.size =
@@ -342,8 +339,8 @@ init_queue(struct panvk_queue *queue)
       queue->debug_syncobjs =
          panvk_pool_alloc_mem(&dev->mempools.rw_nc, alloc_info);
       if (!panvk_priv_mem_host_addr(queue->debug_syncobjs)) {
-         result = vk_errorf(phys_dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                            "Failed to allocate subqueue sync objects");
+         result = panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                               "Failed to allocate subqueue sync objects");
          goto err_cleanup_queue;
       }
    }
@@ -405,8 +402,8 @@ create_group(struct panvk_queue *queue)
 
    int ret = drmIoctl(dev->vk.drm_fd, DRM_IOCTL_PANTHOR_GROUP_CREATE, &gc);
    if (ret)
-      return vk_errorf(phys_dev, VK_ERROR_INITIALIZATION_FAILED,
-                       "Failed to create a scheduling group");
+      return panvk_errorf(dev, VK_ERROR_INITIALIZATION_FAILED,
+                          "Failed to create a scheduling group");
 
    queue->group_handle = gc.group_handle;
    return VK_SUCCESS;
@@ -428,8 +425,6 @@ destroy_group(struct panvk_queue *queue)
 static VkResult
 init_tiler(struct panvk_queue *queue)
 {
-   const struct panvk_physical_device *phys_dev =
-      to_panvk_physical_device(queue->vk.base.device->physical);
    struct panvk_device *dev = to_panvk_device(queue->vk.base.device);
    struct panvk_tiler_heap *tiler_heap = &queue->tiler_heap;
    VkResult result;
@@ -444,8 +439,8 @@ init_tiler(struct panvk_queue *queue)
 
    tiler_heap->desc = panvk_pool_alloc_mem(&dev->mempools.rw, alloc_info);
    if (!panvk_priv_mem_host_addr(tiler_heap->desc)) {
-      result = vk_errorf(phys_dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
-                         "Failed to create a tiler heap context");
+      result = panvk_errorf(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY,
+                            "Failed to create a tiler heap context");
       goto err_free_desc;
    }
 
@@ -462,8 +457,8 @@ init_tiler(struct panvk_queue *queue)
    int ret =
       drmIoctl(dev->vk.drm_fd, DRM_IOCTL_PANTHOR_TILER_HEAP_CREATE, &thc);
    if (ret) {
-      result = vk_errorf(phys_dev, VK_ERROR_INITIALIZATION_FAILED,
-                         "Failed to create a tiler heap context");
+      result = panvk_errorf(dev, VK_ERROR_INITIALIZATION_FAILED,
+                            "Failed to create a tiler heap context");
       goto err_free_desc;
    }
 
@@ -710,17 +705,14 @@ VkResult
 panvk_per_arch(queue_init)(struct panvk_device *dev, struct panvk_queue *queue,
                            int idx, const VkDeviceQueueCreateInfo *create_info)
 {
-   const struct panvk_physical_device *phys_dev =
-      to_panvk_physical_device(dev->vk.physical);
-
    VkResult result = vk_queue_init(&queue->vk, &dev->vk, create_info, idx);
    if (result != VK_SUCCESS)
       return result;
 
    int ret = drmSyncobjCreate(dev->vk.drm_fd, 0, &queue->syncobj_handle);
    if (ret) {
-      result = vk_errorf(phys_dev, VK_ERROR_INITIALIZATION_FAILED,
-                         "Failed to create our internal sync object");
+      result = panvk_errorf(dev, VK_ERROR_INITIALIZATION_FAILED,
+                            "Failed to create our internal sync object");
       goto err_finish_queue;
    }
 

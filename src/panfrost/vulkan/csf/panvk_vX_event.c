@@ -21,7 +21,7 @@ panvk_per_arch(CreateEvent)(VkDevice _device,
    struct panvk_event *event = vk_object_zalloc(
       &device->vk, pAllocator, sizeof(*event), VK_OBJECT_TYPE_EVENT);
    if (!event)
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    struct panvk_pool_alloc_info info = {
       .size = sizeof(struct panvk_cs_sync32) * PANVK_SUBQUEUE_COUNT,
@@ -31,7 +31,7 @@ panvk_per_arch(CreateEvent)(VkDevice _device,
    event->syncobjs = panvk_pool_alloc_mem(&device->mempools.rw_nc, info);
    if (!panvk_priv_mem_host_addr(event->syncobjs)) {
       vk_object_free(&device->vk, pAllocator, event);
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
    }
 
    memset(panvk_priv_mem_host_addr(event->syncobjs), 0,

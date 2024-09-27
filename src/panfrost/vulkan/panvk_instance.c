@@ -17,6 +17,7 @@
 
 #include "panvk_entrypoints.h"
 #include "panvk_instance.h"
+#include "panvk_macros.h"
 #include "panvk_physical_device.h"
 
 #ifdef HAVE_VALGRIND
@@ -87,7 +88,7 @@ panvk_physical_device_try_create(struct vk_instance *vk_instance,
       vk_zalloc(&instance->vk.alloc, sizeof(*device), 8,
                 VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
    if (!device)
-      return vk_error(instance, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(instance, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    VkResult result = panvk_physical_device_init(device, instance, drm_device);
    if (result != VK_SUCCESS) {
@@ -145,21 +146,21 @@ panvk_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
    const struct build_id_note *note =
       build_id_find_nhdr_for_addr(panvk_CreateInstance);
    if (!note) {
-      return vk_errorf(NULL, VK_ERROR_INITIALIZATION_FAILED,
-                       "Failed to find build-id");
+      return panvk_errorf(NULL, VK_ERROR_INITIALIZATION_FAILED,
+                          "Failed to find build-id");
    }
 
    unsigned build_id_len = build_id_length(note);
    if (build_id_len < SHA1_DIGEST_LENGTH) {
-      return vk_errorf(NULL, VK_ERROR_INITIALIZATION_FAILED,
-                       "build-id too short.  It needs to be a SHA");
+      return panvk_errorf(NULL, VK_ERROR_INITIALIZATION_FAILED,
+                          "build-id too short.  It needs to be a SHA");
    }
 
    pAllocator = pAllocator ?: vk_default_allocator();
    instance = vk_zalloc(pAllocator, sizeof(*instance), 8,
                         VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
    if (!instance)
-      return vk_error(NULL, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(NULL, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    struct vk_instance_dispatch_table dispatch_table;
 
@@ -171,7 +172,7 @@ panvk_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                              &dispatch_table, pCreateInfo, pAllocator);
    if (result != VK_SUCCESS) {
       vk_free(pAllocator, instance);
-      return vk_error(NULL, result);
+      return panvk_error(NULL, result);
    }
 
    instance->kmod.allocator = (struct pan_kmod_allocator){
@@ -227,7 +228,7 @@ panvk_EnumerateInstanceExtensionProperties(const char *pLayerName,
                                            VkExtensionProperties *pProperties)
 {
    if (pLayerName)
-      return vk_error(NULL, VK_ERROR_LAYER_NOT_PRESENT);
+      return panvk_error(NULL, VK_ERROR_LAYER_NOT_PRESENT);
 
    return vk_enumerate_instance_extension_properties(
       &panvk_instance_extensions, pPropertyCount, pProperties);

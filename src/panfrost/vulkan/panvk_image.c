@@ -283,7 +283,7 @@ panvk_CreateImage(VkDevice device, const VkImageCreateInfo *pCreateInfo,
    struct panvk_image *image =
       vk_image_create(&dev->vk, pCreateInfo, pAllocator, sizeof(*image));
    if (!image)
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    image->pimage.layout = (struct pan_image_layout){
       .format = vk_format_to_pipe_format(image->vk.format),

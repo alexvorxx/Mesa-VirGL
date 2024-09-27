@@ -7,6 +7,7 @@
 #define PANVK_CMD_ALLOC_H
 
 #include "panvk_cmd_buffer.h"
+#include "panvk_macros.h"
 #include "panvk_mempool.h"
 
 static inline struct panfrost_ptr
@@ -20,9 +21,11 @@ panvk_cmd_alloc_from_pool(struct panvk_cmd_buffer *cmdbuf,
    struct panfrost_ptr ptr =
       pan_pool_alloc_aligned(&pool->base, info.size, info.alignment);
 
-   if (!ptr.gpu)
-      vk_command_buffer_set_error(&cmdbuf->vk,
-                                  VK_ERROR_OUT_OF_DEVICE_MEMORY);
+   if (!ptr.gpu) {
+      VkResult error =
+         panvk_catch_indirect_alloc_failure(VK_ERROR_OUT_OF_DEVICE_MEMORY);
+      vk_command_buffer_set_error(&cmdbuf->vk, error);
+   }
 
    return ptr;
 }

@@ -35,7 +35,7 @@ panvk_AllocateMemory(VkDevice _device,
       if (export_info->handleTypes &
           ~(VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT |
             VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT))
-         return vk_error(device, VK_ERROR_INVALID_EXTERNAL_HANDLE);
+         return panvk_error(device, VK_ERROR_INVALID_EXTERNAL_HANDLE);
       else if (export_info->handleTypes)
          can_be_exported = true;
    }
@@ -43,7 +43,7 @@ panvk_AllocateMemory(VkDevice _device,
    mem = vk_device_memory_create(&device->vk, pAllocateInfo, pAllocator,
                                  sizeof(*mem));
    if (mem == NULL)
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    const VkImportMemoryFdInfoKHR *fd_info =
       vk_find_struct_const(pAllocateInfo->pNext, IMPORT_MEMORY_FD_INFO_KHR);
@@ -63,7 +63,7 @@ panvk_AllocateMemory(VkDevice _device,
        */
       mem->bo = pan_kmod_bo_import(device->kmod.dev, fd_info->fd, 0);
       if (!mem->bo) {
-         result = vk_error(device, VK_ERROR_INVALID_EXTERNAL_HANDLE);
+         result = panvk_error(device, VK_ERROR_INVALID_EXTERNAL_HANDLE);
          goto err_destroy_mem;
       }
    } else {
@@ -71,7 +71,7 @@ panvk_AllocateMemory(VkDevice _device,
                                   can_be_exported ? NULL : device->kmod.vm,
                                   pAllocateInfo->allocationSize, 0);
       if (!mem->bo) {
-         result = vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+         result = panvk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
          goto err_destroy_mem;
       }
    }
@@ -96,7 +96,7 @@ panvk_AllocateMemory(VkDevice _device,
                              op.va.size > 0x200000 ? 0x200000 : 0x1000);
       simple_mtx_unlock(&device->as.lock);
       if (!op.va.start) {
-         result = vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+         result = panvk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
          goto err_put_bo;
       }
    }
@@ -104,7 +104,7 @@ panvk_AllocateMemory(VkDevice _device,
    int ret =
       pan_kmod_vm_bind(device->kmod.vm, PAN_KMOD_VM_OP_MODE_IMMEDIATE, &op, 1);
    if (ret) {
-      result = vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+      result = panvk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
       goto err_return_va;
    }
 
@@ -221,9 +221,10 @@ panvk_MapMemory2KHR(VkDevice _device, const VkMemoryMapInfoKHR *pMemoryMapInfo,
    assert(offset + size <= mem->bo->size);
 
    if (size != (size_t)size) {
-      return vk_errorf(device, VK_ERROR_MEMORY_MAP_FAILED,
-                       "requested size 0x%" PRIx64 " does not fit in %u bits",
-                       size, (unsigned)(sizeof(size_t) * 8));
+      return panvk_errorf(device, VK_ERROR_MEMORY_MAP_FAILED,
+                          "requested size 0x%" PRIx64
+                          " does not fit in %u bits",
+                          size, (unsigned)(sizeof(size_t) * 8));
    }
 
    /* From the Vulkan 1.2.194 spec:
@@ -231,14 +232,14 @@ panvk_MapMemory2KHR(VkDevice _device, const VkMemoryMapInfoKHR *pMemoryMapInfo,
     *    "memory must not be currently host mapped"
     */
    if (mem->addr.host)
-      return vk_errorf(device, VK_ERROR_MEMORY_MAP_FAILED,
-                       "Memory object already mapped.");
+      return panvk_errorf(device, VK_ERROR_MEMORY_MAP_FAILED,
+                          "Memory object already mapped.");
 
    void *addr = pan_kmod_bo_mmap(mem->bo, 0, pan_kmod_bo_size(mem->bo),
                                  PROT_READ | PROT_WRITE, MAP_SHARED, NULL);
    if (addr == MAP_FAILED)
-      return vk_errorf(device, VK_ERROR_MEMORY_MAP_FAILED,
-                       "Memory object couldn't be mapped.");
+      return panvk_errorf(device, VK_ERROR_MEMORY_MAP_FAILED,
+                          "Memory object couldn't be mapped.");
 
    mem->addr.host = addr;
    *ppData = mem->addr.host + offset;
@@ -292,7 +293,7 @@ panvk_GetMemoryFdKHR(VkDevice _device, const VkMemoryGetFdInfoKHR *pGetFdInfo,
 
    int prime_fd = pan_kmod_bo_export(memory->bo);
    if (prime_fd < 0)
-      return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+      return panvk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
 
    *pFd = prime_fd;
    return VK_SUCCESS;

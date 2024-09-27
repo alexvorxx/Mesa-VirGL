@@ -19,7 +19,7 @@ panvk_per_arch(CreateEvent)(VkDevice _device,
    struct panvk_event *event = vk_object_zalloc(
       &device->vk, pAllocator, sizeof(*event), VK_OBJECT_TYPE_EVENT);
    if (!event)
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    struct drm_syncobj_create create = {
       .flags = 0,
@@ -27,7 +27,7 @@ panvk_per_arch(CreateEvent)(VkDevice _device,
 
    int ret = drmIoctl(device->vk.drm_fd, DRM_IOCTL_SYNCOBJ_CREATE, &create);
    if (ret)
-      return VK_ERROR_OUT_OF_HOST_MEMORY;
+      return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    event->syncobj = create.handle;
    *pEvent = panvk_event_to_handle(event);

@@ -218,7 +218,7 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
    device = vk_zalloc2(&instance->vk.alloc, pAllocator, sizeof(*device), 8,
                        VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
    if (!device)
-      return vk_error(physical_device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      return panvk_error(physical_device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    struct vk_device_dispatch_table dispatch_table;
 
@@ -267,7 +267,8 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
                           PAN_KMOD_DEV_FLAG_OWNS_FD, &device->kmod.allocator);
 
    if (!device->kmod.dev) {
-      result = vk_errorf(instance, panvk_errno_to_vk_error(), "cannot create device");
+      result = panvk_errorf(instance, VK_ERROR_OUT_OF_HOST_MEMORY,
+                            "cannot create device");
       goto err_finish_dev;
    }
 
@@ -293,7 +294,7 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
                          user_va_start, user_va_end - user_va_start);
 
    if (!device->kmod.vm) {
-      result = vk_error(physical_device, VK_ERROR_OUT_OF_HOST_MEMORY);
+      result = panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
       goto err_destroy_kdev;
    }
 
@@ -338,7 +339,7 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
                   queue_create->queueCount * sizeof(struct panvk_queue), 8,
                   VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
       if (!device->queues[qfi]) {
-         result = VK_ERROR_OUT_OF_HOST_MEMORY;
+         result = panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
          goto err_finish_queues;
       }
 

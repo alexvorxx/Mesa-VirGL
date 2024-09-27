@@ -16,6 +16,29 @@
 #define VG(x)
 #endif
 
+#include "vk_log.h"
+
+static inline VkResult
+panvk_catch_indirect_alloc_failure(VkResult error)
+{
+   /* errno is set to -ENOMEM in the kmod allocator callback when an allocation
+    * fails. When that's the case, the allocation failure takes precedence on
+    * the original error code. We also reset errno before leaving so we don't
+    * end up reporting the same allocation failure twice. */
+   if (errno == -ENOMEM) {
+      errno = 0;
+      return VK_ERROR_OUT_OF_HOST_MEMORY;
+   }
+
+   return error;
+}
+
+#define panvk_error(obj, error)                                                \
+   vk_error(obj, panvk_catch_indirect_alloc_failure(error))
+
+#define panvk_errorf(obj, error, ...)                                          \
+   vk_errorf(obj, panvk_catch_indirect_alloc_failure(error), __VA_ARGS__)
+
 #define panvk_stub() assert(!"stub")
 
 #define panvk_arch_name(name, version) panvk_##version##_##name
