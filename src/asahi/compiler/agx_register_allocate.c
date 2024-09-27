@@ -692,6 +692,7 @@ agx_emit_move_before_phi(agx_context *ctx, agx_block *block,
 
    agx_instr *phi = agx_phi_to(&b, agx_register_like(copy->dest, copy->src),
                                agx_num_predecessors(block));
+   assert(!copy->src.kill);
 
    agx_foreach_src(phi, s) {
       phi->src[s] = copy->src;
