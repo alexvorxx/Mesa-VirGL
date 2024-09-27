@@ -10,10 +10,7 @@ dEQP-VK.dynamic_rendering.partial_secondary_cmd_buff.dithering.blend.additive_r5
 dEQP-VK.dynamic_rendering.primary_cmd_buff.dithering.blend.additive_r4g4b4a4_unorm_pack16,Fail
 dEQP-VK.dynamic_rendering.primary_cmd_buff.dithering.blend.additive_r5g5b5a1_unorm_pack16,Fail
 dEQP-VK.dynamic_rendering.primary_cmd_buff.dithering.blend.additive_r5g6b5_unorm_pack16,Fail
-dEQP-VK.renderpass.dithering.blend.additive_r4g4b4a4_unorm_pack16,Fail
 dEQP-VK.renderpass.dithering.blend.additive_r5g5b5a1_unorm_pack16,Fail
-dEQP-VK.renderpass.dithering.blend.additive_r5g6b5_unorm_pack16,Fail
-dEQP-VK.renderpass2.dithering.blend.additive_r4g4b4a4_unorm_pack16,Fail
 dEQP-VK.renderpass2.dithering.blend.additive_r5g5b5a1_unorm_pack16,Fail
 dEQP-VK.renderpass2.dithering.blend.additive_r5g6b5_unorm_pack16,Fail
 

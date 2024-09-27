@@ -742,3 +742,6 @@ arm32-KHR-GL31.framebuffer_blit.framebuffer_blit_functionality_multisampled_to_s
 arm32-KHR-GL31.transform_feedback3.multiple_streams,Fail
 arm32-KHR-GL31.transform_feedback3.skip_components,Fail
 arm32-KHR-GL31.transform_feedback3.skip_multiple_buffers,Fail
+
+# CTS bug https://gitlab.khronos.org/Tracker/vk-gl-cts/-/issues/5362
+asan-dEQP-VK.pipeline.monolithic.logic_op.r8g8_uint.equivalent,Fail

@@ -1,5 +1,4 @@
 # RADV_PERFTEST=transfer_queue failures
-dEQP-VK.api.copy_and_blit.copy_commands2.image_to_image_transfer_sparse.simple_tests.whole_image_diff_format,Fail
 dEQP-VK.api.copy_and_blit.copy_commands2.resolve_image.whole_copy_before_resolving_transfer.2_bit,Fail
 dEQP-VK.api.copy_and_blit.copy_commands2.resolve_image.whole_copy_before_resolving_transfer.4_bit,Fail
 dEQP-VK.api.copy_and_blit.copy_commands2.resolve_image.whole_copy_before_resolving_transfer.8_bit,Fail

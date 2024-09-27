@@ -16,7 +16,7 @@ set -ex -o pipefail
 # - the GL release produces `glcts`, and
 # - the GLES release produces `deqp-gles*` and `deqp-egl`
 
-DEQP_VK_VERSION=1.3.9.0
+DEQP_VK_VERSION=1.3.9.2
 DEQP_GL_VERSION=4.6.5.0
 DEQP_GLES_VERSION=3.2.11.0
 
@@ -28,14 +28,14 @@ DEQP_GLES_VERSION=3.2.11.0
 
 # shellcheck disable=SC2034
 vk_cts_commits_to_backport=(
-  # Add missing NonUniform decoration in variable pointers test
-  cd262587a42dcd20951c22f66d7525c76cf64af4
+    # Fix sync issues in copy and blit tests
+    24f214d80a866c04745f6c3b5027a4b540568598
 
-  # Allow extra invocations in the pipeline stats
-  78f6618e147c0a745754b9e73ae10113a1ebde29
+    # Don't access out-of-bounds per-vertex attributes
+    6e36996fdf38b91bd08b97c1aa8ddb7601e43aae
 
-  # Reduce the memory usage of the compute reconvergence tests
-  85b965dbb675d1fdb4ff367a342b9ee189394e95
+    # Remove some of FDM + DRLR tests
+    d712381852e7f90cdd0a0bac5e43ac10d9bb5241
 )
 
 # shellcheck disable=SC2034
