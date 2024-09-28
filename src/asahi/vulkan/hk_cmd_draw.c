@@ -297,12 +297,12 @@ hk_build_bg_eot(struct hk_cmd_buffer *cmd, const VkRenderingInfo *info,
          continue;
 
       if (store) {
-         bool store = is_attachment_stored(att_info);
+         bool should_store = is_attachment_stored(att_info);
 
          /* Partial renders always need to flush to memory. */
-         store |= partial_render;
+         should_store |= partial_render;
 
-         if (store)
+         if (should_store)
             key.op[i] = AGX_EOT_STORE;
       } else {
          bool load = att_info->loadOp == VK_ATTACHMENT_LOAD_OP_LOAD;
