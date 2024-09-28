@@ -483,9 +483,14 @@ hk_pack_zls_control(struct agx_zls_control_packed *packed,
 {
    agx_pack(packed, ZLS_CONTROL, zls_control) {
       if (z_layout) {
+         /* XXX: Dropping Z stores is wrong if the render pass gets split into
+          * multiple control streams (can that ever happen?) We need more ZLS
+          * variants. Force || true for now.
+          */
          zls_control.z_store_enable =
             attach_z->storeOp == VK_ATTACHMENT_STORE_OP_STORE ||
-            attach_z->resolveMode != VK_RESOLVE_MODE_NONE || partial_render;
+            attach_z->resolveMode != VK_RESOLVE_MODE_NONE || partial_render ||
+            true;
 
          zls_control.z_load_enable =
             attach_z->loadOp == VK_ATTACHMENT_LOAD_OP_LOAD || partial_render ||
