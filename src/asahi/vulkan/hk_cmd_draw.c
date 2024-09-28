@@ -612,7 +612,8 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
 
    render->cr.eot.main =
       hk_build_bg_eot(cmd, pRenderingInfo, true, false, incomplete_render_area);
-   render->cr.eot.partial = render->cr.eot.main;
+   render->cr.eot.partial =
+      hk_build_bg_eot(cmd, pRenderingInfo, true, true, incomplete_render_area);
 
    render->cr.isp_bgobjvals = 0x300;
 
@@ -891,6 +892,14 @@ hk_CmdEndRendering(VkCommandBuffer commandBuffer)
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    struct hk_rendering_state *render = &cmd->state.gfx.render;
    struct hk_device *dev = hk_cmd_buffer_device(cmd);
+
+   /* The last control stream of the render pass is special since it gets its
+    * stores dropped. Swap it in.
+    */
+   struct hk_cs *cs = cmd->current_cs.gfx;
+   if (cs) {
+      cs->cr.eot.main = render->cr.eot.main;
+   }
 
    perf_debug(dev, "End rendering");
    hk_cmd_buffer_end_graphics(cmd);
