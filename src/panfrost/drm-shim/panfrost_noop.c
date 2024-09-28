@@ -199,6 +199,26 @@ panthor_ioctl_dev_query(int fd, unsigned long request, void *arg)
       csif_info->unpreserved_cs_reg_count = 4;
       return 0;
    }
+   case DRM_PANTHOR_DEV_QUERY_TIMESTAMP_INFO: {
+      struct drm_panthor_timestamp_info *timestamp_info =
+         (struct drm_panthor_timestamp_info *)dev_query->pointer;
+
+      /* Noop values */
+      timestamp_info->timestamp_frequency = 0;
+      timestamp_info->current_timestamp = 0;
+      timestamp_info->timestamp_offset = 0;
+
+      return 0;
+   }
+   case DRM_PANTHOR_DEV_QUERY_GROUP_PRIORITIES_INFO: {
+      struct drm_panthor_group_priorities_info *priorities_info =
+         (struct drm_panthor_group_priorities_info *)dev_query->pointer;
+
+      /* Noop values */
+      priorities_info->allowed_mask = 0;
+
+      return 0;
+   }
    default:
       fprintf(stderr, "Unknown DRM_IOCTL_PANTHOR_DEV_QUERY %d\n",
               dev_query->type);
