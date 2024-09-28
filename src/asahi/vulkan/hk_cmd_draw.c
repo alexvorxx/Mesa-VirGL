@@ -83,6 +83,37 @@ struct hk_draw {
    enum agx_index_size index_size;
 };
 
+UNUSED static inline void
+print_draw(struct hk_draw d, FILE *fp)
+{
+   if (d.b.indirect)
+      fprintf(fp, "indirect (buffer %" PRIx64 "):", d.b.ptr);
+   else
+      fprintf(fp, "direct (%ux%u):", d.b.count[0], d.b.count[1]);
+
+   if (d.index_size)
+      fprintf(fp, " index_size=%u", agx_index_size_to_B(d.index_size));
+   else
+      fprintf(fp, " non-indexed");
+
+   if (d.raw)
+      fprintf(fp, " raw");
+
+   if (d.restart)
+      fprintf(fp, " restart");
+
+   if (d.index_bias)
+      fprintf(fp, " index_bias=%u", d.index_bias);
+
+   if (d.start)
+      fprintf(fp, " start=%u", d.start);
+
+   if (d.start_instance)
+      fprintf(fp, " start_instance=%u", d.start_instance);
+
+   fprintf(fp, "\n");
+}
+
 static struct hk_draw
 hk_draw_indirect(uint64_t ptr)
 {
