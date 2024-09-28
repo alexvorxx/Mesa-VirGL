@@ -577,7 +577,7 @@ debian-no-libdrm:
     - !reference [.build-for-tests-jobs]
   variables:
     VULKAN_DRIVERS: freedreno
-    GALLIUM_DRIVERS: ""
+    GALLIUM_DRIVERS: "zink,llvmpipe"
     BUILDTYPE: release
     C_ARGS: >
       -Wno-error=array-bounds
