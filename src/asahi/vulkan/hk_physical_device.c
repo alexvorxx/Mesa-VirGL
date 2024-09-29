@@ -1038,6 +1038,9 @@ hk_physical_device_free_disk_cache(struct hk_physical_device *pdev)
 #endif
 }
 
+/* Use 3/4 of total size to avoid swapping */
+#define SYSMEM_HEAP_FRACTION(x) (x * 3 / 4)
+
 static uint64_t
 hk_get_sysmem_heap_size(void)
 {
@@ -1045,8 +1048,7 @@ hk_get_sysmem_heap_size(void)
    if (!os_get_total_physical_memory(&sysmem_size_B))
       return 0;
 
-   /* Use 3/4 of total size to avoid swapping */
-   return ROUND_DOWN_TO(sysmem_size_B * 3 / 4, 1 << 20);
+   return ROUND_DOWN_TO(SYSMEM_HEAP_FRACTION(sysmem_size_B), 1 << 20);
 }
 
 static uint64_t
@@ -1058,8 +1060,7 @@ hk_get_sysmem_heap_available(struct hk_physical_device *pdev)
       return 0;
    }
 
-   /* Use 3/4 of available to avoid swapping */
-   return ROUND_DOWN_TO(sysmem_size_B * 3 / 4, 1 << 20);
+   return ROUND_DOWN_TO(SYSMEM_HEAP_FRACTION(sysmem_size_B), 1 << 20);
 }
 
 VkResult
