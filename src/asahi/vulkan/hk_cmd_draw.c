@@ -3444,7 +3444,7 @@ hk_draw(struct hk_cmd_buffer *cmd, uint16_t draw_id, struct hk_draw draw_)
       uint8_t *out = cs->current;
       assert(cs->current + 0x1000 < cs->end);
 
-      if (unlikely(tess && (dev->dev.debug & AGX_DBG_NOTESS)))
+      if (tess && HK_PERF(dev, NOTESS))
          continue;
 
       cs->stats.calls++;

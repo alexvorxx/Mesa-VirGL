@@ -45,7 +45,6 @@ asahi_simple_ioctl(struct agx_device *dev, unsigned cmd, void *req)
 /* clang-format off */
 static const struct debug_named_value agx_debug_options[] = {
    {"trace",     AGX_DBG_TRACE,    "Trace the command stream"},
-   {"notess",    AGX_DBG_NOTESS,   "Skip draws with tessellation"},
    {"no16",      AGX_DBG_NO16,     "Disable 16-bit support"},
    {"perf",      AGX_DBG_PERF,     "Print performance warnings"},
 #ifndef NDEBUG
@@ -64,7 +63,6 @@ static const struct debug_named_value agx_debug_options[] = {
    {"feedback",  AGX_DBG_FEEDBACK, "Debug feedback loops"},
    {"nomsaa",    AGX_DBG_NOMSAA,   "Force disable MSAA"},
    {"noshadow",  AGX_DBG_NOSHADOW, "Force disable resource shadowing"},
-   {"noborder",  AGX_DBG_NOBORDER, "Disable custom border colour emulation"},
    {"scratch",   AGX_DBG_SCRATCH,  "Debug scratch memory usage"},
    {"1queue",    AGX_DBG_1QUEUE,   "Force usage of a single queue for multiple contexts"},
    {"nosoft",    AGX_DBG_NOSOFT,   "Disable soft fault optimizations"},

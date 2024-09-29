@@ -642,7 +642,7 @@ hk_lower_nir(struct hk_device *dev, nir_shader *nir,
     */
    NIR_PASS(_, nir, agx_nir_lower_texture_early, true /* support_lod_bias */);
 
-   if (!(dev->dev.debug & AGX_DBG_NOBORDER)) {
+   if (!HK_PERF(dev, NOBORDER)) {
       NIR_PASS(_, nir, agx_nir_lower_custom_border);
    }
 

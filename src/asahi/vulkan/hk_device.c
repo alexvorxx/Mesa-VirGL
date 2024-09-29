@@ -34,6 +34,14 @@
 #include <fcntl.h>
 #include <xf86drm.h>
 
+/* clang-format off */
+static const struct debug_named_value hk_perf_options[] = {
+   {"notess",    HK_PERF_NOTESS,   "Skip draws with tessellation"},
+   {"noborder",  HK_PERF_NOBORDER, "Disable custom border colour emulation"},
+   DEBUG_NAMED_VALUE_END
+};
+/* clang-format on */
+
 /*
  * We preupload some constants so we can cheaply reference later without extra
  * allocation and copying.
@@ -352,6 +360,8 @@ hk_CreateDevice(VkPhysicalDevice physicalDevice,
                          "failed to open device %s", path);
       goto fail_init;
    }
+
+   dev->perftest = debug_get_flags_option("HK_PERFTEST", hk_perf_options, 0);
 
    bool succ = agx_open_device(NULL, &dev->dev);
    drmFreeDevice(&drm_device);
