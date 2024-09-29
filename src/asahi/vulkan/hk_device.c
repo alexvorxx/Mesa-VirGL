@@ -40,6 +40,7 @@ static const struct debug_named_value hk_perf_options[] = {
    {"noborder",  HK_PERF_NOBORDER, "Disable custom border colour emulation"},
    {"nobarrier", HK_PERF_NOBARRIER,"Ignore pipeline barriers"},
    {"batch",     HK_PERF_BATCH,    "Batch submissions"},
+   {"norobust",  HK_PERF_NOROBUST, "Disable robustness"},
    DEBUG_NAMED_VALUE_END
 };
 /* clang-format on */
@@ -364,6 +365,14 @@ hk_CreateDevice(VkPhysicalDevice physicalDevice,
    }
 
    dev->perftest = debug_get_flags_option("HK_PERFTEST", hk_perf_options, 0);
+
+   if (HK_PERF(dev, NOROBUST)) {
+      dev->vk.enabled_features.robustBufferAccess = false;
+      dev->vk.enabled_features.robustBufferAccess2 = false;
+      dev->vk.enabled_features.robustImageAccess = false;
+      dev->vk.enabled_features.robustImageAccess2 = false;
+      dev->vk.enabled_features.pipelineRobustness = false;
+   }
 
    bool succ = agx_open_device(NULL, &dev->dev);
    drmFreeDevice(&drm_device);
