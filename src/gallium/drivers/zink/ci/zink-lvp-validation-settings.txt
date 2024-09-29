@@ -56,10 +56,5 @@ khronos_validation.log_filename = stdout
 #
 # VVL bug https://github.com/KhronosGroup/Vulkan-ValidationLayers/issues/5735
 
-# VVL missing support for KHR_dynamic_rendering_local_read
-# VUID-vkCmdPipelineBarrier2-shaderTileImageColorReadAccess-08718
-# VUID-VkGraphicsPipelineCreateInfo-flags-06482
-# VUID-vkCmdPipelineBarrier2-None-08719
-
 # spec broken
 # VUID-vkCmdDrawMultiEXT-rasterizationSamples-07474
