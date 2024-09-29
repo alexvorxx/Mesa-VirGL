@@ -39,6 +39,7 @@ static const struct debug_named_value hk_perf_options[] = {
    {"notess",    HK_PERF_NOTESS,   "Skip draws with tessellation"},
    {"noborder",  HK_PERF_NOBORDER, "Disable custom border colour emulation"},
    {"nobarrier", HK_PERF_NOBARRIER,"Ignore pipeline barriers"},
+   {"batch",     HK_PERF_BATCH,    "Batch submissions"},
    DEBUG_NAMED_VALUE_END
 };
 /* clang-format on */

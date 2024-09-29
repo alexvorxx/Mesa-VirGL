@@ -264,10 +264,12 @@ union drm_asahi_cmd {
  * on the CTS once lossless compression is enabled. This needs to be
  * investigated before we can reenable this mechanism. We are likely missing a
  * cache flush or barrier somewhere.
- *
- * TODO: I think the actual maximum is 64. Can we query from the kernel?
  */
-#define MAX_COMMANDS_PER_SUBMIT (1)
+static inline unsigned
+max_commands_per_submit(struct hk_device *dev)
+{
+   return HK_PERF(dev, BATCH) ? 64 : 1;
+}
 
 static VkResult
 queue_submit_single(struct agx_device *dev, struct drm_asahi_submit *submit)
@@ -296,7 +298,7 @@ queue_submit_single(struct agx_device *dev, struct drm_asahi_submit *submit)
  * bounds.
  */
 static VkResult
-queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
+queue_submit_looped(struct hk_device *dev, struct drm_asahi_submit *submit)
 {
    struct drm_asahi_command *cmds = (void *)(uintptr_t)submit->commands;
    unsigned commands_remaining = submit->command_count;
@@ -304,9 +306,9 @@ queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
 
    while (commands_remaining) {
       bool first = commands_remaining == submit->command_count;
-      bool last = commands_remaining <= MAX_COMMANDS_PER_SUBMIT;
+      bool last = commands_remaining <= max_commands_per_submit(dev);
 
-      unsigned count = MIN2(commands_remaining, MAX_COMMANDS_PER_SUBMIT);
+      unsigned count = MIN2(commands_remaining, max_commands_per_submit(dev));
       commands_remaining -= count;
 
       assert(!last || commands_remaining == 0);
@@ -346,7 +348,7 @@ queue_submit_looped(struct agx_device *dev, struct drm_asahi_submit *submit)
          .out_sync_count = last ? submit->out_sync_count : 0,
       };
 
-      VkResult result = queue_submit_single(dev, &submit_ioctl);
+      VkResult result = queue_submit_single(&dev->dev, &submit_ioctl);
       if (result != VK_SUCCESS)
          return result;
 
@@ -517,10 +519,10 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
       .commands = (uint64_t)(uintptr_t)(cmds),
    };
 
-   if (command_count <= MAX_COMMANDS_PER_SUBMIT)
+   if (command_count <= max_commands_per_submit(dev))
       return queue_submit_single(&dev->dev, &submit_ioctl);
    else
-      return queue_submit_looped(&dev->dev, &submit_ioctl);
+      return queue_submit_looped(dev, &submit_ioctl);
 }
 
 static VkResult
