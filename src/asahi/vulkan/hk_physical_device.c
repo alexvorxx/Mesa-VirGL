@@ -1038,8 +1038,8 @@ hk_physical_device_free_disk_cache(struct hk_physical_device *pdev)
 #endif
 }
 
-/* Use 3/4 of total size to avoid swapping */
-#define SYSMEM_HEAP_FRACTION(x) (x * 3 / 4)
+/* Use 1/2 of total size to avoid swapping */
+#define SYSMEM_HEAP_FRACTION(x) (x * 1 / 2)
 
 static uint64_t
 hk_get_sysmem_heap_size(void)
