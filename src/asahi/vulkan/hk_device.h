@@ -114,6 +114,7 @@ VK_DEFINE_HANDLE_CASTS(hk_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)
 enum hk_perftest {
    HK_PERF_NOTESS = BITFIELD_BIT(0),
    HK_PERF_NOBORDER = BITFIELD_BIT(1),
+   HK_PERF_NOBARRIER = BITFIELD_BIT(2),
 };
 
 #define HK_PERF(dev, flag) unlikely((dev)->perftest &HK_PERF_##flag)

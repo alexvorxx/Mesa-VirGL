@@ -294,6 +294,9 @@ hk_CmdPipelineBarrier2(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
+   if (HK_PERF(dev, NOBARRIER))
+      return;
+
    perf_debug(dev, "Pipeline barrier");
 
    /* The big hammer. We end both compute and graphics batches. Ending compute
