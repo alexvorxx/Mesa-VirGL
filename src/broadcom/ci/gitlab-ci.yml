@@ -57,6 +57,7 @@ v3d-rpi4-gl:arm64:
 v3d-rpi4-gl-full:arm64:
   extends:
     - v3d-rpi4-gl:arm64
+    - .broadcom-test-full:arm64
     - .v3d-manual-rules
   tags:
     - igalia-rpi4
@@ -126,6 +127,7 @@ v3dv-rpi4-vk:arm64:
 v3dv-rpi4-vk-full:arm64:
   extends:
     - v3dv-rpi4-vk:arm64
+    - .broadcom-test-full:arm64
     - .v3dv-manual-rules
   tags:
     - igalia-rpi4
@@ -161,6 +163,7 @@ v3d-rpi5-gl:arm64:
 v3d-rpi5-gl-full:arm64:
   extends:
     - v3d-rpi5-gl:arm64
+    - .broadcom-test-full:arm64
     - .v3d-manual-rules
   tags:
     - igalia-rpi5
@@ -169,7 +172,6 @@ v3d-rpi5-gl-full:arm64:
   variables:
     TEST_SETUP_AND_UPLOAD_MARGIN_MINUTES: 10
     DEQP_FRACTION: 1
-    BM_BOOTFS: /boot/raspberrypi_arm64_no2712
 
 v3d-rpi5-rusticl:arm64:
   extends:
@@ -212,6 +214,7 @@ v3dv-rpi5-vk:arm64:
 v3dv-rpi5-vk-full:arm64:
   extends:
     - v3dv-rpi5-vk:arm64
+    - .broadcom-test-full:arm64
     - .v3dv-manual-rules
   tags:
     - igalia-rpi5
@@ -222,4 +225,3 @@ v3dv-rpi5-vk-full:arm64:
     # Keep 10 minutes for boot + setup + uploading the artifacts at the end
     TEST_SETUP_AND_UPLOAD_MARGIN_MINUTES: 10
     DEQP_FRACTION: 1
-    BM_BOOTFS: /boot/raspberrypi_arm64_no2712

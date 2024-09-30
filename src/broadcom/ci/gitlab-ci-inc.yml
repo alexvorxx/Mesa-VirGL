@@ -167,6 +167,12 @@
   variables:
     BM_BOOTFS: /boot/raspberrypi_arm64
 
+.broadcom-test-full:arm64:
+  extends:
+    - .broadcom-test:arm64
+  variables:
+    BM_BOOTFS: /boot/raspberrypi_arm64_full
+
 .broadcom-asan-test:arm64:
   extends:
     - .broadcom-test:arm64
