@@ -407,7 +407,7 @@ fedora/x86_64_build:
 
 # Get firmware directly rather than using package versions.
 # Change KERNEL_ROOTFS_TAG to add firmware changes.
-# FIRMWARE_FILES is a list of json files arranged by vendor in src/**/ci/
+# FIRMWARE_FILES is a list of json files arranged by vendor in .gitlab-ci/firmware/*
 .firmware_x86_64:
   variables:
     FIRMWARE_FILES: |
@@ -416,6 +416,7 @@ fedora/x86_64_build:
 .firmware_arm64:
   variables:
     FIRMWARE_FILES: |
+      .gitlab-ci/firmware/arm/mali/arch10.8/mali-fw.json
 
 .firmware_arm32:
   variables:

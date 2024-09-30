@@ -225,10 +225,11 @@
     GPU_VERSION: panfrost-g610
     DRIVER_NAME: panfrost
     FDO_CI_CONCURRENT: 6
+    HWCI_KERNEL_MODULES: panthor
     BOOT_METHOD: u-boot
     KERNEL_IMAGE_NAME: Image
     KERNEL_IMAGE_TYPE: "image"
-    FORCE_KERNEL_TAG: "v6.11-rc7-mesa-3fb8"
+    FORCE_KERNEL_TAG: "v6.11-rc7-mesa-f9e9"
     KERNEL_IMAGE_BASE: https://${S3_HOST}/${S3_KERNEL_BUCKET}/${KERNEL_REPO}/${FORCE_KERNEL_TAG}
     RUNNER_TAG: mesa-ci-x86-64-lava-rk3588-rock-5b
 
