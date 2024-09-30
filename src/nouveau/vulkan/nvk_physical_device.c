@@ -157,6 +157,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .KHR_shader_integer_dot_product = true,
       .KHR_shader_maximal_reconvergence = true,
       .KHR_shader_non_semantic_info = true,
+      .KHR_shader_quad_control = true,
       .KHR_shader_relaxed_extended_instruction = true,
       .KHR_shader_subgroup_extended_types = true,
       .KHR_shader_subgroup_rotate = nvk_use_nak(info),
@@ -448,6 +449,9 @@ nvk_get_device_features(const struct nv_device_info *info,
 
       /* VK_KHR_present_wait */
       .presentWait = supported_extensions->KHR_present_wait,
+
+      /* VK_KHR_shader_quad_control */
+      .shaderQuadControl = nvk_use_nak(info),
 
       /* VK_KHR_shader_clock */
       .shaderSubgroupClock = true,

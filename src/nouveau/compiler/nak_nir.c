@@ -890,6 +890,7 @@ nak_postprocess_nir(nir_shader *nir,
       .lower_first_invocation_to_ballot = true,
       .lower_read_first_invocation = true,
       .lower_elect = true,
+      .lower_quad_vote = true,
       .lower_inverse_ballot = true,
       .lower_rotate_to_shuffle = true
    };
