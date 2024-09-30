@@ -755,14 +755,17 @@ lower_subgroups_filter(const nir_instr *instr, const void *_options)
 /* Return a ballot-mask-sized value which represents "val" sign-extended and
  * then shifted left by "shift". Only particular values for "val" are
  * supported, see below.
+ *
+ * This function assumes that `val << shift` will never span a ballot_bit_size
+ * word and that the high bit of val can be extended across the entire result.
+ * This is trivially satisfied for 0, 1, ~0, and ~1.  However, it may also be
+ * fine for other values if the shift is guaranteed to be sufficiently
+ * aligned.  One example is 0xf when the shift is known to be a multiple of 4.
  */
 static nir_def *
 build_ballot_imm_ishl(nir_builder *b, int64_t val, nir_def *shift,
                       const nir_lower_subgroups_options *options)
 {
-   /* This only works if all the high bits are the same as bit 1. */
-   assert((val >> 2) == (val & 0x2 ? -1 : 0));
-
    /* First compute the result assuming one ballot component. */
    nir_def *result =
       nir_ishl(b, nir_imm_intN_t(b, val, options->ballot_bit_size), shift);
@@ -828,6 +831,16 @@ build_subgroup_gt_mask(nir_builder *b,
    return build_ballot_imm_ishl(b, ~1ull, subgroup_idx, options);
 }
 
+static nir_def *
+build_subgroup_quad_mask(nir_builder *b,
+                         const nir_lower_subgroups_options *options)
+{
+   nir_def *subgroup_idx = nir_load_subgroup_invocation(b);
+   nir_def *quad_first_idx = nir_iand_imm(b, subgroup_idx, ~0x3);
+
+   return build_ballot_imm_ishl(b, 0xf, quad_first_idx, options);
+}
+
 /* Return a mask which is 1 for threads up to the run-time subgroup size, i.e.
  * 1 for the entire subgroup. SPIR-V requires us to return 0 for indices at or
  * above the subgroup size for the masks, but gt_mask and ge_mask make them 1
@@ -875,6 +888,18 @@ build_subgroup_mask(nir_builder *b,
 
    return nir_bcsel(b, nir_ult(b, min_idx_val, subgroup_size),
                     result_extended, nir_imm_intN_t(b, 0, options->ballot_bit_size));
+}
+
+static nir_def *
+build_quad_vote_any(nir_builder *b, nir_def *src,
+                    const nir_lower_subgroups_options *options)
+{
+   nir_def *ballot = nir_ballot(b, options->ballot_components,
+                                   options->ballot_bit_size,
+                                   src);
+   nir_def *mask = build_subgroup_quad_mask(b, options);
+
+   return nir_ine_imm(b, nir_iand(b, ballot, mask), 0);
 }
 
 static nir_def *
@@ -1201,6 +1226,18 @@ lower_subgroups_instr(nir_builder *b, nir_instr *instr, void *_options)
          return lower_dynamic_quad_broadcast(b, intrin, options);
       else if (options->lower_to_scalar && intrin->num_components > 1)
          return lower_subgroup_op_to_scalar(b, intrin);
+      break;
+
+   case nir_intrinsic_quad_vote_any:
+      if (options->lower_quad_vote)
+         return build_quad_vote_any(b, intrin->src[0].ssa, options);
+      break;
+   case nir_intrinsic_quad_vote_all:
+      if (options->lower_quad_vote) {
+         nir_def *not_src = nir_inot(b, intrin->src[0].ssa);
+         nir_def *any_not = build_quad_vote_any(b, not_src, options);
+         return nir_inot(b, any_not);
+      }
       break;
 
    case nir_intrinsic_reduce: {
