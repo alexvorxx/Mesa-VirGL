@@ -1783,9 +1783,21 @@ ntq_emit_alu(struct v3d_compile *c, nir_alu_instr *instr)
                 break;
 
         case nir_op_fsat:
-                assert(c->devinfo->ver >= 71);
+                assert(v3d_device_has_unpack_sat(c->devinfo));
                 result = vir_FMOV(c, src[0]);
                 vir_set_unpack(c->defs[result.index], 0, V3D71_QPU_UNPACK_SAT);
+                break;
+
+        case nir_op_fsat_signed:
+                assert(v3d_device_has_unpack_sat(c->devinfo));
+                result = vir_FMOV(c, src[0]);
+                vir_set_unpack(c->defs[result.index], 0, V3D71_QPU_UNPACK_NSAT);
+                break;
+
+        case nir_op_fclamp_pos:
+                assert(v3d_device_has_unpack_max0(c->devinfo));
+                result = vir_FMOV(c, src[0]);
+                vir_set_unpack(c->defs[result.index], 0, V3D71_QPU_UNPACK_MAX0);
                 break;
 
         default:
