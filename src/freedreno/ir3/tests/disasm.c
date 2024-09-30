@@ -358,6 +358,12 @@ static const struct test {
    INSTR_6XX(50600004_2c090004, "(sy)mul.f hr1.x, hr1.x, h(1/log2(10))"),
    INSTR_6XX(50600004_2c0a0004, "(sy)mul.f hr1.x, hr1.x, h(log2(10))"),
    INSTR_6XX(50600004_2c0b0004, "(sy)mul.f hr1.x, hr1.x, h(4.0)"),
+   INSTR_6XX(20444000_00000000, "mov.f32f32 r0.x, (0.000000)"),
+   INSTR_6XX(20444000_3f000000, "mov.f32f32 r0.x, (0.500000)"),
+   INSTR_6XX(20444000_3f800000, "mov.f32f32 r0.x, (1.000000)"),
+   INSTR_6XX(20444000_40000000, "mov.f32f32 r0.x, (2.000000)"),
+   INSTR_6XX(20444000_40400000, "mov.f32f32 r0.x, (3.000000)"),
+   INSTR_6XX(20444000_40800000, "mov.f32f32 r0.x, (4.000000)"),
 
    /* LDC.  Our disasm differs greatly from qcom here, and we've got some
     * important info they lack(?!), but same goes the other way.
