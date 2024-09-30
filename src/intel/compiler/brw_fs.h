@@ -221,6 +221,8 @@ struct cs_thread_payload : public thread_payload {
 
    brw_reg local_invocation_id[3];
 
+   brw_reg inline_parameter;
+
 protected:
    brw_reg subgroup_id_;
 };
@@ -230,7 +232,6 @@ struct task_mesh_thread_payload : public cs_thread_payload {
 
    brw_reg extended_parameter_0;
    brw_reg local_index;
-   brw_reg inline_parameter;
 
    brw_reg urb_output;
 

@@ -4522,6 +4522,19 @@ fs_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
       }
       break;
 
+   case nir_intrinsic_load_inline_data_intel: {
+      const cs_thread_payload &payload = s.cs_payload();
+      unsigned inline_stride = brw_type_size_bytes(dest.type);
+      for (unsigned c = 0; c < instr->def.num_components; c++)
+         bld.MOV(offset(dest, bld, c),
+                 retype(
+                    byte_offset(payload.inline_parameter,
+                                nir_intrinsic_base(instr) +
+                                c * inline_stride),
+                    dest.type));
+      break;
+   }
+
    case nir_intrinsic_load_subgroup_id:
       s.cs_payload().load_subgroup_id(bld, dest);
       break;
@@ -4884,20 +4897,21 @@ try_rebuild_source(nir_to_brw_state &ntb, const brw::fs_builder &bld,
             break;
          }
 
-         case nir_intrinsic_load_mesh_inline_data_intel: {
-            assert(ntb.s.stage == MESA_SHADER_MESH ||
-                   ntb.s.stage == MESA_SHADER_TASK);
-            const task_mesh_thread_payload &payload = ntb.s.task_mesh_payload();
+         case nir_intrinsic_load_inline_data_intel: {
+            assert(brw_shader_stage_has_inline_data(ntb.devinfo, ntb.s.stage));
+            const cs_thread_payload &payload = ntb.s.cs_payload();
             enum brw_reg_type type =
                brw_type_with_size(BRW_TYPE_D, intrin->def.bit_size);
             brw_reg dst_data = ubld.vgrf(type, intrin->def.num_components);
+            unsigned inline_stride = brw_type_size_bytes(type);
 
             for (unsigned c = 0; c < intrin->def.num_components; c++) {
-               brw_reg src = retype(
-                  offset(payload.inline_parameter, 1,
-                         nir_intrinsic_align_offset(intrin) + c * intrin->def.bit_size / 8),
-                  brw_type_with_size(BRW_TYPE_D, intrin->def.bit_size));
-               fs_inst *inst = ubld.MOV(byte_offset(dst_data, c * grf_size), src);
+               fs_inst *inst = ubld.MOV(byte_offset(dst_data, c * grf_size),
+                                        retype(
+                                           byte_offset(payload.inline_parameter,
+                                                       nir_intrinsic_base(intrin) +
+                                                       c * inline_stride),
+                                           type));
                if (c == 0)
                   ntb.resource_insts[def->index] = inst;
             }
@@ -5800,12 +5814,6 @@ fs_nir_emit_task_mesh_intrinsic(nir_to_brw_state &ntb, const fs_builder &bld,
       dest = get_nir_def(ntb, instr->def);
 
    switch (instr->intrinsic) {
-   case nir_intrinsic_load_mesh_inline_data_intel: {
-      brw_reg data = offset(payload.inline_parameter, 1, nir_intrinsic_align_offset(instr));
-      bld.MOV(dest, retype(data, dest.type));
-      break;
-   }
-
    case nir_intrinsic_load_draw_id:
       dest = retype(dest, BRW_TYPE_UD);
       bld.MOV(dest, payload.extended_parameter_0);

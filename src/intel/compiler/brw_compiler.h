@@ -162,6 +162,14 @@ brw_shader_stage_requires_bindless_resources(gl_shader_stage stage)
    return brw_shader_stage_is_bindless(stage) || gl_shader_stage_is_mesh(stage);
 }
 
+static inline bool
+brw_shader_stage_has_inline_data(const struct intel_device_info *devinfo,
+                                 gl_shader_stage stage)
+{
+   return stage == MESA_SHADER_MESH || stage == MESA_SHADER_TASK ||
+          (stage == MESA_SHADER_COMPUTE && devinfo->verx10 >= 125);
+}
+
 /**
  * Program key structures.
  *

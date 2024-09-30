@@ -2216,8 +2216,10 @@ load("ssbo_uniform_block_intel", [-1, 1], [ACCESS, ALIGN_MUL, ALIGN_OFFSET], [CA
 # src[] = { offset }.
 load("shared_uniform_block_intel", [1], [BASE, ALIGN_MUL, ALIGN_OFFSET], [CAN_ELIMINATE])
 
-# Intrinsics for Intel mesh shading
-system_value("mesh_inline_data_intel", 1, [ALIGN_OFFSET], bit_sizes=[32, 64])
+# Inline register delivery (available on Gfx12.5+ for CS/Mesh/Task stages)
+intrinsic("load_inline_data_intel", [], dest_comp=0,
+          indices=[BASE],
+          flags=[CAN_ELIMINATE, CAN_REORDER])
 
 # Intrinsics for Intel bindless thread dispatch
 # BASE=brw_topoloy_id

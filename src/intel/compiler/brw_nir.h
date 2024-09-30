@@ -290,6 +290,8 @@ brw_nir_no_indirect_mask(const struct brw_compiler *compiler,
    return indirect_mask;
 }
 
+bool brw_nir_uses_inline_data(nir_shader *shader);
+
 #ifdef __cplusplus
 }
 #endif
