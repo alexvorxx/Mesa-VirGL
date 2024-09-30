@@ -2644,10 +2644,10 @@ static void radeon_dec_flush(struct pipe_video_codec *decoder)
 {
 }
 
-static int radeon_dec_get_decoder_fence(struct pipe_video_codec *decoder,
-                                        struct pipe_fence_handle *fence,
-                                        uint64_t timeout) {
-
+static int radeon_dec_fence_wait(struct pipe_video_codec *decoder,
+                                 struct pipe_fence_handle *fence,
+                                 uint64_t timeout)
+{
    struct radeon_decoder *dec = (struct radeon_decoder *)decoder;
 
    return dec->ws->fence_wait(dec->ws, fence, timeout);
@@ -2782,7 +2782,8 @@ struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
    dec->base.decode_bitstream = radeon_dec_decode_bitstream;
    dec->base.end_frame = radeon_dec_end_frame;
    dec->base.flush = radeon_dec_flush;
-   dec->base.get_decoder_fence = radeon_dec_get_decoder_fence;
+   dec->base.get_decoder_fence = radeon_dec_fence_wait;
+   dec->base.fence_wait = radeon_dec_fence_wait;
    dec->base.destroy_fence = radeon_dec_destroy_fence;
    dec->base.update_decoder_target =  radeon_dec_update_render_list;
 
