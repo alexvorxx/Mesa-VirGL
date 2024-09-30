@@ -167,6 +167,20 @@ struct pipe_video_codec
                              uint64_t timeout);
 
    /**
+    * Wait for fence.
+    *
+    * Can be used to query the status of the previous job denoted by
+    * 'fence' given 'timeout'.
+    *
+    * A pointer to a fence pointer can be passed to the codecs before the
+    * end_frame vfunc and the codec should then be responsible for allocating a
+    * fence on command stream submission.
+    */
+   int (*fence_wait)(struct pipe_video_codec *codec,
+                     struct pipe_fence_handle *fence,
+                     uint64_t timeout);
+
+   /**
     * Destroy fence.
     */
    void (*destroy_fence)(struct pipe_video_codec *codec,
