@@ -208,7 +208,8 @@ anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
 
    if (enc_caps) {
       enc_caps->flags = 0;
-      enc_caps->rateControlModes = VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DEFAULT_KHR;
+      enc_caps->rateControlModes = VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DEFAULT_KHR |
+                                   VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DISABLED_BIT_KHR;
       enc_caps->maxRateControlLayers = 1;
       enc_caps->maxQualityLevels = 1;
       enc_caps->encodeInputPictureGranularity.width = 32;
