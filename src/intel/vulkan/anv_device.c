@@ -1792,17 +1792,8 @@ VkResult anv_MapMemory2KHR(
       placed_addr = placed_info->pPlacedAddress;
    }
 
-   /* GEM will fail to map if the offset isn't 4k-aligned.  Round down. */
-   uint64_t map_offset;
-   if (!device->physical->info.has_mmap_offset)
-      map_offset = offset & ~4095ull;
-   else
-      map_offset = 0;
-   assert(offset >= map_offset);
-   uint64_t map_size = (offset + size) - map_offset;
-
-   /* Let's map whole pages */
-   map_size = align64(map_size, 4096);
+   uint64_t map_offset, map_size;
+   anv_sanitize_map_params(device, offset, size, &map_offset, &map_size);
 
    void *map;
    VkResult result = anv_device_map_bo(device, mem->bo, map_offset,

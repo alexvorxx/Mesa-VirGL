@@ -2149,6 +2149,26 @@ anv_mocs_for_address(const struct anv_device *device,
 void anv_device_init_blorp(struct anv_device *device);
 void anv_device_finish_blorp(struct anv_device *device);
 
+static inline void
+anv_sanitize_map_params(struct anv_device *device,
+                        uint64_t in_offset,
+                        uint64_t in_size,
+                        uint64_t *out_offset,
+                        uint64_t *out_size)
+{
+   /* GEM will fail to map if the offset isn't 4k-aligned.  Round down. */
+   if (!device->physical->info.has_mmap_offset)
+      *out_offset = in_offset & ~4095ull;
+   else
+      *out_offset = 0;
+   assert(in_offset >= *out_offset);
+   *out_size = (in_offset + in_size) - *out_offset;
+
+   /* Let's map whole pages */
+   *out_size = align64(*out_size, 4096);
+}
+
+
 VkResult anv_device_alloc_bo(struct anv_device *device,
                              const char *name, uint64_t size,
                              enum anv_bo_alloc_flags alloc_flags,
