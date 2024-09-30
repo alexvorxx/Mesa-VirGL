@@ -574,6 +574,11 @@ ir3_screen_init(struct pipe_screen *pscreen)
    if (screen->gen >= 6) {
       options.lower_base_vertex = true;
    }
+
+   if (screen->gen >= 7) {
+      options.push_ubo_with_preamble = true;
+   }
+
    screen->compiler =
       ir3_compiler_create(screen->dev, screen->dev_id, screen->info, &options);
 

@@ -236,7 +236,7 @@ fd6_emit_shader(struct fd_context *ctx, struct fd_ringbuffer *ring,
       OUT_RELOC(ring, so->bo, 0, 0, 0);
    }
 
-   fd6_emit_immediates(so, ring);
+   fd6_emit_immediates<CHIP>(so, ring);
 }
 FD_GENX(fd6_emit_shader);
 
@@ -839,8 +839,8 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
       OUT_PKT4(ring, REG_A6XX_PC_TESS_NUM_VERTEX, 1);
       OUT_RING(ring, b->hs->tess.tcs_vertices_out);
 
-      fd6_emit_link_map(b->vs, b->hs, ring);
-      fd6_emit_link_map(b->hs, b->ds, ring);
+      fd6_emit_link_map<CHIP>(b->ctx, b->vs, b->hs, ring);
+      fd6_emit_link_map<CHIP>(b->ctx, b->hs, b->ds, ring);
    }
 
    if (b->gs) {
@@ -849,10 +849,11 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
          b->ds ? b->ds->output_size : b->vs->output_size;
 
       if (b->hs) {
-         fd6_emit_link_map(b->ds, b->gs, ring);
+         fd6_emit_link_map<CHIP>(b->ctx, b->ds, b->gs, ring);
       } else {
-         fd6_emit_link_map(b->vs, b->gs, ring);
+         fd6_emit_link_map<CHIP>(b->ctx, b->vs, b->gs, ring);
       }
+
       vertices_out = MAX2(1, b->gs->gs.vertices_out) - 1;
       enum a6xx_tess_output output =
          primitive_to_tess((enum mesa_prim)b->gs->gs.output_primitive);
@@ -1451,23 +1452,33 @@ fd6_program_create(void *data, const struct ir3_shader_variant *bs,
 
    /* Note that binning pass uses same const state as draw pass: */
    state->user_consts_cmdstream_size =
-         fd6_user_consts_cmdstream_size(state->vs) +
-         fd6_user_consts_cmdstream_size(state->hs) +
-         fd6_user_consts_cmdstream_size(state->ds) +
-         fd6_user_consts_cmdstream_size(state->gs) +
-         fd6_user_consts_cmdstream_size(state->fs);
+         fd6_user_consts_cmdstream_size<CHIP>(state->vs) +
+         fd6_user_consts_cmdstream_size<CHIP>(state->hs) +
+         fd6_user_consts_cmdstream_size<CHIP>(state->ds) +
+         fd6_user_consts_cmdstream_size<CHIP>(state->gs) +
+         fd6_user_consts_cmdstream_size<CHIP>(state->fs);
 
    unsigned num_dp = 0;
+   unsigned num_ubo_dp = 0;
+
    if (vs->need_driver_params)
       num_dp++;
+
    if (gs && gs->need_driver_params)
-      num_dp++;
+      num_ubo_dp++;
    if (hs && hs->need_driver_params)
-      num_dp++;
+      num_ubo_dp++;
    if (ds && ds->need_driver_params)
-      num_dp++;
+      num_ubo_dp++;
+
+   if (!(CHIP == A7XX && vs->compiler->load_inline_uniforms_via_preamble_ldgk)) {
+      /* On a6xx all shader stages use driver params pushed in cmdstream: */
+      num_dp += num_ubo_dp;
+      num_ubo_dp = 0;
+   }
 
    state->num_driver_params = num_dp;
+   state->num_ubo_driver_params = num_ubo_dp;
 
    /* dual source blending has an extra fs output in the 2nd slot */
    if (fs->fs.color_is_dual_source) {

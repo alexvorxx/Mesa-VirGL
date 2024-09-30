@@ -38,12 +38,17 @@ struct fd6_program_state {
     * Whether multiple viewports are used is determined by whether
     * the last shader stage writes viewport id
     */
-   uint16_t num_viewports;
+   uint8_t num_viewports;
 
    /**
     * The # of shader stages that need driver params.
     */
    uint8_t num_driver_params;
+
+   /**
+    * The # of shader stages that need ubo driver params
+    */
+   uint8_t num_ubo_driver_params;
 
    /**
     * Output components from frag shader.  It is possible to have

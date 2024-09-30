@@ -152,7 +152,7 @@ fd6_launch_grid(struct fd_context *ctx, const struct pipe_grid_info *info) in_dt
       cs->stateobj = fd_ringbuffer_new_object(ctx->pipe, 0x1000);
       cs_program_emit<CHIP>(ctx, cs->stateobj, cs->v);
 
-      cs->user_consts_cmdstream_size = fd6_user_consts_cmdstream_size(cs->v);
+      cs->user_consts_cmdstream_size = fd6_user_consts_cmdstream_size<CHIP>(cs->v);
    }
 
    trace_start_compute(&ctx->batch->trace, ring, !!info->indirect, info->work_dim,
@@ -190,10 +190,10 @@ fd6_launch_grid(struct fd_context *ctx, const struct pipe_grid_info *info) in_dt
       fd6_emit_cs_state<CHIP>(ctx, ring, cs);
 
    if (ctx->gen_dirty & BIT(FD6_GROUP_CONST))
-      fd6_emit_cs_user_consts(ctx, ring, cs);
+      fd6_emit_cs_user_consts<CHIP>(ctx, ring, cs);
 
    if (cs->v->need_driver_params || info->input)
-      fd6_emit_cs_driver_params(ctx, ring, cs, info);
+      fd6_emit_cs_driver_params<CHIP>(ctx, ring, cs, info);
 
    OUT_PKT7(ring, CP_SET_MARKER, 1);
    OUT_RING(ring, A6XX_CP_SET_MARKER_0_MODE(RM6_COMPUTE));
