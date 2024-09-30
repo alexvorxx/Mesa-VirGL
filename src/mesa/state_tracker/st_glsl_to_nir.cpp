@@ -700,6 +700,27 @@ st_link_glsl_to_nir(struct gl_context *ctx,
       prev_info = info;
    }
 
+   /* Get TCS and TES shader info. */
+   struct shader_info *tcs_info = NULL, *tes_info = NULL;
+
+   for (unsigned i = 0; i < num_shaders; i++) {
+      struct gl_linked_shader *shader = linked_shader[i];
+      struct shader_info *info = &shader->Program->nir->info;
+
+      if (info->stage == MESA_SHADER_TESS_CTRL)
+         tcs_info = info;
+      else if (info->stage == MESA_SHADER_TESS_EVAL)
+         tes_info = info;
+   }
+
+   /* Copy some fields from TES to TCS shader info because some drivers
+    * (radeonsi) need them in TCS.
+    */
+   if (tcs_info && tes_info) {
+      tcs_info->tess._primitive_mode = tes_info->tess._primitive_mode;
+      tcs_info->tess.spacing = tes_info->tess.spacing;
+   }
+
    for (unsigned i = 0; i < num_shaders; i++) {
       struct gl_linked_shader *shader = linked_shader[i];
       struct gl_program *prog = shader->Program;
