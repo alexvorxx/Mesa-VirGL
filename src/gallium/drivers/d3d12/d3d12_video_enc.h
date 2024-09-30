@@ -105,9 +105,9 @@ d3d12_video_encoder_sync_completion(struct pipe_video_codec *codec, ID3D12Fence 
  * Get feedback fence.
  */
 int
-d3d12_video_encoder_get_feedback_fence(struct pipe_video_codec *codec,
-                                       struct pipe_fence_handle *fence,
-                                       uint64_t timeout);
+d3d12_video_encoder_fence_wait(struct pipe_video_codec *codec,
+                               struct pipe_fence_handle *fence,
+                               uint64_t timeout);
 
 struct pipe_video_buffer*
 d3d12_video_create_dpb_buffer(struct pipe_video_codec *codec,

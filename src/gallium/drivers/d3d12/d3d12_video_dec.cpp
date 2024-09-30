@@ -80,7 +80,8 @@ d3d12_video_create_decoder(struct pipe_context *context, const struct pipe_video
    pD3D12Dec->base.decode_bitstream = d3d12_video_decoder_decode_bitstream;
    pD3D12Dec->base.end_frame = d3d12_video_decoder_end_frame;
    pD3D12Dec->base.flush = d3d12_video_decoder_flush;
-   pD3D12Dec->base.get_decoder_fence = d3d12_video_decoder_get_decoder_fence;
+   pD3D12Dec->base.get_decoder_fence = d3d12_video_decoder_fence_wait;
+   pD3D12Dec->base.fence_wait = d3d12_video_decoder_fence_wait;
 
    pD3D12Dec->m_decodeFormat = d3d12_convert_pipe_video_profile_to_dxgi_format(codec->profile);
    pD3D12Dec->m_d3d12DecProfileType = d3d12_video_decoder_convert_pipe_video_profile_to_profile_type(codec->profile);
@@ -735,7 +736,7 @@ d3d12_video_decoder_end_frame(struct pipe_video_codec *codec,
  * Get decoder fence.
  */
 int
-d3d12_video_decoder_get_decoder_fence(struct pipe_video_codec *codec, struct pipe_fence_handle *fence, uint64_t timeout)
+d3d12_video_decoder_fence_wait(struct pipe_video_codec *codec, struct pipe_fence_handle *fence, uint64_t timeout)
 {
    struct d3d12_fence *fenceValueToWaitOn = (struct d3d12_fence *) fence;
    assert(fenceValueToWaitOn);

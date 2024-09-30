@@ -1668,7 +1668,8 @@ d3d12_video_encoder_create_encoder(struct pipe_context *context, const struct pi
    pD3D12Enc->base.get_encode_headers = d3d12_video_encoder_get_encode_headers;
    pD3D12Enc->base.get_feedback     = d3d12_video_encoder_get_feedback;
    pD3D12Enc->base.create_dpb_buffer = d3d12_video_create_dpb_buffer;
-   pD3D12Enc->base.get_feedback_fence = d3d12_video_encoder_get_feedback_fence;
+   pD3D12Enc->base.get_feedback_fence = d3d12_video_encoder_fence_wait;
+   pD3D12Enc->base.fence_wait       = d3d12_video_encoder_fence_wait;
 
    struct d3d12_context *pD3D12Ctx = (struct d3d12_context *) context;
    pD3D12Enc->m_pD3D12Screen       = d3d12_screen(pD3D12Ctx->base.screen);
@@ -2960,9 +2961,9 @@ d3d12_video_encoder_update_picparams_region_of_interest_qpmap(struct d3d12_video
 }
 
 int
-d3d12_video_encoder_get_feedback_fence(struct pipe_video_codec *codec,
-                                           struct pipe_fence_handle *_fence,
-                                           uint64_t timeout)
+d3d12_video_encoder_fence_wait(struct pipe_video_codec *codec,
+                               struct pipe_fence_handle *_fence,
+                               uint64_t timeout)
 {
    struct d3d12_fence *fence = (struct d3d12_fence *) _fence;
    assert(fence);
