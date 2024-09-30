@@ -183,30 +183,14 @@ _vlVaSyncSurface(VADriverContextP ctx, VASurfaceID render_target, uint64_t timeo
       return VA_STATUS_ERROR_UNSUPPORTED_ENTRYPOINT;
    }
 
-   if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_PROCESSING) {
-      /* If driver does not implement get_processor_fence assume no
-       * async work needed to be waited on and return success
-       */
-      int ret = (context->decoder->get_processor_fence) ? 0 : 1;
+   /* If driver does not implement fence_wait assume no
+    * async work needed to be waited on and return success
+    */
+   int ret = (context->decoder->fence_wait) ? 0 : 1;
+   if (context->decoder->fence_wait)
+      ret = context->decoder->fence_wait(context->decoder, surf->fence, timeout_ns);
 
-      if (context->decoder->get_processor_fence)
-         ret = context->decoder->get_processor_fence(context->decoder,
-                                                     surf->fence, timeout_ns);
-
-      mtx_unlock(&drv->mutex);
-      // Assume that the GPU has hung otherwise.
-      return ret ? VA_STATUS_SUCCESS : VA_STATUS_ERROR_TIMEDOUT;
-   } else if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_BITSTREAM) {
-      int ret = 0;
-
-      if (context->decoder->get_decoder_fence)
-         ret = context->decoder->get_decoder_fence(context->decoder,
-                                                   surf->fence, timeout_ns);
-
-      mtx_unlock(&drv->mutex);
-      // Assume that the GPU has hung otherwise.
-      return ret ? VA_STATUS_SUCCESS : VA_STATUS_ERROR_TIMEDOUT;
-   } else if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE && surf->feedback) {
+   if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE && surf->feedback) {
       if (!drv->pipe->screen->get_video_param(drv->pipe->screen,
                               context->decoder->profile,
                               context->decoder->entrypoint,
@@ -225,18 +209,15 @@ _vlVaSyncSurface(VADriverContextP ctx, VASurfaceID render_target, uint64_t timeo
             }
          }
       }
-      if (context->decoder->get_feedback_fence &&
-          !context->decoder->get_feedback_fence(context->decoder, surf->fence, timeout_ns)) {
-         mtx_unlock(&drv->mutex);
-         return VA_STATUS_ERROR_TIMEDOUT;
+      if (ret) {
+         context->decoder->get_feedback(context->decoder, surf->feedback, &(surf->coded_buf->coded_size), &(surf->coded_buf->extended_metadata));
+         surf->feedback = NULL;
+         surf->coded_buf->feedback = NULL;
+         surf->coded_buf->associated_encode_input_surf = VA_INVALID_ID;
       }
-      context->decoder->get_feedback(context->decoder, surf->feedback, &(surf->coded_buf->coded_size), &(surf->coded_buf->extended_metadata));
-      surf->feedback = NULL;
-      surf->coded_buf->feedback = NULL;
-      surf->coded_buf->associated_encode_input_surf = VA_INVALID_ID;
    }
    mtx_unlock(&drv->mutex);
-   return VA_STATUS_SUCCESS;
+   return ret ? VA_STATUS_SUCCESS : VA_STATUS_ERROR_TIMEDOUT;
 }
 
 VAStatus
@@ -299,46 +280,22 @@ vlVaQuerySurfaceStatus(VADriverContextP ctx, VASurfaceID render_target, VASurfac
       return VA_STATUS_ERROR_UNSUPPORTED_ENTRYPOINT;
    }
 
-   if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE) {
-      if(surf->feedback == NULL)
-         *status=VASurfaceReady;
-      else
-         *status=VASurfaceRendering;
-   } else if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_BITSTREAM) {
-      int ret = 0;
+   /* If driver does not implement fence_wait assume no
+    * async work needed to be waited on and return surface ready
+    */
+   int ret = (context->decoder->fence_wait) ? 0 : 1;
 
-      if (context->decoder->get_decoder_fence)
-         ret = context->decoder->get_decoder_fence(context->decoder,
-                                                   surf->fence, 0);
-
-      if (ret)
-         *status = VASurfaceReady;
-      else
-      /* An approach could be to just tell the client that this is not
-       * implemented, but this breaks other code.  Compromise by at least
-       * conservatively setting the status to VASurfaceRendering if we can't
-       * query the hardware.  Note that we _must_ set the status here, otherwise
-       * it comes out of the function unchanged. As we are returning
-       * VA_STATUS_SUCCESS, the client would be within his/her rights to use a
-       * potentially uninitialized/invalid status value unknowingly.
-       */
-         *status = VASurfaceRendering;
-   } else if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_PROCESSING) {
-      /* If driver does not implement get_processor_fence assume no
-       * async work needed to be waited on and return surface ready
-       */
-      int ret = (context->decoder->get_processor_fence) ? 0 : 1;
-
-      if (context->decoder->get_processor_fence)
-         ret = context->decoder->get_processor_fence(context->decoder,
-                                                     surf->fence, 0);
-      if (ret)
-         *status = VASurfaceReady;
-      else
-         *status = VASurfaceRendering;
-   }
+   if (context->decoder->entrypoint == PIPE_VIDEO_ENTRYPOINT_ENCODE && !surf->feedback)
+      ret = 1;
+   else if (context->decoder->fence_wait)
+      ret = context->decoder->fence_wait(context->decoder, surf->fence, 0);
 
    mtx_unlock(&drv->mutex);
+
+   if (ret)
+      *status = VASurfaceReady;
+   else
+      *status = VASurfaceRendering;
 
    return VA_STATUS_SUCCESS;
 }
