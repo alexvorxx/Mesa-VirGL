@@ -1068,7 +1068,6 @@ si_vpe_create_processor(struct pipe_context *context, const struct pipe_video_co
    vpeproc->base.process_frame = si_vpe_processor_process_frame;
    vpeproc->base.end_frame = si_vpe_processor_end_frame;
    vpeproc->base.flush = si_vpe_processor_flush;
-   vpeproc->base.get_processor_fence = si_vpe_processor_fence_wait;
    vpeproc->base.fence_wait = si_vpe_processor_fence_wait;
 
    vpeproc->ver_major = sctx->screen->info.ip[AMD_IP_VPE].ver_major;

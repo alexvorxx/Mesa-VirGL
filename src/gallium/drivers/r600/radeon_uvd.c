@@ -1070,7 +1070,6 @@ struct pipe_video_codec *ruvd_create_decoder(struct pipe_context *context,
 	dec->base.decode_bitstream = ruvd_decode_bitstream;
 	dec->base.end_frame = ruvd_end_frame;
 	dec->base.flush = ruvd_flush;
-	dec->base.get_decoder_fence = ruvd_fence_wait;
 	dec->base.fence_wait = ruvd_fence_wait;
 
 	dec->stream_type = profile2stream_type(dec, info.family);

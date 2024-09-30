@@ -80,7 +80,6 @@ d3d12_video_create_decoder(struct pipe_context *context, const struct pipe_video
    pD3D12Dec->base.decode_bitstream = d3d12_video_decoder_decode_bitstream;
    pD3D12Dec->base.end_frame = d3d12_video_decoder_end_frame;
    pD3D12Dec->base.flush = d3d12_video_decoder_flush;
-   pD3D12Dec->base.get_decoder_fence = d3d12_video_decoder_fence_wait;
    pD3D12Dec->base.fence_wait = d3d12_video_decoder_fence_wait;
 
    pD3D12Dec->m_decodeFormat = d3d12_convert_pipe_video_profile_to_dxgi_format(codec->profile);

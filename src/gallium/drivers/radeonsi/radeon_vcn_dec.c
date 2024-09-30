@@ -2782,7 +2782,6 @@ struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
    dec->base.decode_bitstream = radeon_dec_decode_bitstream;
    dec->base.end_frame = radeon_dec_end_frame;
    dec->base.flush = radeon_dec_flush;
-   dec->base.get_decoder_fence = radeon_dec_fence_wait;
    dec->base.fence_wait = radeon_dec_fence_wait;
    dec->base.destroy_fence = radeon_dec_destroy_fence;
    dec->base.update_decoder_target =  radeon_dec_update_render_list;

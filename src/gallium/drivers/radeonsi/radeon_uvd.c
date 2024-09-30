@@ -1263,7 +1263,6 @@ struct pipe_video_codec *si_common_uvd_create_decoder(struct pipe_context *conte
    dec->base.decode_bitstream = ruvd_decode_bitstream;
    dec->base.end_frame = ruvd_end_frame;
    dec->base.flush = ruvd_flush;
-   dec->base.get_decoder_fence = ruvd_dec_fence_wait;
    dec->base.fence_wait = ruvd_dec_fence_wait;
    dec->base.destroy_fence = ruvd_dec_destroy_fence;
 

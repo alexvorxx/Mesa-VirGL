@@ -423,7 +423,6 @@ d3d12_video_processor_create(struct pipe_context *context, const struct pipe_vid
    pD3D12Proc->base.process_frame = d3d12_video_processor_process_frame;
    pD3D12Proc->base.end_frame = d3d12_video_processor_end_frame;
    pD3D12Proc->base.flush = d3d12_video_processor_flush;
-   pD3D12Proc->base.get_processor_fence = d3d12_video_processor_fence_wait;
    pD3D12Proc->base.fence_wait = d3d12_video_processor_fence_wait;
 
    ///
