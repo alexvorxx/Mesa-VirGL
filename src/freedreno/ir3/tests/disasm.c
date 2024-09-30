@@ -99,7 +99,6 @@ static const struct test {
    INSTR_6XX(47308a02_00002000, "(rpt2)bary.f (ei)r0.z, (r)0, r0.x"),
    INSTR_6XX(47348000_00002000, "flat.b (ei)r0.x, 0, r0.x"),
    INSTR_6XX(43480801_00008001, "(nop3) absneg.s hr0.y, (abs)hr0.y"),
-   INSTR_6XX(50600004_2c010004, "(sy)mul.f hr1.x, hr1.x, h(0.5)"),
    INSTR_6XX(42280807_27ff0000, "(nop3) add.s hr1.w, hr0.x, h(-1)"),
    INSTR_6XX(40a500f8_2c000004, "cmps.f.ne p0.x, hr1.x, h(0.0)"),
    INSTR_6XX(438000f8_20010009, "and.b p0.x, hr2.y, h(1)"),
@@ -347,6 +346,18 @@ static const struct test {
    INSTR_6XX(40100007_68090008, "add.f r1.w, r2.x, (neg)(1/log2(10))"),
    INSTR_6XX(40100007_680a0008, "add.f r1.w, r2.x, (neg)(log2(10))"),
    INSTR_6XX(40100007_680b0008, "add.f r1.w, r2.x, (neg)(4.0)"),
+   INSTR_6XX(50600004_2c000004, "(sy)mul.f hr1.x, hr1.x, h(0.0)"),
+   INSTR_6XX(50600004_2c010004, "(sy)mul.f hr1.x, hr1.x, h(0.5)"),
+   INSTR_6XX(50600004_2c020004, "(sy)mul.f hr1.x, hr1.x, h(1.0)"),
+   INSTR_6XX(50600004_2c030004, "(sy)mul.f hr1.x, hr1.x, h(2.0)"),
+   INSTR_6XX(50600004_2c040004, "(sy)mul.f hr1.x, hr1.x, h(e)"),
+   INSTR_6XX(50600004_2c050004, "(sy)mul.f hr1.x, hr1.x, h(pi)"),
+   INSTR_6XX(50600004_2c060004, "(sy)mul.f hr1.x, hr1.x, h(1/pi)"),
+   INSTR_6XX(50600004_2c070004, "(sy)mul.f hr1.x, hr1.x, h(1/log2(e))"),
+   INSTR_6XX(50600004_2c080004, "(sy)mul.f hr1.x, hr1.x, h(log2(e))"),
+   INSTR_6XX(50600004_2c090004, "(sy)mul.f hr1.x, hr1.x, h(1/log2(10))"),
+   INSTR_6XX(50600004_2c0a0004, "(sy)mul.f hr1.x, hr1.x, h(log2(10))"),
+   INSTR_6XX(50600004_2c0b0004, "(sy)mul.f hr1.x, hr1.x, h(4.0)"),
 
    /* LDC.  Our disasm differs greatly from qcom here, and we've got some
     * important info they lack(?!), but same goes the other way.
