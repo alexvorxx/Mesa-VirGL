@@ -1146,6 +1146,20 @@ to upconvert to 32b float internally?
 	<value value="0x0"  name="R2D_RAW"/>
 </enum>
 
+<enum name="a6xx_tex_type">
+	<value name="A6XX_TEX_1D" value="0"/>
+	<value name="A6XX_TEX_2D" value="1"/>
+	<value name="A6XX_TEX_CUBE" value="2"/>
+	<value name="A6XX_TEX_3D" value="3"/>
+	<value name="A6XX_TEX_BUFFER" value="4"/>
+	<doc>
+		A special buffer type for usage as the source for buffer
+		to image copies with lower alignment requirements than
+		A6XX_TEX_2D, available since A7XX.
+	</doc>
+	<value name="A6XX_TEX_IMG_BUFFER" value="5"/>
+</enum>
+
 <enum name="a6xx_ztest_mode">
 	<doc>Allow early z-test and early-lrz (if applicable)</doc>
 	<value value="0x0" name="A6XX_EARLY_Z"/>
@@ -5373,8 +5387,11 @@ to upconvert to 32b float internally?
 	</reg32>
 	<reg64 offset="0xb2c2" name="SP_PS_2D_SRC" type="address" align="16" variants="A7XX-" usage="rp_blit"/>
 	<reg32 offset="0xb2c4" name="SP_PS_2D_SRC_PITCH" variants="A7XX">
-		<bitfield name="UNK0" low="0" high="8"/>
-		<bitfield name="PITCH" low="9" high="23" shr="6" type="uint"/>
+		<!--
+		Bits from 3..9 must be zero unless 'TPL1_2D_SRC_CNTL::TYPE'
+		is A6XX_TEX_IMG_BUFFER, which allows for lower alignment.
+		 -->
+		<bitfield name="PITCH" low="3" high="23" type="uint"/>
 	</reg32>
 
 	<!-- planes for NV12, etc. (TODO: not tested) -->
@@ -5403,7 +5420,11 @@ to upconvert to 32b float internally?
 	<reg32 offset="0xb2cf" name="SP_PS_UNKNOWN_B4CF" low="0" high="30" variants="A7XX"/>
 	<reg32 offset="0xb2d0" name="SP_PS_UNKNOWN_B4D0" low="0" high="29" variants="A7XX"/>
 	<reg32 offset="0xb2d1" name="SP_PS_2D_WINDOW_OFFSET" type="a6xx_reg_xy" variants="A7XX"/>
-	<reg32 offset="0xb2d2" name="SP_PS_UNKNOWN_B2D2" variants="A7XX-" usage="rp_blit"/>
+	<reg32 offset="0xb2d2" name="TPL1_2D_SRC_CNTL" variants="A7XX-" usage="rp_blit">
+		<bitfield name="RAW_COPY" pos="0" type="boolean"/>
+		<bitfield name="START_OFFSET_TEXELS" low="16" high="21"/>
+		<bitfield name="TYPE" low="29" high="31" type="a6xx_tex_type"/>
+	</reg32>
 	<reg32 offset="0xab21" name="SP_WINDOW_OFFSET" type="a6xx_reg_xy" variants="A7XX-" usage="rp_blit"/>
 
 	<!-- always 0x100000 or 0x1000000? -->
@@ -5917,13 +5938,6 @@ to upconvert to 32b float internally?
 		<value name="A6XX_TEX_W" value="3"/>
 		<value name="A6XX_TEX_ZERO" value="4"/>
 		<value name="A6XX_TEX_ONE" value="5"/>
-	</enum>
-	<enum name="a6xx_tex_type"> <!-- same as a4xx? -->
-		<value name="A6XX_TEX_1D" value="0"/>
-		<value name="A6XX_TEX_2D" value="1"/>
-		<value name="A6XX_TEX_CUBE" value="2"/>
-		<value name="A6XX_TEX_3D" value="3"/>
-		<value name="A6XX_TEX_BUFFER" value="4"/>
 	</enum>
 	<reg32 offset="0" name="0">
 		<bitfield name="TILE_MODE" low="0" high="1" type="a6xx_tile_mode"/>

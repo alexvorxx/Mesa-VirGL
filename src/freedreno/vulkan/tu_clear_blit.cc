@@ -465,8 +465,9 @@ r2d_setup_common(struct tu_cmd_buffer *cmd,
    tu_cs_emit(cs, blit_cntl);
 
    if (CHIP > A6XX) {
-      tu_cs_emit_pkt4(cs, REG_A7XX_SP_PS_UNKNOWN_B2D2, 1);
-      tu_cs_emit(cs, 0x20000000);
+      tu_cs_emit_regs(cs, A7XX_TPL1_2D_SRC_CNTL(.raw_copy = false,
+                                                .start_offset_texels = 0,
+                                                .type = A6XX_TEX_2D));
    }
 
    if (fmt == FMT6_10_10_10_2_UNORM_DEST)

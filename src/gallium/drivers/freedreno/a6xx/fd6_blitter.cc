@@ -310,8 +310,11 @@ emit_blit_setup(struct fd_ringbuffer *ring, enum pipe_format pfmt,
    OUT_RING(ring, blit_cntl);
 
    if (CHIP >= A7XX) {
-      OUT_PKT4(ring, REG_A7XX_SP_PS_UNKNOWN_B2D2, 1);
-      OUT_RING(ring, 0x20000000);
+      OUT_REG(ring, A7XX_TPL1_2D_SRC_CNTL(
+            .raw_copy = false,
+            .start_offset_texels = 0,
+            .type = A6XX_TEX_2D,
+      ));
    }
 
    if (fmt == FMT6_10_10_10_2_UNORM_DEST)
