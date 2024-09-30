@@ -2108,17 +2108,9 @@ handle_fixed_operands(ra_ctx& ctx, RegisterFile& register_file,
          continue;
       }
 
-      unsigned j;
-      bool found = false;
-      BITSET_FOREACH_SET (j, mask, i) {
-         if (instr->operands[j].tempId() == op.tempId() &&
-             instr->operands[j].physReg() == op.physReg()) {
-            found = true;
-            break;
-         }
-      }
-      if (found)
-         continue; /* the copy is already added to the list */
+      /* An instruction can have at most one operand precolored to the same register. */
+      assert(std::none_of(parallelcopy.begin(), parallelcopy.end(),
+                          [&](auto copy) { return copy.second.physReg() == op.physReg(); }));
 
       /* clear from register_file so fixed operands are not collected be collect_vars() */
       tmp_file.clear(src, op.regClass()); // TODO: try to avoid moving block vars to src
