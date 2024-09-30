@@ -197,7 +197,8 @@ void vpe10_dpp_program_input_transfer_func(struct dpp *dpp, struct transfer_func
     // VPE always do NL scaling using gamcor, thus skipping dgam (default bypass)
     // dpp->funcs->program_pre_dgam(dpp, tf);
     if (input_tf->type == TF_TYPE_DISTRIBUTED_POINTS) {
-        vpe10_cm_helper_translate_curve_to_degamma_hw_format(input_tf, &dpp->degamma_params);
+        vpe10_cm_helper_translate_curve_to_degamma_hw_format(
+            input_tf, &dpp->degamma_params, input_tf->dirty[dpp->inst]);
         params = &dpp->degamma_params;
     }
 

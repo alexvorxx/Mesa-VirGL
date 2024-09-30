@@ -1253,8 +1253,8 @@ void vpe10_mpc_set_mpc_shaper_3dlut(
     // get the shaper lut params
     if (func_shaper) {
         if (func_shaper->type == TF_TYPE_DISTRIBUTED_POINTS) {
-            vpe10_cm_helper_translate_curve_to_hw_format(
-                func_shaper, &mpc->shaper_params, true); // should init shaper_params first
+            vpe10_cm_helper_translate_curve_to_hw_format(func_shaper, &mpc->shaper_params, true,
+                func_shaper->dirty[mpc->inst]);          // should init shaper_params first
             shaper_lut = &mpc->shaper_params;            // are there shaper prams in dpp instead?
         } else if (func_shaper->type == TF_TYPE_HWPWL) {
             shaper_lut = &func_shaper->pwl;
@@ -1286,7 +1286,7 @@ void vpe10_mpc_set_output_transfer_func(struct mpc *mpc, struct output_ctx *outp
         if (output_ctx->output_tf->type == TF_TYPE_DISTRIBUTED_POINTS) {
             vpe10_cm_helper_translate_curve_to_hw_format( // this is cm3.0 version instead 1.0
                                                           // as DCN3.2
-                output_ctx->output_tf, &mpc->regamma_params, false);
+                output_ctx->output_tf, &mpc->regamma_params, false, output_ctx->output_tf->dirty[mpc->inst]);
             params = &mpc->regamma_params;
         }
         /* there are no ROM LUTs in OUTGAM */
@@ -1317,9 +1317,10 @@ void vpe10_mpc_set_blend_lut(struct mpc *mpc, struct transfer_func *blend_tf)
 
         if (gamma_type == CM_DEGAM)
             vpe10_cm_helper_translate_curve_to_degamma_hw_format(
-                blend_tf, &mpc->blender_params); // TODO should init regamma_params first
+                blend_tf, &mpc->blender_params, blend_tf->dirty[mpc->inst]); // TODO should init regamma_params first
         else
-            vpe10_cm_helper_translate_curve_to_hw_format(blend_tf, &mpc->blender_params, false);
+            vpe10_cm_helper_translate_curve_to_hw_format(
+                blend_tf, &mpc->blender_params, false, blend_tf->dirty[mpc->inst]);
 
         blend_lut = &mpc->blender_params;
     }
