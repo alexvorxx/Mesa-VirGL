@@ -1562,6 +1562,9 @@ relative:          relative_gpr_src
 /* cat1 immediates differ slighly in the floating point case from the cat2
  * case which can only encode certain predefined values (ie. and index into
  * the FLUT table)
+ *
+ * We have to special cases a few FLUT values which are ambiguous from the
+ * lexer PoV.
  */
 immediate_cat1:    integer             { new_src(0, IR3_REG_IMMED)->iim_val = type_size(instr->cat1.src_type) < 32 ? $1 & 0xffff : $1; }
 |                  '(' integer ')'     { new_src(0, IR3_REG_IMMED)->fim_val = $2; }
@@ -1570,6 +1573,11 @@ immediate_cat1:    integer             { new_src(0, IR3_REG_IMMED)->iim_val = ty
 |                  'h' '(' float ')'   { new_src(0, IR3_REG_IMMED | IR3_REG_HALF)->uim_val = _mesa_float_to_half($3); }
 |                  '(' T_NAN ')'       { new_src(0, IR3_REG_IMMED)->fim_val = NAN; }
 |                  '(' T_INF ')'       { new_src(0, IR3_REG_IMMED)->fim_val = INFINITY; }
+|                  T_FLUT_0_0          { new_src(0, IR3_REG_IMMED)->fim_val = 0.0; }
+|                  T_FLUT_0_5          { new_src(0, IR3_REG_IMMED)->fim_val = 0.5; }
+|                  T_FLUT_1_0          { new_src(0, IR3_REG_IMMED)->fim_val = 1.0; }
+|                  T_FLUT_2_0          { new_src(0, IR3_REG_IMMED)->fim_val = 2.0; }
+|                  T_FLUT_4_0          { new_src(0, IR3_REG_IMMED)->fim_val = 4.0; }
 
 immediate:         integer             { new_src(0, IR3_REG_IMMED)->iim_val = $1; }
 |                  '(' integer ')'     { new_src(0, IR3_REG_IMMED)->fim_val = $2; }
