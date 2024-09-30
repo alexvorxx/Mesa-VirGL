@@ -225,6 +225,7 @@ panthor_dev_query_thread_props(const struct panthor_kmod_dev *panthor_dev,
 {
    props->max_threads_per_wg = panthor_dev->props.gpu.thread_max_workgroup_size;
    props->max_threads_per_core = panthor_dev->props.gpu.max_threads;
+   props->max_tasks_per_core = panthor_dev->props.gpu.thread_features >> 24;
    props->num_registers_per_core =
       panthor_dev->props.gpu.thread_features & 0x3fffff;
 
@@ -233,7 +234,7 @@ panthor_dev_query_thread_props(const struct panthor_kmod_dev *panthor_dev,
     * quirk here.
     */
    assert(props->max_threads_per_wg && props->max_threads_per_core &&
-          props->num_registers_per_core);
+          props->max_tasks_per_core && props->num_registers_per_core);
 
    /* There is no THREAD_TLS_ALLOC register on v10+, and the maximum number
     * of TLS instance per core is assumed to be the maximum number of threads

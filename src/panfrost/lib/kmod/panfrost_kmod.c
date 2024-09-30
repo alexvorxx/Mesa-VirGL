@@ -135,6 +135,7 @@ panfrost_dev_query_thread_props(const struct pan_kmod_dev *dev,
 
    uint32_t thread_features =
       panfrost_query_raw(fd, DRM_PANFROST_PARAM_THREAD_FEATURES, true, 0);
+   props->max_tasks_per_core = MAX2(thread_features >> 24, 1);
    props->num_registers_per_core = thread_features & 0xffff;
    if (!props->num_registers_per_core) {
       switch (pan_arch(props->gpu_prod_id)) {

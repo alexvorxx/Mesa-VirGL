@@ -176,6 +176,9 @@ struct pan_kmod_dev_props {
    /* Maximum number of threads per core. */
    uint32_t max_threads_per_core;
 
+   /* Maximum number of compute tasks per core. */
+   uint8_t max_tasks_per_core;
+
    /* Maximum number of threads per workgroup. */
    uint32_t max_threads_per_wg;
 
