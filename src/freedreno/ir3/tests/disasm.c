@@ -539,15 +539,16 @@ main(int argc, char **argv)
          code[1] = test->instr_raw >> 32;
       }
 
-      printf("Testing a%d %08x_%08x: \"%s\"...\n", test->gpu_id, code[1], code[0],
-             test->expected);
-
       struct fd_dev_id dev_id = {
          .gpu_id = test->gpu_id,
          .chip_id = test->chip_id,
       };
 
       const struct fd_dev_info *dev_info = fd_dev_info_raw(&dev_id);
+      const char *name = fd_dev_name(&dev_id);
+
+      printf("Testing %s %08x_%08x: \"%s\"...\n", name, code[1], code[0],
+             test->expected);
 
       rewind(fdisasm);
       memset(disasm_output, 0, output_size);
