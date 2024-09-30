@@ -123,6 +123,12 @@ case $CI_PIPELINE_SOURCE in
       ;;
 esac
 
+if [ "$LTO" == "true" ]; then
+    MAX_LD=2
+else
+    MAX_LD=${FDO_CI_CONCURRENT:-4}
+fi
+
 section_switch meson-configure "meson: configure"
 
 rm -rf _build
@@ -149,6 +155,7 @@ meson setup _build \
       -D video-codecs=all \
       -D werror=true \
       -D b_lto=${LTO} \
+      -D backend_max_links=${MAX_LD} \
       ${EXTRA_OPTION}
 cd _build
 meson configure
