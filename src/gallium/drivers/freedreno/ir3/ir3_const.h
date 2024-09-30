@@ -48,6 +48,8 @@ emit_const_asserts(struct fd_ringbuffer *ring,
                    const struct ir3_shader_variant *v, uint32_t regid,
                    uint32_t sizedwords)
 {
+   assert((v->type == MESA_SHADER_VERTEX) ||
+          !v->compiler->load_shader_consts_via_preamble);
    assert((regid % 4) == 0);
    assert((sizedwords % 4) == 0);
    assert(regid + sizedwords <= v->constlen * 4);
