@@ -418,20 +418,22 @@ insert_traversal_aabb_case(struct radv_device *device, nir_builder *b, const str
    if (!args->aabb_cb)
       return;
 
-   struct radv_leaf_intersection intersection;
-   intersection.node_addr = build_node_to_addr(device, b, bvh_node, false);
-   nir_def *triangle_info = nir_build_load_global(
-      b, 2, 32, nir_iadd_imm(b, intersection.node_addr, offsetof(struct radv_bvh_aabb_node, primitive_id)));
-   intersection.primitive_id = nir_channel(b, triangle_info, 0);
-   intersection.geometry_id_and_flags = nir_channel(b, triangle_info, 1);
-   intersection.opaque = hit_is_opaque(b, nir_load_deref(b, args->vars.sbt_offset_and_flags), ray_flags,
-                                       intersection.geometry_id_and_flags);
-
-   nir_def *not_cull = nir_bcsel(b, intersection.opaque, ray_flags->no_cull_opaque, ray_flags->no_cull_no_opaque);
-   not_cull = nir_iand(b, not_cull, ray_flags->no_skip_aabbs);
-   nir_push_if(b, not_cull);
+   nir_push_if(b, ray_flags->no_skip_aabbs);
    {
-      args->aabb_cb(b, &intersection, args);
+      struct radv_leaf_intersection intersection;
+      intersection.node_addr = build_node_to_addr(device, b, bvh_node, false);
+      nir_def *triangle_info = nir_build_load_global(
+         b, 2, 32, nir_iadd_imm(b, intersection.node_addr, offsetof(struct radv_bvh_aabb_node, primitive_id)));
+      intersection.primitive_id = nir_channel(b, triangle_info, 0);
+      intersection.geometry_id_and_flags = nir_channel(b, triangle_info, 1);
+      intersection.opaque = hit_is_opaque(b, nir_load_deref(b, args->vars.sbt_offset_and_flags), ray_flags,
+                                          intersection.geometry_id_and_flags);
+
+      nir_push_if(b, nir_bcsel(b, intersection.opaque, ray_flags->no_cull_opaque, ray_flags->no_cull_no_opaque));
+      {
+         args->aabb_cb(b, &intersection, args);
+      }
+      nir_pop_if(b, NULL);
    }
    nir_pop_if(b, NULL);
 }
