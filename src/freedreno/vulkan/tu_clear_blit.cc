@@ -355,6 +355,44 @@ r2d_src_buffer(struct tu_cmd_buffer *cmd,
 
 template <chip CHIP>
 static void
+r2d_src_buffer_unaligned(struct tu_cmd_buffer *cmd,
+                         struct tu_cs *cs,
+                         enum pipe_format format,
+                         uint64_t va,
+                         uint32_t pitch,
+                         uint32_t width,
+                         uint32_t height,
+                         enum pipe_format dst_format)
+{
+   /* This functionality is only allowed on A7XX, this assertion statically
+    * disallows calling this function on prior generations by mistake.
+    */
+   static_assert(CHIP >= A7XX);
+
+   struct tu_native_format fmt =
+      blit_format_texture<CHIP>(format, TILE6_LINEAR, false);
+   enum a6xx_format color_format = fmt.fmt;
+   fixup_src_format(&format, dst_format, &color_format);
+
+   uint32_t offset_texels = ((va & 0x3f) / util_format_get_blocksize(format));
+   va &= ~0x3f;
+   tu_cs_emit_regs(cs,
+                   A7XX_TPL1_2D_SRC_CNTL(.raw_copy = false,
+                                         .start_offset_texels = offset_texels,
+                                         .type = A6XX_TEX_IMG_BUFFER));
+
+   tu_cs_emit_regs(cs,
+                   SP_PS_2D_SRC_INFO(CHIP, .color_format = color_format,
+                                     .color_swap = fmt.swap,
+                                     .srgb = util_format_is_srgb(format),
+                                     .unk20 = 1, .unk22 = 1),
+                   SP_PS_2D_SRC_SIZE(CHIP, .width = width, .height = height),
+                   SP_PS_2D_SRC(CHIP, .qword = va),
+                   SP_PS_2D_SRC_PITCH(CHIP, .pitch = pitch));
+}
+
+template <chip CHIP>
+static void
 r2d_dst(struct tu_cs *cs, const struct fdl6_view *iview, uint32_t layer,
         enum pipe_format src_format)
 {
@@ -2366,11 +2404,13 @@ tu_copy_buffer_to_image(struct tu_cmd_buffer *cmd,
    }
 
    /* note: could use "R8_UNORM" when no UBWC */
+   bool has_unaligned = CHIP >= A7XX; /* If unaligned buffer copies are supported. */
    unsigned blit_param = 0;
    if (src_format == PIPE_FORMAT_Y8_UNORM ||
        tu_pipe_format_is_float16(src_format)) {
       ops = &r3d_ops<CHIP>;
       blit_param = R3D_COPY;
+      has_unaligned = false;
    }
 
    VkOffset3D offset = info->imageOffset;
@@ -2395,7 +2435,8 @@ tu_copy_buffer_to_image(struct tu_cmd_buffer *cmd,
       ops->dst(cs, &dst, i, src_format);
 
       uint64_t src_va = src_buffer->iova + info->bufferOffset + layer_size * i;
-      if ((src_va & 63) || (pitch & 63)) {
+      bool unaligned = (src_va & 63) || (pitch & 63);
+      if (!has_unaligned && unaligned) {
          for (uint32_t y = 0; y < extent.height; y++) {
             uint32_t x = (src_va & 63) / util_format_get_blocksize(src_format);
             ops->src_buffer(cmd, cs, src_format, src_va & ~63, pitch,
@@ -2406,7 +2447,20 @@ tu_copy_buffer_to_image(struct tu_cmd_buffer *cmd,
             src_va += pitch;
          }
       } else {
-         ops->src_buffer(cmd, cs, src_format, src_va, pitch, extent.width, extent.height, dst_format);
+         if constexpr (CHIP >= A7XX) {
+            /* Necessary to not trigger static assertion from A6XX variant. */
+            if (has_unaligned) {
+               r2d_src_buffer_unaligned<CHIP>(cmd, cs, src_format, src_va,
+                                              pitch, extent.width,
+                                              extent.height, dst_format);
+            } else {
+               ops->src_buffer(cmd, cs, src_format, src_va, pitch,
+                               extent.width, extent.height, dst_format);
+            }
+         } else {
+            ops->src_buffer(cmd, cs, src_format, src_va, pitch, extent.width,
+                            extent.height, dst_format);
+         }
          coords(ops, cmd, cs, offset, (VkOffset3D) {}, extent);
          ops->run(cmd, cs);
       }
