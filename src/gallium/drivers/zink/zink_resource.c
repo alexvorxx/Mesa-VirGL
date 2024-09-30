@@ -1279,23 +1279,6 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
    } else {
       ici.pNext = NULL;
    }
-   VkImageCompressionFixedRateFlagsEXT rate = 0;
-   VkImageCompressionControlEXT compression = {
-      VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT,
-      ici.pNext,
-      0,
-      1,
-      &rate
-   };
-   if (templ->compression_rate != PIPE_COMPRESSION_FIXED_RATE_NONE) {
-      if (templ->compression_rate == PIPE_COMPRESSION_FIXED_RATE_DEFAULT) {
-         compression.flags = VK_IMAGE_COMPRESSION_FIXED_RATE_DEFAULT_EXT;
-      } else {
-         compression.flags = VK_IMAGE_COMPRESSION_FIXED_RATE_EXPLICIT_EXT;
-         rate = BITFIELD_BIT(templ->compression_rate - 1);
-      }
-      ici.pNext = &compression;
-   }
    init_ici(screen, &ici, templ, templ->bind, ici_modifier_count);
 
    bool success = false;

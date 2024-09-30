@@ -292,20 +292,6 @@ kopper_CreateSwapchain(struct zink_screen *screen, struct kopper_displaytarget *
    if (cdt->formats[1])
       cswap->scci.pNext = &cdt->format_list;
 
-   cswap->comp.pFixedRateFlags = &cswap->comp_rate;
-   cswap->comp.sType = VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT;
-   cswap->comp.pNext = cswap->scci.pNext;
-   cswap->comp.compressionControlPlaneCount = 0;
-   if (cdt->info.compression) {
-      if (cdt->info.compression == UINT32_MAX) {
-         cswap->comp.flags = VK_IMAGE_COMPRESSION_FIXED_RATE_DEFAULT_EXT;
-      } else {
-         cswap->comp.flags = VK_IMAGE_COMPRESSION_FIXED_RATE_EXPLICIT_EXT;
-         cswap->comp_rate = cdt->info.compression;
-      }
-      cswap->scci.pNext = &cswap->comp;
-   }
-
    /* different display platforms have, by vulkan spec, different sizing methodologies */
    switch (cdt->type) {
    case KOPPER_X11:
