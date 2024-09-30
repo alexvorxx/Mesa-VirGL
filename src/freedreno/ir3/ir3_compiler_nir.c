@@ -5803,6 +5803,15 @@ ir3_compile_shader_nir(struct ir3_compiler *compiler,
       so->constlen = MAX2(so->constlen, 4);
    }
 
+   if (gl_shader_stage_is_compute(so->type)) {
+      so->cs.local_invocation_id =
+         ir3_find_sysval_regid(so, SYSTEM_VALUE_LOCAL_INVOCATION_ID);
+      so->cs.work_group_id =
+         ir3_find_sysval_regid(so, SYSTEM_VALUE_WORKGROUP_ID);
+   } else {
+      so->vtxid_base = ir3_find_sysval_regid(so, SYSTEM_VALUE_VERTEX_ID_ZERO_BASE);
+   }
+
 out:
    if (ret) {
       if (so->ir)

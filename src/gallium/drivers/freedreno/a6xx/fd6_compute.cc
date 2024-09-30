@@ -51,10 +51,8 @@ cs_program_emit(struct fd_context *ctx, struct fd_ringbuffer *ring,
                      A6XX_SP_CS_CONFIG_NTEX(v->num_samp) |
                      A6XX_SP_CS_CONFIG_NSAMP(v->num_samp)); /* SP_CS_CONFIG */
 
-   uint32_t local_invocation_id, work_group_id;
-   local_invocation_id =
-      ir3_find_sysval_regid(v, SYSTEM_VALUE_LOCAL_INVOCATION_ID);
-   work_group_id = ir3_find_sysval_regid(v, SYSTEM_VALUE_WORKGROUP_ID);
+   uint32_t local_invocation_id = v->cs.local_invocation_id;
+   uint32_t work_group_id = v->cs.work_group_id;
 
    /*
     * Devices that do not support double threadsize take the threadsize from

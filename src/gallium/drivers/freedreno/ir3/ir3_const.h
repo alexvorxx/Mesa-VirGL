@@ -466,16 +466,12 @@ ir3_emit_driver_params(const struct ir3_shader_variant *v,
       MIN2(const_state->num_driver_params, (v->constlen - offset) * 4);
    assert(vertex_params_size <= IR3_DP_VS_COUNT);
 
-   bool needs_vtxid_base =
-      ir3_find_sysval_regid(v, SYSTEM_VALUE_VERTEX_ID_ZERO_BASE) !=
-      regid(63, 0);
-
    /* for indirect draw, we need to copy VTXID_BASE from
     * indirect-draw parameters buffer.. which is annoying
     * and means we can't easily emit these consts in cmd
     * stream so need to copy them to bo.
     */
-   if (indirect && needs_vtxid_base) {
+   if (indirect && v->vtxid_base != INVALID_REG) {
       uint32_t vertex_params_area = align(vertex_params_size, 16);
       struct pipe_resource *vertex_params_rsc =
          pipe_buffer_create(&ctx->screen->base, PIPE_BIND_CONSTANT_BUFFER,

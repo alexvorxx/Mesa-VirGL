@@ -839,8 +839,12 @@ struct ir3_shader_variant {
          unsigned req_input_mem;
          unsigned req_local_mem;
          bool force_linear_dispatch;
+         uint32_t local_invocation_id;
+         uint32_t work_group_id;
       } cs;
    };
+
+   uint32_t vtxid_base;
 
    /* For when we don't have a shader, variant's copy of streamout state */
    struct ir3_stream_output_info stream_output;
