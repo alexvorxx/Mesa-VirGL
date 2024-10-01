@@ -91,10 +91,6 @@ wine \
 
 . .gitlab-ci/container/container_pre_build.sh
 
-############### Build parallel-deqp-runner's hang-detection tool
-
-. .gitlab-ci/container/build-hang-detection.sh
-
 ############### Build piglit replayer
 # We don't run any _piglit_ Vulkan tests in the containers.
 PIGLIT_OPTS="-DPIGLIT_USE_WAFFLE=ON
