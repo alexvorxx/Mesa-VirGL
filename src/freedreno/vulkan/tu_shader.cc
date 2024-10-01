@@ -2460,6 +2460,16 @@ tu_shader_create(struct tu_device *dev,
       }
    }
 
+   {
+      /* Lower 64b push constants before lowering IO. */
+      nir_lower_mem_access_bit_sizes_options options = {
+         .callback = ir3_mem_access_size_align,
+         .modes = nir_var_mem_push_const,
+      };
+
+      NIR_PASS_V(nir, nir_lower_mem_access_bit_sizes, &options);
+   }
+
    unsigned reserved_consts_vec4 = 0;
    NIR_PASS_V(nir, tu_lower_io, dev, shader, layout, &reserved_consts_vec4);
 
