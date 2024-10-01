@@ -1313,6 +1313,7 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
       emici.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO;
       emici.pNext = ici.pNext;
       emici.handleTypes = alloc_info->export_types;
+      assert(!(emici.handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT) || ici.tiling != VK_IMAGE_TILING_OPTIMAL);
       ici.pNext = &emici;
 
       assert(ici.tiling != VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT || mod != DRM_FORMAT_MOD_INVALID);
