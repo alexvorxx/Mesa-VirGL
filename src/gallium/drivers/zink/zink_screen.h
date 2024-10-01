@@ -157,6 +157,8 @@ zink_init_format_props(struct zink_screen *screen, enum pipe_format pformat);
 static inline const struct zink_modifier_props *
 zink_get_modifier_props(struct zink_screen *screen, enum pipe_format pformat)
 {
+   if (unlikely(!screen->format_props_init[pformat]))
+      zink_init_format_props(screen, pformat);
    return &screen->modifier_props[pformat];
 }
 
