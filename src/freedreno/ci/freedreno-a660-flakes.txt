@@ -31,3 +31,6 @@ dEQP-VK.query_pool.statistics_query.host_query_reset.geometry_shader_primitives.
 
 KHR-GL46.shader_image_load_store.basic-allTargets-loadStoreVS
 dEQP-GLES31.functional.image_load_store.3d.load_store.rgba8_snorm_single_layer
+
+# glcts update
+KHR-GL46.texture_view.view_classes
