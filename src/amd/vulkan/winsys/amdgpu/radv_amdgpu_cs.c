@@ -383,8 +383,7 @@ radv_amdgpu_cs_grow(struct radeon_cmdbuf *_cs, size_t min_size)
 
    uint64_t ib_size = MAX2(min_size * 4 + 16, cs->base.max_dw * 4 * 2);
 
-   /* max that fits in the chain size field. */
-   ib_size = align(MIN2(ib_size, 0xfffff), ib_alignment);
+   ib_size = align(MIN2(ib_size, ~C_3F2_IB_SIZE), ib_alignment);
 
    VkResult result = radv_amdgpu_cs_bo_create(cs, ib_size);
 
