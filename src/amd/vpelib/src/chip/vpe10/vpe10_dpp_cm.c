@@ -1,3 +1,4 @@
+// Copyright (c) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
 
 #include "vpe_priv.h"
 #include "reg_helper.h"

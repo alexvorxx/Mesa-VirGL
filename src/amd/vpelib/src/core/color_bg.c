@@ -1,3 +1,5 @@
+// Copyright (c) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
+
 #include <string.h>
 #include <math.h>
 #include "color_bg.h"
