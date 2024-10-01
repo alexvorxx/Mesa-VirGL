@@ -346,11 +346,10 @@ compute_non_block_compressed_view(struct radv_device *device, const struct radv_
 
 static void
 radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_device *device, VkFormat vk_format,
-                                const VkComponentMapping *components, float min_lod, bool is_storage_image,
-                                bool disable_compression, bool enable_compression, unsigned plane_id,
-                                unsigned descriptor_plane_id, VkImageCreateFlags img_create_flags,
-                                const struct ac_surf_nbc_view *nbc_view,
-                                const VkImageViewSlicedCreateInfoEXT *sliced_3d, bool force_zero_base_mip)
+                                const VkComponentMapping *components, bool is_storage_image, bool disable_compression,
+                                bool enable_compression, unsigned plane_id, unsigned descriptor_plane_id,
+                                VkImageCreateFlags img_create_flags, const VkImageViewSlicedCreateInfoEXT *sliced_3d,
+                                bool force_zero_base_mip)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_image *image = iview->image;
@@ -372,10 +371,10 @@ radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_devic
    blk_w = plane->surface.blk_w / vk_format_get_blockwidth(plane->format) * vk_format_get_blockwidth(vk_format);
 
    if (pdev->info.gfx_level >= GFX9) {
-      if (nbc_view->valid) {
-         hw_level = nbc_view->level;
-         iview->extent.width = nbc_view->width;
-         iview->extent.height = nbc_view->height;
+      if (iview->nbc_view.valid) {
+         hw_level = iview->nbc_view.level;
+         iview->extent.width = iview->nbc_view.width;
+         iview->extent.height = iview->nbc_view.height;
 
          /* Clear the base array layer because addrlib adds it as part of the base addr offset. */
          first_layer = 0;
@@ -385,14 +384,14 @@ radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_devic
          hw_level = 0;
    }
 
-   radv_make_texture_descriptor(device, image, is_storage_image, iview->vk.view_type, vk_format, components, hw_level,
-                                hw_level + iview->vk.level_count - 1, first_layer,
-                                iview->vk.base_array_layer + iview->vk.layer_count - 1,
-                                vk_format_get_plane_width(image->vk.format, plane_id, iview->extent.width),
-                                vk_format_get_plane_height(image->vk.format, plane_id, iview->extent.height),
-                                iview->extent.depth, min_lod, descriptor->plane_descriptors[descriptor_plane_id],
-                                descriptor_plane_id || is_storage_image ? NULL : descriptor->fmask_descriptor,
-                                img_create_flags, nbc_view, sliced_3d);
+   radv_make_texture_descriptor(
+      device, image, is_storage_image, iview->vk.view_type, vk_format, components, hw_level,
+      hw_level + iview->vk.level_count - 1, first_layer, iview->vk.base_array_layer + iview->vk.layer_count - 1,
+      vk_format_get_plane_width(image->vk.format, plane_id, iview->extent.width),
+      vk_format_get_plane_height(image->vk.format, plane_id, iview->extent.height), iview->extent.depth,
+      iview->vk.min_lod, descriptor->plane_descriptors[descriptor_plane_id],
+      descriptor_plane_id || is_storage_image ? NULL : descriptor->fmask_descriptor, img_create_flags, &iview->nbc_view,
+      sliced_3d);
 
    const struct legacy_surf_level *base_level_info = NULL;
    if (pdev->info.gfx_level <= GFX8) {
@@ -408,7 +407,7 @@ radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_devic
    radv_set_mutable_tex_desc_fields(device, image, base_level_info, plane_id, iview->vk.base_mip_level,
                                     iview->vk.base_mip_level, blk_w, is_stencil, is_storage_image, disable_compression,
                                     enable_write_compression, descriptor->plane_descriptors[descriptor_plane_id],
-                                    nbc_view);
+                                    &iview->nbc_view);
 }
 
 /**
@@ -603,12 +602,12 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
    bool enable_compression = extra_create_info ? extra_create_info->enable_compression : false;
    for (unsigned i = 0; i < plane_count; ++i) {
       VkFormat format = vk_format_get_plane_format(iview->vk.view_format, i);
-      radv_image_view_make_descriptor(iview, device, format, &pCreateInfo->components, min_lod, false,
-                                      disable_compression, enable_compression, iview->plane_id + i, i, img_create_flags,
-                                      &iview->nbc_view, NULL, force_zero_base_mip);
-      radv_image_view_make_descriptor(iview, device, format, &pCreateInfo->components, min_lod, true,
-                                      disable_compression, enable_compression, iview->plane_id + i, i, img_create_flags,
-                                      &iview->nbc_view, sliced_3d, force_zero_base_mip);
+      radv_image_view_make_descriptor(iview, device, format, &pCreateInfo->components, false, disable_compression,
+                                      enable_compression, iview->plane_id + i, i, img_create_flags, NULL,
+                                      force_zero_base_mip);
+      radv_image_view_make_descriptor(iview, device, format, &pCreateInfo->components, true, disable_compression,
+                                      enable_compression, iview->plane_id + i, i, img_create_flags, sliced_3d,
+                                      force_zero_base_mip);
    }
 }
 
