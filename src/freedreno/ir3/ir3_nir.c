@@ -989,9 +989,9 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so, nir_shader *s)
 
    progress |= OPT(s, nir_lower_mem_access_bit_sizes, &mem_bit_size_options);
    progress |= OPT(s, ir3_nir_lower_64b_global);
-   progress |= OPT(s, ir3_nir_lower_64b_intrinsics);
    progress |= OPT(s, ir3_nir_lower_64b_undef);
    progress |= OPT(s, nir_lower_int64);
+   progress |= OPT(s, ir3_nir_lower_64b_intrinsics);
 
    /* Cleanup code leftover from lowering passes before opt_preamble */
    if (progress) {
