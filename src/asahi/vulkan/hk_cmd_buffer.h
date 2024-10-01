@@ -633,9 +633,10 @@ hk_cmd_buffer_end_graphics(struct hk_cmd_buffer *cmd)
 
       cmd->current_cs.gfx->current = map;
       cmd->current_cs.gfx = NULL;
-      hk_cmd_buffer_end_compute_internal(cmd, &cmd->current_cs.pre_gfx);
-      hk_cmd_buffer_end_compute_internal(cmd, &cmd->current_cs.post_gfx);
    }
+
+   hk_cmd_buffer_end_compute_internal(cmd, &cmd->current_cs.pre_gfx);
+   hk_cmd_buffer_end_compute_internal(cmd, &cmd->current_cs.post_gfx);
 
    assert(cmd->current_cs.gfx == NULL);
 
