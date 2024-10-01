@@ -18,6 +18,7 @@
 
 #include "layout.h"
 #include "vk_format.h"
+#include "vk_meta.h"
 
 enum hk_desc_usage {
    HK_DESC_USAGE_SAMPLED,

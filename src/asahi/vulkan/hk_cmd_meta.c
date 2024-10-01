@@ -21,6 +21,7 @@
 #include "nir_builder_opcodes.h"
 #include "nir_format_convert.h"
 #include "shader_enums.h"
+#include "vk_enum_to_str.h"
 #include "vk_format.h"
 #include "vk_meta.h"
 #include "vk_pipeline.h"
@@ -1295,6 +1296,41 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
    }
 }
 
+static inline struct vk_meta_copy_image_properties
+hk_meta_copy_get_image_properties(struct hk_image *img)
+{
+   struct vk_meta_copy_image_properties props = {.tile_size = {16, 16, 1}};
+
+   if (!vk_format_is_depth_or_stencil(img->vk.format)) {
+      props.color.view_format = img->vk.format;
+   } else {
+      switch (img->vk.format) {
+      case VK_FORMAT_S8_UINT:
+         props.stencil.view_format = VK_FORMAT_R8_UINT;
+         props.stencil.component_mask = BITFIELD_MASK(1);
+         break;
+      case VK_FORMAT_D32_SFLOAT_S8_UINT:
+         props.depth.view_format = VK_FORMAT_R32G32_UINT;
+         props.depth.component_mask = BITFIELD_BIT(0);
+         props.stencil.view_format = VK_FORMAT_R32G32_UINT;
+         props.stencil.component_mask = BITFIELD_BIT(1);
+         break;
+      case VK_FORMAT_D16_UNORM:
+         props.depth.view_format = VK_FORMAT_R16_UINT;
+         props.depth.component_mask = BITFIELD_BIT(0);
+         break;
+      case VK_FORMAT_D32_SFLOAT:
+         props.depth.view_format = VK_FORMAT_R32_UINT;
+         props.depth.component_mask = BITFIELD_BIT(0);
+         break;
+      default:
+         unreachable("Invalid ZS format");
+      }
+   }
+
+   return props;
+}
+
 VKAPI_ATTR void VKAPI_CALL
 hk_CmdBlitImage2(VkCommandBuffer commandBuffer,
                  const VkBlitImageInfo2 *pBlitImageInfo)
@@ -1346,17 +1382,45 @@ hk_CmdCopyBuffer2(VkCommandBuffer commandBuffer,
    hk_meta_end(cmd, &save, VK_PIPELINE_BIND_POINT_COMPUTE);
 }
 
+static bool
+hk_copy_requires_gfx(struct hk_image *img)
+{
+   return img->vk.samples > 1 && ail_is_compressed(&img->planes[0].layout);
+}
+
+static bool
+hk_bind_point(bool gfx)
+{
+   return gfx ? VK_PIPELINE_BIND_POINT_GRAPHICS
+              : VK_PIPELINE_BIND_POINT_COMPUTE;
+}
+
 VKAPI_ATTR void VKAPI_CALL
 hk_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
                          const VkCopyBufferToImageInfo2 *pCopyBufferToImageInfo)
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
+   VK_FROM_HANDLE(hk_image, dst_image, pCopyBufferToImageInfo->dstImage);
    struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
+   bool gfx = hk_copy_requires_gfx(dst_image);
+   VkPipelineBindPoint bind_point = hk_bind_point(gfx);
+
    struct hk_meta_save save;
-   hk_meta_begin(cmd, &save, VK_PIPELINE_BIND_POINT_COMPUTE);
-   hk_meta_copy_buffer_to_image2(&cmd->vk, &dev->meta, pCopyBufferToImageInfo);
-   hk_meta_end(cmd, &save, VK_PIPELINE_BIND_POINT_COMPUTE);
+   hk_meta_begin(cmd, &save, bind_point);
+
+   if (gfx) {
+      struct vk_meta_copy_image_properties dst_props =
+         hk_meta_copy_get_image_properties(dst_image);
+
+      vk_meta_copy_buffer_to_image(&cmd->vk, &dev->meta, pCopyBufferToImageInfo,
+                                   &dst_props, bind_point);
+   } else {
+      hk_meta_copy_buffer_to_image2(&cmd->vk, &dev->meta,
+                                    pCopyBufferToImageInfo);
+   }
+
+   hk_meta_end(cmd, &save, bind_point);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -1377,12 +1441,28 @@ hk_CmdCopyImage2(VkCommandBuffer commandBuffer,
                  const VkCopyImageInfo2 *pCopyImageInfo)
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
+   VK_FROM_HANDLE(hk_image, src_image, pCopyImageInfo->srcImage);
+   VK_FROM_HANDLE(hk_image, dst_image, pCopyImageInfo->dstImage);
    struct hk_device *dev = hk_cmd_buffer_device(cmd);
+   bool gfx = hk_copy_requires_gfx(dst_image);
+   VkPipelineBindPoint bind_point = hk_bind_point(gfx);
 
    struct hk_meta_save save;
-   hk_meta_begin(cmd, &save, VK_PIPELINE_BIND_POINT_COMPUTE);
-   hk_meta_copy_image2(&cmd->vk, &dev->meta, pCopyImageInfo);
-   hk_meta_end(cmd, &save, VK_PIPELINE_BIND_POINT_COMPUTE);
+   hk_meta_begin(cmd, &save, bind_point);
+
+   if (gfx) {
+      struct vk_meta_copy_image_properties src_props =
+         hk_meta_copy_get_image_properties(src_image);
+      struct vk_meta_copy_image_properties dst_props =
+         hk_meta_copy_get_image_properties(dst_image);
+
+      vk_meta_copy_image(&cmd->vk, &dev->meta, pCopyImageInfo, &src_props,
+                         &dst_props, bind_point);
+   } else {
+      hk_meta_copy_image2(&cmd->vk, &dev->meta, pCopyImageInfo);
+   }
+
+   hk_meta_end(cmd, &save, bind_point);
 }
 
 VKAPI_ATTR void VKAPI_CALL
