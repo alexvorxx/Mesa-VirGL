@@ -288,12 +288,6 @@ hk_can_compress(struct agx_device *dev, VkFormat format, unsigned plane,
       }
    }
 
-   /* TODO: Need to smarten up the blitter */
-   if (samples > 1) {
-      perf_debug_dev(dev, "No compression: multisampling");
-      return false;
-   }
-
    if (!ail_can_compress(p_format, width, height, samples)) {
       perf_debug_dev(dev, "No compression: invalid layout %s %ux%ux%u",
                      util_format_short_name(p_format), width, height, samples);
