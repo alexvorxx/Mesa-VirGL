@@ -311,8 +311,9 @@ hk_CreateDevice(VkPhysicalDevice physicalDevice,
    VK_FROM_HANDLE(hk_physical_device, pdev, physicalDevice);
    VkResult result = VK_ERROR_OUT_OF_HOST_MEMORY;
    struct hk_device *dev;
+   struct hk_instance *instance = (struct hk_instance *)pdev->vk.instance;
 
-   dev = vk_zalloc2(&pdev->vk.instance->alloc, pAllocator, sizeof(*dev), 8,
+   dev = vk_zalloc2(&instance->vk.alloc, pAllocator, sizeof(*dev), 8,
                     VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
    if (!dev)
       return vk_error(pdev, VK_ERROR_OUT_OF_HOST_MEMORY);
@@ -365,6 +366,10 @@ hk_CreateDevice(VkPhysicalDevice physicalDevice,
    }
 
    dev->perftest = debug_get_flags_option("HK_PERFTEST", hk_perf_options, 0);
+
+   if (instance->no_border) {
+      dev->perftest |= HK_PERF_NOBORDER;
+   }
 
    if (HK_PERF(dev, NOROBUST)) {
       dev->vk.enabled_features.robustBufferAccess = false;
