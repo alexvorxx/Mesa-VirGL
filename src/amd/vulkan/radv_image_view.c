@@ -444,7 +444,6 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
 {
    VK_FROM_HANDLE(radv_image, image, pCreateInfo->image);
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   const VkImageSubresourceRange *range = &pCreateInfo->subresourceRange;
    uint32_t plane_count = 1;
    float min_lod = 0.0f;
 
@@ -466,18 +465,6 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
       force_zero_base_mip = false;
    }
 
-   switch (image->vk.image_type) {
-   case VK_IMAGE_TYPE_1D:
-   case VK_IMAGE_TYPE_2D:
-      assert(range->baseArrayLayer + vk_image_subresource_layer_count(&image->vk, range) - 1 <= image->vk.array_layers);
-      break;
-   case VK_IMAGE_TYPE_3D:
-      assert(range->baseArrayLayer + vk_image_subresource_layer_count(&image->vk, range) - 1 <=
-             u_minify(image->vk.extent.depth, iview->vk.base_mip_level));
-      break;
-   default:
-      unreachable("bad VkImageType");
-   }
    iview->image = image;
    iview->plane_id = radv_plane_from_aspect(pCreateInfo->subresourceRange.aspectMask);
    iview->nbc_view.valid = false;
