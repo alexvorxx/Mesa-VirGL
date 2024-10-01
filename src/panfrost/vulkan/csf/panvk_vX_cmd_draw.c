@@ -1269,8 +1269,6 @@ prepare_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    const struct panvk_shader *vs = cmdbuf->state.gfx.vs.shader;
    const struct panvk_shader *fs = cmdbuf->state.gfx.fs.shader;
    struct panvk_descriptor_state *desc_state = &cmdbuf->state.gfx.desc_state;
-   const struct vk_rasterization_state *rs =
-      &cmdbuf->vk.dynamic_graphics_state.rs;
    bool idvs = vs->info.vs.idvs;
    VkResult result;
 
@@ -1291,17 +1289,13 @@ prepare_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    if (result != VK_SUCCESS)
       return result;
 
-   bool needs_tiling = !rs->rasterizer_discard_enable;
+   result = get_tiler_desc(cmdbuf);
+   if (result != VK_SUCCESS)
+      return result;
 
-   if (needs_tiling) {
-      result = get_tiler_desc(cmdbuf);
-      if (result != VK_SUCCESS)
-         return result;
-
-      result = get_fb_descs(cmdbuf);
-      if (result != VK_SUCCESS)
-         return result;
-   }
+   result = get_fb_descs(cmdbuf);
+   if (result != VK_SUCCESS)
+      return result;
 
    struct cs_builder *b =
       panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
@@ -1325,7 +1319,7 @@ prepare_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
       return result;
 
    /* No need to setup the FS desc tables if the FS is not executed. */
-   if (needs_tiling && fs_required(cmdbuf)) {
+   if (fs_required(cmdbuf)) {
       result = prepare_fs(cmdbuf);
       if (result != VK_SUCCESS)
          return result;
