@@ -351,7 +351,6 @@ ir3_optimize_loop(struct ir3_compiler *compiler, nir_shader *s)
       }
       progress |= OPT(s, nir_opt_if, nir_opt_if_optimize_phi_true_false);
       progress |= OPT(s, nir_opt_loop_unroll);
-      progress |= OPT(s, nir_lower_64bit_phis);
       progress |= OPT(s, nir_opt_remove_phis);
       progress |= OPT(s, nir_opt_undef);
       did_progress |= progress;
@@ -992,6 +991,7 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so, nir_shader *s)
    progress |= OPT(s, ir3_nir_lower_64b_undef);
    progress |= OPT(s, nir_lower_int64);
    progress |= OPT(s, ir3_nir_lower_64b_intrinsics);
+   progress |= OPT(s, nir_lower_64bit_phis);
 
    /* Cleanup code leftover from lowering passes before opt_preamble */
    if (progress) {
