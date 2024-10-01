@@ -5423,15 +5423,15 @@ tu_emit_fdm_params(struct tu_cmd_buffer *cmd,
                    struct tu_cs *cs, struct tu_shader *fs,
                    unsigned num_units)
 {
-   STATIC_ASSERT(IR3_DP_FS_FRAG_INVOCATION_COUNT == IR3_DP_FS_DYNAMIC);
+   STATIC_ASSERT(IR3_DP_FS(frag_invocation_count) == IR3_DP_FS_DYNAMIC);
    tu_cs_emit(cs, fs->fs.per_samp ?
               cmd->vk.dynamic_graphics_state.ms.rasterization_samples : 1);
    tu_cs_emit(cs, 0);
    tu_cs_emit(cs, 0);
    tu_cs_emit(cs, 0);
 
-   STATIC_ASSERT(IR3_DP_FS_FRAG_SIZE == IR3_DP_FS_DYNAMIC + 4);
-   STATIC_ASSERT(IR3_DP_FS_FRAG_OFFSET == IR3_DP_FS_DYNAMIC + 6);
+   STATIC_ASSERT(IR3_DP_FS(frag_size) == IR3_DP_FS_DYNAMIC + 4);
+   STATIC_ASSERT(IR3_DP_FS(frag_offset) == IR3_DP_FS_DYNAMIC + 6);
    if (num_units > 1) {
       if (fs->fs.has_fdm) {
          struct apply_fs_params_state state = {
@@ -5885,9 +5885,9 @@ vs_params_offset(struct tu_cmd_buffer *cmd)
       return 0;
 
    /* this layout is required by CP_DRAW_INDIRECT_MULTI */
-   STATIC_ASSERT(IR3_DP_DRAWID == 0);
-   STATIC_ASSERT(IR3_DP_VTXID_BASE == 1);
-   STATIC_ASSERT(IR3_DP_INSTID_BASE == 2);
+   STATIC_ASSERT(IR3_DP_VS(draw_id) == 0);
+   STATIC_ASSERT(IR3_DP_VS(vtxid_base) == 1);
+   STATIC_ASSERT(IR3_DP_VS(instid_base) == 2);
 
    /* 0 means disabled for CP_DRAW_INDIRECT_MULTI */
    assert(const_state->offsets.driver_param != 0);
@@ -6333,6 +6333,29 @@ struct tu_dispatch_info
    uint64_t indirect_offset;
 };
 
+static inline struct ir3_driver_params_cs
+build_driver_params_cs(const struct ir3_shader_variant *variant,
+                       const struct tu_dispatch_info *info)
+{
+   unsigned subgroup_size = variant->info.subgroup_size;
+   unsigned subgroup_shift = util_logbase2(subgroup_size);
+
+   return (struct ir3_driver_params_cs) {
+      .num_work_groups_x = info->blocks[0],
+      .num_work_groups_y = info->blocks[1],
+      .num_work_groups_z = info->blocks[2],
+      .work_dim = 0,
+      .base_group_x = info->offsets[0],
+      .base_group_y = info->offsets[1],
+      .base_group_z = info->offsets[2],
+      .subgroup_size = subgroup_size,
+      .local_group_size_x = 0,
+      .local_group_size_y = 0,
+      .local_group_size_z = 0,
+      .subgroup_id_shift = subgroup_shift,
+   };
+}
+
 template <chip CHIP>
 static void
 tu_emit_compute_driver_params(struct tu_cmd_buffer *cmd,
@@ -6353,27 +6376,15 @@ tu_emit_compute_driver_params(struct tu_cmd_buffer *cmd,
 
       bool direct_indirect_load =
          !(info->indirect_offset & 0xf) &&
-         !(info->indirect && num_consts > IR3_DP_BASE_GROUP_X);
+         !(info->indirect && num_consts > IR3_DP_CS(base_group_x));
 
       uint64_t iova = 0;
 
       if (!info->indirect) {
-         uint32_t driver_params[12] = {
-            [IR3_DP_NUM_WORK_GROUPS_X] = info->blocks[0],
-            [IR3_DP_NUM_WORK_GROUPS_Y] = info->blocks[1],
-            [IR3_DP_NUM_WORK_GROUPS_Z] = info->blocks[2],
-            [IR3_DP_WORK_DIM] = 0,
-            [IR3_DP_BASE_GROUP_X] = info->offsets[0],
-            [IR3_DP_BASE_GROUP_Y] = info->offsets[1],
-            [IR3_DP_BASE_GROUP_Z] = info->offsets[2],
-            [IR3_DP_CS_SUBGROUP_SIZE] = subgroup_size,
-            [IR3_DP_LOCAL_GROUP_SIZE_X] = 0,
-            [IR3_DP_LOCAL_GROUP_SIZE_Y] = 0,
-            [IR3_DP_LOCAL_GROUP_SIZE_Z] = 0,
-            [IR3_DP_SUBGROUP_ID_SHIFT] = subgroup_shift,
-         };
+         struct ir3_driver_params_cs driver_params =
+            build_driver_params_cs(variant, info);
 
-         assert(num_consts <= ARRAY_SIZE(driver_params));
+         assert(num_consts <= dword_sizeof(driver_params));
 
          struct tu_cs_memory consts;
          uint32_t consts_vec4 = DIV_ROUND_UP(num_consts, 4);
@@ -6382,7 +6393,7 @@ tu_emit_compute_driver_params(struct tu_cmd_buffer *cmd,
             vk_command_buffer_set_error(&cmd->vk, result);
             return;
          }
-         memcpy(consts.map, driver_params, num_consts * sizeof(uint32_t));
+         memcpy(consts.map, &driver_params, num_consts * sizeof(uint32_t));
          iova = consts.iova;
       } else if (direct_indirect_load) {
          iova = info->indirect->iova + info->indirect_offset;
@@ -6406,12 +6417,12 @@ tu_emit_compute_driver_params(struct tu_cmd_buffer *cmd,
          /* Fill out IR3_DP_CS_SUBGROUP_SIZE and IR3_DP_SUBGROUP_ID_SHIFT for
           * indirect dispatch.
           */
-         if (info->indirect && num_consts > IR3_DP_BASE_GROUP_X) {
+         if (info->indirect && num_consts > IR3_DP_CS(base_group_x)) {
             uint32_t indirect_driver_params[8] = {
                0, 0, 0, subgroup_size,
                0, 0, 0, subgroup_shift,
             };
-            bool emit_local = num_consts > IR3_DP_LOCAL_GROUP_SIZE_X;
+            bool emit_local = num_consts > IR3_DP_CS(local_group_size_x);
             uint32_t emit_size = emit_local ? 8 : 4;
 
             tu_cs_emit_pkt7(cs, CP_MEM_WRITE, 2 + emit_size);
@@ -6448,22 +6459,10 @@ tu_emit_compute_driver_params(struct tu_cmd_buffer *cmd,
                                  (variant->constlen - offset) * 4);
 
       if (!info->indirect) {
-         uint32_t driver_params[12] = {
-            [IR3_DP_NUM_WORK_GROUPS_X] = info->blocks[0],
-            [IR3_DP_NUM_WORK_GROUPS_Y] = info->blocks[1],
-            [IR3_DP_NUM_WORK_GROUPS_Z] = info->blocks[2],
-            [IR3_DP_WORK_DIM] = 0,
-            [IR3_DP_BASE_GROUP_X] = info->offsets[0],
-            [IR3_DP_BASE_GROUP_Y] = info->offsets[1],
-            [IR3_DP_BASE_GROUP_Z] = info->offsets[2],
-            [IR3_DP_CS_SUBGROUP_SIZE] = subgroup_size,
-            [IR3_DP_LOCAL_GROUP_SIZE_X] = 0,
-            [IR3_DP_LOCAL_GROUP_SIZE_Y] = 0,
-            [IR3_DP_LOCAL_GROUP_SIZE_Z] = 0,
-            [IR3_DP_SUBGROUP_ID_SHIFT] = subgroup_shift,
-         };
+         struct ir3_driver_params_cs driver_params =
+            build_driver_params_cs(variant, info);
 
-         assert(num_consts <= ARRAY_SIZE(driver_params));
+         assert(num_consts <= dword_sizeof(driver_params));
 
          /* push constants */
          tu_cs_emit_pkt7(cs, tu6_stage2opcode(type), 3 + num_consts);
@@ -6474,9 +6473,7 @@ tu_emit_compute_driver_params(struct tu_cmd_buffer *cmd,
                   CP_LOAD_STATE6_0_NUM_UNIT(num_consts / 4));
          tu_cs_emit(cs, 0);
          tu_cs_emit(cs, 0);
-         uint32_t i;
-         for (i = 0; i < num_consts; i++)
-            tu_cs_emit(cs, driver_params[i]);
+         tu_cs_emit_array(cs, (uint32_t *)&driver_params, num_consts);
       } else if (!(info->indirect_offset & 0xf)) {
          tu_cs_emit_pkt7(cs, tu6_stage2opcode(type), 3);
          tu_cs_emit(cs, CP_LOAD_STATE6_0_DST_OFF(offset) |
@@ -6518,21 +6515,21 @@ tu_emit_compute_driver_params(struct tu_cmd_buffer *cmd,
       /* Fill out IR3_DP_CS_SUBGROUP_SIZE and IR3_DP_SUBGROUP_ID_SHIFT for
        * indirect dispatch.
        */
-      if (info->indirect && num_consts > IR3_DP_BASE_GROUP_X) {
-         bool emit_local = num_consts > IR3_DP_LOCAL_GROUP_SIZE_X;
+      if (info->indirect && num_consts > IR3_DP_CS(base_group_x)) {
+         bool emit_local = num_consts > IR3_DP_CS(local_group_size_x);
          tu_cs_emit_pkt7(cs, tu6_stage2opcode(type), 7 + (emit_local ? 4 : 0));
-         tu_cs_emit(cs, CP_LOAD_STATE6_0_DST_OFF(offset + (IR3_DP_BASE_GROUP_X / 4)) |
+         tu_cs_emit(cs, CP_LOAD_STATE6_0_DST_OFF(offset + (IR3_DP_CS(base_group_x) / 4)) |
                   CP_LOAD_STATE6_0_STATE_TYPE(ST6_CONSTANTS) |
                   CP_LOAD_STATE6_0_STATE_SRC(SS6_DIRECT) |
                   CP_LOAD_STATE6_0_STATE_BLOCK(tu6_stage2shadersb(type)) |
-                  CP_LOAD_STATE6_0_NUM_UNIT((num_consts - IR3_DP_BASE_GROUP_X) / 4));
+                  CP_LOAD_STATE6_0_NUM_UNIT((num_consts - IR3_DP_CS(base_group_x)) / 4));
          tu_cs_emit_qw(cs, 0);
          tu_cs_emit(cs, 0); /* BASE_GROUP_X */
          tu_cs_emit(cs, 0); /* BASE_GROUP_Y */
          tu_cs_emit(cs, 0); /* BASE_GROUP_Z */
          tu_cs_emit(cs, subgroup_size);
          if (emit_local) {
-            assert(num_consts == align(IR3_DP_SUBGROUP_ID_SHIFT, 4));
+            assert(num_consts == align(IR3_DP_CS(subgroup_id_shift), 4));
             tu_cs_emit(cs, 0); /* LOCAL_GROUP_SIZE_X */
             tu_cs_emit(cs, 0); /* LOCAL_GROUP_SIZE_Y */
             tu_cs_emit(cs, 0); /* LOCAL_GROUP_SIZE_Z */

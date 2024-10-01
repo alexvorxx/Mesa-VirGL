@@ -1188,61 +1188,61 @@ ir3_get_driver_param_info(const nir_shader *shader, nir_intrinsic_instr *intr,
 {
    switch (intr->intrinsic) {
    case nir_intrinsic_load_base_workgroup_id:
-      param_info->offset = IR3_DP_BASE_GROUP_X;
+      param_info->offset = IR3_DP_CS(base_group_x);
       break;
    case nir_intrinsic_load_num_workgroups:
-      param_info->offset = IR3_DP_NUM_WORK_GROUPS_X;
+      param_info->offset = IR3_DP_CS(num_work_groups_x);
       break;
    case nir_intrinsic_load_workgroup_size:
-      param_info->offset = IR3_DP_LOCAL_GROUP_SIZE_X;
+      param_info->offset = IR3_DP_CS(local_group_size_x);
       break;
    case nir_intrinsic_load_subgroup_size:
       assert(shader->info.stage == MESA_SHADER_COMPUTE ||
              shader->info.stage == MESA_SHADER_FRAGMENT);
       if (shader->info.stage == MESA_SHADER_COMPUTE) {
-         param_info->offset = IR3_DP_CS_SUBGROUP_SIZE;
+         param_info->offset = IR3_DP_CS(subgroup_size);
       } else {
-         param_info->offset = IR3_DP_FS_SUBGROUP_SIZE;
+         param_info->offset = IR3_DP_FS(subgroup_size);
       }
       break;
    case nir_intrinsic_load_subgroup_id_shift_ir3:
-      param_info->offset = IR3_DP_SUBGROUP_ID_SHIFT;
+      param_info->offset = IR3_DP_CS(subgroup_id_shift);
       break;
    case nir_intrinsic_load_work_dim:
-      param_info->offset = IR3_DP_WORK_DIM;
+      param_info->offset = IR3_DP_CS(work_dim);
       break;
    case nir_intrinsic_load_base_vertex:
    case nir_intrinsic_load_first_vertex:
-      param_info->offset = IR3_DP_VTXID_BASE;
+      param_info->offset = IR3_DP_VS(vtxid_base);
       break;
    case nir_intrinsic_load_is_indexed_draw:
-      param_info->offset = IR3_DP_IS_INDEXED_DRAW;
+      param_info->offset = IR3_DP_VS(is_indexed_draw);
       break;
    case nir_intrinsic_load_draw_id:
-      param_info->offset = IR3_DP_DRAWID;
+      param_info->offset = IR3_DP_VS(draw_id);
       break;
    case nir_intrinsic_load_base_instance:
-      param_info->offset = IR3_DP_INSTID_BASE;
+      param_info->offset = IR3_DP_VS(instid_base);
       break;
    case nir_intrinsic_load_user_clip_plane: {
       uint32_t idx = nir_intrinsic_ucp_id(intr);
-      param_info->offset = IR3_DP_UCP0_X + 4 * idx;
+      param_info->offset = IR3_DP_VS(ucp[0].x) + 4 * idx;
       break;
    }
    case nir_intrinsic_load_tess_level_outer_default:
-      param_info->offset = IR3_DP_HS_DEFAULT_OUTER_LEVEL_X;
+      param_info->offset = IR3_DP_TCS(default_outer_level_x);
       break;
    case nir_intrinsic_load_tess_level_inner_default:
-      param_info->offset = IR3_DP_HS_DEFAULT_INNER_LEVEL_X;
+      param_info->offset = IR3_DP_TCS(default_inner_level_x);
       break;
    case nir_intrinsic_load_frag_size_ir3:
-      param_info->offset = IR3_DP_FS_FRAG_SIZE;
+      param_info->offset = IR3_DP_FS(frag_size);
       break;
    case nir_intrinsic_load_frag_offset_ir3:
-      param_info->offset = IR3_DP_FS_FRAG_OFFSET;
+      param_info->offset = IR3_DP_FS(frag_offset);
       break;
    case nir_intrinsic_load_frag_invocation_count:
-      param_info->offset = IR3_DP_FS_FRAG_INVOCATION_COUNT;
+      param_info->offset = IR3_DP_FS(frag_invocation_count);
       break;
    default:
       return false;
@@ -1306,7 +1306,7 @@ ir3_nir_scan_driver_consts(struct ir3_compiler *compiler, nir_shader *shader, st
    if (!compiler->has_shared_regfile &&
          shader->info.stage == MESA_SHADER_COMPUTE) {
       layout->num_driver_params =
-         MAX2(layout->num_driver_params, IR3_DP_WORKGROUP_ID_Z + 1);
+         MAX2(layout->num_driver_params, IR3_DP_CS(workgroup_id_z) + 1);
    }
 }
 
@@ -1338,7 +1338,7 @@ ir3_setup_const_state(nir_shader *nir, struct ir3_shader_variant *v,
 
    if ((compiler->gen < 5) && (v->stream_output.num_outputs > 0)) {
       const_state->num_driver_params =
-         MAX2(const_state->num_driver_params, IR3_DP_VTXCNT_MAX + 1);
+         MAX2(const_state->num_driver_params, IR3_DP_VS(vtxcnt_max) + 1);
    }
 
    const_state->num_ubos = nir->info.num_ubos;
@@ -1375,7 +1375,7 @@ ir3_setup_const_state(nir_shader *nir, struct ir3_shader_variant *v,
       const_state->num_driver_params = align(const_state->num_driver_params, 4);
       unsigned upload_unit = 1;
       if (v->type == MESA_SHADER_COMPUTE ||
-          (const_state->num_driver_params >= IR3_DP_VTXID_BASE)) {
+          (const_state->num_driver_params >= IR3_DP_VS(vtxid_base))) {
          upload_unit = compiler->const_upload_unit;
       }
 

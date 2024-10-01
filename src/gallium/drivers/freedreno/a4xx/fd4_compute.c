@@ -59,12 +59,12 @@ cs_program_emit(struct fd_ringbuffer *ring, struct ir3_shader_variant *v)
       num_wg_id, work_dim_id, unused_id;
    local_invocation_id =
       ir3_find_sysval_regid(v, SYSTEM_VALUE_LOCAL_INVOCATION_ID);
-   work_group_id = driver_param_base + IR3_DP_WORKGROUP_ID_X;
-   num_wg_id = driver_param_base + IR3_DP_NUM_WORK_GROUPS_X;
-   local_group_size_id = driver_param_base + IR3_DP_LOCAL_GROUP_SIZE_X;
-   work_dim_id = driver_param_base + IR3_DP_WORK_DIM;
+   work_group_id = driver_param_base + IR3_DP_CS(workgroup_id_x);
+   num_wg_id = driver_param_base + IR3_DP_CS(num_work_groups_x);
+   local_group_size_id = driver_param_base + IR3_DP_CS(local_group_size_x);
+   work_dim_id = driver_param_base + IR3_DP_CS(work_dim);
    /* NOTE: At some point we'll want to use this, it's probably WGOFFSETCONSTID */
-   unused_id = driver_param_base + IR3_DP_BASE_GROUP_X;
+   unused_id = driver_param_base + IR3_DP_CS(base_group_x);
 
    OUT_PKT0(ring, REG_A4XX_HLSQ_CL_CONTROL_0, 2);
    OUT_RING(ring, A4XX_HLSQ_CL_CONTROL_0_WGIDCONSTID(work_group_id) |

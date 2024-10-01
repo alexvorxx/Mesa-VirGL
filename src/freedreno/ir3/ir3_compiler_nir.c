@@ -171,7 +171,7 @@ create_frag_input(struct ir3_context *ctx, struct ir3_instruction *coord,
 }
 
 static struct ir3_instruction *
-create_driver_param(struct ir3_context *ctx, enum ir3_driver_param dp)
+create_driver_param(struct ir3_context *ctx, uint32_t dp)
 {
    /* first four vec4 sysval's reserved for UBOs: */
    /* NOTE: dp is in scalar, but there can be >4 dp components: */
@@ -182,7 +182,7 @@ create_driver_param(struct ir3_context *ctx, enum ir3_driver_param dp)
 }
 
 static struct ir3_instruction *
-create_driver_param_indirect(struct ir3_context *ctx, enum ir3_driver_param dp,
+create_driver_param_indirect(struct ir3_context *ctx, uint32_t dp,
                              struct ir3_instruction *address)
 {
    /* first four vec4 sysval's reserved for UBOs: */
@@ -2798,25 +2798,25 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
    case nir_intrinsic_load_base_vertex:
    case nir_intrinsic_load_first_vertex:
       if (!ctx->basevertex) {
-         ctx->basevertex = create_driver_param(ctx, IR3_DP_VTXID_BASE);
+         ctx->basevertex = create_driver_param(ctx, IR3_DP_VS(vtxid_base));
       }
       dst[0] = ctx->basevertex;
       break;
    case nir_intrinsic_load_is_indexed_draw:
       if (!ctx->is_indexed_draw) {
-         ctx->is_indexed_draw = create_driver_param(ctx, IR3_DP_IS_INDEXED_DRAW);
+         ctx->is_indexed_draw = create_driver_param(ctx, IR3_DP_VS(is_indexed_draw));
       }
       dst[0] = ctx->is_indexed_draw;
       break;
    case nir_intrinsic_load_draw_id:
       if (!ctx->draw_id) {
-         ctx->draw_id = create_driver_param(ctx, IR3_DP_DRAWID);
+         ctx->draw_id = create_driver_param(ctx, IR3_DP_VS(draw_id));
       }
       dst[0] = ctx->draw_id;
       break;
    case nir_intrinsic_load_base_instance:
       if (!ctx->base_instance) {
-         ctx->base_instance = create_driver_param(ctx, IR3_DP_INSTID_BASE);
+         ctx->base_instance = create_driver_param(ctx, IR3_DP_VS(instid_base));
       }
       dst[0] = ctx->base_instance;
       break;
@@ -2863,7 +2863,7 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       idx = nir_intrinsic_ucp_id(intr);
       for (int i = 0; i < dest_components; i++) {
          unsigned n = idx * 4 + i;
-         dst[i] = create_driver_param(ctx, IR3_DP_UCP0_X + n);
+         dst[i] = create_driver_param(ctx, IR3_DP_VS(ucp[0].x) + n);
       }
       create_rpt = true;
       break;
@@ -2899,41 +2899,41 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       } else {
          /* For a3xx/a4xx, this comes in via const injection by the hw */
          for (int i = 0; i < dest_components; i++) {
-            dst[i] = create_driver_param(ctx, IR3_DP_WORKGROUP_ID_X + i);
+            dst[i] = create_driver_param(ctx, IR3_DP_CS(workgroup_id_x) + i);
          }
       }
       break;
    case nir_intrinsic_load_base_workgroup_id:
       for (int i = 0; i < dest_components; i++) {
-         dst[i] = create_driver_param(ctx, IR3_DP_BASE_GROUP_X + i);
+         dst[i] = create_driver_param(ctx, IR3_DP_CS(base_group_x) + i);
       }
       create_rpt = true;
       break;
    case nir_intrinsic_load_num_workgroups:
       for (int i = 0; i < dest_components; i++) {
-         dst[i] = create_driver_param(ctx, IR3_DP_NUM_WORK_GROUPS_X + i);
+         dst[i] = create_driver_param(ctx, IR3_DP_CS(num_work_groups_x) + i);
       }
       create_rpt = true;
       break;
    case nir_intrinsic_load_workgroup_size:
       for (int i = 0; i < dest_components; i++) {
-         dst[i] = create_driver_param(ctx, IR3_DP_LOCAL_GROUP_SIZE_X + i);
+         dst[i] = create_driver_param(ctx, IR3_DP_CS(local_group_size_x) + i);
       }
       create_rpt = true;
       break;
    case nir_intrinsic_load_subgroup_size: {
       assert(ctx->so->type == MESA_SHADER_COMPUTE ||
              ctx->so->type == MESA_SHADER_FRAGMENT);
-      enum ir3_driver_param size = ctx->so->type == MESA_SHADER_COMPUTE ?
-         IR3_DP_CS_SUBGROUP_SIZE : IR3_DP_FS_SUBGROUP_SIZE;
+      unsigned size = ctx->so->type == MESA_SHADER_COMPUTE ?
+         IR3_DP_CS(subgroup_size) : IR3_DP_FS(subgroup_size);
       dst[0] = create_driver_param(ctx, size);
       break;
    }
    case nir_intrinsic_load_subgroup_id_shift_ir3:
-      dst[0] = create_driver_param(ctx, IR3_DP_SUBGROUP_ID_SHIFT);
+      dst[0] = create_driver_param(ctx, IR3_DP_CS(subgroup_id_shift));
       break;
    case nir_intrinsic_load_work_dim:
-      dst[0] = create_driver_param(ctx, IR3_DP_WORK_DIM);
+      dst[0] = create_driver_param(ctx, IR3_DP_CS(work_dim));
       break;
    case nir_intrinsic_load_subgroup_invocation:
       assert(ctx->compiler->has_getfiberid);
@@ -2943,24 +2943,24 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       break;
    case nir_intrinsic_load_tess_level_outer_default:
       for (int i = 0; i < dest_components; i++) {
-         dst[i] = create_driver_param(ctx, IR3_DP_HS_DEFAULT_OUTER_LEVEL_X + i);
+         dst[i] = create_driver_param(ctx, IR3_DP_TCS(default_outer_level_x) + i);
       }
       create_rpt = true;
       break;
    case nir_intrinsic_load_tess_level_inner_default:
       for (int i = 0; i < dest_components; i++) {
-         dst[i] = create_driver_param(ctx, IR3_DP_HS_DEFAULT_INNER_LEVEL_X + i);
+         dst[i] = create_driver_param(ctx, IR3_DP_TCS(default_inner_level_x) + i);
       }
       create_rpt = true;
       break;
    case nir_intrinsic_load_frag_invocation_count:
-      dst[0] = create_driver_param(ctx, IR3_DP_FS_FRAG_INVOCATION_COUNT);
+      dst[0] = create_driver_param(ctx, IR3_DP_FS(frag_invocation_count));
       break;
    case nir_intrinsic_load_frag_size_ir3:
    case nir_intrinsic_load_frag_offset_ir3: {
-      enum ir3_driver_param param =
+      unsigned param =
          intr->intrinsic == nir_intrinsic_load_frag_size_ir3 ?
-         IR3_DP_FS_FRAG_SIZE : IR3_DP_FS_FRAG_OFFSET;
+         IR3_DP_FS(frag_size) : IR3_DP_FS(frag_offset);
       if (nir_src_is_const(intr->src[0])) {
          uint32_t view = nir_src_as_uint(intr->src[0]);
          for (int i = 0; i < dest_components; i++) {
@@ -4559,7 +4559,7 @@ emit_stream_out(struct ir3_context *ctx)
     * of the shader:
     */
    vtxcnt = create_sysval_input(ctx, SYSTEM_VALUE_VERTEX_CNT, 0x1);
-   maxvtxcnt = create_driver_param(ctx, IR3_DP_VTXCNT_MAX);
+   maxvtxcnt = create_driver_param(ctx, IR3_DP_VS(vtxcnt_max));
 
    /* at this point, we are at the original 'end' block,
     * re-purpose this block to stream-out condition, then

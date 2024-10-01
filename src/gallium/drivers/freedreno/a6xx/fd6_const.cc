@@ -281,19 +281,29 @@ fd6_build_driver_params(struct fd6_emit *emit)
       return NULL;
    }
 
-   unsigned size_dwords = num_dp * (4 + IR3_DP_VS_COUNT);  /* 4dw PKT7 header */
+   bool needs_ucp = !!emit->vs->key.ucp_enables;
+
+   if (PIPELINE == HAS_TESS_GS) {
+      needs_ucp |= emit->gs && emit->gs->key.ucp_enables;
+      needs_ucp |= emit->hs && emit->hs->key.ucp_enables;
+      needs_ucp |= emit->ds && emit->ds->key.ucp_enables;
+   }
+
+   struct ir3_driver_params_vs p =
+      ir3_build_driver_params_vs(ctx, emit->info, emit->draw, emit->draw_id, needs_ucp);
+
+   unsigned size_dwords =
+      num_dp * (4 + dword_sizeof(p));  /* 4dw PKT7 header */
    struct fd_ringbuffer *dpconstobj = fd_submit_new_ringbuffer(
          ctx->batch->submit, size_dwords * 4, FD_RINGBUFFER_STREAMING);
 
    if (emit->vs->need_driver_params) {
-      ir3_emit_driver_params(emit->vs, dpconstobj, ctx, emit->info,
-                             emit->indirect, emit->draw, emit->draw_id);
+      ir3_emit_driver_params(emit->vs, dpconstobj, ctx, emit->info, emit->indirect, &p);
    }
 
    if (PIPELINE == HAS_TESS_GS) {
       if (emit->gs && emit->gs->need_driver_params) {
-         ir3_emit_driver_params(emit->gs, dpconstobj, ctx, emit->info,
-                                emit->indirect, emit->draw, 0);
+         ir3_emit_driver_params(emit->gs, dpconstobj, ctx, emit->info, emit->indirect, &p);
       }
 
       if (emit->hs && emit->hs->need_driver_params) {
@@ -301,8 +311,7 @@ fd6_build_driver_params(struct fd6_emit *emit)
       }
 
       if (emit->ds && emit->ds->need_driver_params) {
-         ir3_emit_driver_params(emit->ds, dpconstobj, ctx, emit->info,
-                                emit->indirect, emit->draw, 0);
+         ir3_emit_driver_params(emit->ds, dpconstobj, ctx, emit->info, emit->indirect, &p);
       }
    }
 

@@ -21,60 +21,95 @@
 
 BEGINC;
 
-/* driver param indices: */
-enum ir3_driver_param {
-   /* compute shader driver params: */
-   IR3_DP_NUM_WORK_GROUPS_X = 0,
-   IR3_DP_NUM_WORK_GROUPS_Y = 1,
-   IR3_DP_NUM_WORK_GROUPS_Z = 2,
-   IR3_DP_WORK_DIM          = 3,
-   IR3_DP_BASE_GROUP_X = 4,
-   IR3_DP_BASE_GROUP_Y = 5,
-   IR3_DP_BASE_GROUP_Z = 6,
-   IR3_DP_CS_SUBGROUP_SIZE = 7,
-   IR3_DP_LOCAL_GROUP_SIZE_X = 8,
-   IR3_DP_LOCAL_GROUP_SIZE_Y = 9,
-   IR3_DP_LOCAL_GROUP_SIZE_Z = 10,
-   IR3_DP_SUBGROUP_ID_SHIFT = 11,
-   IR3_DP_WORKGROUP_ID_X = 12,
-   IR3_DP_WORKGROUP_ID_Y = 13,
-   IR3_DP_WORKGROUP_ID_Z = 14,
+#define dword_offsetof(type, name) DIV_ROUND_UP(offsetof(type, name), 4)
+#define dword_sizeof(type)         DIV_ROUND_UP(sizeof(type), 4)
+
+/**
+ * Driver params for compute shaders.
+ *
+ * Note, driver param structs should be size aligned to vec4
+ */
+struct ir3_driver_params_cs {
    /* NOTE: gl_NumWorkGroups should be vec4 aligned because
     * glDispatchComputeIndirect() needs to load these from
     * the info->indirect buffer.  Keep that in mind when/if
     * adding any addition CS driver params.
     */
-   IR3_DP_CS_COUNT = 16, /* must be aligned to vec4 */
-
-   /* vertex shader driver params: */
-   IR3_DP_DRAWID = 0,
-   IR3_DP_VTXID_BASE = 1,
-   IR3_DP_INSTID_BASE = 2,
-   IR3_DP_VTXCNT_MAX = 3,
-   IR3_DP_IS_INDEXED_DRAW = 4,  /* Note: boolean, ie. 0 or ~0 */
-   /* user-clip-plane components, up to 8x vec4's: */
-   IR3_DP_UCP0_X = 5,
-   /* .... */
-   IR3_DP_UCP7_W = 36,
-   IR3_DP_VS_COUNT = 40, /* must be aligned to vec4 */
-
-   /* TCS driver params: */
-   IR3_DP_HS_DEFAULT_OUTER_LEVEL_X = 0,
-   IR3_DP_HS_DEFAULT_OUTER_LEVEL_Y = 1,
-   IR3_DP_HS_DEFAULT_OUTER_LEVEL_Z = 2,
-   IR3_DP_HS_DEFAULT_OUTER_LEVEL_W = 3,
-   IR3_DP_HS_DEFAULT_INNER_LEVEL_X = 4,
-   IR3_DP_HS_DEFAULT_INNER_LEVEL_Y = 5,
-   IR3_DP_HS_COUNT = 8, /* must be aligned to vec4 */
-
-   /* fragment shader driver params: */
-   IR3_DP_FS_SUBGROUP_SIZE = 0,
-   /* Dynamic params (that aren't known when compiling the shader) */
-   IR3_DP_FS_DYNAMIC = 4,
-   IR3_DP_FS_FRAG_INVOCATION_COUNT = IR3_DP_FS_DYNAMIC,
-   IR3_DP_FS_FRAG_SIZE = IR3_DP_FS_DYNAMIC + 4,
-   IR3_DP_FS_FRAG_OFFSET = IR3_DP_FS_DYNAMIC + 6,
+   uint32_t num_work_groups_x;
+   uint32_t num_work_groups_y;
+   uint32_t num_work_groups_z;
+   uint32_t work_dim;
+   uint32_t base_group_x;
+   uint32_t base_group_y;
+   uint32_t base_group_z;
+   uint32_t subgroup_size;
+   uint32_t local_group_size_x;
+   uint32_t local_group_size_y;
+   uint32_t local_group_size_z;
+   uint32_t subgroup_id_shift;
+   uint32_t workgroup_id_x;
+   uint32_t workgroup_id_y;
+   uint32_t workgroup_id_z;
+   uint32_t __pad;
 };
+#define IR3_DP_CS(name) dword_offsetof(struct ir3_driver_params_cs, name)
+
+/**
+ * Driver params for vertex shaders.
+ *
+ * Note, driver param structs should be size aligned to vec4
+ */
+struct ir3_driver_params_vs {
+   uint32_t draw_id;
+   uint32_t vtxid_base;
+   uint32_t instid_base;
+   uint32_t vtxcnt_max;
+   uint32_t is_indexed_draw;  /* Note: boolean, ie. 0 or ~0 */
+   /* user-clip-plane components, up to 8x vec4's: */
+   struct {
+      uint32_t x;
+      uint32_t y;
+      uint32_t z;
+      uint32_t w;
+   } ucp[8];
+   uint32_t __pad_37_39[3];
+};
+#define IR3_DP_VS(name) dword_offsetof(struct ir3_driver_params_vs, name)
+
+/**
+ * Driver params for TCS shaders.
+ *
+ * Note, driver param structs should be size aligned to vec4
+ */
+struct ir3_driver_params_tcs {
+   uint32_t default_outer_level_x;
+   uint32_t default_outer_level_y;
+   uint32_t default_outer_level_z;
+   uint32_t default_outer_level_w;
+   uint32_t default_inner_level_x;
+   uint32_t default_inner_level_y;
+   uint32_t __pad_06_07[2];
+};
+#define IR3_DP_TCS(name) dword_offsetof(struct ir3_driver_params_tcs, name)
+
+/**
+ * Driver params for fragment shaders.
+ *
+ * Note, driver param structs should be size aligned to vec4
+ */
+struct ir3_driver_params_fs {
+   uint32_t subgroup_size;
+   uint32_t __pad_01_03[3];
+   /* Dynamic params (that aren't known when compiling the shader) */
+#define IR3_DP_FS_DYNAMIC dword_offsetof(struct ir3_driver_params_fs, frag_invocation_count)
+   uint32_t frag_invocation_count;
+   uint32_t __pad_05_07[3];
+   uint32_t frag_size;
+   uint32_t __pad_09;
+   uint32_t frag_offset;
+   uint32_t __pad_11_12[2];
+};
+#define IR3_DP_FS(name) dword_offsetof(struct ir3_driver_params_fs, name)
 
 #define IR3_MAX_SHADER_BUFFERS  32
 #define IR3_MAX_SHADER_IMAGES   32
