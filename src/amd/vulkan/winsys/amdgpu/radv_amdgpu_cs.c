@@ -481,6 +481,7 @@ radv_amdgpu_cs_finalize(struct radeon_cmdbuf *_cs)
       radeon_emit_unchecked(&cs->base, nop_packet);
       radeon_emit_unchecked(&cs->base, nop_packet);
 
+      assert(cs->base.cdw <= ~C_3F2_IB_SIZE);
       *cs->ib_size_ptr |= cs->base.cdw;
    } else {
       radv_amdgpu_winsys_cs_pad(_cs, 0);
@@ -806,6 +807,8 @@ radv_amdgpu_cs_execute_ib(struct radeon_cmdbuf *_cs, struct radeon_winsys_bo *bo
    assert(ib_va && ib_va % cs->ws->info.ip[cs->hw_ip].ib_alignment == 0);
 
    if (cs->hw_ip == AMD_IP_GFX && cs->use_ib) {
+      assert(cdw <= ~C_3F2_IB_SIZE);
+
       radeon_emit(&cs->base, PKT3(PKT3_INDIRECT_BUFFER, 2, predicate));
       radeon_emit(&cs->base, ib_va);
       radeon_emit(&cs->base, ib_va >> 32);
