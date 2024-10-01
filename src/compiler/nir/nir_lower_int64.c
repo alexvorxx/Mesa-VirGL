@@ -1256,6 +1256,7 @@ should_lower_int64_intrinsic(const nir_intrinsic_instr *intrin,
    switch (intrin->intrinsic) {
    case nir_intrinsic_read_invocation:
    case nir_intrinsic_read_first_invocation:
+   case nir_intrinsic_read_invocation_cond_ir3:
    case nir_intrinsic_shuffle:
    case nir_intrinsic_shuffle_xor:
    case nir_intrinsic_shuffle_up:
@@ -1300,6 +1301,7 @@ lower_int64_intrinsic(nir_builder *b, nir_intrinsic_instr *intrin)
    switch (intrin->intrinsic) {
    case nir_intrinsic_read_invocation:
    case nir_intrinsic_read_first_invocation:
+   case nir_intrinsic_read_invocation_cond_ir3:
    case nir_intrinsic_shuffle:
    case nir_intrinsic_shuffle_xor:
    case nir_intrinsic_shuffle_up:
