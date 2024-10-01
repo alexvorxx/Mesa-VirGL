@@ -674,6 +674,7 @@ subtract_deref(nir_builder *b, nir_deref_instr *deref, int64_t offset)
        nir_src_is_const(deref->arr.index) &&
        offset % nir_deref_instr_array_stride(deref) == 0) {
       unsigned stride = nir_deref_instr_array_stride(deref);
+      assert(stride != 0);
       nir_def *index = nir_imm_intN_t(b, nir_src_as_int(deref->arr.index) - offset / stride,
                                       deref->def.bit_size);
       return nir_build_deref_ptr_as_array(b, nir_deref_instr_parent(deref), index);
@@ -682,7 +683,8 @@ subtract_deref(nir_builder *b, nir_deref_instr *deref, int64_t offset)
    if (deref->deref_type == nir_deref_type_array &&
        nir_src_is_const(deref->arr.index)) {
       nir_deref_instr *parent = nir_deref_instr_parent(deref);
-      unsigned stride = glsl_get_explicit_stride(parent->type);
+      unsigned stride = nir_deref_instr_array_stride(deref);
+      assert(stride != 0);
       if (offset % stride == 0)
          return nir_build_deref_array_imm(
             b, parent, nir_src_as_int(deref->arr.index) - offset / stride);
