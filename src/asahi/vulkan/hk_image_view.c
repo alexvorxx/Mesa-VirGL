@@ -640,7 +640,8 @@ hk_CreateImageView(VkDevice _device, const VkImageViewCreateInfo *pCreateInfo,
       return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
 
    result = hk_image_view_init(
-      dev, view, pCreateInfo->flags & VK_IMAGE_VIEW_CREATE_INTERNAL_MESA,
+      dev, view,
+      pCreateInfo->flags & VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA,
       pCreateInfo);
    if (result != VK_SUCCESS) {
       hk_DestroyImageView(_device, hk_image_view_to_handle(view), pAllocator);

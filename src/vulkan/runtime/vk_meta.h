@@ -47,7 +47,7 @@ struct vk_meta_rect {
 };
 
 #define VK_PRIMITIVE_TOPOLOGY_META_RECT_LIST_MESA (VkPrimitiveTopology)11
-#define VK_IMAGE_VIEW_CREATE_INTERNAL_MESA (VkImageViewCreateFlagBits)0x40000000
+#define VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA (VkImageViewCreateFlagBits)0x80000000
 
 struct vk_meta_copy_image_properties {
    union {
@@ -274,8 +274,6 @@ VkResult vk_meta_create_buffer_view(struct vk_command_buffer *cmd,
                                     struct vk_meta_device *meta,
                                     const VkBufferViewCreateInfo *info,
                                     VkBufferView *buffer_view_out);
-
-#define VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA 0x80000000
 
 VkResult vk_meta_create_image_view(struct vk_command_buffer *cmd,
                                    struct vk_meta_device *meta,

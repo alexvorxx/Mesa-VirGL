@@ -70,7 +70,7 @@ clear_image(struct hk_cmd_buffer *cmd, struct hk_image *image,
          };
          const VkImageViewCreateInfo view_info = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .flags = VK_IMAGE_VIEW_CREATE_INTERNAL_MESA,
+            .flags = VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA,
             .pNext = &view_usage_info,
             .image = hk_image_to_handle(image),
             .viewType = render_view_type(image->vk.image_type, layer_count),

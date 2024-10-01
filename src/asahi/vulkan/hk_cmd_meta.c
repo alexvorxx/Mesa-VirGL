@@ -815,7 +815,7 @@ hk_meta_copy_image_to_buffer2(struct vk_command_buffer *cmd,
          };
          const VkImageViewCreateInfo src_view_info = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .flags = VK_IMAGE_VIEW_CREATE_INTERNAL_MESA,
+            .flags = VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA,
             .pNext = &src_view_usage,
             .image = pCopyBufferInfo->srcImage,
             .viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
@@ -1019,7 +1019,7 @@ hk_meta_copy_buffer_to_image2(struct vk_command_buffer *cmd,
          };
          const VkImageViewCreateInfo dst_view_info = {
             .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-            .flags = VK_IMAGE_VIEW_CREATE_INTERNAL_MESA,
+            .flags = VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA,
             .pNext = &dst_view_usage,
             .image = info->dstImage,
             .viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
@@ -1170,7 +1170,7 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
             };
             const VkImageViewCreateInfo src_view_info = {
                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-               .flags = VK_IMAGE_VIEW_CREATE_INTERNAL_MESA,
+               .flags = VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA,
                .pNext = &src_view_usage,
                .image = info->srcImage,
                .viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
@@ -1208,7 +1208,7 @@ hk_meta_copy_image2(struct vk_command_buffer *cmd, struct vk_meta_device *meta,
             };
             const VkImageViewCreateInfo dst_view_info = {
                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-               .flags = VK_IMAGE_VIEW_CREATE_INTERNAL_MESA,
+               .flags = VK_IMAGE_VIEW_CREATE_DRIVER_INTERNAL_BIT_MESA,
                .pNext = &dst_view_usage,
                .image = info->dstImage,
                .viewType = VK_IMAGE_VIEW_TYPE_2D_ARRAY,
