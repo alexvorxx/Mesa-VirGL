@@ -850,7 +850,7 @@ lower_binning(nir_shader *s)
                                      nir_metadata_control_flow, NULL);
 }
 
-static nir_mem_access_size_align
+nir_mem_access_size_align
 ir3_mem_access_size_align(nir_intrinsic_op intrin, uint8_t bytes,
                  uint8_t bit_size, uint32_t align,
                  uint32_t align_offset, bool offset_is_const,
