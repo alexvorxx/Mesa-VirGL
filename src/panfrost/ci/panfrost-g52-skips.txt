@@ -80,11 +80,6 @@ dEQP-VK.draw.renderpass.indirect_draw.*
 dEQP-VK.draw.renderpass.*.draw_indirect*
 dEQP-VK.draw.renderpass.*.draw_indexed_indirect*
 
-# CreateRenderPass2 missing
-# VKCTS bug: vktSynchronizationNoneStageTests.cpp doesn't check for VK_KHR_create_renderpass2 support and use CreateRenderPass2
-# TODO: Report it
-dEQP-VK.synchronization2.none_stage.*
-
 # textureQueryLod not supported yet
 dEQP-VK.glsl.texture_functions.query.texturequerylod.*
 

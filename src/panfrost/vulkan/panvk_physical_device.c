@@ -64,6 +64,7 @@ get_device_extensions(const struct panvk_physical_device *device,
    *ext = (struct vk_device_extension_table){
       .KHR_buffer_device_address = true,
       .KHR_copy_commands2 = true,
+      .KHR_create_renderpass2 = true,
       .KHR_device_group = true,
       .KHR_descriptor_update_template = true,
       .KHR_driver_properties = true,
