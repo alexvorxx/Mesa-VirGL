@@ -1461,7 +1461,7 @@ struct isl_tile_info {
     * of the tiling formats can actually hold an integer number of 96-bit
     * surface elements so isl_tiling_get_info returns an isl_tile_info for a
     * 32-bit element size.  It is the responsibility of the caller to
-    * recognize that 32 != 96 ad adjust accordingly.  For instance, to compute
+    * recognize that 32 != 96 and adjust accordingly.  For instance, to compute
     * the width of a surface in tiles, you would do::
     *
     *   width_tl = DIV_ROUND_UP(width_el * (format_bpb / tile_info.format_bpb),
