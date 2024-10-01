@@ -1359,8 +1359,12 @@ ir3_valid_flags(struct ir3_instruction *instr, unsigned n, unsigned flags)
 
       if (instr->opc == OPC_STC && n == 1)
          valid_flags |= IR3_REG_SHARED;
-      if (instr->opc == OPC_SHFL && n == 1)
-         valid_flags |= IR3_REG_SHARED;
+      if (instr->opc == OPC_SHFL) {
+         if (n == 0)
+            valid_flags &= ~IR3_REG_IMMED;
+         else if (n == 1)
+            valid_flags |= IR3_REG_SHARED;
+      }
 
       if (flags & ~valid_flags)
          return false;
