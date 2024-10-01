@@ -2670,7 +2670,9 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
             (dev->vk.enabled_features.robustBufferAccess2 ||
              dev->vk.enabled_features.pipelineRobustness)
                ? AGX_ROBUSTNESS_D3D
-               : AGX_ROBUSTNESS_GL,
+            : dev->vk.enabled_features.robustBufferAccess
+               ? AGX_ROBUSTNESS_GL
+               : AGX_ROBUSTNESS_DISABLED,
 
          .prolog.robustness.soft_fault = agx_has_soft_fault(&dev->dev),
       };
