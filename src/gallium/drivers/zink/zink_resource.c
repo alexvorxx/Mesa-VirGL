@@ -649,12 +649,11 @@ retry:
    while (!ici->usage) {
       if (!first) {
          switch (ici->tiling) {
+         /* modifiers cannot do fallbacks, as LINEAR modifier should be present for that case */
          case VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT:
-            ici->tiling = VK_IMAGE_TILING_OPTIMAL;
-            modifiers_count = 0;
-            break;
          case VK_IMAGE_TILING_OPTIMAL:
             ici->tiling = VK_IMAGE_TILING_LINEAR;
+            modifiers_count = 0;
             break;
          case VK_IMAGE_TILING_LINEAR:
             if (bind & PIPE_BIND_LINEAR) {
