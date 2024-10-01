@@ -110,7 +110,7 @@ image_view_init(struct radv_device *device, struct radv_image *image, VkFormat f
          },
    };
 
-   radv_image_view_init(iview, device, &iview_create_info, 0, NULL);
+   radv_image_view_init(iview, device, &iview_create_info, NULL);
 }
 
 void

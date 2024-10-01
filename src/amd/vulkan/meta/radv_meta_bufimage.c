@@ -1130,7 +1130,6 @@ create_iview(struct radv_cmd_buffer *cmd_buffer, struct radv_meta_blit2d_surf *s
                                                 .baseArrayLayer = surf->layer,
                                                 .layerCount = 1},
                         },
-                        0,
                         &(struct radv_image_view_extra_create_info){
                            .disable_compression = surf->disable_compression,
                         });

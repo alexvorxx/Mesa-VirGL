@@ -96,12 +96,12 @@ gfx10_make_texture_descriptor(struct radv_device *device, struct radv_image *ima
                               VkImageViewType view_type, VkFormat vk_format, const VkComponentMapping *mapping,
                               unsigned first_level, unsigned last_level, unsigned first_layer, unsigned last_layer,
                               unsigned width, unsigned height, unsigned depth, float min_lod, uint32_t *state,
-                              uint32_t *fmask_state, VkImageCreateFlags img_create_flags,
-                              const struct ac_surf_nbc_view *nbc_view, const VkImageViewSlicedCreateInfoEXT *sliced_3d)
+                              uint32_t *fmask_state, const struct ac_surf_nbc_view *nbc_view,
+                              const VkImageViewSlicedCreateInfoEXT *sliced_3d)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const bool create_2d_view_of_3d =
-      (img_create_flags & VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT) && view_type == VK_IMAGE_VIEW_TYPE_2D;
+      (image->vk.create_flags & VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT) && view_type == VK_IMAGE_VIEW_TYPE_2D;
    enum pipe_format format = vk_format_to_pipe_format(vk_format);
    const struct util_format_description *desc;
    enum pipe_swizzle swizzle[4];
@@ -314,15 +314,15 @@ radv_make_texture_descriptor(struct radv_device *device, struct radv_image *imag
                              VkImageViewType view_type, VkFormat vk_format, const VkComponentMapping *mapping,
                              unsigned first_level, unsigned last_level, unsigned first_layer, unsigned last_layer,
                              unsigned width, unsigned height, unsigned depth, float min_lod, uint32_t *state,
-                             uint32_t *fmask_state, VkImageCreateFlags img_create_flags,
-                             const struct ac_surf_nbc_view *nbc_view, const VkImageViewSlicedCreateInfoEXT *sliced_3d)
+                             uint32_t *fmask_state, const struct ac_surf_nbc_view *nbc_view,
+                             const VkImageViewSlicedCreateInfoEXT *sliced_3d)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
    if (pdev->info.gfx_level >= GFX10) {
       gfx10_make_texture_descriptor(device, image, is_storage_image, view_type, vk_format, mapping, first_level,
                                     last_level, first_layer, last_layer, width, height, depth, min_lod, state,
-                                    fmask_state, img_create_flags, nbc_view, sliced_3d);
+                                    fmask_state, nbc_view, sliced_3d);
    } else {
       gfx6_make_texture_descriptor(device, image, is_storage_image, view_type, vk_format, mapping, first_level,
                                    last_level, first_layer, last_layer, width, height, depth, min_lod, state,
@@ -348,8 +348,7 @@ static void
 radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_device *device, VkFormat vk_format,
                                 const VkComponentMapping *components, bool is_storage_image, bool disable_compression,
                                 bool enable_compression, unsigned plane_id, unsigned descriptor_plane_id,
-                                VkImageCreateFlags img_create_flags, const VkImageViewSlicedCreateInfoEXT *sliced_3d,
-                                bool force_zero_base_mip)
+                                const VkImageViewSlicedCreateInfoEXT *sliced_3d, bool force_zero_base_mip)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_image *image = iview->image;
@@ -390,8 +389,7 @@ radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_devic
       vk_format_get_plane_width(image->vk.format, plane_id, iview->extent.width),
       vk_format_get_plane_height(image->vk.format, plane_id, iview->extent.height), iview->extent.depth,
       iview->vk.min_lod, descriptor->plane_descriptors[descriptor_plane_id],
-      descriptor_plane_id || is_storage_image ? NULL : descriptor->fmask_descriptor, img_create_flags, &iview->nbc_view,
-      sliced_3d);
+      descriptor_plane_id || is_storage_image ? NULL : descriptor->fmask_descriptor, &iview->nbc_view, sliced_3d);
 
    const struct legacy_surf_level *base_level_info = NULL;
    if (pdev->info.gfx_level <= GFX8) {
@@ -439,7 +437,7 @@ radv_image_view_can_fast_clear(const struct radv_device *device, const struct ra
 
 void
 radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
-                     const VkImageViewCreateInfo *pCreateInfo, VkImageCreateFlags img_create_flags,
+                     const VkImageViewCreateInfo *pCreateInfo,
                      const struct radv_image_view_extra_create_info *extra_create_info)
 {
    VK_FROM_HANDLE(radv_image, image, pCreateInfo->image);
@@ -590,11 +588,9 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
    for (unsigned i = 0; i < plane_count; ++i) {
       VkFormat format = vk_format_get_plane_format(iview->vk.view_format, i);
       radv_image_view_make_descriptor(iview, device, format, &pCreateInfo->components, false, disable_compression,
-                                      enable_compression, iview->plane_id + i, i, img_create_flags, NULL,
-                                      force_zero_base_mip);
+                                      enable_compression, iview->plane_id + i, i, NULL, force_zero_base_mip);
       radv_image_view_make_descriptor(iview, device, format, &pCreateInfo->components, true, disable_compression,
-                                      enable_compression, iview->plane_id + i, i, img_create_flags, sliced_3d,
-                                      force_zero_base_mip);
+                                      enable_compression, iview->plane_id + i, i, sliced_3d, force_zero_base_mip);
    }
 }
 
@@ -608,7 +604,6 @@ VKAPI_ATTR VkResult VKAPI_CALL
 radv_CreateImageView(VkDevice _device, const VkImageViewCreateInfo *pCreateInfo,
                      const VkAllocationCallbacks *pAllocator, VkImageView *pView)
 {
-   VK_FROM_HANDLE(radv_image, image, pCreateInfo->image);
    VK_FROM_HANDLE(radv_device, device, _device);
    struct radv_image_view *view;
 
@@ -616,8 +611,7 @@ radv_CreateImageView(VkDevice _device, const VkImageViewCreateInfo *pCreateInfo,
    if (view == NULL)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
-   radv_image_view_init(view, device, pCreateInfo, image->vk.create_flags,
-                        &(struct radv_image_view_extra_create_info){.from_client = true});
+   radv_image_view_init(view, device, pCreateInfo, &(struct radv_image_view_extra_create_info){.from_client = true});
 
    *pView = radv_image_view_to_handle(view);
 

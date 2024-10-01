@@ -369,7 +369,7 @@ radv_meta_resolve_hardware_image(struct radv_cmd_buffer *cmd_buffer, struct radv
                                  .layerCount = 1,
                               },
                         },
-                        0, NULL);
+                        NULL);
 
    struct radv_image_view dst_iview;
    radv_image_view_init(&dst_iview, device,
@@ -387,7 +387,7 @@ radv_meta_resolve_hardware_image(struct radv_cmd_buffer *cmd_buffer, struct radv
                                  .layerCount = 1,
                               },
                         },
-                        0, NULL);
+                        NULL);
 
    const VkRenderingAttachmentInfo color_atts[2] = {
       {

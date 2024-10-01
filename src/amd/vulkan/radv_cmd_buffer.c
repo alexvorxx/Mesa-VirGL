@@ -4796,7 +4796,7 @@ radv_emit_framebuffer_state(struct radv_cmd_buffer *cmd_buffer)
                                     .layerCount = 1,
                                  },
                            },
-                           0, NULL);
+                           NULL);
 
       radv_initialise_vrs_surface(image, htile_buffer, &ds);
 

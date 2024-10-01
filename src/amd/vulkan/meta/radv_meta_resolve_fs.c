@@ -763,7 +763,7 @@ radv_meta_resolve_fragment_image(struct radv_cmd_buffer *cmd_buffer, struct radv
                                  .layerCount = 1,
                               },
                         },
-                        0, NULL);
+                        NULL);
 
    struct radv_image_view dst_iview;
    radv_image_view_init(&dst_iview, device,
@@ -781,7 +781,7 @@ radv_meta_resolve_fragment_image(struct radv_cmd_buffer *cmd_buffer, struct radv
                                  .layerCount = 1,
                               },
                         },
-                        0, NULL);
+                        NULL);
 
    const VkRenderingAttachmentInfo color_att = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO,
@@ -946,7 +946,7 @@ radv_depth_stencil_resolve_rendering_fs(struct radv_cmd_buffer *cmd_buffer, VkIm
                                  .layerCount = 1,
                               },
                         },
-                        0, NULL);
+                        NULL);
 
    emit_depth_stencil_resolve(cmd_buffer, &tsrc_iview, dst_iview, &resolve_area.offset, &resolve_area.extent, aspects,
                               resolve_mode);
