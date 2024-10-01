@@ -177,6 +177,7 @@ done
 set -x
 
 set +e
+deqp-runner -V
 if [ -z "$DEQP_SUITE" ]; then
     deqp-runner \
         run \
