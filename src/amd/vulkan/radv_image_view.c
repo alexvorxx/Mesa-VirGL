@@ -474,7 +474,7 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
       break;
    case VK_IMAGE_TYPE_3D:
       assert(range->baseArrayLayer + vk_image_subresource_layer_count(&image->vk, range) - 1 <=
-             u_minify(image->vk.extent.depth, range->baseMipLevel));
+             u_minify(image->vk.extent.depth, iview->vk.base_mip_level));
       break;
    default:
       unreachable("bad VkImageType");
@@ -570,16 +570,16 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
             iview->extent.width = plane->surface.u.gfx9.base_mip_width;
             iview->extent.height = plane->surface.u.gfx9.base_mip_height;
          } else {
-            unsigned lvl_width = u_minify(image->vk.extent.width, range->baseMipLevel);
-            unsigned lvl_height = u_minify(image->vk.extent.height, range->baseMipLevel);
+            unsigned lvl_width = u_minify(image->vk.extent.width, iview->vk.base_mip_level);
+            unsigned lvl_height = u_minify(image->vk.extent.height, iview->vk.base_mip_level);
 
             lvl_width = DIV_ROUND_UP(lvl_width * view_bw, plane_bw);
             lvl_height = DIV_ROUND_UP(lvl_height * view_bh, plane_bh);
 
             iview->extent.width =
-               CLAMP(lvl_width << range->baseMipLevel, iview->extent.width, plane->surface.u.gfx9.base_mip_width);
-            iview->extent.height =
-               CLAMP(lvl_height << range->baseMipLevel, iview->extent.height, plane->surface.u.gfx9.base_mip_height);
+               CLAMP(lvl_width << iview->vk.base_mip_level, iview->extent.width, plane->surface.u.gfx9.base_mip_width);
+            iview->extent.height = CLAMP(lvl_height << iview->vk.base_mip_level, iview->extent.height,
+                                         plane->surface.u.gfx9.base_mip_height);
 
             /* If the hardware-computed extent is still be too small, on GFX10
              * we can attempt another workaround provided by addrlib that
@@ -587,8 +587,8 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
              * extents accordingly.
              */
             if (pdev->info.gfx_level >= GFX10 &&
-                (u_minify(iview->extent.width, range->baseMipLevel) < lvl_width ||
-                 u_minify(iview->extent.height, range->baseMipLevel) < lvl_height) &&
+                (u_minify(iview->extent.width, iview->vk.base_mip_level) < lvl_width ||
+                 u_minify(iview->extent.height, iview->vk.base_mip_level) < lvl_height) &&
                 iview->vk.layer_count == 1) {
                compute_non_block_compressed_view(device, iview, &iview->nbc_view);
             }
