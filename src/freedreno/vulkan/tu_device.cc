@@ -366,7 +366,7 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->shaderClipDistance = true;
    features->shaderCullDistance = true;
    features->shaderFloat64 = false;
-   features->shaderInt64 = false;
+   features->shaderInt64 = true;
    features->shaderInt16 = true;
    features->sparseBinding = false;
    features->variableMultisampleRate = true;
