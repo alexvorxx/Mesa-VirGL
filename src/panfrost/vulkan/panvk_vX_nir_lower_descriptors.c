@@ -1150,19 +1150,19 @@ upload_shader_desc_info(struct panvk_device *dev, struct panvk_shader *shader,
          copy_count * sizeof(uint32_t), sizeof(uint32_t));
    }
 
-   assert(desc_info->dyn_ubos.count <
+   assert(desc_info->dyn_ubos.count <=
           ARRAY_SIZE(shader->desc_info.dyn_ubos.map));
    shader->desc_info.dyn_ubos.count = desc_info->dyn_ubos.count;
    memcpy(shader->desc_info.dyn_ubos.map, desc_info->dyn_ubos.map,
           desc_info->dyn_ubos.count * sizeof(*shader->desc_info.dyn_ubos.map));
-   assert(desc_info->dyn_ssbos.count <
+   assert(desc_info->dyn_ssbos.count <=
           ARRAY_SIZE(shader->desc_info.dyn_ssbos.map));
    shader->desc_info.dyn_ssbos.count = desc_info->dyn_ssbos.count;
    memcpy(
       shader->desc_info.dyn_ssbos.map, desc_info->dyn_ssbos.map,
       desc_info->dyn_ssbos.count * sizeof(*shader->desc_info.dyn_ssbos.map));
 #else
-   assert(desc_info->dyn_bufs.count <
+   assert(desc_info->dyn_bufs.count <=
           ARRAY_SIZE(shader->desc_info.dyn_bufs.map));
    shader->desc_info.dyn_bufs.count = desc_info->dyn_bufs.count;
    memcpy(shader->desc_info.dyn_bufs.map, desc_info->dyn_bufs.map,
