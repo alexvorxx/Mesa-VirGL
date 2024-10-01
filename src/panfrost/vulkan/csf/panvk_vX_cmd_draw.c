@@ -545,7 +545,7 @@ prepare_vp(struct panvk_cmd_buffer *cmdbuf)
       pan_pack(&scissor_box, SCISSOR, cfg) {
 
          /* The spec says "width must be greater than 0.0" */
-         assert(viewport->x >= 0);
+         assert(viewport->width >= 0);
          int minx = (int)viewport->x;
          int maxx = (int)(viewport->x + viewport->width);
 
@@ -565,10 +565,11 @@ prepare_vp(struct panvk_cmd_buffer *cmdbuf)
          maxx = maxx > minx ? maxx - 1 : maxx;
          maxy = maxy > miny ? maxy - 1 : maxy;
 
-         cfg.scissor_minimum_x = minx;
-         cfg.scissor_minimum_y = miny;
-         cfg.scissor_maximum_x = maxx;
-         cfg.scissor_maximum_y = maxy;
+         /* Clamp viewport scissor to valid range */
+         cfg.scissor_minimum_x = CLAMP(minx, 0, UINT16_MAX);
+         cfg.scissor_minimum_y = CLAMP(miny, 0, UINT16_MAX);
+         cfg.scissor_maximum_x = CLAMP(maxx, 0, UINT16_MAX);
+         cfg.scissor_maximum_y = CLAMP(maxy, 0, UINT16_MAX);
       }
 
       cs_move64_to(b, cs_sr_reg64(b, 42), scissor_box);
