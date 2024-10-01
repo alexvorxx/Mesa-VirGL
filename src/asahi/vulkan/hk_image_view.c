@@ -454,7 +454,9 @@ pack_pbe(struct hk_device *dev, struct hk_image_view *view, unsigned view_plane,
       /* When the descriptor isn't extended architecturally, we use
        * the last 8 bytes as a sideband to accelerate image atomics.
        */
-      if (!cfg.extended && layout->writeable_image) {
+      if (!cfg.extended &&
+          (layout->writeable_image || usage == HK_DESC_USAGE_EMRT)) {
+
          if (msaa) {
             assert(denom.x == 1 && "no MSAA of block-compressed");
 
