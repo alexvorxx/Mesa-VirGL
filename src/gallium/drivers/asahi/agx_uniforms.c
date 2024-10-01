@@ -8,6 +8,7 @@
 #include "util/format/u_format.h"
 #include "util/half_float.h"
 #include "util/macros.h"
+#include "agx_device.h"
 #include "agx_state.h"
 #include "pool.h"
 
@@ -29,12 +30,10 @@ agx_upload_vbos(struct agx_batch *batch)
 {
    struct agx_context *ctx = batch->ctx;
    struct agx_vertex_elements *attribs = ctx->attributes;
+   struct agx_device *dev = agx_device(ctx->base.screen);
    uint64_t buffers[PIPE_MAX_ATTRIBS] = {0};
    size_t buf_sizes[PIPE_MAX_ATTRIBS] = {0};
 
-   /* TODO: To handle null vertex buffers, we use robustness always. Once we
-    * support soft fault in the kernel, we can optimize this.
-    */
    u_foreach_bit(vbo, ctx->vb_mask) {
       struct pipe_vertex_buffer vb = ctx->vertex_buffers[vbo];
       assert(!vb.is_user_buffer);
@@ -48,8 +47,15 @@ agx_upload_vbos(struct agx_batch *batch)
       }
    }
 
-   uint32_t zeroes[4] = {0};
-   uint64_t sink = agx_pool_upload_aligned(&batch->pool, &zeroes, 16, 16);
+   /* NULL vertex buffers read zeroes from NULL. This depends on soft fault.
+    * Without soft fault, we just upload zeroes to read from.
+    */
+   uint64_t sink = 0;
+
+   if (!agx_has_soft_fault(dev)) {
+      uint32_t zeroes[4] = {0};
+      sink = agx_pool_upload_aligned(&batch->pool, &zeroes, 16, 16);
+   }
 
    for (unsigned i = 0; i < PIPE_MAX_ATTRIBS; ++i) {
       unsigned buf = attribs->buffers[i];
