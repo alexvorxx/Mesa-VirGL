@@ -32,8 +32,12 @@ BASE_PWD=$PWD
 
 mkdir -p /deqp-runner
 pushd /deqp-runner
-git clone --branch "$DEQP_RUNNER_GIT_CHECKOUT" --depth 1 "$DEQP_RUNNER_GIT_URL" deqp-runner-git
+mkdir deqp-runner-git
 pushd deqp-runner-git
+git init
+git remote add origin "$DEQP_RUNNER_GIT_URL"
+git fetch --depth 1 origin "$DEQP_RUNNER_GIT_CHECKOUT"
+git checkout FETCH_HEAD
 
 for commit in "${commits_to_backport[@]}"
 do
