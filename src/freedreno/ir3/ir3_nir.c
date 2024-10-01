@@ -755,6 +755,15 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
       }
 
       OPT(s, nir_lower_subgroups, &options);
+
+      /* We want to run the 64b lowering after nir_lower_subgroups so that the
+       * operations have been scalarized. However, the 64b lowering will insert
+       * some intrinsics (e.g., nir_ballot_find_msb) that need to be lowered
+       * again.
+       */
+      if (OPT(s, ir3_nir_lower_64b_subgroups)) {
+         OPT(s, nir_lower_subgroups, &options);
+      }
    }
 
    if ((s->info.stage == MESA_SHADER_COMPUTE) ||

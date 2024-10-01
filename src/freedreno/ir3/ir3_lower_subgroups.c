@@ -543,6 +543,7 @@ lower_scan_reduce(struct nir_builder *b, nir_instr *instr, void *data)
 {
    nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
    unsigned bit_size = intrin->def.bit_size;
+   assert(bit_size < 64);
 
    nir_op op = nir_intrinsic_reduction_op(intrin);
    nir_const_value ident_val = nir_alu_binop_identity(op, bit_size);
@@ -580,4 +581,110 @@ ir3_nir_opt_subgroups(nir_shader *nir, struct ir3_shader_variant *v)
 
    return nir_shader_lower_instructions(nir, filter_scan_reduce,
                                         lower_scan_reduce, NULL);
+}
+
+static bool
+filter_64b_scan_reduce(const nir_instr *instr, const void *data)
+{
+   if (instr->type != nir_instr_type_intrinsic)
+      return false;
+
+   nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+
+   switch (intrin->intrinsic) {
+   case nir_intrinsic_reduce:
+   case nir_intrinsic_inclusive_scan:
+   case nir_intrinsic_exclusive_scan:
+      switch (nir_intrinsic_reduction_op(intrin)) {
+      case nir_op_imul:
+      case nir_op_imin:
+      case nir_op_imax:
+      case nir_op_umin:
+      case nir_op_umax:
+         return intrin->def.bit_size == 64;
+      default:
+         /* Will be handled by nir_lower_int64. */
+         return false;
+      }
+   default:
+      return false;
+   }
+}
+
+/* The existing scan/reduce macros (OPC_SCAN_MACRO/OPC_SCAN_CLUSTERS_MACRO) hard
+ * code the reduction operations in ir3. Adding support for 64b operations will
+ * blow up these already complicated macros. Implement a simple scan loop in NIR
+ * for the few (hopefully rare) cases where the generic passes cannot lower the
+ * reduction to 32b.
+ *
+ * inclusive = exclusive = ident;
+ * while (true) {
+ *    exclusive = inclusive;
+ *    inclusive = inclusive OP subgroupBroadcastFirst(inclusive_in);
+ *    if (elect()) {
+ *       break;
+ *    }
+ * }
+ * reduce = subgroupBroadcast(inclusive,
+ *                            subgroupBallotFindMSB(subgroupBallot(true)));
+ */
+static nir_def *
+lower_64b_scan_reduce(struct nir_builder *b, nir_instr *instr, void *data)
+{
+   nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+   assert(intrin->def.num_components == 1);
+
+   unsigned bit_size = intrin->def.bit_size;
+   nir_op op = nir_intrinsic_reduction_op(intrin);
+
+   nir_const_value ident_val = nir_alu_binop_identity(op, bit_size);
+   nir_def *ident = nir_build_imm(b, 1, bit_size, &ident_val);
+   nir_def *inclusive_in = intrin->src[0].ssa;
+
+   const glsl_type *var_type = bit_size == 1
+                                  ? glsl_bool_type()
+                                  : glsl_uintN_t_type(inclusive_in->bit_size);
+   nir_variable *inclusive_var =
+      nir_local_variable_create(b->impl, var_type, "inclusive");
+   nir_variable *exclusive_var =
+      nir_local_variable_create(b->impl, var_type, "exclusive");
+   nir_store_var(b, inclusive_var, ident, 1);
+   nir_store_var(b, exclusive_var, ident, 1);
+
+   nir_loop *loop = nir_push_loop(b);
+   {
+      nir_def *inclusive = nir_load_var(b, inclusive_var);
+      nir_store_var(b, exclusive_var, inclusive, 1);
+
+      nir_def *inclusive_in_next = nir_read_first_invocation(b, inclusive_in);
+      nir_def *inclusive_next =
+         nir_build_alu2(b, op, inclusive, inclusive_in_next);
+      nir_store_var(b, inclusive_var, inclusive_next, 1);
+
+      nir_break_if(b, nir_elect(b, 1));
+   }
+   nir_pop_loop(b, loop);
+
+   switch (intrin->intrinsic) {
+   case nir_intrinsic_reduce: {
+      nir_def *active_invocations = nir_ballot(b, 4, 32, nir_imm_true(b));
+      nir_def *last_active_invocation =
+         nir_ballot_find_msb(b, 32, active_invocations);
+      return nir_read_invocation(b, nir_load_var(b, inclusive_var),
+                                 last_active_invocation);
+   }
+   case nir_intrinsic_inclusive_scan:
+      return nir_load_var(b, inclusive_var);
+   case nir_intrinsic_exclusive_scan:
+      return nir_load_var(b, exclusive_var);
+   default:
+      unreachable("filtered intrinsic");
+   }
+}
+
+bool
+ir3_nir_lower_64b_subgroups(nir_shader *nir)
+{
+   return nir_shader_lower_instructions(nir, filter_64b_scan_reduce,
+                                        lower_64b_scan_reduce, NULL);
 }
