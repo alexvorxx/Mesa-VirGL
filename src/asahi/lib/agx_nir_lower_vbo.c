@@ -187,25 +187,15 @@ pass(struct nir_builder *b, nir_intrinsic_instr *intr, void *data)
 
    /* Robustness is handled at the ID level */
    nir_def *bounds = nir_load_attrib_clamp_agx(b, buf_handle);
-
-   /* For now, robustness is always applied. This gives GL robustness semantics.
-    * For robustBufferAccess2, we'll want to check for out-of-bounds access
-    * (where el > bounds), and replace base with the address of a zero sink.
-    * With soft fault and a large enough sink, we don't need to clamp the index,
-    * allowing that robustness behaviour to be implemented in 2 cmpsel
-    * before the load. That is faster than the 4 cmpsel required after the load,
-    * and it avoids waiting on the load which should help prolog performance.
-    *
-    * TODO: Optimize.
-    *
-    */
    nir_def *oob = nir_ult(b, bounds, el);
 
-   /* TODO: We clamp to handle null descriptors. This should be optimized
-    * further. However, with the fix up after the load for D3D robustness, we
-    * don't need this clamp if we can ignore the fault.
+   /* We clamp to handle GL robustness. This should be optimized further.
+    * However, with the fix up after the load for D3D robustness, we don't need
+    * this clamp if we can ignore the fault.
     */
-   if (!(ctx->rs.level >= AGX_ROBUSTNESS_D3D && ctx->rs.soft_fault)) {
+   if (ctx->rs.level >= AGX_ROBUSTNESS_GL &&
+       !(ctx->rs.level >= AGX_ROBUSTNESS_D3D && ctx->rs.soft_fault)) {
+
       el = nir_bcsel(b, oob, nir_imm_int(b, 0), el);
    }
 
@@ -319,6 +309,13 @@ agx_nir_lower_vbo(nir_shader *shader, struct agx_attribute *attribs,
                   struct agx_robustness robustness)
 {
    assert(shader->info.stage == MESA_SHADER_VERTEX);
+
+   /* To implement null vertex buffer descriptors, we need either soft fault or
+    * GL robustness with a vertex buffer at 0x0.
+    */
+   if (!robustness.soft_fault) {
+      robustness.level = MAX2(robustness.level, AGX_ROBUSTNESS_GL);
+   }
 
    struct ctx ctx = {.attribs = attribs, .rs = robustness};
    return nir_shader_intrinsics_pass(shader, pass, nir_metadata_control_flow,
