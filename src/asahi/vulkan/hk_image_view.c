@@ -469,7 +469,7 @@ pack_pbe(struct hk_device *dev, struct hk_image_view *view, unsigned view_plane,
 
          cfg.sample_count_log2_sw = util_logbase2(image->vk.samples);
 
-         if (layout->tiling == AIL_TILING_TWIDDLED) {
+         if (layout->tiling != AIL_TILING_LINEAR) {
             struct ail_tile tile_size = layout->tilesize_el[level];
             cfg.tile_width_sw = tile_size.width_el;
             cfg.tile_height_sw = tile_size.height_el;
