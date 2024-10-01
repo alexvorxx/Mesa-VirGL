@@ -518,7 +518,6 @@ spec@arb_texture_barrier@arb_texture_barrier-blending-in-shader 512 42 8 8 8,Fai
 # Piglit OpenCL tests
 api@clbuildprogram,Fail
 api@clcompileprogram,Fail
-api@clgetdeviceinfo,Crash
 api@clgetextensionfunctionaddressforplatform,Fail
 api@clgetkernelarginfo,Fail
 api@cllinkprogram,Fail
