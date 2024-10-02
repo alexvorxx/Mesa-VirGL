@@ -109,12 +109,13 @@ agx_optimizer_fmov(agx_instr **defs, agx_instr *ins)
 static bool
 image_write_source_can_be_immediate(agx_instr *I, unsigned s)
 {
-   assert(I->op == AGX_OPCODE_IMAGE_WRITE);
+   bool block = I->op == AGX_OPCODE_BLOCK_IMAGE_STORE;
+   assert(I->op == AGX_OPCODE_IMAGE_WRITE || block);
 
    /* LOD can always be immediate. Actually, it's just zero so far, we don't
     * support nonzero LOD for images yet.
     */
-   if (s == 2)
+   if (s == 2 && !block)
       return true;
 
    /* If the "bindless" source (source 3) is an immediate, it means we don't
@@ -122,8 +123,9 @@ image_write_source_can_be_immediate(agx_instr *I, unsigned s)
     * allowed to have immediate texture state registers (source 4). However,
     * we're not allowed to have immediate bindless offsets (also source 4).
     */
-   bool is_texture_state = (I->src[3].type == AGX_INDEX_IMMEDIATE);
-   if (s == 4 && is_texture_state)
+   unsigned base = block ? 0 : 3;
+   bool is_texture_state = (I->src[base].type == AGX_INDEX_IMMEDIATE);
+   if (s == (base + 1) && is_texture_state)
       return true;
 
    /* Otherwise, must be from a register */
@@ -167,7 +169,8 @@ agx_optimizer_inline_imm(agx_instr **defs, agx_instr *I)
       if (I->op == AGX_OPCODE_SPLIT)
          continue;
 
-      if (I->op == AGX_OPCODE_IMAGE_WRITE &&
+      if ((I->op == AGX_OPCODE_IMAGE_WRITE ||
+           I->op == AGX_OPCODE_BLOCK_IMAGE_STORE) &&
           !image_write_source_can_be_immediate(I, s))
          continue;
 
@@ -476,8 +479,7 @@ agx_optimizer_forward(agx_context *ctx)
       /* Inline immediates if we can. TODO: systematic */
       if (I->op != AGX_OPCODE_COLLECT && I->op != AGX_OPCODE_IMAGE_LOAD &&
           I->op != AGX_OPCODE_TEXTURE_LOAD &&
-          I->op != AGX_OPCODE_UNIFORM_STORE &&
-          I->op != AGX_OPCODE_BLOCK_IMAGE_STORE && I->op != AGX_OPCODE_EXPORT)
+          I->op != AGX_OPCODE_UNIFORM_STORE && I->op != AGX_OPCODE_EXPORT)
          agx_optimizer_inline_imm(defs, I);
 
       if (I->op == AGX_OPCODE_IF_ICMP) {
