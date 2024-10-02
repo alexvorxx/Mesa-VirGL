@@ -1,3 +1,4 @@
+KHR-GL46.direct_state_access.framebuffers_texture_layer_attachment
 KHR-GL46.geometry_shader.api.getProgramiv3
 KHR-GL46.geometry_shader.limits.max_output_vertices
 KHR-GL46.limits.max_fragment_atomic_counter_buffers
@@ -12,9 +13,15 @@ KHR-GL46.texture_buffer.texture_buffer_max_size
 KHR-GL46.texture_swizzle.smoke
 
 dEQP-GLES3.functional.shaders.builtin_variable.max_vertex_uniform_vectors_fragment
+dEQP-GLES3.functional.shaders.indexing.matrix_subscript.mat2_dynamic_loop_write_static_loop_read_vertex
+dEQP-GLES3.functional.shaders.indexing.vector_subscript.vec4_static_loop_subscript_write_component_read_vertex
 dEQP-GLES3.functional.shaders.precision.int.highp_div_fragment
+dEQP-GLES3.functional.shaders.preprocessor.comments.multiline_comment_define_vertex
+dEQP-GLES3.functional.shaders.preprocessor.operator_precedence.modulo_vs_plus_fragment
+dEQP-GLES3.functional.uniform_api.value.initial.render.basic_array.ivec4_both
 dEQP-GLES31.functional.copy_image.compressed.viewclass_astc_10x5_rgba.srgb8_alpha8_astc_10x5_khr_srgb8_alpha8_astc_10x5_khr.texture2d_array_to_texture2d
 dEQP-GLES31.functional.copy_image.compressed.viewclass_astc_8x5_rgba.srgb8_alpha8_astc_8x5_khr_rgba_astc_8x5_khr.texture2d_array_to_texture2d
+dEQP-GLES31.functional.copy_image.mixed.viewclass_128_bits_mixed.rgba32f_rgba_astc_5x4_khr.texture3d_to_texture2d_array
 dEQP-GLES31.functional.texture.format.sized.cube_array.depth_component32f_npot
 
 # All the double tests in this group seem to be flaky
@@ -23,6 +30,7 @@ spec@.*@execution@built-in-functions@.*(double|dvec|dmat).*
 spec@!opengl 1.0@gl-1.0-blend-func
 spec@!opengl 1.1@copypixels-sync
 spec@!opengl 1.1@draw-sync
+spec@!opengl 1.1@getteximage-depth
 spec@!opengl 1.1@polygon-mode
 spec@!opengl 1.1@texsubimage
 spec@!opengl 1.2@tex3d
@@ -35,6 +43,7 @@ spec@arb_color_buffer_float@gl_rgba8_snorm-render
 spec@arb_color_buffer_float@gl_rgba8_snorm-render-fog
 spec@arb_copy_image@arb_copy_image-targets gl_texture_1d_array 32 1 12 gl_texture_2d_array 32 16 18 11 0 3 5 9 7 14 1 8
 spec@arb_copy_image@arb_copy_image-targets gl_texture_1d_array 32 1 12 gl_texture_3d 32 16 18 11 0 3 5 9 2 14 1 7
+spec@arb_copy_image@arb_copy_image-targets gl_texture_1d_array 32 1 12 gl_texture_cube_map_array 32 32 18 11 0 3 5 17 2 14 1 7
 spec@arb_copy_image@arb_copy_image-targets gl_texture_2d_array 32 32 15 gl_texture_1d_array 32 1 16 11 2 5 5 0 7 14 1 7
 spec@arb_copy_image@arb_copy_image-targets gl_texture_2d_array 32 32 15 gl_texture_2d_array 32 16 15 11 12 5 5 7 2 14 9 9
 spec@arb_copy_image@arb_copy_image-targets gl_texture_2d_array 32 32 15 gl_texture_cube_map_array 32 32 18 11 5 2 5 9 7 14 7 11
@@ -45,6 +54,7 @@ spec@arb_copy_image@arb_copy_image-targets gl_texture_cube_map_array 32 32 18 gl
 spec@arb_copy_image@arb_copy_image-targets gl_texture_cube_map_array 32 32 18 gl_texture_rectangle 32 16 1 11 12 13 5 7 0 14 6 1
 spec@arb_gpu_shader5@execution@sampler_array_indexing@vs-nonuniform-control-flow
 spec@arb_pixel_buffer_object@pbo-drawpixels
+spec@arb_pixel_buffer_object@texsubimage-unpack pbo
 spec@arb_sample_locations@test
 spec@arb_shader_image_load_store@semantics@imageLoad/Tessellation control shader/r8/image2D test
 spec@arb_shader_precision@fs-fma-float-float-float
@@ -111,6 +121,7 @@ spec@glsl-1.30@execution@texelfetch fs sampler1darray 1x281-501x281
 spec@glsl-1.30@execution@texelfetch fs sampler1darray 1x71-501x71
 spec@glsl-1.30@execution@texelfetch fs sampler2d 1x281-501x281
 spec@glsl-1.30@execution@texelfetch fs sampler2d 1x71-501x71
+spec@glsl-1.30@execution@texelfetch fs sampler2d 281x1-281x281
 spec@glsl-1.30@execution@texelfetch fs sampler2d 71x1-71x281
 spec@glsl-1.30@execution@texelfetch fs sampler2darray 1x129x9-98x129x9
 spec@glsl-1.30@execution@texelfetch fs sampler2darray 98x1x9-98x129x9
