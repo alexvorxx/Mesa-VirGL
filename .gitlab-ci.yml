@@ -314,19 +314,20 @@ sanity:
     - |
       set -eu
       image_tags=(
+        ALPINE_X86_64_BUILD_TAG
+        ALPINE_X86_64_LAVA_SSH_TAG
         DEBIAN_BASE_TAG
         DEBIAN_BUILD_TAG
+        DEBIAN_PYUTILS_TAG
         DEBIAN_TEST_ANDROID_TAG
         DEBIAN_TEST_GL_TAG
         DEBIAN_TEST_VK_TAG
-        ALPINE_X86_64_BUILD_TAG
-        ALPINE_X86_64_LAVA_SSH_TAG
         FEDORA_X86_64_BUILD_TAG
         KERNEL_ROOTFS_TAG
         KERNEL_TAG
         PKG_REPO_REV
-        WINDOWS_X64_MSVC_TAG
         WINDOWS_X64_BUILD_TAG
+        WINDOWS_X64_MSVC_TAG
         WINDOWS_X64_TEST_TAG
       )
       for var in "${image_tags[@]}"
