@@ -33,7 +33,6 @@
 #include "main/consts_exts.h"
 #include "main/context.h"
 #include "main/shaderobj.h"
-#include "ir_uniform.h" /* for gl_uniform_storage */
 #include "util/glheader.h"
 #include "util/perf/cpu_trace.h"
 
