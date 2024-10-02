@@ -427,7 +427,6 @@ spec@arb_texture_buffer_object@formats (vs- arb)@GL_LUMINANCE_ALPHA8I_EXT,Fail
 spec@arb_texture_buffer_object@formats (vs- arb)@GL_LUMINANCE_ALPHA8UI_EXT,Fail
 spec@arb_texture_cube_map_array@texsubimage cube_map_array,Fail
 spec@arb_viewport_array@display-list,Fail
-spec@egl 1.4@egl-ext_egl_image_storage,Crash
 spec@egl 1.4@eglterminate then unbind context,Fail
 spec@egl_ext_surface_compression@create,Crash
 spec@egl_khr_gl_image@egl_khr_gl_renderbuffer_image-clear-shared-image gl_depth_component24,Fail
