@@ -115,9 +115,4 @@ link_shaders(struct gl_context *ctx, struct gl_shader_program *prog)
          linker_error(prog, "no shaders attached to the program\n");
       return;
    }
-
-#ifdef ENABLE_SHADER_CACHE
-   if (shader_cache_read_program_metadata(ctx, prog))
-      return;
-#endif
 }
