@@ -366,10 +366,14 @@
  *
  * 7. Compaction to vec4 slots (AKA packing)
  *
- *    First, varyings are divided into these groups, and each group is
- *    compacted separately with some exceptions listed below:
+ *    First, varyings are divided into these groups, and components from each
+ *    group are assigned locations in this order (effectively forcing
+ *    components from the same group to be in the same vec4 slot or adjacent
+ *    vec4 slots) with some exceptions listed below:
  *
  *    Non-FS groups (patch and non-patch are packed separately):
+ *    * 32-bit cross-invocation (TCS inputs using cross-invocation access)
+ *    * 16-bit cross-invocation (TCS inputs using cross-invocation access)
  *    * 32-bit flat
  *    * 16-bit flat
  *    * 32-bit no-varying (TCS outputs read by TCS but not TES)
@@ -625,6 +629,10 @@ struct linkage_info {
    BITSET_DECLARE(xfb32_only_mask, NUM_SCALAR_SLOTS);
    BITSET_DECLARE(xfb16_only_mask, NUM_SCALAR_SLOTS);
 
+   /* Mask of all TCS inputs using cross-invocation access. */
+   BITSET_DECLARE(tcs_cross_invoc32_mask, NUM_SCALAR_SLOTS);
+   BITSET_DECLARE(tcs_cross_invoc16_mask, NUM_SCALAR_SLOTS);
+
    /* Mask of all TCS->TES slots that are read by TCS, but not TES. */
    BITSET_DECLARE(no_varying32_mask, NUM_SCALAR_SLOTS);
    BITSET_DECLARE(no_varying16_mask, NUM_SCALAR_SLOTS);
@@ -710,6 +718,8 @@ print_linkage(struct linkage_info *linkage)
           !BITSET_TEST(linkage->indirect_mask, i) &&
           !BITSET_TEST(linkage->xfb32_only_mask, i) &&
           !BITSET_TEST(linkage->xfb16_only_mask, i) &&
+          !BITSET_TEST(linkage->tcs_cross_invoc32_mask, i) &&
+          !BITSET_TEST(linkage->tcs_cross_invoc16_mask, i) &&
           !BITSET_TEST(linkage->no_varying32_mask, i) &&
           !BITSET_TEST(linkage->no_varying16_mask, i) &&
           !BITSET_TEST(linkage->interp_fp32_mask, i) &&
@@ -727,7 +737,7 @@ print_linkage(struct linkage_info *linkage)
           !BITSET_TEST(linkage->output_equal_mask, i))
          continue;
 
-      printf("  %7s.%c.%s: num_slots=%2u%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+      printf("  %7s.%c.%s: num_slots=%2u%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
              gl_varying_slot_name_for_stage(vec4_slot(i),
                                             linkage->producer_stage) + 13,
              "xyzw"[(i / 2) % 4],
@@ -737,6 +747,8 @@ print_linkage(struct linkage_info *linkage)
              BITSET_TEST(linkage->indirect_mask, i) ? " indirect" : "",
              BITSET_TEST(linkage->xfb32_only_mask, i) ? " xfb32_only" : "",
              BITSET_TEST(linkage->xfb16_only_mask, i) ? " xfb16_only" : "",
+             BITSET_TEST(linkage->tcs_cross_invoc32_mask, i) ? " tcs_cross_invoc32" : "",
+             BITSET_TEST(linkage->tcs_cross_invoc16_mask, i) ? " tcs_cross_invoc16" : "",
              BITSET_TEST(linkage->no_varying32_mask, i) ? " no_varying32" : "",
              BITSET_TEST(linkage->no_varying16_mask, i) ? " no_varying16" : "",
              BITSET_TEST(linkage->interp_fp32_mask, i) ? " interp_fp32" : "",
@@ -775,6 +787,8 @@ slot_disable_optimizations_and_compaction(struct linkage_info *linkage,
    BITSET_CLEAR(linkage->interp_explicit_strict16_mask, i);
    BITSET_CLEAR(linkage->per_primitive32_mask, i);
    BITSET_CLEAR(linkage->per_primitive16_mask, i);
+   BITSET_CLEAR(linkage->tcs_cross_invoc32_mask, i);
+   BITSET_CLEAR(linkage->tcs_cross_invoc16_mask, i);
    BITSET_CLEAR(linkage->no_varying32_mask, i);
    BITSET_CLEAR(linkage->no_varying16_mask, i);
    BITSET_CLEAR(linkage->color32_mask, i);
@@ -882,6 +896,27 @@ build_convert_inf_to_nan(nir_builder *b, nir_def *x)
    nir_def *fma = nir_ffma_imm1(b, x, 0, x);
    nir_instr_as_alu(fma->parent_instr)->exact = true;
    return fma;
+}
+
+static bool
+is_sysval(nir_instr *instr, gl_system_value sysval)
+{
+   if (instr->type == nir_instr_type_intrinsic) {
+      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+
+      if (intr->intrinsic == nir_intrinsic_from_system_value(sysval))
+         return true;
+
+      if (intr->intrinsic == nir_intrinsic_load_deref) {
+          nir_deref_instr *deref =
+            nir_instr_as_deref(intr->src[0].ssa->parent_instr);
+
+          return nir_deref_mode_is_one_of(deref, nir_var_system_value) &&
+                 deref->var->data.location == sysval;
+      }
+   }
+
+   return false;
 }
 
 /******************************************************************
@@ -1233,6 +1268,21 @@ gather_inputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_d
          BITSET_SET(linkage->flat16_mask, slot);
       else
          unreachable("invalid load_input type");
+
+      if (linkage->consumer_stage == MESA_SHADER_TESS_CTRL &&
+          intr->intrinsic == nir_intrinsic_load_per_vertex_input) {
+         nir_src *vertex_index_src = nir_get_io_arrayed_index_src(intr);
+         nir_instr *vertex_index_instr = vertex_index_src->ssa->parent_instr;
+
+         if (!is_sysval(vertex_index_instr, SYSTEM_VALUE_INVOCATION_ID)) {
+            if (intr->def.bit_size == 32)
+               BITSET_SET(linkage->tcs_cross_invoc32_mask, slot);
+            else if (intr->def.bit_size == 16)
+               BITSET_SET(linkage->tcs_cross_invoc16_mask, slot);
+            else
+               unreachable("invalid load_input type");
+         }
+      }
    }
    return false;
 }
@@ -2462,27 +2512,6 @@ deduplicate_outputs(struct linkage_info *linkage,
 /******************************************************************
  * FIND OPEN-CODED TES INPUT INTERPOLATION
  ******************************************************************/
-
-static bool
-is_sysval(nir_instr *instr, gl_system_value sysval)
-{
-   if (instr->type == nir_instr_type_intrinsic) {
-      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-
-      if (intr->intrinsic == nir_intrinsic_from_system_value(sysval))
-         return true;
-
-      if (intr->intrinsic == nir_intrinsic_load_deref) {
-          nir_deref_instr *deref =
-            nir_instr_as_deref(intr->src[0].ssa->parent_instr);
-
-          return nir_deref_mode_is_one_of(deref, nir_var_system_value) &&
-                 deref->var->data.location == sysval;
-      }
-   }
-
-   return false;
-}
 
 static nir_alu_instr *
 get_single_use_as_alu(nir_def *def)
@@ -4179,6 +4208,23 @@ compact_varyings(struct linkage_info *linkage,
       unsigned slot_index = (use_pos ? VARYING_SLOT_POS
                                      : VARYING_SLOT_VAR0) * 8;
       unsigned patch_slot_index = VARYING_SLOT_PATCH0 * 8;
+
+      if (linkage->consumer_stage == MESA_SHADER_TESS_CTRL) {
+         /* Make tcs_cross_invoc*_mask bits disjoint with flat*_mask bits
+          * because tcs_cross_invoc*_mask is initially a subset of flat*_mask,
+          * but we must assign each scalar slot only once.
+          */
+         BITSET_ANDNOT(linkage->flat32_mask, linkage->flat32_mask,
+                       linkage->tcs_cross_invoc32_mask);
+         BITSET_ANDNOT(linkage->flat16_mask, linkage->flat16_mask,
+                       linkage->tcs_cross_invoc16_mask);
+
+         /* Compact 32-bit inputs and 16-bit inputs separately. */
+         vs_tcs_tes_gs_assign_slots(linkage, linkage->tcs_cross_invoc32_mask,
+                                    &slot_index, &patch_slot_index, 2, progress);
+         vs_tcs_tes_gs_assign_slots(linkage, linkage->tcs_cross_invoc16_mask,
+                                    &slot_index, &patch_slot_index, 1, progress);
+      }
 
       /* Compact 32-bit inputs. */
       vs_tcs_tes_gs_assign_slots(linkage, linkage->flat32_mask, &slot_index,
