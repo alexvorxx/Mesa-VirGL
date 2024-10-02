@@ -1000,6 +1000,9 @@ hk_CmdEndRendering(VkCommandBuffer commandBuffer)
    memset(render, 0, sizeof(*render));
 
    if (need_resolve) {
+      perf_debug(dev, "Resolving render pass, colour store op %u",
+                 vk_color_att[0].storeOp);
+
       hk_meta_resolve_rendering(cmd, &vk_render);
    }
 }
