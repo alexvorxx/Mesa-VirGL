@@ -571,22 +571,9 @@ nir_pkt3(nir_builder *b, unsigned op, nir_def *len)
    return nir_pkt3_base(b, op, len, false);
 }
 
-static nir_def *
-dgc_get_nop_packet(nir_builder *b, const struct radv_device *device)
-{
-   const struct radv_physical_device *pdev = radv_device_physical(device);
-
-   if (pdev->info.gfx_ib_pad_with_type2) {
-      return nir_imm_int(b, PKT2_NOP_PAD);
-   } else {
-      return nir_imm_int(b, PKT3_NOP_PAD);
-   }
-}
-
 static void
 dgc_emit_userdata_vertex(struct dgc_cmdbuf *cs, nir_def *first_vertex, nir_def *first_instance, nir_def *drawid)
 {
-   const struct radv_device *device = cs->dev;
    nir_builder *b = cs->b;
 
    nir_def *vtx_base_sgpr = load_param16(b, vtx_base_sgpr);
@@ -604,15 +591,14 @@ dgc_emit_userdata_vertex(struct dgc_cmdbuf *cs, nir_def *first_vertex, nir_def *
    dgc_cs_emit(nir_iand_imm(b, vtx_base_sgpr, 0x3FFF));
    dgc_cs_emit(first_vertex);
    dgc_cs_emit(nir_bcsel(b, nir_ior(b, has_drawid, has_baseinstance), nir_bcsel(b, has_drawid, drawid, first_instance),
-                         dgc_get_nop_packet(b, device)));
-   dgc_cs_emit(nir_bcsel(b, nir_iand(b, has_drawid, has_baseinstance), first_instance, dgc_get_nop_packet(b, device)));
+                         nir_imm_int(b, PKT3_NOP_PAD)));
+   dgc_cs_emit(nir_bcsel(b, nir_iand(b, has_drawid, has_baseinstance), first_instance, nir_imm_int(b, PKT3_NOP_PAD)));
    dgc_cs_end();
 }
 
 static void
 dgc_emit_userdata_mesh(struct dgc_cmdbuf *cs, nir_def *x, nir_def *y, nir_def *z, nir_def *drawid)
 {
-   const struct radv_device *device = cs->dev;
    nir_builder *b = cs->b;
 
    nir_def *vtx_base_sgpr = load_param16(b, vtx_base_sgpr);
@@ -632,9 +618,9 @@ dgc_emit_userdata_mesh(struct dgc_cmdbuf *cs, nir_def *x, nir_def *y, nir_def *z
       dgc_cs_emit(nir_iand_imm(b, vtx_base_sgpr, 0x3FFF));
       /* DrawID needs to be first if no GridSize. */
       dgc_cs_emit(nir_bcsel(b, has_grid_size, x, drawid));
-      dgc_cs_emit(nir_bcsel(b, has_grid_size, y, dgc_get_nop_packet(b, device)));
-      dgc_cs_emit(nir_bcsel(b, has_grid_size, z, dgc_get_nop_packet(b, device)));
-      dgc_cs_emit(nir_bcsel(b, has_drawid, drawid, dgc_get_nop_packet(b, device)));
+      dgc_cs_emit(nir_bcsel(b, has_grid_size, y, nir_imm_int(b, PKT3_NOP_PAD)));
+      dgc_cs_emit(nir_bcsel(b, has_grid_size, z, nir_imm_int(b, PKT3_NOP_PAD)));
+      dgc_cs_emit(nir_bcsel(b, has_drawid, drawid, nir_imm_int(b, PKT3_NOP_PAD)));
       dgc_cs_end();
    }
    nir_pop_if(b, NULL);
@@ -949,17 +935,12 @@ build_dgc_buffer_tail(nir_builder *b, nir_def *cmd_buf_offset, nir_def *cmd_buf_
 
          nir_def *packet, *packet_size;
 
-         if (pdev->info.gfx_ib_pad_with_type2) {
-            packet_size = nir_imm_int(b, 4);
-            packet = nir_imm_int(b, PKT2_NOP_PAD);
-         } else {
-            packet_size = nir_isub(b, cmd_buf_size, curr_offset);
-            packet_size = nir_umin(b, packet_size, nir_imm_int(b, MAX_PACKET_WORDS * 4));
+         packet_size = nir_isub(b, cmd_buf_size, curr_offset);
+         packet_size = nir_umin(b, packet_size, nir_imm_int(b, MAX_PACKET_WORDS * 4));
 
-            nir_def *len = nir_ushr_imm(b, packet_size, 2);
-            len = nir_iadd_imm(b, len, -2);
-            packet = nir_pkt3(b, PKT3_NOP, len);
-         }
+         nir_def *len = nir_ushr_imm(b, packet_size, 2);
+         len = nir_iadd_imm(b, len, -2);
+         packet = nir_pkt3(b, PKT3_NOP, len);
 
          nir_build_store_global(b, packet, nir_iadd(b, va, nir_u2u64(b, nir_iadd(b, curr_offset, cmd_buf_offset))),
                                 .access = ACCESS_NON_READABLE);
@@ -1166,7 +1147,7 @@ dgc_emit_index_buffer(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_variable 
    } else {
       dgc_cs_emit_imm(PKT3(PKT3_INDEX_TYPE, 0, 0));
       dgc_cs_emit(index_type);
-      dgc_cs_emit(dgc_get_nop_packet(b, device));
+      dgc_cs_emit(nir_imm_int(b, PKT3_NOP_PAD));
    }
 
    dgc_cs_emit_imm(PKT3(PKT3_INDEX_BASE, 1, 0));
@@ -1902,40 +1883,18 @@ dgc_is_cond_render_enabled(nir_builder *b)
 static void
 dgc_pad_cmdbuf(struct dgc_cmdbuf *cs, nir_def *cmd_buf_end)
 {
-   const struct radv_device *device = cs->dev;
-   const struct radv_physical_device *pdev = radv_device_physical(device);
    nir_builder *b = cs->b;
 
    nir_push_if(b, nir_ine(b, nir_load_var(b, cs->offset), cmd_buf_end));
    {
-      if (pdev->info.gfx_ib_pad_with_type2) {
-         nir_push_loop(b);
-         {
-            nir_def *curr_offset = nir_load_var(b, cs->offset);
+      nir_def *cnt = nir_isub(b, cmd_buf_end, nir_load_var(b, cs->offset));
+      cnt = nir_ushr_imm(b, cnt, 2);
+      cnt = nir_iadd_imm(b, cnt, -2);
+      nir_def *pkt = nir_pkt3(b, PKT3_NOP, cnt);
 
-            nir_push_if(b, nir_ieq(b, curr_offset, cmd_buf_end));
-            {
-               nir_jump(b, nir_jump_break);
-            }
-            nir_pop_if(b, NULL);
-
-            nir_def *pkt = nir_imm_int(b, PKT2_NOP_PAD);
-
-            dgc_cs_begin(cs);
-            dgc_cs_emit(pkt);
-            dgc_cs_end();
-         }
-         nir_pop_loop(b, NULL);
-      } else {
-         nir_def *cnt = nir_isub(b, cmd_buf_end, nir_load_var(b, cs->offset));
-         cnt = nir_ushr_imm(b, cnt, 2);
-         cnt = nir_iadd_imm(b, cnt, -2);
-         nir_def *pkt = nir_pkt3(b, PKT3_NOP, cnt);
-
-         dgc_cs_begin(cs);
-         dgc_cs_emit(pkt);
-         dgc_cs_end();
-      }
+      dgc_cs_begin(cs);
+      dgc_cs_emit(pkt);
+      dgc_cs_end();
    }
    nir_pop_if(b, NULL);
 }

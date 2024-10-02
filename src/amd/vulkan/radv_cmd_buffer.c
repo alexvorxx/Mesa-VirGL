@@ -11605,7 +11605,6 @@ radv_CmdExecuteGeneratedCommandsNV(VkCommandBuffer commandBuffer, VkBool32 isPre
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const bool compute = layout->pipeline_bind_point == VK_PIPELINE_BIND_POINT_COMPUTE;
    const bool use_predication = radv_use_dgc_predication(cmd_buffer, pGeneratedCommandsInfo);
-   const struct radv_physical_device *pdev = radv_device_physical(device);
 
    /* Secondary command buffers are needed for the full extension but can't use
     * PKT3_INDIRECT_BUFFER.
@@ -11719,13 +11718,7 @@ radv_CmdExecuteGeneratedCommandsNV(VkCommandBuffer commandBuffer, VkBool32 isPre
 
       cmd_buffer->push_constant_stages |= graphics_pipeline->active_stages;
 
-      if (!layout->indexed && pdev->info.gfx_level >= GFX7) {
-         /* On GFX7 and later, non-indexed draws overwrite VGT_INDEX_TYPE, so the state must be
-          * re-emitted before the next indexed draw.
-          */
-         cmd_buffer->state.last_index_type = -1;
-      }
-
+      cmd_buffer->state.last_index_type = -1;
       cmd_buffer->state.last_num_instances = -1;
       cmd_buffer->state.last_vertex_offset_valid = false;
       cmd_buffer->state.last_first_instance = -1;
