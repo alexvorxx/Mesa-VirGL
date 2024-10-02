@@ -92,32 +92,6 @@
 
 
 void
-linker_error(gl_shader_program *prog, const char *fmt, ...)
-{
-   va_list ap;
-
-   ralloc_strcat(&prog->data->InfoLog, "error: ");
-   va_start(ap, fmt);
-   ralloc_vasprintf_append(&prog->data->InfoLog, fmt, ap);
-   va_end(ap);
-
-   prog->data->LinkStatus = LINKING_FAILURE;
-}
-
-
-void
-linker_warning(gl_shader_program *prog, const char *fmt, ...)
-{
-   va_list ap;
-
-   ralloc_strcat(&prog->data->InfoLog, "warning: ");
-   va_start(ap, fmt);
-   ralloc_vasprintf_append(&prog->data->InfoLog, fmt, ap);
-   va_end(ap);
-
-}
-
-void
 link_shaders(struct gl_context *ctx, struct gl_shader_program *prog)
 {
    prog->data->LinkStatus = LINKING_SUCCESS; /* All error paths will set this to false */

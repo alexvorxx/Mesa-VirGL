@@ -29,6 +29,31 @@
 #include "util/set.h"
 #include "main/consts_exts.h"
 
+void
+linker_error(gl_shader_program *prog, const char *fmt, ...)
+{
+   va_list ap;
+
+   ralloc_strcat(&prog->data->InfoLog, "error: ");
+   va_start(ap, fmt);
+   ralloc_vasprintf_append(&prog->data->InfoLog, fmt, ap);
+   va_end(ap);
+
+   prog->data->LinkStatus = LINKING_FAILURE;
+}
+
+void
+linker_warning(gl_shader_program *prog, const char *fmt, ...)
+{
+   va_list ap;
+
+   ralloc_strcat(&prog->data->InfoLog, "warning: ");
+   va_start(ap, fmt);
+   ralloc_vasprintf_append(&prog->data->InfoLog, fmt, ap);
+   va_end(ap);
+
+}
+
 /**
  * Given a string identifying a program resource, break it into a base name
  * and an optional array index in square brackets.
