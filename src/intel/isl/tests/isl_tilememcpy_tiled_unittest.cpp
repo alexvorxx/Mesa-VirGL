@@ -50,6 +50,16 @@ typedef uint8_t *(*swizzle_func_t)(const uint8_t *base_addr, uint32_t pitch, uin
    std::make_tuple(128, 129,  0, 32),    \
    std::make_tuple(245, 521,  5,  8)
 
+#define FULL_TILEX_COORDINATES \
+   std::make_tuple(  0,  32,  0,  8),    \
+   std::make_tuple(  0,  64,  0, 16),    \
+   std::make_tuple(  0,  64,  0, 32)
+
+#define FULL_TILEY_COORDINATES \
+   std::make_tuple(  0,   8,  0, 32),    \
+   std::make_tuple(  0,  16,  0, 32),    \
+   std::make_tuple(  0,  16,  0, 64)
+
 struct tile_swizzle_ops {
    enum isl_tiling tiling;
    swizzle_func_t linear_to_tile_swizzle;
@@ -392,6 +402,9 @@ TEST_P(tileXFixture, tiletolin)
 }
 
 
-INSTANTIATE_TEST_SUITE_P(tileY, tileYFixture, testing::Values(TILE_COORDINATES));
-INSTANTIATE_TEST_SUITE_P(tile4, tile4Fixture, testing::Values(TILE_COORDINATES));
-INSTANTIATE_TEST_SUITE_P(tileX, tileXFixture, testing::Values(TILE_COORDINATES));
+INSTANTIATE_TEST_SUITE_P(tileY, tileYFixture, testing::Values(TILE_COORDINATES,
+                                                              FULL_TILEY_COORDINATES));
+INSTANTIATE_TEST_SUITE_P(tile4, tile4Fixture, testing::Values(TILE_COORDINATES,
+                                                              FULL_TILEY_COORDINATES));
+INSTANTIATE_TEST_SUITE_P(tileX, tileXFixture, testing::Values(TILE_COORDINATES,
+                                                              FULL_TILEX_COORDINATES));
