@@ -225,6 +225,18 @@ hk_cmd_buffer_begin_graphics(struct hk_cmd_buffer *cmd,
          render->stencil_att.vk_format =
             inheritance_info->stencilAttachmentFormat;
 
+         const VkRenderingAttachmentLocationInfoKHR att_loc_info_default = {
+            .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_LOCATION_INFO_KHR,
+            .colorAttachmentCount = inheritance_info->colorAttachmentCount,
+         };
+         const VkRenderingAttachmentLocationInfoKHR *att_loc_info =
+            vk_get_command_buffer_rendering_attachment_location_info(
+               cmd->vk.level, pBeginInfo);
+         if (att_loc_info == NULL)
+            att_loc_info = &att_loc_info_default;
+
+         vk_cmd_set_rendering_attachment_locations(&cmd->vk, att_loc_info);
+
          hk_cmd_buffer_dirty_render_pass(cmd);
       }
    }
@@ -619,6 +631,12 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
     */
    render->tilebuffer = agx_build_tilebuffer_layout(
       formats, render->color_att_count, render->tilebuffer.nr_samples, true);
+
+   const VkRenderingAttachmentLocationInfoKHR ral_info = {
+      .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_LOCATION_INFO_KHR,
+      .colorAttachmentCount = pRenderingInfo->colorAttachmentCount,
+   };
+   vk_cmd_set_rendering_attachment_locations(&cmd->vk, &ral_info);
 
    hk_cmd_buffer_dirty_render_pass(cmd);
 
