@@ -47,10 +47,10 @@ struct ir3_compiler_options {
    /* True if 8-bit descriptors are available. */
    bool storage_8bit;
 
-  /* If base_vertex should be lowered in nir */
-  bool lower_base_vertex;
+   /* If base_vertex should be lowered in nir */
+   bool lower_base_vertex;
 
-  bool shared_push_consts;
+   bool shared_push_consts;
 
    /* "dual_color_blend_by_location" workaround is enabled: */
    bool dual_color_blend_by_location;
