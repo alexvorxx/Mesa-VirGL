@@ -189,6 +189,9 @@ hk_cmd_buffer_dirty_render_pass(struct hk_cmd_buffer *cmd)
 
    /* This may depend on render targets for ESO */
    BITSET_SET(dyn->dirty, MESA_VK_DYNAMIC_MS_RASTERIZATION_SAMPLES);
+
+   /* This may depend on render targets */
+   BITSET_SET(dyn->dirty, MESA_VK_DYNAMIC_COLOR_ATTACHMENT_MAP);
 }
 
 void
@@ -2831,6 +2834,11 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
                                      ? vk_logic_op_to_pipe(dyn->cb.logic_op)
                                      : PIPE_LOGICOP_COPY,
          };
+
+         for (unsigned rt = 0; rt < ARRAY_SIZE(dyn->cal.color_map); ++rt) {
+            int map = dyn->cal.color_map[rt];
+            key.epilog.remap[rt] = map == MESA_VK_ATTACHMENT_UNUSED ? -1 : map;
+         }
 
          if (dyn->ms.alpha_to_one_enable || dyn->ms.alpha_to_coverage_enable ||
              dyn->cb.logic_op_enable) {

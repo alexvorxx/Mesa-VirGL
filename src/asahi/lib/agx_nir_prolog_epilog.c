@@ -5,6 +5,7 @@
  */
 
 #include "gallium/include/pipe/p_defines.h"
+#include "util/format/u_formats.h"
 #include "agx_abi.h"
 #include "agx_linker.h"
 #include "agx_nir_lower_gs.h"
@@ -278,6 +279,26 @@ blend_uses_2src(struct agx_blend_rt_key rt)
    return false;
 }
 
+static void
+copy_colour(nir_builder *b, const struct agx_fs_epilog_key *key,
+            unsigned out_rt, unsigned in_loc, bool dual_src)
+{
+   unsigned size = (key->link.size_32 & BITFIELD_BIT(in_loc)) ? 32 : 16;
+
+   nir_def *value =
+      nir_load_exported_agx(b, 4, size, .base = AGX_ABI_FOUT_COLOUR(in_loc));
+
+   if (key->link.loc0_w_1 && in_loc == 0) {
+      value =
+         nir_vector_insert_imm(b, value, nir_imm_floatN_t(b, 1.0, size), 3);
+   }
+
+   nir_store_output(b, value, nir_imm_int(b, 0),
+                    .io_semantics.location = FRAG_RESULT_DATA0 + out_rt,
+                    .io_semantics.dual_source_blend_index = dual_src,
+                    .src_type = nir_type_float | size);
+}
+
 void
 agx_nir_fs_epilog(nir_builder *b, const void *key_)
 {
@@ -288,24 +309,26 @@ agx_nir_fs_epilog(nir_builder *b, const void *key_)
    /* First, construct a passthrough shader reading each colour and outputting
     * the value.
     */
-   u_foreach_bit(rt, key->link.rt_written) {
-      bool dual_src = (rt == 1) && blend_uses_2src(key->blend.rt[0]);
-      unsigned read_rt = (key->link.broadcast_rt0 && !dual_src) ? 0 : rt;
-      unsigned size = (key->link.size_32 & BITFIELD_BIT(read_rt)) ? 32 : 16;
+   for (unsigned rt = 0; rt < ARRAY_SIZE(key->remap); ++rt) {
+      int location = key->remap[rt];
 
-      nir_def *value =
-         nir_load_exported_agx(b, 4, size, .base = AGX_ABI_FOUT_COLOUR(rt));
+      /* Negative remaps indicate the attachment isn't written. */
+      if (location >= 0 && key->link.loc_written & BITFIELD_BIT(location)) {
+         copy_colour(b, key, rt, location, false);
 
-      if (key->link.rt0_w_1 && read_rt == 0) {
-         value =
-            nir_vector_insert_imm(b, value, nir_imm_floatN_t(b, 1.0, size), 3);
+         /* If this render target uses dual source blending, also copy the dual
+          * source colour. While the copy_colour above is needed even for
+          * missing attachments to handle alpha-to-coverage, this copy is only
+          * for blending so should be suppressed for missing attachments to keep
+          * the assert from blowing up on OpenGL.
+          */
+         if (blend_uses_2src(key->blend.rt[rt]) &&
+             key->rt_formats[rt] != PIPE_FORMAT_NONE) {
+
+            assert(location == 0);
+            copy_colour(b, key, rt, 1, true);
+         }
       }
-
-      nir_store_output(
-         b, value, nir_imm_int(b, 0),
-         .io_semantics.location = FRAG_RESULT_DATA0 + (dual_src ? 0 : rt),
-         .io_semantics.dual_source_blend_index = dual_src,
-         .src_type = nir_type_float | size);
    }
 
    /* Grab registers early, this has to happen in the first block. */
@@ -515,31 +538,30 @@ lower_output_to_epilog(nir_builder *b, nir_intrinsic_instr *intr, void *data)
    if (sem.location == FRAG_RESULT_COLOR) {
       sem.location = FRAG_RESULT_DATA0;
       info->broadcast_rt0 = true;
-      info->rt_written = ~0;
    }
 
    /* We don't use the epilog for sample mask writes */
    if (sem.location < FRAG_RESULT_DATA0)
       return false;
 
-   /* Determine the render target index. Dual source blending aliases a second
+   /* Determine the ABI location. Dual source blending aliases a second
     * render target, so get that out of the way now.
     */
-   unsigned rt = sem.location - FRAG_RESULT_DATA0;
-   rt += nir_src_as_uint(intr->src[1]);
+   unsigned loc = sem.location - FRAG_RESULT_DATA0;
+   loc += nir_src_as_uint(intr->src[1]);
 
    if (sem.dual_source_blend_index) {
-      assert(rt == 0);
-      rt = 1;
+      assert(loc == 0);
+      loc = 1;
    }
-
-   info->rt_written |= BITFIELD_BIT(rt);
 
    b->cursor = nir_instr_remove(&intr->instr);
    nir_def *vec = intr->src[0].ssa;
 
+   info->loc_written |= BITFIELD_BIT(loc);
+
    if (vec->bit_size == 32)
-      info->size_32 |= BITFIELD_BIT(rt);
+      info->size_32 |= BITFIELD_BIT(loc);
    else
       assert(vec->bit_size == 16);
 
@@ -548,15 +570,15 @@ lower_output_to_epilog(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 
    u_foreach_bit(c, nir_intrinsic_write_mask(intr)) {
       nir_scalar s = nir_scalar_resolved(vec, c);
-      if (rt == 0 && c == 3 && nir_scalar_is_const(s) &&
+      if (loc == 0 && c == 3 && nir_scalar_is_const(s) &&
           nir_scalar_as_uint(s) == one_f) {
 
-         info->rt0_w_1 = true;
+         info->loc0_w_1 = true;
       } else {
          unsigned stride = vec->bit_size / 16;
 
          nir_export_agx(b, nir_channel(b, vec, c),
-                        .base = (2 * (4 + (4 * rt))) + (comp + c) * stride);
+                        .base = AGX_ABI_FOUT_COLOUR(loc) + (comp + c) * stride);
       }
    }
 
