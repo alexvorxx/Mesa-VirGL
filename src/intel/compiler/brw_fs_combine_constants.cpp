@@ -1208,7 +1208,7 @@ deallocate_slots(struct register_allocation *regs, unsigned num_regs,
 static void
 parcel_out_registers(struct imm *imm, unsigned len, const bblock_t *cur_block,
                      struct register_allocation *regs, unsigned num_regs,
-                     brw::simple_allocator &alloc, unsigned ver)
+                     brw::simple_allocator &alloc)
 {
    /* Each basic block has two distinct set of constants.  There is the set of
     * constants that only have uses in that block, and there is the set of
@@ -1229,22 +1229,8 @@ parcel_out_registers(struct imm *imm, unsigned len, const bblock_t *cur_block,
       for (unsigned i = 0; i < len; i++) {
          if (imm[i].block == cur_block &&
              imm[i].used_in_single_block == used_in_single_block) {
-            /* From the BDW and CHV PRM, 3D Media GPGPU, Special Restrictions:
-             *
-             *   "In Align16 mode, the channel selects and channel enables apply
-             *    to a pair of half-floats, because these parameters are defined
-             *    for DWord elements ONLY. This is applicable when both source
-             *    and destination are half-floats."
-             *
-             * This means that Align16 instructions that use promoted HF
-             * immediates and use a <0,1,0>:HF region would read 2 HF slots
-             * instead of replicating the single one we want. To avoid this, we
-             * always populate both HF slots within a DWord with the constant.
-             */
-            const unsigned width = ver == 8 && imm[i].is_half_float ? 2 : 1;
-
             const brw_reg reg = allocate_slots(regs, num_regs,
-                                              imm[i].size * width,
+                                              imm[i].size,
                                               get_alignment_for_imm(&imm[i]),
                                               alloc);
 
@@ -1256,10 +1242,8 @@ parcel_out_registers(struct imm *imm, unsigned len, const bblock_t *cur_block,
 
    for (unsigned i = 0; i < len; i++) {
       if (imm[i].block == cur_block && imm[i].used_in_single_block) {
-         const unsigned width = ver == 8 && imm[i].is_half_float ? 2 : 1;
-
          deallocate_slots(regs, num_regs, imm[i].nr, imm[i].subreg_offset,
-                          imm[i].size * width);
+                          imm[i].size);
       }
    }
 }
@@ -1493,7 +1477,7 @@ brw_fs_opt_combine_constants(fs_visitor &s)
 
    foreach_block(block, s.cfg) {
       parcel_out_registers(table.imm, table.len, block, regs, table.len,
-                           s.alloc, devinfo->ver);
+                           s.alloc);
    }
 
    free(regs);
