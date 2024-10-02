@@ -661,7 +661,10 @@ genX(emit_hs)(struct anv_cmd_buffer *cmd_buffer)
 ALWAYS_INLINE static void
 genX(emit_ds)(struct anv_cmd_buffer *cmd_buffer)
 {
-#if INTEL_NEEDS_WA_22018402687
+#if INTEL_WA_22018402687_GFX_VER
+   if (!intel_needs_workaround(cmd_buffer->device->info, 22018402687))
+      return;
+
    /* Wa_22018402687:
     *   In any 3D enabled context, just before any Tessellation enabled draw
     *   call (3D Primitive), re-send the last programmed 3DSTATE_DS again.
