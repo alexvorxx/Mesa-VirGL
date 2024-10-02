@@ -129,6 +129,9 @@ link_util_mark_array_elements_referenced(const struct array_deref_range *dr,
                                          unsigned count, unsigned array_depth,
                                          BITSET_WORD *bits);
 
+void
+resource_name_updated(struct gl_resource_name *name);
+
 /**
  * Get the string value for an interpolation qualifier
  *

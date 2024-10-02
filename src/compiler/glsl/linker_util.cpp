@@ -507,3 +507,25 @@ _mesa_glsl_can_implicitly_convert(const glsl_type *from, const glsl_type *desire
 
    return false;
 }
+
+void
+resource_name_updated(struct gl_resource_name *name)
+{
+   if (name->string) {
+      name->length = strlen(name->string);
+
+      const char *last_square_bracket = strrchr(name->string, '[');
+      if (last_square_bracket) {
+         name->last_square_bracket = last_square_bracket - name->string;
+         name->suffix_is_zero_square_bracketed =
+            strcmp(last_square_bracket, "[0]") == 0;
+      } else {
+         name->last_square_bracket = -1;
+         name->suffix_is_zero_square_bracketed = false;
+      }
+   } else {
+      name->length = 0;
+      name->last_square_bracket = -1;
+      name->suffix_is_zero_square_bracketed = false;
+   }
+}
