@@ -70,6 +70,8 @@
     optional: true
   - job: debian-testing-asan
     optional: true
+  - job: debian-build-testing
+    optional: true
   - job: debian-arm32
     optional: true
   - job: debian-arm32-asan
@@ -184,9 +186,7 @@ debian-testing-msan:
 
 debian-build-testing:
   extends: .meson-build
-  needs:
-    - !reference [.meson-build, needs]
-    - !reference [.build-for-tests-jobs]
+  stage: build-for-tests
   variables:
     BUILDTYPE: debug
     UNWIND: "enabled"
