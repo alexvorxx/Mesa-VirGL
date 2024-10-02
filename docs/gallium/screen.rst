@@ -128,21 +128,19 @@ The integer capabilities:
   buffers.  If not, gallium frontends must upload all data which is not in HW
   resources.  If user-space buffers are supported, the driver must also still
   accept HW resource buffers.
-* ``PIPE_CAP_VERTEX_BUFFER_OFFSET_4BYTE_ALIGNED_ONLY``: This CAP describes a HW
-  limitation.  If true, pipe_vertex_buffer::buffer_offset must always be aligned
-  to 4.  If false, there are no restrictions on the offset.
-* ``PIPE_CAP_VERTEX_BUFFER_STRIDE_4BYTE_ALIGNED_ONLY``: This CAP describes a HW
-  limitation.  If true, pipe_vertex_buffer::stride must always be aligned to 4.
-  If false, there are no restrictions on the stride.
-* ``PIPE_CAP_VERTEX_ELEMENT_SRC_OFFSET_4BYTE_ALIGNED_ONLY``: This CAP describes
-  a HW limitation.  If true, pipe_vertex_element::src_offset must always be
-  aligned to 4.  If false, there are no restrictions on src_offset.
-* ``PIPE_CAP_VERTEX_ATTRIB_ELEMENT_ALIGNED_ONLY``: This CAP describes
-  a HW limitation.  If true, the sum of
+* ``PIPE_CAP_VERTEX_INPUT_ALIGNMENT``: This CAP describes a HW
+  limitation.
+  If ``PIPE_VERTEX_INPUT_ALIGNMENT_4BYTE```,
+  pipe_vertex_buffer::buffer_offset must always be aligned
+  to 4, and pipe_vertex_buffer::stride must always be aligned to 4,
+  and pipe_vertex_element::src_offset must always be
+  aligned to 4.
+  If ``PIPE_VERTEX_INPUT_ALIGNMENT_ELEMENT``,
+  the sum of
   ``pipe_vertex_element::src_offset + pipe_vertex_buffer::buffer_offset + pipe_vertex_buffer::stride``
   must always be aligned to the component size for the vertex attributes
-  which access that buffer.  If false, there are no restrictions on these values.
-  This CAP cannot be used with any other alignment-requiring CAPs.
+  which access that buffer.
+  If ``PIPE_VERTEX_INPUT_ALIGNMENT_NONE``, there are no restrictions on these values.
 * ``PIPE_CAP_COMPUTE``: Whether the implementation supports the
   compute entry points defined in pipe_context and pipe_screen.
 * ``PIPE_CAP_CONSTANT_BUFFER_OFFSET_ALIGNMENT``: Describes the required

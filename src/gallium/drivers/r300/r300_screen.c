@@ -177,10 +177,8 @@ static int r300_get_param(struct pipe_screen* pscreen, enum pipe_cap param)
             return !r300screen->caps.has_tcl;
 
         /* HWTCL-only features / limitations. */
-        case PIPE_CAP_VERTEX_BUFFER_OFFSET_4BYTE_ALIGNED_ONLY:
-        case PIPE_CAP_VERTEX_BUFFER_STRIDE_4BYTE_ALIGNED_ONLY:
-        case PIPE_CAP_VERTEX_ELEMENT_SRC_OFFSET_4BYTE_ALIGNED_ONLY:
-            return r300screen->caps.has_tcl;
+        case PIPE_CAP_VERTEX_INPUT_ALIGNMENT:
+            return r300screen->caps.has_tcl ? PIPE_VERTEX_INPUT_ALIGNMENT_4BYTE : PIPE_VERTEX_INPUT_ALIGNMENT_NONE;
 
         /* Texturing. */
         case PIPE_CAP_MAX_TEXTURE_2D_SIZE:

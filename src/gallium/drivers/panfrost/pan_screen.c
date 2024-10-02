@@ -258,11 +258,11 @@ panfrost_get_param(struct pipe_screen *screen, enum pipe_cap param)
     * require element alignment for vertex buffers, using u_vbuf to
     * translate to match the hardware requirement.
     *
-    * This is less heavy-handed than the 4BYTE_ALIGNED_ONLY caps, which
+    * This is less heavy-handed than PIPE_VERTEX_INPUT_ALIGNMENT_4BYTE, which
     * would needlessly require alignment even for 8-bit formats.
     */
-   case PIPE_CAP_VERTEX_ATTRIB_ELEMENT_ALIGNED_ONLY:
-      return 1;
+   case PIPE_CAP_VERTEX_INPUT_ALIGNMENT:
+      return PIPE_VERTEX_INPUT_ALIGNMENT_ELEMENT;
 
    case PIPE_CAP_MAX_TEXTURE_2D_SIZE:
       return 1 << (PAN_MAX_MIP_LEVELS - 1);

@@ -305,20 +305,26 @@ void u_vbuf_get_caps(struct pipe_screen *screen, struct u_vbuf_caps *caps,
       }
    }
 
-   caps->buffer_offset_unaligned =
-      !screen->get_param(screen,
-                         PIPE_CAP_VERTEX_BUFFER_OFFSET_4BYTE_ALIGNED_ONLY);
-   caps->buffer_stride_unaligned =
-     !screen->get_param(screen,
-                        PIPE_CAP_VERTEX_BUFFER_STRIDE_4BYTE_ALIGNED_ONLY);
-   caps->velem_src_offset_unaligned =
-      !screen->get_param(screen,
-                         PIPE_CAP_VERTEX_ELEMENT_SRC_OFFSET_4BYTE_ALIGNED_ONLY);
-   caps->attrib_component_unaligned =
-      !screen->get_param(screen,
-                         PIPE_CAP_VERTEX_ATTRIB_ELEMENT_ALIGNED_ONLY);
-   assert(caps->attrib_component_unaligned ||
-          (caps->velem_src_offset_unaligned && caps->buffer_stride_unaligned && caps->buffer_offset_unaligned));
+   /* by default, all of these are supported */
+   caps->velem_src_offset_unaligned = 1;
+   caps->buffer_stride_unaligned = 1;
+   caps->buffer_offset_unaligned = 1;
+   caps->attrib_component_unaligned = 1;
+
+   /* pipe cap removes capabilities */
+   switch (screen->get_param(screen, PIPE_CAP_VERTEX_INPUT_ALIGNMENT)) {
+   case PIPE_VERTEX_INPUT_ALIGNMENT_4BYTE:
+      caps->velem_src_offset_unaligned = 0;
+      caps->buffer_stride_unaligned = 0;
+      caps->buffer_offset_unaligned = 0;
+      break;
+   case PIPE_VERTEX_INPUT_ALIGNMENT_ELEMENT:
+      caps->attrib_component_unaligned = 0;
+      break;
+   default:
+      break;
+   }
+
    caps->user_vertex_buffers =
       screen->get_param(screen, PIPE_CAP_USER_VERTEX_BUFFERS);
    caps->max_vertex_buffers =

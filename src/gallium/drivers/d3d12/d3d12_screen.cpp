@@ -176,9 +176,11 @@ d3d12_get_param_default(struct pipe_screen *pscreen, enum pipe_cap param)
    case PIPE_CAP_FRAGMENT_SHADER_TEXTURE_LOD:
    case PIPE_CAP_FRAGMENT_SHADER_DERIVATIVES:
    case PIPE_CAP_QUADS_FOLLOW_PROVOKING_VERTEX_CONVENTION:
-   case PIPE_CAP_VERTEX_BUFFER_STRIDE_4BYTE_ALIGNED_ONLY:
    case PIPE_CAP_MIXED_COLOR_DEPTH_BITS:
       return 1;
+
+   case PIPE_CAP_VERTEX_INPUT_ALIGNMENT:
+      return PIPE_VERTEX_INPUT_ALIGNMENT_4BYTE;
 
    /* We need to do some lowering that requires a link to the sampler */
    case PIPE_CAP_NIR_SAMPLERS_AS_DEREF:
@@ -286,7 +288,6 @@ d3d12_get_param_default(struct pipe_screen *pscreen, enum pipe_cap param)
    case PIPE_CAP_CONDITIONAL_RENDER_INVERTED:
    case PIPE_CAP_QUERY_TIMESTAMP:
    case PIPE_CAP_VERTEX_ELEMENT_INSTANCE_DIVISOR:
-   case PIPE_CAP_VERTEX_ELEMENT_SRC_OFFSET_4BYTE_ALIGNED_ONLY:
    case PIPE_CAP_IMAGE_STORE_FORMATTED:
    case PIPE_CAP_GLSL_TESS_LEVELS_AS_INPUTS:
       return 1;

@@ -280,9 +280,6 @@ static int si_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
       /* Allow 1/4th of the heap size. */
       return sscreen->info.max_heap_size_kb / 1024 / 4;
 
-   case PIPE_CAP_VERTEX_BUFFER_OFFSET_4BYTE_ALIGNED_ONLY:
-   case PIPE_CAP_VERTEX_BUFFER_STRIDE_4BYTE_ALIGNED_ONLY:
-   case PIPE_CAP_VERTEX_ELEMENT_SRC_OFFSET_4BYTE_ALIGNED_ONLY:
    case PIPE_CAP_PREFER_BACK_BUFFER_REUSE:
    case PIPE_CAP_UMA:
    case PIPE_CAP_PREFER_IMM_ARRAYS_AS_CONSTBUF:

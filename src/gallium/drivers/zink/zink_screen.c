@@ -759,8 +759,8 @@ zink_get_param(struct pipe_screen *pscreen, enum pipe_cap param)
    case PIPE_CAP_TEXTURE_SWIZZLE:
       return 1;
 
-   case PIPE_CAP_VERTEX_ATTRIB_ELEMENT_ALIGNED_ONLY:
-      return !screen->info.have_EXT_legacy_vertex_attributes;
+   case PIPE_CAP_VERTEX_INPUT_ALIGNMENT:
+      return screen->info.have_EXT_legacy_vertex_attributes ? PIPE_VERTEX_INPUT_ALIGNMENT_NONE : PIPE_VERTEX_INPUT_ALIGNMENT_ELEMENT;
 
    case PIPE_CAP_GL_CLAMP:
       return 0;
