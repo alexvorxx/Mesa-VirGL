@@ -625,7 +625,6 @@ main(int argc, char *argv[])
             .relocs_ptr       = 0,
             .flags            = EXEC_OBJECT_SUPPORTS_48B_ADDRESS |
                                 EXEC_OBJECT_PINNED |
-                                EXEC_OBJECT_WRITE /* to be able to wait on the BO */ |
                                 EXEC_OBJECT_CAPTURE,
             .offset           = intel_canonical_address(init_bo->offset),
          };
@@ -647,7 +646,6 @@ main(int argc, char *argv[])
             .relocs_ptr       = 0,
             .flags            = EXEC_OBJECT_SUPPORTS_48B_ADDRESS |
                                 EXEC_OBJECT_PINNED |
-                                EXEC_OBJECT_WRITE /* to be able to wait on the BO */ |
                                 EXEC_OBJECT_CAPTURE,
             .offset           = intel_canonical_address(batch_bo->offset),
          };
