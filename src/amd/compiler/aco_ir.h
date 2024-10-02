@@ -2133,7 +2133,7 @@ public:
 
    uint32_t peekAllocationId() { return allocationID; }
 
-   friend void reindex_ssa(Program* program, bool update_live_out);
+   friend void reindex_ssa(Program* program);
 
    Block* create_and_insert_block()
    {
