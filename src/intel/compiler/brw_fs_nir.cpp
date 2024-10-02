@@ -7376,9 +7376,9 @@ fs_nir_emit_memory_access(nir_to_brw_state &ntb,
       }
 
       if (is_store)
-         s.shader_stats.spill_count += DIV_ROUND_UP(s.dispatch_width, 16);
+         ++s.shader_stats.spill_count;
       else
-         s.shader_stats.fill_count += DIV_ROUND_UP(s.dispatch_width, 16);
+         ++s.shader_stats.fill_count;
 
       data_src = 0;
       break;
