@@ -321,12 +321,15 @@ fedora-release:
     - !reference [.build-for-tests-jobs]
   variables:
     BUILDTYPE: "release"
-    C_LINK_ARGS: >
+    C_ARGS: >
       -Wno-error=stringop-overflow
       -Wno-error=stringop-overread
     CPP_ARGS: >
       -Wno-error=dangling-reference
       -Wno-error=overloaded-virtual
+    C_LINK_ARGS: >
+      -Wno-error=stringop-overflow
+      -Wno-error=stringop-overread
     CPP_LINK_ARGS: >
       -Wno-error=stringop-overflow
       -Wno-error=stringop-overread
