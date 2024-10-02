@@ -11,7 +11,6 @@
 #include "hk_instance.h"
 #include "hk_physical_device.h"
 
-#include "vk_enum_to_str.h"
 #include "vk_format.h"
 #include "vk_sampler.h"
 
