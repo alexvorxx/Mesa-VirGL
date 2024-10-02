@@ -17,7 +17,3 @@ test_vertex_id_dxil,Fail
 
 # msm_dpu ae01000.display-controller: [drm:hangcheck_handler] *ERROR* 67.5.20.1: hangcheck detected gpu lockup rb 0!
 test_fence_wait_robustness,Crash
-
-# src/freedreno/vulkan/tu_formats.cc:77: tu_native_format tu6_format_color(pipe_format, a6xx_tile_mode): Assertion `fmt.fmt != FMT6_NONE' failed.
-# format is P016
-test_planar_video_formats,Crash
