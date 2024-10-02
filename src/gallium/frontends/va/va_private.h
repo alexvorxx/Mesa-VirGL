@@ -97,7 +97,8 @@
                                  VA_ENC_PACKED_HEADER_RAW_DATA)
 #define ENC_PACKED_HEADERS_AV1  (VA_ENC_PACKED_HEADER_SEQUENCE | \
                                  VA_ENC_PACKED_HEADER_PICTURE  | \
-                                 VA_ENC_PACKED_HEADER_MISC)
+                                 VA_ENC_PACKED_HEADER_MISC | \
+                                 VA_ENC_PACKED_HEADER_RAW_DATA)
 
 static inline enum pipe_video_chroma_format
 ChromaToPipe(int format)

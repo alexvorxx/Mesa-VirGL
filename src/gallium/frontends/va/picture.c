@@ -1368,6 +1368,7 @@ vlVaEndPicture(VADriverContextP ctx, VAContextID context_id)
       switch (u_reduce_video_profile(context->templat.profile)) {
       case PIPE_VIDEO_FORMAT_AV1:
          context->desc.av1enc.frame_num++;
+         vlVaClearRawHeaders(&context->desc.av1enc.raw_headers);
          break;
       case PIPE_VIDEO_FORMAT_HEVC:
          context->desc.h265enc.frame_num++;

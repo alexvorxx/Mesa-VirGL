@@ -1334,6 +1334,7 @@ struct pipe_av1_enc_picture_desc
    struct pipe_av1_enc_seq_param seq;
    struct pipe_av1_enc_rate_control rc[4];
    struct {
+      uint32_t obu_extension_flag:1;
       uint32_t enable_frame_obu:1;
       uint32_t error_resilient_mode:1;
       uint32_t disable_cdf_update:1;
@@ -1469,6 +1470,8 @@ struct pipe_av1_enc_picture_desc
    uint8_t dpb_ref_frame_idx[PIPE_AV1_REFS_PER_FRAME]; /* index in dpb, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
    uint8_t ref_list0[PIPE_AV1_REFS_PER_FRAME]; /* index in dpb_ref_frame_idx, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
    uint8_t ref_list1[PIPE_AV1_REFS_PER_FRAME]; /* index in dpb_ref_frame_idx, PIPE_H2645_LIST_REF_INVALID_ENTRY invalid */
+
+   struct util_dynarray raw_headers; /* struct pipe_enc_raw_header */
 };
 
 struct pipe_h265_sps

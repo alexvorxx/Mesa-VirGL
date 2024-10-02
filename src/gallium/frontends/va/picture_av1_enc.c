@@ -675,7 +675,8 @@ static void av1_read_interpolation_filter(vlVaContext *context, struct vl_vlc *v
       av1_f(vlc, 2);
 }
 
-static void av1_frame_header(vlVaContext *context, struct vl_vlc *vlc)
+static bool av1_frame_header(vlVaContext *context, struct vl_vlc *vlc,
+                             uint32_t extension_flag, uint32_t temporal_id, uint32_t spatial_id)
 {
    struct pipe_av1_enc_picture_desc *av1 = &context->desc.av1enc;
    uint32_t frame_type;
@@ -687,10 +688,12 @@ static void av1_frame_header(vlVaContext *context, struct vl_vlc *vlc)
       id_len = av1->seq.delta_frame_id_length + av1->seq.additional_frame_id_length;
 
    all_frames = 255;
-   av1->show_existing_frame = av1_f(vlc, 1);
-   /* use the last reference frame to show */
-   if (av1->show_existing_frame)
-      return;
+   if (av1_f(vlc, 1)) /* show_existing_frame */
+      return false;
+
+   av1->obu_extension_flag = extension_flag;
+   av1->temporal_id = temporal_id;
+   av1->spatial_id = spatial_id;
 
    frame_type = av1_f(vlc, 2);
    frame_is_intra = (frame_type == FRAME_TYPE_KEY_FRAME ||
@@ -824,6 +827,8 @@ static void av1_frame_header(vlVaContext *context, struct vl_vlc *vlc)
     */
 
    av1->uniform_tile_spacing = av1_f(vlc, 1);
+
+   return true;
 }
 
 static void av1_metatype_hdr_cll(vlVaContext *context, struct vl_vlc *vlc)
@@ -873,28 +878,39 @@ vlVaHandleVAEncPackedHeaderDataBufferTypeAV1(vlVaContext *context, vlVaBuffer *b
    if (obu_type != OBU_TYPE_SEQUENCE_HEADER &&
        obu_type != OBU_TYPE_FRAME_HEADER &&
        obu_type != OBU_TYPE_FRAME &&
-       obu_type != OBU_TYPE_META)
+       obu_type != OBU_TYPE_META) {
+      vlVaAddRawHeader(&context->desc.av1enc.raw_headers, obu_type,
+                       buf->size, buf->data, false, 0);
       return VA_STATUS_SUCCESS;
+   }
 
    uint32_t extension_flag = av1_f(&vlc, 1);
    uint32_t has_size = av1_f(&vlc, 1);
    av1_f(&vlc, 1); /* obu_reserved_1bit */
 
+   uint32_t temporal_id = 0;
+   uint32_t spatial_id = 0;
+
    if (extension_flag) {
-      context->desc.av1enc.temporal_id = av1_f(&vlc, 3);
-      context->desc.av1enc.spatial_id = av1_f(&vlc, 2);
+      temporal_id = av1_f(&vlc, 3);
+      spatial_id = av1_f(&vlc, 2);
       av1_f(&vlc, 3); /* extension_header_reserved_3bits */
    }
 
    if (has_size)
        av1_uleb128(&vlc);
 
+   bool is_frame = false;
+
    if (obu_type == OBU_TYPE_SEQUENCE_HEADER)
       av1_sequence_header(context, &vlc);
    else if (obu_type == OBU_TYPE_FRAME_HEADER || obu_type == OBU_TYPE_FRAME)
-      av1_frame_header(context, &vlc);
+      is_frame = av1_frame_header(context, &vlc, extension_flag, temporal_id, spatial_id);
    else if (obu_type == OBU_TYPE_META)
       av1_meta_obu(context, &vlc);
+
+   vlVaAddRawHeader(&context->desc.av1enc.raw_headers, obu_type,
+                    buf->size, buf->data, is_frame, 0);
 
    return VA_STATUS_SUCCESS;
 }

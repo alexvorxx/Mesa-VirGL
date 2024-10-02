@@ -507,6 +507,7 @@ vlVaDestroyContext(VADriverContextP ctx, VAContextID context_id)
                if (buf && !context->desc.av1enc.dpb[i].id)
                   buf->destroy(buf);
             }
+            util_dynarray_fini(&context->desc.av1enc.raw_headers);
          }
       } else {
          if (u_reduce_video_profile(context->decoder->profile) ==
