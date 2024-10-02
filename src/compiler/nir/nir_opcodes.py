@@ -1504,9 +1504,9 @@ unop("pack_2x16_to_unorm_2x10_v3d", tuint32, "pack_2x16_to_unorm_2x10(src0)")
 # and one 10 bit unorm
 unop("pack_2x16_to_unorm_10_2_v3d", tuint32, "pack_2x16_to_unorm_10_2(src0)")
 
-# Mali-specific opcodes
-unop("fsat_signed_mali", tfloat, ("fmin(fmax(src0, -1.0), 1.0)"))
-unop("fclamp_pos_mali", tfloat, ("fmax(src0, 0.0)"))
+# These opcodes are used used by Mali and V3D
+unop("fsat_signed", tfloat, ("fmin(fmax(src0, -1.0), 1.0)"))
+unop("fclamp_pos", tfloat, ("fmax(src0, 0.0)"))
 
 opcode("b32fcsel_mdg", 0, tuint, [0, 0, 0],
        [tbool32, tfloat, tfloat], False, selection, "src0 ? src1 : src2",

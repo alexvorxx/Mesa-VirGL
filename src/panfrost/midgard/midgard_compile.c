@@ -832,8 +832,8 @@ emit_alu(compiler_context *ctx, nir_alu_instr *instr)
       ALU_CASE(fabs, fmov);
       ALU_CASE(fneg, fmov);
       ALU_CASE(fsat, fmov);
-      ALU_CASE(fsat_signed_mali, fmov);
-      ALU_CASE(fclamp_pos_mali, fmov);
+      ALU_CASE(fsat_signed, fmov);
+      ALU_CASE(fclamp_pos, fmov);
 
       /* For size conversion, we use a move. Ideally though we would squash
        * these ops together; maybe that has to happen after in NIR as part of
@@ -934,9 +934,9 @@ emit_alu(compiler_context *ctx, nir_alu_instr *instr)
       outmod = midgard_outmod_keeplo;
    } else if (instr->op == nir_op_fsat) {
       outmod = midgard_outmod_clamp_0_1;
-   } else if (instr->op == nir_op_fsat_signed_mali) {
+   } else if (instr->op == nir_op_fsat_signed) {
       outmod = midgard_outmod_clamp_m1_1;
-   } else if (instr->op == nir_op_fclamp_pos_mali) {
+   } else if (instr->op == nir_op_fclamp_pos) {
       outmod = midgard_outmod_clamp_0_inf;
    }
 

@@ -39,7 +39,7 @@ lower_ftrunc = [
 
 # PP fuse clamp_positive. Shared with Midgard/Bifrost
 ppir_algebraic_late = [
-    (('fmax', 'a', 0.0), ('fclamp_pos_mali', 'a')),
+    (('fmax', 'a', 0.0), ('fclamp_pos', 'a')),
 ]
 
 def main():
