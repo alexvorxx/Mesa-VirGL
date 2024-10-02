@@ -1164,14 +1164,10 @@ fn test_f2fp_pack_ab() {
 
     let bin = b.compile();
 
-    fn f32_to_u32(val: f32) -> u32 {
-        u32::from_le_bytes(val.to_le_bytes())
-    }
-
-    let zero = f32_to_u32(0.0);
-    let one = f32_to_u32(1.0);
-    let two = f32_to_u32(2.0);
-    let complex = f32_to_u32(1.4556);
+    let zero = 0_f32.to_bits();
+    let one = 1_f32.to_bits();
+    let two = 2_f32.to_bits();
+    let complex = 1.4556_f32.to_bits();
 
     let mut data = Vec::new();
     data.push([one, two, 0, 0]);
