@@ -90,8 +90,11 @@ static enum agx_border_colour
 is_border_color_custom(VkBorderColor color, bool workaround_rgba4)
 {
    switch (color) {
-   case VK_BORDER_COLOR_INT_OPAQUE_BLACK:
    case VK_BORDER_COLOR_FLOAT_OPAQUE_BLACK:
+      /* We may need to workaround RGBA4 UNORM issues with opaque black. This
+       * only affects float opaque black, there are no pure integer RGBA4
+       * formats to worry about.
+       */
       return workaround_rgba4;
 
    case VK_BORDER_COLOR_INT_CUSTOM_EXT:
