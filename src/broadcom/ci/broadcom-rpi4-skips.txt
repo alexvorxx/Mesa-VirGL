@@ -313,3 +313,5 @@ asan-KHR-GLES31.core.geometry_shader.input.gl_position_value
 asan-KHR-GLES31.core.geometry_shader.primitive_counter.lines_to_points_rp
 asan-KHR-GL31.ext_texture_shadow_lod.texturelodoffset.sampler2darrayshadow_vertex
 
+# CTS bug https://gitlab.khronos.org/Tracker/vk-gl-cts/-/issues/5362
+asan-dEQP-VK.pipeline.monolithic.logic_op.r8g8_uint.equivalent
