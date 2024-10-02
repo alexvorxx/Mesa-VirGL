@@ -64,7 +64,8 @@
 
 
 # Make sure this list stays the same as all the jobs with
-# `stage: build-for-tests`
+# `stage: build-for-tests`, except for the windows job as
+# explained below.
 .build-for-tests-jobs:
   - job: debian-testing
     optional: true
