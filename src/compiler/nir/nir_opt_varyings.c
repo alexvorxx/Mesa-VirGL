@@ -4190,13 +4190,15 @@ compact_varyings(struct linkage_info *linkage,
       vs_tcs_tes_gs_assign_slots(linkage, linkage->flat16_mask, &slot_index,
                                  &patch_slot_index, 1, progress);
 
-      /* Put no-varying slots last. These are TCS outputs read by TCS but not
-       * TES.
-       */
-      vs_tcs_tes_gs_assign_slots(linkage, linkage->no_varying32_mask, &slot_index,
-                                 &patch_slot_index, 2, progress);
-      vs_tcs_tes_gs_assign_slots(linkage, linkage->no_varying16_mask, &slot_index,
-                                 &patch_slot_index, 1, progress);
+      if (linkage->producer_stage == MESA_SHADER_TESS_CTRL) {
+         /* Put no-varying slots last. These are TCS outputs read by TCS but
+          * not TES.
+          */
+         vs_tcs_tes_gs_assign_slots(linkage, linkage->no_varying32_mask,
+                                    &slot_index, &patch_slot_index, 2, progress);
+         vs_tcs_tes_gs_assign_slots(linkage, linkage->no_varying16_mask,
+                                    &slot_index, &patch_slot_index, 1, progress);
+      }
 
       assert(slot_index <= VARYING_SLOT_MAX * 8);
       assert(patch_slot_index <= VARYING_SLOT_TESS_MAX * 8);
