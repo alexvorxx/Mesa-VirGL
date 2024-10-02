@@ -2946,19 +2946,8 @@ emit_barrier(nir_to_brw_state &ntb)
    } else {
       assert(gl_shader_stage_is_compute(s.stage));
 
-      uint32_t barrier_id_mask;
-      switch (devinfo->ver) {
-      case 7:
-      case 8:
-         barrier_id_mask = 0x0f000000u; break;
-      case 9:
-         barrier_id_mask = 0x8f000000u; break;
-      case 11:
-      case 12:
-         barrier_id_mask = 0x7f000000u; break;
-      default:
-         unreachable("barrier is only available on gen >= 7");
-      }
+      const uint32_t barrier_id_mask =
+         devinfo->ver == 9 ? 0x8f000000u : 0x7f000000u;
 
       /* Copy the barrier id from r0.2 to the message payload reg.2 */
       brw_reg r0_2 = brw_reg(retype(brw_vec1_grf(0, 2), BRW_TYPE_UD));
