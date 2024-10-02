@@ -6220,45 +6220,6 @@ genX(batch_emit_return)(struct anv_batch *batch)
                           .SecondLevelBatchBuffer = Firstlevelbatch);
 }
 
-void
-genX(batch_emit_post_3dprimitive_was)(struct anv_batch *batch,
-                                      const struct anv_device *device,
-                                      uint32_t primitive_topology,
-                                      uint32_t vertex_count)
-{
-#if INTEL_WA_22014412737_GFX_VER || INTEL_WA_16014538804_GFX_VER
-   if (intel_needs_workaround(device->info, 22014412737) &&
-       (primitive_topology == _3DPRIM_POINTLIST ||
-        primitive_topology == _3DPRIM_LINELIST ||
-        primitive_topology == _3DPRIM_LINESTRIP ||
-        primitive_topology == _3DPRIM_LINELIST_ADJ ||
-        primitive_topology == _3DPRIM_LINESTRIP_ADJ ||
-        primitive_topology == _3DPRIM_LINELOOP ||
-        primitive_topology == _3DPRIM_POINTLIST_BF ||
-        primitive_topology == _3DPRIM_LINESTRIP_CONT ||
-        primitive_topology == _3DPRIM_LINESTRIP_BF ||
-        primitive_topology == _3DPRIM_LINESTRIP_CONT_BF) &&
-       (vertex_count == 1 || vertex_count == 2)) {
-      genx_batch_emit_pipe_control_write
-         (batch, device->info, 0, WriteImmediateData,
-          device->workaround_address, 0, 0);
-
-      /* Reset counter because we just emitted a PC */
-      batch->num_3d_primitives_emitted = 0;
-   } else if (intel_needs_workaround(device->info, 16014538804)) {
-      batch->num_3d_primitives_emitted++;
-      /* WA 16014538804:
-       *    After every 3 3D_Primitive command,
-       *    atleast 1 pipe_control must be inserted.
-       */
-      if (batch->num_3d_primitives_emitted == 3) {
-         anv_batch_emit(batch, GENX(PIPE_CONTROL), pc);
-         batch->num_3d_primitives_emitted = 0;
-      }
-   }
-#endif
-}
-
 /* Wa_16018063123 */
 ALWAYS_INLINE void
 genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
