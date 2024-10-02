@@ -986,7 +986,7 @@ st_link_shader(struct gl_context *ctx, struct gl_shader_program *prog)
 
    if (prog->data->LinkStatus) {
       if (!spirv) {
-         link_shaders(ctx, prog);
+         link_shaders_init(ctx, prog);
 
 #ifdef ENABLE_SHADER_CACHE
          shader_cache_read_program_metadata(ctx, prog);

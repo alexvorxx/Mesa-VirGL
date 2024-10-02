@@ -34,6 +34,7 @@
 #include "gl_nir.h"
 #include "gl_nir_linker.h"
 #include "glsl_to_nir.h"
+#include "linker_util.h"
 #include "nir_builder.h"
 #include "program.h"
 
@@ -204,7 +205,7 @@ namespace
          ASSERT_EQ(shader->CompileStatus, COMPILE_SUCCESS);
       }
 
-      link_shaders(ctx, whole_program);
+      link_shaders_init(ctx, whole_program);
       gl_nir_link_glsl(ctx, whole_program);
       if (whole_program->data->LinkStatus != LINKING_SUCCESS)
          fprintf(stderr, "Linker error: %s", whole_program->data->InfoLog);

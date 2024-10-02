@@ -39,6 +39,7 @@
 #include "gl_nir_linker.h"
 #include "glsl_parser_extras.h"
 #include "builtin_functions.h"
+#include "linker_util.h"
 #include "main/mtypes.h"
 #include "program/program.h"
 
@@ -427,7 +428,7 @@ standalone_compile_shader(const struct standalone_options *_options,
       _mesa_clear_shader_program_data(ctx, whole_program);
 
       whole_program->data->LinkStatus = LINKING_SUCCESS;
-      link_shaders(ctx, whole_program);
+      link_shaders_init(ctx, whole_program);
       gl_nir_link_glsl(ctx, whole_program);
 
       status = (whole_program->data->LinkStatus) ? EXIT_SUCCESS : EXIT_FAILURE;

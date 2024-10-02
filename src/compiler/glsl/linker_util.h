@@ -28,6 +28,7 @@
 #include "util/glheader.h"
 #include "compiler/glsl/list.h"
 #include "compiler/glsl_types.h"
+#include "main/mtypes.h"
 #include "main/shader_types.h"
 
 struct gl_constants;
@@ -83,6 +84,9 @@ struct array_deref_range {
    /** Size of the array.  Used for offset calculations. */
    unsigned size;
 };
+
+void
+link_shaders_init(struct gl_context *ctx, struct gl_shader_program *prog);
 
 void
 linker_error(struct gl_shader_program *prog, const char *fmt, ...);

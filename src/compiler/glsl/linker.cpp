@@ -91,28 +91,4 @@
 #include "main/context.h"
 
 
-void
-link_shaders(struct gl_context *ctx, struct gl_shader_program *prog)
-{
-   prog->data->LinkStatus = LINKING_SUCCESS; /* All error paths will set this to false */
-   prog->data->Validated = false;
 
-   /* Section 7.3 (Program Objects) of the OpenGL 4.5 Core Profile spec says:
-    *
-    *     "Linking can fail for a variety of reasons as specified in the
-    *     OpenGL Shading Language Specification, as well as any of the
-    *     following reasons:
-    *
-    *     - No shader objects are attached to program."
-    *
-    * The Compatibility Profile specification does not list the error.  In
-    * Compatibility Profile missing shader stages are replaced by
-    * fixed-function.  This applies to the case where all stages are
-    * missing.
-    */
-   if (prog->NumShaders == 0) {
-      if (ctx->API != API_OPENGL_COMPAT)
-         linker_error(prog, "no shaders attached to the program\n");
-      return;
-   }
-}
