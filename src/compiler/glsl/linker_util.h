@@ -28,6 +28,7 @@
 #include "util/glheader.h"
 #include "compiler/glsl/list.h"
 #include "compiler/glsl_types.h"
+#include "main/shader_types.h"
 
 struct gl_constants;
 struct gl_shader_program;

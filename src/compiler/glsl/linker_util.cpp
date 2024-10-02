@@ -27,8 +27,6 @@
 #include "linker_util.h"
 #include "util/bitscan.h"
 #include "util/set.h"
-#include "ir_uniform.h" /* for gl_uniform_storage */
-#include "main/shader_types.h"
 #include "main/consts_exts.h"
 
 /**
