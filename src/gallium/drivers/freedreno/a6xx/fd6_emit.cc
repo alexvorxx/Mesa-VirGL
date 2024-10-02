@@ -928,8 +928,6 @@ fd6_emit_static_regs(struct fd_context *ctx, struct fd_ringbuffer *ring)
          .shared_consts_enable = false,
       )
    );
-   WRITE(REG_A6XX_SP_MODE_CONTROL,
-         A6XX_SP_MODE_CONTROL_CONSTANT_DEMOTION_ENABLE | 4);
    WRITE(REG_A6XX_VFD_ADD_OFFSET, A6XX_VFD_ADD_OFFSET_VERTEX);
    WRITE(REG_A6XX_VPC_UNKNOWN_9107, 0);
    WRITE(REG_A6XX_RB_UNKNOWN_8811, 0x00000010);
