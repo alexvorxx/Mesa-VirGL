@@ -2932,15 +2932,14 @@ emit_barrier(nir_to_brw_state &ntb)
    const intel_device_info *devinfo = ntb.devinfo;
    const fs_builder &bld = ntb.bld;
    const fs_builder ubld = bld.exec_all();
+   const fs_builder hbld = ubld.group(8 * reg_unit(devinfo), 0);
    fs_visitor &s = ntb.s;
 
    /* We are getting the barrier ID from the compute shader header */
    assert(gl_shader_stage_uses_workgroup(s.stage));
 
-   brw_reg payload = brw_vgrf(s.alloc.allocate(1), BRW_TYPE_UD);
-
-   /* Clear the message payload */
-   ubld.group(8, 0).MOV(payload, brw_imm_ud(0u));
+   /* Zero-initialize the payload */
+   brw_reg payload = hbld.MOV(brw_imm_ud(0u));
 
    if (devinfo->verx10 >= 125) {
       setup_barrier_message_payload_gfx125(bld, payload);
