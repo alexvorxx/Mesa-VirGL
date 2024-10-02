@@ -367,6 +367,38 @@ hk_build_bg_eot(struct hk_cmd_buffer *cmd, const VkRenderingInfo *info,
          /* Don't read back spilled render targets, they're already in memory */
          load &= !key.tib.spilled[i];
 
+         /* This is a very frustrating corner case. From the spec:
+          *
+          *     VK_ATTACHMENT_STORE_OP_NONE specifies the contents within the
+          *     render area are not accessed by the store operation as long as
+          *     no values are written to the attachment during the render pass.
+          *
+          * With VK_ATTACHMENT_STORE_OP_NONE, we suppress stores on the main
+          * end-of-tile program. Unfortunately, that's not enough: we also need
+          * to preserve the contents throughout partial renders. The easiest way
+          * to do that is forcing a load in the background program, so that
+          * partial stores for unused attachments will be no-op'd by writing
+          * existing contents.
+          *
+          * Optimizing this would require nontrivial tracking. Fortunately,
+          * this is all Android gunk and we don't have to care too much for
+          * dekstop games. So do the simple thing.
+          *
+          * VK_ATTACHMENT_STORE_OP_DONT_CARE does not need this workaround,
+          * fortunately. It's just here as a temporary stopgap to workaround CTS
+          * issue #5369.
+          */
+         bool no_store =
+            (att_info->storeOp == VK_ATTACHMENT_STORE_OP_NONE) ||
+            (att_info->storeOp == VK_ATTACHMENT_STORE_OP_DONT_CARE);
+
+         bool no_store_wa = no_store && !load && !clear;
+         if (no_store_wa) {
+            perf_debug(dev, "STORE_OP_NONE workaround");
+         }
+
+         load |= no_store_wa;
+
          /* Don't apply clears for spilled render targets when we clear the
           * render area explicitly after.
           */
