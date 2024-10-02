@@ -348,7 +348,7 @@ static void
 radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_device *device, VkFormat vk_format,
                                 const VkComponentMapping *components, bool is_storage_image, bool disable_compression,
                                 bool enable_compression, unsigned plane_id, unsigned descriptor_plane_id,
-                                const VkImageViewSlicedCreateInfoEXT *sliced_3d, bool force_zero_base_mip)
+                                const VkImageViewSlicedCreateInfoEXT *sliced_3d)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_image *image = iview->image;
@@ -358,6 +358,7 @@ radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_devic
    uint32_t blk_w;
    union radv_descriptor *descriptor;
    uint32_t hw_level = iview->vk.base_mip_level;
+   bool force_zero_base_mip = false;
 
    if (is_storage_image) {
       descriptor = &iview->storage_descriptor;
@@ -369,6 +370,12 @@ radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_devic
    assert(plane->surface.blk_w % vk_format_get_blockwidth(plane->format) == 0);
    blk_w = plane->surface.blk_w / vk_format_get_blockwidth(plane->format) * vk_format_get_blockwidth(vk_format);
 
+   VkExtent3D extent = {
+      .width = iview->extent.width,
+      .height = iview->extent.height,
+      .depth = iview->extent.depth,
+   };
+
    if (pdev->info.gfx_level >= GFX9) {
       if (iview->nbc_view.valid) {
          hw_level = iview->nbc_view.level;
@@ -377,22 +384,46 @@ radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_devic
          first_layer = 0;
       }
    } else {
-      if (force_zero_base_mip)
+      /* On GFX6-8, there are some cases where the view must use mip0 and minified image sizes:
+       * - storage descriptors
+       * - block compressed images
+       * - depth view of a depth/stencil image (ie. depth/stencil pitch adjustments)
+       * - 2d view of a 3d image
+       */
+      if (is_storage_image) {
+         force_zero_base_mip = true;
+      } else if (vk_format_is_block_compressed(image->planes[plane_id].format)) {
+         force_zero_base_mip = true;
+      } else if (iview->vk.aspects == VK_IMAGE_ASPECT_DEPTH_BIT &&
+                 (iview->image->vk.aspects == (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT))) {
+         force_zero_base_mip = true;
+      } else if (iview->image->vk.create_flags & VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT &&
+                 iview->vk.view_type == VK_IMAGE_VIEW_TYPE_2D) {
+         force_zero_base_mip = true;
+      }
+
+      if (force_zero_base_mip) {
          hw_level = 0;
+      } else {
+         extent.width = image->vk.extent.width;
+         extent.height = image->vk.extent.height;
+         extent.depth = image->vk.extent.depth;
+      }
    }
 
    radv_make_texture_descriptor(
       device, image, is_storage_image, iview->vk.view_type, vk_format, components, hw_level,
       hw_level + iview->vk.level_count - 1, first_layer, iview->vk.base_array_layer + iview->vk.layer_count - 1,
-      vk_format_get_plane_width(image->vk.format, plane_id, iview->extent.width),
-      vk_format_get_plane_height(image->vk.format, plane_id, iview->extent.height), iview->extent.depth,
-      iview->vk.min_lod, descriptor->plane_descriptors[descriptor_plane_id],
+      vk_format_get_plane_width(image->vk.format, plane_id, extent.width),
+      vk_format_get_plane_height(image->vk.format, plane_id, extent.height), extent.depth, iview->vk.min_lod,
+      descriptor->plane_descriptors[descriptor_plane_id],
       descriptor_plane_id || is_storage_image ? NULL : descriptor->fmask_descriptor, &iview->nbc_view, sliced_3d);
 
    const struct legacy_surf_level *base_level_info = NULL;
    if (pdev->info.gfx_level <= GFX8) {
       if (is_stencil)
-         base_level_info = &plane->surface.u.legacy.zs.stencil_level[iview->vk.base_mip_level];
+         base_level_info =
+            &plane->surface.u.legacy.zs.stencil_level[force_zero_base_mip ? iview->vk.base_mip_level : 0];
       else
          base_level_info = &plane->surface.u.legacy.level[force_zero_base_mip ? iview->vk.base_mip_level : 0];
    }
@@ -400,10 +431,11 @@ radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_devic
    bool enable_write_compression = radv_image_use_dcc_image_stores(device, image);
    if (is_storage_image && !(enable_write_compression || enable_compression))
       disable_compression = true;
-   radv_set_mutable_tex_desc_fields(device, image, base_level_info, plane_id, iview->vk.base_mip_level,
-                                    iview->vk.base_mip_level, blk_w, is_stencil, is_storage_image, disable_compression,
-                                    enable_write_compression, descriptor->plane_descriptors[descriptor_plane_id],
-                                    &iview->nbc_view);
+
+   radv_set_mutable_tex_desc_fields(device, image, base_level_info, plane_id,
+                                    force_zero_base_mip ? iview->vk.base_mip_level : 0, iview->vk.base_mip_level, blk_w,
+                                    is_stencil, is_storage_image, disable_compression, enable_write_compression,
+                                    descriptor->plane_descriptors[descriptor_plane_id], &iview->nbc_view);
 }
 
 /**
@@ -441,25 +473,12 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
    VK_FROM_HANDLE(radv_image, image, pCreateInfo->image);
    const struct radv_physical_device *pdev = radv_device_physical(device);
    uint32_t plane_count = 1;
-   float min_lod = 0.0f;
-
-   const struct VkImageViewMinLodCreateInfoEXT *min_lod_info =
-      vk_find_struct_const(pCreateInfo->pNext, IMAGE_VIEW_MIN_LOD_CREATE_INFO_EXT);
-
-   if (min_lod_info)
-      min_lod = min_lod_info->minLod;
 
    const struct VkImageViewSlicedCreateInfoEXT *sliced_3d =
       vk_find_struct_const(pCreateInfo->pNext, IMAGE_VIEW_SLICED_CREATE_INFO_EXT);
 
    bool from_client = extra_create_info && extra_create_info->from_client;
    vk_image_view_init(&device->vk, &iview->vk, !from_client, pCreateInfo);
-
-   bool force_zero_base_mip = true;
-   if (pdev->info.gfx_level <= GFX8 && min_lod) {
-      /* Do not force the base level to zero to workaround a spurious bug with mipmaps and min LOD. */
-      force_zero_base_mip = false;
-   }
 
    iview->image = image;
    iview->plane_id = radv_plane_from_aspect(pCreateInfo->subresourceRange.aspectMask);
@@ -497,15 +516,17 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
       plane_count = 1;
    }
 
-   if (!force_zero_base_mip || pdev->info.gfx_level >= GFX9) {
+   if (pdev->info.gfx_level >= GFX9) {
       iview->extent = (VkExtent3D){
          .width = image->vk.extent.width,
          .height = image->vk.extent.height,
          .depth = image->vk.extent.depth,
       };
    } else {
-      iview->extent =
-         vk_image_mip_level_extent(&image->vk, iview->vk.base_mip_level);
+      /* On GFX6-8, CB/DS surfaces use minified images sizes because the mip level can't be
+       * specified in registers.
+       */
+      iview->extent = vk_image_mip_level_extent(&image->vk, iview->vk.base_mip_level);
    }
 
    if (iview->vk.format != image->planes[iview->plane_id].format) {
@@ -592,9 +613,9 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
    for (unsigned i = 0; i < plane_count; ++i) {
       VkFormat format = vk_format_get_plane_format(iview->vk.view_format, i);
       radv_image_view_make_descriptor(iview, device, format, &pCreateInfo->components, false, disable_compression,
-                                      enable_compression, iview->plane_id + i, i, NULL, force_zero_base_mip);
+                                      enable_compression, iview->plane_id + i, i, NULL);
       radv_image_view_make_descriptor(iview, device, format, &pCreateInfo->components, true, disable_compression,
-                                      enable_compression, iview->plane_id + i, i, sliced_3d, force_zero_base_mip);
+                                      enable_compression, iview->plane_id + i, i, sliced_3d);
    }
 }
 
