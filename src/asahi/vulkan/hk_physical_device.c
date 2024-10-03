@@ -1122,28 +1122,8 @@ hk_create_drm_physical_device(struct vk_instance *_instance,
       goto fail_fd;
    }
 
-   /* TODO: we're render-only, should we be reporting displays anyway in
-    * KHR_display?
-    */
+   /* We're render-only */
    pdev->master_fd = -1;
-
-#if 0
-   if (instance->vk.enabled_extensions.KHR_display) {
-      int master_fd =
-         open(drm_device->nodes[DRM_NODE_PRIMARY], O_RDWR | O_CLOEXEC);
-
-      if (master_fd >= 0) {
-         struct stat st;
-         if (!stat(drm_device->nodes[DRM_NODE_PRIMARY], &st)) {
-            pdev->master_fd = master_fd;
-            properties.drmHasPrimary = true;
-            properties.drmPrimaryMajor = major(st.st_rdev);
-            properties.drmPrimaryMinor = minor(st.st_rdev);
-         }
-      }
-   }
-#endif
-
    pdev->render_dev = render_dev;
    pdev->dev.fd = fd;
 
