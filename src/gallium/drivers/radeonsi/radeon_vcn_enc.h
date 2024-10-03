@@ -57,6 +57,14 @@ struct pipe_video_codec *radeon_create_encoder(struct pipe_context *context,
                                                struct radeon_winsys *ws,
                                                radeon_enc_get_buffer get_buffer);
 
+struct radeon_enc_dpb_buffer {
+   struct si_texture *luma;      /* recon luma */
+   struct si_texture *chroma;    /* recon chroma */
+   struct rvid_buffer *fcb;      /* frame context buffer*/
+   struct rvid_buffer *pre;      /* preenc recon */
+   struct rvid_buffer *pre_fcb;  /* preenc frame context buffer */
+};
+
 struct radeon_enc_pic {
    union {
       enum pipe_h2645_enc_picture_type picture_type;
@@ -90,11 +98,30 @@ struct radeon_enc_pic {
    unsigned nal_unit_type;
    unsigned temporal_id;
    unsigned num_temporal_layers;
+   unsigned dpb_luma_size;
+   unsigned dpb_chroma_size;
+   unsigned total_coloc_bytes;
    rvcn_enc_quality_modes_t quality_modes;
 
    bool not_referenced;
    bool use_rc_per_pic_ex;
    bool av1_tile_splitting_legacy_flag;
+
+   struct {
+      union {
+         struct
+         {
+            uint32_t av1_cdf_frame_context_offset;
+            uint32_t av1_cdef_algorithm_context_offset;
+         } av1;
+         struct
+         {
+            uint32_t colloc_buffer_offset;
+         } h264;
+      };
+   } fcb_offset;
+
+   struct radeon_enc_dpb_buffer *dpb_bufs[RENCODE_MAX_NUM_RECONSTRUCTED_PICTURES];
 
    struct {
       struct {
@@ -242,6 +269,11 @@ struct radeon_encoder {
    unsigned roi_size;
    unsigned metadata_size;
 
+   enum {
+      DPB_LEGACY = 0,
+      DPB_TIER_2
+   } dpb_type;
+
    struct pipe_context *ectx;
 };
 
@@ -367,5 +399,8 @@ void radeon_enc_av1_tile_layout (uint32_t nb_sb, uint32_t nb_tiles, uint32_t min
                                  struct tile_1d_layout *p);
 
 bool radeon_enc_av1_skip_mode_allowed(struct radeon_encoder *enc);
+
+void radeon_enc_create_dpb_aux_buffers(struct radeon_encoder *enc,
+                                       struct radeon_enc_dpb_buffer *buf);
 
 #endif // _RADEON_VCN_ENC_H

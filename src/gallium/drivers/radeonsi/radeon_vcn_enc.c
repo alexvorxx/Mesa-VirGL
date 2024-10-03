@@ -479,6 +479,15 @@ static void radeon_vcn_enc_h264_get_param(struct radeon_encoder *enc,
    enc->enc_pic.h264_enc_params.is_long_term = pic->is_ltr;
    enc->enc_pic.not_referenced = pic->not_referenced;
 
+   if (enc->dpb_type == DPB_TIER_2) {
+      for (uint32_t i = 0; i < ARRAY_SIZE(pic->dpb); i++) {
+         struct pipe_video_buffer *buf = pic->dpb[i].buffer;
+         enc->enc_pic.dpb_bufs[i] =
+            buf ? vl_video_buffer_get_associated_data(buf, &enc->base) : NULL;
+         assert(!buf || enc->enc_pic.dpb_bufs[i]);
+      }
+   }
+
    radeon_vcn_enc_h264_get_cropping_param(enc, pic);
    radeon_vcn_enc_h264_get_dbk_param(enc, pic);
    radeon_vcn_enc_h264_get_rc_param(enc, pic);
@@ -672,6 +681,15 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
    enc->enc_pic.bit_depth_chroma_minus8 = pic->seq.bit_depth_chroma_minus8;
    enc->enc_pic.nal_unit_type = pic->pic.nal_unit_type;
    enc->enc_pic.temporal_id = pic->pic.temporal_id;
+
+   if (enc->dpb_type == DPB_TIER_2) {
+      for (uint32_t i = 0; i < ARRAY_SIZE(pic->dpb); i++) {
+         struct pipe_video_buffer *buf = pic->dpb[i].buffer;
+         enc->enc_pic.dpb_bufs[i] =
+            buf ? vl_video_buffer_get_associated_data(buf, &enc->base) : NULL;
+         assert(!buf || enc->enc_pic.dpb_bufs[i]);
+      }
+   }
 
    radeon_vcn_enc_hevc_get_cropping_param(enc, pic);
    radeon_vcn_enc_hevc_get_dbk_param(enc, pic);
@@ -882,6 +900,15 @@ static void radeon_vcn_enc_av1_get_param(struct radeon_encoder *enc,
       }
    }
 
+   if (enc->dpb_type == DPB_TIER_2) {
+      for (uint32_t i = 0; i < ARRAY_SIZE(pic->dpb); i++) {
+         struct pipe_video_buffer *buf = pic->dpb[i].buffer;
+         enc->enc_pic.dpb_bufs[i] =
+            buf ? vl_video_buffer_get_associated_data(buf, &enc->base) : NULL;
+         assert(!buf || enc->enc_pic.dpb_bufs[i]);
+      }
+   }
+
    radeon_vcn_enc_av1_get_spec_misc_param(enc, pic);
    radeon_vcn_enc_av1_get_rc_param(enc, pic);
    radeon_vcn_enc_av1_get_tile_config(enc, pic);
@@ -1087,6 +1114,9 @@ static int setup_dpb(struct radeon_encoder *enc, uint32_t num_reconstructed_pict
    enc_pic->ctx_buf.rec_luma_pitch   = pitch;
    enc_pic->ctx_buf.pre_encode_picture_luma_pitch   = pitch;
    enc_pic->ctx_buf.num_reconstructed_pictures = num_reconstructed_pictures;
+   enc_pic->dpb_luma_size   = luma_size;
+   enc_pic->dpb_chroma_size = chroma_size;
+   enc_pic->total_coloc_bytes = total_coloc_bytes;
 
    offset = 0;
    enc->metadata_size = 0;
@@ -1200,7 +1230,7 @@ static int setup_dpb(struct radeon_encoder *enc, uint32_t num_reconstructed_pict
 
    enc->dpb_slots = num_reconstructed_pictures;
 
-   return offset;
+   return enc->dpb_size;
 }
 
 /* each block (MB/CTB/SB) has one QP/QI value */
@@ -1340,14 +1370,18 @@ static void radeon_enc_begin_frame(struct pipe_video_codec *encoder,
       }
    }
 
+   if (enc->dpb_type == DPB_TIER_2)
+      dpb_slots = 0;
+
    radeon_vcn_enc_get_param(enc, picture);
    if (!enc->dpb) {
       enc->dpb = CALLOC_STRUCT(rvid_buffer);
-      setup_dpb(enc, dpb_slots);
-      if (!enc->dpb ||
-          !si_vid_create_buffer(enc->screen, enc->dpb, enc->dpb_size, PIPE_USAGE_DEFAULT)) {
-         RVID_ERR("Can't create DPB buffer.\n");
-         goto error;
+      if (setup_dpb(enc, dpb_slots)) {
+         if (!enc->dpb ||
+             !si_vid_create_buffer(enc->screen, enc->dpb, enc->dpb_size, PIPE_USAGE_DEFAULT)) {
+            RVID_ERR("Can't create DPB buffer.\n");
+            goto error;
+         }
       }
    }
 
@@ -1685,6 +1719,96 @@ static void radeon_enc_destroy_fence(struct pipe_video_codec *encoder,
    enc->ws->fence_reference(enc->ws, &fence, NULL);
 }
 
+static unsigned int radeon_enc_frame_context_buffer_size(struct radeon_encoder *enc)
+{
+   unsigned int size = 0;
+   bool is_h264 = u_reduce_video_profile(enc->base.profile)
+                             == PIPE_VIDEO_FORMAT_MPEG4_AVC;
+   bool is_av1 = u_reduce_video_profile(enc->base.profile)
+                             == PIPE_VIDEO_FORMAT_AV1;
+   bool has_b = enc->enc_pic.spec_misc.b_picture_enabled; /* for h264 only */
+
+   size = RENCODE_MAX_METADATA_BUFFER_SIZE_PER_FRAME;
+   if (is_h264) {
+      if (has_b) {
+         enc->enc_pic.fcb_offset.h264.colloc_buffer_offset = size;
+         size += enc->enc_pic.total_coloc_bytes;
+      } else
+         enc->enc_pic.fcb_offset.h264.colloc_buffer_offset =
+                                    RENCODE_INVALID_COLOC_OFFSET;
+   }
+
+   if (is_av1) {
+      enc->enc_pic.fcb_offset.av1.av1_cdf_frame_context_offset = size;
+      size += RENCODE_AV1_FRAME_CONTEXT_CDF_TABLE_SIZE;
+      enc->enc_pic.fcb_offset.av1.av1_cdef_algorithm_context_offset = size;
+      size += RENCODE_AV1_CDEF_ALGORITHM_FRAME_CONTEXT_SIZE;
+   }
+
+   size = align(size, enc->alignment);
+   return size;
+}
+
+void radeon_enc_create_dpb_aux_buffers(struct radeon_encoder *enc, struct radeon_enc_dpb_buffer *buf)
+{
+   if (buf->fcb)
+      return;
+
+   uint32_t fcb_size = radeon_enc_frame_context_buffer_size(enc);
+   uint32_t recon_size = enc->enc_pic.dpb_luma_size + enc->enc_pic.dpb_chroma_size;
+
+   buf->fcb = CALLOC_STRUCT(rvid_buffer);
+   if (!buf->fcb || !si_vid_create_buffer(enc->screen, buf->fcb, fcb_size, PIPE_USAGE_DEFAULT)) {
+      RVID_ERR("Can't create fcb buffer!\n");
+      return;
+   }
+
+   if (enc->enc_pic.quality_modes.pre_encode_mode) {
+      buf->pre = CALLOC_STRUCT(rvid_buffer);
+      if (!buf->pre || !si_vid_create_buffer(enc->screen, buf->pre, recon_size, PIPE_USAGE_DEFAULT)) {
+         RVID_ERR("Can't create preenc buffer!\n");
+         return;
+      }
+
+      buf->pre_fcb = CALLOC_STRUCT(rvid_buffer);
+      if (!buf->pre_fcb || !si_vid_create_buffer(enc->screen, buf->pre_fcb, fcb_size, PIPE_USAGE_DEFAULT)) {
+         RVID_ERR("Can't create preenc fcb buffer!\n");
+         return;
+      }
+   }
+}
+
+static void radeon_enc_destroy_dpb_buffer(void *data)
+{
+   struct radeon_enc_dpb_buffer *dpb = data;
+
+   RADEON_ENC_DESTROY_VIDEO_BUFFER(dpb->fcb);
+   RADEON_ENC_DESTROY_VIDEO_BUFFER(dpb->pre);
+   RADEON_ENC_DESTROY_VIDEO_BUFFER(dpb->pre_fcb);
+   FREE(dpb);
+}
+
+static struct pipe_video_buffer *radeon_enc_create_dpb_buffer(struct pipe_video_codec *encoder,
+                                                              struct pipe_picture_desc *picture,
+                                                              const struct pipe_video_buffer *templat)
+{
+   struct radeon_encoder *enc = (struct radeon_encoder *)encoder;
+
+   struct pipe_video_buffer *buf = enc->base.context->create_video_buffer(enc->base.context, templat);
+   if (!buf) {
+      RVID_ERR("Can't create dpb buffer!\n");
+      return NULL;
+   }
+
+   struct radeon_enc_dpb_buffer *dpb = CALLOC_STRUCT(radeon_enc_dpb_buffer);
+   dpb->luma = (struct si_texture *)((struct vl_video_buffer *)buf)->resources[0];
+   dpb->chroma = (struct si_texture *)((struct vl_video_buffer *)buf)->resources[1];
+
+   vl_video_buffer_set_associated_data(buf, &enc->base, dpb, &radeon_enc_destroy_dpb_buffer);
+
+   return buf;
+}
+
 struct pipe_video_codec *radeon_create_encoder(struct pipe_context *context,
                                                const struct pipe_video_codec *templ,
                                                struct radeon_winsys *ws,
@@ -1731,6 +1855,12 @@ struct pipe_video_codec *radeon_create_encoder(struct pipe_context *context,
    enc->enc_pic.use_rc_per_pic_ex = false;
 
    ac_vcn_enc_init_cmds(&enc->cmd, sscreen->info.vcn_ip_version);
+
+   if (sscreen->info.vcn_ip_version >= VCN_5_0_0)
+      enc->dpb_type = DPB_TIER_2;
+
+   if (enc->dpb_type == DPB_TIER_2)
+      enc->base.create_dpb_buffer = radeon_enc_create_dpb_buffer;
 
    if (sscreen->info.vcn_ip_version >= VCN_5_0_0) {
       radeon_enc_5_0_init(enc);

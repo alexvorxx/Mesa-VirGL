@@ -279,6 +279,102 @@ static void radeon_enc_ctx(struct radeon_encoder *enc)
    RADEON_ENC_END();
 }
 
+static void radeon_enc_ctx_tier2(struct radeon_encoder *enc)
+{
+   uint32_t num_refs = 0;
+   uint32_t swizzle_mode = radeon_enc_ref_swizzle_mode(enc);
+   bool is_h264 = u_reduce_video_profile(enc->base.profile)
+                             == PIPE_VIDEO_FORMAT_MPEG4_AVC;
+   bool is_av1 = u_reduce_video_profile(enc->base.profile)
+                             == PIPE_VIDEO_FORMAT_AV1;
+
+   for (uint32_t i = 0; i < RENCODE_MAX_NUM_RECONSTRUCTED_PICTURES; i++) {
+      if (enc->enc_pic.dpb_bufs[i]) {
+         radeon_enc_create_dpb_aux_buffers(enc, enc->enc_pic.dpb_bufs[i]);
+         num_refs = i + 1;
+      }
+   }
+
+   RADEON_ENC_BEGIN(enc->cmd.ctx);
+   if (enc->dpb->res) {
+      RADEON_ENC_READWRITE(enc->dpb->res->buf, enc->dpb->res->domains, 0);
+   } else {
+      RADEON_ENC_CS(0);
+      RADEON_ENC_CS(0);
+   }
+   RADEON_ENC_CS(num_refs);
+
+   for (uint32_t i = 0; i < RENCODE_MAX_NUM_RECONSTRUCTED_PICTURES; i++) {
+      if (!enc->enc_pic.dpb_bufs[i]) {
+         for (int j = 0; j < 15; j++)
+            RADEON_ENC_CS(0);
+         continue;
+      }
+      struct si_texture *luma = enc->enc_pic.dpb_bufs[i]->luma;
+      struct si_texture *chroma = enc->enc_pic.dpb_bufs[i]->chroma;
+      struct rvid_buffer *fcb = enc->enc_pic.dpb_bufs[i]->fcb;
+      RADEON_ENC_READWRITE(luma->buffer.buf, luma->buffer.domains, luma->surface.u.gfx9.surf_offset);
+      RADEON_ENC_CS(luma->surface.u.gfx9.surf_pitch);
+      RADEON_ENC_READWRITE(chroma->buffer.buf, chroma->buffer.domains, chroma->surface.u.gfx9.surf_offset);
+      RADEON_ENC_CS(chroma->surface.u.gfx9.surf_pitch);
+      RADEON_ENC_CS(0);
+      RADEON_ENC_CS(0);
+      RADEON_ENC_CS(0);
+      RADEON_ENC_CS(swizzle_mode);
+      RADEON_ENC_READWRITE(fcb->res->buf, fcb->res->domains, 0);
+      if (is_h264) {
+         RADEON_ENC_CS(enc->enc_pic.fcb_offset.h264.colloc_buffer_offset);
+         RADEON_ENC_CS(0);
+      } else if (is_av1) {
+         RADEON_ENC_CS(enc->enc_pic.fcb_offset.av1.av1_cdf_frame_context_offset);
+         RADEON_ENC_CS(enc->enc_pic.fcb_offset.av1.av1_cdef_algorithm_context_offset);
+      } else {
+         RADEON_ENC_CS(0);
+         RADEON_ENC_CS(0);
+      }
+      RADEON_ENC_CS(0);
+   }
+
+   /* pre-encoding */
+   for (uint32_t i = 0; i < RENCODE_MAX_NUM_RECONSTRUCTED_PICTURES; i++) {
+      if (!enc->enc_pic.quality_modes.pre_encode_mode || !enc->enc_pic.dpb_bufs[i]) {
+         for (int j = 0; j < 15; j++)
+            RADEON_ENC_CS(0);
+         continue;
+      }
+      struct rvid_buffer *pre = enc->enc_pic.dpb_bufs[i]->pre;
+      struct rvid_buffer *pre_fcb = enc->enc_pic.dpb_bufs[i]->fcb;
+      RADEON_ENC_READWRITE(pre->res->buf, pre->res->domains, 0);
+      RADEON_ENC_CS(enc->enc_pic.ctx_buf.rec_luma_pitch);
+      RADEON_ENC_READWRITE(pre->res->buf, pre->res->domains, enc->enc_pic.dpb_luma_size);
+      RADEON_ENC_CS(enc->enc_pic.ctx_buf.rec_chroma_pitch);
+      RADEON_ENC_CS(0);
+      RADEON_ENC_CS(0);
+      RADEON_ENC_CS(0);
+      RADEON_ENC_CS(swizzle_mode);
+      RADEON_ENC_READWRITE(pre_fcb->res->buf, pre_fcb->res->domains, 0);
+      if (is_h264) {
+         RADEON_ENC_CS(enc->enc_pic.fcb_offset.h264.colloc_buffer_offset);
+         RADEON_ENC_CS(0);
+      } else if (is_av1) {
+         RADEON_ENC_CS(enc->enc_pic.fcb_offset.av1.av1_cdf_frame_context_offset);
+         RADEON_ENC_CS(enc->enc_pic.fcb_offset.av1.av1_cdef_algorithm_context_offset);
+      } else {
+         RADEON_ENC_CS(0);
+         RADEON_ENC_CS(0);
+      }
+      RADEON_ENC_CS(0);
+   }
+
+   RADEON_ENC_CS(enc->enc_pic.ctx_buf.pre_encode_picture_luma_pitch);
+   RADEON_ENC_CS(enc->enc_pic.ctx_buf.pre_encode_picture_chroma_pitch);
+   RADEON_ENC_CS(enc->enc_pic.ctx_buf.pre_encode_input_picture.rgb.red_offset);
+   RADEON_ENC_CS(enc->enc_pic.ctx_buf.pre_encode_input_picture.rgb.green_offset);
+   RADEON_ENC_CS(enc->enc_pic.ctx_buf.pre_encode_input_picture.rgb.blue_offset);
+   RADEON_ENC_CS(enc->enc_pic.ctx_buf.av1.av1_sdb_intermediate_context_offset);
+   RADEON_ENC_END();
+}
+
 static void radeon_enc_ctx_override(struct radeon_encoder *enc)
 {
    RADEON_ENC_BEGIN(enc->cmd.ctx_override);
@@ -301,6 +397,9 @@ static void radeon_enc_ctx_override(struct radeon_encoder *enc)
 
 static void radeon_enc_metadata(struct radeon_encoder *enc)
 {
+   if (!enc->meta)
+      return;
+
    enc->enc_pic.metadata.two_pass_search_center_map_offset =
                enc->enc_pic.ctx_buf.two_pass_search_center_map_offset;
    RADEON_ENC_BEGIN(enc->cmd.metadata);
@@ -925,12 +1024,18 @@ void radeon_enc_5_0_init(struct radeon_encoder *enc)
    radeon_enc_4_0_init(enc);
 
    enc->session_init = radeon_enc_session_init;
-   enc->ctx = radeon_enc_ctx;
    enc->output_format = radeon_enc_output_format;
    enc->metadata = radeon_enc_metadata;
-   enc->ctx_override = radeon_enc_ctx_override;
    enc->encode_params = radeon_enc_encode_params;
    enc->rc_per_pic = radeon_enc_rc_per_pic;
+
+   if (enc->dpb_type == DPB_LEGACY) {
+      enc->ctx = radeon_enc_ctx;
+      enc->ctx_override = radeon_enc_ctx_override;
+   } else if (enc->dpb_type == DPB_TIER_2) {
+      enc->ctx = radeon_enc_ctx_tier2;
+      enc->ctx_override = radeon_enc_dummy;
+   }
 
    if (u_reduce_video_profile(enc->base.profile) == PIPE_VIDEO_FORMAT_MPEG4_AVC) {
       enc->spec_misc = radeon_enc_spec_misc;
