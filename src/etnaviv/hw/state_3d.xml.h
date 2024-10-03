@@ -8,15 +8,15 @@ http://0x04.net/cgit/index.cgi/rules-ng-ng
 git clone git://0x04.net/rules-ng-ng
 
 The rules-ng-ng source files this header was generated from are:
-- state.xml     (  30526 bytes, from 2024-06-12 08:52:00)
-- common.xml    (  35664 bytes, from 2024-04-10 11:43:40)
-- common_3d.xml (  15069 bytes, from 2024-04-10 11:43:40)
-- state_hi.xml  (  35854 bytes, from 2024-04-10 11:43:40)
-- copyright.xml (   1597 bytes, from 2016-11-10 13:58:32)
-- state_2d.xml  (  52271 bytes, from 2024-04-10 11:43:40)
-- state_3d.xml  (  89522 bytes, from 2024-04-10 11:43:40)
-- state_blt.xml (  14592 bytes, from 2024-04-10 11:43:40)
-- state_vg.xml  (   5975 bytes, from 2016-11-10 13:58:32)
+- state.xml     (  30526 bytes, from 2024-10-03 13:48:59)
+- common.xml    (  35664 bytes, from 2024-10-03 13:48:59)
+- common_3d.xml (  15069 bytes, from 2024-10-03 13:48:59)
+- state_hi.xml  (  35909 bytes, from 2024-10-03 13:48:59)
+- copyright.xml (   1597 bytes, from 2024-04-10 16:26:25)
+- state_2d.xml  (  52271 bytes, from 2024-04-10 16:26:25)
+- state_3d.xml  (  89542 bytes, from 2024-10-03 13:56:36)
+- state_blt.xml (  14592 bytes, from 2024-10-03 13:48:59)
+- state_vg.xml  (   5975 bytes, from 2024-04-10 16:26:25)
 
 Copyright (C) 2012-2024 by the following authors:
 - Wladimir J. van der Laan <laanwj@gmail.com>
@@ -136,9 +136,7 @@ DEALINGS IN THE SOFTWARE.
 #define RT_CONFIG_FORMAT__MASK					0x03f00000
 #define RT_CONFIG_FORMAT__SHIFT					20
 #define RT_CONFIG_FORMAT(x)					(((x) << RT_CONFIG_FORMAT__SHIFT) & RT_CONFIG_FORMAT__MASK)
-#define RT_CONFIG_TS_MODE__MASK					0x04000000
-#define RT_CONFIG_TS_MODE__SHIFT				26
-#define RT_CONFIG_TS_MODE(x)					(((x) << RT_CONFIG_TS_MODE__SHIFT) & RT_CONFIG_TS_MODE__MASK)
+#define RT_CONFIG_SUPER_TILED_NEW				0x04000000
 #define RT_CONFIG_UNK27						0x08000000
 #define RT_CONFIG_SUPER_TILED					0x10000000
 #define RT_CONFIG_UNK29						0x20000000
@@ -462,11 +460,11 @@ DEALINGS IN THE SOFTWARE.
 
 #define VIVS_CL_WORKGROUP_SIZE_Z				0x00000954
 
-#define VIVS_CL_HALTI5_UNK00958					0x00000958
+#define VIVS_CL_GLOBAL_SCALE_X					0x00000958
 
-#define VIVS_CL_HALTI5_UNK0095C					0x0000095c
+#define VIVS_CL_GLOBAL_SCALE_Y					0x0000095c
 
-#define VIVS_CL_HALTI5_UNK00960					0x00000960
+#define VIVS_CL_GLOBAL_SCALE_Z					0x00000960
 
 #define VIVS_PA							0x00000000
 
