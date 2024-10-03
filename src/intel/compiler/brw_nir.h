@@ -290,9 +290,6 @@ brw_nir_no_indirect_mask(const struct brw_compiler *compiler,
    return indirect_mask;
 }
 
-void
-brw_nir_printf(nir_builder *b, const char *fmt, ...);
-
 #ifdef __cplusplus
 }
 #endif
