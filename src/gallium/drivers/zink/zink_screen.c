@@ -2600,10 +2600,9 @@ zink_query_dmabuf_modifiers(struct pipe_screen *pscreen, enum pipe_format format
    const struct zink_modifier_props *props = zink_get_modifier_props(screen, format);
    *count = props->drmFormatModifierCount;
    for (int i = 0; i < MIN2(max, *count); i++) {
-      if (external_only)
-         external_only[i] = 0;
-
       modifiers[i] = props->pDrmFormatModifierProperties[i].drmFormatModifier;
+      if (external_only)
+         external_only[i] = !(props->pDrmFormatModifierProperties[i].drmFormatModifierTilingFeatures & VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT);
    }
 }
 
