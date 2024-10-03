@@ -4500,8 +4500,8 @@ get_variable_being_redeclared(ir_variable **var_ptr, YYLTYPE loc,
        * We don't really need to do anything here, just allow the
        * redeclaration. Any error on the gl_FragCoord is handled on the ast
        * level at apply_layout_qualifier_to_variable using the
-       * ast_type_qualifier and _mesa_glsl_parse_state, or later at
-       * linker.cpp.
+       * ast_type_qualifier and _mesa_glsl_parse_state, or later in the
+       * linker.
        */
       /* According to section 4.3.7 of the GLSL 1.30 spec,
        * the following built-in varaibles can be redeclared with an

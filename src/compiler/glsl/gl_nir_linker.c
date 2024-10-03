@@ -37,8 +37,7 @@
 #include "util/perf/cpu_trace.h"
 
 /**
- * This file included general link methods, using NIR, instead of IR as
- * the counter-part glsl/linker.cpp
+ * This file included general link methods, using NIR.
  */
 
 void

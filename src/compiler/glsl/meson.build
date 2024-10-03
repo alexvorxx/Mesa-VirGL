@@ -168,7 +168,6 @@ files_libglsl = files(
   'ir_variable_refcount.cpp',
   'ir_variable_refcount.h',
   'ir_visitor.h',
-  'linker.cpp',
   'linker_util.h',
   'linker_util.cpp',
   'list.h',
