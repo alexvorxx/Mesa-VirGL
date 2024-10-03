@@ -3726,6 +3726,17 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
          aco_ptr<Instruction> sop2;
          nir_const_value* const_bitmask = nir_src_as_const_value(instr->src[0].src);
          nir_const_value* const_insert = nir_src_as_const_value(instr->src[1].src);
+
+         if (const_bitmask && ctx->program->gfx_level >= GFX9 &&
+             (const_bitmask->u32 == 0xffff || const_bitmask->u32 == 0xffff0000)) {
+            if (const_bitmask->u32 == 0xffff) {
+               bld.sop2(aco_opcode::s_pack_lh_b32_b16, Definition(dst), insert, base);
+            } else {
+               bld.sop2(aco_opcode::s_pack_lh_b32_b16, Definition(dst), base, insert);
+            }
+            break;
+         }
+
          Operand lhs;
          if (const_insert && const_bitmask) {
             lhs = Operand::c32(const_insert->u32 & const_bitmask->u32);
