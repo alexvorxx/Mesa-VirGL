@@ -1671,8 +1671,6 @@ brw_postprocess_nir(nir_shader *nir, const struct brw_compiler *compiler,
 
    OPT(nir_opt_combine_barriers, combine_all_memory_barriers, NULL);
 
-   OPT(intel_nir_lower_printf);
-
    do {
       progress = false;
       OPT(nir_opt_algebraic_before_ffma);
@@ -1703,6 +1701,11 @@ brw_postprocess_nir(nir_shader *nir, const struct brw_compiler *compiler,
    }
 
    brw_vectorize_lower_mem_access(nir, compiler, robust_flags);
+
+   /* Needs to be prior int64 lower because it generates 64bit address
+    * manipulations
+    */
+   OPT(intel_nir_lower_printf);
 
    /* Potentially perform this optimization pass twice because it can create
     * additional opportunities for itself.
