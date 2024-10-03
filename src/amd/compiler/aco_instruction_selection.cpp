@@ -3605,16 +3605,23 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
    }
    case nir_op_shfr: {
       if (dst.regClass() == s1) {
-         Temp src = bld.pseudo(aco_opcode::p_create_vector, bld.def(s2),
-                               get_alu_src(ctx, instr->src[1]), get_alu_src(ctx, instr->src[0]));
+         Temp src0 = get_alu_src(ctx, instr->src[0]);
+         Temp src1 = get_alu_src(ctx, instr->src[1]);
 
          Temp amount;
          if (nir_src_is_const(instr->src[2].src)) {
-            amount = bld.copy(bld.def(s1), Operand::c32(nir_src_as_uint(instr->src[2].src) & 0x1f));
+            unsigned camount = nir_src_as_uint(instr->src[2].src) & 0x1f;
+            if (camount == 16 && ctx->program->gfx_level >= GFX11) {
+               bld.sop2(aco_opcode::s_pack_hl_b32_b16, Definition(dst), src1, src0);
+               break;
+            }
+            amount = bld.copy(bld.def(s1), Operand::c32(camount));
          } else {
             amount = bld.sop2(aco_opcode::s_and_b32, bld.def(s1), bld.def(s1, scc),
                               get_alu_src(ctx, instr->src[2]), Operand::c32(0x1f));
          }
+
+         Temp src = bld.pseudo(aco_opcode::p_create_vector, bld.def(s2), src1, src0);
 
          Temp res = bld.sop2(aco_opcode::s_lshr_b64, bld.def(s2), bld.def(s1, scc), src, amount);
          bld.pseudo(aco_opcode::p_extract_vector, Definition(dst), res, Operand::zero());
