@@ -2282,6 +2282,9 @@ void genX(CmdBeginTransformFeedbackEXT)(
                              "begin transform feedback");
    genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
 
+   struct mi_builder b;
+   mi_builder_init(&b, cmd_buffer->device->info, &cmd_buffer->batch);
+
    for (uint32_t idx = 0; idx < MAX_XFB_BUFFERS; idx++) {
       /* If we have a counter buffer, this is a resume so we need to load the
        * value into the streamout offset register.  Otherwise, this is a begin
@@ -2295,17 +2298,11 @@ void genX(CmdBeginTransformFeedbackEXT)(
          ANV_FROM_HANDLE(anv_buffer, counter_buffer, pCounterBuffers[cb_idx]);
          uint64_t offset = pCounterBufferOffsets ?
                            pCounterBufferOffsets[cb_idx] : 0;
-
-         anv_batch_emit(&cmd_buffer->batch, GENX(MI_LOAD_REGISTER_MEM), lrm) {
-            lrm.RegisterAddress  = GENX(SO_WRITE_OFFSET0_num) + idx * 4;
-            lrm.MemoryAddress    = anv_address_add(counter_buffer->address,
-                                                   offset);
-         }
+         mi_store(&b, mi_reg32(GENX(SO_WRITE_OFFSET0_num) + idx * 4),
+                  mi_mem32(anv_address_add(counter_buffer->address, offset)));
       } else {
-         anv_batch_emit(&cmd_buffer->batch, GENX(MI_LOAD_REGISTER_IMM), lri) {
-            lri.RegisterOffset   = GENX(SO_WRITE_OFFSET0_num) + idx * 4;
-            lri.DataDWord        = 0;
-         }
+         mi_store(&b, mi_reg32(GENX(SO_WRITE_OFFSET0_num) + idx * 4),
+                  mi_imm(0));
       }
    }
 
