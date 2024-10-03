@@ -1012,7 +1012,10 @@ hk_physical_device_init_pipeline_cache(struct hk_physical_device *pdev)
 
 #ifdef ENABLE_SHADER_CACHE
    char renderer[10];
-   ASSERTED int len = snprintf(renderer, sizeof(renderer), "hk_g13g_");
+   ASSERTED int len =
+      snprintf(renderer, sizeof(renderer), "HK_G%u%c_",
+               pdev->dev.params.gpu_generation, pdev->dev.params.gpu_variant);
+
    assert(len == sizeof(renderer) - 2);
 
    char timestamp[41];
