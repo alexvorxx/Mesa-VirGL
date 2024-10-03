@@ -397,6 +397,9 @@ create_variant(struct ir3_shader *shader, const struct ir3_shader_key *key,
       v->cs.force_linear_dispatch = shader->cs.force_linear_dispatch;
    }
 
+   struct ir3_const_state *const_state = ir3_const_state_mut(v);
+   const_state->num_app_ubos = MAX2(1, shader->nir->info.num_ubos);
+
    if (!compile_variant(shader, v))
       goto fail;
 

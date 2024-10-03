@@ -14,6 +14,28 @@
 #define emit_const_bo   fd6_emit_const_bo
 #include "ir3_const.h"
 
+static inline void
+fd6_emit_driver_ubo(struct fd_ringbuffer *ring, const struct ir3_shader_variant *v,
+                    int base, uint32_t sizedwords, unsigned buffer_offset,
+                    struct fd_bo *bo)
+{
+   enum a6xx_state_block block = fd6_stage2shadersb(v->type);
+
+   /* base == ubo idx */
+   OUT_PKT7(ring, fd6_stage2opcode(v->type), 5);
+   OUT_RING(ring, CP_LOAD_STATE6_0_DST_OFF(base) |
+            CP_LOAD_STATE6_0_STATE_TYPE(ST6_UBO) |
+            CP_LOAD_STATE6_0_STATE_SRC(SS6_DIRECT) |
+            CP_LOAD_STATE6_0_STATE_BLOCK(block) |
+            CP_LOAD_STATE6_0_NUM_UNIT(1));
+   OUT_RING(ring, CP_LOAD_STATE6_1_EXT_SRC_ADDR(0));
+   OUT_RING(ring, CP_LOAD_STATE6_2_EXT_SRC_ADDR_HI(0));
+
+   int size_vec4s = DIV_ROUND_UP(sizedwords, 4);
+   OUT_RELOC(ring, bo, buffer_offset,
+             ((uint64_t)A6XX_UBO_1_SIZE(size_vec4s) << 32), 0);
+}
+
 /* regid:          base const register
  * prsc or dwords: buffer containing constant values
  * sizedwords:     size of const value buffer
@@ -190,7 +212,7 @@ fd6_emit_ubos(const struct ir3_shader_variant *v, struct fd_ringbuffer *ring,
               struct fd_constbuf_stateobj *constbuf)
 {
    const struct ir3_const_state *const_state = ir3_const_state(v);
-   int num_ubos = const_state->num_ubos;
+   int num_ubos = const_state->num_app_ubos;
 
    if (!num_ubos)
       return;
@@ -205,14 +227,6 @@ fd6_emit_ubos(const struct ir3_shader_variant *v, struct fd_ringbuffer *ring,
    OUT_RING(ring, CP_LOAD_STATE6_2_EXT_SRC_ADDR_HI(0));
 
    for (int i = 0; i < num_ubos; i++) {
-      /* NIR constant data is packed into the end of the shader. */
-      if (i == const_state->consts_ubo.idx) {
-         int size_vec4s = DIV_ROUND_UP(v->constant_data_size, 16);
-         OUT_RELOC(ring, v->bo, v->info.constant_data_offset,
-                   (uint64_t)A6XX_UBO_1_SIZE(size_vec4s) << 32, 0);
-         continue;
-      }
-
       struct pipe_constant_buffer *cb = &constbuf->cb[i];
 
       if (cb->buffer) {
@@ -241,7 +255,7 @@ fd6_user_consts_cmdstream_size(const struct ir3_shader_variant *v)
 
    /* also account for UBO addresses: */
    packets += 1;
-   size += 2 * const_state->num_ubos;
+   size += 2 * const_state->num_app_ubos;
 
    unsigned sizedwords = (4 * packets) + size;
    return sizedwords * 4;
@@ -360,6 +374,15 @@ void
 fd6_emit_immediates(const struct ir3_shader_variant *v,
                     struct fd_ringbuffer *ring)
 {
+   const struct ir3_const_state *const_state = ir3_const_state(v);
+
+   if (const_state->consts_ubo.idx >= 0) {
+      int sizedwords = DIV_ROUND_UP(v->constant_data_size, 4);
+
+      fd6_emit_driver_ubo(ring, v, const_state->consts_ubo.idx, sizedwords,
+                          v->info.constant_data_offset, v->bo);
+   }
+
    ir3_emit_immediates(v, ring);
 }
 

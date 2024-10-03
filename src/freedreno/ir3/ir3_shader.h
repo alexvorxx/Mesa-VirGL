@@ -215,6 +215,7 @@ struct ir3_driver_ubo {
  */
 struct ir3_const_state {
    unsigned num_ubos;
+   unsigned num_app_ubos;      /* # of UBOs not including driver UBOs */
    unsigned num_driver_params; /* scalar */
 
    struct ir3_driver_ubo consts_ubo;
