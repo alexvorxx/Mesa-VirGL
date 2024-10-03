@@ -52,6 +52,7 @@ static const struct vk_instance_extension_table panvk_instance_extensions = {
    .KHR_device_group_creation = true,
    .KHR_external_memory_capabilities = true,
    .KHR_external_semaphore_capabilities = true,
+   .KHR_external_fence_capabilities = true,
    .KHR_get_physical_device_properties2 = true,
 #ifdef PANVK_USE_WSI_PLATFORM
    .KHR_surface = true,
