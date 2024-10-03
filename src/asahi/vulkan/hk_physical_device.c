@@ -732,9 +732,8 @@ hk_get_device_properties(const struct agx_device *dev,
 
       /* Vulkan 1.1 properties */
       .subgroupSize = 32,
-      .subgroupSupportedStages = VK_SHADER_STAGE_COMPUTE_BIT |
-                                 VK_SHADER_STAGE_FRAGMENT_BIT |
-                                 VK_SHADER_STAGE_VERTEX_BIT,
+      .subgroupSupportedStages =
+         VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_ALL_GRAPHICS,
       .subgroupSupportedOperations =
          VK_SUBGROUP_FEATURE_BASIC_BIT | VK_SUBGROUP_FEATURE_BALLOT_BIT |
          VK_SUBGROUP_FEATURE_VOTE_BIT | VK_SUBGROUP_FEATURE_QUAD_BIT |
