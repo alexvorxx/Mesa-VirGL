@@ -8,7 +8,6 @@
 #include <errno.h>
 
 #include "util/log.h"
-#include "util/u_math.h"
 
 static bool GetRingParamsFromCapset(enum VirtGpuCapset capset, const VirtGpuCaps& caps,
                                     uint32_t& ringSize, uint32_t& bufferSize,
@@ -93,7 +92,7 @@ AddressSpaceStream* createVirtioGpuAddressSpaceStream(enum VirtGpuCapset capset)
     blobCreate.blobId = 0;
     blobCreate.blobMem = kBlobMemHost3d;
     blobCreate.flags = kBlobFlagMappable;
-    blobCreate.size = ALIGN(ringSize + bufferSize, blobAlignment);
+    blobCreate.size = ALIGN_POT(ringSize + bufferSize, blobAlignment);
     blob = instance->createBlob(blobCreate);
     if (!blob)
         return nullptr;

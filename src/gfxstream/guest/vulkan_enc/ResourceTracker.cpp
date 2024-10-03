@@ -13,7 +13,6 @@
 #include "gfxstream_vk_private.h"
 #include "goldfish_address_space.h"
 #include "goldfish_vk_private_defs.h"
-#include "util.h"
 #include "util/macros.h"
 #include "virtgpu_gfxstream_protocol.h"
 #include "vulkan/vulkan_core.h"
@@ -3020,13 +3019,14 @@ VkResult ResourceTracker::allocateCoherentMemory(VkDevice device,
 
     if (mCaps.vulkanCapset.deferredMapping || mCaps.params[kParamCreateGuestHandle]) {
         hostAllocationInfo.allocationSize =
-            ALIGN(pAllocateInfo->allocationSize, mCaps.vulkanCapset.blobAlignment);
+            ALIGN_POT(pAllocateInfo->allocationSize, mCaps.vulkanCapset.blobAlignment);
     } else if (dedicated) {
         // Over-aligning to kLargestSize to some Windows drivers (b:152769369).  Can likely
         // have host report the desired alignment.
-        hostAllocationInfo.allocationSize = ALIGN(pAllocateInfo->allocationSize, kLargestPageSize);
+        hostAllocationInfo.allocationSize =
+            ALIGN_POT(pAllocateInfo->allocationSize, kLargestPageSize);
     } else {
-        VkDeviceSize roundedUpAllocSize = ALIGN(pAllocateInfo->allocationSize, kMegaByte);
+        VkDeviceSize roundedUpAllocSize = ALIGN_POT(pAllocateInfo->allocationSize, kMegaByte);
         hostAllocationInfo.allocationSize = std::max(roundedUpAllocSize, kDefaultHostMemBlockSize);
     }
 

@@ -11,7 +11,6 @@
 #include <unistd.h>
 
 #include "VirtGpu.h"
-#include "util.h"
 #include "util/log.h"
 #include "util/perf/cpu_trace.h"
 #include "virtgpu_gfxstream_protocol.h"
