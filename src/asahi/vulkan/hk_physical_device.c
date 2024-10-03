@@ -858,7 +858,7 @@ hk_get_device_properties(const struct agx_device *dev,
       /* VK_KHR_maintenance6 */
       .blockTexelViewCompatibleMultipleLayers = false,
       .maxCombinedImageSamplerDescriptorCount = 3,
-      .fragmentShadingRateClampCombinerInputs = false, /* TODO */
+      .fragmentShadingRateClampCombinerInputs = false,
 
       /* VK_EXT_map_memory_placed */
       .minPlacedMemoryMapAlignment = os_page_size,
