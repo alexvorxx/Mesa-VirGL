@@ -959,6 +959,9 @@ fd6_emit_static_regs(struct fd_context *ctx, struct fd_ringbuffer *ring)
 
    OUT_REG(ring, PC_RASTER_CNTL(CHIP));
 
+   if (CHIP == A7XX)
+      OUT_REG(ring, A7XX_PC_RASTER_CNTL_V2());
+
    WRITE(REG_A6XX_PC_MULTIVIEW_CNTL, 0);
 
    WRITE(REG_A6XX_SP_UNKNOWN_B183, 0);

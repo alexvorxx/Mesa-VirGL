@@ -251,9 +251,12 @@ fd6_build_bindless_state(struct fd_context *ctx, enum pipe_shader_type shader,
       OUT_REG(ring, SP_CS_BINDLESS_BASE_DESCRIPTOR(CHIP,
             idx, .desc_size = BINDLESS_DESCRIPTOR_64B, .bo = set->bo,
       ));
-      OUT_REG(ring, A6XX_HLSQ_CS_BINDLESS_BASE_DESCRIPTOR(
-            idx, .desc_size = BINDLESS_DESCRIPTOR_64B, .bo = set->bo,
-      ));
+
+      if (CHIP == A6XX) {
+         OUT_REG(ring, A6XX_HLSQ_CS_BINDLESS_BASE_DESCRIPTOR(
+               idx, .desc_size = BINDLESS_DESCRIPTOR_64B, .bo = set->bo,
+         ));
+      }
 
       if (bufso->enabled_mask) {
          OUT_PKT(ring, CP_LOAD_STATE6_FRAG,

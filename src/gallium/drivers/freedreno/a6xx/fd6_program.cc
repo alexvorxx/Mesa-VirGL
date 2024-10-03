@@ -592,10 +592,12 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
       uint16_t reg_sp_xs_vpc_dst_reg;
       uint16_t reg_vpc_xs_pack;
       uint16_t reg_vpc_xs_clip_cntl;
+      uint16_t reg_vpc_xs_clip_cntl_v2;
       uint16_t reg_gras_xs_cl_cntl;
       uint16_t reg_pc_xs_out_cntl;
       uint16_t reg_sp_xs_primitive_cntl;
       uint16_t reg_vpc_xs_layer_cntl;
+      uint16_t reg_vpc_xs_layer_cntl_v2;
       uint16_t reg_gras_xs_layer_cntl;
    } reg_config[] = {
       [MESA_SHADER_VERTEX] = {
@@ -603,10 +605,12 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
          REG_A6XX_SP_VS_VPC_DST_REG(0),
          REG_A6XX_VPC_VS_PACK,
          REG_A6XX_VPC_VS_CLIP_CNTL,
+         REG_A6XX_VPC_VS_CLIP_CNTL_V2,
          REG_A6XX_GRAS_VS_CL_CNTL,
          REG_A6XX_PC_VS_OUT_CNTL,
          REG_A6XX_SP_VS_PRIMITIVE_CNTL,
          REG_A6XX_VPC_VS_LAYER_CNTL,
+         REG_A6XX_VPC_VS_LAYER_CNTL_V2,
          REG_A6XX_GRAS_VS_LAYER_CNTL
       },
       [MESA_SHADER_TESS_CTRL] = {
@@ -615,7 +619,9 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
          0,
          0,
          0,
+         0,
          REG_A6XX_PC_HS_OUT_CNTL,
+         0,
          0,
          0,
          0
@@ -625,10 +631,12 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
          REG_A6XX_SP_DS_VPC_DST_REG(0),
          REG_A6XX_VPC_DS_PACK,
          REG_A6XX_VPC_DS_CLIP_CNTL,
+         REG_A6XX_VPC_DS_CLIP_CNTL_V2,
          REG_A6XX_GRAS_DS_CL_CNTL,
          REG_A6XX_PC_DS_OUT_CNTL,
          REG_A6XX_SP_DS_PRIMITIVE_CNTL,
          REG_A6XX_VPC_DS_LAYER_CNTL,
+         REG_A6XX_VPC_DS_LAYER_CNTL_V2,
          REG_A6XX_GRAS_DS_LAYER_CNTL
       },
       [MESA_SHADER_GEOMETRY] = {
@@ -636,10 +644,12 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
          REG_A6XX_SP_GS_VPC_DST_REG(0),
          REG_A6XX_VPC_GS_PACK,
          REG_A6XX_VPC_GS_CLIP_CNTL,
+         REG_A6XX_VPC_GS_CLIP_CNTL_V2,
          REG_A6XX_GRAS_GS_CL_CNTL,
          REG_A6XX_PC_GS_OUT_CNTL,
          REG_A6XX_SP_GS_PRIMITIVE_CNTL,
          REG_A6XX_VPC_GS_LAYER_CNTL,
+         REG_A6XX_VPC_GS_LAYER_CNTL_V2,
          REG_A6XX_GRAS_GS_LAYER_CNTL
       },
    };
@@ -783,6 +793,11 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
                   A6XX_VPC_VS_CLIP_CNTL_CLIP_DIST_03_LOC(clip0_loc) |
                   A6XX_VPC_VS_CLIP_CNTL_CLIP_DIST_47_LOC(clip1_loc));
 
+   OUT_PKT4(ring, cfg->reg_vpc_xs_clip_cntl_v2, 1);
+   OUT_RING(ring, A6XX_VPC_VS_CLIP_CNTL_CLIP_MASK(clip_cull_mask) |
+                  A6XX_VPC_VS_CLIP_CNTL_CLIP_DIST_03_LOC(clip0_loc) |
+                  A6XX_VPC_VS_CLIP_CNTL_CLIP_DIST_47_LOC(clip1_loc));
+
    OUT_PKT4(ring, cfg->reg_gras_xs_cl_cntl, 1);
    OUT_RING(ring, A6XX_GRAS_VS_CL_CNTL_CLIP_MASK(clip_mask) |
                   A6XX_GRAS_VS_CL_CNTL_CULL_MASK(cull_mask));
@@ -820,7 +835,13 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
 
    OUT_PKT4(ring, cfg->reg_vpc_xs_layer_cntl, 1);
    OUT_RING(ring, A6XX_VPC_VS_LAYER_CNTL_LAYERLOC(layer_loc) |
-                  A6XX_VPC_VS_LAYER_CNTL_VIEWLOC(view_loc));
+                  A6XX_VPC_VS_LAYER_CNTL_VIEWLOC(view_loc) |
+                  A6XX_VPC_VS_LAYER_CNTL_SHADINGRATELOC(0xff));
+
+   OUT_PKT4(ring, cfg->reg_vpc_xs_layer_cntl_v2, 1);
+   OUT_RING(ring, A6XX_VPC_VS_LAYER_CNTL_LAYERLOC(layer_loc) |
+                  A6XX_VPC_VS_LAYER_CNTL_VIEWLOC(view_loc) |
+                  A6XX_VPC_VS_LAYER_CNTL_SHADINGRATELOC(0xff));
 
    OUT_PKT4(ring, cfg->reg_gras_xs_layer_cntl, 1);
    OUT_RING(ring, CONDREG(layer_regid, A6XX_GRAS_GS_LAYER_CNTL_WRITES_LAYER) |
@@ -884,8 +905,10 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
          OUT_RING(ring, 0xff);
       }
 
-      OUT_PKT4(ring, REG_A6XX_PC_PRIMITIVE_CNTL_6, 1);
-      OUT_RING(ring, A6XX_PC_PRIMITIVE_CNTL_6_STRIDE_IN_VPC(vec4_size));
+      if (CHIP == A6XX) {
+         OUT_PKT4(ring, REG_A6XX_PC_PRIMITIVE_CNTL_6, 1);
+         OUT_RING(ring, A6XX_PC_PRIMITIVE_CNTL_6_STRIDE_IN_VPC(vec4_size));
+      }
 
       uint32_t prim_size = prev_stage_output_size;
       if (prim_size > 64)
