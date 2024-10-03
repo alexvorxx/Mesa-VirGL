@@ -4749,56 +4749,6 @@ try_rebuild_source(nir_to_brw_state &ntb, const brw::fs_builder &bld,
       return brw_reg();
    resources.array.push_back(resource_def);
 
-   if (resources.array.size() == 1 &&
-       resources.array[0]->num_components == 1) {
-      nir_def *def = resources.array[0];
-
-      if (def->parent_instr->type == nir_instr_type_load_const) {
-         nir_load_const_instr *load_const =
-            nir_instr_as_load_const(def->parent_instr);
-         return brw_imm_ud(load_const->value[0].i32);
-      } else {
-         nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(def->parent_instr);
-         switch (intrin->intrinsic) {
-         case nir_intrinsic_load_uniform: {
-            unsigned base_offset = nir_intrinsic_base(intrin);
-            unsigned load_offset = nir_src_as_uint(intrin->src[0]);
-            brw_reg src = brw_uniform_reg(base_offset / 4,
-                                          brw_type_with_size(BRW_TYPE_D, intrin->def.bit_size));
-            src.offset = load_offset + base_offset % 4;
-            return src;
-         }
-
-         case nir_intrinsic_load_mesh_inline_data_intel: {
-            assert(ntb.s.stage == MESA_SHADER_MESH ||
-                   ntb.s.stage == MESA_SHADER_TASK);
-            const task_mesh_thread_payload &payload = ntb.s.task_mesh_payload();
-            brw_reg data = offset(payload.inline_parameter, 1,
-                                  nir_intrinsic_align_offset(intrin));
-            return retype(data, brw_type_with_size(BRW_TYPE_D, intrin->def.bit_size));
-         }
-
-         case nir_intrinsic_load_btd_local_arg_addr_intel: {
-            assert(brw_shader_stage_is_bindless(ntb.s.stage));
-            const bs_thread_payload &payload = ntb.s.bs_payload();
-            return retype(payload.local_arg_ptr, BRW_TYPE_Q);
-         }
-
-         case nir_intrinsic_load_btd_global_arg_addr_intel: {
-            assert(brw_shader_stage_is_bindless(ntb.s.stage));
-            const bs_thread_payload &payload = ntb.s.bs_payload();
-            return retype(payload.global_arg_ptr, BRW_TYPE_Q);
-         }
-
-         default:
-            /* Execute the code below, since we have to generate new
-             * instructions.
-             */
-            break;
-         }
-      }
-   }
-
 #if 0
    fprintf(stderr, "Trying remat :\n");
    for (unsigned i = 0; i < resources.array.size(); i++) {
