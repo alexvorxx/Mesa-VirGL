@@ -186,11 +186,10 @@ VkResult panvk_per_arch(link_shaders)(struct panvk_pool *desc_pool,
                                       struct panvk_shader_link *link);
 
 static inline void
-panvk_shader_link_cleanup(struct panvk_pool *desc_pool,
-                          struct panvk_shader_link *link)
+panvk_shader_link_cleanup(struct panvk_shader_link *link)
 {
-   panvk_pool_free_mem(desc_pool, link->vs.attribs);
-   panvk_pool_free_mem(desc_pool, link->fs.attribs);
+   panvk_pool_free_mem(&link->vs.attribs);
+   panvk_pool_free_mem(&link->fs.attribs);
 }
 
 bool panvk_per_arch(nir_lower_descriptors)(

@@ -769,18 +769,18 @@ panvk_shader_destroy(struct vk_device *vk_dev, struct vk_shader *vk_shader,
    free((void *)shader->asm_str);
    ralloc_free((void *)shader->nir_str);
 
-   panvk_pool_free_mem(&dev->mempools.exec, shader->code_mem);
+   panvk_pool_free_mem(&shader->code_mem);
 
 #if PAN_ARCH <= 7
-   panvk_pool_free_mem(&dev->mempools.exec, shader->rsd);
-   panvk_pool_free_mem(&dev->mempools.exec, shader->desc_info.others.map);
+   panvk_pool_free_mem(&shader->rsd);
+   panvk_pool_free_mem(&shader->desc_info.others.map);
 #else
    if (shader->info.stage != MESA_SHADER_VERTEX) {
-      panvk_pool_free_mem(&dev->mempools.exec, shader->spd);
+      panvk_pool_free_mem(&shader->spd);
    } else {
-      panvk_pool_free_mem(&dev->mempools.exec, shader->spds.var);
-      panvk_pool_free_mem(&dev->mempools.exec, shader->spds.pos_points);
-      panvk_pool_free_mem(&dev->mempools.exec, shader->spds.pos_triangles);
+      panvk_pool_free_mem(&shader->spds.var);
+      panvk_pool_free_mem(&shader->spds.pos_points);
+      panvk_pool_free_mem(&shader->spds.pos_triangles);
    }
 #endif
 
@@ -1455,12 +1455,12 @@ panvk_internal_shader_destroy(struct vk_device *vk_dev,
    struct panvk_internal_shader *shader =
       container_of(vk_shader, struct panvk_internal_shader, vk);
 
-   panvk_pool_free_mem(&dev->mempools.exec, shader->code_mem);
+   panvk_pool_free_mem(&shader->code_mem);
 
 #if PAN_ARCH <= 7
-   panvk_pool_free_mem(&dev->mempools.exec, shader->rsd);
+   panvk_pool_free_mem(&shader->rsd);
 #else
-   panvk_pool_free_mem(&dev->mempools.exec, shader->spd);
+   panvk_pool_free_mem(&shader->spd);
 #endif
 
    vk_shader_free(&dev->vk, pAllocator, &shader->vk);

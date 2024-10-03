@@ -143,8 +143,16 @@ panvk_pool_alloc_mem(struct panvk_pool *pool, struct panvk_pool_alloc_info info)
          panvk_priv_bo_ref(bo);
    }
 
+   uint32_t flags = 0;
+
+   if (pool->props.owns_bos)
+      flags |= PANVK_PRIV_MEM_OWNED_BY_POOL;
+
+   assert(!((uintptr_t)bo & 7));
+   assert(!(flags & ~7));
+
    struct panvk_priv_mem ret = {
-      .bo = bo,
+      .bo = (uintptr_t)bo | flags,
       .offset = offset,
    };
 

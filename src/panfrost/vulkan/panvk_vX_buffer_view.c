@@ -153,6 +153,6 @@ panvk_per_arch(DestroyBufferView)(VkDevice _device, VkBufferView bufferView,
    if (!view)
       return;
 
-   panvk_pool_free_mem(&device->mempools.rw, view->mem);
+   panvk_pool_free_mem(&view->mem);
    vk_buffer_view_destroy(&device->vk, pAllocator, &view->vk);
 }

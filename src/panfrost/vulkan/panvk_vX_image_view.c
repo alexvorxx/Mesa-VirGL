@@ -279,6 +279,6 @@ panvk_per_arch(DestroyImageView)(VkDevice _device, VkImageView _view,
    if (!view)
       return;
 
-   panvk_pool_free_mem(&device->mempools.rw, view->mem);
+   panvk_pool_free_mem(&view->mem);
    vk_image_view_destroy(&device->vk, pAllocator, &view->vk);
 }

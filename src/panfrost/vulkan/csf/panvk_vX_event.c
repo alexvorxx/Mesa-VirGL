@@ -51,7 +51,7 @@ panvk_per_arch(DestroyEvent)(VkDevice _device, VkEvent _event,
    if (!event)
       return;
 
-   panvk_pool_free_mem(&device->mempools.rw_nc, event->syncobjs);
+   panvk_pool_free_mem(&event->syncobjs);
 
    vk_object_free(&device->vk, pAllocator, event);
 }

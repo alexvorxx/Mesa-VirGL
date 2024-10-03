@@ -22,7 +22,7 @@ finish_render_desc_ringbuf(struct panvk_queue *queue)
    struct panvk_device *dev = to_panvk_device(queue->vk.base.device);
    struct panvk_desc_ringbuf *ringbuf = &queue->render_desc_ringbuf;
 
-   panvk_pool_free_mem(&dev->mempools.rw, ringbuf->syncobj);
+   panvk_pool_free_mem(&ringbuf->syncobj);
 
    if (dev->debug.decode_ctx && ringbuf->addr.dev) {
       pandecode_inject_free(dev->debug.decode_ctx, ringbuf->addr.dev,
@@ -303,15 +303,13 @@ init_subqueue(struct panvk_queue *queue, enum panvk_subqueue_id subqueue)
 static void
 cleanup_queue(struct panvk_queue *queue)
 {
-   struct panvk_device *dev = to_panvk_device(queue->vk.base.device);
-
    for (uint32_t i = 0; i < PANVK_SUBQUEUE_COUNT; i++)
-      panvk_pool_free_mem(&dev->mempools.rw, queue->subqueues[i].context);
+      panvk_pool_free_mem(&queue->subqueues[i].context);
 
    finish_render_desc_ringbuf(queue);
 
-   panvk_pool_free_mem(&dev->mempools.rw, queue->debug_syncobjs);
-   panvk_pool_free_mem(&dev->mempools.rw, queue->syncobjs);
+   panvk_pool_free_mem(&queue->debug_syncobjs);
+   panvk_pool_free_mem(&queue->syncobjs);
 }
 
 static VkResult
@@ -475,7 +473,7 @@ init_tiler(struct panvk_queue *queue)
    return VK_SUCCESS;
 
 err_free_desc:
-   panvk_pool_free_mem(&dev->mempools.rw, tiler_heap->desc);
+   panvk_pool_free_mem(&tiler_heap->desc);
    return result;
 }
 
@@ -491,7 +489,7 @@ cleanup_tiler(struct panvk_queue *queue)
       drmIoctl(dev->vk.drm_fd, DRM_IOCTL_PANTHOR_TILER_HEAP_DESTROY, &thd);
    assert(!ret);
 
-   panvk_pool_free_mem(&dev->mempools.rw, tiler_heap->desc);
+   panvk_pool_free_mem(&tiler_heap->desc);
 }
 
 static VkResult
