@@ -107,7 +107,6 @@ struct fd_ringbuffer *
 fd6_build_tess_consts(struct fd6_emit *emit)
 {
    struct fd_context *ctx = emit->ctx;
-
    struct fd_ringbuffer *constobj = fd_submit_new_ringbuffer(
       ctx->batch->submit, 0x1000, FD_RINGBUFFER_STREAMING);
 
@@ -126,10 +125,22 @@ fd6_build_tess_consts(struct fd6_emit *emit)
    emit_stage_tess_consts(constobj, emit->vs, vs_params, ARRAY_SIZE(vs_params));
 
    if (emit->hs) {
-      uint32_t hs_params[4] = {
+      struct fd_bo *tess_bo = ctx->screen->tess_bo;
+      int64_t tess_factor_iova = fd_bo_get_iova(tess_bo);
+      int64_t tess_param_iova = tess_factor_iova + FD6_TESS_FACTOR_SIZE;
+
+      fd_ringbuffer_attach_bo(constobj, tess_bo);
+
+      uint32_t hs_params[8] = {
          emit->vs->output_size * num_vertices * 4, /* vs primitive stride */
          emit->vs->output_size * 4,                /* vs vertex stride */
-         emit->hs->output_size, ctx->patch_vertices};
+         emit->hs->output_size,
+         ctx->patch_vertices,
+         tess_param_iova,
+         tess_param_iova >> 32,
+         tess_factor_iova,
+         tess_factor_iova >> 32,
+      };
 
       emit_stage_tess_consts(constobj, emit->hs, hs_params,
                              ARRAY_SIZE(hs_params));
@@ -137,11 +148,16 @@ fd6_build_tess_consts(struct fd6_emit *emit)
       if (emit->gs)
          num_vertices = emit->gs->gs.vertices_in;
 
-      uint32_t ds_params[4] = {
+      uint32_t ds_params[8] = {
          emit->ds->output_size * num_vertices * 4, /* ds primitive stride */
          emit->ds->output_size * 4,                /* ds vertex stride */
-         emit->hs->output_size, /* hs vertex stride (dwords) */
-         emit->hs->tess.tcs_vertices_out};
+         emit->hs->output_size,                    /* hs vertex stride (dwords) */
+         emit->hs->tess.tcs_vertices_out,
+         tess_param_iova,
+         tess_param_iova >> 32,
+         tess_factor_iova,
+         tess_factor_iova >> 32,
+      };
 
       emit_stage_tess_consts(constobj, emit->ds, ds_params,
                              ARRAY_SIZE(ds_params));

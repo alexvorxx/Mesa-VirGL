@@ -466,31 +466,6 @@ next_regid(uint32_t reg, uint32_t increment)
       return regid(63, 0);
 }
 
-static void
-fd6_emit_tess_bos(struct fd_screen *screen, struct fd_ringbuffer *ring,
-                  const struct ir3_shader_variant *s) assert_dt
-{
-   const struct ir3_const_state *const_state = ir3_const_state(s);
-   const unsigned regid = const_state->offsets.primitive_param + 1;
-   uint32_t dwords = 8;
-
-   if (regid >= s->constlen)
-      return;
-
-   fd_ringbuffer_attach_bo(ring, screen->tess_bo);
-
-   OUT_PKT7(ring, fd6_stage2opcode(s->type), 7);
-   OUT_RING(ring, CP_LOAD_STATE6_0_DST_OFF(regid) |
-                     CP_LOAD_STATE6_0_STATE_TYPE(ST6_CONSTANTS) |
-                     CP_LOAD_STATE6_0_STATE_SRC(SS6_DIRECT) |
-                     CP_LOAD_STATE6_0_STATE_BLOCK(fd6_stage2shadersb(s->type)) |
-                     CP_LOAD_STATE6_0_NUM_UNIT(dwords / 4));
-   OUT_RING(ring, 0);
-   OUT_RING(ring, 0);
-   OUT_RELOC(ring, screen->tess_bo, FD6_TESS_FACTOR_SIZE, 0, 0);
-   OUT_RELOC(ring, screen->tess_bo, 0, 0, 0);
-}
-
 static enum a6xx_tess_output
 primitive_to_tess(enum mesa_prim primitive)
 {
@@ -1190,11 +1165,6 @@ setup_stateobj(struct fd_ringbuffer *ring, const struct program_builder *b)
 
    emit_fs_inputs<CHIP>(ring, b);
    emit_fs_outputs(ring, b);
-
-   if (b->hs) {
-      fd6_emit_tess_bos(b->ctx->screen, ring, b->hs);
-      fd6_emit_tess_bos(b->ctx->screen, ring, b->ds);
-   }
 
    if (b->hs) {
       uint32_t patch_control_points = b->key->patch_vertices;
