@@ -970,15 +970,17 @@ prepare_vs(struct panvk_cmd_buffer *cmdbuf)
 static VkResult
 prepare_fs(struct panvk_cmd_buffer *cmdbuf)
 {
-   const struct panvk_shader *fs = cmdbuf->state.gfx.fs.shader;
+   const struct panvk_shader *fs =
+      fs_required(cmdbuf) ? cmdbuf->state.gfx.fs.shader : NULL;
    struct panvk_shader_desc_state *fs_desc_state = &cmdbuf->state.gfx.fs.desc;
    struct panvk_descriptor_state *desc_state = &cmdbuf->state.gfx.desc_state;
    struct cs_builder *b =
       panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
-   mali_ptr frag_spd = panvk_priv_mem_dev_addr(fs->spd);
+   mali_ptr frag_spd = fs ? panvk_priv_mem_dev_addr(fs->spd) : 0;
    bool upd_res_table = false;
 
-   if (!fs_desc_state->res_table) {
+   /* No need to setup the FS desc tables if the FS is not executed. */
+   if (fs && !fs_desc_state->res_table) {
       VkResult result = prepare_fs_driver_set(cmdbuf);
       if (result != VK_SUCCESS)
          return result;
@@ -990,6 +992,12 @@ prepare_fs(struct panvk_cmd_buffer *cmdbuf)
 
       upd_res_table = true;
    }
+
+   /* If this is the first time we execute a RUN_IDVS, and no fragment
+    * shader is required, we still force an update of the make sure we don't
+    * inherit the value set by a previous command buffer. */
+   if (!fs_desc_state->res_table && !fs)
+      upd_res_table = true;
 
    cs_update_vt_ctx(b) {
       if (upd_res_table)
@@ -1249,7 +1257,8 @@ static void
 clear_dirty(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
 {
    const struct panvk_shader *vs = cmdbuf->state.gfx.vs.shader;
-   const struct panvk_shader *fs = cmdbuf->state.gfx.fs.shader;
+   const struct panvk_shader *fs =
+      fs_required(cmdbuf) ? cmdbuf->state.gfx.fs.shader : NULL;
 
    if (vs) {
       const struct vk_input_assembly_state *ia =
@@ -1364,12 +1373,9 @@ prepare_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    if (result != VK_SUCCESS)
       return result;
 
-   /* No need to setup the FS desc tables if the FS is not executed. */
-   if (fs_required(cmdbuf)) {
-      result = prepare_fs(cmdbuf);
-      if (result != VK_SUCCESS)
-         return result;
-   }
+   result = prepare_fs(cmdbuf);
+   if (result != VK_SUCCESS)
+      return result;
 
    uint32_t varying_size = 0;
 
