@@ -1868,7 +1868,7 @@ nvk_flush_rs_state(struct nvk_cmd_buffer *cmd)
       const bool z_clip = vk_rasterization_state_depth_clip_enable(&dyn->rs);
       P_IMMD(p, NVC397, SET_VIEWPORT_CLIP_CONTROL, {
          /* We only set Z clip range if clamp is requested.  Otherwise, we
-          * leave it set to -/+INF and clamp using the guardband below.
+          * leave it set to -/+INF and clip using the guardband below.
           */
          .min_z_zero_max_z_one = MIN_Z_ZERO_MAX_Z_ONE_FALSE,
          .z_clip_range = nvk_cmd_buffer_3d_cls(cmd) >= VOLTA_A
