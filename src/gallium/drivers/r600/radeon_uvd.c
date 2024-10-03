@@ -1006,9 +1006,9 @@ static void ruvd_flush(struct pipe_video_codec *decoder)
 {
 }
 
-static int ruvd_get_decoder_fence(struct pipe_video_codec *decoder,
-                                  struct pipe_fence_handle *fence,
-                                  uint64_t timeout) {
+static int ruvd_fence_wait(struct pipe_video_codec *decoder,
+                           struct pipe_fence_handle *fence,
+                           uint64_t timeout) {
 
   struct ruvd_decoder *dec = (struct ruvd_decoder *)decoder;
   return dec->ws->fence_wait(dec->ws, fence, timeout);
@@ -1070,7 +1070,8 @@ struct pipe_video_codec *ruvd_create_decoder(struct pipe_context *context,
 	dec->base.decode_bitstream = ruvd_decode_bitstream;
 	dec->base.end_frame = ruvd_end_frame;
 	dec->base.flush = ruvd_flush;
-	dec->base.get_decoder_fence = ruvd_get_decoder_fence;
+	dec->base.get_decoder_fence = ruvd_fence_wait;
+	dec->base.fence_wait = ruvd_fence_wait;
 
 	dec->stream_type = profile2stream_type(dec, info.family);
 	dec->set_dtb = set_dtb;
