@@ -357,9 +357,6 @@ VAStatus vlVaHandleVAEncPictureParameterBufferTypeAV1(vlVaDriver *drv, vlVaConte
 
    context->desc.av1enc.ref_frame_ctrl_l0 = av1->ref_frame_ctrl_l0.value;
 
-   for (int i = 0 ; i < ARRAY_SIZE(av1->ref_frame_idx); i++)
-        context->desc.av1enc.ref_frame_idx[i] = av1->ref_frame_idx[i];
-
     /* Initialize slice descriptors for this picture */
     context->desc.av1enc.num_tile_groups = 0;
     memset(&context->desc.av1enc.tile_groups, 0, sizeof(context->desc.av1enc.tile_groups));
@@ -511,9 +508,6 @@ static void av1_color_config(vlVaContext *context, struct vl_vlc *vlc)
 
 static void av1_sequence_header(vlVaContext *context, struct vl_vlc *vlc)
 {
-   unsigned initial_display_delay_present_flag = 0;
-   unsigned layer_minus1 = 0, value = 0;
-   unsigned buffer_delay_length_minus1 = 0;
    unsigned still_pic = 0;
    struct pipe_av1_enc_seq_param *seq = &context->desc.av1enc.seq;
 
@@ -538,27 +532,26 @@ static void av1_sequence_header(vlVaContext *context, struct vl_vlc *vlc)
          info->frame_presentation_time_length_minus1 = av1_f(vlc, 5);
       }
    }
-   initial_display_delay_present_flag = av1_f(vlc, 1);
-   layer_minus1 = av1_f(vlc, 5);
-   seq->num_temporal_layers = layer_minus1 + 1;
-   for (unsigned i = 0; i <= layer_minus1; i++) {
+   seq->seq_bits.initial_display_delay_present_flag = av1_f(vlc, 1);
+   seq->num_temporal_layers = av1_f(vlc, 5) + 1;
+   for (unsigned i = 0; i < seq->num_temporal_layers; i++) {
       seq->operating_point_idc[i] = av1_f(vlc, 12);
-      value = av1_f(vlc, 5);
-      if (value > 7)
-         av1_f(vlc, 1);
+      seq->seq_level_idx[i] = av1_f(vlc, 5);
+      if (seq->seq_level_idx[i] > 7)
+         seq->seq_tier[i] = av1_f(vlc, 1);
       if (seq->seq_bits.decoder_model_info_present_flag) {
          seq->decoder_model_present_for_this_op[i] = av1_f(vlc, 1);
          if (seq->decoder_model_present_for_this_op[i]) {
-            av1_f(vlc, buffer_delay_length_minus1 + 1);
-            av1_f(vlc, buffer_delay_length_minus1 + 1);
-            av1_f(vlc, 1);
+            seq->decoder_buffer_delay[i] = av1_f(vlc, seq->decoder_model_info.buffer_delay_length_minus1 + 1);
+            seq->encoder_buffer_delay[i] = av1_f(vlc, seq->decoder_model_info.buffer_delay_length_minus1 + 1);
+            seq->low_delay_mode_flag[i] = av1_f(vlc, 1);
          } else
             seq->decoder_model_present_for_this_op[i] = 0;
       }
-      if (initial_display_delay_present_flag) {
-         value = av1_f(vlc, 1);
-         if (value)
-            av1_f(vlc, 4);
+      if (seq->seq_bits.initial_display_delay_present_flag) {
+         seq->initial_display_delay_present_for_this_op[i] = av1_f(vlc, 1);
+         if (seq->initial_display_delay_present_for_this_op[i])
+            seq->initial_display_delay_minus_1[i] = av1_f(vlc, 4);
       }
    }
    seq->frame_width_bits_minus1 = av1_f(vlc, 4);
@@ -593,8 +586,8 @@ static void av1_sequence_header(vlVaContext *context, struct vl_vlc *vlc)
 
    seq->seq_bits.force_integer_mv = AV1_SELECT_INTEGER_MV;
    if (seq->seq_bits.force_screen_content_tools) {
-      value = av1_f(vlc, 1);
-      if (!value)
+      seq->seq_bits.choose_integer_mv = av1_f(vlc, 1);
+      if (!seq->seq_bits.choose_integer_mv)
          seq->seq_bits.force_integer_mv = av1_f(vlc, 1);
    }
    if (seq->seq_bits.enable_order_hint)
@@ -686,7 +679,7 @@ static void av1_frame_header(vlVaContext *context, struct vl_vlc *vlc)
 {
    struct pipe_av1_enc_picture_desc *av1 = &context->desc.av1enc;
    uint32_t frame_type;
-   uint32_t id_len, all_frames, show_frame;
+   uint32_t id_len = 0, all_frames;
 
    bool frame_is_intra = false;
 
@@ -702,18 +695,18 @@ static void av1_frame_header(vlVaContext *context, struct vl_vlc *vlc)
    frame_type = av1_f(vlc, 2);
    frame_is_intra = (frame_type == FRAME_TYPE_KEY_FRAME ||
                      frame_type == FRAME_TYPE_INTRA_ONLY);
-   show_frame = av1_f(vlc, 1);
-   if (show_frame && av1->seq.seq_bits.decoder_model_info_present_flag
+   av1->show_frame = av1_f(vlc, 1);
+   if (av1->show_frame && av1->seq.seq_bits.decoder_model_info_present_flag
                   && !(av1->seq.seq_bits.equal_picture_interval)) {
       struct pipe_av1_enc_decoder_model_info *info = &av1->seq.decoder_model_info;
-      av1_f(vlc, info->frame_presentation_time_length_minus1 + 1);
+      av1->frame_presentation_time = av1_f(vlc, info->frame_presentation_time_length_minus1 + 1);
    }
 
-   if (!show_frame)
-      av1_f(vlc, 1); /* showable_frame */
+   if (!av1->show_frame)
+      av1->showable_frame = av1_f(vlc, 1);
 
    if (frame_type == FRAME_TYPE_SWITCH ||
-         (frame_type == FRAME_TYPE_KEY_FRAME && show_frame))
+         (frame_type == FRAME_TYPE_KEY_FRAME && av1->show_frame))
       av1->error_resilient_mode = 1;
    else
       av1->error_resilient_mode = av1_f(vlc, 1);
@@ -736,7 +729,7 @@ static void av1_frame_header(vlVaContext *context, struct vl_vlc *vlc)
       av1->force_integer_mv = 1;
 
    if (av1->seq.seq_bits.frame_id_number_present_flag)
-      av1_f(vlc, id_len);
+      av1->current_frame_id = av1_f(vlc, id_len);
 
    if (frame_type == FRAME_TYPE_SWITCH)
       av1->frame_size_override_flag = 1;
@@ -765,7 +758,7 @@ static void av1_frame_header(vlVaContext *context, struct vl_vlc *vlc)
    }
 
    if (frame_type == FRAME_TYPE_SWITCH ||
-       (frame_type == FRAME_TYPE_KEY_FRAME && show_frame))
+       (frame_type == FRAME_TYPE_KEY_FRAME && av1->show_frame))
        av1->refresh_frame_flags = all_frames;
    else
       av1->refresh_frame_flags = av1_f(vlc, 8);
@@ -773,7 +766,7 @@ static void av1_frame_header(vlVaContext *context, struct vl_vlc *vlc)
    if ( !frame_is_intra || av1->refresh_frame_flags != all_frames) {
       if (av1->error_resilient_mode && av1->seq.seq_bits.enable_order_hint)
          for (int i = 0; i < AV1_MAXNUM_REF_FRAMES; i++)
-            av1_f(vlc, av1->seq.order_hint_bits);
+            av1->ref_order_hint[i] = av1_f(vlc, av1->seq.order_hint_bits);
    }
 
    if ( frame_is_intra) {
@@ -782,20 +775,20 @@ static void av1_frame_header(vlVaContext *context, struct vl_vlc *vlc)
       if (av1->allow_screen_content_tools && av1->upscaled_width == av1->frame_width)
          av1->allow_intrabc = av1_f(vlc, 1);
    } else {
-      unsigned frame_refs_short_signaling = 0;
+      av1->frame_refs_short_signaling = 0;
       if (av1->seq.seq_bits.enable_order_hint) {
-         frame_refs_short_signaling = av1_f(vlc, 1);
-         if (frame_refs_short_signaling) {
-            av1_f(vlc, 3);
-            av1_f(vlc, 3);
+         av1->frame_refs_short_signaling = av1_f(vlc, 1);
+         if (av1->frame_refs_short_signaling) {
+            av1->last_frame_idx = av1_f(vlc, 3);
+            av1->gold_frame_idx = av1_f(vlc, 3);
          }
       }
 
       for (int i = 0; i < AV1_REFS_PER_FRAME; i++) {
-         if (!frame_refs_short_signaling)
-            av1_f(vlc, 3);
+         if (!av1->frame_refs_short_signaling)
+            av1->ref_frame_idx[i] = av1_f(vlc, 3);
          if (av1->seq.seq_bits.frame_id_number_present_flag)
-            av1_f(vlc, av1->seq.delta_frame_id_length);
+            av1->delta_frame_id_minus_1[i] = av1_f(vlc, av1->seq.delta_frame_id_length);
       }
 
       if (av1->frame_size_override_flag && av1->error_resilient_mode)
@@ -811,7 +804,7 @@ static void av1_frame_header(vlVaContext *context, struct vl_vlc *vlc)
          av1->allow_high_precision_mv = av1_f(vlc, 1);
 
       av1_read_interpolation_filter(context, vlc);
-      av1_f(vlc, 1);
+      av1->is_motion_mode_switchable = av1_f(vlc, 1);
       if (av1->error_resilient_mode || !av1->seq.seq_bits.enable_ref_frame_mvs)
          av1->use_ref_frame_mvs = 0;
       else

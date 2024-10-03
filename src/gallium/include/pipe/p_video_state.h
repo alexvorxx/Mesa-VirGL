@@ -1289,6 +1289,8 @@ struct pipe_av1_enc_seq_param
       uint32_t decoder_model_info_present_flag:1;
       uint32_t force_screen_content_tools:2;
       uint32_t force_integer_mv:2;
+      uint32_t initial_display_delay_present_flag:1;
+      uint32_t choose_integer_mv:1;
    } seq_bits;
 
    /* timing info params */
@@ -1303,7 +1305,14 @@ struct pipe_av1_enc_seq_param
    uint16_t frame_width_bits_minus1;
    uint16_t frame_height_bits_minus1;
    uint16_t operating_point_idc[32];
+   uint8_t seq_level_idx[32];
+   uint8_t seq_tier[32];
    uint8_t decoder_model_present_for_this_op[32];
+   uint32_t decoder_buffer_delay[32];
+   uint32_t encoder_buffer_delay[32];
+   uint8_t low_delay_mode_flag[32];
+   uint8_t initial_display_delay_present_for_this_op[32];
+   uint8_t initial_display_delay_minus_1[32];
 };
 
 struct pipe_av1_tile_group {
@@ -1337,12 +1346,16 @@ struct pipe_av1_enc_picture_desc
       uint32_t allow_high_precision_mv:1;
       uint32_t use_ref_frame_mvs;
       uint32_t show_existing_frame:1;
+      uint32_t show_frame:1;
+      uint32_t showable_frame:1;
       uint32_t enable_render_size:1;
       uint32_t use_superres:1;
       uint32_t reduced_tx_set:1;
       uint32_t skip_mode_present:1;
       uint32_t long_term_reference:1;
       uint32_t uniform_tile_spacing:1;
+      uint32_t frame_refs_short_signaling:1;
+      uint32_t is_motion_mode_switchable:1;
    };
    struct pipe_enc_quality_modes quality_modes;
    struct pipe_enc_intra_refresh intra_refresh;
@@ -1374,9 +1387,15 @@ struct pipe_av1_enc_picture_desc
    uint32_t primary_ref_frame;
    uint8_t refresh_frame_flags;
    uint8_t ref_frame_idx[7];
+   uint32_t delta_frame_id_minus_1[7];
    uint32_t ref_frame_ctrl_l0;            /* forward prediction only */
    void *ref_list[8];                     /* for tracking ref frames */
    void *recon_frame;
+   uint32_t frame_presentation_time;
+   uint32_t current_frame_id;
+   uint32_t ref_order_hint[8];
+   uint8_t last_frame_idx;
+   uint8_t gold_frame_idx;
 
    struct {
       uint8_t cdef_damping_minus_3;
