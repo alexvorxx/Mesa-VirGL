@@ -1099,9 +1099,8 @@ hk_create_drm_physical_device(struct vk_instance *_instance,
    drmFreeVersion(version);
 
    if (!is_asahi) {
-      result =
-         vk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
-                   "device %s does not use the asahi kernel driver", path);
+      /* Fail silently */
+      result = VK_ERROR_INCOMPATIBLE_DRIVER;
       goto fail_fd;
    }
 
@@ -1149,7 +1148,8 @@ hk_create_drm_physical_device(struct vk_instance *_instance,
    pdev->dev.fd = fd;
 
    if (!agx_open_device(NULL, &pdev->dev)) {
-      result = vk_error(instance, VK_ERROR_UNKNOWN);
+      /* Fail silently, for virtgpu */
+      result = VK_ERROR_INCOMPATIBLE_DRIVER;
       goto fail_pdev_alloc;
    }
 
