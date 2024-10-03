@@ -889,9 +889,10 @@ static void radeon_vcn_enc_av1_get_meta_param(struct radeon_encoder *enc,
 static void radeon_vcn_enc_av1_get_param(struct radeon_encoder *enc,
                                          struct pipe_av1_enc_picture_desc *pic)
 {
+   struct si_screen *sscreen = (struct si_screen *)enc->screen;
    struct radeon_enc_pic *enc_pic = &enc->enc_pic;
+   enc_pic->av1.desc = pic;
    enc_pic->frame_type = pic->frame_type;
-   enc_pic->frame_num = pic->frame_num;
    enc_pic->bit_depth_luma_minus8 = enc_pic->bit_depth_chroma_minus8 =
       pic->seq.bit_depth_minus8;
    enc_pic->pic_width_in_luma_samples = pic->seq.pic_width_in_luma_samples;
@@ -904,17 +905,19 @@ static void radeon_vcn_enc_av1_get_param(struct radeon_encoder *enc,
             pic->seq.num_temporal_layers <= RENCODE_MAX_NUM_TEMPORAL_LAYERS ?
             pic->seq.num_temporal_layers : RENCODE_MAX_NUM_TEMPORAL_LAYERS;
 
-   /* 1, 2 layer needs 1 reference, and 3, 4 layer needs 2 references */
-   enc->base.max_references = (enc_pic->num_temporal_layers + 1) / 2
-                              + RENCODE_VCN4_AV1_MAX_NUM_LTR;
-   for (int i = 0; i < RENCODE_AV1_REFS_PER_FRAME; i++)
-      enc_pic->av1_ref_frame_idx[i] = pic->ref_frame_idx[i];
+   enc_pic->enc_params.reference_picture_index =
+      pic->ref_list0[0] == PIPE_H2645_LIST_REF_INVALID_ENTRY ?
+      0xffffffff : pic->dpb_ref_frame_idx[pic->ref_list0[0]];
+   enc_pic->enc_params.reconstructed_picture_index = pic->dpb_curr_pic;
 
-   for (int i = 0; i < RENCODE_AV1_NUM_REF_FRAMES; i++)
-      enc_pic->av1_ref_list[i] = pic->ref_list[i];
+   if (sscreen->info.vcn_ip_version >= VCN_5_0_0) {
+      for (uint32_t i = 0; i < RENCODE_AV1_REFS_PER_FRAME; i++)
+         enc_pic->av1_enc_params.ref_frames[i] = pic->dpb_ref_frame_idx[i];
 
-   enc_pic->av1_recon_frame = pic->recon_frame;
-   enc_pic->av1_ref_frame_ctrl_l0 = pic->ref_frame_ctrl_l0;
+      enc_pic->av1_enc_params.lsm_reference_frame_index[0] =
+         pic->ref_list0[0] == PIPE_H2645_LIST_REF_INVALID_ENTRY ? 0xffffffff : pic->ref_list0[0];
+      enc_pic->av1_enc_params.lsm_reference_frame_index[1] = 0xffffffff;
+   }
 
    enc_pic->frame_id_numbers_present = pic->seq.seq_bits.frame_id_number_present_flag;
    enc_pic->enable_error_resilient_mode = pic->error_resilient_mode;
@@ -930,7 +933,6 @@ static void radeon_vcn_enc_av1_get_param(struct radeon_encoder *enc,
    enc_pic->disable_screen_content_tools = !pic->allow_screen_content_tools;
    enc_pic->is_obu_frame = pic->enable_frame_obu;
    enc_pic->need_av1_seq = (pic->frame_type == PIPE_AV1_ENC_FRAME_TYPE_KEY);
-   enc_pic->av1_mark_long_term_reference = pic->long_term_reference;
 
    radeon_vcn_enc_av1_get_spec_misc_param(enc, pic);
    radeon_vcn_enc_av1_timing_info(enc, pic);
@@ -1371,6 +1373,7 @@ static void radeon_enc_begin_frame(struct pipe_video_codec *encoder,
          (enc->enc_pic.rc_per_pic.qvbr_quality_level != pic->rc[0].vbr_quality_factor);
    } else if (u_reduce_video_profile(picture->profile) == PIPE_VIDEO_FORMAT_AV1) {
       struct pipe_av1_enc_picture_desc *pic = (struct pipe_av1_enc_picture_desc *)picture;
+      dpb_slots = pic->dpb_size;
       enc->need_rate_control =
          (enc->enc_pic.rc_layer_init[0].target_bit_rate != pic->rc[0].target_bitrate) ||
          (enc->enc_pic.rc_layer_init[0].frame_rate_num != pic->rc[0].frame_rate_num) ||
@@ -1393,8 +1396,6 @@ static void radeon_enc_begin_frame(struct pipe_video_codec *encoder,
    }
 
    radeon_vcn_enc_get_param(enc, picture);
-   if (u_reduce_video_profile(picture->profile) == PIPE_VIDEO_FORMAT_AV1)
-      dpb_slots = enc->base.max_references + 1;
    if (!enc->dpb) {
       enc->dpb = CALLOC_STRUCT(rvid_buffer);
       setup_dpb(enc, dpb_slots);

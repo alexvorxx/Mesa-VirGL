@@ -128,321 +128,6 @@ static void radeon_enc_session_init(struct radeon_encoder *enc)
    RADEON_ENC_END();
 }
 
-/* for new temporal_id, sequence_num has to be incremented ahead. */
-static uint32_t radeon_enc_av1_calculate_temporal_id(uint32_t sequence_num,
-                                                     uint32_t max_layer)
-{
-   for (uint32_t i = 0; i <= max_layer; i++)
-      if (!(sequence_num % (1 << (max_layer - i))))
-         return i;
-
-   /* never come here */
-   assert(0);
-   return 0;
-}
-
-static uint32_t radeon_enc_av1_alloc_recon_slot(struct radeon_encoder *enc)
-{
-   uint32_t i;
-   for (i = 0; i < ARRAY_SIZE(enc->enc_pic.recon_slots); i++) {
-      if(!enc->enc_pic.recon_slots[i].in_use) {
-         enc->enc_pic.recon_slots[i].in_use = true;
-         break;
-      }
-   }
-   return i;
-}
-
-static void redeon_enc_av1_release_recon_slot(struct radeon_encoder *enc,
-                                              uint32_t index,
-                                              bool is_orphaned)
-{
-   assert(index < (ARRAY_SIZE(enc->enc_pic.recon_slots) - 1));
-   assert(enc->enc_pic.recon_slots[index].in_use);
-
-   if (is_orphaned)
-      enc->enc_pic.recon_slots[index].is_orphaned = true;
-   else
-      enc->enc_pic.recon_slots[index].in_use = false;
-}
-
-static uint32_t radeon_enc_av1_alloc_curr_frame(struct radeon_encoder *enc,
-                                 uint32_t frame_id,
-                                 uint32_t temporal_id,
-                                 uint32_t mark_long_term, /* mark it as long term reference */
-                                 void    *frame_signature,
-                                 enum pipe_av1_enc_frame_type frame_type)
-{
-   uint32_t i = 0;
-
-   assert(frame_signature);
-
-   for (i = 0; i < ARRAY_SIZE(enc->enc_pic.frames); i++) {
-      rvcn_enc_av1_ref_frame_t *frame = &enc->enc_pic.frames[i];
-      if (!frame->in_use) {
-         frame->in_use = true;
-         frame->frame_id = frame_id;
-         frame->temporal_id = temporal_id;
-         frame->slot_id = radeon_enc_av1_alloc_recon_slot(enc);
-         frame->frame_type = frame_type;
-         frame->frame_signature = frame_signature;
-         frame->is_ltr = !!(mark_long_term);
-         if (frame->is_ltr)
-            frame->ltr_seq = enc->enc_pic.av1_ltr_seq++;
-         break;
-      }
-   }
-
-   return i;
-}
-
-static void radeon_enc_av1_release_ref_frame(struct radeon_encoder *enc,
-                                             uint32_t index,
-                                             bool is_recon_orphan)
-{
-   assert(index < (ARRAY_SIZE(enc->enc_pic.frames) - 1));
-
-   redeon_enc_av1_release_recon_slot(enc,
-                                     enc->enc_pic.frames[index].slot_id,
-                                     is_recon_orphan);
-   enc->enc_pic.frames[index].in_use = false;
-}
-
-/* save 1 recon slot in max temporal layer = 4 case */
-static void radeon_enc_av1_temporal_4_extra_release(struct radeon_encoder *enc,
-                                                    uint32_t temporal_id)
-{
-   uint32_t i = 0;
-
-   if (temporal_id == 0)
-      enc->enc_pic.count_last_layer = 0;
-   else if (temporal_id == 3)
-      enc->enc_pic.count_last_layer++;
-
-   /* since temporal ID = 1 picture will not be used in this
-    * temporal period, that can be released */
-   if (enc->enc_pic.count_last_layer == 4) {
-      for (i = 0; i < ARRAY_SIZE(enc->enc_pic.frames); i++) {
-         rvcn_enc_av1_ref_frame_t *frame = &enc->enc_pic.frames[i];
-         if (frame->in_use && (frame->temporal_id == 1)) {
-            radeon_enc_av1_release_ref_frame(enc, i, false);
-            break;
-         }
-      }
-   }
-}
-
-static void radeon_enc_av1_pre_scan_frames(struct radeon_encoder *enc,
-                                           uint32_t temporal_id)
-{
-   uint32_t i = 0;
-
-   /* checking long term frames if it reached the limit, it needs to
-    * release the oldest. */
-   if (enc->enc_pic.av1_mark_long_term_reference) {
-      int cnt = 0;
-      uint32_t min_seq = (uint32_t)-1;
-      uint32_t min_seq_idx = 0;
-      for (i = 0; i < ARRAY_SIZE(enc->enc_pic.frames); i++) {
-         rvcn_enc_av1_ref_frame_t *frame = &enc->enc_pic.frames[i];
-         if (frame->in_use && frame->is_ltr) {
-            if (frame->ltr_seq < min_seq) {
-               min_seq = frame->ltr_seq;
-               min_seq_idx = i;
-            }
-            cnt++;
-
-            /* this means some LTR ref buffer has been re-used. */
-            if (enc->enc_pic.av1_recon_frame == frame->frame_signature)
-               RVID_ERR("recon duplicated! it could refer to a wrong frame!\n");
-         }
-      }
-      /* release the frame with minimum ltr seq number (oldest),
-       * this check is happening on each frame, the total number
-       * of LTR is limited by RENCODE_VCN4_AV1_MAX_NUM_LTR.*/
-      if (cnt > RENCODE_VCN4_AV1_MAX_NUM_LTR)
-         radeon_enc_av1_release_ref_frame(enc, min_seq_idx, false);
-   }
-
-   for (i = 0; i < ARRAY_SIZE(enc->enc_pic.recon_slots); i++) {
-      rvcn_enc_av1_recon_slot_t *slot = &enc->enc_pic.recon_slots[i];
-      if (slot->in_use && slot->is_orphaned) {
-         slot->in_use = false;
-         slot->is_orphaned = false;
-      }
-   }
-
-   for (i = 0; i < ARRAY_SIZE(enc->enc_pic.frames); i++) {
-      rvcn_enc_av1_ref_frame_t *frame = &enc->enc_pic.frames[i];
-      if (frame->in_use) {
-         if (temporal_id < frame->temporal_id)
-            radeon_enc_av1_release_ref_frame(enc, i, false);
-         else if (temporal_id == frame->temporal_id && (!frame->is_ltr))
-            radeon_enc_av1_release_ref_frame(enc, i, true);
-      }
-   }
-}
-
-static bool radeon_enc_av1_search_requested_reference(
-                                          struct radeon_encoder *enc,
-                                          uint32_t *idx)
-{
-   bool find = false;
-   /* Here is the assumption, the 3rd item of ref_frame_ctrl_l0
-      indicates which slot it needs to find in ref_frame_idx[], and
-      from ref_frame_idx to find the requested reference frame
-      in ref_list[] */
-   #define RENCODE_AV1_REF_CTRL_L0_THIRD_ITEM (0x1c0) /* 111 000 000 */
-   uint32_t marked_ref_frame_idx = (RENCODE_AV1_REF_CTRL_L0_THIRD_ITEM &
-                                    enc->enc_pic.av1_ref_frame_ctrl_l0) >> 6;
-   /* valid marked_ref_frame_idx > 0 */
-   if (marked_ref_frame_idx) {
-      uint32_t requested_frame_idx =
-                     enc->enc_pic.av1_ref_frame_idx[marked_ref_frame_idx - 1];
-      void *request_signature = NULL;
-
-      if (requested_frame_idx >= RENCODE_AV1_NUM_REF_FRAMES)
-         goto end;
-
-      request_signature = enc->enc_pic.av1_ref_list[requested_frame_idx];
-      for (uint32_t i = 0; i < ARRAY_SIZE((enc->enc_pic.frames)); i++) {
-         rvcn_enc_av1_ref_frame_t *frame = &enc->enc_pic.frames[i];
-         if (frame->in_use &&
-             frame->is_ltr &&
-             (request_signature == frame->frame_signature)) {
-            find = true;
-            /* increase the frame seq number after found, when it
-             * reaches the maximum limit, this found one will not
-             * be released. */
-            frame->ltr_seq = enc->enc_pic.av1_ltr_seq++;
-            *idx = i;
-            break;
-         }
-      }
-   }
-end:
-   return find;
-}
-
-static uint32_t radeon_enc_av1_obtain_ref0_frame(struct radeon_encoder *enc,
-                                          uint32_t temporal_id)
-{
-   /* when only ltr frames in DPB, it needs to use the biggest ltr_seq
-    * one (latest) for reference, instead of the first one met. */
-   uint32_t i = 0;
-   uint32_t ret_idx = 0;
-   uint32_t max_seq = 0;
-   uint32_t max_seq_idx = 0;
-   for (i = 0; i < ARRAY_SIZE(enc->enc_pic.frames); i++) {
-      rvcn_enc_av1_ref_frame_t *frame = &enc->enc_pic.frames[i];
-      if (frame->in_use && frame->is_ltr && (frame->ltr_seq >= max_seq)) {
-            max_seq = frame->ltr_seq;
-            max_seq_idx = i;
-      }
-   }
-   for (i = ARRAY_SIZE(enc->enc_pic.frames); i > 0; i--) {
-      rvcn_enc_av1_ref_frame_t *frame = &enc->enc_pic.frames[i - 1];
-      if (frame->in_use && frame->temporal_id <= temporal_id) {
-         if (frame->is_ltr)
-            ret_idx = max_seq_idx;
-         else
-            ret_idx = i - 1;
-
-         break;
-      }
-   }
-   return ret_idx;
-}
-
-static void radeon_enc_reset_av1_dpb_frames(struct radeon_encoder *enc)
-{
-   for (int i = 0; i < ARRAY_SIZE(enc->enc_pic.frames); i++)
-      enc->enc_pic.frames[i] = (rvcn_enc_av1_ref_frame_t) {
-         .in_use = false,
-         .is_ltr = false,
-         .ltr_seq = 0,
-         .frame_id = 0,
-         .temporal_id = 0,
-         .slot_id = 0,
-         .frame_type = 0,
-         .frame_signature = NULL,
-      };
-
-   for (int i = 0; i < ARRAY_SIZE(enc->enc_pic.recon_slots); i++)
-      enc->enc_pic.recon_slots[i] = (rvcn_enc_av1_recon_slot_t) {
-         .in_use = false,
-         .is_orphaned = false,
-      };
-}
-
-static void radeon_enc_av1_dpb_management(struct radeon_encoder *enc)
-{
-   struct radeon_enc_pic *pic = &enc->enc_pic;
-   uint32_t current_slot;
-   uint32_t ref_slot;
-   uint32_t request_idx;
-   bool find = false;
-
-   if (pic->frame_type == PIPE_AV1_ENC_FRAME_TYPE_KEY) {
-      pic->frame_id = 0;
-      pic->temporal_seq_num = 0;
-      pic->temporal_id = 0;
-      pic->reference_delta_frame_id = 0;
-      pic->reference_frame_index = 0;
-      pic->last_frame_type = PIPE_AV1_ENC_FRAME_TYPE_KEY;
-      pic->av1_ltr_seq = 0;
-      current_slot = 0;
-      ref_slot = 0;
-      request_idx = 0;
-      radeon_enc_reset_av1_dpb_frames(enc);
-   } else {
-      find = radeon_enc_av1_search_requested_reference(enc, &request_idx);
-      if (pic->av1_mark_long_term_reference || find)
-         pic->temporal_seq_num = 0; /*for ltr, always temporal_id = 0 */
-      else
-         pic->temporal_seq_num++;
-
-      pic->temporal_id = radeon_enc_av1_calculate_temporal_id(pic->temporal_seq_num,
-                                                              pic->num_temporal_layers - 1);
-      if (find)
-         pic->reference_frame_index = request_idx;
-      else
-         pic->reference_frame_index =
-            radeon_enc_av1_obtain_ref0_frame(enc, pic->temporal_id);
-      ref_slot = pic->frames[pic->reference_frame_index].slot_id;
-      pic->last_frame_type = pic->frames[pic->reference_frame_index].frame_type;
-      radeon_enc_av1_pre_scan_frames(enc, pic->temporal_id);
-   }
-
-   if (pic->num_temporal_layers == 4)
-      radeon_enc_av1_temporal_4_extra_release(enc, pic->temporal_id);
-
-   pic->frame_to_show_map_index = pic->reference_frame_index;
-
-   for (int i = 0; i < ARRAY_SIZE(pic->frames); i++)
-      pic->reference_order_hint[i] = pic->frames[i].frame_id;
-
-   pic->reference_delta_frame_id = pic->frame_id -
-                                   pic->frames[pic->reference_frame_index].frame_id;
-   current_slot = radeon_enc_av1_alloc_curr_frame(enc, pic->frame_id,
-                                                       pic->temporal_id,
-                                                       pic->av1_mark_long_term_reference,
-                                                       pic->av1_recon_frame,
-                                                       pic->frame_type);
-   if (pic->frame_type == PIPE_AV1_ENC_FRAME_TYPE_KEY ||
-       pic->frame_type == PIPE_AV1_ENC_FRAME_TYPE_SWITCH ||
-       ((pic->frame_type == PIPE_AV1_ENC_FRAME_TYPE_SHOW_EXISTING) &&
-         pic->last_frame_type == PIPE_AV1_ENC_FRAME_TYPE_KEY))
-      pic->refresh_frame_flags = 255;
-   else
-      pic->refresh_frame_flags = 1 << current_slot;
-
-   pic->enc_params.reference_picture_index = ref_slot;
-   pic->enc_params.reconstructed_picture_index = pic->frames[current_slot].slot_id;
-   pic->display_frame_id = pic->frame_id;
-   pic->order_hint = pic->frame_id;
-}
-
 static void radeon_enc_spec_misc_av1(struct radeon_encoder *enc)
 {
    rvcn_enc_av1_tile_config_t *p_config = &enc->enc_pic.av1_tile_config;
@@ -566,6 +251,7 @@ void radeon_enc_av1_sequence_header(struct radeon_encoder *enc, bool separate_de
    uint32_t width_bits;
    uint32_t height_bits;
    uint32_t max_temporal_layers = enc->enc_pic.num_temporal_layers;
+   struct pipe_av1_enc_seq_param *seq = &enc->enc_pic.av1.desc->seq;
 
    radeon_enc_av1_obu_header(enc, RENCODE_OBU_TYPE_SEQUENCE_HEADER);
 
@@ -631,9 +317,9 @@ void radeon_enc_av1_sequence_header(struct radeon_encoder *enc, bool separate_de
    radeon_enc_code_fixed_bits(enc, enc->enc_pic.frame_id_numbers_present, 1);
    if (enc->enc_pic.frame_id_numbers_present) {
       /*  delta_frame_id_length_minus_2  */
-      radeon_enc_code_fixed_bits(enc, RENCODE_AV1_DELTA_FRAME_ID_LENGTH - 2, 4);
+      radeon_enc_code_fixed_bits(enc, seq->delta_frame_id_length - 2, 4);
       /*  additional_frame_id_length_minus_1  */
-      radeon_enc_code_fixed_bits(enc, RENCODE_AV1_ADDITIONAL_FRAME_ID_LENGTH - 1, 3);
+      radeon_enc_code_fixed_bits(enc, seq->additional_frame_id_length - 1, 3);
    }
 
    /*  use_128x128_superblock  */
@@ -722,14 +408,14 @@ void radeon_enc_av1_sequence_header(struct radeon_encoder *enc, bool separate_de
    }
 }
 
-static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_header)
+void radeon_enc_av1_frame_header_common(struct radeon_encoder *enc, bool frame_header)
 {
    uint32_t i;
-   bool show_existing = false;
    bool frame_is_intra = enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_KEY ||
                          enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_INTRA_ONLY;
    uint32_t obu_type = frame_header ? RENCODE_OBU_TYPE_FRAME_HEADER
                                     : RENCODE_OBU_TYPE_FRAME;
+   struct pipe_av1_enc_picture_desc *av1 = enc->enc_pic.av1.desc;
 
    radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
 
@@ -739,81 +425,109 @@ static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_h
 
    /*  uncompressed_header() */
    radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
-   /*  show_existing_frame  */
-   show_existing = enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_SHOW_EXISTING;
-   radeon_enc_code_fixed_bits(enc, show_existing ? 1 : 0, 1);
-   /*  if (show_existing_frame == 1) */
-   if(show_existing) {
-      /*  frame_to_show_map_idx  */
-      radeon_enc_code_fixed_bits(enc, enc->enc_pic.frame_to_show_map_index, 3);
-      /*  display_frame_id  */
-      if (enc->enc_pic.frame_id_numbers_present)
-         radeon_enc_code_fixed_bits(enc, enc->enc_pic.display_frame_id,
-                                                 RENCODE_AV1_DELTA_FRAME_ID_LENGTH +
-                                                 RENCODE_AV1_ADDITIONAL_FRAME_ID_LENGTH);
-   } else {
-      /*  frame_type  */
-      radeon_enc_code_fixed_bits(enc, enc->enc_pic.frame_type, 2);
-      /*  show_frame  */
-      radeon_enc_code_fixed_bits(enc, 1, 1);
-      bool error_resilient_mode = false;
-      if ((enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_SWITCH) ||
-            (enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_KEY))
-         error_resilient_mode = true;
-      else {
-         /*  error_resilient_mode  */
-         radeon_enc_code_fixed_bits(enc, enc->enc_pic.enable_error_resilient_mode ? 1 : 0, 1);
-         error_resilient_mode = enc->enc_pic.enable_error_resilient_mode;
+   radeon_enc_code_fixed_bits(enc, 0, 1); /* show_existing_frame */
+   /*  frame_type  */
+   radeon_enc_code_fixed_bits(enc, enc->enc_pic.frame_type, 2);
+   /*  show_frame  */
+   radeon_enc_code_fixed_bits(enc, av1->show_frame, 1);
+   if (!av1->show_frame)
+      radeon_enc_code_fixed_bits(enc, av1->showable_frame, 1);
+
+   bool error_resilient_mode = false;
+   if ((enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_SWITCH) ||
+         (enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_KEY && av1->show_frame))
+      error_resilient_mode = true;
+   else {
+      /*  error_resilient_mode  */
+      radeon_enc_code_fixed_bits(enc, enc->enc_pic.enable_error_resilient_mode ? 1 : 0, 1);
+      error_resilient_mode = enc->enc_pic.enable_error_resilient_mode;
+   }
+   /*  disable_cdf_update  */
+   radeon_enc_code_fixed_bits(enc, enc->enc_pic.av1_spec_misc.disable_cdf_update ? 1 : 0, 1);
+
+   bool allow_screen_content_tools = false;
+   if (!enc->enc_pic.disable_screen_content_tools) {
+      /*  allow_screen_content_tools  */
+      allow_screen_content_tools = enc->enc_pic.av1_spec_misc.palette_mode_enable ||
+                                   enc->enc_pic.force_integer_mv;
+      radeon_enc_code_fixed_bits(enc, allow_screen_content_tools ? 1 : 0, 1);
+   }
+
+   if (allow_screen_content_tools)
+      /*  force_integer_mv  */
+      radeon_enc_code_fixed_bits(enc, enc->enc_pic.force_integer_mv ? 1 : 0, 1);
+
+   if (enc->enc_pic.frame_id_numbers_present)
+      /*  current_frame_id  */
+      radeon_enc_code_fixed_bits(enc, av1->current_frame_id,
+                                 av1->seq.delta_frame_id_length + av1->seq.additional_frame_id_length);
+
+   bool frame_size_override = false;
+   if (enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_SWITCH)
+      frame_size_override = true;
+   else {
+      /*  frame_size_override_flag  */
+      frame_size_override = false;
+      radeon_enc_code_fixed_bits(enc, 0, 1);
+   }
+
+   if (enc->enc_pic.enable_order_hint)
+      radeon_enc_code_fixed_bits(enc, enc->enc_pic.order_hint, enc->enc_pic.order_hint_bits);
+
+   if (!frame_is_intra && !error_resilient_mode)
+      /*  primary_ref_frame  */
+      radeon_enc_code_fixed_bits(enc, av1->primary_ref_frame, 3);
+
+   if ((enc->enc_pic.frame_type != PIPE_AV1_ENC_FRAME_TYPE_SWITCH) &&
+       (enc->enc_pic.frame_type != PIPE_AV1_ENC_FRAME_TYPE_KEY || !av1->show_frame))
+      /*  refresh_frame_flags  */
+      radeon_enc_code_fixed_bits(enc, av1->refresh_frame_flags, 8);
+
+   if ((!frame_is_intra || av1->refresh_frame_flags != 0xff) &&
+                  error_resilient_mode && enc->enc_pic.enable_order_hint)
+      for (i = 0; i < RENCODE_AV1_NUM_REF_FRAMES; i++)
+         /*  ref_order_hint  */
+         radeon_enc_code_fixed_bits(enc, av1->ref_order_hint[i], enc->enc_pic.order_hint_bits);
+
+   if (frame_is_intra) {
+      /*  render_and_frame_size_different  */
+      radeon_enc_code_fixed_bits(enc, enc->enc_pic.enable_render_size ? 1 : 0, 1);
+      if (enc->enc_pic.enable_render_size) {
+         /*  render_width_minus_1  */
+         radeon_enc_code_fixed_bits(enc, enc->enc_pic.render_width - 1, 16);
+         /*  render_height_minus_1  */
+         radeon_enc_code_fixed_bits(enc, enc->enc_pic.render_height - 1, 16);
       }
-      /*  disable_cdf_update  */
-      radeon_enc_code_fixed_bits(enc, enc->enc_pic.av1_spec_misc.disable_cdf_update ? 1 : 0, 1);
-
-      bool allow_screen_content_tools = false;
-      if (!enc->enc_pic.disable_screen_content_tools) {
-         /*  allow_screen_content_tools  */
-         allow_screen_content_tools = enc->enc_pic.av1_spec_misc.palette_mode_enable ||
-                                      enc->enc_pic.force_integer_mv;
-         radeon_enc_code_fixed_bits(enc, allow_screen_content_tools ? 1 : 0, 1);
-      }
-
-      if (allow_screen_content_tools)
-         /*  force_integer_mv  */
-         radeon_enc_code_fixed_bits(enc, enc->enc_pic.force_integer_mv ? 1 : 0, 1);
-
-      if (enc->enc_pic.frame_id_numbers_present)
-         /*  current_frame_id  */
-         radeon_enc_code_fixed_bits(enc, enc->enc_pic.frame_id,
-               RENCODE_AV1_DELTA_FRAME_ID_LENGTH +
-               RENCODE_AV1_ADDITIONAL_FRAME_ID_LENGTH);
-
-      bool frame_size_override = false;
-      if (enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_SWITCH)
-         frame_size_override = true;
-      else {
-         /*  frame_size_override_flag  */
-         frame_size_override = false;
+      if (!enc->enc_pic.disable_screen_content_tools &&
+            (enc->enc_pic.av1_spec_misc.palette_mode_enable || enc->enc_pic.force_integer_mv))
+         /*  allow_intrabc  */
          radeon_enc_code_fixed_bits(enc, 0, 1);
+   } else {
+      if (enc->enc_pic.enable_order_hint)
+         /*  frame_refs_short_signaling  */
+         radeon_enc_code_fixed_bits(enc, 0, 1);
+      for (i = 0; i < RENCODE_AV1_REFS_PER_FRAME; i++) {
+         /*  ref_frame_idx  */
+         radeon_enc_code_fixed_bits(enc, av1->ref_frame_idx[i], 3);
+         if (enc->enc_pic.frame_id_numbers_present)
+            radeon_enc_code_fixed_bits(enc, av1->delta_frame_id_minus_1[i], av1->seq.delta_frame_id_length);
       }
 
-      if (enc->enc_pic.enable_order_hint)
-         radeon_enc_code_fixed_bits(enc, enc->enc_pic.order_hint, enc->enc_pic.order_hint_bits);
-
-      if (!frame_is_intra && !error_resilient_mode)
-         /*  primary_ref_frame  */
-         radeon_enc_code_fixed_bits(enc, 0, 3);         /* always LAST_FRAME(1) */
-
-      if ((enc->enc_pic.frame_type != PIPE_AV1_ENC_FRAME_TYPE_SWITCH) &&
-                                 (enc->enc_pic.frame_type != PIPE_AV1_ENC_FRAME_TYPE_KEY))
-         /*  refresh_frame_flags  */
-         radeon_enc_code_fixed_bits(enc, enc->enc_pic.refresh_frame_flags, 8);
-
-      if ((!frame_is_intra || enc->enc_pic.refresh_frame_flags != 0xff) &&
-                     error_resilient_mode && enc->enc_pic.enable_order_hint)
-         for (i = 0; i < RENCODE_AV1_NUM_REF_FRAMES; i++)
-            /*  ref_order_hint  */
-            radeon_enc_code_fixed_bits(enc, enc->enc_pic.reference_order_hint[i], enc->enc_pic.order_hint_bits);
-
-      if (frame_is_intra) {
+      if (frame_size_override && !error_resilient_mode)
+         /*  found_ref  */
+         radeon_enc_code_fixed_bits(enc, 1, 1);
+      else {
+         if(frame_size_override) {
+            /*  frame_width_minus_1  */
+            uint32_t used_bits =
+                     radeon_enc_value_bits(enc->enc_pic.session_init.aligned_picture_width - 1);
+            radeon_enc_code_fixed_bits(enc, enc->enc_pic.session_init.aligned_picture_width - 1,
+                                            used_bits);
+            /*  frame_height_minus_1  */
+            used_bits = radeon_enc_value_bits(enc->enc_pic.session_init.aligned_picture_height - 1);
+            radeon_enc_code_fixed_bits(enc, enc->enc_pic.session_init.aligned_picture_height - 1,
+                                            used_bits);
+         }
          /*  render_and_frame_size_different  */
          radeon_enc_code_fixed_bits(enc, enc->enc_pic.enable_render_size ? 1 : 0, 1);
          if (enc->enc_pic.enable_render_size) {
@@ -822,95 +536,62 @@ static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_h
             /*  render_height_minus_1  */
             radeon_enc_code_fixed_bits(enc, enc->enc_pic.render_height - 1, 16);
          }
-         if (!enc->enc_pic.disable_screen_content_tools &&
-               (enc->enc_pic.av1_spec_misc.palette_mode_enable || enc->enc_pic.force_integer_mv))
-            /*  allow_intrabc  */
-            radeon_enc_code_fixed_bits(enc, 0, 1);
-      } else {
-         if (enc->enc_pic.enable_order_hint)
-            /*  frame_refs_short_signaling  */
-            radeon_enc_code_fixed_bits(enc, 0, 1);
-         for (i = 0; i < RENCODE_AV1_REFS_PER_FRAME; i++) {
-            /*  ref_frame_idx  */
-            radeon_enc_code_fixed_bits(enc, enc->enc_pic.reference_frame_index, 3);
-            if (enc->enc_pic.frame_id_numbers_present)
-               radeon_enc_code_fixed_bits(enc,
-                                          enc->enc_pic.reference_delta_frame_id - 1,
-                                          RENCODE_AV1_DELTA_FRAME_ID_LENGTH);
-         }
-
-         if (frame_size_override && !error_resilient_mode)
-            /*  found_ref  */
-            radeon_enc_code_fixed_bits(enc, 1, 1);
-         else {
-            if(frame_size_override) {
-               /*  frame_width_minus_1  */
-               uint32_t used_bits =
-                        radeon_enc_value_bits(enc->enc_pic.session_init.aligned_picture_width - 1);
-               radeon_enc_code_fixed_bits(enc, enc->enc_pic.session_init.aligned_picture_width - 1,
-                                               used_bits);
-               /*  frame_height_minus_1  */
-               used_bits = radeon_enc_value_bits(enc->enc_pic.session_init.aligned_picture_height - 1);
-               radeon_enc_code_fixed_bits(enc, enc->enc_pic.session_init.aligned_picture_height - 1,
-                                               used_bits);
-            }
-            /*  render_and_frame_size_different  */
-            radeon_enc_code_fixed_bits(enc, enc->enc_pic.enable_render_size ? 1 : 0, 1);
-            if (enc->enc_pic.enable_render_size) {
-               /*  render_width_minus_1  */
-               radeon_enc_code_fixed_bits(enc, enc->enc_pic.render_width - 1, 16);
-               /*  render_height_minus_1  */
-               radeon_enc_code_fixed_bits(enc, enc->enc_pic.render_height - 1, 16);
-            }
-         }
-
-         if (enc->enc_pic.disable_screen_content_tools || !enc->enc_pic.force_integer_mv)
-            /*  allow_high_precision_mv  */
-            radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_ALLOW_HIGH_PRECISION_MV, 0);
-
-         /*  read_interpolation_filter  */
-         radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_READ_INTERPOLATION_FILTER, 0);
-
-         radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
-         /*  is_motion_mode_switchable  */
-         radeon_enc_code_fixed_bits(enc, 0, 1);
       }
 
-      if (!enc->enc_pic.av1_spec_misc.disable_cdf_update)
-         /*  disable_frame_end_update_cdf  */
-         radeon_enc_code_fixed_bits(enc, enc->enc_pic.av1_spec_misc.disable_frame_end_update_cdf ? 1 : 0, 1);
+      if (enc->enc_pic.disable_screen_content_tools || !enc->enc_pic.force_integer_mv)
+         /*  allow_high_precision_mv  */
+         radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_ALLOW_HIGH_PRECISION_MV, 0);
 
-      /*  tile_info  */
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_V4_AV1_BITSTREAM_INSTRUCTION_TILE_INFO, 0);
-      /*  quantization_params  */
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_V4_AV1_BITSTREAM_INSTRUCTION_QUANTIZATION_PARAMS, 0);
-      /*  segmentation_enable  */
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
-      radeon_enc_code_fixed_bits(enc, 0, 1);
-      /*  delta_q_params  */
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_DELTA_Q_PARAMS, 0);
-      /*  delta_lf_params  */
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_DELTA_LF_PARAMS, 0);
-      /*  loop_filter_params  */
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_LOOP_FILTER_PARAMS, 0);
-      /*  cdef_params  */
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_CDEF_PARAMS, 0);
-      /*  lr_params  */
-      /*  read_tx_mode  */
-      radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_READ_TX_MODE, 0);
+      /*  read_interpolation_filter  */
+      radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_READ_INTERPOLATION_FILTER, 0);
 
       radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
-      if (!frame_is_intra)
-         /*  reference_select  */
-         radeon_enc_code_fixed_bits(enc, 0, 1);
-
+      /*  is_motion_mode_switchable  */
       radeon_enc_code_fixed_bits(enc, 0, 1);
-      if (!frame_is_intra)
-         for (uint32_t ref = 1 /*LAST_FRAME*/; ref <= 7 /*ALTREF_FRAME*/; ref++)
-            /*  is_global  */
-            radeon_enc_code_fixed_bits(enc, 0, 1);
-      /*  film_grain_params() */
    }
+
+   if (!enc->enc_pic.av1_spec_misc.disable_cdf_update)
+      /*  disable_frame_end_update_cdf  */
+      radeon_enc_code_fixed_bits(enc, enc->enc_pic.av1_spec_misc.disable_frame_end_update_cdf ? 1 : 0, 1);
+}
+
+static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_header)
+{
+   bool frame_is_intra = enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_KEY ||
+                         enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_INTRA_ONLY;
+
+   radeon_enc_av1_frame_header_common(enc, frame_header);
+
+   /*  tile_info  */
+   radeon_enc_av1_bs_instruction_type(enc, RENCODE_V4_AV1_BITSTREAM_INSTRUCTION_TILE_INFO, 0);
+   /*  quantization_params  */
+   radeon_enc_av1_bs_instruction_type(enc, RENCODE_V4_AV1_BITSTREAM_INSTRUCTION_QUANTIZATION_PARAMS, 0);
+   /*  segmentation_enable  */
+   radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
+   radeon_enc_code_fixed_bits(enc, 0, 1);
+   /*  delta_q_params  */
+   radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_DELTA_Q_PARAMS, 0);
+   /*  delta_lf_params  */
+   radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_DELTA_LF_PARAMS, 0);
+   /*  loop_filter_params  */
+   radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_LOOP_FILTER_PARAMS, 0);
+   /*  cdef_params  */
+   radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_CDEF_PARAMS, 0);
+   /*  lr_params  */
+   /*  read_tx_mode  */
+   radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_READ_TX_MODE, 0);
+
+   radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
+   if (!frame_is_intra)
+      /*  reference_select  */
+      radeon_enc_code_fixed_bits(enc, 0, 1);
+
+   radeon_enc_code_fixed_bits(enc, 0, 1);
+   if (!frame_is_intra)
+      for (uint32_t ref = 1 /*LAST_FRAME*/; ref <= 7 /*ALTREF_FRAME*/; ref++)
+         /*  is_global  */
+         radeon_enc_code_fixed_bits(enc, 0, 1);
+   /*  film_grain_params() */
 }
 
 void radeon_enc_av1_tile_group(struct radeon_encoder *enc)
@@ -1189,10 +870,6 @@ static void radeon_enc_header_av1(struct radeon_encoder *enc)
    enc->encode_params(enc);
    enc->encode_params_codec_spec(enc);
    enc->cdf_default_table(enc);
-
-   enc->enc_pic.frame_id++;
-   if (enc->enc_pic.frame_id > (1 << (RENCODE_AV1_DELTA_FRAME_ID_LENGTH - 2)))
-      enc->enc_pic.frame_id = 0;
 }
 
 void radeon_enc_4_0_init(struct radeon_encoder *enc)
@@ -1210,7 +887,6 @@ void radeon_enc_4_0_init(struct radeon_encoder *enc)
    enc->op_preset = radeon_enc_op_preset;
 
    if (u_reduce_video_profile(enc->base.profile) == PIPE_VIDEO_FORMAT_AV1) {
-      enc->before_encode = radeon_enc_av1_dpb_management;
       /* begin function need to set these functions to dummy */
       enc->slice_control = radeon_enc_dummy;
       enc->deblocking_filter = radeon_enc_dummy;

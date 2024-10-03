@@ -70,9 +70,11 @@ struct radeon_enc_pic {
       struct {
          struct pipe_h265_enc_picture_desc *desc;
       } hevc;
+      struct {
+         struct pipe_av1_enc_picture_desc *desc;
+      } av1;
    };
 
-   unsigned frame_num;
    unsigned crop_left;
    unsigned crop_right;
    unsigned crop_top;
@@ -87,7 +89,6 @@ struct radeon_enc_pic {
    unsigned nal_unit_type;
    unsigned temporal_id;
    unsigned num_temporal_layers;
-   unsigned temporal_layer_pattern_index;
    rvcn_enc_quality_modes_t quality_modes;
 
    bool not_referenced;
@@ -111,36 +112,17 @@ struct radeon_enc_pic {
             uint32_t is_obu_frame:1;
             uint32_t stream_obu_frame:1;  /* all frames have the same number of tiles */
             uint32_t need_av1_seq:1;
-            uint32_t av1_mark_long_term_reference:1;
          };
          uint32_t render_width;
          uint32_t render_height;
-         uint32_t frame_to_show_map_index;
-         enum pipe_av1_enc_frame_type last_frame_type;
-         uint32_t display_frame_id;
-         uint32_t frame_id;
-         uint32_t temporal_seq_num;
          uint32_t order_hint;
          uint32_t order_hint_bits;
-         uint32_t refresh_frame_flags;
-         uint32_t reference_delta_frame_id;
-         uint32_t reference_frame_index;
-         uint32_t reference_order_hint[RENCODE_AV1_NUM_REF_FRAMES];
          uint32_t *copy_start;
       };
       rvcn_enc_av1_spec_misc_t av1_spec_misc;
       rvcn_enc_av1_cdf_default_table_t av1_cdf_default_table;
       rvcn_enc_av1_timing_info_t av1_timing_info;
       rvcn_enc_av1_color_description_t av1_color_description;
-      uint32_t count_last_layer;
-      rvcn_enc_av1_ref_frame_t frames[RENCODE_AV1_NUM_REF_FRAMES];
-      rvcn_enc_av1_recon_slot_t recon_slots[RENCODE_AV1_NUM_REF_FRAMES + 1];
-      uint8_t av1_ref_frame_idx[RENCODE_AV1_REFS_PER_FRAME];
-      void *av1_ref_list[RENCODE_AV1_NUM_REF_FRAMES];
-      void *av1_recon_frame;
-      uint32_t av1_ref_frame_ctrl_l0;
-      uint32_t av1_ref_frame_ctrl_l1;
-      uint32_t av1_ltr_seq;
    };
 
    rvcn_enc_session_info_t session_info;
@@ -381,6 +363,8 @@ void radeon_enc_av1_obu_header(struct radeon_encoder *enc, uint32_t obu_type);
 void radeon_enc_av1_temporal_delimiter(struct radeon_encoder *enc);
 
 void radeon_enc_av1_sequence_header(struct radeon_encoder *enc, bool separate_delta_q);
+
+void radeon_enc_av1_frame_header_common(struct radeon_encoder *enc, bool frame_header);
 
 void radeon_enc_av1_tile_group(struct radeon_encoder *enc);
 

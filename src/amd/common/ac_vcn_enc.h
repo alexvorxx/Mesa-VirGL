@@ -149,10 +149,6 @@
 #define RENCODE_AV1_CDEF_MODE_DISABLE                                               0
 #define RENCODE_AV1_CDEF_MODE_ENABLE                                                1
 
-#define RENCODE_AV1_ORDER_HINT_BITS                                                 8
-#define RENCODE_AV1_DELTA_FRAME_ID_LENGTH                                           15
-#define RENCODE_AV1_ADDITIONAL_FRAME_ID_LENGTH                                      1
-
 #define RENCODE_AV1_NUM_REF_FRAMES                                                  8
 #define RENCODE_AV1_REFS_PER_FRAME                                                  7
 #define RENCODE_AV1_SDB_FRAME_CONTEXT_SIZE                                          947200
@@ -238,7 +234,6 @@
 #define RENCODE_COLOR_SPACE_YUV                                                     0
 #define RENCODE_COLOR_SPACE_RGB                                                     1
 
-#define RENCODE_VCN4_AV1_MAX_NUM_LTR                                                2
 #define RENCODE_AV1_CDEF_MODE_DEFAULT                                               1
 #define RENCODE_AV1_CDEF_MODE_EXPLICIT                                              2
 
