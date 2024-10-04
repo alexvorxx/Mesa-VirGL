@@ -58,6 +58,11 @@ static unsigned _min(unsigned a, unsigned b)
    return (a < b) ? a : b;
 }
 
+static float _minf(float a, float b)
+{
+   return (a < b) ? a : b;
+}
+
 static float _maxf(float a, float b)
 {
    return (a > b) ? a : b;
@@ -174,7 +179,7 @@ void st_init_limits(struct pipe_screen *screen,
             screen->get_paramf(screen, PIPE_CAPF_MAX_TEXTURE_ANISOTROPY));
 
    c->MaxTextureLodBias =
-      screen->get_paramf(screen, PIPE_CAPF_MAX_TEXTURE_LOD_BIAS);
+      _minf(31.0f, screen->get_paramf(screen, PIPE_CAPF_MAX_TEXTURE_LOD_BIAS));
 
    c->QuadsFollowProvokingVertexConvention =
       screen->get_param(screen,
