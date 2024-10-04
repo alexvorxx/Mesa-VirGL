@@ -1747,9 +1747,16 @@ cp_load_state(uint32_t *dwords, uint32_t sizedwords, int level)
          // TODO probably similar on a4xx..
          if (options->info->chip == 5)
             dump_domain(uboconst, 2, level + 2, "A5XX_UBO");
-         else if (options->info->chip == 6)
+         else if (options->info->chip >= 6)
             dump_domain(uboconst, 2, level + 2, "A6XX_UBO");
          dump_hex(uboconst, 2, level + 1);
+         if (options->dump_textures) {
+            uint64_t addr =
+               (((uint64_t)uboconst[1] & 0x1ffff) << 32) | uboconst[0];
+            /* Size encoded in descriptor is in units of vec4: */
+            unsigned sizedwords = 4 * (uboconst[1] >> 17);
+            dump_gpuaddr_size(addr, level -2, sizedwords, 3);
+         }
          uboconst += src == STATE_SRC_BINDLESS ? 16 : 2;
       }
       break;
