@@ -81,7 +81,6 @@ static void radeon_enc_encode_params(struct radeon_encoder *enc)
             break;
          case PIPE_AV1_ENC_FRAME_TYPE_INTER:
          case PIPE_AV1_ENC_FRAME_TYPE_SWITCH:
-         case PIPE_AV1_ENC_FRAME_TYPE_SHOW_EXISTING:
             enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_P;
             break;
          default:
@@ -748,11 +747,14 @@ static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_h
    radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_READ_TX_MODE, 0);
 
    radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
+
    if (!frame_is_intra)
       /*  reference_select  */
       radeon_enc_code_fixed_bits(enc, 0, 1);
 
+   /*  reduced_tx_set  */
    radeon_enc_code_fixed_bits(enc, 0, 1);
+
    if (!frame_is_intra)
       for (uint32_t ref = 1 /*LAST_FRAME*/; ref <= 7 /*ALTREF_FRAME*/; ref++)
          /*  is_global  */
@@ -762,22 +764,10 @@ static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_h
 
 static void radeon_enc_obu_instruction(struct radeon_encoder *enc)
 {
-   bool frame_header = !enc->enc_pic.is_obu_frame ||
-                       (enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_SHOW_EXISTING);
+   bool frame_header = !enc->enc_pic.is_obu_frame;
 
    radeon_enc_reset(enc);
    RADEON_ENC_BEGIN(enc->cmd.bitstream_instruction_av1);
-   radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_COPY, 0);
-
-   radeon_enc_av1_temporal_delimiter(enc);
-   if (enc->enc_pic.need_av1_seq || enc->enc_pic.need_sequence_header)
-      radeon_enc_av1_sequence_header(enc, enc->enc_pic.av1_spec_misc.separate_delta_q);
-
-   /* if others OBU types are needed such as meta data, then they need to be byte aligned and added here
-    *
-    * if (others)
-    *    radeon_enc_av1_others(enc); */
-   radeon_enc_av1_metadata_obu(enc);
 
    radeon_enc_av1_bs_instruction_type(enc,
          RENCODE_AV1_BITSTREAM_INSTRUCTION_OBU_START,
@@ -786,12 +776,12 @@ static void radeon_enc_obu_instruction(struct radeon_encoder *enc)
 
    radeon_enc_av1_frame_header(enc, frame_header);
 
-   if (!frame_header && (enc->enc_pic.frame_type != PIPE_AV1_ENC_FRAME_TYPE_SHOW_EXISTING))
+   if (!frame_header)
       radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_TILE_GROUP_OBU, 0);
 
    radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_OBU_END, 0);
 
-   if (frame_header && (enc->enc_pic.frame_type != PIPE_AV1_ENC_FRAME_TYPE_SHOW_EXISTING))
+   if (frame_header)
       radeon_enc_av1_tile_group(enc);
 
    radeon_enc_av1_bs_instruction_type(enc, RENCODE_AV1_BITSTREAM_INSTRUCTION_END, 0);
