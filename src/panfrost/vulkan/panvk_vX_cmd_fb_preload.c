@@ -621,7 +621,8 @@ cmd_emit_dcd(struct panvk_cmd_buffer *cmdbuf,
 
          cfg.blend = bds.gpu;
          cfg.blend_count = bd_count;
-         cfg.render_target_mask = cmdbuf->state.gfx.render.bound_attachments;
+         cfg.render_target_mask = cmdbuf->state.gfx.render.bound_attachments &
+                                  MESA_VK_RP_ATTACHMENT_ANY_COLOR_BITS;
       } else {
          /* ZS_EMIT requires late update/kill */
          cfg.zs_update_operation = MALI_PIXEL_KILL_FORCE_LATE;
