@@ -532,7 +532,7 @@ panvk_queue_submit(struct vk_queue *vk_queue, struct vk_queue_submit *submit)
    if (submit->wait_count > 0)
       qsubmit_count += util_bitcount(used_queue_mask);
 
-   if (submit->signal_count > 0)
+   if (submit->signal_count > 0 || force_sync)
       qsubmit_count += util_bitcount(used_queue_mask);
 
    uint32_t syncop_count = submit->wait_count + util_bitcount(used_queue_mask);
