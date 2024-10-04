@@ -2098,6 +2098,10 @@ anv_image_is_pat_compressible(struct anv_device *device, struct anv_image *image
    if (image->vk.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT)
       return false;
 
+   /* Host accessed images cannot be compressed. */
+   if (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT)
+      return false;
+
    return true;
 }
 
