@@ -101,6 +101,7 @@ etna_set_constant_buffer(struct pipe_context *pctx,
    if (!cb->buffer) {
       struct pipe_constant_buffer *cb = &so->cb[index];
       u_upload_data(pctx->const_uploader, 0, cb->buffer_size, 16, cb->user_buffer, &cb->buffer_offset, &cb->buffer);
+      ctx->dirty |= ETNA_DIRTY_SHADER_CACHES;
    }
 
    so->enabled_mask |= 1 << index;

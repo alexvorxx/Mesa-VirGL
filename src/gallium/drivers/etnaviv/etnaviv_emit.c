@@ -259,6 +259,8 @@ etna_emit_state(struct etna_context *ctx)
       to_flush |= VIVS_GL_FLUSH_CACHE_TEXTURE;
       to_flush_separate |= VIVS_GL_FLUSH_CACHE_TEXTUREVS;
    }
+   if (unlikely(dirty & ETNA_DIRTY_SHADER_CACHES))
+      to_flush |= VIVS_GL_FLUSH_CACHE_SHADER_L1;
    if (unlikely(dirty & (ETNA_DIRTY_FRAMEBUFFER))) /* Framebuffer config changed? */
       to_flush |= VIVS_GL_FLUSH_CACHE_COLOR | VIVS_GL_FLUSH_CACHE_DEPTH;
    if (DBG_ENABLED(ETNA_DBG_CFLUSH_ALL)) {
