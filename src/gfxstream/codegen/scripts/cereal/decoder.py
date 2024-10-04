@@ -164,13 +164,13 @@ def emit_unmarshal(typeInfo, param, cgen, output = False, destroy = False, noUnb
         lenAccessGuard = cgen.generalLengthAccessGuard(param)
         if None == lenAccess or "1" == lenAccess:
             cgen.stmt("boxed_%s_preserve = %s" % (param.paramName, param.paramName))
-            cgen.stmt("%s = unbox_%s(%s)" % (param.paramName, param.typeName, param.paramName))
+            cgen.stmt("%s = try_unbox_%s(%s)" % (param.paramName, param.typeName, param.paramName))
         else:
             if lenAccessGuard is not None:
                 cgen.beginIf(lenAccessGuard)
             cgen.beginFor("uint32_t i = 0", "i < %s" % lenAccess, "++i")
             cgen.stmt("boxed_%s_preserve[i] = %s[i]" % (param.paramName, param.paramName))
-            cgen.stmt("((%s*)(%s))[i] = unbox_%s(%s[i])" % (param.typeName, param.paramName, param.typeName, param.paramName))
+            cgen.stmt("((%s*)(%s))[i] = try_unbox_%s(%s[i])" % (param.typeName, param.paramName, param.typeName, param.paramName))
             cgen.endFor()
             if lenAccessGuard is not None:
                 cgen.endIf()
