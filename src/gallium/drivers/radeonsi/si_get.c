@@ -842,6 +842,10 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
          if (sscreen->info.vcn_ip_version >= VCN_3_0_0) {
             int refPicList0 = 1;
             int refPicList1 = codec == PIPE_VIDEO_FORMAT_MPEG4_AVC ? 1 : 0;
+            if (sscreen->info.vcn_ip_version >= VCN_5_0_0 && codec == PIPE_VIDEO_FORMAT_AV1) {
+               refPicList0 = 2;
+               refPicList1 = 1;
+            }
             return refPicList0 | (refPicList1 << 16);
          } else
             return 1;

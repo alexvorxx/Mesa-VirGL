@@ -74,6 +74,8 @@ struct radeon_enc_pic {
          struct pipe_av1_enc_picture_desc *desc;
          uint32_t coded_width;
          uint32_t coded_height;
+         bool compound;
+         bool skip_mode_allowed;
       } av1;
    };
 
@@ -234,6 +236,7 @@ struct radeon_encoder {
    bool need_feedback;
    bool need_rate_control;
    bool need_rc_per_pic;
+   bool need_spec_misc;
    unsigned dpb_size;
    unsigned dpb_slots;
    unsigned roi_size;
@@ -362,4 +365,7 @@ bool radeon_enc_is_av1_uniform_tile (uint32_t nb_sb, uint32_t nb_tiles,
 
 void radeon_enc_av1_tile_layout (uint32_t nb_sb, uint32_t nb_tiles, uint32_t min_nb_sb,
                                  struct tile_1d_layout *p);
+
+bool radeon_enc_av1_skip_mode_allowed(struct radeon_encoder *enc);
+
 #endif // _RADEON_VCN_ENC_H

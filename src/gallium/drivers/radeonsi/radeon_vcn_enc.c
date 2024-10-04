@@ -691,6 +691,8 @@ static void radeon_vcn_enc_hevc_get_param(struct radeon_encoder *enc,
 static void radeon_vcn_enc_av1_get_spec_misc_param(struct radeon_encoder *enc,
                                                    struct pipe_av1_enc_picture_desc *pic)
 {
+   struct si_screen *sscreen = (struct si_screen *)enc->screen;
+
    enc->enc_pic.av1_spec_misc.cdef_mode = pic->seq.seq_bits.enable_cdef;
    enc->enc_pic.av1_spec_misc.disable_cdf_update = pic->disable_cdf_update;
    enc->enc_pic.av1_spec_misc.disable_frame_end_update_cdf = pic->disable_frame_end_update_cdf;
@@ -724,6 +726,15 @@ static void radeon_vcn_enc_av1_get_spec_misc_param(struct radeon_encoder *enc,
       enc->enc_pic.av1_spec_misc.mv_precision = RENCODE_AV1_MV_PRECISION_FORCE_INTEGER_MV;
    else
       enc->enc_pic.av1_spec_misc.mv_precision = RENCODE_AV1_MV_PRECISION_ALLOW_HIGH_PRECISION;
+
+   if (sscreen->info.vcn_ip_version >= VCN_5_0_0) {
+      enc->enc_pic.av1.skip_mode_allowed = radeon_enc_av1_skip_mode_allowed(enc);
+      if (enc->enc_pic.av1.compound) {
+         enc->need_spec_misc =
+            !enc->enc_pic.av1.skip_mode_allowed != enc->enc_pic.av1_spec_misc.disallow_skip_mode;
+         enc->enc_pic.av1_spec_misc.disallow_skip_mode = !enc->enc_pic.av1.skip_mode_allowed;
+      }
+   }
 }
 
 static void radeon_vcn_enc_av1_get_rc_param(struct radeon_encoder *enc,
@@ -759,12 +770,15 @@ static void radeon_vcn_enc_av1_get_rc_param(struct radeon_encoder *enc,
    enc->enc_pic.rc_per_pic.max_qp_app_obs = pic->rc[0].max_qp ? pic->rc[0].max_qp : 255;
    enc->enc_pic.rc_per_pic.qp_i = pic->rc[0].qp;
    enc->enc_pic.rc_per_pic.qp_p = pic->rc[0].qp_inter;
+   enc->enc_pic.rc_per_pic.qp_b = pic->rc[0].qp_inter;
    min_qp = pic->rc[0].min_qp ? pic->rc[0].min_qp : 1;
    enc->enc_pic.rc_per_pic.min_qp_i = min_qp;
    enc->enc_pic.rc_per_pic.min_qp_p = min_qp;
+   enc->enc_pic.rc_per_pic.min_qp_b = min_qp;
    max_qp = pic->rc[0].max_qp ? pic->rc[0].max_qp : 255;
    enc->enc_pic.rc_per_pic.max_qp_i = max_qp;
    enc->enc_pic.rc_per_pic.max_qp_p = max_qp;
+   enc->enc_pic.rc_per_pic.max_qp_b = max_qp;
    enc->enc_pic.rc_per_pic.enabled_filler_data = 0;
    enc->enc_pic.rc_per_pic.skip_frame_enable = pic->rc[0].skip_frame_enable;
    enc->enc_pic.rc_per_pic.enforce_hrd = pic->rc[0].enforce_hrd;
@@ -793,6 +807,7 @@ static void radeon_vcn_enc_av1_get_rc_param(struct radeon_encoder *enc,
    enc->enc_pic.rc_per_pic.max_au_size_obs = pic->rc[0].max_au_size;
    enc->enc_pic.rc_per_pic.max_au_size_i = pic->rc[0].max_au_size;
    enc->enc_pic.rc_per_pic.max_au_size_p = pic->rc[0].max_au_size;
+   enc->enc_pic.rc_per_pic.max_au_size_b = pic->rc[0].max_au_size;
 }
 
 static void radeon_vcn_enc_av1_get_tile_config(struct radeon_encoder *enc,
@@ -825,6 +840,7 @@ static void radeon_vcn_enc_av1_get_param(struct radeon_encoder *enc,
 {
    struct si_screen *sscreen = (struct si_screen *)enc->screen;
    struct radeon_enc_pic *enc_pic = &enc->enc_pic;
+
    enc_pic->av1.desc = pic;
    enc_pic->frame_type = pic->frame_type;
    enc_pic->bit_depth_luma_minus8 = enc_pic->bit_depth_chroma_minus8 =
@@ -855,6 +871,15 @@ static void radeon_vcn_enc_av1_get_param(struct radeon_encoder *enc,
       enc_pic->av1_enc_params.lsm_reference_frame_index[0] =
          pic->ref_list0[0] == PIPE_H2645_LIST_REF_INVALID_ENTRY ? 0xffffffff : pic->ref_list0[0];
       enc_pic->av1_enc_params.lsm_reference_frame_index[1] = 0xffffffff;
+      enc_pic->av1.compound = false;
+
+      if (pic->ref_list1[0] != PIPE_H2645_LIST_REF_INVALID_ENTRY) {
+         enc_pic->av1.compound = true; /* BIDIR_COMP */
+         enc_pic->av1_enc_params.lsm_reference_frame_index[1] = pic->ref_list1[0];
+      } else if (pic->ref_list0[1] != PIPE_H2645_LIST_REF_INVALID_ENTRY) {
+         enc_pic->av1.compound = true; /* UNIDIR_COMP */
+         enc_pic->av1_enc_params.lsm_reference_frame_index[1] = pic->ref_list0[1];
+      }
    }
 
    radeon_vcn_enc_av1_get_spec_misc_param(enc, pic);
@@ -1302,7 +1327,7 @@ static void radeon_enc_begin_frame(struct pipe_video_codec *encoder,
       enc->need_rc_per_pic =
          (enc->enc_pic.rc_per_pic.qp_i != pic->rc[0].qp) ||
          (enc->enc_pic.rc_per_pic.qp_p != pic->rc[0].qp_inter) ||
-         (enc->enc_pic.rc_per_pic.qp_p != pic->rc[0].qp_inter) ||
+         (enc->enc_pic.rc_per_pic.qp_b != pic->rc[0].qp_inter) ||
          (enc->enc_pic.rc_per_pic.max_au_size_i != pic->rc[0].max_au_size) ||
          (enc->enc_pic.rc_per_pic.qvbr_quality_level != pic->rc[0].vbr_quality_factor);
 

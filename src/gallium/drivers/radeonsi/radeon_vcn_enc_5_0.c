@@ -81,7 +81,10 @@ static void radeon_enc_encode_params(struct radeon_encoder *enc)
             break;
          case PIPE_AV1_ENC_FRAME_TYPE_INTER:
          case PIPE_AV1_ENC_FRAME_TYPE_SWITCH:
-            enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_P;
+            if (enc->enc_pic.av1.compound)
+               enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_B;
+            else
+               enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_P;
             break;
          default:
             assert(0); /* never come to this condition */
@@ -187,7 +190,7 @@ static void radeon_enc_spec_misc_av1(struct radeon_encoder *enc)
    RADEON_ENC_CS(0);
    RADEON_ENC_CS(enc->enc_pic.av1_spec_misc.disable_cdf_update);
    RADEON_ENC_CS(enc->enc_pic.av1_spec_misc.disable_frame_end_update_cdf);
-   RADEON_ENC_CS(0);
+   RADEON_ENC_CS(enc->enc_pic.av1_spec_misc.disallow_skip_mode);
    RADEON_ENC_CS(enc->enc_pic.av1_spec_misc.delta_q_y_dc);
    RADEON_ENC_CS(enc->enc_pic.av1_spec_misc.delta_q_u_dc);
    RADEON_ENC_CS(enc->enc_pic.av1_spec_misc.delta_q_u_ac);
@@ -721,6 +724,62 @@ static void radeon_enc_av1_quantization_params(struct radeon_encoder *enc)
    radeon_enc_code_fixed_bits(enc, 0, 1);
 }
 
+static int32_t radeon_enc_av1_get_relative_dist(struct radeon_encoder *enc, uint32_t a, uint32_t b)
+{
+    uint32_t diff = a - b;
+    uint32_t m = 1 << (enc->enc_pic.av1.desc->seq.order_hint_bits - 1);
+    diff = (diff & (m - 1)) - (diff & m);
+    return diff;
+}
+
+bool radeon_enc_av1_skip_mode_allowed(struct radeon_encoder *enc)
+{
+   if (enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_KEY ||
+       enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_INTRA_ONLY ||
+       !enc->enc_pic.av1.compound ||
+       !enc->enc_pic.av1.desc->seq.seq_bits.enable_order_hint)
+      return false;
+
+   int32_t forward_idx = -1, backward_idx = -1;
+   uint32_t forward_hint, backward_hint;
+
+   for (uint32_t i = 0; i < RENCODE_AV1_REFS_PER_FRAME; i++) {
+      uint32_t ref_hint = enc->enc_pic.av1.desc->dpb[enc->enc_pic.av1.desc->dpb_ref_frame_idx[i]].order_hint;
+      int32_t dist = radeon_enc_av1_get_relative_dist(enc, ref_hint, enc->enc_pic.av1.desc->order_hint);
+      if (dist < 0) {
+         if (forward_idx < 0 || radeon_enc_av1_get_relative_dist(enc, ref_hint, forward_hint) > 0) {
+            forward_idx = i;
+            forward_hint = ref_hint;
+         }
+      } else if (dist > 0) {
+         if (backward_idx < 0 || radeon_enc_av1_get_relative_dist(enc, ref_hint, backward_hint) < 0) {
+            backward_idx = i;
+            backward_hint = ref_hint;
+         }
+      }
+   }
+
+   if (forward_idx < 0)
+      return false;
+   else if (backward_idx >= 0)
+      return true;
+
+   int32_t second_forward_idx = -1;
+   uint32_t second_forward_hint;
+
+   for (uint32_t i = 0; i < RENCODE_AV1_REFS_PER_FRAME; i++) {
+      uint32_t ref_hint = enc->enc_pic.av1.desc->dpb[enc->enc_pic.av1.desc->dpb_ref_frame_idx[i]].order_hint;
+      if (radeon_enc_av1_get_relative_dist(enc, ref_hint, forward_hint) < 0) {
+         if (second_forward_idx < 0 || radeon_enc_av1_get_relative_dist(enc, ref_hint, second_forward_hint) > 0) {
+            second_forward_idx = i;
+            second_forward_hint = ref_hint;
+         }
+      }
+   }
+
+   return second_forward_idx >= 0;
+}
+
 static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_header)
 {
    bool frame_is_intra = enc->enc_pic.frame_type == PIPE_AV1_ENC_FRAME_TYPE_KEY ||
@@ -750,7 +809,11 @@ static void radeon_enc_av1_frame_header(struct radeon_encoder *enc, bool frame_h
 
    if (!frame_is_intra)
       /*  reference_select  */
-      radeon_enc_code_fixed_bits(enc, 0, 1);
+      radeon_enc_code_fixed_bits(enc, enc->enc_pic.av1.compound, 1);
+
+   if (enc->enc_pic.av1.skip_mode_allowed)
+      /*  skip_mode_present  */
+      radeon_enc_code_fixed_bits(enc, 1, 1);
 
    /*  reduced_tx_set  */
    radeon_enc_code_fixed_bits(enc, 0, 1);

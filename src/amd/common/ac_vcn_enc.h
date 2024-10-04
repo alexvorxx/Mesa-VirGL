@@ -337,6 +337,7 @@ typedef struct rvcn_enc_av1_spec_misc_s {
    uint32_t cdef_y_sec_strength[RENCODE_AV1_CDEF_MAX_NUM];
    uint32_t cdef_uv_pri_strength[RENCODE_AV1_CDEF_MAX_NUM];
    uint32_t cdef_uv_sec_strength[RENCODE_AV1_CDEF_MAX_NUM];
+   uint32_t disallow_skip_mode;
     int32_t delta_q_y_dc;
     int32_t delta_q_u_dc;
     int32_t delta_q_u_ac;
