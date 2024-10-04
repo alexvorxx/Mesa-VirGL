@@ -1039,6 +1039,8 @@ prepare_push_uniforms(struct panvk_cmd_buffer *cmdbuf)
 static VkResult
 prepare_ds(struct panvk_cmd_buffer *cmdbuf)
 {
+   const struct panvk_shader *fs = cmdbuf->state.gfx.fs.shader;
+   mali_ptr frag_spd = fs ? panvk_priv_mem_dev_addr(fs->spd) : 0;
    bool dirty = is_dirty(cmdbuf, DS_DEPTH_TEST_ENABLE) ||
                 is_dirty(cmdbuf, DS_DEPTH_WRITE_ENABLE) ||
                 is_dirty(cmdbuf, DS_DEPTH_COMPARE_OP) ||
@@ -1057,14 +1059,14 @@ prepare_ds(struct panvk_cmd_buffer *cmdbuf)
                 is_dirty(cmdbuf, MS_ALPHA_TO_COVERAGE_ENABLE) ||
                 is_dirty(cmdbuf, CB_ATTACHMENT_COUNT) ||
                 is_dirty(cmdbuf, CB_COLOR_WRITE_ENABLES) ||
-                is_dirty(cmdbuf, CB_WRITE_MASKS);
+                is_dirty(cmdbuf, CB_WRITE_MASKS) ||
+                cmdbuf->state.gfx.fs.spd != frag_spd;
 
    if (!dirty)
       return VK_SUCCESS;
 
    struct cs_builder *b =
       panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
-   const struct panvk_shader *fs = cmdbuf->state.gfx.fs.shader;
    const struct vk_dynamic_graphics_state *dyns =
       &cmdbuf->vk.dynamic_graphics_state;
    const struct vk_depth_stencil_state *ds = &dyns->ds;
