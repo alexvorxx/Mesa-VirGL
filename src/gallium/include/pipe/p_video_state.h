@@ -1389,9 +1389,6 @@ struct pipe_av1_enc_picture_desc
    uint8_t refresh_frame_flags;
    uint8_t ref_frame_idx[7];
    uint32_t delta_frame_id_minus_1[7];
-   uint32_t ref_frame_ctrl_l0;            /* forward prediction only */
-   void *ref_list[8];                     /* for tracking ref frames */
-   void *recon_frame;
    uint32_t frame_presentation_time;
    uint32_t current_frame_id;
    uint32_t ref_order_hint[8];

@@ -133,7 +133,6 @@ vlVaDpbIndex(vlVaContext *context, VASurfaceID id)
 VAStatus vlVaHandleVAEncPictureParameterBufferTypeAV1(vlVaDriver *drv, vlVaContext *context, vlVaBuffer *buf)
 {
    VAEncPictureParameterBufferAV1 *av1 = buf->data;
-   struct pipe_video_buffer *video_buf = NULL;
    vlVaBuffer *coded_buf;
    vlVaSurface *surf;
    int i, j;
@@ -338,24 +337,6 @@ VAStatus vlVaHandleVAEncPictureParameterBufferTypeAV1(vlVaDriver *drv, vlVaConte
 
    if (context->desc.av1enc.frame_type == FRAME_TYPE_KEY_FRAME)
       context->desc.av1enc.last_key_frame_num = context->desc.av1enc.frame_num;
-
-   if (av1->reconstructed_frame != VA_INVALID_ID) {
-      vlVaGetReferenceFrame(drv, av1->reconstructed_frame, &video_buf);
-      context->desc.av1enc.recon_frame = video_buf;
-   }
-   else
-      context->desc.av1enc.recon_frame = NULL;
-
-   for (int i = 0 ; i < ARRAY_SIZE(context->desc.av1enc.ref_list); i++) {
-      if (av1->reference_frames[i] != VA_INVALID_ID) {
-         vlVaGetReferenceFrame(drv, av1->reference_frames[i], &video_buf);
-         context->desc.av1enc.ref_list[i] = video_buf;
-      }
-      else
-         context->desc.av1enc.ref_list[i] = NULL;
-   }
-
-   context->desc.av1enc.ref_frame_ctrl_l0 = av1->ref_frame_ctrl_l0.value;
 
     /* Initialize slice descriptors for this picture */
     context->desc.av1enc.num_tile_groups = 0;
