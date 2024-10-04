@@ -1,7 +1,7 @@
 include:
   - local: 'src/gallium/drivers/nouveau/ci/gitlab-ci-inc.yml'
 
-gk20a-gles:
+.gk20a-gles:
   extends:
     - .baremetal-test-arm32
     - .nouveau-bm-test
