@@ -58,6 +58,7 @@ static inline uint32_t
 pm4_pkt4_hdr(uint16_t regindx, uint16_t cnt)
 {
    assert(cnt < 0x7f);
+   assert(regindx);
    return CP_TYPE4_PKT | cnt | (pm4_odd_parity_bit(cnt) << 7) |
          ((regindx & 0x3ffff) << 8) |
          ((pm4_odd_parity_bit(regindx) << 27));
