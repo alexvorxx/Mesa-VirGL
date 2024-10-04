@@ -72,6 +72,8 @@ struct radeon_enc_pic {
       } hevc;
       struct {
          struct pipe_av1_enc_picture_desc *desc;
+         uint32_t coded_width;
+         uint32_t coded_height;
       } av1;
    };
 

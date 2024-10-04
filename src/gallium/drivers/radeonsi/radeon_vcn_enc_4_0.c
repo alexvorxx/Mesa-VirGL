@@ -91,6 +91,9 @@ static void radeon_enc_session_init(struct radeon_encoder *enc)
          if (!(av1_height % 8) && (av1_height % 16) && !(enc->enc_pic.enable_render_size))
             enc->enc_pic.session_init.aligned_picture_height = av1_height + 2;
 
+         enc->enc_pic.av1.coded_width = enc->enc_pic.session_init.aligned_picture_width;
+         enc->enc_pic.av1.coded_height = enc->enc_pic.session_init.aligned_picture_height;
+
          enc->enc_pic.session_init.padding_width =
             enc->enc_pic.session_init.aligned_picture_width -
             enc->enc_pic.pic_width_in_luma_samples;
@@ -315,16 +318,16 @@ unsigned int radeon_enc_write_sequence_header(struct radeon_encoder *enc, uint8_
    }
 
    /*  frame_width_bits_minus_1  */
-   width_bits = radeon_enc_value_bits(enc->enc_pic.session_init.aligned_picture_width - 1);
+   width_bits = radeon_enc_value_bits(enc->enc_pic.av1.coded_width);
    radeon_enc_code_fixed_bits(enc, width_bits - 1, 4);
    /*  frame_height_bits_minus_1  */
-   height_bits = radeon_enc_value_bits(enc->enc_pic.session_init.aligned_picture_height - 1);
+   height_bits = radeon_enc_value_bits(enc->enc_pic.av1.coded_height);
    radeon_enc_code_fixed_bits(enc, height_bits - 1, 4);
    /*  max_frame_width_minus_1  */
-   radeon_enc_code_fixed_bits(enc, enc->enc_pic.session_init.aligned_picture_width - 1,
+   radeon_enc_code_fixed_bits(enc, enc->enc_pic.av1.coded_width - 1,
                                    width_bits);
    /*  max_frame_height_minus_1  */
-   radeon_enc_code_fixed_bits(enc, enc->enc_pic.session_init.aligned_picture_height - 1,
+   radeon_enc_code_fixed_bits(enc, enc->enc_pic.av1.coded_height - 1,
                                    height_bits);
 
    /*  frame_id_numbers_present_flag  */
@@ -533,12 +536,12 @@ void radeon_enc_av1_frame_header_common(struct radeon_encoder *enc, bool frame_h
          if(frame_size_override) {
             /*  frame_width_minus_1  */
             uint32_t used_bits =
-                     radeon_enc_value_bits(enc->enc_pic.session_init.aligned_picture_width - 1);
-            radeon_enc_code_fixed_bits(enc, enc->enc_pic.session_init.aligned_picture_width - 1,
+                     radeon_enc_value_bits(enc->enc_pic.av1.coded_width - 1);
+            radeon_enc_code_fixed_bits(enc, enc->enc_pic.av1.coded_width - 1,
                                             used_bits);
             /*  frame_height_minus_1  */
-            used_bits = radeon_enc_value_bits(enc->enc_pic.session_init.aligned_picture_height - 1);
-            radeon_enc_code_fixed_bits(enc, enc->enc_pic.session_init.aligned_picture_height - 1,
+            used_bits = radeon_enc_value_bits(enc->enc_pic.av1.coded_height - 1);
+            radeon_enc_code_fixed_bits(enc, enc->enc_pic.av1.coded_height - 1,
                                             used_bits);
          }
          /*  render_and_frame_size_different  */

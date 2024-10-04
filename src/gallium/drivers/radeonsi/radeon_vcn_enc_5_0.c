@@ -817,6 +817,9 @@ static void radeon_enc_session_init(struct radeon_encoder *enc)
          enc->enc_pic.session_init.aligned_picture_height =
                                  align(enc->enc_pic.pic_height_in_luma_samples, 2);
 
+         enc->enc_pic.av1.coded_width = enc->enc_pic.pic_width_in_luma_samples;
+         enc->enc_pic.av1.coded_height = enc->enc_pic.pic_height_in_luma_samples;
+
          enc->enc_pic.session_init.padding_width =
             enc->enc_pic.session_init.aligned_picture_width -
             enc->enc_pic.pic_width_in_luma_samples;
