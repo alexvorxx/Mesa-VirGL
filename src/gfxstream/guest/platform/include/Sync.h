@@ -17,6 +17,8 @@ class SyncHelper {
 
     virtual int wait(int syncFd, int timeoutMilliseconds) = 0;
 
+    virtual void debugPrint(int syncFd) = 0;
+
     virtual int dup(int syncFd) = 0;
 
     virtual int close(int syncFd) = 0;

@@ -15,6 +15,8 @@ class VirtGpuKumquatSyncHelper : public SyncHelper {
 
     int wait(int syncFd, int timeoutMilliseconds) override;
 
+    void debugPrint(int syncFd) override;
+
     int dup(int syncFd) override;
 
     int close(int syncFd) override;

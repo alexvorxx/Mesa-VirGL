@@ -34,6 +34,8 @@ int VirtGpuKumquatSyncHelper::wait(int syncFd, int timeoutMilliseconds) {
 
 int VirtGpuKumquatSyncHelper::dup(int syncFd) { return ::dup(syncFd); }
 
+void VirtGpuKumquatSyncHelper::debugPrint(int syncFd) { return; }
+
 int VirtGpuKumquatSyncHelper::close(int syncFd) { return ::close(syncFd); }
 
 SyncHelper* kumquatCreateSyncHelper() { return new VirtGpuKumquatSyncHelper(); }
