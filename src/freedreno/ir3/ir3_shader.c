@@ -129,7 +129,9 @@ ir3_shader_assemble(struct ir3_shader_variant *v)
     */
    v->constlen = MAX2(v->constlen, info->max_const + 1);
 
-   if (v->constlen > ir3_const_state(v)->offsets.driver_param)
+   const struct ir3_const_state *const_state = ir3_const_state(v);
+   if ((v->constlen > const_state->offsets.driver_param) ||
+       (const_state->driver_params_ubo.idx >= 0))
       v->need_driver_params = true;
 
    /* On a4xx and newer, constlen must be a multiple of 16 dwords even though
