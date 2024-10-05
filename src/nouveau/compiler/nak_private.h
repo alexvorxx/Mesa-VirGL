@@ -37,6 +37,9 @@ enum ENUM_PACKED nak_attr {
    /* Patch attributes */
    NAK_ATTR_PATCH_START       = 0x020,
 
+   /* System values B? */
+   NAK_ATTR_VPRS_TABLE_INDEX  = 0x5c,
+
    /* System values B */
    NAK_ATTR_PRIMITIVE_ID      = 0x060,
    NAK_ATTR_RT_ARRAY_INDEX    = 0x064,

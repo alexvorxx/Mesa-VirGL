@@ -351,6 +351,9 @@ nak_varying_attr_addr(const struct nak_compiler *nak, gl_varying_slot slot)
       case VARYING_SLOT_POS:              return NAK_ATTR_POSITION;
       case VARYING_SLOT_CLIP_DIST0:       return NAK_ATTR_CLIP_CULL_DIST_0;
       case VARYING_SLOT_CLIP_DIST1:       return NAK_ATTR_CLIP_CULL_DIST_4;
+      case VARYING_SLOT_PRIMITIVE_SHADING_RATE:
+         return nak->sm >= 86 ? NAK_ATTR_VPRS_TABLE_INDEX
+                              : NAK_ATTR_VIEWPORT_INDEX;
       default: unreachable("Invalid varying slot");
       }
    }

@@ -183,8 +183,11 @@ struct nak_shader_info {
    struct {
       bool writes_layer;
       bool writes_point_size;
+      bool writes_vprs_table_index;
       uint8_t clip_enable;
       uint8_t cull_enable;
+
+      uint8_t _pad[3];
 
       struct nak_xfb_info xfb;
    } vtg;
