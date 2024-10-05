@@ -449,6 +449,26 @@ nak_nir_lower_system_value_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
       break;
    }
 
+   case nir_intrinsic_load_frag_shading_rate: {
+      val = nir_load_sysval_nv(b, 32, .base = NAK_SV_VARIABLE_RATE,
+                               .access = ACCESS_CAN_REORDER);
+
+      /* X is in bits 8..16 and Y is in bits 16..24.  However, we actually
+       * want the log2 of X and Y and, since we only support 1, 2, and 4, a
+       * right shift by 1 is log2.  So this gives us
+       *
+       * x_log2 = (sv >> 9) & 3
+       * y_log2 = (sv >> 17) & 3
+       *
+       * However, we actually want y_log2 at 0..2 and x_log2 at 2..4 so that
+       * gives us
+       */
+      nir_def *x = nir_iand_imm(b, nir_ushr_imm(b, val, 7), 0xc);
+      nir_def *y = nir_iand_imm(b, nir_ushr_imm(b, val, 17), 0x3);
+      val = nir_ior(b, x, y);
+      break;
+   }
+
    case nir_intrinsic_load_subgroup_eq_mask:
    case nir_intrinsic_load_subgroup_lt_mask:
    case nir_intrinsic_load_subgroup_le_mask:

@@ -121,6 +121,7 @@ enum ENUM_PACKED nak_sv {
    NAK_SV_CLOCK_LO         = 0x50,
    NAK_SV_CLOCK_HI         = 0x51,
    NAK_SV_CLOCK            = NAK_SV_CLOCK_LO,
+   NAK_SV_VARIABLE_RATE    = 0x84,
 };
 
 bool nak_nir_workgroup_has_one_subgroup(const nir_shader *nir);
