@@ -1416,23 +1416,6 @@ radv_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    vk_free(&device->vk.alloc, device);
 }
 
-bool
-radv_get_memory_fd(struct radv_device *device, struct radv_device_memory *memory, int *pFD)
-{
-   /* Set BO metadata for dedicated image allocations.  We don't need it for import when the image
-    * tiling is VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT, but we set it anyway for foreign consumers.
-    */
-   if (memory->image) {
-      struct radeon_bo_metadata metadata;
-
-      assert(memory->image->bindings[0].offset == 0);
-      radv_init_metadata(device, memory->image, &metadata);
-      device->ws->buffer_set_metadata(device->ws, memory->bo, &metadata);
-   }
-
-   return device->ws->buffer_get_fd(device->ws, memory->bo, pFD);
-}
-
 VKAPI_ATTR void VKAPI_CALL
 radv_GetImageMemoryRequirements2(VkDevice _device, const VkImageMemoryRequirementsInfo2 *pInfo,
                                  VkMemoryRequirements2 *pMemoryRequirements)
@@ -1692,7 +1675,18 @@ radv_GetMemoryFdKHR(VkDevice _device, const VkMemoryGetFdInfoKHR *pGetFdInfo, in
    assert(pGetFdInfo->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT ||
           pGetFdInfo->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
 
-   bool ret = radv_get_memory_fd(device, memory, pFD);
+   /* Set BO metadata for dedicated image allocations.  We don't need it for import when the image
+    * tiling is VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT, but we set it anyway for foreign consumers.
+    */
+   if (memory->image) {
+      struct radeon_bo_metadata metadata;
+
+      assert(memory->image->bindings[0].offset == 0);
+      radv_init_metadata(device, memory->image, &metadata);
+      device->ws->buffer_set_metadata(device->ws, memory->bo, &metadata);
+   }
+
+   bool ret = device->ws->buffer_get_fd(device->ws, memory->bo, pFD);
    if (ret == false)
       return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
    return VK_SUCCESS;
