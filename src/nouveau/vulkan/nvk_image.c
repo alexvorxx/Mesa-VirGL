@@ -85,6 +85,9 @@ nvk_get_image_plane_format_features(struct nvk_physical_device *pdev,
        p_format == PIPE_FORMAT_R64_UINT || p_format == PIPE_FORMAT_R64_SINT)
       features |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_ATOMIC_BIT;
 
+   if (p_format == PIPE_FORMAT_R8_UINT && tiling == VK_IMAGE_TILING_OPTIMAL)
+      features |= VK_FORMAT_FEATURE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
+
    if (features != 0) {
       features |= VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT;
       features |= VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
@@ -273,6 +276,8 @@ vk_image_usage_to_format_features(VkImageUsageFlagBits usage_flag)
    case VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT:
       return VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT |
              VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT;
+   case VK_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR:
+      return VK_FORMAT_FEATURE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR;
    default:
       return 0;
    }

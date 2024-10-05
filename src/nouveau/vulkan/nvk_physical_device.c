@@ -45,6 +45,7 @@
 #include "clc3c0.h"
 #include "clc597.h"
 #include "clc5c0.h"
+#include "clc797.h"
 #include "clc997.h"
 
 static bool
@@ -108,6 +109,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .KHR_format_feature_flags2 = true,
       .KHR_fragment_shader_barycentric = info->cls_eng3d >= TURING_A &&
          (nvk_nak_stages(info) & VK_SHADER_STAGE_FRAGMENT_BIT) != 0,
+      .KHR_fragment_shading_rate = info->cls_eng3d >= TURING_A,
       .KHR_get_memory_requirements2 = true,
       .KHR_image_format_list = true,
       .KHR_imageless_framebuffer = true,
@@ -420,6 +422,11 @@ nvk_get_device_features(const struct nv_device_info *info,
       /* VK_KHR_fragment_shader_barycentric */
       .fragmentShaderBarycentric = info->cls_eng3d >= TURING_A &&
          (nvk_nak_stages(info) & VK_SHADER_STAGE_FRAGMENT_BIT) != 0,
+
+      /* VK_KHR_fragment_shading_rate */
+      .pipelineFragmentShadingRate = info->cls_eng3d >= TURING_A,
+      .primitiveFragmentShadingRate = info->cls_eng3d >= TURING_A,
+      .attachmentFragmentShadingRate = info->cls_eng3d >= TURING_A,
 
       /* VK_KHR_index_type_uint8 */
       .indexTypeUint8 = true,
@@ -1099,6 +1106,25 @@ nvk_get_device_properties(const struct nvk_instance *instance,
 
       /* VK_KHR_fragment_shader_barycentric */
       .triStripVertexOrderIndependentOfProvokingVertex = false,
+
+      /* VK_KHR_fragment_shading_rate */
+      .minFragmentShadingRateAttachmentTexelSize = { 16, 16 },
+      .maxFragmentShadingRateAttachmentTexelSize = { 16, 16 },
+      .maxFragmentShadingRateAttachmentTexelSizeAspectRatio = 1,
+      .primitiveFragmentShadingRateWithMultipleViewports = info->cls_eng3d >= AMPERE_B,
+      .layeredShadingRateAttachments = true,
+      .fragmentShadingRateNonTrivialCombinerOps = true,
+      .maxFragmentSize = { 4, 4 },
+      .maxFragmentSizeAspectRatio = 2,
+      .maxFragmentShadingRateCoverageSamples = 16,
+      .maxFragmentShadingRateRasterizationSamples = 16,
+      .fragmentShadingRateWithShaderDepthStencilWrites = true,
+      .fragmentShadingRateWithSampleMask = true,
+      .fragmentShadingRateWithShaderSampleMask = true,
+      .fragmentShadingRateWithConservativeRasterization = true,
+      //.fragmentShadingRateWithFragmentShaderInterlock = true,
+      .fragmentShadingRateWithCustomSampleLocations = true,
+      .fragmentShadingRateStrictMultiplyCombiner = true,
 
       /* VK_NV_shader_sm_builtins */
       .shaderSMCount = (uint32_t)info->tpc_count * info->mp_per_tpc,
