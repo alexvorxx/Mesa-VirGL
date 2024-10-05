@@ -898,6 +898,18 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
    nvk_attachment_init(&render->stencil_att,
                        pRenderingInfo->pStencilAttachment);
 
+   const VkRenderingFragmentShadingRateAttachmentInfoKHR *fsr_att_info =
+      vk_find_struct_const(pRenderingInfo->pNext,
+                           RENDERING_FRAGMENT_SHADING_RATE_ATTACHMENT_INFO_KHR);
+   if (fsr_att_info != NULL && fsr_att_info->imageView != VK_NULL_HANDLE) {
+      VK_FROM_HANDLE(nvk_image_view, iview, fsr_att_info->imageView);
+      render->fsr_att = (struct nvk_attachment) {
+         .vk_format = iview->vk.format,
+         .iview = iview,
+         .store_op = VK_ATTACHMENT_STORE_OP_NONE,
+      };
+   }
+
    render->all_linear = nvk_rendering_all_linear(render);
 
    const VkRenderingAttachmentLocationInfoKHR ral_info = {
@@ -908,7 +920,7 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
 
    nvk_cmd_buffer_dirty_render_pass(cmd);
 
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, NVK_MAX_RTS * 12 + 25);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, NVK_MAX_RTS * 12 + 34);
 
    P_IMMD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_VIEW_MASK),
           render->view_mask);
@@ -1135,6 +1147,66 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
       }
    } else {
       P_IMMD(p, NV9097, SET_ZT_SELECT, 0 /* target_count */);
+   }
+
+   if (render->fsr_att.iview) {
+      const struct nvk_image_view *iview = render->fsr_att.iview;
+      const struct nvk_image *image = (struct nvk_image *)iview->vk.image;
+
+      /* Fragment shading rate images are always single-plane */
+      assert(iview->plane_count == 1);
+      const uint8_t ip = iview->planes[0].image_plane;
+      const struct nil_image *nil_image = &image->planes[ip].nil;
+
+      /* Fragment shading rate images are always 2D */
+      assert(nil_image->dim == NIL_IMAGE_DIM_2D);
+      assert(nil_image->sample_layout == NIL_SAMPLE_LAYOUT_1X1);
+
+      uint64_t addr = nvk_image_base_address(image, ip);
+      uint32_t mip_level = iview->vk.base_mip_level;
+      struct nil_Extent4D_Samples level_extent_sa =
+         nil_image_level_extent_sa(nil_image, mip_level);
+
+      const struct nil_image_level *level = &nil_image->levels[mip_level];
+      addr += level->offset_B;
+
+      P_MTHD(p, NVC597, SET_SHADING_RATE_INDEX_SURFACE_ADDRESS_A(0));
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_ADDRESS_A(p, 0, addr >> 32);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_ADDRESS_B(p, 0, addr);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_SIZE_A(p, 0, {
+         .width = level_extent_sa.width,
+         .height = level_extent_sa.height,
+      });
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_SIZE_B(p, 0,
+         iview->vk.layer_count + iview->vk.base_array_layer);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_LAYER(p, 0,
+         iview->vk.base_array_layer);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_ARRAY_PITCH(p, 0,
+         nil_image->array_stride_B >> 2);
+      assert(level->tiling.gob_type != NIL_GOB_TYPE_LINEAR);
+      assert(level->tiling.z_log2 == 0);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_BLOCK_SIZE(p, 0, {
+         .width = WIDTH_ONE_GOB,
+         .height = level->tiling.y_log2,
+         .depth = DEPTH_ONE_GOB,
+      });
+
+      const enum pipe_format p_format =
+         vk_format_to_pipe_format(iview->vk.format);
+      const uint32_t row_stride_el =
+         level->row_stride_B / util_format_get_blocksize(p_format);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_ALLOCATED_SIZE(p, 0,
+         row_stride_el);
+   } else {
+      P_MTHD(p, NVC597, SET_SHADING_RATE_INDEX_SURFACE_ADDRESS_A(0));
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_ADDRESS_A(p, 0, 0);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_ADDRESS_B(p, 0, 0);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_SIZE_A(p, 0, { });
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_SIZE_B(p, 0, 0);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_LAYER(p, 0, 0);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_ARRAY_PITCH(p, 0, 0);
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_BLOCK_SIZE(p, 0, { });
+      P_NVC597_SET_SHADING_RATE_INDEX_SURFACE_ALLOCATED_SIZE(p, 0, 0);
    }
 
    /* From the Vulkan 1.3.275 spec:
