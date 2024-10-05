@@ -288,6 +288,7 @@ init_program_limits(struct gl_constants *consts, gl_shader_stage stage,
    prog->MaxEnvParams = MAX_PROGRAM_ENV_PARAMS;
    prog->MaxLocalParams = MAX_PROGRAM_LOCAL_PARAMS;
    prog->MaxAddressOffset = MAX_PROGRAM_LOCAL_PARAMS;
+   prog->MaxAddressRegs = 0; /* only meaningful for vertex/fragment shaders */
 
    switch (stage) {
    case MESA_SHADER_VERTEX:
@@ -311,7 +312,6 @@ init_program_limits(struct gl_constants *consts, gl_shader_stage stage,
    case MESA_SHADER_GEOMETRY:
       prog->MaxParameters = MAX_VERTEX_PROGRAM_PARAMS;
       prog->MaxAttribs = MAX_VERTEX_GENERIC_ATTRIBS;
-      prog->MaxAddressRegs = MAX_VERTEX_PROGRAM_ADDRESS_REGS;
       prog->MaxUniformComponents = 4 * MAX_UNIFORMS;
       prog->MaxInputComponents = 16 * 4; /* old limit not to break tnl and swrast */
       prog->MaxOutputComponents = 16 * 4; /* old limit not to break tnl and swrast */
@@ -319,7 +319,6 @@ init_program_limits(struct gl_constants *consts, gl_shader_stage stage,
    case MESA_SHADER_COMPUTE:
       prog->MaxParameters = 0; /* not meaningful for compute shaders */
       prog->MaxAttribs = 0; /* not meaningful for compute shaders */
-      prog->MaxAddressRegs = 0; /* not meaningful for compute shaders */
       prog->MaxUniformComponents = 4 * MAX_UNIFORMS;
       prog->MaxInputComponents = 0; /* not meaningful for compute shaders */
       prog->MaxOutputComponents = 0; /* not meaningful for compute shaders */

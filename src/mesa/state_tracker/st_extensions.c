@@ -237,7 +237,6 @@ void st_init_limits(struct pipe_screen *screen,
          screen->get_shader_param(screen, sh, PIPE_SHADER_CAP_MAX_INPUTS);
       pc->MaxTemps =
          screen->get_shader_param(screen, sh, PIPE_SHADER_CAP_MAX_TEMPS);
-      pc->MaxAddressRegs = sh == PIPE_SHADER_VERTEX ? 1 : 0;
 
       pc->MaxUniformComponents =
          screen->get_shader_param(screen, sh,
