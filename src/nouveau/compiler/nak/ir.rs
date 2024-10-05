@@ -1488,6 +1488,8 @@ pub trait DstsAsSlice: AsSlice<Dst, Attr = DstType> {
         self.as_mut_slice()
     }
 
+    // Currently only used by test code
+    #[allow(dead_code)]
     fn dst_types(&self) -> DstTypeList {
         self.attrs()
     }
@@ -1652,6 +1654,8 @@ impl OpFoldData<'_> {
 }
 
 pub trait Foldable: SrcsAsSlice + DstsAsSlice {
+    // Currently only used by test code
+    #[allow(dead_code)]
     fn fold(&self, sm: &dyn ShaderModel, f: &mut OpFoldData<'_>);
 }
 
