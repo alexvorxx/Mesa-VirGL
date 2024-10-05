@@ -72,6 +72,7 @@ shaders@glsl-bug-110796
 # query pool not supported yet
 dEQP-VK.query_pool.*
 dEQP-VK.fragment_operations.occlusion_query.*
+dEQP-VK.dynamic_rendering.primary_cmd_buff.random.seed*
 
 # indirect dispatch and draw not supported yet
 dEQP-VK.synchronization.*indirect*
@@ -79,6 +80,9 @@ dEQP-VK.synchronization2.*indirect*
 dEQP-VK.draw.renderpass.indirect_draw.*
 dEQP-VK.draw.renderpass.*.draw_indirect*
 dEQP-VK.draw.renderpass.*.draw_indexed_indirect*
+dEQP-VK.draw.dynamic_rendering.*.draw_indirect*
+dEQP-VK.draw.dynamic_rendering.*.draw_indexed_indirect*
+dEQP-VK.draw.dynamic_rendering.*.indirect_draw*
 
 # textureQueryLod not supported yet
 dEQP-VK.glsl.texture_functions.query.texturequerylod.*
