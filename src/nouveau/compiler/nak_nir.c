@@ -401,7 +401,7 @@ nak_sysval_sysval_idx(gl_system_value sysval)
 {
    switch (sysval) {
    case SYSTEM_VALUE_SUBGROUP_INVOCATION:    return NAK_SV_LANE_ID;
-   case SYSTEM_VALUE_VERTICES_IN:            return NAK_SV_VERTEX_COUNT;
+   case SYSTEM_VALUE_VERTICES_IN:            return NAK_SV_PRIM_TYPE;
    case SYSTEM_VALUE_INVOCATION_ID:          return NAK_SV_INVOCATION_ID;
    case SYSTEM_VALUE_HELPER_INVOCATION:      return NAK_SV_THREAD_KILL;
    case SYSTEM_VALUE_LOCAL_INVOCATION_ID:    return NAK_SV_TID;
@@ -443,7 +443,7 @@ nak_nir_lower_system_value_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
    }
 
    case nir_intrinsic_load_patch_vertices_in: {
-      val = nir_load_sysval_nv(b, 32, .base = NAK_SV_VERTEX_COUNT,
+      val = nir_load_sysval_nv(b, 32, .base = NAK_SV_PRIM_TYPE,
                                .access = ACCESS_CAN_REORDER);
       val = nir_extract_u8(b, val, nir_imm_int(b, 1));
       break;

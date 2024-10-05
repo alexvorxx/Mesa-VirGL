@@ -100,7 +100,7 @@ enum ENUM_PACKED nak_sv {
    NAK_SV_LANE_ID          = 0x00,
    NAK_SV_VIRTCFG          = 0x02,
    NAK_SV_VIRTID           = 0x03,
-   NAK_SV_VERTEX_COUNT     = 0x10,
+   NAK_SV_PRIM_TYPE        = 0x10,
    NAK_SV_INVOCATION_ID    = 0x11,
    NAK_SV_THREAD_KILL      = 0x13,
    NAK_SV_INVOCATION_INFO  = 0x1d,
