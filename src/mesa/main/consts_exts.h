@@ -400,15 +400,6 @@ struct gl_program_constants
    GLuint MaxParameters;
    GLuint MaxLocalParams;
    GLuint MaxEnvParams;
-   /* native/hardware limits */
-   GLuint MaxNativeInstructions;
-   GLuint MaxNativeAluInstructions;
-   GLuint MaxNativeTexInstructions;
-   GLuint MaxNativeTexIndirections;
-   GLuint MaxNativeAttribs;
-   GLuint MaxNativeTemps;
-   GLuint MaxNativeAddressRegs;
-   GLuint MaxNativeParameters;
    /* For shaders */
    GLuint MaxUniformComponents;  /**< Usually == MaxParameters * 4 */
 

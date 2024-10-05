@@ -328,18 +328,6 @@ init_program_limits(struct gl_constants *consts, gl_shader_stage stage,
       assert(0 && "Bad shader stage in init_program_limits()");
    }
 
-   /* Set the native limits to zero.  This implies that there is no native
-    * support for shaders.  Let the drivers fill in the actual values.
-    */
-   prog->MaxNativeInstructions = 0;
-   prog->MaxNativeAluInstructions = 0;
-   prog->MaxNativeTexInstructions = 0;
-   prog->MaxNativeTexIndirections = 0;
-   prog->MaxNativeAttribs = 0;
-   prog->MaxNativeTemps = 0;
-   prog->MaxNativeAddressRegs = 0;
-   prog->MaxNativeParameters = 0;
-
    /* Set GLSL datatype range/precision info assuming IEEE float values.
     * Drivers should override these defaults as needed.
     */

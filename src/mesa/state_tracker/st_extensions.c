@@ -223,28 +223,21 @@ void st_init_limits(struct pipe_screen *screen,
               MAX_TEXTURE_IMAGE_UNITS);
 
       pc->MaxInstructions =
-      pc->MaxNativeInstructions =
          screen->get_shader_param(screen, sh, PIPE_SHADER_CAP_MAX_INSTRUCTIONS);
       pc->MaxAluInstructions =
-      pc->MaxNativeAluInstructions =
          screen->get_shader_param(screen, sh,
                                   PIPE_SHADER_CAP_MAX_ALU_INSTRUCTIONS);
       pc->MaxTexInstructions =
-      pc->MaxNativeTexInstructions =
          screen->get_shader_param(screen, sh,
                                   PIPE_SHADER_CAP_MAX_TEX_INSTRUCTIONS);
       pc->MaxTexIndirections =
-      pc->MaxNativeTexIndirections =
          screen->get_shader_param(screen, sh,
                                   PIPE_SHADER_CAP_MAX_TEX_INDIRECTIONS);
       pc->MaxAttribs =
-      pc->MaxNativeAttribs =
          screen->get_shader_param(screen, sh, PIPE_SHADER_CAP_MAX_INPUTS);
       pc->MaxTemps =
-      pc->MaxNativeTemps =
          screen->get_shader_param(screen, sh, PIPE_SHADER_CAP_MAX_TEMPS);
-      pc->MaxAddressRegs =
-      pc->MaxNativeAddressRegs = sh == PIPE_SHADER_VERTEX ? 1 : 0;
+      pc->MaxAddressRegs = sh == PIPE_SHADER_VERTEX ? 1 : 0;
 
       pc->MaxUniformComponents =
          screen->get_shader_param(screen, sh,
@@ -274,8 +267,7 @@ void st_init_limits(struct pipe_screen *screen,
        * internal values in addition to what the source program uses.  So, we
        * drop the limit one step lower, to 2048, to be safe.
        */
-      pc->MaxParameters =
-      pc->MaxNativeParameters = MIN2(pc->MaxUniformComponents / 4, 2048);
+      pc->MaxParameters = MIN2(pc->MaxUniformComponents / 4, 2048);
       pc->MaxInputComponents =
          screen->get_shader_param(screen, sh, PIPE_SHADER_CAP_MAX_INPUTS) * 4;
       pc->MaxOutputComponents =
@@ -370,7 +362,7 @@ void st_init_limits(struct pipe_screen *screen,
          !screen->get_shader_param(screen, sh,
                                    PIPE_SHADER_CAP_INDIRECT_CONST_ADDR);
 
-      if (pc->MaxNativeInstructions &&
+      if (pc->MaxInstructions &&
           (options->EmitNoIndirectUniform || pc->MaxUniformBlocks < 12)) {
          can_ubo = false;
       }

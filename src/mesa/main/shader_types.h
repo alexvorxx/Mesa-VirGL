@@ -646,17 +646,6 @@ struct gl_program
          GLuint NumTexInstructions;
          GLuint NumTexIndirections;
          /*@}*/
-         /** Native, actual h/w counts */
-         /*@{*/
-         GLuint NumNativeInstructions;
-         GLuint NumNativeTemporaries;
-         GLuint NumNativeParameters;
-         GLuint NumNativeAttributes;
-         GLuint NumNativeAddressRegs;
-         GLuint NumNativeAluInstructions;
-         GLuint NumNativeTexInstructions;
-         GLuint NumNativeTexIndirections;
-         /*@}*/
 
          /** Used by ARB assembly-style programs. Can only be true for vertex
           * programs.
