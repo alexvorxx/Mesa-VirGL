@@ -2200,15 +2200,19 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
 
       cs_add64(b, fbd_ptr, tiler_ptr, pan_size(TILER_CONTEXT) * td_count);
       cs_move64_to(b, src_fbd_ptr, fbds.gpu);
-   } else if (cmdbuf->state.gfx.render.tiler) {
+   } else {
       cs_move64_to(b, fbd_ptr, fbds.gpu);
-      cs_move64_to(b, tiler_ptr, cmdbuf->state.gfx.render.tiler);
+      if (cmdbuf->state.gfx.render.tiler)
+         cs_move64_to(b, tiler_ptr, cmdbuf->state.gfx.render.tiler);
    }
 
 
-   cs_add64(b, cur_tiler, tiler_ptr, 0);
+   if (cmdbuf->state.gfx.render.tiler) {
+      cs_add64(b, cur_tiler, tiler_ptr, 0);
+      cs_move32_to(b, remaining_layers_in_td, MAX_LAYERS_PER_TILER_DESC);
+   }
+
    cs_move32_to(b, layer_count, cmdbuf->state.gfx.render.layer_count);
-   cs_move32_to(b, remaining_layers_in_td, MAX_LAYERS_PER_TILER_DESC);
 
    cs_req_res(b, CS_FRAG_RES);
    cs_while(b, MALI_CS_CONDITION_GREATER, layer_count) {
@@ -2236,10 +2240,12 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
       cs_run_fragment(b, false, MALI_TILE_RENDER_ORDER_Z_ORDER, false);
       cs_add64(b, fbd_ptr, fbd_ptr, fbd_sz);
       cs_add32(b, layer_count, layer_count, -1);
-      cs_add32(b, remaining_layers_in_td, remaining_layers_in_td, -1);
-      cs_if(b, MALI_CS_CONDITION_LEQUAL, remaining_layers_in_td) {
-         cs_add64(b, cur_tiler, cur_tiler, pan_size(TILER_CONTEXT));
-         cs_move32_to(b, remaining_layers_in_td, MAX_LAYERS_PER_TILER_DESC);
+      if (cmdbuf->state.gfx.render.tiler) {
+         cs_add32(b, remaining_layers_in_td, remaining_layers_in_td, -1);
+         cs_if(b, MALI_CS_CONDITION_LEQUAL, remaining_layers_in_td) {
+            cs_add64(b, cur_tiler, cur_tiler, pan_size(TILER_CONTEXT));
+            cs_move32_to(b, remaining_layers_in_td, MAX_LAYERS_PER_TILER_DESC);
+         }
       }
    }
    cs_req_res(b, 0);
