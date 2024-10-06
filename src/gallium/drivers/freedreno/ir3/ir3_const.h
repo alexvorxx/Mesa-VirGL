@@ -622,45 +622,36 @@ ir3_emit_cs_driver_params(const struct ir3_shader_variant *v,
    /* emit compute-shader driver-params: */
    const struct ir3_const_state *const_state = ir3_const_state(v);
    uint32_t offset = const_state->offsets.driver_param;
+   uint32_t size =
+      align(MIN2(const_state->num_driver_params, (v->constlen - offset) * 4), 16);
+
    if (v->constlen > offset) {
       ring_wfi(ctx->batch, ring);
 
+      struct ir3_driver_params_cs compute_params = ir3_build_driver_params_cs(v, info);
+
       if (info->indirect) {
-         struct pipe_resource *indirect = NULL;
-         unsigned indirect_offset;
+         struct pipe_resource *buffer = NULL;
+         unsigned buffer_offset;
 
-         /* This is a bit awkward, but CP_LOAD_STATE.EXT_SRC_ADDR needs
-          * to be aligned more strongly than 4 bytes.  So in this case
-          * we need a temporary buffer to copy NumWorkGroups.xyz to.
-          *
-          * TODO if previous compute job is writing to info->indirect,
-          * we might need a WFI.. but since we currently flush for each
-          * compute job, we are probably ok for now.
+         u_upload_data(ctx->base.const_uploader, 0, sizeof(compute_params),
+                       16, &compute_params,  &buffer_offset, &buffer);
+
+         /* Copy the indirect params into the driver param buffer.  The layout
+          * of the indirect buffer should match the first three fields of
+          * compute_params:
           */
-         if (info->indirect_offset & 0xf) {
-            indirect = pipe_buffer_create(&ctx->screen->base,
-                                          PIPE_BIND_COMMAND_ARGS_BUFFER,
-                                          PIPE_USAGE_STREAM, 0x1000);
-            indirect_offset = 0;
+         STATIC_ASSERT(offsetof(struct ir3_driver_params_cs, num_work_groups_x) == 0);
+         STATIC_ASSERT(offsetof(struct ir3_driver_params_cs, num_work_groups_y) == 4);
+         STATIC_ASSERT(offsetof(struct ir3_driver_params_cs, num_work_groups_z) == 8);
 
-            ctx->screen->mem_to_mem(ring, indirect, 0, info->indirect,
-                                    info->indirect_offset, 3);
-         } else {
-            pipe_resource_reference(&indirect, info->indirect);
-            indirect_offset = info->indirect_offset;
-         }
+         ctx->screen->mem_to_mem(ring, buffer, buffer_offset, info->indirect,
+                                 info->indirect_offset, 3);
 
-         emit_const_prsc(ring, v, offset * 4, indirect_offset, 16, indirect);
+         emit_const_prsc(ring, v, offset * 4, buffer_offset, size, buffer);
 
-         pipe_resource_reference(&indirect, NULL);
+         pipe_resource_reference(&buffer, NULL);
       } else {
-         // TODO some of these are not part of the indirect state.. so we
-         // need to emit some of this directly in both cases.
-         struct ir3_driver_params_cs compute_params =
-            ir3_build_driver_params_cs(v, info);
-         uint32_t size =
-            MIN2(const_state->num_driver_params, v->constlen * 4 - offset * 4);
-
          emit_const_user(ring, v, offset * 4, size, (uint32_t *)&compute_params);
       }
    }
