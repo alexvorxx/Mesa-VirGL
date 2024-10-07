@@ -537,23 +537,23 @@ vk_queue_submits_merge(struct vk_queue *queue,
    typed_memcpy(&merged->signals[first->signal_count], second->signals, second->signal_count);
 
    for (uint32_t i = 0; i < first->buffer_bind_count; i++)
-      vk_queue_submit_add_buffer_bind(queue, first, &first->buffer_binds[i]);
+      vk_queue_submit_add_buffer_bind(queue, merged, &first->buffer_binds[i]);
    for (uint32_t i = 0; i < second->buffer_bind_count; i++)
-      vk_queue_submit_add_buffer_bind(queue, second, &first->buffer_binds[i]);
+      vk_queue_submit_add_buffer_bind(queue, merged, &second->buffer_binds[i]);
 
    for (uint32_t i = 0; i < first->image_opaque_bind_count; i++) {
-      vk_queue_submit_add_image_opaque_bind(queue, first,
+      vk_queue_submit_add_image_opaque_bind(queue, merged,
                                             &first->image_opaque_binds[i]);
    }
    for (uint32_t i = 0; i < second->image_opaque_bind_count; i++) {
-      vk_queue_submit_add_image_opaque_bind(queue, second,
-                                            &first->image_opaque_binds[i]);
+      vk_queue_submit_add_image_opaque_bind(queue, merged,
+                                            &second->image_opaque_binds[i]);
    }
 
    for (uint32_t i = 0; i < first->image_bind_count; i++)
-      vk_queue_submit_add_image_bind(queue, first, &first->image_binds[i]);
+      vk_queue_submit_add_image_bind(queue, merged, &first->image_binds[i]);
    for (uint32_t i = 0; i < second->image_bind_count; i++)
-      vk_queue_submit_add_image_bind(queue, second, &first->image_binds[i]);
+      vk_queue_submit_add_image_bind(queue, merged, &second->image_binds[i]);
 
    merged->perf_pass_index = first->perf_pass_index;
    assert(second->perf_pass_index == merged->perf_pass_index);
