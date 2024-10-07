@@ -427,6 +427,15 @@ struct vk_fragment_shading_rate_state {
    VkFragmentShadingRateCombinerOpKHR combiner_ops[2];
 };
 
+static inline bool
+vk_fragment_shading_rate_is_disabled(const struct vk_fragment_shading_rate_state *fsr)
+{
+   return fsr->fragment_size.width == 1 &&
+          fsr->fragment_size.height == 1 &&
+          fsr->combiner_ops[0] == VK_FRAGMENT_SHADING_RATE_COMBINER_OP_KEEP_KHR &&
+          fsr->combiner_ops[1] == VK_FRAGMENT_SHADING_RATE_COMBINER_OP_KEEP_KHR;
+}
+
 /***/
 struct vk_sample_locations_state {
    /** VkSampleLocationsInfoEXT::sampleLocationsPerPixel */
