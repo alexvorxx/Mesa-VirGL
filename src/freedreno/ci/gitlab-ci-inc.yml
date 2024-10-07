@@ -209,7 +209,8 @@
   variables:
     JOB_PRIORITY: 40
     # Ensure that we are using the release build artifact
-    S3_ARTIFACT_NAME: mesa-arm64-default-release
+    LAVA_S3_ARTIFACT_NAME: mesa-arm64-default-release
+    S3_ARTIFACT_NAME: mesa-python-test
   needs:
     - debian/x86_64_build
     - debian-arm64-release

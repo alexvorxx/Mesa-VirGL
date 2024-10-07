@@ -121,7 +121,8 @@
     # Always use the same device
     LAVA_TAGS: "cbg-0"
     # Ensure that we are using the release build artifact
-    S3_ARTIFACT_NAME: mesa-${ARCH}-default-release
+    LAVA_S3_ARTIFACT_NAME: mesa-${ARCH}-default-release
+    S3_ARTIFACT_NAME: mesa-python-test
   # Reset dependencies in performance jobs to enforce the release build artifact
   dependencies: null
   # Don't run in parallel. It is okay to performance jobs to take a little
