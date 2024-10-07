@@ -302,11 +302,11 @@ drm_shim_driver_init(void)
 
    /* panfrost uses the DRM version to expose features, instead of getparam. */
    shim_device.version_major = 1;
-   shim_device.version_minor = 1;
    shim_device.version_patchlevel = 0;
 
    if (is_csf_based) {
       shim_device.driver_name = "panthor";
+      shim_device.version_minor = 2;
       shim_device.driver_ioctls = panthor_driver_ioctls;
       shim_device.driver_ioctl_count = ARRAY_SIZE(panthor_driver_ioctls);
 
@@ -326,6 +326,7 @@ drm_shim_driver_init(void)
                              render_node_minor);
    } else {
       shim_device.driver_name = "panfrost";
+      shim_device.version_minor = 1;
       shim_device.driver_ioctls = panfrost_driver_ioctls;
       shim_device.driver_ioctl_count = ARRAY_SIZE(panfrost_driver_ioctls);
 
