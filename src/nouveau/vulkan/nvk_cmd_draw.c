@@ -406,6 +406,7 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
 
    P_IMMD(p, NV9097, SET_VIEWPORT_PIXEL, CENTER_AT_HALF_INTEGERS);
 
+   P_IMMD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SHADING_RATE_CONTROL), 0);
    P_IMMD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_ANTI_ALIAS),
           nvk_mme_anti_alias_init());
 
@@ -2140,6 +2141,251 @@ nvk_flush_rs_state(struct nvk_cmd_buffer *cmd)
    }
 }
 
+uint32_t
+nvk_mme_shading_rate_control_sample_shading(bool sample_shading)
+{
+   return nvk_mme_val_mask((!sample_shading) << 1, 1 << 1);
+}
+
+static uint32_t
+nvk_mme_shading_rate_control_enable(bool enable)
+{
+   return nvk_mme_val_mask(enable, 1 << 0);
+}
+
+void
+nvk_mme_set_shading_rate_control(struct mme_builder *b)
+{
+   if (b->devinfo->cls_eng3d < TURING_A)
+      return;
+
+   struct mme_value val_mask = mme_load(b);
+   struct mme_value old_src = nvk_mme_load_scratch(b, SHADING_RATE_CONTROL);
+   struct mme_value src = nvk_mme_set_masked(b, old_src, val_mask);
+   mme_free_reg(b, val_mask);
+
+   mme_if(b, ine, src, old_src) {
+      mme_free_reg(b, old_src);
+      nvk_mme_store_scratch(b, SHADING_RATE_CONTROL, src);
+
+      struct mme_value enable1 = mme_merge(b, mme_zero(), src, 0, 1, 0);
+      struct mme_value enable2 = mme_merge(b, mme_zero(), src, 0, 1, 1);
+      struct mme_value enable = mme_and(b, enable1, enable2);
+
+      struct mme_value i = mme_mov(b, mme_zero());
+      mme_while(b, ine, i, mme_imm(16 * 4)) {
+         mme_mthd_arr(b, NVC597_SET_VARIABLE_PIXEL_RATE_SHADING_CONTROL(0), i);
+         mme_emit(b, enable);
+         mme_add_to(b, i, i, mme_imm(4));
+      }
+   }
+}
+
+static void
+nvk_mme_set_shading_rate_control_test_check(
+   const struct nv_device_info *devinfo,
+   const struct nvk_mme_test_case *test,
+   const struct nvk_mme_mthd_data *results)
+{
+   if (devinfo->cls_eng3d < TURING_A)
+      return;
+
+   assert(results[0].mthd == NVK_SET_MME_SCRATCH(SHADING_RATE_CONTROL));
+   bool enable = (results[0].data & 3) == 3;
+
+   for (uint32_t i = 0; i < 16; i++) {
+      assert(results[i + 1].mthd ==
+             NVC597_SET_VARIABLE_PIXEL_RATE_SHADING_CONTROL(i));
+      assert(results[i + 1].data == enable);
+   }
+}
+
+const struct nvk_mme_test_case nvk_mme_set_shading_rate_control_tests[] = {{
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(SHADING_RATE_CONTROL), 0 },
+      { }
+   },
+   .params = (uint32_t[]) { 0x00030003 },
+   .check = nvk_mme_set_shading_rate_control_test_check,
+}, {
+   .init = (struct nvk_mme_mthd_data[]) {
+      { NVK_SET_MME_SCRATCH(SHADING_RATE_CONTROL), 0 },
+      { }
+   },
+   .params = (uint32_t[]) { 0x00030001 },
+   .check = nvk_mme_set_shading_rate_control_test_check,
+}, {}};
+
+static VkExtent2D
+nvk_combine_fs_log2_rates(VkFragmentShadingRateCombinerOpKHR op,
+                          VkExtent2D a_log2, VkExtent2D b_log2)
+{
+   switch (op) {
+   case VK_FRAGMENT_SHADING_RATE_COMBINER_OP_KEEP_KHR:
+      return a_log2;
+
+   case VK_FRAGMENT_SHADING_RATE_COMBINER_OP_REPLACE_KHR:
+      return b_log2;
+
+   case VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MIN_KHR:
+      return (VkExtent2D) {
+         .width = MIN2(a_log2.width, b_log2.width),
+         .height = MIN2(a_log2.height, b_log2.height),
+      };
+
+   case VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MAX_KHR:
+      return (VkExtent2D) {
+         .width = MAX2(a_log2.width, b_log2.width),
+         .height = MAX2(a_log2.height, b_log2.height),
+      };
+
+   case VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MUL_KHR:
+      return (VkExtent2D) {
+         .width = a_log2.width + b_log2.width,
+         .height = a_log2.height + b_log2.height,
+      };
+
+   default:
+      unreachable("Invalid FSR combiner op");
+   }
+}
+
+static uint8_t
+vk_to_nvc597_shading_rate_log2(VkExtent2D rate_log2)
+{
+   rate_log2.width = MIN2(rate_log2.width, 2);
+   rate_log2.height = MIN2(rate_log2.height, 2);
+   const uint8_t idx = (rate_log2.width << 2) | rate_log2.height;
+
+   /* From the Vulkan 1.3.297 spec:
+    *
+    *    "A fragment shading rate Rxy representing any of Axy, Bxy or Cxy
+    *    is clamped as follows. [...] From this list of supported rates,
+    *    the following steps are applied in order, to select a single
+    *    value:
+    *
+    *     1. Keep only rates where Rx' ≤ Rx and Ry' ≤ Ry.
+    *
+    *        - Implementations may also keep rates where Rx' ≤ Ry and
+    *          Ry' ≤ Rx.
+    *
+    *     2. Keep only rates with the highest area (Rx' × Ry').
+    *
+    *     3. Keep only rates with the lowest aspect ratio (Rx' + Ry').
+    *
+    *     4. In cases where a wide (e.g. 4x1) and tall (e.g. 1x4) rate
+    *        remain, the implementation may choose either rate. However, it
+    *        must choose this rate consistently for the same shading rates,
+    *        render pass transform, and combiner operations for the
+    *        lifetime of the VkDevice.
+    *
+    * We have the following rates: 1x1, 2x1, 1x2, 2x2, 4x2, 2x4, 4x4.
+    */
+   static const uint8_t vk_to_nvc597[] = {
+#define NVC597_FSR(X) NVC597_SET_VARIABLE_PIXEL_RATE_SHADING_INDEX_TO_RATE_A_RATE_INDEX0_PS_##X
+      NVC597_FSR(X1_PER_RASTER_PIXEL),
+      NVC597_FSR(X1_PER_1X2_RASTER_PIXELS),
+      NVC597_FSR(X1_PER_1X2_RASTER_PIXELS), /* 1x4 */
+      NVC597_FSR(X1_PER_1X2_RASTER_PIXELS), /* 1x8 */
+      NVC597_FSR(X1_PER_2X1_RASTER_PIXELS),
+      NVC597_FSR(X1_PER_2X2_RASTER_PIXELS),
+      NVC597_FSR(X1_PER_2X4_RASTER_PIXELS),
+      NVC597_FSR(X1_PER_2X4_RASTER_PIXELS), /* 2x8 */
+      NVC597_FSR(X1_PER_2X1_RASTER_PIXELS), /* 4x1 */
+      NVC597_FSR(X1_PER_4X2_RASTER_PIXELS),
+      NVC597_FSR(X1_PER_4X4_RASTER_PIXELS),
+      NVC597_FSR(X1_PER_4X4_RASTER_PIXELS), /* 4x8 */
+      NVC597_FSR(X1_PER_2X1_RASTER_PIXELS), /* 8x1 */
+      NVC597_FSR(X1_PER_4X2_RASTER_PIXELS), /* 8x2 */
+      NVC597_FSR(X1_PER_4X4_RASTER_PIXELS), /* 8x4 */
+      NVC597_FSR(X1_PER_4X4_RASTER_PIXELS), /* 8x8 */
+#undef NVC597_FSR
+   };
+
+   assert(idx < ARRAY_SIZE(vk_to_nvc597));
+   return vk_to_nvc597[idx];
+}
+
+static void
+nvk_flush_fsr_state(struct nvk_cmd_buffer *cmd)
+{
+   const struct vk_dynamic_graphics_state *dyn =
+      &cmd->vk.dynamic_graphics_state;
+
+   if (nvk_cmd_buffer_3d_cls(cmd) < TURING_A) {
+      assert(vk_fragment_shading_rate_is_disabled(&dyn->fsr));
+      return;
+   }
+
+   if (!BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_FSR))
+      return;
+
+   if (vk_fragment_shading_rate_is_disabled(&dyn->fsr)) {
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 2);
+      P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SET_SHADING_RATE_CONTROL));
+      P_INLINE_DATA(p, nvk_mme_shading_rate_control_enable(false));
+   } else {
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 2 + 16 * 3);
+
+      assert(util_is_power_of_two_or_zero(dyn->fsr.fragment_size.width));
+      assert(util_is_power_of_two_or_zero(dyn->fsr.fragment_size.height));
+      const VkExtent2D state_fs_log2 = {
+         .width = util_logbase2(dyn->fsr.fragment_size.width),
+         .height = util_logbase2(dyn->fsr.fragment_size.height),
+      };
+
+      for (uint32_t prim_idx = 0; prim_idx < 16; prim_idx++) {
+         const VkExtent2D prim_fs_log2 = {
+            .width = (prim_idx >> 2) & 3,
+            .height = prim_idx & 3,
+         };
+
+         const VkExtent2D state_prim_fs_log2 =
+            nvk_combine_fs_log2_rates(dyn->fsr.combiner_ops[0],
+                                      state_fs_log2, prim_fs_log2);
+
+         uint8_t rates[16] = {};
+         for (uint32_t att_idx = 0; att_idx < 16; att_idx++) {
+            const VkExtent2D att_fs_log2 = {
+               .width = (att_idx >> 2) & 3,
+               .height = att_idx & 3,
+            };
+
+            const VkExtent2D fs_log2 =
+               nvk_combine_fs_log2_rates(dyn->fsr.combiner_ops[1],
+                                         state_prim_fs_log2, att_fs_log2);
+
+            rates[att_idx] = vk_to_nvc597_shading_rate_log2(fs_log2);
+         }
+
+         P_MTHD(p, NVC597, SET_VARIABLE_PIXEL_RATE_SHADING_INDEX_TO_RATE_A(prim_idx));
+         P_NVC597_SET_VARIABLE_PIXEL_RATE_SHADING_INDEX_TO_RATE_A(p, prim_idx, {
+            .rate_index0 = rates[0],
+            .rate_index1 = rates[1],
+            .rate_index2 = rates[2],
+            .rate_index3 = rates[3],
+            .rate_index4 = rates[4],
+            .rate_index5 = rates[5],
+            .rate_index6 = rates[6],
+            .rate_index7 = rates[7],
+         });
+         P_NVC597_SET_VARIABLE_PIXEL_RATE_SHADING_INDEX_TO_RATE_B(p, prim_idx, {
+            .rate_index8 = rates[8],
+            .rate_index9 = rates[9],
+            .rate_index10 = rates[10],
+            .rate_index11 = rates[11],
+            .rate_index12 = rates[12],
+            .rate_index13 = rates[13],
+            .rate_index14 = rates[14],
+            .rate_index15 = rates[15],
+         });
+      }
+
+      P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SET_SHADING_RATE_CONTROL));
+      P_INLINE_DATA(p, nvk_mme_shading_rate_control_enable(true));
+   }
+}
+
 static uint32_t
 nvk_mme_anti_alias_init(void)
 {
@@ -2892,9 +3138,7 @@ nvk_cmd_flush_gfx_dynamic_state(struct nvk_cmd_buffer *cmd)
    nvk_flush_ts_state(cmd);
    nvk_flush_vp_state(cmd);
    nvk_flush_rs_state(cmd);
-
-   /* MESA_VK_DYNAMIC_FSR */
-
+   nvk_flush_fsr_state(cmd);
    nvk_flush_ms_state(cmd);
    nvk_flush_ds_state(cmd);
    nvk_flush_cb_state(cmd);

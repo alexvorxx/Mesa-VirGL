@@ -715,7 +715,7 @@ nvk_max_shader_push_dw(struct nvk_physical_device *pdev,
       max_dw_count += 2;
 
    if (stage == MESA_SHADER_FRAGMENT)
-      max_dw_count += 11;
+      max_dw_count += 13;
 
    if (last_vtgm) {
       max_dw_count += 6;
@@ -774,7 +774,7 @@ nvk_shader_fill_push(struct nvk_device *dev,
    }
 
    if (shader->info.stage == MESA_SHADER_FRAGMENT) {
-      max_dw_count += 11;
+      max_dw_count += 13;
 
       P_MTHD(p, NVC397, SET_SUBTILING_PERF_KNOB_A);
       P_NV9097_SET_SUBTILING_PERF_KNOB_A(p, {
@@ -799,6 +799,27 @@ nvk_shader_fill_push(struct nvk_device *dev,
          .z_min_unbounded_enable = shader->info.fs.writes_depth,
          .z_max_unbounded_enable = shader->info.fs.writes_depth,
       });
+
+      if (pdev->info.cls_eng3d >= TURING_A) {
+         /* From the Vulkan 1.3.297 spec:
+          *
+          *    "If sample shading is enabled, an implementation must invoke
+          *    the fragment shader at least
+          *
+          *    max( ⌈ minSampleShading × rasterizationSamples ⌉, 1)
+          *
+          *    times per fragment."
+          *
+          * The max() here means that, regardless of the actual value of
+          * minSampleShading, we need to invoke at least once per pixel,
+          * meaning that we need to disable fragment shading rate.  We also
+          * need to disable FSR if sample shading is used by the shader.
+          */
+         P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SET_SHADING_RATE_CONTROL));
+         P_INLINE_DATA(p, nvk_mme_shading_rate_control_sample_shading(
+            shader->sample_shading_enable ||
+            shader->info.fs.uses_sample_shading));
+      }
 
       float mss = 0;
       if (shader->info.fs.uses_sample_shading) {
