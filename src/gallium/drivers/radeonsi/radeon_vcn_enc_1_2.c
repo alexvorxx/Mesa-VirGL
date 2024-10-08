@@ -230,12 +230,7 @@ unsigned int radeon_enc_write_sps(struct radeon_encoder *enc, uint8_t nal_byte, 
    radeon_enc_code_fixed_bits(enc, sps->gaps_in_frame_num_value_allowed_flag, 1);
    radeon_enc_code_ue(enc, (pic->session_init.aligned_picture_width / 16 - 1));
    radeon_enc_code_ue(enc, (pic->session_init.aligned_picture_height / 16 - 1));
-   bool frame_mbs_only_flag = true;
-   radeon_enc_code_fixed_bits(enc, frame_mbs_only_flag ? 0x1 : 0x0, 1);
-
-   if (!frame_mbs_only_flag)
-      radeon_enc_code_fixed_bits(enc, 0x0, 1); /* mb_adaptive_frame_field_flag */
-
+   radeon_enc_code_fixed_bits(enc, 0x1, 1); /* frame_mbs_only_flag */
    radeon_enc_code_fixed_bits(enc, 0x1, 1); /* direct_8x8_inference_flag */
 
    radeon_enc_code_fixed_bits(enc, sps->enc_frame_cropping_flag, 1);

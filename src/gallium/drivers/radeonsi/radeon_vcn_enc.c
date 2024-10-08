@@ -1557,6 +1557,7 @@ static void *radeon_vcn_enc_encode_headers(struct radeon_encoder *enc)
                                       PIPE_MAP_WRITE | RADEON_MAP_TEMPORARY);
    if (!ptr) {
       RVID_ERR("Can't map bs buffer.\n");
+      FREE(data);
       return NULL;
    }
 
@@ -1667,15 +1668,13 @@ static void radeon_enc_get_feedback(struct pipe_video_codec *encoder, void *feed
    struct radeon_encoder *enc = (struct radeon_encoder *)encoder;
    struct rvid_buffer *fb = feedback;
 
-   if (size) {
-      uint32_t *ptr = enc->ws->buffer_map(enc->ws, fb->res->buf, &enc->cs,
-                                          PIPE_MAP_READ_WRITE | RADEON_MAP_TEMPORARY);
-      if (ptr[1])
-         *size = ptr[6] - ptr[8];
-      else
-         *size = 0;
-      enc->ws->buffer_unmap(enc->ws, fb->res->buf);
-   }
+   uint32_t *ptr = enc->ws->buffer_map(enc->ws, fb->res->buf, &enc->cs,
+                                       PIPE_MAP_READ_WRITE | RADEON_MAP_TEMPORARY);
+   if (ptr[1])
+      *size = ptr[6] - ptr[8];
+   else
+      *size = 0;
+   enc->ws->buffer_unmap(enc->ws, fb->res->buf);
 
    metadata->present_metadata = PIPE_VIDEO_FEEDBACK_METADATA_TYPE_CODEC_UNIT_LOCATION;
 
