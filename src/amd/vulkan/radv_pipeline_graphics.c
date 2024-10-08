@@ -154,28 +154,6 @@ format_is_float32(VkFormat format)
    return channel >= 0 && desc->channel[channel].type == UTIL_FORMAT_TYPE_FLOAT && desc->channel[channel].size == 32;
 }
 
-unsigned
-radv_compact_spi_shader_col_format(uint32_t spi_shader_col_format)
-{
-   unsigned value = 0, num_mrts = 0;
-   unsigned i, num_targets;
-
-   /* Compute the number of MRTs. */
-   num_targets = DIV_ROUND_UP(util_last_bit(spi_shader_col_format), 4);
-
-   /* Remove holes in spi_shader_col_format. */
-   for (i = 0; i < num_targets; i++) {
-      unsigned spi_format = (spi_shader_col_format >> (i * 4)) & 0xf;
-
-      if (spi_format) {
-         value |= spi_format << (num_mrts * 4);
-         num_mrts++;
-      }
-   }
-
-   return value;
-}
-
 /*
  * Ordered so that for each i,
  * radv_format_meta_fs_key(radv_fs_key_format_exemplars[i]) == i.

@@ -563,8 +563,6 @@ radv_normalize_blend_factor(VkBlendOp op, VkBlendFactor *src_factor, VkBlendFact
 void radv_blend_remove_dst(VkBlendOp *func, VkBlendFactor *src_factor, VkBlendFactor *dst_factor,
                            VkBlendFactor expected_dst, VkBlendFactor replacement_src);
 
-unsigned radv_compact_spi_shader_col_format(uint32_t spi_shader_col_format);
-
 unsigned radv_format_meta_fs_key(struct radv_device *device, VkFormat format);
 
 struct radv_ia_multi_vgt_param_helpers radv_compute_ia_multi_vgt_param(const struct radv_device *device,
