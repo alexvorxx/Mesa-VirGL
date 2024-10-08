@@ -86,9 +86,6 @@ struct radv_graphics_pipeline {
 
    VkShaderStageFlags active_stages;
 
-   uint32_t spi_shader_col_format;
-   uint32_t cb_shader_mask;
-
    struct radv_dynamic_state dynamic_state;
 
    struct radv_vertex_input_state vertex_input;

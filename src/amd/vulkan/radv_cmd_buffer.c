@@ -7098,8 +7098,11 @@ radv_BeginCommandBuffer(VkCommandBuffer commandBuffer, const VkCommandBufferBegi
 
    cmd_buffer->usage_flags = pBeginInfo->flags;
 
-   cmd_buffer->state.dirty |=
-      RADV_CMD_DIRTY_GUARDBAND | RADV_CMD_DIRTY_OCCLUSION_QUERY | RADV_CMD_DIRTY_DB_SHADER_CONTROL;
+   cmd_buffer->state.dirty |= RADV_CMD_DIRTY_GUARDBAND | RADV_CMD_DIRTY_OCCLUSION_QUERY |
+                              RADV_CMD_DIRTY_DB_SHADER_CONTROL | RADV_CMD_DIRTY_COLOR_OUTPUT;
+   if (pdev->info.rbplus_allowed)
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RBPLUS;
+
    cmd_buffer->state.dirty_dynamic |= RADV_DYNAMIC_ALL;
 
    if (cmd_buffer->qf == RADV_QUEUE_GENERAL)
@@ -8012,6 +8015,42 @@ radv_bind_shader(struct radv_cmd_buffer *cmd_buffer, struct radv_shader *shader,
 }
 
 static void
+radv_bind_color_output_state(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *ps,
+                             const struct radv_shader_part *ps_epilog, uint32_t custom_blend_mode)
+{
+   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+   uint32_t col_format = 0, cb_shader_mask = 0;
+
+   if (ps) {
+      col_format = ps_epilog ? ps_epilog->spi_shader_col_format : ps->info.ps.spi_shader_col_format;
+      cb_shader_mask = ps_epilog ? ps_epilog->cb_shader_mask : ps->info.ps.cb_shader_mask;
+   }
+
+   if (custom_blend_mode) {
+      /* According to the CB spec states, CB_SHADER_MASK should be set to enable writes to all four
+       * channels of MRT0.
+       */
+      cb_shader_mask = 0xf;
+   }
+
+   if (radv_needs_null_export_workaround(device, ps, custom_blend_mode) && !col_format)
+      col_format = V_028714_SPI_SHADER_32_R;
+
+   if (cmd_buffer->state.spi_shader_col_format != col_format) {
+      cmd_buffer->state.spi_shader_col_format = col_format;
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_COLOR_OUTPUT;
+      if (pdev->info.rbplus_allowed)
+         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RBPLUS;
+   }
+
+   if (cmd_buffer->state.cb_shader_mask != cb_shader_mask) {
+      cmd_buffer->state.cb_shader_mask = cb_shader_mask;
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_COLOR_OUTPUT;
+   }
+}
+
+static void
 radv_reset_shader_object_state(struct radv_cmd_buffer *cmd_buffer, VkPipelineBindPoint pipelineBindPoint)
 {
    switch (pipelineBindPoint) {
@@ -8155,19 +8194,9 @@ radv_CmdBindPipeline(VkCommandBuffer commandBuffer, VkPipelineBindPoint pipeline
          }
       }
 
-      if (!cmd_buffer->state.emitted_graphics_pipeline ||
-          cmd_buffer->state.spi_shader_col_format != graphics_pipeline->spi_shader_col_format) {
-         cmd_buffer->state.spi_shader_col_format = graphics_pipeline->spi_shader_col_format;
-         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_COLOR_OUTPUT;
-         if (pdev->info.rbplus_allowed)
-            cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RBPLUS;
-      }
+      const struct radv_shader *ps = radv_get_shader(graphics_pipeline->base.shaders, MESA_SHADER_FRAGMENT);
 
-      if (!cmd_buffer->state.emitted_graphics_pipeline ||
-          cmd_buffer->state.cb_shader_mask != graphics_pipeline->cb_shader_mask) {
-         cmd_buffer->state.cb_shader_mask = graphics_pipeline->cb_shader_mask;
-         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_COLOR_OUTPUT;
-      }
+      radv_bind_color_output_state(cmd_buffer, ps, NULL, graphics_pipeline->custom_blend_mode);
 
       radv_bind_vs_input_state(cmd_buffer, graphics_pipeline);
 
@@ -10847,26 +10876,9 @@ radv_emit_all_graphics_states(struct radv_cmd_buffer *cmd_buffer, const struct r
             return;
          }
 
-         uint32_t col_format = ps_epilog->spi_shader_col_format;
-         uint32_t cb_shader_mask = ps_epilog->cb_shader_mask;
-
          assert(cmd_buffer->state.custom_blend_mode == 0);
 
-         if (radv_needs_null_export_workaround(device, cmd_buffer->state.shaders[MESA_SHADER_FRAGMENT], 0) &&
-             !col_format)
-            col_format = V_028714_SPI_SHADER_32_R;
-
-         if (cmd_buffer->state.spi_shader_col_format != col_format) {
-            cmd_buffer->state.spi_shader_col_format = col_format;
-            cmd_buffer->state.dirty |= RADV_CMD_DIRTY_COLOR_OUTPUT;
-            if (pdev->info.rbplus_allowed)
-               cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RBPLUS;
-         }
-
-         if (cmd_buffer->state.cb_shader_mask != cb_shader_mask) {
-            cmd_buffer->state.cb_shader_mask = cb_shader_mask;
-            cmd_buffer->state.dirty |= RADV_CMD_DIRTY_COLOR_OUTPUT;
-         }
+         radv_bind_color_output_state(cmd_buffer, cmd_buffer->state.shaders[MESA_SHADER_FRAGMENT], ps_epilog, 0);
       }
    }
 
@@ -11048,21 +11060,7 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
 
    const struct radv_shader *ps = cmd_buffer->state.shaders[MESA_SHADER_FRAGMENT];
    if (ps && !ps->info.ps.has_epilog) {
-      uint32_t col_format = 0, cb_shader_mask = 0;
-      if (radv_needs_null_export_workaround(device, ps, 0))
-         col_format = V_028714_SPI_SHADER_32_R;
-
-      if (cmd_buffer->state.spi_shader_col_format != col_format) {
-         cmd_buffer->state.spi_shader_col_format = col_format;
-         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_COLOR_OUTPUT;
-         if (pdev->info.rbplus_allowed)
-            cmd_buffer->state.dirty |= RADV_CMD_DIRTY_RBPLUS;
-      }
-
-      if (cmd_buffer->state.cb_shader_mask != cb_shader_mask) {
-         cmd_buffer->state.cb_shader_mask = cb_shader_mask;
-         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_COLOR_OUTPUT;
-      }
+      radv_bind_color_output_state(cmd_buffer, ps, NULL, 0);
    }
 
    /* Update push constants/indirect descriptors state. */

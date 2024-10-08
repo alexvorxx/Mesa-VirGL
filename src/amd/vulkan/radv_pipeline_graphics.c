@@ -3216,18 +3216,7 @@ radv_pipeline_init_extra(struct radv_graphics_pipeline *pipeline,
                          const struct radv_graphics_pipeline_create_info *extra,
                          const struct vk_graphics_pipeline_state *state)
 {
-   if (extra->custom_blend_mode == V_028808_CB_ELIMINATE_FAST_CLEAR ||
-       extra->custom_blend_mode == V_028808_CB_FMASK_DECOMPRESS ||
-       extra->custom_blend_mode == V_028808_CB_DCC_DECOMPRESS_GFX8 ||
-       extra->custom_blend_mode == V_028808_CB_DCC_DECOMPRESS_GFX11 ||
-       extra->custom_blend_mode == V_028808_CB_RESOLVE) {
-      /* According to the CB spec states, CB_SHADER_MASK should be set to enable writes to all four
-       * channels of MRT0.
-       */
-      pipeline->cb_shader_mask = 0xf;
-
-      pipeline->custom_blend_mode = extra->custom_blend_mode;
-   }
+   pipeline->custom_blend_mode = extra->custom_blend_mode;
 
    if (extra->use_rectlist) {
       struct radv_dynamic_state *dynamic = &pipeline->dynamic_state;
@@ -3373,17 +3362,6 @@ radv_graphics_pipeline_init(struct radv_graphics_pipeline *pipeline, struct radv
    if (!radv_pipeline_has_stage(pipeline, MESA_SHADER_MESH))
       radv_pipeline_init_input_assembly_state(device, pipeline);
    radv_pipeline_init_dynamic_state(device, pipeline, &gfx_state.vk, pCreateInfo);
-
-   const struct radv_shader *ps = pipeline->base.shaders[MESA_SHADER_FRAGMENT];
-   if (ps && !ps->info.ps.has_epilog) {
-      pipeline->spi_shader_col_format = ps->info.ps.spi_shader_col_format;
-      pipeline->cb_shader_mask = ps->info.ps.cb_shader_mask;
-   }
-
-   unsigned custom_blend_mode = extra ? extra->custom_blend_mode : 0;
-   if (radv_needs_null_export_workaround(device, ps, custom_blend_mode) && !pipeline->spi_shader_col_format) {
-      pipeline->spi_shader_col_format = V_028714_SPI_SHADER_32_R;
-   }
 
    if (!radv_pipeline_has_stage(pipeline, MESA_SHADER_MESH))
       radv_pipeline_init_vertex_input_state(device, pipeline, &gfx_state.vk);
