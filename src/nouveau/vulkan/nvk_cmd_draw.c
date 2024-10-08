@@ -458,6 +458,26 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
 
    P_IMMD(p, NV9097, SET_CT_MRT_ENABLE, V_TRUE);
 
+   if (pdev->info.cls_eng3d >= TURING_A) {
+      /* I don't know what these values actually mean.  I just copied them
+       * from the way the blob sets up the hardware.
+       */
+      P_MTHD(p, NVC597, SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(0));
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 0, 0xa23eb139);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 1, 0xfb72ea61);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 2, 0xd950c843);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 3, 0x88fac4e5);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 4, 0x1ab3e1b6);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 5, 0xa98fedc2);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 6, 0x2107654b);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 7, 0xe0539773);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 8, 0x698badcf);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 9, 0x71032547);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 10, 0xdef05397);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 11, 0x56789abc);
+      P_NVC597_SET_VARIABLE_PIXEL_RATE_SAMPLE_ORDER(p, 12, 0x1234);
+   }
+
    if (pdev->info.cls_eng3d < VOLTA_A) {
       uint64_t shader_base_addr =
          nvk_heap_contiguous_base_address(&dev->shader_heap);
