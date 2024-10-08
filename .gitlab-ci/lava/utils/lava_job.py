@@ -183,6 +183,9 @@ class LAVAJob:
         self.cancel()
         self.exception = exception
 
+        # Set the exit code to nonzero value
+        self.exit_code = 1
+
         # Give more accurate status depending on exception
         if isinstance(exception, MesaCIKnownIssueException):
             self.status = "canceled"
