@@ -85,6 +85,9 @@ VkResult nvk_create_drm_physical_device(struct vk_instance *vk_instance,
 
 void nvk_physical_device_destroy(struct vk_physical_device *vk_device);
 
+VkExtent2D nvk_max_shading_rate(const struct nvk_physical_device *pdev,
+                                VkSampleCountFlagBits samples);
+
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR) || \
     defined(VK_USE_PLATFORM_XCB_KHR) || \
     defined(VK_USE_PLATFORM_XLIB_KHR) || \

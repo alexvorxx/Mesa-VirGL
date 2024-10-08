@@ -1614,3 +1614,72 @@ nvk_GetPhysicalDeviceMultisamplePropertiesEXT(
       pMultisampleProperties->maxSampleLocationGridSize = (VkExtent2D){0, 0};
    }
 }
+
+VkExtent2D
+nvk_max_shading_rate(const struct nvk_physical_device *pdev,
+                     VkSampleCountFlagBits samples)
+{
+   const struct nil_Extent4D_Samples px_extent_sa =
+      nil_px_extent_sa(nil_choose_sample_layout(samples));
+
+   assert(px_extent_sa.width <= 4);
+   assert(px_extent_sa.height <= 4);
+   assert(px_extent_sa.depth == 1);
+   assert(px_extent_sa.array_len == 1);
+
+   return (VkExtent2D) {
+      .width = 4 / px_extent_sa.width,
+      .height = 4 / px_extent_sa.height,
+   };
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+nvk_GetPhysicalDeviceFragmentShadingRatesKHR(
+   VkPhysicalDevice physicalDevice,
+   uint32_t *pFragmentShadingRateCount,
+   VkPhysicalDeviceFragmentShadingRateKHR *pFragmentShadingRates)
+{
+   VK_FROM_HANDLE(nvk_physical_device, pdev, physicalDevice);
+   VK_OUTARRAY_MAKE_TYPED(VkPhysicalDeviceFragmentShadingRateKHR, out,
+                          pFragmentShadingRates, pFragmentShadingRateCount);
+
+
+   /* From the Vulkan 1.3.297 spec:
+    *
+    *    "The returned array of fragment shading rates must be ordered from
+    *    largest fragmentSize.width value to smallest, and each set of
+    *    fragment shading rates with the same fragmentSize.width value must be
+    *    ordered from largest fragmentSize.height to smallest. Any two entries
+    *    in the array must not have the same fragmentSize values."
+    */
+   VkExtent2D shading_rates[] = {
+      { 4, 4 },
+      { 4, 2 },
+      { 2, 4 },
+      { 2, 2 },
+      { 2, 1 },
+      { 1, 2 },
+      { 1, 1 },
+   };
+
+   for (uint32_t i = 0; i < ARRAY_SIZE(shading_rates); i++) {
+      vk_outarray_append_typed(VkPhysicalDeviceFragmentShadingRateKHR, &out, p) {
+         p->fragmentSize = shading_rates[i];
+         if (shading_rates[i].width == 1 && shading_rates[i].height == 1) {
+            /* The Vulkan spec requires us to set ~0 for 1x1. */
+            p->sampleCounts = ~0;
+         } else {
+            for (uint32_t samples = 1; samples <= 16; samples <<= 1) {
+               VkExtent2D max_rate = nvk_max_shading_rate(pdev, samples);
+               if (shading_rates[i].width > max_rate.width ||
+                   shading_rates[i].height > max_rate.height)
+                  break;
+
+               p->sampleCounts |= samples;
+            }
+         }
+      }
+   }
+
+   return vk_outarray_status(&out);
+}
