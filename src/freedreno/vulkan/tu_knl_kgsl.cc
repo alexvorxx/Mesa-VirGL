@@ -1596,6 +1596,9 @@ tu_knl_kgsl_load(struct tu_instance *instance, int fd)
       fd, KGSL_MEMFLAGS_IOCOHERENT |
              (KGSL_CACHEMODE_WRITEBACK << KGSL_CACHEMODE_SHIFT));
 
+   /* preemption is always supported on kgsl */
+   device->has_preemption = true;
+
    instance->knl = &kgsl_knl_funcs;
 
    result = tu_physical_device_init(device, instance);

@@ -121,6 +121,24 @@ tu_drm_get_va_prop(const struct tu_physical_device *dev,
    return 0;
 }
 
+static bool
+tu_drm_has_preemption(const struct tu_physical_device *dev)
+{
+   struct drm_msm_submitqueue req = {
+      .flags = MSM_SUBMITQUEUE_ALLOW_PREEMPT,
+      .prio = dev->submitqueue_priority_count / 2,
+   };
+
+   int ret = drmCommandWriteRead(dev->local_fd,
+                                 DRM_MSM_SUBMITQUEUE_NEW, &req, sizeof(req));
+   if (ret)
+      return false;
+
+   drmCommandWrite(dev->local_fd, DRM_MSM_SUBMITQUEUE_CLOSE, &req.id,
+                   sizeof(req.id));
+   return true;
+}
+
 static uint32_t
 tu_drm_get_priorities(const struct tu_physical_device *dev)
 {
@@ -214,7 +232,9 @@ msm_submitqueue_new(struct tu_device *dev,
    assert(priority >= 0 &&
           priority < dev->physical_device->submitqueue_priority_count);
    struct drm_msm_submitqueue req = {
-      .flags = 0,
+      .flags = dev->physical_device->info->chip >= 7 &&
+         dev->physical_device->has_preemption ?
+         MSM_SUBMITQUEUE_ALLOW_PREEMPT : 0,
       .prio = priority,
    };
 
@@ -1244,6 +1264,8 @@ tu_knl_drm_msm_load(struct tu_instance *instance,
 
    device->has_set_iova = !tu_drm_get_va_prop(device, &device->va_start,
                                               &device->va_size);
+
+   device->has_preemption = tu_drm_has_preemption(device);
 
    /* Even if kernel is new enough, the GPU itself may not support it. */
    device->has_cached_coherent_memory =
