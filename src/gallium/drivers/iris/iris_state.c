@@ -2089,7 +2089,8 @@ genX(update_pma_fix)(struct iris_context *ice,
 
    /* According to the Broadwell PIPE_CONTROL documentation, software should
     * emit a PIPE_CONTROL with the CS Stall and Depth Cache Flush bits set
-    * prior to the LRI.  If stencil buffer writes are enabled, then a Render        * Cache Flush is also necessary.
+    * prior to the LRI.  If stencil buffer writes are enabled, then a Render
+    * Cache Flush is also necessary.
     *
     * The Gfx9 docs say to use a depth stall rather than a command streamer
     * stall.  However, the hardware seems to violently disagree.  A full
@@ -2471,7 +2472,7 @@ fill_sampler_state(uint32_t *sampler_state,
  * We fill out SAMPLER_STATE (except for the border color pointer), and
  * store that on the CPU.  It doesn't make sense to upload it to a GPU
  * buffer object yet, because 3DSTATE_SAMPLER_STATE_POINTERS requires
- * all bound sampler states to be in contiguous memor.
+ * all bound sampler states to be in contiguous memory.
  */
 static void *
 iris_create_sampler_state(struct pipe_context *ctx,
