@@ -585,9 +585,26 @@ init_context(isel_context* ctx, nir_shader* shader)
                if (phi->def.divergent) {
                   type = RegType::vgpr;
                } else {
-                  nir_foreach_phi_src (src, phi) {
-                     if (regclasses[src->src.ssa->index].type() == RegType::vgpr)
-                        type = RegType::vgpr;
+                  bool vgpr_src = false;
+                  nir_foreach_phi_src (src, phi)
+                     vgpr_src |= regclasses[src->src.ssa->index].type() == RegType::vgpr;
+
+                  if (vgpr_src) {
+                     type = RegType::vgpr;
+
+                     /* This might be the case because of nir_divergence_ignore_undef_if_phi_srcs. */
+                     bool divergent_merge = false;
+                     if (nir_cf_node_prev(&block->cf_node) &&
+                         nir_cf_node_prev(&block->cf_node)->type == nir_cf_node_if) {
+                        nir_if* nif = nir_cf_node_as_if(nir_cf_node_prev(&block->cf_node));
+                        divergent_merge = nir_src_is_divergent(nif->condition);
+                     }
+
+                     /* In case of uniform phis after divergent merges, ensure that the dst is an
+                      * SGPR and does not contain undefined values for some invocations.
+                      */
+                     if (divergent_merge)
+                        type = RegType::sgpr;
                   }
                }
 
