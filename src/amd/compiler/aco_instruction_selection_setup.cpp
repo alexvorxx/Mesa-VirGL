@@ -261,6 +261,89 @@ setup_nir(isel_context* ctx, nir_shader* nir)
    nir_index_ssa_defs(func);
 }
 
+/* Returns true if we can skip uniformization of a merge phi. This makes the destination divergent,
+ * and so is only safe if the inconsistency it introduces into the divergence analysis won't break
+ * code generation. If we unsafely skip uniformization, later instructions (such as SSBO loads,
+ * some subgroup intrinsics and certain conversions) can use divergence analysis information which
+ * is no longer correct.
+ */
+bool
+skip_uniformize_merge_phi(nir_def* ssa, unsigned depth)
+{
+   if (depth >= 16)
+      return false;
+
+   nir_foreach_use (src, ssa) {
+      switch (nir_src_parent_instr(src)->type) {
+      case nir_instr_type_alu: {
+         nir_alu_instr* alu = nir_instr_as_alu(nir_src_parent_instr(src));
+         if (alu->def.divergent)
+            break;
+
+         switch (alu->op) {
+         case nir_op_f2i16:
+         case nir_op_f2u16:
+         case nir_op_f2i32:
+         case nir_op_f2u32:
+         case nir_op_b2i8:
+         case nir_op_b2i16:
+         case nir_op_b2i32:
+         case nir_op_b2b32:
+         case nir_op_b2f16:
+         case nir_op_b2f32:
+         case nir_op_b2f64:
+         case nir_op_mov:
+            /* These opcodes p_as_uniform or vote_any() the source, so fail immediately. We don't
+             * need to do this for non-nir_op_b2 if we know we'll move it back into a VGPR,
+             * in which case the p_as_uniform would be eliminated. This would be way too fragile,
+             * though.
+             */
+            return false;
+         default:
+            if (!skip_uniformize_merge_phi(&alu->def, depth + 1))
+               return false;
+            break;
+         }
+         break;
+      }
+      case nir_instr_type_intrinsic: {
+         nir_intrinsic_instr* intrin = nir_instr_as_intrinsic(nir_src_parent_instr(src));
+         unsigned src_idx = src - intrin->src;
+         /* nir_intrinsic_lane_permute_16_amd is only safe because we don't use divergence analysis
+          * for it's instruction selection. We use that intrinsic for NGG culling. All others are
+          * stores with VGPR sources.
+          */
+         if (intrin->intrinsic == nir_intrinsic_lane_permute_16_amd ||
+             intrin->intrinsic == nir_intrinsic_export_amd ||
+             intrin->intrinsic == nir_intrinsic_export_dual_src_blend_amd ||
+             (intrin->intrinsic == nir_intrinsic_export_row_amd && src_idx == 0) ||
+             (intrin->intrinsic == nir_intrinsic_store_buffer_amd && src_idx == 0) ||
+             (intrin->intrinsic == nir_intrinsic_store_ssbo && src_idx == 0) ||
+             (intrin->intrinsic == nir_intrinsic_store_global && src_idx == 0) ||
+             (intrin->intrinsic == nir_intrinsic_store_scratch && src_idx == 0) ||
+             (intrin->intrinsic == nir_intrinsic_store_shared && src_idx == 0))
+            break;
+         return false;
+      }
+      case nir_instr_type_phi: {
+         nir_phi_instr* phi = nir_instr_as_phi(nir_src_parent_instr(src));
+         if (phi->def.divergent || skip_uniformize_merge_phi(&phi->def, depth + 1))
+            break;
+         return false;
+      }
+      case nir_instr_type_tex: {
+         /* This is either used as a VGPR source or it's a (potentially undef) descriptor. */
+         break;
+      }
+      default: {
+         return false;
+      }
+      }
+   }
+
+   return true;
+}
+
 } /* end namespace */
 
 void
@@ -603,7 +686,7 @@ init_context(isel_context* ctx, nir_shader* shader)
                      /* In case of uniform phis after divergent merges, ensure that the dst is an
                       * SGPR and does not contain undefined values for some invocations.
                       */
-                     if (divergent_merge)
+                     if (divergent_merge && !skip_uniformize_merge_phi(&phi->def, 0))
                         type = RegType::sgpr;
                   }
                }

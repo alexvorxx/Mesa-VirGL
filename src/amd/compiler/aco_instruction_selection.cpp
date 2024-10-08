@@ -9118,6 +9118,9 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       break;
    }
    case nir_intrinsic_lane_permute_16_amd: {
+      /* NOTE: If we use divergence analysis information here instead of the src regclass,
+       * skip_uniformize_merge_phi() should be updated.
+       */
       Temp src = get_ssa_temp(ctx, instr->src[0].ssa);
       Temp dst = get_ssa_temp(ctx, &instr->def);
       assert(ctx->program->gfx_level >= GFX10);
