@@ -11598,13 +11598,13 @@ radv_dgc_execute_ib(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommand
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const bool has_task_shader = radv_dgc_with_task_shader(pGeneratedCommandsInfo);
 
-   const uint32_t cmdbuf_size = radv_get_indirect_gfx_cmdbuf_size(pGeneratedCommandsInfo);
+   const uint32_t cmdbuf_size = radv_get_indirect_main_cmdbuf_size(pGeneratedCommandsInfo);
    const uint64_t ib_va =
       radv_buffer_get_va(prep_buffer->bo) + prep_buffer->offset + pGeneratedCommandsInfo->preprocessOffset;
-   const uint64_t gfx_trailer_va = ib_va + radv_get_indirect_gfx_trailer_offset(pGeneratedCommandsInfo);
-   const uint64_t gfx_ib_va = ib_va + radv_get_indirect_gfx_cmdbuf_offset(pGeneratedCommandsInfo);
+   const uint64_t main_trailer_va = ib_va + radv_get_indirect_main_trailer_offset(pGeneratedCommandsInfo);
+   const uint64_t main_ib_va = ib_va + radv_get_indirect_main_cmdbuf_offset(pGeneratedCommandsInfo);
 
-   device->ws->cs_chain_dgc_ib(cmd_buffer->cs, gfx_ib_va, cmdbuf_size >> 2, gfx_trailer_va,
+   device->ws->cs_chain_dgc_ib(cmd_buffer->cs, main_ib_va, cmdbuf_size >> 2, main_trailer_va,
                                cmd_buffer->state.predicating);
 
    if (has_task_shader) {

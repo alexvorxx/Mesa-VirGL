@@ -420,19 +420,19 @@ radv_get_indirect_trailer_offset(const VkGeneratedCommandsInfoNV *cmd_info, enum
 }
 
 uint32_t
-radv_get_indirect_gfx_cmdbuf_offset(const VkGeneratedCommandsInfoNV *cmd_info)
+radv_get_indirect_main_cmdbuf_offset(const VkGeneratedCommandsInfoNV *cmd_info)
 {
    return radv_get_indirect_cmdbuf_offset(cmd_info, AMD_IP_GFX);
 }
 
 uint32_t
-radv_get_indirect_gfx_cmdbuf_size(const VkGeneratedCommandsInfoNV *cmd_info)
+radv_get_indirect_main_cmdbuf_size(const VkGeneratedCommandsInfoNV *cmd_info)
 {
    return radv_get_indirect_cmdbuf_size(cmd_info, AMD_IP_GFX);
 }
 
 uint32_t
-radv_get_indirect_gfx_trailer_offset(const VkGeneratedCommandsInfoNV *cmd_info)
+radv_get_indirect_main_trailer_offset(const VkGeneratedCommandsInfoNV *cmd_info)
 {
    return radv_get_indirect_trailer_offset(cmd_info, AMD_IP_GFX);
 }
@@ -1043,7 +1043,7 @@ build_dgc_buffer_tail(nir_builder *b, nir_def *cmd_buf_offset, nir_def *cmd_buf_
 }
 
 static void
-build_dgc_buffer_tail_gfx(nir_builder *b, nir_def *sequence_count, const struct radv_device *device)
+build_dgc_buffer_tail_main(nir_builder *b, nir_def *sequence_count, const struct radv_device *device)
 {
    nir_def *cmd_buf_offset = load_param32(b, cmd_buf_main_offset);
    nir_def *cmd_buf_size = dgc_cmd_buf_size(b, sequence_count, false, device);
@@ -1103,7 +1103,7 @@ build_dgc_buffer_trailer(nir_builder *b, nir_def *cmd_buf_offset, unsigned trail
 }
 
 static void
-build_dgc_buffer_trailer_gfx(nir_builder *b, const struct radv_device *device)
+build_dgc_buffer_trailer_main(nir_builder *b, const struct radv_device *device)
 {
    nir_def *cmd_buf_offset = nir_imm_int(b, 0);
    const unsigned trailer_size = radv_dgc_trailer_cmdbuf_size(device, AMD_IP_GFX);
@@ -1159,7 +1159,7 @@ build_dgc_buffer_preamble(nir_builder *b, nir_def *cmd_buf_preamble_offset, nir_
 }
 
 static void
-build_dgc_buffer_preamble_gfx(nir_builder *b, nir_def *sequence_count, const struct radv_device *device)
+build_dgc_buffer_preamble_main(nir_builder *b, nir_def *sequence_count, const struct radv_device *device)
 {
    nir_def *cmd_buf_preamble_offset = load_param32(b, cmd_buf_preamble_offset);
    nir_def *cmd_buf_main_offset = load_param32(b, cmd_buf_main_offset);
@@ -2095,7 +2095,7 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
 
    sequence_count = nir_load_var(&b, count_var);
 
-   build_dgc_buffer_trailer_gfx(&b, dev);
+   build_dgc_buffer_trailer_main(&b, dev);
 
    nir_push_if(&b, nir_ult(&b, sequence_id, sequence_count));
    {
@@ -2169,8 +2169,8 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
    }
    nir_pop_if(&b, NULL);
 
-   build_dgc_buffer_tail_gfx(&b, sequence_count, dev);
-   build_dgc_buffer_preamble_gfx(&b, sequence_count, dev);
+   build_dgc_buffer_tail_main(&b, sequence_count, dev);
+   build_dgc_buffer_preamble_main(&b, sequence_count, dev);
 
    /* Prepare the ACE command stream */
    nir_push_if(&b, nir_ieq_imm(&b, load_param8(&b, has_task_shader), 1));
