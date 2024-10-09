@@ -55,6 +55,22 @@ impl SampleLayout {
         }
     }
 
+    pub fn samples(&self) -> u32 {
+        match self {
+            SampleLayout::_1x1 => 1,
+            SampleLayout::_2x1 => 2,
+            SampleLayout::_2x2 => 4,
+            SampleLayout::_4x2 => 8,
+            SampleLayout::_4x4 => 16,
+            SampleLayout::Invalid => panic!("Invalid sample layout"),
+        }
+    }
+
+    #[no_mangle]
+    pub extern "C" fn nil_sample_layout_samples(self) -> u32 {
+        self.samples()
+    }
+
     pub fn px_extent_sa(&self) -> Extent4D<units::Samples> {
         match self {
             SampleLayout::_1x1 => Extent4D::new(1, 1, 1, 1),
