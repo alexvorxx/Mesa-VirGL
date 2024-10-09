@@ -66,6 +66,14 @@ enum nvk_mme_scratch {
    NVK_MME_SCRATCH_TESS_PARAMS,
 
    /* Anti-aliasing state */
+   NVK_MME_SCRATCH_SAMPLE_MASKS_2PASS_0,
+   NVK_MME_SCRATCH_SAMPLE_MASKS_2PASS_1,
+   NVK_MME_SCRATCH_SAMPLE_MASKS_2PASS_2,
+   NVK_MME_SCRATCH_SAMPLE_MASKS_2PASS_3,
+   NVK_MME_SCRATCH_SAMPLE_MASKS_4PASS_0,
+   NVK_MME_SCRATCH_SAMPLE_MASKS_4PASS_1,
+   NVK_MME_SCRATCH_SAMPLE_MASKS_4PASS_2,
+   NVK_MME_SCRATCH_SAMPLE_MASKS_4PASS_3,
    NVK_MME_SCRATCH_ANTI_ALIAS,
 
    /* Addres of cb0 */
@@ -110,6 +118,9 @@ _nvk_mme_load_scratch(struct mme_builder *b, enum nvk_mme_scratch scratch)
 }
 #define nvk_mme_load_scratch(b, S) \
    _nvk_mme_load_scratch(b, NVK_MME_SCRATCH_##S)
+
+#define nvk_mme_load_scratch_arr(b, S, i) \
+   _nvk_mme_load_scratch(b, NVK_MME_SCRATCH_##S + i)
 
 static inline void
 _nvk_mme_store_scratch(struct mme_builder *b, enum nvk_mme_scratch scratch,

@@ -741,10 +741,56 @@ nvk_cmd_set_sample_layout(struct nvk_cmd_buffer *cmd,
                           enum nil_sample_layout sample_layout)
 {
    const uint32_t samples = nil_sample_layout_samples(sample_layout);
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, 4);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 14);
 
    P_IMMD(p, NV9097, SET_ANTI_ALIAS,
           nil_to_nv9097_samples_mode(sample_layout));
+
+   switch (sample_layout) {
+   case NIL_SAMPLE_LAYOUT_1X1:
+   case NIL_SAMPLE_LAYOUT_2X1:
+      /* These only have two modes: Single-pass or per-sample */
+      P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SAMPLE_MASKS_2PASS_0));
+      P_INLINE_DATA(p, 0);
+      P_INLINE_DATA(p, 0);
+      P_INLINE_DATA(p, 0);
+      P_INLINE_DATA(p, 0);
+      P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SAMPLE_MASKS_4PASS_0));
+      P_INLINE_DATA(p, 0);
+      P_INLINE_DATA(p, 0);
+      P_INLINE_DATA(p, 0);
+      P_INLINE_DATA(p, 0);
+      break;
+
+   case NIL_SAMPLE_LAYOUT_2X2:
+      P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SAMPLE_MASKS_2PASS_0));
+      P_INLINE_DATA(p, 0x000a0005);
+      P_INLINE_DATA(p, 0x000a0005);
+      P_INLINE_DATA(p, 0);
+      P_INLINE_DATA(p, 0);
+      P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SAMPLE_MASKS_4PASS_0));
+      P_INLINE_DATA(p, 0);
+      P_INLINE_DATA(p, 0);
+      P_INLINE_DATA(p, 0);
+      P_INLINE_DATA(p, 0);
+      break;
+
+   case NIL_SAMPLE_LAYOUT_4X2:
+      P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SAMPLE_MASKS_2PASS_0));
+      P_INLINE_DATA(p, 0x000f000f);
+      P_INLINE_DATA(p, 0x000f000f);
+      P_INLINE_DATA(p, 0x00f000f0);
+      P_INLINE_DATA(p, 0x00f000f0);
+      P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SAMPLE_MASKS_4PASS_0));
+      P_INLINE_DATA(p, 0x00030003);
+      P_INLINE_DATA(p, 0x000c000c);
+      P_INLINE_DATA(p, 0x00300030);
+      P_INLINE_DATA(p, 0x00c000c0);
+      break;
+
+   default:
+      unreachable("Unknown sample layout");
+   }
 
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SET_ANTI_ALIAS));
    P_INLINE_DATA(p, nvk_mme_anti_alias_samples(samples));
@@ -2156,23 +2202,8 @@ nvk_mme_set_anti_alias(struct mme_builder *b)
       mme_emit(b, aac);
       mme_free_reg(b, aac);
 
-      /* Now we need to emit sample masks per-sample:
-       *
-       *    struct nak_sample_mask push_sm[NVK_MAX_SAMPLES];
-       *    uint32_t samples_per_pass = samples / passes;
-       *    uint32_t sample_mask = BITFIELD_MASK(samples_per_pass);
-       *    for (uint32_t s = 0; NVK_MAX_SAMPLES;) {
-       *       push_sm[s] = (struct nak_sample_mask) {
-       *          .sample_mask = sample_mask,
-       *       };
-       *
-       *       s++;
-       *
-       *       if (s & samples_per_pass)
-       *          sample_mask <<= samples_per_pass;
-       *    }
-       *
-       * Annoyingly, we have to pack these in pairs
+      /* Now we need to emit sample masks per-sample. Annoyingly, we have to
+       * pack these in pairs.
        */
       STATIC_ASSERT(sizeof(struct nak_sample_mask) == 2);
 
@@ -2185,7 +2216,6 @@ nvk_mme_set_anti_alias(struct mme_builder *b)
       struct mme_value samples_per_pass_log2 =
          mme_sub(b, samples_log2, passes_log2);
       mme_free_reg(b, samples_log2);
-      mme_free_reg(b, passes_log2);
 
       mme_if(b, ieq, samples_per_pass_log2, mme_zero()) {
          /* One sample per pass, we can just blast it out */
@@ -2197,32 +2227,27 @@ nvk_mme_set_anti_alias(struct mme_builder *b)
       }
 
       mme_if(b, ine, samples_per_pass_log2, mme_zero()) {
-         struct mme_value samples_per_pass =
-            mme_sll(b, mme_imm(1), samples_per_pass_log2);
+         mme_if(b, ieq, passes_log2, mme_zero()) {
+            /* It's a single pass so we can use 0xffff */
+            for (uint32_t i = 0; i < NVK_MAX_SAMPLES / 2; i++)
+               mme_emit(b, mme_imm(~0));
+         }
 
-         /* sample_mask = (1 << samples_per_pass) - 1 */
-         struct mme_value sample_mask =
-            mme_sll(b, mme_imm(1), samples_per_pass);
-         mme_sub_to(b, sample_mask, sample_mask, mme_imm(1));
+         mme_if(b, ieq, passes_log2, mme_imm(1)) {
+            for (uint32_t i = 0; i < NVK_MAX_SAMPLES / 2; i++) {
+               struct mme_value mask =
+                  nvk_mme_load_scratch_arr(b, SAMPLE_MASKS_2PASS_0, i);
+               mme_emit(b, mask);
+               mme_free_reg(b, mask);
+            }
+         }
 
-         struct mme_value mod_mask = mme_sub(b, samples_per_pass, mme_imm(1));
-
-         struct mme_value s = mme_mov(b, mme_zero());
-         mme_while(b, ine, s, mme_imm(NVK_MAX_SAMPLES)) {
-            /* Since samples_per_pass >= 2, we know that both masks in the pair
-             * will be the same.
-             */
-            struct mme_value packed =
-               mme_merge(b, sample_mask, sample_mask, 16, 16, 0);
-            mme_emit(b, packed);
-            mme_free_reg(b, packed);
-
-            mme_add_to(b, s, s, mme_imm(2));
-
-            /* if (s % samples_per_pass == 0) */
-            struct mme_value mod = mme_and(b, s, mod_mask);
-            mme_if(b, ieq, mod, mme_zero()) {
-               mme_sll_to(b, sample_mask, sample_mask, samples_per_pass);
+         mme_if(b, ieq, passes_log2, mme_imm(2)) {
+            for (uint32_t i = 0; i < NVK_MAX_SAMPLES / 2; i++) {
+               struct mme_value mask =
+                  nvk_mme_load_scratch_arr(b, SAMPLE_MASKS_4PASS_0, i);
+               mme_emit(b, mask);
+               mme_free_reg(b, mask);
             }
          }
       }
@@ -2279,6 +2304,10 @@ const struct nvk_mme_test_case nvk_mme_set_anti_alias_tests[] = {{
    /* 8 samples, minSampleShading = 0.5 */
    .init = (struct nvk_mme_mthd_data[]) {
       { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0x1 },
+      { NVK_SET_MME_SCRATCH(SAMPLE_MASKS_4PASS_0), 0x030003 },
+      { NVK_SET_MME_SCRATCH(SAMPLE_MASKS_4PASS_1), 0x0c000c },
+      { NVK_SET_MME_SCRATCH(SAMPLE_MASKS_4PASS_2), 0x300030 },
+      { NVK_SET_MME_SCRATCH(SAMPLE_MASKS_4PASS_3), 0xc000c0 },
       { }
    },
    .params = (uint32_t[]) { 0x00f00030 },
@@ -2297,6 +2326,10 @@ const struct nvk_mme_test_case nvk_mme_set_anti_alias_tests[] = {{
    /* 8 samples, minSampleShading = 0.25 */
    .init = (struct nvk_mme_mthd_data[]) {
       { NVK_SET_MME_SCRATCH(ANTI_ALIAS), 0x30 },
+      { NVK_SET_MME_SCRATCH(SAMPLE_MASKS_2PASS_0), 0x0f000f },
+      { NVK_SET_MME_SCRATCH(SAMPLE_MASKS_2PASS_1), 0x0f000f },
+      { NVK_SET_MME_SCRATCH(SAMPLE_MASKS_2PASS_2), 0xf000f0 },
+      { NVK_SET_MME_SCRATCH(SAMPLE_MASKS_2PASS_3), 0xf000f0 },
       { }
    },
    .params = (uint32_t[]) { 0x000f0002 },
