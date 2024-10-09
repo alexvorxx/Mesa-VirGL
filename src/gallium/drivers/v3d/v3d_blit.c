@@ -23,6 +23,7 @@
 
 #include "nir/pipe_nir.h"
 #include "util/format/u_format.h"
+#include "util/perf/cpu_trace.h"
 #include "util/u_surface.h"
 #include "util/u_blitter.h"
 #include "compiler/nir/nir_builder.h"
@@ -128,6 +129,8 @@ v3d_render_blit(struct pipe_context *ctx, struct pipe_blit_info *info)
                 return;
         }
 
+        MESA_TRACE_FUNC();
+
         v3d_blitter_save(v3d, info->render_condition_enable ?
                          V3D_BLIT_COND : V3D_BLIT);
         util_blitter_blit(v3d->blitter, info, NULL);
@@ -149,6 +152,8 @@ v3d_stencil_blit(struct pipe_context *ctx, struct pipe_blit_info *info)
 
         if ((info->mask & PIPE_MASK_S) == 0)
                 return;
+
+        MESA_TRACE_FUNC();
 
         if (src->separate_stencil) {
                 src = src->separate_stencil;
@@ -443,6 +448,8 @@ v3d_tlb_blit_fast(struct pipe_context *pctx, struct pipe_blit_info *info)
         if (ssurf->internal_type != rsurf->internal_type)
                 return;
 
+        MESA_TRACE_FUNC();
+
         /* If we had any other jobs writing to the blit dst we should submit
          * them now before we blit.
          *
@@ -473,6 +480,8 @@ v3d_tlb_blit(struct pipe_context *pctx, struct pipe_blit_info *info)
 
         if (!check_tlb_blit_ok(devinfo, info))
                 return;
+
+        MESA_TRACE_FUNC();
 
         v3d_flush_jobs_writing_resource(v3d, info->src.resource, V3D_FLUSH_DEFAULT, false);
 
@@ -778,6 +787,8 @@ v3d_sand8_blit(struct pipe_context *pctx, struct pipe_blit_info *info)
         assert(info->src.box.y == 0 && info->dst.box.y == 0);
         assert(info->src.box.width == info->dst.box.width);
         assert(info->src.box.height == info->dst.box.height);
+
+        MESA_TRACE_FUNC();
 
         v3d_blitter_save(v3d, info->render_condition_enable ?
                          V3D_BLIT_COND : V3D_BLIT);
@@ -1097,6 +1108,8 @@ v3d_sand30_blit(struct pipe_context *pctx, struct pipe_blit_info *info)
         assert(info->src.box.width == info->dst.box.width);
         assert(info->src.box.height == info->dst.box.height);
 
+        MESA_TRACE_FUNC();
+
         v3d_blitter_save(v3d, info->render_condition_enable ?
                          V3D_BLIT_COND : V3D_BLIT);
 
@@ -1180,6 +1193,8 @@ v3d_blit(struct pipe_context *pctx, const struct pipe_blit_info *blit_info)
 
         if (info.render_condition_enable && !v3d_render_condition_check(v3d))
                 return;
+
+        MESA_TRACE_FUNC();
 
         v3d_sand30_blit(pctx, &info);
 

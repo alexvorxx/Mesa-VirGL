@@ -21,6 +21,7 @@
  * IN THE SOFTWARE.
  */
 
+#include "util/perf/cpu_trace.h"
 #include "util/u_blitter.h"
 #include "util/u_draw.h"
 #include "util/u_prim.h"
@@ -1433,6 +1434,8 @@ v3d_launch_grid(struct pipe_context *pctx, const struct pipe_grid_info *info)
         struct v3d_context *v3d = v3d_context(pctx);
         struct v3d_screen *screen = v3d->screen;
         unsigned i;
+
+        MESA_TRACE_FUNC();
 
         v3d_predraw_check_stage_inputs(pctx, PIPE_SHADER_COMPUTE);
 

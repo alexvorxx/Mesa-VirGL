@@ -25,6 +25,7 @@
 #include "v3d_compiler.h"
 #include "compiler/nir/nir_schedule.h"
 #include "compiler/nir/nir_builder.h"
+#include "util/perf/cpu_trace.h"
 
 int
 vir_get_nsrc(struct qinst *inst)
@@ -1988,9 +1989,11 @@ uint64_t *v3d_compile(const struct v3d_compiler *compiler,
                       uint32_t *final_assembly_size)
 {
         struct v3d_compile *c = NULL;
-
         uint32_t best_spill_fill_count = UINT32_MAX;
         struct v3d_compile *best_c = NULL;
+
+        MESA_TRACE_FUNC();
+
         for (int32_t strat = 0; strat < ARRAY_SIZE(strategies); strat++) {
                 /* Fallback strategy */
                 if (strat > 0) {

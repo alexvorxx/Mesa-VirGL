@@ -25,6 +25,7 @@
 #include "pipe/p_defines.h"
 #include "util/u_memory.h"
 #include "util/format/u_format.h"
+#include "util/perf/cpu_trace.h"
 #include "util/u_inlines.h"
 #include "util/u_resource.h"
 #include "util/u_surface.h"
@@ -194,6 +195,8 @@ v3d_map_usage_prep(struct pipe_context *pctx,
 {
         struct v3d_context *v3d = v3d_context(pctx);
         struct v3d_resource *rsc = v3d_resource(prsc);
+
+        MESA_TRACE_FUNC();
 
         if (usage & PIPE_MAP_DISCARD_WHOLE_RESOURCE) {
                 if (v3d_resource_bo_alloc(rsc)) {

@@ -28,6 +28,7 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
+#include "util/perf/cpu_trace.h"
 #include "util/u_hash_table.h"
 #include "util/u_memory.h"
 #include "util/ralloc.h"
@@ -483,6 +484,8 @@ bool
 v3d_bo_wait(struct v3d_bo *bo, uint64_t timeout_ns, const char *reason)
 {
         struct v3d_screen *screen = bo->screen;
+
+        MESA_TRACE_FUNC();
 
         if (V3D_DBG(PERF) && timeout_ns && reason) {
                 if (v3d_wait_bo_ioctl(screen->fd, bo->handle, 0) == -ETIME) {
