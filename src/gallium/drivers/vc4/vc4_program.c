@@ -25,6 +25,7 @@
 #include <inttypes.h>
 #include "util/format/u_format.h"
 #include "util/crc32.h"
+#include "util/perf/cpu_trace.h"
 #include "util/u_helpers.h"
 #include "util/u_math.h"
 #include "util/u_memory.h"
@@ -2213,6 +2214,8 @@ vc4_shader_ntq(struct vc4_context *vc4, enum qstage stage,
                struct vc4_key *key, bool fs_threaded)
 {
         struct vc4_compile *c = qir_compile_init();
+
+        MESA_TRACE_FUNC();
 
         c->vc4 = vc4;
         c->stage = stage;

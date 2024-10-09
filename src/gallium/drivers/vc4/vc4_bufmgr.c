@@ -28,6 +28,7 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 
+#include "util/perf/cpu_trace.h"
 #include "util/u_hash_table.h"
 #include "util/u_memory.h"
 #include "util/u_string.h"
@@ -603,6 +604,8 @@ bool
 vc4_bo_wait(struct vc4_bo *bo, uint64_t timeout_ns, const char *reason)
 {
         struct vc4_screen *screen = bo->screen;
+
+        MESA_TRACE_FUNC();
 
         if (VC4_DBG(PERF) && timeout_ns && reason) {
                 if (vc4_wait_bo_ioctl(screen->fd, bo->handle, 0) == -ETIME) {
