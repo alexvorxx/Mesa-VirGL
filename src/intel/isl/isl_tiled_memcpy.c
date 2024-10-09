@@ -1322,23 +1322,23 @@ linear_to_tiled(uint32_t xt1, uint32_t xt2,
    uint32_t xt0, xt3;
    uint32_t yt0, yt3;
    uint32_t xt, yt;
-   uint32_t tw, th, span;
+   uint32_t tw, th, xt_sub_range_alignment;
    uint32_t swizzle_bit = has_swizzling ? 1<<6 : 0;
 
    if (tiling == ISL_TILING_X) {
       tw = xtile_width;
       th = xtile_height;
-      span = xtile_span;
+      xt_sub_range_alignment = xtile_span;
       tile_copy = linear_to_xtiled_faster;
    } else if (tiling == ISL_TILING_Y0) {
       tw = ytile_width;
       th = ytile_height;
-      span = ytile_span;
+      xt_sub_range_alignment = ytile_span;
       tile_copy = linear_to_ytiled_faster;
    } else if (tiling == ISL_TILING_4) {
       tw = ytile_width;
       th = ytile_height;
-      span = ytile_span;
+      xt_sub_range_alignment = ytile_span;
       tile_copy = linear_to_tile4_faster;
    } else {
       unreachable("unsupported tiling");
@@ -1371,16 +1371,17 @@ linear_to_tiled(uint32_t xt1, uint32_t xt2,
           * The sub-ranges could be empty.
           */
          uint32_t x1, x2;
-         x1 = ALIGN_UP(x0, span);
+         x1 = ALIGN_UP(x0, xt_sub_range_alignment);
          if (x1 > x3)
             x1 = x2 = x3;
          else
-            x2 = ALIGN_DOWN(x3, span);
+            x2 = ALIGN_DOWN(x3, xt_sub_range_alignment);
 
          assert(x0 <= x1 && x1 <= x2 && x2 <= x3);
-         assert(x1 - x0 < span && x3 - x2 < span);
+         assert(x1 - x0 < xt_sub_range_alignment &&
+                x3 - x2 < xt_sub_range_alignment);
          assert(x3 - x0 <= tw);
-         assert((x2 - x1) % span == 0);
+         assert((x2 - x1) % xt_sub_range_alignment == 0);
 
          /* Translate by (xt,yt) for single-tile copier. */
          tile_copy(x0-xt, x1-xt, x2-xt, x3-xt,
@@ -1418,23 +1419,23 @@ tiled_to_linear(uint32_t xt1, uint32_t xt2,
    uint32_t xt0, xt3;
    uint32_t yt0, yt3;
    uint32_t xt, yt;
-   uint32_t tw, th, span;
+   uint32_t tw, th, xt_sub_range_alignment;
    uint32_t swizzle_bit = has_swizzling ? 1<<6 : 0;
 
    if (tiling == ISL_TILING_X) {
       tw = xtile_width;
       th = xtile_height;
-      span = xtile_span;
+      xt_sub_range_alignment = xtile_span;
       tile_copy = xtiled_to_linear_faster;
    } else if (tiling == ISL_TILING_Y0) {
       tw = ytile_width;
       th = ytile_height;
-      span = ytile_span;
+      xt_sub_range_alignment = ytile_span;
       tile_copy = ytiled_to_linear_faster;
    } else if (tiling == ISL_TILING_4) {
       tw = ytile_width;
       th = ytile_height;
-      span = ytile_span;
+      xt_sub_range_alignment = ytile_span;
       tile_copy = tile4_to_linear_faster;
    } else {
       unreachable("unsupported tiling");
@@ -1471,21 +1472,22 @@ tiled_to_linear(uint32_t xt1, uint32_t xt2,
          uint32_t x3 = MIN2(xt2, xt + tw);
          uint32_t y1 = MIN2(yt2, yt + th);
 
-         /* [x0,x3) is split into [x0,x1), [x1,x2), [x2,x3) such that
-          * the middle interval is the longest span-aligned part.
-          * The sub-ranges could be empty.
+         /* [x0,x3) is split into [x0,x1), [x1,x2), [x2,x3) such that the
+          * middle interval is the longest xt_sub_range_alignment aligned
+          * part. The sub-ranges could be empty.
           */
          uint32_t x1, x2;
-         x1 = ALIGN_UP(x0, span);
+         x1 = ALIGN_UP(x0, xt_sub_range_alignment);
          if (x1 > x3)
             x1 = x2 = x3;
          else
-            x2 = ALIGN_DOWN(x3, span);
+            x2 = ALIGN_DOWN(x3, xt_sub_range_alignment);
 
          assert(x0 <= x1 && x1 <= x2 && x2 <= x3);
-         assert(x1 - x0 < span && x3 - x2 < span);
+         assert(x1 - x0 < xt_sub_range_alignment &&
+                x3 - x2 < xt_sub_range_alignment);
          assert(x3 - x0 <= tw);
-         assert((x2 - x1) % span == 0);
+         assert((x2 - x1) % xt_sub_range_alignment == 0);
 
          /* Translate by (xt,yt) for single-tile copier. */
          tile_copy(x0-xt, x1-xt, x2-xt, x3-xt,
