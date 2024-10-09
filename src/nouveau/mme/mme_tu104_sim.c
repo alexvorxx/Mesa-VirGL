@@ -20,10 +20,7 @@ struct mme_tu104_sim {
    struct {
       unsigned mthd:16;
       unsigned inc:4;
-      bool has_mthd:1;
-      unsigned _pad:5;
-      unsigned data_len:8;
-      uint32_t data[8];
+      unsigned _pad:12;
    } mthd;
 
    uint32_t set_regs;
@@ -85,22 +82,6 @@ load_state(struct mme_tu104_sim *sim, uint16_t state)
 }
 
 static void
-flush_mthd(struct mme_tu104_sim *sim)
-{
-   if (!sim->mthd.has_mthd)
-      return;
-
-   for (uint32_t i = 0; i < sim->mthd.data_len; i++) {
-      sim->state_ops->mthd(sim->state_handler,
-                           sim->mthd.mthd,
-                           sim->mthd.data[i]);
-      sim->mthd.mthd += sim->mthd.inc * 4;
-   }
-
-   sim->mthd.has_mthd = false;
-}
-
-static void
 eval_extended(struct mme_tu104_sim *sim,
               uint32_t x, uint32_t y)
 {
@@ -109,7 +90,6 @@ eval_extended(struct mme_tu104_sim *sim,
     */
    assert(x == 0x1000);
    assert(y == 1);
-   flush_mthd(sim);
    if (sim->state_ops->barrier)
       sim->state_ops->barrier(sim->state_handler);
 }
@@ -301,7 +281,6 @@ eval_alu(struct mme_tu104_sim *sim,
       res = eval_cond(inst->alu[alu_idx].op, x, y) ? ~0u : 0u;
       break;
    case MME_TU104_ALU_OP_STATE:
-      flush_mthd(sim);
       res = load_state(sim, (uint16_t)(x + y) * 4);
       break;
    case MME_TU104_ALU_OP_LOOP:
@@ -401,18 +380,16 @@ eval_out(struct mme_tu104_sim *sim,
    if (inst->out[out_idx].mthd != MME_TU104_OUT_OP_NONE) {
       uint32_t data = load_out(sim, inst, inst->out[out_idx].mthd);
 
-      flush_mthd(sim);
       sim->mthd.mthd = (data & 0xfff) << 2;
       sim->mthd.inc = (data >> 12) & 0xf;
-      sim->mthd.has_mthd = true;
-      sim->mthd.data_len = 0;
    }
 
    if (inst->out[out_idx].emit != MME_TU104_OUT_OP_NONE) {
       uint32_t data = load_out(sim, inst, inst->out[out_idx].emit);
 
-      assert(sim->mthd.data_len < ARRAY_SIZE(sim->mthd.data));
-      sim->mthd.data[sim->mthd.data_len++] = data;
+      sim->state_ops->mthd(sim->state_handler,
+                           sim->mthd.mthd, data);
+      sim->mthd.mthd += sim->mthd.inc * 4;
    }
 }
 
@@ -461,8 +438,6 @@ mme_tu104_sim_core(uint32_t inst_count, const struct mme_tu104_inst *insts,
 
       sim.ip = sim.next_ip;
    }
-
-   flush_mthd(&sim);
 }
 
 struct mme_tu104_state_sim {
