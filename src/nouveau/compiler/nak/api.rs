@@ -400,7 +400,7 @@ pub extern "C" fn nak_compile_shader(
         panic!("Unsupported shader model");
     };
 
-    let mut s = nak_shader_from_nir(nir, sm.as_ref());
+    let mut s = nak_shader_from_nir(nak, nir, sm.as_ref());
 
     if DEBUG.print() {
         eprintln!("NAK IR:\n{}", &s);

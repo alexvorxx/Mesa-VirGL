@@ -87,14 +87,17 @@ enum ENUM_PACKED nak_attr {
 };
 
 static inline uint16_t
-nak_attribute_attr_addr(gl_vert_attrib attrib)
+nak_attribute_attr_addr(UNUSED const struct nak_compiler *nak,
+                        gl_vert_attrib attrib)
 {
    assert(attrib >= VERT_ATTRIB_GENERIC0);
    return NAK_ATTR_GENERIC_START + (attrib - VERT_ATTRIB_GENERIC0) * 0x10;
 }
 
-uint16_t nak_varying_attr_addr(gl_varying_slot slot);
-uint16_t nak_sysval_attr_addr(gl_system_value sysval);
+uint16_t nak_varying_attr_addr(const struct nak_compiler *nak,
+                               gl_varying_slot slot);
+uint16_t nak_sysval_attr_addr(const struct nak_compiler *nak,
+                              gl_system_value sysval);
 
 enum ENUM_PACKED nak_sv {
    NAK_SV_LANE_ID          = 0x00,
@@ -127,7 +130,8 @@ enum ENUM_PACKED nak_sv {
 bool nak_nir_workgroup_has_one_subgroup(const nir_shader *nir);
 
 struct nak_xfb_info
-nak_xfb_from_nir(const struct nir_xfb_info *nir_xfb);
+nak_xfb_from_nir(const struct nak_compiler *nak,
+                 const struct nir_xfb_info *nir_xfb);
 
 struct nak_io_addr_offset {
    nir_scalar base;

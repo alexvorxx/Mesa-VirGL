@@ -28,13 +28,14 @@ load_fs_input(nir_builder *b, unsigned num_components, uint32_t addr,
 }
 
 static nir_def *
-load_frag_w(nir_builder *b, enum nak_interp_loc interp_loc, nir_def *offset)
+load_frag_w(nir_builder *b, enum nak_interp_loc interp_loc, nir_def *offset,
+            const struct nak_compiler *nak)
 {
    if (offset == NULL)
       offset = nir_imm_int(b, 0);
 
    const uint16_t w_addr =
-      nak_sysval_attr_addr(SYSTEM_VALUE_FRAG_COORD) + 12;
+      nak_sysval_attr_addr(nak, SYSTEM_VALUE_FRAG_COORD) + 12;
 
    const struct nak_nir_ipa_flags flags = {
       .interp_mode = NAK_INTERP_MODE_SCREEN_LINEAR,
@@ -177,10 +178,11 @@ struct lower_fs_input_ctx {
 };
 
 static uint16_t
-fs_input_intrin_addr(nir_intrinsic_instr *intrin)
+fs_input_intrin_addr(nir_intrinsic_instr *intrin,
+                     const struct nak_compiler *nak)
 {
    const nir_io_semantics sem = nir_intrinsic_io_semantics(intrin);
-   return nak_varying_attr_addr(sem.location) +
+   return nak_varying_attr_addr(nak, sem.location) +
           nir_src_as_uint(*nir_get_io_offset_src(intrin)) * 16 +
           nir_intrinsic_component(intrin) * 4;
 }
@@ -189,6 +191,7 @@ static bool
 lower_fs_input_intrin(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
 {
    const struct lower_fs_input_ctx *ctx = data;
+   const struct nak_compiler *nak = ctx->nak;
 
    b->cursor = nir_before_instr(&intrin->instr);
 
@@ -209,8 +212,8 @@ lower_fs_input_intrin(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
                                                 : NAK_INTERP_LOC_DEFAULT;
       const uint32_t addr =
          intrin->intrinsic == nir_intrinsic_load_point_coord ?
-         nak_sysval_attr_addr(SYSTEM_VALUE_POINT_COORD) :
-         nak_sysval_attr_addr(SYSTEM_VALUE_FRAG_COORD);
+         nak_sysval_attr_addr(nak, SYSTEM_VALUE_POINT_COORD) :
+         nak_sysval_attr_addr(nak, SYSTEM_VALUE_FRAG_COORD);
 
       res = interp_fs_input(b, intrin->def.num_components, addr,
                             NAK_INTERP_MODE_SCREEN_LINEAR,
@@ -224,7 +227,7 @@ lower_fs_input_intrin(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
       assert(b->shader->info.stage == MESA_SHADER_FRAGMENT);
       const gl_system_value sysval =
          nir_system_value_from_intrinsic(intrin->intrinsic);
-      const uint32_t addr = nak_sysval_attr_addr(sysval);
+      const uint32_t addr = nak_sysval_attr_addr(nak, sysval);
 
       res = load_fs_input(b, intrin->def.num_components, addr, ctx->nak);
       if (intrin->def.bit_size == 1)
@@ -233,7 +236,7 @@ lower_fs_input_intrin(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
    }
 
    case nir_intrinsic_load_input: {
-      const uint16_t addr = fs_input_intrin_addr(intrin);
+      const uint16_t addr = fs_input_intrin_addr(intrin, ctx->nak);
       res = load_fs_input(b, intrin->def.num_components, addr, ctx->nak);
       break;
    }
@@ -274,7 +277,7 @@ lower_fs_input_intrin(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
 
       nir_def *inv_w = NULL;
       if (interp_mode == NAK_INTERP_MODE_PERSPECTIVE)
-         inv_w = nir_frcp(b, load_frag_w(b, interp_loc, offset));
+         inv_w = nir_frcp(b, load_frag_w(b, interp_loc, offset, nak));
 
       res = interp_fs_input(b, intrin->def.num_components,
                             addr, interp_mode, interp_loc,
@@ -283,7 +286,7 @@ lower_fs_input_intrin(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
    }
 
    case nir_intrinsic_load_interpolated_input: {
-      const uint16_t addr = fs_input_intrin_addr(intrin);
+      const uint16_t addr = fs_input_intrin_addr(intrin, ctx->nak);
       nir_intrinsic_instr *bary = nir_src_as_intrinsic(intrin->src[0]);
 
       enum nak_interp_mode interp_mode;
@@ -318,7 +321,7 @@ lower_fs_input_intrin(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
 
       nir_def *inv_w = NULL;
       if (interp_mode == NAK_INTERP_MODE_PERSPECTIVE)
-         inv_w = nir_frcp(b, load_frag_w(b, interp_loc, offset));
+         inv_w = nir_frcp(b, load_frag_w(b, interp_loc, offset, nak));
 
       res = interp_fs_input(b, intrin->def.num_components,
                             addr, interp_mode, interp_loc,
@@ -366,7 +369,7 @@ lower_fs_input_intrin(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
       break;
 
    case nir_intrinsic_load_input_vertex: {
-      const uint16_t addr = fs_input_intrin_addr(intrin);
+      const uint16_t addr = fs_input_intrin_addr(intrin, ctx->nak);
       unsigned vertex_id = nir_src_as_uint(intrin->src[0]);
       assert(vertex_id < 3);
 

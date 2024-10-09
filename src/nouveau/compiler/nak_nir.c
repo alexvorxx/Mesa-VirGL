@@ -334,7 +334,7 @@ nak_preprocess_nir(nir_shader *nir, const struct nak_compiler *nak)
 }
 
 uint16_t
-nak_varying_attr_addr(gl_varying_slot slot)
+nak_varying_attr_addr(const struct nak_compiler *nak, gl_varying_slot slot)
 {
    if (slot >= VARYING_SLOT_PATCH0) {
       return NAK_ATTR_PATCH_START + (slot - VARYING_SLOT_PATCH0) * 0x10;
@@ -381,7 +381,7 @@ nak_fs_out_addr(gl_frag_result slot, uint32_t blend_idx)
 }
 
 uint16_t
-nak_sysval_attr_addr(gl_system_value sysval)
+nak_sysval_attr_addr(const struct nak_compiler *nak, gl_system_value sysval)
 {
    switch (sysval) {
    case SYSTEM_VALUE_PRIMITIVE_ID:  return NAK_ATTR_PRIMITIVE_ID;
@@ -434,7 +434,7 @@ nak_nir_lower_system_value_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
              b->shader->info.stage == MESA_SHADER_GEOMETRY);
       const gl_system_value sysval =
          nir_system_value_from_intrinsic(intrin->intrinsic);
-      const uint32_t addr = nak_sysval_attr_addr(sysval);
+      const uint32_t addr = nak_sysval_attr_addr(nak, sysval);
       val = nir_ald_nv(b, 1, nir_imm_int(b, 0), nir_imm_int(b, 0),
                        .base = addr, .flags = 0,
                        .range_base = addr, .range = 4,
@@ -657,7 +657,8 @@ nak_nir_lower_system_values(nir_shader *nir, const struct nak_compiler *nak)
 }
 
 struct nak_xfb_info
-nak_xfb_from_nir(const struct nir_xfb_info *nir_xfb)
+nak_xfb_from_nir(const struct nak_compiler *nak,
+                 const struct nir_xfb_info *nir_xfb)
 {
    if (nir_xfb == NULL)
       return (struct nak_xfb_info) { };
@@ -675,7 +676,7 @@ nak_xfb_from_nir(const struct nir_xfb_info *nir_xfb)
       const uint8_t b = out->buffer;
       assert(nir_xfb->buffers_written & BITFIELD_BIT(b));
 
-      const uint16_t attr_addr = nak_varying_attr_addr(out->location);
+      const uint16_t attr_addr = nak_varying_attr_addr(nak, out->location);
       assert(attr_addr % 4 == 0);
       const uint16_t attr_idx = attr_addr / 4;
 

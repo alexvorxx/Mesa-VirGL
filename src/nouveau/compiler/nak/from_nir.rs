@@ -19,7 +19,7 @@ use std::cmp::max;
 use std::collections::{HashMap, HashSet};
 use std::ops::Index;
 
-fn init_info_from_nir(nir: &nir_shader) -> ShaderInfo {
+fn init_info_from_nir(nak: &nak_compiler, nir: &nir_shader) -> ShaderInfo {
     ShaderInfo {
         num_gprs: 0,
         num_instrs: 0,
@@ -159,7 +159,7 @@ fn init_info_from_nir(nir: &nir_shader) -> ShaderInfo {
                         None
                     } else {
                         Some(Box::new(unsafe {
-                            nak_xfb_from_nir(nir.xfb_info)
+                            nak_xfb_from_nir(nak, nir.xfb_info)
                         }))
                     },
                 })
@@ -315,11 +315,15 @@ struct ShaderFromNir<'a> {
 }
 
 impl<'a> ShaderFromNir<'a> {
-    fn new(nir: &'a nir_shader, sm: &'a dyn ShaderModel) -> Self {
+    fn new(
+        nak: &nak_compiler,
+        nir: &'a nir_shader,
+        sm: &'a dyn ShaderModel,
+    ) -> Self {
         Self {
             nir: nir,
             sm: sm,
-            info: init_info_from_nir(nir),
+            info: init_info_from_nir(nak, nir),
             float_ctl: ShaderFloatControls::from_nir(nir),
             cfg: CFGBuilder::new(),
             label_alloc: LabelAllocator::new(),
@@ -3623,8 +3627,9 @@ impl<'a> ShaderFromNir<'a> {
 }
 
 pub fn nak_shader_from_nir<'a>(
+    nak: &nak_compiler,
     ns: &'a nir_shader,
     sm: &'a dyn ShaderModel,
 ) -> Shader<'a> {
-    ShaderFromNir::new(ns, sm).parse_shader()
+    ShaderFromNir::new(nak, ns, sm).parse_shader()
 }
