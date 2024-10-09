@@ -49,9 +49,9 @@ impl SampleLayout {
     pub fn choose_sample_layout(samples: u32) -> SampleLayout {
         match samples {
             1 => SampleLayout::_1x1,
-            2 => SampleLayout::_2x1,
+            2 => SampleLayout::_2x1D3d,
             4 => SampleLayout::_2x2,
-            8 => SampleLayout::_4x2,
+            8 => SampleLayout::_4x2D3d,
             16 => SampleLayout::_4x4,
             _ => SampleLayout::Invalid,
         }
