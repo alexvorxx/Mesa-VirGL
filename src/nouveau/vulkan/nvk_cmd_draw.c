@@ -734,6 +734,22 @@ nil_to_nv9097_samples_mode(enum nil_sample_layout sample_layout)
    return nil_to_nv9097[sample_layout];
 }
 
+static uint32_t nvk_mme_anti_alias_samples(uint32_t samples);
+
+static void
+nvk_cmd_set_sample_layout(struct nvk_cmd_buffer *cmd,
+                          enum nil_sample_layout sample_layout)
+{
+   const uint32_t samples = nil_sample_layout_samples(sample_layout);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, 4);
+
+   P_IMMD(p, NV9097, SET_ANTI_ALIAS,
+          nil_to_nv9097_samples_mode(sample_layout));
+
+   P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SET_ANTI_ALIAS));
+   P_INLINE_DATA(p, nvk_mme_anti_alias_samples(samples));
+}
+
 VKAPI_ATTR void VKAPI_CALL
 nvk_GetRenderingAreaGranularityKHR(
     VkDevice device,
@@ -807,7 +823,7 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
 
    nvk_cmd_buffer_dirty_render_pass(cmd);
 
-   struct nv_push *p = nvk_cmd_buffer_push(cmd, NVK_MAX_RTS * 12 + 29);
+   struct nv_push *p = nvk_cmd_buffer_push(cmd, NVK_MAX_RTS * 12 + 25);
 
    P_IMMD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_VIEW_MASK),
           render->view_mask);
@@ -1054,10 +1070,8 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
     * we don't have any attachments, we defer SET_ANTI_ALIAS to draw time
     * where we base it on dynamic rasterizationSamples.
     */
-   if (sample_layout != NIL_SAMPLE_LAYOUT_INVALID) {
-      P_IMMD(p, NV9097, SET_ANTI_ALIAS,
-             nil_to_nv9097_samples_mode(sample_layout));
-   }
+   if (sample_layout != NIL_SAMPLE_LAYOUT_INVALID)
+      nvk_cmd_set_sample_layout(cmd, sample_layout);
 
    if (render->flags & VK_RENDERING_RESUMING_BIT)
       return;
@@ -1121,6 +1135,7 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
          .layerCount = render->view_mask ? 1 : render->layer_count,
       };
 
+      p = nvk_cmd_buffer_push(cmd, 2);
       P_MTHD(p, NV9097, SET_RENDER_ENABLE_OVERRIDE);
       P_NV9097_SET_RENDER_ENABLE_OVERRIDE(p, MODE_ALWAYS_RENDER);
 
@@ -2325,8 +2340,6 @@ nvk_flush_ms_state(struct nvk_cmd_buffer *cmd)
       &cmd->vk.dynamic_graphics_state;
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_MS_RASTERIZATION_SAMPLES)) {
-      struct nv_push *p = nvk_cmd_buffer_push(cmd, 4);
-
       /* When we don't have any attachments, we can't know the sample count
        * from the render pass so we need to emit SET_ANTI_ALIAS here.  See the
        * comment in nvk_BeginRendering() for more details.
@@ -2337,8 +2350,7 @@ nvk_flush_ms_state(struct nvk_cmd_buffer *cmd)
           * the hardware so always use at least one sample.
           */
          const uint32_t samples = MAX2(1, dyn->ms.rasterization_samples);
-         enum nil_sample_layout layout = nil_choose_sample_layout(samples);
-         P_IMMD(p, NV9097, SET_ANTI_ALIAS, nil_to_nv9097_samples_mode(layout));
+         nvk_cmd_set_sample_layout(cmd, nil_choose_sample_layout(samples));
       } else {
          /* Multisample information MAY be missing (rasterizationSamples == 0)
           * if rasterizer discard is enabled.
@@ -2346,10 +2358,6 @@ nvk_flush_ms_state(struct nvk_cmd_buffer *cmd)
          assert(dyn->ms.rasterization_samples == 0 ||
                 dyn->ms.rasterization_samples == render->samples);
       }
-
-      P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SET_ANTI_ALIAS));
-      P_INLINE_DATA(p,
-         nvk_mme_anti_alias_samples(dyn->ms.rasterization_samples));
    }
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_MS_ALPHA_TO_COVERAGE_ENABLE) ||
