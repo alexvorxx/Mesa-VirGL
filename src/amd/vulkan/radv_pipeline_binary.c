@@ -75,16 +75,23 @@ radv_GetPipelineKeyKHR(VkDevice _device, const VkPipelineCreateInfoKHR *pPipelin
                        VkPipelineBinaryKeyKHR *pPipelineKey)
 {
    VK_FROM_HANDLE(radv_device, device, _device);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
    VkResult result;
 
    memset(pPipelineKey->key, 0, sizeof(pPipelineKey->key));
 
    /* Return the global key that applies to all pipelines. */
    if (!pPipelineCreateInfo) {
-      static_assert(sizeof(device->cache_hash) <= sizeof(pPipelineKey->key), "mismatch pipeline binary key size");
+      struct mesa_blake3 ctx;
 
-      memcpy(pPipelineKey->key, device->cache_hash, sizeof(device->cache_hash));
-      pPipelineKey->keySize = sizeof(device->cache_hash);
+      static_assert(sizeof(blake3_hash) <= sizeof(pPipelineKey->key), "mismatch pipeline binary key size");
+
+      _mesa_blake3_init(&ctx);
+      _mesa_blake3_update(&ctx, pdev->cache_uuid, sizeof(pdev->cache_uuid));
+      _mesa_blake3_update(&ctx, device->cache_hash, sizeof(device->cache_hash));
+      _mesa_blake3_final(&ctx, pPipelineKey->key);
+
+      pPipelineKey->keySize = sizeof(blake3_hash);
 
       return VK_SUCCESS;
    }
