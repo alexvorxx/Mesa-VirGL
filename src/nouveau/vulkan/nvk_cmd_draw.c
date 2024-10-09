@@ -724,12 +724,16 @@ nil_to_nv9097_samples_mode(enum nil_sample_layout sample_layout)
    uint16_t nil_to_nv9097[] = {
       MODE(1X1),
       MODE(2X1),
+      MODE(2X1_D3D),
       MODE(2X2),
       MODE(4X2),
+      MODE(4X2_D3D),
       MODE(4X4),
    };
 #undef MODE
    assert(sample_layout < ARRAY_SIZE(nil_to_nv9097));
+   assert(sample_layout == NIL_SAMPLE_LAYOUT_1X1 ||
+          nil_to_nv9097[sample_layout] != 0);
 
    return nil_to_nv9097[sample_layout];
 }
@@ -749,6 +753,7 @@ nvk_cmd_set_sample_layout(struct nvk_cmd_buffer *cmd,
    switch (sample_layout) {
    case NIL_SAMPLE_LAYOUT_1X1:
    case NIL_SAMPLE_LAYOUT_2X1:
+   case NIL_SAMPLE_LAYOUT_2X1_D3D:
       /* These only have two modes: Single-pass or per-sample */
       P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SAMPLE_MASKS_2PASS_0));
       P_INLINE_DATA(p, 0);
@@ -786,6 +791,19 @@ nvk_cmd_set_sample_layout(struct nvk_cmd_buffer *cmd,
       P_INLINE_DATA(p, 0x000c000c);
       P_INLINE_DATA(p, 0x00300030);
       P_INLINE_DATA(p, 0x00c000c0);
+      break;
+
+   case NIL_SAMPLE_LAYOUT_4X2_D3D:
+      P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SAMPLE_MASKS_2PASS_0));
+      P_INLINE_DATA(p, 0x003a00c5);
+      P_INLINE_DATA(p, 0x003a00c5);
+      P_INLINE_DATA(p, 0x003a003a);
+      P_INLINE_DATA(p, 0x00c500c5);
+      P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SAMPLE_MASKS_4PASS_0));
+      P_INLINE_DATA(p, 0x00120081);
+      P_INLINE_DATA(p, 0x00280044);
+      P_INLINE_DATA(p, 0x00280012);
+      P_INLINE_DATA(p, 0x00810044);
       break;
 
    default:
