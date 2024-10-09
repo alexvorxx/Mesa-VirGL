@@ -478,7 +478,9 @@ etna_try_blt_blit(struct pipe_context *pctx,
     * we can't use inplace resolve path with compression
     */
    if (src == dst) {
-      assert(!memcmp(&blit_info->src, &blit_info->dst, sizeof(blit_info->src)));
+      if (memcmp(&blit_info->src, &blit_info->dst, sizeof(blit_info->src)))
+         return false;
+
       if (!etna_resource_level_ts_valid(src_lev)) /* No TS, no worries */
          return true;
    }
