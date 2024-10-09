@@ -165,8 +165,14 @@ fn nil_rs_to_nv9097_multi_sample_count(sample_layout: SampleLayout) -> u32 {
     match sample_layout {
         SampleLayout::_1x1 => cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_1X1,
         SampleLayout::_2x1 => cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_2X1,
+        SampleLayout::_2x1D3d => {
+            cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_2X1_D3D
+        }
         SampleLayout::_2x2 => cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_2X2,
         SampleLayout::_4x2 => cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_4X2,
+        SampleLayout::_4x2D3d => {
+            cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_4X2_D3D
+        }
         SampleLayout::_4x4 => cl9097::TEXHEADV2_MULTI_SAMPLE_COUNT_MODE_4X4,
         SampleLayout::Invalid => panic!("Invalid sample layout"),
     }
@@ -176,8 +182,14 @@ fn nil_rs_to_nvb097_multi_sample_count(sample_layout: SampleLayout) -> u32 {
     match sample_layout {
         SampleLayout::_1x1 => clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_1X1,
         SampleLayout::_2x1 => clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_2X1,
+        SampleLayout::_2x1D3d => {
+            clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_2X1_D3D
+        }
         SampleLayout::_2x2 => clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_2X2,
         SampleLayout::_4x2 => clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_4X2,
+        SampleLayout::_4x2D3d => {
+            clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_4X2_D3D
+        }
         SampleLayout::_4x4 => clb097::TEXHEAD_BL_MULTI_SAMPLE_COUNT_MODE_4X4,
         SampleLayout::Invalid => panic!("Invalid sample layout"),
     }

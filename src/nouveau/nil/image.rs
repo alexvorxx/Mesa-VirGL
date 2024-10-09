@@ -29,13 +29,15 @@ pub enum ImageDim {
 #[derive(Clone, Debug, Copy, PartialEq, Default)]
 #[repr(u8)]
 pub enum SampleLayout {
-    _1x1 = 0,
-    _2x1 = 1,
-    _2x2 = 2,
-    _4x2 = 3,
-    _4x4 = 4,
+    _1x1,
+    _2x1,
+    _2x1D3d,
+    _2x2,
+    _4x2,
+    _4x2D3d,
+    _4x4,
     #[default]
-    Invalid = 5,
+    Invalid,
 }
 
 impl SampleLayout {
@@ -59,8 +61,10 @@ impl SampleLayout {
         match self {
             SampleLayout::_1x1 => 1,
             SampleLayout::_2x1 => 2,
+            SampleLayout::_2x1D3d => 2,
             SampleLayout::_2x2 => 4,
             SampleLayout::_4x2 => 8,
+            SampleLayout::_4x2D3d => 8,
             SampleLayout::_4x4 => 16,
             SampleLayout::Invalid => panic!("Invalid sample layout"),
         }
@@ -75,8 +79,10 @@ impl SampleLayout {
         match self {
             SampleLayout::_1x1 => Extent4D::new(1, 1, 1, 1),
             SampleLayout::_2x1 => Extent4D::new(2, 1, 1, 1),
+            SampleLayout::_2x1D3d => Extent4D::new(2, 1, 1, 1),
             SampleLayout::_2x2 => Extent4D::new(2, 2, 1, 1),
             SampleLayout::_4x2 => Extent4D::new(4, 2, 1, 1),
+            SampleLayout::_4x2D3d => Extent4D::new(4, 2, 1, 1),
             SampleLayout::_4x4 => Extent4D::new(4, 4, 1, 1),
             SampleLayout::Invalid => panic!("Invalid sample layout"),
         }
