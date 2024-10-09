@@ -1304,7 +1304,7 @@ static bool c_ine(int32_t x, int32_t y) { return x != y; };
 TEST_F(mme_tu104_sim_test, if_##op)                                  \
 {                                                                    \
    mme_builder b;                                                    \
-   mme_builder_init(&b, devinfo);                                 \
+   mme_builder_init(&b, devinfo);                                    \
                                                                      \
    mme_value x = mme_load(&b);                                       \
    mme_value y = mme_load(&b);                                       \
@@ -1313,6 +1313,11 @@ TEST_F(mme_tu104_sim_test, if_##op)                                  \
    mme_start_if_##op(&b, x, y);                                      \
    {                                                                 \
       mme_add_to(&b, i, i, mme_imm(1));                              \
+      mme_add_to(&b, i, i, mme_imm(1));                              \
+   }                                                                 \
+   mme_end_if(&b);                                                   \
+   mme_start_if_##op(&b, x, mme_imm(56));                            \
+   {                                                                 \
       mme_add_to(&b, i, i, mme_imm(1));                              \
    }                                                                 \
    mme_end_if(&b);                                                   \
@@ -1335,7 +1340,13 @@ TEST_F(mme_tu104_sim_test, if_##op)                                  \
                                                                      \
       test_macro(&b, macro, params);                                 \
                                                                      \
-      ASSERT_EQ(data[0], c_##op(params[0], params[1]) ? 5 : 3);      \
+      uint32_t expected = 3;                                         \
+      if (c_##op(params[0], params[1]))                              \
+         expected += 2;                                              \
+      if (c_##op(params[0], 56))                                     \
+         expected += 1;                                              \
+                                                                     \
+      ASSERT_EQ(data[0], expected);                                  \
    }                                                                 \
 }
 
