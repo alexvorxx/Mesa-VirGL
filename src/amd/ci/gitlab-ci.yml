@@ -75,7 +75,9 @@ amd-raven-skqp:x86_64:
     HWCI_START_WESTON: 1
     DEQP_SUITE: amd-raven-skqp
 
-radv-raven-traces:x86_64:
+# Disabled as it was using an older version of Wine, with most of the traces
+# being disabled due to being flaky.
+.radv-raven-traces:x86_64:
   extends:
     - .lava-piglit-traces:x86_64
     - .radv-raven-test:x86_64
