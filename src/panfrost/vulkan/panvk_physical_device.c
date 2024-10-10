@@ -9,7 +9,9 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <sys/stat.h>
 #include <sys/sysinfo.h>
+#include <sys/sysmacros.h>
 
 #include "util/disk_cache.h"
 #include "git_sha1.h"
@@ -91,6 +93,32 @@ create_kmod_dev(struct panvk_physical_device *device,
       close(fd);
       return panvk_errorf(instance, VK_ERROR_OUT_OF_HOST_MEMORY,
                           "cannot create device");
+   }
+
+   return VK_SUCCESS;
+}
+
+static VkResult
+get_drm_device_ids(struct panvk_physical_device *device,
+                   const struct panvk_instance *instance,
+                   drmDevicePtr drm_device)
+{
+   struct stat st;
+
+   if (stat(drm_device->nodes[DRM_NODE_RENDER], &st)) {
+      return vk_errorf(instance, VK_ERROR_INITIALIZATION_FAILED,
+                       "failed to query render node stat");
+   }
+
+   device->drm.render_rdev = st.st_rdev;
+
+   if (drm_device->available_nodes & (1 << DRM_NODE_PRIMARY)) {
+      if (stat(drm_device->nodes[DRM_NODE_PRIMARY], &st)) {
+         return vk_errorf(instance, VK_ERROR_INITIALIZATION_FAILED,
+                          "failed to query primary node stat");
+      }
+
+      device->drm.primary_rdev = st.st_rdev;
    }
 
    return VK_SUCCESS;
@@ -688,6 +716,18 @@ get_device_properties(const struct panvk_instance *instance,
    snprintf(properties->driverInfo, VK_MAX_DRIVER_INFO_SIZE,
             "Mesa " PACKAGE_VERSION MESA_GIT_SHA1);
 
+   /* VK_EXT_physical_device_drm */
+   if (device->drm.primary_rdev) {
+      properties->drmHasPrimary = true;
+      properties->drmPrimaryMajor = major(device->drm.primary_rdev);
+      properties->drmPrimaryMinor = minor(device->drm.primary_rdev);
+   }
+   if (device->drm.render_rdev) {
+      properties->drmHasRender = true;
+      properties->drmRenderMajor = major(device->drm.render_rdev);
+      properties->drmRenderMinor = minor(device->drm.render_rdev);
+   }
+
    /* VK_EXT_shader_module_identifier */
    STATIC_ASSERT(sizeof(vk_shaderModuleIdentifierAlgorithmUUID) ==
                  sizeof(properties->shaderModuleIdentifierAlgorithmUUID));
@@ -735,6 +775,10 @@ panvk_physical_device_init(struct panvk_physical_device *device,
                             "%s not supported", device->model->name);
       goto fail;
    }
+
+   result = get_drm_device_ids(device, instance, drm_device);
+   if (result != VK_SUCCESS)
+      goto fail;
 
    device->formats.all = panfrost_format_table(arch);
    device->formats.blendable = panfrost_blendable_format_table(arch);
