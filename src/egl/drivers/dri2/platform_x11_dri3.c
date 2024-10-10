@@ -535,7 +535,7 @@ dri3_x11_connect(struct dri2_egl_display *dri2_dpy, bool zink, bool swrast)
    if (dri2_dpy->fd_render_gpu < 0) {
       int conn_error = xcb_connection_has_error(dri2_dpy->conn);
       if (!swrast) {
-         _eglLog(_EGL_WARNING, "DRI3: Screen seems not DRI3 capable");
+         _eglLog(_EGL_INFO, "DRI3: Could not get DRI3 device");
 
          if (conn_error)
             _eglLog(_EGL_WARNING, "DRI3: Failed to initialize");
