@@ -1263,29 +1263,6 @@ unsupported:
    return VK_ERROR_FORMAT_NOT_SUPPORTED;
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL
-panvk_GetPhysicalDeviceImageFormatProperties(
-   VkPhysicalDevice physicalDevice, VkFormat format, VkImageType type,
-   VkImageTiling tiling, VkImageUsageFlags usage,
-   VkImageCreateFlags createFlags,
-   VkImageFormatProperties *pImageFormatProperties)
-{
-   VK_FROM_HANDLE(panvk_physical_device, physical_device, physicalDevice);
-
-   const VkPhysicalDeviceImageFormatInfo2 info = {
-      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2,
-      .pNext = NULL,
-      .format = format,
-      .type = type,
-      .tiling = tiling,
-      .usage = usage,
-      .flags = createFlags,
-   };
-
-   return get_image_format_properties(physical_device, &info,
-                                      pImageFormatProperties, NULL);
-}
-
 static VkResult
 panvk_get_external_image_format_properties(
    const struct panvk_physical_device *physical_device,
