@@ -154,9 +154,11 @@ get_device_extensions(const struct panvk_physical_device *device,
       .KHR_driver_properties = true,
       .KHR_dynamic_rendering = true,
       .KHR_external_fence = true,
+      .KHR_external_fence_fd = true,
       .KHR_external_memory = true,
       .KHR_external_memory_fd = true,
       .KHR_external_semaphore = true,
+      .KHR_external_semaphore_fd = true,
       .KHR_get_memory_requirements2 = true,
       .KHR_maintenance1 = true,
       .KHR_maintenance2 = true,
@@ -903,43 +905,6 @@ panvk_GetPhysicalDeviceMemoryProperties2(
                                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
       .memoryTypes[0].heapIndex = 0,
    };
-}
-
-VKAPI_ATTR void VKAPI_CALL
-panvk_GetPhysicalDeviceExternalSemaphoreProperties(
-   VkPhysicalDevice physicalDevice,
-   const VkPhysicalDeviceExternalSemaphoreInfo *pExternalSemaphoreInfo,
-   VkExternalSemaphoreProperties *pExternalSemaphoreProperties)
-{
-   if ((pExternalSemaphoreInfo->handleType ==
-           VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT ||
-        pExternalSemaphoreInfo->handleType ==
-           VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT)) {
-      pExternalSemaphoreProperties->exportFromImportedHandleTypes =
-         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT |
-         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
-      pExternalSemaphoreProperties->compatibleHandleTypes =
-         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT |
-         VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT;
-      pExternalSemaphoreProperties->externalSemaphoreFeatures =
-         VK_EXTERNAL_SEMAPHORE_FEATURE_EXPORTABLE_BIT |
-         VK_EXTERNAL_SEMAPHORE_FEATURE_IMPORTABLE_BIT;
-   } else {
-      pExternalSemaphoreProperties->exportFromImportedHandleTypes = 0;
-      pExternalSemaphoreProperties->compatibleHandleTypes = 0;
-      pExternalSemaphoreProperties->externalSemaphoreFeatures = 0;
-   }
-}
-
-VKAPI_ATTR void VKAPI_CALL
-panvk_GetPhysicalDeviceExternalFenceProperties(
-   VkPhysicalDevice physicalDevice,
-   const VkPhysicalDeviceExternalFenceInfo *pExternalFenceInfo,
-   VkExternalFenceProperties *pExternalFenceProperties)
-{
-   pExternalFenceProperties->exportFromImportedHandleTypes = 0;
-   pExternalFenceProperties->compatibleHandleTypes = 0;
-   pExternalFenceProperties->externalFenceFeatures = 0;
 }
 
 #define DEVICE_PER_ARCH_FUNCS(_ver)                                            \
