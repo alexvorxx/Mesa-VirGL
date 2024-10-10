@@ -128,6 +128,7 @@ static const struct spirv_capabilities implemented_capabilities = {
    .MinLod = true,
    .MultiView = true,
    .MultiViewport = true,
+   .OptNoneINTEL = true, // FIXME: make codegen emit the EXT name
    .PerViewAttributesNV = true,
    .PhysicalStorageBufferAddresses = true,
    .QuadControlKHR = true,
@@ -4910,6 +4911,15 @@ vtn_handle_preamble_instruction(struct vtn_builder *b, SpvOp opcode,
           *   - SpvOpGetKernelMaxNumSubgroups
           */
          vtn_warn("Not fully supported capability: %s",
+                  spirv_capability_to_string(cap));
+         break;
+
+      case SpvCapabilityOptNoneEXT:
+         /* This is a "strong request" not to optimize a function, usually
+          * because it's a compute shader and the workgroup size etc is
+          * manually tuned and we shouldn't risk undoing it. Someday!
+          */
+         vtn_info("Not fully supported capability: %s",
                   spirv_capability_to_string(cap));
          break;
 
