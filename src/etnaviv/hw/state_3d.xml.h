@@ -8,15 +8,15 @@ http://0x04.net/cgit/index.cgi/rules-ng-ng
 git clone git://0x04.net/rules-ng-ng
 
 The rules-ng-ng source files this header was generated from are:
-- state.xml     (  30526 bytes, from 2024-10-03 13:48:59)
-- common.xml    (  35664 bytes, from 2024-10-03 13:48:59)
-- common_3d.xml (  15069 bytes, from 2024-10-03 13:48:59)
-- state_hi.xml  (  35909 bytes, from 2024-10-03 13:48:59)
-- copyright.xml (   1597 bytes, from 2024-04-10 16:26:25)
-- state_2d.xml  (  52271 bytes, from 2024-04-10 16:26:25)
-- state_3d.xml  (  89542 bytes, from 2024-10-03 13:56:36)
-- state_blt.xml (  14592 bytes, from 2024-10-03 13:48:59)
-- state_vg.xml  (   5975 bytes, from 2024-04-10 16:26:25)
+- state.xml     (  30526 bytes, from 2024-10-10 18:45:02)
+- common.xml    (  35664 bytes, from 2023-12-13 09:33:18)
+- common_3d.xml (  15069 bytes, from 2023-12-13 09:33:18)
+- state_hi.xml  (  35909 bytes, from 2024-06-21 11:31:54)
+- copyright.xml (   1597 bytes, from 2020-10-28 12:56:03)
+- state_2d.xml  (  52271 bytes, from 2023-05-30 20:50:02)
+- state_3d.xml  (  89542 bytes, from 2024-10-10 18:45:02)
+- state_blt.xml (  14592 bytes, from 2023-12-13 09:33:18)
+- state_vg.xml  (   5975 bytes, from 2020-10-28 12:56:03)
 
 Copyright (C) 2012-2024 by the following authors:
 - Wladimir J. van der Laan <laanwj@gmail.com>
@@ -180,7 +180,7 @@ DEALINGS IN THE SOFTWARE.
 #define VIVS_VS_OUTPUT_COUNT_OUTPUT17_REG(x)			(((x) << VIVS_VS_OUTPUT_COUNT_OUTPUT17_REG__SHIFT) & VIVS_VS_OUTPUT_COUNT_OUTPUT17_REG__MASK)
 
 #define VIVS_VS_INPUT_COUNT					0x00000808
-#define VIVS_VS_INPUT_COUNT_COUNT__MASK				0x0000000f
+#define VIVS_VS_INPUT_COUNT_COUNT__MASK				0x0000001f
 #define VIVS_VS_INPUT_COUNT_COUNT__SHIFT			0
 #define VIVS_VS_INPUT_COUNT_COUNT(x)				(((x) << VIVS_VS_INPUT_COUNT_COUNT__SHIFT) & VIVS_VS_INPUT_COUNT_COUNT__MASK)
 #define VIVS_VS_INPUT_COUNT_UNK8__MASK				0x00001f00
