@@ -41,6 +41,61 @@
 #define MAX_INLINE_UNIFORM_BLOCK_DESCRIPTORS 32 - RESERVED_UBO_COUNT
 #define MAX_INLINE_UNIFORM_BLOCK_SIZE        (1 << 16)
 
+static VkResult
+create_kmod_dev(struct panvk_physical_device *device,
+                const struct panvk_instance *instance, drmDevicePtr drm_device)
+{
+   const char *path = drm_device->nodes[DRM_NODE_RENDER];
+   drmVersionPtr version;
+   int fd;
+
+   fd = open(path, O_RDWR | O_CLOEXEC);
+   if (fd < 0) {
+      return panvk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
+                          "failed to open device %s", path);
+   }
+
+   version = drmGetVersion(fd);
+   if (!version) {
+      close(fd);
+      return panvk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
+                          "failed to query kernel driver version for device %s",
+                          path);
+   }
+
+   if (strcmp(version->name, "panfrost") && strcmp(version->name, "panthor")) {
+      drmFreeVersion(version);
+      close(fd);
+      return panvk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
+                          "device %s does not use the panfrost kernel driver",
+                          path);
+   }
+
+   drmFreeVersion(version);
+
+   if (!getenv("PAN_I_WANT_A_BROKEN_VULKAN_DRIVER")) {
+      close(fd);
+      return panvk_errorf(
+         instance, VK_ERROR_INCOMPATIBLE_DRIVER,
+         "WARNING: panvk is not a conformant vulkan implementation, "
+         "pass PAN_I_WANT_A_BROKEN_VULKAN_DRIVER=1 if you know what you're doing.");
+   }
+
+   if (instance->debug_flags & PANVK_DEBUG_STARTUP)
+      vk_logi(VK_LOG_NO_OBJS(instance), "Found compatible device '%s'.", path);
+
+   device->kmod.dev = pan_kmod_dev_create(fd, PAN_KMOD_DEV_FLAG_OWNS_FD,
+                                          &instance->kmod.allocator);
+
+   if (!device->kmod.dev) {
+      close(fd);
+      return panvk_errorf(instance, VK_ERROR_OUT_OF_HOST_MEMORY,
+                          "cannot create device");
+   }
+
+   return VK_SUCCESS;
+}
+
 static int
 get_cache_uuid(uint16_t family, void *uuid)
 {
@@ -656,54 +711,11 @@ panvk_physical_device_init(struct panvk_physical_device *device,
                            struct panvk_instance *instance,
                            drmDevicePtr drm_device)
 {
-   const char *path = drm_device->nodes[DRM_NODE_RENDER];
-   VkResult result = VK_SUCCESS;
-   drmVersionPtr version;
-   int fd;
+   VkResult result;
 
-   fd = open(path, O_RDWR | O_CLOEXEC);
-   if (fd < 0) {
-      return panvk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
-                          "failed to open device %s", path);
-   }
-
-   version = drmGetVersion(fd);
-   if (!version) {
-      close(fd);
-      return panvk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
-                          "failed to query kernel driver version for device %s",
-                          path);
-   }
-
-   if (strcmp(version->name, "panfrost") && strcmp(version->name, "panthor")) {
-      drmFreeVersion(version);
-      close(fd);
-      return panvk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
-                          "device %s does not use the panfrost kernel driver",
-                          path);
-   }
-
-   drmFreeVersion(version);
-
-   if (!getenv("PAN_I_WANT_A_BROKEN_VULKAN_DRIVER")) {
-      close(fd);
-      return panvk_errorf(
-         instance, VK_ERROR_INCOMPATIBLE_DRIVER,
-         "WARNING: panvk is not a conformant vulkan implementation, "
-         "pass PAN_I_WANT_A_BROKEN_VULKAN_DRIVER=1 if you know what you're doing.");
-   }
-
-   if (instance->debug_flags & PANVK_DEBUG_STARTUP)
-      vk_logi(VK_LOG_NO_OBJS(instance), "Found compatible device '%s'.", path);
-
-   device->kmod.dev = pan_kmod_dev_create(fd, PAN_KMOD_DEV_FLAG_OWNS_FD,
-                                          &instance->kmod.allocator);
-
-   if (!device->kmod.dev) {
-      result = panvk_errorf(instance, VK_ERROR_OUT_OF_HOST_MEMORY,
-                            "cannot create device");
-      goto fail;
-   }
+   result = create_kmod_dev(device, instance, drm_device);
+   if (result != VK_SUCCESS)
+      return result;
 
    pan_kmod_dev_query_props(device->kmod.dev, &device->kmod.props);
 
@@ -781,11 +793,8 @@ fail:
    if (device->vk.instance)
       vk_physical_device_finish(&device->vk);
 
-   if (device->kmod.dev)
-      pan_kmod_dev_destroy(device->kmod.dev);
+   pan_kmod_dev_destroy(device->kmod.dev);
 
-   if (fd != -1)
-      close(fd);
    return result;
 }
 
