@@ -34,6 +34,7 @@
 #include "nv_push_cl9097.h"
 #include "nv_push_clb197.h"
 #include "nv_push_clc397.h"
+#include "nv_push_clc797.h"
 
 static void
 shared_var_info(const struct glsl_type *type, unsigned *size, unsigned *align)
@@ -718,7 +719,7 @@ nvk_max_shader_push_dw(struct nvk_physical_device *pdev,
       max_dw_count += 13;
 
    if (last_vtgm) {
-      max_dw_count += 6;
+      max_dw_count += 8;
       max_dw_count += 4 * (5 + (128 / 4));
    }
 
@@ -840,7 +841,7 @@ nvk_shader_fill_push(struct nvk_device *dev,
 
    if (shader->info.stage != MESA_SHADER_FRAGMENT &&
        shader->info.stage != MESA_SHADER_TESS_CTRL) {
-      max_dw_count += 6;
+      max_dw_count += 8;
 
       P_IMMD(p, NV9097, SET_RT_LAYER, {
          .v       = 0,
@@ -848,6 +849,15 @@ nvk_shader_fill_push(struct nvk_device *dev,
                     CONTROL_GEOMETRY_SHADER_SELECTS_LAYER :
                     CONTROL_V_SELECTS_LAYER,
       });
+
+      if (pdev->info.cls_eng3d >= AMPERE_B) {
+         P_IMMD(p, NVC797, SET_VARIABLE_PIXEL_RATE_SHADING_TABLE_SELECT, {
+            .source = shader->info.vtg.writes_vprs_table_index ?
+                      SOURCE_FROM_VPRS_TABLE_INDEX :
+                      SOURCE_FROM_CONSTANT,
+            .source_constant_value = 0,
+         });
+      }
 
       const uint8_t clip_enable = shader->info.vtg.clip_enable;
       const uint8_t cull_enable = shader->info.vtg.cull_enable;
