@@ -90,6 +90,7 @@ struct nvk_shader {
    struct nvk_cbuf_map cbuf_map;
 
    /* Only relevant for fragment shaders */
+   bool sample_shading_enable;
    float min_sample_shading;
 
    struct nak_shader_bin *nak;

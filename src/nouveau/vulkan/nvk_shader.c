@@ -800,9 +800,16 @@ nvk_shader_fill_push(struct nvk_device *dev,
          .z_max_unbounded_enable = shader->info.fs.writes_depth,
       });
 
+      float mss = 0;
+      if (shader->info.fs.uses_sample_shading) {
+         mss = 1;
+      } else if (shader->sample_shading_enable) {
+         mss = CLAMP(shader->min_sample_shading, 0, 1);
+      } else {
+         mss = 0;
+      }
       P_1INC(p, NVB197, CALL_MME_MACRO(NVK_MME_SET_ANTI_ALIAS));
-      P_INLINE_DATA(p,
-         nvk_mme_anti_alias_min_sample_shading(shader->min_sample_shading));
+      P_INLINE_DATA(p, nvk_mme_anti_alias_min_sample_shading(mss));
    }
 
    /* Stash this before we do XFB and clip/cull */
@@ -961,14 +968,10 @@ nvk_compile_shader(struct nvk_device *dev,
    }
 
    if (info->stage == MESA_SHADER_FRAGMENT) {
-      if (shader->info.fs.uses_sample_shading) {
-         shader->min_sample_shading = 1;
-      } else if (state != NULL && state->ms != NULL &&
-                 state->ms->sample_shading_enable) {
-         shader->min_sample_shading =
-            CLAMP(state->ms->min_sample_shading, 0, 1);
-      } else {
-         shader->min_sample_shading = 0;
+      if (state != NULL && state->ms != NULL) {
+         shader->sample_shading_enable = state->ms->sample_shading_enable;
+         if (state->ms->sample_shading_enable)
+            shader->min_sample_shading = state->ms->min_sample_shading;
       }
    }
 
@@ -1067,6 +1070,9 @@ nvk_deserialize_shader(struct vk_device *vk_dev,
    struct nvk_cbuf_map cbuf_map;
    blob_copy_bytes(blob, &cbuf_map, sizeof(cbuf_map));
 
+   bool sample_shading_enable;
+   blob_copy_bytes(blob, &sample_shading_enable, sizeof(sample_shading_enable));
+
    float min_sample_shading;
    blob_copy_bytes(blob, &min_sample_shading, sizeof(min_sample_shading));
 
@@ -1082,6 +1088,7 @@ nvk_deserialize_shader(struct vk_device *vk_dev,
 
    shader->info = info;
    shader->cbuf_map = cbuf_map;
+   shader->sample_shading_enable = sample_shading_enable;
    shader->min_sample_shading = min_sample_shading;
    shader->code_size = code_size;
    shader->data_size = data_size;
@@ -1137,6 +1144,8 @@ nvk_shader_serialize(struct vk_device *vk_dev,
 
    blob_write_bytes(blob, &shader->info, sizeof(shader->info));
    blob_write_bytes(blob, &shader->cbuf_map, sizeof(shader->cbuf_map));
+   blob_write_bytes(blob, &shader->sample_shading_enable,
+                    sizeof(shader->sample_shading_enable));
    blob_write_bytes(blob, &shader->min_sample_shading,
                     sizeof(shader->min_sample_shading));
 
