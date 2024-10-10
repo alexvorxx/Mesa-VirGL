@@ -128,6 +128,10 @@ if [ -n "$VK_DRIVER" ] && [ -z "$DEQP_SUITE" ]; then
     DEQP_RUNNER_OPTIONS="$DEQP_RUNNER_OPTIONS --tests-per-group ${DEQP_RUNNER_TESTS_PER_GROUP:-5000}"
 fi
 
+if [ -n "${DEQP_RUNNER_MAX_FAILS:-}" ]; then
+    DEQP_RUNNER_OPTIONS="$DEQP_RUNNER_OPTIONS --max-fails ${DEQP_RUNNER_MAX_FAILS}"
+fi
+
 # Set the path to VK validation layer settings (in case it ends up getting loaded)
 # Note: If you change the format of this filename, look through the rest of the
 # tree for other places that need to be kept in sync (e.g.

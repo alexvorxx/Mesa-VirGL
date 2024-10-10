@@ -36,6 +36,8 @@ workflow:
         KERNEL_IMAGE_BASE: https://${S3_HOST}/${S3_KERNEL_BUCKET}/${KERNEL_REPO}/${KERNEL_TAG}
         MESA_CI_PERFORMANCE_ENABLED: 1
         VALVE_INFRA_VANGOGH_JOB_PRIORITY: ""  # Empty tags are ignored by gitlab
+        # fast-fail in merge pipelines: stop early if we get this many unexpected fails/crashes
+        DEQP_RUNNER_MAX_FAILS: 40
     # post-merge pipeline
     - if: &is-post-merge $GITLAB_USER_LOGIN == "marge-bot" && $CI_PIPELINE_SOURCE == "push"
     # nightly pipeline
