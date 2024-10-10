@@ -518,7 +518,7 @@ Khronos extensions that are not part of any Vulkan version:
   VK_KHR_dynamic_rendering_local_read                   DONE (lvp, nvk, radv)
   VK_KHR_external_fence_fd                              DONE (anv, hasvk, nvk, pvr, radv, tu, v3dv, vn)
   VK_KHR_external_fence_win32                           not started
-  VK_KHR_external_memory_fd                             DONE (anv, dzn, hasvk, lvp, nvk, pvr, radv, tu, v3dv, vn)
+  VK_KHR_external_memory_fd                             DONE (anv, dzn, hasvk, lvp, nvk, panvk, pvr, radv, tu, v3dv, vn)
   VK_KHR_external_memory_win32                          DONE (dzn)
   VK_KHR_external_semaphore_fd                          DONE (anv, dzn, hasvk, nvk, pvr, radv, tu, v3dv, vn)
   VK_KHR_external_semaphore_win32                       DONE (dzn)

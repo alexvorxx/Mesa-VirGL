@@ -56,11 +56,6 @@ panvk_AllocateMemory(VkDevice _device,
          fd_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT ||
          fd_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
 
-      /*
-       * TODO Importing the same fd twice gives us the same handle without
-       * reference counting.  We need to maintain a per-instance handle-to-bo
-       * table and add reference count to panvk_bo.
-       */
       mem->bo = pan_kmod_bo_import(device->kmod.dev, fd_info->fd, 0);
       if (!mem->bo) {
          result = panvk_error(device, VK_ERROR_INVALID_EXTERNAL_HANDLE);
