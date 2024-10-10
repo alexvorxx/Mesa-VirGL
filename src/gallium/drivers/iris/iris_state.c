@@ -3697,6 +3697,9 @@ iris_set_framebuffer_state(struct pipe_context *ctx,
    unsigned samples = util_framebuffer_get_num_samples(state);
    unsigned layers = util_framebuffer_get_num_layers(state);
 
+   /* multiview not supported */
+   assert(!state->viewmask);
+
    if (cso->samples != samples) {
       ice->state.dirty |= IRIS_DIRTY_MULTISAMPLE;
 
