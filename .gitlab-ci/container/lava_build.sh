@@ -249,21 +249,6 @@ mmdebstrap \
 ############### Install mold
 . .gitlab-ci/container/build-mold.sh
 
-############### Setuping
-if [ "$DEBIAN_ARCH" = "amd64" ]; then
-  . .gitlab-ci/container/setup-wine.sh "/dxvk-wine64"
-  . .gitlab-ci/container/install-wine-dxvk.sh
-  mv /dxvk-wine64 $ROOTFS
-fi
-
-############### Installing
-if [ "$DEBIAN_ARCH" = "amd64" ]; then
-  . .gitlab-ci/container/install-wine-apitrace.sh
-  mkdir -p "$ROOTFS/apitrace-msvc-win64"
-  mv /apitrace-msvc-win64/bin "$ROOTFS/apitrace-msvc-win64"
-  rm -rf /apitrace-msvc-win64
-fi
-
 ############### Building
 STRIP_CMD="${GCC_ARCH}-strip"
 mkdir -p $ROOTFS/usr/lib/$GCC_ARCH

@@ -24,33 +24,12 @@ else
     export PIGLIT_REPLAY_EXTRA_ARGS="--keep-image ${PIGLIT_REPLAY_EXTRA_ARGS}"
 fi
 
-# WINE
-case "$PIGLIT_REPLAY_DEVICE_NAME" in
-  vk-*)
-    export WINEPREFIX="/dxvk-wine64"
-    ;;
-  *)
-    export WINEPREFIX="/generic-wine64"
-    ;;
-esac
-
-#PATH="/opt/wine-stable/bin/:$PATH" # WineHQ path
-
-# Avoid asking about Gecko or Mono instalation
-export WINEDLLOVERRIDES="mscoree=d;mshtml=d"  # FIXME: drop, not needed anymore? (wine dir is already created)
-
-
 # Set up the environment.
 # Modifiying here directly LD_LIBRARY_PATH may cause problems when
 # using a command wrapper. Hence, we will just set it when running the
 # command.
 export __LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$INSTALL/lib/"
 if [ -n "${VK_DRIVER}" ]; then
-  # Set environment for DXVK.
-  export DXVK_LOG_LEVEL="info"
-  export DXVK_LOG="$RESULTS_DIR/dxvk"
-  [ -d "$DXVK_LOG" ] || mkdir -pv "$DXVK_LOG"
-  export DXVK_STATE_CACHE=0
   ARCH=$(uname -m)
   export VK_DRIVER_FILES="$INSTALL/share/vulkan/icd.d/${VK_DRIVER}_icd.$ARCH.json"
 fi
@@ -68,9 +47,6 @@ quiet() {
 
 # Set environment for apitrace executable.
 export PATH="/apitrace/build:$PATH"
-export PIGLIT_REPLAY_WINE_BINARY=wine
-export PIGLIT_REPLAY_WINE_APITRACE_BINARY="/apitrace-msvc-win64/bin/apitrace.exe"
-export PIGLIT_REPLAY_WINE_D3DRETRACE_BINARY="/apitrace-msvc-win64/bin/d3dretrace.exe"
 
 echo "Version:"
 apitrace version 2>/dev/null || echo "apitrace not found (Linux)"
