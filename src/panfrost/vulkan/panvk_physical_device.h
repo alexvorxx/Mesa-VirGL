@@ -43,8 +43,6 @@ struct panvk_physical_device {
    const struct vk_sync_type *sync_types[2];
 
    struct wsi_device wsi_device;
-
-   int master_fd;
 };
 
 VK_DEFINE_HANDLE_CASTS(panvk_physical_device, vk.base, VkPhysicalDevice,

@@ -647,8 +647,6 @@ panvk_physical_device_finish(struct panvk_physical_device *device)
    panvk_wsi_finish(device);
 
    pan_kmod_dev_destroy(device->kmod.dev);
-   if (device->master_fd != -1)
-      close(device->master_fd);
 
    vk_physical_device_finish(&device->vk);
 }
@@ -662,7 +660,6 @@ panvk_physical_device_init(struct panvk_physical_device *device,
    VkResult result = VK_SUCCESS;
    drmVersionPtr version;
    int fd;
-   int master_fd = -1;
 
    fd = open(path, O_RDWR | O_CLOEXEC);
    if (fd < 0) {
@@ -727,15 +724,6 @@ panvk_physical_device_init(struct panvk_physical_device *device,
       goto fail;
    }
 
-   if (instance->vk.enabled_extensions.KHR_display) {
-      master_fd = open(drm_device->nodes[DRM_NODE_PRIMARY], O_RDWR | O_CLOEXEC);
-      if (master_fd >= 0) {
-         /* TODO: free master_fd is accel is not working? */
-      }
-   }
-
-   device->master_fd = master_fd;
-
    device->formats.all = panfrost_format_table(arch);
    device->formats.blendable = panfrost_blendable_format_table(arch);
 
@@ -798,8 +786,6 @@ fail:
 
    if (fd != -1)
       close(fd);
-   if (master_fd != -1)
-      close(master_fd);
    return result;
 }
 
