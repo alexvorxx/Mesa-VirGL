@@ -4281,7 +4281,6 @@ agx_draw_without_restart(struct agx_batch *batch,
       .mode = u_decomposed_prim(info->mode),
       .index_size = info->index_size,
       .index.resource = ctx->heap,
-      .view_mask = info->view_mask,
       .increment_draw_id = info->increment_draw_id,
       .index_bias_varies = info->index_bias_varies,
    };
@@ -4813,7 +4812,6 @@ agx_draw_patches(struct agx_context *ctx, const struct pipe_draw_info *info,
       .index_size = with_counts ? 4 : (point_mode ? 0 : 2),
       .index.resource = (!with_counts && point_mode) ? NULL : ctx->heap,
       .instance_count = 1,
-      .view_mask = info->view_mask,
    };
 
    /* Wrap the pool allocation in a fake resource for meta-Gallium use */
@@ -5147,7 +5145,6 @@ agx_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
          .restart_index = ~0,
          .index.resource = ctx->heap,
          .instance_count = 1,
-         .view_mask = info->view_mask,
       };
 
       indirect_gs = (struct pipe_draw_indirect_info){

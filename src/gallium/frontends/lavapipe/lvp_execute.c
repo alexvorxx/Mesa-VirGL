@@ -1450,8 +1450,8 @@ static void render_clear(struct rendering_state *state)
       struct lvp_image_view *imgv = state->color_att[i].imgv;
       assert(imgv->surface);
 
-      if (state->info.view_mask) {
-         u_foreach_bit(i, state->info.view_mask)
+      if (state->framebuffer.viewmask) {
+         u_foreach_bit(i, state->framebuffer.viewmask)
             clear_attachment_layers(state, imgv, &state->render_area,
                                     i, 1, 0, 0, 0, &color_clear_val);
       } else {
@@ -1480,8 +1480,8 @@ static void render_clear(struct rendering_state *state)
    }
 
    if (ds_clear_flags) {
-      if (state->info.view_mask) {
-         u_foreach_bit(i, state->info.view_mask)
+      if (state->framebuffer.viewmask) {
+         u_foreach_bit(i, state->framebuffer.viewmask)
             clear_attachment_layers(state, state->ds_imgv, &state->render_area,
                                     i, 1, ds_clear_flags, dclear_val, sclear_val, NULL);
       } else {
@@ -1512,7 +1512,7 @@ static void render_clear_fast(struct rendering_state *state)
        state->render_area.extent.height != state->framebuffer.height)
       goto slow_clear;
 
-   if (state->info.view_mask)
+   if (state->framebuffer.viewmask)
       goto slow_clear;
 
    if (state->render_cond)
@@ -1828,7 +1828,7 @@ handle_begin_rendering(struct vk_cmd_queue_entry *cmd,
       state->forced_stencil_resolve_mode = 0;
    }
 
-   state->info.view_mask = info->viewMask;
+   state->framebuffer.viewmask = info->viewMask;
    state->render_area = info->renderArea;
    state->suspending = suspending;
    state->framebuffer.width = info->renderArea.offset.x +
@@ -1915,8 +1915,8 @@ static void handle_end_rendering(struct vk_cmd_queue_entry *cmd,
 
    for (unsigned i = 0; i < state->framebuffer.nr_cbufs; i++) {
       if (state->color_att[i].imgv && state->color_att[i].store_op == VK_ATTACHMENT_STORE_OP_DONT_CARE) {
-         if (state->info.view_mask) {
-            u_foreach_bit(i, state->info.view_mask)
+         if (state->framebuffer.viewmask) {
+            u_foreach_bit(i, state->framebuffer.viewmask)
                clear_attachment_layers(state, state->color_att[i].imgv, &state->render_area,
                                        i, 1, 0, 0, 0, &color_clear_val);
          } else {
@@ -1939,8 +1939,8 @@ static void handle_end_rendering(struct vk_cmd_queue_entry *cmd,
    double dclear_val = 0.2389234;
    uint32_t sclear_val = rand() % UINT8_MAX;
    if (ds_clear_flags) {
-      if (state->info.view_mask) {
-         u_foreach_bit(i, state->info.view_mask)
+      if (state->framebuffer.viewmask) {
+         u_foreach_bit(i, state->framebuffer.viewmask)
             clear_attachment_layers(state, state->ds_imgv, &state->render_area,
                                     i, 1, ds_clear_flags, dclear_val, sclear_val, NULL);
       } else {
@@ -2885,7 +2885,7 @@ static void handle_begin_query(struct vk_cmd_queue_entry *cmd,
 
    emit_state(state);
 
-   uint32_t count = util_bitcount(state->info.view_mask ? state->info.view_mask : BITFIELD_BIT(0));
+   uint32_t count = util_bitcount(state->framebuffer.viewmask ? state->framebuffer.viewmask : BITFIELD_BIT(0));
    for (unsigned idx = 0; idx < count; idx++) {
       if (!pool->queries[qcmd->query + idx]) {
          enum pipe_query_type qtype = pool->base_type;
@@ -2922,7 +2922,7 @@ static void handle_begin_query_indexed_ext(struct vk_cmd_queue_entry *cmd,
 
    emit_state(state);
 
-   uint32_t count = util_bitcount(state->info.view_mask ? state->info.view_mask : BITFIELD_BIT(0));
+   uint32_t count = util_bitcount(state->framebuffer.viewmask ? state->framebuffer.viewmask : BITFIELD_BIT(0));
    for (unsigned idx = 0; idx < count; idx++) {
       if (!pool->queries[qcmd->query + idx]) {
          enum pipe_query_type qtype = pool->base_type;
@@ -2968,7 +2968,7 @@ static void handle_write_timestamp2(struct vk_cmd_queue_entry *cmd,
    if (!(qcmd->stage == VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT))
       state->pctx->flush(state->pctx, NULL, 0);
 
-   uint32_t count = util_bitcount(state->info.view_mask ? state->info.view_mask : BITFIELD_BIT(0));
+   uint32_t count = util_bitcount(state->framebuffer.viewmask ? state->framebuffer.viewmask : BITFIELD_BIT(0));
    for (unsigned idx = 0; idx < count; idx++) {
       if (!pool->queries[qcmd->query + idx]) {
          pool->queries[qcmd->query + idx] = state->pctx->create_query(state->pctx, PIPE_QUERY_TIMESTAMP, 0);
@@ -3185,8 +3185,8 @@ static void handle_clear_attachments(struct vk_cmd_queue_entry *cmd,
          rect->rect.offset.y = MAX2(rect->rect.offset.y, 0);
          rect->rect.extent.width = MIN2(rect->rect.extent.width, state->framebuffer.width - rect->rect.offset.x);
          rect->rect.extent.height = MIN2(rect->rect.extent.height, state->framebuffer.height - rect->rect.offset.y);
-         if (state->info.view_mask) {
-            u_foreach_bit(i, state->info.view_mask)
+         if (state->framebuffer.viewmask) {
+            u_foreach_bit(i, state->framebuffer.viewmask)
                clear_attachment_layers(state, imgv, &rect->rect,
                                        i, 1,
                                        ds_clear_flags, dclear_val, sclear_val,
