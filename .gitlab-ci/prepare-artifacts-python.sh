@@ -35,13 +35,15 @@ if [ ${#duplicate_files[@]} -gt 0 ]; then
   exit 1
 fi
 
-find src/ -path '*/ci/*' \
-  \( \
-    -name '*.txt' \
-    -o -name '*.toml' \
-    -o -name '*traces*.yml' \
-  \) \
-  -exec cp -p {} artifacts/ \;
+if [ -d "src/" ]; then
+  find src/ -path '*/ci/*' \
+    \( \
+      -name '*.txt' \
+      -o -name '*.toml' \
+      -o -name '*traces*.yml' \
+    \) \
+    -exec cp -p {} artifacts/ \;
+fi
 cp -Rp .gitlab-ci/*.txt artifacts/
 
 if [ -n "$S3_ARTIFACT_NAME" ]; then
