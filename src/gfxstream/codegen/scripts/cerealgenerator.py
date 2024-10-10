@@ -47,7 +47,7 @@ SUPPORTED_FEATURES = [
     "VK_NV_shader_subgroup_partitioned",
     "VK_KHR_shader_subgroup_extended_types",
     "VK_EXT_provoking_vertex",
-    "VK_EXT_line_rasterization",
+    "VK_KHR_line_rasterization",
     "VK_EXT_transform_feedback",
     "VK_EXT_primitive_topology_list_restart",
     "VK_EXT_index_type_uint8",
