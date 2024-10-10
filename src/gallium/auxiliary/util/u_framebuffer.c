@@ -77,6 +77,9 @@ util_framebuffer_state_equal(const struct pipe_framebuffer_state *dst,
       return false;
    }
 
+   if (dst->viewmask != src->viewmask)
+      return false;
+
    return true;
 }
 
