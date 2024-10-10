@@ -151,6 +151,8 @@ llvmpipe_get_param(struct pipe_screen *screen, enum pipe_cap param)
    case PIPE_CAP_FRAGMENT_SHADER_TEXTURE_LOD:
    case PIPE_CAP_FRAGMENT_SHADER_DERIVATIVES:
       return 1;
+   case PIPE_CAP_MULTIVIEW:
+      return 2;
    case PIPE_CAP_MAX_DUAL_SOURCE_RENDER_TARGETS:
       return 1;
    case PIPE_CAP_MAX_STREAM_OUTPUT_BUFFERS:
