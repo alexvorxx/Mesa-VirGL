@@ -70,20 +70,25 @@ if [ -z "$DEQP_SUITE" ]; then
        DEQP=/deqp/external/openglcts/modules/glcts
     fi
 
-    cp $MUSTPASS /tmp/case-list.txt
+    [ -z "${DEQP_FRACTION:-}" ] && DEQP_FRACTION=1
+    [ -z "${CI_NODE_INDEX:-}" ] && CI_NODE_INDEX=1
+    [ -z "${CI_NODE_TOTAL:-}" ] && CI_NODE_TOTAL=1
 
-    # If the caselist is too long to run in a reasonable amount of time, let the job
-    # specify what fraction (1/n) of the caselist we should run.  Note: N~M is a gnu
-    # sed extension to match every nth line (first line is #1).
-    if [ -n "$DEQP_FRACTION" ]; then
-       sed -ni 1~$DEQP_FRACTION"p" /tmp/case-list.txt
-    fi
-
-    # If the job is parallel at the gitab job level, take the corresponding fraction
-    # of the caselist.
-    if [ -n "$CI_NODE_INDEX" ]; then
-       sed -ni $CI_NODE_INDEX~$CI_NODE_TOTAL"p" /tmp/case-list.txt
-    fi
+    # This ugly sed expression does a single pass across the case list to take
+    # into account the global fraction and sharding.
+    #
+    # First, we select only every n'th line, according to DEQP_FRACTION; for a
+    # fraction of 3, it will select lines 1, 4, 7, 10, etc.
+    #
+    # Then, we select $CI_NODE_INDEX/$CI_NODE_TOTAL for sharding; for a two-way
+    # shard, the first node will select lines 1 and 7, and the second node will
+    # select lines 4 and 10.
+    #
+    # Sharding like this gives us the best coverage, as sequential tests often
+    # test very slightly different permutations of the same functionality. So
+    # by distributing our skips as widely across the set as possible, rather
+    # than grouping them together, we get the broadest coverage.
+    sed -n "$(((CI_NODE_INDEX - 1) * DEQP_FRACTION + 1))~$((DEQP_FRACTION * CI_NODE_TOTAL))p" < $MUSTPASS > /tmp/case-list.txt
 
     if [ ! -s /tmp/case-list.txt ]; then
         echo "Caselist generation failed"
