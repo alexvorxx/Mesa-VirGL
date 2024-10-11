@@ -9,7 +9,7 @@
 
 set -uex
 
-DEQP_RUNNER_VERSION=0.20.0
+DEQP_RUNNER_VERSION=0.20.2
 
 commits_to_backport=(
 )
