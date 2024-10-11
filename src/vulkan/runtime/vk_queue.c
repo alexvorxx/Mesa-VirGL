@@ -1184,18 +1184,20 @@ vk_queue_submit(struct vk_queue *queue,
          }
       }
 
+      /* If we're signaling a memory object, we have to ensure that
+       * vkQueueSubmit does not return until the kernel submission has
+       * happened.  Otherwise, we may get a race between this process
+       * and whatever is going to wait on the object where the other
+       * process may wait before we've submitted our work.  Drain the
+       * queue now to avoid this.  It's the responsibility of the caller
+       * to ensure that any vkQueueSubmit which signals a memory object
+       * has fully resolved dependencies.
+       */
+      const bool needs_drain = submit->_mem_signal_temp;
+
       vk_queue_push_submit(queue, submit);
 
-      if (submit->_mem_signal_temp != NULL) {
-         /* If we're signaling a memory object, we have to ensure that
-          * vkQueueSubmit does not return until the kernel submission has
-          * happened.  Otherwise, we may get a race between this process
-          * and whatever is going to wait on the object where the other
-          * process may wait before we've submitted our work.  Drain the
-          * queue now to avoid this.  It's the responsibility of the caller
-          * to ensure that any vkQueueSubmit which signals a memory object
-          * has fully resolved dependencies.
-          */
+      if (needs_drain) {
          result = vk_queue_drain(queue);
          if (unlikely(result != VK_SUCCESS))
             return result;
