@@ -293,6 +293,10 @@ fn legalize_instr(
 ) {
     // Handle a few no-op cases up-front
     match &instr.op {
+        Op::Annotate(_) => {
+            // OpAnnotate does nothing.  There's nothing to legalize.
+            return;
+        }
         Op::Undef(_)
         | Op::PhiSrcs(_)
         | Op::PhiDsts(_)
