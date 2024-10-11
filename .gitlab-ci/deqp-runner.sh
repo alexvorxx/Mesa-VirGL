@@ -57,16 +57,16 @@ if [ -z "$DEQP_SUITE" ]; then
 
     # Generate test case list file.
     if [ "$DEQP_VER" = "vk" ]; then
-       MUSTPASS=/deqp/mustpass/vk-main.txt
+       MUSTPASS=/deqp/mustpass/vk-main.txt.zst
        DEQP=/deqp/external/vulkancts/modules/vulkan/deqp-vk
     elif [ "$DEQP_VER" = "gles2" ] || [ "$DEQP_VER" = "gles3" ] || [ "$DEQP_VER" = "gles31" ] || [ "$DEQP_VER" = "egl" ]; then
-       MUSTPASS=/deqp/mustpass/$DEQP_VER-main.txt
+       MUSTPASS=/deqp/mustpass/$DEQP_VER-main.txt.zst
        DEQP=/deqp/modules/$DEQP_VER/deqp-$DEQP_VER
     elif [ "$DEQP_VER" = "gles2-khr" ] || [ "$DEQP_VER" = "gles3-khr" ] || [ "$DEQP_VER" = "gles31-khr" ] || [ "$DEQP_VER" = "gles32-khr" ]; then
-       MUSTPASS=/deqp/mustpass/$DEQP_VER-main.txt
+       MUSTPASS=/deqp/mustpass/$DEQP_VER-main.txt.zst
        DEQP=/deqp/external/openglcts/modules/glcts
     else
-       MUSTPASS=/deqp/mustpass/$DEQP_VER-main.txt
+       MUSTPASS=/deqp/mustpass/$DEQP_VER-main.txt.zst
        DEQP=/deqp/external/openglcts/modules/glcts
     fi
 
@@ -88,7 +88,7 @@ if [ -z "$DEQP_SUITE" ]; then
     # test very slightly different permutations of the same functionality. So
     # by distributing our skips as widely across the set as possible, rather
     # than grouping them together, we get the broadest coverage.
-    sed -n "$(((CI_NODE_INDEX - 1) * DEQP_FRACTION + 1))~$((DEQP_FRACTION * CI_NODE_TOTAL))p" < $MUSTPASS > /tmp/case-list.txt
+    zstd -d $MUSTPASS -c | sed -n "$(((CI_NODE_INDEX - 1) * DEQP_FRACTION + 1))~$((DEQP_FRACTION * CI_NODE_TOTAL))p" > /tmp/case-list.txt
 
     if [ ! -s /tmp/case-list.txt ]; then
         echo "Caselist generation failed"

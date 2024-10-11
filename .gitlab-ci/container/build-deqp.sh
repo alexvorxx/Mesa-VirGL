@@ -239,6 +239,10 @@ if [ "${DEQP_TARGET}" != 'android' ]; then
     mv /deqp/executor.save /deqp/executor
 fi
 
+# Compress the caselists, since Vulkan's in particular are gigantic; higher
+# compression levels provide no real measurable benefit.
+zstd -1 --rm /deqp/mustpass/*.txt
+
 # Remove other mustpass files, since we saved off the ones we wanted to conventient locations above.
 rm -rf /deqp/external/**/mustpass/
 rm -rf /deqp/external/vulkancts/modules/vulkan/vk-main*
