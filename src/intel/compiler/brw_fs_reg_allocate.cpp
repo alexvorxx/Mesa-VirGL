@@ -300,9 +300,9 @@ private:
    brw_reg build_legacy_scratch_header(const fs_builder &bld,
                                        uint32_t spill_offset, int ip);
 
-   void emit_unspill(const fs_builder &bld, struct shader_stats *stats,
+   void emit_unspill(const fs_builder &bld, struct brw_shader_stats *stats,
                      brw_reg dst, uint32_t spill_offset, unsigned count, int ip);
-   void emit_spill(const fs_builder &bld, struct shader_stats *stats,
+   void emit_spill(const fs_builder &bld, struct brw_shader_stats *stats,
                    brw_reg src, uint32_t spill_offset, unsigned count, int ip);
 
    void set_spill_costs();
@@ -641,7 +641,7 @@ fs_reg_alloc::build_legacy_scratch_header(const fs_builder &bld,
 
 void
 fs_reg_alloc::emit_unspill(const fs_builder &bld,
-                           struct shader_stats *stats,
+                           struct brw_shader_stats *stats,
                            brw_reg dst,
                            uint32_t spill_offset, unsigned count, int ip)
 {
@@ -726,7 +726,7 @@ fs_reg_alloc::emit_unspill(const fs_builder &bld,
 
 void
 fs_reg_alloc::emit_spill(const fs_builder &bld,
-                         struct shader_stats *stats,
+                         struct brw_shader_stats *stats,
                          brw_reg src,
                          uint32_t spill_offset, unsigned count, int ip)
 {

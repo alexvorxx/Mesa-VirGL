@@ -142,7 +142,7 @@ namespace brw {
 class fs_builder;
 }
 
-struct shader_stats {
+struct brw_shader_stats {
    const char *scheduler_mode;
    unsigned promoted_constants;
    unsigned spill_count;
@@ -440,7 +440,7 @@ public:
    /* The API selected subgroup size */
    unsigned api_subgroup_size; /**< 0, 8, 16, 32 */
 
-   struct shader_stats shader_stats;
+   struct brw_shader_stats shader_stats;
 
    void debug_optimizer(const nir_shader *nir,
                         const char *pass_name,
@@ -486,7 +486,7 @@ public:
 
    void enable_debug(const char *shader_name);
    int generate_code(const cfg_t *cfg, int dispatch_width,
-                     struct shader_stats shader_stats,
+                     struct brw_shader_stats shader_stats,
                      const brw::performance &perf,
                      struct brw_compile_stats *stats,
                      unsigned max_polygons = 0);
