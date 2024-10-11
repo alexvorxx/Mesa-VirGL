@@ -263,12 +263,12 @@ brw_nir_align_launch_mesh_workgroups(nir_shader *nir)
 static void
 brw_emit_urb_fence(fs_visitor &s)
 {
-   const fs_builder bld = fs_builder(&s).at_end();
-   brw_reg dst = bld.vgrf(BRW_TYPE_UD);
-   fs_inst *fence = bld.emit(SHADER_OPCODE_MEMORY_FENCE, dst,
-                             brw_vec8_grf(0, 0),
-                             brw_imm_ud(true),
-                             brw_imm_ud(0));
+   const fs_builder bld1 = fs_builder(&s).at_end().exec_all().group(1, 0);
+   brw_reg dst = bld1.vgrf(BRW_TYPE_UD);
+   fs_inst *fence = bld1.emit(SHADER_OPCODE_MEMORY_FENCE, dst,
+                              brw_vec8_grf(0, 0),
+                              brw_imm_ud(true),
+                              brw_imm_ud(0));
    fence->sfid = BRW_SFID_URB;
    /* The logical thing here would likely be a THREADGROUP fence but that's
     * still failing some tests like in dEQP-VK.mesh_shader.ext.query.*
@@ -284,10 +284,7 @@ brw_emit_urb_fence(fs_visitor &s)
    fence->desc = lsc_fence_msg_desc(s.devinfo, LSC_FENCE_GPU,
                                     LSC_FLUSH_TYPE_NONE, true);
 
-   bld.exec_all().group(1, 0).emit(FS_OPCODE_SCHEDULING_FENCE,
-                                   bld.null_reg_ud(),
-                                   &dst,
-                                   1);
+   bld1.emit(FS_OPCODE_SCHEDULING_FENCE, bld1.null_reg_ud(), &dst, 1);
 }
 
 static bool
