@@ -417,7 +417,6 @@ api@clcompileprogram,Fail
 api@clgetextensionfunctionaddressforplatform,Fail
 api@clgetkernelarginfo,Fail
 api@cllinkprogram,Fail
-program@build@include-directories,Fail
 program@build@vector-data-types,Fail
 program@execute@amdgcn-f32-inline-immediates,Fail
 program@execute@amdgcn-f32-inline-immediates@add integer 64,Fail

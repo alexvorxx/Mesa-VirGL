@@ -4,7 +4,6 @@ api@clgetcommandqueueinfo,Fail
 api@clgetextensionfunctionaddressforplatform,Fail
 api@clgetkernelarginfo,Fail
 api@cllinkprogram,Fail
-program@build@include-directories,Fail
 program@execute@global-offset,Fail
 program@execute@global-offset@3d- input dependent,Fail
 program@execute@vstore@vstore-char-private,Crash

@@ -16,10 +16,6 @@ api@clgetkernelarginfo,Fail
 # Failed (error code: CL_SUCCESS): Trigger CL_LINK_PROGRAM_FAILURE if there is a failure to link the compiled binaries and/or libraries.
 api@cllinkprogram,Fail
 
-# "input.cl:8:10: fatal error: 'include_test.h' file not found"
-# build-piglit.sh removes all the *.[ch] files from the piglit tree, so it's a Mesa CI bug.
-program@build@include-directories,Fail
-
 # Expecting 0.000000 (0x0) with tolerance 0.000000 (0 ulps), but got 0.000000 (0x40)
 # Error at float[0]
 #  Argument 0: FAIL
