@@ -426,6 +426,9 @@ pub extern "C" fn nak_compile_shader(
     } else {
         pass!(s, opt_crs);
     }
+
+    s.remove_annotations();
+
     pass!(s, calc_instr_deps);
 
     s.gather_info();
@@ -434,8 +437,6 @@ pub extern "C" fn nak_compile_shader(
     if dump_asm {
         write!(asm, "{}", s).expect("Failed to dump assembly");
     }
-
-    s.remove_annotations();
 
     let code = sm.encode_shader(&s);
     let bin =
