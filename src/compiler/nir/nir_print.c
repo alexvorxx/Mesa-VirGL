@@ -129,7 +129,7 @@ print_def(nir_def *def, print_state *state)
 
    const unsigned ssa_padding = state->max_dest_index ? count_digits(state->max_dest_index) - count_digits(def->index) : 0;
 
-   const unsigned padding = (def->bit_size == 1) + 1 + ssa_padding;
+   const unsigned padding = (def->bit_size <= 8) + 1 + ssa_padding;
 
    fprintf(fp, "%s%u%s%*s%s%u",
            divergence_status(state, def->divergent),
