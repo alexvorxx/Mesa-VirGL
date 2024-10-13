@@ -191,6 +191,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .EXT_custom_border_color = true,
       .EXT_depth_bias_control = true,
       .EXT_depth_clamp_control = true,
+      .EXT_depth_clamp_zero_one = true,
       .EXT_depth_clip_control = true,
       .EXT_depth_clip_enable = true,
       .EXT_depth_range_unrestricted = info->cls_eng3d >= VOLTA_A,
@@ -526,6 +527,9 @@ nvk_get_device_features(const struct nv_device_info *info,
 
       /* VK_EXT_depth_clamp_control */
       .depthClampControl = true,
+
+      /* VK_EXT_depth_clamp_zero_one */
+      .depthClampZeroOne = true,
 
       /* VK_EXT_depth_clip_control */
       .depthClipControl = true,
