@@ -3280,6 +3280,13 @@ zink_screen_get_fd(struct pipe_screen *pscreen)
    return screen->drm_fd;
 }
 
+static const char*
+zink_cl_cts_version(struct pipe_screen *pscreen)
+{
+   /* https://www.khronos.org/conformance/adopters/conformant-products/opencl#submission_437 */
+   return "v2024-08-08-00";
+}
+
 static struct zink_screen *
 zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev_major, int64_t dev_minor, uint64_t adapter_luid)
 {
@@ -3549,6 +3556,7 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
    screen->base.get_driver_query_group_info = zink_get_driver_query_group_info;
    screen->base.get_driver_query_info = zink_get_driver_query_info;
    screen->base.set_damage_region = zink_set_damage_region;
+   screen->base.get_cl_cts_version = zink_cl_cts_version;
 
    if (screen->info.have_EXT_sample_locations) {
       VkMultisamplePropertiesEXT prop;

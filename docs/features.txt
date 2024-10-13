@@ -935,7 +935,7 @@ Rusticl OpenCL 2.2 -- all DONE:
   Support SPIR-V 1.1 and 1.2                            DONE
 
 
-Rusticl OpenCL 3.0 -- all DONE: asahi, iris/gen12
+Rusticl OpenCL 3.0 -- all DONE: asahi, iris/gen12, zink
 
   Optional device capabilities queries                  DONE
   cl_khr_extended_versioning                            DONE
