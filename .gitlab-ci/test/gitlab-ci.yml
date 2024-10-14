@@ -63,6 +63,7 @@ yaml-toml-shell-test:
     - if: $GITLAB_USER_LOGIN == "marge-bot"
       changes: &toml_lint_files
         - .gitlab-ci/test/gitlab-ci.yml
+        - .gitlab-ci/**/*.sh
         - bin/toml_lint.py
         - src/**/ci/*.toml
       when: on_success
