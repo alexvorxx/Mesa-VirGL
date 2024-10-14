@@ -1477,5 +1477,27 @@ panvk_GetPhysicalDeviceExternalBufferProperties(
    const VkPhysicalDeviceExternalBufferInfo *pExternalBufferInfo,
    VkExternalBufferProperties *pExternalBufferProperties)
 {
-   panvk_stub();
+   const VkExternalMemoryHandleTypeFlags supported_handle_types =
+      VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT |
+      VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+
+   /* From the Vulkan 1.3.298 spec:
+    *
+    *    compatibleHandleTypes must include at least handleType.
+    */
+   VkExternalMemoryHandleTypeFlags handle_types =
+      pExternalBufferInfo->handleType;
+   VkExternalMemoryFeatureFlags features = 0;
+   if (pExternalBufferInfo->handleType & supported_handle_types) {
+      handle_types |= supported_handle_types;
+      features |= VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT |
+                  VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT;
+   }
+
+   pExternalBufferProperties->externalMemoryProperties =
+      (VkExternalMemoryProperties){
+         .externalMemoryFeatures = features,
+         .exportFromImportedHandleTypes = handle_types,
+         .compatibleHandleTypes = handle_types,
+      };
 }
