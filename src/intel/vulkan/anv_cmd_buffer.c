@@ -875,6 +875,7 @@ anv_cmd_buffer_bind_descriptor_set(struct anv_cmd_buffer *cmd_buffer,
    if (dynamic_offsets) {
       if (set_layout->dynamic_offset_count > 0) {
          struct anv_push_constants *push = &pipe_state->push_constants;
+         assert(layout != NULL);
          uint32_t dynamic_offset_start =
             layout->set[set_index].dynamic_offset_start;
          uint32_t *push_offsets =
