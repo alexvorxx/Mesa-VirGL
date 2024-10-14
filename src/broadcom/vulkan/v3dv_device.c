@@ -1338,10 +1338,6 @@ create_physical_device(struct v3dv_instance *instance,
    device->has_render = true;
    device->render_devid = render_stat.st_rdev;
 
-#if USE_V3D_SIMULATOR
-   device->device_id = gpu_device->deviceinfo.pci->device_id;
-#endif
-
    if (instance->vk.enabled_extensions.KHR_display ||
        instance->vk.enabled_extensions.KHR_xcb_surface ||
        instance->vk.enabled_extensions.KHR_xlib_surface ||
@@ -1575,9 +1571,6 @@ v3dv_physical_device_vendor_id(const struct v3dv_physical_device *dev)
 uint32_t
 v3dv_physical_device_device_id(const struct v3dv_physical_device *dev)
 {
-#if USE_V3D_SIMULATOR
-   return dev->device_id;
-#else
    switch (dev->devinfo.ver) {
    case 42:
       return 0xBE485FD3; /* Broadcom deviceID for 2711 */
@@ -1586,7 +1579,6 @@ v3dv_physical_device_device_id(const struct v3dv_physical_device *dev)
    default:
       unreachable("Unsupported V3D version");
    }
-#endif
 }
 
 /* We support exactly one queue family. */
