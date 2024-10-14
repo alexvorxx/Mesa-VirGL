@@ -463,7 +463,7 @@ next_regid(uint32_t reg, uint32_t increment)
    if (VALIDREG(reg))
       return reg + increment;
    else
-      return regid(63, 0);
+      return INVALID_REG;
 }
 
 static enum a6xx_tess_output
@@ -678,22 +678,22 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
    uint32_t pointsize_loc = 0xff, position_loc = 0xff, layer_loc = 0xff, view_loc = 0xff;
 
 // XXX replace regid(63,0) with INVALID_REG
-   if (layer_regid != regid(63, 0)) {
+   if (layer_regid != INVALID_REG) {
       layer_loc = linkage.max_loc;
       ir3_link_add(&linkage, VARYING_SLOT_LAYER, layer_regid, 0x1, linkage.max_loc);
    }
 
-   if (view_regid != regid(63, 0)) {
+   if (view_regid != INVALID_REG) {
       view_loc = linkage.max_loc;
       ir3_link_add(&linkage, VARYING_SLOT_VIEWPORT, view_regid, 0x1, linkage.max_loc);
    }
 
-   if (position_regid != regid(63, 0)) {
+   if (position_regid != INVALID_REG) {
       position_loc = linkage.max_loc;
       ir3_link_add(&linkage, VARYING_SLOT_POS, position_regid, 0xf, linkage.max_loc);
    }
 
-   if (pointsize_regid != regid(63, 0)) {
+   if (pointsize_regid != INVALID_REG) {
       pointsize_loc = linkage.max_loc;
       ir3_link_add(&linkage, VARYING_SLOT_PSIZ, pointsize_regid, 0x1, linkage.max_loc);
    }
@@ -706,12 +706,12 @@ emit_vpc(struct fd_ringbuffer *ring, const struct program_builder *b)
 
    /* Handle the case where clip/cull distances aren't read by the FS */
    uint32_t clip0_loc = linkage.clip0_loc, clip1_loc = linkage.clip1_loc;
-   if (clip0_loc == 0xff && clip0_regid != regid(63, 0)) {
+   if (clip0_loc == 0xff && clip0_regid != INVALID_REG) {
       clip0_loc = linkage.max_loc;
       ir3_link_add(&linkage, VARYING_SLOT_CLIP_DIST0, clip0_regid,
                    clip_cull_mask & 0xf, linkage.max_loc);
    }
-   if (clip1_loc == 0xff && clip1_regid != regid(63, 0)) {
+   if (clip1_loc == 0xff && clip1_regid != INVALID_REG) {
       clip1_loc = linkage.max_loc;
       ir3_link_add(&linkage, VARYING_SLOT_CLIP_DIST1, clip1_regid,
                    clip_cull_mask >> 4, linkage.max_loc);
@@ -924,7 +924,7 @@ emit_fs_inputs(struct fd_ringbuffer *ring, const struct program_builder *b)
    smask_in_regid  = ir3_find_sysval_regid(fs, SYSTEM_VALUE_SAMPLE_MASK_IN);
    face_regid      = ir3_find_sysval_regid(fs, SYSTEM_VALUE_FRONT_FACE);
    coord_regid     = ir3_find_sysval_regid(fs, SYSTEM_VALUE_FRAG_COORD);
-   zwcoord_regid   = VALIDREG(coord_regid) ? coord_regid + 2 : regid(63, 0);
+   zwcoord_regid   = VALIDREG(coord_regid) ? coord_regid + 2 : INVALID_REG;
    for (unsigned i = 0; i < ARRAY_SIZE(ij_regid); i++)
       ij_regid[i] = ir3_find_sysval_regid(fs, SYSTEM_VALUE_BARYCENTRIC_PERSP_PIXEL + i);
 
@@ -1115,7 +1115,7 @@ emit_fs_outputs(struct fd_ringbuffer *ring, const struct program_builder *b)
     * end up masking the single sample!!
     */
    if (!b->key->key.msaa)
-      smask_regid = regid(63, 0);
+      smask_regid = INVALID_REG;
 
    int output_reg_count = 0;
    uint32_t fragdata_regid[8];
