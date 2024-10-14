@@ -442,6 +442,8 @@ struct radv_cmd_state {
    unsigned custom_blend_mode;
    unsigned db_render_control;
 
+   unsigned last_cb_target_mask;
+
    unsigned rast_prim;
 
    uint32_t vtx_base_sgpr;

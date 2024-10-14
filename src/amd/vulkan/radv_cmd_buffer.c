@@ -3634,16 +3634,21 @@ radv_emit_color_write(struct radv_cmd_buffer *cmd_buffer)
       color_write_mask |= d->vk.cb.attachments[i].write_mask << (4 * i);
    }
 
-   if (device->pbb_allowed && settings->context_states_per_bin > 1) {
+   const uint32_t cb_target_mask = color_write_enable & color_write_mask;
+
+   if (device->pbb_allowed && settings->context_states_per_bin > 1 &&
+       cmd_buffer->state.last_cb_target_mask != cb_target_mask) {
       /* Flush DFSM on CB_TARGET_MASK changes. */
       radeon_emit(cmd_buffer->cs, PKT3(PKT3_EVENT_WRITE, 0, 0));
       radeon_emit(cmd_buffer->cs, EVENT_TYPE(V_028A90_BREAK_BATCH) | EVENT_INDEX(0));
+
+      cmd_buffer->state.last_cb_target_mask = cb_target_mask;
    }
 
    if (pdev->info.gfx_level >= GFX12) {
-      radeon_set_context_reg(cmd_buffer->cs, R_028850_CB_TARGET_MASK, color_write_mask & color_write_enable);
+      radeon_set_context_reg(cmd_buffer->cs, R_028850_CB_TARGET_MASK, cb_target_mask);
    } else {
-      radeon_set_context_reg(cmd_buffer->cs, R_028238_CB_TARGET_MASK, color_write_mask & color_write_enable);
+      radeon_set_context_reg(cmd_buffer->cs, R_028238_CB_TARGET_MASK, cb_target_mask);
    }
 }
 
