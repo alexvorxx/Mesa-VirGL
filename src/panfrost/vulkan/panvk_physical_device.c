@@ -1293,50 +1293,51 @@ panvk_get_external_image_format_properties(
    VkExternalMemoryHandleTypeFlagBits handleType,
    VkExternalMemoryProperties *external_properties)
 {
-   VkExternalMemoryFeatureFlagBits flags = 0;
-   VkExternalMemoryHandleTypeFlags export_flags = 0;
-   VkExternalMemoryHandleTypeFlags compat_flags = 0;
+   const VkExternalMemoryHandleTypeFlags supported_handle_types =
+      VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT |
+      VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
 
-   /* From the Vulkan 1.1.98 spec:
-    *
-    *    If handleType is not compatible with the format, type, tiling,
-    *    usage, and flags specified in VkPhysicalDeviceImageFormatInfo2,
-    *    then vkGetPhysicalDeviceImageFormatProperties2 returns
-    *    VK_ERROR_FORMAT_NOT_SUPPORTED.
-    */
-   switch (handleType) {
-   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT:
-   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT:
-      switch (pImageFormatInfo->type) {
-      case VK_IMAGE_TYPE_2D:
-         flags = VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT |
-                 VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT |
-                 VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT;
-         compat_flags = export_flags =
-            VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT |
-            VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-         break;
-      default:
-         return panvk_errorf(
-            physical_device, VK_ERROR_FORMAT_NOT_SUPPORTED,
-            "VkExternalMemoryTypeFlagBits(0x%x) unsupported for VkImageType(%d)",
-            handleType, pImageFormatInfo->type);
-      }
-      break;
-   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT:
-      flags = VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT;
-      compat_flags = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
-      break;
-   default:
+   if (!(handleType & supported_handle_types)) {
       return panvk_errorf(physical_device, VK_ERROR_FORMAT_NOT_SUPPORTED,
                           "VkExternalMemoryTypeFlagBits(0x%x) unsupported",
                           handleType);
    }
 
+   /* pan_image_layout_init requires 2D for explicit layout */
+   if (pImageFormatInfo->type != VK_IMAGE_TYPE_2D) {
+      return panvk_errorf(
+         physical_device, VK_ERROR_FORMAT_NOT_SUPPORTED,
+         "VkExternalMemoryTypeFlagBits(0x%x) unsupported for VkImageType(%d)",
+         handleType, pImageFormatInfo->type);
+   }
+
+   /* There is no restriction on opaque fds.  But for dma-bufs, we want to
+    * make sure vkGetImageSubresourceLayout can be used to query the image
+    * layout of an exported dma-buf.  We also want to make sure
+    * VkImageDrmFormatModifierExplicitCreateInfoEXT can be used to specify the
+    * image layout of an imported dma-buf.  These add restrictions on the
+    * image tilings.
+    */
+   VkExternalMemoryFeatureFlags features = 0;
+   if (handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT ||
+       pImageFormatInfo->tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
+      features |= VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT |
+                  VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT;
+   } else if (pImageFormatInfo->tiling == VK_IMAGE_TILING_LINEAR) {
+      features |= VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT;
+   }
+
+   if (!features) {
+      return panvk_errorf(
+         physical_device, VK_ERROR_FORMAT_NOT_SUPPORTED,
+         "VkExternalMemoryTypeFlagBits(0x%x) unsupported for VkImageTiling(%d)",
+         handleType, pImageFormatInfo->tiling);
+   }
+
    *external_properties = (VkExternalMemoryProperties){
-      .externalMemoryFeatures = flags,
-      .exportFromImportedHandleTypes = export_flags,
-      .compatibleHandleTypes = compat_flags,
+      .externalMemoryFeatures = features,
+      .exportFromImportedHandleTypes = supported_handle_types,
+      .compatibleHandleTypes = supported_handle_types,
    };
 
    return VK_SUCCESS;
@@ -1413,6 +1414,11 @@ panvk_GetPhysicalDeviceImageFormatProperties2(
          &external_props->externalMemoryProperties);
       if (result != VK_SUCCESS)
          goto fail;
+
+      /* pan_image_layout_init requirements for explicit layout */
+      base_props->imageFormatProperties.maxMipLevels = 1;
+      base_props->imageFormatProperties.maxArrayLayers = 1;
+      base_props->imageFormatProperties.sampleCounts = 1;
    }
 
    if (cubic_props) {
