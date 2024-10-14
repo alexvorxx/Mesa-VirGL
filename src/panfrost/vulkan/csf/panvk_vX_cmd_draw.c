@@ -584,6 +584,50 @@ prepare_vp(struct panvk_cmd_buffer *cmdbuf)
    }
 }
 
+static void
+prepare_tiler_primitive_size(struct panvk_cmd_buffer *cmdbuf)
+{
+   struct cs_builder *b =
+      panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
+   const struct panvk_shader *vs = cmdbuf->state.gfx.vs.shader;
+   const struct vk_input_assembly_state *ia =
+      &cmdbuf->vk.dynamic_graphics_state.ia;
+   mali_ptr pos_spd = ia->primitive_topology == VK_PRIMITIVE_TOPOLOGY_POINT_LIST
+                         ? panvk_priv_mem_dev_addr(vs->spds.pos_points)
+                         : panvk_priv_mem_dev_addr(vs->spds.pos_triangles);
+   float primitive_size;
+
+   if (!is_dirty(cmdbuf, IA_PRIMITIVE_TOPOLOGY) &&
+       !is_dirty(cmdbuf, RS_LINE_WIDTH) &&
+       cmdbuf->state.gfx.vs.spds.pos == pos_spd)
+      return;
+
+   switch (ia->primitive_topology) {
+   /* From the Vulkan spec 1.3.293:
+    *
+    *    "If maintenance5 is enabled and a value is not written to a variable
+    *    decorated with PointSize, a value of 1.0 is used as the size of
+    *    points."
+    *
+    * If no point size is written, ensure that the size is always 1.0f.
+    */
+   case VK_PRIMITIVE_TOPOLOGY_POINT_LIST:
+      if (vs->info.vs.writes_point_size)
+         return;
+
+      primitive_size = 1.0f;
+      break;
+   case VK_PRIMITIVE_TOPOLOGY_LINE_LIST:
+   case VK_PRIMITIVE_TOPOLOGY_LINE_STRIP:
+      primitive_size = cmdbuf->vk.dynamic_graphics_state.rs.line.width;
+      break;
+   default:
+      return;
+   }
+
+   cs_move32_to(b, cs_sr_reg32(b, 60), fui(primitive_size));
+}
+
 static uint32_t
 calc_fbd_size(struct panvk_cmd_buffer *cmdbuf)
 {
@@ -1360,6 +1404,7 @@ prepare_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
 
       prepare_dcd(cmdbuf);
       prepare_vp(cmdbuf);
+      prepare_tiler_primitive_size(cmdbuf);
    }
 
    clear_dirty(cmdbuf, draw);
