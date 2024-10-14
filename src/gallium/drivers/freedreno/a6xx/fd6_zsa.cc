@@ -220,7 +220,7 @@ fd6_zsa_state_create(struct pipe_context *pctx,
 
    /* Build the four state permutations (with/without alpha/depth-clamp)*/
    for (int i = 0; i < 4; i++) {
-      struct fd_ringbuffer *ring = fd_ringbuffer_new_object(ctx->pipe, 12 * 4);
+      struct fd_ringbuffer *ring = fd_ringbuffer_new_object(ctx->pipe, 16 * 4);
       bool depth_clamp_enable = (i & FD6_ZSA_DEPTH_CLAMP);
 
       OUT_PKT4(ring, REG_A6XX_RB_ALPHA_CONTROL, 1);
@@ -232,10 +232,14 @@ fd6_zsa_state_create(struct pipe_context *pctx,
       OUT_PKT4(ring, REG_A6XX_RB_STENCIL_CONTROL, 1);
       OUT_RING(ring, so->rb_stencil_control);
 
+      OUT_REG(ring, A6XX_GRAS_SU_STENCIL_CNTL(cso->stencil[0].enabled));
+
       OUT_PKT4(ring, REG_A6XX_RB_DEPTH_CNTL, 1);
       OUT_RING(ring,
                so->rb_depth_cntl | COND(depth_clamp_enable || CHIP >= A7XX,
                                         A6XX_RB_DEPTH_CNTL_Z_CLAMP_ENABLE));
+
+      OUT_REG(ring, A6XX_GRAS_SU_DEPTH_CNTL(cso->depth_enabled));
 
       OUT_PKT4(ring, REG_A6XX_RB_STENCILMASK, 2);
       OUT_RING(ring, so->rb_stencilmask);
