@@ -1265,12 +1265,9 @@ get_device_properties(const struct v3dv_physical_device *device,
 
 static VkResult
 create_physical_device(struct v3dv_instance *instance,
-                       drmDevicePtr gpu_device,
-                       drmDevicePtr display_device)
+                       int32_t render_fd, int32_t primary_fd)
 {
    VkResult result = VK_SUCCESS;
-   int32_t display_fd = -1;
-   int32_t render_fd = -1;
 
    struct v3dv_physical_device *device =
       vk_zalloc(&instance->vk.alloc, sizeof(*device), 8,
@@ -1291,38 +1288,13 @@ create_physical_device(struct v3dv_instance *instance,
    if (result != VK_SUCCESS)
       goto fail;
 
-   assert(gpu_device);
-   const char *path = gpu_device->nodes[DRM_NODE_RENDER];
-   render_fd = open(path, O_RDWR | O_CLOEXEC);
-   if (render_fd < 0) {
-      fprintf(stderr, "Opening %s failed: %s\n", path, strerror(errno));
-      result = VK_ERROR_INITIALIZATION_FAILED;
-      goto fail;
-   }
-
-   /* If we are running on VK_KHR_display we need to acquire the master
-    * display device now for the v3dv_wsi_init() call below. For anything else
-    * we postpone that until a swapchain is created.
-    */
-
-   const char *primary_path;
-#if !USE_V3D_SIMULATOR
-   if (display_device)
-      primary_path = display_device->nodes[DRM_NODE_PRIMARY];
-   else
-      primary_path = NULL;
-#else
-   primary_path = gpu_device->nodes[DRM_NODE_PRIMARY];
-#endif
-
    struct stat primary_stat = {0}, render_stat = {0};
 
-   device->has_primary = primary_path;
+   device->has_primary = primary_fd >= 0;
    if (device->has_primary) {
-      if (stat(primary_path, &primary_stat) != 0) {
+      if (fstat(primary_fd, &primary_stat) != 0) {
          result = vk_errorf(instance, VK_ERROR_INITIALIZATION_FAILED,
-                            "failed to stat DRM primary node %s",
-                            primary_path);
+                            "failed to stat DRM primary node");
          goto fail;
       }
 
@@ -1331,36 +1303,29 @@ create_physical_device(struct v3dv_instance *instance,
 
    if (fstat(render_fd, &render_stat) != 0) {
       result = vk_errorf(instance, VK_ERROR_INITIALIZATION_FAILED,
-                         "failed to stat DRM render node %s",
-                         path);
+                         "failed to stat DRM render node");
       goto fail;
    }
+
    device->has_render = true;
    device->render_devid = render_stat.st_rdev;
-
-   if (instance->vk.enabled_extensions.KHR_display ||
-       instance->vk.enabled_extensions.KHR_xcb_surface ||
-       instance->vk.enabled_extensions.KHR_xlib_surface ||
-       instance->vk.enabled_extensions.KHR_wayland_surface ||
-       instance->vk.enabled_extensions.EXT_acquire_drm_display) {
-#if !USE_V3D_SIMULATOR
-      /* Open the primary node on the vc4 display device */
-      assert(display_device);
-      display_fd = open(primary_path, O_RDWR | O_CLOEXEC);
-#else
-      /* There is only one device with primary and render nodes.
-       * Open its primary node.
-       */
-      display_fd = open(primary_path, O_RDWR | O_CLOEXEC);
-#endif
-   }
 
 #if USE_V3D_SIMULATOR
    device->sim_file = v3d_simulator_init(render_fd);
 #endif
 
-   device->render_fd = render_fd;    /* The v3d render node  */
-   device->display_fd = display_fd;  /* Master vc4 primary node */
+   device->render_fd = render_fd;
+   if (instance->vk.enabled_extensions.KHR_display ||
+       instance->vk.enabled_extensions.KHR_xcb_surface ||
+       instance->vk.enabled_extensions.KHR_xlib_surface ||
+       instance->vk.enabled_extensions.KHR_wayland_surface ||
+       instance->vk.enabled_extensions.EXT_acquire_drm_display) {
+      device->display_fd = primary_fd;
+   } else {
+      close(primary_fd);
+      device->display_fd = -1;
+      primary_fd = -1;
+   }
 
    if (!v3d_get_device_info(device->render_fd, &device->devinfo, &v3dv_ioctl)) {
       result = vk_errorf(instance, VK_ERROR_INITIALIZATION_FAILED,
@@ -1469,10 +1434,39 @@ fail:
 
    if (render_fd >= 0)
       close(render_fd);
-   if (display_fd >= 0)
-      close(display_fd);
+   if (primary_fd >= 0)
+      close(primary_fd);
 
    return result;
+}
+
+static bool
+try_device(const char *path, int *fd, const char *target)
+{
+   *fd = open(path, O_RDWR | O_CLOEXEC);
+   if (*fd < 0) {
+      fprintf(stderr, "Opening %s failed: %s\n", path, strerror(errno));
+      return false;
+   }
+
+   if (!target)
+      return true;
+
+   drmVersionPtr version = drmGetVersion(*fd);
+   if (!version) {
+      fprintf(stderr, "Retrieving device version failed: %s\n", strerror(errno));
+      goto fail;
+   }
+
+   if (strcmp(version->name, target) != 0)
+      goto fail;
+
+   return true;
+
+fail:
+   close(*fd);
+   *fd = -1;
+   return false;
 }
 
 /* This driver hook is expected to return VK_SUCCESS (unless a memory
@@ -1496,10 +1490,8 @@ enumerate_devices(struct vk_instance *vk_instance)
 
    VkResult result = VK_SUCCESS;
 
-#if !USE_V3D_SIMULATOR
-   int32_t v3d_idx = -1;
-   int32_t vc4_idx = -1;
-#endif
+   int32_t render_fd = -1;
+   int32_t primary_fd = -1;
    for (unsigned i = 0; i < (unsigned)max_devices; i++) {
 #if USE_V3D_SIMULATOR
       /* In the simulator, we look for an Intel/AMD render node */
@@ -1508,9 +1500,8 @@ enumerate_devices(struct vk_instance *vk_instance)
            devices[i]->bustype == DRM_BUS_PCI &&
           (devices[i]->deviceinfo.pci->vendor_id == 0x8086 ||
            devices[i]->deviceinfo.pci->vendor_id == 0x1002)) {
-         result = create_physical_device(instance, devices[i], NULL);
-         if (result == VK_SUCCESS)
-            break;
+         if (try_device(devices[i]->nodes[DRM_NODE_RENDER], &render_fd, NULL))
+            try_device(devices[i]->nodes[DRM_NODE_PRIMARY], &primary_fd, NULL);
       }
 #else
       /* On actual hardware, we should have a gpu device (v3d) and a display
@@ -1524,38 +1515,20 @@ enumerate_devices(struct vk_instance *vk_instance)
       if (devices[i]->bustype != DRM_BUS_PLATFORM)
          continue;
 
-      if (devices[i]->available_nodes & 1 << DRM_NODE_RENDER) {
-         char **compat = devices[i]->deviceinfo.platform->compatible;
-         while (*compat) {
-            if (strncmp(*compat, "brcm,2711-v3d", 13) == 0 ||
-                strncmp(*compat, "brcm,2712-v3d", 13) == 0) {
-               v3d_idx = i;
-               break;
-            }
-            compat++;
-         }
-      } else if (devices[i]->available_nodes & 1 << DRM_NODE_PRIMARY) {
-         char **compat = devices[i]->deviceinfo.platform->compatible;
-         while (*compat) {
-            if (strncmp(*compat, "brcm,bcm2712-vc6", 16) == 0 ||
-                strncmp(*compat, "brcm,bcm2711-vc5", 16) == 0 ||
-                strncmp(*compat, "brcm,bcm2835-vc4", 16) == 0) {
-               vc4_idx = i;
-               break;
-            }
-            compat++;
-         }
-      }
+      if ((devices[i]->available_nodes & 1 << DRM_NODE_RENDER))
+         try_device(devices[i]->nodes[DRM_NODE_RENDER], &render_fd, "v3d");
+      if ((devices[i]->available_nodes & 1 << DRM_NODE_PRIMARY))
+         try_device(devices[i]->nodes[DRM_NODE_PRIMARY], &primary_fd, "vc4");
 #endif
+
+      if (render_fd >= 0 && primary_fd >= 0)
+         break;
    }
 
-#if !USE_V3D_SIMULATOR
-   if (v3d_idx != -1) {
-      drmDevicePtr v3d_device = devices[v3d_idx];
-      drmDevicePtr vc4_device = vc4_idx != -1 ? devices[vc4_idx] : NULL;
-      result = create_physical_device(instance, v3d_device, vc4_device);
-   }
-#endif
+   if (render_fd < 0)
+      result = VK_ERROR_INITIALIZATION_FAILED;
+   else
+      result = create_physical_device(instance, render_fd, primary_fd);
 
    drmFreeDevices(devices, max_devices);
 
