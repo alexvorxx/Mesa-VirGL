@@ -2091,6 +2091,7 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
             cmd_buffer->state.gfx.color_output_mapping[binding->index] :
             binding->index;
          if (index < cmd_buffer->state.gfx.color_att_count) {
+            assert(index < MAX_RTS);
             const struct anv_attachment *att =
                &cmd_buffer->state.gfx.color_att[index];
             surface_state = att->surface_state.state;
