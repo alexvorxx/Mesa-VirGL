@@ -125,43 +125,47 @@ nvk_queue_state_update(struct nvk_queue *queue,
    struct nv_push *p = &push;
 
    if (qs->images.mem) {
-      /* Compute */
-      P_MTHD(p, NVA0C0, SET_TEX_HEADER_POOL_A);
-      P_NVA0C0_SET_TEX_HEADER_POOL_A(p, qs->images.mem->va->addr >> 32);
-      P_NVA0C0_SET_TEX_HEADER_POOL_B(p, qs->images.mem->va->addr);
-      P_NVA0C0_SET_TEX_HEADER_POOL_C(p, qs->images.alloc_count - 1);
-      P_IMMD(p, NVA0C0, INVALIDATE_TEXTURE_HEADER_CACHE_NO_WFI, {
-         .lines = LINES_ALL
-      });
+      if (queue->engines & NVKMD_ENGINE_COMPUTE) {
+         P_MTHD(p, NVA0C0, SET_TEX_HEADER_POOL_A);
+         P_NVA0C0_SET_TEX_HEADER_POOL_A(p, qs->images.mem->va->addr >> 32);
+         P_NVA0C0_SET_TEX_HEADER_POOL_B(p, qs->images.mem->va->addr);
+         P_NVA0C0_SET_TEX_HEADER_POOL_C(p, qs->images.alloc_count - 1);
+         P_IMMD(p, NVA0C0, INVALIDATE_TEXTURE_HEADER_CACHE_NO_WFI, {
+            .lines = LINES_ALL
+         });
+      }
 
-      /* 3D */
-      P_MTHD(p, NV9097, SET_TEX_HEADER_POOL_A);
-      P_NV9097_SET_TEX_HEADER_POOL_A(p, qs->images.mem->va->addr >> 32);
-      P_NV9097_SET_TEX_HEADER_POOL_B(p, qs->images.mem->va->addr);
-      P_NV9097_SET_TEX_HEADER_POOL_C(p, qs->images.alloc_count - 1);
-      P_IMMD(p, NV9097, INVALIDATE_TEXTURE_HEADER_CACHE_NO_WFI, {
-         .lines = LINES_ALL
-      });
+      if (queue->engines & NVKMD_ENGINE_3D) {
+         P_MTHD(p, NV9097, SET_TEX_HEADER_POOL_A);
+         P_NV9097_SET_TEX_HEADER_POOL_A(p, qs->images.mem->va->addr >> 32);
+         P_NV9097_SET_TEX_HEADER_POOL_B(p, qs->images.mem->va->addr);
+         P_NV9097_SET_TEX_HEADER_POOL_C(p, qs->images.alloc_count - 1);
+         P_IMMD(p, NV9097, INVALIDATE_TEXTURE_HEADER_CACHE_NO_WFI, {
+            .lines = LINES_ALL
+         });
+      }
    }
 
    if (qs->samplers.mem) {
-      /* Compute */
-      P_MTHD(p, NVA0C0, SET_TEX_SAMPLER_POOL_A);
-      P_NVA0C0_SET_TEX_SAMPLER_POOL_A(p, qs->samplers.mem->va->addr >> 32);
-      P_NVA0C0_SET_TEX_SAMPLER_POOL_B(p, qs->samplers.mem->va->addr);
-      P_NVA0C0_SET_TEX_SAMPLER_POOL_C(p, qs->samplers.alloc_count - 1);
-      P_IMMD(p, NVA0C0, INVALIDATE_SAMPLER_CACHE_NO_WFI, {
-         .lines = LINES_ALL
-      });
+      if (queue->engines & NVKMD_ENGINE_COMPUTE) {
+         P_MTHD(p, NVA0C0, SET_TEX_SAMPLER_POOL_A);
+         P_NVA0C0_SET_TEX_SAMPLER_POOL_A(p, qs->samplers.mem->va->addr >> 32);
+         P_NVA0C0_SET_TEX_SAMPLER_POOL_B(p, qs->samplers.mem->va->addr);
+         P_NVA0C0_SET_TEX_SAMPLER_POOL_C(p, qs->samplers.alloc_count - 1);
+         P_IMMD(p, NVA0C0, INVALIDATE_SAMPLER_CACHE_NO_WFI, {
+            .lines = LINES_ALL
+         });
+      }
 
-      /* 3D */
-      P_MTHD(p, NV9097, SET_TEX_SAMPLER_POOL_A);
-      P_NV9097_SET_TEX_SAMPLER_POOL_A(p, qs->samplers.mem->va->addr >> 32);
-      P_NV9097_SET_TEX_SAMPLER_POOL_B(p, qs->samplers.mem->va->addr);
-      P_NV9097_SET_TEX_SAMPLER_POOL_C(p, qs->samplers.alloc_count - 1);
-      P_IMMD(p, NV9097, INVALIDATE_SAMPLER_CACHE_NO_WFI, {
-         .lines = LINES_ALL
-      });
+      if (queue->engines & NVKMD_ENGINE_3D) {
+         P_MTHD(p, NV9097, SET_TEX_SAMPLER_POOL_A);
+         P_NV9097_SET_TEX_SAMPLER_POOL_A(p, qs->samplers.mem->va->addr >> 32);
+         P_NV9097_SET_TEX_SAMPLER_POOL_B(p, qs->samplers.mem->va->addr);
+         P_NV9097_SET_TEX_SAMPLER_POOL_C(p, qs->samplers.alloc_count - 1);
+         P_IMMD(p, NV9097, INVALIDATE_SAMPLER_CACHE_NO_WFI, {
+            .lines = LINES_ALL
+         });
+      }
    }
 
    if (qs->slm.mem) {
@@ -171,64 +175,68 @@ nvk_queue_state_update(struct nvk_queue *queue,
       const uint64_t slm_per_tpc = qs->slm.bytes_per_tpc;
       assert(!(slm_per_tpc & 0x7fff));
 
-      /* Compute */
-      P_MTHD(p, NVA0C0, SET_SHADER_LOCAL_MEMORY_A);
-      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_A(p, slm_addr >> 32);
-      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_B(p, slm_addr);
+      if (queue->engines & NVKMD_ENGINE_COMPUTE) {
+         P_MTHD(p, NVA0C0, SET_SHADER_LOCAL_MEMORY_A);
+         P_NVA0C0_SET_SHADER_LOCAL_MEMORY_A(p, slm_addr >> 32);
+         P_NVA0C0_SET_SHADER_LOCAL_MEMORY_B(p, slm_addr);
 
-      P_MTHD(p, NVA0C0, SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A);
-      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A(p, slm_per_tpc >> 32);
-      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B(p, slm_per_tpc);
-      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_C(p, 0xff);
+         P_MTHD(p, NVA0C0, SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A);
+         P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_A(p, slm_per_tpc >> 32);
+         P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_B(p, slm_per_tpc);
+         P_NVA0C0_SET_SHADER_LOCAL_MEMORY_NON_THROTTLED_C(p, 0xff);
 
-      if (pdev->info.cls_compute < VOLTA_COMPUTE_A) {
-         P_MTHD(p, NVA0C0, SET_SHADER_LOCAL_MEMORY_THROTTLED_A);
-         P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_A(p, slm_per_tpc >> 32);
-         P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_B(p, slm_per_tpc);
-         P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_C(p, 0xff);
+         if (pdev->info.cls_compute < VOLTA_COMPUTE_A) {
+            P_MTHD(p, NVA0C0, SET_SHADER_LOCAL_MEMORY_THROTTLED_A);
+            P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_A(p, slm_per_tpc >> 32);
+            P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_B(p, slm_per_tpc);
+            P_NVA0C0_SET_SHADER_LOCAL_MEMORY_THROTTLED_C(p, 0xff);
+         }
       }
 
-      /* 3D */
-      P_MTHD(p, NV9097, SET_SHADER_LOCAL_MEMORY_A);
-      P_NV9097_SET_SHADER_LOCAL_MEMORY_A(p, slm_addr >> 32);
-      P_NV9097_SET_SHADER_LOCAL_MEMORY_B(p, slm_addr);
-      P_NV9097_SET_SHADER_LOCAL_MEMORY_C(p, slm_size >> 32);
-      P_NV9097_SET_SHADER_LOCAL_MEMORY_D(p, slm_size);
-      P_NV9097_SET_SHADER_LOCAL_MEMORY_E(p, slm_per_warp);
+      if (queue->engines & NVKMD_ENGINE_3D) {
+         P_MTHD(p, NV9097, SET_SHADER_LOCAL_MEMORY_A);
+         P_NV9097_SET_SHADER_LOCAL_MEMORY_A(p, slm_addr >> 32);
+         P_NV9097_SET_SHADER_LOCAL_MEMORY_B(p, slm_addr);
+         P_NV9097_SET_SHADER_LOCAL_MEMORY_C(p, slm_size >> 32);
+         P_NV9097_SET_SHADER_LOCAL_MEMORY_D(p, slm_size);
+         P_NV9097_SET_SHADER_LOCAL_MEMORY_E(p, slm_per_warp);
+      }
    }
 
    /* We set memory windows unconditionally.  Otherwise, the memory window
     * might be in a random place and cause us to fault off into nowhere.
     */
-   if (pdev->info.cls_compute >= VOLTA_COMPUTE_A) {
-      uint64_t temp = 0xfeULL << 24;
-      P_MTHD(p, NVC3C0, SET_SHADER_SHARED_MEMORY_WINDOW_A);
-      P_NVC3C0_SET_SHADER_SHARED_MEMORY_WINDOW_A(p, temp >> 32);
-      P_NVC3C0_SET_SHADER_SHARED_MEMORY_WINDOW_B(p, temp & 0xffffffff);
+   if (queue->engines & NVKMD_ENGINE_COMPUTE) {
+      if (pdev->info.cls_compute >= VOLTA_COMPUTE_A) {
+         uint64_t temp = 0xfeULL << 24;
+         P_MTHD(p, NVC3C0, SET_SHADER_SHARED_MEMORY_WINDOW_A);
+         P_NVC3C0_SET_SHADER_SHARED_MEMORY_WINDOW_A(p, temp >> 32);
+         P_NVC3C0_SET_SHADER_SHARED_MEMORY_WINDOW_B(p, temp & 0xffffffff);
 
-      temp = 0xffULL << 24;
-      P_MTHD(p, NVC3C0, SET_SHADER_LOCAL_MEMORY_WINDOW_A);
-      P_NVC3C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A(p, temp >> 32);
-      P_NVC3C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B(p, temp & 0xffffffff);
-   } else {
-      P_MTHD(p, NVA0C0, SET_SHADER_LOCAL_MEMORY_WINDOW);
-      P_NVA0C0_SET_SHADER_LOCAL_MEMORY_WINDOW(p, 0xff << 24);
+         temp = 0xffULL << 24;
+         P_MTHD(p, NVC3C0, SET_SHADER_LOCAL_MEMORY_WINDOW_A);
+         P_NVC3C0_SET_SHADER_LOCAL_MEMORY_WINDOW_A(p, temp >> 32);
+         P_NVC3C0_SET_SHADER_LOCAL_MEMORY_WINDOW_B(p, temp & 0xffffffff);
+      } else {
+         P_MTHD(p, NVA0C0, SET_SHADER_LOCAL_MEMORY_WINDOW);
+         P_NVA0C0_SET_SHADER_LOCAL_MEMORY_WINDOW(p, 0xff << 24);
 
-      P_MTHD(p, NVA0C0, SET_SHADER_SHARED_MEMORY_WINDOW);
-      P_NVA0C0_SET_SHADER_SHARED_MEMORY_WINDOW(p, 0xfe << 24);
+         P_MTHD(p, NVA0C0, SET_SHADER_SHARED_MEMORY_WINDOW);
+         P_NVA0C0_SET_SHADER_SHARED_MEMORY_WINDOW(p, 0xfe << 24);
+      }
+
+      /* From nvc0_screen.c:
+       *
+       *    "Reduce likelihood of collision with real buffers by placing the
+       *    hole at the top of the 4G area. This will have to be dealt with
+       *    for real eventually by blocking off that area from the VM."
+       *
+       * Really?!?  TODO: Fix this for realz.  Annoyingly, we only have a
+       * 32-bit pointer for this in 3D rather than a full 48 like we have for
+       * compute.
+       */
+      P_IMMD(p, NV9097, SET_SHADER_LOCAL_MEMORY_WINDOW, 0xff << 24);
    }
-
-   /* From nvc0_screen.c:
-    *
-    *    "Reduce likelihood of collision with real buffers by placing the
-    *    hole at the top of the 4G area. This will have to be dealt with
-    *    for real eventually by blocking off that area from the VM."
-    *
-    * Really?!?  TODO: Fix this for realz.  Annoyingly, we only have a
-    * 32-bit pointer for this in 3D rather than a full 48 like we have for
-    * compute.
-    */
-   P_IMMD(p, NV9097, SET_SHADER_LOCAL_MEMORY_WINDOW, 0xff << 24);
 
    if (qs->push.mem)
       nvkmd_mem_unref(qs->push.mem);
