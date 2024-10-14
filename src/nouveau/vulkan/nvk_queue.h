@@ -8,6 +8,7 @@
 #include "nvk_private.h"
 
 #include "vk_queue.h"
+#include "nvkmd/nvkmd.h"
 
 struct nouveau_ws_bo;
 struct nouveau_ws_context;
@@ -40,11 +41,10 @@ struct nvk_queue_state {
    } push;
 };
 
-VkResult nvk_queue_state_update(struct nvk_device *dev,
-                                struct nvk_queue_state *qs);
-
 struct nvk_queue {
    struct vk_queue vk;
+
+   enum nvkmd_engines engines;
 
    struct nvkmd_ctx *bind_ctx;
    struct nvkmd_ctx *exec_ctx;

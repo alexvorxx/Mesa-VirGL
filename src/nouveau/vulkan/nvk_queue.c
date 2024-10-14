@@ -52,10 +52,11 @@ nvk_queue_state_dump_push(struct nvk_device *dev,
    vk_push_print(fp, &push, &pdev->info);
 }
 
-VkResult
-nvk_queue_state_update(struct nvk_device *dev,
+static VkResult
+nvk_queue_state_update(struct nvk_queue *queue,
                        struct nvk_queue_state *qs)
 {
+   struct nvk_device *dev = nvk_queue_device(queue);
    struct nvk_physical_device *pdev = nvk_device_physical(dev);
    struct nvkmd_mem *mem;
    uint32_t alloc_count, bytes_per_warp, bytes_per_tpc;
@@ -377,7 +378,6 @@ nvk_queue_submit(struct vk_queue *vk_queue,
                  struct vk_queue_submit *submit)
 {
    struct nvk_queue *queue = container_of(vk_queue, struct nvk_queue, vk);
-   struct nvk_device *dev = nvk_queue_device(queue);
    VkResult result;
 
    if (vk_queue_is_lost(&queue->vk))
@@ -391,7 +391,7 @@ nvk_queue_submit(struct vk_queue *vk_queue,
       if (result != VK_SUCCESS)
          return vk_queue_set_lost(&queue->vk, "Bind operation failed");
    } else {
-      result = nvk_queue_state_update(dev, &queue->state);
+      result = nvk_queue_state_update(queue, &queue->state);
       if (result != VK_SUCCESS) {
          return vk_queue_set_lost(&queue->vk, "Failed to update queue base "
                                               "pointers pushbuf");
@@ -453,8 +453,7 @@ nvk_queue_submit_simple(struct nvk_queue *queue,
 }
 
 static VkResult
-nvk_queue_init_context_state(struct nvk_queue *queue,
-                             enum nvkmd_engines engines)
+nvk_queue_init_context_state(struct nvk_queue *queue)
 {
    struct nvk_device *dev = nvk_queue_device(queue);
    struct nvk_physical_device *pdev = nvk_device_physical(dev);
@@ -477,13 +476,13 @@ nvk_queue_init_context_state(struct nvk_queue *queue,
       });
    }
 
-   if (engines & NVKMD_ENGINE_3D) {
+   if (queue->engines & NVKMD_ENGINE_3D) {
       result = nvk_push_draw_state_init(queue, p);
       if (result != VK_SUCCESS)
          return result;
    }
 
-   if (engines & NVKMD_ENGINE_COMPUTE) {
+   if (queue->engines & NVKMD_ENGINE_COMPUTE) {
       result = nvk_push_dispatch_state_init(queue, p);
       if (result != VK_SUCCESS)
          return result;
@@ -510,23 +509,23 @@ nvk_queue_init(struct nvk_device *dev, struct nvk_queue *queue,
 
    nvk_queue_state_init(&queue->state);
 
-   enum nvkmd_engines engines = 0;
+   queue->engines = 0;
    if (queue_family->queue_flags & VK_QUEUE_GRAPHICS_BIT) {
-      engines |= NVKMD_ENGINE_3D;
+      queue->engines |= NVKMD_ENGINE_3D;
       /* We rely on compute shaders for queries */
-      engines |= NVKMD_ENGINE_COMPUTE;
+      queue->engines |= NVKMD_ENGINE_COMPUTE;
    }
    if (queue_family->queue_flags & VK_QUEUE_COMPUTE_BIT) {
-      engines |= NVKMD_ENGINE_COMPUTE;
+      queue->engines |= NVKMD_ENGINE_COMPUTE;
       /* We currently rely on 3D engine MMEs for indirect dispatch */
-      engines |= NVKMD_ENGINE_3D;
+      queue->engines |= NVKMD_ENGINE_3D;
    }
    if (queue_family->queue_flags & VK_QUEUE_TRANSFER_BIT)
-      engines |= NVKMD_ENGINE_COPY;
+      queue->engines |= NVKMD_ENGINE_COPY;
 
-   if (engines) {
+   if (queue->engines) {
       result = nvkmd_dev_create_ctx(dev->nvkmd, &dev->vk.base,
-                                    engines, &queue->exec_ctx);
+                                    queue->engines, &queue->exec_ctx);
       if (result != VK_SUCCESS)
          goto fail_init;
 
@@ -550,7 +549,7 @@ nvk_queue_init(struct nvk_device *dev, struct nvk_queue *queue,
          goto fail_draw_cb0;
    }
 
-   result = nvk_queue_init_context_state(queue, engines);
+   result = nvk_queue_init_context_state(queue);
    if (result != VK_SUCCESS)
       goto fail_bind_ctx;
 
