@@ -45,8 +45,6 @@ ir3_disk_cache_init(struct ir3_compiler *compiler)
    _mesa_sha1_format(timestamp, id_sha1);
 
    uint64_t driver_flags = ir3_shader_debug;
-   if (compiler->options.robust_buffer_access2)
-      driver_flags |= IR3_DBG_ROBUST_UBO_ACCESS;
    compiler->disk_cache = disk_cache_create(renderer, timestamp, driver_flags);
 }
 
@@ -76,6 +74,8 @@ ir3_disk_cache_init_shader_key(struct ir3_compiler *compiler,
                      sizeof(shader->options.api_wavesize));
    _mesa_sha1_update(&ctx, &shader->options.real_wavesize,
                      sizeof(shader->options.real_wavesize));
+   _mesa_sha1_update(&ctx, &shader->options.nir_options,
+                     sizeof(shader->options.nir_options));
 
    /* Note that on some gens stream-out is lowered in ir3 to stg.  For later
     * gens we maybe don't need to include stream-out in the cache key.

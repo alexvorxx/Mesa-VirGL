@@ -507,6 +507,17 @@ struct ir3_disasm_info {
 /* Represents half register in regid */
 #define HALF_REG_ID 0x100
 
+/* Options for common NIR optimization passes done in ir3. This is used for both
+ * finalize and post-finalize (where it has to be in the shader).
+ */
+struct ir3_shader_nir_options {
+   /* For the modes specified, accesses are assumed to be bounds-checked as
+    * defined by VK_EXT_robustness2 and optimizations may have to be more
+    * conservative.
+    */
+   nir_variable_mode robust_modes;
+};
+
 struct ir3_shader_options {
    unsigned num_reserved_user_consts;
    /* What API-visible wavesizes are allowed. Even if only double wavesize is
@@ -522,6 +533,8 @@ struct ir3_shader_options {
 
    uint32_t push_consts_base;
    uint32_t push_consts_dwords;
+
+   struct ir3_shader_nir_options nir_options;
 };
 
 /**

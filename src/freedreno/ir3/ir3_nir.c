@@ -248,7 +248,9 @@ ir3_get_variable_size_align_bytes(const glsl_type *type, unsigned *size, unsigne
 #define OPT_V(nir, pass, ...) NIR_PASS_V(nir, pass, ##__VA_ARGS__)
 
 bool
-ir3_optimize_loop(struct ir3_compiler *compiler, nir_shader *s)
+ir3_optimize_loop(struct ir3_compiler *compiler,
+                  const struct ir3_shader_nir_options *options,
+                  nir_shader *s)
 {
    MESA_TRACE_FUNC();
 
@@ -324,8 +326,7 @@ ir3_optimize_loop(struct ir3_compiler *compiler, nir_shader *s)
       nir_load_store_vectorize_options vectorize_opts = {
          .modes = nir_var_mem_ubo | nir_var_mem_ssbo | nir_var_uniform,
          .callback = ir3_nir_should_vectorize_mem,
-         .robust_modes = compiler->options.robust_buffer_access2 ?
-               nir_var_mem_ubo | nir_var_mem_ssbo : 0,
+         .robust_modes = options->robust_modes,
          .cb_data = compiler,
       };
       progress |= OPT(s, nir_opt_load_store_vectorize, &vectorize_opts);
@@ -495,7 +496,9 @@ ir3_nir_lower_array_sampler(nir_shader *shader)
 }
 
 void
-ir3_finalize_nir(struct ir3_compiler *compiler, nir_shader *s)
+ir3_finalize_nir(struct ir3_compiler *compiler,
+                 const struct ir3_shader_nir_options *options,
+                 nir_shader *s)
 {
    MESA_TRACE_FUNC();
 
@@ -536,7 +539,7 @@ ir3_finalize_nir(struct ir3_compiler *compiler, nir_shader *s)
 
    OPT_V(s, nir_lower_is_helper_invocation);
 
-   ir3_optimize_loop(compiler, s);
+   ir3_optimize_loop(compiler, options, s);
 
    /* do idiv lowering after first opt loop to get a chance to propagate
     * constants for divide by immed power-of-two:
@@ -548,7 +551,7 @@ ir3_finalize_nir(struct ir3_compiler *compiler, nir_shader *s)
    idiv_progress |= OPT(s, nir_lower_idiv, &idiv_options);
 
    if (idiv_progress)
-      ir3_optimize_loop(compiler, s);
+      ir3_optimize_loop(compiler, options, s);
 
    OPT_V(s, nir_remove_dead_variables, nir_var_function_temp, NULL);
 
@@ -856,7 +859,7 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
    if (compiler->gen >= 6)
       OPT_V(s, ir3_nir_lower_ssbo_size, compiler->options.storage_16bit ? 1 : 2);
 
-   ir3_optimize_loop(compiler, s);
+   ir3_optimize_loop(compiler, &shader->options.nir_options, s);
 }
 
 static bool
@@ -939,7 +942,9 @@ ir3_mem_access_size_align(nir_intrinsic_op intrin, uint8_t bytes,
 }
 
 void
-ir3_nir_lower_variant(struct ir3_shader_variant *so, nir_shader *s)
+ir3_nir_lower_variant(struct ir3_shader_variant *so,
+                      const struct ir3_shader_nir_options *options,
+                      nir_shader *s)
 {
    MESA_TRACE_FUNC();
 
@@ -1103,17 +1108,17 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so, nir_shader *s)
    progress |= OPT(s, ir3_nir_lower_io_offsets);
 
    if (progress)
-      ir3_optimize_loop(so->compiler, s);
+      ir3_optimize_loop(so->compiler, options, s);
 
    /* verify that progress is always set */
-   assert(!ir3_optimize_loop(so->compiler, s));
+   assert(!ir3_optimize_loop(so->compiler, options, s));
 
    /* Fixup indirect load_const_ir3's which end up with a const base offset
     * which is too large to encode.  Do this late(ish) so we actually
     * can differentiate indirect vs non-indirect.
     */
    if (OPT(s, ir3_nir_fixup_load_const_ir3))
-      ir3_optimize_loop(so->compiler, s);
+      ir3_optimize_loop(so->compiler, options, s);
 
    /* Do late algebraic optimization to turn add(a, neg(b)) back into
     * subs, then the mandatory cleanup after algebraic.  Note that it may

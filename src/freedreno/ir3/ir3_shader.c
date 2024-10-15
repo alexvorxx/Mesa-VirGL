@@ -493,9 +493,9 @@ ir3_shader_passthrough_tcs(struct ir3_shader *vs, unsigned patch_vertices)
 
       nir_shader_gather_info(tcs, nir_shader_get_entrypoint(tcs));
 
-      ir3_finalize_nir(vs->compiler, tcs);
-
       struct ir3_shader_options ir3_options = {};
+
+      ir3_finalize_nir(vs->compiler, &ir3_options.nir_options, tcs);
 
       vs->vs.passthrough_tcs[n] =
             ir3_shader_from_nir(vs->compiler, tcs, &ir3_options, NULL);

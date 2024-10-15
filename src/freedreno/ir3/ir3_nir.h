@@ -58,11 +58,17 @@ nir_mem_access_size_align ir3_mem_access_size_align(
    uint32_t align_offset, bool offset_is_const, const void *cb_data);
 
 bool ir3_nir_opt_branch_and_or_not(nir_shader *nir);
-bool ir3_optimize_loop(struct ir3_compiler *compiler, nir_shader *s);
+bool ir3_optimize_loop(struct ir3_compiler *compiler,
+                       const struct ir3_shader_nir_options *options,
+                       nir_shader *s);
 void ir3_nir_lower_io_to_temporaries(nir_shader *s);
-void ir3_finalize_nir(struct ir3_compiler *compiler, nir_shader *s);
+void ir3_finalize_nir(struct ir3_compiler *compiler,
+                      const struct ir3_shader_nir_options *options,
+                      nir_shader *s);
 void ir3_nir_post_finalize(struct ir3_shader *shader);
-void ir3_nir_lower_variant(struct ir3_shader_variant *so, nir_shader *s);
+void ir3_nir_lower_variant(struct ir3_shader_variant *so,
+                           const struct ir3_shader_nir_options *options,
+                           nir_shader *s);
 
 void ir3_setup_const_state(nir_shader *nir, struct ir3_shader_variant *v,
                            struct ir3_const_state *const_state);

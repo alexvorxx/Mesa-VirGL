@@ -397,8 +397,10 @@ main(int argc, char **argv)
       return -1;
    }
 
+   const struct ir3_shader_nir_options options = {};
+
    ir3_nir_lower_io_to_temporaries(nir);
-   ir3_finalize_nir(compiler, nir);
+   ir3_finalize_nir(compiler, &options, nir);
 
    struct ir3_shader *shader = rzalloc_size(NULL, sizeof(*shader));
    shader->compiler = compiler;
@@ -416,7 +418,7 @@ main(int argc, char **argv)
    shader->variants = v;
    shader->variant_count = 1;
 
-   ir3_nir_lower_variant(v, nir);
+   ir3_nir_lower_variant(v, &options, nir);
 
    info = "NIR compiler";
    ret = ir3_compile_shader_nir(compiler, shader, v);

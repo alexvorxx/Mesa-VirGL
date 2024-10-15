@@ -109,6 +109,8 @@ struct tu_shader_key {
    bool fragment_density_map;
    bool dynamic_renderpass;
    uint8_t unscaled_input_fragcoord;
+   bool robust_storage_access2;
+   bool robust_uniform_access2;
    enum ir3_wavesize_option api_wavesize, real_wavesize;
 };
 
@@ -121,6 +123,7 @@ tu_spirv_to_nir(struct tu_device *dev,
                 void *mem_ctx,
                 VkPipelineCreateFlags2KHR pipeline_flags,
                 const VkPipelineShaderStageCreateInfo *stage_info,
+                const struct tu_shader_key *key,
                 gl_shader_stage stage);
 
 void
@@ -168,6 +171,10 @@ tu_shader_key_subgroup_size(struct tu_shader_key *key,
                             bool require_full_subgroups,
                             const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo *subgroup_info,
                             struct tu_device *dev);
+
+void
+tu_shader_key_robustness(struct tu_shader_key *key,
+                         const struct vk_pipeline_robustness_state *rs);
 
 VkResult
 tu_compile_shaders(struct tu_device *device,

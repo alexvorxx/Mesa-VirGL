@@ -24,11 +24,6 @@ struct ir3_ra_reg_set;
 struct ir3_shader;
 
 struct ir3_compiler_options {
-   /* If true, UBO/SSBO accesses are assumed to be bounds-checked as defined by
-    * VK_EXT_robustness2 and optimizations may have to be more conservative.
-    */
-   bool robust_buffer_access2;
-
    /* If true, promote UBOs (except for constant data) to constants using ldc.k
     * in the preamble. The driver should ignore everything in ubo_state except
     * for the constant data UBO, which is excluded because the command pushing
@@ -340,9 +335,6 @@ enum ir3_shader_debug {
    /* MESA_DEBUG-only options: */
    IR3_DBG_SCHEDMSGS = BITFIELD_BIT(20),
    IR3_DBG_RAMSGS = BITFIELD_BIT(21),
-
-   /* Only used for the disk-caching logic: */
-   IR3_DBG_ROBUST_UBO_ACCESS = BITFIELD_BIT(30),
 };
 
 extern enum ir3_shader_debug ir3_shader_debug;

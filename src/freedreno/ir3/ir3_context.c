@@ -66,7 +66,7 @@ ir3_context_init(struct ir3_compiler *compiler, struct ir3_shader *shader,
     */
 
    ctx->s = nir_shader_clone(ctx, shader->nir);
-   ir3_nir_lower_variant(so, ctx->s);
+   ir3_nir_lower_variant(so, &shader->options.nir_options, ctx->s);
 
    bool progress = false;
    bool needs_late_alg = false;

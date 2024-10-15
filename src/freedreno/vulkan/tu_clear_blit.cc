@@ -799,13 +799,14 @@ compile_shader(struct tu_device *dev, struct nir_shader *nir,
    nir_assign_io_var_locations(nir, nir_var_shader_in, &nir->num_inputs, nir->info.stage);
    nir_assign_io_var_locations(nir, nir_var_shader_out, &nir->num_outputs, nir->info.stage);
 
-   ir3_finalize_nir(dev->compiler, nir);
-
    const struct ir3_shader_options options = {
       .num_reserved_user_consts = align(consts, 8),
       .api_wavesize = IR3_SINGLE_OR_DOUBLE,
       .real_wavesize = IR3_SINGLE_OR_DOUBLE,
    };
+
+   ir3_finalize_nir(dev->compiler, &options.nir_options, nir);
+
    struct ir3_shader *sh =
       ir3_shader_from_nir(dev->compiler, nir, &options, NULL);
 

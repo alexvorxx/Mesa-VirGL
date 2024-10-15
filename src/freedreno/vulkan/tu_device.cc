@@ -2363,7 +2363,6 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
 
    {
       struct ir3_compiler_options ir3_options = {
-         .robust_buffer_access2 = device->vk.enabled_features.robustBufferAccess2,
          .push_ubo_with_preamble = true,
          .disable_cache = true,
          .bindless_fb_read_descriptor = -1,
