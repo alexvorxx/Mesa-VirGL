@@ -723,8 +723,6 @@ spec@ati_fragment_shader@ati_fragment_shader-render-textargets,Fail
 
 spec@egl 1.4@eglterminate then unbind context,Fail
 
-spec@egl_ext_surface_compression@create,Crash
-
 spec@egl_khr_gl_image@egl_khr_gl_renderbuffer_image-clear-shared-image gl_depth_component24,Fail
 spec@egl_khr_gl_image@egl_khr_gl_renderbuffer_image-clear-shared-image gl_rgba,Fail
 spec@egl_khr_surfaceless_context@viewport,Fail
