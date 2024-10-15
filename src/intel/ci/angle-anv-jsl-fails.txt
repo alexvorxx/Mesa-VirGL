@@ -34,7 +34,6 @@ dEQP-GLES2.functional.fbo.render.recreate_colorbuffer.no_rebind_rbo_bgra,Fail
 dEQP-GLES2.functional.fbo.render.recreate_depthbuffer.no_rebind_rbo_bgra_depth_component16,Fail
 dEQP-GLES2.functional.fbo.render.depth.rbo_bgra_depth_component16,Fail
 dEQP-GLES2.functional.fbo.render.shared_colorbuffer.rbo_bgra_stencil_index8,Fail
-KHR-GLES3.framebuffer_blit.framebuffer_blit_functionality_multisampled_to_singlesampled_blit,Fail
 dEQP-GLES2.functional.fbo.completeness.renderable.renderbuffer.stencil.bgra,Fail
 dEQP-GLES2.functional.fbo.render.color.blend_rbo_bgra_depth_component16,Fail
 dEQP-GLES2.functional.fbo.render.color_clear.rbo_bgra_depth_component16,Fail
@@ -64,3 +63,6 @@ dEQP-GLES2.functional.fbo.render.stencil.npot_rbo_bgra_stencil_index8,Fail
 dEQP-GLES2.functional.fbo.render.stencil.rbo_bgra_depth_component16_stencil_index8,Fail
 dEQP-GLES2.functional.fbo.render.stencil_clear.rbo_bgra_depth_component16_stencil_index8,Fail
 dEQP-GLES3.functional.fbo.completeness.renderable.renderbuffer.color0.bgra,Fail
+
+# new with ANGLE 2024-10-17
+KHR-GLES31.core.shader_image_load_store.basic-allTargets-loadStoreVS,Fail

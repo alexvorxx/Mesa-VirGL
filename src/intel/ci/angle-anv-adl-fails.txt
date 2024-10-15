@@ -308,7 +308,6 @@ dEQP-GLES2.functional.fbo.render.stencil_clear.rbo_bgra_stencil_index8,Fail
 dEQP-GLES2.functional.fbo.render.shared_colorbuffer.rbo_bgra_depth_component16,Fail
 dEQP-GLES2.functional.fbo.render.stencil.rbo_bgra_stencil_index8,Fail
 dEQP-GLES2.functional.fbo.render.stencil_clear.rbo_bgra_depth_component16_stencil_index8,Fail
-KHR-GLES3.framebuffer_blit.framebuffer_blit_functionality_multisampled_to_singlesampled_blit,Fail
 KHR-GLES3.clip_distance.coverage,Fail
 dEQP-GLES2.functional.fbo.render.stencil.npot_rbo_bgra_depth_component16_stencil_index8,Fail
 dEQP-GLES2.functional.fbo.render.recreate_depthbuffer.rebind_rbo_bgra_depth_component16_stencil_index8,Fail
@@ -337,3 +336,6 @@ dEQP-GLES2.functional.fbo.render.color.blend_npot_rbo_bgra,Fail
 dEQP-GLES3.functional.fbo.completeness.renderable.renderbuffer.color0.bgra,Fail
 dEQP-GLES3.functional.fbo.completeness.renderable.renderbuffer.depth.bgra,Fail
 dEQP-GLES3.functional.fbo.completeness.renderable.renderbuffer.stencil.bgra,Fail
+
+# new failures with ANGLE 2024-10-17
+KHR-GLES31.core.shader_image_load_store.basic-allTargets-loadStoreVS,Fail
