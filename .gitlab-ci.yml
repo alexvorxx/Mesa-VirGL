@@ -38,6 +38,8 @@ workflow:
         VALVE_INFRA_VANGOGH_JOB_PRIORITY: ""  # Empty tags are ignored by gitlab
         # fast-fail in merge pipelines: stop early if we get this many unexpected fails/crashes
         DEQP_RUNNER_MAX_FAILS: 40
+        # Flag to advertise the CI scripts if we are in a merge pipeline
+        IS_MERGE_PIPELINE: 1
     # post-merge pipeline
     - if: &is-post-merge $GITLAB_USER_LOGIN == "marge-bot" && $CI_PIPELINE_SOURCE == "push"
     # nightly pipeline

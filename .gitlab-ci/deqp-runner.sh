@@ -120,6 +120,10 @@ if [ -e "$INSTALL/$GPU_VERSION-skips.txt" ]; then
     DEQP_SKIPS="$DEQP_SKIPS $INSTALL/$GPU_VERSION-skips.txt"
 fi
 
+if [ -e "$INSTALL/$GPU_VERSION-merge-skips.txt" ] && [ -n "${IS_MERGE_PIPELINE:-}" ]; then
+    DEQP_SKIPS="$DEQP_SKIPS $INSTALL/$GPU_VERSION-merge-skips.txt"
+fi
+
 if [ "$PIGLIT_PLATFORM" != "gbm" ] ; then
     DEQP_SKIPS="$DEQP_SKIPS $INSTALL/x11-skips.txt"
 fi
