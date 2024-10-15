@@ -642,6 +642,9 @@ tu_get_features(struct tu_physical_device *pdevice,
    /* VK_EXT_non_seamless_cube_map */
    features->nonSeamlessCubeMap = true;
 
+   /* VK_EXT_pipeline_robustness */
+   features->pipelineRobustness = true;
+
    /* VK_EXT_primitive_topology_list_restart */
    features->primitiveTopologyListRestart = true;
    features->primitiveTopologyPatchListRestart = false;
@@ -1075,6 +1078,12 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->robustStorageBufferAccessSizeAlignment = 4;
    /* see write_ubo_descriptor() */
    props->robustUniformBufferAccessSizeAlignment = 16;
+
+   /* VK_EXT_pipeline_robustness */
+   props->defaultRobustnessStorageBuffers = VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_EXT;
+   props->defaultRobustnessUniformBuffers = VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_EXT;
+   props->defaultRobustnessVertexInputs = VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_ROBUST_BUFFER_ACCESS_2_EXT;
+   props->defaultRobustnessImages = VK_PIPELINE_ROBUSTNESS_IMAGE_BEHAVIOR_ROBUST_IMAGE_ACCESS_2_EXT;
 
    /* VK_EXT_provoking_vertex */
    props->provokingVertexModePerPipeline = true;
