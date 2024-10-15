@@ -8,7 +8,7 @@ radv-stoney-vkcts:x86_64:
     - .radv-stoney-test:x86_64
   parallel: 5
   variables:
-    DEQP_FRACTION: 15
+    DEQP_FRACTION: 18
 
 radv-stoney-angle:
   extends:
@@ -19,7 +19,7 @@ radv-stoney-angle:
     USE_ANGLE: 1
     HWCI_START_XORG: 1
     GPU_VERSION: angle-radv-stoney-aco
-    DEQP_FRACTION: 2
+    DEQP_FRACTION: 3
 
 radv-stoney-angle-full:
   extends:
