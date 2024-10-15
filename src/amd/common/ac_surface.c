@@ -3266,9 +3266,8 @@ static bool gfx12_compute_surface(struct ac_addrlib *addrlib, const struct radeo
                                     (surf->flags & RADEON_SURF_Z_OR_SBUFFER ||
                                      config->info.samples > 1 ||
                                      ((supports_display_dcc || !(surf->flags & RADEON_SURF_SCANOUT)) &&
-                                      /* These two are not strictly necessary. */
-                                      surf->u.gfx9.swizzle_mode != ADDR3_LINEAR &&
-                                      surf->surf_size >= 4096)));
+                                      /* This one is not strictly necessary. */
+                                      surf->u.gfx9.swizzle_mode != ADDR3_LINEAR)));
 
    surf->has_stencil = !!(surf->flags & RADEON_SURF_SBUFFER);
    surf->is_linear = surf->u.gfx9.swizzle_mode == ADDR3_LINEAR;
