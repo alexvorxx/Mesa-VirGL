@@ -6,4 +6,3 @@ KHR-GL46.texture_swizzle.functional
 KHR-GL46.texture_swizzle.smoke
 KHR-Single-GL46.arrays_of_arrays_gl.AtomicUsage
 KHR-Single-GL46.arrays_of_arrays_gl.SubroutineFunctionCalls2
-
