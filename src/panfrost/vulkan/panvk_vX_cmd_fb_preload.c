@@ -456,7 +456,7 @@ cmd_emit_dcd(struct panvk_cmd_buffer *cmdbuf,
 #if PAN_ARCH >= 6
       /* Until we decide to support FB CRC, we can consider that untouched tiles
        * should never be written back. */
-      cfg.clean_fragment_write = false;
+      cfg.clean_fragment_write = true;
 #endif
    }
 
@@ -638,7 +638,7 @@ cmd_emit_dcd(struct panvk_cmd_buffer *cmdbuf,
       cfg.multisample_enable = key->samples > 1;
       cfg.evaluate_per_sample = key->samples > 1;
       cfg.maximum_z = 1.0;
-      cfg.clean_fragment_write = false;
+      cfg.clean_fragment_write = true;
       cfg.shader.resources = res_table.gpu | 1;
       cfg.shader.shader = panvk_priv_mem_dev_addr(shader->spd);
       cfg.shader.thread_storage = cmdbuf->state.gfx.tsd;
