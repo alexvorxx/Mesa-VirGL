@@ -1478,6 +1478,11 @@ SPDX-License-Identifier: MIT
 	<pattern pos="80">1</pattern> <!-- OPCODE_BIT6 -->
 </bitset>
 
+<bitset name="img_load" extends="#instruction-load">
+	<pattern low="0" high="5">111001</pattern> <!-- OPC -->
+	<pattern pos="80">1</pattern> <!-- OPCODE_BIT6 -->
+</bitset>
+
 <bitset name="#extended-instruction-alu" extends="#instruction-alu">
 	<pattern low="0" high="5">111111</pattern> <!-- OPC -->
 	<pattern pos="80">1</pattern> <!-- OPCODE_BIT6 -->
