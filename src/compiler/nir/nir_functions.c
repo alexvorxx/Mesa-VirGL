@@ -67,6 +67,10 @@ fixup_cast_deref_mode(nir_deref_instr *deref)
          deref->modes |= nir_var_uniform;
       } else if (parent->modes & nir_var_image) {
          deref->modes |= nir_var_image;
+      } else if (parent->modes & nir_var_mem_ubo) {
+         deref->modes |= nir_var_mem_ubo;
+      } else if (parent->modes & nir_var_mem_ssbo) {
+         deref->modes |= nir_var_mem_ssbo;
       } else
          return;
 
