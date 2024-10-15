@@ -514,6 +514,8 @@ static unsigned tryreg(struct rnndeccontext *ctx, struct rnndelem **elems, int e
 					assert(suffix);
 					ret = tryreg(ctx, elem->subelems, elem->subelemsnum, dwidth, child, offset);
 					if (ret) {
+						if (idx >= elem->length)
+							return 0;
 						*offset += elem->offset + (idx * elem->stride);
 						return 1;
 					}
