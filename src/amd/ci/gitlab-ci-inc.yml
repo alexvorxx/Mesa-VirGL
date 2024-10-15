@@ -13,6 +13,7 @@
         - src/amd/ci/$GPU_VERSION-fails.txt
         - src/amd/ci/$GPU_VERSION-flakes.txt
         - src/amd/ci/$GPU_VERSION-skips.txt
+        - src/amd/ci/$GPU_VERSION-merge-skips.txt
         - src/amd/ci/$VK_DRIVER-skips.txt
         - src/amd/ci/$GALLIUM_DRIVER-skips.txt
         - src/amd/ci/$DRIVER_NAME-skips.txt
