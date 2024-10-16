@@ -1,3 +1,5 @@
+dEQP-VK.memory.pipeline_barrier.host_write_transfer_src.1048576
+
 dEQP-VK.pipeline.*.pipeline_cache.robustness2.storage
 
 dEQP-VK.sparse_resources.image_sparse_binding.cube_array.rgba32i.256_256_6
