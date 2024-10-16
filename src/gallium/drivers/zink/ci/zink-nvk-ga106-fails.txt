@@ -44,6 +44,10 @@ dEQP-GLES31.functional.shaders.multisample_interpolation.interpolate_at_sample.n
 dEQP-GLES31.functional.shaders.multisample_interpolation.interpolate_at_sample.non_multisample_buffer.sample_n_singlesample_rbo,Fail
 dEQP-GLES31.functional.shaders.multisample_interpolation.interpolate_at_sample.non_multisample_buffer.sample_n_singlesample_texture,Fail
 
+# Regression from a commit in the range c06a55fd...2fb4aed9
+# Probably https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/31585
+KHR-GL46.multi_bind.dispatch_bind_textures,Fail
+
 spec@!opengl 1.0@gl-1.0-no-op-paths,Fail
 spec@!opengl 1.0@rasterpos,Fail
 spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked,Fail
