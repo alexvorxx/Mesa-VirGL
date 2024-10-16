@@ -12,6 +12,7 @@ KHR-GL46.packed_pixels.varied_rectangle.rgba32i
 KHR-GL46.texture_buffer.texture_buffer_max_size
 KHR-GL46.texture_swizzle.smoke
 
+dEQP-GLES3.functional.buffer.map.read_write.usage_hints.pixel_unpack_dynamic_read
 dEQP-GLES3.functional.shaders.builtin_variable.max_vertex_uniform_vectors_fragment
 dEQP-GLES3.functional.shaders.indexing.matrix_subscript.mat2_dynamic_loop_write_static_loop_read_vertex
 dEQP-GLES3.functional.shaders.indexing.vector_subscript.vec4_static_loop_subscript_write_component_read_vertex
@@ -22,6 +23,7 @@ dEQP-GLES3.functional.uniform_api.value.initial.render.basic_array.ivec4_both
 dEQP-GLES31.functional.copy_image.compressed.viewclass_astc_10x5_rgba.srgb8_alpha8_astc_10x5_khr_srgb8_alpha8_astc_10x5_khr.texture2d_array_to_texture2d
 dEQP-GLES31.functional.copy_image.compressed.viewclass_astc_8x5_rgba.srgb8_alpha8_astc_8x5_khr_rgba_astc_8x5_khr.texture2d_array_to_texture2d
 dEQP-GLES31.functional.copy_image.mixed.viewclass_128_bits_mixed.rgba32f_rgba_astc_5x4_khr.texture3d_to_texture2d_array
+dEQP-GLES31.functional.copy_image.mixed.viewclass_128_bits_mixed.rgba32ui_srgb8_alpha8_astc_10x6_khr.texture2d_to_texture2d_array
 dEQP-GLES31.functional.texture.format.sized.cube_array.depth_component32f_npot
 
 # All the double tests in this group seem to be flaky
@@ -90,6 +92,7 @@ spec@ext_framebuffer_multisample@polygon-smooth 2
 spec@ext_framebuffer_object@fbo-blending-formats
 spec@ext_framebuffer_object@getteximage-formats init-by-clear-and-render
 spec@ext_texture_array@copyteximage 1d_array samples=4
+spec@ext_texture_array@copyteximage 2d_array samples=2
 spec@ext_texture_array@fbo-depth-array depth-clear
 spec@ext_texture_array@fbo-depth-array depth-draw
 spec@ext_texture_array@fbo-depth-array depth-layered-clear
@@ -108,6 +111,8 @@ spec@glsl-1.10@execution@varying-packing@simple uvec3 separate
 spec@glsl-1.20@execution@clipping@vs-clip-vertex-homogeneity
 spec@glsl-1.30@execution@built-in-functions@vs-op-bitxor-abs-not-ivec3-int
 spec@glsl-1.30@execution@fs-texture-sampler2dshadow-03
+spec@glsl-1.30@execution@interpolation@interpolation-flat-gl_backsecondarycolor-smooth-distance
+spec@glsl-1.30@execution@interpolation@interpolation-flat-other-smooth-vertex
 spec@glsl-1.30@execution@interpolation@interpolation-none-gl_backcolor-flat-distance
 spec@glsl-1.30@execution@interpolation@interpolation-noperspective-gl_backsecondarycolor-flat-vertex
 spec@glsl-1.30@execution@interpolation@interpolation-noperspective-gl_backsecondarycolor-smooth-none
