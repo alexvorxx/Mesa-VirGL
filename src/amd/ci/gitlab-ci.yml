@@ -81,7 +81,7 @@ amd-raven-skqp:x86_64:
   extends:
     - .lava-piglit-traces:x86_64
     - .radv-raven-test:x86_64
-    - .lava-lenovo-TPad-C13-Yoga-zork:x86_64
+    - .lava-asus-CM1400CXA-dalboz:x86_64
   variables:
     HWCI_START_XORG: 1
     PIGLIT_PLATFORM: mixed_glx_egl  # TODO, take wine/VK in account
