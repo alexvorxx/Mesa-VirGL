@@ -32,6 +32,7 @@
 #include "panvk_cmd_alloc.h"
 #include "panvk_cmd_buffer.h"
 #include "panvk_cmd_desc_state.h"
+#include "panvk_cmd_draw.h"
 #include "panvk_cmd_fb_preload.h"
 #include "panvk_cmd_pool.h"
 #include "panvk_cmd_push_constant.h"
@@ -252,7 +253,7 @@ panvk_per_arch(cmd_prepare_tiler_context)(struct panvk_cmd_buffer *cmdbuf,
    }
 
    pan_pack(&batch->tiler.ctx_templ, TILER_CONTEXT, cfg) {
-      cfg.hierarchy_mask = 0x28;
+      cfg.hierarchy_mask = panvk_select_tiler_hierarchy_mask(cmdbuf);
       cfg.fb_width = fbinfo->width;
       cfg.fb_height = fbinfo->height;
       cfg.heap = batch->tiler.heap_desc.gpu;

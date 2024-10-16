@@ -16,6 +16,7 @@
 #include "panvk_cmd_alloc.h"
 #include "panvk_cmd_buffer.h"
 #include "panvk_cmd_desc_state.h"
+#include "panvk_cmd_draw.h"
 #include "panvk_cmd_fb_preload.h"
 #include "panvk_cmd_meta.h"
 #include "panvk_device.h"
@@ -742,16 +743,9 @@ get_tiler_desc(struct panvk_cmd_buffer *cmdbuf)
       unsigned max_levels = tiler_features.max_levels;
       assert(max_levels >= 2);
 
-      /* TODO: Select hierarchy mask more effectively */
-      cfg.hierarchy_mask = (max_levels >= 8) ? 0xFF : 0x28;
-
-      /* For large framebuffers, disable the smallest bin size to
-       * avoid pathological tiler memory usage.
-       */
+      cfg.hierarchy_mask = panvk_select_tiler_hierarchy_mask(cmdbuf);
       cfg.fb_width = cmdbuf->state.gfx.render.fb.info.width;
       cfg.fb_height = cmdbuf->state.gfx.render.fb.info.height;
-      if (MAX2(cfg.fb_width, cfg.fb_height) >= 4096)
-         cfg.hierarchy_mask &= ~1;
 
       cfg.sample_pattern =
          pan_sample_pattern(cmdbuf->state.gfx.render.fb.info.nr_samples);
