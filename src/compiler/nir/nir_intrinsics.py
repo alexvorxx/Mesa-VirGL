@@ -1436,6 +1436,15 @@ intrinsic("inclusive_scan_clusters_ir3", dest_comp=1, src_comp=[1],
 intrinsic("exclusive_scan_clusters_ir3", dest_comp=1, src_comp=[1, 1],
           bit_sizes=src0, indices=[REDUCTION_OP])
 
+# Like shuffle_{xor,up,down} except with a uniform index. Necessary since the
+# ir3 shfl instruction doesn't work with divergent indices.
+intrinsic("shuffle_xor_uniform_ir3", src_comp=[0, 1], dest_comp=0,
+          bit_sizes=src0, flags=[CAN_ELIMINATE])
+intrinsic("shuffle_up_uniform_ir3", src_comp=[0, 1], dest_comp=0,
+          bit_sizes=src0, flags=[CAN_ELIMINATE])
+intrinsic("shuffle_down_uniform_ir3", src_comp=[0, 1], dest_comp=0,
+          bit_sizes=src0, flags=[CAN_ELIMINATE])
+
 # IR3-specific intrinsics for prefetching descriptors in preambles.
 intrinsic("prefetch_sam_ir3", [1, 1], flags=[CAN_REORDER])
 intrinsic("prefetch_tex_ir3", [1], flags=[CAN_REORDER])
