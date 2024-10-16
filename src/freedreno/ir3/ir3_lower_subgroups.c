@@ -520,6 +520,14 @@ ir3_lower_subgroups(struct ir3 *ir)
    return progress;
 }
 
+static const struct glsl_type *
+glsl_type_for_def(nir_def *def)
+{
+   assert(def->num_components == 1);
+   return def->bit_size == 1 ? glsl_bool_type()
+                             : glsl_uintN_t_type(def->bit_size);
+}
+
 static bool
 filter_scan_reduce(const nir_instr *instr, const void *data)
 {
@@ -641,9 +649,7 @@ lower_64b_scan_reduce(struct nir_builder *b, nir_instr *instr, void *data)
    nir_def *ident = nir_build_imm(b, 1, bit_size, &ident_val);
    nir_def *inclusive_in = intrin->src[0].ssa;
 
-   const glsl_type *var_type = bit_size == 1
-                                  ? glsl_bool_type()
-                                  : glsl_uintN_t_type(inclusive_in->bit_size);
+   const glsl_type *var_type = glsl_type_for_def(inclusive_in);
    nir_variable *inclusive_var =
       nir_local_variable_create(b->impl, var_type, "inclusive");
    nir_variable *exclusive_var =
