@@ -580,15 +580,20 @@ cmd_emit_dcd(struct panvk_cmd_buffer *cmdbuf,
    if (!zsd.cpu)
       return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
+   bool preload_z =
+      key->aspects != VK_IMAGE_ASPECT_COLOR_BIT && fbinfo->zs.preload.z;
+   bool preload_s =
+      key->aspects != VK_IMAGE_ASPECT_COLOR_BIT && fbinfo->zs.preload.s;
+
    pan_pack(zsd.cpu, DEPTH_STENCIL, cfg) {
       cfg.depth_function = MALI_FUNC_ALWAYS;
-      cfg.depth_write_enable = fbinfo->zs.preload.z;
+      cfg.depth_write_enable = preload_z;
 
-      if (fbinfo->zs.preload.z)
+      if (preload_z)
          cfg.depth_source = MALI_DEPTH_SOURCE_SHADER;
 
-      cfg.stencil_test_enable = fbinfo->zs.preload.s;
-      cfg.stencil_from_shader = fbinfo->zs.preload.s;
+      cfg.stencil_test_enable = preload_s;
+      cfg.stencil_from_shader = preload_s;
 
       cfg.front_compare_function = MALI_FUNC_ALWAYS;
       cfg.front_stencil_fail = MALI_STENCIL_OP_REPLACE;
