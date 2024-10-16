@@ -36,7 +36,6 @@ spec@arb_shading_language_packing@execution@built-in-functions@vs-packhalf2x16,F
 spec@arb_tessellation_shader@arb_tessellation_shader-tes-gs-max-output -small -scan 1 50,Fail
 spec@arb_viewport_array@display-list,Fail
 spec@egl 1.4@eglterminate then unbind context,Fail
-spec@egl_ext_surface_compression@create,Crash
 spec@egl_khr_surfaceless_context@viewport,Fail
 spec@ext_framebuffer_blit@fbo-blit-check-limits,Fail
 spec@glsl-es-3.00@execution@built-in-functions@fs-packhalf2x16,Fail

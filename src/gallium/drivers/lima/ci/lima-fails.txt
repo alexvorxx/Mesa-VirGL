@@ -580,7 +580,6 @@ spec@!opengl 2.1@pbo@test_bitmap,Fail
 spec@!opengl 2.1@pbo@test_polygon_stip,Fail
 spec@!opengl 2.1@polygon-stipple-fs,Fail
 spec@!opengl es 2.0@glsl-fs-pointcoord,Fail
-spec@egl_ext_surface_compression@create,Crash
 
 # see https://gitlab.freedesktop.org/mesa/piglit/-/merge_requests/730
 # and https://gitlab.freedesktop.org/mesa/mesa/-/issues/7208
