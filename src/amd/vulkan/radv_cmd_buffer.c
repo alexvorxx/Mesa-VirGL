@@ -3784,7 +3784,6 @@ radv_emit_depth_clamp_enable(struct radv_cmd_buffer *cmd_buffer)
 
    radeon_set_context_reg(
       cmd_buffer->cs, R_02800C_DB_RENDER_OVERRIDE,
-      S_02800C_FORCE_HIS_ENABLE0(V_02800C_FORCE_DISABLE) | S_02800C_FORCE_HIS_ENABLE1(V_02800C_FORCE_DISABLE) |
          S_02800C_DISABLE_VIEWPORT_CLAMP(pdev->info.gfx_level < GFX12 && mode == RADV_DEPTH_CLAMP_MODE_DISABLED));
 
    if (pdev->info.gfx_level >= GFX12) {
