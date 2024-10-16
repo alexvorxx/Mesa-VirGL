@@ -786,8 +786,8 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
             .lower_vote_bool_eq = true,
             .lower_subgroup_masks = true,
             .lower_read_invocation_to_cond = true,
-            .lower_shuffle = true,
-            .lower_relative_shuffle = true,
+            .lower_shuffle = !compiler->has_shfl,
+            .lower_relative_shuffle = !compiler->has_shfl,
             .lower_rotate_to_shuffle = !compiler->has_shfl,
             .lower_inverse_ballot = true,
       };
@@ -800,6 +800,7 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
       }
 
       OPT(s, nir_lower_subgroups, &options);
+      OPT(s, ir3_nir_lower_shuffle, shader);
 
       /* We want to run the 64b lowering after nir_lower_subgroups so that the
        * operations have been scalarized. However, the 64b lowering will insert

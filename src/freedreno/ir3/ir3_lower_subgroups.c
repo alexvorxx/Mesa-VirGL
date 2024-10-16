@@ -694,3 +694,134 @@ ir3_nir_lower_64b_subgroups(nir_shader *nir)
    return nir_shader_lower_instructions(nir, filter_64b_scan_reduce,
                                         lower_64b_scan_reduce, NULL);
 }
+
+static bool
+filter_shuffle(const nir_instr *instr, const void *data)
+{
+   if (instr->type != nir_instr_type_intrinsic) {
+      return false;
+   }
+
+   nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+
+   switch (intrin->intrinsic) {
+   case nir_intrinsic_shuffle:
+   case nir_intrinsic_shuffle_up:
+   case nir_intrinsic_shuffle_down:
+   case nir_intrinsic_shuffle_xor:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static nir_def *
+shuffle_to_uniform(nir_builder *b, nir_intrinsic_op op, struct nir_def *val,
+                   struct nir_def *id)
+{
+   switch (op) {
+   case nir_intrinsic_shuffle:
+      return nir_rotate(b, val, id);
+   case nir_intrinsic_shuffle_up:
+      return nir_shuffle_up_uniform_ir3(b, val, id);
+   case nir_intrinsic_shuffle_down:
+      return nir_shuffle_down_uniform_ir3(b, val, id);
+   case nir_intrinsic_shuffle_xor:
+      return nir_shuffle_xor_uniform_ir3(b, val, id);
+   default:
+      unreachable("filtered intrinsic");
+   }
+}
+
+/* Transforms a shuffle operation into a loop that only uses shuffles with
+ * (dynamically) uniform indices. This is based on the blob's sequence and
+ * carefully makes sure that the least amount of iterations are performed (i.e.,
+ * one iteration per distinct index) while keeping all invocations active during
+ * each shfl operation. This is necessary since shfl does not update its dst
+ * when its src is inactive.
+ *
+ * done = false;
+ * while (true) {
+ *    next_index = read_invocation_cond_ir3(index, !done);
+ *    shuffled = op_uniform(val, next_index);
+ *
+ *    if (index == next_index) {
+ *       result = shuffled;
+ *       done = true;
+ *    }
+ *
+ *    if (subgroupAll(done)) {
+ *       break;
+ *    }
+ * }
+ */
+static nir_def *
+make_shuffle_uniform(nir_builder *b, nir_def *val, nir_def *index,
+                     nir_intrinsic_op op)
+{
+   nir_variable *done =
+      nir_local_variable_create(b->impl, glsl_bool_type(), "done");
+   nir_store_var(b, done, nir_imm_false(b), 1);
+   nir_variable *result =
+      nir_local_variable_create(b->impl, glsl_type_for_def(val), "result");
+
+   nir_loop *loop = nir_push_loop(b);
+   {
+      nir_def *next_index = nir_read_invocation_cond_ir3(
+         b, index->bit_size, index, nir_inot(b, nir_load_var(b, done)));
+      next_index->divergent = false;
+      nir_def *shuffled = shuffle_to_uniform(b, op, val, next_index);
+
+      nir_if *nif = nir_push_if(b, nir_ieq(b, index, next_index));
+      {
+         nir_store_var(b, result, shuffled, 1);
+         nir_store_var(b, done, nir_imm_true(b), 1);
+      }
+      nir_pop_if(b, nif);
+
+      nir_break_if(b, nir_vote_all(b, 1, nir_load_var(b, done)));
+   }
+   nir_pop_loop(b, loop);
+
+   return nir_load_var(b, result);
+}
+
+static nir_def *
+lower_shuffle(nir_builder *b, nir_instr *instr, void *data)
+{
+   nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+   nir_def *val = intrin->src[0].ssa;
+   nir_def *index = intrin->src[1].ssa;
+
+   if (intrin->intrinsic == nir_intrinsic_shuffle) {
+      /* The hw only does relative shuffles/rotates so transform shuffle(val, x)
+       * into rotate(val, x - gl_SubgroupInvocationID) which is valid since we
+       * make sure to only use it with uniform indices.
+       */
+      index = nir_isub(b, index, nir_load_subgroup_invocation(b));
+   }
+
+   if (!index->divergent) {
+      return shuffle_to_uniform(b, intrin->intrinsic, val, index);
+   }
+
+   return make_shuffle_uniform(b, val, index, intrin->intrinsic);
+}
+
+/* Lower (relative) shuffles to be able to use the shfl instruction. One quirk
+ * of shfl is that its index has to be dynamically uniform, so we transform the
+ * standard NIR intrinsics into ir3-specific ones which require their index to
+ * be uniform.
+ */
+bool
+ir3_nir_lower_shuffle(nir_shader *nir, struct ir3_shader *shader)
+{
+   if (!shader->compiler->has_shfl) {
+      return false;
+   }
+
+   nir_convert_to_lcssa(nir, true, true);
+   nir_divergence_analysis(nir);
+   return nir_shader_lower_instructions(nir, filter_shuffle, lower_shuffle,
+                                        NULL);
+}
