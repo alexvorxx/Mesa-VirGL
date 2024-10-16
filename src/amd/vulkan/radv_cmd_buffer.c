@@ -3059,12 +3059,9 @@ radv_emit_viewport(struct radv_cmd_buffer *cmd_buffer)
 }
 
 static VkRect2D
-radv_scissor_from_viewport(const VkViewport *viewport)
+radv_scissor_from_viewport(const float scale[3], const float translate[3])
 {
-   float scale[3], translate[3];
    VkRect2D rect;
-
-   radv_get_viewport_xform(viewport, scale, translate);
 
    rect.offset.x = translate[0] - fabsf(scale[0]);
    rect.offset.y = translate[1] - fabsf(scale[1]);
@@ -3098,7 +3095,7 @@ radv_emit_scissor(struct radv_cmd_buffer *cmd_buffer)
 
    radeon_set_context_reg_seq(cs, R_028250_PA_SC_VPORT_SCISSOR_0_TL, d->vk.vp.scissor_count * 2);
    for (unsigned i = 0; i < d->vk.vp.scissor_count; i++) {
-      VkRect2D viewport_scissor = radv_scissor_from_viewport(d->vk.vp.viewports + i);
+      VkRect2D viewport_scissor = radv_scissor_from_viewport(d->hw_vp.xform[i].scale, d->hw_vp.xform[i].translate);
       VkRect2D scissor = radv_intersect_scissor(&d->vk.vp.scissors[i], &viewport_scissor);
 
       uint32_t minx = scissor.offset.x;
@@ -4880,7 +4877,7 @@ radv_emit_guardband_state(struct radv_cmd_buffer *cmd_buffer)
    const bool draw_lines = radv_rast_prim_is_line(rast_prim) || radv_polygon_mode_is_line(d->vk.rs.polygon_mode);
    struct radeon_cmdbuf *cs = cmd_buffer->cs;
    int i;
-   float scale[3], translate[3], guardband_x = INFINITY, guardband_y = INFINITY;
+   float guardband_x = INFINITY, guardband_y = INFINITY;
    float discard_x = 1.0f, discard_y = 1.0f;
    const float max_range = 32767.0f;
 
@@ -4888,17 +4885,18 @@ radv_emit_guardband_state(struct radv_cmd_buffer *cmd_buffer)
       return;
 
    for (i = 0; i < d->vk.vp.viewport_count; i++) {
-      radv_get_viewport_xform(d->vk.vp.viewports + i, scale, translate);
-      scale[0] = fabsf(scale[0]);
-      scale[1] = fabsf(scale[1]);
+      float scale_x = fabsf(d->hw_vp.xform[i].scale[0]);
+      float scale_y = fabsf(d->hw_vp.xform[i].scale[1]);
+      const float translate_x = fabsf(d->hw_vp.xform[i].translate[0]);
+      const float translate_y = fabsf(d->hw_vp.xform[i].translate[1]);
 
-      if (scale[0] < 0.5)
-         scale[0] = 0.5;
-      if (scale[1] < 0.5)
-         scale[1] = 0.5;
+      if (scale_x < 0.5)
+         scale_x = 0.5;
+      if (scale_y < 0.5)
+         scale_y = 0.5;
 
-      guardband_x = MIN2(guardband_x, (max_range - fabsf(translate[0])) / scale[0]);
-      guardband_y = MIN2(guardband_y, (max_range - fabsf(translate[1])) / scale[1]);
+      guardband_x = MIN2(guardband_x, (max_range - translate_x) / scale_x);
+      guardband_y = MIN2(guardband_y, (max_range - translate_y) / scale_y);
 
       if (draw_points || draw_lines) {
          /* When rendering wide points or lines, we need to be more conservative about when to
@@ -4912,8 +4910,8 @@ radv_emit_guardband_state(struct radv_cmd_buffer *cmd_buffer)
          }
 
          /* Add half the point size / line width. */
-         discard_x += pixels / (2.0 * scale[0]);
-         discard_y += pixels / (2.0 * scale[1]);
+         discard_x += pixels / (2.0 * scale_x);
+         discard_y += pixels / (2.0 * scale_y);
 
          /* Discard primitives that would lie entirely outside the clip region. */
          discard_x = MIN2(discard_x, guardband_x);
