@@ -110,11 +110,10 @@ a618_gl:
     - .lava-test-deqp:arm64
     - .lava-sc7180-trogdor-lazor-limozeen:arm64
     - .collabora-freedreno-rules
-  parallel: 2
   variables:
     DEQP_SUITE: freedreno-a618
     FLAKES_CHANNEL: "#freedreno-ci"
-    DEQP_FRACTION: 2
+    DEQP_FRACTION: 4
 
 a618_gl_full:
   extends:
