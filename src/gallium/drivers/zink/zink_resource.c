@@ -632,6 +632,18 @@ set_image_usage(struct zink_screen *screen, VkImageCreateInfo *ici, const struct
    return false;
 }
 
+static bool
+try_set_image_usage_or_EXTENDED(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe_resource *templ, unsigned bind, unsigned modifiers_count, uint64_t *modifiers, uint64_t *mod)
+{
+   VkImageCreateFlags flags = ici->flags;
+   /* retry with EXTENDED: trust that the frontend isn't giving us anything insane and pray */
+   ici->flags |= VK_IMAGE_CREATE_EXTENDED_USAGE_BIT | VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+   bool success = set_image_usage(screen, ici, templ, bind, modifiers_count, modifiers, mod);
+   if (!success)
+      ici->flags = flags;
+   return success;
+}
+
 static uint64_t
 eval_ici(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe_resource *templ, unsigned bind, unsigned modifiers_count, uint64_t *modifiers, bool *success)
 {
@@ -648,47 +660,24 @@ eval_ici(struct zink_screen *screen, VkImageCreateInfo *ici, const struct pipe_r
    if (ici->tiling != VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT)
       modifiers_count = 0;
 
-   bool first = true;
-   bool tried[2] = {0};
    uint64_t mod = DRM_FORMAT_MOD_INVALID;
-   /* TODO: I hate this loop, it needs to die */
-retry:
-   while (!ici->usage) {
-      if (!first) {
-         switch (ici->tiling) {
-         /* modifiers cannot do fallbacks, as LINEAR modifier should be present for that case */
-         case VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT:
-         case VK_IMAGE_TILING_OPTIMAL:
-            ici->tiling = VK_IMAGE_TILING_LINEAR;
-            modifiers_count = 0;
-            break;
-         case VK_IMAGE_TILING_LINEAR:
-            if (bind & PIPE_BIND_LINEAR) {
-               *success = false;
+   /* this should work most of the time */
+   if (!set_image_usage(screen, ici, templ, bind, modifiers_count, modifiers, &mod)) {
+      bool success = false;
+      /* dmabuf doesn't retry with EXTENDED */
+      if (ici->tiling == VK_IMAGE_TILING_OPTIMAL)
+         success = try_set_image_usage_or_EXTENDED(screen, ici, templ, bind, modifiers_count, modifiers, &mod);
+      if (!success) {
+         ici->tiling = VK_IMAGE_TILING_LINEAR;
+         modifiers_count = 0;
+         /* in theory LINEAR should work */
+         if (!set_image_usage(screen, ici, templ, bind, modifiers_count, modifiers, &mod)) {
+            /* ...in theory LINEAR + EXTENDED should definitely work */
+            if (!try_set_image_usage_or_EXTENDED(screen, ici, templ, bind, modifiers_count, modifiers, &mod))
+               /* ...so that was a lie */
                return DRM_FORMAT_MOD_INVALID;
-            }
-            ici->tiling = VK_IMAGE_TILING_OPTIMAL;
-            break;
-         default:
-            unreachable("unhandled tiling mode");
-         }
-         if (tried[ici->tiling]) {
-            if (ici->flags & VK_IMAGE_CREATE_EXTENDED_USAGE_BIT) {
-               *success = false;
-               return DRM_FORMAT_MOD_INVALID;
-            }
-            ici->flags |= VK_IMAGE_CREATE_EXTENDED_USAGE_BIT | VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
-            tried[0] = false;
-            tried[1] = false;
-            first = true;
-            goto retry;
          }
       }
-      if (set_image_usage(screen, ici, templ, bind, modifiers_count, modifiers, &mod))
-         break;
-      first = false;
-      if (ici->tiling != VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT)
-         tried[ici->tiling] = true;
    }
    if (want_cube) {
       ici->flags |= VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT;
