@@ -30,6 +30,7 @@ renaming_overrides_prefixing = true
 "ImageLevel" = "nil_image_level"
 "Offset4D" = "nil_offset4d"
 "SampleLayout" = "nil_sample_layout"
+"SampleOffset" = "nil_sample_offset"
 "Tiling" = "nil_tiling"
 "View" = "nil_view"
 "ViewType" = "nil_view_type"

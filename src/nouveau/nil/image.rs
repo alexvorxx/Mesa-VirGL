@@ -40,6 +40,12 @@ pub enum SampleLayout {
     Invalid,
 }
 
+#[repr(C)]
+pub struct SampleOffset {
+    pub x: u8,
+    pub y: u8,
+}
+
 impl SampleLayout {
     #[no_mangle]
     pub extern "C" fn nil_choose_sample_layout(samples: u32) -> SampleLayout {
@@ -91,6 +97,48 @@ impl SampleLayout {
     #[no_mangle]
     pub extern "C" fn nil_px_extent_sa(self) -> Extent4D<units::Samples> {
         self.px_extent_sa()
+    }
+
+    pub fn sa_offset(&self, s: u8) -> SampleOffset {
+        let (x, y) = match self {
+            SampleLayout::_1x1 => (0, 0),
+            SampleLayout::_2x1 => {
+                debug_assert!(s < 2);
+                (s, 0)
+            }
+            SampleLayout::_2x1D3d => {
+                debug_assert!(s < 2);
+                (1 - s, 0)
+            }
+            SampleLayout::_2x2 => {
+                debug_assert!(s < 4);
+                (s & 1, s >> 1)
+            }
+            SampleLayout::_4x2 => {
+                debug_assert!(s < 8);
+                (s & 3, s >> 2)
+            }
+            SampleLayout::_4x2D3d => match s {
+                0 => (2, 0),
+                1 => (1, 1),
+                2 => (3, 1),
+                3 => (1, 0),
+                4 => (0, 1),
+                5 => (0, 0),
+                6 => (2, 1),
+                7 => (3, 0),
+                _ => panic!("Invalid sample"),
+            },
+            SampleLayout::_4x4 => todo!("Figure out the layout of 4x4"),
+            SampleLayout::Invalid => panic!("Invalid sample layout"),
+        };
+
+        SampleOffset { x, y }
+    }
+
+    #[no_mangle]
+    pub extern "C" fn nil_sample_offset(self, s: u8) -> SampleOffset {
+        self.sa_offset(s)
     }
 }
 
