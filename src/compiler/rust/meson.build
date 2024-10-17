@@ -6,6 +6,7 @@ _compiler_rs_sources = [
   'bitset.rs',
   'cfg.rs',
   'memstream.rs',
+  'nir_instr_printer.rs',
   'nir.rs',
   'smallvec.rs',
 ]

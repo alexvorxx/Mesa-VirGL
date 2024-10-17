@@ -7,4 +7,5 @@ pub mod bitset;
 pub mod cfg;
 pub mod memstream;
 pub mod nir;
+pub mod nir_instr_printer;
 pub mod smallvec;

@@ -3,9 +3,9 @@
 
 use std::io;
 
-use compiler::bindings;
-use compiler::bindings::nir_instr;
-use compiler::memstream::MemStream;
+use crate::bindings;
+use crate::bindings::nir_instr;
+use crate::memstream::MemStream;
 
 /// A memstream that holds the printed NIR instructions.
 pub struct NirInstrPrinter {
