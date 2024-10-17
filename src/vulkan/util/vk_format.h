@@ -93,6 +93,18 @@ vk_format_depth_only(VkFormat format)
    }
 }
 
+static inline bool
+vk_format_has_float_depth(VkFormat format)
+{
+   switch (format) {
+   case VK_FORMAT_D32_SFLOAT:
+   case VK_FORMAT_D32_SFLOAT_S8_UINT:
+      return true;
+   default:
+      return false;
+   }
+}
+
 static inline VkFormat
 vk_format_stencil_only(VkFormat format)
 {
