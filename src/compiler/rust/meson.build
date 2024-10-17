@@ -115,6 +115,23 @@ _libcompiler_rs = static_library(
   dependencies: [_idep_libcompiler_c],
 )
 
+# TODO: Linking Rust executables (such as unit tests) doesn't play nicely
+# with the sanitizers because meson doesn't know to pass -fsanitize to the
+# Rust linker.  See also https://github.com/mesonbuild/meson/issues/11741
+if with_tests and get_option('b_sanitize') == 'none'
+  rust.test(
+    'compiler',
+    _libcompiler_rs,
+    suite : ['compiler', 'rs'],
+    dependencies : [
+      idep_mesautil.partial_dependency(link_args : true, links : true),
+    ],
+    # This is needed to ensure we link against glibc
+    # See also https://gitlab.freedesktop.org/mesa/mesa/-/issues/11632
+    rust_args: ['-C', 'default-linker-libraries'],
+  )
+endif
+
 idep_compiler_rs = declare_dependency(
   link_with : _libcompiler_rs,
 )
