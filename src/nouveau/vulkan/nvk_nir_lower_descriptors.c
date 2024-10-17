@@ -876,13 +876,16 @@ lower_msaa_image_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
 
    b->cursor = nir_before_instr(&intrin->instr);
    nir_deref_instr *deref = nir_src_as_deref(intrin->src[0]);
-   nir_def *desc = load_resource_deref_desc(b, 1, 32, deref, 0, ctx);
+   nir_def *desc = load_resource_deref_desc(b, 2, 32, deref, 0, ctx);
+   nir_def *desc0 = nir_channel(b, desc, 0);
+   nir_def *desc1 = nir_channel(b, desc, 1);
 
-   nir_def *img_index = nir_ubitfield_extract_imm(b, desc, 0, 20);
+   nir_def *img_index = nir_ubitfield_extract_imm(b, desc0, 0, 20);
    nir_rewrite_image_intrinsic(intrin, img_index, true);
 
-   nir_def *sw_log2 = nir_ubitfield_extract_imm(b, desc, 20, 2);
-   nir_def *sh_log2 = nir_ubitfield_extract_imm(b, desc, 22, 2);
+   nir_def *sw_log2 = nir_ubitfield_extract_imm(b, desc0, 20, 2);
+   nir_def *sh_log2 = nir_ubitfield_extract_imm(b, desc0, 22, 2);
+   nir_def *s_map = desc1;
 
    nir_def *sw = nir_ishl(b, nir_imm_int(b, 1), sw_log2);
    nir_def *sh = nir_ishl(b, nir_imm_int(b, 1), sh_log2);
@@ -899,9 +902,9 @@ lower_msaa_image_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
       nir_def *w = nir_channel(b, intrin->src[1].ssa, 3);
       nir_def *s = intrin->src[2].ssa;
 
-      nir_def *sw_mask = nir_iadd_imm(b, sw, -1);
-      nir_def *sx = nir_iand(b, s, sw_mask);
-      nir_def *sy = nir_ishr(b, s, sw_log2);
+      nir_def *s_xy = nir_ushr(b, s_map, nir_imul_imm(b, s, 4));
+      nir_def *sx = nir_ubitfield_extract_imm(b, s_xy, 0, 2);
+      nir_def *sy = nir_ubitfield_extract_imm(b, s_xy, 2, 2);
 
       x = nir_imad(b, x, sw, sx);
       y = nir_imad(b, y, sh, sy);
@@ -934,7 +937,7 @@ lower_msaa_image_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
    case nir_intrinsic_bindless_image_samples: {
       /* We need to handle NULL descriptors explicitly */
       nir_def *samples =
-         nir_bcsel(b, nir_ieq(b, desc, nir_imm_int(b, 0)),
+         nir_bcsel(b, nir_ieq(b, desc0, nir_imm_int(b, 0)),
                       nir_imm_int(b, 0), num_samples);
       nir_def_rewrite_uses(&intrin->def, samples);
       break;

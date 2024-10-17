@@ -28,10 +28,16 @@ struct nvk_storage_image_descriptor {
    unsigned image_index:20;
    unsigned sw_log2:2;
    unsigned sh_log2:2;
-   unsigned pad:8;
+   unsigned _pad:8;
+
+   /* A 32-bit integer which acts as a map from sample index to x/y position
+    * within a pixel.  Each nibble is a sample with x in the low 2 bits and y
+    * in the high 2 bits.
+    */
+   unsigned sample_map:32;
 };
 PRAGMA_DIAGNOSTIC_POP
-static_assert(sizeof(struct nvk_storage_image_descriptor) == 4,
+static_assert(sizeof(struct nvk_storage_image_descriptor) == 8,
               "nvk_storage_image_descriptor has no holes");
 
 PRAGMA_DIAGNOSTIC_PUSH
