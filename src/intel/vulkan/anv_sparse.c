@@ -794,7 +794,7 @@ anv_sparse_bind_trtt(struct anv_device *device,
 
    for (int b = 0; b < sparse_submit->binds_len && result == VK_SUCCESS; b++) {
       struct anv_vm_bind *vm_bind = &sparse_submit->binds[b];
-      for (size_t i = 0; i < vm_bind->size && result == VK_SUCCESS; i += 64 * 1024) {
+      for (uint64_t i = 0; i < vm_bind->size && result == VK_SUCCESS; i += 64 * 1024) {
          uint64_t trtt_addr = vm_bind->address + i;
          uint64_t dest_addr =
             (vm_bind->op == ANV_VM_BIND && vm_bind->bo) ?
