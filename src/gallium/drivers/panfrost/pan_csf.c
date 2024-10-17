@@ -1206,6 +1206,7 @@ GENX(csf_cleanup_context)(struct panfrost_context *ctx)
       drmIoctl(panfrost_device_fd(dev), DRM_IOCTL_PANTHOR_GROUP_DESTROY, &gd);
    assert(!ret);
 
+   panfrost_bo_unreference(ctx->csf.tmp_geom_bo);
    panfrost_bo_unreference(ctx->csf.heap.desc_bo);
    ctx->csf.is_init = false;
 }
