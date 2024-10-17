@@ -320,7 +320,7 @@ panfrost-t860-traces:arm64:
 
 
 panfrost-g52-gl:arm64:
-  parallel: 3
+  parallel: 4
   extends:
     - .lava-test-deqp:arm64
     - .panfrost-bifrost-gl-rules
