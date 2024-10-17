@@ -148,3 +148,24 @@ impl Drop for MemStream {
         }
     }
 }
+
+#[test]
+fn test_memstream() {
+    use std::ffi::CString;
+
+    let mut s = MemStream::new().unwrap();
+    let test_str = "Test string";
+    let test_c_str = CString::new(test_str).unwrap();
+    let test_bytes = test_c_str.as_bytes();
+
+    unsafe {
+        bindings::compiler_rs_fwrite(
+            test_bytes.as_ptr().cast(),
+            1,
+            test_bytes.len(),
+            s.c_file(),
+        );
+    }
+    let res = s.take_utf8_string_lossy().unwrap();
+    assert_eq!(res, test_str);
+}

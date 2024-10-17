@@ -26,3 +26,10 @@ int compiler_rs_fseek(FILE *f, long offset, int whence)
 {
    return fseek(f, offset, whence);
 }
+
+size_t compiler_rs_fwrite(const void *ptr,
+                          size_t size, size_t nmemb,
+                          FILE *stream)
+{
+   return fwrite(ptr, size, nmemb, stream);
+}
