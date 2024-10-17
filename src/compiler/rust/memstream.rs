@@ -33,7 +33,7 @@ impl MemStream {
             let stream_impl = stream_impl.as_mut().get_unchecked_mut();
             if !bindings::u_memstream_open(
                 &mut stream_impl.stream,
-                (&mut stream_impl.buffer).cast(),
+                (&mut stream_impl.buffer as *mut *mut u8).cast(),
                 &mut stream_impl.buffer_size,
             ) {
                 return Err(io::Error::last_os_error());
