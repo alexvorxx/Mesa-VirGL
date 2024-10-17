@@ -1443,6 +1443,8 @@ fail:
 static bool
 try_device(const char *path, int *fd, const char *target)
 {
+   drmVersionPtr version = NULL;
+
    *fd = open(path, O_RDWR | O_CLOEXEC);
    if (*fd < 0) {
       fprintf(stderr, "Opening %s failed: %s\n", path, strerror(errno));
@@ -1452,7 +1454,7 @@ try_device(const char *path, int *fd, const char *target)
    if (!target)
       return true;
 
-   drmVersionPtr version = drmGetVersion(*fd);
+   version = drmGetVersion(*fd);
    if (!version) {
       fprintf(stderr, "Retrieving device version failed: %s\n", strerror(errno));
       goto fail;
@@ -1461,9 +1463,11 @@ try_device(const char *path, int *fd, const char *target)
    if (strcmp(version->name, target) != 0)
       goto fail;
 
+   drmFreeVersion(version);
    return true;
 
 fail:
+   drmFreeVersion(version);
    close(*fd);
    *fd = -1;
    return false;
