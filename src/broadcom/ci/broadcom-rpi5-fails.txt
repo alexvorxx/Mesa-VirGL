@@ -414,6 +414,8 @@ spec@oes_texture_view@rendering-formats@clear GL_RGB10_A2 as GL_RGBA8I,Fail
 # Piglit OpenCL tests
 api@clbuildprogram,Fail
 api@clcompileprogram,Fail
+api@clgetcommandqueueinfo,Fail
+api@clgetdeviceinfo,Fail
 api@clgetextensionfunctionaddressforplatform,Fail
 api@clgetkernelarginfo,Fail
 api@cllinkprogram,Fail
