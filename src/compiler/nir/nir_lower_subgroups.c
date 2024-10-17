@@ -804,6 +804,16 @@ build_scan_reduce(nir_builder *b, nir_intrinsic_op op, nir_op red_op,
 }
 
 static nir_def *
+build_cluster_mask(nir_builder *b, unsigned cluster_size)
+{
+   nir_def *idx = nir_load_subgroup_invocation(b);
+   nir_def *cluster = nir_iand_imm(b, idx, ~(uint64_t)(cluster_size - 1));
+
+   nir_def *cluster_mask = nir_imm_int(b, BITFIELD_MASK(cluster_size));
+   return nir_ishl(b, cluster_mask, cluster);
+}
+
+static nir_def *
 lower_scan_reduce(nir_builder *b, nir_intrinsic_instr *intrin,
                   unsigned subgroup_size)
 {
@@ -830,12 +840,7 @@ lower_scan_reduce(nir_builder *b, nir_intrinsic_instr *intrin,
    {
       /* Mask according to the cluster size */
       if (cluster_size < subgroup_size) {
-         nir_def *idx = nir_load_subgroup_invocation(b);
-         nir_def *cluster = nir_iand_imm(b, idx, ~(uint64_t)(cluster_size - 1));
-
-         nir_def *cluster_mask = nir_imm_int(b, BITFIELD_MASK(cluster_size));
-         cluster_mask = nir_ishl(b, cluster_mask, cluster);
-
+         nir_def *cluster_mask = build_cluster_mask(b, cluster_size);
          mask = nir_iand(b, mask, cluster_mask);
       }
 
