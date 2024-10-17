@@ -104,7 +104,7 @@ nvk_copy_memory_to_image(struct nvk_image *dst,
    const struct nil_Offset4D_Pixels offset_px =
       vk_to_nil_offset(&dst->vk, info->imageOffset,
                        info->imageSubresource.baseArrayLayer);
-   const struct nil_Offset4D_Bytes offset_B =
+   struct nil_Offset4D_Bytes offset_B =
       nil_offset4d_px_to_B(offset_px, dst_plane->nil.format,
                            dst_plane->nil.sample_layout);
 
@@ -119,8 +119,10 @@ nvk_copy_memory_to_image(struct nvk_image *dst,
    if (result != VK_SUCCESS)
       return result;
 
+   /* Take into account the miplevel and array layer */
    dst_ptr += dst_level->offset_B;
    dst_ptr += offset_B.a * dst_plane->nil.array_stride_B;
+   offset_B.a = 0;
 
    if (use_memcpy) {
       const uint64_t layer_size_B =
@@ -140,21 +142,26 @@ nvk_copy_memory_to_image(struct nvk_image *dst,
                extent_B.width,
                extent_B.height);
    } else {
-      for (unsigned a = 0; a < layer_count; a++) {
-         const struct nil_Extent4D_Pixels level_extent_px =
-            nil_image_level_extent_px(&dst_plane->nil, dst_miplevel);
-         struct nil_Extent4D_Bytes level_extent_B =
-            nil_extent4d_px_to_B(level_extent_px, dst_plane->nil.format,
-                                 dst_plane->nil.sample_layout);
-         level_extent_B.array_len = 1;
+      const struct nil_Extent4D_Pixels level_extent_px =
+         nil_image_level_extent_px(&dst_plane->nil, dst_miplevel);
+      struct nil_Extent4D_Bytes level_extent_B =
+         nil_extent4d_px_to_B(level_extent_px, dst_plane->nil.format,
+                              dst_plane->nil.sample_layout);
+      level_extent_B.array_len = 1;
 
+      /* The copy works one array layer at a time */
+      assert(offset_B.a == 0);
+      struct nil_Extent4D_Bytes copy_extent_B = extent_B;
+      copy_extent_B.array_len = 1;
+
+      for (unsigned a = 0; a < layer_count; a++) {
          nil_copy_linear_to_tiled(dst_ptr,
                                   level_extent_B,
                                   src_ptr,
                                   buffer_layout.row_stride_B,
                                   buffer_layout.image_stride_B,
                                   offset_B,
-                                  extent_B,
+                                  copy_extent_B,
                                   &dst_level->tiling);
 
          src_ptr += buffer_layout.image_stride_B;
@@ -223,7 +230,7 @@ nvk_copy_image_to_memory(struct nvk_image *src,
    const struct nil_Offset4D_Pixels offset_px =
       vk_to_nil_offset(&src->vk, info->imageOffset,
                        info->imageSubresource.baseArrayLayer);
-   const struct nil_Offset4D_Bytes offset_B =
+   struct nil_Offset4D_Bytes offset_B =
       nil_offset4d_px_to_B(offset_px, src_plane->nil.format,
                            src_plane->nil.sample_layout);
 
@@ -238,8 +245,10 @@ nvk_copy_image_to_memory(struct nvk_image *src,
    if (result != VK_SUCCESS)
       return result;
 
+   /* Take into account the miplevel and array layer */
    src_ptr += src_level->offset_B;
    src_ptr += offset_B.a * src_plane->nil.array_stride_B;
+   offset_B.a = 0;
 
    if (use_memcpy) {
       const uint64_t layer_size_B =
@@ -259,21 +268,26 @@ nvk_copy_image_to_memory(struct nvk_image *src,
                extent_B.width,
                extent_B.height);
    } else {
-      for (unsigned a = 0; a < layer_count; a++) {
-         const struct nil_Extent4D_Pixels level_extent_px =
-            nil_image_level_extent_px(&src_plane->nil, src_miplevel);
-         struct nil_Extent4D_Bytes level_extent_B =
-            nil_extent4d_px_to_B(level_extent_px, src_plane->nil.format,
-                                 src_plane->nil.sample_layout);
-         level_extent_B.array_len = 1;
+      const struct nil_Extent4D_Pixels level_extent_px =
+         nil_image_level_extent_px(&src_plane->nil, src_miplevel);
+      struct nil_Extent4D_Bytes level_extent_B =
+         nil_extent4d_px_to_B(level_extent_px, src_plane->nil.format,
+                              src_plane->nil.sample_layout);
+      level_extent_B.array_len = 1;
 
+      /* The copy works one array layer at a time */
+      assert(offset_B.a == 0);
+      struct nil_Extent4D_Bytes copy_extent_B = extent_B;
+      copy_extent_B.array_len = 1;
+
+      for (unsigned a = 0; a < layer_count; a++) {
          nil_copy_tiled_to_linear(dst_ptr,
                                   buffer_layout.row_stride_B,
                                   buffer_layout.image_stride_B,
                                   src_ptr,
                                   level_extent_B,
                                   offset_B,
-                                  extent_B,
+                                  copy_extent_B,
                                   &src_level->tiling);
 
          src_ptr += src_plane->nil.array_stride_B;
@@ -376,16 +390,20 @@ nvk_copy_image_to_image(struct nvk_device *device,
    if (result != VK_SUCCESS)
       return result;
 
+   /* Take into account the miplevel and array layer */
    src_ptr += src_level->offset_B;
    src_ptr += src_offset_B.a * src_img_plane->nil.array_stride_B;
+   src_offset_B.a = 0;
 
    void *dst_ptr;
    result = nvk_image_plane_map(dst_img_plane, NVKMD_MEM_MAP_WR, &dst_ptr);
    if (result != VK_SUCCESS)
       return result;
 
+   /* Take into account the miplevel and array layer */
    dst_ptr += dst_level->offset_B;
    dst_ptr += dst_offset_B.a * dst_img_plane->nil.array_stride_B;
+   dst_offset_B.a = 0;
 
    if (src_level->tiling.gob_type == NIL_GOB_TYPE_LINEAR) {
       assert(src_img_plane->nil.dim == NIL_IMAGE_DIM_2D);
@@ -461,7 +479,11 @@ nvk_copy_image_to_image(struct nvk_device *device,
          nil_extent4d_px_to_B(src_level_extent_px, src_img_plane->nil.format,
                               src_img_plane->nil.sample_layout);
       src_level_extent_B.array_len = 1;
-      src_extent_B.array_len = 1;
+
+      /* The copy works one array layer at a time */
+      assert(src_offset_B.a == 0);
+      struct nil_Extent4D_Bytes src_copy_extent_B = src_extent_B;
+      src_copy_extent_B.array_len = 1;
 
       void *tmp_dst = tmp_mem;
       for (unsigned a = 0; a < src_layer_count; a++) {
@@ -471,7 +493,7 @@ nvk_copy_image_to_image(struct nvk_device *device,
                                   src_ptr,
                                   src_level_extent_B,
                                   src_offset_B,
-                                  src_extent_B,
+                                  src_copy_extent_B,
                                   &src_level->tiling);
 
          src_ptr += src_img_plane->nil.array_stride_B;
@@ -484,7 +506,11 @@ nvk_copy_image_to_image(struct nvk_device *device,
          nil_extent4d_px_to_B(dst_level_extent_px, dst_img_plane->nil.format,
                               dst_img_plane->nil.sample_layout);
       dst_level_extent_B.array_len = 1;
-      dst_extent_B.array_len = 1;
+
+      /* The copy works one array layer at a time */
+      assert(dst_offset_B.a == 0);
+      struct nil_Extent4D_Bytes dst_copy_extent_B = dst_extent_B;
+      dst_copy_extent_B.array_len = 1;
 
       void *tmp_src = tmp_mem;
       for (unsigned a = 0; a < dst_layer_count; a++) {
@@ -494,7 +520,7 @@ nvk_copy_image_to_image(struct nvk_device *device,
                                   tmp_row_stride_B,
                                   tmp_layer_stride_B,
                                   dst_offset_B,
-                                  dst_extent_B,
+                                  dst_copy_extent_B,
                                   &dst_level->tiling);
 
          tmp_src += tmp_layer_stride_B;
