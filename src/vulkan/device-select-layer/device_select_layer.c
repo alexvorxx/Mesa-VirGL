@@ -146,13 +146,16 @@ static VkResult device_select_CreateInstance(const VkInstanceCreateInfo *pCreate
    info->xwayland = !strcmp(applicationName, "Xwayland");
    info->xserver = !strcmp(applicationName, "Xorg") || !strcmp(applicationName, "Xephyr");
 
+   bool has_wayland = getenv("WAYLAND_DISPLAY") || getenv("WAYLAND_SOCKET");
+   bool has_xcb = !!getenv("DISPLAY");
+
    for (unsigned i = 0; i < pCreateInfo->enabledExtensionCount; i++) {
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
-      if (!strcmp(pCreateInfo->ppEnabledExtensionNames[i], VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME))
+      if (!strcmp(pCreateInfo->ppEnabledExtensionNames[i], VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME) && has_wayland)
          info->has_wayland = true;
 #endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
-      if (!strcmp(pCreateInfo->ppEnabledExtensionNames[i], VK_KHR_XCB_SURFACE_EXTENSION_NAME))
+      if (!strcmp(pCreateInfo->ppEnabledExtensionNames[i], VK_KHR_XCB_SURFACE_EXTENSION_NAME) && has_xcb)
          info->has_xcb = !info->xserver || !info->zink;
 #endif
    }
