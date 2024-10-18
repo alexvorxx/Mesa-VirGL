@@ -11,6 +11,7 @@ CROSS_FILE=/cross_file-"$CROSS".txt
 
 # Delete unused bin and includes from artifacts to save space.
 rm -rf install/bin install/include
+rm -f install/lib/*.a
 
 # Strip the drivers in the artifacts to cut 80% of the artifacts size.
 if [ -n "$CROSS" ]; then
