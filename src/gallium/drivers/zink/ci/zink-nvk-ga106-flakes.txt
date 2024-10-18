@@ -12,6 +12,8 @@ KHR-GL46.packed_pixels.varied_rectangle.rgba32i
 KHR-GL46.texture_buffer.texture_buffer_max_size
 KHR-GL46.texture_swizzle.smoke
 
+dEQP-GLES2.functional.shaders.random.comparison_ops.vertex.36
+dEQP-GLES2.functional.shaders.random.comparison_ops.vertex.43
 dEQP-GLES3.functional.buffer.map.read_write.usage_hints.pixel_unpack_dynamic_read
 dEQP-GLES3.functional.shaders.builtin_variable.max_vertex_uniform_vectors_fragment
 dEQP-GLES3.functional.shaders.indexing.matrix_subscript.mat2_dynamic_loop_write_static_loop_read_vertex
