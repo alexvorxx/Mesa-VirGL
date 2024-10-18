@@ -36,10 +36,6 @@ dEQP-GLES3.functional.fbo.color.repeated_clear.sample.tex2d.rgba8,Fail
 dEQP-GLES3.functional.fbo.color.repeated_clear.sample.tex2d.rgba8i,Fail
 dEQP-GLES3.functional.fbo.color.repeated_clear.sample.tex2d.rgba8ui,Fail
 dEQP-GLES3.functional.fbo.color.repeated_clear.sample.tex2d.srgb8_alpha8,Fail
-dEQP-GLES3.functional.fbo.depth.depth_test_clamp.depth32f_stencil8,Fail
-dEQP-GLES3.functional.fbo.depth.depth_test_clamp.depth_component32f,Fail
-dEQP-GLES3.functional.fbo.depth.depth_write_clamp.depth32f_stencil8,Fail
-dEQP-GLES3.functional.fbo.depth.depth_write_clamp.depth_component32f,Fail
 dEQP-GLES31.functional.shaders.multisample_interpolation.interpolate_at_sample.non_multisample_buffer.sample_n_default_framebuffer,Fail
 dEQP-GLES31.functional.shaders.multisample_interpolation.interpolate_at_sample.non_multisample_buffer.sample_n_singlesample_rbo,Fail
 dEQP-GLES31.functional.shaders.multisample_interpolation.interpolate_at_sample.non_multisample_buffer.sample_n_singlesample_texture,Fail
