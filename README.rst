@@ -15,7 +15,7 @@ Build
 
 Go to the folder with Mesa code and run the commands:
 
-  $ meson . build -Dgallium-va=disabled -Dgallium-drivers=virgl -Ddri3=disabled -Dvulkan-drivers= -Dglx=xlib -Dplatforms=x11 -Dbuildtype=release
+  $ meson . build -Dgallium-va=disabled -Dgallium-drivers=virgl -Dvulkan-drivers= -Dglx=xlib -Dplatforms=x11 -Dbuildtype=release
  
   $ ninja -C build
 
